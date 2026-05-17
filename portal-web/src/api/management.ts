@@ -1,0 +1,531 @@
+import { requestJson, type ApiResponse } from './client';
+
+export interface DepartmentView {
+  name: string;
+  parent: string;
+  lead: string;
+  members: number;
+  status: string;
+}
+
+export interface UserView {
+  username: string;
+  display_name: string;
+  email: string;
+  role: string;
+  department: string;
+  status: string;
+  last_seen: string;
+}
+
+export interface RoleView {
+  code: string;
+  name: string;
+  scope_type: string;
+  status: string;
+  description: string;
+}
+
+export interface ProjectView {
+  name: string;
+  department: string;
+  owner: string;
+  apps: number;
+  status: string;
+}
+
+export interface ApplicationView {
+  name: string;
+  type: string;
+  owner: string;
+  version: string;
+  status: string;
+}
+
+export interface EnvironmentView {
+  name: string;
+  cluster: string;
+  endpoint: string;
+  status: string;
+}
+
+export interface IntegrationView {
+  key: string;
+  name: string;
+  category: string;
+  scope: string;
+  status: string;
+}
+
+export interface AuditLogView {
+  time: string;
+  actor: string;
+  action: string;
+  target: string;
+  result: string;
+}
+
+export interface SettingView {
+  key: string;
+  name: string;
+  value: string;
+  scope: string;
+  status: string;
+}
+
+export interface ScopedUserRoleView {
+  username: string;
+  display_name: string;
+  role: string;
+  scope_type: string;
+  status: string;
+}
+
+export interface ProjectMemberView {
+  username: string;
+  display_name: string;
+  role: string;
+  member_type: string;
+  status: string;
+}
+
+export interface UpdateDepartmentPayload {
+  name?: string;
+}
+
+export interface UpdateUserPayload {
+  display_name?: string;
+  email?: string;
+}
+
+export interface UpdateProjectPayload {
+  name?: string;
+  sensitivity_level?: string;
+  allow_public_model?: boolean;
+}
+
+export interface UpdateApplicationPayload {
+  name?: string;
+  app_type?: string;
+  default_web_url?: string;
+  default_api_base_url?: string;
+  sensitivity_level?: string;
+  allow_public_model?: boolean;
+}
+
+export interface UpdateEnvironmentPayload {
+  name?: string;
+  env_type?: string;
+  web_url?: string;
+  api_base_url?: string;
+}
+
+export interface CreateIntegrationPayload {
+  code?: string;
+  name: string;
+  category?: string;
+  scope?: string;
+}
+
+export interface UpdateIntegrationPayload {
+  name?: string;
+  category?: string;
+  scope?: string;
+}
+
+export interface CreateSettingPayload {
+  key: string;
+  name?: string;
+  value: string;
+  scope_type?: string;
+}
+
+export interface UpdateSettingPayload {
+  name?: string;
+  value?: string;
+  scope_type?: string;
+}
+
+export interface ManagementData {
+  departments: DepartmentView[];
+  users: UserView[];
+  roles: RoleView[];
+  projects: ProjectView[];
+  applications: ApplicationView[];
+  environments: EnvironmentView[];
+  integrations: IntegrationView[];
+  auditLogs: AuditLogView[];
+  settings: SettingView[];
+}
+
+export type CreatableManagementResource = 'departments' | 'users' | 'projects' | 'applications' | 'environments';
+
+const endpoints = {
+  departments: '/api/v1/management/departments',
+  users: '/api/v1/management/users',
+  roles: '/api/v1/management/roles',
+  projects: '/api/v1/management/projects',
+  applications: '/api/v1/management/applications',
+  environments: '/api/v1/management/environments',
+  integrations: '/api/v1/management/integrations',
+  auditLogs: '/api/v1/management/audit-logs',
+  settings: '/api/v1/management/settings'
+} as const;
+
+export interface PageResponse<T> {
+  items: T[];
+  page: number;
+  page_size: number;
+  total: number;
+}
+
+type ReadPermission =
+  | 'department:read'
+  | 'user:read'
+  | 'role:read'
+  | 'project:read'
+  | 'application:read'
+  | 'environment:read'
+  | 'config:read'
+  | 'audit:read';
+
+function canRead(permissions: string[] | undefined, permission: ReadPermission) {
+  return permissions === undefined || permissions.includes(permission);
+}
+
+function skippedPage<T>(): Promise<ApiResponse<PageResponse<T>>> {
+  return Promise.resolve({
+    code: 'OK',
+    message: 'skipped',
+    trace_id: '',
+    data: {
+      items: [],
+      page: 1,
+      page_size: 20,
+      total: 0
+    }
+  });
+}
+
+export async function fetchManagementData(permissions?: string[]): Promise<{ traceId: string; data: ManagementData }> {
+  const [
+    departments,
+    users,
+    roles,
+    projects,
+    applications,
+    environments,
+    integrations,
+    auditLogs,
+    settings
+  ] = await Promise.all([
+    canRead(permissions, 'department:read') ? requestJson<PageResponse<DepartmentView>>(endpoints.departments) : skippedPage<DepartmentView>(),
+    canRead(permissions, 'user:read') ? requestJson<PageResponse<UserView>>(endpoints.users) : skippedPage<UserView>(),
+    canRead(permissions, 'role:read') ? requestJson<PageResponse<RoleView>>(endpoints.roles) : skippedPage<RoleView>(),
+    canRead(permissions, 'project:read') ? requestJson<PageResponse<ProjectView>>(endpoints.projects) : skippedPage<ProjectView>(),
+    canRead(permissions, 'application:read') ? requestJson<PageResponse<ApplicationView>>(endpoints.applications) : skippedPage<ApplicationView>(),
+    canRead(permissions, 'environment:read') ? requestJson<PageResponse<EnvironmentView>>(endpoints.environments) : skippedPage<EnvironmentView>(),
+    canRead(permissions, 'config:read') ? requestJson<PageResponse<IntegrationView>>(endpoints.integrations) : skippedPage<IntegrationView>(),
+    canRead(permissions, 'audit:read') ? requestJson<PageResponse<AuditLogView>>(endpoints.auditLogs) : skippedPage<AuditLogView>(),
+    canRead(permissions, 'config:read') ? requestJson<PageResponse<SettingView>>(endpoints.settings) : skippedPage<SettingView>()
+  ]);
+
+  return {
+    traceId: [
+      departments,
+      users,
+      roles,
+      projects,
+      applications,
+      environments,
+      integrations,
+      auditLogs,
+      settings
+    ].find((response) => response.trace_id)?.trace_id ?? '',
+    data: {
+      departments: departments.data.items,
+      users: users.data.items,
+      roles: roles.data.items,
+      projects: projects.data.items,
+      applications: applications.data.items,
+      environments: environments.data.items,
+      integrations: integrations.data.items,
+      auditLogs: auditLogs.data.items,
+      settings: settings.data.items
+    }
+  };
+}
+
+export function createManagementItem<T>(
+  resource: CreatableManagementResource,
+  name: string
+): Promise<ApiResponse<T>> {
+  return requestJson<T>(endpoints[resource], {
+    method: 'POST',
+    body: JSON.stringify({ name })
+  });
+}
+
+export function fetchDepartment(departmentKey: string): Promise<ApiResponse<DepartmentView>> {
+  return requestJson<DepartmentView>(`/api/v1/management/departments/${encodeURIComponent(departmentKey)}`);
+}
+
+export function updateDepartment(departmentKey: string, payload: UpdateDepartmentPayload): Promise<ApiResponse<DepartmentView>> {
+  return requestJson<DepartmentView>(`/api/v1/management/departments/${encodeURIComponent(departmentKey)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload)
+  });
+}
+
+export function changeDepartmentStatus(departmentKey: string, status: string): Promise<ApiResponse<DepartmentView>> {
+  return requestJson<DepartmentView>(`/api/v1/management/departments/${encodeURIComponent(departmentKey)}/status`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status })
+  });
+}
+
+export function enableUser(username: string): Promise<ApiResponse<UserView>> {
+  return requestJson<UserView>(`/api/v1/management/users/${encodeURIComponent(username)}/enable`, {
+    method: 'POST'
+  });
+}
+
+export function fetchUser(username: string): Promise<ApiResponse<UserView>> {
+  return requestJson<UserView>(`/api/v1/management/users/${encodeURIComponent(username)}`);
+}
+
+export function updateUser(username: string, payload: UpdateUserPayload): Promise<ApiResponse<UserView>> {
+  return requestJson<UserView>(`/api/v1/management/users/${encodeURIComponent(username)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload)
+  });
+}
+
+export function disableUser(username: string): Promise<ApiResponse<UserView>> {
+  return requestJson<UserView>(`/api/v1/management/users/${encodeURIComponent(username)}/disable`, {
+    method: 'POST'
+  });
+}
+
+export function lockUser(username: string): Promise<ApiResponse<UserView>> {
+  return requestJson<UserView>(`/api/v1/management/users/${encodeURIComponent(username)}/lock`, {
+    method: 'POST'
+  });
+}
+
+export function unlockUser(username: string): Promise<ApiResponse<UserView>> {
+  return requestJson<UserView>(`/api/v1/management/users/${encodeURIComponent(username)}/unlock`, {
+    method: 'POST'
+  });
+}
+
+export function resetUserPassword(username: string, newPassword: string): Promise<ApiResponse<UserView>> {
+  return requestJson<UserView>(`/api/v1/management/users/${encodeURIComponent(username)}/reset-password`, {
+    method: 'POST',
+    body: JSON.stringify({ new_password: newPassword })
+  });
+}
+
+export function assignUserRole(username: string, roleCode: string): Promise<ApiResponse<UserView>> {
+  return requestJson<UserView>(`/api/v1/management/users/${encodeURIComponent(username)}/roles`, {
+    method: 'POST',
+    body: JSON.stringify({ role_code: roleCode })
+  });
+}
+
+export function unassignUserRole(username: string, roleCode: string): Promise<ApiResponse<UserView>> {
+  return requestJson<UserView>(`/api/v1/management/users/${encodeURIComponent(username)}/roles/unassign`, {
+    method: 'POST',
+    body: JSON.stringify({ role_code: roleCode })
+  });
+}
+
+export function fetchProjectMembers(projectKey: string): Promise<ApiResponse<PageResponse<ProjectMemberView>>> {
+  return requestJson<PageResponse<ProjectMemberView>>(
+    `/api/v1/management/projects/${encodeURIComponent(projectKey)}/members`
+  );
+}
+
+export function addProjectMember(
+  projectKey: string,
+  username: string,
+  roleCode: string
+): Promise<ApiResponse<ProjectMemberView>> {
+  return requestJson<ProjectMemberView>(`/api/v1/management/projects/${encodeURIComponent(projectKey)}/members`, {
+    method: 'POST',
+    body: JSON.stringify({ username, role_code: roleCode })
+  });
+}
+
+export function removeProjectMember(
+  projectKey: string,
+  username: string
+): Promise<ApiResponse<ProjectMemberView>> {
+  return requestJson<ProjectMemberView>(
+    `/api/v1/management/projects/${encodeURIComponent(projectKey)}/members/${encodeURIComponent(username)}/remove`,
+    { method: 'POST' }
+  );
+}
+
+export function fetchProject(projectKey: string): Promise<ApiResponse<ProjectView>> {
+  return requestJson<ProjectView>(`/api/v1/management/projects/${encodeURIComponent(projectKey)}`);
+}
+
+export function updateProject(projectKey: string, payload: UpdateProjectPayload): Promise<ApiResponse<ProjectView>> {
+  return requestJson<ProjectView>(`/api/v1/management/projects/${encodeURIComponent(projectKey)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload)
+  });
+}
+
+export function changeProjectStatus(projectKey: string, status: string): Promise<ApiResponse<ProjectView>> {
+  return requestJson<ProjectView>(`/api/v1/management/projects/${encodeURIComponent(projectKey)}/status`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status })
+  });
+}
+
+export function fetchApplicationOwners(applicationKey: string): Promise<ApiResponse<PageResponse<ScopedUserRoleView>>> {
+  return requestJson<PageResponse<ScopedUserRoleView>>(
+    `/api/v1/management/applications/${encodeURIComponent(applicationKey)}/owners`
+  );
+}
+
+export function addApplicationOwner(
+  applicationKey: string,
+  username: string
+): Promise<ApiResponse<ScopedUserRoleView>> {
+  return requestJson<ScopedUserRoleView>(`/api/v1/management/applications/${encodeURIComponent(applicationKey)}/owners`, {
+    method: 'POST',
+    body: JSON.stringify({ username, role_code: 'AppOwner' })
+  });
+}
+
+export function removeApplicationOwner(
+  applicationKey: string,
+  username: string
+): Promise<ApiResponse<ScopedUserRoleView>> {
+  return requestJson<ScopedUserRoleView>(
+    `/api/v1/management/applications/${encodeURIComponent(applicationKey)}/owners/${encodeURIComponent(username)}/remove`,
+    { method: 'POST' }
+  );
+}
+
+export function fetchApplication(applicationKey: string): Promise<ApiResponse<ApplicationView>> {
+  return requestJson<ApplicationView>(`/api/v1/management/applications/${encodeURIComponent(applicationKey)}`);
+}
+
+export function updateApplication(applicationKey: string, payload: UpdateApplicationPayload): Promise<ApiResponse<ApplicationView>> {
+  return requestJson<ApplicationView>(`/api/v1/management/applications/${encodeURIComponent(applicationKey)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload)
+  });
+}
+
+export function changeApplicationStatus(applicationKey: string, status: string): Promise<ApiResponse<ApplicationView>> {
+  return requestJson<ApplicationView>(`/api/v1/management/applications/${encodeURIComponent(applicationKey)}/status`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status })
+  });
+}
+
+export function fetchEnvironmentUsers(environmentKey: string): Promise<ApiResponse<PageResponse<ScopedUserRoleView>>> {
+  return requestJson<PageResponse<ScopedUserRoleView>>(
+    `/api/v1/management/environments/${encodeURIComponent(environmentKey)}/users`
+  );
+}
+
+export function fetchEnvironment(environmentKey: string): Promise<ApiResponse<EnvironmentView>> {
+  return requestJson<EnvironmentView>(`/api/v1/management/environments/${encodeURIComponent(environmentKey)}`);
+}
+
+export function updateEnvironment(environmentKey: string, payload: UpdateEnvironmentPayload): Promise<ApiResponse<EnvironmentView>> {
+  return requestJson<EnvironmentView>(`/api/v1/management/environments/${encodeURIComponent(environmentKey)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload)
+  });
+}
+
+export function changeEnvironmentStatus(environmentKey: string, status: string): Promise<ApiResponse<EnvironmentView>> {
+  return requestJson<EnvironmentView>(`/api/v1/management/environments/${encodeURIComponent(environmentKey)}/status`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status })
+  });
+}
+
+export function addEnvironmentUser(
+  environmentKey: string,
+  username: string,
+  roleCode: string
+): Promise<ApiResponse<ScopedUserRoleView>> {
+  return requestJson<ScopedUserRoleView>(`/api/v1/management/environments/${encodeURIComponent(environmentKey)}/users`, {
+    method: 'POST',
+    body: JSON.stringify({ username, role_code: roleCode })
+  });
+}
+
+export function removeEnvironmentUser(
+  environmentKey: string,
+  username: string
+): Promise<ApiResponse<ScopedUserRoleView>> {
+  return requestJson<ScopedUserRoleView>(
+    `/api/v1/management/environments/${encodeURIComponent(environmentKey)}/users/${encodeURIComponent(username)}/remove`,
+    { method: 'POST' }
+  );
+}
+
+export function createIntegration(payload: CreateIntegrationPayload): Promise<ApiResponse<IntegrationView>> {
+  return requestJson<IntegrationView>(endpoints.integrations, {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+}
+
+export function fetchIntegration(integrationKey: string): Promise<ApiResponse<IntegrationView>> {
+  return requestJson<IntegrationView>(`/api/v1/management/integrations/${encodeURIComponent(integrationKey)}`);
+}
+
+export function updateIntegration(
+  integrationKey: string,
+  payload: UpdateIntegrationPayload
+): Promise<ApiResponse<IntegrationView>> {
+  return requestJson<IntegrationView>(`/api/v1/management/integrations/${encodeURIComponent(integrationKey)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload)
+  });
+}
+
+export function changeIntegrationStatus(integrationKey: string, status: string): Promise<ApiResponse<IntegrationView>> {
+  return requestJson<IntegrationView>(`/api/v1/management/integrations/${encodeURIComponent(integrationKey)}/status`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status })
+  });
+}
+
+export function createSetting(payload: CreateSettingPayload): Promise<ApiResponse<SettingView>> {
+  return requestJson<SettingView>(endpoints.settings, {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+}
+
+export function fetchSetting(settingKey: string): Promise<ApiResponse<SettingView>> {
+  return requestJson<SettingView>(`/api/v1/management/settings/${encodeURIComponent(settingKey)}`);
+}
+
+export function updateSetting(
+  settingKey: string,
+  payload: UpdateSettingPayload
+): Promise<ApiResponse<SettingView>> {
+  return requestJson<SettingView>(`/api/v1/management/settings/${encodeURIComponent(settingKey)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload)
+  });
+}
+
+export function changeSettingStatus(settingKey: string, status: string): Promise<ApiResponse<SettingView>> {
+  return requestJson<SettingView>(`/api/v1/management/settings/${encodeURIComponent(settingKey)}/status`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status })
+  });
+}

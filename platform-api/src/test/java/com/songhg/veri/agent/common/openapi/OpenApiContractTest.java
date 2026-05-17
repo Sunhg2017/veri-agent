@@ -1,0 +1,139 @@
+package com.songhg.veri.agent.common.openapi;
+
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.MediaType;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
+
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.containsString;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+@SpringBootTest(properties = {
+        "veri-agent.bootstrap.token=init-token",
+        "veri-agent.auth.token-secret=test-auth-secret"
+})
+@AutoConfigureMockMvc
+class OpenApiContractTest {
+
+    @Autowired
+    private MockMvc mockMvc;
+
+    @Test
+    void exposesWp1ControlPlaneContractWithBearerSecurity() throws Exception {
+        MvcResult result = mockMvc.perform(get("/v3/api-docs"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.info.title").value("Veri Agent WP1 Platform API"))
+                .andExpect(jsonPath("$.info.version").value("0.1.0"))
+                .andExpect(jsonPath("$.components.securitySchemes.bearerAuth.type").value("http"))
+                .andExpect(jsonPath("$.components.securitySchemes.bearerAuth.scheme").value("bearer"))
+                .andExpect(jsonPath("$.paths['/api/v1/bootstrap/super-admin'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/auth/login'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/auth/refresh'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/auth/logout'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/auth/change-password'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/auth/me'].get").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/management/users'].get").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/management/users'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/management/users/{username}'].get").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/management/users/{username}'].patch").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/management/users/{username}/enable'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/management/users/{username}/disable'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/management/users/{username}/reset-password'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/management/users/{username}/roles'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/management/users/{username}/roles/unassign'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/management/roles'].get").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/management/departments'].get").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/management/departments/{key}'].get").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/management/departments/{key}'].patch").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/management/departments/{key}/status'].patch").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/management/projects'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/management/projects/{key}'].get").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/management/projects/{key}'].patch").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/management/projects/{key}/status'].patch").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/management/projects/{key}/members'].get").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/management/projects/{key}/members'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/management/projects/{key}/members/{username}/remove'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/management/applications/{key}'].get").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/management/applications/{key}'].patch").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/management/applications/{key}/status'].patch").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/management/applications/{key}/owners'].get").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/management/applications/{key}/owners'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/management/applications/{key}/owners/{username}/remove'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/management/environments/{key}'].get").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/management/environments/{key}'].patch").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/management/environments/{key}/status'].patch").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/management/environments/{key}/users'].get").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/management/environments/{key}/users'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/management/environments/{key}/users/{username}/remove'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/management/integrations'].get").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/management/integrations'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/management/integrations/{key}'].get").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/management/integrations/{key}'].patch").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/management/integrations/{key}/status'].patch").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/management/settings'].get").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/management/settings'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/management/settings/{key}'].get").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/management/settings/{key}'].patch").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/management/settings/{key}/status'].patch").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/management/audit-logs'].get").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/contexts/projects/{projectId}'].get").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/contexts/applications/{applicationId}'].get").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/audit/events'].post").exists())
+                .andReturn();
+
+        Path output = Path.of("..", "build", "openapi", "wp1-v1.json").normalize();
+        Files.createDirectories(output.getParent());
+        Files.writeString(output, result.getResponse().getContentAsString(), StandardCharsets.UTF_8);
+    }
+
+    @Test
+    void generatedContractDoesNotReintroduceLegacyInstanceBoundary() throws Exception {
+        MvcResult result = mockMvc.perform(get("/v3/api-docs"))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        String openApi = result.getResponse().getContentAsString();
+        org.hamcrest.MatcherAssert.assertThat(openApi, not(containsString("/tenants")));
+        org.hamcrest.MatcherAssert.assertThat(openApi, not(containsString("tenant_id")));
+        org.hamcrest.MatcherAssert.assertThat(openApi, not(containsString("base_tenant")));
+        org.hamcrest.MatcherAssert.assertThat(openApi, not(containsString("TenantAdmin")));
+    }
+
+    @Test
+    void successfulPagedResponsesUseStandardEnvelopeAndPageShape() throws Exception {
+        mockMvc.perform(get("/api/v1/examples/paged"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value("OK"))
+                .andExpect(jsonPath("$.message").value("success"))
+                .andExpect(jsonPath("$.trace_id").isString())
+                .andExpect(jsonPath("$.data.items").isArray())
+                .andExpect(jsonPath("$.data.page").isNumber())
+                .andExpect(jsonPath("$.data.page_size").isNumber())
+                .andExpect(jsonPath("$.data.total").isNumber());
+    }
+
+    @Test
+    void validationErrorsUseStandardEnvelopeAndFieldErrorShape() throws Exception {
+        mockMvc.perform(post("/api/v1/bootstrap/super-admin")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.message").value("请求字段校验失败"))
+                .andExpect(jsonPath("$.trace_id").isString())
+                .andExpect(jsonPath("$.data.field_errors").isArray())
+                .andExpect(jsonPath("$.data.field_errors[0].field").isString())
+                .andExpect(jsonPath("$.data.field_errors[0].reason").isString());
+    }
+}

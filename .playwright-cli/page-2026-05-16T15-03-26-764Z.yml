@@ -1,0 +1,80 @@
+- generic [ref=e3]:
+  - complementary "主导航" [ref=e4]:
+    - generic [ref=e5]:
+      - generic [ref=e6]: VA
+      - generic [ref=e7]:
+        - generic [ref=e8]: Veri Agent
+        - generic [ref=e9]: 测试平台控制台
+    - navigation [ref=e10]:
+      - link "初始化" [ref=e11] [cursor=pointer]:
+        - /url: "#bootstrap"
+        - img [ref=e12]
+        - text: 初始化
+      - generic [ref=e17]:
+        - img [ref=e18]
+        - text: 租户与组织
+      - generic [ref=e22]:
+        - img [ref=e23]
+        - text: 权限中心
+      - generic [ref=e26]:
+        - img [ref=e27]
+        - text: 项目与环境
+  - main [ref=e30]:
+    - generic [ref=e31]:
+      - generic [ref=e32]:
+        - heading "平台初始化" [level=1] [ref=e33]
+        - paragraph [ref=e34]: 创建首个 SuperAdmin，建立后续租户、权限和审计治理入口。
+      - generic [ref=e35]:
+        - img [ref=e36]
+        - generic [ref=e38]: 检查服务中
+    - generic [ref=e39]:
+      - generic [ref=e40]:
+        - generic [ref=e41]:
+          - img [ref=e43]
+          - generic [ref=e55]:
+            - heading "超级管理员初始化" [level=2] [ref=e56]
+            - paragraph [ref=e57]: 初始化入口只应在系统首次部署时使用，成功后重复提交会被后端拒绝。
+        - generic [ref=e58]:
+          - generic [ref=e59]:
+            - generic [ref=e60]: 初始化令牌*
+            - textbox "初始化令牌*" [ref=e61]:
+              - /placeholder: 输入 WP1_BOOTSTRAP_TOKEN
+          - generic [ref=e62]:
+            - generic [ref=e63]: 登录账号*
+            - textbox "登录账号*" [ref=e64]:
+              - /placeholder: admin_user
+          - generic [ref=e65]:
+            - generic [ref=e66]: 初始密码*
+            - textbox "初始密码*" [ref=e67]:
+              - /placeholder: 至少 10 位
+          - generic [ref=e68]:
+            - generic [ref=e69]: 显示名称*
+            - textbox "显示名称*" [ref=e70]:
+              - /placeholder: 平台管理员
+          - generic [ref=e71]:
+            - generic [ref=e72]: 邮箱
+            - textbox "邮箱" [ref=e73]:
+              - /placeholder: admin@example.com
+          - generic [ref=e74]:
+            - button "创建 SuperAdmin" [disabled] [ref=e75]:
+              - img [ref=e76]
+              - text: 创建 SuperAdmin
+            - generic [ref=e79]: 初始化令牌不能为空
+      - complementary [ref=e80]:
+        - heading "当前准入状态" [level=2] [ref=e81]
+        - generic [ref=e82]:
+          - generic [ref=e83]:
+            - generic [ref=e84]: 后端健康检查
+            - strong [ref=e85]: 检查中
+          - generic [ref=e86]:
+            - generic [ref=e87]: 服务名称
+            - strong [ref=e88]: platform-api
+          - generic [ref=e89]:
+            - generic [ref=e90]: Trace ID
+            - strong [ref=e91]: 等待响应
+        - heading "后续页面" [level=2] [ref=e93]
+        - generic [ref=e94]:
+          - generic [ref=e95]: 租户创建与管理员绑定
+          - generic [ref=e96]: 部门树与用户管理
+          - generic [ref=e97]: 角色绑定与菜单权限
+          - generic [ref=e98]: 项目、应用、环境配置

@@ -1,0 +1,34 @@
+name: WP1 Database Validation
+
+on:
+  pull_request:
+    paths:
+      - "db/**"
+      - ".github/workflows/wp1-database-validation.yml"
+  push:
+    branches:
+      - main
+      - master
+    paths:
+      - "db/**"
+      - ".github/workflows/wp1-database-validation.yml"
+  workflow_dispatch:
+
+jobs:
+  wp1-database-validation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run WP1 migration and validation
+        run: bash db/validation/run_wp1_db_validation.sh
+
+      - name: Upload validation logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wp1-db-validation-logs
+          path: build/wp1-db-validation/
+          if-no-files-found: warn

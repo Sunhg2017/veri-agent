@@ -1,0 +1,132 @@
+- generic [ref=e3]:
+  - complementary "主导航" [ref=e4]:
+    - generic [ref=e5]:
+      - generic [ref=e6]: VA
+      - generic [ref=e7]:
+        - generic [ref=e8]: Veri Agent
+        - generic [ref=e9]: 测试平台控制台
+    - navigation "WP1 页面" [ref=e10]:
+      - button "系统概览" [ref=e11] [cursor=pointer]:
+        - img [ref=e12]
+        - generic [ref=e17]: 系统概览
+      - button "组织部门" [ref=e18] [cursor=pointer]:
+        - img [ref=e19]
+        - generic [ref=e23]: 组织部门
+      - button "用户与权限" [ref=e24] [cursor=pointer]:
+        - img [ref=e25]
+        - generic [ref=e29]: 用户与权限
+      - button "项目空间" [ref=e30] [cursor=pointer]:
+        - img [ref=e31]
+        - generic [ref=e36]: 项目空间
+      - button "应用管理" [ref=e37] [cursor=pointer]:
+        - img [ref=e38]
+        - generic [ref=e40]: 应用管理
+      - button "环境管理" [ref=e41] [cursor=pointer]:
+        - img [ref=e42]
+        - generic [ref=e53]: 环境管理
+      - button "集成配置" [ref=e54] [cursor=pointer]:
+        - img [ref=e55]
+        - generic [ref=e58]: 集成配置
+      - button "审计日志" [ref=e59] [cursor=pointer]:
+        - img [ref=e60]
+        - generic [ref=e63]: 审计日志
+      - button "系统设置" [ref=e64] [cursor=pointer]:
+        - img [ref=e65]
+        - generic [ref=e68]: 系统设置
+  - main [ref=e69]:
+    - generic [ref=e70]:
+      - generic [ref=e71]:
+        - heading "平台初始化" [level=1] [ref=e72]
+        - paragraph [ref=e73]: 创建首个 SuperAdmin，确认后端健康状态，建立 WP1 管理后台入口。
+      - generic [ref=e74]:
+        - generic [ref=e75]:
+          - img [ref=e76]
+          - generic [ref=e78]: 检查服务中
+        - generic [ref=e79]:
+          - generic [ref=e80]:
+            - generic [ref=e81]: 账号
+            - textbox "账号" [ref=e82]:
+              - /placeholder: admin_user
+          - generic [ref=e83]:
+            - generic [ref=e84]: 密码
+            - textbox "密码" [ref=e85]:
+              - /placeholder: 初始化密码
+          - button "登录" [ref=e86] [cursor=pointer]:
+            - img [ref=e87]
+    - generic [ref=e90]:
+      - region "平台摘要" [ref=e91]:
+        - generic [ref=e92]:
+          - img [ref=e94]
+          - generic [ref=e98]:
+            - text: 部门
+            - strong [ref=e99]: "8"
+            - paragraph [ref=e100]: 6 个启用，2 个待确认
+        - generic [ref=e101]:
+          - img [ref=e103]
+          - generic [ref=e108]:
+            - text: 项目空间
+            - strong [ref=e109]: "28"
+            - paragraph [ref=e110]: 19 个活跃空间
+        - generic [ref=e111]:
+          - img [ref=e113]
+          - generic [ref=e116]:
+            - text: 集成
+            - strong [ref=e117]: "6"
+            - paragraph [ref=e118]: 4 个已连接
+        - generic [ref=e119]:
+          - img [ref=e121]
+          - generic [ref=e124]:
+            - text: 审计事件
+            - strong [ref=e125]: 1,284
+            - paragraph [ref=e126]: 近 30 天
+      - generic [ref=e127]:
+        - generic [ref=e128]:
+          - generic [ref=e129]:
+            - img [ref=e131]
+            - generic [ref=e143]:
+              - heading "超级管理员初始化" [level=2] [ref=e144]
+              - paragraph [ref=e145]: 初始化入口只应在系统首次部署时使用，成功后重复提交会被后端拒绝。
+          - generic [ref=e146]:
+            - generic [ref=e147]:
+              - generic [ref=e148]: 初始化令牌*
+              - textbox "初始化令牌*" [ref=e149]:
+                - /placeholder: 输入 WP1_BOOTSTRAP_TOKEN
+            - generic [ref=e150]:
+              - generic [ref=e151]: 登录账号*
+              - textbox "登录账号*" [ref=e152]:
+                - /placeholder: admin_user
+            - generic [ref=e153]:
+              - generic [ref=e154]: 初始密码*
+              - textbox "初始密码*" [ref=e155]:
+                - /placeholder: 至少 10 位
+            - generic [ref=e156]:
+              - generic [ref=e157]: 显示名称*
+              - textbox "显示名称*" [ref=e158]:
+                - /placeholder: 平台管理员
+            - generic [ref=e159]:
+              - generic [ref=e160]: 邮箱
+              - textbox "邮箱" [ref=e161]:
+                - /placeholder: admin@example.com
+            - generic [ref=e162]:
+              - button "创建 SuperAdmin" [disabled] [ref=e163]:
+                - img [ref=e164]
+                - text: 创建 SuperAdmin
+              - generic [ref=e167]: 初始化令牌不能为空
+        - complementary [ref=e168]:
+          - heading "当前准入状态" [level=2] [ref=e169]
+          - generic [ref=e170]:
+            - generic [ref=e171]:
+              - generic [ref=e172]: 后端健康检查
+              - strong [ref=e173]: 检查中
+            - generic [ref=e174]:
+              - generic [ref=e175]: 服务名称
+              - strong [ref=e176]: platform-api
+            - generic [ref=e177]:
+              - generic [ref=e178]: Trace ID
+              - strong [ref=e179]: 等待响应
+          - heading "WP1 页面范围" [level=2] [ref=e181]
+          - generic [ref=e182]:
+            - generic [ref=e183]: 组织、用户、角色权限治理
+            - generic [ref=e184]: 项目、应用、环境基础配置
+            - generic [ref=e185]: 外部集成、审计日志、系统设置
+            - generic [ref=e186]: 后续接入真实列表与详情接口

@@ -1,0 +1,91 @@
+name: WP2 Model Access
+
+on:
+  pull_request:
+    paths:
+      - "pom.xml"
+      - "model-access/**"
+      - "platform-api/src/main/java/com/songhg/veri/agent/integration/**"
+      - "platform-api/src/main/java/com/songhg/veri/agent/security/config/SecurityConfig.java"
+      - "platform-api/src/test/java/com/songhg/veri/agent/integration/**"
+      - "platform-api/src/test/java/com/songhg/veri/agent/common/openapi/OpenApiContractTest.java"
+      - "db/migration/wp2/**"
+      - "db/migration/README.md"
+      - "scripts/wp2_model_access_smoke.sh"
+      - "db/validation/run_wp2_db_validation.sh"
+      - "db/validation/wp2_model_access_validation.sql"
+      - ".github/workflows/wp2-model-access.yml"
+  push:
+    branches:
+      - main
+      - master
+    paths:
+      - "pom.xml"
+      - "model-access/**"
+      - "platform-api/src/main/java/com/songhg/veri/agent/integration/**"
+      - "platform-api/src/main/java/com/songhg/veri/agent/security/config/SecurityConfig.java"
+      - "platform-api/src/test/java/com/songhg/veri/agent/integration/**"
+      - "platform-api/src/test/java/com/songhg/veri/agent/common/openapi/OpenApiContractTest.java"
+      - "db/migration/wp2/**"
+      - "db/migration/README.md"
+      - "scripts/wp2_model_access_smoke.sh"
+      - "db/validation/run_wp2_db_validation.sh"
+      - "db/validation/wp2_model_access_validation.sql"
+      - ".github/workflows/wp2-model-access.yml"
+  workflow_dispatch:
+
+jobs:
+  model-access-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      - name: Run model-access tests
+        run: mvn -B -pl model-access test
+
+      - name: Validate WP2 smoke script syntax
+        run: bash -n scripts/wp2_model_access_smoke.sh
+
+  platform-integration-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      - name: Run platform integration tests
+        run: mvn -B -pl platform-api test
+
+  model-access-db-validation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run WP2 migration and validation
+        run: bash db/validation/run_wp2_db_validation.sh
+
+      - name: Upload validation logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wp2-db-validation-logs
+          path: build/wp2-db-validation/
+          if-no-files-found: warn

@@ -1,0 +1,42 @@
+name: WP1 Portal Web
+
+on:
+  pull_request:
+    paths:
+      - "portal-web/**"
+      - ".github/workflows/wp1-portal-web.yml"
+  push:
+    branches:
+      - main
+      - master
+    paths:
+      - "portal-web/**"
+      - ".github/workflows/wp1-portal-web.yml"
+  workflow_dispatch:
+
+jobs:
+  portal-web-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: portal-web/package-lock.json
+
+      - name: Install dependencies
+        working-directory: portal-web
+        run: npm ci
+
+      - name: Run portal-web tests
+        working-directory: portal-web
+        run: npm run test
+
+      - name: Build portal-web
+        working-directory: portal-web
+        run: npm run build
