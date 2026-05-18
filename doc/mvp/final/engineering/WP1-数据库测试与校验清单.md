@@ -1,5 +1,7 @@
 # WP1 数据库测试与校验清单
 
+> 历史归档说明：本文记录早期多租户数据库测试设计，不代表当前 validation 准出清单。当前数据库验证以 `db/validation/run_wp1_db_validation.sh`、`doc/mvp/final/engineering/当前实现基线.md`、迁移脚本和自动化测试为准；当前实现不包含 `base_tenant`，业务表不维护 `tenant_id`。
+
 | 项目 | 内容 |
 |---|---|
 | 工作包 | WP1 平台基础底座 |

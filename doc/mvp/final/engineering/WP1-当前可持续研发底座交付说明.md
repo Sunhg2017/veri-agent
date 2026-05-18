@@ -66,11 +66,12 @@ WP1_BOOTSTRAP_TOKEN=local-init-token bash scripts/wp1_db_profile_smoke.sh
 
 当前以以下文档和实现为准：
 
-1. `doc/mvp/final/WP1-单平台P0交付版-PRD与架构补充.md`
-2. `doc/mvp/final/engineering/WP1-单平台化调整说明.md`
-3. `doc/mvp/final/engineering/WP1-单平台权限矩阵与菜单矩阵.md`
-4. `doc/mvp/final/engineering/WP1-审计事件字典.md`
-5. `doc/mvp/final/engineering/WP1-当前可持续研发底座交付说明.md`
-6. 当前代码、迁移脚本、validation 脚本和自动化测试
+1. `doc/mvp/final/engineering/当前实现基线.md`
+2. `doc/mvp/final/WP1-单平台P0交付版-PRD与架构补充.md`
+3. `doc/mvp/final/engineering/WP1-单平台化调整说明.md`
+4. `doc/mvp/final/engineering/WP1-单平台权限矩阵与菜单矩阵.md`
+5. `doc/mvp/final/engineering/WP1-审计事件字典.md`
+6. `doc/mvp/final/engineering/WP1-当前可持续研发底座交付说明.md`
+7. 当前代码、迁移脚本、validation 脚本和自动化测试
 
-早期 PRD、架构、测试评估和拆解文档中的平台实例分层、实例管理员、实例隔离表、业务实例隔离字段和跨实例隔离等描述仅作为历史演进记录，不再作为 WP1 当前准出和研发依据。
+早期 PRD、架构、测试评估和拆解文档中的多租户、平台实例分层、实例管理员、实例隔离表、业务实例隔离字段、跨实例隔离、独立 WP 服务、HTTP 回调本服务、snake_case API 字段等描述仅作为历史演进记录，不再作为当前准出和研发依据。

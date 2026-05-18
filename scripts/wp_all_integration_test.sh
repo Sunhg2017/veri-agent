@@ -1,213 +1,197 @@
 #!/usr/bin/env bash
-# ============================================================
-# Veri Agent — 统一服务集成联调测试
-# 验证：platform-api（含 WP1 + WP2 + WP3 能力）端到端流程
-# ============================================================
 set -euo pipefail
 
-BASE_URL="http://localhost:8080"
-BOOTSTRAP_TOKEN="local-init-token"
+BASE_URL="${WP_ALL_BASE_URL:-http://localhost:8080}"
+BOOTSTRAP_TOKEN="${WP1_BOOTSTRAP_TOKEN:-local-init-token}"
+WP2_SERVICE_TOKEN="${WP2_SERVICE_TOKEN:-local-model-access-token}"
+WP3_SERVICE_TOKEN="${WP3_SERVICE_TOKEN:-local-asset-token}"
+ADMIN_USERNAME="${WP_ALL_ADMIN_USERNAME:-admin}"
+ADMIN_PASSWORD="${WP_ALL_ADMIN_PASSWORD:-AdminPass12345}"
+PROJECT_CODE="${WP_ALL_PROJECT_CODE:-demo-$(date +%s)-$RANDOM}"
 PASS=0
 FAIL=0
 
-function check() {
-    local name="$1"
-    local expected="$2"
-    local actual="$3"
-    if echo "$actual" | grep -q "$expected"; then
-        echo "   ✅ $name"
-        PASS=$((PASS + 1))
-    else
-        echo "   ❌ $name"
-        echo "      期望包含: $expected"
-        echo "      实际结果: $actual"
-        FAIL=$((FAIL + 1))
-    fi
+require_tool() {
+  local tool="$1"
+  if ! command -v "$tool" >/dev/null 2>&1; then
+    echo "$tool is required for integration test" >&2
+    exit 127
+  fi
 }
 
-echo ""
-echo "=========================================="
-echo " Veri Agent — 统一服务集成联调测试"
-echo "=========================================="
-echo ""
+check() {
+  local name="$1"
+  local jq_expr="$2"
+  local payload="$3"
+  if printf '%s' "$payload" | jq -e "$jq_expr" >/dev/null; then
+    echo "   PASS $name"
+    PASS=$((PASS + 1))
+  else
+    echo "   FAIL $name"
+    echo "$payload"
+    FAIL=$((FAIL + 1))
+  fi
+}
 
-# ─────────────────────────────────────────────────
-# 1. 服务健康检查
-# ─────────────────────────────────────────────────
-echo "【1/7】服务健康检查"
+post_json() {
+  local path="$1"
+  local body="$2"
+  shift 2
+  curl -sS -X POST "$BASE_URL$path" "$@" -H 'Content-Type: application/json' -d "$body"
+}
 
-WP1_HEALTH=$(curl -sf "$BASE_URL/api/v1/health" 2>&1 || echo "FAILED")
-check "platform-api 健康检查" "UP" "$WP1_HEALTH"
+get_json() {
+  local path="$1"
+  shift
+  curl -sS "$BASE_URL$path" "$@"
+}
 
-echo ""
+main() {
+  require_tool curl
+  require_tool jq
 
-# ─────────────────────────────────────────────────
-# 2. 初始化 & 登录
-# ─────────────────────────────────────────────────
-echo "【2/7】初始化 & 登录"
+  echo "== WP1-WP3 unified integration test =="
+  echo "baseUrl=$BASE_URL project=$PROJECT_CODE"
 
-BOOTSTRAP_RESP=$(curl -s -X POST "$BASE_URL/api/v1/bootstrap/super-admin" \
-    -H 'Content-Type: application/json' \
-    -d '{"bootstrap_token":"'"$BOOTSTRAP_TOKEN"'","username":"admin","password":"AdminPass12345","display_name":"平台管理员","email":"admin@example.com"}')
-check "初始化 SuperAdmin" "user_id" "$BOOTSTRAP_RESP"
+  local health
+  health="$(get_json /api/v1/health)"
+  check "platform health" '.data.status == "UP"' "$health"
 
-LOGIN_RESP=$(curl -s -X POST "$BASE_URL/api/v1/auth/login" \
-    -H 'Content-Type: application/json' \
-    -d '{"username":"admin","password":"AdminPass12345"}')
-TOKEN=$(echo "$LOGIN_RESP" | grep -o '"access_token":"[^"]*"' | cut -d'"' -f4)
-check "获取 access_token" "eyJ" "$TOKEN"
+  local bootstrap
+  bootstrap="$(post_json /api/v1/bootstrap/super-admin "$(jq -nc \
+    --arg token "$BOOTSTRAP_TOKEN" \
+    --arg username "$ADMIN_USERNAME" \
+    --arg password "$ADMIN_PASSWORD" \
+    '{bootstrapToken:$token,username:$username,password:$password,displayName:"平台管理员",email:"admin@example.com"}')")"
+  check "bootstrap super admin" '.code == "OK" or .code == "CONFLICT"' "$bootstrap"
 
-echo ""
+  local login token
+  login="$(post_json /api/v1/auth/login "$(jq -nc \
+    --arg username "$ADMIN_USERNAME" \
+    --arg password "$ADMIN_PASSWORD" \
+    '{username:$username,password:$password}')")"
+  token="$(printf '%s' "$login" | jq -r '.data.accessToken // empty')"
+  check "login" '.data.accessToken | type == "string"' "$login"
 
-# ─────────────────────────────────────────────────
-# 3. WP1: 管理面 CRUD
-# ─────────────────────────────────────────────────
-echo "【3/7】WP1 管理面 CRUD"
+  local auth_headers=(-H "Authorization: Bearer $token")
+  local wp2_headers=(
+    -H "Authorization: Bearer $WP2_SERVICE_TOKEN"
+    -H "X-Caller-Service: wp-all-integration"
+    -H "X-Delegated-User-Id: $ADMIN_USERNAME"
+  )
+  local wp3_headers=(
+    -H "Authorization: Bearer $WP3_SERVICE_TOKEN"
+    -H "X-Caller-Service: wp-all-integration"
+    -H "X-Delegated-User-Id: $ADMIN_USERNAME"
+  )
 
-PROJECT_RESP=$(curl -s -X POST "$BASE_URL/api/v1/management/projects" \
-    -H 'Content-Type: application/json' \
-    -H "Authorization: Bearer $TOKEN" \
-    -d '{"code":"demo","name":"端到端测试项目","sensitivity_level":"INTERNAL","allow_public_model":false}')
-check "创建项目" "demo" "$PROJECT_RESP"
+  local project
+  project="$(post_json /api/v1/management/projects "$(jq -nc \
+    --arg code "$PROJECT_CODE" \
+    '{code:$code,name:"端到端测试项目",sensitivityLevel:"INTERNAL",allowPublicModel:false}')" \
+    "${auth_headers[@]}")"
+  check "WP1 create project" '.data.code == "'"$PROJECT_CODE"'" or .code == "CONFLICT"' "$project"
 
-DEPT_RESP=$(curl -s -X POST "$BASE_URL/api/v1/management/departments" \
-    -H 'Content-Type: application/json' \
-    -H "Authorization: Bearer $TOKEN" \
-    -d '{"name":"质量工程部"}')
-check "创建部门" "质量工程部" "$DEPT_RESP"
+  local context
+  context="$(get_json "/api/v1/contexts/projects/$PROJECT_CODE?include=configs" \
+    -H "Authorization: Bearer ${WP1_SERVICE_TOKEN:-local-platform-service-token}" \
+    -H "X-Caller-Service: wp-all-integration" \
+    -H "X-Delegated-User-Id: $ADMIN_USERNAME")"
+  check "WP1 service context" '.data.resourceType == "PROJECT" and .data.sensitivityLevel == "INTERNAL"' "$context"
 
-echo ""
+  local wp2_health
+  wp2_health="$(get_json /api/v1/model-access/health)"
+  check "WP2 health" '.data.service == "model-access" and .data.status == "UP"' "$wp2_health"
 
-# ─────────────────────────────────────────────────
-# 4. WP2: 模型接入
-# ─────────────────────────────────────────────────
-echo "【4/7】WP2 模型接入端点"
+  local providers provider_id
+  providers="$(get_json /api/v1/model-access/providers "${wp2_headers[@]}")"
+  provider_id="$(printf '%s' "$providers" | jq -r '.data[] | select(.name == "local-echo-primary") | .id' | head -n 1)"
+  check "WP2 provider seed" '.data | any(.name == "local-echo-primary")' "$providers"
 
-HEALTH_RESP=$(curl -s "$BASE_URL/api/v1/model-access/health")
-check "WP2 健康检查" "UP" "$HEALTH_RESP"
+  if [[ -n "$provider_id" && "$provider_id" != "null" ]]; then
+    local provider_check
+    provider_check="$(post_json "/api/v1/model-access/providers/$provider_id/check" '{}' "${wp2_headers[@]}")"
+    check "WP2 provider check" '.data.status == "UP"' "$provider_check"
+  fi
 
-PROVIDERS=$(curl -s "$BASE_URL/api/v1/model-access/providers" \
-    -H "Authorization: Bearer local-init-token")
-check "模型提供商列表" "local-echo" "$PROVIDERS"
+  local invocation
+  invocation="$(post_json /api/v1/model-access/invocations "$(jq -nc \
+    --arg projectId "$PROJECT_CODE" \
+    '{projectId:$projectId,promptKey:"test-case-design",promptVariables:{context:"WP all smoke"},messages:[{role:"user",content:"生成 3 条冒烟测试点"}],allowPublicModel:false,sensitivityLevel:"INTERNAL"}')" \
+    "${wp2_headers[@]}")"
+  check "WP2 invocation" '.data.providerName == "local-echo-primary" and (.data.content | startswith("local model response:"))' "$invocation"
 
-# 模型调用
-INVOKE_RESP=$(curl -s -X POST "$BASE_URL/api/v1/model-access/invocations" \
-    -H 'Content-Type: application/json' \
-    -H "Authorization: Bearer local-init-token" \
-    -H "X-Caller-Service: wp5-test-design" \
-    -H "X-Delegated-User-Id: admin" \
-    -d '{"project_id":"demo","prompt_key":"test-case-design","messages":[{"role":"user","content":"生成 3 条冒烟测试点"}],"allow_public_model":false,"sensitivity_level":"INTERNAL"}')
-INVOKE_STATUS=$(echo "$INVOKE_RESP" | grep -o '"status":"[^"]*"' | head -1 | cut -d'"' -f4)
-check "模型调用" "SUCCEEDED" "$INVOKE_STATUS"
+  local wp3_health
+  wp3_health="$(get_json /api/v1/asset/health)"
+  check "WP3 health" '.data.service == "asset-service" and .data.status == "UP"' "$wp3_health"
 
-echo ""
+  local req req_id api api_id page flow testcase case_id link
+  req="$(post_json /api/v1/asset/requirements "$(jq -nc \
+    --arg projectId "$PROJECT_CODE" \
+    '{projectId:$projectId,title:"用户登录功能",description:"登录能力需求",priority:"HIGH"}')" \
+    "${wp3_headers[@]}")"
+  req_id="$(printf '%s' "$req" | jq -r '.data.id // empty')"
+  check "WP3 create requirement" '.data.title == "用户登录功能" and .data.status == "DRAFT"' "$req"
 
-# ─────────────────────────────────────────────────
-# 5. WP3: 测试资产管理
-# ─────────────────────────────────────────────────
-echo "【5/7】WP3 测试资产管理端点"
+  api="$(post_json /api/v1/asset/apis "$(jq -nc \
+    --arg projectId "$PROJECT_CODE" \
+    '{projectId:$projectId,path:"/api/v1/auth/login",httpMethod:"POST",summary:"用户登录接口"}')" \
+    "${wp3_headers[@]}")"
+  api_id="$(printf '%s' "$api" | jq -r '.data.id // empty')"
+  check "WP3 create API asset" '.data.httpMethod == "POST" and .data.status == "ACTIVE"' "$api"
 
-HEALTH_RESP=$(curl -s "$BASE_URL/api/v1/asset/health")
-check "WP3 健康检查" "UP" "$HEALTH_RESP"
+  page="$(post_json /api/v1/asset/pages "$(jq -nc \
+    --arg projectId "$PROJECT_CODE" \
+    '{projectId:$projectId,name:"登录页",urlPattern:"/login",componentTree:{form:"login"}}')" \
+    "${wp3_headers[@]}")"
+  check "WP3 create page asset" '.data.name == "登录页" and .data.status == "ACTIVE"' "$page"
 
-# 创建需求
-REQ_RESP=$(curl -s -X POST "$BASE_URL/api/v1/asset/requirements" \
-    -H 'Content-Type: application/json' \
-    -H "Authorization: Bearer local-init-token" \
-    -d '{"project_id":"demo","code":"REQ-001","title":"用户登录功能","source":"MANUAL","priority":"HIGH"}')
-REQ_ID=$(echo "$REQ_RESP" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
-check "创建需求" "REQ-001" "$REQ_RESP"
+  flow="$(post_json /api/v1/asset/business-flows "$(jq -nc \
+    --arg projectId "$PROJECT_CODE" \
+    '{projectId:$projectId,name:"登录主流程",priority:"HIGH",flowJson:{nodes:["open","submit"]}}')" \
+    "${wp3_headers[@]}")"
+  check "WP3 create business flow" '.data.name == "登录主流程" and .data.status == "DRAFT"' "$flow"
 
-# 创建接口资产
-API_RESP=$(curl -s -X POST "$BASE_URL/api/v1/asset/apis" \
-    -H 'Content-Type: application/json' \
-    -H "Authorization: Bearer local-init-token" \
-    -d '{"project_id":"demo","code":"API-001","path":"/api/v1/auth/login","http_method":"POST","summary":"用户登录接口"}')
-check "创建接口资产" "API-001" "$API_RESP"
+  testcase="$(post_json /api/v1/asset/test-cases "$(jq -nc \
+    --arg projectId "$PROJECT_CODE" \
+    --arg requirementId "$req_id" \
+    --arg apiId "$api_id" \
+    '{projectId:$projectId,title:"验证正常登录",requirementId:$requirementId,apiId:$apiId,steps:[{action:"输入用户名密码",expectedResult:"登录成功"}]}')" \
+    "${wp3_headers[@]}")"
+  case_id="$(printf '%s' "$testcase" | jq -r '.data.id // empty')"
+  check "WP3 create test case" '.data.title == "验证正常登录" and (.data.steps | length) == 1' "$testcase"
 
-# 创建测试用例
-CASE_RESP=$(curl -s -X POST "$BASE_URL/api/v1/asset/test-cases" \
-    -H 'Content-Type: application/json' \
-    -H "Authorization: Bearer local-init-token" \
-    -d '{"project_id":"demo","code":"TC-001","title":"验证正常登录","case_type":"FUNCTIONAL","steps":[{"step_order":1,"action":"输入用户名密码","expected_result":"登录成功"}]}')
-CASE_ID=$(echo "$CASE_RESP" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
-check "创建测试用例" "TC-001" "$CASE_RESP"
+  if [[ -n "$req_id" && -n "$case_id" ]]; then
+    link="$(post_json /api/v1/asset/links "$(jq -nc \
+      --arg requirementId "$req_id" \
+      --arg apiId "$api_id" \
+      --arg caseId "$case_id" \
+      '{requirementId:$requirementId,apiId:$apiId,caseId:$caseId}')" \
+      "${wp3_headers[@]}")"
+    check "WP3 create trace link" '.data.requirementId == "'"$req_id"'" and .data.caseId == "'"$case_id"'"' "$link"
+  fi
 
-# 建立追溯链接
-if [ -n "$REQ_ID" ] && [ -n "$CASE_ID" ]; then
-    LINK_RESP=$(curl -s -X POST "$BASE_URL/api/v1/asset/links" \
-        -H 'Content-Type: application/json' \
-        -H "Authorization: Bearer local-init-token" \
-        -d "{\"source_type\":\"REQUIREMENT\",\"source_id\":\"$REQ_ID\",\"target_type\":\"CASE\",\"target_id\":\"$CASE_ID\",\"link_type\":\"COVERS\"}")
-    check "创建追溯链接" "COVERS" "$LINK_RESP"
-fi
+  local audit
+  audit="$(get_json "/api/v1/management/audit-logs?index=0&size=20" "${auth_headers[@]}")"
+  check "WP1 audit page" '.data.items | type == "array"' "$audit"
 
-# 查询需求列表
-REQS=$(curl -s "$BASE_URL/api/v1/asset/requirements?project_id=demo" \
-    -H "Authorization: Bearer local-init-token")
-check "查询需求列表" "REQ-001" "$REQS"
+  local forbidden
+  forbidden="$(curl -sS -o /tmp/wp-all-forbidden.json -w '%{http_code}' "$BASE_URL/api/v1/model-access/providers")"
+  if [[ "$forbidden" == "403" ]]; then
+    echo "   PASS service token rejection"
+    PASS=$((PASS + 1))
+  else
+    echo "   FAIL service token rejection"
+    cat /tmp/wp-all-forbidden.json
+    FAIL=$((FAIL + 1))
+  fi
 
-echo ""
-
-# ─────────────────────────────────────────────────
-# 6. 审计日志验证
-# ─────────────────────────────────────────────────
-echo "【6/7】审计日志验证"
-
-AUDIT_LOGIN=$(curl -s -X POST "$BASE_URL/api/v1/auth/login" \
-    -H 'Content-Type: application/json' \
-    -d '{"username":"admin","password":"AdminPass12345"}')
-AUDIT_TOKEN=$(echo "$AUDIT_LOGIN" | grep -o '"access_token":"[^"]*"' | cut -d'"' -f4)
-
-AUDIT_RESP=$(curl -s "$BASE_URL/api/v1/management/audit-logs?page_no=1&page_size=20" \
-    -H "Authorization: Bearer $AUDIT_TOKEN")
-AUDIT_COUNT=$(echo "$AUDIT_RESP" | grep -o '"total":[0-9]*' | head -1 | cut -d: -f2)
-echo "      审计日志总数: ${AUDIT_COUNT:-0}"
-
-if [ "${AUDIT_COUNT:-0}" -gt 0 ]; then
-    check "审计日志写入" "$AUDIT_COUNT" "审计日志 $AUDIT_COUNT 条"
-else
-    check "审计日志" "审计日志" "$AUDIT_RESP"
-fi
-
-echo ""
-
-# ─────────────────────────────────────────────────
-# 7. 错误处理验证
-# ─────────────────────────────────────────────────
-echo "【7/7】错误处理验证"
-
-NOT_FOUND=$(curl -s -o /dev/null -w "%{http_code}" "$BASE_URL/api/v1/asset/requirements/00000000-0000-0000-0000-000000000000")
-check "404 处理" "404" "$NOT_FOUND"
-
-NO_AUTH=$(curl -s -o /dev/null -w "%{http_code}" "$BASE_URL/api/v1/model-access/invocations" -X POST)
-check "401 处理" "401" "$NO_AUTH"
-
-echo ""
-
-# ─────────────────────────────────────────────────
-# 结果汇总
-# ─────────────────────────────────────────────────
-echo "=========================================="
-echo " 测试结果汇总"
-echo "=========================================="
-echo "  通过: $PASS"
-echo "  失败: $FAIL"
-echo "  总计: $((PASS + FAIL))"
-echo ""
-
-if [ "$FAIL" -eq 0 ]; then
-    echo " ✅ 统一服务集成联调全部通过"
-    echo ""
-    echo "  已验证完整闭环:"
-    echo "    platform-api 健康 → 初始化 → 登录"
-    echo "    → WP1: 项目管理/部门管理/审计"
-    echo "    → WP2: 模型提供商/模型调用/调用日志"
-    echo "    → WP3: 需求/接口资产/测试用例/步骤/追溯"
-    echo "    → 审计日志查询"
-    echo "    → 404/401 错误处理"
-    echo ""
-else
-    echo " ❌ $FAIL 项测试失败"
+  echo "== summary =="
+  echo "pass=$PASS fail=$FAIL total=$((PASS + FAIL))"
+  if [[ "$FAIL" -ne 0 ]]; then
     exit 1
-fi
+  fi
+  echo "WP1-WP3 unified integration test passed."
+}
+
+main "$@"

@@ -49,14 +49,7 @@ services:
       # 服务令牌
       WP1_SERVICE_TOKEN: shared-platform-service-token
       WP2_SERVICE_TOKEN: shared-model-access-token
-      WP2_PLATFORM_CONTEXT_VALIDATION: mock
-      WP2_PLATFORM_AUDIT_ENABLED: "false"
-      WP2_PLATFORM_API_BASE_URL: http://platform-api:8080
-      WP2_PLATFORM_API_SERVICE_TOKEN: shared-platform-service-token
       WP3_SERVICE_TOKEN: shared-asset-token
-      WP3_PLATFORM_API_BASE_URL: http://platform-api:8080
-      WP3_PLATFORM_API_SERVICE_TOKEN: shared-platform-service-token
-      WP3_PLATFORM_AUDIT_ENABLED: "false"
     depends_on:
       postgres:
         condition: service_healthy

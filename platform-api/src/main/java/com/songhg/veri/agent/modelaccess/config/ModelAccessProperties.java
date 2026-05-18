@@ -7,10 +7,6 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public record ModelAccessProperties(
         String serviceToken,
         String defaultModel,
-        String platformApiBaseUrl,
-        String platformApiServiceToken,
-        String platformContextValidation,
-        boolean platformAuditEnabled,
         int maxPromptChars,
         BigDecimal dailyPlatformCostLimit,
         BigDecimal dailyProjectCostLimit,
@@ -23,10 +19,6 @@ public record ModelAccessProperties(
         long providerCheckCacheTtlMs,
         BigDecimal costAlertWarningRatio
 ) {
-
-    public boolean strictPlatformContextValidation() {
-        return "strict".equalsIgnoreCase(platformContextValidation);
-    }
 
     public boolean hasDailyPlatformCostLimit() {
         return dailyPlatformCostLimit != null && dailyPlatformCostLimit.signum() > 0;

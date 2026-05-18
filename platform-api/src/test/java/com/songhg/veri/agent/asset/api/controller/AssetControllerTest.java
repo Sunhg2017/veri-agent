@@ -314,7 +314,64 @@ class AssetControllerTest {
                 .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
     }
 
+    @Test
+    void rejectsTestCaseWhenRequirementIsMissing() throws Exception {
+        mockMvc.perform(post("/api/v1/asset/test-cases")
+                        .headers(authHeaders())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "title": "孤儿用例",
+                                  "requirementId": "00000000-0000-0000-0000-000000000001",
+                                  "projectId": "project-wp3"
+                                }
+                                """))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("NOT_FOUND"));
+    }
+
+    @Test
+    void rejectsTestCaseWhenReferencedAssetBelongsToAnotherProject() throws Exception {
+        String reqId = createRequirement("跨项目需求", "不应被另一个项目引用", "HIGH");
+
+        mockMvc.perform(post("/api/v1/asset/test-cases")
+                        .headers(authHeaders())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "title": "跨项目用例",
+                                  "requirementId": "%s",
+                                  "projectId": "project-other"
+                                }
+                                """.formatted(reqId)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+    }
+
+    @Test
+    void rejectsTraceLinkWhenCaseBelongsToAnotherProject() throws Exception {
+        String reqId = createRequirement("项目A需求", "项目A", "HIGH");
+        String otherReqId = createRequirement("项目B需求", "项目B", "HIGH", "project-other");
+        String caseId = createTestCase("项目B用例", otherReqId, "project-other");
+
+        mockMvc.perform(post("/api/v1/asset/links")
+                        .headers(authHeaders())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "requirementId": "%s",
+                                  "caseId": "%s"
+                                }
+                                """.formatted(reqId, caseId)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+    }
+
     private String createRequirement(String name, String description, String priority) throws Exception {
+        return createRequirement(name, description, priority, "project-wp3");
+    }
+
+    private String createRequirement(String name, String description, String priority, String projectId) throws Exception {
         MvcResult result = mockMvc.perform(post("/api/v1/asset/requirements")
                         .headers(authHeaders())
                         .contentType(MediaType.APPLICATION_JSON)
@@ -323,9 +380,9 @@ class AssetControllerTest {
                                   "title": "%s",
                                   "description": "%s",
                                   "priority": "%s",
-                                  "projectId": "project-wp3"
+                                  "projectId": "%s"
                                 }
-                                """.formatted(name, description, priority)))
+                                """.formatted(name, description, priority, projectId)))
                 .andExpect(status().isCreated())
                 .andReturn();
         return JsonPath.read(result.getResponse().getContentAsString(), "$.data.id");
@@ -383,6 +440,10 @@ class AssetControllerTest {
     }
 
     private String createTestCase(String name, String requirementId) throws Exception {
+        return createTestCase(name, requirementId, "project-wp3");
+    }
+
+    private String createTestCase(String name, String requirementId, String projectId) throws Exception {
         MvcResult result = mockMvc.perform(post("/api/v1/asset/test-cases")
                         .headers(authHeaders())
                         .contentType(MediaType.APPLICATION_JSON)
@@ -390,9 +451,9 @@ class AssetControllerTest {
                                 {
                                   "title": "%s",
                                   "requirementId": "%s",
-                                  "projectId": "project-wp3"
+                                  "projectId": "%s"
                                 }
-                                """.formatted(name, requirementId)))
+                                """.formatted(name, requirementId, projectId)))
                 .andExpect(status().isCreated())
                 .andReturn();
         return JsonPath.read(result.getResponse().getContentAsString(), "$.data.id");

@@ -22,7 +22,7 @@ P0 阶段先保证初始化、认证、账号生命周期、角色绑定、基�
 
 | 字段 | 必填 | 说明 |
 |---|---|---|
-| `trace_id` | 是 | 当前请求 Trace ID，用于串联 API 日志和审计记录。 |
+| `traceId` / `trace_id` | 是 | API 响应使用 `traceId`；数据库审计列使用 `trace_id`，用于串联 API 日志和审计记录。 |
 | `actor_type` | 是 | `USER`、`SYSTEM`、`SERVICE`。 |
 | `actor_user_id` | 否 | 用户操作时填写；系统或服务身份可为空。 |
 | `action` | 是 | 当前代码展示中文动作；后续可增加 `event_code` 保存冻结编码。 |
@@ -60,7 +60,7 @@ P0 阶段先保证初始化、认证、账号生命周期、角色绑定、基�
 2. 所有后端权限拒绝必须产生 `DENIED` 审计。
 3. 密码、Token、Cookie、Secret、Access Key 不得进入 `reason`、`before_json`、`after_json`、应用日志和导出文件。
 4. 管理台审计列表必须支持按动作、资源、原因或操作者搜索。
-5. 后续工作包不得直接写 WP1 数据表；必须通过 `/api/v1/audit/events` 写入内部审计。
+5. WP2/WP3 在同一 `platform-api` 内通过 Spring 应用服务写入审计；外部集成或未来拆分服务不得直接写 WP1 数据表，必须通过 `/api/v1/audit/events` 或等价内部入口写入审计。
 6. 当前 P0 可继续使用中文动作展示；进入产品化迭代时建议新增 `event_code` 字段，中文展示由前端或字典转换。
 
 ## 5. 后续增强

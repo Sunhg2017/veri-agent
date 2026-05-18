@@ -59,7 +59,7 @@ P0 使用轻量角色口径，先满足样板后台准入和后续 RBAC 扩展�
 | 应用 | `GET/POST /api/v1/management/applications` |
 | 环境 | `GET/POST /api/v1/management/environments` |
 | 集成 | `GET/POST/PATCH /api/v1/management/integrations`、`PATCH /api/v1/management/integrations/{key}/status` |
-| 审计 | `GET /api/v1/management/audit-logs`，支持 `search`、`actor`、`action`、`resource_type`、`result`、`start_time`、`end_time` 筛选 |
+| 审计 | `GET /api/v1/management/audit-logs`，支持 `search`、`actor`、`action`、`resourceType`、`result`、`startTime`、`endTime` 筛选 |
 | 设置 | `GET/POST/PATCH /api/v1/management/settings`、`PATCH /api/v1/management/settings/{key}/status` |
 | OpenAPI | `GET /v3/api-docs`、`GET /swagger-ui.html` |
 
@@ -69,7 +69,7 @@ P0 使用轻量角色口径，先满足样板后台准入和后续 RBAC 扩展�
 {
   "code": "OK",
   "message": "success",
-  "trace_id": "trc_xxx",
+  "traceId": "trc_xxx",
   "data": {}
 }
 ```
@@ -139,12 +139,12 @@ db profile HTTP 烟测：
 2. 使用 `-Dspring-boot.run.profiles=db` 启动后端。
 3. Flyway 自动执行 `V20260516_001~003` 和 `V20260517_004~005`。
 4. 初始化 `SuperAdmin` 并登录。
-5. 登录响应包含 `access_token`、`refresh_token` 和 `session_id`。
+5. 登录响应包含 `accessToken`、`refreshToken` 和 `sessionId`。
 6. 刷新令牌后旧访问令牌失效，注销后当前访问令牌失效。
 7. 创建部门和用户。
 8. 启用、停用用户，重置密码后可使用新密码登录。
 9. 部门、用户列表可回读 PostgreSQL 数据。
-10. 审计日志显示资源名称和操作结果，并支持按 actor/action/resource_type/result/start_time/end_time 组合筛选。
+10. 审计日志显示资源名称和操作结果，并支持按 actor/action/resourceType/result/startTime/endTime 组合筛选。
 11. `/v3/api-docs` 正常生成，且包含认证、用户生命周期和管理 API 关键路径。
 
 ## 6. 1～8 项收敛结果

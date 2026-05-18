@@ -24,18 +24,18 @@ P0 不建议一开始拆成多个微服务。WP1 的核心风险不在服务数�
 | 构建工具 | Maven 3.9+ | Gradle | 采用 Maven | 企业 Java 团队普及度高，CI、依赖锁定和多模块管理简单。 |
 | 数据库 | PostgreSQL 15+ | MySQL 8、openGauss | 采用 PostgreSQL 15+ | 已完成 WP1 DDL 和验证；JSONB、部分索引、事务和约束能力适合平台底座。 |
 | 数据迁移 | Flyway Community | Liquibase | 采用 Flyway | 与当前 `db/migration/V*.sql` 结构天然匹配，规则简单，CI 容易落地。 |
-| 数据访问 | MyBatis 3 + 显式 SQL | JPA、jOOQ、MyBatis-Plus | 采用 MyBatis 3 | 权限范围过滤、资源作用域和审计查询需要显式 SQL 可控；避免 ORM 隐式加载造成越权遗漏。 |
+| 数据访问 | MyBatis 3 + Mapper XML | JPA、jOOQ、MyBatis-Plus | 采用 MyBatis 3 | 权限范围过滤、资源作用域和审计查询需要 SQL 可控；SQL 统一维护在 MyBatis XML，不在 Java 代码拼接或维护。 |
 | 分页 | MyBatis 分页插件或手写 limit/offset | Spring Data Pageable | P0 优先手写白名单分页 | 排序字段必须白名单，减少 SQL 注入和错误排序风险。 |
 | 连接池 | HikariCP | Druid | 采用 HikariCP | Spring Boot 默认集成，轻量稳定，指标接入简单。 |
 | 缓存 | Redis 7 + Caffeine | 仅 Redis | P0 采用 Redis，Caffeine 可选 | Redis 管会话、权限缓存和撤销；Caffeine 可做短生命周期本地缓存。 |
 | Redis 客户端 | Spring Data Redis + Lettuce | Redisson | P0 采用 Lettuce，锁场景再引 Redisson | 会话和缓存足够；P0 暂不引入复杂分布式锁。 |
 | 认证鉴权 | Spring Security 6 | 自研过滤器 | 采用 Spring Security | 统一认证、鉴权、异常处理、方法级权限和测试支持。 |
-| Token | JWT access token + refresh token | 纯 session id | 采用 JWT + refresh token | 适合 Web 后台和后续服务间调用；服务端仍用 Redis/DB 支持撤销和 `auth_version` 失效。 |
+| Token | JWT access token + refresh token | 纯 session id | 采用 JWT + refresh token | 适合 Web 后台、同服务内模块调用和后续外部集成；服务端仍用 Redis/DB 支持撤销和 `auth_version` 失效。 |
 | 密码哈希 | BCrypt 或 Argon2id | PBKDF2 | P0 采用 BCrypt，P1 评估 Argon2id | BCrypt 落地简单、兼容好；Argon2id 可作为安全增强。 |
 | 权限模型 | 自研 RBAC + 作用域校验 | Casbin、OPA | P0 自研 RBAC | 已有明确角色、权限点、scope 模型；Casbin/OPA 会增加调试和团队学习成本。 |
 | 参数校验 | Jakarta Validation | 手写校验 | 采用 Jakarta Validation + 业务校验器 | 字段级规则标准化，资源归属和状态流由业务校验器处理。 |
 | API 契约 | OpenAPI 3.1 + springdoc-openapi | Swagger 手写文档 | 采用 OpenAPI 3.1 | 支持前后端评审、Mock、契约测试和接口自动化生成。 |
-| 统一响应 | 自研 `ApiResponse<T>` | Spring 默认错误结构 | 采用自研统一响应 | 匹配 WP1 API 契约中的 `code/message/trace_id/data`。 |
+| 统一响应 | 自研 `ApiResponse<T>` | Spring 默认错误结构 | 采用自研统一响应 | 匹配当前 API 契约中的 `code/message/traceId/data`。 |
 | 错误码 | 自研错误码枚举 | HTTP status only | 采用自研错误码枚举 | 便于前端提示、自动化断言和审计归因。 |
 | 审计写入 | 业务事务内写 `audit_log` + `audit_outbox` | 消息队列直接写 | P0 采用 DB outbox | 不引入 MQ 也能保证审计可补偿；后续可从 outbox 转 Kafka/RocketMQ。 |
 | 异步任务 | Spring Scheduler | Quartz、XXL-JOB | P0 采用 Spring Scheduler | 仅需 outbox 补偿和轻量巡检；复杂调度进入 WP9。 |
@@ -129,16 +129,12 @@ P0 不建议一开始拆成多个微服务。WP1 的核心风险不在服务数�
 platform-api
   common        # 统一响应、错误码、异常、分页、Trace、基础工具
   security      # Spring Security、Token、Session、认证上下文
-  iam           # 用户、登录、会话、密码策略
-  org           # 部门、成员、负责人
-  rbac          # 权限点、角色、角色绑定、权限计算
-  project       # 项目、项目成员、项目部门
-  application   # 应用
-  environment   # 环境、变量、有效配置
-  secret        # SecretProvider、本地加密、密钥引用
-  audit         # 审计日志、outbox、拒绝审计
-  context       # 当前上下文、项目/应用/环境上下文
-  integration   # 后续企业连接器预留
+  auth          # 用户、登录、会话、密码策略
+  management    # 部门、用户、项目、应用、环境、设置、审计管理视图
+  authorization # 权限点、角色、角色绑定、权限计算
+  integration   # WP1 上下文校验与审计写入应用服务
+  modelaccess   # WP2 模型接入领域
+  asset         # WP3 测试资产领域
 ```
 
 模块间依赖原则：
@@ -147,7 +143,7 @@ platform-api
 2. `security` 可依赖 `iam`、`rbac` 的端口接口，不直接穿透所有表。
 3. 业务模块写操作必须调用 `audit` 端口记录审计。
 4. `secret` 不向上暴露明文，只暴露引用、掩码和校验能力。
-5. 后续 WP 服务只能通过 `context`、`config`、`audit` 内部 API 使用 WP1 能力，不直接读库。
+5. WP1/WP2/WP3 在同一 `platform-api` 内通过 Spring 应用服务复用上下文和审计能力；外部集成才使用内部 HTTP API，不直接读库。
 
 ## 7. 版本与依赖治理规则
 

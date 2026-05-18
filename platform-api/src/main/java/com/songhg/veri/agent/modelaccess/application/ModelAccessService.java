@@ -512,7 +512,7 @@ public class ModelAccessService {
                 .stream()
                 .filter(ModelProviderConfig::enabled)
                 .filter(provider -> providerId == null || provider.id().equals(providerId))
-                .filter(provider -> Boolean.TRUE.equals(allowPublicModel) || provider.providerType().name().startsWith("LOCAL"))
+                .filter(provider -> Boolean.TRUE.equals(allowPublicModel) || localProvider(provider))
                 .sorted(Comparator.comparingInt(ModelProviderConfig::priority))
                 .toList();
         if (candidates.isEmpty()) {
@@ -668,7 +668,8 @@ public class ModelAccessService {
     }
 
     private boolean localProvider(ModelProviderConfig provider) {
-        return provider.providerType().name().startsWith("LOCAL");
+        return provider.providerType().name().startsWith("LOCAL")
+                || provider.providerType() == ProviderType.MOCK_FAILURE;
     }
 
     private void validateProviderConfig(ModelProviderConfig provider) {

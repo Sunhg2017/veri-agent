@@ -1,6 +1,6 @@
 # platform-api
 
-`platform-api` is the consolidated service for WP1 control-plane, WP2 model access, and WP3 test assets.
+`platform-api` is the single consolidated Java service for WP1 control-plane, WP2 model access, and WP3 test assets. WP1/WP2/WP3 are domain/task splits inside this service, not separately deployed services.
 
 ## Current Skeleton
 
@@ -20,6 +20,7 @@ Implemented in this baseline:
 - OpenAPI metadata and Bearer security scheme are configured, and contract tests protect WP1/WP2/WP3 key paths.
 - WP2 model access APIs are available under `/api/v1/model-access`.
 - WP3 asset APIs are available under `/api/v1/asset`, covering requirements, APIs, pages, business flows, test cases, steps, and trace links.
+- WP2/WP3 reuse WP1 context validation and audit writing through same-process Spring services, not HTTP callbacks to this service.
 - Example paged endpoint for API contract and test scaffolding.
 - Actuator health/info/metrics exposure.
 

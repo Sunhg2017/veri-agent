@@ -23,6 +23,7 @@ public interface PlatformIntegrationMapper {
             @Param("resourceType") String resourceType,
             @Param("resourceId") String resourceId,
             @Param("scopeType") String scopeType,
+            @Param("scopeId") UUID scopeId,
             @Param("result") String result,
             @Param("afterJson") String afterJson,
             @Param("reason") String reason

@@ -1,5 +1,7 @@
 # WP1 数据库设计
 
+> 历史归档说明：本文记录早期多租户数据库设计，不代表当前落库实现。当前数据库以 `db/migration/wp1`、`db/validation`、`doc/mvp/final/engineering/当前实现基线.md` 和当前代码为准；当前实现不包含 `base_tenant`，业务表不维护 `tenant_id`。
+
 | 项目 | 内容 |
 |---|---|
 | 工作包 | WP1 平台基础底座 |
@@ -1202,7 +1204,7 @@ values (:system_tenant_id, 'local', 'LOCAL_ENCRYPTED', '{"key_source":"env","key
 5. 邮箱、手机号在审计和导出中按规则脱敏；管理详情接口按权限返回。
 6. URL 字段写审计前必须清理 query 中疑似凭证参数，例如 `token`、`key`、`secret`、`password`。
 7. `SuperAdmin`、`TenantAdmin` 也不得查看敏感值明文，只能覆盖、删除或查看掩码摘要。
-8. 所有服务间调用必须使用服务令牌、`X-Delegated-User-Id` 和 `X-Caller-Service`，由 WP1 同时校验服务身份和委托用户权限。
+8. WP1/WP2/WP3 在 MVP 阶段属于同一 `platform-api` Java 服务内的领域模块，模块互调优先使用 Spring 应用服务；外部集成调用内部 API 时必须使用服务令牌、`X-Delegated-User-Id` 和 `X-Caller-Service`，由 WP1 同时校验调用方身份和委托用户权限。
 9. 数据库账号按最小权限划分：应用账号仅允许访问 WP1 schema 必需 DML；migration 账号独立管理 DDL。
 
 ## 12. 后续 WP 数据访问边界

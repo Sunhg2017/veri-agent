@@ -59,7 +59,7 @@
             scope_type, scope_id, result, after_json, reason
         ) values (
             #{traceId}, 'SERVICE', #{actorService}, #{action}, #{resourceType}, #{resourceId},
-            #{scopeType}, null, #{result}, cast(#{afterJson} as jsonb), #{reason}
+            #{scopeType}, #{scopeId}, #{result}, cast(#{afterJson} as jsonb), #{reason}
         )
     </insert>
 </mapper>

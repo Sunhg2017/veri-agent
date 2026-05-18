@@ -142,10 +142,6 @@ class ProviderResilienceManagerTest {
         return new ModelAccessProperties(
                 "test-token",
                 "test-model",
-                "http://localhost:8080",
-                "platform-token",
-                "mock",
-                false,
                 12_000,
                 BigDecimal.ZERO,
                 BigDecimal.ZERO,

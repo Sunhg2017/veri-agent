@@ -247,7 +247,7 @@ class ModelAccessControllerTest {
                                   "messages": [
                                     {"role": "user", "content": "检查降级链路"}
                                   ],
-                                  "allowPublicModel": true
+                                  "allowPublicModel": false
                                 }
                                 """))
                 .andExpect(status().isOk())
@@ -287,7 +287,7 @@ class ModelAccessControllerTest {
                                   "messages": [
                                     {"role": "user", "content": "触发熔断"}
                                   ],
-                                  "allowPublicModel": true
+                                  "allowPublicModel": false
                                 }
                                 """.formatted(providerId)))
                 .andExpect(status().isBadGateway())
@@ -303,7 +303,7 @@ class ModelAccessControllerTest {
                                   "messages": [
                                     {"role": "user", "content": "熔断期再次调用"}
                                   ],
-                                  "allowPublicModel": true
+                                  "allowPublicModel": false
                                 }
                                 """.formatted(providerId)))
                 .andExpect(status().isBadGateway())

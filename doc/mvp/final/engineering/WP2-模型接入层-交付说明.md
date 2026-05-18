@@ -52,7 +52,7 @@ WP2 P0 交付以下能力：
 
 ## 3. WP1 集成约束
 
-WP2 保存 `projectId`、`applicationId`、`environmentId` 作为逻辑归属，不直接读写 WP1 表，也不引入租户维度。默认 `WP2_PLATFORM_CONTEXT_VALIDATION=mock` 方便本地开发；切换为 `strict` 后，WP2 会携带服务令牌调用 WP1 `/api/v1/contexts/projects/{projectId}` 和 `/api/v1/contexts/applications/{appId}` 校验上下文，并消费 WP1 返回的 `allowPublicModel`、`sensitivityLevel`。开启 `WP2_PLATFORM_AUDIT_ENABLED=true` 后，WP2 会向 WP1 `/api/v1/audit/events` 写入不含 Prompt 明文和密钥的调用审计摘要。该 WP1 内部契约已在 `platform-api` 落地，并使用 `WP1_SERVICE_TOKEN` 保护。
+WP2 保存 `projectId`、`applicationId`、`environmentId` 作为逻辑归属，不引入租户维度。WP1、WP2、WP3 在 MVP 中属于同一个 `platform-api` Java 服务内的领域模块，不做服务拆分；WP2 通过 Spring 注入调用 WP1 集成应用服务校验项目/应用上下文，并消费 `allowPublicModel`、`sensitivityLevel`。模型调用审计同样通过同进程应用服务写入 WP1 审计表，不通过 HTTP 回调本服务，也不需要模块间 HTTP 配置。
 
 `POST /invocations` 可携带 `sensitivityLevel`。WP2 会在请求级别和 WP1 上下文之间取更严格的敏感级别；WP1 `STRICT` 会映射为 WP2 `RESTRICTED`。`CONFIDENTIAL` 和 `RESTRICTED` 会在供应商调用前执行模型策略校验：`allowPublicModel=true` 或显式指定非 `LOCAL_*` 供应商都会返回 `MODEL_POLICY_VIOLATION`，并写入 `BLOCKED` 调用日志。若 WP1 `allowPublicModel=false`，请求也不能开启公开模型路由或显式指定外部供应商。分页查询、CSV 导出和 WP1 审计摘要都会保留归一化后的敏感级别，用于后续合规追溯。
 
@@ -81,7 +81,7 @@ WP2 保存 `projectId`、`applicationId`、`environmentId` 作为逻辑归属，
 - `db/validation/wp2_model_access_validation.sql`
 - `db/validation/run_wp2_db_validation.sh`
 - `scripts/wp2_model_access_smoke.sh`
-- `scripts/wp2_strict_integration_smoke.sh`
+- `scripts/wp2_module_policy_smoke.sh`
 
 ## 5. 验证
 
@@ -104,7 +104,7 @@ WP2 保存 `projectId`、`applicationId`、`environmentId` 作为逻辑归属，
 15. 已启动 WP2 服务的 HTTP smoke，覆盖健康检查、供应商就绪检查及 TTL 缓存、模型调用、日志查询、汇总、成本报表、成本告警和 CSV 导出。
 16. OpenAPI 契约固定 `sensitivityLevel` 查询、成本接口、CSV 导出、无租户维度和无明文密钥字段。
 17. 运维指标覆盖模型调用、供应商检查、token/cost 和 WP1 audit 写入结果；audit 写失败不阻断主调用并可通过指标告警。
-18. strict 联调 smoke 覆盖 WP1 context 策略读取、公开模型路由阻断和本地模型成功调用。
+18. 模块策略 smoke 覆盖 WP2 在同一 `platform-api` 内读取 WP1 context 策略、公开模型路由阻断和本地模型成功调用。
 19. OpenAI-compatible 客户端合同测试覆盖 `/v1/chat/completions` 响应解析，不依赖外网。
 20. 供应商调用支持同供应商重试、连续失败短时熔断和候选供应商 fallback。
 21. 成本能力支持平台/项目日预算告警和 31 天内日报聚合。
@@ -127,7 +127,7 @@ WP2_SERVICE_TOKEN=local-model-access-token bash scripts/wp_all_integration_test.
 WP1_SERVICE_TOKEN=local-platform-service-token \
 WP1_AUTH_TOKEN_SECRET=local-auth-secret \
 WP2_SERVICE_TOKEN=local-model-access-token \
-bash scripts/wp2_strict_integration_smoke.sh
+bash scripts/wp2_module_policy_smoke.sh
 ```
 
 ```bash
@@ -141,4 +141,4 @@ bash scripts/wp_all_integration_test.sh
 1. 已增加 OpenAI-compatible 真实协议形态合同测试、供应商重试策略和短时熔断开关。
 2. 已增加成本告警和成本日报聚合接口。
 3. 已对供应商就绪检查增加短 TTL 缓存，降低外部模型探活成本。
-4. 已新增 WP2 聚合质量门禁 `scripts/wp2_quality_gate.sh`，并将 HTTP smoke / strict smoke 纳入可选发布前门禁。
+4. 已新增 WP2 聚合质量门禁 `scripts/wp2_quality_gate.sh`，并将 HTTP smoke / 模块策略 smoke 纳入可选发布前门禁。

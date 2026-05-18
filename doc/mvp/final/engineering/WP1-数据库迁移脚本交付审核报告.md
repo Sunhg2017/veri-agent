@@ -1,5 +1,7 @@
 # WP1 数据库迁移脚本交付审核报告
 
+> 历史归档说明：本文审核对象是早期多租户迁移脚本交付，不代表当前迁移脚本实现。当前数据库以 `db/migration/wp1`、`db/validation`、`doc/mvp/final/engineering/当前实现基线.md` 和当前代码为准。
+
 | 项目 | 内容 |
 |---|---|
 | 审核角色 | 时迁 / WP1 项目经理 |
@@ -226,4 +228,3 @@ CI 接入准入条件：
 3. 建立 CI job：空库创建、按序 migration、按序 validation、解析 `FAIL` 阻断、归档 `WARN`。
 4. 建立数据库角色验证 job：创建测试 app/readonly/migration role，执行 runtime policy 替换版，验证 `audit_log` 和 `secret_local_store` 权限边界。
 5. 将服务层逻辑约束纳入 WP1 API 自动化测试，而不是误放到 DDL 校验里。
-

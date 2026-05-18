@@ -67,6 +67,7 @@ public class AssetService {
     // ---- Requirements ----
 
     public List<RequirementResponse> listRequirements(String projectId) {
+        validateProjectWhenProvided(projectId);
         return repository.requirements(projectId).stream()
                 .map(AssetService::toRequirementResponse)
                 .sorted(Comparator.comparing(RequirementResponse::createdAt).reversed())
@@ -80,6 +81,7 @@ public class AssetService {
     }
 
     public RequirementResponse createRequirement(CreateRequirementRequest request) {
+        String scopeId = projectContext(request.projectId()).projectId();
         UUID id = UUID.randomUUID();
         Instant now = Instant.now();
         AssetRequirement req = new AssetRequirement(
@@ -94,7 +96,7 @@ public class AssetService {
                 now
         );
         repository.saveRequirement(req);
-        contextClient.writeAuditEvent("CREATE", "REQUIREMENT", id.toString(), "SUCCEEDED");
+        writeProjectAudit("CREATE", "REQUIREMENT", id, scopeId);
         log.info("Created requirement id={}, title={}, trace_id={}", id, request.title(), TraceContext.getTraceId());
         return toRequirementResponse(req);
     }
@@ -115,13 +117,14 @@ public class AssetService {
                 now
         );
         repository.saveRequirement(updated);
-        contextClient.writeAuditEvent("UPDATE", "REQUIREMENT", id.toString(), "SUCCEEDED");
+        writeProjectAudit("UPDATE", "REQUIREMENT", id, existing.projectId());
         return toRequirementResponse(updated);
     }
 
     // ---- APIs ----
 
     public List<ApiResponseDTO> listApis(String projectId) {
+        validateProjectWhenProvided(projectId);
         return repository.apis(projectId).stream()
                 .map(AssetService::toApiResponse)
                 .sorted(Comparator.comparing(ApiResponseDTO::createdAt).reversed())
@@ -135,6 +138,7 @@ public class AssetService {
     }
 
     public ApiResponseDTO createApi(CreateApiRequest request) {
+        String scopeId = projectContext(request.projectId()).projectId();
         UUID id = UUID.randomUUID();
         Instant now = Instant.now();
         AssetApi api = new AssetApi(
@@ -151,7 +155,7 @@ public class AssetService {
                 now
         );
         repository.saveApi(api);
-        contextClient.writeAuditEvent("CREATE", "API", id.toString(), "SUCCEEDED");
+        writeProjectAudit("CREATE", "API", id, scopeId);
         log.info("Created api id={}, summary={}, trace_id={}", id, request.summary(), TraceContext.getTraceId());
         return toApiResponse(api);
     }
@@ -174,13 +178,14 @@ public class AssetService {
                 now
         );
         repository.saveApi(updated);
-        contextClient.writeAuditEvent("UPDATE", "API", id.toString(), "SUCCEEDED");
+        writeProjectAudit("UPDATE", "API", id, existing.projectId());
         return toApiResponse(updated);
     }
 
     // ---- Pages ----
 
     public List<PageResponse> listPages(String projectId) {
+        validateProjectWhenProvided(projectId);
         return repository.pages(projectId).stream()
                 .map(AssetService::toPageResponse)
                 .sorted(Comparator.comparing(PageResponse::createdAt).reversed())
@@ -194,6 +199,7 @@ public class AssetService {
     }
 
     public PageResponse createPage(CreatePageRequest request) {
+        String scopeId = projectContext(request.projectId()).projectId();
         UUID id = UUID.randomUUID();
         Instant now = Instant.now();
         AssetPage page = new AssetPage(
@@ -210,7 +216,7 @@ public class AssetService {
                 now
         );
         repository.savePage(page);
-        contextClient.writeAuditEvent("CREATE", "PAGE", id.toString(), "SUCCEEDED");
+        writeProjectAudit("CREATE", "PAGE", id, scopeId);
         log.info("Created page id={}, name={}, trace_id={}", id, request.name(), TraceContext.getTraceId());
         return toPageResponse(page);
     }
@@ -233,13 +239,14 @@ public class AssetService {
                 now
         );
         repository.savePage(updated);
-        contextClient.writeAuditEvent("UPDATE", "PAGE", id.toString(), "SUCCEEDED");
+        writeProjectAudit("UPDATE", "PAGE", id, existing.projectId());
         return toPageResponse(updated);
     }
 
     // ---- Business Flows ----
 
     public List<BusinessFlowResponse> listBusinessFlows(String projectId) {
+        validateProjectWhenProvided(projectId);
         return repository.businessFlows(projectId).stream()
                 .map(AssetService::toBusinessFlowResponse)
                 .sorted(Comparator.comparing(BusinessFlowResponse::createdAt).reversed())
@@ -253,6 +260,7 @@ public class AssetService {
     }
 
     public BusinessFlowResponse createBusinessFlow(CreateBusinessFlowRequest request) {
+        String scopeId = projectContext(request.projectId()).projectId();
         UUID id = UUID.randomUUID();
         Instant now = Instant.now();
         AssetBusinessFlow flow = new AssetBusinessFlow(
@@ -267,7 +275,7 @@ public class AssetService {
                 now
         );
         repository.saveBusinessFlow(flow);
-        contextClient.writeAuditEvent("CREATE", "BUSINESS_FLOW", id.toString(), "SUCCEEDED");
+        writeProjectAudit("CREATE", "BUSINESS_FLOW", id, scopeId);
         log.info("Created business flow id={}, name={}, trace_id={}", id, request.name(), TraceContext.getTraceId());
         return toBusinessFlowResponse(flow);
     }
@@ -288,13 +296,14 @@ public class AssetService {
                 now
         );
         repository.saveBusinessFlow(updated);
-        contextClient.writeAuditEvent("UPDATE", "BUSINESS_FLOW", id.toString(), "SUCCEEDED");
+        writeProjectAudit("UPDATE", "BUSINESS_FLOW", id, existing.projectId());
         return toBusinessFlowResponse(updated);
     }
 
     // ---- Test Cases ----
 
     public List<TestCaseResponse> listTestCases(String projectId) {
+        validateProjectWhenProvided(projectId);
         return repository.testCases(projectId).stream()
                 .map(tc -> toTestCaseResponse(tc, tc.steps()))
                 .sorted(Comparator.comparing(TestCaseResponse::createdAt).reversed())
@@ -308,6 +317,9 @@ public class AssetService {
     }
 
     public TestCaseResponse createTestCase(CreateTestCaseRequest request) {
+        String scopeId = projectContext(request.projectId()).projectId();
+        validateRequirementBelongsToProject(request.requirementId(), request.projectId());
+        validateApiBelongsToProject(request.apiId(), request.projectId());
         UUID id = UUID.randomUUID();
         Instant now = Instant.now();
         List<CreateTestCaseRequest.StepDto> requestedSteps = Optional.ofNullable(request.steps())
@@ -332,7 +344,7 @@ public class AssetService {
                 now
         );
         repository.saveTestCase(tc);
-        contextClient.writeAuditEvent("CREATE", "TEST_CASE", id.toString(), "SUCCEEDED");
+        writeProjectAudit("CREATE", "TEST_CASE", id, scopeId);
         log.info("Created test case id={}, title={}, trace_id={}", id, request.title(), TraceContext.getTraceId());
         return toTestCaseResponse(tc, steps);
     }
@@ -340,6 +352,8 @@ public class AssetService {
     public TestCaseResponse updateTestCase(UUID id, UpdateTestCaseRequest request) {
         TestCaseRecord existing = repository.testCase(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "测试用例不存在: " + id));
+        validateRequirementBelongsToProject(request.requirementId(), existing.projectId());
+        validateApiBelongsToProject(request.apiId(), existing.projectId());
         List<TestCaseStep> existingSteps = existing.steps();
         Instant now = Instant.now();
         TestCaseRecord updated = new TestCaseRecord(
@@ -357,7 +371,7 @@ public class AssetService {
                 now
         );
         repository.saveTestCase(updated);
-        contextClient.writeAuditEvent("UPDATE", "TEST_CASE", id.toString(), "SUCCEEDED");
+        writeProjectAudit("UPDATE", "TEST_CASE", id, existing.projectId());
         return toTestCaseResponse(updated, existingSteps);
     }
 
@@ -381,7 +395,7 @@ public class AssetService {
             steps.add(new TestCaseStep(UUID.randomUUID(), caseId, i, item.action(), item.expectedResult()));
         }
         repository.replaceTestCaseSteps(caseId, steps);
-        contextClient.writeAuditEvent("UPDATE", "TEST_CASE_STEPS", caseId.toString(), "SUCCEEDED");
+        writeProjectAudit("UPDATE", "TEST_CASE_STEPS", caseId, existing.projectId());
         return steps.stream()
                 .map(s -> new TestCaseStepResponse(s.stepOrder(), s.action(), s.expectedResult()))
                 .toList();
@@ -396,11 +410,15 @@ public class AssetService {
     }
 
     public TraceLinkResponse createLink(CreateLinkRequest request) {
+        AssetRequirement requirement = repository.requirement(request.requirementId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "需求不存在: " + request.requirementId()));
+        validateApiBelongsToProject(request.apiId(), requirement.projectId());
+        validateTestCaseBelongsToProject(request.caseId(), requirement.projectId());
         UUID id = UUID.randomUUID();
         Instant now = Instant.now();
         TraceLink link = new TraceLink(id, request.requirementId(), request.apiId(), request.caseId(), now);
         repository.saveTraceLink(link);
-        contextClient.writeAuditEvent("CREATE", "TRACE_LINK", id.toString(), "SUCCEEDED");
+        writeProjectAudit("CREATE", "TRACE_LINK", id, requirement.projectId());
         log.info("Created trace link id={}, requirementId={}, trace_id={}",
                 id, request.requirementId(), TraceContext.getTraceId());
         return toTraceLinkResponse(link);
@@ -458,6 +476,64 @@ public class AssetService {
 
     private static TraceLinkResponse toTraceLinkResponse(TraceLink l) {
         return new TraceLinkResponse(l.id(), l.requirementId(), l.apiId(), l.caseId(), l.createdAt());
+    }
+
+    private void validateProjectWhenProvided(String projectId) {
+        if (StringUtils.hasText(projectId)) {
+            projectContext(projectId);
+        }
+    }
+
+    private PlatformContextClient.ProjectContext projectContext(String projectId) {
+        PlatformContextClient.ProjectContext context = contextClient.getProjectContext(projectId);
+        if (!StringUtils.hasText(context.projectId())) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "项目上下文不存在: " + projectId);
+        }
+        if (!"ACTIVE".equals(context.status())) {
+            throw new BusinessException(ErrorCode.INVALID_STATE, "项目状态不允许写入资产: " + projectId);
+        }
+        return context;
+    }
+
+    private void writeProjectAudit(String action, String resourceType, UUID resourceId, String projectId) {
+        String scopeId = StringUtils.hasText(projectId) ? projectContext(projectId).projectId() : null;
+        contextClient.writeAuditEvent(action, resourceType, resourceId.toString(), scopeId, "SUCCEEDED");
+    }
+
+    private void validateRequirementBelongsToProject(UUID requirementId, String projectId) {
+        if (requirementId == null) {
+            return;
+        }
+        AssetRequirement requirement = repository.requirement(requirementId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "需求不存在: " + requirementId));
+        ensureSameProject("需求", requirement.id(), requirement.projectId(), projectId);
+    }
+
+    private void validateApiBelongsToProject(UUID apiId, String projectId) {
+        if (apiId == null) {
+            return;
+        }
+        AssetApi api = repository.api(apiId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "API不存在: " + apiId));
+        ensureSameProject("API", api.id(), api.projectId(), projectId);
+    }
+
+    private void validateTestCaseBelongsToProject(UUID caseId, String projectId) {
+        if (caseId == null) {
+            return;
+        }
+        TestCaseRecord testCase = repository.testCase(caseId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "测试用例不存在: " + caseId));
+        ensureSameProject("测试用例", testCase.id(), testCase.projectId(), projectId);
+    }
+
+    private void ensureSameProject(String resourceName, UUID resourceId, String actualProjectId, String expectedProjectId) {
+        if (!StringUtils.hasText(actualProjectId) || !actualProjectId.equals(expectedProjectId)) {
+            throw new BusinessException(
+                    ErrorCode.VALIDATION_ERROR,
+                    resourceName + "不属于当前项目: " + resourceId
+            );
+        }
     }
 
     private static String valueIn(String rawValue, String defaultValue, Set<String> allowedValues, String fieldName) {

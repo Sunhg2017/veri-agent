@@ -43,10 +43,6 @@ veri-agent:
   model-access:
     service-token: ${WP2_SERVICE_TOKEN:local-model-access-token}
     default-model: ${WP2_DEFAULT_MODEL:local-echo}
-    platform-api-base-url: ${WP2_PLATFORM_API_BASE_URL:http://localhost:8080}
-    platform-api-service-token: ${WP2_PLATFORM_API_SERVICE_TOKEN:}
-    platform-context-validation: ${WP2_PLATFORM_CONTEXT_VALIDATION:mock}
-    platform-audit-enabled: ${WP2_PLATFORM_AUDIT_ENABLED:false}
     max-prompt-chars: ${WP2_MAX_PROMPT_CHARS:12000}
     daily-platform-cost-limit: ${WP2_DAILY_PLATFORM_COST_LIMIT:0}
     daily-project-cost-limit: ${WP2_DAILY_PROJECT_COST_LIMIT:0}
@@ -60,6 +56,3 @@ veri-agent:
     cost-alert-warning-ratio: ${WP2_COST_ALERT_WARNING_RATIO:0.8}
   asset:
     service-token: ${WP3_SERVICE_TOKEN:local-asset-token}
-    platform-api-base-url: ${WP3_PLATFORM_API_BASE_URL:http://localhost:8080}
-    platform-api-service-token: ${WP3_PLATFORM_API_SERVICE_TOKEN:}
-    platform-audit-enabled: ${WP3_PLATFORM_AUDIT_ENABLED:false}

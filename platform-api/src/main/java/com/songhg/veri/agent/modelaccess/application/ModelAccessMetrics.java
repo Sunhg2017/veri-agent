@@ -66,14 +66,6 @@ public class ModelAccessMetrics {
                 .record(Duration.ofMillis(Math.max(0, response.latencyMs())));
     }
 
-    public void recordAuditEvent(String result) {
-        Counter.builder("veri.agent.model_access.platform.audit.events")
-                .description("WP2 attempts to write sanitized invocation audit events to WP1")
-                .tag("result", value(result))
-                .register(meterRegistry)
-                .increment();
-    }
-
     private void recordTokens(String direction, int tokens, String providerType, String sensitivityLevel) {
         if (tokens <= 0) {
             return;
