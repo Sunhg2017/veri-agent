@@ -1,36 +1,37 @@
 package com.songhg.veri.agent.management.infrastructure;
 
 import com.songhg.veri.agent.auth.application.AuthUserPrincipal;
+import com.songhg.veri.agent.common.api.PageQuery;
 import com.songhg.veri.agent.common.api.PageResponse;
 import com.songhg.veri.agent.common.audit.AuditLogWriter;
 import com.songhg.veri.agent.common.audit.InMemoryAuditLogWriter;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
-import com.songhg.veri.agent.management.api.ApplicationView;
-import com.songhg.veri.agent.management.api.AuditLogView;
-import com.songhg.veri.agent.management.api.CreateApplicationRequest;
-import com.songhg.veri.agent.management.api.CreateEnvironmentRequest;
-import com.songhg.veri.agent.management.api.CreateIntegrationRequest;
-import com.songhg.veri.agent.management.api.CreateProjectRequest;
-import com.songhg.veri.agent.management.api.CreateSettingRequest;
-import com.songhg.veri.agent.management.api.DepartmentView;
-import com.songhg.veri.agent.management.api.EnvironmentView;
-import com.songhg.veri.agent.management.api.IntegrationView;
-import com.songhg.veri.agent.management.api.ProjectView;
-import com.songhg.veri.agent.management.api.ProjectMemberRequest;
-import com.songhg.veri.agent.management.api.ProjectMemberView;
-import com.songhg.veri.agent.management.api.RoleView;
-import com.songhg.veri.agent.management.api.ScopedUserRoleRequest;
-import com.songhg.veri.agent.management.api.ScopedUserRoleView;
-import com.songhg.veri.agent.management.api.SettingView;
-import com.songhg.veri.agent.management.api.UpdateDepartmentRequest;
-import com.songhg.veri.agent.management.api.UpdateApplicationRequest;
-import com.songhg.veri.agent.management.api.UpdateEnvironmentRequest;
-import com.songhg.veri.agent.management.api.UpdateIntegrationRequest;
-import com.songhg.veri.agent.management.api.UpdateProjectRequest;
-import com.songhg.veri.agent.management.api.UpdateSettingRequest;
-import com.songhg.veri.agent.management.api.UpdateUserRequest;
-import com.songhg.veri.agent.management.api.UserView;
+import com.songhg.veri.agent.management.api.response.ApplicationView;
+import com.songhg.veri.agent.management.api.response.AuditLogView;
+import com.songhg.veri.agent.management.api.request.CreateApplicationRequest;
+import com.songhg.veri.agent.management.api.request.CreateEnvironmentRequest;
+import com.songhg.veri.agent.management.api.request.CreateIntegrationRequest;
+import com.songhg.veri.agent.management.api.request.CreateProjectRequest;
+import com.songhg.veri.agent.management.api.request.CreateSettingRequest;
+import com.songhg.veri.agent.management.api.response.DepartmentView;
+import com.songhg.veri.agent.management.api.response.EnvironmentView;
+import com.songhg.veri.agent.management.api.response.IntegrationView;
+import com.songhg.veri.agent.management.api.response.ProjectView;
+import com.songhg.veri.agent.management.api.request.ProjectMemberRequest;
+import com.songhg.veri.agent.management.api.response.ProjectMemberView;
+import com.songhg.veri.agent.management.api.response.RoleView;
+import com.songhg.veri.agent.management.api.request.ScopedUserRoleRequest;
+import com.songhg.veri.agent.management.api.response.ScopedUserRoleView;
+import com.songhg.veri.agent.management.api.response.SettingView;
+import com.songhg.veri.agent.management.api.request.UpdateDepartmentRequest;
+import com.songhg.veri.agent.management.api.request.UpdateApplicationRequest;
+import com.songhg.veri.agent.management.api.request.UpdateEnvironmentRequest;
+import com.songhg.veri.agent.management.api.request.UpdateIntegrationRequest;
+import com.songhg.veri.agent.management.api.request.UpdateProjectRequest;
+import com.songhg.veri.agent.management.api.request.UpdateSettingRequest;
+import com.songhg.veri.agent.management.api.request.UpdateUserRequest;
+import com.songhg.veri.agent.management.api.response.UserView;
 import com.songhg.veri.agent.management.application.AuditLogQuery;
 import com.songhg.veri.agent.management.application.ManagementWorkspaceService;
 import java.time.LocalDateTime;
@@ -60,8 +61,10 @@ public class InMemoryManagementWorkspaceService implements ManagementWorkspaceSe
     private final List<RoleView> roles = new ArrayList<>();
     private final List<SettingView> settings = new ArrayList<>();
     private final List<AuditLogView> auditLogs = new ArrayList<>();
+    private final AuditLogWriter auditLogWriter;
 
-    public InMemoryManagementWorkspaceService() {
+    public InMemoryManagementWorkspaceService(AuditLogWriter auditLogWriter) {
+        this.auditLogWriter = auditLogWriter;
         departments.addAll(List.of(
                 new DepartmentView("质量工程中心", "总部", "邵敏", 68, "同步正常"),
                 new DepartmentView("自动化平台组", "质量工程中心", "何序", 16, "同步正常"),
@@ -110,8 +113,8 @@ public class InMemoryManagementWorkspaceService implements ManagementWorkspaceSe
     }
 
     @Override
-    public synchronized PageResponse<DepartmentView> departments(int page, int pageSize, String search) {
-        return page(departments, page, pageSize, search);
+    public synchronized PageResponse<DepartmentView> departments(PageQuery pageQuery) {
+        return page(departments, pageQuery);
     }
 
     @Override
@@ -168,8 +171,8 @@ public class InMemoryManagementWorkspaceService implements ManagementWorkspaceSe
     }
 
     @Override
-    public synchronized PageResponse<UserView> users(int page, int pageSize, String search) {
-        return page(users, page, pageSize, search);
+    public synchronized PageResponse<UserView> users(PageQuery pageQuery) {
+        return page(users, pageQuery);
     }
 
     @Override
@@ -244,8 +247,8 @@ public class InMemoryManagementWorkspaceService implements ManagementWorkspaceSe
     }
 
     @Override
-    public synchronized PageResponse<RoleView> roles(int page, int pageSize, String search) {
-        return page(roles, page, pageSize, search);
+    public synchronized PageResponse<RoleView> roles(PageQuery pageQuery) {
+        return page(roles, pageQuery);
     }
 
     @Override
@@ -272,8 +275,8 @@ public class InMemoryManagementWorkspaceService implements ManagementWorkspaceSe
     }
 
     @Override
-    public synchronized PageResponse<ProjectView> projects(int page, int pageSize, String search, AuthUserPrincipal actor) {
-        return page(projects, page, pageSize, search);
+    public synchronized PageResponse<ProjectView> projects(PageQuery pageQuery, AuthUserPrincipal actor) {
+        return page(projects, pageQuery);
     }
 
     @Override
@@ -329,9 +332,9 @@ public class InMemoryManagementWorkspaceService implements ManagementWorkspaceSe
     }
 
     @Override
-    public synchronized PageResponse<ProjectMemberView> projectMembers(String projectKey, int page, int pageSize, String search) {
+    public synchronized PageResponse<ProjectMemberView> projectMembers(String projectKey, PageQuery pageQuery) {
         requireProject(projectKey);
-        return page(projectMembers, page, pageSize, search);
+        return page(projectMembers, pageQuery);
     }
 
     @Override
@@ -371,8 +374,8 @@ public class InMemoryManagementWorkspaceService implements ManagementWorkspaceSe
     }
 
     @Override
-    public synchronized PageResponse<ApplicationView> applications(int page, int pageSize, String search, AuthUserPrincipal actor) {
-        return page(applications, page, pageSize, search);
+    public synchronized PageResponse<ApplicationView> applications(PageQuery pageQuery, AuthUserPrincipal actor) {
+        return page(applications, pageQuery);
     }
 
     @Override
@@ -425,9 +428,9 @@ public class InMemoryManagementWorkspaceService implements ManagementWorkspaceSe
     }
 
     @Override
-    public synchronized PageResponse<ScopedUserRoleView> applicationOwners(String applicationKey, int page, int pageSize, String search) {
+    public synchronized PageResponse<ScopedUserRoleView> applicationOwners(String applicationKey, PageQuery pageQuery) {
         requireApplication(applicationKey);
-        return page(applicationOwners, page, pageSize, search);
+        return page(applicationOwners, pageQuery);
     }
 
     @Override
@@ -464,8 +467,8 @@ public class InMemoryManagementWorkspaceService implements ManagementWorkspaceSe
     }
 
     @Override
-    public synchronized PageResponse<EnvironmentView> environments(int page, int pageSize, String search, AuthUserPrincipal actor) {
-        return page(environments, page, pageSize, search);
+    public synchronized PageResponse<EnvironmentView> environments(PageQuery pageQuery, AuthUserPrincipal actor) {
+        return page(environments, pageQuery);
     }
 
     @Override
@@ -519,9 +522,9 @@ public class InMemoryManagementWorkspaceService implements ManagementWorkspaceSe
     }
 
     @Override
-    public synchronized PageResponse<ScopedUserRoleView> environmentUsers(String environmentKey, int page, int pageSize, String search) {
+    public synchronized PageResponse<ScopedUserRoleView> environmentUsers(String environmentKey, PageQuery pageQuery) {
         requireEnvironment(environmentKey);
-        return page(environmentUsers, page, pageSize, search);
+        return page(environmentUsers, pageQuery);
     }
 
     @Override
@@ -559,8 +562,8 @@ public class InMemoryManagementWorkspaceService implements ManagementWorkspaceSe
     }
 
     @Override
-    public synchronized PageResponse<IntegrationView> integrations(int page, int pageSize, String search) {
-        return page(integrations, page, pageSize, search);
+    public synchronized PageResponse<IntegrationView> integrations(PageQuery pageQuery) {
+        return page(integrations, pageQuery);
     }
 
     @Override
@@ -614,7 +617,7 @@ public class InMemoryManagementWorkspaceService implements ManagementWorkspaceSe
     }
 
     @Override
-    public synchronized PageResponse<AuditLogView> auditLogs(int page, int pageSize, AuditLogQuery query, AuthUserPrincipal actor) {
+    public synchronized PageResponse<AuditLogView> auditLogs(PageQuery pageQuery, AuditLogQuery query, AuthUserPrincipal actor) {
         List<AuditLogView> combined = new ArrayList<>();
         combined.addAll(InMemoryAuditLogWriter.records().stream()
                 .map(this::auditRecordView)
@@ -623,7 +626,7 @@ public class InMemoryManagementWorkspaceService implements ManagementWorkspaceSe
         List<AuditLogView> filtered = combined.stream()
                 .filter(item -> matchesAuditLog(item, query))
                 .toList();
-        return page(filtered, page, pageSize, "");
+        return page(filtered, PageQuery.of(pageQuery.index(), pageQuery.size()));
     }
 
     private AuditLogView auditRecordView(AuditLogWriter.AuditRecord record) {
@@ -637,10 +640,10 @@ public class InMemoryManagementWorkspaceService implements ManagementWorkspaceSe
     }
 
     @Override
-    public synchronized PageResponse<SettingView> settings(int page, int pageSize, String search) {
+    public synchronized PageResponse<SettingView> settings(PageQuery pageQuery) {
         return page(settings.stream()
                 .filter(setting -> "已启用".equals(setting.status()))
-                .toList(), page, pageSize, search);
+                .toList(), pageQuery);
     }
 
     @Override
@@ -704,12 +707,8 @@ public class InMemoryManagementWorkspaceService implements ManagementWorkspaceSe
     }
 
     private void audit(AuthUserPrincipal actor, String action, String target) {
-        auditLogs.add(0, new AuditLogView(
-                LocalDateTime.now().format(TIME_FORMAT),
-                actor.username(),
-                action,
-                target,
-                "成功"
+        auditLogWriter.record(AuditLogWriter.success(
+                actor, action, "management", target, target
         ));
     }
 
@@ -761,14 +760,14 @@ public class InMemoryManagementWorkspaceService implements ManagementWorkspaceSe
         }
     }
 
-    private <T> PageResponse<T> page(List<T> source, int page, int pageSize, String search) {
-        String keyword = search == null ? "" : search.trim().toLowerCase();
+    private <T> PageResponse<T> page(List<T> source, PageQuery pageQuery) {
+        String keyword = pageQuery.search().toLowerCase();
         List<T> filtered = source.stream()
                 .filter(item -> keyword.isBlank() || item.toString().toLowerCase().contains(keyword))
                 .toList();
-        int from = Math.min((page - 1) * pageSize, filtered.size());
-        int to = Math.min(from + pageSize, filtered.size());
-        return PageResponse.of(filtered.subList(from, to), page, pageSize, filtered.size());
+        int from = Math.min(pageQuery.offset(), filtered.size());
+        int to = Math.min(from + pageQuery.size(), filtered.size());
+        return PageResponse.of(filtered.subList(from, to), pageQuery.index(), pageQuery.size(), filtered.size());
     }
 
     private boolean matchesAuditLog(AuditLogView item, AuditLogQuery query) {

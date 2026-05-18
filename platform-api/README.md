@@ -1,13 +1,13 @@
 # platform-api
 
-`platform-api` is the WP1 control-plane service for users, RBAC, departments, projects, applications, environments, configuration, secrets, and audit.
+`platform-api` is the consolidated service for WP1 control-plane, WP2 model access, and WP3 test assets.
 
 ## Current Skeleton
 
 Implemented in this baseline:
 
 - Spring Boot 3.5.x + Java 21 + Maven module.
-- Unified API response shape: `code`, `message`, `trace_id`, `data`.
+- Unified API response shape: `code`, `message`, `traceId`, `data`.
 - `X-Trace-Id` request/response propagation and MDC logging field.
 - Global exception handling for validation, business, authentication, authorization, and unexpected errors.
 - Stateless Spring Security baseline with public health and example endpoints.
@@ -17,7 +17,9 @@ Implemented in this baseline:
 - Formal project/application/environment request models in the `db` profile, covering create, detail, update, status transitions, project members, application owners, environment authorized users, resource-scoped role binding, codes, project/application ownership, sensitivity level, public-model policy, default URLs, environment type, and project/application environment scope.
 - RBAC permission checks on management APIs. The `local` profile resolves built-in role permissions in memory; the `db` profile resolves permissions from `rbac_role_permission` and applies resource-scope filtering to project, application, environment, audit, and settings views.
 - Local profile keeps in-memory sample data; `db` profile persists departments, users, sessions, projects, applications, environments, settings, and audit logs in PostgreSQL, including audit before/after/diff fields.
-- OpenAPI metadata and Bearer security scheme are configured, and contract tests protect WP1 key paths, including settings CRUD.
+- OpenAPI metadata and Bearer security scheme are configured, and contract tests protect WP1/WP2/WP3 key paths.
+- WP2 model access APIs are available under `/api/v1/model-access`.
+- WP3 asset APIs are available under `/api/v1/asset`, covering requirements, APIs, pages, business flows, test cases, steps, and trace links.
 - Example paged endpoint for API contract and test scaffolding.
 - Actuator health/info/metrics exposure.
 
@@ -40,7 +42,7 @@ mvn -pl platform-api spring-boot:run
 To run with PostgreSQL and Flyway:
 
 ```bash
-docker compose -f infra/docker-compose.wp1.yml up -d postgres
+docker compose -f infra/docker-compose.yml up -d postgres
 ```
 
 ```bash
@@ -49,6 +51,8 @@ WP1_AUTH_TOKEN_SECRET=local-auth-secret \
 WP1_DATASOURCE_URL=jdbc:postgresql://localhost:5432/veri_agent \
 WP1_DATASOURCE_USERNAME=veri_agent \
 WP1_DATASOURCE_PASSWORD=veri_agent_dev \
+WP2_SERVICE_TOKEN=local-model-access-token \
+WP3_SERVICE_TOKEN=local-asset-token \
 mvn -pl platform-api spring-boot:run -Dspring-boot.run.profiles=db
 ```
 
@@ -65,10 +69,10 @@ WP1_BOOTSTRAP_TOKEN=local-init-token mvn -pl platform-api spring-boot:run
 curl -X POST http://localhost:8080/api/v1/bootstrap/super-admin \
   -H 'Content-Type: application/json' \
   -d '{
-    "bootstrap_token": "local-init-token",
+    "bootstrapToken": "local-init-token",
     "username": "admin_user",
     "password": "PlainPassword123",
-    "display_name": "平台管理员",
+    "displayName": "平台管理员",
     "email": "admin@example.com"
   }'
 ```
@@ -79,7 +83,7 @@ Login and call a management API:
 TOKEN="$(curl -s -X POST http://localhost:8080/api/v1/auth/login \
   -H 'Content-Type: application/json' \
   -d '{"username":"admin_user","password":"PlainPassword123"}' \
-  | jq -r '.data.access_token')"
+  | jq -r '.data.accessToken')"
 
 curl http://localhost:8080/api/v1/management/departments \
   -H "Authorization: Bearer $TOKEN"
@@ -91,17 +95,17 @@ Create a project, application, and application-scoped environment:
 curl -X POST http://localhost:8080/api/v1/management/projects \
   -H 'Content-Type: application/json' \
   -H "Authorization: Bearer $TOKEN" \
-  -d '{"code":"wp1-demo","name":"WP1 Demo","sensitivity_level":"CONFIDENTIAL","allow_public_model":false}'
+  -d '{"code":"wp1-demo","name":"WP1 Demo","sensitivityLevel":"CONFIDENTIAL","allowPublicModel":false}'
 
 curl -X POST http://localhost:8080/api/v1/management/applications \
   -H 'Content-Type: application/json' \
   -H "Authorization: Bearer $TOKEN" \
-  -d '{"code":"wp1-demo-web","name":"WP1 Demo Web","project":"wp1-demo","app_type":"Web","default_api_base_url":"https://api.demo.local","sensitivity_level":"STRICT","allow_public_model":false}'
+  -d '{"code":"wp1-demo-web","name":"WP1 Demo Web","project":"wp1-demo","appType":"Web","defaultApiBaseUrl":"https://api.demo.local","sensitivityLevel":"STRICT","allowPublicModel":false}'
 
 curl -X POST http://localhost:8080/api/v1/management/environments \
   -H 'Content-Type: application/json' \
   -H "Authorization: Bearer $TOKEN" \
-  -d '{"code":"wp1-demo-stg","name":"WP1 Demo Staging","project":"wp1-demo","application":"wp1-demo-web","scope_type":"APPLICATION","env_type":"STAGING","web_url":"https://demo.local","api_base_url":"https://api.demo.local"}'
+  -d '{"code":"wp1-demo-stg","name":"WP1 Demo Staging","project":"wp1-demo","application":"wp1-demo-web","scopeType":"APPLICATION","envType":"STAGING","webUrl":"https://demo.local","apiBaseUrl":"https://api.demo.local"}'
 ```
 
 Rotate a refresh token and revoke the current session:
@@ -111,11 +115,11 @@ LOGIN="$(curl -s -X POST http://localhost:8080/api/v1/auth/login \
   -H 'Content-Type: application/json' \
   -d '{"username":"admin_user","password":"PlainPassword123"}')"
 
-REFRESH_TOKEN="$(echo "$LOGIN" | jq -r '.data.refresh_token')"
+REFRESH_TOKEN="$(echo "$LOGIN" | jq -r '.data.refreshToken')"
 
 curl -X POST http://localhost:8080/api/v1/auth/refresh \
   -H 'Content-Type: application/json' \
-  -d "{\"refresh_token\":\"$REFRESH_TOKEN\"}"
+  -d "{\"refreshToken\":\"$REFRESH_TOKEN\"}"
 
 curl -X POST http://localhost:8080/api/v1/auth/logout \
   -H 'Content-Type: application/json' \
@@ -141,7 +145,7 @@ curl -X POST http://localhost:8080/api/v1/management/users/tester_user/disable \
 curl -X POST http://localhost:8080/api/v1/management/users/tester_user/reset-password \
   -H 'Content-Type: application/json' \
   -H "Authorization: Bearer $TOKEN" \
-  -d '{"new_password":"NewPassword123"}'
+  -d '{"newPassword":"NewPassword123"}'
 ```
 
 Swagger UI:
@@ -160,12 +164,13 @@ Database migration validation is maintained at the repository root:
 
 ```bash
 bash db/validation/run_wp1_db_validation.sh
+bash db/validation/run_wp2_db_validation.sh
 ```
 
 When the `db` profile service is already running, execute the HTTP smoke test. It covers SuperAdmin bootstrap/login, token rotation, formal project/application/environment create/detail/update/status DTOs, project member add/list/remove with project-scoped role binding, application owner add/list/remove with application-scoped role binding, environment user add/list/remove with environment-scoped role binding, settings CRUD/status, sensitive setting rejection, core management object create/list paths, resource-scope list filtering, structured audit filters, failed-login audit, RBAC denial, account lock/unlock, account lifecycle, password change, and logout:
 
 ```bash
-WP1_BOOTSTRAP_TOKEN=local-init-token bash scripts/wp1_db_profile_smoke.sh
+WP1_BOOTSTRAP_TOKEN=local-init-token bash scripts/wp_all_integration_test.sh
 ```
 
 The GitHub Actions workflow also runs a db-profile smoke job against PostgreSQL.

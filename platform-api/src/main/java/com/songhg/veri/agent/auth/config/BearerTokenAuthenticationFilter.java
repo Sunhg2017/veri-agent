@@ -28,6 +28,16 @@ public class BearerTokenAuthenticationFilter extends OncePerRequestFilter {
     }
 
     @Override
+    protected boolean shouldNotFilter(HttpServletRequest request) {
+        String path = request.getRequestURI();
+        return path.startsWith("/api/v1/model-access/")
+                || path.startsWith("/api/v1/asset/")
+                || path.startsWith("/actuator/")
+                || path.startsWith("/api/v1/contexts/")
+                || path.equals("/api/v1/audit/events");
+    }
+
+    @Override
     protected void doFilterInternal(
             HttpServletRequest request,
             HttpServletResponse response,

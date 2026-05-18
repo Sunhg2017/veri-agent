@@ -25,9 +25,12 @@ from missing;
 with expected(table_name, column_name) as (
     values
         ('ma_model_provider','id'), ('ma_model_provider','provider_type'), ('ma_model_provider','api_key_ref'), ('ma_model_provider','priority'),
+        ('ma_model_provider','version'), ('ma_model_provider','created_by'), ('ma_model_provider','deleted_at'),
         ('ma_prompt_template','prompt_key'), ('ma_prompt_template','version'), ('ma_prompt_template','content'), ('ma_prompt_template','status'),
+        ('ma_prompt_template','created_by'), ('ma_prompt_template','deleted_at'), ('ma_prompt_template','version'),
         ('ma_invocation_log','project_id'), ('ma_invocation_log','sensitivity_level'), ('ma_invocation_log','prompt_digest'), ('ma_invocation_log','request_preview'),
-        ('ma_invocation_log','input_tokens'), ('ma_invocation_log','output_tokens'), ('ma_invocation_log','total_cost'), ('ma_invocation_log','actor_service')
+        ('ma_invocation_log','input_tokens'), ('ma_invocation_log','output_tokens'), ('ma_invocation_log','total_cost'), ('ma_invocation_log','actor_service'),
+        ('ma_invocation_log','created_by'), ('ma_invocation_log','version')
 ),
 missing as (
     select e.table_name || '.' || e.column_name as item
@@ -53,7 +56,9 @@ with expected(index_name) as (
         ('idx_ma_invocation_scope_time'),
         ('idx_ma_invocation_provider_time'),
         ('idx_ma_invocation_status_time'),
-        ('idx_ma_invocation_sensitivity_time')
+        ('idx_ma_invocation_sensitivity_time'),
+        ('idx_ma_model_provider_deleted'),
+        ('idx_ma_prompt_template_deleted')
 ),
 missing as (
     select e.index_name as item

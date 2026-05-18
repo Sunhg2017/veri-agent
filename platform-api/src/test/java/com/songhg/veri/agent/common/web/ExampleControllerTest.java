@@ -37,7 +37,7 @@ class ExampleControllerTest {
                 .andExpect(header().string("X-Trace-Id", startsWith("trc_")))
                 .andExpect(jsonPath("$.code").value("OK"))
                 .andExpect(jsonPath("$.message").value("success"))
-                .andExpect(jsonPath("$.trace_id", startsWith("trc_")))
+                .andExpect(jsonPath("$.traceId", startsWith("trc_")))
                 .andExpect(jsonPath("$.data.service").value("platform-api"))
                 .andExpect(jsonPath("$.data.status").value("UP"));
     }
@@ -45,16 +45,16 @@ class ExampleControllerTest {
     @Test
     void pagedExampleUsesContractPageShape() throws Exception {
         mockMvc.perform(get("/api/v1/examples/paged")
-                        .param("page", "2")
-                        .param("page_size", "10")
+                        .param("index", "2")
+                        .param("size", "10")
                         .param("sort", "name")
                         .param("order", "asc")
                         .param("keyword", "department-a")
                         .accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value("OK"))
-                .andExpect(jsonPath("$.data.page").value(2))
-                .andExpect(jsonPath("$.data.page_size").value(10))
+                .andExpect(jsonPath("$.data.index").value(2))
+                .andExpect(jsonPath("$.data.size").value(10))
                 .andExpect(jsonPath("$.data.total").value(2))
                 .andExpect(jsonPath("$.data.items", hasSize(2)))
                 .andExpect(jsonPath("$.data.items[1].name").value("department-a"));
@@ -63,14 +63,14 @@ class ExampleControllerTest {
     @Test
     void validationErrorUsesContractErrorShape() throws Exception {
         mockMvc.perform(get("/api/v1/examples/paged")
-                        .param("page", "0")
-                        .param("page_size", "101")
+                        .param("index", "0")
+                        .param("size", "101")
                         .accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
                 .andExpect(jsonPath("$.message").value("请求字段校验失败"))
-                .andExpect(jsonPath("$.trace_id", startsWith("trc_")))
-                .andExpect(jsonPath("$.data.field_errors").isArray());
+                .andExpect(jsonPath("$.traceId", startsWith("trc_")))
+                .andExpect(jsonPath("$.data.fieldErrors").isArray());
     }
 
     @Test
@@ -90,7 +90,7 @@ class ExampleControllerTest {
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("NOT_FOUND"))
                 .andExpect(jsonPath("$.message").value("资源不存在"))
-                .andExpect(jsonPath("$.trace_id", startsWith("trc_")));
+                .andExpect(jsonPath("$.traceId", startsWith("trc_")));
     }
 
     @Test
@@ -100,6 +100,6 @@ class ExampleControllerTest {
                         .accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
                 .andExpect(header().string("X-Trace-Id", "trc_user_supplied"))
-                .andExpect(jsonPath("$.trace_id").value("trc_user_supplied"));
+                .andExpect(jsonPath("$.traceId").value("trc_user_supplied"));
     }
 }

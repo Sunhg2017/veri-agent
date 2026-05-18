@@ -7,8 +7,8 @@ with expected(code) as (
         ('user:read'), ('user:create'), ('user:edit'), ('user:enable'), ('user:disable'), ('user:lock'), ('user:unlock'), ('user:assign_role'), ('user:reset_password'),
         ('role:read'), ('role:create'), ('role:edit'), ('role:bind'), ('role:unbind'),
         ('project:read'), ('project:create'), ('project:edit'), ('project:archive'), ('project:disable'), ('project:member_manage'),
-        ('application:read'), ('application:create'), ('application:edit'), ('application:disable'),
-        ('environment:read'), ('environment:create'), ('environment:edit'), ('environment:disable'), ('environment:use'),
+        ('application:read'), ('application:create'), ('application:edit'), ('application:disable'), ('application:owner_manage'),
+        ('environment:read'), ('environment:create'), ('environment:edit'), ('environment:disable'), ('environment:use'), ('environment:user_manage'),
         ('config:read'), ('config:edit'),
         ('audit:read'), ('audit:export'), ('audit:write_internal'),
         ('secret:reference'),
@@ -121,11 +121,11 @@ from missing;
 
 with expected(role_code, permission_code) as (
     values
-        ('SuperAdmin','role:bind'), ('SuperAdmin','audit:read'), ('SuperAdmin','context:switch'), ('SuperAdmin','user:enable'), ('SuperAdmin','user:disable'), ('SuperAdmin','user:unlock'), ('SuperAdmin','user:reset_password'),
-        ('PlatformAdmin','department:create'), ('PlatformAdmin','user:create'), ('PlatformAdmin','user:unlock'), ('PlatformAdmin','user:reset_password'), ('PlatformAdmin','project:create'), ('PlatformAdmin','application:create'), ('PlatformAdmin','environment:create'), ('PlatformAdmin','config:edit'), ('PlatformAdmin','role:bind'), ('PlatformAdmin','audit:read'), ('PlatformAdmin','context:effective_read'),
+        ('SuperAdmin','role:bind'), ('SuperAdmin','audit:read'), ('SuperAdmin','context:switch'), ('SuperAdmin','user:enable'), ('SuperAdmin','user:disable'), ('SuperAdmin','user:unlock'), ('SuperAdmin','user:reset_password'), ('SuperAdmin','application:owner_manage'), ('SuperAdmin','environment:user_manage'),
+        ('PlatformAdmin','department:create'), ('PlatformAdmin','user:create'), ('PlatformAdmin','user:unlock'), ('PlatformAdmin','user:reset_password'), ('PlatformAdmin','project:create'), ('PlatformAdmin','application:create'), ('PlatformAdmin','environment:create'), ('PlatformAdmin','config:edit'), ('PlatformAdmin','role:bind'), ('PlatformAdmin','audit:read'), ('PlatformAdmin','context:effective_read'), ('PlatformAdmin','application:owner_manage'), ('PlatformAdmin','environment:user_manage'),
         ('DepartmentManager','department:member_manage'), ('DepartmentManager','user:read'), ('DepartmentManager','project:read'), ('DepartmentManager','audit:read'), ('DepartmentManager','context:read'),
-        ('ProjectOwner','project:edit'), ('ProjectOwner','project:member_manage'), ('ProjectOwner','application:create'), ('ProjectOwner','environment:create'), ('ProjectOwner','config:edit'), ('ProjectOwner','role:bind'), ('ProjectOwner','secret:reference'), ('ProjectOwner','context:switch'),
-        ('AppOwner','application:edit'), ('AppOwner','environment:create'), ('AppOwner','environment:edit'), ('AppOwner','config:edit'), ('AppOwner','role:bind'), ('AppOwner','secret:reference'), ('AppOwner','context:read'),
+        ('ProjectOwner','project:edit'), ('ProjectOwner','project:member_manage'), ('ProjectOwner','application:create'), ('ProjectOwner','environment:create'), ('ProjectOwner','config:edit'), ('ProjectOwner','role:bind'), ('ProjectOwner','secret:reference'), ('ProjectOwner','context:switch'), ('ProjectOwner','application:owner_manage'), ('ProjectOwner','environment:user_manage'),
+        ('AppOwner','application:edit'), ('AppOwner','environment:create'), ('AppOwner','environment:edit'), ('AppOwner','config:edit'), ('AppOwner','role:bind'), ('AppOwner','secret:reference'), ('AppOwner','context:read'), ('AppOwner','application:owner_manage'), ('AppOwner','environment:user_manage'),
         ('Tester','environment:use'), ('Tester','config:read'), ('Tester','context:effective_read'),
         ('Developer','project:read'), ('Developer','application:read'), ('Developer','environment:read'), ('Developer','config:read'), ('Developer','context:switch'),
         ('Auditor','audit:read'), ('Auditor','audit:export'), ('Auditor','context:effective_read')

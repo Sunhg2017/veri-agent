@@ -1,12 +1,12 @@
 package com.songhg.veri.agent.auth.application;
 
-import com.songhg.veri.agent.auth.api.ChangePasswordRequest;
-import com.songhg.veri.agent.auth.api.ChangePasswordResponse;
-import com.songhg.veri.agent.auth.api.LoginRequest;
-import com.songhg.veri.agent.auth.api.LoginResponse;
-import com.songhg.veri.agent.auth.api.LogoutRequest;
-import com.songhg.veri.agent.auth.api.LogoutResponse;
-import com.songhg.veri.agent.auth.api.RefreshTokenRequest;
+import com.songhg.veri.agent.auth.api.request.ChangePasswordRequest;
+import com.songhg.veri.agent.auth.api.request.LoginRequest;
+import com.songhg.veri.agent.auth.api.request.LogoutRequest;
+import com.songhg.veri.agent.auth.api.request.RefreshTokenRequest;
+import com.songhg.veri.agent.auth.api.response.ChangePasswordResponse;
+import com.songhg.veri.agent.auth.api.response.LoginResponse;
+import com.songhg.veri.agent.auth.api.response.LogoutResponse;
 import com.songhg.veri.agent.auth.domain.AuthSessionRecord;
 import com.songhg.veri.agent.auth.domain.AuthSessionStore;
 import com.songhg.veri.agent.auth.domain.AuthIdentityStore;

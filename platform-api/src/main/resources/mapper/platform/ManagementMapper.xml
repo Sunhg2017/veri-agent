@@ -1,0 +1,1224 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapper">
+
+    <resultMap id="departmentViewMap" type="com.songhg.veri.agent.management.api.response.DepartmentView">
+        <constructor>
+            <arg column="name" javaType="java.lang.String"/>
+            <arg column="parent_name" javaType="java.lang.String"/>
+            <arg column="lead" javaType="java.lang.String"/>
+            <arg column="members" javaType="_int"/>
+            <arg column="status_name" javaType="java.lang.String"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="userViewMap" type="com.songhg.veri.agent.management.api.response.UserView">
+        <constructor>
+            <arg column="username" javaType="java.lang.String"/>
+            <arg column="display_name" javaType="java.lang.String"/>
+            <arg column="email" javaType="java.lang.String"/>
+            <arg column="role_names" javaType="java.lang.String"/>
+            <arg column="department_name" javaType="java.lang.String"/>
+            <arg column="status_name" javaType="java.lang.String"/>
+            <arg column="last_seen" javaType="java.lang.String"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="roleViewMap" type="com.songhg.veri.agent.management.api.response.RoleView">
+        <constructor>
+            <arg column="code" javaType="java.lang.String"/>
+            <arg column="name" javaType="java.lang.String"/>
+            <arg column="scope_type" javaType="java.lang.String"/>
+            <arg column="status_name" javaType="java.lang.String"/>
+            <arg column="description" javaType="java.lang.String"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="projectViewMap" type="com.songhg.veri.agent.management.api.response.ProjectView">
+        <constructor>
+            <arg column="name" javaType="java.lang.String"/>
+            <arg column="department_name" javaType="java.lang.String"/>
+            <arg column="owner_name" javaType="java.lang.String"/>
+            <arg column="apps" javaType="_int"/>
+            <arg column="status_name" javaType="java.lang.String"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="projectMemberViewMap" type="com.songhg.veri.agent.management.api.response.ProjectMemberView">
+        <constructor>
+            <arg column="username" javaType="java.lang.String"/>
+            <arg column="display_name" javaType="java.lang.String"/>
+            <arg column="role_names" javaType="java.lang.String"/>
+            <arg column="member_type" javaType="java.lang.String"/>
+            <arg column="status_name" javaType="java.lang.String"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="applicationViewMap" type="com.songhg.veri.agent.management.api.response.ApplicationView">
+        <constructor>
+            <arg column="name" javaType="java.lang.String"/>
+            <arg column="app_type" javaType="java.lang.String"/>
+            <arg column="owner_name" javaType="java.lang.String"/>
+            <arg column="version_name" javaType="java.lang.String"/>
+            <arg column="status_name" javaType="java.lang.String"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="environmentViewMap" type="com.songhg.veri.agent.management.api.response.EnvironmentView">
+        <constructor>
+            <arg column="name" javaType="java.lang.String"/>
+            <arg column="cluster_name" javaType="java.lang.String"/>
+            <arg column="endpoint" javaType="java.lang.String"/>
+            <arg column="status_name" javaType="java.lang.String"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="integrationViewMap" type="com.songhg.veri.agent.management.api.response.IntegrationView">
+        <constructor>
+            <arg column="integration_key" javaType="java.lang.String"/>
+            <arg column="integration_name" javaType="java.lang.String"/>
+            <arg column="category" javaType="java.lang.String"/>
+            <arg column="scope_name" javaType="java.lang.String"/>
+            <arg column="status_name" javaType="java.lang.String"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="auditLogViewMap" type="com.songhg.veri.agent.management.api.response.AuditLogView">
+        <constructor>
+            <arg column="created_time" javaType="java.lang.String"/>
+            <arg column="actor_name" javaType="java.lang.String"/>
+            <arg column="action" javaType="java.lang.String"/>
+            <arg column="target" javaType="java.lang.String"/>
+            <arg column="result_name" javaType="java.lang.String"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="settingViewMap" type="com.songhg.veri.agent.management.api.response.SettingView">
+        <constructor>
+            <arg column="config_key" javaType="java.lang.String"/>
+            <arg column="display_name" javaType="java.lang.String"/>
+            <arg column="config_value" javaType="java.lang.String"/>
+            <arg column="scope_type" javaType="java.lang.String"/>
+            <arg column="status_name" javaType="java.lang.String"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="scopedUserRoleViewMap" type="com.songhg.veri.agent.management.api.response.ScopedUserRoleView">
+        <constructor>
+            <arg column="username" javaType="java.lang.String"/>
+            <arg column="display_name" javaType="java.lang.String"/>
+            <arg column="role_names" javaType="java.lang.String"/>
+            <arg column="scope_type" javaType="java.lang.String"/>
+            <arg column="status_name" javaType="java.lang.String"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="departmentRefMap" type="com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows$DepartmentRef">
+        <constructor>
+            <arg column="id" javaType="java.util.UUID"/>
+            <arg column="name" javaType="java.lang.String"/>
+            <arg column="status" javaType="java.lang.String"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="projectRefMap" type="com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows$ProjectRef">
+        <constructor>
+            <arg column="id" javaType="java.util.UUID"/>
+            <arg column="name" javaType="java.lang.String"/>
+            <arg column="status" javaType="java.lang.String"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="applicationRefMap" type="com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows$ApplicationRef">
+        <constructor>
+            <arg column="id" javaType="java.util.UUID"/>
+            <arg column="name" javaType="java.lang.String"/>
+            <arg column="status" javaType="java.lang.String"/>
+            <arg column="project_id" javaType="java.util.UUID"/>
+            <arg column="project_name" javaType="java.lang.String"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="environmentRefMap" type="com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows$EnvironmentRef">
+        <constructor>
+            <arg column="id" javaType="java.util.UUID"/>
+            <arg column="name" javaType="java.lang.String"/>
+            <arg column="status" javaType="java.lang.String"/>
+            <arg column="project_id" javaType="java.util.UUID"/>
+            <arg column="project_name" javaType="java.lang.String"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="integrationRowMap" type="com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows$IntegrationRow">
+        <constructor>
+            <arg column="config_key" javaType="java.lang.String"/>
+            <arg column="integration_key" javaType="java.lang.String"/>
+            <arg column="integration_name" javaType="java.lang.String"/>
+            <arg column="category" javaType="java.lang.String"/>
+            <arg column="scope_name" javaType="java.lang.String"/>
+            <arg column="status_name" javaType="java.lang.String"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="settingRowMap" type="com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows$SettingRow">
+        <constructor>
+            <arg column="config_key" javaType="java.lang.String"/>
+            <arg column="scope_type" javaType="java.lang.String"/>
+            <arg column="display_name" javaType="java.lang.String"/>
+            <arg column="config_value" javaType="java.lang.String"/>
+            <arg column="status_name" javaType="java.lang.String"/>
+        </constructor>
+    </resultMap>
+
+    <sql id="activeRoleBinding">
+        b.status = 'ENABLED'
+        and b.deleted_at is null
+        and (b.expires_at is null or b.expires_at &gt; now())
+    </sql>
+
+    <sql id="departmentViewColumns">
+        d.name,
+        coalesce(parent.name, '总部') as parent_name,
+        coalesce((
+            select string_agg(u.display_name, ', ' order by u.display_name)
+            from base_department_manager manager
+            join iam_user u on u.id = manager.user_id and u.deleted_at is null
+            where manager.dept_id = d.id
+              and manager.status = 'ENABLED'
+              and manager.deleted_at is null
+        ), '未设置') as lead,
+        (
+            select count(*)::int
+            from base_department_member member
+            where member.dept_id = d.id
+              and member.status = 'ENABLED'
+              and member.deleted_at is null
+        ) as members,
+        case d.status when 'ENABLED' then '同步正常' else '已停用' end as status_name
+    </sql>
+
+    <sql id="userViewSelect">
+        select
+            u.username,
+            u.display_name,
+            coalesce(u.email, '') as email,
+            coalesce(string_agg(distinct b.role_code, ' / ' order by b.role_code), '未分配') as role_names,
+            coalesce(primary_dept.name, '未分配') as department_name,
+            case u.status
+                when 'ENABLED' then '启用'
+                when 'PENDING_ACTIVATION' then '待激活'
+                when 'LOCKED' then '已锁定'
+                else '已停用'
+            end as status_name,
+            coalesce(to_char(u.last_login_at, 'YYYY-MM-DD HH24:MI'), '尚未登录') as last_seen
+        from iam_user u
+        left join rbac_role_binding b on b.subject_type = 'USER'
+            and b.subject_id = u.id
+            and <include refid="activeRoleBinding"/>
+        left join base_department_member primary_member on primary_member.user_id = u.id
+            and primary_member.is_primary = true
+            and primary_member.status = 'ENABLED'
+            and primary_member.deleted_at is null
+        left join base_department primary_dept on primary_dept.id = primary_member.dept_id
+            and primary_dept.deleted_at is null
+    </sql>
+
+    <sql id="projectScopeFilter">
+        (
+            #{platformScope} = true
+            or exists (
+                select 1
+                from rbac_role_binding b
+                where b.subject_type = 'USER'
+                  and b.subject_id = #{actorId}
+                  and <include refid="activeRoleBinding"/>
+                  and (
+                    (b.scope_type = 'PROJECT' and b.scope_id = p.id)
+                    or (b.scope_type = 'DEPARTMENT' and exists (
+                        select 1
+                        from base_project_department scoped_pd
+                        where scoped_pd.project_id = p.id
+                          and scoped_pd.dept_id = b.scope_id
+                          and scoped_pd.status = 'ENABLED'
+                          and scoped_pd.deleted_at is null
+                    ))
+                  )
+            )
+        )
+    </sql>
+
+    <sql id="projectViewColumns">
+        p.name,
+        coalesce(primary_dept.name, '未分配') as department_name,
+        coalesce((
+            select string_agg(u.display_name, ', ' order by u.display_name)
+            from base_project_member member
+            join iam_user u on u.id = member.user_id and u.deleted_at is null
+            where member.project_id = p.id
+              and member.member_type = 'OWNER'
+              and member.status = 'ENABLED'
+              and member.deleted_at is null
+        ), '未设置') as owner_name,
+        (
+            select count(*)::int
+            from base_application app
+            where app.project_id = p.id
+              and app.deleted_at is null
+        ) as apps,
+        case p.status
+            when 'ACTIVE' then '进行中'
+            when 'PREPARING' then '规划中'
+            when 'ARCHIVED' then '已归档'
+            else '已停用'
+        end as status_name
+    </sql>
+
+    <sql id="projectViewFrom">
+        from base_project p
+        left join base_project_department pd on pd.project_id = p.id
+            and pd.is_primary = true
+            and pd.status = 'ENABLED'
+            and pd.deleted_at is null
+        left join base_department primary_dept on primary_dept.id = pd.dept_id
+            and primary_dept.deleted_at is null
+    </sql>
+
+    <sql id="applicationScopeFilter">
+        (
+            #{platformScope} = true
+            or exists (
+                select 1
+                from rbac_role_binding b
+                where b.subject_type = 'USER'
+                  and b.subject_id = #{actorId}
+                  and <include refid="activeRoleBinding"/>
+                  and (
+                    (b.scope_type = 'APPLICATION' and b.scope_id = app.id)
+                    or (b.scope_type = 'PROJECT' and b.scope_id = app.project_id)
+                  )
+            )
+        )
+    </sql>
+
+    <sql id="applicationViewColumns">
+        app.name,
+        app.app_type,
+        coalesce((
+            select string_agg(u.display_name, ', ' order by u.display_name)
+            from rbac_role_binding b
+            join iam_user u on u.id = b.subject_id and u.deleted_at is null
+            where b.subject_type = 'USER'
+              and b.scope_type = 'APPLICATION'
+              and b.scope_id = app.id
+              and b.role_code = 'AppOwner'
+              and <include refid="activeRoleBinding"/>
+        ), p.name) as owner_name,
+        'v' || app.version as version_name,
+        case app.status when 'ENABLED' then '已接入' else '已停用' end as status_name
+    </sql>
+
+    <sql id="environmentScopeFilter">
+        (
+            #{platformScope} = true
+            or exists (
+                select 1
+                from rbac_role_binding b
+                where b.subject_type = 'USER'
+                  and b.subject_id = #{actorId}
+                  and <include refid="activeRoleBinding"/>
+                  and (
+                    (b.scope_type = 'ENVIRONMENT' and b.scope_id = env.id)
+                    or (b.scope_type = 'APPLICATION' and b.scope_id = env.app_id)
+                    or (b.scope_type = 'PROJECT' and b.scope_id = env.project_id)
+                  )
+            )
+        )
+    </sql>
+
+    <select id="listDepartments" resultMap="departmentViewMap">
+        select <include refid="departmentViewColumns"/>
+        from base_department d
+        left join base_department parent on parent.id = d.parent_id and parent.deleted_at is null
+        where d.deleted_at is null
+          and (#{search} = '' or d.name ilike #{searchPattern})
+        order by d.created_at desc
+        limit #{limit} offset #{offset}
+    </select>
+
+    <select id="countDepartments" resultType="long">
+        select count(*)
+        from base_department d
+        where d.deleted_at is null
+          and (#{search} = '' or d.name ilike #{searchPattern})
+    </select>
+
+    <insert id="insertDepartment">
+        insert into base_department (id, code, name, path, level, status, created_by, updated_by)
+        values (#{deptId}, #{code}, #{name}, #{path}, 1, 'ENABLED', #{actorId}, #{actorId})
+    </insert>
+
+    <update id="updateDepartment">
+        update base_department
+        set name = coalesce(#{name}, name),
+            updated_by = #{actorId},
+            updated_at = now(),
+            version = version + 1
+        where id = #{deptId}
+          and deleted_at is null
+    </update>
+
+    <update id="changeDepartmentStatus">
+        update base_department
+        set status = #{status},
+            updated_by = #{actorId},
+            updated_at = now(),
+            version = version + 1
+        where id = #{deptId}
+          and deleted_at is null
+    </update>
+
+    <select id="listUsers" resultMap="userViewMap">
+        <include refid="userViewSelect"/>
+        where u.deleted_at is null
+          and (#{search} = '' or u.username ilike #{searchPattern} or u.display_name ilike #{searchPattern})
+        group by u.id, primary_dept.name
+        order by u.created_at desc
+        limit #{limit} offset #{offset}
+    </select>
+
+    <select id="countUsers" resultType="long">
+        select count(*)
+        from iam_user u
+        where u.deleted_at is null
+          and (#{search} = '' or u.username ilike #{searchPattern} or u.display_name ilike #{searchPattern})
+    </select>
+
+    <insert id="insertUser">
+        insert into iam_user (id, username, display_name, status, created_by, updated_by)
+        values (#{userId}, #{username}, #{username}, 'PENDING_ACTIVATION', #{actorId}, #{actorId})
+    </insert>
+
+    <update id="updateUser">
+        update iam_user
+        set display_name = coalesce(#{displayName}, display_name),
+            email = coalesce(#{email}, email),
+            updated_by = #{actorId},
+            updated_at = now(),
+            version = version + 1
+        where username = #{username}
+          and deleted_at is null
+    </update>
+
+    <update id="enableUser">
+        update iam_user
+        set status = 'ENABLED', updated_by = #{actorId}, updated_at = now()
+        where username = #{username}
+          and deleted_at is null
+    </update>
+
+    <update id="disableUser">
+        update iam_user
+        set status = 'DISABLED',
+            auth_version = auth_version + 1,
+            updated_by = #{actorId},
+            updated_at = now()
+        where username = #{username}
+          and deleted_at is null
+    </update>
+
+    <update id="lockUser">
+        update iam_user
+        set status = 'LOCKED',
+            auth_version = auth_version + 1,
+            updated_by = #{actorId},
+            updated_at = now()
+        where username = #{username}
+          and deleted_at is null
+    </update>
+
+    <update id="unlockUser">
+        update iam_user
+        set status = 'ENABLED',
+            auth_version = auth_version + 1,
+            updated_by = #{actorId},
+            updated_at = now()
+        where username = #{username}
+          and deleted_at is null
+    </update>
+
+    <update id="resetUserPassword">
+        update iam_user
+        set password_hash = #{passwordHash},
+            must_change_password = true,
+            status = 'ENABLED',
+            auth_version = auth_version + 1,
+            updated_by = #{actorId},
+            updated_at = now()
+        where username = #{username}
+          and deleted_at is null
+    </update>
+
+    <select id="listRoles" resultMap="roleViewMap">
+        select
+            code,
+            name,
+            scope_type,
+            case status when 'ENABLED' then '启用' else '已停用' end as status_name,
+            coalesce(description, '') as description
+        from rbac_role
+        where deleted_at is null
+          and (#{search} = '' or code ilike #{searchPattern} or name ilike #{searchPattern})
+        order by is_system desc, created_at asc
+        limit #{limit} offset #{offset}
+    </select>
+
+    <select id="countRoles" resultType="long">
+        select count(*)
+        from rbac_role
+        where deleted_at is null
+          and (#{search} = '' or code ilike #{searchPattern} or name ilike #{searchPattern})
+    </select>
+
+    <insert id="assignUserRole">
+        insert into rbac_role_binding (
+            subject_type, subject_id, role_id, role_code, scope_type, scope_id, status, created_by, updated_by
+        )
+        values ('USER', #{userId}, #{roleId}, #{roleCode}, 'PLATFORM', null, 'ENABLED', #{actorId}, #{actorId})
+        on conflict do nothing
+    </insert>
+
+    <update id="unassignUserRole">
+        update rbac_role_binding
+        set deleted_by = #{actorId},
+            deleted_at = now(),
+            updated_by = #{actorId},
+            updated_at = now()
+        where subject_type = 'USER'
+          and subject_id = #{userId}
+          and role_code = #{roleCode}
+          and deleted_at is null
+    </update>
+
+    <select id="listProjects" resultMap="projectViewMap">
+        select <include refid="projectViewColumns"/>
+        <include refid="projectViewFrom"/>
+        where p.deleted_at is null
+          and (#{search} = '' or p.name ilike #{searchPattern} or p.code ilike #{searchPattern})
+          and <include refid="projectScopeFilter"/>
+        order by p.created_at desc
+        limit #{limit} offset #{offset}
+    </select>
+
+    <select id="countProjects" resultType="long">
+        select count(*)
+        from base_project p
+        where p.deleted_at is null
+          and (#{search} = '' or p.name ilike #{searchPattern} or p.code ilike #{searchPattern})
+          and <include refid="projectScopeFilter"/>
+    </select>
+
+    <insert id="insertProject">
+        insert into base_project (
+            id, code, name, status, sensitivity_level, allow_public_model, created_by, updated_by
+        )
+        values (
+            #{projectId}, #{code}, #{name}, 'PREPARING', #{sensitivityLevel}, #{allowPublicModel}, #{actorId}, #{actorId}
+        )
+    </insert>
+
+    <update id="updateProject">
+        update base_project
+        set name = coalesce(#{name}, name),
+            sensitivity_level = coalesce(#{sensitivityLevel}, sensitivity_level),
+            allow_public_model = coalesce(#{allowPublicModel}, allow_public_model),
+            updated_by = #{actorId},
+            updated_at = now(),
+            version = version + 1
+        where id = #{projectId}
+          and deleted_at is null
+    </update>
+
+    <update id="changeProjectStatus">
+        update base_project
+        set status = #{status},
+            updated_by = #{actorId},
+            updated_at = now(),
+            version = version + 1
+        where id = #{projectId}
+          and deleted_at is null
+    </update>
+
+    <select id="listProjectMembers" resultMap="projectMemberViewMap">
+        select
+            u.username,
+            u.display_name,
+            coalesce(string_agg(distinct b.role_code, ' / ' order by b.role_code), '-') as role_names,
+            member.member_type,
+            case member.status when 'ENABLED' then '启用' else '已停用' end as status_name
+        from base_project_member member
+        join iam_user u on u.id = member.user_id and u.deleted_at is null
+        left join rbac_role_binding b on b.subject_type = 'USER'
+            and b.subject_id = u.id
+            and b.scope_type = 'PROJECT'
+            and b.scope_id = member.project_id
+            and <include refid="activeRoleBinding"/>
+        where member.project_id = #{projectId}
+          and member.deleted_at is null
+          and (#{search} = '' or u.username ilike #{searchPattern} or u.display_name ilike #{searchPattern} or b.role_code ilike #{searchPattern})
+        group by u.id, member.member_type, member.status, member.created_at
+        order by member.created_at desc
+        limit #{limit} offset #{offset}
+    </select>
+
+    <select id="countProjectMembers" resultType="long">
+        select count(*)
+        from base_project_member member
+        join iam_user u on u.id = member.user_id and u.deleted_at is null
+        where member.project_id = #{projectId}
+          and member.deleted_at is null
+          and (#{search} = '' or u.username ilike #{searchPattern} or u.display_name ilike #{searchPattern})
+    </select>
+
+    <insert id="upsertProjectMember">
+        insert into base_project_member (project_id, user_id, member_type, status, created_by, updated_by)
+        values (#{projectId}, #{userId}, #{memberType}, 'ENABLED', #{actorId}, #{actorId})
+        on conflict (project_id, user_id) where deleted_at is null
+        do update set
+            member_type = excluded.member_type,
+            status = 'ENABLED',
+            updated_by = #{actorId},
+            updated_at = now(),
+            version = base_project_member.version + 1
+    </insert>
+
+    <update id="deleteProjectMember">
+        update base_project_member
+        set status = 'DISABLED',
+            deleted_by = #{actorId},
+            deleted_at = now(),
+            updated_by = #{actorId},
+            updated_at = now(),
+            version = version + 1
+        where project_id = #{projectId}
+          and user_id = #{userId}
+          and deleted_at is null
+    </update>
+
+    <update id="disableProjectRoleBindings">
+        update rbac_role_binding
+        set status = 'DISABLED',
+            deleted_by = #{actorId},
+            deleted_at = now(),
+            updated_by = #{actorId},
+            updated_at = now(),
+            version = version + 1
+        where subject_type = 'USER'
+          and subject_id = #{userId}
+          and scope_type = 'PROJECT'
+          and scope_id = #{projectId}
+          and deleted_at is null
+    </update>
+
+    <select id="listApplications" resultMap="applicationViewMap">
+        select <include refid="applicationViewColumns"/>
+        from base_application app
+        join base_project p on p.id = app.project_id and p.deleted_at is null
+        where app.deleted_at is null
+          and (#{search} = '' or app.name ilike #{searchPattern} or app.code ilike #{searchPattern})
+          and <include refid="applicationScopeFilter"/>
+        order by app.created_at desc
+        limit #{limit} offset #{offset}
+    </select>
+
+    <select id="countApplications" resultType="long">
+        select count(*)
+        from base_application app
+        where app.deleted_at is null
+          and (#{search} = '' or app.name ilike #{searchPattern} or app.code ilike #{searchPattern})
+          and <include refid="applicationScopeFilter"/>
+    </select>
+
+    <insert id="insertApplication">
+        insert into base_application (
+            id, project_id, code, name, app_type, default_web_url, default_api_base_url,
+            sensitivity_level, allow_public_model, status, created_by, updated_by
+        )
+        values (
+            #{appId}, #{projectId}, #{code}, #{name}, #{appType}, #{defaultWebUrl}, #{defaultApiBaseUrl},
+            #{sensitivityLevel}, #{allowPublicModel}, 'ENABLED', #{actorId}, #{actorId}
+        )
+    </insert>
+
+    <update id="updateApplication">
+        update base_application
+        set name = coalesce(#{name}, name),
+            app_type = coalesce(#{appType}, app_type),
+            default_web_url = coalesce(#{defaultWebUrl}, default_web_url),
+            default_api_base_url = coalesce(#{defaultApiBaseUrl}, default_api_base_url),
+            sensitivity_level = coalesce(#{sensitivityLevel}, sensitivity_level),
+            allow_public_model = coalesce(#{allowPublicModel}, allow_public_model),
+            updated_by = #{actorId},
+            updated_at = now(),
+            version = version + 1
+        where id = #{applicationId}
+          and deleted_at is null
+    </update>
+
+    <update id="changeApplicationStatus">
+        update base_application
+        set status = #{status},
+            updated_by = #{actorId},
+            updated_at = now(),
+            version = version + 1
+        where id = #{applicationId}
+          and deleted_at is null
+    </update>
+
+    <select id="listEnvironments" resultMap="environmentViewMap">
+        select
+            env.name,
+            p.name as cluster_name,
+            coalesce(env.api_base_url, env.web_url, env.code || '.local') as endpoint,
+            case env.status when 'ENABLED' then '可用' else '已停用' end as status_name
+        from base_environment env
+        join base_project p on p.id = env.project_id and p.deleted_at is null
+        where env.deleted_at is null
+          and (#{search} = '' or env.name ilike #{searchPattern} or env.code ilike #{searchPattern})
+          and <include refid="environmentScopeFilter"/>
+        order by env.created_at desc
+        limit #{limit} offset #{offset}
+    </select>
+
+    <select id="countEnvironments" resultType="long">
+        select count(*)
+        from base_environment env
+        where env.deleted_at is null
+          and (#{search} = '' or env.name ilike #{searchPattern} or env.code ilike #{searchPattern})
+          and <include refid="environmentScopeFilter"/>
+    </select>
+
+    <insert id="insertEnvironment">
+        insert into base_environment (
+            id, project_id, app_id, scope_type, code, name, env_type, web_url, api_base_url, status, created_by, updated_by
+        )
+        values (
+            #{envId}, #{projectId}, #{appId}, #{scopeType}, #{code}, #{name}, #{envType},
+            #{webUrl}, #{endpoint}, 'ENABLED', #{actorId}, #{actorId}
+        )
+    </insert>
+
+    <update id="updateEnvironment">
+        update base_environment
+        set name = coalesce(#{name}, name),
+            env_type = coalesce(#{envType}, env_type),
+            web_url = coalesce(#{webUrl}, web_url),
+            api_base_url = coalesce(#{apiBaseUrl}, api_base_url),
+            updated_by = #{actorId},
+            updated_at = now(),
+            version = version + 1
+        where id = #{environmentId}
+          and deleted_at is null
+    </update>
+
+    <update id="changeEnvironmentStatus">
+        update base_environment
+        set status = #{status},
+            updated_by = #{actorId},
+            updated_at = now(),
+            version = version + 1
+        where id = #{environmentId}
+          and deleted_at is null
+    </update>
+
+    <select id="listIntegrations" resultMap="integrationViewMap">
+        select
+            replace(config_key, 'integration.', '') as integration_key,
+            coalesce(value_json -&gt;&gt; 'name', replace(config_key, 'integration.', '')) as integration_name,
+            coalesce(value_json -&gt;&gt; 'category', '未分类') as category,
+            coalesce(value_json -&gt;&gt; 'scope', '平台级') as scope_name,
+            case status when 'ENABLED' then '已启用' else '已停用' end as status_name
+        from base_config
+        where deleted_at is null
+          and scope_type = 'SYSTEM'
+          and config_key like 'integration.%'
+          and (#{search} = ''
+            or config_key ilike #{searchPattern}
+            or coalesce(value_json -&gt;&gt; 'name', '') ilike #{searchPattern}
+            or coalesce(value_json -&gt;&gt; 'category', '') ilike #{searchPattern}
+            or coalesce(value_json -&gt;&gt; 'scope', '') ilike #{searchPattern})
+        order by updated_at desc, created_at desc
+        limit #{limit} offset #{offset}
+    </select>
+
+    <select id="countIntegrations" resultType="long">
+        select count(*)
+        from base_config
+        where deleted_at is null
+          and scope_type = 'SYSTEM'
+          and config_key like 'integration.%'
+          and (#{search} = ''
+            or config_key ilike #{searchPattern}
+            or coalesce(value_json -&gt;&gt; 'name', '') ilike #{searchPattern}
+            or coalesce(value_json -&gt;&gt; 'category', '') ilike #{searchPattern}
+            or coalesce(value_json -&gt;&gt; 'scope', '') ilike #{searchPattern})
+    </select>
+
+    <select id="listAuditLogs" resultMap="auditLogViewMap">
+        select
+            to_char(a.created_at, 'YYYY-MM-DD HH24:MI') as created_time,
+            coalesce(u.username, a.actor_service, 'system') as actor_name,
+            a.action,
+            coalesce(a.after_json -&gt;&gt; 'name', a.resource_id, '-') as target,
+            case a.result when 'SUCCESS' then '成功' when 'DENIED' then '拒绝' else '失败' end as result_name
+        from audit_log a
+        left join iam_user u on u.id = a.actor_user_id and u.deleted_at is null
+        where (#{search} = ''
+           or a.action ilike #{searchPattern}
+           or a.resource_id ilike #{searchPattern}
+           or coalesce(u.username, a.actor_service, 'system') ilike #{searchPattern}
+           or coalesce(a.after_json -&gt;&gt; 'name', '') ilike #{searchPattern})
+          and (#{actor} = '' or coalesce(u.username, a.actor_service, 'system') = #{actor})
+          and (#{action} = '' or a.action = #{action})
+          and (#{resourceType} = '' or a.resource_type = #{resourceType})
+          and (#{result} = '' or a.result = #{result})
+          and (cast(#{startTime} as timestamptz) is null or a.created_at &gt;= cast(#{startTime} as timestamptz))
+          and (cast(#{endTime} as timestamptz) is null or a.created_at &lt;= cast(#{endTime} as timestamptz))
+          and (
+            #{platformScope} = true
+            or a.actor_user_id = #{actorId}
+            or exists (
+                select 1
+                from rbac_role_binding b
+                where b.subject_type = 'USER'
+                  and b.subject_id = #{actorId}
+                  and <include refid="activeRoleBinding"/>
+                  and b.scope_type = a.scope_type
+                  and b.scope_id = a.scope_id
+            )
+          )
+        order by a.created_at desc
+        limit #{limit} offset #{offset}
+    </select>
+
+    <select id="countAuditLogs" resultType="long">
+        select count(*)
+        from audit_log a
+        left join iam_user u on u.id = a.actor_user_id and u.deleted_at is null
+        where (#{search} = ''
+           or a.action ilike #{searchPattern}
+           or a.resource_id ilike #{searchPattern}
+           or coalesce(u.username, a.actor_service, 'system') ilike #{searchPattern}
+           or coalesce(a.after_json -&gt;&gt; 'name', '') ilike #{searchPattern})
+          and (#{actor} = '' or coalesce(u.username, a.actor_service, 'system') = #{actor})
+          and (#{action} = '' or a.action = #{action})
+          and (#{resourceType} = '' or a.resource_type = #{resourceType})
+          and (#{result} = '' or a.result = #{result})
+          and (cast(#{startTime} as timestamptz) is null or a.created_at &gt;= cast(#{startTime} as timestamptz))
+          and (cast(#{endTime} as timestamptz) is null or a.created_at &lt;= cast(#{endTime} as timestamptz))
+          and (
+            #{platformScope} = true
+            or a.actor_user_id = #{actorId}
+            or exists (
+                select 1
+                from rbac_role_binding b
+                where b.subject_type = 'USER'
+                  and b.subject_id = #{actorId}
+                  and <include refid="activeRoleBinding"/>
+                  and b.scope_type = a.scope_type
+                  and b.scope_id = a.scope_id
+            )
+          )
+    </select>
+
+    <select id="listSettings" resultMap="settingRowMap">
+        select
+            config_key,
+            coalesce(value_json -&gt;&gt; '_display_name', '') as display_name,
+            case
+                when value_json ? '_value' then value_json -&gt;&gt; '_value'
+                when value_json is null then coalesce(masked_value, '已配置')
+                else trim(both '"' from value_json::text)
+            end as config_value,
+            scope_type,
+            case status when 'ENABLED' then '已启用' else '已停用' end as status_name
+        from base_config
+        where deleted_at is null
+          and status = 'ENABLED'
+          and (#{search} = ''
+            or config_key ilike #{searchPattern}
+            or coalesce(value_json -&gt;&gt; '_display_name', '') ilike #{searchPattern})
+        order by config_key
+        limit #{limit} offset #{offset}
+    </select>
+
+    <select id="countSettings" resultType="long">
+        select count(*)
+        from base_config
+        where deleted_at is null
+          and status = 'ENABLED'
+          and (#{search} = ''
+            or config_key ilike #{searchPattern}
+            or coalesce(value_json -&gt;&gt; '_display_name', '') ilike #{searchPattern})
+    </select>
+
+    <insert id="insertConfig">
+        insert into base_config (
+            scope_type, scope_id, config_key, value_kind, value_json, status, created_by, updated_by
+        )
+        values (
+            #{scopeType}, null, #{configKey}, 'PLAIN', cast(#{valueJson} as jsonb), 'ENABLED', #{actorId}, #{actorId}
+        )
+    </insert>
+
+    <update id="updateIntegration">
+        update base_config
+        set value_json = cast(#{valueJson} as jsonb),
+            updated_by = #{actorId},
+            updated_at = now(),
+            version = version + 1
+        where config_key = #{configKey}
+          and deleted_at is null
+    </update>
+
+    <update id="updateSetting">
+        update base_config
+        set scope_type = #{scopeType},
+            value_json = cast(#{valueJson} as jsonb),
+            updated_by = #{actorId},
+            updated_at = now(),
+            version = version + 1
+        where config_key = #{configKey}
+          and deleted_at is null
+    </update>
+
+    <update id="changeConfigStatus">
+        update base_config
+        set status = #{status},
+            updated_by = #{actorId},
+            updated_at = now(),
+            version = version + 1
+        where config_key = #{configKey}
+          and deleted_at is null
+    </update>
+
+    <insert id="insertProjectOwner">
+        insert into base_project_member (project_id, user_id, member_type, status, created_by, updated_by)
+        values (#{projectId}, #{actorId}, 'OWNER', 'ENABLED', #{actorId}, #{actorId})
+        on conflict do nothing
+    </insert>
+
+    <insert id="insertDepartmentManager">
+        insert into base_department_manager (dept_id, user_id, status, created_by, updated_by)
+        values (#{deptId}, #{actorId}, 'ENABLED', #{actorId}, #{actorId})
+        on conflict do nothing
+    </insert>
+
+    <select id="findDefaultProjectId" resultType="java.util.UUID">
+        select id
+        from base_project
+        where code = 'default-project'
+          and deleted_at is null
+        limit 1
+    </select>
+
+    <insert id="insertDefaultProject">
+        insert into base_project (id, code, name, status, created_by, updated_by)
+        values (#{projectId}, 'default-project', '默认项目', 'ACTIVE', #{actorId}, #{actorId})
+        on conflict do nothing
+    </insert>
+
+    <select id="findDepartmentRef" resultMap="departmentRefMap">
+        select id, name, status
+        from base_department
+        where deleted_at is null
+          and (code = #{keyword} or name = #{keyword} or cast(id as text) = #{keyword})
+        limit 1
+    </select>
+
+    <select id="findProjectRef" resultMap="projectRefMap">
+        select id, name, status
+        from base_project
+        where deleted_at is null
+          and (code = #{keyword} or name = #{keyword} or cast(id as text) = #{keyword})
+        limit 1
+    </select>
+
+    <select id="findApplicationRef" resultMap="applicationRefMap">
+        select app.id, app.name, app.status, app.project_id, p.name as project_name
+        from base_application app
+        join base_project p on p.id = app.project_id and p.deleted_at is null
+        where app.deleted_at is null
+          and (app.code = #{keyword} or app.name = #{keyword} or cast(app.id as text) = #{keyword})
+        order by app.created_at desc
+        limit 1
+    </select>
+
+    <select id="findEnvironmentRef" resultMap="environmentRefMap">
+        select env.id, env.name, env.status, env.project_id, p.name as project_name
+        from base_environment env
+        join base_project p on p.id = env.project_id and p.deleted_at is null
+        where env.deleted_at is null
+          and (env.code = #{keyword} or env.name = #{keyword} or cast(env.id as text) = #{keyword})
+        order by env.created_at desc
+        limit 1
+    </select>
+
+    <select id="findDepartmentView" resultMap="departmentViewMap">
+        select <include refid="departmentViewColumns"/>
+        from base_department d
+        left join base_department parent on parent.id = d.parent_id and parent.deleted_at is null
+        where d.deleted_at is null
+          and (d.code = #{keyword} or d.name = #{keyword} or cast(d.id as text) = #{keyword})
+        limit 1
+    </select>
+
+    <select id="findProjectView" resultMap="projectViewMap">
+        select <include refid="projectViewColumns"/>
+        <include refid="projectViewFrom"/>
+        where p.deleted_at is null
+          and (p.code = #{keyword} or p.name = #{keyword} or cast(p.id as text) = #{keyword})
+        limit 1
+    </select>
+
+    <select id="findApplicationView" resultMap="applicationViewMap">
+        select <include refid="applicationViewColumns"/>
+        from base_application app
+        join base_project p on p.id = app.project_id and p.deleted_at is null
+        where app.deleted_at is null
+          and (app.code = #{keyword} or app.name = #{keyword} or cast(app.id as text) = #{keyword})
+        limit 1
+    </select>
+
+    <select id="findEnvironmentView" resultMap="environmentViewMap">
+        select
+            env.name,
+            p.name as cluster_name,
+            coalesce(env.api_base_url, env.web_url, env.code || '.local') as endpoint,
+            case env.status when 'ENABLED' then '可用' else '已停用' end as status_name
+        from base_environment env
+        join base_project p on p.id = env.project_id and p.deleted_at is null
+        where env.deleted_at is null
+          and (env.code = #{keyword} or env.name = #{keyword} or cast(env.id as text) = #{keyword})
+        limit 1
+    </select>
+
+    <select id="findProjectMemberByUsername" resultMap="projectMemberViewMap">
+        select
+            u.username,
+            u.display_name,
+            coalesce(string_agg(distinct b.role_code, ' / ' order by b.role_code), '-') as role_names,
+            member.member_type,
+            case member.status when 'ENABLED' then '启用' else '已停用' end as status_name
+        from base_project_member member
+        join iam_user u on u.id = member.user_id and u.deleted_at is null
+        left join rbac_role_binding b on b.subject_type = 'USER'
+            and b.subject_id = u.id
+            and b.scope_type = 'PROJECT'
+            and b.scope_id = member.project_id
+            and <include refid="activeRoleBinding"/>
+        where member.project_id = #{projectId}
+          and member.deleted_at is null
+          and u.username = #{username}
+        group by u.id, member.member_type, member.status
+        limit 1
+    </select>
+
+    <select id="listScopedUserRoles" resultMap="scopedUserRoleViewMap">
+        select
+            u.username,
+            u.display_name,
+            coalesce(string_agg(distinct b.role_code, ' / ' order by b.role_code), '-') as role_names,
+            b.scope_type,
+            '启用' as status_name,
+            max(b.created_at) as latest_bound_at
+        from rbac_role_binding b
+        join iam_user u on u.id = b.subject_id and u.deleted_at is null
+        where b.subject_type = 'USER'
+          and b.scope_type = #{scopeType}
+          and b.scope_id = #{scopeId}
+          and <include refid="activeRoleBinding"/>
+          and (#{roleCode} = '' or b.role_code = #{roleCode})
+          and (#{search} = '' or u.username ilike #{searchPattern} or u.display_name ilike #{searchPattern} or b.role_code ilike #{searchPattern})
+        group by u.id, b.scope_type
+        order by latest_bound_at desc
+        limit #{limit} offset #{offset}
+    </select>
+
+    <select id="countScopedUserRoles" resultType="long">
+        select count(distinct u.id)
+        from rbac_role_binding b
+        join iam_user u on u.id = b.subject_id and u.deleted_at is null
+        where b.subject_type = 'USER'
+          and b.scope_type = #{scopeType}
+          and b.scope_id = #{scopeId}
+          and <include refid="activeRoleBinding"/>
+          and (#{roleCode} = '' or b.role_code = #{roleCode})
+          and (#{search} = '' or u.username ilike #{searchPattern} or u.display_name ilike #{searchPattern})
+    </select>
+
+    <select id="findScopedUserRoleByUsername" resultMap="scopedUserRoleViewMap">
+        select
+            u.username,
+            u.display_name,
+            coalesce(string_agg(distinct b.role_code, ' / ' order by b.role_code), '-') as role_names,
+            b.scope_type,
+            '启用' as status_name
+        from rbac_role_binding b
+        join iam_user u on u.id = b.subject_id and u.deleted_at is null
+        where b.subject_type = 'USER'
+          and b.scope_type = #{scopeType}
+          and b.scope_id = #{scopeId}
+          and <include refid="activeRoleBinding"/>
+          and (#{roleCode} = '' or b.role_code = #{roleCode})
+          and u.username = #{username}
+        group by u.id, b.scope_type
+        limit 1
+    </select>
+
+    <select id="findApplicationRefInProject" resultMap="applicationRefMap">
+        select id, name, status, project_id, name as project_name
+        from base_application
+        where project_id = #{projectId}
+          and deleted_at is null
+          and (code = #{application} or name = #{application})
+        limit 1
+    </select>
+
+    <select id="findRoleId" resultType="java.util.UUID">
+        select id
+        from rbac_role
+        where code = #{roleCode}
+          and status = 'ENABLED'
+          and deleted_at is null
+        limit 1
+    </select>
+
+    <insert id="bindRoleIfPresent">
+        insert into rbac_role_binding (
+            subject_type, subject_id, role_id, role_code, scope_type, scope_id, status, created_by, updated_by
+        )
+        values (
+            'USER', #{userId}, #{roleId}, #{roleCode}, #{scopeType}, #{scopeId}, 'ENABLED', #{actorId}, #{actorId}
+        )
+        on conflict do nothing
+    </insert>
+
+    <insert id="bindProjectRole">
+        insert into rbac_role_binding (
+            subject_type, subject_id, role_id, role_code, scope_type, scope_id, status, created_by, updated_by
+        )
+        values (
+            'USER', #{userId}, #{roleId}, #{roleCode}, 'PROJECT', #{projectId}, 'ENABLED', #{actorId}, #{actorId}
+        )
+        on conflict (subject_type, subject_id, role_id, scope_type, coalesce(scope_id, '00000000-0000-0000-0000-000000000000'::uuid))
+        where deleted_at is null
+        do update set
+            status = 'ENABLED',
+            updated_by = #{actorId},
+            updated_at = now(),
+            version = rbac_role_binding.version + 1
+    </insert>
+
+    <insert id="bindScopedRole">
+        insert into rbac_role_binding (
+            subject_type, subject_id, role_id, role_code, scope_type, scope_id, status, created_by, updated_by
+        )
+        values (
+            'USER', #{userId}, #{roleId}, #{roleCode}, #{scopeType}, #{scopeId}, 'ENABLED', #{actorId}, #{actorId}
+        )
+        on conflict (subject_type, subject_id, role_id, scope_type, coalesce(scope_id, '00000000-0000-0000-0000-000000000000'::uuid))
+        where deleted_at is null
+        do update set
+            status = 'ENABLED',
+            updated_by = #{actorId},
+            updated_at = now(),
+            version = rbac_role_binding.version + 1
+    </insert>
+
+    <update id="disableScopedRoles">
+        update rbac_role_binding
+        set status = 'DISABLED',
+            deleted_by = #{actorId},
+            deleted_at = now(),
+            updated_by = #{actorId},
+            updated_at = now(),
+            version = version + 1
+        where subject_type = 'USER'
+          and subject_id = #{userId}
+          and scope_type = #{scopeType}
+          and scope_id = #{scopeId}
+          and (#{roleCode} = '' or role_code = #{roleCode})
+          and deleted_at is null
+    </update>
+
+    <insert id="insertAuditLog">
+        insert into audit_log (
+            trace_id, actor_type, actor_user_id, action, resource_type, resource_id,
+            scope_type, scope_id, result, after_json
+        )
+        values (
+            #{traceId}, 'USER', #{actorId}, #{action}, #{resourceType}, #{resourceId},
+            'PLATFORM', null, 'SUCCESS', cast(#{afterJson} as jsonb)
+        )
+    </insert>
+
+    <select id="findUserByUsername" resultMap="userViewMap">
+        <include refid="userViewSelect"/>
+        where u.username = #{username}
+          and u.deleted_at is null
+        group by u.id, primary_dept.name
+        limit 1
+    </select>
+
+    <select id="findIntegrationRow" resultMap="integrationRowMap">
+        select
+            config_key,
+            replace(config_key, 'integration.', '') as integration_key,
+            coalesce(value_json -&gt;&gt; 'name', replace(config_key, 'integration.', '')) as integration_name,
+            coalesce(value_json -&gt;&gt; 'category', '未分类') as category,
+            coalesce(value_json -&gt;&gt; 'scope', '平台级') as scope_name,
+            case status when 'ENABLED' then '已启用' else '已停用' end as status_name
+        from base_config
+        where deleted_at is null
+          and scope_type = 'SYSTEM'
+          and config_key like 'integration.%'
+          and (replace(config_key, 'integration.', '') = #{key} or coalesce(value_json -&gt;&gt; 'name', '') = #{key})
+        limit 1
+    </select>
+
+    <select id="findSettingRow" resultMap="settingRowMap">
+        select
+            config_key,
+            scope_type,
+            coalesce(value_json -&gt;&gt; '_display_name', '') as display_name,
+            case
+                when value_json ? '_value' then value_json -&gt;&gt; '_value'
+                when value_json is null then coalesce(masked_value, '已配置')
+                else trim(both '"' from value_json::text)
+            end as config_value,
+            case status when 'ENABLED' then '已启用' else '已停用' end as status_name
+        from base_config
+        where deleted_at is null
+          and (config_key = #{key} or coalesce(value_json -&gt;&gt; '_display_name', '') = #{key})
+        limit 1
+    </select>
+
+    <select id="findUserId" resultType="java.util.UUID">
+        select id
+        from iam_user
+        where username = #{username}
+          and deleted_at is null
+        limit 1
+    </select>
+
+    <update id="bumpUserAuthVersion">
+        update iam_user
+        set auth_version = auth_version + 1,
+            updated_by = #{actorId},
+            updated_at = now()
+        where id = #{userId}
+          and deleted_at is null
+    </update>
+</mapper>

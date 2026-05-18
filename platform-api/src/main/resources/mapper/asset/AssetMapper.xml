@@ -1,0 +1,440 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.songhg.veri.agent.asset.infrastructure.mapper.AssetMapper">
+
+    <resultMap id="requirementMap" type="com.songhg.veri.agent.asset.domain.AssetRequirement">
+        <constructor>
+            <arg column="id" javaType="java.util.UUID"/>
+            <arg column="title" javaType="java.lang.String"/>
+            <arg column="description" javaType="java.lang.String"/>
+            <arg column="status" javaType="java.lang.String"/>
+            <arg column="priority" javaType="java.lang.String"/>
+            <arg column="project_id" javaType="java.lang.String"/>
+            <arg column="tags" javaType="java.lang.String"/>
+            <arg column="created_at" javaType="java.time.Instant"/>
+            <arg column="updated_at" javaType="java.time.Instant"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="apiMap" type="com.songhg.veri.agent.asset.domain.AssetApi">
+        <constructor>
+            <arg column="id" javaType="java.util.UUID"/>
+            <arg column="summary" javaType="java.lang.String"/>
+            <arg column="description" javaType="java.lang.String"/>
+            <arg column="http_method" javaType="java.lang.String"/>
+            <arg column="path" javaType="java.lang.String"/>
+            <arg column="request_schema" javaType="java.lang.String"/>
+            <arg column="response_schema" javaType="java.lang.String"/>
+            <arg column="project_id" javaType="java.lang.String"/>
+            <arg column="status" javaType="java.lang.String"/>
+            <arg column="created_at" javaType="java.time.Instant"/>
+            <arg column="updated_at" javaType="java.time.Instant"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="pageMap" type="com.songhg.veri.agent.asset.domain.AssetPage">
+        <constructor>
+            <arg column="id" javaType="java.util.UUID"/>
+            <arg column="name" javaType="java.lang.String"/>
+            <arg column="url_pattern" javaType="java.lang.String"/>
+            <arg column="source" javaType="java.lang.String"/>
+            <arg column="source_ref" javaType="java.lang.String"/>
+            <arg column="component_tree" javaType="java.lang.String"/>
+            <arg column="screenshot_url" javaType="java.lang.String"/>
+            <arg column="project_id" javaType="java.lang.String"/>
+            <arg column="status" javaType="java.lang.String"/>
+            <arg column="created_at" javaType="java.time.Instant"/>
+            <arg column="updated_at" javaType="java.time.Instant"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="businessFlowMap" type="com.songhg.veri.agent.asset.domain.AssetBusinessFlow">
+        <constructor>
+            <arg column="id" javaType="java.util.UUID"/>
+            <arg column="name" javaType="java.lang.String"/>
+            <arg column="description" javaType="java.lang.String"/>
+            <arg column="flow_json" javaType="java.lang.String"/>
+            <arg column="priority" javaType="java.lang.String"/>
+            <arg column="project_id" javaType="java.lang.String"/>
+            <arg column="status" javaType="java.lang.String"/>
+            <arg column="created_at" javaType="java.time.Instant"/>
+            <arg column="updated_at" javaType="java.time.Instant"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="testCaseMap" type="com.songhg.veri.agent.asset.domain.TestCaseRecord">
+        <constructor>
+            <arg column="id" javaType="java.util.UUID"/>
+            <arg column="title" javaType="java.lang.String"/>
+            <arg column="description" javaType="java.lang.String"/>
+            <arg column="project_id" javaType="java.lang.String"/>
+            <arg column="requirement_id" javaType="java.util.UUID"/>
+            <arg column="api_id" javaType="java.util.UUID"/>
+            <arg column="status" javaType="java.lang.String"/>
+            <arg column="priority" javaType="java.lang.String"/>
+            <arg column="tags" javaType="java.lang.String"/>
+            <arg column="steps" javaType="java.util.List" jdbcType="OTHER" typeHandler="org.apache.ibatis.type.UnknownTypeHandler"/>
+            <arg column="created_at" javaType="java.time.Instant"/>
+            <arg column="updated_at" javaType="java.time.Instant"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="stepMap" type="com.songhg.veri.agent.asset.domain.TestCaseStep">
+        <constructor>
+            <arg column="id" javaType="java.util.UUID"/>
+            <arg column="case_id" javaType="java.util.UUID"/>
+            <arg column="step_order" javaType="_int"/>
+            <arg column="action" javaType="java.lang.String"/>
+            <arg column="expected_result" javaType="java.lang.String"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="linkMap" type="com.songhg.veri.agent.asset.domain.TraceLink">
+        <constructor>
+            <arg column="id" javaType="java.util.UUID"/>
+            <arg column="requirement_id" javaType="java.util.UUID"/>
+            <arg column="api_id" javaType="java.util.UUID"/>
+            <arg column="case_id" javaType="java.util.UUID"/>
+            <arg column="created_at" javaType="java.time.Instant"/>
+        </constructor>
+    </resultMap>
+
+    <sql id="requirementColumns">
+        id, title, description, status, priority, project_id, tags, created_at, updated_at
+    </sql>
+
+    <sql id="apiColumns">
+        id, summary, description, http_method, path, request_schema::text as request_schema, response_schema::text as response_schema,
+        project_id, status, created_at, updated_at
+    </sql>
+
+    <sql id="pageColumns">
+        id, name, url_pattern, source, source_ref, component_tree::text as component_tree, screenshot_url,
+        project_id, status, created_at, updated_at
+    </sql>
+
+    <sql id="businessFlowColumns">
+        id, name, description, flow_json::text as flow_json, priority, project_id, status, created_at, updated_at
+    </sql>
+
+    <sql id="testCaseColumns">
+        tc.id,
+        tc.title,
+        tc.description,
+        tc.project_id,
+        req.source_id as requirement_id,
+        api.target_id as api_id,
+        tc.status,
+        tc.priority,
+        tc.tags,
+        null as steps,
+        tc.created_at,
+        tc.updated_at
+    </sql>
+
+    <sql id="stepColumns">
+        id, case_id, step_order, action, expected_result
+    </sql>
+
+    <sql id="linkColumns">
+        min(l.id) as id,
+        l.source_id as requirement_id,
+        max(l.target_id) filter (where l.target_type = 'API') as api_id,
+        max(l.target_id) filter (where l.target_type = 'CASE') as case_id,
+        min(l.created_at) as created_at
+    </sql>
+
+    <!-- Requirements -->
+
+    <select id="listRequirements" resultMap="requirementMap">
+        select <include refid="requirementColumns"/>
+        from asset_requirement
+        <where>
+            <if test="projectId != null">project_id = #{projectId}</if>
+            <if test="projectId == null">deleted_at is null</if>
+            <if test="projectId != null">and deleted_at is null</if>
+        </where>
+        order by created_at desc
+    </select>
+
+    <select id="getRequirement" resultMap="requirementMap">
+        select <include refid="requirementColumns"/>
+        from asset_requirement
+        where id = #{id}
+          and deleted_at is null
+    </select>
+
+    <insert id="insertRequirement">
+        insert into asset_requirement (
+            id, project_id, code, title, description, source, priority, status, tags, created_at, updated_at
+        ) values (
+            #{id}, #{projectId}, concat('REQ-', substr(replace(#{id}::text, '-', ''), 1, 12)),
+            #{title}, #{description}, 'MANUAL', #{priority}, #{status}, #{tags}, #{createdAt}, #{updatedAt}
+        )
+    </insert>
+
+    <update id="updateRequirement">
+        update asset_requirement set
+            title = #{title},
+            description = #{description},
+            status = #{status},
+            priority = #{priority},
+            tags = #{tags},
+            updated_at = #{updatedAt}
+        where id = #{id}
+    </update>
+
+    <!-- APIs -->
+
+    <select id="listApis" resultMap="apiMap">
+        select <include refid="apiColumns"/>
+        from asset_api
+        <where>
+            <if test="projectId != null">project_id = #{projectId}</if>
+            <if test="projectId == null">deleted_at is null</if>
+            <if test="projectId != null">and deleted_at is null</if>
+        </where>
+        order by created_at desc
+    </select>
+
+    <select id="getApi" resultMap="apiMap">
+        select <include refid="apiColumns"/>
+        from asset_api
+        where id = #{id}
+          and deleted_at is null
+    </select>
+
+    <insert id="insertApi">
+        insert into asset_api (
+            id, project_id, code, path, http_method, summary, description, source,
+            request_schema, response_schema, status, created_at, updated_at
+        ) values (
+            #{id}, #{projectId}, concat('API-', substr(replace(#{id}::text, '-', ''), 1, 12)),
+            #{path}, #{httpMethod}, #{summary}, #{description}, 'MANUAL',
+            cast(coalesce(#{requestSchema}, '{}') as jsonb),
+            cast(coalesce(#{responseSchema}, '{}') as jsonb),
+            #{status}, #{createdAt}, #{updatedAt}
+        )
+    </insert>
+
+    <update id="updateApi">
+        update asset_api set
+            summary = #{summary},
+            description = #{description},
+            http_method = #{httpMethod},
+            path = #{path},
+            request_schema = cast(coalesce(#{requestSchema}, '{}') as jsonb),
+            response_schema = cast(coalesce(#{responseSchema}, '{}') as jsonb),
+            status = #{status},
+            updated_at = #{updatedAt}
+        where id = #{id}
+    </update>
+
+    <!-- Pages -->
+
+    <select id="listPages" resultMap="pageMap">
+        select <include refid="pageColumns"/>
+        from asset_page
+        <where>
+            <if test="projectId != null">project_id = #{projectId}</if>
+            <if test="projectId == null">deleted_at is null</if>
+            <if test="projectId != null">and deleted_at is null</if>
+        </where>
+        order by created_at desc
+    </select>
+
+    <select id="getPage" resultMap="pageMap">
+        select <include refid="pageColumns"/>
+        from asset_page
+        where id = #{id}
+          and deleted_at is null
+    </select>
+
+    <insert id="insertPage">
+        insert into asset_page (
+            id, project_id, code, name, url_pattern, source, source_ref,
+            component_tree, screenshot_url, status, created_at, updated_at
+        ) values (
+            #{id}, #{projectId}, concat('PAGE-', substr(replace(#{id}::text, '-', ''), 1, 12)),
+            #{name}, #{urlPattern}, #{source}, #{sourceRef},
+            cast(coalesce(#{componentTree}, '{}') as jsonb),
+            #{screenshotUrl}, #{status}, #{createdAt}, #{updatedAt}
+        )
+    </insert>
+
+    <update id="updatePage">
+        update asset_page set
+            name = #{name},
+            url_pattern = #{urlPattern},
+            source = #{source},
+            source_ref = #{sourceRef},
+            component_tree = cast(coalesce(#{componentTree}, '{}') as jsonb),
+            screenshot_url = #{screenshotUrl},
+            status = #{status},
+            updated_at = #{updatedAt}
+        where id = #{id}
+    </update>
+
+    <!-- Business Flows -->
+
+    <select id="listBusinessFlows" resultMap="businessFlowMap">
+        select <include refid="businessFlowColumns"/>
+        from asset_business_flow
+        <where>
+            <if test="projectId != null">project_id = #{projectId}</if>
+            <if test="projectId == null">deleted_at is null</if>
+            <if test="projectId != null">and deleted_at is null</if>
+        </where>
+        order by created_at desc
+    </select>
+
+    <select id="getBusinessFlow" resultMap="businessFlowMap">
+        select <include refid="businessFlowColumns"/>
+        from asset_business_flow
+        where id = #{id}
+          and deleted_at is null
+    </select>
+
+    <insert id="insertBusinessFlow">
+        insert into asset_business_flow (
+            id, project_id, code, name, description, flow_json, priority, status, created_at, updated_at
+        ) values (
+            #{id}, #{projectId}, concat('FLOW-', substr(replace(#{id}::text, '-', ''), 1, 12)),
+            #{name}, #{description}, cast(coalesce(#{flowJson}, '{}') as jsonb),
+            #{priority}, #{status}, #{createdAt}, #{updatedAt}
+        )
+    </insert>
+
+    <update id="updateBusinessFlow">
+        update asset_business_flow set
+            name = #{name},
+            description = #{description},
+            flow_json = cast(coalesce(#{flowJson}, '{}') as jsonb),
+            priority = #{priority},
+            status = #{status},
+            updated_at = #{updatedAt}
+        where id = #{id}
+    </update>
+
+    <!-- Test Cases -->
+
+    <select id="listTestCases" resultMap="testCaseMap">
+        select <include refid="testCaseColumns"/>
+        from asset_test_case tc
+        left join asset_link req
+          on req.target_type = 'CASE'
+         and req.target_id = tc.id
+         and req.source_type = 'REQUIREMENT'
+         and req.link_type = 'VERIFIES'
+         and req.deleted_at is null
+        left join asset_link api
+          on api.source_type = 'API'
+         and api.target_type = 'CASE'
+         and api.target_id = tc.id
+         and api.link_type = 'COVERS'
+         and api.deleted_at is null
+        <where>
+            <if test="projectId != null">tc.project_id = #{projectId}</if>
+            <if test="projectId == null">tc.deleted_at is null</if>
+            <if test="projectId != null">and tc.deleted_at is null</if>
+        </where>
+        order by tc.created_at desc
+    </select>
+
+    <select id="getTestCase" resultMap="testCaseMap">
+        select <include refid="testCaseColumns"/>
+        from asset_test_case tc
+        left join asset_link req
+          on req.target_type = 'CASE'
+         and req.target_id = tc.id
+         and req.source_type = 'REQUIREMENT'
+         and req.link_type = 'VERIFIES'
+         and req.deleted_at is null
+        left join asset_link api
+          on api.source_type = 'API'
+         and api.target_type = 'CASE'
+         and api.target_id = tc.id
+         and api.link_type = 'COVERS'
+         and api.deleted_at is null
+        where tc.id = #{id}
+          and tc.deleted_at is null
+    </select>
+
+    <insert id="insertTestCase">
+        insert into asset_test_case (
+            id, project_id, code, title, description, priority, status, tags, created_at, updated_at
+        ) values (
+            #{id}, #{projectId}, concat('TC-', substr(replace(#{id}::text, '-', ''), 1, 12)),
+            #{title}, #{description}, #{priority}, #{status}, #{tags}, #{createdAt}, #{updatedAt}
+        )
+    </insert>
+
+    <update id="updateTestCase">
+        update asset_test_case set
+            title = #{title},
+            description = #{description},
+            status = #{status},
+            priority = #{priority},
+            tags = #{tags},
+            updated_at = #{updatedAt}
+        where id = #{id}
+    </update>
+
+    <!-- Test Case Steps -->
+
+    <select id="listTestCaseSteps" resultMap="stepMap">
+        select <include refid="stepColumns"/>
+        from asset_test_step
+        where case_id = #{caseId}
+        order by step_order asc
+    </select>
+
+    <insert id="insertTestCaseStep">
+        insert into asset_test_step (
+            id, case_id, step_order, action, expected_result
+        ) values (
+            #{id}, #{caseId}, #{stepOrder}, #{action}, #{expectedResult}
+        )
+    </insert>
+
+    <delete id="deleteTestCaseSteps">
+        delete from asset_test_step
+        where case_id = #{caseId}
+    </delete>
+
+    <!-- Trace Links -->
+
+    <select id="listTraceLinks" resultMap="linkMap">
+        select <include refid="linkColumns"/>
+        from asset_link l
+        <where>
+            l.deleted_at is null
+            and l.source_type = 'REQUIREMENT'
+            <if test="requirementId != null">and l.source_id = #{requirementId}</if>
+        </where>
+        group by l.source_id
+        <trim prefix="having" prefixOverrides="and">
+            <if test="apiId != null">
+                and bool_or(l.target_type = 'API' and l.target_id = #{apiId})
+            </if>
+            <if test="caseId != null">
+                and bool_or(l.target_type = 'CASE' and l.target_id = #{caseId})
+            </if>
+        </trim>
+        order by created_at desc
+    </select>
+
+    <insert id="insertTraceLink">
+        insert into asset_link (
+            id, source_type, source_id, target_type, target_id, link_type, created_at
+        )
+        select #{id}, 'REQUIREMENT', #{requirementId}, 'CASE', #{caseId}, 'VERIFIES', #{createdAt}
+        where #{caseId} is not null
+        union all
+        select gen_random_uuid(), 'REQUIREMENT', #{requirementId}, 'API', #{apiId}, 'COVERS', #{createdAt}
+        where #{apiId} is not null
+        on conflict do nothing
+    </insert>
+</mapper>

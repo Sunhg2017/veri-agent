@@ -1,0 +1,86 @@
+# Veri Agent — 集成部署 (Postgres + platform-api + 前端)
+# 使用: docker compose -f infra/docker-compose.yml up -d
+# 停止: docker compose -f infra/docker-compose.yml down
+
+services:
+  # ─────────────────────────────────────────────────
+  # PostgreSQL (共享数据库)
+  # ─────────────────────────────────────────────────
+  postgres:
+    image: postgres:15-alpine
+    container_name: veri-agent-postgres
+    environment:
+      POSTGRES_DB: veri_agent
+      POSTGRES_USER: veri_agent
+      POSTGRES_PASSWORD: veri_agent_dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - veri-agent-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U veri_agent -d veri_agent"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks:
+      - veri-agent-net
+
+  # ─────────────────────────────────────────────────
+  # platform-api (统一管理控制面，含 WP1 + WP2 + WP3 功能)
+  # ─────────────────────────────────────────────────
+  platform-api:
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile.platform-api
+    container_name: veri-agent-platform-api
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: db
+      # 数据库
+      WP1_DATASOURCE_URL: jdbc:postgresql://postgres:5432/veri_agent
+      WP1_DATASOURCE_USERNAME: veri_agent
+      WP1_DATASOURCE_PASSWORD: veri_agent_dev
+      WP1_FLYWAY_LOCATIONS: filesystem:/app/db/migration/wp1
+      # 认证
+      WP1_BOOTSTRAP_TOKEN: local-init-token
+      WP1_AUTH_TOKEN_SECRET: local-auth-secret
+      WP1_ACCESS_TOKEN_TTL_MINUTES: 120
+      # 服务令牌
+      WP1_SERVICE_TOKEN: shared-platform-service-token
+      WP2_SERVICE_TOKEN: shared-model-access-token
+      WP2_PLATFORM_CONTEXT_VALIDATION: mock
+      WP2_PLATFORM_AUDIT_ENABLED: "false"
+      WP2_PLATFORM_API_BASE_URL: http://platform-api:8080
+      WP2_PLATFORM_API_SERVICE_TOKEN: shared-platform-service-token
+      WP3_SERVICE_TOKEN: shared-asset-token
+      WP3_PLATFORM_API_BASE_URL: http://platform-api:8080
+      WP3_PLATFORM_API_SERVICE_TOKEN: shared-platform-service-token
+      WP3_PLATFORM_AUDIT_ENABLED: "false"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - veri-agent-net
+
+  # ─────────────────────────────────────────────────
+  # 前端: portal-web (Nginx + React 生产构建)
+  # ─────────────────────────────────────────────────
+  portal-web:
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile.portal-web
+    container_name: veri-agent-portal-web
+    ports:
+      - "5173:80"
+    depends_on:
+      - platform-api
+    networks:
+      - veri-agent-net
+
+networks:
+  veri-agent-net:
+    driver: bridge
+
+volumes:
+  veri-agent-postgres:

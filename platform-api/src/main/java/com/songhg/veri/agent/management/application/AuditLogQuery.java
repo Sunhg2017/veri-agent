@@ -23,10 +23,10 @@ public record AuditLogQuery(
             String startTime,
             String endTime
     ) {
-        OffsetDateTime parsedStartTime = parseTime("start_time", startTime);
-        OffsetDateTime parsedEndTime = parseTime("end_time", endTime);
+        OffsetDateTime parsedStartTime = parseTime("startTime", startTime);
+        OffsetDateTime parsedEndTime = parseTime("endTime", endTime);
         if (parsedStartTime != null && parsedEndTime != null && parsedStartTime.isAfter(parsedEndTime)) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "start_time 不能晚于 end_time");
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "startTime 不能晚于 endTime");
         }
         return new AuditLogQuery(
                 normalize(search),

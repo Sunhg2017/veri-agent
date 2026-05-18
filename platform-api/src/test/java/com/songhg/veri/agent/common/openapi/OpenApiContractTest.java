@@ -90,6 +90,18 @@ class OpenApiContractTest {
                 .andExpect(jsonPath("$.paths['/api/v1/contexts/projects/{projectId}'].get").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/contexts/applications/{applicationId}'].get").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/audit/events'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/asset/requirements'].get").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/asset/requirements'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/asset/apis'].get").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/asset/apis'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/asset/pages'].get").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/asset/pages'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/asset/business-flows'].get").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/asset/business-flows'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/asset/test-cases'].get").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/asset/test-cases'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/asset/links'].get").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/asset/links'].post").exists())
                 .andReturn();
 
         Path output = Path.of("..", "build", "openapi", "wp1-v1.json").normalize();
@@ -116,10 +128,10 @@ class OpenApiContractTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value("OK"))
                 .andExpect(jsonPath("$.message").value("success"))
-                .andExpect(jsonPath("$.trace_id").isString())
+                .andExpect(jsonPath("$.traceId").isString())
                 .andExpect(jsonPath("$.data.items").isArray())
-                .andExpect(jsonPath("$.data.page").isNumber())
-                .andExpect(jsonPath("$.data.page_size").isNumber())
+                .andExpect(jsonPath("$.data.index").isNumber())
+                .andExpect(jsonPath("$.data.size").isNumber())
                 .andExpect(jsonPath("$.data.total").isNumber());
     }
 
@@ -131,9 +143,9 @@ class OpenApiContractTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
                 .andExpect(jsonPath("$.message").value("请求字段校验失败"))
-                .andExpect(jsonPath("$.trace_id").isString())
-                .andExpect(jsonPath("$.data.field_errors").isArray())
-                .andExpect(jsonPath("$.data.field_errors[0].field").isString())
-                .andExpect(jsonPath("$.data.field_errors[0].reason").isString());
+                .andExpect(jsonPath("$.traceId").isString())
+                .andExpect(jsonPath("$.data.fieldErrors").isArray())
+                .andExpect(jsonPath("$.data.fieldErrors[0].field").isString())
+                .andExpect(jsonPath("$.data.fieldErrors[0].reason").isString());
     }
 }

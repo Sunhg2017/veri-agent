@@ -1,6 +1,5 @@
 package com.songhg.veri.agent.auth.application;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.songhg.veri.agent.auth.domain.AuthSessionDraft;
@@ -187,15 +186,15 @@ public class AuthTokenService {
     }
 
     record TokenPayload(
-            @JsonProperty("user_id") UUID userId,
-            @JsonProperty("session_id") UUID sessionId,
+            UUID userId,
+            UUID sessionId,
             String username,
-            @JsonProperty("display_name") String displayName,
+            String displayName,
             String email,
-            @JsonProperty("must_change_password") boolean mustChangePassword,
-            @JsonProperty("auth_version") long authVersion,
+            boolean mustChangePassword,
+            long authVersion,
             List<String> roles,
-            @JsonProperty("expires_at") long expiresAtEpochSeconds
+            long expiresAtEpochSeconds
     ) {
     }
 }

@@ -1,6 +1,6 @@
 package com.songhg.veri.agent.bootstrap.application;
 
-import com.songhg.veri.agent.bootstrap.api.SuperAdminBootstrapRequest;
+import com.songhg.veri.agent.bootstrap.api.request.SuperAdminBootstrapRequest;
 import com.songhg.veri.agent.bootstrap.domain.BootstrapStateStore;
 import com.songhg.veri.agent.bootstrap.domain.BootstrapUserDraft;
 import com.songhg.veri.agent.common.error.BusinessException;
@@ -105,4 +105,3 @@ class SuperAdminBootstrapServiceTest {
         }
     }
 }
-

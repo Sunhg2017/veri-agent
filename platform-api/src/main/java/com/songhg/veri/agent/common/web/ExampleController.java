@@ -1,11 +1,11 @@
 package com.songhg.veri.agent.common.web;
 
+import com.songhg.veri.agent.common.api.ExamplePageRequest;
+import com.songhg.veri.agent.common.api.PageQuery;
 import com.songhg.veri.agent.common.api.PageResponse;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
-import jakarta.validation.constraints.Max;
-import jakarta.validation.constraints.Min;
-import jakarta.validation.constraints.Pattern;
+import jakarta.validation.Valid;
 import java.util.List;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -20,17 +20,14 @@ public class ExampleController {
 
     @GetMapping("/paged")
     public PageResponse<ExampleItem> paged(
-            @RequestParam(defaultValue = "1") @Min(1) int page,
-            @RequestParam(name = "page_size", defaultValue = "20") @Min(1) @Max(100) int pageSize,
-            @RequestParam(defaultValue = "created_at") @Pattern(regexp = "created_at|name|code") String sort,
-            @RequestParam(defaultValue = "desc") @Pattern(regexp = "asc|desc") String order,
-            @RequestParam(required = false) String keyword
+            @Valid ExamplePageRequest pageRequest
     ) {
+        PageQuery pageQuery = pageRequest.toPageQuery();
         List<ExampleItem> items = List.of(
                 new ExampleItem("sample_department", "示例部门", "ENABLED"),
-                new ExampleItem("sample_project", keyword == null ? "示例项目" : keyword, "ACTIVE")
+                new ExampleItem("sample_project", pageQuery.search().isBlank() ? "示例项目" : pageQuery.search(), "ACTIVE")
         );
-        return PageResponse.of(items, page, pageSize, items.size());
+        return PageResponse.of(items, pageQuery.index(), pageQuery.size(), items.size());
     }
 
     @GetMapping("/error")

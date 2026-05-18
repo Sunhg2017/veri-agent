@@ -82,16 +82,62 @@ describe('WP1 permission helpers', () => {
     expect(hasPermission(currentUser, 'config:edit')).toBe(true);
   });
 
-  it('maps button permissions to any allowed backend action', () => {
-    expect(canUseButton(user(['project:member_manage']), 'project:member')).toBe(true);
-    expect(canUseButton(user(['role:bind']), 'project:member')).toBe(true);
+  it('uses AND logic for compound button permissions', () => {
+    // 'project:member' requires project:member_manage AND (role:bind OR role:unbind)
+    expect(canUseButton(user(['project:member_manage', 'role:bind']), 'project:member')).toBe(true);
+    expect(canUseButton(user(['project:member_manage', 'role:unbind']), 'project:member')).toBe(true);
+    // A user with only one of the two required permissions cannot use the button
+    expect(canUseButton(user(['project:member_manage']), 'project:member')).toBe(false);
+    expect(canUseButton(user(['role:bind']), 'project:member')).toBe(false);
+    // Unrelated permission should not grant access
     expect(canUseButton(user(['project:read']), 'project:member')).toBe(false);
+  });
+
+  it('uses OR logic for single-permission buttons', () => {
     expect(canUseButton(user(['audit:export']), 'audit:export')).toBe(true);
+    expect(canUseButton(user(['config:read']), 'audit:export')).toBe(false);
+  });
+
+  it('handles status-change buttons with groups', () => {
+    // department:status → shown if user can enable OR disable
+    expect(canUseButton(user(['department:enable']), 'department:status')).toBe(true);
+    expect(canUseButton(user(['department:disable']), 'department:status')).toBe(true);
+    expect(canUseButton(user(['department:read']), 'department:status')).toBe(false);
+  });
+
+  it('handles lifecycle buttons correctly', () => {
+    // user:lifecycle → shown if user can perform ANY lifecycle action
+    expect(canUseButton(user(['user:enable']), 'user:lifecycle')).toBe(true);
+    expect(canUseButton(user(['user:lock']), 'user:lifecycle')).toBe(true);
+    expect(canUseButton(user(['user:unlock']), 'user:lifecycle')).toBe(true);
+    expect(canUseButton(user(['user:disable']), 'user:lifecycle')).toBe(true);
+    expect(canUseButton(user(['user:reset_password']), 'user:lifecycle')).toBe(true);
+    expect(canUseButton(user(['user:read']), 'user:lifecycle')).toBe(false);
+  });
+
+  it('handles compound role binding buttons', () => {
+    // 'user:role' requires user:assign_role AND (role:bind OR role:unbind)
+    expect(canUseButton(user(['user:assign_role', 'role:bind']), 'user:role')).toBe(true);
+    expect(canUseButton(user(['user:assign_role', 'role:unbind']), 'user:role')).toBe(true);
+    expect(canUseButton(user(['user:assign_role']), 'user:role')).toBe(false);
+    expect(canUseButton(user(['role:bind']), 'user:role')).toBe(false);
+  });
+
+  it('handles compound app owner button', () => {
+    // 'application:owner' requires app:owner_manage AND (role:bind OR role:unbind)
+    expect(canUseButton(user(['application:owner_manage', 'role:bind']), 'application:owner')).toBe(true);
+    expect(canUseButton(user(['application:owner_manage']), 'application:owner')).toBe(false);
+  });
+
+  it('handles compound environment user button', () => {
+    // 'environment:user' requires env:user_manage AND (role:bind OR role:unbind)
+    expect(canUseButton(user(['environment:user_manage', 'role:unbind']), 'environment:user')).toBe(true);
+    expect(canUseButton(user(['environment:user_manage']), 'environment:user')).toBe(false);
   });
 
   it('maps user lifecycle actions to required permissions', () => {
     expect(userLifecyclePermission('enable')).toBe('user:enable');
-    expect(userLifecyclePermission('unlock')).toBe('user:enable');
+    expect(userLifecyclePermission('unlock')).toBe('user:unlock');
     expect(userLifecyclePermission('disable')).toBe('user:disable');
     expect(userLifecyclePermission('lock')).toBe('user:lock');
     expect(userLifecyclePermission('reset-password')).toBe('user:reset_password');

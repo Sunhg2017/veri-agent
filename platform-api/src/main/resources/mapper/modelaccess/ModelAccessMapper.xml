@@ -1,0 +1,224 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.songhg.veri.agent.modelaccess.infrastructure.mapper.ModelAccessMapper">
+
+    <resultMap id="providerMap" type="com.songhg.veri.agent.modelaccess.domain.ModelProviderConfig">
+        <constructor>
+            <arg column="id" javaType="java.util.UUID"/>
+            <arg column="name" javaType="java.lang.String"/>
+            <arg column="provider_type" javaType="com.songhg.veri.agent.modelaccess.domain.ProviderType"/>
+            <arg column="base_url" javaType="java.lang.String"/>
+            <arg column="api_key_ref" javaType="java.lang.String"/>
+            <arg column="status" javaType="com.songhg.veri.agent.modelaccess.domain.ProviderStatus"/>
+            <arg column="priority" javaType="_int"/>
+            <arg column="timeout_ms" javaType="_int"/>
+            <arg column="input_cost_per_1k_tokens" javaType="java.math.BigDecimal"/>
+            <arg column="output_cost_per_1k_tokens" javaType="java.math.BigDecimal"/>
+            <arg column="created_at" javaType="java.time.Instant"/>
+            <arg column="updated_at" javaType="java.time.Instant"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="promptMap" type="com.songhg.veri.agent.modelaccess.domain.PromptTemplate">
+        <constructor>
+            <arg column="id" javaType="java.util.UUID"/>
+            <arg column="prompt_key" javaType="java.lang.String"/>
+            <arg column="name" javaType="java.lang.String"/>
+            <arg column="version" javaType="_int"/>
+            <arg column="content" javaType="java.lang.String"/>
+            <arg column="status" javaType="com.songhg.veri.agent.modelaccess.domain.PromptStatus"/>
+            <arg column="change_note" javaType="java.lang.String"/>
+            <arg column="created_at" javaType="java.time.Instant"/>
+            <arg column="updated_at" javaType="java.time.Instant"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="invocationMap" type="com.songhg.veri.agent.modelaccess.domain.InvocationRecord">
+        <constructor>
+            <arg column="id" javaType="java.util.UUID"/>
+            <arg column="project_id" javaType="java.lang.String"/>
+            <arg column="application_id" javaType="java.lang.String"/>
+            <arg column="environment_id" javaType="java.lang.String"/>
+            <arg column="sensitivity_level" javaType="java.lang.String"/>
+            <arg column="prompt_key" javaType="java.lang.String"/>
+            <arg column="prompt_version" javaType="java.lang.Integer"/>
+            <arg column="provider_id" javaType="java.util.UUID"/>
+            <arg column="provider_name" javaType="java.lang.String"/>
+            <arg column="model_name" javaType="java.lang.String"/>
+            <arg column="status" javaType="com.songhg.veri.agent.modelaccess.domain.InvocationStatus"/>
+            <arg column="fallback_used" javaType="_boolean"/>
+            <arg column="prompt_digest" javaType="java.lang.String"/>
+            <arg column="request_preview" javaType="java.lang.String"/>
+            <arg column="response_preview" javaType="java.lang.String"/>
+            <arg column="input_tokens" javaType="_int"/>
+            <arg column="output_tokens" javaType="_int"/>
+            <arg column="total_cost" javaType="java.math.BigDecimal"/>
+            <arg column="error_code" javaType="java.lang.String"/>
+            <arg column="error_message" javaType="java.lang.String"/>
+            <arg column="latency_ms" javaType="_long"/>
+            <arg column="actor_service" javaType="java.lang.String"/>
+            <arg column="delegated_user_id" javaType="java.lang.String"/>
+            <arg column="created_at" javaType="java.time.Instant"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="summaryMap" type="com.songhg.veri.agent.modelaccess.api.response.InvocationSummaryResponse">
+        <constructor>
+            <arg column="total" javaType="_long"/>
+            <arg column="succeeded" javaType="_long"/>
+            <arg column="failed" javaType="_long"/>
+            <arg column="blocked" javaType="_long"/>
+            <arg column="input_tokens" javaType="_long"/>
+            <arg column="output_tokens" javaType="_long"/>
+            <arg column="total_cost" javaType="java.math.BigDecimal"/>
+        </constructor>
+    </resultMap>
+
+    <sql id="providerColumns">
+        id, name, provider_type, base_url, api_key_ref, status, priority, timeout_ms,
+        input_cost_per_1k_tokens, output_cost_per_1k_tokens, created_at, updated_at
+    </sql>
+
+    <sql id="promptColumns">
+        id, prompt_key, name, version, content, status, change_note, created_at, updated_at
+    </sql>
+
+    <sql id="invocationColumns">
+        id, project_id, application_id, environment_id, prompt_key, prompt_version,
+        sensitivity_level, provider_id, provider_name, model_name, status, fallback_used, prompt_digest,
+        request_preview, response_preview, input_tokens, output_tokens, total_cost,
+        error_code, error_message, latency_ms, actor_service, delegated_user_id, created_at
+    </sql>
+
+    <sql id="invocationWhere">
+        <where>
+            <if test="query.projectId != null">project_id = #{query.projectId}</if>
+            <if test="query.applicationId != null">and application_id = #{query.applicationId}</if>
+            <if test="query.sensitivityLevel != null">and sensitivity_level = #{query.sensitivityLevel}</if>
+            <if test="query.providerId != null">and provider_id = #{query.providerId}</if>
+            <if test="query.actorService != null">and actor_service = #{query.actorService}</if>
+            <if test="query.status != null">and status = #{query.status}</if>
+            <if test="query.startTime != null">and created_at &gt;= #{query.startTime}</if>
+            <if test="query.endTime != null">and created_at &lt; #{query.endTime}</if>
+        </where>
+    </sql>
+
+    <select id="providers" resultMap="providerMap">
+        select <include refid="providerColumns"/>
+        from ma_model_provider
+        order by priority asc, created_at desc
+    </select>
+
+    <select id="provider" resultMap="providerMap">
+        select <include refid="providerColumns"/>
+        from ma_model_provider
+        where id = #{id}
+    </select>
+
+    <insert id="upsertProvider">
+        insert into ma_model_provider (
+            id, name, provider_type, base_url, api_key_ref, status, priority, timeout_ms,
+            input_cost_per_1k_tokens, output_cost_per_1k_tokens, created_at, updated_at
+        ) values (
+            #{id}, #{name}, #{providerType}, #{baseUrl}, #{apiKeyRef}, #{status}, #{priority}, #{timeoutMs},
+            #{inputCostPer1kTokens}, #{outputCostPer1kTokens}, #{createdAt}, #{updatedAt}
+        )
+        on conflict (id) do update set
+            name = excluded.name,
+            provider_type = excluded.provider_type,
+            base_url = excluded.base_url,
+            api_key_ref = excluded.api_key_ref,
+            status = excluded.status,
+            priority = excluded.priority,
+            timeout_ms = excluded.timeout_ms,
+            input_cost_per_1k_tokens = excluded.input_cost_per_1k_tokens,
+            output_cost_per_1k_tokens = excluded.output_cost_per_1k_tokens,
+            updated_at = excluded.updated_at
+    </insert>
+
+    <select id="prompts" resultMap="promptMap">
+        select <include refid="promptColumns"/>
+        from ma_prompt_template
+        <where>
+            <if test="promptKey != null">prompt_key = #{promptKey}</if>
+        </where>
+        order by prompt_key asc, version desc
+    </select>
+
+    <select id="prompt" resultMap="promptMap">
+        select <include refid="promptColumns"/>
+        from ma_prompt_template
+        where id = #{id}
+    </select>
+
+    <select id="activePrompt" resultMap="promptMap">
+        select <include refid="promptColumns"/>
+        from ma_prompt_template
+        where prompt_key = #{promptKey} and status = 'ACTIVE'
+        order by version desc
+        limit 1
+    </select>
+
+    <insert id="upsertPrompt">
+        insert into ma_prompt_template (
+            id, prompt_key, name, version, content, status, change_note, created_at, updated_at
+        ) values (
+            #{id}, #{promptKey}, #{name}, #{version}, #{content}, #{status}, #{changeNote}, #{createdAt}, #{updatedAt}
+        )
+        on conflict (id) do update set
+            name = excluded.name,
+            content = excluded.content,
+            status = excluded.status,
+            change_note = excluded.change_note,
+            updated_at = excluded.updated_at
+    </insert>
+
+    <update id="deactivateActivePrompts">
+        update ma_prompt_template
+        set status = 'ARCHIVED', updated_at = now()
+        where prompt_key = #{promptKey} and status = 'ACTIVE'
+    </update>
+
+    <insert id="insertInvocation">
+        insert into ma_invocation_log (
+            id, project_id, application_id, environment_id, prompt_key, prompt_version,
+            sensitivity_level, provider_id, provider_name, model_name, status, fallback_used, prompt_digest,
+            request_preview, response_preview, input_tokens, output_tokens, total_cost,
+            error_code, error_message, latency_ms, actor_service, delegated_user_id, created_at
+        ) values (
+            #{id}, #{projectId}, #{applicationId}, #{environmentId}, #{promptKey}, #{promptVersion},
+            #{sensitivityLevel}, #{providerId}, #{providerName}, #{modelName}, #{status}, #{fallbackUsed}, #{promptDigest},
+            #{requestPreview}, #{responsePreview}, #{inputTokens}, #{outputTokens}, #{totalCost},
+            #{errorCode}, #{errorMessage}, #{latencyMs}, #{actorService}, #{delegatedUserId}, #{createdAt}
+        )
+    </insert>
+
+    <select id="invocations" resultMap="invocationMap">
+        select <include refid="invocationColumns"/>
+        from ma_invocation_log
+        <include refid="invocationWhere"/>
+        order by created_at desc
+        limit #{query.size} offset #{query.offset}
+    </select>
+
+    <select id="countInvocations" resultType="long">
+        select count(*)
+        from ma_invocation_log
+        <include refid="invocationWhere"/>
+    </select>
+
+    <select id="invocationSummary" resultMap="summaryMap">
+        select
+            count(*) as total,
+            count(*) filter (where status = 'SUCCEEDED') as succeeded,
+            count(*) filter (where status = 'FAILED') as failed,
+            count(*) filter (where status = 'BLOCKED') as blocked,
+            coalesce(sum(input_tokens), 0) as input_tokens,
+            coalesce(sum(output_tokens), 0) as output_tokens,
+            coalesce(sum(total_cost), 0) as total_cost
+        from ma_invocation_log
+        <include refid="invocationWhere"/>
+    </select>
+</mapper>

@@ -21,7 +21,6 @@
 
     <modules>
         <module>platform-api</module>
-        <module>model-access</module>
     </modules>
 
     <properties>

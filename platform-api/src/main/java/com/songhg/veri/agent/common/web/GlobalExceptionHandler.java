@@ -121,7 +121,7 @@ public class GlobalExceptionHandler {
                         ErrorCode.VALIDATION_ERROR.name(),
                         "请求字段校验失败",
                         TraceContext.getTraceId(),
-                        Map.of("field_errors", fieldErrors)
+                        Map.of("fieldErrors", fieldErrors)
                 ));
     }
 }

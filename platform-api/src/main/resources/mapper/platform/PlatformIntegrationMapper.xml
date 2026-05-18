@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.songhg.veri.agent.integration.infrastructure.mapper.PlatformIntegrationMapper">
+
+    <resultMap id="contextMap" type="com.songhg.veri.agent.integration.infrastructure.PlatformContextRow">
+        <constructor>
+            <arg column="resource_id" javaType="java.lang.String"/>
+            <arg column="status" javaType="java.lang.String"/>
+            <arg column="sensitivity_level" javaType="java.lang.String"/>
+            <arg column="allow_public_model" javaType="_boolean"/>
+        </constructor>
+    </resultMap>
+
+    <sql id="projectContextColumns">
+        id::text as resource_id, status, sensitivity_level, allow_public_model
+    </sql>
+
+    <sql id="applicationContextColumns">
+        id::text as resource_id, status, sensitivity_level, allow_public_model
+    </sql>
+
+    <select id="projectContextById" resultMap="contextMap">
+        select <include refid="projectContextColumns"/>
+        from base_project
+        where deleted_at is null
+          and id = #{id}
+        limit 1
+    </select>
+
+    <select id="projectContextByCode" resultMap="contextMap">
+        select <include refid="projectContextColumns"/>
+        from base_project
+        where deleted_at is null
+          and code = #{code}
+        limit 1
+    </select>
+
+    <select id="applicationContextById" resultMap="contextMap">
+        select <include refid="applicationContextColumns"/>
+        from base_application
+        where deleted_at is null
+          and id = #{id}
+        limit 1
+    </select>
+
+    <select id="applicationContextByCode" resultMap="contextMap">
+        select <include refid="applicationContextColumns"/>
+        from base_application
+        where deleted_at is null
+          and code = #{code}
+        limit 1
+    </select>
+
+    <insert id="insertServiceAuditEvent">
+        insert into audit_log (
+            trace_id, actor_type, actor_service, action, resource_type, resource_id,
+            scope_type, scope_id, result, after_json, reason
+        ) values (
+            #{traceId}, 'SERVICE', #{actorService}, #{action}, #{resourceType}, #{resourceId},
+            #{scopeType}, null, #{result}, cast(#{afterJson} as jsonb), #{reason}
+        )
+    </insert>
+</mapper>

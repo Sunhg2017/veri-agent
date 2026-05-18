@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.songhg.veri.agent.common.audit.mapper.AuditMapper">
+
+    <insert id="insertAuditLog">
+        insert into audit_log (
+            trace_id,
+            actor_type,
+            actor_user_id,
+            action,
+            resource_type,
+            resource_id,
+            scope_type,
+            scope_id,
+            result,
+            before_json,
+            after_json,
+            diff_json,
+            reason
+        )
+        values (
+            #{traceId},
+            #{actorType},
+            #{actorUserId},
+            #{action},
+            #{resourceType},
+            #{resourceId},
+            'PLATFORM',
+            null,
+            #{result},
+            cast(#{beforeJson} as jsonb),
+            cast(#{afterJson} as jsonb),
+            cast(#{diffJson} as jsonb),
+            #{reason}
+        )
+    </insert>
+</mapper>

@@ -1,9 +1,0 @@
-spring:
-  datasource:
-    url: ${WP2_DATASOURCE_URL:jdbc:postgresql://localhost:5432/veri_agent}
-    username: ${WP2_DATASOURCE_USERNAME:veri_agent}
-    password: ${WP2_DATASOURCE_PASSWORD:}
-    driver-class-name: org.postgresql.Driver
-  flyway:
-    enabled: true
-    locations: ${WP2_FLYWAY_LOCATIONS:filesystem:../db/migration/wp2}

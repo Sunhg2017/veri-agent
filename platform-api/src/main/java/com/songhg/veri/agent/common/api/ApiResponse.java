@@ -1,11 +1,10 @@
 package com.songhg.veri.agent.common.api;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
 
 public record ApiResponse<T>(
         String code,
         String message,
-        @JsonProperty("trace_id") String traceId,
+        String traceId,
         T data
 ) {
 

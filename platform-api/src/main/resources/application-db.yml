@@ -1,9 +1,9 @@
 spring:
   datasource:
-    url: ${WP1_DATASOURCE_URL:jdbc:postgresql://localhost:5432/veri_agent}
-    username: ${WP1_DATASOURCE_USERNAME:veri_agent}
-    password: ${WP1_DATASOURCE_PASSWORD:}
+    url: ${WP1_DATASOURCE_URL:${WP2_DATASOURCE_URL:jdbc:postgresql://localhost:5432/veri_agent}}
+    username: ${WP1_DATASOURCE_USERNAME:${WP2_DATASOURCE_USERNAME:veri_agent}}
+    password: ${WP1_DATASOURCE_PASSWORD:${WP2_DATASOURCE_PASSWORD:}}
     driver-class-name: org.postgresql.Driver
   flyway:
     enabled: true
-    locations: ${WP1_FLYWAY_LOCATIONS:filesystem:../db/migration/wp1}
+    locations: ${WP1_FLYWAY_LOCATIONS:filesystem:../db/migration/wp1},filesystem:../db/migration/wp2

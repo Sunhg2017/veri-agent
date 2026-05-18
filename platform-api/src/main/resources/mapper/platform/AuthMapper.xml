@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.songhg.veri.agent.auth.infrastructure.mapper.AuthMapper">
+
+    <resultMap id="userRowMap" type="com.songhg.veri.agent.auth.infrastructure.mapper.AuthUserRow">
+        <constructor>
+            <arg column="user_id" javaType="java.util.UUID"/>
+            <arg column="username" javaType="java.lang.String"/>
+            <arg column="display_name" javaType="java.lang.String"/>
+            <arg column="email" javaType="java.lang.String"/>
+            <arg column="password_hash" javaType="java.lang.String"/>
+            <arg column="must_change_password" javaType="_boolean"/>
+            <arg column="auth_version" javaType="_long"/>
+            <arg column="role_codes" javaType="java.lang.String"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="sessionMap" type="com.songhg.veri.agent.auth.domain.AuthSessionRecord">
+        <constructor>
+            <arg column="id" javaType="java.util.UUID"/>
+            <arg column="user_id" javaType="java.util.UUID"/>
+            <arg column="refresh_token_hash" javaType="java.lang.String"/>
+            <arg column="auth_version" javaType="_long"/>
+            <arg column="expires_at" javaType="java.time.Instant"/>
+            <arg column="revoked" javaType="_boolean"/>
+        </constructor>
+    </resultMap>
+
+    <sql id="enabledUserSelect">
+        select
+            u.id as user_id,
+            u.username,
+            u.display_name,
+            u.email,
+            u.password_hash,
+            u.must_change_password,
+            u.auth_version,
+            coalesce(string_agg(distinct b.role_code, ','), '') as role_codes
+        from iam_user u
+        left join rbac_role_binding b on b.subject_type = 'USER'
+            and b.subject_id = u.id
+            and b.status = 'ENABLED'
+            and b.deleted_at is null
+            and (b.expires_at is null or b.expires_at > now())
+    </sql>
+
+    <select id="findEnabledUserByUsername" resultMap="userRowMap">
+        <include refid="enabledUserSelect"/>
+        where u.username = #{username}
+          and u.status = 'ENABLED'
+          and u.deleted_at is null
+        group by u.id
+        limit 1
+    </select>
+
+    <select id="findEnabledUserById" resultMap="userRowMap">
+        <include refid="enabledUserSelect"/>
+        where u.id = #{userId}
+          and u.status = 'ENABLED'
+          and u.deleted_at is null
+        group by u.id
+        limit 1
+    </select>
+
+    <update id="changePassword">
+        update iam_user
+        set password_hash = #{passwordHash},
+            must_change_password = false,
+            auth_version = auth_version + 1,
+            updated_by = #{updatedBy},
+            updated_at = now()
+        where id = #{userId}
+          and status = 'ENABLED'
+          and deleted_at is null
+    </update>
+
+    <insert id="createSession">
+        insert into iam_session (
+            id,
+            user_id,
+            session_token_hash,
+            refresh_token_hash,
+            auth_version,
+            expires_at
+        )
+        values (
+            #{sessionId},
+            #{userId},
+            #{accessTokenHash},
+            #{refreshTokenHash},
+            #{authVersion},
+            #{expiresAt}
+        )
+    </insert>
+
+    <select id="isSessionActive" resultType="boolean">
+        select exists (
+            select 1
+            from iam_session s
+            join iam_user u on u.id = s.user_id
+                and u.deleted_at is null
+            where s.id = #{sessionId}
+              and s.user_id = #{userId}
+              and s.auth_version = #{authVersion}
+              and u.auth_version = #{authVersion}
+              and u.status = 'ENABLED'
+              and s.revoked_at is null
+              and s.expires_at > #{now}
+        )
+    </select>
+
+    <select id="findByRefreshTokenHash" resultMap="sessionMap">
+        select
+            id,
+            user_id,
+            refresh_token_hash,
+            auth_version,
+            expires_at,
+            revoked_at is not null as revoked
+        from iam_session
+        where refresh_token_hash = #{refreshTokenHash}
+        limit 1
+    </select>
+
+    <update id="revokeSession">
+        update iam_session
+        set revoked_at = coalesce(revoked_at, now()),
+            revoked_by = coalesce(revoked_by, #{revokedBy}),
+            revoke_reason = coalesce(revoke_reason, #{reason})
+        where id = #{sessionId}
+    </update>
+</mapper>

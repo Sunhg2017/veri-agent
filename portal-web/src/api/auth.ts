@@ -1,4 +1,4 @@
-import { requestJson, setAuthToken, setRefreshToken, setSessionId } from './client';
+import { requestJson, setAuthToken, setRefreshToken, setSessionId, getRefreshToken, clearAuthToken, getAuthToken } from './client';
 
 export interface LoginPayload {
   username: string;
@@ -28,6 +28,14 @@ export interface LoginResult extends CurrentUser {
   expires_at: string;
 }
 
+export interface RefreshResult {
+  access_token: string;
+  refresh_token: string;
+  session_id: string;
+  token_type: string;
+  expires_at: string;
+}
+
 export async function login(payload: LoginPayload) {
   const response = await requestJson<LoginResult>('/api/v1/auth/login', {
     method: 'POST',
@@ -37,6 +45,31 @@ export async function login(payload: LoginPayload) {
   setRefreshToken(response.data.refresh_token);
   setSessionId(response.data.session_id);
   return response;
+}
+
+/**
+ * Refresh the access token using the stored refresh token.
+ * Returns true on success, false if refresh failed (caller should force re-login).
+ */
+export async function refreshToken(): Promise<boolean> {
+  const currentRefreshToken = getRefreshToken();
+  if (!currentRefreshToken) {
+    return false;
+  }
+
+  try {
+    const response = await requestJson<RefreshResult>('/api/v1/auth/refresh', {
+      method: 'POST',
+      body: JSON.stringify({ refresh_token: currentRefreshToken })
+    });
+    setAuthToken(response.data.access_token);
+    setRefreshToken(response.data.refresh_token);
+    setSessionId(response.data.session_id);
+    return true;
+  } catch {
+    clearAuthToken();
+    return false;
+  }
 }
 
 export function fetchCurrentUser() {
