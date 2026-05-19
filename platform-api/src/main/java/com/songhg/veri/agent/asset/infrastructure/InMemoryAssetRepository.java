@@ -42,6 +42,18 @@ public class InMemoryAssetRepository implements AssetRepository {
     }
 
     @Override
+    public Optional<AssetRequirement> requirementBySourceRef(String projectId, String source, String sourceRef) {
+        if (projectId == null || source == null || sourceRef == null) {
+            return Optional.empty();
+        }
+        return requirements.values().stream()
+                .filter(value -> projectId.equals(value.projectId()))
+                .filter(value -> source.equals(value.source()))
+                .filter(value -> sourceRef.equals(value.sourceRef()))
+                .findFirst();
+    }
+
+    @Override
     public AssetRequirement saveRequirement(AssetRequirement requirement) {
         requirements.put(requirement.id(), requirement);
         return requirement;

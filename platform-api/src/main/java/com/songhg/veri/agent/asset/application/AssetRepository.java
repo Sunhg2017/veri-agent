@@ -17,6 +17,8 @@ public interface AssetRepository {
 
     Optional<AssetRequirement> requirement(UUID id);
 
+    Optional<AssetRequirement> requirementBySourceRef(String projectId, String source, String sourceRef);
+
     AssetRequirement saveRequirement(AssetRequirement requirement);
 
     List<AssetApi> apis(String projectId);

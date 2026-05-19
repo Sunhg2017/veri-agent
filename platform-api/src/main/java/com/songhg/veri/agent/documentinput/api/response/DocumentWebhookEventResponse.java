@@ -19,6 +19,9 @@ public record DocumentWebhookEventResponse(
         String payloadDigest,
         String errorMessage,
         int retryCount,
+        String replayBy,
+        Instant replayAt,
+        String replayTraceId,
         Instant receivedAt,
         Instant processedAt
 ) {

@@ -45,6 +45,22 @@ public class DocumentInputMetrics {
                 .increment();
     }
 
+    public void recordModelParse(String result, int candidateCount) {
+        Counter.builder("veri.agent.document_input.model_parse")
+                .description("WP4 AI-assisted document parsing attempts through WP2")
+                .tag("result", value(result))
+                .register(meterRegistry)
+                .increment();
+        if (candidateCount > 0) {
+            DistributionSummary.builder("veri.agent.document_input.model_parse.candidates")
+                    .description("WP4 AI-assisted candidate count per model parse")
+                    .baseUnit("candidates")
+                    .tag("result", value(result))
+                    .register(meterRegistry)
+                    .record(candidateCount);
+        }
+    }
+
     public void recordPublish(boolean dryRun, String result, int recordCount) {
         Counter.builder("veri.agent.document_input.publishes")
                 .description("WP4 publish attempts from confirmed candidates to WP3 assets")

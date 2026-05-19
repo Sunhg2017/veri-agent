@@ -46,10 +46,18 @@ services:
       WP1_BOOTSTRAP_TOKEN: local-init-token
       WP1_AUTH_TOKEN_SECRET: local-auth-secret
       WP1_ACCESS_TOKEN_TTL_MINUTES: 120
+      WP1_LOCAL_SECRET_MASTER_KEY: "0123456789abcdef0123456789abcdef"
+      # 外部 Vault/KMS 接入时启用，token 只通过环境变量注入，不能写入 secret_provider.config_json
+      WP1_EXTERNAL_SECRET_RESOLVE_URL: ${WP1_EXTERNAL_SECRET_RESOLVE_URL:-}
+      WP1_EXTERNAL_SECRET_AUTH_TOKEN: ${WP1_EXTERNAL_SECRET_AUTH_TOKEN:-}
       # 服务令牌
       WP1_SERVICE_TOKEN: shared-platform-service-token
       WP2_SERVICE_TOKEN: shared-model-access-token
       WP3_SERVICE_TOKEN: shared-asset-token
+      WP4_OCR_COMMAND: ${WP4_OCR_COMMAND:-}
+      WP4_OCR_TIMEOUT_SECONDS: ${WP4_OCR_TIMEOUT_SECONDS:-30}
+      WP4_OCR_MAX_OUTPUT_CHARS: ${WP4_OCR_MAX_OUTPUT_CHARS:-20000}
+      WP4_OCR_MAX_CONCURRENT_PROCESSES: ${WP4_OCR_MAX_CONCURRENT_PROCESSES:-2}
     depends_on:
       postgres:
         condition: service_healthy

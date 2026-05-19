@@ -50,7 +50,13 @@ export type Permission =
   | 'config:read'
   | 'config:edit'
   | 'audit:read'
-  | 'audit:export';
+  | 'audit:export'
+  | 'requirementInput:read'
+  | 'requirementInput:manage'
+  | 'requirementInput:import'
+  | 'requirementInput:candidate_review'
+  | 'requirementInput:publish'
+  | 'requirementInput:webhook_replay';
 
 export type ButtonKey =
   | 'department:create'
@@ -75,6 +81,7 @@ export type ButtonKey =
 export type UserLifecycleAction = 'enable' | 'disable' | 'lock' | 'unlock' | 'reset-password' | 'assign-role' | 'unassign-role';
 
 export const pageReadPermissions: Partial<Record<PageKey, Permission>> = {
+  'document-input': 'requirementInput:read',
   organizations: 'department:read',
   users: 'user:read',
   projects: 'project:read',

@@ -12,6 +12,7 @@ import com.songhg.veri.agent.asset.infrastructure.mapper.AssetMapper;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
@@ -37,14 +38,27 @@ public class PostgresAssetRepository implements AssetRepository {
     }
 
     @Override
+    public Optional<AssetRequirement> requirementBySourceRef(String projectId, String source, String sourceRef) {
+        return Optional.ofNullable(mapper.getRequirementBySourceRef(projectId, source, sourceRef));
+    }
+
+    @Override
     public AssetRequirement saveRequirement(AssetRequirement requirement) {
         AssetRequirement stored = normalizeRequirement(requirement);
-        if (mapper.getRequirement(stored.id()) == null) {
-            mapper.insertRequirement(stored);
-        } else {
-            mapper.updateRequirement(stored);
+        try {
+            if (mapper.getRequirement(stored.id()) == null) {
+                mapper.insertRequirement(stored);
+            } else {
+                mapper.updateRequirement(stored);
+            }
+            return stored;
+        } catch (DuplicateKeyException exception) {
+            if (stored.source() != null && stored.sourceRef() != null) {
+                return requirementBySourceRef(stored.projectId(), stored.source(), stored.sourceRef())
+                        .orElseThrow(() -> exception);
+            }
+            throw exception;
         }
-        return requirement;
     }
 
     @Override
@@ -184,6 +198,10 @@ public class PostgresAssetRepository implements AssetRepository {
                 requirement.id(),
                 requirement.title(),
                 requirement.description(),
+                requirement.source(),
+                requirement.sourceRef(),
+                requirement.sourceUrl(),
+                requirement.acceptanceCriteria(),
                 requirement.status(),
                 requirement.priority(),
                 requirement.projectId(),

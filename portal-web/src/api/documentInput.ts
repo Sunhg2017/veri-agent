@@ -1,4 +1,4 @@
-import { requestJson, type ApiResponse } from './client';
+import { requestJson, requestMultipart, type ApiResponse } from './client';
 
 export const DOCUMENT_SOURCE_TYPES = [
   'TEXT',
@@ -6,6 +6,7 @@ export const DOCUMENT_SOURCE_TYPES = [
   'CUSTOM_API',
   'WORD',
   'PDF',
+  'OCR',
   'CONFLUENCE',
   'FEISHU',
   'DINGTALK',
@@ -22,8 +23,9 @@ export const documentSourceTypeOptions: Array<{
   { value: 'TEXT', label: 'Text', reserved: false },
   { value: 'MARKDOWN', label: 'Markdown', reserved: false },
   { value: 'CUSTOM_API', label: 'Custom API', reserved: false },
-  { value: 'WORD', label: 'Word', reserved: true },
-  { value: 'PDF', label: 'PDF', reserved: true },
+  { value: 'WORD', label: 'Word', reserved: false },
+  { value: 'PDF', label: 'PDF', reserved: false },
+  { value: 'OCR', label: 'OCR', reserved: false },
   { value: 'CONFLUENCE', label: 'Confluence', reserved: true },
   { value: 'FEISHU', label: '飞书', reserved: true },
   { value: 'DINGTALK', label: '钉钉', reserved: true },
@@ -40,6 +42,13 @@ export interface DocumentInputHealth {
   webhookEnabled?: boolean;
   modelParseEnabled?: boolean;
   webhookMaxPayloadBytes?: number;
+  importMaxContentBytes?: number;
+  documentBinaryMaxBytes?: number;
+  ocrConfigured?: boolean;
+  ocrTimeoutSeconds?: number;
+  ocrMaxOutputChars?: number;
+  ocrMaxConcurrentProcesses?: number;
+  ocrAvailablePermits?: number;
   batchActionLimit?: number;
 }
 
@@ -53,6 +62,9 @@ export interface DocumentSourceView {
   sourceUrl?: string;
   status?: string;
   mappingId?: string;
+  secretRef?: string;
+  eventVersion?: string;
+  mappingVersion?: string;
   description?: string;
   enabled?: boolean;
   dataFlowSupported?: boolean;
@@ -70,6 +82,9 @@ export interface DocumentSourceHealthView {
   message?: string;
   webhookPath?: string;
   signatureAlgorithm?: string;
+  secretRefConfigured?: boolean;
+  eventVersion?: string;
+  mappingVersion?: string;
   checkedAt?: string;
   lastEventAt?: string;
   lastEventStatus?: string;
@@ -85,6 +100,9 @@ export interface DocumentSourcePayload {
   endpointUrl?: string;
   defaultProjectId?: string;
   mappingId?: string;
+  secretRef?: string;
+  eventVersion?: string;
+  mappingVersion?: string;
   description?: string;
 }
 
@@ -94,14 +112,35 @@ export interface DocumentImportPayload {
   sourceType: DocumentSourceType;
   sourceRef?: string;
   sourceUrl?: string;
+  sourceId?: string;
+  mappingId?: string;
   content?: string;
+}
+
+export interface DocumentImportFilePayload {
+  projectId: string;
+  title?: string;
+  sourceType: DocumentSourceType;
+  sourceRef?: string;
+  sourceUrl?: string;
+  sourceId?: string;
+  mappingId?: string;
+  file: File;
 }
 
 export interface DocumentRequirementPreview {
   id?: string;
   title?: string;
+  description?: string;
   status?: string;
   priority?: string;
+  acceptanceCriteria?: string;
+  tags: string[];
+  assetRequirementId?: string;
+  parseSource?: string;
+  modelInvocationId?: string;
+  modelProviderName?: string;
+  modelName?: string;
 }
 
 export interface DocumentImportView {
@@ -138,6 +177,10 @@ export interface DocumentCandidateView {
   sourceFragment?: string;
   externalRequirementId?: string;
   confidence?: number;
+  parseSource?: string;
+  modelInvocationId?: string;
+  modelProviderName?: string;
+  modelName?: string;
   assetRequirementId?: string;
   errorMessage?: string;
   ignoredReason?: string;
@@ -162,6 +205,11 @@ export interface DocumentCandidateList {
 }
 
 export type DocumentCandidateBatchAction = 'CONFIRM' | 'IGNORE';
+
+export interface DocumentCandidateBatchTarget {
+  id: string;
+  version?: number;
+}
 
 export interface DocumentCandidateBatchActionItem {
   candidateId: string;
@@ -190,6 +238,8 @@ export interface DocumentPublishRecordView {
   sourceRef?: string;
   sourceFragment?: string;
   assetRequirementId?: string;
+  existingRequirementId?: string;
+  diffSummary?: string;
   errorMessage?: string;
   version: number;
 }
@@ -214,7 +264,9 @@ export interface DocumentPublishView {
   publishedCount: number;
   failedCount: number;
   plannedCreateCount: number;
+  plannedUpdateCount: number;
   linkedExistingCount: number;
+  conflictCount: number;
   skippedCount: number;
   publishFailedCount: number;
   records: DocumentPublishRecordView[];
@@ -232,6 +284,14 @@ export interface DocumentPublishRecordList {
   items: DocumentPublishRecordView[];
 }
 
+export interface DocumentCandidateFilters {
+  index?: number;
+  size?: number;
+  status?: string;
+  sourceRef?: string;
+  keyword?: string;
+}
+
 export interface WebhookEventView {
   id: string;
   sourceId?: string;
@@ -246,6 +306,9 @@ export interface WebhookEventView {
   payloadDigest?: string;
   errorMessage?: string;
   retryCount: number;
+  replayBy?: string;
+  replayAt?: string;
+  replayTraceId?: string;
   receivedAt?: string;
   processedAt?: string;
 }
@@ -257,8 +320,12 @@ export interface WebhookEventList {
 export interface WebhookEventFilters {
   index?: number;
   size?: number;
+  sourceId?: string;
   sourceCode?: string;
+  eventType?: string;
   status?: string;
+  receivedFrom?: string;
+  receivedTo?: string;
 }
 
 type UnknownRecord = Record<string, unknown>;
@@ -291,6 +358,14 @@ function optionalNumber(value: unknown) {
   return Number.isFinite(parsed) ? parsed : undefined;
 }
 
+function confidenceValue(value: unknown) {
+  const parsed = optionalNumber(value);
+  if (typeof parsed !== 'number') {
+    return undefined;
+  }
+  return parsed > 1 ? parsed / 100 : parsed;
+}
+
 function booleanValue(value: unknown, fallback = false) {
   if (typeof value === 'boolean') {
     return value;
@@ -314,8 +389,16 @@ function requirementPreviews(value: unknown): DocumentRequirementPreview[] | und
   return value.filter(isRecord).map((item) => ({
     id: optionalString(item.id),
     title: optionalString(item.title) ?? optionalString(item.name),
+    description: optionalString(item.description),
     status: optionalString(item.status),
-    priority: optionalString(item.priority)
+    priority: optionalString(item.priority),
+    acceptanceCriteria: optionalString(item.acceptanceCriteria) ?? optionalString(item.acceptance_criteria),
+    tags: stringArrayValue(item.tags),
+    assetRequirementId: optionalString(item.assetRequirementId) ?? optionalString(item.asset_requirement_id),
+    parseSource: optionalString(item.parseSource) ?? optionalString(item.parse_source),
+    modelInvocationId: optionalString(item.modelInvocationId) ?? optionalString(item.model_invocation_id),
+    modelProviderName: optionalString(item.modelProviderName) ?? optionalString(item.model_provider_name),
+    modelName: optionalString(item.modelName) ?? optionalString(item.model_name)
   }));
 }
 
@@ -377,6 +460,9 @@ export function normalizeDocumentSourceView(raw: unknown): DocumentSourceView {
     sourceUrl: optionalString(item.sourceUrl) ?? optionalString(item.source_url) ?? optionalString(item.endpointUrl) ?? optionalString(item.endpoint_url),
     status: optionalString(item.status),
     mappingId: optionalString(item.mappingId) ?? optionalString(item.mapping_id),
+    secretRef: optionalString(item.secretRef) ?? optionalString(item.secret_ref),
+    eventVersion: optionalString(item.eventVersion) ?? optionalString(item.event_version),
+    mappingVersion: optionalString(item.mappingVersion) ?? optionalString(item.mapping_version),
     description: optionalString(item.description),
     enabled: typeof item.enabled === 'boolean'
       ? item.enabled
@@ -408,6 +494,9 @@ export function normalizeDocumentSourceHealthView(raw: unknown): DocumentSourceH
     message: optionalString(item.message),
     webhookPath: optionalString(item.webhookPath) ?? optionalString(item.webhook_path),
     signatureAlgorithm: optionalString(item.signatureAlgorithm) ?? optionalString(item.signature_algorithm),
+    secretRefConfigured: booleanValue(item.secretRefConfigured ?? item.secret_ref_configured),
+    eventVersion: optionalString(item.eventVersion) ?? optionalString(item.event_version),
+    mappingVersion: optionalString(item.mappingVersion) ?? optionalString(item.mapping_version),
     checkedAt: optionalString(item.checkedAt) ?? optionalString(item.checked_at),
     lastEventAt: optionalString(item.lastEventAt) ?? optionalString(item.last_event_at),
     lastEventStatus: optionalString(item.lastEventStatus) ?? optionalString(item.last_event_status),
@@ -461,7 +550,11 @@ export function normalizeDocumentCandidateView(raw: unknown): DocumentCandidateV
     sourceRef: optionalString(item.sourceRef) ?? optionalString(item.source_ref),
     sourceFragment: optionalString(item.sourceFragment) ?? optionalString(item.source_fragment),
     externalRequirementId: optionalString(item.externalRequirementId) ?? optionalString(item.external_requirement_id),
-    confidence: optionalNumber(item.confidence),
+    confidence: confidenceValue(item.confidence),
+    parseSource: optionalString(item.parseSource) ?? optionalString(item.parse_source),
+    modelInvocationId: optionalString(item.modelInvocationId) ?? optionalString(item.model_invocation_id),
+    modelProviderName: optionalString(item.modelProviderName) ?? optionalString(item.model_provider_name),
+    modelName: optionalString(item.modelName) ?? optionalString(item.model_name),
     assetRequirementId: optionalString(item.assetRequirementId) ?? optionalString(item.asset_requirement_id),
     errorMessage: optionalString(item.errorMessage) ?? optionalString(item.error_message) ?? optionalString(item.error),
     ignoredReason: optionalString(item.ignoredReason) ?? optionalString(item.ignored_reason),
@@ -490,6 +583,9 @@ export function normalizeWebhookEventView(raw: unknown): WebhookEventView {
     payloadDigest: optionalString(item.payloadDigest) ?? optionalString(item.payload_digest),
     errorMessage: optionalString(item.errorMessage) ?? optionalString(item.error_message) ?? optionalString(item.error),
     retryCount: numberValue(item.retryCount ?? item.retry_count, 0),
+    replayBy: optionalString(item.replayBy) ?? optionalString(item.replay_by),
+    replayAt: optionalString(item.replayAt) ?? optionalString(item.replay_at),
+    replayTraceId: optionalString(item.replayTraceId) ?? optionalString(item.replay_trace_id),
     receivedAt: optionalString(item.receivedAt) ?? optionalString(item.received_at),
     processedAt: optionalString(item.processedAt) ?? optionalString(item.processed_at)
   };
@@ -526,6 +622,8 @@ export function normalizeDocumentPublishRecordView(raw: unknown): DocumentPublis
     sourceRef: optionalString(item.sourceRef) ?? optionalString(item.source_ref),
     sourceFragment: optionalString(item.sourceFragment) ?? optionalString(item.source_fragment),
     assetRequirementId: optionalString(item.assetRequirementId) ?? optionalString(item.asset_requirement_id),
+    existingRequirementId: optionalString(item.existingRequirementId) ?? optionalString(item.existing_requirement_id),
+    diffSummary: optionalString(item.diffSummary) ?? optionalString(item.diff_summary),
     errorMessage: optionalString(item.errorMessage) ?? optionalString(item.error_message) ?? optionalString(item.error),
     version: numberValue(item.version, 0)
   };
@@ -555,7 +653,9 @@ export function normalizeDocumentPublishView(raw: unknown): DocumentPublishView 
     publishedCount: numberValue(item.publishedCount ?? item.published_count, 0),
     failedCount: numberValue(item.failedCount ?? item.failed_count, 0),
     plannedCreateCount: numberValue(item.plannedCreateCount ?? item.planned_create_count, 0),
+    plannedUpdateCount: numberValue(item.plannedUpdateCount ?? item.planned_update_count, 0),
     linkedExistingCount: numberValue(item.linkedExistingCount ?? item.linked_existing_count, 0),
+    conflictCount: numberValue(item.conflictCount ?? item.conflict_count, 0),
     skippedCount: numberValue(item.skippedCount ?? item.skipped_count, 0),
     publishFailedCount: numberValue(item.publishFailedCount ?? item.publish_failed_count, 0),
     records,
@@ -645,6 +745,24 @@ export async function createDocumentImport(payload: DocumentImportPayload): Prom
   return { ...response, data: normalizeDocumentImportView(response.data) };
 }
 
+export async function createDocumentImportFile(payload: DocumentImportFilePayload): Promise<ApiResponse<DocumentImportView>> {
+  const formData = new FormData();
+  Object.entries(compactDocumentPayload({
+    projectId: payload.projectId,
+    title: payload.title,
+    sourceType: payload.sourceType,
+    sourceRef: payload.sourceRef,
+    sourceUrl: payload.sourceUrl,
+    sourceId: payload.sourceId,
+    mappingId: payload.mappingId
+  })).forEach(([key, value]) => {
+    formData.append(key, String(value));
+  });
+  formData.append('file', payload.file);
+  const response = await requestMultipart<unknown>('/api/v1/document-input/imports/multipart', formData);
+  return { ...response, data: normalizeDocumentImportView(response.data) };
+}
+
 export async function fetchDocumentImports(): Promise<ApiResponse<DocumentImportList>> {
   const response = await requestJson<unknown>('/api/v1/document-input/imports');
   return { ...response, data: { items: documentImportItems(response.data) } };
@@ -655,8 +773,15 @@ export async function fetchDocumentImport(importId: string): Promise<ApiResponse
   return { ...response, data: normalizeDocumentImportView(response.data) };
 }
 
-export async function fetchDocumentCandidates(importId: string): Promise<ApiResponse<DocumentCandidateList>> {
-  const response = await requestJson<unknown>(`/api/v1/document-input/imports/${encodeURIComponent(importId)}/candidates`);
+export async function fetchDocumentCandidates(importId: string, filters: DocumentCandidateFilters = {}): Promise<ApiResponse<DocumentCandidateList>> {
+  const params = new URLSearchParams();
+  if (typeof filters.index === 'number') params.set('index', String(filters.index));
+  if (typeof filters.size === 'number') params.set('size', String(filters.size));
+  if (filters.status?.trim()) params.set('status', filters.status.trim());
+  if (filters.sourceRef?.trim()) params.set('sourceRef', filters.sourceRef.trim());
+  if (filters.keyword?.trim()) params.set('keyword', filters.keyword.trim());
+  const query = params.toString();
+  const response = await requestJson<unknown>(`/api/v1/document-input/imports/${encodeURIComponent(importId)}/candidates${query ? `?${query}` : ''}`);
   return { ...response, data: { items: documentCandidateItems(response.data) } };
 }
 
@@ -686,14 +811,16 @@ export async function ignoreDocumentCandidate(candidateId: string, reason: strin
 
 export async function batchDocumentCandidateAction(
   action: DocumentCandidateBatchAction,
-  candidateIds: string[],
+  candidates: string[] | DocumentCandidateBatchTarget[],
   reason?: string
 ): Promise<ApiResponse<DocumentCandidateBatchActionResponse>> {
+  const usesVersionedTargets = candidates.some((candidate) => typeof candidate !== 'string');
   const response = await requestJson<unknown>('/api/v1/document-input/candidates/batch-action', {
     method: 'POST',
     body: JSON.stringify(compactDocumentPayload({
       action,
-      candidateIds,
+      candidateIds: usesVersionedTargets ? undefined : candidates,
+      candidates: usesVersionedTargets ? candidates : undefined,
       reason: reason?.trim() || undefined
     }))
   });
@@ -723,8 +850,12 @@ export async function fetchWebhookEvents(filters: WebhookEventFilters = {}): Pro
   const params = new URLSearchParams();
   if (typeof filters.index === 'number') params.set('index', String(filters.index));
   if (typeof filters.size === 'number') params.set('size', String(filters.size));
+  if (filters.sourceId?.trim()) params.set('sourceId', filters.sourceId.trim());
   if (filters.sourceCode?.trim()) params.set('sourceCode', filters.sourceCode.trim());
+  if (filters.eventType?.trim()) params.set('eventType', filters.eventType.trim());
   if (filters.status?.trim()) params.set('status', filters.status.trim());
+  if (filters.receivedFrom?.trim()) params.set('receivedFrom', filters.receivedFrom.trim());
+  if (filters.receivedTo?.trim()) params.set('receivedTo', filters.receivedTo.trim());
   const query = params.toString();
   const response = await requestJson<unknown>(`/api/v1/document-input/webhook-events${query ? `?${query}` : ''}`);
   return { ...response, data: { items: webhookEventItems(response.data) } };

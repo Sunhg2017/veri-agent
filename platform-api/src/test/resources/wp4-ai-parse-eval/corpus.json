@@ -1,0 +1,195 @@
+[
+  {
+    "caseId": "candidate-confirmation",
+    "document": "Candidate confirmation requires version checks, editable title and ignore reason.",
+    "modelResponse": {
+      "requirements": [
+        {
+          "title": "Candidate confirmation requires version checks",
+          "description": "Reviewer confirms only the candidate version currently displayed.",
+          "priority": "HIGH",
+          "acceptanceCriteria": "Confirm succeeds with the current version and fails with a stale version.",
+          "tags": ["wp4", "candidate"]
+        },
+        {
+          "title": "Ignoring a candidate requires a reason",
+          "description": "Reviewer must provide an audit reason when ignoring a parsed requirement.",
+          "priority": "MEDIUM",
+          "acceptanceCriteria": "Ignore without reason is rejected; ignore with reason stores ignoredReason.",
+          "tags": ["wp4", "audit"]
+        }
+      ]
+    },
+    "expected": [
+      {
+        "title": "Candidate confirmation requires version checks",
+        "priority": "HIGH"
+      },
+      {
+        "title": "Ignoring a candidate requires a reason",
+        "priority": "MEDIUM"
+      }
+    ]
+  },
+  {
+    "caseId": "webhook-security",
+    "document": "Webhook imports must validate timestamp, signature, idempotency key and event version.",
+    "modelResponse": {
+      "requirements": [
+        {
+          "title": "Webhook validates HMAC signatures",
+          "description": "Incoming CUSTOM_API events must use X-VA signature headers.",
+          "priority": "CRITICAL",
+          "acceptanceCriteria": "Invalid signatures are rejected and a rejected webhook event is recorded.",
+          "tags": ["webhook", "security"]
+        },
+        {
+          "title": "Webhook replay keeps idempotency",
+          "description": "Repeated eventId or idempotencyKey with the same payload returns the existing import.",
+          "priority": "HIGH",
+          "acceptanceCriteria": "Same payload is idempotent; different payload returns conflict.",
+          "tags": ["webhook", "idempotency"]
+        }
+      ]
+    },
+    "expected": [
+      {
+        "title": "Webhook validates HMAC signatures",
+        "priority": "CRITICAL"
+      },
+      {
+        "title": "Webhook replay keeps idempotency",
+        "priority": "HIGH"
+      }
+    ]
+  },
+  {
+    "caseId": "binary-document-import",
+    "document": "Users upload Word, PDF and OCR image files. The platform must enforce binary size limits, parse text and require OCR configuration for scanned files.",
+    "modelResponse": {
+      "requirements": [
+        {
+          "title": "Multipart document upload accepts real files",
+          "description": "The import API accepts multipart/form-data with projectId, sourceType and file fields.",
+          "priority": "HIGH",
+          "acceptanceCriteria": "Uploading a valid docx file creates pending requirement candidates with sourceRef traceability.",
+          "tags": ["upload", "multipart", "wp4"]
+        },
+        {
+          "title": "OCR processing is bounded by runtime limits",
+          "description": "OCR command execution must respect timeout, max output length and concurrent process limits.",
+          "priority": "CRITICAL",
+          "acceptanceCriteria": "When the OCR command times out or the concurrency limit is reached, the import fails with a readable error and no secret or raw binary is logged.",
+          "tags": ["ocr", "resource-limit"]
+        },
+        {
+          "title": "Scanned PDF requires OCR provider",
+          "description": "Image-only PDFs cannot be treated as text PDFs unless an OCR provider is configured.",
+          "priority": "MEDIUM",
+          "acceptanceCriteria": "A scanned PDF without OCR configuration returns validation failure and stores a failed import record.",
+          "tags": ["pdf", "ocr"]
+        }
+      ]
+    },
+    "expected": [
+      {
+        "title": "Multipart document upload accepts real files",
+        "priority": "HIGH"
+      },
+      {
+        "title": "OCR processing is bounded by runtime limits",
+        "priority": "CRITICAL"
+      },
+      {
+        "title": "Scanned PDF requires OCR provider",
+        "priority": "MEDIUM"
+      }
+    ]
+  },
+  {
+    "caseId": "external-secret-provider",
+    "document": "Webhook signing secrets can live in local encrypted storage or an external Vault/KMS provider. Fallback can be disabled in production.",
+    "modelResponse": {
+      "requirements": [
+        {
+          "title": "Webhook secrets resolve through SecretProvider first",
+          "description": "The resolver tries registered SecretProvider implementations before property fallback.",
+          "priority": "HIGH",
+          "acceptanceCriteria": "A provider value wins over a configured fallback value for the same secretRef.",
+          "tags": ["secret", "webhook"]
+        },
+        {
+          "title": "External Vault and KMS providers use references only",
+          "description": "The platform stores secretRef and provider metadata while plaintext is returned only by the external resolve endpoint.",
+          "priority": "CRITICAL",
+          "acceptanceCriteria": "Provider requests include purpose and scope context; responses and audit output never expose the resolved secret value.",
+          "tags": ["vault", "kms", "security"]
+        },
+        {
+          "title": "Production can disable local webhook secret fallback",
+          "description": "Operators can require all webhook secrets to resolve through SecretProvider.",
+          "priority": "MEDIUM",
+          "acceptanceCriteria": "When fallback is disabled, unknown secret references are rejected before signature validation succeeds.",
+          "tags": ["security", "configuration"]
+        }
+      ]
+    },
+    "expected": [
+      {
+        "title": "Webhook secrets resolve through SecretProvider first",
+        "priority": "HIGH"
+      },
+      {
+        "title": "External Vault and KMS providers use references only",
+        "priority": "CRITICAL"
+      },
+      {
+        "title": "Production can disable local webhook secret fallback",
+        "priority": "MEDIUM"
+      }
+    ]
+  },
+  {
+    "caseId": "candidate-publish-quality",
+    "document": "Reviewers edit AI candidates, preview publish changes and publish confirmed requirements into WP3 assets.",
+    "modelResponse": {
+      "requirements": [
+        {
+          "title": "Publish dry run returns create and update plans",
+          "description": "The publish API must show what will be created, updated, skipped or conflicted before committing.",
+          "priority": "HIGH",
+          "acceptanceCriteria": "Dry run does not create WP3 assets and returns plannedCreateCount, plannedUpdateCount, conflictCount and record details.",
+          "tags": ["publish", "dry-run"]
+        },
+        {
+          "title": "Repeated external requirement ids update existing assets",
+          "description": "Candidates with an existing externalRequirementId should link or update instead of creating duplicates.",
+          "priority": "HIGH",
+          "acceptanceCriteria": "Formal publish sets existingRequirementId for matched assets and keeps sourceRef and sourceUrl traceability.",
+          "tags": ["wp3", "traceability"]
+        },
+        {
+          "title": "Candidate review keeps optimistic locking",
+          "description": "Edits and confirmations must include the version last displayed by the reviewer.",
+          "priority": "MEDIUM",
+          "acceptanceCriteria": "A stale version returns conflict and leaves the candidate unchanged.",
+          "tags": ["candidate", "concurrency"]
+        }
+      ]
+    },
+    "expected": [
+      {
+        "title": "Publish dry run returns create and update plans",
+        "priority": "HIGH"
+      },
+      {
+        "title": "Repeated external requirement ids update existing assets",
+        "priority": "HIGH"
+      },
+      {
+        "title": "Candidate review keeps optimistic locking",
+        "priority": "MEDIUM"
+      }
+    ]
+  }
+]

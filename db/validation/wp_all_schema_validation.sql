@@ -119,7 +119,8 @@ with expected(table_name, column_name) as (
         ('ma_prompt_template','id'), ('ma_prompt_template','prompt_key'), ('ma_prompt_template','name'), ('ma_prompt_template','version'), ('ma_prompt_template','content'), ('ma_prompt_template','status'),
         ('ma_invocation_log','id'), ('ma_invocation_log','project_id'), ('ma_invocation_log','model_name'), ('ma_invocation_log','status'), ('ma_invocation_log','created_at'),
         -- WP3 key columns
-        ('asset_requirement','id'), ('asset_requirement','project_id'), ('asset_requirement','code'), ('asset_requirement','title'), ('asset_requirement','status'),
+        ('asset_requirement','id'), ('asset_requirement','project_id'), ('asset_requirement','code'), ('asset_requirement','title'), ('asset_requirement','source'),
+        ('asset_requirement','source_ref'), ('asset_requirement','source_url'), ('asset_requirement','acceptance_criteria'), ('asset_requirement','status'),
         ('asset_api','id'), ('asset_api','project_id'), ('asset_api','code'), ('asset_api','path'), ('asset_api','http_method'), ('asset_api','status'),
         ('asset_page','id'), ('asset_page','project_id'), ('asset_page','code'), ('asset_page','name'), ('asset_page','status'),
         ('asset_business_flow','id'), ('asset_business_flow','project_id'), ('asset_business_flow','code'), ('asset_business_flow','name'), ('asset_business_flow','status'),
@@ -129,10 +130,14 @@ with expected(table_name, column_name) as (
         -- WP4 key columns
         ('document_input_field_mapping','id'), ('document_input_field_mapping','mapping_code'), ('document_input_field_mapping','title_path'), ('document_input_field_mapping','version'),
         ('document_input_source','id'), ('document_input_source','source_code'), ('document_input_source','source_type'), ('document_input_source','status'), ('document_input_source','mapping_id'),
+        ('document_input_source','secret_ref'), ('document_input_source','event_version'), ('document_input_source','mapping_version'),
         ('document_input_import','id'), ('document_input_import','project_id'), ('document_input_import','source_type'), ('document_input_import','status'), ('document_input_import','created_requirement_ids'),
-        ('document_input_candidate','id'), ('document_input_candidate','import_id'), ('document_input_candidate','project_id'), ('document_input_candidate','status'), ('document_input_candidate','version'),
+        ('document_input_candidate','id'), ('document_input_candidate','import_id'), ('document_input_candidate','project_id'), ('document_input_candidate','status'),
+        ('document_input_candidate','parse_source'), ('document_input_candidate','model_invocation_id'), ('document_input_candidate','model_provider_name'),
+        ('document_input_candidate','model_name'), ('document_input_candidate','version'),
         ('document_input_webhook_event','id'), ('document_input_webhook_event','source_code'), ('document_input_webhook_event','event_id'), ('document_input_webhook_event','idempotency_key'),
-        ('document_input_webhook_event','event_version'), ('document_input_webhook_event','signature_status'), ('document_input_webhook_event','status'), ('document_input_webhook_event','payload_digest')
+        ('document_input_webhook_event','event_version'), ('document_input_webhook_event','signature_status'), ('document_input_webhook_event','status'), ('document_input_webhook_event','payload_digest'),
+        ('document_input_webhook_event','replay_by'), ('document_input_webhook_event','replay_at'), ('document_input_webhook_event','replay_trace_id')
 ),
 missing as (
     select e.table_name || '.' || e.column_name as item
@@ -171,6 +176,7 @@ with expected(table_name, index_name) as (
         ('ma_invocation_log','idx_ma_invocation_scope_time'),
         -- WP3 key indexes
         ('asset_requirement','uk_asset_requirement_project_code'),
+        ('asset_requirement','uk_asset_requirement_project_import_source_ref'),
         ('asset_api','uk_asset_api_project_service_path_method'),
         ('asset_page','uk_asset_page_project_code'),
         ('asset_business_flow','uk_asset_business_flow_project_code'),
@@ -180,9 +186,11 @@ with expected(table_name, index_name) as (
         -- WP4 key indexes
         ('document_input_field_mapping','uk_document_input_field_mapping_code'),
         ('document_input_source','uk_document_input_source_code'),
+        ('document_input_source','idx_document_input_source_secret_ref'),
         ('document_input_import','idx_document_input_import_project_created'),
         ('document_input_candidate','idx_document_input_candidate_import'),
         ('document_input_candidate','idx_document_input_candidate_external'),
+        ('document_input_candidate','idx_document_input_candidate_model_invocation'),
         ('document_input_webhook_event','uk_document_input_webhook_event_id'),
         ('document_input_webhook_event','uk_document_input_webhook_idempotency')
 ),

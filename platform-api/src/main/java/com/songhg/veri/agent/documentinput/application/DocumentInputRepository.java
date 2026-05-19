@@ -39,6 +39,10 @@ public interface DocumentInputRepository {
 
     long countCandidates(UUID importId);
 
+    List<DocumentRequirementCandidate> candidates(DocumentCandidateQuery query);
+
+    long countCandidates(DocumentCandidateQuery query);
+
     Optional<DocumentRequirementCandidate> candidate(UUID id);
 
     DocumentRequirementCandidate saveCandidate(DocumentRequirementCandidate candidate);

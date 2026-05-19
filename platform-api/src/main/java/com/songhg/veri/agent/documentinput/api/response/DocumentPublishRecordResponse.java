@@ -14,6 +14,8 @@ public record DocumentPublishRecordResponse(
         String sourceRef,
         String sourceFragment,
         UUID assetRequirementId,
+        UUID existingRequirementId,
+        String diffSummary,
         String errorMessage,
         long version
 ) {

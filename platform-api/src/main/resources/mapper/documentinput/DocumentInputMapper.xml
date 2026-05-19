@@ -14,6 +14,9 @@
             <arg column="endpoint_url" javaType="java.lang.String"/>
             <arg column="default_project_id" javaType="java.lang.String"/>
             <arg column="mapping_id" javaType="java.util.UUID"/>
+            <arg column="secret_ref" javaType="java.lang.String"/>
+            <arg column="event_version" javaType="java.lang.String"/>
+            <arg column="mapping_version" javaType="java.lang.String"/>
             <arg column="description" javaType="java.lang.String"/>
             <arg column="created_at" javaType="java.time.Instant"/>
             <arg column="updated_at" javaType="java.time.Instant"/>
@@ -72,6 +75,10 @@
             <arg column="source_fragment" javaType="java.lang.String"/>
             <arg column="external_requirement_id" javaType="java.lang.String"/>
             <arg column="confidence" javaType="_double"/>
+            <arg column="parse_source" javaType="java.lang.String"/>
+            <arg column="model_invocation_id" javaType="java.util.UUID"/>
+            <arg column="model_provider_name" javaType="java.lang.String"/>
+            <arg column="model_name" javaType="java.lang.String"/>
             <arg column="asset_requirement_id" javaType="java.util.UUID"/>
             <arg column="error_message" javaType="java.lang.String"/>
             <arg column="ignored_reason" javaType="java.lang.String"/>
@@ -99,6 +106,9 @@
             <arg column="raw_payload" javaType="java.lang.String"/>
             <arg column="error_message" javaType="java.lang.String"/>
             <arg column="retry_count" javaType="_int"/>
+            <arg column="replay_by" javaType="java.lang.String"/>
+            <arg column="replay_at" javaType="java.time.Instant"/>
+            <arg column="replay_trace_id" javaType="java.lang.String"/>
             <arg column="received_at" javaType="java.time.Instant"/>
             <arg column="processed_at" javaType="java.time.Instant"/>
         </constructor>
@@ -106,7 +116,7 @@
 
     <sql id="sourceColumns">
         id, source_code, name, source_type, status, endpoint_url, default_project_id,
-        mapping_id, description, created_at, updated_at
+        mapping_id, secret_ref, event_version, mapping_version, description, created_at, updated_at
     </sql>
 
     <sql id="fieldMappingColumns">
@@ -123,6 +133,7 @@
     <sql id="candidateColumns">
         id, import_id, project_id, title, description, priority, acceptance_criteria, tags,
         status, source_ref, source_fragment, external_requirement_id, confidence,
+        parse_source, model_invocation_id, model_provider_name, model_name,
         asset_requirement_id, error_message, ignored_reason, confirmed_by, confirmed_at,
         version, created_at, updated_at
     </sql>
@@ -130,7 +141,7 @@
     <sql id="webhookEventColumns">
         id, source_id, import_id, source_code, event_id, idempotency_key, event_type, event_version,
         signature_status, status, payload_digest, raw_payload, error_message, retry_count,
-        received_at, processed_at
+        replay_by, replay_at, replay_trace_id, received_at, processed_at
     </sql>
 
     <sql id="sourceWhere">
@@ -151,11 +162,36 @@
         </where>
     </sql>
 
+    <sql id="candidateWhere">
+        <where>
+            deleted_at is null
+            <if test="query.importId != null">and import_id = #{query.importId}</if>
+            <if test="query.status != null">and status = #{query.status}</if>
+            <if test="query.sourceRef != null">
+                and lower(source_ref) like concat('%', lower(#{query.sourceRef}), '%')
+            </if>
+            <if test="query.keyword != null">
+                and (
+                    lower(title) like concat('%', lower(#{query.keyword}), '%')
+                    or lower(coalesce(description, '')) like concat('%', lower(#{query.keyword}), '%')
+                    or lower(coalesce(acceptance_criteria, '')) like concat('%', lower(#{query.keyword}), '%')
+                    or lower(coalesce(tags, '')) like concat('%', lower(#{query.keyword}), '%')
+                    or lower(coalesce(source_fragment, '')) like concat('%', lower(#{query.keyword}), '%')
+                    or lower(coalesce(external_requirement_id, '')) like concat('%', lower(#{query.keyword}), '%')
+                )
+            </if>
+        </where>
+    </sql>
+
     <sql id="webhookEventWhere">
         <where>
             deleted_at is null
+            <if test="query.sourceId != null">and source_id = #{query.sourceId}</if>
             <if test="query.sourceCode != null">and source_code = #{query.sourceCode}</if>
+            <if test="query.eventType != null">and event_type = #{query.eventType}</if>
             <if test="query.status != null">and status = #{query.status}</if>
+            <if test="query.receivedFrom != null">and received_at &gt;= #{query.receivedFrom}</if>
+            <if test="query.receivedTo != null">and received_at &lt;= #{query.receivedTo}</if>
         </where>
     </sql>
 
@@ -191,10 +227,10 @@
     <insert id="upsertSource">
         insert into document_input_source (
             id, source_code, name, source_type, status, endpoint_url, default_project_id,
-            mapping_id, description, created_at, updated_at
+            mapping_id, secret_ref, event_version, mapping_version, description, created_at, updated_at
         ) values (
             #{id}, #{sourceCode}, #{name}, #{sourceType}, #{status}, #{endpointUrl}, #{defaultProjectId},
-            #{mappingId}, #{description}, #{createdAt}, #{updatedAt}
+            #{mappingId}, #{secretRef}, #{eventVersion}, #{mappingVersion}, #{description}, #{createdAt}, #{updatedAt}
         )
         on conflict (id) do update set
             source_code = excluded.source_code,
@@ -204,6 +240,9 @@
             endpoint_url = excluded.endpoint_url,
             default_project_id = excluded.default_project_id,
             mapping_id = excluded.mapping_id,
+            secret_ref = excluded.secret_ref,
+            event_version = excluded.event_version,
+            mapping_version = excluded.mapping_version,
             description = excluded.description,
             updated_at = excluded.updated_at
     </insert>
@@ -298,6 +337,20 @@
           and deleted_at is null
     </select>
 
+    <select id="candidatesByQuery" resultMap="candidateMap">
+        select <include refid="candidateColumns"/>
+        from document_input_candidate
+        <include refid="candidateWhere"/>
+        order by created_at asc
+        limit #{query.size} offset #{query.offset}
+    </select>
+
+    <select id="countCandidatesByQuery" resultType="long">
+        select count(*)
+        from document_input_candidate
+        <include refid="candidateWhere"/>
+    </select>
+
     <select id="candidate" resultMap="candidateMap">
         select <include refid="candidateColumns"/>
         from document_input_candidate
@@ -319,11 +372,13 @@
         insert into document_input_candidate (
             id, import_id, project_id, title, description, priority, acceptance_criteria, tags,
             status, source_ref, source_fragment, external_requirement_id, confidence,
+            parse_source, model_invocation_id, model_provider_name, model_name,
             asset_requirement_id, error_message, ignored_reason, confirmed_by, confirmed_at,
             version, created_at, updated_at
         ) values (
             #{id}, #{importId}, #{projectId}, #{title}, #{description}, #{priority}, #{acceptanceCriteria}, #{tags},
             #{status}, #{sourceRef}, #{sourceFragment}, #{externalRequirementId}, #{confidence},
+            #{parseSource}, #{modelInvocationId}, #{modelProviderName}, #{modelName},
             #{assetRequirementId}, #{errorMessage}, #{ignoredReason}, #{confirmedBy}, #{confirmedAt},
             #{version}, #{createdAt}, #{updatedAt}
         )
@@ -338,6 +393,10 @@
             source_fragment = excluded.source_fragment,
             external_requirement_id = excluded.external_requirement_id,
             confidence = excluded.confidence,
+            parse_source = excluded.parse_source,
+            model_invocation_id = excluded.model_invocation_id,
+            model_provider_name = excluded.model_provider_name,
+            model_name = excluded.model_name,
             asset_requirement_id = excluded.asset_requirement_id,
             error_message = excluded.error_message,
             ignored_reason = excluded.ignored_reason,
@@ -385,11 +444,11 @@
         insert into document_input_webhook_event (
             id, source_id, import_id, source_code, event_id, idempotency_key, event_type, event_version,
             signature_status, status, payload_digest, raw_payload, error_message, retry_count,
-            received_at, processed_at
+            replay_by, replay_at, replay_trace_id, received_at, processed_at
         ) values (
             #{id}, #{sourceId}, #{importId}, #{sourceCode}, #{eventId}, #{idempotencyKey}, #{eventType}, #{eventVersion},
             #{signatureStatus}, #{status}, #{payloadDigest}, #{rawPayload}, #{errorMessage}, #{retryCount},
-            #{receivedAt}, #{processedAt}
+            #{replayBy}, #{replayAt}, #{replayTraceId}, #{receivedAt}, #{processedAt}
         )
         on conflict (id) do update set
             import_id = excluded.import_id,
@@ -401,6 +460,9 @@
             raw_payload = excluded.raw_payload,
             error_message = excluded.error_message,
             retry_count = excluded.retry_count,
+            replay_by = excluded.replay_by,
+            replay_at = excluded.replay_at,
+            replay_trace_id = excluded.replay_trace_id,
             processed_at = excluded.processed_at
     </insert>
 </mapper>

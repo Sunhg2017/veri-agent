@@ -21,6 +21,12 @@ public interface AssetMapper {
 
     AssetRequirement getRequirement(@Param("id") UUID id);
 
+    AssetRequirement getRequirementBySourceRef(
+            @Param("projectId") String projectId,
+            @Param("source") String source,
+            @Param("sourceRef") String sourceRef
+    );
+
     void insertRequirement(AssetRequirement requirement);
 
     void updateRequirement(AssetRequirement requirement);

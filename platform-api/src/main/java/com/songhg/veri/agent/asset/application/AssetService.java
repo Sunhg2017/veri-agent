@@ -32,6 +32,7 @@ import com.songhg.veri.agent.asset.domain.TraceLink;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Instant;
+import java.util.LinkedHashSet;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
@@ -50,6 +51,7 @@ public class AssetService {
     private static final Logger log = LoggerFactory.getLogger(AssetService.class);
     private static final Set<String> REVIEW_STATUSES = Set.of("DRAFT", "REVIEWING", "APPROVED", "DEPRECATED");
     private static final Set<String> PRIORITIES = Set.of("CRITICAL", "HIGH", "MEDIUM", "LOW");
+    private static final Set<String> REQUIREMENT_SOURCES = Set.of("IMPORT", "MANUAL");
     private static final Set<String> API_STATUSES = Set.of("ACTIVE", "DEPRECATED", "REMOVED");
     private static final Set<String> PAGE_STATUSES = Set.of("ACTIVE", "DEPRECATED");
     private static final Set<String> PAGE_SOURCES = Set.of("FIGMA", "LANHU", "AXURE", "MANUAL");
@@ -80,14 +82,49 @@ public class AssetService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "需求不存在: " + id));
     }
 
+    public Optional<RequirementResponse> findImportedRequirement(String projectId, String sourceRef) {
+        if (!StringUtils.hasText(projectId) || !StringUtils.hasText(sourceRef)) {
+            return Optional.empty();
+        }
+        validateProjectWhenProvided(projectId);
+        return repository.requirementBySourceRef(projectId, "IMPORT", sourceRef.trim())
+                .map(AssetService::toRequirementResponse);
+    }
+
     public RequirementResponse createRequirement(CreateRequirementRequest request) {
         String scopeId = projectContext(request.projectId()).projectId();
         UUID id = UUID.randomUUID();
         Instant now = Instant.now();
+        String source = valueIn(request.source(), "MANUAL", REQUIREMENT_SOURCES, "source");
+        String sourceRef = trimToNull(request.sourceRef());
+        if ("IMPORT".equals(source) && sourceRef != null) {
+            Optional<AssetRequirement> existing = repository.requirementBySourceRef(request.projectId(), source, sourceRef);
+            if (existing.isPresent()) {
+                AssetRequirement merged = mergeImportedRequirement(existing.get(), request, now);
+                if (sameRequirement(existing.get(), merged)) {
+                    return toRequirementResponse(existing.get());
+                }
+                if (!"DRAFT".equals(existing.get().status())) {
+                    throw new BusinessException(
+                            ErrorCode.INVALID_STATE,
+                            "既有导入需求已进入评审或审批状态，需人工处理差异后再更新"
+                    );
+                }
+                AssetRequirement stored = repository.saveRequirement(merged);
+                writeProjectAudit("UPSERT", "REQUIREMENT", stored.id(), scopeId);
+                log.info("Updated imported requirement id={}, sourceRef={}, trace_id={}",
+                        stored.id(), sourceRef, TraceContext.getTraceId());
+                return toRequirementResponse(stored);
+            }
+        }
         AssetRequirement req = new AssetRequirement(
                 id,
                 request.title(),
                 request.description(),
+                source,
+                sourceRef,
+                trimToNull(request.sourceUrl()),
+                trimToNull(request.acceptanceCriteria()),
                 valueIn(request.status(), "DRAFT", REVIEW_STATUSES, "status"),
                 valueIn(request.priority(), "MEDIUM", PRIORITIES, "priority"),
                 request.projectId(),
@@ -95,10 +132,46 @@ public class AssetService {
                 now,
                 now
         );
-        repository.saveRequirement(req);
-        writeProjectAudit("CREATE", "REQUIREMENT", id, scopeId);
-        log.info("Created requirement id={}, title={}, trace_id={}", id, request.title(), TraceContext.getTraceId());
-        return toRequirementResponse(req);
+        AssetRequirement stored = repository.saveRequirement(req);
+        if (stored.id().equals(id)) {
+            writeProjectAudit("CREATE", "REQUIREMENT", id, scopeId);
+            log.info("Created requirement id={}, title={}, trace_id={}", id, request.title(), TraceContext.getTraceId());
+        } else {
+            writeProjectAudit("UPSERT", "REQUIREMENT", stored.id(), scopeId);
+        }
+        return toRequirementResponse(stored);
+    }
+
+    private AssetRequirement mergeImportedRequirement(
+            AssetRequirement existing,
+            CreateRequirementRequest request,
+            Instant now
+    ) {
+        return new AssetRequirement(
+                existing.id(),
+                request.title(),
+                trimToNull(request.description()),
+                existing.source(),
+                existing.sourceRef(),
+                trimToNull(request.sourceUrl()),
+                trimToNull(request.acceptanceCriteria()),
+                existing.status(),
+                valueIn(request.priority(), existing.priority(), PRIORITIES, "priority"),
+                existing.projectId(),
+                mergeTags(existing.tags(), request.tags()),
+                existing.createdAt(),
+                now
+        );
+    }
+
+    private static boolean sameRequirement(AssetRequirement left, AssetRequirement right) {
+        return java.util.Objects.equals(left.title(), right.title())
+                && java.util.Objects.equals(left.description(), right.description())
+                && java.util.Objects.equals(left.sourceUrl(), right.sourceUrl())
+                && java.util.Objects.equals(left.acceptanceCriteria(), right.acceptanceCriteria())
+                && java.util.Objects.equals(left.status(), right.status())
+                && java.util.Objects.equals(left.priority(), right.priority())
+                && java.util.Objects.equals(normalizedTags(left.tags()), normalizedTags(right.tags()));
     }
 
     public RequirementResponse updateRequirement(UUID id, UpdateRequirementRequest request) {
@@ -109,6 +182,10 @@ public class AssetService {
                 id,
                 request.title(),
                 request.description(),
+                existing.source(),
+                existing.sourceRef(),
+                existing.sourceUrl(),
+                existing.acceptanceCriteria(),
                 valueIn(request.status(), existing.status(), REVIEW_STATUSES, "status"),
                 valueIn(request.priority(), existing.priority(), PRIORITIES, "priority"),
                 existing.projectId(),
@@ -434,7 +511,8 @@ public class AssetService {
 
     private static RequirementResponse toRequirementResponse(AssetRequirement r) {
         return new RequirementResponse(
-                r.id(), r.title(), r.description(), r.status(), r.priority(),
+                r.id(), r.title(), r.description(), r.source(), r.sourceRef(), r.sourceUrl(), r.acceptanceCriteria(),
+                r.status(), r.priority(),
                 r.projectId(), r.tags(), r.createdAt(), r.updatedAt()
         );
     }
@@ -542,6 +620,35 @@ public class AssetService {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, fieldName + " 不合法: " + rawValue);
         }
         return value;
+    }
+
+    private static String trimToNull(String value) {
+        return StringUtils.hasText(value) ? value.trim() : null;
+    }
+
+    private static String mergeTags(String existing, String incoming) {
+        LinkedHashSet<String> tags = new LinkedHashSet<>();
+        addTags(tags, existing);
+        addTags(tags, incoming);
+        return tags.isEmpty() ? null : String.join(",", tags);
+    }
+
+    private static String normalizedTags(String rawTags) {
+        LinkedHashSet<String> tags = new LinkedHashSet<>();
+        addTags(tags, rawTags);
+        return String.join(",", tags);
+    }
+
+    private static void addTags(LinkedHashSet<String> tags, String rawTags) {
+        if (!StringUtils.hasText(rawTags)) {
+            return;
+        }
+        for (String tag : rawTags.replace("，", ",").split(",")) {
+            String trimmed = tag.trim();
+            if (StringUtils.hasText(trimmed)) {
+                tags.add(trimmed);
+            }
+        }
     }
 
     private static String jsonValue(Object value) {

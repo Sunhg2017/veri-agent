@@ -1,10 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { requestJson } from './client';
+import { requestJson, requestMultipart } from './client';
 import {
   DOCUMENT_SOURCE_TYPES,
   batchDocumentCandidateAction,
   confirmDocumentCandidate,
   createDocumentImport,
+  createDocumentImportFile,
   documentCandidateItems,
   documentImportItems,
   documentPublishRecordItems,
@@ -30,14 +31,17 @@ import {
 } from './documentInput';
 
 vi.mock('./client', () => ({
-  requestJson: vi.fn()
+  requestJson: vi.fn(),
+  requestMultipart: vi.fn()
 }));
 
 const requestJsonMock = vi.mocked(requestJson);
+const requestMultipartMock = vi.mocked(requestMultipart);
 
 describe('document input API helpers', () => {
   beforeEach(() => {
     requestJsonMock.mockReset();
+    requestMultipartMock.mockReset();
   });
 
   it('exposes every WP4 source type and marks reserved types', () => {
@@ -47,6 +51,7 @@ describe('document input API helpers', () => {
       'CUSTOM_API',
       'WORD',
       'PDF',
+      'OCR',
       'CONFLUENCE',
       'FEISHU',
       'DINGTALK',
@@ -56,7 +61,10 @@ describe('document input API helpers', () => {
     expect(isReservedSourceType('TEXT')).toBe(false);
     expect(isReservedSourceType('MARKDOWN')).toBe(false);
     expect(isReservedSourceType('CUSTOM_API')).toBe(false);
-    expect(isReservedSourceType('PDF')).toBe(true);
+    expect(isReservedSourceType('WORD')).toBe(false);
+    expect(isReservedSourceType('PDF')).toBe(false);
+    expect(isReservedSourceType('OCR')).toBe(false);
+    expect(isReservedSourceType('CONFLUENCE')).toBe(true);
     expect(sourceTypeLabel('YUQUE')).toBe('语雀');
   });
 
@@ -92,6 +100,9 @@ describe('document input API helpers', () => {
       endpointUrl: 'https://docs.example.test/spec',
       defaultProjectId: 'project-wp4',
       mappingId: '00000000-0000-0000-0000-000000000401',
+      secretRef: 'secret://wp4/payment-docs',
+      eventVersion: '1.0',
+      mappingVersion: 'default',
       description: 'Webhook source',
       dataFlowSupported: true
     });
@@ -104,6 +115,9 @@ describe('document input API helpers', () => {
       sourceType: 'CUSTOM_API',
       sourceUrl: 'https://docs.example.test/spec',
       mappingId: '00000000-0000-0000-0000-000000000401',
+      secretRef: 'secret://wp4/payment-docs',
+      eventVersion: '1.0',
+      mappingVersion: 'default',
       description: 'Webhook source',
       enabled: true,
       dataFlowSupported: true
@@ -121,6 +135,9 @@ describe('document input API helpers', () => {
       endpointUrl: 'https://docs.example.test/spec',
       defaultProjectId: 'project-wp4',
       mappingId: '00000000-0000-0000-0000-000000000401',
+      secretRef: 'secret://wp4/payment-docs',
+      eventVersion: '1.0',
+      mappingVersion: 'default',
       description: 'Webhook source'
     });
 
@@ -134,6 +151,9 @@ describe('document input API helpers', () => {
         endpointUrl: 'https://docs.example.test/spec',
         defaultProjectId: 'project-wp4',
         mappingId: '00000000-0000-0000-0000-000000000401',
+        secretRef: 'secret://wp4/payment-docs',
+        eventVersion: '1.0',
+        mappingVersion: 'default',
         description: 'Webhook source'
       })
     });
@@ -146,6 +166,8 @@ describe('document input API helpers', () => {
       projectId: 'project-wp4',
       sourceType: 'MARKDOWN',
       sourceRef: 'PRD-1',
+      sourceId: 'source-1',
+      mappingId: 'mapping-1',
       content: '## 登录需求'
     });
 
@@ -155,9 +177,41 @@ describe('document input API helpers', () => {
         projectId: 'project-wp4',
         sourceType: 'MARKDOWN',
         sourceRef: 'PRD-1',
+        sourceId: 'source-1',
+        mappingId: 'mapping-1',
         content: '## 登录需求'
       })
     });
+  });
+
+  it('uploads real document files through the multipart contract', async () => {
+    requestMultipartMock.mockResolvedValue({ code: 'OK', message: 'ok', trace_id: 'trace-upload', data: { id: 'imp-upload' } });
+    const file = new File(['docx-bytes'], 'login.docx', {
+      type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    });
+
+    await createDocumentImportFile({
+      projectId: 'project-wp4',
+      sourceType: 'WORD',
+      title: 'Login upload',
+      sourceRef: 'DOC-1',
+      sourceUrl: 'https://docs.example.test/doc-1',
+      sourceId: 'source-1',
+      mappingId: 'mapping-1',
+      file
+    });
+
+    expect(requestMultipartMock).toHaveBeenCalledTimes(1);
+    const [path, formData] = requestMultipartMock.mock.calls[0];
+    expect(path).toBe('/api/v1/document-input/imports/multipart');
+    expect(formData.get('projectId')).toBe('project-wp4');
+    expect(formData.get('sourceType')).toBe('WORD');
+    expect(formData.get('title')).toBe('Login upload');
+    expect(formData.get('sourceRef')).toBe('DOC-1');
+    expect(formData.get('sourceUrl')).toBe('https://docs.example.test/doc-1');
+    expect(formData.get('sourceId')).toBe('source-1');
+    expect(formData.get('mappingId')).toBe('mapping-1');
+    expect(formData.get('file')).toBe(file);
   });
 
   it('normalizes source health from the WP4 backend contract', () => {
@@ -171,6 +225,9 @@ describe('document input API helpers', () => {
       message: '缺少签名密钥',
       webhookPath: '/api/v1/document-input/webhooks/payment-docs',
       signatureAlgorithm: 'HMAC-SHA256',
+      secretRefConfigured: true,
+      eventVersion: '1.0',
+      mappingVersion: 'default',
       lastEventStatus: 'FAILED',
       lastSignatureStatus: 'VALID'
     });
@@ -183,6 +240,9 @@ describe('document input API helpers', () => {
       dataFlowSupported: true,
       ready: false,
       message: '缺少签名密钥',
+      secretRefConfigured: true,
+      eventVersion: '1.0',
+      mappingVersion: 'default',
       lastEventStatus: 'FAILED',
       lastSignatureStatus: 'VALID'
     });
@@ -234,7 +294,11 @@ describe('document input API helpers', () => {
       sourceRef: 'PRD-1',
       sourceFragment: '## Refund',
       externalRequirementId: 'EXT-9',
-      confidence: '0.92',
+      confidence: '92',
+      parseSource: 'MODEL',
+      modelInvocationId: 'inv-1',
+      modelProviderName: 'local-echo-primary',
+      modelName: 'local-echo',
       assetRequirementId: 'REQ-7',
       errorMessage: '',
       ignoredReason: 'duplicate',
@@ -254,6 +318,10 @@ describe('document input API helpers', () => {
       tags: ['payment', 'refund'],
       status: 'PENDING',
       confidence: 0.92,
+      parseSource: 'MODEL',
+      modelInvocationId: 'inv-1',
+      modelProviderName: 'local-echo-primary',
+      modelName: 'local-echo',
       ignoredReason: 'duplicate',
       confirmedBy: 'u-1',
       confirmedAt: '2026-05-18T01:30:00Z',
@@ -303,17 +371,32 @@ describe('document input API helpers', () => {
       totalParsed: 3,
       totalCreated: 1,
       plannedCreateCount: 1,
+      plannedUpdateCount: 1,
+      conflictCount: 1,
       skippedCount: 2,
       records: [
-        { candidateId: 'cand-1', title: 'A', candidateStatus: 'CONFIRMED', action: 'CREATE', result: 'PLANNED', version: 2 }
+        {
+          candidateId: 'cand-1',
+          title: 'A',
+          candidateStatus: 'CONFIRMED',
+          action: 'UPDATE',
+          result: 'PLANNED',
+          existingRequirementId: 'req-1',
+          diffSummary: 'description,tags',
+          version: 2
+        }
       ]
     });
 
     expect(publish.dryRun).toBe(true);
+    expect(publish.plannedUpdateCount).toBe(1);
+    expect(publish.conflictCount).toBe(1);
     expect(publish.records[0]).toMatchObject({
       candidateId: 'cand-1',
-      action: 'CREATE',
-      result: 'PLANNED'
+      action: 'UPDATE',
+      result: 'PLANNED',
+      existingRequirementId: 'req-1',
+      diffSummary: 'description,tags'
     });
     expect(documentPublishRecordItems({ content: publish.records })).toHaveLength(1);
   });
@@ -333,6 +416,9 @@ describe('document input API helpers', () => {
       payload_digest: 'sha256:abc',
       error_message: 'mapping failed',
       retry_count: '2',
+      replay_by: 'user-001',
+      replay_at: '2026-05-18T02:03:00Z',
+      replay_trace_id: 'trc_replay',
       received_at: '2026-05-18T02:00:00Z'
     });
 
@@ -348,7 +434,9 @@ describe('document input API helpers', () => {
       status: 'FAILED',
       payloadDigest: 'sha256:abc',
       errorMessage: 'mapping failed',
-      retryCount: 2
+      retryCount: 2,
+      replayBy: 'user-001',
+      replayTraceId: 'trc_replay'
     });
   });
 
@@ -357,6 +445,9 @@ describe('document input API helpers', () => {
 
     await fetchDocumentCandidates('imp 1');
     expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/document-input/imports/imp%201/candidates');
+
+    await fetchDocumentCandidates('imp 1', { status: 'CONFIRMED', sourceRef: 'REQ-1', keyword: '登录' });
+    expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/document-input/imports/imp%201/candidates?status=CONFIRMED&sourceRef=REQ-1&keyword=%E7%99%BB%E5%BD%95');
 
     await updateDocumentCandidate('cand 1', {
       title: 'A',
@@ -402,6 +493,12 @@ describe('document input API helpers', () => {
       body: JSON.stringify({ action: 'IGNORE', candidateIds: ['cand 1', 'cand 2'], reason: 'duplicate' })
     });
 
+    await batchDocumentCandidateAction('CONFIRM', [{ id: 'cand 1', version: 2 }]);
+    expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/document-input/candidates/batch-action', {
+      method: 'POST',
+      body: JSON.stringify({ action: 'CONFIRM', candidates: [{ id: 'cand 1', version: 2 }] })
+    });
+
     await publishDocumentImport('imp 1', { dryRun: true, candidateIds: ['cand 1'] });
     expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/document-input/imports/imp%201/publish', {
       method: 'POST',
@@ -422,9 +519,18 @@ describe('document input API helpers', () => {
   it('calls webhook event endpoints with filters and replay', async () => {
     requestJsonMock.mockResolvedValue({ code: 'OK', message: 'ok', trace_id: 'trace-2', data: { items: [] } });
 
-    await fetchWebhookEvents({ index: 1, size: 20, sourceCode: 'payment-docs', status: 'FAILED' });
+    await fetchWebhookEvents({
+      index: 1,
+      size: 20,
+      sourceId: 'src-1',
+      sourceCode: 'payment-docs',
+      eventType: 'requirement.created',
+      status: 'FAILED',
+      receivedFrom: '2026-05-19T00:00:00Z',
+      receivedTo: '2026-05-20T00:00:00Z'
+    });
     expect(requestJsonMock).toHaveBeenLastCalledWith(
-      '/api/v1/document-input/webhook-events?index=1&size=20&sourceCode=payment-docs&status=FAILED'
+      '/api/v1/document-input/webhook-events?index=1&size=20&sourceId=src-1&sourceCode=payment-docs&eventType=requirement.created&status=FAILED&receivedFrom=2026-05-19T00%3A00%3A00Z&receivedTo=2026-05-20T00%3A00%3A00Z'
     );
 
     await replayWebhookEvent('evt 1');

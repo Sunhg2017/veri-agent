@@ -11,6 +11,7 @@ import com.songhg.veri.agent.common.api.PageResponse;
 import com.songhg.veri.agent.common.api.PageQuery;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
+import com.songhg.veri.agent.common.trace.TraceContext;
 import com.songhg.veri.agent.documentinput.api.request.CandidateBatchActionRequest;
 import com.songhg.veri.agent.documentinput.api.request.ConfirmDocumentCandidateRequest;
 import com.songhg.veri.agent.documentinput.api.request.CreateDocumentImportRequest;
@@ -51,8 +52,10 @@ import java.security.MessageDigest;
 import java.time.Instant;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
+import java.util.Base64;
 import java.util.ArrayList;
 import java.util.HexFormat;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -69,34 +72,49 @@ public class DocumentInputService {
     private static final Set<DocumentSourceType> SUPPORTED_SOURCE_TYPES = Set.of(
             DocumentSourceType.TEXT,
             DocumentSourceType.MARKDOWN,
+            DocumentSourceType.WORD,
+            DocumentSourceType.PDF,
+            DocumentSourceType.OCR,
             DocumentSourceType.CUSTOM_API
     );
     private static final Set<String> SUPPORTED_WEBHOOK_EVENT_VERSIONS = Set.of("1.0");
 
     private final DocumentInputRepository repository;
     private final DocumentRequirementParser parser;
+    private final DocumentModelRequirementParser modelParser;
     private final AssetService assetService;
     private final DocumentInputPlatformContextClient contextClient;
+    private final DocumentContentExtractor contentExtractor;
     private final ObjectMapper objectMapper;
     private final DocumentInputProperties properties;
     private final DocumentInputMetrics metrics;
+    private final DocumentWebhookSecretResolver webhookSecretResolver;
+
+    private record CandidateBatchTarget(UUID id, Long version) {
+    }
 
     public DocumentInputService(
             DocumentInputRepository repository,
             DocumentRequirementParser parser,
+            DocumentModelRequirementParser modelParser,
             AssetService assetService,
             DocumentInputPlatformContextClient contextClient,
+            DocumentContentExtractor contentExtractor,
             ObjectMapper objectMapper,
             DocumentInputProperties properties,
-            DocumentInputMetrics metrics
+            DocumentInputMetrics metrics,
+            DocumentWebhookSecretResolver webhookSecretResolver
     ) {
         this.repository = repository;
         this.parser = parser;
+        this.modelParser = modelParser;
         this.assetService = assetService;
         this.contextClient = contextClient;
+        this.contentExtractor = contentExtractor;
         this.objectMapper = objectMapper;
         this.properties = properties;
         this.metrics = metrics;
+        this.webhookSecretResolver = webhookSecretResolver;
     }
 
     public int supportedSourceTypeCount() {
@@ -112,6 +130,13 @@ public class DocumentInputService {
                 properties.webhookEnabled(),
                 properties.modelParseEnabled(),
                 maxWebhookPayloadBytes(),
+                maxImportContentBytes(),
+                contentExtractor.documentBinaryMaxBytes(),
+                contentExtractor.ocrConfigured(),
+                contentExtractor.ocrTimeoutSeconds(),
+                contentExtractor.ocrMaxOutputChars(),
+                contentExtractor.ocrMaxConcurrentProcesses(),
+                contentExtractor.ocrAvailablePermits(),
                 batchActionLimit()
         );
     }
@@ -144,6 +169,9 @@ public class DocumentInputService {
                 trimToNull(request.endpointUrl()),
                 trimToNull(request.defaultProjectId()),
                 mapping.id(),
+                normalizeSecretRef(request.sourceType(), request.secretRef()),
+                normalizeEventVersion(request.eventVersion()),
+                normalizeMappingVersion(request.mappingVersion(), mapping),
                 trimToNull(request.description()),
                 now,
                 now
@@ -173,6 +201,9 @@ public class DocumentInputService {
                 trimToNull(request.endpointUrl()),
                 trimToNull(request.defaultProjectId()),
                 mapping.id(),
+                normalizeSecretRef(request.sourceType(), request.secretRef()),
+                normalizeEventVersion(request.eventVersion()),
+                normalizeMappingVersion(request.mappingVersion(), mapping),
                 trimToNull(request.description()),
                 existing.createdAt(),
                 Instant.now()
@@ -191,7 +222,11 @@ public class DocumentInputService {
         DocumentWebhookEvent lastEvent = null;
         if (source.sourceType() == DocumentSourceType.CUSTOM_API) {
             lastEvent = repository.webhookEvents(new DocumentWebhookEventQuery(
+                    source.id(),
                     source.sourceCode(),
+                    null,
+                    null,
+                    null,
                     null,
                     PageQuery.of(0, 1)
             )).stream().findFirst().orElse(null);
@@ -201,9 +236,15 @@ public class DocumentInputService {
             message = source.sourceType() + " connector is reserved for later enablement";
         } else if (source.status() != DocumentSourceStatus.ENABLED) {
             message = "文档源未启用";
+        } else if (source.sourceType() == DocumentSourceType.OCR && !contentExtractor.ocrConfigured()) {
+            ready = false;
+            message = "OCR 命令未配置";
         } else if (source.sourceType() == DocumentSourceType.CUSTOM_API && !properties.webhookEnabled()) {
             ready = false;
             message = "webhook 输入已被 feature flag 关闭";
+        } else if (source.sourceType() == DocumentSourceType.CUSTOM_API && !StringUtils.hasText(source.secretRef())) {
+            ready = false;
+            message = "webhook 密钥引用未配置";
         } else {
             message = "READY";
         }
@@ -219,6 +260,9 @@ public class DocumentInputService {
                         ? "/api/v1/document-input/webhooks/" + source.sourceCode()
                         : null,
                 source.sourceType() == DocumentSourceType.CUSTOM_API ? "HMAC-SHA256(timestamp.eventId.idempotencyKey.rawBody)" : null,
+                StringUtils.hasText(source.secretRef()),
+                source.eventVersion(),
+                source.mappingVersion(),
                 Instant.now(),
                 lastEvent == null ? null : lastEvent.receivedAt(),
                 lastEvent == null ? null : lastEvent.status(),
@@ -268,6 +312,41 @@ public class DocumentInputService {
         );
     }
 
+    public DocumentImportResponse importMultipart(
+            String projectId,
+            DocumentSourceType sourceType,
+            String title,
+            String sourceRef,
+            String sourceUrl,
+            UUID mappingId,
+            UUID sourceId,
+            String filename,
+            String contentType,
+            byte[] fileBytes
+    ) {
+        ensureInputEnabled();
+        if (fileBytes == null || fileBytes.length == 0) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "上传文件不能为空");
+        }
+        ensureImportBinarySize(fileBytes.length);
+        String dataUrl = "data:%s;base64,%s".formatted(
+                StringUtils.hasText(contentType) ? contentType.trim() : "application/octet-stream",
+                Base64.getEncoder().encodeToString(fileBytes)
+        );
+        return importContent(
+                projectId,
+                sourceType,
+                firstText(title, filename),
+                null,
+                sourceRef,
+                sourceUrl,
+                dataUrl,
+                mappingId,
+                sourceId,
+                null
+        );
+    }
+
     public PageResponse<DocumentImportResponse> imports(DocumentImportQuery query) {
         ensureInputEnabled();
         return PageResponse.of(
@@ -285,17 +364,17 @@ public class DocumentInputService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "导入记录不存在: " + id));
     }
 
-    public PageResponse<DocumentCandidateResponse> candidates(UUID importId, PageQuery pageQuery) {
+    public PageResponse<DocumentCandidateResponse> candidates(DocumentCandidateQuery query) {
         ensureInputEnabled();
-        repository.importRecord(importId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "导入记录不存在: " + importId));
+        repository.importRecord(query.importId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "导入记录不存在: " + query.importId()));
         return PageResponse.of(
-                repository.candidates(importId, pageQuery.offset(), pageQuery.size()).stream()
+                repository.candidates(query).stream()
                         .map(DocumentInputService::toCandidateResponse)
                         .toList(),
-                pageQuery.index(),
-                pageQuery.size(),
-                repository.countCandidates(importId)
+                query.index(),
+                query.size(),
+                repository.countCandidates(query)
         );
     }
 
@@ -318,6 +397,10 @@ public class DocumentInputService {
                 existing.sourceFragment(),
                 existing.externalRequirementId(),
                 existing.confidence(),
+                existing.parseSource(),
+                existing.modelInvocationId(),
+                existing.modelProviderName(),
+                existing.modelName(),
                 existing.assetRequirementId(),
                 null,
                 existing.ignoredReason(),
@@ -357,6 +440,10 @@ public class DocumentInputService {
                 existing.sourceFragment(),
                 existing.externalRequirementId(),
                 existing.confidence(),
+                existing.parseSource(),
+                existing.modelInvocationId(),
+                existing.modelProviderName(),
+                existing.modelName(),
                 existing.assetRequirementId(),
                 null,
                 null,
@@ -400,6 +487,10 @@ public class DocumentInputService {
                 existing.sourceFragment(),
                 existing.externalRequirementId(),
                 existing.confidence(),
+                existing.parseSource(),
+                existing.modelInvocationId(),
+                existing.modelProviderName(),
+                existing.modelName(),
                 existing.assetRequirementId(),
                 null,
                 reason,
@@ -417,8 +508,11 @@ public class DocumentInputService {
 
     public DocumentCandidateBatchActionResponse batchCandidateAction(CandidateBatchActionRequest request) {
         ensureInputEnabled();
-        List<UUID> candidateIds = request.candidateIds();
-        if (candidateIds.size() > batchActionLimit()) {
+        List<CandidateBatchTarget> targets = batchTargets(request);
+        if (targets.isEmpty()) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "批量候选操作必须指定 candidateIds 或 candidates");
+        }
+        if (targets.size() > batchActionLimit()) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "批量候选操作最多支持 " + batchActionLimit() + " 项");
         }
         String action = request.action().trim().toUpperCase(Locale.ROOT);
@@ -430,13 +524,13 @@ public class DocumentInputService {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "批量忽略候选项必须填写 reason");
         }
         List<DocumentCandidateBatchActionItemResponse> items = new ArrayList<>();
-        for (UUID candidateId : candidateIds) {
+        for (CandidateBatchTarget target : targets) {
             try {
                 DocumentCandidateResponse candidate = "CONFIRM".equals(action)
-                        ? confirmCandidate(candidateId, null, false)
-                        : ignoreCandidate(candidateId, ignoreReason, null, false);
+                        ? confirmCandidate(target.id(), target.version(), false)
+                        : ignoreCandidate(target.id(), ignoreReason, target.version(), false);
                 items.add(new DocumentCandidateBatchActionItemResponse(
-                        candidateId,
+                        target.id(),
                         "SUCCEEDED",
                         candidate,
                         null,
@@ -444,7 +538,7 @@ public class DocumentInputService {
                 ));
             } catch (BusinessException exception) {
                 items.add(new DocumentCandidateBatchActionItemResponse(
-                        candidateId,
+                        target.id(),
                         "FAILED",
                         null,
                         exception.getErrorCode().name(),
@@ -467,6 +561,26 @@ public class DocumentInputService {
                 items.size() - Math.toIntExact(succeeded),
                 items
         );
+    }
+
+    private List<CandidateBatchTarget> batchTargets(CandidateBatchActionRequest request) {
+        if (request.candidates() != null && !request.candidates().isEmpty()) {
+            return request.candidates().stream()
+                    .filter(Objects::nonNull)
+                    .map(item -> {
+                        if (item.id() == null) {
+                            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "批量候选项 id 不能为空");
+                        }
+                        return new CandidateBatchTarget(item.id(), item.version());
+                    })
+                    .toList();
+        }
+        if (request.candidateIds() == null) {
+            return List.of();
+        }
+        return request.candidateIds().stream()
+                .map(id -> new CandidateBatchTarget(id, null))
+                .toList();
     }
 
     public DocumentPublishResponse publishImport(UUID importId, DocumentPublishRequest request) {
@@ -595,7 +709,7 @@ public class DocumentInputService {
         ensureExecutableSource(source.sourceType(), source.status());
         ensureRequiredWebhookHeaders(timestamp, signature, eventId, idempotencyKey, eventVersion);
         String payloadDigest = sha256(rawPayload);
-        WebhookSignatureStatus signatureStatus = validateWebhookSignature(rawPayload, timestamp, signature, eventId, idempotencyKey);
+        WebhookSignatureStatus signatureStatus = validateWebhookSignature(source, rawPayload, timestamp, signature, eventId, idempotencyKey);
         DocumentWebhookEvent duplicate = repository.webhookEventByIdentity(source.sourceCode(), trimToNull(eventId), trimToNull(idempotencyKey))
                 .orElse(null);
         if (signatureStatus != WebhookSignatureStatus.VALID) {
@@ -616,6 +730,9 @@ public class DocumentInputService {
                         null,
                         "webhook 签名无效或已过期",
                         0,
+                        null,
+                        null,
+                        null,
                         rejectedAt,
                         null
                 );
@@ -642,6 +759,9 @@ public class DocumentInputService {
                     null,
                     "webhook payload 超过上限: " + maxWebhookPayloadBytes() + " bytes",
                     0,
+                    null,
+                    null,
+                    null,
                     rejectedAt,
                     null
             );
@@ -651,13 +771,7 @@ public class DocumentInputService {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "webhook payload 超过上限");
         }
         if (duplicate != null) {
-            if (!payloadDigest.equals(duplicate.payloadDigest())) {
-                throw new BusinessException(ErrorCode.CONFLICT, "webhook 幂等键已使用但 payload 不一致");
-            }
-            if (duplicate.importId() != null) {
-                return importRecord(duplicate.importId());
-            }
-            throw new BusinessException(ErrorCode.CONFLICT, "webhook 事件已接收但未成功处理");
+            return respondToDuplicateWebhookEvent(duplicate, payloadDigest);
         }
         Instant now = Instant.now();
         DocumentWebhookEvent accepted = new DocumentWebhookEvent(
@@ -675,13 +789,29 @@ public class DocumentInputService {
                 rawPayload,
                 null,
                 0,
+                null,
+                null,
+                null,
                 now,
                 null
         );
-        repository.saveWebhookEvent(accepted);
-        DocumentWebhookEvent processed = processWebhookEvent(accepted, rawPayload, false);
+        DocumentWebhookEvent saved = repository.saveWebhookEvent(accepted);
+        if (!saved.id().equals(accepted.id())) {
+            return respondToDuplicateWebhookEvent(saved, payloadDigest);
+        }
+        DocumentWebhookEvent processed = processWebhookEvent(saved, rawPayload, false);
         metrics.recordWebhook(processed.signatureStatus(), processed.status(), processed.eventType());
         return importRecord(processed.importId());
+    }
+
+    private DocumentImportResponse respondToDuplicateWebhookEvent(DocumentWebhookEvent duplicate, String payloadDigest) {
+        if (!payloadDigest.equals(duplicate.payloadDigest())) {
+            throw new BusinessException(ErrorCode.CONFLICT, "webhook 幂等键已使用但 payload 不一致");
+        }
+        if (duplicate.importId() != null) {
+            return importRecord(duplicate.importId());
+        }
+        throw new BusinessException(ErrorCode.CONFLICT, "webhook 事件已接收但未成功处理");
     }
 
     private DocumentWebhookEvent processWebhookEvent(DocumentWebhookEvent event, String rawPayload, boolean replay) {
@@ -696,6 +826,7 @@ public class DocumentInputService {
             eventVersion = firstText(event.eventVersion(), textAt(payload, "eventVersion"), textAt(payload, "version"));
             ensureSupportedWebhookEventType(eventType);
             ensureSupportedWebhookEventVersion(eventVersion);
+            ensureSourceWebhookEventVersion(source, eventVersion);
             projectId = firstText(textAt(payload, "projectId"), source.defaultProjectId());
             if (!StringUtils.hasText(projectId)) {
                 throw new BusinessException(ErrorCode.VALIDATION_ERROR, "webhook payload 缺少 projectId");
@@ -714,6 +845,7 @@ public class DocumentInputService {
                     source.id(),
                     source.sourceCode()
             );
+            Instant processedAt = Instant.now();
             DocumentWebhookEvent processed = new DocumentWebhookEvent(
                     event.id(),
                     event.sourceId(),
@@ -729,8 +861,11 @@ public class DocumentInputService {
                     event.rawPayload(),
                     null,
                     replay ? event.retryCount() + 1 : event.retryCount(),
+                    replay ? currentActor() : event.replayBy(),
+                    replay ? processedAt : event.replayAt(),
+                    replay ? TraceContext.getTraceId() : event.replayTraceId(),
                     event.receivedAt(),
-                    Instant.now()
+                    processedAt
             );
             repository.saveWebhookEvent(processed);
             writeAudit(replay ? "WEBHOOK_REPLAY" : "WEBHOOK_PROCESSED", "DOCUMENT_WEBHOOK_EVENT", processed.id().toString(), projectId, sanitizeWebhookEvent(processed));
@@ -740,6 +875,7 @@ public class DocumentInputService {
             WebhookEventStatus failedStatus = retryCount >= maxReplayAttempts()
                     ? WebhookEventStatus.DEAD_LETTER
                     : WebhookEventStatus.FAILED;
+            Instant processedAt = Instant.now();
             DocumentWebhookEvent failed = new DocumentWebhookEvent(
                     event.id(),
                     event.sourceId(),
@@ -755,8 +891,11 @@ public class DocumentInputService {
                     event.rawPayload(),
                     exception.getMessage(),
                     retryCount,
+                    replay ? currentActor() : event.replayBy(),
+                    replay ? processedAt : event.replayAt(),
+                    replay ? TraceContext.getTraceId() : event.replayTraceId(),
                     event.receivedAt(),
-                    Instant.now()
+                    processedAt
             );
             repository.saveWebhookEvent(failed);
             writeAudit(failed.status() == WebhookEventStatus.DEAD_LETTER ? "WEBHOOK_DEAD_LETTER" : "WEBHOOK_FAILED",
@@ -799,6 +938,7 @@ public class DocumentInputService {
     }
 
     private WebhookSignatureStatus validateWebhookSignature(
+            DocumentSourceConfig source,
             String rawPayload,
             String timestamp,
             String signature,
@@ -818,7 +958,7 @@ public class DocumentInputService {
         if (Math.abs(Instant.now().getEpochSecond() - epochSeconds) > skew) {
             return WebhookSignatureStatus.EXPIRED;
         }
-        String expected = hmacSha256(String.join(".",
+        String expected = hmacSha256(webhookSigningSecret(source), String.join(".",
                 timestamp.trim(),
                 eventId.trim(),
                 idempotencyKey.trim(),
@@ -827,13 +967,14 @@ public class DocumentInputService {
         return constantTimeEquals(expected, signature.trim()) ? WebhookSignatureStatus.VALID : WebhookSignatureStatus.INVALID;
     }
 
-    private String hmacSha256(String value) {
-        if (!StringUtils.hasText(properties.webhookSecret())) {
-            throw new BusinessException(ErrorCode.INVALID_STATE, "webhook 签名密钥未配置");
-        }
+    private String webhookSigningSecret(DocumentSourceConfig source) {
+        return webhookSecretResolver.resolve(source);
+    }
+
+    private String hmacSha256(String secret, String value) {
         try {
             Mac mac = Mac.getInstance("HmacSHA256");
-            mac.init(new SecretKeySpec(properties.webhookSecret().getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
+            mac.init(new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
             return HexFormat.of().formatHex(mac.doFinal(value.getBytes(StandardCharsets.UTF_8)));
         } catch (Exception exception) {
             throw new BusinessException(ErrorCode.INTERNAL_ERROR, "webhook 签名校验失败");
@@ -850,29 +991,27 @@ public class DocumentInputService {
     }
 
     private DocumentRequirementCandidate publishCandidate(DocumentRequirementCandidate candidate) {
-        DocumentRequirementCandidate existingPublished = repository
-                .candidateByExternalId(candidate.projectId(), candidate.externalRequirementId())
-                .filter(existing -> !existing.id().equals(candidate.id()))
-                .filter(existing -> existing.status() == DocumentCandidateStatus.PUBLISHED)
-                .filter(existing -> existing.assetRequirementId() != null)
-                .orElse(null);
-        if (existingPublished != null) {
-            repository.saveCandidate(withCandidatePublishResult(
-                    candidate,
-                    DocumentCandidateStatus.PUBLISHED,
-                    existingPublished.assetRequirementId(),
-                    null
-            ));
-            return candidateOrThrow(candidate.id());
-        }
         try {
+            RequirementResponse existingRequirement = existingImportedRequirement(candidate);
+            String diffSummary = existingRequirement == null ? null : requirementDiffSummary(candidate, existingRequirement);
+            if (isReviewConflict(existingRequirement, diffSummary)) {
+                throw new BusinessException(
+                        ErrorCode.INVALID_STATE,
+                        reviewConflictMessage(existingRequirement)
+                );
+            }
+            DocumentImportRecord record = repository.importRecord(candidate.importId()).orElse(null);
             RequirementResponse response = assetService.createRequirement(new CreateRequirementRequest(
                     candidate.title(),
-                    assetDescription(candidate.description(), candidate.acceptanceCriteria(), candidate.sourceRef()),
+                    candidate.description(),
                     "DRAFT",
                     normalizePriority(candidate.priority()),
                     candidate.projectId(),
-                    mergeTags(candidate.tags(), "document-input")
+                    mergeTags(candidate.tags(), "document-input"),
+                    "IMPORT",
+                    firstText(candidate.externalRequirementId(), candidate.sourceRef()),
+                    record == null ? null : record.sourceUrl(),
+                    candidate.acceptanceCriteria()
             ));
             DocumentRequirementCandidate updated = withCandidatePublishResult(candidate, DocumentCandidateStatus.PUBLISHED, response.id(), null);
             repository.saveCandidate(updated);
@@ -889,7 +1028,8 @@ public class DocumentInputService {
         if (candidateIds == null || candidateIds.isEmpty()) {
             return all.stream()
                     .filter(candidate -> candidate.status() == DocumentCandidateStatus.CONFIRMED
-                            || candidate.status() == DocumentCandidateStatus.PUBLISHED)
+                            || candidate.status() == DocumentCandidateStatus.PUBLISHED
+                            || candidate.status() == DocumentCandidateStatus.PUBLISH_FAILED)
                     .toList();
         }
         return candidateIds.stream()
@@ -903,11 +1043,16 @@ public class DocumentInputService {
     }
 
     private DocumentPublishRecordResponse toPublishRecord(DocumentRequirementCandidate candidate, boolean dryRun) {
-        String action = publishAction(candidate);
+        RequirementResponse existingRequirement = existingImportedRequirement(candidate);
+        String diffSummary = existingRequirement == null ? null : requirementDiffSummary(candidate, existingRequirement);
+        String action = publishAction(candidate, existingRequirement, diffSummary);
         String result;
         String errorMessage = candidate.errorMessage();
         if (candidate.status() == DocumentCandidateStatus.PUBLISH_FAILED) {
             result = "FAILED";
+        } else if ("CONFLICT_REVIEW_REQUIRED".equals(action)) {
+            result = "CONFLICT";
+            errorMessage = reviewConflictMessage(existingRequirement);
         } else if ("SKIP_UNCONFIRMED".equals(action) || "SKIP_PUBLISHED".equals(action)) {
             result = "SKIPPED";
         } else {
@@ -926,26 +1071,99 @@ public class DocumentInputService {
                 candidate.externalRequirementId(),
                 candidate.sourceRef(),
                 candidate.sourceFragment(),
-                candidate.assetRequirementId(),
+                firstNonNull(candidate.assetRequirementId(), existingRequirement == null ? null : existingRequirement.id()),
+                existingRequirement == null ? null : existingRequirement.id(),
+                diffSummary,
                 errorMessage,
                 candidate.version()
         );
     }
 
-    private String publishAction(DocumentRequirementCandidate candidate) {
+    private String publishAction(
+            DocumentRequirementCandidate candidate,
+            RequirementResponse existingRequirement,
+            String diffSummary
+    ) {
+        if (candidate.status() == DocumentCandidateStatus.PUBLISH_FAILED) {
+            return "PUBLISH_FAILED";
+        }
         if (candidate.status() == DocumentCandidateStatus.PUBLISHED && candidate.assetRequirementId() != null) {
             return "SKIP_PUBLISHED";
         }
         if (candidate.status() != DocumentCandidateStatus.CONFIRMED && candidate.status() != DocumentCandidateStatus.PUBLISHED) {
             return "SKIP_UNCONFIRMED";
         }
-        DocumentRequirementCandidate existingPublished = repository
-                .candidateByExternalId(candidate.projectId(), candidate.externalRequirementId())
-                .filter(existing -> !existing.id().equals(candidate.id()))
-                .filter(existing -> existing.status() == DocumentCandidateStatus.PUBLISHED)
-                .filter(existing -> existing.assetRequirementId() != null)
-                .orElse(null);
-        return existingPublished == null ? "CREATE" : "LINK_EXISTING";
+        if (existingRequirement == null) {
+            return "CREATE";
+        }
+        if (isReviewConflict(existingRequirement, diffSummary)) {
+            return "CONFLICT_REVIEW_REQUIRED";
+        }
+        return StringUtils.hasText(diffSummary) ? "UPDATE" : "LINK_EXISTING";
+    }
+
+    private boolean isReviewConflict(RequirementResponse existingRequirement, String diffSummary) {
+        return existingRequirement != null
+                && StringUtils.hasText(diffSummary)
+                && !"DRAFT".equalsIgnoreCase(existingRequirement.status());
+    }
+
+    private String reviewConflictMessage(RequirementResponse existingRequirement) {
+        String status = existingRequirement == null ? "UNKNOWN" : existingRequirement.status();
+        return "既有 WP3 需求资产状态为 " + status + "，需人工处理差异后再更新";
+    }
+
+    private RequirementResponse existingImportedRequirement(DocumentRequirementCandidate candidate) {
+        if (candidate.assetRequirementId() != null) {
+            try {
+                return assetService.getRequirement(candidate.assetRequirementId());
+            } catch (BusinessException ignored) {
+                // Fall through to sourceRef lookup; stale candidate links should not hide a valid imported asset.
+            }
+        }
+        return assetService.findImportedRequirement(candidate.projectId(), candidate.externalRequirementId())
+                .orElseGet(() -> repository.candidateByExternalId(candidate.projectId(), candidate.externalRequirementId())
+                        .filter(existing -> !existing.id().equals(candidate.id()))
+                        .filter(existing -> existing.status() == DocumentCandidateStatus.PUBLISHED)
+                        .map(DocumentRequirementCandidate::assetRequirementId)
+                        .filter(Objects::nonNull)
+                        .map(this::requirementByIdOrNull)
+                        .filter(Objects::nonNull)
+                        .orElse(null));
+    }
+
+    private RequirementResponse requirementByIdOrNull(UUID id) {
+        try {
+            return assetService.getRequirement(id);
+        } catch (BusinessException exception) {
+            return null;
+        }
+    }
+
+    private String requirementDiffSummary(DocumentRequirementCandidate candidate, RequirementResponse existing) {
+        List<String> changedFields = new ArrayList<>();
+        addChangedField(changedFields, "title", candidate.title(), existing.title());
+        addChangedField(changedFields, "description", candidate.description(), existing.description());
+        addChangedField(changedFields, "priority", normalizePriority(candidate.priority()), existing.priority());
+        addChangedField(changedFields, "acceptanceCriteria", candidate.acceptanceCriteria(), existing.acceptanceCriteria());
+        addChangedField(changedFields, "tags", normalizeTagsText(candidate.tags()), normalizeTagsText(existing.tags()));
+        return changedFields.isEmpty() ? null : String.join(",", changedFields);
+    }
+
+    private void addChangedField(List<String> changedFields, String field, String incoming, String existing) {
+        if (!Objects.equals(normalizeCompareText(incoming), normalizeCompareText(existing))) {
+            changedFields.add(field);
+        }
+    }
+
+    private String normalizeCompareText(String value) {
+        return StringUtils.hasText(value) ? value.trim() : "";
+    }
+
+    private String normalizeTagsText(String value) {
+        return StringUtils.hasText(value)
+                ? value.trim().replace("，", ",").replaceAll("\\s*,\\s*", ",")
+                : "";
     }
 
     private DocumentPublishResponse toPublishResponse(
@@ -975,7 +1193,9 @@ public class DocumentInputService {
                 countCandidates(candidates, DocumentCandidateStatus.PUBLISHED),
                 countCandidates(candidates, DocumentCandidateStatus.PUBLISH_FAILED),
                 countPublishRecords(records, "CREATE"),
+                countPublishRecords(records, "UPDATE"),
                 countPublishRecords(records, "LINK_EXISTING"),
+                countPublishRecords(records, "CONFLICT_REVIEW_REQUIRED"),
                 (int) records.stream().filter(recordItem -> "SKIPPED".equals(recordItem.result())).count(),
                 (int) records.stream().filter(recordItem -> "FAILED".equals(recordItem.result())).count(),
                 records,
@@ -990,6 +1210,16 @@ public class DocumentInputService {
     }
 
     private String publishResult(DocumentPublishResponse response) {
+        if (response.conflictCount() > 0
+                && response.plannedCreateCount() == 0
+                && response.plannedUpdateCount() == 0
+                && response.linkedExistingCount() == 0
+                && response.publishedCount() == 0) {
+            return "CONFLICT";
+        }
+        if (response.conflictCount() > 0) {
+            return "PARTIAL";
+        }
         if (response.publishFailedCount() > 0 && response.publishedCount() == 0) {
             return "FAILED";
         }
@@ -1019,6 +1249,10 @@ public class DocumentInputService {
                 candidate.sourceFragment(),
                 candidate.externalRequirementId(),
                 candidate.confidence(),
+                candidate.parseSource(),
+                candidate.modelInvocationId(),
+                candidate.modelProviderName(),
+                candidate.modelName(),
                 assetRequirementId == null ? candidate.assetRequirementId() : assetRequirementId,
                 errorMessage,
                 candidate.ignoredReason(),
@@ -1084,6 +1318,21 @@ public class DocumentInputService {
             UUID sourceId,
             String sourceCode
     ) {
+        return importContent(projectId, sourceType, title, title, sourceRef, sourceUrl, content, mappingId, sourceId, sourceCode);
+    }
+
+    private DocumentImportResponse importContent(
+            String projectId,
+            DocumentSourceType sourceType,
+            String recordTitle,
+            String parseFallbackTitle,
+            String sourceRef,
+            String sourceUrl,
+            String content,
+            UUID mappingId,
+            UUID sourceId,
+            String sourceCode
+    ) {
         ensureInputEnabled();
         ensureExecutableSource(sourceType, DocumentSourceStatus.ENABLED);
         PlatformContext context = validateProject(projectId);
@@ -1099,7 +1348,17 @@ public class DocumentInputService {
         UUID importId = UUID.randomUUID();
         Instant now = Instant.now();
         try {
-            List<ParsedRequirementDraft> parsed = parser.parse(sourceType, title, content, mapping);
+            ensureImportContentSize(content);
+            DocumentContentExtractor.ExtractedDocumentContent extracted = contentExtractor.extract(sourceType, content);
+            List<ParsedRequirementDraft> parsed = parseRequirements(
+                    context.resourceId(),
+                    sourceType,
+                    parseFallbackTitle,
+                    sourceRef,
+                    sourceUrl,
+                    extracted.text(),
+                    mapping
+            );
             if (parsed.isEmpty()) {
                 throw new BusinessException(ErrorCode.VALIDATION_ERROR, "未解析到有效需求");
             }
@@ -1111,7 +1370,7 @@ public class DocumentInputService {
                     sourceType,
                     trimToNull(sourceRef),
                     trimToNull(sourceUrl),
-                    trimToNull(title),
+                    trimToNull(recordTitle),
                     DocumentImportStatus.SUCCEEDED,
                     parsed.size(),
                     0,
@@ -1137,7 +1396,7 @@ public class DocumentInputService {
                     sourceType,
                     trimToNull(sourceRef),
                     trimToNull(sourceUrl),
-                    trimToNull(title),
+                    trimToNull(recordTitle),
                     DocumentImportStatus.FAILED,
                     0,
                     0,
@@ -1152,6 +1411,86 @@ public class DocumentInputService {
             metrics.recordImport(sourceType, failed.status(), 0);
             throw exception;
         }
+    }
+
+    private List<ParsedRequirementDraft> parseRequirements(
+            String projectId,
+            DocumentSourceType sourceType,
+            String title,
+            String sourceRef,
+            String sourceUrl,
+            String content,
+            DocumentFieldMapping mapping
+    ) {
+        List<ParsedRequirementDraft> ruleParsed = List.of();
+        BusinessException ruleFailure = null;
+        try {
+            ruleParsed = parser.parse(sourceType, title, content, mapping);
+        } catch (BusinessException exception) {
+            ruleFailure = exception;
+        }
+
+        DocumentModelParseResult modelResult = modelParser.parse(
+                projectId,
+                sourceType,
+                title,
+                sourceRef,
+                sourceUrl,
+                content,
+                currentActor()
+        );
+        if (modelResult.succeeded()) {
+            metrics.recordModelParse(ruleParsed.isEmpty() ? "MODEL_ONLY" : "MODEL_WITH_RULE_MERGE", modelResult.drafts().size());
+            writeAudit("MODEL_PARSE", "DOCUMENT_IMPORT", "pending", projectId, Map.of(
+                    "result", "SUCCEEDED",
+                    "invocationId", stringOrEmpty(modelResult.invocationId()),
+                    "providerName", stringOrEmpty(modelResult.providerName()),
+                    "modelName", stringOrEmpty(modelResult.modelName()),
+                    "candidateCount", modelResult.drafts().size()
+            ));
+            return mergeParsedRequirements(ruleParsed, modelResult.drafts());
+        }
+
+        if (modelResult.attempted()) {
+            metrics.recordModelParse(ruleParsed.isEmpty() ? "FAILED" : "FALLBACK_RULE", 0);
+            writeAudit("MODEL_PARSE", "DOCUMENT_IMPORT", "pending", projectId, Map.of(
+                    "result", ruleParsed.isEmpty() ? "FAILED" : "FALLBACK_RULE",
+                    "invocationId", stringOrEmpty(modelResult.invocationId()),
+                    "providerName", stringOrEmpty(modelResult.providerName()),
+                    "modelName", stringOrEmpty(modelResult.modelName()),
+                    "errorCode", stringOrEmpty(modelResult.errorCode()),
+                    "errorMessage", stringOrEmpty(modelResult.errorMessage())
+            ));
+        }
+
+        if (!ruleParsed.isEmpty()) {
+            return ruleParsed;
+        }
+        if (modelResult.attempted() && StringUtils.hasText(modelResult.errorMessage())) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "AI 文档解析失败且规则解析无结果: " + modelResult.errorMessage());
+        }
+        if (ruleFailure != null) {
+            throw ruleFailure;
+        }
+        return List.of();
+    }
+
+    private List<ParsedRequirementDraft> mergeParsedRequirements(
+            List<ParsedRequirementDraft> ruleParsed,
+            List<ParsedRequirementDraft> modelParsed
+    ) {
+        Map<String, ParsedRequirementDraft> merged = new LinkedHashMap<>();
+        modelParsed.forEach(draft -> addMergedDraft(merged, draft));
+        ruleParsed.forEach(draft -> addMergedDraft(merged, draft));
+        return new ArrayList<>(merged.values());
+    }
+
+    private void addMergedDraft(Map<String, ParsedRequirementDraft> merged, ParsedRequirementDraft draft) {
+        if (draft == null || !StringUtils.hasText(draft.title())) {
+            return;
+        }
+        String key = draft.title().trim().toLowerCase(Locale.ROOT);
+        merged.putIfAbsent(key, draft);
     }
 
     private DocumentRequirementCandidate toCandidate(
@@ -1174,7 +1513,11 @@ public class DocumentInputService {
                 trimToNull(sourceRef),
                 draft.description(),
                 externalRequirementId(record, sourceRef, index),
-                0.72,
+                "MODEL".equalsIgnoreCase(draft.parseSource()) ? 0.86 : 0.72,
+                StringUtils.hasText(draft.parseSource()) ? draft.parseSource() : "RULE",
+                draft.modelInvocationId(),
+                draft.modelProviderName(),
+                draft.modelName(),
                 null,
                 null,
                 null,
@@ -1189,26 +1532,6 @@ public class DocumentInputService {
     private String externalRequirementId(DocumentImportRecord record, String sourceRef, int index) {
         String base = firstText(sourceRef, record.sourceCode(), record.id().toString());
         return base + "#" + (index + 1);
-    }
-
-    private String assetDescription(String description, String acceptanceCriteria, String sourceRef) {
-        StringBuilder value = new StringBuilder();
-        if (StringUtils.hasText(description)) {
-            value.append(description.trim());
-        }
-        if (StringUtils.hasText(acceptanceCriteria)) {
-            if (!value.isEmpty()) {
-                value.append("\n\n");
-            }
-            value.append("Acceptance Criteria:\n").append(acceptanceCriteria.trim());
-        }
-        if (StringUtils.hasText(sourceRef)) {
-            if (!value.isEmpty()) {
-                value.append("\n\n");
-            }
-            value.append("Source Ref: ").append(sourceRef.trim());
-        }
-        return value.isEmpty() ? null : value.toString();
     }
 
     private DocumentFieldMapping mappingOrDefault(UUID mappingId) {
@@ -1284,8 +1607,40 @@ public class DocumentInputService {
         }
     }
 
+    private void ensureSourceWebhookEventVersion(DocumentSourceConfig source, String eventVersion) {
+        if (source.sourceType() != DocumentSourceType.CUSTOM_API) {
+            return;
+        }
+        String configured = normalizeEventVersion(source.eventVersion());
+        if (!configured.equals(eventVersion.trim())) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR,
+                    "webhook eventVersion 与文档源配置不一致: " + eventVersion);
+        }
+    }
+
     private long maxWebhookPayloadBytes() {
         return properties.webhookMaxPayloadBytes() <= 0 ? 262144 : properties.webhookMaxPayloadBytes();
+    }
+
+    private long maxImportContentBytes() {
+        return properties.importMaxContentBytes() <= 0 ? 16777216 : properties.importMaxContentBytes();
+    }
+
+    private void ensureImportContentSize(String content) {
+        long size = payloadSize(content);
+        long limit = maxImportContentBytes();
+        if (size > limit) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR,
+                    "导入内容超过上限: " + limit + " bytes");
+        }
+    }
+
+    private void ensureImportBinarySize(long size) {
+        long limit = Math.min(maxImportContentBytes(), contentExtractor.documentBinaryMaxBytes());
+        if (size > limit) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR,
+                    "上传文件超过上限: " + limit + " bytes");
+        }
     }
 
     private int batchActionLimit() {
@@ -1367,6 +1722,9 @@ public class DocumentInputService {
                 source.endpointUrl(),
                 source.defaultProjectId(),
                 source.mappingId(),
+                source.secretRef(),
+                source.eventVersion(),
+                source.mappingVersion(),
                 source.description(),
                 SUPPORTED_SOURCE_TYPES.contains(source.sourceType()),
                 source.createdAt(),
@@ -1435,6 +1793,10 @@ public class DocumentInputService {
                 candidate.sourceFragment(),
                 candidate.externalRequirementId(),
                 candidate.confidence(),
+                candidate.parseSource(),
+                candidate.modelInvocationId(),
+                candidate.modelProviderName(),
+                candidate.modelName(),
                 candidate.assetRequirementId(),
                 candidate.errorMessage(),
                 candidate.ignoredReason(),
@@ -1461,6 +1823,9 @@ public class DocumentInputService {
                 event.payloadDigest(),
                 event.errorMessage(),
                 event.retryCount(),
+                event.replayBy(),
+                event.replayAt(),
+                event.replayTraceId(),
                 event.receivedAt(),
                 event.processedAt()
         );
@@ -1482,6 +1847,9 @@ public class DocumentInputService {
                 null,
                 event.errorMessage(),
                 event.retryCount(),
+                event.replayBy(),
+                event.replayAt(),
+                event.replayTraceId(),
                 event.receivedAt(),
                 event.processedAt()
         );
@@ -1494,7 +1862,11 @@ public class DocumentInputService {
                 draft.priority(),
                 draft.acceptanceCriteria(),
                 draft.tags(),
-                draft.assetRequirementId()
+                draft.assetRequirementId(),
+                draft.parseSource(),
+                draft.modelInvocationId(),
+                draft.modelProviderName(),
+                draft.modelName()
         );
     }
 
@@ -1509,6 +1881,10 @@ public class DocumentInputService {
             }
         }
         return null;
+    }
+
+    private String stringOrEmpty(Object value) {
+        return value == null ? "" : String.valueOf(value);
     }
 
     private String trimOrDefault(String value, String defaultValue) {
@@ -1554,6 +1930,30 @@ public class DocumentInputService {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "sourceCode 不能为空");
         }
         return value.trim();
+    }
+
+    private String normalizeSecretRef(DocumentSourceType sourceType, String value) {
+        String normalized = trimToNull(value);
+        if (StringUtils.hasText(normalized)) {
+            return normalized;
+        }
+        return sourceType == DocumentSourceType.CUSTOM_API ? DocumentWebhookSecretResolver.DEFAULT_WEBHOOK_SECRET_REF : null;
+    }
+
+    private String normalizeEventVersion(String value) {
+        String normalized = StringUtils.hasText(value) ? value.trim() : "1.0";
+        ensureSupportedWebhookEventVersion(normalized);
+        return normalized;
+    }
+
+    private String normalizeMappingVersion(String value, DocumentFieldMapping mapping) {
+        if (StringUtils.hasText(value)) {
+            return value.trim();
+        }
+        if (mapping != null && StringUtils.hasText(mapping.mappingCode())) {
+            return mapping.mappingCode();
+        }
+        return "default";
     }
 
     private String normalizePriority(String value) {

@@ -8,6 +8,13 @@ public record DocumentInputHealthResponse(
         boolean webhookEnabled,
         boolean modelParseEnabled,
         long webhookMaxPayloadBytes,
+        long importMaxContentBytes,
+        long documentBinaryMaxBytes,
+        boolean ocrConfigured,
+        int ocrTimeoutSeconds,
+        int ocrMaxOutputChars,
+        int ocrMaxConcurrentProcesses,
+        int ocrAvailablePermits,
         int batchActionLimit
 ) {
 }

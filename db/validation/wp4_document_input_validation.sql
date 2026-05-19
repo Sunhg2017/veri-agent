@@ -31,7 +31,8 @@ with expected(table_name, column_name) as (
         ('document_input_field_mapping','created_at'), ('document_input_field_mapping','updated_at'), ('document_input_field_mapping','deleted_at'), ('document_input_field_mapping','version'),
         ('document_input_source','id'), ('document_input_source','source_code'), ('document_input_source','name'), ('document_input_source','source_type'),
         ('document_input_source','status'), ('document_input_source','endpoint_url'), ('document_input_source','default_project_id'),
-        ('document_input_source','mapping_id'), ('document_input_source','description'), ('document_input_source','deleted_at'), ('document_input_source','version'),
+        ('document_input_source','mapping_id'), ('document_input_source','secret_ref'), ('document_input_source','event_version'),
+        ('document_input_source','mapping_version'), ('document_input_source','description'), ('document_input_source','deleted_at'), ('document_input_source','version'),
         ('document_input_import','id'), ('document_input_import','project_id'), ('document_input_import','source_id'), ('document_input_import','source_code'),
         ('document_input_import','source_type'), ('document_input_import','source_ref'), ('document_input_import','source_url'), ('document_input_import','title'),
         ('document_input_import','status'), ('document_input_import','total_parsed'), ('document_input_import','total_created'),
@@ -40,13 +41,16 @@ with expected(table_name, column_name) as (
         ('document_input_candidate','description'), ('document_input_candidate','priority'), ('document_input_candidate','acceptance_criteria'),
         ('document_input_candidate','tags'), ('document_input_candidate','status'), ('document_input_candidate','source_ref'),
         ('document_input_candidate','source_fragment'), ('document_input_candidate','external_requirement_id'), ('document_input_candidate','confidence'),
+        ('document_input_candidate','parse_source'), ('document_input_candidate','model_invocation_id'), ('document_input_candidate','model_provider_name'),
+        ('document_input_candidate','model_name'),
         ('document_input_candidate','asset_requirement_id'), ('document_input_candidate','error_message'), ('document_input_candidate','ignored_reason'),
         ('document_input_candidate','confirmed_by'), ('document_input_candidate','confirmed_at'), ('document_input_candidate','deleted_at'), ('document_input_candidate','version'),
         ('document_input_webhook_event','id'), ('document_input_webhook_event','source_id'), ('document_input_webhook_event','import_id'),
         ('document_input_webhook_event','source_code'), ('document_input_webhook_event','event_id'), ('document_input_webhook_event','idempotency_key'),
         ('document_input_webhook_event','event_type'), ('document_input_webhook_event','event_version'), ('document_input_webhook_event','signature_status'),
         ('document_input_webhook_event','status'), ('document_input_webhook_event','payload_digest'), ('document_input_webhook_event','raw_payload'),
-        ('document_input_webhook_event','error_message'), ('document_input_webhook_event','retry_count'), ('document_input_webhook_event','received_at'),
+        ('document_input_webhook_event','error_message'), ('document_input_webhook_event','retry_count'), ('document_input_webhook_event','replay_by'),
+        ('document_input_webhook_event','replay_at'), ('document_input_webhook_event','replay_trace_id'), ('document_input_webhook_event','received_at'),
         ('document_input_webhook_event','processed_at'), ('document_input_webhook_event','deleted_at'), ('document_input_webhook_event','version')
 ),
 missing as (
@@ -71,6 +75,7 @@ with expected(table_name, index_name) as (
         ('document_input_source','idx_document_input_source_type'),
         ('document_input_source','idx_document_input_source_status'),
         ('document_input_source','idx_document_input_source_project'),
+        ('document_input_source','idx_document_input_source_secret_ref'),
         ('document_input_import','idx_document_input_import_project_created'),
         ('document_input_import','idx_document_input_import_source'),
         ('document_input_import','idx_document_input_import_status'),
@@ -78,6 +83,7 @@ with expected(table_name, index_name) as (
         ('document_input_candidate','idx_document_input_candidate_import'),
         ('document_input_candidate','idx_document_input_candidate_project_status'),
         ('document_input_candidate','idx_document_input_candidate_external'),
+        ('document_input_candidate','idx_document_input_candidate_model_invocation'),
         ('document_input_webhook_event','idx_document_input_webhook_source_received'),
         ('document_input_webhook_event','idx_document_input_webhook_status_received'),
         ('document_input_webhook_event','uk_document_input_webhook_event_id'),
@@ -102,10 +108,12 @@ with expected(constraint_name) as (
     values
         ('ck_document_input_source_type'),
         ('ck_document_input_source_status'),
+        ('ck_document_input_source_event_version'),
         ('ck_document_input_import_type'),
         ('ck_document_input_import_status'),
         ('ck_document_input_import_total'),
         ('ck_document_input_candidate_status'),
+        ('ck_document_input_candidate_parse_source'),
         ('ck_document_input_webhook_signature'),
         ('ck_document_input_webhook_status'),
         ('ck_document_input_webhook_retry')
@@ -123,6 +131,18 @@ select
     case when count(*) = 0 then 'PASS' else 'FAIL' end as status,
     coalesce(string_agg(constraint_name, ', ' order by constraint_name), 'all WP4 check constraints exist') as details
 from missing;
+
+with constraint_defs as (
+    select c.conname, pg_get_constraintdef(c.oid) as definition
+    from pg_constraint c
+    where c.connamespace = current_schema()::regnamespace
+      and c.conname in ('ck_document_input_source_type', 'ck_document_input_import_type')
+)
+select
+    'wp4.binary_source_types_allowed' as check_name,
+    case when count(*) filter (where definition like '%WORD%' and definition like '%PDF%' and definition like '%OCR%') = 2 then 'PASS' else 'FAIL' end as status,
+    coalesce(string_agg(conname || '=' || definition, '; ' order by conname), 'source/import type constraints missing') as details
+from constraint_defs;
 
 with constraint_def as (
     select pg_get_constraintdef(c.oid) as definition

@@ -16,10 +16,12 @@ import {
   XCircle
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
+import type { CurrentUser } from '../api/auth';
 import {
   batchDocumentCandidateAction,
   confirmDocumentCandidate,
   createDocumentImport,
+  createDocumentImportFile,
   createDocumentSource,
   documentSourceTypeOptions,
   fetchDocumentFieldMapping,
@@ -41,6 +43,7 @@ import {
   updateDocumentFieldMapping,
   updateDocumentSource,
   type DocumentCandidateBatchAction,
+  type DocumentCandidateFilters,
   type DocumentCandidatePayload,
   type DocumentCandidateView,
   type DocumentImportView,
@@ -54,6 +57,7 @@ import {
   type WebhookEventFilters,
   type WebhookEventView
 } from '../api/documentInput';
+import { hasPermission } from '../permissions';
 
 type WorkState = {
   loading: boolean;
@@ -69,6 +73,9 @@ type SourceDraft = {
   sourceType: DocumentSourceType;
   status: string;
   mappingId: string;
+  secretRef: string;
+  eventVersion: string;
+  mappingVersion: string;
   endpointUrl: string;
   description: string;
 };
@@ -79,6 +86,8 @@ type ImportDraft = {
   sourceType: DocumentSourceType;
   sourceRef: string;
   sourceUrl: string;
+  sourceId: string;
+  mappingId: string;
   content: string;
 };
 
@@ -91,9 +100,19 @@ type CandidateDraft = {
   ignoreReason: string;
 };
 
-type EventFilters = {
-  sourceCode: string;
+type CandidateFilterState = {
   status: string;
+  sourceRef: string;
+  keyword: string;
+};
+
+type EventFilters = {
+  sourceId: string;
+  sourceCode: string;
+  eventType: string;
+  status: string;
+  receivedFrom: string;
+  receivedTo: string;
 };
 
 const initialSourceDraft: SourceDraft = {
@@ -103,6 +122,9 @@ const initialSourceDraft: SourceDraft = {
   sourceType: 'TEXT',
   status: '',
   mappingId: '',
+  secretRef: '',
+  eventVersion: '1.0',
+  mappingVersion: '',
   endpointUrl: '',
   description: ''
 };
@@ -113,15 +135,27 @@ const initialImportDraft: ImportDraft = {
   sourceType: 'MARKDOWN',
   sourceRef: '',
   sourceUrl: '',
+  sourceId: '',
+  mappingId: '',
   content: ''
 };
 
 const initialEventFilters: EventFilters = {
+  sourceId: '',
   sourceCode: '',
-  status: ''
+  eventType: '',
+  status: '',
+  receivedFrom: '',
+  receivedTo: ''
 };
 
-export function DocumentInputConsole(props: { signedIn: boolean }) {
+const initialCandidateFilters: CandidateFilterState = {
+  status: '',
+  sourceRef: '',
+  keyword: ''
+};
+
+export function DocumentInputConsole(props: { signedIn: boolean; currentUser: CurrentUser | null }) {
   const [health, setHealth] = useState<DocumentInputHealth | null>(null);
   const [sources, setSources] = useState<DocumentSourceView[]>([]);
   const [sourceHealth, setSourceHealth] = useState<Record<string, DocumentSourceHealthView>>({});
@@ -132,6 +166,7 @@ export function DocumentInputConsole(props: { signedIn: boolean }) {
   const [candidateDrafts, setCandidateDrafts] = useState<Record<string, CandidateDraft>>({});
   const [selectedCandidateIds, setSelectedCandidateIds] = useState<string[]>([]);
   const [batchIgnoreReason, setBatchIgnoreReason] = useState('');
+  const [candidateFilters, setCandidateFilters] = useState<CandidateFilterState>(initialCandidateFilters);
   const [candidateState, setCandidateState] = useState<WorkState>({ loading: false });
   const [publishingState, setPublishingState] = useState<WorkState>({ loading: false });
   const [publishPreview, setPublishPreview] = useState<DocumentPublishView | null>(null);
@@ -147,6 +182,7 @@ export function DocumentInputConsole(props: { signedIn: boolean }) {
   const [sourceDraft, setSourceDraft] = useState<SourceDraft>(initialSourceDraft);
   const [editingSourceId, setEditingSourceId] = useState('');
   const [importDraft, setImportDraft] = useState<ImportDraft>(initialImportDraft);
+  const [importFile, setImportFile] = useState<File | null>(null);
   const [mappingText, setMappingText] = useState('{\n  "titlePath": "title",\n  "descriptionPath": "description",\n  "priorityPath": "priority",\n  "acceptanceCriteriaPath": "acceptanceCriteria",\n  "tagsPath": "tags"\n}');
   const [loadState, setLoadState] = useState<WorkState>({ loading: false });
   const [sourceState, setSourceState] = useState<WorkState>({ loading: false });
@@ -261,7 +297,7 @@ export function DocumentInputConsole(props: { signedIn: boolean }) {
     setPublishPreview(null);
     Promise.allSettled([
       fetchDocumentImport(selectedImportId),
-      fetchDocumentCandidates(selectedImportId),
+      fetchDocumentCandidates(selectedImportId, buildCandidateFilters(candidateFilters)),
       fetchDocumentPublishRecords(selectedImportId)
     ])
       .then(([detailResult, candidateResult, publishRecordResult]) => {
@@ -303,7 +339,7 @@ export function DocumentInputConsole(props: { signedIn: boolean }) {
     return () => {
       active = false;
     };
-  }, [props.signedIn, selectedImportId]);
+  }, [props.signedIn, selectedImportId, candidateFilters]);
 
   useEffect(() => {
     if (!selectedEventId || !props.signedIn) {
@@ -345,7 +381,7 @@ export function DocumentInputConsole(props: { signedIn: boolean }) {
 
   async function reloadCandidates(importId = selectedImportId) {
     if (!importId) return '';
-    const response = await fetchDocumentCandidates(importId);
+    const response = await fetchDocumentCandidates(importId, buildCandidateFilters(candidateFilters));
     setCandidates(response.data.items);
     setCandidateDrafts(candidateDraftMap(response.data.items));
     setSelectedCandidateIds((current) => {
@@ -353,6 +389,17 @@ export function DocumentInputConsole(props: { signedIn: boolean }) {
       return current.filter((candidateId) => availableIds.has(candidateId));
     });
     return response.trace_id;
+  }
+
+  async function refreshCandidates() {
+    if (!selectedImportId) return;
+    setCandidateState({ loading: true });
+    try {
+      const traceId = await reloadCandidates(selectedImportId);
+      setCandidateState({ loading: false, traceId });
+    } catch (error: unknown) {
+      setCandidateState({ loading: false, error: errorMessage(error, '候选需求加载失败') });
+    }
   }
 
   async function reloadPublishRecords(importId = selectedImportId) {
@@ -404,6 +451,10 @@ export function DocumentInputConsole(props: { signedIn: boolean }) {
       setSourceState({ loading: false, error: '请先登录后再维护文档源' });
       return;
     }
+    if (!canManageSources) {
+      setSourceState({ loading: false, error: '缺少 requirementInput:manage 权限' });
+      return;
+    }
     if (!sourceDraft.sourceCode.trim() || !sourceDraft.name.trim()) {
       setSourceState({ loading: false, error: 'sourceCode 和名称不能为空' });
       return;
@@ -417,6 +468,9 @@ export function DocumentInputConsole(props: { signedIn: boolean }) {
       status: sourceDraft.status.trim() || undefined,
       defaultProjectId: sourceDraft.defaultProjectId.trim() || undefined,
       mappingId: sourceDraft.mappingId.trim() || undefined,
+      secretRef: sourceDraft.secretRef.trim() || undefined,
+      eventVersion: sourceDraft.eventVersion.trim() || undefined,
+      mappingVersion: sourceDraft.mappingVersion.trim() || undefined,
       endpointUrl: sourceDraft.endpointUrl.trim() || undefined,
       description: sourceDraft.description.trim() || undefined
     };
@@ -440,25 +494,33 @@ export function DocumentInputConsole(props: { signedIn: boolean }) {
       setImportState({ loading: false, error: '请先登录后再发起导入' });
       return;
     }
+    if (!canImportDocument) {
+      setImportState({ loading: false, error: '缺少 requirementInput:import 权限' });
+      return;
+    }
     if (!importDraft.projectId.trim()) {
       setImportState({ loading: false, error: 'projectId 不能为空' });
       return;
     }
-    if (!importDraft.content.trim()) {
-      setImportState({ loading: false, error: '请粘贴待解析的内容' });
+    if (!importDraft.content.trim() && !importFile) {
+      setImportState({ loading: false, error: '请选择文件或粘贴待解析的内容' });
       return;
     }
 
     setImportState({ loading: true });
     try {
-      const response = await createDocumentImport({
+      const basePayload = {
         projectId: importDraft.projectId.trim(),
         title: importDraft.title.trim() || undefined,
         sourceType: importDraft.sourceType,
         sourceRef: importDraft.sourceRef.trim() || undefined,
         sourceUrl: importDraft.sourceUrl.trim() || undefined,
-        content: importDraft.content
-      });
+        sourceId: importDraft.sourceId.trim() || undefined,
+        mappingId: importDraft.mappingId.trim() || undefined
+      };
+      const response = importFile
+        ? await createDocumentImportFile({ ...basePayload, file: importFile })
+        : await createDocumentImport({ ...basePayload, content: importDraft.content });
       const traceId = (await reloadImports()) || response.trace_id;
       setLastImportResult(response.data);
       setSelectedImportId(response.data.id);
@@ -472,6 +534,10 @@ export function DocumentInputConsole(props: { signedIn: boolean }) {
     event.preventDefault();
     if (!props.signedIn) {
       setMappingState({ loading: false, error: '请先登录后再保存字段映射' });
+      return;
+    }
+    if (!canManageSources) {
+      setMappingState({ loading: false, error: '缺少 requirementInput:manage 权限' });
       return;
     }
 
@@ -496,6 +562,10 @@ export function DocumentInputConsole(props: { signedIn: boolean }) {
     const draft = candidateDrafts[candidateId];
     if (!props.signedIn || !draft) {
       setCandidateState({ loading: false, error: '请先登录后再维护候选需求' });
+      return;
+    }
+    if (!canReviewCandidates) {
+      setCandidateState({ loading: false, error: '缺少 requirementInput:candidate_review 权限' });
       return;
     }
     if (!draft.title.trim()) {
@@ -528,6 +598,10 @@ export function DocumentInputConsole(props: { signedIn: boolean }) {
       setCandidateState({ loading: false, error: '请先登录后再确认候选需求' });
       return;
     }
+    if (!canReviewCandidates) {
+      setCandidateState({ loading: false, error: '缺少 requirementInput:candidate_review 权限' });
+      return;
+    }
 
     setCandidateState({ loading: true });
     try {
@@ -547,6 +621,10 @@ export function DocumentInputConsole(props: { signedIn: boolean }) {
     const reason = candidateDrafts[candidateId]?.ignoreReason.trim() || '';
     if (!props.signedIn) {
       setCandidateState({ loading: false, error: '请先登录后再忽略候选需求' });
+      return;
+    }
+    if (!canReviewCandidates) {
+      setCandidateState({ loading: false, error: '缺少 requirementInput:candidate_review 权限' });
       return;
     }
     if (!reason) {
@@ -574,6 +652,10 @@ export function DocumentInputConsole(props: { signedIn: boolean }) {
       setCandidateState({ loading: false, error: '请先登录后再批量处理候选需求' });
       return;
     }
+    if (!canReviewCandidates) {
+      setCandidateState({ loading: false, error: '缺少 requirementInput:candidate_review 权限' });
+      return;
+    }
     if (selectedCandidateIds.length === 0) {
       setCandidateState({ loading: false, error: '请先选择候选需求' });
       return;
@@ -585,7 +667,11 @@ export function DocumentInputConsole(props: { signedIn: boolean }) {
 
     setCandidateState({ loading: true });
     try {
-      const response = await batchDocumentCandidateAction(action, selectedCandidateIds, action === 'IGNORE' ? batchIgnoreReason : undefined);
+      const targets = selectedCandidateIds.map((candidateId) => ({
+        id: candidateId,
+        version: candidates.find((candidate) => candidate.id === candidateId)?.version
+      }));
+      const response = await batchDocumentCandidateAction(action, targets, action === 'IGNORE' ? batchIgnoreReason : undefined);
       const traceId = (await reloadCandidates(selectedImportId)) || response.trace_id;
       setSelectedCandidateIds([]);
       if (action === 'IGNORE') {
@@ -604,6 +690,10 @@ export function DocumentInputConsole(props: { signedIn: boolean }) {
   async function publishImport(dryRun: boolean) {
     if (!props.signedIn || !selectedImportId) {
       setPublishingState({ loading: false, error: '请先选择导入记录' });
+      return;
+    }
+    if (!canPublishCandidates) {
+      setPublishingState({ loading: false, error: '缺少 requirementInput:publish 权限' });
       return;
     }
 
@@ -635,6 +725,10 @@ export function DocumentInputConsole(props: { signedIn: boolean }) {
       setReplayState({ loading: false, error: '请先选择事件' });
       return;
     }
+    if (!canReplayWebhook) {
+      setReplayState({ loading: false, error: '缺少 requirementInput:webhook_replay 权限' });
+      return;
+    }
 
     setReplayState({ loading: true });
     try {
@@ -656,6 +750,9 @@ export function DocumentInputConsole(props: { signedIn: boolean }) {
       sourceType: source.sourceType,
       status: source.status ?? '',
       mappingId: source.mappingId ?? '',
+      secretRef: source.secretRef ?? '',
+      eventVersion: source.eventVersion ?? '1.0',
+      mappingVersion: source.mappingVersion ?? '',
       endpointUrl: source.sourceUrl ?? '',
       description: source.description ?? ''
     });
@@ -682,9 +779,18 @@ export function DocumentInputConsole(props: { signedIn: boolean }) {
   }
 
   const disabled = !props.signedIn || loadState.loading;
+  const canManageSources = hasPermission(props.currentUser, 'requirementInput:manage');
+  const canImportDocument = hasPermission(props.currentUser, 'requirementInput:import');
+  const canReviewCandidates = hasPermission(props.currentUser, 'requirementInput:candidate_review');
+  const canPublishCandidates = hasPermission(props.currentUser, 'requirementInput:publish');
+  const canReplayWebhook = hasPermission(props.currentUser, 'requirementInput:webhook_replay');
+  const sourceDisabled = disabled || !canManageSources;
+  const importDisabled = disabled || !canImportDocument;
+  const candidateDisabled = disabled || !canReviewCandidates;
   const importTypeReserved = isReservedSourceType(importDraft.sourceType);
   const sourceTypeReserved = isReservedSourceType(sourceDraft.sourceType);
   const allCandidatesSelected = candidates.length > 0 && selectedCandidateIds.length === candidates.length;
+  const importPayloadReady = importDraft.content.trim().length > 0 || importFile !== null;
 
   return (
     <section className="document-input-layout">
@@ -713,7 +819,7 @@ export function DocumentInputConsole(props: { signedIn: boolean }) {
                 <input
                   id="source-project-id"
                   value={sourceDraft.defaultProjectId}
-                  disabled={disabled || sourceState.loading}
+                  disabled={sourceDisabled || sourceState.loading}
                   onChange={(event) => setSourceDraft((current) => ({ ...current, defaultProjectId: event.target.value }))}
                   placeholder="proj-payments"
                 />
@@ -723,7 +829,7 @@ export function DocumentInputConsole(props: { signedIn: boolean }) {
                 <input
                   id="source-title"
                   value={sourceDraft.name}
-                  disabled={disabled || sourceState.loading}
+                  disabled={sourceDisabled || sourceState.loading}
                   onChange={(event) => setSourceDraft((current) => ({ ...current, name: event.target.value }))}
                   placeholder="支付需求入口"
                 />
@@ -733,7 +839,7 @@ export function DocumentInputConsole(props: { signedIn: boolean }) {
                 <select
                   id="source-type"
                   value={sourceDraft.sourceType}
-                  disabled={disabled || sourceState.loading}
+                  disabled={sourceDisabled || sourceState.loading}
                   onChange={(event) => setSourceDraft((current) => ({ ...current, sourceType: event.target.value as DocumentSourceType }))}
                 >
                   {documentSourceTypeOptions.map((option) => (
@@ -749,7 +855,7 @@ export function DocumentInputConsole(props: { signedIn: boolean }) {
                 <select
                   id="source-status"
                   value={sourceDraft.status}
-                  disabled={disabled || sourceState.loading}
+                  disabled={sourceDisabled || sourceState.loading}
                   onChange={(event) => setSourceDraft((current) => ({ ...current, status: event.target.value }))}
                 >
                   <option value="">后端默认</option>
@@ -763,7 +869,7 @@ export function DocumentInputConsole(props: { signedIn: boolean }) {
                 <input
                   id="source-code"
                   value={sourceDraft.sourceCode}
-                  disabled={disabled || sourceState.loading}
+                  disabled={sourceDisabled || sourceState.loading}
                   onChange={(event) => setSourceDraft((current) => ({ ...current, sourceCode: event.target.value }))}
                   placeholder="payment-docs"
                 />
@@ -773,9 +879,40 @@ export function DocumentInputConsole(props: { signedIn: boolean }) {
                 <input
                   id="source-mapping-id"
                   value={sourceDraft.mappingId}
-                  disabled={disabled || sourceState.loading}
+                  disabled={sourceDisabled || sourceState.loading}
                   onChange={(event) => setSourceDraft((current) => ({ ...current, mappingId: event.target.value }))}
                   placeholder="默认字段映射"
+                />
+              </label>
+              <label className="field" htmlFor="source-secret-ref">
+                <span>secretRef</span>
+                <input
+                  id="source-secret-ref"
+                  value={sourceDraft.secretRef}
+                  disabled={sourceDisabled || sourceState.loading}
+                  onChange={(event) => setSourceDraft((current) => ({ ...current, secretRef: event.target.value }))}
+                  placeholder="secret://wp4/payment-docs"
+                />
+              </label>
+              <label className="field" htmlFor="source-event-version">
+                <span>eventVersion</span>
+                <select
+                  id="source-event-version"
+                  value={sourceDraft.eventVersion}
+                  disabled={sourceDisabled || sourceState.loading}
+                  onChange={(event) => setSourceDraft((current) => ({ ...current, eventVersion: event.target.value }))}
+                >
+                  <option value="1.0">1.0</option>
+                </select>
+              </label>
+              <label className="field" htmlFor="source-mapping-version">
+                <span>mappingVersion</span>
+                <input
+                  id="source-mapping-version"
+                  value={sourceDraft.mappingVersion}
+                  disabled={sourceDisabled || sourceState.loading}
+                  onChange={(event) => setSourceDraft((current) => ({ ...current, mappingVersion: event.target.value }))}
+                  placeholder="default"
                 />
               </label>
               <label className="field" htmlFor="source-url">
@@ -783,7 +920,7 @@ export function DocumentInputConsole(props: { signedIn: boolean }) {
                 <input
                   id="source-url"
                   value={sourceDraft.endpointUrl}
-                  disabled={disabled || sourceState.loading}
+                  disabled={sourceDisabled || sourceState.loading}
                   onChange={(event) => setSourceDraft((current) => ({ ...current, endpointUrl: event.target.value }))}
                   placeholder="https://docs.example.test/spec"
                 />
@@ -793,7 +930,7 @@ export function DocumentInputConsole(props: { signedIn: boolean }) {
                 <input
                   id="source-description"
                   value={sourceDraft.description}
-                  disabled={disabled || sourceState.loading}
+                  disabled={sourceDisabled || sourceState.loading}
                   onChange={(event) => setSourceDraft((current) => ({ ...current, description: event.target.value }))}
                   placeholder="入口用途或字段说明"
                 />
@@ -803,7 +940,7 @@ export function DocumentInputConsole(props: { signedIn: boolean }) {
               <button
                 className="primary-button"
                 type="submit"
-                disabled={disabled || sourceState.loading || !sourceDraft.sourceCode.trim() || !sourceDraft.name.trim()}
+                disabled={sourceDisabled || sourceState.loading || !sourceDraft.sourceCode.trim() || !sourceDraft.name.trim()}
               >
                 <Save size={16} />
                 {editingSourceId ? '保存文档源' : '新增文档源'}
@@ -823,6 +960,7 @@ export function DocumentInputConsole(props: { signedIn: boolean }) {
                   <th>默认项目</th>
                   <th>类型</th>
                   <th>Endpoint</th>
+                  <th>Webhook</th>
                   <th>状态</th>
                   <th>健康</th>
                   <th>操作</th>
@@ -843,6 +981,17 @@ export function DocumentInputConsole(props: { signedIn: boolean }) {
                           <SourceTypeBadge type={source.sourceType} />
                         </td>
                         <td>{source.sourceUrl || '-'}</td>
+                        <td>
+                          {source.sourceType === 'CUSTOM_API' ? (
+                            <div className="source-health-cell">
+                              <span>{source.eventVersion ?? '1.0'}</span>
+                              <span>{source.secretRef ? 'secretRef 已配置' : 'secretRef 未配置'}</span>
+                              {source.mappingVersion && <span>{source.mappingVersion}</span>}
+                            </div>
+                          ) : (
+                            <span className="table-secondary">-</span>
+                          )}
+                        </td>
                         <td>
                           <DocumentStatusPill value={sourceStatus(source)} />
                         </td>
@@ -870,7 +1019,7 @@ export function DocumentInputConsole(props: { signedIn: boolean }) {
                             <button
                               className="mini-button"
                               type="button"
-                              disabled={!props.signedIn || sourceState.loading || !source.id}
+                            disabled={!props.signedIn || !canManageSources || sourceState.loading || !source.id}
                               onClick={() => editSource(source)}
                             >
                               <Pencil size={14} />
@@ -883,7 +1032,7 @@ export function DocumentInputConsole(props: { signedIn: boolean }) {
                   })
                 ) : (
                   <tr>
-                    <td className="table-empty" colSpan={7}>
+                    <td className="table-empty" colSpan={8}>
                       {props.signedIn ? (loadState.loading ? '加载中' : '暂无文档源') : '请先登录'}
                     </td>
                   </tr>
@@ -901,7 +1050,7 @@ export function DocumentInputConsole(props: { signedIn: boolean }) {
             </div>
             <div>
               <span className="eyebrow">Import</span>
-              <h2>粘贴文本 / Markdown 导入</h2>
+              <h2>文本 / Word / PDF / OCR 导入</h2>
             </div>
           </div>
 
@@ -912,7 +1061,7 @@ export function DocumentInputConsole(props: { signedIn: boolean }) {
                 <input
                   id="import-project-id"
                   value={importDraft.projectId}
-                  disabled={disabled || importState.loading}
+                  disabled={importDisabled || importState.loading}
                   onChange={(event) => setImportDraft((current) => ({ ...current, projectId: event.target.value }))}
                   placeholder="proj-payments"
                 />
@@ -922,7 +1071,7 @@ export function DocumentInputConsole(props: { signedIn: boolean }) {
                 <input
                   id="import-title"
                   value={importDraft.title}
-                  disabled={disabled || importState.loading}
+                  disabled={importDisabled || importState.loading}
                   onChange={(event) => setImportDraft((current) => ({ ...current, title: event.target.value }))}
                   placeholder="支付需求 Markdown 导入"
                 />
@@ -932,7 +1081,7 @@ export function DocumentInputConsole(props: { signedIn: boolean }) {
                 <select
                   id="import-source-type"
                   value={importDraft.sourceType}
-                  disabled={disabled || importState.loading}
+                  disabled={importDisabled || importState.loading}
                   onChange={(event) => setImportDraft((current) => ({ ...current, sourceType: event.target.value as DocumentSourceType }))}
                 >
                   {documentSourceTypeOptions.map((option) => (
@@ -941,14 +1090,14 @@ export function DocumentInputConsole(props: { signedIn: boolean }) {
                     </option>
                   ))}
                 </select>
-                <small>{importTypeReserved ? '该类型为预留/未启用，提交后以后端能力为准。' : '可直接提交解析。'}</small>
+                <small>{importTypeReserved ? '该类型为预留/未启用，提交后以后端能力为准。' : '可提交纯文本、base64 或 data URL。'}</small>
               </label>
               <label className="field" htmlFor="import-source-ref">
                 <span>sourceRef</span>
                 <input
                   id="import-source-ref"
                   value={importDraft.sourceRef}
-                  disabled={disabled || importState.loading}
+                  disabled={importDisabled || importState.loading}
                   onChange={(event) => setImportDraft((current) => ({ ...current, sourceRef: event.target.value }))}
                   placeholder="PRD-2026-001"
                 />
@@ -958,9 +1107,29 @@ export function DocumentInputConsole(props: { signedIn: boolean }) {
                 <input
                   id="import-source-url"
                   value={importDraft.sourceUrl}
-                  disabled={disabled || importState.loading}
+                  disabled={importDisabled || importState.loading}
                   onChange={(event) => setImportDraft((current) => ({ ...current, sourceUrl: event.target.value }))}
                   placeholder="https://docs.example.test/spec"
+                />
+              </label>
+              <label className="field" htmlFor="import-source-id">
+                <span>sourceId</span>
+                <input
+                  id="import-source-id"
+                  value={importDraft.sourceId}
+                  disabled={importDisabled || importState.loading}
+                  onChange={(event) => setImportDraft((current) => ({ ...current, sourceId: event.target.value }))}
+                  placeholder="uuid"
+                />
+              </label>
+              <label className="field" htmlFor="import-mapping-id">
+                <span>mappingId</span>
+                <input
+                  id="import-mapping-id"
+                  value={importDraft.mappingId}
+                  disabled={importDisabled || importState.loading}
+                  onChange={(event) => setImportDraft((current) => ({ ...current, mappingId: event.target.value }))}
+                  placeholder="默认字段映射"
                 />
               </label>
             </div>
@@ -969,25 +1138,51 @@ export function DocumentInputConsole(props: { signedIn: boolean }) {
               <textarea
                 id="import-content"
                 value={importDraft.content}
-                disabled={disabled || importState.loading}
+                disabled={importDisabled || importState.loading || importFile !== null}
                 onChange={(event) => setImportDraft((current) => ({ ...current, content: event.target.value }))}
-                placeholder="# 需求标题&#10;&#10;- 用户可以...&#10;- 系统需要..."
+                placeholder="# 需求标题&#10;&#10;- 用户可以...&#10;- 系统需要...&#10;&#10;也可以选择真实 Word/PDF/图片文件上传。"
               />
+            </label>
+            <label className="field document-upload-field" htmlFor="import-file">
+              <span>真实文件上传</span>
+              <input
+                id="import-file"
+                type="file"
+                disabled={importDisabled || importState.loading || importDraft.content.trim().length > 0}
+                accept=".txt,.md,.doc,.docx,.pdf,image/*,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                onChange={(event) => setImportFile(event.target.files?.[0] ?? null)}
+              />
+              <small>
+                {importFile
+                  ? `${importFile.name} · ${formatBytes(importFile.size)}`
+                  : '选择文件后将按 multipart/form-data 上传。'}
+              </small>
             </label>
             <div className="document-actions">
               <button
                 className="primary-button"
                 type="submit"
                 disabled={
-                  disabled ||
+                  importDisabled ||
                   importState.loading ||
                   !importDraft.projectId.trim() ||
-                  !importDraft.content.trim()
+                  !importPayloadReady
                 }
               >
                 <Upload size={16} />
                 发起导入
               </button>
+              {importFile && (
+                <button
+                  className="secondary-button"
+                  type="button"
+                  disabled={importState.loading}
+                  onClick={() => setImportFile(null)}
+                >
+                  <XCircle size={16} />
+                  清除文件
+                </button>
+              )}
               <StateLine state={importState} />
             </div>
           </form>
@@ -1018,7 +1213,7 @@ export function DocumentInputConsole(props: { signedIn: boolean }) {
               <textarea
                 id="field-mapping"
                 value={mappingText}
-                disabled={disabled || mappingState.loading}
+                disabled={sourceDisabled || mappingState.loading}
                 onChange={(event) => {
                   setMappingText(event.target.value);
                   setMappingState({ loading: false });
@@ -1027,7 +1222,7 @@ export function DocumentInputConsole(props: { signedIn: boolean }) {
               />
             </label>
             <div className="document-actions">
-              <button className="primary-button" type="submit" disabled={disabled || mappingState.loading}>
+              <button className="primary-button" type="submit" disabled={sourceDisabled || mappingState.loading}>
                 <Save size={16} />
                 保存字段映射
               </button>
@@ -1049,6 +1244,11 @@ export function DocumentInputConsole(props: { signedIn: boolean }) {
             <StatusMetric label="Webhook" value={health?.webhookEnabled === false ? 'OFF' : 'ON'} pill />
             <StatusMetric label="模型解析" value={health?.modelParseEnabled ? 'ON' : 'OFF'} pill />
             <StatusMetric label="Payload" value={formatBytes(health?.webhookMaxPayloadBytes)} />
+            <StatusMetric label="导入上限" value={formatBytes(health?.importMaxContentBytes)} />
+            <StatusMetric label="文件上限" value={formatBytes(health?.documentBinaryMaxBytes)} />
+            <StatusMetric label="OCR" value={health?.ocrConfigured ? 'READY' : 'OFF'} pill />
+            <StatusMetric label="OCR 并发" value={`${health?.ocrAvailablePermits ?? '-'} / ${health?.ocrMaxConcurrentProcesses ?? '-'}`} />
+            <StatusMetric label="OCR 超时" value={health?.ocrTimeoutSeconds ? `${health.ocrTimeoutSeconds}s` : '-'} />
             <StatusMetric label="批量上限" value={String(health?.batchActionLimit ?? '-')} />
           </div>
           {loadState.error && (
@@ -1101,11 +1301,11 @@ export function DocumentInputConsole(props: { signedIn: boolean }) {
           <div className="panel-title-row">
             <h2>导入详情</h2>
             <div className="panel-title-actions">
-              <button className="mini-button" type="button" disabled={!props.signedIn || !selectedImportId || publishingState.loading} onClick={() => publishImport(true)}>
+              <button className="mini-button" type="button" disabled={!props.signedIn || !canPublishCandidates || !selectedImportId || publishingState.loading} onClick={() => publishImport(true)}>
                 <Eye size={14} />
                 Dry Run
               </button>
-              <button className="mini-button" type="button" disabled={!props.signedIn || !selectedImportId || publishingState.loading} onClick={() => publishImport(false)}>
+              <button className="mini-button" type="button" disabled={!props.signedIn || !canPublishCandidates || !selectedImportId || publishingState.loading} onClick={() => publishImport(false)}>
                 <Send size={14} />
                 发布
               </button>
@@ -1142,7 +1342,7 @@ export function DocumentInputConsole(props: { signedIn: boolean }) {
                   <span>解析需求</span>
                   {importDetail.requirements.slice(0, 5).map((requirement, index) => (
                     <em key={requirement.id ?? `${requirement.title}-${index}`}>
-                      {requirement.title ?? requirement.id ?? `需求 ${index + 1}`}
+                      {[requirement.title ?? requirement.id ?? `需求 ${index + 1}`, requirement.parseSource].filter(Boolean).join(' · ')}
                     </em>
                   ))}
                 </div>
@@ -1152,7 +1352,9 @@ export function DocumentInputConsole(props: { signedIn: boolean }) {
                   <strong>{publishPreview.dryRun ? '发布预检' : '发布结果'}</strong>
                   <div className="document-publish-metrics">
                     <StatusMetric label="计划创建" value={String(publishPreview.plannedCreateCount)} />
+                    <StatusMetric label="计划更新" value={String(publishPreview.plannedUpdateCount)} />
                     <StatusMetric label="已关联" value={String(publishPreview.linkedExistingCount)} />
+                    <StatusMetric label="冲突" value={String(publishPreview.conflictCount)} />
                     <StatusMetric label="跳过" value={String(publishPreview.skippedCount)} />
                     <StatusMetric label="失败" value={String(publishPreview.publishFailedCount)} />
                   </div>
@@ -1194,6 +1396,55 @@ export function DocumentInputConsole(props: { signedIn: boolean }) {
             <h2>候选需求</h2>
             <span className="document-count-badge">{candidates.length}</span>
           </div>
+          {selectedImportId && (
+            <div className="document-candidate-toolbar candidate-filter-toolbar">
+              <select
+                value={candidateFilters.status}
+                disabled={candidateState.loading}
+                onChange={(event) => setCandidateFilters((current) => ({ ...current, status: event.target.value }))}
+                aria-label="候选状态筛选"
+              >
+                <option value="">全部状态</option>
+                <option value="PENDING">PENDING</option>
+                <option value="CONFIRMED">CONFIRMED</option>
+                <option value="IGNORED">IGNORED</option>
+                <option value="PUBLISHED">PUBLISHED</option>
+                <option value="PUBLISH_FAILED">PUBLISH_FAILED</option>
+              </select>
+              <input
+                type="text"
+                value={candidateFilters.sourceRef}
+                disabled={candidateState.loading}
+                onChange={(event) => setCandidateFilters((current) => ({ ...current, sourceRef: event.target.value }))}
+                placeholder="sourceRef"
+              />
+              <input
+                type="text"
+                value={candidateFilters.keyword}
+                disabled={candidateState.loading}
+                onChange={(event) => setCandidateFilters((current) => ({ ...current, keyword: event.target.value }))}
+                placeholder="标题 / 描述 / 外部ID"
+              />
+              <button
+                className="mini-button"
+                type="button"
+                disabled={candidateState.loading}
+                onClick={() => void refreshCandidates()}
+              >
+                <RefreshCw size={14} />
+                刷新
+              </button>
+              <button
+                className="mini-button"
+                type="button"
+                disabled={candidateState.loading}
+                onClick={() => setCandidateFilters(initialCandidateFilters)}
+              >
+                <XCircle size={14} />
+                清空
+              </button>
+            </div>
+          )}
           {candidates.length > 0 && (
             <div className="document-candidate-toolbar">
               <label className="candidate-select" htmlFor="candidate-select-all">
@@ -1201,7 +1452,7 @@ export function DocumentInputConsole(props: { signedIn: boolean }) {
                   id="candidate-select-all"
                   type="checkbox"
                   checked={allCandidatesSelected}
-                  disabled={disabled || candidateState.loading}
+                  disabled={candidateDisabled || candidateState.loading}
                   onChange={() => toggleAllCandidates()}
                 />
                 <span>当前页</span>
@@ -1209,14 +1460,14 @@ export function DocumentInputConsole(props: { signedIn: boolean }) {
               <span className="table-secondary">已选 {selectedCandidateIds.length}</span>
               <input
                 value={batchIgnoreReason}
-                disabled={disabled || candidateState.loading}
+                disabled={candidateDisabled || candidateState.loading}
                 onChange={(event) => setBatchIgnoreReason(event.target.value)}
                 placeholder="批量忽略原因"
               />
               <button
                 className="mini-button"
                 type="button"
-                disabled={disabled || candidateState.loading || selectedCandidateIds.length === 0}
+                disabled={candidateDisabled || candidateState.loading || selectedCandidateIds.length === 0}
                 onClick={() => batchCandidates('CONFIRM')}
               >
                 <ListChecks size={14} />
@@ -1225,7 +1476,7 @@ export function DocumentInputConsole(props: { signedIn: boolean }) {
               <button
                 className="mini-button"
                 type="button"
-                disabled={disabled || candidateState.loading || selectedCandidateIds.length === 0 || !batchIgnoreReason.trim()}
+                disabled={candidateDisabled || candidateState.loading || selectedCandidateIds.length === 0 || !batchIgnoreReason.trim()}
                 onClick={() => batchCandidates('IGNORE')}
               >
                 <XCircle size={14} />
@@ -1245,7 +1496,7 @@ export function DocumentInputConsole(props: { signedIn: boolean }) {
                           id={`candidate-select-${candidate.id}`}
                           type="checkbox"
                           checked={selectedCandidateIds.includes(candidate.id)}
-                          disabled={disabled || candidateState.loading}
+                          disabled={candidateDisabled || candidateState.loading}
                           onChange={() => toggleCandidateSelection(candidate.id)}
                         />
                         <DocumentStatusPill value={candidate.status} />
@@ -1257,7 +1508,7 @@ export function DocumentInputConsole(props: { signedIn: boolean }) {
                       <input
                         id={`candidate-title-${candidate.id}`}
                         value={draft.title}
-                        disabled={disabled || candidateState.loading}
+                        disabled={candidateDisabled || candidateState.loading}
                         onChange={(event) => updateCandidateDraft(candidate.id, { title: event.target.value })}
                       />
                     </label>
@@ -1266,7 +1517,7 @@ export function DocumentInputConsole(props: { signedIn: boolean }) {
                       <input
                         id={`candidate-priority-${candidate.id}`}
                         value={draft.priority}
-                        disabled={disabled || candidateState.loading}
+                        disabled={candidateDisabled || candidateState.loading}
                         onChange={(event) => updateCandidateDraft(candidate.id, { priority: event.target.value })}
                         placeholder="HIGH / MEDIUM / LOW"
                       />
@@ -1277,7 +1528,7 @@ export function DocumentInputConsole(props: { signedIn: boolean }) {
                         id={`candidate-description-${candidate.id}`}
                         className="compact-textarea"
                         value={draft.description}
-                        disabled={disabled || candidateState.loading}
+                        disabled={candidateDisabled || candidateState.loading}
                         onChange={(event) => updateCandidateDraft(candidate.id, { description: event.target.value })}
                       />
                     </label>
@@ -1287,7 +1538,7 @@ export function DocumentInputConsole(props: { signedIn: boolean }) {
                         id={`candidate-acceptance-${candidate.id}`}
                         className="compact-textarea"
                         value={draft.acceptanceCriteria}
-                        disabled={disabled || candidateState.loading}
+                        disabled={candidateDisabled || candidateState.loading}
                         onChange={(event) => updateCandidateDraft(candidate.id, { acceptanceCriteria: event.target.value })}
                       />
                     </label>
@@ -1296,7 +1547,7 @@ export function DocumentInputConsole(props: { signedIn: boolean }) {
                       <input
                         id={`candidate-tags-${candidate.id}`}
                         value={draft.tags}
-                        disabled={disabled || candidateState.loading}
+                        disabled={candidateDisabled || candidateState.loading}
                         onChange={(event) => updateCandidateDraft(candidate.id, { tags: event.target.value })}
                         placeholder="auth, mobile"
                       />
@@ -1304,6 +1555,10 @@ export function DocumentInputConsole(props: { signedIn: boolean }) {
                     {(candidate.sourceRef ||
                       candidate.sourceFragment ||
                       candidate.externalRequirementId ||
+                      candidate.parseSource ||
+                      candidate.modelInvocationId ||
+                      candidate.modelProviderName ||
+                      candidate.modelName ||
                       candidate.assetRequirementId ||
                       candidate.ignoredReason ||
                       candidate.confirmedBy ||
@@ -1312,6 +1567,10 @@ export function DocumentInputConsole(props: { signedIn: boolean }) {
                       candidate.errorMessage) && (
                       <div className="document-candidate-meta">
                         {candidate.sourceRef && <span>sourceRef：{candidate.sourceRef}</span>}
+                        {candidate.parseSource && <span>parseSource：{candidate.parseSource}</span>}
+                        {candidate.modelInvocationId && <span>modelInvocationId：{candidate.modelInvocationId}</span>}
+                        {candidate.modelProviderName && <span>modelProviderName：{candidate.modelProviderName}</span>}
+                        {candidate.modelName && <span>modelName：{candidate.modelName}</span>}
                         {candidate.externalRequirementId && <span>externalRequirementId：{candidate.externalRequirementId}</span>}
                         {candidate.assetRequirementId && <span>assetRequirementId：{candidate.assetRequirementId}</span>}
                         {typeof candidate.version === 'number' && <span>version：{candidate.version}</span>}
@@ -1327,21 +1586,21 @@ export function DocumentInputConsole(props: { signedIn: boolean }) {
                       <input
                         id={`candidate-ignore-${candidate.id}`}
                         value={draft.ignoreReason}
-                        disabled={disabled || candidateState.loading}
+                        disabled={candidateDisabled || candidateState.loading}
                         onChange={(event) => updateCandidateDraft(candidate.id, { ignoreReason: event.target.value })}
                         placeholder="重复、非需求、需人工拆分"
                       />
                     </label>
                     <div className="document-actions candidate-actions">
-                      <button className="mini-button" type="button" disabled={disabled || candidateState.loading || !draft.title.trim()} onClick={() => saveCandidate(candidate.id)}>
+                      <button className="mini-button" type="button" disabled={candidateDisabled || candidateState.loading || !draft.title.trim()} onClick={() => saveCandidate(candidate.id)}>
                         <Save size={14} />
                         保存
                       </button>
-                      <button className="mini-button" type="button" disabled={disabled || candidateState.loading} onClick={() => confirmCandidate(candidate.id)}>
+                      <button className="mini-button" type="button" disabled={candidateDisabled || candidateState.loading} onClick={() => confirmCandidate(candidate.id)}>
                         <CheckCircle2 size={14} />
                         确认
                       </button>
-                      <button className="mini-button" type="button" disabled={disabled || candidateState.loading} onClick={() => ignoreCandidate(candidate.id)}>
+                      <button className="mini-button" type="button" disabled={candidateDisabled || candidateState.loading} onClick={() => ignoreCandidate(candidate.id)}>
                         <XCircle size={14} />
                         忽略
                       </button>
@@ -1371,6 +1630,16 @@ export function DocumentInputConsole(props: { signedIn: boolean }) {
             </button>
           </div>
           <div className="webhook-filter-grid">
+            <label className="field" htmlFor="webhook-source-id-filter">
+              <span>sourceId</span>
+              <input
+                id="webhook-source-id-filter"
+                value={eventFilters.sourceId}
+                disabled={!props.signedIn || eventState.loading}
+                onChange={(event) => setEventFilters((current) => ({ ...current, sourceId: event.target.value }))}
+                placeholder="uuid"
+              />
+            </label>
             <label className="field" htmlFor="webhook-source-filter">
               <span>sourceCode</span>
               <input
@@ -1379,6 +1648,16 @@ export function DocumentInputConsole(props: { signedIn: boolean }) {
                 disabled={!props.signedIn || eventState.loading}
                 onChange={(event) => setEventFilters((current) => ({ ...current, sourceCode: event.target.value }))}
                 placeholder="payment-docs"
+              />
+            </label>
+            <label className="field" htmlFor="webhook-event-type-filter">
+              <span>eventType</span>
+              <input
+                id="webhook-event-type-filter"
+                value={eventFilters.eventType}
+                disabled={!props.signedIn || eventState.loading}
+                onChange={(event) => setEventFilters((current) => ({ ...current, eventType: event.target.value }))}
+                placeholder="requirement.created"
               />
             </label>
             <label className="field" htmlFor="webhook-status-filter">
@@ -1394,6 +1673,7 @@ export function DocumentInputConsole(props: { signedIn: boolean }) {
                 <option value="PROCESSED">PROCESSED</option>
                 <option value="ACCEPTED">ACCEPTED</option>
                 <option value="REJECTED">REJECTED</option>
+                <option value="DEAD_LETTER">DEAD_LETTER</option>
                 <option value="REPLAYED">REPLAYED</option>
               </select>
             </label>
@@ -1455,6 +1735,18 @@ export function DocumentInputConsole(props: { signedIn: boolean }) {
                 <span>processedAt</span>
                 <em>{selectedEvent.processedAt ?? '-'}</em>
               </div>
+              <div>
+                <span>replayBy</span>
+                <em>{selectedEvent.replayBy ?? '-'}</em>
+              </div>
+              <div>
+                <span>replayAt</span>
+                <em>{selectedEvent.replayAt ?? '-'}</em>
+              </div>
+              <div>
+                <span>replayTraceId</span>
+                <em>{selectedEvent.replayTraceId ?? '-'}</em>
+              </div>
               {selectedEvent.payloadDigest && (
                 <div>
                   <span>payloadDigest</span>
@@ -1467,7 +1759,7 @@ export function DocumentInputConsole(props: { signedIn: boolean }) {
                   <em>{selectedEvent.errorMessage}</em>
                 </div>
               )}
-              <button className="mini-button" type="button" disabled={!props.signedIn || replayState.loading} onClick={replaySelectedEvent}>
+            <button className="mini-button" type="button" disabled={!props.signedIn || !canReplayWebhook || replayState.loading} onClick={replaySelectedEvent}>
                 <RotateCcw size={14} />
                 重放事件
               </button>
@@ -1518,8 +1810,22 @@ function buildEventFilters(filters: EventFilters): WebhookEventFilters {
   return {
     index: 0,
     size: 20,
+    sourceId: filters.sourceId.trim() || undefined,
     sourceCode: filters.sourceCode.trim() || undefined,
-    status: filters.status.trim() || undefined
+    eventType: filters.eventType.trim() || undefined,
+    status: filters.status.trim() || undefined,
+    receivedFrom: filters.receivedFrom.trim() || undefined,
+    receivedTo: filters.receivedTo.trim() || undefined
+  };
+}
+
+function buildCandidateFilters(filters: CandidateFilterState): DocumentCandidateFilters {
+  return {
+    index: 0,
+    size: 20,
+    status: filters.status.trim() || undefined,
+    sourceRef: filters.sourceRef.trim() || undefined,
+    keyword: filters.keyword.trim() || undefined
   };
 }
 
@@ -1574,6 +1880,7 @@ function PublishRecordRow(props: { record: DocumentPublishRecordView }) {
         <em>{props.record.action} · {props.record.candidateId}</em>
       </span>
       <DocumentStatusPill value={props.record.result || props.record.candidateStatus} />
+      {props.record.diffSummary && <em>差异：{props.record.diffSummary}</em>}
       {props.record.errorMessage && <em className="publish-record-error">{props.record.errorMessage}</em>}
     </div>
   );
@@ -1592,7 +1899,7 @@ function DocumentStatusPill(props: { value: string }) {
   const normalized = props.value.toUpperCase();
   const positive = ['UP', 'ON', 'OK', 'SUCCESS', 'SUCCEEDED', 'COMPLETED', 'DONE', 'ENABLED', 'ACTIVE', 'CONFIRMED', 'PUBLISHED', 'VALID', '可用', '成功'];
   const pending = ['PENDING', 'RUNNING', 'PROCESSING', 'QUEUED', 'DRAFT', 'RESERVED', 'REPLAYING', 'PLANNED', 'DEGRADED', '预留/未启用'];
-  const negative = ['DOWN', 'OFF', 'FAILED', 'ERROR', 'DISABLED', 'CANCELED', 'IGNORED', 'INVALID', '异常', '失败'];
+  const negative = ['DOWN', 'OFF', 'FAILED', 'ERROR', 'DISABLED', 'CANCELED', 'IGNORED', 'INVALID', 'CONFLICT', '异常', '失败'];
   const tone = positive.includes(normalized) || positive.includes(props.value)
     ? 'positive'
     : pending.includes(normalized) || pending.includes(props.value)

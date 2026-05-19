@@ -5,6 +5,7 @@ public enum DocumentSourceType {
     MARKDOWN,
     WORD,
     PDF,
+    OCR,
     CONFLUENCE,
     FEISHU,
     DINGTALK,

@@ -10,6 +10,10 @@ public record CreateRequirementRequest(
         String priority,
         @NotBlank
         String projectId,
-        String tags
+        String tags,
+        String source,
+        String sourceRef,
+        String sourceUrl,
+        String acceptanceCriteria
 ) {
 }

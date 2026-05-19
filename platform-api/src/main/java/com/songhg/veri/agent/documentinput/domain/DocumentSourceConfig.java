@@ -12,6 +12,9 @@ public record DocumentSourceConfig(
         String endpointUrl,
         String defaultProjectId,
         UUID mappingId,
+        String secretRef,
+        String eventVersion,
+        String mappingVersion,
         String description,
         Instant createdAt,
         Instant updatedAt

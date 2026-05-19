@@ -1,6 +1,7 @@
 package com.songhg.veri.agent.documentinput.infrastructure.mapper;
 
 import com.songhg.veri.agent.documentinput.application.DocumentImportQuery;
+import com.songhg.veri.agent.documentinput.application.DocumentCandidateQuery;
 import com.songhg.veri.agent.documentinput.application.DocumentSourceQuery;
 import com.songhg.veri.agent.documentinput.application.DocumentWebhookEventQuery;
 import com.songhg.veri.agent.documentinput.domain.DocumentFieldMapping;
@@ -47,6 +48,10 @@ public interface DocumentInputMapper {
     );
 
     long countCandidates(@Param("importId") UUID importId);
+
+    List<DocumentRequirementCandidate> candidatesByQuery(@Param("query") DocumentCandidateQuery query);
+
+    long countCandidatesByQuery(@Param("query") DocumentCandidateQuery query);
 
     DocumentRequirementCandidate candidate(@Param("id") UUID id);
 

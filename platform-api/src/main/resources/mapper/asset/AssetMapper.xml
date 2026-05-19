@@ -9,6 +9,10 @@
             <arg column="id" javaType="java.util.UUID"/>
             <arg column="title" javaType="java.lang.String"/>
             <arg column="description" javaType="java.lang.String"/>
+            <arg column="source" javaType="java.lang.String"/>
+            <arg column="source_ref" javaType="java.lang.String"/>
+            <arg column="source_url" javaType="java.lang.String"/>
+            <arg column="acceptance_criteria" javaType="java.lang.String"/>
             <arg column="status" javaType="java.lang.String"/>
             <arg column="priority" javaType="java.lang.String"/>
             <arg column="project_id" javaType="java.lang.String"/>
@@ -102,7 +106,8 @@
     </resultMap>
 
     <sql id="requirementColumns">
-        id, title, description, status, priority, project_id, tags, created_at, updated_at
+        id, title, description, source, source_ref, source_url, acceptance_criteria,
+        status, priority, project_id, tags, created_at, updated_at
     </sql>
 
     <sql id="apiColumns">
@@ -166,12 +171,25 @@
           and deleted_at is null
     </select>
 
+    <select id="getRequirementBySourceRef" resultMap="requirementMap">
+        select <include refid="requirementColumns"/>
+        from asset_requirement
+        where project_id = #{projectId}
+          and source = #{source}
+          and source_ref = #{sourceRef}
+          and deleted_at is null
+        order by created_at asc
+        limit 1
+    </select>
+
     <insert id="insertRequirement">
         insert into asset_requirement (
-            id, project_id, code, title, description, source, priority, status, tags, created_at, updated_at
+            id, project_id, code, title, description, source, source_ref, source_url,
+            acceptance_criteria, priority, status, tags, created_at, updated_at
         ) values (
             #{id}, #{projectId}, concat('REQ-', substr(replace(#{id}::text, '-', ''), 1, 12)),
-            #{title}, #{description}, 'MANUAL', #{priority}, #{status}, #{tags}, #{createdAt}, #{updatedAt}
+            #{title}, #{description}, #{source}, #{sourceRef}, #{sourceUrl},
+            #{acceptanceCriteria}, #{priority}, #{status}, #{tags}, #{createdAt}, #{updatedAt}
         )
     </insert>
 
@@ -179,6 +197,10 @@
         update asset_requirement set
             title = #{title},
             description = #{description},
+            source = #{source},
+            source_ref = #{sourceRef},
+            source_url = #{sourceUrl},
+            acceptance_criteria = #{acceptanceCriteria},
             status = #{status},
             priority = #{priority},
             tags = #{tags},

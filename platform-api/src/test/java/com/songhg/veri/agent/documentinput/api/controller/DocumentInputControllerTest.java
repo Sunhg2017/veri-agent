@@ -16,6 +16,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.startsWith;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -44,11 +45,18 @@ class DocumentInputControllerTest {
                 .andExpect(jsonPath("$.traceId", startsWith("trc_")))
                 .andExpect(jsonPath("$.data.service").value("document-input"))
                 .andExpect(jsonPath("$.data.status").value("UP"))
-                .andExpect(jsonPath("$.data.supportedSourceTypes").value(3))
+                .andExpect(jsonPath("$.data.supportedSourceTypes").value(6))
                 .andExpect(jsonPath("$.data.inputEnabled").value(true))
                 .andExpect(jsonPath("$.data.webhookEnabled").value(true))
                 .andExpect(jsonPath("$.data.modelParseEnabled").value(false))
                 .andExpect(jsonPath("$.data.webhookMaxPayloadBytes").value(262144))
+                .andExpect(jsonPath("$.data.importMaxContentBytes").value(16777216))
+                .andExpect(jsonPath("$.data.documentBinaryMaxBytes").value(10485760))
+                .andExpect(jsonPath("$.data.ocrConfigured").value(false))
+                .andExpect(jsonPath("$.data.ocrTimeoutSeconds").value(30))
+                .andExpect(jsonPath("$.data.ocrMaxOutputChars").value(20000))
+                .andExpect(jsonPath("$.data.ocrMaxConcurrentProcesses").value(2))
+                .andExpect(jsonPath("$.data.ocrAvailablePermits").value(2))
                 .andExpect(jsonPath("$.data.batchActionLimit").value(100));
     }
 
@@ -111,27 +119,40 @@ class DocumentInputControllerTest {
                                   "sourceType": "TEXT",
                                   "status": "ENABLED",
                                   "defaultProjectId": "project-wp4",
+                                  "eventVersion": "1.0",
+                                  "mappingVersion": "default",
                                   "description": "plain text input"
                                 }
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.sourceCode").value("manual-text-v2"))
                 .andExpect(jsonPath("$.data.status").value("ENABLED"))
+                .andExpect(jsonPath("$.data.eventVersion").value("1.0"))
+                .andExpect(jsonPath("$.data.mappingVersion").value("default"))
                 .andExpect(jsonPath("$.data.dataFlowSupported").value(true));
 
-        createSource("pdf-backlog", "PDF", null);
+        createSource("pdf-source", "PDF", null);
+        createSource("confluence-backlog", "CONFLUENCE", null);
 
         mockMvc.perform(get("/api/v1/document-input/sources")
                         .headers(documentInputHeaders())
                         .param("index", "0")
                         .param("size", "10"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.total").value(2))
-                .andExpect(jsonPath("$.data.items", hasSize(2)));
+                .andExpect(jsonPath("$.data.total").value(3))
+                .andExpect(jsonPath("$.data.items", hasSize(3)));
 
         mockMvc.perform(get("/api/v1/document-input/sources")
                         .headers(documentInputHeaders())
                         .param("sourceType", "PDF"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(1))
+                .andExpect(jsonPath("$.data.items[0].status").value("ENABLED"))
+                .andExpect(jsonPath("$.data.items[0].dataFlowSupported").value(true));
+
+        mockMvc.perform(get("/api/v1/document-input/sources")
+                        .headers(documentInputHeaders())
+                        .param("sourceType", "CONFLUENCE"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.total").value(1))
                 .andExpect(jsonPath("$.data.items[0].status").value("PLANNED"))
@@ -150,9 +171,9 @@ class DocumentInputControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                  "sourceCode": "pdf-enabled",
-                                  "name": "PDF Enabled",
-                                  "sourceType": "PDF",
+                                  "sourceCode": "confluence-enabled",
+                                  "name": "Confluence Enabled",
+                                  "sourceType": "CONFLUENCE",
                                   "status": "ENABLED"
                                 }
                                 """))
@@ -258,6 +279,9 @@ class DocumentInputControllerTest {
                 .andExpect(jsonPath("$.data.title").value("登录需求"))
                 .andExpect(jsonPath("$.data.status").value("DRAFT"))
                 .andExpect(jsonPath("$.data.priority").value("HIGH"))
+                .andExpect(jsonPath("$.data.source").value("IMPORT"))
+                .andExpect(jsonPath("$.data.sourceRef").value("REQ-BATCH-1#1"))
+                .andExpect(jsonPath("$.data.acceptanceCriteria").value("登录成功,失败提示"))
                 .andExpect(jsonPath("$.data.tags").value("auth,login,document-input"));
 
         mockMvc.perform(get("/api/v1/document-input/imports/{id}", importId)
@@ -324,6 +348,15 @@ class DocumentInputControllerTest {
         String firstCandidateId = JsonPath.read(candidates.getResponse().getContentAsString(), "$.data.items[0].id");
         String secondCandidateId = JsonPath.read(candidates.getResponse().getContentAsString(), "$.data.items[1].id");
 
+        mockMvc.perform(get("/api/v1/document-input/imports/{id}/candidates", importId)
+                        .queryParam("status", "PENDING")
+                        .queryParam("sourceRef", "md-batch-001")
+                        .queryParam("keyword", "退出")
+                        .headers(documentInputHeaders()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(1))
+                .andExpect(jsonPath("$.data.items[0].title").value("退出需求"));
+
         mockMvc.perform(post("/api/v1/document-input/candidates/{id}/confirm", firstCandidateId)
                         .headers(documentInputHeaders())
                         .contentType(MediaType.APPLICATION_JSON)
@@ -344,7 +377,10 @@ class DocumentInputControllerTest {
                         .content("""
                                 {
                                   "action": "CONFIRM",
-                                  "candidateIds": ["%s", "%s"]
+                                  "candidates": [
+                                    {"id": "%s", "version": 0},
+                                    {"id": "%s", "version": 0}
+                                  ]
                                 }
                                 """.formatted(firstCandidateId, secondCandidateId)))
                 .andExpect(status().isOk())
@@ -386,6 +422,224 @@ class DocumentInputControllerTest {
                 .andExpect(jsonPath("$.data.total").value(2))
                 .andExpect(jsonPath("$.data.items", hasSize(2)))
                 .andExpect(jsonPath("$.data.items[0].candidateStatus").value("PUBLISHED"));
+    }
+
+    @Test
+    void previewsAndPublishesUpdatesForRepeatedExternalRequirementIds() throws Exception {
+        MvcResult firstImport = mockMvc.perform(post("/api/v1/document-input/imports")
+                        .headers(documentInputHeaders())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "projectId": "project-wp4",
+                                  "sourceType": "MARKDOWN",
+                                  "sourceRef": "md-diff-001",
+                                  "sourceUrl": "https://docs.example.test/req/md-diff-001",
+                                  "content": "## 登录需求\\\\n旧描述\\\\nPriority: MEDIUM\\\\nTags: auth\\\\nAcceptance Criteria:\\\\n- 旧标准"
+                                }
+                                """))
+                .andExpect(status().isCreated())
+                .andReturn();
+        String firstImportId = JsonPath.read(firstImport.getResponse().getContentAsString(), "$.data.id");
+        String firstCandidateId = JsonPath.read(mockMvc.perform(get("/api/v1/document-input/imports/{id}/candidates", firstImportId)
+                        .headers(documentInputHeaders()))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString(), "$.data.items[0].id");
+
+        mockMvc.perform(post("/api/v1/document-input/candidates/{id}/confirm", firstCandidateId)
+                        .headers(documentInputHeaders())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"version\":0}"))
+                .andExpect(status().isOk());
+        MvcResult firstPublish = mockMvc.perform(post("/api/v1/document-input/imports/{id}/publish", firstImportId)
+                        .headers(documentInputHeaders())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isOk())
+                .andReturn();
+        String requirementId = JsonPath.read(firstPublish.getResponse().getContentAsString(),
+                "$.data.createdRequirementIds[0]");
+
+        MvcResult secondImport = mockMvc.perform(post("/api/v1/document-input/imports")
+                        .headers(documentInputHeaders())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "projectId": "project-wp4",
+                                  "sourceType": "MARKDOWN",
+                                  "sourceRef": "md-diff-001",
+                                  "sourceUrl": "https://docs.example.test/req/md-diff-001-v2",
+                                  "content": "## 登录需求\\\\n新描述\\\\nPriority: HIGH\\\\nTags: login\\\\nAcceptance Criteria:\\\\n- 新标准"
+                                }
+                                """))
+                .andExpect(status().isCreated())
+                .andReturn();
+        String secondImportId = JsonPath.read(secondImport.getResponse().getContentAsString(), "$.data.id");
+        String secondCandidateId = JsonPath.read(mockMvc.perform(get("/api/v1/document-input/imports/{id}/candidates", secondImportId)
+                        .headers(documentInputHeaders()))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString(), "$.data.items[0].id");
+
+        mockMvc.perform(post("/api/v1/document-input/candidates/{id}/confirm", secondCandidateId)
+                        .headers(documentInputHeaders())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"version\":0}"))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/v1/document-input/imports/{id}/publish", secondImportId)
+                        .headers(documentInputHeaders())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "dryRun": true,
+                                  "candidateIds": ["%s"]
+                                }
+                                """.formatted(secondCandidateId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.dryRun").value(true))
+                .andExpect(jsonPath("$.data.plannedCreateCount").value(0))
+                .andExpect(jsonPath("$.data.plannedUpdateCount").value(1))
+                .andExpect(jsonPath("$.data.records[0].action").value("UPDATE"))
+                .andExpect(jsonPath("$.data.records[0].assetRequirementId").value(requirementId))
+                .andExpect(jsonPath("$.data.records[0].existingRequirementId").value(requirementId))
+                .andExpect(jsonPath("$.data.records[0].diffSummary", containsString("description")))
+                .andExpect(jsonPath("$.data.records[0].diffSummary", containsString("acceptanceCriteria")));
+
+        mockMvc.perform(post("/api/v1/document-input/imports/{id}/publish", secondImportId)
+                        .headers(documentInputHeaders())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalCreated").value(1))
+                .andExpect(jsonPath("$.data.publishedCount").value(1))
+                .andExpect(jsonPath("$.data.createdRequirementIds[0]").value(requirementId));
+
+        mockMvc.perform(get("/api/v1/asset/requirements/{id}", requirementId)
+                        .headers(assetHeaders()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.title").value("登录需求"))
+                .andExpect(jsonPath("$.data.description").value("新描述"))
+                .andExpect(jsonPath("$.data.priority").value("HIGH"))
+                .andExpect(jsonPath("$.data.sourceRef").value("md-diff-001#1"))
+                .andExpect(jsonPath("$.data.sourceUrl").value("https://docs.example.test/req/md-diff-001-v2"))
+                .andExpect(jsonPath("$.data.acceptanceCriteria").value("新标准"))
+                .andExpect(jsonPath("$.data.tags", containsString("auth")))
+                .andExpect(jsonPath("$.data.tags", containsString("login")))
+                .andExpect(jsonPath("$.data.tags", containsString("document-input")));
+    }
+
+    @Test
+    void blocksAutomaticUpdateWhenExistingImportedRequirementIsReviewed() throws Exception {
+        MvcResult firstImport = mockMvc.perform(post("/api/v1/document-input/imports")
+                        .headers(documentInputHeaders())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "projectId": "project-wp4",
+                                  "sourceType": "MARKDOWN",
+                                  "sourceRef": "md-review-conflict",
+                                  "content": "## 审批需求\\\\n旧描述\\\\nPriority: MEDIUM\\\\nTags: review\\\\nAcceptance Criteria:\\\\n- 旧标准"
+                                }
+                                """))
+                .andExpect(status().isCreated())
+                .andReturn();
+        String firstImportId = JsonPath.read(firstImport.getResponse().getContentAsString(), "$.data.id");
+        String firstCandidateId = JsonPath.read(mockMvc.perform(get("/api/v1/document-input/imports/{id}/candidates", firstImportId)
+                        .headers(documentInputHeaders()))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString(), "$.data.items[0].id");
+
+        mockMvc.perform(post("/api/v1/document-input/candidates/{id}/confirm", firstCandidateId)
+                        .headers(documentInputHeaders())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"version\":0}"))
+                .andExpect(status().isOk());
+        MvcResult firstPublish = mockMvc.perform(post("/api/v1/document-input/imports/{id}/publish", firstImportId)
+                        .headers(documentInputHeaders())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isOk())
+                .andReturn();
+        String requirementId = JsonPath.read(firstPublish.getResponse().getContentAsString(),
+                "$.data.createdRequirementIds[0]");
+
+        mockMvc.perform(put("/api/v1/asset/requirements/{id}", requirementId)
+                        .headers(assetHeaders())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "title": "审批需求",
+                                  "description": "人工评审后的描述",
+                                  "status": "APPROVED",
+                                  "priority": "MEDIUM",
+                                  "tags": "review,manual"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("APPROVED"));
+
+        MvcResult secondImport = mockMvc.perform(post("/api/v1/document-input/imports")
+                        .headers(documentInputHeaders())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "projectId": "project-wp4",
+                                  "sourceType": "MARKDOWN",
+                                  "sourceRef": "md-review-conflict",
+                                  "content": "## 审批需求\\\\n模型解析出的新描述\\\\nPriority: HIGH\\\\nTags: review, ai\\\\nAcceptance Criteria:\\\\n- 新标准"
+                                }
+                                """))
+                .andExpect(status().isCreated())
+                .andReturn();
+        String secondImportId = JsonPath.read(secondImport.getResponse().getContentAsString(), "$.data.id");
+        String secondCandidateId = JsonPath.read(mockMvc.perform(get("/api/v1/document-input/imports/{id}/candidates", secondImportId)
+                        .headers(documentInputHeaders()))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString(), "$.data.items[0].id");
+
+        mockMvc.perform(post("/api/v1/document-input/candidates/{id}/confirm", secondCandidateId)
+                        .headers(documentInputHeaders())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"version\":0}"))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/v1/document-input/imports/{id}/publish", secondImportId)
+                        .headers(documentInputHeaders())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "dryRun": true,
+                                  "candidateIds": ["%s"]
+                                }
+                                """.formatted(secondCandidateId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.dryRun").value(true))
+                .andExpect(jsonPath("$.data.plannedUpdateCount").value(0))
+                .andExpect(jsonPath("$.data.conflictCount").value(1))
+                .andExpect(jsonPath("$.data.records[0].action").value("CONFLICT_REVIEW_REQUIRED"))
+                .andExpect(jsonPath("$.data.records[0].result").value("CONFLICT"))
+                .andExpect(jsonPath("$.data.records[0].existingRequirementId").value(requirementId))
+                .andExpect(jsonPath("$.data.records[0].diffSummary", containsString("description")))
+                .andExpect(jsonPath("$.data.records[0].errorMessage", containsString("APPROVED")));
+
+        mockMvc.perform(post("/api/v1/document-input/imports/{id}/publish", secondImportId)
+                        .headers(documentInputHeaders())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalCreated").value(0))
+                .andExpect(jsonPath("$.data.publishFailedCount").value(1))
+                .andExpect(jsonPath("$.data.records[0].candidateStatus").value("PUBLISH_FAILED"))
+                .andExpect(jsonPath("$.data.records[0].result").value("FAILED"))
+                .andExpect(jsonPath("$.data.records[0].errorMessage", containsString("APPROVED")));
+
+        mockMvc.perform(get("/api/v1/asset/requirements/{id}", requirementId)
+                        .headers(assetHeaders()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("APPROVED"))
+                .andExpect(jsonPath("$.data.description").value("人工评审后的描述"))
+                .andExpect(jsonPath("$.data.priority").value("MEDIUM"))
+                .andExpect(jsonPath("$.data.tags").value("review,manual"));
     }
 
     @Test
@@ -459,6 +713,18 @@ class DocumentInputControllerTest {
                 .andReturn();
 
         String eventRecordId = JsonPath.read(events.getResponse().getContentAsString(), "$.data.items[0].id");
+        String eventSourceId = JsonPath.read(events.getResponse().getContentAsString(), "$.data.items[0].sourceId");
+        mockMvc.perform(get("/api/v1/document-input/webhook-events")
+                        .headers(documentInputHeaders())
+                        .param("sourceId", eventSourceId)
+                        .param("eventType", "requirement.created")
+                        .param("status", "PROCESSED")
+                        .param("receivedFrom", "2026-01-01T00:00:00Z")
+                        .param("receivedTo", "2999-01-01T00:00:00Z"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(1))
+                .andExpect(jsonPath("$.data.items[0].id").value(eventRecordId));
+
         mockMvc.perform(get("/api/v1/document-input/webhook-events/{id}", eventRecordId)
                         .headers(documentInputHeaders()))
                 .andExpect(status().isOk())
@@ -527,6 +793,70 @@ class DocumentInputControllerTest {
     }
 
     @Test
+    void rejectsWebhookUnknownDisabledAndExpiredSources() throws Exception {
+        String payload = """
+                {
+                  "projectId": "project-wp4",
+                  "eventType": "requirement.created",
+                  "eventVersion": "1.0",
+                  "id": "REQ-SECURITY",
+                  "requirements": [{"title": "安全负例"}]
+                }
+                """;
+
+        mockMvc.perform(post("/api/v1/document-input/webhooks/{sourceCode}", "custom-missing")
+                        .headers(webhookHeaders(payload, "evt-missing", "idem-missing"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(payload))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("NOT_FOUND"));
+
+        String disabledSourceId = createSource("custom-disabled", "CUSTOM_API", "project-wp4");
+        mockMvc.perform(put("/api/v1/document-input/sources/{id}", disabledSourceId)
+                        .headers(documentInputHeaders())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "sourceCode": "custom-disabled",
+                                  "name": "custom-disabled source",
+                                  "sourceType": "CUSTOM_API",
+                                  "status": "DISABLED",
+                                  "defaultProjectId": "project-wp4",
+                                  "secretRef": "secret://wp4/custom-disabled",
+                                  "eventVersion": "1.0",
+                                  "mappingVersion": "default",
+                                  "endpointUrl": "https://example.test/custom-disabled"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("DISABLED"));
+
+        mockMvc.perform(post("/api/v1/document-input/webhooks/{sourceCode}", "custom-disabled")
+                        .headers(webhookHeaders(payload, "evt-disabled", "idem-disabled"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(payload))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("INVALID_STATE"));
+
+        createSource("custom-expired", "CUSTOM_API", "project-wp4");
+        String expiredTimestamp = String.valueOf(Instant.now().minusSeconds(3600).getEpochSecond());
+        mockMvc.perform(post("/api/v1/document-input/webhooks/{sourceCode}", "custom-expired")
+                        .headers(webhookHeaders(payload, "evt-expired", "idem-expired", expiredTimestamp))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(payload))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+
+        mockMvc.perform(get("/api/v1/document-input/webhook-events")
+                        .headers(documentInputHeaders())
+                        .param("sourceCode", "custom-expired"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(1))
+                .andExpect(jsonPath("$.data.items[0].status").value("REJECTED"))
+                .andExpect(jsonPath("$.data.items[0].signatureStatus").value("EXPIRED"));
+    }
+
+    @Test
     void recordsWebhookPayloadFailuresForReplayTriage() throws Exception {
         createSource("custom-invalid-json", "CUSTOM_API", "project-wp4");
         String payload = "{not-json";
@@ -538,14 +868,28 @@ class DocumentInputControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
 
-        mockMvc.perform(get("/api/v1/document-input/webhook-events")
+        MvcResult events = mockMvc.perform(get("/api/v1/document-input/webhook-events")
                         .headers(documentInputHeaders())
                         .param("sourceCode", "custom-invalid-json"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.total").value(1))
                 .andExpect(jsonPath("$.data.items[0].status").value("FAILED"))
                 .andExpect(jsonPath("$.data.items[0].signatureStatus").value("VALID"))
-                .andExpect(jsonPath("$.data.items[0].errorMessage").value("webhook payload 不是合法 JSON"));
+                .andExpect(jsonPath("$.data.items[0].errorMessage").value("webhook payload 不是合法 JSON"))
+                .andReturn();
+
+        String eventRecordId = JsonPath.read(events.getResponse().getContentAsString(), "$.data.items[0].id");
+        mockMvc.perform(post("/api/v1/document-input/webhook-events/{id}/replay", eventRecordId)
+                        .headers(documentInputHeaders()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+
+        mockMvc.perform(get("/api/v1/document-input/webhook-events/{id}", eventRecordId)
+                        .headers(documentInputHeaders()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.retryCount").value(1))
+                .andExpect(jsonPath("$.data.replayBy").value("user-001"))
+                .andExpect(jsonPath("$.data.replayTraceId", startsWith("trc_")));
     }
 
     @Test
@@ -593,9 +937,12 @@ class DocumentInputControllerTest {
                                   "name": "%s source",
                                   "sourceType": "%s",
                                   %s
+                                  "secretRef": "secret://wp4/%s",
+                                  "eventVersion": "1.0",
+                                  "mappingVersion": "default",
                                   "endpointUrl": "https://example.test/%s"
                                 }
-                                """.formatted(sourceCode, sourceCode, sourceType, projectLine, sourceCode)))
+                                """.formatted(sourceCode, sourceCode, sourceType, projectLine, sourceCode, sourceCode)))
                 .andExpect(status().isCreated())
                 .andReturn();
         return JsonPath.read(result.getResponse().getContentAsString(), "$.data.id");
@@ -618,7 +965,10 @@ class DocumentInputControllerTest {
     }
 
     private HttpHeaders webhookHeaders(String payload, String eventId, String idempotencyKey) throws Exception {
-        String timestamp = String.valueOf(Instant.now().getEpochSecond());
+        return webhookHeaders(payload, eventId, idempotencyKey, String.valueOf(Instant.now().getEpochSecond()));
+    }
+
+    private HttpHeaders webhookHeaders(String payload, String eventId, String idempotencyKey, String timestamp) throws Exception {
         HttpHeaders headers = new HttpHeaders();
         headers.set("X-VA-Timestamp", timestamp);
         headers.set("X-VA-Signature", hmacSha256(String.join(".", timestamp, eventId, idempotencyKey, payload)));

@@ -4,6 +4,7 @@ import com.songhg.veri.agent.auth.application.AuthProperties;
 import com.songhg.veri.agent.auth.config.BearerTokenAuthenticationFilter;
 import com.songhg.veri.agent.asset.config.AssetProperties;
 import com.songhg.veri.agent.bootstrap.application.BootstrapProperties;
+import com.songhg.veri.agent.common.secret.SecretProviderProperties;
 import com.songhg.veri.agent.common.security.ServiceTokenAuthenticationFilter;
 import com.songhg.veri.agent.documentinput.config.DocumentInputProperties;
 import com.songhg.veri.agent.integration.application.PlatformIntegrationProperties;
@@ -27,7 +28,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 
 @Configuration
 @EnableWebSecurity
-@EnableConfigurationProperties({AuthProperties.class, BootstrapProperties.class, PlatformIntegrationProperties.class, ModelAccessProperties.class, AssetProperties.class, DocumentInputProperties.class})
+@EnableConfigurationProperties({AuthProperties.class, BootstrapProperties.class, PlatformIntegrationProperties.class, ModelAccessProperties.class, AssetProperties.class, DocumentInputProperties.class, SecretProviderProperties.class})
 public class SecurityConfig {
 
     @Bean

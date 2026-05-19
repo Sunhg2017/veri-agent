@@ -23,7 +23,9 @@ final class BuiltinPermissionCatalog {
                     "application:owner_manage",
                     "environment:read", "environment:create", "environment:edit", "environment:disable",
                     "environment:use", "environment:user_manage",
-                    "config:read", "config:edit"
+                    "config:read", "config:edit",
+                    "requirementInput:read", "requirementInput:manage", "requirementInput:import",
+                    "requirementInput:candidate_review", "requirementInput:publish", "requirementInput:webhook_replay"
             ),
             "PlatformAdmin", Set.of(
                     "department:read", "department:create", "department:edit", "department:enable",
@@ -38,7 +40,9 @@ final class BuiltinPermissionCatalog {
                     "environment:read", "environment:create", "environment:edit", "environment:disable",
                     "environment:use", "environment:user_manage",
                     "config:read", "config:edit", "audit:read", "audit:export", "secret:reference",
-                    "context:read", "context:switch", "context:effective_read"
+                    "context:read", "context:switch", "context:effective_read",
+                    "requirementInput:read", "requirementInput:manage", "requirementInput:import",
+                    "requirementInput:candidate_review", "requirementInput:publish", "requirementInput:webhook_replay"
             ),
             "DepartmentManager", Set.of(
                     "department:read", "department:edit", "department:enable", "department:disable",
@@ -56,7 +60,9 @@ final class BuiltinPermissionCatalog {
                     "environment:use", "environment:user_manage",
                     "config:read", "config:edit", "role:read", "role:bind", "role:unbind",
                     "audit:read", "secret:reference",
-                    "context:read", "context:switch", "context:effective_read"
+                    "context:read", "context:switch", "context:effective_read",
+                    "requirementInput:read", "requirementInput:import",
+                    "requirementInput:candidate_review", "requirementInput:publish"
             ),
             "AppOwner", Set.of(
                     "project:read", "application:read", "application:edit", "application:disable",
@@ -64,20 +70,24 @@ final class BuiltinPermissionCatalog {
                     "environment:read", "environment:create", "environment:edit", "environment:disable",
                     "environment:user_manage", "config:read", "config:edit", "role:read", "role:bind", "role:unbind",
                     "audit:read", "secret:reference",
-                    "context:read", "context:switch", "context:effective_read"
+                    "context:read", "context:switch", "context:effective_read",
+                    "requirementInput:read", "requirementInput:import",
+                    "requirementInput:candidate_review", "requirementInput:publish"
             ),
             "Tester", Set.of(
                     "project:read", "application:read", "environment:read", "environment:use",
-                    "config:read", "context:read", "context:switch", "context:effective_read"
+                    "config:read", "context:read", "context:switch", "context:effective_read",
+                    "requirementInput:read", "requirementInput:import", "requirementInput:candidate_review"
             ),
             "Developer", Set.of(
                     "project:read", "application:read", "environment:read", "config:read",
-                    "context:read", "context:switch", "context:effective_read"
+                    "context:read", "context:switch", "context:effective_read",
+                    "requirementInput:read"
             ),
             "Auditor", Set.of(
                     "department:read", "user:read", "project:read", "application:read",
                     "environment:read", "config:read", "role:read", "audit:read", "audit:export",
-                    "context:read", "context:effective_read"
+                    "context:read", "context:effective_read", "requirementInput:read"
             )
     );
 }

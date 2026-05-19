@@ -232,22 +232,31 @@ main() {
   local wp4_health
   wp4_health="$(get_json /api/v1/document-input/health)"
   check "WP4 health" '.data.service == "document-input" and .data.status == "UP"' "$wp4_health"
+  local wp4_model_parse_enabled
+  wp4_model_parse_enabled="$(printf '%s' "$wp4_health" | jq -r '.data.modelParseEnabled // false')"
 
-  local wp4_import wp4_import_id wp4_candidates wp4_candidate_ids wp4_batch wp4_dry_run wp4_publish wp4_requirement_id wp4_asset
+  local wp4_import wp4_import_id wp4_candidates wp4_candidate_ids wp4_candidate_targets wp4_batch wp4_dry_run wp4_publish wp4_requirement_id wp4_asset
   wp4_import="$(post_json /api/v1/document-input/imports "$(jq -nc \
     --arg projectId "$PROJECT_CODE" \
     '{projectId:$projectId,sourceType:"MARKDOWN",sourceRef:"wp-all-md",content:"## WP4 联动需求\nPriority: HIGH\nTags: wp4, integration"}')" \
     "${wp4_headers[@]}")"
   check "WP4 Markdown import" '.data.status == "SUCCEEDED" and .data.pendingCount == 1' "$wp4_import"
+  if [[ "$wp4_model_parse_enabled" == "true" ]]; then
+    check "WP4 AI model parse import" '.data.requirements | all(.parseSource == "MODEL" and (.modelInvocationId | type == "string") and .modelProviderName == "local-echo-primary")' "$wp4_import"
+  fi
   wp4_import_id="$(printf '%s' "$wp4_import" | jq -r '.data.id // empty')"
 
   wp4_candidates="$(get_json "/api/v1/document-input/imports/$wp4_import_id/candidates" "${wp4_headers[@]}")"
   wp4_candidate_ids="$(printf '%s' "$wp4_candidates" | jq -c '[.data.items[].id]')"
+  wp4_candidate_targets="$(printf '%s' "$wp4_candidates" | jq -c '[.data.items[] | {id, version}]')"
   check "WP4 candidate list" '.data.total == 1 and .data.items[0].status == "PENDING"' "$wp4_candidates"
+  if [[ "$wp4_model_parse_enabled" == "true" ]]; then
+    check "WP4 AI model parse candidates" '.data.items | all(.parseSource == "MODEL" and (.modelInvocationId | type == "string") and .modelProviderName == "local-echo-primary")' "$wp4_candidates"
+  fi
 
-  wp4_batch="$(post_json /api/v1/document-input/candidates/batch-action "$(jq -nc --argjson ids "$wp4_candidate_ids" '{action:"CONFIRM",candidateIds:$ids}')" \
+  wp4_batch="$(post_json /api/v1/document-input/candidates/batch-action "$(jq -nc --argjson candidates "$wp4_candidate_targets" '{action:"CONFIRM",candidates:$candidates}')" \
     "${wp4_headers[@]}")"
-  check "WP4 batch confirm" '.data.succeededCount == 1 and .data.items[0].candidate.status == "CONFIRMED"' "$wp4_batch"
+  check "WP4 versioned batch confirm" '.data.succeededCount == 1 and .data.items[0].candidate.status == "CONFIRMED" and .data.items[0].candidate.version == 1' "$wp4_batch"
 
   wp4_dry_run="$(post_json "/api/v1/document-input/imports/$wp4_import_id/publish" "$(jq -nc --argjson ids "$wp4_candidate_ids" '{dryRun:true,candidateIds:$ids}')" \
     "${wp4_headers[@]}")"
@@ -258,21 +267,21 @@ main() {
   check "WP4 publish to WP3" '.data.dryRun == false and .data.totalCreated == 1 and .data.publishedCount == 1' "$wp4_publish"
 
   wp4_asset="$(get_json "/api/v1/asset/requirements/$wp4_requirement_id" "${wp3_headers[@]}")"
-  check_arg "WP4-created WP3 requirement" id "$wp4_requirement_id" '.data.id == $id and (.data.tags | contains("document-input"))' "$wp4_asset"
+  check_arg "WP4-created WP3 requirement" id "$wp4_requirement_id" '.data.id == $id and .data.source == "IMPORT" and .data.sourceRef == "wp-all-md#1" and (.data.tags | contains("document-input"))' "$wp4_asset"
 
   local wp4_source wp4_webhook_payload wp4_event_id wp4_idem wp4_webhook wp4_events
   wp4_source="$(post_json /api/v1/document-input/sources "$(jq -nc \
     --arg sourceCode "$WP4_SOURCE_CODE" \
     --arg projectId "$PROJECT_CODE" \
-    '{sourceCode:$sourceCode,name:"WP all webhook source",sourceType:"CUSTOM_API",defaultProjectId:$projectId,endpointUrl:"https://example.test/wp-all"}')" \
+    '{sourceCode:$sourceCode,name:"WP all webhook source",sourceType:"CUSTOM_API",defaultProjectId:$projectId,endpointUrl:"https://example.test/wp-all",secretRef:"secret://wp4/wp-all",eventVersion:"1.0",mappingVersion:"default"}')" \
     "${wp4_headers[@]}")"
-  check_arg "WP4 CUSTOM_API source" sourceCode "$WP4_SOURCE_CODE" '.data.sourceCode == $sourceCode and .data.sourceType == "CUSTOM_API"' "$wp4_source"
+  check_arg "WP4 CUSTOM_API source" sourceCode "$WP4_SOURCE_CODE" '.data.sourceCode == $sourceCode and .data.sourceType == "CUSTOM_API" and .data.secretRef == "secret://wp4/wp-all" and .data.eventVersion == "1.0" and .data.mappingVersion == "default"' "$wp4_source"
 
   wp4_event_id="evt-wp-all-$RANDOM"
   wp4_idem="idem-wp-all-$RANDOM"
   wp4_webhook_payload="$(jq -nc \
     --arg projectId "$PROJECT_CODE" \
-    '{projectId:$projectId,eventType:"requirement.created",id:"REQ-WP-ALL",requirements:[{title:"WP4 webhook 联动需求",priority:"LOW",tags:["wp4","webhook"]}]}')"
+    '{projectId:$projectId,eventType:"requirement.created",eventVersion:"1.0",id:"REQ-WP-ALL",requirements:[{title:"WP4 webhook 联动需求",priority:"LOW",tags:["wp4","webhook"]}]}')"
   wp4_webhook="$(post_wp4_webhook "$WP4_SOURCE_CODE" "$wp4_webhook_payload" "$wp4_event_id" "$wp4_idem")"
   check_arg "WP4 signed webhook" sourceCode "$WP4_SOURCE_CODE" '.data.sourceCode == $sourceCode and .data.pendingCount == 1' "$wp4_webhook"
 

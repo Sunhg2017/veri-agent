@@ -977,7 +977,7 @@ function ModulePage(props: {
   onRefresh: () => void;
 }) {
   if (props.page === 'document-input') {
-    return <DocumentInputConsole signedIn={props.signedIn} />;
+    return <DocumentInputConsole signedIn={props.signedIn} currentUser={props.currentUser} />;
   }
 
   if (props.page === 'organizations') {

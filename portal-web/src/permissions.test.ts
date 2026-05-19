@@ -28,12 +28,18 @@ describe('WP1 permission helpers', () => {
   });
 
   it('maps read permissions to protected management pages', () => {
-    const currentUser = user(['user:read', 'audit:read', 'config:read']);
+    const currentUser = user(['user:read', 'audit:read', 'config:read', 'requirementInput:read']);
 
     expect(canAccessPage(currentUser, 'users')).toBe(true);
     expect(canAccessPage(currentUser, 'audit')).toBe(true);
     expect(canAccessPage(currentUser, 'settings')).toBe(true);
+    expect(canAccessPage(currentUser, 'document-input')).toBe(true);
     expect(canAccessPage(currentUser, 'projects')).toBe(false);
+  });
+
+  it('requires WP4 read permission for the document input console', () => {
+    expect(canAccessPage(user(['config:read']), 'document-input')).toBe(false);
+    expect(canAccessPage(user(['requirementInput:read']), 'document-input')).toBe(true);
   });
 
   it('maps creatable resources to backend permission names', () => {

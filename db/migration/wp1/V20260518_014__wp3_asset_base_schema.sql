@@ -28,6 +28,9 @@ create table if not exists asset_requirement (
 );
 
 create unique index if not exists uk_asset_requirement_project_code on asset_requirement (project_id, code) where deleted_at is null;
+create unique index if not exists uk_asset_requirement_project_import_source_ref
+    on asset_requirement (project_id, source, source_ref)
+    where deleted_at is null and source = 'IMPORT' and source_ref is not null;
 create index if not exists idx_asset_requirement_project_status on asset_requirement (project_id, status) where deleted_at is null;
 create index if not exists idx_asset_requirement_project_priority on asset_requirement (project_id, priority) where deleted_at is null;
 create index if not exists idx_asset_requirement_title on asset_requirement (title) where deleted_at is null;

@@ -57,6 +57,22 @@ public class InMemoryModelAccessRepository implements ModelAccessRepository {
                 now,
                 now
         ));
+        savePrompt(new PromptTemplate(
+                UUID.fromString("00000000-0000-0000-0000-000000000302"),
+                "wp4-document-requirement-parse",
+                "WP4 文档需求解析助手",
+                1,
+                """
+                        {{schemaMarker}}
+                        你是企业级需求解析助手。请只返回 JSON，不要返回 Markdown。
+                        JSON schema: {"requirements":[{"title":"需求标题","description":"需求说明","priority":"CRITICAL|HIGH|MEDIUM|LOW","acceptanceCriteria":"验收标准","tags":["标签"],"confidence":0.0}]}
+                        从用户提供的文本、Markdown 或 JSON 中抽取可人工确认的需求候选项；无法判断时返回空 requirements。
+                        """,
+                PromptStatus.ACTIVE,
+                "WP4 AI 文档解析 MVP Prompt",
+                now,
+                now
+        ));
     }
 
     @Override

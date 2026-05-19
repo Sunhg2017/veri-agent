@@ -17,6 +17,7 @@ import org.springframework.web.servlet.resource.NoResourceFoundException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -61,6 +62,18 @@ public class GlobalExceptionHandler {
                 .toList();
 
         return validationError(fieldErrors);
+    }
+
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ApiResponse<Void>> handleMaxUploadSizeExceeded(MaxUploadSizeExceededException exception) {
+        return ResponseEntity
+                .status(ErrorCode.VALIDATION_ERROR.httpStatus())
+                .body(ApiResponse.error(
+                        ErrorCode.VALIDATION_ERROR.name(),
+                        "上传文件超过大小上限",
+                        TraceContext.getTraceId(),
+                        null
+                ));
     }
 
     @ExceptionHandler(AuthenticationException.class)

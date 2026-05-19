@@ -45,7 +45,13 @@ values
 ('secret:reference','secret','reference','PLATFORM,PROJECT,APPLICATION,ENVIRONMENT','引用密钥'),
 ('context:read','context','read','PLATFORM,DEPARTMENT,PROJECT,APPLICATION,ENVIRONMENT','查看上下文'),
 ('context:switch','context','switch','PLATFORM,DEPARTMENT,PROJECT,APPLICATION,ENVIRONMENT','切换上下文'),
-('context:effective_read','context','effective_read','PLATFORM,PROJECT,APPLICATION,ENVIRONMENT','读取有效上下文')
+('context:effective_read','context','effective_read','PLATFORM,PROJECT,APPLICATION,ENVIRONMENT','读取有效上下文'),
+('requirementInput:read','requirementInput','read','PLATFORM,PROJECT,APPLICATION','查看需求输入'),
+('requirementInput:manage','requirementInput','manage','PLATFORM,PROJECT','管理需求输入源和字段映射'),
+('requirementInput:import','requirementInput','import','PLATFORM,PROJECT,APPLICATION','导入需求文档'),
+('requirementInput:candidate_review','requirementInput','candidate_review','PLATFORM,PROJECT,APPLICATION','评审需求候选项'),
+('requirementInput:publish','requirementInput','publish','PLATFORM,PROJECT,APPLICATION','发布需求候选项'),
+('requirementInput:webhook_replay','requirementInput','webhook_replay','PLATFORM,PROJECT','重放需求输入 webhook')
 on conflict (code) do update set
     resource_type = excluded.resource_type,
     action = excluded.action,
@@ -85,6 +91,8 @@ with role_permissions(role_code, permission_code) as (
     ('SuperAdmin','project:read'),('SuperAdmin','project:create'),('SuperAdmin','project:edit'),
     ('SuperAdmin','application:read'),('SuperAdmin','application:create'),('SuperAdmin','application:edit'),
     ('SuperAdmin','environment:read'),('SuperAdmin','environment:create'),('SuperAdmin','environment:edit'),('SuperAdmin','config:read'),('SuperAdmin','config:edit'),
+    ('SuperAdmin','requirementInput:read'),('SuperAdmin','requirementInput:manage'),('SuperAdmin','requirementInput:import'),
+    ('SuperAdmin','requirementInput:candidate_review'),('SuperAdmin','requirementInput:publish'),('SuperAdmin','requirementInput:webhook_replay'),
 
     ('PlatformAdmin','department:read'),('PlatformAdmin','department:create'),('PlatformAdmin','department:edit'),('PlatformAdmin','department:enable'),('PlatformAdmin','department:disable'),('PlatformAdmin','department:member_manage'),
     ('PlatformAdmin','user:read'),('PlatformAdmin','user:create'),('PlatformAdmin','user:edit'),('PlatformAdmin','user:enable'),('PlatformAdmin','user:disable'),('PlatformAdmin','user:lock'),('PlatformAdmin','user:assign_role'),
@@ -94,6 +102,8 @@ with role_permissions(role_code, permission_code) as (
     ('PlatformAdmin','environment:read'),('PlatformAdmin','environment:create'),('PlatformAdmin','environment:edit'),('PlatformAdmin','environment:disable'),('PlatformAdmin','environment:use'),
     ('PlatformAdmin','config:read'),('PlatformAdmin','config:edit'),('PlatformAdmin','audit:read'),('PlatformAdmin','audit:export'),('PlatformAdmin','secret:reference'),
     ('PlatformAdmin','context:read'),('PlatformAdmin','context:switch'),('PlatformAdmin','context:effective_read'),
+    ('PlatformAdmin','requirementInput:read'),('PlatformAdmin','requirementInput:manage'),('PlatformAdmin','requirementInput:import'),
+    ('PlatformAdmin','requirementInput:candidate_review'),('PlatformAdmin','requirementInput:publish'),('PlatformAdmin','requirementInput:webhook_replay'),
 
     ('DepartmentManager','department:read'),('DepartmentManager','department:edit'),('DepartmentManager','department:enable'),('DepartmentManager','department:disable'),('DepartmentManager','department:member_manage'),
     ('DepartmentManager','user:read'),('DepartmentManager','user:edit'),('DepartmentManager','project:read'),('DepartmentManager','application:read'),('DepartmentManager','environment:read'),('DepartmentManager','config:read'),('DepartmentManager','audit:read'),
@@ -104,20 +114,24 @@ with role_permissions(role_code, permission_code) as (
     ('ProjectOwner','environment:read'),('ProjectOwner','environment:create'),('ProjectOwner','environment:edit'),('ProjectOwner','environment:disable'),('ProjectOwner','environment:use'),
     ('ProjectOwner','config:read'),('ProjectOwner','config:edit'),('ProjectOwner','role:read'),('ProjectOwner','role:bind'),('ProjectOwner','role:unbind'),('ProjectOwner','audit:read'),('ProjectOwner','secret:reference'),
     ('ProjectOwner','context:read'),('ProjectOwner','context:switch'),('ProjectOwner','context:effective_read'),
+    ('ProjectOwner','requirementInput:read'),('ProjectOwner','requirementInput:import'),('ProjectOwner','requirementInput:candidate_review'),('ProjectOwner','requirementInput:publish'),
 
     ('AppOwner','project:read'),('AppOwner','application:read'),('AppOwner','application:edit'),('AppOwner','application:disable'),
     ('AppOwner','environment:read'),('AppOwner','environment:create'),('AppOwner','environment:edit'),('AppOwner','environment:disable'),
     ('AppOwner','config:read'),('AppOwner','config:edit'),('AppOwner','role:read'),('AppOwner','role:bind'),('AppOwner','role:unbind'),('AppOwner','audit:read'),('AppOwner','secret:reference'),
     ('AppOwner','context:read'),('AppOwner','context:switch'),('AppOwner','context:effective_read'),
+    ('AppOwner','requirementInput:read'),('AppOwner','requirementInput:import'),('AppOwner','requirementInput:candidate_review'),('AppOwner','requirementInput:publish'),
 
     ('Tester','project:read'),('Tester','application:read'),('Tester','environment:read'),('Tester','environment:use'),('Tester','config:read'),
     ('Tester','context:read'),('Tester','context:switch'),('Tester','context:effective_read'),
+    ('Tester','requirementInput:read'),('Tester','requirementInput:import'),('Tester','requirementInput:candidate_review'),
 
     ('Developer','project:read'),('Developer','application:read'),('Developer','environment:read'),('Developer','config:read'),
     ('Developer','context:read'),('Developer','context:switch'),('Developer','context:effective_read'),
+    ('Developer','requirementInput:read'),
 
     ('Auditor','department:read'),('Auditor','user:read'),('Auditor','project:read'),('Auditor','application:read'),('Auditor','environment:read'),('Auditor','config:read'),('Auditor','role:read'),('Auditor','audit:read'),('Auditor','audit:export'),
-    ('Auditor','context:read'),('Auditor','context:effective_read')
+    ('Auditor','context:read'),('Auditor','context:effective_read'),('Auditor','requirementInput:read')
 )
 insert into rbac_role_permission (role_id, permission_id, effect)
 select r.id, p.id, 'ALLOW'

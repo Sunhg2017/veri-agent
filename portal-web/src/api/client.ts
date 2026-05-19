@@ -112,9 +112,23 @@ async function attemptRefresh(): Promise<boolean> {
 }
 
 export async function requestJson<T>(path: string, init?: RequestInit): Promise<ApiResponse<T>> {
+  return request<T>(path, init, true);
+}
+
+export async function requestMultipart<T>(path: string, formData: FormData, init?: RequestInit): Promise<ApiResponse<T>> {
+  return request<T>(path, {
+    ...init,
+    method: init?.method ?? 'POST',
+    body: formData
+  }, false);
+}
+
+async function request<T>(path: string, init: RequestInit | undefined, jsonBody: boolean): Promise<ApiResponse<T>> {
   const token = getAuthToken();
   const headers = new Headers(init?.headers);
-  headers.set('Content-Type', 'application/json');
+  if (jsonBody) {
+    headers.set('Content-Type', 'application/json');
+  }
   if (token && !headers.has('Authorization')) {
     headers.set('Authorization', `Bearer ${token}`);
   }

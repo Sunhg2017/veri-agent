@@ -1,6 +1,7 @@
 package com.songhg.veri.agent.documentinput.infrastructure;
 
 import com.songhg.veri.agent.documentinput.application.DocumentImportQuery;
+import com.songhg.veri.agent.documentinput.application.DocumentCandidateQuery;
 import com.songhg.veri.agent.documentinput.application.DocumentInputRepository;
 import com.songhg.veri.agent.documentinput.application.DocumentSourceQuery;
 import com.songhg.veri.agent.documentinput.application.DocumentWebhookEventQuery;
@@ -13,6 +14,7 @@ import com.songhg.veri.agent.documentinput.infrastructure.mapper.DocumentInputMa
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Repository;
 
@@ -100,6 +102,16 @@ public class PostgresDocumentInputRepository implements DocumentInputRepository 
     }
 
     @Override
+    public List<DocumentRequirementCandidate> candidates(DocumentCandidateQuery query) {
+        return mapper.candidatesByQuery(query);
+    }
+
+    @Override
+    public long countCandidates(DocumentCandidateQuery query) {
+        return mapper.countCandidatesByQuery(query);
+    }
+
+    @Override
     public Optional<DocumentRequirementCandidate> candidate(UUID id) {
         return Optional.ofNullable(mapper.candidate(id));
     }
@@ -137,7 +149,12 @@ public class PostgresDocumentInputRepository implements DocumentInputRepository 
 
     @Override
     public DocumentWebhookEvent saveWebhookEvent(DocumentWebhookEvent event) {
-        mapper.upsertWebhookEvent(event);
-        return event;
+        try {
+            mapper.upsertWebhookEvent(event);
+            return event;
+        } catch (DuplicateKeyException exception) {
+            return webhookEventByIdentity(event.sourceCode(), event.eventId(), event.idempotencyKey())
+                    .orElseThrow(() -> exception);
+        }
     }
 }

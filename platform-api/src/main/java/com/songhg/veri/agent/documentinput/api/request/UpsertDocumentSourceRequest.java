@@ -20,6 +20,12 @@ public record UpsertDocumentSourceRequest(
         String endpointUrl,
         String defaultProjectId,
         UUID mappingId,
+        @Size(max = 128)
+        String secretRef,
+        @Size(max = 32)
+        String eventVersion,
+        @Size(max = 64)
+        String mappingVersion,
         String description
 ) {
 }

@@ -1,5 +1,6 @@
 package com.songhg.veri.agent.documentinput.infrastructure;
 
+import com.songhg.veri.agent.documentinput.application.DocumentCandidateQuery;
 import com.songhg.veri.agent.documentinput.application.DocumentImportQuery;
 import com.songhg.veri.agent.documentinput.application.DocumentInputRepository;
 import com.songhg.veri.agent.documentinput.application.DocumentSourceQuery;
@@ -12,6 +13,7 @@ import com.songhg.veri.agent.documentinput.domain.DocumentWebhookEvent;
 import java.time.Instant;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -135,6 +137,19 @@ public class InMemoryDocumentInputRepository implements DocumentInputRepository 
     }
 
     @Override
+    public List<DocumentRequirementCandidate> candidates(DocumentCandidateQuery query) {
+        return filteredCandidates(query)
+                .skip(query.offset())
+                .limit(query.size())
+                .toList();
+    }
+
+    @Override
+    public long countCandidates(DocumentCandidateQuery query) {
+        return filteredCandidates(query).count();
+    }
+
+    @Override
     public Optional<DocumentRequirementCandidate> candidate(UUID id) {
         return Optional.ofNullable(candidates.get(id));
     }
@@ -211,10 +226,43 @@ public class InMemoryDocumentInputRepository implements DocumentInputRepository 
                 .sorted(Comparator.comparing(DocumentRequirementCandidate::createdAt));
     }
 
+    private java.util.stream.Stream<DocumentRequirementCandidate> filteredCandidates(DocumentCandidateQuery query) {
+        String sourceRef = lower(query.sourceRef());
+        String keyword = lower(query.keyword());
+        return candidates.values().stream()
+                .filter(candidate -> query.importId() == null || query.importId().equals(candidate.importId()))
+                .filter(candidate -> query.status() == null || query.status() == candidate.status())
+                .filter(candidate -> sourceRef == null || contains(candidate.sourceRef(), sourceRef))
+                .filter(candidate -> keyword == null || candidateMatchesKeyword(candidate, keyword))
+                .sorted(Comparator.comparing(DocumentRequirementCandidate::createdAt));
+    }
+
+    private boolean candidateMatchesKeyword(DocumentRequirementCandidate candidate, String keyword) {
+        return contains(candidate.title(), keyword)
+                || contains(candidate.description(), keyword)
+                || contains(candidate.acceptanceCriteria(), keyword)
+                || contains(candidate.tags(), keyword)
+                || contains(candidate.sourceFragment(), keyword)
+                || contains(candidate.externalRequirementId(), keyword);
+    }
+
+    private boolean contains(String value, String keyword) {
+        String normalized = lower(value);
+        return normalized != null && normalized.contains(keyword);
+    }
+
+    private String lower(String value) {
+        return value == null || value.isBlank() ? null : value.trim().toLowerCase(Locale.ROOT);
+    }
+
     private java.util.stream.Stream<DocumentWebhookEvent> filteredWebhookEvents(DocumentWebhookEventQuery query) {
         return webhookEvents.values().stream()
+                .filter(event -> query.sourceId() == null || query.sourceId().equals(event.sourceId()))
                 .filter(event -> query.sourceCode() == null || query.sourceCode().equalsIgnoreCase(event.sourceCode()))
+                .filter(event -> query.eventType() == null || query.eventType().equalsIgnoreCase(event.eventType()))
                 .filter(event -> query.status() == null || event.status() == query.status())
+                .filter(event -> query.receivedFrom() == null || !event.receivedAt().isBefore(query.receivedFrom()))
+                .filter(event -> query.receivedTo() == null || !event.receivedAt().isAfter(query.receivedTo()))
                 .sorted(Comparator.comparing(DocumentWebhookEvent::receivedAt).reversed());
     }
 }

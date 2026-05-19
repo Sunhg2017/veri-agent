@@ -49,6 +49,9 @@ create table if not exists document_input_source (
     endpoint_url text,
     default_project_id varchar(64),
     mapping_id uuid references document_input_field_mapping(id) on delete restrict,
+    secret_ref varchar(128),
+    event_version varchar(32) not null default '1.0',
+    mapping_version varchar(64) not null default 'default',
     description text,
     created_by uuid,
     created_at timestamptz not null default now(),
@@ -58,9 +61,10 @@ create table if not exists document_input_source (
     deleted_at timestamptz,
     version bigint not null default 0,
     constraint ck_document_input_source_type check (source_type in (
-        'TEXT','MARKDOWN','WORD','PDF','CONFLUENCE','FEISHU','DINGTALK','YUQUE','CUSTOM_API'
+        'TEXT','MARKDOWN','WORD','PDF','OCR','CONFLUENCE','FEISHU','DINGTALK','YUQUE','CUSTOM_API'
     )),
-    constraint ck_document_input_source_status check (status in ('ENABLED','DISABLED','PLANNED'))
+    constraint ck_document_input_source_status check (status in ('ENABLED','DISABLED','PLANNED')),
+    constraint ck_document_input_source_event_version check (event_version in ('1.0'))
 );
 
 create unique index if not exists uk_document_input_source_code
@@ -75,6 +79,9 @@ create index if not exists idx_document_input_source_status
 create index if not exists idx_document_input_source_project
     on document_input_source (default_project_id)
     where deleted_at is null and default_project_id is not null;
+create index if not exists idx_document_input_source_secret_ref
+    on document_input_source (secret_ref)
+    where deleted_at is null and secret_ref is not null;
 
 create table if not exists document_input_import (
     id uuid primary key default gen_random_uuid(),
@@ -99,7 +106,7 @@ create table if not exists document_input_import (
     deleted_at timestamptz,
     version bigint not null default 0,
     constraint ck_document_input_import_type check (source_type in (
-        'TEXT','MARKDOWN','WORD','PDF','CONFLUENCE','FEISHU','DINGTALK','YUQUE','CUSTOM_API'
+        'TEXT','MARKDOWN','WORD','PDF','OCR','CONFLUENCE','FEISHU','DINGTALK','YUQUE','CUSTOM_API'
     )),
     constraint ck_document_input_import_status check (status in ('SUCCEEDED','FAILED')),
     constraint ck_document_input_import_total check (total_parsed >= 0 and total_created >= 0)
@@ -132,6 +139,10 @@ create table if not exists document_input_candidate (
     source_fragment text,
     external_requirement_id varchar(256),
     confidence numeric(5, 4) not null default 0,
+    parse_source varchar(32) not null default 'RULE',
+    model_invocation_id uuid,
+    model_provider_name varchar(128),
+    model_name varchar(128),
     asset_requirement_id uuid,
     error_message text,
     ignored_reason text,
@@ -146,6 +157,9 @@ create table if not exists document_input_candidate (
     version bigint not null default 0,
     constraint ck_document_input_candidate_status check (status in (
         'PENDING','CONFIRMED','IGNORED','PUBLISHED','PUBLISH_FAILED'
+    )),
+    constraint ck_document_input_candidate_parse_source check (parse_source in (
+        'RULE','MODEL','WEBHOOK_MAPPING'
     ))
 );
 
@@ -158,6 +172,9 @@ create index if not exists idx_document_input_candidate_project_status
 create index if not exists idx_document_input_candidate_external
     on document_input_candidate (project_id, external_requirement_id)
     where deleted_at is null and external_requirement_id is not null;
+create index if not exists idx_document_input_candidate_model_invocation
+    on document_input_candidate (model_invocation_id)
+    where deleted_at is null and model_invocation_id is not null;
 
 create table if not exists document_input_webhook_event (
     id uuid primary key default gen_random_uuid(),
@@ -174,6 +191,9 @@ create table if not exists document_input_webhook_event (
     raw_payload text,
     error_message text,
     retry_count int not null default 0,
+    replay_by varchar(128),
+    replay_at timestamptz,
+    replay_trace_id varchar(64),
     received_at timestamptz not null default now(),
     processed_at timestamptz,
     created_by uuid,

@@ -31,6 +31,7 @@ class DocumentInputOpenApiContractTest {
                 .andExpect(jsonPath("$.paths['/api/v1/document-input/field-mapping'].get").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/document-input/field-mapping'].put").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/document-input/imports'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/document-input/imports/multipart'].post").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/document-input/imports'].get").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/document-input/imports/{id}'].get").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/document-input/imports/{id}/candidates'].get").exists())
