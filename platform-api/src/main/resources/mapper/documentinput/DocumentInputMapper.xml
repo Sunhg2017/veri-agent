@@ -1,0 +1,406 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.songhg.veri.agent.documentinput.infrastructure.mapper.DocumentInputMapper">
+
+    <resultMap id="sourceMap" type="com.songhg.veri.agent.documentinput.domain.DocumentSourceConfig">
+        <constructor>
+            <arg column="id" javaType="java.util.UUID"/>
+            <arg column="source_code" javaType="java.lang.String"/>
+            <arg column="name" javaType="java.lang.String"/>
+            <arg column="source_type" javaType="com.songhg.veri.agent.documentinput.domain.DocumentSourceType"/>
+            <arg column="status" javaType="com.songhg.veri.agent.documentinput.domain.DocumentSourceStatus"/>
+            <arg column="endpoint_url" javaType="java.lang.String"/>
+            <arg column="default_project_id" javaType="java.lang.String"/>
+            <arg column="mapping_id" javaType="java.util.UUID"/>
+            <arg column="description" javaType="java.lang.String"/>
+            <arg column="created_at" javaType="java.time.Instant"/>
+            <arg column="updated_at" javaType="java.time.Instant"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="fieldMappingMap" type="com.songhg.veri.agent.documentinput.domain.DocumentFieldMapping">
+        <constructor>
+            <arg column="id" javaType="java.util.UUID"/>
+            <arg column="mapping_code" javaType="java.lang.String"/>
+            <arg column="name" javaType="java.lang.String"/>
+            <arg column="item_path" javaType="java.lang.String"/>
+            <arg column="title_path" javaType="java.lang.String"/>
+            <arg column="description_path" javaType="java.lang.String"/>
+            <arg column="priority_path" javaType="java.lang.String"/>
+            <arg column="acceptance_criteria_path" javaType="java.lang.String"/>
+            <arg column="tags_path" javaType="java.lang.String"/>
+            <arg column="created_at" javaType="java.time.Instant"/>
+            <arg column="updated_at" javaType="java.time.Instant"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="importMap" type="com.songhg.veri.agent.documentinput.domain.DocumentImportRecord">
+        <constructor>
+            <arg column="id" javaType="java.util.UUID"/>
+            <arg column="project_id" javaType="java.lang.String"/>
+            <arg column="source_id" javaType="java.util.UUID"/>
+            <arg column="source_code" javaType="java.lang.String"/>
+            <arg column="source_type" javaType="com.songhg.veri.agent.documentinput.domain.DocumentSourceType"/>
+            <arg column="source_ref" javaType="java.lang.String"/>
+            <arg column="source_url" javaType="java.lang.String"/>
+            <arg column="title" javaType="java.lang.String"/>
+            <arg column="status" javaType="com.songhg.veri.agent.documentinput.domain.DocumentImportStatus"/>
+            <arg column="total_parsed" javaType="_int"/>
+            <arg column="total_created" javaType="_int"/>
+            <arg column="created_requirement_ids" javaType="java.lang.String"/>
+            <arg column="error_message" javaType="java.lang.String"/>
+            <arg column="raw_digest" javaType="java.lang.String"/>
+            <arg column="created_at" javaType="java.time.Instant"/>
+            <arg column="updated_at" javaType="java.time.Instant"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="candidateMap" type="com.songhg.veri.agent.documentinput.domain.DocumentRequirementCandidate">
+        <constructor>
+            <arg column="id" javaType="java.util.UUID"/>
+            <arg column="import_id" javaType="java.util.UUID"/>
+            <arg column="project_id" javaType="java.lang.String"/>
+            <arg column="title" javaType="java.lang.String"/>
+            <arg column="description" javaType="java.lang.String"/>
+            <arg column="priority" javaType="java.lang.String"/>
+            <arg column="acceptance_criteria" javaType="java.lang.String"/>
+            <arg column="tags" javaType="java.lang.String"/>
+            <arg column="status" javaType="com.songhg.veri.agent.documentinput.domain.DocumentCandidateStatus"/>
+            <arg column="source_ref" javaType="java.lang.String"/>
+            <arg column="source_fragment" javaType="java.lang.String"/>
+            <arg column="external_requirement_id" javaType="java.lang.String"/>
+            <arg column="confidence" javaType="_double"/>
+            <arg column="asset_requirement_id" javaType="java.util.UUID"/>
+            <arg column="error_message" javaType="java.lang.String"/>
+            <arg column="ignored_reason" javaType="java.lang.String"/>
+            <arg column="confirmed_by" javaType="java.lang.String"/>
+            <arg column="confirmed_at" javaType="java.time.Instant"/>
+            <arg column="version" javaType="_long"/>
+            <arg column="created_at" javaType="java.time.Instant"/>
+            <arg column="updated_at" javaType="java.time.Instant"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="webhookEventMap" type="com.songhg.veri.agent.documentinput.domain.DocumentWebhookEvent">
+        <constructor>
+            <arg column="id" javaType="java.util.UUID"/>
+            <arg column="source_id" javaType="java.util.UUID"/>
+            <arg column="import_id" javaType="java.util.UUID"/>
+            <arg column="source_code" javaType="java.lang.String"/>
+            <arg column="event_id" javaType="java.lang.String"/>
+            <arg column="idempotency_key" javaType="java.lang.String"/>
+            <arg column="event_type" javaType="java.lang.String"/>
+            <arg column="event_version" javaType="java.lang.String"/>
+            <arg column="signature_status" javaType="com.songhg.veri.agent.documentinput.domain.WebhookSignatureStatus"/>
+            <arg column="status" javaType="com.songhg.veri.agent.documentinput.domain.WebhookEventStatus"/>
+            <arg column="payload_digest" javaType="java.lang.String"/>
+            <arg column="raw_payload" javaType="java.lang.String"/>
+            <arg column="error_message" javaType="java.lang.String"/>
+            <arg column="retry_count" javaType="_int"/>
+            <arg column="received_at" javaType="java.time.Instant"/>
+            <arg column="processed_at" javaType="java.time.Instant"/>
+        </constructor>
+    </resultMap>
+
+    <sql id="sourceColumns">
+        id, source_code, name, source_type, status, endpoint_url, default_project_id,
+        mapping_id, description, created_at, updated_at
+    </sql>
+
+    <sql id="fieldMappingColumns">
+        id, mapping_code, name, item_path, title_path, description_path, priority_path,
+        acceptance_criteria_path, tags_path, created_at, updated_at
+    </sql>
+
+    <sql id="importColumns">
+        id, project_id, source_id, source_code, source_type, source_ref, source_url, title,
+        status, total_parsed, total_created, created_requirement_ids::text as created_requirement_ids,
+        error_message, raw_digest, created_at, updated_at
+    </sql>
+
+    <sql id="candidateColumns">
+        id, import_id, project_id, title, description, priority, acceptance_criteria, tags,
+        status, source_ref, source_fragment, external_requirement_id, confidence,
+        asset_requirement_id, error_message, ignored_reason, confirmed_by, confirmed_at,
+        version, created_at, updated_at
+    </sql>
+
+    <sql id="webhookEventColumns">
+        id, source_id, import_id, source_code, event_id, idempotency_key, event_type, event_version,
+        signature_status, status, payload_digest, raw_payload, error_message, retry_count,
+        received_at, processed_at
+    </sql>
+
+    <sql id="sourceWhere">
+        <where>
+            deleted_at is null
+            <if test="query.sourceType != null">and source_type = #{query.sourceType}</if>
+            <if test="query.status != null">and status = #{query.status}</if>
+        </where>
+    </sql>
+
+    <sql id="importWhere">
+        <where>
+            deleted_at is null
+            <if test="query.projectId != null">and project_id = #{query.projectId}</if>
+            <if test="query.sourceId != null">and source_id = #{query.sourceId}</if>
+            <if test="query.sourceType != null">and source_type = #{query.sourceType}</if>
+            <if test="query.status != null">and status = #{query.status}</if>
+        </where>
+    </sql>
+
+    <sql id="webhookEventWhere">
+        <where>
+            deleted_at is null
+            <if test="query.sourceCode != null">and source_code = #{query.sourceCode}</if>
+            <if test="query.status != null">and status = #{query.status}</if>
+        </where>
+    </sql>
+
+    <select id="sources" resultMap="sourceMap">
+        select <include refid="sourceColumns"/>
+        from document_input_source
+        <include refid="sourceWhere"/>
+        order by created_at desc
+        limit #{query.size} offset #{query.offset}
+    </select>
+
+    <select id="countSources" resultType="long">
+        select count(*)
+        from document_input_source
+        <include refid="sourceWhere"/>
+    </select>
+
+    <select id="source" resultMap="sourceMap">
+        select <include refid="sourceColumns"/>
+        from document_input_source
+        where id = #{id}
+          and deleted_at is null
+    </select>
+
+    <select id="sourceByCode" resultMap="sourceMap">
+        select <include refid="sourceColumns"/>
+        from document_input_source
+        where lower(source_code) = lower(#{sourceCode})
+          and deleted_at is null
+        limit 1
+    </select>
+
+    <insert id="upsertSource">
+        insert into document_input_source (
+            id, source_code, name, source_type, status, endpoint_url, default_project_id,
+            mapping_id, description, created_at, updated_at
+        ) values (
+            #{id}, #{sourceCode}, #{name}, #{sourceType}, #{status}, #{endpointUrl}, #{defaultProjectId},
+            #{mappingId}, #{description}, #{createdAt}, #{updatedAt}
+        )
+        on conflict (id) do update set
+            source_code = excluded.source_code,
+            name = excluded.name,
+            source_type = excluded.source_type,
+            status = excluded.status,
+            endpoint_url = excluded.endpoint_url,
+            default_project_id = excluded.default_project_id,
+            mapping_id = excluded.mapping_id,
+            description = excluded.description,
+            updated_at = excluded.updated_at
+    </insert>
+
+    <select id="defaultFieldMapping" resultMap="fieldMappingMap">
+        select <include refid="fieldMappingColumns"/>
+        from document_input_field_mapping
+        where mapping_code = 'default'
+          and deleted_at is null
+        limit 1
+    </select>
+
+    <select id="fieldMapping" resultMap="fieldMappingMap">
+        select <include refid="fieldMappingColumns"/>
+        from document_input_field_mapping
+        where id = #{id}
+          and deleted_at is null
+    </select>
+
+    <insert id="upsertFieldMapping">
+        insert into document_input_field_mapping (
+            id, mapping_code, name, item_path, title_path, description_path, priority_path,
+            acceptance_criteria_path, tags_path, created_at, updated_at
+        ) values (
+            #{id}, #{mappingCode}, #{name}, #{itemPath}, #{titlePath}, #{descriptionPath}, #{priorityPath},
+            #{acceptanceCriteriaPath}, #{tagsPath}, #{createdAt}, #{updatedAt}
+        )
+        on conflict (id) do update set
+            name = excluded.name,
+            item_path = excluded.item_path,
+            title_path = excluded.title_path,
+            description_path = excluded.description_path,
+            priority_path = excluded.priority_path,
+            acceptance_criteria_path = excluded.acceptance_criteria_path,
+            tags_path = excluded.tags_path,
+            updated_at = excluded.updated_at
+    </insert>
+
+    <select id="imports" resultMap="importMap">
+        select <include refid="importColumns"/>
+        from document_input_import
+        <include refid="importWhere"/>
+        order by created_at desc
+        limit #{query.size} offset #{query.offset}
+    </select>
+
+    <select id="countImports" resultType="long">
+        select count(*)
+        from document_input_import
+        <include refid="importWhere"/>
+    </select>
+
+    <select id="importRecord" resultMap="importMap">
+        select <include refid="importColumns"/>
+        from document_input_import
+        where id = #{id}
+          and deleted_at is null
+    </select>
+
+    <insert id="upsertImport">
+        insert into document_input_import (
+            id, project_id, source_id, source_code, source_type, source_ref, source_url, title,
+            status, total_parsed, total_created, created_requirement_ids, error_message,
+            raw_digest, created_at, updated_at
+        ) values (
+            #{id}, #{projectId}, #{sourceId}, #{sourceCode}, #{sourceType}, #{sourceRef}, #{sourceUrl}, #{title},
+            #{status}, #{totalParsed}, #{totalCreated}, cast(coalesce(#{createdRequirementIds}, '[]') as jsonb),
+            #{errorMessage}, #{rawDigest}, #{createdAt}, #{updatedAt}
+        )
+        on conflict (id) do update set
+            status = excluded.status,
+            total_parsed = excluded.total_parsed,
+            total_created = excluded.total_created,
+            created_requirement_ids = excluded.created_requirement_ids,
+            error_message = excluded.error_message,
+            updated_at = excluded.updated_at
+    </insert>
+
+    <select id="candidates" resultMap="candidateMap">
+        select <include refid="candidateColumns"/>
+        from document_input_candidate
+        where import_id = #{importId}
+          and deleted_at is null
+        order by created_at asc
+        limit #{size} offset #{offset}
+    </select>
+
+    <select id="countCandidates" resultType="long">
+        select count(*)
+        from document_input_candidate
+        where import_id = #{importId}
+          and deleted_at is null
+    </select>
+
+    <select id="candidate" resultMap="candidateMap">
+        select <include refid="candidateColumns"/>
+        from document_input_candidate
+        where id = #{id}
+          and deleted_at is null
+    </select>
+
+    <select id="candidateByExternalId" resultMap="candidateMap">
+        select <include refid="candidateColumns"/>
+        from document_input_candidate
+        where project_id = #{projectId}
+          and external_requirement_id = #{externalRequirementId}
+          and deleted_at is null
+        order by created_at asc
+        limit 1
+    </select>
+
+    <insert id="upsertCandidate">
+        insert into document_input_candidate (
+            id, import_id, project_id, title, description, priority, acceptance_criteria, tags,
+            status, source_ref, source_fragment, external_requirement_id, confidence,
+            asset_requirement_id, error_message, ignored_reason, confirmed_by, confirmed_at,
+            version, created_at, updated_at
+        ) values (
+            #{id}, #{importId}, #{projectId}, #{title}, #{description}, #{priority}, #{acceptanceCriteria}, #{tags},
+            #{status}, #{sourceRef}, #{sourceFragment}, #{externalRequirementId}, #{confidence},
+            #{assetRequirementId}, #{errorMessage}, #{ignoredReason}, #{confirmedBy}, #{confirmedAt},
+            #{version}, #{createdAt}, #{updatedAt}
+        )
+        on conflict (id) do update set
+            title = excluded.title,
+            description = excluded.description,
+            priority = excluded.priority,
+            acceptance_criteria = excluded.acceptance_criteria,
+            tags = excluded.tags,
+            status = excluded.status,
+            source_ref = excluded.source_ref,
+            source_fragment = excluded.source_fragment,
+            external_requirement_id = excluded.external_requirement_id,
+            confidence = excluded.confidence,
+            asset_requirement_id = excluded.asset_requirement_id,
+            error_message = excluded.error_message,
+            ignored_reason = excluded.ignored_reason,
+            confirmed_by = excluded.confirmed_by,
+            confirmed_at = excluded.confirmed_at,
+            version = excluded.version,
+            updated_at = excluded.updated_at
+    </insert>
+
+    <select id="webhookEvents" resultMap="webhookEventMap">
+        select <include refid="webhookEventColumns"/>
+        from document_input_webhook_event
+        <include refid="webhookEventWhere"/>
+        order by received_at desc
+        limit #{query.size} offset #{query.offset}
+    </select>
+
+    <select id="countWebhookEvents" resultType="long">
+        select count(*)
+        from document_input_webhook_event
+        <include refid="webhookEventWhere"/>
+    </select>
+
+    <select id="webhookEvent" resultMap="webhookEventMap">
+        select <include refid="webhookEventColumns"/>
+        from document_input_webhook_event
+        where id = #{id}
+          and deleted_at is null
+    </select>
+
+    <select id="webhookEventByIdentity" resultMap="webhookEventMap">
+        select <include refid="webhookEventColumns"/>
+        from document_input_webhook_event
+        where lower(source_code) = lower(#{sourceCode})
+          and deleted_at is null
+          and (
+            (#{eventId} is not null and event_id = #{eventId})
+            or (#{idempotencyKey} is not null and idempotency_key = #{idempotencyKey})
+          )
+        order by received_at asc
+        limit 1
+    </select>
+
+    <insert id="upsertWebhookEvent">
+        insert into document_input_webhook_event (
+            id, source_id, import_id, source_code, event_id, idempotency_key, event_type, event_version,
+            signature_status, status, payload_digest, raw_payload, error_message, retry_count,
+            received_at, processed_at
+        ) values (
+            #{id}, #{sourceId}, #{importId}, #{sourceCode}, #{eventId}, #{idempotencyKey}, #{eventType}, #{eventVersion},
+            #{signatureStatus}, #{status}, #{payloadDigest}, #{rawPayload}, #{errorMessage}, #{retryCount},
+            #{receivedAt}, #{processedAt}
+        )
+        on conflict (id) do update set
+            import_id = excluded.import_id,
+            event_type = excluded.event_type,
+            event_version = excluded.event_version,
+            signature_status = excluded.signature_status,
+            status = excluded.status,
+            payload_digest = excluded.payload_digest,
+            raw_payload = excluded.raw_payload,
+            error_message = excluded.error_message,
+            retry_count = excluded.retry_count,
+            processed_at = excluded.processed_at
+    </insert>
+</mapper>

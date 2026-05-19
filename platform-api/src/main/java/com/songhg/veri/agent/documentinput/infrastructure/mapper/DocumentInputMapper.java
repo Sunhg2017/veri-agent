@@ -1,0 +1,73 @@
+package com.songhg.veri.agent.documentinput.infrastructure.mapper;
+
+import com.songhg.veri.agent.documentinput.application.DocumentImportQuery;
+import com.songhg.veri.agent.documentinput.application.DocumentSourceQuery;
+import com.songhg.veri.agent.documentinput.application.DocumentWebhookEventQuery;
+import com.songhg.veri.agent.documentinput.domain.DocumentFieldMapping;
+import com.songhg.veri.agent.documentinput.domain.DocumentImportRecord;
+import com.songhg.veri.agent.documentinput.domain.DocumentRequirementCandidate;
+import com.songhg.veri.agent.documentinput.domain.DocumentSourceConfig;
+import com.songhg.veri.agent.documentinput.domain.DocumentWebhookEvent;
+import java.util.List;
+import java.util.UUID;
+import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
+
+@Mapper
+public interface DocumentInputMapper {
+
+    List<DocumentSourceConfig> sources(@Param("query") DocumentSourceQuery query);
+
+    long countSources(@Param("query") DocumentSourceQuery query);
+
+    DocumentSourceConfig source(@Param("id") UUID id);
+
+    DocumentSourceConfig sourceByCode(@Param("sourceCode") String sourceCode);
+
+    void upsertSource(DocumentSourceConfig source);
+
+    DocumentFieldMapping defaultFieldMapping();
+
+    DocumentFieldMapping fieldMapping(@Param("id") UUID id);
+
+    void upsertFieldMapping(DocumentFieldMapping mapping);
+
+    List<DocumentImportRecord> imports(@Param("query") DocumentImportQuery query);
+
+    long countImports(@Param("query") DocumentImportQuery query);
+
+    DocumentImportRecord importRecord(@Param("id") UUID id);
+
+    void upsertImport(DocumentImportRecord record);
+
+    List<DocumentRequirementCandidate> candidates(
+            @Param("importId") UUID importId,
+            @Param("offset") int offset,
+            @Param("size") int size
+    );
+
+    long countCandidates(@Param("importId") UUID importId);
+
+    DocumentRequirementCandidate candidate(@Param("id") UUID id);
+
+    DocumentRequirementCandidate candidateByExternalId(
+            @Param("projectId") String projectId,
+            @Param("externalRequirementId") String externalRequirementId
+    );
+
+    void upsertCandidate(DocumentRequirementCandidate candidate);
+
+    List<DocumentWebhookEvent> webhookEvents(@Param("query") DocumentWebhookEventQuery query);
+
+    long countWebhookEvents(@Param("query") DocumentWebhookEventQuery query);
+
+    DocumentWebhookEvent webhookEvent(@Param("id") UUID id);
+
+    DocumentWebhookEvent webhookEventByIdentity(
+            @Param("sourceCode") String sourceCode,
+            @Param("eventId") String eventId,
+            @Param("idempotencyKey") String idempotencyKey
+    );
+
+    void upsertWebhookEvent(DocumentWebhookEvent event);
+}

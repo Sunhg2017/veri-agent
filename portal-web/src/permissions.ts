@@ -3,6 +3,7 @@ import type { CreatableManagementResource } from './api/management';
 
 export type PageKey =
   | 'overview'
+  | 'document-input'
   | 'organizations'
   | 'users'
   | 'projects'

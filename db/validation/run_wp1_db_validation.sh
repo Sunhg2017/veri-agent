@@ -19,6 +19,8 @@ VALIDATIONS=(
   "$ROOT_DIR/db/validation/wp1_schema_validation.sql"
   "$ROOT_DIR/db/validation/wp1_seed_validation.sql"
   "$ROOT_DIR/db/validation/wp1_security_validation.sql"
+  "$ROOT_DIR/db/validation/wp_all_schema_validation.sql"
+  "$ROOT_DIR/db/validation/wp4_document_input_validation.sql"
 )
 
 run_psql_file() {
@@ -113,6 +115,11 @@ grant select, insert, update on
     secret_provider,
     secret_reference,
     secret_local_store,
+    document_input_field_mapping,
+    document_input_source,
+    document_input_import,
+    document_input_candidate,
+    document_input_webhook_event,
     audit_outbox
 to wp1_app;
 

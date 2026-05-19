@@ -3,6 +3,7 @@ package com.songhg.veri.agent.common.security;
 import com.songhg.veri.agent.asset.config.AssetProperties;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
+import com.songhg.veri.agent.documentinput.config.DocumentInputProperties;
 import com.songhg.veri.agent.modelaccess.config.ModelAccessProperties;
 import com.songhg.veri.agent.modelaccess.security.ServicePrincipal;
 import jakarta.servlet.FilterChain;
@@ -28,18 +29,26 @@ public class ServiceTokenAuthenticationFilter extends OncePerRequestFilter {
 
     private final ModelAccessProperties modelAccessProperties;
     private final AssetProperties assetProperties;
+    private final DocumentInputProperties documentInputProperties;
 
     public ServiceTokenAuthenticationFilter(
             ModelAccessProperties modelAccessProperties,
-            AssetProperties assetProperties
+            AssetProperties assetProperties,
+            DocumentInputProperties documentInputProperties
     ) {
         this.modelAccessProperties = modelAccessProperties;
         this.assetProperties = assetProperties;
+        this.documentInputProperties = documentInputProperties;
     }
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String path = request.getRequestURI();
+        if (path.startsWith("/api/v1/document-input/")) {
+            return path.equals("/api/v1/document-input/health")
+                    || path.startsWith("/api/v1/document-input/webhooks/")
+                    || !TokenSecurity.constantTimeEquals(documentInputProperties.serviceToken(), bearerToken(request));
+        }
         return !path.startsWith("/api/v1/model-access/")
                 && !path.startsWith("/api/v1/asset/");
     }
@@ -51,7 +60,7 @@ public class ServiceTokenAuthenticationFilter extends OncePerRequestFilter {
             FilterChain filterChain
     ) throws ServletException, IOException {
         String path = request.getRequestURI();
-        if (path.endsWith("/health")) {
+        if (path.endsWith("/health") && !path.startsWith("/api/v1/document-input/sources/")) {
             filterChain.doFilter(request, response);
             return;
         }
@@ -65,12 +74,18 @@ public class ServiceTokenAuthenticationFilter extends OncePerRequestFilter {
         if (path.startsWith("/api/v1/model-access/")) {
             return modelAccessProperties.serviceToken();
         }
+        if (path.startsWith("/api/v1/document-input/")) {
+            return documentInputProperties.serviceToken();
+        }
         return assetProperties.serviceToken();
     }
 
     private String serviceName(String path) {
         if (path.startsWith("/api/v1/model-access/")) {
             return "model-access";
+        }
+        if (path.startsWith("/api/v1/document-input/")) {
+            return "document-input";
         }
         return "asset-service";
     }

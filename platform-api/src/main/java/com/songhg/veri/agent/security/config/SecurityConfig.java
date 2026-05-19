@@ -5,6 +5,7 @@ import com.songhg.veri.agent.auth.config.BearerTokenAuthenticationFilter;
 import com.songhg.veri.agent.asset.config.AssetProperties;
 import com.songhg.veri.agent.bootstrap.application.BootstrapProperties;
 import com.songhg.veri.agent.common.security.ServiceTokenAuthenticationFilter;
+import com.songhg.veri.agent.documentinput.config.DocumentInputProperties;
 import com.songhg.veri.agent.integration.application.PlatformIntegrationProperties;
 import com.songhg.veri.agent.modelaccess.config.ModelAccessProperties;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -26,7 +27,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 
 @Configuration
 @EnableWebSecurity
-@EnableConfigurationProperties({AuthProperties.class, BootstrapProperties.class, PlatformIntegrationProperties.class, ModelAccessProperties.class, AssetProperties.class})
+@EnableConfigurationProperties({AuthProperties.class, BootstrapProperties.class, PlatformIntegrationProperties.class, ModelAccessProperties.class, AssetProperties.class, DocumentInputProperties.class})
 public class SecurityConfig {
 
     @Bean
@@ -57,6 +58,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/v1/health").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/model-access/health").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/asset/health").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/document-input/health").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/v1/document-input/webhooks/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/examples/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/contexts/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/audit/events").permitAll()

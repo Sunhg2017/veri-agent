@@ -2,6 +2,7 @@ export interface ApiResponse<T> {
   code: string;
   message: string;
   trace_id: string;
+  traceId?: string;
   data: T;
 }
 
@@ -13,6 +14,11 @@ export interface FieldErrorItem {
 export interface ApiErrorDetail {
   field_errors?: FieldErrorItem[];
 }
+
+type ApiEnvelope<T> = Omit<ApiResponse<T>, 'trace_id'> & {
+  trace_id?: string;
+  traceId?: string;
+};
 
 export class ApiError extends Error {
   readonly code: string;
@@ -129,14 +135,15 @@ export async function requestJson<T>(path: string, init?: RequestInit): Promise<
           ...init,
           headers
         });
-        const retryBody = (await retryResponse.json()) as ApiResponse<T | ApiErrorDetail>;
+        const retryBody = (await retryResponse.json()) as ApiEnvelope<T | ApiErrorDetail>;
+        const retryTraceId = retryBody.trace_id ?? retryBody.traceId ?? retryResponse.headers.get('X-Trace-Id') ?? '';
         if (retryResponse.ok && retryBody.code === 'OK') {
-          return retryBody as ApiResponse<T>;
+          return { ...retryBody, trace_id: retryTraceId } as ApiResponse<T>;
         }
         throw new ApiError(
           retryBody.message || '请求失败',
           retryBody.code || `HTTP_${retryResponse.status}`,
-          retryBody.trace_id || retryResponse.headers.get('X-Trace-Id') || '',
+          retryTraceId,
           retryResponse.status,
           retryBody.data as ApiErrorDetail
         );
@@ -146,15 +153,16 @@ export async function requestJson<T>(path: string, init?: RequestInit): Promise<
     throw new ApiError('登录已过期，请重新登录', 'SESSION_EXPIRED', '', 401);
   }
 
-  const body = (await response.json()) as ApiResponse<T | ApiErrorDetail>;
+  const body = (await response.json()) as ApiEnvelope<T | ApiErrorDetail>;
+  const traceId = body.trace_id ?? body.traceId ?? response.headers.get('X-Trace-Id') ?? '';
   if (!response.ok || body.code !== 'OK') {
     throw new ApiError(
       body.message || '请求失败',
       body.code || `HTTP_${response.status}`,
-      body.trace_id || response.headers.get('X-Trace-Id') || '',
+      traceId,
       response.status,
       body.data as ApiErrorDetail
     );
   }
-  return body as ApiResponse<T>;
+  return { ...body, trace_id: traceId } as ApiResponse<T>;
 }

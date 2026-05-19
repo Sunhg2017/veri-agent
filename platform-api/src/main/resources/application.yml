@@ -56,3 +56,13 @@ veri-agent:
     cost-alert-warning-ratio: ${WP2_COST_ALERT_WARNING_RATIO:0.8}
   asset:
     service-token: ${WP3_SERVICE_TOKEN:local-asset-token}
+  document-input:
+    service-token: ${WP4_SERVICE_TOKEN:local-document-input-token}
+    webhook-secret: ${WP4_WEBHOOK_SECRET:local-document-input-webhook-secret}
+    webhook-clock-skew-seconds: ${WP4_WEBHOOK_CLOCK_SKEW_SECONDS:300}
+    input-enabled: ${WP4_INPUT_ENABLED:true}
+    webhook-enabled: ${WP4_WEBHOOK_ENABLED:true}
+    model-parse-enabled: ${WP4_MODEL_PARSE_ENABLED:false}
+    webhook-max-payload-bytes: ${WP4_WEBHOOK_MAX_PAYLOAD_BYTES:262144}
+    batch-action-limit: ${WP4_BATCH_ACTION_LIMIT:100}
+    webhook-max-replay-attempts: ${WP4_WEBHOOK_MAX_REPLAY_ATTEMPTS:3}

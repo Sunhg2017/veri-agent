@@ -1,0 +1,225 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+BASE_URL="${WP4_SMOKE_BASE_URL:-http://127.0.0.1:8080}"
+API_BASE="${BASE_URL%/}/api/v1/document-input"
+ASSET_API_BASE="${BASE_URL%/}/api/v1/asset"
+SERVICE_TOKEN="${WP4_SERVICE_TOKEN:-local-document-input-token}"
+ASSET_SERVICE_TOKEN="${WP3_SERVICE_TOKEN:-local-asset-token}"
+CALLER_SERVICE="${WP4_SMOKE_CALLER_SERVICE:-wp4-smoke}"
+DELEGATED_USER_ID="${WP4_SMOKE_DELEGATED_USER_ID:-user-wp4-smoke}"
+PROJECT_ID="${WP4_SMOKE_PROJECT_ID:-project-wp4-smoke-$(date +%s)-$RANDOM}"
+WEBHOOK_SECRET="${WP4_WEBHOOK_SECRET:-local-document-input-webhook-secret}"
+SOURCE_CODE="${WP4_SMOKE_SOURCE_CODE:-wp4-smoke-$(date +%s)-$RANDOM}"
+PASS=0
+FAIL=0
+
+require_tool() {
+  local tool="$1"
+  if ! command -v "$tool" >/dev/null 2>&1; then
+    echo "$tool is required for WP4 document-input smoke test" >&2
+    exit 127
+  fi
+}
+
+check() {
+  local name="$1"
+  local jq_expr="$2"
+  local payload="$3"
+  if printf '%s' "$payload" | jq -e "$jq_expr" >/dev/null; then
+    echo "   PASS $name"
+    PASS=$((PASS + 1))
+  else
+    echo "   FAIL $name"
+    echo "$payload"
+    FAIL=$((FAIL + 1))
+  fi
+}
+
+check_arg() {
+  local name="$1"
+  local arg_name="$2"
+  local arg_value="$3"
+  local jq_expr="$4"
+  local payload="$5"
+  if printf '%s' "$payload" | jq -e --arg "$arg_name" "$arg_value" "$jq_expr" >/dev/null; then
+    echo "   PASS $name"
+    PASS=$((PASS + 1))
+  else
+    echo "   FAIL $name"
+    echo "$payload"
+    FAIL=$((FAIL + 1))
+  fi
+}
+
+urlencode() {
+  jq -nr --arg value "$1" '$value | @uri'
+}
+
+document_headers=(
+  -H "Authorization: Bearer $SERVICE_TOKEN"
+  -H "X-Caller-Service: $CALLER_SERVICE"
+  -H "X-Delegated-User-Id: $DELEGATED_USER_ID"
+)
+
+asset_headers=(
+  -H "Authorization: Bearer $ASSET_SERVICE_TOKEN"
+  -H "X-Caller-Service: $CALLER_SERVICE"
+  -H "X-Delegated-User-Id: $DELEGATED_USER_ID"
+)
+
+post_document_json() {
+  local path="$1"
+  local body="$2"
+  curl -fsS -X POST "$API_BASE$path" \
+    "${document_headers[@]}" \
+    -H 'Content-Type: application/json' \
+    -d "$body"
+}
+
+get_document_json() {
+  local path="$1"
+  curl -fsS "$API_BASE$path" "${document_headers[@]}"
+}
+
+get_asset_json() {
+  local path="$1"
+  curl -fsS "$ASSET_API_BASE$path" "${asset_headers[@]}"
+}
+
+webhook_signature() {
+  local timestamp="$1"
+  local event_id="$2"
+  local idempotency_key="$3"
+  local payload="$4"
+  printf '%s' "$timestamp.$event_id.$idempotency_key.$payload" | openssl dgst -sha256 -hmac "$WEBHOOK_SECRET" -hex | awk '{print $NF}'
+}
+
+post_signed_webhook() {
+  local source_code="$1"
+  local payload="$2"
+  local event_id="$3"
+  local idempotency_key="$4"
+  local timestamp signature
+  timestamp="$(date +%s)"
+  signature="$(webhook_signature "$timestamp" "$event_id" "$idempotency_key" "$payload")"
+  curl -fsS -X POST "$API_BASE/webhooks/$(urlencode "$source_code")" \
+    -H 'Content-Type: application/json' \
+    -H "X-VA-Timestamp: $timestamp" \
+    -H "X-VA-Signature: $signature" \
+    -H "X-VA-Event-Id: $event_id" \
+    -H "X-VA-Idempotency-Key: $idempotency_key" \
+    -H "X-VA-Event-Version: 1.0" \
+    -d "$payload"
+}
+
+expect_http_error() {
+  local name="$1"
+  local expected_status="$2"
+  local expected_code="$3"
+  shift 3
+  local body_file status body
+  body_file="$(mktemp -t wp4-smoke-error.XXXXXX.json)"
+  status="$(curl -sS -o "$body_file" -w '%{http_code}' "$@")"
+  body="$(cat "$body_file")"
+  rm -f "$body_file"
+  if [[ "$status" == "$expected_status" ]] && printf '%s' "$body" | jq -e --arg code "$expected_code" '.code == $code' >/dev/null; then
+    echo "   PASS $name"
+    PASS=$((PASS + 1))
+  else
+    echo "   FAIL $name"
+    echo "status=$status expected=$expected_status"
+    echo "$body"
+    FAIL=$((FAIL + 1))
+  fi
+}
+
+main() {
+  require_tool curl
+  require_tool jq
+  require_tool openssl
+  require_tool awk
+
+  echo "== WP4 document-input smoke =="
+  echo "baseUrl=$BASE_URL project=$PROJECT_ID sourceCode=$SOURCE_CODE"
+
+  local health
+  health="$(curl -fsS "$API_BASE/health")"
+  check "WP4 health" '.data.service == "document-input" and .data.status == "UP" and .data.inputEnabled == true' "$health"
+
+  local markdown_import import_id candidates candidate_ids batch dry_run publish requirement_id records asset
+  markdown_import="$(post_document_json /imports "$(jq -nc \
+    --arg projectId "$PROJECT_ID" \
+    '{projectId:$projectId,sourceType:"MARKDOWN",sourceRef:"wp4-smoke-md",title:"WP4 smoke Markdown import",content:"## 登录需求\nPriority: HIGH\nTags: auth, smoke\nAcceptance Criteria:\n- 登录成功\n\n## 退出需求\nPriority: LOW\nTags: auth, smoke"}')")"
+  check "Markdown import creates candidates" '.data.status == "SUCCEEDED" and .data.totalParsed == 2 and .data.pendingCount == 2' "$markdown_import"
+  import_id="$(printf '%s' "$markdown_import" | jq -r '.data.id')"
+
+  candidates="$(get_document_json "/imports/$import_id/candidates")"
+  check "Candidate page" '.data.total == 2 and (.data.items | all(.status == "PENDING"))' "$candidates"
+  candidate_ids="$(printf '%s' "$candidates" | jq -c '[.data.items[].id]')"
+
+  batch="$(post_document_json /candidates/batch-action "$(jq -nc --argjson ids "$candidate_ids" '{action:"CONFIRM",candidateIds:$ids}')")"
+  check "Batch confirm" '.data.action == "CONFIRM" and .data.total == 2 and .data.succeededCount == 2 and .data.failedCount == 0' "$batch"
+
+  dry_run="$(post_document_json "/imports/$import_id/publish" "$(jq -nc --argjson ids "$candidate_ids" '{dryRun:true,candidateIds:$ids}')")"
+  check "Publish dryRun has no WP3 write" '.data.dryRun == true and .data.totalCreated == 0 and .data.plannedCreateCount == 2 and (.data.records | length) == 2 and (.data.records | all(.result == "PLANNED"))' "$dry_run"
+
+  publish="$(post_document_json "/imports/$import_id/publish" '{}')"
+  check "Publish confirmed candidates" '.data.dryRun == false and .data.totalCreated == 2 and .data.publishedCount == 2 and (.data.createdRequirementIds | length) == 2 and (.data.records | all(.candidateStatus == "PUBLISHED"))' "$publish"
+  requirement_id="$(printf '%s' "$publish" | jq -r '.data.createdRequirementIds[0]')"
+
+  records="$(get_document_json "/imports/$import_id/publish-records")"
+  check "Publish records" '.data.total == 2 and (.data.items | all(.candidateStatus == "PUBLISHED"))' "$records"
+
+  asset="$(get_asset_json "/requirements/$requirement_id")"
+  check_arg "WP3 requirement created from WP4" id "$requirement_id" '.data.id == $id and .data.status == "DRAFT" and (.data.tags | contains("document-input"))' "$asset"
+
+  local source source_id source_health
+  source="$(post_document_json /sources "$(jq -nc \
+    --arg sourceCode "$SOURCE_CODE" \
+    --arg projectId "$PROJECT_ID" \
+    '{sourceCode:$sourceCode,name:"WP4 smoke webhook source",sourceType:"CUSTOM_API",defaultProjectId:$projectId,endpointUrl:"https://example.test/wp4-smoke"}')")"
+  check_arg "Create CUSTOM_API source" sourceCode "$SOURCE_CODE" '.data.sourceCode == $sourceCode and .data.sourceType == "CUSTOM_API"' "$source"
+  source_id="$(printf '%s' "$source" | jq -r '.data.id')"
+
+  source_health="$(get_document_json "/sources/$source_id/health")"
+  check_arg "Source health" sourceCode "$SOURCE_CODE" '.data.sourceCode == $sourceCode and .data.ready == true and .data.signatureAlgorithm != null' "$source_health"
+
+  local webhook_payload event_id idem webhook duplicate events invalid_payload
+  event_id="evt-wp4-smoke-$RANDOM"
+  idem="idem-wp4-smoke-$RANDOM"
+  webhook_payload="$(jq -nc \
+    --arg projectId "$PROJECT_ID" \
+    '{projectId:$projectId,eventType:"requirement.created",eventVersion:"1.0",id:"REQ-WP4-SMOKE",title:"WP4 smoke webhook import",requirements:[{title:"Webhook 需求",description:"来自自研需求平台",priority:"LOW",tags:["webhook","smoke"]}]}')"
+  webhook="$(post_signed_webhook "$SOURCE_CODE" "$webhook_payload" "$event_id" "$idem")"
+  check_arg "Signed webhook creates import" sourceCode "$SOURCE_CODE" '.data.sourceCode == $sourceCode and .data.totalParsed == 1 and .data.pendingCount == 1' "$webhook"
+  duplicate="$(post_signed_webhook "$SOURCE_CODE" "$webhook_payload" "$event_id" "$idem")"
+  check_arg "Webhook idempotent replay" importId "$(printf '%s' "$webhook" | jq -r '.data.id')" '.data.id == $importId' "$duplicate"
+
+  events="$(get_document_json "/webhook-events?sourceCode=$(urlencode "$SOURCE_CODE")&status=PROCESSED")"
+  check_arg "Webhook event log" eventId "$event_id" '.data.total >= 1 and (.data.items | any(.eventId == $eventId and .signatureStatus == "VALID"))' "$events"
+
+  invalid_payload="$(jq -nc --arg projectId "$PROJECT_ID" '{projectId:$projectId,eventType:"requirement.created",id:"REQ-WP4-BAD",requirements:[{title:"Bad signature"}]}')"
+  expect_http_error "Webhook invalid signature rejected" "403" "FORBIDDEN" \
+    -X POST "$API_BASE/webhooks/$(urlencode "$SOURCE_CODE")" \
+    -H 'Content-Type: application/json' \
+    -H "X-VA-Timestamp: $(date +%s)" \
+    -H "X-VA-Signature: bad-signature" \
+    -H "X-VA-Event-Id: evt-wp4-bad-$RANDOM" \
+    -H "X-VA-Idempotency-Key: idem-wp4-bad-$RANDOM" \
+    -H "X-VA-Event-Version: 1.0" \
+    -d "$invalid_payload"
+
+  local metrics
+  metrics="$(curl -fsS "${BASE_URL%/}/actuator/metrics/veri.agent.document_input.imports")"
+  check "WP4 import metric exists" '.name == "veri.agent.document_input.imports" and (.measurements | length) >= 1' "$metrics"
+
+  echo "== summary =="
+  echo "pass=$PASS fail=$FAIL total=$((PASS + FAIL))"
+  if [[ "$FAIL" -ne 0 ]]; then
+    exit 1
+  fi
+  echo "WP4 document-input smoke passed for project_id=$PROJECT_ID."
+}
+
+main "$@"

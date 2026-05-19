@@ -1,0 +1,22 @@
+package com.songhg.veri.agent.documentinput.api.response;
+
+import com.songhg.veri.agent.documentinput.domain.DocumentSourceStatus;
+import com.songhg.veri.agent.documentinput.domain.DocumentSourceType;
+import java.time.Instant;
+import java.util.UUID;
+
+public record DocumentSourceResponse(
+        UUID id,
+        String sourceCode,
+        String name,
+        DocumentSourceType sourceType,
+        DocumentSourceStatus status,
+        String endpointUrl,
+        String defaultProjectId,
+        UUID mappingId,
+        String description,
+        boolean dataFlowSupported,
+        Instant createdAt,
+        Instant updatedAt
+) {
+}

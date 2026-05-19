@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   ClipboardList,
   DatabaseZap,
+  FileText,
   GitBranch,
   KeyRound,
   LayoutDashboard,
@@ -38,6 +39,7 @@ import {
 import { bootstrapSuperAdmin, type BootstrapPayload, type BootstrapResult } from './api/bootstrap';
 import { ApiError, clearAuthToken, getAuthToken } from './api/client';
 import { fetchHealth, type HealthResult } from './api/health';
+import { DocumentInputConsole } from './components/DocumentInputConsole';
 import {
   assignUserRole,
   addApplicationOwner,
@@ -170,6 +172,13 @@ const pages: PageDefinition[] = [
     title: '平台初始化',
     description: '创建首个 SuperAdmin，确认后端健康状态，建立 WP1 管理后台入口。',
     icon: LayoutDashboard
+  },
+  {
+    key: 'document-input',
+    label: '文档输入',
+    title: '文档输入',
+    description: '管理文档源、字段映射与文本/Markdown 导入，查看解析出的需求数量。',
+    icon: FileText
   },
   {
     key: 'organizations',
@@ -723,7 +732,7 @@ export function App() {
           </div>
         </div>
 
-        <nav className="nav-list" aria-label="WP1 页面">
+        <nav className="nav-list" aria-label="控制台页面">
           {visiblePages.map((page) => {
             const Icon = page.icon;
             const selected = activePage === page.key;
@@ -967,6 +976,10 @@ function ModulePage(props: {
   onResetPassword: (username: string) => void;
   onRefresh: () => void;
 }) {
+  if (props.page === 'document-input') {
+    return <DocumentInputConsole signedIn={props.signedIn} />;
+  }
+
   if (props.page === 'organizations') {
     return (
       <DataSection

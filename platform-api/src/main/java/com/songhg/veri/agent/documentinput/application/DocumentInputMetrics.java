@@ -1,0 +1,79 @@
+package com.songhg.veri.agent.documentinput.application;
+
+import com.songhg.veri.agent.documentinput.domain.DocumentImportStatus;
+import com.songhg.veri.agent.documentinput.domain.DocumentSourceType;
+import com.songhg.veri.agent.documentinput.domain.WebhookEventStatus;
+import com.songhg.veri.agent.documentinput.domain.WebhookSignatureStatus;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.DistributionSummary;
+import io.micrometer.core.instrument.MeterRegistry;
+import org.springframework.stereotype.Component;
+
+@Component
+public class DocumentInputMetrics {
+
+    private final MeterRegistry meterRegistry;
+
+    public DocumentInputMetrics(MeterRegistry meterRegistry) {
+        this.meterRegistry = meterRegistry;
+    }
+
+    public void recordImport(DocumentSourceType sourceType, DocumentImportStatus status, int parsedCount) {
+        Counter.builder("veri.agent.document_input.imports")
+                .description("WP4 document input import batches by source type and status")
+                .tag("source_type", value(sourceType))
+                .tag("status", value(status))
+                .register(meterRegistry)
+                .increment();
+        if (parsedCount > 0) {
+            DistributionSummary.builder("veri.agent.document_input.import.requirements")
+                    .description("WP4 parsed requirement candidates per import batch")
+                    .baseUnit("requirements")
+                    .tag("source_type", value(sourceType))
+                    .tag("status", value(status))
+                    .register(meterRegistry)
+                    .record(parsedCount);
+        }
+    }
+
+    public void recordCandidateAction(String action, String result) {
+        Counter.builder("veri.agent.document_input.candidate.actions")
+                .description("WP4 candidate confirmation and ignore actions")
+                .tag("action", value(action))
+                .tag("result", value(result))
+                .register(meterRegistry)
+                .increment();
+    }
+
+    public void recordPublish(boolean dryRun, String result, int recordCount) {
+        Counter.builder("veri.agent.document_input.publishes")
+                .description("WP4 publish attempts from confirmed candidates to WP3 assets")
+                .tag("dry_run", String.valueOf(dryRun))
+                .tag("result", value(result))
+                .register(meterRegistry)
+                .increment();
+        if (recordCount > 0) {
+            DistributionSummary.builder("veri.agent.document_input.publish.records")
+                    .description("WP4 publish record count per publish operation")
+                    .baseUnit("records")
+                    .tag("dry_run", String.valueOf(dryRun))
+                    .tag("result", value(result))
+                    .register(meterRegistry)
+                    .record(recordCount);
+        }
+    }
+
+    public void recordWebhook(WebhookSignatureStatus signatureStatus, WebhookEventStatus eventStatus, String eventType) {
+        Counter.builder("veri.agent.document_input.webhooks")
+                .description("WP4 webhook ingress events by signature and processing result")
+                .tag("signature_status", value(signatureStatus))
+                .tag("event_status", value(eventStatus))
+                .tag("event_type", value(eventType))
+                .register(meterRegistry)
+                .increment();
+    }
+
+    private String value(Object value) {
+        return value == null ? "NONE" : String.valueOf(value);
+    }
+}

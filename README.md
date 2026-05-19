@@ -1,6 +1,6 @@
 # Veri Agent
 
-AI 驱动的端到端企业级测试平台。WP1、WP2、WP3 是研发任务拆分，不是服务拆分；当前后端由同一个 `platform-api` Java 服务承载，内部按领域模块组织平台基础、模型接入和资产管理能力。
+AI 驱动的端到端企业级测试平台。WP1、WP2、WP3、WP4 是研发任务拆分，不是服务拆分；当前后端由同一个 `platform-api` Java 服务承载，内部按领域模块组织平台基础、模型接入、资产管理和文档输入能力。
 
 ## 当前 WP1 口径
 
@@ -19,7 +19,7 @@ AI 驱动的端到端企业级测试平台。WP1、WP2、WP3 是研发任务拆�
 
 | 路径 | 说明 |
 |---|---|
-| `platform-api` | Spring Boot 3.5 + Java 21 后端服务，承载 WP1/WP2/WP3 领域模块。 |
+| `platform-api` | Spring Boot 3.5 + Java 21 后端服务，承载 WP1/WP2/WP3/WP4 领域模块。 |
 | `portal-web` | React + TypeScript + Vite Web 管理后台。 |
 | `db/migration/wp1` | WP1 PostgreSQL/Flyway 迁移脚本。 |
 | `db/validation` | WP1/WP2 数据库结构、种子、安全约束校验脚本。 |
@@ -33,6 +33,7 @@ AI 驱动的端到端企业级测试平台。WP1、WP2、WP3 是研发任务拆�
 | `scripts/wp1_quality_gate.sh` | WP1 本地质量门禁入口，串联后端测试、前端测试、前端构建和数据库校验。 |
 | `scripts/wp2_model_access_smoke.sh` | 针对已启动 `platform-api` 的 WP2 API 烟测脚本。 |
 | `scripts/wp2_module_policy_smoke.sh` | 针对同一 `platform-api` 内 WP2 消费 WP1 策略的烟测脚本。 |
+| `scripts/wp4_document_input_smoke.sh` | 针对已启动 `platform-api` 的 WP4 文档输入、候选确认、发布和 webhook 烟测脚本。 |
 
 ## 本地内存模式
 
@@ -150,6 +151,25 @@ curl 'http://127.0.0.1:8080/api/v1/model-access/invocations/export?projectId=pro
   -H 'X-Delegated-User-Id: user-001'
 ```
 
+## WP4 文档输入
+
+访问：
+
+- WP4 健康：http://127.0.0.1:8080/api/v1/document-input/health
+- WP4 Webhook：`POST /api/v1/document-input/webhooks/{sourceCode}`
+
+WP4 管理、导入、候选确认、发布和事件查询使用同一个 `platform-api`，服务端调用默认令牌为 `local-document-input-token`。`CUSTOM_API` webhook 使用 `X-VA-Timestamp`、`X-VA-Event-Id`、`X-VA-Idempotency-Key`、`X-VA-Event-Version`、`X-VA-Signature`，签名串为 `timestamp.eventId.idempotencyKey.rawBody`。
+
+针对已启动后端执行 WP4 smoke：
+
+```bash
+WP4_SMOKE_BASE_URL=http://127.0.0.1:8080 \
+WP4_SERVICE_TOKEN=local-document-input-token \
+WP3_SERVICE_TOKEN=local-asset-token \
+WP4_WEBHOOK_SECRET=local-document-input-webhook-secret \
+bash scripts/wp4_document_input_smoke.sh
+```
+
 ## 验证
 
 ```bash
@@ -169,6 +189,8 @@ npm run build
 ```bash
 bash db/validation/run_wp1_db_validation.sh
 ```
+
+`run_wp1_db_validation.sh` 会顺序执行 WP1/WP2/WP3/WP4 迁移，并额外运行 `wp_all_schema_validation.sql` 与 `wp4_document_input_validation.sql`，覆盖 WP4 文档输入表、字段、索引、状态约束、webhook 幂等唯一索引和单平台字段回归。
 
 ```bash
 WP1_BOOTSTRAP_TOKEN=local-init-token bash scripts/wp1_db_profile_smoke.sh
@@ -193,6 +215,22 @@ WP2_SERVICE_TOKEN=local-model-access-token bash scripts/wp2_model_access_smoke.s
 ```
 
 ```bash
+WP4_SERVICE_TOKEN=local-document-input-token \
+WP3_SERVICE_TOKEN=local-asset-token \
+WP4_WEBHOOK_SECRET=local-document-input-webhook-secret \
+bash scripts/wp4_document_input_smoke.sh
+```
+
+```bash
+WP1_BOOTSTRAP_TOKEN=local-init-token \
+WP2_SERVICE_TOKEN=local-model-access-token \
+WP3_SERVICE_TOKEN=local-asset-token \
+WP4_SERVICE_TOKEN=local-document-input-token \
+WP4_WEBHOOK_SECRET=local-document-input-webhook-secret \
+bash scripts/wp_all_integration_test.sh
+```
+
+```bash
 bash scripts/wp2_quality_gate.sh
 ```
 
@@ -208,6 +246,7 @@ bash scripts/wp2_quality_gate.sh
 - 无权限角色访问管理写接口会返回 `FORBIDDEN`。
 - `/v3/api-docs` 可生成 OpenAPI 文档，且契约测试保护认证、管理、账号生命周期和设置 CRUD 关键路径。
 - WP2 `db` profile 默认种子可直接完成 local echo 调用、调用日志查询、成本汇总、成本报表、成本告警、供应商就绪检查缓存和 CSV 导出 smoke；WP2 聚合门禁可串联模型接入测试、数据库 validation，并按需执行 HTTP smoke / 模块策略 smoke。
+- WP4 smoke 覆盖 Markdown 导入、候选批量确认、dryRun、发布到 WP3、发布记录、`CUSTOM_API` source health、`X-VA-*` 签名 webhook、幂等 replay、事件日志、无效签名拒绝和 metrics。
 
 ## WP1 1～8 项收敛状态
 

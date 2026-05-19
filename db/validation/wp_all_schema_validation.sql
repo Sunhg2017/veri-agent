@@ -1,6 +1,6 @@
--- Consolidated WP1+WP2+WP3 schema validation for single-platform deployment.
+-- Consolidated WP1+WP2+WP3+WP4 schema validation for single-platform deployment.
 -- Every query returns: check_name, status, details.
--- Validates all tables from WP1 (platform base), WP2 (model access), and WP3 (asset service).
+-- Validates all tables from WP1 (platform base), WP2 (model access), WP3 (asset service), and WP4 (document input).
 
 with expected(table_name) as (
     values
@@ -37,7 +37,13 @@ with expected(table_name) as (
         ('asset_business_flow'),
         ('asset_test_case'),
         ('asset_test_step'),
-        ('asset_link')
+        ('asset_link'),
+        -- WP4 document input tables
+        ('document_input_field_mapping'),
+        ('document_input_source'),
+        ('document_input_import'),
+        ('document_input_candidate'),
+        ('document_input_webhook_event')
 ),
 missing as (
     select e.table_name
@@ -51,7 +57,7 @@ missing as (
 select
     'schema.core_tables_exist' as check_name,
     case when count(*) = 0 then 'PASS' else 'FAIL' end as status,
-    coalesce(string_agg(table_name, ', ' order by table_name), 'all WP1+WP2+WP3 core tables exist') as details
+    coalesce(string_agg(table_name, ', ' order by table_name), 'all WP1+WP2+WP3+WP4 core tables exist') as details
 from missing;
 
 with forbidden(table_name) as (
@@ -119,7 +125,14 @@ with expected(table_name, column_name) as (
         ('asset_business_flow','id'), ('asset_business_flow','project_id'), ('asset_business_flow','code'), ('asset_business_flow','name'), ('asset_business_flow','status'),
         ('asset_test_case','id'), ('asset_test_case','project_id'), ('asset_test_case','code'), ('asset_test_case','title'), ('asset_test_case','case_type'), ('asset_test_case','status'),
         ('asset_test_step','id'), ('asset_test_step','case_id'), ('asset_test_step','step_order'), ('asset_test_step','action'), ('asset_test_step','expected_result'),
-        ('asset_link','id'), ('asset_link','source_type'), ('asset_link','source_id'), ('asset_link','target_type'), ('asset_link','target_id'), ('asset_link','link_type')
+        ('asset_link','id'), ('asset_link','source_type'), ('asset_link','source_id'), ('asset_link','target_type'), ('asset_link','target_id'), ('asset_link','link_type'),
+        -- WP4 key columns
+        ('document_input_field_mapping','id'), ('document_input_field_mapping','mapping_code'), ('document_input_field_mapping','title_path'), ('document_input_field_mapping','version'),
+        ('document_input_source','id'), ('document_input_source','source_code'), ('document_input_source','source_type'), ('document_input_source','status'), ('document_input_source','mapping_id'),
+        ('document_input_import','id'), ('document_input_import','project_id'), ('document_input_import','source_type'), ('document_input_import','status'), ('document_input_import','created_requirement_ids'),
+        ('document_input_candidate','id'), ('document_input_candidate','import_id'), ('document_input_candidate','project_id'), ('document_input_candidate','status'), ('document_input_candidate','version'),
+        ('document_input_webhook_event','id'), ('document_input_webhook_event','source_code'), ('document_input_webhook_event','event_id'), ('document_input_webhook_event','idempotency_key'),
+        ('document_input_webhook_event','event_version'), ('document_input_webhook_event','signature_status'), ('document_input_webhook_event','status'), ('document_input_webhook_event','payload_digest')
 ),
 missing as (
     select e.table_name || '.' || e.column_name as item
@@ -163,7 +176,15 @@ with expected(table_name, index_name) as (
         ('asset_business_flow','uk_asset_business_flow_project_code'),
         ('asset_test_case','uk_asset_test_case_project_code'),
         ('asset_test_step','uk_asset_test_step_case_order'),
-        ('asset_link','uk_asset_link_source_target_link')
+        ('asset_link','uk_asset_link_source_target_link'),
+        -- WP4 key indexes
+        ('document_input_field_mapping','uk_document_input_field_mapping_code'),
+        ('document_input_source','uk_document_input_source_code'),
+        ('document_input_import','idx_document_input_import_project_created'),
+        ('document_input_candidate','idx_document_input_candidate_import'),
+        ('document_input_candidate','idx_document_input_candidate_external'),
+        ('document_input_webhook_event','uk_document_input_webhook_event_id'),
+        ('document_input_webhook_event','uk_document_input_webhook_idempotency')
 ),
 missing as (
     select e.table_name || '.' || e.index_name as item

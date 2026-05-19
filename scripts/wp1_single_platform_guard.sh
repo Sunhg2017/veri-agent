@@ -14,8 +14,15 @@ TARGETS=(
   "$ROOT_DIR/doc/mvp/final/engineering/WP1-单平台权限矩阵与菜单矩阵.md"
 )
 
+while IFS= read -r wp4_doc; do
+  TARGETS+=("$wp4_doc")
+done < <(find "$ROOT_DIR/doc/mvp/final/engineering" -maxdepth 1 -type f -name 'WP4-*.md' | sort)
+
 ALLOWLIST=(
+  # Negative assertions and cleanup migrations are allowed to mention retired tenant terms.
   "$ROOT_DIR/platform-api/src/test/java/com/songhg/veri/agent/common/openapi/OpenApiContractTest.java"
+  "$ROOT_DIR/platform-api/src/test/java/com/songhg/veri/agent/modelaccess/openapi/ModelAccessOpenApiContractTest.java"
+  "$ROOT_DIR/db/migration/wp1/V20260518_012__wp2_single_platform_scope.sql"
 )
 
 if ! command -v rg >/dev/null 2>&1; then
