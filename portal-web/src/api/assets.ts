@@ -3,10 +3,14 @@ import { requestJson, type ApiResponse } from './client';
 export const ASSET_REQUIREMENT_STATUSES = ['DRAFT', 'REVIEWING', 'APPROVED', 'DEPRECATED'] as const;
 export const ASSET_REQUIREMENT_PRIORITIES = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'] as const;
 export const ASSET_REQUIREMENT_SOURCES = ['MANUAL', 'IMPORT'] as const;
+export const ASSET_API_STATUSES = ['ACTIVE', 'DEPRECATED', 'REMOVED'] as const;
+export const ASSET_API_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'] as const;
 
 export type AssetRequirementStatus = (typeof ASSET_REQUIREMENT_STATUSES)[number];
 export type AssetRequirementPriority = (typeof ASSET_REQUIREMENT_PRIORITIES)[number];
 export type AssetRequirementSource = (typeof ASSET_REQUIREMENT_SOURCES)[number];
+export type AssetApiStatus = (typeof ASSET_API_STATUSES)[number];
+export type AssetApiMethod = (typeof ASSET_API_METHODS)[number];
 
 export interface AssetHealth {
   service: string;
@@ -57,6 +61,50 @@ export interface AssetRequirementPayload {
   status?: string;
   priority?: string;
   tags?: string[] | string;
+}
+
+export interface AssetApiView {
+  id: string;
+  code?: string;
+  summary: string;
+  description?: string;
+  httpMethod: AssetApiMethod | string;
+  path: string;
+  source?: string;
+  sourceRef?: string;
+  requestSchema?: string;
+  responseSchema?: string;
+  projectId?: string;
+  status: AssetApiStatus | string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface AssetApiList {
+  items: AssetApiView[];
+  page?: number;
+  pageSize?: number;
+  total: number;
+}
+
+export interface AssetApiFilters {
+  index?: number;
+  size?: number;
+  projectId?: string;
+  status?: string;
+  keyword?: string;
+  source?: string;
+}
+
+export interface AssetApiPayload {
+  summary: string;
+  projectId?: string;
+  description?: string;
+  httpMethod: string;
+  path: string;
+  requestSchema?: string;
+  responseSchema?: string;
+  status?: string;
 }
 
 export interface TraceLinkView {
@@ -178,7 +226,18 @@ function assetQuery(filters: AssetRequirementFilters) {
   if (filters.status?.trim()) params.set('status', filters.status.trim());
   if (filters.keyword?.trim()) params.set('keyword', filters.keyword.trim());
   if (filters.source?.trim()) params.set('source', filters.source.trim());
-  if (filters.sourceRef?.trim()) params.set('sourceRef', filters.sourceRef.trim());
+  const query = params.toString();
+  return query ? `?${query}` : '';
+}
+
+function apiQuery(filters: AssetApiFilters) {
+  const params = new URLSearchParams();
+  if (typeof filters.index === 'number') params.set('index', String(filters.index));
+  if (typeof filters.size === 'number') params.set('size', String(filters.size));
+  if (filters.projectId?.trim()) params.set('projectId', filters.projectId.trim());
+  if (filters.status?.trim()) params.set('status', filters.status.trim());
+  if (filters.keyword?.trim()) params.set('keyword', filters.keyword.trim());
+  if (filters.source?.trim()) params.set('source', filters.source.trim());
   const query = params.toString();
   return query ? `?${query}` : '';
 }
@@ -217,6 +276,41 @@ export function assetRequirementItems(data: unknown): AssetRequirementView[] {
 
 export function normalizeAssetRequirementList(raw: unknown): AssetRequirementList {
   const items = assetRequirementItems(raw);
+  return {
+    items,
+    page: isRecord(raw) ? optionalNumber(raw.page ?? raw.number ?? raw.index) : undefined,
+    pageSize: isRecord(raw) ? optionalNumber(raw.pageSize ?? raw.page_size ?? raw.size) : undefined,
+    total: pageTotal(raw, items.length)
+  };
+}
+
+export function normalizeAssetApiView(raw: unknown): AssetApiView {
+  const item = isRecord(raw) ? raw : {};
+  const id = stringValue(item.id, stringValue(item.apiId, stringValue(item.api_id)));
+  return {
+    id,
+    code: optionalString(item.code),
+    summary: stringValue(item.summary, stringValue(item.name, id || '未命名 API')),
+    description: optionalString(item.description),
+    httpMethod: enumString(item.httpMethod ?? item.http_method, ASSET_API_METHODS, 'GET'),
+    path: stringValue(item.path, '/'),
+    source: optionalString(item.source),
+    sourceRef: optionalString(item.sourceRef) ?? optionalString(item.source_ref),
+    requestSchema: optionalString(item.requestSchema) ?? optionalString(item.request_schema),
+    responseSchema: optionalString(item.responseSchema) ?? optionalString(item.response_schema),
+    projectId: optionalString(item.projectId) ?? optionalString(item.project_id),
+    status: enumString(item.status, ASSET_API_STATUSES, 'ACTIVE'),
+    createdAt: optionalString(item.createdAt) ?? optionalString(item.created_at),
+    updatedAt: optionalString(item.updatedAt) ?? optionalString(item.updated_at)
+  };
+}
+
+export function assetApiItems(data: unknown): AssetApiView[] {
+  return listItems(data).map(normalizeAssetApiView);
+}
+
+export function normalizeAssetApiList(raw: unknown): AssetApiList {
+  const items = assetApiItems(raw);
   return {
     items,
     page: isRecord(raw) ? optionalNumber(raw.page ?? raw.number ?? raw.index) : undefined,
@@ -281,6 +375,32 @@ export async function updateAssetRequirement(
     body: JSON.stringify(compactAssetPayload(payload))
   });
   return { ...response, data: normalizeAssetRequirementView(response.data) };
+}
+
+export async function fetchAssetApis(filters: AssetApiFilters = {}): Promise<ApiResponse<AssetApiList>> {
+  const response = await requestJson<unknown>(`/api/v1/asset/apis${apiQuery(filters)}`);
+  return { ...response, data: normalizeAssetApiList(response.data) };
+}
+
+export async function fetchAssetApi(apiId: string): Promise<ApiResponse<AssetApiView>> {
+  const response = await requestJson<unknown>(`/api/v1/asset/apis/${encodeURIComponent(apiId)}`);
+  return { ...response, data: normalizeAssetApiView(response.data) };
+}
+
+export async function createAssetApi(payload: AssetApiPayload): Promise<ApiResponse<AssetApiView>> {
+  const response = await requestJson<unknown>('/api/v1/asset/apis', {
+    method: 'POST',
+    body: JSON.stringify(compactAssetPayload(payload))
+  });
+  return { ...response, data: normalizeAssetApiView(response.data) };
+}
+
+export async function updateAssetApi(apiId: string, payload: AssetApiPayload): Promise<ApiResponse<AssetApiView>> {
+  const response = await requestJson<unknown>(`/api/v1/asset/apis/${encodeURIComponent(apiId)}`, {
+    method: 'PUT',
+    body: JSON.stringify(compactAssetPayload(payload))
+  });
+  return { ...response, data: normalizeAssetApiView(response.data) };
 }
 
 export async function fetchRequirementTraceLinks(requirementId: string): Promise<ApiResponse<TraceLinkList>> {

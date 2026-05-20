@@ -12,20 +12,30 @@ import {
   Save,
   Search,
   Send,
+  Upload,
   XCircle
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import type { CurrentUser } from '../api/auth';
 import {
+  ASSET_API_METHODS,
+  ASSET_API_STATUSES,
   ASSET_REQUIREMENT_PRIORITIES,
   ASSET_REQUIREMENT_SOURCES,
   ASSET_REQUIREMENT_STATUSES,
+  createAssetApi,
   createAssetRequirement,
+  fetchAssetApi,
+  fetchAssetApis,
   fetchAssetHealth,
   fetchAssetRequirement,
   fetchAssetRequirements,
   fetchRequirementTraceLinks,
+  updateAssetApi,
   updateAssetRequirement,
+  type AssetApiFilters,
+  type AssetApiPayload,
+  type AssetApiView,
   type AssetHealth,
   type AssetRequirementFilters,
   type AssetRequirementPayload,
@@ -62,6 +72,25 @@ type RequirementFilters = {
   keyword: string;
 };
 
+type ApiDraft = {
+  projectId: string;
+  summary: string;
+  description: string;
+  httpMethod: string;
+  path: string;
+  requestSchema: string;
+  responseSchema: string;
+  status: string;
+};
+
+type ApiFilters = {
+  projectId: string;
+  status: string;
+  source: string;
+  method: string;
+  keyword: string;
+};
+
 const initialRequirementDraft: RequirementDraft = {
   projectId: '',
   title: '',
@@ -83,14 +112,35 @@ const initialFilters: RequirementFilters = {
   keyword: ''
 };
 
+const initialApiDraft: ApiDraft = {
+  projectId: '',
+  summary: '',
+  description: '',
+  httpMethod: 'GET',
+  path: '',
+  requestSchema: '',
+  responseSchema: '',
+  status: 'ACTIVE'
+};
+
+const initialApiFilters: ApiFilters = {
+  projectId: '',
+  status: '',
+  source: '',
+  method: '',
+  keyword: ''
+};
+
 const assetTabs = [
   { key: 'requirements', label: '需求', icon: FileText, enabled: true },
-  { key: 'apis', label: 'API', icon: Link2, enabled: false },
+  { key: 'apis', label: 'API', icon: Link2, enabled: true },
   { key: 'pages', label: '页面', icon: ClipboardList, enabled: false },
   { key: 'flows', label: '业务流', icon: GitBranch, enabled: false },
   { key: 'cases', label: '用例', icon: CheckCircle2, enabled: false },
   { key: 'trace', label: '追踪矩阵', icon: GitBranch, enabled: false }
 ] as const;
+
+type AssetTabKey = (typeof assetTabs)[number]['key'];
 
 const statusTransitionMap: Record<string, string[]> = {
   DRAFT: ['REVIEWING'],
@@ -106,14 +156,22 @@ const statusActionLabel: Record<string, string> = {
   DEPRECATED: '废弃'
 };
 
+const apiStatusTransitionMap: Record<string, string[]> = {
+  ACTIVE: ['ACTIVE', 'DEPRECATED'],
+  DEPRECATED: ['DEPRECATED', 'REMOVED'],
+  REMOVED: ['REMOVED']
+};
+
 export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentUser | null }) {
   const canReadAssets = hasPermission(props.currentUser, 'asset:read');
   const canManageAssets = hasPermission(props.currentUser, 'asset:manage');
   const canReviewAssets = hasPermission(props.currentUser, 'asset:review');
+  const initialHash = assetLocationFromHash();
+  const [activeTab, setActiveTab] = useState<AssetTabKey>(initialHash.tab);
   const [health, setHealth] = useState<AssetHealth | null>(null);
   const [requirements, setRequirements] = useState<AssetRequirementView[]>([]);
   const [filters, setFilters] = useState<RequirementFilters>(initialFilters);
-  const [selectedRequirementId, setSelectedRequirementId] = useState(requirementIdFromHash());
+  const [selectedRequirementId, setSelectedRequirementId] = useState(initialHash.tab === 'requirements' ? initialHash.id : '');
   const [selectedRequirement, setSelectedRequirement] = useState<AssetRequirementView | null>(null);
   const [traceLinks, setTraceLinks] = useState<TraceLinkView[]>([]);
   const [createDraft, setCreateDraft] = useState<RequirementDraft>(initialRequirementDraft);
@@ -122,6 +180,16 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
   const [detailState, setDetailState] = useState<WorkState>({ loading: false });
   const [createState, setCreateState] = useState<WorkState>({ loading: false });
   const [mutationState, setMutationState] = useState<WorkState>({ loading: false });
+  const [apis, setApis] = useState<AssetApiView[]>([]);
+  const [apiFilters, setApiFilters] = useState<ApiFilters>(initialApiFilters);
+  const [selectedApiId, setSelectedApiId] = useState(initialHash.tab === 'apis' ? initialHash.id : '');
+  const [selectedApi, setSelectedApi] = useState<AssetApiView | null>(null);
+  const [apiCreateDraft, setApiCreateDraft] = useState<ApiDraft>(initialApiDraft);
+  const [apiEditDraft, setApiEditDraft] = useState<ApiDraft>(initialApiDraft);
+  const [apiLoadState, setApiLoadState] = useState<WorkState>({ loading: false });
+  const [apiDetailState, setApiDetailState] = useState<WorkState>({ loading: false });
+  const [apiCreateState, setApiCreateState] = useState<WorkState>({ loading: false });
+  const [apiMutationState, setApiMutationState] = useState<WorkState>({ loading: false });
 
   const refreshRequirements = useCallback(async () => {
     if (!props.signedIn || !canReadAssets) {
@@ -165,29 +233,35 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
   }, [canReadAssets, filters, props.signedIn]);
 
   useEffect(() => {
-    void refreshRequirements();
-  }, [refreshRequirements]);
+    if (activeTab === 'requirements') {
+      void refreshRequirements();
+    }
+  }, [activeTab, refreshRequirements]);
 
   useEffect(() => {
-    function syncRequirementFromHash() {
-      const requirementId = requirementIdFromHash();
-      if (requirementId) {
-        setSelectedRequirementId(requirementId);
+    function syncAssetFromHash() {
+      const nextLocation = assetLocationFromHash();
+      setActiveTab(nextLocation.tab);
+      if (nextLocation.tab === 'requirements') {
+        setSelectedRequirementId(nextLocation.id);
+      }
+      if (nextLocation.tab === 'apis') {
+        setSelectedApiId(nextLocation.id);
       }
     }
 
-    window.addEventListener('hashchange', syncRequirementFromHash);
-    return () => window.removeEventListener('hashchange', syncRequirementFromHash);
+    window.addEventListener('hashchange', syncAssetFromHash);
+    return () => window.removeEventListener('hashchange', syncAssetFromHash);
   }, []);
 
   useEffect(() => {
-    if (!selectedRequirementId && requirements[0]?.id) {
+    if (activeTab === 'requirements' && !selectedRequirementId && requirements[0]?.id) {
       setSelectedRequirementId(requirements[0].id);
     }
-  }, [requirements, selectedRequirementId]);
+  }, [activeTab, requirements, selectedRequirementId]);
 
   const reloadRequirementDetail = useCallback(async () => {
-    if (!props.signedIn || !canReadAssets || !selectedRequirementId) {
+    if (activeTab !== 'requirements' || !props.signedIn || !canReadAssets || !selectedRequirementId) {
       setSelectedRequirement(null);
       setTraceLinks([]);
       setDetailState({ loading: false });
@@ -226,25 +300,135 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
       error: errors.length ? errors.join('；') : undefined,
       traceId: traceIds.find(Boolean)
     });
-  }, [canReadAssets, props.signedIn, selectedRequirementId]);
+  }, [activeTab, canReadAssets, props.signedIn, selectedRequirementId]);
 
   useEffect(() => {
     void reloadRequirementDetail();
   }, [reloadRequirementDetail]);
 
+  const refreshApis = useCallback(async () => {
+    if (!props.signedIn || !canReadAssets) {
+      setHealth(null);
+      setApis([]);
+      setSelectedApi(null);
+      setApiLoadState({ loading: false });
+      return;
+    }
+
+    setApiLoadState({ loading: true });
+    const [healthResult, apiResult] = await Promise.allSettled([
+      fetchAssetHealth(),
+      fetchAssetApis(buildApiFilters(apiFilters))
+    ]);
+
+    const errors: string[] = [];
+    const traceIds: string[] = [];
+
+    if (healthResult.status === 'fulfilled') {
+      setHealth(healthResult.value.data);
+      traceIds.push(healthResult.value.trace_id);
+    } else {
+      errors.push(errorMessage(healthResult.reason, '资产服务健康检查失败'));
+    }
+
+    if (apiResult.status === 'fulfilled') {
+      setApis(apiResult.value.data.items);
+      traceIds.push(apiResult.value.trace_id);
+    } else {
+      setApis([]);
+      errors.push(errorMessage(apiResult.reason, 'API 资产加载失败'));
+    }
+
+    setApiLoadState({
+      loading: false,
+      error: errors.length ? errors.join('；') : undefined,
+      traceId: traceIds.find(Boolean)
+    });
+  }, [apiFilters, canReadAssets, props.signedIn]);
+
+  useEffect(() => {
+    if (activeTab === 'apis') {
+      void refreshApis();
+    }
+  }, [activeTab, refreshApis]);
+
+  useEffect(() => {
+    if (activeTab === 'apis' && !selectedApiId && apis[0]?.id) {
+      setSelectedApiId(apis[0].id);
+    }
+  }, [activeTab, apis, selectedApiId]);
+
+  const reloadApiDetail = useCallback(async () => {
+    if (activeTab !== 'apis' || !props.signedIn || !canReadAssets || !selectedApiId) {
+      setSelectedApi(null);
+      setApiDetailState({ loading: false });
+      return;
+    }
+
+    setApiDetailState({ loading: true });
+    try {
+      const response = await fetchAssetApi(selectedApiId);
+      setSelectedApi(response.data);
+      setApiEditDraft(apiDraftFromView(response.data));
+      upsertApi(setApis, response.data);
+      setApiDetailState({ loading: false, traceId: response.trace_id });
+    } catch (error: unknown) {
+      setSelectedApi(null);
+      setApiDetailState({ loading: false, error: errorMessage(error, 'API 详情加载失败') });
+    }
+  }, [activeTab, canReadAssets, props.signedIn, selectedApiId]);
+
+  useEffect(() => {
+    void reloadApiDetail();
+  }, [reloadApiDetail]);
+
   const visibleRequirements = useMemo(() => filterRequirements(requirements, filters), [filters, requirements]);
   const statusCounts = useMemo(() => countRequirementsByStatus(requirements), [requirements]);
-  const disabled = !props.signedIn || loadState.loading;
+  const visibleApis = useMemo(() => filterApis(apis, apiFilters), [apiFilters, apis]);
+  const apiStatusCounts = useMemo(() => countApisByStatus(apis), [apis]);
+  const activeLoadState = activeTab === 'apis' ? apiLoadState : loadState;
+  const disabled = !props.signedIn || !canReadAssets || activeLoadState.loading;
   const createDisabled = disabled || createState.loading || !canManageAssets;
   const editDisabled = disabled || mutationState.loading || !canManageAssets || !selectedRequirement;
   const reviewDisabled = disabled || mutationState.loading || !canReviewAssets || !selectedRequirement;
+  const apiDisabled = !props.signedIn || !canReadAssets || apiLoadState.loading;
+  const apiCreateDisabled = apiDisabled || apiCreateState.loading || !canManageAssets;
+  const apiEditDisabled = apiDisabled || apiMutationState.loading || !canManageAssets || !selectedApi;
+
+  function selectTab(tabKey: AssetTabKey) {
+    const tab = assetTabs.find((item) => item.key === tabKey);
+    if (!tab?.enabled) {
+      return;
+    }
+    setActiveTab(tabKey);
+    const selectedId = tabKey === 'requirements' ? selectedRequirementId : tabKey === 'apis' ? selectedApiId : '';
+    const targetHash = selectedId
+      ? `#asset-library/${tabKey}/${encodeURIComponent(selectedId)}`
+      : `#asset-library/${tabKey}`;
+    if (window.location.hash !== targetHash) {
+      window.location.hash = targetHash;
+    }
+  }
 
   function selectRequirement(requirementId: string) {
     if (!requirementId) {
       return;
     }
+    setActiveTab('requirements');
     setSelectedRequirementId(requirementId);
     const targetHash = `#asset-library/requirements/${encodeURIComponent(requirementId)}`;
+    if (window.location.hash !== targetHash) {
+      window.location.hash = targetHash;
+    }
+  }
+
+  function selectApi(apiId: string) {
+    if (!apiId) {
+      return;
+    }
+    setActiveTab('apis');
+    setSelectedApiId(apiId);
+    const targetHash = `#asset-library/apis/${encodeURIComponent(apiId)}`;
     if (window.location.hash !== targetHash) {
       window.location.hash = targetHash;
     }
@@ -340,6 +524,68 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
     }
   }
 
+  async function submitCreateApi(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!props.signedIn) {
+      setApiCreateState({ loading: false, error: '请先登录后再创建 API 资产' });
+      return;
+    }
+    if (!canManageAssets) {
+      setApiCreateState({ loading: false, error: '缺少 asset:manage 权限' });
+      return;
+    }
+    if (!apiCreateDraft.projectId.trim() || !apiCreateDraft.summary.trim() || !apiCreateDraft.path.trim()) {
+      setApiCreateState({ loading: false, error: 'projectId、名称和路径必填' });
+      return;
+    }
+
+    setApiCreateState({ loading: true });
+    try {
+      const response = await createAssetApi(apiDraftToCreatePayload(apiCreateDraft));
+      setApiCreateDraft(initialApiDraft);
+      setSelectedApi(response.data);
+      setSelectedApiId(response.data.id);
+      setApiEditDraft(apiDraftFromView(response.data));
+      upsertApi(setApis, response.data);
+      setApiCreateState({ loading: false, success: 'API 资产已创建', traceId: response.trace_id });
+      if (response.data.id) {
+        selectApi(response.data.id);
+      }
+    } catch (error: unknown) {
+      setApiCreateState({ loading: false, error: errorMessage(error, 'API 资产创建失败') });
+    }
+  }
+
+  async function submitEditApi(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedApi) {
+      return;
+    }
+    if (!props.signedIn) {
+      setApiMutationState({ loading: false, error: '请先登录后再保存 API 资产' });
+      return;
+    }
+    if (!canManageAssets) {
+      setApiMutationState({ loading: false, error: '缺少 asset:manage 权限' });
+      return;
+    }
+    if (!apiEditDraft.summary.trim() || !apiEditDraft.path.trim()) {
+      setApiMutationState({ loading: false, error: '名称和路径不能为空' });
+      return;
+    }
+
+    setApiMutationState({ loading: true });
+    try {
+      const response = await updateAssetApi(selectedApi.id, apiDraftToUpdatePayload(selectedApi, apiEditDraft));
+      setSelectedApi(response.data);
+      setApiEditDraft(apiDraftFromView(response.data));
+      upsertApi(setApis, response.data);
+      setApiMutationState({ loading: false, success: 'API 资产已保存', traceId: response.trace_id });
+    } catch (error: unknown) {
+      setApiMutationState({ loading: false, error: errorMessage(error, 'API 资产保存失败') });
+    }
+  }
+
   return (
     <section className="asset-workbench-layout">
       <div className="asset-main-stack">
@@ -354,7 +600,12 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                 <h2>资产库</h2>
               </div>
             </div>
-            <button className="secondary-button" type="button" disabled={!props.signedIn || loadState.loading} onClick={refreshRequirements}>
+            <button
+              className="secondary-button"
+              type="button"
+              disabled={!props.signedIn || !canReadAssets || activeLoadState.loading}
+              onClick={activeTab === 'apis' ? refreshApis : refreshRequirements}
+            >
               <RefreshCw size={16} />
               刷新
             </button>
@@ -365,10 +616,11 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
               const Icon = tab.icon;
               return (
                 <button
-                  className={`asset-tab ${tab.enabled ? 'active' : ''}`}
+                  className={`asset-tab ${activeTab === tab.key ? 'active' : ''}`}
                   type="button"
                   key={tab.key}
                   disabled={!tab.enabled}
+                  onClick={() => selectTab(tab.key)}
                   title={tab.label}
                 >
                   <Icon size={15} />
@@ -378,6 +630,8 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
             })}
           </div>
 
+          {activeTab === 'requirements' ? (
+            <>
           <form className="asset-filter-bar" onSubmit={(event) => event.preventDefault()}>
             <label className="field" htmlFor="asset-filter-project">
               <span>projectId</span>
@@ -508,9 +762,148 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
             </table>
           </div>
           <StateLine state={loadState} />
+            </>
+          ) : (
+            <>
+              <form className="asset-filter-bar api-filter-bar" onSubmit={(event) => event.preventDefault()}>
+                <label className="field" htmlFor="asset-api-filter-project">
+                  <span>projectId</span>
+                  <input
+                    id="asset-api-filter-project"
+                    value={apiFilters.projectId}
+                    disabled={apiDisabled}
+                    onChange={(event) => setApiFilters((current) => ({ ...current, projectId: event.target.value }))}
+                    placeholder="proj-payments"
+                  />
+                </label>
+                <label className="field" htmlFor="asset-api-filter-status">
+                  <span>status</span>
+                  <select
+                    id="asset-api-filter-status"
+                    value={apiFilters.status}
+                    disabled={apiDisabled}
+                    onChange={(event) => setApiFilters((current) => ({ ...current, status: event.target.value }))}
+                  >
+                    <option value="">全部状态</option>
+                    {ASSET_API_STATUSES.map((status) => (
+                      <option key={status} value={status}>
+                        {status}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="field" htmlFor="asset-api-filter-method">
+                  <span>method</span>
+                  <select
+                    id="asset-api-filter-method"
+                    value={apiFilters.method}
+                    disabled={apiDisabled}
+                    onChange={(event) => setApiFilters((current) => ({ ...current, method: event.target.value }))}
+                  >
+                    <option value="">全部方法</option>
+                    {ASSET_API_METHODS.map((method) => (
+                      <option key={method} value={method}>
+                        {method}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="field" htmlFor="asset-api-filter-source">
+                  <span>source</span>
+                  <input
+                    id="asset-api-filter-source"
+                    value={apiFilters.source}
+                    disabled={apiDisabled}
+                    onChange={(event) => setApiFilters((current) => ({ ...current, source: event.target.value }))}
+                    placeholder="MANUAL / OPENAPI"
+                  />
+                </label>
+                <label className="field" htmlFor="asset-api-filter-keyword">
+                  <span>keyword</span>
+                  <input
+                    id="asset-api-filter-keyword"
+                    value={apiFilters.keyword}
+                    disabled={apiDisabled}
+                    onChange={(event) => setApiFilters((current) => ({ ...current, keyword: event.target.value }))}
+                    placeholder="名称 / 路径 / 编码"
+                  />
+                </label>
+                <div className="asset-filter-actions">
+                  <button className="mini-button" type="button" disabled={apiDisabled} onClick={refreshApis}>
+                    <Search size={14} />
+                    查询
+                  </button>
+                  <button className="mini-button" type="button" disabled={apiDisabled} onClick={() => setApiFilters(initialApiFilters)}>
+                    <XCircle size={14} />
+                    清空
+                  </button>
+                </div>
+              </form>
+
+              <div className="table-wrap asset-table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>API</th>
+                      <th>项目</th>
+                      <th>方法与路径</th>
+                      <th>状态</th>
+                      <th>来源</th>
+                      <th>更新时间</th>
+                      <th>操作</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {visibleApis.length > 0 ? (
+                      visibleApis.map((api) => (
+                        <tr className={selectedApiId === api.id ? 'selected-row' : ''} key={api.id || `${api.httpMethod}-${api.path}`}>
+                          <td>
+                            <strong className="table-primary">{api.summary}</strong>
+                            <span className="table-secondary">{api.code ?? api.id ?? '-'}</span>
+                          </td>
+                          <td>{api.projectId ?? '-'}</td>
+                          <td>
+                            <span className="asset-method-path">
+                              <strong>{api.httpMethod}</strong>
+                              <em>{api.path}</em>
+                            </span>
+                          </td>
+                          <td>
+                            <AssetStatusPill value={api.status} />
+                          </td>
+                          <td>
+                            <div className="asset-source-cell">
+                              <span>{api.source ?? '-'}</span>
+                              <em>{api.sourceRef ?? '-'}</em>
+                            </div>
+                          </td>
+                          <td>{formatDate(api.updatedAt ?? api.createdAt)}</td>
+                          <td>
+                            <button className="mini-button" type="button" onClick={() => selectApi(api.id)} disabled={!api.id}>
+                              <Eye size={14} />
+                              详情
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td className="table-empty" colSpan={7}>
+                          {props.signedIn ? (apiLoadState.loading ? '加载中' : '暂无 API 资产') : '请先登录'}
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+              <StateLine state={apiLoadState} />
+            </>
+          )}
         </section>
 
         <section className="panel module-panel asset-panel">
+          {activeTab === 'requirements' ? (
+            <>
           <div className="section-heading">
             <div className="section-icon">
               <FilePlus2 size={20} />
@@ -636,6 +1029,144 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
               <StateLine state={createState} />
             </div>
           </form>
+            </>
+          ) : (
+            <>
+              <div className="panel-toolbar">
+                <div className="section-heading">
+                  <div className="section-icon">
+                    <FilePlus2 size={20} />
+                  </div>
+                  <div>
+                    <span className="eyebrow">Create</span>
+                    <h2>新建 API 资产</h2>
+                  </div>
+                </div>
+                <button
+                  className="mini-button"
+                  type="button"
+                  disabled
+                  title="待后端 OpenAPI 导入接口接入"
+                >
+                  <Upload size={14} />
+                  OpenAPI 导入
+                </button>
+              </div>
+
+              <form className="asset-form" onSubmit={submitCreateApi}>
+                <div className="asset-form-grid">
+                  <label className="field" htmlFor="asset-api-create-project">
+                    <span>projectId<b>*</b></span>
+                    <input
+                      id="asset-api-create-project"
+                      value={apiCreateDraft.projectId}
+                      disabled={apiCreateDisabled}
+                      onChange={(event) => setApiCreateDraft((current) => ({ ...current, projectId: event.target.value }))}
+                      placeholder="proj-payments"
+                    />
+                  </label>
+                  <label className="field" htmlFor="asset-api-create-summary">
+                    <span>名称<b>*</b></span>
+                    <input
+                      id="asset-api-create-summary"
+                      value={apiCreateDraft.summary}
+                      disabled={apiCreateDisabled}
+                      onChange={(event) => setApiCreateDraft((current) => ({ ...current, summary: event.target.value }))}
+                      placeholder="创建订单"
+                    />
+                  </label>
+                  <label className="field" htmlFor="asset-api-create-method">
+                    <span>method</span>
+                    <select
+                      id="asset-api-create-method"
+                      value={apiCreateDraft.httpMethod}
+                      disabled={apiCreateDisabled}
+                      onChange={(event) => setApiCreateDraft((current) => ({ ...current, httpMethod: event.target.value }))}
+                    >
+                      {ASSET_API_METHODS.map((method) => (
+                        <option key={method} value={method}>
+                          {method}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="field" htmlFor="asset-api-create-path">
+                    <span>path<b>*</b></span>
+                    <input
+                      id="asset-api-create-path"
+                      value={apiCreateDraft.path}
+                      disabled={apiCreateDisabled}
+                      onChange={(event) => setApiCreateDraft((current) => ({ ...current, path: event.target.value }))}
+                      placeholder="/api/orders"
+                    />
+                  </label>
+                  <label className="field" htmlFor="asset-api-create-status">
+                    <span>status</span>
+                    <select
+                      id="asset-api-create-status"
+                      value={apiCreateDraft.status}
+                      disabled={apiCreateDisabled}
+                      onChange={(event) => setApiCreateDraft((current) => ({ ...current, status: event.target.value }))}
+                    >
+                      {ASSET_API_STATUSES.map((status) => (
+                        <option key={status} value={status}>
+                          {status}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+                <label className="field" htmlFor="asset-api-create-description">
+                  <span>描述</span>
+                  <textarea
+                    id="asset-api-create-description"
+                    className="compact-textarea"
+                    value={apiCreateDraft.description}
+                    disabled={apiCreateDisabled}
+                    onChange={(event) => setApiCreateDraft((current) => ({ ...current, description: event.target.value }))}
+                  />
+                </label>
+                <div className="asset-schema-grid">
+                  <label className="field" htmlFor="asset-api-create-request-schema">
+                    <span>requestSchema</span>
+                    <textarea
+                      id="asset-api-create-request-schema"
+                      className="compact-textarea schema-textarea"
+                      value={apiCreateDraft.requestSchema}
+                      disabled={apiCreateDisabled}
+                      onChange={(event) => setApiCreateDraft((current) => ({ ...current, requestSchema: event.target.value }))}
+                    />
+                  </label>
+                  <label className="field" htmlFor="asset-api-create-response-schema">
+                    <span>responseSchema</span>
+                    <textarea
+                      id="asset-api-create-response-schema"
+                      className="compact-textarea schema-textarea"
+                      value={apiCreateDraft.responseSchema}
+                      disabled={apiCreateDisabled}
+                      onChange={(event) => setApiCreateDraft((current) => ({ ...current, responseSchema: event.target.value }))}
+                    />
+                  </label>
+                </div>
+                <div className="document-actions">
+                  <button
+                    className="primary-button"
+                    type="submit"
+                    disabled={
+                      apiCreateDisabled ||
+                      !apiCreateDraft.projectId.trim() ||
+                      !apiCreateDraft.summary.trim() ||
+                      !apiCreateDraft.path.trim()
+                    }
+                  >
+                    <Save size={16} />
+                    创建 API
+                  </button>
+                  <StateLine state={apiCreateState} />
+                </div>
+              </form>
+            </>
+          )}
         </section>
       </div>
 
@@ -645,20 +1176,33 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
           <div className="document-health-grid">
             <StatusMetric label="服务" value={health?.service ?? 'asset-service'} />
             <StatusMetric label="状态" value={health?.status ?? (props.signedIn ? '等待响应' : '等待登录')} pill />
-            <StatusMetric label="需求资产" value={String(requirements.length)} />
-            <StatusMetric label="DRAFT" value={String(statusCounts.DRAFT ?? 0)} />
-            <StatusMetric label="REVIEWING" value={String(statusCounts.REVIEWING ?? 0)} />
-            <StatusMetric label="APPROVED" value={String(statusCounts.APPROVED ?? 0)} />
+            {activeTab === 'requirements' ? (
+              <>
+                <StatusMetric label="需求资产" value={String(requirements.length)} />
+                <StatusMetric label="DRAFT" value={String(statusCounts.DRAFT ?? 0)} />
+                <StatusMetric label="REVIEWING" value={String(statusCounts.REVIEWING ?? 0)} />
+                <StatusMetric label="APPROVED" value={String(statusCounts.APPROVED ?? 0)} />
+              </>
+            ) : (
+              <>
+                <StatusMetric label="API 资产" value={String(apis.length)} />
+                <StatusMetric label="ACTIVE" value={String(apiStatusCounts.ACTIVE ?? 0)} />
+                <StatusMetric label="DEPRECATED" value={String(apiStatusCounts.DEPRECATED ?? 0)} />
+                <StatusMetric label="REMOVED" value={String(apiStatusCounts.REMOVED ?? 0)} />
+              </>
+            )}
           </div>
-          {loadState.error && (
+          {activeLoadState.error && (
             <div className="inline-error">
               <strong>同步失败</strong>
-              <span>{loadState.error}</span>
+              <span>{activeLoadState.error}</span>
             </div>
           )}
         </section>
 
         <section className="panel insight-panel asset-detail-panel">
+          {activeTab === 'requirements' ? (
+            <>
           <div className="panel-title-row">
             <h2>需求详情</h2>
             {selectedRequirement && <AssetStatusPill value={selectedRequirement.status} />}
@@ -815,18 +1359,186 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
               </div>
             </div>
           )}
+            </>
+          ) : (
+            <>
+              <div className="panel-title-row">
+                <h2>API 详情</h2>
+                {selectedApi && <AssetStatusPill value={selectedApi.status} />}
+              </div>
+
+              {selectedApi ? (
+                <div className="asset-detail-stack">
+                  <div className="resource-summary">
+                    <strong>{selectedApi.summary}</strong>
+                    <div>
+                      <span>projectId</span>
+                      <em>{selectedApi.projectId ?? '-'}</em>
+                    </div>
+                    <div>
+                      <span>method</span>
+                      <em>{selectedApi.httpMethod}</em>
+                    </div>
+                    <div>
+                      <span>path</span>
+                      <em>{selectedApi.path}</em>
+                    </div>
+                    <div>
+                      <span>code</span>
+                      <em>{selectedApi.code ?? '-'}</em>
+                    </div>
+                    <div>
+                      <span>id</span>
+                      <em>{selectedApi.id}</em>
+                    </div>
+                    <div>
+                      <span>createdAt</span>
+                      <em>{formatDate(selectedApi.createdAt)}</em>
+                    </div>
+                  </div>
+
+                  <div className="asset-source-trace">
+                    <strong>来源追踪</strong>
+                    <div>
+                      <span>source</span>
+                      <em>{selectedApi.source ?? '-'}</em>
+                    </div>
+                    <div>
+                      <span>sourceRef</span>
+                      <em>{selectedApi.sourceRef ?? '-'}</em>
+                    </div>
+                    <div>
+                      <span>updatedAt</span>
+                      <em>{formatDate(selectedApi.updatedAt)}</em>
+                    </div>
+                    <div>
+                      <span>description</span>
+                      <em>{selectedApi.description ?? '-'}</em>
+                    </div>
+                  </div>
+
+                  <div className="asset-schema-preview">
+                    <strong>requestSchema</strong>
+                    <pre>{formatSchema(selectedApi.requestSchema)}</pre>
+                  </div>
+                  <div className="asset-schema-preview">
+                    <strong>responseSchema</strong>
+                    <pre>{formatSchema(selectedApi.responseSchema)}</pre>
+                  </div>
+
+                  <form className="resource-edit-form asset-edit-form" onSubmit={submitEditApi}>
+                    <label>
+                      <span>名称</span>
+                      <input
+                        value={apiEditDraft.summary}
+                        disabled={apiEditDisabled}
+                        onChange={(event) => setApiEditDraft((current) => ({ ...current, summary: event.target.value }))}
+                      />
+                    </label>
+                    <label>
+                      <span>method</span>
+                      <select
+                        value={apiEditDraft.httpMethod}
+                        disabled={apiEditDisabled}
+                        onChange={(event) => setApiEditDraft((current) => ({ ...current, httpMethod: event.target.value }))}
+                      >
+                        {ASSET_API_METHODS.map((method) => (
+                          <option key={method} value={method}>
+                            {method}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>
+                      <span>path</span>
+                      <input
+                        value={apiEditDraft.path}
+                        disabled={apiEditDisabled}
+                        onChange={(event) => setApiEditDraft((current) => ({ ...current, path: event.target.value }))}
+                      />
+                    </label>
+                    <label>
+                      <span>status</span>
+                      <select
+                        value={apiEditDraft.status}
+                        disabled={apiEditDisabled}
+                        onChange={(event) => setApiEditDraft((current) => ({ ...current, status: event.target.value }))}
+                      >
+                        {apiStatusOptions(selectedApi.status).map((status) => (
+                          <option key={status} value={status}>
+                            {status}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>
+                      <span>描述</span>
+                      <textarea
+                        className="compact-textarea"
+                        value={apiEditDraft.description}
+                        disabled={apiEditDisabled}
+                        onChange={(event) => setApiEditDraft((current) => ({ ...current, description: event.target.value }))}
+                      />
+                    </label>
+                    <label>
+                      <span>requestSchema</span>
+                      <textarea
+                        className="compact-textarea schema-textarea"
+                        value={apiEditDraft.requestSchema}
+                        disabled={apiEditDisabled}
+                        onChange={(event) => setApiEditDraft((current) => ({ ...current, requestSchema: event.target.value }))}
+                      />
+                    </label>
+                    <label>
+                      <span>responseSchema</span>
+                      <textarea
+                        className="compact-textarea schema-textarea"
+                        value={apiEditDraft.responseSchema}
+                        disabled={apiEditDisabled}
+                        onChange={(event) => setApiEditDraft((current) => ({ ...current, responseSchema: event.target.value }))}
+                      />
+                    </label>
+                    {canManageAssets && (
+                      <button
+                        className="mini-button"
+                        type="submit"
+                        disabled={apiEditDisabled || !apiEditDraft.summary.trim() || !apiEditDraft.path.trim()}
+                      >
+                        <Save size={14} />
+                        保存 API
+                      </button>
+                    )}
+                  </form>
+
+                  <StateLine state={apiMutationState} />
+                  <StateLine state={apiDetailState} />
+                </div>
+              ) : (
+                <div className="empty-state compact">
+                  <Pencil size={20} />
+                  <div>
+                    <strong>{apiDetailState.loading ? '正在加载详情' : props.signedIn ? '未选择 API' : '等待登录'}</strong>
+                    <span>{apiDetailState.error ?? '从列表中选择 API 资产'}</span>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
         </section>
       </aside>
     </section>
   );
 }
 
-function requirementIdFromHash() {
+function assetLocationFromHash(): { tab: 'requirements' | 'apis'; id: string } {
   const parts = window.location.hash.replace(/^#\/?/, '').split('/');
-  if (parts[0] !== 'asset-library' || parts[1] !== 'requirements') {
-    return '';
+  if (parts[0] !== 'asset-library') {
+    return { tab: 'requirements', id: '' };
   }
-  return parts[2] ? decodeURIComponent(parts[2]) : '';
+  if (parts[1] === 'apis') {
+    return { tab: 'apis', id: parts[2] ? decodeURIComponent(parts[2]) : '' };
+  }
+  return { tab: 'requirements', id: parts[2] ? decodeURIComponent(parts[2]) : '' };
 }
 
 function buildRequirementFilters(filters: RequirementFilters): AssetRequirementFilters {
@@ -837,6 +1549,16 @@ function buildRequirementFilters(filters: RequirementFilters): AssetRequirementF
     keyword: filters.keyword,
     source: filters.source,
     sourceRef: filters.sourceRef
+  };
+}
+
+function buildApiFilters(filters: ApiFilters): AssetApiFilters {
+  return {
+    size: 50,
+    projectId: filters.projectId,
+    status: filters.status,
+    keyword: filters.keyword,
+    source: filters.source
   };
 }
 
@@ -871,9 +1593,40 @@ function filterRequirements(requirements: AssetRequirementView[], filters: Requi
   });
 }
 
+function filterApis(apis: AssetApiView[], filters: ApiFilters) {
+  const keyword = filters.keyword.trim().toLowerCase();
+  return apis.filter((api) => {
+    if (filters.projectId.trim() && api.projectId !== filters.projectId.trim()) {
+      return false;
+    }
+    if (filters.status.trim() && api.status !== filters.status.trim()) {
+      return false;
+    }
+    if (filters.method.trim() && api.httpMethod !== filters.method.trim()) {
+      return false;
+    }
+    if (filters.source.trim() && (api.source ?? '').toLowerCase() !== filters.source.trim().toLowerCase()) {
+      return false;
+    }
+    if (!keyword) {
+      return true;
+    }
+    return [api.summary, api.description, api.code, api.path, api.sourceRef, api.projectId, api.httpMethod]
+      .filter(Boolean)
+      .some((value) => String(value).toLowerCase().includes(keyword));
+  });
+}
+
 function countRequirementsByStatus(requirements: AssetRequirementView[]) {
   return requirements.reduce<Record<string, number>>((counts, requirement) => {
     counts[requirement.status] = (counts[requirement.status] ?? 0) + 1;
+    return counts;
+  }, {});
+}
+
+function countApisByStatus(apis: AssetApiView[]) {
+  return apis.reduce<Record<string, number>>((counts, api) => {
+    counts[api.status] = (counts[api.status] ?? 0) + 1;
     return counts;
   }, {});
 }
@@ -893,6 +1646,19 @@ function requirementDraftFromView(requirement: AssetRequirementView): Requiremen
   };
 }
 
+function apiDraftFromView(api: AssetApiView): ApiDraft {
+  return {
+    projectId: api.projectId ?? '',
+    summary: api.summary,
+    description: api.description ?? '',
+    httpMethod: api.httpMethod || 'GET',
+    path: api.path,
+    requestSchema: api.requestSchema ?? '',
+    responseSchema: api.responseSchema ?? '',
+    status: api.status
+  };
+}
+
 function draftToCreatePayload(draft: RequirementDraft): AssetRequirementPayload {
   return {
     projectId: draft.projectId,
@@ -905,6 +1671,19 @@ function draftToCreatePayload(draft: RequirementDraft): AssetRequirementPayload 
     status: draft.status,
     priority: draft.priority,
     tags: tagsFromText(draft.tags)
+  };
+}
+
+function apiDraftToCreatePayload(draft: ApiDraft): AssetApiPayload {
+  return {
+    projectId: draft.projectId,
+    summary: draft.summary,
+    description: draft.description,
+    httpMethod: draft.httpMethod,
+    path: draft.path,
+    requestSchema: draft.requestSchema,
+    responseSchema: draft.responseSchema,
+    status: draft.status
   };
 }
 
@@ -922,6 +1701,18 @@ function draftToUpdatePayload(
   };
 }
 
+function apiDraftToUpdatePayload(current: AssetApiView, draft: ApiDraft): AssetApiPayload {
+  return {
+    summary: draft.summary || current.summary,
+    description: draft.description,
+    httpMethod: draft.httpMethod || current.httpMethod,
+    path: draft.path || current.path,
+    requestSchema: draft.requestSchema,
+    responseSchema: draft.responseSchema,
+    status: draft.status || current.status
+  };
+}
+
 function tagsFromText(value: string) {
   return value
     .split(',')
@@ -931,6 +1722,10 @@ function tagsFromText(value: string) {
 
 function nextStatuses(status: string) {
   return statusTransitionMap[status] ?? ['REVIEWING'];
+}
+
+function apiStatusOptions(status: string) {
+  return apiStatusTransitionMap[status] ?? ASSET_API_STATUSES;
 }
 
 function upsertRequirement(
@@ -946,12 +1741,36 @@ function upsertRequirement(
   });
 }
 
+function upsertApi(
+  setter: (updater: (current: AssetApiView[]) => AssetApiView[]) => void,
+  api: AssetApiView
+) {
+  setter((current) => {
+    const existing = current.findIndex((item) => item.id === api.id);
+    if (existing < 0) {
+      return [api, ...current];
+    }
+    return current.map((item) => (item.id === api.id ? api : item));
+  });
+}
+
 function formatDate(value?: string) {
   if (!value) {
     return '-';
   }
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
+}
+
+function formatSchema(value?: string) {
+  if (!value?.trim()) {
+    return '-';
+  }
+  try {
+    return JSON.stringify(JSON.parse(value), null, 2);
+  } catch {
+    return value;
+  }
 }
 
 function errorMessage(error: unknown, fallback: string) {
@@ -997,7 +1816,7 @@ function AssetStatusPill(props: { value: string }) {
     ? 'positive'
     : ['DRAFT', 'REVIEWING', 'MEDIUM', 'HIGH', 'CRITICAL'].includes(normalized)
       ? 'pending'
-      : ['DEPRECATED', 'FAILED', 'DOWN', 'OFF', 'ERROR'].includes(normalized)
+      : ['DEPRECATED', 'REMOVED', 'FAILED', 'DOWN', 'OFF', 'ERROR'].includes(normalized)
         ? 'negative'
         : 'neutral';
   return <span className={`status-pill ${tone}`}>{value}</span>;

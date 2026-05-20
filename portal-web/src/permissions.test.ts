@@ -110,8 +110,11 @@ describe('WP1 permission helpers', () => {
     expect(canUseButton(user(['config:read']), 'audit:export')).toBe(false);
     expect(canUseButton(user(['asset:manage']), 'asset:requirement_create')).toBe(true);
     expect(canUseButton(user(['asset:manage']), 'asset:requirement_edit')).toBe(true);
+    expect(canUseButton(user(['asset:manage']), 'asset:api_create')).toBe(true);
+    expect(canUseButton(user(['asset:manage']), 'asset:api_edit')).toBe(true);
     expect(canUseButton(user(['asset:review']), 'asset:requirement_review')).toBe(true);
     expect(canUseButton(user(['asset:read']), 'asset:requirement_edit')).toBe(false);
+    expect(canUseButton(user(['asset:read']), 'asset:api_edit')).toBe(false);
     expect(canUseButton(user(['asset:export']), 'asset:export')).toBe(true);
   });
 

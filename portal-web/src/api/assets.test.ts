@@ -1,18 +1,27 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { requestJson } from './client';
 import {
+  ASSET_API_METHODS,
+  ASSET_API_STATUSES,
   ASSET_REQUIREMENT_PRIORITIES,
   ASSET_REQUIREMENT_SOURCES,
   ASSET_REQUIREMENT_STATUSES,
+  assetApiItems,
   assetRequirementItems,
+  createAssetApi,
   createAssetRequirement,
+  fetchAssetApi,
+  fetchAssetApis,
   fetchAssetRequirement,
   fetchAssetRequirements,
   fetchRequirementTraceLinks,
+  normalizeAssetApiList,
+  normalizeAssetApiView,
   normalizeAssetHealth,
   normalizeAssetRequirementList,
   normalizeAssetRequirementView,
   normalizeTraceLinkList,
+  updateAssetApi,
   updateAssetRequirement
 } from './assets';
 
@@ -31,6 +40,11 @@ describe('asset API helpers', () => {
     expect(ASSET_REQUIREMENT_STATUSES).toEqual(['DRAFT', 'REVIEWING', 'APPROVED', 'DEPRECATED']);
     expect(ASSET_REQUIREMENT_PRIORITIES).toEqual(['CRITICAL', 'HIGH', 'MEDIUM', 'LOW']);
     expect(ASSET_REQUIREMENT_SOURCES).toEqual(['MANUAL', 'IMPORT']);
+  });
+
+  it('exposes WP3 API enums used by the workbench', () => {
+    expect(ASSET_API_STATUSES).toEqual(['ACTIVE', 'DEPRECATED', 'REMOVED']);
+    expect(ASSET_API_METHODS).toEqual(['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS']);
   });
 
   it('normalizes health and camelCase requirement fields', () => {
@@ -111,7 +125,7 @@ describe('asset API helpers', () => {
       sourceRef: 'PRD-1'
     });
     expect(requestJsonMock).toHaveBeenLastCalledWith(
-      '/api/v1/asset/requirements?index=1&size=20&projectId=proj+pay&status=DRAFT&keyword=%E7%99%BB%E5%BD%95&source=IMPORT&sourceRef=PRD-1'
+      '/api/v1/asset/requirements?index=1&size=20&projectId=proj+pay&status=DRAFT&keyword=%E7%99%BB%E5%BD%95&source=IMPORT'
     );
 
     await fetchAssetRequirement('req 1');
@@ -162,6 +176,133 @@ describe('asset API helpers', () => {
         status: 'REVIEWING',
         priority: 'MEDIUM',
         tags: 'auth,review'
+      })
+    });
+  });
+
+  it('normalizes API asset fields, enums and paged responses', () => {
+    const api = normalizeAssetApiView({
+      api_id: 'api-1',
+      code: 'API-0001',
+      name: '创建订单',
+      description: '订单创建接口',
+      http_method: 'post',
+      path: '/api/orders',
+      source_ref: 'openapi.yaml#/paths/~1api~1orders/post',
+      request_schema: '{"type":"object"}',
+      response_schema: '{"type":"object","properties":{"id":{"type":"string"}}}',
+      project_id: 'proj-payments',
+      status: 'deprecated',
+      created_at: '2026-05-20T01:00:00Z'
+    });
+
+    expect(api).toMatchObject({
+      id: 'api-1',
+      code: 'API-0001',
+      summary: '创建订单',
+      httpMethod: 'POST',
+      path: '/api/orders',
+      sourceRef: 'openapi.yaml#/paths/~1api~1orders/post',
+      requestSchema: '{"type":"object"}',
+      responseSchema: '{"type":"object","properties":{"id":{"type":"string"}}}',
+      projectId: 'proj-payments',
+      status: 'DEPRECATED'
+    });
+
+    const list = normalizeAssetApiList({
+      records: [
+        {
+          id: 'api-2',
+          summary: '查询订单',
+          httpMethod: 'get',
+          path: '/api/orders/{id}',
+          status: 'active',
+          projectId: 'proj-payments'
+        }
+      ],
+      totalElements: '6',
+      pageSize: '20',
+      page: '1'
+    });
+
+    expect(list.total).toBe(6);
+    expect(list.pageSize).toBe(20);
+    expect(list.items[0]).toMatchObject({
+      id: 'api-2',
+      summary: '查询订单',
+      httpMethod: 'GET',
+      status: 'ACTIVE'
+    });
+    expect(assetApiItems([{ id: 'api-3', summary: '退款', http_method: 'patch', path: '/refunds' }])).toHaveLength(1);
+  });
+
+  it('calls API list and detail endpoints with encoded filters', async () => {
+    requestJsonMock.mockResolvedValue({ code: 'OK', message: 'ok', trace_id: 'trace-api-1', data: { items: [] } });
+
+    await fetchAssetApis({
+      index: 1,
+      size: 20,
+      projectId: 'proj pay',
+      status: 'ACTIVE',
+      keyword: '订单',
+      source: 'OPENAPI'
+    });
+    expect(requestJsonMock).toHaveBeenLastCalledWith(
+      '/api/v1/asset/apis?index=1&size=20&projectId=proj+pay&status=ACTIVE&keyword=%E8%AE%A2%E5%8D%95&source=OPENAPI'
+    );
+
+    await fetchAssetApi('api 1');
+    expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/asset/apis/api%201');
+  });
+
+  it('compacts API create and update payloads for the current WP3 contract', async () => {
+    requestJsonMock.mockResolvedValue({
+      code: 'OK',
+      message: 'ok',
+      trace_id: 'trace-api-2',
+      data: { id: 'api-1', summary: '创建订单', httpMethod: 'POST', path: '/api/orders' }
+    });
+
+    await createAssetApi({
+      projectId: ' proj-payments ',
+      summary: ' 创建订单 ',
+      description: '',
+      httpMethod: ' POST ',
+      path: ' /api/orders ',
+      requestSchema: ' {"type":"object"} ',
+      responseSchema: '',
+      status: 'ACTIVE'
+    });
+    expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/asset/apis', {
+      method: 'POST',
+      body: JSON.stringify({
+        projectId: 'proj-payments',
+        summary: '创建订单',
+        httpMethod: 'POST',
+        path: '/api/orders',
+        requestSchema: '{"type":"object"}',
+        status: 'ACTIVE'
+      })
+    });
+
+    await updateAssetApi('api 1', {
+      summary: '查询订单',
+      description: '按订单号查询',
+      httpMethod: ' GET ',
+      path: ' /api/orders/{id} ',
+      requestSchema: '',
+      responseSchema: ' {"type":"object","properties":{"id":{"type":"string"}}} ',
+      status: 'DEPRECATED'
+    });
+    expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/asset/apis/api%201', {
+      method: 'PUT',
+      body: JSON.stringify({
+        summary: '查询订单',
+        description: '按订单号查询',
+        httpMethod: 'GET',
+        path: '/api/orders/{id}',
+        responseSchema: '{"type":"object","properties":{"id":{"type":"string"}}}',
+        status: 'DEPRECATED'
       })
     });
   });

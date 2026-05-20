@@ -1844,6 +1844,30 @@ tbody tr:hover td {
   font-style: normal;
 }
 
+.asset-method-path {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.asset-method-path strong {
+  width: max-content;
+  max-width: 100%;
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  background: #ecfdf5;
+  color: #047857;
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.asset-method-path em {
+  color: var(--text-primary);
+  font-size: 12px;
+  font-style: normal;
+  overflow-wrap: anywhere;
+}
+
 .asset-form {
   display: grid;
   gap: 14px;
@@ -1864,6 +1888,46 @@ tbody tr:hover td {
   color: var(--text-primary);
   font-size: 13px;
   outline: none;
+}
+
+.asset-schema-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.schema-textarea {
+  min-height: 128px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
+}
+
+.asset-schema-preview {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+}
+
+.asset-schema-preview strong {
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.asset-schema-preview pre {
+  max-height: 220px;
+  margin: 0;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--text-secondary);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 .asset-source-trace,
@@ -2158,6 +2222,7 @@ tbody tr:hover td {
 
   .asset-filter-actions,
   .asset-status-flow,
+  .asset-schema-grid,
   .asset-source-trace > div {
     grid-template-columns: 1fr;
   }

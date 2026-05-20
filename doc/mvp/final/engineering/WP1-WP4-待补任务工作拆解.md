@@ -160,7 +160,7 @@ WP3 是当前最需要补齐的工作包。后端已有需求、API、页面、�
 |---|---|---|---|---|---|
 | WP3-D1 | 资产库导航和路由 | P0-B | DONE-CURRENT | portal-web 已增加资产库入口、hash 深链和 P1 类型入口，并按 `asset:read` 展示 | 无权限用户不可访问；刷新和深链可用 |
 | WP3-D2 | 需求资产页面 | P0-B | DONE-CURRENT | 已实现需求列表、详情、创建、编辑、状态流入口和来源追踪展示 | WP4 发布的 IMPORT 需求可在页面查看 source/sourceRef/sourceUrl |
-| WP3-D3 | API 资产页面 | P1 | TODO | API 列表、详情、创建、编辑、schema 展示、OpenAPI 导入入口 | 接口路径和方法可筛选，不重复创建 |
+| WP3-D3 | API 资产页面 | P1 | DONE-CURRENT | portal-web 已开放 API 资产页，支持列表、详情、创建、编辑、`method/path/status/source/keyword` 筛选、schema 展示和 OpenAPI 导入入口预留 | 接口路径和方法可筛选；创建/编辑走现有 WP3 API 资产契约，重复创建由后端唯一性约束阻断 |
 | WP3-D4 | 页面和业务流页面 | P1 | TODO | 页面资产、业务流资产的 CRUD 和可读结构展示 | JSON 字段展示不撑破布局，可编辑可校验 |
 | WP3-D5 | 测试用例与步骤页面 | P1 | TODO | 用例列表、详情、步骤编辑、关联需求/API | 步骤顺序稳定，保存失败不丢本地编辑 |
 | WP3-D6 | 追踪矩阵和影响分析 | P1 | TODO | 展示 requirement-api-case 覆盖矩阵、缺口和影响范围 | 可按需求查看覆盖 API/用例，按 API 查看相关需求/用例 |

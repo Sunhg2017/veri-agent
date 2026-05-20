@@ -85,6 +85,8 @@ export type ButtonKey =
   | 'asset:requirement_create'
   | 'asset:requirement_edit'
   | 'asset:requirement_review'
+  | 'asset:api_create'
+  | 'asset:api_edit'
   | 'asset:export';
 
 export type UserLifecycleAction = 'enable' | 'disable' | 'lock' | 'unlock' | 'reset-password' | 'assign-role' | 'unassign-role';
@@ -146,6 +148,8 @@ const buttonPermissionGroups: Record<ButtonKey, Permission[][]> = {
   'asset:requirement_create': [['asset:manage']],
   'asset:requirement_edit': [['asset:manage']],
   'asset:requirement_review': [['asset:review']],
+  'asset:api_create': [['asset:manage']],
+  'asset:api_edit': [['asset:manage']],
   'asset:export': [['asset:export']],
 
   // Compound operations requiring ALL permissions in a group (AND logic)
