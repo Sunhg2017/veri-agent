@@ -32,6 +32,7 @@ import {
   fetchAssetTestCase,
   fetchAssetTestCases,
   fetchAssetTestCaseSteps,
+  fetchAssetTraceLinks,
   fetchRequirementTraceLinks,
   normalizeAssetApiList,
   normalizeAssetApiView,
@@ -686,7 +687,7 @@ describe('asset API helpers', () => {
     });
   });
 
-  it('normalizes trace links and calls the requirement link endpoint', async () => {
+  it('normalizes trace links and calls trace link endpoints', async () => {
     const links = normalizeTraceLinkList({
       items: [{ link_id: 'link-1', requirement_id: 'req-1', api_id: 'api-1', test_case_id: 'case-1' }],
       total: '1'
@@ -697,7 +698,13 @@ describe('asset API helpers', () => {
     });
 
     requestJsonMock.mockResolvedValue({ code: 'OK', message: 'ok', trace_id: 'trace-3', data: { items: [] } });
+    await fetchAssetTraceLinks({ size: 500 });
+    expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/asset/links?size=500');
+
+    await fetchAssetTraceLinks({ apiId: 'api 1', caseId: 'case 1' });
+    expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/asset/links?apiId=api+1&caseId=case+1');
+
     await fetchRequirementTraceLinks('req 1');
-    expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/asset/links?requirementId=req%201');
+    expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/asset/links?requirementId=req+1');
   });
 });

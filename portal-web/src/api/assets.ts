@@ -268,6 +268,14 @@ export interface TraceLinkList {
   total: number;
 }
 
+export interface TraceLinkFilters {
+  index?: number;
+  size?: number;
+  requirementId?: string;
+  apiId?: string;
+  caseId?: string;
+}
+
 type UnknownRecord = Record<string, unknown>;
 
 function isRecord(value: unknown): value is UnknownRecord {
@@ -438,6 +446,17 @@ function testCaseQuery(filters: AssetTestCaseFilters) {
   if (filters.status?.trim()) params.set('status', filters.status.trim());
   if (filters.keyword?.trim()) params.set('keyword', filters.keyword.trim());
   if (filters.source?.trim()) params.set('source', filters.source.trim());
+  const query = params.toString();
+  return query ? `?${query}` : '';
+}
+
+function traceLinkQuery(filters: TraceLinkFilters) {
+  const params = new URLSearchParams();
+  if (typeof filters.index === 'number') params.set('index', String(filters.index));
+  if (typeof filters.size === 'number') params.set('size', String(filters.size));
+  if (filters.requirementId?.trim()) params.set('requirementId', filters.requirementId.trim());
+  if (filters.apiId?.trim()) params.set('apiId', filters.apiId.trim());
+  if (filters.caseId?.trim()) params.set('caseId', filters.caseId.trim());
   const query = params.toString();
   return query ? `?${query}` : '';
 }
@@ -825,7 +844,11 @@ export async function updateAssetTestCaseSteps(
   return { ...response, data: assetTestCaseStepItems(response.data) };
 }
 
-export async function fetchRequirementTraceLinks(requirementId: string): Promise<ApiResponse<TraceLinkList>> {
-  const response = await requestJson<unknown>(`/api/v1/asset/links?requirementId=${encodeURIComponent(requirementId)}`);
+export async function fetchAssetTraceLinks(filters: TraceLinkFilters = {}): Promise<ApiResponse<TraceLinkList>> {
+  const response = await requestJson<unknown>(`/api/v1/asset/links${traceLinkQuery(filters)}`);
   return { ...response, data: normalizeTraceLinkList(response.data) };
+}
+
+export async function fetchRequirementTraceLinks(requirementId: string): Promise<ApiResponse<TraceLinkList>> {
+  return fetchAssetTraceLinks({ requirementId });
 }

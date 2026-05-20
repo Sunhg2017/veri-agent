@@ -199,7 +199,7 @@ curl 'http://127.0.0.1:8080/api/v1/asset/requirements?projectId=project-001&stat
   -H 'X-Delegated-User-Id: user-001'
 ```
 
-当前资产工作台已在 `portal-web` 增加资产库入口、需求资产页面、API 资产页面、页面资产页面、业务流资产页面和测试用例页面；API 页支持列表、详情、创建、编辑、方法/路径筛选和 schema 展示，页面/业务流页支持列表、详情、创建、编辑、筛选和结构化 JSON 预览/校验，用例页支持基础信息维护、关联需求/API 展示与步骤顺序编辑。权限收敛为 `asset:read`、`asset:manage`、`asset:review`、`asset:export`。
+当前资产工作台已在 `portal-web` 增加资产库入口、需求资产页面、API 资产页面、页面资产页面、业务流资产页面、测试用例页面和追踪矩阵页面；API 页支持列表、详情、创建、编辑、方法/路径筛选和 schema 展示，页面/业务流页支持列表、详情、创建、编辑、筛选和结构化 JSON 预览/校验，用例页支持基础信息维护、关联需求/API 展示与步骤顺序编辑，追踪矩阵页支持需求-API-用例覆盖、缺口和一跳影响范围查看。权限收敛为 `asset:read`、`asset:manage`、`asset:review`、`asset:export`。
 
 ## WP4 文档输入
 
@@ -340,7 +340,7 @@ bash scripts/wp2_quality_gate.sh
 - 无权限角色访问管理写接口会返回 `FORBIDDEN`。
 - `/v3/api-docs` 可生成 OpenAPI 文档，且契约测试保护认证、管理、账号生命周期和设置 CRUD 关键路径。
 - WP2 `db` profile 默认种子可直接完成 local echo 调用、调用日志查询、成本汇总、成本报表、成本告警、供应商就绪检查缓存和 CSV 导出 smoke；WP2 聚合门禁可串联模型接入测试、数据库 validation，并按需执行 HTTP smoke / 模块策略 smoke。
-- WP3 已补齐资产库前后端闭环：列表分页、需求/API/页面/业务流/用例/追踪链接基础 API、用户态 `asset:*` RBAC、OpenAPI 契约测试、前端资产 API normalizer、资产库导航、需求/API/页面/业务流/测试用例工作台。
+- WP3 已补齐资产库前后端闭环：列表分页、需求/API/页面/业务流/用例/追踪链接基础 API、用户态 `asset:*` RBAC、OpenAPI 契约测试、前端资产 API normalizer、资产库导航、需求/API/页面/业务流/测试用例工作台和只读追踪矩阵工作台。
 - WP4 smoke 覆盖 Markdown 导入、候选 `status/sourceRef/keyword` 筛选、versioned 批量确认、dryRun、发布到 WP3、WP3 `source/sourceRef/sourceUrl/acceptanceCriteria` 追踪、发布记录、`CUSTOM_API` source health、`X-VA-*` 签名 webhook、幂等 replay、事件日志、无效签名拒绝和当前导入/候选/发布/webhook metrics。
 - WP4 二进制文档 smoke 覆盖真实 docx、真实文本 PDF、OCR 命令 provider；AI 解析质量评测输出标题召回、优先级准确率、验收标准覆盖率并执行阈值门禁。
 

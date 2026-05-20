@@ -46,6 +46,7 @@ import {
 import { hasPermission } from '../permissions';
 import { AssetCaseWorkbench } from './AssetCaseWorkbench';
 import { AssetStructuredWorkbench, type AssetNavigationKey } from './AssetStructuredWorkbench';
+import { AssetTraceWorkbench } from './AssetTraceWorkbench';
 
 type WorkState = {
   loading: boolean;
@@ -140,7 +141,7 @@ const assetTabs = [
   { key: 'pages', label: '页面', icon: ClipboardList, enabled: true },
   { key: 'flows', label: '业务流', icon: GitBranch, enabled: true },
   { key: 'cases', label: '用例', icon: CheckCircle2, enabled: true },
-  { key: 'trace', label: '追踪矩阵', icon: GitBranch, enabled: false }
+  { key: 'trace', label: '追踪矩阵', icon: GitBranch, enabled: true }
 ] as const satisfies readonly { key: AssetNavigationKey; label: string; icon: LucideIcon; enabled: boolean }[];
 
 type AssetTabKey = (typeof assetTabs)[number]['key'];
@@ -452,6 +453,17 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
   if (activeTab === 'cases') {
     return (
       <AssetCaseWorkbench
+        currentUser={props.currentUser}
+        onSelectTab={selectTab}
+        signedIn={props.signedIn}
+        tabs={assetTabs}
+      />
+    );
+  }
+
+  if (activeTab === 'trace') {
+    return (
+      <AssetTraceWorkbench
         currentUser={props.currentUser}
         onSelectTab={selectTab}
         signedIn={props.signedIn}

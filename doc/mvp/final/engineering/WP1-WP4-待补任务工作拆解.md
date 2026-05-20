@@ -163,7 +163,7 @@ WP3 是当前最需要补齐的工作包。后端已有需求、API、页面、�
 | WP3-D3 | API 资产页面 | P1 | DONE-CURRENT | portal-web 已开放 API 资产页，支持列表、详情、创建、编辑、`method/path/status/source/keyword` 筛选、schema 展示和 OpenAPI 导入入口预留 | 接口路径和方法可筛选；创建/编辑走现有 WP3 API 资产契约，重复创建由后端唯一性约束阻断 |
 | WP3-D4 | 页面和业务流页面 | P1 | DONE-CURRENT | portal-web 已开放页面资产与业务流资产页，支持列表、详情、创建、编辑、`projectId/status/source/keyword` 筛选、JSON 预览和编辑校验；真实原型连接器与可视化流程画布仍不在本轮范围 | JSON 字段展示不撑破布局，编辑前校验合法 JSON，页面/流程创建编辑走现有 WP3 契约 |
 | WP3-D5 | 测试用例与步骤页面 | P1 | DONE-CURRENT | portal-web 已开放测试用例页，支持列表、详情、创建、编辑、状态筛选、关联需求/API 展示与跳转、步骤新增/删除/上移/下移和整体保存 | 步骤顺序稳定，保存失败保留本地编辑草稿，创建/编辑/步骤保存走现有 WP3 用例契约 |
-| WP3-D6 | 追踪矩阵和影响分析 | P1 | TODO | 展示 requirement-api-case 覆盖矩阵、缺口和影响范围 | 可按需求查看覆盖 API/用例，按 API 查看相关需求/用例 |
+| WP3-D6 | 追踪矩阵和影响分析 | P1 | DONE-CURRENT | portal-web 已开放追踪矩阵页，基于现有需求/API/用例列表和 `/api/v1/asset/links` 做前端只读聚合，展示 requirement-api-case 覆盖状态、缺 API/用例缺口、孤立 API/用例和一跳影响范围 | 可按需求查看覆盖 API/用例，按 API/用例反查相关需求和用例；正式后端聚合影响分析服务仍作为后续增强 |
 
 ### WP3-E 质量门禁与集成
 
