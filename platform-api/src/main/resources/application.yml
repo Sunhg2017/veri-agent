@@ -38,6 +38,9 @@ veri-agent:
   auth:
     token-secret: ${WP1_AUTH_TOKEN_SECRET:${WP1_BOOTSTRAP_TOKEN:}}
     access-token-ttl-minutes: ${WP1_ACCESS_TOKEN_TTL_MINUTES:30}
+    session-cleanup-enabled: ${WP1_SESSION_CLEANUP_ENABLED:true}
+    session-cleanup-retention-seconds: ${WP1_SESSION_CLEANUP_RETENTION_SECONDS:86400}
+    session-cleanup-interval-ms: ${WP1_SESSION_CLEANUP_INTERVAL_MS:3600000}
   integration:
     service-token: ${WP1_SERVICE_TOKEN:local-platform-service-token}
   secret:
@@ -60,6 +63,9 @@ veri-agent:
     provider-circuit-open-ms: ${WP2_PROVIDER_CIRCUIT_OPEN_MS:60000}
     provider-check-cache-ttl-ms: ${WP2_PROVIDER_CHECK_CACHE_TTL_MS:30000}
     cost-alert-warning-ratio: ${WP2_COST_ALERT_WARNING_RATIO:0.8}
+    provider-rate-limit-max-requests: ${WP2_PROVIDER_RATE_LIMIT_MAX_REQUESTS:0}
+    provider-rate-limit-window-seconds: ${WP2_PROVIDER_RATE_LIMIT_WINDOW_SECONDS:60}
+    provider-max-concurrent-requests: ${WP2_PROVIDER_MAX_CONCURRENT_REQUESTS:0}
   asset:
     service-token: ${WP3_SERVICE_TOKEN:local-asset-token}
   document-input:
@@ -94,3 +100,10 @@ veri-agent:
     pdf-max-pages: ${WP4_PDF_MAX_PAGES:0}
     pdf-max-parse-millis: ${WP4_PDF_MAX_PARSE_MILLIS:0}
     ocr-worker-mode: ${WP4_OCR_WORKER_MODE:LOCAL_COMMAND}
+    malware-scan-command: ${WP4_MALWARE_SCAN_COMMAND:}
+    malware-scan-timeout-seconds: ${WP4_MALWARE_SCAN_TIMEOUT_SECONDS:15}
+    malware-scan-max-concurrent-processes: ${WP4_MALWARE_SCAN_MAX_CONCURRENT_PROCESSES:2}
+    malware-scan-max-output-chars: ${WP4_MALWARE_SCAN_MAX_OUTPUT_CHARS:2000}
+    retention-cleanup-enabled: ${WP4_RETENTION_CLEANUP_ENABLED:false}
+    import-retention-days: ${WP4_IMPORT_RETENTION_DAYS:90}
+    webhook-event-retention-days: ${WP4_WEBHOOK_EVENT_RETENTION_DAYS:90}

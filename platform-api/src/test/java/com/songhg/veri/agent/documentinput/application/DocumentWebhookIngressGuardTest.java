@@ -87,7 +87,14 @@ class DocumentWebhookIngressGuardTest {
                 true,
                 0,
                 0,
-                "LOCAL_COMMAND"
+                "LOCAL_COMMAND",
+                "",
+                15,
+                2,
+                2000,
+                false,
+                90,
+                90
         );
     }
 }

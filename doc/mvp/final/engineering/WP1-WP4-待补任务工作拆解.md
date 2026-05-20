@@ -61,8 +61,8 @@ WP1、WP2、WP4 的当前 P0 口径已经基本收敛，后续以生产硬化、
 
 | 编号 | 任务 | 优先级 | 状态 | 工作内容 | 验收标准 |
 |---|---|---|---|---|---|
-| WP1-C1 | 审计导出任务 API | P1 | TODO | 支持按当前筛选条件创建 CSV 导出任务，导出自身写审计 | 导出文件不含敏感明文，导出条件和结果可追踪 |
-| WP1-C2 | 审计导出前端入口 | P1 | TODO | 审计列表增加导出按钮、任务状态、下载或对象存储引用 | 无导出权限不可操作，导出失败有可读错误 |
+| WP1-C1 | 审计导出任务 API | P1 | DONE-CURRENT | 已新增 `GET /api/v1/management/audit-logs/export` 同步 CSV 导出，复用 `actor/action/resourceType/result/search/startTime/endTime` 筛选，要求 `audit:read` + `audit:export`，导出自身写审计 | 导出文件不含敏感明文，导出条件和结果可追踪；异步任务/对象存储引用仍作为后续产品化增强 |
+| WP1-C2 | 审计导出前端入口 | P1 | DONE-CURRENT | portal-web 审计页已按 `audit:export` 展示 CSV 导出按钮，提供下载、导出中、失败和 traceId 状态 | 无导出权限不可操作，导出失败有可读错误 |
 | WP1-C3 | 审计保留策略 | P1 | TODO | 定义默认保留周期、归档策略、清理任务和配置项 | 清理不破坏业务对象追溯和合规查询 |
 | WP1-C4 | Audit outbox 运维视图 | P1 | TODO | 展示待补偿、重试中、失败审计事件；支持按 traceId 查询 | 审计写失败可观测，重试不重复写业务审计 |
 
@@ -70,8 +70,8 @@ WP1、WP2、WP4 的当前 P0 口径已经基本收敛，后续以生产硬化、
 
 | 编号 | 任务 | 优先级 | 状态 | 工作内容 | 验收标准 |
 |---|---|---|---|---|---|
-| WP1-D1 | Redis 会话清理或 DB 会话清理任务 | P1 | TODO | 明确当前 profile 的会话存储策略，补过期清理、指标和脚本 | 长期运行不会积累过期会话；清理行为不影响有效会话 |
-| WP1-D2 | 复杂状态流拒绝测试 | P1 | TODO | 扩展部门、用户、项目、应用、环境的重复、逆向和非法状态流测试 | 非法状态变更返回稳定错误码并写拒绝审计 |
+| WP1-D1 | Redis 会话清理或 DB 会话清理任务 | P1 | DONE-CURRENT | 已补 `AuthSessionCleanupService`，local profile 清理内存会话，db profile 通过 MyBatis 删除过期/已撤销 `iam_session`；支持 `WP1_SESSION_CLEANUP_ENABLED`、`WP1_SESSION_CLEANUP_RETENTION_SECONDS`、`WP1_SESSION_CLEANUP_INTERVAL_MS`，并记录 `veri.agent.auth.session.cleanup` 指标 | 长期运行不会积累过期会话；清理行为不影响有效会话 |
+| WP1-D2 | 复杂状态流拒绝测试 | P1 | DONE-CURRENT | 已扩展项目重复/逆向/非法状态流、停用后编辑拒绝，以及应用/环境非法状态与停用后编辑拒绝测试；项目非法状态流写入 `DENIED` 拒绝审计，db profile 通过独立事务保留拒绝事件 | 非法状态变更返回稳定错误码并写拒绝审计 |
 | WP1-D3 | 环境连通性检查 | P1 | TODO | 对环境 webUrl/apiBaseUrl 增加可配置探活和最近健康结果 | 停用环境不可执行；探活失败不泄露内部错误 |
 | WP1-D4 | Secret 引用写入和轮换管理 | P1 | TODO | 对 Secret 引用补创建/轮换/禁用/摘要读取 API 与前端入口 | 明文不入库、不回显、不进审计；轮换后旧引用按策略失效 |
 
@@ -98,8 +98,8 @@ WP1、WP2、WP4 的当前 P0 口径已经基本收敛，后续以生产硬化、
 
 | 编号 | 任务 | 优先级 | 状态 | 工作内容 | 验收标准 |
 |---|---|---|---|---|---|
-| WP2-B1 | Provider 级限流和并发控制 | P1 | TODO | 对供应商、项目、调用服务增加请求速率和并发保护 | 超限返回稳定错误码并记录 BLOCKED 调用日志 |
-| WP2-B2 | 熔断状态观测与手动恢复 | P1 | TODO | 暴露 provider 熔断状态、失败窗口、恢复时间和人工 reset 操作 | 运维可判断当前 provider 是否被短时熔断 |
+| WP2-B1 | Provider 级限流和并发控制 | P1 | DONE-CURRENT | 已补 provider 级请求窗口限流和并发 semaphore，支持 `WP2_PROVIDER_RATE_LIMIT_MAX_REQUESTS`、`WP2_PROVIDER_RATE_LIMIT_WINDOW_SECONDS`、`WP2_PROVIDER_MAX_CONCURRENT_REQUESTS`；超限/并发满返回 `BUDGET_EXCEEDED` 并记录 `BLOCKED` 调用日志 | 超限返回稳定错误码并记录 BLOCKED 调用日志 |
+| WP2-B2 | 熔断状态观测与手动恢复 | P1 | DONE-CURRENT | 已新增 `GET /api/v1/model-access/providers/{id}/resilience` 和 `POST /api/v1/model-access/providers/{id}/circuit/reset`，健康接口暴露打开熔断 provider 数 | 运维可判断当前 provider 是否被短时熔断 |
 | WP2-B3 | 外部 provider runbook | P1 | DONE-CURRENT | 已新增 `doc/mvp/final/engineering/WP2-Provider接入与SecretRef轮换Runbook.md`，覆盖 OpenAI-compatible、私有模型、代理网关的配置、探活和故障处理 | 新 provider 接入不需要阅读源码 |
 | WP2-B4 | SecretRef 轮换流程 | P1 | DONE-CURRENT | `WP2-Provider接入与SecretRef轮换Runbook.md` 已说明当前 `apiKeyRef=env:VARIABLE_NAME` 口径和后续 SecretProvider 对齐的双引用轮换流程 | 轮换期间不中断可用 provider，旧 secretRef/apiKeyRef 可控失效 |
 
@@ -109,7 +109,7 @@ WP1、WP2、WP4 的当前 P0 口径已经基本收敛，后续以生产硬化、
 |---|---|---|---|---|---|
 | WP2-C1 | 高级路由策略 | P1 | TODO | 支持按项目、敏感级别、调用服务、模型能力和成本选择供应商组 | 高敏资源仍不能路由公开模型；路由结果可审计 |
 | WP2-C2 | 预算策略产品化 | P1 | TODO | 平台/项目/调用服务预算，告警阈值，冻结策略 | 超预算前可告警，超预算后阻断或降级行为可配置 |
-| WP2-C3 | 敏感内容检测扩展 | P1 | TODO | 扩展手机号、邮箱、银行卡、企业内部密钥模式和自定义正则 | 命中后阻断或脱敏策略可配置且被测试覆盖 |
+| WP2-C3 | 敏感内容检测扩展 | P1 | DONE-CURRENT | 已扩展手机号、邮箱、银行卡疑似长号、企业内部 token/secret/private key 模式，并保留现有 key/token/password/Bearer/身份证号阻断；新增单测覆盖 | 命中后阻断并在日志/响应中保留稳定错误；自定义正则和阻断/脱敏策略配置仍作为后续增强 |
 | WP2-C4 | Prompt 评审与审批 | P2 | TODO | 高风险 Prompt 激活前审批，保留审批人与版本说明 | Prompt 变更可追溯，回滚到旧版本有明确操作 |
 
 ### WP2-D 模型质量和异步能力
@@ -193,7 +193,7 @@ WP4 本轮 P0 已覆盖真实文件上传、Word/PDF/OCR、AI 解析、SecretPro
 | 编号 | 任务 | 优先级 | 状态 | 工作内容 | 验收标准 |
 |---|---|---|---|---|---|
 | WP4-B1 | OCR 隔离 worker 方案 | P1 | IN_PROGRESS | 已补 `ocrWorkerMode` 配置和健康暴露入口；真实 worker/队列/容器隔离仍待专项实现 | OCR 超时、崩溃或高 CPU 不拖垮 platform-api |
-| WP4-B2 | 恶意文件扫描 | P1 | TODO | 接入杀毒或文件扫描组件，支持拒绝高危文件 | 被标记恶意文件不进入解析，错误摘要不泄露内部路径 |
+| WP4-B2 | 恶意文件扫描 | P1 | DONE-CURRENT | 已补 `WP4_MALWARE_SCAN_COMMAND` 命令式文件扫描 provider，支持超时、并发和输出截断配置；Word/PDF/OCR 二进制解析前先扫描，健康接口暴露扫描开关和并发余量 | 被标记恶意文件不进入解析，错误摘要不泄露内部路径 |
 | WP4-B3 | 文件类型嗅探和 MIME 校验 | P1 | DONE-CURRENT | `binaryMimeValidationEnabled` 已接入 data URL 声明 MIME 与文件魔数/内容嗅探校验，覆盖 PDF、DOC/DOCX 和常见图片类型；健康接口暴露配置 | 伪造 MIME 被拒绝或按真实类型处理 |
 | WP4-B4 | PDF 页数/解析时间限制 | P1 | DONE-CURRENT | `pdfMaxPages/pdfMaxParseMillis` 已在 PDFBox 解析路径生效，并由单测覆盖页数超限和解析耗时超限；健康接口暴露配置 | 超限失败可读，临时文件清理稳定 |
 | WP4-B5 | 高保真解析专项 | P2 | TODO | 表格结构、图片语义、页眉页脚、批注、附件抽取专项评估 | 不影响当前文本抽取链路 |
@@ -202,9 +202,9 @@ WP4 本轮 P0 已覆盖真实文件上传、Word/PDF/OCR、AI 解析、SecretPro
 
 | 编号 | 任务 | 优先级 | 状态 | 工作内容 | 验收标准 |
 |---|---|---|---|---|---|
-| WP4-C1 | 扩大 golden corpus | P1 | IN_PROGRESS | 覆盖更多行业、长文档、表格需求、歧义优先级和异常格式 | 样本数量、类型分布和阈值变更有版本记录 |
-| WP4-C2 | 按文档类型拆分指标 | P1 | TODO | 对 TEXT/MARKDOWN/WORD/PDF/OCR/CUSTOM_API 分别统计标题召回、优先级、验收标准 | 任一类型低于阈值能定位 |
-| WP4-C3 | Prompt 版本和评测绑定 | P1 | TODO | 记录评测使用的 promptKey、promptVersion、规则解析器版本 | Prompt 变更必须跑对应评测 |
+| WP4-C1 | 扩大 golden corpus | P1 | IN_PROGRESS | 已扩展最小 corpus 元数据并覆盖 `TEXT/MARKDOWN/WORD/PDF/OCR/CUSTOM_API` 六类；更多行业、长文档、表格需求、歧义优先级和异常格式继续滚动补充 | 样本数量、类型分布和阈值变更有版本记录 |
+| WP4-C2 | 按文档类型拆分指标 | P1 | DONE-CURRENT | `DocumentAiParseQualityEvaluationTest` 已按 `sourceType` 分别输出标题召回、优先级准确率和验收标准覆盖率，并要求六类 sourceType 都进入评测 | 任一类型低于阈值能定位 |
+| WP4-C3 | Prompt 版本和评测绑定 | P1 | DONE-CURRENT | golden corpus 已记录 `promptKey=wp4-document-requirement-parse`、`promptVersion=v1`，评测输出 parserVersion `rule-json-v1` 并校验 prompt 元数据 | Prompt 变更必须跑对应评测 |
 | WP4-C4 | 模型解析人工纠错回流 | P2 | TODO | 将人工编辑结果沉淀为后续评测样本或标注数据 | 纠错样本可脱敏后进入 corpus |
 
 ### WP4-D 外部连接器扩展
@@ -229,8 +229,8 @@ WP4 本轮 P0 已覆盖真实文件上传、Word/PDF/OCR、AI 解析、SecretPro
 
 | 编号 | 任务 | 优先级 | 状态 | 工作内容 | 验收标准 |
 |---|---|---|---|---|---|
-| WP4-F1 | 原文快照和事件保留策略 | P1 | TODO | 配置导入原文、候选、webhook raw payload、deadLetter 的保留周期 | 清理不破坏已发布资产来源追踪 |
-| WP4-F2 | 清理任务与归档 | P1 | TODO | 定时清理或归档过期导入、失败事件、临时数据 | 清理过程写审计和指标 |
+| WP4-F1 | 原文快照和事件保留策略 | P1 | IN_PROGRESS | 已新增导入记录/候选和 webhook 事件保留天数配置：`WP4_IMPORT_RETENTION_DAYS`、`WP4_WEBHOOK_EVENT_RETENTION_DAYS`；raw payload/deadLetter 归档策略仍待专项设计 | 清理不破坏已发布资产来源追踪 |
+| WP4-F2 | 清理任务与归档 | P1 | IN_PROGRESS | 已新增 `DocumentInputRetentionCleanupService` 定时清理入口，`WP4_RETENTION_CLEANUP_ENABLED` 默认关闭，cron 可配置；local/db profile 支持清理过期导入、候选和 webhook 事件并输出 `veri.agent.document_input.retention.cleanup` 指标；归档和审计增强仍待后续 | 清理过程有指标，归档与完整审计后续补齐 |
 | WP4-F3 | 前端 E2E smoke | P1 | TODO | 用浏览器覆盖真实文件上传、候选编辑、发布预览、事件重放 | 核心用户路径可在本地或 CI 复现 |
 | WP4-F4 | 解析失败体验优化 | P1 | TODO | 对 OCR 未配置、PDF 无文本、超限、签名失败给出更准确可读提示 | 用户能知道下一步应配置 OCR、换文件或联系管理员 |
 
@@ -247,6 +247,6 @@ WP4 本轮 P0 已覆盖真实文件上传、Word/PDF/OCR、AI 解析、SecretPro
 ## 9. 推荐下一步
 
 1. 下一轮优先补 WP3 P1 的版本历史、软删除恢复、导入导出，以及追踪矩阵和影响分析工作台。
-2. 将 `WP4-B1` 从配置/健康入口推进到真实 worker/队列/容器隔离，并继续补 `WP4-B2` 恶意文件扫描。
+2. 将 `WP4-B1` 从配置/健康入口推进到真实 worker/队列/容器隔离；当前 `WP4-B2` 命令式恶意文件扫描已可作为生产接入杀毒组件的落点。
 3. 在下一轮前端迭代中继续合并规划 `WP2-A` 与 WP3 P1 页面，避免管理台导航和权限模型重复调整。
 4. 每完成一个任务，补充对应交付说明、测试命令和 release note，并按当前约定提交清晰 commit。

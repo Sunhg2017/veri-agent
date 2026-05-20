@@ -5,6 +5,7 @@ import com.songhg.veri.agent.documentinput.domain.DocumentImportRecord;
 import com.songhg.veri.agent.documentinput.domain.DocumentRequirementCandidate;
 import com.songhg.veri.agent.documentinput.domain.DocumentSourceConfig;
 import com.songhg.veri.agent.documentinput.domain.DocumentWebhookEvent;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -58,4 +59,8 @@ public interface DocumentInputRepository {
     Optional<DocumentWebhookEvent> webhookEventByIdentity(String sourceCode, String eventId, String idempotencyKey);
 
     DocumentWebhookEvent saveWebhookEvent(DocumentWebhookEvent event);
+
+    int cleanupImportsBefore(Instant before);
+
+    int cleanupWebhookEventsBefore(Instant before);
 }

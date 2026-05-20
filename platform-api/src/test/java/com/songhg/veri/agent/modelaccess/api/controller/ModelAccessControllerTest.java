@@ -25,7 +25,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest(properties = {
         "veri-agent.model-access.service-token=test-model-token",
         "veri-agent.model-access.default-model=test-local-model",
-        "veri-agent.model-access.provider-circuit-failure-threshold=1"
+        "veri-agent.model-access.provider-circuit-failure-threshold=1",
+        "veri-agent.model-access.provider-rate-limit-max-requests=0",
+        "veri-agent.model-access.provider-max-concurrent-requests=2"
 })
 @AutoConfigureMockMvc
 @DirtiesContext(classMode = DirtiesContext.ClassMode.BEFORE_EACH_TEST_METHOD)
@@ -41,7 +43,11 @@ class ModelAccessControllerTest {
                 .andExpect(jsonPath("$.code").value("OK"))
                 .andExpect(jsonPath("$.traceId", startsWith("trc_")))
                 .andExpect(jsonPath("$.data.service").value("model-access"))
-                .andExpect(jsonPath("$.data.enabledProviders").value(greaterThanOrEqualTo(1)));
+                .andExpect(jsonPath("$.data.enabledProviders").value(greaterThanOrEqualTo(1)))
+                .andExpect(jsonPath("$.data.providerRateLimitEnabled").value(false))
+                .andExpect(jsonPath("$.data.providerConcurrencyLimitEnabled").value(true))
+                .andExpect(jsonPath("$.data.providerMaxConcurrentRequests").value(2))
+                .andExpect(jsonPath("$.data.openCircuitProviders").value(0));
     }
 
     @Test
@@ -224,7 +230,7 @@ class ModelAccessControllerTest {
 
     @Test
     void fallsBackToNextProviderAndRecordsFallback() throws Exception {
-        mockMvc.perform(post("/api/v1/model-access/providers")
+        MvcResult failingProviderResult = mockMvc.perform(post("/api/v1/model-access/providers")
                         .headers(authHeaders())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -236,7 +242,9 @@ class ModelAccessControllerTest {
                                 }
                                 """))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.data.name").value("failing-primary"));
+                .andExpect(jsonPath("$.data.name").value("failing-primary"))
+                .andReturn();
+        String failingProviderId = JsonPath.read(failingProviderResult.getResponse().getContentAsString(), "$.data.id");
 
         mockMvc.perform(post("/api/v1/model-access/invocations")
                         .headers(authHeaders())
@@ -258,6 +266,22 @@ class ModelAccessControllerTest {
                         .headers(authHeaders()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items[0].fallbackUsed").value(true));
+
+        mockMvc.perform(get("/api/v1/model-access/providers/{id}/resilience", failingProviderId)
+                        .headers(authHeaders()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.providerName").value("failing-primary"))
+                .andExpect(jsonPath("$.data.circuitOpen").value(true))
+                .andExpect(jsonPath("$.data.consecutiveFailures").value(greaterThanOrEqualTo(1)))
+                .andExpect(jsonPath("$.data.concurrencyLimitEnabled").value(true))
+                .andExpect(jsonPath("$.data.maxConcurrentRequests").value(2));
+
+        mockMvc.perform(post("/api/v1/model-access/providers/{id}/circuit/reset", failingProviderId)
+                        .headers(authHeaders()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.providerName").value("failing-primary"))
+                .andExpect(jsonPath("$.data.circuitOpen").value(false))
+                .andExpect(jsonPath("$.data.consecutiveFailures").value(0));
     }
 
     @Test

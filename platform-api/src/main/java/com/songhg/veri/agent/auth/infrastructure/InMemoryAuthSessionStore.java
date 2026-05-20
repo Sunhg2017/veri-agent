@@ -43,7 +43,19 @@ public class InMemoryAuthSessionStore implements AuthSessionStore {
 
     @Override
     public void revoke(UUID sessionId, UUID revokedBy, String reason) {
-        sessions.computeIfPresent(sessionId, (id, session) -> new MutableSession(session.draft(), true));
+        sessions.computeIfPresent(sessionId, (id, session) -> new MutableSession(session.draft(), true, Instant.now()));
+    }
+
+    @Override
+    public int cleanupExpiredSessions(Instant expiresBefore, Instant revokedBefore) {
+        int before = sessions.size();
+        sessions.entrySet().removeIf(entry -> {
+            MutableSession session = entry.getValue();
+            boolean expired = !session.draft().expiresAt().isAfter(expiresBefore);
+            boolean revokedAndOldEnough = session.revokedAt() != null && !session.revokedAt().isAfter(revokedBefore);
+            return expired || revokedAndOldEnough;
+        });
+        return before - sessions.size();
     }
 
     private AuthSessionRecord toRecord(MutableSession session) {
@@ -57,6 +69,10 @@ public class InMemoryAuthSessionStore implements AuthSessionStore {
         );
     }
 
-    private record MutableSession(AuthSessionDraft draft, boolean revoked) {
+    private record MutableSession(AuthSessionDraft draft, boolean revoked, Instant revokedAt) {
+
+        private MutableSession(AuthSessionDraft draft, boolean revoked) {
+            this(draft, revoked, null);
+        }
     }
 }

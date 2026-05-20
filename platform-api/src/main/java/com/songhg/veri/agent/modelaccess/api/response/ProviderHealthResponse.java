@@ -5,6 +5,12 @@ public record ProviderHealthResponse(
         String service,
         String status,
         int enabledProviders,
-        int activePrompts
+        int activePrompts,
+        boolean providerRateLimitEnabled,
+        int providerRateLimitMaxRequests,
+        long providerRateLimitWindowSeconds,
+        boolean providerConcurrencyLimitEnabled,
+        int providerMaxConcurrentRequests,
+        int openCircuitProviders
 ) {
 }

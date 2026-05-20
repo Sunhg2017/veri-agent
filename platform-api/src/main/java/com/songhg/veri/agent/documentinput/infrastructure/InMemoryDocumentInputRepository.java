@@ -204,6 +204,25 @@ public class InMemoryDocumentInputRepository implements DocumentInputRepository 
         return event;
     }
 
+    @Override
+    public int cleanupImportsBefore(Instant before) {
+        List<UUID> importIds = imports.values()
+                .stream()
+                .filter(record -> record.createdAt().isBefore(before))
+                .map(DocumentImportRecord::id)
+                .toList();
+        importIds.forEach(imports::remove);
+        candidates.entrySet().removeIf(entry -> importIds.contains(entry.getValue().importId()));
+        return importIds.size();
+    }
+
+    @Override
+    public int cleanupWebhookEventsBefore(Instant before) {
+        int beforeSize = webhookEvents.size();
+        webhookEvents.entrySet().removeIf(entry -> entry.getValue().receivedAt().isBefore(before));
+        return beforeSize - webhookEvents.size();
+    }
+
     private java.util.stream.Stream<DocumentSourceConfig> filteredSources(DocumentSourceQuery query) {
         return sources.values().stream()
                 .filter(source -> query.sourceType() == null || source.sourceType() == query.sourceType())

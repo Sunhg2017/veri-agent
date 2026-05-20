@@ -737,6 +737,14 @@ button, input, select, textarea {
   margin-bottom: 18px;
 }
 
+.panel-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
 .quick-create-form {
   display: grid;
   grid-template-columns: minmax(180px, 300px) auto;
@@ -2411,6 +2419,10 @@ tbody tr:hover td {
   .actions {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .panel-toolbar-actions {
+    justify-content: stretch;
   }
 
   .primary-button,

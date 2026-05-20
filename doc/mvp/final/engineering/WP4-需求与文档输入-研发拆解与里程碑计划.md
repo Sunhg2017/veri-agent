@@ -92,7 +92,7 @@ MVP 范围如下：
 | 2B.1 Word 文本抽取 | P0 | 使用 Apache POI 支持 docx/doc 文本抽取；接受 plain text、raw base64、data URL 三种输入 | `WORD` 从预留改为可提交；提示可粘贴 base64 或 data URL | 真实 docx 导入、损坏文件、空文档、超限内容测试 | `WP4_IMPORT_MAX_CONTENT_BYTES`、`WP4_DOCUMENT_BINARY_MAX_BYTES` |
 | 2B.2 PDF 文本抽取 | P0 | 使用 PDFBox 支持文本型 PDF；无文本且未配置 OCR 时明确失败 | `PDF` 从预留改为可提交；失败原因可读 | 真实文本 PDF 导入、图片 PDF 无 OCR 失败、错误码测试 | PDF 文件大小、页数和处理超时后续纳入 worker |
 | 2B.3 OCR 命令 provider | P0 | 支持 `WP4_OCR_COMMAND` 命令式 OCR provider，命令接收 `{input}` 临时文件并返回文本 | `OCR` 从预留改为可提交；健康检查缺 OCR 命令时显示不可用 | OCR 命令成功、超时、空输出、失败退出码测试 | `WP4_OCR_COMMAND`、`WP4_OCR_TIMEOUT_SECONDS`、`WP4_OCR_MAX_OUTPUT_CHARS` |
-| 2B.4 输入安全闸门 | P0 | `/imports` 增加内容大小上限；二进制解析限制大小；临时 OCR 文件执行后清理 | 错误态展示 traceId 和可读原因 | 超大 base64、伪造 MIME、OCR provider 不可用测试 | 生产环境建议隔离 OCR worker、限流和恶意文件扫描 |
+| 2B.4 输入安全闸门 | P0 | `/imports` 增加内容大小上限；二进制解析限制大小；临时 OCR 文件执行后清理；`WP4_MALWARE_SCAN_COMMAND` 可接入命令式文件安全扫描 | 错误态展示 traceId 和可读原因 | 超大 base64、伪造 MIME、OCR provider 不可用、文件扫描拒绝测试 | 生产环境建议隔离 OCR worker、限流和杀毒组件 |
 
 ### Epic 3：自研需求平台 Webhook
 
@@ -109,7 +109,7 @@ MVP 范围如下：
 | 4.1 规则解析器 | P0 | 基于章节、列表、关键词和字段映射生成需求候选项、业务规则、验收标准、原文定位和置信度 | 解析结果按章节展示，支持展开原文引用 | 标题层级、规则编号、验收标准提取、原文定位测试 | 解析任务并发、超时、失败重试配置 |
 | 4.2 模型辅助解析 | P0 | 已接入 WP2 `ModelAccessService`；`WP4_MODEL_PARSE_ENABLED` 开启后调用 `wp4-document-requirement-parse` Prompt 生成候选，并保存 `parseSource`、`modelInvocationId`、`modelProviderName`、`modelName` | 标注“模型辅助”来源，展示置信度和待确认状态 | 覆盖 WP2 成功、敏感内容阻断、fallback 测试；预算超额沿 WP2 错误码处理 | Prompt key、模型调用开关、最大内容长度、敏感级别、公有模型开关 |
 | 4.3 解析结果合并 | P0 | 已实现模型解析优先、规则解析补缺；模型失败或阻断时规则解析兜底；候选仍必须人工确认 | 展示来源、置信度、模型调用追踪；发布 dryRun 展示既有 WP3 资产差异 | 合并幂等、模型失败 fallback、重复标题去重、重复来源更新测试 | 合并策略默认值、相似度阈值配置 |
-| 4.4 AI 解析质量评测集 | P0 | 建立 golden corpus，按标题召回、优先级准确率、验收标准覆盖率设置阈值；提供 `scripts/wp4_ai_parse_quality_eval.sh` | 展示候选来源和模型调用追踪，为后续评测结果入口预留字段 | 低于阈值失败；Prompt/解析器变更必须跑评测 | 评测阈值、样本集版本和模型开关 |
+| 4.4 AI 解析质量评测集 | P0 | 建立 golden corpus，按标题召回、优先级准确率、验收标准覆盖率设置阈值；提供 `scripts/wp4_ai_parse_quality_eval.sh`；当前评测按 `TEXT/MARKDOWN/WORD/PDF/OCR/CUSTOM_API` 分桶并绑定 `promptKey/promptVersion` 与解析器版本 | 展示候选来源和模型调用追踪，为后续评测结果入口预留字段 | 低于阈值失败；Prompt/解析器变更必须跑评测；任一文档类型低于阈值可定位 | 评测阈值、样本集版本和模型开关 |
 
 ### Epic 5：人工确认与 WP3 写入
 
@@ -142,7 +142,7 @@ MVP 范围如下：
 |---|---|---|---|---|---|
 | 8.1 配置项与 feature flag | P0 | 支持按环境开启文本、Markdown、webhook、模型辅助、预留连接器展示 | 根据 feature flag 控制入口可见性 | 默认配置、关闭开关、灰度开关测试 | `WP4_INPUT_ENABLED`、`WP4_MODEL_PARSE_ENABLED`、`WP4_WEBHOOK_ENABLED` |
 | 8.2 指标与告警 | P0 | 当前输出导入、候选操作、发布和 webhook metrics；解析耗时、模型调用失败率在模型辅助解析启用后补齐 | 工作台展示最近失败和处理队列状态 | 指标存在性、标签维度、错误脱敏测试 | 告警阈值、仪表盘、日志采样 |
-| 8.3 数据保留与清理 | P1 | 支持原文快照、事件日志、失败批次、死信事件保留策略 | 显示保留策略和归档状态 | 清理任务不会删除已写入资产来源链测试 | 保留天数、清理 cron、归档开关 |
+| 8.3 数据保留与清理 | P1 | 已提供导入记录/候选和 webhook 事件保留天数配置、定时清理入口和清理指标；原文快照、失败批次、死信事件归档仍待专项补齐 | 显示保留策略和归档状态待前端迭代 | 清理任务已覆盖不会删除保留窗口内记录；后续补资产来源链专项回归 | `WP4_RETENTION_CLEANUP_ENABLED`、`WP4_IMPORT_RETENTION_DAYS`、`WP4_WEBHOOK_EVENT_RETENTION_DAYS`、`veri-agent.document-input.retention-cleanup-cron`、归档开关 |
 | 8.4 SecretProvider | P0 | WP4 webhook resolver 优先走 WP1 `SecretProvider`，支持 `LOCAL_ENCRYPTED`；校验用途、状态、过期时间和 `CONFIG + document_input_source.id` 作用域；本地 fallback 仅用于 dev/test 且可关闭 | 仅展示 secretRef 引用状态，不展示明文 | provider 优先级、fallback 关闭、用途不匹配、作用域不匹配、过期/撤销密钥测试 | `WP1_LOCAL_SECRET_MASTER_KEY`、`WP1_LOCAL_SECRET_MASTER_KEY_VERSION`、`WP4_LOCAL_WEBHOOK_SECRET_FALLBACK_ENABLED` |
 
 ## 5. 建议 API 边界
@@ -242,7 +242,7 @@ MVP 范围如下：
 | 风险 | 影响 | 触发信号 | 应对策略 |
 |---|---|---|---|
 | MVP 范围膨胀到完整协作文档连接器 | 工期失控，测试矩阵过大 | Confluence/飞书/钉钉/语雀被要求进入可用范围 | 本轮只新增 Word/PDF/OCR 文本抽取；协作文档连接器仍预留 |
-| OCR/二进制解析资源消耗或恶意文件风险 | CPU、内存、磁盘和安全风险 | 超大 base64、图片 PDF、OCR 超时、压缩炸弹 | 设置导入内容和二进制大小上限；OCR 命令超时；生产建议隔离 worker、杀毒和限流 |
+| OCR/二进制解析资源消耗或恶意文件风险 | CPU、内存、磁盘和安全风险 | 超大 base64、图片 PDF、OCR 超时、压缩炸弹 | 设置导入内容和二进制大小上限；OCR 命令超时；`WP4_MALWARE_SCAN_COMMAND` 在解析前执行文件扫描；生产建议隔离 worker、杀毒和限流 |
 | 自研 webhook 事件版本变化 | 增量同步失败或字段丢失 | 外部 payload 新增/重命名字段，事件语义不兼容 | 使用 eventVersion、mappingVersion 和兼容层；未知字段保留在 raw payload |
 | 模型解析结果不稳定 | 候选需求质量波动，用户信任下降 | 相同输入多次解析结果差异明显 | 规则解析保底；模型结果必须人工确认；保存 prompt 版本和置信度 |
 | WP3 upsert 语义不清 | 重复需求或错误覆盖 | 重复导入产生多条资产，或更新覆盖人工编辑内容 | 已使用 externalRequirementId/sourceRef 做 WP3 幂等，发布前 dryRun 提供 diffSummary；正式发布仅自动更新 DRAFT IMPORT 资产，非 DRAFT 且有差异时返回冲突并保留候选历史 |
@@ -266,4 +266,5 @@ WP4 MVP 进入验收时需同时满足以下条件：
 10. Webhook 支持签名校验、幂等、事件版本、字段映射、失败重放和审计；密钥解析优先调用 WP1 SecretProvider，配置映射、`wp4-webhook-default` 和 `secret://wp4/*` 仅作为 dev/test fallback，生产可通过 `WP4_LOCAL_WEBHOOK_SECRET_FALLBACK_ENABLED=false` 禁用。
 11. 审计覆盖输入源配置、导入、解析、确认、发布、webhook 接收和失败重试。
 12. 当前指标覆盖导入批次、候选操作、发布、webhook 和模型解析；模型解析指标为 `veri.agent.document_input.model_parse` 与 `veri.agent.document_input.model_parse.candidates`。
-13. 服务端测试、前端 smoke、webhook smoke、二进制文档 smoke、AI 解析质量评测、metrics 覆盖和发布前端到端 smoke 均通过。
+13. 数据保留清理默认关闭，可通过 `WP4_RETENTION_CLEANUP_ENABLED=true` 开启；导入/候选和 webhook 事件保留天数分别由 `WP4_IMPORT_RETENTION_DAYS`、`WP4_WEBHOOK_EVENT_RETENTION_DAYS` 控制，清理计数输出 `veri.agent.document_input.retention.cleanup`。
+14. 服务端测试、前端 smoke、webhook smoke、二进制文档 smoke、AI 解析质量评测、metrics 覆盖和发布前端到端 smoke 均通过。

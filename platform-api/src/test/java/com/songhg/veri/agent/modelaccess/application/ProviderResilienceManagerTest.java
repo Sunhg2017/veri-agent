@@ -98,6 +98,27 @@ class ProviderResilienceManagerTest {
         assertThat(attempts).hasValue(2);
     }
 
+    @Test
+    void blocksProviderCallsWhenRateLimitWindowIsExceeded() {
+        ProviderResilienceManager manager = new ProviderResilienceManager(properties(0, 3, 60_000, 30_000, 1, 60, 0));
+        ModelProviderConfig provider = provider(Instant.now());
+
+        ProviderCallResult result = manager.callWithRetry(
+                client((ignoredProvider, request) -> new ProviderCallResult("ok", 1, 1)),
+                provider,
+                new ProviderCallRequest("model", "prompt", "message")
+        );
+
+        assertThat(result.content()).isEqualTo("ok");
+        assertThatThrownBy(() -> manager.callWithRetry(
+                client((ignoredProvider, request) -> new ProviderCallResult("blocked", 1, 1)),
+                provider,
+                new ProviderCallRequest("model", "prompt", "message")
+        ))
+                .isInstanceOf(com.songhg.veri.agent.common.error.BusinessException.class)
+                .hasMessageContaining("模型供应商请求超过限流阈值");
+    }
+
     private void throwUnavailable() {
         throw new IllegalStateException("provider down");
     }
@@ -152,7 +173,39 @@ class ProviderResilienceManagerTest {
                 circuitFailureThreshold,
                 circuitOpenMs,
                 checkCacheTtlMs,
-                new BigDecimal("0.8")
+                new BigDecimal("0.8"),
+                0,
+                60,
+                0
+        );
+    }
+
+    private ModelAccessProperties properties(
+            int maxRetries,
+            int circuitFailureThreshold,
+            long circuitOpenMs,
+            long checkCacheTtlMs,
+            int rateLimitMaxRequests,
+            long rateLimitWindowSeconds,
+            int maxConcurrentRequests
+    ) {
+        return new ModelAccessProperties(
+                "test-token",
+                "test-model",
+                12_000,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                0,
+                "Asia/Shanghai",
+                10_000,
+                maxRetries,
+                circuitFailureThreshold,
+                circuitOpenMs,
+                checkCacheTtlMs,
+                new BigDecimal("0.8"),
+                rateLimitMaxRequests,
+                rateLimitWindowSeconds,
+                maxConcurrentRequests
         );
     }
 

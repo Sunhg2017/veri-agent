@@ -36,4 +36,9 @@ public interface AuthMapper {
             @Param("revokedBy") UUID revokedBy,
             @Param("reason") String reason
     );
+
+    int cleanupSessions(
+            @Param("expiresBefore") Instant expiresBefore,
+            @Param("revokedBefore") Instant revokedBefore
+    );
 }

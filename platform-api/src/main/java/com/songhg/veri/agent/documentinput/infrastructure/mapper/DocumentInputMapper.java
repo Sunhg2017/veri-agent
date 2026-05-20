@@ -9,6 +9,7 @@ import com.songhg.veri.agent.documentinput.domain.DocumentImportRecord;
 import com.songhg.veri.agent.documentinput.domain.DocumentRequirementCandidate;
 import com.songhg.veri.agent.documentinput.domain.DocumentSourceConfig;
 import com.songhg.veri.agent.documentinput.domain.DocumentWebhookEvent;
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import org.apache.ibatis.annotations.Mapper;
@@ -75,4 +76,10 @@ public interface DocumentInputMapper {
     );
 
     void upsertWebhookEvent(DocumentWebhookEvent event);
+
+    int softDeleteCandidatesByImportCreatedBefore(@Param("before") Instant before);
+
+    int softDeleteImportsBefore(@Param("before") Instant before);
+
+    int softDeleteWebhookEventsBefore(@Param("before") Instant before);
 }

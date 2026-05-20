@@ -2,6 +2,8 @@
 
 AI 驱动的端到端企业级测试平台。WP1、WP2、WP3、WP4 是研发任务拆分，不是服务拆分；当前后端由同一个 `platform-api` Java 服务承载，内部按领域模块组织平台基础、模型接入、资产管理和文档输入能力。
 
+仓库级智能体协作、验收、自动提交和推送强制规则见 [AGENTS.md](AGENTS.md)。
+
 ## 当前 WP1 口径
 
 - 单平台，不建设平台实例分层体系。
@@ -19,6 +21,7 @@ AI 驱动的端到端企业级测试平台。WP1、WP2、WP3、WP4 是研发任�
 
 | 路径 | 说明 |
 |---|---|
+| `AGENTS.md` | 仓库级强制规则，定义五角色协作、验收、commit message、自动提交和推送流程。 |
 | `platform-api` | Spring Boot 3.5 + Java 21 后端服务，承载 WP1/WP2/WP3/WP4 领域模块。 |
 | `portal-web` | React + TypeScript + Vite Web 管理后台。 |
 | `db/migration/wp1` | WP1 PostgreSQL/Flyway 迁移脚本。 |
@@ -214,7 +217,9 @@ WP4 管理、导入、候选确认、发布和事件查询使用同一个 `platf
 
 AI 文档解析 MVP 通过 WP2 `ModelAccessService` 接入，受 `WP4_MODEL_PARSE_ENABLED` 控制，默认 Prompt key 为 `wp4-document-requirement-parse`。开启后文本、Markdown、Word、PDF、OCR 和 `CUSTOM_API` 导入会先经 WP2 模型解析生成 `parseSource=MODEL` 的候选项，并保存 `modelInvocationId`、`modelProviderName`、`modelName`；WP2 策略阻断、敏感内容阻断或模型失败时回退到规则解析，候选继续进入人工确认，不会绕过 WP2 或直接发布到 WP3。
 
-WP4 真实文档解析支持 `WORD`、`PDF`、`OCR` sourceType：Word 使用 Apache POI 抽取 doc/docx 文本，PDF 使用 PDFBox 抽取文本型 PDF，OCR 通过 `WP4_OCR_COMMAND` 命令 provider 接收 `{input}` 临时文件并返回识别文本。`/imports` 接受纯文本、raw base64 或 `data:...;base64,...` 内容；`/imports/multipart` 接受 `multipart/form-data` 的 `projectId`、`sourceType`、可选来源字段和 `file`，用于真实文件上传。导入受 `WP4_IMPORT_MAX_CONTENT_BYTES`、`WP4_DOCUMENT_BINARY_MAX_BYTES` 限制；`WP4_BINARY_MIME_VALIDATION_ENABLED` 开启后会校验声明 MIME 与实际文件魔数/内容类型，`WP4_PDF_MAX_PAGES` 和 `WP4_PDF_MAX_PARSE_MILLIS` 会限制 PDF 页数和解析耗时；OCR 额外受 `WP4_OCR_TIMEOUT_SECONDS`、`WP4_OCR_MAX_OUTPUT_CHARS`、`WP4_OCR_MAX_CONCURRENT_PROCESSES` 限流，健康接口会返回当前二进制解析、PDF 和 OCR 配置。
+WP4 真实文档解析支持 `WORD`、`PDF`、`OCR` sourceType：Word 使用 Apache POI 抽取 doc/docx 文本，PDF 使用 PDFBox 抽取文本型 PDF，OCR 通过 `WP4_OCR_COMMAND` 命令 provider 接收 `{input}` 临时文件并返回识别文本。`/imports` 接受纯文本、raw base64 或 `data:...;base64,...` 内容；`/imports/multipart` 接受 `multipart/form-data` 的 `projectId`、`sourceType`、可选来源字段和 `file`，用于真实文件上传。导入受 `WP4_IMPORT_MAX_CONTENT_BYTES`、`WP4_DOCUMENT_BINARY_MAX_BYTES` 限制；`WP4_BINARY_MIME_VALIDATION_ENABLED` 开启后会校验声明 MIME 与实际文件魔数/内容类型，`WP4_PDF_MAX_PAGES` 和 `WP4_PDF_MAX_PARSE_MILLIS` 会限制 PDF 页数和解析耗时；OCR 额外受 `WP4_OCR_TIMEOUT_SECONDS`、`WP4_OCR_MAX_OUTPUT_CHARS`、`WP4_OCR_MAX_CONCURRENT_PROCESSES` 限流。生产可通过 `WP4_MALWARE_SCAN_COMMAND` 接入命令式文件安全扫描，扫描命令同样接收 `{input}` 临时文件，受 `WP4_MALWARE_SCAN_TIMEOUT_SECONDS`、`WP4_MALWARE_SCAN_MAX_CONCURRENT_PROCESSES` 和 `WP4_MALWARE_SCAN_MAX_OUTPUT_CHARS` 控制；健康接口会返回当前二进制解析、PDF、OCR 和文件扫描配置。
+
+WP4 数据保留清理默认关闭。设置 `WP4_RETENTION_CLEANUP_ENABLED=true` 后，`DocumentInputRetentionCleanupService` 会按 `veri-agent.document-input.retention-cleanup-cron` 清理超过 `WP4_IMPORT_RETENTION_DAYS` 的导入记录/候选和超过 `WP4_WEBHOOK_EVENT_RETENTION_DAYS` 的 webhook 事件，并输出 `veri.agent.document_input.retention.cleanup` 指标；归档和 deadLetter 长期保留策略仍以后续专项为准。
 
 `CUSTOM_API` webhook 使用 `X-VA-Timestamp`、`X-VA-Event-Id`、`X-VA-Idempotency-Key`、`X-VA-Event-Version`、`X-VA-Signature`，签名串为 `timestamp.eventId.idempotencyKey.rawBody`。
 
@@ -336,13 +341,13 @@ bash scripts/wp2_quality_gate.sh
 - 可在 PostgreSQL 中创建部门、用户、项目、应用、环境、集成配置和系统设置，并维护项目成员、应用负责人和环境授权用户。
 - 可查询用户详情、启用、停用、锁定/解锁用户，并通过重置密码激活账号；停用、锁定/解锁、重置密码会提升 `auth_version`，db profile 会话校验会联动用户当前状态和版本，使旧访问令牌失效。
 - 管理列表可回读持久化数据。
-- 审计日志可显示写操作名称和结果，并支持 `actor/action/resourceType/result/search/startTime/endTime` 组合筛选；db profile smoke 已覆盖管理对象创建审计、账号锁定/解锁审计、失败登录审计、拒绝审计、资源作用域过滤、设置 CRUD 和敏感设置拒绝。
+- 审计日志可显示写操作名称和结果，并支持 `actor/action/resourceType/result/search/startTime/endTime` 组合筛选；`GET /api/v1/management/audit-logs/export` 支持按同一筛选条件导出 UTF-8 CSV，portal-web 审计页按 `audit:export` 提供下载入口；db profile smoke 已覆盖管理对象创建审计、账号锁定/解锁审计、失败登录审计、拒绝审计、资源作用域过滤、设置 CRUD 和敏感设置拒绝。
 - 无权限角色访问管理写接口会返回 `FORBIDDEN`。
 - `/v3/api-docs` 可生成 OpenAPI 文档，且契约测试保护认证、管理、账号生命周期和设置 CRUD 关键路径。
 - WP2 `db` profile 默认种子可直接完成 local echo 调用、调用日志查询、成本汇总、成本报表、成本告警、供应商就绪检查缓存和 CSV 导出 smoke；WP2 聚合门禁可串联模型接入测试、数据库 validation，并按需执行 HTTP smoke / 模块策略 smoke。
 - WP3 已补齐资产库前后端闭环：列表分页、需求/API/页面/业务流/用例/追踪链接基础 API、用户态 `asset:*` RBAC、OpenAPI 契约测试、前端资产 API normalizer、资产库导航、需求/API/页面/业务流/测试用例工作台和只读追踪矩阵工作台。
 - WP4 smoke 覆盖 Markdown 导入、候选 `status/sourceRef/keyword` 筛选、versioned 批量确认、dryRun、发布到 WP3、WP3 `source/sourceRef/sourceUrl/acceptanceCriteria` 追踪、发布记录、`CUSTOM_API` source health、`X-VA-*` 签名 webhook、幂等 replay、事件日志、无效签名拒绝和当前导入/候选/发布/webhook metrics。
-- WP4 二进制文档 smoke 覆盖真实 docx、真实文本 PDF、OCR 命令 provider；AI 解析质量评测输出标题召回、优先级准确率、验收标准覆盖率并执行阈值门禁。
+- WP4 二进制文档 smoke 覆盖真实 docx、真实文本 PDF、OCR 命令 provider 和恶意文件扫描接入点；AI 解析质量评测按 TEXT/MARKDOWN/WORD/PDF/OCR/CUSTOM_API 分桶输出标题召回、优先级准确率、验收标准覆盖率，并绑定 promptKey/promptVersion 执行阈值门禁。
 
 ## WP1 1～8 项收敛状态
 

@@ -1,4 +1,4 @@
-import { requestJson, type ApiResponse } from './client';
+import { requestJson, requestText, type ApiResponse } from './client';
 
 export interface DepartmentView {
   name: string;
@@ -63,6 +63,16 @@ export interface AuditLogView {
   action: string;
   target: string;
   result: string;
+}
+
+export interface AuditLogExportFilters {
+  search?: string;
+  actor?: string;
+  action?: string;
+  resourceType?: string;
+  result?: string;
+  startTime?: string;
+  endTime?: string;
 }
 
 export interface SettingView {
@@ -169,6 +179,7 @@ const endpoints = {
   environments: '/api/v1/management/environments',
   integrations: '/api/v1/management/integrations',
   auditLogs: '/api/v1/management/audit-logs',
+  auditLogsExport: '/api/v1/management/audit-logs/export',
   settings: '/api/v1/management/settings'
 } as const;
 
@@ -264,6 +275,31 @@ export function createManagementItem<T>(
     method: 'POST',
     body: JSON.stringify({ name })
   });
+}
+
+export function auditLogExportPath(filters: AuditLogExportFilters = {}) {
+  const params = new URLSearchParams();
+  const entries: Array<[string, string | undefined]> = [
+    ['search', filters.search],
+    ['actor', filters.actor],
+    ['action', filters.action],
+    ['resourceType', filters.resourceType],
+    ['result', filters.result],
+    ['startTime', filters.startTime],
+    ['endTime', filters.endTime]
+  ];
+  for (const [key, value] of entries) {
+    const normalized = value?.trim();
+    if (normalized) {
+      params.set(key, normalized);
+    }
+  }
+  const query = params.toString();
+  return query ? `${endpoints.auditLogsExport}?${query}` : endpoints.auditLogsExport;
+}
+
+export async function exportAuditLogsCsv(filters: AuditLogExportFilters = {}) {
+  return requestText(auditLogExportPath(filters));
 }
 
 export function fetchDepartment(departmentKey: string): Promise<ApiResponse<DepartmentView>> {

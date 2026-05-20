@@ -13,4 +13,6 @@ public interface AuthSessionStore {
     Optional<AuthSessionRecord> findByRefreshTokenHash(String refreshTokenHash);
 
     void revoke(UUID sessionId, UUID revokedBy, String reason);
+
+    int cleanupExpiredSessions(Instant expiresBefore, Instant revokedBefore);
 }

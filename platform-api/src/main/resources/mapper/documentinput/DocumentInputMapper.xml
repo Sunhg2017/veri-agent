@@ -465,4 +465,30 @@
             replay_trace_id = excluded.replay_trace_id,
             processed_at = excluded.processed_at
     </insert>
+
+    <update id="softDeleteCandidatesByImportCreatedBefore">
+        update document_input_candidate
+        set deleted_at = coalesce(deleted_at, now())
+        where deleted_at is null
+          and import_id in (
+              select id
+              from document_input_import
+              where deleted_at is null
+                and created_at &lt; #{before}
+          )
+    </update>
+
+    <update id="softDeleteImportsBefore">
+        update document_input_import
+        set deleted_at = coalesce(deleted_at, now())
+        where deleted_at is null
+          and created_at &lt; #{before}
+    </update>
+
+    <update id="softDeleteWebhookEventsBefore">
+        update document_input_webhook_event
+        set deleted_at = coalesce(deleted_at, now())
+        where deleted_at is null
+          and received_at &lt; #{before}
+    </update>
 </mapper>

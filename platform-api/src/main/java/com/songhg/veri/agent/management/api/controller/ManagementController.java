@@ -37,7 +37,11 @@ import com.songhg.veri.agent.management.api.response.ScopedUserRoleView;
 import com.songhg.veri.agent.management.api.response.SettingView;
 import com.songhg.veri.agent.management.api.response.UserView;
 import jakarta.validation.Valid;
+import java.nio.charset.StandardCharsets;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -551,6 +555,31 @@ public class ManagementController {
                 ),
                 principal
         );
+    }
+
+    @GetMapping(value = "/audit-logs/export", produces = "text/csv")
+    public ResponseEntity<String> exportAuditLogs(
+            @Valid AuditLogPageRequest pageRequest,
+            @AuthenticationPrincipal AuthUserPrincipal principal
+    ) {
+        authorizationService.require(principal, "audit:read");
+        authorizationService.require(principal, "audit:export");
+        String csv = workspaceService.exportAuditLogsCsv(
+                AuditLogQuery.of(
+                        pageRequest.getSearch(),
+                        pageRequest.getActor(),
+                        pageRequest.getAction(),
+                        pageRequest.getResourceType(),
+                        pageRequest.getResult(),
+                        pageRequest.getStartTime(),
+                        pageRequest.getEndTime()
+                ),
+                principal
+        );
+        return ResponseEntity.ok()
+                .contentType(new MediaType("text", "csv", StandardCharsets.UTF_8))
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"wp1-audit-logs.csv\"")
+                .body(csv);
     }
 
     @GetMapping("/settings")

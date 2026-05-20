@@ -7,7 +7,9 @@ import com.songhg.veri.agent.documentinput.domain.DocumentSourceType;
 import com.songhg.veri.agent.documentinput.domain.ParsedRequirementDraft;
 import java.io.InputStream;
 import java.time.Instant;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
@@ -31,48 +33,55 @@ class DocumentAiParseQualityEvaluationTest {
             corpus = objectMapper.readTree(input);
         }
         assertThat(corpus).hasSizeGreaterThanOrEqualTo(5);
-        int expectedCount = 0;
-        int titleMatches = 0;
-        int priorityMatches = 0;
-        int acceptanceCovered = 0;
+        Map<String, QualityStats> statsByType = new LinkedHashMap<>();
+        QualityStats totalStats = new QualityStats("ALL");
 
         for (JsonNode scenario : corpus) {
+            String sourceTypeName = scenario.path("sourceType").asText("CUSTOM_API");
+            DocumentSourceType sourceType = DocumentSourceType.valueOf(sourceTypeName);
+            QualityStats typeStats = statsByType.computeIfAbsent(sourceTypeName, QualityStats::new);
             List<ParsedRequirementDraft> parsed = parser.parse(
-                    DocumentSourceType.CUSTOM_API,
+                    sourceType,
                     null,
                     scenario.path("modelResponse").toString(),
                     modelMapping()
             );
             for (JsonNode expected : scenario.path("expected")) {
-                expectedCount++;
+                totalStats.expectedCount++;
+                typeStats.expectedCount++;
                 ParsedRequirementDraft matched = findByTitle(parsed, expected.path("title").asText());
                 if (matched == null) {
                     continue;
                 }
-                titleMatches++;
+                totalStats.titleMatches++;
+                typeStats.titleMatches++;
                 if (expected.path("priority").asText().equals(matched.priority())) {
-                    priorityMatches++;
+                    totalStats.priorityMatches++;
+                    typeStats.priorityMatches++;
                 }
                 if (matched.acceptanceCriteria() != null && !matched.acceptanceCriteria().isBlank()) {
-                    acceptanceCovered++;
+                    totalStats.acceptanceCovered++;
+                    typeStats.acceptanceCovered++;
                 }
             }
         }
 
-        double titleRecall = ratio(titleMatches, expectedCount);
-        double priorityAccuracy = ratio(priorityMatches, expectedCount);
-        double acceptanceCoverage = ratio(acceptanceCovered, expectedCount);
+        String promptKey = corpus.get(0).path("promptKey").asText();
+        String promptVersion = corpus.get(0).path("promptVersion").asText();
+        assertThat(promptKey).isEqualTo("wp4-document-requirement-parse");
+        assertThat(promptVersion).isEqualTo("v1");
         System.out.printf(
-                "WP4 AI parse quality eval: titleRecall=%.2f priorityAccuracy=%.2f acceptanceCoverage=%.2f cases=%d%n",
-                titleRecall,
-                priorityAccuracy,
-                acceptanceCoverage,
-                expectedCount
+                "WP4 AI parse quality eval: promptKey=%s promptVersion=%s parserVersion=rule-json-v1%n",
+                promptKey,
+                promptVersion
         );
+        printStats(totalStats);
+        statsByType.values().forEach(this::printStats);
 
-        assertThat(titleRecall).isGreaterThanOrEqualTo(MIN_TITLE_RECALL);
-        assertThat(priorityAccuracy).isGreaterThanOrEqualTo(MIN_PRIORITY_ACCURACY);
-        assertThat(acceptanceCoverage).isGreaterThanOrEqualTo(MIN_ACCEPTANCE_COVERAGE);
+        assertThat(statsByType.keySet())
+                .containsExactlyInAnyOrder("TEXT", "MARKDOWN", "WORD", "PDF", "OCR", "CUSTOM_API");
+        assertStats(totalStats);
+        statsByType.values().forEach(this::assertStats);
     }
 
     private ParsedRequirementDraft findByTitle(List<ParsedRequirementDraft> parsed, String expectedTitle) {
@@ -84,6 +93,29 @@ class DocumentAiParseQualityEvaluationTest {
 
     private double ratio(int numerator, int denominator) {
         return denominator == 0 ? 0.0 : (double) numerator / denominator;
+    }
+
+    private void printStats(QualityStats stats) {
+        System.out.printf(
+                "WP4 AI parse quality eval type=%s titleRecall=%.2f priorityAccuracy=%.2f acceptanceCoverage=%.2f cases=%d%n",
+                stats.sourceType,
+                ratio(stats.titleMatches, stats.expectedCount),
+                ratio(stats.priorityMatches, stats.expectedCount),
+                ratio(stats.acceptanceCovered, stats.expectedCount),
+                stats.expectedCount
+        );
+    }
+
+    private void assertStats(QualityStats stats) {
+        assertThat(ratio(stats.titleMatches, stats.expectedCount))
+                .as("title recall for " + stats.sourceType)
+                .isGreaterThanOrEqualTo(MIN_TITLE_RECALL);
+        assertThat(ratio(stats.priorityMatches, stats.expectedCount))
+                .as("priority accuracy for " + stats.sourceType)
+                .isGreaterThanOrEqualTo(MIN_PRIORITY_ACCURACY);
+        assertThat(ratio(stats.acceptanceCovered, stats.expectedCount))
+                .as("acceptance coverage for " + stats.sourceType)
+                .isGreaterThanOrEqualTo(MIN_ACCEPTANCE_COVERAGE);
     }
 
     private DocumentFieldMapping modelMapping() {
@@ -101,5 +133,18 @@ class DocumentAiParseQualityEvaluationTest {
                 now,
                 now
         );
+    }
+
+    private static class QualityStats {
+
+        private final String sourceType;
+        private int expectedCount;
+        private int titleMatches;
+        private int priorityMatches;
+        private int acceptanceCovered;
+
+        private QualityStats(String sourceType) {
+            this.sourceType = sourceType;
+        }
     }
 }

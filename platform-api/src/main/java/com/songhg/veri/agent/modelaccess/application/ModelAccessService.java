@@ -9,6 +9,7 @@ import com.songhg.veri.agent.modelaccess.api.response.InvokeModelResponse;
 import com.songhg.veri.agent.modelaccess.api.response.InvocationSummaryResponse;
 import com.songhg.veri.agent.modelaccess.api.response.ProviderCheckResponse;
 import com.songhg.veri.agent.modelaccess.api.request.UpdateProviderRequest;
+import com.songhg.veri.agent.modelaccess.api.response.ProviderResilienceResponse;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
 import com.songhg.veri.agent.common.api.PageQuery;
@@ -191,6 +192,32 @@ public class ModelAccessService {
         return response;
     }
 
+    public ProviderResilienceResponse providerResilience(UUID id) {
+        ModelProviderConfig provider = repository.provider(id)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "模型供应商不存在"));
+        ProviderResilienceManager.CircuitStateView circuitState = providerResilienceManager.circuitState(provider);
+        return new ProviderResilienceResponse(
+                provider.id(),
+                provider.name(),
+                circuitState.open(),
+                circuitState.consecutiveFailures(),
+                circuitState.openUntil(),
+                providerResilienceManager.rateLimitEnabled(),
+                providerResilienceManager.rateLimitMaxRequests(),
+                providerResilienceManager.rateLimitWindowSeconds(),
+                providerResilienceManager.concurrencyLimitEnabled(),
+                providerResilienceManager.maxConcurrentRequests(),
+                providerResilienceManager.availablePermits(provider)
+        );
+    }
+
+    public ProviderResilienceResponse resetProviderCircuit(UUID id) {
+        ModelProviderConfig provider = repository.provider(id)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "模型供应商不存在"));
+        providerResilienceManager.resetCircuit(provider);
+        return providerResilience(id);
+    }
+
     public List<PromptTemplate> prompts(String promptKey) {
         return repository.prompts(trimToNull(promptKey));
     }
@@ -295,29 +322,29 @@ public class ModelAccessService {
                 continue;
             }
             ModelProviderClient client = clientFor(provider);
+            BudgetViolation budgetViolation = budgetViolation(request, provider, fullPrompt);
+            if (budgetViolation != null) {
+                saveRecord(
+                        request,
+                        principal,
+                        prompt,
+                        provider,
+                        InvocationStatus.BLOCKED,
+                        index > 0 || fallbackUsed,
+                        contentGuard.digest(fullPrompt),
+                        contentGuard.mask(fullPrompt),
+                        null,
+                        0,
+                        0,
+                        BigDecimal.ZERO,
+                        ErrorCode.BUDGET_EXCEEDED.name(),
+                        budgetViolation.message(),
+                        effectiveSensitivityLevel,
+                        startedAt
+                );
+                throw new BusinessException(ErrorCode.BUDGET_EXCEEDED, budgetViolation.message());
+            }
             try {
-                BudgetViolation budgetViolation = budgetViolation(request, provider, fullPrompt);
-                if (budgetViolation != null) {
-                    saveRecord(
-                            request,
-                            principal,
-                            prompt,
-                            provider,
-                            InvocationStatus.BLOCKED,
-                            index > 0 || fallbackUsed,
-                            contentGuard.digest(fullPrompt),
-                            contentGuard.mask(fullPrompt),
-                            null,
-                            0,
-                            0,
-                            BigDecimal.ZERO,
-                            ErrorCode.BUDGET_EXCEEDED.name(),
-                            budgetViolation.message(),
-                            effectiveSensitivityLevel,
-                            startedAt
-                    );
-                    throw new BusinessException(ErrorCode.BUDGET_EXCEEDED, budgetViolation.message());
-                }
                 ProviderCallResult result = providerResilienceManager.callWithRetry(client, provider, new ProviderCallRequest(
                         StringUtils.hasText(request.modelName()) ? request.modelName().trim() : properties.defaultModel(),
                         renderedPrompt,
@@ -357,6 +384,24 @@ public class ModelAccessService {
             } catch (RuntimeException exception) {
                 if (exception instanceof BusinessException businessException
                         && businessException.getErrorCode() == ErrorCode.BUDGET_EXCEEDED) {
+                    saveRecord(
+                            request,
+                            principal,
+                            prompt,
+                            provider,
+                            InvocationStatus.BLOCKED,
+                            index > 0 || fallbackUsed,
+                            contentGuard.digest(fullPrompt),
+                            contentGuard.mask(fullPrompt),
+                            null,
+                            0,
+                            0,
+                            BigDecimal.ZERO,
+                            ErrorCode.BUDGET_EXCEEDED.name(),
+                            businessException.getMessage(),
+                            effectiveSensitivityLevel,
+                            startedAt
+                    );
                     throw businessException;
                 }
                 lastFailure = exception;
@@ -497,6 +542,30 @@ public class ModelAccessService {
 
     public int activePromptCount() {
         return (int) repository.prompts(null).stream().filter(prompt -> prompt.status() == PromptStatus.ACTIVE).count();
+    }
+
+    public boolean providerRateLimitEnabled() {
+        return providerResilienceManager.rateLimitEnabled();
+    }
+
+    public int providerRateLimitMaxRequests() {
+        return providerResilienceManager.rateLimitMaxRequests();
+    }
+
+    public long providerRateLimitWindowSeconds() {
+        return providerResilienceManager.rateLimitWindowSeconds();
+    }
+
+    public boolean providerConcurrencyLimitEnabled() {
+        return providerResilienceManager.concurrencyLimitEnabled();
+    }
+
+    public int providerMaxConcurrentRequests() {
+        return providerResilienceManager.maxConcurrentRequests();
+    }
+
+    public int openCircuitProviderCount() {
+        return providerResilienceManager.openCircuitCount();
     }
 
     private PromptTemplate resolvePrompt(String promptKey) {

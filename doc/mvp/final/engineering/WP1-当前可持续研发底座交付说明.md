@@ -61,8 +61,9 @@ WP1_BOOTSTRAP_TOKEN=local-init-token bash scripts/wp1_db_profile_smoke.sh
 本轮 1～8 项已完成，后续 WP1 研发可直接在当前底座上推进，推荐优先级如下：
 
 1. 按 `WP1-发布前DB权限Runbook.md` 将预发/生产真实应用数据库角色接入发布流水线，确保不是仅临时库角色通过。
-2. 补角色定义管理、审计导出任务、Redis 会话清理、数据保留策略和 outbox 运维视图。
-3. 继续扩展复杂状态流拒绝、审计导出和生产角色权限的自动化场景。
+2. 补角色定义管理、审计保留策略和 outbox 运维视图；会话清理已具备 local/db profile 定时清理、保留窗口配置和 `veri.agent.auth.session.cleanup` 指标。
+3. 审计日志已支持 `GET /api/v1/management/audit-logs/export` 同步 CSV 导出，要求 `audit:read` + `audit:export`，portal-web 审计页已接入导出按钮和下载状态；后续如需要大批量导出，再演进异步任务和对象存储引用。
+4. 复杂状态流拒绝测试已覆盖项目重复、逆向、非法流转和停用后编辑拒绝，以及应用/环境非法状态与停用后编辑拒绝；后续继续扩展生产角色权限的自动化场景。
 
 ## 4. 当前文档口径
 

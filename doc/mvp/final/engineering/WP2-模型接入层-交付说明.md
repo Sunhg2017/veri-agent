@@ -35,6 +35,8 @@ WP2 P0 交付以下能力：
 | `POST /providers/{id}/enable` | 启用供应商。 |
 | `POST /providers/{id}/disable` | 停用供应商。 |
 | `POST /providers/{id}/check` | 对指定供应商执行短探测，返回 `UP`/`DOWN`、延迟和脱敏错误摘要，不写调用日志。 |
+| `GET /providers/{id}/resilience` | 查询供应商熔断状态、连续失败次数、恢复时间、限流和并发配置摘要。 |
+| `POST /providers/{id}/circuit/reset` | 手动重置指定供应商短时熔断状态。 |
 | `GET /prompts?promptKey=` | 查询 Prompt 版本。 |
 | `POST /prompts` | 创建 Prompt 版本，可直接激活。 |
 | `POST /prompts/{id}/activate` | 激活指定 Prompt 版本。 |
@@ -56,7 +58,11 @@ WP2 保存 `projectId`、`applicationId`、`environmentId` 作为逻辑归属，
 
 `POST /invocations` 可携带 `sensitivityLevel`。WP2 会在请求级别和 WP1 上下文之间取更严格的敏感级别；WP1 `STRICT` 会映射为 WP2 `RESTRICTED`。`CONFIDENTIAL` 和 `RESTRICTED` 会在供应商调用前执行模型策略校验：`allowPublicModel=true` 或显式指定非 `LOCAL_*` 供应商都会返回 `MODEL_POLICY_VIOLATION`，并写入 `BLOCKED` 调用日志。若 WP1 `allowPublicModel=false`，请求也不能开启公开模型路由或显式指定外部供应商。分页查询、CSV 导出和 WP1 审计摘要都会保留归一化后的敏感级别，用于后续合规追溯。
 
+敏感内容阻断会在供应商调用前检查 prompt 和消息内容，当前覆盖 key/token/password/Bearer、身份证号、手机号、邮箱、银行卡疑似长号以及 `internal_token`、`corp_secret`、`private_key` 等企业内部密钥模式。命中后返回稳定错误并写入 `BLOCKED` 调用日志，避免敏感明文进入外部 provider。
+
 预算护栏默认关闭。设置 `WP2_DAILY_PLATFORM_COST_LIMIT` 或 `WP2_DAILY_PROJECT_COST_LIMIT` 为大于 0 的金额后，WP2 使用 `WP2_BUDGET_ZONE_ID` 对齐日窗口，并用 `WP2_BUDGET_ESTIMATED_OUTPUT_TOKENS` 作为调用前输出 token 预估保留量。超额请求返回 `BUDGET_EXCEEDED`，并记录 `BLOCKED` 调用日志，实际成本为 0。
+
+Provider 级生产保护默认关闭。设置 `WP2_PROVIDER_RATE_LIMIT_MAX_REQUESTS`、`WP2_PROVIDER_RATE_LIMIT_WINDOW_SECONDS` 可开启单 provider 时间窗口限流；设置 `WP2_PROVIDER_MAX_CONCURRENT_REQUESTS` 可开启单 provider 并发保护。触发限流或并发上限时返回 `BUDGET_EXCEEDED`，并记录 `BLOCKED` 调用日志。连续失败熔断仍由 `WP2_PROVIDER_CIRCUIT_FAILURE_THRESHOLD` 和 `WP2_PROVIDER_CIRCUIT_OPEN_MS` 控制，可通过 resilience API 查询和 reset。
 
 ## 4. 数据库交付
 
@@ -90,7 +96,7 @@ WP2 保存 `projectId`、`applicationId`、`environmentId` 作为逻辑归属，
 1. 健康检查无需服务令牌。
 2. 受保护 API 拒绝匿名访问。
 3. Prompt 版本创建、激活、模型调用与审计日志写入。
-4. 敏感内容阻断。
+4. 敏感内容阻断，覆盖密钥、token、密码、Bearer、身份证号、手机号、邮箱、银行卡疑似长号和企业内部密钥模式。
 5. 高敏感级别阻断公开模型路由和显式外部供应商，并记录 `MODEL_POLICY_VIOLATION`。
 6. 供应商失败后的降级调用与日志记录。
 7. 调用日志分页响应和成本汇总接口。
@@ -108,6 +114,7 @@ WP2 保存 `projectId`、`applicationId`、`environmentId` 作为逻辑归属，
 19. OpenAI-compatible 客户端合同测试覆盖 `/v1/chat/completions` 响应解析，不依赖外网。
 20. 供应商调用支持同供应商重试、连续失败短时熔断和候选供应商 fallback。
 21. 成本能力支持平台/项目日预算告警和 31 天内日报聚合。
+22. 供应商生产硬化支持 provider 级窗口限流、并发控制、熔断状态查询和手动 reset；限流/并发阻断会返回 `BUDGET_EXCEEDED` 并写入 `BLOCKED` 调用日志。
 
 运行命令：
 

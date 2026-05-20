@@ -125,6 +125,8 @@ public interface ManagementWorkspaceService {
 
     PageResponse<AuditLogView> auditLogs(PageQuery pageQuery, AuditLogQuery query, AuthUserPrincipal actor);
 
+    String exportAuditLogsCsv(AuditLogQuery query, AuthUserPrincipal actor);
+
     PageResponse<SettingView> settings(PageQuery pageQuery);
 
     SettingView setting(String key);

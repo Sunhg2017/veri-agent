@@ -41,9 +41,13 @@ public class DocumentContentExtractor {
     private static final int DEFAULT_OCR_TIMEOUT_SECONDS = 30;
     private static final int DEFAULT_OCR_MAX_OUTPUT_CHARS = 20000;
     private static final int DEFAULT_OCR_MAX_CONCURRENT_PROCESSES = 2;
+    private static final int DEFAULT_MALWARE_SCAN_TIMEOUT_SECONDS = 15;
+    private static final int DEFAULT_MALWARE_SCAN_MAX_OUTPUT_CHARS = 2000;
+    private static final int DEFAULT_MALWARE_SCAN_MAX_CONCURRENT_PROCESSES = 2;
 
     private final DocumentInputProperties properties;
     private final Semaphore ocrPermits;
+    private final Semaphore malwareScanPermits;
     private final LongSupplier nanoTime;
 
     @Autowired
@@ -54,6 +58,7 @@ public class DocumentContentExtractor {
     DocumentContentExtractor(DocumentInputProperties properties, LongSupplier nanoTime) {
         this.properties = properties;
         this.ocrPermits = new Semaphore(ocrMaxConcurrentProcesses(), true);
+        this.malwareScanPermits = new Semaphore(malwareScanMaxConcurrentProcesses(), true);
         this.nanoTime = nanoTime;
     }
 
@@ -108,6 +113,26 @@ public class DocumentContentExtractor {
         return properties.binaryMimeValidationEnabled();
     }
 
+    public boolean malwareScanEnabled() {
+        return StringUtils.hasText(properties.malwareScanCommand());
+    }
+
+    public int malwareScanTimeoutSeconds() {
+        return properties.malwareScanTimeoutSeconds() <= 0
+                ? DEFAULT_MALWARE_SCAN_TIMEOUT_SECONDS
+                : properties.malwareScanTimeoutSeconds();
+    }
+
+    public int malwareScanMaxConcurrentProcesses() {
+        return properties.malwareScanMaxConcurrentProcesses() <= 0
+                ? DEFAULT_MALWARE_SCAN_MAX_CONCURRENT_PROCESSES
+                : properties.malwareScanMaxConcurrentProcesses();
+    }
+
+    public int malwareScanAvailablePermits() {
+        return malwareScanPermits.availablePermits();
+    }
+
     public int pdfMaxPages() {
         return Math.max(0, properties.pdfMaxPages());
     }
@@ -124,6 +149,7 @@ public class DocumentContentExtractor {
 
     private String extractBinary(DocumentSourceType sourceType, byte[] bytes, String declaredMimeType) {
         validateBinaryMime(sourceType, declaredMimeType, bytes);
+        scanForMalware(bytes);
         return switch (sourceType) {
             case WORD -> extractWord(bytes);
             case PDF -> extractPdf(bytes);
@@ -185,6 +211,48 @@ public class DocumentContentExtractor {
             throw exception;
         } catch (Exception exception) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "WORD 文档解析失败: " + exception.getMessage());
+        }
+    }
+
+    private void scanForMalware(byte[] bytes) {
+        String command = trimToNull(properties.malwareScanCommand());
+        if (!StringUtils.hasText(command)) {
+            return;
+        }
+        if (!malwareScanPermits.tryAcquire()) {
+            throw new BusinessException(ErrorCode.BUDGET_EXCEEDED, "文件安全扫描并发处理已达到上限");
+        }
+        Path input = null;
+        try {
+            input = Files.createTempFile("wp4-scan-", ".bin");
+            Files.write(input, bytes);
+            List<String> commandLine = templatedCommand(command, input);
+            Process process = new ProcessBuilder(commandLine)
+                    .redirectErrorStream(true)
+                    .start();
+            boolean completed = process.waitFor(malwareScanTimeoutSeconds(), TimeUnit.SECONDS);
+            String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+            if (!completed) {
+                process.destroyForcibly();
+                throw new BusinessException(ErrorCode.INVALID_STATE, "文件安全扫描执行超时");
+            }
+            if (process.exitValue() != 0) {
+                throw new BusinessException(ErrorCode.VALIDATION_ERROR,
+                        "文件安全扫描未通过: " + trimForError(output, malwareScanMaxOutputChars()));
+            }
+        } catch (BusinessException exception) {
+            throw exception;
+        } catch (Exception exception) {
+            throw new BusinessException(ErrorCode.INVALID_STATE, "文件安全扫描执行失败: " + exception.getMessage());
+        } finally {
+            malwareScanPermits.release();
+            if (input != null) {
+                try {
+                    Files.deleteIfExists(input);
+                } catch (Exception ignored) {
+                    // Temporary scan input cleanup should not hide the parsing result.
+                }
+            }
         }
     }
 
@@ -322,7 +390,7 @@ public class DocumentContentExtractor {
         try {
             input = Files.createTempFile("wp4-ocr-", ".bin");
             Files.write(input, bytes);
-            List<String> commandLine = ocrCommand(command, input);
+            List<String> commandLine = templatedCommand(command, input);
             Process process = new ProcessBuilder(commandLine)
                     .redirectErrorStream(true)
                     .start();
@@ -334,7 +402,7 @@ public class DocumentContentExtractor {
             }
             if (process.exitValue() != 0) {
                 throw new BusinessException(ErrorCode.INVALID_STATE,
-                        "OCR 命令执行失败: " + trimForError(output));
+                        "OCR 命令执行失败: " + trimForError(output, 300));
             }
             String normalized = truncateOcrOutput(output);
             if (!StringUtils.hasText(normalized)) {
@@ -357,13 +425,13 @@ public class DocumentContentExtractor {
         }
     }
 
-    private List<String> ocrCommand(String template, Path input) {
+    private List<String> templatedCommand(String template, Path input) {
         String command = template.contains("{input}")
                 ? template.replace("{input}", input.toAbsolutePath().toString())
                 : template + " " + input.toAbsolutePath();
         List<String> tokens = splitCommand(command);
         if (tokens.isEmpty()) {
-            throw new BusinessException(ErrorCode.INVALID_STATE, "WP4_OCR_COMMAND 不能为空");
+            throw new BusinessException(ErrorCode.INVALID_STATE, "命令不能为空");
         }
         return tokens;
     }
@@ -404,6 +472,12 @@ public class DocumentContentExtractor {
         int limit = ocrMaxOutputChars();
         String normalized = normalizeText(output);
         return normalized.length() <= limit ? normalized : normalized.substring(0, limit);
+    }
+
+    private int malwareScanMaxOutputChars() {
+        return properties.malwareScanMaxOutputChars() <= 0
+                ? DEFAULT_MALWARE_SCAN_MAX_OUTPUT_CHARS
+                : properties.malwareScanMaxOutputChars();
     }
 
     private String normalizeText(String value) {
@@ -517,12 +591,13 @@ public class DocumentContentExtractor {
         }
     }
 
-    private String trimForError(String output) {
+    private String trimForError(String output, int limit) {
         if (!StringUtils.hasText(output)) {
             return "";
         }
         String normalized = output.trim().replaceAll("\\s+", " ");
-        return normalized.length() <= 200 ? normalized : normalized.substring(0, 200);
+        int safeLimit = Math.max(1, limit);
+        return normalized.length() <= safeLimit ? normalized : normalized.substring(0, safeLimit);
     }
 
     private String trimToNull(String value) {

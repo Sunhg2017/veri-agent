@@ -2,6 +2,8 @@
 
 React + TypeScript + Vite frontend for the WP1 management console.
 
+Repository-level collaboration and delivery rules are defined in `../AGENTS.md`. Frontend changes must include the UI impact review and validation required there.
+
 ## Current Scope
 
 - Enterprise console layout with sidebar, top bar, and working area.
@@ -36,4 +38,3 @@ Then open the frontend and initialize the first SuperAdmin with the same token.
 ```bash
 npm run build
 ```
-

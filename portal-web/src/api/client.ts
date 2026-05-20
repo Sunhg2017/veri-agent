@@ -15,6 +15,13 @@ export interface ApiErrorDetail {
   field_errors?: FieldErrorItem[];
 }
 
+export interface TextResponse {
+  text: string;
+  traceId: string;
+  contentType: string;
+  filename?: string;
+}
+
 type ApiEnvelope<T> = Omit<ApiResponse<T>, 'trace_id'> & {
   trace_id?: string;
   traceId?: string;
@@ -123,6 +130,37 @@ export async function requestMultipart<T>(path: string, formData: FormData, init
   }, false);
 }
 
+export async function requestText(path: string, init?: RequestInit): Promise<TextResponse> {
+  const token = getAuthToken();
+  const headers = new Headers(init?.headers);
+  if (token && !headers.has('Authorization')) {
+    headers.set('Authorization', `Bearer ${token}`);
+  }
+
+  const response = await fetch(path, {
+    ...init,
+    headers
+  });
+
+  if (response.status === 401 && token) {
+    const refreshed = await attemptRefresh();
+    if (refreshed) {
+      const newToken = getAuthToken();
+      if (newToken) {
+        headers.set('Authorization', `Bearer ${newToken}`);
+        const retryResponse = await fetch(path, {
+          ...init,
+          headers
+        });
+        return textResponse(retryResponse);
+      }
+    }
+    throw new ApiError('登录已过期，请重新登录', 'SESSION_EXPIRED', '', 401);
+  }
+
+  return textResponse(response);
+}
+
 async function request<T>(path: string, init: RequestInit | undefined, jsonBody: boolean): Promise<ApiResponse<T>> {
   const token = getAuthToken();
   const headers = new Headers(init?.headers);
@@ -179,4 +217,50 @@ async function request<T>(path: string, init: RequestInit | undefined, jsonBody:
     );
   }
   return { ...body, trace_id: traceId } as ApiResponse<T>;
+}
+
+async function textResponse(response: Response): Promise<TextResponse> {
+  const traceId = response.headers.get('X-Trace-Id') ?? '';
+  const contentType = response.headers.get('Content-Type') ?? '';
+  const contentDisposition = response.headers.get('Content-Disposition') ?? '';
+  const text = await response.text();
+
+  if (!response.ok) {
+    throw errorFromTextResponse(text, response.status, traceId);
+  }
+
+  return {
+    text,
+    traceId,
+    contentType,
+    filename: filenameFromContentDisposition(contentDisposition)
+  };
+}
+
+function errorFromTextResponse(text: string, status: number, traceId: string) {
+  try {
+    const body = JSON.parse(text) as ApiEnvelope<ApiErrorDetail>;
+    const bodyTraceId = body.trace_id ?? body.traceId ?? traceId;
+    return new ApiError(
+      body.message || '请求失败',
+      body.code || `HTTP_${status}`,
+      bodyTraceId,
+      status,
+      body.data
+    );
+  } catch {
+    return new ApiError(text || '请求失败', `HTTP_${status}`, traceId, status);
+  }
+}
+
+function filenameFromContentDisposition(value: string) {
+  const encoded = value.match(/filename\*=UTF-8''([^;]+)/i)?.[1];
+  if (encoded) {
+    try {
+      return decodeURIComponent(encoded);
+    } catch {
+      return encoded;
+    }
+  }
+  return value.match(/filename="?([^";]+)"?/i)?.[1];
 }

@@ -36,7 +36,18 @@ public interface AuditLogWriter {
             String resourceId,
             String reason
     ) {
-        return new AuditRecord(actor, action, resourceType, resourceId, "DENIED", reason, resourceId, null, null, null);
+        return denied(actor, action, resourceType, resourceId, resourceId, reason);
+    }
+
+    static AuditRecord denied(
+            AuthUserPrincipal actor,
+            String action,
+            String resourceType,
+            String resourceId,
+            String targetName,
+            String reason
+    ) {
+        return new AuditRecord(actor, action, resourceType, resourceId, "DENIED", reason, targetName, null, null, null);
     }
 
     static AuditRecord failed(

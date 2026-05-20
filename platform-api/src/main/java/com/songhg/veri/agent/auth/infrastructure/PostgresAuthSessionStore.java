@@ -39,4 +39,9 @@ public class PostgresAuthSessionStore implements AuthSessionStore {
     public void revoke(UUID sessionId, UUID revokedBy, String reason) {
         mapper.revokeSession(sessionId, revokedBy, reason);
     }
+
+    @Override
+    public int cleanupExpiredSessions(Instant expiresBefore, Instant revokedBefore) {
+        return mapper.cleanupSessions(expiresBefore, revokedBefore);
+    }
 }

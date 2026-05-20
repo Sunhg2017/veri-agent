@@ -8,6 +8,8 @@ import org.springframework.validation.annotation.Validated;
 @ConfigurationProperties(prefix = "veri-agent.auth")
 public record AuthProperties(
         String tokenSecret,
-        @Min(1) long accessTokenTtlMinutes
+        @Min(1) long accessTokenTtlMinutes,
+        boolean sessionCleanupEnabled,
+        @Min(1) long sessionCleanupRetentionSeconds
 ) {
 }

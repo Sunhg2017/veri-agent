@@ -24,6 +24,10 @@ public record DocumentInputHealthResponse(
         long webhookRateLimitWindowSeconds,
         boolean binaryMimeValidationEnabled,
         int pdfMaxPages,
-        long pdfMaxParseMillis
+        long pdfMaxParseMillis,
+        boolean malwareScanEnabled,
+        int malwareScanTimeoutSeconds,
+        int malwareScanMaxConcurrentProcesses,
+        int malwareScanAvailablePermits
 ) {
 }

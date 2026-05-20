@@ -17,7 +17,10 @@ public record ModelAccessProperties(
         int providerCircuitFailureThreshold,
         long providerCircuitOpenMs,
         long providerCheckCacheTtlMs,
-        BigDecimal costAlertWarningRatio
+        BigDecimal costAlertWarningRatio,
+        int providerRateLimitMaxRequests,
+        long providerRateLimitWindowSeconds,
+        int providerMaxConcurrentRequests
 ) {
 
     public boolean hasDailyPlatformCostLimit() {
@@ -52,5 +55,17 @@ public record ModelAccessProperties(
             return BigDecimal.ONE;
         }
         return costAlertWarningRatio;
+    }
+
+    public int safeProviderRateLimitMaxRequests() {
+        return Math.max(0, providerRateLimitMaxRequests);
+    }
+
+    public long safeProviderRateLimitWindowSeconds() {
+        return Math.max(1, providerRateLimitWindowSeconds);
+    }
+
+    public int safeProviderMaxConcurrentRequests() {
+        return Math.max(0, providerMaxConcurrentRequests);
     }
 }

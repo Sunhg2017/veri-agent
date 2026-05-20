@@ -35,6 +35,13 @@ public record DocumentInputProperties(
         @DefaultValue("true") boolean binaryMimeValidationEnabled,
         int pdfMaxPages,
         long pdfMaxParseMillis,
-        @DefaultValue("LOCAL_COMMAND") String ocrWorkerMode
+        @DefaultValue("LOCAL_COMMAND") String ocrWorkerMode,
+        String malwareScanCommand,
+        int malwareScanTimeoutSeconds,
+        int malwareScanMaxConcurrentProcesses,
+        int malwareScanMaxOutputChars,
+        boolean retentionCleanupEnabled,
+        int importRetentionDays,
+        int webhookEventRetentionDays
 ) {
 }

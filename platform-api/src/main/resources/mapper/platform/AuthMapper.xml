@@ -131,4 +131,13 @@
             revoke_reason = coalesce(revoke_reason, #{reason})
         where id = #{sessionId}
     </update>
+
+    <delete id="cleanupSessions">
+        delete from iam_session
+        where expires_at &lt;= #{expiresBefore}
+           or (
+               revoked_at is not null
+               and revoked_at &lt;= #{revokedBefore}
+           )
+    </delete>
 </mapper>

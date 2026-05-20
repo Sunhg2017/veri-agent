@@ -149,7 +149,11 @@ public class DocumentInputService {
                 webhookIngressGuard.rateLimitWindowSeconds(),
                 contentExtractor.binaryMimeValidationEnabled(),
                 contentExtractor.pdfMaxPages(),
-                contentExtractor.pdfMaxParseMillis()
+                contentExtractor.pdfMaxParseMillis(),
+                contentExtractor.malwareScanEnabled(),
+                contentExtractor.malwareScanTimeoutSeconds(),
+                contentExtractor.malwareScanMaxConcurrentProcesses(),
+                contentExtractor.malwareScanAvailablePermits()
         );
     }
 

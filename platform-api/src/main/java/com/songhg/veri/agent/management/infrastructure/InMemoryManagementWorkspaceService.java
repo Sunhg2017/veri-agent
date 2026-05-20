@@ -316,7 +316,9 @@ public class InMemoryManagementWorkspaceService implements ManagementWorkspaceSe
     @Override
     public synchronized ProjectView changeProjectStatus(String key, String status, AuthUserPrincipal actor) {
         ProjectView current = requireProject(key);
-        String nextStatus = switch (status) {
+        String nextStatusCode = normalizeProjectStatus(status);
+        ensureProjectStatusTransition(actor, current.name(), projectStatusCode(current.status()), nextStatusCode);
+        String nextStatus = switch (nextStatusCode) {
             case "PREPARING" -> "规划中";
             case "ACTIVE" -> "进行中";
             case "ARCHIVED" -> "已归档";
@@ -327,7 +329,7 @@ public class InMemoryManagementWorkspaceService implements ManagementWorkspaceSe
                 current.name(),
                 new ProjectView(current.name(), current.department(), current.owner(), current.apps(), nextStatus)
         );
-        audit(actor, projectStatusAction(status), updated.name());
+        audit(actor, projectStatusAction(nextStatusCode), updated.name());
         return updated;
     }
 
@@ -629,6 +631,23 @@ public class InMemoryManagementWorkspaceService implements ManagementWorkspaceSe
         return page(filtered, PageQuery.of(pageQuery.index(), pageQuery.size()));
     }
 
+    @Override
+    public synchronized String exportAuditLogsCsv(AuditLogQuery query, AuthUserPrincipal actor) {
+        PageResponse<AuditLogView> page = auditLogs(PageQuery.of(0, 100), query, actor);
+        StringBuilder csv = new StringBuilder("time,actor,action,target,result\n");
+        page.items().forEach(item -> {
+            appendCsvValue(csv, item.time());
+            appendCsvValue(csv, item.actor());
+            appendCsvValue(csv, item.action());
+            appendCsvValue(csv, item.target());
+            appendCsvValue(csv, item.result());
+            csv.setLength(csv.length() - 1);
+            csv.append('\n');
+        });
+        audit(actor, "导出审计", "audit_log");
+        return csv.toString();
+    }
+
     private AuditLogView auditRecordView(AuditLogWriter.AuditRecord record) {
         return new AuditLogView(
                 LocalDateTime.now().format(TIME_FORMAT),
@@ -637,6 +656,12 @@ public class InMemoryManagementWorkspaceService implements ManagementWorkspaceSe
                 record.targetName(),
                 resultName(record.result())
         );
+    }
+
+    private void appendCsvValue(StringBuilder csv, Object value) {
+        String raw = value == null ? "" : String.valueOf(value);
+        String escaped = raw.replace("\"", "\"\"");
+        csv.append('"').append(escaped).append('"').append(',');
     }
 
     @Override
@@ -709,6 +734,12 @@ public class InMemoryManagementWorkspaceService implements ManagementWorkspaceSe
     private void audit(AuthUserPrincipal actor, String action, String target) {
         auditLogWriter.record(AuditLogWriter.success(
                 actor, action, "management", target, target
+        ));
+    }
+
+    private void auditDenied(AuthUserPrincipal actor, String action, String target, String reason) {
+        auditLogWriter.record(AuditLogWriter.denied(
+                actor, action, "management", target, reason
         ));
     }
 
@@ -922,6 +953,41 @@ public class InMemoryManagementWorkspaceService implements ManagementWorkspaceSe
             case "ACTIVE", "PREPARING" -> "恢复项目";
             default -> "更新项目状态";
         };
+    }
+
+    private String normalizeProjectStatus(String status) {
+        String normalized = status == null ? "" : status.trim().toUpperCase();
+        if (!List.of("PREPARING", "ACTIVE", "ARCHIVED", "DISABLED").contains(normalized)) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "项目状态不支持");
+        }
+        return normalized;
+    }
+
+    private String projectStatusCode(String status) {
+        return switch (status) {
+            case "规划中" -> "PREPARING";
+            case "进行中" -> "ACTIVE";
+            case "已归档" -> "ARCHIVED";
+            case "已停用" -> "DISABLED";
+            default -> "";
+        };
+    }
+
+    private void ensureProjectStatusTransition(AuthUserPrincipal actor, String projectName, String currentStatus, String nextStatus) {
+        if (currentStatus.equals(nextStatus)) {
+            return;
+        }
+        boolean allowed = switch (currentStatus) {
+            case "PREPARING" -> List.of("ACTIVE", "DISABLED").contains(nextStatus);
+            case "ACTIVE" -> List.of("ARCHIVED", "DISABLED").contains(nextStatus);
+            case "ARCHIVED" -> List.of("ACTIVE", "DISABLED").contains(nextStatus);
+            case "DISABLED" -> List.of("PREPARING", "ACTIVE").contains(nextStatus);
+            default -> false;
+        };
+        if (!allowed) {
+            auditDenied(actor, "项目状态拒绝", projectName, "项目状态流不允许: " + currentStatus + "->" + nextStatus);
+            throw new BusinessException(ErrorCode.INVALID_STATE, "项目状态不允许从 " + currentStatus + " 流转到 " + nextStatus);
+        }
     }
 
     private String memberTypeForRole(String roleCode) {

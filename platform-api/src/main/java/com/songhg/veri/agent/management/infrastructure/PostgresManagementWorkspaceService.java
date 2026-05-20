@@ -61,15 +61,18 @@ public class PostgresManagementWorkspaceService implements ManagementWorkspaceSe
     private final ManagementMapper mapper;
     private final PasswordEncoder passwordEncoder;
     private final AuditLogWriter auditLogWriter;
+    private final PostgresManagementDeniedAuditRecorder deniedAuditRecorder;
 
     public PostgresManagementWorkspaceService(
             ManagementMapper mapper,
             PasswordEncoder passwordEncoder,
-            AuditLogWriter auditLogWriter
+            AuditLogWriter auditLogWriter,
+            PostgresManagementDeniedAuditRecorder deniedAuditRecorder
     ) {
         this.mapper = mapper;
         this.passwordEncoder = passwordEncoder;
         this.auditLogWriter = auditLogWriter;
+        this.deniedAuditRecorder = deniedAuditRecorder;
     }
 
     @Override
@@ -315,7 +318,7 @@ public class PostgresManagementWorkspaceService implements ManagementWorkspaceSe
     public ProjectView changeProjectStatus(String key, String status, AuthUserPrincipal actor) {
         ProjectRef project = resolveProjectStrict(key);
         String nextStatus = normalizeProjectStatus(status);
-        ensureProjectStatusTransition(project.status(), nextStatus);
+        ensureProjectStatusTransition(actor, project, nextStatus);
         update(mapper::changeProjectStatus, actor, values("projectId", project.id(), "status", nextStatus));
         ProjectView updated = projectByKey(project.id().toString());
         audit(actor, projectStatusAction(nextStatus), "project", project.id().toString(), updated.name());
@@ -660,6 +663,24 @@ public class PostgresManagementWorkspaceService implements ManagementWorkspaceSe
     }
 
     @Override
+    public String exportAuditLogsCsv(AuditLogQuery query, AuthUserPrincipal actor) {
+        PageQuery exportPage = PageQuery.of(0, 100);
+        PageResponse<AuditLogView> page = auditLogs(exportPage, query, actor);
+        StringBuilder csv = new StringBuilder("time,actor,action,target,result\n");
+        page.items().forEach(item -> {
+            appendCsvValue(csv, item.time());
+            appendCsvValue(csv, item.actor());
+            appendCsvValue(csv, item.action());
+            appendCsvValue(csv, item.target());
+            appendCsvValue(csv, item.result());
+            csv.setLength(csv.length() - 1);
+            csv.append('\n');
+        });
+        audit(actor, "导出审计", "audit_log", "audit_export", "审计日志导出");
+        return csv.toString();
+    }
+
+    @Override
     public PageResponse<SettingView> settings(PageQuery pageQuery) {
         PageResponse<SettingRow> rows = page(mapper::listSettings, mapper::countSettings, pageQuery, values());
         return PageResponse.of(rows.items().stream().map(this::settingView).toList(), pageQuery.index(), pageQuery.size(), rows.total());
@@ -923,6 +944,12 @@ public class PostgresManagementWorkspaceService implements ManagementWorkspaceSe
         ));
     }
 
+    private void appendCsvValue(StringBuilder csv, Object value) {
+        String raw = value == null ? "" : String.valueOf(value);
+        String escaped = raw.replace("\"", "\"\"");
+        csv.append('"').append(escaped).append('"').append(',');
+    }
+
     /**
      * Write a change audit event with before/after JSON for change tracking.
      * This enables the PRD-required "变更前摘要" and "变更后摘要" in audit logs.
@@ -1159,7 +1186,8 @@ public class PostgresManagementWorkspaceService implements ManagementWorkspaceSe
         return normalized;
     }
 
-    private void ensureProjectStatusTransition(String currentStatus, String nextStatus) {
+    private void ensureProjectStatusTransition(AuthUserPrincipal actor, ProjectRef project, String nextStatus) {
+        String currentStatus = project.status();
         if (currentStatus.equals(nextStatus)) {
             return;
         }
@@ -1171,6 +1199,7 @@ public class PostgresManagementWorkspaceService implements ManagementWorkspaceSe
             default -> false;
         };
         if (!allowed) {
+            deniedAuditRecorder.recordProjectStatusDenied(actor, project.id(), project.name(), currentStatus, nextStatus);
             throw new BusinessException(ErrorCode.INVALID_STATE, "项目状态不允许从 " + currentStatus + " 流转到 " + nextStatus);
         }
     }

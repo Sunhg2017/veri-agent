@@ -11,6 +11,7 @@ import com.songhg.veri.agent.documentinput.domain.DocumentRequirementCandidate;
 import com.songhg.veri.agent.documentinput.domain.DocumentSourceConfig;
 import com.songhg.veri.agent.documentinput.domain.DocumentWebhookEvent;
 import com.songhg.veri.agent.documentinput.infrastructure.mapper.DocumentInputMapper;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -156,5 +157,16 @@ public class PostgresDocumentInputRepository implements DocumentInputRepository 
             return webhookEventByIdentity(event.sourceCode(), event.eventId(), event.idempotencyKey())
                     .orElseThrow(() -> exception);
         }
+    }
+
+    @Override
+    public int cleanupImportsBefore(Instant before) {
+        mapper.softDeleteCandidatesByImportCreatedBefore(before);
+        return mapper.softDeleteImportsBefore(before);
+    }
+
+    @Override
+    public int cleanupWebhookEventsBefore(Instant before) {
+        return mapper.softDeleteWebhookEventsBefore(before);
     }
 }

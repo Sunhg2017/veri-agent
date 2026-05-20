@@ -15,11 +15,14 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.startsWith;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest(properties = {
@@ -123,6 +126,32 @@ class ManagementControllerTest {
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.total").value(0));
+    }
+
+    @Test
+    void exportsFilteredAuditLogsAsCsvAndWritesAuditLog() throws Exception {
+        String token = bootstrapAndLogin();
+
+        mockMvc.perform(post("/api/v1/management/departments")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"CSV 审计组\"}"))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(get("/api/v1/management/audit-logs/export")
+                        .param("action", "创建部门")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.valueOf("text/csv")))
+                .andExpect(header().string("Content-Disposition", "attachment; filename=\"wp1-audit-logs.csv\""))
+                .andExpect(content().string(containsString("time,actor,action,target,result")))
+                .andExpect(content().string(containsString("CSV 审计组")));
+
+        mockMvc.perform(get("/api/v1/management/audit-logs")
+                        .param("action", "导出审计")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items[0].action").value("导出审计"));
     }
 
     @Test
@@ -431,6 +460,130 @@ class ManagementControllerTest {
                         .content("{\"status\":\"DISABLED\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("已停用"));
+    }
+
+    @Test
+    void rejectsIllegalStatusTransitionsAndWritesStableErrors() throws Exception {
+        String token = bootstrapAndLogin();
+
+        mockMvc.perform(post("/api/v1/management/projects")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"WP1 状态拒绝项目\"}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.status").value("规划中"));
+
+        mockMvc.perform(patch("/api/v1/management/projects/WP1 状态拒绝项目/status")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"status\":\"ARCHIVED\"}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("INVALID_STATE"));
+
+        mockMvc.perform(get("/api/v1/management/audit-logs")
+                        .param("action", "项目状态拒绝")
+                        .param("result", "DENIED")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items[0].action").value("项目状态拒绝"))
+                .andExpect(jsonPath("$.data.items[0].target").value("WP1 状态拒绝项目"))
+                .andExpect(jsonPath("$.data.items[0].result").value("拒绝"));
+
+        mockMvc.perform(patch("/api/v1/management/projects/WP1 状态拒绝项目/status")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"status\":\"REMOVED\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+
+        mockMvc.perform(patch("/api/v1/management/projects/WP1 状态拒绝项目/status")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"status\":\"ACTIVE\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("进行中"));
+
+        mockMvc.perform(patch("/api/v1/management/projects/WP1 状态拒绝项目/status")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"status\":\"ACTIVE\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("进行中"));
+
+        mockMvc.perform(patch("/api/v1/management/projects/WP1 状态拒绝项目/status")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"status\":\"DISABLED\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("已停用"));
+
+        mockMvc.perform(patch("/api/v1/management/projects/WP1 状态拒绝项目/status")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"status\":\"ARCHIVED\"}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("INVALID_STATE"));
+
+        mockMvc.perform(patch("/api/v1/management/projects/WP1 状态拒绝项目")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"WP1 停用后编辑\"}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("INVALID_STATE"));
+
+        mockMvc.perform(post("/api/v1/management/applications")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"WP1 状态拒绝应用\"}"))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(patch("/api/v1/management/applications/WP1 状态拒绝应用/status")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"status\":\"PAUSED\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+
+        mockMvc.perform(patch("/api/v1/management/applications/WP1 状态拒绝应用/status")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"status\":\"DISABLED\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("已停用"));
+
+        mockMvc.perform(patch("/api/v1/management/applications/WP1 状态拒绝应用")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"WP1 停用后应用编辑\"}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("INVALID_STATE"));
+
+        mockMvc.perform(post("/api/v1/management/environments")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"WP1 状态拒绝环境\"}"))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(patch("/api/v1/management/environments/WP1 状态拒绝环境/status")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"status\":\"PAUSED\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+
+        mockMvc.perform(patch("/api/v1/management/environments/WP1 状态拒绝环境/status")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"status\":\"DISABLED\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("已停用"));
+
+        mockMvc.perform(patch("/api/v1/management/environments/WP1 状态拒绝环境")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"WP1 停用后环境编辑\"}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("INVALID_STATE"));
     }
 
     @Test

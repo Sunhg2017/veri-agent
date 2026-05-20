@@ -13,6 +13,7 @@ import com.songhg.veri.agent.modelaccess.api.response.InvocationSummaryResponse;
 import com.songhg.veri.agent.modelaccess.api.response.InvokeModelResponse;
 import com.songhg.veri.agent.modelaccess.api.response.ProviderCheckResponse;
 import com.songhg.veri.agent.modelaccess.api.response.ProviderHealthResponse;
+import com.songhg.veri.agent.modelaccess.api.response.ProviderResilienceResponse;
 import com.songhg.veri.agent.common.api.PageResponse;
 import com.songhg.veri.agent.modelaccess.domain.InvocationRecord;
 import com.songhg.veri.agent.modelaccess.domain.ModelProviderConfig;
@@ -54,7 +55,13 @@ public class ModelAccessController {
                 "model-access",
                 "UP",
                 service.enabledProviderCount(),
-                service.activePromptCount()
+                service.activePromptCount(),
+                service.providerRateLimitEnabled(),
+                service.providerRateLimitMaxRequests(),
+                service.providerRateLimitWindowSeconds(),
+                service.providerConcurrencyLimitEnabled(),
+                service.providerMaxConcurrentRequests(),
+                service.openCircuitProviderCount()
         );
     }
 
@@ -90,6 +97,16 @@ public class ModelAccessController {
     @PostMapping("/providers/{id}/check")
     public ProviderCheckResponse checkProvider(@PathVariable UUID id) {
         return service.checkProvider(id);
+    }
+
+    @GetMapping("/providers/{id}/resilience")
+    public ProviderResilienceResponse providerResilience(@PathVariable UUID id) {
+        return service.providerResilience(id);
+    }
+
+    @PostMapping("/providers/{id}/circuit/reset")
+    public ProviderResilienceResponse resetProviderCircuit(@PathVariable UUID id) {
+        return service.resetProviderCircuit(id);
     }
 
     @GetMapping("/prompts")

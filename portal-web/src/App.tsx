@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   ClipboardList,
   DatabaseZap,
+  Download,
   FileText,
   GitBranch,
   KeyRound,
@@ -57,6 +58,7 @@ import {
   createSetting,
   disableUser,
   enableUser,
+  exportAuditLogsCsv,
   fetchApplication,
   fetchApplicationOwners,
   fetchDepartment,
@@ -98,6 +100,7 @@ import {
 } from './api/management';
 import {
   canAccessPage,
+  canUseButton,
   hasPermission,
   resourceCreatePermissions,
   userLifecyclePermission,
@@ -344,6 +347,13 @@ type ManagementLoadState = {
   error?: string;
 };
 
+type AuditExportState = {
+  loading: boolean;
+  traceId?: string;
+  error?: string;
+  filename?: string;
+};
+
 function activePageFromHash(): PageKey {
   const pageKey = window.location.hash.replace(/^#\/?/, '').split('/')[0];
   return pages.some((page) => page.key === pageKey) ? (pageKey as PageKey) : 'overview';
@@ -374,6 +384,7 @@ export function App() {
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
   const [managementData, setManagementData] = useState<ManagementData>(emptyManagementData);
   const [managementLoad, setManagementLoad] = useState<ManagementLoadState>({ loading: false });
+  const [auditExportState, setAuditExportState] = useState<AuditExportState>({ loading: false });
   const [health, setHealth] = useState<{ loading: boolean; traceId?: string; data?: HealthResult; error?: string }>({
     loading: true
   });
@@ -536,6 +547,7 @@ export function App() {
     setCurrentUser(null);
     setManagementData(emptyManagementData);
     setManagementLoad({ loading: false });
+    setAuditExportState({ loading: false });
     setLoginForm(initialLoginForm);
   }
 
@@ -686,6 +698,32 @@ export function App() {
     }
   }
 
+  async function onAuditExport() {
+    if (!currentUser) {
+      setAuditExportState({ loading: false, error: '请先登录后再操作' });
+      return;
+    }
+    if (!canUseButton(currentUser, 'audit:export')) {
+      setAuditExportState({ loading: false, error: '当前账号无审计导出权限' });
+      return;
+    }
+
+    setAuditExportState({ loading: true });
+    try {
+      const response = await exportAuditLogsCsv();
+      downloadText(response.filename ?? 'wp1-audit-logs.csv', response.text, response.contentType || 'text/csv;charset=utf-8');
+      setAuditExportState({
+        loading: false,
+        traceId: response.traceId,
+        filename: response.filename ?? 'wp1-audit-logs.csv'
+      });
+      await refreshManagementData();
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : '审计导出失败';
+      setAuditExportState({ loading: false, error: message });
+    }
+  }
+
   async function onUserLifecycleAction(username: string, action: UserLifecycleAction, roleCodeInput = '') {
     if (!currentUser) {
       setManagementLoad({ loading: false, error: '请先登录后再操作' });
@@ -829,6 +867,8 @@ export function App() {
             onCreate={onCreateManagementItem}
             onUserLifecycleAction={onUserLifecycleAction}
             onResetPassword={openResetPasswordDialog}
+            auditExportState={auditExportState}
+            onAuditExport={onAuditExport}
             onRefresh={refreshManagementData}
           />
         )}
@@ -1006,6 +1046,8 @@ function ModulePage(props: {
   onCreate: (resource: CreatableManagementResource, label: string, name: string) => Promise<void>;
   onUserLifecycleAction: (username: string, action: UserLifecycleAction, roleCode?: string) => Promise<void>;
   onResetPassword: (username: string) => void;
+  auditExportState: AuditExportState;
+  onAuditExport: () => Promise<void>;
   onRefresh: () => void;
 }) {
   if (props.page === 'document-input') {
@@ -1438,6 +1480,26 @@ function ModulePage(props: {
         loadState={props.loadState}
         signedIn={props.signedIn}
         onRefresh={props.onRefresh}
+        toolbarActions={
+          canUseButton(props.currentUser, 'audit:export') ? (
+            <button
+              className="primary-button"
+              type="button"
+              disabled={props.auditExportState.loading || props.loadState.loading || !props.signedIn}
+              onClick={() => void props.onAuditExport()}
+            >
+              <Download size={16} />
+              {props.auditExportState.loading ? '导出中' : '导出 CSV'}
+            </button>
+          ) : undefined
+        }
+        sidePanel={
+          <AuditExportPanel
+            signedIn={props.signedIn}
+            canExport={canUseButton(props.currentUser, 'audit:export')}
+            state={props.auditExportState}
+          />
+        }
       />
     );
   }
@@ -1523,6 +1585,7 @@ function DataSection(props: {
   onCreate?: (resource: CreatableManagementResource, label: string, name: string) => Promise<void>;
   onRefresh: () => void;
   sidePanel?: ReactNode;
+  toolbarActions?: ReactNode;
 }) {
   const Icon = props.icon;
   const [draftName, setDraftName] = useState('');
@@ -1550,14 +1613,17 @@ function DataSection(props: {
               <h2>{props.title}</h2>
             </div>
           </div>
-          <button
-            className="secondary-button"
-            type="button"
-            disabled={actionDisabled}
-            onClick={props.onRefresh}
-          >
-            刷新
-          </button>
+          <div className="panel-toolbar-actions">
+            {props.toolbarActions}
+            <button
+              className="secondary-button"
+              type="button"
+              disabled={actionDisabled}
+              onClick={props.onRefresh}
+            >
+              刷新
+            </button>
+          </div>
         </div>
 
         {props.createResource && props.canCreate && (
@@ -1633,6 +1699,38 @@ function DataSection(props: {
         </div>
       </div>
     </section>
+  );
+}
+
+function AuditExportPanel(props: {
+  signedIn: boolean;
+  canExport: boolean;
+  state: AuditExportState;
+}) {
+  const status = props.state.loading
+    ? '正在生成'
+    : props.state.error
+      ? '导出失败'
+      : props.state.filename
+        ? props.state.filename
+        : props.canExport
+          ? '可导出'
+          : props.signedIn
+            ? '无权限'
+            : '等待登录';
+
+  return (
+    <div className="panel insight-panel">
+      <h2>审计导出</h2>
+      <div className="empty-state">
+        <Download size={22} />
+        <div>
+          <strong>{status}</strong>
+          {props.state.error && <span>{props.state.error}</span>}
+          {props.state.traceId && <span>Trace ID：{props.state.traceId}</span>}
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -1728,6 +1826,18 @@ function buildSettingUpdate(draft: ResourceDraft) {
 
 function compactPayload<T extends Record<string, string | boolean | undefined>>(payload: T) {
   return Object.fromEntries(Object.entries(payload).filter(([, value]) => value !== undefined));
+}
+
+function downloadText(filename: string, text: string, contentType: string) {
+  const blob = new Blob([text], { type: contentType });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.append(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
 }
 
 function ResourceLifecyclePanel<T extends { status: string }>(props: {

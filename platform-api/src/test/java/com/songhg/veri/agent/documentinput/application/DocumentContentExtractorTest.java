@@ -123,6 +123,17 @@ class DocumentContentExtractorTest {
                 .hasMessageContaining("PDF 解析超过时间上限: 1 ms");
     }
 
+    @Test
+    void runsConfiguredMalwareScanBeforeBinaryExtraction() {
+        DocumentContentExtractor extractor = new DocumentContentExtractor(
+                properties("", true, 0, 0, "/bin/sh -c \"echo malware >&2; exit 7\"")
+        );
+
+        assertThatThrownBy(() -> extractor.extract(DocumentSourceType.OCR, dataUrl("image/png", withPngMagic("unsafe"))))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("文件安全扫描未通过");
+    }
+
     private static byte[] docx(String... paragraphs) throws Exception {
         try (XWPFDocument document = new XWPFDocument();
              ByteArrayOutputStream output = new ByteArrayOutputStream()) {
@@ -189,6 +200,16 @@ class DocumentContentExtractorTest {
             int pdfMaxPages,
             long pdfMaxParseMillis
     ) {
+        return properties(ocrCommand, binaryMimeValidationEnabled, pdfMaxPages, pdfMaxParseMillis, "");
+    }
+
+    private static DocumentInputProperties properties(
+            String ocrCommand,
+            boolean binaryMimeValidationEnabled,
+            int pdfMaxPages,
+            long pdfMaxParseMillis,
+            String malwareScanCommand
+    ) {
         return new DocumentInputProperties(
                 "service-token",
                 "default-secret",
@@ -219,7 +240,14 @@ class DocumentContentExtractorTest {
                 binaryMimeValidationEnabled,
                 pdfMaxPages,
                 pdfMaxParseMillis,
-                "LOCAL_COMMAND"
+                "LOCAL_COMMAND",
+                malwareScanCommand,
+                15,
+                2,
+                2000,
+                false,
+                90,
+                90
         );
     }
 }

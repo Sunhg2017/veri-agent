@@ -66,7 +66,11 @@ class DocumentInputControllerTest {
                 .andExpect(jsonPath("$.data.webhookRateLimitWindowSeconds").value(60))
                 .andExpect(jsonPath("$.data.binaryMimeValidationEnabled").value(true))
                 .andExpect(jsonPath("$.data.pdfMaxPages").value(0))
-                .andExpect(jsonPath("$.data.pdfMaxParseMillis").value(0));
+                .andExpect(jsonPath("$.data.pdfMaxParseMillis").value(0))
+                .andExpect(jsonPath("$.data.malwareScanEnabled").value(false))
+                .andExpect(jsonPath("$.data.malwareScanTimeoutSeconds").value(15))
+                .andExpect(jsonPath("$.data.malwareScanMaxConcurrentProcesses").value(2))
+                .andExpect(jsonPath("$.data.malwareScanAvailablePermits").value(2));
     }
 
     @Test

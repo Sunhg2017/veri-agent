@@ -87,6 +87,7 @@ class OpenApiContractTest {
                 .andExpect(jsonPath("$.paths['/api/v1/management/settings/{key}'].patch").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/management/settings/{key}/status'].patch").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/management/audit-logs'].get").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/management/audit-logs/export'].get").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/contexts/projects/{projectId}'].get").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/contexts/applications/{applicationId}'].get").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/audit/events'].post").exists())
