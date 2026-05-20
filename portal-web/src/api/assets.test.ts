@@ -16,6 +16,7 @@ import {
   assetRequirementItems,
   assetTestCaseItems,
   assetTestCaseStepItems,
+  assetVersionHistoryItems,
   createAssetApi,
   createAssetBusinessFlow,
   createAssetPage,
@@ -29,9 +30,11 @@ import {
   fetchAssetPages,
   fetchAssetRequirement,
   fetchAssetRequirements,
+  fetchAssetRequirementVersions,
   fetchAssetTestCase,
   fetchAssetTestCases,
   fetchAssetTestCaseSteps,
+  fetchAssetTestCaseVersions,
   fetchAssetTraceLinks,
   fetchRequirementTraceLinks,
   normalizeAssetApiList,
@@ -45,6 +48,7 @@ import {
   normalizeAssetRequirementView,
   normalizeAssetTestCaseList,
   normalizeAssetTestCaseView,
+  normalizeAssetVersionHistoryView,
   normalizeTraceLinkList,
   updateAssetApi,
   updateAssetBusinessFlow,
@@ -101,6 +105,7 @@ describe('asset API helpers', () => {
       priority: 'high',
       projectId: 'proj-payments',
       tags: ['auth', 'mobile'],
+      version: '3',
       createdAt: '2026-05-20T01:00:00Z'
     });
 
@@ -114,7 +119,8 @@ describe('asset API helpers', () => {
       status: 'REVIEWING',
       priority: 'HIGH',
       projectId: 'proj-payments',
-      tags: ['auth', 'mobile']
+      tags: ['auth', 'mobile'],
+      version: 3
     });
   });
 
@@ -166,6 +172,67 @@ describe('asset API helpers', () => {
 
     await fetchAssetRequirement('req 1');
     expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/asset/requirements/req%201');
+  });
+
+  it('normalizes requirement version history and calls the versions endpoint', async () => {
+    const history = normalizeAssetVersionHistoryView({
+      history_id: 'hist-1',
+      asset_type: 'REQUIREMENT',
+      asset_id: 'req-1',
+      project_id: 'proj-payments',
+      version: '2',
+      change_type: 'UPDATE',
+      actor: 'qa@example.test',
+      changed_fields: 'title, description',
+      diff_json: '{"title":{"before":"旧标题","after":"新标题"}}',
+      snapshot_json: { title: '新标题', status: 'REVIEWING' },
+      trace_id: 'trace-history',
+      created_at: '2026-05-20T02:00:00Z'
+    });
+
+    expect(history).toMatchObject({
+      id: 'hist-1',
+      assetType: 'REQUIREMENT',
+      assetId: 'req-1',
+      projectId: 'proj-payments',
+      version: 2,
+      changeType: 'UPDATE',
+      actor: 'qa@example.test',
+      changedFields: ['title', 'description'],
+      diff: { title: { before: '旧标题', after: '新标题' } },
+      snapshot: { title: '新标题', status: 'REVIEWING' },
+      traceId: 'trace-history'
+    });
+
+    requestJsonMock.mockResolvedValue({
+      code: 'OK',
+      message: 'ok',
+      trace_id: 'trace-versions',
+      data: [
+        {
+          id: 'hist-2',
+          assetType: 'REQUIREMENT',
+          assetId: 'req-1',
+          version: 1,
+          changeType: 'CREATE',
+          changedFields: ['title'],
+          diff: {},
+          snapshot: {}
+        }
+      ]
+    });
+
+    const response = await fetchAssetRequirementVersions('req 1');
+    expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/asset/requirements/req%201/versions');
+    expect(response.data).toHaveLength(1);
+    expect(response.data[0]).toMatchObject({
+      id: 'hist-2',
+      assetType: 'REQUIREMENT',
+      version: 1,
+      changeType: 'CREATE',
+      changedFields: ['title']
+    });
+    expect(assetVersionHistoryItems({ items: [{ id: 'hist-3', version: '5' }] })[0].version).toBe(5);
   });
 
   it('compacts create and update payloads for the current WP3 contract', async () => {
@@ -554,6 +621,7 @@ describe('asset API helpers', () => {
       status: 'reviewing',
       priority: 'critical',
       tags: 'smoke, login',
+      version: 4,
       steps: [
         { step_order: 1, action: '点击登录', expected_result: '进入首页' },
         { step_order: 0, action: '输入账号密码', expected_result: '表单校验通过' }
@@ -573,6 +641,7 @@ describe('asset API helpers', () => {
       status: 'REVIEWING',
       priority: 'CRITICAL',
       tags: ['smoke', 'login'],
+      version: 4,
       steps: [
         { stepOrder: 0, action: '输入账号密码', expectedResult: '表单校验通过' },
         { stepOrder: 1, action: '点击登录', expectedResult: '进入首页' }
@@ -669,6 +738,40 @@ describe('asset API helpers', () => {
     });
     await fetchAssetTestCaseSteps('case 1');
     expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/asset/test-cases/case%201/steps');
+
+    requestJsonMock.mockResolvedValueOnce({
+      code: 'OK',
+      message: 'ok',
+      trace_id: 'trace-case-versions',
+      data: {
+        items: [
+          {
+            id: 'hist-case-1',
+            asset_type: 'TEST_CASE',
+            asset_id: 'case-1',
+            version: '3',
+            change_type: 'STEPS_UPDATE',
+            changed_fields: ['steps'],
+            diff: { steps: { before: 1, after: 2 } },
+            snapshot: '{"title":"登录冒烟用例","steps":[{"action":"输入账号密码"}]}',
+            trace_id: 'trace-case-history'
+          }
+        ]
+      }
+    });
+    const versions = await fetchAssetTestCaseVersions('case 1');
+    expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/asset/test-cases/case%201/versions');
+    expect(versions.data[0]).toMatchObject({
+      id: 'hist-case-1',
+      assetType: 'TEST_CASE',
+      assetId: 'case-1',
+      version: 3,
+      changeType: 'STEPS_UPDATE',
+      changedFields: ['steps'],
+      diff: { steps: { before: 1, after: 2 } },
+      snapshot: { title: '登录冒烟用例', steps: [{ action: '输入账号密码' }] },
+      traceId: 'trace-case-history'
+    });
 
     await updateAssetTestCaseSteps('case 1', {
       steps: [

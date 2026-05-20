@@ -2004,7 +2004,8 @@ tbody tr:hover td {
 }
 
 .asset-source-trace,
-.asset-trace-links {
+.asset-trace-links,
+.asset-version-history {
   display: grid;
   gap: 8px;
   padding: 12px;
@@ -2014,7 +2015,8 @@ tbody tr:hover td {
 }
 
 .asset-source-trace > strong,
-.asset-trace-links strong {
+.asset-trace-links strong,
+.asset-version-history strong {
   color: var(--text-primary);
   font-size: 13px;
   font-weight: 650;
@@ -2089,6 +2091,116 @@ tbody tr:hover td {
   color: var(--text-tertiary);
   font-size: 11px;
   font-style: normal;
+}
+
+.asset-version-list {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.asset-version-row {
+  min-width: 0;
+  padding: 8px 0 0;
+  border-top: 1px solid var(--border-light);
+}
+
+.asset-version-row:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.asset-version-row summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  cursor: pointer;
+  list-style-position: inside;
+}
+
+.asset-version-row summary span,
+.asset-version-row summary strong,
+.asset-version-row summary em,
+.asset-version-row summary small {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.asset-version-row summary span {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.asset-version-row summary em {
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  background: #f1f5f9;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 650;
+}
+
+.asset-version-row summary small {
+  color: var(--text-tertiary);
+  font-size: 11px;
+  text-align: right;
+}
+
+.asset-version-meta {
+  display: grid;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.asset-version-meta div {
+  display: grid;
+  grid-template-columns: 94px minmax(0, 1fr);
+  gap: 8px;
+}
+
+.asset-version-meta span {
+  color: var(--text-tertiary);
+  font-size: 12px;
+}
+
+.asset-version-meta em {
+  color: var(--text-primary);
+  font-size: 12px;
+  font-style: normal;
+  overflow-wrap: anywhere;
+}
+
+.asset-version-json-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.asset-version-json-grid > div {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.asset-version-json-grid pre {
+  max-height: 180px;
+  margin: 0;
+  padding: 8px;
+  overflow: auto;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text-secondary);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 11px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .trace-filter-bar {
@@ -2483,6 +2595,8 @@ tbody tr:hover td {
   .asset-status-flow,
   .asset-schema-grid,
   .asset-step-row,
+  .asset-version-json-grid,
+  .asset-version-meta div,
   .asset-source-trace > div,
   .trace-asset-action {
     grid-template-columns: 1fr;

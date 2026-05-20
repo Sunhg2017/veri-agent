@@ -25,6 +25,7 @@ import {
   fetchAssetTestCase,
   fetchAssetTestCases,
   fetchAssetTestCaseSteps,
+  fetchAssetTestCaseVersions,
   updateAssetTestCase,
   updateAssetTestCaseSteps,
   type AssetHealth,
@@ -32,10 +33,12 @@ import {
   type AssetTestCasePayload,
   type AssetTestCaseStepPayload,
   type AssetTestCaseStepView,
-  type AssetTestCaseView
+  type AssetTestCaseView,
+  type AssetVersionHistoryView
 } from '../api/assets';
 import { hasPermission } from '../permissions';
 import type { AssetNavigationKey } from './AssetStructuredWorkbench';
+import { AssetVersionHistoryPanel } from './AssetVersionHistoryPanel';
 
 type AssetNavigationTab = {
   key: AssetNavigationKey;
@@ -125,6 +128,8 @@ export function AssetCaseWorkbench(props: {
   const [createState, setCreateState] = useState<WorkState>({ loading: false });
   const [mutationState, setMutationState] = useState<WorkState>({ loading: false });
   const [stepsState, setStepsState] = useState<WorkState>({ loading: false });
+  const [versions, setVersions] = useState<AssetVersionHistoryView[]>([]);
+  const [versionState, setVersionState] = useState<WorkState>({ loading: false });
 
   useEffect(() => {
     function syncFromHash() {
@@ -192,6 +197,8 @@ export function AssetCaseWorkbench(props: {
       setSelected(null);
       setDetailState({ loading: false });
       setStepsState({ loading: false });
+      setVersions([]);
+      setVersionState({ loading: false });
       return;
     }
 
@@ -227,6 +234,31 @@ export function AssetCaseWorkbench(props: {
   useEffect(() => {
     void reloadDetail();
   }, [reloadDetail]);
+
+  const reloadVersions = useCallback(
+    async (targetId = selectedId) => {
+      if (!props.signedIn || !canReadAssets || !targetId) {
+        setVersions([]);
+        setVersionState({ loading: false });
+        return;
+      }
+
+      setVersionState({ loading: true });
+      try {
+        const response = await fetchAssetTestCaseVersions(targetId);
+        setVersions(response.data);
+        setVersionState({ loading: false, traceId: response.trace_id });
+      } catch (error: unknown) {
+        setVersions([]);
+        setVersionState({ loading: false, error: errorMessage(error, '版本历史加载失败') });
+      }
+    },
+    [canReadAssets, props.signedIn, selectedId]
+  );
+
+  useEffect(() => {
+    void reloadVersions();
+  }, [reloadVersions]);
 
   const visibleItems = useMemo(() => filterCases(items, filters), [filters, items]);
   const statusCounts = useMemo(() => countByStatus(items), [items]);
@@ -278,6 +310,7 @@ export function AssetCaseWorkbench(props: {
       setStepDrafts(stepsToDrafts(response.data.steps));
       upsertCase(setItems, response.data);
       setCreateState({ loading: false, success: '测试用例已创建', traceId: response.trace_id });
+      void reloadVersions(response.data.id);
       selectItem(response.data.id);
     } catch (error: unknown) {
       setCreateState({ loading: false, error: errorMessage(error, '测试用例创建失败') });
@@ -314,6 +347,7 @@ export function AssetCaseWorkbench(props: {
       setEditDraft(draftFromCase(nextCase));
       upsertCase(setItems, nextCase);
       setMutationState({ loading: false, success: '测试用例已保存', traceId: response.trace_id });
+      void reloadVersions(response.data.id);
     } catch (error: unknown) {
       setMutationState({ loading: false, error: errorMessage(error, '测试用例保存失败') });
     }
@@ -347,6 +381,7 @@ export function AssetCaseWorkbench(props: {
       setStepDrafts(stepsToDrafts(response.data));
       upsertCase(setItems, nextCase);
       setStepsState({ loading: false, success: '测试步骤已保存', traceId: response.trace_id });
+      void reloadVersions(selected.id);
     } catch (error: unknown) {
       setStepsState({ loading: false, error: errorMessage(error, '测试步骤保存失败') });
     }
@@ -594,6 +629,10 @@ export function AssetCaseWorkbench(props: {
                   <em>{selected.priority}</em>
                 </div>
                 <div>
+                  <span>version</span>
+                  <em>v{selected.version || '-'}</em>
+                </div>
+                <div>
                   <span>createdAt</span>
                   <em>{formatDate(selected.createdAt)}</em>
                 </div>
@@ -648,6 +687,13 @@ export function AssetCaseWorkbench(props: {
                   <pre>暂无步骤，可添加第一步</pre>
                 )}
               </div>
+
+              <AssetVersionHistoryPanel
+                disabled={disabled}
+                items={versions}
+                onRefresh={() => void reloadVersions(selected.id)}
+                state={versionState}
+              />
 
               <CaseForm
                 compact

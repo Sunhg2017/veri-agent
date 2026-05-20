@@ -37,6 +37,7 @@ export interface AssetRequirementView {
   priority: AssetRequirementPriority | string;
   projectId?: string;
   tags: string[];
+  version: number;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -214,6 +215,7 @@ export interface AssetTestCaseView {
   priority: AssetRequirementPriority | string;
   tags: string[];
   steps: AssetTestCaseStepView[];
+  version: number;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -276,6 +278,21 @@ export interface TraceLinkFilters {
   caseId?: string;
 }
 
+export interface AssetVersionHistoryView {
+  id: string;
+  assetType: string;
+  assetId: string;
+  projectId?: string;
+  version: number;
+  changeType: string;
+  actor?: string;
+  changedFields: string[];
+  diff?: unknown;
+  snapshot?: unknown;
+  traceId?: string;
+  createdAt?: string;
+}
+
 type UnknownRecord = Record<string, unknown>;
 
 function isRecord(value: unknown): value is UnknownRecord {
@@ -301,6 +318,24 @@ function optionalJsonString(value: unknown) {
     return JSON.stringify(value);
   } catch {
     return undefined;
+  }
+}
+
+function optionalJsonValue(value: unknown) {
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+  if (typeof value !== 'string') {
+    return value;
+  }
+  const normalized = value.trim();
+  if (!normalized) {
+    return undefined;
+  }
+  try {
+    return JSON.parse(normalized) as unknown;
+  } catch {
+    return normalized;
   }
 }
 
@@ -484,6 +519,7 @@ export function normalizeAssetRequirementView(raw: unknown): AssetRequirementVie
     priority: enumString(item.priority, ASSET_REQUIREMENT_PRIORITIES, 'MEDIUM'),
     projectId: optionalString(item.projectId) ?? optionalString(item.project_id),
     tags: stringArrayValue(item.tags ?? item.tagList ?? item.tag_list),
+    version: numberValue(item.version, 0),
     createdAt: optionalString(item.createdAt) ?? optionalString(item.created_at),
     updatedAt: optionalString(item.updatedAt) ?? optionalString(item.updated_at)
   };
@@ -637,6 +673,7 @@ export function normalizeAssetTestCaseView(raw: unknown): AssetTestCaseView {
     priority: enumString(item.priority, ASSET_REQUIREMENT_PRIORITIES, 'MEDIUM'),
     tags: stringArrayValue(item.tags ?? item.tagList ?? item.tag_list),
     steps: assetTestCaseStepItems(item.steps),
+    version: numberValue(item.version, 0),
     createdAt: optionalString(item.createdAt) ?? optionalString(item.created_at),
     updatedAt: optionalString(item.updatedAt) ?? optionalString(item.updated_at)
   };
@@ -680,6 +717,29 @@ export function normalizeTraceLinkList(raw: unknown): TraceLinkList {
   };
 }
 
+export function normalizeAssetVersionHistoryView(raw: unknown): AssetVersionHistoryView {
+  const item = isRecord(raw) ? raw : {};
+  const id = stringValue(item.id, stringValue(item.historyId, stringValue(item.history_id)));
+  return {
+    id,
+    assetType: stringValue(item.assetType, stringValue(item.asset_type, '')),
+    assetId: stringValue(item.assetId, stringValue(item.asset_id, '')),
+    projectId: optionalString(item.projectId) ?? optionalString(item.project_id),
+    version: numberValue(item.version, 0),
+    changeType: stringValue(item.changeType, stringValue(item.change_type, 'UNKNOWN')),
+    actor: optionalString(item.actor),
+    changedFields: stringArrayValue(item.changedFields ?? item.changed_fields),
+    diff: optionalJsonValue(item.diff ?? item.diffJson ?? item.diff_json),
+    snapshot: optionalJsonValue(item.snapshot ?? item.snapshotJson ?? item.snapshot_json),
+    traceId: optionalString(item.traceId) ?? optionalString(item.trace_id),
+    createdAt: optionalString(item.createdAt) ?? optionalString(item.created_at)
+  };
+}
+
+export function assetVersionHistoryItems(data: unknown): AssetVersionHistoryView[] {
+  return listItems(data).map(normalizeAssetVersionHistoryView);
+}
+
 export async function fetchAssetHealth(): Promise<ApiResponse<AssetHealth>> {
   const response = await requestJson<unknown>('/api/v1/asset/health');
   return { ...response, data: normalizeAssetHealth(response.data) };
@@ -693,6 +753,11 @@ export async function fetchAssetRequirements(filters: AssetRequirementFilters = 
 export async function fetchAssetRequirement(requirementId: string): Promise<ApiResponse<AssetRequirementView>> {
   const response = await requestJson<unknown>(`/api/v1/asset/requirements/${encodeURIComponent(requirementId)}`);
   return { ...response, data: normalizeAssetRequirementView(response.data) };
+}
+
+export async function fetchAssetRequirementVersions(requirementId: string): Promise<ApiResponse<AssetVersionHistoryView[]>> {
+  const response = await requestJson<unknown>(`/api/v1/asset/requirements/${encodeURIComponent(requirementId)}/versions`);
+  return { ...response, data: assetVersionHistoryItems(response.data) };
 }
 
 export async function createAssetRequirement(payload: AssetRequirementPayload): Promise<ApiResponse<AssetRequirementView>> {
@@ -807,6 +872,11 @@ export async function fetchAssetTestCases(filters: AssetTestCaseFilters = {}): P
 export async function fetchAssetTestCase(testCaseId: string): Promise<ApiResponse<AssetTestCaseView>> {
   const response = await requestJson<unknown>(`/api/v1/asset/test-cases/${encodeURIComponent(testCaseId)}`);
   return { ...response, data: normalizeAssetTestCaseView(response.data) };
+}
+
+export async function fetchAssetTestCaseVersions(testCaseId: string): Promise<ApiResponse<AssetVersionHistoryView[]>> {
+  const response = await requestJson<unknown>(`/api/v1/asset/test-cases/${encodeURIComponent(testCaseId)}/versions`);
+  return { ...response, data: assetVersionHistoryItems(response.data) };
 }
 
 export async function createAssetTestCase(payload: AssetTestCasePayload): Promise<ApiResponse<AssetTestCaseView>> {

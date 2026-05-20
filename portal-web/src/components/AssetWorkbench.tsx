@@ -31,6 +31,7 @@ import {
   fetchAssetHealth,
   fetchAssetRequirement,
   fetchAssetRequirements,
+  fetchAssetRequirementVersions,
   fetchRequirementTraceLinks,
   updateAssetApi,
   updateAssetRequirement,
@@ -41,12 +42,14 @@ import {
   type AssetRequirementFilters,
   type AssetRequirementPayload,
   type AssetRequirementView,
+  type AssetVersionHistoryView,
   type TraceLinkView
 } from '../api/assets';
 import { hasPermission } from '../permissions';
 import { AssetCaseWorkbench } from './AssetCaseWorkbench';
 import { AssetStructuredWorkbench, type AssetNavigationKey } from './AssetStructuredWorkbench';
 import { AssetTraceWorkbench } from './AssetTraceWorkbench';
+import { AssetVersionHistoryPanel } from './AssetVersionHistoryPanel';
 
 type WorkState = {
   loading: boolean;
@@ -184,6 +187,8 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
   const [detailState, setDetailState] = useState<WorkState>({ loading: false });
   const [createState, setCreateState] = useState<WorkState>({ loading: false });
   const [mutationState, setMutationState] = useState<WorkState>({ loading: false });
+  const [requirementVersions, setRequirementVersions] = useState<AssetVersionHistoryView[]>([]);
+  const [requirementVersionState, setRequirementVersionState] = useState<WorkState>({ loading: false });
   const [apis, setApis] = useState<AssetApiView[]>([]);
   const [apiFilters, setApiFilters] = useState<ApiFilters>(initialApiFilters);
   const [selectedApiId, setSelectedApiId] = useState(initialHash.tab === 'apis' ? initialHash.id : '');
@@ -269,6 +274,8 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
       setSelectedRequirement(null);
       setTraceLinks([]);
       setDetailState({ loading: false });
+      setRequirementVersions([]);
+      setRequirementVersionState({ loading: false });
       return;
     }
 
@@ -309,6 +316,31 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
   useEffect(() => {
     void reloadRequirementDetail();
   }, [reloadRequirementDetail]);
+
+  const reloadRequirementVersions = useCallback(
+    async (targetId = selectedRequirementId) => {
+      if (activeTab !== 'requirements' || !props.signedIn || !canReadAssets || !targetId) {
+        setRequirementVersions([]);
+        setRequirementVersionState({ loading: false });
+        return;
+      }
+
+      setRequirementVersionState({ loading: true });
+      try {
+        const response = await fetchAssetRequirementVersions(targetId);
+        setRequirementVersions(response.data);
+        setRequirementVersionState({ loading: false, traceId: response.trace_id });
+      } catch (error: unknown) {
+        setRequirementVersions([]);
+        setRequirementVersionState({ loading: false, error: errorMessage(error, '版本历史加载失败') });
+      }
+    },
+    [activeTab, canReadAssets, props.signedIn, selectedRequirementId]
+  );
+
+  useEffect(() => {
+    void reloadRequirementVersions();
+  }, [reloadRequirementVersions]);
 
   const refreshApis = useCallback(async () => {
     if (!props.signedIn || !canReadAssets) {
@@ -496,6 +528,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
       setEditDraft(requirementDraftFromView(response.data));
       upsertRequirement(setRequirements, response.data);
       setCreateState({ loading: false, success: '需求资产已创建', traceId: response.trace_id });
+      void reloadRequirementVersions(response.data.id);
       if (response.data.id) {
         selectRequirement(response.data.id);
       }
@@ -529,6 +562,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
       setEditDraft(requirementDraftFromView(response.data));
       upsertRequirement(setRequirements, response.data);
       setMutationState({ loading: false, success: '需求资产已保存', traceId: response.trace_id });
+      void reloadRequirementVersions(response.data.id);
     } catch (error: unknown) {
       setMutationState({ loading: false, error: errorMessage(error, '需求资产保存失败') });
     }
@@ -557,6 +591,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
       setEditDraft(requirementDraftFromView(response.data));
       upsertRequirement(setRequirements, response.data);
       setMutationState({ loading: false, success: `状态已流转为 ${response.data.status}`, traceId: response.trace_id });
+      void reloadRequirementVersions(response.data.id);
     } catch (error: unknown) {
       setMutationState({ loading: false, error: errorMessage(error, '状态流转失败') });
     }
@@ -1259,6 +1294,10 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                   <em>{selectedRequirement.priority}</em>
                 </div>
                 <div>
+                  <span>version</span>
+                  <em>v{selectedRequirement.version || '-'}</em>
+                </div>
+                <div>
                   <span>id</span>
                   <em>{selectedRequirement.id}</em>
                 </div>
@@ -1384,6 +1423,13 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                 </div>
                 )}
               </div>
+
+              <AssetVersionHistoryPanel
+                disabled={disabled}
+                items={requirementVersions}
+                onRefresh={() => void reloadRequirementVersions(selectedRequirement.id)}
+                state={requirementVersionState}
+              />
 
               <StateLine state={mutationState} />
               <StateLine state={detailState} />
