@@ -55,7 +55,20 @@ REVIEWING -> DEPRECATED
 
 写操作、拒绝操作和 WP4 导入更新都必须写审计。审计 action/resourceType 以 `WP3-审计事件字典.md` 为准。
 
-## 7. WP4 集成
+## 7. 版本与历史
+
+需求和测试用例维护服务端版本号，创建版本为 `1`，每次人工编辑、WP4 DRAFT 需求幂等更新、测试用例步骤替换时递增。版本历史保存到 `asset_version_history`：
+
+- `assetType` 仅覆盖 `REQUIREMENT` 和 `TEST_CASE`。
+- `changeType` 覆盖 `CREATE/UPDATE/UPSERT/STEPS_UPDATE`。
+- `changedFields` 和 `diff` 使用 API 字段名，便于前端直接展示。
+- `snapshot` 保存白名单字段；测试用例快照必须包含 steps。
+- `actor` 来自 service token 的 `callerService:delegatedUserId` 或登录用户。
+- `traceId` 用于关联平台审计与请求链路。
+
+历史表是 append-only 账本，不支持修改、删除或回滚；版本回滚和 diff 可视化归后续增强。
+
+## 8. WP4 集成
 
 WP4 发布候选到 WP3 时：
 
@@ -64,7 +77,7 @@ WP4 发布候选到 WP3 时：
 3. 重复导入同一 `externalRequirementId` 更新既有 DRAFT 需求。
 4. 既有需求非 DRAFT 且存在差异时阻断，等待人工评审。
 
-## 8. 后续设计约束
+## 9. 后续设计约束
 
 - API 不回到 snake_case。
 - 不引入独立 `asset-service`。

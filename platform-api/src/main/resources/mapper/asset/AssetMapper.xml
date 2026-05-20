@@ -18,6 +18,7 @@
             <arg column="priority" javaType="java.lang.String"/>
             <arg column="project_id" javaType="java.lang.String"/>
             <arg column="tags" javaType="java.lang.String"/>
+            <arg column="version" javaType="_int"/>
             <arg column="created_at" javaType="java.time.Instant"/>
             <arg column="updated_at" javaType="java.time.Instant"/>
         </constructor>
@@ -89,8 +90,26 @@
             <arg column="priority" javaType="java.lang.String"/>
             <arg column="tags" javaType="java.lang.String"/>
             <arg column="steps" javaType="java.util.List" jdbcType="OTHER" typeHandler="org.apache.ibatis.type.UnknownTypeHandler"/>
+            <arg column="version" javaType="_int"/>
             <arg column="created_at" javaType="java.time.Instant"/>
             <arg column="updated_at" javaType="java.time.Instant"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="versionHistoryMap" type="com.songhg.veri.agent.asset.domain.AssetVersionHistory">
+        <constructor>
+            <arg column="id" javaType="java.util.UUID"/>
+            <arg column="asset_type" javaType="java.lang.String"/>
+            <arg column="asset_id" javaType="java.util.UUID"/>
+            <arg column="project_id" javaType="java.lang.String"/>
+            <arg column="version" javaType="_int"/>
+            <arg column="change_type" javaType="java.lang.String"/>
+            <arg column="actor" javaType="java.lang.String"/>
+            <arg column="changed_fields" javaType="java.lang.String"/>
+            <arg column="diff_json" javaType="java.lang.String"/>
+            <arg column="snapshot_json" javaType="java.lang.String"/>
+            <arg column="trace_id" javaType="java.lang.String"/>
+            <arg column="created_at" javaType="java.time.Instant"/>
         </constructor>
     </resultMap>
 
@@ -116,7 +135,7 @@
 
     <sql id="requirementColumns">
         id, code, title, description, source, source_ref, source_url, acceptance_criteria,
-        status, priority, project_id, tags, created_at, updated_at
+        status, priority, project_id, tags, version, created_at, updated_at
     </sql>
 
     <sql id="apiColumns">
@@ -148,6 +167,7 @@
         tc.priority,
         tc.tags,
         null as steps,
+        tc.version,
         tc.created_at,
         tc.updated_at
     </sql>
@@ -198,11 +218,11 @@
     <insert id="insertRequirement">
         insert into asset_requirement (
             id, project_id, code, title, description, source, source_ref, source_url,
-            acceptance_criteria, priority, status, tags, created_at, updated_at
+            acceptance_criteria, priority, status, tags, version, created_at, updated_at
         ) values (
             #{id}, #{projectId}, #{code},
             #{title}, #{description}, #{source}, #{sourceRef}, #{sourceUrl},
-            #{acceptanceCriteria}, #{priority}, #{status}, #{tags}, #{createdAt}, #{updatedAt}
+            #{acceptanceCriteria}, #{priority}, #{status}, #{tags}, #{version}, #{createdAt}, #{updatedAt}
         )
     </insert>
 
@@ -217,9 +237,43 @@
             status = #{status},
             priority = #{priority},
             tags = #{tags},
+            version = #{version},
             updated_at = #{updatedAt}
         where id = #{id}
     </update>
+
+    <select id="listAssetVersionHistory" resultMap="versionHistoryMap">
+        select
+            id,
+            asset_type,
+            asset_id,
+            project_id,
+            version,
+            change_type,
+            actor,
+            changed_fields,
+            diff_json::text as diff_json,
+            snapshot_json::text as snapshot_json,
+            trace_id,
+            created_at
+        from asset_version_history
+        where asset_type = #{assetType}
+          and asset_id = #{assetId}
+        order by version desc, created_at desc
+    </select>
+
+    <insert id="insertAssetVersionHistory">
+        insert into asset_version_history (
+            id, asset_type, asset_id, project_id, version, change_type, actor,
+            changed_fields, diff_json, snapshot_json, trace_id, created_at
+        ) values (
+            #{id}, #{assetType}, #{assetId}, #{projectId}, #{version}, #{changeType}, #{actor},
+            #{changedFields},
+            cast(coalesce(#{diffJson}, '{}') as jsonb),
+            cast(coalesce(#{snapshotJson}, '{}') as jsonb),
+            #{traceId}, #{createdAt}
+        )
+    </insert>
 
     <!-- APIs -->
 
@@ -401,10 +455,10 @@
 
     <insert id="insertTestCase">
         insert into asset_test_case (
-            id, project_id, code, title, description, source, source_ref, priority, status, tags, created_at, updated_at
+            id, project_id, code, title, description, source, source_ref, priority, status, tags, version, created_at, updated_at
         ) values (
             #{id}, #{projectId}, #{code},
-            #{title}, #{description}, #{source}, #{sourceRef}, #{priority}, #{status}, #{tags}, #{createdAt}, #{updatedAt}
+            #{title}, #{description}, #{source}, #{sourceRef}, #{priority}, #{status}, #{tags}, #{version}, #{createdAt}, #{updatedAt}
         )
     </insert>
 
@@ -417,6 +471,7 @@
             status = #{status},
             priority = #{priority},
             tags = #{tags},
+            version = #{version},
             updated_at = #{updatedAt}
         where id = #{id}
     </update>

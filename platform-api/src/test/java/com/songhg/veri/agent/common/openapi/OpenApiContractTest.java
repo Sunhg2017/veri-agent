@@ -93,6 +93,7 @@ class OpenApiContractTest {
                 .andExpect(jsonPath("$.paths['/api/v1/audit/events'].post").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/asset/requirements'].get").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/asset/requirements'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/asset/requirements/{id}/versions'].get").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/asset/apis'].get").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/asset/apis'].post").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/asset/pages'].get").exists())
@@ -101,6 +102,7 @@ class OpenApiContractTest {
                 .andExpect(jsonPath("$.paths['/api/v1/asset/business-flows'].post").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/asset/test-cases'].get").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/asset/test-cases'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/asset/test-cases/{id}/versions'].get").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/asset/links'].get").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/asset/links'].post").exists())
                 .andReturn();

@@ -17,6 +17,7 @@ public record TestCaseResponse(
         String priority,
         String tags,
         List<TestCaseStepResponse> steps,
+        int version,
         Instant createdAt,
         Instant updatedAt
 ) {

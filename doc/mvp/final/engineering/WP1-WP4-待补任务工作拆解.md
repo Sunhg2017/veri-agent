@@ -139,7 +139,7 @@ WP3 是当前最需要补齐的工作包。后端已有需求、API、页面、�
 |---|---|---|---|---|---|
 | WP3-B1 | 资产编码生成与唯一性策略 | P0-B | DONE-CURRENT | requirement/api/page/flow/testCase 已由服务端生成短 code，数据库保持 project+code 唯一约束 | db 和 local profile 行为一致，冲突返回稳定错误 |
 | WP3-B2 | 资产状态流和非法转换 | P0-B | DONE-CURRENT | 已冻结 DRAFT/REVIEWING/APPROVED/DEPRECATED 等状态流，并覆盖非法转换拒绝测试 | 非法转换阻断并写审计 |
-| WP3-B3 | 版本、历史和 diff | P1 | TODO | 保存版本号、变更历史、字段 diff、变更人 | 需求和测试用例可回看历史版本 |
+| WP3-B3 | 版本、历史和 diff | P1 | DONE-CURRENT | 需求/测试用例返回版本号；创建、编辑、WP4 DRAFT 幂等更新和步骤替换保存 append-only 历史、字段 diff、快照、变更人和 traceId | 需求和测试用例可通过 versions API 回看历史版本 |
 | WP3-B4 | 软删除、归档和恢复策略 | P1 | TODO | 定义删除/归档、引用保护、恢复和唯一性释放规则 | 删除不破坏 trace link 和审计追溯 |
 | WP3-B5 | 导入/导出能力 | P1 | TODO | 支持需求、API、测试用例 CSV/JSON/OpenAPI 导入导出 | 导出脱敏，导入有 dryRun 和错误明细 |
 | WP3-B6 | API 资产 OpenAPI 导入 | P1 | TODO | 从 OpenAPI 文档导入接口路径、方法、schema 和版本 | 重复导入幂等更新，不重复创建同一接口 |
@@ -246,7 +246,7 @@ WP4 本轮 P0 已覆盖真实文件上传、Word/PDF/OCR、AI 解析、SecretPro
 
 ## 9. 推荐下一步
 
-1. 下一轮优先补 WP3 P1 的版本历史、软删除恢复、导入导出，以及追踪矩阵和影响分析工作台。
+1. 下一轮优先补 WP3 P1 的历史 diff 前端页面、软删除恢复、导入导出，以及追踪矩阵和影响分析工作台。
 2. 将 `WP4-B1` 从配置/健康入口推进到真实 worker/队列/容器隔离；当前 `WP4-B2` 命令式恶意文件扫描已可作为生产接入杀毒组件的落点。
 3. 在下一轮前端迭代中继续合并规划 `WP2-A` 与 WP3 P1 页面，避免管理台导航和权限模型重复调整。
 4. 每完成一个任务，补充对应交付说明、测试命令和 release note，并按当前约定提交清晰 commit。

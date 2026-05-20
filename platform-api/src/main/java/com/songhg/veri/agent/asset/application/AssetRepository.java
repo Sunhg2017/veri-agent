@@ -4,6 +4,7 @@ import com.songhg.veri.agent.asset.domain.AssetApi;
 import com.songhg.veri.agent.asset.domain.AssetBusinessFlow;
 import com.songhg.veri.agent.asset.domain.AssetPage;
 import com.songhg.veri.agent.asset.domain.AssetRequirement;
+import com.songhg.veri.agent.asset.domain.AssetVersionHistory;
 import com.songhg.veri.agent.asset.domain.TestCaseRecord;
 import com.songhg.veri.agent.asset.domain.TestCaseStep;
 import com.songhg.veri.agent.asset.domain.TraceLink;
@@ -20,6 +21,10 @@ public interface AssetRepository {
     Optional<AssetRequirement> requirementBySourceRef(String projectId, String source, String sourceRef);
 
     AssetRequirement saveRequirement(AssetRequirement requirement);
+
+    List<AssetVersionHistory> assetVersionHistory(String assetType, UUID assetId);
+
+    AssetVersionHistory saveVersionHistory(AssetVersionHistory history);
 
     List<AssetApi> apis(String projectId);
 

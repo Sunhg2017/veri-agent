@@ -4,6 +4,7 @@ import com.songhg.veri.agent.asset.domain.AssetApi;
 import com.songhg.veri.agent.asset.domain.AssetBusinessFlow;
 import com.songhg.veri.agent.asset.domain.AssetPage;
 import com.songhg.veri.agent.asset.domain.AssetRequirement;
+import com.songhg.veri.agent.asset.domain.AssetVersionHistory;
 import com.songhg.veri.agent.asset.domain.TestCaseRecord;
 import com.songhg.veri.agent.asset.domain.TestCaseStep;
 import com.songhg.veri.agent.asset.domain.TraceLink;
@@ -30,6 +31,13 @@ public interface AssetMapper {
     void insertRequirement(AssetRequirement requirement);
 
     void updateRequirement(AssetRequirement requirement);
+
+    List<AssetVersionHistory> listAssetVersionHistory(
+            @Param("assetType") String assetType,
+            @Param("assetId") UUID assetId
+    );
+
+    void insertAssetVersionHistory(AssetVersionHistory history);
 
     // ---- APIs ----
 

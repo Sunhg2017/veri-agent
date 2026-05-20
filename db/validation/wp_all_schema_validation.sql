@@ -38,6 +38,7 @@ with expected(table_name) as (
         ('asset_test_case'),
         ('asset_test_step'),
         ('asset_link'),
+        ('asset_version_history'),
         -- WP4 document input tables
         ('document_input_field_mapping'),
         ('document_input_source'),
@@ -121,12 +122,17 @@ with expected(table_name, column_name) as (
         -- WP3 key columns
         ('asset_requirement','id'), ('asset_requirement','project_id'), ('asset_requirement','code'), ('asset_requirement','title'), ('asset_requirement','source'),
         ('asset_requirement','source_ref'), ('asset_requirement','source_url'), ('asset_requirement','acceptance_criteria'), ('asset_requirement','status'),
+        ('asset_requirement','version'),
         ('asset_api','id'), ('asset_api','project_id'), ('asset_api','code'), ('asset_api','path'), ('asset_api','http_method'), ('asset_api','status'),
         ('asset_page','id'), ('asset_page','project_id'), ('asset_page','code'), ('asset_page','name'), ('asset_page','status'),
         ('asset_business_flow','id'), ('asset_business_flow','project_id'), ('asset_business_flow','code'), ('asset_business_flow','name'), ('asset_business_flow','status'),
         ('asset_test_case','id'), ('asset_test_case','project_id'), ('asset_test_case','code'), ('asset_test_case','title'), ('asset_test_case','case_type'), ('asset_test_case','status'),
+        ('asset_test_case','version'),
         ('asset_test_step','id'), ('asset_test_step','case_id'), ('asset_test_step','step_order'), ('asset_test_step','action'), ('asset_test_step','expected_result'),
         ('asset_link','id'), ('asset_link','source_type'), ('asset_link','source_id'), ('asset_link','target_type'), ('asset_link','target_id'), ('asset_link','link_type'),
+        ('asset_version_history','id'), ('asset_version_history','project_id'), ('asset_version_history','asset_type'), ('asset_version_history','asset_id'),
+        ('asset_version_history','version'), ('asset_version_history','change_type'), ('asset_version_history','actor'), ('asset_version_history','changed_fields'),
+        ('asset_version_history','diff_json'), ('asset_version_history','snapshot_json'), ('asset_version_history','trace_id'), ('asset_version_history','created_at'),
         -- WP4 key columns
         ('document_input_field_mapping','id'), ('document_input_field_mapping','mapping_code'), ('document_input_field_mapping','title_path'), ('document_input_field_mapping','version'),
         ('document_input_source','id'), ('document_input_source','source_code'), ('document_input_source','source_type'), ('document_input_source','status'), ('document_input_source','mapping_id'),
@@ -183,6 +189,9 @@ with expected(table_name, index_name) as (
         ('asset_test_case','uk_asset_test_case_project_code'),
         ('asset_test_step','uk_asset_test_step_case_order'),
         ('asset_link','uk_asset_link_source_target_link'),
+        ('asset_version_history','uk_asset_version_history_asset_version'),
+        ('asset_version_history','idx_asset_version_history_asset_created'),
+        ('asset_version_history','idx_asset_version_history_project_created'),
         -- WP4 key indexes
         ('document_input_field_mapping','uk_document_input_field_mapping_code'),
         ('document_input_source','uk_document_input_source_code'),

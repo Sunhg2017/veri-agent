@@ -51,6 +51,9 @@ grant select, insert, update on
     audit_outbox
 to :WP1_APP_ROLE;
 
+grant select, insert on asset_version_history to :WP1_APP_ROLE;
+revoke update, delete, truncate on asset_version_history from :WP1_APP_ROLE;
+
 grant select on rbac_permission to :WP1_APP_ROLE;
 
 -- Audit logs are append-only for the application role.

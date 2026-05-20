@@ -10,6 +10,7 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.startsWith;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -88,7 +89,8 @@ class AssetControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.title").value("用户登录"))
                 .andExpect(jsonPath("$.data.priority").value("CRITICAL"))
-                .andExpect(jsonPath("$.data.status").value("DRAFT"));
+                .andExpect(jsonPath("$.data.status").value("DRAFT"))
+                .andExpect(jsonPath("$.data.version").value(1));
 
         mockMvc.perform(put("/api/v1/asset/requirements/{id}", reqId)
                         .headers(authHeaders())
@@ -105,7 +107,23 @@ class AssetControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.title").value("用户登录V2"))
                 .andExpect(jsonPath("$.data.status").value("APPROVED"))
-                .andExpect(jsonPath("$.data.tags").value("auth,login"));
+                .andExpect(jsonPath("$.data.tags").value("auth,login"))
+                .andExpect(jsonPath("$.data.version").value(2));
+
+        mockMvc.perform(get("/api/v1/asset/requirements/{id}/versions", reqId)
+                        .headers(authHeaders()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data", hasSize(2)))
+                .andExpect(jsonPath("$.data[0].version").value(2))
+                .andExpect(jsonPath("$.data[0].changeType").value("UPDATE"))
+                .andExpect(jsonPath("$.data[0].actor").value("wp5-test-design:user-001"))
+                .andExpect(jsonPath("$.data[0].changedFields", contains("title", "description", "status", "tags")))
+                .andExpect(jsonPath("$.data[0].diff.title.before").value("用户登录"))
+                .andExpect(jsonPath("$.data[0].diff.title.after").value("用户登录V2"))
+                .andExpect(jsonPath("$.data[0].snapshot.version").value(2))
+                .andExpect(jsonPath("$.data[0].traceId", startsWith("trc_")))
+                .andExpect(jsonPath("$.data[1].version").value(1))
+                .andExpect(jsonPath("$.data[1].changeType").value("CREATE"));
 
         mockMvc.perform(get("/api/v1/asset/requirements")
                         .headers(authHeaders()))
@@ -234,7 +252,8 @@ class AssetControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.title").value("登录测试用例"))
                 .andExpect(jsonPath("$.data.requirementId").value(reqId))
-                .andExpect(jsonPath("$.data.steps", hasSize(0)));
+                .andExpect(jsonPath("$.data.steps", hasSize(0)))
+                .andExpect(jsonPath("$.data.version").value(1));
 
         mockMvc.perform(put("/api/v1/asset/test-cases/{id}/steps", caseId)
                         .headers(authHeaders())
@@ -256,6 +275,24 @@ class AssetControllerTest {
                         .headers(authHeaders()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data", hasSize(2)));
+
+        mockMvc.perform(get("/api/v1/asset/test-cases/{id}", caseId)
+                        .headers(authHeaders()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.version").value(2))
+                .andExpect(jsonPath("$.data.steps", hasSize(2)));
+
+        mockMvc.perform(get("/api/v1/asset/test-cases/{id}/versions", caseId)
+                        .headers(authHeaders()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data", hasSize(2)))
+                .andExpect(jsonPath("$.data[0].version").value(2))
+                .andExpect(jsonPath("$.data[0].changeType").value("STEPS_UPDATE"))
+                .andExpect(jsonPath("$.data[0].changedFields", contains("steps")))
+                .andExpect(jsonPath("$.data[0].diff.steps.before", hasSize(0)))
+                .andExpect(jsonPath("$.data[0].diff.steps.after", hasSize(2)))
+                .andExpect(jsonPath("$.data[0].snapshot.steps", hasSize(2)))
+                .andExpect(jsonPath("$.data[1].changeType").value("CREATE"));
 
         mockMvc.perform(get("/api/v1/asset/test-cases")
                         .headers(authHeaders()))

@@ -19,12 +19,13 @@ WP3 当前提供测试资产的最小闭环：需求、API、页面、业务流�
 4. 业务流资产：创建、详情、编辑、列表分页。
 5. 测试用例：创建、详情、编辑、步骤替换、列表分页。
 6. 追踪链接：需求到 API/用例的链接创建与查询。
-7. 追踪矩阵：前端基于需求、API、测试用例和追踪链接做只读聚合，展示覆盖状态、缺口和一跳影响范围。
-8. WP4 发布：`IMPORT + sourceRef` 需求幂等写入，重复导入在 DRAFT 状态下更新，非 DRAFT 差异阻断。
+7. 版本历史：需求和测试用例返回 `version`，写入、编辑、WP4 幂等更新和用例步骤替换会保存版本快照、字段 diff、操作者和 traceId。
+8. 追踪矩阵：前端基于需求、API、测试用例和追踪链接做只读聚合，展示覆盖状态、缺口和一跳影响范围。
+9. WP4 发布：`IMPORT + sourceRef` 需求幂等写入，重复导入在 DRAFT 状态下更新，非 DRAFT 差异阻断。
 
 ## 2. 非范围
 
-本轮不实现完整版本历史、资产 diff 页面、软删除恢复、CSV/OpenAPI 导入导出、API 资产 OpenAPI 导入执行能力、正式后端聚合影响分析服务、企业原型连接器真实拉取、可视化业务流画布和测试执行结果闭环。这些能力保留在后续 P1/P2 任务中。
+本轮不实现资产 diff 前端页面、历史版本回滚、API/Page/BusinessFlow 的完整版本历史、软删除恢复、CSV/OpenAPI 导入导出、API 资产 OpenAPI 导入执行能力、正式后端聚合影响分析服务、企业原型连接器真实拉取、可视化业务流画布和测试执行结果闭环。这些能力保留在后续 P1/P2 任务中。
 
 ## 3. 权限
 
@@ -44,11 +45,11 @@ WP3 当前提供测试资产的最小闭环：需求、API、页面、业务流�
 | 能力 | 路径 |
 |---|---|
 | 健康检查 | `GET /api/v1/asset/health` |
-| 需求 | `GET/POST /api/v1/asset/requirements`，`GET/PUT /api/v1/asset/requirements/{id}` |
+| 需求 | `GET/POST /api/v1/asset/requirements`，`GET/PUT /api/v1/asset/requirements/{id}`，`GET /api/v1/asset/requirements/{id}/versions` |
 | API 资产 | `GET/POST /api/v1/asset/apis`，`GET/PUT /api/v1/asset/apis/{id}` |
 | 页面 | `GET/POST /api/v1/asset/pages`，`GET/PUT /api/v1/asset/pages/{id}` |
 | 业务流 | `GET/POST /api/v1/asset/business-flows`，`GET/PUT /api/v1/asset/business-flows/{id}` |
-| 测试用例 | `GET/POST /api/v1/asset/test-cases`，`GET/PUT /api/v1/asset/test-cases/{id}` |
+| 测试用例 | `GET/POST /api/v1/asset/test-cases`，`GET/PUT /api/v1/asset/test-cases/{id}`，`GET /api/v1/asset/test-cases/{id}/versions` |
 | 用例步骤 | `GET/PUT /api/v1/asset/test-cases/{id}/steps` |
 | 追踪链接 | `GET/POST /api/v1/asset/links` |
 
@@ -63,6 +64,7 @@ PostgreSQL 表位于 `db/migration/wp1/V20260518_014__wp3_asset_base_schema.sql`
 - `asset_test_case`
 - `asset_test_step`
 - `asset_link`
+- `asset_version_history`，由 `V20260520_017__wp3_asset_version_history.sql` 新增，记录需求/测试用例的 append-only 版本历史、字段 diff、快照、操作者和 traceId。
 
 核心唯一性：
 
@@ -73,6 +75,14 @@ PostgreSQL 表位于 `db/migration/wp1/V20260518_014__wp3_asset_base_schema.sql`
 - `asset_business_flow(project_id, code)`
 - `asset_test_case(project_id, code)`
 - `asset_link(source_type, source_id, target_type, target_id, link_type)`
+- `asset_version_history(asset_type, asset_id, version)`
+
+版本口径：
+
+- `asset_requirement.version` 和 `asset_test_case.version` 从 `1` 开始，服务端在写操作时递增。
+- 需求创建、人工编辑、WP4 导入幂等更新会保存历史；无差异导入不生成新版本。
+- 测试用例创建、用例编辑、步骤替换会保存历史；测试用例历史快照包含 steps。
+- 历史表由 DB trigger 阻止 `UPDATE/DELETE`，运行时应用角色只应具备 `SELECT/INSERT`。
 
 ## 6. 状态流
 
@@ -126,4 +136,4 @@ PR/主干 CI 可通过 `.github/workflows/wp3-asset-management.yml` 复用同一
 
 ## 9. 后续入口
 
-后续优先补齐版本历史、软删除恢复、导入导出、OpenAPI 导入执行能力、后端聚合影响分析服务和页面/业务流追踪关系。
+后续优先补齐历史 diff 前端页面、历史版本回滚、软删除恢复、导入导出、OpenAPI 导入执行能力、后端聚合影响分析服务和页面/业务流追踪关系。

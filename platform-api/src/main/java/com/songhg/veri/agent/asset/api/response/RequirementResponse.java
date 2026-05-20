@@ -16,6 +16,7 @@ public record RequirementResponse(
         String priority,
         String projectId,
         String tags,
+        int version,
         Instant createdAt,
         Instant updatedAt
 ) {

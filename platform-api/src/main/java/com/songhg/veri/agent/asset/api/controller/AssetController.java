@@ -15,6 +15,7 @@ import com.songhg.veri.agent.asset.api.request.UpdateRequirementRequest;
 import com.songhg.veri.agent.asset.api.request.UpdateTestCaseRequest;
 import com.songhg.veri.agent.asset.api.request.UpdateTestCaseStepsRequest;
 import com.songhg.veri.agent.asset.api.response.ApiResponseDTO;
+import com.songhg.veri.agent.asset.api.response.AssetVersionHistoryResponse;
 import com.songhg.veri.agent.asset.api.response.BusinessFlowResponse;
 import com.songhg.veri.agent.asset.api.response.PageResponse;
 import com.songhg.veri.agent.asset.api.response.RequirementResponse;
@@ -88,6 +89,12 @@ public class AssetController {
     ) {
         requirePermission("asset:manage");
         return service.updateRequirement(id, request);
+    }
+
+    @GetMapping("/requirements/{id}/versions")
+    public List<AssetVersionHistoryResponse> requirementVersions(@PathVariable UUID id) {
+        requirePermission("asset:read");
+        return service.requirementVersions(id);
     }
 
     // ---- APIs ----
@@ -216,6 +223,12 @@ public class AssetController {
     ) {
         requirePermission("asset:manage");
         return service.updateTestCase(id, request);
+    }
+
+    @GetMapping("/test-cases/{id}/versions")
+    public List<AssetVersionHistoryResponse> testCaseVersions(@PathVariable UUID id) {
+        requirePermission("asset:read");
+        return service.testCaseVersions(id);
     }
 
     @GetMapping("/test-cases/{id}/steps")

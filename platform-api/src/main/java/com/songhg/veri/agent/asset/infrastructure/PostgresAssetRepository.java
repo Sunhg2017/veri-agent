@@ -5,6 +5,7 @@ import com.songhg.veri.agent.asset.domain.AssetApi;
 import com.songhg.veri.agent.asset.domain.AssetBusinessFlow;
 import com.songhg.veri.agent.asset.domain.AssetPage;
 import com.songhg.veri.agent.asset.domain.AssetRequirement;
+import com.songhg.veri.agent.asset.domain.AssetVersionHistory;
 import com.songhg.veri.agent.asset.domain.TestCaseRecord;
 import com.songhg.veri.agent.asset.domain.TestCaseStep;
 import com.songhg.veri.agent.asset.domain.TraceLink;
@@ -59,6 +60,17 @@ public class PostgresAssetRepository implements AssetRepository {
             }
             throw exception;
         }
+    }
+
+    @Override
+    public List<AssetVersionHistory> assetVersionHistory(String assetType, UUID assetId) {
+        return mapper.listAssetVersionHistory(assetType, assetId);
+    }
+
+    @Override
+    public AssetVersionHistory saveVersionHistory(AssetVersionHistory history) {
+        mapper.insertAssetVersionHistory(history);
+        return history;
     }
 
     @Override
@@ -191,6 +203,7 @@ public class PostgresAssetRepository implements AssetRepository {
                 testCase.priority(),
                 testCase.tags(),
                 mapper.listTestCaseSteps(testCase.id()),
+                testCase.version(),
                 testCase.createdAt(),
                 testCase.updatedAt()
         );
@@ -210,6 +223,7 @@ public class PostgresAssetRepository implements AssetRepository {
                 requirement.priority(),
                 requirement.projectId(),
                 requirement.tags(),
+                requirement.version(),
                 requirement.createdAt(),
                 requirement.updatedAt()
         );
@@ -281,6 +295,7 @@ public class PostgresAssetRepository implements AssetRepository {
                 testCase.priority(),
                 testCase.tags(),
                 testCase.steps(),
+                testCase.version(),
                 testCase.createdAt(),
                 testCase.updatedAt()
         );

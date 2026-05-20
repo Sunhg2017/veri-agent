@@ -29,9 +29,9 @@
 | WP2 smoke | 已启动平台 API 的模型接入 API | `WP2_SERVICE_TOKEN=local-model-access-token bash scripts/wp2_model_access_smoke.sh` | provider、prompt、invocation、日志、成本、导出 |
 | WP2 policy smoke | WP2 消费 WP1 context/audit 策略 | `WP1_SERVICE_TOKEN=local-platform-service-token WP1_AUTH_TOKEN_SECRET=local-auth-secret WP2_SERVICE_TOKEN=local-model-access-token bash scripts/wp2_module_policy_smoke.sh` | 公开模型策略、敏感级别升级、本地模型调用 |
 | WP2 quality gate | WP2 聚合门禁 | `bash scripts/wp2_quality_gate.sh` | 后端测试、WP2 DB validation；HTTP smoke 需 `WP2_RUN_HTTP_SMOKE=1` |
-| WP3 API | WP3 资产基础 API、上下文/审计契约与 OpenAPI 覆盖 | `mvn -B -pl platform-api -Dtest=AssetControllerTest,AssetContextAuditContractTest,AssetOpenApiContractTest test` | 资产 CRUD、trace link、WP1 context/audit 异常、OpenAPI 中 `/api/v1/asset/**` |
+| WP3 API | WP3 资产基础 API、版本历史、上下文/审计契约与 OpenAPI 覆盖 | `mvn -B -pl platform-api -Dtest=AssetControllerTest,AssetContextAuditContractTest,AssetOpenApiContractTest test` | 资产 CRUD、版本递增、history/diff、trace link、WP1 context/audit 异常、OpenAPI 中 `/api/v1/asset/**` |
 | WP3 quality gate | WP3 本地/CI 聚合门禁 | `bash scripts/wp3_quality_gate.sh` | 后端资产测试、OpenAPI/上下文契约、前端资产测试、WP1-WP4 统一 DB validation |
-| WP3 schema | WP3 表、索引和无租户字段回归 | `bash db/validation/run_wp1_db_validation.sh` | `wp_all_schema_validation.sql` 中 `asset_*` 检查 |
+| WP3 schema | WP3 表、索引、版本历史 append-only 权限和无租户字段回归 | `bash db/validation/run_wp1_db_validation.sh` | `wp_all_schema_validation.sql` 与 `wp1_security_validation.sql` 中 `asset_*` 检查 |
 | WP4 smoke | 已启动平台 API 的文档输入主链路 | `WP4_SERVICE_TOKEN=local-document-input-token WP3_SERVICE_TOKEN=local-asset-token WP4_WEBHOOK_SECRET=local-document-input-webhook-secret bash scripts/wp4_document_input_smoke.sh` | 导入、候选、发布、webhook、事件日志、metrics |
 | WP4 binary | Word/PDF/OCR 文本抽取 | `bash scripts/wp4_binary_document_smoke.sh` | docx、PDF、OCR provider、SecretProvider 测试 |
 | WP4 AI 质量 | golden corpus 质量门禁 | `bash scripts/wp4_ai_parse_quality_eval.sh` | 标题召回、优先级准确率、验收标准覆盖率 |

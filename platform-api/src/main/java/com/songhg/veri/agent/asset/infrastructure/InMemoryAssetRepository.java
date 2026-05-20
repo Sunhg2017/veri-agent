@@ -5,6 +5,7 @@ import com.songhg.veri.agent.asset.domain.AssetApi;
 import com.songhg.veri.agent.asset.domain.AssetBusinessFlow;
 import com.songhg.veri.agent.asset.domain.AssetPage;
 import com.songhg.veri.agent.asset.domain.AssetRequirement;
+import com.songhg.veri.agent.asset.domain.AssetVersionHistory;
 import com.songhg.veri.agent.asset.domain.TestCaseRecord;
 import com.songhg.veri.agent.asset.domain.TestCaseStep;
 import com.songhg.veri.agent.asset.domain.TraceLink;
@@ -26,6 +27,7 @@ public class InMemoryAssetRepository implements AssetRepository {
     private final ConcurrentHashMap<UUID, AssetPage> pages = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<UUID, AssetBusinessFlow> businessFlows = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<UUID, TestCaseRecord> testCases = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<UUID, AssetVersionHistory> versionHistories = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<UUID, TraceLink> links = new ConcurrentHashMap<>();
 
     @Override
@@ -57,6 +59,22 @@ public class InMemoryAssetRepository implements AssetRepository {
     public AssetRequirement saveRequirement(AssetRequirement requirement) {
         requirements.put(requirement.id(), requirement);
         return requirement;
+    }
+
+    @Override
+    public List<AssetVersionHistory> assetVersionHistory(String assetType, UUID assetId) {
+        return versionHistories.values().stream()
+                .filter(value -> assetType.equals(value.assetType()))
+                .filter(value -> assetId.equals(value.assetId()))
+                .sorted(Comparator.comparingInt(AssetVersionHistory::version).reversed()
+                        .thenComparing(AssetVersionHistory::createdAt, Comparator.reverseOrder()))
+                .toList();
+    }
+
+    @Override
+    public AssetVersionHistory saveVersionHistory(AssetVersionHistory history) {
+        versionHistories.put(history.id(), history);
+        return history;
     }
 
     @Override
@@ -158,6 +176,7 @@ public class InMemoryAssetRepository implements AssetRepository {
                 existing.priority(),
                 existing.tags(),
                 steps,
+                existing.version() + 1,
                 existing.createdAt(),
                 Instant.now()
         )));

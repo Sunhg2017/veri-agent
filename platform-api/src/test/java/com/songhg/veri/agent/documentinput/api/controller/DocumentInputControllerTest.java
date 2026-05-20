@@ -477,6 +477,14 @@ class DocumentInputControllerTest {
         String requirementId = JsonPath.read(firstPublish.getResponse().getContentAsString(),
                 "$.data.createdRequirementIds[0]");
 
+        mockMvc.perform(get("/api/v1/asset/requirements/{id}/versions", requirementId)
+                        .headers(assetHeaders()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data", hasSize(1)))
+                .andExpect(jsonPath("$.data[0].version").value(1))
+                .andExpect(jsonPath("$.data[0].changeType").value("CREATE"))
+                .andExpect(jsonPath("$.data[0].snapshot.description").value("旧描述"));
+
         MvcResult secondImport = mockMvc.perform(post("/api/v1/document-input/imports")
                         .headers(documentInputHeaders())
                         .contentType(MediaType.APPLICATION_JSON)
@@ -486,7 +494,7 @@ class DocumentInputControllerTest {
                                   "sourceType": "MARKDOWN",
                                   "sourceRef": "md-diff-001",
                                   "sourceUrl": "https://docs.example.test/req/md-diff-001-v2",
-                                  "content": "## 登录需求\\\\n新描述\\\\nPriority: HIGH\\\\nTags: login\\\\nAcceptance Criteria:\\\\n- 新标准"
+                                  "content": "## 登录需求\\\\n新描述\\\\nPriority: HIGH\\\\nTags: auth, document-input, login\\\\nAcceptance Criteria:\\\\n- 新标准"
                                 }
                                 """))
                 .andExpect(status().isCreated())
@@ -543,6 +551,75 @@ class DocumentInputControllerTest {
                 .andExpect(jsonPath("$.data.tags", containsString("auth")))
                 .andExpect(jsonPath("$.data.tags", containsString("login")))
                 .andExpect(jsonPath("$.data.tags", containsString("document-input")));
+
+        mockMvc.perform(get("/api/v1/asset/requirements/{id}/versions", requirementId)
+                        .headers(assetHeaders()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data", hasSize(2)))
+                .andExpect(jsonPath("$.data[0].version").value(2))
+                .andExpect(jsonPath("$.data[0].changeType").value("UPSERT"))
+                .andExpect(jsonPath("$.data[0].changedFields", hasSize(5)))
+                .andExpect(jsonPath("$.data[0].diff.description.after").value("新描述"))
+                .andExpect(jsonPath("$.data[0].diff.acceptanceCriteria.after").value("新标准"))
+                .andExpect(jsonPath("$.data[1].version").value(1))
+                .andExpect(jsonPath("$.data[1].changeType").value("CREATE"));
+
+        MvcResult thirdImport = mockMvc.perform(post("/api/v1/document-input/imports")
+                        .headers(documentInputHeaders())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "projectId": "project-wp4",
+                                  "sourceType": "MARKDOWN",
+                                  "sourceRef": "md-diff-001",
+                                  "sourceUrl": "https://docs.example.test/req/md-diff-001-v2",
+                                  "content": "## 登录需求\\\\n新描述\\\\nPriority: HIGH\\\\nTags: auth, document-input, login\\\\nAcceptance Criteria:\\\\n- 新标准"
+                                }
+                                """))
+                .andExpect(status().isCreated())
+                .andReturn();
+        String thirdImportId = JsonPath.read(thirdImport.getResponse().getContentAsString(), "$.data.id");
+        String thirdCandidateId = JsonPath.read(mockMvc.perform(get("/api/v1/document-input/imports/{id}/candidates", thirdImportId)
+                        .headers(documentInputHeaders()))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString(), "$.data.items[0].id");
+
+        mockMvc.perform(post("/api/v1/document-input/candidates/{id}/confirm", thirdCandidateId)
+                        .headers(documentInputHeaders())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"version\":0}"))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/v1/document-input/imports/{id}/publish", thirdImportId)
+                        .headers(documentInputHeaders())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "dryRun": true,
+                                  "candidateIds": ["%s"]
+                                }
+                                """.formatted(thirdCandidateId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.dryRun").value(true))
+                .andExpect(jsonPath("$.data.plannedUpdateCount").value(0))
+                .andExpect(jsonPath("$.data.linkedExistingCount").value(1))
+                .andExpect(jsonPath("$.data.records[0].action").value("LINK_EXISTING"))
+                .andExpect(jsonPath("$.data.records[0].existingRequirementId").value(requirementId));
+
+        mockMvc.perform(post("/api/v1/document-input/imports/{id}/publish", thirdImportId)
+                        .headers(documentInputHeaders())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.publishedCount").value(1))
+                .andExpect(jsonPath("$.data.createdRequirementIds[0]").value(requirementId));
+
+        mockMvc.perform(get("/api/v1/asset/requirements/{id}/versions", requirementId)
+                        .headers(assetHeaders()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data", hasSize(2)))
+                .andExpect(jsonPath("$.data[0].version").value(2))
+                .andExpect(jsonPath("$.data[0].changeType").value("UPSERT"));
     }
 
     @Test

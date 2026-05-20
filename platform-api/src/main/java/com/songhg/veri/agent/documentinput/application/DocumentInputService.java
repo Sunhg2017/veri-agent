@@ -56,6 +56,7 @@ import java.util.Base64;
 import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -1238,7 +1239,7 @@ public class DocumentInputService {
         addChangedField(changedFields, "description", candidate.description(), existing.description());
         addChangedField(changedFields, "priority", normalizePriority(candidate.priority()), existing.priority());
         addChangedField(changedFields, "acceptanceCriteria", candidate.acceptanceCriteria(), existing.acceptanceCriteria());
-        addChangedField(changedFields, "tags", normalizeTagsText(candidate.tags()), normalizeTagsText(existing.tags()));
+        addChangedField(changedFields, "tags", publishedRequirementTags(candidate, existing), normalizeTagsText(existing.tags()));
         return changedFields.isEmpty() ? null : String.join(",", changedFields);
     }
 
@@ -1256,6 +1257,29 @@ public class DocumentInputService {
         return StringUtils.hasText(value)
                 ? value.trim().replace("，", ",").replaceAll("\\s*,\\s*", ",")
                 : "";
+    }
+
+    private String publishedRequirementTags(DocumentRequirementCandidate candidate, RequirementResponse existing) {
+        return mergeDistinctTags(existing.tags(), mergeTags(candidate.tags(), "document-input"));
+    }
+
+    private String mergeDistinctTags(String existing, String incoming) {
+        LinkedHashSet<String> tags = new LinkedHashSet<>();
+        addDistinctTags(tags, existing);
+        addDistinctTags(tags, incoming);
+        return tags.isEmpty() ? "" : String.join(",", tags);
+    }
+
+    private void addDistinctTags(LinkedHashSet<String> tags, String rawTags) {
+        if (!StringUtils.hasText(rawTags)) {
+            return;
+        }
+        for (String tag : rawTags.replace("，", ",").split(",")) {
+            String trimmed = tag.trim();
+            if (StringUtils.hasText(trimmed)) {
+                tags.add(trimmed);
+            }
+        }
     }
 
     private DocumentPublishResponse toPublishResponse(

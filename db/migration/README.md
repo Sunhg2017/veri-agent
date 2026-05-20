@@ -1,6 +1,6 @@
 # PostgreSQL Migrations
 
-WP1 migrations live in `db/migration/wp1`. WP2 model-access migrations live in `db/migration/wp2`.
+All WP1-WP4 migrations currently live in `db/migration/wp1` because the MVP deploys a single `platform-api` and one PostgreSQL schema.
 
 ## Script Order
 
@@ -8,8 +8,9 @@ WP1 migrations live in `db/migration/wp1`. WP2 model-access migrations live in `
 2. `wp1/V20260516_002__wp1_seed_permissions_roles.sql` seeds P0 permissions, 8 built-in roles, role-permission mappings, system defaults, and the default `LOCAL_ENCRYPTED` provider.
 3. `wp1/V20260516_003__wp1_runtime_db_policy.sql` documents runtime grant/revoke policy and adds table/column comments. Its grant template must be adapted to environment-specific role names before execution.
 4. `wp1/V20260517_004__wp1_account_lifecycle.sql` seeds account lifecycle permissions.
-5. `wp2/V20260517_001__wp2_model_access_schema.sql` creates WP2 model provider, prompt template, and invocation log tables.
-6. `wp2/V20260517_002__wp2_default_seed_data.sql` seeds the local echo provider and default test-case-design prompt for db profile smoke usage.
+5. `wp1/V20260518_009__wp2_model_access_schema.sql` creates WP2 model provider, prompt template, and invocation log tables.
+6. `wp1/V20260518_010__wp2_default_seed_data.sql` seeds the local echo provider and default test-case-design prompt for db profile smoke usage.
+7. Later `wp1/V20260518_*` and `wp1/V20260520_*` migrations add WP2 hardening, WP3 assets, WP4 document input, and WP3 asset version history.
 
 ## Prerequisites
 

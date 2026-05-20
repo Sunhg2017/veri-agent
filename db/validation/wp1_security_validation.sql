@@ -210,6 +210,41 @@ with app_roles(role_name) as (
         ('wp1_app'),
         ('veri_agent_app')
 ),
+history_privileges as (
+    select
+        r.role_name,
+        has_table_privilege(r.role_name, format('%I.%I', current_schema(), 'asset_version_history'), 'SELECT') as can_select,
+        has_table_privilege(r.role_name, format('%I.%I', current_schema(), 'asset_version_history'), 'INSERT') as can_insert,
+        has_table_privilege(r.role_name, format('%I.%I', current_schema(), 'asset_version_history'), 'UPDATE') as can_update,
+        has_table_privilege(r.role_name, format('%I.%I', current_schema(), 'asset_version_history'), 'DELETE') as can_delete,
+        has_table_privilege(r.role_name, format('%I.%I', current_schema(), 'asset_version_history'), 'TRUNCATE') as can_truncate
+    from app_roles r
+    where exists (select 1 from pg_roles pr where pr.rolname = r.role_name)
+      and to_regclass(current_schema() || '.asset_version_history') is not null
+),
+bad as (
+    select role_name || '(select=' || can_select || ', insert=' || can_insert || ', update=' || can_update || ', delete=' || can_delete || ', truncate=' || can_truncate || ')' as item
+    from history_privileges
+    where not can_select or not can_insert or can_update or can_delete or can_truncate
+)
+select
+    'security.asset_version_history_app_role_append_only' as check_name,
+    case
+        when not exists (select 1 from history_privileges) then 'WARN'
+        when count(*) = 0 then 'PASS'
+        else 'FAIL'
+    end as status,
+    case
+        when not exists (select 1 from history_privileges) then 'no known app DB role found or asset_version_history missing; replace wp1_app/veri_agent_app with your real application role'
+        else coalesce(string_agg(item, ', ' order by item), 'known app DB roles can SELECT/INSERT but cannot UPDATE/DELETE/TRUNCATE asset_version_history')
+    end as details
+from bad;
+
+with app_roles(role_name) as (
+    values
+        ('wp1_app'),
+        ('veri_agent_app')
+),
 runtime_tables(table_name) as (
     values
         ('base_department'),
