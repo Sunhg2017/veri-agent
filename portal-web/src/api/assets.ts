@@ -8,6 +8,7 @@ export const ASSET_API_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD
 export const ASSET_PAGE_STATUSES = ['ACTIVE', 'DEPRECATED'] as const;
 export const ASSET_PAGE_SOURCES = ['MANUAL', 'FIGMA', 'LANHU', 'AXURE'] as const;
 export const ASSET_FLOW_STATUSES = ['DRAFT', 'ACTIVE', 'ARCHIVED'] as const;
+export const ASSET_TEST_CASE_STATUSES = ['DRAFT', 'REVIEWING', 'APPROVED', 'DEPRECATED'] as const;
 
 export type AssetRequirementStatus = (typeof ASSET_REQUIREMENT_STATUSES)[number];
 export type AssetRequirementPriority = (typeof ASSET_REQUIREMENT_PRIORITIES)[number];
@@ -17,6 +18,7 @@ export type AssetApiMethod = (typeof ASSET_API_METHODS)[number];
 export type AssetPageStatus = (typeof ASSET_PAGE_STATUSES)[number];
 export type AssetPageSource = (typeof ASSET_PAGE_SOURCES)[number];
 export type AssetFlowStatus = (typeof ASSET_FLOW_STATUSES)[number];
+export type AssetTestCaseStatus = (typeof ASSET_TEST_CASE_STATUSES)[number];
 
 export interface AssetHealth {
   service: string;
@@ -190,6 +192,67 @@ export interface AssetBusinessFlowPayload {
   flowJson?: unknown;
   priority?: string;
   status?: string;
+}
+
+export interface AssetTestCaseStepView {
+  stepOrder: number;
+  action?: string;
+  expectedResult?: string;
+}
+
+export interface AssetTestCaseView {
+  id: string;
+  code?: string;
+  title: string;
+  description?: string;
+  requirementId?: string;
+  apiId?: string;
+  source?: string;
+  sourceRef?: string;
+  projectId?: string;
+  status: AssetTestCaseStatus | string;
+  priority: AssetRequirementPriority | string;
+  tags: string[];
+  steps: AssetTestCaseStepView[];
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface AssetTestCaseList {
+  items: AssetTestCaseView[];
+  page?: number;
+  pageSize?: number;
+  total: number;
+}
+
+export interface AssetTestCaseFilters {
+  index?: number;
+  size?: number;
+  projectId?: string;
+  status?: string;
+  keyword?: string;
+  source?: string;
+}
+
+export interface AssetTestCaseStepPayload {
+  action?: string;
+  expectedResult?: string;
+}
+
+export interface AssetTestCasePayload {
+  title: string;
+  projectId?: string;
+  description?: string;
+  requirementId?: string;
+  apiId?: string;
+  status?: string;
+  priority?: string;
+  tags?: string[] | string;
+  steps?: AssetTestCaseStepPayload[];
+}
+
+export interface AssetTestCaseStepsPayload {
+  steps: AssetTestCaseStepPayload[];
 }
 
 export interface TraceLinkView {
@@ -367,6 +430,18 @@ function businessFlowQuery(filters: AssetBusinessFlowFilters) {
   return query ? `?${query}` : '';
 }
 
+function testCaseQuery(filters: AssetTestCaseFilters) {
+  const params = new URLSearchParams();
+  if (typeof filters.index === 'number') params.set('index', String(filters.index));
+  if (typeof filters.size === 'number') params.set('size', String(filters.size));
+  if (filters.projectId?.trim()) params.set('projectId', filters.projectId.trim());
+  if (filters.status?.trim()) params.set('status', filters.status.trim());
+  if (filters.keyword?.trim()) params.set('keyword', filters.keyword.trim());
+  if (filters.source?.trim()) params.set('source', filters.source.trim());
+  const query = params.toString();
+  return query ? `?${query}` : '';
+}
+
 export function normalizeAssetHealth(raw: unknown): AssetHealth {
   const item = isRecord(raw) ? raw : {};
   return {
@@ -500,6 +575,60 @@ export function assetBusinessFlowItems(data: unknown): AssetBusinessFlowView[] {
 
 export function normalizeAssetBusinessFlowList(raw: unknown): AssetBusinessFlowList {
   const items = assetBusinessFlowItems(raw);
+  return {
+    items,
+    page: isRecord(raw) ? optionalNumber(raw.page ?? raw.number ?? raw.index) : undefined,
+    pageSize: isRecord(raw) ? optionalNumber(raw.pageSize ?? raw.page_size ?? raw.size) : undefined,
+    total: pageTotal(raw, items.length)
+  };
+}
+
+export function normalizeAssetTestCaseStep(raw: unknown): AssetTestCaseStepView {
+  const item = isRecord(raw) ? raw : {};
+  return {
+    stepOrder: numberValue(item.stepOrder ?? item.step_order ?? item.order ?? item.index, 0),
+    action: optionalString(item.action),
+    expectedResult: optionalString(item.expectedResult) ?? optionalString(item.expected_result)
+  };
+}
+
+export function assetTestCaseStepItems(data: unknown): AssetTestCaseStepView[] {
+  return listItems(data)
+    .map(normalizeAssetTestCaseStep)
+    .sort((left, right) => left.stepOrder - right.stepOrder);
+}
+
+export function normalizeAssetTestCaseView(raw: unknown): AssetTestCaseView {
+  const item = isRecord(raw) ? raw : {};
+  const id = stringValue(
+    item.id,
+    stringValue(item.testCaseId, stringValue(item.test_case_id, stringValue(item.caseId, stringValue(item.case_id))))
+  );
+  return {
+    id,
+    code: optionalString(item.code),
+    title: stringValue(item.title, stringValue(item.name, id || '未命名用例')),
+    description: optionalString(item.description),
+    requirementId: optionalString(item.requirementId) ?? optionalString(item.requirement_id),
+    apiId: optionalString(item.apiId) ?? optionalString(item.api_id),
+    source: optionalString(item.source),
+    sourceRef: optionalString(item.sourceRef) ?? optionalString(item.source_ref),
+    projectId: optionalString(item.projectId) ?? optionalString(item.project_id),
+    status: enumString(item.status, ASSET_TEST_CASE_STATUSES, 'DRAFT'),
+    priority: enumString(item.priority, ASSET_REQUIREMENT_PRIORITIES, 'MEDIUM'),
+    tags: stringArrayValue(item.tags ?? item.tagList ?? item.tag_list),
+    steps: assetTestCaseStepItems(item.steps),
+    createdAt: optionalString(item.createdAt) ?? optionalString(item.created_at),
+    updatedAt: optionalString(item.updatedAt) ?? optionalString(item.updated_at)
+  };
+}
+
+export function assetTestCaseItems(data: unknown): AssetTestCaseView[] {
+  return listItems(data).map(normalizeAssetTestCaseView);
+}
+
+export function normalizeAssetTestCaseList(raw: unknown): AssetTestCaseList {
+  const items = assetTestCaseItems(raw);
   return {
     items,
     page: isRecord(raw) ? optionalNumber(raw.page ?? raw.number ?? raw.index) : undefined,
@@ -649,6 +778,51 @@ export async function updateAssetBusinessFlow(
     body: JSON.stringify(compactAssetPayload(payload))
   });
   return { ...response, data: normalizeAssetBusinessFlowView(response.data) };
+}
+
+export async function fetchAssetTestCases(filters: AssetTestCaseFilters = {}): Promise<ApiResponse<AssetTestCaseList>> {
+  const response = await requestJson<unknown>(`/api/v1/asset/test-cases${testCaseQuery(filters)}`);
+  return { ...response, data: normalizeAssetTestCaseList(response.data) };
+}
+
+export async function fetchAssetTestCase(testCaseId: string): Promise<ApiResponse<AssetTestCaseView>> {
+  const response = await requestJson<unknown>(`/api/v1/asset/test-cases/${encodeURIComponent(testCaseId)}`);
+  return { ...response, data: normalizeAssetTestCaseView(response.data) };
+}
+
+export async function createAssetTestCase(payload: AssetTestCasePayload): Promise<ApiResponse<AssetTestCaseView>> {
+  const response = await requestJson<unknown>('/api/v1/asset/test-cases', {
+    method: 'POST',
+    body: JSON.stringify(compactAssetPayload(payload))
+  });
+  return { ...response, data: normalizeAssetTestCaseView(response.data) };
+}
+
+export async function updateAssetTestCase(
+  testCaseId: string,
+  payload: AssetTestCasePayload
+): Promise<ApiResponse<AssetTestCaseView>> {
+  const response = await requestJson<unknown>(`/api/v1/asset/test-cases/${encodeURIComponent(testCaseId)}`, {
+    method: 'PUT',
+    body: JSON.stringify(compactAssetPayload(payload))
+  });
+  return { ...response, data: normalizeAssetTestCaseView(response.data) };
+}
+
+export async function fetchAssetTestCaseSteps(testCaseId: string): Promise<ApiResponse<AssetTestCaseStepView[]>> {
+  const response = await requestJson<unknown>(`/api/v1/asset/test-cases/${encodeURIComponent(testCaseId)}/steps`);
+  return { ...response, data: assetTestCaseStepItems(response.data) };
+}
+
+export async function updateAssetTestCaseSteps(
+  testCaseId: string,
+  payload: AssetTestCaseStepsPayload
+): Promise<ApiResponse<AssetTestCaseStepView[]>> {
+  const response = await requestJson<unknown>(`/api/v1/asset/test-cases/${encodeURIComponent(testCaseId)}/steps`, {
+    method: 'PUT',
+    body: JSON.stringify(compactAssetPayload(payload))
+  });
+  return { ...response, data: assetTestCaseStepItems(response.data) };
 }
 
 export async function fetchRequirementTraceLinks(requirementId: string): Promise<ApiResponse<TraceLinkList>> {

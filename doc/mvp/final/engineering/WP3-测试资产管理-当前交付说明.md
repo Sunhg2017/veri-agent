@@ -23,7 +23,7 @@ WP3 当前提供测试资产的最小闭环：需求、API、页面、业务流�
 
 ## 2. 非范围
 
-本轮不实现完整版本历史、资产 diff 页面、软删除恢复、CSV/OpenAPI 导入导出、API 资产 OpenAPI 导入执行能力、追踪矩阵影响分析、企业原型连接器真实拉取和可视化业务流画布。这些能力保留在后续 P1/P2 任务中。
+本轮不实现完整版本历史、资产 diff 页面、软删除恢复、CSV/OpenAPI 导入导出、API 资产 OpenAPI 导入执行能力、追踪矩阵影响分析、企业原型连接器真实拉取、可视化业务流画布和测试执行结果闭环。这些能力保留在后续 P1/P2 任务中。
 
 ## 3. 权限
 
@@ -79,7 +79,7 @@ PostgreSQL 表位于 `db/migration/wp1/V20260518_014__wp3_asset_base_schema.sql`
 
 ## 7. 前端入口
 
-`portal-web` 已增加资产库入口、需求资产工作台、API 资产工作台、页面资产工作台和业务流资产工作台：
+`portal-web` 已增加资产库入口、需求资产工作台、API 资产工作台、页面资产工作台、业务流资产工作台和测试用例工作台：
 
 - 按 `asset:read` 展示资产库导航。
 - 支持需求列表、本地筛选、详情、创建、编辑和状态流入口。
@@ -88,7 +88,8 @@ PostgreSQL 表位于 `db/migration/wp1/V20260518_014__wp3_asset_base_schema.sql`
 - API 页保留 OpenAPI 导入入口；真实 OpenAPI 解析、幂等导入和 schema diff 仍归后续 `WP3-B6`。
 - 支持页面资产列表、详情、创建、编辑、`projectId/status/source/keyword` 筛选、`sourceRef/screenshotUrl` 展示和 `componentTree` JSON 预览/编辑校验。
 - 支持业务流资产列表、详情、创建、编辑、`projectId/status/keyword` 筛选、状态流入口和 `flowJson` JSON 预览/编辑校验。
-- 用例和追踪矩阵作为 P1 入口保留。
+- 支持测试用例列表、详情、创建、编辑、`projectId/status/source/keyword` 筛选、关联需求/API 展示与跳转、步骤新增/删除/上移/下移和整体保存。
+- 追踪矩阵作为 P1 入口保留。
 
 ## 8. 验证
 
@@ -123,4 +124,4 @@ PR/主干 CI 可通过 `.github/workflows/wp3-asset-management.yml` 复用同一
 
 ## 9. 后续入口
 
-后续优先补齐版本历史、软删除恢复、导入导出、OpenAPI 导入执行能力、完整追踪矩阵，以及测试用例与步骤前端工作台。
+后续优先补齐版本历史、软删除恢复、导入导出、OpenAPI 导入执行能力和完整追踪矩阵。

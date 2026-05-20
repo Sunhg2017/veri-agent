@@ -1930,6 +1930,71 @@ tbody tr:hover td {
   line-height: 1.5;
 }
 
+.asset-step-list {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding-left: 18px;
+}
+
+.asset-step-list li {
+  min-width: 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.asset-step-list li strong,
+.asset-step-list li span {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.asset-step-list li strong {
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.asset-step-editor {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.asset-step-editor h3 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 14px;
+}
+
+.asset-step-row {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr) minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: start;
+  padding: 10px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+}
+
+.asset-step-index {
+  display: grid;
+  width: 26px;
+  height: 26px;
+  place-items: center;
+  border-radius: 50%;
+  background: #eef2ff;
+  color: #3730a3;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.asset-step-actions {
+  display: grid;
+  gap: 6px;
+}
+
 .asset-source-trace,
 .asset-trace-links {
   display: grid;
@@ -2223,11 +2288,16 @@ tbody tr:hover td {
   .asset-filter-actions,
   .asset-status-flow,
   .asset-schema-grid,
+  .asset-step-row,
   .asset-source-trace > div {
     grid-template-columns: 1fr;
   }
 
   .asset-filter-actions {
     display: grid;
+  }
+
+  .asset-step-actions {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }

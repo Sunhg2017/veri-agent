@@ -9,14 +9,18 @@ import {
   ASSET_REQUIREMENT_PRIORITIES,
   ASSET_REQUIREMENT_SOURCES,
   ASSET_REQUIREMENT_STATUSES,
+  ASSET_TEST_CASE_STATUSES,
   assetApiItems,
   assetBusinessFlowItems,
   assetPageItems,
   assetRequirementItems,
+  assetTestCaseItems,
+  assetTestCaseStepItems,
   createAssetApi,
   createAssetBusinessFlow,
   createAssetPage,
   createAssetRequirement,
+  createAssetTestCase,
   fetchAssetApi,
   fetchAssetApis,
   fetchAssetBusinessFlow,
@@ -25,6 +29,9 @@ import {
   fetchAssetPages,
   fetchAssetRequirement,
   fetchAssetRequirements,
+  fetchAssetTestCase,
+  fetchAssetTestCases,
+  fetchAssetTestCaseSteps,
   fetchRequirementTraceLinks,
   normalizeAssetApiList,
   normalizeAssetApiView,
@@ -35,11 +42,15 @@ import {
   normalizeAssetPageView,
   normalizeAssetRequirementList,
   normalizeAssetRequirementView,
+  normalizeAssetTestCaseList,
+  normalizeAssetTestCaseView,
   normalizeTraceLinkList,
   updateAssetApi,
   updateAssetBusinessFlow,
   updateAssetPage,
-  updateAssetRequirement
+  updateAssetRequirement,
+  updateAssetTestCase,
+  updateAssetTestCaseSteps
 } from './assets';
 
 vi.mock('./client', () => ({
@@ -68,6 +79,7 @@ describe('asset API helpers', () => {
     expect(ASSET_PAGE_STATUSES).toEqual(['ACTIVE', 'DEPRECATED']);
     expect(ASSET_PAGE_SOURCES).toEqual(['MANUAL', 'FIGMA', 'LANHU', 'AXURE']);
     expect(ASSET_FLOW_STATUSES).toEqual(['DRAFT', 'ACTIVE', 'ARCHIVED']);
+    expect(ASSET_TEST_CASE_STATUSES).toEqual(['DRAFT', 'REVIEWING', 'APPROVED', 'DEPRECATED']);
   });
 
   it('normalizes health and camelCase requirement fields', () => {
@@ -523,6 +535,153 @@ describe('asset API helpers', () => {
         flowJson: ['cart', 'pay'],
         priority: 'MEDIUM',
         status: 'ACTIVE'
+      })
+    });
+  });
+
+  it('normalizes test case assets with ordered steps and paged responses', () => {
+    const testCase = normalizeAssetTestCaseView({
+      test_case_id: 'case-1',
+      code: 'TC-0001',
+      name: '登录冒烟用例',
+      description: '验证账号密码登录',
+      requirement_id: 'req-1',
+      api_id: 'api-1',
+      source: 'manual',
+      source_ref: 'MAN-1',
+      project_id: 'proj-payments',
+      status: 'reviewing',
+      priority: 'critical',
+      tags: 'smoke, login',
+      steps: [
+        { step_order: 1, action: '点击登录', expected_result: '进入首页' },
+        { step_order: 0, action: '输入账号密码', expected_result: '表单校验通过' }
+      ]
+    });
+
+    expect(testCase).toMatchObject({
+      id: 'case-1',
+      code: 'TC-0001',
+      title: '登录冒烟用例',
+      description: '验证账号密码登录',
+      requirementId: 'req-1',
+      apiId: 'api-1',
+      source: 'manual',
+      sourceRef: 'MAN-1',
+      projectId: 'proj-payments',
+      status: 'REVIEWING',
+      priority: 'CRITICAL',
+      tags: ['smoke', 'login'],
+      steps: [
+        { stepOrder: 0, action: '输入账号密码', expectedResult: '表单校验通过' },
+        { stepOrder: 1, action: '点击登录', expectedResult: '进入首页' }
+      ]
+    });
+
+    const list = normalizeAssetTestCaseList({
+      records: [{ id: 'case-2', title: '退款用例', priority: 'low', status: 'draft' }],
+      totalElements: '5',
+      pageSize: '20',
+      page: '1'
+    });
+
+    expect(list.total).toBe(5);
+    expect(list.pageSize).toBe(20);
+    expect(list.items[0]).toMatchObject({ id: 'case-2', title: '退款用例', priority: 'LOW', status: 'DRAFT' });
+    expect(assetTestCaseItems([{ id: 'case-3', title: '风控用例' }])).toHaveLength(1);
+    expect(assetTestCaseStepItems([{ step_order: 2, action: 'B' }, { step_order: 1, action: 'A' }])).toEqual([
+      { stepOrder: 1, action: 'A', expectedResult: undefined },
+      { stepOrder: 2, action: 'B', expectedResult: undefined }
+    ]);
+  });
+
+  it('calls test case endpoints and preserves step arrays in payloads', async () => {
+    requestJsonMock.mockResolvedValue({
+      code: 'OK',
+      message: 'ok',
+      trace_id: 'trace-case-1',
+      data: { id: 'case-1', title: '登录冒烟用例' }
+    });
+
+    await fetchAssetTestCases({
+      index: 1,
+      size: 20,
+      projectId: 'proj pay',
+      status: 'DRAFT',
+      keyword: '登录',
+      source: 'MANUAL'
+    });
+    expect(requestJsonMock).toHaveBeenLastCalledWith(
+      '/api/v1/asset/test-cases?index=1&size=20&projectId=proj+pay&status=DRAFT&keyword=%E7%99%BB%E5%BD%95&source=MANUAL'
+    );
+
+    await fetchAssetTestCase('case 1');
+    expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/asset/test-cases/case%201');
+
+    await createAssetTestCase({
+      projectId: ' proj-payments ',
+      title: ' 登录冒烟用例 ',
+      description: '',
+      requirementId: ' req-1 ',
+      apiId: '',
+      priority: ' HIGH ',
+      status: 'DRAFT',
+      tags: ['smoke', ' login ', ''],
+      steps: [{ action: ' 输入账号密码 ', expectedResult: ' 登录成功 ' }]
+    });
+    expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/asset/test-cases', {
+      method: 'POST',
+      body: JSON.stringify({
+        projectId: 'proj-payments',
+        title: '登录冒烟用例',
+        requirementId: 'req-1',
+        priority: 'HIGH',
+        status: 'DRAFT',
+        tags: 'smoke,login',
+        steps: [{ action: ' 输入账号密码 ', expectedResult: ' 登录成功 ' }]
+      })
+    });
+
+    await updateAssetTestCase('case 1', {
+      title: '登录冒烟用例',
+      description: '更新',
+      status: 'REVIEWING',
+      priority: 'MEDIUM',
+      tags: 'smoke,review'
+    });
+    expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/asset/test-cases/case%201', {
+      method: 'PUT',
+      body: JSON.stringify({
+        title: '登录冒烟用例',
+        description: '更新',
+        status: 'REVIEWING',
+        priority: 'MEDIUM',
+        tags: 'smoke,review'
+      })
+    });
+
+    requestJsonMock.mockResolvedValueOnce({
+      code: 'OK',
+      message: 'ok',
+      trace_id: 'trace-case-steps',
+      data: [{ step_order: 0, action: '输入账号密码', expected_result: '登录成功' }]
+    });
+    await fetchAssetTestCaseSteps('case 1');
+    expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/asset/test-cases/case%201/steps');
+
+    await updateAssetTestCaseSteps('case 1', {
+      steps: [
+        { action: '输入账号密码', expectedResult: '登录成功' },
+        { action: '查看首页', expectedResult: '展示资产库入口' }
+      ]
+    });
+    expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/asset/test-cases/case%201/steps', {
+      method: 'PUT',
+      body: JSON.stringify({
+        steps: [
+          { action: '输入账号密码', expectedResult: '登录成功' },
+          { action: '查看首页', expectedResult: '展示资产库入口' }
+        ]
       })
     });
   });
