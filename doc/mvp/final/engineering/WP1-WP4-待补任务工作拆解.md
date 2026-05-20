@@ -161,7 +161,7 @@ WP3 是当前最需要补齐的工作包。后端已有需求、API、页面、�
 | WP3-D1 | 资产库导航和路由 | P0-B | DONE-CURRENT | portal-web 已增加资产库入口、hash 深链和 P1 类型入口，并按 `asset:read` 展示 | 无权限用户不可访问；刷新和深链可用 |
 | WP3-D2 | 需求资产页面 | P0-B | DONE-CURRENT | 已实现需求列表、详情、创建、编辑、状态流入口和来源追踪展示 | WP4 发布的 IMPORT 需求可在页面查看 source/sourceRef/sourceUrl |
 | WP3-D3 | API 资产页面 | P1 | DONE-CURRENT | portal-web 已开放 API 资产页，支持列表、详情、创建、编辑、`method/path/status/source/keyword` 筛选、schema 展示和 OpenAPI 导入入口预留 | 接口路径和方法可筛选；创建/编辑走现有 WP3 API 资产契约，重复创建由后端唯一性约束阻断 |
-| WP3-D4 | 页面和业务流页面 | P1 | TODO | 页面资产、业务流资产的 CRUD 和可读结构展示 | JSON 字段展示不撑破布局，可编辑可校验 |
+| WP3-D4 | 页面和业务流页面 | P1 | DONE-CURRENT | portal-web 已开放页面资产与业务流资产页，支持列表、详情、创建、编辑、`projectId/status/source/keyword` 筛选、JSON 预览和编辑校验；真实原型连接器与可视化流程画布仍不在本轮范围 | JSON 字段展示不撑破布局，编辑前校验合法 JSON，页面/流程创建编辑走现有 WP3 契约 |
 | WP3-D5 | 测试用例与步骤页面 | P1 | TODO | 用例列表、详情、步骤编辑、关联需求/API | 步骤顺序稳定，保存失败不丢本地编辑 |
 | WP3-D6 | 追踪矩阵和影响分析 | P1 | TODO | 展示 requirement-api-case 覆盖矩阵、缺口和影响范围 | 可按需求查看覆盖 API/用例，按 API 查看相关需求/用例 |
 
@@ -246,7 +246,7 @@ WP4 本轮 P0 已覆盖真实文件上传、Word/PDF/OCR、AI 解析、SecretPro
 
 ## 9. 推荐下一步
 
-1. 下一轮优先补 WP3 P1 的版本历史、软删除恢复、导入导出，以及 API/页面/业务流/用例的工作台扩展。
+1. 下一轮优先补 WP3 P1 的版本历史、软删除恢复、导入导出，以及测试用例、步骤和追踪矩阵的工作台扩展。
 2. 将 `WP4-B1` 从配置/健康入口推进到真实 worker/队列/容器隔离，并继续补 `WP4-B2` 恶意文件扫描。
 3. 在下一轮前端迭代中继续合并规划 `WP2-A` 与 WP3 P1 页面，避免管理台导航和权限模型重复调整。
 4. 每完成一个任务，补充对应交付说明、测试命令和 release note，并按当前约定提交清晰 commit。

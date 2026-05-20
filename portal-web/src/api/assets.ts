@@ -5,12 +5,18 @@ export const ASSET_REQUIREMENT_PRIORITIES = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'
 export const ASSET_REQUIREMENT_SOURCES = ['MANUAL', 'IMPORT'] as const;
 export const ASSET_API_STATUSES = ['ACTIVE', 'DEPRECATED', 'REMOVED'] as const;
 export const ASSET_API_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'] as const;
+export const ASSET_PAGE_STATUSES = ['ACTIVE', 'DEPRECATED'] as const;
+export const ASSET_PAGE_SOURCES = ['MANUAL', 'FIGMA', 'LANHU', 'AXURE'] as const;
+export const ASSET_FLOW_STATUSES = ['DRAFT', 'ACTIVE', 'ARCHIVED'] as const;
 
 export type AssetRequirementStatus = (typeof ASSET_REQUIREMENT_STATUSES)[number];
 export type AssetRequirementPriority = (typeof ASSET_REQUIREMENT_PRIORITIES)[number];
 export type AssetRequirementSource = (typeof ASSET_REQUIREMENT_SOURCES)[number];
 export type AssetApiStatus = (typeof ASSET_API_STATUSES)[number];
 export type AssetApiMethod = (typeof ASSET_API_METHODS)[number];
+export type AssetPageStatus = (typeof ASSET_PAGE_STATUSES)[number];
+export type AssetPageSource = (typeof ASSET_PAGE_SOURCES)[number];
+export type AssetFlowStatus = (typeof ASSET_FLOW_STATUSES)[number];
 
 export interface AssetHealth {
   service: string;
@@ -107,6 +113,85 @@ export interface AssetApiPayload {
   status?: string;
 }
 
+export interface AssetPageView {
+  id: string;
+  code?: string;
+  name: string;
+  urlPattern?: string;
+  source: AssetPageSource | string;
+  sourceRef?: string;
+  componentTree?: string;
+  screenshotUrl?: string;
+  projectId?: string;
+  status: AssetPageStatus | string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface AssetPageList {
+  items: AssetPageView[];
+  page?: number;
+  pageSize?: number;
+  total: number;
+}
+
+export interface AssetPageFilters {
+  index?: number;
+  size?: number;
+  projectId?: string;
+  status?: string;
+  keyword?: string;
+  source?: string;
+}
+
+export interface AssetPagePayload {
+  name: string;
+  projectId?: string;
+  urlPattern?: string;
+  source?: string;
+  sourceRef?: string;
+  componentTree?: unknown;
+  screenshotUrl?: string;
+  status?: string;
+}
+
+export interface AssetBusinessFlowView {
+  id: string;
+  code?: string;
+  name: string;
+  description?: string;
+  flowJson?: string;
+  priority: AssetRequirementPriority | string;
+  projectId?: string;
+  status: AssetFlowStatus | string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface AssetBusinessFlowList {
+  items: AssetBusinessFlowView[];
+  page?: number;
+  pageSize?: number;
+  total: number;
+}
+
+export interface AssetBusinessFlowFilters {
+  index?: number;
+  size?: number;
+  projectId?: string;
+  status?: string;
+  keyword?: string;
+}
+
+export interface AssetBusinessFlowPayload {
+  name: string;
+  projectId?: string;
+  description?: string;
+  flowJson?: unknown;
+  priority?: string;
+  status?: string;
+}
+
 export interface TraceLinkView {
   id: string;
   requirementId?: string;
@@ -132,6 +217,20 @@ function stringValue(value: unknown, fallback = '') {
 
 function optionalString(value: unknown) {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+}
+
+function optionalJsonString(value: unknown) {
+  if (typeof value === 'string') {
+    return value.trim() ? value.trim() : undefined;
+  }
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return undefined;
+  }
 }
 
 function numberValue(value: unknown, fallback = 0) {
@@ -206,8 +305,11 @@ function compactAssetPayload(payload: object) {
   return Object.fromEntries(
     Object.entries(payload as Record<string, unknown>).flatMap(([key, value]) => {
       if (Array.isArray(value)) {
-        const normalized = value.map((item) => String(item).trim()).filter(Boolean).join(',');
-        return normalized ? [[key, normalized]] : [];
+        if (key === 'tags') {
+          const normalized = value.map((item) => String(item).trim()).filter(Boolean).join(',');
+          return normalized ? [[key, normalized]] : [];
+        }
+        return value.length ? [[key, value]] : [];
       }
       if (typeof value === 'string') {
         const normalized = value.trim();
@@ -238,6 +340,29 @@ function apiQuery(filters: AssetApiFilters) {
   if (filters.status?.trim()) params.set('status', filters.status.trim());
   if (filters.keyword?.trim()) params.set('keyword', filters.keyword.trim());
   if (filters.source?.trim()) params.set('source', filters.source.trim());
+  const query = params.toString();
+  return query ? `?${query}` : '';
+}
+
+function pageQuery(filters: AssetPageFilters) {
+  const params = new URLSearchParams();
+  if (typeof filters.index === 'number') params.set('index', String(filters.index));
+  if (typeof filters.size === 'number') params.set('size', String(filters.size));
+  if (filters.projectId?.trim()) params.set('projectId', filters.projectId.trim());
+  if (filters.status?.trim()) params.set('status', filters.status.trim());
+  if (filters.keyword?.trim()) params.set('keyword', filters.keyword.trim());
+  if (filters.source?.trim()) params.set('source', filters.source.trim());
+  const query = params.toString();
+  return query ? `?${query}` : '';
+}
+
+function businessFlowQuery(filters: AssetBusinessFlowFilters) {
+  const params = new URLSearchParams();
+  if (typeof filters.index === 'number') params.set('index', String(filters.index));
+  if (typeof filters.size === 'number') params.set('size', String(filters.size));
+  if (filters.projectId?.trim()) params.set('projectId', filters.projectId.trim());
+  if (filters.status?.trim()) params.set('status', filters.status.trim());
+  if (filters.keyword?.trim()) params.set('keyword', filters.keyword.trim());
   const query = params.toString();
   return query ? `?${query}` : '';
 }
@@ -311,6 +436,70 @@ export function assetApiItems(data: unknown): AssetApiView[] {
 
 export function normalizeAssetApiList(raw: unknown): AssetApiList {
   const items = assetApiItems(raw);
+  return {
+    items,
+    page: isRecord(raw) ? optionalNumber(raw.page ?? raw.number ?? raw.index) : undefined,
+    pageSize: isRecord(raw) ? optionalNumber(raw.pageSize ?? raw.page_size ?? raw.size) : undefined,
+    total: pageTotal(raw, items.length)
+  };
+}
+
+export function normalizeAssetPageView(raw: unknown): AssetPageView {
+  const item = isRecord(raw) ? raw : {};
+  const id = stringValue(item.id, stringValue(item.pageId, stringValue(item.page_id)));
+  return {
+    id,
+    code: optionalString(item.code),
+    name: stringValue(item.name, stringValue(item.title, id || '未命名页面')),
+    urlPattern: optionalString(item.urlPattern) ?? optionalString(item.url_pattern),
+    source: enumString(item.source, ASSET_PAGE_SOURCES, 'MANUAL'),
+    sourceRef: optionalString(item.sourceRef) ?? optionalString(item.source_ref),
+    componentTree: optionalJsonString(item.componentTree) ?? optionalJsonString(item.component_tree),
+    screenshotUrl: optionalString(item.screenshotUrl) ?? optionalString(item.screenshot_url),
+    projectId: optionalString(item.projectId) ?? optionalString(item.project_id),
+    status: enumString(item.status, ASSET_PAGE_STATUSES, 'ACTIVE'),
+    createdAt: optionalString(item.createdAt) ?? optionalString(item.created_at),
+    updatedAt: optionalString(item.updatedAt) ?? optionalString(item.updated_at)
+  };
+}
+
+export function assetPageItems(data: unknown): AssetPageView[] {
+  return listItems(data).map(normalizeAssetPageView);
+}
+
+export function normalizeAssetPageList(raw: unknown): AssetPageList {
+  const items = assetPageItems(raw);
+  return {
+    items,
+    page: isRecord(raw) ? optionalNumber(raw.page ?? raw.number ?? raw.index) : undefined,
+    pageSize: isRecord(raw) ? optionalNumber(raw.pageSize ?? raw.page_size ?? raw.size) : undefined,
+    total: pageTotal(raw, items.length)
+  };
+}
+
+export function normalizeAssetBusinessFlowView(raw: unknown): AssetBusinessFlowView {
+  const item = isRecord(raw) ? raw : {};
+  const id = stringValue(item.id, stringValue(item.flowId, stringValue(item.flow_id)));
+  return {
+    id,
+    code: optionalString(item.code),
+    name: stringValue(item.name, id || '未命名业务流'),
+    description: optionalString(item.description),
+    flowJson: optionalJsonString(item.flowJson) ?? optionalJsonString(item.flow_json),
+    priority: enumString(item.priority, ASSET_REQUIREMENT_PRIORITIES, 'MEDIUM'),
+    projectId: optionalString(item.projectId) ?? optionalString(item.project_id),
+    status: enumString(item.status, ASSET_FLOW_STATUSES, 'DRAFT'),
+    createdAt: optionalString(item.createdAt) ?? optionalString(item.created_at),
+    updatedAt: optionalString(item.updatedAt) ?? optionalString(item.updated_at)
+  };
+}
+
+export function assetBusinessFlowItems(data: unknown): AssetBusinessFlowView[] {
+  return listItems(data).map(normalizeAssetBusinessFlowView);
+}
+
+export function normalizeAssetBusinessFlowList(raw: unknown): AssetBusinessFlowList {
+  const items = assetBusinessFlowItems(raw);
   return {
     items,
     page: isRecord(raw) ? optionalNumber(raw.page ?? raw.number ?? raw.index) : undefined,
@@ -401,6 +590,65 @@ export async function updateAssetApi(apiId: string, payload: AssetApiPayload): P
     body: JSON.stringify(compactAssetPayload(payload))
   });
   return { ...response, data: normalizeAssetApiView(response.data) };
+}
+
+export async function fetchAssetPages(filters: AssetPageFilters = {}): Promise<ApiResponse<AssetPageList>> {
+  const response = await requestJson<unknown>(`/api/v1/asset/pages${pageQuery(filters)}`);
+  return { ...response, data: normalizeAssetPageList(response.data) };
+}
+
+export async function fetchAssetPage(pageId: string): Promise<ApiResponse<AssetPageView>> {
+  const response = await requestJson<unknown>(`/api/v1/asset/pages/${encodeURIComponent(pageId)}`);
+  return { ...response, data: normalizeAssetPageView(response.data) };
+}
+
+export async function createAssetPage(payload: AssetPagePayload): Promise<ApiResponse<AssetPageView>> {
+  const response = await requestJson<unknown>('/api/v1/asset/pages', {
+    method: 'POST',
+    body: JSON.stringify(compactAssetPayload(payload))
+  });
+  return { ...response, data: normalizeAssetPageView(response.data) };
+}
+
+export async function updateAssetPage(pageId: string, payload: AssetPagePayload): Promise<ApiResponse<AssetPageView>> {
+  const response = await requestJson<unknown>(`/api/v1/asset/pages/${encodeURIComponent(pageId)}`, {
+    method: 'PUT',
+    body: JSON.stringify(compactAssetPayload(payload))
+  });
+  return { ...response, data: normalizeAssetPageView(response.data) };
+}
+
+export async function fetchAssetBusinessFlows(
+  filters: AssetBusinessFlowFilters = {}
+): Promise<ApiResponse<AssetBusinessFlowList>> {
+  const response = await requestJson<unknown>(`/api/v1/asset/business-flows${businessFlowQuery(filters)}`);
+  return { ...response, data: normalizeAssetBusinessFlowList(response.data) };
+}
+
+export async function fetchAssetBusinessFlow(flowId: string): Promise<ApiResponse<AssetBusinessFlowView>> {
+  const response = await requestJson<unknown>(`/api/v1/asset/business-flows/${encodeURIComponent(flowId)}`);
+  return { ...response, data: normalizeAssetBusinessFlowView(response.data) };
+}
+
+export async function createAssetBusinessFlow(
+  payload: AssetBusinessFlowPayload
+): Promise<ApiResponse<AssetBusinessFlowView>> {
+  const response = await requestJson<unknown>('/api/v1/asset/business-flows', {
+    method: 'POST',
+    body: JSON.stringify(compactAssetPayload(payload))
+  });
+  return { ...response, data: normalizeAssetBusinessFlowView(response.data) };
+}
+
+export async function updateAssetBusinessFlow(
+  flowId: string,
+  payload: AssetBusinessFlowPayload
+): Promise<ApiResponse<AssetBusinessFlowView>> {
+  const response = await requestJson<unknown>(`/api/v1/asset/business-flows/${encodeURIComponent(flowId)}`, {
+    method: 'PUT',
+    body: JSON.stringify(compactAssetPayload(payload))
+  });
+  return { ...response, data: normalizeAssetBusinessFlowView(response.data) };
 }
 
 export async function fetchRequirementTraceLinks(requirementId: string): Promise<ApiResponse<TraceLinkList>> {

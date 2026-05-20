@@ -3,25 +3,42 @@ import { requestJson } from './client';
 import {
   ASSET_API_METHODS,
   ASSET_API_STATUSES,
+  ASSET_FLOW_STATUSES,
+  ASSET_PAGE_SOURCES,
+  ASSET_PAGE_STATUSES,
   ASSET_REQUIREMENT_PRIORITIES,
   ASSET_REQUIREMENT_SOURCES,
   ASSET_REQUIREMENT_STATUSES,
   assetApiItems,
+  assetBusinessFlowItems,
+  assetPageItems,
   assetRequirementItems,
   createAssetApi,
+  createAssetBusinessFlow,
+  createAssetPage,
   createAssetRequirement,
   fetchAssetApi,
   fetchAssetApis,
+  fetchAssetBusinessFlow,
+  fetchAssetBusinessFlows,
+  fetchAssetPage,
+  fetchAssetPages,
   fetchAssetRequirement,
   fetchAssetRequirements,
   fetchRequirementTraceLinks,
   normalizeAssetApiList,
   normalizeAssetApiView,
+  normalizeAssetBusinessFlowList,
+  normalizeAssetBusinessFlowView,
   normalizeAssetHealth,
+  normalizeAssetPageList,
+  normalizeAssetPageView,
   normalizeAssetRequirementList,
   normalizeAssetRequirementView,
   normalizeTraceLinkList,
   updateAssetApi,
+  updateAssetBusinessFlow,
+  updateAssetPage,
   updateAssetRequirement
 } from './assets';
 
@@ -45,6 +62,12 @@ describe('asset API helpers', () => {
   it('exposes WP3 API enums used by the workbench', () => {
     expect(ASSET_API_STATUSES).toEqual(['ACTIVE', 'DEPRECATED', 'REMOVED']);
     expect(ASSET_API_METHODS).toEqual(['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS']);
+  });
+
+  it('exposes WP3 page and business flow enums used by the workbench', () => {
+    expect(ASSET_PAGE_STATUSES).toEqual(['ACTIVE', 'DEPRECATED']);
+    expect(ASSET_PAGE_SOURCES).toEqual(['MANUAL', 'FIGMA', 'LANHU', 'AXURE']);
+    expect(ASSET_FLOW_STATUSES).toEqual(['DRAFT', 'ACTIVE', 'ARCHIVED']);
   });
 
   it('normalizes health and camelCase requirement fields', () => {
@@ -303,6 +326,203 @@ describe('asset API helpers', () => {
         path: '/api/orders/{id}',
         responseSchema: '{"type":"object","properties":{"id":{"type":"string"}}}',
         status: 'DEPRECATED'
+      })
+    });
+  });
+
+  it('normalizes page assets with JSON fields and paged responses', () => {
+    const page = normalizeAssetPageView({
+      page_id: 'page-1',
+      code: 'PAGE-0001',
+      name: '结算页',
+      url_pattern: '/checkout/**',
+      source: 'figma',
+      source_ref: 'figma-node-1',
+      component_tree: { type: 'page', children: [{ role: 'button', text: '提交订单' }] },
+      screenshot_url: 'https://cdn.example.test/checkout.png',
+      project_id: 'proj-payments',
+      status: 'deprecated'
+    });
+
+    expect(page).toMatchObject({
+      id: 'page-1',
+      code: 'PAGE-0001',
+      name: '结算页',
+      urlPattern: '/checkout/**',
+      source: 'FIGMA',
+      sourceRef: 'figma-node-1',
+      componentTree: '{"type":"page","children":[{"role":"button","text":"提交订单"}]}',
+      screenshotUrl: 'https://cdn.example.test/checkout.png',
+      projectId: 'proj-payments',
+      status: 'DEPRECATED'
+    });
+
+    const list = normalizeAssetPageList({
+      data: [{ id: 'page-2', title: '登录页', source: 'manual', status: 'active' }],
+      total_elements: '3',
+      page_size: '10',
+      index: '0'
+    });
+
+    expect(list.total).toBe(3);
+    expect(list.pageSize).toBe(10);
+    expect(list.items[0]).toMatchObject({ id: 'page-2', name: '登录页', source: 'MANUAL', status: 'ACTIVE' });
+    expect(assetPageItems([{ id: 'page-3', name: '列表页' }])).toHaveLength(1);
+  });
+
+  it('calls page endpoints and compacts page payloads', async () => {
+    requestJsonMock.mockResolvedValue({
+      code: 'OK',
+      message: 'ok',
+      trace_id: 'trace-page-1',
+      data: { id: 'page-1', name: '结算页' }
+    });
+
+    await fetchAssetPages({
+      index: 1,
+      size: 20,
+      projectId: 'proj pay',
+      status: 'ACTIVE',
+      keyword: '结算',
+      source: 'FIGMA'
+    });
+    expect(requestJsonMock).toHaveBeenLastCalledWith(
+      '/api/v1/asset/pages?index=1&size=20&projectId=proj+pay&status=ACTIVE&keyword=%E7%BB%93%E7%AE%97&source=FIGMA'
+    );
+
+    await fetchAssetPage('page 1');
+    expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/asset/pages/page%201');
+
+    await createAssetPage({
+      projectId: ' proj-payments ',
+      name: ' 结算页 ',
+      urlPattern: ' /checkout/** ',
+      source: 'FIGMA',
+      sourceRef: '',
+      componentTree: { type: 'page' },
+      screenshotUrl: ' https://cdn.example.test/checkout.png ',
+      status: 'ACTIVE'
+    });
+    expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/asset/pages', {
+      method: 'POST',
+      body: JSON.stringify({
+        projectId: 'proj-payments',
+        name: '结算页',
+        urlPattern: '/checkout/**',
+        source: 'FIGMA',
+        componentTree: { type: 'page' },
+        screenshotUrl: 'https://cdn.example.test/checkout.png',
+        status: 'ACTIVE'
+      })
+    });
+
+    await updateAssetPage('page 1', {
+      name: '结算页',
+      componentTree: ['header', 'submit'],
+      status: 'DEPRECATED'
+    });
+    expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/asset/pages/page%201', {
+      method: 'PUT',
+      body: JSON.stringify({
+        name: '结算页',
+        componentTree: ['header', 'submit'],
+        status: 'DEPRECATED'
+      })
+    });
+  });
+
+  it('normalizes business flow assets with JSON fields and paged responses', () => {
+    const flow = normalizeAssetBusinessFlowView({
+      flow_id: 'flow-1',
+      code: 'FLOW-0001',
+      name: '下单主流程',
+      description: '从购物车到支付',
+      flow_json: { nodes: ['cart', 'pay'], edges: [['cart', 'pay']] },
+      priority: 'high',
+      project_id: 'proj-payments',
+      status: 'active'
+    });
+
+    expect(flow).toMatchObject({
+      id: 'flow-1',
+      code: 'FLOW-0001',
+      name: '下单主流程',
+      description: '从购物车到支付',
+      flowJson: '{"nodes":["cart","pay"],"edges":[["cart","pay"]]}',
+      priority: 'HIGH',
+      projectId: 'proj-payments',
+      status: 'ACTIVE'
+    });
+
+    const list = normalizeAssetBusinessFlowList({
+      content: [{ id: 'flow-2', name: '退款流程', priority: 'low', status: 'draft' }],
+      totalElements: '4',
+      size: '20',
+      number: '0'
+    });
+
+    expect(list.total).toBe(4);
+    expect(list.pageSize).toBe(20);
+    expect(list.items[0]).toMatchObject({ id: 'flow-2', name: '退款流程', priority: 'LOW', status: 'DRAFT' });
+    expect(assetBusinessFlowItems([{ id: 'flow-3', name: '风控流程' }])).toHaveLength(1);
+  });
+
+  it('calls business flow endpoints and compacts business flow payloads', async () => {
+    requestJsonMock.mockResolvedValue({
+      code: 'OK',
+      message: 'ok',
+      trace_id: 'trace-flow-1',
+      data: { id: 'flow-1', name: '下单主流程' }
+    });
+
+    await fetchAssetBusinessFlows({
+      index: 1,
+      size: 20,
+      projectId: 'proj pay',
+      status: 'ACTIVE',
+      keyword: '下单'
+    });
+    expect(requestJsonMock).toHaveBeenLastCalledWith(
+      '/api/v1/asset/business-flows?index=1&size=20&projectId=proj+pay&status=ACTIVE&keyword=%E4%B8%8B%E5%8D%95'
+    );
+
+    await fetchAssetBusinessFlow('flow 1');
+    expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/asset/business-flows/flow%201');
+
+    await createAssetBusinessFlow({
+      projectId: ' proj-payments ',
+      name: ' 下单主流程 ',
+      description: '',
+      flowJson: { nodes: ['cart', 'pay'] },
+      priority: ' HIGH ',
+      status: 'DRAFT'
+    });
+    expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/asset/business-flows', {
+      method: 'POST',
+      body: JSON.stringify({
+        projectId: 'proj-payments',
+        name: '下单主流程',
+        flowJson: { nodes: ['cart', 'pay'] },
+        priority: 'HIGH',
+        status: 'DRAFT'
+      })
+    });
+
+    await updateAssetBusinessFlow('flow 1', {
+      name: '下单主流程',
+      description: '更新',
+      flowJson: ['cart', 'pay'],
+      priority: 'MEDIUM',
+      status: 'ACTIVE'
+    });
+    expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/asset/business-flows/flow%201', {
+      method: 'PUT',
+      body: JSON.stringify({
+        name: '下单主流程',
+        description: '更新',
+        flowJson: ['cart', 'pay'],
+        priority: 'MEDIUM',
+        status: 'ACTIVE'
       })
     });
   });

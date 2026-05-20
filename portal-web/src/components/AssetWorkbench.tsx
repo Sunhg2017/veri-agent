@@ -13,7 +13,8 @@ import {
   Search,
   Send,
   Upload,
-  XCircle
+  XCircle,
+  type LucideIcon
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import type { CurrentUser } from '../api/auth';
@@ -43,6 +44,7 @@ import {
   type TraceLinkView
 } from '../api/assets';
 import { hasPermission } from '../permissions';
+import { AssetStructuredWorkbench, type AssetNavigationKey } from './AssetStructuredWorkbench';
 
 type WorkState = {
   loading: boolean;
@@ -134,11 +136,11 @@ const initialApiFilters: ApiFilters = {
 const assetTabs = [
   { key: 'requirements', label: '需求', icon: FileText, enabled: true },
   { key: 'apis', label: 'API', icon: Link2, enabled: true },
-  { key: 'pages', label: '页面', icon: ClipboardList, enabled: false },
-  { key: 'flows', label: '业务流', icon: GitBranch, enabled: false },
+  { key: 'pages', label: '页面', icon: ClipboardList, enabled: true },
+  { key: 'flows', label: '业务流', icon: GitBranch, enabled: true },
   { key: 'cases', label: '用例', icon: CheckCircle2, enabled: false },
   { key: 'trace', label: '追踪矩阵', icon: GitBranch, enabled: false }
-] as const;
+] as const satisfies readonly { key: AssetNavigationKey; label: string; icon: LucideIcon; enabled: boolean }[];
 
 type AssetTabKey = (typeof assetTabs)[number]['key'];
 
@@ -146,7 +148,7 @@ const statusTransitionMap: Record<string, string[]> = {
   DRAFT: ['REVIEWING'],
   REVIEWING: ['DRAFT', 'APPROVED'],
   APPROVED: ['DEPRECATED'],
-  DEPRECATED: ['DRAFT']
+  DEPRECATED: ['DEPRECATED']
 };
 
 const statusActionLabel: Record<string, string> = {
@@ -432,6 +434,18 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
     if (window.location.hash !== targetHash) {
       window.location.hash = targetHash;
     }
+  }
+
+  if (activeTab === 'pages' || activeTab === 'flows') {
+    return (
+      <AssetStructuredWorkbench
+        activeTab={activeTab}
+        currentUser={props.currentUser}
+        onSelectTab={selectTab}
+        signedIn={props.signedIn}
+        tabs={assetTabs}
+      />
+    );
   }
 
   async function submitCreate(event: FormEvent<HTMLFormElement>) {
@@ -1530,15 +1544,13 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
   );
 }
 
-function assetLocationFromHash(): { tab: 'requirements' | 'apis'; id: string } {
+function assetLocationFromHash(): { tab: AssetTabKey; id: string } {
   const parts = window.location.hash.replace(/^#\/?/, '').split('/');
   if (parts[0] !== 'asset-library') {
     return { tab: 'requirements', id: '' };
   }
-  if (parts[1] === 'apis') {
-    return { tab: 'apis', id: parts[2] ? decodeURIComponent(parts[2]) : '' };
-  }
-  return { tab: 'requirements', id: parts[2] ? decodeURIComponent(parts[2]) : '' };
+  const requestedTab = assetTabs.find((tab) => tab.key === parts[1] && tab.enabled)?.key ?? 'requirements';
+  return { tab: requestedTab, id: parts[2] ? decodeURIComponent(parts[2]) : '' };
 }
 
 function buildRequirementFilters(filters: RequirementFilters): AssetRequirementFilters {
