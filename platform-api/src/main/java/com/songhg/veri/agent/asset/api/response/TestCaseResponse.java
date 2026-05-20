@@ -6,10 +6,13 @@ import java.util.UUID;
 
 public record TestCaseResponse(
         UUID id,
+        String code,
         String title,
         String description,
         UUID requirementId,
         UUID apiId,
+        String source,
+        String sourceRef,
         String status,
         String priority,
         String tags,

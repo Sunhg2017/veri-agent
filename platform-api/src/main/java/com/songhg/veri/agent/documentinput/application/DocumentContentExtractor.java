@@ -15,8 +15,10 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
+import java.util.function.LongSupplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.apache.pdfbox.Loader;
@@ -26,6 +28,7 @@ import org.apache.poi.hwpf.HWPFDocument;
 import org.apache.poi.hwpf.extractor.WordExtractor;
 import org.apache.poi.xwpf.extractor.XWPFWordExtractor;
 import org.apache.poi.xwpf.usermodel.XWPFDocument;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
@@ -41,10 +44,17 @@ public class DocumentContentExtractor {
 
     private final DocumentInputProperties properties;
     private final Semaphore ocrPermits;
+    private final LongSupplier nanoTime;
 
+    @Autowired
     public DocumentContentExtractor(DocumentInputProperties properties) {
+        this(properties, System::nanoTime);
+    }
+
+    DocumentContentExtractor(DocumentInputProperties properties, LongSupplier nanoTime) {
         this.properties = properties;
         this.ocrPermits = new Semaphore(ocrMaxConcurrentProcesses(), true);
+        this.nanoTime = nanoTime;
     }
 
     public ExtractedDocumentContent extract(DocumentSourceType sourceType, String content) {
@@ -55,7 +65,7 @@ public class DocumentContentExtractor {
         }
         DocumentPayload payload = decodePayload(content);
         String extracted = payload.binary()
-                ? extractBinary(sourceType, payload.bytes())
+                ? extractBinary(sourceType, payload.bytes(), payload.declaredMimeType())
                 : payload.text();
         if (!StringUtils.hasText(extracted)) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, sourceType + " 文档未抽取到有效文本");
@@ -89,13 +99,31 @@ public class DocumentContentExtractor {
                 : properties.ocrMaxOutputChars();
     }
 
+    public String ocrWorkerMode() {
+        String mode = trimToNull(properties.ocrWorkerMode());
+        return mode == null ? "LOCAL_COMMAND" : mode.toUpperCase(Locale.ROOT);
+    }
+
+    public boolean binaryMimeValidationEnabled() {
+        return properties.binaryMimeValidationEnabled();
+    }
+
+    public int pdfMaxPages() {
+        return Math.max(0, properties.pdfMaxPages());
+    }
+
+    public long pdfMaxParseMillis() {
+        return Math.max(0, properties.pdfMaxParseMillis());
+    }
+
     public long documentBinaryMaxBytes() {
         return properties.documentBinaryMaxBytes() <= 0
                 ? DEFAULT_BINARY_MAX_BYTES
                 : properties.documentBinaryMaxBytes();
     }
 
-    private String extractBinary(DocumentSourceType sourceType, byte[] bytes) {
+    private String extractBinary(DocumentSourceType sourceType, byte[] bytes, String declaredMimeType) {
+        validateBinaryMime(sourceType, declaredMimeType, bytes);
         return switch (sourceType) {
             case WORD -> extractWord(bytes);
             case PDF -> extractPdf(bytes);
@@ -111,28 +139,28 @@ public class DocumentContentExtractor {
         String trimmed = content.trim();
         Matcher matcher = DATA_URL.matcher(trimmed);
         if (matcher.matches()) {
-            return binaryPayload(decodeBase64(matcher.group(2), "data URL"));
+            return binaryPayload(decodeBase64(matcher.group(2), "data URL"), matcher.group(1));
         }
         String compact = trimmed.replaceAll("\\s+", "");
         if (looksLikeBase64(compact)) {
             byte[] decoded = tryDecodeBase64(compact);
             if (decoded != null && shouldTreatAsBinary(decoded)) {
-                return binaryPayload(decoded);
+                return binaryPayload(decoded, null);
             }
             if (decoded != null && isText(decoded)) {
-                return new DocumentPayload(null, decodeUtf8(decoded), false);
+                return new DocumentPayload(null, decodeUtf8(decoded), false, null);
             }
         }
-        return new DocumentPayload(null, content, false);
+        return new DocumentPayload(null, content, false, null);
     }
 
-    private DocumentPayload binaryPayload(byte[] bytes) {
+    private DocumentPayload binaryPayload(byte[] bytes, String declaredMimeType) {
         long limit = documentBinaryMaxBytes();
         if (bytes.length > limit) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR,
                     "文档二进制内容超过上限: " + limit + " bytes");
         }
-        return new DocumentPayload(bytes, null, true);
+        return new DocumentPayload(bytes, null, true, normalizeMimeType(declaredMimeType));
     }
 
     private String extractWord(byte[] bytes) {
@@ -171,9 +199,17 @@ public class DocumentContentExtractor {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR,
                     "PDF 内容不是可识别的文本 PDF，扫描件需配置 WP4_OCR_COMMAND");
         }
+        long startedAt = nanoTime.getAsLong();
         try (PDDocument document = Loader.loadPDF(bytes)) {
+            ensurePdfParseBudget(startedAt);
+            int maxPages = pdfMaxPages();
+            if (maxPages > 0 && document.getNumberOfPages() > maxPages) {
+                throw new BusinessException(ErrorCode.VALIDATION_ERROR,
+                        "PDF 页数超过上限: " + maxPages);
+            }
             PDFTextStripper stripper = new PDFTextStripper();
             String text = stripper.getText(document);
+            ensurePdfParseBudget(startedAt);
             if (StringUtils.hasText(text)) {
                 return text;
             }
@@ -186,6 +222,90 @@ public class DocumentContentExtractor {
             throw exception;
         } catch (Exception exception) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "PDF 文档解析失败: " + exception.getMessage());
+        }
+    }
+
+    private void validateBinaryMime(DocumentSourceType sourceType, String declaredMimeType, byte[] bytes) {
+        if (!binaryMimeValidationEnabled()) {
+            return;
+        }
+        DetectedBinaryType detected = detectBinaryType(bytes);
+        if (!isSourceTypeCompatible(sourceType, detected)) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR,
+                    sourceType + " 内容类型与实际文件内容不匹配: " + detected.label());
+        }
+        if (declaredMimeType == null || isGenericMimeType(declaredMimeType)) {
+            return;
+        }
+        if (!isMimeCompatible(declaredMimeType, detected)) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR,
+                    "声明 MIME 与实际文件内容不匹配: " + declaredMimeType + " != " + detected.label());
+        }
+    }
+
+    private boolean isSourceTypeCompatible(DocumentSourceType sourceType, DetectedBinaryType detected) {
+        return switch (sourceType) {
+            case PDF -> detected == DetectedBinaryType.PDF;
+            case WORD -> detected == DetectedBinaryType.DOCX || detected == DetectedBinaryType.DOC;
+            case OCR -> detected.image || detected == DetectedBinaryType.PDF;
+            default -> true;
+        };
+    }
+
+    private boolean isMimeCompatible(String mimeType, DetectedBinaryType detected) {
+        return switch (detected) {
+            case PDF -> mimeType.equals("application/pdf");
+            case DOCX -> mimeType.equals("application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+                    || mimeType.equals("application/zip");
+            case DOC -> mimeType.equals("application/msword")
+                    || mimeType.equals("application/x-ole-storage");
+            case PNG -> mimeType.equals("image/png");
+            case JPEG -> mimeType.equals("image/jpeg") || mimeType.equals("image/jpg");
+            case GIF -> mimeType.equals("image/gif");
+            case BMP -> mimeType.equals("image/bmp") || mimeType.equals("image/x-ms-bmp");
+            case TIFF -> mimeType.equals("image/tiff");
+            case UNKNOWN_BINARY -> false;
+        };
+    }
+
+    private DetectedBinaryType detectBinaryType(byte[] bytes) {
+        if (isPdf(bytes)) {
+            return DetectedBinaryType.PDF;
+        }
+        if (isDocx(bytes)) {
+            return DetectedBinaryType.DOCX;
+        }
+        if (isDoc(bytes)) {
+            return DetectedBinaryType.DOC;
+        }
+        if (startsWith(bytes, new byte[]{(byte) 0xff, (byte) 0xd8, (byte) 0xff})) {
+            return DetectedBinaryType.JPEG;
+        }
+        if (startsWith(bytes, new byte[]{(byte) 0x89, 0x50, 0x4e, 0x47})) {
+            return DetectedBinaryType.PNG;
+        }
+        if (startsWith(bytes, "GIF8".getBytes(StandardCharsets.US_ASCII))) {
+            return DetectedBinaryType.GIF;
+        }
+        if (startsWith(bytes, "BM".getBytes(StandardCharsets.US_ASCII))) {
+            return DetectedBinaryType.BMP;
+        }
+        if (startsWith(bytes, "II*\0".getBytes(StandardCharsets.ISO_8859_1))
+                || startsWith(bytes, "MM\0*".getBytes(StandardCharsets.ISO_8859_1))) {
+            return DetectedBinaryType.TIFF;
+        }
+        return DetectedBinaryType.UNKNOWN_BINARY;
+    }
+
+    private void ensurePdfParseBudget(long startedAt) {
+        long limitMillis = pdfMaxParseMillis();
+        if (limitMillis <= 0) {
+            return;
+        }
+        long elapsedMillis = TimeUnit.NANOSECONDS.toMillis(nanoTime.getAsLong() - startedAt);
+        if (elapsedMillis > limitMillis) {
+            throw new BusinessException(ErrorCode.BUDGET_EXCEEDED,
+                    "PDF 解析超过时间上限: " + limitMillis + " ms");
         }
     }
 
@@ -342,6 +462,20 @@ public class DocumentContentExtractor {
                 || startsWith(bytes, "MM\0*".getBytes(StandardCharsets.ISO_8859_1));
     }
 
+    private String normalizeMimeType(String mimeType) {
+        String normalized = trimToNull(mimeType);
+        if (normalized == null) {
+            return null;
+        }
+        int semicolon = normalized.indexOf(';');
+        String base = semicolon >= 0 ? normalized.substring(0, semicolon) : normalized;
+        return base.trim().toLowerCase(Locale.ROOT);
+    }
+
+    private boolean isGenericMimeType(String mimeType) {
+        return mimeType.equals("application/octet-stream") || mimeType.equals("binary/octet-stream");
+    }
+
     private boolean startsWith(byte[] bytes, byte[] prefix) {
         if (bytes == null || bytes.length < prefix.length) {
             return false;
@@ -398,6 +532,30 @@ public class DocumentContentExtractor {
     public record ExtractedDocumentContent(String text, String extractionSource) {
     }
 
-    private record DocumentPayload(byte[] bytes, String text, boolean binary) {
+    private enum DetectedBinaryType {
+        PDF("application/pdf", false),
+        DOCX("application/vnd.openxmlformats-officedocument.wordprocessingml.document", false),
+        DOC("application/msword", false),
+        PNG("image/png", true),
+        JPEG("image/jpeg", true),
+        GIF("image/gif", true),
+        BMP("image/bmp", true),
+        TIFF("image/tiff", true),
+        UNKNOWN_BINARY("unknown-binary", false);
+
+        private final String label;
+        private final boolean image;
+
+        DetectedBinaryType(String label, boolean image) {
+            this.label = label;
+            this.image = image;
+        }
+
+        String label() {
+            return label;
+        }
+    }
+
+    private record DocumentPayload(byte[] bytes, String text, boolean binary, String declaredMimeType) {
     }
 }

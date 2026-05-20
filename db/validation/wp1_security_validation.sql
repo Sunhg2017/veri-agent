@@ -205,6 +205,74 @@ select
     end as details
 from bad;
 
+with app_roles(role_name) as (
+    values
+        ('wp1_app'),
+        ('veri_agent_app')
+),
+runtime_tables(table_name) as (
+    values
+        ('base_department'),
+        ('base_department_manager'),
+        ('base_department_member'),
+        ('iam_user'),
+        ('iam_session'),
+        ('base_project'),
+        ('base_project_department'),
+        ('base_project_member'),
+        ('base_application'),
+        ('base_environment'),
+        ('base_environment_variable'),
+        ('base_config'),
+        ('rbac_role'),
+        ('rbac_role_permission'),
+        ('rbac_role_binding'),
+        ('ma_model_provider'),
+        ('ma_prompt_template'),
+        ('ma_invocation_log'),
+        ('asset_requirement'),
+        ('asset_api'),
+        ('asset_page'),
+        ('asset_business_flow'),
+        ('asset_test_case'),
+        ('asset_test_step'),
+        ('asset_link'),
+        ('document_input_field_mapping'),
+        ('document_input_source'),
+        ('document_input_import'),
+        ('document_input_candidate'),
+        ('document_input_webhook_event'),
+        ('audit_outbox')
+),
+role_table_privileges as (
+    select
+        r.role_name,
+        t.table_name,
+        has_table_privilege(r.role_name, format('%I.%I', current_schema(), t.table_name), 'SELECT') as can_select,
+        has_table_privilege(r.role_name, format('%I.%I', current_schema(), t.table_name), 'INSERT') as can_insert,
+        has_table_privilege(r.role_name, format('%I.%I', current_schema(), t.table_name), 'UPDATE') as can_update
+    from app_roles r
+    cross join runtime_tables t
+    where exists (select 1 from pg_roles pr where pr.rolname = r.role_name)
+),
+bad as (
+    select role_name || '.' || table_name || '(select=' || can_select || ', insert=' || can_insert || ', update=' || can_update || ')' as item
+    from role_table_privileges
+    where not (can_select and can_insert and can_update)
+)
+select
+    'security.app_role_runtime_table_dml' as check_name,
+    case
+        when not exists (select 1 from role_table_privileges) then 'WARN'
+        when count(*) = 0 then 'PASS'
+        else 'FAIL'
+    end as status,
+    case
+        when not exists (select 1 from role_table_privileges) then 'no known app DB role found; replace wp1_app/veri_agent_app in this script with your real application role'
+        else coalesce(string_agg(item, ', ' order by item), 'known app DB roles have SELECT/INSERT/UPDATE on WP1-WP4 runtime tables')
+    end as details
+from bad;
+
 with audit_triggers as (
     select tgname
     from pg_trigger t

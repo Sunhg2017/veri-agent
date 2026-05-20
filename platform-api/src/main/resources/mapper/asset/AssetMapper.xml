@@ -7,6 +7,7 @@
     <resultMap id="requirementMap" type="com.songhg.veri.agent.asset.domain.AssetRequirement">
         <constructor>
             <arg column="id" javaType="java.util.UUID"/>
+            <arg column="code" javaType="java.lang.String"/>
             <arg column="title" javaType="java.lang.String"/>
             <arg column="description" javaType="java.lang.String"/>
             <arg column="source" javaType="java.lang.String"/>
@@ -25,10 +26,13 @@
     <resultMap id="apiMap" type="com.songhg.veri.agent.asset.domain.AssetApi">
         <constructor>
             <arg column="id" javaType="java.util.UUID"/>
+            <arg column="code" javaType="java.lang.String"/>
             <arg column="summary" javaType="java.lang.String"/>
             <arg column="description" javaType="java.lang.String"/>
             <arg column="http_method" javaType="java.lang.String"/>
             <arg column="path" javaType="java.lang.String"/>
+            <arg column="source" javaType="java.lang.String"/>
+            <arg column="source_ref" javaType="java.lang.String"/>
             <arg column="request_schema" javaType="java.lang.String"/>
             <arg column="response_schema" javaType="java.lang.String"/>
             <arg column="project_id" javaType="java.lang.String"/>
@@ -41,6 +45,7 @@
     <resultMap id="pageMap" type="com.songhg.veri.agent.asset.domain.AssetPage">
         <constructor>
             <arg column="id" javaType="java.util.UUID"/>
+            <arg column="code" javaType="java.lang.String"/>
             <arg column="name" javaType="java.lang.String"/>
             <arg column="url_pattern" javaType="java.lang.String"/>
             <arg column="source" javaType="java.lang.String"/>
@@ -57,6 +62,7 @@
     <resultMap id="businessFlowMap" type="com.songhg.veri.agent.asset.domain.AssetBusinessFlow">
         <constructor>
             <arg column="id" javaType="java.util.UUID"/>
+            <arg column="code" javaType="java.lang.String"/>
             <arg column="name" javaType="java.lang.String"/>
             <arg column="description" javaType="java.lang.String"/>
             <arg column="flow_json" javaType="java.lang.String"/>
@@ -71,11 +77,14 @@
     <resultMap id="testCaseMap" type="com.songhg.veri.agent.asset.domain.TestCaseRecord">
         <constructor>
             <arg column="id" javaType="java.util.UUID"/>
+            <arg column="code" javaType="java.lang.String"/>
             <arg column="title" javaType="java.lang.String"/>
             <arg column="description" javaType="java.lang.String"/>
             <arg column="project_id" javaType="java.lang.String"/>
             <arg column="requirement_id" javaType="java.util.UUID"/>
             <arg column="api_id" javaType="java.util.UUID"/>
+            <arg column="source" javaType="java.lang.String"/>
+            <arg column="source_ref" javaType="java.lang.String"/>
             <arg column="status" javaType="java.lang.String"/>
             <arg column="priority" javaType="java.lang.String"/>
             <arg column="tags" javaType="java.lang.String"/>
@@ -106,31 +115,35 @@
     </resultMap>
 
     <sql id="requirementColumns">
-        id, title, description, source, source_ref, source_url, acceptance_criteria,
+        id, code, title, description, source, source_ref, source_url, acceptance_criteria,
         status, priority, project_id, tags, created_at, updated_at
     </sql>
 
     <sql id="apiColumns">
-        id, summary, description, http_method, path, request_schema::text as request_schema, response_schema::text as response_schema,
+        id, code, summary, description, http_method, path, source, source_ref,
+        request_schema::text as request_schema, response_schema::text as response_schema,
         project_id, status, created_at, updated_at
     </sql>
 
     <sql id="pageColumns">
-        id, name, url_pattern, source, source_ref, component_tree::text as component_tree, screenshot_url,
+        id, code, name, url_pattern, source, source_ref, component_tree::text as component_tree, screenshot_url,
         project_id, status, created_at, updated_at
     </sql>
 
     <sql id="businessFlowColumns">
-        id, name, description, flow_json::text as flow_json, priority, project_id, status, created_at, updated_at
+        id, code, name, description, flow_json::text as flow_json, priority, project_id, status, created_at, updated_at
     </sql>
 
     <sql id="testCaseColumns">
         tc.id,
+        tc.code,
         tc.title,
         tc.description,
         tc.project_id,
         req.source_id as requirement_id,
         api.target_id as api_id,
+        tc.source,
+        tc.source_ref,
         tc.status,
         tc.priority,
         tc.tags,
@@ -187,7 +200,7 @@
             id, project_id, code, title, description, source, source_ref, source_url,
             acceptance_criteria, priority, status, tags, created_at, updated_at
         ) values (
-            #{id}, #{projectId}, concat('REQ-', substr(replace(#{id}::text, '-', ''), 1, 12)),
+            #{id}, #{projectId}, #{code},
             #{title}, #{description}, #{source}, #{sourceRef}, #{sourceUrl},
             #{acceptanceCriteria}, #{priority}, #{status}, #{tags}, #{createdAt}, #{updatedAt}
         )
@@ -230,11 +243,11 @@
 
     <insert id="insertApi">
         insert into asset_api (
-            id, project_id, code, path, http_method, summary, description, source,
+            id, project_id, code, path, http_method, summary, description, source, source_ref,
             request_schema, response_schema, status, created_at, updated_at
         ) values (
-            #{id}, #{projectId}, concat('API-', substr(replace(#{id}::text, '-', ''), 1, 12)),
-            #{path}, #{httpMethod}, #{summary}, #{description}, 'MANUAL',
+            #{id}, #{projectId}, #{code},
+            #{path}, #{httpMethod}, #{summary}, #{description}, #{source}, #{sourceRef},
             cast(coalesce(#{requestSchema}, '{}') as jsonb),
             cast(coalesce(#{responseSchema}, '{}') as jsonb),
             #{status}, #{createdAt}, #{updatedAt}
@@ -247,6 +260,8 @@
             description = #{description},
             http_method = #{httpMethod},
             path = #{path},
+            source = #{source},
+            source_ref = #{sourceRef},
             request_schema = cast(coalesce(#{requestSchema}, '{}') as jsonb),
             response_schema = cast(coalesce(#{responseSchema}, '{}') as jsonb),
             status = #{status},
@@ -279,7 +294,7 @@
             id, project_id, code, name, url_pattern, source, source_ref,
             component_tree, screenshot_url, status, created_at, updated_at
         ) values (
-            #{id}, #{projectId}, concat('PAGE-', substr(replace(#{id}::text, '-', ''), 1, 12)),
+            #{id}, #{projectId}, #{code},
             #{name}, #{urlPattern}, #{source}, #{sourceRef},
             cast(coalesce(#{componentTree}, '{}') as jsonb),
             #{screenshotUrl}, #{status}, #{createdAt}, #{updatedAt}
@@ -323,7 +338,7 @@
         insert into asset_business_flow (
             id, project_id, code, name, description, flow_json, priority, status, created_at, updated_at
         ) values (
-            #{id}, #{projectId}, concat('FLOW-', substr(replace(#{id}::text, '-', ''), 1, 12)),
+            #{id}, #{projectId}, #{code},
             #{name}, #{description}, cast(coalesce(#{flowJson}, '{}') as jsonb),
             #{priority}, #{status}, #{createdAt}, #{updatedAt}
         )
@@ -386,10 +401,10 @@
 
     <insert id="insertTestCase">
         insert into asset_test_case (
-            id, project_id, code, title, description, priority, status, tags, created_at, updated_at
+            id, project_id, code, title, description, source, source_ref, priority, status, tags, created_at, updated_at
         ) values (
-            #{id}, #{projectId}, concat('TC-', substr(replace(#{id}::text, '-', ''), 1, 12)),
-            #{title}, #{description}, #{priority}, #{status}, #{tags}, #{createdAt}, #{updatedAt}
+            #{id}, #{projectId}, #{code},
+            #{title}, #{description}, #{source}, #{sourceRef}, #{priority}, #{status}, #{tags}, #{createdAt}, #{updatedAt}
         )
     </insert>
 
@@ -397,6 +412,8 @@
         update asset_test_case set
             title = #{title},
             description = #{description},
+            source = #{source},
+            source_ref = #{sourceRef},
             status = #{status},
             priority = #{priority},
             tags = #{tags},

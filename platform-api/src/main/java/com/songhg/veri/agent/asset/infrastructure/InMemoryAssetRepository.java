@@ -146,11 +146,14 @@ public class InMemoryAssetRepository implements AssetRepository {
     public void replaceTestCaseSteps(UUID caseId, List<TestCaseStep> steps) {
         testCase(caseId).ifPresent(existing -> testCases.put(caseId, new TestCaseRecord(
                 existing.id(),
+                existing.code(),
                 existing.title(),
                 existing.description(),
                 existing.projectId(),
                 existing.requirementId(),
                 existing.apiId(),
+                existing.source(),
+                existing.sourceRef(),
                 existing.status(),
                 existing.priority(),
                 existing.tags(),

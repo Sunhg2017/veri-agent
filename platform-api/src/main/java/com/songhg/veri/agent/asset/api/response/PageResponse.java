@@ -5,6 +5,7 @@ import java.util.UUID;
 
 public record PageResponse(
         UUID id,
+        String code,
         String name,
         String urlPattern,
         String source,

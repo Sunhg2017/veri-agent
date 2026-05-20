@@ -25,14 +25,27 @@ AI 驱动的端到端企业级测试平台。WP1、WP2、WP3、WP4 是研发任�
 | `db/validation` | WP1/WP2 数据库结构、种子、安全约束校验脚本。 |
 | `doc/mvp/final` | WP1/WP2 PRD、架构、工程补充和交付验收文档。 |
 | `doc/mvp/final/engineering/WP1-当前可持续研发底座交付说明.md` | 当前 WP1 单平台实现、准出命令、验证结论和后续研发入口。 |
+| `doc/mvp/final/engineering/WP2-模型接入层-交付说明.md` | 当前 WP2 模型接入实现、API 边界、数据库交付和验证入口。 |
+| `doc/mvp/final/engineering/WP3-测试资产管理-当前交付说明.md` | 当前 WP3 资产模型、API、权限、状态流、前端入口和验证命令。 |
+| `doc/mvp/final/engineering/WP4-需求与文档输入-研发拆解与里程碑计划.md` | 当前 WP4 需求输入、候选确认、发布、真实文档解析和 webhook 交付口径。 |
 | `doc/mvp/final/engineering/当前实现基线.md` | 当前代码与文档对齐的权威基线：单服务、无租户、camelCase、分页和验证入口。 |
 | `doc/mvp/final/engineering/WP1-单平台权限矩阵与菜单矩阵.md` | 当前 WP1 单平台权限、菜单和按钮规则。 |
 | `doc/mvp/final/engineering/WP1-审计事件字典.md` | 当前 WP1 P0 审计事件、字段和验收规则。 |
+| `doc/mvp/final/engineering/WP1-WP4-统一发布准出清单.md` | 跨 WP 本地、CI、预发和生产发布准出索引。 |
+| `doc/mvp/final/engineering/WP1-WP4-变更影响矩阵.md` | WP1 context/audit/secret、WP2 invocation、WP3 asset、WP4 import/publish 的影响矩阵。 |
+| `doc/mvp/final/engineering/WP1-WP4-指标命名与看板规范.md` | 统一 metrics 命名、Grafana/告警建议和 traceId 串联口径。 |
+| `doc/mvp/final/engineering/WP1-WP4-Release-Notes-模板.md` | 面向验收和生产升级的 release notes 模板。 |
+| `doc/mvp/final/engineering/WP1-发布前DB权限Runbook.md` | WP1 预发/生产数据库应用角色权限检查 runbook。 |
+| `doc/mvp/final/engineering/WP2-Provider接入与SecretRef轮换Runbook.md` | WP2 外部 provider 接入、探活、故障处理和密钥轮换 runbook。 |
+| `doc/mvp/final/engineering/WP4-Webhook签名样例与联调说明.md` | WP4 webhook cURL/Node.js/Java 签名样例和联调排错说明。 |
 | `infra/docker-compose.yml` | 本地 PostgreSQL + platform-api 研发环境。 |
 | `scripts/wp1_db_profile_smoke.sh` | 针对已启动 db profile 后端的 HTTP 烟测脚本。 |
 | `scripts/wp1_quality_gate.sh` | WP1 本地质量门禁入口，串联后端测试、前端测试、前端构建和数据库校验。 |
 | `scripts/wp2_model_access_smoke.sh` | 针对已启动 `platform-api` 的 WP2 API 烟测脚本。 |
 | `scripts/wp2_module_policy_smoke.sh` | 针对同一 `platform-api` 内 WP2 消费 WP1 策略的烟测脚本。 |
+| `scripts/wp3_quality_gate.sh` | WP3 本地质量门禁入口，串联资产 API 测试、OpenAPI 契约、前端资产测试、数据库校验和可选 smoke。 |
+| `scripts/wp3_asset_smoke.sh` | 针对已启动 `platform-api` 的 WP3 资产 CRUD、分页、状态流拒绝和追踪关系烟测脚本。 |
+| `.github/workflows/wp3-asset-management.yml` | WP3 PR/主干 CI 入口，复用 `scripts/wp3_quality_gate.sh` 并归档 DB validation 日志。 |
 | `scripts/wp4_document_input_smoke.sh` | 针对已启动 `platform-api` 的 WP4 文档输入、候选确认、发布和 webhook 烟测脚本。 |
 | `scripts/wp4_binary_document_smoke.sh` | WP4 真实 Word/PDF/OCR 文本抽取的本地烟测脚本。 |
 | `scripts/wp4_ai_parse_quality_eval.sh` | WP4 AI 解析质量评测集门禁脚本。 |
@@ -153,6 +166,41 @@ curl 'http://127.0.0.1:8080/api/v1/model-access/invocations/export?projectId=pro
   -H 'X-Delegated-User-Id: user-001'
 ```
 
+## WP3 测试资产管理
+
+访问：
+
+- WP3 健康：http://127.0.0.1:8080/api/v1/asset/health
+- Swagger：http://127.0.0.1:8080/swagger-ui.html
+
+WP3 资产 API 支持内部 `WP3_SERVICE_TOKEN` 和登录用户 Bearer token。内部服务调用示例：
+
+```bash
+curl -X POST http://127.0.0.1:8080/api/v1/asset/requirements \
+  -H 'Authorization: Bearer local-asset-token' \
+  -H 'X-Caller-Service: wp5-test-design' \
+  -H 'X-Delegated-User-Id: user-001' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "projectId": "project-001",
+    "title": "登录需求",
+    "description": "用户可使用账号密码登录",
+    "priority": "HIGH",
+    "tags": "auth,login"
+  }'
+```
+
+列表统一使用 `index/size` 分页，并支持 `projectId/status/source/keyword`：
+
+```bash
+curl 'http://127.0.0.1:8080/api/v1/asset/requirements?projectId=project-001&status=DRAFT&keyword=登录&index=0&size=20' \
+  -H 'Authorization: Bearer local-asset-token' \
+  -H 'X-Caller-Service: wp5-test-design' \
+  -H 'X-Delegated-User-Id: user-001'
+```
+
+当前资产工作台已在 `portal-web` 增加资产库入口和需求资产页面。权限收敛为 `asset:read`、`asset:manage`、`asset:review`、`asset:export`。
+
 ## WP4 文档输入
 
 访问：
@@ -166,9 +214,11 @@ WP4 管理、导入、候选确认、发布和事件查询使用同一个 `platf
 
 AI 文档解析 MVP 通过 WP2 `ModelAccessService` 接入，受 `WP4_MODEL_PARSE_ENABLED` 控制，默认 Prompt key 为 `wp4-document-requirement-parse`。开启后文本、Markdown、Word、PDF、OCR 和 `CUSTOM_API` 导入会先经 WP2 模型解析生成 `parseSource=MODEL` 的候选项，并保存 `modelInvocationId`、`modelProviderName`、`modelName`；WP2 策略阻断、敏感内容阻断或模型失败时回退到规则解析，候选继续进入人工确认，不会绕过 WP2 或直接发布到 WP3。
 
-WP4 真实文档解析支持 `WORD`、`PDF`、`OCR` sourceType：Word 使用 Apache POI 抽取 doc/docx 文本，PDF 使用 PDFBox 抽取文本型 PDF，OCR 通过 `WP4_OCR_COMMAND` 命令 provider 接收 `{input}` 临时文件并返回识别文本。`/imports` 接受纯文本、raw base64 或 `data:...;base64,...` 内容；`/imports/multipart` 接受 `multipart/form-data` 的 `projectId`、`sourceType`、可选来源字段和 `file`，用于真实文件上传。导入受 `WP4_IMPORT_MAX_CONTENT_BYTES`、`WP4_DOCUMENT_BINARY_MAX_BYTES` 限制；OCR 额外受 `WP4_OCR_TIMEOUT_SECONDS`、`WP4_OCR_MAX_OUTPUT_CHARS`、`WP4_OCR_MAX_CONCURRENT_PROCESSES` 限流，健康接口会返回当前 OCR 配置和可用并发许可。
+WP4 真实文档解析支持 `WORD`、`PDF`、`OCR` sourceType：Word 使用 Apache POI 抽取 doc/docx 文本，PDF 使用 PDFBox 抽取文本型 PDF，OCR 通过 `WP4_OCR_COMMAND` 命令 provider 接收 `{input}` 临时文件并返回识别文本。`/imports` 接受纯文本、raw base64 或 `data:...;base64,...` 内容；`/imports/multipart` 接受 `multipart/form-data` 的 `projectId`、`sourceType`、可选来源字段和 `file`，用于真实文件上传。导入受 `WP4_IMPORT_MAX_CONTENT_BYTES`、`WP4_DOCUMENT_BINARY_MAX_BYTES` 限制；`WP4_BINARY_MIME_VALIDATION_ENABLED` 开启后会校验声明 MIME 与实际文件魔数/内容类型，`WP4_PDF_MAX_PAGES` 和 `WP4_PDF_MAX_PARSE_MILLIS` 会限制 PDF 页数和解析耗时；OCR 额外受 `WP4_OCR_TIMEOUT_SECONDS`、`WP4_OCR_MAX_OUTPUT_CHARS`、`WP4_OCR_MAX_CONCURRENT_PROCESSES` 限流，健康接口会返回当前二进制解析、PDF 和 OCR 配置。
 
 `CUSTOM_API` webhook 使用 `X-VA-Timestamp`、`X-VA-Event-Id`、`X-VA-Idempotency-Key`、`X-VA-Event-Version`、`X-VA-Signature`，签名串为 `timestamp.eventId.idempotencyKey.rawBody`。
+
+Webhook 入口在签名前执行来源保护：`WP4_WEBHOOK_ALLOWED_CIDRS` 配置全局 IP/CIDR 白名单，`WP4_WEBHOOK_TRUSTED_PROXY_CIDRS` 配置可信代理后才信任 `X-Forwarded-For`；`WP4_WEBHOOK_RATE_LIMIT_MAX_REQUESTS` 和 `WP4_WEBHOOK_RATE_LIMIT_WINDOW_SECONDS` 提供按 sourceCode、remoteIp、idempotencyKey 的单实例限流。多实例生产限流仍建议接入网关或 Redis。
 
 当前 webhook 密钥解析优先调用 WP1 `SecretProvider`，`db` profile 支持 `LOCAL_ENCRYPTED` 的 `secret_reference` + `secret_local_store` 密文解析，也支持 `VAULT`/`KMS` provider 通过 `WP1_EXTERNAL_SECRET_RESOLVE_URL` 调用外部 HTTP resolve endpoint；认证令牌只从 `WP1_EXTERNAL_SECRET_AUTH_TOKEN` 注入，不写入库表。解析会校验 ACTIVE、未过期、`WEBHOOK_SIGNING` 用途以及 `CONFIG + document_input_source.id` 作用域。`veri-agent.document-input.webhook-secrets` 配置映射、`wp4-webhook-default` 和 `secret://wp4/*` 仅作为 dev/test fallback，可通过 `WP4_LOCAL_WEBHOOK_SECRET_FALLBACK_ENABLED=false` 禁用。
 
@@ -190,6 +240,16 @@ bash scripts/wp4_document_input_smoke.sh
 bash scripts/wp4_binary_document_smoke.sh
 bash scripts/wp4_ai_parse_quality_eval.sh
 ```
+
+## 跨 WP 发布准出与治理
+
+统一发布入口以 `doc/mvp/final/engineering/WP1-WP4-统一发布准出清单.md` 为准，覆盖本地、CI、预发和生产发布。共享契约变更先查 `doc/mvp/final/engineering/WP1-WP4-变更影响矩阵.md`，确认 WP1 context/audit/secret、WP2 invocation、WP3 asset、WP4 import/publish/webhook 的受影响测试；指标和看板按 `doc/mvp/final/engineering/WP1-WP4-指标命名与看板规范.md` 收敛；发布记录使用 `doc/mvp/final/engineering/WP1-WP4-Release-Notes-模板.md`。
+
+预发/生产发布前的专项 runbook：
+
+- WP1 DB 权限：`doc/mvp/final/engineering/WP1-发布前DB权限Runbook.md`
+- WP2 provider 与密钥轮换：`doc/mvp/final/engineering/WP2-Provider接入与SecretRef轮换Runbook.md`
+- WP4 webhook 签名联调：`doc/mvp/final/engineering/WP4-Webhook签名样例与联调说明.md`
 
 ## 验证
 
@@ -229,6 +289,14 @@ build/openapi/wp1-v1.json
 
 ```bash
 bash db/validation/run_wp2_db_validation.sh
+```
+
+```bash
+WP3_SKIP_DB_VALIDATION=1 bash scripts/wp3_quality_gate.sh
+```
+
+```bash
+WP3_SERVICE_TOKEN=local-asset-token bash scripts/wp3_asset_smoke.sh
 ```
 
 ```bash
@@ -272,6 +340,7 @@ bash scripts/wp2_quality_gate.sh
 - 无权限角色访问管理写接口会返回 `FORBIDDEN`。
 - `/v3/api-docs` 可生成 OpenAPI 文档，且契约测试保护认证、管理、账号生命周期和设置 CRUD 关键路径。
 - WP2 `db` profile 默认种子可直接完成 local echo 调用、调用日志查询、成本汇总、成本报表、成本告警、供应商就绪检查缓存和 CSV 导出 smoke；WP2 聚合门禁可串联模型接入测试、数据库 validation，并按需执行 HTTP smoke / 模块策略 smoke。
+- WP3 已补齐资产库前后端闭环：列表分页、需求/API/页面/业务流/用例/追踪链接基础 API、用户态 `asset:*` RBAC、OpenAPI 契约测试、前端资产 API normalizer、资产库导航和需求工作台。
 - WP4 smoke 覆盖 Markdown 导入、候选 `status/sourceRef/keyword` 筛选、versioned 批量确认、dryRun、发布到 WP3、WP3 `source/sourceRef/sourceUrl/acceptanceCriteria` 追踪、发布记录、`CUSTOM_API` source health、`X-VA-*` 签名 webhook、幂等 replay、事件日志、无效签名拒绝和当前导入/候选/发布/webhook metrics。
 - WP4 二进制文档 smoke 覆盖真实 docx、真实文本 PDF、OCR 命令 provider；AI 解析质量评测输出标题召回、优先级准确率、验收标准覆盖率并执行阈值门禁。
 

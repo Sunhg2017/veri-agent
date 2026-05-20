@@ -1742,6 +1742,219 @@ tbody tr:hover td {
 }
 
 /* ==============================
+   WP3 资产工作台
+   ============================== */
+
+.asset-workbench-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 380px;
+  gap: 24px;
+  align-items: start;
+}
+
+.asset-main-stack,
+.asset-side-stack,
+.asset-detail-stack {
+  display: grid;
+  gap: 16px;
+}
+
+.asset-panel {
+  min-width: 0;
+}
+
+.asset-tab-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.asset-tab {
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.asset-tab.active {
+  border-color: #bfdbfe;
+  background: #eff6ff;
+  color: var(--primary);
+}
+
+.asset-tab:disabled {
+  cursor: not-allowed;
+  color: var(--text-tertiary);
+  background: var(--bg);
+}
+
+.asset-filter-bar {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr)) auto;
+  gap: 10px;
+  align-items: end;
+  margin-bottom: 16px;
+}
+
+.asset-filter-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  min-height: 40px;
+}
+
+.asset-table-wrap table {
+  min-width: 980px;
+}
+
+.selected-row td {
+  background: #fafbff;
+}
+
+.asset-source-cell {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.asset-source-cell span,
+.asset-source-cell em {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.asset-source-cell span {
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.asset-source-cell em {
+  color: var(--text-tertiary);
+  font-size: 11px;
+  font-style: normal;
+}
+
+.asset-form {
+  display: grid;
+  gap: 14px;
+}
+
+.asset-form-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.asset-form textarea,
+.asset-edit-form textarea {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text-primary);
+  font-size: 13px;
+  outline: none;
+}
+
+.asset-source-trace,
+.asset-trace-links {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+}
+
+.asset-source-trace > strong,
+.asset-trace-links strong {
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.asset-source-trace > div {
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+}
+
+.asset-source-trace span {
+  color: var(--text-tertiary);
+  font-size: 12px;
+}
+
+.asset-source-trace em,
+.asset-source-trace a {
+  color: var(--text-primary);
+  font-size: 12px;
+  font-style: normal;
+  overflow-wrap: anywhere;
+}
+
+.asset-source-trace a {
+  color: var(--primary);
+  text-decoration: none;
+}
+
+.asset-status-flow {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.asset-status-flow .mini-button,
+.asset-edit-form .mini-button {
+  width: 100%;
+}
+
+.trace-link-row {
+  min-height: 42px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  padding-top: 8px;
+  border-top: 1px solid var(--border-light);
+}
+
+.trace-link-row:first-of-type {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.trace-link-row span,
+.trace-link-row strong,
+.trace-link-row em {
+  display: block;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.trace-link-row strong {
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.trace-link-row em {
+  color: var(--text-tertiary);
+  font-size: 11px;
+  font-style: normal;
+}
+
+/* ==============================
    模态框
    ============================== */
 
@@ -1814,7 +2027,8 @@ tbody tr:hover td {
 
   .content-grid,
   .module-layout,
-  .document-input-layout {
+  .document-input-layout,
+  .asset-workbench-layout {
     grid-template-columns: 1fr;
   }
 }
@@ -1876,7 +2090,9 @@ tbody tr:hover td {
   .metrics-grid,
   .form-grid,
   .document-form-grid,
-  .webhook-filter-grid {
+  .webhook-filter-grid,
+  .asset-form-grid,
+  .asset-filter-bar {
     grid-template-columns: 1fr;
   }
 
@@ -1938,5 +2154,15 @@ tbody tr:hover td {
 
   .icon-button {
     width: 100%;
+  }
+
+  .asset-filter-actions,
+  .asset-status-flow,
+  .asset-source-trace > div {
+    grid-template-columns: 1fr;
+  }
+
+  .asset-filter-actions {
+    display: grid;
   }
 }

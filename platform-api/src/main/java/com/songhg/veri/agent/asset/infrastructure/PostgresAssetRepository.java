@@ -179,11 +179,14 @@ public class PostgresAssetRepository implements AssetRepository {
     private TestCaseRecord withSteps(TestCaseRecord testCase) {
         return new TestCaseRecord(
                 testCase.id(),
+                testCase.code(),
                 testCase.title(),
                 testCase.description(),
                 testCase.projectId(),
                 testCase.requirementId(),
                 testCase.apiId(),
+                testCase.source(),
+                testCase.sourceRef(),
                 testCase.status(),
                 testCase.priority(),
                 testCase.tags(),
@@ -196,6 +199,7 @@ public class PostgresAssetRepository implements AssetRepository {
     private AssetRequirement normalizeRequirement(AssetRequirement requirement) {
         return new AssetRequirement(
                 requirement.id(),
+                requirement.code(),
                 requirement.title(),
                 requirement.description(),
                 requirement.source(),
@@ -214,10 +218,13 @@ public class PostgresAssetRepository implements AssetRepository {
     private AssetApi normalizeApi(AssetApi api) {
         return new AssetApi(
                 api.id(),
+                api.code(),
                 api.summary(),
                 api.description(),
                 api.httpMethod() == null ? null : api.httpMethod().toUpperCase(java.util.Locale.ROOT),
                 api.path(),
+                api.source(),
+                api.sourceRef(),
                 api.requestSchema(),
                 api.responseSchema(),
                 api.projectId(),
@@ -230,6 +237,7 @@ public class PostgresAssetRepository implements AssetRepository {
     private AssetPage normalizePage(AssetPage page) {
         return new AssetPage(
                 page.id(),
+                page.code(),
                 page.name(),
                 page.urlPattern(),
                 page.source(),
@@ -246,6 +254,7 @@ public class PostgresAssetRepository implements AssetRepository {
     private AssetBusinessFlow normalizeBusinessFlow(AssetBusinessFlow flow) {
         return new AssetBusinessFlow(
                 flow.id(),
+                flow.code(),
                 flow.name(),
                 flow.description(),
                 flow.flowJson(),
@@ -260,11 +269,14 @@ public class PostgresAssetRepository implements AssetRepository {
     private TestCaseRecord normalizeTestCase(TestCaseRecord testCase) {
         return new TestCaseRecord(
                 testCase.id(),
+                testCase.code(),
                 testCase.title(),
                 testCase.description(),
                 testCase.projectId(),
                 testCase.requirementId(),
                 testCase.apiId(),
+                testCase.source(),
+                testCase.sourceRef(),
                 testCase.status(),
                 testCase.priority(),
                 testCase.tags(),

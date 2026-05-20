@@ -22,6 +22,7 @@ ALLOWLIST=(
   # Negative assertions and cleanup migrations are allowed to mention retired tenant terms.
   "$ROOT_DIR/platform-api/src/test/java/com/songhg/veri/agent/common/openapi/OpenApiContractTest.java"
   "$ROOT_DIR/platform-api/src/test/java/com/songhg/veri/agent/modelaccess/openapi/ModelAccessOpenApiContractTest.java"
+  "$ROOT_DIR/platform-api/src/test/java/com/songhg/veri/agent/asset/openapi/AssetOpenApiContractTest.java"
   "$ROOT_DIR/db/migration/wp1/V20260518_012__wp2_single_platform_scope.sql"
 )
 

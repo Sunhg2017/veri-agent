@@ -31,6 +31,7 @@ import com.songhg.veri.agent.documentinput.application.DocumentSourceQuery;
 import com.songhg.veri.agent.documentinput.application.DocumentWebhookEventQuery;
 import com.songhg.veri.agent.documentinput.domain.DocumentSourceType;
 import com.songhg.veri.agent.modelaccess.security.ServicePrincipal;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
@@ -248,9 +249,21 @@ public class DocumentInputController {
             @RequestHeader(name = "X-VA-Signature", required = false) String signature,
             @RequestHeader(name = "X-VA-Event-Id", required = false) String eventId,
             @RequestHeader(name = "X-VA-Idempotency-Key", required = false) String idempotencyKey,
-            @RequestHeader(name = "X-VA-Event-Version", required = false) String eventVersion
+            @RequestHeader(name = "X-VA-Event-Version", required = false) String eventVersion,
+            HttpServletRequest request
     ) {
-        return service.handleWebhook(sourceCode, payload, timestamp, signature, eventId, idempotencyKey, eventVersion);
+        return service.handleWebhook(
+                sourceCode,
+                payload,
+                timestamp,
+                signature,
+                eventId,
+                idempotencyKey,
+                eventVersion,
+                request.getRemoteAddr(),
+                request.getHeader("X-Forwarded-For"),
+                request.getHeader("X-Real-IP")
+        );
     }
 
     private void requirePermission(String permission) {

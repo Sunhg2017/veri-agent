@@ -5,6 +5,7 @@ import java.util.UUID;
 
 public record RequirementResponse(
         UUID id,
+        String code,
         String title,
         String description,
         String source,

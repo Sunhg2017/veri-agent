@@ -85,3 +85,12 @@ veri-agent:
     webhook-max-payload-bytes: ${WP4_WEBHOOK_MAX_PAYLOAD_BYTES:262144}
     batch-action-limit: ${WP4_BATCH_ACTION_LIMIT:100}
     webhook-max-replay-attempts: ${WP4_WEBHOOK_MAX_REPLAY_ATTEMPTS:3}
+    webhook-allowed-cidrs: ${WP4_WEBHOOK_ALLOWED_CIDRS:}
+    webhook-source-allowed-cidrs: {}
+    webhook-trusted-proxy-cidrs: ${WP4_WEBHOOK_TRUSTED_PROXY_CIDRS:}
+    webhook-rate-limit-max-requests: ${WP4_WEBHOOK_RATE_LIMIT_MAX_REQUESTS:0}
+    webhook-rate-limit-window-seconds: ${WP4_WEBHOOK_RATE_LIMIT_WINDOW_SECONDS:60}
+    binary-mime-validation-enabled: ${WP4_BINARY_MIME_VALIDATION_ENABLED:true}
+    pdf-max-pages: ${WP4_PDF_MAX_PAGES:0}
+    pdf-max-parse-millis: ${WP4_PDF_MAX_PARSE_MILLIS:0}
+    ocr-worker-mode: ${WP4_OCR_WORKER_MODE:LOCAL_COMMAND}

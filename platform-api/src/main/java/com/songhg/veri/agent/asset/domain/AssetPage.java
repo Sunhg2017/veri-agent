@@ -5,6 +5,7 @@ import java.util.UUID;
 
 public record AssetPage(
         UUID id,
+        String code,
         String name,
         String urlPattern,
         String source,

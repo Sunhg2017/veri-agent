@@ -15,6 +15,15 @@ public record DocumentInputHealthResponse(
         int ocrMaxOutputChars,
         int ocrMaxConcurrentProcesses,
         int ocrAvailablePermits,
-        int batchActionLimit
+        String ocrWorkerMode,
+        int batchActionLimit,
+        boolean webhookIpAllowlistEnabled,
+        boolean webhookTrustedProxyCidrsConfigured,
+        boolean webhookRateLimitEnabled,
+        int webhookRateLimitMaxRequests,
+        long webhookRateLimitWindowSeconds,
+        boolean binaryMimeValidationEnabled,
+        int pdfMaxPages,
+        long pdfMaxParseMillis
 ) {
 }

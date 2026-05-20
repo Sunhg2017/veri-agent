@@ -31,10 +31,10 @@ WP1、WP2、WP4 的当前 P0 口径已经基本收敛，后续以生产硬化、
 
 | 编号 | 任务 | 优先级 | 状态 | 主要产出 | 验收标准 |
 |---|---|---|---|---|---|
-| ALL-1 | 建立 WP1-WP4 统一发布准出索引 | P0-B | TODO | `README` 或 release checklist 中列出每个 WP 的 test、smoke、db validation、OpenAPI 契约入口 | 新人可按一份清单完成本地和预发准出；命令失败能定位到 WP |
-| ALL-2 | 建立跨 WP 变更影响矩阵 | P1 | TODO | WP1 context/audit/secret、WP2 invocation、WP3 asset、WP4 import/publish 的依赖矩阵 | 任一共享契约变更能列出受影响测试和 smoke |
-| ALL-3 | 统一 metrics 和 dashboard 命名 | P1 | TODO | 指标命名规范、Grafana/告警建议、traceId 串联说明 | WP1-WP4 关键链路都能按 projectId/actorService/status 观测 |
-| ALL-4 | 建立 release notes 模板 | P2 | TODO | 面向验收和生产升级的 release notes 模板 | 每次补充任务完成后能说明变更、迁移、配置、风险和回滚 |
+| ALL-1 | 建立 WP1-WP4 统一发布准出索引 | P0-B | DONE-CURRENT | 已新增 `doc/mvp/final/engineering/WP1-WP4-统一发布准出清单.md`，并在 `README.md` 汇总 test、smoke、db validation、OpenAPI 契约入口 | 新人可按一份清单完成本地、CI、预发和生产准出；命令失败能定位到 WP |
+| ALL-2 | 建立跨 WP 变更影响矩阵 | P1 | DONE-CURRENT | 已新增 `doc/mvp/final/engineering/WP1-WP4-变更影响矩阵.md`，覆盖 WP1 context/audit/secret、WP2 invocation、WP3 asset、WP4 import/publish 依赖 | 任一共享契约变更能列出受影响测试和 smoke |
+| ALL-3 | 统一 metrics 和 dashboard 命名 | P1 | DONE-CURRENT | 已新增 `doc/mvp/final/engineering/WP1-WP4-指标命名与看板规范.md`，包含指标命名、Grafana/告警建议和 traceId 串联说明 | WP1-WP4 关键链路能按 metrics + 审计/调用日志中的 projectId/actorService/status 观测 |
+| ALL-4 | 建立 release notes 模板 | P2 | DONE-CURRENT | 已新增 `doc/mvp/final/engineering/WP1-WP4-Release-Notes-模板.md` | 每次补充任务完成后能说明变更、迁移、配置、风险和回滚 |
 
 ## 4. WP1 平台基础底座待补任务
 
@@ -45,8 +45,8 @@ WP1、WP2、WP4 的当前 P0 口径已经基本收敛，后续以生产硬化、
 | 编号 | 任务 | 优先级 | 状态 | 工作内容 | 验收标准 |
 |---|---|---|---|---|---|
 | WP1-A1 | 接入真实预发/生产应用数据库角色 | P0-B | IN_PROGRESS | 将 `scripts/wp1_release_role_validation.sh` 的执行参数纳入预发/生产发布流程；明确真实 app/migration/readonly 账号名 | 在预发库执行 release role validation，应用账号无 DDL、无审计 UPDATE/DELETE/TRUNCATE 权限 |
-| WP1-A2 | 固化发布前 DB 权限 runbook | P0-B | TODO | 补充环境变量、连接串、执行时机、失败处理和 DBA 复核说明 | 发布负责人可按文档复现检查，失败项有修复建议 |
-| WP1-A3 | CI/发布流水线挂载 DB 权限检查 | P1 | TODO | 将临时库 validation 与真实环境 validation 分层接入流水线 | 临时库每次跑，预发/生产按发布窗口跑，并产出日志归档 |
+| WP1-A2 | 固化发布前 DB 权限 runbook | P0-B | DONE-CURRENT | 已新增 `doc/mvp/final/engineering/WP1-发布前DB权限Runbook.md`，补充环境变量、连接串、执行时机、失败处理和 DBA 复核说明 | 发布负责人可按文档复现检查，失败项有修复建议 |
+| WP1-A3 | CI/发布流水线挂载 DB 权限检查 | P1 | DONE-CURRENT | `.github/workflows/wp1-database-validation.yml` 已挂载临时库 migration/validation 并归档日志；`WP1-发布前DB权限Runbook.md` 补充预发/生产真实角色 validation 挂载口径 | 临时库 CI 每次跑，预发/生产按发布窗口执行真实角色 validation，并产出日志归档 |
 
 ### WP1-B 角色定义与权限治理
 
@@ -100,8 +100,8 @@ WP1、WP2、WP4 的当前 P0 口径已经基本收敛，后续以生产硬化、
 |---|---|---|---|---|---|
 | WP2-B1 | Provider 级限流和并发控制 | P1 | TODO | 对供应商、项目、调用服务增加请求速率和并发保护 | 超限返回稳定错误码并记录 BLOCKED 调用日志 |
 | WP2-B2 | 熔断状态观测与手动恢复 | P1 | TODO | 暴露 provider 熔断状态、失败窗口、恢复时间和人工 reset 操作 | 运维可判断当前 provider 是否被短时熔断 |
-| WP2-B3 | 外部 provider runbook | P1 | TODO | OpenAI-compatible、私有模型、代理网关的配置、探活、故障处理说明 | 新 provider 接入不需要阅读源码 |
-| WP2-B4 | SecretRef 轮换流程 | P1 | TODO | 与 WP1 SecretProvider 对齐密钥轮换、启停、到期和告警 | 轮换期间不中断可用 provider，旧 secretRef 可控失效 |
+| WP2-B3 | 外部 provider runbook | P1 | DONE-CURRENT | 已新增 `doc/mvp/final/engineering/WP2-Provider接入与SecretRef轮换Runbook.md`，覆盖 OpenAI-compatible、私有模型、代理网关的配置、探活和故障处理 | 新 provider 接入不需要阅读源码 |
+| WP2-B4 | SecretRef 轮换流程 | P1 | DONE-CURRENT | `WP2-Provider接入与SecretRef轮换Runbook.md` 已说明当前 `apiKeyRef=env:VARIABLE_NAME` 口径和后续 SecretProvider 对齐的双引用轮换流程 | 轮换期间不中断可用 provider，旧 secretRef/apiKeyRef 可控失效 |
 
 ### WP2-C 策略、预算和合规模型
 
@@ -128,17 +128,17 @@ WP3 是当前最需要补齐的工作包。后端已有需求、API、页面、�
 
 | 编号 | 任务 | 优先级 | 状态 | 工作内容 | 验收标准 |
 |---|---|---|---|---|---|
-| WP3-A1 | WP3 final 交付说明 | P0-B | TODO | 新增 WP3 当前实现、范围、非范围、API、数据模型、验证命令和后续入口文档 | 文档达到 WP1/WP2/WP4 当前交付说明同等级别 |
-| WP3-A2 | WP3 PRD/架构补充 | P0-B | TODO | 明确资产类型、状态流、版本、追踪关系、权限、审计、导入导出边界 | 产品、后端、前端、测试可据此拆 issue |
-| WP3-A3 | OpenAPI 契约测试 | P0-B | TODO | 固定 `/api/v1/asset` envelope、字段、错误码、鉴权、分页和枚举 | 契约测试阻止未评审字段变化 |
-| WP3-A4 | API 分页和筛选口径统一 | P0-B | TODO | 列表从裸数组逐步收敛到统一分页响应，补 projectId/status/keyword/source 等筛选 | 与当前平台分页口径一致，兼容 WP4 调用路径 |
+| WP3-A1 | WP3 final 交付说明 | P0-B | DONE-CURRENT | 已新增 `doc/mvp/final/engineering/WP3-测试资产管理-当前交付说明.md`，覆盖当前实现、范围、非范围、API、数据模型、验证命令和后续入口 | 文档达到 WP1/WP2/WP4 当前交付说明同等级别 |
+| WP3-A2 | WP3 PRD/架构补充 | P0-B | DONE-CURRENT | 已新增 `doc/mvp/final/engineering/WP3-测试资产管理-PRD与架构补充.md`，明确资产类型、状态流、追踪关系、权限、审计、导入导出边界 | 产品、后端、前端、测试可据此拆 issue |
+| WP3-A3 | OpenAPI 契约测试 | P0-B | DONE-CURRENT | 已新增 `AssetOpenApiContractTest`，固定 `/api/v1/asset` 关键路径、Bearer 鉴权、字段和无租户回归 | 契约测试阻止未评审字段变化 |
+| WP3-A4 | API 分页和筛选口径统一 | P0-B | DONE-CURRENT | 列表已统一返回 `items/index/size/total`，支持 `projectId/status/keyword/source` 基础筛选 | 与当前平台分页口径一致，兼容 WP4 调用路径 |
 
 ### WP3-B 后端资产能力补齐
 
 | 编号 | 任务 | 优先级 | 状态 | 工作内容 | 验收标准 |
 |---|---|---|---|---|---|
-| WP3-B1 | 资产编码生成与唯一性策略 | P0-B | IN_PROGRESS | 对 requirement/api/page/flow/testCase 的 code 生成、编辑和冲突规则定稿 | db 和 local profile 行为一致，冲突返回稳定错误 |
-| WP3-B2 | 资产状态流和非法转换 | P0-B | TODO | 冻结 DRAFT/REVIEWING/APPROVED/DEPRECATED 等状态流 | 非法转换阻断并写审计 |
+| WP3-B1 | 资产编码生成与唯一性策略 | P0-B | DONE-CURRENT | requirement/api/page/flow/testCase 已由服务端生成短 code，数据库保持 project+code 唯一约束 | db 和 local profile 行为一致，冲突返回稳定错误 |
+| WP3-B2 | 资产状态流和非法转换 | P0-B | DONE-CURRENT | 已冻结 DRAFT/REVIEWING/APPROVED/DEPRECATED 等状态流，并覆盖非法转换拒绝测试 | 非法转换阻断并写审计 |
 | WP3-B3 | 版本、历史和 diff | P1 | TODO | 保存版本号、变更历史、字段 diff、变更人 | 需求和测试用例可回看历史版本 |
 | WP3-B4 | 软删除、归档和恢复策略 | P1 | TODO | 定义删除/归档、引用保护、恢复和唯一性释放规则 | 删除不破坏 trace link 和审计追溯 |
 | WP3-B5 | 导入/导出能力 | P1 | TODO | 支持需求、API、测试用例 CSV/JSON/OpenAPI 导入导出 | 导出脱敏，导入有 dryRun 和错误明细 |
@@ -149,17 +149,17 @@ WP3 是当前最需要补齐的工作包。后端已有需求、API、页面、�
 
 | 编号 | 任务 | 优先级 | 状态 | 工作内容 | 验收标准 |
 |---|---|---|---|---|---|
-| WP3-C1 | 用户态 RBAC 接入 | P0-B | TODO | 除内部 service token 外，补登录用户访问资产 API 的权限校验 | 项目成员只能访问授权项目资产 |
-| WP3-C2 | 资产权限点矩阵 | P0-B | TODO | 定义 asset:read/manage/review/export 等权限点及角色映射 | 前端菜单和按钮可按权限隐藏 |
-| WP3-C3 | 审计事件字典 | P0-B | TODO | 冻结需求、API、页面、业务流、测试用例、追踪链接的审计 action/resourceType | 写操作、拒绝、导入、导出均可审计 |
-| WP3-C4 | 与 WP1 context/audit 契约测试 | P0-B | TODO | 覆盖项目不存在、停用项目、委托用户越权、审计写失败 | 上下文和审计异常不产生脏资产 |
+| WP3-C1 | 用户态 RBAC 接入 | P0-B | DONE-CURRENT | 资产 API 已支持内部 service token 和登录用户 Bearer，用户态按 `asset:*` 权限校验；项目授权拒绝依赖 WP1 context 并已由契约测试固定 | 项目上下文未授权或不可用时资产读写被拒绝 |
+| WP3-C2 | 资产权限点矩阵 | P0-B | DONE-CURRENT | 已定义 `asset:read/manage/review/export`，同步内置角色、DB seed、前端菜单和按钮规则 | 前端菜单和按钮可按权限隐藏 |
+| WP3-C3 | 审计事件字典 | P0-B | DONE-CURRENT | 已新增 `doc/mvp/final/engineering/WP3-审计事件字典.md`，冻结资产写操作、拒绝、追踪链接以及后续导入/导出预留审计 action/resourceType | 当前写操作和拒绝可审计；后续导入/导出沿用同一字典扩展 |
+| WP3-C4 | 与 WP1 context/audit 契约测试 | P0-B | DONE-CURRENT | 已新增 `AssetContextAuditContractTest`，覆盖停用项目、未授权项目上下文、审计写失败不产生脏资产；既有测试覆盖 service token、用户 Bearer、跨项目引用拒绝和 WP4 发布回读 | 上下文和审计异常不产生脏资产 |
 
 ### WP3-D 前端资产工作台
 
 | 编号 | 任务 | 优先级 | 状态 | 工作内容 | 验收标准 |
 |---|---|---|---|---|---|
-| WP3-D1 | 资产库导航和路由 | P0-B | TODO | 在 portal-web 增加资产库入口，按权限展示需求、API、页面、业务流、用例、追踪矩阵 | 无权限用户不可访问；刷新和深链可用 |
-| WP3-D2 | 需求资产页面 | P0-B | TODO | 需求列表、详情、创建、编辑、状态流、来源追踪 | WP4 发布的 IMPORT 需求可在页面查看 source/sourceRef/sourceUrl |
+| WP3-D1 | 资产库导航和路由 | P0-B | DONE-CURRENT | portal-web 已增加资产库入口、hash 深链和 P1 类型入口，并按 `asset:read` 展示 | 无权限用户不可访问；刷新和深链可用 |
+| WP3-D2 | 需求资产页面 | P0-B | DONE-CURRENT | 已实现需求列表、详情、创建、编辑、状态流入口和来源追踪展示 | WP4 发布的 IMPORT 需求可在页面查看 source/sourceRef/sourceUrl |
 | WP3-D3 | API 资产页面 | P1 | TODO | API 列表、详情、创建、编辑、schema 展示、OpenAPI 导入入口 | 接口路径和方法可筛选，不重复创建 |
 | WP3-D4 | 页面和业务流页面 | P1 | TODO | 页面资产、业务流资产的 CRUD 和可读结构展示 | JSON 字段展示不撑破布局，可编辑可校验 |
 | WP3-D5 | 测试用例与步骤页面 | P1 | TODO | 用例列表、详情、步骤编辑、关联需求/API | 步骤顺序稳定，保存失败不丢本地编辑 |
@@ -169,11 +169,11 @@ WP3 是当前最需要补齐的工作包。后端已有需求、API、页面、�
 
 | 编号 | 任务 | 优先级 | 状态 | 工作内容 | 验收标准 |
 |---|---|---|---|---|---|
-| WP3-E1 | WP3 quality gate | P0-B | TODO | 新增 `scripts/wp3_quality_gate.sh`，串联后端测试、OpenAPI 契约、db validation 和可选 smoke | 一条命令可完成 WP3 本地准出 |
-| WP3-E2 | WP3 HTTP smoke | P0-B | TODO | 针对已启动服务覆盖资产 CRUD、权限、审计、trace link 和 WP4 upsert 回读 | smoke 失败能输出 traceId 和失败资源 |
-| WP3-E3 | WP3 DB validation 扩展 | P0-B | IN_PROGRESS | 在 `wp_all_schema_validation.sql` 基础上补 WP3 专项字段、索引、状态约束和软删除检查 | 核心表、唯一索引、sourceRef 幂等索引和无 tenant_id 回归均可验证 |
-| WP3-E4 | portal-web 测试 | P1 | TODO | 增加资产工作台 API normalizer、权限、组件交互测试 | 前端构建和测试覆盖主流程 |
-| WP3-E5 | 与 WP4 发布链路回归 | P0-B | IN_PROGRESS | 固化 WP4 发布到 WP3 后的需求回读、幂等更新和冲突阻断测试 | WP4 dryRun/正式发布不会重复创建 WP3 需求 |
+| WP3-E1 | WP3 quality gate | P0-B | DONE-CURRENT | 已新增 `scripts/wp3_quality_gate.sh` 和 `.github/workflows/wp3-asset-management.yml`，串联后端测试、OpenAPI/上下文契约、db validation、前端资产测试和可选 smoke | 一条命令可完成 WP3 本地准出，CI 可在资产相关变更中复用同一入口 |
+| WP3-E2 | WP3 HTTP smoke | P0-B | DONE-CURRENT | 已新增 `scripts/wp3_asset_smoke.sh`，覆盖资产 CRUD、分页、状态拒绝、trace link 和可选用户 Bearer 读 | smoke 失败能输出 traceId 和失败资源 |
+| WP3-E3 | WP3 DB validation 扩展 | P0-B | DONE-CURRENT | `wp_all_schema_validation.sql` 已覆盖 WP3 核心表、关键字段、唯一索引、sourceRef 幂等索引和无 tenant_id 回归 | 核心表、唯一索引、sourceRef 幂等索引和无 tenant_id 回归均可验证 |
+| WP3-E4 | portal-web 测试 | P1 | DONE-CURRENT | 已增加资产 API normalizer 测试和权限测试，前端构建通过 | 前端构建和测试覆盖主流程 |
+| WP3-E5 | 与 WP4 发布链路回归 | P0-B | DONE-CURRENT | WP4 controller/smoke 覆盖发布到 WP3 后需求回读、幂等更新和冲突阻断 | WP4 dryRun/正式发布不会重复创建 WP3 需求 |
 
 ## 7. WP4 需求与文档输入待补任务
 
@@ -183,19 +183,19 @@ WP4 本轮 P0 已覆盖真实文件上传、Word/PDF/OCR、AI 解析、SecretPro
 
 | 编号 | 任务 | 优先级 | 状态 | 工作内容 | 验收标准 |
 |---|---|---|---|---|---|
-| WP4-A1 | Webhook IP/CIDR 白名单 | P0-B | TODO | source 或全局配置允许 IP/CIDR；校验 X-Forwarded-For 信任边界 | 非白名单请求在签名前被拒绝并记录安全事件 |
-| WP4-A2 | Webhook 请求限流 | P0-B | TODO | 按 sourceCode、remoteIp、idempotencyKey 增加速率限制 | 超限返回稳定错误码，不进入业务解析 |
+| WP4-A1 | Webhook IP/CIDR 白名单 | P0-B | DONE-CURRENT | 已新增 webhook ingress guard，支持全局/按 sourceCode CIDR 白名单与可信代理 `X-Forwarded-For` 解析，并补 controller 级拒绝事件测试 | 非白名单请求在签名前被拒绝并记录安全事件 |
+| WP4-A2 | Webhook 请求限流 | P0-B | DONE-CURRENT | 已按 sourceCode、remoteIp、idempotencyKey 增加单 JVM 内存限流，并补 controller 级超限拒绝与事件记录测试 | 超限返回稳定错误码，不进入业务解析 |
 | WP4-A3 | Webhook 自动重试调度 | P1 | TODO | 对可重试失败事件增加有限自动重试和死信策略 | retryCount、deadLetter、replayTraceId 可查询 |
-| WP4-A4 | Webhook 签名样例和联调包 | P1 | TODO | 提供 JavaScript/cURL/Java 签名样例和错误排查说明 | 外部系统可按样例完成联调 |
+| WP4-A4 | Webhook 签名样例和联调包 | P1 | DONE-CURRENT | 已新增 `doc/mvp/final/engineering/WP4-Webhook签名样例与联调说明.md`，提供 cURL、Node.js、Java 签名样例和错误排查说明 | 外部系统可按样例完成联调 |
 
 ### WP4-B OCR 与二进制解析生产硬化
 
 | 编号 | 任务 | 优先级 | 状态 | 工作内容 | 验收标准 |
 |---|---|---|---|---|---|
-| WP4-B1 | OCR 隔离 worker 方案 | P1 | TODO | 将命令式 OCR 从主进程隔离到 worker/队列/容器沙箱 | OCR 超时、崩溃或高 CPU 不拖垮 platform-api |
+| WP4-B1 | OCR 隔离 worker 方案 | P1 | IN_PROGRESS | 已补 `ocrWorkerMode` 配置和健康暴露入口；真实 worker/队列/容器隔离仍待专项实现 | OCR 超时、崩溃或高 CPU 不拖垮 platform-api |
 | WP4-B2 | 恶意文件扫描 | P1 | TODO | 接入杀毒或文件扫描组件，支持拒绝高危文件 | 被标记恶意文件不进入解析，错误摘要不泄露内部路径 |
-| WP4-B3 | 文件类型嗅探和 MIME 校验 | P1 | TODO | 基于魔数/解析器识别 doc/docx/pdf/image，不只信任客户端 MIME | 伪造 MIME 被拒绝或按真实类型处理 |
-| WP4-B4 | PDF 页数/解析时间限制 | P1 | TODO | 对大型 PDF 增加页数、解析耗时和内存保护 | 超限失败可读，临时文件清理稳定 |
+| WP4-B3 | 文件类型嗅探和 MIME 校验 | P1 | DONE-CURRENT | `binaryMimeValidationEnabled` 已接入 data URL 声明 MIME 与文件魔数/内容嗅探校验，覆盖 PDF、DOC/DOCX 和常见图片类型；健康接口暴露配置 | 伪造 MIME 被拒绝或按真实类型处理 |
+| WP4-B4 | PDF 页数/解析时间限制 | P1 | DONE-CURRENT | `pdfMaxPages/pdfMaxParseMillis` 已在 PDFBox 解析路径生效，并由单测覆盖页数超限和解析耗时超限；健康接口暴露配置 | 超限失败可读，临时文件清理稳定 |
 | WP4-B5 | 高保真解析专项 | P2 | TODO | 表格结构、图片语义、页眉页脚、批注、附件抽取专项评估 | 不影响当前文本抽取链路 |
 
 ### WP4-C AI 解析质量体系
@@ -246,7 +246,7 @@ WP4 本轮 P0 已覆盖真实文件上传、Word/PDF/OCR、AI 解析、SecretPro
 
 ## 9. 推荐下一步
 
-1. 先执行 `WP3-A1`、`WP3-A3`、`WP3-E1`、`WP3-E2`，把 WP3 从“已有后端基础能力”补成“可独立验收工作包”。
-2. 并行推进 `WP4-A1`、`WP4-A2`、`WP4-B1`，关闭 webhook 和 OCR 的生产安全敞口。
-3. 在下一轮前端迭代中合并规划 `WP2-A` 与 `WP3-D`，避免管理台导航和权限模型重复调整。
+1. 下一轮优先补 WP3 P1 的版本历史、软删除恢复、导入导出，以及 API/页面/业务流/用例的工作台扩展。
+2. 将 `WP4-B1` 从配置/健康入口推进到真实 worker/队列/容器隔离，并继续补 `WP4-B2` 恶意文件扫描。
+3. 在下一轮前端迭代中继续合并规划 `WP2-A` 与 WP3 P1 页面，避免管理台导航和权限模型重复调整。
 4. 每完成一个任务，补充对应交付说明、测试命令和 release note，并按当前约定提交清晰 commit。

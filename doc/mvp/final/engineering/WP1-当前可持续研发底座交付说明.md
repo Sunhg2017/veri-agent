@@ -54,11 +54,13 @@ WP1_BOOTSTRAP_TOKEN=local-init-token bash scripts/wp1_db_profile_smoke.sh
 
 数据库安全校验已在临时库内创建 `wp1_app`、`wp1_readonly`、`wp1_migration` 三个测试角色并套用运行期授权策略。`security.audit_log_app_role_append_only` 已可给出确定的 `PASS/FAIL`，当前结果为 `PASS`。`run_wp1_db_validation.sh` 默认发现 `WARN` 也会失败，只有显式设置 `WP1_ALLOW_DB_VALIDATION_WARN=1` 才临时放行。预发或生产环境如果使用不同应用数据库角色，需要替换 validation 中的角色名复用同一检查。审计表本身已具备触发器级 `UPDATE/DELETE` 阻断。
 
+预发/生产真实应用数据库角色检查已收敛到 `doc/mvp/final/engineering/WP1-发布前DB权限Runbook.md`。发布流水线建议分层执行：CI 每次跑临时库 `run_wp1_db_validation.sh`，预发/生产发布窗口在迁移后、切流前执行 `scripts/wp1_release_role_validation.sh`，并归档 DBA 复核结果。
+
 ## 3. 后续研发入口
 
 本轮 1～8 项已完成，后续 WP1 研发可直接在当前底座上推进，推荐优先级如下：
 
-1. 将预发/生产真实应用数据库角色接入 `scripts/wp1_release_role_validation.sh`，确保不是仅临时库角色通过。
+1. 按 `WP1-发布前DB权限Runbook.md` 将预发/生产真实应用数据库角色接入发布流水线，确保不是仅临时库角色通过。
 2. 补角色定义管理、审计导出任务、Redis 会话清理、数据保留策略和 outbox 运维视图。
 3. 继续扩展复杂状态流拒绝、审计导出和生产角色权限的自动化场景。
 

@@ -89,6 +89,7 @@ public class DocumentInputService {
     private final DocumentInputProperties properties;
     private final DocumentInputMetrics metrics;
     private final DocumentWebhookSecretResolver webhookSecretResolver;
+    private final DocumentWebhookIngressGuard webhookIngressGuard;
 
     private record CandidateBatchTarget(UUID id, Long version) {
     }
@@ -103,7 +104,8 @@ public class DocumentInputService {
             ObjectMapper objectMapper,
             DocumentInputProperties properties,
             DocumentInputMetrics metrics,
-            DocumentWebhookSecretResolver webhookSecretResolver
+            DocumentWebhookSecretResolver webhookSecretResolver,
+            DocumentWebhookIngressGuard webhookIngressGuard
     ) {
         this.repository = repository;
         this.parser = parser;
@@ -115,6 +117,7 @@ public class DocumentInputService {
         this.properties = properties;
         this.metrics = metrics;
         this.webhookSecretResolver = webhookSecretResolver;
+        this.webhookIngressGuard = webhookIngressGuard;
     }
 
     public int supportedSourceTypeCount() {
@@ -137,7 +140,16 @@ public class DocumentInputService {
                 contentExtractor.ocrMaxOutputChars(),
                 contentExtractor.ocrMaxConcurrentProcesses(),
                 contentExtractor.ocrAvailablePermits(),
-                batchActionLimit()
+                contentExtractor.ocrWorkerMode(),
+                batchActionLimit(),
+                webhookIngressGuard.ipAllowlistConfigured(),
+                webhookIngressGuard.trustedProxyCidrsConfigured(),
+                webhookIngressGuard.rateLimitEnabled(),
+                webhookIngressGuard.rateLimitMaxRequests(),
+                webhookIngressGuard.rateLimitWindowSeconds(),
+                contentExtractor.binaryMimeValidationEnabled(),
+                contentExtractor.pdfMaxPages(),
+                contentExtractor.pdfMaxParseMillis()
         );
     }
 
@@ -700,14 +712,51 @@ public class DocumentInputService {
             String signature,
             String eventId,
             String idempotencyKey,
-            String eventVersion
+            String eventVersion,
+            String remoteAddress,
+            String forwardedFor,
+            String realIp
     ) {
         ensureInputEnabled();
         ensureWebhookEnabled();
         DocumentSourceConfig source = repository.sourceByCode(normalizeSourceCode(sourceCode))
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "文档源不存在: " + sourceCode));
         ensureExecutableSource(source.sourceType(), source.status());
+        String clientIp = webhookIngressGuard.resolveClientIp(remoteAddress, forwardedFor, realIp);
+        if (!webhookIngressGuard.isIpAllowed(source.sourceCode(), clientIp)) {
+            rejectWebhookBeforeSignature(
+                    source,
+                    rawPayload,
+                    eventId,
+                    idempotencyKey,
+                    eventVersion,
+                    WebhookSignatureStatus.INVALID,
+                    ErrorCode.FORBIDDEN,
+                    "webhook 来源 IP 不在白名单",
+                    "webhook 来源 IP 不在白名单: " + clientIp
+            );
+        }
         ensureRequiredWebhookHeaders(timestamp, signature, eventId, idempotencyKey, eventVersion);
+        DocumentWebhookIngressGuard.RateLimitDecision rateLimit =
+                webhookIngressGuard.checkRateLimit(source.sourceCode(), clientIp, idempotencyKey);
+        if (!rateLimit.allowed()) {
+            rejectWebhookBeforeSignature(
+                    source,
+                    rawPayload,
+                    eventId,
+                    idempotencyKey,
+                    eventVersion,
+                    WebhookSignatureStatus.MISSING,
+                    ErrorCode.BUDGET_EXCEEDED,
+                    "webhook 请求过于频繁",
+                    "webhook 请求过于频繁: dimension=%s, limit=%d, windowSeconds=%d, remoteIp=%s".formatted(
+                            rateLimit.dimension(),
+                            rateLimit.limit(),
+                            rateLimit.windowSeconds(),
+                            clientIp
+                    )
+            );
+        }
         String payloadDigest = sha256(rawPayload);
         WebhookSignatureStatus signatureStatus = validateWebhookSignature(source, rawPayload, timestamp, signature, eventId, idempotencyKey);
         DocumentWebhookEvent duplicate = repository.webhookEventByIdentity(source.sourceCode(), trimToNull(eventId), trimToNull(idempotencyKey))
@@ -802,6 +851,45 @@ public class DocumentInputService {
         DocumentWebhookEvent processed = processWebhookEvent(saved, rawPayload, false);
         metrics.recordWebhook(processed.signatureStatus(), processed.status(), processed.eventType());
         return importRecord(processed.importId());
+    }
+
+    private void rejectWebhookBeforeSignature(
+            DocumentSourceConfig source,
+            String rawPayload,
+            String eventId,
+            String idempotencyKey,
+            String eventVersion,
+            WebhookSignatureStatus signatureStatus,
+            ErrorCode responseCode,
+            String responseMessage,
+            String eventMessage
+    ) {
+        Instant rejectedAt = Instant.now();
+        DocumentWebhookEvent rejected = new DocumentWebhookEvent(
+                UUID.randomUUID(),
+                source.id(),
+                null,
+                source.sourceCode(),
+                trimToNull(eventId),
+                trimToNull(idempotencyKey),
+                null,
+                trimToNull(eventVersion),
+                signatureStatus,
+                WebhookEventStatus.REJECTED,
+                sha256(rawPayload),
+                null,
+                eventMessage,
+                0,
+                null,
+                null,
+                null,
+                rejectedAt,
+                null
+        );
+        repository.saveWebhookEvent(rejected);
+        writeAudit("WEBHOOK_REJECTED", "DOCUMENT_WEBHOOK_EVENT", rejected.id().toString(), source.defaultProjectId(), sanitizeWebhookEvent(rejected));
+        metrics.recordWebhook(signatureStatus, WebhookEventStatus.REJECTED, null);
+        throw new BusinessException(responseCode, responseMessage);
     }
 
     private DocumentImportResponse respondToDuplicateWebhookEvent(DocumentWebhookEvent duplicate, String payloadDigest) {

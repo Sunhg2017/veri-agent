@@ -7,6 +7,8 @@ import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;
@@ -47,12 +49,12 @@ class DocumentContentExtractorTest {
     @Test
     void runsConfiguredOcrCommandForBinaryOcrInput() {
         DocumentContentExtractor extractor = new DocumentContentExtractor(properties("/bin/cat {input}"));
-        String content = dataUrl("image/png", """
+        String content = dataUrl("image/png", withPngMagic("""
                 OCR invoice requirement
                 Priority: HIGH
                 Acceptance Criteria:
                 - invoice image is parsed
-                """.getBytes(StandardCharsets.UTF_8));
+                """));
 
         String text = extractor.extract(DocumentSourceType.OCR, content).text();
 
@@ -60,13 +62,65 @@ class DocumentContentExtractorTest {
     }
 
     @Test
-    void failsScannedPdfWhenOcrCommandIsMissing() {
+    void rejectsForgedPdfMimeWhenValidationIsEnabled() {
         DocumentContentExtractor extractor = new DocumentContentExtractor(properties(""));
         String content = dataUrl("image/png", new byte[]{(byte) 0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a});
 
         assertThatThrownBy(() -> extractor.extract(DocumentSourceType.PDF, content))
                 .isInstanceOf(BusinessException.class)
-                .hasMessageContaining("WP4_OCR_COMMAND");
+                .hasMessageContaining("PDF 内容类型与实际文件内容不匹配");
+    }
+
+    @Test
+    void rejectsDeclaredPdfMimeWithDocxContentWhenValidationIsEnabled() throws Exception {
+        DocumentContentExtractor extractor = new DocumentContentExtractor(properties(""));
+
+        assertThatThrownBy(() -> extractor.extract(DocumentSourceType.PDF, dataUrl(
+                "application/pdf",
+                docx("Forged document")
+        )))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("PDF 内容类型与实际文件内容不匹配");
+    }
+
+    @Test
+    void allowsForgedPdfMimeWhenValidationIsDisabledAndContentIsText() {
+        DocumentContentExtractor extractor = new DocumentContentExtractor(properties("", false, 0, 0));
+
+        String text = extractor.extract(DocumentSourceType.PDF, dataUrl(
+                "application/pdf",
+                "fallback text requirement".getBytes(StandardCharsets.UTF_8)
+        )).text();
+
+        assertThat(text).contains("fallback text requirement");
+    }
+
+    @Test
+    void rejectsPdfOverConfiguredPageLimit() throws Exception {
+        DocumentContentExtractor extractor = new DocumentContentExtractor(properties("", true, 1, 0));
+
+        assertThatThrownBy(() -> extractor.extract(DocumentSourceType.PDF, dataUrl(
+                "application/pdf",
+                pdfPages(2, "Page limited requirement")
+        )))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("PDF 页数超过上限: 1");
+    }
+
+    @Test
+    void rejectsPdfWhenParseTimeBudgetIsExceeded() throws Exception {
+        AtomicInteger calls = new AtomicInteger();
+        DocumentContentExtractor extractor = new DocumentContentExtractor(
+                properties("", true, 0, 1),
+                () -> calls.getAndIncrement() == 0 ? 0 : TimeUnit.MILLISECONDS.toNanos(2)
+        );
+
+        assertThatThrownBy(() -> extractor.extract(DocumentSourceType.PDF, dataUrl(
+                "application/pdf",
+                pdf("Timed PDF requirement")
+        )))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("PDF 解析超过时间上限: 1 ms");
     }
 
     private static byte[] docx(String... paragraphs) throws Exception {
@@ -81,23 +135,44 @@ class DocumentContentExtractorTest {
     }
 
     private static byte[] pdf(String... lines) throws Exception {
+        return pdfPages(1, lines);
+    }
+
+    private static byte[] pdfPages(int pages, String... lines) throws Exception {
         try (PDDocument document = new PDDocument();
              ByteArrayOutputStream output = new ByteArrayOutputStream()) {
-            PDPage page = new PDPage();
-            document.addPage(page);
-            try (PDPageContentStream content = new PDPageContentStream(document, page)) {
-                content.beginText();
-                content.setFont(new PDType1Font(Standard14Fonts.FontName.HELVETICA), 12);
-                content.newLineAtOffset(50, 740);
-                for (String line : lines) {
-                    content.showText(line);
-                    content.newLineAtOffset(0, -16);
+            for (int i = 0; i < pages; i++) {
+                PDPage page = new PDPage();
+                document.addPage(page);
+                try (PDPageContentStream content = new PDPageContentStream(document, page)) {
+                    content.beginText();
+                    content.setFont(new PDType1Font(Standard14Fonts.FontName.HELVETICA), 12);
+                    content.newLineAtOffset(50, 740);
+                    for (String line : lines) {
+                        content.showText(line);
+                        content.newLineAtOffset(0, -16);
+                    }
+                    content.endText();
                 }
-                content.endText();
             }
             document.save(output);
             return output.toByteArray();
         }
+    }
+
+    private static byte[] withPngMagic(String text) {
+        byte[] body = text.getBytes(StandardCharsets.UTF_8);
+        byte[] bytes = new byte[8 + body.length];
+        bytes[0] = (byte) 0x89;
+        bytes[1] = 0x50;
+        bytes[2] = 0x4e;
+        bytes[3] = 0x47;
+        bytes[4] = 0x0d;
+        bytes[5] = 0x0a;
+        bytes[6] = 0x1a;
+        bytes[7] = 0x0a;
+        System.arraycopy(body, 0, bytes, 8, body.length);
+        return bytes;
     }
 
     private static String dataUrl(String mimeType, byte[] bytes) {
@@ -105,6 +180,15 @@ class DocumentContentExtractorTest {
     }
 
     private static DocumentInputProperties properties(String ocrCommand) {
+        return properties(ocrCommand, true, 0, 0);
+    }
+
+    private static DocumentInputProperties properties(
+            String ocrCommand,
+            boolean binaryMimeValidationEnabled,
+            int pdfMaxPages,
+            long pdfMaxParseMillis
+    ) {
         return new DocumentInputProperties(
                 "service-token",
                 "default-secret",
@@ -126,7 +210,16 @@ class DocumentContentExtractorTest {
                 262144,
                 100,
                 3,
-                Map.of()
+                Map.of(),
+                "",
+                Map.of(),
+                "",
+                0,
+                60,
+                binaryMimeValidationEnabled,
+                pdfMaxPages,
+                pdfMaxParseMillis,
+                "LOCAL_COMMAND"
         );
     }
 }

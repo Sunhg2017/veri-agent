@@ -24,6 +24,7 @@ final class BuiltinPermissionCatalog {
                     "environment:read", "environment:create", "environment:edit", "environment:disable",
                     "environment:use", "environment:user_manage",
                     "config:read", "config:edit",
+                    "asset:read", "asset:manage", "asset:review", "asset:export",
                     "requirementInput:read", "requirementInput:manage", "requirementInput:import",
                     "requirementInput:candidate_review", "requirementInput:publish", "requirementInput:webhook_replay"
             ),
@@ -41,6 +42,7 @@ final class BuiltinPermissionCatalog {
                     "environment:use", "environment:user_manage",
                     "config:read", "config:edit", "audit:read", "audit:export", "secret:reference",
                     "context:read", "context:switch", "context:effective_read",
+                    "asset:read", "asset:manage", "asset:review", "asset:export",
                     "requirementInput:read", "requirementInput:manage", "requirementInput:import",
                     "requirementInput:candidate_review", "requirementInput:publish", "requirementInput:webhook_replay"
             ),
@@ -61,6 +63,7 @@ final class BuiltinPermissionCatalog {
                     "config:read", "config:edit", "role:read", "role:bind", "role:unbind",
                     "audit:read", "secret:reference",
                     "context:read", "context:switch", "context:effective_read",
+                    "asset:read", "asset:manage", "asset:review", "asset:export",
                     "requirementInput:read", "requirementInput:import",
                     "requirementInput:candidate_review", "requirementInput:publish"
             ),
@@ -71,23 +74,25 @@ final class BuiltinPermissionCatalog {
                     "environment:user_manage", "config:read", "config:edit", "role:read", "role:bind", "role:unbind",
                     "audit:read", "secret:reference",
                     "context:read", "context:switch", "context:effective_read",
+                    "asset:read", "asset:manage", "asset:review",
                     "requirementInput:read", "requirementInput:import",
                     "requirementInput:candidate_review", "requirementInput:publish"
             ),
             "Tester", Set.of(
                     "project:read", "application:read", "environment:read", "environment:use",
                     "config:read", "context:read", "context:switch", "context:effective_read",
+                    "asset:read", "asset:manage", "asset:review",
                     "requirementInput:read", "requirementInput:import", "requirementInput:candidate_review"
             ),
             "Developer", Set.of(
                     "project:read", "application:read", "environment:read", "config:read",
                     "context:read", "context:switch", "context:effective_read",
-                    "requirementInput:read"
+                    "asset:read", "requirementInput:read"
             ),
             "Auditor", Set.of(
                     "department:read", "user:read", "project:read", "application:read",
                     "environment:read", "config:read", "role:read", "audit:read", "audit:export",
-                    "context:read", "context:effective_read", "requirementInput:read"
+                    "context:read", "context:effective_read", "asset:read", "asset:export", "requirementInput:read"
             )
     );
 }

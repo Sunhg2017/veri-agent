@@ -28,18 +28,24 @@ describe('WP1 permission helpers', () => {
   });
 
   it('maps read permissions to protected management pages', () => {
-    const currentUser = user(['user:read', 'audit:read', 'config:read', 'requirementInput:read']);
+    const currentUser = user(['user:read', 'audit:read', 'config:read', 'requirementInput:read', 'asset:read']);
 
     expect(canAccessPage(currentUser, 'users')).toBe(true);
     expect(canAccessPage(currentUser, 'audit')).toBe(true);
     expect(canAccessPage(currentUser, 'settings')).toBe(true);
     expect(canAccessPage(currentUser, 'document-input')).toBe(true);
+    expect(canAccessPage(currentUser, 'asset-library')).toBe(true);
     expect(canAccessPage(currentUser, 'projects')).toBe(false);
   });
 
   it('requires WP4 read permission for the document input console', () => {
     expect(canAccessPage(user(['config:read']), 'document-input')).toBe(false);
     expect(canAccessPage(user(['requirementInput:read']), 'document-input')).toBe(true);
+  });
+
+  it('requires WP3 asset read permission for the asset workbench', () => {
+    expect(canAccessPage(user(['requirementInput:read']), 'asset-library')).toBe(false);
+    expect(canAccessPage(user(['asset:read']), 'asset-library')).toBe(true);
   });
 
   it('maps creatable resources to backend permission names', () => {
@@ -102,6 +108,11 @@ describe('WP1 permission helpers', () => {
   it('uses OR logic for single-permission buttons', () => {
     expect(canUseButton(user(['audit:export']), 'audit:export')).toBe(true);
     expect(canUseButton(user(['config:read']), 'audit:export')).toBe(false);
+    expect(canUseButton(user(['asset:manage']), 'asset:requirement_create')).toBe(true);
+    expect(canUseButton(user(['asset:manage']), 'asset:requirement_edit')).toBe(true);
+    expect(canUseButton(user(['asset:review']), 'asset:requirement_review')).toBe(true);
+    expect(canUseButton(user(['asset:read']), 'asset:requirement_edit')).toBe(false);
+    expect(canUseButton(user(['asset:export']), 'asset:export')).toBe(true);
   });
 
   it('handles status-change buttons with groups', () => {

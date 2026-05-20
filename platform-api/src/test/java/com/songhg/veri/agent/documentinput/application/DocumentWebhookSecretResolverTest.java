@@ -112,7 +112,16 @@ class DocumentWebhookSecretResolverTest {
                 262144,
                 100,
                 3,
-                secrets
+                secrets,
+                "",
+                Map.of(),
+                "",
+                0,
+                60,
+                true,
+                0,
+                0,
+                "LOCAL_COMMAND"
         );
     }
 

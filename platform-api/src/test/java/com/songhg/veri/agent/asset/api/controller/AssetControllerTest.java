@@ -19,6 +19,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest(properties = {
+        "veri-agent.bootstrap.token=init-token",
+        "veri-agent.auth.token-secret=test-auth-secret",
         "veri-agent.asset.service-token=test-asset-token"
 })
 @AutoConfigureMockMvc
@@ -52,6 +54,32 @@ class AssetControllerTest {
     }
 
     @Test
+    void allowsUserBearerTokenForAssetWorkbenchRequests() throws Exception {
+        String userToken = userAccessToken();
+
+        mockMvc.perform(post("/api/v1/asset/requirements")
+                        .header("Authorization", "Bearer " + userToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "title": "用户态需求",
+                                  "description": "资产工作台创建",
+                                  "priority": "HIGH",
+                                  "projectId": "project-wp3"
+                                }
+                                """))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.title").value("用户态需求"));
+
+        mockMvc.perform(get("/api/v1/asset/requirements")
+                        .header("Authorization", "Bearer " + userToken)
+                        .param("projectId", "project-wp3"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(1))
+                .andExpect(jsonPath("$.data.items[0].title").value("用户态需求"));
+    }
+
+    @Test
     void managesRequirementsFullLifecycle() throws Exception {
         String reqId = createRequirement("用户登录", "用户登录功能需求", "CRITICAL");
 
@@ -82,8 +110,9 @@ class AssetControllerTest {
         mockMvc.perform(get("/api/v1/asset/requirements")
                         .headers(authHeaders()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data", hasSize(1)))
-                .andExpect(jsonPath("$.data[0].title").value("用户登录V2"));
+                .andExpect(jsonPath("$.data.total").value(1))
+                .andExpect(jsonPath("$.data.items", hasSize(1)))
+                .andExpect(jsonPath("$.data.items[0].title").value("用户登录V2"));
     }
 
     @Test
@@ -117,7 +146,8 @@ class AssetControllerTest {
         mockMvc.perform(get("/api/v1/asset/apis")
                         .headers(authHeaders()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data", hasSize(1)));
+                .andExpect(jsonPath("$.data.total").value(1))
+                .andExpect(jsonPath("$.data.items", hasSize(1)));
     }
 
     @Test
@@ -154,7 +184,8 @@ class AssetControllerTest {
         mockMvc.perform(get("/api/v1/asset/pages")
                         .headers(authHeaders()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data", hasSize(1)));
+                .andExpect(jsonPath("$.data.total").value(1))
+                .andExpect(jsonPath("$.data.items", hasSize(1)));
     }
 
     @Test
@@ -188,7 +219,8 @@ class AssetControllerTest {
         mockMvc.perform(get("/api/v1/asset/business-flows")
                         .headers(authHeaders()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data", hasSize(1)));
+                .andExpect(jsonPath("$.data.total").value(1))
+                .andExpect(jsonPath("$.data.items", hasSize(1)));
     }
 
     @Test
@@ -228,7 +260,8 @@ class AssetControllerTest {
         mockMvc.perform(get("/api/v1/asset/test-cases")
                         .headers(authHeaders()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data", hasSize(1)));
+                .andExpect(jsonPath("$.data.total").value(1))
+                .andExpect(jsonPath("$.data.items", hasSize(1)));
     }
 
     @Test
@@ -243,27 +276,31 @@ class AssetControllerTest {
                         .headers(authHeaders())
                         .param("requirementId", reqId))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data", hasSize(1)))
-                .andExpect(jsonPath("$.data[0].requirementId").value(reqId))
-                .andExpect(jsonPath("$.data[0].apiId").value(apiId))
-                .andExpect(jsonPath("$.data[0].caseId").value(caseId));
+                .andExpect(jsonPath("$.data.total").value(1))
+                .andExpect(jsonPath("$.data.items", hasSize(1)))
+                .andExpect(jsonPath("$.data.items[0].requirementId").value(reqId))
+                .andExpect(jsonPath("$.data.items[0].apiId").value(apiId))
+                .andExpect(jsonPath("$.data.items[0].caseId").value(caseId));
 
         mockMvc.perform(get("/api/v1/asset/links")
                         .headers(authHeaders())
                         .param("apiId", apiId))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data", hasSize(1)));
+                .andExpect(jsonPath("$.data.total").value(1))
+                .andExpect(jsonPath("$.data.items", hasSize(1)));
 
         mockMvc.perform(get("/api/v1/asset/links")
                         .headers(authHeaders())
                         .param("caseId", caseId))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data", hasSize(1)));
+                .andExpect(jsonPath("$.data.total").value(1))
+                .andExpect(jsonPath("$.data.items", hasSize(1)));
 
         mockMvc.perform(get("/api/v1/asset/links")
                         .headers(authHeaders()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data", hasSize(1)));
+                .andExpect(jsonPath("$.data.total").value(1))
+                .andExpect(jsonPath("$.data.items", hasSize(1)));
     }
 
     @Test
@@ -481,5 +518,35 @@ class AssetControllerTest {
         headers.set("X-Caller-Service", "wp5-test-design");
         headers.set("X-Delegated-User-Id", "user-001");
         return headers;
+    }
+
+    private String userAccessToken() throws Exception {
+        bootstrapSuperAdmin();
+        MvcResult loginResult = mockMvc.perform(post("/api/v1/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "username": "admin_user",
+                                  "password": "PlainPassword123"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andReturn();
+        return JsonPath.read(loginResult.getResponse().getContentAsString(), "$.data.accessToken");
+    }
+
+    private void bootstrapSuperAdmin() throws Exception {
+        mockMvc.perform(post("/api/v1/bootstrap/super-admin")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "bootstrapToken": "init-token",
+                                  "username": "admin_user",
+                                  "password": "PlainPassword123",
+                                  "displayName": "平台管理员",
+                                  "email": "admin@example.com"
+                                }
+                                """))
+                .andExpect(status().isOk());
     }
 }

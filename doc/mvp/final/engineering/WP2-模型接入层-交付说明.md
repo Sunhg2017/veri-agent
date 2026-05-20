@@ -142,3 +142,9 @@ bash scripts/wp_all_integration_test.sh
 2. 已增加成本告警和成本日报聚合接口。
 3. 已对供应商就绪检查增加短 TTL 缓存，降低外部模型探活成本。
 4. 已新增 WP2 聚合质量门禁 `scripts/wp2_quality_gate.sh`，并将 HTTP smoke / 模块策略 smoke 纳入可选发布前门禁。
+
+## 7. Provider 生产接入与密钥轮换
+
+外部 provider 接入、OpenAI-compatible 私有网关配置、就绪检查、故障处理和密钥轮换流程已收敛到 `doc/mvp/final/engineering/WP2-Provider接入与SecretRef轮换Runbook.md`。
+
+当前实现中 WP2 外部 provider 的密钥引用字段为 `apiKeyRef`，OpenAI-compatible provider 仅接受 `env:VARIABLE_NAME`。生产环境应由部署系统或外部密钥系统注入环境变量，WP2 库表和 release notes 只保存引用，不保存明文。后续如接入 WP1 SecretProvider，应沿用 runbook 中的双引用、灰度检查、切换、旧引用失效流程。

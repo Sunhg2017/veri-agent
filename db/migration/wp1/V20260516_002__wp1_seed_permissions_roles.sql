@@ -46,6 +46,10 @@ values
 ('context:read','context','read','PLATFORM,DEPARTMENT,PROJECT,APPLICATION,ENVIRONMENT','查看上下文'),
 ('context:switch','context','switch','PLATFORM,DEPARTMENT,PROJECT,APPLICATION,ENVIRONMENT','切换上下文'),
 ('context:effective_read','context','effective_read','PLATFORM,PROJECT,APPLICATION,ENVIRONMENT','读取有效上下文'),
+('asset:read','asset','read','PLATFORM,PROJECT,APPLICATION','查看测试资产'),
+('asset:manage','asset','manage','PLATFORM,PROJECT,APPLICATION','管理测试资产'),
+('asset:review','asset','review','PLATFORM,PROJECT,APPLICATION','评审测试资产状态'),
+('asset:export','asset','export','PLATFORM,PROJECT','导出测试资产'),
 ('requirementInput:read','requirementInput','read','PLATFORM,PROJECT,APPLICATION','查看需求输入'),
 ('requirementInput:manage','requirementInput','manage','PLATFORM,PROJECT','管理需求输入源和字段映射'),
 ('requirementInput:import','requirementInput','import','PLATFORM,PROJECT,APPLICATION','导入需求文档'),
@@ -91,6 +95,7 @@ with role_permissions(role_code, permission_code) as (
     ('SuperAdmin','project:read'),('SuperAdmin','project:create'),('SuperAdmin','project:edit'),
     ('SuperAdmin','application:read'),('SuperAdmin','application:create'),('SuperAdmin','application:edit'),
     ('SuperAdmin','environment:read'),('SuperAdmin','environment:create'),('SuperAdmin','environment:edit'),('SuperAdmin','config:read'),('SuperAdmin','config:edit'),
+    ('SuperAdmin','asset:read'),('SuperAdmin','asset:manage'),('SuperAdmin','asset:review'),('SuperAdmin','asset:export'),
     ('SuperAdmin','requirementInput:read'),('SuperAdmin','requirementInput:manage'),('SuperAdmin','requirementInput:import'),
     ('SuperAdmin','requirementInput:candidate_review'),('SuperAdmin','requirementInput:publish'),('SuperAdmin','requirementInput:webhook_replay'),
 
@@ -102,6 +107,7 @@ with role_permissions(role_code, permission_code) as (
     ('PlatformAdmin','environment:read'),('PlatformAdmin','environment:create'),('PlatformAdmin','environment:edit'),('PlatformAdmin','environment:disable'),('PlatformAdmin','environment:use'),
     ('PlatformAdmin','config:read'),('PlatformAdmin','config:edit'),('PlatformAdmin','audit:read'),('PlatformAdmin','audit:export'),('PlatformAdmin','secret:reference'),
     ('PlatformAdmin','context:read'),('PlatformAdmin','context:switch'),('PlatformAdmin','context:effective_read'),
+    ('PlatformAdmin','asset:read'),('PlatformAdmin','asset:manage'),('PlatformAdmin','asset:review'),('PlatformAdmin','asset:export'),
     ('PlatformAdmin','requirementInput:read'),('PlatformAdmin','requirementInput:manage'),('PlatformAdmin','requirementInput:import'),
     ('PlatformAdmin','requirementInput:candidate_review'),('PlatformAdmin','requirementInput:publish'),('PlatformAdmin','requirementInput:webhook_replay'),
 
@@ -114,24 +120,28 @@ with role_permissions(role_code, permission_code) as (
     ('ProjectOwner','environment:read'),('ProjectOwner','environment:create'),('ProjectOwner','environment:edit'),('ProjectOwner','environment:disable'),('ProjectOwner','environment:use'),
     ('ProjectOwner','config:read'),('ProjectOwner','config:edit'),('ProjectOwner','role:read'),('ProjectOwner','role:bind'),('ProjectOwner','role:unbind'),('ProjectOwner','audit:read'),('ProjectOwner','secret:reference'),
     ('ProjectOwner','context:read'),('ProjectOwner','context:switch'),('ProjectOwner','context:effective_read'),
+    ('ProjectOwner','asset:read'),('ProjectOwner','asset:manage'),('ProjectOwner','asset:review'),('ProjectOwner','asset:export'),
     ('ProjectOwner','requirementInput:read'),('ProjectOwner','requirementInput:import'),('ProjectOwner','requirementInput:candidate_review'),('ProjectOwner','requirementInput:publish'),
 
     ('AppOwner','project:read'),('AppOwner','application:read'),('AppOwner','application:edit'),('AppOwner','application:disable'),
     ('AppOwner','environment:read'),('AppOwner','environment:create'),('AppOwner','environment:edit'),('AppOwner','environment:disable'),
     ('AppOwner','config:read'),('AppOwner','config:edit'),('AppOwner','role:read'),('AppOwner','role:bind'),('AppOwner','role:unbind'),('AppOwner','audit:read'),('AppOwner','secret:reference'),
     ('AppOwner','context:read'),('AppOwner','context:switch'),('AppOwner','context:effective_read'),
+    ('AppOwner','asset:read'),('AppOwner','asset:manage'),('AppOwner','asset:review'),
     ('AppOwner','requirementInput:read'),('AppOwner','requirementInput:import'),('AppOwner','requirementInput:candidate_review'),('AppOwner','requirementInput:publish'),
 
     ('Tester','project:read'),('Tester','application:read'),('Tester','environment:read'),('Tester','environment:use'),('Tester','config:read'),
     ('Tester','context:read'),('Tester','context:switch'),('Tester','context:effective_read'),
+    ('Tester','asset:read'),('Tester','asset:manage'),('Tester','asset:review'),
     ('Tester','requirementInput:read'),('Tester','requirementInput:import'),('Tester','requirementInput:candidate_review'),
 
     ('Developer','project:read'),('Developer','application:read'),('Developer','environment:read'),('Developer','config:read'),
     ('Developer','context:read'),('Developer','context:switch'),('Developer','context:effective_read'),
+    ('Developer','asset:read'),
     ('Developer','requirementInput:read'),
 
     ('Auditor','department:read'),('Auditor','user:read'),('Auditor','project:read'),('Auditor','application:read'),('Auditor','environment:read'),('Auditor','config:read'),('Auditor','role:read'),('Auditor','audit:read'),('Auditor','audit:export'),
-    ('Auditor','context:read'),('Auditor','context:effective_read'),('Auditor','requirementInput:read')
+    ('Auditor','context:read'),('Auditor','context:effective_read'),('Auditor','asset:read'),('Auditor','asset:export'),('Auditor','requirementInput:read')
 )
 insert into rbac_role_permission (role_id, permission_id, effect)
 select r.id, p.id, 'ALLOW'

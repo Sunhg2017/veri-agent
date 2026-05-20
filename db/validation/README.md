@@ -29,7 +29,7 @@ bash db/validation/run_wp1_db_validation.sh
 bash db/validation/run_wp2_db_validation.sh
 ```
 
-脚本会启动临时 PostgreSQL 15 容器，顺序执行 migration、validation，并重复执行一次用于幂等性 smoke test。WP1 脚本会执行 WP1/WP2/WP3/WP4 位于 `db/migration/wp1` 下的统一迁移，并创建 `wp1_app`、`wp1_readonly`、`wp1_migration` 三个测试数据库角色，套用运行期授权策略后验证审计表 append-only 权限和 WP4 schema 准出项。默认输出目录分别为 `build/wp1-db-validation/` 和 `build/wp2-db-validation/`；WP1 出现 `FAIL` 或未显式放行的 `WARN` 时以非零状态退出，WP2 出现 `FAIL` 时以非零状态退出。
+脚本会启动临时 PostgreSQL 15 容器，顺序执行 migration、validation，并重复执行一次用于幂等性 smoke test。WP1 脚本会执行 WP1/WP2/WP3/WP4 位于 `db/migration/wp1` 下的统一迁移，并创建 `wp1_app`、`wp1_readonly`、`wp1_migration` 三个测试数据库角色，套用运行期授权策略后验证运行期角色具备 WP1-WP4 业务表 DML 权限、审计表 append-only 权限和 WP4 schema 准出项。默认输出目录分别为 `build/wp1-db-validation/` 和 `build/wp2-db-validation/`；WP1 出现 `FAIL` 或未显式放行的 `WARN` 时以非零状态退出，WP2 出现 `FAIL` 时以非零状态退出。
 
 ## 脚本说明
 
@@ -42,7 +42,7 @@ bash db/validation/run_wp2_db_validation.sh
 
 ## 预期结果
 
-迁移、seed 和临时库运行期角色策略正常时，核心检查应全部返回 `PASS`。安全脚本中的 `security.audit_log_app_role_append_only` 默认检查 `wp1_app` 和 `veri_agent_app` 两个候选应用数据库角色；`run_wp1_db_validation.sh` 会创建 `wp1_app` 并套用标准授权策略，因此本地和 CI 临时库应得到确定的 `PASS/FAIL`。
+迁移、seed 和临时库运行期角色策略正常时，核心检查应全部返回 `PASS`。安全脚本中的 `security.app_role_runtime_table_dml` 和 `security.audit_log_app_role_append_only` 默认检查 `wp1_app` 和 `veri_agent_app` 两个候选应用数据库角色；`run_wp1_db_validation.sh` 会创建 `wp1_app` 并套用标准授权策略，因此本地和 CI 临时库应得到确定的 `PASS/FAIL`。
 
 ## 需要替换的环境项
 

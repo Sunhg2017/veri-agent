@@ -4,6 +4,7 @@ import type { CreatableManagementResource } from './api/management';
 export type PageKey =
   | 'overview'
   | 'document-input'
+  | 'asset-library'
   | 'organizations'
   | 'users'
   | 'projects'
@@ -56,7 +57,11 @@ export type Permission =
   | 'requirementInput:import'
   | 'requirementInput:candidate_review'
   | 'requirementInput:publish'
-  | 'requirementInput:webhook_replay';
+  | 'requirementInput:webhook_replay'
+  | 'asset:read'
+  | 'asset:manage'
+  | 'asset:review'
+  | 'asset:export';
 
 export type ButtonKey =
   | 'department:create'
@@ -76,12 +81,17 @@ export type ButtonKey =
   | 'environment:edit'
   | 'environment:user'
   | 'config:edit'
-  | 'audit:export';
+  | 'audit:export'
+  | 'asset:requirement_create'
+  | 'asset:requirement_edit'
+  | 'asset:requirement_review'
+  | 'asset:export';
 
 export type UserLifecycleAction = 'enable' | 'disable' | 'lock' | 'unlock' | 'reset-password' | 'assign-role' | 'unassign-role';
 
 export const pageReadPermissions: Partial<Record<PageKey, Permission>> = {
   'document-input': 'requirementInput:read',
+  'asset-library': 'asset:read',
   organizations: 'department:read',
   users: 'user:read',
   projects: 'project:read',
@@ -133,6 +143,10 @@ const buttonPermissionGroups: Record<ButtonKey, Permission[][]> = {
   'environment:edit': [['environment:edit'], ['environment:disable']],
   'config:edit': [['config:edit']],
   'audit:export': [['audit:export']],
+  'asset:requirement_create': [['asset:manage']],
+  'asset:requirement_edit': [['asset:manage']],
+  'asset:requirement_review': [['asset:review']],
+  'asset:export': [['asset:export']],
 
   // Compound operations requiring ALL permissions in a group (AND logic)
   'user:role': [

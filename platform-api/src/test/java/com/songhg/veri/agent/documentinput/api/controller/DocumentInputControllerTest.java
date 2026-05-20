@@ -57,7 +57,16 @@ class DocumentInputControllerTest {
                 .andExpect(jsonPath("$.data.ocrMaxOutputChars").value(20000))
                 .andExpect(jsonPath("$.data.ocrMaxConcurrentProcesses").value(2))
                 .andExpect(jsonPath("$.data.ocrAvailablePermits").value(2))
-                .andExpect(jsonPath("$.data.batchActionLimit").value(100));
+                .andExpect(jsonPath("$.data.ocrWorkerMode").value("LOCAL_COMMAND"))
+                .andExpect(jsonPath("$.data.batchActionLimit").value(100))
+                .andExpect(jsonPath("$.data.webhookIpAllowlistEnabled").value(false))
+                .andExpect(jsonPath("$.data.webhookTrustedProxyCidrsConfigured").value(false))
+                .andExpect(jsonPath("$.data.webhookRateLimitEnabled").value(false))
+                .andExpect(jsonPath("$.data.webhookRateLimitMaxRequests").value(0))
+                .andExpect(jsonPath("$.data.webhookRateLimitWindowSeconds").value(60))
+                .andExpect(jsonPath("$.data.binaryMimeValidationEnabled").value(true))
+                .andExpect(jsonPath("$.data.pdfMaxPages").value(0))
+                .andExpect(jsonPath("$.data.pdfMaxParseMillis").value(0));
     }
 
     @Test

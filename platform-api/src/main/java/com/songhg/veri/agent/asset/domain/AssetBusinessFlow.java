@@ -5,6 +5,7 @@ import java.util.UUID;
 
 public record AssetBusinessFlow(
         UUID id,
+        String code,
         String name,
         String description,
         String flowJson,

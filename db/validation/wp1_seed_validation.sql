@@ -13,6 +13,7 @@ with expected(code) as (
         ('audit:read'), ('audit:export'), ('audit:write_internal'),
         ('secret:reference'),
         ('context:read'), ('context:switch'), ('context:effective_read'),
+        ('asset:read'), ('asset:manage'), ('asset:review'), ('asset:export'),
         ('requirementInput:read'), ('requirementInput:manage'), ('requirementInput:import'),
         ('requirementInput:candidate_review'), ('requirementInput:publish'), ('requirementInput:webhook_replay')
 ),
@@ -123,14 +124,14 @@ from missing;
 
 with expected(role_code, permission_code) as (
     values
-        ('SuperAdmin','role:bind'), ('SuperAdmin','audit:read'), ('SuperAdmin','context:switch'), ('SuperAdmin','user:enable'), ('SuperAdmin','user:disable'), ('SuperAdmin','user:unlock'), ('SuperAdmin','user:reset_password'), ('SuperAdmin','application:owner_manage'), ('SuperAdmin','environment:user_manage'), ('SuperAdmin','requirementInput:manage'), ('SuperAdmin','requirementInput:webhook_replay'),
-        ('PlatformAdmin','department:create'), ('PlatformAdmin','user:create'), ('PlatformAdmin','user:unlock'), ('PlatformAdmin','user:reset_password'), ('PlatformAdmin','project:create'), ('PlatformAdmin','application:create'), ('PlatformAdmin','environment:create'), ('PlatformAdmin','config:edit'), ('PlatformAdmin','role:bind'), ('PlatformAdmin','audit:read'), ('PlatformAdmin','context:effective_read'), ('PlatformAdmin','application:owner_manage'), ('PlatformAdmin','environment:user_manage'), ('PlatformAdmin','requirementInput:manage'), ('PlatformAdmin','requirementInput:webhook_replay'),
+        ('SuperAdmin','role:bind'), ('SuperAdmin','audit:read'), ('SuperAdmin','context:switch'), ('SuperAdmin','user:enable'), ('SuperAdmin','user:disable'), ('SuperAdmin','user:unlock'), ('SuperAdmin','user:reset_password'), ('SuperAdmin','application:owner_manage'), ('SuperAdmin','environment:user_manage'), ('SuperAdmin','asset:manage'), ('SuperAdmin','asset:review'), ('SuperAdmin','asset:export'), ('SuperAdmin','requirementInput:manage'), ('SuperAdmin','requirementInput:webhook_replay'),
+        ('PlatformAdmin','department:create'), ('PlatformAdmin','user:create'), ('PlatformAdmin','user:unlock'), ('PlatformAdmin','user:reset_password'), ('PlatformAdmin','project:create'), ('PlatformAdmin','application:create'), ('PlatformAdmin','environment:create'), ('PlatformAdmin','config:edit'), ('PlatformAdmin','role:bind'), ('PlatformAdmin','audit:read'), ('PlatformAdmin','context:effective_read'), ('PlatformAdmin','application:owner_manage'), ('PlatformAdmin','environment:user_manage'), ('PlatformAdmin','asset:manage'), ('PlatformAdmin','asset:review'), ('PlatformAdmin','asset:export'), ('PlatformAdmin','requirementInput:manage'), ('PlatformAdmin','requirementInput:webhook_replay'),
         ('DepartmentManager','department:member_manage'), ('DepartmentManager','user:read'), ('DepartmentManager','project:read'), ('DepartmentManager','audit:read'), ('DepartmentManager','context:read'),
-        ('ProjectOwner','project:edit'), ('ProjectOwner','project:member_manage'), ('ProjectOwner','application:create'), ('ProjectOwner','environment:create'), ('ProjectOwner','config:edit'), ('ProjectOwner','role:bind'), ('ProjectOwner','secret:reference'), ('ProjectOwner','context:switch'), ('ProjectOwner','application:owner_manage'), ('ProjectOwner','environment:user_manage'), ('ProjectOwner','requirementInput:publish'),
-        ('AppOwner','application:edit'), ('AppOwner','environment:create'), ('AppOwner','environment:edit'), ('AppOwner','config:edit'), ('AppOwner','role:bind'), ('AppOwner','secret:reference'), ('AppOwner','context:read'), ('AppOwner','application:owner_manage'), ('AppOwner','environment:user_manage'), ('AppOwner','requirementInput:publish'),
-        ('Tester','environment:use'), ('Tester','config:read'), ('Tester','context:effective_read'), ('Tester','requirementInput:candidate_review'),
-        ('Developer','project:read'), ('Developer','application:read'), ('Developer','environment:read'), ('Developer','config:read'), ('Developer','context:switch'), ('Developer','requirementInput:read'),
-        ('Auditor','audit:read'), ('Auditor','audit:export'), ('Auditor','context:effective_read'), ('Auditor','requirementInput:read')
+        ('ProjectOwner','project:edit'), ('ProjectOwner','project:member_manage'), ('ProjectOwner','application:create'), ('ProjectOwner','environment:create'), ('ProjectOwner','config:edit'), ('ProjectOwner','role:bind'), ('ProjectOwner','secret:reference'), ('ProjectOwner','context:switch'), ('ProjectOwner','application:owner_manage'), ('ProjectOwner','environment:user_manage'), ('ProjectOwner','asset:manage'), ('ProjectOwner','asset:review'), ('ProjectOwner','asset:export'), ('ProjectOwner','requirementInput:publish'),
+        ('AppOwner','application:edit'), ('AppOwner','environment:create'), ('AppOwner','environment:edit'), ('AppOwner','config:edit'), ('AppOwner','role:bind'), ('AppOwner','secret:reference'), ('AppOwner','context:read'), ('AppOwner','application:owner_manage'), ('AppOwner','environment:user_manage'), ('AppOwner','asset:manage'), ('AppOwner','asset:review'), ('AppOwner','requirementInput:publish'),
+        ('Tester','environment:use'), ('Tester','config:read'), ('Tester','context:effective_read'), ('Tester','asset:manage'), ('Tester','asset:review'), ('Tester','requirementInput:candidate_review'),
+        ('Developer','project:read'), ('Developer','application:read'), ('Developer','environment:read'), ('Developer','config:read'), ('Developer','context:switch'), ('Developer','asset:read'), ('Developer','requirementInput:read'),
+        ('Auditor','audit:read'), ('Auditor','audit:export'), ('Auditor','context:effective_read'), ('Auditor','asset:read'), ('Auditor','asset:export'), ('Auditor','requirementInput:read')
 ),
 missing as (
     select e.role_code || '->' || e.permission_code as binding

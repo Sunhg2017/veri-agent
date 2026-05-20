@@ -90,6 +90,8 @@ AI 解析只通过 WP2 `ModelAccessService`，不在 WP4 直连外部模型 SDK�
 
 签名失败、时间戳超窗、事件 ID 重复、幂等键冲突、payload 超限、sourceCode 不存在或停用，均必须拒绝处理并写入审计或安全日志。错误摘要不得输出 secret、token、cookie 或完整签名。
 
+cURL、Node.js 和 Java 签名样例及联调排错口径见 `doc/mvp/final/engineering/WP4-Webhook签名样例与联调说明.md`。外部系统联调必须以 `timestamp.eventId.idempotencyKey.rawBody` 为唯一 canonical string，并保证签名时的 raw body 与 HTTP 实际发送内容完全一致。
+
 ## 4. 开发任务清单
 
 ### A 线：候选确认与 WP3 发布
@@ -217,7 +219,7 @@ AI 解析只通过 WP2 `ModelAccessService`，不在 WP4 直连外部模型 SDK�
 |---|---|---|---|
 | WP3 upsert 语义未冻结 | 发布链路阻塞或产生重复资产 | externalRequirementId/sourceFragmentId 去重规则不清 | M0 先冻结最小 DTO 和幂等规则；必要时先接 WP3 mock |
 | 候选编辑与发布并发冲突 | 用户覆盖彼此修改或发布旧版本 | 同一候选多人编辑、确认后继续修改 | 候选接口强制版本号；发布读取 confirmedVersion |
-| Webhook 签名覆盖范围不一致 | 合法事件被拒或伪造事件通过 | 外部平台与服务端拼签规则不一致 | 提供签名样例、固定 canonical string，并纳入联调用例 |
+| Webhook 签名覆盖范围不一致 | 合法事件被拒或伪造事件通过 | 外部平台与服务端拼签规则不一致 | 按 `WP4-Webhook签名样例与联调说明.md` 固定 canonical string，并纳入联调用例 |
 | 外部事件重复或乱序 | 候选状态错误、WP3 状态回退 | 同一外部需求快速更新或重试投递 | 使用 eventTime、eventVersion、idempotencyKey 和业务版本判断是否跳过 |
 | 重放绕过幂等保护 | 重复生成候选或重复发布 | 人工多次点击重放或自动重试并发 | 重放仍走原处理链路和幂等键；重放请求自身增加操作幂等 |
 | 错误日志泄露 payload 敏感内容 | 合规和安全风险 | 失败事件详情展示完整 token、cookie 或隐私字段 | 统一脱敏规则；详情页默认展示脱敏 payload，原文访问需更高权限或不开放 |

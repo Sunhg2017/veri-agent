@@ -39,6 +39,7 @@ import {
 import { bootstrapSuperAdmin, type BootstrapPayload, type BootstrapResult } from './api/bootstrap';
 import { ApiError, clearAuthToken, getAuthToken } from './api/client';
 import { fetchHealth, type HealthResult } from './api/health';
+import { AssetWorkbench } from './components/AssetWorkbench';
 import { DocumentInputConsole } from './components/DocumentInputConsole';
 import {
   assignUserRole,
@@ -179,6 +180,13 @@ const pages: PageDefinition[] = [
     title: '文档输入',
     description: '管理文档源、字段映射与文本/Markdown 导入，查看解析出的需求数量。',
     icon: FileText
+  },
+  {
+    key: 'asset-library',
+    label: '资产库',
+    title: '资产库',
+    description: '管理 WP3 需求资产，查看来源追踪和后续资产类型入口。',
+    icon: Archive
   },
   {
     key: 'organizations',
@@ -336,8 +344,22 @@ type ManagementLoadState = {
   error?: string;
 };
 
+function activePageFromHash(): PageKey {
+  const pageKey = window.location.hash.replace(/^#\/?/, '').split('/')[0];
+  return pages.some((page) => page.key === pageKey) ? (pageKey as PageKey) : 'overview';
+}
+
+function navigateToPage(page: PageKey, setPage: (page: PageKey) => void) {
+  const hash = `#${page}`;
+  if (window.location.hash === hash || window.location.hash.startsWith(`${hash}/`)) {
+    setPage(page);
+    return;
+  }
+  window.location.hash = hash;
+}
+
 export function App() {
-  const [activePage, setActivePage] = useState<PageKey>('overview');
+  const [activePage, setActivePage] = useState<PageKey>(() => activePageFromHash());
   const [form, setForm] = useState<BootstrapPayload>(initialForm);
   const [submitting, setSubmitting] = useState(false);
   const [submitState, setSubmitState] = useState<SubmitState>({ status: 'idle' });
@@ -356,6 +378,15 @@ export function App() {
     loading: true
   });
   const visiblePages = useMemo(() => pages.filter((page) => canAccessPage(currentUser, page.key)), [currentUser]);
+
+  useEffect(() => {
+    function syncPageFromHash() {
+      setActivePage(activePageFromHash());
+    }
+
+    window.addEventListener('hashchange', syncPageFromHash);
+    return () => window.removeEventListener('hashchange', syncPageFromHash);
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -419,6 +450,7 @@ export function App() {
 
   useEffect(() => {
     if (!canAccessPage(currentUser, activePage)) {
+      window.history.replaceState(null, '', '#overview');
       setActivePage('overview');
     }
   }, [activePage, currentUser]);
@@ -741,7 +773,7 @@ export function App() {
                 className={`nav-item ${selected ? 'active' : ''}`}
                 type="button"
                 key={page.key}
-                onClick={() => setActivePage(page.key)}
+                onClick={() => navigateToPage(page.key, setActivePage)}
                 aria-current={selected ? 'page' : undefined}
               >
                 <Icon size={18} />
@@ -978,6 +1010,10 @@ function ModulePage(props: {
 }) {
   if (props.page === 'document-input') {
     return <DocumentInputConsole signedIn={props.signedIn} currentUser={props.currentUser} />;
+  }
+
+  if (props.page === 'asset-library') {
+    return <AssetWorkbench signedIn={props.signedIn} currentUser={props.currentUser} />;
   }
 
   if (props.page === 'organizations') {

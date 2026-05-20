@@ -2,6 +2,7 @@ package com.songhg.veri.agent.documentinput.config;
 
 import java.util.Map;
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.boot.context.properties.bind.DefaultValue;
 
 @ConfigurationProperties(prefix = "veri-agent.document-input")
 public record DocumentInputProperties(
@@ -25,6 +26,15 @@ public record DocumentInputProperties(
         long webhookMaxPayloadBytes,
         int batchActionLimit,
         int webhookMaxReplayAttempts,
-        Map<String, String> webhookSecrets
+        Map<String, String> webhookSecrets,
+        String webhookAllowedCidrs,
+        Map<String, String> webhookSourceAllowedCidrs,
+        String webhookTrustedProxyCidrs,
+        int webhookRateLimitMaxRequests,
+        long webhookRateLimitWindowSeconds,
+        @DefaultValue("true") boolean binaryMimeValidationEnabled,
+        int pdfMaxPages,
+        long pdfMaxParseMillis,
+        @DefaultValue("LOCAL_COMMAND") String ocrWorkerMode
 ) {
 }
