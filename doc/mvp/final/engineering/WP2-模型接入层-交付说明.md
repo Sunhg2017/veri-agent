@@ -45,12 +45,13 @@ WP2 P0 交付以下能力：
 | `GET /invocations/summary` | 按同一组筛选条件汇总调用次数、状态分布、token 和成本。 |
 | `GET /invocations/export` | 按同一组筛选条件导出脱敏调用审计 CSV。 |
 
-除健康检查外，API 使用服务令牌：
+除健康检查外，API 支持两类调用身份：
 
 - `Authorization: Bearer <WP2_SERVICE_TOKEN>`
 - `X-Caller-Service`
 - `X-Delegated-User-Id`
 - `X-Trace-Id`
+- 登录用户 Bearer token，用于 `portal-web` 模型接入管理台；后端按 `modelAccess:read`、`modelAccess:manage`、`modelAccess:export` 做 RBAC 校验，浏览器不得持有 `WP2_SERVICE_TOKEN`。
 
 ## 3. WP1 集成约束
 

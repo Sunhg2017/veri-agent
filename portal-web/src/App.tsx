@@ -42,6 +42,7 @@ import { ApiError, clearAuthToken, getAuthToken } from './api/client';
 import { fetchHealth, type HealthResult } from './api/health';
 import { AssetWorkbench } from './components/AssetWorkbench';
 import { DocumentInputConsole } from './components/DocumentInputConsole';
+import { ModelAccessConsole } from './components/ModelAccessConsole';
 import {
   assignUserRole,
   addApplicationOwner,
@@ -190,6 +191,13 @@ const pages: PageDefinition[] = [
     title: '资产库',
     description: '管理 WP3 需求资产，查看来源追踪和后续资产类型入口。',
     icon: Archive
+  },
+  {
+    key: 'model-access',
+    label: '模型接入',
+    title: '模型接入',
+    description: '管理 WP2 模型供应商、Prompt 版本、调用日志与成本。',
+    icon: Activity
   },
   {
     key: 'organizations',
@@ -1056,6 +1064,10 @@ function ModulePage(props: {
 
   if (props.page === 'asset-library') {
     return <AssetWorkbench signedIn={props.signedIn} currentUser={props.currentUser} />;
+  }
+
+  if (props.page === 'model-access') {
+    return <ModelAccessConsole signedIn={props.signedIn} currentUser={props.currentUser} />;
   }
 
   if (props.page === 'organizations') {

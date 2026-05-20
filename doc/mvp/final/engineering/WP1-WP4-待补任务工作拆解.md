@@ -90,9 +90,9 @@ WP1、WP2、WP4 的当前 P0 口径已经基本收敛，后续以生产硬化、
 
 | 编号 | 任务 | 优先级 | 状态 | 工作内容 | 验收标准 |
 |---|---|---|---|---|---|
-| WP2-A1 | 模型供应商管理页面 | P1 | TODO | 供应商列表、创建、编辑、启停、就绪检查、成本配置 | 前端使用现有 `/api/v1/model-access/providers` 契约，密钥只填 secretRef |
-| WP2-A2 | Prompt 版本管理页面 | P1 | TODO | Prompt key 列表、版本详情、新建版本、激活、diff 展示 | 每个 promptKey 只有一个 ACTIVE 版本；激活写审计 |
-| WP2-A3 | 调用日志与成本页面 | P1 | TODO | 日志筛选、summary、CSV 导出、成本日报/告警展示 | 日志不展示 prompt 明文和敏感内容；导出权限受控 |
+| WP2-A1 | 模型供应商管理页面 | P1 | DONE-CURRENT | 已新增 `portal-web` 模型接入管理台供应商页，支持列表、创建、编辑、启停、就绪检查、熔断恢复和成本配置 | 前端使用现有 `/api/v1/model-access/providers` 契约，浏览器只使用登录用户 Bearer；密钥只填 `apiKeyRef=env:VARIABLE_NAME` 引用 |
+| WP2-A2 | Prompt 版本管理页面 | P1 | DONE-CURRENT | 已新增 Prompt key 查询、版本列表、新建版本、激活和双版本 diff 展示；后端补用户态激活审计 | 每个 promptKey 只有一个 ACTIVE 版本；激活写审计 |
+| WP2-A3 | 调用日志与成本页面 | P1 | DONE-CURRENT | 已新增日志筛选、summary、CSV 导出、成本日报和告警展示；后端补 `modelAccess:export` 导出权限 | 日志只展示 preview/digest，不展示 prompt 明文和敏感内容；导出权限受控 |
 
 ### WP2-B Provider 生产硬化
 

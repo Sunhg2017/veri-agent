@@ -28,13 +28,14 @@ describe('WP1 permission helpers', () => {
   });
 
   it('maps read permissions to protected management pages', () => {
-    const currentUser = user(['user:read', 'audit:read', 'config:read', 'requirementInput:read', 'asset:read']);
+    const currentUser = user(['user:read', 'audit:read', 'config:read', 'requirementInput:read', 'asset:read', 'modelAccess:read']);
 
     expect(canAccessPage(currentUser, 'users')).toBe(true);
     expect(canAccessPage(currentUser, 'audit')).toBe(true);
     expect(canAccessPage(currentUser, 'settings')).toBe(true);
     expect(canAccessPage(currentUser, 'document-input')).toBe(true);
     expect(canAccessPage(currentUser, 'asset-library')).toBe(true);
+    expect(canAccessPage(currentUser, 'model-access')).toBe(true);
     expect(canAccessPage(currentUser, 'projects')).toBe(false);
   });
 
@@ -46,6 +47,11 @@ describe('WP1 permission helpers', () => {
   it('requires WP3 asset read permission for the asset workbench', () => {
     expect(canAccessPage(user(['requirementInput:read']), 'asset-library')).toBe(false);
     expect(canAccessPage(user(['asset:read']), 'asset-library')).toBe(true);
+  });
+
+  it('requires WP2 model access read permission for the model access console', () => {
+    expect(canAccessPage(user(['asset:read']), 'model-access')).toBe(false);
+    expect(canAccessPage(user(['modelAccess:read']), 'model-access')).toBe(true);
   });
 
   it('maps creatable resources to backend permission names', () => {
@@ -126,6 +132,10 @@ describe('WP1 permission helpers', () => {
     expect(canUseButton(user(['asset:read']), 'asset:flow_edit')).toBe(false);
     expect(canUseButton(user(['asset:read']), 'asset:case_edit')).toBe(false);
     expect(canUseButton(user(['asset:export']), 'asset:export')).toBe(true);
+    expect(canUseButton(user(['modelAccess:manage']), 'modelAccess:provider_manage')).toBe(true);
+    expect(canUseButton(user(['modelAccess:manage']), 'modelAccess:prompt_manage')).toBe(true);
+    expect(canUseButton(user(['modelAccess:read']), 'modelAccess:provider_manage')).toBe(false);
+    expect(canUseButton(user(['modelAccess:export']), 'modelAccess:export')).toBe(true);
   });
 
   it('handles status-change buttons with groups', () => {

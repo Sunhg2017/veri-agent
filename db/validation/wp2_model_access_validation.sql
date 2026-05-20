@@ -87,6 +87,15 @@ select
     coalesce(string_agg(item, ', ' order by item), 'no plaintext secret/prompt body columns found') as details
 from plaintext_risk;
 
+select
+    'wp2.schema.sensitivity_constraint_accepts_restricted' as check_name,
+    case when count(*) = 1 then 'PASS' else 'FAIL' end as status,
+    coalesce(max(pg_get_constraintdef(oid)), 'ck_ma_invocation_sensitivity missing RESTRICTED') as details
+from pg_constraint
+where conname = 'ck_ma_invocation_sensitivity'
+  and conrelid = 'ma_invocation_log'::regclass
+  and pg_get_constraintdef(oid) like '%RESTRICTED%';
+
 with found as (
     select table_name || '.tenant_id' as item
     from information_schema.columns

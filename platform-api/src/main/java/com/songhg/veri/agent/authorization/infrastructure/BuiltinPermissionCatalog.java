@@ -25,6 +25,7 @@ final class BuiltinPermissionCatalog {
                     "environment:use", "environment:user_manage",
                     "config:read", "config:edit",
                     "asset:read", "asset:manage", "asset:review", "asset:export",
+                    "modelAccess:read", "modelAccess:manage", "modelAccess:export",
                     "requirementInput:read", "requirementInput:manage", "requirementInput:import",
                     "requirementInput:candidate_review", "requirementInput:publish", "requirementInput:webhook_replay"
             ),
@@ -43,6 +44,7 @@ final class BuiltinPermissionCatalog {
                     "config:read", "config:edit", "audit:read", "audit:export", "secret:reference",
                     "context:read", "context:switch", "context:effective_read",
                     "asset:read", "asset:manage", "asset:review", "asset:export",
+                    "modelAccess:read", "modelAccess:manage", "modelAccess:export",
                     "requirementInput:read", "requirementInput:manage", "requirementInput:import",
                     "requirementInput:candidate_review", "requirementInput:publish", "requirementInput:webhook_replay"
             ),
@@ -92,7 +94,8 @@ final class BuiltinPermissionCatalog {
             "Auditor", Set.of(
                     "department:read", "user:read", "project:read", "application:read",
                     "environment:read", "config:read", "role:read", "audit:read", "audit:export",
-                    "context:read", "context:effective_read", "asset:read", "asset:export", "requirementInput:read"
+                    "context:read", "context:effective_read", "asset:read", "asset:export",
+                    "modelAccess:read", "modelAccess:export", "requirementInput:read"
             )
     );
 }

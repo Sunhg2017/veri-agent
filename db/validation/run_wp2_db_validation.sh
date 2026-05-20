@@ -10,7 +10,7 @@ DB_USER="${WP2_DB_VALIDATION_USER:-wp2user}"
 DB_PASSWORD="${WP2_DB_VALIDATION_PASSWORD:-wp2pass}"
 KEEP_CONTAINER="${WP2_KEEP_CONTAINER:-0}"
 
-MIGRATION_DIR="$ROOT_DIR/db/migration/wp2"
+MIGRATION_DIR="${WP2_DB_VALIDATION_MIGRATION_DIR:-$ROOT_DIR/db/migration/wp1}"
 MIGRATIONS=()
 while IFS= read -r migration_file; do
   MIGRATIONS+=("$migration_file")

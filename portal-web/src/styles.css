@@ -2382,6 +2382,245 @@ tbody tr:hover td {
 }
 
 /* ==============================
+   WP2 模型接入管理
+   ============================== */
+
+.model-access-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 24px;
+  align-items: start;
+}
+
+.model-access-main,
+.model-access-side,
+.model-access-section {
+  min-width: 0;
+}
+
+.model-access-side {
+  display: grid;
+  gap: 16px;
+}
+
+.model-access-panel {
+  min-width: 0;
+}
+
+.model-access-section {
+  display: grid;
+  gap: 16px;
+}
+
+.model-access-form {
+  display: grid;
+  gap: 14px;
+}
+
+.model-access-provider-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.model-access-prompt-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(280px, 0.85fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.model-access-prompt-form-grid {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 110px;
+}
+
+.model-access-checkbox-field {
+  justify-content: end;
+}
+
+.model-access-checkbox-field input[type='checkbox'] {
+  width: 18px;
+  height: 18px;
+  min-height: 18px;
+  padding: 0;
+}
+
+.model-access-diff-panel {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg);
+}
+
+.model-access-diff-selectors {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.model-access-diff-selectors select {
+  width: 100%;
+  min-height: 36px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0 10px;
+  color: var(--text-primary);
+  background: var(--surface);
+  font-size: 12px;
+}
+
+.model-access-diff-meta {
+  display: flex;
+  justify-content: space-between;
+  color: var(--text-tertiary);
+  font-size: 11px;
+}
+
+.model-access-diff-view {
+  display: grid;
+  gap: 4px;
+  max-height: 300px;
+  overflow: auto;
+  padding: 8px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+
+.model-access-diff-row {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+  min-height: 24px;
+  padding: 3px 6px;
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.model-access-diff-row span {
+  color: var(--text-tertiary);
+  text-align: right;
+}
+
+.model-access-diff-row code {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.model-access-diff-row.added {
+  background: var(--success-bg);
+}
+
+.model-access-diff-row.removed {
+  background: var(--danger-bg);
+}
+
+.model-access-diff-row.changed {
+  background: var(--warning-bg);
+}
+
+.model-access-prompt-filter {
+  grid-template-columns: minmax(220px, 360px) auto;
+}
+
+.model-access-log-filter {
+  grid-template-columns: repeat(5, minmax(0, 1fr)) auto;
+}
+
+.model-access-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.model-access-summary-grid .status-item,
+.document-health-grid .status-item {
+  min-width: 0;
+}
+
+.metric-positive {
+  color: #047857;
+}
+
+.metric-pending {
+  color: #92400e;
+}
+
+.metric-negative {
+  color: #991b1b;
+}
+
+.metric-neutral {
+  color: var(--text-primary);
+}
+
+.model-access-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.model-access-table-wrap table {
+  min-width: 1100px;
+}
+
+.model-access-cost-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(260px, 0.7fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.model-access-cost-block {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.model-access-alert-list,
+.model-access-permission-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.model-access-alert {
+  display: grid;
+  gap: 5px;
+  padding: 10px 12px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+}
+
+.model-access-alert strong {
+  color: var(--text-primary);
+  font-size: 13px;
+}
+
+.model-access-alert span {
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.model-access-permission-flag {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.model-access-permission-flag svg {
+  color: var(--primary);
+}
+
+/* ==============================
    模态框
    ============================== */
 
@@ -2455,7 +2694,10 @@ tbody tr:hover td {
   .content-grid,
   .module-layout,
   .document-input-layout,
-  .asset-workbench-layout {
+  .asset-workbench-layout,
+  .model-access-layout,
+  .model-access-prompt-grid,
+  .model-access-cost-grid {
     grid-template-columns: 1fr;
   }
 
@@ -2523,7 +2765,12 @@ tbody tr:hover td {
   .document-form-grid,
   .webhook-filter-grid,
   .asset-form-grid,
-  .asset-filter-bar {
+  .asset-filter-bar,
+  .model-access-provider-grid,
+  .model-access-prompt-form-grid,
+  .model-access-log-filter,
+  .model-access-summary-grid,
+  .model-access-prompt-filter {
     grid-template-columns: 1fr;
   }
 

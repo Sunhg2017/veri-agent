@@ -5,6 +5,7 @@ export type PageKey =
   | 'overview'
   | 'document-input'
   | 'asset-library'
+  | 'model-access'
   | 'organizations'
   | 'users'
   | 'projects'
@@ -61,7 +62,10 @@ export type Permission =
   | 'asset:read'
   | 'asset:manage'
   | 'asset:review'
-  | 'asset:export';
+  | 'asset:export'
+  | 'modelAccess:read'
+  | 'modelAccess:manage'
+  | 'modelAccess:export';
 
 export type ButtonKey =
   | 'department:create'
@@ -94,13 +98,17 @@ export type ButtonKey =
   | 'asset:case_create'
   | 'asset:case_edit'
   | 'asset:case_review'
-  | 'asset:export';
+  | 'asset:export'
+  | 'modelAccess:provider_manage'
+  | 'modelAccess:prompt_manage'
+  | 'modelAccess:export';
 
 export type UserLifecycleAction = 'enable' | 'disable' | 'lock' | 'unlock' | 'reset-password' | 'assign-role' | 'unassign-role';
 
 export const pageReadPermissions: Partial<Record<PageKey, Permission>> = {
   'document-input': 'requirementInput:read',
   'asset-library': 'asset:read',
+  'model-access': 'modelAccess:read',
   organizations: 'department:read',
   users: 'user:read',
   projects: 'project:read',
@@ -165,6 +173,9 @@ const buttonPermissionGroups: Record<ButtonKey, Permission[][]> = {
   'asset:case_edit': [['asset:manage']],
   'asset:case_review': [['asset:review']],
   'asset:export': [['asset:export']],
+  'modelAccess:provider_manage': [['modelAccess:manage']],
+  'modelAccess:prompt_manage': [['modelAccess:manage']],
+  'modelAccess:export': [['modelAccess:export']],
 
   // Compound operations requiring ALL permissions in a group (AND logic)
   'user:role': [

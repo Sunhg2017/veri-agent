@@ -53,6 +53,10 @@ public class ServiceTokenAuthenticationFilter extends OncePerRequestFilter {
             return path.equals("/api/v1/asset/health")
                     || !TokenSecurity.constantTimeEquals(assetProperties.serviceToken(), bearerToken(request));
         }
+        if (path.startsWith("/api/v1/model-access/")) {
+            return path.equals("/api/v1/model-access/health")
+                    || !TokenSecurity.constantTimeEquals(modelAccessProperties.serviceToken(), bearerToken(request));
+        }
         return !path.startsWith("/api/v1/model-access/")
                 && !path.startsWith("/api/v1/asset/");
     }

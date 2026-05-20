@@ -1,6 +1,10 @@
 package com.songhg.veri.agent.modelaccess.api.controller;
 
 import com.jayway.jsonpath.JsonPath;
+import com.songhg.veri.agent.auth.application.AuthTokenService;
+import com.songhg.veri.agent.auth.domain.AuthUserRecord;
+import java.util.List;
+import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -23,6 +27,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest(properties = {
+        "veri-agent.bootstrap.token=init-token",
+        "veri-agent.auth.token-secret=test-auth-secret",
         "veri-agent.model-access.service-token=test-model-token",
         "veri-agent.model-access.default-model=test-local-model",
         "veri-agent.model-access.provider-circuit-failure-threshold=1",
@@ -35,6 +41,9 @@ class ModelAccessControllerTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @Autowired
+    private AuthTokenService tokenService;
 
     @Test
     void exposesHealthWithoutToken() throws Exception {
@@ -54,6 +63,59 @@ class ModelAccessControllerTest {
     void rejectsCallsWithoutServiceToken() throws Exception {
         mockMvc.perform(get("/api/v1/model-access/providers"))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void allowsUserBearerTokenForModelAccessManagementRequests() throws Exception {
+        String token = bootstrapAndLogin();
+
+        mockMvc.perform(get("/api/v1/model-access/providers")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].name").value("local-echo-primary"));
+
+        MvcResult promptResult = mockMvc.perform(post("/api/v1/model-access/prompts")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "promptKey": "console-prompt",
+                                  "name": "Console prompt",
+                                  "content": "Return concise test suggestions.",
+                                  "changeNote": "WP2-A console activation",
+                                  "activate": true
+                                }
+                                """))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.status").value("ACTIVE"))
+                .andReturn();
+        String promptId = JsonPath.read(promptResult.getResponse().getContentAsString(), "$.data.id");
+
+        mockMvc.perform(post("/api/v1/model-access/prompts/{id}/activate", promptId)
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("ACTIVE"));
+    }
+
+    @Test
+    void enforcesModelAccessPermissionsForUserBearerTokens() throws Exception {
+        String developerToken = tokenForRole("Developer");
+        String auditorToken = tokenForRole("Auditor");
+
+        mockMvc.perform(get("/api/v1/model-access/providers")
+                        .header("Authorization", "Bearer " + developerToken))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+
+        mockMvc.perform(get("/api/v1/model-access/invocations/export")
+                        .header("Authorization", "Bearer " + auditorToken))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.valueOf("text/csv")));
+
+        mockMvc.perform(post("/api/v1/model-access/providers/{id}/check", "00000000-0000-0000-0000-000000000201")
+                        .header("Authorization", "Bearer " + auditorToken))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
     }
 
     @Test
@@ -582,5 +644,46 @@ class ModelAccessControllerTest {
         headers.set("X-Caller-Service", "wp5-test-design");
         headers.set("X-Delegated-User-Id", "user-001");
         return headers;
+    }
+
+    private String bootstrapAndLogin() throws Exception {
+        mockMvc.perform(post("/api/v1/bootstrap/super-admin")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "bootstrapToken": "init-token",
+                                  "username": "admin_user",
+                                  "password": "PlainPassword123",
+                                  "displayName": "平台管理员",
+                                  "email": "admin@example.com"
+                                }
+                                """))
+                .andExpect(status().isOk());
+
+        MvcResult loginResult = mockMvc.perform(post("/api/v1/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "username": "admin_user",
+                                  "password": "PlainPassword123"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        return JsonPath.read(loginResult.getResponse().getContentAsString(), "$.data.accessToken");
+    }
+
+    private String tokenForRole(String role) {
+        return tokenService.issue(new AuthUserRecord(
+                UUID.randomUUID(),
+                role.toLowerCase() + "_user",
+                role + " 用户",
+                role.toLowerCase() + "@example.com",
+                "{noop}unused",
+                false,
+                1,
+                List.of(role)
+        )).accessToken();
     }
 }
