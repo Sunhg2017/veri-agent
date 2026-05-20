@@ -4,16 +4,39 @@ on:
   pull_request:
     paths:
       - "pom.xml"
-      - "model-access/**"
+      - "platform-api/src/main/java/com/songhg/veri/agent/modelaccess/**"
+      - "platform-api/src/main/java/com/songhg/veri/agent/auth/config/BearerTokenAuthenticationFilter.java"
+      - "platform-api/src/main/java/com/songhg/veri/agent/authorization/**"
+      - "platform-api/src/main/java/com/songhg/veri/agent/common/security/ServiceTokenAuthenticationFilter.java"
       - "platform-api/src/main/java/com/songhg/veri/agent/integration/**"
       - "platform-api/src/main/java/com/songhg/veri/agent/security/config/SecurityConfig.java"
+      - "platform-api/src/main/resources/application.yml"
+      - "platform-api/src/main/resources/mapper/modelaccess/**"
       - "platform-api/src/test/java/com/songhg/veri/agent/integration/**"
+      - "platform-api/src/test/java/com/songhg/veri/agent/modelaccess/**"
       - "platform-api/src/test/java/com/songhg/veri/agent/common/openapi/OpenApiContractTest.java"
-      - "db/migration/wp2/**"
+      - "portal-web/src/api/auth.ts"
+      - "portal-web/src/api/auth.test.ts"
+      - "portal-web/src/api/bootstrap.ts"
+      - "portal-web/src/api/bootstrap.test.ts"
+      - "portal-web/src/api/modelAccess.ts"
+      - "portal-web/src/api/modelAccess.test.ts"
+      - "portal-web/src/components/ModelAccessConsole.tsx"
+      - "portal-web/src/permissions.ts"
+      - "portal-web/src/permissions.test.ts"
+      - "portal-web/src/App.tsx"
+      - "portal-web/src/styles.css"
+      - "portal-web/package.json"
+      - "portal-web/package-lock.json"
+      - "db/migration/wp1/**"
       - "db/migration/README.md"
+      - "scripts/wp2_quality_gate.sh"
+      - "scripts/wp_all_integration_test.sh"
       - "scripts/wp2_model_access_smoke.sh"
+      - "scripts/wp2_module_policy_smoke.sh"
       - "db/validation/run_wp2_db_validation.sh"
       - "db/validation/wp2_model_access_validation.sql"
+      - "db/validation/wp1_seed_validation.sql"
       - ".github/workflows/wp2-model-access.yml"
   push:
     branches:
@@ -21,23 +44,46 @@ on:
       - master
     paths:
       - "pom.xml"
-      - "model-access/**"
+      - "platform-api/src/main/java/com/songhg/veri/agent/modelaccess/**"
+      - "platform-api/src/main/java/com/songhg/veri/agent/auth/config/BearerTokenAuthenticationFilter.java"
+      - "platform-api/src/main/java/com/songhg/veri/agent/authorization/**"
+      - "platform-api/src/main/java/com/songhg/veri/agent/common/security/ServiceTokenAuthenticationFilter.java"
       - "platform-api/src/main/java/com/songhg/veri/agent/integration/**"
       - "platform-api/src/main/java/com/songhg/veri/agent/security/config/SecurityConfig.java"
+      - "platform-api/src/main/resources/application.yml"
+      - "platform-api/src/main/resources/mapper/modelaccess/**"
       - "platform-api/src/test/java/com/songhg/veri/agent/integration/**"
+      - "platform-api/src/test/java/com/songhg/veri/agent/modelaccess/**"
       - "platform-api/src/test/java/com/songhg/veri/agent/common/openapi/OpenApiContractTest.java"
-      - "db/migration/wp2/**"
+      - "portal-web/src/api/auth.ts"
+      - "portal-web/src/api/auth.test.ts"
+      - "portal-web/src/api/bootstrap.ts"
+      - "portal-web/src/api/bootstrap.test.ts"
+      - "portal-web/src/api/modelAccess.ts"
+      - "portal-web/src/api/modelAccess.test.ts"
+      - "portal-web/src/components/ModelAccessConsole.tsx"
+      - "portal-web/src/permissions.ts"
+      - "portal-web/src/permissions.test.ts"
+      - "portal-web/src/App.tsx"
+      - "portal-web/src/styles.css"
+      - "portal-web/package.json"
+      - "portal-web/package-lock.json"
+      - "db/migration/wp1/**"
       - "db/migration/README.md"
+      - "scripts/wp2_quality_gate.sh"
+      - "scripts/wp_all_integration_test.sh"
       - "scripts/wp2_model_access_smoke.sh"
+      - "scripts/wp2_module_policy_smoke.sh"
       - "db/validation/run_wp2_db_validation.sh"
       - "db/validation/wp2_model_access_validation.sql"
+      - "db/validation/wp1_seed_validation.sql"
       - ".github/workflows/wp2-model-access.yml"
   workflow_dispatch:
 
 jobs:
-  model-access-test:
+  wp2-quality-gate:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -49,38 +95,19 @@ jobs:
           java-version: "21"
           cache: maven
 
-      - name: Run model-access tests
-        run: mvn -B -pl model-access test
-
-      - name: Validate WP2 smoke script syntax
-        run: bash -n scripts/wp2_model_access_smoke.sh
-
-  platform-integration-test:
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up JDK 21
-        uses: actions/setup-java@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
         with:
-          distribution: temurin
-          java-version: "21"
-          cache: maven
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: portal-web/package-lock.json
 
-      - name: Run platform integration tests
-        run: mvn -B -pl platform-api test
+      - name: Install portal-web dependencies
+        working-directory: portal-web
+        run: npm ci
 
-  model-access-db-validation:
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Run WP2 migration and validation
-        run: bash db/validation/run_wp2_db_validation.sh
+      - name: Run WP2 quality gate
+        run: bash scripts/wp2_quality_gate.sh
 
       - name: Upload validation logs
         if: always()

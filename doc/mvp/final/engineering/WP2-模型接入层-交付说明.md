@@ -124,6 +124,11 @@ mvn -pl platform-api test
 ```
 
 ```bash
+cd portal-web && npm run test -- auth.test.ts bootstrap.test.ts modelAccess.test.ts permissions.test.ts
+cd portal-web && npm run build
+```
+
+```bash
 bash db/validation/run_wp2_db_validation.sh
 ```
 
@@ -142,14 +147,14 @@ bash scripts/wp2_module_policy_smoke.sh
 bash scripts/wp_all_integration_test.sh
 ```
 
-当前质量门禁以 `platform-api` 测试、数据库 validation 和 `wp_all_integration_test.sh` 为准。历史独立 `model-access` 模块已删除，不再作为交付或测试入口。
+当前质量门禁以 `platform-api` 测试、portal-web 模型接入相关测试与构建、数据库 validation 和可选 HTTP smoke 为准。历史独立 `model-access` 模块已删除，不再作为交付或测试入口。
 
 ## 6. 1～4 项收敛结果
 
 1. 已增加 OpenAI-compatible 真实协议形态合同测试、供应商重试策略和短时熔断开关。
 2. 已增加成本告警和成本日报聚合接口。
 3. 已对供应商就绪检查增加短 TTL 缓存，降低外部模型探活成本。
-4. 已新增 WP2 聚合质量门禁 `scripts/wp2_quality_gate.sh`，并将 HTTP smoke / 模块策略 smoke 纳入可选发布前门禁。
+4. 已新增 WP2 聚合质量门禁 `scripts/wp2_quality_gate.sh`，覆盖 `platform-api` 测试、portal-web 模型接入相关测试与构建、WP2 DB validation，并将 HTTP smoke / 模块策略 smoke 纳入可选发布前门禁。
 
 ## 7. Provider 生产接入与密钥轮换
 
