@@ -1,6 +1,7 @@
 package com.songhg.veri.agent.documentinput.api.controller;
 
 import com.jayway.jsonpath.JsonPath;
+import com.songhg.veri.agent.documentinput.application.DocumentWebhookAutoRetryService;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import javax.crypto.Mac;
@@ -36,6 +37,9 @@ class DocumentInputControllerTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @Autowired
+    private DocumentWebhookAutoRetryService autoRetryService;
 
     @Test
     void exposesHealthWithoutToken() throws Exception {
@@ -906,6 +910,47 @@ class DocumentInputControllerTest {
     }
 
     @Test
+    void autoRetriesValidFailedWebhookEventsUntilDeadLetter() throws Exception {
+        createSource("custom-auto-retry", "CUSTOM_API", "project-wp4");
+        String payload = "{not-json";
+
+        mockMvc.perform(post("/api/v1/document-input/webhooks/{sourceCode}", "custom-auto-retry")
+                        .headers(webhookHeaders(payload, "evt-auto-retry", "idem-auto-retry"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(payload))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+
+        MvcResult events = mockMvc.perform(get("/api/v1/document-input/webhook-events")
+                        .headers(documentInputHeaders())
+                        .param("sourceCode", "custom-auto-retry"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(1))
+                .andExpect(jsonPath("$.data.items[0].status").value("FAILED"))
+                .andReturn();
+
+        String eventRecordId = JsonPath.read(events.getResponse().getContentAsString(), "$.data.items[0].id");
+        DocumentWebhookAutoRetryService.AutoRetryResult firstRetry = autoRetryService.retryNow();
+        DocumentWebhookAutoRetryService.AutoRetryResult secondRetry = autoRetryService.retryNow();
+        DocumentWebhookAutoRetryService.AutoRetryResult thirdRetry = autoRetryService.retryNow();
+        DocumentWebhookAutoRetryService.AutoRetryResult fourthRetry = autoRetryService.retryNow();
+
+        assertAutoRetryResult(firstRetry, 1, 0, 1);
+        assertAutoRetryResult(secondRetry, 1, 0, 1);
+        assertAutoRetryResult(thirdRetry, 1, 0, 1);
+        assertAutoRetryResult(fourthRetry, 0, 0, 0);
+
+        mockMvc.perform(get("/api/v1/document-input/webhook-events/{id}", eventRecordId)
+                        .headers(documentInputHeaders()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("DEAD_LETTER"))
+                .andExpect(jsonPath("$.data.retryCount").value(3))
+                .andExpect(jsonPath("$.data.replayBy").value("system"))
+                .andExpect(jsonPath("$.data.replayTraceId", startsWith("trc_")))
+                .andExpect(jsonPath("$.data.errorMessage").value("webhook payload 不是合法 JSON"));
+    }
+
+    @Test
     void rejectsOversizedWebhookPayloadBeforeParsing() throws Exception {
         createSource("custom-large-payload", "CUSTOM_API", "project-wp4");
         String payload = """
@@ -1025,5 +1070,16 @@ class DocumentInputControllerTest {
                                 }
                                 """))
                 .andExpect(status().isOk());
+    }
+
+    private void assertAutoRetryResult(
+            DocumentWebhookAutoRetryService.AutoRetryResult result,
+            int attempted,
+            int succeeded,
+            int failed
+    ) {
+        org.assertj.core.api.Assertions.assertThat(result.attempted()).isEqualTo(attempted);
+        org.assertj.core.api.Assertions.assertThat(result.succeeded()).isEqualTo(succeeded);
+        org.assertj.core.api.Assertions.assertThat(result.failed()).isEqualTo(failed);
     }
 }

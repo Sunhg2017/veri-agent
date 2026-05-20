@@ -26,6 +26,8 @@ public record DocumentInputProperties(
         long webhookMaxPayloadBytes,
         int batchActionLimit,
         int webhookMaxReplayAttempts,
+        boolean webhookAutoRetryEnabled,
+        int webhookAutoRetryBatchSize,
         Map<String, String> webhookSecrets,
         String webhookAllowedCidrs,
         Map<String, String> webhookSourceAllowedCidrs,

@@ -112,6 +112,8 @@ class DocumentWebhookSecretResolverTest {
                 262144,
                 100,
                 3,
+                false,
+                20,
                 secrets,
                 "",
                 Map.of(),

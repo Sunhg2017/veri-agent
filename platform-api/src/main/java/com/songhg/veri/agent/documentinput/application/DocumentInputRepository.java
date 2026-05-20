@@ -58,6 +58,8 @@ public interface DocumentInputRepository {
 
     Optional<DocumentWebhookEvent> webhookEventByIdentity(String sourceCode, String eventId, String idempotencyKey);
 
+    List<DocumentWebhookEvent> retryableWebhookEvents(int maxAttempts, int limit);
+
     DocumentWebhookEvent saveWebhookEvent(DocumentWebhookEvent event);
 
     int cleanupImportsBefore(Instant before);

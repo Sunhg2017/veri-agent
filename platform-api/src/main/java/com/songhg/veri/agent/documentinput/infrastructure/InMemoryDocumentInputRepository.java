@@ -10,6 +10,8 @@ import com.songhg.veri.agent.documentinput.domain.DocumentImportRecord;
 import com.songhg.veri.agent.documentinput.domain.DocumentRequirementCandidate;
 import com.songhg.veri.agent.documentinput.domain.DocumentSourceConfig;
 import com.songhg.veri.agent.documentinput.domain.DocumentWebhookEvent;
+import com.songhg.veri.agent.documentinput.domain.WebhookEventStatus;
+import com.songhg.veri.agent.documentinput.domain.WebhookSignatureStatus;
 import java.time.Instant;
 import java.util.Comparator;
 import java.util.List;
@@ -199,6 +201,19 @@ public class InMemoryDocumentInputRepository implements DocumentInputRepository 
     }
 
     @Override
+    public List<DocumentWebhookEvent> retryableWebhookEvents(int maxAttempts, int limit) {
+        int cappedLimit = Math.max(1, limit);
+        return webhookEvents.values().stream()
+                .filter(event -> event.status() == WebhookEventStatus.FAILED)
+                .filter(event -> event.signatureStatus() == WebhookSignatureStatus.VALID)
+                .filter(event -> event.rawPayload() != null)
+                .filter(event -> event.retryCount() < maxAttempts)
+                .sorted(Comparator.comparing(event -> firstInstant(event.processedAt(), event.receivedAt())))
+                .limit(cappedLimit)
+                .toList();
+    }
+
+    @Override
     public DocumentWebhookEvent saveWebhookEvent(DocumentWebhookEvent event) {
         webhookEvents.put(event.id(), event);
         return event;
@@ -272,6 +287,10 @@ public class InMemoryDocumentInputRepository implements DocumentInputRepository 
 
     private String lower(String value) {
         return value == null || value.isBlank() ? null : value.trim().toLowerCase(Locale.ROOT);
+    }
+
+    private Instant firstInstant(Instant first, Instant second) {
+        return first == null ? second : first;
     }
 
     private java.util.stream.Stream<DocumentWebhookEvent> filteredWebhookEvents(DocumentWebhookEventQuery query) {

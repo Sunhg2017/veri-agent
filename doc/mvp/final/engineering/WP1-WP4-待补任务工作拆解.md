@@ -185,7 +185,7 @@ WP4 本轮 P0 已覆盖真实文件上传、Word/PDF/OCR、AI 解析、SecretPro
 |---|---|---|---|---|---|
 | WP4-A1 | Webhook IP/CIDR 白名单 | P0-B | DONE-CURRENT | 已新增 webhook ingress guard，支持全局/按 sourceCode CIDR 白名单与可信代理 `X-Forwarded-For` 解析，并补 controller 级拒绝事件测试 | 非白名单请求在签名前被拒绝并记录安全事件 |
 | WP4-A2 | Webhook 请求限流 | P0-B | DONE-CURRENT | 已按 sourceCode、remoteIp、idempotencyKey 增加单 JVM 内存限流，并补 controller 级超限拒绝与事件记录测试 | 超限返回稳定错误码，不进入业务解析 |
-| WP4-A3 | Webhook 自动重试调度 | P1 | TODO | 对可重试失败事件增加有限自动重试和死信策略 | retryCount、deadLetter、replayTraceId 可查询 |
+| WP4-A3 | Webhook 自动重试调度 | P1 | DONE-CURRENT | 已增加 `WP4_WEBHOOK_AUTO_RETRY_ENABLED`、`WP4_WEBHOOK_AUTO_RETRY_BATCH_SIZE` 和 `WP4_WEBHOOK_AUTO_RETRY_CRON`，调度器按批次重放签名有效、payload 可用且未达上限的失败事件，达到上限沿用死信策略 | retryCount、deadLetter、replayTraceId 可查询；自动重试默认关闭 |
 | WP4-A4 | Webhook 签名样例和联调包 | P1 | DONE-CURRENT | 已新增 `doc/mvp/final/engineering/WP4-Webhook签名样例与联调说明.md`，提供 cURL、Node.js、Java 签名样例和错误排查说明 | 外部系统可按样例完成联调 |
 
 ### WP4-B OCR 与二进制解析生产硬化

@@ -440,6 +440,18 @@
         limit 1
     </select>
 
+    <select id="retryableWebhookEvents" resultMap="webhookEventMap">
+        select <include refid="webhookEventColumns"/>
+        from document_input_webhook_event
+        where deleted_at is null
+          and status = 'FAILED'
+          and signature_status = 'VALID'
+          and raw_payload is not null
+          and retry_count &lt; #{maxAttempts}
+        order by coalesce(processed_at, received_at) asc
+        limit #{limit}
+    </select>
+
     <insert id="upsertWebhookEvent">
         insert into document_input_webhook_event (
             id, source_id, import_id, source_code, event_id, idempotency_key, event_type, event_version,

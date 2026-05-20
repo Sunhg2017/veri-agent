@@ -91,6 +91,9 @@ veri-agent:
     webhook-max-payload-bytes: ${WP4_WEBHOOK_MAX_PAYLOAD_BYTES:262144}
     batch-action-limit: ${WP4_BATCH_ACTION_LIMIT:100}
     webhook-max-replay-attempts: ${WP4_WEBHOOK_MAX_REPLAY_ATTEMPTS:3}
+    webhook-auto-retry-enabled: ${WP4_WEBHOOK_AUTO_RETRY_ENABLED:false}
+    webhook-auto-retry-batch-size: ${WP4_WEBHOOK_AUTO_RETRY_BATCH_SIZE:20}
+    webhook-auto-retry-cron: "${WP4_WEBHOOK_AUTO_RETRY_CRON:0 */5 * * * *}"
     webhook-allowed-cidrs: ${WP4_WEBHOOK_ALLOWED_CIDRS:}
     webhook-source-allowed-cidrs: {}
     webhook-trusted-proxy-cidrs: ${WP4_WEBHOOK_TRUSTED_PROXY_CIDRS:}

@@ -167,6 +167,8 @@ class DocumentInputRetentionCleanupServiceTest {
                 262144,
                 100,
                 3,
+                false,
+                20,
                 Map.of(),
                 "",
                 Map.of(),

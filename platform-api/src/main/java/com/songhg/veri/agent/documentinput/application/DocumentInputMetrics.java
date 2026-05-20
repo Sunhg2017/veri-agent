@@ -89,6 +89,14 @@ public class DocumentInputMetrics {
                 .increment();
     }
 
+    public void recordWebhookAutoRetry(String result) {
+        Counter.builder("veri.agent.document_input.webhook.auto_retry")
+                .description("WP4 webhook automatic retry attempts")
+                .tag("result", value(result))
+                .register(meterRegistry)
+                .increment();
+    }
+
     private String value(Object value) {
         return value == null ? "NONE" : String.valueOf(value);
     }

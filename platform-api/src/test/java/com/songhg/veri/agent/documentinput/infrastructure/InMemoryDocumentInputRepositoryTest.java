@@ -11,6 +11,9 @@ import com.songhg.veri.agent.documentinput.domain.DocumentRequirementCandidate;
 import com.songhg.veri.agent.documentinput.domain.DocumentSourceConfig;
 import com.songhg.veri.agent.documentinput.domain.DocumentSourceStatus;
 import com.songhg.veri.agent.documentinput.domain.DocumentSourceType;
+import com.songhg.veri.agent.documentinput.domain.DocumentWebhookEvent;
+import com.songhg.veri.agent.documentinput.domain.WebhookEventStatus;
+import com.songhg.veri.agent.documentinput.domain.WebhookSignatureStatus;
 import java.time.Instant;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -161,5 +164,55 @@ class InMemoryDocumentInputRepositoryTest {
 
         assertThat(repository.countCandidates(query)).isEqualTo(1);
         assertThat(repository.candidates(query)).extracting(DocumentRequirementCandidate::title).containsExactly("退出需求");
+    }
+
+    @Test
+    void findsOnlyRetryableFailedWebhookEventsWithinAttemptLimit() {
+        Instant now = Instant.parse("2026-05-20T00:00:00Z");
+        DocumentWebhookEvent retryable = webhookEvent("evt-retryable", WebhookEventStatus.FAILED, WebhookSignatureStatus.VALID, 1, "{}", now);
+        DocumentWebhookEvent deadLetter = webhookEvent("evt-dead-letter", WebhookEventStatus.DEAD_LETTER, WebhookSignatureStatus.VALID, 2, "{}", now);
+        DocumentWebhookEvent invalidSignature = webhookEvent("evt-invalid", WebhookEventStatus.FAILED, WebhookSignatureStatus.INVALID, 0, "{}", now);
+        DocumentWebhookEvent attemptLimitReached = webhookEvent("evt-limit", WebhookEventStatus.FAILED, WebhookSignatureStatus.VALID, 3, "{}", now);
+        DocumentWebhookEvent missingPayload = webhookEvent("evt-missing-payload", WebhookEventStatus.FAILED, WebhookSignatureStatus.VALID, 0, null, now);
+        repository.saveWebhookEvent(deadLetter);
+        repository.saveWebhookEvent(invalidSignature);
+        repository.saveWebhookEvent(attemptLimitReached);
+        repository.saveWebhookEvent(missingPayload);
+        repository.saveWebhookEvent(retryable);
+
+        assertThat(repository.retryableWebhookEvents(3, 10))
+                .extracting(DocumentWebhookEvent::eventId)
+                .containsExactly("evt-retryable");
+    }
+
+    private DocumentWebhookEvent webhookEvent(
+            String eventId,
+            WebhookEventStatus status,
+            WebhookSignatureStatus signatureStatus,
+            int retryCount,
+            String rawPayload,
+            Instant receivedAt
+    ) {
+        return new DocumentWebhookEvent(
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                null,
+                "custom-reqs",
+                eventId,
+                "idem-" + eventId,
+                "requirement.created",
+                "1.0",
+                signatureStatus,
+                status,
+                "digest",
+                rawPayload,
+                null,
+                retryCount,
+                null,
+                null,
+                null,
+                receivedAt,
+                receivedAt
+        );
     }
 }

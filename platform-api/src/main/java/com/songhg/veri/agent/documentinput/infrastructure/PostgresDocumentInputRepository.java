@@ -149,6 +149,11 @@ public class PostgresDocumentInputRepository implements DocumentInputRepository 
     }
 
     @Override
+    public List<DocumentWebhookEvent> retryableWebhookEvents(int maxAttempts, int limit) {
+        return mapper.retryableWebhookEvents(maxAttempts, Math.max(1, limit));
+    }
+
+    @Override
     public DocumentWebhookEvent saveWebhookEvent(DocumentWebhookEvent event) {
         try {
             mapper.upsertWebhookEvent(event);

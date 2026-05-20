@@ -75,6 +75,11 @@ public interface DocumentInputMapper {
             @Param("idempotencyKey") String idempotencyKey
     );
 
+    List<DocumentWebhookEvent> retryableWebhookEvents(
+            @Param("maxAttempts") int maxAttempts,
+            @Param("limit") int limit
+    );
+
     void upsertWebhookEvent(DocumentWebhookEvent event);
 
     int softDeleteCandidatesByImportCreatedBefore(@Param("before") Instant before);
