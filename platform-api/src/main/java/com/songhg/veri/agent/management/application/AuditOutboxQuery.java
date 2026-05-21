@@ -1,0 +1,29 @@
+package com.songhg.veri.agent.management.application;
+
+import com.songhg.veri.agent.common.error.BusinessException;
+import com.songhg.veri.agent.common.error.ErrorCode;
+import java.util.List;
+
+public record AuditOutboxQuery(
+        String search,
+        String status,
+        String traceId
+) {
+    private static final List<String> STATUSES = List.of("PENDING", "PROCESSING", "DONE", "FAILED", "DEAD");
+
+    public static AuditOutboxQuery of(String search, String status, String traceId) {
+        String normalizedStatus = normalize(status).toUpperCase();
+        if (!normalizedStatus.isBlank() && !STATUSES.contains(normalizedStatus)) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "audit outbox status 不合法");
+        }
+        return new AuditOutboxQuery(
+                normalize(search),
+                normalizedStatus,
+                normalize(traceId)
+        );
+    }
+
+    private static String normalize(String value) {
+        return value == null ? "" : value.trim();
+    }
+}

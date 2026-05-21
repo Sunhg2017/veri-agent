@@ -5,6 +5,7 @@ import com.songhg.veri.agent.common.api.PageQuery;
 import com.songhg.veri.agent.common.api.PageResponse;
 import com.songhg.veri.agent.management.api.response.ApplicationView;
 import com.songhg.veri.agent.management.api.response.AuditLogView;
+import com.songhg.veri.agent.management.api.response.AuditOutboxView;
 import com.songhg.veri.agent.management.api.request.CreateApplicationRequest;
 import com.songhg.veri.agent.management.api.request.CreateEnvironmentRequest;
 import com.songhg.veri.agent.management.api.request.CreateIntegrationRequest;
@@ -126,6 +127,8 @@ public interface ManagementWorkspaceService {
     PageResponse<AuditLogView> auditLogs(PageQuery pageQuery, AuditLogQuery query, AuthUserPrincipal actor);
 
     String exportAuditLogsCsv(AuditLogQuery query, AuthUserPrincipal actor);
+
+    PageResponse<AuditOutboxView> auditOutbox(PageQuery pageQuery, AuditOutboxQuery query, AuthUserPrincipal actor);
 
     PageResponse<SettingView> settings(PageQuery pageQuery);
 

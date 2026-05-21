@@ -9,6 +9,7 @@ import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
 import com.songhg.veri.agent.management.api.response.ApplicationView;
 import com.songhg.veri.agent.management.api.response.AuditLogView;
+import com.songhg.veri.agent.management.api.response.AuditOutboxView;
 import com.songhg.veri.agent.management.api.request.CreateApplicationRequest;
 import com.songhg.veri.agent.management.api.request.CreateEnvironmentRequest;
 import com.songhg.veri.agent.management.api.request.CreateIntegrationRequest;
@@ -33,6 +34,7 @@ import com.songhg.veri.agent.management.api.request.UpdateSettingRequest;
 import com.songhg.veri.agent.management.api.request.UpdateUserRequest;
 import com.songhg.veri.agent.management.api.response.UserView;
 import com.songhg.veri.agent.management.application.AuditLogQuery;
+import com.songhg.veri.agent.management.application.AuditOutboxQuery;
 import com.songhg.veri.agent.management.application.ManagementWorkspaceService;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
@@ -61,6 +63,7 @@ public class InMemoryManagementWorkspaceService implements ManagementWorkspaceSe
     private final List<RoleView> roles = new ArrayList<>();
     private final List<SettingView> settings = new ArrayList<>();
     private final List<AuditLogView> auditLogs = new ArrayList<>();
+    private final List<AuditOutboxView> auditOutbox = new ArrayList<>();
     private final AuditLogWriter auditLogWriter;
 
     public InMemoryManagementWorkspaceService(AuditLogWriter auditLogWriter) {
@@ -111,6 +114,42 @@ public class InMemoryManagementWorkspaceService implements ManagementWorkspaceSe
                 new AuditLogView("2026-05-16 10:31", "system", "健康检查", "platform-api", "成功"),
                 new AuditLogView("2026-05-16 09:48", "shao.min", "创建部门", "端体验组", "成功"),
                 new AuditLogView("2026-05-15 18:12", "he.xu", "更新角色", "ProjectOwner", "成功")
+        ));
+        auditOutbox.addAll(List.of(
+                new AuditOutboxView(
+                        "8f57078c-4a7f-4b80-bf72-7ef03d252001",
+                        "trc_outbox_pending",
+                        "audit:pending:001",
+                        "PENDING",
+                        1,
+                        "2026-05-21 10:05",
+                        "",
+                        "",
+                        "",
+                        "创建部门",
+                        "department",
+                        "dept-qa",
+                        "SUCCESS",
+                        "2026-05-21 10:00",
+                        "2026-05-21 10:00"
+                ),
+                new AuditOutboxView(
+                        "8f57078c-4a7f-4b80-bf72-7ef03d252002",
+                        "trc_outbox_failed",
+                        "audit:failed:001",
+                        "FAILED",
+                        4,
+                        "2026-05-21 10:30",
+                        "",
+                        "wp1-audit-worker-1",
+                        "insert audit_log timeout",
+                        "重置密码",
+                        "user",
+                        "tester.lifecycle",
+                        "SUCCESS",
+                        "2026-05-21 09:45",
+                        "2026-05-21 09:58"
+                )
         ));
     }
 
@@ -650,6 +689,18 @@ public class InMemoryManagementWorkspaceService implements ManagementWorkspaceSe
         return csv.toString();
     }
 
+    @Override
+    public synchronized PageResponse<AuditOutboxView> auditOutbox(
+            PageQuery pageQuery,
+            AuditOutboxQuery query,
+            AuthUserPrincipal actor
+    ) {
+        List<AuditOutboxView> filtered = auditOutbox.stream()
+                .filter(item -> matchesAuditOutbox(item, query))
+                .toList();
+        return page(filtered, PageQuery.of(pageQuery.index(), pageQuery.size()));
+    }
+
     private AuditLogView auditRecordView(AuditLogWriter.AuditRecord record) {
         return new AuditLogView(
                 LocalDateTime.now().format(TIME_FORMAT),
@@ -827,6 +878,17 @@ public class InMemoryManagementWorkspaceService implements ManagementWorkspaceSe
             return false;
         }
         return query.endTime() == null || !itemTime.isAfter(query.endTime());
+    }
+
+    private boolean matchesAuditOutbox(AuditOutboxView item, AuditOutboxQuery query) {
+        String keyword = query.search().toLowerCase();
+        if (!keyword.isBlank() && !item.toString().toLowerCase().contains(keyword)) {
+            return false;
+        }
+        if (!query.status().isBlank() && !item.status().equals(query.status())) {
+            return false;
+        }
+        return query.traceId().isBlank() || item.traceId().equals(query.traceId());
     }
 
     private OffsetDateTime parseDisplayTime(String value) {

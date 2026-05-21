@@ -64,7 +64,7 @@ WP1、WP2、WP4 的当前 P0 口径已经基本收敛，后续以生产硬化、
 | WP1-C1 | 审计导出任务 API | P1 | DONE-CURRENT | 已新增 `GET /api/v1/management/audit-logs/export` 同步 CSV 导出，复用 `actor/action/resourceType/result/search/startTime/endTime` 筛选，要求 `audit:read` + `audit:export`，导出自身写审计 | 导出文件不含敏感明文，导出条件和结果可追踪；异步任务/对象存储引用仍作为后续产品化增强 |
 | WP1-C2 | 审计导出前端入口 | P1 | DONE-CURRENT | portal-web 审计页已按 `audit:export` 展示 CSV 导出按钮，提供下载、导出中、失败和 traceId 状态 | 无导出权限不可操作，导出失败有可读错误 |
 | WP1-C3 | 审计保留策略 | P1 | DONE-CURRENT | 已新增 `WP1-审计保留策略Runbook.md`、`AuditRetentionCleanupService`、`audit_log_archive` 和受控函数 `wp1_cleanup_audit_log_before`；默认在线保留 365 天、清理默认关闭、30 天硬下限、批量上限和 `veri.agent.audit.retention.cleanup` 指标 | 清理前先归档，app role 仍不能直接 `UPDATE/DELETE/TRUNCATE audit_log`，DB validation 覆盖配置、授权和只清理 cutoff 之前记录 |
-| WP1-C4 | Audit outbox 运维视图 | P1 | TODO | 展示待补偿、重试中、失败审计事件；支持按 traceId 查询 | 审计写失败可观测，重试不重复写业务审计 |
+| WP1-C4 | Audit outbox 运维视图 | P1 | DONE-CURRENT | 已新增 `GET /api/v1/management/audit-outbox` 只读分页查询，复用 `audit:read`，支持 `status/traceId/search` 过滤；portal-web 审计页已接入 outbox 运维侧栏，展示待补偿、处理中、失败、死信事件摘要；新增 `idx_audit_outbox_trace_id` 表达式索引和 DB validation | 审计写失败可观测；接口和页面不暴露手动重试、重放、删除或原始 payload；traceId 查询具备索引兜底 |
 
 ### WP1-D 会话、状态流与运行上下文增强
 

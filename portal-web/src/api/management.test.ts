@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { requestJson, requestText } from './client';
 import {
   auditLogExportPath,
+  auditOutboxPath,
   exportAuditLogsCsv,
   fetchManagementData
 } from './management';
@@ -21,19 +22,26 @@ describe('management API helpers', () => {
   });
 
   it('skips unreadable management pages based on permissions', async () => {
-    requestJsonMock.mockResolvedValue({
+    requestJsonMock.mockResolvedValueOnce({
       code: 'OK',
       message: 'ok',
       trace_id: 'trace-audit',
       data: { items: [{ action: '登录', actor: 'tester', result: '成功', target: 'portal', time: '2026-05-20 10:00' }] }
+    }).mockResolvedValueOnce({
+      code: 'OK',
+      message: 'ok',
+      trace_id: 'trace-outbox',
+      data: { items: [{ id: 'outbox-1', traceId: 'trc_1', status: 'FAILED', retryCount: 2, eventAction: '登录' }] }
     });
 
     const response = await fetchManagementData(['audit:read']);
 
-    expect(requestJsonMock).toHaveBeenCalledTimes(1);
-    expect(requestJsonMock).toHaveBeenCalledWith('/api/v1/management/audit-logs');
+    expect(requestJsonMock).toHaveBeenCalledTimes(2);
+    expect(requestJsonMock).toHaveBeenNthCalledWith(1, '/api/v1/management/audit-logs');
+    expect(requestJsonMock).toHaveBeenNthCalledWith(2, '/api/v1/management/audit-outbox');
     expect(response.traceId).toBe('trace-audit');
     expect(response.data.auditLogs).toHaveLength(1);
+    expect(response.data.auditOutbox).toHaveLength(1);
     expect(response.data.users).toEqual([]);
   });
 
@@ -58,5 +66,13 @@ describe('management API helpers', () => {
 
     expect(requestTextMock).toHaveBeenLastCalledWith('/api/v1/management/audit-logs/export?actor=tester&result=SUCCESS');
     expect(response.filename).toBe('wp1-audit-logs.csv');
+  });
+
+  it('builds filtered audit outbox paths', () => {
+    expect(auditOutboxPath({
+      status: ' FAILED ',
+      traceId: ' trc_1 ',
+      search: ' timeout '
+    })).toBe('/api/v1/management/audit-outbox?search=timeout&status=FAILED&traceId=trc_1');
   });
 });

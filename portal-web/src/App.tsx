@@ -19,6 +19,7 @@ import {
   Power,
   Save,
   ScrollText,
+  Search,
   ServerCog,
   Settings,
   ShieldCheck,
@@ -66,6 +67,7 @@ import {
   fetchEnvironment,
   fetchEnvironmentUsers,
   fetchIntegration,
+  fetchAuditOutbox,
   fetchProject,
   fetchProjectMembers,
   fetchSetting,
@@ -87,6 +89,8 @@ import {
   updateUser,
   type ApplicationView,
   type AuditLogView,
+  type AuditOutboxFilters,
+  type AuditOutboxView,
   type CreatableManagementResource,
   type DepartmentView,
   type EnvironmentView,
@@ -266,6 +270,7 @@ const emptyManagementData: ManagementData = {
   environments: [],
   integrations: [],
   auditLogs: [],
+  auditOutbox: [],
   settings: []
 };
 
@@ -393,6 +398,8 @@ export function App() {
   const [managementData, setManagementData] = useState<ManagementData>(emptyManagementData);
   const [managementLoad, setManagementLoad] = useState<ManagementLoadState>({ loading: false });
   const [auditExportState, setAuditExportState] = useState<AuditExportState>({ loading: false });
+  const [auditOutboxFilters, setAuditOutboxFilters] = useState<AuditOutboxFilters>({ status: '', traceId: '', search: '' });
+  const [auditOutboxLoad, setAuditOutboxLoad] = useState<ManagementLoadState>({ loading: false });
   const [health, setHealth] = useState<{ loading: boolean; traceId?: string; data?: HealthResult; error?: string }>({
     loading: true
   });
@@ -428,6 +435,7 @@ export function App() {
     if (!getAuthToken() || !currentUser) {
       setManagementData(emptyManagementData);
       setManagementLoad({ loading: false });
+      setAuditOutboxLoad({ loading: false });
       return;
     }
 
@@ -436,11 +444,37 @@ export function App() {
       const response = await fetchManagementData(currentUser.permissions ?? []);
       setManagementData(response.data);
       setManagementLoad({ loading: false, traceId: response.traceId });
+      setAuditOutboxLoad({ loading: false, traceId: response.traceId });
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : '管理数据加载失败';
       setManagementLoad({ loading: false, error: message });
     }
   }, [currentUser]);
+
+  const refreshAuditOutbox = useCallback(async (filters: AuditOutboxFilters = auditOutboxFilters) => {
+    if (!getAuthToken() || !currentUser) {
+      setAuditOutboxLoad({ loading: false, error: '请先登录后再操作' });
+      return;
+    }
+    if (!hasPermission(currentUser, 'audit:read')) {
+      setAuditOutboxLoad({ loading: false, error: '当前账号无审计查询权限' });
+      return;
+    }
+
+    setAuditOutboxLoad({ loading: true });
+    try {
+      const response = await fetchAuditOutbox(filters);
+      setManagementData((current) => ({ ...current, auditOutbox: response.data.items }));
+      setAuditOutboxLoad({ loading: false, traceId: response.trace_id });
+    } catch (error: unknown) {
+      if (error instanceof ApiError) {
+        setAuditOutboxLoad({ loading: false, error: error.message, traceId: error.traceId });
+      } else {
+        const message = error instanceof Error ? error.message : 'Audit outbox 加载失败';
+        setAuditOutboxLoad({ loading: false, error: message });
+      }
+    }
+  }, [auditOutboxFilters, currentUser]);
 
   useEffect(() => {
     if (!getAuthToken()) {
@@ -462,6 +496,7 @@ export function App() {
     if (!currentUser) {
       setManagementData(emptyManagementData);
       setManagementLoad({ loading: false });
+      setAuditOutboxLoad({ loading: false });
       return;
     }
     void refreshManagementData();
@@ -556,6 +591,8 @@ export function App() {
     setManagementData(emptyManagementData);
     setManagementLoad({ loading: false });
     setAuditExportState({ loading: false });
+    setAuditOutboxFilters({ status: '', traceId: '', search: '' });
+    setAuditOutboxLoad({ loading: false });
     setLoginForm(initialLoginForm);
   }
 
@@ -877,6 +914,10 @@ export function App() {
             onResetPassword={openResetPasswordDialog}
             auditExportState={auditExportState}
             onAuditExport={onAuditExport}
+            auditOutboxFilters={auditOutboxFilters}
+            auditOutboxLoad={auditOutboxLoad}
+            onAuditOutboxFiltersChange={setAuditOutboxFilters}
+            onAuditOutboxRefresh={refreshAuditOutbox}
             onRefresh={refreshManagementData}
           />
         )}
@@ -1056,6 +1097,10 @@ function ModulePage(props: {
   onResetPassword: (username: string) => void;
   auditExportState: AuditExportState;
   onAuditExport: () => Promise<void>;
+  auditOutboxFilters: AuditOutboxFilters;
+  auditOutboxLoad: ManagementLoadState;
+  onAuditOutboxFiltersChange: (filters: AuditOutboxFilters) => void;
+  onAuditOutboxRefresh: (filters?: AuditOutboxFilters) => Promise<void>;
   onRefresh: () => void;
 }) {
   if (props.page === 'document-input') {
@@ -1506,11 +1551,21 @@ function ModulePage(props: {
           ) : undefined
         }
         sidePanel={
-          <AuditExportPanel
-            signedIn={props.signedIn}
-            canExport={canUseButton(props.currentUser, 'audit:export')}
-            state={props.auditExportState}
-          />
+          <>
+            <AuditOutboxPanel
+              signedIn={props.signedIn}
+              items={props.data.auditOutbox}
+              filters={props.auditOutboxFilters}
+              state={props.auditOutboxLoad}
+              onFiltersChange={props.onAuditOutboxFiltersChange}
+              onRefresh={props.onAuditOutboxRefresh}
+            />
+            <AuditExportPanel
+              signedIn={props.signedIn}
+              canExport={canUseButton(props.currentUser, 'audit:export')}
+              state={props.auditExportState}
+            />
+          </>
         }
       />
     );
@@ -1742,6 +1797,140 @@ function AuditExportPanel(props: {
           {props.state.traceId && <span>Trace ID：{props.state.traceId}</span>}
         </div>
       </div>
+    </div>
+  );
+}
+
+function AuditOutboxPanel(props: {
+  signedIn: boolean;
+  items: AuditOutboxView[];
+  filters: AuditOutboxFilters;
+  state: ManagementLoadState;
+  onFiltersChange: (filters: AuditOutboxFilters) => void;
+  onRefresh: (filters?: AuditOutboxFilters) => Promise<void>;
+}) {
+  const filters = {
+    search: props.filters.search ?? '',
+    status: props.filters.status ?? '',
+    traceId: props.filters.traceId ?? ''
+  };
+
+  function updateFilter(key: keyof AuditOutboxFilters, value: string) {
+    props.onFiltersChange({ ...filters, [key]: value });
+  }
+
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    void props.onRefresh(filters);
+  }
+
+  function resetFilters() {
+    const next = { search: '', status: '', traceId: '' };
+    props.onFiltersChange(next);
+    void props.onRefresh(next);
+  }
+
+  const emptyLabel = props.signedIn ? (props.state.loading ? '加载中' : '暂无 outbox 事件') : '请先登录';
+
+  return (
+    <div className="panel insight-panel audit-outbox-panel">
+      <div className="panel-title-row">
+        <h2>Audit outbox</h2>
+        {props.state.traceId && <span className="panel-trace inline">Trace ID：{props.state.traceId}</span>}
+      </div>
+
+      <form className="audit-outbox-filters" onSubmit={submit}>
+        <label className="field">
+          状态
+          <select
+            value={filters.status}
+            disabled={!props.signedIn || props.state.loading}
+            onChange={(event) => updateFilter('status', event.target.value)}
+          >
+            <option value="">全部</option>
+            <option value="PENDING">PENDING</option>
+            <option value="PROCESSING">PROCESSING</option>
+            <option value="FAILED">FAILED</option>
+            <option value="DEAD">DEAD</option>
+            <option value="DONE">DONE</option>
+          </select>
+        </label>
+        <label className="field">
+          Trace ID
+          <input
+            value={filters.traceId}
+            disabled={!props.signedIn || props.state.loading}
+            onChange={(event) => updateFilter('traceId', event.target.value)}
+            placeholder="trc_"
+          />
+        </label>
+        <label className="field audit-outbox-search">
+          搜索
+          <input
+            value={filters.search}
+            disabled={!props.signedIn || props.state.loading}
+            onChange={(event) => updateFilter('search', event.target.value)}
+            placeholder="action / resource / error"
+          />
+        </label>
+        <div className="audit-outbox-actions">
+          <button className="primary-button" type="submit" disabled={!props.signedIn || props.state.loading}>
+            <Search size={16} />
+            {props.state.loading ? '查询中' : '查询'}
+          </button>
+          <button className="secondary-button" type="button" disabled={!props.signedIn || props.state.loading} onClick={resetFilters}>
+            重置
+          </button>
+        </div>
+      </form>
+
+      <div className="audit-outbox-summary" aria-label="Audit outbox 状态摘要">
+        {['PENDING', 'PROCESSING', 'FAILED', 'DEAD'].map((status) => (
+          <div key={status}>
+            <strong>{props.items.filter((item) => item.status === status).length}</strong>
+            <span>{status}</span>
+          </div>
+        ))}
+      </div>
+
+      {props.state.error ? (
+        <div className="empty-state compact">
+          <LockKeyhole size={22} />
+          <div>
+            <strong>同步失败</strong>
+            <span>{props.state.error}</span>
+            {props.state.traceId && <span>Trace ID：{props.state.traceId}</span>}
+          </div>
+        </div>
+      ) : props.items.length === 0 ? (
+        <div className="empty-state compact">
+          <ScrollText size={22} />
+          <div>
+            <strong>{emptyLabel}</strong>
+          </div>
+        </div>
+      ) : (
+        <div className="audit-outbox-list">
+          {props.items.map((item) => (
+            <article className="audit-outbox-item" key={item.id}>
+              <div className="audit-outbox-row">
+                <StatusPill value={item.status} />
+                <strong>{item.traceId || item.id}</strong>
+              </div>
+              <div className="audit-outbox-meta">
+                <span>{item.eventAction || '-'}</span>
+                <span>{[item.resourceType, item.resourceId].filter(Boolean).join(':') || '-'}</span>
+                <span>retry {item.retryCount}</span>
+              </div>
+              <div className="audit-outbox-meta">
+                <span>{item.createdAt}</span>
+                <span>{item.nextRetryAt ? `next ${item.nextRetryAt}` : 'next -'}</span>
+              </div>
+              {item.lastError && <p>{item.lastError}</p>}
+            </article>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -2594,9 +2783,17 @@ function SubmitNotice(props: { state: SubmitState }) {
 }
 
 function StatusPill(props: { value: string }) {
-  const positive = ['启用', '同步正常', '进行中', '已接入', '可用', '已连接', '成功'];
-  const pending = ['试用', '待确认', '待激活', '规划中', '接入中', '待授权', '只读'];
-  const tone = positive.includes(props.value) ? 'positive' : pending.includes(props.value) ? 'pending' : 'neutral';
+  const normalized = props.value.toUpperCase();
+  const positive = ['启用', '同步正常', '进行中', '已接入', '可用', '已连接', '成功', 'DONE', 'SUCCESS'];
+  const pending = ['试用', '待确认', '待激活', '规划中', '接入中', '待授权', '只读', 'PENDING', 'PROCESSING'];
+  const negative = ['失败', '已停用', '已锁定', 'FAILED', 'DEAD', 'ERROR'];
+  const tone = positive.includes(props.value) || positive.includes(normalized)
+    ? 'positive'
+    : pending.includes(props.value) || pending.includes(normalized)
+      ? 'pending'
+      : negative.includes(props.value) || negative.includes(normalized)
+        ? 'negative'
+        : 'neutral';
   return <span className={`status-pill ${tone}`}>{props.value}</span>;
 }
 

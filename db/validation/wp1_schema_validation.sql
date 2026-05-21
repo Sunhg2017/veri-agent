@@ -125,7 +125,8 @@ with expected(table_name, index_name) as (
         ('rbac_role_binding','uk_rbac_role_binding_unique'),
         ('audit_log','idx_audit_log_time'),
         ('audit_log_archive','idx_audit_log_archive_created_at'),
-        ('audit_outbox','idx_audit_outbox_pending')
+        ('audit_outbox','idx_audit_outbox_pending'),
+        ('audit_outbox','idx_audit_outbox_trace_id')
 ),
 missing as (
     select e.table_name || '.' || e.index_name as item

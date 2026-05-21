@@ -711,6 +711,34 @@ class ManagementControllerTest {
     }
 
     @Test
+    void readsAuditOutboxWithStatusAndTraceFilters() throws Exception {
+        String token = bootstrapAndLogin();
+
+        mockMvc.perform(get("/api/v1/management/audit-outbox")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items.length()", greaterThanOrEqualTo(2)))
+                .andExpect(jsonPath("$.data.items[0].traceId").value("trc_outbox_pending"))
+                .andExpect(jsonPath("$.data.items[0].status").value("PENDING"))
+                .andExpect(jsonPath("$.data.items[0].eventAction").value("创建部门"));
+
+        mockMvc.perform(get("/api/v1/management/audit-outbox")
+                        .param("status", "FAILED")
+                        .param("traceId", "trc_outbox_failed")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items.length()").value(1))
+                .andExpect(jsonPath("$.data.items[0].status").value("FAILED"))
+                .andExpect(jsonPath("$.data.items[0].lastError").value("insert audit_log timeout"));
+
+        mockMvc.perform(get("/api/v1/management/audit-outbox")
+                        .param("status", "RETRYING")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+    }
+
+    @Test
     void managesUserLifecycleAndWritesAuditLog() throws Exception {
         String token = bootstrapAndLogin();
 

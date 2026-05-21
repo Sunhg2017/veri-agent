@@ -65,6 +65,24 @@ export interface AuditLogView {
   result: string;
 }
 
+export interface AuditOutboxView {
+  id: string;
+  traceId: string;
+  idempotencyKey: string;
+  status: string;
+  retryCount: number;
+  nextRetryAt: string;
+  lockedAt: string;
+  lockedBy: string;
+  lastError: string;
+  eventAction: string;
+  resourceType: string;
+  resourceId: string;
+  result: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface AuditLogExportFilters {
   search?: string;
   actor?: string;
@@ -73,6 +91,12 @@ export interface AuditLogExportFilters {
   result?: string;
   startTime?: string;
   endTime?: string;
+}
+
+export interface AuditOutboxFilters {
+  search?: string;
+  status?: string;
+  traceId?: string;
 }
 
 export interface SettingView {
@@ -165,6 +189,7 @@ export interface ManagementData {
   environments: EnvironmentView[];
   integrations: IntegrationView[];
   auditLogs: AuditLogView[];
+  auditOutbox: AuditOutboxView[];
   settings: SettingView[];
 }
 
@@ -180,6 +205,7 @@ const endpoints = {
   integrations: '/api/v1/management/integrations',
   auditLogs: '/api/v1/management/audit-logs',
   auditLogsExport: '/api/v1/management/audit-logs/export',
+  auditOutbox: '/api/v1/management/audit-outbox',
   settings: '/api/v1/management/settings'
 } as const;
 
@@ -228,6 +254,7 @@ export async function fetchManagementData(permissions?: string[]): Promise<{ tra
     environments,
     integrations,
     auditLogs,
+    auditOutbox,
     settings
   ] = await Promise.all([
     canRead(permissions, 'department:read') ? requestJson<PageResponse<DepartmentView>>(endpoints.departments) : skippedPage<DepartmentView>(),
@@ -238,6 +265,7 @@ export async function fetchManagementData(permissions?: string[]): Promise<{ tra
     canRead(permissions, 'environment:read') ? requestJson<PageResponse<EnvironmentView>>(endpoints.environments) : skippedPage<EnvironmentView>(),
     canRead(permissions, 'config:read') ? requestJson<PageResponse<IntegrationView>>(endpoints.integrations) : skippedPage<IntegrationView>(),
     canRead(permissions, 'audit:read') ? requestJson<PageResponse<AuditLogView>>(endpoints.auditLogs) : skippedPage<AuditLogView>(),
+    canRead(permissions, 'audit:read') ? requestJson<PageResponse<AuditOutboxView>>(endpoints.auditOutbox) : skippedPage<AuditOutboxView>(),
     canRead(permissions, 'config:read') ? requestJson<PageResponse<SettingView>>(endpoints.settings) : skippedPage<SettingView>()
   ]);
 
@@ -251,6 +279,7 @@ export async function fetchManagementData(permissions?: string[]): Promise<{ tra
       environments,
       integrations,
       auditLogs,
+      auditOutbox,
       settings
     ].find((response) => response.trace_id)?.trace_id ?? '',
     data: {
@@ -262,6 +291,7 @@ export async function fetchManagementData(permissions?: string[]): Promise<{ tra
       environments: environments.data.items,
       integrations: integrations.data.items,
       auditLogs: auditLogs.data.items,
+      auditOutbox: auditOutbox.data.items,
       settings: settings.data.items
     }
   };
@@ -300,6 +330,27 @@ export function auditLogExportPath(filters: AuditLogExportFilters = {}) {
 
 export async function exportAuditLogsCsv(filters: AuditLogExportFilters = {}) {
   return requestText(auditLogExportPath(filters));
+}
+
+export function auditOutboxPath(filters: AuditOutboxFilters = {}) {
+  const params = new URLSearchParams();
+  const entries: Array<[string, string | undefined]> = [
+    ['search', filters.search],
+    ['status', filters.status],
+    ['traceId', filters.traceId]
+  ];
+  for (const [key, value] of entries) {
+    const normalized = value?.trim();
+    if (normalized) {
+      params.set(key, normalized);
+    }
+  }
+  const query = params.toString();
+  return query ? `${endpoints.auditOutbox}?${query}` : endpoints.auditOutbox;
+}
+
+export async function fetchAuditOutbox(filters: AuditOutboxFilters = {}) {
+  return requestJson<PageResponse<AuditOutboxView>>(auditOutboxPath(filters));
 }
 
 export function fetchDepartment(departmentKey: string): Promise<ApiResponse<DepartmentView>> {

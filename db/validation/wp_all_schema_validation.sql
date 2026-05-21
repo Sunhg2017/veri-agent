@@ -178,6 +178,7 @@ with expected(table_name, index_name) as (
         ('audit_log','idx_audit_log_time'),
         ('audit_log_archive','idx_audit_log_archive_created_at'),
         ('audit_outbox','idx_audit_outbox_pending'),
+        ('audit_outbox','idx_audit_outbox_trace_id'),
         -- WP2 key indexes
         ('ma_model_provider','uk_ma_model_provider_name'),
         ('ma_prompt_template','uk_ma_prompt_template_key_version'),

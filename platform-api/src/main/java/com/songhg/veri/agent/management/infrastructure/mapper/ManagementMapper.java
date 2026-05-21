@@ -2,6 +2,7 @@ package com.songhg.veri.agent.management.infrastructure.mapper;
 
 import com.songhg.veri.agent.management.api.response.ApplicationView;
 import com.songhg.veri.agent.management.api.response.AuditLogView;
+import com.songhg.veri.agent.management.api.response.AuditOutboxView;
 import com.songhg.veri.agent.management.api.response.DepartmentView;
 import com.songhg.veri.agent.management.api.response.EnvironmentView;
 import com.songhg.veri.agent.management.api.response.IntegrationView;
@@ -107,6 +108,10 @@ public interface ManagementMapper {
     List<AuditLogView> listAuditLogs(Map<String, Object> params);
 
     long countAuditLogs(Map<String, Object> params);
+
+    List<AuditOutboxView> listAuditOutbox(Map<String, Object> params);
+
+    long countAuditOutbox(Map<String, Object> params);
 
     List<SettingRow> listSettings(Map<String, Object> params);
 

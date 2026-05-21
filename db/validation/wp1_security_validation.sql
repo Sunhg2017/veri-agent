@@ -84,6 +84,7 @@ with expected(table_name, index_name) as (
         ('audit_log_archive','idx_audit_log_archive_resource'),
         ('audit_log_archive','idx_audit_log_archive_trace'),
         ('audit_outbox','idx_audit_outbox_pending'),
+        ('audit_outbox','idx_audit_outbox_trace_id'),
         ('secret_local_store','uk_secret_local_store_ref'),
         ('secret_local_store','idx_secret_local_store_status'),
         ('secret_reference','uk_secret_reference_ref'),

@@ -9,6 +9,7 @@ import com.songhg.veri.agent.common.error.ErrorCode;
 import com.songhg.veri.agent.common.trace.TraceContext;
 import com.songhg.veri.agent.management.api.response.ApplicationView;
 import com.songhg.veri.agent.management.api.response.AuditLogView;
+import com.songhg.veri.agent.management.api.response.AuditOutboxView;
 import com.songhg.veri.agent.management.api.request.CreateApplicationRequest;
 import com.songhg.veri.agent.management.api.request.CreateEnvironmentRequest;
 import com.songhg.veri.agent.management.api.request.CreateIntegrationRequest;
@@ -33,6 +34,7 @@ import com.songhg.veri.agent.management.api.request.UpdateSettingRequest;
 import com.songhg.veri.agent.management.api.request.UpdateUserRequest;
 import com.songhg.veri.agent.management.api.response.UserView;
 import com.songhg.veri.agent.management.application.AuditLogQuery;
+import com.songhg.veri.agent.management.application.AuditOutboxQuery;
 import com.songhg.veri.agent.management.application.ManagementWorkspaceService;
 import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows.ApplicationRef;
 import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows.DepartmentRef;
@@ -681,6 +683,14 @@ public class PostgresManagementWorkspaceService implements ManagementWorkspaceSe
     }
 
     @Override
+    public PageResponse<AuditOutboxView> auditOutbox(PageQuery pageQuery, AuditOutboxQuery query, AuthUserPrincipal actor) {
+        Map<String, Object> params = auditOutboxParams(pageQuery, query);
+        List<AuditOutboxView> items = mapper.listAuditOutbox(params);
+        long total = mapper.countAuditOutbox(params);
+        return PageResponse.of(items, pageQuery.index(), pageQuery.size(), total);
+    }
+
+    @Override
     public PageResponse<SettingView> settings(PageQuery pageQuery) {
         PageResponse<SettingRow> rows = page(mapper::listSettings, mapper::countSettings, pageQuery, values());
         return PageResponse.of(rows.items().stream().map(this::settingView).toList(), pageQuery.index(), pageQuery.size(), rows.total());
@@ -1102,6 +1112,13 @@ public class PostgresManagementWorkspaceService implements ManagementWorkspaceSe
         params.put("result", normalizeAuditResult(query.result()));
         params.put("startTime", query.startTime());
         params.put("endTime", query.endTime());
+        return params;
+    }
+
+    private Map<String, Object> auditOutboxParams(PageQuery pageQuery, AuditOutboxQuery query) {
+        Map<String, Object> params = pageParams(pageQuery, values());
+        params.put("status", query.status());
+        params.put("traceId", query.traceId());
         return params;
     }
 

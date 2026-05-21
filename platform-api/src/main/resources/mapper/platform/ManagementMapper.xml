@@ -95,6 +95,26 @@
         </constructor>
     </resultMap>
 
+    <resultMap id="auditOutboxViewMap" type="com.songhg.veri.agent.management.api.response.AuditOutboxView">
+        <constructor>
+            <arg column="id" javaType="java.lang.String"/>
+            <arg column="trace_id" javaType="java.lang.String"/>
+            <arg column="idempotency_key" javaType="java.lang.String"/>
+            <arg column="status" javaType="java.lang.String"/>
+            <arg column="retry_count" javaType="_int"/>
+            <arg column="next_retry_at" javaType="java.lang.String"/>
+            <arg column="locked_at" javaType="java.lang.String"/>
+            <arg column="locked_by" javaType="java.lang.String"/>
+            <arg column="last_error" javaType="java.lang.String"/>
+            <arg column="event_action" javaType="java.lang.String"/>
+            <arg column="resource_type" javaType="java.lang.String"/>
+            <arg column="resource_id" javaType="java.lang.String"/>
+            <arg column="result" javaType="java.lang.String"/>
+            <arg column="created_at" javaType="java.lang.String"/>
+            <arg column="updated_at" javaType="java.lang.String"/>
+        </constructor>
+    </resultMap>
+
     <resultMap id="settingViewMap" type="com.songhg.veri.agent.management.api.response.SettingView">
         <constructor>
             <arg column="config_key" javaType="java.lang.String"/>
@@ -335,6 +355,32 @@
                   )
             )
         )
+    </sql>
+
+    <sql id="auditOutboxTraceIdExpression">
+        coalesce(
+            o.event_payload_json -&gt;&gt; 'traceId',
+            o.event_payload_json -&gt;&gt; 'trace_id',
+            o.event_payload_json #&gt;&gt; '{metadata,traceId}',
+            o.event_payload_json #&gt;&gt; '{metadata,trace_id}',
+            o.event_payload_json #&gt;&gt; '{record,traceId}',
+            ''
+        )
+    </sql>
+
+    <sql id="auditOutboxWhere">
+        where (#{status} = '' or o.status = #{status})
+          and (#{traceId} = '' or <include refid="auditOutboxTraceIdExpression"/> = #{traceId})
+          and (
+            #{search} = ''
+            or cast(o.id as text) ilike #{searchPattern}
+            or coalesce(o.idempotency_key, '') ilike #{searchPattern}
+            or coalesce(o.last_error, '') ilike #{searchPattern}
+            or <include refid="auditOutboxTraceIdExpression"/> ilike #{searchPattern}
+            or coalesce(o.event_payload_json -&gt;&gt; 'action', o.event_payload_json #&gt;&gt; '{record,action}', '') ilike #{searchPattern}
+            or coalesce(o.event_payload_json -&gt;&gt; 'resourceType', o.event_payload_json -&gt;&gt; 'resource_type', o.event_payload_json #&gt;&gt; '{record,resourceType}', '') ilike #{searchPattern}
+            or coalesce(o.event_payload_json -&gt;&gt; 'resourceId', o.event_payload_json -&gt;&gt; 'resource_id', o.event_payload_json #&gt;&gt; '{record,resourceId}', '') ilike #{searchPattern}
+          )
     </sql>
 
     <select id="listDepartments" resultMap="departmentViewMap">
@@ -830,6 +876,62 @@
                   and b.scope_id = a.scope_id
             )
           )
+    </select>
+
+    <select id="listAuditOutbox" resultMap="auditOutboxViewMap">
+        select
+            cast(o.id as text) as id,
+            <include refid="auditOutboxTraceIdExpression"/> as trace_id,
+            coalesce(o.idempotency_key, '') as idempotency_key,
+            o.status,
+            o.retry_count,
+            coalesce(to_char(o.next_retry_at, 'YYYY-MM-DD HH24:MI'), '') as next_retry_at,
+            coalesce(to_char(o.locked_at, 'YYYY-MM-DD HH24:MI'), '') as locked_at,
+            coalesce(o.locked_by, '') as locked_by,
+            coalesce(left(o.last_error, 240), '') as last_error,
+            coalesce(
+                o.event_payload_json -&gt;&gt; 'action',
+                o.event_payload_json #&gt;&gt; '{record,action}',
+                ''
+            ) as event_action,
+            coalesce(
+                o.event_payload_json -&gt;&gt; 'resourceType',
+                o.event_payload_json -&gt;&gt; 'resource_type',
+                o.event_payload_json #&gt;&gt; '{record,resourceType}',
+                ''
+            ) as resource_type,
+            coalesce(
+                o.event_payload_json -&gt;&gt; 'resourceId',
+                o.event_payload_json -&gt;&gt; 'resource_id',
+                o.event_payload_json #&gt;&gt; '{record,resourceId}',
+                ''
+            ) as resource_id,
+            coalesce(
+                o.event_payload_json -&gt;&gt; 'result',
+                o.event_payload_json #&gt;&gt; '{record,result}',
+                ''
+            ) as result,
+            to_char(o.created_at, 'YYYY-MM-DD HH24:MI') as created_at,
+            to_char(o.updated_at, 'YYYY-MM-DD HH24:MI') as updated_at
+        from audit_outbox o
+        <include refid="auditOutboxWhere"/>
+        order by
+            case o.status
+                when 'PENDING' then 0
+                when 'PROCESSING' then 1
+                when 'FAILED' then 2
+                when 'DEAD' then 3
+                else 4
+            end,
+            o.next_retry_at asc nulls last,
+            o.created_at desc
+        limit #{limit} offset #{offset}
+    </select>
+
+    <select id="countAuditOutbox" resultType="long">
+        select count(*)
+        from audit_outbox o
+        <include refid="auditOutboxWhere"/>
     </select>
 
     <select id="listSettings" resultMap="settingRowMap">

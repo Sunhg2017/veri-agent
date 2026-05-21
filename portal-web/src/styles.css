@@ -869,6 +869,112 @@ tbody tr:hover td {
   gap: 16px;
 }
 
+.audit-outbox-panel {
+  display: grid;
+  gap: 14px;
+}
+
+.audit-outbox-filters {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.audit-outbox-search,
+.audit-outbox-actions {
+  grid-column: 1 / -1;
+}
+
+.audit-outbox-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.audit-outbox-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.audit-outbox-summary div {
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+}
+
+.audit-outbox-summary strong,
+.audit-outbox-summary span {
+  display: block;
+}
+
+.audit-outbox-summary strong {
+  color: var(--text-primary);
+  font-size: 18px;
+  line-height: 1.1;
+}
+
+.audit-outbox-summary span {
+  margin-top: 4px;
+  color: var(--text-tertiary);
+  font-size: 10px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.audit-outbox-list {
+  display: grid;
+  gap: 10px;
+}
+
+.audit-outbox-item {
+  padding: 12px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+
+.audit-outbox-row,
+.audit-outbox-meta {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.audit-outbox-row strong,
+.audit-outbox-meta span,
+.audit-outbox-item p {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.audit-outbox-row strong {
+  color: var(--text-primary);
+  font-size: 12px;
+}
+
+.audit-outbox-meta {
+  margin-top: 8px;
+  color: var(--text-tertiary);
+  font-size: 11px;
+}
+
+.audit-outbox-item p {
+  margin: 8px 0 0;
+  color: var(--danger);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.panel-trace.inline {
+  display: inline-flex;
+  margin-top: 0;
+  font-size: 11px;
+}
+
 /* ==============================
    空状态
    ============================== */
