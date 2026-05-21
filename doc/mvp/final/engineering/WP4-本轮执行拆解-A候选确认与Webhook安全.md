@@ -76,7 +76,7 @@ AI 解析只通过 WP2 `ModelAccessService`，不在 WP4 直连外部模型 SDK�
 
 支持事件类型：`requirement.created`、`requirement.updated`、`requirement.statusChanged`、`requirement.archived`。事件源类型必须落在 `CUSTOM_API`，不得新增 `CUSTOM_WEBHOOK` 等重复枚举。
 
-当前 webhook 密钥解析的本轮口径为优先调用 WP1 `SecretProvider` 抽象；`db` profile 下支持 `LOCAL_ENCRYPTED` 的 `secret_reference` + `secret_local_store` 密文解析，并校验 ACTIVE、未过期、`WEBHOOK_SIGNING` 用途以及 `CONFIG + document_input_source.id` 作用域。外部 Vault/KMS provider 通过 `WP1_EXTERNAL_SECRET_RESOLVE_URL` resolve，支持 timeout、短暂失败 retry、`WP1_EXTERNAL_SECRET_HEALTH_URL` 健康探测，以及可选 `WP1_EXTERNAL_SECRET_SIGNING_KEY_ID` + `WP1_EXTERNAL_SECRET_SIGNING_SECRET` HMAC-SHA256 请求签名；resolve 成功/失败写入 WP1 审计，审计只保留 `secretRefDigest`、provider、用途、调用方、作用域和版本，不暴露完整 secretRef 或明文；`/api/v1/document-input/health` 只返回脱敏健康摘要，不暴露 endpoint、token、签名密钥、secretRef 或明文。配置映射、`wp4-webhook-default` 和 `secret://wp4/*` 仅作为 dev/test fallback，可通过 `WP4_LOCAL_WEBHOOK_SECRET_FALLBACK_ENABLED=false` 禁用。
+当前 webhook 密钥解析的本轮口径为优先调用 WP1 `SecretProvider` 抽象；`db` profile 下支持 `LOCAL_ENCRYPTED` 的 `secret_reference` + `secret_local_store` 密文解析，并校验 ACTIVE、未过期、`WEBHOOK_SIGNING` 用途以及 `CONFIG + document_input_source.id` 作用域。外部 Vault/KMS provider 通过 `WP1_EXTERNAL_SECRET_RESOLVE_URL` resolve，支持 timeout、短暂失败 retry、`WP1_EXTERNAL_SECRET_HEALTH_URL` 健康探测，以及可选 `WP1_EXTERNAL_SECRET_SIGNING_KEY_ID` + `WP1_EXTERNAL_SECRET_SIGNING_SECRET` HMAC-SHA256 请求签名；resolve 成功/失败写入 WP1 审计，审计只保留 `secretRefDigest`、provider、用途、调用方、作用域和版本，不暴露完整 secretRef 或明文；resolver 仅缓存 SecretProvider 成功解析结果，TTL 由 `WP4_WEBHOOK_SECRET_CACHE_TTL_SECONDS` 控制，source 创建/更新后主动失效，配置/default fallback 不进入缓存；`WP4_WEBHOOK_SECRET_ROTATION_OVERLAP_SECONDS` 定义 SecretProvider 轮换重叠窗口，旧密钥撤销前至少等待 `max(TTL, rotationOverlap)`。`/api/v1/document-input/health` 只返回脱敏健康摘要和缓存状态，不暴露 endpoint、token、签名密钥、secretRef 或明文。配置映射、`wp4-webhook-default` 和 `secret://wp4/*` 仅作为 dev/test fallback，可通过 `WP4_LOCAL_WEBHOOK_SECRET_FALLBACK_ENABLED=false` 禁用。
 
 ### 3.3 Webhook 安全头建议
 
@@ -135,8 +135,8 @@ cURL、Node.js 和 Java 签名样例及联调排错口径见 `doc/mvp/final/engi
 |---|---|---|---|---|
 | E1 | 平台 SecretProvider 抽象 | 架构、WP1 | P0 | 提供 `SecretProvider`、`SecretResolveContext`、`ResolvedSecret`；调用方只传 secretRef，不接触明文存储 |
 | E2 | LOCAL_ENCRYPTED 实现 | WP1、后端、安全 | P0 | db profile 读取 `secret_reference`、`secret_provider`、`secret_local_store`，用 `WP1_LOCAL_SECRET_MASTER_KEY` 解密 |
-| E3 | WP4 webhook resolver 接入 | 后端、安全 | P0 | resolver 优先调用 SecretProvider；配置 fallback 可关闭；用途不匹配、过期、撤销、provider 不可用均拒绝 |
-| E4 | SecretProvider 测试 | 测试 | P0 | provider 优先级、fallback 关闭、未知 ref、用途校验、无明文泄露测试通过 |
+| E3 | WP4 webhook resolver 接入 | 后端、安全 | P0 | resolver 优先调用 SecretProvider；配置 fallback 可关闭；用途不匹配、过期、撤销、provider 不可用均拒绝；SecretProvider 成功结果按 TTL 本地缓存，source 创建/更新主动失效，轮换重叠窗口可配置 |
+| E4 | SecretProvider 测试 | 测试 | P0 | provider 优先级、fallback 关闭、未知 ref、用途校验、缓存 TTL/失效、无明文泄露测试通过 |
 | E5 | 外部 provider 健康摘要 | 后端、安全/运维 | P1 | 外部 Vault/KMS provider 支持 timeout/retry/health URL；健康响应和指标仅输出脱敏状态摘要 |
 
 ### F 线：AI 解析质量评测集
@@ -198,6 +198,8 @@ cURL、Node.js 和 Java 签名样例及联调排错口径见 `doc/mvp/final/engi
 4. source A/B 不同 secretRef 时，交叉签名不得通过。
 5. 外部 Vault/KMS provider 不可用、健康端点未配置或返回异常时，健康摘要可观测且不泄露 endpoint、token、secretRef 或明文。
 6. SecretProvider resolve 成功/失败审计可通过 `secretRefDigest` 追踪使用情况，且不记录完整 secretRef、明文、外部 endpoint、Bearer token 或签名密钥。
+7. SecretProvider 成功解析结果按 `WP4_WEBHOOK_SECRET_CACHE_TTL_SECONDS` 短 TTL 缓存，`WP4_WEBHOOK_SECRET_CACHE_TTL_SECONDS=0` 可关闭；配置/default fallback 不缓存，source 创建/更新会主动失效。
+8. 密钥轮换时旧引用至少保留 `max(WP4_WEBHOOK_SECRET_CACHE_TTL_SECONDS, WP4_WEBHOOK_SECRET_ROTATION_OVERLAP_SECONDS)`，确认新引用签名通过后再撤销旧密钥。
 
 ### F 线验收
 

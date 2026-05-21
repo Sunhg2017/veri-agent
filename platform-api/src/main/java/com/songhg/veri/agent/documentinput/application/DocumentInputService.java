@@ -157,6 +157,10 @@ public class DocumentInputService {
                 contentExtractor.malwareScanTimeoutSeconds(),
                 contentExtractor.malwareScanMaxConcurrentProcesses(),
                 contentExtractor.malwareScanAvailablePermits(),
+                webhookSecretResolver.cacheEnabled(),
+                webhookSecretResolver.cacheTtlSeconds(),
+                webhookSecretResolver.rotationOverlapSeconds(),
+                webhookSecretResolver.cacheSize(),
                 externalSecretProvider
         );
     }
@@ -212,6 +216,7 @@ public class DocumentInputService {
                 now
         );
         repository.saveSource(source);
+        webhookSecretResolver.invalidate(source);
         writeAudit("CREATE", "DOCUMENT_SOURCE", source.id().toString(), source.defaultProjectId(), source);
         return toSourceResponse(source);
     }
@@ -244,6 +249,8 @@ public class DocumentInputService {
                 Instant.now()
         );
         repository.saveSource(updated);
+        webhookSecretResolver.invalidate(existing);
+        webhookSecretResolver.invalidate(updated);
         writeAudit("UPDATE", "DOCUMENT_SOURCE", updated.id().toString(), updated.defaultProjectId(), updated);
         return toSourceResponse(updated);
     }

@@ -141,7 +141,8 @@ class VeriAgentWebhookSample {
 2. source 状态为 ENABLED，`eventVersion` 与 `X-VA-Event-Version` 一致。
 3. source 配置了 `secretRef`，且 WP1 SecretProvider 能解析 ACTIVE、未过期、用途为 `WEBHOOK_SIGNING`、作用域为 `CONFIG + document_input_source.id` 的密钥。
 4. dev/test 可使用 `WP4_WEBHOOK_SECRET` 或 `veri-agent.document-input.webhook-secrets` fallback；生产建议设置 `WP4_LOCAL_WEBHOOK_SECRET_FALLBACK_ENABLED=false`。
-5. payload 大小不超过 `WP4_WEBHOOK_MAX_PAYLOAD_BYTES`。
+5. SecretProvider 成功解析结果会按 `WP4_WEBHOOK_SECRET_CACHE_TTL_SECONDS` 短 TTL 缓存，配置/default fallback 不缓存；轮换时旧密钥至少保留 `max(WP4_WEBHOOK_SECRET_CACHE_TTL_SECONDS, WP4_WEBHOOK_SECRET_ROTATION_OVERLAP_SECONDS)`。
+6. payload 大小不超过 `WP4_WEBHOOK_MAX_PAYLOAD_BYTES`。
 
 ## 6. 排错表
 
@@ -155,6 +156,7 @@ class VeriAgentWebhookSample {
 | `CONFLICT` 幂等冲突 | 同一 idempotencyKey 对应不同 payload | 外部系统生成稳定业务幂等键；变更 payload 时换新 key |
 | source 不存在或停用 | 路径 sourceCode 错误，或 source 被禁用 | 查询 `/api/v1/document-input/sources` 和 source health |
 | 密钥引用未解析 | SecretProvider 未配置、用途/作用域/过期不匹配、fallback 关闭 | 检查 `secret_reference`、provider 状态和 `WP4_LOCAL_WEBHOOK_SECRET_FALLBACK_ENABLED` |
+| 轮换后仍按旧密钥验签 | SecretProvider 解析结果仍在短 TTL 缓存内，或外部系统尚未切到新 secretRef | 等待 `max(WP4_WEBHOOK_SECRET_CACHE_TTL_SECONDS, WP4_WEBHOOK_SECRET_ROTATION_OVERLAP_SECONDS)`；确认 source 已更新并查看 `/api/v1/document-input/health` 的 `webhookSecretCache*` 字段 |
 
 ## 7. 验收
 

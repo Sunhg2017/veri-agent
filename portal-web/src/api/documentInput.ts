@@ -49,6 +49,20 @@ export interface DocumentInputHealth {
   ocrMaxOutputChars?: number;
   ocrMaxConcurrentProcesses?: number;
   ocrAvailablePermits?: number;
+  webhookSecretCacheEnabled?: boolean;
+  webhookSecretCacheTtlSeconds?: number;
+  webhookSecretRotationOverlapSeconds?: number;
+  webhookSecretCacheSize?: number;
+  externalSecretProvider?: {
+    providerCode?: string;
+    providerType?: string;
+    configured?: boolean;
+    status?: string;
+    timeoutSeconds?: number;
+    maxAttempts?: number;
+    checkedAt?: string;
+    lastErrorMessage?: string;
+  };
   batchActionLimit?: number;
 }
 

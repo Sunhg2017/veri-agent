@@ -8,11 +8,16 @@ import com.songhg.veri.agent.documentinput.config.DocumentInputProperties;
 import com.songhg.veri.agent.documentinput.domain.DocumentSourceConfig;
 import com.songhg.veri.agent.documentinput.domain.DocumentSourceStatus;
 import com.songhg.veri.agent.documentinput.domain.DocumentSourceType;
+import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
+import java.time.ZoneId;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
 
@@ -53,12 +58,76 @@ class DocumentWebhookSecretResolverTest {
     }
 
     @Test
+    void cachesSuccessfulSecretProviderResolutionUntilTtl() {
+        CountingSecretProvider provider = new CountingSecretProvider("provider-secret");
+        DocumentWebhookSecretResolver resolver = new DocumentWebhookSecretResolver(properties(Map.of()), List.of(provider));
+        DocumentSourceConfig source = source("secret://wp4/source-a");
+
+        assertThat(resolver.resolve(source)).isEqualTo("provider-secret-1");
+        assertThat(resolver.resolve(source)).isEqualTo("provider-secret-1");
+
+        assertThat(provider.resolveCount()).isEqualTo(1);
+        assertThat(resolver.cacheSize()).isEqualTo(1);
+    }
+
+    @Test
+    void expiresCachedProviderSecretAfterTtl() {
+        MutableClock clock = new MutableClock(Instant.parse("2026-05-22T00:00:00Z"));
+        CountingSecretProvider provider = new CountingSecretProvider("provider-secret");
+        DocumentWebhookSecretResolver resolver = new DocumentWebhookSecretResolver(
+                properties(Map.of(), true, 1, 300),
+                List.of(provider),
+                clock
+        );
+        DocumentSourceConfig source = source("secret://wp4/source-a");
+
+        assertThat(resolver.resolve(source)).isEqualTo("provider-secret-1");
+        clock.advance(Duration.ofSeconds(2));
+
+        assertThat(resolver.resolve(source)).isEqualTo("provider-secret-2");
+        assertThat(provider.resolveCount()).isEqualTo(2);
+        assertThat(resolver.cacheSize()).isEqualTo(1);
+    }
+
+    @Test
+    void disablesCacheWhenTtlIsZero() {
+        CountingSecretProvider provider = new CountingSecretProvider("provider-secret");
+        DocumentWebhookSecretResolver resolver = new DocumentWebhookSecretResolver(
+                properties(Map.of(), true, 0, 300),
+                List.of(provider)
+        );
+        DocumentSourceConfig source = source("secret://wp4/source-a");
+
+        assertThat(resolver.resolve(source)).isEqualTo("provider-secret-1");
+        assertThat(resolver.resolve(source)).isEqualTo("provider-secret-2");
+
+        assertThat(provider.resolveCount()).isEqualTo(2);
+        assertThat(resolver.cacheEnabled()).isFalse();
+        assertThat(resolver.cacheSize()).isZero();
+    }
+
+    @Test
     void resolvesConfiguredSecretRefBeforeDefaultFallback() {
         DocumentWebhookSecretResolver resolver = new DocumentWebhookSecretResolver(properties(Map.of(
                 "secret://wp4/source-a", "source-a-secret"
         )));
 
         assertThat(resolver.resolve(source("secret://wp4/source-a"))).isEqualTo("source-a-secret");
+        assertThat(resolver.cacheSize()).isZero();
+    }
+
+    @Test
+    void doesNotCacheConfiguredFallbackSecret() {
+        Map<String, String> secrets = new HashMap<>();
+        secrets.put("secret://wp4/source-a", "source-a-secret-v1");
+        DocumentWebhookSecretResolver resolver = new DocumentWebhookSecretResolver(properties(secrets));
+        DocumentSourceConfig source = source("secret://wp4/source-a");
+
+        assertThat(resolver.resolve(source)).isEqualTo("source-a-secret-v1");
+        secrets.put("secret://wp4/source-a", "source-a-secret-v2");
+
+        assertThat(resolver.resolve(source)).isEqualTo("source-a-secret-v2");
+        assertThat(resolver.cacheSize()).isZero();
     }
 
     @Test
@@ -66,6 +135,30 @@ class DocumentWebhookSecretResolverTest {
         DocumentWebhookSecretResolver resolver = new DocumentWebhookSecretResolver(properties(Map.of()));
 
         assertThat(resolver.resolve(source("secret://wp4/source-b"))).isEqualTo("default-secret");
+        assertThat(resolver.cacheSize()).isZero();
+    }
+
+    @Test
+    void invalidateClearsCachedProviderSecret() {
+        CountingSecretProvider provider = new CountingSecretProvider("provider-secret");
+        DocumentWebhookSecretResolver resolver = new DocumentWebhookSecretResolver(properties(Map.of()), List.of(provider));
+        DocumentSourceConfig source = source("secret://wp4/source-a");
+
+        assertThat(resolver.resolve(source)).isEqualTo("provider-secret-1");
+        resolver.invalidate(source);
+
+        assertThat(resolver.resolve(source)).isEqualTo("provider-secret-2");
+        assertThat(provider.resolveCount()).isEqualTo(2);
+        assertThat(resolver.cacheSize()).isEqualTo(1);
+    }
+
+    @Test
+    void exposesConfiguredRotationOverlapWindow() {
+        DocumentWebhookSecretResolver resolver = new DocumentWebhookSecretResolver(properties(Map.of(), true, 60, 600));
+
+        assertThat(resolver.cacheEnabled()).isTrue();
+        assertThat(resolver.cacheTtlSeconds()).isEqualTo(60);
+        assertThat(resolver.rotationOverlapSeconds()).isEqualTo(600);
     }
 
     @Test
@@ -91,6 +184,15 @@ class DocumentWebhookSecretResolverTest {
     }
 
     private DocumentInputProperties properties(Map<String, String> secrets, boolean localFallbackEnabled) {
+        return properties(secrets, localFallbackEnabled, 60, 300);
+    }
+
+    private DocumentInputProperties properties(
+            Map<String, String> secrets,
+            boolean localFallbackEnabled,
+            long cacheTtlSeconds,
+            long rotationOverlapSeconds
+    ) {
         return new DocumentInputProperties(
                 "service-token",
                 "default-secret",
@@ -114,6 +216,8 @@ class DocumentWebhookSecretResolverTest {
                 3,
                 false,
                 20,
+                cacheTtlSeconds,
+                rotationOverlapSeconds,
                 secrets,
                 "",
                 Map.of(),
@@ -132,6 +236,54 @@ class DocumentWebhookSecretResolverTest {
                 90,
                 90
         );
+    }
+
+    private static final class CountingSecretProvider implements SecretProvider {
+
+        private final String prefix;
+        private final AtomicInteger resolveCount = new AtomicInteger();
+
+        private CountingSecretProvider(String prefix) {
+            this.prefix = prefix;
+        }
+
+        @Override
+        public Optional<ResolvedSecret> resolve(String secretRef, SecretResolveContext context) {
+            int count = resolveCount.incrementAndGet();
+            return Optional.of(new ResolvedSecret(secretRef, prefix + "-" + count, "local", "v" + count));
+        }
+
+        private int resolveCount() {
+            return resolveCount.get();
+        }
+    }
+
+    private static final class MutableClock extends Clock {
+
+        private final AtomicReference<Instant> instant;
+
+        private MutableClock(Instant instant) {
+            this.instant = new AtomicReference<>(instant);
+        }
+
+        @Override
+        public ZoneId getZone() {
+            return ZoneId.of("UTC");
+        }
+
+        @Override
+        public Clock withZone(ZoneId zone) {
+            return this;
+        }
+
+        @Override
+        public Instant instant() {
+            return instant.get();
+        }
+
+        private void advance(Duration duration) {
+            instant.updateAndGet(current -> current.plus(duration));
+        }
     }
 
     private DocumentSourceConfig source(String secretRef) {

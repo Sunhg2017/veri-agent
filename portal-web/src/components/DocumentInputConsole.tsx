@@ -1255,6 +1255,11 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
             <StatusMetric label="OCR" value={health?.ocrConfigured ? 'READY' : 'OFF'} pill />
             <StatusMetric label="OCR 并发" value={`${health?.ocrAvailablePermits ?? '-'} / ${health?.ocrMaxConcurrentProcesses ?? '-'}`} />
             <StatusMetric label="OCR 超时" value={health?.ocrTimeoutSeconds ? `${health.ocrTimeoutSeconds}s` : '-'} />
+            <StatusMetric label="SecretProvider" value={health?.externalSecretProvider?.status ?? '-'} pill />
+            <StatusMetric label="Secret 缓存" value={health?.webhookSecretCacheEnabled ? 'ON' : 'OFF'} pill />
+            <StatusMetric label="缓存 TTL" value={secondsLabel(health?.webhookSecretCacheTtlSeconds)} />
+            <StatusMetric label="轮换窗口" value={secondsLabel(health?.webhookSecretRotationOverlapSeconds)} />
+            <StatusMetric label="缓存数" value={String(health?.webhookSecretCacheSize ?? '-')} />
             <StatusMetric label="批量上限" value={String(health?.batchActionLimit ?? '-')} />
           </div>
           {loadState.error && (
@@ -1876,6 +1881,13 @@ function formatBytes(value?: number) {
     return `${Math.round(value / 1024)} KB`;
   }
   return `${value} B`;
+}
+
+function secondsLabel(value?: number) {
+  if (value === undefined || value === null || !Number.isFinite(value)) {
+    return '-';
+  }
+  return `${value}s`;
 }
 
 function PublishRecordRow(props: { record: DocumentPublishRecordView }) {

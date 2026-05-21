@@ -29,6 +29,10 @@ public record DocumentInputHealthResponse(
         int malwareScanTimeoutSeconds,
         int malwareScanMaxConcurrentProcesses,
         int malwareScanAvailablePermits,
+        boolean webhookSecretCacheEnabled,
+        long webhookSecretCacheTtlSeconds,
+        long webhookSecretRotationOverlapSeconds,
+        int webhookSecretCacheSize,
         DocumentSecretProviderHealthResponse externalSecretProvider
 ) {
 }

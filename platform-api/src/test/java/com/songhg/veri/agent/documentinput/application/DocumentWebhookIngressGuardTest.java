@@ -80,6 +80,8 @@ class DocumentWebhookIngressGuardTest {
                 3,
                 false,
                 20,
+                60,
+                300,
                 Map.of(),
                 allowedCidrs,
                 sourceAllowedCidrs,

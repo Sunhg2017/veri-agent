@@ -28,6 +28,8 @@ public record DocumentInputProperties(
         int webhookMaxReplayAttempts,
         boolean webhookAutoRetryEnabled,
         int webhookAutoRetryBatchSize,
+        long webhookSecretCacheTtlSeconds,
+        long webhookSecretRotationOverlapSeconds,
         Map<String, String> webhookSecrets,
         String webhookAllowedCidrs,
         Map<String, String> webhookSourceAllowedCidrs,

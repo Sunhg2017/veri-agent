@@ -107,6 +107,8 @@ veri-agent:
     webhook-auto-retry-enabled: ${WP4_WEBHOOK_AUTO_RETRY_ENABLED:false}
     webhook-auto-retry-batch-size: ${WP4_WEBHOOK_AUTO_RETRY_BATCH_SIZE:20}
     webhook-auto-retry-cron: "${WP4_WEBHOOK_AUTO_RETRY_CRON:0 */5 * * * *}"
+    webhook-secret-cache-ttl-seconds: ${WP4_WEBHOOK_SECRET_CACHE_TTL_SECONDS:60}
+    webhook-secret-rotation-overlap-seconds: ${WP4_WEBHOOK_SECRET_ROTATION_OVERLAP_SECONDS:300}
     webhook-allowed-cidrs: ${WP4_WEBHOOK_ALLOWED_CIDRS:}
     webhook-source-allowed-cidrs: {}
     webhook-trusted-proxy-cidrs: ${WP4_WEBHOOK_TRUSTED_PROXY_CIDRS:}

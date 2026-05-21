@@ -113,6 +113,8 @@ class DocumentWebhookAutoRetryServiceTest {
                 maxReplayAttempts,
                 autoRetryEnabled,
                 batchSize,
+                60,
+                300,
                 Map.of(),
                 "",
                 Map.of(),
