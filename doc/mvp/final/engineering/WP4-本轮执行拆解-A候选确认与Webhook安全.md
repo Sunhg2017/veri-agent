@@ -142,9 +142,9 @@ cURL、Node.js 和 Java 签名样例及联调排错口径见 `doc/mvp/final/engi
 
 | 编号 | 任务 | 负责人 | 优先级 | 完成口径 |
 |---|---|---|---|---|
-| F1 | Golden corpus | PM、测试、WP2 | P0 | 建立 `wp4-ai-parse-eval/corpus.json`，记录输入、模型响应、期望标题和优先级 |
-| F2 | 质量指标 | 测试、后端 | P0 | 标题召回、优先级准确率、验收标准覆盖率均有阈值，低于阈值测试失败 |
-| F3 | 准出脚本 | 测试、运维 | P0 | `scripts/wp4_ai_parse_quality_eval.sh` 一键运行并输出指标 |
+| F1 | Golden corpus | PM、测试、WP2 | P0 | 建立 `wp4-ai-parse-eval/corpus.json`，记录输入、模型响应、期望标题和优先级；当前 `corpusVersion=wp4-c1-2026-05-22` 扩展到 12 个样本、28 条期望需求 |
+| F2 | 质量指标 | 测试、后端 | P0 | 标题召回、优先级准确率、验收标准覆盖率均有阈值；额外校验样本 ID 唯一、版本一致、行业/难度/覆盖标签完整、六类 sourceType 各至少 2 个样本 |
+| F3 | 准出脚本 | 测试、运维 | P0 | `scripts/wp4_ai_parse_quality_eval.sh` 一键运行并输出 prompt/parser 版本、分桶指标、scenario 数和期望需求数 |
 
 ### B 线：Webhook 安全与事件重放
 
@@ -200,7 +200,8 @@ cURL、Node.js 和 Java 签名样例及联调排错口径见 `doc/mvp/final/engi
 
 1. `scripts/wp4_ai_parse_quality_eval.sh` 可一键运行并输出标题召回、优先级准确率、验收标准覆盖率。
 2. 初始门禁阈值：标题召回 ≥ 0.80，优先级准确率 ≥ 0.80，验收标准覆盖率 ≥ 0.75。
-3. 评测失败阻断 WP4 AI 解析相关变更准出。
+3. corpus 必须保留版本、行业、难度和覆盖标签；`TEXT/MARKDOWN/WORD/PDF/OCR/CUSTOM_API` 每类至少 2 个样本，并覆盖长文档、表格需求、歧义优先级、异常格式和 OCR 低置信度场景。
+4. 评测失败阻断 WP4 AI 解析相关变更准出。
 
 ### B 线验收
 

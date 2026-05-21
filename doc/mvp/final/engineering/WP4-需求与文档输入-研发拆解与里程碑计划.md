@@ -109,7 +109,7 @@ MVP 范围如下：
 | 4.1 规则解析器 | P0 | 基于章节、列表、关键词和字段映射生成需求候选项、业务规则、验收标准、原文定位和置信度 | 解析结果按章节展示，支持展开原文引用 | 标题层级、规则编号、验收标准提取、原文定位测试 | 解析任务并发、超时、失败重试配置 |
 | 4.2 模型辅助解析 | P0 | 已接入 WP2 `ModelAccessService`；`WP4_MODEL_PARSE_ENABLED` 开启后调用 `wp4-document-requirement-parse` Prompt 生成候选，并保存 `parseSource`、`modelInvocationId`、`modelProviderName`、`modelName` | 标注“模型辅助”来源，展示置信度和待确认状态 | 覆盖 WP2 成功、敏感内容阻断、fallback 测试；预算超额沿 WP2 错误码处理 | Prompt key、模型调用开关、最大内容长度、敏感级别、公有模型开关 |
 | 4.3 解析结果合并 | P0 | 已实现模型解析优先、规则解析补缺；模型失败或阻断时规则解析兜底；候选仍必须人工确认 | 展示来源、置信度、模型调用追踪；发布 dryRun 展示既有 WP3 资产差异 | 合并幂等、模型失败 fallback、重复标题去重、重复来源更新测试 | 合并策略默认值、相似度阈值配置 |
-| 4.4 AI 解析质量评测集 | P0 | 建立 golden corpus，按标题召回、优先级准确率、验收标准覆盖率设置阈值；提供 `scripts/wp4_ai_parse_quality_eval.sh`；当前评测按 `TEXT/MARKDOWN/WORD/PDF/OCR/CUSTOM_API` 分桶并绑定 `promptKey/promptVersion` 与解析器版本 | 展示候选来源和模型调用追踪，为后续评测结果入口预留字段 | 低于阈值失败；Prompt/解析器变更必须跑评测；任一文档类型低于阈值可定位 | 评测阈值、样本集版本和模型开关 |
+| 4.4 AI 解析质量评测集 | P0 | 建立 golden corpus，按标题召回、优先级准确率、验收标准覆盖率设置阈值；提供 `scripts/wp4_ai_parse_quality_eval.sh`；当前 `corpusVersion=wp4-c1-2026-05-22` 覆盖 12 个样本、28 条期望需求，按 `TEXT/MARKDOWN/WORD/PDF/OCR/CUSTOM_API` 分桶并绑定 `promptKey/promptVersion` 与解析器版本 | 展示候选来源和模型调用追踪，为后续评测结果入口预留字段 | 低于阈值失败；Prompt/解析器变更必须跑评测；任一文档类型低于阈值可定位；缺少行业、难度、覆盖标签、每类至少 2 个样本或长文档/表格/歧义优先级/异常格式/OCR 低置信度覆盖时阻断 | 评测阈值、样本集版本、sourceType 分布和模型开关 |
 
 ### Epic 5：人工确认与 WP3 写入
 

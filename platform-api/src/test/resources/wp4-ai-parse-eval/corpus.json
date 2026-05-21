@@ -1,6 +1,13 @@
 [
   {
     "caseId": "candidate-confirmation",
+    "corpusVersion": "wp4-c1-2026-05-22",
+    "industry": "platform",
+    "difficulty": "basic",
+    "coverageTags": [
+      "candidate-review",
+      "optimistic-locking"
+    ],
     "sourceType": "MARKDOWN",
     "promptKey": "wp4-document-requirement-parse",
     "promptVersion": "v1",
@@ -42,6 +49,13 @@
   },
   {
     "caseId": "webhook-security",
+    "corpusVersion": "wp4-c1-2026-05-22",
+    "industry": "platform",
+    "difficulty": "medium",
+    "coverageTags": [
+      "webhook-security",
+      "idempotency"
+    ],
     "sourceType": "CUSTOM_API",
     "promptKey": "wp4-document-requirement-parse",
     "promptVersion": "v1",
@@ -83,6 +97,13 @@
   },
   {
     "caseId": "binary-document-import",
+    "corpusVersion": "wp4-c1-2026-05-22",
+    "industry": "platform",
+    "difficulty": "medium",
+    "coverageTags": [
+      "binary-import",
+      "ocr-limit"
+    ],
     "sourceType": "PDF",
     "promptKey": "wp4-document-requirement-parse",
     "promptVersion": "v1",
@@ -139,6 +160,13 @@
   },
   {
     "caseId": "word-review-workflow",
+    "corpusVersion": "wp4-c1-2026-05-22",
+    "industry": "platform",
+    "difficulty": "basic",
+    "coverageTags": [
+      "word-review",
+      "traceability"
+    ],
     "sourceType": "WORD",
     "promptKey": "wp4-document-requirement-parse",
     "promptVersion": "v1",
@@ -180,6 +208,13 @@
   },
   {
     "caseId": "ocr-scanned-ticket",
+    "corpusVersion": "wp4-c1-2026-05-22",
+    "industry": "finance",
+    "difficulty": "medium",
+    "coverageTags": [
+      "ocr-review",
+      "manual-correction"
+    ],
     "sourceType": "OCR",
     "promptKey": "wp4-document-requirement-parse",
     "promptVersion": "v1",
@@ -221,6 +256,13 @@
   },
   {
     "caseId": "external-secret-provider",
+    "corpusVersion": "wp4-c1-2026-05-22",
+    "industry": "platform",
+    "difficulty": "hard",
+    "coverageTags": [
+      "secret-provider",
+      "production-security"
+    ],
     "sourceType": "CUSTOM_API",
     "promptKey": "wp4-document-requirement-parse",
     "promptVersion": "v1",
@@ -277,6 +319,13 @@
   },
   {
     "caseId": "candidate-publish-quality",
+    "corpusVersion": "wp4-c1-2026-05-22",
+    "industry": "platform",
+    "difficulty": "medium",
+    "coverageTags": [
+      "publish-quality",
+      "wp3-traceability"
+    ],
     "sourceType": "TEXT",
     "promptKey": "wp4-document-requirement-parse",
     "promptVersion": "v1",
@@ -326,6 +375,268 @@
       },
       {
         "title": "Candidate review keeps optimistic locking",
+        "priority": "MEDIUM"
+      }
+    ]
+  },
+  {
+    "caseId": "markdown-table-priority-alias",
+    "corpusVersion": "wp4-c1-2026-05-22",
+    "industry": "finance",
+    "difficulty": "hard",
+    "coverageTags": [
+      "table-requirement",
+      "ambiguous-priority",
+      "markdown"
+    ],
+    "sourceType": "MARKDOWN",
+    "promptKey": "wp4-document-requirement-parse",
+    "promptVersion": "v1",
+    "document": "# Clearing center settlement\n| Field | Rule | SLA |\n| amount | must match ledger amount | T+0 |\n| exceptionReason | mandatory for manual override | T+1 |\nPriority aliases in the source mix P1/P3 with business terms.",
+    "modelResponse": {
+      "requirements": [
+        {
+          "title": "Settlement table validates amount columns",
+          "description": "Rows extracted from Markdown settlement tables must keep amount and ledger comparison semantics.",
+          "priority": "P1",
+          "acceptanceCriteria": "When amount differs from ledger amount, the parsed candidate is marked HIGH priority and keeps the table source fragment.",
+          "tags": [
+            "finance",
+            "table",
+            "settlement"
+          ]
+        },
+        {
+          "title": "Exception rows require reviewer notes",
+          "description": "Manual override rows must require an operator reason before publishing to WP3.",
+          "priority": "P3",
+          "acceptanceCriteria": "Publishing is blocked when exceptionReason is empty; a non-empty reason is stored in acceptance criteria.",
+          "tags": [
+            "finance",
+            "review"
+          ]
+        }
+      ]
+    },
+    "expected": [
+      {
+        "title": "Settlement table validates amount columns",
+        "priority": "HIGH"
+      },
+      {
+        "title": "Exception rows require reviewer notes",
+        "priority": "LOW"
+      }
+    ]
+  },
+  {
+    "caseId": "text-long-retail-onboarding",
+    "corpusVersion": "wp4-c1-2026-05-22",
+    "industry": "retail",
+    "difficulty": "hard",
+    "coverageTags": [
+      "long-document",
+      "industry-retail",
+      "privacy"
+    ],
+    "sourceType": "TEXT",
+    "promptKey": "wp4-document-requirement-parse",
+    "promptVersion": "v1",
+    "document": "Retail mobile onboarding document with multiple sections: account creation, SMS verification, cart recovery, customer support attachment handling, fraud review notes and operational SLA paragraphs. The source is intentionally long and mixes product language with compliance hints.",
+    "modelResponse": {
+      "requirements": [
+        {
+          "title": "Mobile signup handles rate limited verification codes",
+          "description": "The app must throttle repeated SMS verification requests and explain retry windows.",
+          "priority": "CRITICAL",
+          "acceptanceCriteria": "After the configured request limit is reached, a retry-after message is shown and no additional SMS provider call is made.",
+          "tags": [
+            "retail",
+            "onboarding",
+            "rate-limit"
+          ]
+        },
+        {
+          "title": "Dormant carts restore checkout context",
+          "description": "Returning users should resume checkout with selected items, coupon state and delivery address draft.",
+          "priority": "HIGH",
+          "acceptanceCriteria": "A user returning within the retention window sees the same cart lines and coupon validation status.",
+          "tags": [
+            "retail",
+            "checkout"
+          ]
+        },
+        {
+          "title": "Support agents can redact customer attachments",
+          "description": "Customer service uploads may contain personal information and must be redacted before model parsing.",
+          "priority": "MEDIUM",
+          "acceptanceCriteria": "Attachment previews hide phone, email and address-like fields before they are sent to WP2 model parsing.",
+          "tags": [
+            "privacy",
+            "support"
+          ]
+        }
+      ]
+    },
+    "expected": [
+      {
+        "title": "Mobile signup handles rate limited verification codes",
+        "priority": "CRITICAL"
+      },
+      {
+        "title": "Dormant carts restore checkout context",
+        "priority": "HIGH"
+      },
+      {
+        "title": "Support agents can redact customer attachments",
+        "priority": "MEDIUM"
+      }
+    ]
+  },
+  {
+    "caseId": "word-healthcare-approval-matrix",
+    "corpusVersion": "wp4-c1-2026-05-22",
+    "industry": "healthcare",
+    "difficulty": "hard",
+    "coverageTags": [
+      "industry-healthcare",
+      "approval-matrix",
+      "sensitive-data"
+    ],
+    "sourceType": "WORD",
+    "promptKey": "wp4-document-requirement-parse",
+    "promptVersion": "v1",
+    "document": "A healthcare Word document includes an approval matrix, department owner rows and patient identifier handling requirements.",
+    "modelResponse": {
+      "requirements": [
+        {
+          "title": "Clinical approval matrix enforces department owners",
+          "description": "Each imported clinical workflow requirement must keep the department owner and approval role from the matrix.",
+          "priority": "HIGH",
+          "acceptanceCriteria": "A requirement without department owner is kept pending and cannot be batch confirmed.",
+          "tags": [
+            "healthcare",
+            "approval"
+          ]
+        },
+        {
+          "title": "Patient identifiers are redacted before model parsing",
+          "description": "Word paragraphs containing patient identifiers must be sanitized before WP2 invocation.",
+          "priority": "CRITICAL",
+          "acceptanceCriteria": "The model request preview contains redacted placeholders and the raw identifier is absent from invocation logs.",
+          "tags": [
+            "privacy",
+            "wp2"
+          ]
+        }
+      ]
+    },
+    "expected": [
+      {
+        "title": "Clinical approval matrix enforces department owners",
+        "priority": "HIGH"
+      },
+      {
+        "title": "Patient identifiers are redacted before model parsing",
+        "priority": "CRITICAL"
+      }
+    ]
+  },
+  {
+    "caseId": "pdf-abnormal-format-recovery",
+    "corpusVersion": "wp4-c1-2026-05-22",
+    "industry": "manufacturing",
+    "difficulty": "hard",
+    "coverageTags": [
+      "abnormal-format",
+      "partial-parse",
+      "pdf"
+    ],
+    "sourceType": "PDF",
+    "promptKey": "wp4-document-requirement-parse",
+    "promptVersion": "v1",
+    "document": "A manufacturing PDF has rotated pages, repeated headers, broken bullets and numbered clauses copied from a supplier quality manual.",
+    "modelResponse": {
+      "requirements": [
+        {
+          "title": "PDF parser keeps numbered clause titles from noisy pages",
+          "description": "Broken page headers and footers must not replace clause titles in parsed candidates.",
+          "priority": "MEDIUM",
+          "acceptanceCriteria": "Candidates use the clause title as title and keep the noisy page text only as source fragment context.",
+          "tags": [
+            "pdf",
+            "abnormal-format"
+          ]
+        },
+        {
+          "title": "Unreadable PDF pages surface partial import warnings",
+          "description": "When only part of a PDF can be extracted, users need a warning before confirming candidates.",
+          "priority": "HIGH",
+          "acceptanceCriteria": "The import is marked completed with warning and the warning is visible in import history with traceId.",
+          "tags": [
+            "pdf",
+            "warning"
+          ]
+        }
+      ]
+    },
+    "expected": [
+      {
+        "title": "PDF parser keeps numbered clause titles from noisy pages",
+        "priority": "MEDIUM"
+      },
+      {
+        "title": "Unreadable PDF pages surface partial import warnings",
+        "priority": "HIGH"
+      }
+    ]
+  },
+  {
+    "caseId": "ocr-logistics-delivery-proof",
+    "corpusVersion": "wp4-c1-2026-05-22",
+    "industry": "logistics",
+    "difficulty": "hard",
+    "coverageTags": [
+      "ocr",
+      "low-confidence",
+      "industry-logistics"
+    ],
+    "sourceType": "OCR",
+    "promptKey": "wp4-document-requirement-parse",
+    "promptVersion": "v1",
+    "document": "A delivery proof photo contains low confidence OCR text, a partially recognized address and handwritten exception notes.",
+    "modelResponse": {
+      "requirements": [
+        {
+          "title": "OCR delivery proof requires manual address review",
+          "description": "Low confidence address fragments from delivery proof images must not be auto-published.",
+          "priority": "HIGH",
+          "acceptanceCriteria": "Candidates with lowConfidence address tags stay pending and display the image source reference for reviewer correction.",
+          "tags": [
+            "logistics",
+            "ocr",
+            "address"
+          ]
+        },
+        {
+          "title": "Handwritten delivery exceptions keep original trace",
+          "description": "Handwritten exception notes should keep the original sourceRef for later dispute review.",
+          "priority": "MEDIUM",
+          "acceptanceCriteria": "Confirmed exception requirements include sourceRef, sourceUrl and reviewer correction history.",
+          "tags": [
+            "logistics",
+            "traceability"
+          ]
+        }
+      ]
+    },
+    "expected": [
+      {
+        "title": "OCR delivery proof requires manual address review",
+        "priority": "HIGH"
+      },
+      {
+        "title": "Handwritten delivery exceptions keep original trace",
         "priority": "MEDIUM"
       }
     ]
