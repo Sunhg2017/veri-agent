@@ -10,6 +10,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.Optional;
 import org.springframework.context.annotation.Profile;
 import org.springframework.core.annotation.Order;
@@ -76,7 +77,7 @@ public class ExternalSecretProvider implements SecretProvider {
             if (StringUtils.hasText(properties.externalAuthToken())) {
                 builder.header("Authorization", "Bearer " + properties.externalAuthToken().trim());
             }
-            HttpResponse<String> response = httpClient.send(builder.build(), HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+            HttpResponse<String> response = sendWithRetries(builder.build(), "resolve");
             if (response.statusCode() == 404) {
                 return Optional.empty();
             }
@@ -100,7 +101,62 @@ public class ExternalSecretProvider implements SecretProvider {
             throw exception;
         } catch (Exception exception) {
             throw new BusinessException(ErrorCode.SECRET_PROVIDER_ERROR,
-                    "外部 Vault/KMS 密钥解析失败: " + exception.getMessage());
+                    "外部 Vault/KMS 密钥解析失败: " + sanitizeError(exception));
+        }
+    }
+
+    @Override
+    public SecretProviderHealth health() {
+        if (!StringUtils.hasText(properties.externalResolveUrl())) {
+            return SecretProviderHealth.externalDisabled();
+        }
+        int timeoutSeconds = timeoutSeconds(properties);
+        int maxAttempts = maxAttempts(properties);
+        Instant checkedAt = Instant.now();
+        if (!StringUtils.hasText(properties.externalHealthUrl())) {
+            return SecretProviderHealth.externalHealthEndpointNotConfigured(timeoutSeconds, maxAttempts);
+        }
+        try {
+            HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create(properties.externalHealthUrl().trim()))
+                    .timeout(resolveTimeout(properties))
+                    .GET();
+            if (StringUtils.hasText(properties.externalAuthToken())) {
+                builder.header("Authorization", "Bearer " + properties.externalAuthToken().trim());
+            }
+            HttpResponse<String> response = sendWithRetries(builder.build(), "health");
+            if (response.statusCode() >= 200 && response.statusCode() < 300) {
+                return new SecretProviderHealth(
+                        "external-vault-kms",
+                        "VAULT_KMS",
+                        true,
+                        "UP",
+                        timeoutSeconds,
+                        maxAttempts,
+                        checkedAt,
+                        null
+                );
+            }
+            return new SecretProviderHealth(
+                    "external-vault-kms",
+                    "VAULT_KMS",
+                    true,
+                    "DOWN",
+                    timeoutSeconds,
+                    maxAttempts,
+                    checkedAt,
+                    "外部 Vault/KMS 健康检查返回异常状态: " + response.statusCode()
+            );
+        } catch (Exception exception) {
+            return new SecretProviderHealth(
+                    "external-vault-kms",
+                    "VAULT_KMS",
+                    true,
+                    "DOWN",
+                    timeoutSeconds,
+                    maxAttempts,
+                    checkedAt,
+                    sanitizeError(exception)
+            );
         }
     }
 
@@ -171,8 +227,61 @@ public class ExternalSecretProvider implements SecretProvider {
     }
 
     private static Duration resolveTimeout(SecretProviderProperties properties) {
-        int seconds = properties.externalTimeoutSeconds() <= 0 ? 3 : properties.externalTimeoutSeconds();
-        return Duration.ofSeconds(seconds);
+        return Duration.ofSeconds(timeoutSeconds(properties));
+    }
+
+    private HttpResponse<String> sendWithRetries(HttpRequest request, String operation) throws Exception {
+        int attempts = maxAttempts(properties);
+        Exception lastException = null;
+        for (int attempt = 1; attempt <= attempts; attempt++) {
+            try {
+                HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+                if (isRetryableStatus(response.statusCode()) && attempt < attempts) {
+                    continue;
+                }
+                return response;
+            } catch (InterruptedException exception) {
+                Thread.currentThread().interrupt();
+                throw exception;
+            } catch (Exception exception) {
+                lastException = exception;
+                if (attempt >= attempts) {
+                    throw exception;
+                }
+            }
+        }
+        throw new BusinessException(ErrorCode.SECRET_PROVIDER_ERROR,
+                "外部 Vault/KMS " + operation + " 请求失败: " + sanitizeError(lastException));
+    }
+
+    private boolean isRetryableStatus(int statusCode) {
+        return statusCode == 429 || statusCode >= 500;
+    }
+
+    private static int timeoutSeconds(SecretProviderProperties properties) {
+        return properties.externalTimeoutSeconds() <= 0 ? 3 : properties.externalTimeoutSeconds();
+    }
+
+    private static int maxAttempts(SecretProviderProperties properties) {
+        int retries = Math.max(0, properties.externalMaxRetries());
+        return retries + 1;
+    }
+
+    private String sanitizeError(Exception exception) {
+        if (exception == null || !StringUtils.hasText(exception.getMessage())) {
+            return "外部 Vault/KMS 请求失败";
+        }
+        String message = exception.getMessage();
+        if (StringUtils.hasText(properties.externalAuthToken())) {
+            message = message.replace(properties.externalAuthToken().trim(), "***");
+        }
+        if (StringUtils.hasText(properties.externalResolveUrl())) {
+            message = message.replace(properties.externalResolveUrl().trim(), "<external-secret-endpoint>");
+        }
+        if (StringUtils.hasText(properties.externalHealthUrl())) {
+            message = message.replace(properties.externalHealthUrl().trim(), "<external-secret-health>");
+        }
+        return message.length() > 240 ? message.substring(0, 240) : message;
     }
 
     private record ResolveRequest(

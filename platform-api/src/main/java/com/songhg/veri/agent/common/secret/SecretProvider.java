@@ -9,4 +9,8 @@ public interface SecretProvider {
     }
 
     Optional<ResolvedSecret> resolve(String secretRef, SecretResolveContext context);
+
+    default SecretProviderHealth health() {
+        return SecretProviderHealth.unsupported(getClass().getSimpleName(), "UNKNOWN");
+    }
 }

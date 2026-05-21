@@ -4,6 +4,7 @@ import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
 import com.songhg.veri.agent.common.secret.SecretResolveContext;
 import com.songhg.veri.agent.common.secret.SecretProvider;
+import com.songhg.veri.agent.common.secret.SecretProviderHealth;
 import com.songhg.veri.agent.documentinput.config.DocumentInputProperties;
 import com.songhg.veri.agent.documentinput.domain.DocumentSourceConfig;
 import com.songhg.veri.agent.documentinput.domain.DocumentSourceType;
@@ -67,6 +68,14 @@ public class DocumentWebhookSecretResolver {
             return defaultWebhookSecret();
         }
         throw new BusinessException(ErrorCode.INVALID_STATE, "webhook 密钥引用未解析: " + secretRef);
+    }
+
+    public SecretProviderHealth externalProviderHealth() {
+        return secretProviders.stream()
+                .map(SecretProvider::health)
+                .filter(health -> "VAULT_KMS".equalsIgnoreCase(health.providerType()))
+                .findFirst()
+                .orElse(SecretProviderHealth.externalDisabled());
     }
 
     private String defaultWebhookSecret() {

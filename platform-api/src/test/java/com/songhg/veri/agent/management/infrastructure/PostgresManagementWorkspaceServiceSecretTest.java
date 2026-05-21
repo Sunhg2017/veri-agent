@@ -32,7 +32,9 @@ class PostgresManagementWorkspaceServiceSecretTest {
             "validation-v1",
             "",
             "",
-            3
+            3,
+            1,
+            ""
     );
 
     @Test

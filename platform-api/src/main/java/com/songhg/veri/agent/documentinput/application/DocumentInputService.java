@@ -27,6 +27,7 @@ import com.songhg.veri.agent.documentinput.api.response.DocumentImportResponse;
 import com.songhg.veri.agent.documentinput.api.response.DocumentInputHealthResponse;
 import com.songhg.veri.agent.documentinput.api.response.DocumentPublishRecordResponse;
 import com.songhg.veri.agent.documentinput.api.response.DocumentPublishResponse;
+import com.songhg.veri.agent.documentinput.api.response.DocumentSecretProviderHealthResponse;
 import com.songhg.veri.agent.documentinput.api.response.DocumentSourceHealthResponse;
 import com.songhg.veri.agent.documentinput.api.response.DocumentSourceResponse;
 import com.songhg.veri.agent.documentinput.api.response.DocumentWebhookEventResponse;
@@ -126,6 +127,7 @@ public class DocumentInputService {
     }
 
     public DocumentInputHealthResponse health() {
+        DocumentSecretProviderHealthResponse externalSecretProvider = externalSecretProviderHealth();
         return new DocumentInputHealthResponse(
                 "document-input",
                 properties.inputEnabled() ? "UP" : "DISABLED",
@@ -154,7 +156,23 @@ public class DocumentInputService {
                 contentExtractor.malwareScanEnabled(),
                 contentExtractor.malwareScanTimeoutSeconds(),
                 contentExtractor.malwareScanMaxConcurrentProcesses(),
-                contentExtractor.malwareScanAvailablePermits()
+                contentExtractor.malwareScanAvailablePermits(),
+                externalSecretProvider
+        );
+    }
+
+    private DocumentSecretProviderHealthResponse externalSecretProviderHealth() {
+        var health = webhookSecretResolver.externalProviderHealth();
+        metrics.recordSecretProviderHealth(health.providerType(), health.status());
+        return new DocumentSecretProviderHealthResponse(
+                health.providerCode(),
+                health.providerType(),
+                health.configured(),
+                health.status(),
+                health.timeoutSeconds(),
+                health.maxAttempts(),
+                health.checkedAt(),
+                health.lastErrorMessage()
         );
     }
 

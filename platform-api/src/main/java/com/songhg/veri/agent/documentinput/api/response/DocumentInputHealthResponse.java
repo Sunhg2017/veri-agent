@@ -28,6 +28,7 @@ public record DocumentInputHealthResponse(
         boolean malwareScanEnabled,
         int malwareScanTimeoutSeconds,
         int malwareScanMaxConcurrentProcesses,
-        int malwareScanAvailablePermits
+        int malwareScanAvailablePermits,
+        DocumentSecretProviderHealthResponse externalSecretProvider
 ) {
 }

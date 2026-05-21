@@ -58,6 +58,8 @@ veri-agent:
     external-resolve-url: ${WP1_EXTERNAL_SECRET_RESOLVE_URL:}
     external-auth-token: ${WP1_EXTERNAL_SECRET_AUTH_TOKEN:}
     external-timeout-seconds: ${WP1_EXTERNAL_SECRET_TIMEOUT_SECONDS:3}
+    external-max-retries: ${WP1_EXTERNAL_SECRET_MAX_RETRIES:1}
+    external-health-url: ${WP1_EXTERNAL_SECRET_HEALTH_URL:}
   model-access:
     service-token: ${WP2_SERVICE_TOKEN:local-model-access-token}
     default-model: ${WP2_DEFAULT_MODEL:local-echo}

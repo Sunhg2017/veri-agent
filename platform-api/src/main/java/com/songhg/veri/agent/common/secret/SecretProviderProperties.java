@@ -8,6 +8,8 @@ public record SecretProviderProperties(
         String localMasterKeyVersion,
         String externalResolveUrl,
         String externalAuthToken,
-        int externalTimeoutSeconds
+        int externalTimeoutSeconds,
+        int externalMaxRetries,
+        String externalHealthUrl
 ) {
 }

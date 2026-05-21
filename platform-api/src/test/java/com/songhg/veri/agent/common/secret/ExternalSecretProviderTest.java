@@ -81,7 +81,7 @@ class ExternalSecretProviderTest {
     void requiresExternalResolveEndpointForVaultOrKms() {
         ExternalSecretProvider provider = new ExternalSecretProvider(
                 jdbcTemplateReturning(row(UUID.randomUUID().toString())),
-                new SecretProviderProperties("", "v1", "", "token", 3),
+                new SecretProviderProperties("", "v1", "", "token", 3, 1, ""),
                 new ObjectMapper(),
                 new CapturingHttpClient(200, "{}")
         );
@@ -91,13 +91,108 @@ class ExternalSecretProviderTest {
                 .hasMessageContaining("resolve endpoint 未配置");
     }
 
-    private ExternalSecretProvider provider(ExternalSecretDbRow row, CapturingHttpClient httpClient, String token) {
-        return new ExternalSecretProvider(
-                jdbcTemplateReturning(row),
-                new SecretProviderProperties("", "v1", "https://vault.example.test/resolve", token, 3),
+    @Test
+    void reportsDisabledHealthWhenExternalEndpointIsMissing() {
+        ExternalSecretProvider provider = new ExternalSecretProvider(
+                jdbcTemplateReturning(row(UUID.randomUUID().toString())),
+                new SecretProviderProperties("", "v1", "", "token", 3, 1, ""),
+                new ObjectMapper(),
+                new CapturingHttpClient(200, "{}")
+        );
+
+        SecretProviderHealth health = provider.health();
+
+        assertThat(health.providerType()).isEqualTo("VAULT_KMS");
+        assertThat(health.configured()).isFalse();
+        assertThat(health.status()).isEqualTo("DISABLED");
+        assertThat(health.lastErrorMessage()).contains("未启用");
+    }
+
+    @Test
+    void reportsUnknownHealthWhenHealthEndpointIsMissing() {
+        ExternalSecretProvider provider = new ExternalSecretProvider(
+                jdbcTemplateReturning(row(UUID.randomUUID().toString())),
+                new SecretProviderProperties("", "v1", "https://vault.example.test/resolve", "token", 3, 1, ""),
+                new ObjectMapper(),
+                new CapturingHttpClient(200, "{}")
+        );
+
+        SecretProviderHealth health = provider.health();
+
+        assertThat(health.configured()).isTrue();
+        assertThat(health.status()).isEqualTo("UNKNOWN");
+        assertThat(health.timeoutSeconds()).isEqualTo(3);
+        assertThat(health.maxAttempts()).isEqualTo(2);
+        assertThat(health.lastErrorMessage()).contains("健康检查端点未配置");
+    }
+
+    @Test
+    void reportsUpHealthThroughConfiguredHealthEndpoint() {
+        CapturingHttpClient httpClient = new CapturingHttpClient(200, "{\"status\":\"UP\"}");
+        ExternalSecretProvider provider = provider(row(UUID.randomUUID().toString()), httpClient, "external-token");
+
+        SecretProviderHealth health = provider.health();
+
+        assertThat(health.configured()).isTrue();
+        assertThat(health.status()).isEqualTo("UP");
+        assertThat(health.lastErrorMessage()).isNull();
+        assertThat(httpClient.lastRequest.uri()).isEqualTo(URI.create("https://vault.example.test/health"));
+        assertThat(httpClient.lastRequest.headers().firstValue("Authorization")).contains("Bearer external-token");
+    }
+
+    @Test
+    void reportsDownHealthWithoutLeakingEndpointOrToken() {
+        CapturingHttpClient httpClient = new CapturingHttpClient(new IllegalStateException(
+                "failed https://vault.example.test/health token external-token"
+        ));
+        ExternalSecretProvider provider = provider(row(UUID.randomUUID().toString()), httpClient, "external-token");
+
+        SecretProviderHealth health = provider.health();
+
+        assertThat(health.status()).isEqualTo("DOWN");
+        assertThat(health.lastErrorMessage())
+                .contains("<external-secret-health>")
+                .doesNotContain("external-token")
+                .doesNotContain("https://vault.example.test/health");
+    }
+
+    @Test
+    void retriesResolveOnTransientServerErrors() {
+        String scopeId = UUID.randomUUID().toString();
+        CapturingHttpClient httpClient = new CapturingHttpClient(List.of(
+                response(503, "{}"),
+                response(200, "{\"value\":\"vault-secret\"}")
+        ));
+        ExternalSecretProvider provider = new ExternalSecretProvider(
+                jdbcTemplateReturning(row(scopeId)),
+                new SecretProviderProperties("", "v1", "https://vault.example.test/resolve", "token", 3, 1, "https://vault.example.test/health"),
                 new ObjectMapper(),
                 httpClient
         );
+
+        Optional<ResolvedSecret> resolved = provider.resolve("vault://wp4/source-a", new SecretResolveContext(
+                "WEBHOOK_SIGNING",
+                "wp4-document-input",
+                "CONFIG",
+                scopeId
+        ));
+
+        assertThat(resolved).isPresent();
+        assertThat(resolved.get().value()).isEqualTo("vault-secret");
+        assertThat(httpClient.sendCount).isEqualTo(2);
+    }
+
+    private ExternalSecretProvider provider(ExternalSecretDbRow row, CapturingHttpClient httpClient, String token) {
+        return new ExternalSecretProvider(
+                jdbcTemplateReturning(row),
+                new SecretProviderProperties("", "v1", "https://vault.example.test/resolve", token, 3, 1, "https://vault.example.test/health"),
+                new ObjectMapper(),
+                httpClient
+        );
+    }
+
+    private static CapturingHttpClient.ResponseSpec response(int statusCode, String body) {
+        return new CapturingHttpClient.ResponseSpec(statusCode, body);
     }
 
     private JdbcTemplate jdbcTemplateReturning(ExternalSecretDbRow row) {
@@ -145,14 +240,24 @@ class ExternalSecretProviderTest {
     }
 
     private static final class CapturingHttpClient extends HttpClient {
-        private final int statusCode;
-        private final String body;
+        private final List<ResponseSpec> responses;
+        private final RuntimeException failure;
         private HttpRequest lastRequest;
         private String lastBody;
+        private int sendCount;
 
         private CapturingHttpClient(int statusCode, String body) {
-            this.statusCode = statusCode;
-            this.body = body;
+            this(List.of(new ResponseSpec(statusCode, body)));
+        }
+
+        private CapturingHttpClient(List<ResponseSpec> responses) {
+            this.responses = List.copyOf(responses);
+            this.failure = null;
+        }
+
+        private CapturingHttpClient(RuntimeException failure) {
+            this.responses = List.of();
+            this.failure = failure;
         }
 
         @Override
@@ -202,11 +307,16 @@ class ExternalSecretProviderTest {
 
         @Override
         public <T> HttpResponse<T> send(HttpRequest request, HttpResponse.BodyHandler<T> responseBodyHandler) {
+            sendCount++;
             this.lastRequest = request;
             this.lastBody = readPublisher(request);
+            if (failure != null) {
+                throw failure;
+            }
+            ResponseSpec response = responses.get(Math.min(sendCount - 1, responses.size() - 1));
             @SuppressWarnings("unchecked")
-            T typedBody = (T) body;
-            return new SimpleHttpResponse<>(request, statusCode, typedBody);
+            T typedBody = (T) response.body();
+            return new SimpleHttpResponse<>(request, response.statusCode(), typedBody);
         }
 
         @Override
@@ -224,9 +334,15 @@ class ExternalSecretProviderTest {
         }
 
         private String readPublisher(HttpRequest request) {
+            if (request.bodyPublisher().isEmpty()) {
+                return "";
+            }
             BodySubscriber subscriber = new BodySubscriber();
             request.bodyPublisher().orElseThrow().subscribe(subscriber);
             return subscriber.body();
+        }
+
+        private record ResponseSpec(int statusCode, String body) {
         }
     }
 

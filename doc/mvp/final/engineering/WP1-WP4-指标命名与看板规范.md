@@ -42,6 +42,7 @@
 | WP1 | `veri.agent.platform.context.requests` | `resource_type`、`status`、`caller_service` | 内部 context 查询 |
 | WP1 | `veri.agent.platform.audit.events` | `resource_type`、`action`、`result`、`caller_service` | 审计写入成功/失败/拒绝 |
 | WP1 | `veri.agent.platform.secret.resolves` | `provider_type`、`purpose`、`result` | SecretProvider resolve |
+| WP4 | `veri.agent.document_input.secret_provider.health` | `provider_type`、`status` | 外部 Vault/KMS SecretProvider 健康摘要 |
 | WP3 | `veri.agent.asset.requirements` | `action`、`status`、`source` | 需求资产创建/更新/状态变更 |
 | WP3 | `veri.agent.asset.upserts` | `asset_type`、`source`、`result` | WP4 或后续 WP 写入资产 |
 | WP3 | `veri.agent.asset.trace_links` | `action`、`result` | requirement-api-case 追踪关系 |
@@ -65,6 +66,7 @@
 |---|---|---|
 | WP1 audit 写入失败 | audit 失败计数持续大于 0 或 outbox 堆积 | WP1 owner，检查数据库权限和 outbox |
 | WP1 SecretProvider 失败 | secret resolve `result=FAILED` 持续出现 | WP1/安全 owner，检查 provider 状态、用途、作用域、过期 |
+| WP4 外部 SecretProvider 不可用 | `veri.agent.document_input.secret_provider.health` 中 `status=DOWN/UNKNOWN` 持续出现 | WP1/WP4/安全 owner，检查 `WP1_EXTERNAL_SECRET_HEALTH_URL`、resolve endpoint、网络和认证 |
 | WP2 provider 不可用 | provider check `status=DOWN` 或 invocation `MODEL_PROVIDER_UNAVAILABLE` 升高 | `WP2-Provider接入与SecretRef轮换Runbook.md` |
 | WP2 策略/预算阻断异常 | `MODEL_POLICY_VIOLATION` 或 `BUDGET_EXCEEDED` 激增 | WP2 + 项目 owner，确认项目策略和预算 |
 | WP4 webhook 签名失败激增 | `signature_status=INVALID/EXPIRED/MISSING` 突增 | `WP4-Webhook签名样例与联调说明.md` |

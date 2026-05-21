@@ -97,6 +97,15 @@ public class DocumentInputMetrics {
                 .increment();
     }
 
+    public void recordSecretProviderHealth(String providerType, String status) {
+        Counter.builder("veri.agent.document_input.secret_provider.health")
+                .description("WP4 external SecretProvider health checks by provider type and status")
+                .tag("provider_type", value(providerType))
+                .tag("status", value(status))
+                .register(meterRegistry)
+                .increment();
+    }
+
     private String value(Object value) {
         return value == null ? "NONE" : String.valueOf(value);
     }

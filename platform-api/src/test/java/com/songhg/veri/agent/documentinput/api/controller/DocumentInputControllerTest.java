@@ -74,7 +74,15 @@ class DocumentInputControllerTest {
                 .andExpect(jsonPath("$.data.malwareScanEnabled").value(false))
                 .andExpect(jsonPath("$.data.malwareScanTimeoutSeconds").value(15))
                 .andExpect(jsonPath("$.data.malwareScanMaxConcurrentProcesses").value(2))
-                .andExpect(jsonPath("$.data.malwareScanAvailablePermits").value(2));
+                .andExpect(jsonPath("$.data.malwareScanAvailablePermits").value(2))
+                .andExpect(jsonPath("$.data.externalSecretProvider.providerType").value("VAULT_KMS"))
+                .andExpect(jsonPath("$.data.externalSecretProvider.configured").value(false))
+                .andExpect(jsonPath("$.data.externalSecretProvider.status").value("DISABLED"))
+                .andExpect(jsonPath("$.data.externalSecretProvider.lastErrorMessage", containsString("未启用")));
+
+        mockMvc.perform(get("/actuator/metrics/veri.agent.document_input.secret_provider.health"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("veri.agent.document_input.secret_provider.health"));
     }
 
     @Test
