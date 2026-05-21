@@ -1,4 +1,4 @@
-import { requestJson, requestMultipart, type ApiResponse } from './client';
+import { ApiError, requestJson, requestMultipart, type ApiResponse } from './client';
 
 export const DOCUMENT_SOURCE_TYPES = [
   'TEXT',
@@ -445,6 +445,44 @@ export function isReservedSourceType(type: DocumentSourceType) {
 
 export function sourceTypeLabel(type: DocumentSourceType) {
   return documentSourceTypeOptions.find((option) => option.value === type)?.label ?? type;
+}
+
+export function documentInputErrorMessage(error: unknown, fallback: string) {
+  if (!(error instanceof Error)) {
+    return fallback;
+  }
+  const message = error.message || fallback;
+  const actionable = actionableDocumentInputHint(message);
+  const parts = [message];
+  if (actionable && !message.includes(actionable) && !message.includes('下一步') && !message.includes('建议')) {
+    parts.push(actionable);
+  }
+  if (error instanceof ApiError) {
+    if (error.code) {
+      parts.push(`错误码：${error.code}`);
+    }
+    if (error.traceId) {
+      parts.push(`Trace ID：${error.traceId}`);
+    }
+  }
+  return parts.join(' · ');
+}
+
+function actionableDocumentInputHint(message: string) {
+  const normalized = message.toLowerCase();
+  if (message.includes('OCR') || message.includes('扫描件') || message.includes('未抽取到文本') || message.includes('未识别到有效文本')) {
+    return '建议：请管理员配置 WP4_OCR_COMMAND，或上传可复制文本的 PDF/Word/Markdown。';
+  }
+  if (message.includes('PDF') && (message.includes('页数超过上限') || message.includes('时间上限'))) {
+    return '建议：拆分 PDF 后重试，或联系管理员调整 PDF 页数/解析时间限制。';
+  }
+  if (message.includes('超过上限') || normalized.includes('payload too large')) {
+    return '建议：压缩或拆分文件/事件 payload，或联系管理员调整 WP4 大小上限配置。';
+  }
+  if (message.includes('webhook') && (message.includes('签名') || message.includes('X-VA-'))) {
+    return '建议：核对 secretRef/WP4_WEBHOOK_SECRET、raw body、签名串、时间窗口和 X-VA-* Header。';
+  }
+  return '';
 }
 
 export function normalizeDocumentSourceView(raw: unknown): DocumentSourceView {

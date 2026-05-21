@@ -150,6 +150,7 @@ class VeriAgentWebhookSample {
 | `webhook 缺少 X-VA-*` | Header 未传或代理丢失 | 确认外部系统和网关转发所有 `X-VA-*` Header |
 | 签名 `INVALID` | raw body 不一致、secret 错误、hex 大小写或 canonical string 拼错 | 固定 rawBody 字节；使用 `timestamp.eventId.idempotencyKey.rawBody`；签名输出小写 hex |
 | 签名 `EXPIRED` | timestamp 超过时间窗口或机器时钟漂移 | 校准 NTP；确认 `WP4_WEBHOOK_CLOCK_SKEW_SECONDS` |
+| `webhook payload 超过上限` | 单次事件体超过 `WP4_WEBHOOK_MAX_PAYLOAD_BYTES` | 拆分事件、缩减字段或联系管理员调整上限 |
 | `eventVersion` 不匹配 | Header 和 source 配置不一致 | 升级 source `eventVersion` 或外部系统回退版本 |
 | `CONFLICT` 幂等冲突 | 同一 idempotencyKey 对应不同 payload | 外部系统生成稳定业务幂等键；变更 payload 时换新 key |
 | source 不存在或停用 | 路径 sourceCode 错误，或 source 被禁用 | 查询 `/api/v1/document-input/sources` 和 source health |

@@ -33,8 +33,8 @@ MVP 范围如下：
 | 输入源类型 | 支持 `TEXT`、`MARKDOWN`、`WORD`、`PDF`、`OCR`、`CUSTOM_API` 六类可用输入源，其中 `CUSTOM_API` 覆盖自研 API/Webhook 推送 | 可以创建、启停、测试连通性、查看同步状态和最近错误 |
 | 连接器类型预留 | 预留 `CONFLUENCE`、`FEISHU`、`DINGTALK`、`YUQUE` 类型 | 类型枚举、配置 schema、任务状态和 UI 占位存在，但不承诺真实拉取和解析 |
 | 文本/Markdown 导入 | 支持手工粘贴文本、上传或提交 Markdown 内容，保留标题、章节、段落、列表、表格的基本结构 | 导入后可追踪原文片段、章节路径、版本号和操作者 |
-| Word/PDF/OCR 解析 | 支持 Word doc/docx、文本型 PDF 和命令式 OCR 文本抽取，抽取文本进入统一解析链路 | 真实文件可解析；扫描件缺 OCR provider 时明确失败；解析结果必须人工确认 |
-| 自研 webhook | 支持自研需求平台通过 API/Webhook 推送需求创建、更新、状态变化和删除/归档事件 | 支持签名校验、幂等键、事件版本、字段映射和失败重放 |
+| Word/PDF/OCR 解析 | 支持 Word doc/docx、文本型 PDF 和命令式 OCR 文本抽取，抽取文本进入统一解析链路 | 真实文件可解析；扫描件缺 OCR provider 时明确失败，并提示配置 OCR、换文本型文件或联系管理员；解析结果必须人工确认 |
+| 自研 webhook | 支持自研需求平台通过 API/Webhook 推送需求创建、更新、状态变化和删除/归档事件 | 支持签名校验、幂等键、事件版本、字段映射和失败重放；签名失败提示可定位到 header、签名串、时间窗口或 secretRef，但不泄露密钥或完整签名 |
 | 解析归一 | 将原始输入归一成需求候选项、业务规则、验收标准、约束、接口/页面线索和原文引用 | 解析结果可人工编辑，必须保留来源、置信度和原文定位 |
 | 模型辅助解析 | 通过 WP2 模型接入层调用受控 Prompt，辅助提取结构化需求 | 必须继承 WP1/WP2 敏感级别和公开模型策略，记录模型调用审计 |
 | WP3 写入 | 将已确认候选项写入或更新 WP3 需求资产，并建立来源追踪关系 | 写入需通过 WP3 应用服务，不直连 WP3 表；重复导入可幂等更新 |
@@ -90,7 +90,7 @@ MVP 范围如下：
 | Story | 优先级 | 服务端任务 | 前端任务 | 测试任务 | 运维配置 |
 |---|---|---|---|---|---|
 | 2B.1 Word 文本抽取 | P0 | 使用 Apache POI 支持 docx/doc 文本抽取；接受 plain text、raw base64、data URL 三种输入 | `WORD` 从预留改为可提交；提示可粘贴 base64 或 data URL | 真实 docx 导入、损坏文件、空文档、超限内容测试 | `WP4_IMPORT_MAX_CONTENT_BYTES`、`WP4_DOCUMENT_BINARY_MAX_BYTES` |
-| 2B.2 PDF 文本抽取 | P0 | 使用 PDFBox 支持文本型 PDF；无文本且未配置 OCR 时明确失败 | `PDF` 从预留改为可提交；失败原因可读 | 真实文本 PDF 导入、图片 PDF 无 OCR 失败、错误码测试 | PDF 文件大小、页数和处理超时后续纳入 worker |
+| 2B.2 PDF 文本抽取 | P0 | 使用 PDFBox 支持文本型 PDF；无文本且未配置 OCR 时明确失败并给出下一步 | `PDF` 从预留改为可提交；失败原因可读，包含 OCR/换文件/联系管理员建议 | 真实文本 PDF 导入、图片 PDF 无 OCR 失败、错误码测试 | PDF 文件大小、页数和处理超时后续纳入 worker |
 | 2B.3 OCR 命令 provider | P0 | 支持 `WP4_OCR_COMMAND` 命令式 OCR provider，命令接收 `{input}` 临时文件并返回文本 | `OCR` 从预留改为可提交；健康检查缺 OCR 命令时显示不可用 | OCR 命令成功、超时、空输出、失败退出码测试 | `WP4_OCR_COMMAND`、`WP4_OCR_TIMEOUT_SECONDS`、`WP4_OCR_MAX_OUTPUT_CHARS` |
 | 2B.4 输入安全闸门 | P0 | `/imports` 增加内容大小上限；二进制解析限制大小；临时 OCR 文件执行后清理；`WP4_MALWARE_SCAN_COMMAND` 可接入命令式文件安全扫描 | 错误态展示 traceId 和可读原因 | 超大 base64、伪造 MIME、OCR provider 不可用、文件扫描拒绝测试 | 生产环境建议隔离 OCR worker、限流和杀毒组件 |
 
@@ -99,7 +99,7 @@ MVP 范围如下：
 | Story | 优先级 | 服务端任务 | 前端任务 | 测试任务 | 运维配置 |
 |---|---|---|---|---|---|
 | 3.1 Webhook 接入配置 | P0 | 为 `CUSTOM_API` 输入源生成 endpoint、secretRef、eventVersion、mappingVersion、字段映射配置 | 展示 webhook URL、签名算法说明、字段映射编辑、复制入口 | 配置保存、密钥脱敏、字段映射校验测试 | webhook baseUrl、签名算法、时钟偏移容忍、密钥轮换策略 |
-| 3.2 Webhook 事件接收 | P0 | 接收 `requirement.created`、`requirement.updated`、`requirement.statusChanged`、`requirement.archived`；校验签名、时间戳、事件版本和幂等键 | 事件列表、事件详情、原始 payload 脱敏查看 | 签名失败、重放攻击、重复事件、未知版本、未知字段测试 | webhook 限流、payload 大小上限、允许 IP/CIDR 白名单 |
+| 3.2 Webhook 事件接收 | P0 | 接收 `requirement.created`、`requirement.updated`、`requirement.statusChanged`、`requirement.archived`；校验签名、时间戳、事件版本和幂等键；签名失败按 `INVALID/EXPIRED/MISSING` 给出排错建议 | 事件列表、事件详情、原始 payload 脱敏查看；失败事件展示错误码、Trace ID 和下一步建议 | 签名失败、重放攻击、重复事件、未知版本、未知字段测试 | webhook 限流、payload 大小上限、允许 IP/CIDR 白名单 |
 | 3.3 Webhook 失败重放 | P0 | 保存失败事件、错误码、重试次数；支持人工重放和自动有限重试 | 失败事件筛选、重放按钮、重放结果反馈 | 重放幂等、重试上限、死信状态测试 | 重试间隔、最大重试次数、死信保留时间 |
 
 ### Epic 4：解析归一与模型辅助

@@ -1787,9 +1787,11 @@ tbody tr:hover td {
   font-style: normal;
 }
 
-.publish-record-error {
+.document-failure-hint {
   grid-column: 1 / -1;
   color: #991b1b !important;
+  font-style: normal;
+  overflow-wrap: anywhere;
 }
 
 .document-count-badge {

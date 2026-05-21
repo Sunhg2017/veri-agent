@@ -10,6 +10,7 @@ import org.apache.pdfbox.pdmodel.font.Standard14Fonts;
 import org.apache.poi.xwpf.usermodel.XWPFDocument;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.HttpHeaders;
@@ -18,6 +19,8 @@ import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.web.servlet.MockMvc;
 
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.startsWith;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -35,6 +38,9 @@ class DocumentBinaryImportControllerTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @Value("${veri-agent.document-input.import-max-content-bytes:16777216}")
+    private long importMaxContentBytes;
 
     @Test
     void importsRealDocxAsRequirementCandidate() throws Exception {
@@ -57,6 +63,28 @@ class DocumentBinaryImportControllerTest {
                 .andExpect(jsonPath("$.data.totalParsed").value(1))
                 .andExpect(jsonPath("$.data.requirements[0].title").value("Word login requirement"))
                 .andExpect(jsonPath("$.data.requirements[0].priority").value("HIGH"));
+    }
+
+    @Test
+    void returnsActionableMessageForOversizedMultipartUpload() throws Exception {
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "large-upload.pdf",
+                "application/pdf",
+                new byte[(int) importMaxContentBytes + 1]
+        );
+
+        mockMvc.perform(multipart("/api/v1/document-input/imports/multipart")
+                        .file(file)
+                        .headers(documentInputHeaders())
+                        .param("projectId", "project-wp4")
+                        .param("sourceType", "PDF")
+                        .param("sourceRef", "UPLOAD-LARGE-1"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.message", containsString("上传文件超过上限")))
+                .andExpect(jsonPath("$.message", containsString("下一步")))
+                .andExpect(jsonPath("$.traceId", startsWith("trc_")));
     }
 
     @Test

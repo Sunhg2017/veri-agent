@@ -73,7 +73,8 @@ public class DocumentContentExtractor {
                 ? extractBinary(sourceType, payload.bytes(), payload.declaredMimeType())
                 : payload.text();
         if (!StringUtils.hasText(extracted)) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, sourceType + " 文档未抽取到有效文本");
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR,
+                    sourceType + " 文档未抽取到有效文本。下一步：确认文件包含可复制文本，扫描件请配置 WP4_OCR_COMMAND 后重试，或改用 Word/Markdown 文档。");
         }
         return new ExtractedDocumentContent(normalizeText(extracted), payload.binary() ? sourceType.name() : "PLAIN_TEXT");
     }
@@ -184,7 +185,7 @@ public class DocumentContentExtractor {
         long limit = documentBinaryMaxBytes();
         if (bytes.length > limit) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR,
-                    "文档二进制内容超过上限: " + limit + " bytes");
+                    "文档二进制内容超过上限: " + limit + " bytes。下一步：压缩或拆分文件，或联系管理员调整 WP4_DOCUMENT_BINARY_MAX_BYTES。");
         }
         return new DocumentPayload(bytes, null, true, normalizeMimeType(declaredMimeType));
     }
@@ -265,7 +266,7 @@ public class DocumentContentExtractor {
                 return runOcr(bytes);
             }
             throw new BusinessException(ErrorCode.VALIDATION_ERROR,
-                    "PDF 内容不是可识别的文本 PDF，扫描件需配置 WP4_OCR_COMMAND");
+                    "PDF 内容不是可识别的文本 PDF，扫描件需配置 WP4_OCR_COMMAND。下一步：上传文本型 PDF，或让管理员配置 OCR 后重试。");
         }
         long startedAt = nanoTime.getAsLong();
         try (PDDocument document = Loader.loadPDF(bytes)) {
@@ -273,7 +274,7 @@ public class DocumentContentExtractor {
             int maxPages = pdfMaxPages();
             if (maxPages > 0 && document.getNumberOfPages() > maxPages) {
                 throw new BusinessException(ErrorCode.VALIDATION_ERROR,
-                        "PDF 页数超过上限: " + maxPages);
+                        "PDF 页数超过上限: " + maxPages + "。下一步：拆分 PDF 后重试，或联系管理员调整 WP4_PDF_MAX_PAGES。");
             }
             PDFTextStripper stripper = new PDFTextStripper();
             String text = stripper.getText(document);
@@ -285,7 +286,7 @@ public class DocumentContentExtractor {
                 return runOcr(bytes);
             }
             throw new BusinessException(ErrorCode.VALIDATION_ERROR,
-                    "PDF 未抽取到文本，扫描件需配置 WP4_OCR_COMMAND");
+                    "PDF 未抽取到文本，疑似扫描件。下一步：配置 WP4_OCR_COMMAND 后重试，或上传文本型 PDF/Word/Markdown。");
         } catch (BusinessException exception) {
             throw exception;
         } catch (Exception exception) {
@@ -373,7 +374,7 @@ public class DocumentContentExtractor {
         long elapsedMillis = TimeUnit.NANOSECONDS.toMillis(nanoTime.getAsLong() - startedAt);
         if (elapsedMillis > limitMillis) {
             throw new BusinessException(ErrorCode.BUDGET_EXCEEDED,
-                    "PDF 解析超过时间上限: " + limitMillis + " ms");
+                    "PDF 解析超过时间上限: " + limitMillis + " ms。下一步：拆分 PDF、减少页数，或联系管理员调整 WP4_PDF_MAX_PARSE_MILLIS。");
         }
     }
 
@@ -381,7 +382,7 @@ public class DocumentContentExtractor {
         String command = trimToNull(properties.ocrCommand());
         if (!StringUtils.hasText(command)) {
             throw new BusinessException(ErrorCode.INVALID_STATE,
-                    "OCR 解析需要配置 WP4_OCR_COMMAND");
+                    "OCR 解析需要配置 WP4_OCR_COMMAND。下一步：请管理员配置 OCR provider，或上传可复制文本的 PDF/Word/Markdown 文件。");
         }
         if (!ocrPermits.tryAcquire()) {
             throw new BusinessException(ErrorCode.BUDGET_EXCEEDED, "OCR 并发处理已达到上限");

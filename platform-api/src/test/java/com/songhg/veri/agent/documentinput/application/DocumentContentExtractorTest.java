@@ -62,6 +62,17 @@ class DocumentContentExtractorTest {
     }
 
     @Test
+    void explainsHowToRecoverWhenOcrCommandIsMissing() {
+        DocumentContentExtractor extractor = new DocumentContentExtractor(properties(""));
+        String content = dataUrl("image/png", withPngMagic("scanned requirement"));
+
+        assertThatThrownBy(() -> extractor.extract(DocumentSourceType.OCR, content))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("WP4_OCR_COMMAND")
+                .hasMessageContaining("下一步");
+    }
+
+    @Test
     void rejectsForgedPdfMimeWhenValidationIsEnabled() {
         DocumentContentExtractor extractor = new DocumentContentExtractor(properties(""));
         String content = dataUrl("image/png", new byte[]{(byte) 0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a});
@@ -108,6 +119,20 @@ class DocumentContentExtractorTest {
     }
 
     @Test
+    void explainsHowToRecoverWhenPdfHasNoTextAndOcrIsMissing() throws Exception {
+        DocumentContentExtractor extractor = new DocumentContentExtractor(properties(""));
+
+        assertThatThrownBy(() -> extractor.extract(DocumentSourceType.PDF, dataUrl(
+                "application/pdf",
+                blankPdf()
+        )))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("PDF 未抽取到文本")
+                .hasMessageContaining("WP4_OCR_COMMAND")
+                .hasMessageContaining("下一步");
+    }
+
+    @Test
     void rejectsPdfWhenParseTimeBudgetIsExceeded() throws Exception {
         AtomicInteger calls = new AtomicInteger();
         DocumentContentExtractor extractor = new DocumentContentExtractor(
@@ -147,6 +172,15 @@ class DocumentContentExtractorTest {
 
     private static byte[] pdf(String... lines) throws Exception {
         return pdfPages(1, lines);
+    }
+
+    private static byte[] blankPdf() throws Exception {
+        try (PDDocument document = new PDDocument();
+             ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+            document.addPage(new PDPage());
+            document.save(output);
+            return output.toByteArray();
+        }
     }
 
     private static byte[] pdfPages(int pages, String... lines) throws Exception {

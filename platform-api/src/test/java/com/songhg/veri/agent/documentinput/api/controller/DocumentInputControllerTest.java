@@ -836,9 +836,21 @@ class DocumentInputControllerTest {
                         .header("X-VA-Idempotency-Key", "idem-bad")
                         .header("X-VA-Event-Version", "1.0")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(payload))
+                .content(payload))
                 .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"))
+                .andExpect(jsonPath("$.message", containsString("webhook 签名无效")))
+                .andExpect(jsonPath("$.message", containsString("secretRef")));
+
+        mockMvc.perform(get("/api/v1/document-input/webhook-events")
+                        .headers(documentInputHeaders())
+                        .param("sourceCode", "custom-reqs")
+                        .param("status", "REJECTED"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(1))
+                .andExpect(jsonPath("$.data.items[0].signatureStatus").value("INVALID"))
+                .andExpect(jsonPath("$.data.items[0].errorMessage", containsString("webhook 签名无效")))
+                .andExpect(jsonPath("$.data.items[0].errorMessage", containsString("raw body")));
     }
 
     @Test

@@ -23,6 +23,7 @@ import {
   createDocumentImport,
   createDocumentImportFile,
   createDocumentSource,
+  documentInputErrorMessage,
   documentSourceTypeOptions,
   fetchDocumentFieldMapping,
   fetchDocumentCandidates,
@@ -526,6 +527,11 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
       setSelectedImportId(response.data.id);
       setImportState({ loading: false, success: '导入任务已提交', traceId });
     } catch (error: unknown) {
+      try {
+        await reloadImports();
+      } catch {
+        // Import failure detail is still available in the API error shown below.
+      }
       setImportState({ loading: false, error: errorMessage(error, '导入提交失败') });
     }
   }
@@ -1192,7 +1198,7 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
               <DocumentStatusPill value={lastImportResult.status} />
               <span>createdRequirements：{lastImportResult.createdRequirements}</span>
               <span>requirementCount：{lastImportResult.requirementCount}</span>
-              {lastImportResult.errorMessage && <strong>{lastImportResult.errorMessage}</strong>}
+              {lastImportResult.errorMessage && <FailureHint message={lastImportResult.errorMessage} />}
             </div>
           )}
         </section>
@@ -1334,7 +1340,7 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
               {importDetail.errorMessage && (
                 <div>
                   <span>错误</span>
-                  <em>{importDetail.errorMessage}</em>
+                  <FailureHint message={importDetail.errorMessage} />
                 </div>
               )}
               {importDetail.requirements && importDetail.requirements.length > 0 && (
@@ -1578,7 +1584,7 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
                         {candidate.confirmedAt && <span>confirmedAt：{candidate.confirmedAt}</span>}
                         {candidate.ignoredReason && <span>ignoredReason：{candidate.ignoredReason}</span>}
                         {candidate.sourceFragment && <span>{candidate.sourceFragment}</span>}
-                        {candidate.errorMessage && <strong>{candidate.errorMessage}</strong>}
+                        {candidate.errorMessage && <FailureHint message={candidate.errorMessage} />}
                       </div>
                     )}
                     <label className="field" htmlFor={`candidate-ignore-${candidate.id}`}>
@@ -1756,7 +1762,7 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
               {selectedEvent.errorMessage && (
                 <div>
                   <span>错误</span>
-                  <em>{selectedEvent.errorMessage}</em>
+                  <FailureHint message={selectedEvent.errorMessage} />
                 </div>
               )}
             <button className="mini-button" type="button" disabled={!props.signedIn || !canReplayWebhook || replayState.loading} onClick={replaySelectedEvent}>
@@ -1881,9 +1887,14 @@ function PublishRecordRow(props: { record: DocumentPublishRecordView }) {
       </span>
       <DocumentStatusPill value={props.record.result || props.record.candidateStatus} />
       {props.record.diffSummary && <em>差异：{props.record.diffSummary}</em>}
-      {props.record.errorMessage && <em className="publish-record-error">{props.record.errorMessage}</em>}
+      {props.record.errorMessage && <FailureHint message={props.record.errorMessage} />}
     </div>
   );
+}
+
+function FailureHint(props: { message: string }) {
+  const formatted = documentInputErrorMessage(new Error(props.message), props.message);
+  return <em className="document-failure-hint">{formatted}</em>;
 }
 
 function SourceTypeBadge(props: { type: DocumentSourceType }) {
@@ -1948,5 +1959,5 @@ function sourceStatus(source: DocumentSourceView) {
 }
 
 function errorMessage(error: unknown, fallback: string) {
-  return error instanceof Error ? error.message : fallback;
+  return documentInputErrorMessage(error, fallback);
 }

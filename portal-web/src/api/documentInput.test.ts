@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { requestJson, requestMultipart } from './client';
+import { ApiError, requestJson, requestMultipart } from './client';
 import {
   DOCUMENT_SOURCE_TYPES,
   batchDocumentCandidateAction,
@@ -7,6 +7,7 @@ import {
   createDocumentImport,
   createDocumentImportFile,
   documentCandidateItems,
+  documentInputErrorMessage,
   documentImportItems,
   documentPublishRecordItems,
   documentSourceItems,
@@ -31,6 +32,19 @@ import {
 } from './documentInput';
 
 vi.mock('./client', () => ({
+  ApiError: class ApiError extends Error {
+    readonly code: string;
+    readonly traceId: string;
+    readonly status: number;
+
+    constructor(message: string, code: string, traceId: string, status: number) {
+      super(message);
+      this.name = 'ApiError';
+      this.code = code;
+      this.traceId = traceId;
+      this.status = status;
+    }
+  },
   requestJson: vi.fn(),
   requestMultipart: vi.fn()
 }));
@@ -212,6 +226,41 @@ describe('document input API helpers', () => {
     expect(formData.get('sourceId')).toBe('source-1');
     expect(formData.get('mappingId')).toBe('mapping-1');
     expect(formData.get('file')).toBe(file);
+  });
+
+  it('adds actionable failure hints with error code and traceId', () => {
+    const message = documentInputErrorMessage(
+      new ApiError('PDF 未抽取到文本，疑似扫描件', 'VALIDATION_ERROR', 'trc_pdf_empty', 400),
+      '导入提交失败'
+    );
+
+    expect(message).toContain('PDF 未抽取到文本');
+    expect(message).toContain('WP4_OCR_COMMAND');
+    expect(message).toContain('错误码：VALIDATION_ERROR');
+    expect(message).toContain('Trace ID：trc_pdf_empty');
+  });
+
+  it('adds webhook signature troubleshooting hints', () => {
+    const message = documentInputErrorMessage(
+      new ApiError('webhook 签名无效', 'FORBIDDEN', 'trc_webhook_signature', 403),
+      '事件接收失败'
+    );
+
+    expect(message).toContain('secretRef/WP4_WEBHOOK_SECRET');
+    expect(message).toContain('raw body');
+    expect(message).toContain('X-VA-* Header');
+    expect(message).toContain('Trace ID：trc_webhook_signature');
+  });
+
+  it('does not duplicate backend next-step guidance', () => {
+    const message = documentInputErrorMessage(
+      new ApiError('OCR 解析需要配置 WP4_OCR_COMMAND。下一步：请管理员配置 OCR provider。', 'INVALID_STATE', 'trc_ocr', 409),
+      '导入提交失败'
+    );
+
+    expect(message.match(/建议/g)).toBeNull();
+    expect(message).toContain('下一步：请管理员配置 OCR provider。');
+    expect(message).toContain('Trace ID：trc_ocr');
   });
 
   it('normalizes source health from the WP4 backend contract', () => {

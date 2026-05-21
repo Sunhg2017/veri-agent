@@ -232,7 +232,7 @@ WP4 本轮 P0 已覆盖真实文件上传、Word/PDF/OCR、AI 解析、SecretPro
 | WP4-F1 | 原文快照和事件保留策略 | P1 | IN_PROGRESS | 已新增导入记录/候选和 webhook 事件保留天数配置：`WP4_IMPORT_RETENTION_DAYS`、`WP4_WEBHOOK_EVENT_RETENTION_DAYS`；raw payload/deadLetter 归档策略仍待专项设计 | 清理不破坏已发布资产来源追踪 |
 | WP4-F2 | 清理任务与归档 | P1 | IN_PROGRESS | 已新增 `DocumentInputRetentionCleanupService` 定时清理入口，`WP4_RETENTION_CLEANUP_ENABLED` 默认关闭，cron 可配置；local/db profile 支持清理过期导入、候选和 webhook 事件并输出 `veri.agent.document_input.retention.cleanup` 指标；归档和审计增强仍待后续 | 清理过程有指标，归档与完整审计后续补齐 |
 | WP4-F3 | 前端 E2E smoke | P1 | TODO | 用浏览器覆盖真实文件上传、候选编辑、发布预览、事件重放 | 核心用户路径可在本地或 CI 复现 |
-| WP4-F4 | 解析失败体验优化 | P1 | TODO | 对 OCR 未配置、PDF 无文本、超限、签名失败给出更准确可读提示 | 用户能知道下一步应配置 OCR、换文件或联系管理员 |
+| WP4-F4 | 解析失败体验优化 | P1 | DONE-CURRENT | 已补 OCR 未配置、PDF 无文本、PDF/文件/payload 超限、webhook 签名失败的可操作错误提示；portal-web 统一展示错误码、Trace ID 和下一步建议，导入失败后自动刷新失败记录 | 用户能知道下一步应配置 OCR、换文件或联系管理员；后端错误码保持稳定，签名失败不泄露 secret 或完整签名 |
 
 ## 8. 建议里程碑
 

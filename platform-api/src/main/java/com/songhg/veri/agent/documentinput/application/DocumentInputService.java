@@ -782,7 +782,7 @@ public class DocumentInputService {
                         WebhookEventStatus.REJECTED,
                         payloadDigest,
                         null,
-                        "webhook 签名无效或已过期",
+                        webhookSignatureFailureMessage(signatureStatus),
                         0,
                         null,
                         null,
@@ -794,7 +794,7 @@ public class DocumentInputService {
                 writeAudit("WEBHOOK_REJECTED", "DOCUMENT_WEBHOOK_EVENT", rejected.id().toString(), source.defaultProjectId(), sanitizeWebhookEvent(rejected));
                 metrics.recordWebhook(signatureStatus, WebhookEventStatus.REJECTED, null);
             }
-            throw new BusinessException(ErrorCode.FORBIDDEN, "webhook 签名无效或已过期");
+            throw new BusinessException(ErrorCode.FORBIDDEN, webhookSignatureFailureMessage(signatureStatus));
         }
         if (payloadSize(rawPayload) > maxWebhookPayloadBytes()) {
             Instant rejectedAt = Instant.now();
@@ -811,7 +811,7 @@ public class DocumentInputService {
                     WebhookEventStatus.REJECTED,
                     payloadDigest,
                     null,
-                    "webhook payload 超过上限: " + maxWebhookPayloadBytes() + " bytes",
+                    "webhook payload 超过上限: " + maxWebhookPayloadBytes() + " bytes。下一步：缩减单次事件 payload 或联系管理员调整 WP4_WEBHOOK_MAX_PAYLOAD_BYTES。",
                     0,
                     null,
                     null,
@@ -822,7 +822,8 @@ public class DocumentInputService {
             repository.saveWebhookEvent(rejected);
             writeAudit("WEBHOOK_REJECTED", "DOCUMENT_WEBHOOK_EVENT", rejected.id().toString(), source.defaultProjectId(), sanitizeWebhookEvent(rejected));
             metrics.recordWebhook(signatureStatus, WebhookEventStatus.REJECTED, null);
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "webhook payload 超过上限");
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR,
+                    "webhook payload 超过上限: " + maxWebhookPayloadBytes() + " bytes。下一步：缩减单次事件 payload 或联系管理员调整 WP4_WEBHOOK_MAX_PAYLOAD_BYTES。");
         }
         if (duplicate != null) {
             return respondToDuplicateWebhookEvent(duplicate, payloadDigest);
@@ -1747,7 +1748,7 @@ public class DocumentInputService {
         long limit = maxImportContentBytes();
         if (size > limit) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR,
-                    "导入内容超过上限: " + limit + " bytes");
+                    "导入内容超过上限: " + limit + " bytes。下一步：拆分文档或联系管理员调整 WP4_IMPORT_MAX_CONTENT_BYTES。");
         }
     }
 
@@ -1755,8 +1756,17 @@ public class DocumentInputService {
         long limit = Math.min(maxImportContentBytes(), contentExtractor.documentBinaryMaxBytes());
         if (size > limit) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR,
-                    "上传文件超过上限: " + limit + " bytes");
+                    "上传文件超过上限: " + limit + " bytes。下一步：压缩或拆分文件，或联系管理员调整 WP4_IMPORT_MAX_CONTENT_BYTES / WP4_DOCUMENT_BINARY_MAX_BYTES。");
         }
+    }
+
+    private String webhookSignatureFailureMessage(WebhookSignatureStatus signatureStatus) {
+        return switch (signatureStatus) {
+            case MISSING -> "webhook 签名缺失。下一步：确认外部系统和网关转发 X-VA-Timestamp、X-VA-Signature、X-VA-Event-Id、X-VA-Idempotency-Key 与 X-VA-Event-Version。";
+            case EXPIRED -> "webhook 签名已过期。下一步：校准外部系统和平台服务器时间，并确认请求在 WP4_WEBHOOK_CLOCK_SKEW_SECONDS 窗口内发送。";
+            case INVALID -> "webhook 签名无效。下一步：确认 secretRef/WP4_WEBHOOK_SECRET、raw body、timestamp.eventId.idempotencyKey.rawBody 签名串和小写 hex 输出一致。";
+            case VALID -> "webhook 签名无效或已过期。下一步：检查签名串、时间窗口和 secretRef 配置。";
+        };
     }
 
     private int batchActionLimit() {
