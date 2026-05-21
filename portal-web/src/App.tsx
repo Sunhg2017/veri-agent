@@ -65,6 +65,7 @@ import {
   fetchApplicationOwners,
   fetchDepartment,
   fetchEnvironment,
+  fetchEnvironmentConnectivityCheck,
   fetchEnvironmentUsers,
   fetchIntegration,
   fetchAuditOutbox,
@@ -78,6 +79,7 @@ import {
   removeEnvironmentUser,
   removeProjectMember,
   resetUserPassword,
+  runEnvironmentConnectivityCheck,
   unassignUserRole,
   unlockUser,
   updateApplication,
@@ -93,6 +95,7 @@ import {
   type AuditOutboxView,
   type CreatableManagementResource,
   type DepartmentView,
+  type EnvironmentConnectivityCheckView,
   type EnvironmentView,
   type IntegrationView,
   type ManagementData,
@@ -1449,6 +1452,12 @@ function ModulePage(props: {
               ]}
               onChanged={props.onRefresh}
             />
+            <EnvironmentConnectivityPanel
+              resources={props.data.environments.map((item) => item.name)}
+              signedIn={props.signedIn}
+              canRun={hasPermission(props.currentUser, 'environment:edit')}
+              onChanged={props.onRefresh}
+            />
             <ScopedRolePanel
               title="环境授权用户"
               resourceLabel="环境"
@@ -2450,6 +2459,145 @@ function ScopedRolePanel(props: {
   );
 }
 
+function EnvironmentConnectivityPanel(props: {
+  resources: string[];
+  signedIn: boolean;
+  canRun: boolean;
+  onChanged: () => void;
+}) {
+  const [selectedResource, setSelectedResource] = useState(props.resources[0] ?? '');
+  const [result, setResult] = useState<EnvironmentConnectivityCheckView | null>(null);
+  const [state, setState] = useState<{ loading: boolean; error?: string; traceId?: string }>({ loading: false });
+
+  useEffect(() => {
+    if (!props.resources.includes(selectedResource)) {
+      setSelectedResource(props.resources[0] ?? '');
+    }
+  }, [props.resources, selectedResource]);
+
+  const reloadResult = useCallback(async () => {
+    if (!props.signedIn || !selectedResource) {
+      setResult(null);
+      setState({ loading: false });
+      return;
+    }
+    setState({ loading: true });
+    try {
+      const response = await fetchEnvironmentConnectivityCheck(selectedResource);
+      setResult(response.data);
+      setState({ loading: false, traceId: response.trace_id });
+    } catch (error: unknown) {
+      const message = error instanceof ApiError ? error.message : error instanceof Error ? error.message : '连通性结果加载失败';
+      const traceId = error instanceof ApiError ? error.traceId : '';
+      setResult(null);
+      setState({ loading: false, error: message, traceId });
+    }
+  }, [props.signedIn, selectedResource]);
+
+  useEffect(() => {
+    void reloadResult();
+  }, [reloadResult]);
+
+  async function runCheck() {
+    if (!props.signedIn || !props.canRun || !selectedResource) {
+      return;
+    }
+    setState({ loading: true });
+    try {
+      const response = await runEnvironmentConnectivityCheck(selectedResource);
+      setResult(response.data);
+      setState({ loading: false, traceId: response.trace_id });
+      props.onChanged();
+    } catch (error: unknown) {
+      const message = error instanceof ApiError ? error.message : error instanceof Error ? error.message : '环境探活失败';
+      const traceId = error instanceof ApiError ? error.traceId : '';
+      setState({ loading: false, error: message, traceId });
+    }
+  }
+
+  const disabled = !props.signedIn || state.loading || !selectedResource;
+
+  return (
+    <div className="panel insight-panel environment-connectivity-panel">
+      <h2>环境连通性</h2>
+      <label className="resource-selector">
+        <span>环境</span>
+        <select
+          value={selectedResource}
+          disabled={!props.signedIn || state.loading || props.resources.length === 0}
+          onChange={(event) => setSelectedResource(event.target.value)}
+        >
+          {props.resources.length === 0 ? (
+            <option value="">暂无环境</option>
+          ) : (
+            props.resources.map((resource) => (
+              <option key={resource} value={resource}>
+                {resource}
+              </option>
+            ))
+          )}
+        </select>
+      </label>
+
+      {result ? (
+        <div className="connectivity-summary">
+          <div className="connectivity-headline">
+            <StatusPill value={result.status} />
+            <span>{result.checkedAt || '尚未执行'}</span>
+          </div>
+          <p>{result.message}</p>
+          {result.latencyMs != null && <span className="connectivity-latency">{result.latencyMs} ms</span>}
+          <div className="connectivity-endpoints">
+            {result.endpoints.length > 0 ? (
+              result.endpoints.map((endpoint) => (
+                <div key={`${endpoint.target}:${endpoint.url}`}>
+                  <div>
+                    <strong>{endpoint.target}</strong>
+                    <StatusPill value={endpoint.status} />
+                  </div>
+                  <span>{endpoint.url}</span>
+                  <em>
+                    {[endpoint.statusCode ? `HTTP ${endpoint.statusCode}` : '', endpoint.latencyMs != null ? `${endpoint.latencyMs} ms` : '', endpoint.message]
+                      .filter(Boolean)
+                      .join(' · ')}
+                  </em>
+                </div>
+              ))
+            ) : (
+              <div>
+                <span>未记录 endpoint</span>
+              </div>
+            )}
+          </div>
+        </div>
+      ) : (
+        <div className="empty-state compact">
+          <Activity size={20} />
+          <div>
+            <strong>{state.loading ? '正在同步' : props.signedIn ? '暂无探活结果' : '等待登录'}</strong>
+            <span>{state.error ?? '暂无环境连通性记录'}</span>
+          </div>
+        </div>
+      )}
+
+      {props.canRun && (
+        <button className="mini-button" type="button" disabled={disabled} onClick={runCheck}>
+          <Activity size={14} />
+          {state.loading ? '检查中' : '执行探活'}
+        </button>
+      )}
+
+      {state.error && result && (
+        <div className="inline-error">
+          <strong>操作失败</strong>
+          <span>{state.error}</span>
+        </div>
+      )}
+      {state.traceId && <div className="panel-trace">Trace ID：{state.traceId}</div>}
+    </div>
+  );
+}
+
 function RoleBindingControls(props: {
   username: string;
   roles: RoleView[];
@@ -2784,9 +2932,9 @@ function SubmitNotice(props: { state: SubmitState }) {
 
 function StatusPill(props: { value: string }) {
   const normalized = props.value.toUpperCase();
-  const positive = ['启用', '同步正常', '进行中', '已接入', '可用', '已连接', '成功', 'DONE', 'SUCCESS'];
-  const pending = ['试用', '待确认', '待激活', '规划中', '接入中', '待授权', '只读', 'PENDING', 'PROCESSING'];
-  const negative = ['失败', '已停用', '已锁定', 'FAILED', 'DEAD', 'ERROR'];
+  const positive = ['启用', '同步正常', '进行中', '已接入', '可用', '已连接', '成功', 'DONE', 'SUCCESS', 'UP'];
+  const pending = ['试用', '待确认', '待激活', '规划中', '接入中', '待授权', '只读', 'PENDING', 'PROCESSING', 'SKIPPED'];
+  const negative = ['失败', '已停用', '已锁定', 'FAILED', 'DEAD', 'ERROR', 'DOWN'];
   const tone = positive.includes(props.value) || positive.includes(normalized)
     ? 'positive'
     : pending.includes(props.value) || pending.includes(normalized)

@@ -171,6 +171,17 @@
         </constructor>
     </resultMap>
 
+    <resultMap id="environmentConnectivityTargetMap" type="com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows$EnvironmentConnectivityTargetRow">
+        <constructor>
+            <arg column="id" javaType="java.util.UUID"/>
+            <arg column="name" javaType="java.lang.String"/>
+            <arg column="status" javaType="java.lang.String"/>
+            <arg column="web_url" javaType="java.lang.String"/>
+            <arg column="api_base_url" javaType="java.lang.String"/>
+            <arg column="health_check_json" javaType="java.lang.String"/>
+        </constructor>
+    </resultMap>
+
     <resultMap id="integrationRowMap" type="com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows$IntegrationRow">
         <constructor>
             <arg column="config_key" javaType="java.lang.String"/>
@@ -771,6 +782,30 @@
     <update id="changeEnvironmentStatus">
         update base_environment
         set status = #{status},
+            updated_by = #{actorId},
+            updated_at = now(),
+            version = version + 1
+        where id = #{environmentId}
+          and deleted_at is null
+    </update>
+
+    <select id="findEnvironmentConnectivityTarget" resultMap="environmentConnectivityTargetMap">
+        select
+            env.id,
+            env.name,
+            env.status,
+            coalesce(env.web_url, '') as web_url,
+            coalesce(env.api_base_url, '') as api_base_url,
+            coalesce(env.health_check_json::text, '{}') as health_check_json
+        from base_environment env
+        where env.deleted_at is null
+          and (env.code = #{keyword} or env.name = #{keyword} or cast(env.id as text) = #{keyword})
+        limit 1
+    </select>
+
+    <update id="updateEnvironmentHealthCheck">
+        update base_environment
+        set health_check_json = cast(#{healthCheckJson} as jsonb),
             updated_by = #{actorId},
             updated_at = now(),
             version = version + 1

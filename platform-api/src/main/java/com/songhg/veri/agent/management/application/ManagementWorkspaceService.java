@@ -12,6 +12,7 @@ import com.songhg.veri.agent.management.api.request.CreateIntegrationRequest;
 import com.songhg.veri.agent.management.api.request.CreateProjectRequest;
 import com.songhg.veri.agent.management.api.request.CreateSettingRequest;
 import com.songhg.veri.agent.management.api.response.DepartmentView;
+import com.songhg.veri.agent.management.api.response.EnvironmentConnectivityCheckView;
 import com.songhg.veri.agent.management.api.response.EnvironmentView;
 import com.songhg.veri.agent.management.api.response.IntegrationView;
 import com.songhg.veri.agent.management.api.response.ProjectView;
@@ -107,6 +108,10 @@ public interface ManagementWorkspaceService {
     EnvironmentView updateEnvironment(String key, UpdateEnvironmentRequest request, AuthUserPrincipal actor);
 
     EnvironmentView changeEnvironmentStatus(String key, String status, AuthUserPrincipal actor);
+
+    EnvironmentConnectivityCheckView environmentConnectivityCheck(String key);
+
+    EnvironmentConnectivityCheckView checkEnvironmentConnectivity(String key, AuthUserPrincipal actor);
 
     PageResponse<ScopedUserRoleView> environmentUsers(String environmentKey, PageQuery pageQuery);
 

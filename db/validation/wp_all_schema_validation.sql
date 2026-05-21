@@ -108,7 +108,7 @@ with expected(table_name, column_name) as (
         ('iam_session','id'), ('iam_session','user_id'), ('iam_session','session_token_hash'), ('iam_session','refresh_token_hash'), ('iam_session','auth_version'), ('iam_session','expires_at'),
         ('base_project','id'), ('base_project','code'), ('base_project','name'), ('base_project','status'), ('base_project','allow_public_model'),
         ('base_application','id'), ('base_application','project_id'), ('base_application','code'), ('base_application','name'), ('base_application','app_type'), ('base_application','status'),
-        ('base_environment','id'), ('base_environment','project_id'), ('base_environment','app_id'), ('base_environment','scope_type'), ('base_environment','code'), ('base_environment','env_type'), ('base_environment','status'),
+        ('base_environment','id'), ('base_environment','project_id'), ('base_environment','app_id'), ('base_environment','scope_type'), ('base_environment','code'), ('base_environment','env_type'), ('base_environment','health_check_json'), ('base_environment','status'),
         ('base_config','id'), ('base_config','scope_type'), ('base_config','scope_id'), ('base_config','config_key'), ('base_config','value_kind'),
         ('rbac_permission','id'), ('rbac_permission','code'), ('rbac_permission','resource_type'), ('rbac_permission','action'), ('rbac_permission','scope_mask'),
         ('rbac_role','id'), ('rbac_role','code'), ('rbac_role','name'), ('rbac_role','scope_type'), ('rbac_role','is_system'), ('rbac_role','is_builtin'),

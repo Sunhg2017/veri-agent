@@ -49,6 +49,25 @@ export interface EnvironmentView {
   status: string;
 }
 
+export interface EnvironmentConnectivityEndpointView {
+  target: string;
+  url: string;
+  status: string;
+  latencyMs?: number | null;
+  statusCode?: number | null;
+  message: string;
+}
+
+export interface EnvironmentConnectivityCheckView {
+  environment: string;
+  status: string;
+  checkedAt: string;
+  latencyMs?: number | null;
+  message: string;
+  traceId: string;
+  endpoints: EnvironmentConnectivityEndpointView[];
+}
+
 export interface IntegrationView {
   key: string;
   name: string;
@@ -538,6 +557,23 @@ export function changeEnvironmentStatus(environmentKey: string, status: string):
     method: 'PATCH',
     body: JSON.stringify({ status })
   });
+}
+
+export function fetchEnvironmentConnectivityCheck(
+  environmentKey: string
+): Promise<ApiResponse<EnvironmentConnectivityCheckView>> {
+  return requestJson<EnvironmentConnectivityCheckView>(
+    `/api/v1/management/environments/${encodeURIComponent(environmentKey)}/connectivity-check`
+  );
+}
+
+export function runEnvironmentConnectivityCheck(
+  environmentKey: string
+): Promise<ApiResponse<EnvironmentConnectivityCheckView>> {
+  return requestJson<EnvironmentConnectivityCheckView>(
+    `/api/v1/management/environments/${encodeURIComponent(environmentKey)}/connectivity-check`,
+    { method: 'POST' }
+  );
 }
 
 export function addEnvironmentUser(

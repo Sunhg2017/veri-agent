@@ -1,6 +1,8 @@
 package com.songhg.veri.agent.management.infrastructure;
 
 import com.songhg.veri.agent.auth.application.AuthUserPrincipal;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.songhg.veri.agent.common.api.PageQuery;
 import com.songhg.veri.agent.common.api.PageResponse;
 import com.songhg.veri.agent.common.audit.AuditLogWriter;
@@ -16,6 +18,7 @@ import com.songhg.veri.agent.management.api.request.CreateIntegrationRequest;
 import com.songhg.veri.agent.management.api.request.CreateProjectRequest;
 import com.songhg.veri.agent.management.api.request.CreateSettingRequest;
 import com.songhg.veri.agent.management.api.response.DepartmentView;
+import com.songhg.veri.agent.management.api.response.EnvironmentConnectivityCheckView;
 import com.songhg.veri.agent.management.api.response.EnvironmentView;
 import com.songhg.veri.agent.management.api.response.IntegrationView;
 import com.songhg.veri.agent.management.api.request.ProjectMemberRequest;
@@ -35,9 +38,11 @@ import com.songhg.veri.agent.management.api.request.UpdateUserRequest;
 import com.songhg.veri.agent.management.api.response.UserView;
 import com.songhg.veri.agent.management.application.AuditLogQuery;
 import com.songhg.veri.agent.management.application.AuditOutboxQuery;
+import com.songhg.veri.agent.management.application.EnvironmentConnectivityChecker;
 import com.songhg.veri.agent.management.application.ManagementWorkspaceService;
 import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows.ApplicationRef;
 import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows.DepartmentRef;
+import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows.EnvironmentConnectivityTargetRow;
 import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows.EnvironmentRef;
 import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows.IntegrationRow;
 import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows.ProjectRef;
@@ -64,17 +69,23 @@ public class PostgresManagementWorkspaceService implements ManagementWorkspaceSe
     private final PasswordEncoder passwordEncoder;
     private final AuditLogWriter auditLogWriter;
     private final PostgresManagementDeniedAuditRecorder deniedAuditRecorder;
+    private final EnvironmentConnectivityChecker connectivityChecker;
+    private final ObjectMapper objectMapper;
 
     public PostgresManagementWorkspaceService(
             ManagementMapper mapper,
             PasswordEncoder passwordEncoder,
             AuditLogWriter auditLogWriter,
-            PostgresManagementDeniedAuditRecorder deniedAuditRecorder
+            PostgresManagementDeniedAuditRecorder deniedAuditRecorder,
+            EnvironmentConnectivityChecker connectivityChecker,
+            ObjectMapper objectMapper
     ) {
         this.mapper = mapper;
         this.passwordEncoder = passwordEncoder;
         this.auditLogWriter = auditLogWriter;
         this.deniedAuditRecorder = deniedAuditRecorder;
+        this.connectivityChecker = connectivityChecker;
+        this.objectMapper = objectMapper;
     }
 
     @Override
@@ -556,6 +567,30 @@ public class PostgresManagementWorkspaceService implements ManagementWorkspaceSe
     }
 
     @Override
+    public EnvironmentConnectivityCheckView environmentConnectivityCheck(String key) {
+        EnvironmentConnectivityTargetRow target = resolveEnvironmentConnectivityTarget(key);
+        return environmentConnectivityCheckView(target);
+    }
+
+    @Override
+    @Transactional
+    public EnvironmentConnectivityCheckView checkEnvironmentConnectivity(String key, AuthUserPrincipal actor) {
+        EnvironmentConnectivityTargetRow target = resolveEnvironmentConnectivityTarget(key);
+        ensureEnabled(target.status(), "停用环境不可执行连通性检查");
+        EnvironmentConnectivityCheckView result = connectivityChecker.check(
+                target.name(),
+                target.webUrl(),
+                target.apiBaseUrl()
+        );
+        update(mapper::updateEnvironmentHealthCheck, actor, values(
+                "environmentId", target.id(),
+                "healthCheckJson", environmentConnectivityCheckJson(result)
+        ));
+        audit(actor, "环境连通性检查", "environment", target.id().toString(), target.name());
+        return result;
+    }
+
+    @Override
     public PageResponse<ScopedUserRoleView> environmentUsers(String environmentKey, PageQuery pageQuery) {
         EnvironmentRef environment = resolveEnvironmentStrict(environmentKey);
         return scopedUserRoles(environment.id(), "ENVIRONMENT", "", pageQuery);
@@ -796,6 +831,10 @@ public class PostgresManagementWorkspaceService implements ManagementWorkspaceSe
 
     private EnvironmentRef resolveEnvironmentStrict(String key) {
         return requireOne(mapper::findEnvironmentRef, values("keyword", key), "环境不存在");
+    }
+
+    private EnvironmentConnectivityTargetRow resolveEnvironmentConnectivityTarget(String key) {
+        return requireOne(mapper::findEnvironmentConnectivityTarget, values("keyword", key), "环境不存在");
     }
 
     private DepartmentView departmentByKey(String key) {
@@ -1041,6 +1080,38 @@ public class PostgresManagementWorkspaceService implements ManagementWorkspaceSe
                 scopeName(row.scopeType()),
                 row.status()
         );
+    }
+
+    private EnvironmentConnectivityCheckView environmentConnectivityCheckView(EnvironmentConnectivityTargetRow row) {
+        String raw = blankToNull(row.healthCheckJson());
+        if (raw == null || "{}".equals(raw)) {
+            return EnvironmentConnectivityCheckView.notChecked(row.name());
+        }
+        try {
+            EnvironmentConnectivityCheckView view = objectMapper.readValue(raw, EnvironmentConnectivityCheckView.class);
+            if (view.status() == null || view.status().isBlank()) {
+                return EnvironmentConnectivityCheckView.notChecked(row.name());
+            }
+            return view;
+        } catch (JsonProcessingException exception) {
+            return new EnvironmentConnectivityCheckView(
+                    row.name(),
+                    "SKIPPED",
+                    "",
+                    null,
+                    "历史连通性结果不可读",
+                    TraceContext.getTraceId(),
+                    List.of()
+            );
+        }
+    }
+
+    private String environmentConnectivityCheckJson(EnvironmentConnectivityCheckView view) {
+        try {
+            return objectMapper.writeValueAsString(view);
+        } catch (JsonProcessingException exception) {
+            throw new BusinessException(ErrorCode.INTERNAL_ERROR, "环境连通性结果保存失败");
+        }
     }
 
     private String integrationKey(String code) {

@@ -16,6 +16,7 @@ import com.songhg.veri.agent.management.api.request.CreateIntegrationRequest;
 import com.songhg.veri.agent.management.api.request.CreateProjectRequest;
 import com.songhg.veri.agent.management.api.request.CreateSettingRequest;
 import com.songhg.veri.agent.management.api.response.DepartmentView;
+import com.songhg.veri.agent.management.api.response.EnvironmentConnectivityCheckView;
 import com.songhg.veri.agent.management.api.response.EnvironmentView;
 import com.songhg.veri.agent.management.api.response.IntegrationView;
 import com.songhg.veri.agent.management.api.response.ProjectView;
@@ -35,13 +36,16 @@ import com.songhg.veri.agent.management.api.request.UpdateUserRequest;
 import com.songhg.veri.agent.management.api.response.UserView;
 import com.songhg.veri.agent.management.application.AuditLogQuery;
 import com.songhg.veri.agent.management.application.AuditOutboxQuery;
+import com.songhg.veri.agent.management.application.EnvironmentConnectivityChecker;
 import com.songhg.veri.agent.management.application.ManagementWorkspaceService;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 
@@ -64,10 +68,16 @@ public class InMemoryManagementWorkspaceService implements ManagementWorkspaceSe
     private final List<SettingView> settings = new ArrayList<>();
     private final List<AuditLogView> auditLogs = new ArrayList<>();
     private final List<AuditOutboxView> auditOutbox = new ArrayList<>();
+    private final Map<String, EnvironmentConnectivityCheckView> environmentConnectivityChecks = new HashMap<>();
     private final AuditLogWriter auditLogWriter;
+    private final EnvironmentConnectivityChecker connectivityChecker;
 
-    public InMemoryManagementWorkspaceService(AuditLogWriter auditLogWriter) {
+    public InMemoryManagementWorkspaceService(
+            AuditLogWriter auditLogWriter,
+            EnvironmentConnectivityChecker connectivityChecker
+    ) {
         this.auditLogWriter = auditLogWriter;
+        this.connectivityChecker = connectivityChecker;
         departments.addAll(List.of(
                 new DepartmentView("质量工程中心", "总部", "邵敏", 68, "同步正常"),
                 new DepartmentView("自动化平台组", "质量工程中心", "何序", 16, "同步正常"),
@@ -565,6 +575,27 @@ public class InMemoryManagementWorkspaceService implements ManagementWorkspaceSe
     }
 
     @Override
+    public synchronized EnvironmentConnectivityCheckView environmentConnectivityCheck(String key) {
+        EnvironmentView current = requireEnvironment(key);
+        return environmentConnectivityChecks.getOrDefault(
+                current.name(),
+                EnvironmentConnectivityCheckView.notChecked(current.name())
+        );
+    }
+
+    @Override
+    public synchronized EnvironmentConnectivityCheckView checkEnvironmentConnectivity(String key, AuthUserPrincipal actor) {
+        EnvironmentView current = requireEnvironment(key);
+        if ("已停用".equals(current.status())) {
+            throw new BusinessException(ErrorCode.INVALID_STATE, "停用环境不可执行连通性检查");
+        }
+        EnvironmentConnectivityCheckView result = connectivityChecker.check(current.name(), "", current.endpoint());
+        environmentConnectivityChecks.put(current.name(), result);
+        audit(actor, "环境连通性检查", current.name());
+        return result;
+    }
+
+    @Override
     public synchronized PageResponse<ScopedUserRoleView> environmentUsers(String environmentKey, PageQuery pageQuery) {
         requireEnvironment(environmentKey);
         return page(environmentUsers, pageQuery);
@@ -902,7 +933,7 @@ public class InMemoryManagementWorkspaceService implements ManagementWorkspaceSe
             case "邀请用户", "启用用户", "停用用户", "锁定用户", "解锁用户", "重置密码" -> "user";
             case "创建项目" -> "project";
             case "登记应用" -> "application";
-            case "新增环境" -> "environment";
+            case "新增环境", "环境连通性检查" -> "environment";
             case "分配角色", "解绑角色", "更新角色" -> "rbac_role_binding";
             default -> "";
         };

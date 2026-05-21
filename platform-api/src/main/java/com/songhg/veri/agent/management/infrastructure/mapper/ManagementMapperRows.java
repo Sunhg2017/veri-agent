@@ -19,6 +19,16 @@ public final class ManagementMapperRows {
     public record EnvironmentRef(UUID id, String name, String status, UUID projectId, String projectName) {
     }
 
+    public record EnvironmentConnectivityTargetRow(
+            UUID id,
+            String name,
+            String status,
+            String webUrl,
+            String apiBaseUrl,
+            String healthCheckJson
+    ) {
+    }
+
     public record IntegrationRow(String configKey, String key, String name, String category, String scope, String status) {
     }
 

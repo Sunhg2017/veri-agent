@@ -27,7 +27,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @SpringBootTest(properties = {
         "veri-agent.bootstrap.token=init-token",
-        "veri-agent.auth.token-secret=test-auth-secret"
+        "veri-agent.auth.token-secret=test-auth-secret",
+        "veri-agent.management.environment-connectivity-check-enabled=false"
 })
 @AutoConfigureMockMvc
 @DirtiesContext(classMode = DirtiesContext.ClassMode.BEFORE_EACH_TEST_METHOD)
@@ -460,6 +461,51 @@ class ManagementControllerTest {
                         .content("{\"status\":\"DISABLED\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("已停用"));
+    }
+
+    @Test
+    void checksEnvironmentConnectivityAndRejectsDisabledEnvironment() throws Exception {
+        String token = bootstrapAndLogin();
+
+        mockMvc.perform(post("/api/v1/management/environments")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "name": "WP1 探活环境",
+                                  "webUrl": "https://web.example.test",
+                                  "apiBaseUrl": "https://api.example.test"
+                                }
+                                """))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(get("/api/v1/management/environments/WP1 探活环境/connectivity-check")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.environment").value("WP1 探活环境"))
+                .andExpect(jsonPath("$.data.status").value("SKIPPED"))
+                .andExpect(jsonPath("$.data.message").value("尚未执行连通性检查"));
+
+        mockMvc.perform(post("/api/v1/management/environments/WP1 探活环境/connectivity-check")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("SKIPPED"))
+                .andExpect(jsonPath("$.data.traceId", startsWith("trc_")))
+                .andExpect(jsonPath("$.data.endpoints.length()").value(1))
+                .andExpect(jsonPath("$.data.endpoints[0].target").value("API"))
+                .andExpect(jsonPath("$.data.endpoints[0].status").value("SKIPPED"));
+
+        mockMvc.perform(patch("/api/v1/management/environments/WP1 探活环境/status")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"status\":\"DISABLED\"}"))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/v1/management/environments/WP1 探活环境/connectivity-check")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("INVALID_STATE"))
+                .andExpect(jsonPath("$.message").value("停用环境不可执行连通性检查"));
     }
 
     @Test

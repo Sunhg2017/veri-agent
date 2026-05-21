@@ -31,6 +31,7 @@ import com.songhg.veri.agent.management.api.response.ApplicationView;
 import com.songhg.veri.agent.management.api.response.AuditLogView;
 import com.songhg.veri.agent.management.api.response.AuditOutboxView;
 import com.songhg.veri.agent.management.api.response.DepartmentView;
+import com.songhg.veri.agent.management.api.response.EnvironmentConnectivityCheckView;
 import com.songhg.veri.agent.management.api.response.EnvironmentView;
 import com.songhg.veri.agent.management.api.response.IntegrationView;
 import com.songhg.veri.agent.management.api.response.ProjectMemberView;
@@ -457,6 +458,24 @@ public class ManagementController {
             authorizationService.require(principal, "environment:edit");
         }
         return workspaceService.changeEnvironmentStatus(key.trim(), request.status(), principal);
+    }
+
+    @GetMapping("/environments/{key}/connectivity-check")
+    public EnvironmentConnectivityCheckView environmentConnectivityCheck(
+            @PathVariable String key,
+            @AuthenticationPrincipal AuthUserPrincipal principal
+    ) {
+        authorizationService.require(principal, "environment:read");
+        return workspaceService.environmentConnectivityCheck(key.trim());
+    }
+
+    @PostMapping("/environments/{key}/connectivity-check")
+    public EnvironmentConnectivityCheckView checkEnvironmentConnectivity(
+            @PathVariable String key,
+            @AuthenticationPrincipal AuthUserPrincipal principal
+    ) {
+        authorizationService.require(principal, "environment:edit");
+        return workspaceService.checkEnvironmentConnectivity(key.trim(), principal);
     }
 
     @GetMapping("/environments/{key}/users")

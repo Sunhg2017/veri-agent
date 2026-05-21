@@ -73,6 +73,8 @@ class OpenApiContractTest {
                 .andExpect(jsonPath("$.paths['/api/v1/management/environments/{key}'].get").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/management/environments/{key}'].patch").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/management/environments/{key}/status'].patch").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/management/environments/{key}/connectivity-check'].get").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/management/environments/{key}/connectivity-check'].post").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/management/environments/{key}/users'].get").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/management/environments/{key}/users'].post").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/management/environments/{key}/users/{username}/remove'].post").exists())

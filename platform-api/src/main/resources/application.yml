@@ -47,6 +47,9 @@ veri-agent:
     min-retention-days: ${WP1_AUDIT_MIN_RETENTION_DAYS:30}
     retention-cleanup-cron: "${WP1_AUDIT_RETENTION_CLEANUP_CRON:0 45 3 * * *}"
     retention-cleanup-batch-size: ${WP1_AUDIT_RETENTION_CLEANUP_BATCH_SIZE:1000}
+  management:
+    environment-connectivity-check-enabled: ${WP1_ENV_CONNECTIVITY_CHECK_ENABLED:true}
+    environment-connectivity-timeout-ms: ${WP1_ENV_CONNECTIVITY_TIMEOUT_MS:3000}
   integration:
     service-token: ${WP1_SERVICE_TOKEN:local-platform-service-token}
   secret:

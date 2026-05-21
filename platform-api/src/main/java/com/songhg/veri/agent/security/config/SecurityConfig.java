@@ -9,6 +9,7 @@ import com.songhg.veri.agent.common.secret.SecretProviderProperties;
 import com.songhg.veri.agent.common.security.ServiceTokenAuthenticationFilter;
 import com.songhg.veri.agent.documentinput.config.DocumentInputProperties;
 import com.songhg.veri.agent.integration.application.PlatformIntegrationProperties;
+import com.songhg.veri.agent.management.config.ManagementProperties;
 import com.songhg.veri.agent.modelaccess.config.ModelAccessProperties;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.beans.factory.ObjectProvider;
@@ -29,7 +30,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 
 @Configuration
 @EnableWebSecurity
-@EnableConfigurationProperties({AuthProperties.class, BootstrapProperties.class, PlatformIntegrationProperties.class, ModelAccessProperties.class, AssetProperties.class, DocumentInputProperties.class, SecretProviderProperties.class, AuditRetentionProperties.class})
+@EnableConfigurationProperties({AuthProperties.class, BootstrapProperties.class, PlatformIntegrationProperties.class, ModelAccessProperties.class, AssetProperties.class, DocumentInputProperties.class, SecretProviderProperties.class, AuditRetentionProperties.class, ManagementProperties.class})
 public class SecurityConfig {
 
     @Bean

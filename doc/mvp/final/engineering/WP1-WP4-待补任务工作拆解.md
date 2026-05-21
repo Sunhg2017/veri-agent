@@ -72,7 +72,7 @@ WP1、WP2、WP4 的当前 P0 口径已经基本收敛，后续以生产硬化、
 |---|---|---|---|---|---|
 | WP1-D1 | Redis 会话清理或 DB 会话清理任务 | P1 | DONE-CURRENT | 已补 `AuthSessionCleanupService`，local profile 清理内存会话，db profile 通过 MyBatis 删除过期/已撤销 `iam_session`；支持 `WP1_SESSION_CLEANUP_ENABLED`、`WP1_SESSION_CLEANUP_RETENTION_SECONDS`、`WP1_SESSION_CLEANUP_INTERVAL_MS`，并记录 `veri.agent.auth.session.cleanup` 指标 | 长期运行不会积累过期会话；清理行为不影响有效会话 |
 | WP1-D2 | 复杂状态流拒绝测试 | P1 | DONE-CURRENT | 已扩展项目重复/逆向/非法状态流、停用后编辑拒绝，以及应用/环境非法状态与停用后编辑拒绝测试；项目非法状态流写入 `DENIED` 拒绝审计，db profile 通过独立事务保留拒绝事件 | 非法状态变更返回稳定错误码并写拒绝审计 |
-| WP1-D3 | 环境连通性检查 | P1 | TODO | 对环境 webUrl/apiBaseUrl 增加可配置探活和最近健康结果 | 停用环境不可执行；探活失败不泄露内部错误 |
+| WP1-D3 | 环境连通性检查 | P1 | DONE-CURRENT | 已新增 `GET/POST /api/v1/management/environments/{key}/connectivity-check`，`POST` 复用 `environment:edit` 并把最近结果写入 `base_environment.health_check_json`；支持 `WP1_ENV_CONNECTIVITY_CHECK_ENABLED` 和 `WP1_ENV_CONNECTIVITY_TIMEOUT_MS`，portal-web 环境页已增加连通性侧栏 | 停用环境不可执行；探活失败只返回脱敏状态、HTTP 状态和 traceId，不暴露内部异常 |
 | WP1-D4 | Secret 引用写入和轮换管理 | P1 | TODO | 对 Secret 引用补创建/轮换/禁用/摘要读取 API 与前端入口 | 明文不入库、不回显、不进审计；轮换后旧引用按策略失效 |
 
 ### WP1-E 企业身份与审批预留

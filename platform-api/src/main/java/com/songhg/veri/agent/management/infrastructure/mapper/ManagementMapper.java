@@ -13,6 +13,7 @@ import com.songhg.veri.agent.management.api.response.ScopedUserRoleView;
 import com.songhg.veri.agent.management.api.response.UserView;
 import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows.ApplicationRef;
 import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows.DepartmentRef;
+import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows.EnvironmentConnectivityTargetRow;
 import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows.EnvironmentRef;
 import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows.IntegrationRow;
 import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows.ProjectRef;
@@ -100,6 +101,10 @@ public interface ManagementMapper {
     int updateEnvironment(Map<String, Object> params);
 
     int changeEnvironmentStatus(Map<String, Object> params);
+
+    EnvironmentConnectivityTargetRow findEnvironmentConnectivityTarget(Map<String, Object> params);
+
+    int updateEnvironmentHealthCheck(Map<String, Object> params);
 
     List<IntegrationView> listIntegrations(Map<String, Object> params);
 

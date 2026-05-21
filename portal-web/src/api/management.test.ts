@@ -4,7 +4,9 @@ import {
   auditLogExportPath,
   auditOutboxPath,
   exportAuditLogsCsv,
-  fetchManagementData
+  fetchManagementData,
+  fetchEnvironmentConnectivityCheck,
+  runEnvironmentConnectivityCheck
 } from './management';
 
 vi.mock('./client', () => ({
@@ -74,5 +76,29 @@ describe('management API helpers', () => {
       traceId: ' trc_1 ',
       search: ' timeout '
     })).toBe('/api/v1/management/audit-outbox?search=timeout&status=FAILED&traceId=trc_1');
+  });
+
+  it('calls environment connectivity check endpoints', async () => {
+    requestJsonMock.mockResolvedValue({
+      code: 'OK',
+      message: 'ok',
+      trace_id: 'trace-env',
+      data: {
+        environment: 'staging',
+        status: 'UP',
+        checkedAt: '2026-05-21T10:00:00Z',
+        message: '全部环境地址已响应',
+        traceId: 'trace-env',
+        endpoints: []
+      }
+    });
+
+    await fetchEnvironmentConnectivityCheck('staging env');
+    expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/management/environments/staging%20env/connectivity-check');
+
+    await runEnvironmentConnectivityCheck('staging env');
+    expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/management/environments/staging%20env/connectivity-check', {
+      method: 'POST'
+    });
   });
 });
