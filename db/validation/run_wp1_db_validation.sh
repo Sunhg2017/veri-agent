@@ -136,6 +136,7 @@ to wp1_app;
 grant select on rbac_permission to wp1_app;
 grant select, insert on audit_log to wp1_app;
 revoke update, delete, truncate on audit_log from wp1_app;
+grant execute on function wp1_cleanup_audit_log_before(timestamptz, integer) to wp1_app;
 grant select, insert on asset_version_history to wp1_app;
 revoke update, delete, truncate on asset_version_history from wp1_app;
 

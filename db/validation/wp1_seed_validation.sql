@@ -123,6 +123,68 @@ select
     coalesce(string_agg(config_key, ', ' order by config_key), 'all integration defaults exist') as details
 from missing;
 
+with expected(config_key) as (
+    values
+        ('audit.retention_days'),
+        ('audit.retention_cleanup_enabled'),
+        ('audit.retention_min_days'),
+        ('audit.retention_cleanup_batch_size')
+),
+missing as (
+    select e.config_key
+    from expected e
+    left join base_config c
+        on c.scope_type = 'SYSTEM'
+       and c.scope_id is null
+       and c.config_key = e.config_key
+       and c.status = 'ENABLED'
+       and c.deleted_at is null
+    where c.id is null
+)
+select
+    'seed.audit_retention_config_defaults_exist' as check_name,
+    case when count(*) = 0 then 'PASS' else 'FAIL' end as status,
+    coalesce(string_agg(config_key, ', ' order by config_key), 'audit retention defaults exist') as details
+from missing;
+
+with values_by_key as (
+    select config_key, value_json
+    from base_config
+    where scope_type = 'SYSTEM'
+      and scope_id is null
+      and config_key in (
+          'audit.retention_days',
+          'audit.retention_cleanup_enabled',
+          'audit.retention_min_days',
+          'audit.retention_cleanup_batch_size'
+      )
+      and status = 'ENABLED'
+      and deleted_at is null
+),
+parsed as (
+    select
+        max((value_json::text)::int) filter (where config_key = 'audit.retention_days') as retention_days,
+        max(case when (value_json::text)::boolean then 1 else 0 end) filter (where config_key = 'audit.retention_cleanup_enabled') as cleanup_enabled,
+        max((value_json::text)::int) filter (where config_key = 'audit.retention_min_days') as min_days,
+        max((value_json::text)::int) filter (where config_key = 'audit.retention_cleanup_batch_size') as batch_size
+    from values_by_key
+)
+select
+    'seed.audit_retention_config_values' as check_name,
+    case
+        when retention_days >= min_days
+         and min_days >= 30
+         and cleanup_enabled = 0
+         and batch_size between 1 and 10000
+        then 'PASS'
+        else 'FAIL'
+    end as status,
+    'retentionDays=' || coalesce(retention_days::text, 'missing')
+        || ', minDays=' || coalesce(min_days::text, 'missing')
+        || ', cleanupEnabled=' || coalesce(cleanup_enabled::text, 'missing')
+        || ', batchSize=' || coalesce(batch_size::text, 'missing') as details
+from parsed;
+
 with expected(role_code, permission_code) as (
     values
         ('SuperAdmin','role:bind'), ('SuperAdmin','audit:read'), ('SuperAdmin','context:switch'), ('SuperAdmin','user:enable'), ('SuperAdmin','user:disable'), ('SuperAdmin','user:unlock'), ('SuperAdmin','user:reset_password'), ('SuperAdmin','application:owner_manage'), ('SuperAdmin','environment:user_manage'), ('SuperAdmin','asset:manage'), ('SuperAdmin','asset:review'), ('SuperAdmin','asset:export'), ('SuperAdmin','modelAccess:read'), ('SuperAdmin','modelAccess:manage'), ('SuperAdmin','modelAccess:export'), ('SuperAdmin','requirementInput:manage'), ('SuperAdmin','requirementInput:webhook_replay'),

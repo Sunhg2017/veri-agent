@@ -57,6 +57,11 @@ select
     case when to_regclass(current_schema() || '.audit_log') is not null then 'PASS' else 'FAIL' end as status,
     coalesce(to_regclass(current_schema() || '.audit_log')::text, 'missing') as details;
 
+select
+    'security.audit_log_archive_exists' as check_name,
+    case when to_regclass(current_schema() || '.audit_log_archive') is not null then 'PASS' else 'FAIL' end as status,
+    coalesce(to_regclass(current_schema() || '.audit_log_archive')::text, 'missing') as details;
+
 with found as (
     select table_name || '.tenant_id' as item
     from information_schema.columns
@@ -75,6 +80,9 @@ with expected(table_name, index_name) as (
         ('audit_log','idx_audit_log_resource'),
         ('audit_log','idx_audit_log_actor_time'),
         ('audit_log','idx_audit_log_trace'),
+        ('audit_log_archive','idx_audit_log_archive_created_at'),
+        ('audit_log_archive','idx_audit_log_archive_resource'),
+        ('audit_log_archive','idx_audit_log_archive_trace'),
         ('audit_outbox','idx_audit_outbox_pending'),
         ('secret_local_store','uk_secret_local_store_ref'),
         ('secret_local_store','idx_secret_local_store_status'),
@@ -204,6 +212,156 @@ select
         else coalesce(string_agg(item, ', ' order by item), 'known app DB roles cannot UPDATE/DELETE/TRUNCATE audit_log')
     end as details
 from bad;
+
+with found as (
+    select p.oid
+    from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = current_schema()
+      and p.proname = 'wp1_cleanup_audit_log_before'
+      and p.pronargs = 2
+      and p.proargtypes[0] = 'timestamp with time zone'::regtype
+      and p.proargtypes[1] = 'integer'::regtype
+)
+select
+    'security.audit_retention_cleanup_function_exists' as check_name,
+    case when exists (select 1 from found) then 'PASS' else 'FAIL' end as status,
+    coalesce((select oid::regprocedure::text from found limit 1), 'missing') as details;
+
+with app_roles(role_name) as (
+    values
+        ('wp1_app'),
+        ('veri_agent_app')
+),
+fn as (
+    select p.oid
+    from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = current_schema()
+      and p.proname = 'wp1_cleanup_audit_log_before'
+      and p.pronargs = 2
+      and p.proargtypes[0] = 'timestamp with time zone'::regtype
+      and p.proargtypes[1] = 'integer'::regtype
+    limit 1
+),
+privileges as (
+    select
+        r.role_name,
+        has_function_privilege(r.role_name, (select oid from fn), 'EXECUTE') as can_execute
+    from app_roles r
+    where exists (select 1 from pg_roles pr where pr.rolname = r.role_name)
+      and exists (select 1 from fn)
+),
+bad as (
+    select role_name || '(execute=' || can_execute || ')' as item
+    from privileges
+    where not can_execute
+)
+select
+    'security.audit_retention_cleanup_execute_grant' as check_name,
+    case
+        when not exists (select 1 from fn) then 'FAIL'
+        when not exists (select 1 from privileges) then 'WARN'
+        when count(*) = 0 then 'PASS'
+        else 'FAIL'
+    end as status,
+    case
+        when not exists (select 1 from fn) then 'wp1_cleanup_audit_log_before is missing'
+        when not exists (select 1 from privileges) then 'no known app DB role found; grant EXECUTE to the real app role through the runtime policy'
+        else coalesce(string_agg(item, ', ' order by item), 'known app DB roles can execute only the controlled audit retention function')
+    end as details
+from bad;
+
+drop table if exists wp1_audit_retention_validation_result;
+create temporary table wp1_audit_retention_validation_result (
+    deleted integer not null
+) on commit preserve rows;
+
+insert into audit_log (
+    id,
+    actor_type,
+    action,
+    resource_type,
+    resource_id,
+    scope_type,
+    result,
+    created_at
+)
+values (
+    '00000000-0000-0000-0000-000000019001',
+    'SYSTEM',
+    'validation.audit_retention_old',
+    'AUDIT_LOG',
+    'validation-old',
+    'PLATFORM',
+    'SUCCESS',
+    now() - interval '400 days'
+)
+on conflict (id) do nothing;
+
+insert into audit_log (
+    id,
+    actor_type,
+    action,
+    resource_type,
+    resource_id,
+    scope_type,
+    result,
+    created_at
+)
+values (
+    '00000000-0000-0000-0000-000000019002',
+    'SYSTEM',
+    'validation.audit_retention_fresh',
+    'AUDIT_LOG',
+    'validation-fresh',
+    'PLATFORM',
+    'SUCCESS',
+    now() - interval '10 days'
+)
+on conflict (id) do nothing;
+
+insert into wp1_audit_retention_validation_result (deleted)
+select wp1_cleanup_audit_log_before(now() - interval '365 days', 10);
+
+select
+    'security.audit_retention_cleanup_deletes_only_expired' as check_name,
+    case
+        when r.deleted >= 1
+         and not exists (
+             select 1
+             from audit_log
+             where id = '00000000-0000-0000-0000-000000019001'
+         )
+         and exists (
+             select 1
+             from audit_log_archive
+             where id = '00000000-0000-0000-0000-000000019001'
+         )
+         and exists (
+             select 1
+             from audit_log
+             where id = '00000000-0000-0000-0000-000000019002'
+         )
+         and exists (
+             select 1
+             from audit_log
+             where action = 'audit.retention_cleanup'
+               and after_json ? 'deleted'
+         )
+        then 'PASS'
+        else 'FAIL'
+    end as status,
+    'deleted=' || r.deleted || ', freshRowKept=' || exists (
+        select 1
+        from audit_log
+        where id = '00000000-0000-0000-0000-000000019002'
+    ) || ', oldRowArchived=' || exists (
+        select 1
+        from audit_log_archive
+        where id = '00000000-0000-0000-0000-000000019001'
+    ) as details
+from wp1_audit_retention_validation_result r;
 
 with app_roles(role_name) as (
     values

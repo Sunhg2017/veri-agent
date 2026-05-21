@@ -102,7 +102,9 @@ public class InMemoryManagementWorkspaceService implements ManagementWorkspaceSe
         ));
         settings.addAll(List.of(
                 new SettingView("password.min_length", "密码最小长度", "10 位", "全局安全策略", "已启用"),
-                new SettingView("audit.retention_days", "审计日志保留", "180 天", "合规策略", "已启用"),
+                new SettingView("audit.retention_days", "审计日志保留", "365 天", "合规策略", "已启用"),
+                new SettingView("audit.retention_cleanup_enabled", "审计保留清理", "false", "合规策略", "已停用"),
+                new SettingView("audit.retention_min_days", "审计最小保留", "30 天", "合规策略", "已启用"),
                 new SettingView("project.default_status", "默认项目状态", "规划中", "项目开通", "已启用")
         ));
         auditLogs.addAll(List.of(

@@ -23,6 +23,7 @@ with expected(table_name) as (
         ('rbac_role_permission'),
         ('rbac_role_binding'),
         ('audit_log'),
+        ('audit_log_archive'),
         ('audit_outbox')
 ),
 missing as (
@@ -92,6 +93,7 @@ with expected(table_name, column_name) as (
         ('rbac_role_permission','id'), ('rbac_role_permission','role_id'), ('rbac_role_permission','permission_id'), ('rbac_role_permission','effect'),
         ('rbac_role_binding','id'), ('rbac_role_binding','subject_type'), ('rbac_role_binding','subject_id'), ('rbac_role_binding','role_id'), ('rbac_role_binding','role_code'), ('rbac_role_binding','scope_type'), ('rbac_role_binding','scope_id'),
         ('audit_log','id'), ('audit_log','trace_id'), ('audit_log','actor_type'), ('audit_log','action'), ('audit_log','resource_type'), ('audit_log','scope_type'), ('audit_log','result'),
+        ('audit_log_archive','id'), ('audit_log_archive','trace_id'), ('audit_log_archive','action'), ('audit_log_archive','resource_type'), ('audit_log_archive','result'), ('audit_log_archive','archived_at'),
         ('audit_outbox','id'), ('audit_outbox','event_payload_json'), ('audit_outbox','status')
 ),
 missing as (
@@ -122,6 +124,7 @@ with expected(table_name, index_name) as (
         ('rbac_role_permission','uk_rbac_role_permission'),
         ('rbac_role_binding','uk_rbac_role_binding_unique'),
         ('audit_log','idx_audit_log_time'),
+        ('audit_log_archive','idx_audit_log_archive_created_at'),
         ('audit_outbox','idx_audit_outbox_pending')
 ),
 missing as (

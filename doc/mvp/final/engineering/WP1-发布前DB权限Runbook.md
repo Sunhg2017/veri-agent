@@ -2,16 +2,17 @@
 
 | 项目 | 内容 |
 |---|---|
-| 覆盖任务 | WP1-A2 发布前 DB 权限 runbook、WP1-A3 CI/发布流水线挂载说明 |
+| 覆盖任务 | WP1-A2 发布前 DB 权限 runbook、WP1-A3 CI/发布流水线挂载说明、WP1-C3 审计保留权限边界 |
 | 适用环境 | CI 临时库、预发、生产 |
 | 核心脚本 | `db/validation/run_wp1_db_validation.sh`、`scripts/wp1_release_role_validation.sh` |
-| 日期 | 2026-05-20 |
+| 日期 | 2026-05-21 |
 
 ## 1. 目标
 
 1. 在 CI 中持续验证 WP1-WP4 统一迁移、seed、安全约束和单平台 schema 口径。
 2. 在预发/生产发布前验证真实应用数据库角色，不只依赖临时库测试角色。
 3. 确认应用角色只能执行运行期需要的 DML，不拥有迁移 DDL 权限；审计表保持 append-only；本地密文表不能被运行期角色直接读取。
+4. 确认应用角色只能通过 `wp1_cleanup_audit_log_before` 执行受控审计保留清理，不能直接 `DELETE audit_log`。
 
 ## 2. 角色和输入
 
@@ -67,6 +68,7 @@ bash scripts/wp1_release_role_validation.sh | tee build/wp1-release-role-validat
 |---|---|---|
 | `release.role.exists` | `WP1_RELEASE_APP_ROLE` 在目标库存在 | DBA 创建或修正真实 app role 后重跑 |
 | `release.audit_log.append_only` | app role 对 `audit_log` 只有 `SELECT/INSERT`，没有 `UPDATE/DELETE/TRUNCATE` | 立即撤销危险权限，确认审计不可变触发器仍存在后重跑 |
+| `release.audit_retention_cleanup.execute_only` | app role 可执行 `wp1_cleanup_audit_log_before(timestamptz, integer)`，但仍不能直接删除 `audit_log` | DBA 按运行期授权模板补 `EXECUTE`，不得补 `DELETE audit_log` |
 | `release.secret_local_store.not_readable` | app role 不能 `SELECT secret_local_store` | 撤销直接读取本地密文表权限；应用只能通过 SecretProvider resolve |
 
 ## 5. DBA 复核项
@@ -120,6 +122,7 @@ order by table_schema, table_name, privilege_type;
 | `psql is required` | 执行环境缺少 PostgreSQL 客户端 | 在发布镜像或 runner 中安装 `psql` |
 | `release.role.exists` FAIL | 角色名错误或 DBA 未创建 | 确认真实 app role 名称，设置 `WP1_RELEASE_APP_ROLE` 后重跑 |
 | `release.audit_log.append_only` FAIL | app role 缺少 `INSERT/SELECT` 或拥有危险权限 | DBA 按运行期授权模板修正；确认没有审计 UPDATE/DELETE/TRUNCATE |
+| `release.audit_retention_cleanup.execute_only` FAIL | 清理函数缺失或 app role 缺少 `EXECUTE` | 确认迁移已执行，补 `grant execute on function wp1_cleanup_audit_log_before(timestamptz, integer) to <app_role>` 后重跑 |
 | `release.secret_local_store.not_readable` FAIL | app role 可直接读本地密文表 | 撤销 `secret_local_store` SELECT；通过 SecretProvider 使用密钥 |
 | DBA DDL 复核返回行 | app role 拥有 schema CREATE 或对象 owner | 转移对象 owner 到 migration role，撤销 schema CREATE |
 

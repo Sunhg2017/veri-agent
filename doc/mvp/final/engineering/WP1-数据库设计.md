@@ -1125,6 +1125,9 @@ on conflict (code) do nothing;
 | `execution.prod_default_enabled` | `false` | PROD 环境默认禁止自动执行。 |
 | `notification.default_channel` | `null` | 默认通知渠道。 |
 | `audit.retention_days` | `365` | 审计在线保留天数建议值。 |
+| `audit.retention_cleanup_enabled` | `false` | 审计保留清理默认关闭，需发布评审后开启。 |
+| `audit.retention_min_days` | `30` | 审计清理 cutoff 的最小安全窗口。 |
+| `audit.retention_cleanup_batch_size` | `1000` | 单次审计清理批量上限建议值。 |
 | `session.access_token_ttl_minutes` | `30` | 访问令牌 TTL。 |
 | `session.refresh_token_ttl_days` | `14` | 刷新令牌 TTL。 |
 | `secret.default_provider` | `"local"` | 默认 SecretProvider 编码。 |

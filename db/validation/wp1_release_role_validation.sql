@@ -31,6 +31,21 @@ checks as (
         'requires SELECT/INSERT only on audit_log' as details
     union all
     select
+        'release.audit_retention_cleanup.execute_only' as check_name,
+        case
+            when not exists (select 1 from role_exists) then 'FAIL'
+            when to_regprocedure(current_schema() || '.wp1_cleanup_audit_log_before(timestamp with time zone,integer)') is null then 'FAIL'
+            when has_function_privilege(
+                (select role_name from role_input),
+                to_regprocedure(current_schema() || '.wp1_cleanup_audit_log_before(timestamp with time zone,integer)'),
+                'EXECUTE'
+            )
+            then 'PASS'
+            else 'FAIL'
+        end as status,
+        'runtime role may execute controlled cleanup function but still must not DELETE audit_log directly' as details
+    union all
+    select
         'release.secret_local_store.not_readable' as check_name,
         case
             when not exists (select 1 from role_exists) then 'FAIL'
@@ -67,6 +82,17 @@ begin
             or has_table_privilege((select role_name from role_input), format('%I.%I', current_schema(), 'audit_log'), 'UPDATE')
             or has_table_privilege((select role_name from role_input), format('%I.%I', current_schema(), 'audit_log'), 'DELETE')
             or has_table_privilege((select role_name from role_input), format('%I.%I', current_schema(), 'audit_log'), 'TRUNCATE')
+          )
+        union all
+        select 1
+        where exists (select 1 from role_exists)
+          and (
+            to_regprocedure(current_schema() || '.wp1_cleanup_audit_log_before(timestamp with time zone,integer)') is null
+            or not has_function_privilege(
+                (select role_name from role_input),
+                to_regprocedure(current_schema() || '.wp1_cleanup_audit_log_before(timestamp with time zone,integer)'),
+                'EXECUTE'
+            )
           )
         union all
         select 1

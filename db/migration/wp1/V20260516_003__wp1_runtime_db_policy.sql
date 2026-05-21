@@ -59,6 +59,7 @@ grant select on rbac_permission to :WP1_APP_ROLE;
 -- Audit logs are append-only for the application role.
 grant select, insert on audit_log to :WP1_APP_ROLE;
 revoke update, delete, truncate on audit_log from :WP1_APP_ROLE;
+grant execute on function wp1_cleanup_audit_log_before(timestamptz, integer) to :WP1_APP_ROLE;
 
 -- Secret ciphertext rows are write/read only through WP1 service code. No public
 -- grants should be added. Sensitive material remains encrypted and never stores

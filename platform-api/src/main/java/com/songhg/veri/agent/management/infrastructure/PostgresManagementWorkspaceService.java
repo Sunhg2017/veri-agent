@@ -1237,6 +1237,9 @@ public class PostgresManagementWorkspaceService implements ManagementWorkspaceSe
     private String settingName(String configKey) {
         return switch (configKey) {
             case "audit.retention_days" -> "审计日志保留";
+            case "audit.retention_cleanup_enabled" -> "审计保留清理";
+            case "audit.retention_min_days" -> "审计最小保留";
+            case "audit.retention_cleanup_batch_size" -> "审计清理批量";
             case "session.access_token_ttl_minutes" -> "访问令牌有效期";
             case "allow_public_model" -> "允许公有云模型";
             case "sensitivity_level" -> "默认敏感级别";

@@ -1,5 +1,6 @@
 package com.songhg.veri.agent.common.audit.mapper;
 
+import java.time.Instant;
 import java.util.UUID;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -19,5 +20,10 @@ public interface AuditMapper {
             @Param("afterJson") String afterJson,
             @Param("diffJson") String diffJson,
             @Param("reason") String reason
+    );
+
+    int cleanupAuditLogBefore(
+            @Param("cutoff") Instant cutoff,
+            @Param("batchSize") int batchSize
     );
 }

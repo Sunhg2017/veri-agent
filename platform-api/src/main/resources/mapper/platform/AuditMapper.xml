@@ -36,4 +36,8 @@
             #{reason}
         )
     </insert>
+
+    <select id="cleanupAuditLogBefore" resultType="int">
+        select wp1_cleanup_audit_log_before(#{cutoff}, #{batchSize})
+    </select>
 </mapper>
