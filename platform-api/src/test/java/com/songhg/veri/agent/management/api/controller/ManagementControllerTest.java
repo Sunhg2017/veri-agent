@@ -16,6 +16,7 @@ import org.springframework.test.web.servlet.MvcResult;
 
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -304,6 +305,73 @@ class ManagementControllerTest {
                                 """))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("SECRET_POLICY_VIOLATION"));
+    }
+
+    @Test
+    void managesSecretReferencesWithoutLeakingPlaintext() throws Exception {
+        String token = bootstrapAndLogin();
+        String scopeId = UUID.randomUUID().toString();
+
+        mockMvc.perform(post("/api/v1/management/secrets")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "secretRef": "secret://wp1/webhook-signing",
+                                  "providerCode": "local",
+                                  "purpose": "WEBHOOK_SIGNING",
+                                  "scopeType": "CONFIG",
+                                  "scopeId": "%s",
+                                  "secretValue": "PlainSecret123",
+                                  "secretVersion": "v1"
+                                }
+                                """.formatted(scopeId)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.secretRef").value("secret://wp1/webhook-signing"))
+                .andExpect(jsonPath("$.data.providerCode").value("local"))
+                .andExpect(jsonPath("$.data.maskedValue").value("********"))
+                .andExpect(jsonPath("$.data.secretVersion").value("v1"))
+                .andExpect(jsonPath("$.data.status").value("ACTIVE"))
+                .andExpect(content().string(not(containsString("PlainSecret123"))));
+
+        mockMvc.perform(get("/api/v1/management/secrets")
+                        .param("search", "webhook")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items.length()").value(1))
+                .andExpect(jsonPath("$.data.items[0].secretRef").value("secret://wp1/webhook-signing"))
+                .andExpect(content().string(not(containsString("PlainSecret123"))));
+
+        mockMvc.perform(post("/api/v1/management/secrets/rotate")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "secretRef": "secret://wp1/webhook-signing",
+                                  "secretValue": "RotatedSecret456",
+                                  "secretVersion": "v2"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.secretVersion").value("v2"))
+                .andExpect(jsonPath("$.data.status").value("ACTIVE"))
+                .andExpect(content().string(not(containsString("RotatedSecret456"))));
+
+        mockMvc.perform(post("/api/v1/management/secrets/disable")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"secretRef\":\"secret://wp1/webhook-signing\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("REVOKED"))
+                .andExpect(content().string(not(containsString("RotatedSecret456"))));
+
+        mockMvc.perform(get("/api/v1/management/audit-logs")
+                        .param("action", "轮换密钥引用")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items[0].target").value("secret://wp1/webhook-signing"))
+                .andExpect(content().string(not(containsString("PlainSecret123"))))
+                .andExpect(content().string(not(containsString("RotatedSecret456"))));
     }
 
     @Test
@@ -910,6 +978,11 @@ class ManagementControllerTest {
                         .header("Authorization", "Bearer " + developerToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"newPassword\":\"NewPassword123\"}"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+
+        mockMvc.perform(get("/api/v1/management/secrets")
+                        .header("Authorization", "Bearer " + developerToken))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("FORBIDDEN"));
     }

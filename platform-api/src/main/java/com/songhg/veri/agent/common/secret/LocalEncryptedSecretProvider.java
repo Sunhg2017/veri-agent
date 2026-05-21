@@ -2,14 +2,7 @@ package com.songhg.veri.agent.common.secret;
 
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
-import java.nio.charset.StandardCharsets;
-import java.util.Base64;
-import java.util.HexFormat;
-import java.util.List;
 import java.util.Optional;
-import javax.crypto.Cipher;
-import javax.crypto.spec.GCMParameterSpec;
-import javax.crypto.spec.SecretKeySpec;
 import org.springframework.context.annotation.Profile;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -19,9 +12,6 @@ import org.springframework.util.StringUtils;
 @Component
 @Profile("db")
 public class LocalEncryptedSecretProvider implements SecretProvider {
-
-    private static final int AES_256_KEY_BYTES = 32;
-    private static final int GCM_TAG_BITS = 128;
 
     private final JdbcTemplate jdbcTemplate;
     private final SecretProviderProperties properties;
@@ -95,7 +85,15 @@ public class LocalEncryptedSecretProvider implements SecretProvider {
         }
         return Optional.of(new ResolvedSecret(
                 row.secretRef(),
-                decrypt(row),
+                LocalSecretCipher.decrypt(
+                        row.cipherText(),
+                        row.iv(),
+                        row.authTag(),
+                        row.algorithm(),
+                        row.masterKeyVersion(),
+                        properties,
+                        row.secretRef()
+                ),
                 row.providerCode(),
                 row.secretVersion()
         ));
@@ -115,85 +113,6 @@ public class LocalEncryptedSecretProvider implements SecretProvider {
             throw new BusinessException(ErrorCode.SECRET_PROVIDER_ERROR,
                     "密钥作用域不匹配: " + row.secretRef());
         }
-    }
-
-    private String decrypt(SecretRow row) {
-        try {
-            byte[] key = masterKey(row.masterKeyVersion());
-            byte[] iv = decodeMaterial(row.iv());
-            byte[] cipherText = decodeMaterial(row.cipherText());
-            byte[] authTag = decodeMaterial(row.authTag());
-            byte[] cipherTextWithTag = new byte[cipherText.length + authTag.length];
-            System.arraycopy(cipherText, 0, cipherTextWithTag, 0, cipherText.length);
-            System.arraycopy(authTag, 0, cipherTextWithTag, cipherText.length, authTag.length);
-            Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
-            cipher.init(Cipher.DECRYPT_MODE, new SecretKeySpec(key, "AES"), new GCMParameterSpec(GCM_TAG_BITS, iv));
-            return new String(cipher.doFinal(cipherTextWithTag), StandardCharsets.UTF_8);
-        } catch (BusinessException exception) {
-            throw exception;
-        } catch (Exception exception) {
-            throw new BusinessException(ErrorCode.SECRET_PROVIDER_ERROR,
-                    "本地密文解密失败: " + row.secretRef());
-        }
-    }
-
-    private byte[] masterKey(String requiredVersion) {
-        String configuredVersion = StringUtils.hasText(properties.localMasterKeyVersion())
-                ? properties.localMasterKeyVersion().trim()
-                : "v1";
-        if (StringUtils.hasText(requiredVersion) && !requiredVersion.trim().equals(configuredVersion)) {
-            throw new BusinessException(ErrorCode.SECRET_PROVIDER_ERROR,
-                    "本地密钥版本不匹配: " + requiredVersion);
-        }
-        String rawKey = properties.localMasterKey();
-        if (!StringUtils.hasText(rawKey)) {
-            throw new BusinessException(ErrorCode.SECRET_PROVIDER_ERROR,
-                    "缺少 WP1_LOCAL_SECRET_MASTER_KEY");
-        }
-        byte[] decoded = decodeKey(rawKey.trim());
-        if (decoded.length != AES_256_KEY_BYTES) {
-            throw new BusinessException(ErrorCode.SECRET_PROVIDER_ERROR,
-                    "WP1_LOCAL_SECRET_MASTER_KEY 必须为 32 字节 AES-256 密钥");
-        }
-        return decoded;
-    }
-
-    private byte[] decodeKey(String value) {
-        List<java.util.function.Function<String, byte[]>> decoders = List.of(
-                this::decodeHexIfPossible,
-                item -> Base64.getDecoder().decode(item),
-                item -> item.getBytes(StandardCharsets.UTF_8)
-        );
-        for (var decoder : decoders) {
-            try {
-                byte[] decoded = decoder.apply(value);
-                if (decoded.length == AES_256_KEY_BYTES) {
-                    return decoded;
-                }
-            } catch (Exception ignored) {
-                // Try the next supported encoding.
-            }
-        }
-        return value.getBytes(StandardCharsets.UTF_8);
-    }
-
-    private byte[] decodeMaterial(String value) {
-        if (!StringUtils.hasText(value)) {
-            throw new BusinessException(ErrorCode.SECRET_PROVIDER_ERROR, "密文材料不完整");
-        }
-        String normalized = value.trim();
-        try {
-            return decodeHexIfPossible(normalized);
-        } catch (IllegalArgumentException ignored) {
-            return Base64.getDecoder().decode(normalized);
-        }
-    }
-
-    private byte[] decodeHexIfPossible(String value) {
-        if (value.length() % 2 != 0 || !value.matches("(?i)^[0-9a-f]+$")) {
-            throw new IllegalArgumentException("not hex");
-        }
-        return HexFormat.of().parseHex(value);
     }
 
     private record SecretRow(

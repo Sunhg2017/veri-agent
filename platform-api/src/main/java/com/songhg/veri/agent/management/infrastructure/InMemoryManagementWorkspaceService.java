@@ -14,17 +14,21 @@ import com.songhg.veri.agent.management.api.request.CreateApplicationRequest;
 import com.songhg.veri.agent.management.api.request.CreateEnvironmentRequest;
 import com.songhg.veri.agent.management.api.request.CreateIntegrationRequest;
 import com.songhg.veri.agent.management.api.request.CreateProjectRequest;
+import com.songhg.veri.agent.management.api.request.CreateSecretReferenceRequest;
 import com.songhg.veri.agent.management.api.request.CreateSettingRequest;
+import com.songhg.veri.agent.management.api.request.DisableSecretReferenceRequest;
 import com.songhg.veri.agent.management.api.response.DepartmentView;
 import com.songhg.veri.agent.management.api.response.EnvironmentConnectivityCheckView;
 import com.songhg.veri.agent.management.api.response.EnvironmentView;
 import com.songhg.veri.agent.management.api.response.IntegrationView;
 import com.songhg.veri.agent.management.api.response.ProjectView;
 import com.songhg.veri.agent.management.api.request.ProjectMemberRequest;
+import com.songhg.veri.agent.management.api.request.RotateSecretReferenceRequest;
 import com.songhg.veri.agent.management.api.response.ProjectMemberView;
 import com.songhg.veri.agent.management.api.response.RoleView;
 import com.songhg.veri.agent.management.api.request.ScopedUserRoleRequest;
 import com.songhg.veri.agent.management.api.response.ScopedUserRoleView;
+import com.songhg.veri.agent.management.api.response.SecretReferenceView;
 import com.songhg.veri.agent.management.api.response.SettingView;
 import com.songhg.veri.agent.management.api.request.UpdateDepartmentRequest;
 import com.songhg.veri.agent.management.api.request.UpdateApplicationRequest;
@@ -46,6 +50,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 
@@ -66,6 +71,7 @@ public class InMemoryManagementWorkspaceService implements ManagementWorkspaceSe
     private final List<IntegrationView> integrations = new ArrayList<>();
     private final List<RoleView> roles = new ArrayList<>();
     private final List<SettingView> settings = new ArrayList<>();
+    private final List<SecretReferenceView> secrets = new ArrayList<>();
     private final List<AuditLogView> auditLogs = new ArrayList<>();
     private final List<AuditOutboxView> auditOutbox = new ArrayList<>();
     private final Map<String, EnvironmentConnectivityCheckView> environmentConnectivityChecks = new HashMap<>();
@@ -815,6 +821,92 @@ public class InMemoryManagementWorkspaceService implements ManagementWorkspaceSe
         return updated;
     }
 
+    @Override
+    public synchronized PageResponse<SecretReferenceView> secrets(PageQuery pageQuery) {
+        return page(secrets, pageQuery);
+    }
+
+    @Override
+    public synchronized SecretReferenceView createSecret(CreateSecretReferenceRequest request, AuthUserPrincipal actor) {
+        String secretRef = request.secretRef().trim();
+        if (secrets.stream().anyMatch(secret -> secret.secretRef().equals(secretRef))) {
+            throw new BusinessException(ErrorCode.CONFLICT, "密钥引用已存在");
+        }
+        String now = LocalDateTime.now().format(TIME_FORMAT);
+        SecretReferenceView view = new SecretReferenceView(
+                UUID.randomUUID().toString(),
+                secretRef,
+                defaultText(request.providerCode(), "local"),
+                "LOCAL_ENCRYPTED",
+                request.purpose().trim(),
+                request.scopeType().trim(),
+                request.scopeId().toString(),
+                maskedSecret(),
+                defaultText(request.secretVersion(), "v1"),
+                "ACTIVE",
+                now,
+                request.expiresAt() == null ? "" : request.expiresAt().toString(),
+                now,
+                now
+        );
+        secrets.add(0, view);
+        audit(actor, "创建密钥引用", secretRef);
+        return view;
+    }
+
+    @Override
+    public synchronized SecretReferenceView rotateSecret(RotateSecretReferenceRequest request, AuthUserPrincipal actor) {
+        SecretReferenceView current = requireSecret(request.secretRef());
+        if ("REVOKED".equals(current.status())) {
+            throw new BusinessException(ErrorCode.INVALID_STATE, "已撤销密钥不可轮换");
+        }
+        String now = LocalDateTime.now().format(TIME_FORMAT);
+        SecretReferenceView updated = new SecretReferenceView(
+                current.id(),
+                current.secretRef(),
+                current.providerCode(),
+                current.providerType(),
+                current.purpose(),
+                current.scopeType(),
+                current.scopeId(),
+                maskedSecret(),
+                defaultText(request.secretVersion(), nextSecretVersion(current.secretVersion())),
+                "ACTIVE",
+                now,
+                request.expiresAt() == null ? current.expiresAt() : request.expiresAt().toString(),
+                current.createdAt(),
+                now
+        );
+        replaceSecret(updated);
+        audit(actor, "轮换密钥引用", current.secretRef());
+        return updated;
+    }
+
+    @Override
+    public synchronized SecretReferenceView disableSecret(DisableSecretReferenceRequest request, AuthUserPrincipal actor) {
+        SecretReferenceView current = requireSecret(request.secretRef());
+        String now = LocalDateTime.now().format(TIME_FORMAT);
+        SecretReferenceView updated = new SecretReferenceView(
+                current.id(),
+                current.secretRef(),
+                current.providerCode(),
+                current.providerType(),
+                current.purpose(),
+                current.scopeType(),
+                current.scopeId(),
+                current.maskedValue(),
+                current.secretVersion(),
+                "REVOKED",
+                current.rotatedAt(),
+                current.expiresAt(),
+                current.createdAt(),
+                now
+        );
+        replaceSecret(updated);
+        audit(actor, "撤销密钥引用", current.secretRef());
+        return updated;
+    }
+
     private void audit(AuthUserPrincipal actor, String action, String target) {
         auditLogWriter.record(AuditLogWriter.success(
                 actor, action, "management", target, target
@@ -841,6 +933,14 @@ public class InMemoryManagementWorkspaceService implements ManagementWorkspaceSe
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "系统设置不存在"));
     }
 
+    private SecretReferenceView requireSecret(String secretRef) {
+        String normalized = defaultText(secretRef, "");
+        return secrets.stream()
+                .filter(secret -> secret.secretRef().equals(normalized))
+                .findFirst()
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "密钥引用不存在"));
+    }
+
     private String integrationKey(String code, String name) {
         String seed = defaultText(code, name);
         String normalized = seed.trim().toLowerCase().replaceAll("[^a-z0-9_-]+", "-").replaceAll("(^-+|-+$)", "");
@@ -850,6 +950,19 @@ public class InMemoryManagementWorkspaceService implements ManagementWorkspaceSe
     private String defaultText(String value, String fallback) {
         String normalized = value == null ? "" : value.trim();
         return normalized.isBlank() ? fallback : normalized;
+    }
+
+    private String maskedSecret() {
+        return "********";
+    }
+
+    private String nextSecretVersion(String currentVersion) {
+        String normalized = defaultText(currentVersion, "v1");
+        if (normalized.matches("v\\d+")) {
+            int version = Integer.parseInt(normalized.substring(1));
+            return "v" + (version + 1);
+        }
+        return normalized + "-rotated";
     }
 
     private String settingScopeName(String scopeType) {
@@ -935,6 +1048,7 @@ public class InMemoryManagementWorkspaceService implements ManagementWorkspaceSe
             case "登记应用" -> "application";
             case "新增环境", "环境连通性检查" -> "environment";
             case "分配角色", "解绑角色", "更新角色" -> "rbac_role_binding";
+            case "创建密钥引用", "轮换密钥引用", "撤销密钥引用" -> "secret_reference";
             default -> "";
         };
     }
@@ -1021,6 +1135,17 @@ public class InMemoryManagementWorkspaceService implements ManagementWorkspaceSe
             }
         }
         throw new BusinessException(ErrorCode.NOT_FOUND, "环境不存在");
+    }
+
+    private void replaceSecret(SecretReferenceView updated) {
+        for (int index = 0; index < secrets.size(); index++) {
+            SecretReferenceView current = secrets.get(index);
+            if (current.secretRef().equals(updated.secretRef())) {
+                secrets.set(index, updated);
+                return;
+            }
+        }
+        throw new BusinessException(ErrorCode.NOT_FOUND, "密钥引用不存在");
     }
 
     private DepartmentView replaceDepartment(String key, DepartmentView updated) {

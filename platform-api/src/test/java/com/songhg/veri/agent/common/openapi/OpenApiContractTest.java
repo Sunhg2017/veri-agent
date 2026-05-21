@@ -88,6 +88,10 @@ class OpenApiContractTest {
                 .andExpect(jsonPath("$.paths['/api/v1/management/settings/{key}'].get").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/management/settings/{key}'].patch").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/management/settings/{key}/status'].patch").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/management/secrets'].get").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/management/secrets'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/management/secrets/rotate'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/management/secrets/disable'].post").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/management/audit-logs'].get").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/management/audit-logs/export'].get").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/management/audit-outbox'].get").exists())
@@ -126,6 +130,23 @@ class OpenApiContractTest {
         org.hamcrest.MatcherAssert.assertThat(openApi, not(containsString("tenant_id")));
         org.hamcrest.MatcherAssert.assertThat(openApi, not(containsString("base_tenant")));
         org.hamcrest.MatcherAssert.assertThat(openApi, not(containsString("TenantAdmin")));
+    }
+
+    @Test
+    void generatedContractDoesNotExposeSecretPlaintextFields() throws Exception {
+        MvcResult result = mockMvc.perform(get("/v3/api-docs"))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        String openApi = result.getResponse().getContentAsString();
+        org.hamcrest.MatcherAssert.assertThat(openApi, containsString("/api/v1/management/secrets"));
+        org.hamcrest.MatcherAssert.assertThat(openApi, containsString("apiKeyRef"));
+        org.hamcrest.MatcherAssert.assertThat(openApi, not(containsString("apiKeyValue")));
+        org.hamcrest.MatcherAssert.assertThat(openApi, not(containsString("secretValue")));
+        org.hamcrest.MatcherAssert.assertThat(openApi, not(containsString("secret_value")));
+        org.hamcrest.MatcherAssert.assertThat(openApi, not(containsString("plainValue")));
+        org.hamcrest.MatcherAssert.assertThat(openApi, not(containsString("plaintext")));
+        org.hamcrest.MatcherAssert.assertThat(openApi, not(containsString("promptPlaintext")));
     }
 
     @Test

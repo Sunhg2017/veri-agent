@@ -182,6 +182,213 @@ select
     coalesce(string_agg(id, ', ' order by id), 'local secret rows have cipher text, iv, auth tag, and key version') as details
 from bad;
 
+with provider as (
+    select id
+    from secret_provider
+    where provider_code = 'local'
+      and provider_type = 'LOCAL_ENCRYPTED'
+      and status = 'ENABLED'
+      and deleted_at is null
+    limit 1
+),
+upsert_ref as (
+    insert into secret_reference (
+        id,
+        provider_id,
+        secret_ref,
+        scope_type,
+        scope_id,
+        purpose,
+        masked_value,
+        secret_version,
+        status,
+        rotated_at,
+        deleted_at
+    )
+    select
+        '00000000-0000-0000-0000-00000001d401'::uuid,
+        id,
+        'secret://validation/wp1-d4',
+        'CONFIG',
+        '00000000-0000-0000-0000-00000001d400'::uuid,
+        'WEBHOOK_SIGNING',
+        '********',
+        'v1',
+        'ACTIVE',
+        null,
+        null
+    from provider
+    on conflict (secret_ref) do update set
+        status = 'ACTIVE',
+        secret_version = 'v1',
+        masked_value = '********',
+        rotated_at = null,
+        deleted_at = null,
+        updated_at = now(),
+        version = secret_reference.version + 1
+    returning id
+),
+upsert_local as (
+    insert into secret_local_store (
+        id,
+        secret_ref_id,
+        cipher_text,
+        iv,
+        auth_tag,
+        algorithm,
+        master_key_version,
+        status,
+        deleted_at
+    )
+    select
+        '00000000-0000-0000-0000-00000001d402'::uuid,
+        id,
+        'validation-cipher-v1',
+        'validation-iv-v1',
+        'validation-auth-tag-v1',
+        'AES-256-GCM',
+        'validation-master-key-v1',
+        'ACTIVE',
+        null
+    from upsert_ref
+    on conflict (secret_ref_id) do update set
+        cipher_text = 'validation-cipher-v1',
+        iv = 'validation-iv-v1',
+        auth_tag = 'validation-auth-tag-v1',
+        algorithm = 'AES-256-GCM',
+        master_key_version = 'validation-master-key-v1',
+        status = 'ACTIVE',
+        deleted_at = null,
+        updated_at = now(),
+        version = secret_local_store.version + 1
+    returning secret_ref_id
+)
+select
+    'security.secret_management_create_path_shape' as check_name,
+    case
+        when exists (
+            select 1
+            from upsert_ref sr
+            join upsert_local sl on sl.secret_ref_id = sr.id
+        )
+        then 'PASS'
+        else 'FAIL'
+    end as status,
+    'validation secret reference and encrypted local store row can be created idempotently' as details;
+
+update secret_reference
+set secret_version = 'v2',
+    masked_value = '********',
+    rotated_at = now(),
+    updated_at = now(),
+    version = version + 1
+where secret_ref = 'secret://validation/wp1-d4'
+  and status = 'ACTIVE';
+
+update secret_local_store
+set cipher_text = 'validation-cipher-v2',
+    iv = 'validation-iv-v2',
+    auth_tag = 'validation-auth-tag-v2',
+    master_key_version = 'validation-master-key-v2',
+    status = 'ACTIVE',
+    updated_at = now(),
+    version = version + 1
+where secret_ref_id = (
+    select id from secret_reference where secret_ref = 'secret://validation/wp1-d4'
+);
+
+select
+    'security.secret_management_rotate_path_shape' as check_name,
+    case
+        when exists (
+            select 1
+            from secret_reference sr
+            join secret_local_store sl on sl.secret_ref_id = sr.id
+            where sr.secret_ref = 'secret://validation/wp1-d4'
+              and sr.secret_version = 'v2'
+              and sr.rotated_at is not null
+              and sl.cipher_text = 'validation-cipher-v2'
+              and sl.master_key_version = 'validation-master-key-v2'
+              and sl.status = 'ACTIVE'
+        )
+        then 'PASS'
+        else 'FAIL'
+    end as status,
+    'validation secret reference can rotate encrypted material without storing plaintext' as details;
+
+update secret_reference
+set status = 'REVOKED',
+    updated_at = now(),
+    version = version + 1
+where secret_ref = 'secret://validation/wp1-d4';
+
+update secret_local_store
+set status = 'REVOKED',
+    updated_at = now(),
+    version = version + 1
+where secret_ref_id = (
+    select id from secret_reference where secret_ref = 'secret://validation/wp1-d4'
+);
+
+select
+    'security.secret_management_disable_path_shape' as check_name,
+    case
+        when exists (
+            select 1
+            from secret_reference sr
+            join secret_local_store sl on sl.secret_ref_id = sr.id
+            where sr.secret_ref = 'secret://validation/wp1-d4'
+              and sr.status = 'REVOKED'
+              and sl.status = 'REVOKED'
+        )
+        then 'PASS'
+        else 'FAIL'
+    end as status,
+    'validation secret reference and encrypted material can be revoked together' as details;
+
+with app_roles(role_name) as (
+    values
+        ('wp1_app'),
+        ('veri_agent_app')
+),
+privileges as (
+    select
+        r.role_name,
+        has_table_privilege(r.role_name, format('%I.%I', current_schema(), 'secret_local_store'), 'SELECT') as can_select,
+        has_table_privilege(r.role_name, format('%I.%I', current_schema(), 'secret_local_store'), 'INSERT') as can_insert,
+        has_table_privilege(r.role_name, format('%I.%I', current_schema(), 'secret_local_store'), 'UPDATE') as can_update,
+        has_table_privilege(r.role_name, format('%I.%I', current_schema(), 'secret_local_store'), 'DELETE') as can_delete,
+        has_table_privilege(r.role_name, format('%I.%I', current_schema(), 'secret_local_store'), 'TRUNCATE') as can_truncate
+    from app_roles r
+    where exists (select 1 from pg_roles pr where pr.rolname = r.role_name)
+),
+bad as (
+    select role_name
+        || '(select=' || can_select
+        || ', insert=' || can_insert
+        || ', update=' || can_update
+        || ', delete=' || can_delete
+        || ', truncate=' || can_truncate || ')' as item
+    from privileges
+    where not can_select
+       or not can_insert
+       or not can_update
+       or can_delete
+       or can_truncate
+)
+select
+    'security.secret_local_store_app_role_scoped_access' as check_name,
+    case
+        when not exists (select 1 from privileges) then 'WARN'
+        when count(*) = 0 then 'PASS'
+        else 'FAIL'
+    end as status,
+    case
+        when not exists (select 1 from privileges) then 'no known app DB role found; grant scoped encrypted secret access to the real app role through the runtime policy'
+        else coalesce(string_agg(item, ', ' order by item), 'known app DB roles can SELECT/INSERT/UPDATE encrypted local secret material but cannot DELETE/TRUNCATE it')
+    end as details
+from bad;
+
 with app_roles(role_name) as (
     values
         ('wp1_app'),

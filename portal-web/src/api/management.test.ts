@@ -3,9 +3,12 @@ import { requestJson, requestText } from './client';
 import {
   auditLogExportPath,
   auditOutboxPath,
+  createSecretReference,
+  disableSecretReference,
   exportAuditLogsCsv,
   fetchManagementData,
   fetchEnvironmentConnectivityCheck,
+  rotateSecretReference,
   runEnvironmentConnectivityCheck
 } from './management';
 
@@ -99,6 +102,59 @@ describe('management API helpers', () => {
     await runEnvironmentConnectivityCheck('staging env');
     expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/management/environments/staging%20env/connectivity-check', {
       method: 'POST'
+    });
+  });
+
+  it('calls secret reference management endpoints without putting refs in path variables', async () => {
+    requestJsonMock.mockResolvedValue({
+      code: 'OK',
+      message: 'ok',
+      trace_id: 'trace-secret',
+      data: { secretRef: 'secret://wp1/example', maskedValue: '********', status: 'ACTIVE' }
+    });
+
+    await createSecretReference({
+      secret_ref: 'secret://wp1/example',
+      provider_code: 'local',
+      purpose: 'WEBHOOK_SIGNING',
+      scope_type: 'CONFIG',
+      scope_id: '00000000-0000-0000-0000-000000000001',
+      secret_value: 'PlainSecret123',
+      secret_version: 'v1'
+    });
+    expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/management/secrets', {
+      method: 'POST',
+      body: JSON.stringify({
+        secretRef: 'secret://wp1/example',
+        providerCode: 'local',
+        purpose: 'WEBHOOK_SIGNING',
+        scopeType: 'CONFIG',
+        scopeId: '00000000-0000-0000-0000-000000000001',
+        value: 'PlainSecret123',
+        secretVersion: 'v1',
+        expiresAt: undefined
+      })
+    });
+
+    await rotateSecretReference({
+      secret_ref: 'secret://wp1/example',
+      secret_value: 'RotatedSecret456',
+      secret_version: 'v2'
+    });
+    expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/management/secrets/rotate', {
+      method: 'POST',
+      body: JSON.stringify({
+        secretRef: 'secret://wp1/example',
+        value: 'RotatedSecret456',
+        secretVersion: 'v2',
+        expiresAt: undefined
+      })
+    });
+
+    await disableSecretReference('secret://wp1/example');
+    expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/management/secrets/disable', {
+      method: 'POST',
+      body: JSON.stringify({ secretRef: 'secret://wp1/example' })
     });
   });
 });

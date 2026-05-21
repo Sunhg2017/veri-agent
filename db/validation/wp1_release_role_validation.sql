@@ -46,14 +46,18 @@ checks as (
         'runtime role may execute controlled cleanup function but still must not DELETE audit_log directly' as details
     union all
     select
-        'release.secret_local_store.not_readable' as check_name,
+        'release.secret_local_store.encrypted_access_scoped' as check_name,
         case
             when not exists (select 1 from role_exists) then 'FAIL'
-            when not has_table_privilege((select role_name from role_input), format('%I.%I', current_schema(), 'secret_local_store'), 'SELECT')
+            when has_table_privilege((select role_name from role_input), format('%I.%I', current_schema(), 'secret_local_store'), 'SELECT')
+             and has_table_privilege((select role_name from role_input), format('%I.%I', current_schema(), 'secret_local_store'), 'INSERT')
+             and has_table_privilege((select role_name from role_input), format('%I.%I', current_schema(), 'secret_local_store'), 'UPDATE')
+             and not has_table_privilege((select role_name from role_input), format('%I.%I', current_schema(), 'secret_local_store'), 'DELETE')
+             and not has_table_privilege((select role_name from role_input), format('%I.%I', current_schema(), 'secret_local_store'), 'TRUNCATE')
             then 'PASS'
             else 'FAIL'
         end as status,
-        'runtime role must not read local ciphertext table directly' as details
+        'runtime role may read/write encrypted local secret material through WP1 service code but must not DELETE/TRUNCATE it' as details
 )
 select *
 from checks;
@@ -97,7 +101,13 @@ begin
         union all
         select 1
         where exists (select 1 from role_exists)
-          and has_table_privilege((select role_name from role_input), format('%I.%I', current_schema(), 'secret_local_store'), 'SELECT')
+          and (
+            not has_table_privilege((select role_name from role_input), format('%I.%I', current_schema(), 'secret_local_store'), 'SELECT')
+            or not has_table_privilege((select role_name from role_input), format('%I.%I', current_schema(), 'secret_local_store'), 'INSERT')
+            or not has_table_privilege((select role_name from role_input), format('%I.%I', current_schema(), 'secret_local_store'), 'UPDATE')
+            or has_table_privilege((select role_name from role_input), format('%I.%I', current_schema(), 'secret_local_store'), 'DELETE')
+            or has_table_privilege((select role_name from role_input), format('%I.%I', current_schema(), 'secret_local_store'), 'TRUNCATE')
+          )
     )
     select count(*) into failures from failed;
 

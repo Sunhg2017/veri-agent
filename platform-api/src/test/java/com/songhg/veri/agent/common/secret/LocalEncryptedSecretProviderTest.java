@@ -1,16 +1,10 @@
 package com.songhg.veri.agent.common.secret;
 
 import com.songhg.veri.agent.common.error.BusinessException;
-import java.nio.charset.StandardCharsets;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.util.Arrays;
-import java.util.Base64;
 import java.util.Optional;
 import java.util.UUID;
-import javax.crypto.Cipher;
-import javax.crypto.spec.GCMParameterSpec;
-import javax.crypto.spec.SecretKeySpec;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
@@ -23,12 +17,11 @@ import static org.mockito.Mockito.when;
 class LocalEncryptedSecretProviderTest {
 
     private static final String MASTER_KEY = "0123456789abcdef0123456789abcdef";
-    private static final byte[] IV = "wp4-secretiv".getBytes(StandardCharsets.US_ASCII);
 
     @Test
     void resolvesLocalEncryptedSecretWhenPurposeAndScopeMatch() {
         String scopeId = UUID.randomUUID().toString();
-        SecretMaterial material = encrypt("source-secret");
+        LocalSecretCipher.EncryptedMaterial material = encrypt("source-secret");
         LocalEncryptedSecretProvider provider = provider(row(scopeId, material));
 
         Optional<ResolvedSecret> resolved = provider.resolve("secret://wp4/source-a", new SecretResolveContext(
@@ -45,7 +38,7 @@ class LocalEncryptedSecretProviderTest {
 
     @Test
     void rejectsLocalEncryptedSecretWhenScopeDoesNotMatch() {
-        SecretMaterial material = encrypt("source-secret");
+        LocalSecretCipher.EncryptedMaterial material = encrypt("source-secret");
         LocalEncryptedSecretProvider provider = provider(row(UUID.randomUUID().toString(), material));
 
         assertThatThrownBy(() -> provider.resolve("secret://wp4/source-a", new SecretResolveContext(
@@ -65,6 +58,27 @@ class LocalEncryptedSecretProviderTest {
         assertThat(secret.toString())
                 .contains("value=****")
                 .doesNotContain("source-secret");
+    }
+
+    @Test
+    void localSecretCipherProducesMaterialResolvableByProvider() {
+        String scopeId = UUID.randomUUID().toString();
+        LocalSecretCipher.EncryptedMaterial material = LocalSecretCipher.encrypt(
+                "provider-created-secret",
+                new SecretProviderProperties(MASTER_KEY, "v1", "", "", 3)
+        );
+        LocalEncryptedSecretProvider provider = provider(row(scopeId, material));
+
+        Optional<ResolvedSecret> resolved = provider.resolve("secret://wp4/source-a", new SecretResolveContext(
+                "WEBHOOK_SIGNING",
+                "wp4-document-input",
+                "CONFIG",
+                scopeId
+        ));
+
+        assertThat(resolved).isPresent();
+        assertThat(resolved.get().value()).isEqualTo("provider-created-secret");
+        assertThat(material.cipherText()).doesNotContain("provider-created-secret");
     }
 
     private LocalEncryptedSecretProvider provider(SecretDbRow row) {
@@ -98,7 +112,7 @@ class LocalEncryptedSecretProviderTest {
         };
     }
 
-    private SecretDbRow row(String scopeId, SecretMaterial material) {
+    private SecretDbRow row(String scopeId, LocalSecretCipher.EncryptedMaterial material) {
         return new SecretDbRow(
                 "secret://wp4/source-a",
                 "WEBHOOK_SIGNING",
@@ -110,28 +124,14 @@ class LocalEncryptedSecretProviderTest {
                 material.cipherText(),
                 material.iv(),
                 material.authTag(),
-                "AES-256-GCM",
-                "v1",
+                material.algorithm(),
+                material.masterKeyVersion(),
                 "ACTIVE"
         );
     }
 
-    private SecretMaterial encrypt(String value) {
-        try {
-            Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
-            cipher.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(MASTER_KEY.getBytes(StandardCharsets.UTF_8), "AES"),
-                    new GCMParameterSpec(128, IV));
-            byte[] encrypted = cipher.doFinal(value.getBytes(StandardCharsets.UTF_8));
-            byte[] cipherText = Arrays.copyOf(encrypted, encrypted.length - 16);
-            byte[] authTag = Arrays.copyOfRange(encrypted, encrypted.length - 16, encrypted.length);
-            return new SecretMaterial(
-                    Base64.getEncoder().encodeToString(cipherText),
-                    Base64.getEncoder().encodeToString(IV),
-                    Base64.getEncoder().encodeToString(authTag)
-            );
-        } catch (Exception exception) {
-            throw new IllegalStateException(exception);
-        }
+    private LocalSecretCipher.EncryptedMaterial encrypt(String value) {
+        return LocalSecretCipher.encrypt(value, new SecretProviderProperties(MASTER_KEY, "v1", "", "", 3));
     }
 
     private record SecretDbRow(
@@ -151,6 +151,4 @@ class LocalEncryptedSecretProviderTest {
     ) {
     }
 
-    private record SecretMaterial(String cipherText, String iv, String authTag) {
-    }
 }

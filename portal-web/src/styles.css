@@ -1086,6 +1086,61 @@ tbody tr:hover td {
   gap: 14px;
 }
 
+.secret-management-panel {
+  display: grid;
+  gap: 14px;
+}
+
+.secret-reference-list {
+  display: grid;
+  gap: 8px;
+}
+
+.secret-reference-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  width: 100%;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text-primary);
+  padding: 10px 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.secret-reference-item.active,
+.secret-reference-item:hover {
+  border-color: var(--primary);
+  background: #f8faff;
+}
+
+.secret-reference-item strong,
+.secret-reference-item span {
+  display: block;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.secret-reference-item strong {
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.secret-reference-item span {
+  margin-top: 3px;
+  color: var(--text-tertiary);
+  font-size: 11px;
+}
+
+.secret-form strong {
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 650;
+}
+
 .resource-selector,
 .resource-edit-form label {
   display: grid;

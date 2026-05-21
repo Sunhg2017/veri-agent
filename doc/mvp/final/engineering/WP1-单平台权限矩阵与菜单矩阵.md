@@ -6,7 +6,7 @@
 | 当前口径 | 单平台、多部门、多项目、多应用、多环境 |
 | 依据代码 | `BuiltinPermissionCatalog`、`ManagementController`、`portal-web/src/permissions.ts` |
 | 版本 | v0.1 |
-| 日期 | 2026-05-17 |
+| 日期 | 2026-05-21 |
 
 ## 1. 当前冻结角色
 
@@ -34,7 +34,7 @@
 | config | `config:read`、`config:edit` |
 | audit | `audit:read`、`audit:export`、`audit:write_internal` |
 | context | `context:read`、`context:switch`、`context:effective_read` |
-| secret | `secret:reference` |
+| secret | `secret:reference`、`secret:read`、`secret:manage`、`secret:rotate`、`secret:disable` |
 
 说明：实例级权限点已从当前 P0 口径移除。旧实例边界 API、实例管理员角色、业务实例隔离字段和实例隔离表均不得重新进入 WP1 单平台模型。
 
@@ -42,11 +42,11 @@
 
 | 角色 | 默认权限摘要 |
 |---|---|
-| `SuperAdmin` | 除 `secret:reference` 外的 WP1 P0 管理权限，含角色创建/编辑、审计内部写入、全部基础资源创建、状态变更和资源授权。 |
-| `PlatformAdmin` | 组织、用户、角色绑定、项目、应用、环境、配置、审计、上下文和资源授权管理；不可创建或编辑内置角色定义。 |
+| `SuperAdmin` | WP1 P0 管理权限，含角色创建/编辑、审计内部写入、全部基础资源创建、状态变更、资源授权和 Secret 引用管理。 |
+| `PlatformAdmin` | 组织、用户、角色绑定、项目、应用、环境、配置、审计、上下文、资源授权和 Secret 引用管理；不可创建或编辑内置角色定义。 |
 | `DepartmentManager` | 部门读写和成员管理；用户基础读写；项目、应用、环境、配置、审计和上下文只读/摘要能力。 |
-| `ProjectOwner` | 项目读写、归档、停用和成员管理；项目下应用、环境、配置、审计、角色绑定、资源授权和上下文能力。 |
-| `AppOwner` | 应用读写和停用；应用负责人维护、应用专属环境授权、配置、审计、角色绑定和上下文能力。 |
+| `ProjectOwner` | 项目读写、归档、停用和成员管理；项目下应用、环境、配置、审计、角色绑定、资源授权、Secret 引用和上下文能力。 |
+| `AppOwner` | 应用读写和停用；应用负责人维护、应用专属环境授权、配置、审计、角色绑定、Secret 引用和上下文能力。 |
 | `Tester` | 项目、应用、环境、配置和上下文读取；可使用授权环境。 |
 | `Developer` | 项目、应用、环境、配置和上下文读取；不可默认使用环境。 |
 | `Auditor` | 部门、用户、项目、应用、环境、配置、角色、审计和上下文读取；可导出审计。 |
@@ -63,7 +63,7 @@
 | 环境管理 | `environment:read` | `environments` |
 | 集成配置 | `config:read` | `integrations` |
 | 审计日志 | `audit:read` | `audit` |
-| 系统设置 | `config:read` | `settings` |
+| 系统设置 | `config:read`；Secret 侧栏另需 `secret:read` | `settings` |
 
 前端菜单隐藏只用于体验优化，所有接口必须以后端鉴权结果为准。当前 `portal-web/src/permissions.ts` 是菜单权限和按钮权限的唯一前端规则来源。
 
@@ -81,6 +81,10 @@
 | 项目空间 | 创建项目 | `project:create` |
 | 应用管理 | 登记应用 | `application:create` |
 | 环境管理 | 新增环境 | `environment:create` |
+| 系统设置 | Secret 引用摘要 | `secret:read` |
+| 系统设置 | 创建 Secret 引用 | `secret:manage` |
+| 系统设置 | 轮换 Secret 引用 | `secret:rotate` |
+| 系统设置 | 撤销 Secret 引用 | `secret:disable` |
 
 ## 6. P0 自动化验收要求
 

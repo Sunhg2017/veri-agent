@@ -8,6 +8,8 @@ import com.songhg.veri.agent.common.api.PageResponse;
 import com.songhg.veri.agent.common.audit.AuditLogWriter;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
+import com.songhg.veri.agent.common.secret.LocalSecretCipher;
+import com.songhg.veri.agent.common.secret.SecretProviderProperties;
 import com.songhg.veri.agent.common.trace.TraceContext;
 import com.songhg.veri.agent.management.api.response.ApplicationView;
 import com.songhg.veri.agent.management.api.response.AuditLogView;
@@ -16,17 +18,21 @@ import com.songhg.veri.agent.management.api.request.CreateApplicationRequest;
 import com.songhg.veri.agent.management.api.request.CreateEnvironmentRequest;
 import com.songhg.veri.agent.management.api.request.CreateIntegrationRequest;
 import com.songhg.veri.agent.management.api.request.CreateProjectRequest;
+import com.songhg.veri.agent.management.api.request.CreateSecretReferenceRequest;
 import com.songhg.veri.agent.management.api.request.CreateSettingRequest;
+import com.songhg.veri.agent.management.api.request.DisableSecretReferenceRequest;
 import com.songhg.veri.agent.management.api.response.DepartmentView;
 import com.songhg.veri.agent.management.api.response.EnvironmentConnectivityCheckView;
 import com.songhg.veri.agent.management.api.response.EnvironmentView;
 import com.songhg.veri.agent.management.api.response.IntegrationView;
 import com.songhg.veri.agent.management.api.request.ProjectMemberRequest;
+import com.songhg.veri.agent.management.api.request.RotateSecretReferenceRequest;
 import com.songhg.veri.agent.management.api.response.ProjectMemberView;
 import com.songhg.veri.agent.management.api.response.ProjectView;
 import com.songhg.veri.agent.management.api.response.RoleView;
 import com.songhg.veri.agent.management.api.request.ScopedUserRoleRequest;
 import com.songhg.veri.agent.management.api.response.ScopedUserRoleView;
+import com.songhg.veri.agent.management.api.response.SecretReferenceView;
 import com.songhg.veri.agent.management.api.response.SettingView;
 import com.songhg.veri.agent.management.api.request.UpdateApplicationRequest;
 import com.songhg.veri.agent.management.api.request.UpdateDepartmentRequest;
@@ -46,6 +52,8 @@ import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRo
 import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows.EnvironmentRef;
 import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows.IntegrationRow;
 import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows.ProjectRef;
+import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows.SecretProviderRow;
+import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows.SecretReferenceRow;
 import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows.SettingRow;
 import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapper;
 import java.util.HashMap;
@@ -71,6 +79,7 @@ public class PostgresManagementWorkspaceService implements ManagementWorkspaceSe
     private final PostgresManagementDeniedAuditRecorder deniedAuditRecorder;
     private final EnvironmentConnectivityChecker connectivityChecker;
     private final ObjectMapper objectMapper;
+    private final SecretProviderProperties secretProviderProperties;
 
     public PostgresManagementWorkspaceService(
             ManagementMapper mapper,
@@ -78,7 +87,8 @@ public class PostgresManagementWorkspaceService implements ManagementWorkspaceSe
             AuditLogWriter auditLogWriter,
             PostgresManagementDeniedAuditRecorder deniedAuditRecorder,
             EnvironmentConnectivityChecker connectivityChecker,
-            ObjectMapper objectMapper
+            ObjectMapper objectMapper,
+            SecretProviderProperties secretProviderProperties
     ) {
         this.mapper = mapper;
         this.passwordEncoder = passwordEncoder;
@@ -86,6 +96,7 @@ public class PostgresManagementWorkspaceService implements ManagementWorkspaceSe
         this.deniedAuditRecorder = deniedAuditRecorder;
         this.connectivityChecker = connectivityChecker;
         this.objectMapper = objectMapper;
+        this.secretProviderProperties = secretProviderProperties;
     }
 
     @Override
@@ -789,6 +800,93 @@ public class PostgresManagementWorkspaceService implements ManagementWorkspaceSe
         return updated;
     }
 
+    @Override
+    public PageResponse<SecretReferenceView> secrets(PageQuery pageQuery) {
+        return page(mapper::listSecretReferences, mapper::countSecretReferences, pageQuery, values());
+    }
+
+    @Override
+    @Transactional
+    public SecretReferenceView createSecret(CreateSecretReferenceRequest request, AuthUserPrincipal actor) {
+        String secretRef = request.secretRef().trim();
+        String providerCode = defaultText(request.providerCode(), "");
+        SecretProviderRow provider = requireOne(
+                mapper::findSecretProviderForManage,
+                values("providerCode", providerCode),
+                "密钥提供方不存在"
+        );
+        ensureLocalProvider(provider);
+        UUID secretRefId = UUID.randomUUID();
+        LocalSecretCipher.EncryptedMaterial material = LocalSecretCipher.encrypt(request.value(), secretProviderProperties);
+        String secretVersion = defaultText(request.secretVersion(), "v1");
+        try {
+            update(mapper::insertSecretReference, actor, values(
+                    "secretRefId", secretRefId,
+                    "providerId", provider.id(),
+                    "secretRef", secretRef,
+                    "scopeType", request.scopeType().trim(),
+                    "scopeId", request.scopeId(),
+                    "purpose", request.purpose().trim(),
+                    "maskedValue", maskedSecret(),
+                    "secretVersion", secretVersion,
+                    "expiresAt", request.expiresAt()
+            ));
+            update(mapper::insertSecretLocalStore, actor, values(
+                    "secretRefId", secretRefId,
+                    "cipherText", material.cipherText(),
+                    "iv", material.iv(),
+                    "authTag", material.authTag(),
+                    "algorithm", material.algorithm(),
+                    "masterKeyVersion", material.masterKeyVersion()
+            ));
+        } catch (DuplicateKeyException exception) {
+            throw new BusinessException(ErrorCode.CONFLICT, "密钥引用已存在");
+        }
+        SecretReferenceView created = secretReferenceByRef(secretRef);
+        audit(actor, "创建密钥引用", "secret_reference", created.id(), created.secretRef());
+        return created;
+    }
+
+    @Override
+    @Transactional
+    public SecretReferenceView rotateSecret(RotateSecretReferenceRequest request, AuthUserPrincipal actor) {
+        SecretReferenceRow current = secretReferenceRow(request.secretRef());
+        ensureLocalProvider(current);
+        if (!"ACTIVE".equals(current.status())) {
+            throw new BusinessException(ErrorCode.INVALID_STATE, "只有 ACTIVE 密钥可轮换");
+        }
+        LocalSecretCipher.EncryptedMaterial material = LocalSecretCipher.encrypt(request.value(), secretProviderProperties);
+        String nextVersion = defaultText(request.secretVersion(), nextSecretVersion(current.secretVersion()));
+        update(mapper::updateSecretReferenceRotation, actor, values(
+                "secretRefId", current.id(),
+                "secretVersion", nextVersion,
+                "maskedValue", maskedSecret(),
+                "expiresAt", request.expiresAt()
+        ));
+        update(mapper::upsertSecretLocalStoreRotation, actor, values(
+                "secretRefId", current.id(),
+                "cipherText", material.cipherText(),
+                "iv", material.iv(),
+                "authTag", material.authTag(),
+                "algorithm", material.algorithm(),
+                "masterKeyVersion", material.masterKeyVersion()
+        ));
+        SecretReferenceView updated = secretReferenceByRef(current.secretRef());
+        audit(actor, "轮换密钥引用", "secret_reference", updated.id(), updated.secretRef());
+        return updated;
+    }
+
+    @Override
+    @Transactional
+    public SecretReferenceView disableSecret(DisableSecretReferenceRequest request, AuthUserPrincipal actor) {
+        SecretReferenceRow current = secretReferenceRow(request.secretRef());
+        update(mapper::revokeSecretReference, actor, values("secretRefId", current.id()));
+        update(mapper::revokeSecretLocalStore, actor, values("secretRefId", current.id()));
+        SecretReferenceView updated = secretReferenceByRef(current.secretRef());
+        audit(actor, "撤销密钥引用", "secret_reference", updated.id(), updated.secretRef());
+        return updated;
+    }
+
     private void insertProjectOwner(UUID projectId, AuthUserPrincipal actor) {
         update(mapper::insertProjectOwner, actor, values("projectId", projectId));
     }
@@ -1068,6 +1166,26 @@ public class PostgresManagementWorkspaceService implements ManagementWorkspaceSe
         return requireOne(mapper::findSettingRow, values("key", normalizeSearch(key)), "系统设置不存在");
     }
 
+    private SecretReferenceRow secretReferenceRow(String secretRef) {
+        return requireOne(mapper::findSecretReferenceRow, values("secretRef", normalizeSearch(secretRef)), "密钥引用不存在");
+    }
+
+    private SecretReferenceView secretReferenceByRef(String secretRef) {
+        return requireOne(mapper::findSecretReferenceView, values("secretRef", normalizeSearch(secretRef)), "密钥引用不存在");
+    }
+
+    private void ensureLocalProvider(SecretProviderRow provider) {
+        if (!"LOCAL_ENCRYPTED".equals(provider.providerType()) || !"ENABLED".equals(provider.status())) {
+            throw new BusinessException(ErrorCode.INVALID_STATE, "当前密钥提供方不支持本地写入和轮换");
+        }
+    }
+
+    private void ensureLocalProvider(SecretReferenceRow secret) {
+        if (!"LOCAL_ENCRYPTED".equals(secret.providerType())) {
+            throw new BusinessException(ErrorCode.INVALID_STATE, "当前密钥引用不支持本地轮换");
+        }
+    }
+
     private IntegrationView integrationView(IntegrationRow row) {
         return new IntegrationView(row.key(), row.name(), row.category(), row.scope(), row.status());
     }
@@ -1136,6 +1254,19 @@ public class PostgresManagementWorkspaceService implements ManagementWorkspaceSe
     private String defaultText(String value, String fallback) {
         String normalized = value == null ? "" : value.trim();
         return normalized.isBlank() ? fallback : normalized;
+    }
+
+    private String maskedSecret() {
+        return "********";
+    }
+
+    private String nextSecretVersion(String currentVersion) {
+        String normalized = defaultText(currentVersion, "v1");
+        if (normalized.matches("v\\d+")) {
+            int version = Integer.parseInt(normalized.substring(1));
+            return "v" + (version + 1);
+        }
+        return normalized + "-rotated";
     }
 
     private UUID requireUserId(String username) {

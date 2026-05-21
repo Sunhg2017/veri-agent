@@ -126,6 +126,23 @@ export interface SettingView {
   status: string;
 }
 
+export interface SecretReferenceView {
+  id: string;
+  secretRef: string;
+  providerCode: string;
+  providerType: string;
+  purpose: string;
+  scopeType: string;
+  scopeId: string;
+  maskedValue: string;
+  secretVersion: string;
+  status: string;
+  rotatedAt: string;
+  expiresAt: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface ScopedUserRoleView {
   username: string;
   display_name: string;
@@ -199,6 +216,24 @@ export interface UpdateSettingPayload {
   scope_type?: string;
 }
 
+export interface CreateSecretReferencePayload {
+  secret_ref: string;
+  provider_code?: string;
+  purpose: string;
+  scope_type: string;
+  scope_id: string;
+  secret_value: string;
+  secret_version?: string;
+  expires_at?: string;
+}
+
+export interface RotateSecretReferencePayload {
+  secret_ref: string;
+  secret_value: string;
+  secret_version?: string;
+  expires_at?: string;
+}
+
 export interface ManagementData {
   departments: DepartmentView[];
   users: UserView[];
@@ -210,6 +245,7 @@ export interface ManagementData {
   auditLogs: AuditLogView[];
   auditOutbox: AuditOutboxView[];
   settings: SettingView[];
+  secrets: SecretReferenceView[];
 }
 
 export type CreatableManagementResource = 'departments' | 'users' | 'projects' | 'applications' | 'environments';
@@ -225,7 +261,8 @@ const endpoints = {
   auditLogs: '/api/v1/management/audit-logs',
   auditLogsExport: '/api/v1/management/audit-logs/export',
   auditOutbox: '/api/v1/management/audit-outbox',
-  settings: '/api/v1/management/settings'
+  settings: '/api/v1/management/settings',
+  secrets: '/api/v1/management/secrets'
 } as const;
 
 export interface PageResponse<T> {
@@ -243,6 +280,7 @@ type ReadPermission =
   | 'application:read'
   | 'environment:read'
   | 'config:read'
+  | 'secret:read'
   | 'audit:read';
 
 function canRead(permissions: string[] | undefined, permission: ReadPermission) {
@@ -274,7 +312,8 @@ export async function fetchManagementData(permissions?: string[]): Promise<{ tra
     integrations,
     auditLogs,
     auditOutbox,
-    settings
+    settings,
+    secrets
   ] = await Promise.all([
     canRead(permissions, 'department:read') ? requestJson<PageResponse<DepartmentView>>(endpoints.departments) : skippedPage<DepartmentView>(),
     canRead(permissions, 'user:read') ? requestJson<PageResponse<UserView>>(endpoints.users) : skippedPage<UserView>(),
@@ -285,7 +324,8 @@ export async function fetchManagementData(permissions?: string[]): Promise<{ tra
     canRead(permissions, 'config:read') ? requestJson<PageResponse<IntegrationView>>(endpoints.integrations) : skippedPage<IntegrationView>(),
     canRead(permissions, 'audit:read') ? requestJson<PageResponse<AuditLogView>>(endpoints.auditLogs) : skippedPage<AuditLogView>(),
     canRead(permissions, 'audit:read') ? requestJson<PageResponse<AuditOutboxView>>(endpoints.auditOutbox) : skippedPage<AuditOutboxView>(),
-    canRead(permissions, 'config:read') ? requestJson<PageResponse<SettingView>>(endpoints.settings) : skippedPage<SettingView>()
+    canRead(permissions, 'config:read') ? requestJson<PageResponse<SettingView>>(endpoints.settings) : skippedPage<SettingView>(),
+    canRead(permissions, 'secret:read') ? requestJson<PageResponse<SecretReferenceView>>(endpoints.secrets) : skippedPage<SecretReferenceView>()
   ]);
 
   return {
@@ -299,7 +339,8 @@ export async function fetchManagementData(permissions?: string[]): Promise<{ tra
       integrations,
       auditLogs,
       auditOutbox,
-      settings
+      settings,
+      secrets
     ].find((response) => response.trace_id)?.trace_id ?? '',
     data: {
       departments: departments.data.items,
@@ -311,7 +352,8 @@ export async function fetchManagementData(permissions?: string[]): Promise<{ tra
       integrations: integrations.data.items,
       auditLogs: auditLogs.data.items,
       auditOutbox: auditOutbox.data.items,
-      settings: settings.data.items
+      settings: settings.data.items,
+      secrets: secrets.data.items
     }
   };
 }
@@ -650,5 +692,40 @@ export function changeSettingStatus(settingKey: string, status: string): Promise
   return requestJson<SettingView>(`/api/v1/management/settings/${encodeURIComponent(settingKey)}/status`, {
     method: 'PATCH',
     body: JSON.stringify({ status })
+  });
+}
+
+export function createSecretReference(payload: CreateSecretReferencePayload): Promise<ApiResponse<SecretReferenceView>> {
+  return requestJson<SecretReferenceView>(endpoints.secrets, {
+    method: 'POST',
+    body: JSON.stringify({
+      secretRef: payload.secret_ref,
+      providerCode: payload.provider_code,
+      purpose: payload.purpose,
+      scopeType: payload.scope_type,
+      scopeId: payload.scope_id,
+      value: payload.secret_value,
+      secretVersion: payload.secret_version,
+      expiresAt: payload.expires_at
+    })
+  });
+}
+
+export function rotateSecretReference(payload: RotateSecretReferencePayload): Promise<ApiResponse<SecretReferenceView>> {
+  return requestJson<SecretReferenceView>(`${endpoints.secrets}/rotate`, {
+    method: 'POST',
+    body: JSON.stringify({
+      secretRef: payload.secret_ref,
+      value: payload.secret_value,
+      secretVersion: payload.secret_version,
+      expiresAt: payload.expires_at
+    })
+  });
+}
+
+export function disableSecretReference(secretRef: string): Promise<ApiResponse<SecretReferenceView>> {
+  return requestJson<SecretReferenceView>(`${endpoints.secrets}/disable`, {
+    method: 'POST',
+    body: JSON.stringify({ secretRef })
   });
 }

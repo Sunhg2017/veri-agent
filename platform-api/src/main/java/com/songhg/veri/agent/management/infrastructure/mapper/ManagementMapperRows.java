@@ -34,4 +34,20 @@ public final class ManagementMapperRows {
 
     public record SettingRow(String configKey, String scopeType, String displayName, String value, String status) {
     }
+
+    public record SecretProviderRow(UUID id, String providerCode, String providerType, String status) {
+    }
+
+    public record SecretReferenceRow(
+            UUID id,
+            String secretRef,
+            String providerCode,
+            String providerType,
+            String purpose,
+            String scopeType,
+            UUID scopeId,
+            String secretVersion,
+            String status
+    ) {
+    }
 }

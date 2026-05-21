@@ -69,7 +69,7 @@ bash scripts/wp1_release_role_validation.sh | tee build/wp1-release-role-validat
 | `release.role.exists` | `WP1_RELEASE_APP_ROLE` 在目标库存在 | DBA 创建或修正真实 app role 后重跑 |
 | `release.audit_log.append_only` | app role 对 `audit_log` 只有 `SELECT/INSERT`，没有 `UPDATE/DELETE/TRUNCATE` | 立即撤销危险权限，确认审计不可变触发器仍存在后重跑 |
 | `release.audit_retention_cleanup.execute_only` | app role 可执行 `wp1_cleanup_audit_log_before(timestamptz, integer)`，但仍不能直接删除 `audit_log` | DBA 按运行期授权模板补 `EXECUTE`，不得补 `DELETE audit_log` |
-| `release.secret_local_store.not_readable` | app role 不能 `SELECT secret_local_store` | 撤销直接读取本地密文表权限；应用只能通过 SecretProvider resolve |
+| `release.secret_local_store.encrypted_access_scoped` | app role 可 `SELECT/INSERT/UPDATE secret_local_store` 以支持 WP1 `LOCAL_ENCRYPTED` 写入、解析和轮换，但不能 `DELETE/TRUNCATE` | 按运行期授权模板补齐受限读写权限并撤销破坏性权限；只读角色仍不得读取本地密文表 |
 
 ## 5. DBA 复核项
 
@@ -123,7 +123,7 @@ order by table_schema, table_name, privilege_type;
 | `release.role.exists` FAIL | 角色名错误或 DBA 未创建 | 确认真实 app role 名称，设置 `WP1_RELEASE_APP_ROLE` 后重跑 |
 | `release.audit_log.append_only` FAIL | app role 缺少 `INSERT/SELECT` 或拥有危险权限 | DBA 按运行期授权模板修正；确认没有审计 UPDATE/DELETE/TRUNCATE |
 | `release.audit_retention_cleanup.execute_only` FAIL | 清理函数缺失或 app role 缺少 `EXECUTE` | 确认迁移已执行，补 `grant execute on function wp1_cleanup_audit_log_before(timestamptz, integer) to <app_role>` 后重跑 |
-| `release.secret_local_store.not_readable` FAIL | app role 可直接读本地密文表 | 撤销 `secret_local_store` SELECT；通过 SecretProvider 使用密钥 |
+| `release.secret_local_store.encrypted_access_scoped` FAIL | app role 缺少本地密文材料受限读写权限，或拥有 `DELETE/TRUNCATE` 破坏性权限 | 补齐 `SELECT/INSERT/UPDATE secret_local_store`，撤销 `DELETE/TRUNCATE`；确认只读角色仍不可读 `secret_local_store` |
 | DBA DDL 复核返回行 | app role 拥有 schema CREATE 或对象 owner | 转移对象 owner 到 migration role，撤销 schema CREATE |
 
 ## 8. 准出记录

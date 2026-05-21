@@ -51,6 +51,11 @@ export type Permission =
   | 'environment:user_manage'
   | 'config:read'
   | 'config:edit'
+  | 'secret:reference'
+  | 'secret:read'
+  | 'secret:manage'
+  | 'secret:rotate'
+  | 'secret:disable'
   | 'audit:read'
   | 'audit:export'
   | 'requirementInput:read'
@@ -85,6 +90,9 @@ export type ButtonKey =
   | 'environment:edit'
   | 'environment:user'
   | 'config:edit'
+  | 'secret:create'
+  | 'secret:rotate'
+  | 'secret:disable'
   | 'audit:export'
   | 'asset:requirement_create'
   | 'asset:requirement_edit'
@@ -159,6 +167,9 @@ const buttonPermissionGroups: Record<ButtonKey, Permission[][]> = {
   'environment:create': [['environment:create']],
   'environment:edit': [['environment:edit'], ['environment:disable']],
   'config:edit': [['config:edit']],
+  'secret:create': [['secret:manage']],
+  'secret:rotate': [['secret:rotate']],
+  'secret:disable': [['secret:disable']],
   'audit:export': [['audit:export']],
   'asset:requirement_create': [['asset:manage']],
   'asset:requirement_edit': [['asset:manage']],

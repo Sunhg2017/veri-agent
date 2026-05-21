@@ -125,6 +125,25 @@
         </constructor>
     </resultMap>
 
+    <resultMap id="secretReferenceViewMap" type="com.songhg.veri.agent.management.api.response.SecretReferenceView">
+        <constructor>
+            <arg column="id" javaType="java.lang.String"/>
+            <arg column="secret_ref" javaType="java.lang.String"/>
+            <arg column="provider_code" javaType="java.lang.String"/>
+            <arg column="provider_type" javaType="java.lang.String"/>
+            <arg column="purpose" javaType="java.lang.String"/>
+            <arg column="scope_type" javaType="java.lang.String"/>
+            <arg column="scope_id" javaType="java.lang.String"/>
+            <arg column="masked_value" javaType="java.lang.String"/>
+            <arg column="secret_version" javaType="java.lang.String"/>
+            <arg column="status" javaType="java.lang.String"/>
+            <arg column="rotated_at" javaType="java.lang.String"/>
+            <arg column="expires_at" javaType="java.lang.String"/>
+            <arg column="created_at" javaType="java.lang.String"/>
+            <arg column="updated_at" javaType="java.lang.String"/>
+        </constructor>
+    </resultMap>
+
     <resultMap id="scopedUserRoleViewMap" type="com.songhg.veri.agent.management.api.response.ScopedUserRoleView">
         <constructor>
             <arg column="username" javaType="java.lang.String"/>
@@ -200,6 +219,29 @@
             <arg column="display_name" javaType="java.lang.String"/>
             <arg column="config_value" javaType="java.lang.String"/>
             <arg column="status_name" javaType="java.lang.String"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="secretProviderRowMap" type="com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows$SecretProviderRow">
+        <constructor>
+            <arg column="id" javaType="java.util.UUID"/>
+            <arg column="provider_code" javaType="java.lang.String"/>
+            <arg column="provider_type" javaType="java.lang.String"/>
+            <arg column="status" javaType="java.lang.String"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="secretReferenceRowMap" type="com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows$SecretReferenceRow">
+        <constructor>
+            <arg column="id" javaType="java.util.UUID"/>
+            <arg column="secret_ref" javaType="java.lang.String"/>
+            <arg column="provider_code" javaType="java.lang.String"/>
+            <arg column="provider_type" javaType="java.lang.String"/>
+            <arg column="purpose" javaType="java.lang.String"/>
+            <arg column="scope_type" javaType="java.lang.String"/>
+            <arg column="scope_id" javaType="java.util.UUID"/>
+            <arg column="secret_version" javaType="java.lang.String"/>
+            <arg column="status" javaType="java.lang.String"/>
         </constructor>
     </resultMap>
 
@@ -1000,6 +1042,46 @@
             or coalesce(value_json -&gt;&gt; '_display_name', '') ilike #{searchPattern})
     </select>
 
+    <select id="listSecretReferences" resultMap="secretReferenceViewMap">
+        select
+            cast(sr.id as text) as id,
+            sr.secret_ref,
+            sp.provider_code,
+            sp.provider_type,
+            sr.purpose,
+            sr.scope_type,
+            cast(sr.scope_id as text) as scope_id,
+            coalesce(sr.masked_value, '********') as masked_value,
+            coalesce(sr.secret_version, '') as secret_version,
+            sr.status,
+            coalesce(to_char(sr.rotated_at, 'YYYY-MM-DD HH24:MI'), '') as rotated_at,
+            coalesce(to_char(sr.expires_at, 'YYYY-MM-DD HH24:MI'), '') as expires_at,
+            to_char(sr.created_at, 'YYYY-MM-DD HH24:MI') as created_at,
+            to_char(sr.updated_at, 'YYYY-MM-DD HH24:MI') as updated_at
+        from secret_reference sr
+        join secret_provider sp on sp.id = sr.provider_id and sp.deleted_at is null
+        where sr.deleted_at is null
+          and (#{search} = ''
+            or sr.secret_ref ilike #{searchPattern}
+            or sr.purpose ilike #{searchPattern}
+            or sr.scope_type ilike #{searchPattern}
+            or sp.provider_code ilike #{searchPattern})
+        order by sr.updated_at desc, sr.created_at desc
+        limit #{limit} offset #{offset}
+    </select>
+
+    <select id="countSecretReferences" resultType="long">
+        select count(*)
+        from secret_reference sr
+        join secret_provider sp on sp.id = sr.provider_id and sp.deleted_at is null
+        where sr.deleted_at is null
+          and (#{search} = ''
+            or sr.secret_ref ilike #{searchPattern}
+            or sr.purpose ilike #{searchPattern}
+            or sr.scope_type ilike #{searchPattern}
+            or sp.provider_code ilike #{searchPattern})
+    </select>
+
     <insert id="insertConfig">
         insert into base_config (
             scope_type, scope_id, config_key, value_kind, value_json, status, created_by, updated_by
@@ -1008,6 +1090,134 @@
             #{scopeType}, null, #{configKey}, 'PLAIN', cast(#{valueJson} as jsonb), 'ENABLED', #{actorId}, #{actorId}
         )
     </insert>
+
+    <select id="findSecretProviderForManage" resultMap="secretProviderRowMap">
+        select id, provider_code, provider_type, status
+        from secret_provider
+        where deleted_at is null
+          and status = 'ENABLED'
+          and (
+            (#{providerCode} = '' and is_default = true)
+            or (#{providerCode} != '' and provider_code = #{providerCode})
+          )
+        order by is_default desc, created_at asc
+        limit 1
+    </select>
+
+    <select id="findSecretReferenceRow" resultMap="secretReferenceRowMap">
+        select
+            sr.id,
+            sr.secret_ref,
+            sp.provider_code,
+            sp.provider_type,
+            sr.purpose,
+            sr.scope_type,
+            sr.scope_id,
+            coalesce(sr.secret_version, '') as secret_version,
+            sr.status
+        from secret_reference sr
+        join secret_provider sp on sp.id = sr.provider_id and sp.deleted_at is null
+        where sr.deleted_at is null
+          and sr.secret_ref = #{secretRef}
+        limit 1
+    </select>
+
+    <select id="findSecretReferenceView" resultMap="secretReferenceViewMap">
+        select
+            cast(sr.id as text) as id,
+            sr.secret_ref,
+            sp.provider_code,
+            sp.provider_type,
+            sr.purpose,
+            sr.scope_type,
+            cast(sr.scope_id as text) as scope_id,
+            coalesce(sr.masked_value, '********') as masked_value,
+            coalesce(sr.secret_version, '') as secret_version,
+            sr.status,
+            coalesce(to_char(sr.rotated_at, 'YYYY-MM-DD HH24:MI'), '') as rotated_at,
+            coalesce(to_char(sr.expires_at, 'YYYY-MM-DD HH24:MI'), '') as expires_at,
+            to_char(sr.created_at, 'YYYY-MM-DD HH24:MI') as created_at,
+            to_char(sr.updated_at, 'YYYY-MM-DD HH24:MI') as updated_at
+        from secret_reference sr
+        join secret_provider sp on sp.id = sr.provider_id and sp.deleted_at is null
+        where sr.deleted_at is null
+          and sr.secret_ref = #{secretRef}
+        limit 1
+    </select>
+
+    <insert id="insertSecretReference">
+        insert into secret_reference (
+            id, provider_id, secret_ref, scope_type, scope_id, purpose, masked_value,
+            secret_version, status, rotated_at, expires_at, created_by, updated_by
+        )
+        values (
+            #{secretRefId}, #{providerId}, #{secretRef}, #{scopeType}, #{scopeId}, #{purpose}, #{maskedValue},
+            #{secretVersion}, 'ACTIVE', now(), cast(#{expiresAt} as timestamptz), #{actorId}, #{actorId}
+        )
+    </insert>
+
+    <insert id="insertSecretLocalStore">
+        insert into secret_local_store (
+            secret_ref_id, cipher_text, iv, auth_tag, algorithm, master_key_version, status, created_by, updated_by
+        )
+        values (
+            #{secretRefId}, #{cipherText}, #{iv}, #{authTag}, #{algorithm}, #{masterKeyVersion}, 'ACTIVE', #{actorId}, #{actorId}
+        )
+    </insert>
+
+    <update id="updateSecretReferenceRotation">
+        update secret_reference
+        set masked_value = #{maskedValue},
+            secret_version = #{secretVersion},
+            status = 'ACTIVE',
+            rotated_at = now(),
+            expires_at = coalesce(cast(#{expiresAt} as timestamptz), expires_at),
+            updated_by = #{actorId},
+            updated_at = now(),
+            version = version + 1
+        where id = #{secretRefId}
+          and deleted_at is null
+    </update>
+
+    <insert id="upsertSecretLocalStoreRotation">
+        insert into secret_local_store (
+            secret_ref_id, cipher_text, iv, auth_tag, algorithm, master_key_version, status, created_by, updated_by
+        )
+        values (
+            #{secretRefId}, #{cipherText}, #{iv}, #{authTag}, #{algorithm}, #{masterKeyVersion}, 'ACTIVE', #{actorId}, #{actorId}
+        )
+        on conflict (secret_ref_id)
+        do update set
+            cipher_text = excluded.cipher_text,
+            iv = excluded.iv,
+            auth_tag = excluded.auth_tag,
+            algorithm = excluded.algorithm,
+            master_key_version = excluded.master_key_version,
+            status = 'ACTIVE',
+            updated_by = #{actorId},
+            updated_at = now(),
+            version = secret_local_store.version + 1
+    </insert>
+
+    <update id="revokeSecretReference">
+        update secret_reference
+        set status = 'REVOKED',
+            updated_by = #{actorId},
+            updated_at = now(),
+            version = version + 1
+        where id = #{secretRefId}
+          and deleted_at is null
+    </update>
+
+    <update id="revokeSecretLocalStore">
+        update secret_local_store
+        set status = 'REVOKED',
+            updated_by = #{actorId},
+            updated_at = now(),
+            version = version + 1
+        where secret_ref_id = #{secretRefId}
+          and deleted_at is null
+    </update>
 
     <update id="updateIntegration">
         update base_config

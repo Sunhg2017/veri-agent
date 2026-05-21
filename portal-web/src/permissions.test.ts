@@ -83,7 +83,12 @@ describe('WP1 permission helpers', () => {
       'application:disable',
       'environment:edit',
       'environment:disable',
-      'config:edit'
+      'config:edit',
+      'secret:reference',
+      'secret:read',
+      'secret:manage',
+      'secret:rotate',
+      'secret:disable'
     ]);
 
     expect(hasPermission(currentUser, 'department:edit')).toBe(true);
@@ -98,6 +103,11 @@ describe('WP1 permission helpers', () => {
     expect(hasPermission(currentUser, 'environment:edit')).toBe(true);
     expect(hasPermission(currentUser, 'environment:disable')).toBe(true);
     expect(hasPermission(currentUser, 'config:edit')).toBe(true);
+    expect(hasPermission(currentUser, 'secret:reference')).toBe(true);
+    expect(hasPermission(currentUser, 'secret:read')).toBe(true);
+    expect(hasPermission(currentUser, 'secret:manage')).toBe(true);
+    expect(hasPermission(currentUser, 'secret:rotate')).toBe(true);
+    expect(hasPermission(currentUser, 'secret:disable')).toBe(true);
   });
 
   it('uses AND logic for compound button permissions', () => {
@@ -136,6 +146,10 @@ describe('WP1 permission helpers', () => {
     expect(canUseButton(user(['modelAccess:manage']), 'modelAccess:prompt_manage')).toBe(true);
     expect(canUseButton(user(['modelAccess:read']), 'modelAccess:provider_manage')).toBe(false);
     expect(canUseButton(user(['modelAccess:export']), 'modelAccess:export')).toBe(true);
+    expect(canUseButton(user(['secret:manage']), 'secret:create')).toBe(true);
+    expect(canUseButton(user(['secret:read']), 'secret:create')).toBe(false);
+    expect(canUseButton(user(['secret:rotate']), 'secret:rotate')).toBe(true);
+    expect(canUseButton(user(['secret:disable']), 'secret:disable')).toBe(true);
   });
 
   it('handles status-change buttons with groups', () => {

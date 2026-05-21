@@ -10,6 +10,7 @@ import com.songhg.veri.agent.management.api.response.ProjectMemberView;
 import com.songhg.veri.agent.management.api.response.ProjectView;
 import com.songhg.veri.agent.management.api.response.RoleView;
 import com.songhg.veri.agent.management.api.response.ScopedUserRoleView;
+import com.songhg.veri.agent.management.api.response.SecretReferenceView;
 import com.songhg.veri.agent.management.api.response.UserView;
 import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows.ApplicationRef;
 import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows.DepartmentRef;
@@ -17,6 +18,8 @@ import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRo
 import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows.EnvironmentRef;
 import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows.IntegrationRow;
 import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows.ProjectRef;
+import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows.SecretProviderRow;
+import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows.SecretReferenceRow;
 import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows.SettingRow;
 import java.util.List;
 import java.util.Map;
@@ -122,7 +125,29 @@ public interface ManagementMapper {
 
     long countSettings(Map<String, Object> params);
 
+    List<SecretReferenceView> listSecretReferences(Map<String, Object> params);
+
+    long countSecretReferences(Map<String, Object> params);
+
     int insertConfig(Map<String, Object> params);
+
+    SecretProviderRow findSecretProviderForManage(Map<String, Object> params);
+
+    SecretReferenceRow findSecretReferenceRow(Map<String, Object> params);
+
+    SecretReferenceView findSecretReferenceView(Map<String, Object> params);
+
+    int insertSecretReference(Map<String, Object> params);
+
+    int insertSecretLocalStore(Map<String, Object> params);
+
+    int updateSecretReferenceRotation(Map<String, Object> params);
+
+    int upsertSecretLocalStoreRotation(Map<String, Object> params);
+
+    int revokeSecretReference(Map<String, Object> params);
+
+    int revokeSecretLocalStore(Map<String, Object> params);
 
     int updateIntegration(Map<String, Object> params);
 

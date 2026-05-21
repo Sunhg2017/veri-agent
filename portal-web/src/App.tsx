@@ -57,7 +57,9 @@ import {
   changeSettingStatus,
   createIntegration,
   createManagementItem,
+  createSecretReference,
   createSetting,
+  disableSecretReference,
   disableUser,
   enableUser,
   exportAuditLogsCsv,
@@ -79,6 +81,7 @@ import {
   removeEnvironmentUser,
   removeProjectMember,
   resetUserPassword,
+  rotateSecretReference,
   runEnvironmentConnectivityCheck,
   unassignUserRole,
   unlockUser,
@@ -103,6 +106,7 @@ import {
   type ProjectView,
   type RoleView,
   type ScopedUserRoleView,
+  type SecretReferenceView,
   type SettingView,
   type UserView
 } from './api/management';
@@ -274,7 +278,8 @@ const emptyManagementData: ManagementData = {
   integrations: [],
   auditLogs: [],
   auditOutbox: [],
-  settings: []
+  settings: [],
+  secrets: []
 };
 
 type ResourceDraft = Record<string, string>;
@@ -1592,56 +1597,64 @@ function ModulePage(props: {
       signedIn={props.signedIn}
       onRefresh={props.onRefresh}
       sidePanel={
-        <ResourceLifecyclePanel<SettingView>
-          title="设置维护"
-          resourceLabel="设置"
-          emptyLabel="暂无设置"
-          resources={props.data.settings.map((item) => item.key)}
-          fields={[
-            { key: 'name', label: '名称', placeholder: '失败登录阈值' },
-            { key: 'value', label: '当前值', placeholder: '5' },
-            {
-              key: 'scope_type',
-              label: '作用域',
-              kind: 'select',
-              options: [
-                { value: '', label: '保持不变' },
-                { value: 'SYSTEM', label: '平台级' },
-                { value: 'PROJECT', label: '项目级' },
-                { value: 'APPLICATION', label: '应用级' },
-                { value: 'ENVIRONMENT', label: '环境级' }
-              ]
-            }
-          ]}
-          signedIn={props.signedIn}
-          canEdit={hasPermission(props.currentUser, 'config:edit')}
-          statusOptions={[
-            hasPermission(props.currentUser, 'config:edit') ? { value: 'ENABLED', label: '启用设置', icon: Power } : undefined,
-            hasPermission(props.currentUser, 'config:edit') ? { value: 'DISABLED', label: '停用设置', icon: Power } : undefined
-          ].filter((option): option is StatusOption => Boolean(option))}
-          fetchDetail={fetchSetting}
-          updateDetail={(resourceKey, draft) => updateSetting(resourceKey, buildSettingUpdate(draft))}
-          changeStatus={changeSettingStatus}
-          detailTitle={(detail) => detail.name}
-          draftFromDetail={(detail) => ({ name: detail.name, value: detail.value })}
-          detailRows={(detail) => [
-            ['标识', detail.key],
-            ['当前值', detail.value],
-            ['作用域', detail.scope],
-            ['状态', detail.status]
-          ]}
-          createLabel="新增设置"
-          canCreate={hasPermission(props.currentUser, 'config:edit')}
-          createFields={[
-            { key: 'key', label: '标识', placeholder: 'account.failed_login_limit' },
-            { key: 'name', label: '名称', placeholder: '失败登录阈值' },
-            { key: 'value', label: '当前值', placeholder: '5' },
-            { key: 'scope_type', label: '作用域', placeholder: 'SYSTEM' }
-          ]}
-          createInitialDraft={{ scope_type: 'SYSTEM' }}
-          createDetail={(draft) => createSetting(buildSettingCreate(draft))}
-          onChanged={props.onRefresh}
-        />
+        <>
+          <ResourceLifecyclePanel<SettingView>
+            title="设置维护"
+            resourceLabel="设置"
+            emptyLabel="暂无设置"
+            resources={props.data.settings.map((item) => item.key)}
+            fields={[
+              { key: 'name', label: '名称', placeholder: '失败登录阈值' },
+              { key: 'value', label: '当前值', placeholder: '5' },
+              {
+                key: 'scope_type',
+                label: '作用域',
+                kind: 'select',
+                options: [
+                  { value: '', label: '保持不变' },
+                  { value: 'SYSTEM', label: '平台级' },
+                  { value: 'PROJECT', label: '项目级' },
+                  { value: 'APPLICATION', label: '应用级' },
+                  { value: 'ENVIRONMENT', label: '环境级' }
+                ]
+              }
+            ]}
+            signedIn={props.signedIn}
+            canEdit={hasPermission(props.currentUser, 'config:edit')}
+            statusOptions={[
+              hasPermission(props.currentUser, 'config:edit') ? { value: 'ENABLED', label: '启用设置', icon: Power } : undefined,
+              hasPermission(props.currentUser, 'config:edit') ? { value: 'DISABLED', label: '停用设置', icon: Power } : undefined
+            ].filter((option): option is StatusOption => Boolean(option))}
+            fetchDetail={fetchSetting}
+            updateDetail={(resourceKey, draft) => updateSetting(resourceKey, buildSettingUpdate(draft))}
+            changeStatus={changeSettingStatus}
+            detailTitle={(detail) => detail.name}
+            draftFromDetail={(detail) => ({ name: detail.name, value: detail.value })}
+            detailRows={(detail) => [
+              ['标识', detail.key],
+              ['当前值', detail.value],
+              ['作用域', detail.scope],
+              ['状态', detail.status]
+            ]}
+            createLabel="新增设置"
+            canCreate={hasPermission(props.currentUser, 'config:edit')}
+            createFields={[
+              { key: 'key', label: '标识', placeholder: 'account.failed_login_limit' },
+              { key: 'name', label: '名称', placeholder: '失败登录阈值' },
+              { key: 'value', label: '当前值', placeholder: '5' },
+              { key: 'scope_type', label: '作用域', placeholder: 'SYSTEM' }
+            ]}
+            createInitialDraft={{ scope_type: 'SYSTEM' }}
+            createDetail={(draft) => createSetting(buildSettingCreate(draft))}
+            onChanged={props.onRefresh}
+          />
+          <SecretManagementPanel
+            secrets={props.data.secrets}
+            signedIn={props.signedIn}
+            currentUser={props.currentUser}
+            onChanged={props.onRefresh}
+          />
+        </>
       }
     />
   );
@@ -1944,6 +1957,342 @@ function AuditOutboxPanel(props: {
   );
 }
 
+type SecretDraft = {
+  secret_ref: string;
+  provider_code: string;
+  purpose: string;
+  scope_type: string;
+  scope_id: string;
+  secret_value: string;
+  secret_version: string;
+  expires_at: string;
+};
+
+const initialSecretDraft: SecretDraft = {
+  secret_ref: 'secret://wp1/',
+  provider_code: 'local',
+  purpose: 'WEBHOOK_SIGNING',
+  scope_type: 'CONFIG',
+  scope_id: '',
+  secret_value: '',
+  secret_version: 'v1',
+  expires_at: ''
+};
+
+function SecretManagementPanel(props: {
+  secrets: SecretReferenceView[];
+  signedIn: boolean;
+  currentUser: CurrentUser | null;
+  onChanged: () => void;
+}) {
+  const [createDraft, setCreateDraft] = useState<SecretDraft>(initialSecretDraft);
+  const [rotateDraft, setRotateDraft] = useState({ secret_value: '', secret_version: '', expires_at: '' });
+  const [selectedSecretRef, setSelectedSecretRef] = useState(props.secrets[0]?.secretRef ?? '');
+  const [state, setState] = useState<{ loading: boolean; error?: string; traceId?: string }>({ loading: false });
+
+  useEffect(() => {
+    if (!props.secrets.some((secret) => secret.secretRef === selectedSecretRef)) {
+      setSelectedSecretRef(props.secrets[0]?.secretRef ?? '');
+    }
+  }, [props.secrets, selectedSecretRef]);
+
+  const canCreate = hasPermission(props.currentUser, 'secret:manage');
+  const canRotate = hasPermission(props.currentUser, 'secret:rotate');
+  const canDisable = hasPermission(props.currentUser, 'secret:disable');
+  const selectedSecret = props.secrets.find((secret) => secret.secretRef === selectedSecretRef);
+  const disabled = !props.signedIn || state.loading;
+
+  async function submitCreate(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!canCreate) {
+      return;
+    }
+    const validationError = validateSecretDraft(createDraft);
+    if (validationError) {
+      setState({ loading: false, error: validationError });
+      return;
+    }
+    setState({ loading: true });
+    try {
+      const response = await createSecretReference(buildSecretCreatePayload(createDraft));
+      setCreateDraft({ ...initialSecretDraft, secret_ref: 'secret://wp1/', secret_value: '' });
+      setSelectedSecretRef(response.data.secretRef);
+      setState({ loading: false, traceId: response.trace_id });
+      props.onChanged();
+    } catch (error: unknown) {
+      const traceId = error instanceof ApiError ? error.traceId : '';
+      const message = error instanceof Error ? error.message : '密钥引用创建失败';
+      setCreateDraft((current) => ({ ...current, secret_value: '' }));
+      setState({ loading: false, error: message, traceId });
+    }
+  }
+
+  async function submitRotate(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!canRotate || !selectedSecretRef) {
+      return;
+    }
+    if (rotateDraft.secret_value.trim().length < 8) {
+      setState({ loading: false, error: '轮换密钥至少 8 位' });
+      return;
+    }
+    setState({ loading: true });
+    try {
+      const response = await rotateSecretReference({
+        secret_ref: selectedSecretRef,
+        secret_value: rotateDraft.secret_value,
+        secret_version: nonBlank(rotateDraft.secret_version),
+        expires_at: isoDateTime(rotateDraft.expires_at)
+      });
+      setRotateDraft({ secret_value: '', secret_version: '', expires_at: '' });
+      setSelectedSecretRef(response.data.secretRef);
+      setState({ loading: false, traceId: response.trace_id });
+      props.onChanged();
+    } catch (error: unknown) {
+      const traceId = error instanceof ApiError ? error.traceId : '';
+      const message = error instanceof Error ? error.message : '密钥引用轮换失败';
+      setRotateDraft((current) => ({ ...current, secret_value: '' }));
+      setState({ loading: false, error: message, traceId });
+    }
+  }
+
+  async function disableSelectedSecret() {
+    if (!canDisable || !selectedSecretRef) {
+      return;
+    }
+    setState({ loading: true });
+    try {
+      const response = await disableSecretReference(selectedSecretRef);
+      setState({ loading: false, traceId: response.trace_id });
+      props.onChanged();
+    } catch (error: unknown) {
+      const traceId = error instanceof ApiError ? error.traceId : '';
+      const message = error instanceof Error ? error.message : '密钥引用撤销失败';
+      setState({ loading: false, error: message, traceId });
+    }
+  }
+
+  return (
+    <div className="panel insight-panel secret-management-panel">
+      <div className="panel-title-row">
+        <h2>Secret 引用</h2>
+        <StatusPill value={String(props.secrets.length)} />
+      </div>
+
+      <div className="secret-reference-list">
+        {props.secrets.length > 0 ? (
+          props.secrets.slice(0, 4).map((secret) => (
+            <button
+              type="button"
+              className={`secret-reference-item ${secret.secretRef === selectedSecretRef ? 'active' : ''}`}
+              key={secret.secretRef}
+              onClick={() => setSelectedSecretRef(secret.secretRef)}
+            >
+              <div>
+                <strong>{secret.secretRef}</strong>
+                <span>{secret.providerCode} · {secret.purpose} · {secret.scopeType}</span>
+              </div>
+              <StatusPill value={secret.status} />
+            </button>
+          ))
+        ) : (
+          <div className="empty-state compact">
+            <KeyRound size={20} />
+            <div>
+              <strong>{props.signedIn ? '暂无 Secret 引用' : '等待登录'}</strong>
+              <span>{hasPermission(props.currentUser, 'secret:read') ? '0 条记录' : '当前账号无查看权限'}</span>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {selectedSecret && (
+        <div className="resource-summary">
+          <strong>{selectedSecret.secretRef}</strong>
+          {[
+            ['Provider', selectedSecret.providerCode],
+            ['用途', selectedSecret.purpose],
+            ['作用域', `${selectedSecret.scopeType}:${selectedSecret.scopeId}`],
+            ['版本', selectedSecret.secretVersion || '-'],
+            ['掩码', selectedSecret.maskedValue],
+            ['状态', selectedSecret.status],
+            ['轮换时间', selectedSecret.rotatedAt || '-']
+          ].map(([label, value]) => (
+            <div key={label}>
+              <span>{label}</span>
+              {label === '状态' ? <StatusPill value={String(value)} /> : <em>{value}</em>}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {canCreate && (
+        <form className="resource-edit-form secret-form" onSubmit={submitCreate}>
+          <strong>创建 Secret</strong>
+          <label>
+            <span>引用</span>
+            <input
+              value={createDraft.secret_ref}
+              disabled={disabled}
+              maxLength={128}
+              onChange={(event) => setCreateDraft((current) => ({ ...current, secret_ref: event.target.value }))}
+              placeholder="secret://wp1/webhook"
+            />
+          </label>
+          <label>
+            <span>Provider</span>
+            <input
+              value={createDraft.provider_code}
+              disabled={disabled}
+              onChange={(event) => setCreateDraft((current) => ({ ...current, provider_code: event.target.value }))}
+              placeholder="local"
+            />
+          </label>
+          <label>
+            <span>用途</span>
+            <input
+              value={createDraft.purpose}
+              disabled={disabled}
+              onChange={(event) => setCreateDraft((current) => ({ ...current, purpose: event.target.value.toUpperCase() }))}
+              placeholder="WEBHOOK_SIGNING"
+            />
+          </label>
+          <label>
+            <span>作用域</span>
+            <select
+              value={createDraft.scope_type}
+              disabled={disabled}
+              onChange={(event) => setCreateDraft((current) => ({ ...current, scope_type: event.target.value }))}
+            >
+              <option value="CONFIG">CONFIG</option>
+              <option value="PROJECT">PROJECT</option>
+              <option value="APPLICATION">APPLICATION</option>
+              <option value="ENVIRONMENT">ENVIRONMENT</option>
+            </select>
+          </label>
+          <label>
+            <span>Scope ID</span>
+            <input
+              value={createDraft.scope_id}
+              disabled={disabled}
+              onChange={(event) => setCreateDraft((current) => ({ ...current, scope_id: event.target.value }))}
+              placeholder="00000000-0000-0000-0000-000000000000"
+            />
+          </label>
+          <label>
+            <span>明文</span>
+            <input
+              type="password"
+              autoComplete="new-password"
+              value={createDraft.secret_value}
+              disabled={disabled}
+              onChange={(event) => setCreateDraft((current) => ({ ...current, secret_value: event.target.value }))}
+              placeholder="至少 8 位"
+            />
+          </label>
+          <label>
+            <span>版本</span>
+            <input
+              value={createDraft.secret_version}
+              disabled={disabled}
+              onChange={(event) => setCreateDraft((current) => ({ ...current, secret_version: event.target.value }))}
+              placeholder="v1"
+            />
+          </label>
+          <label>
+            <span>过期时间</span>
+            <input
+              type="datetime-local"
+              value={createDraft.expires_at}
+              disabled={disabled}
+              onChange={(event) => setCreateDraft((current) => ({ ...current, expires_at: event.target.value }))}
+            />
+          </label>
+          <button className="mini-button" type="submit" disabled={disabled || !createDraft.secret_ref.trim() || !createDraft.secret_value.trim()}>
+            <Save size={14} />
+            创建
+          </button>
+        </form>
+      )}
+
+      {(canRotate || canDisable) && (
+        <form className="resource-edit-form secret-form" onSubmit={submitRotate}>
+          <strong>轮换与撤销</strong>
+          <label>
+            <span>Secret</span>
+            <select
+              value={selectedSecretRef}
+              disabled={disabled || props.secrets.length === 0}
+              onChange={(event) => setSelectedSecretRef(event.target.value)}
+            >
+              {props.secrets.length === 0 ? (
+                <option value="">暂无 Secret</option>
+              ) : (
+                props.secrets.map((secret) => (
+                  <option key={secret.secretRef} value={secret.secretRef}>
+                    {secret.secretRef}
+                  </option>
+                ))
+              )}
+            </select>
+          </label>
+          {canRotate && (
+            <>
+              <label>
+                <span>新明文</span>
+                <input
+                  type="password"
+                  autoComplete="new-password"
+                  value={rotateDraft.secret_value}
+                  disabled={disabled || !selectedSecretRef}
+                  onChange={(event) => setRotateDraft((current) => ({ ...current, secret_value: event.target.value }))}
+                  placeholder="至少 8 位"
+                />
+              </label>
+              <label>
+                <span>新版本</span>
+                <input
+                  value={rotateDraft.secret_version}
+                  disabled={disabled || !selectedSecretRef}
+                  onChange={(event) => setRotateDraft((current) => ({ ...current, secret_version: event.target.value }))}
+                  placeholder="自动递增"
+                />
+              </label>
+              <label>
+                <span>过期时间</span>
+                <input
+                  type="datetime-local"
+                  value={rotateDraft.expires_at}
+                  disabled={disabled || !selectedSecretRef}
+                  onChange={(event) => setRotateDraft((current) => ({ ...current, expires_at: event.target.value }))}
+                />
+              </label>
+              <button className="mini-button" type="submit" disabled={disabled || !selectedSecretRef || rotateDraft.secret_value.trim().length < 8}>
+                <KeyRound size={14} />
+                轮换
+              </button>
+            </>
+          )}
+          {canDisable && (
+            <button className="mini-button" type="button" disabled={disabled || !selectedSecretRef} onClick={disableSelectedSecret}>
+              <Power size={14} />
+              撤销
+            </button>
+          )}
+        </form>
+      )}
+
+      {state.error && (
+        <div className="inline-error">
+          <strong>操作失败</strong>
+          <span>{state.error}</span>
+        </div>
+      )}
+      {state.traceId && <div className="panel-trace">Trace ID：{state.traceId}</div>}
+    </div>
+  );
+}
+
 function emptyDraft(fields: ResourceEditField[]): ResourceDraft {
   return Object.fromEntries(fields.map((field) => [field.key, '']));
 }
@@ -2032,6 +2381,46 @@ function buildSettingUpdate(draft: ResourceDraft) {
     value: nonBlank(draft.value),
     scope_type: nonBlank(draft.scope_type)
   });
+}
+
+function buildSecretCreatePayload(draft: SecretDraft) {
+  return {
+    secret_ref: draft.secret_ref.trim(),
+    provider_code: nonBlank(draft.provider_code),
+    purpose: draft.purpose.trim().toUpperCase(),
+    scope_type: draft.scope_type,
+    scope_id: draft.scope_id.trim(),
+    secret_value: draft.secret_value,
+    secret_version: nonBlank(draft.secret_version),
+    expires_at: isoDateTime(draft.expires_at)
+  };
+}
+
+function validateSecretDraft(draft: SecretDraft) {
+  if (!draft.secret_ref.trim().startsWith('secret://')) {
+    return 'Secret 引用必须以 secret:// 开头';
+  }
+  if (draft.secret_ref.trim().length > 128) {
+    return 'Secret 引用不能超过 128 个字符';
+  }
+  if (!draft.purpose.trim()) {
+    return '请填写用途';
+  }
+  if (!draft.scope_id.trim()) {
+    return '请填写 Scope ID';
+  }
+  if (draft.secret_value.trim().length < 8) {
+    return '明文至少 8 位';
+  }
+  return '';
+}
+
+function isoDateTime(value?: string) {
+  const normalized = value?.trim();
+  if (!normalized) {
+    return undefined;
+  }
+  return new Date(normalized).toISOString();
 }
 
 function compactPayload<T extends Record<string, string | boolean | undefined>>(payload: T) {

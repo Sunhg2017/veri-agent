@@ -10,17 +10,21 @@ import com.songhg.veri.agent.management.api.request.CreateApplicationRequest;
 import com.songhg.veri.agent.management.api.request.CreateEnvironmentRequest;
 import com.songhg.veri.agent.management.api.request.CreateIntegrationRequest;
 import com.songhg.veri.agent.management.api.request.CreateProjectRequest;
+import com.songhg.veri.agent.management.api.request.CreateSecretReferenceRequest;
 import com.songhg.veri.agent.management.api.request.CreateSettingRequest;
+import com.songhg.veri.agent.management.api.request.DisableSecretReferenceRequest;
 import com.songhg.veri.agent.management.api.response.DepartmentView;
 import com.songhg.veri.agent.management.api.response.EnvironmentConnectivityCheckView;
 import com.songhg.veri.agent.management.api.response.EnvironmentView;
 import com.songhg.veri.agent.management.api.response.IntegrationView;
 import com.songhg.veri.agent.management.api.response.ProjectView;
 import com.songhg.veri.agent.management.api.request.ProjectMemberRequest;
+import com.songhg.veri.agent.management.api.request.RotateSecretReferenceRequest;
 import com.songhg.veri.agent.management.api.response.ProjectMemberView;
 import com.songhg.veri.agent.management.api.response.RoleView;
 import com.songhg.veri.agent.management.api.request.ScopedUserRoleRequest;
 import com.songhg.veri.agent.management.api.response.ScopedUserRoleView;
+import com.songhg.veri.agent.management.api.response.SecretReferenceView;
 import com.songhg.veri.agent.management.api.response.SettingView;
 import com.songhg.veri.agent.management.api.request.UpdateDepartmentRequest;
 import com.songhg.veri.agent.management.api.request.UpdateApplicationRequest;
@@ -144,4 +148,12 @@ public interface ManagementWorkspaceService {
     SettingView updateSetting(String key, UpdateSettingRequest request, AuthUserPrincipal actor);
 
     SettingView changeSettingStatus(String key, String status, AuthUserPrincipal actor);
+
+    PageResponse<SecretReferenceView> secrets(PageQuery pageQuery);
+
+    SecretReferenceView createSecret(CreateSecretReferenceRequest request, AuthUserPrincipal actor);
+
+    SecretReferenceView rotateSecret(RotateSecretReferenceRequest request, AuthUserPrincipal actor);
+
+    SecretReferenceView disableSecret(DisableSecretReferenceRequest request, AuthUserPrincipal actor);
 }

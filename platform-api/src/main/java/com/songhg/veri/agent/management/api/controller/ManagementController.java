@@ -13,11 +13,14 @@ import com.songhg.veri.agent.management.api.request.CreateEnvironmentRequest;
 import com.songhg.veri.agent.management.api.request.CreateIntegrationRequest;
 import com.songhg.veri.agent.management.api.request.CreateNamedRequest;
 import com.songhg.veri.agent.management.api.request.CreateProjectRequest;
+import com.songhg.veri.agent.management.api.request.CreateSecretReferenceRequest;
 import com.songhg.veri.agent.management.api.request.CreateSettingRequest;
+import com.songhg.veri.agent.management.api.request.DisableSecretReferenceRequest;
 import com.songhg.veri.agent.management.api.request.ManagementPageRequest;
 import com.songhg.veri.agent.management.api.request.ProjectMemberRequest;
 import com.songhg.veri.agent.management.api.request.ResetPasswordRequest;
 import com.songhg.veri.agent.management.api.request.RoleBindingRequest;
+import com.songhg.veri.agent.management.api.request.RotateSecretReferenceRequest;
 import com.songhg.veri.agent.management.api.request.ScopedUserRoleRequest;
 import com.songhg.veri.agent.management.api.request.StatusChangeRequest;
 import com.songhg.veri.agent.management.api.request.UpdateApplicationRequest;
@@ -38,6 +41,7 @@ import com.songhg.veri.agent.management.api.response.ProjectMemberView;
 import com.songhg.veri.agent.management.api.response.ProjectView;
 import com.songhg.veri.agent.management.api.response.RoleView;
 import com.songhg.veri.agent.management.api.response.ScopedUserRoleView;
+import com.songhg.veri.agent.management.api.response.SecretReferenceView;
 import com.songhg.veri.agent.management.api.response.SettingView;
 import com.songhg.veri.agent.management.api.response.UserView;
 import jakarta.validation.Valid;
@@ -667,6 +671,43 @@ public class ManagementController {
     ) {
         authorizationService.require(principal, "config:edit");
         return workspaceService.changeSettingStatus(key.trim(), request.status(), principal);
+    }
+
+    @GetMapping("/secrets")
+    public PageResponse<SecretReferenceView> secrets(
+            @Valid ManagementPageRequest pageRequest,
+            @AuthenticationPrincipal AuthUserPrincipal principal
+    ) {
+        authorizationService.require(principal, "secret:read");
+        return workspaceService.secrets(pageRequest.toPageQuery());
+    }
+
+    @PostMapping("/secrets")
+    @ResponseStatus(HttpStatus.CREATED)
+    public SecretReferenceView createSecret(
+            @Valid @RequestBody CreateSecretReferenceRequest request,
+            @AuthenticationPrincipal AuthUserPrincipal principal
+    ) {
+        authorizationService.require(principal, "secret:manage");
+        return workspaceService.createSecret(request, principal);
+    }
+
+    @PostMapping("/secrets/rotate")
+    public SecretReferenceView rotateSecret(
+            @Valid @RequestBody RotateSecretReferenceRequest request,
+            @AuthenticationPrincipal AuthUserPrincipal principal
+    ) {
+        authorizationService.require(principal, "secret:rotate");
+        return workspaceService.rotateSecret(request, principal);
+    }
+
+    @PostMapping("/secrets/disable")
+    public SecretReferenceView disableSecret(
+            @Valid @RequestBody DisableSecretReferenceRequest request,
+            @AuthenticationPrincipal AuthUserPrincipal principal
+    ) {
+        authorizationService.require(principal, "secret:disable");
+        return workspaceService.disableSecret(request, principal);
     }
 
     private String normalize(CreateNamedRequest request) {
