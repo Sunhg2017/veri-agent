@@ -9,9 +9,15 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.HexFormat;
+import java.util.Locale;
 import java.util.Optional;
+import java.util.UUID;
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
 import org.springframework.context.annotation.Profile;
 import org.springframework.core.annotation.Order;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -22,6 +28,14 @@ import org.springframework.util.StringUtils;
 @Profile("db")
 @Order(20)
 public class ExternalSecretProvider implements SecretProvider {
+
+    private static final String HMAC_ALGORITHM = "HmacSHA256";
+    private static final String SIGNATURE_ALGORITHM_HEADER = "X-VA-Secret-Signature-Algorithm";
+    private static final String SIGNATURE_KEY_ID_HEADER = "X-VA-Secret-Key-Id";
+    private static final String SIGNATURE_TIMESTAMP_HEADER = "X-VA-Secret-Timestamp";
+    private static final String SIGNATURE_NONCE_HEADER = "X-VA-Secret-Nonce";
+    private static final String SIGNATURE_HEADER = "X-VA-Secret-Signature";
+    private static final String DEFAULT_SIGNING_KEY_ID = "external-vault-kms";
 
     private final JdbcTemplate jdbcTemplate;
     private final SecretProviderProperties properties;
@@ -70,14 +84,13 @@ public class ExternalSecretProvider implements SecretProvider {
                     context == null ? null : context.scopeType(),
                     context == null ? null : context.scopeId()
             ));
-            HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create(properties.externalResolveUrl().trim()))
+            URI resolveUri = URI.create(properties.externalResolveUrl().trim());
+            HttpRequest.Builder builder = HttpRequest.newBuilder(resolveUri)
                     .timeout(resolveTimeout(properties))
-                    .header("Content-Type", "application/json")
-                    .POST(HttpRequest.BodyPublishers.ofString(payload, StandardCharsets.UTF_8));
-            if (StringUtils.hasText(properties.externalAuthToken())) {
-                builder.header("Authorization", "Bearer " + properties.externalAuthToken().trim());
-            }
-            HttpResponse<String> response = sendWithRetries(builder.build(), "resolve");
+                    .header("Content-Type", "application/json");
+            applyAuthenticationHeaders(builder, "POST", resolveUri, payload);
+            HttpRequest request = builder.POST(HttpRequest.BodyPublishers.ofString(payload, StandardCharsets.UTF_8)).build();
+            HttpResponse<String> response = sendWithRetries(request, "resolve");
             if (response.statusCode() == 404) {
                 return Optional.empty();
             }
@@ -117,12 +130,11 @@ public class ExternalSecretProvider implements SecretProvider {
             return SecretProviderHealth.externalHealthEndpointNotConfigured(timeoutSeconds, maxAttempts);
         }
         try {
-            HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create(properties.externalHealthUrl().trim()))
+            URI healthUri = URI.create(properties.externalHealthUrl().trim());
+            HttpRequest.Builder builder = HttpRequest.newBuilder(healthUri)
                     .timeout(resolveTimeout(properties))
                     .GET();
-            if (StringUtils.hasText(properties.externalAuthToken())) {
-                builder.header("Authorization", "Bearer " + properties.externalAuthToken().trim());
-            }
+            applyAuthenticationHeaders(builder, "GET", healthUri, "");
             HttpResponse<String> response = sendWithRetries(builder.build(), "health");
             if (response.statusCode() >= 200 && response.statusCode() < 300) {
                 return new SecretProviderHealth(
@@ -258,6 +270,48 @@ public class ExternalSecretProvider implements SecretProvider {
         return statusCode == 429 || statusCode >= 500;
     }
 
+    private void applyAuthenticationHeaders(HttpRequest.Builder builder, String method, URI uri, String body) throws Exception {
+        if (StringUtils.hasText(properties.externalAuthToken())) {
+            builder.header("Authorization", "Bearer " + properties.externalAuthToken().trim());
+        }
+        if (!StringUtils.hasText(properties.externalSigningSecret())) {
+            return;
+        }
+        String timestamp = Long.toString(Instant.now().getEpochSecond());
+        String nonce = UUID.randomUUID().toString();
+        String keyId = StringUtils.hasText(properties.externalSigningKeyId())
+                ? properties.externalSigningKeyId().trim()
+                : DEFAULT_SIGNING_KEY_ID;
+        String canonical = String.join("\n",
+                method.toUpperCase(Locale.ROOT),
+                requestTarget(uri),
+                timestamp,
+                nonce,
+                sha256Hex(body == null ? "" : body)
+        );
+        builder.header(SIGNATURE_ALGORITHM_HEADER, "HMAC-SHA256")
+                .header(SIGNATURE_KEY_ID_HEADER, keyId)
+                .header(SIGNATURE_TIMESTAMP_HEADER, timestamp)
+                .header(SIGNATURE_NONCE_HEADER, nonce)
+                .header(SIGNATURE_HEADER, hmacSha256(properties.externalSigningSecret().trim(), canonical));
+    }
+
+    private String requestTarget(URI uri) {
+        String path = StringUtils.hasText(uri.getRawPath()) ? uri.getRawPath() : "/";
+        return uri.getRawQuery() == null ? path : path + "?" + uri.getRawQuery();
+    }
+
+    private String sha256Hex(String value) throws Exception {
+        MessageDigest digest = MessageDigest.getInstance("SHA-256");
+        return HexFormat.of().formatHex(digest.digest(value.getBytes(StandardCharsets.UTF_8)));
+    }
+
+    private String hmacSha256(String secret, String value) throws Exception {
+        Mac mac = Mac.getInstance(HMAC_ALGORITHM);
+        mac.init(new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), HMAC_ALGORITHM));
+        return HexFormat.of().formatHex(mac.doFinal(value.getBytes(StandardCharsets.UTF_8)));
+    }
+
     private static int timeoutSeconds(SecretProviderProperties properties) {
         return properties.externalTimeoutSeconds() <= 0 ? 3 : properties.externalTimeoutSeconds();
     }
@@ -274,6 +328,9 @@ public class ExternalSecretProvider implements SecretProvider {
         String message = exception.getMessage();
         if (StringUtils.hasText(properties.externalAuthToken())) {
             message = message.replace(properties.externalAuthToken().trim(), "***");
+        }
+        if (StringUtils.hasText(properties.externalSigningSecret())) {
+            message = message.replace(properties.externalSigningSecret().trim(), "***");
         }
         if (StringUtils.hasText(properties.externalResolveUrl())) {
             message = message.replace(properties.externalResolveUrl().trim(), "<external-secret-endpoint>");

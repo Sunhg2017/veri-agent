@@ -10,6 +10,8 @@ public record SecretProviderProperties(
         String externalAuthToken,
         int externalTimeoutSeconds,
         int externalMaxRetries,
-        String externalHealthUrl
+        String externalHealthUrl,
+        String externalSigningKeyId,
+        String externalSigningSecret
 ) {
 }

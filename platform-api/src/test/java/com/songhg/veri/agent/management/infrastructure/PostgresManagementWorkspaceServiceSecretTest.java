@@ -34,6 +34,8 @@ class PostgresManagementWorkspaceServiceSecretTest {
             "",
             3,
             1,
+            "",
+            "",
             ""
     );
 

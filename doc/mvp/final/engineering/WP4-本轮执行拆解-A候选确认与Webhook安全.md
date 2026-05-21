@@ -76,7 +76,7 @@ AI 解析只通过 WP2 `ModelAccessService`，不在 WP4 直连外部模型 SDK�
 
 支持事件类型：`requirement.created`、`requirement.updated`、`requirement.statusChanged`、`requirement.archived`。事件源类型必须落在 `CUSTOM_API`，不得新增 `CUSTOM_WEBHOOK` 等重复枚举。
 
-当前 webhook 密钥解析的本轮口径为优先调用 WP1 `SecretProvider` 抽象；`db` profile 下支持 `LOCAL_ENCRYPTED` 的 `secret_reference` + `secret_local_store` 密文解析，并校验 ACTIVE、未过期、`WEBHOOK_SIGNING` 用途以及 `CONFIG + document_input_source.id` 作用域。外部 Vault/KMS provider 通过 `WP1_EXTERNAL_SECRET_RESOLVE_URL` resolve，支持 timeout、短暂失败 retry 和 `WP1_EXTERNAL_SECRET_HEALTH_URL` 健康探测；`/api/v1/document-input/health` 只返回脱敏健康摘要，不暴露 endpoint、token、secretRef 或明文。配置映射、`wp4-webhook-default` 和 `secret://wp4/*` 仅作为 dev/test fallback，可通过 `WP4_LOCAL_WEBHOOK_SECRET_FALLBACK_ENABLED=false` 禁用。
+当前 webhook 密钥解析的本轮口径为优先调用 WP1 `SecretProvider` 抽象；`db` profile 下支持 `LOCAL_ENCRYPTED` 的 `secret_reference` + `secret_local_store` 密文解析，并校验 ACTIVE、未过期、`WEBHOOK_SIGNING` 用途以及 `CONFIG + document_input_source.id` 作用域。外部 Vault/KMS provider 通过 `WP1_EXTERNAL_SECRET_RESOLVE_URL` resolve，支持 timeout、短暂失败 retry、`WP1_EXTERNAL_SECRET_HEALTH_URL` 健康探测，以及可选 `WP1_EXTERNAL_SECRET_SIGNING_KEY_ID` + `WP1_EXTERNAL_SECRET_SIGNING_SECRET` HMAC-SHA256 请求签名；`/api/v1/document-input/health` 只返回脱敏健康摘要，不暴露 endpoint、token、签名密钥、secretRef 或明文。配置映射、`wp4-webhook-default` 和 `secret://wp4/*` 仅作为 dev/test fallback，可通过 `WP4_LOCAL_WEBHOOK_SECRET_FALLBACK_ENABLED=false` 禁用。
 
 ### 3.3 Webhook 安全头建议
 

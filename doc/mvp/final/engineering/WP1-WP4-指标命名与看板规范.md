@@ -66,7 +66,7 @@
 |---|---|---|
 | WP1 audit 写入失败 | audit 失败计数持续大于 0 或 outbox 堆积 | WP1 owner，检查数据库权限和 outbox |
 | WP1 SecretProvider 失败 | secret resolve `result=FAILED` 持续出现 | WP1/安全 owner，检查 provider 状态、用途、作用域、过期 |
-| WP4 外部 SecretProvider 不可用 | `veri.agent.document_input.secret_provider.health` 中 `status=DOWN/UNKNOWN` 持续出现 | WP1/WP4/安全 owner，检查 `WP1_EXTERNAL_SECRET_HEALTH_URL`、resolve endpoint、网络和认证 |
+| WP4 外部 SecretProvider 不可用 | `veri.agent.document_input.secret_provider.health` 中 `status=DOWN/UNKNOWN` 持续出现 | WP1/WP4/安全 owner，检查 `WP1_EXTERNAL_SECRET_HEALTH_URL`、resolve endpoint、网络、Bearer token 和 HMAC 签名配置 |
 | WP2 provider 不可用 | provider check `status=DOWN` 或 invocation `MODEL_PROVIDER_UNAVAILABLE` 升高 | `WP2-Provider接入与SecretRef轮换Runbook.md` |
 | WP2 策略/预算阻断异常 | `MODEL_POLICY_VIOLATION` 或 `BUDGET_EXCEEDED` 激增 | WP2 + 项目 owner，确认项目策略和预算 |
 | WP4 webhook 签名失败激增 | `signature_status=INVALID/EXPIRED/MISSING` 突增 | `WP4-Webhook签名样例与联调说明.md` |

@@ -12,9 +12,11 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.Duration;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -22,6 +24,8 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Flow;
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
 import javax.net.ssl.SSLSession;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLParameters;
@@ -81,7 +85,7 @@ class ExternalSecretProviderTest {
     void requiresExternalResolveEndpointForVaultOrKms() {
         ExternalSecretProvider provider = new ExternalSecretProvider(
                 jdbcTemplateReturning(row(UUID.randomUUID().toString())),
-                new SecretProviderProperties("", "v1", "", "token", 3, 1, ""),
+                new SecretProviderProperties("", "v1", "", "token", 3, 1, "", "", ""),
                 new ObjectMapper(),
                 new CapturingHttpClient(200, "{}")
         );
@@ -95,7 +99,7 @@ class ExternalSecretProviderTest {
     void reportsDisabledHealthWhenExternalEndpointIsMissing() {
         ExternalSecretProvider provider = new ExternalSecretProvider(
                 jdbcTemplateReturning(row(UUID.randomUUID().toString())),
-                new SecretProviderProperties("", "v1", "", "token", 3, 1, ""),
+                new SecretProviderProperties("", "v1", "", "token", 3, 1, "", "", ""),
                 new ObjectMapper(),
                 new CapturingHttpClient(200, "{}")
         );
@@ -112,7 +116,7 @@ class ExternalSecretProviderTest {
     void reportsUnknownHealthWhenHealthEndpointIsMissing() {
         ExternalSecretProvider provider = new ExternalSecretProvider(
                 jdbcTemplateReturning(row(UUID.randomUUID().toString())),
-                new SecretProviderProperties("", "v1", "https://vault.example.test/resolve", "token", 3, 1, ""),
+                new SecretProviderProperties("", "v1", "https://vault.example.test/resolve", "token", 3, 1, "", "", ""),
                 new ObjectMapper(),
                 new CapturingHttpClient(200, "{}")
         );
@@ -165,7 +169,8 @@ class ExternalSecretProviderTest {
         ));
         ExternalSecretProvider provider = new ExternalSecretProvider(
                 jdbcTemplateReturning(row(scopeId)),
-                new SecretProviderProperties("", "v1", "https://vault.example.test/resolve", "token", 3, 1, "https://vault.example.test/health"),
+                new SecretProviderProperties("", "v1", "https://vault.example.test/resolve", "token", 3, 1,
+                        "https://vault.example.test/health", "", ""),
                 new ObjectMapper(),
                 httpClient
         );
@@ -182,13 +187,142 @@ class ExternalSecretProviderTest {
         assertThat(httpClient.sendCount).isEqualTo(2);
     }
 
-    private ExternalSecretProvider provider(ExternalSecretDbRow row, CapturingHttpClient httpClient, String token) {
-        return new ExternalSecretProvider(
-                jdbcTemplateReturning(row),
-                new SecretProviderProperties("", "v1", "https://vault.example.test/resolve", token, 3, 1, "https://vault.example.test/health"),
+    @Test
+    void signsResolveRequestsWhenSigningSecretIsConfigured() throws Exception {
+        String scopeId = UUID.randomUUID().toString();
+        CapturingHttpClient httpClient = new CapturingHttpClient(200, "{\"value\":\"vault-secret\"}");
+        ExternalSecretProvider provider = new ExternalSecretProvider(
+                jdbcTemplateReturning(row(scopeId)),
+                new SecretProviderProperties("", "v1", "https://vault.example.test/resolve?env=prod",
+                        "external-token", 3, 1, "https://vault.example.test/health",
+                        "vault-key-1", "external-signing-secret"),
                 new ObjectMapper(),
                 httpClient
         );
+
+        provider.resolve("vault://wp4/source-a", new SecretResolveContext(
+                "WEBHOOK_SIGNING",
+                "wp4-document-input",
+                "CONFIG",
+                scopeId
+        ));
+
+        HttpHeaders headers = httpClient.lastRequest.headers();
+        String timestamp = headers.firstValue("X-VA-Secret-Timestamp").orElseThrow();
+        String nonce = headers.firstValue("X-VA-Secret-Nonce").orElseThrow();
+        String canonical = String.join("\n",
+                "POST",
+                "/resolve?env=prod",
+                timestamp,
+                nonce,
+                sha256Hex(httpClient.lastBody)
+        );
+
+        assertThat(headers.firstValue("Authorization")).contains("Bearer external-token");
+        assertThat(headers.firstValue("X-VA-Secret-Signature-Algorithm")).contains("HMAC-SHA256");
+        assertThat(headers.firstValue("X-VA-Secret-Key-Id")).contains("vault-key-1");
+        assertThat(headers.firstValue("X-VA-Secret-Signature")).contains(hmacSha256("external-signing-secret", canonical));
+        assertThat(httpClient.lastBody).doesNotContain("external-signing-secret");
+    }
+
+    @Test
+    void signsHealthRequestsWhenSigningSecretIsConfigured() throws Exception {
+        CapturingHttpClient httpClient = new CapturingHttpClient(200, "{\"status\":\"UP\"}");
+        ExternalSecretProvider provider = new ExternalSecretProvider(
+                jdbcTemplateReturning(row(UUID.randomUUID().toString())),
+                new SecretProviderProperties("", "v1", "https://vault.example.test/resolve",
+                        "", 3, 1, "https://vault.example.test/health",
+                        "vault-key-1", "external-signing-secret"),
+                new ObjectMapper(),
+                httpClient
+        );
+
+        SecretProviderHealth health = provider.health();
+
+        HttpHeaders headers = httpClient.lastRequest.headers();
+        String timestamp = headers.firstValue("X-VA-Secret-Timestamp").orElseThrow();
+        String nonce = headers.firstValue("X-VA-Secret-Nonce").orElseThrow();
+        String canonical = String.join("\n",
+                "GET",
+                "/health",
+                timestamp,
+                nonce,
+                sha256Hex("")
+        );
+
+        assertThat(health.status()).isEqualTo("UP");
+        assertThat(headers.firstValue("X-VA-Secret-Key-Id")).contains("vault-key-1");
+        assertThat(headers.firstValue("X-VA-Secret-Signature")).contains(hmacSha256("external-signing-secret", canonical));
+    }
+
+    @Test
+    void reportsDownHealthWithoutLeakingSigningSecret() {
+        CapturingHttpClient httpClient = new CapturingHttpClient(new IllegalStateException(
+                "auth failed external-signing-secret https://vault.example.test/health"
+        ));
+        ExternalSecretProvider provider = new ExternalSecretProvider(
+                jdbcTemplateReturning(row(UUID.randomUUID().toString())),
+                new SecretProviderProperties("", "v1", "https://vault.example.test/resolve",
+                        "", 3, 1, "https://vault.example.test/health",
+                        "vault-key-1", "external-signing-secret"),
+                new ObjectMapper(),
+                httpClient
+        );
+
+        SecretProviderHealth health = provider.health();
+
+        assertThat(health.status()).isEqualTo("DOWN");
+        assertThat(health.lastErrorMessage())
+                .doesNotContain("external-signing-secret")
+                .doesNotContain("https://vault.example.test/health")
+                .contains("<external-secret-health>");
+    }
+
+    @Test
+    void authenticationFailureDoesNotRevealSecretRefOrSigningSecret() {
+        String scopeId = UUID.randomUUID().toString();
+        CapturingHttpClient httpClient = new CapturingHttpClient(401, "{\"error\":\"vault://wp4/source-a denied\"}");
+        ExternalSecretProvider provider = new ExternalSecretProvider(
+                jdbcTemplateReturning(row(scopeId)),
+                new SecretProviderProperties("", "v1", "https://vault.example.test/resolve",
+                        "", 3, 1, "https://vault.example.test/health",
+                        "vault-key-1", "external-signing-secret"),
+                new ObjectMapper(),
+                httpClient
+        );
+
+        assertThatThrownBy(() -> provider.resolve("vault://wp4/source-a", new SecretResolveContext(
+                "WEBHOOK_SIGNING",
+                "wp4-document-input",
+                "CONFIG",
+                scopeId
+        )))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("异常状态: 401")
+                .hasMessageNotContaining("vault://wp4/source-a")
+                .hasMessageNotContaining("external-signing-secret")
+                .hasMessageNotContaining("https://vault.example.test/resolve");
+    }
+
+    private ExternalSecretProvider provider(ExternalSecretDbRow row, CapturingHttpClient httpClient, String token) {
+        return new ExternalSecretProvider(
+                jdbcTemplateReturning(row),
+                new SecretProviderProperties("", "v1", "https://vault.example.test/resolve", token, 3, 1,
+                        "https://vault.example.test/health", "", ""),
+                new ObjectMapper(),
+                httpClient
+        );
+    }
+
+    private String sha256Hex(String value) throws Exception {
+        MessageDigest digest = MessageDigest.getInstance("SHA-256");
+        return HexFormat.of().formatHex(digest.digest(value.getBytes(StandardCharsets.UTF_8)));
+    }
+
+    private String hmacSha256(String secret, String value) throws Exception {
+        Mac mac = Mac.getInstance("HmacSHA256");
+        mac.init(new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
+        return HexFormat.of().formatHex(mac.doFinal(value.getBytes(StandardCharsets.UTF_8)));
     }
 
     private static CapturingHttpClient.ResponseSpec response(int statusCode, String body) {

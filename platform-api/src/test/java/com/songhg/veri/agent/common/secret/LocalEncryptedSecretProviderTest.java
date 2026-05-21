@@ -65,7 +65,7 @@ class LocalEncryptedSecretProviderTest {
         String scopeId = UUID.randomUUID().toString();
         LocalSecretCipher.EncryptedMaterial material = LocalSecretCipher.encrypt(
                 "provider-created-secret",
-                new SecretProviderProperties(MASTER_KEY, "v1", "", "", 3, 1, "")
+                new SecretProviderProperties(MASTER_KEY, "v1", "", "", 3, 1, "", "", "")
         );
         LocalEncryptedSecretProvider provider = provider(row(scopeId, material));
 
@@ -82,7 +82,7 @@ class LocalEncryptedSecretProviderTest {
     }
 
     private LocalEncryptedSecretProvider provider(SecretDbRow row) {
-        return new LocalEncryptedSecretProvider(jdbcTemplateReturning(row), new SecretProviderProperties(MASTER_KEY, "v1", "", "", 3, 1, ""));
+        return new LocalEncryptedSecretProvider(jdbcTemplateReturning(row), new SecretProviderProperties(MASTER_KEY, "v1", "", "", 3, 1, "", "", ""));
     }
 
     private JdbcTemplate jdbcTemplateReturning(SecretDbRow row) {
@@ -131,7 +131,7 @@ class LocalEncryptedSecretProviderTest {
     }
 
     private LocalSecretCipher.EncryptedMaterial encrypt(String value) {
-        return LocalSecretCipher.encrypt(value, new SecretProviderProperties(MASTER_KEY, "v1", "", "", 3, 1, ""));
+        return LocalSecretCipher.encrypt(value, new SecretProviderProperties(MASTER_KEY, "v1", "", "", 3, 1, "", "", ""));
     }
 
     private record SecretDbRow(
