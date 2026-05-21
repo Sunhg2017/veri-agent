@@ -15,7 +15,7 @@ WP3 当前提供测试资产的最小闭环：需求、API、页面、业务流�
 
 1. 需求资产：创建、详情、编辑、列表分页与 `projectId/status/source/keyword` 筛选。
 2. API 资产：创建、详情、编辑、列表分页与基础筛选。
-3. 页面资产：创建、详情、编辑、列表分页，保留 `sourceRef/componentTree/screenshotUrl` 作为原型输入预留。
+3. 页面资产：创建、详情、编辑、列表分页，保留 `sourceRef/sourceVersion/componentTree/screenshotUrl` 作为原型输入预留。
 4. 业务流资产：创建、详情、编辑、列表分页。
 5. 测试用例：创建、详情、编辑、步骤替换、列表分页。
 6. 追踪链接：需求到 API/用例的链接创建与查询。
@@ -58,7 +58,7 @@ WP3 当前提供测试资产的最小闭环：需求、API、页面、业务流�
 
 ## 5. 数据模型
 
-PostgreSQL 表位于 `db/migration/wp1/V20260518_014__wp3_asset_base_schema.sql`，生命周期扩展位于 `db/migration/wp1/V20260521_022__wp3_asset_lifecycle.sql`：
+PostgreSQL 表位于 `db/migration/wp1/V20260518_014__wp3_asset_base_schema.sql`，生命周期扩展位于 `db/migration/wp1/V20260521_022__wp3_asset_lifecycle.sql`，页面原型来源版本预留位于 `db/migration/wp1/V20260521_023__wp3_page_prototype_source_version.sql`：
 
 - `asset_requirement`
 - `asset_api`
@@ -96,6 +96,12 @@ PostgreSQL 表位于 `db/migration/wp1/V20260518_014__wp3_asset_base_schema.sql`
 - `DELETED` 释放现有 partial unique index；恢复前校验项目内 code/sourceRef/path 等唯一性冲突，冲突返回 `CONFLICT`。
 - 需求和测试用例的归档、软删除、恢复会写入 `asset_version_history`，trace link 不随资产软删除被清理。
 
+页面原型输入口径：
+
+- 页面资产 `source` 支持 `MANUAL/FIGMA/LANHU/AXURE`，`sourceRef` 保存外部页面、节点或原型标识。
+- `sourceVersion` 保存外部原型版本、节点版本或导入批次版本，避免与页面资产自身历史版本混用。
+- `componentTree` 保存标准化组件树 JSON，`screenshotUrl` 保存截图或预览图地址；当前不实现外部连接器拉取和自动同步。
+
 导入/导出口径：
 
 - `POST /api/v1/asset/imports` 请求字段为 `assetType`、`format`、`projectId`、`dryRun`、`content`；`assetType` 支持 `REQUIREMENT/API/TEST_CASE`，`format` 支持 `CSV/JSON/OPENAPI`，其中 `OPENAPI` 仅支持 API 资产。
@@ -118,7 +124,7 @@ PostgreSQL 表位于 `db/migration/wp1/V20260518_014__wp3_asset_base_schema.sql`
 - 展示 WP4 发布的 `source/sourceRef/sourceUrl/acceptanceCriteria`。
 - 支持 API 列表、详情、创建、编辑、`method/path/status/source/keyword` 筛选、`version` 展示/编辑和 request/response schema 展示。
 - API 页保留 OpenAPI 导入入口；后端已有 OpenAPI schema/version/idempotent 导入导出接口，前端导入工作流和 schema diff 仍归后续前端增强。
-- 支持页面资产列表、详情、创建、编辑、`projectId/status/source/keyword` 筛选、`sourceRef/screenshotUrl` 展示和 `componentTree` JSON 预览/编辑校验。
+- 支持页面资产列表、详情、创建、编辑、`projectId/status/source/keyword` 筛选、`sourceRef/sourceVersion/screenshotUrl` 展示和 `componentTree` JSON 预览/编辑校验。
 - 支持业务流资产列表、详情、创建、编辑、`projectId/status/keyword` 筛选、状态流入口和 `flowJson` JSON 预览/编辑校验。
 - 支持测试用例列表、详情、创建、编辑、`projectId/status/source/keyword` 筛选、关联需求/API 展示与跳转、步骤新增/删除/上移/下移和整体保存。
 - 支持追踪矩阵只读页面：按 `projectId`、需求/API/用例状态、覆盖状态和关键词筛选，展示需求维度覆盖矩阵、缺 API/用例缺口、孤立 API/用例和需求/API/用例的一跳影响范围。
@@ -157,4 +163,4 @@ PR/主干 CI 可通过 `.github/workflows/wp3-asset-management.yml` 复用同一
 
 ## 9. 后续入口
 
-后续优先补齐历史版本回滚、前端导入导出工作流、后端聚合影响分析服务和页面/业务流追踪关系。
+后续优先补齐历史版本回滚、前端导入导出工作流、后端聚合影响分析服务、页面/业务流追踪关系和真实原型连接器同步。

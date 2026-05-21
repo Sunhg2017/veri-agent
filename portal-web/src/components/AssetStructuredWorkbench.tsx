@@ -67,6 +67,7 @@ type StructuredAssetView = {
   urlPattern?: string;
   source?: string;
   sourceRef?: string;
+  sourceVersion?: string;
   screenshotUrl?: string;
   priority?: string;
   jsonText?: string;
@@ -86,6 +87,7 @@ type StructuredDraft = {
   urlPattern: string;
   source: string;
   sourceRef: string;
+  sourceVersion: string;
   screenshotUrl: string;
   priority: string;
   status: string;
@@ -467,7 +469,7 @@ export function AssetStructuredWorkbench(props: {
                         {props.activeTab === 'pages' ? (
                           <div className="asset-source-cell">
                             <span>{item.urlPattern ?? '-'}</span>
-                            <em>{item.sourceRef ?? item.source ?? '-'}</em>
+                            <em>{[item.sourceRef, item.sourceVersion].filter(Boolean).join(' · ') || item.source || '-'}</em>
                           </div>
                         ) : (
                           item.priority ?? '-'
@@ -583,6 +585,10 @@ export function AssetStructuredWorkbench(props: {
                     <div>
                       <span>sourceRef</span>
                       <em>{selected.sourceRef ?? '-'}</em>
+                    </div>
+                    <div>
+                      <span>sourceVersion</span>
+                      <em>{selected.sourceVersion ?? '-'}</em>
                     </div>
                     <div>
                       <span>screenshotUrl</span>
@@ -712,6 +718,16 @@ function StructuredAssetForm(props: {
                 placeholder="figma-node-1"
               />
             </label>
+            <label className="field" htmlFor={`asset-${props.activeTab}-source-version`}>
+              <span>sourceVersion</span>
+              <input
+                id={`asset-${props.activeTab}-source-version`}
+                value={props.draft.sourceVersion}
+                disabled={props.disabled}
+                onChange={(event) => props.onChange((current) => ({ ...current, sourceVersion: event.target.value }))}
+                placeholder="figma-v42"
+              />
+            </label>
             <label className="field" htmlFor={`asset-${props.activeTab}-screenshot`}>
               <span>screenshotUrl</span>
               <input
@@ -827,6 +843,7 @@ function initialDraft(tab: StructuredTabKey): StructuredDraft {
     urlPattern: '',
     source: 'MANUAL',
     sourceRef: '',
+    sourceVersion: '',
     screenshotUrl: '',
     priority: 'MEDIUM',
     status: tab === 'pages' ? 'ACTIVE' : 'DRAFT',
@@ -865,6 +882,7 @@ function pageToView(page: AssetPageView): StructuredAssetView {
     urlPattern: page.urlPattern,
     source: page.source,
     sourceRef: page.sourceRef,
+    sourceVersion: page.sourceVersion,
     screenshotUrl: page.screenshotUrl,
     jsonText: page.componentTree
   };
@@ -901,6 +919,7 @@ function draftFromView(tab: StructuredTabKey, asset: StructuredAssetView): Struc
     urlPattern: asset.urlPattern ?? '',
     source: asset.source ?? 'MANUAL',
     sourceRef: asset.sourceRef ?? '',
+    sourceVersion: asset.sourceVersion ?? '',
     screenshotUrl: asset.screenshotUrl ?? '',
     priority: asset.priority ?? 'MEDIUM',
     status: asset.status || (tab === 'pages' ? 'ACTIVE' : 'DRAFT'),
@@ -915,6 +934,7 @@ function pageCreatePayload(draft: StructuredDraft, componentTree: unknown): Asse
     urlPattern: draft.urlPattern,
     source: draft.source,
     sourceRef: draft.sourceRef,
+    sourceVersion: draft.sourceVersion,
     componentTree,
     screenshotUrl: draft.screenshotUrl,
     status: draft.status
@@ -927,6 +947,7 @@ function pageUpdatePayload(draft: StructuredDraft, componentTree: unknown): Asse
     urlPattern: draft.urlPattern,
     source: draft.source,
     sourceRef: draft.sourceRef,
+    sourceVersion: draft.sourceVersion,
     componentTree,
     screenshotUrl: draft.screenshotUrl,
     status: draft.status
@@ -969,7 +990,7 @@ function filterItems(items: StructuredAssetView[], filters: StructuredFilters, t
     if (!keyword) {
       return true;
     }
-    return [item.name, item.description, item.code, item.urlPattern, item.sourceRef, item.projectId]
+    return [item.name, item.description, item.code, item.urlPattern, item.sourceRef, item.sourceVersion, item.projectId]
       .filter(Boolean)
       .some((value) => String(value).toLowerCase().includes(keyword));
   });

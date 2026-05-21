@@ -58,6 +58,7 @@
             <arg column="url_pattern" javaType="java.lang.String"/>
             <arg column="source" javaType="java.lang.String"/>
             <arg column="source_ref" javaType="java.lang.String"/>
+            <arg column="source_version" javaType="java.lang.String"/>
             <arg column="component_tree" javaType="java.lang.String"/>
             <arg column="screenshot_url" javaType="java.lang.String"/>
             <arg column="project_id" javaType="java.lang.String"/>
@@ -161,7 +162,7 @@
     </sql>
 
     <sql id="pageColumns">
-        id, code, name, url_pattern, source, source_ref, component_tree::text as component_tree, screenshot_url,
+        id, code, name, url_pattern, source, source_ref, source_version, component_tree::text as component_tree, screenshot_url,
         project_id, status, lifecycle_status, archived_at, deleted_at, created_at, updated_at
     </sql>
 
@@ -448,10 +449,11 @@
     <insert id="insertPage">
         insert into asset_page (
             id, project_id, code, name, url_pattern, source, source_ref,
-            component_tree, screenshot_url, status, lifecycle_status, archived_at, deleted_at, created_at, updated_at
+            source_version, component_tree, screenshot_url, status, lifecycle_status, archived_at, deleted_at, created_at, updated_at
         ) values (
             #{id}, #{projectId}, #{code},
             #{name}, #{urlPattern}, #{source}, #{sourceRef},
+            #{sourceVersion},
             cast(coalesce(#{componentTree}, '{}') as jsonb),
             #{screenshotUrl}, #{status}, #{lifecycleStatus}, #{archivedAt}, #{deletedAt}, #{createdAt}, #{updatedAt}
         )
@@ -463,6 +465,7 @@
             url_pattern = #{urlPattern},
             source = #{source},
             source_ref = #{sourceRef},
+            source_version = #{sourceVersion},
             component_tree = cast(coalesce(#{componentTree}, '{}') as jsonb),
             screenshot_url = #{screenshotUrl},
             status = #{status},

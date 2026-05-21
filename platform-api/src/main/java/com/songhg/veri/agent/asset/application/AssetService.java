@@ -488,7 +488,7 @@ public class AssetService {
                 .filter(value -> matchesLifecycle(value.lifecycleStatus(), value.deletedAt(), lifecycleStatus))
                 .filter(value -> matches(value.status(), request.getStatus()))
                 .filter(value -> matches(value.source(), request.getSource()))
-                .filter(value -> containsKeyword(request.getKeyword(), value.code(), value.name(), value.urlPattern(), value.sourceRef()))
+                .filter(value -> containsKeyword(request.getKeyword(), value.code(), value.name(), value.urlPattern(), value.sourceRef(), value.sourceVersion()))
                 .map(AssetService::toPageResponse)
                 .sorted(Comparator.comparing(PageResponse::createdAt).reversed())
                 .toList();
@@ -519,6 +519,7 @@ public class AssetService {
                 request.urlPattern(),
                 valueIn(request.source(), "MANUAL", PAGE_SOURCES, "source"),
                 request.sourceRef(),
+                trimToNull(request.sourceVersion()),
                 jsonValue(request.componentTree()),
                 request.screenshotUrl(),
                 request.projectId(),
@@ -555,6 +556,7 @@ public class AssetService {
                 request.urlPattern(),
                 valueIn(request.source(), existing.source(), PAGE_SOURCES, "source"),
                 request.sourceRef(),
+                trimToNull(request.sourceVersion()),
                 jsonValue(request.componentTree()),
                 request.screenshotUrl(),
                 existing.projectId(),
@@ -591,6 +593,7 @@ public class AssetService {
                 existing.urlPattern(),
                 existing.source(),
                 existing.sourceRef(),
+                existing.sourceVersion(),
                 existing.componentTree(),
                 existing.screenshotUrl(),
                 existing.projectId(),
@@ -1427,7 +1430,7 @@ public class AssetService {
 
     private static PageResponse toPageResponse(AssetPage p) {
         return new PageResponse(
-                p.id(), p.code(), p.name(), p.urlPattern(), p.source(), p.sourceRef(), p.componentTree(), p.screenshotUrl(),
+                p.id(), p.code(), p.name(), p.urlPattern(), p.source(), p.sourceRef(), p.sourceVersion(), p.componentTree(), p.screenshotUrl(),
                 p.projectId(), p.status(),
                 lifecycleStatus(p.lifecycleStatus(), p.deletedAt()), p.archivedAt(), p.deletedAt(),
                 p.createdAt(), p.updatedAt()

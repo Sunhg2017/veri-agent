@@ -10,7 +10,7 @@ WP3 负责承接 WP4 输入、WP5 用例生成、后续执行与报告链路所�
 |---|---|---|
 | Requirement | 需求资产，支持手工创建和 WP4 导入 | P0 可用 |
 | API | 接口资产，保存 path/method/schema | P0 可用，OpenAPI 导入为 P1 |
-| Page | 页面资产，保留原型来源和组件树 | P0 可用，真实原型连接器为 P2 |
+| Page | 页面资产，保留原型来源、原型版本、组件树和截图地址 | P0 可用，真实原型连接器为 P2 |
 | BusinessFlow | 业务流程资产，保存结构化 flowJson | P0 可用 |
 | TestCase | 测试用例，关联需求/API，维护步骤 | P0 可用 |
 | TraceLink | 需求、API、用例之间的追踪关系 | P0 可用 |
@@ -77,7 +77,18 @@ WP4 发布候选到 WP3 时：
 3. 重复导入同一 `externalRequirementId` 更新既有 DRAFT 需求。
 4. 既有需求非 DRAFT 且存在差异时阻断，等待人工评审。
 
-## 9. 后续设计约束
+## 9. 页面原型预留
+
+页面资产当前只做连接器前置预留，不拉取外部原型系统：
+
+- `source` 标识来源：`MANUAL/FIGMA/LANHU/AXURE`。
+- `sourceRef` 保存外部页面、节点或原型标识。
+- `sourceVersion` 保存外部原型版本、节点版本或导入批次版本。
+- `componentTree` 保存标准化组件树 JSON，`screenshotUrl` 保存截图或预览图地址。
+
+真实连接器后续必须写入同一组字段，并继续走 WP1 RBAC、项目上下文和审计链路。
+
+## 10. 后续设计约束
 
 - API 不回到 snake_case。
 - 不引入独立 `asset-service`。

@@ -424,6 +424,7 @@ describe('asset API helpers', () => {
       url_pattern: '/checkout/**',
       source: 'figma',
       source_ref: 'figma-node-1',
+      source_version: 'figma-v42',
       component_tree: { type: 'page', children: [{ role: 'button', text: '提交订单' }] },
       screenshot_url: 'https://cdn.example.test/checkout.png',
       project_id: 'proj-payments',
@@ -437,6 +438,7 @@ describe('asset API helpers', () => {
       urlPattern: '/checkout/**',
       source: 'FIGMA',
       sourceRef: 'figma-node-1',
+      sourceVersion: 'figma-v42',
       componentTree: '{"type":"page","children":[{"role":"button","text":"提交订单"}]}',
       screenshotUrl: 'https://cdn.example.test/checkout.png',
       projectId: 'proj-payments',
@@ -485,6 +487,7 @@ describe('asset API helpers', () => {
       urlPattern: ' /checkout/** ',
       source: 'FIGMA',
       sourceRef: '',
+      sourceVersion: ' figma-v42 ',
       componentTree: { type: 'page' },
       screenshotUrl: ' https://cdn.example.test/checkout.png ',
       status: 'ACTIVE'
@@ -496,6 +499,7 @@ describe('asset API helpers', () => {
         name: '结算页',
         urlPattern: '/checkout/**',
         source: 'FIGMA',
+        sourceVersion: 'figma-v42',
         componentTree: { type: 'page' },
         screenshotUrl: 'https://cdn.example.test/checkout.png',
         status: 'ACTIVE'
@@ -504,6 +508,7 @@ describe('asset API helpers', () => {
 
     await updateAssetPage('page 1', {
       name: '结算页',
+      sourceVersion: ' figma-v43 ',
       componentTree: ['header', 'submit'],
       status: 'DEPRECATED'
     });
@@ -511,6 +516,7 @@ describe('asset API helpers', () => {
       method: 'PUT',
       body: JSON.stringify({
         name: '结算页',
+        sourceVersion: 'figma-v43',
         componentTree: ['header', 'submit'],
         status: 'DEPRECATED'
       })

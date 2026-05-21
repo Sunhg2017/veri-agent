@@ -337,6 +337,7 @@ class AssetControllerTest {
                                   "urlPattern": "/auth/login",
                                   "source": "FIGMA",
                                   "sourceRef": "figma-node-1",
+                                  "sourceVersion": "figma-v42",
                                   "componentTree": {"form": "login"},
                                   "screenshotUrl": "https://example.test/login.png",
                                   "status": "DEPRECATED"
@@ -345,6 +346,7 @@ class AssetControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.name").value("登录页V2"))
                 .andExpect(jsonPath("$.data.source").value("FIGMA"))
+                .andExpect(jsonPath("$.data.sourceVersion").value("figma-v42"))
                 .andExpect(jsonPath("$.data.status").value("DEPRECATED"));
 
         mockMvc.perform(get("/api/v1/asset/pages")

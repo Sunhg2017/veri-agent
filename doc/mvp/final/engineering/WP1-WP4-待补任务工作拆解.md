@@ -143,7 +143,7 @@ WP3 是当前最需要补齐的工作包。后端已有需求、API、页面、�
 | WP3-B4 | 软删除、归档和恢复策略 | P1 | DONE-CURRENT | 已为需求、API、页面、业务流和测试用例新增独立 `lifecycleStatus=ACTIVE/ARCHIVED/DELETED`、生命周期查询/更新 API、默认 ACTIVE 列表过滤、恢复唯一性冲突校验和需求/用例生命周期历史 | 删除不破坏 trace link 和审计追溯；`DELETED` 复用 `deleted_at` 释放现有 partial unique index，恢复冲突返回稳定错误 |
 | WP3-B5 | 导入/导出能力 | P1 | DONE | 已新增 `/api/v1/asset/imports` 与 `/api/v1/asset/exports`，支持需求、API、测试用例 CSV/JSON 导入导出，并支持 API 资产轻量 OpenAPI 导入导出；导入提供 `dryRun`、逐行 action/status/errors，导出仅输出业务字段不包含 traceId/snapshot/history | 导出脱敏，导入有 dryRun 和错误明细 |
 | WP3-B6 | API 资产 OpenAPI 导入 | P1 | DONE-CURRENT | OpenAPI 导入解析 `paths` 下的 path、method、summary、description、request/response schema 与 `info.version`，写入 API `source/sourceRef/version`；重复导入按 `projectId + path + httpMethod` 命中既有 API 后返回 `LINK_EXISTING` 或 `UPDATE` | 重复导入幂等更新同一接口，不重复创建；dryRun 可预览 create/update/link 结果 |
-| WP3-B7 | 页面资产原型输入预留 | P2 | TODO | 为 Figma/蓝湖/Axure 接入保留 sourceRef、componentTree、截图和版本映射 | 不实现真实连接器也不阻碍后续接入 |
+| WP3-B7 | 页面资产原型输入预留 | P2 | DONE-CURRENT | 页面资产已为 Figma/蓝湖/Axure/手工来源保留 `sourceRef/sourceVersion/componentTree/screenshotUrl`，后端、DB validation、OpenAPI 契约和 portal-web 创建/编辑/详情已贯通；真实连接器仍归后续 P2 | 不实现真实连接器也不阻碍后续接入；页面可保存外部原型节点版本或导入批次版本 |
 
 ### WP3-C 权限、审计与上下文
 

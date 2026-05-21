@@ -68,6 +68,7 @@ class AssetOpenApiContractTest {
         String openApi = result.getResponse().getContentAsString();
         MatcherAssert.assertThat(openApi, containsString("projectId"));
         MatcherAssert.assertThat(openApi, containsString("sourceRef"));
+        MatcherAssert.assertThat(openApi, containsString("sourceVersion"));
         MatcherAssert.assertThat(openApi, containsString("acceptanceCriteria"));
         MatcherAssert.assertThat(openApi, containsString("lifecycleStatus"));
         MatcherAssert.assertThat(openApi, containsString("archivedAt"));

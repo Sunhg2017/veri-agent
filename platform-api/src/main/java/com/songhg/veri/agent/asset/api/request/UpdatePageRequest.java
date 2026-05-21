@@ -7,6 +7,7 @@ public record UpdatePageRequest(
         String urlPattern,
         String source,
         String sourceRef,
+        String sourceVersion,
         Object componentTree,
         String screenshotUrl,
         String status

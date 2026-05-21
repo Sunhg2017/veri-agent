@@ -125,6 +125,7 @@ export interface AssetPageView {
   urlPattern?: string;
   source: AssetPageSource | string;
   sourceRef?: string;
+  sourceVersion?: string;
   componentTree?: string;
   screenshotUrl?: string;
   projectId?: string;
@@ -155,6 +156,7 @@ export interface AssetPagePayload {
   urlPattern?: string;
   source?: string;
   sourceRef?: string;
+  sourceVersion?: string;
   componentTree?: unknown;
   screenshotUrl?: string;
   status?: string;
@@ -587,6 +589,7 @@ export function normalizeAssetPageView(raw: unknown): AssetPageView {
     urlPattern: optionalString(item.urlPattern) ?? optionalString(item.url_pattern),
     source: enumString(item.source, ASSET_PAGE_SOURCES, 'MANUAL'),
     sourceRef: optionalString(item.sourceRef) ?? optionalString(item.source_ref),
+    sourceVersion: optionalString(item.sourceVersion) ?? optionalString(item.source_version),
     componentTree: optionalJsonString(item.componentTree) ?? optionalJsonString(item.component_tree),
     screenshotUrl: optionalString(item.screenshotUrl) ?? optionalString(item.screenshot_url),
     projectId: optionalString(item.projectId) ?? optionalString(item.project_id),

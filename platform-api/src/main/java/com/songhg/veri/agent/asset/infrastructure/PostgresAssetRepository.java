@@ -365,6 +365,7 @@ public class PostgresAssetRepository implements AssetRepository {
                 page.urlPattern(),
                 page.source(),
                 page.sourceRef(),
+                page.sourceVersion(),
                 page.componentTree(),
                 page.screenshotUrl(),
                 page.projectId(),

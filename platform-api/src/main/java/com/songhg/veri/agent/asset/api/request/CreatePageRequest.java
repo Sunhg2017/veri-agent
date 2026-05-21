@@ -7,6 +7,7 @@ public record CreatePageRequest(
         String urlPattern,
         String source,
         String sourceRef,
+        String sourceVersion,
         Object componentTree,
         String screenshotUrl,
         @NotBlank String projectId,

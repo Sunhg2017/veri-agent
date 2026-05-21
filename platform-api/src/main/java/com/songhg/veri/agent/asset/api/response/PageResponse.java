@@ -10,6 +10,7 @@ public record PageResponse(
         String urlPattern,
         String source,
         String sourceRef,
+        String sourceVersion,
         String componentTree,
         String screenshotUrl,
         String projectId,
