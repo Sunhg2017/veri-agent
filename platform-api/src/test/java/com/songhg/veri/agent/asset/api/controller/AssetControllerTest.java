@@ -3,6 +3,7 @@ package com.songhg.veri.agent.asset.api.controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jayway.jsonpath.JsonPath;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.Map;
 import org.hamcrest.MatcherAssert;
 import org.junit.jupiter.api.Test;
@@ -16,6 +17,7 @@ import org.springframework.test.web.servlet.MvcResult;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
@@ -266,6 +268,7 @@ class AssetControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.summary").value("登录接口"))
                 .andExpect(jsonPath("$.data.httpMethod").value("POST"))
+                .andExpect(jsonPath("$.data.version").doesNotExist())
                 .andExpect(jsonPath("$.data.path").value("/api/v1/login"));
 
         mockMvc.perform(put("/api/v1/asset/apis/{id}", apiId)
@@ -277,12 +280,14 @@ class AssetControllerTest {
                                   "description": "登录接口优化",
                                   "httpMethod": "POST",
                                   "path": "/api/v2/login",
+                                  "version": "2.0.0",
                                   "status": "ACTIVE"
                                 }
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.summary").value("登录接口V2"))
                 .andExpect(jsonPath("$.data.path").value("/api/v2/login"))
+                .andExpect(jsonPath("$.data.version").value("2.0.0"))
                 .andExpect(jsonPath("$.data.status").value("ACTIVE"));
 
         mockMvc.perform(get("/api/v1/asset/apis")
@@ -290,6 +295,25 @@ class AssetControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.total").value(1))
                 .andExpect(jsonPath("$.data.items", hasSize(1)));
+    }
+
+    @Test
+    void rejectsDuplicateManualApiPathAndMethod() throws Exception {
+        createApi("重复 API", "POST", "/api/duplicate");
+
+        mockMvc.perform(post("/api/v1/asset/apis")
+                        .headers(authHeaders())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "summary": "重复 API V2",
+                                  "httpMethod": "post",
+                                  "path": "/api/duplicate",
+                                  "projectId": "project-wp3"
+                                }
+                                """))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("CONFLICT"));
     }
 
     @Test
@@ -555,17 +579,42 @@ class AssetControllerTest {
     }
 
     @Test
-    void importsOpenApiApisAndReportsDuplicateConflictsOnDryRun() throws Exception {
+    void importsOpenApiApisAndIdempotentlyUpdatesExistingApis() throws Exception {
         String openApi = """
                 {
                   "openapi": "3.0.3",
                   "info": {"title": "Import API", "version": "1.0.0"},
                   "paths": {
                     "/api/imported/orders": {
-                      "get": {"summary": "订单查询", "description": "查询订单列表"}
+                      "get": {
+                        "summary": "订单查询",
+                        "description": "查询订单列表",
+                        "responses": {
+                          "200": {
+                            "description": "OK",
+                            "content": {
+                              "application/json": {
+                                "schema": {
+                                  "type": "object",
+                                  "properties": {"total": {"type": "integer"}}
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
                     },
                     "/api/imported/orders/{id}": {
-                      "delete": {"summary": "删除订单"}
+                      "delete": {
+                        "summary": "删除订单",
+                        "requestBody": {
+                          "content": {
+                            "application/json": {
+                              "schema": {"type": "object", "required": ["reason"]}
+                            }
+                          }
+                        }
+                      }
                     }
                   }
                 }
@@ -579,19 +628,85 @@ class AssetControllerTest {
                 .andExpect(jsonPath("$.data.failed").value(0))
                 .andExpect(jsonPath("$.data.items[0].action").value("CREATE"));
 
-        mockMvc.perform(get("/api/v1/asset/apis")
+        MvcResult listed = mockMvc.perform(get("/api/v1/asset/apis")
                         .headers(authHeaders())
                         .param("projectId", "project-wp3"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.total").value(2));
+                .andExpect(jsonPath("$.data.total").value(2))
+                .andReturn();
+        String listedJson = listed.getResponse().getContentAsString();
+        String ordersApiId = firstJsonPathValue(listedJson, "$.data.items[?(@.path == '/api/imported/orders')].id");
+        String ordersVersion = firstJsonPathValue(listedJson, "$.data.items[?(@.path == '/api/imported/orders')].version");
+        String ordersSource = firstJsonPathValue(listedJson, "$.data.items[?(@.path == '/api/imported/orders')].source");
+        String ordersResponseSchema = firstJsonPathValue(listedJson, "$.data.items[?(@.path == '/api/imported/orders')].responseSchema");
+        MatcherAssert.assertThat(ordersVersion, equalTo("1.0.0"));
+        MatcherAssert.assertThat(ordersSource, equalTo("OPENAPI"));
+        MatcherAssert.assertThat(ordersResponseSchema, containsString("total"));
 
         importAssets("API", "OPENAPI", true, openApi)
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.dryRun").value(true))
                 .andExpect(jsonPath("$.data.created").value(0))
-                .andExpect(jsonPath("$.data.failed").value(2))
-                .andExpect(jsonPath("$.data.items[0].action").value("CONFLICT_REVIEW_REQUIRED"))
-                .andExpect(jsonPath("$.data.items[0].status").value("FAILED"));
+                .andExpect(jsonPath("$.data.updated").value(0))
+                .andExpect(jsonPath("$.data.skipped").value(2))
+                .andExpect(jsonPath("$.data.failed").value(0))
+                .andExpect(jsonPath("$.data.items[0].action").value("LINK_EXISTING"))
+                .andExpect(jsonPath("$.data.items[0].status").value("PLANNED"));
+
+        String changedOpenApi = """
+                {
+                  "openapi": "3.0.3",
+                  "info": {"title": "Import API", "version": "1.1.0"},
+                  "paths": {
+                    "/api/imported/orders": {
+                      "get": {
+                        "summary": "订单查询V2",
+                        "description": "查询订单列表新版",
+                        "responses": {
+                          "200": {
+                            "description": "OK",
+                            "content": {
+                              "application/json": {
+                                "schema": {
+                                  "type": "object",
+                                  "properties": {"items": {"type": "array"}}
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "/api/imported/orders/{id}": {
+                      "delete": {"summary": "删除订单"}
+                    }
+                  }
+                }
+                """;
+
+        importAssets("API", "OPENAPI", false, changedOpenApi)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.created").value(0))
+                .andExpect(jsonPath("$.data.updated").value(2))
+                .andExpect(jsonPath("$.data.failed").value(0))
+                .andExpect(jsonPath("$.data.items[0].id").value(ordersApiId))
+                .andExpect(jsonPath("$.data.items[0].action").value("UPDATE"));
+
+        MvcResult updated = mockMvc.perform(get("/api/v1/asset/apis")
+                        .headers(authHeaders())
+                        .param("projectId", "project-wp3"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(2))
+                .andReturn();
+        String updatedJson = updated.getResponse().getContentAsString();
+        String updatedOrdersApiId = firstJsonPathValue(updatedJson, "$.data.items[?(@.path == '/api/imported/orders')].id");
+        String updatedSummary = firstJsonPathValue(updatedJson, "$.data.items[?(@.path == '/api/imported/orders')].summary");
+        String updatedVersion = firstJsonPathValue(updatedJson, "$.data.items[?(@.path == '/api/imported/orders')].version");
+        String updatedResponseSchema = firstJsonPathValue(updatedJson, "$.data.items[?(@.path == '/api/imported/orders')].responseSchema");
+        MatcherAssert.assertThat(updatedOrdersApiId, equalTo(ordersApiId));
+        MatcherAssert.assertThat(updatedSummary, equalTo("订单查询V2"));
+        MatcherAssert.assertThat(updatedVersion, equalTo("1.1.0"));
+        MatcherAssert.assertThat(updatedResponseSchema, containsString("items"));
     }
 
     @Test
@@ -689,6 +804,7 @@ class AssetControllerTest {
         MatcherAssert.assertThat(openApi, containsString("\"openapi\":\"3.0.3\""));
         MatcherAssert.assertThat(openApi, containsString("/api/exported/orders"));
         MatcherAssert.assertThat(openApi, containsString("导出 API"));
+        MatcherAssert.assertThat(openApi, containsString("responses"));
         MatcherAssert.assertThat(openApi, not(containsString("traceId")));
         MatcherAssert.assertThat(openApi, not(containsString("snapshot")));
     }
@@ -814,6 +930,11 @@ class AssetControllerTest {
                         "dryRun", dryRun,
                         "content", content
                 ))));
+    }
+
+    private static String firstJsonPathValue(String json, String path) {
+        List<String> values = JsonPath.read(json, path);
+        return values.getFirst();
     }
 
     private String createRequirement(String name, String description, String priority, String projectId) throws Exception {

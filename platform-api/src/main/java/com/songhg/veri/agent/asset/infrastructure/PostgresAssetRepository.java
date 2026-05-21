@@ -112,6 +112,15 @@ public class PostgresAssetRepository implements AssetRepository {
     }
 
     @Override
+    public Optional<AssetApi> apiByPath(String projectId, String path, String httpMethod) {
+        return Optional.ofNullable(mapper.getApiByPath(
+                projectId,
+                path,
+                httpMethod == null ? null : httpMethod.toUpperCase(Locale.ROOT)
+        ));
+    }
+
+    @Override
     public AssetApi saveApi(AssetApi api) {
         AssetApi stored = normalizeApi(api);
         if (mapper.getApi(stored.id()) == null) {
@@ -335,6 +344,7 @@ public class PostgresAssetRepository implements AssetRepository {
                 api.path(),
                 api.source(),
                 api.sourceRef(),
+                api.version(),
                 api.requestSchema(),
                 api.responseSchema(),
                 api.projectId(),

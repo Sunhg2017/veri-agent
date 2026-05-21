@@ -38,6 +38,8 @@ public interface AssetRepository {
 
     Optional<AssetApi> apiIncludingInactive(UUID id);
 
+    Optional<AssetApi> apiByPath(String projectId, String path, String httpMethod);
+
     AssetApi saveApi(AssetApi api);
 
     boolean hasActiveApiPathConflict(String projectId, String path, String httpMethod, UUID excludeId);

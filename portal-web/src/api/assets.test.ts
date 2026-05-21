@@ -292,6 +292,7 @@ describe('asset API helpers', () => {
       http_method: 'post',
       path: '/api/orders',
       source_ref: 'openapi.yaml#/paths/~1api~1orders/post',
+      version: '1.0.0',
       request_schema: '{"type":"object"}',
       response_schema: '{"type":"object","properties":{"id":{"type":"string"}}}',
       project_id: 'proj-payments',
@@ -306,6 +307,7 @@ describe('asset API helpers', () => {
       httpMethod: 'POST',
       path: '/api/orders',
       sourceRef: 'openapi.yaml#/paths/~1api~1orders/post',
+      version: '1.0.0',
       requestSchema: '{"type":"object"}',
       responseSchema: '{"type":"object","properties":{"id":{"type":"string"}}}',
       projectId: 'proj-payments',
@@ -372,6 +374,7 @@ describe('asset API helpers', () => {
       description: '',
       httpMethod: ' POST ',
       path: ' /api/orders ',
+      version: ' 1.0.0 ',
       requestSchema: ' {"type":"object"} ',
       responseSchema: '',
       status: 'ACTIVE'
@@ -383,6 +386,7 @@ describe('asset API helpers', () => {
         summary: '创建订单',
         httpMethod: 'POST',
         path: '/api/orders',
+        version: '1.0.0',
         requestSchema: '{"type":"object"}',
         status: 'ACTIVE'
       })
@@ -393,6 +397,7 @@ describe('asset API helpers', () => {
       description: '按订单号查询',
       httpMethod: ' GET ',
       path: ' /api/orders/{id} ',
+      version: ' 1.1.0 ',
       requestSchema: '',
       responseSchema: ' {"type":"object","properties":{"id":{"type":"string"}}} ',
       status: 'DEPRECATED'
@@ -404,6 +409,7 @@ describe('asset API helpers', () => {
         description: '按订单号查询',
         httpMethod: 'GET',
         path: '/api/orders/{id}',
+        version: '1.1.0',
         responseSchema: '{"type":"object","properties":{"id":{"type":"string"}}}',
         status: 'DEPRECATED'
       })

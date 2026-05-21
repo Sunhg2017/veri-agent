@@ -64,6 +64,12 @@ public interface AssetMapper {
 
     AssetApi getApiIncludingInactive(@Param("id") UUID id);
 
+    AssetApi getApiByPath(
+            @Param("projectId") String projectId,
+            @Param("path") String path,
+            @Param("httpMethod") String httpMethod
+    );
+
     void insertApi(AssetApi api);
 
     void updateApi(AssetApi api);

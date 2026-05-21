@@ -12,6 +12,7 @@ public record AssetApi(
         String path,
         String source,
         String sourceRef,
+        String version,
         String requestSchema,
         String responseSchema,
         String projectId,

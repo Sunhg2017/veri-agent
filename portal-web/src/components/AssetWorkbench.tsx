@@ -85,6 +85,7 @@ type ApiDraft = {
   description: string;
   httpMethod: string;
   path: string;
+  version: string;
   requestSchema: string;
   responseSchema: string;
   status: string;
@@ -125,6 +126,7 @@ const initialApiDraft: ApiDraft = {
   description: '',
   httpMethod: 'GET',
   path: '',
+  version: '',
   requestSchema: '',
   responseSchema: '',
   status: 'ACTIVE'
@@ -1188,6 +1190,16 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                       ))}
                     </select>
                   </label>
+                  <label className="field" htmlFor="asset-api-create-version">
+                    <span>version</span>
+                    <input
+                      id="asset-api-create-version"
+                      value={apiCreateDraft.version}
+                      disabled={apiCreateDisabled}
+                      onChange={(event) => setApiCreateDraft((current) => ({ ...current, version: event.target.value }))}
+                      placeholder="1.0.0"
+                    />
+                  </label>
                 </div>
                 <label className="field" htmlFor="asset-api-create-description">
                   <span>描述</span>
@@ -1492,6 +1504,10 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                       <em>{selectedApi.sourceRef ?? '-'}</em>
                     </div>
                     <div>
+                      <span>version</span>
+                      <em>{selectedApi.version ?? '-'}</em>
+                    </div>
+                    <div>
                       <span>updatedAt</span>
                       <em>{formatDate(selectedApi.updatedAt)}</em>
                     </div>
@@ -1554,6 +1570,14 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                           </option>
                         ))}
                       </select>
+                    </label>
+                    <label>
+                      <span>version</span>
+                      <input
+                        value={apiEditDraft.version}
+                        disabled={apiEditDisabled}
+                        onChange={(event) => setApiEditDraft((current) => ({ ...current, version: event.target.value }))}
+                      />
                     </label>
                     <label>
                       <span>描述</span>
@@ -1735,6 +1759,7 @@ function apiDraftFromView(api: AssetApiView): ApiDraft {
     description: api.description ?? '',
     httpMethod: api.httpMethod || 'GET',
     path: api.path,
+    version: api.version ?? '',
     requestSchema: api.requestSchema ?? '',
     responseSchema: api.responseSchema ?? '',
     status: api.status
@@ -1763,6 +1788,7 @@ function apiDraftToCreatePayload(draft: ApiDraft): AssetApiPayload {
     description: draft.description,
     httpMethod: draft.httpMethod,
     path: draft.path,
+    version: draft.version,
     requestSchema: draft.requestSchema,
     responseSchema: draft.responseSchema,
     status: draft.status
@@ -1789,6 +1815,7 @@ function apiDraftToUpdatePayload(current: AssetApiView, draft: ApiDraft): AssetA
     description: draft.description,
     httpMethod: draft.httpMethod || current.httpMethod,
     path: draft.path || current.path,
+    version: draft.version,
     requestSchema: draft.requestSchema,
     responseSchema: draft.responseSchema,
     status: draft.status || current.status

@@ -141,8 +141,8 @@ WP3 是当前最需要补齐的工作包。后端已有需求、API、页面、�
 | WP3-B2 | 资产状态流和非法转换 | P0-B | DONE-CURRENT | 已冻结 DRAFT/REVIEWING/APPROVED/DEPRECATED 等状态流，并覆盖非法转换拒绝测试 | 非法转换阻断并写审计 |
 | WP3-B3 | 版本、历史和 diff | P1 | DONE-CURRENT | 需求/测试用例返回版本号；创建、编辑、WP4 DRAFT 幂等更新和步骤替换保存 append-only 历史、字段 diff、快照、变更人和 traceId；portal-web 详情页提供历史/diff 入口 | 需求和测试用例可通过 versions API 与前端详情页回看历史版本 |
 | WP3-B4 | 软删除、归档和恢复策略 | P1 | DONE-CURRENT | 已为需求、API、页面、业务流和测试用例新增独立 `lifecycleStatus=ACTIVE/ARCHIVED/DELETED`、生命周期查询/更新 API、默认 ACTIVE 列表过滤、恢复唯一性冲突校验和需求/用例生命周期历史 | 删除不破坏 trace link 和审计追溯；`DELETED` 复用 `deleted_at` 释放现有 partial unique index，恢复冲突返回稳定错误 |
-| WP3-B5 | 导入/导出能力 | P1 | DONE-CURRENT | 已新增 `/api/v1/asset/imports` 与 `/api/v1/asset/exports`，支持需求、API、测试用例 CSV/JSON 导入导出，并支持 API 资产轻量 OpenAPI 导入导出；导入提供 `dryRun`、逐行 action/status/errors，导出仅输出业务字段不包含 traceId/snapshot/history | 导出脱敏，导入有 dryRun 和错误明细；完整 OpenAPI schema/version/idempotent 更新仍归 `WP3-B6` |
-| WP3-B6 | API 资产 OpenAPI 导入 | P1 | TODO | 从 OpenAPI 文档导入接口路径、方法、schema 和版本 | 重复导入幂等更新，不重复创建同一接口 |
+| WP3-B5 | 导入/导出能力 | P1 | DONE | 已新增 `/api/v1/asset/imports` 与 `/api/v1/asset/exports`，支持需求、API、测试用例 CSV/JSON 导入导出，并支持 API 资产轻量 OpenAPI 导入导出；导入提供 `dryRun`、逐行 action/status/errors，导出仅输出业务字段不包含 traceId/snapshot/history | 导出脱敏，导入有 dryRun 和错误明细 |
+| WP3-B6 | API 资产 OpenAPI 导入 | P1 | DONE-CURRENT | OpenAPI 导入解析 `paths` 下的 path、method、summary、description、request/response schema 与 `info.version`，写入 API `source/sourceRef/version`；重复导入按 `projectId + path + httpMethod` 命中既有 API 后返回 `LINK_EXISTING` 或 `UPDATE` | 重复导入幂等更新同一接口，不重复创建；dryRun 可预览 create/update/link 结果 |
 | WP3-B7 | 页面资产原型输入预留 | P2 | TODO | 为 Figma/蓝湖/Axure 接入保留 sourceRef、componentTree、截图和版本映射 | 不实现真实连接器也不阻碍后续接入 |
 
 ### WP3-C 权限、审计与上下文

@@ -7,6 +7,7 @@ public record CreateApiRequest(
         String description,
         @NotBlank String httpMethod,
         @NotBlank String path,
+        String version,
         String requestSchema,
         String responseSchema,
         @NotBlank

@@ -127,6 +127,20 @@ public class InMemoryAssetRepository implements AssetRepository {
     }
 
     @Override
+    public Optional<AssetApi> apiByPath(String projectId, String path, String httpMethod) {
+        if (projectId == null || path == null || httpMethod == null) {
+            return Optional.empty();
+        }
+        String normalizedMethod = httpMethod.toUpperCase(Locale.ROOT);
+        return apis.values().stream()
+                .filter(value -> projectId.equals(value.projectId()))
+                .filter(value -> path.equals(value.path()))
+                .filter(value -> normalizedMethod.equals(value.httpMethod().toUpperCase(Locale.ROOT)))
+                .filter(value -> !"DELETED".equals(lifecycleStatus(value.lifecycleStatus(), value.deletedAt())))
+                .findFirst();
+    }
+
+    @Override
     public AssetApi saveApi(AssetApi api) {
         apis.put(api.id(), api);
         return api;

@@ -81,6 +81,7 @@ export interface AssetApiView {
   path: string;
   source?: string;
   sourceRef?: string;
+  version?: string;
   requestSchema?: string;
   responseSchema?: string;
   projectId?: string;
@@ -111,6 +112,7 @@ export interface AssetApiPayload {
   description?: string;
   httpMethod: string;
   path: string;
+  version?: string;
   requestSchema?: string;
   responseSchema?: string;
   status?: string;
@@ -551,6 +553,7 @@ export function normalizeAssetApiView(raw: unknown): AssetApiView {
     path: stringValue(item.path, '/'),
     source: optionalString(item.source),
     sourceRef: optionalString(item.sourceRef) ?? optionalString(item.source_ref),
+    version: optionalString(item.version),
     requestSchema: optionalString(item.requestSchema) ?? optionalString(item.request_schema),
     responseSchema: optionalString(item.responseSchema) ?? optionalString(item.response_schema),
     projectId: optionalString(item.projectId) ?? optionalString(item.project_id),

@@ -75,6 +75,8 @@ public class AssetService {
     private static final Set<String> PRIORITIES = Set.of("CRITICAL", "HIGH", "MEDIUM", "LOW");
     private static final Set<String> REQUIREMENT_SOURCES = Set.of("IMPORT", "MANUAL");
     private static final Set<String> API_STATUSES = Set.of("ACTIVE", "DEPRECATED", "REMOVED");
+    private static final Set<String> API_SOURCES = Set.of("OPENAPI", "MANUAL", "IMPORT");
+    private static final Set<String> API_HTTP_METHODS = Set.of("GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS");
     private static final Set<String> PAGE_STATUSES = Set.of("ACTIVE", "DEPRECATED");
     private static final Set<String> PAGE_SOURCES = Set.of("FIGMA", "LANHU", "AXURE", "MANUAL");
     private static final Set<String> FLOW_STATUSES = Set.of("DRAFT", "ACTIVE", "ARCHIVED");
@@ -364,6 +366,10 @@ public class AssetService {
 
     public ApiResponseDTO createApi(CreateApiRequest request) {
         String scopeId = projectContext(request.projectId()).projectId();
+        String httpMethod = valueIn(request.httpMethod(), null, API_HTTP_METHODS, "httpMethod");
+        if (repository.hasActiveApiPathConflict(request.projectId(), request.path(), httpMethod, UUID.randomUUID())) {
+            throw new BusinessException(ErrorCode.CONFLICT, "同项目下 API 路径和方法已存在");
+        }
         UUID id = UUID.randomUUID();
         Instant now = Instant.now();
         AssetApi api = new AssetApi(
@@ -371,10 +377,11 @@ public class AssetService {
                 assetCode("API", id),
                 request.summary(),
                 request.description(),
-                request.httpMethod(),
+                httpMethod,
                 request.path(),
                 "MANUAL",
                 null,
+                trimToNull(request.version()),
                 request.requestSchema(),
                 request.responseSchema(),
                 request.projectId(),
@@ -395,6 +402,10 @@ public class AssetService {
         AssetApi existing = repository.api(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "API不存在: " + id));
         Instant now = Instant.now();
+        String httpMethod = valueIn(request.httpMethod(), null, API_HTTP_METHODS, "httpMethod");
+        if (repository.hasActiveApiPathConflict(existing.projectId(), request.path(), httpMethod, id)) {
+            throw new BusinessException(ErrorCode.CONFLICT, "同项目下 API 路径和方法已存在");
+        }
         String nextStatus = nextStatus(
                 "API",
                 id,
@@ -409,10 +420,11 @@ public class AssetService {
                 existing.code(),
                 request.summary(),
                 request.description(),
-                request.httpMethod(),
+                httpMethod,
                 request.path(),
                 existing.source(),
                 existing.sourceRef(),
+                valueOrDefault(request.version(), existing.version()),
                 request.requestSchema(),
                 request.responseSchema(),
                 existing.projectId(),
@@ -451,6 +463,7 @@ public class AssetService {
                 existing.path(),
                 existing.source(),
                 existing.sourceRef(),
+                existing.version(),
                 existing.requestSchema(),
                 existing.responseSchema(),
                 existing.projectId(),
@@ -1023,14 +1036,16 @@ public class AssetService {
 
     private List<Map<String, String>> parseOpenApi(String content) {
         try {
-            JsonNode paths = JSON_MAPPER.readTree(content).path("paths");
+            JsonNode root = JSON_MAPPER.readTree(content);
+            String apiVersion = trimToNull(textOrNull(root.path("info").path("version")));
+            JsonNode paths = root.path("paths");
             if (!paths.isObject()) {
                 throw new BusinessException(ErrorCode.VALIDATION_ERROR, "OpenAPI 内容缺少 paths");
             }
             List<Map<String, String>> rows = new ArrayList<>();
             paths.fields().forEachRemaining(pathEntry -> pathEntry.getValue().fields().forEachRemaining(methodEntry -> {
                 String method = methodEntry.getKey().toUpperCase(Locale.ROOT);
-                if (!Set.of("GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS").contains(method)) {
+                if (!API_HTTP_METHODS.contains(method)) {
                     return;
                 }
                 JsonNode operation = methodEntry.getValue();
@@ -1040,6 +1055,9 @@ public class AssetService {
                 row.put("summary", textOrDefault(operation.path("summary"), method + " " + pathEntry.getKey()));
                 row.put("description", textOrNull(operation.path("description")));
                 row.put("status", "ACTIVE");
+                row.put("source", "OPENAPI");
+                row.put("sourceRef", openApiSourceRef(pathEntry.getKey(), method));
+                row.put("version", apiVersion);
                 row.put("requestSchema", openApiRequestSchema(operation));
                 row.put("responseSchema", openApiResponseSchema(operation));
                 rows.add(row);
@@ -1089,15 +1107,105 @@ public class AssetService {
     private ImportPlan planApiImport(String projectId, int rowNumber, Map<String, String> row) {
         String path = trimToNull(rowValue(row, "path"));
         String httpMethod = trimToNull(rowValue(row, "httpMethod"));
-        if (repository.hasActiveApiPathConflict(projectId, path, httpMethod, UUID.randomUUID())) {
-            return ImportPlan.failed(
-                    rowNumber,
-                    "CONFLICT_REVIEW_REQUIRED",
-                    "同项目下 API 路径和方法已存在，需人工处理",
-                    List.of("path/httpMethod 已存在")
-            );
+        Optional<AssetApi> existing = repository.apiByPath(projectId, path, httpMethod);
+        if (existing.isPresent()) {
+            if (!"OPENAPI".equals(apiImportSource(row))) {
+                return ImportPlan.failed(
+                        rowNumber,
+                        "CONFLICT_REVIEW_REQUIRED",
+                        "同项目下 API 路径和方法已存在，需人工处理",
+                        List.of("path/httpMethod 已存在")
+                );
+            }
+            AssetApi merged = mergeImportedApi(existing.get(), row, Instant.now());
+            if (sameApi(existing.get(), merged)) {
+                return ImportPlan.planned(rowNumber, "LINK_EXISTING", existing.get().id(), existing.get().code(), "无差异，复用既有 API");
+            }
+            return ImportPlan.planned(rowNumber, "UPDATE", existing.get().id(), existing.get().code(), "将更新既有 API 资产");
         }
         return ImportPlan.planned(rowNumber, "CREATE", null, null, "将创建 API 资产");
+    }
+
+    private AssetApi createImportedApi(String projectId, Map<String, String> row) {
+        String scopeId = projectContext(projectId).projectId();
+        UUID id = UUID.randomUUID();
+        Instant now = Instant.now();
+        AssetApi api = new AssetApi(
+                id,
+                assetCode("API", id),
+                rowValue(row, "summary"),
+                trimToNull(rowValue(row, "description")),
+                valueIn(rowValue(row, "httpMethod"), null, API_HTTP_METHODS, "httpMethod"),
+                rowValue(row, "path"),
+                apiImportSource(row),
+                trimToNull(rowValue(row, "sourceRef")),
+                trimToNull(rowValue(row, "version")),
+                defaultJson(rowValue(row, "requestSchema")),
+                defaultJson(rowValue(row, "responseSchema")),
+                projectId,
+                initialStatus(rowValue(row, "status"), "ACTIVE", "API"),
+                "ACTIVE",
+                null,
+                null,
+                now,
+                now
+        );
+        writeProjectAudit("CREATE", "API", id, scopeId);
+        AssetApi stored = repository.saveApi(api);
+        log.info("Created imported api id={}, path={}, method={}, trace_id={}",
+                id, api.path(), api.httpMethod(), TraceContext.getTraceId());
+        return stored;
+    }
+
+    private AssetApi updateImportedApi(UUID id, Map<String, String> row) {
+        AssetApi existing = repository.api(id)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "API不存在: " + id));
+        AssetApi merged = mergeImportedApi(existing, row, Instant.now());
+        writeProjectAudit("UPDATE", "API", id, existing.projectId());
+        AssetApi stored = repository.saveApi(merged);
+        log.info("Updated imported api id={}, path={}, method={}, trace_id={}",
+                id, stored.path(), stored.httpMethod(), TraceContext.getTraceId());
+        return stored;
+    }
+
+    private AssetApi mergeImportedApi(AssetApi existing, Map<String, String> row, Instant now) {
+        return new AssetApi(
+                existing.id(),
+                existing.code(),
+                rowValue(row, "summary"),
+                trimToNull(rowValue(row, "description")),
+                valueIn(rowValue(row, "httpMethod"), null, API_HTTP_METHODS, "httpMethod"),
+                rowValue(row, "path"),
+                apiImportSource(row),
+                trimToNull(rowValue(row, "sourceRef")),
+                trimToNull(rowValue(row, "version")),
+                defaultJson(rowValue(row, "requestSchema")),
+                defaultJson(rowValue(row, "responseSchema")),
+                existing.projectId(),
+                initialStatus(rowValue(row, "status"), existing.status(), "API"),
+                existing.lifecycleStatus(),
+                existing.archivedAt(),
+                existing.deletedAt(),
+                existing.createdAt(),
+                now
+        );
+    }
+
+    private static boolean sameApi(AssetApi left, AssetApi right) {
+        return Objects.equals(left.summary(), right.summary())
+                && Objects.equals(left.description(), right.description())
+                && Objects.equals(left.httpMethod(), right.httpMethod())
+                && Objects.equals(left.path(), right.path())
+                && Objects.equals(left.source(), right.source())
+                && Objects.equals(left.sourceRef(), right.sourceRef())
+                && Objects.equals(left.version(), right.version())
+                && Objects.equals(jsonNode(left.requestSchema()), jsonNode(right.requestSchema()))
+                && Objects.equals(jsonNode(left.responseSchema()), jsonNode(right.responseSchema()))
+                && Objects.equals(left.status(), right.status());
+    }
+
+    private static String apiImportSource(Map<String, String> row) {
+        return valueIn(rowValue(row, "source"), "IMPORT", API_SOURCES, "source");
     }
 
     private ImportPlan planTestCaseImport(String projectId, int rowNumber, Map<String, String> row) {
@@ -1145,17 +1253,26 @@ public class AssetService {
     }
 
     private AssetImportItemResponse importApi(String projectId, Map<String, String> row, int rowNumber) {
-        ApiResponseDTO saved = createApi(new CreateApiRequest(
-                rowValue(row, "summary"),
-                rowValue(row, "description"),
-                rowValue(row, "httpMethod"),
-                rowValue(row, "path"),
-                defaultJson(rowValue(row, "requestSchema")),
-                defaultJson(rowValue(row, "responseSchema")),
-                projectId,
-                rowValue(row, "status")
-        ));
-        return new AssetImportItemResponse(rowNumber, "CREATE", saved.id(), saved.code(), "SUCCEEDED", "导入成功", List.of());
+        ImportPlan before = planApiImport(projectId, rowNumber, row);
+        if (!"PLANNED".equals(before.status())) {
+            return before.toResponse();
+        }
+        if ("LINK_EXISTING".equals(before.action())) {
+            return new AssetImportItemResponse(
+                    rowNumber,
+                    "LINK_EXISTING",
+                    before.id(),
+                    before.code(),
+                    "SUCCEEDED",
+                    "导入成功",
+                    List.of()
+            );
+        }
+        AssetApi saved = switch (before.action()) {
+            case "UPDATE" -> updateImportedApi(before.id(), row);
+            default -> createImportedApi(projectId, row);
+        };
+        return new AssetImportItemResponse(rowNumber, before.action(), saved.id(), saved.code(), "SUCCEEDED", "导入成功", List.of());
     }
 
     private AssetImportItemResponse importTestCase(String projectId, Map<String, String> row, int rowNumber) {
@@ -1206,8 +1323,9 @@ public class AssetService {
                 requireImportField(row, "summary", errors);
                 requireImportField(row, "httpMethod", errors);
                 requireImportField(row, "path", errors);
+                validateImportEnum(row, "source", API_SOURCES, errors);
                 validateImportEnum(row, "status", API_STATUSES, errors);
-                validateImportEnum(row, "httpMethod", Set.of("GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"), errors);
+                validateImportEnum(row, "httpMethod", API_HTTP_METHODS, errors);
             }
             case "TEST_CASE" -> {
                 requireImportField(row, "title", errors);
@@ -1257,10 +1375,10 @@ public class AssetService {
         if ("JSON".equals(format)) {
             return jsonString(rows.stream().map(AssetService::apiExportMap).toList());
         }
-        StringBuilder csv = new StringBuilder("code,summary,description,httpMethod,path,status,projectId,source,sourceRef,requestSchema,responseSchema,lifecycleStatus,createdAt,updatedAt\n");
+        StringBuilder csv = new StringBuilder("code,summary,description,httpMethod,path,status,projectId,source,sourceRef,version,requestSchema,responseSchema,lifecycleStatus,createdAt,updatedAt\n");
         rows.forEach(row -> appendCsvLine(csv,
                 row.code(), row.summary(), row.description(), row.httpMethod(), row.path(), row.status(),
-                row.projectId(), row.source(), row.sourceRef(), row.requestSchema(), row.responseSchema(),
+                row.projectId(), row.source(), row.sourceRef(), row.version(), row.requestSchema(), row.responseSchema(),
                 row.lifecycleStatus(), row.createdAt(), row.updatedAt()));
         return csv.toString();
     }
@@ -1299,6 +1417,7 @@ public class AssetService {
     private static ApiResponseDTO toApiResponse(AssetApi a) {
         return new ApiResponseDTO(
                 a.id(), a.code(), a.summary(), a.description(), a.httpMethod(), a.path(), a.source(), a.sourceRef(),
+                a.version(),
                 a.requestSchema(), a.responseSchema(), a.projectId(),
                 a.status(),
                 lifecycleStatus(a.lifecycleStatus(), a.deletedAt()), a.archivedAt(), a.deletedAt(),
@@ -1773,6 +1892,7 @@ public class AssetService {
         item.put("projectId", row.projectId());
         item.put("source", row.source());
         item.put("sourceRef", row.sourceRef());
+        item.put("version", row.version());
         item.put("requestSchema", row.requestSchema());
         item.put("responseSchema", row.responseSchema());
         item.put("lifecycleStatus", row.lifecycleStatus());
@@ -1811,6 +1931,9 @@ public class AssetService {
             operation.put("description", row.description());
             operation.put("operationId", row.code());
             operation.put("x-wp3-lifecycleStatus", row.lifecycleStatus());
+            operation.put("x-wp3-version", row.version());
+            operation.put("x-wp3-source", row.source());
+            operation.put("x-wp3-sourceRef", row.sourceRef());
             if (hasUsefulSchema(row.requestSchema())) {
                 operation.put("requestBody", Map.of(
                         "required", false,
@@ -1827,6 +1950,14 @@ public class AssetService {
         }
         root.put("paths", paths);
         return jsonString(root);
+    }
+
+    private static String openApiSourceRef(String path, String method) {
+        return "#/paths/" + openApiPointerSegment(path) + "/" + method.toLowerCase(Locale.ROOT);
+    }
+
+    private static String openApiPointerSegment(String value) {
+        return value.replace("~", "~0").replace("/", "~1");
     }
 
     private static String openApiRequestSchema(JsonNode operation) {
@@ -2121,6 +2252,11 @@ public class AssetService {
 
     private static String trimToNull(String value) {
         return StringUtils.hasText(value) ? value.trim() : null;
+    }
+
+    private static String valueOrDefault(String value, String defaultValue) {
+        String trimmed = trimToNull(value);
+        return trimmed == null ? defaultValue : trimmed;
     }
 
     private static String mergeTags(String existing, String incoming) {

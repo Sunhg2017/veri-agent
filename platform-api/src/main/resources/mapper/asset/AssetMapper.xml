@@ -37,6 +37,7 @@
             <arg column="path" javaType="java.lang.String"/>
             <arg column="source" javaType="java.lang.String"/>
             <arg column="source_ref" javaType="java.lang.String"/>
+            <arg column="version" javaType="java.lang.String"/>
             <arg column="request_schema" javaType="java.lang.String"/>
             <arg column="response_schema" javaType="java.lang.String"/>
             <arg column="project_id" javaType="java.lang.String"/>
@@ -155,7 +156,7 @@
 
     <sql id="apiColumns">
         id, code, summary, description, http_method, path, source, source_ref,
-        request_schema::text as request_schema, response_schema::text as response_schema,
+        version, request_schema::text as request_schema, response_schema::text as response_schema,
         project_id, status, lifecycle_status, archived_at, deleted_at, created_at, updated_at
     </sql>
 
@@ -357,13 +358,24 @@
         where id = #{id}
     </select>
 
+    <select id="getApiByPath" resultMap="apiMap">
+        select <include refid="apiColumns"/>
+        from asset_api
+        where project_id = #{projectId}
+          and path = #{path}
+          and http_method = #{httpMethod}
+          and deleted_at is null
+        limit 1
+    </select>
+
     <insert id="insertApi">
         insert into asset_api (
             id, project_id, code, path, http_method, summary, description, source, source_ref,
-            request_schema, response_schema, status, lifecycle_status, archived_at, deleted_at, created_at, updated_at
+            version, request_schema, response_schema, status, lifecycle_status, archived_at, deleted_at, created_at, updated_at
         ) values (
             #{id}, #{projectId}, #{code},
             #{path}, #{httpMethod}, #{summary}, #{description}, #{source}, #{sourceRef},
+            #{version},
             cast(coalesce(#{requestSchema}, '{}') as jsonb),
             cast(coalesce(#{responseSchema}, '{}') as jsonb),
             #{status}, #{lifecycleStatus}, #{archivedAt}, #{deletedAt}, #{createdAt}, #{updatedAt}
@@ -376,8 +388,9 @@
             description = #{description},
             http_method = #{httpMethod},
             path = #{path},
-            source = #{source},
-            source_ref = #{sourceRef},
+            source = coalesce(#{source}, source),
+            source_ref = coalesce(#{sourceRef}, source_ref),
+            version = coalesce(#{version}, version),
             request_schema = cast(coalesce(#{requestSchema}, '{}') as jsonb),
             response_schema = cast(coalesce(#{responseSchema}, '{}') as jsonb),
             status = #{status},

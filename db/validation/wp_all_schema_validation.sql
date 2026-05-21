@@ -172,6 +172,7 @@ with expected(table_name, column_name) as (
         ('asset_requirement','source_ref'), ('asset_requirement','source_url'), ('asset_requirement','acceptance_criteria'), ('asset_requirement','status'),
         ('asset_requirement','version'), ('asset_requirement','lifecycle_status'), ('asset_requirement','archived_at'), ('asset_requirement','deleted_at'),
         ('asset_api','id'), ('asset_api','project_id'), ('asset_api','code'), ('asset_api','path'), ('asset_api','http_method'), ('asset_api','status'),
+        ('asset_api','source'), ('asset_api','source_ref'), ('asset_api','version'), ('asset_api','request_schema'), ('asset_api','response_schema'),
         ('asset_api','lifecycle_status'), ('asset_api','archived_at'), ('asset_api','deleted_at'),
         ('asset_page','id'), ('asset_page','project_id'), ('asset_page','code'), ('asset_page','name'), ('asset_page','status'),
         ('asset_page','lifecycle_status'), ('asset_page','archived_at'), ('asset_page','deleted_at'),
