@@ -1,5 +1,7 @@
 package com.songhg.veri.agent.common.secret;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.songhg.veri.agent.common.audit.AuditLogWriter;
 import com.songhg.veri.agent.common.error.BusinessException;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -22,7 +24,8 @@ class LocalEncryptedSecretProviderTest {
     void resolvesLocalEncryptedSecretWhenPurposeAndScopeMatch() {
         String scopeId = UUID.randomUUID().toString();
         LocalSecretCipher.EncryptedMaterial material = encrypt("source-secret");
-        LocalEncryptedSecretProvider provider = provider(row(scopeId, material));
+        CapturingAuditLogWriter auditLogWriter = new CapturingAuditLogWriter();
+        LocalEncryptedSecretProvider provider = provider(row(scopeId, material), auditLogWriter);
 
         Optional<ResolvedSecret> resolved = provider.resolve("secret://wp4/source-a", new SecretResolveContext(
                 "WEBHOOK_SIGNING",
@@ -34,12 +37,25 @@ class LocalEncryptedSecretProviderTest {
         assertThat(resolved).isPresent();
         assertThat(resolved.get().value()).isEqualTo("source-secret");
         assertThat(resolved.get().version()).isEqualTo("v1");
+        assertThat(auditLogWriter.lastRecord).isNotNull();
+        assertThat(auditLogWriter.lastRecord.action()).isEqualTo("SECRET_RESOLVE");
+        assertThat(auditLogWriter.lastRecord.result()).isEqualTo("SUCCESS");
+        assertThat(auditLogWriter.lastRecord.resourceId()).startsWith("sha256:");
+        assertThat(auditLogWriter.lastRecord.afterJson())
+                .contains("\"providerCode\":\"local\"")
+                .contains("\"providerType\":\"LOCAL_ENCRYPTED\"")
+                .contains("\"purpose\":\"WEBHOOK_SIGNING\"")
+                .contains("\"scopeType\":\"CONFIG\"")
+                .contains(scopeId)
+                .doesNotContain("secret://wp4/source-a")
+                .doesNotContain("source-secret");
     }
 
     @Test
     void rejectsLocalEncryptedSecretWhenScopeDoesNotMatch() {
         LocalSecretCipher.EncryptedMaterial material = encrypt("source-secret");
-        LocalEncryptedSecretProvider provider = provider(row(UUID.randomUUID().toString(), material));
+        CapturingAuditLogWriter auditLogWriter = new CapturingAuditLogWriter();
+        LocalEncryptedSecretProvider provider = provider(row(UUID.randomUUID().toString(), material), auditLogWriter);
 
         assertThatThrownBy(() -> provider.resolve("secret://wp4/source-a", new SecretResolveContext(
                 "WEBHOOK_SIGNING",
@@ -48,7 +64,19 @@ class LocalEncryptedSecretProviderTest {
                 UUID.randomUUID().toString()
         )))
                 .isInstanceOf(BusinessException.class)
-                .hasMessageContaining("密钥作用域不匹配");
+                .hasMessageContaining("密钥作用域不匹配")
+                .hasMessageNotContaining("secret://wp4/source-a");
+        assertThat(auditLogWriter.lastRecord).isNotNull();
+        assertThat(auditLogWriter.lastRecord.result()).isEqualTo("FAILED");
+        assertThat(auditLogWriter.lastRecord.reason())
+                .contains("密钥作用域不匹配")
+                .doesNotContain("secret://wp4/source-a")
+                .doesNotContain("source-secret");
+        assertThat(auditLogWriter.lastRecord.afterJson())
+                .contains("\"result\":\"FAILED\"")
+                .contains("\"providerCode\":\"local\"")
+                .doesNotContain("secret://wp4/source-a")
+                .doesNotContain("source-secret");
     }
 
     @Test
@@ -82,7 +110,17 @@ class LocalEncryptedSecretProviderTest {
     }
 
     private LocalEncryptedSecretProvider provider(SecretDbRow row) {
-        return new LocalEncryptedSecretProvider(jdbcTemplateReturning(row), new SecretProviderProperties(MASTER_KEY, "v1", "", "", 3, 1, "", "", ""));
+        return provider(row, null);
+    }
+
+    private LocalEncryptedSecretProvider provider(SecretDbRow row, AuditLogWriter auditLogWriter) {
+        return new LocalEncryptedSecretProvider(
+                jdbcTemplateReturning(row),
+                new SecretProviderProperties(MASTER_KEY, "v1", "", "", 3, 1, "", "", ""),
+                auditLogWriter == null
+                        ? SecretProviderAuditRecorder.noop()
+                        : new SecretProviderAuditRecorder(auditLogWriter, new ObjectMapper())
+        );
     }
 
     private JdbcTemplate jdbcTemplateReturning(SecretDbRow row) {
@@ -149,6 +187,15 @@ class LocalEncryptedSecretProviderTest {
             String masterKeyVersion,
             String localStatus
     ) {
+    }
+
+    private static final class CapturingAuditLogWriter implements AuditLogWriter {
+        private AuditRecord lastRecord;
+
+        @Override
+        public void record(AuditRecord record) {
+            this.lastRecord = record;
+        }
     }
 
 }

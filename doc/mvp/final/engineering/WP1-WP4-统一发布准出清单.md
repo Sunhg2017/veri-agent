@@ -33,7 +33,7 @@
 | WP3 quality gate | WP3 本地/CI 聚合门禁 | `bash scripts/wp3_quality_gate.sh` | 后端资产测试、OpenAPI/上下文契约、前端资产测试、WP1-WP4 统一 DB validation |
 | WP3 schema | WP3 表、索引、版本历史 append-only 权限和无租户字段回归 | `bash db/validation/run_wp1_db_validation.sh` | `wp_all_schema_validation.sql` 与 `wp1_security_validation.sql` 中 `asset_*` 检查 |
 | WP4 smoke | 已启动平台 API 的文档输入主链路 | `WP4_SERVICE_TOKEN=local-document-input-token WP3_SERVICE_TOKEN=local-asset-token WP4_WEBHOOK_SECRET=local-document-input-webhook-secret bash scripts/wp4_document_input_smoke.sh` | 导入、候选、发布、webhook、事件日志、metrics |
-| WP4 binary | Word/PDF/OCR 文本抽取 | `bash scripts/wp4_binary_document_smoke.sh` | docx、PDF、OCR provider、SecretProvider 测试 |
+| WP4 binary | Word/PDF/OCR 文本抽取 | `bash scripts/wp4_binary_document_smoke.sh` | docx、PDF、OCR provider、SecretProvider 测试，SecretProvider resolve 审计脱敏 |
 | WP4 AI 质量 | golden corpus 质量门禁 | `bash scripts/wp4_ai_parse_quality_eval.sh` | 标题召回、优先级准确率、验收标准覆盖率 |
 | WP1-WP4 E2E | 统一平台端到端 smoke | `WP1_BOOTSTRAP_TOKEN=local-init-token WP2_SERVICE_TOKEN=local-model-access-token WP3_SERVICE_TOKEN=local-asset-token WP4_SERVICE_TOKEN=local-document-input-token WP4_WEBHOOK_SECRET=local-document-input-webhook-secret bash scripts/wp_all_integration_test.sh` | WP1 context、WP2 invocation、WP3 asset、WP4 publish/webhook 串联 |
 
@@ -107,7 +107,7 @@ bash scripts/wp_all_integration_test.sh
 | 变更影响矩阵 | 已按 `WP1-WP4-变更影响矩阵.md` 列出受影响 WP、测试入口和回滚点 |
 | 迁移 | 生产 migration 计划、回滚或前滚策略已确认；应用角色不执行 DDL |
 | DB 权限 | `scripts/wp1_release_role_validation.sh` 对真实生产 app role 通过，确认 app role 不能直接删改 `audit_log` 但可执行受控审计保留清理函数，DBA 复核项完成 |
-| Secret/provider | 新旧密钥、provider、环境变量或 SecretProvider 引用均已进入轮换窗口 |
+| Secret/provider | 新旧密钥、provider、环境变量或 SecretProvider 引用均已进入轮换窗口；resolve 审计只记录 `secretRefDigest` 和 provider/用途/作用域元数据，不记录完整 secretRef、明文、endpoint、token 或签名密钥 |
 | 指标告警 | 发布期间看板和告警已打开，traceId 能从响应串到审计/调用日志 |
 | release notes | 已使用 `WP1-WP4-Release-Notes-模板.md` 填写验证、风险和回滚 |
 

@@ -73,7 +73,7 @@ public final class LocalSecretCipher {
         } catch (BusinessException exception) {
             throw exception;
         } catch (Exception exception) {
-            throw new BusinessException(ErrorCode.SECRET_PROVIDER_ERROR, "本地密文解密失败: " + secretRef);
+            throw new BusinessException(ErrorCode.SECRET_PROVIDER_ERROR, "本地密文解密失败");
         }
     }
 

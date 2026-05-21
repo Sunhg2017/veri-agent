@@ -41,11 +41,17 @@ public class ExternalSecretProvider implements SecretProvider {
     private final SecretProviderProperties properties;
     private final ObjectMapper objectMapper;
     private final HttpClient httpClient;
+    private final SecretProviderAuditRecorder auditRecorder;
 
-    public ExternalSecretProvider(JdbcTemplate jdbcTemplate, SecretProviderProperties properties, ObjectMapper objectMapper) {
+    public ExternalSecretProvider(
+            JdbcTemplate jdbcTemplate,
+            SecretProviderProperties properties,
+            ObjectMapper objectMapper,
+            SecretProviderAuditRecorder auditRecorder
+    ) {
         this(jdbcTemplate, properties, objectMapper, HttpClient.newBuilder()
                 .connectTimeout(resolveTimeout(properties))
-                .build());
+                .build(), auditRecorder);
     }
 
     ExternalSecretProvider(
@@ -54,10 +60,21 @@ public class ExternalSecretProvider implements SecretProvider {
             ObjectMapper objectMapper,
             HttpClient httpClient
     ) {
+        this(jdbcTemplate, properties, objectMapper, httpClient, SecretProviderAuditRecorder.noop());
+    }
+
+    ExternalSecretProvider(
+            JdbcTemplate jdbcTemplate,
+            SecretProviderProperties properties,
+            ObjectMapper objectMapper,
+            HttpClient httpClient,
+            SecretProviderAuditRecorder auditRecorder
+    ) {
         this.jdbcTemplate = jdbcTemplate;
         this.properties = properties;
         this.objectMapper = objectMapper;
         this.httpClient = httpClient;
+        this.auditRecorder = auditRecorder == null ? SecretProviderAuditRecorder.noop() : auditRecorder;
     }
 
     @Override
@@ -69,11 +86,12 @@ public class ExternalSecretProvider implements SecretProvider {
         if (row == null) {
             return Optional.empty();
         }
-        validateContext(row, context);
-        if (!StringUtils.hasText(properties.externalResolveUrl())) {
-            throw new BusinessException(ErrorCode.SECRET_PROVIDER_ERROR, "外部 Vault/KMS resolve endpoint 未配置");
-        }
+        SecretProviderAuditRecorder.Target auditTarget = auditTarget(row);
         try {
+            validateContext(row, context);
+            if (!StringUtils.hasText(properties.externalResolveUrl())) {
+                throw new BusinessException(ErrorCode.SECRET_PROVIDER_ERROR, "外部 Vault/KMS resolve endpoint 未配置");
+            }
             String payload = objectMapper.writeValueAsString(new ResolveRequest(
                     row.secretRef(),
                     row.providerCode(),
@@ -92,6 +110,7 @@ public class ExternalSecretProvider implements SecretProvider {
             HttpRequest request = builder.POST(HttpRequest.BodyPublishers.ofString(payload, StandardCharsets.UTF_8)).build();
             HttpResponse<String> response = sendWithRetries(request, "resolve");
             if (response.statusCode() == 404) {
+                auditRecorder.recordFailure(auditTarget, context, "外部 Vault/KMS 返回异常状态: 404");
                 return Optional.empty();
             }
             if (response.statusCode() < 200 || response.statusCode() >= 300) {
@@ -104,17 +123,22 @@ public class ExternalSecretProvider implements SecretProvider {
             if (!StringUtils.hasText(value)) {
                 throw new BusinessException(ErrorCode.SECRET_PROVIDER_ERROR, "外部 Vault/KMS 响应缺少密钥值");
             }
-            return Optional.of(new ResolvedSecret(
+            ResolvedSecret resolvedSecret = new ResolvedSecret(
                     row.secretRef(),
                     value,
                     firstText(text(data, "provider"), row.providerCode()),
                     firstText(text(data, "version"), row.secretVersion())
-            ));
+            );
+            auditRecorder.recordSuccess(auditTarget, context);
+            return Optional.of(resolvedSecret);
         } catch (BusinessException exception) {
+            auditRecorder.recordFailure(auditTarget, context, exception.getMessage());
             throw exception;
         } catch (Exception exception) {
+            String sanitized = sanitizeError(exception, row.secretRef());
+            auditRecorder.recordFailure(auditTarget, context, "外部 Vault/KMS 密钥解析失败: " + sanitized);
             throw new BusinessException(ErrorCode.SECRET_PROVIDER_ERROR,
-                    "外部 Vault/KMS 密钥解析失败: " + sanitizeError(exception));
+                    "外部 Vault/KMS 密钥解析失败: " + sanitized);
         }
     }
 
@@ -207,16 +231,28 @@ public class ExternalSecretProvider implements SecretProvider {
         }
         if (StringUtils.hasText(context.purpose()) && !context.purpose().trim().equalsIgnoreCase(row.purpose())) {
             throw new BusinessException(ErrorCode.SECRET_PROVIDER_ERROR,
-                    "密钥用途不匹配: " + row.secretRef());
+                    "密钥用途不匹配");
         }
         if (StringUtils.hasText(context.scopeType()) && !context.scopeType().trim().equalsIgnoreCase(row.scopeType())) {
             throw new BusinessException(ErrorCode.SECRET_PROVIDER_ERROR,
-                    "密钥作用域类型不匹配: " + row.secretRef());
+                    "密钥作用域类型不匹配");
         }
         if (StringUtils.hasText(context.scopeId()) && !context.scopeId().trim().equalsIgnoreCase(row.scopeId())) {
             throw new BusinessException(ErrorCode.SECRET_PROVIDER_ERROR,
-                    "密钥作用域不匹配: " + row.secretRef());
+                    "密钥作用域不匹配");
         }
+    }
+
+    private SecretProviderAuditRecorder.Target auditTarget(ExternalSecretRow row) {
+        return new SecretProviderAuditRecorder.Target(
+                row.secretRef(),
+                row.providerCode(),
+                row.providerType(),
+                row.secretVersion(),
+                row.purpose(),
+                row.scopeType(),
+                row.scopeId()
+        );
     }
 
     private String text(JsonNode node, String... fields) {
@@ -322,10 +358,17 @@ public class ExternalSecretProvider implements SecretProvider {
     }
 
     private String sanitizeError(Exception exception) {
+        return sanitizeError(exception, null);
+    }
+
+    private String sanitizeError(Exception exception, String secretRef) {
         if (exception == null || !StringUtils.hasText(exception.getMessage())) {
             return "外部 Vault/KMS 请求失败";
         }
         String message = exception.getMessage();
+        if (StringUtils.hasText(secretRef)) {
+            message = message.replace(secretRef.trim(), "<secret-ref>");
+        }
         if (StringUtils.hasText(properties.externalAuthToken())) {
             message = message.replace(properties.externalAuthToken().trim(), "***");
         }

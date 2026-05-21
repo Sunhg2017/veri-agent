@@ -1,6 +1,7 @@
 package com.songhg.veri.agent.common.secret;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.songhg.veri.agent.common.audit.AuditLogWriter;
 import com.songhg.veri.agent.common.error.BusinessException;
 import java.net.Authenticator;
 import java.net.CookieHandler;
@@ -46,7 +47,8 @@ class ExternalSecretProviderTest {
         CapturingHttpClient httpClient = new CapturingHttpClient(200, """
                 {"value":"vault-secret","provider":"vault-prod","version":"v7"}
                 """);
-        ExternalSecretProvider provider = provider(row(scopeId), httpClient, "external-token");
+        CapturingAuditLogWriter auditLogWriter = new CapturingAuditLogWriter();
+        ExternalSecretProvider provider = provider(row(scopeId), httpClient, "external-token", auditLogWriter);
 
         Optional<ResolvedSecret> resolved = provider.resolve("vault://wp4/source-a", new SecretResolveContext(
                 "WEBHOOK_SIGNING",
@@ -65,6 +67,19 @@ class ExternalSecretProviderTest {
                 .contains("\"secretRef\":\"vault://wp4/source-a\"")
                 .contains("\"providerType\":\"VAULT\"")
                 .doesNotContain("vault-secret");
+        assertThat(auditLogWriter.lastRecord).isNotNull();
+        assertThat(auditLogWriter.lastRecord.action()).isEqualTo("SECRET_RESOLVE");
+        assertThat(auditLogWriter.lastRecord.result()).isEqualTo("SUCCESS");
+        assertThat(auditLogWriter.lastRecord.resourceId()).startsWith("sha256:");
+        assertThat(auditLogWriter.lastRecord.afterJson())
+                .contains("\"providerCode\":\"vault-prod\"")
+                .contains("\"providerType\":\"VAULT\"")
+                .contains("\"purpose\":\"WEBHOOK_SIGNING\"")
+                .contains("\"scopeType\":\"CONFIG\"")
+                .contains(scopeId)
+                .doesNotContain("vault://wp4/source-a")
+                .doesNotContain("vault-secret")
+                .doesNotContain("external-token");
     }
 
     @Test
@@ -282,13 +297,15 @@ class ExternalSecretProviderTest {
     void authenticationFailureDoesNotRevealSecretRefOrSigningSecret() {
         String scopeId = UUID.randomUUID().toString();
         CapturingHttpClient httpClient = new CapturingHttpClient(401, "{\"error\":\"vault://wp4/source-a denied\"}");
+        CapturingAuditLogWriter auditLogWriter = new CapturingAuditLogWriter();
         ExternalSecretProvider provider = new ExternalSecretProvider(
                 jdbcTemplateReturning(row(scopeId)),
                 new SecretProviderProperties("", "v1", "https://vault.example.test/resolve",
                         "", 3, 1, "https://vault.example.test/health",
                         "vault-key-1", "external-signing-secret"),
                 new ObjectMapper(),
-                httpClient
+                httpClient,
+                auditRecorder(auditLogWriter)
         );
 
         assertThatThrownBy(() -> provider.resolve("vault://wp4/source-a", new SecretResolveContext(
@@ -302,16 +319,46 @@ class ExternalSecretProviderTest {
                 .hasMessageNotContaining("vault://wp4/source-a")
                 .hasMessageNotContaining("external-signing-secret")
                 .hasMessageNotContaining("https://vault.example.test/resolve");
+        assertThat(auditLogWriter.lastRecord).isNotNull();
+        assertThat(auditLogWriter.lastRecord.result()).isEqualTo("FAILED");
+        assertThat(auditLogWriter.lastRecord.resourceId()).startsWith("sha256:");
+        assertThat(auditLogWriter.lastRecord.reason())
+                .contains("异常状态: 401")
+                .doesNotContain("vault://wp4/source-a")
+                .doesNotContain("external-signing-secret")
+                .doesNotContain("https://vault.example.test/resolve");
+        assertThat(auditLogWriter.lastRecord.afterJson())
+                .contains("\"result\":\"FAILED\"")
+                .contains("\"providerType\":\"VAULT\"")
+                .doesNotContain("vault://wp4/source-a")
+                .doesNotContain("external-signing-secret")
+                .doesNotContain("https://vault.example.test/resolve");
     }
 
     private ExternalSecretProvider provider(ExternalSecretDbRow row, CapturingHttpClient httpClient, String token) {
+        return provider(row, httpClient, token, null);
+    }
+
+    private ExternalSecretProvider provider(
+            ExternalSecretDbRow row,
+            CapturingHttpClient httpClient,
+            String token,
+            AuditLogWriter auditLogWriter
+    ) {
         return new ExternalSecretProvider(
                 jdbcTemplateReturning(row),
                 new SecretProviderProperties("", "v1", "https://vault.example.test/resolve", token, 3, 1,
                         "https://vault.example.test/health", "", ""),
                 new ObjectMapper(),
-                httpClient
+                httpClient,
+                auditRecorder(auditLogWriter)
         );
+    }
+
+    private SecretProviderAuditRecorder auditRecorder(AuditLogWriter auditLogWriter) {
+        return auditLogWriter == null
+                ? SecretProviderAuditRecorder.noop()
+                : new SecretProviderAuditRecorder(auditLogWriter, new ObjectMapper());
     }
 
     private String sha256Hex(String value) throws Exception {
@@ -371,6 +418,15 @@ class ExternalSecretProviderTest {
             String providerCode,
             String providerType
     ) {
+    }
+
+    private static final class CapturingAuditLogWriter implements AuditLogWriter {
+        private AuditRecord lastRecord;
+
+        @Override
+        public void record(AuditRecord record) {
+            this.lastRecord = record;
+        }
     }
 
     private static final class CapturingHttpClient extends HttpClient {

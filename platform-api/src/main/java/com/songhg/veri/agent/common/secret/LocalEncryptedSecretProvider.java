@@ -15,10 +15,20 @@ public class LocalEncryptedSecretProvider implements SecretProvider {
 
     private final JdbcTemplate jdbcTemplate;
     private final SecretProviderProperties properties;
+    private final SecretProviderAuditRecorder auditRecorder;
 
-    public LocalEncryptedSecretProvider(JdbcTemplate jdbcTemplate, SecretProviderProperties properties) {
+    public LocalEncryptedSecretProvider(
+            JdbcTemplate jdbcTemplate,
+            SecretProviderProperties properties,
+            SecretProviderAuditRecorder auditRecorder
+    ) {
         this.jdbcTemplate = jdbcTemplate;
         this.properties = properties;
+        this.auditRecorder = auditRecorder == null ? SecretProviderAuditRecorder.noop() : auditRecorder;
+    }
+
+    LocalEncryptedSecretProvider(JdbcTemplate jdbcTemplate, SecretProviderProperties properties) {
+        this(jdbcTemplate, properties, SecretProviderAuditRecorder.noop());
     }
 
     @Override
@@ -70,33 +80,53 @@ public class LocalEncryptedSecretProvider implements SecretProvider {
         } catch (EmptyResultDataAccessException exception) {
             return Optional.empty();
         }
-        if (context != null && StringUtils.hasText(context.purpose())
-                && !context.purpose().trim().equalsIgnoreCase(row.purpose())) {
-            throw new BusinessException(ErrorCode.SECRET_PROVIDER_ERROR,
-                    "密钥用途不匹配: " + row.secretRef());
+        SecretProviderAuditRecorder.Target auditTarget = auditTarget(row);
+        try {
+            if (context != null && StringUtils.hasText(context.purpose())
+                    && !context.purpose().trim().equalsIgnoreCase(row.purpose())) {
+                throw new BusinessException(ErrorCode.SECRET_PROVIDER_ERROR,
+                        "密钥用途不匹配");
+            }
+            validateScope(row, context);
+            if (!"ACTIVE".equals(row.localStatus())) {
+                throw new BusinessException(ErrorCode.SECRET_PROVIDER_ERROR, "本地密文状态不可用");
+            }
+            if (!"AES-256-GCM".equalsIgnoreCase(row.algorithm())) {
+                throw new BusinessException(ErrorCode.SECRET_PROVIDER_ERROR,
+                        "暂不支持的本地密钥算法: " + row.algorithm());
+            }
+            ResolvedSecret resolvedSecret = new ResolvedSecret(
+                    row.secretRef(),
+                    LocalSecretCipher.decrypt(
+                            row.cipherText(),
+                            row.iv(),
+                            row.authTag(),
+                            row.algorithm(),
+                            row.masterKeyVersion(),
+                            properties,
+                            row.secretRef()
+                    ),
+                    row.providerCode(),
+                    row.secretVersion()
+            );
+            auditRecorder.recordSuccess(auditTarget, context);
+            return Optional.of(resolvedSecret);
+        } catch (BusinessException exception) {
+            auditRecorder.recordFailure(auditTarget, context, exception.getMessage());
+            throw exception;
         }
-        validateScope(row, context);
-        if (!"ACTIVE".equals(row.localStatus())) {
-            throw new BusinessException(ErrorCode.SECRET_PROVIDER_ERROR, "本地密文状态不可用: " + secretRef);
-        }
-        if (!"AES-256-GCM".equalsIgnoreCase(row.algorithm())) {
-            throw new BusinessException(ErrorCode.SECRET_PROVIDER_ERROR,
-                    "暂不支持的本地密钥算法: " + row.algorithm());
-        }
-        return Optional.of(new ResolvedSecret(
+    }
+
+    private SecretProviderAuditRecorder.Target auditTarget(SecretRow row) {
+        return new SecretProviderAuditRecorder.Target(
                 row.secretRef(),
-                LocalSecretCipher.decrypt(
-                        row.cipherText(),
-                        row.iv(),
-                        row.authTag(),
-                        row.algorithm(),
-                        row.masterKeyVersion(),
-                        properties,
-                        row.secretRef()
-                ),
                 row.providerCode(),
-                row.secretVersion()
-        ));
+                row.providerType(),
+                row.secretVersion(),
+                row.purpose(),
+                row.scopeType(),
+                row.scopeId()
+        );
     }
 
     private void validateScope(SecretRow row, SecretResolveContext context) {
@@ -106,12 +136,12 @@ public class LocalEncryptedSecretProvider implements SecretProvider {
         if (StringUtils.hasText(context.scopeType())
                 && !context.scopeType().trim().equalsIgnoreCase(row.scopeType())) {
             throw new BusinessException(ErrorCode.SECRET_PROVIDER_ERROR,
-                    "密钥作用域类型不匹配: " + row.secretRef());
+                    "密钥作用域类型不匹配");
         }
         if (StringUtils.hasText(context.scopeId())
                 && !context.scopeId().trim().equalsIgnoreCase(row.scopeId())) {
             throw new BusinessException(ErrorCode.SECRET_PROVIDER_ERROR,
-                    "密钥作用域不匹配: " + row.secretRef());
+                    "密钥作用域不匹配");
         }
     }
 

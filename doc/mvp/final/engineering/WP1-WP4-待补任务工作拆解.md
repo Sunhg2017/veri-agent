@@ -223,7 +223,7 @@ WP4 本轮 P0 已覆盖真实文件上传、Word/PDF/OCR、AI 解析、SecretPro
 | WP4-E1 | 外部 Vault/KMS provider 健康检查 | P1 | DONE-CURRENT | 已为外部 SecretProvider 增加 `WP1_EXTERNAL_SECRET_TIMEOUT_SECONDS`、`WP1_EXTERNAL_SECRET_MAX_RETRIES` 和 `WP1_EXTERNAL_SECRET_HEALTH_URL`；resolve 对短暂网络/5xx/429 失败重试，`/api/v1/document-input/health` 返回脱敏的 `externalSecretProvider` 摘要并记录 `veri.agent.document_input.secret_provider.health` | provider 未配置、健康端点缺失、UP/DOWN 均可观测；健康摘要不暴露 endpoint、token、secretRef 或明文；生产禁用 fallback 后仍不会回退到 dev/test secret |
 | WP4-E2 | mTLS 或签名认证方案 | P1 | DONE-CURRENT | 已为外部 SecretProvider resolve/health 请求增加可选 HMAC-SHA256 签名认证，支持 `WP1_EXTERNAL_SECRET_SIGNING_KEY_ID` 与 `WP1_EXTERNAL_SECRET_SIGNING_SECRET`；请求头包含算法、keyId、timestamp、nonce 和 canonical 签名，且可与既有 Bearer token 并用；mTLS 证书链仍作为后续增强 | 认证失败只返回状态类错误，不回显 secretRef、签名密钥、endpoint 或明文；未配置签名密钥时保持旧 Bearer/无签名行为 |
 | WP4-E3 | Secret 缓存和轮换策略 | P1 | TODO | 定义 webhook signing secret 的缓存 TTL、主动失效和轮换窗口 | 轮换期间新旧签名策略明确且可测试 |
-| WP4-E4 | Secret 解析审计增强 | P1 | TODO | 记录 resolve 成功/失败、provider、用途、作用域，不记录明文 | 安全审计能追踪 secretRef 使用情况 |
+| WP4-E4 | Secret 解析审计增强 | P1 | DONE-CURRENT | 已在 SecretProvider resolve 路径记录成功/失败审计，包含 provider、用途、调用方、作用域、版本和 `secretRefDigest`；审计 `resourceId` 使用 `sha256:<digest>`，不落完整 secretRef 或明文 | 安全审计能通过 digest 追踪 secretRef 使用情况，且不会暴露密钥明文、完整 secretRef、外部 endpoint、Bearer token 或签名密钥 |
 
 ### WP4-F 数据保留、清理与前端体验
 
