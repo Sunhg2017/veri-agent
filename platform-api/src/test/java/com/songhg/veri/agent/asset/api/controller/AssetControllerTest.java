@@ -1,6 +1,10 @@
 package com.songhg.veri.agent.asset.api.controller;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jayway.jsonpath.JsonPath;
+import java.nio.charset.StandardCharsets;
+import java.util.Map;
+import org.hamcrest.MatcherAssert;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -11,12 +15,15 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -28,6 +35,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 @DirtiesContext(classMode = DirtiesContext.ClassMode.BEFORE_EACH_TEST_METHOD)
 class AssetControllerTest {
+
+    private static final ObjectMapper JSON_MAPPER = new ObjectMapper();
 
     @Autowired
     private MockMvc mockMvc;
@@ -456,6 +465,235 @@ class AssetControllerTest {
     }
 
     @Test
+    void dryRunsRequirementCsvImportWithRowErrorsWithoutWritingAssets() throws Exception {
+        importAssets(
+                        "REQUIREMENT",
+                        "CSV",
+                        true,
+                        """
+                                title,description,priority,sourceRef
+                                导入需求,CSV dry-run,HIGH,REQ-DRY-1
+                                ,缺少标题,LOW,REQ-DRY-2
+                                """
+                )
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.assetType").value("REQUIREMENT"))
+                .andExpect(jsonPath("$.data.format").value("CSV"))
+                .andExpect(jsonPath("$.data.dryRun").value(true))
+                .andExpect(jsonPath("$.data.totalRows").value(2))
+                .andExpect(jsonPath("$.data.created").value(1))
+                .andExpect(jsonPath("$.data.failed").value(1))
+                .andExpect(jsonPath("$.data.items[0].row").value(1))
+                .andExpect(jsonPath("$.data.items[0].action").value("CREATE"))
+                .andExpect(jsonPath("$.data.items[0].status").value("PLANNED"))
+                .andExpect(jsonPath("$.data.items[1].row").value(2))
+                .andExpect(jsonPath("$.data.items[1].status").value("FAILED"))
+                .andExpect(jsonPath("$.data.items[1].errors[0]").value("title 不能为空"));
+
+        mockMvc.perform(get("/api/v1/asset/requirements")
+                        .headers(authHeaders())
+                        .param("projectId", "project-wp3"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(0));
+    }
+
+    @Test
+    void importsRequirementAndUpdatesExistingDraftBySourceRef() throws Exception {
+        MvcResult imported = importAssets(
+                        "REQUIREMENT",
+                        "CSV",
+                        false,
+                        """
+                                title,description,priority,sourceRef,tags
+                                导入需求,初始描述,HIGH,REQ-IMPORT-1,import
+                                """
+                )
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.created").value(1))
+                .andExpect(jsonPath("$.data.failed").value(0))
+                .andExpect(jsonPath("$.data.items[0].action").value("CREATE"))
+                .andExpect(jsonPath("$.data.items[0].status").value("SUCCEEDED"))
+                .andReturn();
+        String reqId = JsonPath.read(imported.getResponse().getContentAsString(), "$.data.items[0].id");
+
+        importAssets(
+                        "REQUIREMENT",
+                        "JSON",
+                        false,
+                        """
+                                [
+                                  {
+                                    "title": "导入需求V2",
+                                    "description": "更新描述",
+                                    "priority": "CRITICAL",
+                                    "sourceRef": "REQ-IMPORT-1",
+                                    "tags": "import,updated"
+                                  }
+                                ]
+                                """
+                )
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.created").value(0))
+                .andExpect(jsonPath("$.data.updated").value(1))
+                .andExpect(jsonPath("$.data.failed").value(0))
+                .andExpect(jsonPath("$.data.items[0].id").value(reqId))
+                .andExpect(jsonPath("$.data.items[0].action").value("UPDATE"));
+        mockMvc.perform(get("/api/v1/asset/requirements/{id}", reqId)
+                        .headers(authHeaders()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.title").value("导入需求V2"))
+                .andExpect(jsonPath("$.data.priority").value("CRITICAL"))
+                .andExpect(jsonPath("$.data.tags").value("import,updated"))
+                .andExpect(jsonPath("$.data.version").value(2));
+
+        mockMvc.perform(get("/api/v1/asset/requirements/{id}/versions", reqId)
+                        .headers(authHeaders()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data", hasSize(2)))
+                .andExpect(jsonPath("$.data[0].changeType").value("UPSERT"))
+                .andExpect(jsonPath("$.data[0].diff.title.after").value("导入需求V2"));
+    }
+
+    @Test
+    void importsOpenApiApisAndReportsDuplicateConflictsOnDryRun() throws Exception {
+        String openApi = """
+                {
+                  "openapi": "3.0.3",
+                  "info": {"title": "Import API", "version": "1.0.0"},
+                  "paths": {
+                    "/api/imported/orders": {
+                      "get": {"summary": "订单查询", "description": "查询订单列表"}
+                    },
+                    "/api/imported/orders/{id}": {
+                      "delete": {"summary": "删除订单"}
+                    }
+                  }
+                }
+                """;
+
+        importAssets("API", "OPENAPI", false, openApi)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.assetType").value("API"))
+                .andExpect(jsonPath("$.data.format").value("OPENAPI"))
+                .andExpect(jsonPath("$.data.created").value(2))
+                .andExpect(jsonPath("$.data.failed").value(0))
+                .andExpect(jsonPath("$.data.items[0].action").value("CREATE"));
+
+        mockMvc.perform(get("/api/v1/asset/apis")
+                        .headers(authHeaders())
+                        .param("projectId", "project-wp3"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(2));
+
+        importAssets("API", "OPENAPI", true, openApi)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.dryRun").value(true))
+                .andExpect(jsonPath("$.data.created").value(0))
+                .andExpect(jsonPath("$.data.failed").value(2))
+                .andExpect(jsonPath("$.data.items[0].action").value("CONFLICT_REVIEW_REQUIRED"))
+                .andExpect(jsonPath("$.data.items[0].status").value("FAILED"));
+    }
+
+    @Test
+    void importsTestCaseJsonWithStepsAndExportsSanitizedJson() throws Exception {
+        String reqId = createRequirement("导入用例需求", "关联需求", "HIGH");
+        String apiId = createApi("导入用例 API", "GET", "/api/imported/test-cases");
+
+        MvcResult imported = importAssets(
+                        "TEST_CASE",
+                        "JSON",
+                        false,
+                        """
+                                {
+                                  "items": [
+                                    {
+                                      "title": "导入测试用例",
+                                      "description": "覆盖导入步骤",
+                                      "requirementId": "%s",
+                                      "apiId": "%s",
+                                      "priority": "HIGH",
+                                      "steps": [
+                                        {"action": "打开页面", "expectedResult": "页面加载"},
+                                        {"action": "提交查询", "expectedResult": "返回结果"}
+                                      ]
+                                    }
+                                  ]
+                                }
+                                """.formatted(reqId, apiId)
+                )
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.assetType").value("TEST_CASE"))
+                .andExpect(jsonPath("$.data.created").value(1))
+                .andExpect(jsonPath("$.data.failed").value(0))
+                .andExpect(jsonPath("$.data.items[0].action").value("CREATE"))
+                .andReturn();
+        String caseId = JsonPath.read(imported.getResponse().getContentAsString(), "$.data.items[0].id");
+
+        mockMvc.perform(get("/api/v1/asset/test-cases/{id}", caseId)
+                        .headers(authHeaders()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.title").value("导入测试用例"))
+                .andExpect(jsonPath("$.data.projectId").value("project-wp3"))
+                .andExpect(jsonPath("$.data.requirementId").value(reqId))
+                .andExpect(jsonPath("$.data.apiId").value(apiId))
+                .andExpect(jsonPath("$.data.steps", hasSize(2)))
+                .andExpect(jsonPath("$.data.steps[0].action").value("打开页面"));
+
+        MvcResult exported = mockMvc.perform(get("/api/v1/asset/exports")
+                        .headers(authHeaders())
+                        .param("assetType", "TEST_CASE")
+                        .param("format", "JSON")
+                        .param("projectId", "project-wp3"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Type", startsWith("application/json")))
+                .andExpect(header().string("Content-Disposition", "attachment; filename=\"wp3-test-case.json\""))
+                .andReturn();
+        String json = exported.getResponse().getContentAsString(StandardCharsets.UTF_8);
+        MatcherAssert.assertThat(json, containsString("导入测试用例"));
+        MatcherAssert.assertThat(json, containsString("project-wp3"));
+        MatcherAssert.assertThat(json, containsString("打开页面"));
+        MatcherAssert.assertThat(json, not(containsString("traceId")));
+        MatcherAssert.assertThat(json, not(containsString("snapshot")));
+    }
+
+    @Test
+    void exportsSanitizedRequirementCsvAndApiOpenApi() throws Exception {
+        createRequirement("导出需求", "用于 CSV 导出", "HIGH");
+        createApi("导出 API", "POST", "/api/exported/orders");
+
+        MvcResult requirementCsv = mockMvc.perform(get("/api/v1/asset/exports")
+                        .headers(authHeaders())
+                        .param("assetType", "REQUIREMENT")
+                        .param("format", "CSV")
+                        .param("projectId", "project-wp3"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Type", startsWith("text/csv")))
+                .andExpect(header().string("Content-Disposition", "attachment; filename=\"wp3-requirement.csv\""))
+                .andReturn();
+        String csv = requirementCsv.getResponse().getContentAsString(StandardCharsets.UTF_8);
+        MatcherAssert.assertThat(csv, containsString("code,title,description,status,priority,projectId"));
+        MatcherAssert.assertThat(csv, containsString("导出需求"));
+        MatcherAssert.assertThat(csv, not(containsString("traceId")));
+        MatcherAssert.assertThat(csv, not(containsString("snapshot")));
+
+        MvcResult apiOpenApi = mockMvc.perform(get("/api/v1/asset/exports")
+                        .headers(authHeaders())
+                        .param("assetType", "API")
+                        .param("format", "OPENAPI")
+                        .param("projectId", "project-wp3"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Type", startsWith("application/json")))
+                .andExpect(header().string("Content-Disposition", "attachment; filename=\"wp3-api.json\""))
+                .andReturn();
+        String openApi = apiOpenApi.getResponse().getContentAsString(StandardCharsets.UTF_8);
+        MatcherAssert.assertThat(openApi, containsString("\"openapi\":\"3.0.3\""));
+        MatcherAssert.assertThat(openApi, containsString("/api/exported/orders"));
+        MatcherAssert.assertThat(openApi, containsString("导出 API"));
+        MatcherAssert.assertThat(openApi, not(containsString("traceId")));
+        MatcherAssert.assertThat(openApi, not(containsString("snapshot")));
+    }
+
+    @Test
     void createsRequirementsAndReturnsWithAutoGeneratedStatus() throws Exception {
         String reqId = createRequirement("商品管理", "商品管理功能", "HIGH");
 
@@ -558,6 +796,24 @@ class AssetControllerTest {
 
     private String createRequirement(String name, String description, String priority) throws Exception {
         return createRequirement(name, description, priority, "project-wp3");
+    }
+
+    private org.springframework.test.web.servlet.ResultActions importAssets(
+            String assetType,
+            String format,
+            boolean dryRun,
+            String content
+    ) throws Exception {
+        return mockMvc.perform(post("/api/v1/asset/imports")
+                .headers(authHeaders())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(JSON_MAPPER.writeValueAsString(Map.of(
+                        "assetType", assetType,
+                        "format", format,
+                        "projectId", "project-wp3",
+                        "dryRun", dryRun,
+                        "content", content
+                ))));
     }
 
     private String createRequirement(String name, String description, String priority, String projectId) throws Exception {

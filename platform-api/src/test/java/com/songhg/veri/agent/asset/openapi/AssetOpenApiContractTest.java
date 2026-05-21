@@ -37,6 +37,8 @@ class AssetOpenApiContractTest {
                 .andExpect(jsonPath("$.paths['/api/v1/asset/requirements/{id}/lifecycle'].get").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/asset/requirements/{id}/lifecycle'].patch").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/asset/requirements/{id}/versions'].get").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/asset/imports'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/asset/exports'].get").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/asset/apis'].get").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/asset/apis'].post").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/asset/apis/{id}'].get").exists())
@@ -72,6 +74,9 @@ class AssetOpenApiContractTest {
         MatcherAssert.assertThat(openApi, containsString("deletedAt"));
         MatcherAssert.assertThat(openApi, containsString("changedFields"));
         MatcherAssert.assertThat(openApi, containsString("snapshot"));
+        MatcherAssert.assertThat(openApi, containsString("assetType"));
+        MatcherAssert.assertThat(openApi, containsString("dryRun"));
+        MatcherAssert.assertThat(openApi, containsString("AssetImportResponse"));
         MatcherAssert.assertThat(openApi, not(containsString("tenant_id")));
         MatcherAssert.assertThat(openApi, not(containsString("tenantId")));
     }

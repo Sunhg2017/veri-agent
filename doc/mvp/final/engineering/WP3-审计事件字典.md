@@ -41,6 +41,15 @@
 | `RESTORE` | `TEST_CASE` | 恢复已归档或已软删除测试用例 | `SUCCEEDED` |
 | `LIFECYCLE_CHANGE_DENIED` | `TEST_CASE` | 非法用例生命周期转换 | `DENIED` |
 | `CREATE` | `TRACE_LINK` | 创建需求到 API/用例追踪关系 | `SUCCEEDED` |
+| `IMPORT_DRY_RUN` | `ASSET_REQUIREMENT` | 需求导入预检 | `SUCCEEDED` |
+| `IMPORT` | `ASSET_REQUIREMENT` | 需求导入写入或幂等更新 | `SUCCEEDED` |
+| `EXPORT` | `ASSET_REQUIREMENT` | 导出需求资产 | `SUCCEEDED` |
+| `IMPORT_DRY_RUN` | `ASSET_API` | API 导入预检，包括轻量 OpenAPI 预检 | `SUCCEEDED` |
+| `IMPORT` | `ASSET_API` | API 导入写入，包括轻量 OpenAPI 写入 | `SUCCEEDED` |
+| `EXPORT` | `ASSET_API` | 导出 API 资产，包括轻量 OpenAPI 导出 | `SUCCEEDED` |
+| `IMPORT_DRY_RUN` | `ASSET_TEST_CASE` | 测试用例导入预检 | `SUCCEEDED` |
+| `IMPORT` | `ASSET_TEST_CASE` | 测试用例导入写入 | `SUCCEEDED` |
+| `EXPORT` | `ASSET_TEST_CASE` | 导出测试用例资产 | `SUCCEEDED` |
 
 ## 审计要求
 
@@ -50,4 +59,4 @@
 4. 拒绝类事件不得产生脏资产。
 5. 需求和测试用例的成功写操作同时生成 `asset_version_history` 版本记录；历史查询本轮不单独写读审计。
 6. 生命周期类操作不得清理 trace link；需求和测试用例的归档、软删除和恢复同时生成 `asset_version_history`。
-7. 后续导入和导出能力接入时必须沿用本字典扩展。
+7. 导入和导出使用批次级审计，`resourceId` 为批次随机 ID，逐行结果由 API 响应返回；导出内容不得包含 traceId、snapshot、历史记录或敏感明文。

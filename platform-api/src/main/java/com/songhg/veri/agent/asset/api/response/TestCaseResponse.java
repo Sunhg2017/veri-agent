@@ -13,6 +13,7 @@ public record TestCaseResponse(
         UUID apiId,
         String source,
         String sourceRef,
+        String projectId,
         String status,
         String priority,
         String tags,

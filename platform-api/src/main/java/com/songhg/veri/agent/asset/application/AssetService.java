@@ -1,6 +1,8 @@
 package com.songhg.veri.agent.asset.application;
 
 import com.songhg.veri.agent.asset.api.request.AssetListRequest;
+import com.songhg.veri.agent.asset.api.request.AssetExportRequest;
+import com.songhg.veri.agent.asset.api.request.AssetImportRequest;
 import com.songhg.veri.agent.asset.api.request.CreateApiRequest;
 import com.songhg.veri.agent.asset.api.request.CreateBusinessFlowRequest;
 import com.songhg.veri.agent.asset.api.request.CreateLinkRequest;
@@ -16,6 +18,9 @@ import com.songhg.veri.agent.asset.api.request.UpdateRequirementRequest;
 import com.songhg.veri.agent.asset.api.request.UpdateTestCaseRequest;
 import com.songhg.veri.agent.asset.api.request.UpdateTestCaseStepsRequest;
 import com.songhg.veri.agent.asset.api.response.ApiResponseDTO;
+import com.songhg.veri.agent.asset.api.response.AssetExportPayload;
+import com.songhg.veri.agent.asset.api.response.AssetImportItemResponse;
+import com.songhg.veri.agent.asset.api.response.AssetImportResponse;
 import com.songhg.veri.agent.asset.api.response.AssetVersionHistoryResponse;
 import com.songhg.veri.agent.asset.api.response.BusinessFlowResponse;
 import com.songhg.veri.agent.asset.api.response.PageResponse;
@@ -38,6 +43,7 @@ import com.songhg.veri.agent.asset.domain.TraceLink;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -72,6 +78,8 @@ public class AssetService {
     private static final Set<String> PAGE_STATUSES = Set.of("ACTIVE", "DEPRECATED");
     private static final Set<String> PAGE_SOURCES = Set.of("FIGMA", "LANHU", "AXURE", "MANUAL");
     private static final Set<String> FLOW_STATUSES = Set.of("DRAFT", "ACTIVE", "ARCHIVED");
+    private static final Set<String> IMPORT_EXPORT_ASSET_TYPES = Set.of("REQUIREMENT", "API", "TEST_CASE");
+    private static final Set<String> IMPORT_EXPORT_FORMATS = Set.of("CSV", "JSON", "OPENAPI");
     private static final Map<String, Set<String>> REVIEW_STATUS_TRANSITIONS = Map.of(
             "DRAFT", Set.of("DRAFT", "REVIEWING", "APPROVED", "DEPRECATED"),
             "REVIEWING", Set.of("REVIEWING", "DRAFT", "APPROVED", "DEPRECATED"),
@@ -944,6 +952,332 @@ public class AssetService {
         return toTraceLinkResponse(link);
     }
 
+    // ---- Import / Export ----
+
+    public AssetImportResponse importAssets(AssetImportRequest request) {
+        String assetType = importExportAssetType(request.assetType());
+        String format = importExportFormat(request.format());
+        if ("OPENAPI".equals(format) && !"API".equals(assetType)) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "OpenAPI 导入仅支持 API 资产");
+        }
+        validateProjectWhenProvided(request.projectId());
+        boolean dryRun = Boolean.TRUE.equals(request.dryRun());
+        List<Map<String, String>> rows = parseImportRows(assetType, format, request.content());
+        writeAssetBatchAudit(dryRun ? "IMPORT_DRY_RUN" : "IMPORT", "ASSET_" + assetType, request.projectId(), "SUCCEEDED");
+        List<AssetImportItemResponse> items = new ArrayList<>();
+        for (int i = 0; i < rows.size(); i++) {
+            ImportPlan plan = planImportRow(assetType, request.projectId(), rows.get(i), i + 1);
+            items.add(dryRun || !"PLANNED".equals(plan.status())
+                    ? plan.toResponse()
+                    : applyImportPlan(assetType, request.projectId(), rows.get(i), plan));
+        }
+        return toImportResponse(assetType, format, dryRun, rows.size(), items);
+    }
+
+    public AssetExportPayload exportAssets(AssetExportRequest request) {
+        String assetType = importExportAssetType(request.getAssetType());
+        String format = importExportFormat(request.getFormat());
+        if ("OPENAPI".equals(format) && !"API".equals(assetType)) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "OpenAPI 导出仅支持 API 资产");
+        }
+        String projectId = trimToNull(request.getProjectId());
+        validateProjectWhenProvided(projectId);
+        String content = switch (assetType) {
+            case "REQUIREMENT" -> exportRequirements(request, format);
+            case "API" -> exportApis(request, format);
+            case "TEST_CASE" -> exportTestCases(request, format);
+            default -> throw new BusinessException(ErrorCode.VALIDATION_ERROR, "assetType 不合法: " + assetType);
+        };
+        writeAssetBatchAudit("EXPORT", "ASSET_" + assetType, projectId, "SUCCEEDED");
+        String extension = "OPENAPI".equals(format) ? "json" : format.toLowerCase(Locale.ROOT);
+        String contentType = "CSV".equals(format) ? "text/csv;charset=UTF-8" : "application/json;charset=UTF-8";
+        return new AssetExportPayload(
+                "wp3-" + assetType.toLowerCase(Locale.ROOT).replace("_", "-") + "." + extension,
+                contentType,
+                content.getBytes(StandardCharsets.UTF_8)
+        );
+    }
+
+    private List<Map<String, String>> parseImportRows(String assetType, String format, String content) {
+        if ("CSV".equals(format)) {
+            return parseCsv(content);
+        }
+        if ("OPENAPI".equals(format)) {
+            return parseOpenApi(content);
+        }
+        try {
+            JsonNode root = JSON_MAPPER.readTree(content);
+            JsonNode rows = root.isArray() ? root : root.path("items");
+            if (!rows.isArray()) {
+                throw new BusinessException(ErrorCode.VALIDATION_ERROR, "JSON 导入内容必须是数组或包含 items 数组");
+            }
+            List<Map<String, String>> result = new ArrayList<>();
+            for (JsonNode item : rows) {
+                result.add(flattenJsonObject(item));
+            }
+            return result;
+        } catch (JsonProcessingException e) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "JSON 导入内容格式不合法");
+        }
+    }
+
+    private List<Map<String, String>> parseOpenApi(String content) {
+        try {
+            JsonNode paths = JSON_MAPPER.readTree(content).path("paths");
+            if (!paths.isObject()) {
+                throw new BusinessException(ErrorCode.VALIDATION_ERROR, "OpenAPI 内容缺少 paths");
+            }
+            List<Map<String, String>> rows = new ArrayList<>();
+            paths.fields().forEachRemaining(pathEntry -> pathEntry.getValue().fields().forEachRemaining(methodEntry -> {
+                String method = methodEntry.getKey().toUpperCase(Locale.ROOT);
+                if (!Set.of("GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS").contains(method)) {
+                    return;
+                }
+                JsonNode operation = methodEntry.getValue();
+                Map<String, String> row = new LinkedHashMap<>();
+                row.put("path", pathEntry.getKey());
+                row.put("httpMethod", method);
+                row.put("summary", textOrDefault(operation.path("summary"), method + " " + pathEntry.getKey()));
+                row.put("description", textOrNull(operation.path("description")));
+                row.put("status", "ACTIVE");
+                row.put("requestSchema", openApiRequestSchema(operation));
+                row.put("responseSchema", openApiResponseSchema(operation));
+                rows.add(row);
+            }));
+            return rows;
+        } catch (JsonProcessingException e) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "OpenAPI 导入内容格式不合法");
+        }
+    }
+
+    private ImportPlan planImportRow(String assetType, String projectId, Map<String, String> row, int rowNumber) {
+        List<String> errors = validateImportRow(assetType, row);
+        if (!errors.isEmpty()) {
+            return ImportPlan.failed(rowNumber, "INVALID", "校验失败", errors);
+        }
+        return switch (assetType) {
+            case "REQUIREMENT" -> planRequirementImport(projectId, rowNumber, row);
+            case "API" -> planApiImport(projectId, rowNumber, row);
+            case "TEST_CASE" -> planTestCaseImport(projectId, rowNumber, row);
+            default -> ImportPlan.failed(rowNumber, "INVALID", "assetType 不合法", List.of("assetType 不合法"));
+        };
+    }
+
+    private ImportPlan planRequirementImport(String projectId, int rowNumber, Map<String, String> row) {
+        String sourceRef = trimToNull(rowValue(row, "sourceRef"));
+        if (sourceRef != null) {
+            Optional<AssetRequirement> existing = repository.requirementBySourceRef(projectId, "IMPORT", sourceRef);
+            if (existing.isPresent()) {
+                AssetRequirement merged = mergeImportedRequirement(existing.get(), requirementImportRequest(projectId, row), Instant.now());
+                if (sameRequirement(existing.get(), merged)) {
+                    return ImportPlan.planned(rowNumber, "LINK_EXISTING", existing.get().id(), existing.get().code(), "无差异，复用既有需求");
+                }
+                if (!"DRAFT".equals(existing.get().status())) {
+                    return ImportPlan.failed(
+                            rowNumber,
+                            "CONFLICT_REVIEW_REQUIRED",
+                            "既有导入需求已进入评审或审批状态，需人工处理差异后再更新",
+                            List.of("status=" + existing.get().status())
+                    );
+                }
+                return ImportPlan.planned(rowNumber, "UPDATE", existing.get().id(), existing.get().code(), "将更新既有 DRAFT 需求");
+            }
+        }
+        return ImportPlan.planned(rowNumber, "CREATE", null, null, "将创建需求");
+    }
+
+    private ImportPlan planApiImport(String projectId, int rowNumber, Map<String, String> row) {
+        String path = trimToNull(rowValue(row, "path"));
+        String httpMethod = trimToNull(rowValue(row, "httpMethod"));
+        if (repository.hasActiveApiPathConflict(projectId, path, httpMethod, UUID.randomUUID())) {
+            return ImportPlan.failed(
+                    rowNumber,
+                    "CONFLICT_REVIEW_REQUIRED",
+                    "同项目下 API 路径和方法已存在，需人工处理",
+                    List.of("path/httpMethod 已存在")
+            );
+        }
+        return ImportPlan.planned(rowNumber, "CREATE", null, null, "将创建 API 资产");
+    }
+
+    private ImportPlan planTestCaseImport(String projectId, int rowNumber, Map<String, String> row) {
+        UUID requirementId = uuidOrNull(rowValue(row, "requirementId"));
+        UUID apiId = uuidOrNull(rowValue(row, "apiId"));
+        try {
+            validateRequirementBelongsToProject(requirementId, projectId);
+            validateApiBelongsToProject(apiId, projectId);
+        } catch (BusinessException e) {
+            return ImportPlan.failed(rowNumber, "INVALID", "关联资产校验失败", List.of(e.getMessage()));
+        }
+        return ImportPlan.planned(rowNumber, "CREATE", null, null, "将创建测试用例");
+    }
+
+    private AssetImportItemResponse applyImportPlan(
+            String assetType,
+            String projectId,
+            Map<String, String> row,
+            ImportPlan plan
+    ) {
+        try {
+            return switch (assetType) {
+                case "REQUIREMENT" -> importRequirement(projectId, row, plan.row());
+                case "API" -> importApi(projectId, row, plan.row());
+                case "TEST_CASE" -> importTestCase(projectId, row, plan.row());
+                default -> plan.toResponse();
+            };
+        } catch (BusinessException e) {
+            return new AssetImportItemResponse(plan.row(), "FAILED", null, null, "FAILED", e.getMessage(), List.of(e.getMessage()));
+        }
+    }
+
+    private AssetImportItemResponse importRequirement(String projectId, Map<String, String> row, int rowNumber) {
+        ImportPlan before = planRequirementImport(projectId, rowNumber, row);
+        if (!"PLANNED".equals(before.status())) {
+            return before.toResponse();
+        }
+        RequirementResponse saved = createRequirement(requirementImportRequest(projectId, row));
+        ImportPlan after = planRequirementImport(projectId, rowNumber, row);
+        String action = "LINK_EXISTING".equals(after.action()) ? before.action() : after.action();
+        if ("LINK_EXISTING".equals(action) && "CREATE".equals(before.action())) {
+            action = "CREATE";
+        }
+        return new AssetImportItemResponse(rowNumber, action, saved.id(), saved.code(), "SUCCEEDED", "导入成功", List.of());
+    }
+
+    private AssetImportItemResponse importApi(String projectId, Map<String, String> row, int rowNumber) {
+        ApiResponseDTO saved = createApi(new CreateApiRequest(
+                rowValue(row, "summary"),
+                rowValue(row, "description"),
+                rowValue(row, "httpMethod"),
+                rowValue(row, "path"),
+                defaultJson(rowValue(row, "requestSchema")),
+                defaultJson(rowValue(row, "responseSchema")),
+                projectId,
+                rowValue(row, "status")
+        ));
+        return new AssetImportItemResponse(rowNumber, "CREATE", saved.id(), saved.code(), "SUCCEEDED", "导入成功", List.of());
+    }
+
+    private AssetImportItemResponse importTestCase(String projectId, Map<String, String> row, int rowNumber) {
+        TestCaseResponse saved = createTestCase(new CreateTestCaseRequest(
+                rowValue(row, "title"),
+                rowValue(row, "description"),
+                uuidOrNull(rowValue(row, "requirementId")),
+                uuidOrNull(rowValue(row, "apiId")),
+                projectId,
+                rowValue(row, "status"),
+                rowValue(row, "priority"),
+                rowValue(row, "tags"),
+                parseImportSteps(rowValue(row, "steps"))
+        ));
+        return new AssetImportItemResponse(rowNumber, "CREATE", saved.id(), saved.code(), "SUCCEEDED", "导入成功", List.of());
+    }
+
+    private static AssetImportResponse toImportResponse(
+            String assetType,
+            String format,
+            boolean dryRun,
+            int totalRows,
+            List<AssetImportItemResponse> items
+    ) {
+        int created = countAction(items, "CREATE");
+        int updated = countAction(items, "UPDATE");
+        int skipped = (int) items.stream().filter(item -> "LINK_EXISTING".equals(item.action())).count();
+        int failed = (int) items.stream().filter(item -> "FAILED".equals(item.status())).count();
+        return new AssetImportResponse(assetType, format, dryRun, totalRows, created, updated, skipped, failed, items);
+    }
+
+    private static int countAction(List<AssetImportItemResponse> items, String action) {
+        return (int) items.stream()
+                .filter(item -> action.equals(item.action()))
+                .filter(item -> !"FAILED".equals(item.status()))
+                .count();
+    }
+
+    private List<String> validateImportRow(String assetType, Map<String, String> row) {
+        List<String> errors = new ArrayList<>();
+        switch (assetType) {
+            case "REQUIREMENT" -> {
+                requireImportField(row, "title", errors);
+                validateImportEnum(row, "status", REVIEW_STATUSES, errors);
+                validateImportEnum(row, "priority", PRIORITIES, errors);
+            }
+            case "API" -> {
+                requireImportField(row, "summary", errors);
+                requireImportField(row, "httpMethod", errors);
+                requireImportField(row, "path", errors);
+                validateImportEnum(row, "status", API_STATUSES, errors);
+                validateImportEnum(row, "httpMethod", Set.of("GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"), errors);
+            }
+            case "TEST_CASE" -> {
+                requireImportField(row, "title", errors);
+                validateImportEnum(row, "status", REVIEW_STATUSES, errors);
+                validateImportEnum(row, "priority", PRIORITIES, errors);
+                validateUuidField(row, "requirementId", errors);
+                validateUuidField(row, "apiId", errors);
+            }
+            default -> errors.add("assetType 不合法");
+        }
+        return errors;
+    }
+
+    private CreateRequirementRequest requirementImportRequest(String projectId, Map<String, String> row) {
+        return new CreateRequirementRequest(
+                rowValue(row, "title"),
+                rowValue(row, "description"),
+                rowValue(row, "status"),
+                rowValue(row, "priority"),
+                projectId,
+                rowValue(row, "tags"),
+                "IMPORT",
+                rowValue(row, "sourceRef"),
+                rowValue(row, "sourceUrl"),
+                rowValue(row, "acceptanceCriteria")
+        );
+    }
+
+    private String exportRequirements(AssetExportRequest request, String format) {
+        List<RequirementResponse> rows = exportRequirementRows(request);
+        if ("JSON".equals(format)) {
+            return jsonString(rows.stream().map(AssetService::requirementExportMap).toList());
+        }
+        StringBuilder csv = new StringBuilder("code,title,description,status,priority,projectId,source,sourceRef,sourceUrl,acceptanceCriteria,tags,lifecycleStatus,createdAt,updatedAt\n");
+        rows.forEach(row -> appendCsvLine(csv,
+                row.code(), row.title(), row.description(), row.status(), row.priority(), row.projectId(),
+                row.source(), row.sourceRef(), row.sourceUrl(), row.acceptanceCriteria(), row.tags(),
+                row.lifecycleStatus(), row.createdAt(), row.updatedAt()));
+        return csv.toString();
+    }
+
+    private String exportApis(AssetExportRequest request, String format) {
+        List<ApiResponseDTO> rows = exportApiRows(request);
+        if ("OPENAPI".equals(format)) {
+            return exportApisOpenApi(rows);
+        }
+        if ("JSON".equals(format)) {
+            return jsonString(rows.stream().map(AssetService::apiExportMap).toList());
+        }
+        StringBuilder csv = new StringBuilder("code,summary,description,httpMethod,path,status,projectId,source,sourceRef,requestSchema,responseSchema,lifecycleStatus,createdAt,updatedAt\n");
+        rows.forEach(row -> appendCsvLine(csv,
+                row.code(), row.summary(), row.description(), row.httpMethod(), row.path(), row.status(),
+                row.projectId(), row.source(), row.sourceRef(), row.requestSchema(), row.responseSchema(),
+                row.lifecycleStatus(), row.createdAt(), row.updatedAt()));
+        return csv.toString();
+    }
+
+    private String exportTestCases(AssetExportRequest request, String format) {
+        List<TestCaseResponse> rows = exportTestCaseRows(request);
+        if ("JSON".equals(format)) {
+            return jsonString(rows.stream().map(AssetService::testCaseExportMap).toList());
+        }
+        StringBuilder csv = new StringBuilder("code,title,description,status,priority,projectId,requirementId,apiId,tags,steps,lifecycleStatus,createdAt,updatedAt\n");
+        rows.forEach(row -> appendCsvLine(csv,
+                row.code(), row.title(), row.description(), row.status(), row.priority(), row.projectId(),
+                row.requirementId(), row.apiId(), row.tags(), jsonString(row.steps()),
+                row.lifecycleStatus(), row.createdAt(), row.updatedAt()));
+        return csv.toString();
+    }
+
     // ---- Health ----
 
     public String health() {
@@ -998,7 +1332,7 @@ public class AssetService {
                         .toList();
         return new TestCaseResponse(
                 tc.id(), tc.code(), tc.title(), tc.description(), tc.requirementId(), tc.apiId(),
-                tc.source(), tc.sourceRef(),
+                tc.source(), tc.sourceRef(), tc.projectId(),
                 tc.status(), tc.priority(), tc.tags(), stepResponses,
                 tc.version(),
                 lifecycleStatus(tc.lifecycleStatus(), tc.deletedAt()), tc.archivedAt(), tc.deletedAt(),
@@ -1253,6 +1587,338 @@ public class AssetService {
     private void writeProjectAudit(String action, String resourceType, UUID resourceId, String projectId, String result) {
         String scopeId = StringUtils.hasText(projectId) ? projectContext(projectId).projectId() : null;
         contextClient.writeAuditEvent(action, resourceType, resourceId.toString(), scopeId, result);
+    }
+
+    private void writeAssetBatchAudit(String action, String resourceType, String projectId, String result) {
+        String scopeId = StringUtils.hasText(projectId) ? projectContext(projectId).projectId() : null;
+        contextClient.writeAuditEvent(action, resourceType, UUID.randomUUID().toString(), scopeId, result);
+    }
+
+    private List<RequirementResponse> exportRequirementRows(AssetExportRequest request) {
+        request.setIndex(0);
+        request.setSize(100);
+        return listRequirements(request).items();
+    }
+
+    private List<ApiResponseDTO> exportApiRows(AssetExportRequest request) {
+        request.setIndex(0);
+        request.setSize(100);
+        return listApis(request).items();
+    }
+
+    private List<TestCaseResponse> exportTestCaseRows(AssetExportRequest request) {
+        request.setIndex(0);
+        request.setSize(100);
+        return listTestCases(request).items();
+    }
+
+    private static List<Map<String, String>> parseCsv(String content) {
+        List<String> lines = content.lines()
+                .filter(StringUtils::hasText)
+                .toList();
+        if (lines.isEmpty()) {
+            return List.of();
+        }
+        List<String> headers = splitCsvLine(lines.getFirst()).stream()
+                .map(String::trim)
+                .toList();
+        List<Map<String, String>> rows = new ArrayList<>();
+        for (int i = 1; i < lines.size(); i++) {
+            List<String> values = splitCsvLine(lines.get(i));
+            Map<String, String> row = new LinkedHashMap<>();
+            for (int column = 0; column < headers.size(); column++) {
+                row.put(headers.get(column), column < values.size() ? trimToNull(values.get(column)) : null);
+            }
+            rows.add(row);
+        }
+        return rows;
+    }
+
+    private static List<String> splitCsvLine(String line) {
+        List<String> values = new ArrayList<>();
+        StringBuilder current = new StringBuilder();
+        boolean quoted = false;
+        for (int i = 0; i < line.length(); i++) {
+            char c = line.charAt(i);
+            if (c == '"') {
+                if (quoted && i + 1 < line.length() && line.charAt(i + 1) == '"') {
+                    current.append('"');
+                    i++;
+                } else {
+                    quoted = !quoted;
+                }
+            } else if (c == ',' && !quoted) {
+                values.add(current.toString());
+                current.setLength(0);
+            } else {
+                current.append(c);
+            }
+        }
+        values.add(current.toString());
+        return values;
+    }
+
+    private static Map<String, String> flattenJsonObject(JsonNode item) {
+        if (!item.isObject()) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "JSON 导入数组元素必须是对象");
+        }
+        Map<String, String> row = new LinkedHashMap<>();
+        item.fields().forEachRemaining(entry -> row.put(
+                entry.getKey(),
+                entry.getValue().isContainerNode() ? jsonString(entry.getValue()) : textOrNull(entry.getValue())
+        ));
+        return row;
+    }
+
+    private static void requireImportField(Map<String, String> row, String field, List<String> errors) {
+        if (!StringUtils.hasText(rowValue(row, field))) {
+            errors.add(field + " 不能为空");
+        }
+    }
+
+    private static void validateImportEnum(
+            Map<String, String> row,
+            String field,
+            Set<String> allowedValues,
+            List<String> errors
+    ) {
+        String value = trimToNull(rowValue(row, field));
+        if (value != null && !allowedValues.contains(value.toUpperCase(Locale.ROOT))) {
+            errors.add(field + " 不合法: " + value);
+        }
+    }
+
+    private static void validateUuidField(Map<String, String> row, String field, List<String> errors) {
+        String value = trimToNull(rowValue(row, field));
+        if (value == null) {
+            return;
+        }
+        try {
+            UUID.fromString(value);
+        } catch (IllegalArgumentException e) {
+            errors.add(field + " 不是合法 UUID");
+        }
+    }
+
+    private static String rowValue(Map<String, String> row, String field) {
+        if (row.containsKey(field)) {
+            return row.get(field);
+        }
+        for (Map.Entry<String, String> entry : row.entrySet()) {
+            if (entry.getKey().equalsIgnoreCase(field)) {
+                return entry.getValue();
+            }
+        }
+        return null;
+    }
+
+    private static UUID uuidOrNull(String value) {
+        String trimmed = trimToNull(value);
+        return trimmed == null ? null : UUID.fromString(trimmed);
+    }
+
+    private static String defaultJson(String value) {
+        return StringUtils.hasText(value) ? value : "{}";
+    }
+
+    private static List<CreateTestCaseRequest.StepDto> parseImportSteps(String rawSteps) {
+        if (!StringUtils.hasText(rawSteps)) {
+            return List.of();
+        }
+        try {
+            JsonNode root = JSON_MAPPER.readTree(rawSteps);
+            if (!root.isArray()) {
+                return List.of(new CreateTestCaseRequest.StepDto(rawSteps, "待补充"));
+            }
+            List<CreateTestCaseRequest.StepDto> steps = new ArrayList<>();
+            for (JsonNode item : root) {
+                steps.add(new CreateTestCaseRequest.StepDto(
+                        textOrDefault(item.path("action"), "待补充操作"),
+                        textOrDefault(item.path("expectedResult"), "待补充预期")
+                ));
+            }
+            return steps;
+        } catch (JsonProcessingException e) {
+            return List.of(new CreateTestCaseRequest.StepDto(rawSteps, "待补充"));
+        }
+    }
+
+    private static Map<String, Object> requirementExportMap(RequirementResponse row) {
+        Map<String, Object> item = new LinkedHashMap<>();
+        item.put("code", row.code());
+        item.put("title", row.title());
+        item.put("description", row.description());
+        item.put("status", row.status());
+        item.put("priority", row.priority());
+        item.put("projectId", row.projectId());
+        item.put("source", row.source());
+        item.put("sourceRef", row.sourceRef());
+        item.put("sourceUrl", row.sourceUrl());
+        item.put("acceptanceCriteria", row.acceptanceCriteria());
+        item.put("tags", row.tags());
+        item.put("lifecycleStatus", row.lifecycleStatus());
+        item.put("createdAt", row.createdAt());
+        item.put("updatedAt", row.updatedAt());
+        return item;
+    }
+
+    private static Map<String, Object> apiExportMap(ApiResponseDTO row) {
+        Map<String, Object> item = new LinkedHashMap<>();
+        item.put("code", row.code());
+        item.put("summary", row.summary());
+        item.put("description", row.description());
+        item.put("httpMethod", row.httpMethod());
+        item.put("path", row.path());
+        item.put("status", row.status());
+        item.put("projectId", row.projectId());
+        item.put("source", row.source());
+        item.put("sourceRef", row.sourceRef());
+        item.put("requestSchema", row.requestSchema());
+        item.put("responseSchema", row.responseSchema());
+        item.put("lifecycleStatus", row.lifecycleStatus());
+        item.put("createdAt", row.createdAt());
+        item.put("updatedAt", row.updatedAt());
+        return item;
+    }
+
+    private static Map<String, Object> testCaseExportMap(TestCaseResponse row) {
+        Map<String, Object> item = new LinkedHashMap<>();
+        item.put("code", row.code());
+        item.put("title", row.title());
+        item.put("description", row.description());
+        item.put("status", row.status());
+        item.put("priority", row.priority());
+        item.put("projectId", row.projectId());
+        item.put("requirementId", row.requirementId());
+        item.put("apiId", row.apiId());
+        item.put("tags", row.tags());
+        item.put("steps", row.steps());
+        item.put("lifecycleStatus", row.lifecycleStatus());
+        item.put("createdAt", row.createdAt());
+        item.put("updatedAt", row.updatedAt());
+        return item;
+    }
+
+    private static String exportApisOpenApi(List<ApiResponseDTO> rows) {
+        Map<String, Object> root = new LinkedHashMap<>();
+        root.put("openapi", "3.0.3");
+        root.put("info", Map.of("title", "WP3 API Assets", "version", "1.0.0"));
+        Map<String, Object> paths = new LinkedHashMap<>();
+        for (ApiResponseDTO row : rows) {
+            Map<String, Object> pathItem = castMap(paths.computeIfAbsent(row.path(), ignored -> new LinkedHashMap<>()));
+            Map<String, Object> operation = new LinkedHashMap<>();
+            operation.put("summary", row.summary());
+            operation.put("description", row.description());
+            operation.put("operationId", row.code());
+            operation.put("x-wp3-lifecycleStatus", row.lifecycleStatus());
+            if (hasUsefulSchema(row.requestSchema())) {
+                operation.put("requestBody", Map.of(
+                        "required", false,
+                        "content", Map.of("application/json", Map.of("schema", jsonNode(row.requestSchema())))
+                ));
+            }
+            Map<String, Object> okResponse = new LinkedHashMap<>();
+            okResponse.put("description", "OK");
+            if (hasUsefulSchema(row.responseSchema())) {
+                okResponse.put("content", Map.of("application/json", Map.of("schema", jsonNode(row.responseSchema()))));
+            }
+            operation.put("responses", Map.of("200", okResponse));
+            pathItem.put(row.httpMethod().toLowerCase(Locale.ROOT), operation);
+        }
+        root.put("paths", paths);
+        return jsonString(root);
+    }
+
+    private static String openApiRequestSchema(JsonNode operation) {
+        JsonNode schema = operation.path("requestBody").path("content").path("application/json").path("schema");
+        return schema.isMissingNode() ? "{}" : jsonString(schema);
+    }
+
+    private static String openApiResponseSchema(JsonNode operation) {
+        JsonNode responses = operation.path("responses");
+        if (!responses.isObject()) {
+            return "{}";
+        }
+        for (String code : List.of("200", "201", "202", "default")) {
+            String schema = openApiResponseSchemaByCode(responses.path(code));
+            if (schema != null) {
+                return schema;
+            }
+        }
+        var fields = responses.fields();
+        while (fields.hasNext()) {
+            String schema = openApiResponseSchemaByCode(fields.next().getValue());
+            if (schema != null) {
+                return schema;
+            }
+        }
+        return "{}";
+    }
+
+    private static String openApiResponseSchemaByCode(JsonNode response) {
+        JsonNode schema = response.path("content").path("application/json").path("schema");
+        return schema.isMissingNode() ? null : jsonString(schema);
+    }
+
+    private static boolean hasUsefulSchema(String schema) {
+        return StringUtils.hasText(schema) && !"{}".equals(schema.trim());
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> castMap(Object value) {
+        return (Map<String, Object>) value;
+    }
+
+    private static void appendCsvLine(StringBuilder csv, Object... values) {
+        for (Object value : values) {
+            appendCsvValue(csv, value);
+        }
+        csv.setLength(csv.length() - 1);
+        csv.append('\n');
+    }
+
+    private static void appendCsvValue(StringBuilder csv, Object value) {
+        String text = value == null ? "" : String.valueOf(value);
+        csv.append('"').append(text.replace("\"", "\"\"")).append('"').append(',');
+    }
+
+    private static String importExportAssetType(String rawValue) {
+        return valueIn(rawValue, null, IMPORT_EXPORT_ASSET_TYPES, "assetType");
+    }
+
+    private static String importExportFormat(String rawValue) {
+        return valueIn(rawValue, "CSV", IMPORT_EXPORT_FORMATS, "format");
+    }
+
+    private static String textOrNull(JsonNode node) {
+        return node == null || node.isMissingNode() || node.isNull() ? null : node.asText();
+    }
+
+    private static String textOrDefault(JsonNode node, String defaultValue) {
+        String value = textOrNull(node);
+        return StringUtils.hasText(value) ? value : defaultValue;
+    }
+
+    private record ImportPlan(
+            int row,
+            String action,
+            UUID id,
+            String code,
+            String status,
+            String message,
+            List<String> errors
+    ) {
+        private static ImportPlan planned(int row, String action, UUID id, String code, String message) {
+            return new ImportPlan(row, action, id, code, "PLANNED", message, List.of());
+        }
+
+        private static ImportPlan failed(int row, String action, String message, List<String> errors) {
+            return new ImportPlan(row, action, null, null, "FAILED", message, errors);
+        }
+
+        private AssetImportItemResponse toResponse() {
+            return new AssetImportItemResponse(row, action, id, code, status, message, errors);
+        }
     }
 
     private void validateRequirementBelongsToProject(UUID requirementId, String projectId) {

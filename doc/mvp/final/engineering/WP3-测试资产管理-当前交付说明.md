@@ -23,10 +23,11 @@ WP3 当前提供测试资产的最小闭环：需求、API、页面、业务流�
 8. 资产生命周期：需求、API、页面、业务流和测试用例支持独立 `lifecycleStatus=ACTIVE/ARCHIVED/DELETED`，列表默认仅返回 ACTIVE，可按生命周期筛选；归档保留唯一性，软删除释放现有唯一性约束，恢复前校验冲突。
 9. 追踪矩阵：前端基于需求、API、测试用例和追踪链接做只读聚合，展示覆盖状态、缺口和一跳影响范围。
 10. WP4 发布：`IMPORT + sourceRef` 需求幂等写入，重复导入在 DRAFT 状态下更新，非 DRAFT 差异阻断。
+11. 导入/导出：需求、API、测试用例支持同步 CSV/JSON 导入导出；API 资产支持轻量 OpenAPI 导入导出。导入提供 `dryRun`、逐行 action/status/errors，导出文件只包含业务字段，不包含 traceId、snapshot 或历史记录。
 
 ## 2. 非范围
 
-本轮不实现历史版本回滚、API/Page/BusinessFlow 的完整版本历史、CSV/OpenAPI 导入导出、API 资产 OpenAPI 导入执行能力、正式后端聚合影响分析服务、企业原型连接器真实拉取、可视化业务流画布和测试执行结果闭环。这些能力保留在后续 P1/P2 任务中。
+本轮不实现历史版本回滚、API/Page/BusinessFlow 的完整版本历史、完整 OpenAPI schema/version/idempotent 更新、正式后端聚合影响分析服务、企业原型连接器真实拉取、可视化业务流画布和测试执行结果闭环。这些能力保留在后续 P1/P2 任务中。
 
 ## 3. 权限
 
@@ -35,9 +36,9 @@ WP3 当前提供测试资产的最小闭环：需求、API、页面、业务流�
 | 权限 | 用途 |
 |---|---|
 | `asset:read` | 读取资产列表、详情、步骤和追踪链接 |
-| `asset:manage` | 创建、编辑资产，维护步骤和追踪链接 |
+| `asset:manage` | 创建、编辑资产，维护步骤、追踪链接和导入资产 |
 | `asset:review` | 前端状态流操作入口 |
-| `asset:export` | 后续导出能力预留 |
+| `asset:export` | 导出资产 |
 
 内部服务调用使用 `WP3_SERVICE_TOKEN`，并通过 `X-Caller-Service`、`X-Delegated-User-Id` 保留调用来源。登录用户调用由 WP1 RBAC 决定是否可访问；项目上下文停用、未授权或审计写失败时，资产服务会拒绝操作并由契约测试固定“不产生脏资产”的行为。
 
@@ -47,6 +48,7 @@ WP3 当前提供测试资产的最小闭环：需求、API、页面、业务流�
 |---|---|
 | 健康检查 | `GET /api/v1/asset/health` |
 | 需求 | `GET/POST /api/v1/asset/requirements`，`GET/PUT /api/v1/asset/requirements/{id}`，`GET/PATCH /api/v1/asset/requirements/{id}/lifecycle`，`GET /api/v1/asset/requirements/{id}/versions` |
+| 导入/导出 | `POST /api/v1/asset/imports`，`GET /api/v1/asset/exports` |
 | API 资产 | `GET/POST /api/v1/asset/apis`，`GET/PUT /api/v1/asset/apis/{id}`，`GET/PATCH /api/v1/asset/apis/{id}/lifecycle` |
 | 页面 | `GET/POST /api/v1/asset/pages`，`GET/PUT /api/v1/asset/pages/{id}`，`GET/PATCH /api/v1/asset/pages/{id}/lifecycle` |
 | 业务流 | `GET/POST /api/v1/asset/business-flows`，`GET/PUT /api/v1/asset/business-flows/{id}`，`GET/PATCH /api/v1/asset/business-flows/{id}/lifecycle` |
@@ -94,6 +96,15 @@ PostgreSQL 表位于 `db/migration/wp1/V20260518_014__wp3_asset_base_schema.sql`
 - `DELETED` 释放现有 partial unique index；恢复前校验项目内 code/sourceRef/path 等唯一性冲突，冲突返回 `CONFLICT`。
 - 需求和测试用例的归档、软删除、恢复会写入 `asset_version_history`，trace link 不随资产软删除被清理。
 
+导入/导出口径：
+
+- `POST /api/v1/asset/imports` 请求字段为 `assetType`、`format`、`projectId`、`dryRun`、`content`；`assetType` 支持 `REQUIREMENT/API/TEST_CASE`，`format` 支持 `CSV/JSON/OPENAPI`，其中 `OPENAPI` 仅支持 API 资产。
+- CSV 第一行为字段名；JSON 支持数组或 `{ "items": [...] }`；OpenAPI 轻量解析 `paths` 下的 HTTP method、path、summary 和 description。
+- dryRun 不写资产，只返回逐行 `PLANNED/FAILED`、`CREATE/UPDATE/LINK_EXISTING/CONFLICT_REVIEW_REQUIRED` 和错误明细。
+- 需求导入使用 `source=IMPORT + sourceRef` 做幂等：无差异复用，DRAFT 有差异更新并生成历史，非 DRAFT 有差异返回冲突。
+- API OpenAPI 导入当前以 `path + httpMethod` 冲突保护为主，重复导入返回逐行冲突；完整 schema、版本和幂等更新归 `WP3-B6`。
+- 导出按列表筛选口径输出当前页上限 100 条；CSV/JSON/OpenAPI 导出不包含 traceId、snapshot、历史记录和审计上下文。
+
 ## 6. 状态流
 
 需求和测试用例使用 `DRAFT/REVIEWING/APPROVED/DEPRECATED`。`APPROVED` 只能保持或进入 `DEPRECATED`，`DEPRECATED` 不允许恢复。API、页面和业务流使用各自状态集合，非法转换返回稳定错误并写拒绝审计。
@@ -106,7 +117,7 @@ PostgreSQL 表位于 `db/migration/wp1/V20260518_014__wp3_asset_base_schema.sql`
 - 支持需求列表、本地筛选、详情、创建、编辑和状态流入口。
 - 展示 WP4 发布的 `source/sourceRef/sourceUrl/acceptanceCriteria`。
 - 支持 API 列表、详情、创建、编辑、`method/path/status/source/keyword` 筛选和 request/response schema 展示。
-- API 页保留 OpenAPI 导入入口；真实 OpenAPI 解析、幂等导入和 schema diff 仍归后续 `WP3-B6`。
+- API 页保留 OpenAPI 导入入口；后端已有轻量 OpenAPI 导入导出接口，前端导入工作流、完整幂等导入和 schema diff 仍归后续 `WP3-B6`/前端增强。
 - 支持页面资产列表、详情、创建、编辑、`projectId/status/source/keyword` 筛选、`sourceRef/screenshotUrl` 展示和 `componentTree` JSON 预览/编辑校验。
 - 支持业务流资产列表、详情、创建、编辑、`projectId/status/keyword` 筛选、状态流入口和 `flowJson` JSON 预览/编辑校验。
 - 支持测试用例列表、详情、创建、编辑、`projectId/status/source/keyword` 筛选、关联需求/API 展示与跳转、步骤新增/删除/上移/下移和整体保存。
@@ -146,4 +157,4 @@ PR/主干 CI 可通过 `.github/workflows/wp3-asset-management.yml` 复用同一
 
 ## 9. 后续入口
 
-后续优先补齐历史版本回滚、导入导出、OpenAPI 导入执行能力、后端聚合影响分析服务和页面/业务流追踪关系。
+后续优先补齐历史版本回滚、OpenAPI 完整 schema/version/idempotent 导入、前端导入导出工作流、后端聚合影响分析服务和页面/业务流追踪关系。

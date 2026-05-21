@@ -1,6 +1,8 @@
 package com.songhg.veri.agent.asset.api.controller;
 
 import com.songhg.veri.agent.asset.api.request.AssetListRequest;
+import com.songhg.veri.agent.asset.api.request.AssetExportRequest;
+import com.songhg.veri.agent.asset.api.request.AssetImportRequest;
 import com.songhg.veri.agent.asset.api.request.CreateApiRequest;
 import com.songhg.veri.agent.asset.api.request.CreateBusinessFlowRequest;
 import com.songhg.veri.agent.asset.api.request.CreateLinkRequest;
@@ -16,6 +18,8 @@ import com.songhg.veri.agent.asset.api.request.UpdateRequirementRequest;
 import com.songhg.veri.agent.asset.api.request.UpdateTestCaseRequest;
 import com.songhg.veri.agent.asset.api.request.UpdateTestCaseStepsRequest;
 import com.songhg.veri.agent.asset.api.response.ApiResponseDTO;
+import com.songhg.veri.agent.asset.api.response.AssetExportPayload;
+import com.songhg.veri.agent.asset.api.response.AssetImportResponse;
 import com.songhg.veri.agent.asset.api.response.AssetVersionHistoryResponse;
 import com.songhg.veri.agent.asset.api.response.BusinessFlowResponse;
 import com.songhg.veri.agent.asset.api.response.PageResponse;
@@ -31,7 +35,10 @@ import jakarta.validation.Valid;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -59,6 +66,22 @@ public class AssetController {
     @GetMapping("/health")
     public Map<String, String> health() {
         return Map.of("service", "asset-service", "status", service.health());
+    }
+
+    @PostMapping("/imports")
+    public AssetImportResponse importAssets(@Valid @RequestBody AssetImportRequest request) {
+        requirePermission("asset:manage");
+        return service.importAssets(request);
+    }
+
+    @GetMapping("/exports")
+    public ResponseEntity<byte[]> exportAssets(@Valid AssetExportRequest request) {
+        requirePermission("asset:export");
+        AssetExportPayload payload = service.exportAssets(request);
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(payload.contentType()))
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + payload.fileName() + "\"")
+                .body(payload.content());
     }
 
     // ---- Requirements ----
