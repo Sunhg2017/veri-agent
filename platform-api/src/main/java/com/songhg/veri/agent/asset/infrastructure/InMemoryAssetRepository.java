@@ -12,6 +12,7 @@ import com.songhg.veri.agent.asset.domain.TraceLink;
 import java.time.Instant;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -40,6 +41,12 @@ public class InMemoryAssetRepository implements AssetRepository {
 
     @Override
     public Optional<AssetRequirement> requirement(UUID id) {
+        return requirementIncludingInactive(id)
+                .filter(value -> !"DELETED".equals(lifecycleStatus(value.lifecycleStatus(), value.deletedAt())));
+    }
+
+    @Override
+    public Optional<AssetRequirement> requirementIncludingInactive(UUID id) {
         return Optional.ofNullable(requirements.get(id));
     }
 
@@ -52,6 +59,7 @@ public class InMemoryAssetRepository implements AssetRepository {
                 .filter(value -> projectId.equals(value.projectId()))
                 .filter(value -> source.equals(value.source()))
                 .filter(value -> sourceRef.equals(value.sourceRef()))
+                .filter(value -> !"DELETED".equals(lifecycleStatus(value.lifecycleStatus(), value.deletedAt())))
                 .findFirst();
     }
 
@@ -59,6 +67,28 @@ public class InMemoryAssetRepository implements AssetRepository {
     public AssetRequirement saveRequirement(AssetRequirement requirement) {
         requirements.put(requirement.id(), requirement);
         return requirement;
+    }
+
+    @Override
+    public boolean hasActiveRequirementCodeConflict(String projectId, String code, UUID excludeId) {
+        return requirements.values().stream()
+                .anyMatch(value -> projectId.equals(value.projectId())
+                        && code.equals(value.code())
+                        && !"DELETED".equals(lifecycleStatus(value.lifecycleStatus(), value.deletedAt()))
+                        && !value.id().equals(excludeId));
+    }
+
+    @Override
+    public boolean hasActiveRequirementSourceRefConflict(String projectId, String source, String sourceRef, UUID excludeId) {
+        if (projectId == null || source == null || sourceRef == null) {
+            return false;
+        }
+        return requirements.values().stream()
+                .anyMatch(value -> projectId.equals(value.projectId())
+                        && source.equals(value.source())
+                        && sourceRef.equals(value.sourceRef())
+                        && !"DELETED".equals(lifecycleStatus(value.lifecycleStatus(), value.deletedAt()))
+                        && !value.id().equals(excludeId));
     }
 
     @Override
@@ -87,6 +117,12 @@ public class InMemoryAssetRepository implements AssetRepository {
 
     @Override
     public Optional<AssetApi> api(UUID id) {
+        return apiIncludingInactive(id)
+                .filter(value -> !"DELETED".equals(lifecycleStatus(value.lifecycleStatus(), value.deletedAt())));
+    }
+
+    @Override
+    public Optional<AssetApi> apiIncludingInactive(UUID id) {
         return Optional.ofNullable(apis.get(id));
     }
 
@@ -94,6 +130,18 @@ public class InMemoryAssetRepository implements AssetRepository {
     public AssetApi saveApi(AssetApi api) {
         apis.put(api.id(), api);
         return api;
+    }
+
+    @Override
+    public boolean hasActiveApiPathConflict(String projectId, String path, String httpMethod, UUID excludeId) {
+        String normalizedMethod = httpMethod == null ? null : httpMethod.toUpperCase(Locale.ROOT);
+        return apis.values().stream()
+                .anyMatch(value -> projectId.equals(value.projectId())
+                        && path.equals(value.path())
+                        && normalizedMethod != null
+                        && normalizedMethod.equals(value.httpMethod().toUpperCase(Locale.ROOT))
+                        && !"DELETED".equals(lifecycleStatus(value.lifecycleStatus(), value.deletedAt()))
+                        && !value.id().equals(excludeId));
     }
 
     @Override
@@ -106,6 +154,12 @@ public class InMemoryAssetRepository implements AssetRepository {
 
     @Override
     public Optional<AssetPage> page(UUID id) {
+        return pageIncludingInactive(id)
+                .filter(value -> !"DELETED".equals(lifecycleStatus(value.lifecycleStatus(), value.deletedAt())));
+    }
+
+    @Override
+    public Optional<AssetPage> pageIncludingInactive(UUID id) {
         return Optional.ofNullable(pages.get(id));
     }
 
@@ -113,6 +167,15 @@ public class InMemoryAssetRepository implements AssetRepository {
     public AssetPage savePage(AssetPage page) {
         pages.put(page.id(), page);
         return page;
+    }
+
+    @Override
+    public boolean hasActivePageCodeConflict(String projectId, String code, UUID excludeId) {
+        return pages.values().stream()
+                .anyMatch(value -> projectId.equals(value.projectId())
+                        && code.equals(value.code())
+                        && !"DELETED".equals(lifecycleStatus(value.lifecycleStatus(), value.deletedAt()))
+                        && !value.id().equals(excludeId));
     }
 
     @Override
@@ -125,6 +188,12 @@ public class InMemoryAssetRepository implements AssetRepository {
 
     @Override
     public Optional<AssetBusinessFlow> businessFlow(UUID id) {
+        return businessFlowIncludingInactive(id)
+                .filter(value -> !"DELETED".equals(lifecycleStatus(value.lifecycleStatus(), value.deletedAt())));
+    }
+
+    @Override
+    public Optional<AssetBusinessFlow> businessFlowIncludingInactive(UUID id) {
         return Optional.ofNullable(businessFlows.get(id));
     }
 
@@ -132,6 +201,15 @@ public class InMemoryAssetRepository implements AssetRepository {
     public AssetBusinessFlow saveBusinessFlow(AssetBusinessFlow flow) {
         businessFlows.put(flow.id(), flow);
         return flow;
+    }
+
+    @Override
+    public boolean hasActiveBusinessFlowCodeConflict(String projectId, String code, UUID excludeId) {
+        return businessFlows.values().stream()
+                .anyMatch(value -> projectId.equals(value.projectId())
+                        && code.equals(value.code())
+                        && !"DELETED".equals(lifecycleStatus(value.lifecycleStatus(), value.deletedAt()))
+                        && !value.id().equals(excludeId));
     }
 
     @Override
@@ -144,6 +222,12 @@ public class InMemoryAssetRepository implements AssetRepository {
 
     @Override
     public Optional<TestCaseRecord> testCase(UUID id) {
+        return testCaseIncludingInactive(id)
+                .filter(value -> !"DELETED".equals(lifecycleStatus(value.lifecycleStatus(), value.deletedAt())));
+    }
+
+    @Override
+    public Optional<TestCaseRecord> testCaseIncludingInactive(UUID id) {
         return Optional.ofNullable(testCases.get(id));
     }
 
@@ -151,6 +235,15 @@ public class InMemoryAssetRepository implements AssetRepository {
     public TestCaseRecord saveTestCase(TestCaseRecord testCase) {
         testCases.put(testCase.id(), testCase);
         return testCase;
+    }
+
+    @Override
+    public boolean hasActiveTestCaseCodeConflict(String projectId, String code, UUID excludeId) {
+        return testCases.values().stream()
+                .anyMatch(value -> projectId.equals(value.projectId())
+                        && code.equals(value.code())
+                        && !"DELETED".equals(lifecycleStatus(value.lifecycleStatus(), value.deletedAt()))
+                        && !value.id().equals(excludeId));
     }
 
     @Override
@@ -177,6 +270,9 @@ public class InMemoryAssetRepository implements AssetRepository {
                 existing.tags(),
                 steps,
                 existing.version() + 1,
+                existing.lifecycleStatus(),
+                existing.archivedAt(),
+                existing.deletedAt(),
                 existing.createdAt(),
                 Instant.now()
         )));
@@ -196,5 +292,12 @@ public class InMemoryAssetRepository implements AssetRepository {
     public TraceLink saveTraceLink(TraceLink link) {
         links.put(link.id(), link);
         return link;
+    }
+
+    private static String lifecycleStatus(String lifecycleStatus, Instant deletedAt) {
+        if (deletedAt != null) {
+            return "DELETED";
+        }
+        return lifecycleStatus == null ? "ACTIVE" : lifecycleStatus;
     }
 }

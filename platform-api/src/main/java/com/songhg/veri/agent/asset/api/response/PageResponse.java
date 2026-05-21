@@ -14,6 +14,9 @@ public record PageResponse(
         String screenshotUrl,
         String projectId,
         String status,
+        String lifecycleStatus,
+        Instant archivedAt,
+        Instant deletedAt,
         Instant createdAt,
         Instant updatedAt
 ) {

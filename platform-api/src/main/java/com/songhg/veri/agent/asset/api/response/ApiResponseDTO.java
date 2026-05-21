@@ -16,6 +16,9 @@ public record ApiResponseDTO(
         String responseSchema,
         String projectId,
         String status,
+        String lifecycleStatus,
+        Instant archivedAt,
+        Instant deletedAt,
         Instant createdAt,
         Instant updatedAt
 ) {

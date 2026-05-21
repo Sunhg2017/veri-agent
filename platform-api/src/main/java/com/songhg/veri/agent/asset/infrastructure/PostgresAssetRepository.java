@@ -11,6 +11,7 @@ import com.songhg.veri.agent.asset.domain.TestCaseStep;
 import com.songhg.veri.agent.asset.domain.TraceLink;
 import com.songhg.veri.agent.asset.infrastructure.mapper.AssetMapper;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.dao.DuplicateKeyException;
@@ -39,6 +40,11 @@ public class PostgresAssetRepository implements AssetRepository {
     }
 
     @Override
+    public Optional<AssetRequirement> requirementIncludingInactive(UUID id) {
+        return Optional.ofNullable(mapper.getRequirementIncludingInactive(id));
+    }
+
+    @Override
     public Optional<AssetRequirement> requirementBySourceRef(String projectId, String source, String sourceRef) {
         return Optional.ofNullable(mapper.getRequirementBySourceRef(projectId, source, sourceRef));
     }
@@ -48,7 +54,11 @@ public class PostgresAssetRepository implements AssetRepository {
         AssetRequirement stored = normalizeRequirement(requirement);
         try {
             if (mapper.getRequirement(stored.id()) == null) {
-                mapper.insertRequirement(stored);
+                if (mapper.getRequirementIncludingInactive(stored.id()) == null) {
+                    mapper.insertRequirement(stored);
+                } else {
+                    mapper.updateRequirementLifecycle(stored);
+                }
             } else {
                 mapper.updateRequirement(stored);
             }
@@ -60,6 +70,19 @@ public class PostgresAssetRepository implements AssetRepository {
             }
             throw exception;
         }
+    }
+
+    @Override
+    public boolean hasActiveRequirementCodeConflict(String projectId, String code, UUID excludeId) {
+        return mapper.countActiveRequirementCodeConflict(projectId, code, excludeId) > 0;
+    }
+
+    @Override
+    public boolean hasActiveRequirementSourceRefConflict(String projectId, String source, String sourceRef, UUID excludeId) {
+        if (projectId == null || source == null || sourceRef == null) {
+            return false;
+        }
+        return mapper.countActiveRequirementSourceRefConflict(projectId, source, sourceRef, excludeId) > 0;
     }
 
     @Override
@@ -84,14 +107,33 @@ public class PostgresAssetRepository implements AssetRepository {
     }
 
     @Override
+    public Optional<AssetApi> apiIncludingInactive(UUID id) {
+        return Optional.ofNullable(mapper.getApiIncludingInactive(id));
+    }
+
+    @Override
     public AssetApi saveApi(AssetApi api) {
         AssetApi stored = normalizeApi(api);
         if (mapper.getApi(stored.id()) == null) {
-            mapper.insertApi(stored);
+            if (mapper.getApiIncludingInactive(stored.id()) == null) {
+                mapper.insertApi(stored);
+            } else {
+                mapper.updateApiLifecycle(stored);
+            }
         } else {
             mapper.updateApi(stored);
         }
         return api;
+    }
+
+    @Override
+    public boolean hasActiveApiPathConflict(String projectId, String path, String httpMethod, UUID excludeId) {
+        return mapper.countActiveApiPathConflict(
+                projectId,
+                path,
+                httpMethod == null ? null : httpMethod.toUpperCase(Locale.ROOT),
+                excludeId
+        ) > 0;
     }
 
     @Override
@@ -105,14 +147,28 @@ public class PostgresAssetRepository implements AssetRepository {
     }
 
     @Override
+    public Optional<AssetPage> pageIncludingInactive(UUID id) {
+        return Optional.ofNullable(mapper.getPageIncludingInactive(id));
+    }
+
+    @Override
     public AssetPage savePage(AssetPage page) {
         AssetPage stored = normalizePage(page);
         if (mapper.getPage(stored.id()) == null) {
-            mapper.insertPage(stored);
+            if (mapper.getPageIncludingInactive(stored.id()) == null) {
+                mapper.insertPage(stored);
+            } else {
+                mapper.updatePageLifecycle(stored);
+            }
         } else {
             mapper.updatePage(stored);
         }
         return page;
+    }
+
+    @Override
+    public boolean hasActivePageCodeConflict(String projectId, String code, UUID excludeId) {
+        return mapper.countActivePageCodeConflict(projectId, code, excludeId) > 0;
     }
 
     @Override
@@ -126,14 +182,28 @@ public class PostgresAssetRepository implements AssetRepository {
     }
 
     @Override
+    public Optional<AssetBusinessFlow> businessFlowIncludingInactive(UUID id) {
+        return Optional.ofNullable(mapper.getBusinessFlowIncludingInactive(id));
+    }
+
+    @Override
     public AssetBusinessFlow saveBusinessFlow(AssetBusinessFlow flow) {
         AssetBusinessFlow stored = normalizeBusinessFlow(flow);
         if (mapper.getBusinessFlow(stored.id()) == null) {
-            mapper.insertBusinessFlow(stored);
+            if (mapper.getBusinessFlowIncludingInactive(stored.id()) == null) {
+                mapper.insertBusinessFlow(stored);
+            } else {
+                mapper.updateBusinessFlowLifecycle(stored);
+            }
         } else {
             mapper.updateBusinessFlow(stored);
         }
         return flow;
+    }
+
+    @Override
+    public boolean hasActiveBusinessFlowCodeConflict(String projectId, String code, UUID excludeId) {
+        return mapper.countActiveBusinessFlowCodeConflict(projectId, code, excludeId) > 0;
     }
 
     @Override
@@ -151,16 +221,36 @@ public class PostgresAssetRepository implements AssetRepository {
     }
 
     @Override
+    public Optional<TestCaseRecord> testCaseIncludingInactive(UUID id) {
+        TestCaseRecord testCase = mapper.getTestCaseIncludingInactive(id);
+        if (testCase == null) {
+            return Optional.empty();
+        }
+        return Optional.of(withSteps(testCase));
+    }
+
+    @Override
     @Transactional
     public TestCaseRecord saveTestCase(TestCaseRecord testCase) {
         TestCaseRecord stored = normalizeTestCase(testCase);
         if (mapper.getTestCase(stored.id()) == null) {
-            mapper.insertTestCase(stored);
+            if (mapper.getTestCaseIncludingInactive(stored.id()) == null) {
+                mapper.insertTestCase(stored);
+            } else {
+                mapper.updateTestCaseLifecycle(stored);
+            }
         } else {
             mapper.updateTestCase(stored);
         }
-        replaceTestCaseSteps(stored.id(), stored.steps());
+        if (!"DELETED".equals(stored.lifecycleStatus())) {
+            replaceTestCaseSteps(stored.id(), stored.steps());
+        }
         return testCase;
+    }
+
+    @Override
+    public boolean hasActiveTestCaseCodeConflict(String projectId, String code, UUID excludeId) {
+        return mapper.countActiveTestCaseCodeConflict(projectId, code, excludeId) > 0;
     }
 
     @Override
@@ -204,6 +294,9 @@ public class PostgresAssetRepository implements AssetRepository {
                 testCase.tags(),
                 mapper.listTestCaseSteps(testCase.id()),
                 testCase.version(),
+                testCase.lifecycleStatus(),
+                testCase.archivedAt(),
+                testCase.deletedAt(),
                 testCase.createdAt(),
                 testCase.updatedAt()
         );
@@ -224,6 +317,9 @@ public class PostgresAssetRepository implements AssetRepository {
                 requirement.projectId(),
                 requirement.tags(),
                 requirement.version(),
+                lifecycleStatus(requirement.lifecycleStatus(), requirement.deletedAt()),
+                requirement.archivedAt(),
+                requirement.deletedAt(),
                 requirement.createdAt(),
                 requirement.updatedAt()
         );
@@ -243,6 +339,9 @@ public class PostgresAssetRepository implements AssetRepository {
                 api.responseSchema(),
                 api.projectId(),
                 api.status(),
+                lifecycleStatus(api.lifecycleStatus(), api.deletedAt()),
+                api.archivedAt(),
+                api.deletedAt(),
                 api.createdAt(),
                 api.updatedAt()
         );
@@ -260,6 +359,9 @@ public class PostgresAssetRepository implements AssetRepository {
                 page.screenshotUrl(),
                 page.projectId(),
                 page.status(),
+                lifecycleStatus(page.lifecycleStatus(), page.deletedAt()),
+                page.archivedAt(),
+                page.deletedAt(),
                 page.createdAt(),
                 page.updatedAt()
         );
@@ -275,6 +377,9 @@ public class PostgresAssetRepository implements AssetRepository {
                 flow.priority(),
                 flow.projectId(),
                 flow.status(),
+                lifecycleStatus(flow.lifecycleStatus(), flow.deletedAt()),
+                flow.archivedAt(),
+                flow.deletedAt(),
                 flow.createdAt(),
                 flow.updatedAt()
         );
@@ -296,9 +401,19 @@ public class PostgresAssetRepository implements AssetRepository {
                 testCase.tags(),
                 testCase.steps(),
                 testCase.version(),
+                lifecycleStatus(testCase.lifecycleStatus(), testCase.deletedAt()),
+                testCase.archivedAt(),
+                testCase.deletedAt(),
                 testCase.createdAt(),
                 testCase.updatedAt()
         );
+    }
+
+    private static String lifecycleStatus(String lifecycleStatus, java.time.Instant deletedAt) {
+        if (deletedAt != null) {
+            return "DELETED";
+        }
+        return lifecycleStatus == null ? "ACTIVE" : lifecycleStatus;
     }
 
 }

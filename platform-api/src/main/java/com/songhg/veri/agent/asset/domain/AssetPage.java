@@ -14,6 +14,9 @@ public record AssetPage(
         String screenshotUrl,
         String projectId,
         String status,
+        String lifecycleStatus,
+        Instant archivedAt,
+        Instant deletedAt,
         Instant createdAt,
         Instant updatedAt
 ) {

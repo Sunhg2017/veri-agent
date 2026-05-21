@@ -12,6 +12,9 @@ public record BusinessFlowResponse(
         String priority,
         String projectId,
         String status,
+        String lifecycleStatus,
+        Instant archivedAt,
+        Instant deletedAt,
         Instant createdAt,
         Instant updatedAt
 ) {

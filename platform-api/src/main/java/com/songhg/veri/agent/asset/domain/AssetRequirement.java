@@ -17,6 +17,9 @@ public record AssetRequirement(
         String projectId,
         String tags,
         int version,
+        String lifecycleStatus,
+        Instant archivedAt,
+        Instant deletedAt,
         Instant createdAt,
         Instant updatedAt
 ) {

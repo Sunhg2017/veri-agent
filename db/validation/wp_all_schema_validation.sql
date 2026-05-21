@@ -62,6 +62,52 @@ select
     coalesce(string_agg(table_name, ', ' order by table_name), 'all WP1+WP2+WP3+WP4 core tables exist') as details
 from missing;
 
+with expected(table_name, constraint_name) as (
+    values
+        ('asset_requirement','ck_asset_requirement_lifecycle_status'),
+        ('asset_api','ck_asset_api_lifecycle_status'),
+        ('asset_page','ck_asset_page_lifecycle_status'),
+        ('asset_business_flow','ck_asset_business_flow_lifecycle_status'),
+        ('asset_test_case','ck_asset_test_case_lifecycle_status')
+),
+missing as (
+    select e.table_name || '.' || e.constraint_name as item
+    from expected e
+    left join pg_constraint c
+        on c.conname = e.constraint_name
+       and c.conrelid = (current_schema() || '.' || e.table_name)::regclass
+    where c.oid is null
+)
+select
+    'schema.wp3_asset_lifecycle_constraints_exist' as check_name,
+    case when count(*) = 0 then 'PASS' else 'FAIL' end as status,
+    coalesce(string_agg(item, ', ' order by item), 'WP3 asset lifecycle constraints exist') as details
+from missing;
+
+with expected(change_type) as (
+    values ('ARCHIVE'), ('SOFT_DELETE'), ('RESTORE')
+),
+constraint_def as (
+    select pg_get_constraintdef(oid) as definition
+    from pg_constraint
+    where conrelid = 'asset_version_history'::regclass
+      and conname = 'ck_asset_version_history_change_type'
+),
+missing as (
+    select change_type
+    from expected e
+    where not exists (
+        select 1
+        from constraint_def c
+        where c.definition like '%' || e.change_type || '%'
+    )
+)
+select
+    'schema.wp3_version_history_lifecycle_change_types' as check_name,
+    case when count(*) = 0 then 'PASS' else 'FAIL' end as status,
+    coalesce(string_agg(change_type, ', ' order by change_type), 'asset_version_history allows lifecycle change types') as details
+from missing;
+
 with forbidden(table_name) as (
     values
         ('base_tenant'),
@@ -124,12 +170,15 @@ with expected(table_name, column_name) as (
         -- WP3 key columns
         ('asset_requirement','id'), ('asset_requirement','project_id'), ('asset_requirement','code'), ('asset_requirement','title'), ('asset_requirement','source'),
         ('asset_requirement','source_ref'), ('asset_requirement','source_url'), ('asset_requirement','acceptance_criteria'), ('asset_requirement','status'),
-        ('asset_requirement','version'),
+        ('asset_requirement','version'), ('asset_requirement','lifecycle_status'), ('asset_requirement','archived_at'), ('asset_requirement','deleted_at'),
         ('asset_api','id'), ('asset_api','project_id'), ('asset_api','code'), ('asset_api','path'), ('asset_api','http_method'), ('asset_api','status'),
+        ('asset_api','lifecycle_status'), ('asset_api','archived_at'), ('asset_api','deleted_at'),
         ('asset_page','id'), ('asset_page','project_id'), ('asset_page','code'), ('asset_page','name'), ('asset_page','status'),
+        ('asset_page','lifecycle_status'), ('asset_page','archived_at'), ('asset_page','deleted_at'),
         ('asset_business_flow','id'), ('asset_business_flow','project_id'), ('asset_business_flow','code'), ('asset_business_flow','name'), ('asset_business_flow','status'),
+        ('asset_business_flow','lifecycle_status'), ('asset_business_flow','archived_at'), ('asset_business_flow','deleted_at'),
         ('asset_test_case','id'), ('asset_test_case','project_id'), ('asset_test_case','code'), ('asset_test_case','title'), ('asset_test_case','case_type'), ('asset_test_case','status'),
-        ('asset_test_case','version'),
+        ('asset_test_case','version'), ('asset_test_case','lifecycle_status'), ('asset_test_case','archived_at'), ('asset_test_case','deleted_at'),
         ('asset_test_step','id'), ('asset_test_step','case_id'), ('asset_test_step','step_order'), ('asset_test_step','action'), ('asset_test_step','expected_result'),
         ('asset_link','id'), ('asset_link','source_type'), ('asset_link','source_id'), ('asset_link','target_type'), ('asset_link','target_id'), ('asset_link','link_type'),
         ('asset_version_history','id'), ('asset_version_history','project_id'), ('asset_version_history','asset_type'), ('asset_version_history','asset_id'),
@@ -187,10 +236,15 @@ with expected(table_name, index_name) as (
         -- WP3 key indexes
         ('asset_requirement','uk_asset_requirement_project_code'),
         ('asset_requirement','uk_asset_requirement_project_import_source_ref'),
+        ('asset_requirement','idx_asset_requirement_project_lifecycle'),
         ('asset_api','uk_asset_api_project_service_path_method'),
+        ('asset_api','idx_asset_api_project_lifecycle'),
         ('asset_page','uk_asset_page_project_code'),
+        ('asset_page','idx_asset_page_project_lifecycle'),
         ('asset_business_flow','uk_asset_business_flow_project_code'),
+        ('asset_business_flow','idx_asset_business_flow_project_lifecycle'),
         ('asset_test_case','uk_asset_test_case_project_code'),
+        ('asset_test_case','idx_asset_test_case_project_lifecycle'),
         ('asset_test_step','uk_asset_test_step_case_order'),
         ('asset_link','uk_asset_link_source_target_link'),
         ('asset_version_history','uk_asset_version_history_asset_version'),

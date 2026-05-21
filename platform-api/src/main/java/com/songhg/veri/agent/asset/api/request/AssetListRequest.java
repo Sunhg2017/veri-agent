@@ -8,6 +8,7 @@ public class AssetListRequest extends BasePageRequest {
     private String status;
     private String keyword;
     private String source;
+    private String lifecycleStatus;
 
     public String getProjectId() {
         return projectId;
@@ -39,5 +40,13 @@ public class AssetListRequest extends BasePageRequest {
 
     public void setSource(String source) {
         this.source = source;
+    }
+
+    public String getLifecycleStatus() {
+        return lifecycleStatus;
+    }
+
+    public void setLifecycleStatus(String lifecycleStatus) {
+        this.lifecycleStatus = lifecycleStatus;
     }
 }

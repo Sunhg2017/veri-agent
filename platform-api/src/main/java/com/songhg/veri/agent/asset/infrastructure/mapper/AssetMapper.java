@@ -22,15 +22,32 @@ public interface AssetMapper {
 
     AssetRequirement getRequirement(@Param("id") UUID id);
 
+    AssetRequirement getRequirementIncludingInactive(@Param("id") UUID id);
+
     AssetRequirement getRequirementBySourceRef(
             @Param("projectId") String projectId,
             @Param("source") String source,
             @Param("sourceRef") String sourceRef
     );
 
+    int countActiveRequirementCodeConflict(
+            @Param("projectId") String projectId,
+            @Param("code") String code,
+            @Param("excludeId") UUID excludeId
+    );
+
+    int countActiveRequirementSourceRefConflict(
+            @Param("projectId") String projectId,
+            @Param("source") String source,
+            @Param("sourceRef") String sourceRef,
+            @Param("excludeId") UUID excludeId
+    );
+
     void insertRequirement(AssetRequirement requirement);
 
     void updateRequirement(AssetRequirement requirement);
+
+    void updateRequirementLifecycle(AssetRequirement requirement);
 
     List<AssetVersionHistory> listAssetVersionHistory(
             @Param("assetType") String assetType,
@@ -45,9 +62,20 @@ public interface AssetMapper {
 
     AssetApi getApi(@Param("id") UUID id);
 
+    AssetApi getApiIncludingInactive(@Param("id") UUID id);
+
     void insertApi(AssetApi api);
 
     void updateApi(AssetApi api);
+
+    void updateApiLifecycle(AssetApi api);
+
+    int countActiveApiPathConflict(
+            @Param("projectId") String projectId,
+            @Param("path") String path,
+            @Param("httpMethod") String httpMethod,
+            @Param("excludeId") UUID excludeId
+    );
 
     // ---- Pages ----
 
@@ -55,9 +83,19 @@ public interface AssetMapper {
 
     AssetPage getPage(@Param("id") UUID id);
 
+    AssetPage getPageIncludingInactive(@Param("id") UUID id);
+
     void insertPage(AssetPage page);
 
     void updatePage(AssetPage page);
+
+    void updatePageLifecycle(AssetPage page);
+
+    int countActivePageCodeConflict(
+            @Param("projectId") String projectId,
+            @Param("code") String code,
+            @Param("excludeId") UUID excludeId
+    );
 
     // ---- Business Flows ----
 
@@ -65,9 +103,19 @@ public interface AssetMapper {
 
     AssetBusinessFlow getBusinessFlow(@Param("id") UUID id);
 
+    AssetBusinessFlow getBusinessFlowIncludingInactive(@Param("id") UUID id);
+
     void insertBusinessFlow(AssetBusinessFlow flow);
 
     void updateBusinessFlow(AssetBusinessFlow flow);
+
+    void updateBusinessFlowLifecycle(AssetBusinessFlow flow);
+
+    int countActiveBusinessFlowCodeConflict(
+            @Param("projectId") String projectId,
+            @Param("code") String code,
+            @Param("excludeId") UUID excludeId
+    );
 
     // ---- Test Cases ----
 
@@ -75,9 +123,19 @@ public interface AssetMapper {
 
     TestCaseRecord getTestCase(@Param("id") UUID id);
 
+    TestCaseRecord getTestCaseIncludingInactive(@Param("id") UUID id);
+
     void insertTestCase(TestCaseRecord testCase);
 
     void updateTestCase(TestCaseRecord testCase);
+
+    void updateTestCaseLifecycle(TestCaseRecord testCase);
+
+    int countActiveTestCaseCodeConflict(
+            @Param("projectId") String projectId,
+            @Param("code") String code,
+            @Param("excludeId") UUID excludeId
+    );
 
     // ---- Test Case Steps ----
 

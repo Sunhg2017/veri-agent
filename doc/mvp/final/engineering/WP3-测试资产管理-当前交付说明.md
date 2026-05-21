@@ -20,12 +20,13 @@ WP3 当前提供测试资产的最小闭环：需求、API、页面、业务流�
 5. 测试用例：创建、详情、编辑、步骤替换、列表分页。
 6. 追踪链接：需求到 API/用例的链接创建与查询。
 7. 版本历史：需求和测试用例返回 `version`，写入、编辑、WP4 幂等更新和用例步骤替换会保存版本快照、字段 diff、操作者和 traceId；portal-web 需求/测试用例详情可查看历史版本、变更字段、diff、snapshot 和链路 traceId。
-8. 追踪矩阵：前端基于需求、API、测试用例和追踪链接做只读聚合，展示覆盖状态、缺口和一跳影响范围。
-9. WP4 发布：`IMPORT + sourceRef` 需求幂等写入，重复导入在 DRAFT 状态下更新，非 DRAFT 差异阻断。
+8. 资产生命周期：需求、API、页面、业务流和测试用例支持独立 `lifecycleStatus=ACTIVE/ARCHIVED/DELETED`，列表默认仅返回 ACTIVE，可按生命周期筛选；归档保留唯一性，软删除释放现有唯一性约束，恢复前校验冲突。
+9. 追踪矩阵：前端基于需求、API、测试用例和追踪链接做只读聚合，展示覆盖状态、缺口和一跳影响范围。
+10. WP4 发布：`IMPORT + sourceRef` 需求幂等写入，重复导入在 DRAFT 状态下更新，非 DRAFT 差异阻断。
 
 ## 2. 非范围
 
-本轮不实现历史版本回滚、API/Page/BusinessFlow 的完整版本历史、软删除恢复、CSV/OpenAPI 导入导出、API 资产 OpenAPI 导入执行能力、正式后端聚合影响分析服务、企业原型连接器真实拉取、可视化业务流画布和测试执行结果闭环。这些能力保留在后续 P1/P2 任务中。
+本轮不实现历史版本回滚、API/Page/BusinessFlow 的完整版本历史、CSV/OpenAPI 导入导出、API 资产 OpenAPI 导入执行能力、正式后端聚合影响分析服务、企业原型连接器真实拉取、可视化业务流画布和测试执行结果闭环。这些能力保留在后续 P1/P2 任务中。
 
 ## 3. 权限
 
@@ -45,17 +46,17 @@ WP3 当前提供测试资产的最小闭环：需求、API、页面、业务流�
 | 能力 | 路径 |
 |---|---|
 | 健康检查 | `GET /api/v1/asset/health` |
-| 需求 | `GET/POST /api/v1/asset/requirements`，`GET/PUT /api/v1/asset/requirements/{id}`，`GET /api/v1/asset/requirements/{id}/versions` |
-| API 资产 | `GET/POST /api/v1/asset/apis`，`GET/PUT /api/v1/asset/apis/{id}` |
-| 页面 | `GET/POST /api/v1/asset/pages`，`GET/PUT /api/v1/asset/pages/{id}` |
-| 业务流 | `GET/POST /api/v1/asset/business-flows`，`GET/PUT /api/v1/asset/business-flows/{id}` |
-| 测试用例 | `GET/POST /api/v1/asset/test-cases`，`GET/PUT /api/v1/asset/test-cases/{id}`，`GET /api/v1/asset/test-cases/{id}/versions` |
+| 需求 | `GET/POST /api/v1/asset/requirements`，`GET/PUT /api/v1/asset/requirements/{id}`，`GET/PATCH /api/v1/asset/requirements/{id}/lifecycle`，`GET /api/v1/asset/requirements/{id}/versions` |
+| API 资产 | `GET/POST /api/v1/asset/apis`，`GET/PUT /api/v1/asset/apis/{id}`，`GET/PATCH /api/v1/asset/apis/{id}/lifecycle` |
+| 页面 | `GET/POST /api/v1/asset/pages`，`GET/PUT /api/v1/asset/pages/{id}`，`GET/PATCH /api/v1/asset/pages/{id}/lifecycle` |
+| 业务流 | `GET/POST /api/v1/asset/business-flows`，`GET/PUT /api/v1/asset/business-flows/{id}`，`GET/PATCH /api/v1/asset/business-flows/{id}/lifecycle` |
+| 测试用例 | `GET/POST /api/v1/asset/test-cases`，`GET/PUT /api/v1/asset/test-cases/{id}`，`GET/PATCH /api/v1/asset/test-cases/{id}/lifecycle`，`GET /api/v1/asset/test-cases/{id}/versions` |
 | 用例步骤 | `GET/PUT /api/v1/asset/test-cases/{id}/steps` |
 | 追踪链接 | `GET/POST /api/v1/asset/links` |
 
 ## 5. 数据模型
 
-PostgreSQL 表位于 `db/migration/wp1/V20260518_014__wp3_asset_base_schema.sql`：
+PostgreSQL 表位于 `db/migration/wp1/V20260518_014__wp3_asset_base_schema.sql`，生命周期扩展位于 `db/migration/wp1/V20260521_022__wp3_asset_lifecycle.sql`：
 
 - `asset_requirement`
 - `asset_api`
@@ -83,6 +84,15 @@ PostgreSQL 表位于 `db/migration/wp1/V20260518_014__wp3_asset_base_schema.sql`
 - 需求创建、人工编辑、WP4 导入幂等更新会保存历史；无差异导入不生成新版本。
 - 测试用例创建、用例编辑、步骤替换会保存历史；测试用例历史快照包含 steps。
 - 历史表由 DB trigger 阻止 `UPDATE/DELETE`，运行时应用角色只应具备 `SELECT/INSERT`。
+
+生命周期口径：
+
+- 五类资产均新增 `lifecycle_status`、`archived_at`，并复用既有 `deleted_at` 代表软删除。
+- `ACTIVE -> ARCHIVED/DELETED`、`ARCHIVED -> ACTIVE/DELETED`、`DELETED -> ACTIVE` 为允许转换，其他转换返回稳定错误并写拒绝审计。
+- 默认列表过滤 `ACTIVE`；调用方可使用 `lifecycleStatus` 查询 `ARCHIVED` 或 `DELETED`。
+- 普通详情接口不返回 `DELETED` 资产；生命周期详情接口可回看已归档/已删除资产。
+- `DELETED` 释放现有 partial unique index；恢复前校验项目内 code/sourceRef/path 等唯一性冲突，冲突返回 `CONFLICT`。
+- 需求和测试用例的归档、软删除、恢复会写入 `asset_version_history`，trace link 不随资产软删除被清理。
 
 ## 6. 状态流
 
@@ -136,4 +146,4 @@ PR/主干 CI 可通过 `.github/workflows/wp3-asset-management.yml` 复用同一
 
 ## 9. 后续入口
 
-后续优先补齐历史版本回滚、软删除恢复、导入导出、OpenAPI 导入执行能力、后端聚合影响分析服务和页面/业务流追踪关系。
+后续优先补齐历史版本回滚、导入导出、OpenAPI 导入执行能力、后端聚合影响分析服务和页面/业务流追踪关系。

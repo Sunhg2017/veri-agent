@@ -34,17 +34,23 @@ class AssetOpenApiContractTest {
                 .andExpect(jsonPath("$.paths['/api/v1/asset/requirements'].post").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/asset/requirements/{id}'].get").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/asset/requirements/{id}'].put").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/asset/requirements/{id}/lifecycle'].get").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/asset/requirements/{id}/lifecycle'].patch").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/asset/requirements/{id}/versions'].get").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/asset/apis'].get").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/asset/apis'].post").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/asset/apis/{id}'].get").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/asset/apis/{id}'].put").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/asset/apis/{id}/lifecycle'].patch").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/asset/pages'].get").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/asset/pages'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/asset/pages/{id}/lifecycle'].patch").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/asset/business-flows'].get").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/asset/business-flows'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/asset/business-flows/{id}/lifecycle'].patch").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/asset/test-cases'].get").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/asset/test-cases'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/asset/test-cases/{id}/lifecycle'].patch").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/asset/test-cases/{id}/versions'].get").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/asset/test-cases/{id}/steps'].put").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/asset/links'].get").exists())
@@ -61,6 +67,9 @@ class AssetOpenApiContractTest {
         MatcherAssert.assertThat(openApi, containsString("projectId"));
         MatcherAssert.assertThat(openApi, containsString("sourceRef"));
         MatcherAssert.assertThat(openApi, containsString("acceptanceCriteria"));
+        MatcherAssert.assertThat(openApi, containsString("lifecycleStatus"));
+        MatcherAssert.assertThat(openApi, containsString("archivedAt"));
+        MatcherAssert.assertThat(openApi, containsString("deletedAt"));
         MatcherAssert.assertThat(openApi, containsString("changedFields"));
         MatcherAssert.assertThat(openApi, containsString("snapshot"));
         MatcherAssert.assertThat(openApi, not(containsString("tenant_id")));

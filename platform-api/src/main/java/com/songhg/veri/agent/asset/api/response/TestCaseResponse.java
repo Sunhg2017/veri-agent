@@ -18,6 +18,9 @@ public record TestCaseResponse(
         String tags,
         List<TestCaseStepResponse> steps,
         int version,
+        String lifecycleStatus,
+        Instant archivedAt,
+        Instant deletedAt,
         Instant createdAt,
         Instant updatedAt
 ) {

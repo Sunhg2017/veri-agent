@@ -14,6 +14,7 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.startsWith;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -131,6 +132,120 @@ class AssetControllerTest {
                 .andExpect(jsonPath("$.data.total").value(1))
                 .andExpect(jsonPath("$.data.items", hasSize(1)))
                 .andExpect(jsonPath("$.data.items[0].title").value("用户登录V2"));
+    }
+
+    @Test
+    void archivesDeletesAndRestoresRequirementWithoutBreakingTraceHistory() throws Exception {
+        String reqId = createRequirement("生命周期需求", "归档恢复", "HIGH");
+        String apiId = createApi("生命周期 API", "GET", "/api/lifecycle-requirement");
+        String caseId = createTestCase("生命周期用例", reqId);
+        createTraceLink(reqId, apiId, caseId);
+
+        mockMvc.perform(patch("/api/v1/asset/requirements/{id}/lifecycle", reqId)
+                        .headers(authHeaders())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"lifecycleStatus\":\"ARCHIVED\",\"reason\":\"review done\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.lifecycleStatus").value("ARCHIVED"))
+                .andExpect(jsonPath("$.data.archivedAt").exists())
+                .andExpect(jsonPath("$.data.deletedAt").doesNotExist())
+                .andExpect(jsonPath("$.data.version").value(2));
+
+        mockMvc.perform(get("/api/v1/asset/requirements")
+                        .headers(authHeaders()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(0));
+
+        mockMvc.perform(get("/api/v1/asset/requirements")
+                        .headers(authHeaders())
+                        .param("lifecycleStatus", "ARCHIVED"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(1))
+                .andExpect(jsonPath("$.data.items[0].id").value(reqId));
+
+        mockMvc.perform(patch("/api/v1/asset/requirements/{id}/lifecycle", reqId)
+                        .headers(authHeaders())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"lifecycleStatus\":\"DELETED\",\"reason\":\"duplicate\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.lifecycleStatus").value("DELETED"))
+                .andExpect(jsonPath("$.data.deletedAt").exists())
+                .andExpect(jsonPath("$.data.version").value(3));
+
+        mockMvc.perform(get("/api/v1/asset/requirements/{id}", reqId)
+                        .headers(authHeaders()))
+                .andExpect(status().isNotFound());
+
+        mockMvc.perform(get("/api/v1/asset/requirements/{id}/lifecycle", reqId)
+                        .headers(authHeaders()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.lifecycleStatus").value("DELETED"));
+
+        mockMvc.perform(get("/api/v1/asset/links")
+                        .headers(authHeaders())
+                        .param("requirementId", reqId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(1))
+                .andExpect(jsonPath("$.data.items[0].caseId").value(caseId));
+
+        mockMvc.perform(patch("/api/v1/asset/requirements/{id}/lifecycle", reqId)
+                        .headers(authHeaders())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"lifecycleStatus\":\"ACTIVE\",\"reason\":\"restore\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.lifecycleStatus").value("ACTIVE"))
+                .andExpect(jsonPath("$.data.archivedAt").doesNotExist())
+                .andExpect(jsonPath("$.data.deletedAt").doesNotExist())
+                .andExpect(jsonPath("$.data.version").value(4));
+
+        mockMvc.perform(get("/api/v1/asset/requirements/{id}/versions", reqId)
+                        .headers(authHeaders()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data", hasSize(4)))
+                .andExpect(jsonPath("$.data[0].changeType").value("RESTORE"))
+                .andExpect(jsonPath("$.data[1].changeType").value("SOFT_DELETE"))
+                .andExpect(jsonPath("$.data[2].changeType").value("ARCHIVE"))
+                .andExpect(jsonPath("$.data[0].changedFields", contains("lifecycleStatus", "deletedAt")));
+    }
+
+    @Test
+    void appliesLifecycleToAllAssetTypes() throws Exception {
+        String reqId = createRequirement("多类型需求", "多类型", "MEDIUM");
+        String apiId = createApi("多类型 API", "GET", "/api/lifecycle");
+        String pageId = createPage("生命周期页", "/lifecycle");
+        String flowId = createBusinessFlow("生命周期流程");
+        String caseId = createTestCase("生命周期用例", reqId);
+
+        patchLifecycle("/api/v1/asset/apis/{id}/lifecycle", apiId, "ARCHIVED")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.lifecycleStatus").value("ARCHIVED"));
+        patchLifecycle("/api/v1/asset/pages/{id}/lifecycle", pageId, "DELETED")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.lifecycleStatus").value("DELETED"));
+        patchLifecycle("/api/v1/asset/business-flows/{id}/lifecycle", flowId, "ARCHIVED")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.lifecycleStatus").value("ARCHIVED"));
+        patchLifecycle("/api/v1/asset/test-cases/{id}/lifecycle", caseId, "DELETED")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.lifecycleStatus").value("DELETED"))
+                .andExpect(jsonPath("$.data.version").value(2));
+
+        mockMvc.perform(get("/api/v1/asset/apis")
+                        .headers(authHeaders())
+                        .param("lifecycleStatus", "ARCHIVED"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(1));
+        mockMvc.perform(get("/api/v1/asset/pages/{id}", pageId)
+                        .headers(authHeaders()))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(get("/api/v1/asset/pages/{id}/lifecycle", pageId)
+                        .headers(authHeaders()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.lifecycleStatus").value("DELETED"));
+        mockMvc.perform(get("/api/v1/asset/test-cases/{id}/versions", caseId)
+                        .headers(authHeaders()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].changeType").value("SOFT_DELETE"));
     }
 
     @Test
@@ -547,6 +662,17 @@ class AssetControllerTest {
                 .andExpect(status().isCreated())
                 .andReturn();
         return JsonPath.read(result.getResponse().getContentAsString(), "$.data.id");
+    }
+
+    private org.springframework.test.web.servlet.ResultActions patchLifecycle(
+            String urlTemplate,
+            String id,
+            String lifecycleStatus
+    ) throws Exception {
+        return mockMvc.perform(patch(urlTemplate, id)
+                .headers(authHeaders())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"lifecycleStatus\":\"%s\"}".formatted(lifecycleStatus)));
     }
 
     private org.springframework.http.HttpHeaders authHeaders() {

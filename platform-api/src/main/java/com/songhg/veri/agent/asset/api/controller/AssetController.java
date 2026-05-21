@@ -9,6 +9,7 @@ import com.songhg.veri.agent.asset.api.request.CreateRequirementRequest;
 import com.songhg.veri.agent.asset.api.request.CreateTestCaseRequest;
 import com.songhg.veri.agent.asset.api.request.TraceLinkListRequest;
 import com.songhg.veri.agent.asset.api.request.UpdateApiRequest;
+import com.songhg.veri.agent.asset.api.request.UpdateAssetLifecycleRequest;
 import com.songhg.veri.agent.asset.api.request.UpdateBusinessFlowRequest;
 import com.songhg.veri.agent.asset.api.request.UpdatePageRequest;
 import com.songhg.veri.agent.asset.api.request.UpdateRequirementRequest;
@@ -35,6 +36,7 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -82,6 +84,12 @@ public class AssetController {
         return service.getRequirement(id);
     }
 
+    @GetMapping("/requirements/{id}/lifecycle")
+    public RequirementResponse getRequirementLifecycle(@PathVariable UUID id) {
+        requirePermission("asset:read");
+        return service.getRequirementIncludingInactive(id);
+    }
+
     @PutMapping("/requirements/{id}")
     public RequirementResponse updateRequirement(
             @PathVariable UUID id,
@@ -89,6 +97,15 @@ public class AssetController {
     ) {
         requirePermission("asset:manage");
         return service.updateRequirement(id, request);
+    }
+
+    @PatchMapping("/requirements/{id}/lifecycle")
+    public RequirementResponse updateRequirementLifecycle(
+            @PathVariable UUID id,
+            @Valid @RequestBody UpdateAssetLifecycleRequest request
+    ) {
+        requirePermission("asset:manage");
+        return service.updateRequirementLifecycle(id, request);
     }
 
     @GetMapping("/requirements/{id}/versions")
@@ -120,6 +137,12 @@ public class AssetController {
         return service.getApi(id);
     }
 
+    @GetMapping("/apis/{id}/lifecycle")
+    public ApiResponseDTO getApiLifecycle(@PathVariable UUID id) {
+        requirePermission("asset:read");
+        return service.getApiIncludingInactive(id);
+    }
+
     @PutMapping("/apis/{id}")
     public ApiResponseDTO updateApi(
             @PathVariable UUID id,
@@ -127,6 +150,15 @@ public class AssetController {
     ) {
         requirePermission("asset:manage");
         return service.updateApi(id, request);
+    }
+
+    @PatchMapping("/apis/{id}/lifecycle")
+    public ApiResponseDTO updateApiLifecycle(
+            @PathVariable UUID id,
+            @Valid @RequestBody UpdateAssetLifecycleRequest request
+    ) {
+        requirePermission("asset:manage");
+        return service.updateApiLifecycle(id, request);
     }
 
     // ---- Pages ----
@@ -152,6 +184,12 @@ public class AssetController {
         return service.getPage(id);
     }
 
+    @GetMapping("/pages/{id}/lifecycle")
+    public PageResponse getPageLifecycle(@PathVariable UUID id) {
+        requirePermission("asset:read");
+        return service.getPageIncludingInactive(id);
+    }
+
     @PutMapping("/pages/{id}")
     public PageResponse updatePage(
             @PathVariable UUID id,
@@ -159,6 +197,15 @@ public class AssetController {
     ) {
         requirePermission("asset:manage");
         return service.updatePage(id, request);
+    }
+
+    @PatchMapping("/pages/{id}/lifecycle")
+    public PageResponse updatePageLifecycle(
+            @PathVariable UUID id,
+            @Valid @RequestBody UpdateAssetLifecycleRequest request
+    ) {
+        requirePermission("asset:manage");
+        return service.updatePageLifecycle(id, request);
     }
 
     // ---- Business Flows ----
@@ -184,6 +231,12 @@ public class AssetController {
         return service.getBusinessFlow(id);
     }
 
+    @GetMapping("/business-flows/{id}/lifecycle")
+    public BusinessFlowResponse getBusinessFlowLifecycle(@PathVariable UUID id) {
+        requirePermission("asset:read");
+        return service.getBusinessFlowIncludingInactive(id);
+    }
+
     @PutMapping("/business-flows/{id}")
     public BusinessFlowResponse updateBusinessFlow(
             @PathVariable UUID id,
@@ -191,6 +244,15 @@ public class AssetController {
     ) {
         requirePermission("asset:manage");
         return service.updateBusinessFlow(id, request);
+    }
+
+    @PatchMapping("/business-flows/{id}/lifecycle")
+    public BusinessFlowResponse updateBusinessFlowLifecycle(
+            @PathVariable UUID id,
+            @Valid @RequestBody UpdateAssetLifecycleRequest request
+    ) {
+        requirePermission("asset:manage");
+        return service.updateBusinessFlowLifecycle(id, request);
     }
 
     // ---- Test Cases ----
@@ -216,6 +278,12 @@ public class AssetController {
         return service.getTestCase(id);
     }
 
+    @GetMapping("/test-cases/{id}/lifecycle")
+    public TestCaseResponse getTestCaseLifecycle(@PathVariable UUID id) {
+        requirePermission("asset:read");
+        return service.getTestCaseIncludingInactive(id);
+    }
+
     @PutMapping("/test-cases/{id}")
     public TestCaseResponse updateTestCase(
             @PathVariable UUID id,
@@ -223,6 +291,15 @@ public class AssetController {
     ) {
         requirePermission("asset:manage");
         return service.updateTestCase(id, request);
+    }
+
+    @PatchMapping("/test-cases/{id}/lifecycle")
+    public TestCaseResponse updateTestCaseLifecycle(
+            @PathVariable UUID id,
+            @Valid @RequestBody UpdateAssetLifecycleRequest request
+    ) {
+        requirePermission("asset:manage");
+        return service.updateTestCaseLifecycle(id, request);
     }
 
     @GetMapping("/test-cases/{id}/versions")

@@ -9,6 +9,7 @@ import com.songhg.veri.agent.asset.api.request.CreateRequirementRequest;
 import com.songhg.veri.agent.asset.api.request.CreateTestCaseRequest;
 import com.songhg.veri.agent.asset.api.request.TraceLinkListRequest;
 import com.songhg.veri.agent.asset.api.request.UpdateApiRequest;
+import com.songhg.veri.agent.asset.api.request.UpdateAssetLifecycleRequest;
 import com.songhg.veri.agent.asset.api.request.UpdateBusinessFlowRequest;
 import com.songhg.veri.agent.asset.api.request.UpdatePageRequest;
 import com.songhg.veri.agent.asset.api.request.UpdateRequirementRequest;
@@ -64,6 +65,7 @@ public class AssetService {
 
     private static final Logger log = LoggerFactory.getLogger(AssetService.class);
     private static final Set<String> REVIEW_STATUSES = Set.of("DRAFT", "REVIEWING", "APPROVED", "DEPRECATED");
+    private static final Set<String> LIFECYCLE_STATUSES = Set.of("ACTIVE", "ARCHIVED", "DELETED");
     private static final Set<String> PRIORITIES = Set.of("CRITICAL", "HIGH", "MEDIUM", "LOW");
     private static final Set<String> REQUIREMENT_SOURCES = Set.of("IMPORT", "MANUAL");
     private static final Set<String> API_STATUSES = Set.of("ACTIVE", "DEPRECATED", "REMOVED");
@@ -104,7 +106,9 @@ public class AssetService {
 
     public com.songhg.veri.agent.common.api.PageResponse<RequirementResponse> listRequirements(AssetListRequest request) {
         validateProjectWhenProvided(request.getProjectId());
+        String lifecycleStatus = lifecycleFilter(request.getLifecycleStatus());
         List<RequirementResponse> filtered = repository.requirements(trimToNull(request.getProjectId())).stream()
+                .filter(value -> matchesLifecycle(value.lifecycleStatus(), value.deletedAt(), lifecycleStatus))
                 .filter(value -> matches(value.status(), request.getStatus()))
                 .filter(value -> matches(value.source(), request.getSource()))
                 .filter(value -> containsKeyword(request.getKeyword(), value.code(), value.title(), value.description(), value.sourceRef(), value.tags()))
@@ -118,6 +122,13 @@ public class AssetService {
         return repository.requirement(id)
                 .map(AssetService::toRequirementResponse)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "需求不存在: " + id));
+    }
+
+    public RequirementResponse getRequirementIncludingInactive(UUID id) {
+        AssetRequirement requirement = repository.requirementIncludingInactive(id)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "需求不存在: " + id));
+        validateProjectWhenProvided(requirement.projectId());
+        return toRequirementResponse(requirement);
     }
 
     public Optional<RequirementResponse> findImportedRequirement(String projectId, String sourceRef) {
@@ -173,6 +184,9 @@ public class AssetService {
                 request.projectId(),
                 request.tags(),
                 1,
+                "ACTIVE",
+                null,
+                null,
                 now,
                 now
         );
@@ -204,6 +218,9 @@ public class AssetService {
                 existing.projectId(),
                 mergeTags(existing.tags(), request.tags()),
                 existing.version() + 1,
+                existing.lifecycleStatus(),
+                existing.archivedAt(),
+                existing.deletedAt(),
                 existing.createdAt(),
                 now
         );
@@ -247,6 +264,9 @@ public class AssetService {
                 existing.projectId(),
                 request.tags(),
                 existing.version() + 1,
+                existing.lifecycleStatus(),
+                existing.archivedAt(),
+                existing.deletedAt(),
                 existing.createdAt(),
                 now
         );
@@ -257,18 +277,61 @@ public class AssetService {
     }
 
     public List<AssetVersionHistoryResponse> requirementVersions(UUID id) {
-        AssetRequirement requirement = repository.requirement(id)
+        AssetRequirement requirement = repository.requirementIncludingInactive(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "需求不存在: " + id));
         return repository.assetVersionHistory("REQUIREMENT", requirement.id()).stream()
                 .map(AssetService::toVersionHistoryResponse)
                 .toList();
     }
 
+    @Transactional
+    public RequirementResponse updateRequirementLifecycle(UUID id, UpdateAssetLifecycleRequest request) {
+        AssetRequirement existing = repository.requirementIncludingInactive(id)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "需求不存在: " + id));
+        Instant now = Instant.now();
+        String nextLifecycle = nextLifecycle(
+                "REQUIREMENT",
+                id,
+                existing.projectId(),
+                lifecycleStatus(existing.lifecycleStatus(), existing.deletedAt()),
+                request.lifecycleStatus()
+        );
+        if ("ACTIVE".equals(nextLifecycle)) {
+            ensureRequirementRestoreHasNoConflict(existing);
+        }
+        AssetRequirement updated = new AssetRequirement(
+                existing.id(),
+                existing.code(),
+                existing.title(),
+                existing.description(),
+                existing.source(),
+                existing.sourceRef(),
+                existing.sourceUrl(),
+                existing.acceptanceCriteria(),
+                existing.status(),
+                existing.priority(),
+                existing.projectId(),
+                existing.tags(),
+                existing.version() + 1,
+                nextLifecycle,
+                archivedAtFor(nextLifecycle, existing.archivedAt(), now),
+                deletedAtFor(nextLifecycle, now),
+                existing.createdAt(),
+                now
+        );
+        writeProjectAudit(lifecycleAction(nextLifecycle), "REQUIREMENT", id, existing.projectId());
+        AssetRequirement stored = repository.saveRequirement(updated);
+        saveRequirementHistory(stored, lifecycleAction(nextLifecycle), requirementDiff(existing, stored));
+        return toRequirementResponse(stored);
+    }
+
     // ---- APIs ----
 
     public com.songhg.veri.agent.common.api.PageResponse<ApiResponseDTO> listApis(AssetListRequest request) {
         validateProjectWhenProvided(request.getProjectId());
+        String lifecycleStatus = lifecycleFilter(request.getLifecycleStatus());
         List<ApiResponseDTO> filtered = repository.apis(trimToNull(request.getProjectId())).stream()
+                .filter(value -> matchesLifecycle(value.lifecycleStatus(), value.deletedAt(), lifecycleStatus))
                 .filter(value -> matches(value.status(), request.getStatus()))
                 .filter(value -> matches(value.source(), request.getSource()))
                 .filter(value -> containsKeyword(request.getKeyword(), value.code(), value.summary(), value.description(), value.path(), value.sourceRef()))
@@ -282,6 +345,13 @@ public class AssetService {
         return repository.api(id)
                 .map(AssetService::toApiResponse)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "API不存在: " + id));
+    }
+
+    public ApiResponseDTO getApiIncludingInactive(UUID id) {
+        AssetApi api = repository.apiIncludingInactive(id)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "API不存在: " + id));
+        validateProjectWhenProvided(api.projectId());
+        return toApiResponse(api);
     }
 
     public ApiResponseDTO createApi(CreateApiRequest request) {
@@ -301,6 +371,9 @@ public class AssetService {
                 request.responseSchema(),
                 request.projectId(),
                 initialStatus(request.status(), "ACTIVE", "API"),
+                "ACTIVE",
+                null,
+                null,
                 now,
                 now
         );
@@ -336,6 +409,9 @@ public class AssetService {
                 request.responseSchema(),
                 existing.projectId(),
                 nextStatus,
+                existing.lifecycleStatus(),
+                existing.archivedAt(),
+                existing.deletedAt(),
                 existing.createdAt(),
                 now
         );
@@ -344,11 +420,51 @@ public class AssetService {
         return toApiResponse(updated);
     }
 
+    public ApiResponseDTO updateApiLifecycle(UUID id, UpdateAssetLifecycleRequest request) {
+        AssetApi existing = repository.apiIncludingInactive(id)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "API不存在: " + id));
+        Instant now = Instant.now();
+        String nextLifecycle = nextLifecycle(
+                "API",
+                id,
+                existing.projectId(),
+                lifecycleStatus(existing.lifecycleStatus(), existing.deletedAt()),
+                request.lifecycleStatus()
+        );
+        if ("ACTIVE".equals(nextLifecycle)) {
+            ensureApiRestoreHasNoConflict(existing);
+        }
+        AssetApi updated = new AssetApi(
+                existing.id(),
+                existing.code(),
+                existing.summary(),
+                existing.description(),
+                existing.httpMethod(),
+                existing.path(),
+                existing.source(),
+                existing.sourceRef(),
+                existing.requestSchema(),
+                existing.responseSchema(),
+                existing.projectId(),
+                existing.status(),
+                nextLifecycle,
+                archivedAtFor(nextLifecycle, existing.archivedAt(), now),
+                deletedAtFor(nextLifecycle, now),
+                existing.createdAt(),
+                now
+        );
+        writeProjectAudit(lifecycleAction(nextLifecycle), "API", id, existing.projectId());
+        repository.saveApi(updated);
+        return toApiResponse(updated);
+    }
+
     // ---- Pages ----
 
     public com.songhg.veri.agent.common.api.PageResponse<PageResponse> listPages(AssetListRequest request) {
         validateProjectWhenProvided(request.getProjectId());
+        String lifecycleStatus = lifecycleFilter(request.getLifecycleStatus());
         List<PageResponse> filtered = repository.pages(trimToNull(request.getProjectId())).stream()
+                .filter(value -> matchesLifecycle(value.lifecycleStatus(), value.deletedAt(), lifecycleStatus))
                 .filter(value -> matches(value.status(), request.getStatus()))
                 .filter(value -> matches(value.source(), request.getSource()))
                 .filter(value -> containsKeyword(request.getKeyword(), value.code(), value.name(), value.urlPattern(), value.sourceRef()))
@@ -362,6 +478,13 @@ public class AssetService {
         return repository.page(id)
                 .map(AssetService::toPageResponse)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "页面资产不存在: " + id));
+    }
+
+    public PageResponse getPageIncludingInactive(UUID id) {
+        AssetPage page = repository.pageIncludingInactive(id)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "页面资产不存在: " + id));
+        validateProjectWhenProvided(page.projectId());
+        return toPageResponse(page);
     }
 
     public PageResponse createPage(CreatePageRequest request) {
@@ -379,6 +502,9 @@ public class AssetService {
                 request.screenshotUrl(),
                 request.projectId(),
                 initialStatus(request.status(), "ACTIVE", "PAGE"),
+                "ACTIVE",
+                null,
+                null,
                 now,
                 now
         );
@@ -412,6 +538,9 @@ public class AssetService {
                 request.screenshotUrl(),
                 existing.projectId(),
                 nextStatus,
+                existing.lifecycleStatus(),
+                existing.archivedAt(),
+                existing.deletedAt(),
                 existing.createdAt(),
                 now
         );
@@ -420,11 +549,49 @@ public class AssetService {
         return toPageResponse(updated);
     }
 
+    public PageResponse updatePageLifecycle(UUID id, UpdateAssetLifecycleRequest request) {
+        AssetPage existing = repository.pageIncludingInactive(id)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "页面资产不存在: " + id));
+        Instant now = Instant.now();
+        String nextLifecycle = nextLifecycle(
+                "PAGE",
+                id,
+                existing.projectId(),
+                lifecycleStatus(existing.lifecycleStatus(), existing.deletedAt()),
+                request.lifecycleStatus()
+        );
+        if ("ACTIVE".equals(nextLifecycle)) {
+            ensurePageRestoreHasNoConflict(existing);
+        }
+        AssetPage updated = new AssetPage(
+                existing.id(),
+                existing.code(),
+                existing.name(),
+                existing.urlPattern(),
+                existing.source(),
+                existing.sourceRef(),
+                existing.componentTree(),
+                existing.screenshotUrl(),
+                existing.projectId(),
+                existing.status(),
+                nextLifecycle,
+                archivedAtFor(nextLifecycle, existing.archivedAt(), now),
+                deletedAtFor(nextLifecycle, now),
+                existing.createdAt(),
+                now
+        );
+        writeProjectAudit(lifecycleAction(nextLifecycle), "PAGE", id, existing.projectId());
+        repository.savePage(updated);
+        return toPageResponse(updated);
+    }
+
     // ---- Business Flows ----
 
     public com.songhg.veri.agent.common.api.PageResponse<BusinessFlowResponse> listBusinessFlows(AssetListRequest request) {
         validateProjectWhenProvided(request.getProjectId());
+        String lifecycleStatus = lifecycleFilter(request.getLifecycleStatus());
         List<BusinessFlowResponse> filtered = repository.businessFlows(trimToNull(request.getProjectId())).stream()
+                .filter(value -> matchesLifecycle(value.lifecycleStatus(), value.deletedAt(), lifecycleStatus))
                 .filter(value -> matches(value.status(), request.getStatus()))
                 .filter(value -> containsKeyword(request.getKeyword(), value.code(), value.name(), value.description()))
                 .map(AssetService::toBusinessFlowResponse)
@@ -437,6 +604,13 @@ public class AssetService {
         return repository.businessFlow(id)
                 .map(AssetService::toBusinessFlowResponse)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "业务流资产不存在: " + id));
+    }
+
+    public BusinessFlowResponse getBusinessFlowIncludingInactive(UUID id) {
+        AssetBusinessFlow flow = repository.businessFlowIncludingInactive(id)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "业务流资产不存在: " + id));
+        validateProjectWhenProvided(flow.projectId());
+        return toBusinessFlowResponse(flow);
     }
 
     public BusinessFlowResponse createBusinessFlow(CreateBusinessFlowRequest request) {
@@ -452,6 +626,9 @@ public class AssetService {
                 valueIn(request.priority(), "MEDIUM", PRIORITIES, "priority"),
                 request.projectId(),
                 initialStatus(request.status(), "DRAFT", "BUSINESS_FLOW"),
+                "ACTIVE",
+                null,
+                null,
                 now,
                 now
         );
@@ -483,6 +660,9 @@ public class AssetService {
                 valueIn(request.priority(), existing.priority(), PRIORITIES, "priority"),
                 existing.projectId(),
                 nextStatus,
+                lifecycleStatus(existing.lifecycleStatus(), existing.deletedAt()),
+                existing.archivedAt(),
+                existing.deletedAt(),
                 existing.createdAt(),
                 now
         );
@@ -491,11 +671,47 @@ public class AssetService {
         return toBusinessFlowResponse(updated);
     }
 
+    public BusinessFlowResponse updateBusinessFlowLifecycle(UUID id, UpdateAssetLifecycleRequest request) {
+        AssetBusinessFlow existing = repository.businessFlowIncludingInactive(id)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "业务流资产不存在: " + id));
+        Instant now = Instant.now();
+        String nextLifecycle = nextLifecycle(
+                "BUSINESS_FLOW",
+                id,
+                existing.projectId(),
+                existing.lifecycleStatus(),
+                request.lifecycleStatus()
+        );
+        if ("ACTIVE".equals(nextLifecycle)) {
+            ensureBusinessFlowRestoreHasNoConflict(existing);
+        }
+        AssetBusinessFlow updated = new AssetBusinessFlow(
+                existing.id(),
+                existing.code(),
+                existing.name(),
+                existing.description(),
+                existing.flowJson(),
+                existing.priority(),
+                existing.projectId(),
+                existing.status(),
+                nextLifecycle,
+                archivedAtFor(nextLifecycle, existing.archivedAt(), now),
+                deletedAtFor(nextLifecycle, now),
+                existing.createdAt(),
+                now
+        );
+        writeProjectAudit(lifecycleAction(nextLifecycle), "BUSINESS_FLOW", id, existing.projectId());
+        repository.saveBusinessFlow(updated);
+        return toBusinessFlowResponse(updated);
+    }
+
     // ---- Test Cases ----
 
     public com.songhg.veri.agent.common.api.PageResponse<TestCaseResponse> listTestCases(AssetListRequest request) {
         validateProjectWhenProvided(request.getProjectId());
+        String lifecycleStatus = lifecycleFilter(request.getLifecycleStatus());
         List<TestCaseResponse> filtered = repository.testCases(trimToNull(request.getProjectId())).stream()
+                .filter(value -> matchesLifecycle(value.lifecycleStatus(), value.deletedAt(), lifecycleStatus))
                 .filter(value -> matches(value.status(), request.getStatus()))
                 .filter(value -> matches(value.source(), request.getSource()))
                 .filter(value -> containsKeyword(request.getKeyword(), value.code(), value.title(), value.description(), value.sourceRef(), value.tags()))
@@ -508,6 +724,13 @@ public class AssetService {
     public TestCaseResponse getTestCase(UUID id) {
         TestCaseRecord testCase = repository.testCase(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "测试用例不存在: " + id));
+        return toTestCaseResponse(testCase, testCase.steps());
+    }
+
+    public TestCaseResponse getTestCaseIncludingInactive(UUID id) {
+        TestCaseRecord testCase = repository.testCaseIncludingInactive(id)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "测试用例不存在: " + id));
+        validateProjectWhenProvided(testCase.projectId());
         return toTestCaseResponse(testCase, testCase.steps());
     }
 
@@ -540,6 +763,9 @@ public class AssetService {
                 request.tags(),
                 steps,
                 1,
+                "ACTIVE",
+                null,
+                null,
                 now,
                 now
         );
@@ -582,6 +808,9 @@ public class AssetService {
                 request.tags(),
                 existingSteps,
                 existing.version() + 1,
+                existing.lifecycleStatus(),
+                existing.archivedAt(),
+                existing.deletedAt(),
                 existing.createdAt(),
                 now
         );
@@ -592,11 +821,53 @@ public class AssetService {
     }
 
     public List<AssetVersionHistoryResponse> testCaseVersions(UUID id) {
-        TestCaseRecord testCase = repository.testCase(id)
+        TestCaseRecord testCase = repository.testCaseIncludingInactive(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "测试用例不存在: " + id));
         return repository.assetVersionHistory("TEST_CASE", testCase.id()).stream()
                 .map(AssetService::toVersionHistoryResponse)
                 .toList();
+    }
+
+    @Transactional
+    public TestCaseResponse updateTestCaseLifecycle(UUID id, UpdateAssetLifecycleRequest request) {
+        TestCaseRecord existing = repository.testCaseIncludingInactive(id)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "测试用例不存在: " + id));
+        Instant now = Instant.now();
+        String nextLifecycle = nextLifecycle(
+                "TEST_CASE",
+                id,
+                existing.projectId(),
+                lifecycleStatus(existing.lifecycleStatus(), existing.deletedAt()),
+                request.lifecycleStatus()
+        );
+        if ("ACTIVE".equals(nextLifecycle)) {
+            ensureTestCaseRestoreHasNoConflict(existing);
+        }
+        TestCaseRecord updated = new TestCaseRecord(
+                existing.id(),
+                existing.code(),
+                existing.title(),
+                existing.description(),
+                existing.projectId(),
+                existing.requirementId(),
+                existing.apiId(),
+                existing.source(),
+                existing.sourceRef(),
+                existing.status(),
+                existing.priority(),
+                existing.tags(),
+                existing.steps(),
+                existing.version() + 1,
+                nextLifecycle,
+                archivedAtFor(nextLifecycle, existing.archivedAt(), now),
+                deletedAtFor(nextLifecycle, now),
+                existing.createdAt(),
+                now
+        );
+        writeProjectAudit(lifecycleAction(nextLifecycle), "TEST_CASE", id, existing.projectId());
+        TestCaseRecord stored = repository.saveTestCase(updated);
+        saveTestCaseHistory(stored, lifecycleAction(nextLifecycle), testCaseDiff(existing, stored));
+        return toTestCaseResponse(stored, stored.steps());
     }
 
     // ---- Test Case Steps ----
@@ -636,6 +907,9 @@ public class AssetService {
                 existing.tags(),
                 steps,
                 existing.version() + 1,
+                existing.lifecycleStatus(),
+                existing.archivedAt(),
+                existing.deletedAt(),
                 existing.createdAt(),
                 now
         );
@@ -682,7 +956,9 @@ public class AssetService {
         return new RequirementResponse(
                 r.id(), r.code(), r.title(), r.description(), r.source(), r.sourceRef(), r.sourceUrl(), r.acceptanceCriteria(),
                 r.status(), r.priority(),
-                r.projectId(), r.tags(), r.version(), r.createdAt(), r.updatedAt()
+                r.projectId(), r.tags(), r.version(),
+                lifecycleStatus(r.lifecycleStatus(), r.deletedAt()), r.archivedAt(), r.deletedAt(),
+                r.createdAt(), r.updatedAt()
         );
     }
 
@@ -690,21 +966,27 @@ public class AssetService {
         return new ApiResponseDTO(
                 a.id(), a.code(), a.summary(), a.description(), a.httpMethod(), a.path(), a.source(), a.sourceRef(),
                 a.requestSchema(), a.responseSchema(), a.projectId(),
-                a.status(), a.createdAt(), a.updatedAt()
+                a.status(),
+                lifecycleStatus(a.lifecycleStatus(), a.deletedAt()), a.archivedAt(), a.deletedAt(),
+                a.createdAt(), a.updatedAt()
         );
     }
 
     private static PageResponse toPageResponse(AssetPage p) {
         return new PageResponse(
                 p.id(), p.code(), p.name(), p.urlPattern(), p.source(), p.sourceRef(), p.componentTree(), p.screenshotUrl(),
-                p.projectId(), p.status(), p.createdAt(), p.updatedAt()
+                p.projectId(), p.status(),
+                lifecycleStatus(p.lifecycleStatus(), p.deletedAt()), p.archivedAt(), p.deletedAt(),
+                p.createdAt(), p.updatedAt()
         );
     }
 
     private static BusinessFlowResponse toBusinessFlowResponse(AssetBusinessFlow f) {
         return new BusinessFlowResponse(
                 f.id(), f.code(), f.name(), f.description(), f.flowJson(), f.priority(),
-                f.projectId(), f.status(), f.createdAt(), f.updatedAt()
+                f.projectId(), f.status(),
+                lifecycleStatus(f.lifecycleStatus(), f.deletedAt()), f.archivedAt(), f.deletedAt(),
+                f.createdAt(), f.updatedAt()
         );
     }
 
@@ -718,7 +1000,9 @@ public class AssetService {
                 tc.id(), tc.code(), tc.title(), tc.description(), tc.requirementId(), tc.apiId(),
                 tc.source(), tc.sourceRef(),
                 tc.status(), tc.priority(), tc.tags(), stepResponses,
-                tc.version(), tc.createdAt(), tc.updatedAt()
+                tc.version(),
+                lifecycleStatus(tc.lifecycleStatus(), tc.deletedAt()), tc.archivedAt(), tc.deletedAt(),
+                tc.createdAt(), tc.updatedAt()
         );
     }
 
@@ -786,6 +1070,10 @@ public class AssetService {
         addDiff(diff, "status", before.status(), after.status());
         addDiff(diff, "priority", before.priority(), after.priority());
         addDiff(diff, "tags", normalizedTags(before.tags()), normalizedTags(after.tags()));
+        addDiff(diff, "lifecycleStatus", lifecycleStatus(before.lifecycleStatus(), before.deletedAt()),
+                lifecycleStatus(after.lifecycleStatus(), after.deletedAt()));
+        addDiff(diff, "archivedAt", before.archivedAt(), after.archivedAt());
+        addDiff(diff, "deletedAt", before.deletedAt(), after.deletedAt());
         return VersionDiff.of(diff);
     }
 
@@ -799,6 +1087,10 @@ public class AssetService {
         addDiff(diff, "priority", before.priority(), after.priority());
         addDiff(diff, "tags", normalizedTags(before.tags()), normalizedTags(after.tags()));
         addDiff(diff, "steps", stepSnapshot(before.steps()), stepSnapshot(after.steps()));
+        addDiff(diff, "lifecycleStatus", lifecycleStatus(before.lifecycleStatus(), before.deletedAt()),
+                lifecycleStatus(after.lifecycleStatus(), after.deletedAt()));
+        addDiff(diff, "archivedAt", before.archivedAt(), after.archivedAt());
+        addDiff(diff, "deletedAt", before.deletedAt(), after.deletedAt());
         return VersionDiff.of(diff);
     }
 
@@ -827,6 +1119,9 @@ public class AssetService {
         snapshot.put("projectId", requirement.projectId());
         snapshot.put("tags", requirement.tags());
         snapshot.put("version", requirement.version());
+        snapshot.put("lifecycleStatus", lifecycleStatus(requirement.lifecycleStatus(), requirement.deletedAt()));
+        snapshot.put("archivedAt", requirement.archivedAt());
+        snapshot.put("deletedAt", requirement.deletedAt());
         snapshot.put("createdAt", requirement.createdAt());
         snapshot.put("updatedAt", requirement.updatedAt());
         return snapshot;
@@ -848,6 +1143,9 @@ public class AssetService {
         snapshot.put("tags", testCase.tags());
         snapshot.put("steps", stepSnapshot(testCase.steps()));
         snapshot.put("version", testCase.version());
+        snapshot.put("lifecycleStatus", lifecycleStatus(testCase.lifecycleStatus(), testCase.deletedAt()));
+        snapshot.put("archivedAt", testCase.archivedAt());
+        snapshot.put("deletedAt", testCase.deletedAt());
         snapshot.put("createdAt", testCase.createdAt());
         snapshot.put("updatedAt", testCase.updatedAt());
         return snapshot;
@@ -1008,6 +1306,104 @@ public class AssetService {
             case "BUSINESS_FLOW" -> valueIn(rawValue, defaultValue, FLOW_STATUSES, "status");
             default -> valueIn(rawValue, defaultValue, REVIEW_STATUSES, "status");
         };
+    }
+
+    private String nextLifecycle(
+            String resourceType,
+            UUID resourceId,
+            String projectId,
+            String currentLifecycle,
+            String rawNextLifecycle
+    ) {
+        String current = lifecycleStatus(currentLifecycle, null);
+        String next = valueIn(rawNextLifecycle, current, LIFECYCLE_STATUSES, "lifecycleStatus");
+        if (current.equals(next)) {
+            return next;
+        }
+        boolean allowed = switch (current) {
+            case "ACTIVE" -> "ARCHIVED".equals(next) || "DELETED".equals(next);
+            case "ARCHIVED" -> "ACTIVE".equals(next) || "DELETED".equals(next);
+            case "DELETED" -> "ACTIVE".equals(next);
+            default -> false;
+        };
+        if (!allowed) {
+            writeProjectAudit("LIFECYCLE_CHANGE_DENIED", resourceType, resourceId, projectId, "DENIED");
+            throw new BusinessException(
+                    ErrorCode.INVALID_STATE,
+                    resourceType + " 生命周期不允许从 " + current + " 变更为 " + next
+            );
+        }
+        return next;
+    }
+
+    private static Instant archivedAtFor(String lifecycleStatus, Instant existingArchivedAt, Instant now) {
+        return "ARCHIVED".equals(lifecycleStatus) ? (existingArchivedAt == null ? now : existingArchivedAt) : null;
+    }
+
+    private static Instant deletedAtFor(String lifecycleStatus, Instant now) {
+        return "DELETED".equals(lifecycleStatus) ? now : null;
+    }
+
+    private static String lifecycleAction(String lifecycleStatus) {
+        return switch (lifecycleStatus) {
+            case "ARCHIVED" -> "ARCHIVE";
+            case "DELETED" -> "SOFT_DELETE";
+            default -> "RESTORE";
+        };
+    }
+
+    private static String lifecycleFilter(String rawValue) {
+        return valueIn(rawValue, "ACTIVE", LIFECYCLE_STATUSES, "lifecycleStatus");
+    }
+
+    private static boolean matchesLifecycle(String actual, Instant deletedAt, String expected) {
+        return expected.equals(lifecycleStatus(actual, deletedAt));
+    }
+
+    private static String lifecycleStatus(String lifecycleStatus, Instant deletedAt) {
+        if (deletedAt != null) {
+            return "DELETED";
+        }
+        return StringUtils.hasText(lifecycleStatus) ? lifecycleStatus : "ACTIVE";
+    }
+
+    private void ensureRequirementRestoreHasNoConflict(AssetRequirement requirement) {
+        if (repository.hasActiveRequirementCodeConflict(requirement.projectId(), requirement.code(), requirement.id())) {
+            throw new BusinessException(ErrorCode.CONFLICT, "同项目下需求编码已被其他资产占用，无法恢复: " + requirement.code());
+        }
+        if ("IMPORT".equals(requirement.source()) && StringUtils.hasText(requirement.sourceRef())
+                && repository.hasActiveRequirementSourceRefConflict(
+                        requirement.projectId(),
+                        requirement.source(),
+                        requirement.sourceRef(),
+                        requirement.id()
+                )) {
+            throw new BusinessException(ErrorCode.CONFLICT, "同项目下导入来源已被其他需求占用，无法恢复: " + requirement.sourceRef());
+        }
+    }
+
+    private void ensureApiRestoreHasNoConflict(AssetApi api) {
+        if (repository.hasActiveApiPathConflict(api.projectId(), api.path(), api.httpMethod(), api.id())) {
+            throw new BusinessException(ErrorCode.CONFLICT, "同项目下 API 路径和方法已被其他资产占用，无法恢复");
+        }
+    }
+
+    private void ensurePageRestoreHasNoConflict(AssetPage page) {
+        if (repository.hasActivePageCodeConflict(page.projectId(), page.code(), page.id())) {
+            throw new BusinessException(ErrorCode.CONFLICT, "同项目下页面编码已被其他资产占用，无法恢复: " + page.code());
+        }
+    }
+
+    private void ensureBusinessFlowRestoreHasNoConflict(AssetBusinessFlow flow) {
+        if (repository.hasActiveBusinessFlowCodeConflict(flow.projectId(), flow.code(), flow.id())) {
+            throw new BusinessException(ErrorCode.CONFLICT, "同项目下业务流编码已被其他资产占用，无法恢复: " + flow.code());
+        }
+    }
+
+    private void ensureTestCaseRestoreHasNoConflict(TestCaseRecord testCase) {
+        if (repository.hasActiveTestCaseCodeConflict(testCase.projectId(), testCase.code(), testCase.id())) {
+            throw new BusinessException(ErrorCode.CONFLICT, "同项目下测试用例编码已被其他资产占用，无法恢复: " + testCase.code());
+        }
     }
 
     private String nextStatus(

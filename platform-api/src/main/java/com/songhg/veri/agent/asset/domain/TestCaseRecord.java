@@ -19,6 +19,9 @@ public record TestCaseRecord(
         String tags,
         List<TestCaseStep> steps,
         int version,
+        String lifecycleStatus,
+        Instant archivedAt,
+        Instant deletedAt,
         Instant createdAt,
         Instant updatedAt
 ) {

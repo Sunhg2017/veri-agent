@@ -19,6 +19,9 @@
             <arg column="project_id" javaType="java.lang.String"/>
             <arg column="tags" javaType="java.lang.String"/>
             <arg column="version" javaType="_int"/>
+            <arg column="lifecycle_status" javaType="java.lang.String"/>
+            <arg column="archived_at" javaType="java.time.Instant"/>
+            <arg column="deleted_at" javaType="java.time.Instant"/>
             <arg column="created_at" javaType="java.time.Instant"/>
             <arg column="updated_at" javaType="java.time.Instant"/>
         </constructor>
@@ -38,6 +41,9 @@
             <arg column="response_schema" javaType="java.lang.String"/>
             <arg column="project_id" javaType="java.lang.String"/>
             <arg column="status" javaType="java.lang.String"/>
+            <arg column="lifecycle_status" javaType="java.lang.String"/>
+            <arg column="archived_at" javaType="java.time.Instant"/>
+            <arg column="deleted_at" javaType="java.time.Instant"/>
             <arg column="created_at" javaType="java.time.Instant"/>
             <arg column="updated_at" javaType="java.time.Instant"/>
         </constructor>
@@ -55,6 +61,9 @@
             <arg column="screenshot_url" javaType="java.lang.String"/>
             <arg column="project_id" javaType="java.lang.String"/>
             <arg column="status" javaType="java.lang.String"/>
+            <arg column="lifecycle_status" javaType="java.lang.String"/>
+            <arg column="archived_at" javaType="java.time.Instant"/>
+            <arg column="deleted_at" javaType="java.time.Instant"/>
             <arg column="created_at" javaType="java.time.Instant"/>
             <arg column="updated_at" javaType="java.time.Instant"/>
         </constructor>
@@ -70,6 +79,9 @@
             <arg column="priority" javaType="java.lang.String"/>
             <arg column="project_id" javaType="java.lang.String"/>
             <arg column="status" javaType="java.lang.String"/>
+            <arg column="lifecycle_status" javaType="java.lang.String"/>
+            <arg column="archived_at" javaType="java.time.Instant"/>
+            <arg column="deleted_at" javaType="java.time.Instant"/>
             <arg column="created_at" javaType="java.time.Instant"/>
             <arg column="updated_at" javaType="java.time.Instant"/>
         </constructor>
@@ -91,6 +103,9 @@
             <arg column="tags" javaType="java.lang.String"/>
             <arg column="steps" javaType="java.util.List" jdbcType="OTHER" typeHandler="org.apache.ibatis.type.UnknownTypeHandler"/>
             <arg column="version" javaType="_int"/>
+            <arg column="lifecycle_status" javaType="java.lang.String"/>
+            <arg column="archived_at" javaType="java.time.Instant"/>
+            <arg column="deleted_at" javaType="java.time.Instant"/>
             <arg column="created_at" javaType="java.time.Instant"/>
             <arg column="updated_at" javaType="java.time.Instant"/>
         </constructor>
@@ -135,22 +150,23 @@
 
     <sql id="requirementColumns">
         id, code, title, description, source, source_ref, source_url, acceptance_criteria,
-        status, priority, project_id, tags, version, created_at, updated_at
+        status, priority, project_id, tags, version, lifecycle_status, archived_at, deleted_at, created_at, updated_at
     </sql>
 
     <sql id="apiColumns">
         id, code, summary, description, http_method, path, source, source_ref,
         request_schema::text as request_schema, response_schema::text as response_schema,
-        project_id, status, created_at, updated_at
+        project_id, status, lifecycle_status, archived_at, deleted_at, created_at, updated_at
     </sql>
 
     <sql id="pageColumns">
         id, code, name, url_pattern, source, source_ref, component_tree::text as component_tree, screenshot_url,
-        project_id, status, created_at, updated_at
+        project_id, status, lifecycle_status, archived_at, deleted_at, created_at, updated_at
     </sql>
 
     <sql id="businessFlowColumns">
-        id, code, name, description, flow_json::text as flow_json, priority, project_id, status, created_at, updated_at
+        id, code, name, description, flow_json::text as flow_json, priority, project_id, status,
+        lifecycle_status, archived_at, deleted_at, created_at, updated_at
     </sql>
 
     <sql id="testCaseColumns">
@@ -168,6 +184,9 @@
         tc.tags,
         null as steps,
         tc.version,
+        tc.lifecycle_status,
+        tc.archived_at,
+        tc.deleted_at,
         tc.created_at,
         tc.updated_at
     </sql>
@@ -191,8 +210,6 @@
         from asset_requirement
         <where>
             <if test="projectId != null">project_id = #{projectId}</if>
-            <if test="projectId == null">deleted_at is null</if>
-            <if test="projectId != null">and deleted_at is null</if>
         </where>
         order by created_at desc
     </select>
@@ -202,6 +219,12 @@
         from asset_requirement
         where id = #{id}
           and deleted_at is null
+    </select>
+
+    <select id="getRequirementIncludingInactive" resultMap="requirementMap">
+        select <include refid="requirementColumns"/>
+        from asset_requirement
+        where id = #{id}
     </select>
 
     <select id="getRequirementBySourceRef" resultMap="requirementMap">
@@ -215,14 +238,35 @@
         limit 1
     </select>
 
+    <select id="countActiveRequirementCodeConflict" resultType="_int">
+        select count(*)
+        from asset_requirement
+        where project_id = #{projectId}
+          and code = #{code}
+          and id != #{excludeId}
+          and deleted_at is null
+    </select>
+
+    <select id="countActiveRequirementSourceRefConflict" resultType="_int">
+        select count(*)
+        from asset_requirement
+        where project_id = #{projectId}
+          and source = #{source}
+          and source_ref = #{sourceRef}
+          and id != #{excludeId}
+          and deleted_at is null
+    </select>
+
     <insert id="insertRequirement">
         insert into asset_requirement (
             id, project_id, code, title, description, source, source_ref, source_url,
-            acceptance_criteria, priority, status, tags, version, created_at, updated_at
+            acceptance_criteria, priority, status, tags, version, lifecycle_status, archived_at, deleted_at,
+            created_at, updated_at
         ) values (
             #{id}, #{projectId}, #{code},
             #{title}, #{description}, #{source}, #{sourceRef}, #{sourceUrl},
-            #{acceptanceCriteria}, #{priority}, #{status}, #{tags}, #{version}, #{createdAt}, #{updatedAt}
+            #{acceptanceCriteria}, #{priority}, #{status}, #{tags}, #{version}, #{lifecycleStatus},
+            #{archivedAt}, #{deletedAt}, #{createdAt}, #{updatedAt}
         )
     </insert>
 
@@ -238,6 +282,20 @@
             priority = #{priority},
             tags = #{tags},
             version = #{version},
+            lifecycle_status = #{lifecycleStatus},
+            archived_at = #{archivedAt},
+            deleted_at = #{deletedAt},
+            updated_at = #{updatedAt}
+        where id = #{id}
+          and deleted_at is null
+    </update>
+
+    <update id="updateRequirementLifecycle">
+        update asset_requirement set
+            version = #{version},
+            lifecycle_status = #{lifecycleStatus},
+            archived_at = #{archivedAt},
+            deleted_at = #{deletedAt},
             updated_at = #{updatedAt}
         where id = #{id}
     </update>
@@ -282,8 +340,6 @@
         from asset_api
         <where>
             <if test="projectId != null">project_id = #{projectId}</if>
-            <if test="projectId == null">deleted_at is null</if>
-            <if test="projectId != null">and deleted_at is null</if>
         </where>
         order by created_at desc
     </select>
@@ -295,16 +351,22 @@
           and deleted_at is null
     </select>
 
+    <select id="getApiIncludingInactive" resultMap="apiMap">
+        select <include refid="apiColumns"/>
+        from asset_api
+        where id = #{id}
+    </select>
+
     <insert id="insertApi">
         insert into asset_api (
             id, project_id, code, path, http_method, summary, description, source, source_ref,
-            request_schema, response_schema, status, created_at, updated_at
+            request_schema, response_schema, status, lifecycle_status, archived_at, deleted_at, created_at, updated_at
         ) values (
             #{id}, #{projectId}, #{code},
             #{path}, #{httpMethod}, #{summary}, #{description}, #{source}, #{sourceRef},
             cast(coalesce(#{requestSchema}, '{}') as jsonb),
             cast(coalesce(#{responseSchema}, '{}') as jsonb),
-            #{status}, #{createdAt}, #{updatedAt}
+            #{status}, #{lifecycleStatus}, #{archivedAt}, #{deletedAt}, #{createdAt}, #{updatedAt}
         )
     </insert>
 
@@ -319,9 +381,32 @@
             request_schema = cast(coalesce(#{requestSchema}, '{}') as jsonb),
             response_schema = cast(coalesce(#{responseSchema}, '{}') as jsonb),
             status = #{status},
+            lifecycle_status = #{lifecycleStatus},
+            archived_at = #{archivedAt},
+            deleted_at = #{deletedAt},
+            updated_at = #{updatedAt}
+        where id = #{id}
+          and deleted_at is null
+    </update>
+
+    <update id="updateApiLifecycle">
+        update asset_api set
+            lifecycle_status = #{lifecycleStatus},
+            archived_at = #{archivedAt},
+            deleted_at = #{deletedAt},
             updated_at = #{updatedAt}
         where id = #{id}
     </update>
+
+    <select id="countActiveApiPathConflict" resultType="_int">
+        select count(*)
+        from asset_api
+        where project_id = #{projectId}
+          and path = #{path}
+          and http_method = #{httpMethod}
+          and id != #{excludeId}
+          and deleted_at is null
+    </select>
 
     <!-- Pages -->
 
@@ -330,8 +415,6 @@
         from asset_page
         <where>
             <if test="projectId != null">project_id = #{projectId}</if>
-            <if test="projectId == null">deleted_at is null</if>
-            <if test="projectId != null">and deleted_at is null</if>
         </where>
         order by created_at desc
     </select>
@@ -343,15 +426,21 @@
           and deleted_at is null
     </select>
 
+    <select id="getPageIncludingInactive" resultMap="pageMap">
+        select <include refid="pageColumns"/>
+        from asset_page
+        where id = #{id}
+    </select>
+
     <insert id="insertPage">
         insert into asset_page (
             id, project_id, code, name, url_pattern, source, source_ref,
-            component_tree, screenshot_url, status, created_at, updated_at
+            component_tree, screenshot_url, status, lifecycle_status, archived_at, deleted_at, created_at, updated_at
         ) values (
             #{id}, #{projectId}, #{code},
             #{name}, #{urlPattern}, #{source}, #{sourceRef},
             cast(coalesce(#{componentTree}, '{}') as jsonb),
-            #{screenshotUrl}, #{status}, #{createdAt}, #{updatedAt}
+            #{screenshotUrl}, #{status}, #{lifecycleStatus}, #{archivedAt}, #{deletedAt}, #{createdAt}, #{updatedAt}
         )
     </insert>
 
@@ -364,9 +453,31 @@
             component_tree = cast(coalesce(#{componentTree}, '{}') as jsonb),
             screenshot_url = #{screenshotUrl},
             status = #{status},
+            lifecycle_status = #{lifecycleStatus},
+            archived_at = #{archivedAt},
+            deleted_at = #{deletedAt},
+            updated_at = #{updatedAt}
+        where id = #{id}
+          and deleted_at is null
+    </update>
+
+    <update id="updatePageLifecycle">
+        update asset_page set
+            lifecycle_status = #{lifecycleStatus},
+            archived_at = #{archivedAt},
+            deleted_at = #{deletedAt},
             updated_at = #{updatedAt}
         where id = #{id}
     </update>
+
+    <select id="countActivePageCodeConflict" resultType="_int">
+        select count(*)
+        from asset_page
+        where project_id = #{projectId}
+          and code = #{code}
+          and id != #{excludeId}
+          and deleted_at is null
+    </select>
 
     <!-- Business Flows -->
 
@@ -375,8 +486,6 @@
         from asset_business_flow
         <where>
             <if test="projectId != null">project_id = #{projectId}</if>
-            <if test="projectId == null">deleted_at is null</if>
-            <if test="projectId != null">and deleted_at is null</if>
         </where>
         order by created_at desc
     </select>
@@ -388,13 +497,20 @@
           and deleted_at is null
     </select>
 
+    <select id="getBusinessFlowIncludingInactive" resultMap="businessFlowMap">
+        select <include refid="businessFlowColumns"/>
+        from asset_business_flow
+        where id = #{id}
+    </select>
+
     <insert id="insertBusinessFlow">
         insert into asset_business_flow (
-            id, project_id, code, name, description, flow_json, priority, status, created_at, updated_at
+            id, project_id, code, name, description, flow_json, priority, status,
+            lifecycle_status, archived_at, deleted_at, created_at, updated_at
         ) values (
             #{id}, #{projectId}, #{code},
             #{name}, #{description}, cast(coalesce(#{flowJson}, '{}') as jsonb),
-            #{priority}, #{status}, #{createdAt}, #{updatedAt}
+            #{priority}, #{status}, #{lifecycleStatus}, #{archivedAt}, #{deletedAt}, #{createdAt}, #{updatedAt}
         )
     </insert>
 
@@ -405,9 +521,31 @@
             flow_json = cast(coalesce(#{flowJson}, '{}') as jsonb),
             priority = #{priority},
             status = #{status},
+            lifecycle_status = #{lifecycleStatus},
+            archived_at = #{archivedAt},
+            deleted_at = #{deletedAt},
+            updated_at = #{updatedAt}
+        where id = #{id}
+          and deleted_at is null
+    </update>
+
+    <update id="updateBusinessFlowLifecycle">
+        update asset_business_flow set
+            lifecycle_status = #{lifecycleStatus},
+            archived_at = #{archivedAt},
+            deleted_at = #{deletedAt},
             updated_at = #{updatedAt}
         where id = #{id}
     </update>
+
+    <select id="countActiveBusinessFlowCodeConflict" resultType="_int">
+        select count(*)
+        from asset_business_flow
+        where project_id = #{projectId}
+          and code = #{code}
+          and id != #{excludeId}
+          and deleted_at is null
+    </select>
 
     <!-- Test Cases -->
 
@@ -428,8 +566,6 @@
          and api.deleted_at is null
         <where>
             <if test="projectId != null">tc.project_id = #{projectId}</if>
-            <if test="projectId == null">tc.deleted_at is null</if>
-            <if test="projectId != null">and tc.deleted_at is null</if>
         </where>
         order by tc.created_at desc
     </select>
@@ -453,12 +589,32 @@
           and tc.deleted_at is null
     </select>
 
+    <select id="getTestCaseIncludingInactive" resultMap="testCaseMap">
+        select <include refid="testCaseColumns"/>
+        from asset_test_case tc
+        left join asset_link req
+          on req.target_type = 'CASE'
+         and req.target_id = tc.id
+         and req.source_type = 'REQUIREMENT'
+         and req.link_type = 'VERIFIES'
+         and req.deleted_at is null
+        left join asset_link api
+          on api.source_type = 'API'
+         and api.target_type = 'CASE'
+         and api.target_id = tc.id
+         and api.link_type = 'COVERS'
+         and api.deleted_at is null
+        where tc.id = #{id}
+    </select>
+
     <insert id="insertTestCase">
         insert into asset_test_case (
-            id, project_id, code, title, description, source, source_ref, priority, status, tags, version, created_at, updated_at
+            id, project_id, code, title, description, source, source_ref, priority, status, tags, version,
+            lifecycle_status, archived_at, deleted_at, created_at, updated_at
         ) values (
             #{id}, #{projectId}, #{code},
-            #{title}, #{description}, #{source}, #{sourceRef}, #{priority}, #{status}, #{tags}, #{version}, #{createdAt}, #{updatedAt}
+            #{title}, #{description}, #{source}, #{sourceRef}, #{priority}, #{status}, #{tags}, #{version},
+            #{lifecycleStatus}, #{archivedAt}, #{deletedAt}, #{createdAt}, #{updatedAt}
         )
     </insert>
 
@@ -472,9 +628,32 @@
             priority = #{priority},
             tags = #{tags},
             version = #{version},
+            lifecycle_status = #{lifecycleStatus},
+            archived_at = #{archivedAt},
+            deleted_at = #{deletedAt},
+            updated_at = #{updatedAt}
+        where id = #{id}
+          and deleted_at is null
+    </update>
+
+    <update id="updateTestCaseLifecycle">
+        update asset_test_case set
+            version = #{version},
+            lifecycle_status = #{lifecycleStatus},
+            archived_at = #{archivedAt},
+            deleted_at = #{deletedAt},
             updated_at = #{updatedAt}
         where id = #{id}
     </update>
+
+    <select id="countActiveTestCaseCodeConflict" resultType="_int">
+        select count(*)
+        from asset_test_case
+        where project_id = #{projectId}
+          and code = #{code}
+          and id != #{excludeId}
+          and deleted_at is null
+    </select>
 
     <!-- Test Case Steps -->
 

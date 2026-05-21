@@ -18,7 +18,13 @@ public interface AssetRepository {
 
     Optional<AssetRequirement> requirement(UUID id);
 
+    Optional<AssetRequirement> requirementIncludingInactive(UUID id);
+
     Optional<AssetRequirement> requirementBySourceRef(String projectId, String source, String sourceRef);
+
+    boolean hasActiveRequirementCodeConflict(String projectId, String code, UUID excludeId);
+
+    boolean hasActiveRequirementSourceRefConflict(String projectId, String source, String sourceRef, UUID excludeId);
 
     AssetRequirement saveRequirement(AssetRequirement requirement);
 
@@ -30,25 +36,41 @@ public interface AssetRepository {
 
     Optional<AssetApi> api(UUID id);
 
+    Optional<AssetApi> apiIncludingInactive(UUID id);
+
     AssetApi saveApi(AssetApi api);
+
+    boolean hasActiveApiPathConflict(String projectId, String path, String httpMethod, UUID excludeId);
 
     List<AssetPage> pages(String projectId);
 
     Optional<AssetPage> page(UUID id);
 
+    Optional<AssetPage> pageIncludingInactive(UUID id);
+
     AssetPage savePage(AssetPage page);
+
+    boolean hasActivePageCodeConflict(String projectId, String code, UUID excludeId);
 
     List<AssetBusinessFlow> businessFlows(String projectId);
 
     Optional<AssetBusinessFlow> businessFlow(UUID id);
 
+    Optional<AssetBusinessFlow> businessFlowIncludingInactive(UUID id);
+
     AssetBusinessFlow saveBusinessFlow(AssetBusinessFlow flow);
+
+    boolean hasActiveBusinessFlowCodeConflict(String projectId, String code, UUID excludeId);
 
     List<TestCaseRecord> testCases(String projectId);
 
     Optional<TestCaseRecord> testCase(UUID id);
 
+    Optional<TestCaseRecord> testCaseIncludingInactive(UUID id);
+
     TestCaseRecord saveTestCase(TestCaseRecord testCase);
+
+    boolean hasActiveTestCaseCodeConflict(String projectId, String code, UUID excludeId);
 
     List<TestCaseStep> testCaseSteps(UUID caseId);
 
