@@ -6,6 +6,7 @@ import com.songhg.veri.agent.modelaccess.application.ModelAccessRepository;
 import com.songhg.veri.agent.modelaccess.domain.InvocationRecord;
 import com.songhg.veri.agent.modelaccess.domain.InvocationStatus;
 import com.songhg.veri.agent.modelaccess.domain.ModelProviderConfig;
+import com.songhg.veri.agent.modelaccess.domain.PromptApprovalStatus;
 import com.songhg.veri.agent.modelaccess.domain.PromptStatus;
 import com.songhg.veri.agent.modelaccess.domain.PromptTemplate;
 import com.songhg.veri.agent.modelaccess.domain.ProviderStatus;
@@ -56,6 +57,11 @@ public class InMemoryModelAccessRepository implements ModelAccessRepository {
                 "你是企业级测试设计助手，请基于以下上下文输出结构化建议：{{context}}",
                 PromptStatus.ACTIVE,
                 "WP2 默认 Prompt",
+                false,
+                PromptApprovalStatus.NOT_REQUIRED,
+                null,
+                null,
+                null,
                 now,
                 now
         ));
@@ -72,6 +78,11 @@ public class InMemoryModelAccessRepository implements ModelAccessRepository {
                         """,
                 PromptStatus.ACTIVE,
                 "WP4 AI 文档解析 MVP Prompt",
+                false,
+                PromptApprovalStatus.NOT_REQUIRED,
+                null,
+                null,
+                null,
                 now,
                 now
         ));
@@ -140,6 +151,11 @@ public class InMemoryModelAccessRepository implements ModelAccessRepository {
                         prompt.content(),
                         PromptStatus.ARCHIVED,
                         prompt.changeNote(),
+                        prompt.highRisk(),
+                        prompt.approvalStatus(),
+                        prompt.approvedBy(),
+                        prompt.approvedAt(),
+                        prompt.approvalNote(),
                         prompt.createdAt(),
                         now
                 )));

@@ -110,7 +110,7 @@ WP1、WP2、WP4 的当前 P0 口径已经基本收敛，后续以生产硬化、
 | WP2-C1 | 高级路由策略 | P1 | DONE-CURRENT | 已新增 provider `routingGroup/capabilities`、调用 `capability`、配置化 `routing-rules` 和调用日志 `routingRuleName/routingGroup/modelCapability`；规则支持按项目、敏感级别、调用服务、模型能力和供应商组匹配，并可用 `LOWEST_COST` 在组内按预估成本选择 provider | 高敏资源仍不能路由公开模型；路由结果写入调用日志、CSV 和 WP1 审计摘要 |
 | WP2-C2 | 预算策略产品化 | P1 | DONE-CURRENT | 已在平台/项目预算基础上补齐调用服务日预算 `WP2_DAILY_CALLER_SERVICE_COST_LIMIT`、成本告警 `actorService` 查询和 `WP2_BUDGET_OVERRUN_ACTION=BLOCK/FALLBACK` 超预算动作 | 超预算前通过 `WP2_COST_ALERT_WARNING_RATIO` 返回 WARNING；超预算后默认阻断，配置 `FALLBACK` 时跳过超预算 provider 并尝试后续低成本候选 |
 | WP2-C3 | 敏感内容检测扩展 | P1 | DONE-CURRENT | 已扩展手机号、邮箱、银行卡疑似长号、企业内部 token/secret/private key 模式，并保留现有 key/token/password/Bearer/身份证号阻断；新增单测覆盖 | 命中后阻断并在日志/响应中保留稳定错误；自定义正则和阻断/脱敏策略配置仍作为后续增强 |
-| WP2-C4 | Prompt 评审与审批 | P2 | TODO | 高风险 Prompt 激活前审批，保留审批人与版本说明 | Prompt 变更可追溯，回滚到旧版本有明确操作 |
+| WP2-C4 | Prompt 评审与审批 | P2 | DONE-CURRENT | 已新增高风险 Prompt `highRisk` 标记、`approvalStatus` 审批状态、审批人/时间/说明字段，以及 approve/reject API 和 portal-web 操作入口 | 高风险 Prompt 未审批不能激活；审批通过和驳回保留审批人、审批时间与版本说明，回滚到旧 ACTIVE 版本仍沿用现有激活入口 |
 
 ### WP2-D 模型质量和异步能力
 

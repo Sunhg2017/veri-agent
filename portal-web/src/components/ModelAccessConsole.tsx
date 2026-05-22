@@ -25,6 +25,7 @@ import {
   MODEL_PROVIDER_TYPES,
   PROMPT_STATUSES,
   activatePromptVersion,
+  approvePromptVersion,
   checkModelProvider,
   createModelProvider,
   createPromptVersion,
@@ -40,6 +41,7 @@ import {
   fetchPrompts,
   fetchProviderResilience,
   invocationExportPath,
+  rejectPromptVersion,
   resetProviderCircuit,
   updateModelProvider,
   type CostAlert,
@@ -83,6 +85,7 @@ type PromptDraft = {
   name: string;
   content: string;
   changeNote: string;
+  highRisk: boolean;
   activate: boolean;
 };
 
@@ -129,6 +132,7 @@ const initialPromptDraft: PromptDraft = {
   name: '',
   content: '',
   changeNote: '',
+  highRisk: false,
   activate: false
 };
 
@@ -380,6 +384,7 @@ export function ModelAccessConsole(props: { signedIn: boolean; currentUser: Curr
         name: promptDraft.name.trim(),
         content: promptDraft.content,
         changeNote: promptDraft.changeNote.trim(),
+        highRisk: promptDraft.highRisk,
         activate: promptDraft.activate
       });
       const traceId = await refreshPrompts();
@@ -399,6 +404,30 @@ export function ModelAccessConsole(props: { signedIn: boolean; currentUser: Curr
       setPromptState({ loading: false, success: `${prompt.promptKey} v${prompt.version} 已激活`, traceId: traceId || response.trace_id });
     } catch (error: unknown) {
       setPromptState({ loading: false, error: errorMessage(error, 'Prompt 激活失败'), traceId: traceId(error) });
+    }
+  }
+
+  async function onApprovePrompt(prompt: PromptTemplate) {
+    if (!canManagePrompts) return;
+    setPromptState({ loading: true });
+    try {
+      const response = await approvePromptVersion(prompt.id, { reviewNote: prompt.changeNote });
+      const traceId = await refreshPrompts();
+      setPromptState({ loading: false, success: `${prompt.promptKey} v${prompt.version} 已审批通过`, traceId: traceId || response.trace_id });
+    } catch (error: unknown) {
+      setPromptState({ loading: false, error: errorMessage(error, 'Prompt 审批失败'), traceId: traceId(error) });
+    }
+  }
+
+  async function onRejectPrompt(prompt: PromptTemplate) {
+    if (!canManagePrompts) return;
+    setPromptState({ loading: true });
+    try {
+      const response = await rejectPromptVersion(prompt.id, { reviewNote: prompt.changeNote });
+      const traceId = await refreshPrompts();
+      setPromptState({ loading: false, success: `${prompt.promptKey} v${prompt.version} 已驳回`, traceId: traceId || response.trace_id });
+    } catch (error: unknown) {
+      setPromptState({ loading: false, error: errorMessage(error, 'Prompt 驳回失败'), traceId: traceId(error) });
     }
   }
 
@@ -537,6 +566,7 @@ export function ModelAccessConsole(props: { signedIn: boolean; currentUser: Curr
               selectedPromptVersions={selectedPromptVersions}
               state={promptState}
               onActivate={onActivatePrompt}
+              onApprove={onApprovePrompt}
               onChangeDraft={(key, value) => {
                 setPromptDraft((current) => ({ ...current, [key]: value }));
                 setPromptState({ loading: false });
@@ -555,6 +585,7 @@ export function ModelAccessConsole(props: { signedIn: boolean; currentUser: Curr
                 }
               }}
               onLeftPromptChange={setLeftPromptId}
+              onReject={onRejectPrompt}
               onRightPromptChange={setRightPromptId}
               onSubmit={onSubmitPrompt}
             />
@@ -781,9 +812,11 @@ function PromptTab(props: {
   selectedPromptVersions: PromptTemplate[];
   state: WorkState;
   onActivate: (prompt: PromptTemplate) => Promise<void>;
+  onApprove: (prompt: PromptTemplate) => Promise<void>;
   onChangeDraft: (key: keyof PromptDraft, value: string | boolean) => void;
   onFilter: (value: string) => Promise<void>;
   onLeftPromptChange: (value: string) => void;
+  onReject: (prompt: PromptTemplate) => Promise<void>;
   onRightPromptChange: (value: string) => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
 }) {
@@ -803,6 +836,10 @@ function PromptTab(props: {
             <label className="field model-access-checkbox-field">
               <span>激活</span>
               <input type="checkbox" checked={props.draft.activate} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('activate', event.target.checked)} />
+            </label>
+            <label className="field model-access-checkbox-field">
+              <span>高风险</span>
+              <input type="checkbox" checked={props.draft.highRisk} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('highRisk', event.target.checked)} />
             </label>
           </div>
           <label className="field document-content-field">
@@ -875,30 +912,47 @@ function PromptTab(props: {
               <th>Prompt</th>
               <th>版本</th>
               <th>状态</th>
+              <th>审批</th>
               <th>变更</th>
               <th>更新时间</th>
               <th>操作</th>
             </tr>
           </thead>
           <tbody>
-            {props.prompts.length ? props.prompts.map((prompt) => (
-              <tr key={prompt.id}>
-                <td>
-                  <span className="table-primary">{prompt.promptKey}</span>
-                  <span className="table-secondary">{prompt.name}</span>
-                </td>
-                <td>v{prompt.version}</td>
-                <td><StatusPill value={prompt.status} /></td>
-                <td><span className="table-secondary">{prompt.changeNote ?? '-'}</span></td>
-                <td><span className="table-secondary">{formatDateTime(prompt.updatedAt)}</span></td>
-                <td>
-                  <button className="mini-button" type="button" disabled={!props.canManage || prompt.status === 'ACTIVE'} onClick={() => void props.onActivate(prompt)}>
-                    <CheckCircle2 size={14} /> 激活
-                  </button>
-                </td>
-              </tr>
-            )) : (
-              <tr><td className="table-empty" colSpan={6}>暂无 Prompt 版本</td></tr>
+            {props.prompts.length ? props.prompts.map((prompt) => {
+              const canReviewPrompt = props.canManage && prompt.highRisk && prompt.status !== 'ACTIVE';
+              const canApprovePrompt = canReviewPrompt && prompt.approvalStatus !== 'APPROVED';
+              const canRejectPrompt = canReviewPrompt && prompt.approvalStatus !== 'REJECTED';
+              const canActivatePrompt = props.canManage && prompt.status !== 'ACTIVE' && (!prompt.highRisk || prompt.approvalStatus === 'APPROVED');
+              return (
+                <tr key={prompt.id}>
+                  <td>
+                    <span className="table-primary">{prompt.promptKey}</span>
+                    <span className="table-secondary">{prompt.name}</span>
+                  </td>
+                  <td>v{prompt.version}</td>
+                  <td><StatusPill value={prompt.status} /></td>
+                  <td>
+                    <StatusPill value={prompt.approvalStatus ?? 'NOT_REQUIRED'} />
+                    <span className="table-secondary">{prompt.approvedBy ?? (prompt.highRisk ? '待审批' : '-')}</span>
+                  </td>
+                  <td><span className="table-secondary">{prompt.changeNote ?? '-'}</span></td>
+                  <td><span className="table-secondary">{formatDateTime(prompt.updatedAt)}</span></td>
+                  <td>
+                    <button className="mini-button" type="button" disabled={!canApprovePrompt} onClick={() => void props.onApprove(prompt)}>
+                      <CheckCircle2 size={14} /> 通过
+                    </button>
+                    <button className="mini-button" type="button" disabled={!canRejectPrompt} onClick={() => void props.onReject(prompt)}>
+                      <XCircle size={14} /> 驳回
+                    </button>
+                    <button className="mini-button" type="button" disabled={!canActivatePrompt} onClick={() => void props.onActivate(prompt)}>
+                      <CheckCircle2 size={14} /> 激活
+                    </button>
+                  </td>
+                </tr>
+              );
+            }) : (
+              <tr><td className="table-empty" colSpan={7}>暂无 Prompt 版本</td></tr>
             )}
           </tbody>
         </table>

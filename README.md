@@ -153,7 +153,7 @@ curl -X POST http://127.0.0.1:8080/api/v1/model-access/invocations \
   }'
 ```
 
-调用日志支持分页、筛选、敏感级别审计、路由结果审计和成本汇总；高级路由可通过 provider `routingGroup/capabilities` 与 `veri-agent.model-access.routing-rules` 按项目、调用服务、敏感级别、能力和供应商组选择 provider。预算策略支持平台、项目和调用服务日预算，可通过 `WP2_DAILY_PLATFORM_COST_LIMIT`、`WP2_DAILY_PROJECT_COST_LIMIT`、`WP2_DAILY_CALLER_SERVICE_COST_LIMIT`、`WP2_COST_ALERT_WARNING_RATIO` 和 `WP2_BUDGET_OVERRUN_ACTION=BLOCK|FALLBACK` 控制告警、阻断或低成本 provider 降级：
+调用日志支持分页、筛选、敏感级别审计、路由结果审计和成本汇总；高级路由可通过 provider `routingGroup/capabilities` 与 `veri-agent.model-access.routing-rules` 按项目、调用服务、敏感级别、能力和供应商组选择 provider。预算策略支持平台、项目和调用服务日预算，可通过 `WP2_DAILY_PLATFORM_COST_LIMIT`、`WP2_DAILY_PROJECT_COST_LIMIT`、`WP2_DAILY_CALLER_SERVICE_COST_LIMIT`、`WP2_COST_ALERT_WARNING_RATIO` 和 `WP2_BUDGET_OVERRUN_ACTION=BLOCK|FALLBACK` 控制告警、阻断或低成本 provider 降级。Prompt 版本管理支持 `highRisk=true` 高风险标记，高风险版本需先调用 `/prompts/{id}/approve` 审批通过后才能激活：
 
 ```bash
 curl 'http://127.0.0.1:8080/api/v1/model-access/invocations?projectId=project-001&index=0&size=20' \

@@ -8,6 +8,7 @@ public record CreatePromptRequest(
         @NotBlank String name,
         @NotBlank @Size(max = 12000) String content,
         String changeNote,
+        Boolean highRisk,
         Boolean activate
 ) {
 }

@@ -28,6 +28,7 @@ with expected(table_name, column_name) as (
         ('ma_model_provider','routing_group'), ('ma_model_provider','capabilities'),
         ('ma_model_provider','version'), ('ma_model_provider','created_by'), ('ma_model_provider','deleted_at'),
         ('ma_prompt_template','prompt_key'), ('ma_prompt_template','version'), ('ma_prompt_template','content'), ('ma_prompt_template','status'),
+        ('ma_prompt_template','high_risk'), ('ma_prompt_template','approval_status'), ('ma_prompt_template','approved_by'), ('ma_prompt_template','approved_at'), ('ma_prompt_template','approval_note'),
         ('ma_prompt_template','created_by'), ('ma_prompt_template','deleted_at'), ('ma_prompt_template','version'),
         ('ma_invocation_log','project_id'), ('ma_invocation_log','sensitivity_level'), ('ma_invocation_log','prompt_digest'), ('ma_invocation_log','request_preview'),
         ('ma_invocation_log','routing_rule_name'), ('ma_invocation_log','routing_group'), ('ma_invocation_log','model_capability'),
@@ -61,6 +62,7 @@ with expected(index_name) as (
         ('idx_ma_invocation_sensitivity_time'),
         ('idx_ma_model_provider_deleted'),
         ('idx_ma_prompt_template_deleted'),
+        ('idx_ma_prompt_template_approval_status'),
         ('idx_ma_model_provider_routing_group'),
         ('idx_ma_invocation_routing_time')
 ),
@@ -99,6 +101,18 @@ from pg_constraint
 where conname = 'ck_ma_invocation_sensitivity'
   and conrelid = 'ma_invocation_log'::regclass
   and pg_get_constraintdef(oid) like '%RESTRICTED%';
+
+select
+    'wp2.schema.prompt_approval_constraint_accepts_statuses' as check_name,
+    case when count(*) = 1 then 'PASS' else 'FAIL' end as status,
+    coalesce(max(pg_get_constraintdef(oid)), 'ck_ma_prompt_template_approval_status missing expected statuses') as details
+from pg_constraint
+where conname = 'ck_ma_prompt_template_approval_status'
+  and conrelid = 'ma_prompt_template'::regclass
+  and pg_get_constraintdef(oid) like '%NOT_REQUIRED%'
+  and pg_get_constraintdef(oid) like '%PENDING%'
+  and pg_get_constraintdef(oid) like '%APPROVED%'
+  and pg_get_constraintdef(oid) like '%REJECTED%';
 
 with found as (
     select table_name || '.tenant_id' as item

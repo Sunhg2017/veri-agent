@@ -41,6 +41,8 @@ class ModelAccessOpenApiContractTest {
                 .andExpect(jsonPath("$.paths['/api/v1/model-access/providers/{id}/circuit/reset'].post").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/model-access/prompts'].get").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/model-access/prompts'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/model-access/prompts/{id}/approve'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/model-access/prompts/{id}/reject'].post").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/model-access/invocations'].post").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/model-access/invocations'].get").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/model-access/invocations/export'].get").exists())
@@ -85,6 +87,9 @@ class ModelAccessOpenApiContractTest {
         MatcherAssert.assertThat(openApi, containsString("actorService"));
         MatcherAssert.assertThat(openApi, containsString("routingGroup"));
         MatcherAssert.assertThat(openApi, containsString("modelCapability"));
+        MatcherAssert.assertThat(openApi, containsString("highRisk"));
+        MatcherAssert.assertThat(openApi, containsString("approvalStatus"));
+        MatcherAssert.assertThat(openApi, containsString("approvedBy"));
         MatcherAssert.assertThat(openApi, containsString("/api/v1/model-access/invocations/export"));
         MatcherAssert.assertThat(openApi, containsString("/api/v1/model-access/cost/alerts"));
         MatcherAssert.assertThat(openApi, containsString("/api/v1/model-access/cost/report"));

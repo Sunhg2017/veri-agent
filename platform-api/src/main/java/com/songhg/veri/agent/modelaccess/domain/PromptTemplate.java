@@ -11,6 +11,11 @@ public record PromptTemplate(
         String content,
         PromptStatus status,
         String changeNote,
+        boolean highRisk,
+        PromptApprovalStatus approvalStatus,
+        String approvedBy,
+        Instant approvedAt,
+        String approvalNote,
         Instant createdAt,
         Instant updatedAt
 ) {

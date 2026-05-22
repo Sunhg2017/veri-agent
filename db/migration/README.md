@@ -11,6 +11,7 @@ All WP1-WP4 migrations currently live in `db/migration/wp1` because the MVP depl
 5. `wp1/V20260518_009__wp2_model_access_schema.sql` creates WP2 model provider, prompt template, and invocation log tables.
 6. `wp1/V20260518_010__wp2_default_seed_data.sql` seeds the local echo provider and default test-case-design prompt for db profile smoke usage.
 7. Later `wp1/V20260518_*` and `wp1/V20260520_*` migrations add WP2 hardening, WP3 assets, WP4 document input, and WP3 asset version history.
+8. `wp1/V20260522_026__wp2_prompt_review_approval.sql` adds WP2 high-risk Prompt review and approval metadata.
 
 ## Prerequisites
 

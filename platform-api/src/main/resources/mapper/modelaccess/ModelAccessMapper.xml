@@ -32,6 +32,11 @@
             <arg column="content" javaType="java.lang.String"/>
             <arg column="status" javaType="com.songhg.veri.agent.modelaccess.domain.PromptStatus"/>
             <arg column="change_note" javaType="java.lang.String"/>
+            <arg column="high_risk" javaType="_boolean"/>
+            <arg column="approval_status" javaType="com.songhg.veri.agent.modelaccess.domain.PromptApprovalStatus"/>
+            <arg column="approved_by" javaType="java.lang.String"/>
+            <arg column="approved_at" javaType="java.time.Instant"/>
+            <arg column="approval_note" javaType="java.lang.String"/>
             <arg column="created_at" javaType="java.time.Instant"/>
             <arg column="updated_at" javaType="java.time.Instant"/>
         </constructor>
@@ -87,7 +92,9 @@
     </sql>
 
     <sql id="promptColumns">
-        id, prompt_key, name, version, content, status, change_note, created_at, updated_at
+        id, prompt_key, name, version, content, status, change_note,
+        high_risk, approval_status, approved_by, approved_at, approval_note,
+        created_at, updated_at
     </sql>
 
     <sql id="invocationColumns">
@@ -171,15 +178,24 @@
 
     <insert id="upsertPrompt">
         insert into ma_prompt_template (
-            id, prompt_key, name, version, content, status, change_note, created_at, updated_at
+            id, prompt_key, name, version, content, status, change_note,
+            high_risk, approval_status, approved_by, approved_at, approval_note,
+            created_at, updated_at
         ) values (
-            #{id}, #{promptKey}, #{name}, #{version}, #{content}, #{status}, #{changeNote}, #{createdAt}, #{updatedAt}
+            #{id}, #{promptKey}, #{name}, #{version}, #{content}, #{status}, #{changeNote},
+            #{highRisk}, #{approvalStatus}, #{approvedBy}, #{approvedAt}, #{approvalNote},
+            #{createdAt}, #{updatedAt}
         )
         on conflict (id) do update set
             name = excluded.name,
             content = excluded.content,
             status = excluded.status,
             change_note = excluded.change_note,
+            high_risk = excluded.high_risk,
+            approval_status = excluded.approval_status,
+            approved_by = excluded.approved_by,
+            approved_at = excluded.approved_at,
+            approval_note = excluded.approval_note,
             updated_at = excluded.updated_at
     </insert>
 

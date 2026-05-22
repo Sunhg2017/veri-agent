@@ -3,11 +3,13 @@ import { requestJson, requestText, type ApiResponse } from './client';
 export const MODEL_PROVIDER_TYPES = ['LOCAL_ECHO', 'OPENAI_COMPATIBLE', 'MOCK_FAILURE'] as const;
 export const MODEL_PROVIDER_STATUSES = ['ENABLED', 'DISABLED'] as const;
 export const PROMPT_STATUSES = ['DRAFT', 'ACTIVE', 'ARCHIVED'] as const;
+export const PROMPT_APPROVAL_STATUSES = ['NOT_REQUIRED', 'PENDING', 'APPROVED', 'REJECTED'] as const;
 export const INVOCATION_STATUSES = ['SUCCEEDED', 'FAILED', 'BLOCKED'] as const;
 
 export type ModelProviderType = (typeof MODEL_PROVIDER_TYPES)[number];
 export type ModelProviderStatus = (typeof MODEL_PROVIDER_STATUSES)[number];
 export type PromptStatus = (typeof PROMPT_STATUSES)[number];
+export type PromptApprovalStatus = (typeof PROMPT_APPROVAL_STATUSES)[number];
 export type InvocationStatus = (typeof INVOCATION_STATUSES)[number];
 
 export interface ModelAccessHealth {
@@ -89,6 +91,11 @@ export interface PromptTemplate {
   content: string;
   status: PromptStatus | string;
   changeNote?: string;
+  highRisk: boolean;
+  approvalStatus: PromptApprovalStatus | string;
+  approvedBy?: string;
+  approvedAt?: string;
+  approvalNote?: string;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -98,7 +105,12 @@ export interface PromptPayload {
   name: string;
   content: string;
   changeNote?: string;
+  highRisk?: boolean;
   activate?: boolean;
+}
+
+export interface PromptReviewPayload {
+  reviewNote?: string;
 }
 
 export interface InvocationRecord {
@@ -284,6 +296,11 @@ export function normalizePromptTemplate(raw: unknown): PromptTemplate {
     content: stringValue(value.content),
     status: enumValue(value.status, PROMPT_STATUSES, 'DRAFT'),
     changeNote: optionalString(value.changeNote ?? value.change_note),
+    highRisk: booleanValue(value.highRisk ?? value.high_risk),
+    approvalStatus: enumValue(value.approvalStatus ?? value.approval_status, PROMPT_APPROVAL_STATUSES, 'NOT_REQUIRED'),
+    approvedBy: optionalString(value.approvedBy ?? value.approved_by),
+    approvedAt: optionalString(value.approvedAt ?? value.approved_at),
+    approvalNote: optionalString(value.approvalNote ?? value.approval_note),
     createdAt: optionalString(value.createdAt ?? value.created_at),
     updatedAt: optionalString(value.updatedAt ?? value.updated_at)
   };
@@ -487,6 +504,22 @@ export async function createPromptVersion(payload: PromptPayload): Promise<ApiRe
 export async function activatePromptVersion(id: string): Promise<ApiResponse<PromptTemplate>> {
   const response = await requestJson<unknown>(`/api/v1/model-access/prompts/${encodeURIComponent(id)}/activate`, {
     method: 'POST'
+  });
+  return { ...response, data: normalizePromptTemplate(response.data) };
+}
+
+export async function approvePromptVersion(id: string, payload: PromptReviewPayload = {}): Promise<ApiResponse<PromptTemplate>> {
+  const response = await requestJson<unknown>(`/api/v1/model-access/prompts/${encodeURIComponent(id)}/approve`, {
+    method: 'POST',
+    body: JSON.stringify(compactPayload(payload))
+  });
+  return { ...response, data: normalizePromptTemplate(response.data) };
+}
+
+export async function rejectPromptVersion(id: string, payload: PromptReviewPayload = {}): Promise<ApiResponse<PromptTemplate>> {
+  const response = await requestJson<unknown>(`/api/v1/model-access/prompts/${encodeURIComponent(id)}/reject`, {
+    method: 'POST',
+    body: JSON.stringify(compactPayload(payload))
   });
   return { ...response, data: normalizePromptTemplate(response.data) };
 }

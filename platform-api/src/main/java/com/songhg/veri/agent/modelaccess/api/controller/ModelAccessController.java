@@ -9,6 +9,7 @@ import com.songhg.veri.agent.modelaccess.api.request.CreatePromptRequest;
 import com.songhg.veri.agent.modelaccess.api.request.CreateProviderRequest;
 import com.songhg.veri.agent.modelaccess.api.request.InvocationPageRequest;
 import com.songhg.veri.agent.modelaccess.api.request.InvokeModelRequest;
+import com.songhg.veri.agent.modelaccess.api.request.ReviewPromptRequest;
 import com.songhg.veri.agent.modelaccess.api.request.UpdateProviderRequest;
 import com.songhg.veri.agent.modelaccess.api.response.CostAlertResponse;
 import com.songhg.veri.agent.modelaccess.api.response.CostReportResponse;
@@ -159,6 +160,28 @@ public class ModelAccessController {
         return prompt;
     }
 
+    @PostMapping("/prompts/{id}/approve")
+    public PromptTemplate approvePrompt(
+            @PathVariable UUID id,
+            @Valid @RequestBody(required = false) ReviewPromptRequest request
+    ) {
+        AuthUserPrincipal actor = requirePermission(MANAGE_PERMISSION);
+        PromptTemplate prompt = service.approvePrompt(id, approvalActor(actor), request == null ? null : request.reviewNote());
+        auditPromptReview(actor, prompt, "MODEL_PROMPT_APPROVE");
+        return prompt;
+    }
+
+    @PostMapping("/prompts/{id}/reject")
+    public PromptTemplate rejectPrompt(
+            @PathVariable UUID id,
+            @Valid @RequestBody(required = false) ReviewPromptRequest request
+    ) {
+        AuthUserPrincipal actor = requirePermission(MANAGE_PERMISSION);
+        PromptTemplate prompt = service.rejectPrompt(id, approvalActor(actor), request == null ? null : request.reviewNote());
+        auditPromptReview(actor, prompt, "MODEL_PROMPT_REJECT");
+        return prompt;
+    }
+
     @PostMapping("/invocations")
     public InvokeModelResponse invoke(
             @Valid @RequestBody InvokeModelRequest request
@@ -261,5 +284,19 @@ public class ModelAccessController {
                 prompt.id().toString(),
                 prompt.promptKey() + ":v" + prompt.version()
         ));
+    }
+
+    private void auditPromptReview(AuthUserPrincipal actor, PromptTemplate prompt, String action) {
+        auditLogWriter.record(AuditLogWriter.success(
+                actor,
+                action,
+                "ma_prompt_template",
+                prompt.id().toString(),
+                prompt.promptKey() + ":v" + prompt.version() + ":" + prompt.approvalStatus()
+        ));
+    }
+
+    private String approvalActor(AuthUserPrincipal actor) {
+        return actor == null ? "system" : actor.username();
     }
 }

@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { requestJson, requestText } from './client';
 import {
   activatePromptVersion,
+  approvePromptVersion,
   checkModelProvider,
   createModelProvider,
   createPromptVersion,
@@ -18,6 +19,7 @@ import {
   normalizeInvocationRecord,
   normalizeModelProvider,
   normalizePromptTemplate,
+  rejectPromptVersion,
   updateModelProvider
 } from './modelAccess';
 
@@ -67,13 +69,21 @@ describe('model access API helpers', () => {
       prompt_key: 'case-design',
       version: '2',
       content: 'Prompt body',
-      status: 'active'
+      status: 'active',
+      high_risk: true,
+      approval_status: 'approved',
+      approved_by: 'admin_user',
+      approval_note: 'reviewed'
     })).toMatchObject({
       id: 'prompt-1',
       promptKey: 'case-design',
       version: 2,
       content: 'Prompt body',
-      status: 'ACTIVE'
+      status: 'ACTIVE',
+      highRisk: true,
+      approvalStatus: 'APPROVED',
+      approvedBy: 'admin_user',
+      approvalNote: 'reviewed'
     });
 
     const invocation = normalizeInvocationRecord({
@@ -174,13 +184,25 @@ describe('model access API helpers', () => {
     await fetchPrompts('case design');
     expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/model-access/prompts?promptKey=case+design');
 
-    await createPromptVersion({ promptKey: 'case-design', name: 'Case design', content: 'Prompt', activate: true });
+    await createPromptVersion({ promptKey: 'case-design', name: 'Case design', content: 'Prompt', highRisk: true, activate: true });
     expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/model-access/prompts', {
       method: 'POST',
-      body: JSON.stringify({ promptKey: 'case-design', name: 'Case design', content: 'Prompt', activate: true })
+      body: JSON.stringify({ promptKey: 'case-design', name: 'Case design', content: 'Prompt', highRisk: true, activate: true })
     });
 
     await activatePromptVersion('prompt 1');
     expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/model-access/prompts/prompt%201/activate', { method: 'POST' });
+
+    await approvePromptVersion('prompt 1', { reviewNote: 'approved' });
+    expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/model-access/prompts/prompt%201/approve', {
+      method: 'POST',
+      body: JSON.stringify({ reviewNote: 'approved' })
+    });
+
+    await rejectPromptVersion('prompt 1', { reviewNote: 'needs changes' });
+    expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/model-access/prompts/prompt%201/reject', {
+      method: 'POST',
+      body: JSON.stringify({ reviewNote: 'needs changes' })
+    });
   });
 });

@@ -167,6 +167,7 @@ with expected(table_name, column_name) as (
         -- WP2 key columns
         ('ma_model_provider','id'), ('ma_model_provider','name'), ('ma_model_provider','provider_type'), ('ma_model_provider','status'),
         ('ma_prompt_template','id'), ('ma_prompt_template','prompt_key'), ('ma_prompt_template','name'), ('ma_prompt_template','version'), ('ma_prompt_template','content'), ('ma_prompt_template','status'),
+        ('ma_prompt_template','high_risk'), ('ma_prompt_template','approval_status'), ('ma_prompt_template','approved_by'), ('ma_prompt_template','approved_at'), ('ma_prompt_template','approval_note'),
         ('ma_invocation_log','id'), ('ma_invocation_log','project_id'), ('ma_invocation_log','model_name'), ('ma_invocation_log','status'), ('ma_invocation_log','created_at'),
         -- WP3 key columns
         ('asset_requirement','id'), ('asset_requirement','project_id'), ('asset_requirement','code'), ('asset_requirement','title'), ('asset_requirement','source'),
@@ -237,6 +238,7 @@ with expected(table_name, index_name) as (
         ('ma_model_provider','uk_ma_model_provider_name'),
         ('ma_prompt_template','uk_ma_prompt_template_key_version'),
         ('ma_prompt_template','uk_ma_prompt_template_one_active'),
+        ('ma_prompt_template','idx_ma_prompt_template_approval_status'),
         ('ma_invocation_log','idx_ma_invocation_scope_time'),
         -- WP3 key indexes
         ('asset_requirement','uk_asset_requirement_project_code'),

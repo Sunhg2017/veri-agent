@@ -5,14 +5,14 @@
 | 工作包 | WP2 模型接入层 |
 | 依赖 | WP1 平台基础底座 API 契约 |
 | 服务模块 | `platform-api` 内聚合模块 `/api/v1/model-access` |
-| 当前状态 | P0 可交付实现已落地；WP2-C1 高级路由策略和 WP2-C2 预算策略产品化已补齐 |
+| 当前状态 | P0 可交付实现已落地；WP2-C1 高级路由策略、WP2-C2 预算策略产品化和 WP2-C4 Prompt 评审与审批已补齐 |
 
 ## 1. 交付范围
 
 WP2 P0 交付以下能力：
 
 1. 模型供应商配置中心：支持供应商名称、类型、`routingGroup`、`capabilities`、`baseUrl`、密钥引用、启停状态、优先级、超时和 token 成本配置，支持创建、更新和就绪检查。
-2. Prompt 版本管理：支持按 `promptKey` 创建版本，每个 key 保证一个 ACTIVE 版本。
+2. Prompt 版本管理：支持按 `promptKey` 创建版本，每个 key 保证一个 ACTIVE 版本；高风险 Prompt 需审批通过后才能激活，并保留审批人、审批时间和版本说明。
 3. 统一模型调用入口：渲染 ACTIVE Prompt，组合调用消息，按策略选择供应商。
 4. 敏感级别路由策略：支持 `PUBLIC`、`INTERNAL`、`CONFIDENTIAL`、`RESTRICTED`，默认 `INTERNAL`；高敏感请求禁止公开模型路由和显式外部供应商。
 5. 高级路由策略：支持按项目、敏感级别、调用服务、模型能力和供应商组匹配路由规则；规则可选择 `LOWEST_COST` 在候选组内按预估成本优先。
@@ -39,8 +39,10 @@ WP2 P0 交付以下能力：
 | `GET /providers/{id}/resilience` | 查询供应商熔断状态、连续失败次数、恢复时间、限流和并发配置摘要。 |
 | `POST /providers/{id}/circuit/reset` | 手动重置指定供应商短时熔断状态。 |
 | `GET /prompts?promptKey=` | 查询 Prompt 版本。 |
-| `POST /prompts` | 创建 Prompt 版本，可直接激活。 |
-| `POST /prompts/{id}/activate` | 激活指定 Prompt 版本。 |
+| `POST /prompts` | 创建 Prompt 版本；低风险版本可直接激活，高风险版本即使请求激活也会进入待审批状态。 |
+| `POST /prompts/{id}/approve` | 审批通过高风险 Prompt 版本，记录审批人、审批时间和审批说明。 |
+| `POST /prompts/{id}/reject` | 驳回高风险 Prompt 版本，记录审批人、审批时间和审批说明。 |
+| `POST /prompts/{id}/activate` | 激活指定 Prompt 版本；高风险版本必须先审批通过。 |
 | `POST /invocations` | 发起模型调用。 |
 | `GET /invocations` | 分页查询调用日志，支持项目、应用、敏感级别、状态、供应商、调用服务和时间范围筛选。 |
 | `GET /invocations/summary` | 按同一组筛选条件汇总调用次数、状态分布、token 和成本。 |
@@ -64,6 +66,8 @@ WP2 保存 `projectId`、`applicationId`、`environmentId` 作为逻辑归属，
 
 `POST /invocations` 还可携带 `capability`，默认 `CHAT`。WP2 会先执行敏感级别和公开模型策略，再按 `veri-agent.model-access.routing-rules` 顺序匹配项目、敏感级别、调用服务、能力和供应商组；未命中规则时回到 `default-priority`。命中规则后仅在匹配的 `routingGroup` 内选择支持该能力的 provider，`costPreference=LOWEST_COST` 时按预估输入 token 和 `WP2_BUDGET_ESTIMATED_OUTPUT_TOKENS` 计算成本并优先选择低成本 provider。调用日志、CSV 导出和 WP1 审计摘要记录 `routingRuleName`、`routingGroup` 和 `modelCapability`，用于追溯路由结果。
 
+Prompt 版本创建可设置 `highRisk=true`。高风险版本默认 `approvalStatus=PENDING`，必须先通过 `POST /prompts/{id}/approve` 变为 `APPROVED` 才能激活；驳回后为 `REJECTED`，可重新审批但不能直接激活。审批信息保存在 `ma_prompt_template.high_risk/approval_status/approved_by/approved_at/approval_note`，Prompt 激活、审批通过和驳回均写 WP1 审计。
+
 敏感内容阻断会在供应商调用前检查 prompt 和消息内容，当前覆盖 key/token/password/Bearer、身份证号、手机号、邮箱、银行卡疑似长号以及 `internal_token`、`corp_secret`、`private_key` 等企业内部密钥模式。命中后返回稳定错误并写入 `BLOCKED` 调用日志，避免敏感明文进入外部 provider。
 
 预算护栏默认关闭。设置 `WP2_DAILY_PLATFORM_COST_LIMIT`、`WP2_DAILY_PROJECT_COST_LIMIT` 或 `WP2_DAILY_CALLER_SERVICE_COST_LIMIT` 为大于 0 的金额后，WP2 使用 `WP2_BUDGET_ZONE_ID` 对齐日窗口，并用 `WP2_BUDGET_ESTIMATED_OUTPUT_TOKENS` 作为调用前输出 token 预估保留量。`WP2_COST_ALERT_WARNING_RATIO` 控制告警阈值，成本告警接口会返回平台、项目和调用服务维度的 `OK`、`WARNING` 或 `EXCEEDED`。`WP2_BUDGET_OVERRUN_ACTION=BLOCK` 时超额请求返回 `BUDGET_EXCEEDED`，并记录 `BLOCKED` 调用日志，实际成本为 0；设置为 `FALLBACK` 时，WP2 会跳过当前预估超预算 provider，继续尝试后续低成本候选，全部候选仍超预算时再阻断。
@@ -80,6 +84,7 @@ Provider 级生产保护默认关闭。设置 `WP2_PROVIDER_RATE_LIMIT_MAX_REQUE
 - `db/migration/wp1/V20260518_012__wp2_single_platform_scope.sql`
 - `db/migration/wp1/V20260518_013__wp2_soft_delete_audit_columns.sql`
 - `db/migration/wp1/V20260522_025__wp2_advanced_routing_metadata.sql`
+- `db/migration/wp1/V20260522_026__wp2_prompt_review_approval.sql`
 
 默认种子：`V20260518_010__wp2_default_seed_data.sql`，为 `db` profile 初始化 `local-echo-primary` 和 `test-case-design` ACTIVE Prompt，便于持久化模式直接 smoke。
 
@@ -125,6 +130,7 @@ Provider 级生产保护默认关闭。设置 `WP2_PROVIDER_RATE_LIMIT_MAX_REQUE
 23. 供应商生产硬化支持 provider 级窗口限流、并发控制、熔断状态查询和手动 reset；限流/并发阻断会返回 `BUDGET_EXCEEDED` 并写入 `BLOCKED` 调用日志。
 24. 通用模型评测集框架支持按 `taskType` 评测 Prompt/provider 输出，当前语料覆盖 `case-design`、`defect-triage`、`requirement-summary`，并校验场景通过率、必需术语召回和禁用术语清洁率。
 25. 高级路由策略覆盖按项目、调用服务、敏感级别、能力和供应商组命中规则，并验证 `LOWEST_COST` 可在组内选择低成本 provider，调用日志保留路由规则、路由组和模型能力。
+26. 高风险 Prompt 覆盖待审批创建、审批通过、驳回后重审、审批人/说明保留、未审批激活拒绝和审批后激活。
 
 运行命令：
 
@@ -172,6 +178,7 @@ bash scripts/wp_all_integration_test.sh
 5. 已新增 `scripts/wp2_model_quality_eval.sh` 和通用 `ModelEvaluationRunner`，Prompt 或 provider 变更可按任务类型运行离线评测，后续智能任务可复用同一语料结构扩展指标。
 6. 已新增 WP2-C1 高级路由策略，provider 可配置路由组和能力，调用可声明能力，路由规则可按项目/敏感级别/调用服务/能力/供应商组匹配，并将路由结果写入调用日志和 WP1 审计摘要。
 7. 已新增 WP2-C2 预算策略产品化，支持调用服务日预算、按 `actorService` 查询成本告警，以及 `BLOCK/FALLBACK` 超预算动作配置。
+8. 已新增 WP2-C4 Prompt 评审与审批，高风险 Prompt 需审批通过后激活，并在后端、DB 和 portal-web 管理台保留审批状态、审批人、审批时间和审批说明。
 
 ## 7. Provider 生产接入与密钥轮换
 

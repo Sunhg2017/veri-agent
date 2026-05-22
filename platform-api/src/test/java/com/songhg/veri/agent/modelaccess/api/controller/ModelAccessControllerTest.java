@@ -176,6 +176,110 @@ class ModelAccessControllerTest {
     }
 
     @Test
+    void requiresApprovalBeforeActivatingHighRiskPrompt() throws Exception {
+        String token = bootstrapAndLogin();
+
+        MvcResult createResult = mockMvc.perform(post("/api/v1/model-access/prompts")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "promptKey": "risk-prompt",
+                                  "name": "高风险 Prompt",
+                                  "content": "请按受控策略生成生产变更建议",
+                                  "changeNote": "新增高风险生产变更 Prompt",
+                                  "highRisk": true,
+                                  "activate": true
+                                }
+                                """))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.status").value("DRAFT"))
+                .andExpect(jsonPath("$.data.highRisk").value(true))
+                .andExpect(jsonPath("$.data.approvalStatus").value("PENDING"))
+                .andReturn();
+        String promptId = JsonPath.read(createResult.getResponse().getContentAsString(), "$.data.id");
+
+        mockMvc.perform(post("/api/v1/model-access/prompts/{id}/activate", promptId)
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("INVALID_STATE"));
+
+        mockMvc.perform(post("/api/v1/model-access/prompts/{id}/approve", promptId)
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "reviewNote": "审批通过，保留版本说明"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.approvalStatus").value("APPROVED"))
+                .andExpect(jsonPath("$.data.approvedBy").value("admin_user"))
+                .andExpect(jsonPath("$.data.approvalNote").value("审批通过，保留版本说明"))
+                .andExpect(jsonPath("$.data.approvedAt").exists());
+
+        mockMvc.perform(post("/api/v1/model-access/prompts/{id}/activate", promptId)
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("ACTIVE"))
+                .andExpect(jsonPath("$.data.approvalStatus").value("APPROVED"));
+    }
+
+    @Test
+    void rejectedHighRiskPromptCanBeReviewedAgainBeforeActivation() throws Exception {
+        String token = bootstrapAndLogin();
+
+        MvcResult createResult = mockMvc.perform(post("/api/v1/model-access/prompts")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "promptKey": "risk-retry-prompt",
+                                  "name": "高风险重审 Prompt",
+                                  "content": "请生成生产数据修复建议",
+                                  "highRisk": true,
+                                  "activate": true
+                                }
+                                """))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.status").value("DRAFT"))
+                .andExpect(jsonPath("$.data.approvalStatus").value("PENDING"))
+                .andReturn();
+        String promptId = JsonPath.read(createResult.getResponse().getContentAsString(), "$.data.id");
+
+        mockMvc.perform(post("/api/v1/model-access/prompts/{id}/reject", promptId)
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "reviewNote": "需要补充安全边界"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.approvalStatus").value("REJECTED"))
+                .andExpect(jsonPath("$.data.approvedBy").value("admin_user"))
+                .andExpect(jsonPath("$.data.approvalNote").value("需要补充安全边界"))
+                .andExpect(jsonPath("$.data.approvedAt").exists());
+
+        mockMvc.perform(post("/api/v1/model-access/prompts/{id}/activate", promptId)
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("INVALID_STATE"));
+
+        mockMvc.perform(post("/api/v1/model-access/prompts/{id}/approve", promptId)
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "reviewNote": "补充安全边界后通过"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.approvalStatus").value("APPROVED"))
+                .andExpect(jsonPath("$.data.approvalNote").value("补充安全边界后通过"));
+    }
+
+    @Test
     void blocksSensitivePromptContentBeforeProviderCall() throws Exception {
         mockMvc.perform(post("/api/v1/model-access/invocations")
                         .headers(authHeaders())
