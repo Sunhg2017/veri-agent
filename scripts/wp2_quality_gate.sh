@@ -13,7 +13,10 @@ run_step() {
 run_step "wp2 script syntax" bash -n \
   "$ROOT_DIR/scripts/wp2_quality_gate.sh" \
   "$ROOT_DIR/scripts/wp2_model_access_smoke.sh" \
-  "$ROOT_DIR/scripts/wp2_module_policy_smoke.sh"
+  "$ROOT_DIR/scripts/wp2_module_policy_smoke.sh" \
+  "$ROOT_DIR/scripts/wp2_model_quality_eval.sh"
+
+run_step "wp2 model quality eval" bash "$ROOT_DIR/scripts/wp2_model_quality_eval.sh"
 
 run_step "platform-api tests" mvn -B -pl platform-api test
 

@@ -46,6 +46,7 @@ AI 驱动的端到端企业级测试平台。WP1、WP2、WP3、WP4 是研发任�
 | `scripts/wp1_quality_gate.sh` | WP1 本地质量门禁入口，串联后端测试、前端测试、前端构建和数据库校验。 |
 | `scripts/wp2_model_access_smoke.sh` | 针对已启动 `platform-api` 的 WP2 API 烟测脚本。 |
 | `scripts/wp2_module_policy_smoke.sh` | 针对同一 `platform-api` 内 WP2 消费 WP1 策略的烟测脚本。 |
+| `scripts/wp2_model_quality_eval.sh` | WP2 通用模型评测集入口，支持按 `WP2_MODEL_EVAL_TASK` 跑任务类型评测。 |
 | `scripts/wp3_quality_gate.sh` | WP3 本地质量门禁入口，串联资产 API 测试、OpenAPI 契约、前端资产测试、数据库校验和可选 smoke。 |
 | `scripts/wp3_asset_smoke.sh` | 针对已启动 `platform-api` 的 WP3 资产 CRUD、分页、状态流拒绝和追踪关系烟测脚本。 |
 | `.github/workflows/wp3-asset-management.yml` | WP3 PR/主干 CI 入口，复用 `scripts/wp3_quality_gate.sh` 并归档 DB validation 日志。 |
@@ -311,6 +312,10 @@ WP2_SERVICE_TOKEN=local-model-access-token bash scripts/wp2_model_access_smoke.s
 ```
 
 ```bash
+bash scripts/wp2_model_quality_eval.sh
+```
+
+```bash
 WP4_SERVICE_TOKEN=local-document-input-token \
 WP3_SERVICE_TOKEN=local-asset-token \
 WP4_WEBHOOK_SECRET=local-document-input-webhook-secret \
@@ -347,7 +352,8 @@ bash scripts/wp2_quality_gate.sh
 - 审计日志可显示写操作名称和结果，并支持 `actor/action/resourceType/result/search/startTime/endTime` 组合筛选；`GET /api/v1/management/audit-logs/export` 支持按同一筛选条件导出 UTF-8 CSV，portal-web 审计页按 `audit:export` 提供下载入口；db profile smoke 已覆盖管理对象创建审计、账号锁定/解锁审计、失败登录审计、拒绝审计、资源作用域过滤、设置 CRUD 和敏感设置拒绝。
 - 无权限角色访问管理写接口会返回 `FORBIDDEN`。
 - `/v3/api-docs` 可生成 OpenAPI 文档，且契约测试保护认证、管理、账号生命周期和设置 CRUD 关键路径。
-- WP2 `db` profile 默认种子可直接完成 local echo 调用、调用日志查询、成本汇总、成本报表、成本告警、供应商就绪检查缓存和 CSV 导出 smoke；WP2 聚合门禁可串联模型接入测试、数据库 validation，并按需执行 HTTP smoke / 模块策略 smoke。
+- WP2 `db` profile 默认种子可直接完成 local echo 调用、调用日志查询、成本汇总、成本报表、成本告警、供应商就绪检查缓存和 CSV 导出 smoke；WP2 聚合门禁可串联模型接入测试、通用模型质量评测、数据库 validation，并按需执行 HTTP smoke / 模块策略 smoke。
+- WP2 通用模型评测集当前覆盖 `case-design`、`defect-triage`、`requirement-summary` 三类任务，可通过 `WP2_MODEL_EVAL_TASK=case-design bash scripts/wp2_model_quality_eval.sh` 跑单任务，用于 Prompt/provider 变更前后的质量回归。
 - WP3 已补齐资产库前后端闭环：列表分页、需求/API/页面/业务流/用例/追踪链接基础 API、用户态 `asset:*` RBAC、OpenAPI 契约测试、前端资产 API normalizer、资产库导航、需求/API/页面/业务流/测试用例工作台和只读追踪矩阵工作台。
 - WP4 smoke 覆盖 Markdown 导入、候选 `status/sourceRef/keyword` 筛选、versioned 批量确认、dryRun、发布到 WP3、WP3 `source/sourceRef/sourceUrl/acceptanceCriteria` 追踪、发布记录、`CUSTOM_API` source health、`X-VA-*` 签名 webhook、幂等 replay、事件日志、无效签名拒绝和当前导入/候选/发布/webhook metrics。
 - WP4 前端 E2E smoke 使用 Playwright 浏览器覆盖文档输入页真实文件上传、候选编辑/确认、发布 dryRun 预览和 webhook 事件重放；本地无托管 Chromium 时可自动使用系统 Chrome，或设置 `WP4_FRONTEND_INSTALL_BROWSERS=1` 安装。

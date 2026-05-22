@@ -1,0 +1,142 @@
+[
+  {
+    "caseId": "case-design-order-filter",
+    "corpusVersion": "wp2-d1-2026-05-22",
+    "taskType": "case-design",
+    "promptKey": "case-design",
+    "promptVersion": "v1",
+    "providerGroup": "local-echo",
+    "input": "登录用户查看订单列表，并按状态筛选。",
+    "modelResponse": "测试用例：登录用户打开订单列表。Given 登录用户已有多种状态订单，When 使用状态筛选，Then 只显示匹配状态的订单列表，并保留分页。",
+    "expected": {
+      "requiredTerms": [
+        "登录用户",
+        "订单列表",
+        "状态筛选",
+        "Given",
+        "When",
+        "Then"
+      ],
+      "forbiddenTerms": [
+        "password",
+        "apiKey",
+        "身份证"
+      ]
+    }
+  },
+  {
+    "caseId": "case-design-refund-idempotency",
+    "corpusVersion": "wp2-d1-2026-05-22",
+    "taskType": "case-design",
+    "promptKey": "case-design",
+    "promptVersion": "v1",
+    "providerGroup": "openai-compatible-fixture",
+    "input": "用户重复提交退款申请时，系统只能生成一笔退款单。",
+    "modelResponse": "用例名称：退款申请重复提交。前置条件：订单可退款。步骤覆盖重复提交、网络重试和边界值金额。预期结果：仅创建一笔退款单，并提示已有处理中申请。",
+    "expected": {
+      "requiredTerms": [
+        "退款申请",
+        "重复提交",
+        "边界值",
+        "前置条件",
+        "预期结果"
+      ],
+      "forbiddenTerms": [
+        "secret",
+        "token"
+      ]
+    }
+  },
+  {
+    "caseId": "defect-triage-payment-severity",
+    "corpusVersion": "wp2-d1-2026-05-22",
+    "taskType": "defect-triage",
+    "promptKey": "defect-triage",
+    "promptVersion": "v1",
+    "providerGroup": "local-echo",
+    "input": "支付成功但订单仍显示待支付。",
+    "modelResponse": "缺陷分诊：严重级别 HIGH。复现步骤包括完成支付、刷新订单详情和核对支付回调。影响范围为支付后履约阻断，建议优先处理，并在修复后执行订单状态回归验证。",
+    "expected": {
+      "requiredTerms": [
+        "严重级别",
+        "复现步骤",
+        "影响范围",
+        "优先处理",
+        "回归验证"
+      ],
+      "forbiddenTerms": [
+        "明文密码",
+        "银行卡号"
+      ]
+    }
+  },
+  {
+    "caseId": "defect-triage-duplicate-ticket",
+    "corpusVersion": "wp2-d1-2026-05-22",
+    "taskType": "defect-triage",
+    "promptKey": "defect-triage",
+    "promptVersion": "v1",
+    "providerGroup": "openai-compatible-fixture",
+    "input": "两个缺陷描述同一移动端登录失败问题。",
+    "modelResponse": "分诊建议：标记为重复缺陷，关联工单 BUG-1024。根因为同一登录接口返回 401。保留截图和日志证据，关闭建议为合并到主工单后统一验证。",
+    "expected": {
+      "requiredTerms": [
+        "重复缺陷",
+        "根因",
+        "关联工单",
+        "关闭建议",
+        "证据"
+      ],
+      "forbiddenTerms": [
+        "Bearer ",
+        "private_key"
+      ]
+    }
+  },
+  {
+    "caseId": "requirement-summary-risk-control",
+    "corpusVersion": "wp2-d1-2026-05-22",
+    "taskType": "requirement-summary",
+    "promptKey": "requirement-summary",
+    "promptVersion": "v1",
+    "providerGroup": "local-echo",
+    "input": "支付风控需求包含风险规则、人工审核和灰度开关。",
+    "modelResponse": "需求摘要：支付风控需要配置风险规则，并对高风险交易进入人工审核。验收标准包括命中规则、审核通过、审核拒绝和灰度开关回滚。未决问题是规则阈值和审核 SLA。",
+    "expected": {
+      "requiredTerms": [
+        "支付风控",
+        "风险规则",
+        "人工审核",
+        "验收标准",
+        "未决问题"
+      ],
+      "forbiddenTerms": [
+        "客户身份证",
+        "手机号明文"
+      ]
+    }
+  },
+  {
+    "caseId": "requirement-summary-privacy-consent",
+    "corpusVersion": "wp2-d1-2026-05-22",
+    "taskType": "requirement-summary",
+    "promptKey": "requirement-summary",
+    "promptVersion": "v1",
+    "providerGroup": "openai-compatible-fixture",
+    "input": "隐私授权页需要说明数据用途，并记录用户同意。",
+    "modelResponse": "需求摘要：隐私授权页面展示数据用途，提交后记录审计日志。验收标准覆盖同意、拒绝和撤回授权。所有展示字段需要数据脱敏，并标记合规风险供法务复核。",
+    "expected": {
+      "requiredTerms": [
+        "隐私授权",
+        "数据脱敏",
+        "审计日志",
+        "合规风险",
+        "验收标准"
+      ],
+      "forbiddenTerms": [
+        "access_token",
+        "secretRef 明文"
+      ]
+    }
+  }
+]

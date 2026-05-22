@@ -116,6 +116,7 @@ Provider 级生产保护默认关闭。设置 `WP2_PROVIDER_RATE_LIMIT_MAX_REQUE
 20. 供应商调用支持同供应商重试、连续失败短时熔断和候选供应商 fallback。
 21. 成本能力支持平台/项目日预算告警和 31 天内日报聚合。
 22. 供应商生产硬化支持 provider 级窗口限流、并发控制、熔断状态查询和手动 reset；限流/并发阻断会返回 `BUDGET_EXCEEDED` 并写入 `BLOCKED` 调用日志。
+23. 通用模型评测集框架支持按 `taskType` 评测 Prompt/provider 输出，当前语料覆盖 `case-design`、`defect-triage`、`requirement-summary`，并校验场景通过率、必需术语召回和禁用术语清洁率。
 
 运行命令：
 
@@ -133,6 +134,11 @@ bash db/validation/run_wp2_db_validation.sh
 ```
 
 ```bash
+bash scripts/wp2_model_quality_eval.sh
+WP2_MODEL_EVAL_TASK=case-design bash scripts/wp2_model_quality_eval.sh
+```
+
+```bash
 WP2_SERVICE_TOKEN=local-model-access-token bash scripts/wp_all_integration_test.sh
 ```
 
@@ -147,7 +153,7 @@ bash scripts/wp2_module_policy_smoke.sh
 bash scripts/wp_all_integration_test.sh
 ```
 
-当前质量门禁以 `platform-api` 测试、portal-web 模型接入相关测试与构建、数据库 validation 和可选 HTTP smoke 为准。历史独立 `model-access` 模块已删除，不再作为交付或测试入口。
+当前质量门禁以 `platform-api` 测试、WP2 模型质量评测、portal-web 模型接入相关测试与构建、数据库 validation 和可选 HTTP smoke 为准。历史独立 `model-access` 模块已删除，不再作为交付或测试入口。
 
 ## 6. 1～4 项收敛结果
 
@@ -155,6 +161,7 @@ bash scripts/wp_all_integration_test.sh
 2. 已增加成本告警和成本日报聚合接口。
 3. 已对供应商就绪检查增加短 TTL 缓存，降低外部模型探活成本。
 4. 已新增 WP2 聚合质量门禁 `scripts/wp2_quality_gate.sh`，覆盖 `platform-api` 测试、portal-web 模型接入相关测试与构建、WP2 DB validation，并将 HTTP smoke / 模块策略 smoke 纳入可选发布前门禁。
+5. 已新增 `scripts/wp2_model_quality_eval.sh` 和通用 `ModelEvaluationRunner`，Prompt 或 provider 变更可按任务类型运行离线评测，后续智能任务可复用同一语料结构扩展指标。
 
 ## 7. Provider 生产接入与密钥轮换
 

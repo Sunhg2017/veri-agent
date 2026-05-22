@@ -68,6 +68,7 @@
 | `bash db/validation/run_wp1_db_validation.sh` |  |  |  |
 | `bash scripts/wp1_quality_gate.sh` |  |  |  |
 | `bash scripts/wp2_quality_gate.sh` |  |  |  |
+| `bash scripts/wp2_model_quality_eval.sh` |  |  |  |
 | `bash scripts/wp4_binary_document_smoke.sh` |  |  |  |
 | `bash scripts/wp4_ai_parse_quality_eval.sh` |  |  |  |
 | `bash scripts/wp_all_integration_test.sh` |  |  |  |

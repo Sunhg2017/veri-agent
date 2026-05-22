@@ -116,7 +116,7 @@ WP1、WP2、WP4 的当前 P0 口径已经基本收敛，后续以生产硬化、
 
 | 编号 | 任务 | 优先级 | 状态 | 工作内容 | 验收标准 |
 |---|---|---|---|---|---|
-| WP2-D1 | 通用模型评测集框架 | P1 | TODO | 抽象类似 WP4 golden corpus 的可复用评测入口 | Prompt 或 provider 变更可按任务类型跑评测 |
+| WP2-D1 | 通用模型评测集框架 | P1 | DONE-CURRENT | 已新增测试侧 `ModelEvaluationRunner`、`wp2-model-eval/corpus.json` 和 `scripts/wp2_model_quality_eval.sh`，当前覆盖 `case-design`、`defect-triage`、`requirement-summary` 三类任务，并支持 `WP2_MODEL_EVAL_TASK` 按任务类型过滤 | Prompt 或 provider 变更可执行 `bash scripts/wp2_model_quality_eval.sh`，或用 `WP2_MODEL_EVAL_TASK=case-design` 跑单任务评测；低于 scenario pass、required term recall 或 forbidden term clean 阈值会失败 |
 | WP2-D2 | 流式响应支持 | P2 | TODO | 评估 SSE/streaming API、调用日志落盘和前端消费 | 不破坏当前同步 invocation 契约 |
 | WP2-D3 | 异步长任务调用 | P2 | TODO | 对长文档、长推理任务提供异步 job 模型 | 任务可取消、可查询、可审计 |
 
