@@ -5,12 +5,14 @@ export const MODEL_PROVIDER_STATUSES = ['ENABLED', 'DISABLED'] as const;
 export const PROMPT_STATUSES = ['DRAFT', 'ACTIVE', 'ARCHIVED'] as const;
 export const PROMPT_APPROVAL_STATUSES = ['NOT_REQUIRED', 'PENDING', 'APPROVED', 'REJECTED'] as const;
 export const INVOCATION_STATUSES = ['SUCCEEDED', 'FAILED', 'BLOCKED'] as const;
+export const MODEL_INVOCATION_JOB_STATUSES = ['QUEUED', 'RUNNING', 'SUCCEEDED', 'FAILED', 'CANCELLED'] as const;
 
 export type ModelProviderType = (typeof MODEL_PROVIDER_TYPES)[number];
 export type ModelProviderStatus = (typeof MODEL_PROVIDER_STATUSES)[number];
 export type PromptStatus = (typeof PROMPT_STATUSES)[number];
 export type PromptApprovalStatus = (typeof PROMPT_APPROVAL_STATUSES)[number];
 export type InvocationStatus = (typeof INVOCATION_STATUSES)[number];
+export type ModelInvocationJobStatus = (typeof MODEL_INVOCATION_JOB_STATUSES)[number];
 
 export interface ModelAccessHealth {
   service: string;
@@ -188,6 +190,31 @@ export interface InvokeModelPayload {
   allowPublicModel?: boolean;
   sensitivityLevel?: string;
   capability?: string;
+}
+
+export interface InvokeModelResponse {
+  invocationId: string;
+  providerId?: string;
+  providerName?: string;
+  modelName?: string;
+  fallbackUsed: boolean;
+  content: string;
+  inputTokens: number;
+  outputTokens: number;
+  totalCost: number;
+}
+
+export interface ModelInvocationJob {
+  jobId: string;
+  status: ModelInvocationJobStatus | string;
+  createdAt?: string;
+  startedAt?: string;
+  finishedAt?: string;
+  invocationId?: string;
+  errorCode?: string;
+  errorMessage?: string;
+  traceId?: string;
+  response?: InvokeModelResponse;
 }
 
 export type ModelStreamEvent =
@@ -404,6 +431,40 @@ export function normalizeInvocationSummary(raw: unknown): InvocationSummary {
   };
 }
 
+export function normalizeInvokeModelResponse(raw: unknown): InvokeModelResponse {
+  const value = record(raw);
+  return {
+    invocationId: stringValue(value.invocationId ?? value.invocation_id),
+    providerId: optionalString(value.providerId ?? value.provider_id),
+    providerName: optionalString(value.providerName ?? value.provider_name),
+    modelName: optionalString(value.modelName ?? value.model_name),
+    fallbackUsed: booleanValue(value.fallbackUsed ?? value.fallback_used),
+    content: stringValue(value.content),
+    inputTokens: numberValue(value.inputTokens ?? value.input_tokens),
+    outputTokens: numberValue(value.outputTokens ?? value.output_tokens),
+    totalCost: numberValue(value.totalCost ?? value.total_cost)
+  };
+}
+
+export function normalizeModelInvocationJob(raw: unknown): ModelInvocationJob {
+  const value = record(raw);
+  const response = value.response === undefined || value.response === null
+    ? undefined
+    : normalizeInvokeModelResponse(value.response);
+  return {
+    jobId: stringValue(value.jobId ?? value.job_id),
+    status: enumValue(value.status, MODEL_INVOCATION_JOB_STATUSES, 'FAILED'),
+    createdAt: optionalString(value.createdAt ?? value.created_at),
+    startedAt: optionalString(value.startedAt ?? value.started_at),
+    finishedAt: optionalString(value.finishedAt ?? value.finished_at),
+    invocationId: optionalString(value.invocationId ?? value.invocation_id),
+    errorCode: optionalString(value.errorCode ?? value.error_code),
+    errorMessage: optionalString(value.errorMessage ?? value.error_message),
+    traceId: optionalString(value.traceId ?? value.trace_id),
+    response
+  };
+}
+
 export function normalizeCostAlert(raw: unknown): CostAlert {
   const value = record(raw);
   return {
@@ -585,6 +646,33 @@ export async function exportInvocationsCsv(filters: InvocationFilters = {}) {
 
 export function invocationStreamPath() {
   return '/api/v1/model-access/invocations/stream';
+}
+
+export function invocationJobPath(jobId?: string) {
+  if (!jobId) {
+    return '/api/v1/model-access/invocations/jobs';
+  }
+  return `/api/v1/model-access/invocations/jobs/${encodeURIComponent(jobId)}`;
+}
+
+export async function submitModelInvocationJob(payload: InvokeModelPayload): Promise<ApiResponse<ModelInvocationJob>> {
+  const response = await requestJson<unknown>(invocationJobPath(), {
+    method: 'POST',
+    body: JSON.stringify(compactPayload(payload))
+  });
+  return { ...response, data: normalizeModelInvocationJob(response.data) };
+}
+
+export async function fetchModelInvocationJob(jobId: string): Promise<ApiResponse<ModelInvocationJob>> {
+  const response = await requestJson<unknown>(invocationJobPath(jobId));
+  return { ...response, data: normalizeModelInvocationJob(response.data) };
+}
+
+export async function cancelModelInvocationJob(jobId: string): Promise<ApiResponse<ModelInvocationJob>> {
+  const response = await requestJson<unknown>(`${invocationJobPath(jobId)}/cancel`, {
+    method: 'POST'
+  });
+  return { ...response, data: normalizeModelInvocationJob(response.data) };
 }
 
 export function parseModelStreamEvents(text: string): ModelStreamEvent[] {

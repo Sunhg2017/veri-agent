@@ -22,6 +22,8 @@ public record ModelAccessProperties(
         int providerRateLimitMaxRequests,
         long providerRateLimitWindowSeconds,
         int providerMaxConcurrentRequests,
+        int asyncJobWorkerThreads,
+        long asyncJobDispatchDelayMs,
         BigDecimal dailyCallerServiceCostLimit,
         String budgetOverrunAction,
         List<RoutingRule> routingRules
@@ -75,6 +77,14 @@ public record ModelAccessProperties(
 
     public int safeProviderMaxConcurrentRequests() {
         return Math.max(0, providerMaxConcurrentRequests);
+    }
+
+    public int safeAsyncJobWorkerThreads() {
+        return Math.max(1, asyncJobWorkerThreads);
+    }
+
+    public long safeAsyncJobDispatchDelayMs() {
+        return Math.max(0, asyncJobDispatchDelayMs);
     }
 
     public boolean fallbackOnBudgetOverrun() {

@@ -7,6 +7,7 @@ import com.songhg.veri.agent.common.audit.AuditLogWriter;
 import com.songhg.veri.agent.common.trace.TraceContext;
 import com.songhg.veri.agent.modelaccess.application.InvocationQuery;
 import com.songhg.veri.agent.modelaccess.application.ModelAccessService;
+import com.songhg.veri.agent.modelaccess.application.ModelInvocationJobService;
 import com.songhg.veri.agent.modelaccess.api.request.CreatePromptRequest;
 import com.songhg.veri.agent.modelaccess.api.request.CreateProviderRequest;
 import com.songhg.veri.agent.modelaccess.api.request.InvocationPageRequest;
@@ -17,6 +18,7 @@ import com.songhg.veri.agent.modelaccess.api.response.CostAlertResponse;
 import com.songhg.veri.agent.modelaccess.api.response.CostReportResponse;
 import com.songhg.veri.agent.modelaccess.api.response.InvocationSummaryResponse;
 import com.songhg.veri.agent.modelaccess.api.response.InvokeModelResponse;
+import com.songhg.veri.agent.modelaccess.api.response.ModelInvocationJobResponse;
 import com.songhg.veri.agent.modelaccess.api.response.ProviderCheckResponse;
 import com.songhg.veri.agent.modelaccess.api.response.ProviderHealthResponse;
 import com.songhg.veri.agent.modelaccess.api.response.ProviderResilienceResponse;
@@ -63,17 +65,20 @@ public class ModelAccessController {
     private static final int STREAM_CHUNK_CODE_POINTS = 48;
 
     private final ModelAccessService service;
+    private final ModelInvocationJobService jobService;
     private final AuthorizationService authorizationService;
     private final AuditLogWriter auditLogWriter;
     private final ObjectMapper objectMapper;
 
     public ModelAccessController(
             ModelAccessService service,
+            ModelInvocationJobService jobService,
             AuthorizationService authorizationService,
             AuditLogWriter auditLogWriter,
             ObjectMapper objectMapper
     ) {
         this.service = service;
+        this.jobService = jobService;
         this.authorizationService = authorizationService;
         this.auditLogWriter = auditLogWriter;
         this.objectMapper = objectMapper;
@@ -232,6 +237,40 @@ public class ModelAccessController {
                             "finishReason", "stop"
                     ));
                 });
+    }
+
+    @PostMapping("/invocations/jobs")
+    @Operation(
+            summary = "提交异步模型调用任务",
+            description = "复用同步 invocation 的请求体、策略、预算、供应商调用和调用日志链路；返回单进程内存 jobId，可查询或 best-effort 取消。"
+    )
+    @ApiResponse(responseCode = "202", description = "异步任务已提交，状态为 QUEUED/RUNNING/SUCCEEDED/FAILED/CANCELLED")
+    public ResponseEntity<ModelInvocationJobResponse> submitInvocationJob(
+            @Valid @RequestBody InvokeModelRequest request
+    ) {
+        return ResponseEntity
+                .status(HttpStatus.ACCEPTED)
+                .body(jobService.submit(request, invocationPrincipal()));
+    }
+
+    @GetMapping("/invocations/jobs/{jobId}")
+    @Operation(
+            summary = "查询异步模型调用任务",
+            description = "返回 job 状态、时间戳、关联 invocationId、错误摘要和成功响应。job registry 为单进程内存态，服务重启后不保留。"
+    )
+    public ModelInvocationJobResponse invocationJob(@PathVariable UUID jobId) {
+        invocationPrincipal();
+        return jobService.get(jobId);
+    }
+
+    @PostMapping("/invocations/jobs/{jobId}/cancel")
+    @Operation(
+            summary = "取消异步模型调用任务",
+            description = "对未开始任务可稳定取消；运行中任务会 best-effort interrupt，若已完成则返回当前终态。"
+    )
+    public ModelInvocationJobResponse cancelInvocationJob(@PathVariable UUID jobId) {
+        invocationPrincipal();
+        return jobService.cancel(jobId);
     }
 
     @GetMapping("/invocations")

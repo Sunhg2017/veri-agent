@@ -3,26 +3,31 @@ import { getAuthToken, requestJson, requestText } from './client';
 import {
   activatePromptVersion,
   approvePromptVersion,
+  cancelModelInvocationJob,
   checkModelProvider,
   createModelProvider,
   createPromptVersion,
   exportInvocationsCsv,
   fetchCostAlerts,
   fetchCostReport,
+  fetchModelInvocationJob,
   fetchInvocationSummary,
   fetchInvocations,
   fetchModelProviders,
   fetchPrompts,
   invokeModelStream,
   invocationExportPath,
+  invocationJobPath,
   invocationStreamPath,
   modelAccessQueryPath,
   normalizeCostAlert,
   normalizeInvocationRecord,
+  normalizeModelInvocationJob,
   normalizeModelProvider,
   normalizePromptTemplate,
   parseModelStreamEvents,
   rejectPromptVersion,
+  submitModelInvocationJob,
   updateModelProvider
 } from './modelAccess';
 
@@ -149,6 +154,37 @@ describe('model access API helpers', () => {
       usageRatio: 0.2,
       level: 'WARNING'
     });
+
+    expect(normalizeModelInvocationJob({
+      job_id: 'job-1',
+      status: 'succeeded',
+      created_at: '2026-05-23T00:00:00Z',
+      invocation_id: 'inv-1',
+      trace_id: 'trc_job',
+      response: {
+        invocation_id: 'inv-1',
+        provider_name: 'local-echo-primary',
+        fallback_used: false,
+        content: 'ok',
+        input_tokens: '3',
+        output_tokens: '4',
+        total_cost: '0.0001'
+      }
+    })).toMatchObject({
+      jobId: 'job-1',
+      status: 'SUCCEEDED',
+      invocationId: 'inv-1',
+      traceId: 'trc_job',
+      response: {
+        invocationId: 'inv-1',
+        providerName: 'local-echo-primary',
+        fallbackUsed: false,
+        content: 'ok',
+        inputTokens: 3,
+        outputTokens: 4,
+        totalCost: 0.0001
+      }
+    });
   });
 
   it('builds encoded filter paths for logs, summary, cost, and CSV export', async () => {
@@ -178,6 +214,89 @@ describe('model access API helpers', () => {
     expect(invocationExportPath({ projectId: 'project pay', status: 'BLOCKED', index: 2, size: 10 })).toBe('/api/v1/model-access/invocations/export?projectId=project+pay&status=BLOCKED');
     await exportInvocationsCsv({ projectId: 'project pay', status: 'BLOCKED' });
     expect(requestTextMock).toHaveBeenLastCalledWith('/api/v1/model-access/invocations/export?projectId=project+pay&status=BLOCKED');
+
+    expect(invocationJobPath()).toBe('/api/v1/model-access/invocations/jobs');
+    expect(invocationJobPath('job 1')).toBe('/api/v1/model-access/invocations/jobs/job%201');
+  });
+
+  it('submits, fetches, and cancels async invocation jobs', async () => {
+    requestJsonMock
+      .mockResolvedValueOnce({
+        code: 'OK',
+        message: 'ok',
+        trace_id: 'trace-submit',
+        data: {
+          jobId: 'job-1',
+          status: 'QUEUED',
+          createdAt: '2026-05-23T00:00:00Z'
+        }
+      })
+      .mockResolvedValueOnce({
+        code: 'OK',
+        message: 'ok',
+        trace_id: 'trace-fetch',
+        data: {
+          jobId: 'job-1',
+          status: 'SUCCEEDED',
+          invocationId: 'inv-1',
+          response: {
+            invocationId: 'inv-1',
+            providerName: 'local-echo-primary',
+            fallbackUsed: false,
+            content: 'done',
+            inputTokens: 1,
+            outputTokens: 2,
+            totalCost: 0
+          }
+        }
+      })
+      .mockResolvedValueOnce({
+        code: 'OK',
+        message: 'ok',
+        trace_id: 'trace-cancel',
+        data: {
+          jobId: 'job 1',
+          status: 'CANCELLED',
+          errorCode: 'CANCELLED',
+          errorMessage: '异步模型调用已取消'
+        }
+      });
+
+    await submitModelInvocationJob({
+      projectId: 'project-async',
+      promptKey: '',
+      messages: [{ role: 'user', content: 'hello' }],
+      allowPublicModel: false
+    });
+    expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/model-access/invocations/jobs', {
+      method: 'POST',
+      body: JSON.stringify({
+        projectId: 'project-async',
+        messages: [{ role: 'user', content: 'hello' }],
+        allowPublicModel: false
+      })
+    });
+
+    const fetched = await fetchModelInvocationJob('job 1');
+    expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/model-access/invocations/jobs/job%201');
+    expect(fetched.data).toMatchObject({
+      jobId: 'job-1',
+      status: 'SUCCEEDED',
+      invocationId: 'inv-1',
+      response: {
+        content: 'done'
+      }
+    });
+
+    const cancelled = await cancelModelInvocationJob('job 1');
+    expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/model-access/invocations/jobs/job%201/cancel', {
+      method: 'POST'
+    });
+    expect(cancelled.data).toMatchObject({
+      jobId: 'job 1',
+      status: 'CANCELLED',
+      errorCode: 'CANCELLED'
+    });
   });
 
   it('parses server-sent model invocation events', () => {

@@ -36,6 +36,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "veri-agent.model-access.provider-circuit-failure-threshold=1",
         "veri-agent.model-access.provider-rate-limit-max-requests=0",
         "veri-agent.model-access.provider-max-concurrent-requests=2",
+        "veri-agent.model-access.async-job-worker-threads=1",
+        "veri-agent.model-access.async-job-dispatch-delay-ms=100",
         "veri-agent.model-access.routing-rules[0].name=wp4-private-low-cost",
         "veri-agent.model-access.routing-rules[0].project-ids[0]=project-routing",
         "veri-agent.model-access.routing-rules[0].sensitivity-levels[0]=INTERNAL",
@@ -265,6 +267,128 @@ class ModelAccessControllerTest {
                         .param("projectId", "project-stream-forbidden"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.total").value(0));
+    }
+
+    @Test
+    void submitsAsyncInvocationJobAndPersistsInvocationLog() throws Exception {
+        MvcResult submitResult = mockMvc.perform(post("/api/v1/model-access/invocations/jobs")
+                        .headers(authHeaders())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "projectId": "project-async",
+                                  "messages": [
+                                    {"role": "user", "content": "生成异步调用验证文本"}
+                                  ],
+                                  "allowPublicModel": false
+                                }
+                                """))
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.data.jobId").exists())
+                .andExpect(jsonPath("$.data.status").value("QUEUED"))
+                .andExpect(jsonPath("$.data.createdAt").exists())
+                .andExpect(jsonPath("$.data.traceId", startsWith("trc_")))
+                .andReturn();
+        String jobId = JsonPath.read(submitResult.getResponse().getContentAsString(), "$.data.jobId");
+
+        waitForAsyncJob(jobId, "SUCCEEDED")
+                .andExpect(jsonPath("$.data.invocationId").exists())
+                .andExpect(jsonPath("$.data.response.content", startsWith("local model response:")))
+                .andExpect(jsonPath("$.data.response.providerName").value("local-echo-primary"))
+                .andExpect(jsonPath("$.data.errorCode").doesNotExist());
+
+        mockMvc.perform(get("/api/v1/model-access/invocations")
+                        .headers(authHeaders())
+                        .param("projectId", "project-async"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(1))
+                .andExpect(jsonPath("$.data.items[0].status").value("SUCCEEDED"))
+                .andExpect(jsonPath("$.data.items[0].responsePreview", containsString("local model response")))
+                .andExpect(jsonPath("$.data.items[0].actorService").value("wp5-test-design"));
+    }
+
+    @Test
+    void cancelsQueuedAsyncInvocationJobWithoutWritingInvocationLog() throws Exception {
+        MvcResult submitResult = mockMvc.perform(post("/api/v1/model-access/invocations/jobs")
+                        .headers(authHeaders())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "projectId": "project-async-cancel",
+                                  "messages": [
+                                    {"role": "user", "content": "这条排队任务应被取消"}
+                                  ],
+                                  "allowPublicModel": false
+                                }
+                                """))
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.data.status").value("QUEUED"))
+                .andReturn();
+        String jobId = JsonPath.read(submitResult.getResponse().getContentAsString(), "$.data.jobId");
+
+        mockMvc.perform(post("/api/v1/model-access/invocations/jobs/{jobId}/cancel", jobId)
+                        .headers(authHeaders()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.jobId").value(jobId))
+                .andExpect(jsonPath("$.data.status").value("CANCELLED"))
+                .andExpect(jsonPath("$.data.errorCode").value("CANCELLED"))
+                .andExpect(jsonPath("$.data.finishedAt").exists());
+
+        mockMvc.perform(get("/api/v1/model-access/invocations/jobs/{jobId}", jobId)
+                        .headers(authHeaders()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("CANCELLED"));
+
+        Thread.sleep(150);
+        mockMvc.perform(get("/api/v1/model-access/invocations")
+                        .headers(authHeaders())
+                        .param("projectId", "project-async-cancel"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(0));
+    }
+
+    @Test
+    void rejectsAsyncInvocationJobsWithoutAuthenticationOrManagePermission() throws Exception {
+        mockMvc.perform(post("/api/v1/model-access/invocations/jobs")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "projectId": "project-async-anonymous",
+                                  "messages": [
+                                    {"role": "user", "content": "匿名异步调用不应执行"}
+                                  ],
+                                  "allowPublicModel": false
+                                }
+                                """))
+                .andExpect(status().isForbidden());
+
+        String developerToken = tokenForRole("Developer");
+        mockMvc.perform(post("/api/v1/model-access/invocations/jobs")
+                        .header("Authorization", "Bearer " + developerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "projectId": "project-async-forbidden",
+                                  "messages": [
+                                    {"role": "user", "content": "低权限异步调用不应执行"}
+                                  ],
+                                  "allowPublicModel": false
+                                }
+                                """))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+
+        mockMvc.perform(get("/api/v1/model-access/invocations/jobs/{jobId}", UUID.randomUUID())
+                        .header("Authorization", "Bearer " + developerToken))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void returnsNotFoundForMissingAsyncInvocationJob() throws Exception {
+        mockMvc.perform(get("/api/v1/model-access/invocations/jobs/{jobId}", UUID.randomUUID())
+                        .headers(authHeaders()))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("NOT_FOUND"));
     }
 
     @Test
@@ -905,6 +1029,23 @@ class ModelAccessControllerTest {
                 .andExpect(status().isCreated())
                 .andReturn();
         return JsonPath.read(result.getResponse().getContentAsString(), "$.data.id");
+    }
+
+    private org.springframework.test.web.servlet.ResultActions waitForAsyncJob(String jobId, String expectedStatus) throws Exception {
+        org.springframework.test.web.servlet.ResultActions lastResult = null;
+        for (int attempt = 0; attempt < 20; attempt++) {
+            lastResult = mockMvc.perform(get("/api/v1/model-access/invocations/jobs/{jobId}", jobId)
+                    .headers(authHeaders()));
+            MvcResult mvcResult = lastResult
+                    .andExpect(status().isOk())
+                    .andReturn();
+            String status = JsonPath.read(mvcResult.getResponse().getContentAsString(), "$.data.status");
+            if (expectedStatus.equals(status)) {
+                return lastResult;
+            }
+            Thread.sleep(50);
+        }
+        return lastResult.andExpect(jsonPath("$.data.status").value(expectedStatus));
     }
 
     private org.springframework.http.HttpHeaders authHeaders() {

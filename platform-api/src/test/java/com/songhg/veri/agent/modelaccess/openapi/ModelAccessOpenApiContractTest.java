@@ -45,6 +45,9 @@ class ModelAccessOpenApiContractTest {
                 .andExpect(jsonPath("$.paths['/api/v1/model-access/prompts/{id}/reject'].post").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/model-access/invocations'].post").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/model-access/invocations/stream'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/model-access/invocations/jobs'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/model-access/invocations/jobs/{jobId}'].get").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/model-access/invocations/jobs/{jobId}/cancel'].post").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/model-access/invocations'].get").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/model-access/invocations/export'].get").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/model-access/invocations/summary'].get").exists())
@@ -93,9 +96,14 @@ class ModelAccessOpenApiContractTest {
         MatcherAssert.assertThat(openApi, containsString("approvedBy"));
         MatcherAssert.assertThat(openApi, containsString("/api/v1/model-access/invocations/export"));
         MatcherAssert.assertThat(openApi, containsString("/api/v1/model-access/invocations/stream"));
+        MatcherAssert.assertThat(openApi, containsString("/api/v1/model-access/invocations/jobs"));
+        MatcherAssert.assertThat(openApi, containsString("/api/v1/model-access/invocations/jobs/{jobId}"));
+        MatcherAssert.assertThat(openApi, containsString("/api/v1/model-access/invocations/jobs/{jobId}/cancel"));
         MatcherAssert.assertThat(openApi, containsString("metadata"));
         MatcherAssert.assertThat(openApi, containsString("delta"));
         MatcherAssert.assertThat(openApi, containsString("done"));
+        MatcherAssert.assertThat(openApi, containsString("QUEUED/RUNNING/SUCCEEDED/FAILED/CANCELLED"));
+        MatcherAssert.assertThat(openApi, containsString("best-effort"));
         MatcherAssert.assertThat(openApi, containsString("错误响应仍使用标准 JSON error envelope"));
         MatcherAssert.assertThat(openApi, containsString("/api/v1/model-access/cost/alerts"));
         MatcherAssert.assertThat(openApi, containsString("/api/v1/model-access/cost/report"));

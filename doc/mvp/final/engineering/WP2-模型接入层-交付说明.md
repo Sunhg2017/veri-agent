@@ -45,6 +45,9 @@ WP2 P0 交付以下能力：
 | `POST /prompts/{id}/activate` | 激活指定 Prompt 版本；高风险版本必须先审批通过。 |
 | `POST /invocations` | 发起模型调用。 |
 | `POST /invocations/stream` | 发起 SSE 流式模型调用，返回 `metadata`、`delta`、`done` 事件；MVP 先完整执行同步 invocation 并落盘调用日志，再将响应内容按 UTF-8 SSE 分片输出。 |
+| `POST /invocations/jobs` | 提交异步模型调用任务，返回 `202 Accepted`、`jobId` 和 `QUEUED/RUNNING/SUCCEEDED/FAILED/CANCELLED` 状态摘要。 |
+| `GET /invocations/jobs/{jobId}` | 查询异步模型调用任务状态、时间戳、关联 `invocationId`、错误摘要和成功响应。 |
+| `POST /invocations/jobs/{jobId}/cancel` | 取消异步模型调用任务；未开始任务可稳定取消，运行中任务 best-effort interrupt，已完成任务返回当前终态。 |
 | `GET /invocations` | 分页查询调用日志，支持项目、应用、敏感级别、状态、供应商、调用服务和时间范围筛选。 |
 | `GET /invocations/summary` | 按同一组筛选条件汇总调用次数、状态分布、token 和成本。 |
 | `GET /invocations/export` | 按同一组筛选条件导出脱敏调用审计 CSV。 |
@@ -76,6 +79,8 @@ Prompt 版本创建可设置 `highRisk=true`。高风险版本默认 `approvalSt
 Provider 级生产保护默认关闭。设置 `WP2_PROVIDER_RATE_LIMIT_MAX_REQUESTS`、`WP2_PROVIDER_RATE_LIMIT_WINDOW_SECONDS` 可开启单 provider 时间窗口限流；设置 `WP2_PROVIDER_MAX_CONCURRENT_REQUESTS` 可开启单 provider 并发保护。触发限流或并发上限时返回 `BUDGET_EXCEEDED`，并记录 `BLOCKED` 调用日志。连续失败熔断仍由 `WP2_PROVIDER_CIRCUIT_FAILURE_THRESHOLD` 和 `WP2_PROVIDER_CIRCUIT_OPEN_MS` 控制，可通过 resilience API 查询和 reset。
 
 `POST /invocations/stream` 复用同步 `POST /invocations` 的请求体和校验链路。当前 MVP 不直接透传外部 provider 原生 token streaming，而是在 provider 调用成功、成本和调用日志已经确定后输出 `text/event-stream;charset=UTF-8`：`metadata` 事件包含 invocation、provider、token、cost 和 traceId 摘要，`delta` 事件承载响应分片，`done` 事件承载结束原因。这样可先保证策略、预算、审计、日志和前端消费契约稳定，后续再替换 provider 适配层为真实 token streaming。
+
+`POST /invocations/jobs` 同样复用同步 `POST /invocations` 的请求体、调用权限、策略、预算、provider 选择和调用日志链路。当前 MVP 使用 `platform-api` 单进程内存 job registry 和可配置工作线程：`WP2_ASYNC_JOB_WORKER_THREADS` 默认 2，`WP2_ASYNC_JOB_DISPATCH_DELAY_MS` 默认 0。任务状态独立于 invocation 日志状态，固定为 `QUEUED`、`RUNNING`、`SUCCEEDED`、`FAILED`、`CANCELLED`；成功或失败后仍由同步 invocation 逻辑写入 `SUCCEEDED`、`FAILED` 或 `BLOCKED` 调用日志和 WP1 审计。取消语义为 best-effort：未开始任务可稳定取消且不写调用日志，运行中任务会尝试 interrupt；如果 provider 调用已经完成，则查询会返回最终成功或失败结果。服务重启后内存 job 不保留，持久化任务表、分布式 worker、重试调度和对象存储大结果引用作为后续生产化增强。
 
 ## 4. 数据库交付
 
@@ -135,6 +140,7 @@ Provider 级生产保护默认关闭。设置 `WP2_PROVIDER_RATE_LIMIT_MAX_REQUE
 25. 高级路由策略覆盖按项目、调用服务、敏感级别、能力和供应商组命中规则，并验证 `LOWEST_COST` 可在组内选择低成本 provider，调用日志保留路由规则、路由组和模型能力。
 26. 高风险 Prompt 覆盖待审批创建、审批通过、驳回后重审、审批人/说明保留、未审批激活拒绝和审批后激活。
 27. SSE 流式调用覆盖 `metadata/delta/done` 事件输出、UTF-8 文本响应、异步安全分派和调用日志落盘。
+28. 异步 invocation job 覆盖提交 `202`、状态轮询成功、排队取消、匿名/低权限拒绝、未知 job 404、OpenAPI 契约和 portal-web helper 路径/归一化。
 
 运行命令：
 
@@ -189,6 +195,7 @@ bash scripts/wp_all_integration_test.sh
 7. 已新增 WP2-C2 预算策略产品化，支持调用服务日预算、按 `actorService` 查询成本告警，以及 `BLOCK/FALLBACK` 超预算动作配置。
 8. 已新增 WP2-C4 Prompt 评审与审批，高风险 Prompt 需审批通过后激活，并在后端、DB 和 portal-web 管理台保留审批状态、审批人、审批时间和审批说明。
 9. 已新增 WP2-D2 流式响应支持，提供 `/invocations/stream` SSE 入口和 portal-web 解析/调用 helper，保持同步 invocation 契约、策略、预算和调用日志链路不变。
+10. 已新增 WP2-D3 异步长任务调用，提供 `/invocations/jobs` 提交、查询和取消 API 及 portal-web helper；当前为单进程内存 job registry，成功/失败复用既有 invocation 审计链路。
 
 ## 7. Provider 生产接入与密钥轮换
 
