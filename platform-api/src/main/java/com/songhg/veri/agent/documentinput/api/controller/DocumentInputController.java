@@ -8,6 +8,7 @@ import com.songhg.veri.agent.documentinput.api.request.ConfirmDocumentCandidateR
 import com.songhg.veri.agent.documentinput.api.request.CreateDocumentImportRequest;
 import com.songhg.veri.agent.documentinput.api.request.DocumentCandidatePageRequest;
 import com.songhg.veri.agent.documentinput.api.request.DocumentImportPageRequest;
+import com.songhg.veri.agent.documentinput.api.request.DocumentParseFeedbackPageRequest;
 import com.songhg.veri.agent.documentinput.api.request.DocumentPublishRequest;
 import com.songhg.veri.agent.documentinput.api.request.DocumentSourcePageRequest;
 import com.songhg.veri.agent.documentinput.api.request.IgnoreDocumentCandidateRequest;
@@ -19,6 +20,7 @@ import com.songhg.veri.agent.documentinput.api.response.DocumentCandidateBatchAc
 import com.songhg.veri.agent.documentinput.api.response.DocumentCandidateResponse;
 import com.songhg.veri.agent.documentinput.api.response.DocumentImportResponse;
 import com.songhg.veri.agent.documentinput.api.response.DocumentInputHealthResponse;
+import com.songhg.veri.agent.documentinput.api.response.DocumentParseFeedbackSampleResponse;
 import com.songhg.veri.agent.documentinput.api.response.DocumentPublishRecordResponse;
 import com.songhg.veri.agent.documentinput.api.response.DocumentPublishResponse;
 import com.songhg.veri.agent.documentinput.api.response.DocumentSourceHealthResponse;
@@ -220,6 +222,14 @@ public class DocumentInputController {
     ) {
         requirePermission("requirementInput:candidate_review");
         return service.batchCandidateAction(request);
+    }
+
+    @GetMapping("/feedback-samples")
+    public PageResponse<DocumentParseFeedbackSampleResponse> feedbackSamples(
+            @Valid DocumentParseFeedbackPageRequest request
+    ) {
+        requirePermission("requirementInput:read");
+        return service.parseFeedbackSamples(request.toQuery());
     }
 
     @GetMapping("/webhook-events")

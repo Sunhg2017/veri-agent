@@ -13,6 +13,9 @@ import org.springframework.test.web.servlet.MvcResult;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -50,14 +53,47 @@ class DocumentInputModelParseControllerTest {
                 .andReturn();
 
         String importId = JsonPath.read(imported.getResponse().getContentAsString(), "$.data.id");
-        mockMvc.perform(get("/api/v1/document-input/imports/{id}/candidates", importId)
+        MvcResult candidates = mockMvc.perform(get("/api/v1/document-input/imports/{id}/candidates", importId)
                         .headers(documentInputHeaders()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.total").value(1))
                 .andExpect(jsonPath("$.data.items[0].parseSource").value("MODEL"))
                 .andExpect(jsonPath("$.data.items[0].modelInvocationId").exists())
                 .andExpect(jsonPath("$.data.items[0].modelProviderName").value("local-echo-primary"))
-                .andExpect(jsonPath("$.data.items[0].confidence").value(0.86));
+                .andExpect(jsonPath("$.data.items[0].confidence").value(0.86))
+                .andReturn();
+
+        String candidateId = JsonPath.read(candidates.getResponse().getContentAsString(), "$.data.items[0].id");
+        mockMvc.perform(put("/api/v1/document-input/candidates/{id}", candidateId)
+                        .headers(documentInputHeaders())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "title": "AI 登录需求",
+                                  "description": "人工补充账号密码登录边界",
+                                  "priority": "MEDIUM",
+                                  "acceptanceCriteria": "登录成功；password=PlainSecret123；通知 user@example.com",
+                                  "tags": ["ai", "login", "manual-review"],
+                                  "version": 0
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.version").value(1));
+
+        mockMvc.perform(get("/api/v1/document-input/feedback-samples")
+                        .headers(documentInputHeaders())
+                        .param("candidateId", candidateId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(1))
+                .andExpect(jsonPath("$.data.items[0].candidateId").value(candidateId))
+                .andExpect(jsonPath("$.data.items[0].parseSource").value("MODEL"))
+                .andExpect(jsonPath("$.data.items[0].correctionType").value("MANUAL_EDIT"))
+                .andExpect(jsonPath("$.data.items[0].curationStatus").value("READY_FOR_CORPUS"))
+                .andExpect(jsonPath("$.data.items[0].changedFields", containsString("description")))
+                .andExpect(jsonPath("$.data.items[0].changedFields", containsString("priority")))
+                .andExpect(jsonPath("$.data.items[0].afterSnapshot.acceptanceCriteria", containsString("[SECRET]")))
+                .andExpect(jsonPath("$.data.items[0].afterSnapshot.acceptanceCriteria", containsString("[EMAIL]")))
+                .andExpect(jsonPath("$.data.items[0].afterSnapshot.acceptanceCriteria", not(containsString("PlainSecret123"))));
 
         mockMvc.perform(get("/api/v1/model-access/invocations")
                         .headers(modelHeaders())

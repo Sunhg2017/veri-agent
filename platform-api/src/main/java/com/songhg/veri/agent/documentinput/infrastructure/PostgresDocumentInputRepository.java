@@ -1,12 +1,14 @@
 package com.songhg.veri.agent.documentinput.infrastructure;
 
-import com.songhg.veri.agent.documentinput.application.DocumentImportQuery;
 import com.songhg.veri.agent.documentinput.application.DocumentCandidateQuery;
+import com.songhg.veri.agent.documentinput.application.DocumentImportQuery;
 import com.songhg.veri.agent.documentinput.application.DocumentInputRepository;
+import com.songhg.veri.agent.documentinput.application.DocumentParseFeedbackQuery;
 import com.songhg.veri.agent.documentinput.application.DocumentSourceQuery;
 import com.songhg.veri.agent.documentinput.application.DocumentWebhookEventQuery;
 import com.songhg.veri.agent.documentinput.domain.DocumentFieldMapping;
 import com.songhg.veri.agent.documentinput.domain.DocumentImportRecord;
+import com.songhg.veri.agent.documentinput.domain.DocumentParseFeedbackSample;
 import com.songhg.veri.agent.documentinput.domain.DocumentRequirementCandidate;
 import com.songhg.veri.agent.documentinput.domain.DocumentSourceConfig;
 import com.songhg.veri.agent.documentinput.domain.DocumentWebhookEvent;
@@ -126,6 +128,22 @@ public class PostgresDocumentInputRepository implements DocumentInputRepository 
     @Override
     public Optional<DocumentRequirementCandidate> candidateByExternalId(String projectId, String externalRequirementId) {
         return Optional.ofNullable(mapper.candidateByExternalId(projectId, externalRequirementId));
+    }
+
+    @Override
+    public List<DocumentParseFeedbackSample> parseFeedbackSamples(DocumentParseFeedbackQuery query) {
+        return mapper.parseFeedbackSamples(query);
+    }
+
+    @Override
+    public long countParseFeedbackSamples(DocumentParseFeedbackQuery query) {
+        return mapper.countParseFeedbackSamples(query);
+    }
+
+    @Override
+    public DocumentParseFeedbackSample saveParseFeedbackSample(DocumentParseFeedbackSample sample) {
+        mapper.insertParseFeedbackSample(sample);
+        return sample;
     }
 
     @Override

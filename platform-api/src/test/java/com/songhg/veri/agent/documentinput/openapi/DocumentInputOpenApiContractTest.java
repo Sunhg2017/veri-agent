@@ -41,6 +41,7 @@ class DocumentInputOpenApiContractTest {
                 .andExpect(jsonPath("$.paths['/api/v1/document-input/candidates/{id}/confirm'].post").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/document-input/candidates/{id}/ignore'].post").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/document-input/candidates/batch-action'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/document-input/feedback-samples'].get").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/document-input/webhook-events'].get").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/document-input/webhook-events/{id}'].get").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/document-input/webhook-events/{id}/replay'].post").exists())

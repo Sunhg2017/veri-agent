@@ -2,6 +2,7 @@ package com.songhg.veri.agent.documentinput.application;
 
 import com.songhg.veri.agent.documentinput.domain.DocumentFieldMapping;
 import com.songhg.veri.agent.documentinput.domain.DocumentImportRecord;
+import com.songhg.veri.agent.documentinput.domain.DocumentParseFeedbackSample;
 import com.songhg.veri.agent.documentinput.domain.DocumentRequirementCandidate;
 import com.songhg.veri.agent.documentinput.domain.DocumentSourceConfig;
 import com.songhg.veri.agent.documentinput.domain.DocumentWebhookEvent;
@@ -49,6 +50,12 @@ public interface DocumentInputRepository {
     DocumentRequirementCandidate saveCandidate(DocumentRequirementCandidate candidate);
 
     Optional<DocumentRequirementCandidate> candidateByExternalId(String projectId, String externalRequirementId);
+
+    List<DocumentParseFeedbackSample> parseFeedbackSamples(DocumentParseFeedbackQuery query);
+
+    long countParseFeedbackSamples(DocumentParseFeedbackQuery query);
+
+    DocumentParseFeedbackSample saveParseFeedbackSample(DocumentParseFeedbackSample sample);
 
     List<DocumentWebhookEvent> webhookEvents(DocumentWebhookEventQuery query);
 

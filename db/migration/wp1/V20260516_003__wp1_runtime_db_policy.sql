@@ -47,6 +47,7 @@ grant select, insert, update on
     document_input_source,
     document_input_import,
     document_input_candidate,
+    document_input_parse_feedback_sample,
     document_input_webhook_event,
     audit_outbox
 to :WP1_APP_ROLE;

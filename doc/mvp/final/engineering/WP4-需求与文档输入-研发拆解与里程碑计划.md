@@ -154,7 +154,7 @@ MVP 范围如下：
 | 输入源 | `GET/POST /sources`、`PUT /sources/{id}` | 管理文本、Markdown、webhook 输入源；保存 `CUSTOM_API` 的 sourceCode、secretRef、eventVersion、mappingVersion 和字段映射；预留非 MVP 类型 |
 | 健康检查 | `GET /sources/{id}/health` | 返回连接器状态、签名算法、secretRef 配置状态、eventVersion、最近错误和预留类型不可用原因 |
 | 导入记录 | `POST /imports`、`GET /imports`、`GET /imports/{id}` | 创建文本、Markdown、Word、PDF、OCR 导入记录，查询状态和错误 |
-| 解析结果 | `GET /imports/{id}/candidates?status=&sourceRef=&keyword=`、`PUT /candidates/{id}`、`POST /candidates/{id}/confirm`、`POST /candidates/{id}/ignore`、`POST /candidates/batch-action` | 人工编辑、确认、忽略候选项；批量操作支持 `candidateIds` 和携带版本号的 versioned candidates |
+| 解析结果 | `GET /imports/{id}/candidates?status=&sourceRef=&keyword=`、`PUT /candidates/{id}`、`POST /candidates/{id}/confirm`、`POST /candidates/{id}/ignore`、`POST /candidates/batch-action`、`GET /feedback-samples?candidateId=&importId=&projectId=&parseSource=&curationStatus=` | 人工编辑、确认、忽略候选项；批量操作支持 `candidateIds` 和携带版本号的 versioned candidates；模型候选人工编辑后生成脱敏纠错样本，供后续人工入 golden corpus |
 | 写入资产 | `POST /imports/{id}/publish`、`GET /imports/{id}/publish-records` | 将已确认候选项写入 WP3 需求资产，记录 source/sourceRef/sourceUrl/acceptanceCriteria 和发布结果 |
 | Webhook | `POST /webhooks/{sourceCode}` | 接收自研需求平台事件，执行签名、幂等和字段映射 |
 | Webhook 事件 | `GET /webhook-events?sourceId=&sourceCode=&eventType=&status=&receivedFrom=&receivedTo=`、`GET /webhook-events/{id}`、`POST /webhook-events/{id}/replay` | 查询、排错、重放失败事件 |

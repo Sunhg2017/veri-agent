@@ -3,10 +3,12 @@ package com.songhg.veri.agent.documentinput.infrastructure;
 import com.songhg.veri.agent.documentinput.application.DocumentCandidateQuery;
 import com.songhg.veri.agent.documentinput.application.DocumentImportQuery;
 import com.songhg.veri.agent.documentinput.application.DocumentInputRepository;
+import com.songhg.veri.agent.documentinput.application.DocumentParseFeedbackQuery;
 import com.songhg.veri.agent.documentinput.application.DocumentSourceQuery;
 import com.songhg.veri.agent.documentinput.application.DocumentWebhookEventQuery;
 import com.songhg.veri.agent.documentinput.domain.DocumentFieldMapping;
 import com.songhg.veri.agent.documentinput.domain.DocumentImportRecord;
+import com.songhg.veri.agent.documentinput.domain.DocumentParseFeedbackSample;
 import com.songhg.veri.agent.documentinput.domain.DocumentRequirementCandidate;
 import com.songhg.veri.agent.documentinput.domain.DocumentSourceConfig;
 import com.songhg.veri.agent.documentinput.domain.DocumentWebhookEvent;
@@ -33,6 +35,7 @@ public class InMemoryDocumentInputRepository implements DocumentInputRepository 
     private final ConcurrentHashMap<UUID, DocumentFieldMapping> mappings = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<UUID, DocumentImportRecord> imports = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<UUID, DocumentRequirementCandidate> candidates = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<UUID, DocumentParseFeedbackSample> parseFeedbackSamples = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<UUID, DocumentWebhookEvent> webhookEvents = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, Map<String, Object>> retentionArchive = new ConcurrentHashMap<>();
 
@@ -173,6 +176,25 @@ public class InMemoryDocumentInputRepository implements DocumentInputRepository 
                 .filter(candidate -> projectId.equals(candidate.projectId()))
                 .filter(candidate -> externalRequirementId.equals(candidate.externalRequirementId()))
                 .findFirst();
+    }
+
+    @Override
+    public List<DocumentParseFeedbackSample> parseFeedbackSamples(DocumentParseFeedbackQuery query) {
+        return filteredParseFeedbackSamples(query)
+                .skip(query.offset())
+                .limit(query.size())
+                .toList();
+    }
+
+    @Override
+    public long countParseFeedbackSamples(DocumentParseFeedbackQuery query) {
+        return filteredParseFeedbackSamples(query).count();
+    }
+
+    @Override
+    public DocumentParseFeedbackSample saveParseFeedbackSample(DocumentParseFeedbackSample sample) {
+        parseFeedbackSamples.put(sample.id(), sample);
+        return sample;
     }
 
     @Override
@@ -376,6 +398,16 @@ public class InMemoryDocumentInputRepository implements DocumentInputRepository 
                 || contains(candidate.tags(), keyword)
                 || contains(candidate.sourceFragment(), keyword)
                 || contains(candidate.externalRequirementId(), keyword);
+    }
+
+    private java.util.stream.Stream<DocumentParseFeedbackSample> filteredParseFeedbackSamples(DocumentParseFeedbackQuery query) {
+        return parseFeedbackSamples.values().stream()
+                .filter(sample -> query.candidateId() == null || query.candidateId().equals(sample.candidateId()))
+                .filter(sample -> query.importId() == null || query.importId().equals(sample.importId()))
+                .filter(sample -> query.projectId() == null || query.projectId().equals(sample.projectId()))
+                .filter(sample -> query.parseSource() == null || query.parseSource().equalsIgnoreCase(sample.parseSource()))
+                .filter(sample -> query.curationStatus() == null || query.curationStatus().equalsIgnoreCase(sample.curationStatus()))
+                .sorted(Comparator.comparing(DocumentParseFeedbackSample::createdAt).reversed());
     }
 
     private boolean contains(String value, String keyword) {

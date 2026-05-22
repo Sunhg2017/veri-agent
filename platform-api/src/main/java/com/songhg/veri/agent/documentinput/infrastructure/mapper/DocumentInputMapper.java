@@ -1,11 +1,13 @@
 package com.songhg.veri.agent.documentinput.infrastructure.mapper;
 
-import com.songhg.veri.agent.documentinput.application.DocumentImportQuery;
 import com.songhg.veri.agent.documentinput.application.DocumentCandidateQuery;
+import com.songhg.veri.agent.documentinput.application.DocumentImportQuery;
+import com.songhg.veri.agent.documentinput.application.DocumentParseFeedbackQuery;
 import com.songhg.veri.agent.documentinput.application.DocumentSourceQuery;
 import com.songhg.veri.agent.documentinput.application.DocumentWebhookEventQuery;
 import com.songhg.veri.agent.documentinput.domain.DocumentFieldMapping;
 import com.songhg.veri.agent.documentinput.domain.DocumentImportRecord;
+import com.songhg.veri.agent.documentinput.domain.DocumentParseFeedbackSample;
 import com.songhg.veri.agent.documentinput.domain.DocumentRequirementCandidate;
 import com.songhg.veri.agent.documentinput.domain.DocumentSourceConfig;
 import com.songhg.veri.agent.documentinput.domain.DocumentWebhookEvent;
@@ -62,6 +64,12 @@ public interface DocumentInputMapper {
     );
 
     void upsertCandidate(DocumentRequirementCandidate candidate);
+
+    List<DocumentParseFeedbackSample> parseFeedbackSamples(@Param("query") DocumentParseFeedbackQuery query);
+
+    long countParseFeedbackSamples(@Param("query") DocumentParseFeedbackQuery query);
+
+    void insertParseFeedbackSample(DocumentParseFeedbackSample sample);
 
     List<DocumentWebhookEvent> webhookEvents(@Param("query") DocumentWebhookEventQuery query);
 

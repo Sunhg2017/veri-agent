@@ -90,6 +90,31 @@
         </constructor>
     </resultMap>
 
+    <resultMap id="parseFeedbackSampleMap" type="com.songhg.veri.agent.documentinput.domain.DocumentParseFeedbackSample">
+        <constructor>
+            <arg column="id" javaType="java.util.UUID"/>
+            <arg column="candidate_id" javaType="java.util.UUID"/>
+            <arg column="import_id" javaType="java.util.UUID"/>
+            <arg column="project_id" javaType="java.lang.String"/>
+            <arg column="source_type" javaType="java.lang.String"/>
+            <arg column="input_digest" javaType="java.lang.String"/>
+            <arg column="source_ref_digest" javaType="java.lang.String"/>
+            <arg column="source_fragment_digest" javaType="java.lang.String"/>
+            <arg column="parse_source" javaType="java.lang.String"/>
+            <arg column="model_invocation_id" javaType="java.util.UUID"/>
+            <arg column="model_provider_name" javaType="java.lang.String"/>
+            <arg column="model_name" javaType="java.lang.String"/>
+            <arg column="correction_type" javaType="java.lang.String"/>
+            <arg column="changed_fields" javaType="java.lang.String"/>
+            <arg column="before_snapshot_json" javaType="java.lang.String"/>
+            <arg column="after_snapshot_json" javaType="java.lang.String"/>
+            <arg column="curation_status" javaType="java.lang.String"/>
+            <arg column="created_by" javaType="java.lang.String"/>
+            <arg column="created_at" javaType="java.time.Instant"/>
+            <arg column="updated_at" javaType="java.time.Instant"/>
+        </constructor>
+    </resultMap>
+
     <resultMap id="webhookEventMap" type="com.songhg.veri.agent.documentinput.domain.DocumentWebhookEvent">
         <constructor>
             <arg column="id" javaType="java.util.UUID"/>
@@ -138,6 +163,15 @@
         version, created_at, updated_at
     </sql>
 
+    <sql id="parseFeedbackSampleColumns">
+        id, candidate_id, import_id, project_id, source_type, input_digest,
+        source_ref_digest, source_fragment_digest, parse_source, model_invocation_id,
+        model_provider_name, model_name, correction_type, changed_fields,
+        before_snapshot_json::text as before_snapshot_json,
+        after_snapshot_json::text as after_snapshot_json,
+        curation_status, created_by, created_at, updated_at
+    </sql>
+
     <sql id="webhookEventColumns">
         id, source_id, import_id, source_code, event_id, idempotency_key, event_type, event_version,
         signature_status, status, payload_digest, raw_payload, error_message, retry_count,
@@ -180,6 +214,17 @@
                     or lower(coalesce(external_requirement_id, '')) like concat('%', lower(#{query.keyword}), '%')
                 )
             </if>
+        </where>
+    </sql>
+
+    <sql id="parseFeedbackSampleWhere">
+        <where>
+            deleted_at is null
+            <if test="query.candidateId != null">and candidate_id = #{query.candidateId}</if>
+            <if test="query.importId != null">and import_id = #{query.importId}</if>
+            <if test="query.projectId != null">and project_id = #{query.projectId}</if>
+            <if test="query.parseSource != null">and lower(parse_source) = lower(#{query.parseSource})</if>
+            <if test="query.curationStatus != null">and lower(curation_status) = lower(#{query.curationStatus})</if>
         </where>
     </sql>
 
@@ -404,6 +449,36 @@
             confirmed_at = excluded.confirmed_at,
             version = excluded.version,
             updated_at = excluded.updated_at
+    </insert>
+
+    <select id="parseFeedbackSamples" resultMap="parseFeedbackSampleMap">
+        select <include refid="parseFeedbackSampleColumns"/>
+        from document_input_parse_feedback_sample
+        <include refid="parseFeedbackSampleWhere"/>
+        order by created_at desc
+        limit #{query.size} offset #{query.offset}
+    </select>
+
+    <select id="countParseFeedbackSamples" resultType="long">
+        select count(*)
+        from document_input_parse_feedback_sample
+        <include refid="parseFeedbackSampleWhere"/>
+    </select>
+
+    <insert id="insertParseFeedbackSample">
+        insert into document_input_parse_feedback_sample (
+            id, candidate_id, import_id, project_id, source_type, input_digest,
+            source_ref_digest, source_fragment_digest, parse_source, model_invocation_id,
+            model_provider_name, model_name, correction_type, changed_fields,
+            before_snapshot_json, after_snapshot_json, curation_status, created_by,
+            created_at, updated_at
+        ) values (
+            #{id}, #{candidateId}, #{importId}, #{projectId}, #{sourceType}, #{inputDigest},
+            #{sourceRefDigest}, #{sourceFragmentDigest}, #{parseSource}, #{modelInvocationId},
+            #{modelProviderName}, #{modelName}, #{correctionType}, #{changedFields},
+            #{beforeSnapshotJson}::jsonb, #{afterSnapshotJson}::jsonb, #{curationStatus}, #{createdBy},
+            #{createdAt}, #{updatedAt}
+        )
     </insert>
 
     <select id="webhookEvents" resultMap="webhookEventMap">

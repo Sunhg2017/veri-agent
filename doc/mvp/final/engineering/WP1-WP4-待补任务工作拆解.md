@@ -205,7 +205,7 @@ WP4 本轮 P0 已覆盖真实文件上传、Word/PDF/OCR、AI 解析、SecretPro
 | WP4-C1 | 扩大 golden corpus | P1 | DONE-CURRENT | 已将 `corpusVersion=wp4-c1-2026-05-22` 扩展到 12 个样本、28 条期望需求，`TEXT/MARKDOWN/WORD/PDF/OCR/CUSTOM_API` 六类各至少 2 个样本；覆盖平台、金融、零售、医疗、制造、物流行业，以及长文档、表格需求、歧义优先级、异常格式和 OCR 低置信度场景 | 样本版本、行业、难度、覆盖标签和 sourceType 分布由 `DocumentAiParseQualityEvaluationTest` 校验；低于阈值或缺少覆盖场景会阻断评测 |
 | WP4-C2 | 按文档类型拆分指标 | P1 | DONE-CURRENT | `DocumentAiParseQualityEvaluationTest` 已按 `sourceType` 分别输出标题召回、优先级准确率和验收标准覆盖率，并要求六类 sourceType 都进入评测 | 任一类型低于阈值能定位 |
 | WP4-C3 | Prompt 版本和评测绑定 | P1 | DONE-CURRENT | golden corpus 已记录 `promptKey=wp4-document-requirement-parse`、`promptVersion=v1`，评测输出 parserVersion `rule-json-v1` 并校验 prompt 元数据 | Prompt 变更必须跑对应评测 |
-| WP4-C4 | 模型解析人工纠错回流 | P2 | TODO | 将人工编辑结果沉淀为后续评测样本或标注数据 | 纠错样本可脱敏后进入 corpus |
+| WP4-C4 | 模型解析人工纠错回流 | P2 | DONE-CURRENT | 已在 `parseSource=MODEL` 候选人工编辑时自动生成 `document_input_parse_feedback_sample`，保存字段差异、WP2 invocation 追踪、输入摘要和脱敏前后快照，并提供 `GET /api/v1/document-input/feedback-samples` 供后续人工入库 golden corpus | 纠错样本仅保留摘要/脱敏内容，支持按 candidate/import/project/parseSource/curationStatus 查询，可进入 corpus 人工筛选 |
 
 ### WP4-D 外部连接器扩展
 
