@@ -107,7 +107,7 @@ WP1、WP2、WP4 的当前 P0 口径已经基本收敛，后续以生产硬化、
 
 | 编号 | 任务 | 优先级 | 状态 | 工作内容 | 验收标准 |
 |---|---|---|---|---|---|
-| WP2-C1 | 高级路由策略 | P1 | TODO | 支持按项目、敏感级别、调用服务、模型能力和成本选择供应商组 | 高敏资源仍不能路由公开模型；路由结果可审计 |
+| WP2-C1 | 高级路由策略 | P1 | DONE-CURRENT | 已新增 provider `routingGroup/capabilities`、调用 `capability`、配置化 `routing-rules` 和调用日志 `routingRuleName/routingGroup/modelCapability`；规则支持按项目、敏感级别、调用服务、模型能力和供应商组匹配，并可用 `LOWEST_COST` 在组内按预估成本选择 provider | 高敏资源仍不能路由公开模型；路由结果写入调用日志、CSV 和 WP1 审计摘要 |
 | WP2-C2 | 预算策略产品化 | P1 | TODO | 平台/项目/调用服务预算，告警阈值，冻结策略 | 超预算前可告警，超预算后阻断或降级行为可配置 |
 | WP2-C3 | 敏感内容检测扩展 | P1 | DONE-CURRENT | 已扩展手机号、邮箱、银行卡疑似长号、企业内部 token/secret/private key 模式，并保留现有 key/token/password/Bearer/身份证号阻断；新增单测覆盖 | 命中后阻断并在日志/响应中保留稳定错误；自定义正则和阻断/脱敏策略配置仍作为后续增强 |
 | WP2-C4 | Prompt 评审与审批 | P2 | TODO | 高风险 Prompt 激活前审批，保留审批人与版本说明 | Prompt 变更可追溯，回滚到旧版本有明确操作 |

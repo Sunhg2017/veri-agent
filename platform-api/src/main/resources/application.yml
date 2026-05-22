@@ -79,6 +79,7 @@ veri-agent:
     provider-rate-limit-max-requests: ${WP2_PROVIDER_RATE_LIMIT_MAX_REQUESTS:0}
     provider-rate-limit-window-seconds: ${WP2_PROVIDER_RATE_LIMIT_WINDOW_SECONDS:60}
     provider-max-concurrent-requests: ${WP2_PROVIDER_MAX_CONCURRENT_REQUESTS:0}
+    routing-rules: []
   asset:
     service-token: ${WP3_SERVICE_TOKEN:local-asset-token}
   document-input:

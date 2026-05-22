@@ -148,11 +148,12 @@ curl -X POST http://127.0.0.1:8080/api/v1/model-access/invocations \
     "promptVariables": {"context": "登录流程"},
     "messages": [{"role": "user", "content": "生成 3 条冒烟测试点"}],
     "allowPublicModel": false,
-    "sensitivityLevel": "INTERNAL"
+    "sensitivityLevel": "INTERNAL",
+    "capability": "CHAT"
   }'
 ```
 
-调用日志支持分页、筛选、敏感级别审计和成本汇总：
+调用日志支持分页、筛选、敏感级别审计、路由结果审计和成本汇总；高级路由可通过 provider `routingGroup/capabilities` 与 `veri-agent.model-access.routing-rules` 按项目、调用服务、敏感级别、能力和供应商组选择 provider：
 
 ```bash
 curl 'http://127.0.0.1:8080/api/v1/model-access/invocations?projectId=project-001&index=0&size=20' \
@@ -352,7 +353,7 @@ bash scripts/wp2_quality_gate.sh
 - 审计日志可显示写操作名称和结果，并支持 `actor/action/resourceType/result/search/startTime/endTime` 组合筛选；`GET /api/v1/management/audit-logs/export` 支持按同一筛选条件导出 UTF-8 CSV，portal-web 审计页按 `audit:export` 提供下载入口；db profile smoke 已覆盖管理对象创建审计、账号锁定/解锁审计、失败登录审计、拒绝审计、资源作用域过滤、设置 CRUD 和敏感设置拒绝。
 - 无权限角色访问管理写接口会返回 `FORBIDDEN`。
 - `/v3/api-docs` 可生成 OpenAPI 文档，且契约测试保护认证、管理、账号生命周期和设置 CRUD 关键路径。
-- WP2 `db` profile 默认种子可直接完成 local echo 调用、调用日志查询、成本汇总、成本报表、成本告警、供应商就绪检查缓存和 CSV 导出 smoke；WP2 聚合门禁可串联模型接入测试、通用模型质量评测、数据库 validation，并按需执行 HTTP smoke / 模块策略 smoke。
+- WP2 `db` profile 默认种子可直接完成 local echo 调用、调用日志查询、路由规则/组/能力审计、成本汇总、成本报表、成本告警、供应商就绪检查缓存和 CSV 导出 smoke；WP2 聚合门禁可串联模型接入测试、通用模型质量评测、数据库 validation，并按需执行 HTTP smoke / 模块策略 smoke。
 - WP2 通用模型评测集当前覆盖 `case-design`、`defect-triage`、`requirement-summary` 三类任务，可通过 `WP2_MODEL_EVAL_TASK=case-design bash scripts/wp2_model_quality_eval.sh` 跑单任务，用于 Prompt/provider 变更前后的质量回归。
 - WP3 已补齐资产库前后端闭环：列表分页、需求/API/页面/业务流/用例/追踪链接基础 API、用户态 `asset:*` RBAC、OpenAPI 契约测试、前端资产 API normalizer、资产库导航、需求/API/页面/业务流/测试用例工作台和只读追踪矩阵工作台。
 - WP4 smoke 覆盖 Markdown 导入、候选 `status/sourceRef/keyword` 筛选、versioned 批量确认、dryRun、发布到 WP3、WP3 `source/sourceRef/sourceUrl/acceptanceCriteria` 追踪、发布记录、`CUSTOM_API` source health、`X-VA-*` 签名 webhook、幂等 replay、事件日志、无效签名拒绝和当前导入/候选/发布/webhook metrics。

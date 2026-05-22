@@ -45,6 +45,8 @@ curl -X POST http://127.0.0.1:8080/api/v1/model-access/providers \
   -d '{
     "name": "openai-compatible-primary",
     "providerType": "OPENAI_COMPATIBLE",
+    "routingGroup": "public-low-cost",
+    "capabilities": "CHAT,TEXT,JSON",
     "baseUrl": "https://model-gateway.example.com",
     "apiKeyRef": "env:MODEL_API_KEY_PRIMARY",
     "priority": 20,
@@ -53,6 +55,8 @@ curl -X POST http://127.0.0.1:8080/api/v1/model-access/providers \
     "outputCostPer1kTokens": 0.002
   }'
 ```
+
+`routingGroup` 和 `capabilities` 供 WP2-C1 高级路由规则匹配使用。未显式配置时默认进入 `default` 组并支持 `CHAT,TEXT,JSON,REQUIREMENT_PARSE`；生产接入外部 provider 时建议按模型用途和数据边界拆分路由组，例如 `public-low-cost`、`private-reasoning`、`document-parse`。
 
 3. 对 provider 执行就绪检查：
 

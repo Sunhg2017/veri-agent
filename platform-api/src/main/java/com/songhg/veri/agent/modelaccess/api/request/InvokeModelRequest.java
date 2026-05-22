@@ -18,6 +18,7 @@ public record InvokeModelRequest(
         UUID providerId,
         String modelName,
         Boolean allowPublicModel,
-        String sensitivityLevel
+        String sensitivityLevel,
+        String capability
 ) {
 }

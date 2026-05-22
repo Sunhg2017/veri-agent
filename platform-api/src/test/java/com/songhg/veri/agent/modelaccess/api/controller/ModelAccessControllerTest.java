@@ -33,7 +33,14 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "veri-agent.model-access.default-model=test-local-model",
         "veri-agent.model-access.provider-circuit-failure-threshold=1",
         "veri-agent.model-access.provider-rate-limit-max-requests=0",
-        "veri-agent.model-access.provider-max-concurrent-requests=2"
+        "veri-agent.model-access.provider-max-concurrent-requests=2",
+        "veri-agent.model-access.routing-rules[0].name=wp4-private-low-cost",
+        "veri-agent.model-access.routing-rules[0].project-ids[0]=project-routing",
+        "veri-agent.model-access.routing-rules[0].sensitivity-levels[0]=INTERNAL",
+        "veri-agent.model-access.routing-rules[0].caller-services[0]=wp4-document-input",
+        "veri-agent.model-access.routing-rules[0].capabilities[0]=REQUIREMENT_PARSE",
+        "veri-agent.model-access.routing-rules[0].provider-groups[0]=private",
+        "veri-agent.model-access.routing-rules[0].cost-preference=LOWEST_COST"
 })
 @AutoConfigureMockMvc
 @DirtiesContext(classMode = DirtiesContext.ClassMode.BEFORE_EACH_TEST_METHOD)
@@ -620,6 +627,72 @@ class ModelAccessControllerTest {
                 .andExpect(jsonPath("$.code").value("BAD_REQUEST"));
     }
 
+    @Test
+    void routesByProjectCallerSensitivityCapabilityGroupAndLowestCost() throws Exception {
+        mockMvc.perform(post("/api/v1/model-access/providers")
+                        .headers(authHeaders())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "name": "private-expensive",
+                                  "providerType": "LOCAL_ECHO",
+                                  "routingGroup": "private",
+                                  "capabilities": "CHAT,REQUIREMENT_PARSE",
+                                  "priority": 1,
+                                  "timeoutMs": 1000,
+                                  "inputCostPer1kTokens": 0.05,
+                                  "outputCostPer1kTokens": 0.20
+                                }
+                                """))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.routingGroup").value("private"))
+                .andExpect(jsonPath("$.data.capabilities").value("CHAT,REQUIREMENT_PARSE"));
+
+        mockMvc.perform(post("/api/v1/model-access/providers")
+                        .headers(authHeaders())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "name": "private-cheap",
+                                  "providerType": "LOCAL_ECHO",
+                                  "routingGroup": "private",
+                                  "capabilities": "CHAT,REQUIREMENT_PARSE",
+                                  "priority": 20,
+                                  "timeoutMs": 1000,
+                                  "inputCostPer1kTokens": 0.001,
+                                  "outputCostPer1kTokens": 0.002
+                                }
+                                """))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(post("/api/v1/model-access/invocations")
+                        .headers(authHeaders("wp4-document-input"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "projectId": "project-routing",
+                                  "messages": [
+                                    {"role": "user", "content": "抽取需求候选"}
+                                  ],
+                                  "allowPublicModel": false,
+                                  "sensitivityLevel": "INTERNAL",
+                                  "capability": "REQUIREMENT_PARSE"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.providerName").value("private-cheap"));
+
+        mockMvc.perform(get("/api/v1/model-access/invocations")
+                        .headers(authHeaders())
+                        .param("projectId", "project-routing"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(1))
+                .andExpect(jsonPath("$.data.items[0].providerName").value("private-cheap"))
+                .andExpect(jsonPath("$.data.items[0].routingRuleName").value("wp4-private-low-cost"))
+                .andExpect(jsonPath("$.data.items[0].routingGroup").value("private"))
+                .andExpect(jsonPath("$.data.items[0].modelCapability").value("REQUIREMENT_PARSE"));
+    }
+
     private String createPromptVersion(String changeNote, boolean activate) throws Exception {
         MvcResult result = mockMvc.perform(post("/api/v1/model-access/prompts")
                         .headers(authHeaders())
@@ -639,9 +712,13 @@ class ModelAccessControllerTest {
     }
 
     private org.springframework.http.HttpHeaders authHeaders() {
+        return authHeaders("wp5-test-design");
+    }
+
+    private org.springframework.http.HttpHeaders authHeaders(String callerService) {
         org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
         headers.setBearerAuth("test-model-token");
-        headers.set("X-Caller-Service", "wp5-test-design");
+        headers.set("X-Caller-Service", callerService);
         headers.set("X-Delegated-User-Id", "user-001");
         return headers;
     }

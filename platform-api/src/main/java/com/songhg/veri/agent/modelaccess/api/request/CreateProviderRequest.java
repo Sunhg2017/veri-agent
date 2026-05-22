@@ -10,6 +10,8 @@ import java.math.BigDecimal;
 public record CreateProviderRequest(
         @NotBlank String name,
         @NotNull ProviderType providerType,
+        String routingGroup,
+        String capabilities,
         String baseUrl,
         String apiKeyRef,
         @Min(0) Integer priority,

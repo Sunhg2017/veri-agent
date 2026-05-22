@@ -6,6 +6,8 @@ import java.math.BigDecimal;
 
 public record UpdateProviderRequest(
         String name,
+        String routingGroup,
+        String capabilities,
         String baseUrl,
         String apiKeyRef,
         @Min(0) Integer priority,

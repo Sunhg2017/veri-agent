@@ -5,22 +5,23 @@
 | 工作包 | WP2 模型接入层 |
 | 依赖 | WP1 平台基础底座 API 契约 |
 | 服务模块 | `platform-api` 内聚合模块 `/api/v1/model-access` |
-| 当前状态 | P0 可交付实现已落地 |
+| 当前状态 | P0 可交付实现已落地；WP2-C1 高级路由策略已补齐 |
 
 ## 1. 交付范围
 
 WP2 P0 交付以下能力：
 
-1. 模型供应商配置中心：支持供应商名称、类型、`baseUrl`、密钥引用、启停状态、优先级、超时和 token 成本配置，支持创建、更新和就绪检查。
+1. 模型供应商配置中心：支持供应商名称、类型、`routingGroup`、`capabilities`、`baseUrl`、密钥引用、启停状态、优先级、超时和 token 成本配置，支持创建、更新和就绪检查。
 2. Prompt 版本管理：支持按 `promptKey` 创建版本，每个 key 保证一个 ACTIVE 版本。
 3. 统一模型调用入口：渲染 ACTIVE Prompt，组合调用消息，按策略选择供应商。
 4. 敏感级别路由策略：支持 `PUBLIC`、`INTERNAL`、`CONFIDENTIAL`、`RESTRICTED`，默认 `INTERNAL`；高敏感请求禁止公开模型路由和显式外部供应商。
-5. 脱敏与安全校验：调用前阻断明显密钥、Bearer token、身份证号；日志仅保存 masked preview 和 prompt SHA-256 digest。
-6. 预算护栏：支持平台/项目日预算配置，供应商调用前按当前日已发生成本和预估成本阻断超额请求。
-7. 失败降级：供应商调用失败后按优先级尝试下一个可用供应商，并记录 `fallbackUsed`。
-8. 成本记录：按输入/输出 token 和供应商单价计算 `totalCost`。
-9. 调用审计日志：记录 WP1 资源逻辑归属、敏感级别、调用服务、委托用户、模型、供应商、状态、延迟、成本和错误摘要。
-10. 持久化模式：`local` profile 使用内存仓储，`db` profile 使用 PostgreSQL 仓储并自动执行 WP2 Flyway 迁移。
+5. 高级路由策略：支持按项目、敏感级别、调用服务、模型能力和供应商组匹配路由规则；规则可选择 `LOWEST_COST` 在候选组内按预估成本优先。
+6. 脱敏与安全校验：调用前阻断明显密钥、Bearer token、身份证号；日志仅保存 masked preview 和 prompt SHA-256 digest。
+7. 预算护栏：支持平台/项目日预算配置，供应商调用前按当前日已发生成本和预估成本阻断超额请求。
+8. 失败降级：供应商调用失败后按优先级尝试下一个可用供应商，并记录 `fallbackUsed`。
+9. 成本记录：按输入/输出 token 和供应商单价计算 `totalCost`。
+10. 调用审计日志：记录 WP1 资源逻辑归属、敏感级别、调用服务、委托用户、模型、供应商、路由规则、路由组、模型能力、状态、延迟、成本和错误摘要。
+11. 持久化模式：`local` profile 使用内存仓储，`db` profile 使用 PostgreSQL 仓储并自动执行 WP2 Flyway 迁移。
 
 ## 2. API 边界
 
@@ -30,8 +31,8 @@ WP2 P0 交付以下能力：
 |---|---|
 | `GET /health` | WP2 健康与配置摘要。 |
 | `GET /providers` | 查询模型供应商。 |
-| `POST /providers` | 创建模型供应商。 |
-| `PUT /providers/{id}` | 更新模型供应商名称、地址、密钥引用、优先级、超时和成本配置。 |
+| `POST /providers` | 创建模型供应商，支持 `routingGroup` 和 `capabilities`。 |
+| `PUT /providers/{id}` | 更新模型供应商名称、路由组、能力、地址、密钥引用、优先级、超时和成本配置。 |
 | `POST /providers/{id}/enable` | 启用供应商。 |
 | `POST /providers/{id}/disable` | 停用供应商。 |
 | `POST /providers/{id}/check` | 对指定供应商执行短探测，返回 `UP`/`DOWN`、延迟和脱敏错误摘要，不写调用日志。 |
@@ -59,6 +60,8 @@ WP2 保存 `projectId`、`applicationId`、`environmentId` 作为逻辑归属，
 
 `POST /invocations` 可携带 `sensitivityLevel`。WP2 会在请求级别和 WP1 上下文之间取更严格的敏感级别；WP1 `STRICT` 会映射为 WP2 `RESTRICTED`。`CONFIDENTIAL` 和 `RESTRICTED` 会在供应商调用前执行模型策略校验：`allowPublicModel=true` 或显式指定非 `LOCAL_*` 供应商都会返回 `MODEL_POLICY_VIOLATION`，并写入 `BLOCKED` 调用日志。若 WP1 `allowPublicModel=false`，请求也不能开启公开模型路由或显式指定外部供应商。分页查询、CSV 导出和 WP1 审计摘要都会保留归一化后的敏感级别，用于后续合规追溯。
 
+`POST /invocations` 还可携带 `capability`，默认 `CHAT`。WP2 会先执行敏感级别和公开模型策略，再按 `veri-agent.model-access.routing-rules` 顺序匹配项目、敏感级别、调用服务、能力和供应商组；未命中规则时回到 `default-priority`。命中规则后仅在匹配的 `routingGroup` 内选择支持该能力的 provider，`costPreference=LOWEST_COST` 时按预估输入 token 和 `WP2_BUDGET_ESTIMATED_OUTPUT_TOKENS` 计算成本并优先选择低成本 provider。调用日志、CSV 导出和 WP1 审计摘要记录 `routingRuleName`、`routingGroup` 和 `modelCapability`，用于追溯路由结果。
+
 敏感内容阻断会在供应商调用前检查 prompt 和消息内容，当前覆盖 key/token/password/Bearer、身份证号、手机号、邮箱、银行卡疑似长号以及 `internal_token`、`corp_secret`、`private_key` 等企业内部密钥模式。命中后返回稳定错误并写入 `BLOCKED` 调用日志，避免敏感明文进入外部 provider。
 
 预算护栏默认关闭。设置 `WP2_DAILY_PLATFORM_COST_LIMIT` 或 `WP2_DAILY_PROJECT_COST_LIMIT` 为大于 0 的金额后，WP2 使用 `WP2_BUDGET_ZONE_ID` 对齐日窗口，并用 `WP2_BUDGET_ESTIMATED_OUTPUT_TOKENS` 作为调用前输出 token 预估保留量。超额请求返回 `BUDGET_EXCEEDED`，并记录 `BLOCKED` 调用日志，实际成本为 0。
@@ -74,6 +77,7 @@ Provider 级生产保护默认关闭。设置 `WP2_PROVIDER_RATE_LIMIT_MAX_REQUE
 - `db/migration/wp1/V20260518_011__wp2_invocation_sensitivity_audit.sql`
 - `db/migration/wp1/V20260518_012__wp2_single_platform_scope.sql`
 - `db/migration/wp1/V20260518_013__wp2_soft_delete_audit_columns.sql`
+- `db/migration/wp1/V20260522_025__wp2_advanced_routing_metadata.sql`
 
 默认种子：`V20260518_010__wp2_default_seed_data.sql`，为 `db` profile 初始化 `local-echo-primary` 和 `test-case-design` ACTIVE Prompt，便于持久化模式直接 smoke。
 
@@ -117,6 +121,7 @@ Provider 级生产保护默认关闭。设置 `WP2_PROVIDER_RATE_LIMIT_MAX_REQUE
 21. 成本能力支持平台/项目日预算告警和 31 天内日报聚合。
 22. 供应商生产硬化支持 provider 级窗口限流、并发控制、熔断状态查询和手动 reset；限流/并发阻断会返回 `BUDGET_EXCEEDED` 并写入 `BLOCKED` 调用日志。
 23. 通用模型评测集框架支持按 `taskType` 评测 Prompt/provider 输出，当前语料覆盖 `case-design`、`defect-triage`、`requirement-summary`，并校验场景通过率、必需术语召回和禁用术语清洁率。
+24. 高级路由策略覆盖按项目、调用服务、敏感级别、能力和供应商组命中规则，并验证 `LOWEST_COST` 可在组内选择低成本 provider，调用日志保留路由规则、路由组和模型能力。
 
 运行命令：
 
@@ -155,13 +160,14 @@ bash scripts/wp_all_integration_test.sh
 
 当前质量门禁以 `platform-api` 测试、WP2 模型质量评测、portal-web 模型接入相关测试与构建、数据库 validation 和可选 HTTP smoke 为准。历史独立 `model-access` 模块已删除，不再作为交付或测试入口。
 
-## 6. 1～4 项收敛结果
+## 6. 近期收敛结果
 
 1. 已增加 OpenAI-compatible 真实协议形态合同测试、供应商重试策略和短时熔断开关。
 2. 已增加成本告警和成本日报聚合接口。
 3. 已对供应商就绪检查增加短 TTL 缓存，降低外部模型探活成本。
 4. 已新增 WP2 聚合质量门禁 `scripts/wp2_quality_gate.sh`，覆盖 `platform-api` 测试、portal-web 模型接入相关测试与构建、WP2 DB validation，并将 HTTP smoke / 模块策略 smoke 纳入可选发布前门禁。
 5. 已新增 `scripts/wp2_model_quality_eval.sh` 和通用 `ModelEvaluationRunner`，Prompt 或 provider 变更可按任务类型运行离线评测，后续智能任务可复用同一语料结构扩展指标。
+6. 已新增 WP2-C1 高级路由策略，provider 可配置路由组和能力，调用可声明能力，路由规则可按项目/敏感级别/调用服务/能力/供应商组匹配，并将路由结果写入调用日志和 WP1 审计摘要。
 
 ## 7. Provider 生产接入与密钥轮换
 

@@ -27,6 +27,8 @@ export interface ModelProviderConfig {
   id: string;
   name: string;
   providerType: ModelProviderType | string;
+  routingGroup: string;
+  capabilities: string;
   baseUrl?: string;
   apiKeyRef?: string;
   status: ModelProviderStatus | string;
@@ -41,6 +43,8 @@ export interface ModelProviderConfig {
 export interface ModelProviderPayload {
   name: string;
   providerType?: string;
+  routingGroup?: string;
+  capabilities?: string;
   baseUrl?: string;
   apiKeyRef?: string;
   priority?: number;
@@ -108,6 +112,9 @@ export interface InvocationRecord {
   providerId?: string;
   providerName?: string;
   modelName?: string;
+  routingRuleName?: string;
+  routingGroup?: string;
+  modelCapability?: string;
   status: InvocationStatus | string;
   fallbackUsed: boolean;
   promptDigest?: string;
@@ -213,6 +220,8 @@ export function normalizeModelProvider(raw: unknown): ModelProviderConfig {
     id: stringValue(value.id ?? value.providerId ?? value.provider_id),
     name: stringValue(value.name ?? value.providerName ?? value.provider_name),
     providerType: enumValue(value.providerType ?? value.provider_type, MODEL_PROVIDER_TYPES, 'LOCAL_ECHO'),
+    routingGroup: stringValue(value.routingGroup ?? value.routing_group, 'default'),
+    capabilities: stringValue(value.capabilities, 'CHAT,TEXT,JSON,REQUIREMENT_PARSE'),
     baseUrl: optionalString(value.baseUrl ?? value.base_url),
     apiKeyRef: optionalString(value.apiKeyRef ?? value.api_key_ref),
     status: enumValue(value.status, MODEL_PROVIDER_STATUSES, 'DISABLED'),
@@ -287,6 +296,9 @@ export function normalizeInvocationRecord(raw: unknown): InvocationRecord {
     providerId: optionalString(value.providerId ?? value.provider_id),
     providerName: optionalString(value.providerName ?? value.provider_name),
     modelName: optionalString(value.modelName ?? value.model_name),
+    routingRuleName: optionalString(value.routingRuleName ?? value.routing_rule_name),
+    routingGroup: optionalString(value.routingGroup ?? value.routing_group),
+    modelCapability: optionalString(value.modelCapability ?? value.model_capability),
     status: enumValue(value.status, INVOCATION_STATUSES, 'FAILED'),
     fallbackUsed: booleanValue(value.fallbackUsed ?? value.fallback_used),
     promptDigest: optionalString(value.promptDigest ?? value.prompt_digest),

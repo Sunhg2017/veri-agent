@@ -142,6 +142,8 @@ class ProviderResilienceManagerTest {
                 UUID.fromString("00000000-0000-0000-0000-000000000999"),
                 "test-provider",
                 ProviderType.LOCAL_ECHO,
+                "default",
+                "CHAT,TEXT,JSON",
                 null,
                 "local://echo",
                 ProviderStatus.ENABLED,
@@ -176,7 +178,8 @@ class ProviderResilienceManagerTest {
                 new BigDecimal("0.8"),
                 0,
                 60,
-                0
+                0,
+                java.util.List.of()
         );
     }
 
@@ -205,7 +208,8 @@ class ProviderResilienceManagerTest {
                 new BigDecimal("0.8"),
                 rateLimitMaxRequests,
                 rateLimitWindowSeconds,
-                maxConcurrentRequests
+                maxConcurrentRequests,
+                java.util.List.of()
         );
     }
 

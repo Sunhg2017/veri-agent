@@ -47,6 +47,10 @@ import org.springframework.util.StringUtils;
 @Service
 public class ModelAccessService {
 
+    private static final String DEFAULT_ROUTING_GROUP = "default";
+    private static final String DEFAULT_MODEL_CAPABILITY = "CHAT";
+    private static final String DEFAULT_PROVIDER_CAPABILITIES = "CHAT,TEXT,JSON,REQUIREMENT_PARSE";
+
     private final ModelAccessRepository repository;
     private final List<ModelProviderClient> providerClients;
     private final PlatformContextClient platformContextClient;
@@ -86,6 +90,8 @@ public class ModelAccessService {
                 UUID.randomUUID(),
                 request.name().trim(),
                 request.providerType(),
+                normalizeRoutingGroup(request.routingGroup()),
+                normalizeCapabilities(request.capabilities()),
                 trimToNull(request.baseUrl()),
                 trimToNull(request.apiKeyRef()),
                 ProviderStatus.ENABLED,
@@ -108,6 +114,8 @@ public class ModelAccessService {
                 existing.id(),
                 StringUtils.hasText(request.name()) ? request.name().trim() : existing.name(),
                 existing.providerType(),
+                request.routingGroup() == null ? existing.routingGroup() : normalizeRoutingGroup(request.routingGroup()),
+                request.capabilities() == null ? existing.capabilities() : normalizeCapabilities(request.capabilities()),
                 request.baseUrl() == null ? existing.baseUrl() : trimToNull(request.baseUrl()),
                 request.apiKeyRef() == null ? existing.apiKeyRef() : trimToNull(request.apiKeyRef()),
                 existing.status(),
@@ -130,6 +138,8 @@ public class ModelAccessService {
                 provider.id(),
                 provider.name(),
                 provider.providerType(),
+                provider.routingGroup(),
+                provider.capabilities(),
                 provider.baseUrl(),
                 provider.apiKeyRef(),
                 status,
@@ -277,6 +287,7 @@ public class ModelAccessService {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "Prompt 超出 WP2 最大长度限制");
         }
         String requestSensitivityLevel = sensitivityLevel(request.sensitivityLevel());
+        String modelCapability = modelCapability(request);
         try {
             contentGuard.assertSafe(fullPrompt);
         } catch (BusinessException exception) {
@@ -296,6 +307,8 @@ public class ModelAccessService {
                         BigDecimal.ZERO,
                         exception.getErrorCode().name(),
                         exception.getMessage(),
+                        null,
+                        modelCapability,
                         requestSensitivityLevel,
                         startedAt
                 );
@@ -307,11 +320,28 @@ public class ModelAccessService {
                 requestSensitivityLevel,
                 platformPolicy.sensitivityLevel()
         );
-        enforceModelPolicy(request, principal, prompt, fullPrompt, platformPolicy, effectiveSensitivityLevel, startedAt);
+        enforceModelPolicy(
+                request,
+                principal,
+                prompt,
+                fullPrompt,
+                platformPolicy,
+                effectiveSensitivityLevel,
+                modelCapability,
+                startedAt
+        );
 
         Boolean effectiveAllowPublicModel = Boolean.TRUE.equals(request.allowPublicModel())
                 && platformPolicy.allowPublicModel();
-        List<ModelProviderConfig> candidates = candidateProviders(request.providerId(), effectiveAllowPublicModel);
+        RoutingDecision routingDecision = candidateProviders(
+                request,
+                principal,
+                effectiveAllowPublicModel,
+                effectiveSensitivityLevel,
+                modelCapability,
+                fullPrompt
+        );
+        List<ModelProviderConfig> candidates = routingDecision.providers();
         RuntimeException lastFailure = null;
         boolean fallbackUsed = false;
         for (int index = 0; index < candidates.size(); index++) {
@@ -339,6 +369,8 @@ public class ModelAccessService {
                         BigDecimal.ZERO,
                         ErrorCode.BUDGET_EXCEEDED.name(),
                         budgetViolation.message(),
+                        routingDecision.ruleName(),
+                        modelCapability,
                         effectiveSensitivityLevel,
                         startedAt
                 );
@@ -367,6 +399,8 @@ public class ModelAccessService {
                         totalCost,
                         null,
                         null,
+                        routingDecision.ruleName(),
+                        modelCapability,
                         effectiveSensitivityLevel,
                         startedAt
                 );
@@ -399,6 +433,8 @@ public class ModelAccessService {
                             BigDecimal.ZERO,
                             ErrorCode.BUDGET_EXCEEDED.name(),
                             businessException.getMessage(),
+                            routingDecision.ruleName(),
+                            modelCapability,
                             effectiveSensitivityLevel,
                             startedAt
                     );
@@ -425,6 +461,8 @@ public class ModelAccessService {
                 BigDecimal.ZERO,
                 ErrorCode.MODEL_PROVIDER_UNAVAILABLE.name(),
                 lastFailure == null ? "无可用模型供应商" : lastFailure.getMessage(),
+                routingDecision.ruleName(),
+                modelCapability,
                 effectiveSensitivityLevel,
                 startedAt
         );
@@ -529,7 +567,7 @@ public class ModelAccessService {
         );
         StringBuilder csv = new StringBuilder();
         csv.append("invocationId,createdAt,projectId,applicationId,environmentId,sensitivityLevel,status,")
-                .append("providerId,providerName,modelName,promptKey,promptVersion,fallbackUsed,")
+                .append("providerId,providerName,modelName,routingRuleName,routingGroup,modelCapability,promptKey,promptVersion,fallbackUsed,")
                 .append("promptDigest,inputTokens,outputTokens,totalCost,latencyMs,actorService,")
                 .append("delegatedUserId,errorCode,errorMessage,requestPreview,responsePreview\n");
         repository.invocations(exportQuery).forEach(record -> appendCsvRecord(csv, record));
@@ -576,18 +614,108 @@ public class ModelAccessService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "未找到可用的 Prompt 活跃版本"));
     }
 
-    private List<ModelProviderConfig> candidateProviders(UUID providerId, Boolean allowPublicModel) {
-        List<ModelProviderConfig> candidates = repository.providers()
+    private RoutingDecision candidateProviders(
+            InvokeModelRequest request,
+            ServicePrincipal principal,
+            Boolean allowPublicModel,
+            String sensitivityLevel,
+            String capability,
+            String fullPrompt
+    ) {
+        List<ModelProviderConfig> baseCandidates = repository.providers()
                 .stream()
                 .filter(ModelProviderConfig::enabled)
-                .filter(provider -> providerId == null || provider.id().equals(providerId))
+                .filter(provider -> request.providerId() == null || provider.id().equals(request.providerId()))
                 .filter(provider -> Boolean.TRUE.equals(allowPublicModel) || localProvider(provider))
-                .sorted(Comparator.comparingInt(ModelProviderConfig::priority))
+                .filter(provider -> providerSupportsCapability(provider, capability))
+                .toList();
+
+        ModelAccessProperties.RoutingRule rule = request.providerId() == null
+                ? matchingRoutingRule(request, principal, sensitivityLevel, capability)
+                : null;
+        List<ModelProviderConfig> candidates = applyRoutingRule(baseCandidates, rule)
+                .stream()
+                .sorted(providerComparator(rule, fullPrompt))
                 .toList();
         if (candidates.isEmpty()) {
             throw new BusinessException(ErrorCode.MODEL_PROVIDER_UNAVAILABLE, "没有符合策略的可用模型供应商");
         }
-        return candidates;
+        String ruleName = request.providerId() != null
+                ? "explicit-provider"
+                : routingRuleName(rule);
+        return new RoutingDecision(candidates, ruleName);
+    }
+
+    private ModelAccessProperties.RoutingRule matchingRoutingRule(
+            InvokeModelRequest request,
+            ServicePrincipal principal,
+            String sensitivityLevel,
+            String capability
+    ) {
+        return properties.safeRoutingRules()
+                .stream()
+                .filter(rule -> routeFieldMatches(request.projectId(), rule.projectIds(), false))
+                .filter(rule -> routeFieldMatches(sensitivityLevel, rule.sensitivityLevels(), true))
+                .filter(rule -> routeFieldMatches(principal.callerService(), rule.callerServices(), false))
+                .filter(rule -> routeFieldMatches(capability, rule.capabilities(), true))
+                .findFirst()
+                .orElse(null);
+    }
+
+    private List<ModelProviderConfig> applyRoutingRule(
+            List<ModelProviderConfig> candidates,
+            ModelAccessProperties.RoutingRule rule
+    ) {
+        if (rule == null || rule.providerGroups() == null || rule.providerGroups().isEmpty()) {
+            return candidates;
+        }
+        return candidates.stream()
+                .filter(provider -> routeFieldMatches(provider.routingGroup(), rule.providerGroups(), false))
+                .toList();
+    }
+
+    private Comparator<ModelProviderConfig> providerComparator(
+            ModelAccessProperties.RoutingRule rule,
+            String fullPrompt
+    ) {
+        Comparator<ModelProviderConfig> priorityComparator = Comparator
+                .comparingInt(ModelProviderConfig::priority)
+                .thenComparing(ModelProviderConfig::createdAt, Comparator.reverseOrder())
+                .thenComparing(ModelProviderConfig::name);
+        if (rule != null && "LOWEST_COST".equals(normalizeRouteToken(rule.costPreference()))) {
+            return Comparator
+                    .comparing((ModelProviderConfig provider) -> estimatedCost(provider, fullPrompt))
+                    .thenComparing(priorityComparator);
+        }
+        return priorityComparator;
+    }
+
+    private String routingRuleName(ModelAccessProperties.RoutingRule rule) {
+        if (rule == null || !StringUtils.hasText(rule.name())) {
+            return "default-priority";
+        }
+        return normalizeRoutingText(rule.name(), "routing rule", 128);
+    }
+
+    private boolean routeFieldMatches(String value, List<String> allowedValues, boolean normalizeToken) {
+        if (allowedValues == null || allowedValues.isEmpty()) {
+            return true;
+        }
+        String normalizedValue = normalizeToken ? normalizeRouteToken(value) : value == null ? "" : value.trim();
+        return allowedValues.stream()
+                .filter(StringUtils::hasText)
+                .map(item -> normalizeToken ? normalizeRouteToken(item) : item.trim())
+                .anyMatch(item -> "*".equals(item) || item.equalsIgnoreCase(normalizedValue));
+    }
+
+    private boolean providerSupportsCapability(ModelProviderConfig provider, String capability) {
+        List<String> capabilities = routeTokens(provider.capabilities());
+        return capabilities.contains("*") || capabilities.contains(capability);
+    }
+
+    private String modelCapability(InvokeModelRequest request) {
+        String capability = normalizeRouteToken(request.capability());
+        return StringUtils.hasText(capability) ? capability : DEFAULT_MODEL_CAPABILITY;
     }
 
     private ModelProviderClient clientFor(ModelProviderConfig provider) {
@@ -619,6 +747,7 @@ public class ModelAccessService {
             String fullPrompt,
             PlatformInvocationPolicy platformPolicy,
             String sensitivityLevel,
+            String modelCapability,
             Instant startedAt
     ) {
         if (!platformPolicy.allowPublicModel() && Boolean.TRUE.equals(request.allowPublicModel())) {
@@ -630,6 +759,7 @@ public class ModelAccessService {
                     fullPrompt,
                     sensitivityLevel,
                     "WP1 平台策略不允许该资源开启公开模型路由",
+                    modelCapability,
                     startedAt
             );
         }
@@ -642,6 +772,7 @@ public class ModelAccessService {
                     fullPrompt,
                     sensitivityLevel,
                     "高敏感级别 " + sensitivityLevel + " 不允许开启公开模型路由",
+                    modelCapability,
                     startedAt
             );
         }
@@ -657,6 +788,7 @@ public class ModelAccessService {
                             fullPrompt,
                             sensitivityLevel,
                             externalProviderBlockedMessage(sensitivityLevel, platformPolicy),
+                            modelCapability,
                             startedAt
                     ));
         }
@@ -680,6 +812,7 @@ public class ModelAccessService {
             String fullPrompt,
             String sensitivityLevel,
             String message,
+            String modelCapability,
             Instant startedAt
     ) {
         saveRecord(
@@ -697,6 +830,8 @@ public class ModelAccessService {
                 BigDecimal.ZERO,
                 ErrorCode.MODEL_POLICY_VIOLATION.name(),
                 message,
+                null,
+                modelCapability,
                 sensitivityLevel,
                 startedAt
         );
@@ -739,6 +874,63 @@ public class ModelAccessService {
     private boolean localProvider(ModelProviderConfig provider) {
         return provider.providerType().name().startsWith("LOCAL")
                 || provider.providerType() == ProviderType.MOCK_FAILURE;
+    }
+
+    private String normalizeRoutingGroup(String routingGroup) {
+        return normalizeRoutingText(
+                StringUtils.hasText(routingGroup) ? routingGroup : DEFAULT_ROUTING_GROUP,
+                "routingGroup",
+                64
+        );
+    }
+
+    private String normalizeCapabilities(String capabilities) {
+        List<String> tokens = routeTokens(StringUtils.hasText(capabilities) ? capabilities : DEFAULT_PROVIDER_CAPABILITIES);
+        if (tokens.isEmpty()) {
+            return DEFAULT_PROVIDER_CAPABILITIES;
+        }
+        return String.join(",", tokens);
+    }
+
+    private String normalizeRoutingText(String value, String fieldName, int maxLength) {
+        String normalized = trimToNull(value);
+        if (normalized == null) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, fieldName + " 不能为空");
+        }
+        if (normalized.length() > maxLength) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, fieldName + " 长度不能超过 " + maxLength);
+        }
+        if (!normalized.matches("[A-Za-z0-9_.:-]+")) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, fieldName + " 仅支持字母、数字、点、下划线、冒号和短横线");
+        }
+        return normalized;
+    }
+
+    private List<String> routeTokens(String value) {
+        String normalized = trimToNull(value);
+        if (normalized == null) {
+            return List.of();
+        }
+        List<String> tokens = new ArrayList<>();
+        for (String item : normalized.split("[,;\\s]+")) {
+            String token = normalizeRouteToken(item);
+            if (StringUtils.hasText(token) && !tokens.contains(token)) {
+                tokens.add(token);
+            }
+        }
+        return tokens;
+    }
+
+    private String normalizeRouteToken(String value) {
+        if (!StringUtils.hasText(value)) {
+            return "";
+        }
+        if ("*".equals(value.trim())) {
+            return "*";
+        }
+        return value.trim()
+                .replace('-', '_')
+                .toUpperCase(Locale.ROOT);
     }
 
     private void validateProviderConfig(ModelProviderConfig provider) {
@@ -799,6 +991,8 @@ public class ModelAccessService {
             BigDecimal totalCost,
             String errorCode,
             String errorMessage,
+            String routingRuleName,
+            String modelCapability,
             String sensitivityLevel,
             Instant startedAt
     ) {
@@ -813,6 +1007,9 @@ public class ModelAccessService {
                 provider == null ? null : provider.id(),
                 provider == null ? null : provider.name(),
                 StringUtils.hasText(request.modelName()) ? request.modelName().trim() : properties.defaultModel(),
+                routingRuleName,
+                provider == null ? null : provider.routingGroup(),
+                modelCapability,
                 status,
                 fallbackUsed,
                 promptDigest,
@@ -876,6 +1073,9 @@ public class ModelAccessService {
         appendCsvValue(csv, record.providerId());
         appendCsvValue(csv, record.providerName());
         appendCsvValue(csv, record.modelName());
+        appendCsvValue(csv, record.routingRuleName());
+        appendCsvValue(csv, record.routingGroup());
+        appendCsvValue(csv, record.modelCapability());
         appendCsvValue(csv, record.promptKey());
         appendCsvValue(csv, record.promptVersion());
         appendCsvValue(csv, record.fallbackUsed());
@@ -1120,6 +1320,9 @@ public class ModelAccessService {
     }
 
     private record BudgetWindow(Instant startTime, Instant endTime) {
+    }
+
+    private record RoutingDecision(List<ModelProviderConfig> providers, String ruleName) {
     }
 
     private record BudgetReportWindow(

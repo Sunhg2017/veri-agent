@@ -68,6 +68,8 @@ type TabKey = 'providers' | 'prompts' | 'logs';
 type ProviderDraft = {
   name: string;
   providerType: string;
+  routingGroup: string;
+  capabilities: string;
   baseUrl: string;
   apiKeyRef: string;
   priority: string;
@@ -111,6 +113,8 @@ type DiffRow = {
 const initialProviderDraft: ProviderDraft = {
   name: '',
   providerType: 'LOCAL_ECHO',
+  routingGroup: 'default',
+  capabilities: 'CHAT,TEXT,JSON,REQUIREMENT_PARSE',
   baseUrl: '',
   apiKeyRef: '',
   priority: '100',
@@ -427,6 +431,8 @@ export function ModelAccessConsole(props: { signedIn: boolean; currentUser: Curr
     setProviderDraft({
       name: provider.name,
       providerType: provider.providerType,
+      routingGroup: provider.routingGroup,
+      capabilities: provider.capabilities,
       baseUrl: provider.baseUrl ?? '',
       apiKeyRef: provider.apiKeyRef ?? '',
       priority: String(provider.priority),
@@ -643,6 +649,14 @@ function ProviderTab(props: {
             </select>
           </label>
           <label className="field">
+            <span>路由组</span>
+            <input value={props.draft.routingGroup} placeholder="default" disabled={!props.canManage} onChange={(event) => props.onChangeDraft('routingGroup', event.target.value)} />
+          </label>
+          <label className="field">
+            <span>能力</span>
+            <input value={props.draft.capabilities} placeholder="CHAT,TEXT,JSON" disabled={!props.canManage} onChange={(event) => props.onChangeDraft('capabilities', event.target.value)} />
+          </label>
+          <label className="field">
             <span>Base URL</span>
             <input value={props.draft.baseUrl} placeholder="https://api.example.com" disabled={!props.canManage} onChange={(event) => props.onChangeDraft('baseUrl', event.target.value)} />
           </label>
@@ -707,7 +721,7 @@ function ProviderTab(props: {
                   <td><StatusPill value={provider.status} /></td>
                   <td>
                     <span className="table-primary">P{provider.priority} / {provider.timeoutMs}ms</span>
-                    <span className="table-secondary">{provider.baseUrl ?? 'local'}</span>
+                    <span className="table-secondary">{provider.routingGroup} · {provider.capabilities}</span>
                   </td>
                   <td><span className="table-secondary">{provider.apiKeyRef ?? '-'}</span></td>
                   <td>
@@ -981,11 +995,11 @@ function LogsTab(props: {
                 <td><StatusPill value={item.status} /></td>
                 <td>
                   <span className="table-primary">{item.providerName ?? '-'}</span>
-                  <span className="table-secondary">{item.modelName ?? '-'}{item.fallbackUsed ? ' · fallback' : ''}</span>
+                  <span className="table-secondary">{item.modelName ?? '-'} · {item.routingGroup ?? '-'} · {item.modelCapability ?? 'CHAT'}{item.fallbackUsed ? ' · fallback' : ''}</span>
                 </td>
                 <td>
                   <span className="table-primary">{item.promptKey ?? '-'}</span>
-                  <span className="table-secondary">{item.promptVersion ? `v${item.promptVersion}` : '-'} · {item.sensitivityLevel ?? 'INTERNAL'}</span>
+                  <span className="table-secondary">{item.promptVersion ? `v${item.promptVersion}` : '-'} · {item.sensitivityLevel ?? 'INTERNAL'} · {item.routingRuleName ?? '-'}</span>
                 </td>
                 <td>
                   <span className="table-primary">{item.requestPreview ?? '-'}</span>
@@ -1108,6 +1122,9 @@ function validateProviderDraft(draft: ProviderDraft) {
   if (!MODEL_PROVIDER_TYPES.includes(draft.providerType as (typeof MODEL_PROVIDER_TYPES)[number])) {
     return '供应商类型无效';
   }
+  if (draft.routingGroup.trim() && !/^[A-Za-z0-9_.:-]+$/.test(draft.routingGroup.trim())) {
+    return '路由组仅支持字母、数字、点、下划线、冒号和短横线';
+  }
   if (numberOrUndefined(draft.priority) === undefined || Number(draft.priority) < 0) {
     return '优先级不能小于 0';
   }
@@ -1132,6 +1149,8 @@ function providerPayload(draft: ProviderDraft, includeType: boolean): ModelProvi
   return {
     name: draft.name.trim(),
     providerType: includeType ? draft.providerType : undefined,
+    routingGroup: draft.routingGroup.trim(),
+    capabilities: draft.capabilities.trim(),
     baseUrl: draft.baseUrl.trim(),
     apiKeyRef: draft.apiKeyRef.trim(),
     priority: numberOrUndefined(draft.priority),

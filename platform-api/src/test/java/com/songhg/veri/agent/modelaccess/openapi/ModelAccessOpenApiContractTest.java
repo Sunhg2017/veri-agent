@@ -83,6 +83,8 @@ class ModelAccessOpenApiContractTest {
         String openApi = result.getResponse().getContentAsString();
         MatcherAssert.assertThat(openApi, containsString("sensitivityLevel"));
         MatcherAssert.assertThat(openApi, containsString("actorService"));
+        MatcherAssert.assertThat(openApi, containsString("routingGroup"));
+        MatcherAssert.assertThat(openApi, containsString("modelCapability"));
         MatcherAssert.assertThat(openApi, containsString("/api/v1/model-access/invocations/export"));
         MatcherAssert.assertThat(openApi, containsString("/api/v1/model-access/cost/alerts"));
         MatcherAssert.assertThat(openApi, containsString("/api/v1/model-access/cost/report"));

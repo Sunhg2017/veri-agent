@@ -67,7 +67,8 @@ public class DocumentModelRequirementParser {
                     null,
                     null,
                     properties.modelParseAllowPublicModel(),
-                    modelParseSensitivityLevel()
+                    modelParseSensitivityLevel(),
+                    "REQUIREMENT_PARSE"
             ), new ServicePrincipal("wp4-document-input", delegatedUserId));
             InvokeModelResponse invokeResponse = response;
             List<ParsedRequirementDraft> drafts = parseModelResponse(invokeResponse)

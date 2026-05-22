@@ -25,10 +25,12 @@ from missing;
 with expected(table_name, column_name) as (
     values
         ('ma_model_provider','id'), ('ma_model_provider','provider_type'), ('ma_model_provider','api_key_ref'), ('ma_model_provider','priority'),
+        ('ma_model_provider','routing_group'), ('ma_model_provider','capabilities'),
         ('ma_model_provider','version'), ('ma_model_provider','created_by'), ('ma_model_provider','deleted_at'),
         ('ma_prompt_template','prompt_key'), ('ma_prompt_template','version'), ('ma_prompt_template','content'), ('ma_prompt_template','status'),
         ('ma_prompt_template','created_by'), ('ma_prompt_template','deleted_at'), ('ma_prompt_template','version'),
         ('ma_invocation_log','project_id'), ('ma_invocation_log','sensitivity_level'), ('ma_invocation_log','prompt_digest'), ('ma_invocation_log','request_preview'),
+        ('ma_invocation_log','routing_rule_name'), ('ma_invocation_log','routing_group'), ('ma_invocation_log','model_capability'),
         ('ma_invocation_log','input_tokens'), ('ma_invocation_log','output_tokens'), ('ma_invocation_log','total_cost'), ('ma_invocation_log','actor_service'),
         ('ma_invocation_log','created_by'), ('ma_invocation_log','version')
 ),
@@ -58,7 +60,9 @@ with expected(index_name) as (
         ('idx_ma_invocation_status_time'),
         ('idx_ma_invocation_sensitivity_time'),
         ('idx_ma_model_provider_deleted'),
-        ('idx_ma_prompt_template_deleted')
+        ('idx_ma_prompt_template_deleted'),
+        ('idx_ma_model_provider_routing_group'),
+        ('idx_ma_invocation_routing_time')
 ),
 missing as (
     select e.index_name as item
@@ -118,6 +122,8 @@ where id = '00000000-0000-0000-0000-000000000201'
   and name = 'local-echo-primary'
   and provider_type = 'LOCAL_ECHO'
   and api_key_ref = 'local://echo'
+  and routing_group = 'default'
+  and capabilities like '%CHAT%'
   and status = 'ENABLED'
   and priority = 10;
 

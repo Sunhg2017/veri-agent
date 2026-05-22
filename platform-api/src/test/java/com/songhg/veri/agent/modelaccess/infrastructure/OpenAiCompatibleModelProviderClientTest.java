@@ -72,6 +72,8 @@ class OpenAiCompatibleModelProviderClientTest {
                 UUID.randomUUID(),
                 "contract-provider",
                 ProviderType.OPENAI_COMPATIBLE,
+                "default",
+                "CHAT,TEXT,JSON",
                 "http://127.0.0.1:" + server.getAddress().getPort(),
                 "env:TEST_MODEL_API_KEY",
                 ProviderStatus.ENABLED,

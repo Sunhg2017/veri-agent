@@ -8,6 +8,8 @@ public record ModelProviderConfig(
         UUID id,
         String name,
         ProviderType providerType,
+        String routingGroup,
+        String capabilities,
         String baseUrl,
         String apiKeyRef,
         ProviderStatus status,

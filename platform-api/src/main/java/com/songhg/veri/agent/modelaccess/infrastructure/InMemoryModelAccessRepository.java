@@ -36,6 +36,8 @@ public class InMemoryModelAccessRepository implements ModelAccessRepository {
                 UUID.fromString("00000000-0000-0000-0000-000000000201"),
                 "local-echo-primary",
                 ProviderType.LOCAL_ECHO,
+                "default",
+                "CHAT,TEXT,JSON,REQUIREMENT_PARSE",
                 null,
                 "local://echo",
                 ProviderStatus.ENABLED,

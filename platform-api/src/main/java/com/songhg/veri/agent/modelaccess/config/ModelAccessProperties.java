@@ -1,6 +1,7 @@
 package com.songhg.veri.agent.modelaccess.config;
 
 import java.math.BigDecimal;
+import java.util.List;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 @ConfigurationProperties(prefix = "veri-agent.model-access")
@@ -20,7 +21,8 @@ public record ModelAccessProperties(
         BigDecimal costAlertWarningRatio,
         int providerRateLimitMaxRequests,
         long providerRateLimitWindowSeconds,
-        int providerMaxConcurrentRequests
+        int providerMaxConcurrentRequests,
+        List<RoutingRule> routingRules
 ) {
 
     public boolean hasDailyPlatformCostLimit() {
@@ -67,5 +69,20 @@ public record ModelAccessProperties(
 
     public int safeProviderMaxConcurrentRequests() {
         return Math.max(0, providerMaxConcurrentRequests);
+    }
+
+    public List<RoutingRule> safeRoutingRules() {
+        return routingRules == null ? List.of() : routingRules;
+    }
+
+    public record RoutingRule(
+            String name,
+            List<String> projectIds,
+            List<String> sensitivityLevels,
+            List<String> callerServices,
+            List<String> capabilities,
+            List<String> providerGroups,
+            String costPreference
+    ) {
     }
 }

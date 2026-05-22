@@ -49,15 +49,18 @@ public class ModelAccessPlatformContextClient implements PlatformContextClient {
                 record.projectId(),
                 auditResult(record.status()),
                 record.errorMessage() == null ? "WP2 model invocation" : record.errorMessage(),
-                Map.of(
-                        "providerName", record.providerName() == null ? "" : record.providerName(),
-                        "modelName", record.modelName(),
-                        "sensitivityLevel", record.sensitivityLevel(),
-                        "fallbackUsed", record.fallbackUsed(),
-                        "inputTokens", record.inputTokens(),
-                        "outputTokens", record.outputTokens(),
-                        "totalCost", record.totalCost(),
-                        "promptDigest", record.promptDigest()
+                Map.ofEntries(
+                        Map.entry("providerName", record.providerName() == null ? "" : record.providerName()),
+                        Map.entry("modelName", record.modelName()),
+                        Map.entry("routingRuleName", record.routingRuleName() == null ? "" : record.routingRuleName()),
+                        Map.entry("routingGroup", record.routingGroup() == null ? "" : record.routingGroup()),
+                        Map.entry("modelCapability", record.modelCapability() == null ? "" : record.modelCapability()),
+                        Map.entry("sensitivityLevel", record.sensitivityLevel()),
+                        Map.entry("fallbackUsed", record.fallbackUsed()),
+                        Map.entry("inputTokens", record.inputTokens()),
+                        Map.entry("outputTokens", record.outputTokens()),
+                        Map.entry("totalCost", record.totalCost()),
+                        Map.entry("promptDigest", record.promptDigest())
                 )
         ));
     }
