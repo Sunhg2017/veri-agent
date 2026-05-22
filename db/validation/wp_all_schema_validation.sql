@@ -45,7 +45,8 @@ with expected(table_name) as (
         ('document_input_source'),
         ('document_input_import'),
         ('document_input_candidate'),
-        ('document_input_webhook_event')
+        ('document_input_webhook_event'),
+        ('document_input_retention_archive')
 ),
 missing as (
     select e.table_name
@@ -196,7 +197,9 @@ with expected(table_name, column_name) as (
         ('document_input_candidate','model_name'), ('document_input_candidate','version'),
         ('document_input_webhook_event','id'), ('document_input_webhook_event','source_code'), ('document_input_webhook_event','event_id'), ('document_input_webhook_event','idempotency_key'),
         ('document_input_webhook_event','event_version'), ('document_input_webhook_event','signature_status'), ('document_input_webhook_event','status'), ('document_input_webhook_event','payload_digest'),
-        ('document_input_webhook_event','replay_by'), ('document_input_webhook_event','replay_at'), ('document_input_webhook_event','replay_trace_id')
+        ('document_input_webhook_event','replay_by'), ('document_input_webhook_event','replay_at'), ('document_input_webhook_event','replay_trace_id'),
+        ('document_input_retention_archive','id'), ('document_input_retention_archive','record_type'), ('document_input_retention_archive','record_id'),
+        ('document_input_retention_archive','snapshot_json'), ('document_input_retention_archive','archived_at')
 ),
 missing as (
     select e.table_name || '.' || e.column_name as item
@@ -261,7 +264,9 @@ with expected(table_name, index_name) as (
         ('document_input_candidate','idx_document_input_candidate_external'),
         ('document_input_candidate','idx_document_input_candidate_model_invocation'),
         ('document_input_webhook_event','uk_document_input_webhook_event_id'),
-        ('document_input_webhook_event','uk_document_input_webhook_idempotency')
+        ('document_input_webhook_event','uk_document_input_webhook_idempotency'),
+        ('document_input_retention_archive','uk_document_input_retention_archive_record'),
+        ('document_input_retention_archive','idx_document_input_retention_archive_type_time')
 ),
 missing as (
     select e.table_name || '.' || e.index_name as item

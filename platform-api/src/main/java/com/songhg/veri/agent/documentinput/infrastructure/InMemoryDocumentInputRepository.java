@@ -16,6 +16,7 @@ import java.time.Instant;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -33,6 +34,7 @@ public class InMemoryDocumentInputRepository implements DocumentInputRepository 
     private final ConcurrentHashMap<UUID, DocumentImportRecord> imports = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<UUID, DocumentRequirementCandidate> candidates = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<UUID, DocumentWebhookEvent> webhookEvents = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, Map<String, Object>> retentionArchive = new ConcurrentHashMap<>();
 
     public InMemoryDocumentInputRepository() {
         Instant now = Instant.now();
@@ -220,6 +222,35 @@ public class InMemoryDocumentInputRepository implements DocumentInputRepository 
     }
 
     @Override
+    public int archiveImportsBefore(Instant before) {
+        return archiveImports(imports.values()
+                .stream()
+                .filter(record -> record.createdAt().isBefore(before))
+                .toList());
+    }
+
+    @Override
+    public int archiveCandidatesByImportCreatedBefore(Instant before) {
+        List<UUID> importIds = imports.values()
+                .stream()
+                .filter(record -> record.createdAt().isBefore(before))
+                .map(DocumentImportRecord::id)
+                .toList();
+        return archiveCandidates(candidates.values()
+                .stream()
+                .filter(candidate -> importIds.contains(candidate.importId()))
+                .toList());
+    }
+
+    @Override
+    public int archiveWebhookEventsBefore(Instant before) {
+        return archiveWebhookEvents(webhookEvents.values()
+                .stream()
+                .filter(event -> event.receivedAt().isBefore(before))
+                .toList());
+    }
+
+    @Override
     public int cleanupImportsBefore(Instant before) {
         List<UUID> importIds = imports.values()
                 .stream()
@@ -236,6 +267,73 @@ public class InMemoryDocumentInputRepository implements DocumentInputRepository 
         int beforeSize = webhookEvents.size();
         webhookEvents.entrySet().removeIf(entry -> entry.getValue().receivedAt().isBefore(before));
         return beforeSize - webhookEvents.size();
+    }
+
+    public long archivedRecordCount(String recordType) {
+        return retentionArchive.values()
+                .stream()
+                .filter(snapshot -> recordType == null || recordType.equals(snapshot.get("recordType")))
+                .count();
+    }
+
+    private int archiveImports(List<DocumentImportRecord> records) {
+        int archived = 0;
+        for (DocumentImportRecord record : records) {
+            if (retentionArchive.putIfAbsent("IMPORT:" + record.id(), Map.of(
+                    "recordType", "IMPORT",
+                    "recordId", record.id().toString(),
+                    "projectId", record.projectId(),
+                    "sourceType", record.sourceType().name(),
+                    "sourceRef", nullToEmpty(record.sourceRef()),
+                    "status", record.status().name(),
+                    "rawDigest", nullToEmpty(record.rawDigest()),
+                    "createdAt", record.createdAt().toString()
+            )) == null) {
+                archived++;
+            }
+        }
+        return archived;
+    }
+
+    private int archiveCandidates(List<DocumentRequirementCandidate> records) {
+        int archived = 0;
+        for (DocumentRequirementCandidate candidate : records) {
+            if (retentionArchive.putIfAbsent("CANDIDATE:" + candidate.id(), Map.of(
+                    "recordType", "CANDIDATE",
+                    "recordId", candidate.id().toString(),
+                    "importId", candidate.importId().toString(),
+                    "projectId", candidate.projectId(),
+                    "title", candidate.title(),
+                    "status", candidate.status().name(),
+                    "sourceRef", nullToEmpty(candidate.sourceRef()),
+                    "externalRequirementId", nullToEmpty(candidate.externalRequirementId()),
+                    "createdAt", candidate.createdAt().toString()
+            )) == null) {
+                archived++;
+            }
+        }
+        return archived;
+    }
+
+    private int archiveWebhookEvents(List<DocumentWebhookEvent> records) {
+        int archived = 0;
+        for (DocumentWebhookEvent event : records) {
+            if (retentionArchive.putIfAbsent("WEBHOOK_EVENT:" + event.id(), Map.of(
+                    "recordType", "WEBHOOK_EVENT",
+                    "recordId", event.id().toString(),
+                    "sourceCode", event.sourceCode(),
+                    "eventId", nullToEmpty(event.eventId()),
+                    "idempotencyKey", nullToEmpty(event.idempotencyKey()),
+                    "eventType", nullToEmpty(event.eventType()),
+                    "status", event.status().name(),
+                    "signatureStatus", event.signatureStatus().name(),
+                    "payloadDigest", event.payloadDigest(),
+                    "receivedAt", event.receivedAt().toString()
+            )) == null) {
+                archived++;
+            }
+        }
+        return archived;
     }
 
     private java.util.stream.Stream<DocumentSourceConfig> filteredSources(DocumentSourceQuery query) {
@@ -287,6 +385,10 @@ public class InMemoryDocumentInputRepository implements DocumentInputRepository 
 
     private String lower(String value) {
         return value == null || value.isBlank() ? null : value.trim().toLowerCase(Locale.ROOT);
+    }
+
+    private String nullToEmpty(String value) {
+        return value == null ? "" : value;
     }
 
     private Instant firstInstant(Instant first, Instant second) {

@@ -165,6 +165,21 @@ public class PostgresDocumentInputRepository implements DocumentInputRepository 
     }
 
     @Override
+    public int archiveImportsBefore(Instant before) {
+        return mapper.archiveImportsBefore(before);
+    }
+
+    @Override
+    public int archiveCandidatesByImportCreatedBefore(Instant before) {
+        return mapper.archiveCandidatesByImportCreatedBefore(before);
+    }
+
+    @Override
+    public int archiveWebhookEventsBefore(Instant before) {
+        return mapper.archiveWebhookEventsBefore(before);
+    }
+
+    @Override
     public int cleanupImportsBefore(Instant before) {
         mapper.softDeleteCandidatesByImportCreatedBefore(before);
         return mapper.softDeleteImportsBefore(before);

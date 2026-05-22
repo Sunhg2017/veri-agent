@@ -1,5 +1,6 @@
 package com.songhg.veri.agent.documentinput.application;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.songhg.veri.agent.documentinput.config.DocumentInputProperties;
 import com.songhg.veri.agent.documentinput.domain.DocumentCandidateStatus;
 import com.songhg.veri.agent.documentinput.domain.DocumentImportRecord;
@@ -10,11 +11,13 @@ import com.songhg.veri.agent.documentinput.domain.DocumentWebhookEvent;
 import com.songhg.veri.agent.documentinput.domain.WebhookEventStatus;
 import com.songhg.veri.agent.documentinput.domain.WebhookSignatureStatus;
 import com.songhg.veri.agent.documentinput.infrastructure.InMemoryDocumentInputRepository;
+import com.songhg.veri.agent.integration.application.PlatformIntegrationService;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
@@ -37,24 +40,40 @@ class DocumentInputRetentionCleanupServiceTest {
         repository.saveCandidate(candidate(freshImportId));
         repository.saveWebhookEvent(webhookEvent(oldWebhookId, now.minusSeconds(3 * 86_400L)));
         repository.saveWebhookEvent(webhookEvent(freshWebhookId, now.minusSeconds(12 * 60 * 60)));
+        CapturingContextClient contextClient = new CapturingContextClient();
 
         DocumentInputRetentionCleanupService cleanupService = new DocumentInputRetentionCleanupService(
                 repository,
                 properties(true, 1, 1),
                 new SimpleMeterRegistry(),
-                Clock.fixed(now, ZoneOffset.UTC)
+                Clock.fixed(now, ZoneOffset.UTC),
+                contextClient
         );
 
         DocumentInputRetentionCleanupService.CleanupResult result = cleanupService.cleanupNow();
 
         assertThat(result.imports()).isEqualTo(1);
         assertThat(result.webhookEvents()).isEqualTo(1);
+        assertThat(result.archivedImports()).isEqualTo(1);
+        assertThat(result.archivedCandidates()).isEqualTo(1);
+        assertThat(result.archivedWebhookEvents()).isEqualTo(1);
+        assertThat(result.importCutoff()).isEqualTo(Instant.parse("2026-05-19T00:00:00Z"));
+        assertThat(result.webhookEventCutoff()).isEqualTo(Instant.parse("2026-05-19T00:00:00Z"));
+        assertThat(repository.archivedRecordCount("IMPORT")).isEqualTo(1);
+        assertThat(repository.archivedRecordCount("CANDIDATE")).isEqualTo(1);
+        assertThat(repository.archivedRecordCount("WEBHOOK_EVENT")).isEqualTo(1);
         assertThat(repository.importRecord(oldImportId)).isEmpty();
         assertThat(repository.countCandidates(oldImportId)).isZero();
         assertThat(repository.importRecord(freshImportId)).isPresent();
         assertThat(repository.countCandidates(freshImportId)).isEqualTo(1);
         assertThat(repository.webhookEvent(oldWebhookId)).isEmpty();
         assertThat(repository.webhookEvent(freshWebhookId)).isPresent();
+        assertThat(contextClient.action).isEqualTo("RETENTION_CLEANUP");
+        assertThat(contextClient.resourceType).isEqualTo("DOCUMENT_INPUT_RETENTION");
+        assertThat(contextClient.result).isEqualTo("SUCCEEDED");
+        assertThat(contextClient.afterJson).containsEntry("archivedImports", 1);
+        assertThat(contextClient.afterJson).containsEntry("archivedCandidates", 1);
+        assertThat(contextClient.afterJson).containsEntry("archivedWebhookEvents", 1);
     }
 
     @Test
@@ -64,13 +83,39 @@ class DocumentInputRetentionCleanupServiceTest {
                 repository,
                 properties(false, 1, 1),
                 new SimpleMeterRegistry(),
-                Clock.fixed(Instant.parse("2026-05-20T00:00:00Z"), ZoneOffset.UTC)
+                Clock.fixed(Instant.parse("2026-05-20T00:00:00Z"), ZoneOffset.UTC),
+                new CapturingContextClient()
         );
 
         cleanupService.cleanupByRetentionPolicy();
 
         assertThat(repository.importCleanupCalls).isZero();
         assertThat(repository.webhookCleanupCalls).isZero();
+    }
+
+    @Test
+    void cleanupRecordsFailureMetricAndAudit() {
+        FailingRepository repository = new FailingRepository();
+        SimpleMeterRegistry meterRegistry = new SimpleMeterRegistry();
+        CapturingContextClient contextClient = new CapturingContextClient();
+        DocumentInputRetentionCleanupService cleanupService = new DocumentInputRetentionCleanupService(
+                repository,
+                properties(true, 1, 1),
+                meterRegistry,
+                Clock.fixed(Instant.parse("2026-05-20T00:00:00Z"), ZoneOffset.UTC),
+                contextClient
+        );
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(cleanupService::cleanupNow)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("cleanup failed");
+
+        assertThat(meterRegistry.get("veri.agent.document_input.retention.cleanup")
+                .tag("target", "all")
+                .tag("result", "failed")
+                .counter()
+                .count()).isEqualTo(1.0);
+        assertThat(contextClient.result).isEqualTo("FAILED");
     }
 
     private DocumentImportRecord importRecord(UUID id, Instant createdAt) {
@@ -209,6 +254,41 @@ class DocumentInputRetentionCleanupServiceTest {
         public int cleanupWebhookEventsBefore(Instant before) {
             webhookCleanupCalls++;
             return super.cleanupWebhookEventsBefore(before);
+        }
+    }
+
+    private static class FailingRepository extends InMemoryDocumentInputRepository {
+
+        @Override
+        public int cleanupImportsBefore(Instant before) {
+            throw new IllegalStateException("cleanup failed");
+        }
+    }
+
+    private static class CapturingContextClient extends DocumentInputPlatformContextClient {
+
+        private String action;
+        private String resourceType;
+        private String result;
+        private Map<String, Object> afterJson;
+
+        CapturingContextClient() {
+            super(new PlatformIntegrationService(Optional.empty(), new ObjectMapper()));
+        }
+
+        @Override
+        public void writeAuditEvent(
+                String action,
+                String resourceType,
+                String resourceId,
+                String scopeId,
+                String result,
+                Map<String, Object> afterJson
+        ) {
+            this.action = action;
+            this.resourceType = resourceType;
+            this.result = result;
+            this.afterJson = afterJson;
         }
     }
 }

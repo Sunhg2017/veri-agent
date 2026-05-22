@@ -62,6 +62,12 @@ public interface DocumentInputRepository {
 
     DocumentWebhookEvent saveWebhookEvent(DocumentWebhookEvent event);
 
+    int archiveImportsBefore(Instant before);
+
+    int archiveCandidatesByImportCreatedBefore(Instant before);
+
+    int archiveWebhookEventsBefore(Instant before);
+
     int cleanupImportsBefore(Instant before);
 
     int cleanupWebhookEventsBefore(Instant before);

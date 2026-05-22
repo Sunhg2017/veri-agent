@@ -7,7 +7,8 @@ with expected(table_name) as (
         ('document_input_source'),
         ('document_input_import'),
         ('document_input_candidate'),
-        ('document_input_webhook_event')
+        ('document_input_webhook_event'),
+        ('document_input_retention_archive')
 ),
 missing as (
     select e.table_name
@@ -51,7 +52,10 @@ with expected(table_name, column_name) as (
         ('document_input_webhook_event','status'), ('document_input_webhook_event','payload_digest'), ('document_input_webhook_event','raw_payload'),
         ('document_input_webhook_event','error_message'), ('document_input_webhook_event','retry_count'), ('document_input_webhook_event','replay_by'),
         ('document_input_webhook_event','replay_at'), ('document_input_webhook_event','replay_trace_id'), ('document_input_webhook_event','received_at'),
-        ('document_input_webhook_event','processed_at'), ('document_input_webhook_event','deleted_at'), ('document_input_webhook_event','version')
+        ('document_input_webhook_event','processed_at'), ('document_input_webhook_event','deleted_at'), ('document_input_webhook_event','version'),
+        ('document_input_retention_archive','id'), ('document_input_retention_archive','record_type'), ('document_input_retention_archive','record_id'),
+        ('document_input_retention_archive','project_id'), ('document_input_retention_archive','source_code'), ('document_input_retention_archive','payload_digest'),
+        ('document_input_retention_archive','original_created_at'), ('document_input_retention_archive','snapshot_json'), ('document_input_retention_archive','archived_at')
 ),
 missing as (
     select e.table_name || '.' || e.column_name as item
@@ -87,7 +91,11 @@ with expected(table_name, index_name) as (
         ('document_input_webhook_event','idx_document_input_webhook_source_received'),
         ('document_input_webhook_event','idx_document_input_webhook_status_received'),
         ('document_input_webhook_event','uk_document_input_webhook_event_id'),
-        ('document_input_webhook_event','uk_document_input_webhook_idempotency')
+        ('document_input_webhook_event','uk_document_input_webhook_idempotency'),
+        ('document_input_retention_archive','uk_document_input_retention_archive_record'),
+        ('document_input_retention_archive','idx_document_input_retention_archive_type_time'),
+        ('document_input_retention_archive','idx_document_input_retention_archive_project'),
+        ('document_input_retention_archive','idx_document_input_retention_archive_source')
 ),
 missing as (
     select e.table_name || '.' || e.index_name as item
@@ -116,7 +124,8 @@ with expected(constraint_name) as (
         ('ck_document_input_candidate_parse_source'),
         ('ck_document_input_webhook_signature'),
         ('ck_document_input_webhook_status'),
-        ('ck_document_input_webhook_retry')
+        ('ck_document_input_webhook_retry'),
+        ('ck_document_input_retention_archive_type')
 ),
 missing as (
     select e.constraint_name

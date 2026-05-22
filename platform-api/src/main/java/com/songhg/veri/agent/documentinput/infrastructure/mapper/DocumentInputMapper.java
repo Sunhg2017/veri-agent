@@ -82,6 +82,12 @@ public interface DocumentInputMapper {
 
     void upsertWebhookEvent(DocumentWebhookEvent event);
 
+    int archiveImportsBefore(@Param("before") Instant before);
+
+    int archiveCandidatesByImportCreatedBefore(@Param("before") Instant before);
+
+    int archiveWebhookEventsBefore(@Param("before") Instant before);
+
     int softDeleteCandidatesByImportCreatedBefore(@Param("before") Instant before);
 
     int softDeleteImportsBefore(@Param("before") Instant before);

@@ -478,6 +478,62 @@
             processed_at = excluded.processed_at
     </insert>
 
+    <insert id="archiveImportsBefore">
+        insert into document_input_retention_archive (
+            record_type, record_id, project_id, source_code, payload_digest, original_created_at, snapshot_json
+        )
+        select
+            'IMPORT',
+            i.id,
+            i.project_id,
+            i.source_code,
+            i.raw_digest,
+            i.created_at,
+            to_jsonb(i)
+        from document_input_import i
+        where i.deleted_at is null
+          and i.created_at &lt; #{before}
+        on conflict (record_type, record_id) do nothing
+    </insert>
+
+    <insert id="archiveCandidatesByImportCreatedBefore">
+        insert into document_input_retention_archive (
+            record_type, record_id, project_id, source_code, payload_digest, original_created_at, snapshot_json
+        )
+        select
+            'CANDIDATE',
+            c.id,
+            c.project_id,
+            i.source_code,
+            i.raw_digest,
+            c.created_at,
+            to_jsonb(c)
+        from document_input_candidate c
+        join document_input_import i on i.id = c.import_id
+        where c.deleted_at is null
+          and i.deleted_at is null
+          and i.created_at &lt; #{before}
+        on conflict (record_type, record_id) do nothing
+    </insert>
+
+    <insert id="archiveWebhookEventsBefore">
+        insert into document_input_retention_archive (
+            record_type, record_id, project_id, source_code, payload_digest, original_created_at, snapshot_json
+        )
+        select
+            'WEBHOOK_EVENT',
+            e.id,
+            null,
+            e.source_code,
+            e.payload_digest,
+            e.received_at,
+            to_jsonb(e)
+        from document_input_webhook_event e
+        where e.deleted_at is null
+          and e.received_at &lt; #{before}
+        on conflict (record_type, record_id) do nothing
+    </insert>
+
     <update id="softDeleteCandidatesByImportCreatedBefore">
         update document_input_candidate
         set deleted_at = coalesce(deleted_at, now())

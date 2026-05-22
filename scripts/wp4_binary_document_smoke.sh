@@ -4,4 +4,4 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 cd "$ROOT_DIR"
-mvn -B -pl platform-api -Dtest=DocumentContentExtractorTest,DocumentBinaryImportControllerTest,ExternalSecretProviderTest test
+mvn -B -pl platform-api -Dtest=DocumentContentExtractorTest,DocumentBinaryImportControllerTest,DocumentInputRetentionCleanupServiceTest,ExternalSecretProviderTest test

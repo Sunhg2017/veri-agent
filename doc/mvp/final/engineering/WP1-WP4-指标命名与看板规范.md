@@ -33,6 +33,7 @@
 | WP4 | `veri.agent.document_input.webhooks` | Counter | `signature_status`、`event_status`、`event_type` | webhook 接入事件 |
 | WP4 | `veri.agent.document_input.model_parse` | Counter | `result` | AI 文档解析尝试 |
 | WP4 | `veri.agent.document_input.model_parse.candidates` | DistributionSummary | `result` | AI 解析候选数 |
+| WP4 | `veri.agent.document_input.retention.cleanup` | Counter | `target`、`result` | 文档输入过期记录清理与失败计数 |
 
 ## 3. 后续新增指标口径
 
