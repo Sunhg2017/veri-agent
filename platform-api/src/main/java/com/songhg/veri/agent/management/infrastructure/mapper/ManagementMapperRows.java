@@ -10,6 +10,19 @@ public final class ManagementMapperRows {
     public record DepartmentRef(UUID id, String name, String status) {
     }
 
+    public record RoleRow(
+            UUID id,
+            String code,
+            String name,
+            String scopeType,
+            boolean system,
+            boolean builtin,
+            String status,
+            String description,
+            long version
+    ) {
+    }
+
     public record ProjectRef(UUID id, String name, String status) {
     }
 

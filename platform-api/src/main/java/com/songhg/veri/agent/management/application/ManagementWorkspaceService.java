@@ -10,6 +10,7 @@ import com.songhg.veri.agent.management.api.request.CreateApplicationRequest;
 import com.songhg.veri.agent.management.api.request.CreateEnvironmentRequest;
 import com.songhg.veri.agent.management.api.request.CreateIntegrationRequest;
 import com.songhg.veri.agent.management.api.request.CreateProjectRequest;
+import com.songhg.veri.agent.management.api.request.CreateRoleRequest;
 import com.songhg.veri.agent.management.api.request.CreateSecretReferenceRequest;
 import com.songhg.veri.agent.management.api.request.CreateSettingRequest;
 import com.songhg.veri.agent.management.api.request.DisableSecretReferenceRequest;
@@ -17,10 +18,12 @@ import com.songhg.veri.agent.management.api.response.DepartmentView;
 import com.songhg.veri.agent.management.api.response.EnvironmentConnectivityCheckView;
 import com.songhg.veri.agent.management.api.response.EnvironmentView;
 import com.songhg.veri.agent.management.api.response.IntegrationView;
+import com.songhg.veri.agent.management.api.response.PermissionView;
 import com.songhg.veri.agent.management.api.response.ProjectView;
 import com.songhg.veri.agent.management.api.request.ProjectMemberRequest;
 import com.songhg.veri.agent.management.api.request.RotateSecretReferenceRequest;
 import com.songhg.veri.agent.management.api.response.ProjectMemberView;
+import com.songhg.veri.agent.management.api.response.RoleDetailView;
 import com.songhg.veri.agent.management.api.response.RoleView;
 import com.songhg.veri.agent.management.api.request.ScopedUserRoleRequest;
 import com.songhg.veri.agent.management.api.response.ScopedUserRoleView;
@@ -31,9 +34,11 @@ import com.songhg.veri.agent.management.api.request.UpdateApplicationRequest;
 import com.songhg.veri.agent.management.api.request.UpdateEnvironmentRequest;
 import com.songhg.veri.agent.management.api.request.UpdateIntegrationRequest;
 import com.songhg.veri.agent.management.api.request.UpdateProjectRequest;
+import com.songhg.veri.agent.management.api.request.UpdateRoleRequest;
 import com.songhg.veri.agent.management.api.request.UpdateSettingRequest;
 import com.songhg.veri.agent.management.api.request.UpdateUserRequest;
 import com.songhg.veri.agent.management.api.response.UserView;
+import java.util.Set;
 
 public interface ManagementWorkspaceService {
 
@@ -66,6 +71,16 @@ public interface ManagementWorkspaceService {
     UserView resetUserPassword(String username, String newPassword, AuthUserPrincipal actor);
 
     PageResponse<RoleView> roles(PageQuery pageQuery);
+
+    PageResponse<PermissionView> permissions(PageQuery pageQuery);
+
+    RoleDetailView role(String code);
+
+    RoleDetailView createRole(CreateRoleRequest request, Set<String> assignablePermissions, AuthUserPrincipal actor);
+
+    RoleDetailView updateRole(String code, UpdateRoleRequest request, Set<String> assignablePermissions, AuthUserPrincipal actor);
+
+    RoleDetailView changeRoleStatus(String code, String status, AuthUserPrincipal actor);
 
     UserView assignUserRole(String username, String roleCode, AuthUserPrincipal actor);
 

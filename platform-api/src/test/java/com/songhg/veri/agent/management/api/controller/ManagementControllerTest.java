@@ -15,6 +15,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
@@ -920,6 +921,83 @@ class ManagementControllerTest {
                 .andExpect(jsonPath("$.data.items[0].code").value("SuperAdmin"))
                 .andExpect(jsonPath("$.data.total", greaterThanOrEqualTo(3)));
 
+        mockMvc.perform(get("/api/v1/management/permissions")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items[*].code", hasItems("role:read")))
+                .andExpect(jsonPath("$.data.total", greaterThanOrEqualTo(10)));
+
+        mockMvc.perform(post("/api/v1/management/roles")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "code": "QaReviewer",
+                                  "name": "QA 评审员",
+                                  "scopeType": "PROJECT",
+                                  "description": "项目内需求和审计评审",
+                                  "permissionCodes": ["role:read", "audit:read"]
+                                }
+                                """))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.code").value("QaReviewer"))
+                .andExpect(jsonPath("$.data.builtin").value(false))
+                .andExpect(jsonPath("$.data.permissionCodes", hasItems("role:read", "audit:read")));
+
+        mockMvc.perform(get("/api/v1/management/roles/QaReviewer")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.name").value("QA 评审员"))
+                .andExpect(jsonPath("$.data.permissionCodes", hasItems("role:read", "audit:read")));
+
+        mockMvc.perform(patch("/api/v1/management/roles/QaReviewer")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "name": "QA 审计评审员",
+                                  "permissionCodes": ["role:read", "audit:read", "audit:export"]
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.name").value("QA 审计评审员"))
+                .andExpect(jsonPath("$.data.permissionCodes", hasItems("role:read", "audit:read", "audit:export")));
+
+        mockMvc.perform(patch("/api/v1/management/roles/QaReviewer/status")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"status\":\"DISABLED\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("已停用"));
+
+        mockMvc.perform(patch("/api/v1/management/roles/QaReviewer/status")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"status\":\"ENABLED\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("启用"));
+
+        mockMvc.perform(patch("/api/v1/management/roles/SuperAdmin/status")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"status\":\"DISABLED\"}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("INVALID_STATE"));
+
+        mockMvc.perform(post("/api/v1/management/roles")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "code": "ForbiddenRole",
+                                  "name": "越权角色",
+                                  "scopeType": "PROJECT",
+                                  "permissionCodes": ["not:granted"]
+                                }
+                                """))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+
         mockMvc.perform(post("/api/v1/management/users")
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -934,12 +1012,19 @@ class ManagementControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.role").value("Tester / PlatformAdmin"));
 
+        mockMvc.perform(post("/api/v1/management/users/tester.role/roles")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"roleCode\":\"QaReviewer\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.role").value("Tester / PlatformAdmin / QaReviewer"));
+
         mockMvc.perform(post("/api/v1/management/users/tester.role/roles/unassign")
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"roleCode\":\"PlatformAdmin\"}"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.role").value("Tester"));
+                .andExpect(jsonPath("$.data.role").value("Tester / QaReviewer"));
     }
 
     @Test

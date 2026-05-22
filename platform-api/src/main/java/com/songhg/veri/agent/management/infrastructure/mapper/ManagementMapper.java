@@ -6,6 +6,7 @@ import com.songhg.veri.agent.management.api.response.AuditOutboxView;
 import com.songhg.veri.agent.management.api.response.DepartmentView;
 import com.songhg.veri.agent.management.api.response.EnvironmentView;
 import com.songhg.veri.agent.management.api.response.IntegrationView;
+import com.songhg.veri.agent.management.api.response.PermissionView;
 import com.songhg.veri.agent.management.api.response.ProjectMemberView;
 import com.songhg.veri.agent.management.api.response.ProjectView;
 import com.songhg.veri.agent.management.api.response.RoleView;
@@ -18,6 +19,7 @@ import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRo
 import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows.EnvironmentRef;
 import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows.IntegrationRow;
 import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows.ProjectRef;
+import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows.RoleRow;
 import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows.SecretProviderRow;
 import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows.SecretReferenceRow;
 import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows.SettingRow;
@@ -60,6 +62,28 @@ public interface ManagementMapper {
     List<RoleView> listRoles(Map<String, Object> params);
 
     long countRoles(Map<String, Object> params);
+
+    List<PermissionView> listPermissions(Map<String, Object> params);
+
+    long countPermissions(Map<String, Object> params);
+
+    RoleRow findRoleRow(Map<String, Object> params);
+
+    List<String> listRolePermissionCodes(Map<String, Object> params);
+
+    List<String> listEnabledPermissionCodes(Map<String, Object> params);
+
+    int insertRole(Map<String, Object> params);
+
+    int updateRole(Map<String, Object> params);
+
+    int changeRoleStatus(Map<String, Object> params);
+
+    int softDeleteRolePermissions(Map<String, Object> params);
+
+    int insertRolePermissions(Map<String, Object> params);
+
+    int bumpUsersAuthVersionByRole(Map<String, Object> params);
 
     int assignUserRole(Map<String, Object> params);
 

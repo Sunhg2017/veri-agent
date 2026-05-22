@@ -202,6 +202,12 @@ P0 权限点使用 `{resource}:{action}`：
 | `POST /api/v1/management/users/{username}/lock` | 已实现 | 锁定用户、提升 `auth_version` 并写审计 | Bearer Token | 用户视图 |
 | `POST /api/v1/management/users/{username}/unlock` | 已实现 | 解锁用户、提升 `auth_version` 并写审计 | Bearer Token | 用户视图 |
 | `POST /api/v1/management/users/{username}/reset-password` | 已实现 | 重置密码、要求下次改密、提升 `authVersion` 并写审计 | `newPassword` | 用户视图 |
+| `GET /api/v1/management/permissions` | 已实现 | 查询可配置权限点目录 | Bearer Token | `code`、`resourceType`、`action`、`scopeMask`、`description`、`status` |
+| `GET /api/v1/management/roles` | 已实现 | 查询角色列表 | Bearer Token | `code`、`name`、`scopeType`、`status`、`description` |
+| `GET /api/v1/management/roles/{code}` | 已实现 | 查询角色定义和权限集合 | 角色 `code` | 角色基础字段、`system`、`builtin`、`version`、`permissionCodes` |
+| `POST /api/v1/management/roles` | 已实现 | 创建自定义角色并配置权限集合 | `code`、`name`、`scopeType`、`description`、`permissionCodes` | 角色详情视图 |
+| `PATCH /api/v1/management/roles/{code}` | 已实现 | 编辑自定义角色基础字段和权限集合 | `name`、`scopeType`、`description`、`permissionCodes` | 角色详情视图；已绑定用户 `authVersion` 递增 |
+| `PATCH /api/v1/management/roles/{code}/status` | 已实现 | 启用/停用自定义角色 | `status=ENABLED/DISABLED` | 角色详情视图；已绑定用户 `authVersion` 递增 |
 | `GET /api/v1/management/projects` | 已实现 | 查询项目空间管理视图 | Bearer Token | `name`、`department`、`owner`、`apps`、`status` |
 | `POST /api/v1/management/projects` | 已实现 | 创建项目并写审计 | `code`、`name`、`sensitivityLevel`、`allowPublicModel` | 新项目视图 |
 | `GET /api/v1/management/projects/{key}` | 已实现 | 查询项目详情视图 | 项目 `code`、`name` 或 `id` | 项目视图 |

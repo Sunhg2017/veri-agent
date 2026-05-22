@@ -13,6 +13,7 @@ import com.songhg.veri.agent.management.api.request.CreateEnvironmentRequest;
 import com.songhg.veri.agent.management.api.request.CreateIntegrationRequest;
 import com.songhg.veri.agent.management.api.request.CreateNamedRequest;
 import com.songhg.veri.agent.management.api.request.CreateProjectRequest;
+import com.songhg.veri.agent.management.api.request.CreateRoleRequest;
 import com.songhg.veri.agent.management.api.request.CreateSecretReferenceRequest;
 import com.songhg.veri.agent.management.api.request.CreateSettingRequest;
 import com.songhg.veri.agent.management.api.request.DisableSecretReferenceRequest;
@@ -28,6 +29,7 @@ import com.songhg.veri.agent.management.api.request.UpdateDepartmentRequest;
 import com.songhg.veri.agent.management.api.request.UpdateEnvironmentRequest;
 import com.songhg.veri.agent.management.api.request.UpdateIntegrationRequest;
 import com.songhg.veri.agent.management.api.request.UpdateProjectRequest;
+import com.songhg.veri.agent.management.api.request.UpdateRoleRequest;
 import com.songhg.veri.agent.management.api.request.UpdateSettingRequest;
 import com.songhg.veri.agent.management.api.request.UpdateUserRequest;
 import com.songhg.veri.agent.management.api.response.ApplicationView;
@@ -37,8 +39,10 @@ import com.songhg.veri.agent.management.api.response.DepartmentView;
 import com.songhg.veri.agent.management.api.response.EnvironmentConnectivityCheckView;
 import com.songhg.veri.agent.management.api.response.EnvironmentView;
 import com.songhg.veri.agent.management.api.response.IntegrationView;
+import com.songhg.veri.agent.management.api.response.PermissionView;
 import com.songhg.veri.agent.management.api.response.ProjectMemberView;
 import com.songhg.veri.agent.management.api.response.ProjectView;
+import com.songhg.veri.agent.management.api.response.RoleDetailView;
 import com.songhg.veri.agent.management.api.response.RoleView;
 import com.songhg.veri.agent.management.api.response.ScopedUserRoleView;
 import com.songhg.veri.agent.management.api.response.SecretReferenceView;
@@ -46,6 +50,7 @@ import com.songhg.veri.agent.management.api.response.SettingView;
 import com.songhg.veri.agent.management.api.response.UserView;
 import jakarta.validation.Valid;
 import java.nio.charset.StandardCharsets;
+import java.util.Set;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -218,6 +223,56 @@ public class ManagementController {
     ) {
         authorizationService.require(principal, "role:read");
         return workspaceService.roles(pageRequest.toPageQuery());
+    }
+
+    @GetMapping("/permissions")
+    public PageResponse<PermissionView> permissions(
+            @Valid ManagementPageRequest pageRequest,
+            @AuthenticationPrincipal AuthUserPrincipal principal
+    ) {
+        authorizationService.require(principal, "role:read");
+        return workspaceService.permissions(pageRequest.toPageQuery());
+    }
+
+    @GetMapping("/roles/{code}")
+    public RoleDetailView role(
+            @PathVariable String code,
+            @AuthenticationPrincipal AuthUserPrincipal principal
+    ) {
+        authorizationService.require(principal, "role:read");
+        return workspaceService.role(code.trim());
+    }
+
+    @PostMapping("/roles")
+    @ResponseStatus(HttpStatus.CREATED)
+    public RoleDetailView createRole(
+            @Valid @RequestBody CreateRoleRequest request,
+            @AuthenticationPrincipal AuthUserPrincipal principal
+    ) {
+        authorizationService.require(principal, "role:create");
+        Set<String> assignablePermissions = authorizationService.permissions(principal);
+        return workspaceService.createRole(request, assignablePermissions, principal);
+    }
+
+    @PatchMapping("/roles/{code}")
+    public RoleDetailView updateRole(
+            @PathVariable String code,
+            @Valid @RequestBody UpdateRoleRequest request,
+            @AuthenticationPrincipal AuthUserPrincipal principal
+    ) {
+        authorizationService.require(principal, "role:edit");
+        Set<String> assignablePermissions = authorizationService.permissions(principal);
+        return workspaceService.updateRole(code.trim(), request, assignablePermissions, principal);
+    }
+
+    @PatchMapping("/roles/{code}/status")
+    public RoleDetailView changeRoleStatus(
+            @PathVariable String code,
+            @Valid @RequestBody StatusChangeRequest request,
+            @AuthenticationPrincipal AuthUserPrincipal principal
+    ) {
+        authorizationService.require(principal, "role:edit");
+        return workspaceService.changeRoleStatus(code.trim(), request.status(), principal);
     }
 
     @PostMapping("/users/{username}/roles")

@@ -81,7 +81,7 @@ Secret 响应、列表、前端状态和审计只记录引用、版本、用途�
 本轮 1～8 项已完成，后续 WP1 研发可直接在当前底座上推进，推荐优先级如下：
 
 1. 按 `WP1-发布前DB权限Runbook.md` 将预发/生产真实 app/readonly/migration 数据库角色接入发布流水线，确保不是仅临时库角色通过。
-2. 补角色定义管理；会话清理已具备 local/db profile 定时清理、保留窗口配置和 `veri.agent.auth.session.cleanup` 指标，审计保留已具备 `db` profile 受控清理、归档表、保留窗口配置和 `veri.agent.audit.retention.cleanup` 指标，Audit outbox 已具备只读运维视图和 traceId 查询索引，环境连通性检查已具备可配置探活和最近结果，Secret 引用已具备本地加密创建/轮换/撤销闭环。
+2. 角色定义管理后端已具备权限点目录、角色详情、创建、编辑、启停和权限集合替换接口，内置角色只读，自定义角色不能授予超过操作者自身权限点，角色定义变化会递增已绑定用户 `auth_version`；后续优先补管理台角色编辑页面。会话清理已具备 local/db profile 定时清理、保留窗口配置和 `veri.agent.auth.session.cleanup` 指标，审计保留已具备 `db` profile 受控清理、归档表、保留窗口配置和 `veri.agent.audit.retention.cleanup` 指标，Audit outbox 已具备只读运维视图和 traceId 查询索引，环境连通性检查已具备可配置探活和最近结果，Secret 引用已具备本地加密创建/轮换/撤销闭环。
 3. 审计日志已支持 `GET /api/v1/management/audit-logs/export` 同步 CSV 导出，要求 `audit:read` + `audit:export`，portal-web 审计页已接入导出按钮和下载状态；后续如需要大批量导出，再演进异步任务和对象存储引用。
 4. 审计保留策略以 `doc/mvp/final/engineering/WP1-审计保留策略Runbook.md` 为准：在线表默认保留 365 天，清理默认关闭，开启后先归档到 `audit_log_archive` 再从 `audit_log` 删除；app role 仍不得直接删除审计日志。
 5. 复杂状态流拒绝测试已覆盖项目重复、逆向、非法流转和停用后编辑拒绝，以及应用/环境非法状态与停用后编辑拒绝；后续继续扩展生产角色权限的自动化场景。

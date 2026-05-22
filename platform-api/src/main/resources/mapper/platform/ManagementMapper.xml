@@ -36,6 +36,17 @@
         </constructor>
     </resultMap>
 
+    <resultMap id="permissionViewMap" type="com.songhg.veri.agent.management.api.response.PermissionView">
+        <constructor>
+            <arg column="code" javaType="java.lang.String"/>
+            <arg column="resource_type" javaType="java.lang.String"/>
+            <arg column="action" javaType="java.lang.String"/>
+            <arg column="scope_mask" javaType="java.lang.String"/>
+            <arg column="description" javaType="java.lang.String"/>
+            <arg column="status_name" javaType="java.lang.String"/>
+        </constructor>
+    </resultMap>
+
     <resultMap id="projectViewMap" type="com.songhg.veri.agent.management.api.response.ProjectView">
         <constructor>
             <arg column="name" javaType="java.lang.String"/>
@@ -159,6 +170,20 @@
             <arg column="id" javaType="java.util.UUID"/>
             <arg column="name" javaType="java.lang.String"/>
             <arg column="status" javaType="java.lang.String"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="roleRowMap" type="com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows$RoleRow">
+        <constructor>
+            <arg column="id" javaType="java.util.UUID"/>
+            <arg column="code" javaType="java.lang.String"/>
+            <arg column="name" javaType="java.lang.String"/>
+            <arg column="scope_type" javaType="java.lang.String"/>
+            <arg column="is_system" javaType="_boolean"/>
+            <arg column="is_builtin" javaType="_boolean"/>
+            <arg column="status" javaType="java.lang.String"/>
+            <arg column="description" javaType="java.lang.String"/>
+            <arg column="version" javaType="_long"/>
         </constructor>
     </resultMap>
 
@@ -579,6 +604,140 @@
         where deleted_at is null
           and (#{search} = '' or code ilike #{searchPattern} or name ilike #{searchPattern})
     </select>
+
+    <select id="listPermissions" resultMap="permissionViewMap">
+        select
+            code,
+            resource_type,
+            action,
+            scope_mask,
+            coalesce(description, '') as description,
+            case status when 'ENABLED' then '启用' else '已停用' end as status_name
+        from rbac_permission
+        where (#{search} = '' or code ilike #{searchPattern} or resource_type ilike #{searchPattern})
+        order by resource_type asc, code asc
+        limit #{limit} offset #{offset}
+    </select>
+
+    <select id="countPermissions" resultType="long">
+        select count(*)
+        from rbac_permission
+        where (#{search} = '' or code ilike #{searchPattern} or resource_type ilike #{searchPattern})
+    </select>
+
+    <select id="findRoleRow" resultMap="roleRowMap">
+        select
+            id,
+            code,
+            name,
+            scope_type,
+            is_system,
+            is_builtin,
+            status,
+            coalesce(description, '') as description,
+            version
+        from rbac_role
+        where code = #{roleCode}
+          and deleted_at is null
+        limit 1
+    </select>
+
+    <select id="listRolePermissionCodes" resultType="string">
+        select p.code
+        from rbac_role_permission rp
+        join rbac_permission p on p.id = rp.permission_id
+        where rp.role_id = #{roleId}
+          and rp.effect = 'ALLOW'
+          and rp.deleted_at is null
+        order by p.code asc
+    </select>
+
+    <select id="listEnabledPermissionCodes" resultType="string">
+        select code
+        from rbac_permission
+        where status = 'ENABLED'
+          and code in
+        <foreach collection="permissionCodes" item="permissionCode" open="(" separator="," close=")">
+            #{permissionCode}
+        </foreach>
+        order by code asc
+    </select>
+
+    <insert id="insertRole">
+        insert into rbac_role (
+            id, code, name, scope_type, is_system, is_builtin, status, description, created_by, updated_by
+        )
+        values (
+            #{roleId}, #{code}, #{name}, #{scopeType}, false, false, 'ENABLED', #{description}, #{actorId}, #{actorId}
+        )
+    </insert>
+
+    <update id="updateRole">
+        update rbac_role
+        <set>
+            <if test="name != null">name = #{name},</if>
+            <if test="scopeType != null">scope_type = #{scopeType},</if>
+            <if test="description != null">description = #{description},</if>
+            updated_by = #{actorId},
+            updated_at = now(),
+            version = version + 1
+        </set>
+        where id = #{roleId}
+          and is_system = false
+          and is_builtin = false
+          and deleted_at is null
+    </update>
+
+    <update id="changeRoleStatus">
+        update rbac_role
+        set status = #{status},
+            updated_by = #{actorId},
+            updated_at = now(),
+            version = version + 1
+        where id = #{roleId}
+          and is_system = false
+          and is_builtin = false
+          and deleted_at is null
+    </update>
+
+    <update id="softDeleteRolePermissions">
+        update rbac_role_permission
+        set deleted_by = #{actorId},
+            deleted_at = now(),
+            version = version + 1
+        where role_id = #{roleId}
+          and deleted_at is null
+    </update>
+
+    <insert id="insertRolePermissions">
+        insert into rbac_role_permission (role_id, permission_id, effect, created_by)
+        select #{roleId}, p.id, 'ALLOW', #{actorId}
+        from rbac_permission p
+        where p.status = 'ENABLED'
+          and p.code in
+        <foreach collection="permissionCodes" item="permissionCode" open="(" separator="," close=")">
+            #{permissionCode}
+        </foreach>
+        on conflict (role_id, permission_id)
+        where deleted_at is null
+        do nothing
+    </insert>
+
+    <update id="bumpUsersAuthVersionByRole">
+        update iam_user u
+        set auth_version = auth_version + 1,
+            updated_by = #{actorId},
+            updated_at = now()
+        where u.deleted_at is null
+          and exists (
+              select 1
+              from rbac_role_binding b
+              where b.subject_type = 'USER'
+                and b.subject_id = u.id
+                and b.role_id = #{roleId}
+                and <include refid="activeRoleBinding"/>
+          )
+    </update>
 
     <insert id="assignUserRole">
         insert into rbac_role_binding (
