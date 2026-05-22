@@ -54,7 +54,9 @@ import {
   changeEnvironmentStatus,
   changeIntegrationStatus,
   changeProjectStatus,
+  changeRoleStatus,
   changeSettingStatus,
+  createRole,
   createIntegration,
   createManagementItem,
   createSecretReference,
@@ -76,6 +78,7 @@ import {
   fetchSetting,
   fetchUser,
   fetchManagementData,
+  fetchRole,
   lockUser,
   removeApplicationOwner,
   removeEnvironmentUser,
@@ -90,6 +93,7 @@ import {
   updateEnvironment,
   updateIntegration,
   updateProject,
+  updateRole,
   updateSetting,
   updateUser,
   type ApplicationView,
@@ -104,6 +108,8 @@ import {
   type ManagementData,
   type ProjectMemberView,
   type ProjectView,
+  type PermissionView,
+  type RoleDetailView,
   type RoleView,
   type ScopedUserRoleView,
   type SecretReferenceView,
@@ -225,6 +231,13 @@ const pages: PageDefinition[] = [
     icon: UsersRound
   },
   {
+    key: 'roles',
+    label: '角色治理',
+    title: '角色治理',
+    description: '维护自定义角色定义、作用域和权限点集合。',
+    icon: ShieldCheck
+  },
+  {
     key: 'projects',
     label: '项目空间',
     title: '项目空间',
@@ -272,6 +285,7 @@ const emptyManagementData: ManagementData = {
   departments: [],
   users: [],
   roles: [],
+  permissions: [],
   projects: [],
   applications: [],
   environments: [],
@@ -1292,6 +1306,39 @@ function ModulePage(props: {
     );
   }
 
+  if (props.page === 'roles') {
+    return (
+      <DataSection
+        eyebrow="RBAC"
+        title="角色定义"
+        icon={ShieldCheck}
+        action="刷新"
+        columns={['角色', '作用域', '状态', '说明']}
+        rows={props.data.roles.map((item: RoleView) => [
+          <span key={item.code}>
+            <strong className="table-primary">{item.name}</strong>
+            <span className="table-secondary">{item.code}</span>
+          </span>,
+          roleScope(item),
+          item.status,
+          roleDescription(item) || '-'
+        ])}
+        loadState={props.loadState}
+        signedIn={props.signedIn}
+        onRefresh={props.onRefresh}
+        sidePanel={
+          <RoleDefinitionPanel
+            roles={props.data.roles}
+            permissions={props.data.permissions}
+            signedIn={props.signedIn}
+            currentUser={props.currentUser}
+            onChanged={props.onRefresh}
+          />
+        }
+      />
+    );
+  }
+
   if (props.page === 'projects') {
     return (
       <DataSection
@@ -1955,6 +2002,470 @@ function AuditOutboxPanel(props: {
       )}
     </div>
   );
+}
+
+type RoleDraft = {
+  code: string;
+  name: string;
+  scopeType: string;
+  description: string;
+  permissionCodes: string[];
+};
+
+const roleScopeOptions = [
+  { value: 'PLATFORM', label: 'PLATFORM' },
+  { value: 'DEPARTMENT', label: 'DEPARTMENT' },
+  { value: 'PROJECT', label: 'PROJECT' },
+  { value: 'APPLICATION', label: 'APPLICATION' },
+  { value: 'ENVIRONMENT', label: 'ENVIRONMENT' }
+];
+
+const initialRoleDraft: RoleDraft = {
+  code: '',
+  name: '',
+  scopeType: 'PROJECT',
+  description: '',
+  permissionCodes: []
+};
+
+function RoleDefinitionPanel(props: {
+  roles: RoleView[];
+  permissions: PermissionView[];
+  signedIn: boolean;
+  currentUser: CurrentUser | null;
+  onChanged: () => void | Promise<void>;
+}) {
+  const [selectedRoleCode, setSelectedRoleCode] = useState(props.roles[0]?.code ?? '');
+  const [detail, setDetail] = useState<RoleDetailView | null>(null);
+  const [editDraft, setEditDraft] = useState<RoleDraft>(initialRoleDraft);
+  const [createDraft, setCreateDraft] = useState<RoleDraft>(initialRoleDraft);
+  const [state, setState] = useState<{ loading: boolean; error?: string; traceId?: string }>({ loading: false });
+
+  useEffect(() => {
+    if (!props.roles.some((role) => role.code === selectedRoleCode)) {
+      setSelectedRoleCode(props.roles[0]?.code ?? '');
+    }
+  }, [props.roles, selectedRoleCode]);
+
+  const permissionGroups = useMemo(() => {
+    const groups = new Map<string, PermissionView[]>();
+    for (const permission of props.permissions) {
+      const resource = permissionResourceType(permission) || 'other';
+      groups.set(resource, [...(groups.get(resource) ?? []), permission]);
+    }
+    return Array.from(groups.entries())
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([resource, permissions]) => [
+        resource,
+        permissions.sort((left, right) => left.code.localeCompare(right.code))
+      ] as const);
+  }, [props.permissions]);
+
+  const reloadDetail = useCallback(async () => {
+    if (!props.signedIn || !selectedRoleCode) {
+      setDetail(null);
+      setEditDraft(initialRoleDraft);
+      setState({ loading: false });
+      return;
+    }
+    setState({ loading: true });
+    try {
+      const response = await fetchRole(selectedRoleCode);
+      const role = response.data;
+      setDetail(role);
+      setEditDraft({
+        code: role.code,
+        name: role.name,
+        scopeType: roleScope(role) || 'PROJECT',
+        description: roleDescription(role),
+        permissionCodes: rolePermissionCodes(role)
+      });
+      setState({ loading: false, traceId: response.trace_id });
+    } catch (error: unknown) {
+      const message = error instanceof ApiError ? error.message : error instanceof Error ? error.message : '角色详情加载失败';
+      const traceId = error instanceof ApiError ? error.traceId : '';
+      setDetail(null);
+      setState({ loading: false, error: message, traceId });
+    }
+  }, [props.signedIn, selectedRoleCode]);
+
+  useEffect(() => {
+    void reloadDetail();
+  }, [reloadDetail]);
+
+  const canCreate = canUseButton(props.currentUser, 'role:create');
+  const canEdit = canUseButton(props.currentUser, 'role:edit');
+  const selectedIsProtected = Boolean(detail?.system || detail?.builtin);
+  const canEditSelected = canEdit && Boolean(detail) && !selectedIsProtected;
+  const disabled = !props.signedIn || state.loading;
+
+  async function submitCreate(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!canCreate) {
+      return;
+    }
+    const validationError = validateRoleDraft(createDraft, true);
+    if (validationError) {
+      setState({ loading: false, error: validationError });
+      return;
+    }
+    setState({ loading: true });
+    try {
+      const response = await createRole({
+        code: createDraft.code.trim(),
+        name: createDraft.name.trim(),
+        scopeType: createDraft.scopeType,
+        description: createDraft.description.trim(),
+        permissionCodes: createDraft.permissionCodes
+      });
+      const createdRole = response.data;
+      setCreateDraft(initialRoleDraft);
+      setDetail(response.data);
+      setEditDraft({
+        code: response.data.code,
+        name: response.data.name,
+        scopeType: roleScope(response.data) || 'PROJECT',
+        description: roleDescription(response.data),
+        permissionCodes: rolePermissionCodes(response.data)
+      });
+      setState({ loading: false, traceId: response.trace_id });
+      await props.onChanged();
+      setSelectedRoleCode(createdRole.code);
+    } catch (error: unknown) {
+      const message = error instanceof ApiError ? error.message : error instanceof Error ? error.message : '角色创建失败';
+      const traceId = error instanceof ApiError ? error.traceId : '';
+      setState({ loading: false, error: message, traceId });
+    }
+  }
+
+  async function submitUpdate(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!canEditSelected || !selectedRoleCode) {
+      return;
+    }
+    const validationError = validateRoleDraft(editDraft, false);
+    if (validationError) {
+      setState({ loading: false, error: validationError });
+      return;
+    }
+    setState({ loading: true });
+    try {
+      const response = await updateRole(selectedRoleCode, {
+        name: editDraft.name.trim(),
+        scopeType: editDraft.scopeType,
+        description: editDraft.description.trim(),
+        permissionCodes: editDraft.permissionCodes
+      });
+      setDetail(response.data);
+      setEditDraft({
+        code: response.data.code,
+        name: response.data.name,
+        scopeType: roleScope(response.data) || 'PROJECT',
+        description: roleDescription(response.data),
+        permissionCodes: rolePermissionCodes(response.data)
+      });
+      setState({ loading: false, traceId: response.trace_id });
+      await props.onChanged();
+    } catch (error: unknown) {
+      const message = error instanceof ApiError ? error.message : error instanceof Error ? error.message : '角色保存失败';
+      const traceId = error instanceof ApiError ? error.traceId : '';
+      setState({ loading: false, error: message, traceId });
+    }
+  }
+
+  async function submitStatus() {
+    if (!canEditSelected || !selectedRoleCode || !detail) {
+      return;
+    }
+    const nextStatus = isDisabledStatus(detail.status) ? 'ENABLED' : 'DISABLED';
+    setState({ loading: true });
+    try {
+      const response = await changeRoleStatus(selectedRoleCode, nextStatus);
+      setDetail(response.data);
+      setEditDraft((current) => ({
+        ...current,
+        scopeType: roleScope(response.data) || current.scopeType,
+        permissionCodes: rolePermissionCodes(response.data)
+      }));
+      setState({ loading: false, traceId: response.trace_id });
+      await props.onChanged();
+    } catch (error: unknown) {
+      const message = error instanceof ApiError ? error.message : error instanceof Error ? error.message : '角色状态变更失败';
+      const traceId = error instanceof ApiError ? error.traceId : '';
+      setState({ loading: false, error: message, traceId });
+    }
+  }
+
+  return (
+    <div className="panel insight-panel role-definition-panel">
+      <div className="panel-title-row">
+        <h2>角色定义</h2>
+        <StatusPill value={String(props.roles.length)} />
+      </div>
+
+      <label className="resource-selector">
+        <span>角色</span>
+        <select
+          value={selectedRoleCode}
+          disabled={!props.signedIn || state.loading || props.roles.length === 0}
+          onChange={(event) => setSelectedRoleCode(event.target.value)}
+        >
+          {props.roles.length === 0 ? (
+            <option value="">暂无角色</option>
+          ) : (
+            props.roles.map((role) => (
+              <option key={role.code} value={role.code}>
+                {role.name} / {role.code}
+              </option>
+            ))
+          )}
+        </select>
+      </label>
+
+      {detail ? (
+        <div className="resource-summary">
+          <strong>{detail.name}</strong>
+          {[
+            ['编码', detail.code],
+            ['作用域', roleScope(detail)],
+            ['版本', detail.version],
+            ['权限数', rolePermissionCodes(detail).length],
+            ['状态', detail.status],
+            ['保护', selectedIsProtected ? '内置/系统角色' : '自定义角色']
+          ].map(([label, value]) => (
+            <div key={label}>
+              <span>{label}</span>
+              {label === '状态' ? <StatusPill value={String(value)} /> : <em>{value}</em>}
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="empty-state compact">
+          <ShieldCheck size={20} />
+          <div>
+            <strong>{state.loading ? '正在加载角色' : props.signedIn ? '暂无角色详情' : '等待登录'}</strong>
+            <span>{state.error ?? (hasPermission(props.currentUser, 'role:read') ? '请选择角色' : '当前账号无查看权限')}</span>
+          </div>
+        </div>
+      )}
+
+      <div className="role-impact-hint">
+        <Activity size={16} />
+        <span>保存权限集合或启停自定义角色后，后端会递增当前绑定用户的 authVersion，旧权限摘要随之失效。</span>
+      </div>
+
+      {canEditSelected && (
+        <form className="resource-edit-form role-form" onSubmit={submitUpdate}>
+          <strong>编辑自定义角色</strong>
+          <RoleFields draft={editDraft} disabled={disabled} includeCode={false} onChange={setEditDraft} />
+          <PermissionChecklist
+            title="权限点"
+            groups={permissionGroups}
+            currentUser={props.currentUser}
+            selected={editDraft.permissionCodes}
+            disabled={disabled}
+            onToggle={(code) => setEditDraft((current) => toggleRolePermission(current, code))}
+          />
+          <div className="role-form-actions">
+            <button className="mini-button" type="submit" disabled={disabled || editDraft.permissionCodes.length === 0}>
+              <Save size={14} />
+              保存角色
+            </button>
+            <button className="mini-button" type="button" disabled={disabled} onClick={submitStatus}>
+              <Power size={14} />
+              {detail && isDisabledStatus(detail.status) ? '启用角色' : '停用角色'}
+            </button>
+          </div>
+        </form>
+      )}
+
+      {canCreate && (
+        <form className="resource-edit-form role-form" onSubmit={submitCreate}>
+          <strong>创建自定义角色</strong>
+          <RoleFields draft={createDraft} disabled={disabled} includeCode onChange={setCreateDraft} />
+          <PermissionChecklist
+            title="权限点"
+            groups={permissionGroups}
+            currentUser={props.currentUser}
+            selected={createDraft.permissionCodes}
+            disabled={disabled}
+            onToggle={(code) => setCreateDraft((current) => toggleRolePermission(current, code))}
+          />
+          <button
+            className="mini-button"
+            type="submit"
+            disabled={disabled || !createDraft.code.trim() || !createDraft.name.trim() || createDraft.permissionCodes.length === 0}
+          >
+            <Save size={14} />
+            创建角色
+          </button>
+        </form>
+      )}
+
+      {state.error && (
+        <div className="inline-error">
+          <strong>操作失败</strong>
+          <span>{state.error}</span>
+          {state.traceId && <span>Trace ID：{state.traceId}</span>}
+        </div>
+      )}
+      {!state.error && state.traceId && <div className="panel-trace">Trace ID：{state.traceId}</div>}
+    </div>
+  );
+}
+
+function RoleFields(props: {
+  draft: RoleDraft;
+  disabled: boolean;
+  includeCode: boolean;
+  onChange: (next: RoleDraft | ((current: RoleDraft) => RoleDraft)) => void;
+}) {
+  function update(key: keyof RoleDraft, value: string) {
+    props.onChange((current) => ({ ...current, [key]: value }));
+  }
+
+  return (
+    <div className="role-definition-grid">
+      {props.includeCode && (
+        <label>
+          <span>编码</span>
+          <input
+            value={props.draft.code}
+            disabled={props.disabled}
+            maxLength={64}
+            onChange={(event) => update('code', event.target.value)}
+            placeholder="QaReviewer"
+          />
+        </label>
+      )}
+      <label>
+        <span>名称</span>
+        <input
+          value={props.draft.name}
+          disabled={props.disabled}
+          maxLength={64}
+          onChange={(event) => update('name', event.target.value)}
+          placeholder="QA 评审员"
+        />
+      </label>
+      <label>
+        <span>作用域</span>
+        <select value={props.draft.scopeType} disabled={props.disabled} onChange={(event) => update('scopeType', event.target.value)}>
+          {roleScopeOptions.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className="role-description-field">
+        <span>说明</span>
+        <input
+          value={props.draft.description}
+          disabled={props.disabled}
+          maxLength={512}
+          onChange={(event) => update('description', event.target.value)}
+          placeholder="角色用途"
+        />
+      </label>
+    </div>
+  );
+}
+
+function PermissionChecklist(props: {
+  title: string;
+  groups: ReadonlyArray<readonly [string, PermissionView[]]>;
+  currentUser: CurrentUser | null;
+  selected: string[];
+  disabled: boolean;
+  onToggle: (code: string) => void;
+}) {
+  return (
+    <div className="permission-checklist">
+      <strong>{props.title}</strong>
+      {props.groups.length === 0 ? (
+        <div className="empty-state compact">
+          <KeyRound size={18} />
+          <div>
+            <span>{hasPermission(props.currentUser, 'role:read') ? '暂无权限点目录' : '当前账号无权限点查看权限'}</span>
+          </div>
+        </div>
+      ) : (
+        props.groups.map(([resource, permissions]) => (
+          <fieldset className="permission-group" key={resource}>
+            <legend>{resource}</legend>
+            <div className="permission-list">
+              {permissions.map((permission) => {
+                const selected = props.selected.includes(permission.code);
+                const canGrant = props.currentUser?.permissions?.includes(permission.code) ?? false;
+                return (
+                  <label className="permission-option" key={permission.code}>
+                    <input
+                      type="checkbox"
+                      checked={selected}
+                      disabled={props.disabled || !canGrant}
+                      onChange={() => props.onToggle(permission.code)}
+                    />
+                    <span>
+                      <strong>{permission.code}</strong>
+                      <em>{permission.description || permission.action}</em>
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+          </fieldset>
+        ))
+      )}
+    </div>
+  );
+}
+
+function roleScope(role: RoleView | RoleDetailView) {
+  return role.scopeType ?? role.scope_type ?? '';
+}
+
+function roleDescription(role: RoleView | RoleDetailView) {
+  return role.description ?? '';
+}
+
+function rolePermissionCodes(role: RoleDetailView) {
+  return role.permissionCodes ?? role.permission_codes ?? [];
+}
+
+function permissionResourceType(permission: PermissionView) {
+  return permission.resourceType ?? permission.resource_type ?? '';
+}
+
+function isDisabledStatus(status: string) {
+  const normalized = status.toUpperCase();
+  return normalized === 'DISABLED' || status === '已停用';
+}
+
+function toggleRolePermission(draft: RoleDraft, code: string): RoleDraft {
+  const exists = draft.permissionCodes.includes(code);
+  return {
+    ...draft,
+    permissionCodes: exists
+      ? draft.permissionCodes.filter((item) => item !== code)
+      : [...draft.permissionCodes, code].sort((left, right) => left.localeCompare(right))
+  };
+}
+
+function validateRoleDraft(draft: RoleDraft, includeCode: boolean) {
+  if (includeCode && !/^[A-Za-z][A-Za-z0-9_-]{2,63}$/.test(draft.code.trim())) {
+    return '角色编码需以字母开头，长度 3-64，仅允许字母、数字、下划线和中划线';
+  }
+  if (!draft.name.trim()) {
+    return '请填写角色名称';
+  }
+  if (!roleScopeOptions.some((option) => option.value === draft.scopeType)) {
+    return '请选择有效作用域';
+  }
+  if (draft.permissionCodes.length === 0) {
+    return '至少选择一个权限点';
+  }
+  return '';
 }
 
 type SecretDraft = {

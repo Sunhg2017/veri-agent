@@ -8,6 +8,7 @@ export type PageKey =
   | 'model-access'
   | 'organizations'
   | 'users'
+  | 'roles'
   | 'projects'
   | 'applications'
   | 'environments'
@@ -31,6 +32,8 @@ export type Permission =
   | 'user:assign_role'
   | 'user:reset_password'
   | 'role:read'
+  | 'role:create'
+  | 'role:edit'
   | 'role:bind'
   | 'role:unbind'
   | 'project:read'
@@ -80,6 +83,9 @@ export type ButtonKey =
   | 'user:edit'
   | 'user:lifecycle'
   | 'user:role'
+  | 'role:create'
+  | 'role:edit'
+  | 'role:status'
   | 'project:create'
   | 'project:edit'
   | 'project:member'
@@ -119,6 +125,7 @@ export const pageReadPermissions: Partial<Record<PageKey, Permission>> = {
   'model-access': 'modelAccess:read',
   organizations: 'department:read',
   users: 'user:read',
+  roles: 'role:read',
   projects: 'project:read',
   applications: 'application:read',
   environments: 'environment:read',
@@ -160,6 +167,9 @@ const buttonPermissionGroups: Record<ButtonKey, Permission[][]> = {
   'user:create': [['user:create']],
   'user:edit': [['user:edit']],
   'user:lifecycle': [['user:enable'], ['user:disable'], ['user:lock'], ['user:unlock'], ['user:reset_password']],
+  'role:create': [['role:create']],
+  'role:edit': [['role:edit']],
+  'role:status': [['role:edit']],
   'project:create': [['project:create']],
   'project:edit': [['project:edit'], ['project:archive'], ['project:disable']],
   'application:create': [['application:create']],

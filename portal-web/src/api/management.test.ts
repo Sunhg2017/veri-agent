@@ -3,13 +3,18 @@ import { requestJson, requestText } from './client';
 import {
   auditLogExportPath,
   auditOutboxPath,
+  changeRoleStatus,
+  createRole,
   createSecretReference,
   disableSecretReference,
   exportAuditLogsCsv,
+  fetchPermissions,
+  fetchRole,
   fetchManagementData,
   fetchEnvironmentConnectivityCheck,
   rotateSecretReference,
-  runEnvironmentConnectivityCheck
+  runEnvironmentConnectivityCheck,
+  updateRole
 } from './management';
 
 vi.mock('./client', () => ({
@@ -102,6 +107,61 @@ describe('management API helpers', () => {
     await runEnvironmentConnectivityCheck('staging env');
     expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/management/environments/staging%20env/connectivity-check', {
       method: 'POST'
+    });
+  });
+
+  it('calls role definition and permission catalog endpoints', async () => {
+    requestJsonMock.mockResolvedValue({
+      code: 'OK',
+      message: 'ok',
+      trace_id: 'trace-role',
+      data: { code: 'QaReviewer', name: 'QA 评审员', scopeType: 'PROJECT', permissionCodes: ['role:read'] }
+    });
+
+    await fetchPermissions();
+    expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/management/permissions?size=100');
+
+    await fetchRole('QA Role');
+    expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/management/roles/QA%20Role');
+
+    await createRole({
+      code: 'QaReviewer',
+      name: 'QA 评审员',
+      scopeType: 'PROJECT',
+      description: '项目内评审',
+      permissionCodes: ['role:read', 'audit:read']
+    });
+    expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/management/roles', {
+      method: 'POST',
+      body: JSON.stringify({
+        code: 'QaReviewer',
+        name: 'QA 评审员',
+        scopeType: 'PROJECT',
+        description: '项目内评审',
+        permissionCodes: ['role:read', 'audit:read']
+      })
+    });
+
+    await updateRole('QaReviewer', {
+      name: 'QA 审计评审员',
+      scopeType: 'PROJECT',
+      description: '',
+      permissionCodes: ['role:read', 'audit:read', 'audit:export']
+    });
+    expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/management/roles/QaReviewer', {
+      method: 'PATCH',
+      body: JSON.stringify({
+        name: 'QA 审计评审员',
+        scopeType: 'PROJECT',
+        description: '',
+        permissionCodes: ['role:read', 'audit:read', 'audit:export']
+      })
+    });
+
+    await changeRoleStatus('QaReviewer', 'DISABLED');
+    expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/management/roles/QaReviewer/status', {
+      method: 'PATCH',
+      body: JSON.stringify({ status: 'DISABLED' })
     });
   });
 

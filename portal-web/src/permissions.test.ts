@@ -28,9 +28,10 @@ describe('WP1 permission helpers', () => {
   });
 
   it('maps read permissions to protected management pages', () => {
-    const currentUser = user(['user:read', 'audit:read', 'config:read', 'requirementInput:read', 'asset:read', 'modelAccess:read']);
+    const currentUser = user(['user:read', 'role:read', 'audit:read', 'config:read', 'requirementInput:read', 'asset:read', 'modelAccess:read']);
 
     expect(canAccessPage(currentUser, 'users')).toBe(true);
+    expect(canAccessPage(currentUser, 'roles')).toBe(true);
     expect(canAccessPage(currentUser, 'audit')).toBe(true);
     expect(canAccessPage(currentUser, 'settings')).toBe(true);
     expect(canAccessPage(currentUser, 'document-input')).toBe(true);
@@ -76,6 +77,8 @@ describe('WP1 permission helpers', () => {
       'department:enable',
       'department:disable',
       'user:edit',
+      'role:create',
+      'role:edit',
       'project:edit',
       'project:archive',
       'project:disable',
@@ -95,6 +98,8 @@ describe('WP1 permission helpers', () => {
     expect(hasPermission(currentUser, 'department:enable')).toBe(true);
     expect(hasPermission(currentUser, 'department:disable')).toBe(true);
     expect(hasPermission(currentUser, 'user:edit')).toBe(true);
+    expect(hasPermission(currentUser, 'role:create')).toBe(true);
+    expect(hasPermission(currentUser, 'role:edit')).toBe(true);
     expect(hasPermission(currentUser, 'project:edit')).toBe(true);
     expect(hasPermission(currentUser, 'project:archive')).toBe(true);
     expect(hasPermission(currentUser, 'project:disable')).toBe(true);
@@ -124,6 +129,10 @@ describe('WP1 permission helpers', () => {
   it('uses OR logic for single-permission buttons', () => {
     expect(canUseButton(user(['audit:export']), 'audit:export')).toBe(true);
     expect(canUseButton(user(['config:read']), 'audit:export')).toBe(false);
+    expect(canUseButton(user(['role:create']), 'role:create')).toBe(true);
+    expect(canUseButton(user(['role:read']), 'role:create')).toBe(false);
+    expect(canUseButton(user(['role:edit']), 'role:edit')).toBe(true);
+    expect(canUseButton(user(['role:edit']), 'role:status')).toBe(true);
     expect(canUseButton(user(['asset:manage']), 'asset:requirement_create')).toBe(true);
     expect(canUseButton(user(['asset:manage']), 'asset:requirement_edit')).toBe(true);
     expect(canUseButton(user(['asset:manage']), 'asset:api_create')).toBe(true);

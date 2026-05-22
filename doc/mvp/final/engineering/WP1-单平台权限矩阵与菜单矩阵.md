@@ -58,6 +58,7 @@
 | 系统概览 | 登录前后均可见 | `overview` |
 | 组织部门 | `department:read` | `organizations` |
 | 用户与权限 | `user:read` | `users` |
+| 角色治理 | `role:read` | `roles` |
 | 项目空间 | `project:read` | `projects` |
 | 应用管理 | `application:read` | `applications` |
 | 环境管理 | `environment:read` | `environments` |
@@ -78,6 +79,9 @@
 | 用户与权限 | 重置密码 | `user:reset_password` |
 | 用户与权限 | 分配角色 | `user:assign_role` + `role:bind` |
 | 用户与权限 | 解绑角色 | `user:assign_role` + `role:unbind` |
+| 角色治理 | 创建自定义角色 | `role:create` |
+| 角色治理 | 编辑自定义角色 | `role:edit` |
+| 角色治理 | 启停自定义角色 | `role:edit` |
 | 项目空间 | 创建项目 | `project:create` |
 | 应用管理 | 登记应用 | `application:create` |
 | 环境管理 | 新增环境 | `environment:create` |

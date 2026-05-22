@@ -21,9 +21,29 @@ export interface UserView {
 export interface RoleView {
   code: string;
   name: string;
-  scope_type: string;
+  scopeType?: string;
+  scope_type?: string;
   status: string;
   description: string;
+}
+
+export interface PermissionView {
+  code: string;
+  resourceType?: string;
+  resource_type?: string;
+  action: string;
+  scopeMask?: string;
+  scope_mask?: string;
+  description: string;
+  status: string;
+}
+
+export interface RoleDetailView extends RoleView {
+  system: boolean;
+  builtin: boolean;
+  version: number;
+  permissionCodes?: string[];
+  permission_codes?: string[];
 }
 
 export interface ProjectView {
@@ -234,10 +254,26 @@ export interface RotateSecretReferencePayload {
   expires_at?: string;
 }
 
+export interface CreateRolePayload {
+  code: string;
+  name: string;
+  scopeType: string;
+  description?: string;
+  permissionCodes: string[];
+}
+
+export interface UpdateRolePayload {
+  name?: string;
+  scopeType?: string;
+  description?: string;
+  permissionCodes?: string[];
+}
+
 export interface ManagementData {
   departments: DepartmentView[];
   users: UserView[];
   roles: RoleView[];
+  permissions: PermissionView[];
   projects: ProjectView[];
   applications: ApplicationView[];
   environments: EnvironmentView[];
@@ -254,6 +290,7 @@ const endpoints = {
   departments: '/api/v1/management/departments',
   users: '/api/v1/management/users',
   roles: '/api/v1/management/roles',
+  permissions: '/api/v1/management/permissions',
   projects: '/api/v1/management/projects',
   applications: '/api/v1/management/applications',
   environments: '/api/v1/management/environments',
@@ -306,6 +343,7 @@ export async function fetchManagementData(permissions?: string[]): Promise<{ tra
     departments,
     users,
     roles,
+    permissionCatalog,
     projects,
     applications,
     environments,
@@ -317,7 +355,8 @@ export async function fetchManagementData(permissions?: string[]): Promise<{ tra
   ] = await Promise.all([
     canRead(permissions, 'department:read') ? requestJson<PageResponse<DepartmentView>>(endpoints.departments) : skippedPage<DepartmentView>(),
     canRead(permissions, 'user:read') ? requestJson<PageResponse<UserView>>(endpoints.users) : skippedPage<UserView>(),
-    canRead(permissions, 'role:read') ? requestJson<PageResponse<RoleView>>(endpoints.roles) : skippedPage<RoleView>(),
+    canRead(permissions, 'role:read') ? requestJson<PageResponse<RoleView>>(`${endpoints.roles}?size=100`) : skippedPage<RoleView>(),
+    canRead(permissions, 'role:read') ? requestJson<PageResponse<PermissionView>>(`${endpoints.permissions}?size=100`) : skippedPage<PermissionView>(),
     canRead(permissions, 'project:read') ? requestJson<PageResponse<ProjectView>>(endpoints.projects) : skippedPage<ProjectView>(),
     canRead(permissions, 'application:read') ? requestJson<PageResponse<ApplicationView>>(endpoints.applications) : skippedPage<ApplicationView>(),
     canRead(permissions, 'environment:read') ? requestJson<PageResponse<EnvironmentView>>(endpoints.environments) : skippedPage<EnvironmentView>(),
@@ -333,6 +372,7 @@ export async function fetchManagementData(permissions?: string[]): Promise<{ tra
       departments,
       users,
       roles,
+      permissionCatalog,
       projects,
       applications,
       environments,
@@ -346,6 +386,7 @@ export async function fetchManagementData(permissions?: string[]): Promise<{ tra
       departments: departments.data.items,
       users: users.data.items,
       roles: roles.data.items,
+      permissions: permissionCatalog.data.items,
       projects: projects.data.items,
       applications: applications.data.items,
       environments: environments.data.items,
@@ -485,6 +526,35 @@ export function unassignUserRole(username: string, roleCode: string): Promise<Ap
   return requestJson<UserView>(`/api/v1/management/users/${encodeURIComponent(username)}/roles/unassign`, {
     method: 'POST',
     body: JSON.stringify({ role_code: roleCode })
+  });
+}
+
+export function fetchPermissions(): Promise<ApiResponse<PageResponse<PermissionView>>> {
+  return requestJson<PageResponse<PermissionView>>(`${endpoints.permissions}?size=100`);
+}
+
+export function fetchRole(roleCode: string): Promise<ApiResponse<RoleDetailView>> {
+  return requestJson<RoleDetailView>(`${endpoints.roles}/${encodeURIComponent(roleCode)}`);
+}
+
+export function createRole(payload: CreateRolePayload): Promise<ApiResponse<RoleDetailView>> {
+  return requestJson<RoleDetailView>(endpoints.roles, {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+}
+
+export function updateRole(roleCode: string, payload: UpdateRolePayload): Promise<ApiResponse<RoleDetailView>> {
+  return requestJson<RoleDetailView>(`${endpoints.roles}/${encodeURIComponent(roleCode)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload)
+  });
+}
+
+export function changeRoleStatus(roleCode: string, status: string): Promise<ApiResponse<RoleDetailView>> {
+  return requestJson<RoleDetailView>(`${endpoints.roles}/${encodeURIComponent(roleCode)}/status`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status })
   });
 }
 

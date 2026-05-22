@@ -1091,6 +1091,127 @@ tbody tr:hover td {
   gap: 14px;
 }
 
+.role-definition-panel {
+  display: grid;
+  gap: 14px;
+}
+
+.role-form {
+  padding-top: 12px;
+  border-top: 1px solid var(--border-light);
+}
+
+.role-form strong {
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.role-definition-grid {
+  display: grid;
+  gap: 8px;
+}
+
+.role-definition-grid label,
+.permission-option {
+  min-width: 0;
+}
+
+.role-description-field {
+  grid-column: 1 / -1;
+}
+
+.role-impact-hint {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+  padding: 10px 12px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.role-impact-hint svg {
+  color: var(--primary);
+  margin-top: 1px;
+}
+
+.permission-checklist {
+  display: grid;
+  gap: 10px;
+}
+
+.permission-group {
+  min-width: 0;
+  margin: 0;
+  padding: 10px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+}
+
+.permission-group legend {
+  padding: 0 4px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.permission-list {
+  display: grid;
+  gap: 8px;
+}
+
+.permission-option {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+  color: var(--text-primary);
+  font-size: 12px;
+}
+
+.permission-option input {
+  width: 14px;
+  height: 14px;
+  margin-top: 2px;
+}
+
+.permission-option span,
+.permission-option strong,
+.permission-option em {
+  display: block;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.permission-option strong {
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.permission-option em {
+  margin-top: 2px;
+  color: var(--text-tertiary);
+  font-size: 11px;
+  font-style: normal;
+  line-height: 1.35;
+}
+
+.permission-option input:disabled + span {
+  color: var(--text-tertiary);
+}
+
+.role-form-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
 .secret-reference-list {
   display: grid;
   gap: 8px;
