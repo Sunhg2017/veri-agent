@@ -48,13 +48,13 @@ WP1_BOOTSTRAP_TOKEN=local-init-token bash scripts/wp1_db_profile_smoke.sh
 | `mvn -B -pl platform-api test` | 161 tests passed |
 | `cd portal-web && npm run test` | 7 files / 63 tests passed |
 | `cd portal-web && npm run build` | passed |
-| `bash db/validation/run_wp1_db_validation.sh` | passed，0 WARN / 0 FAIL，覆盖审计保留配置、归档表、受控清理函数、Audit outbox traceId 索引和 app role 权限边界 |
+| `bash db/validation/run_wp1_db_validation.sh` | passed，0 WARN / 0 FAIL，覆盖审计保留配置、归档表、受控清理函数、Audit outbox traceId 索引和 app/readonly/migration role 权限边界 |
 | `bash scripts/wp1_db_profile_smoke.sh` | passed，覆盖部门详情/编辑/启停，用户详情/资料编辑，项目/应用/环境正式创建、详情、编辑、状态流 DTO，集成配置登记/详情/编辑/启停，设置 CRUD/敏感设置拒绝，项目成员、应用负责人、环境授权用户增删查和资源级角色绑定，资源作用域过滤，管理对象、审计筛选、失败登录审计、会话轮换、账号锁定/解锁和账号生命周期 |
 | `bash scripts/wp1_quality_gate.sh` | passed；默认执行 single-platform guard、后端测试、前端测试、前端构建和 WP1 数据库验证，db profile HTTP smoke 需显式设置 `WP1_RUN_DB_SMOKE=1` |
 
-数据库安全校验已在临时库内创建 `wp1_app`、`wp1_readonly`、`wp1_migration` 三个测试角色并套用运行期授权策略。`security.audit_log_app_role_append_only` 已可给出确定的 `PASS/FAIL`，当前结果为 `PASS`。`run_wp1_db_validation.sh` 默认发现 `WARN` 也会失败，只有显式设置 `WP1_ALLOW_DB_VALIDATION_WARN=1` 才临时放行。预发或生产环境如果使用不同应用数据库角色，需要替换 validation 中的角色名复用同一检查。审计表本身已具备触发器级 `UPDATE/DELETE` 阻断。
+数据库安全校验已在临时库内创建 `wp1_app`、`wp1_readonly`、`wp1_migration` 三个测试角色并套用运行期授权策略。`run_wp1_db_validation.sh` 会额外执行 `wp1_release_role_validation.sql`，在本地临时库验证 app/readonly/migration 三类角色的发布权限边界。`security.audit_log_app_role_append_only` 已可给出确定的 `PASS/FAIL`，当前结果为 `PASS`。`run_wp1_db_validation.sh` 默认发现 `WARN` 也会失败，只有显式设置 `WP1_ALLOW_DB_VALIDATION_WARN=1` 才临时放行。预发或生产环境如果使用不同数据库角色，需要通过 `WP1_RELEASE_APP_ROLE`、`WP1_RELEASE_READONLY_ROLE`、`WP1_RELEASE_MIGRATION_ROLE` 注入真实角色名复用同一检查。审计表本身已具备触发器级 `UPDATE/DELETE` 阻断。
 
-预发/生产真实应用数据库角色检查已收敛到 `doc/mvp/final/engineering/WP1-发布前DB权限Runbook.md`。发布流水线建议分层执行：CI 每次跑临时库 `run_wp1_db_validation.sh`，预发/生产发布窗口在迁移后、切流前执行 `scripts/wp1_release_role_validation.sh`，并归档 DBA 复核结果。
+预发/生产真实 app/readonly/migration 数据库角色检查已收敛到 `doc/mvp/final/engineering/WP1-发布前DB权限Runbook.md`。发布流水线建议分层执行：CI 每次跑临时库 `run_wp1_db_validation.sh`，预发/生产发布窗口在迁移后、切流前执行 `scripts/wp1_release_role_validation.sh`，并归档 DBA 复核结果。
 
 环境连通性检查配置：
 
@@ -80,7 +80,7 @@ Secret 响应、列表、前端状态和审计只记录引用、版本、用途�
 
 本轮 1～8 项已完成，后续 WP1 研发可直接在当前底座上推进，推荐优先级如下：
 
-1. 按 `WP1-发布前DB权限Runbook.md` 将预发/生产真实应用数据库角色接入发布流水线，确保不是仅临时库角色通过。
+1. 按 `WP1-发布前DB权限Runbook.md` 将预发/生产真实 app/readonly/migration 数据库角色接入发布流水线，确保不是仅临时库角色通过。
 2. 补角色定义管理；会话清理已具备 local/db profile 定时清理、保留窗口配置和 `veri.agent.auth.session.cleanup` 指标，审计保留已具备 `db` profile 受控清理、归档表、保留窗口配置和 `veri.agent.audit.retention.cleanup` 指标，Audit outbox 已具备只读运维视图和 traceId 查询索引，环境连通性检查已具备可配置探活和最近结果，Secret 引用已具备本地加密创建/轮换/撤销闭环。
 3. 审计日志已支持 `GET /api/v1/management/audit-logs/export` 同步 CSV 导出，要求 `audit:read` + `audit:export`，portal-web 审计页已接入导出按钮和下载状态；后续如需要大批量导出，再演进异步任务和对象存储引用。
 4. 审计保留策略以 `doc/mvp/final/engineering/WP1-审计保留策略Runbook.md` 为准：在线表默认保留 365 天，清理默认关闭，开启后先归档到 `audit_log_archive` 再从 `audit_log` 删除；app role 仍不得直接删除审计日志。

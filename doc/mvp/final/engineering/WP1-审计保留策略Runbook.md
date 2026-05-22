@@ -47,7 +47,10 @@
 
 ```bash
 WP1_RELEASE_DATABASE_URL='postgres://dba_readonly:***@preprod-db:5432/veri_agent' \
+WP1_RELEASE_SCHEMA='public' \
 WP1_RELEASE_APP_ROLE='wp1_app_preprod' \
+WP1_RELEASE_READONLY_ROLE='wp1_readonly_preprod' \
+WP1_RELEASE_MIGRATION_ROLE='wp1_migration_preprod' \
 bash scripts/wp1_release_role_validation.sh
 ```
 

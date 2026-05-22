@@ -29,24 +29,36 @@ bash db/validation/run_wp1_db_validation.sh
 bash db/validation/run_wp2_db_validation.sh
 ```
 
-脚本会启动临时 PostgreSQL 15 容器，顺序执行 migration、validation，并重复执行一次用于幂等性 smoke test。WP1 脚本会执行 WP1/WP2/WP3/WP4 位于 `db/migration/wp1` 下的统一迁移，并创建 `wp1_app`、`wp1_readonly`、`wp1_migration` 三个测试数据库角色，套用运行期授权策略后验证运行期角色具备 WP1-WP4 业务表 DML 权限、审计表 append-only 权限和 WP4 schema 准出项。默认输出目录分别为 `build/wp1-db-validation/` 和 `build/wp2-db-validation/`；WP1 出现 `FAIL` 或未显式放行的 `WARN` 时以非零状态退出，WP2 出现 `FAIL` 时以非零状态退出。
+脚本会启动临时 PostgreSQL 15 容器，顺序执行 migration、validation，并重复执行一次用于幂等性 smoke test。WP1 脚本会执行 WP1/WP2/WP3/WP4 位于 `db/migration/wp1` 下的统一迁移，并创建 `wp1_app`、`wp1_readonly`、`wp1_migration` 三个测试数据库角色，套用运行期授权策略后验证运行期角色具备 WP1-WP4 业务表 DML 权限、审计表 append-only 权限、release app/readonly/migration 角色权限边界和 WP4 schema 准出项。默认输出目录分别为 `build/wp1-db-validation/` 和 `build/wp2-db-validation/`；WP1 出现 `FAIL` 或未显式放行的 `WARN` 时以非零状态退出，WP2 出现 `FAIL` 时以非零状态退出。
 
 ## 脚本说明
 
 - `wp1_schema_validation.sql`：校验 WP1 核心表、关键字段、关键索引/约束，确认租户表和 `tenant_id` 未混入当前模型。
 - `wp1_seed_validation.sql`：校验 P0 权限点、8 个预置角色、`context:*` 权限点、默认 `LOCAL_ENCRYPTED` provider、核心角色权限绑定。
 - `wp1_security_validation.sql`：校验敏感字段拆分、本地密文表、审计表、审计/密钥索引、疑似敏感变量明文风险、审计表 append-only 权限和触发器保护。
+- `wp1_release_role_validation.sql`：校验预发/生产真实 app/readonly/migration 三类角色存在、互相独立、系统权限不过界、app/readonly 无 DDL、migration 可承担 schema DDL、审计 append-only、本地密文表和只读账号边界。
 - `wp_all_schema_validation.sql`：校验单平台 WP1/WP2/WP3/WP4 核心表、关键字段、关键索引，以及租户表/`tenant_id` 回归。
 - `wp2_model_access_validation.sql`：校验 WP2 模型供应商、Prompt 版本、调用日志表、关键索引、明文密钥/Prompt body 字段风险，并确认模型接入表未重新引入 `tenant_id`。
 - `wp4_document_input_validation.sql`：校验 WP4 文档输入表、关键字段、索引、状态约束、`DEAD_LETTER` 状态、webhook event/idempotency 唯一索引、默认字段映射和无 `tenant_id` 回归。
 
 ## 预期结果
 
-迁移、seed 和临时库运行期角色策略正常时，核心检查应全部返回 `PASS`。安全脚本中的 `security.app_role_runtime_table_dml` 和 `security.audit_log_app_role_append_only` 默认检查 `wp1_app` 和 `veri_agent_app` 两个候选应用数据库角色；`run_wp1_db_validation.sh` 会创建 `wp1_app` 并套用标准授权策略，因此本地和 CI 临时库应得到确定的 `PASS/FAIL`。
+迁移、seed 和临时库运行期角色策略正常时，核心检查应全部返回 `PASS`。安全脚本中的 `security.app_role_runtime_table_dml` 和 `security.audit_log_app_role_append_only` 默认检查 `wp1_app` 和 `veri_agent_app` 两个候选应用数据库角色；`run_wp1_db_validation.sh` 会创建 `wp1_app` 并套用标准授权策略，同时用 `wp1_release_role_validation.sql` 校验 `wp1_app`、`wp1_readonly`、`wp1_migration` 三类角色，因此本地和 CI 临时库应得到确定的 `PASS/FAIL`。
 
 ## 需要替换的环境项
 
-如果预发或生产环境实际应用数据库角色不是 `wp1_app` 或 `veri_agent_app`，请在 `wp1_security_validation.sql` 的 `app_roles(role_name)` CTE 中替换为真实角色名后执行：
+如果预发或生产环境实际数据库角色不是默认值，请优先通过 release role validation 的环境变量注入真实角色名：
+
+```bash
+WP1_RELEASE_DATABASE_URL='postgres://dba_readonly:***@preprod-db:5432/veri_agent' \
+WP1_RELEASE_SCHEMA='public' \
+WP1_RELEASE_APP_ROLE='your_real_app_role' \
+WP1_RELEASE_READONLY_ROLE='your_real_readonly_role' \
+WP1_RELEASE_MIGRATION_ROLE='your_real_migration_role' \
+bash scripts/wp1_release_role_validation.sh
+```
+
+如需单独复用 `wp1_security_validation.sql` 的旧候选 app role 检查，请在 `app_roles(role_name)` CTE 中替换为真实应用角色名后执行：
 
 ```sql
 with app_roles(role_name) as (

@@ -32,6 +32,16 @@ run_psql_inline() {
   docker exec -i "$CONTAINER" psql -v ON_ERROR_STOP=1 -U "$DB_USER" -d "$DB_NAME"
 }
 
+run_release_role_validation() {
+  local out_file="$1"
+  docker exec -i "$CONTAINER" psql -v ON_ERROR_STOP=1 -U "$DB_USER" -d "$DB_NAME" \
+    -v WP1_RELEASE_SCHEMA=public \
+    -v WP1_RELEASE_APP_ROLE=wp1_app \
+    -v WP1_RELEASE_READONLY_ROLE=wp1_readonly \
+    -v WP1_RELEASE_MIGRATION_ROLE=wp1_migration \
+    < "$ROOT_DIR/db/validation/wp1_release_role_validation.sql" > "$out_file" 2>&1
+}
+
 cleanup() {
   if [[ "$KEEP_CONTAINER" != "1" ]]; then
     docker rm -f "$CONTAINER" >/dev/null 2>&1 || true
@@ -94,7 +104,8 @@ begin
 end
 $$;
 
-grant usage on schema public to wp1_app, wp1_readonly;
+grant usage on schema public to wp1_app, wp1_readonly, wp1_migration;
+grant create on schema public to wp1_migration;
 
 grant select, insert, update on
     base_department,
@@ -190,9 +201,11 @@ main() {
   start_postgres
   run_migrations "$OUT_DIR/migration.log" "running "
   apply_runtime_role_policy "$OUT_DIR/migration.log"
+  run_release_role_validation "$OUT_DIR/wp1_release_role_validation.out"
   run_validations "" "validating "
   run_migrations "$OUT_DIR/migration-rerun.log" "rerun "
   apply_runtime_role_policy "$OUT_DIR/migration-rerun.log"
+  run_release_role_validation "$OUT_DIR/rerun-wp1_release_role_validation.out"
   run_validations "rerun-" "rerun validating "
   assert_no_failures
   assert_no_warnings

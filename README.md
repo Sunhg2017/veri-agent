@@ -358,4 +358,4 @@ bash scripts/wp2_quality_gate.sh
 5. 敏感设置键会拒绝明文保存，只允许掩码值或 Secret 引用类写法。
 6. OpenAPI 契约测试已覆盖设置 CRUD、认证、管理和账号生命周期关键路径。
 7. `db` profile smoke 已扩展到设置 CRUD、敏感设置拒绝、失败登录审计、资源作用域过滤和授权拒绝。
-8. 已补充预发/生产应用数据库角色校验脚本：`scripts/wp1_release_role_validation.sh`。
+8. 已补充预发/生产 app/readonly/migration 数据库角色校验脚本：`scripts/wp1_release_role_validation.sh`。

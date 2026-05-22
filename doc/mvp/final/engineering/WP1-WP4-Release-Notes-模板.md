@@ -42,8 +42,8 @@
 | 迁移脚本 |  |
 | validation 命令 | `bash db/validation/run_wp1_db_validation.sh` / `bash db/validation/run_wp2_db_validation.sh` |
 | validation 结果 |  |
-| 生产 app role |  |
-| release role validation | `WP1_RELEASE_DATABASE_URL=... WP1_RELEASE_APP_ROLE=... bash scripts/wp1_release_role_validation.sh` |
+| 生产 DB roles | `WP1_RELEASE_SCHEMA` / `WP1_RELEASE_APP_ROLE` / `WP1_RELEASE_READONLY_ROLE` / `WP1_RELEASE_MIGRATION_ROLE` |
+| release role validation | `WP1_RELEASE_DATABASE_URL=... WP1_RELEASE_SCHEMA=... WP1_RELEASE_APP_ROLE=... WP1_RELEASE_READONLY_ROLE=... WP1_RELEASE_MIGRATION_ROLE=... bash scripts/wp1_release_role_validation.sh` |
 | 回滚/前滚策略 |  |
 | DBA 复核 |  |
 

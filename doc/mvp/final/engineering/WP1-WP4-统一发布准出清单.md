@@ -24,7 +24,7 @@
 | WP1 DB | 临时库迁移、seed、安全、跨 WP schema validation | `bash db/validation/run_wp1_db_validation.sh` | `build/wp1-db-validation/`，包含 WP1/WP2/WP3/WP4 统一迁移结果 |
 | WP1 smoke | 已启动 `db` profile 平台 API | `WP1_BOOTSTRAP_TOKEN=local-init-token bash scripts/wp1_db_profile_smoke.sh` | 管理控制面、RBAC、审计、资源作用域 |
 | WP1 quality gate | WP1 本地聚合门禁 | `bash scripts/wp1_quality_gate.sh` | 后端测试、前端测试、前端构建、WP1 DB validation |
-| WP1 预发/生产 DB 权限 | 真实应用数据库角色 | `WP1_RELEASE_DATABASE_URL=... WP1_RELEASE_APP_ROLE=... bash scripts/wp1_release_role_validation.sh` | `release.role.*`、`release.audit_log.*`、`release.audit_retention_cleanup.*`、`release.secret_local_store.*` 检查；详见 `WP1-发布前DB权限Runbook.md` |
+| WP1 预发/生产 DB 权限 | 真实 app/readonly/migration 数据库角色 | `WP1_RELEASE_DATABASE_URL=... WP1_RELEASE_SCHEMA=... WP1_RELEASE_APP_ROLE=... WP1_RELEASE_READONLY_ROLE=... WP1_RELEASE_MIGRATION_ROLE=... bash scripts/wp1_release_role_validation.sh` | `release.app_role.*`、`release.readonly_role.*`、`release.migration_role.*`、`release.audit_log.*`、`release.audit_retention_cleanup.*`、`release.secret_local_store.*` 检查；详见 `WP1-发布前DB权限Runbook.md` |
 | WP2 DB | WP2 model access schema/seed/security | `bash db/validation/run_wp2_db_validation.sh` | `build/wp2-db-validation/` |
 | WP2 smoke | 已启动平台 API 的模型接入 API | `WP2_SERVICE_TOKEN=local-model-access-token bash scripts/wp2_model_access_smoke.sh` | provider、prompt、invocation、日志、成本、导出 |
 | WP2 policy smoke | WP2 消费 WP1 context/audit 策略 | `WP1_SERVICE_TOKEN=local-platform-service-token WP1_AUTH_TOKEN_SECRET=local-auth-secret WP2_SERVICE_TOKEN=local-model-access-token bash scripts/wp2_module_policy_smoke.sh` | 公开模型策略、敏感级别升级、本地模型调用 |
@@ -81,7 +81,10 @@ bash scripts/wp4_ai_parse_quality_eval.sh
 
 ```bash
 WP1_RELEASE_DATABASE_URL='postgres://dba_readonly:***@preprod-db:5432/veri_agent' \
+WP1_RELEASE_SCHEMA='public' \
 WP1_RELEASE_APP_ROLE='wp1_app_preprod' \
+WP1_RELEASE_READONLY_ROLE='wp1_readonly_preprod' \
+WP1_RELEASE_MIGRATION_ROLE='wp1_migration_preprod' \
 bash scripts/wp1_release_role_validation.sh
 ```
 
@@ -108,7 +111,7 @@ bash scripts/wp_all_integration_test.sh
 |---|---|
 | 变更影响矩阵 | 已按 `WP1-WP4-变更影响矩阵.md` 列出受影响 WP、测试入口和回滚点 |
 | 迁移 | 生产 migration 计划、回滚或前滚策略已确认；应用角色不执行 DDL |
-| DB 权限 | `scripts/wp1_release_role_validation.sh` 对真实生产 app role 通过，确认 app role 不能直接删改 `audit_log` 但可执行受控审计保留清理函数，DBA 复核项完成 |
+| DB 权限 | `scripts/wp1_release_role_validation.sh` 对真实生产 app/readonly/migration role 通过，确认 app/readonly 无 DDL 与危险写权限，app role 不能直接删改 `audit_log` 但可执行受控审计保留清理函数，migration role 承担 schema DDL，DBA 复核项完成 |
 | Secret/provider | 新旧密钥、provider、环境变量或 SecretProvider 引用均已进入轮换窗口；WP4 webhook 旧密钥撤销时间不早于 `max(WP4_WEBHOOK_SECRET_CACHE_TTL_SECONDS, WP4_WEBHOOK_SECRET_ROTATION_OVERLAP_SECONDS)`；resolve 审计只记录 `secretRefDigest` 和 provider/用途/作用域元数据，不记录完整 secretRef、明文、endpoint、token 或签名密钥 |
 | 指标告警 | 发布期间看板和告警已打开，traceId 能从响应串到审计/调用日志 |
 | release notes | 已使用 `WP1-WP4-Release-Notes-模板.md` 填写验证、风险和回滚 |
@@ -120,7 +123,7 @@ bash scripts/wp_all_integration_test.sh
 | `mvn -pl platform-api test` 失败 | 对应领域后端 owner | 测试类包名、失败断言、OpenAPI 契约 diff |
 | 前端测试或构建失败 | 前端 owner | `portal-web` 输出、权限/菜单 mock、类型错误 |
 | `run_wp1_db_validation.sh` 失败 | DB/平台 owner | `build/wp1-db-validation/*.out` 中 `FAIL/WARN` |
-| `wp1_release_role_validation.sh` 失败 | DBA + WP1 owner | 真实 app role、audit append-only、secret local store 权限 |
+| `wp1_release_role_validation.sh` 失败 | DBA + WP1 owner | 真实 app/readonly/migration role、audit append-only、secret local store 权限、schema CREATE 和对象 owner |
 | WP2 provider check 失败 | WP2 + 运维 owner | `apiKeyRef`、env var、baseUrl、401/403/429/5xx、熔断窗口 |
 | WP2 invocation 被阻断 | WP2 + WP1 owner | `MODEL_POLICY_VIOLATION`、`BUDGET_EXCEEDED`、项目敏感级别和 `allowPublicModel` |
 | WP4 publish 失败 | WP4 + WP3 owner | dryRun 结果、`CONFLICT_REVIEW_REQUIRED`、WP3 需求状态和 sourceRef |

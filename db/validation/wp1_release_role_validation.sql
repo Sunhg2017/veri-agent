@@ -1,30 +1,185 @@
 -- Validate the real preprod/production application database role before release.
 -- Usage:
---   psql "$WP1_RELEASE_DATABASE_URL" -v WP1_RELEASE_APP_ROLE=wp1_app -f db/validation/wp1_release_role_validation.sql
+--   psql "$WP1_RELEASE_DATABASE_URL" \
+--     -v WP1_RELEASE_SCHEMA=public \
+--     -v WP1_RELEASE_APP_ROLE=wp1_app \
+--     -v WP1_RELEASE_READONLY_ROLE=wp1_readonly \
+--     -v WP1_RELEASE_MIGRATION_ROLE=wp1_migration \
+--     -f db/validation/wp1_release_role_validation.sql
 
-with role_input as (
-    select :'WP1_RELEASE_APP_ROLE'::name as role_name
+drop table if exists pg_temp.wp1_release_role_checks;
+
+create temp table wp1_release_role_checks as
+with settings as (
+    select
+        :'WP1_RELEASE_SCHEMA'::name as schema_name,
+        :'WP1_RELEASE_APP_ROLE'::name as app_role,
+        :'WP1_RELEASE_READONLY_ROLE'::name as readonly_role,
+        :'WP1_RELEASE_MIGRATION_ROLE'::name as migration_role
 ),
-role_exists as (
-    select r.role_name
-    from role_input r
-    join pg_roles p on p.rolname = r.role_name
+schema_exists as (
+    select n.oid, n.nspname
+    from pg_namespace n
+    join settings s on s.schema_name = n.nspname
+),
+roles as (
+    select p.rolname, p.rolsuper, p.rolcreatedb, p.rolcreaterole, p.rolreplication, p.rolbypassrls
+    from pg_roles p
+    join settings s on p.rolname in (s.app_role, s.readonly_role, s.migration_role)
+),
+tables as (
+    select c.oid, c.relname, c.relkind
+    from pg_class c
+    join schema_exists s on s.oid = c.relnamespace
+    where c.relkind in ('r', 'p', 'v', 'm')
+),
+owned_by_app_or_readonly as (
+    select c.relname
+    from pg_class c
+    join schema_exists s on s.oid = c.relnamespace
+    join settings i on pg_get_userbyid(c.relowner) in (i.app_role::text, i.readonly_role::text)
+    where c.relkind in ('r', 'p', 'i', 'S', 'v', 'm')
+),
+app_role_exists as (
+    select 1
+    from roles r
+    join settings s on s.app_role = r.rolname
+),
+readonly_role_exists as (
+    select 1
+    from roles r
+    join settings s on s.readonly_role = r.rolname
+),
+migration_role_exists as (
+    select 1
+    from roles r
+    join settings s on s.migration_role = r.rolname
+),
+app_role as (
+    select r.*
+    from roles r
+    join settings s on s.app_role = r.rolname
+),
+readonly_role as (
+    select r.*
+    from roles r
+    join settings s on s.readonly_role = r.rolname
+),
+migration_role as (
+    select r.*
+    from roles r
+    join settings s on s.migration_role = r.rolname
 ),
 checks as (
     select
-        'release.role.exists' as check_name,
-        case when exists (select 1 from role_exists) then 'PASS' else 'FAIL' end as status,
-        (select role_name::text from role_input) as details
+        'release.schema.exists' as check_name,
+        case when exists (select 1 from schema_exists) then 'PASS' else 'FAIL' end as status,
+        (select schema_name::text from settings) as details
+    union all
+    select
+        'release.roles.distinct' as check_name,
+        case
+            when (select count(distinct role_name) from (
+                select app_role::text as role_name from settings
+                union all select readonly_role::text from settings
+                union all select migration_role::text from settings
+            ) r) = 3
+            then 'PASS'
+            else 'FAIL'
+        end as status,
+        format(
+            'app=%s readonly=%s migration=%s',
+            (select app_role::text from settings),
+            (select readonly_role::text from settings),
+            (select migration_role::text from settings)
+        ) as details
+    union all
+    select
+        'release.app_role.exists' as check_name,
+        case when exists (select 1 from app_role_exists) then 'PASS' else 'FAIL' end as status,
+        (select app_role::text from settings) as details
+    union all
+    select
+        'release.readonly_role.exists' as check_name,
+        case when exists (select 1 from readonly_role_exists) then 'PASS' else 'FAIL' end as status,
+        (select readonly_role::text from settings) as details
+    union all
+    select
+        'release.migration_role.exists' as check_name,
+        case when exists (select 1 from migration_role_exists) then 'PASS' else 'FAIL' end as status,
+        (select migration_role::text from settings) as details
+    union all
+    select
+        'release.app_role.no_system_privilege_escalation' as check_name,
+        case
+            when not exists (select 1 from app_role) then 'FAIL'
+            when exists (
+                select 1
+                from app_role
+                where rolsuper or rolcreatedb or rolcreaterole or rolreplication or rolbypassrls
+            ) then 'FAIL'
+            else 'PASS'
+        end as status,
+        'app role must not be superuser, createdb, createrole, replication, or bypassrls' as details
+    union all
+    select
+        'release.readonly_role.no_system_privilege_escalation' as check_name,
+        case
+            when not exists (select 1 from readonly_role) then 'FAIL'
+            when exists (
+                select 1
+                from readonly_role
+                where rolsuper or rolcreatedb or rolcreaterole or rolreplication or rolbypassrls
+            ) then 'FAIL'
+            else 'PASS'
+        end as status,
+        'readonly role must not be superuser, createdb, createrole, replication, or bypassrls' as details
+    union all
+    select
+        'release.migration_role.no_superuser_escape' as check_name,
+        case
+            when not exists (select 1 from migration_role) then 'FAIL'
+            when exists (
+                select 1
+                from migration_role
+                where rolsuper or rolreplication or rolbypassrls
+            ) then 'FAIL'
+            else 'PASS'
+        end as status,
+        'migration role may own DDL but must not rely on superuser, replication, or bypassrls' as details
+    union all
+    select
+        'release.app_readonly.no_schema_create_or_object_owner' as check_name,
+        case
+            when not exists (select 1 from schema_exists) then 'FAIL'
+            when not exists (select 1 from app_role_exists) then 'FAIL'
+            when not exists (select 1 from readonly_role_exists) then 'FAIL'
+            when has_schema_privilege((select app_role from settings), (select schema_name from settings), 'CREATE') then 'FAIL'
+            when has_schema_privilege((select readonly_role from settings), (select schema_name from settings), 'CREATE') then 'FAIL'
+            when exists (select 1 from owned_by_app_or_readonly) then 'FAIL'
+            else 'PASS'
+        end as status,
+        'app/readonly roles must not create schema objects or own release-managed objects' as details
+    union all
+    select
+        'release.migration_role.schema_create' as check_name,
+        case
+            when not exists (select 1 from schema_exists) then 'FAIL'
+            when not exists (select 1 from migration_role_exists) then 'FAIL'
+            when has_schema_privilege((select migration_role from settings), (select schema_name from settings), 'CREATE') then 'PASS'
+            else 'FAIL'
+        end as status,
+        'migration role must be able to create release-managed objects in the target schema' as details
     union all
     select
         'release.audit_log.append_only' as check_name,
         case
-            when not exists (select 1 from role_exists) then 'FAIL'
-            when has_table_privilege((select role_name from role_input), format('%I.%I', current_schema(), 'audit_log'), 'INSERT')
-             and has_table_privilege((select role_name from role_input), format('%I.%I', current_schema(), 'audit_log'), 'SELECT')
-             and not has_table_privilege((select role_name from role_input), format('%I.%I', current_schema(), 'audit_log'), 'UPDATE')
-             and not has_table_privilege((select role_name from role_input), format('%I.%I', current_schema(), 'audit_log'), 'DELETE')
-             and not has_table_privilege((select role_name from role_input), format('%I.%I', current_schema(), 'audit_log'), 'TRUNCATE')
+            when not exists (select 1 from app_role_exists) then 'FAIL'
+            when coalesce(has_table_privilege((select app_role from settings), to_regclass(format('%I.%I', (select schema_name from settings), 'audit_log')), 'INSERT'), false)
+             and coalesce(has_table_privilege((select app_role from settings), to_regclass(format('%I.%I', (select schema_name from settings), 'audit_log')), 'SELECT'), false)
+             and not coalesce(has_table_privilege((select app_role from settings), to_regclass(format('%I.%I', (select schema_name from settings), 'audit_log')), 'UPDATE'), false)
+             and not coalesce(has_table_privilege((select app_role from settings), to_regclass(format('%I.%I', (select schema_name from settings), 'audit_log')), 'DELETE'), false)
+             and not coalesce(has_table_privilege((select app_role from settings), to_regclass(format('%I.%I', (select schema_name from settings), 'audit_log')), 'TRUNCATE'), false)
             then 'PASS'
             else 'FAIL'
         end as status,
@@ -33,11 +188,11 @@ checks as (
     select
         'release.audit_retention_cleanup.execute_only' as check_name,
         case
-            when not exists (select 1 from role_exists) then 'FAIL'
-            when to_regprocedure(current_schema() || '.wp1_cleanup_audit_log_before(timestamp with time zone,integer)') is null then 'FAIL'
+            when not exists (select 1 from app_role_exists) then 'FAIL'
+            when to_regprocedure(format('%I.%I(timestamp with time zone,integer)', (select schema_name from settings), 'wp1_cleanup_audit_log_before')) is null then 'FAIL'
             when has_function_privilege(
-                (select role_name from role_input),
-                to_regprocedure(current_schema() || '.wp1_cleanup_audit_log_before(timestamp with time zone,integer)'),
+                (select app_role from settings),
+                to_regprocedure(format('%I.%I(timestamp with time zone,integer)', (select schema_name from settings), 'wp1_cleanup_audit_log_before')),
                 'EXECUTE'
             )
             then 'PASS'
@@ -48,71 +203,59 @@ checks as (
     select
         'release.secret_local_store.encrypted_access_scoped' as check_name,
         case
-            when not exists (select 1 from role_exists) then 'FAIL'
-            when has_table_privilege((select role_name from role_input), format('%I.%I', current_schema(), 'secret_local_store'), 'SELECT')
-             and has_table_privilege((select role_name from role_input), format('%I.%I', current_schema(), 'secret_local_store'), 'INSERT')
-             and has_table_privilege((select role_name from role_input), format('%I.%I', current_schema(), 'secret_local_store'), 'UPDATE')
-             and not has_table_privilege((select role_name from role_input), format('%I.%I', current_schema(), 'secret_local_store'), 'DELETE')
-             and not has_table_privilege((select role_name from role_input), format('%I.%I', current_schema(), 'secret_local_store'), 'TRUNCATE')
+            when not exists (select 1 from app_role_exists) then 'FAIL'
+            when coalesce(has_table_privilege((select app_role from settings), to_regclass(format('%I.%I', (select schema_name from settings), 'secret_local_store')), 'SELECT'), false)
+             and coalesce(has_table_privilege((select app_role from settings), to_regclass(format('%I.%I', (select schema_name from settings), 'secret_local_store')), 'INSERT'), false)
+             and coalesce(has_table_privilege((select app_role from settings), to_regclass(format('%I.%I', (select schema_name from settings), 'secret_local_store')), 'UPDATE'), false)
+             and not coalesce(has_table_privilege((select app_role from settings), to_regclass(format('%I.%I', (select schema_name from settings), 'secret_local_store')), 'DELETE'), false)
+             and not coalesce(has_table_privilege((select app_role from settings), to_regclass(format('%I.%I', (select schema_name from settings), 'secret_local_store')), 'TRUNCATE'), false)
             then 'PASS'
             else 'FAIL'
         end as status,
         'runtime role may read/write encrypted local secret material through WP1 service code but must not DELETE/TRUNCATE it' as details
+    union all
+    select
+        'release.readonly_role.no_table_dml' as check_name,
+        case
+            when not exists (select 1 from readonly_role_exists) then 'FAIL'
+            when exists (
+                select 1
+                from tables t
+                where coalesce(has_table_privilege((select readonly_role from settings), t.oid, 'INSERT'), false)
+                   or coalesce(has_table_privilege((select readonly_role from settings), t.oid, 'UPDATE'), false)
+                   or coalesce(has_table_privilege((select readonly_role from settings), t.oid, 'DELETE'), false)
+                   or coalesce(has_table_privilege((select readonly_role from settings), t.oid, 'TRUNCATE'), false)
+            ) then 'FAIL'
+            else 'PASS'
+        end as status,
+        'readonly role must not have INSERT/UPDATE/DELETE/TRUNCATE on release schema tables' as details
+    union all
+    select
+        'release.readonly_role.no_local_secret_material' as check_name,
+        case
+            when not exists (select 1 from readonly_role_exists) then 'FAIL'
+            when coalesce(has_table_privilege((select readonly_role from settings), to_regclass(format('%I.%I', (select schema_name from settings), 'secret_local_store')), 'SELECT'), false) then 'FAIL'
+            else 'PASS'
+        end as status,
+        'readonly role must not SELECT encrypted local secret material' as details
 )
 select *
 from checks;
+
+select *
+from wp1_release_role_checks
+order by check_name;
 
 do $$
 declare
     failures int;
 begin
-    with role_input as (
-        select :'WP1_RELEASE_APP_ROLE'::name as role_name
-    ),
-    role_exists as (
-        select r.role_name
-        from role_input r
-        join pg_roles p on p.rolname = r.role_name
-    ),
-    failed as (
-        select 1
-        where not exists (select 1 from role_exists)
-        union all
-        select 1
-        where exists (select 1 from role_exists)
-          and (
-            not has_table_privilege((select role_name from role_input), format('%I.%I', current_schema(), 'audit_log'), 'INSERT')
-            or not has_table_privilege((select role_name from role_input), format('%I.%I', current_schema(), 'audit_log'), 'SELECT')
-            or has_table_privilege((select role_name from role_input), format('%I.%I', current_schema(), 'audit_log'), 'UPDATE')
-            or has_table_privilege((select role_name from role_input), format('%I.%I', current_schema(), 'audit_log'), 'DELETE')
-            or has_table_privilege((select role_name from role_input), format('%I.%I', current_schema(), 'audit_log'), 'TRUNCATE')
-          )
-        union all
-        select 1
-        where exists (select 1 from role_exists)
-          and (
-            to_regprocedure(current_schema() || '.wp1_cleanup_audit_log_before(timestamp with time zone,integer)') is null
-            or not has_function_privilege(
-                (select role_name from role_input),
-                to_regprocedure(current_schema() || '.wp1_cleanup_audit_log_before(timestamp with time zone,integer)'),
-                'EXECUTE'
-            )
-          )
-        union all
-        select 1
-        where exists (select 1 from role_exists)
-          and (
-            not has_table_privilege((select role_name from role_input), format('%I.%I', current_schema(), 'secret_local_store'), 'SELECT')
-            or not has_table_privilege((select role_name from role_input), format('%I.%I', current_schema(), 'secret_local_store'), 'INSERT')
-            or not has_table_privilege((select role_name from role_input), format('%I.%I', current_schema(), 'secret_local_store'), 'UPDATE')
-            or has_table_privilege((select role_name from role_input), format('%I.%I', current_schema(), 'secret_local_store'), 'DELETE')
-            or has_table_privilege((select role_name from role_input), format('%I.%I', current_schema(), 'secret_local_store'), 'TRUNCATE')
-          )
-    )
-    select count(*) into failures from failed;
+    select count(*) into failures
+    from wp1_release_role_checks
+    where status = 'FAIL';
 
     if failures > 0 then
-        raise exception 'WP1 release role validation failed for %', :'WP1_RELEASE_APP_ROLE';
+        raise exception 'WP1 release role validation failed; see release.* FAIL rows above';
     end if;
 end
 $$;

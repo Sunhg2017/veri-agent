@@ -44,7 +44,7 @@ WP1、WP2、WP4 的当前 P0 口径已经基本收敛，后续以生产硬化、
 
 | 编号 | 任务 | 优先级 | 状态 | 工作内容 | 验收标准 |
 |---|---|---|---|---|---|
-| WP1-A1 | 接入真实预发/生产应用数据库角色 | P0-B | IN_PROGRESS | 将 `scripts/wp1_release_role_validation.sh` 的执行参数纳入预发/生产发布流程；明确真实 app/migration/readonly 账号名 | 在预发库执行 release role validation，应用账号无 DDL、无审计 UPDATE/DELETE/TRUNCATE 权限 |
+| WP1-A1 | 接入真实预发/生产应用数据库角色 | P0-B | IN_PROGRESS | `scripts/wp1_release_role_validation.sh` 已纳入 app/readonly/migration 三类角色参数与本地临时库自校验；下一步需在预发/生产注入真实 `WP1_RELEASE_*` 角色名并归档输出 | 在预发库执行 release role validation，app/readonly 无 DDL 与危险写权限，应用账号无审计 UPDATE/DELETE/TRUNCATE 权限，migration role 承担 schema DDL |
 | WP1-A2 | 固化发布前 DB 权限 runbook | P0-B | DONE-CURRENT | 已新增 `doc/mvp/final/engineering/WP1-发布前DB权限Runbook.md`，补充环境变量、连接串、执行时机、失败处理和 DBA 复核说明 | 发布负责人可按文档复现检查，失败项有修复建议 |
 | WP1-A3 | CI/发布流水线挂载 DB 权限检查 | P1 | DONE-CURRENT | `.github/workflows/wp1-database-validation.yml` 已挂载临时库 migration/validation 并归档日志；`WP1-发布前DB权限Runbook.md` 补充预发/生产真实角色 validation 挂载口径 | 临时库 CI 每次跑，预发/生产按发布窗口执行真实角色 validation，并产出日志归档 |
 
