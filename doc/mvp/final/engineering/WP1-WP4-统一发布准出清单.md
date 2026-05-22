@@ -33,7 +33,7 @@
 | WP3 quality gate | WP3 本地/CI 聚合门禁 | `bash scripts/wp3_quality_gate.sh` | 后端资产测试、OpenAPI/上下文契约、前端资产测试、WP1-WP4 统一 DB validation |
 | WP3 schema | WP3 表、索引、版本历史 append-only 权限和无租户字段回归 | `bash db/validation/run_wp1_db_validation.sh` | `wp_all_schema_validation.sql` 与 `wp1_security_validation.sql` 中 `asset_*` 检查 |
 | WP4 smoke | 已启动平台 API 的文档输入主链路 | `WP4_SERVICE_TOKEN=local-document-input-token WP3_SERVICE_TOKEN=local-asset-token WP4_WEBHOOK_SECRET=local-document-input-webhook-secret bash scripts/wp4_document_input_smoke.sh` | 导入、候选、发布、webhook、事件日志、metrics |
-| WP4 binary | Word/PDF/OCR 文本抽取 | `bash scripts/wp4_binary_document_smoke.sh` | docx、PDF、OCR provider、SecretProvider 测试，SecretProvider TTL 缓存/失效和 resolve 审计脱敏 |
+| WP4 binary | Word/PDF/OCR 文本抽取与 OCR worker 隔离配置 | `bash scripts/wp4_binary_document_smoke.sh` | docx、PDF、OCR provider、HTTP worker 配置口径、SecretProvider 测试，SecretProvider TTL 缓存/失效和 resolve 审计脱敏；真实 worker 接入见 `WP4-OCR隔离Worker接入Runbook.md` |
 | WP4 AI 质量 | golden corpus 质量门禁 | `bash scripts/wp4_ai_parse_quality_eval.sh` | 标题召回、优先级准确率、验收标准覆盖率 |
 | WP1-WP4 E2E | 统一平台端到端 smoke | `WP1_BOOTSTRAP_TOKEN=local-init-token WP2_SERVICE_TOKEN=local-model-access-token WP3_SERVICE_TOKEN=local-asset-token WP4_SERVICE_TOKEN=local-document-input-token WP4_WEBHOOK_SECRET=local-document-input-webhook-secret bash scripts/wp_all_integration_test.sh` | WP1 context、WP2 invocation、WP3 asset、WP4 publish/webhook 串联 |
 
@@ -99,7 +99,8 @@ bash scripts/wp_all_integration_test.sh
 
 4. 如果本次影响 WP2 外部 provider，按 `WP2-Provider接入与SecretRef轮换Runbook.md` 执行 provider check 和最小 invocation。
 5. 如果本次影响 WP4 webhook，按 `WP4-Webhook签名样例与联调说明.md` 用外部系统或联调脚本完成签名请求。
-6. 如果本次影响 WP4 webhook signing secret，发布记录必须写明 `WP4_WEBHOOK_SECRET_CACHE_TTL_SECONDS`、`WP4_WEBHOOK_SECRET_ROTATION_OVERLAP_SECONDS`、旧密钥撤销时间和回滚 secretRef。
+6. 如果本次影响 WP4 OCR worker，按 `WP4-OCR隔离Worker接入Runbook.md` 使用真实 `WP4_OCR_WORKER_URL` 验证扫描件或 OCR 图片，并确认生产 fallback 策略。
+7. 如果本次影响 WP4 webhook signing secret，发布记录必须写明 `WP4_WEBHOOK_SECRET_CACHE_TTL_SECONDS`、`WP4_WEBHOOK_SECRET_ROTATION_OVERLAP_SECONDS`、旧密钥撤销时间和回滚 secretRef。
 
 ### 3.3 生产发布窗口
 

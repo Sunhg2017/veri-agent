@@ -49,6 +49,11 @@ export interface DocumentInputHealth {
   ocrMaxOutputChars?: number;
   ocrMaxConcurrentProcesses?: number;
   ocrAvailablePermits?: number;
+  ocrWorkerMode?: string;
+  ocrRemoteWorkerConfigured?: boolean;
+  ocrWorkerTokenConfigured?: boolean;
+  ocrLocalCommandFallbackEnabled?: boolean;
+  ocrLocalCommandExecutionAllowed?: boolean;
   webhookSecretCacheEnabled?: boolean;
   webhookSecretCacheTtlSeconds?: number;
   webhookSecretRotationOverlapSeconds?: number;

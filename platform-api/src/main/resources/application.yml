@@ -118,6 +118,9 @@ veri-agent:
     pdf-max-pages: ${WP4_PDF_MAX_PAGES:0}
     pdf-max-parse-millis: ${WP4_PDF_MAX_PARSE_MILLIS:0}
     ocr-worker-mode: ${WP4_OCR_WORKER_MODE:LOCAL_COMMAND}
+    ocr-worker-url: ${WP4_OCR_WORKER_URL:}
+    ocr-worker-token: ${WP4_OCR_WORKER_TOKEN:}
+    ocr-local-command-fallback-enabled: ${WP4_OCR_LOCAL_COMMAND_FALLBACK_ENABLED:true}
     malware-scan-command: ${WP4_MALWARE_SCAN_COMMAND:}
     malware-scan-timeout-seconds: ${WP4_MALWARE_SCAN_TIMEOUT_SECONDS:15}
     malware-scan-max-concurrent-processes: ${WP4_MALWARE_SCAN_MAX_CONCURRENT_PROCESSES:2}

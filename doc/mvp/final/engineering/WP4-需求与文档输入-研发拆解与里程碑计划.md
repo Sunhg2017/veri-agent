@@ -91,8 +91,8 @@ MVP 范围如下：
 |---|---|---|---|---|---|
 | 2B.1 Word 文本抽取 | P0 | 使用 Apache POI 支持 docx/doc 文本抽取；接受 plain text、raw base64、data URL 三种输入 | `WORD` 从预留改为可提交；提示可粘贴 base64 或 data URL | 真实 docx 导入、损坏文件、空文档、超限内容测试 | `WP4_IMPORT_MAX_CONTENT_BYTES`、`WP4_DOCUMENT_BINARY_MAX_BYTES` |
 | 2B.2 PDF 文本抽取 | P0 | 使用 PDFBox 支持文本型 PDF；无文本且未配置 OCR 时明确失败并给出下一步 | `PDF` 从预留改为可提交；失败原因可读，包含 OCR/换文件/联系管理员建议 | 真实文本 PDF 导入、图片 PDF 无 OCR 失败、错误码测试 | PDF 文件大小、页数和处理超时后续纳入 worker |
-| 2B.3 OCR 命令 provider | P0 | 支持 `WP4_OCR_COMMAND` 命令式 OCR provider，命令接收 `{input}` 临时文件并返回文本 | `OCR` 从预留改为可提交；健康检查缺 OCR 命令时显示不可用 | OCR 命令成功、超时、空输出、失败退出码测试 | `WP4_OCR_COMMAND`、`WP4_OCR_TIMEOUT_SECONDS`、`WP4_OCR_MAX_OUTPUT_CHARS` |
-| 2B.4 输入安全闸门 | P0 | `/imports` 增加内容大小上限；二进制解析限制大小；临时 OCR 文件执行后清理；`WP4_MALWARE_SCAN_COMMAND` 可接入命令式文件安全扫描 | 错误态展示 traceId 和可读原因 | 超大 base64、伪造 MIME、OCR provider 不可用、文件扫描拒绝测试 | 生产环境建议隔离 OCR worker、限流和杀毒组件 |
+| 2B.3 OCR provider | P0 | 支持 `WP4_OCR_COMMAND` 命令式 OCR provider，并支持 `WP4_OCR_WORKER_MODE=HTTP_WORKER` 调用外部隔离 OCR worker | `OCR` 从预留改为可提交；健康检查展示本地命令、远端 worker 和 fallback 状态 | OCR 命令成功、HTTP worker 成功、超时、空输出、失败退出码和 fallback 禁用测试 | `WP4_OCR_COMMAND`、`WP4_OCR_WORKER_URL`、`WP4_OCR_WORKER_TOKEN`、`WP4_OCR_LOCAL_COMMAND_FALLBACK_ENABLED`、`WP4_OCR_TIMEOUT_SECONDS`、`WP4_OCR_MAX_OUTPUT_CHARS` |
+| 2B.4 输入安全闸门 | P0 | `/imports` 增加内容大小上限；二进制解析限制大小；临时 OCR 文件执行后清理；`WP4_MALWARE_SCAN_COMMAND` 可接入命令式文件安全扫描；生产可关闭本地 OCR fallback 以强制走隔离 worker | 错误态展示 traceId 和可读原因 | 超大 base64、伪造 MIME、OCR provider 不可用、文件扫描拒绝测试 | 生产环境建议使用 HTTP 隔离 OCR worker、限流和杀毒组件 |
 
 ### Epic 3：自研需求平台 Webhook
 
@@ -242,7 +242,7 @@ MVP 范围如下：
 | 风险 | 影响 | 触发信号 | 应对策略 |
 |---|---|---|---|
 | MVP 范围膨胀到完整协作文档连接器 | 工期失控，测试矩阵过大 | Confluence/飞书/钉钉/语雀被要求进入可用范围 | 本轮只新增 Word/PDF/OCR 文本抽取；协作文档连接器仍预留 |
-| OCR/二进制解析资源消耗或恶意文件风险 | CPU、内存、磁盘和安全风险 | 超大 base64、图片 PDF、OCR 超时、压缩炸弹 | 设置导入内容和二进制大小上限；OCR 命令超时；`WP4_MALWARE_SCAN_COMMAND` 在解析前执行文件扫描；生产建议隔离 worker、杀毒和限流 |
+| OCR/二进制解析资源消耗或恶意文件风险 | CPU、内存、磁盘和安全风险 | 超大 base64、图片 PDF、OCR 超时、压缩炸弹 | 设置导入内容和二进制大小上限；OCR 命令/HTTP worker 超时；`WP4_MALWARE_SCAN_COMMAND` 在解析前执行文件扫描；生产通过 `WP4_OCR_WORKER_MODE=HTTP_WORKER` 和关闭 fallback 隔离 worker、杀毒和限流 |
 | 自研 webhook 事件版本变化 | 增量同步失败或字段丢失 | 外部 payload 新增/重命名字段，事件语义不兼容 | 使用 eventVersion、mappingVersion 和兼容层；未知字段保留在 raw payload |
 | 模型解析结果不稳定 | 候选需求质量波动，用户信任下降 | 相同输入多次解析结果差异明显 | 规则解析保底；模型结果必须人工确认；保存 prompt 版本和置信度 |
 | WP3 upsert 语义不清 | 重复需求或错误覆盖 | 重复导入产生多条资产，或更新覆盖人工编辑内容 | 已使用 externalRequirementId/sourceRef 做 WP3 幂等，发布前 dryRun 提供 diffSummary；正式发布仅自动更新 DRAFT IMPORT 资产，非 DRAFT 且有差异时返回冲突并保留候选历史 |

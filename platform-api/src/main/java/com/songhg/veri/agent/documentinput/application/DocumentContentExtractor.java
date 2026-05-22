@@ -1,10 +1,18 @@
 package com.songhg.veri.agent.documentinput.application;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
 import com.songhg.veri.agent.documentinput.config.DocumentInputProperties;
 import com.songhg.veri.agent.documentinput.domain.DocumentSourceType;
 import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.net.http.HttpTimeoutException;
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.nio.charset.CodingErrorAction;
@@ -16,6 +24,7 @@ import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.function.LongSupplier;
@@ -49,6 +58,8 @@ public class DocumentContentExtractor {
     private final Semaphore ocrPermits;
     private final Semaphore malwareScanPermits;
     private final LongSupplier nanoTime;
+    private final HttpClient ocrHttpClient;
+    private final ObjectMapper objectMapper;
 
     @Autowired
     public DocumentContentExtractor(DocumentInputProperties properties) {
@@ -56,10 +67,23 @@ public class DocumentContentExtractor {
     }
 
     DocumentContentExtractor(DocumentInputProperties properties, LongSupplier nanoTime) {
+        this(properties, nanoTime, HttpClient.newBuilder()
+                .connectTimeout(Duration.ofSeconds(resolveOcrTimeoutSeconds(properties)))
+                .build(), new ObjectMapper());
+    }
+
+    DocumentContentExtractor(
+            DocumentInputProperties properties,
+            LongSupplier nanoTime,
+            HttpClient ocrHttpClient,
+            ObjectMapper objectMapper
+    ) {
         this.properties = properties;
         this.ocrPermits = new Semaphore(ocrMaxConcurrentProcesses(), true);
         this.malwareScanPermits = new Semaphore(malwareScanMaxConcurrentProcesses(), true);
         this.nanoTime = nanoTime;
+        this.ocrHttpClient = ocrHttpClient;
+        this.objectMapper = objectMapper;
     }
 
     public ExtractedDocumentContent extract(DocumentSourceType sourceType, String content) {
@@ -80,7 +104,8 @@ public class DocumentContentExtractor {
     }
 
     public boolean ocrConfigured() {
-        return StringUtils.hasText(properties.ocrCommand());
+        return StringUtils.hasText(properties.ocrCommand())
+                || (ocrRemoteWorkerMode() && ocrRemoteWorkerConfigured());
     }
 
     public int ocrMaxConcurrentProcesses() {
@@ -108,6 +133,27 @@ public class DocumentContentExtractor {
     public String ocrWorkerMode() {
         String mode = trimToNull(properties.ocrWorkerMode());
         return mode == null ? "LOCAL_COMMAND" : mode.toUpperCase(Locale.ROOT);
+    }
+
+    public boolean ocrRemoteWorkerMode() {
+        return "HTTP_WORKER".equals(ocrWorkerMode()) || "EXTERNAL_WORKER".equals(ocrWorkerMode());
+    }
+
+    public boolean ocrRemoteWorkerConfigured() {
+        return StringUtils.hasText(properties.ocrWorkerUrl());
+    }
+
+    public boolean ocrWorkerTokenConfigured() {
+        return StringUtils.hasText(properties.ocrWorkerToken());
+    }
+
+    public boolean ocrLocalCommandFallbackEnabled() {
+        return properties.ocrLocalCommandFallbackEnabled();
+    }
+
+    public boolean ocrLocalCommandExecutionAllowed() {
+        return "LOCAL_COMMAND".equals(ocrWorkerMode())
+                || (ocrRemoteWorkerMode() && ocrLocalCommandFallbackEnabled());
     }
 
     public boolean binaryMimeValidationEnabled() {
@@ -379,13 +425,52 @@ public class DocumentContentExtractor {
     }
 
     private String runOcr(byte[] bytes) {
+        if (!ocrPermits.tryAcquire()) {
+            throw new BusinessException(ErrorCode.BUDGET_EXCEEDED, "OCR 并发处理已达到上限");
+        }
+        try {
+            if (ocrRemoteWorkerMode()) {
+                return runRemoteOcrOrFallback(bytes);
+            }
+            if ("LOCAL_COMMAND".equals(ocrWorkerMode())) {
+                return runLocalOcrCommand(bytes);
+            }
+            throw new BusinessException(ErrorCode.INVALID_STATE,
+                    "不支持的 OCR worker mode: " + ocrWorkerMode()
+                            + "。下一步：设置 WP4_OCR_WORKER_MODE=LOCAL_COMMAND 或 HTTP_WORKER。");
+        } finally {
+            ocrPermits.release();
+        }
+    }
+
+    private String runRemoteOcrOrFallback(byte[] bytes) {
+        if (!ocrRemoteWorkerConfigured()) {
+            if (ocrLocalCommandFallbackEnabled()) {
+                return runLocalOcrCommand(bytes);
+            }
+            throw new BusinessException(ErrorCode.INVALID_STATE,
+                    "OCR worker 已启用但未配置 WP4_OCR_WORKER_URL。下一步：配置隔离 OCR worker endpoint，或在 dev/test 设置 WP4_OCR_LOCAL_COMMAND_FALLBACK_ENABLED=true。");
+        }
+        try {
+            return runRemoteOcrWorker(bytes);
+        } catch (BusinessException exception) {
+            if (ocrLocalCommandFallbackEnabled()) {
+                return runLocalOcrCommand(bytes);
+            }
+            throw exception;
+        }
+    }
+
+    private String runLocalOcrCommand(byte[] bytes) {
         String command = trimToNull(properties.ocrCommand());
         if (!StringUtils.hasText(command)) {
             throw new BusinessException(ErrorCode.INVALID_STATE,
                     "OCR 解析需要配置 WP4_OCR_COMMAND。下一步：请管理员配置 OCR provider，或上传可复制文本的 PDF/Word/Markdown 文件。");
         }
-        if (!ocrPermits.tryAcquire()) {
-            throw new BusinessException(ErrorCode.BUDGET_EXCEEDED, "OCR 并发处理已达到上限");
+        if (!ocrLocalCommandExecutionAllowed()) {
+            throw new BusinessException(ErrorCode.INVALID_STATE,
+                    "OCR 当前配置为 " + ocrWorkerMode()
+                            + "，已禁止 platform-api 本地执行 WP4_OCR_COMMAND。下一步：请接入隔离 OCR worker，或在 dev/test 设置 WP4_OCR_LOCAL_COMMAND_FALLBACK_ENABLED=true。");
         }
         Path input = null;
         try {
@@ -415,7 +500,6 @@ public class DocumentContentExtractor {
         } catch (Exception exception) {
             throw new BusinessException(ErrorCode.INVALID_STATE, "OCR 命令执行失败: " + exception.getMessage());
         } finally {
-            ocrPermits.release();
             if (input != null) {
                 try {
                     Files.deleteIfExists(input);
@@ -424,6 +508,69 @@ public class DocumentContentExtractor {
                 }
             }
         }
+    }
+
+    private String runRemoteOcrWorker(byte[] bytes) {
+        try {
+            String requestBody = objectMapper.writeValueAsString(Map.of(
+                    "contentBase64", Base64.getEncoder().encodeToString(bytes),
+                    "maxOutputChars", ocrMaxOutputChars(),
+                    "timeoutSeconds", ocrTimeoutSeconds()
+            ));
+            HttpRequest.Builder requestBuilder = HttpRequest.newBuilder(URI.create(properties.ocrWorkerUrl().trim()))
+                    .timeout(ocrTimeout())
+                    .header("Accept", "application/json")
+                    .header("Content-Type", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(requestBody, StandardCharsets.UTF_8));
+            String token = trimToNull(properties.ocrWorkerToken());
+            if (token != null) {
+                requestBuilder.header("Authorization", "Bearer " + token);
+            }
+            HttpResponse<String> response = ocrHttpClient.send(
+                    requestBuilder.build(),
+                    HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8)
+            );
+            if (response.statusCode() / 100 != 2) {
+                throw new BusinessException(ErrorCode.INVALID_STATE,
+                        "OCR worker 返回失败: HTTP " + response.statusCode()
+                                + "。下一步：检查隔离 worker 健康、队列和资源配额。");
+            }
+            String text = parseRemoteOcrText(response.body());
+            String normalized = truncateOcrOutput(text);
+            if (!StringUtils.hasText(normalized)) {
+                throw new BusinessException(ErrorCode.VALIDATION_ERROR, "OCR worker 未识别到有效文本");
+            }
+            return normalized;
+        } catch (BusinessException exception) {
+            throw exception;
+        } catch (HttpTimeoutException exception) {
+            throw new BusinessException(ErrorCode.INVALID_STATE,
+                    "OCR worker 调用超时。下一步：检查隔离 worker 资源、队列堆积或调大 WP4_OCR_TIMEOUT_SECONDS。");
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            throw new BusinessException(ErrorCode.INVALID_STATE, "OCR worker 调用被中断");
+        } catch (IllegalArgumentException exception) {
+            throw new BusinessException(ErrorCode.INVALID_STATE,
+                    "WP4_OCR_WORKER_URL 配置不合法。下一步：配置 http(s) OCR worker endpoint。");
+        } catch (IOException exception) {
+            throw new BusinessException(ErrorCode.INVALID_STATE,
+                    "OCR worker 调用失败: " + trimForError(exception.getMessage(), 160));
+        }
+    }
+
+    private String parseRemoteOcrText(String body) throws IOException {
+        if (!StringUtils.hasText(body)) {
+            return "";
+        }
+        JsonNode root = objectMapper.readTree(body);
+        JsonNode text = root.path("text");
+        if (text.isMissingNode()) {
+            text = root.path("content");
+        }
+        if (text.isMissingNode()) {
+            text = root.path("data").path("text");
+        }
+        return text.isTextual() ? text.asText() : "";
     }
 
     private List<String> templatedCommand(String template, Path input) {
@@ -464,6 +611,12 @@ public class DocumentContentExtractor {
 
     private Duration ocrTimeout() {
         return Duration.ofSeconds(ocrTimeoutSeconds());
+    }
+
+    private static int resolveOcrTimeoutSeconds(DocumentInputProperties properties) {
+        return properties.ocrTimeoutSeconds() <= 0
+                ? DEFAULT_OCR_TIMEOUT_SECONDS
+                : properties.ocrTimeoutSeconds();
     }
 
     private String truncateOcrOutput(String output) {

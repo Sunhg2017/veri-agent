@@ -4,11 +4,14 @@ import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.documentinput.config.DocumentInputProperties;
 import com.songhg.veri.agent.documentinput.domain.DocumentSourceType;
 import java.io.ByteArrayOutputStream;
+import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+import com.sun.net.httpserver.HttpServer;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;
@@ -159,6 +162,75 @@ class DocumentContentExtractorTest {
                 .hasMessageContaining("文件安全扫描未通过");
     }
 
+    @Test
+    void rejectsExternalOcrWorkerModeWithoutUrlAndFallbackDisabled() {
+        DocumentContentExtractor extractor = new DocumentContentExtractor(
+                properties("/bin/cat {input}", true, 0, 0, "", "EXTERNAL_WORKER", false)
+        );
+
+        assertThatThrownBy(() -> extractor.extract(DocumentSourceType.OCR, dataUrl("image/png", withPngMagic("isolated"))))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("WP4_OCR_WORKER_URL")
+                .hasMessageContaining("WP4_OCR_LOCAL_COMMAND_FALLBACK_ENABLED");
+    }
+
+    @Test
+    void allowsLocalOcrCommandFallbackWhenExternalWorkerModeKeepsFallbackEnabled() {
+        DocumentContentExtractor extractor = new DocumentContentExtractor(
+                properties("/bin/cat {input}", true, 0, 0, "", "EXTERNAL_WORKER", true)
+        );
+
+        String text = extractor.extract(DocumentSourceType.OCR, dataUrl("image/png", withPngMagic("fallback ocr"))).text();
+
+        assertThat(text).contains("fallback ocr");
+        assertThat(extractor.ocrWorkerMode()).isEqualTo("EXTERNAL_WORKER");
+        assertThat(extractor.ocrLocalCommandExecutionAllowed()).isTrue();
+    }
+
+    @Test
+    void callsConfiguredHttpOcrWorkerWithoutRunningLocalCommand() throws Exception {
+        AtomicReference<String> authorization = new AtomicReference<>();
+        AtomicReference<String> requestBody = new AtomicReference<>();
+        HttpServer server = startOcrWorkerServer("""
+                {"text":"remote worker requirement\\nPriority: HIGH\\nAcceptance Criteria:\\n- worker returns text"}
+                """, authorization, requestBody);
+        try {
+            String workerUrl = "http://127.0.0.1:" + server.getAddress().getPort() + "/ocr";
+            DocumentContentExtractor extractor = new DocumentContentExtractor(
+                    properties("", true, 0, 0, "", "HTTP_WORKER", workerUrl, "worker-token", false)
+            );
+
+            String text = extractor.extract(DocumentSourceType.OCR, dataUrl("image/png", withPngMagic("remote bytes"))).text();
+
+            assertThat(text).contains("remote worker requirement", "worker returns text");
+            assertThat(authorization.get()).isEqualTo("Bearer worker-token");
+            assertThat(requestBody.get()).contains("contentBase64", "maxOutputChars", "timeoutSeconds");
+            assertThat(extractor.ocrRemoteWorkerConfigured()).isTrue();
+            assertThat(extractor.ocrLocalCommandExecutionAllowed()).isFalse();
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    private static HttpServer startOcrWorkerServer(
+            String responseBody,
+            AtomicReference<String> authorization,
+            AtomicReference<String> requestBody
+    ) throws Exception {
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/ocr", exchange -> {
+            authorization.set(exchange.getRequestHeaders().getFirst("Authorization"));
+            requestBody.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+            byte[] response = responseBody.getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().add("Content-Type", "application/json");
+            exchange.sendResponseHeaders(200, response.length);
+            exchange.getResponseBody().write(response);
+            exchange.close();
+        });
+        server.start();
+        return server;
+    }
+
     private static byte[] docx(String... paragraphs) throws Exception {
         try (XWPFDocument document = new XWPFDocument();
              ByteArrayOutputStream output = new ByteArrayOutputStream()) {
@@ -244,6 +316,52 @@ class DocumentContentExtractorTest {
             long pdfMaxParseMillis,
             String malwareScanCommand
     ) {
+        return properties(
+                ocrCommand,
+                binaryMimeValidationEnabled,
+                pdfMaxPages,
+                pdfMaxParseMillis,
+                malwareScanCommand,
+                "LOCAL_COMMAND",
+                "",
+                "",
+                true
+        );
+    }
+
+    private static DocumentInputProperties properties(
+            String ocrCommand,
+            boolean binaryMimeValidationEnabled,
+            int pdfMaxPages,
+            long pdfMaxParseMillis,
+            String malwareScanCommand,
+            String ocrWorkerMode,
+            boolean ocrLocalCommandFallbackEnabled
+    ) {
+        return properties(
+                ocrCommand,
+                binaryMimeValidationEnabled,
+                pdfMaxPages,
+                pdfMaxParseMillis,
+                malwareScanCommand,
+                ocrWorkerMode,
+                "",
+                "",
+                ocrLocalCommandFallbackEnabled
+        );
+    }
+
+    private static DocumentInputProperties properties(
+            String ocrCommand,
+            boolean binaryMimeValidationEnabled,
+            int pdfMaxPages,
+            long pdfMaxParseMillis,
+            String malwareScanCommand,
+            String ocrWorkerMode,
+            String ocrWorkerUrl,
+            String ocrWorkerToken,
+            boolean ocrLocalCommandFallbackEnabled
+    ) {
         return new DocumentInputProperties(
                 "service-token",
                 "default-secret",
@@ -278,7 +396,10 @@ class DocumentContentExtractorTest {
                 binaryMimeValidationEnabled,
                 pdfMaxPages,
                 pdfMaxParseMillis,
-                "LOCAL_COMMAND",
+                ocrWorkerMode,
+                ocrWorkerUrl,
+                ocrWorkerToken,
+                ocrLocalCommandFallbackEnabled,
                 malwareScanCommand,
                 15,
                 2,

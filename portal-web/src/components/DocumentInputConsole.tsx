@@ -1253,6 +1253,11 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
             <StatusMetric label="导入上限" value={formatBytes(health?.importMaxContentBytes)} />
             <StatusMetric label="文件上限" value={formatBytes(health?.documentBinaryMaxBytes)} />
             <StatusMetric label="OCR" value={health?.ocrConfigured ? 'READY' : 'OFF'} pill />
+            <StatusMetric label="OCR Worker" value={health?.ocrWorkerMode ?? '-'} pill />
+            <StatusMetric label="OCR worker endpoint" value={health?.ocrRemoteWorkerConfigured ? 'ON' : 'OFF'} pill />
+            <StatusMetric label="OCR worker token" value={health?.ocrWorkerTokenConfigured ? 'SET' : 'OFF'} pill />
+            <StatusMetric label="OCR 本地执行" value={health?.ocrLocalCommandExecutionAllowed ? 'ON' : 'OFF'} pill />
+            <StatusMetric label="OCR fallback" value={health?.ocrLocalCommandFallbackEnabled ? 'ON' : 'OFF'} pill />
             <StatusMetric label="OCR 并发" value={`${health?.ocrAvailablePermits ?? '-'} / ${health?.ocrMaxConcurrentProcesses ?? '-'}`} />
             <StatusMetric label="OCR 超时" value={health?.ocrTimeoutSeconds ? `${health.ocrTimeoutSeconds}s` : '-'} />
             <StatusMetric label="SecretProvider" value={health?.externalSecretProvider?.status ?? '-'} pill />

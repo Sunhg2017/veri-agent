@@ -192,7 +192,7 @@ WP4 本轮 P0 已覆盖真实文件上传、Word/PDF/OCR、AI 解析、SecretPro
 
 | 编号 | 任务 | 优先级 | 状态 | 工作内容 | 验收标准 |
 |---|---|---|---|---|---|
-| WP4-B1 | OCR 隔离 worker 方案 | P1 | IN_PROGRESS | 已补 `ocrWorkerMode` 配置和健康暴露入口；真实 worker/队列/容器隔离仍待专项实现 | OCR 超时、崩溃或高 CPU 不拖垮 platform-api |
+| WP4-B1 | OCR 隔离 worker 方案 | P1 | DONE-CURRENT | 已补 `WP4_OCR_WORKER_MODE=HTTP_WORKER`、`WP4_OCR_WORKER_URL`、`WP4_OCR_WORKER_TOKEN` 和 `WP4_OCR_LOCAL_COMMAND_FALLBACK_ENABLED`；`platform-api` 可调用外部 HTTP OCR worker，生产可关闭本地命令 fallback；健康接口和 portal-web 展示 worker/fallback 状态；新增 `WP4-OCR隔离Worker接入Runbook.md` | OCR 超时、崩溃或高 CPU 可隔离在独立 worker；未配置或异常时返回可读错误，不在生产误执行本地命令 |
 | WP4-B2 | 恶意文件扫描 | P1 | DONE-CURRENT | 已补 `WP4_MALWARE_SCAN_COMMAND` 命令式文件扫描 provider，支持超时、并发和输出截断配置；Word/PDF/OCR 二进制解析前先扫描，健康接口暴露扫描开关和并发余量 | 被标记恶意文件不进入解析，错误摘要不泄露内部路径 |
 | WP4-B3 | 文件类型嗅探和 MIME 校验 | P1 | DONE-CURRENT | `binaryMimeValidationEnabled` 已接入 data URL 声明 MIME 与文件魔数/内容嗅探校验，覆盖 PDF、DOC/DOCX 和常见图片类型；健康接口暴露配置 | 伪造 MIME 被拒绝或按真实类型处理 |
 | WP4-B4 | PDF 页数/解析时间限制 | P1 | DONE-CURRENT | `pdfMaxPages/pdfMaxParseMillis` 已在 PDFBox 解析路径生效，并由单测覆盖页数超限和解析耗时超限；健康接口暴露配置 | 超限失败可读，临时文件清理稳定 |
@@ -247,6 +247,6 @@ WP4 本轮 P0 已覆盖真实文件上传、Word/PDF/OCR、AI 解析、SecretPro
 ## 9. 推荐下一步
 
 1. 下一轮优先补 WP3 P1 的导入导出、OpenAPI 导入，以及追踪矩阵和影响分析工作台。
-2. 将 `WP4-B1` 从配置/健康入口推进到真实 worker/队列/容器隔离；当前 `WP4-B2` 命令式恶意文件扫描已可作为生产接入杀毒组件的落点。
+2. `WP4-B1` 已具备 HTTP 隔离 worker 接入口；下一步在预发绑定真实 OCR worker 容器、关闭本地 fallback，并按 `WP4-OCR隔离Worker接入Runbook.md` 做真实扫描件验证。
 3. 在下一轮前端迭代中继续合并规划 `WP2-A` 与 WP3 P1 页面，避免管理台导航和权限模型重复调整。
 4. 每完成一个任务，补充对应交付说明、测试命令和 release note，并按当前约定提交清晰 commit。
