@@ -164,6 +164,7 @@ export interface InvocationSummary {
 export interface CostAlert {
   scope?: string;
   projectId?: string;
+  actorService?: string;
   periodStart?: string;
   periodEnd?: string;
   spentCost: number;
@@ -196,6 +197,11 @@ export interface CostReportFilters {
   startDate?: string;
   endDate?: string;
   projectId?: string;
+}
+
+export interface CostAlertFilters {
+  projectId?: string;
+  actorService?: string;
 }
 
 export function normalizeModelAccessHealth(raw: unknown): ModelAccessHealth {
@@ -345,6 +351,7 @@ export function normalizeCostAlert(raw: unknown): CostAlert {
   return {
     scope: optionalString(value.scope),
     projectId: optionalString(value.projectId ?? value.project_id),
+    actorService: optionalString(value.actorService ?? value.actor_service),
     periodStart: optionalString(value.periodStart ?? value.period_start),
     periodEnd: optionalString(value.periodEnd ?? value.period_end),
     spentCost: numberValue(value.spentCost ?? value.spent_cost),
@@ -502,8 +509,8 @@ export async function exportInvocationsCsv(filters: InvocationFilters = {}) {
   return requestText(invocationExportPath(filters));
 }
 
-export async function fetchCostAlerts(projectId?: string): Promise<ApiResponse<CostAlert[]>> {
-  const response = await requestJson<unknown>(modelAccessQueryPath('/api/v1/model-access/cost/alerts', { projectId }));
+export async function fetchCostAlerts(filters: CostAlertFilters = {}): Promise<ApiResponse<CostAlert[]>> {
+  const response = await requestJson<unknown>(modelAccessQueryPath('/api/v1/model-access/cost/alerts', filters));
   return { ...response, data: costAlertItems(response.data) };
 }
 

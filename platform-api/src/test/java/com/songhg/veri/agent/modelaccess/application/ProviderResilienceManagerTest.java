@@ -179,6 +179,8 @@ class ProviderResilienceManagerTest {
                 0,
                 60,
                 0,
+                BigDecimal.ZERO,
+                "BLOCK",
                 java.util.List.of()
         );
     }
@@ -209,6 +211,8 @@ class ProviderResilienceManagerTest {
                 rateLimitMaxRequests,
                 rateLimitWindowSeconds,
                 maxConcurrentRequests,
+                BigDecimal.ZERO,
+                "BLOCK",
                 java.util.List.of()
         );
     }

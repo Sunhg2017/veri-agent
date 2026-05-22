@@ -344,6 +344,7 @@ public class ModelAccessService {
         List<ModelProviderConfig> candidates = routingDecision.providers();
         RuntimeException lastFailure = null;
         boolean fallbackUsed = false;
+        boolean fallbackOnBudgetOverrun = properties.fallbackOnBudgetOverrun();
         for (int index = 0; index < candidates.size(); index++) {
             ModelProviderConfig provider = candidates.get(index);
             if (providerResilienceManager.isCircuitOpen(provider)) {
@@ -352,8 +353,13 @@ public class ModelAccessService {
                 continue;
             }
             ModelProviderClient client = clientFor(provider);
-            BudgetViolation budgetViolation = budgetViolation(request, provider, fullPrompt);
+            BudgetViolation budgetViolation = budgetViolation(request, principal, provider, fullPrompt);
             if (budgetViolation != null) {
+                if (fallbackOnBudgetOverrun && index < candidates.size() - 1) {
+                    lastFailure = new BusinessException(ErrorCode.BUDGET_EXCEEDED, budgetViolation.message());
+                    fallbackUsed = true;
+                    continue;
+                }
                 saveRecord(
                         request,
                         principal,
@@ -487,12 +493,15 @@ public class ModelAccessService {
         return repository.invocationSummary(normalizeQuery(query));
     }
 
-    public List<CostAlertResponse> costAlerts(String projectId) {
+    public List<CostAlertResponse> costAlerts(String projectId, String actorService) {
         BudgetWindow window = currentBudgetWindow();
         List<CostAlertResponse> alerts = new ArrayList<>();
+        String normalizedProjectId = trimToNull(projectId);
+        String normalizedActorService = trimToNull(actorService);
         if (properties.hasDailyPlatformCostLimit()) {
             alerts.add(costAlert(
                     "PLATFORM",
+                    null,
                     null,
                     properties.dailyPlatformCostLimit(),
                     new InvocationQuery(null, null, null, null, null, null, window.startTime(), window.endTime(), PageQuery.of(0, 1)),
@@ -500,7 +509,6 @@ public class ModelAccessService {
             ));
         }
         if (properties.hasDailyProjectCostLimit()) {
-            String normalizedProjectId = trimToNull(projectId);
             if (normalizedProjectId == null) {
                 repository.invocations(new InvocationQuery(null, null, null, null, null, null, window.startTime(), window.endTime(), PageQuery.of(0, 1000)))
                         .stream()
@@ -513,9 +521,22 @@ public class ModelAccessService {
                 alerts.add(projectCostAlert(normalizedProjectId, window));
             }
         }
-        boolean explicitProject = trimToNull(projectId) != null;
+        if (properties.hasDailyCallerServiceCostLimit()) {
+            if (normalizedActorService == null) {
+                repository.invocations(new InvocationQuery(null, null, null, null, null, null, window.startTime(), window.endTime(), PageQuery.of(0, 1000)))
+                        .stream()
+                        .map(InvocationRecord::actorService)
+                        .filter(StringUtils::hasText)
+                        .distinct()
+                        .sorted()
+                        .forEach(service -> alerts.add(callerServiceCostAlert(service, window)));
+            } else {
+                alerts.add(callerServiceCostAlert(normalizedActorService, window));
+            }
+        }
+        boolean explicitScope = normalizedProjectId != null || normalizedActorService != null;
         return alerts.stream()
-                .filter(alert -> explicitProject || !"OK".equals(alert.level()) || alert.spentCost().signum() > 0)
+                .filter(alert -> explicitScope || !"OK".equals(alert.level()) || alert.spentCost().signum() > 0)
                 .toList();
     }
 
@@ -1106,10 +1127,13 @@ public class ModelAccessService {
 
     private BudgetViolation budgetViolation(
             InvokeModelRequest request,
+            ServicePrincipal principal,
             ModelProviderConfig provider,
             String fullPrompt
     ) {
-        if (!properties.hasDailyPlatformCostLimit() && !properties.hasDailyProjectCostLimit()) {
+        if (!properties.hasDailyPlatformCostLimit()
+                && !properties.hasDailyProjectCostLimit()
+                && !properties.hasDailyCallerServiceCostLimit()) {
             return null;
         }
         BudgetWindow window = currentBudgetWindow();
@@ -1134,6 +1158,31 @@ public class ModelAccessService {
             );
             if (violation != null) {
                 return violation;
+            }
+        }
+
+        if (properties.hasDailyCallerServiceCostLimit()) {
+            String callerService = trimToNull(principal.callerService());
+            if (callerService != null) {
+                BudgetViolation violation = budgetViolation(
+                        "CALLER_SERVICE",
+                        properties.dailyCallerServiceCostLimit(),
+                        estimatedCost,
+                        new InvocationQuery(
+                                null,
+                                null,
+                                null,
+                                null,
+                                null,
+                                callerService,
+                                window.startTime(),
+                                window.endTime(),
+                                PageQuery.of(0, 1)
+                        )
+                );
+                if (violation != null) {
+                    return violation;
+                }
             }
         }
 
@@ -1162,8 +1211,20 @@ public class ModelAccessService {
         return costAlert(
                 "PROJECT",
                 projectId,
+                null,
                 properties.dailyProjectCostLimit(),
                 new InvocationQuery(projectId, null, null, null, null, null, window.startTime(), window.endTime(), PageQuery.of(0, 1)),
+                window
+        );
+    }
+
+    private CostAlertResponse callerServiceCostAlert(String actorService, BudgetWindow window) {
+        return costAlert(
+                "CALLER_SERVICE",
+                null,
+                actorService,
+                properties.dailyCallerServiceCostLimit(),
+                new InvocationQuery(null, null, null, null, null, actorService, window.startTime(), window.endTime(), PageQuery.of(0, 1)),
                 window
         );
     }
@@ -1171,6 +1232,7 @@ public class ModelAccessService {
     private CostAlertResponse costAlert(
             String scope,
             String projectId,
+            String actorService,
             BigDecimal limit,
             InvocationQuery query,
             BudgetWindow window
@@ -1188,10 +1250,14 @@ public class ModelAccessService {
         } else {
             level = "OK";
         }
-        String message = "%s daily cost %s/%s".formatted(scope.toLowerCase(Locale.ROOT), spent, limit);
+        String subject = actorService == null
+                ? scope.toLowerCase(Locale.ROOT)
+                : scope.toLowerCase(Locale.ROOT) + "[" + actorService + "]";
+        String message = "%s daily cost %s/%s".formatted(subject, spent, limit);
         return new CostAlertResponse(
                 scope,
                 projectId,
+                actorService,
                 window.startTime().toString(),
                 window.endTime().toString(),
                 spent.setScale(8, RoundingMode.HALF_UP),

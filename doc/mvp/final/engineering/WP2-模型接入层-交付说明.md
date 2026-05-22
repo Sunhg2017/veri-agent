@@ -5,7 +5,7 @@
 | 工作包 | WP2 模型接入层 |
 | 依赖 | WP1 平台基础底座 API 契约 |
 | 服务模块 | `platform-api` 内聚合模块 `/api/v1/model-access` |
-| 当前状态 | P0 可交付实现已落地；WP2-C1 高级路由策略已补齐 |
+| 当前状态 | P0 可交付实现已落地；WP2-C1 高级路由策略和 WP2-C2 预算策略产品化已补齐 |
 
 ## 1. 交付范围
 
@@ -17,7 +17,7 @@ WP2 P0 交付以下能力：
 4. 敏感级别路由策略：支持 `PUBLIC`、`INTERNAL`、`CONFIDENTIAL`、`RESTRICTED`，默认 `INTERNAL`；高敏感请求禁止公开模型路由和显式外部供应商。
 5. 高级路由策略：支持按项目、敏感级别、调用服务、模型能力和供应商组匹配路由规则；规则可选择 `LOWEST_COST` 在候选组内按预估成本优先。
 6. 脱敏与安全校验：调用前阻断明显密钥、Bearer token、身份证号；日志仅保存 masked preview 和 prompt SHA-256 digest。
-7. 预算护栏：支持平台/项目日预算配置，供应商调用前按当前日已发生成本和预估成本阻断超额请求。
+7. 预算护栏：支持平台、项目、调用服务日预算配置，供应商调用前按当前日已发生成本和预估成本执行阻断或低成本 provider 降级。
 8. 失败降级：供应商调用失败后按优先级尝试下一个可用供应商，并记录 `fallbackUsed`。
 9. 成本记录：按输入/输出 token 和供应商单价计算 `totalCost`。
 10. 调用审计日志：记录 WP1 资源逻辑归属、敏感级别、调用服务、委托用户、模型、供应商、路由规则、路由组、模型能力、状态、延迟、成本和错误摘要。
@@ -45,6 +45,8 @@ WP2 P0 交付以下能力：
 | `GET /invocations` | 分页查询调用日志，支持项目、应用、敏感级别、状态、供应商、调用服务和时间范围筛选。 |
 | `GET /invocations/summary` | 按同一组筛选条件汇总调用次数、状态分布、token 和成本。 |
 | `GET /invocations/export` | 按同一组筛选条件导出脱敏调用审计 CSV。 |
+| `GET /cost/alerts?projectId=&actorService=` | 查询平台、项目和调用服务日预算告警，支持按项目或调用服务显式查看 OK/WARNING/EXCEEDED 状态。 |
+| `GET /cost/report?startDate=&endDate=&projectId=` | 查询 31 天内项目/应用维度成本日报。 |
 
 除健康检查外，API 支持两类调用身份：
 
@@ -64,7 +66,7 @@ WP2 保存 `projectId`、`applicationId`、`environmentId` 作为逻辑归属，
 
 敏感内容阻断会在供应商调用前检查 prompt 和消息内容，当前覆盖 key/token/password/Bearer、身份证号、手机号、邮箱、银行卡疑似长号以及 `internal_token`、`corp_secret`、`private_key` 等企业内部密钥模式。命中后返回稳定错误并写入 `BLOCKED` 调用日志，避免敏感明文进入外部 provider。
 
-预算护栏默认关闭。设置 `WP2_DAILY_PLATFORM_COST_LIMIT` 或 `WP2_DAILY_PROJECT_COST_LIMIT` 为大于 0 的金额后，WP2 使用 `WP2_BUDGET_ZONE_ID` 对齐日窗口，并用 `WP2_BUDGET_ESTIMATED_OUTPUT_TOKENS` 作为调用前输出 token 预估保留量。超额请求返回 `BUDGET_EXCEEDED`，并记录 `BLOCKED` 调用日志，实际成本为 0。
+预算护栏默认关闭。设置 `WP2_DAILY_PLATFORM_COST_LIMIT`、`WP2_DAILY_PROJECT_COST_LIMIT` 或 `WP2_DAILY_CALLER_SERVICE_COST_LIMIT` 为大于 0 的金额后，WP2 使用 `WP2_BUDGET_ZONE_ID` 对齐日窗口，并用 `WP2_BUDGET_ESTIMATED_OUTPUT_TOKENS` 作为调用前输出 token 预估保留量。`WP2_COST_ALERT_WARNING_RATIO` 控制告警阈值，成本告警接口会返回平台、项目和调用服务维度的 `OK`、`WARNING` 或 `EXCEEDED`。`WP2_BUDGET_OVERRUN_ACTION=BLOCK` 时超额请求返回 `BUDGET_EXCEEDED`，并记录 `BLOCKED` 调用日志，实际成本为 0；设置为 `FALLBACK` 时，WP2 会跳过当前预估超预算 provider，继续尝试后续低成本候选，全部候选仍超预算时再阻断。
 
 Provider 级生产保护默认关闭。设置 `WP2_PROVIDER_RATE_LIMIT_MAX_REQUESTS`、`WP2_PROVIDER_RATE_LIMIT_WINDOW_SECONDS` 可开启单 provider 时间窗口限流；设置 `WP2_PROVIDER_MAX_CONCURRENT_REQUESTS` 可开启单 provider 并发保护。触发限流或并发上限时返回 `BUDGET_EXCEEDED`，并记录 `BLOCKED` 调用日志。连续失败熔断仍由 `WP2_PROVIDER_CIRCUIT_FAILURE_THRESHOLD` 和 `WP2_PROVIDER_CIRCUIT_OPEN_MS` 控制，可通过 resilience API 查询和 reset。
 
@@ -106,22 +108,23 @@ Provider 级生产保护默认关闭。设置 `WP2_PROVIDER_RATE_LIMIT_MAX_REQUE
 6. 供应商失败后的降级调用与日志记录。
 7. 调用日志分页响应和成本汇总接口。
 8. 项目日预算超额时的调用前阻断与 BLOCKED 审计记录。
-9. 模型供应商配置更新与 OpenAI-compatible 密钥引用校验。
-10. 模型供应商就绪检查，覆盖本地供应商 `UP`、失败供应商 `DOWN`，并验证检查不写调用日志。
-11. WP1 内部 context/audit 契约测试，覆盖服务令牌、上下文响应、模型路由策略字段和审计事件接收。
-12. WP2 消费 WP1 上下文策略，覆盖平台禁止公开模型路由和平台敏感级别升级。
-13. 调用日志查询、汇总和 CSV 导出支持 `sensitivityLevel` 筛选，验证响应不走 JSON envelope，CSV 使用数据库审计列名且不暴露 prompt 明文字段。
-14. WP2 `db` profile 默认供应商和默认 Prompt 种子校验。
-15. 已启动 WP2 服务的 HTTP smoke，覆盖健康检查、供应商就绪检查及 TTL 缓存、模型调用、日志查询、汇总、成本报表、成本告警和 CSV 导出。
-16. OpenAPI 契约固定 `sensitivityLevel` 查询、成本接口、CSV 导出、无租户维度和无明文密钥字段。
-17. 运维指标覆盖模型调用、供应商检查、token/cost 和 WP1 audit 写入结果；audit 写失败不阻断主调用并可通过指标告警。
-18. 模块策略 smoke 覆盖 WP2 在同一 `platform-api` 内读取 WP1 context 策略、公开模型路由阻断和本地模型成功调用。
-19. OpenAI-compatible 客户端合同测试覆盖 `/v1/chat/completions` 响应解析，不依赖外网。
-20. 供应商调用支持同供应商重试、连续失败短时熔断和候选供应商 fallback。
-21. 成本能力支持平台/项目日预算告警和 31 天内日报聚合。
-22. 供应商生产硬化支持 provider 级窗口限流、并发控制、熔断状态查询和手动 reset；限流/并发阻断会返回 `BUDGET_EXCEEDED` 并写入 `BLOCKED` 调用日志。
-23. 通用模型评测集框架支持按 `taskType` 评测 Prompt/provider 输出，当前语料覆盖 `case-design`、`defect-triage`、`requirement-summary`，并校验场景通过率、必需术语召回和禁用术语清洁率。
-24. 高级路由策略覆盖按项目、调用服务、敏感级别、能力和供应商组命中规则，并验证 `LOWEST_COST` 可在组内选择低成本 provider，调用日志保留路由规则、路由组和模型能力。
+9. 调用服务日预算超额时的调用前阻断、按 `actorService` 查询成本告警，以及 `FALLBACK` 超预算策略下的低成本 provider 降级。
+10. 模型供应商配置更新与 OpenAI-compatible 密钥引用校验。
+11. 模型供应商就绪检查，覆盖本地供应商 `UP`、失败供应商 `DOWN`，并验证检查不写调用日志。
+12. WP1 内部 context/audit 契约测试，覆盖服务令牌、上下文响应、模型路由策略字段和审计事件接收。
+13. WP2 消费 WP1 上下文策略，覆盖平台禁止公开模型路由和平台敏感级别升级。
+14. 调用日志查询、汇总和 CSV 导出支持 `sensitivityLevel` 筛选，验证响应不走 JSON envelope，CSV 使用数据库审计列名且不暴露 prompt 明文字段。
+15. WP2 `db` profile 默认供应商和默认 Prompt 种子校验。
+16. 已启动 WP2 服务的 HTTP smoke，覆盖健康检查、供应商就绪检查及 TTL 缓存、模型调用、日志查询、汇总、成本报表、成本告警和 CSV 导出。
+17. OpenAPI 契约固定 `sensitivityLevel` 查询、成本接口、CSV 导出、无租户维度和无明文密钥字段。
+18. 运维指标覆盖模型调用、供应商检查、token/cost 和 WP1 audit 写入结果；audit 写失败不阻断主调用并可通过指标告警。
+19. 模块策略 smoke 覆盖 WP2 在同一 `platform-api` 内读取 WP1 context 策略、公开模型路由阻断和本地模型成功调用。
+20. OpenAI-compatible 客户端合同测试覆盖 `/v1/chat/completions` 响应解析，不依赖外网。
+21. 供应商调用支持同供应商重试、连续失败短时熔断和候选供应商 fallback。
+22. 成本能力支持平台/项目/调用服务日预算告警和 31 天内日报聚合。
+23. 供应商生产硬化支持 provider 级窗口限流、并发控制、熔断状态查询和手动 reset；限流/并发阻断会返回 `BUDGET_EXCEEDED` 并写入 `BLOCKED` 调用日志。
+24. 通用模型评测集框架支持按 `taskType` 评测 Prompt/provider 输出，当前语料覆盖 `case-design`、`defect-triage`、`requirement-summary`，并校验场景通过率、必需术语召回和禁用术语清洁率。
+25. 高级路由策略覆盖按项目、调用服务、敏感级别、能力和供应商组命中规则，并验证 `LOWEST_COST` 可在组内选择低成本 provider，调用日志保留路由规则、路由组和模型能力。
 
 运行命令：
 
@@ -168,6 +171,7 @@ bash scripts/wp_all_integration_test.sh
 4. 已新增 WP2 聚合质量门禁 `scripts/wp2_quality_gate.sh`，覆盖 `platform-api` 测试、portal-web 模型接入相关测试与构建、WP2 DB validation，并将 HTTP smoke / 模块策略 smoke 纳入可选发布前门禁。
 5. 已新增 `scripts/wp2_model_quality_eval.sh` 和通用 `ModelEvaluationRunner`，Prompt 或 provider 变更可按任务类型运行离线评测，后续智能任务可复用同一语料结构扩展指标。
 6. 已新增 WP2-C1 高级路由策略，provider 可配置路由组和能力，调用可声明能力，路由规则可按项目/敏感级别/调用服务/能力/供应商组匹配，并将路由结果写入调用日志和 WP1 审计摘要。
+7. 已新增 WP2-C2 预算策略产品化，支持调用服务日预算、按 `actorService` 查询成本告警，以及 `BLOCK/FALLBACK` 超预算动作配置。
 
 ## 7. Provider 生产接入与密钥轮换
 

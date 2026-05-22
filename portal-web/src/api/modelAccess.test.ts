@@ -6,6 +6,7 @@ import {
   createModelProvider,
   createPromptVersion,
   exportInvocationsCsv,
+  fetchCostAlerts,
   fetchCostReport,
   fetchInvocationSummary,
   fetchInvocations,
@@ -13,6 +14,7 @@ import {
   fetchPrompts,
   invocationExportPath,
   modelAccessQueryPath,
+  normalizeCostAlert,
   normalizeInvocationRecord,
   normalizeModelProvider,
   normalizePromptTemplate,
@@ -101,6 +103,22 @@ describe('model access API helpers', () => {
       totalCost: 0.0004
     });
     expect(invocation).not.toHaveProperty('promptPlaintext');
+
+    expect(normalizeCostAlert({
+      scope: 'CALLER_SERVICE',
+      actor_service: 'wp4-document-input',
+      spent_cost: '0.0002',
+      budget_limit: '0.001',
+      usage_ratio: '0.2',
+      level: 'WARNING'
+    })).toMatchObject({
+      scope: 'CALLER_SERVICE',
+      actorService: 'wp4-document-input',
+      spentCost: 0.0002,
+      budgetLimit: 0.001,
+      usageRatio: 0.2,
+      level: 'WARNING'
+    });
   });
 
   it('builds encoded filter paths for logs, summary, cost, and CSV export', async () => {
@@ -123,6 +141,9 @@ describe('model access API helpers', () => {
 
     await fetchCostReport({ startDate: '2026-05-20', endDate: '2026-05-21', projectId: 'project pay' });
     expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/model-access/cost/report?startDate=2026-05-20&endDate=2026-05-21&projectId=project+pay');
+
+    await fetchCostAlerts({ projectId: 'project pay', actorService: 'wp4 parser' });
+    expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/model-access/cost/alerts?projectId=project+pay&actorService=wp4+parser');
 
     expect(invocationExportPath({ projectId: 'project pay', status: 'BLOCKED', index: 2, size: 10 })).toBe('/api/v1/model-access/invocations/export?projectId=project+pay&status=BLOCKED');
     await exportInvocationsCsv({ projectId: 'project pay', status: 'BLOCKED' });

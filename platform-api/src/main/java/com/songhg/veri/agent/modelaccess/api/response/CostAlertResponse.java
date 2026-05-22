@@ -5,6 +5,7 @@ import java.math.BigDecimal;
 public record CostAlertResponse(
         String scope,
         String projectId,
+        String actorService,
         String periodStart,
         String periodEnd,
         BigDecimal spentCost,

@@ -68,8 +68,10 @@ veri-agent:
     max-prompt-chars: ${WP2_MAX_PROMPT_CHARS:12000}
     daily-platform-cost-limit: ${WP2_DAILY_PLATFORM_COST_LIMIT:0}
     daily-project-cost-limit: ${WP2_DAILY_PROJECT_COST_LIMIT:0}
+    daily-caller-service-cost-limit: ${WP2_DAILY_CALLER_SERVICE_COST_LIMIT:0}
     budget-estimated-output-tokens: ${WP2_BUDGET_ESTIMATED_OUTPUT_TOKENS:0}
     budget-zone-id: ${WP2_BUDGET_ZONE_ID:Asia/Shanghai}
+    budget-overrun-action: ${WP2_BUDGET_OVERRUN_ACTION:BLOCK}
     max-export-rows: ${WP2_MAX_EXPORT_ROWS:10000}
     provider-max-retries: ${WP2_PROVIDER_MAX_RETRIES:1}
     provider-circuit-failure-threshold: ${WP2_PROVIDER_CIRCUIT_FAILURE_THRESHOLD:3}

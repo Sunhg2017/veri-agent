@@ -22,6 +22,8 @@ public record ModelAccessProperties(
         int providerRateLimitMaxRequests,
         long providerRateLimitWindowSeconds,
         int providerMaxConcurrentRequests,
+        BigDecimal dailyCallerServiceCostLimit,
+        String budgetOverrunAction,
         List<RoutingRule> routingRules
 ) {
 
@@ -31,6 +33,10 @@ public record ModelAccessProperties(
 
     public boolean hasDailyProjectCostLimit() {
         return dailyProjectCostLimit != null && dailyProjectCostLimit.signum() > 0;
+    }
+
+    public boolean hasDailyCallerServiceCostLimit() {
+        return dailyCallerServiceCostLimit != null && dailyCallerServiceCostLimit.signum() > 0;
     }
 
     public int safeProviderMaxRetries() {
@@ -69,6 +75,18 @@ public record ModelAccessProperties(
 
     public int safeProviderMaxConcurrentRequests() {
         return Math.max(0, providerMaxConcurrentRequests);
+    }
+
+    public boolean fallbackOnBudgetOverrun() {
+        return "FALLBACK".equals(safeBudgetOverrunAction());
+    }
+
+    public String safeBudgetOverrunAction() {
+        if (budgetOverrunAction == null) {
+            return "BLOCK";
+        }
+        String normalized = budgetOverrunAction.trim().toUpperCase(java.util.Locale.ROOT);
+        return "FALLBACK".equals(normalized) ? "FALLBACK" : "BLOCK";
     }
 
     public List<RoutingRule> safeRoutingRules() {

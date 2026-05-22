@@ -99,6 +99,7 @@ type LogFilterDraft = {
 
 type CostFilterDraft = {
   projectId: string;
+  actorService: string;
   startDate: string;
   endDate: string;
 };
@@ -144,6 +145,7 @@ const initialLogFilters: LogFilterDraft = {
 
 const initialCostFilters: CostFilterDraft = {
   projectId: '',
+  actorService: '',
   startDate: '',
   endDate: ''
 };
@@ -197,7 +199,7 @@ export function ModelAccessConsole(props: { signedIn: boolean; currentUser: Curr
       fetchInvocations({ ...invocationFilters, index: 0, size: 50 }),
       fetchInvocationSummary(invocationFilters),
       fetchCostReport(compactCostFilters(costFilters)),
-      fetchCostAlerts(costFilters.projectId)
+      fetchCostAlerts(compactCostAlertFilters(costFilters))
     ]);
     setInvocations(invocationResponse.data);
     setSummary(summaryResponse.data);
@@ -951,6 +953,8 @@ function LogsTab(props: {
           </select>
         </label>
         <label className="field"><span>Actor service</span><input value={props.filters.actorService} onChange={(event) => props.onChangeFilter('actorService', event.target.value)} /></label>
+        <label className="field"><span>成本项目</span><input value={props.costFilters.projectId} onChange={(event) => props.onChangeCostFilter('projectId', event.target.value)} /></label>
+        <label className="field"><span>成本服务</span><input value={props.costFilters.actorService} onChange={(event) => props.onChangeCostFilter('actorService', event.target.value)} /></label>
         <label className="field"><span>开始时间</span><input type="datetime-local" value={props.filters.startTime} onChange={(event) => props.onChangeFilter('startTime', event.target.value)} /></label>
         <label className="field"><span>结束时间</span><input type="datetime-local" value={props.filters.endTime} onChange={(event) => props.onChangeFilter('endTime', event.target.value)} /></label>
         <label className="field"><span>成本开始</span><input type="date" value={props.costFilters.startDate} onChange={(event) => props.onChangeCostFilter('startDate', event.target.value)} /></label>
@@ -1054,9 +1058,9 @@ function LogsTab(props: {
           <div className="panel-title-row"><h2>成本告警</h2><AlertTriangle size={16} /></div>
           <div className="model-access-alert-list">
             {props.alerts.length ? props.alerts.map((alert, index) => (
-              <div className="model-access-alert" key={`${alert.projectId}-${alert.periodStart}-${index}`}>
+              <div className="model-access-alert" key={`${alert.projectId}-${alert.actorService}-${alert.periodStart}-${index}`}>
                 <StatusPill value={alert.level ?? 'INFO'} />
-                <strong>{alert.projectId ?? alert.scope ?? '-'}</strong>
+                <strong>{alert.actorService ?? alert.projectId ?? alert.scope ?? '-'}</strong>
                 <span>{alert.message ?? `${formatMoney(alert.spentCost)} / ${formatMoney(alert.budgetLimit)}`}</span>
               </div>
             )) : (
@@ -1186,6 +1190,13 @@ function compactCostFilters(filters: CostFilterDraft) {
     projectId: filters.projectId,
     startDate: filters.startDate,
     endDate: filters.endDate
+  };
+}
+
+function compactCostAlertFilters(filters: CostFilterDraft) {
+  return {
+    projectId: filters.projectId,
+    actorService: filters.actorService
   };
 }
 

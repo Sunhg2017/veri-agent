@@ -198,10 +198,11 @@ public class ModelAccessController {
 
     @GetMapping("/cost/alerts")
     public List<CostAlertResponse> costAlerts(
-            @RequestParam(required = false) String projectId
+            @RequestParam(required = false) String projectId,
+            @RequestParam(required = false) String actorService
     ) {
         requirePermission(READ_PERMISSION);
-        return service.costAlerts(projectId);
+        return service.costAlerts(projectId, actorService);
     }
 
     @GetMapping("/cost/report")
