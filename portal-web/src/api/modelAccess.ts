@@ -1,4 +1,4 @@
-import { requestJson, requestText, type ApiResponse } from './client';
+import { ApiError, getAuthToken, requestJson, requestText, type ApiResponse } from './client';
 
 export const MODEL_PROVIDER_TYPES = ['LOCAL_ECHO', 'OPENAI_COMPATIBLE', 'MOCK_FAILURE'] as const;
 export const MODEL_PROVIDER_STATUSES = ['ENABLED', 'DISABLED'] as const;
@@ -172,6 +172,47 @@ export interface InvocationSummary {
   outputTokens: number;
   totalCost: number;
 }
+
+export interface InvokeModelPayload {
+  projectId: string;
+  applicationId?: string;
+  environmentId?: string;
+  promptKey?: string;
+  promptVariables?: Record<string, string>;
+  messages: Array<{
+    role: string;
+    content: string;
+  }>;
+  providerId?: string;
+  modelName?: string;
+  allowPublicModel?: boolean;
+  sensitivityLevel?: string;
+  capability?: string;
+}
+
+export type ModelStreamEvent =
+  | {
+      type: 'metadata';
+      invocationId: string;
+      providerId?: string;
+      providerName?: string;
+      modelName?: string;
+      fallbackUsed: boolean;
+      inputTokens: number;
+      outputTokens: number;
+      totalCost: number;
+      traceId?: string;
+    }
+  | {
+      type: 'delta';
+      index: number;
+      content: string;
+    }
+  | {
+      type: 'done';
+      invocationId: string;
+      finishReason: string;
+    };
 
 export interface CostAlert {
   scope?: string;
@@ -542,6 +583,83 @@ export async function exportInvocationsCsv(filters: InvocationFilters = {}) {
   return requestText(invocationExportPath(filters));
 }
 
+export function invocationStreamPath() {
+  return '/api/v1/model-access/invocations/stream';
+}
+
+export function parseModelStreamEvents(text: string): ModelStreamEvent[] {
+  return text
+    .split(/\r?\n\r?\n/)
+    .map((block) => block.trim())
+    .filter(Boolean)
+    .map(parseModelStreamEvent)
+    .filter((event): event is ModelStreamEvent => event !== undefined);
+}
+
+export async function invokeModelStream(
+  payload: InvokeModelPayload,
+  onEvent?: (event: ModelStreamEvent) => void
+): Promise<ModelStreamEvent[]> {
+  const headers = new Headers({ 'Content-Type': 'application/json', Accept: 'text/event-stream' });
+  const token = getAuthToken();
+  if (token) {
+    headers.set('Authorization', `Bearer ${token}`);
+  }
+
+  const response = await fetch(invocationStreamPath(), {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(compactPayload(payload))
+  });
+  if (response.status === 401 && token) {
+    throw new ApiError('登录已过期，请重新登录', 'SESSION_EXPIRED', '', 401);
+  }
+  if (!response.ok) {
+    throw await streamApiError(response);
+  }
+  const contentType = response.headers.get('Content-Type') ?? '';
+  if (contentType && !contentType.toLowerCase().includes('text/event-stream')) {
+    throw new ApiError(
+      '流式模型调用返回类型异常',
+      'INVALID_STREAM_RESPONSE',
+      response.headers.get('X-Trace-Id') ?? '',
+      response.status
+    );
+  }
+
+  const events: ModelStreamEvent[] = [];
+  const pushEvents = (chunk: string) => {
+    const parsed = parseModelStreamEvents(chunk);
+    parsed.forEach((event) => {
+      events.push(event);
+      onEvent?.(event);
+    });
+  };
+
+  if (!response.body) {
+    pushEvents(await response.text());
+    return events;
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  while (true) {
+    const { done, value } = await reader.read();
+    buffer += decoder.decode(value, { stream: !done });
+    const parts = buffer.split(/\r?\n\r?\n/);
+    buffer = parts.pop() ?? '';
+    parts.filter(Boolean).forEach(pushEvents);
+    if (done) {
+      break;
+    }
+  }
+  if (buffer.trim()) {
+    pushEvents(buffer);
+  }
+  return events;
+}
+
 export async function fetchCostAlerts(filters: CostAlertFilters = {}): Promise<ApiResponse<CostAlert[]>> {
   const response = await requestJson<unknown>(modelAccessQueryPath('/api/v1/model-access/cost/alerts', filters));
   return { ...response, data: costAlertItems(response.data) };
@@ -561,6 +679,76 @@ function compactPayload<T extends object>(payload: T) {
       return typeof value !== 'string' || value.trim() !== '';
     })
   );
+}
+
+function parseModelStreamEvent(block: string): ModelStreamEvent | undefined {
+  let type = '';
+  const dataLines: string[] = [];
+  for (const line of block.split(/\r?\n/)) {
+    if (line.startsWith('event:')) {
+      type = line.slice('event:'.length).trim();
+    } else if (line.startsWith('data:')) {
+      dataLines.push(line.slice('data:'.length).trimStart());
+    }
+  }
+  if (!type || dataLines.length === 0) {
+    return undefined;
+  }
+  let data: Record<string, unknown>;
+  try {
+    data = record(JSON.parse(dataLines.join('\n')));
+  } catch {
+    return undefined;
+  }
+  if (type === 'metadata') {
+    return {
+      type,
+      invocationId: stringValue(data.invocationId ?? data.invocation_id),
+      providerId: optionalString(data.providerId ?? data.provider_id),
+      providerName: optionalString(data.providerName ?? data.provider_name),
+      modelName: optionalString(data.modelName ?? data.model_name),
+      fallbackUsed: booleanValue(data.fallbackUsed ?? data.fallback_used),
+      inputTokens: numberValue(data.inputTokens ?? data.input_tokens),
+      outputTokens: numberValue(data.outputTokens ?? data.output_tokens),
+      totalCost: numberValue(data.totalCost ?? data.total_cost),
+      traceId: optionalString(data.traceId ?? data.trace_id)
+    };
+  }
+  if (type === 'delta') {
+    return {
+      type,
+      index: numberValue(data.index),
+      content: stringValue(data.content)
+    };
+  }
+  if (type === 'done') {
+    return {
+      type,
+      invocationId: stringValue(data.invocationId ?? data.invocation_id),
+      finishReason: stringValue(data.finishReason ?? data.finish_reason)
+    };
+  }
+  return undefined;
+}
+
+async function streamApiError(response: Response) {
+  const text = await response.text().catch(() => '');
+  try {
+    const body = JSON.parse(text) as { message?: string; code?: string; trace_id?: string; traceId?: string; data?: unknown };
+    return new ApiError(
+      body.message || '流式模型调用失败',
+      body.code || `HTTP_${response.status}`,
+      body.trace_id ?? body.traceId ?? response.headers.get('X-Trace-Id') ?? '',
+      response.status
+    );
+  } catch {
+    return new ApiError(
+      text || '流式模型调用失败',
+      `HTTP_${response.status}`,
+      response.headers.get('X-Trace-Id') ?? '',
+      response.status
+    );
+  }
 }
 
 function record(value: unknown): Record<string, unknown> {

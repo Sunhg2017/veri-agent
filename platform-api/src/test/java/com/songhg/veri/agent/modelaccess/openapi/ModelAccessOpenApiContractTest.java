@@ -44,6 +44,7 @@ class ModelAccessOpenApiContractTest {
                 .andExpect(jsonPath("$.paths['/api/v1/model-access/prompts/{id}/approve'].post").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/model-access/prompts/{id}/reject'].post").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/model-access/invocations'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/model-access/invocations/stream'].post").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/model-access/invocations'].get").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/model-access/invocations/export'].get").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/model-access/invocations/summary'].get").exists())
@@ -91,9 +92,15 @@ class ModelAccessOpenApiContractTest {
         MatcherAssert.assertThat(openApi, containsString("approvalStatus"));
         MatcherAssert.assertThat(openApi, containsString("approvedBy"));
         MatcherAssert.assertThat(openApi, containsString("/api/v1/model-access/invocations/export"));
+        MatcherAssert.assertThat(openApi, containsString("/api/v1/model-access/invocations/stream"));
+        MatcherAssert.assertThat(openApi, containsString("metadata"));
+        MatcherAssert.assertThat(openApi, containsString("delta"));
+        MatcherAssert.assertThat(openApi, containsString("done"));
+        MatcherAssert.assertThat(openApi, containsString("错误响应仍使用标准 JSON error envelope"));
         MatcherAssert.assertThat(openApi, containsString("/api/v1/model-access/cost/alerts"));
         MatcherAssert.assertThat(openApi, containsString("/api/v1/model-access/cost/report"));
         MatcherAssert.assertThat(openApi, containsString("ProviderResilienceResponse"));
         MatcherAssert.assertThat(openApi, containsString("text/csv"));
+        MatcherAssert.assertThat(openApi, containsString("text/event-stream"));
     }
 }

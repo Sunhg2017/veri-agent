@@ -5,7 +5,7 @@
 | 工作包 | WP2 模型接入层 |
 | 依赖 | WP1 平台基础底座 API 契约 |
 | 服务模块 | `platform-api` 内聚合模块 `/api/v1/model-access` |
-| 当前状态 | P0 可交付实现已落地；WP2-C1 高级路由策略、WP2-C2 预算策略产品化和 WP2-C4 Prompt 评审与审批已补齐 |
+| 当前状态 | P0 可交付实现已落地；WP2-C1 高级路由策略、WP2-C2 预算策略产品化、WP2-C4 Prompt 评审与审批和 WP2-D2 流式响应支持已补齐 |
 
 ## 1. 交付范围
 
@@ -13,7 +13,7 @@ WP2 P0 交付以下能力：
 
 1. 模型供应商配置中心：支持供应商名称、类型、`routingGroup`、`capabilities`、`baseUrl`、密钥引用、启停状态、优先级、超时和 token 成本配置，支持创建、更新和就绪检查。
 2. Prompt 版本管理：支持按 `promptKey` 创建版本，每个 key 保证一个 ACTIVE 版本；高风险 Prompt 需审批通过后才能激活，并保留审批人、审批时间和版本说明。
-3. 统一模型调用入口：渲染 ACTIVE Prompt，组合调用消息，按策略选择供应商。
+3. 统一模型调用入口：渲染 ACTIVE Prompt，组合调用消息，按策略选择供应商；同步调用和 SSE 流式调用复用同一条策略、预算、审计和调用日志链路。
 4. 敏感级别路由策略：支持 `PUBLIC`、`INTERNAL`、`CONFIDENTIAL`、`RESTRICTED`，默认 `INTERNAL`；高敏感请求禁止公开模型路由和显式外部供应商。
 5. 高级路由策略：支持按项目、敏感级别、调用服务、模型能力和供应商组匹配路由规则；规则可选择 `LOWEST_COST` 在候选组内按预估成本优先。
 6. 脱敏与安全校验：调用前阻断明显密钥、Bearer token、身份证号；日志仅保存 masked preview 和 prompt SHA-256 digest。
@@ -44,6 +44,7 @@ WP2 P0 交付以下能力：
 | `POST /prompts/{id}/reject` | 驳回高风险 Prompt 版本，记录审批人、审批时间和审批说明。 |
 | `POST /prompts/{id}/activate` | 激活指定 Prompt 版本；高风险版本必须先审批通过。 |
 | `POST /invocations` | 发起模型调用。 |
+| `POST /invocations/stream` | 发起 SSE 流式模型调用，返回 `metadata`、`delta`、`done` 事件；MVP 先完整执行同步 invocation 并落盘调用日志，再将响应内容按 UTF-8 SSE 分片输出。 |
 | `GET /invocations` | 分页查询调用日志，支持项目、应用、敏感级别、状态、供应商、调用服务和时间范围筛选。 |
 | `GET /invocations/summary` | 按同一组筛选条件汇总调用次数、状态分布、token 和成本。 |
 | `GET /invocations/export` | 按同一组筛选条件导出脱敏调用审计 CSV。 |
@@ -73,6 +74,8 @@ Prompt 版本创建可设置 `highRisk=true`。高风险版本默认 `approvalSt
 预算护栏默认关闭。设置 `WP2_DAILY_PLATFORM_COST_LIMIT`、`WP2_DAILY_PROJECT_COST_LIMIT` 或 `WP2_DAILY_CALLER_SERVICE_COST_LIMIT` 为大于 0 的金额后，WP2 使用 `WP2_BUDGET_ZONE_ID` 对齐日窗口，并用 `WP2_BUDGET_ESTIMATED_OUTPUT_TOKENS` 作为调用前输出 token 预估保留量。`WP2_COST_ALERT_WARNING_RATIO` 控制告警阈值，成本告警接口会返回平台、项目和调用服务维度的 `OK`、`WARNING` 或 `EXCEEDED`。`WP2_BUDGET_OVERRUN_ACTION=BLOCK` 时超额请求返回 `BUDGET_EXCEEDED`，并记录 `BLOCKED` 调用日志，实际成本为 0；设置为 `FALLBACK` 时，WP2 会跳过当前预估超预算 provider，继续尝试后续低成本候选，全部候选仍超预算时再阻断。
 
 Provider 级生产保护默认关闭。设置 `WP2_PROVIDER_RATE_LIMIT_MAX_REQUESTS`、`WP2_PROVIDER_RATE_LIMIT_WINDOW_SECONDS` 可开启单 provider 时间窗口限流；设置 `WP2_PROVIDER_MAX_CONCURRENT_REQUESTS` 可开启单 provider 并发保护。触发限流或并发上限时返回 `BUDGET_EXCEEDED`，并记录 `BLOCKED` 调用日志。连续失败熔断仍由 `WP2_PROVIDER_CIRCUIT_FAILURE_THRESHOLD` 和 `WP2_PROVIDER_CIRCUIT_OPEN_MS` 控制，可通过 resilience API 查询和 reset。
+
+`POST /invocations/stream` 复用同步 `POST /invocations` 的请求体和校验链路。当前 MVP 不直接透传外部 provider 原生 token streaming，而是在 provider 调用成功、成本和调用日志已经确定后输出 `text/event-stream;charset=UTF-8`：`metadata` 事件包含 invocation、provider、token、cost 和 traceId 摘要，`delta` 事件承载响应分片，`done` 事件承载结束原因。这样可先保证策略、预算、审计、日志和前端消费契约稳定，后续再替换 provider 适配层为真实 token streaming。
 
 ## 4. 数据库交付
 
@@ -131,6 +134,7 @@ Provider 级生产保护默认关闭。设置 `WP2_PROVIDER_RATE_LIMIT_MAX_REQUE
 24. 通用模型评测集框架支持按 `taskType` 评测 Prompt/provider 输出，当前语料覆盖 `case-design`、`defect-triage`、`requirement-summary`，并校验场景通过率、必需术语召回和禁用术语清洁率。
 25. 高级路由策略覆盖按项目、调用服务、敏感级别、能力和供应商组命中规则，并验证 `LOWEST_COST` 可在组内选择低成本 provider，调用日志保留路由规则、路由组和模型能力。
 26. 高风险 Prompt 覆盖待审批创建、审批通过、驳回后重审、审批人/说明保留、未审批激活拒绝和审批后激活。
+27. SSE 流式调用覆盖 `metadata/delta/done` 事件输出、UTF-8 文本响应、异步安全分派和调用日志落盘。
 
 运行命令：
 
@@ -141,6 +145,11 @@ mvn -pl platform-api test
 ```bash
 cd portal-web && npm run test -- auth.test.ts bootstrap.test.ts modelAccess.test.ts permissions.test.ts
 cd portal-web && npm run build
+```
+
+```bash
+mvn -B -pl platform-api -Dtest=ModelAccessControllerTest,ModelAccessOpenApiContractTest test
+cd portal-web && npm test -- modelAccess.test.ts
 ```
 
 ```bash
@@ -179,6 +188,7 @@ bash scripts/wp_all_integration_test.sh
 6. 已新增 WP2-C1 高级路由策略，provider 可配置路由组和能力，调用可声明能力，路由规则可按项目/敏感级别/调用服务/能力/供应商组匹配，并将路由结果写入调用日志和 WP1 审计摘要。
 7. 已新增 WP2-C2 预算策略产品化，支持调用服务日预算、按 `actorService` 查询成本告警，以及 `BLOCK/FALLBACK` 超预算动作配置。
 8. 已新增 WP2-C4 Prompt 评审与审批，高风险 Prompt 需审批通过后激活，并在后端、DB 和 portal-web 管理台保留审批状态、审批人、审批时间和审批说明。
+9. 已新增 WP2-D2 流式响应支持，提供 `/invocations/stream` SSE 入口和 portal-web 解析/调用 helper，保持同步 invocation 契约、策略、预算和调用日志链路不变。
 
 ## 7. Provider 生产接入与密钥轮换
 

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { requestJson, requestText } from './client';
+import { getAuthToken, requestJson, requestText } from './client';
 import {
   activatePromptVersion,
   approvePromptVersion,
@@ -13,26 +13,46 @@ import {
   fetchInvocations,
   fetchModelProviders,
   fetchPrompts,
+  invokeModelStream,
   invocationExportPath,
+  invocationStreamPath,
   modelAccessQueryPath,
   normalizeCostAlert,
   normalizeInvocationRecord,
   normalizeModelProvider,
   normalizePromptTemplate,
+  parseModelStreamEvents,
   rejectPromptVersion,
   updateModelProvider
 } from './modelAccess';
 
 vi.mock('./client', () => ({
+  ApiError: class ApiError extends Error {
+    readonly code: string;
+    readonly traceId: string;
+    readonly status: number;
+
+    constructor(message: string, code: string, traceId: string, status: number) {
+      super(message);
+      this.name = 'ApiError';
+      this.code = code;
+      this.traceId = traceId;
+      this.status = status;
+    }
+  },
+  getAuthToken: vi.fn(),
   requestJson: vi.fn(),
   requestText: vi.fn()
 }));
 
+const getAuthTokenMock = vi.mocked(getAuthToken);
 const requestJsonMock = vi.mocked(requestJson);
 const requestTextMock = vi.mocked(requestText);
 
 describe('model access API helpers', () => {
   beforeEach(() => {
+    vi.unstubAllGlobals();
+    getAuthTokenMock.mockReset();
     requestJsonMock.mockReset();
     requestTextMock.mockReset();
   });
@@ -158,6 +178,184 @@ describe('model access API helpers', () => {
     expect(invocationExportPath({ projectId: 'project pay', status: 'BLOCKED', index: 2, size: 10 })).toBe('/api/v1/model-access/invocations/export?projectId=project+pay&status=BLOCKED');
     await exportInvocationsCsv({ projectId: 'project pay', status: 'BLOCKED' });
     expect(requestTextMock).toHaveBeenLastCalledWith('/api/v1/model-access/invocations/export?projectId=project+pay&status=BLOCKED');
+  });
+
+  it('parses server-sent model invocation events', () => {
+    expect(parseModelStreamEvents(`
+event: metadata
+data: {"invocationId":"inv-1","providerName":"local-echo-primary","fallbackUsed":false,"inputTokens":1,"outputTokens":2,"totalCost":0,"traceId":"trc_1"}
+
+event: delta
+data: {"index":0,"content":"hello"}
+
+event: done
+data: {"invocationId":"inv-1","finishReason":"stop"}
+
+event: unknown
+data: {"ignored":true}
+
+event: delta
+data: {invalid-json}
+`)).toEqual([
+      {
+        type: 'metadata',
+        invocationId: 'inv-1',
+        providerId: undefined,
+        providerName: 'local-echo-primary',
+        modelName: undefined,
+        fallbackUsed: false,
+        inputTokens: 1,
+        outputTokens: 2,
+        totalCost: 0,
+        traceId: 'trc_1'
+      },
+      {
+        type: 'delta',
+        index: 0,
+        content: 'hello'
+      },
+      {
+        type: 'done',
+        invocationId: 'inv-1',
+        finishReason: 'stop'
+      }
+    ]);
+  });
+
+  it('posts streaming invocations with bearer auth and emits parsed events', async () => {
+    getAuthTokenMock.mockReturnValue('user-token');
+    const sseText = [
+      'event: metadata',
+      'data: {"invocationId":"inv-2","providerId":"provider-1","providerName":"local-echo-primary","modelName":"local-echo","fallbackUsed":false,"inputTokens":3,"outputTokens":4,"totalCost":0,"traceId":"trc_2"}',
+      '',
+      'event: delta',
+      'data: {"index":0,"content":"partial answer"}',
+      '',
+      'event: done',
+      'data: {"invocationId":"inv-2","finishReason":"stop"}',
+      '',
+      ''
+    ].join('\n');
+    const fetchMock = vi.fn().mockResolvedValue(new Response(sseText, {
+      status: 200,
+      headers: { 'Content-Type': 'text/event-stream' }
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const observed: ReturnType<typeof parseModelStreamEvents> = [];
+    const events = await invokeModelStream({
+      projectId: 'project-stream',
+      promptKey: '',
+      messages: [{ role: 'user', content: 'hello' }],
+      allowPublicModel: false
+    }, (event) => observed.push(event));
+
+    expect(fetchMock).toHaveBeenCalledOnce();
+    const [path, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const headers = init.headers as Headers;
+    expect(path).toBe(invocationStreamPath());
+    expect(init.method).toBe('POST');
+    expect(headers.get('Accept')).toBe('text/event-stream');
+    expect(headers.get('Content-Type')).toBe('application/json');
+    expect(headers.get('Authorization')).toBe('Bearer user-token');
+    expect(JSON.parse(init.body as string)).toEqual({
+      projectId: 'project-stream',
+      messages: [{ role: 'user', content: 'hello' }],
+      allowPublicModel: false
+    });
+    expect(events).toEqual(observed);
+    expect(events.map((event) => event.type)).toEqual(['metadata', 'delta', 'done']);
+  });
+
+  it('buffers split streaming chunks before emitting events', async () => {
+    getAuthTokenMock.mockReturnValue('user-token');
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(encoder.encode('event: delta\ndata: {"index":'));
+        controller.enqueue(encoder.encode('0,"content":"partial"}\n\n'));
+        controller.enqueue(encoder.encode('event: done\ndata: {"invocationId":"inv-3","finishReason":"stop"}\n\n'));
+        controller.close();
+      }
+    });
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(stream, {
+      status: 200,
+      headers: { 'Content-Type': 'text/event-stream' }
+    })));
+
+    const observed: ReturnType<typeof parseModelStreamEvents> = [];
+    const events = await invokeModelStream({
+      projectId: 'project-stream',
+      messages: [{ role: 'user', content: 'hello' }]
+    }, (event) => observed.push(event));
+
+    expect(observed).toEqual(events);
+    expect(events).toEqual([
+      { type: 'delta', index: 0, content: 'partial' },
+      { type: 'done', invocationId: 'inv-3', finishReason: 'stop' }
+    ]);
+  });
+
+  it('normalizes streaming API errors', async () => {
+    getAuthTokenMock.mockReturnValue('user-token');
+    vi.stubGlobal('fetch', vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        code: 'MODEL_POLICY_VIOLATION',
+        message: 'policy blocked',
+        trace_id: 'trace-json'
+      }), {
+        status: 403,
+        headers: { 'Content-Type': 'application/json' }
+      }))
+      .mockResolvedValueOnce(new Response('plain failure', {
+        status: 500,
+        headers: { 'X-Trace-Id': 'trace-text' }
+      }))
+      .mockResolvedValueOnce(new Response('', {
+        status: 401
+      }))
+      .mockResolvedValueOnce(new Response('{}', {
+        status: 200,
+        headers: { 'Content-Type': 'application/json', 'X-Trace-Id': 'trace-content-type' }
+      })));
+
+    await expect(invokeModelStream({
+      projectId: 'project-stream',
+      messages: [{ role: 'user', content: 'hello' }]
+    })).rejects.toMatchObject({
+      code: 'MODEL_POLICY_VIOLATION',
+      message: 'policy blocked',
+      traceId: 'trace-json',
+      status: 403
+    });
+
+    await expect(invokeModelStream({
+      projectId: 'project-stream',
+      messages: [{ role: 'user', content: 'hello' }]
+    })).rejects.toMatchObject({
+      code: 'HTTP_500',
+      message: 'plain failure',
+      traceId: 'trace-text',
+      status: 500
+    });
+
+    await expect(invokeModelStream({
+      projectId: 'project-stream',
+      messages: [{ role: 'user', content: 'hello' }]
+    })).rejects.toMatchObject({
+      code: 'SESSION_EXPIRED',
+      message: '登录已过期，请重新登录',
+      status: 401
+    });
+
+    await expect(invokeModelStream({
+      projectId: 'project-stream',
+      messages: [{ role: 'user', content: 'hello' }]
+    })).rejects.toMatchObject({
+      code: 'INVALID_STREAM_RESPONSE',
+      traceId: 'trace-content-type',
+      status: 200
+    });
   });
 
   it('calls provider and prompt management endpoints without service-token headers', async () => {

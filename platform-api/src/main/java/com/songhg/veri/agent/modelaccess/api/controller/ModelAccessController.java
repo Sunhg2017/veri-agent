@@ -1,8 +1,10 @@
 package com.songhg.veri.agent.modelaccess.api.controller;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.songhg.veri.agent.auth.application.AuthUserPrincipal;
 import com.songhg.veri.agent.authorization.application.AuthorizationService;
 import com.songhg.veri.agent.common.audit.AuditLogWriter;
+import com.songhg.veri.agent.common.trace.TraceContext;
 import com.songhg.veri.agent.modelaccess.application.InvocationQuery;
 import com.songhg.veri.agent.modelaccess.application.ModelAccessService;
 import com.songhg.veri.agent.modelaccess.api.request.CreatePromptRequest;
@@ -25,9 +27,14 @@ import com.songhg.veri.agent.modelaccess.domain.PromptStatus;
 import com.songhg.veri.agent.modelaccess.domain.PromptTemplate;
 import com.songhg.veri.agent.modelaccess.domain.ProviderStatus;
 import com.songhg.veri.agent.modelaccess.security.ServicePrincipal;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import jakarta.validation.Valid;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -44,6 +51,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
 @RestController
 @RequestMapping("/api/v1/model-access")
@@ -52,19 +60,23 @@ public class ModelAccessController {
     private static final String READ_PERMISSION = "modelAccess:read";
     private static final String MANAGE_PERMISSION = "modelAccess:manage";
     private static final String EXPORT_PERMISSION = "modelAccess:export";
+    private static final int STREAM_CHUNK_CODE_POINTS = 48;
 
     private final ModelAccessService service;
     private final AuthorizationService authorizationService;
     private final AuditLogWriter auditLogWriter;
+    private final ObjectMapper objectMapper;
 
     public ModelAccessController(
             ModelAccessService service,
             AuthorizationService authorizationService,
-            AuditLogWriter auditLogWriter
+            AuditLogWriter auditLogWriter,
+            ObjectMapper objectMapper
     ) {
         this.service = service;
         this.authorizationService = authorizationService;
         this.auditLogWriter = auditLogWriter;
+        this.objectMapper = objectMapper;
     }
 
     @GetMapping("/health")
@@ -189,6 +201,39 @@ public class ModelAccessController {
         return service.invoke(request, invocationPrincipal());
     }
 
+    @PostMapping(value = "/invocations/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    @Operation(
+            summary = "发起 SSE 流式模型调用",
+            description = "复用同步 invocation 的请求体、策略、预算和调用日志链路；成功时返回 text/event-stream，依次输出 metadata、delta、done 事件。"
+                    + " metadata 包含 invocationId、providerId、providerName、modelName、fallbackUsed、inputTokens、outputTokens、totalCost、traceId；"
+                    + " delta 包含 index、content；done 包含 invocationId、finishReason。错误响应仍使用标准 JSON error envelope。"
+    )
+    @ApiResponse(responseCode = "200", description = "SSE event stream: metadata, delta, done")
+    public ResponseEntity<StreamingResponseBody> invokeStream(
+            @Valid @RequestBody InvokeModelRequest request
+    ) {
+        InvokeModelResponse response = service.invoke(request, invocationPrincipal());
+        String traceId = TraceContext.getTraceId();
+        return ResponseEntity.ok()
+                .contentType(new MediaType(MediaType.TEXT_EVENT_STREAM, StandardCharsets.UTF_8))
+                .header(HttpHeaders.CACHE_CONTROL, "no-cache")
+                .header("X-Accel-Buffering", "no")
+                .body(outputStream -> {
+                    writeSse(outputStream, "metadata", streamMetadata(response, traceId));
+                    int index = 0;
+                    for (String chunk : streamChunks(response.content())) {
+                        writeSse(outputStream, "delta", Map.of(
+                                "index", index++,
+                                "content", chunk
+                        ));
+                    }
+                    writeSse(outputStream, "done", Map.of(
+                            "invocationId", response.invocationId(),
+                            "finishReason", "stop"
+                    ));
+                });
+    }
+
     @GetMapping("/invocations")
     public PageResponse<InvocationRecord> invocations(
             @Valid InvocationPageRequest pageRequest
@@ -298,5 +343,40 @@ public class ModelAccessController {
 
     private String approvalActor(AuthUserPrincipal actor) {
         return actor == null ? "system" : actor.username();
+    }
+
+    private Map<String, Object> streamMetadata(InvokeModelResponse response, String traceId) {
+        Map<String, Object> metadata = new LinkedHashMap<>();
+        metadata.put("invocationId", response.invocationId());
+        metadata.put("providerId", response.providerId());
+        metadata.put("providerName", response.providerName());
+        metadata.put("modelName", response.modelName());
+        metadata.put("fallbackUsed", response.fallbackUsed());
+        metadata.put("inputTokens", response.inputTokens());
+        metadata.put("outputTokens", response.outputTokens());
+        metadata.put("totalCost", response.totalCost());
+        metadata.put("traceId", traceId);
+        return metadata;
+    }
+
+    private List<String> streamChunks(String content) {
+        String safeContent = content == null ? "" : content;
+        if (safeContent.isEmpty()) {
+            return List.of();
+        }
+        int[] codePoints = safeContent.codePoints().toArray();
+        java.util.ArrayList<String> chunks = new java.util.ArrayList<>();
+        for (int index = 0; index < codePoints.length; index += STREAM_CHUNK_CODE_POINTS) {
+            int length = Math.min(STREAM_CHUNK_CODE_POINTS, codePoints.length - index);
+            chunks.add(new String(codePoints, index, length));
+        }
+        return chunks;
+    }
+
+    private void writeSse(java.io.OutputStream outputStream, String event, Object data) throws java.io.IOException {
+        String payload = "event: " + event + "\n"
+                + "data: " + objectMapper.writeValueAsString(data) + "\n\n";
+        outputStream.write(payload.getBytes(StandardCharsets.UTF_8));
+        outputStream.flush();
     }
 }

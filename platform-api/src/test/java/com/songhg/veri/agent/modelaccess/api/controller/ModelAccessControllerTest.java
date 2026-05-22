@@ -18,12 +18,14 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.asyncDispatch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.request;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest(properties = {
@@ -173,6 +175,96 @@ class ModelAccessControllerTest {
                 .andExpect(jsonPath("$.data.total").value(1))
                 .andExpect(jsonPath("$.data.succeeded").value(1))
                 .andExpect(jsonPath("$.data.totalCost").exists());
+    }
+
+    @Test
+    void streamsInvocationResponseAsSseAndPersistsInvocationLog() throws Exception {
+        MvcResult result = mockMvc.perform(post("/api/v1/model-access/invocations/stream")
+                        .headers(authHeaders())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .accept(MediaType.TEXT_EVENT_STREAM)
+                        .content("""
+                                {
+                                  "projectId": "project-stream",
+                                  "messages": [
+                                    {"role": "user", "content": "生成流式响应验证文本"}
+                                  ],
+                                  "allowPublicModel": false
+                                }
+                                """))
+                .andExpect(request().asyncStarted())
+                .andReturn();
+
+        mockMvc.perform(asyncDispatch(result))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.TEXT_EVENT_STREAM))
+                .andExpect(header().string("Cache-Control", "no-cache"))
+                .andExpect(content().string(containsString("event: metadata")))
+                .andExpect(content().string(containsString("\"providerName\":\"local-echo-primary\"")))
+                .andExpect(content().string(containsString("event: delta")))
+                .andExpect(content().string(containsString("local model response: user: 生成流式响应验证文本")))
+                .andExpect(content().string(containsString("event: done")))
+                .andExpect(content().string(containsString("\"finishReason\":\"stop\"")));
+
+        mockMvc.perform(get("/api/v1/model-access/invocations")
+                        .headers(authHeaders())
+                        .param("projectId", "project-stream"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(1))
+                .andExpect(jsonPath("$.data.items[0].status").value("SUCCEEDED"))
+                .andExpect(jsonPath("$.data.items[0].responsePreview", containsString("local model response")))
+                .andExpect(jsonPath("$.data.items[0].actorService").value("wp5-test-design"));
+    }
+
+    @Test
+    void rejectsStreamingInvocationWithoutAuthenticationBeforeAsyncDispatch() throws Exception {
+        mockMvc.perform(post("/api/v1/model-access/invocations/stream")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .accept(MediaType.TEXT_EVENT_STREAM)
+                        .content("""
+                                {
+                                  "projectId": "project-stream-anonymous",
+                                  "messages": [
+                                    {"role": "user", "content": "匿名流式调用不应执行"}
+                                  ],
+                                  "allowPublicModel": false
+                                }
+                                """))
+                .andExpect(request().asyncNotStarted())
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(get("/api/v1/model-access/invocations")
+                        .headers(authHeaders())
+                        .param("projectId", "project-stream-anonymous"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(0));
+    }
+
+    @Test
+    void rejectsStreamingInvocationForUserWithoutManagePermissionBeforeAsyncDispatch() throws Exception {
+        String developerToken = tokenForRole("Developer");
+
+        mockMvc.perform(post("/api/v1/model-access/invocations/stream")
+                        .header("Authorization", "Bearer " + developerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .accept(MediaType.TEXT_EVENT_STREAM)
+                        .content("""
+                                {
+                                  "projectId": "project-stream-forbidden",
+                                  "messages": [
+                                    {"role": "user", "content": "低权限流式调用不应执行"}
+                                  ],
+                                  "allowPublicModel": false
+                                }
+                                """))
+                .andExpect(request().asyncNotStarted())
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(get("/api/v1/model-access/invocations")
+                        .headers(authHeaders())
+                        .param("projectId", "project-stream-forbidden"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(0));
     }
 
     @Test
