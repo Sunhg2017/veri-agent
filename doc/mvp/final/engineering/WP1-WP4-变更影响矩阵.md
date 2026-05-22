@@ -20,7 +20,7 @@
 | WP2 策略/预算错误码：`MODEL_POLICY_VIOLATION`、`BUDGET_EXCEEDED`、`MODEL_PROVIDER_UNAVAILABLE` | WP2 | WP4 AI 解析 | `mvn -B -pl platform-api -Dtest=ModelAccessBudgetPolicyTest,ModelAccessPlatformPolicyTest,DocumentInputModelParseControllerTest test` | WP4 必须 fallback 到规则解析，不能绕过 WP2 |
 | WP3 requirement upsert 字段：`externalRequirementId`、`source/sourceRef/sourceUrl`、`acceptanceCriteria`、status | WP3 | WP4 publish | `mvn -B -pl platform-api -Dtest=AssetControllerTest,DocumentInputControllerTest test`；`bash scripts/wp_all_integration_test.sh` | 非 `DRAFT` IMPORT 资产有差异时应返回冲突，不能覆盖人工评审结果 |
 | WP3 trace link：requirement/api/testCase 关联 | WP3 | WP4、后续测试生成/执行 WP | `mvn -B -pl platform-api -Dtest=AssetControllerTest test`；`bash scripts/wp_all_integration_test.sh` | 关联字段改动会影响覆盖矩阵和影响分析 |
-| WP4 import/candidate/publish 契约 | WP4 | WP3、portal-web | `mvn -B -pl platform-api -Dtest=DocumentInputControllerTest,DocumentInputOpenApiContractTest test`；`bash scripts/wp4_document_input_smoke.sh` | 候选状态、versioned candidates 或 dryRun 字段变化会破坏发布预览 |
+| WP4 import/candidate/publish 契约 | WP4 | WP3、portal-web | `mvn -B -pl platform-api -Dtest=DocumentInputControllerTest,DocumentInputOpenApiContractTest test`；`bash scripts/wp4_document_input_smoke.sh`；`bash scripts/wp4_frontend_e2e_smoke.sh` | 候选状态、versioned candidates、multipart 上传或 dryRun 字段变化会破坏发布预览 |
 | WP4 webhook 安全头、签名串、eventVersion、mappingVersion | WP4 | 外部需求平台、WP1 SecretProvider | `bash scripts/wp4_document_input_smoke.sh`；按 `WP4-Webhook签名样例与联调说明.md` 联调 | raw body 不一致、时间戳超窗或 secretRef 错配会导致合法事件被拒 |
 | DB migration under `db/migration/wp1` | DB owner | 全部 | `bash db/validation/run_wp1_db_validation.sh`；必要时 `bash db/validation/run_wp2_db_validation.sh` | 当前 WP1-WP4 共享同一迁移目录；字段/索引变化要同步 validation |
 | Metrics 命名与标签 | 对应 WP + 运维 | 全部 | `bash scripts/wp4_document_input_smoke.sh`；`WP2_SERVICE_TOKEN=local-model-access-token bash scripts/wp2_model_access_smoke.sh`；人工查 `/actuator/metrics/**` | 高基数字段不要直接打到 Prometheus 标签；projectId/actorService 用审计/日志 drilldown |
@@ -47,7 +47,7 @@
 | WP2 provider/prompt/invocation | `bash scripts/wp2_quality_gate.sh` | `WP2_RUN_HTTP_SMOKE=1 bash scripts/wp2_quality_gate.sh` 或直接 provider check |
 | WP2 策略/预算 | `mvn -B -pl platform-api -Dtest=ModelAccessBudgetPolicyTest,ModelAccessPlatformPolicyTest test` | WP4 AI 解析 smoke/质量门禁 |
 | WP3 asset/upsert | `mvn -B -pl platform-api -Dtest=AssetControllerTest,OpenApiContractTest test` | `bash scripts/wp_all_integration_test.sh` |
-| WP4 import/candidate/publish | `mvn -B -pl platform-api -Dtest=DocumentInputControllerTest,DocumentInputOpenApiContractTest test` | `bash scripts/wp4_document_input_smoke.sh` |
+| WP4 import/candidate/publish | `mvn -B -pl platform-api -Dtest=DocumentInputControllerTest,DocumentInputOpenApiContractTest test` | `bash scripts/wp4_document_input_smoke.sh`；`bash scripts/wp4_frontend_e2e_smoke.sh` |
 | WP4 Word/PDF/OCR | `bash scripts/wp4_binary_document_smoke.sh` | 预发用真实 OCR provider 验证 |
 | WP4 AI parse | `bash scripts/wp4_ai_parse_quality_eval.sh` | 开启 `WP4_MODEL_PARSE_ENABLED=true` 后跑 WP4 smoke |
 | WP4 webhook/security | `bash scripts/wp4_document_input_smoke.sh` | 外部系统按签名样例完成联调 |

@@ -7,6 +7,8 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "test": "vitest run",
+    "test:e2e": "playwright test",
+    "test:wp4-smoke": "playwright test e2e/wp4-document-input.smoke.playwright.ts",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -18,6 +20,7 @@
     "vite": "^7.2.7"
   },
   "devDependencies": {
+    "@playwright/test": "^1.60.0",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
     "vitest": "^4.1.6"

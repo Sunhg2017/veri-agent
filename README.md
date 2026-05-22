@@ -50,6 +50,7 @@ AI 驱动的端到端企业级测试平台。WP1、WP2、WP3、WP4 是研发任�
 | `scripts/wp3_asset_smoke.sh` | 针对已启动 `platform-api` 的 WP3 资产 CRUD、分页、状态流拒绝和追踪关系烟测脚本。 |
 | `.github/workflows/wp3-asset-management.yml` | WP3 PR/主干 CI 入口，复用 `scripts/wp3_quality_gate.sh` 并归档 DB validation 日志。 |
 | `scripts/wp4_document_input_smoke.sh` | 针对已启动 `platform-api` 的 WP4 文档输入、候选确认、发布和 webhook 烟测脚本。 |
+| `scripts/wp4_frontend_e2e_smoke.sh` | WP4 文档输入前端浏览器 smoke，覆盖文件上传、候选编辑、发布预览和事件重放。 |
 | `scripts/wp4_binary_document_smoke.sh` | WP4 真实 Word/PDF/OCR 文本抽取的本地烟测脚本。 |
 | `scripts/wp4_ai_parse_quality_eval.sh` | WP4 AI 解析质量评测集门禁脚本。 |
 
@@ -243,6 +244,7 @@ bash scripts/wp4_document_input_smoke.sh
 
 ```bash
 bash scripts/wp4_binary_document_smoke.sh
+bash scripts/wp4_frontend_e2e_smoke.sh
 bash scripts/wp4_ai_parse_quality_eval.sh
 ```
 
@@ -317,6 +319,7 @@ bash scripts/wp4_document_input_smoke.sh
 
 ```bash
 bash scripts/wp4_binary_document_smoke.sh
+bash scripts/wp4_frontend_e2e_smoke.sh
 bash scripts/wp4_ai_parse_quality_eval.sh
 ```
 
@@ -347,6 +350,7 @@ bash scripts/wp2_quality_gate.sh
 - WP2 `db` profile 默认种子可直接完成 local echo 调用、调用日志查询、成本汇总、成本报表、成本告警、供应商就绪检查缓存和 CSV 导出 smoke；WP2 聚合门禁可串联模型接入测试、数据库 validation，并按需执行 HTTP smoke / 模块策略 smoke。
 - WP3 已补齐资产库前后端闭环：列表分页、需求/API/页面/业务流/用例/追踪链接基础 API、用户态 `asset:*` RBAC、OpenAPI 契约测试、前端资产 API normalizer、资产库导航、需求/API/页面/业务流/测试用例工作台和只读追踪矩阵工作台。
 - WP4 smoke 覆盖 Markdown 导入、候选 `status/sourceRef/keyword` 筛选、versioned 批量确认、dryRun、发布到 WP3、WP3 `source/sourceRef/sourceUrl/acceptanceCriteria` 追踪、发布记录、`CUSTOM_API` source health、`X-VA-*` 签名 webhook、幂等 replay、事件日志、无效签名拒绝和当前导入/候选/发布/webhook metrics。
+- WP4 前端 E2E smoke 使用 Playwright 浏览器覆盖文档输入页真实文件上传、候选编辑/确认、发布 dryRun 预览和 webhook 事件重放；本地无托管 Chromium 时可自动使用系统 Chrome，或设置 `WP4_FRONTEND_INSTALL_BROWSERS=1` 安装。
 - WP4 二进制文档 smoke 覆盖真实 docx、真实文本 PDF、OCR 命令 provider 和恶意文件扫描接入点；AI 解析质量评测按 TEXT/MARKDOWN/WORD/PDF/OCR/CUSTOM_API 分桶输出标题召回、优先级准确率、验收标准覆盖率，并绑定 promptKey/promptVersion 执行阈值门禁。
 
 ## WP1 1～8 项收敛状态

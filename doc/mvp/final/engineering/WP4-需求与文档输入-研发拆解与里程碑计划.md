@@ -133,7 +133,7 @@ MVP 范围如下：
 |---|---|---|---|---|---|
 | 7.1 服务端单元与集成测试 | P0 | 覆盖 parser、mapping、webhook、batch、WP1/WP2/WP3 集成适配 | 无 | `mvn -B -pl platform-api test` 纳入 WP4 用例；覆盖错误码和 envelope | CI 增加 WP4 标签或测试分组 |
 | 7.2 API 契约与权限测试 | P0 | 补充 OpenAPI 或等价契约；冻结请求、响应、错误码、分页和枚举 | 基于契约对齐字段命名和状态枚举 | 契约测试、权限矩阵、审计断言 | 契约 diff 阻断规则 |
-| 7.3 前端交互测试 | P0 | 提供稳定 mock 或 local profile 测试数据 | 覆盖输入源配置、导入、批次、确认、重试主流程 | 组件测试或 E2E smoke | 前端测试数据 seed |
+| 7.3 前端交互测试 | P0 | 提供稳定 mock 或 local profile 测试数据 | 已提供 Playwright 浏览器 smoke，覆盖文档输入页真实文件上传、候选编辑/确认、发布 dryRun 预览和 webhook 事件重放主流程 | `bash scripts/wp4_frontend_e2e_smoke.sh`；本地无托管 Chromium 时可自动使用系统 Chrome，或设置 `WP4_FRONTEND_INSTALL_BROWSERS=1` 安装 | 前端 mock 数据在 `portal-web/e2e/wp4-document-input.smoke.playwright.ts` 内收敛 |
 | 7.4 发布前 smoke | P0 | 提供脚本覆盖文本导入、Markdown 导入、webhook 推送、解析确认、写入 WP3、metrics | 无 | 一键 smoke 失败可定位到导入记录和 traceId | `WP4_WEBHOOK_SECRET`、`WP4_SMOKE_PROJECT_ID` 等参数 |
 
 ### Epic 8：运维配置与可观测性

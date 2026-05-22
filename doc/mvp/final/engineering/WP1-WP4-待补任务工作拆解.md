@@ -231,7 +231,7 @@ WP4 本轮 P0 已覆盖真实文件上传、Word/PDF/OCR、AI 解析、SecretPro
 |---|---|---|---|---|---|
 | WP4-F1 | 原文快照和事件保留策略 | P1 | DONE-CURRENT | 已新增导入记录/候选和 webhook 事件保留天数配置：`WP4_IMPORT_RETENTION_DAYS`、`WP4_WEBHOOK_EVENT_RETENTION_DAYS`；过期 import、candidate 和 webhook event 清理前写入 `document_input_retention_archive`，保留 `recordType/recordId/projectId/sourceCode/payloadDigest/originalCreatedAt/snapshotJson/archivedAt` | 清理不破坏已发布资产来源追踪；归档表不提供前端明文查看入口，恢复需 DBA/运维受控执行 |
 | WP4-F2 | 清理任务与归档 | P1 | DONE-CURRENT | `DocumentInputRetentionCleanupService` 定时清理入口已补齐清理前归档、成功/失败指标标签和 `RETENTION_CLEANUP` 审计；`WP4_RETENTION_CLEANUP_ENABLED` 默认关闭，cron 可配置；local/db profile 支持清理过期导入、候选和 webhook 事件 | 清理过程有指标和审计，过期数据先归档再从在线查询范围移除 |
-| WP4-F3 | 前端 E2E smoke | P1 | TODO | 用浏览器覆盖真实文件上传、候选编辑、发布预览、事件重放 | 核心用户路径可在本地或 CI 复现 |
+| WP4-F3 | 前端 E2E smoke | P1 | DONE-CURRENT | 已新增 `portal-web` Playwright smoke、`npm run test:wp4-smoke` 与 `scripts/wp4_frontend_e2e_smoke.sh`，通过浏览器 mock 后端契约覆盖真实文件上传、候选编辑/确认、发布 dryRun 预览和 webhook 事件重放 | 核心用户路径可在本地或 CI 复现；本地无 Playwright 托管浏览器时脚本可自动使用系统 Chrome，或设置 `WP4_FRONTEND_INSTALL_BROWSERS=1` 安装 Chromium |
 | WP4-F4 | 解析失败体验优化 | P1 | DONE-CURRENT | 已补 OCR 未配置、PDF 无文本、PDF/文件/payload 超限、webhook 签名失败的可操作错误提示；portal-web 统一展示错误码、Trace ID 和下一步建议，导入失败后自动刷新失败记录 | 用户能知道下一步应配置 OCR、换文件或联系管理员；后端错误码保持稳定，签名失败不泄露 secret 或完整签名 |
 
 ## 8. 建议里程碑

@@ -33,6 +33,7 @@
 | WP3 quality gate | WP3 本地/CI 聚合门禁 | `bash scripts/wp3_quality_gate.sh` | 后端资产测试、OpenAPI/上下文契约、前端资产测试、WP1-WP4 统一 DB validation |
 | WP3 schema | WP3 表、索引、版本历史 append-only 权限和无租户字段回归 | `bash db/validation/run_wp1_db_validation.sh` | `wp_all_schema_validation.sql` 与 `wp1_security_validation.sql` 中 `asset_*` 检查 |
 | WP4 smoke | 已启动平台 API 的文档输入主链路 | `WP4_SERVICE_TOKEN=local-document-input-token WP3_SERVICE_TOKEN=local-asset-token WP4_WEBHOOK_SECRET=local-document-input-webhook-secret bash scripts/wp4_document_input_smoke.sh` | 导入、候选、发布、webhook、事件日志、metrics |
+| WP4 frontend E2E | portal-web 文档输入核心浏览器路径 | `bash scripts/wp4_frontend_e2e_smoke.sh` | 真实文件上传、候选编辑/确认、发布 dryRun 预览、webhook 事件重放；本地无托管 Chromium 时可用系统 Chrome 或 `WP4_FRONTEND_INSTALL_BROWSERS=1` |
 | WP4 binary/retention | Word/PDF/OCR 文本抽取、OCR worker 隔离配置、文档输入保留清理 | `bash scripts/wp4_binary_document_smoke.sh` | docx、PDF、OCR provider、HTTP worker 配置口径、SecretProvider 测试，SecretProvider TTL 缓存/失效、resolve 审计脱敏，以及 retention cleanup 归档/审计单测；真实 worker 接入见 `WP4-OCR隔离Worker接入Runbook.md` |
 | WP4 AI 质量 | golden corpus 质量门禁 | `bash scripts/wp4_ai_parse_quality_eval.sh` | 标题召回、优先级准确率、验收标准覆盖率 |
 | WP1-WP4 E2E | 统一平台端到端 smoke | `WP1_BOOTSTRAP_TOKEN=local-init-token WP2_SERVICE_TOKEN=local-model-access-token WP3_SERVICE_TOKEN=local-asset-token WP4_SERVICE_TOKEN=local-document-input-token WP4_WEBHOOK_SECRET=local-document-input-webhook-secret bash scripts/wp_all_integration_test.sh` | WP1 context、WP2 invocation、WP3 asset、WP4 publish/webhook 串联 |
@@ -71,6 +72,7 @@ bash scripts/wp3_quality_gate.sh
 
 ```bash
 bash scripts/wp4_binary_document_smoke.sh
+bash scripts/wp4_frontend_e2e_smoke.sh
 bash scripts/wp4_ai_parse_quality_eval.sh
 ```
 
