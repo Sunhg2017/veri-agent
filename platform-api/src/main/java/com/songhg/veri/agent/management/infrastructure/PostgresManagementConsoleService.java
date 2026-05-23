@@ -73,12 +73,12 @@ import org.springframework.transaction.annotation.Transactional;
 public class PostgresManagementConsoleService implements ManagementConsoleService {
 
     private final ManagementMapper mapper;
-    private final PasswordEncoder passwordEncoder;
     private final AuditLogWriter auditLogWriter;
     private final PostgresManagementDeniedAuditRecorder deniedAuditRecorder;
     private final EnvironmentConnectivityChecker connectivityChecker;
     private final ObjectMapper objectMapper;
     private final PostgresManagementDepartmentService departmentService;
+    private final PostgresManagementUserService userService;
     private final PostgresManagementAuditQueryService auditQueryService;
     private final PostgresManagementConfigService configService;
     private final PostgresManagementRoleService roleService;
@@ -94,12 +94,12 @@ public class PostgresManagementConsoleService implements ManagementConsoleServic
             SecretProviderProperties secretProviderProperties
     ) {
         this.mapper = mapper;
-        this.passwordEncoder = passwordEncoder;
         this.auditLogWriter = auditLogWriter;
         this.deniedAuditRecorder = deniedAuditRecorder;
         this.connectivityChecker = connectivityChecker;
         this.objectMapper = objectMapper;
         this.departmentService = new PostgresManagementDepartmentService(mapper, auditLogWriter);
+        this.userService = new PostgresManagementUserService(mapper, auditLogWriter, passwordEncoder);
         this.auditQueryService = new PostgresManagementAuditQueryService(mapper, auditLogWriter);
         this.configService = new PostgresManagementConfigService(mapper, auditLogWriter);
         this.roleService = new PostgresManagementRoleService(mapper, auditLogWriter);
@@ -140,95 +140,54 @@ public class PostgresManagementConsoleService implements ManagementConsoleServic
 
     @Override
     public PageResponse<UserView> users(PageQuery pageQuery) {
-        return page(mapper::listUsers, mapper::countUsers, pageQuery, values());
+        return userService.users(pageQuery);
     }
 
     @Override
     public UserView user(String username) {
-        return userByUsername(username);
+        return userService.user(username);
     }
 
     @Override
     @Transactional
     public UserView createUser(String username, AuthUserPrincipal actor) {
-        UUID userId = UUID.randomUUID();
-        try {
-            update(mapper::insertUser, actor, values("userId", userId, "username", username));
-        } catch (DuplicateKeyException exception) {
-            throw new BusinessException(ErrorCode.CONFLICT, "用户账号已存在");
-        }
-        bindRoleIfPresent(userId, "Tester", "PLATFORM", null, actor);
-        audit(actor, "邀请用户", "user", userId.toString(), username);
-        return new UserView(username, username, "", "Tester", "未分配", "待激活", "尚未登录");
+        return userService.createUser(username, actor);
     }
 
     @Override
     @Transactional
     public UserView updateUser(String username, UpdateUserRequest request, AuthUserPrincipal actor) {
-        UserView before = userByUsername(username);
-        try {
-            int rows = update(mapper::updateUser, actor, values(
-                    "username", username,
-                    "displayName", blankToNull(request.displayName()),
-                    "email", blankToNull(request.email())
-            ));
-            ensureUserUpdated(rows);
-        } catch (DuplicateKeyException exception) {
-            throw new BusinessException(ErrorCode.CONFLICT, "用户邮箱已存在");
-        }
-        UserView updated = userByUsername(username);
-        auditChange(actor, "更新用户", "user", username, updated.username(),
-                nameJson(before.displayName()), nameJson(updated.displayName()), null);
-        return updated;
+        return userService.updateUser(username, request, actor);
     }
 
     @Override
     @Transactional
     public UserView enableUser(String username, AuthUserPrincipal actor) {
-        ensureUserUpdated(update(mapper::enableUser, actor, values("username", username)));
-        audit(actor, "启用用户", "user", username, username);
-        return userByUsername(username);
+        return userService.enableUser(username, actor);
     }
 
     @Override
     @Transactional
     public UserView disableUser(String username, AuthUserPrincipal actor) {
-        if (actor.username().equals(username)) {
-            throw new BusinessException(ErrorCode.INVALID_STATE, "不能停用当前登录账号");
-        }
-        ensureUserUpdated(update(mapper::disableUser, actor, values("username", username)));
-        audit(actor, "停用用户", "user", username, username);
-        return userByUsername(username);
+        return userService.disableUser(username, actor);
     }
 
     @Override
     @Transactional
     public UserView lockUser(String username, AuthUserPrincipal actor) {
-        if (actor.username().equals(username)) {
-            throw new BusinessException(ErrorCode.INVALID_STATE, "不能锁定当前登录账号");
-        }
-        ensureUserUpdated(update(mapper::lockUser, actor, values("username", username)));
-        audit(actor, "锁定用户", "user", username, username);
-        return userByUsername(username);
+        return userService.lockUser(username, actor);
     }
 
     @Override
     @Transactional
     public UserView unlockUser(String username, AuthUserPrincipal actor) {
-        ensureUserUpdated(update(mapper::unlockUser, actor, values("username", username)));
-        audit(actor, "解锁用户", "user", username, username);
-        return userByUsername(username);
+        return userService.unlockUser(username, actor);
     }
 
     @Override
     @Transactional
     public UserView resetUserPassword(String username, String newPassword, AuthUserPrincipal actor) {
-        ensureUserUpdated(update(mapper::resetUserPassword, actor, values(
-                "username", username,
-                "passwordHash", passwordEncoder.encode(newPassword)
-        )));
-        audit(actor, "重置密码", "user", username, username);
-        return userByUsername(username);
+        return userService.resetUserPassword(username, newPassword, actor);
     }
 
     @Override
@@ -835,26 +794,6 @@ public class PostgresManagementConsoleService implements ManagementConsoleServic
         return app.id();
     }
 
-    private void bindRoleIfPresent(
-            UUID userId,
-            String roleCode,
-            String scopeType,
-            UUID scopeId,
-            AuthUserPrincipal actor
-    ) {
-        UUID roleId = mapper.findRoleId(values("roleCode", roleCode));
-        if (roleId == null) {
-            return;
-        }
-        update(mapper::bindRoleIfPresent, actor, values(
-                "userId", userId,
-                "roleId", roleId,
-                "roleCode", roleCode,
-                "scopeType", scopeType,
-                "scopeId", scopeId
-        ));
-    }
-
     private void bindProjectRole(
             UUID userId,
             UUID roleId,
@@ -951,16 +890,6 @@ public class PostgresManagementConsoleService implements ManagementConsoleServic
      */
     private String statusJson(String status) {
         return "{\"status\":\"" + escapeJson(status) + "\"}";
-    }
-
-    private UserView userByUsername(String username) {
-        return requireOne(mapper::findUserByUsername, values("username", username), "用户不存在");
-    }
-
-    private void ensureUserUpdated(int rows) {
-        if (rows == 0) {
-            throw new BusinessException(ErrorCode.NOT_FOUND, "用户不存在");
-        }
     }
 
     private boolean hasPlatformScope(AuthUserPrincipal actor) {
