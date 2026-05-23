@@ -25,7 +25,7 @@
 | A2 | 贫血领域模型治理 | 专项任务 | 拆到领域规则内聚专项，优先迁移状态转换和版本规则 |
 | A3 | 统一权限注解/AOP | 已完成 | 新增 `@RequirePermission` 注解和 AOP 切面；ModelAccessController、DocumentInputController 的普通权限入口改为注解校验；AssetController 保留资源级 `ResourceScope` 显式校验但不再直接读取 `SecurityContextHolder` |
 | A4 / Q8 / T3 | local/db profile 行为差异与 db 测试不足 | 已完成 | 新增 PostgreSQL Testcontainers db-profile 契约测试，覆盖 Postgres AuthSessionStore、ModelAccessRepository、AssetRepository 的真实迁移、mapper、约束、分页和事务回滚路径 |
-| A5 | 审计写入独立可靠性 | 专项任务 | 拆为审计 outbox/独立事务专项，需评估失败补偿和发布策略 |
+| A5 | 审计写入独立可靠性 | 已完成 | `PostgresAuditLogWriter.record` 使用 `REQUIRES_NEW` 独立事务，db-profile Testcontainers 合约覆盖业务事务回滚时审计仍落库；异步 outbox/失败补偿作为运行治理增强继续跟踪 |
 | A6 | 分层异常策略 | 专项任务 | 拆为异常层次和日志上下文规范专项 |
 | P1 | Asset 列表查询 SQL 分页/过滤/排序下沉 | 已完成 | 新增 `AssetListQuery` 和 Repository 分页/count 契约，五类资产列表下沉到 MyBatis 动态 SQL；local 实现保持同等过滤/分页语义并补充回归测试 |
 | P2 | InMemoryAuthSessionStore refresh 查询 O(n) | 已完成 | 已增加 refreshTokenHash 二级索引和回归测试 |
@@ -53,7 +53,7 @@
 
 ### 剩余专项优先级
 
-1. 架构治理专项：A1、A2、A5、A6，按模块逐步拆分并保持接口兼容。
+1. 架构治理专项：A1、A2、A6，按模块逐步拆分并保持接口兼容。
 2. 运行治理专项：D1、M1、M2、M3、X1、X3，补发布回滚、配置分层、API 版本策略、OpenAPI 覆盖和分布式可靠性。
 
 ## 一、安全风险 (Security)
@@ -158,6 +158,7 @@
 
 - **问题**: `PostgresAuditLogWriter` 与业务 DAO 使用同一数据源，审计日志写入操作混入业务事务中。业务事务回滚时审计日志也会丢失。
 - **建议**: 使用独立数据源或消息队列实现审计日志的可靠异步写入
+- **处理结果**: 已为 `PostgresAuditLogWriter.record` 增加 `REQUIRES_NEW` 独立事务边界，并补充 db-profile Testcontainers 合约测试，验证业务事务回滚后审计日志仍然存在。独立数据源、异步 outbox 和失败补偿属于运行治理增强，保留在后续 D1/X 类专项中推进。
 
 ### [MEDIUM] A6: 缺少统一的分层异常处理策略
 

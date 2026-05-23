@@ -7,6 +7,7 @@ import com.songhg.veri.agent.auth.domain.AuthSessionDraft;
 import com.songhg.veri.agent.auth.domain.AuthSessionRecord;
 import com.songhg.veri.agent.auth.domain.AuthSessionStore;
 import com.songhg.veri.agent.auth.infrastructure.PostgresAuthSessionStore;
+import com.songhg.veri.agent.common.audit.AuditLogWriter;
 import com.songhg.veri.agent.common.api.PageQuery;
 import com.songhg.veri.agent.modelaccess.application.InvocationQuery;
 import com.songhg.veri.agent.modelaccess.application.ModelAccessRepository;
@@ -66,6 +67,9 @@ class DbProfileRepositoryContractTest {
 
     @Autowired
     private AssetRepository assetRepository;
+
+    @Autowired
+    private AuditLogWriter auditLogWriter;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -160,6 +164,33 @@ class DbProfileRepositoryContractTest {
             throw new IllegalStateException("force rollback");
         })).isInstanceOf(IllegalStateException.class);
         assertThat(assetRepository.requirement(rolledBack.id())).isEmpty();
+    }
+
+    @Test
+    void auditLogWriterCommitsInIndependentTransactionWhenBusinessTransactionRollsBack() {
+        String action = "db-contract-independent-audit-" + UUID.randomUUID();
+        String resourceId = "audit-resource-" + UUID.randomUUID();
+
+        assertThatThrownBy(() -> transactionTemplate.executeWithoutResult(status -> {
+            auditLogWriter.record(AuditLogWriter.success(
+                    null,
+                    action,
+                    "db_contract",
+                    resourceId,
+                    "Independent audit contract"
+            ));
+            throw new IllegalStateException("force business rollback");
+        })).isInstanceOf(IllegalStateException.class);
+
+        Long count = jdbcTemplate.queryForObject("""
+                select count(*)
+                from audit_log
+                where action = ?
+                  and resource_type = 'db_contract'
+                  and resource_id = ?
+                  and result = 'SUCCESS'
+                """, Long.class, action, resourceId);
+        assertThat(count).isEqualTo(1L);
     }
 
     private UUID createEnabledUser(String namePrefix) {
