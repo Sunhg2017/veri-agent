@@ -7,6 +7,8 @@ public record TraceLink(
         UUID id,
         UUID requirementId,
         UUID apiId,
+        UUID pageId,
+        UUID flowId,
         UUID caseId,
         Instant createdAt
 ) {

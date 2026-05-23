@@ -33,6 +33,7 @@ import {
   fetchAssetRequirements,
   fetchAssetRequirementVersions,
   fetchRequirementTraceLinks,
+  rollbackAssetRequirementVersion,
   updateAssetApi,
   updateAssetRequirement,
   type AssetApiFilters,
@@ -47,6 +48,7 @@ import {
 } from '../api/assets';
 import { hasPermission } from '../permissions';
 import { AssetCaseWorkbench } from './AssetCaseWorkbench';
+import { AssetImportExportPanel } from './AssetImportExportPanel';
 import { AssetStructuredWorkbench, type AssetNavigationKey } from './AssetStructuredWorkbench';
 import { AssetTraceWorkbench } from './AssetTraceWorkbench';
 import { AssetVersionHistoryPanel } from './AssetVersionHistoryPanel';
@@ -343,6 +345,31 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
   useEffect(() => {
     void reloadRequirementVersions();
   }, [reloadRequirementVersions]);
+
+  async function rollbackRequirement(version: number) {
+    if (!selectedRequirement) {
+      return;
+    }
+    if (!props.signedIn) {
+      setRequirementVersionState({ loading: false, error: '请先登录后再回滚版本' });
+      return;
+    }
+    if (!canManageAssets) {
+      setRequirementVersionState({ loading: false, error: '缺少 asset:manage 权限' });
+      return;
+    }
+    setRequirementVersionState({ loading: true });
+    try {
+      const response = await rollbackAssetRequirementVersion(selectedRequirement.id, version, `回滚到 v${version}`);
+      setSelectedRequirement(response.data);
+      setEditDraft(requirementDraftFromView(response.data));
+      upsertRequirement(setRequirements, response.data);
+      setRequirementVersionState({ loading: false, traceId: response.trace_id });
+      void reloadRequirementVersions(response.data.id);
+    } catch (error: unknown) {
+      setRequirementVersionState({ loading: false, error: errorMessage(error, '需求版本回滚失败') });
+    }
+  }
 
   const refreshApis = useCallback(async () => {
     if (!props.signedIn || !canReadAssets) {
@@ -1285,6 +1312,12 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
           )}
         </section>
 
+        <AssetImportExportPanel
+          currentUser={props.currentUser}
+          onImported={activeTab === 'apis' ? refreshApis : refreshRequirements}
+          signedIn={props.signedIn}
+        />
+
         <section className="panel insight-panel asset-detail-panel">
           {activeTab === 'requirements' ? (
             <>
@@ -1417,10 +1450,10 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                 </div>
                 {traceLinks.length > 0 ? (
                   traceLinks.map((link) => (
-                    <div className="trace-link-row" key={link.id || `${link.apiId}-${link.caseId}`}>
+                    <div className="trace-link-row" key={link.id || `${link.apiId}-${link.pageId}-${link.flowId}-${link.caseId}`}>
                       <span>
                         <strong>{link.apiId ?? 'API -'}</strong>
-                        <em>{link.caseId ?? 'Case -'}</em>
+                        <em>{[link.pageId ? `Page ${link.pageId}` : '', link.flowId ? `Flow ${link.flowId}` : '', link.caseId ? `Case ${link.caseId}` : 'Case -'].filter(Boolean).join(' · ')}</em>
                       </span>
                       <em>{formatDate(link.createdAt)}</em>
                     </div>
@@ -1437,8 +1470,10 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
               </div>
 
               <AssetVersionHistoryPanel
+                currentVersion={selectedRequirement.version}
                 disabled={disabled}
                 items={requirementVersions}
+                onRollback={(version) => void rollbackRequirement(version)}
                 onRefresh={() => void reloadRequirementVersions(selectedRequirement.id)}
                 state={requirementVersionState}
               />

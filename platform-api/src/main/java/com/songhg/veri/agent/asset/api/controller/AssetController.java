@@ -3,11 +3,13 @@ package com.songhg.veri.agent.asset.api.controller;
 import com.songhg.veri.agent.asset.api.request.AssetListRequest;
 import com.songhg.veri.agent.asset.api.request.AssetExportRequest;
 import com.songhg.veri.agent.asset.api.request.AssetImportRequest;
+import com.songhg.veri.agent.asset.api.request.AssetPrototypeSyncRequest;
 import com.songhg.veri.agent.asset.api.request.CreateApiRequest;
 import com.songhg.veri.agent.asset.api.request.CreateBusinessFlowRequest;
 import com.songhg.veri.agent.asset.api.request.CreateLinkRequest;
 import com.songhg.veri.agent.asset.api.request.CreatePageRequest;
 import com.songhg.veri.agent.asset.api.request.CreateRequirementRequest;
+import com.songhg.veri.agent.asset.api.request.RollbackAssetVersionRequest;
 import com.songhg.veri.agent.asset.api.request.CreateTestCaseRequest;
 import com.songhg.veri.agent.asset.api.request.TraceLinkListRequest;
 import com.songhg.veri.agent.asset.api.request.UpdateApiRequest;
@@ -19,7 +21,9 @@ import com.songhg.veri.agent.asset.api.request.UpdateTestCaseRequest;
 import com.songhg.veri.agent.asset.api.request.UpdateTestCaseStepsRequest;
 import com.songhg.veri.agent.asset.api.response.ApiResponseDTO;
 import com.songhg.veri.agent.asset.api.response.AssetExportPayload;
+import com.songhg.veri.agent.asset.api.response.AssetImpactAnalysisResponse;
 import com.songhg.veri.agent.asset.api.response.AssetImportResponse;
+import com.songhg.veri.agent.asset.api.response.AssetPrototypeSyncResponse;
 import com.songhg.veri.agent.asset.api.response.AssetVersionHistoryResponse;
 import com.songhg.veri.agent.asset.api.response.BusinessFlowResponse;
 import com.songhg.veri.agent.asset.api.response.PageResponse;
@@ -47,6 +51,7 @@ import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
@@ -82,6 +87,22 @@ public class AssetController {
                 .contentType(MediaType.parseMediaType(payload.contentType()))
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + payload.fileName() + "\"")
                 .body(payload.content());
+    }
+
+    @PostMapping("/prototype-sync")
+    public AssetPrototypeSyncResponse syncPrototypePages(@Valid @RequestBody AssetPrototypeSyncRequest request) {
+        requirePermission("asset:manage");
+        return service.syncPrototypePages(request);
+    }
+
+    @GetMapping("/impact")
+    public AssetImpactAnalysisResponse analyzeImpact(
+            @RequestParam String projectId,
+            @RequestParam(required = false) String assetType,
+            @RequestParam(required = false) UUID assetId
+    ) {
+        requirePermission("asset:read");
+        return service.analyzeImpact(projectId, assetType, assetId);
     }
 
     // ---- Requirements ----
@@ -135,6 +156,16 @@ public class AssetController {
     public List<AssetVersionHistoryResponse> requirementVersions(@PathVariable UUID id) {
         requirePermission("asset:read");
         return service.requirementVersions(id);
+    }
+
+    @PostMapping("/requirements/{id}/versions/{version}/rollback")
+    public RequirementResponse rollbackRequirementVersion(
+            @PathVariable UUID id,
+            @PathVariable int version,
+            @Valid @RequestBody(required = false) RollbackAssetVersionRequest request
+    ) {
+        requirePermission("asset:manage");
+        return service.rollbackRequirementVersion(id, version, request);
     }
 
     // ---- APIs ----
@@ -329,6 +360,16 @@ public class AssetController {
     public List<AssetVersionHistoryResponse> testCaseVersions(@PathVariable UUID id) {
         requirePermission("asset:read");
         return service.testCaseVersions(id);
+    }
+
+    @PostMapping("/test-cases/{id}/versions/{version}/rollback")
+    public TestCaseResponse rollbackTestCaseVersion(
+            @PathVariable UUID id,
+            @PathVariable int version,
+            @Valid @RequestBody(required = false) RollbackAssetVersionRequest request
+    ) {
+        requirePermission("asset:manage");
+        return service.rollbackTestCaseVersion(id, version, request);
     }
 
     @GetMapping("/test-cases/{id}/steps")

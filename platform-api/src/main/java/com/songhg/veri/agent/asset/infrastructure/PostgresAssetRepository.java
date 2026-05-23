@@ -161,6 +161,11 @@ public class PostgresAssetRepository implements AssetRepository {
     }
 
     @Override
+    public Optional<AssetPage> pageBySourceRef(String projectId, String source, String sourceRef) {
+        return Optional.ofNullable(mapper.getPageBySourceRef(projectId, source, sourceRef));
+    }
+
+    @Override
     public AssetPage savePage(AssetPage page) {
         AssetPage stored = normalizePage(page);
         if (mapper.getPage(stored.id()) == null) {
@@ -277,8 +282,8 @@ public class PostgresAssetRepository implements AssetRepository {
     }
 
     @Override
-    public List<TraceLink> traceLinks(UUID requirementId, UUID apiId, UUID caseId) {
-        return mapper.listTraceLinks(requirementId, apiId, caseId);
+    public List<TraceLink> traceLinks(UUID requirementId, UUID apiId, UUID pageId, UUID flowId, UUID caseId) {
+        return mapper.listTraceLinks(requirementId, apiId, pageId, flowId, caseId);
     }
 
     @Override

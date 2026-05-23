@@ -1,4 +1,4 @@
-import { requestJson, type ApiResponse } from './client';
+import { requestJson, requestText, type ApiResponse, type TextResponse } from './client';
 
 export const ASSET_REQUIREMENT_STATUSES = ['DRAFT', 'REVIEWING', 'APPROVED', 'DEPRECATED'] as const;
 export const ASSET_REQUIREMENT_PRIORITIES = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'] as const;
@@ -265,6 +265,8 @@ export interface TraceLinkView {
   id: string;
   requirementId?: string;
   apiId?: string;
+  pageId?: string;
+  flowId?: string;
   caseId?: string;
   createdAt?: string;
 }
@@ -279,7 +281,112 @@ export interface TraceLinkFilters {
   size?: number;
   requirementId?: string;
   apiId?: string;
+  pageId?: string;
+  flowId?: string;
   caseId?: string;
+}
+
+export type AssetImportExportType = 'REQUIREMENT' | 'API' | 'TEST_CASE';
+export type AssetImportExportFormat = 'CSV' | 'JSON' | 'OPENAPI';
+
+export interface AssetImportPayload {
+  assetType: AssetImportExportType | string;
+  format: AssetImportExportFormat | string;
+  projectId: string;
+  dryRun?: boolean;
+  content: string;
+}
+
+export interface AssetImportItemView {
+  row: number;
+  action: string;
+  id?: string;
+  code?: string;
+  status: string;
+  message?: string;
+  errors: string[];
+}
+
+export interface AssetImportResult {
+  assetType: string;
+  format: string;
+  dryRun: boolean;
+  totalRows: number;
+  created: number;
+  updated: number;
+  skipped: number;
+  failed: number;
+  items: AssetImportItemView[];
+}
+
+export interface AssetExportFilters {
+  assetType: AssetImportExportType | string;
+  format?: AssetImportExportFormat | string;
+  projectId?: string;
+  status?: string;
+  keyword?: string;
+  source?: string;
+  index?: number;
+  size?: number;
+}
+
+export interface AssetImpactNodeView {
+  assetType: string;
+  id: string;
+  code?: string;
+  title: string;
+  projectId?: string;
+  status?: string;
+  lifecycleStatus?: string;
+  updatedAt?: string;
+}
+
+export interface AssetImpactAnalysisView {
+  projectId: string;
+  subjectType?: string;
+  subjectId?: string;
+  requirementCount: number;
+  apiCount: number;
+  pageCount: number;
+  flowCount: number;
+  caseCount: number;
+  requirements: AssetImpactNodeView[];
+  apis: AssetImpactNodeView[];
+  pages: AssetImpactNodeView[];
+  flows: AssetImpactNodeView[];
+  testCases: AssetImpactNodeView[];
+  gaps: string[];
+  generatedAt?: string;
+}
+
+export interface AssetPrototypeSyncPagePayload {
+  name: string;
+  urlPattern?: string;
+  sourceRef?: string;
+  sourceVersion?: string;
+  componentTree?: unknown;
+  screenshotUrl?: string;
+  status?: string;
+}
+
+export interface AssetPrototypeSyncPayload {
+  projectId: string;
+  source: string;
+  connectorRef?: string;
+  sourceVersion?: string;
+  dryRun?: boolean;
+  pages: AssetPrototypeSyncPagePayload[];
+}
+
+export interface AssetPrototypeSyncResult {
+  source: string;
+  dryRun: boolean;
+  totalRows: number;
+  created: number;
+  updated: number;
+  skipped: number;
+  failed: number;
+  items: AssetImportItemView[];
 }
 
 export interface AssetVersionHistoryView {
@@ -495,9 +602,24 @@ function traceLinkQuery(filters: TraceLinkFilters) {
   if (typeof filters.size === 'number') params.set('size', String(filters.size));
   if (filters.requirementId?.trim()) params.set('requirementId', filters.requirementId.trim());
   if (filters.apiId?.trim()) params.set('apiId', filters.apiId.trim());
+  if (filters.pageId?.trim()) params.set('pageId', filters.pageId.trim());
+  if (filters.flowId?.trim()) params.set('flowId', filters.flowId.trim());
   if (filters.caseId?.trim()) params.set('caseId', filters.caseId.trim());
   const query = params.toString();
   return query ? `?${query}` : '';
+}
+
+function assetExportQuery(filters: AssetExportFilters) {
+  const params = new URLSearchParams();
+  params.set('assetType', filters.assetType);
+  if (filters.format?.trim()) params.set('format', filters.format.trim());
+  if (typeof filters.index === 'number') params.set('index', String(filters.index));
+  if (typeof filters.size === 'number') params.set('size', String(filters.size));
+  if (filters.projectId?.trim()) params.set('projectId', filters.projectId.trim());
+  if (filters.status?.trim()) params.set('status', filters.status.trim());
+  if (filters.keyword?.trim()) params.set('keyword', filters.keyword.trim());
+  if (filters.source?.trim()) params.set('source', filters.source.trim());
+  return `?${params.toString()}`;
 }
 
 export function normalizeAssetHealth(raw: unknown): AssetHealth {
@@ -706,6 +828,8 @@ export function normalizeTraceLinkView(raw: unknown): TraceLinkView {
     id,
     requirementId: optionalString(item.requirementId) ?? optionalString(item.requirement_id),
     apiId: optionalString(item.apiId) ?? optionalString(item.api_id),
+    pageId: optionalString(item.pageId) ?? optionalString(item.page_id),
+    flowId: optionalString(item.flowId) ?? optionalString(item.flow_id),
     caseId: optionalString(item.caseId) ?? optionalString(item.case_id) ?? optionalString(item.testCaseId) ?? optionalString(item.test_case_id),
     createdAt: optionalString(item.createdAt) ?? optionalString(item.created_at)
   };
@@ -746,6 +870,84 @@ export function assetVersionHistoryItems(data: unknown): AssetVersionHistoryView
   return listItems(data).map(normalizeAssetVersionHistoryView);
 }
 
+export function normalizeAssetImportItem(raw: unknown): AssetImportItemView {
+  const item = isRecord(raw) ? raw : {};
+  return {
+    row: numberValue(item.row, 0),
+    action: stringValue(item.action, 'UNKNOWN'),
+    id: optionalString(item.id),
+    code: optionalString(item.code),
+    status: stringValue(item.status, 'UNKNOWN'),
+    message: optionalString(item.message),
+    errors: stringArrayValue(item.errors)
+  };
+}
+
+export function normalizeAssetImportResult(raw: unknown): AssetImportResult {
+  const item = isRecord(raw) ? raw : {};
+  return {
+    assetType: stringValue(item.assetType ?? item.asset_type, ''),
+    format: stringValue(item.format, ''),
+    dryRun: Boolean(item.dryRun ?? item.dry_run),
+    totalRows: numberValue(item.totalRows ?? item.total_rows, 0),
+    created: numberValue(item.created, 0),
+    updated: numberValue(item.updated, 0),
+    skipped: numberValue(item.skipped, 0),
+    failed: numberValue(item.failed, 0),
+    items: listItems(item.items).map(normalizeAssetImportItem)
+  };
+}
+
+export function normalizeAssetImpactNode(raw: unknown): AssetImpactNodeView {
+  const item = isRecord(raw) ? raw : {};
+  const id = stringValue(item.id);
+  return {
+    assetType: stringValue(item.assetType ?? item.asset_type, ''),
+    id,
+    code: optionalString(item.code),
+    title: stringValue(item.title, id || '-'),
+    projectId: optionalString(item.projectId) ?? optionalString(item.project_id),
+    status: optionalString(item.status),
+    lifecycleStatus: optionalString(item.lifecycleStatus) ?? optionalString(item.lifecycle_status),
+    updatedAt: optionalString(item.updatedAt) ?? optionalString(item.updated_at)
+  };
+}
+
+export function normalizeAssetImpactAnalysis(raw: unknown): AssetImpactAnalysisView {
+  const item = isRecord(raw) ? raw : {};
+  return {
+    projectId: stringValue(item.projectId ?? item.project_id, ''),
+    subjectType: optionalString(item.subjectType) ?? optionalString(item.subject_type),
+    subjectId: optionalString(item.subjectId) ?? optionalString(item.subject_id),
+    requirementCount: numberValue(item.requirementCount ?? item.requirement_count, 0),
+    apiCount: numberValue(item.apiCount ?? item.api_count, 0),
+    pageCount: numberValue(item.pageCount ?? item.page_count, 0),
+    flowCount: numberValue(item.flowCount ?? item.flow_count, 0),
+    caseCount: numberValue(item.caseCount ?? item.case_count, 0),
+    requirements: listItems(item.requirements).map(normalizeAssetImpactNode),
+    apis: listItems(item.apis).map(normalizeAssetImpactNode),
+    pages: listItems(item.pages).map(normalizeAssetImpactNode),
+    flows: listItems(item.flows).map(normalizeAssetImpactNode),
+    testCases: listItems(item.testCases ?? item.test_cases).map(normalizeAssetImpactNode),
+    gaps: stringArrayValue(item.gaps),
+    generatedAt: optionalString(item.generatedAt) ?? optionalString(item.generated_at)
+  };
+}
+
+export function normalizeAssetPrototypeSyncResult(raw: unknown): AssetPrototypeSyncResult {
+  const item = isRecord(raw) ? raw : {};
+  return {
+    source: stringValue(item.source, ''),
+    dryRun: Boolean(item.dryRun ?? item.dry_run),
+    totalRows: numberValue(item.totalRows ?? item.total_rows, 0),
+    created: numberValue(item.created, 0),
+    updated: numberValue(item.updated, 0),
+    skipped: numberValue(item.skipped, 0),
+    failed: numberValue(item.failed, 0),
+    items: listItems(item.items).map(normalizeAssetImportItem)
+  };
+}
+
 export async function fetchAssetHealth(): Promise<ApiResponse<AssetHealth>> {
   const response = await requestJson<unknown>('/api/v1/asset/health');
   return { ...response, data: normalizeAssetHealth(response.data) };
@@ -764,6 +966,21 @@ export async function fetchAssetRequirement(requirementId: string): Promise<ApiR
 export async function fetchAssetRequirementVersions(requirementId: string): Promise<ApiResponse<AssetVersionHistoryView[]>> {
   const response = await requestJson<unknown>(`/api/v1/asset/requirements/${encodeURIComponent(requirementId)}/versions`);
   return { ...response, data: assetVersionHistoryItems(response.data) };
+}
+
+export async function rollbackAssetRequirementVersion(
+  requirementId: string,
+  version: number,
+  reason?: string
+): Promise<ApiResponse<AssetRequirementView>> {
+  const response = await requestJson<unknown>(
+    `/api/v1/asset/requirements/${encodeURIComponent(requirementId)}/versions/${version}/rollback`,
+    {
+      method: 'POST',
+      body: JSON.stringify(compactAssetPayload({ reason }))
+    }
+  );
+  return { ...response, data: normalizeAssetRequirementView(response.data) };
 }
 
 export async function createAssetRequirement(payload: AssetRequirementPayload): Promise<ApiResponse<AssetRequirementView>> {
@@ -885,6 +1102,21 @@ export async function fetchAssetTestCaseVersions(testCaseId: string): Promise<Ap
   return { ...response, data: assetVersionHistoryItems(response.data) };
 }
 
+export async function rollbackAssetTestCaseVersion(
+  testCaseId: string,
+  version: number,
+  reason?: string
+): Promise<ApiResponse<AssetTestCaseView>> {
+  const response = await requestJson<unknown>(
+    `/api/v1/asset/test-cases/${encodeURIComponent(testCaseId)}/versions/${version}/rollback`,
+    {
+      method: 'POST',
+      body: JSON.stringify(compactAssetPayload({ reason }))
+    }
+  );
+  return { ...response, data: normalizeAssetTestCaseView(response.data) };
+}
+
 export async function createAssetTestCase(payload: AssetTestCasePayload): Promise<ApiResponse<AssetTestCaseView>> {
   const response = await requestJson<unknown>('/api/v1/asset/test-cases', {
     method: 'POST',
@@ -927,4 +1159,41 @@ export async function fetchAssetTraceLinks(filters: TraceLinkFilters = {}): Prom
 
 export async function fetchRequirementTraceLinks(requirementId: string): Promise<ApiResponse<TraceLinkList>> {
   return fetchAssetTraceLinks({ requirementId });
+}
+
+export async function importAssets(payload: AssetImportPayload): Promise<ApiResponse<AssetImportResult>> {
+  const response = await requestJson<unknown>('/api/v1/asset/imports', {
+    method: 'POST',
+    body: JSON.stringify(compactAssetPayload(payload))
+  });
+  return { ...response, data: normalizeAssetImportResult(response.data) };
+}
+
+export function assetExportPath(filters: AssetExportFilters) {
+  return `/api/v1/asset/exports${assetExportQuery(filters)}`;
+}
+
+export async function exportAssetsText(filters: AssetExportFilters): Promise<TextResponse> {
+  return requestText(assetExportPath(filters));
+}
+
+export async function fetchAssetImpactAnalysis(filters: {
+  projectId: string;
+  assetType?: string;
+  assetId?: string;
+}): Promise<ApiResponse<AssetImpactAnalysisView>> {
+  const params = new URLSearchParams();
+  params.set('projectId', filters.projectId.trim());
+  if (filters.assetType?.trim()) params.set('assetType', filters.assetType.trim());
+  if (filters.assetId?.trim()) params.set('assetId', filters.assetId.trim());
+  const response = await requestJson<unknown>(`/api/v1/asset/impact?${params.toString()}`);
+  return { ...response, data: normalizeAssetImpactAnalysis(response.data) };
+}
+
+export async function syncPrototypePages(payload: AssetPrototypeSyncPayload): Promise<ApiResponse<AssetPrototypeSyncResult>> {
+  const response = await requestJson<unknown>('/api/v1/asset/prototype-sync', {
+    method: 'POST',
+    body: JSON.stringify(compactAssetPayload(payload))
+  });
+  return { ...response, data: normalizeAssetPrototypeSyncResult(response.data) };
 }

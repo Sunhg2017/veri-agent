@@ -10,10 +10,10 @@ WP3 负责承接 WP4 输入、WP5 用例生成、后续执行与报告链路所�
 |---|---|---|
 | Requirement | 需求资产，支持手工创建和 WP4 导入 | P0 可用 |
 | API | 接口资产，保存 path/method/schema | P0 可用，OpenAPI 导入为 P1 |
-| Page | 页面资产，保留原型来源、原型版本、组件树和截图地址 | P0 可用，真实原型连接器为 P2 |
+| Page | 页面资产，保留原型来源、原型版本、组件树和截图地址 | P0 可用，标准化原型同步骨架可用，真实账号级连接器为 P2 |
 | BusinessFlow | 业务流程资产，保存结构化 flowJson | P0 可用 |
 | TestCase | 测试用例，关联需求/API，维护步骤 | P0 可用 |
-| TraceLink | 需求、API、用例之间的追踪关系 | P0 可用 |
+| TraceLink | 需求、API、页面、业务流、用例之间的追踪关系 | P0 可用 |
 
 ## 3. 状态与评审
 
@@ -60,13 +60,13 @@ REVIEWING -> DEPRECATED
 需求和测试用例维护服务端版本号，创建版本为 `1`，每次人工编辑、WP4 DRAFT 需求幂等更新、测试用例步骤替换时递增。版本历史保存到 `asset_version_history`：
 
 - `assetType` 仅覆盖 `REQUIREMENT` 和 `TEST_CASE`。
-- `changeType` 覆盖 `CREATE/UPDATE/UPSERT/STEPS_UPDATE`。
+- `changeType` 覆盖 `CREATE/UPDATE/UPSERT/STEPS_UPDATE/ARCHIVE/SOFT_DELETE/RESTORE/ROLLBACK`。
 - `changedFields` 和 `diff` 使用 API 字段名，便于前端直接展示。
 - `snapshot` 保存白名单字段；测试用例快照必须包含 steps。
 - `actor` 来自 service token 的 `callerService:delegatedUserId` 或登录用户。
 - `traceId` 用于关联平台审计与请求链路。
 
-历史表是 append-only 账本，不支持修改、删除或回滚；版本回滚和 diff 可视化归后续增强。
+历史表是 append-only 账本，不支持修改或删除。需求和测试用例支持按历史快照回滚，回滚会生成新的当前版本并追加 `ROLLBACK` 历史记录；API/Page/BusinessFlow 的完整版本历史仍为后续增强。
 
 ## 8. WP4 集成
 
@@ -79,16 +79,22 @@ WP4 发布候选到 WP3 时：
 
 ## 9. 页面原型预留
 
-页面资产当前只做连接器前置预留，不拉取外部原型系统：
+页面资产当前支持标准化原型同步骨架，不内置第三方账号授权和远端主动拉取：
 
 - `source` 标识来源：`MANUAL/FIGMA/LANHU/AXURE`。
 - `sourceRef` 保存外部页面、节点或原型标识。
 - `sourceVersion` 保存外部原型版本、节点版本或导入批次版本。
 - `componentTree` 保存标准化组件树 JSON，`screenshotUrl` 保存截图或预览图地址。
 
-真实连接器后续必须写入同一组字段，并继续走 WP1 RBAC、项目上下文和审计链路。
+`POST /api/v1/asset/prototype-sync` 接收 Figma/蓝湖/Axure 导出的标准化页面数组，按 `projectId + source + sourceRef` 幂等创建或更新页面，并支持 `dryRun`、逐行结果和审计。真实账号级连接器后续必须写入同一组字段，并继续走 WP1 RBAC、项目上下文和审计链路。
 
-## 10. 后续设计约束
+## 10. 影响分析与追踪扩展
+
+- `asset_link` 已覆盖需求到 API、页面、业务流和测试用例的追踪关系。
+- `GET /api/v1/asset/impact` 可按项目或单个资产主体聚合关联需求、API、页面、业务流和测试用例，并返回覆盖缺口。
+- 前端追踪矩阵继续承担只读覆盖视图，需求详情页展示 page/flow/case/API 关系；后续补链编辑、多跳评分和页面/业务流矩阵可在此契约上扩展。
+
+## 11. 后续设计约束
 
 - API 不回到 snake_case。
 - 不引入独立 `asset-service`。

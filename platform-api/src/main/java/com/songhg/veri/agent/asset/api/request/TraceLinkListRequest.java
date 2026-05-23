@@ -7,6 +7,8 @@ public class TraceLinkListRequest extends BasePageRequest {
 
     private UUID requirementId;
     private UUID apiId;
+    private UUID pageId;
+    private UUID flowId;
     private UUID caseId;
 
     public UUID getRequirementId() {
@@ -23,6 +25,22 @@ public class TraceLinkListRequest extends BasePageRequest {
 
     public void setApiId(UUID apiId) {
         this.apiId = apiId;
+    }
+
+    public UUID getPageId() {
+        return pageId;
+    }
+
+    public void setPageId(UUID pageId) {
+        this.pageId = pageId;
+    }
+
+    public UUID getFlowId() {
+        return flowId;
+    }
+
+    public void setFlowId(UUID flowId) {
+        this.flowId = flowId;
     }
 
     public UUID getCaseId() {

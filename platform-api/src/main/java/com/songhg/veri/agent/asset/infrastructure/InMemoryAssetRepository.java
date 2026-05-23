@@ -11,8 +11,10 @@ import com.songhg.veri.agent.asset.domain.TestCaseStep;
 import com.songhg.veri.agent.asset.domain.TraceLink;
 import java.time.Instant;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -178,6 +180,19 @@ public class InMemoryAssetRepository implements AssetRepository {
     }
 
     @Override
+    public Optional<AssetPage> pageBySourceRef(String projectId, String source, String sourceRef) {
+        if (projectId == null || source == null || sourceRef == null) {
+            return Optional.empty();
+        }
+        return pages.values().stream()
+                .filter(value -> projectId.equals(value.projectId()))
+                .filter(value -> source.equals(value.source()))
+                .filter(value -> sourceRef.equals(value.sourceRef()))
+                .filter(value -> !"DELETED".equals(lifecycleStatus(value.lifecycleStatus(), value.deletedAt())))
+                .findFirst();
+    }
+
+    @Override
     public AssetPage savePage(AssetPage page) {
         pages.put(page.id(), page);
         return page;
@@ -293,11 +308,17 @@ public class InMemoryAssetRepository implements AssetRepository {
     }
 
     @Override
-    public List<TraceLink> traceLinks(UUID requirementId, UUID apiId, UUID caseId) {
-        return links.values().stream()
+    public List<TraceLink> traceLinks(UUID requirementId, UUID apiId, UUID pageId, UUID flowId, UUID caseId) {
+        Map<UUID, TraceLink> grouped = new LinkedHashMap<>();
+        links.values().stream()
                 .filter(value -> requirementId == null || requirementId.equals(value.requirementId()))
                 .filter(value -> apiId == null || apiId.equals(value.apiId()))
+                .filter(value -> pageId == null || pageId.equals(value.pageId()))
+                .filter(value -> flowId == null || flowId.equals(value.flowId()))
                 .filter(value -> caseId == null || caseId.equals(value.caseId()))
+                .sorted(Comparator.comparing(TraceLink::createdAt))
+                .forEach(value -> grouped.merge(value.requirementId(), value, InMemoryAssetRepository::mergeTraceLink));
+        return grouped.values().stream()
                 .sorted(Comparator.comparing(TraceLink::createdAt).reversed())
                 .toList();
     }
@@ -306,6 +327,18 @@ public class InMemoryAssetRepository implements AssetRepository {
     public TraceLink saveTraceLink(TraceLink link) {
         links.put(link.id(), link);
         return link;
+    }
+
+    private static TraceLink mergeTraceLink(TraceLink left, TraceLink right) {
+        return new TraceLink(
+                left.id(),
+                left.requirementId(),
+                left.apiId() == null ? right.apiId() : left.apiId(),
+                left.pageId() == null ? right.pageId() : left.pageId(),
+                left.flowId() == null ? right.flowId() : left.flowId(),
+                left.caseId() == null ? right.caseId() : left.caseId(),
+                left.createdAt().isBefore(right.createdAt()) ? left.createdAt() : right.createdAt()
+        );
     }
 
     private static String lifecycleStatus(String lifecycleStatus, Instant deletedAt) {

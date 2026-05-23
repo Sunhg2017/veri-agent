@@ -146,6 +146,43 @@ class AssetControllerTest {
     }
 
     @Test
+    void rollsBackRequirementToHistoricalSnapshot() throws Exception {
+        String reqId = createRequirement("回滚需求V1", "初始描述", "HIGH");
+
+        mockMvc.perform(put("/api/v1/asset/requirements/{id}", reqId)
+                        .headers(authHeaders())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "title": "回滚需求V2",
+                                  "description": "更新描述",
+                                  "status": "REVIEWING",
+                                  "priority": "MEDIUM",
+                                  "tags": "rollback"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.version").value(2));
+
+        mockMvc.perform(post("/api/v1/asset/requirements/{id}/versions/1/rollback", reqId)
+                        .headers(authHeaders())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reason\":\"restore baseline\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.title").value("回滚需求V1"))
+                .andExpect(jsonPath("$.data.description").value("初始描述"))
+                .andExpect(jsonPath("$.data.status").value("DRAFT"))
+                .andExpect(jsonPath("$.data.priority").value("HIGH"))
+                .andExpect(jsonPath("$.data.version").value(3));
+
+        mockMvc.perform(get("/api/v1/asset/requirements/{id}/versions", reqId)
+                        .headers(authHeaders()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].changeType").value("ROLLBACK"))
+                .andExpect(jsonPath("$.data[0].changedFields", contains("title", "description", "status", "priority", "tags")));
+    }
+
+    @Test
     void archivesDeletesAndRestoresRequirementWithoutBreakingTraceHistory() throws Exception {
         String reqId = createRequirement("生命周期需求", "归档恢复", "HIGH");
         String apiId = createApi("生命周期 API", "GET", "/api/lifecycle-requirement");
@@ -452,12 +489,47 @@ class AssetControllerTest {
     }
 
     @Test
+    void rollsBackTestCaseToHistoricalSnapshot() throws Exception {
+        String reqId = createRequirement("回滚用例需求", "测试需求", "HIGH");
+        String caseId = createTestCase("回滚用例V1", reqId);
+
+        mockMvc.perform(put("/api/v1/asset/test-cases/{id}/steps", caseId)
+                        .headers(authHeaders())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "steps": [
+                                    {"action": "打开页面", "expectedResult": "显示表单"}
+                                  ]
+                                }
+                                """))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/v1/asset/test-cases/{id}/versions/1/rollback", caseId)
+                        .headers(authHeaders())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reason\":\"restore case\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.title").value("回滚用例V1"))
+                .andExpect(jsonPath("$.data.steps", hasSize(0)))
+                .andExpect(jsonPath("$.data.version").value(3));
+
+        mockMvc.perform(get("/api/v1/asset/test-cases/{id}/versions", caseId)
+                        .headers(authHeaders()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].changeType").value("ROLLBACK"))
+                .andExpect(jsonPath("$.data[0].changedFields", contains("steps")));
+    }
+
+    @Test
     void managesTraceLinks() throws Exception {
         String reqId = createRequirement("需求", "测试", "MEDIUM");
         String apiId = createApi("API", "GET", "/api/test");
+        String pageId = createPage("页面", "/trace");
+        String flowId = createBusinessFlow("追踪流程");
         String caseId = createTestCase("用例", reqId);
 
-        String linkId = createTraceLink(reqId, apiId, caseId);
+        String linkId = createTraceLink(reqId, apiId, pageId, flowId, caseId);
 
         mockMvc.perform(get("/api/v1/asset/links")
                         .headers(authHeaders())
@@ -467,6 +539,8 @@ class AssetControllerTest {
                 .andExpect(jsonPath("$.data.items", hasSize(1)))
                 .andExpect(jsonPath("$.data.items[0].requirementId").value(reqId))
                 .andExpect(jsonPath("$.data.items[0].apiId").value(apiId))
+                .andExpect(jsonPath("$.data.items[0].pageId").value(pageId))
+                .andExpect(jsonPath("$.data.items[0].flowId").value(flowId))
                 .andExpect(jsonPath("$.data.items[0].caseId").value(caseId));
 
         mockMvc.perform(get("/api/v1/asset/links")
@@ -484,10 +558,114 @@ class AssetControllerTest {
                 .andExpect(jsonPath("$.data.items", hasSize(1)));
 
         mockMvc.perform(get("/api/v1/asset/links")
+                        .headers(authHeaders())
+                        .param("pageId", pageId)
+                        .param("flowId", flowId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(1))
+                .andExpect(jsonPath("$.data.items", hasSize(1)));
+
+        mockMvc.perform(get("/api/v1/asset/links")
                         .headers(authHeaders()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.total").value(1))
                 .andExpect(jsonPath("$.data.items", hasSize(1)));
+    }
+
+    @Test
+    void syncsPrototypePagesIdempotentlyAndAnalyzesImpact() throws Exception {
+        String reqId = createRequirement("原型关联需求", "原型同步", "MEDIUM");
+        MvcResult dryRun = mockMvc.perform(post("/api/v1/asset/prototype-sync")
+                        .headers(authHeaders())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "projectId": "project-wp3",
+                                  "source": "FIGMA",
+                                  "sourceVersion": "v1",
+                                  "dryRun": true,
+                                  "pages": [
+                                    {
+                                      "name": "登录页",
+                                      "urlPattern": "/login",
+                                      "sourceRef": "figma-node-login",
+                                      "componentTree": {"type": "page", "children": []},
+                                      "screenshotUrl": "https://cdn.example.test/login.png"
+                                    }
+                                  ]
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.dryRun").value(true))
+                .andExpect(jsonPath("$.data.created").value(1))
+                .andReturn();
+        String plannedPageId = JsonPath.read(dryRun.getResponse().getContentAsString(), "$.data.items[0].id");
+
+        mockMvc.perform(get("/api/v1/asset/pages/{id}", plannedPageId)
+                        .headers(authHeaders()))
+                .andExpect(status().isNotFound());
+
+        MvcResult synced = mockMvc.perform(post("/api/v1/asset/prototype-sync")
+                        .headers(authHeaders())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "projectId": "project-wp3",
+                                  "source": "FIGMA",
+                                  "sourceVersion": "v1",
+                                  "dryRun": false,
+                                  "pages": [
+                                    {
+                                      "name": "登录页",
+                                      "urlPattern": "/login",
+                                      "sourceRef": "figma-node-login",
+                                      "componentTree": {"type": "page", "children": []},
+                                      "screenshotUrl": "https://cdn.example.test/login.png"
+                                    }
+                                  ]
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.created").value(1))
+                .andReturn();
+        String pageId = JsonPath.read(synced.getResponse().getContentAsString(), "$.data.items[0].id");
+
+        mockMvc.perform(post("/api/v1/asset/prototype-sync")
+                        .headers(authHeaders())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "projectId": "project-wp3",
+                                  "source": "FIGMA",
+                                  "sourceVersion": "v1",
+                                  "dryRun": false,
+                                  "pages": [
+                                    {
+                                      "name": "登录页V2",
+                                      "urlPattern": "/login",
+                                      "sourceRef": "figma-node-login",
+                                      "componentTree": {"type": "page", "children": ["submit"]},
+                                      "screenshotUrl": "https://cdn.example.test/login-v2.png"
+                                    }
+                                  ]
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.updated").value(1))
+                .andExpect(jsonPath("$.data.items[0].id").value(pageId));
+
+        createTraceLink(reqId, null, pageId, null, null);
+
+        mockMvc.perform(get("/api/v1/asset/impact")
+                        .headers(authHeaders())
+                        .param("projectId", "project-wp3")
+                        .param("assetType", "REQUIREMENT")
+                        .param("assetId", reqId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.requirementCount").value(1))
+                .andExpect(jsonPath("$.data.pageCount").value(1))
+                .andExpect(jsonPath("$.data.pages[0].id").value(pageId))
+                .andExpect(jsonPath("$.data.gaps").isArray());
     }
 
     @Test
@@ -1028,19 +1206,29 @@ class AssetControllerTest {
     }
 
     private String createTraceLink(String reqId, String apiId, String caseId) throws Exception {
+        return createTraceLink(reqId, apiId, null, null, caseId);
+    }
+
+    private String createTraceLink(String reqId, String apiId, String pageId, String flowId, String caseId) throws Exception {
         MvcResult result = mockMvc.perform(post("/api/v1/asset/links")
                         .headers(authHeaders())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
                                   "requirementId": "%s",
-                                  "apiId": "%s",
-                                  "caseId": "%s"
+                                  "apiId": %s,
+                                  "pageId": %s,
+                                  "flowId": %s,
+                                  "caseId": %s
                                 }
-                                """.formatted(reqId, apiId, caseId)))
+                                """.formatted(reqId, jsonStringOrNull(apiId), jsonStringOrNull(pageId), jsonStringOrNull(flowId), jsonStringOrNull(caseId))))
                 .andExpect(status().isCreated())
                 .andReturn();
         return JsonPath.read(result.getResponse().getContentAsString(), "$.data.id");
+    }
+
+    private static String jsonStringOrNull(String value) {
+        return value == null ? "null" : "\"" + value + "\"";
     }
 
     private org.springframework.test.web.servlet.ResultActions patchLifecycle(

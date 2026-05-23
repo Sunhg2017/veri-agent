@@ -91,6 +91,12 @@ public interface AssetMapper {
 
     AssetPage getPageIncludingInactive(@Param("id") UUID id);
 
+    AssetPage getPageBySourceRef(
+            @Param("projectId") String projectId,
+            @Param("source") String source,
+            @Param("sourceRef") String sourceRef
+    );
+
     void insertPage(AssetPage page);
 
     void updatePage(AssetPage page);
@@ -156,6 +162,8 @@ public interface AssetMapper {
     List<TraceLink> listTraceLinks(
             @Param("requirementId") UUID requirementId,
             @Param("apiId") UUID apiId,
+            @Param("pageId") UUID pageId,
+            @Param("flowId") UUID flowId,
             @Param("caseId") UUID caseId
     );
 

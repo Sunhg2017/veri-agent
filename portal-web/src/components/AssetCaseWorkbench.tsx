@@ -26,6 +26,7 @@ import {
   fetchAssetTestCases,
   fetchAssetTestCaseSteps,
   fetchAssetTestCaseVersions,
+  rollbackAssetTestCaseVersion,
   updateAssetTestCase,
   updateAssetTestCaseSteps,
   type AssetHealth,
@@ -37,6 +38,7 @@ import {
   type AssetVersionHistoryView
 } from '../api/assets';
 import { hasPermission } from '../permissions';
+import { AssetImportExportPanel } from './AssetImportExportPanel';
 import type { AssetNavigationKey } from './AssetStructuredWorkbench';
 import { AssetVersionHistoryPanel } from './AssetVersionHistoryPanel';
 
@@ -259,6 +261,32 @@ export function AssetCaseWorkbench(props: {
   useEffect(() => {
     void reloadVersions();
   }, [reloadVersions]);
+
+  async function rollbackTestCase(version: number) {
+    if (!selected) {
+      return;
+    }
+    if (!props.signedIn) {
+      setVersionState({ loading: false, error: '请先登录后再回滚版本' });
+      return;
+    }
+    if (!canManageAssets) {
+      setVersionState({ loading: false, error: '缺少 asset:manage 权限' });
+      return;
+    }
+    setVersionState({ loading: true });
+    try {
+      const response = await rollbackAssetTestCaseVersion(selected.id, version, `回滚到 v${version}`);
+      setSelected(response.data);
+      setEditDraft(draftFromCase(response.data));
+      setStepDrafts(stepsToDrafts(response.data.steps));
+      upsertCase(setItems, response.data);
+      setVersionState({ loading: false, traceId: response.trace_id });
+      void reloadVersions(response.data.id);
+    } catch (error: unknown) {
+      setVersionState({ loading: false, error: errorMessage(error, '测试用例版本回滚失败') });
+    }
+  }
 
   const visibleItems = useMemo(() => filterCases(items, filters), [filters, items]);
   const statusCounts = useMemo(() => countByStatus(items), [items]);
@@ -602,6 +630,12 @@ export function AssetCaseWorkbench(props: {
           )}
         </section>
 
+        <AssetImportExportPanel
+          currentUser={props.currentUser}
+          onImported={refreshCases}
+          signedIn={props.signedIn}
+        />
+
         <section className="panel insight-panel asset-detail-panel">
           <div className="panel-title-row">
             <h2>测试用例详情</h2>
@@ -689,8 +723,10 @@ export function AssetCaseWorkbench(props: {
               </div>
 
               <AssetVersionHistoryPanel
+                currentVersion={selected.version}
                 disabled={disabled}
                 items={versions}
+                onRollback={(version) => void rollbackTestCase(version)}
                 onRefresh={() => void reloadVersions(selected.id)}
                 state={versionState}
               />

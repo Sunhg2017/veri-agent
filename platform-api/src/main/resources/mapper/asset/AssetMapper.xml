@@ -145,6 +145,8 @@
             <arg column="id" javaType="java.util.UUID"/>
             <arg column="requirement_id" javaType="java.util.UUID"/>
             <arg column="api_id" javaType="java.util.UUID"/>
+            <arg column="page_id" javaType="java.util.UUID"/>
+            <arg column="flow_id" javaType="java.util.UUID"/>
             <arg column="case_id" javaType="java.util.UUID"/>
             <arg column="created_at" javaType="java.time.Instant"/>
         </constructor>
@@ -201,6 +203,8 @@
         min(l.id) as id,
         l.source_id as requirement_id,
         max(l.target_id) filter (where l.target_type = 'API') as api_id,
+        max(l.target_id) filter (where l.target_type = 'PAGE') as page_id,
+        max(l.target_id) filter (where l.target_type = 'FLOW') as flow_id,
         max(l.target_id) filter (where l.target_type = 'CASE') as case_id,
         min(l.created_at) as created_at
     </sql>
@@ -444,6 +448,17 @@
         select <include refid="pageColumns"/>
         from asset_page
         where id = #{id}
+    </select>
+
+    <select id="getPageBySourceRef" resultMap="pageMap">
+        select <include refid="pageColumns"/>
+        from asset_page
+        where project_id = #{projectId}
+          and source = #{source}
+          and source_ref = #{sourceRef}
+          and deleted_at is null
+        order by created_at asc
+        limit 1
     </select>
 
     <insert id="insertPage">
@@ -708,6 +723,12 @@
             <if test="apiId != null">
                 and bool_or(l.target_type = 'API' and l.target_id = #{apiId})
             </if>
+            <if test="pageId != null">
+                and bool_or(l.target_type = 'PAGE' and l.target_id = #{pageId})
+            </if>
+            <if test="flowId != null">
+                and bool_or(l.target_type = 'FLOW' and l.target_id = #{flowId})
+            </if>
             <if test="caseId != null">
                 and bool_or(l.target_type = 'CASE' and l.target_id = #{caseId})
             </if>
@@ -724,6 +745,12 @@
         union all
         select gen_random_uuid(), 'REQUIREMENT', #{requirementId}, 'API', #{apiId}, 'COVERS', #{createdAt}
         where #{apiId} is not null
+        union all
+        select gen_random_uuid(), 'REQUIREMENT', #{requirementId}, 'PAGE', #{pageId}, 'COVERS', #{createdAt}
+        where #{pageId} is not null
+        union all
+        select gen_random_uuid(), 'REQUIREMENT', #{requirementId}, 'FLOW', #{flowId}, 'RELATED_TO', #{createdAt}
+        where #{flowId} is not null
         on conflict do nothing
     </insert>
 </mapper>

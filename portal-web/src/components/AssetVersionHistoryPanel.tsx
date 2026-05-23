@@ -1,4 +1,4 @@
-import { History, RefreshCw } from 'lucide-react';
+import { History, RefreshCw, RotateCcw } from 'lucide-react';
 import type { AssetVersionHistoryView } from '../api/assets';
 
 type VersionHistoryState = {
@@ -8,8 +8,10 @@ type VersionHistoryState = {
 };
 
 type AssetVersionHistoryPanelProps = {
+  currentVersion?: number;
   disabled?: boolean;
   items: AssetVersionHistoryView[];
+  onRollback?: (version: number) => void;
   onRefresh: () => void;
   state: VersionHistoryState;
 };
@@ -60,6 +62,19 @@ export function AssetVersionHistoryPanel(props: AssetVersionHistoryPanelProps) {
                   <em>{item.changedFields.length ? item.changedFields.join(', ') : '-'}</em>
                 </div>
               </div>
+              {props.onRollback && item.version !== props.currentVersion && (
+                <div className="document-actions compact-actions">
+                  <button
+                    className="mini-button"
+                    type="button"
+                    disabled={props.disabled || props.state.loading}
+                    onClick={() => props.onRollback?.(item.version)}
+                  >
+                    <RotateCcw size={14} />
+                    回滚到 v{item.version}
+                  </button>
+                </div>
+              )}
               <div className="asset-version-json-grid">
                 <div>
                   <strong>diff</strong>

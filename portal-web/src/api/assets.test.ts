@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { requestJson } from './client';
+import { requestJson, requestText } from './client';
 import {
   ASSET_API_METHODS,
   ASSET_API_STATUSES,
@@ -17,11 +17,14 @@ import {
   assetTestCaseItems,
   assetTestCaseStepItems,
   assetVersionHistoryItems,
+  assetExportPath,
   createAssetApi,
   createAssetBusinessFlow,
   createAssetPage,
   createAssetRequirement,
   createAssetTestCase,
+  exportAssetsText,
+  fetchAssetImpactAnalysis,
   fetchAssetApi,
   fetchAssetApis,
   fetchAssetBusinessFlow,
@@ -37,6 +40,8 @@ import {
   fetchAssetTestCaseVersions,
   fetchAssetTraceLinks,
   fetchRequirementTraceLinks,
+  importAssets,
+  normalizeAssetImpactAnalysis,
   normalizeAssetApiList,
   normalizeAssetApiView,
   normalizeAssetBusinessFlowList,
@@ -50,6 +55,9 @@ import {
   normalizeAssetTestCaseView,
   normalizeAssetVersionHistoryView,
   normalizeTraceLinkList,
+  rollbackAssetRequirementVersion,
+  rollbackAssetTestCaseVersion,
+  syncPrototypePages,
   updateAssetApi,
   updateAssetBusinessFlow,
   updateAssetPage,
@@ -59,14 +67,17 @@ import {
 } from './assets';
 
 vi.mock('./client', () => ({
-  requestJson: vi.fn()
+  requestJson: vi.fn(),
+  requestText: vi.fn()
 }));
 
 const requestJsonMock = vi.mocked(requestJson);
+const requestTextMock = vi.mocked(requestText);
 
 describe('asset API helpers', () => {
   beforeEach(() => {
     requestJsonMock.mockReset();
+    requestTextMock.mockReset();
   });
 
   it('exposes WP3 requirement enums used by the workbench', () => {
@@ -233,6 +244,18 @@ describe('asset API helpers', () => {
       changedFields: ['title']
     });
     expect(assetVersionHistoryItems({ items: [{ id: 'hist-3', version: '5' }] })[0].version).toBe(5);
+  });
+
+  it('calls requirement rollback endpoint', async () => {
+    requestJsonMock.mockResolvedValue({ code: 'OK', message: 'ok', trace_id: 'trace-rollback', data: { id: 'req-1', title: '旧需求' } });
+
+    const response = await rollbackAssetRequirementVersion('req 1', 1, 'restore');
+
+    expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/asset/requirements/req%201/versions/1/rollback', {
+      method: 'POST',
+      body: JSON.stringify({ reason: 'restore' })
+    });
+    expect(response.data.title).toBe('旧需求');
   });
 
   it('compacts create and update payloads for the current WP3 contract', async () => {
@@ -802,14 +825,26 @@ describe('asset API helpers', () => {
     });
   });
 
+  it('calls test case rollback endpoint', async () => {
+    requestJsonMock.mockResolvedValue({ code: 'OK', message: 'ok', trace_id: 'trace-case-rollback', data: { id: 'case-1', title: '旧用例' } });
+
+    const response = await rollbackAssetTestCaseVersion('case 1', 1);
+
+    expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/asset/test-cases/case%201/versions/1/rollback', {
+      method: 'POST',
+      body: JSON.stringify({})
+    });
+    expect(response.data.title).toBe('旧用例');
+  });
+
   it('normalizes trace links and calls trace link endpoints', async () => {
     const links = normalizeTraceLinkList({
-      items: [{ link_id: 'link-1', requirement_id: 'req-1', api_id: 'api-1', test_case_id: 'case-1' }],
+      items: [{ link_id: 'link-1', requirement_id: 'req-1', api_id: 'api-1', page_id: 'page-1', flow_id: 'flow-1', test_case_id: 'case-1' }],
       total: '1'
     });
     expect(links).toMatchObject({
       total: 1,
-      items: [{ id: 'link-1', requirementId: 'req-1', apiId: 'api-1', caseId: 'case-1' }]
+      items: [{ id: 'link-1', requirementId: 'req-1', apiId: 'api-1', pageId: 'page-1', flowId: 'flow-1', caseId: 'case-1' }]
     });
 
     requestJsonMock.mockResolvedValue({ code: 'OK', message: 'ok', trace_id: 'trace-3', data: { items: [] } });
@@ -819,7 +854,96 @@ describe('asset API helpers', () => {
     await fetchAssetTraceLinks({ apiId: 'api 1', caseId: 'case 1' });
     expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/asset/links?apiId=api+1&caseId=case+1');
 
+    await fetchAssetTraceLinks({ pageId: 'page 1', flowId: 'flow 1' });
+    expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/asset/links?pageId=page+1&flowId=flow+1');
+
     await fetchRequirementTraceLinks('req 1');
     expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/asset/links?requirementId=req+1');
+  });
+
+  it('calls import/export, impact analysis and prototype sync endpoints', async () => {
+    requestJsonMock.mockResolvedValue({
+      code: 'OK',
+      message: 'ok',
+      trace_id: 'trace-import',
+      data: {
+        assetType: 'REQUIREMENT',
+        format: 'CSV',
+        dryRun: true,
+        totalRows: 1,
+        created: 0,
+        updated: 0,
+        skipped: 1,
+        failed: 0,
+        items: [{ row: 1, action: 'LINK_EXISTING', status: 'PLANNED', errors: [] }]
+      }
+    });
+
+    const imported = await importAssets({
+      assetType: 'REQUIREMENT',
+      format: 'CSV',
+      projectId: 'proj pay',
+      dryRun: true,
+      content: 'title\nA'
+    });
+    expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/asset/imports', {
+      method: 'POST',
+      body: JSON.stringify({
+        assetType: 'REQUIREMENT',
+        format: 'CSV',
+        projectId: 'proj pay',
+        dryRun: true,
+        content: 'title\nA'
+      })
+    });
+    expect(imported.data.items[0].action).toBe('LINK_EXISTING');
+
+    requestTextMock.mockResolvedValue({ text: 'code,title\nREQ-1,A', traceId: 'trace-export', contentType: 'text/csv', filename: 'wp3-requirement.csv' });
+    expect(assetExportPath({ assetType: 'API', format: 'OPENAPI', projectId: 'proj pay' })).toBe('/api/v1/asset/exports?assetType=API&format=OPENAPI&projectId=proj+pay');
+    await exportAssetsText({ assetType: 'API', format: 'OPENAPI', projectId: 'proj pay' });
+    expect(requestTextMock).toHaveBeenLastCalledWith('/api/v1/asset/exports?assetType=API&format=OPENAPI&projectId=proj+pay');
+
+    requestJsonMock.mockResolvedValueOnce({
+      code: 'OK',
+      message: 'ok',
+      trace_id: 'trace-impact',
+      data: {
+        projectId: 'proj-pay',
+        requirementCount: 1,
+        apiCount: 1,
+        pageCount: 1,
+        flowCount: 1,
+        caseCount: 1,
+        requirements: [{ assetType: 'REQUIREMENT', id: 'req-1', title: '需求' }],
+        gaps: ['需求 REQ-1 缺少页面覆盖']
+      }
+    });
+    const impact = await fetchAssetImpactAnalysis({ projectId: 'proj pay', assetType: 'REQUIREMENT', assetId: 'req 1' });
+    expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/asset/impact?projectId=proj+pay&assetType=REQUIREMENT&assetId=req+1');
+    expect(impact.data.gaps[0]).toContain('缺少页面');
+    expect(normalizeAssetImpactAnalysis({ project_id: 'p', test_cases: [{ id: 'case-1' }] }).testCases[0].id).toBe('case-1');
+
+    requestJsonMock.mockResolvedValueOnce({
+      code: 'OK',
+      message: 'ok',
+      trace_id: 'trace-prototype',
+      data: { source: 'FIGMA', dryRun: false, totalRows: 1, created: 1, updated: 0, skipped: 0, failed: 0, items: [] }
+    });
+    const sync = await syncPrototypePages({
+      projectId: 'proj-pay',
+      source: 'FIGMA',
+      dryRun: false,
+      pages: [{ name: '登录页', sourceRef: 'node-1' }]
+    });
+    expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/asset/prototype-sync', {
+      method: 'POST',
+      body: JSON.stringify({
+        projectId: 'proj-pay',
+        source: 'FIGMA',
+        dryRun: false,
+        pages: [{ name: '登录页', sourceRef: 'node-1' }]
+      })
+    });
+    expect(sync.data.created).toBe(1);
   });
 });

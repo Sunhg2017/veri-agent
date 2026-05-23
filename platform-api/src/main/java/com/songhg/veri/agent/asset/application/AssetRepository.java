@@ -50,6 +50,8 @@ public interface AssetRepository {
 
     Optional<AssetPage> pageIncludingInactive(UUID id);
 
+    Optional<AssetPage> pageBySourceRef(String projectId, String source, String sourceRef);
+
     AssetPage savePage(AssetPage page);
 
     boolean hasActivePageCodeConflict(String projectId, String code, UUID excludeId);
@@ -78,7 +80,7 @@ public interface AssetRepository {
 
     void replaceTestCaseSteps(UUID caseId, List<TestCaseStep> steps);
 
-    List<TraceLink> traceLinks(UUID requirementId, UUID apiId, UUID caseId);
+    List<TraceLink> traceLinks(UUID requirementId, UUID apiId, UUID pageId, UUID flowId, UUID caseId);
 
     TraceLink saveTraceLink(TraceLink link);
 }

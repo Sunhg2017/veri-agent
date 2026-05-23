@@ -3,11 +3,13 @@ package com.songhg.veri.agent.asset.application;
 import com.songhg.veri.agent.asset.api.request.AssetListRequest;
 import com.songhg.veri.agent.asset.api.request.AssetExportRequest;
 import com.songhg.veri.agent.asset.api.request.AssetImportRequest;
+import com.songhg.veri.agent.asset.api.request.AssetPrototypeSyncRequest;
 import com.songhg.veri.agent.asset.api.request.CreateApiRequest;
 import com.songhg.veri.agent.asset.api.request.CreateBusinessFlowRequest;
 import com.songhg.veri.agent.asset.api.request.CreateLinkRequest;
 import com.songhg.veri.agent.asset.api.request.CreatePageRequest;
 import com.songhg.veri.agent.asset.api.request.CreateRequirementRequest;
+import com.songhg.veri.agent.asset.api.request.RollbackAssetVersionRequest;
 import com.songhg.veri.agent.asset.api.request.CreateTestCaseRequest;
 import com.songhg.veri.agent.asset.api.request.TraceLinkListRequest;
 import com.songhg.veri.agent.asset.api.request.UpdateApiRequest;
@@ -19,8 +21,11 @@ import com.songhg.veri.agent.asset.api.request.UpdateTestCaseRequest;
 import com.songhg.veri.agent.asset.api.request.UpdateTestCaseStepsRequest;
 import com.songhg.veri.agent.asset.api.response.ApiResponseDTO;
 import com.songhg.veri.agent.asset.api.response.AssetExportPayload;
+import com.songhg.veri.agent.asset.api.response.AssetImpactAnalysisResponse;
+import com.songhg.veri.agent.asset.api.response.AssetImpactNodeResponse;
 import com.songhg.veri.agent.asset.api.response.AssetImportItemResponse;
 import com.songhg.veri.agent.asset.api.response.AssetImportResponse;
+import com.songhg.veri.agent.asset.api.response.AssetPrototypeSyncResponse;
 import com.songhg.veri.agent.asset.api.response.AssetVersionHistoryResponse;
 import com.songhg.veri.agent.asset.api.response.BusinessFlowResponse;
 import com.songhg.veri.agent.asset.api.response.PageResponse;
@@ -58,6 +63,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Function;
 import com.songhg.veri.agent.modelaccess.security.ServicePrincipal;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -80,6 +86,7 @@ public class AssetService {
     private static final Set<String> PAGE_STATUSES = Set.of("ACTIVE", "DEPRECATED");
     private static final Set<String> PAGE_SOURCES = Set.of("FIGMA", "LANHU", "AXURE", "MANUAL");
     private static final Set<String> FLOW_STATUSES = Set.of("DRAFT", "ACTIVE", "ARCHIVED");
+    private static final Set<String> IMPACT_SUBJECT_TYPES = Set.of("REQUIREMENT", "API", "PAGE", "FLOW", "BUSINESS_FLOW", "CASE", "TEST_CASE");
     private static final Set<String> IMPORT_EXPORT_ASSET_TYPES = Set.of("REQUIREMENT", "API", "TEST_CASE");
     private static final Set<String> IMPORT_EXPORT_FORMATS = Set.of("CSV", "JSON", "OPENAPI");
     private static final Map<String, Set<String>> REVIEW_STATUS_TRANSITIONS = Map.of(
@@ -292,6 +299,48 @@ public class AssetService {
         return repository.assetVersionHistory("REQUIREMENT", requirement.id()).stream()
                 .map(AssetService::toVersionHistoryResponse)
                 .toList();
+    }
+
+    @Transactional
+    public RequirementResponse rollbackRequirementVersion(
+            UUID id,
+            int version,
+            RollbackAssetVersionRequest request
+    ) {
+        AssetRequirement existing = repository.requirementIncludingInactive(id)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "需求不存在: " + id));
+        AssetVersionHistory history = findVersionHistory("REQUIREMENT", id, version);
+        JsonNode snapshot = jsonNode(history.snapshotJson());
+        Instant now = Instant.now();
+        AssetRequirement rollback = new AssetRequirement(
+                existing.id(),
+                existing.code(),
+                requiredSnapshotText(snapshot, "title"),
+                snapshotText(snapshot, "description"),
+                existing.source(),
+                existing.sourceRef(),
+                snapshotText(snapshot, "sourceUrl"),
+                snapshotText(snapshot, "acceptanceCriteria"),
+                valueIn(snapshotText(snapshot, "status"), existing.status(), REVIEW_STATUSES, "status"),
+                valueIn(snapshotText(snapshot, "priority"), existing.priority(), PRIORITIES, "priority"),
+                existing.projectId(),
+                snapshotText(snapshot, "tags"),
+                existing.version() + 1,
+                lifecycleStatus(snapshotText(snapshot, "lifecycleStatus"), snapshotInstant(snapshot, "deletedAt")),
+                snapshotInstant(snapshot, "archivedAt"),
+                snapshotInstant(snapshot, "deletedAt"),
+                existing.createdAt(),
+                now
+        );
+        if ("ACTIVE".equals(lifecycleStatus(rollback.lifecycleStatus(), rollback.deletedAt()))) {
+            ensureRequirementRestoreHasNoConflict(rollback);
+        }
+        writeProjectAudit("ROLLBACK", "REQUIREMENT", id, existing.projectId());
+        AssetRequirement stored = repository.saveRequirement(rollback);
+        saveRequirementHistory(stored, "ROLLBACK", requirementDiff(existing, stored));
+        log.info("Rolled back requirement id={} to version={}, reason={}, trace_id={}",
+                id, version, trimToNull(request == null ? null : request.reason()), TraceContext.getTraceId());
+        return toRequirementResponse(stored);
     }
 
     @Transactional
@@ -853,6 +902,51 @@ public class AssetService {
     }
 
     @Transactional
+    public TestCaseResponse rollbackTestCaseVersion(
+            UUID id,
+            int version,
+            RollbackAssetVersionRequest request
+    ) {
+        TestCaseRecord existing = repository.testCaseIncludingInactive(id)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "测试用例不存在: " + id));
+        AssetVersionHistory history = findVersionHistory("TEST_CASE", id, version);
+        JsonNode snapshot = jsonNode(history.snapshotJson());
+        Instant now = Instant.now();
+        TestCaseRecord rollback = new TestCaseRecord(
+                existing.id(),
+                existing.code(),
+                requiredSnapshotText(snapshot, "title"),
+                snapshotText(snapshot, "description"),
+                existing.projectId(),
+                snapshotUuid(snapshot, "requirementId"),
+                snapshotUuid(snapshot, "apiId"),
+                existing.source(),
+                existing.sourceRef(),
+                valueIn(snapshotText(snapshot, "status"), existing.status(), REVIEW_STATUSES, "status"),
+                valueIn(snapshotText(snapshot, "priority"), existing.priority(), PRIORITIES, "priority"),
+                snapshotText(snapshot, "tags"),
+                snapshotSteps(snapshot.path("steps"), id),
+                existing.version() + 1,
+                lifecycleStatus(snapshotText(snapshot, "lifecycleStatus"), snapshotInstant(snapshot, "deletedAt")),
+                snapshotInstant(snapshot, "archivedAt"),
+                snapshotInstant(snapshot, "deletedAt"),
+                existing.createdAt(),
+                now
+        );
+        validateRequirementBelongsToProject(rollback.requirementId(), rollback.projectId());
+        validateApiBelongsToProject(rollback.apiId(), rollback.projectId());
+        if ("ACTIVE".equals(lifecycleStatus(rollback.lifecycleStatus(), rollback.deletedAt()))) {
+            ensureTestCaseRestoreHasNoConflict(rollback);
+        }
+        writeProjectAudit("ROLLBACK", "TEST_CASE", id, existing.projectId());
+        TestCaseRecord stored = repository.saveTestCase(rollback);
+        saveTestCaseHistory(stored, "ROLLBACK", testCaseDiff(existing, stored));
+        log.info("Rolled back test case id={} to version={}, reason={}, trace_id={}",
+                id, version, trimToNull(request == null ? null : request.reason()), TraceContext.getTraceId());
+        return toTestCaseResponse(stored, stored.steps());
+    }
+
+    @Transactional
     public TestCaseResponse updateTestCaseLifecycle(UUID id, UpdateAssetLifecycleRequest request) {
         TestCaseRecord existing = repository.testCaseIncludingInactive(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "测试用例不存在: " + id));
@@ -947,7 +1041,13 @@ public class AssetService {
     // ---- Trace Links ----
 
     public com.songhg.veri.agent.common.api.PageResponse<TraceLinkResponse> listLinks(TraceLinkListRequest request) {
-        List<TraceLinkResponse> filtered = repository.traceLinks(request.getRequirementId(), request.getApiId(), request.getCaseId()).stream()
+        List<TraceLinkResponse> filtered = repository.traceLinks(
+                        request.getRequirementId(),
+                        request.getApiId(),
+                        request.getPageId(),
+                        request.getFlowId(),
+                        request.getCaseId()
+                ).stream()
                 .map(AssetService::toTraceLinkResponse)
                 .toList();
         return page(filtered, request.getIndex(), request.getSize());
@@ -956,11 +1056,24 @@ public class AssetService {
     public TraceLinkResponse createLink(CreateLinkRequest request) {
         AssetRequirement requirement = repository.requirement(request.requirementId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "需求不存在: " + request.requirementId()));
+        if (request.apiId() == null && request.pageId() == null && request.flowId() == null && request.caseId() == null) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "追踪链接至少需要一个目标资产");
+        }
         validateApiBelongsToProject(request.apiId(), requirement.projectId());
+        validatePageBelongsToProject(request.pageId(), requirement.projectId());
+        validateBusinessFlowBelongsToProject(request.flowId(), requirement.projectId());
         validateTestCaseBelongsToProject(request.caseId(), requirement.projectId());
         UUID id = UUID.randomUUID();
         Instant now = Instant.now();
-        TraceLink link = new TraceLink(id, request.requirementId(), request.apiId(), request.caseId(), now);
+        TraceLink link = new TraceLink(
+                id,
+                request.requirementId(),
+                request.apiId(),
+                request.pageId(),
+                request.flowId(),
+                request.caseId(),
+                now
+        );
         writeProjectAudit("CREATE", "TRACE_LINK", id, requirement.projectId());
         repository.saveTraceLink(link);
         log.info("Created trace link id={}, requirementId={}, trace_id={}",
@@ -1011,6 +1124,413 @@ public class AssetService {
                 "wp3-" + assetType.toLowerCase(Locale.ROOT).replace("_", "-") + "." + extension,
                 contentType,
                 content.getBytes(StandardCharsets.UTF_8)
+        );
+    }
+
+    // ---- Prototype sync / impact analysis ----
+
+    @Transactional
+    public AssetPrototypeSyncResponse syncPrototypePages(AssetPrototypeSyncRequest request) {
+        String source = valueIn(request.source(), null, Set.of("FIGMA", "LANHU", "AXURE"), "source");
+        String projectId = projectContext(request.projectId()).projectId();
+        boolean dryRun = Boolean.TRUE.equals(request.dryRun());
+        writeAssetBatchAudit(dryRun ? "PROTOTYPE_SYNC_DRY_RUN" : "PROTOTYPE_SYNC", "PAGE", projectId, "SUCCEEDED");
+        List<AssetImportItemResponse> items = new ArrayList<>();
+        for (int i = 0; i < request.pages().size(); i++) {
+            items.add(syncPrototypePage(projectId, source, request, request.pages().get(i), i + 1, dryRun));
+        }
+        return new AssetPrototypeSyncResponse(
+                source,
+                dryRun,
+                request.pages().size(),
+                countAction(items, "CREATE"),
+                countAction(items, "UPDATE"),
+                countAction(items, "LINK_EXISTING"),
+                (int) items.stream().filter(item -> "FAILED".equals(item.status())).count(),
+                items
+        );
+    }
+
+    public AssetImpactAnalysisResponse analyzeImpact(String projectId, String rawSubjectType, UUID subjectId) {
+        String scopeProjectId = projectContext(projectId).projectId();
+        String subjectType = subjectType(rawSubjectType);
+        Map<UUID, AssetRequirement> requirements = mapById(repository.requirements(scopeProjectId), AssetRequirement::id);
+        Map<UUID, AssetApi> apis = mapById(repository.apis(scopeProjectId), AssetApi::id);
+        Map<UUID, AssetPage> pages = mapById(repository.pages(scopeProjectId), AssetPage::id);
+        Map<UUID, AssetBusinessFlow> flows = mapById(repository.businessFlows(scopeProjectId), AssetBusinessFlow::id);
+        Map<UUID, TestCaseRecord> cases = mapById(repository.testCases(scopeProjectId), TestCaseRecord::id);
+        List<TraceLink> links = repository.traceLinks(null, null, null, null, null);
+        LinkedHashSet<UUID> requirementIds = new LinkedHashSet<>();
+        LinkedHashSet<UUID> apiIds = new LinkedHashSet<>();
+        LinkedHashSet<UUID> pageIds = new LinkedHashSet<>();
+        LinkedHashSet<UUID> flowIds = new LinkedHashSet<>();
+        LinkedHashSet<UUID> caseIds = new LinkedHashSet<>();
+
+        if (subjectType == null || subjectId == null) {
+            requirementIds.addAll(requirements.keySet());
+            apiIds.addAll(apis.keySet());
+            pageIds.addAll(pages.keySet());
+            flowIds.addAll(flows.keySet());
+            caseIds.addAll(cases.keySet());
+        } else {
+            addSubject(subjectType, subjectId, requirements, apis, pages, flows, cases,
+                    requirementIds, apiIds, pageIds, flowIds, caseIds);
+        }
+
+        boolean changed;
+        do {
+            changed = false;
+            for (TraceLink link : links) {
+                if (link.requirementId() == null || !requirements.containsKey(link.requirementId())) {
+                    continue;
+                }
+                boolean related = requirementIds.contains(link.requirementId())
+                        || (link.apiId() != null && apiIds.contains(link.apiId()))
+                        || (link.pageId() != null && pageIds.contains(link.pageId()))
+                        || (link.flowId() != null && flowIds.contains(link.flowId()))
+                        || (link.caseId() != null && caseIds.contains(link.caseId()));
+                if (!related) {
+                    continue;
+                }
+                changed |= requirementIds.add(link.requirementId());
+                if (link.apiId() != null && apis.containsKey(link.apiId())) {
+                    changed |= apiIds.add(link.apiId());
+                }
+                if (link.pageId() != null && pages.containsKey(link.pageId())) {
+                    changed |= pageIds.add(link.pageId());
+                }
+                if (link.flowId() != null && flows.containsKey(link.flowId())) {
+                    changed |= flowIds.add(link.flowId());
+                }
+                if (link.caseId() != null && cases.containsKey(link.caseId())) {
+                    changed |= caseIds.add(link.caseId());
+                }
+            }
+        } while (changed);
+
+        List<String> gaps = impactGaps(requirementIds, apiIds, pageIds, flowIds, caseIds, links, requirements, apis, pages, flows, cases);
+        List<AssetImpactNodeResponse> requirementNodes = nodes(requirementIds, requirements, AssetService::toImpactNode);
+        List<AssetImpactNodeResponse> apiNodes = nodes(apiIds, apis, AssetService::toImpactNode);
+        List<AssetImpactNodeResponse> pageNodes = nodes(pageIds, pages, AssetService::toImpactNode);
+        List<AssetImpactNodeResponse> flowNodes = nodes(flowIds, flows, AssetService::toImpactNode);
+        List<AssetImpactNodeResponse> caseNodes = nodes(caseIds, cases, AssetService::toImpactNode);
+        writeAssetBatchAudit("IMPACT_ANALYSIS", "ASSET_IMPACT", scopeProjectId, "SUCCEEDED");
+        return new AssetImpactAnalysisResponse(
+                scopeProjectId,
+                subjectType,
+                subjectId,
+                requirementNodes.size(),
+                apiNodes.size(),
+                pageNodes.size(),
+                flowNodes.size(),
+                caseNodes.size(),
+                requirementNodes,
+                apiNodes,
+                pageNodes,
+                flowNodes,
+                caseNodes,
+                gaps,
+                Instant.now()
+        );
+    }
+
+    private AssetImportItemResponse syncPrototypePage(
+            String projectId,
+            String source,
+            AssetPrototypeSyncRequest request,
+            AssetPrototypeSyncRequest.PageItem item,
+            int row,
+            boolean dryRun
+    ) {
+        try {
+            String sourceRef = trimToNull(item.sourceRef());
+            if (sourceRef == null) {
+                return new AssetImportItemResponse(row, "INVALID", null, null, "FAILED", "sourceRef 不能为空", List.of("sourceRef 不能为空"));
+            }
+            Optional<AssetPage> existing = repository.pageBySourceRef(projectId, source, sourceRef);
+            if (existing.isPresent()) {
+                AssetPage merged = mergePrototypePage(existing.get(), source, request, item);
+                if (samePage(existing.get(), merged)) {
+                    return new AssetImportItemResponse(row, "LINK_EXISTING", existing.get().id(), existing.get().code(), dryRun ? "PLANNED" : "SUCCEEDED", "无差异，复用既有页面", List.of());
+                }
+                if (!dryRun) {
+                    writeProjectAudit("PROTOTYPE_SYNC_UPDATE", "PAGE", existing.get().id(), projectId);
+                    repository.savePage(merged);
+                }
+                return new AssetImportItemResponse(row, "UPDATE", existing.get().id(), existing.get().code(), dryRun ? "PLANNED" : "SUCCEEDED", "同步更新页面", List.of());
+            }
+            UUID id = UUID.randomUUID();
+            Instant now = Instant.now();
+            AssetPage created = new AssetPage(
+                    id,
+                    assetCode("PAGE", id),
+                    item.name(),
+                    trimToNull(item.urlPattern()),
+                    source,
+                    sourceRef,
+                    firstText(item.sourceVersion(), request.sourceVersion()),
+                    jsonValue(item.componentTree()),
+                    trimToNull(item.screenshotUrl()),
+                    projectId,
+                    initialStatus(item.status(), "ACTIVE", "PAGE"),
+                    "ACTIVE",
+                    null,
+                    null,
+                    now,
+                    now
+            );
+            if (!dryRun) {
+                writeProjectAudit("PROTOTYPE_SYNC_CREATE", "PAGE", id, projectId);
+                repository.savePage(created);
+            }
+            return new AssetImportItemResponse(row, "CREATE", id, created.code(), dryRun ? "PLANNED" : "SUCCEEDED", "同步创建页面", List.of());
+        } catch (BusinessException e) {
+            return new AssetImportItemResponse(row, "FAILED", null, null, "FAILED", e.getMessage(), List.of(e.getMessage()));
+        }
+    }
+
+    private AssetPage mergePrototypePage(
+            AssetPage existing,
+            String source,
+            AssetPrototypeSyncRequest request,
+            AssetPrototypeSyncRequest.PageItem item
+    ) {
+        return new AssetPage(
+                existing.id(),
+                existing.code(),
+                item.name(),
+                trimToNull(item.urlPattern()),
+                source,
+                trimToNull(item.sourceRef()),
+                firstText(item.sourceVersion(), request.sourceVersion(), existing.sourceVersion()),
+                jsonValue(item.componentTree()),
+                trimToNull(item.screenshotUrl()),
+                existing.projectId(),
+                initialStatus(item.status(), existing.status(), "PAGE"),
+                existing.lifecycleStatus(),
+                existing.archivedAt(),
+                existing.deletedAt(),
+                existing.createdAt(),
+                Instant.now()
+        );
+    }
+
+    private static boolean samePage(AssetPage left, AssetPage right) {
+        return Objects.equals(left.name(), right.name())
+                && Objects.equals(left.urlPattern(), right.urlPattern())
+                && Objects.equals(left.source(), right.source())
+                && Objects.equals(left.sourceRef(), right.sourceRef())
+                && Objects.equals(left.sourceVersion(), right.sourceVersion())
+                && Objects.equals(jsonNode(left.componentTree()), jsonNode(right.componentTree()))
+                && Objects.equals(left.screenshotUrl(), right.screenshotUrl())
+                && Objects.equals(left.status(), right.status());
+    }
+
+    private static String firstText(String... values) {
+        for (String value : values) {
+            String normalized = trimToNull(value);
+            if (normalized != null) {
+                return normalized;
+            }
+        }
+        return null;
+    }
+
+    private static <T> Map<UUID, T> mapById(List<T> items, Function<T, UUID> idGetter) {
+        Map<UUID, T> result = new LinkedHashMap<>();
+        for (T item : items) {
+            UUID id = idGetter.apply(item);
+            if (id != null) {
+                result.put(id, item);
+            }
+        }
+        return result;
+    }
+
+    private static String subjectType(String rawValue) {
+        if (!StringUtils.hasText(rawValue)) {
+            return null;
+        }
+        String value = rawValue.trim().toUpperCase(Locale.ROOT);
+        if (!IMPACT_SUBJECT_TYPES.contains(value)) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "assetType 不合法: " + rawValue);
+        }
+        return switch (value) {
+            case "BUSINESS_FLOW" -> "FLOW";
+            case "TEST_CASE" -> "CASE";
+            default -> value;
+        };
+    }
+
+    private static void addSubject(
+            String subjectType,
+            UUID subjectId,
+            Map<UUID, AssetRequirement> requirements,
+            Map<UUID, AssetApi> apis,
+            Map<UUID, AssetPage> pages,
+            Map<UUID, AssetBusinessFlow> flows,
+            Map<UUID, TestCaseRecord> cases,
+            LinkedHashSet<UUID> requirementIds,
+            LinkedHashSet<UUID> apiIds,
+            LinkedHashSet<UUID> pageIds,
+            LinkedHashSet<UUID> flowIds,
+            LinkedHashSet<UUID> caseIds
+    ) {
+        boolean exists = switch (subjectType) {
+            case "REQUIREMENT" -> requirementIds.add(subjectId) && requirements.containsKey(subjectId);
+            case "API" -> apiIds.add(subjectId) && apis.containsKey(subjectId);
+            case "PAGE" -> pageIds.add(subjectId) && pages.containsKey(subjectId);
+            case "FLOW" -> flowIds.add(subjectId) && flows.containsKey(subjectId);
+            case "CASE" -> caseIds.add(subjectId) && cases.containsKey(subjectId);
+            default -> false;
+        };
+        if (!exists) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "影响分析资产不存在: " + subjectType + "/" + subjectId);
+        }
+    }
+
+    private static List<String> impactGaps(
+            Set<UUID> requirementIds,
+            Set<UUID> apiIds,
+            Set<UUID> pageIds,
+            Set<UUID> flowIds,
+            Set<UUID> caseIds,
+            List<TraceLink> links,
+            Map<UUID, AssetRequirement> requirements,
+            Map<UUID, AssetApi> apis,
+            Map<UUID, AssetPage> pages,
+            Map<UUID, AssetBusinessFlow> flows,
+            Map<UUID, TestCaseRecord> cases
+    ) {
+        List<String> gaps = new ArrayList<>();
+        for (UUID requirementId : requirementIds) {
+            AssetRequirement requirement = requirements.get(requirementId);
+            if (requirement == null) {
+                continue;
+            }
+            boolean hasApi = links.stream().anyMatch(link -> requirementId.equals(link.requirementId())
+                    && link.apiId() != null && apis.containsKey(link.apiId()));
+            boolean hasPage = links.stream().anyMatch(link -> requirementId.equals(link.requirementId())
+                    && link.pageId() != null && pages.containsKey(link.pageId()));
+            boolean hasFlow = links.stream().anyMatch(link -> requirementId.equals(link.requirementId())
+                    && link.flowId() != null && flows.containsKey(link.flowId()));
+            boolean hasCase = links.stream().anyMatch(link -> requirementId.equals(link.requirementId())
+                    && link.caseId() != null && cases.containsKey(link.caseId()));
+            if (!hasApi) {
+                gaps.add("需求 " + requirement.code() + " 缺少 API 覆盖");
+            }
+            if (!hasPage) {
+                gaps.add("需求 " + requirement.code() + " 缺少页面覆盖");
+            }
+            if (!hasFlow) {
+                gaps.add("需求 " + requirement.code() + " 缺少业务流覆盖");
+            }
+            if (!hasCase) {
+                gaps.add("需求 " + requirement.code() + " 缺少测试用例覆盖");
+            }
+        }
+        for (UUID apiId : apiIds) {
+            boolean linked = links.stream().anyMatch(link -> apiId.equals(link.apiId()));
+            if (!linked && apis.containsKey(apiId)) {
+                gaps.add("API " + apis.get(apiId).code() + " 未关联需求");
+            }
+        }
+        for (UUID pageId : pageIds) {
+            boolean linked = links.stream().anyMatch(link -> pageId.equals(link.pageId()));
+            if (!linked && pages.containsKey(pageId)) {
+                gaps.add("页面 " + pages.get(pageId).code() + " 未关联需求");
+            }
+        }
+        for (UUID flowId : flowIds) {
+            boolean linked = links.stream().anyMatch(link -> flowId.equals(link.flowId()));
+            if (!linked && flows.containsKey(flowId)) {
+                gaps.add("业务流 " + flows.get(flowId).code() + " 未关联需求");
+            }
+        }
+        for (UUID caseId : caseIds) {
+            boolean linked = links.stream().anyMatch(link -> caseId.equals(link.caseId()));
+            if (!linked && cases.containsKey(caseId)) {
+                gaps.add("测试用例 " + cases.get(caseId).code() + " 未关联需求");
+            }
+        }
+        return gaps;
+    }
+
+    private static <T> List<AssetImpactNodeResponse> nodes(
+            Set<UUID> ids,
+            Map<UUID, T> source,
+            Function<T, AssetImpactNodeResponse> mapper
+    ) {
+        return ids.stream()
+                .map(source::get)
+                .filter(Objects::nonNull)
+                .map(mapper)
+                .sorted(Comparator.comparing(AssetImpactNodeResponse::updatedAt, Comparator.nullsLast(Comparator.reverseOrder())))
+                .toList();
+    }
+
+    private static AssetImpactNodeResponse toImpactNode(AssetRequirement value) {
+        return new AssetImpactNodeResponse(
+                "REQUIREMENT",
+                value.id(),
+                value.code(),
+                value.title(),
+                value.projectId(),
+                value.status(),
+                lifecycleStatus(value.lifecycleStatus(), value.deletedAt()),
+                value.updatedAt()
+        );
+    }
+
+    private static AssetImpactNodeResponse toImpactNode(AssetApi value) {
+        return new AssetImpactNodeResponse(
+                "API",
+                value.id(),
+                value.code(),
+                value.summary(),
+                value.projectId(),
+                value.status(),
+                lifecycleStatus(value.lifecycleStatus(), value.deletedAt()),
+                value.updatedAt()
+        );
+    }
+
+    private static AssetImpactNodeResponse toImpactNode(AssetPage value) {
+        return new AssetImpactNodeResponse(
+                "PAGE",
+                value.id(),
+                value.code(),
+                value.name(),
+                value.projectId(),
+                value.status(),
+                lifecycleStatus(value.lifecycleStatus(), value.deletedAt()),
+                value.updatedAt()
+        );
+    }
+
+    private static AssetImpactNodeResponse toImpactNode(AssetBusinessFlow value) {
+        return new AssetImpactNodeResponse(
+                "FLOW",
+                value.id(),
+                value.code(),
+                value.name(),
+                value.projectId(),
+                value.status(),
+                lifecycleStatus(value.lifecycleStatus(), value.deletedAt()),
+                value.updatedAt()
+        );
+    }
+
+    private static AssetImpactNodeResponse toImpactNode(TestCaseRecord value) {
+        return new AssetImpactNodeResponse(
+                "CASE",
+                value.id(),
+                value.code(),
+                value.title(),
+                value.projectId(),
+                value.status(),
+                lifecycleStatus(value.lifecycleStatus(), value.deletedAt()),
+                value.updatedAt()
         );
     }
 
@@ -1480,7 +2000,7 @@ public class AssetService {
     }
 
     private static TraceLinkResponse toTraceLinkResponse(TraceLink l) {
-        return new TraceLinkResponse(l.id(), l.requirementId(), l.apiId(), l.caseId(), l.createdAt());
+        return new TraceLinkResponse(l.id(), l.requirementId(), l.apiId(), l.pageId(), l.flowId(), l.caseId(), l.createdAt());
     }
 
     private void saveRequirementHistory(AssetRequirement requirement, String changeType, VersionDiff diff) {
@@ -1662,6 +2182,68 @@ public class AssetService {
         } catch (JsonProcessingException e) {
             return JSON_MAPPER.createObjectNode();
         }
+    }
+
+    private AssetVersionHistory findVersionHistory(String assetType, UUID assetId, int version) {
+        return repository.assetVersionHistory(assetType, assetId).stream()
+                .filter(history -> history.version() == version)
+                .findFirst()
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "资产版本不存在: " + assetType + "/" + assetId + "/v" + version));
+    }
+
+    private static String snapshotText(JsonNode snapshot, String field) {
+        JsonNode node = snapshot.path(field);
+        return node.isMissingNode() || node.isNull() ? null : node.asText();
+    }
+
+    private static String requiredSnapshotText(JsonNode snapshot, String field) {
+        String value = snapshotText(snapshot, field);
+        if (!StringUtils.hasText(value)) {
+            throw new BusinessException(ErrorCode.INVALID_STATE, "版本快照缺少字段: " + field);
+        }
+        return value;
+    }
+
+    private static Instant snapshotInstant(JsonNode snapshot, String field) {
+        String value = snapshotText(snapshot, field);
+        if (!StringUtils.hasText(value)) {
+            return null;
+        }
+        try {
+            return Instant.parse(value);
+        } catch (RuntimeException e) {
+            throw new BusinessException(ErrorCode.INVALID_STATE, "版本快照时间字段不合法: " + field);
+        }
+    }
+
+    private static UUID snapshotUuid(JsonNode snapshot, String field) {
+        String value = snapshotText(snapshot, field);
+        if (!StringUtils.hasText(value)) {
+            return null;
+        }
+        try {
+            return UUID.fromString(value);
+        } catch (IllegalArgumentException e) {
+            throw new BusinessException(ErrorCode.INVALID_STATE, "版本快照 UUID 字段不合法: " + field);
+        }
+    }
+
+    private static List<TestCaseStep> snapshotSteps(JsonNode stepsNode, UUID caseId) {
+        if (!stepsNode.isArray()) {
+            return List.of();
+        }
+        List<TestCaseStep> steps = new ArrayList<>();
+        int order = 0;
+        for (JsonNode item : stepsNode) {
+            steps.add(new TestCaseStep(
+                    UUID.randomUUID(),
+                    caseId,
+                    order++,
+                    textOrDefault(item.path("action"), "待补充操作"),
+                    textOrDefault(item.path("expectedResult"), "待补充预期")
+            ));
+        }
+        return steps;
     }
 
     private static String jsonString(Object value) {
@@ -2071,6 +2653,24 @@ public class AssetService {
         AssetApi api = repository.api(apiId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "API不存在: " + apiId));
         ensureSameProject("API", api.id(), api.projectId(), projectId);
+    }
+
+    private void validatePageBelongsToProject(UUID pageId, String projectId) {
+        if (pageId == null) {
+            return;
+        }
+        AssetPage page = repository.page(pageId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "页面资产不存在: " + pageId));
+        ensureSameProject("页面", page.id(), page.projectId(), projectId);
+    }
+
+    private void validateBusinessFlowBelongsToProject(UUID flowId, String projectId) {
+        if (flowId == null) {
+            return;
+        }
+        AssetBusinessFlow flow = repository.businessFlow(flowId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "业务流资产不存在: " + flowId));
+        ensureSameProject("业务流", flow.id(), flow.projectId(), projectId);
     }
 
     private void validateTestCaseBelongsToProject(UUID caseId, String projectId) {

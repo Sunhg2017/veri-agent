@@ -25,6 +25,7 @@ import {
   fetchAssetHealth,
   fetchAssetPage,
   fetchAssetPages,
+  syncPrototypePages,
   updateAssetBusinessFlow,
   updateAssetPage,
   type AssetBusinessFlowFilters,
@@ -33,7 +34,9 @@ import {
   type AssetHealth,
   type AssetPageFilters,
   type AssetPagePayload,
-  type AssetPageView
+  type AssetPageView,
+  type AssetPrototypeSyncPagePayload,
+  type AssetPrototypeSyncResult
 } from '../api/assets';
 import { hasPermission } from '../permissions';
 
@@ -94,11 +97,29 @@ type StructuredDraft = {
   jsonText: string;
 };
 
+type PrototypeSyncDraft = {
+  projectId: string;
+  source: string;
+  connectorRef: string;
+  sourceVersion: string;
+  dryRun: boolean;
+  pagesJson: string;
+};
+
 const initialFilters: StructuredFilters = {
   projectId: '',
   status: '',
   source: '',
   keyword: ''
+};
+
+const initialPrototypeSyncDraft: PrototypeSyncDraft = {
+  projectId: '',
+  source: 'FIGMA',
+  connectorRef: '',
+  sourceVersion: '',
+  dryRun: true,
+  pagesJson: ''
 };
 
 const pageStatusTransitions: Record<string, string[]> = {
@@ -132,6 +153,9 @@ export function AssetStructuredWorkbench(props: {
   const [detailState, setDetailState] = useState<WorkState>({ loading: false });
   const [createState, setCreateState] = useState<WorkState>({ loading: false });
   const [mutationState, setMutationState] = useState<WorkState>({ loading: false });
+  const [prototypeSyncDraft, setPrototypeSyncDraft] = useState<PrototypeSyncDraft>(initialPrototypeSyncDraft);
+  const [prototypeSyncState, setPrototypeSyncState] = useState<WorkState>({ loading: false });
+  const [prototypeSyncResult, setPrototypeSyncResult] = useState<AssetPrototypeSyncResult | null>(null);
 
   const meta = structuredMeta(props.activeTab);
 
@@ -146,6 +170,9 @@ export function AssetStructuredWorkbench(props: {
     setDetailState({ loading: false });
     setCreateState({ loading: false });
     setMutationState({ loading: false });
+    setPrototypeSyncDraft(initialPrototypeSyncDraft);
+    setPrototypeSyncState({ loading: false });
+    setPrototypeSyncResult(null);
   }, [props.activeTab]);
 
   useEffect(() => {
@@ -335,6 +362,52 @@ export function AssetStructuredWorkbench(props: {
       setMutationState({ loading: false, success: `${meta.name}已保存`, traceId: response.trace_id });
     } catch (error: unknown) {
       setMutationState({ loading: false, error: errorMessage(error, `${meta.name}保存失败`) });
+    }
+  }
+
+  async function submitPrototypeSync(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (props.activeTab !== 'pages') {
+      return;
+    }
+    if (!props.signedIn) {
+      setPrototypeSyncState({ loading: false, error: '请先登录后再同步原型' });
+      return;
+    }
+    if (!canManageAssets) {
+      setPrototypeSyncState({ loading: false, error: '缺少 asset:manage 权限' });
+      return;
+    }
+    if (!prototypeSyncDraft.projectId.trim() || !prototypeSyncDraft.pagesJson.trim()) {
+      setPrototypeSyncState({ loading: false, error: 'projectId 和 pages JSON 必填' });
+      return;
+    }
+    const pagesResult = parsePrototypePages(prototypeSyncDraft.pagesJson);
+    if (!pagesResult.ok) {
+      setPrototypeSyncState({ loading: false, error: pagesResult.error });
+      return;
+    }
+    setPrototypeSyncState({ loading: true });
+    try {
+      const response = await syncPrototypePages({
+        projectId: prototypeSyncDraft.projectId,
+        source: prototypeSyncDraft.source,
+        connectorRef: prototypeSyncDraft.connectorRef,
+        sourceVersion: prototypeSyncDraft.sourceVersion,
+        dryRun: prototypeSyncDraft.dryRun,
+        pages: pagesResult.value
+      });
+      setPrototypeSyncResult(response.data);
+      setPrototypeSyncState({
+        loading: false,
+        success: `${prototypeSyncDraft.dryRun ? '预检' : '同步'}完成：${response.data.created} 创建，${response.data.updated} 更新，${response.data.failed} 失败`,
+        traceId: response.trace_id
+      });
+      if (!prototypeSyncDraft.dryRun && response.data.failed === 0) {
+        void refreshAssets();
+      }
+    } catch (error: unknown) {
+      setPrototypeSyncState({ loading: false, error: errorMessage(error, '原型同步失败') });
     }
   }
 
@@ -541,6 +614,86 @@ export function AssetStructuredWorkbench(props: {
             </div>
           )}
         </section>
+
+        {props.activeTab === 'pages' && (
+          <section className="panel insight-panel">
+            <h2>原型同步</h2>
+            <form className="asset-form" onSubmit={submitPrototypeSync}>
+              <div className="asset-form-grid">
+                <label className="field" htmlFor="asset-prototype-project">
+                  <span>projectId</span>
+                  <input
+                    id="asset-prototype-project"
+                    value={prototypeSyncDraft.projectId}
+                    disabled={prototypeSyncState.loading}
+                    onChange={(event) => setPrototypeSyncDraft((current) => ({ ...current, projectId: event.target.value }))}
+                    placeholder="proj-payments"
+                  />
+                </label>
+                <label className="field" htmlFor="asset-prototype-source">
+                  <span>source</span>
+                  <select
+                    id="asset-prototype-source"
+                    value={prototypeSyncDraft.source}
+                    disabled={prototypeSyncState.loading}
+                    onChange={(event) => setPrototypeSyncDraft((current) => ({ ...current, source: event.target.value }))}
+                  >
+                    <option value="FIGMA">FIGMA</option>
+                    <option value="LANHU">LANHU</option>
+                    <option value="AXURE">AXURE</option>
+                  </select>
+                </label>
+                <label className="field" htmlFor="asset-prototype-version">
+                  <span>sourceVersion</span>
+                  <input
+                    id="asset-prototype-version"
+                    value={prototypeSyncDraft.sourceVersion}
+                    disabled={prototypeSyncState.loading}
+                    onChange={(event) => setPrototypeSyncDraft((current) => ({ ...current, sourceVersion: event.target.value }))}
+                    placeholder="v42"
+                  />
+                </label>
+                <label className="toggle-field" htmlFor="asset-prototype-dry-run">
+                  <input
+                    id="asset-prototype-dry-run"
+                    type="checkbox"
+                    checked={prototypeSyncDraft.dryRun}
+                    disabled={prototypeSyncState.loading}
+                    onChange={(event) => setPrototypeSyncDraft((current) => ({ ...current, dryRun: event.target.checked }))}
+                  />
+                  <span>dryRun</span>
+                </label>
+              </div>
+              <label className="field" htmlFor="asset-prototype-pages">
+                <span>pages</span>
+                <textarea
+                  id="asset-prototype-pages"
+                  className="compact-textarea schema-textarea"
+                  value={prototypeSyncDraft.pagesJson}
+                  disabled={prototypeSyncState.loading}
+                  onChange={(event) => setPrototypeSyncDraft((current) => ({ ...current, pagesJson: event.target.value }))}
+                />
+              </label>
+              <div className="document-actions">
+                <button
+                  className="primary-button"
+                  type="submit"
+                  disabled={!props.signedIn || !canManageAssets || prototypeSyncState.loading}
+                >
+                  <Save size={16} />
+                  {prototypeSyncDraft.dryRun ? '预检' : '同步'}
+                </button>
+              </div>
+            </form>
+            {prototypeSyncResult && (
+              <div className="asset-import-result">
+                <strong>{prototypeSyncResult.source}</strong>
+                <span>{prototypeSyncResult.totalRows} 页 · {prototypeSyncResult.created} 创建 · {prototypeSyncResult.updated} 更新 · {prototypeSyncResult.skipped} 跳过 · {prototypeSyncResult.failed} 失败</span>
+              </div>
+            )}
+            <StateLine state={prototypeSyncState} />
+          </section>
+        )}
 
         <section className="panel insight-panel asset-detail-panel">
           <div className="panel-title-row">
@@ -1016,6 +1169,21 @@ function parseJsonDraft(value: string, label: string): { ok: true; value?: unkno
     return { ok: true, value: JSON.parse(value) };
   } catch {
     return { ok: false, error: `${label} 必须是合法 JSON` };
+  }
+}
+
+function parsePrototypePages(value: string): { ok: true; value: AssetPrototypeSyncPagePayload[] } | { error: string; ok: false } {
+  try {
+    const parsed = JSON.parse(value);
+    if (Array.isArray(parsed)) {
+      return { ok: true, value: parsed as AssetPrototypeSyncPagePayload[] };
+    }
+    if (parsed && typeof parsed === 'object' && Array.isArray((parsed as { pages?: unknown }).pages)) {
+      return { ok: true, value: (parsed as { pages: AssetPrototypeSyncPagePayload[] }).pages };
+    }
+    return { ok: false, error: 'pages 必须是数组或包含 pages 数组的 JSON' };
+  } catch {
+    return { ok: false, error: 'pages 必须是合法 JSON' };
   }
 }
 

@@ -122,7 +122,7 @@ WP1、WP2、WP4 的当前 P0 口径已经基本收敛，后续以生产硬化、
 
 ## 6. WP3 资产管理待补任务
 
-WP3 是当前最需要补齐的工作包。后端已有需求、API、页面、业务流、测试用例、步骤和追踪链接基础 API，但还缺完整产品、契约和准出闭环。
+WP3 已完成资产库前后端主闭环，并在 2026-05-23 补齐历史版本回滚、前端导入导出工作流、后端聚合影响分析、页面/业务流追踪关系和标准化原型同步骨架。后续重点转向真实第三方账号连接器、可视化追踪编辑、多跳评分和测试执行结果闭环。
 
 ### WP3-A 交付文档与契约冻结
 
@@ -139,11 +139,13 @@ WP3 是当前最需要补齐的工作包。后端已有需求、API、页面、�
 |---|---|---|---|---|---|
 | WP3-B1 | 资产编码生成与唯一性策略 | P0-B | DONE-CURRENT | requirement/api/page/flow/testCase 已由服务端生成短 code，数据库保持 project+code 唯一约束 | db 和 local profile 行为一致，冲突返回稳定错误 |
 | WP3-B2 | 资产状态流和非法转换 | P0-B | DONE-CURRENT | 已冻结 DRAFT/REVIEWING/APPROVED/DEPRECATED 等状态流，并覆盖非法转换拒绝测试 | 非法转换阻断并写审计 |
-| WP3-B3 | 版本、历史和 diff | P1 | DONE-CURRENT | 需求/测试用例返回版本号；创建、编辑、WP4 DRAFT 幂等更新和步骤替换保存 append-only 历史、字段 diff、快照、变更人和 traceId；portal-web 详情页提供历史/diff 入口 | 需求和测试用例可通过 versions API 与前端详情页回看历史版本 |
+| WP3-B3 | 版本、历史、diff 和回滚 | P1 | DONE-CURRENT | 需求/测试用例返回版本号；创建、编辑、WP4 DRAFT 幂等更新、步骤替换和回滚保存 append-only 历史、字段 diff、快照、变更人和 traceId；portal-web 详情页提供历史/diff/rollback 入口 | 需求和测试用例可通过 versions API 回看历史版本，并通过 rollback API 回到历史快照且生成新的 `ROLLBACK` 历史记录 |
 | WP3-B4 | 软删除、归档和恢复策略 | P1 | DONE-CURRENT | 已为需求、API、页面、业务流和测试用例新增独立 `lifecycleStatus=ACTIVE/ARCHIVED/DELETED`、生命周期查询/更新 API、默认 ACTIVE 列表过滤、恢复唯一性冲突校验和需求/用例生命周期历史 | 删除不破坏 trace link 和审计追溯；`DELETED` 复用 `deleted_at` 释放现有 partial unique index，恢复冲突返回稳定错误 |
-| WP3-B5 | 导入/导出能力 | P1 | DONE | 已新增 `/api/v1/asset/imports` 与 `/api/v1/asset/exports`，支持需求、API、测试用例 CSV/JSON 导入导出，并支持 API 资产轻量 OpenAPI 导入导出；导入提供 `dryRun`、逐行 action/status/errors，导出仅输出业务字段不包含 traceId/snapshot/history | 导出脱敏，导入有 dryRun 和错误明细 |
+| WP3-B5 | 导入/导出能力和前端工作流 | P1 | DONE-CURRENT | 已新增 `/api/v1/asset/imports` 与 `/api/v1/asset/exports`，支持需求、API、测试用例 CSV/JSON 导入导出，并支持 API 资产轻量 OpenAPI 导入导出；导入提供 `dryRun`、逐行 action/status/errors，导出仅输出业务字段不包含 traceId/snapshot/history；portal-web 提供统一导入预检、正式导入和导出下载面板 | 导出脱敏，导入有 dryRun 和错误明细，前端按 `asset:manage/asset:export` 控制入口 |
 | WP3-B6 | API 资产 OpenAPI 导入 | P1 | DONE-CURRENT | OpenAPI 导入解析 `paths` 下的 path、method、summary、description、request/response schema 与 `info.version`，写入 API `source/sourceRef/version`；重复导入按 `projectId + path + httpMethod` 命中既有 API 后返回 `LINK_EXISTING` 或 `UPDATE` | 重复导入幂等更新同一接口，不重复创建；dryRun 可预览 create/update/link 结果 |
-| WP3-B7 | 页面资产原型输入预留 | P2 | DONE-CURRENT | 页面资产已为 Figma/蓝湖/Axure/手工来源保留 `sourceRef/sourceVersion/componentTree/screenshotUrl`，后端、DB validation、OpenAPI 契约和 portal-web 创建/编辑/详情已贯通；真实连接器仍归后续 P2 | 不实现真实连接器也不阻碍后续接入；页面可保存外部原型节点版本或导入批次版本 |
+| WP3-B7 | 页面资产原型输入与同步骨架 | P2 | DONE-CURRENT | 页面资产已为 Figma/蓝湖/Axure/手工来源保留 `sourceRef/sourceVersion/componentTree/screenshotUrl`；新增 `/api/v1/asset/prototype-sync`，支持标准化页面数组 dryRun、sourceRef 幂等创建/更新、逐行结果和审计；portal-web 页面资产页提供同步表单 | 无真实第三方凭据时也可同步外部导出的标准化页面数据；真实账号授权、分页拉取、远端删除语义和沙箱 smoke 后续按 P2 连接器专项扩展 |
+| WP3-B8 | 页面/业务流追踪关系 | P1 | DONE-CURRENT | trace link 创建、查询、响应 DTO 和 DB 索引已扩展 `pageId/flowId`；跨项目校验沿用现有 WP1 context；需求详情可展示 API/Page/Flow/Case 关系 | 需求可关联页面和业务流，查询可按 `pageId/flowId` 过滤，跨项目目标资产被拒绝 |
+| WP3-B9 | 后端聚合影响分析 | P1 | DONE-CURRENT | 新增 `GET /api/v1/asset/impact`，支持按项目或单个资产主体聚合需求、API、页面、业务流、测试用例节点，返回数量、节点列表、缺口和生成时间；契约测试固定入口 | 后端可直接返回包含 page/flow/case/API 的影响分析结果，前端 helper 可消费该契约 |
 
 ### WP3-C 权限、审计与上下文
 
@@ -159,11 +161,12 @@ WP3 是当前最需要补齐的工作包。后端已有需求、API、页面、�
 | 编号 | 任务 | 优先级 | 状态 | 工作内容 | 验收标准 |
 |---|---|---|---|---|---|
 | WP3-D1 | 资产库导航和路由 | P0-B | DONE-CURRENT | portal-web 已增加资产库入口、hash 深链和 P1 类型入口，并按 `asset:read` 展示 | 无权限用户不可访问；刷新和深链可用 |
-| WP3-D2 | 需求资产页面 | P0-B | DONE-CURRENT | 已实现需求列表、详情、创建、编辑、状态流入口和来源追踪展示 | WP4 发布的 IMPORT 需求可在页面查看 source/sourceRef/sourceUrl |
-| WP3-D3 | API 资产页面 | P1 | DONE-CURRENT | portal-web 已开放 API 资产页，支持列表、详情、创建、编辑、`method/path/status/source/keyword` 筛选、schema 展示和 OpenAPI 导入入口预留 | 接口路径和方法可筛选；创建/编辑走现有 WP3 API 资产契约，重复创建由后端唯一性约束阻断 |
-| WP3-D4 | 页面和业务流页面 | P1 | DONE-CURRENT | portal-web 已开放页面资产与业务流资产页，支持列表、详情、创建、编辑、`projectId/status/source/keyword` 筛选、JSON 预览和编辑校验；真实原型连接器与可视化流程画布仍不在本轮范围 | JSON 字段展示不撑破布局，编辑前校验合法 JSON，页面/流程创建编辑走现有 WP3 契约 |
-| WP3-D5 | 测试用例与步骤页面 | P1 | DONE-CURRENT | portal-web 已开放测试用例页，支持列表、详情、创建、编辑、状态筛选、关联需求/API 展示与跳转、步骤新增/删除/上移/下移和整体保存 | 步骤顺序稳定，保存失败保留本地编辑草稿，创建/编辑/步骤保存走现有 WP3 用例契约 |
-| WP3-D6 | 追踪矩阵和影响分析 | P1 | DONE-CURRENT | portal-web 已开放追踪矩阵页，基于现有需求/API/用例列表和 `/api/v1/asset/links` 做前端只读聚合，展示 requirement-api-case 覆盖状态、缺 API/用例缺口、孤立 API/用例和一跳影响范围 | 可按需求查看覆盖 API/用例，按 API/用例反查相关需求和用例；正式后端聚合影响分析服务仍作为后续增强 |
+| WP3-D2 | 需求资产页面 | P0-B | DONE-CURRENT | 已实现需求列表、详情、创建、编辑、状态流入口、来源追踪、历史版本查看和回滚 | WP4 发布的 IMPORT 需求可在页面查看 source/sourceRef/sourceUrl；需求可从历史版本回滚 |
+| WP3-D3 | API 资产页面 | P1 | DONE-CURRENT | portal-web 已开放 API 资产页，支持列表、详情、创建、编辑、`method/path/status/source/keyword` 筛选、schema 展示，并通过统一导入导出面板支持 OpenAPI 导入导出 | 接口路径和方法可筛选；OpenAPI 导入可预检和正式导入；重复创建由后端唯一性约束阻断 |
+| WP3-D4 | 页面和业务流页面 | P1 | DONE-CURRENT | portal-web 已开放页面资产与业务流资产页，支持列表、详情、创建、编辑、`projectId/status/source/keyword` 筛选、JSON 预览和编辑校验；页面资产页支持标准化原型同步表单 | JSON 字段展示不撑破布局，编辑前校验合法 JSON，页面/流程创建编辑走现有 WP3 契约，原型同步可 dryRun 并展示逐行结果 |
+| WP3-D5 | 测试用例与步骤页面 | P1 | DONE-CURRENT | portal-web 已开放测试用例页，支持列表、详情、创建、编辑、状态筛选、关联需求/API 展示与跳转、步骤新增/删除/上移/下移、整体保存、历史版本查看和回滚 | 步骤顺序稳定，保存失败保留本地编辑草稿，创建/编辑/步骤保存走现有 WP3 用例契约；用例可从历史版本回滚 |
+| WP3-D6 | 追踪矩阵和影响分析 | P1 | DONE-CURRENT | portal-web 已开放追踪矩阵页，基于现有需求/API/用例列表和 `/api/v1/asset/links` 做前端只读聚合，展示 requirement-api-case 覆盖状态、缺 API/用例缺口、孤立 API/用例和一跳影响范围；资产 API helper 已接入后端 `/impact` 聚合契约 | 可按需求查看覆盖 API/用例，按 API/用例反查相关需求和用例；后端影响分析已覆盖需求、API、页面、业务流、用例 |
+| WP3-D7 | 前端导入导出工作流 | P1 | DONE-CURRENT | 需求和测试用例工作台接入 `AssetImportExportPanel`，支持资产类型/格式/projectId/dryRun/内容输入、导入预检、正式导入、导出下载和 traceId 展示 | 无 `asset:manage` 不可导入，无 `asset:export` 不可导出；导入成功可刷新当前工作台 |
 
 ### WP3-E 质量门禁与集成
 
