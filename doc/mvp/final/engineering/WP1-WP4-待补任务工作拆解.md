@@ -118,7 +118,7 @@ WP1、WP2、WP4 的当前 P0 口径已经基本收敛，后续以生产硬化、
 |---|---|---|---|---|---|
 | WP2-D1 | 通用模型评测集框架 | P1 | DONE-CURRENT | 已新增测试侧 `ModelEvaluationRunner`、`wp2-model-eval/corpus.json` 和 `scripts/wp2_model_quality_eval.sh`，当前覆盖 `case-design`、`defect-triage`、`requirement-summary` 三类任务，并支持 `WP2_MODEL_EVAL_TASK` 按任务类型过滤 | Prompt 或 provider 变更可执行 `bash scripts/wp2_model_quality_eval.sh`，或用 `WP2_MODEL_EVAL_TASK=case-design` 跑单任务评测；低于 scenario pass、required term recall 或 forbidden term clean 阈值会失败 |
 | WP2-D2 | 流式响应支持 | P2 | DONE-CURRENT | 已新增 `POST /api/v1/model-access/invocations/stream` SSE 接口和 `portal-web` 流式消费 helper；MVP 先复用同步 invocation 的策略、预算、provider 调用和调用日志落盘，再按 `metadata/delta/done` 事件输出响应分片 | 同步 `POST /invocations` 契约不变；流式调用仍写入调用日志；真实 provider 原生 token streaming 作为后续增强 |
-| WP2-D3 | 异步长任务调用 | P2 | DONE-CURRENT | 已新增 `POST /api/v1/model-access/invocations/jobs`、`GET /api/v1/model-access/invocations/jobs/{jobId}` 和 `POST /api/v1/model-access/invocations/jobs/{jobId}/cancel`；MVP 使用单进程内存 job registry，复用同步 invocation 的策略、预算、provider 调用和调用日志落盘 | 任务可查询，未开始任务可稳定取消，运行中任务 best-effort 取消；成功/失败仍写入既有调用日志和 WP1 审计，持久化队列/分布式 worker 作为后续增强 |
+| WP2-D3 | 异步长任务调用 | P2 | DONE-CURRENT | 已新增 `POST /api/v1/model-access/invocations/jobs`、`GET /api/v1/model-access/invocations/jobs/{jobId}` 和 `POST /api/v1/model-access/invocations/jobs/{jobId}/cancel`；任务状态以 `ma_invocation_job` 持久化表和 repository 为状态源，复用 `ModelInvocationService` 的策略、预算、provider 调用和调用日志落盘；服务启动时重排 `QUEUED` 并将遗留 `RUNNING` 标记失败 | 任务可查询，未开始任务可稳定取消，运行中任务 best-effort 取消；成功/失败仍写入既有调用日志和 WP1 审计，单 JVM worker 可在重启后恢复队列状态；多实例分布式调度作为后续运行增强 |
 
 ## 6. WP3 资产管理待补任务
 

@@ -80,7 +80,7 @@ Provider 级生产保护默认关闭。设置 `WP2_PROVIDER_RATE_LIMIT_MAX_REQUE
 
 `POST /invocations/stream` 复用同步 `POST /invocations` 的请求体和校验链路。当前 MVP 不直接透传外部 provider 原生 token streaming，而是在 provider 调用成功、成本和调用日志已经确定后输出 `text/event-stream;charset=UTF-8`：`metadata` 事件包含 invocation、provider、token、cost 和 traceId 摘要，`delta` 事件承载响应分片，`done` 事件承载结束原因。这样可先保证策略、预算、审计、日志和前端消费契约稳定，后续再替换 provider 适配层为真实 token streaming。
 
-`POST /invocations/jobs` 同样复用同步 `POST /invocations` 的请求体、调用权限、策略、预算、provider 选择和调用日志链路。当前 MVP 使用 `platform-api` 单进程内存 job registry 和可配置工作线程：`WP2_ASYNC_JOB_WORKER_THREADS` 默认 2，`WP2_ASYNC_JOB_DISPATCH_DELAY_MS` 默认 0。任务状态独立于 invocation 日志状态，固定为 `QUEUED`、`RUNNING`、`SUCCEEDED`、`FAILED`、`CANCELLED`；成功或失败后仍由同步 invocation 逻辑写入 `SUCCEEDED`、`FAILED` 或 `BLOCKED` 调用日志和 WP1 审计。取消语义为 best-effort：未开始任务可稳定取消且不写调用日志，运行中任务会尝试 interrupt；如果 provider 调用已经完成，则查询会返回最终成功或失败结果。服务重启后内存 job 不保留，持久化任务表、分布式 worker、重试调度和对象存储大结果引用作为后续生产化增强。
+`POST /invocations/jobs` 同样复用同步 `POST /invocations` 的请求体、调用权限、策略、预算、provider 选择和调用日志链路。任务状态以 `ma_invocation_job` 持久化表和 repository 为状态源，可配置工作线程：`WP2_ASYNC_JOB_WORKER_THREADS` 默认 2，`WP2_ASYNC_JOB_DISPATCH_DELAY_MS` 默认 0。任务状态独立于 invocation 日志状态，固定为 `QUEUED`、`RUNNING`、`SUCCEEDED`、`FAILED`、`CANCELLED`；成功或失败后仍由同步 invocation 逻辑写入 `SUCCEEDED`、`FAILED` 或 `BLOCKED` 调用日志和 WP1 审计。取消语义为 best-effort：未开始任务可稳定取消且不写调用日志，运行中任务会尝试 interrupt；如果 provider 调用已经完成，则查询会返回最终成功或失败结果。服务启动时会重新调度持久化 `QUEUED` 任务，并把重启前遗留的 `RUNNING` 标记为失败；多实例分布式 worker、重试调度和对象存储大结果引用作为后续生产化增强。
 
 ## 4. 数据库交付
 
@@ -195,7 +195,7 @@ bash scripts/wp_all_integration_test.sh
 7. 已新增 WP2-C2 预算策略产品化，支持调用服务日预算、按 `actorService` 查询成本告警，以及 `BLOCK/FALLBACK` 超预算动作配置。
 8. 已新增 WP2-C4 Prompt 评审与审批，高风险 Prompt 需审批通过后激活，并在后端、DB 和 portal-web 管理台保留审批状态、审批人、审批时间和审批说明。
 9. 已新增 WP2-D2 流式响应支持，提供 `/invocations/stream` SSE 入口和 portal-web 解析/调用 helper，保持同步 invocation 契约、策略、预算和调用日志链路不变。
-10. 已新增 WP2-D3 异步长任务调用，提供 `/invocations/jobs` 提交、查询和取消 API 及 portal-web helper；当前为单进程内存 job registry，成功/失败复用既有 invocation 审计链路。
+10. 已新增 WP2-D3 异步长任务调用，提供 `/invocations/jobs` 提交、查询和取消 API 及 portal-web helper；任务状态已通过 `ma_invocation_job` 持久化，成功/失败复用既有 invocation 审计链路。
 
 ## 7. Provider 生产接入与密钥轮换
 

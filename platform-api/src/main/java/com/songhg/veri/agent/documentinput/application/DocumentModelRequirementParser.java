@@ -9,7 +9,7 @@ import com.songhg.veri.agent.documentinput.domain.DocumentSourceType;
 import com.songhg.veri.agent.documentinput.domain.ParsedRequirementDraft;
 import com.songhg.veri.agent.modelaccess.api.request.InvokeModelRequest;
 import com.songhg.veri.agent.modelaccess.api.response.InvokeModelResponse;
-import com.songhg.veri.agent.modelaccess.application.ModelAccessService;
+import com.songhg.veri.agent.modelaccess.application.ModelInvocationService;
 import com.songhg.veri.agent.modelaccess.domain.ChatMessage;
 import com.songhg.veri.agent.modelaccess.security.ServicePrincipal;
 import java.time.Instant;
@@ -26,18 +26,18 @@ public class DocumentModelRequirementParser {
 
     private static final UUID MODEL_MAPPING_ID = UUID.fromString("00000000-0000-0000-0000-0000000004a1");
 
-    private final ModelAccessService modelAccessService;
+    private final ModelInvocationService modelInvocationService;
     private final DocumentRequirementParser requirementParser;
     private final ObjectMapper objectMapper;
     private final DocumentInputProperties properties;
 
     public DocumentModelRequirementParser(
-            ModelAccessService modelAccessService,
+            ModelInvocationService modelInvocationService,
             DocumentRequirementParser requirementParser,
             ObjectMapper objectMapper,
             DocumentInputProperties properties
     ) {
-        this.modelAccessService = modelAccessService;
+        this.modelInvocationService = modelInvocationService;
         this.requirementParser = requirementParser;
         this.objectMapper = objectMapper;
         this.properties = properties;
@@ -57,7 +57,7 @@ public class DocumentModelRequirementParser {
         }
         InvokeModelResponse response = null;
         try {
-            response = modelAccessService.invoke(new InvokeModelRequest(
+            response = modelInvocationService.invoke(new InvokeModelRequest(
                     projectId,
                     null,
                     null,

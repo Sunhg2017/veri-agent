@@ -21,7 +21,7 @@
 | S6 / Q1 | SensitiveContentGuard 规则重复和 mask 顺序依赖 | 已完成 | 已在上一批统一规则源并增加直接单测 |
 | S7 | 资产批量操作资源级鉴权 | 已完成 | 新增 `ResourceScope` 资源级校验，AssetController 对项目级列表/导入/导出/同步/单资源操作按项目 scope 授权，并补充跨项目拒绝用例 |
 | S8 | 文档导入事务边界 | 已完成 | `DocumentInputService.importDocument/importMultipart` 增加事务边界 |
-| A1 | Service 单一职责拆分 | 进行中 | 已完成 WP3 `AssetService` 版本历史记录/查询职责拆分到 `AssetVersionHistoryService`，影响分析图遍历、缺口计算和节点映射拆分到 `AssetImpactAnalysisService`，资产导入导出编排、CSV/JSON/OpenAPI 编解码和导入计划拆分到 `AssetImportExportService`，原型页面同步计划/创建/更新职责拆分到 `AssetPrototypeSyncService`；已完成 WP2 同步模型调用的 Prompt 渲染、平台策略、路由、预算、fallback、调用记录和审计编排拆分到 `ModelInvocationService`；后续继续按 WP2/WP3/WP4 分模块拆分并保持接口兼容 |
+| A1 | Service 单一职责拆分 | 进行中 | 已完成 WP3 `AssetService` 版本历史记录/查询职责拆分到 `AssetVersionHistoryService`，影响分析图遍历、缺口计算和节点映射拆分到 `AssetImpactAnalysisService`，资产导入导出编排、CSV/JSON/OpenAPI 编解码和导入计划拆分到 `AssetImportExportService`，原型页面同步计划/创建/更新职责拆分到 `AssetPrototypeSyncService`；已完成 WP2 同步模型调用的 Prompt 渲染、平台策略、路由、预算、fallback、调用记录和审计编排拆分到 `ModelInvocationService`，并让 WP4 AI 解析直接复用该统一调用编排；后续继续按 WP2/WP3/WP4 分模块拆分并保持接口兼容 |
 | A2 | 贫血领域模型治理 | 已完成 | 已将 WP3 需求/测试用例评审状态集合与转换规则迁入 `AssetReviewStatus`，将资产生命周期归一化与转换规则迁入 `AssetLifecycleStatus`/`LifecycleManagedAsset`，并将版本初始值、递增和历史版本匹配规则迁入 `AssetVersion`/`VersionedAsset` |
 | A3 | 统一权限注解/AOP | 已完成 | 新增 `@RequirePermission` 注解和 AOP 切面；ModelAccessController、DocumentInputController 的普通权限入口改为注解校验；AssetController 保留资源级 `ResourceScope` 显式校验但不再直接读取 `SecurityContextHolder` |
 | A4 / Q8 / T3 | local/db profile 行为差异与 db 测试不足 | 已完成 | 新增 PostgreSQL Testcontainers db-profile 契约测试，覆盖 Postgres AuthSessionStore、ModelAccessRepository、AssetRepository 的真实迁移、mapper、约束、分页和事务回滚路径 |
@@ -53,7 +53,7 @@
 
 ### 剩余专项优先级
 
-1. 架构治理专项：A1，按模块逐步拆分并保持接口兼容；已推进 WP3 版本历史、影响分析、资产导入导出、原型同步职责拆分，以及 WP2 模型同步调用编排拆分；后续继续拆分 DocumentInputService、PostgresManagementWorkspaceService 等高耦合路径。
+1. 架构治理专项：A1，按模块逐步拆分并保持接口兼容；已推进 WP3 版本历史、影响分析、资产导入导出、原型同步职责拆分，以及 WP2 模型同步调用编排拆分；WP4 AI 解析已直接依赖 `ModelInvocationService`，后续继续拆分 DocumentInputService、PostgresManagementWorkspaceService 等高耦合路径。
 2. 运行治理专项：暂无独立剩余项；后续按生产部署形态继续观察 Redis 可用性和网关限流策略。
 
 ## 一、安全风险 (Security)

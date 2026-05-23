@@ -59,7 +59,7 @@
 
 ### 3.1.1 C 线：AI 文档解析 MVP
 
-AI 解析只通过 WP2 `ModelAccessService`，不在 WP4 直连外部模型 SDK。`WP4_MODEL_PARSE_ENABLED` 开启后，文本、Markdown 和 `CUSTOM_API` 导入调用默认 Prompt key `wp4-document-requirement-parse`，模型结果以 `parseSource=MODEL` 保存到候选项，并返回 `modelInvocationId`、`modelProviderName`、`modelName` 供前端和审计追踪。
+AI 解析只通过 WP2 `ModelInvocationService` 统一调用编排，不在 WP4 直连外部模型 SDK。`WP4_MODEL_PARSE_ENABLED` 开启后，文本、Markdown 和 `CUSTOM_API` 导入调用默认 Prompt key `wp4-document-requirement-parse`，模型结果以 `parseSource=MODEL` 保存到候选项，并返回 `modelInvocationId`、`modelProviderName`、`modelName` 供前端和审计追踪。
 
 模型解析策略为“模型优先、规则补缺、失败兜底”：模型成功时按标题去重合并规则解析结果；WP2 敏感内容阻断、策略阻断、预算超限、供应商不可用或响应不可解析时，若规则解析已有结果，则导入仍成功并记录 fallback 审计与 `veri.agent.document_input.model_parse` 指标；若规则和模型均无结果，则导入失败并保留错误摘要。
 
