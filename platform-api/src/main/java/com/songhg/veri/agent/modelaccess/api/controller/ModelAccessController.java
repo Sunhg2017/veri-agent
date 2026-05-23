@@ -10,6 +10,7 @@ import com.songhg.veri.agent.common.trace.TraceContext;
 import com.songhg.veri.agent.modelaccess.application.InvocationQuery;
 import com.songhg.veri.agent.modelaccess.application.ModelAccessService;
 import com.songhg.veri.agent.modelaccess.application.ModelInvocationJobService;
+import com.songhg.veri.agent.modelaccess.application.ModelInvocationService;
 import com.songhg.veri.agent.modelaccess.api.request.CreatePromptRequest;
 import com.songhg.veri.agent.modelaccess.api.request.CreateProviderRequest;
 import com.songhg.veri.agent.modelaccess.api.request.InvocationPageRequest;
@@ -67,6 +68,7 @@ public class ModelAccessController {
     private static final int STREAM_CHUNK_CODE_POINTS = 48;
 
     private final ModelAccessService service;
+    private final ModelInvocationService invocationService;
     private final ModelInvocationJobService jobService;
     private final AuthorizationService authorizationService;
     private final AuditLogWriter auditLogWriter;
@@ -74,12 +76,14 @@ public class ModelAccessController {
 
     public ModelAccessController(
             ModelAccessService service,
+            ModelInvocationService invocationService,
             ModelInvocationJobService jobService,
             AuthorizationService authorizationService,
             AuditLogWriter auditLogWriter,
             ObjectMapper objectMapper
     ) {
         this.service = service;
+        this.invocationService = invocationService;
         this.jobService = jobService;
         this.authorizationService = authorizationService;
         this.auditLogWriter = auditLogWriter;
@@ -210,7 +214,7 @@ public class ModelAccessController {
     public InvokeModelResponse invoke(
             @Valid @RequestBody InvokeModelRequest request
     ) {
-        return service.invoke(request, invocationPrincipal());
+        return invocationService.invoke(request, invocationPrincipal());
     }
 
     @PostMapping(value = "/invocations/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
@@ -225,7 +229,7 @@ public class ModelAccessController {
     public ResponseEntity<StreamingResponseBody> invokeStream(
             @Valid @RequestBody InvokeModelRequest request
     ) {
-        InvokeModelResponse response = service.invoke(request, invocationPrincipal());
+        InvokeModelResponse response = invocationService.invoke(request, invocationPrincipal());
         String traceId = TraceContext.getTraceId();
         return ResponseEntity.ok()
                 .contentType(new MediaType(MediaType.TEXT_EVENT_STREAM, StandardCharsets.UTF_8))

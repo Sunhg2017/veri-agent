@@ -30,7 +30,7 @@ public class ModelInvocationJobService {
     private static final String CANCEL_REQUESTED_CODE = "CANCEL_REQUESTED";
     private static final String WORKER_RESTARTED_CODE = "WORKER_RESTARTED";
 
-    private final ModelAccessService modelAccessService;
+    private final ModelInvocationService invocationService;
     private final ModelAccessProperties properties;
     private final ModelInvocationJobRepository repository;
     private final ObjectMapper objectMapper;
@@ -38,12 +38,12 @@ public class ModelInvocationJobService {
     private final Map<UUID, ScheduledFuture<?>> futures = new ConcurrentHashMap<>();
 
     public ModelInvocationJobService(
-            ModelAccessService modelAccessService,
+            ModelInvocationService invocationService,
             ModelAccessProperties properties,
             ModelInvocationJobRepository repository,
             ObjectMapper objectMapper
     ) {
-        this.modelAccessService = modelAccessService;
+        this.invocationService = invocationService;
         this.properties = properties;
         this.repository = repository;
         this.objectMapper = objectMapper;
@@ -137,7 +137,7 @@ public class ModelInvocationJobService {
         try {
             TraceContext.setTraceId(job.traceId());
             MDC.put(TraceContext.MDC_TRACE_ID, job.traceId());
-            InvokeModelResponse response = modelAccessService.invoke(request(job), principal(job));
+            InvokeModelResponse response = invocationService.invoke(request(job), principal(job));
             repository.markSucceeded(jobId, Instant.now(), response, json(response));
         } catch (RuntimeException exception) {
             repository.markFailed(jobId, Instant.now(), errorCode(exception), exception.getMessage());
