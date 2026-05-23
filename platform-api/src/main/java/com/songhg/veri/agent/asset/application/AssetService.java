@@ -106,6 +106,7 @@ public class AssetService {
     private final AssetImpactAnalysisService impactAnalysisService;
     private final AssetPrototypeSyncService prototypeSyncService;
     private final AssetTraceLinkService traceLinkService;
+    private final AssetTestCaseStepService testCaseStepService;
 
     public AssetService(AssetRepository repository, PlatformContextClient contextClient) {
         this(repository, contextClient, new ObjectMapper().findAndRegisterModules());
@@ -119,7 +120,12 @@ public class AssetService {
                 new AssetVersionHistoryService(repository, objectMapper),
                 new AssetImpactAnalysisService(repository, contextClient),
                 new AssetPrototypeSyncService(repository, contextClient, objectMapper),
-                new AssetTraceLinkService(repository, contextClient)
+                new AssetTraceLinkService(repository, contextClient),
+                new AssetTestCaseStepService(
+                        repository,
+                        contextClient,
+                        new AssetVersionHistoryService(repository, objectMapper)
+                )
         );
     }
 
@@ -131,7 +137,8 @@ public class AssetService {
             AssetVersionHistoryService versionHistoryService,
             AssetImpactAnalysisService impactAnalysisService,
             AssetPrototypeSyncService prototypeSyncService,
-            AssetTraceLinkService traceLinkService
+            AssetTraceLinkService traceLinkService,
+            AssetTestCaseStepService testCaseStepService
     ) {
         this.repository = repository;
         this.contextClient = contextClient;
@@ -140,6 +147,7 @@ public class AssetService {
         this.impactAnalysisService = impactAnalysisService;
         this.prototypeSyncService = prototypeSyncService;
         this.traceLinkService = traceLinkService;
+        this.testCaseStepService = testCaseStepService;
     }
 
     public String resolveProjectScopeId(String projectId) {
@@ -993,51 +1001,12 @@ public class AssetService {
     // ---- Test Case Steps ----
 
     public List<TestCaseStepResponse> listTestCaseSteps(UUID caseId) {
-        getTestCase(caseId);
-        List<TestCaseStep> steps = repository.testCaseSteps(caseId);
-        return steps.stream()
-                .sorted(Comparator.comparingInt(TestCaseStep::stepOrder))
-                .map(s -> new TestCaseStepResponse(s.stepOrder(), s.action(), s.expectedResult()))
-                .toList();
+        return testCaseStepService.listTestCaseSteps(caseId);
     }
 
     @Transactional
     public List<TestCaseStepResponse> updateTestCaseSteps(UUID caseId, UpdateTestCaseStepsRequest request) {
-        TestCaseRecord existing = repository.testCase(caseId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "测试用例不存在: " + caseId));
-        List<TestCaseStep> steps = new java.util.ArrayList<>();
-        for (int i = 0; i < request.steps().size(); i++) {
-            UpdateTestCaseStepsRequest.StepItem item = request.steps().get(i);
-            steps.add(new TestCaseStep(UUID.randomUUID(), caseId, i, item.action(), item.expectedResult()));
-        }
-        writeProjectAudit("UPDATE", "TEST_CASE_STEPS", caseId, existing.projectId());
-        Instant now = Instant.now();
-        TestCaseRecord updated = new TestCaseRecord(
-                existing.id(),
-                existing.code(),
-                existing.title(),
-                existing.description(),
-                existing.projectId(),
-                existing.requirementId(),
-                existing.apiId(),
-                existing.source(),
-                existing.sourceRef(),
-                existing.status(),
-                existing.priority(),
-                existing.tags(),
-                steps,
-                existing.nextVersion(),
-                existing.lifecycleStatus(),
-                existing.archivedAt(),
-                existing.deletedAt(),
-                existing.createdAt(),
-                now
-        );
-        TestCaseRecord stored = repository.saveTestCase(updated);
-        versionHistoryService.recordTestCaseChange(existing, stored, "STEPS_UPDATE");
-        return steps.stream()
-                .map(s -> new TestCaseStepResponse(s.stepOrder(), s.action(), s.expectedResult()))
-                .toList();
+        return testCaseStepService.updateTestCaseSteps(caseId, request);
     }
 
     // ---- Trace Links ----
