@@ -8,7 +8,6 @@ import com.songhg.veri.agent.common.api.PageResponse;
 import com.songhg.veri.agent.common.audit.AuditLogWriter;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
-import com.songhg.veri.agent.common.secret.LocalSecretCipher;
 import com.songhg.veri.agent.common.secret.SecretProviderProperties;
 import com.songhg.veri.agent.common.trace.TraceContext;
 import com.songhg.veri.agent.management.api.response.ApplicationView;
@@ -54,12 +53,8 @@ import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRo
 import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows.DepartmentRef;
 import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows.EnvironmentConnectivityTargetRow;
 import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows.EnvironmentRef;
-import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows.IntegrationRow;
 import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows.ProjectRef;
 import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows.RoleRow;
-import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows.SecretProviderRow;
-import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows.SecretReferenceRow;
-import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows.SettingRow;
 import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapper;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -87,7 +82,9 @@ public class PostgresManagementWorkspaceService implements ManagementWorkspaceSe
     private final PostgresManagementDeniedAuditRecorder deniedAuditRecorder;
     private final EnvironmentConnectivityChecker connectivityChecker;
     private final ObjectMapper objectMapper;
-    private final SecretProviderProperties secretProviderProperties;
+    private final PostgresManagementAuditQueryService auditQueryService;
+    private final PostgresManagementConfigService configService;
+    private final PostgresManagementSecretReferenceService secretReferenceService;
 
     public PostgresManagementWorkspaceService(
             ManagementMapper mapper,
@@ -104,7 +101,13 @@ public class PostgresManagementWorkspaceService implements ManagementWorkspaceSe
         this.deniedAuditRecorder = deniedAuditRecorder;
         this.connectivityChecker = connectivityChecker;
         this.objectMapper = objectMapper;
-        this.secretProviderProperties = secretProviderProperties;
+        this.auditQueryService = new PostgresManagementAuditQueryService(mapper, auditLogWriter);
+        this.configService = new PostgresManagementConfigService(mapper, auditLogWriter);
+        this.secretReferenceService = new PostgresManagementSecretReferenceService(
+                mapper,
+                auditLogWriter,
+                secretProviderProperties
+        );
     }
 
     @Override
@@ -730,251 +733,96 @@ public class PostgresManagementWorkspaceService implements ManagementWorkspaceSe
 
     @Override
     public PageResponse<IntegrationView> integrations(PageQuery pageQuery) {
-        return page(mapper::listIntegrations, mapper::countIntegrations, pageQuery, values());
+        return configService.integrations(pageQuery);
     }
 
     @Override
     public IntegrationView integration(String key) {
-        return integrationView(integrationRow(key));
+        return configService.integration(key);
     }
 
     @Override
     @Transactional
     public IntegrationView createIntegration(CreateIntegrationRequest request, AuthUserPrincipal actor) {
-        String key = integrationKey(request.code());
-        if (key.isBlank()) {
-            key = nextCode("integration");
-        }
-        String name = defaultText(request.name(), key);
-        String category = defaultText(request.category(), "未分类");
-        String scope = defaultText(request.scope(), "平台级");
-        String configKey = integrationConfigKey(key);
-        try {
-            update(mapper::insertConfig, actor, values(
-                    "scopeType", "SYSTEM",
-                    "configKey", configKey,
-                    "valueJson", integrationJson(name, category, scope)
-            ));
-        } catch (DuplicateKeyException ex) {
-            throw new BusinessException(ErrorCode.CONFLICT, "集成配置已存在");
-        }
-        IntegrationView created = integrationView(integrationRow(key));
-        audit(actor, "登记集成", "integration", configKey, created.name());
-        return created;
+        return configService.createIntegration(request, actor);
     }
 
     @Override
     @Transactional
     public IntegrationView updateIntegration(String key, UpdateIntegrationRequest request, AuthUserPrincipal actor) {
-        IntegrationRow current = integrationRow(key);
-        String name = defaultText(request.name(), current.name());
-        String category = defaultText(request.category(), current.category());
-        String scope = defaultText(request.scope(), current.scope());
-        update(mapper::updateIntegration, actor, values(
-                "configKey", current.configKey(),
-                "valueJson", integrationJson(name, category, scope)
-        ));
-        IntegrationView updated = integrationView(integrationRow(current.key()));
-        audit(actor, "更新集成", "integration", current.configKey(), updated.name());
-        return updated;
+        return configService.updateIntegration(key, request, actor);
     }
 
     @Override
     @Transactional
     public IntegrationView changeIntegrationStatus(String key, String status, AuthUserPrincipal actor) {
-        if (!List.of("ENABLED", "DISABLED").contains(status)) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "集成配置状态只支持 ENABLED 或 DISABLED");
-        }
-        IntegrationRow current = integrationRow(key);
-        update(mapper::changeConfigStatus, actor, values("configKey", current.configKey(), "status", status));
-        IntegrationView updated = integrationView(integrationRow(current.key()));
-        audit(actor, "ENABLED".equals(status) ? "启用集成" : "停用集成", "integration", current.configKey(), updated.name());
-        return updated;
+        return configService.changeIntegrationStatus(key, status, actor);
     }
 
     @Override
     public PageResponse<AuditLogView> auditLogs(PageQuery pageQuery, AuditLogQuery query, AuthUserPrincipal actor) {
-        Map<String, Object> params = auditParams(pageQuery, query, actor);
-        List<AuditLogView> items = mapper.listAuditLogs(params);
-        long total = mapper.countAuditLogs(params);
-        return PageResponse.of(items, pageQuery.index(), pageQuery.size(), total);
+        return auditQueryService.auditLogs(pageQuery, query, actor);
     }
 
     @Override
     public String exportAuditLogsCsv(AuditLogQuery query, AuthUserPrincipal actor) {
-        PageQuery exportPage = PageQuery.of(0, 100);
-        PageResponse<AuditLogView> page = auditLogs(exportPage, query, actor);
-        StringBuilder csv = new StringBuilder("time,actor,action,target,result\n");
-        page.items().forEach(item -> {
-            appendCsvValue(csv, item.time());
-            appendCsvValue(csv, item.actor());
-            appendCsvValue(csv, item.action());
-            appendCsvValue(csv, item.target());
-            appendCsvValue(csv, item.result());
-            csv.setLength(csv.length() - 1);
-            csv.append('\n');
-        });
-        audit(actor, "导出审计", "audit_log", "audit_export", "审计日志导出");
-        return csv.toString();
+        return auditQueryService.exportAuditLogsCsv(query, actor);
     }
 
     @Override
     public PageResponse<AuditOutboxView> auditOutbox(PageQuery pageQuery, AuditOutboxQuery query, AuthUserPrincipal actor) {
-        Map<String, Object> params = auditOutboxParams(pageQuery, query);
-        List<AuditOutboxView> items = mapper.listAuditOutbox(params);
-        long total = mapper.countAuditOutbox(params);
-        return PageResponse.of(items, pageQuery.index(), pageQuery.size(), total);
+        return auditQueryService.auditOutbox(pageQuery, query);
     }
 
     @Override
     public PageResponse<SettingView> settings(PageQuery pageQuery) {
-        PageResponse<SettingRow> rows = page(mapper::listSettings, mapper::countSettings, pageQuery, values());
-        return PageResponse.of(rows.items().stream().map(this::settingView).toList(), pageQuery.index(), pageQuery.size(), rows.total());
+        return configService.settings(pageQuery);
     }
 
     @Override
     public SettingView setting(String key) {
-        return settingView(settingRow(key));
+        return configService.setting(key);
     }
 
     @Override
     @Transactional
     public SettingView createSetting(CreateSettingRequest request, AuthUserPrincipal actor) {
-        String key = normalizeSearch(request.key());
-        rejectSensitivePlainSetting(key, request.value());
-        String scopeType = defaultText(request.scopeType(), "SYSTEM");
-        String name = defaultText(request.name(), settingName(key));
-        try {
-            update(mapper::insertConfig, actor, values(
-                    "scopeType", scopeType,
-                    "configKey", key,
-                    "valueJson", settingJson(name, request.value().trim())
-            ));
-        } catch (DuplicateKeyException ex) {
-            throw new BusinessException(ErrorCode.CONFLICT, "系统设置已存在");
-        }
-        SettingView created = settingView(settingRow(key));
-        audit(actor, "创建设置", "config", key, created.name());
-        return created;
+        return configService.createSetting(request, actor);
     }
 
     @Override
     @Transactional
     public SettingView updateSetting(String key, UpdateSettingRequest request, AuthUserPrincipal actor) {
-        SettingRow current = settingRow(key);
-        SettingView currentView = settingView(current);
-        String name = defaultText(request.name(), currentView.name());
-        String value = defaultText(request.value(), currentView.value());
-        rejectSensitivePlainSetting(currentView.key(), value);
-        String scopeType = defaultText(request.scopeType(), current.scopeType());
-        update(mapper::updateSetting, actor, values(
-                "scopeType", scopeType,
-                "configKey", current.configKey(),
-                "valueJson", settingJson(name, value)
-        ));
-        SettingView updated = settingView(settingRow(current.configKey()));
-        audit(actor, "更新设置", "config", current.configKey(), updated.name());
-        return updated;
+        return configService.updateSetting(key, request, actor);
     }
 
     @Override
     @Transactional
     public SettingView changeSettingStatus(String key, String status, AuthUserPrincipal actor) {
-        if (!List.of("ENABLED", "DISABLED").contains(status)) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "系统设置状态只支持 ENABLED 或 DISABLED");
-        }
-        SettingRow current = settingRow(key);
-        update(mapper::changeConfigStatus, actor, values("status", status, "configKey", current.configKey()));
-        SettingView updated = settingView(settingRow(current.configKey()));
-        audit(actor, "ENABLED".equals(status) ? "启用设置" : "停用设置", "config", current.configKey(), updated.name());
-        return updated;
+        return configService.changeSettingStatus(key, status, actor);
     }
 
     @Override
     public PageResponse<SecretReferenceView> secrets(PageQuery pageQuery) {
-        return page(mapper::listSecretReferences, mapper::countSecretReferences, pageQuery, values());
+        return secretReferenceService.secrets(pageQuery);
     }
 
     @Override
     @Transactional
     public SecretReferenceView createSecret(CreateSecretReferenceRequest request, AuthUserPrincipal actor) {
-        String secretRef = request.secretRef().trim();
-        String providerCode = defaultText(request.providerCode(), "");
-        SecretProviderRow provider = requireOne(
-                mapper::findSecretProviderForManage,
-                values("providerCode", providerCode),
-                "密钥提供方不存在"
-        );
-        ensureLocalProvider(provider);
-        UUID secretRefId = UUID.randomUUID();
-        LocalSecretCipher.EncryptedMaterial material = LocalSecretCipher.encrypt(request.value(), secretProviderProperties);
-        String secretVersion = defaultText(request.secretVersion(), "v1");
-        try {
-            update(mapper::insertSecretReference, actor, values(
-                    "secretRefId", secretRefId,
-                    "providerId", provider.id(),
-                    "secretRef", secretRef,
-                    "scopeType", request.scopeType().trim(),
-                    "scopeId", request.scopeId(),
-                    "purpose", request.purpose().trim(),
-                    "maskedValue", maskedSecret(),
-                    "secretVersion", secretVersion,
-                    "expiresAt", request.expiresAt()
-            ));
-            update(mapper::insertSecretLocalStore, actor, values(
-                    "secretRefId", secretRefId,
-                    "cipherText", material.cipherText(),
-                    "iv", material.iv(),
-                    "authTag", material.authTag(),
-                    "algorithm", material.algorithm(),
-                    "masterKeyVersion", material.masterKeyVersion()
-            ));
-        } catch (DuplicateKeyException exception) {
-            throw new BusinessException(ErrorCode.CONFLICT, "密钥引用已存在");
-        }
-        SecretReferenceView created = secretReferenceByRef(secretRef);
-        audit(actor, "创建密钥引用", "secret_reference", created.id(), created.secretRef());
-        return created;
+        return secretReferenceService.createSecret(request, actor);
     }
 
     @Override
     @Transactional
     public SecretReferenceView rotateSecret(RotateSecretReferenceRequest request, AuthUserPrincipal actor) {
-        SecretReferenceRow current = secretReferenceRow(request.secretRef());
-        ensureLocalProvider(current);
-        if (!"ACTIVE".equals(current.status())) {
-            throw new BusinessException(ErrorCode.INVALID_STATE, "只有 ACTIVE 密钥可轮换");
-        }
-        LocalSecretCipher.EncryptedMaterial material = LocalSecretCipher.encrypt(request.value(), secretProviderProperties);
-        String nextVersion = defaultText(request.secretVersion(), nextSecretVersion(current.secretVersion()));
-        update(mapper::updateSecretReferenceRotation, actor, values(
-                "secretRefId", current.id(),
-                "secretVersion", nextVersion,
-                "maskedValue", maskedSecret(),
-                "expiresAt", request.expiresAt()
-        ));
-        update(mapper::upsertSecretLocalStoreRotation, actor, values(
-                "secretRefId", current.id(),
-                "cipherText", material.cipherText(),
-                "iv", material.iv(),
-                "authTag", material.authTag(),
-                "algorithm", material.algorithm(),
-                "masterKeyVersion", material.masterKeyVersion()
-        ));
-        SecretReferenceView updated = secretReferenceByRef(current.secretRef());
-        audit(actor, "轮换密钥引用", "secret_reference", updated.id(), updated.secretRef());
-        return updated;
+        return secretReferenceService.rotateSecret(request, actor);
     }
 
     @Override
     @Transactional
     public SecretReferenceView disableSecret(DisableSecretReferenceRequest request, AuthUserPrincipal actor) {
-        SecretReferenceRow current = secretReferenceRow(request.secretRef());
-        update(mapper::revokeSecretReference, actor, values("secretRefId", current.id()));
-        update(mapper::revokeSecretLocalStore, actor, values("secretRefId", current.id()));
-        SecretReferenceView updated = secretReferenceByRef(current.secretRef());
-        audit(actor, "撤销密钥引用", "secret_reference", updated.id(), updated.secretRef());
-        return updated;
+        return secretReferenceService.disableSecret(request, actor);
     }
 
     private void insertProjectOwner(UUID projectId, AuthUserPrincipal actor) {
@@ -1181,12 +1029,6 @@ public class PostgresManagementWorkspaceService implements ManagementWorkspaceSe
         ));
     }
 
-    private void appendCsvValue(StringBuilder csv, Object value) {
-        String raw = value == null ? "" : String.valueOf(value);
-        String escaped = raw.replace("\"", "\"\"");
-        csv.append('"').append(escaped).append('"').append(',');
-    }
-
     /**
      * Write a change audit event with before/after JSON for change tracking.
      * This enables the PRD-required "变更前摘要" and "变更后摘要" in audit logs.
@@ -1239,57 +1081,6 @@ public class PostgresManagementWorkspaceService implements ManagementWorkspaceSe
         return search == null ? "" : search.trim();
     }
 
-    private String normalizeAuditResult(String result) {
-        return switch (normalizeSearch(result).toUpperCase()) {
-            case "成功", "SUCCESS" -> "SUCCESS";
-            case "拒绝", "DENIED" -> "DENIED";
-            case "失败", "FAILED" -> "FAILED";
-            default -> normalizeSearch(result).toUpperCase();
-        };
-    }
-
-    private IntegrationRow integrationRow(String key) {
-        return requireOne(mapper::findIntegrationRow, values("key", normalizeSearch(key)), "集成配置不存在");
-    }
-
-    private SettingRow settingRow(String key) {
-        return requireOne(mapper::findSettingRow, values("key", normalizeSearch(key)), "系统设置不存在");
-    }
-
-    private SecretReferenceRow secretReferenceRow(String secretRef) {
-        return requireOne(mapper::findSecretReferenceRow, values("secretRef", normalizeSearch(secretRef)), "密钥引用不存在");
-    }
-
-    private SecretReferenceView secretReferenceByRef(String secretRef) {
-        return requireOne(mapper::findSecretReferenceView, values("secretRef", normalizeSearch(secretRef)), "密钥引用不存在");
-    }
-
-    private void ensureLocalProvider(SecretProviderRow provider) {
-        if (!"LOCAL_ENCRYPTED".equals(provider.providerType()) || !"ENABLED".equals(provider.status())) {
-            throw new BusinessException(ErrorCode.INVALID_STATE, "当前密钥提供方不支持本地写入和轮换");
-        }
-    }
-
-    private void ensureLocalProvider(SecretReferenceRow secret) {
-        if (!"LOCAL_ENCRYPTED".equals(secret.providerType())) {
-            throw new BusinessException(ErrorCode.INVALID_STATE, "当前密钥引用不支持本地轮换");
-        }
-    }
-
-    private IntegrationView integrationView(IntegrationRow row) {
-        return new IntegrationView(row.key(), row.name(), row.category(), row.scope(), row.status());
-    }
-
-    private SettingView settingView(SettingRow row) {
-        return new SettingView(
-                row.configKey(),
-                defaultText(row.displayName(), settingName(row.configKey())),
-                row.value(),
-                scopeName(row.scopeType()),
-                row.status()
-        );
-    }
-
     private EnvironmentConnectivityCheckView environmentConnectivityCheckView(EnvironmentConnectivityTargetRow row) {
         String raw = blankToNull(row.healthCheckJson());
         if (raw == null || "{}".equals(raw)) {
@@ -1322,41 +1113,9 @@ public class PostgresManagementWorkspaceService implements ManagementWorkspaceSe
         }
     }
 
-    private String integrationKey(String code) {
-        return normalizeSearch(code).toLowerCase();
-    }
-
-    private String integrationConfigKey(String key) {
-        return "integration." + key;
-    }
-
-    private String integrationJson(String name, String category, String scope) {
-        return "{\"name\":\"" + escapeJson(name) + "\","
-                + "\"category\":\"" + escapeJson(category) + "\","
-                + "\"scope\":\"" + escapeJson(scope) + "\"}";
-    }
-
-    private String settingJson(String name, String value) {
-        return "{\"_display_name\":\"" + escapeJson(name) + "\","
-                + "\"_value\":\"" + escapeJson(value) + "\"}";
-    }
-
     private String defaultText(String value, String fallback) {
         String normalized = value == null ? "" : value.trim();
         return normalized.isBlank() ? fallback : normalized;
-    }
-
-    private String maskedSecret() {
-        return "********";
-    }
-
-    private String nextSecretVersion(String currentVersion) {
-        String normalized = defaultText(currentVersion, "v1");
-        if (normalized.matches("v\\d+")) {
-            int version = Integer.parseInt(normalized.substring(1));
-            return "v" + (version + 1);
-        }
-        return normalized + "-rotated";
     }
 
     private RoleRow requireRoleRow(String code) {
@@ -1490,24 +1249,6 @@ public class PostgresManagementWorkspaceService implements ManagementWorkspaceSe
         return params;
     }
 
-    private Map<String, Object> auditParams(PageQuery pageQuery, AuditLogQuery query, AuthUserPrincipal actor) {
-        Map<String, Object> params = pageParams(pageQuery, scope(actor));
-        params.put("actor", query.actor());
-        params.put("action", query.action());
-        params.put("resourceType", query.resourceType());
-        params.put("result", normalizeAuditResult(query.result()));
-        params.put("startTime", query.startTime());
-        params.put("endTime", query.endTime());
-        return params;
-    }
-
-    private Map<String, Object> auditOutboxParams(PageQuery pageQuery, AuditOutboxQuery query) {
-        Map<String, Object> params = pageParams(pageQuery, values());
-        params.put("status", query.status());
-        params.put("traceId", query.traceId());
-        return params;
-    }
-
     private Map<String, Object> scope(AuthUserPrincipal actor) {
         return values("actorId", actor.userId(), "platformScope", hasPlatformScope(actor));
     }
@@ -1620,15 +1361,6 @@ public class PostgresManagementWorkspaceService implements ManagementWorkspaceSe
         return "ProjectOwner".equals(roleCode) ? "OWNER" : "MEMBER";
     }
 
-    private void rejectSensitivePlainSetting(String key, String value) {
-        String normalizedKey = normalizeSearch(key).toLowerCase();
-        String normalizedValue = normalizeSearch(value);
-        boolean sensitiveKey = normalizedKey.matches(".*(password|passwd|pwd|secret|token|api[_.-]?key|cookie|credential|private[_.-]?key).*");
-        if (sensitiveKey && !normalizedValue.matches("^(\\*+|已配置|secret-ref:.+|\\$\\{[A-Za-z0-9_]+})$")) {
-            throw new BusinessException(ErrorCode.SECRET_POLICY_VIOLATION, "敏感配置必须使用密钥引用或掩码值");
-        }
-    }
-
     private String nextCode(String prefix) {
         return prefix + "-" + UUID.randomUUID().toString().substring(0, 8);
     }
@@ -1637,28 +1369,4 @@ public class PostgresManagementWorkspaceService implements ManagementWorkspaceSe
         return value.replace("\\", "\\\\").replace("\"", "\\\"");
     }
 
-    private String settingName(String configKey) {
-        return switch (configKey) {
-            case "audit.retention_days" -> "审计日志保留";
-            case "audit.retention_cleanup_enabled" -> "审计保留清理";
-            case "audit.retention_min_days" -> "审计最小保留";
-            case "audit.retention_cleanup_batch_size" -> "审计清理批量";
-            case "session.access_token_ttl_minutes" -> "访问令牌有效期";
-            case "allow_public_model" -> "允许公有云模型";
-            case "sensitivity_level" -> "默认敏感级别";
-            case "default_resource_pool" -> "默认资源池";
-            case "secret.default_provider" -> "默认密钥提供方";
-            default -> configKey;
-        };
-    }
-
-    private String scopeName(String scopeType) {
-        return switch (scopeType) {
-            case "SYSTEM" -> "平台级";
-            case "PROJECT" -> "项目级";
-            case "APPLICATION" -> "应用级";
-            case "ENVIRONMENT" -> "环境级";
-            default -> scopeType;
-        };
-    }
 }
