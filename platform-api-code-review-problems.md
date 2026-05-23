@@ -21,7 +21,7 @@
 | S6 / Q1 | SensitiveContentGuard 规则重复和 mask 顺序依赖 | 已完成 | 已在上一批统一规则源并增加直接单测 |
 | S7 | 资产批量操作资源级鉴权 | 已完成 | 新增 `ResourceScope` 资源级校验，AssetController 对项目级列表/导入/导出/同步/单资源操作按项目 scope 授权，并补充跨项目拒绝用例 |
 | S8 | 文档导入事务边界 | 已完成 | `DocumentInputService.importDocument/importMultipart` 增加事务边界 |
-| A1 | Service 单一职责拆分 | 进行中 | 已完成 WP3 `AssetService` 版本历史记录/查询职责拆分到 `AssetVersionHistoryService`，影响分析图遍历、缺口计算和节点映射拆分到 `AssetImpactAnalysisService`，资产导入导出编排、CSV/JSON/OpenAPI 编解码和导入计划拆分到 `AssetImportExportService`，原型页面同步计划/创建/更新职责拆分到 `AssetPrototypeSyncService`；已完成 WP2 同步模型调用的 Prompt 渲染、平台策略、路由、预算、fallback、调用记录和审计编排拆分到 `ModelInvocationService`，并让 WP4 AI 解析直接复用该统一调用编排；后续继续按 WP2/WP3/WP4 分模块拆分并保持接口兼容 |
+| A1 | Service 单一职责拆分 | 进行中 | 已完成 WP3 `AssetService` 版本历史记录/查询职责拆分到 `AssetVersionHistoryService`，影响分析图遍历、缺口计算和节点映射拆分到 `AssetImpactAnalysisService`，资产导入导出编排、CSV/JSON/OpenAPI 编解码和导入计划拆分到 `AssetImportExportService`，原型页面同步计划/创建/更新职责拆分到 `AssetPrototypeSyncService`；已完成 WP2 同步模型调用的 Prompt 渲染、平台策略、路由、预算、fallback、调用记录和审计编排拆分到 `ModelInvocationService`，并让 WP4 AI 解析直接复用该统一调用编排；已将 WP4 模型解析人工纠错样本捕获、脱敏快照和审计职责拆分到 `DocumentParseFeedbackCaptureService`；后续继续按 WP2/WP3/WP4 分模块拆分并保持接口兼容 |
 | A2 | 贫血领域模型治理 | 已完成 | 已将 WP3 需求/测试用例评审状态集合与转换规则迁入 `AssetReviewStatus`，将资产生命周期归一化与转换规则迁入 `AssetLifecycleStatus`/`LifecycleManagedAsset`，并将版本初始值、递增和历史版本匹配规则迁入 `AssetVersion`/`VersionedAsset` |
 | A3 | 统一权限注解/AOP | 已完成 | 新增 `@RequirePermission` 注解和 AOP 切面；ModelAccessController、DocumentInputController 的普通权限入口改为注解校验；AssetController 保留资源级 `ResourceScope` 显式校验但不再直接读取 `SecurityContextHolder` |
 | A4 / Q8 / T3 | local/db profile 行为差异与 db 测试不足 | 已完成 | 新增 PostgreSQL Testcontainers db-profile 契约测试，覆盖 Postgres AuthSessionStore、ModelAccessRepository、AssetRepository 的真实迁移、mapper、约束、分页和事务回滚路径 |
@@ -49,11 +49,11 @@
 | X1 | 异步模型调用 Job 持久化 | 已完成 | 新增 `ma_invocation_job` 持久化表和 db/local repository，异步任务提交、状态流转、取消、成功结果和失败信息持久化；服务启动时重排 QUEUED 任务并将遗留 RUNNING 标记失败 |
 | X2 | RestClient 复用 | 已完成 | 按 baseUrl + timeout 缓存 `RestClient` |
 | X3 | 分布式限流/熔断 | 已完成 | 新增 `ProviderResilienceStateStore`，默认 local profile 继续使用本地实现，`redis` profile 下通过 Redis 共享 provider 固定窗口限流和熔断状态 |
-| X4 | DocumentInputService Pattern 未使用 | 无影响 | 复核后确认这些 Pattern 被 `sanitizeFeedbackText()` 使用，不再作为缺陷处理 |
+| X4 | DocumentInputService Pattern 未使用 | 无影响 | 复核后确认这些 Pattern 被纠错样本脱敏路径使用；当前已随 `DocumentParseFeedbackCaptureService` 拆分迁出 `DocumentInputService`，不再作为缺陷处理 |
 
 ### 剩余专项优先级
 
-1. 架构治理专项：A1，按模块逐步拆分并保持接口兼容；已推进 WP3 版本历史、影响分析、资产导入导出、原型同步职责拆分，以及 WP2 模型同步调用编排拆分；WP4 AI 解析已直接依赖 `ModelInvocationService`，后续继续拆分 DocumentInputService、PostgresManagementWorkspaceService 等高耦合路径。
+1. 架构治理专项：A1，按模块逐步拆分并保持接口兼容；已推进 WP3 版本历史、影响分析、资产导入导出、原型同步职责拆分，以及 WP2 模型同步调用编排拆分；WP4 AI 解析已直接依赖 `ModelInvocationService`，模型解析人工纠错回流已拆到 `DocumentParseFeedbackCaptureService`，后续继续拆分 DocumentInputService、PostgresManagementWorkspaceService 等高耦合路径。
 2. 运行治理专项：暂无独立剩余项；后续按生产部署形态继续观察 Redis 可用性和网关限流策略。
 
 ## 一、安全风险 (Security)
@@ -347,9 +347,10 @@
 
 ### [LOW] X4: 静态常量 SECRET_ASSIGNMENT_PATTERN 未在代码中使用
 
-- **文件**: `documentinput/application/DocumentInputService.java` (line 87-94)
-- **问题**: `SECRET_ASSIGNMENT_PATTERN`、`EMAIL_PATTERN`、`URL_PATTERN`、`UUID_PATTERN`、`MOBILE_PATTERN`、`LONG_NUMBER_PATTERN` 等 Pattern 被定义但未在类中使用。
+- **文件**: `documentinput/application/DocumentParseFeedbackCaptureService.java`
+- **问题**: `SECRET_ASSIGNMENT_PATTERN`、`EMAIL_PATTERN`、`URL_PATTERN`、`UUID_PATTERN`、`MOBILE_PATTERN`、`LONG_NUMBER_PATTERN` 等 Pattern 曾被标记为未使用。
 - **建议**: 清理死代码
+- **处理结果**: 复核确认这些 Pattern 属于模型解析人工纠错样本的脱敏快照逻辑；当前已随 `DocumentParseFeedbackCaptureService` 从 `DocumentInputService` 迁出，并补充直接单测覆盖脱敏与审计写入。
 
 ---
 
