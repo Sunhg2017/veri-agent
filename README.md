@@ -28,6 +28,7 @@ AI 驱动的端到端企业级测试平台。WP1、WP2、WP3、WP4 是研发任�
 | `db/validation` | WP1/WP2 数据库结构、种子、安全约束校验脚本。 |
 | `doc/mvp/final` | WP1/WP2 PRD、架构、工程补充和交付验收文档。 |
 | `doc/mvp/final/engineering/WP1-当前可持续研发底座交付说明.md` | 当前 WP1 单平台实现、准出命令、验证结论和后续研发入口。 |
+| `doc/mvp/final/engineering/WP1-企业身份与审批预留方案.md` | WP1 M4 企业身份源、外部账号/部门同步、审批对象与角色绑定关系的预留方案。 |
 | `doc/mvp/final/engineering/WP2-模型接入层-交付说明.md` | 当前 WP2 模型接入实现、API 边界、数据库交付和验证入口。 |
 | `doc/mvp/final/engineering/WP3-测试资产管理-当前交付说明.md` | 当前 WP3 资产模型、API、权限、状态流、前端入口和验证命令。 |
 | `doc/mvp/final/engineering/WP4-需求与文档输入-研发拆解与里程碑计划.md` | 当前 WP4 需求输入、候选确认、发布、真实文档解析和 webhook 交付口径。 |

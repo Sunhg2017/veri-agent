@@ -85,6 +85,7 @@ Secret 响应、列表、前端状态和审计只记录引用、版本、用途�
 3. 审计日志已支持 `GET /api/v1/management/audit-logs/export` 同步 CSV 导出，要求 `audit:read` + `audit:export`，portal-web 审计页已接入导出按钮和下载状态；后续如需要大批量导出，再演进异步任务和对象存储引用。
 4. 审计保留策略以 `doc/mvp/final/engineering/WP1-审计保留策略Runbook.md` 为准：在线表默认保留 365 天，清理默认关闭，开启后先归档到 `audit_log_archive` 再从 `audit_log` 删除；app role 仍不得直接删除审计日志。
 5. 复杂状态流拒绝测试已覆盖项目重复、逆向、非法流转和停用后编辑拒绝，以及应用/环境非法状态与停用后编辑拒绝；后续继续扩展生产角色权限的自动化场景。
+6. M4 企业身份与审批预留以 `doc/mvp/final/engineering/WP1-企业身份与审批预留方案.md` 为准：当前只冻结身份源、外部账号映射、部门同步冲突策略、审批对象、审批状态和角色绑定关系；不启用真实 SSO/LDAP/组织同步/审批流，不影响本地账号登录和现有授权即时生效路径。
 
 ## 4. 当前文档口径
 
@@ -97,6 +98,7 @@ Secret 响应、列表、前端状态和审计只记录引用、版本、用途�
 5. `doc/mvp/final/engineering/WP1-审计事件字典.md`
 6. `doc/mvp/final/engineering/WP1-当前可持续研发底座交付说明.md`
 7. `doc/mvp/final/engineering/WP1-审计保留策略Runbook.md`
-8. 当前代码、迁移脚本、validation 脚本和自动化测试
+8. `doc/mvp/final/engineering/WP1-企业身份与审批预留方案.md`
+9. 当前代码、迁移脚本、validation 脚本和自动化测试
 
 早期 PRD、架构、测试评估和拆解文档中的多租户、平台实例分层、实例管理员、实例隔离表、业务实例隔离字段、跨实例隔离、独立 WP 服务、HTTP 回调本服务、snake_case API 字段等描述仅作为历史演进记录，不再作为当前准出和研发依据。
