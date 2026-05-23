@@ -50,9 +50,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.LinkedHashSet;
 import java.util.Collections;
-import java.util.Comparator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -212,14 +211,14 @@ public class AssetService {
         validateProjectWhenProvided(request.getProjectId());
         AssetListQuery query = assetListQuery(request);
         List<RequirementResponse> items = repository.requirements(query).stream()
-                .map(AssetService::toRequirementResponse)
+                .map(AssetResponseMapper::toRequirementResponse)
                 .toList();
         return com.songhg.veri.agent.common.api.PageResponse.of(items, query.index(), query.size(), repository.countRequirements(query));
     }
 
     public RequirementResponse getRequirement(UUID id) {
         return repository.requirement(id)
-                .map(AssetService::toRequirementResponse)
+                .map(AssetResponseMapper::toRequirementResponse)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "需求不存在: " + id));
     }
 
@@ -227,7 +226,7 @@ public class AssetService {
         AssetRequirement requirement = repository.requirementIncludingInactive(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "需求不存在: " + id));
         validateProjectWhenProvided(requirement.projectId());
-        return toRequirementResponse(requirement);
+        return AssetResponseMapper.toRequirementResponse(requirement);
     }
 
     public Optional<RequirementResponse> findImportedRequirement(String projectId, String sourceRef) {
@@ -236,7 +235,7 @@ public class AssetService {
         }
         validateProjectWhenProvided(projectId);
         return repository.requirementBySourceRef(projectId, "IMPORT", sourceRef.trim())
-                .map(AssetService::toRequirementResponse);
+                .map(AssetResponseMapper::toRequirementResponse);
     }
 
     @Transactional
@@ -251,7 +250,7 @@ public class AssetService {
             if (existing.isPresent()) {
                 AssetRequirement merged = mergeImportedRequirement(existing.get(), request, now);
                 if (sameRequirement(existing.get(), merged)) {
-                    return toRequirementResponse(existing.get());
+                    return AssetResponseMapper.toRequirementResponse(existing.get());
                 }
                 if (!"DRAFT".equals(existing.get().status())) {
                     writeProjectAudit("UPSERT_DENIED", "REQUIREMENT", existing.get().id(), scopeId, "DENIED");
@@ -265,7 +264,7 @@ public class AssetService {
                 versionHistoryService.recordRequirementChange(existing.get(), stored, "UPSERT");
                 log.info("Updated imported requirement id={}, sourceRef={}, trace_id={}",
                         stored.id(), sourceRef, TraceContext.getTraceId());
-                return toRequirementResponse(stored);
+                return AssetResponseMapper.toRequirementResponse(stored);
             }
         }
         AssetRequirement req = new AssetRequirement(
@@ -294,7 +293,7 @@ public class AssetService {
             versionHistoryService.recordRequirementCreated(stored);
             log.info("Created requirement id={}, title={}, trace_id={}", id, request.title(), TraceContext.getTraceId());
         }
-        return toRequirementResponse(stored);
+        return AssetResponseMapper.toRequirementResponse(stored);
     }
 
     private AssetRequirement mergeImportedRequirement(
@@ -363,7 +362,7 @@ public class AssetService {
         writeProjectAudit("UPDATE", "REQUIREMENT", id, existing.projectId());
         AssetRequirement stored = repository.saveRequirement(updated);
         versionHistoryService.recordRequirementChange(existing, stored, "UPDATE");
-        return toRequirementResponse(stored);
+        return AssetResponseMapper.toRequirementResponse(stored);
     }
 
     public List<AssetVersionHistoryResponse> requirementVersions(UUID id) {
@@ -411,7 +410,7 @@ public class AssetService {
         versionHistoryService.recordRequirementChange(existing, stored, "ROLLBACK");
         log.info("Rolled back requirement id={} to version={}, reason={}, trace_id={}",
                 id, version, trimToNull(request == null ? null : request.reason()), TraceContext.getTraceId());
-        return toRequirementResponse(stored);
+        return AssetResponseMapper.toRequirementResponse(stored);
     }
 
     @Transactional
@@ -450,7 +449,7 @@ public class AssetService {
         writeProjectAudit(lifecycleAction(nextLifecycle), "REQUIREMENT", id, existing.projectId());
         AssetRequirement stored = repository.saveRequirement(updated);
         versionHistoryService.recordRequirementChange(existing, stored, lifecycleAction(nextLifecycle));
-        return toRequirementResponse(stored);
+        return AssetResponseMapper.toRequirementResponse(stored);
     }
 
     // ---- APIs ----
@@ -459,14 +458,14 @@ public class AssetService {
         validateProjectWhenProvided(request.getProjectId());
         AssetListQuery query = assetListQuery(request);
         List<ApiResponseDTO> items = repository.apis(query).stream()
-                .map(AssetService::toApiResponse)
+                .map(AssetResponseMapper::toApiResponse)
                 .toList();
         return com.songhg.veri.agent.common.api.PageResponse.of(items, query.index(), query.size(), repository.countApis(query));
     }
 
     public ApiResponseDTO getApi(UUID id) {
         return repository.api(id)
-                .map(AssetService::toApiResponse)
+                .map(AssetResponseMapper::toApiResponse)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "API不存在: " + id));
     }
 
@@ -474,7 +473,7 @@ public class AssetService {
         AssetApi api = repository.apiIncludingInactive(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "API不存在: " + id));
         validateProjectWhenProvided(api.projectId());
-        return toApiResponse(api);
+        return AssetResponseMapper.toApiResponse(api);
     }
 
     public ApiResponseDTO createApi(CreateApiRequest request) {
@@ -508,7 +507,7 @@ public class AssetService {
         writeProjectAudit("CREATE", "API", id, scopeId);
         repository.saveApi(api);
         log.info("Created api id={}, summary={}, trace_id={}", id, request.summary(), TraceContext.getTraceId());
-        return toApiResponse(api);
+        return AssetResponseMapper.toApiResponse(api);
     }
 
     public ApiResponseDTO updateApi(UUID id, UpdateApiRequest request) {
@@ -550,7 +549,7 @@ public class AssetService {
         );
         writeProjectAudit("UPDATE", "API", id, existing.projectId());
         repository.saveApi(updated);
-        return toApiResponse(updated);
+        return AssetResponseMapper.toApiResponse(updated);
     }
 
     public ApiResponseDTO updateApiLifecycle(UUID id, UpdateAssetLifecycleRequest request) {
@@ -587,7 +586,7 @@ public class AssetService {
         );
         writeProjectAudit(lifecycleAction(nextLifecycle), "API", id, existing.projectId());
         repository.saveApi(updated);
-        return toApiResponse(updated);
+        return AssetResponseMapper.toApiResponse(updated);
     }
 
     // ---- Pages ----
@@ -596,14 +595,14 @@ public class AssetService {
         validateProjectWhenProvided(request.getProjectId());
         AssetListQuery query = assetListQuery(request);
         List<PageResponse> items = repository.pages(query).stream()
-                .map(AssetService::toPageResponse)
+                .map(AssetResponseMapper::toPageResponse)
                 .toList();
         return com.songhg.veri.agent.common.api.PageResponse.of(items, query.index(), query.size(), repository.countPages(query));
     }
 
     public PageResponse getPage(UUID id) {
         return repository.page(id)
-                .map(AssetService::toPageResponse)
+                .map(AssetResponseMapper::toPageResponse)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "页面资产不存在: " + id));
     }
 
@@ -611,7 +610,7 @@ public class AssetService {
         AssetPage page = repository.pageIncludingInactive(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "页面资产不存在: " + id));
         validateProjectWhenProvided(page.projectId());
-        return toPageResponse(page);
+        return AssetResponseMapper.toPageResponse(page);
     }
 
     public PageResponse createPage(CreatePageRequest request) {
@@ -639,7 +638,7 @@ public class AssetService {
         writeProjectAudit("CREATE", "PAGE", id, scopeId);
         repository.savePage(page);
         log.info("Created page id={}, name={}, trace_id={}", id, request.name(), TraceContext.getTraceId());
-        return toPageResponse(page);
+        return AssetResponseMapper.toPageResponse(page);
     }
 
     public PageResponse updatePage(UUID id, UpdatePageRequest request) {
@@ -675,7 +674,7 @@ public class AssetService {
         );
         writeProjectAudit("UPDATE", "PAGE", id, existing.projectId());
         repository.savePage(updated);
-        return toPageResponse(updated);
+        return AssetResponseMapper.toPageResponse(updated);
     }
 
     public PageResponse updatePageLifecycle(UUID id, UpdateAssetLifecycleRequest request) {
@@ -710,7 +709,7 @@ public class AssetService {
         );
         writeProjectAudit(lifecycleAction(nextLifecycle), "PAGE", id, existing.projectId());
         repository.savePage(updated);
-        return toPageResponse(updated);
+        return AssetResponseMapper.toPageResponse(updated);
     }
 
     // ---- Business Flows ----
@@ -719,14 +718,14 @@ public class AssetService {
         validateProjectWhenProvided(request.getProjectId());
         AssetListQuery query = assetListQuery(request);
         List<BusinessFlowResponse> items = repository.businessFlows(query).stream()
-                .map(AssetService::toBusinessFlowResponse)
+                .map(AssetResponseMapper::toBusinessFlowResponse)
                 .toList();
         return com.songhg.veri.agent.common.api.PageResponse.of(items, query.index(), query.size(), repository.countBusinessFlows(query));
     }
 
     public BusinessFlowResponse getBusinessFlow(UUID id) {
         return repository.businessFlow(id)
-                .map(AssetService::toBusinessFlowResponse)
+                .map(AssetResponseMapper::toBusinessFlowResponse)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "业务流资产不存在: " + id));
     }
 
@@ -734,7 +733,7 @@ public class AssetService {
         AssetBusinessFlow flow = repository.businessFlowIncludingInactive(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "业务流资产不存在: " + id));
         validateProjectWhenProvided(flow.projectId());
-        return toBusinessFlowResponse(flow);
+        return AssetResponseMapper.toBusinessFlowResponse(flow);
     }
 
     public BusinessFlowResponse createBusinessFlow(CreateBusinessFlowRequest request) {
@@ -759,7 +758,7 @@ public class AssetService {
         writeProjectAudit("CREATE", "BUSINESS_FLOW", id, scopeId);
         repository.saveBusinessFlow(flow);
         log.info("Created business flow id={}, name={}, trace_id={}", id, request.name(), TraceContext.getTraceId());
-        return toBusinessFlowResponse(flow);
+        return AssetResponseMapper.toBusinessFlowResponse(flow);
     }
 
     public BusinessFlowResponse updateBusinessFlow(UUID id, UpdateBusinessFlowRequest request) {
@@ -792,7 +791,7 @@ public class AssetService {
         );
         writeProjectAudit("UPDATE", "BUSINESS_FLOW", id, existing.projectId());
         repository.saveBusinessFlow(updated);
-        return toBusinessFlowResponse(updated);
+        return AssetResponseMapper.toBusinessFlowResponse(updated);
     }
 
     public BusinessFlowResponse updateBusinessFlowLifecycle(UUID id, UpdateAssetLifecycleRequest request) {
@@ -824,7 +823,7 @@ public class AssetService {
         );
         writeProjectAudit(lifecycleAction(nextLifecycle), "BUSINESS_FLOW", id, existing.projectId());
         repository.saveBusinessFlow(updated);
-        return toBusinessFlowResponse(updated);
+        return AssetResponseMapper.toBusinessFlowResponse(updated);
     }
 
     // ---- Test Cases ----
@@ -833,7 +832,7 @@ public class AssetService {
         validateProjectWhenProvided(request.getProjectId());
         AssetListQuery query = assetListQuery(request);
         List<TestCaseResponse> items = repository.testCases(query).stream()
-                .map(tc -> toTestCaseResponse(tc, tc.steps()))
+                .map(tc -> AssetResponseMapper.toTestCaseResponse(tc, tc.steps()))
                 .toList();
         return com.songhg.veri.agent.common.api.PageResponse.of(items, query.index(), query.size(), repository.countTestCases(query));
     }
@@ -841,14 +840,14 @@ public class AssetService {
     public TestCaseResponse getTestCase(UUID id) {
         TestCaseRecord testCase = repository.testCase(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "测试用例不存在: " + id));
-        return toTestCaseResponse(testCase, testCase.steps());
+        return AssetResponseMapper.toTestCaseResponse(testCase, testCase.steps());
     }
 
     public TestCaseResponse getTestCaseIncludingInactive(UUID id) {
         TestCaseRecord testCase = repository.testCaseIncludingInactive(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "测试用例不存在: " + id));
         validateProjectWhenProvided(testCase.projectId());
-        return toTestCaseResponse(testCase, testCase.steps());
+        return AssetResponseMapper.toTestCaseResponse(testCase, testCase.steps());
     }
 
     @Transactional
@@ -890,7 +889,7 @@ public class AssetService {
         TestCaseRecord stored = repository.saveTestCase(tc);
         versionHistoryService.recordTestCaseCreated(stored);
         log.info("Created test case id={}, title={}, trace_id={}", id, request.title(), TraceContext.getTraceId());
-        return toTestCaseResponse(stored, steps);
+        return AssetResponseMapper.toTestCaseResponse(stored, steps);
     }
 
     @Transactional
@@ -926,7 +925,7 @@ public class AssetService {
         writeProjectAudit("UPDATE", "TEST_CASE", id, existing.projectId());
         TestCaseRecord stored = repository.saveTestCase(updated);
         versionHistoryService.recordTestCaseChange(existing, stored, "UPDATE");
-        return toTestCaseResponse(stored, existingSteps);
+        return AssetResponseMapper.toTestCaseResponse(stored, existingSteps);
     }
 
     public List<AssetVersionHistoryResponse> testCaseVersions(UUID id) {
@@ -977,7 +976,7 @@ public class AssetService {
         versionHistoryService.recordTestCaseChange(existing, stored, "ROLLBACK");
         log.info("Rolled back test case id={} to version={}, reason={}, trace_id={}",
                 id, version, trimToNull(request == null ? null : request.reason()), TraceContext.getTraceId());
-        return toTestCaseResponse(stored, stored.steps());
+        return AssetResponseMapper.toTestCaseResponse(stored, stored.steps());
     }
 
     @Transactional
@@ -1017,7 +1016,7 @@ public class AssetService {
         writeProjectAudit(lifecycleAction(nextLifecycle), "TEST_CASE", id, existing.projectId());
         TestCaseRecord stored = repository.saveTestCase(updated);
         versionHistoryService.recordTestCaseChange(existing, stored, lifecycleAction(nextLifecycle));
-        return toTestCaseResponse(stored, stored.steps());
+        return AssetResponseMapper.toTestCaseResponse(stored, stored.steps());
     }
 
     // ---- Test Case Steps ----
@@ -1069,63 +1068,6 @@ public class AssetService {
 
     public String health() {
         return "UP";
-    }
-
-    // ---- Mappers ----
-
-    private static RequirementResponse toRequirementResponse(AssetRequirement r) {
-        return new RequirementResponse(
-                r.id(), r.code(), r.title(), r.description(), r.source(), r.sourceRef(), r.sourceUrl(), r.acceptanceCriteria(),
-                r.status(), r.priority(),
-                r.projectId(), r.tags(), r.version(),
-                lifecycleStatus(r.lifecycleStatus(), r.deletedAt()), r.archivedAt(), r.deletedAt(),
-                r.createdAt(), r.updatedAt()
-        );
-    }
-
-    private static ApiResponseDTO toApiResponse(AssetApi a) {
-        return new ApiResponseDTO(
-                a.id(), a.code(), a.summary(), a.description(), a.httpMethod(), a.path(), a.source(), a.sourceRef(),
-                a.version(),
-                a.requestSchema(), a.responseSchema(), a.projectId(),
-                a.status(),
-                lifecycleStatus(a.lifecycleStatus(), a.deletedAt()), a.archivedAt(), a.deletedAt(),
-                a.createdAt(), a.updatedAt()
-        );
-    }
-
-    private static PageResponse toPageResponse(AssetPage p) {
-        return new PageResponse(
-                p.id(), p.code(), p.name(), p.urlPattern(), p.source(), p.sourceRef(), p.sourceVersion(), p.componentTree(), p.screenshotUrl(),
-                p.projectId(), p.status(),
-                lifecycleStatus(p.lifecycleStatus(), p.deletedAt()), p.archivedAt(), p.deletedAt(),
-                p.createdAt(), p.updatedAt()
-        );
-    }
-
-    private static BusinessFlowResponse toBusinessFlowResponse(AssetBusinessFlow f) {
-        return new BusinessFlowResponse(
-                f.id(), f.code(), f.name(), f.description(), f.flowJson(), f.priority(),
-                f.projectId(), f.status(),
-                lifecycleStatus(f.lifecycleStatus(), f.deletedAt()), f.archivedAt(), f.deletedAt(),
-                f.createdAt(), f.updatedAt()
-        );
-    }
-
-    private static TestCaseResponse toTestCaseResponse(TestCaseRecord tc, List<TestCaseStep> steps) {
-        List<TestCaseStepResponse> stepResponses = steps == null ? Collections.emptyList()
-                : steps.stream()
-                        .sorted(Comparator.comparingInt(TestCaseStep::stepOrder))
-                        .map(s -> new TestCaseStepResponse(s.stepOrder(), s.action(), s.expectedResult()))
-                        .toList();
-        return new TestCaseResponse(
-                tc.id(), tc.code(), tc.title(), tc.description(), tc.requirementId(), tc.apiId(),
-                tc.source(), tc.sourceRef(), tc.projectId(),
-                tc.status(), tc.priority(), tc.tags(), stepResponses,
-                tc.version(),
-                lifecycleStatus(tc.lifecycleStatus(), tc.deletedAt()), tc.archivedAt(), tc.deletedAt(),
-                tc.createdAt(), tc.updatedAt()
-        );
     }
 
     private JsonNode jsonNode(String json) {
