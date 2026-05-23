@@ -30,6 +30,7 @@ import com.songhg.veri.agent.modelaccess.domain.PromptStatus;
 import com.songhg.veri.agent.modelaccess.domain.PromptTemplate;
 import com.songhg.veri.agent.modelaccess.domain.ProviderStatus;
 import com.songhg.veri.agent.modelaccess.security.ServicePrincipal;
+import com.songhg.veri.agent.common.error.PlatformAccessDeniedException;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import jakarta.validation.Valid;
@@ -43,7 +44,6 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -355,7 +355,7 @@ public class ModelAccessController {
         if (principal != null) {
             return new ServicePrincipal("model-access-console", principal.userId().toString());
         }
-        throw new AccessDeniedException("缺少权限：" + MANAGE_PERMISSION);
+        throw new PlatformAccessDeniedException(MANAGE_PERMISSION);
     }
 
     private void auditPromptActivation(AuthUserPrincipal actor, PromptTemplate prompt, String action) {

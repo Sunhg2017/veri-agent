@@ -4,11 +4,13 @@ import com.songhg.veri.agent.common.api.ApiResponse;
 import com.songhg.veri.agent.common.api.FieldErrorItem;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
+import com.songhg.veri.agent.common.error.PlatformAccessDeniedException;
 import com.songhg.veri.agent.common.trace.TraceContext;
 import jakarta.validation.ConstraintViolationException;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
@@ -29,9 +31,8 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<ApiResponse<Void>> handleBusinessException(BusinessException exception) {
         ErrorCode code = exception.getErrorCode();
-        return ResponseEntity
-                .status(code.httpStatus())
-                .body(ApiResponse.error(code.name(), exception.getMessage(), TraceContext.getTraceId(), null));
+        logHandledException(code, exception);
+        return errorResponse(code, exception.getMessage(), null);
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
@@ -66,75 +67,69 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(MaxUploadSizeExceededException.class)
     public ResponseEntity<ApiResponse<Void>> handleMaxUploadSizeExceeded(MaxUploadSizeExceededException exception) {
-        return ResponseEntity
-                .status(ErrorCode.VALIDATION_ERROR.httpStatus())
-                .body(ApiResponse.error(
-                        ErrorCode.VALIDATION_ERROR.name(),
-                        "上传文件超过大小上限",
-                        TraceContext.getTraceId(),
-                        null
-                ));
+        logHandledException(ErrorCode.VALIDATION_ERROR, exception);
+        return errorResponse(ErrorCode.VALIDATION_ERROR, "上传文件超过大小上限", null);
     }
 
     @ExceptionHandler(AuthenticationException.class)
     public ResponseEntity<ApiResponse<Void>> handleAuthentication(AuthenticationException exception) {
-        return ResponseEntity
-                .status(ErrorCode.UNAUTHORIZED.httpStatus())
-                .body(ApiResponse.error(
-                        ErrorCode.UNAUTHORIZED.name(),
-                        "认证失败或会话已失效",
-                        TraceContext.getTraceId(),
-                        null
-                ));
+        logHandledException(ErrorCode.UNAUTHORIZED, exception);
+        return errorResponse(ErrorCode.UNAUTHORIZED, "认证失败或会话已失效", null);
     }
 
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<ApiResponse<Void>> handleAccessDenied(AccessDeniedException exception) {
-        return ResponseEntity
-                .status(ErrorCode.FORBIDDEN.httpStatus())
-                .body(ApiResponse.error(
-                        ErrorCode.FORBIDDEN.name(),
-                        "权限不足",
-                        TraceContext.getTraceId(),
-                        null
-                ));
+        if (exception instanceof PlatformAccessDeniedException platformException) {
+            log.warn(
+                    "Handled platform-api access denied, trace_id={}, code={}, permission={}, resourceType={}, resourceId={}",
+                    TraceContext.getTraceId(),
+                    platformException.getErrorCode().name(),
+                    platformException.getPermission(),
+                    platformException.getResourceType(),
+                    platformException.getResourceId()
+            );
+        } else {
+            logHandledException(ErrorCode.FORBIDDEN, exception);
+        }
+        return errorResponse(ErrorCode.FORBIDDEN, "权限不足", null);
     }
 
     @ExceptionHandler(NoResourceFoundException.class)
     public ResponseEntity<ApiResponse<Void>> handleNoResourceFound(NoResourceFoundException exception) {
-        return ResponseEntity
-                .status(ErrorCode.NOT_FOUND.httpStatus())
-                .body(ApiResponse.error(
-                        ErrorCode.NOT_FOUND.name(),
-                        "资源不存在",
-                        TraceContext.getTraceId(),
-                        null
-                ));
+        logHandledException(ErrorCode.NOT_FOUND, exception);
+        return errorResponse(ErrorCode.NOT_FOUND, "资源不存在", null);
     }
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<Void>> handleUnexpected(Exception exception) {
         log.error("Unexpected platform-api exception, trace_id={}", TraceContext.getTraceId(), exception);
-        return ResponseEntity
-                .status(ErrorCode.INTERNAL_ERROR.httpStatus())
-                .body(ApiResponse.error(
-                        ErrorCode.INTERNAL_ERROR.name(),
-                        "系统异常",
-                        TraceContext.getTraceId(),
-                        null
-                ));
+        return errorResponse(ErrorCode.INTERNAL_ERROR, "系统异常", null);
     }
 
     private ResponseEntity<ApiResponse<Map<String, List<FieldErrorItem>>>> validationError(
             List<FieldErrorItem> fieldErrors
     ) {
+        return errorResponse(
+                ErrorCode.VALIDATION_ERROR,
+                "请求字段校验失败",
+                Map.of("fieldErrors", fieldErrors)
+        );
+    }
+
+    private void logHandledException(ErrorCode code, Exception exception) {
+        log.warn(
+                "Handled platform-api exception, trace_id={}, code={}, type={}, message={}",
+                TraceContext.getTraceId(),
+                code.name(),
+                exception.getClass().getSimpleName(),
+                exception.getMessage()
+        );
+    }
+
+    private <T> ResponseEntity<ApiResponse<T>> errorResponse(ErrorCode code, String message, T data) {
         return ResponseEntity
-                .status(ErrorCode.VALIDATION_ERROR.httpStatus())
-                .body(ApiResponse.error(
-                        ErrorCode.VALIDATION_ERROR.name(),
-                        "请求字段校验失败",
-                        TraceContext.getTraceId(),
-                        Map.of("fieldErrors", fieldErrors)
-                ));
+                .status(code.httpStatus())
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(ApiResponse.error(code.name(), message, TraceContext.getTraceId(), data));
     }
 }

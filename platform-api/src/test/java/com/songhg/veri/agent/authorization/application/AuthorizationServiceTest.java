@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.songhg.veri.agent.auth.application.AuthUserPrincipal;
 import com.songhg.veri.agent.common.audit.AuditLogWriter;
+import com.songhg.veri.agent.common.error.PlatformAccessDeniedException;
 import com.songhg.veri.agent.modelaccess.security.ServicePrincipal;
 import java.util.ArrayList;
 import java.util.List;
@@ -57,6 +58,7 @@ class AuthorizationServiceTest {
         authenticate(principal);
 
         assertThatThrownBy(() -> service.requireCurrent("asset:manage"))
+                .isInstanceOf(PlatformAccessDeniedException.class)
                 .isInstanceOf(AccessDeniedException.class)
                 .hasMessageContaining("asset:manage");
 
@@ -65,6 +67,27 @@ class AuthorizationServiceTest {
                 .satisfies(record -> {
                     assertThat(record.actor()).isSameAs(principal);
                     assertThat(record.resourceId()).isEqualTo("asset:manage");
+                    assertThat(record.result()).isEqualTo("DENIED");
+                });
+    }
+
+    @Test
+    void resourceScopeDenialCarriesPermissionContext() {
+        AuthUserPrincipal principal = principal();
+        AuthorizationService service = serviceWithPermissions("asset:read");
+
+        assertThatThrownBy(() -> service.require(principal, "asset:manage", ResourceScope.project("project-1")))
+                .isInstanceOfSatisfying(PlatformAccessDeniedException.class, exception -> {
+                    assertThat(exception.getErrorCode().name()).isEqualTo("FORBIDDEN");
+                    assertThat(exception.getPermission()).isEqualTo("asset:manage");
+                    assertThat(exception.getResourceType()).isEqualTo("PROJECT");
+                    assertThat(exception.getResourceId()).isEqualTo("asset:manage@PROJECT:project-1");
+                });
+
+        assertThat(auditLogWriter.records)
+                .singleElement()
+                .satisfies(record -> {
+                    assertThat(record.resourceId()).isEqualTo("asset:manage@PROJECT:project-1");
                     assertThat(record.result()).isEqualTo("DENIED");
                 });
     }

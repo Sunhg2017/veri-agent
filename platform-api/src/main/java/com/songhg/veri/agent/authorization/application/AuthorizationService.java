@@ -2,10 +2,10 @@ package com.songhg.veri.agent.authorization.application;
 
 import com.songhg.veri.agent.auth.application.AuthUserPrincipal;
 import com.songhg.veri.agent.common.audit.AuditLogWriter;
+import com.songhg.veri.agent.common.error.PlatformAccessDeniedException;
 import com.songhg.veri.agent.modelaccess.security.ServicePrincipal;
 import java.util.List;
 import java.util.Set;
-import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
@@ -29,7 +29,7 @@ public class AuthorizationService {
                     permission,
                     "缺少权限：" + permission
             ));
-            throw new AccessDeniedException("缺少权限：" + permission);
+            throw new PlatformAccessDeniedException(permission);
         }
     }
 
@@ -42,7 +42,7 @@ public class AuthorizationService {
             require(userPrincipal, permission);
             return userPrincipal;
         }
-        throw new AccessDeniedException("缺少权限：" + permission);
+        throw new PlatformAccessDeniedException(permission);
     }
 
     public AuthUserPrincipal currentUserPrincipal() {
@@ -65,7 +65,11 @@ public class AuthorizationService {
                     resourceScope.auditResourceId(permission),
                     "缺少资源权限：" + permission
             ));
-            throw new AccessDeniedException("缺少权限：" + permission);
+            throw new PlatformAccessDeniedException(
+                    permission,
+                    resourceScope.scopeType(),
+                    resourceScope.auditResourceId(permission)
+            );
         }
     }
 

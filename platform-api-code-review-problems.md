@@ -26,7 +26,7 @@
 | A3 | 统一权限注解/AOP | 已完成 | 新增 `@RequirePermission` 注解和 AOP 切面；ModelAccessController、DocumentInputController 的普通权限入口改为注解校验；AssetController 保留资源级 `ResourceScope` 显式校验但不再直接读取 `SecurityContextHolder` |
 | A4 / Q8 / T3 | local/db profile 行为差异与 db 测试不足 | 已完成 | 新增 PostgreSQL Testcontainers db-profile 契约测试，覆盖 Postgres AuthSessionStore、ModelAccessRepository、AssetRepository 的真实迁移、mapper、约束、分页和事务回滚路径 |
 | A5 | 审计写入独立可靠性 | 已完成 | `PostgresAuditLogWriter.record` 使用 `REQUIRES_NEW` 独立事务，db-profile Testcontainers 合约覆盖业务事务回滚时审计仍落库；异步 outbox/失败补偿作为运行治理增强继续跟踪 |
-| A6 | 分层异常策略 | 专项任务 | 拆为异常层次和日志上下文规范专项 |
+| A6 | 分层异常策略 | 已完成 | 新增 `PlatformAccessDeniedException` 承载权限/资源上下文；`AuthorizationService` 和模型调用主体解析不再抛原生权限异常；`GlobalExceptionHandler` 统一错误响应构造和 `traceId/code/type` 日志上下文 |
 | P1 | Asset 列表查询 SQL 分页/过滤/排序下沉 | 已完成 | 新增 `AssetListQuery` 和 Repository 分页/count 契约，五类资产列表下沉到 MyBatis 动态 SQL；local 实现保持同等过滤/分页语义并补充回归测试 |
 | P2 | InMemoryAuthSessionStore refresh 查询 O(n) | 已完成 | 已增加 refreshTokenHash 二级索引和回归测试 |
 | P3 | Cost Alert distinct 下沉 SQL | 已完成 | 新增 repository distinct project/service 查询接口；Postgres 通过 `SELECT DISTINCT` 下沉，local profile 保持同等去空、排序语义，并补充 service 级回归测试 |
@@ -53,7 +53,7 @@
 
 ### 剩余专项优先级
 
-1. 架构治理专项：A1、A2、A6，按模块逐步拆分并保持接口兼容。
+1. 架构治理专项：A1、A2，按模块逐步拆分并保持接口兼容。
 2. 运行治理专项：D1、M1、M2、M3、X1、X3，补发布回滚、配置分层、API 版本策略、OpenAPI 覆盖和分布式可靠性。
 
 ## 一、安全风险 (Security)
@@ -164,6 +164,7 @@
 
 - **问题**: Service 层在不同地方直接抛出 `BusinessException` 和 `AccessDeniedException` 两种异常。Controller 层 `requirePermission()` 抛出的是 Spring 的 `AccessDeniedException`，而 Service 层全部使用自定义 `BusinessException`。GlobalExceptionHandler 同时处理两者，但日志上下文不统一。
 - **建议**: 统一使用 `BusinessException`，或定义系统级异常层次结构
+- **处理结果**: 已定义平台级 `PlatformAccessDeniedException`，保留与 Spring Security 的 `AccessDeniedException` 兼容性，同时携带 `permission/resourceType/resourceId` 上下文；授权服务和模型调用主体解析改为抛该平台异常。`GlobalExceptionHandler` 统一错误响应构造，并对业务异常、认证失败、权限拒绝和 404 等已处理异常记录 `traceId/code/type`，权限拒绝额外记录权限与资源上下文。
 
 ---
 
