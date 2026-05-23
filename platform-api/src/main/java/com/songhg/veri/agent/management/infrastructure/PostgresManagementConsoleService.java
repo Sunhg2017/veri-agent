@@ -74,11 +74,11 @@ public class PostgresManagementConsoleService implements ManagementConsoleServic
 
     private final ManagementMapper mapper;
     private final AuditLogWriter auditLogWriter;
-    private final PostgresManagementDeniedAuditRecorder deniedAuditRecorder;
     private final EnvironmentConnectivityChecker connectivityChecker;
     private final ObjectMapper objectMapper;
     private final PostgresManagementDepartmentService departmentService;
     private final PostgresManagementUserService userService;
+    private final PostgresManagementProjectService projectService;
     private final PostgresManagementAuditQueryService auditQueryService;
     private final PostgresManagementConfigService configService;
     private final PostgresManagementRoleService roleService;
@@ -95,11 +95,11 @@ public class PostgresManagementConsoleService implements ManagementConsoleServic
     ) {
         this.mapper = mapper;
         this.auditLogWriter = auditLogWriter;
-        this.deniedAuditRecorder = deniedAuditRecorder;
         this.connectivityChecker = connectivityChecker;
         this.objectMapper = objectMapper;
         this.departmentService = new PostgresManagementDepartmentService(mapper, auditLogWriter);
         this.userService = new PostgresManagementUserService(mapper, auditLogWriter, passwordEncoder);
+        this.projectService = new PostgresManagementProjectService(mapper, auditLogWriter, deniedAuditRecorder);
         this.auditQueryService = new PostgresManagementAuditQueryService(mapper, auditLogWriter);
         this.configService = new PostgresManagementConfigService(mapper, auditLogWriter);
         this.roleService = new PostgresManagementRoleService(mapper, auditLogWriter);
@@ -237,110 +237,47 @@ public class PostgresManagementConsoleService implements ManagementConsoleServic
 
     @Override
     public PageResponse<ProjectView> projects(PageQuery pageQuery, AuthUserPrincipal actor) {
-        return page(mapper::listProjects, mapper::countProjects, pageQuery, scope(actor));
+        return projectService.projects(pageQuery, actor);
     }
 
     @Override
     public ProjectView project(String key) {
-        return projectByKey(key);
+        return projectService.project(key);
     }
 
     @Override
     @Transactional
     public ProjectView createProject(CreateProjectRequest request, AuthUserPrincipal actor) {
-        UUID projectId = UUID.randomUUID();
-        String name = request.name().trim();
-        String code = normalizedOrGeneratedCode(request.code(), "prj");
-        String sensitivityLevel = normalizedOrDefault(request.sensitivityLevel(), "INTERNAL");
-        boolean allowPublicModel = Boolean.TRUE.equals(request.allowPublicModel());
-        try {
-            update(mapper::insertProject, actor, values(
-                    "projectId", projectId,
-                    "code", code,
-                    "name", name,
-                    "sensitivityLevel", sensitivityLevel,
-                    "allowPublicModel", allowPublicModel
-            ));
-            insertProjectOwner(projectId, actor);
-        } catch (DuplicateKeyException exception) {
-            throw new BusinessException(ErrorCode.CONFLICT, "项目编码已存在");
-        }
-        audit(actor, "创建项目", "project", projectId.toString(), name);
-        return new ProjectView(name, "未分配", actor.displayName(), 0, "规划中");
+        return projectService.createProject(request, actor);
     }
 
     @Override
     @Transactional
     public ProjectView updateProject(String key, UpdateProjectRequest request, AuthUserPrincipal actor) {
-        ProjectRef project = resolveProjectStrict(key);
-        ensureProjectEditable(project.status());
-        ProjectView before = projectByKey(project.id().toString());
-        try {
-            update(mapper::updateProject, actor, values(
-                    "projectId", project.id(),
-                    "name", blankToNull(request.name()),
-                    "sensitivityLevel", blankToNull(request.sensitivityLevel()),
-                    "allowPublicModel", request.allowPublicModel()
-            ));
-        } catch (DuplicateKeyException exception) {
-            throw new BusinessException(ErrorCode.CONFLICT, "项目编码或名称已存在");
-        }
-        ProjectView updated = projectByKey(project.id().toString());
-        auditChange(actor, "更新项目", "project", project.id().toString(), updated.name(),
-                nameJson(before.name()), nameJson(updated.name()), null);
-        return updated;
+        return projectService.updateProject(key, request, actor);
     }
 
     @Override
     @Transactional
     public ProjectView changeProjectStatus(String key, String status, AuthUserPrincipal actor) {
-        ProjectRef project = resolveProjectStrict(key);
-        String nextStatus = normalizeProjectStatus(status);
-        ensureProjectStatusTransition(actor, project, nextStatus);
-        update(mapper::changeProjectStatus, actor, values("projectId", project.id(), "status", nextStatus));
-        ProjectView updated = projectByKey(project.id().toString());
-        audit(actor, projectStatusAction(nextStatus), "project", project.id().toString(), updated.name());
-        return updated;
+        return projectService.changeProjectStatus(key, status, actor);
     }
 
     @Override
     public PageResponse<ProjectMemberView> projectMembers(String projectKey, PageQuery pageQuery) {
-        ProjectRef project = resolveProjectStrict(projectKey);
-        return page(mapper::listProjectMembers, mapper::countProjectMembers, pageQuery, values("projectId", project.id()));
+        return projectService.projectMembers(projectKey, pageQuery);
     }
 
     @Override
     @Transactional
     public ProjectMemberView addProjectMember(String projectKey, ProjectMemberRequest request, AuthUserPrincipal actor) {
-        ProjectRef project = resolveProjectStrict(projectKey);
-        ensureProjectEditable(project.status());
-        String username = request.username().trim();
-        String roleCode = request.roleCode().trim();
-        UUID userId = requireUserId(username);
-        UUID roleId = requireRoleId(roleCode);
-        String memberType = memberTypeForRole(roleCode);
-        update(mapper::upsertProjectMember, actor, values("projectId", project.id(), "userId", userId, "memberType", memberType));
-        bindProjectRole(userId, roleId, roleCode, project.id(), actor);
-        bumpUserAuthVersion(userId, actor);
-        ProjectMemberView view = projectMemberByUsername(project.id(), username);
-        audit(actor, "添加项目成员", "project_member", project.id() + ":" + userId, project.name() + ":" + username);
-        return view;
+        return projectService.addProjectMember(projectKey, request, actor);
     }
 
     @Override
     @Transactional
     public ProjectMemberView removeProjectMember(String projectKey, String username, AuthUserPrincipal actor) {
-        ProjectRef project = resolveProjectStrict(projectKey);
-        UUID userId = requireUserId(username);
-        ProjectMemberView current = projectMemberByUsername(project.id(), username);
-        int rows = update(mapper::deleteProjectMember, actor, values("projectId", project.id(), "userId", userId));
-        if (rows == 0) {
-            throw new BusinessException(ErrorCode.NOT_FOUND, "项目成员不存在");
-        }
-        update(mapper::disableProjectRoleBindings, actor, values("projectId", project.id(), "userId", userId));
-        bumpUserAuthVersion(userId, actor);
-        audit(actor, "移除项目成员", "project_member", project.id() + ":" + userId, project.name() + ":" + username);
-        return new ProjectMemberView(current.username(), current.displayName(), current.role(), current.memberType(), "已移除");
+        return projectService.removeProjectMember(projectKey, username, actor);
     }
 
     @Override
@@ -686,32 +623,12 @@ public class PostgresManagementConsoleService implements ManagementConsoleServic
         return secretReferenceService.disableSecret(request, actor);
     }
 
-    private void insertProjectOwner(UUID projectId, AuthUserPrincipal actor) {
-        update(mapper::insertProjectOwner, actor, values("projectId", projectId));
-    }
-
-    private UUID ensureDefaultProject(AuthUserPrincipal actor) {
-        UUID existing = mapper.findDefaultProjectId(values());
-        if (existing != null) {
-            return existing;
-        }
-        UUID projectId = UUID.randomUUID();
-        update(mapper::insertDefaultProject, actor, values("projectId", projectId));
-        insertProjectOwner(projectId, actor);
-        UUID created = mapper.findDefaultProjectId(values());
-        return created == null ? projectId : created;
-    }
-
     private ProjectRef resolveProject(String project, AuthUserPrincipal actor) {
-        String keyword = blankToNull(project);
-        if (keyword == null) {
-            return new ProjectRef(ensureDefaultProject(actor), "默认项目", "ACTIVE");
-        }
-        return resolveProjectStrict(keyword);
+        return projectService.resolveProject(project, actor);
     }
 
     private ProjectRef resolveProjectStrict(String key) {
-        return requireOne(mapper::findProjectRef, values("keyword", key), "项目不存在");
+        return projectService.resolveProjectStrict(key);
     }
 
     private ApplicationRef resolveApplicationStrict(String key) {
@@ -726,20 +643,12 @@ public class PostgresManagementConsoleService implements ManagementConsoleServic
         return requireOne(mapper::findEnvironmentConnectivityTarget, values("keyword", key), "环境不存在");
     }
 
-    private ProjectView projectByKey(String key) {
-        return requireOne(mapper::findProjectView, values("keyword", key), "项目不存在");
-    }
-
     private ApplicationView applicationByKey(String key) {
         return requireOne(mapper::findApplicationView, values("keyword", key), "应用不存在");
     }
 
     private EnvironmentView environmentByKey(String key) {
         return requireOne(mapper::findEnvironmentView, values("keyword", key), "环境不存在");
-    }
-
-    private ProjectMemberView projectMemberByUsername(UUID projectId, String username) {
-        return requireOne(mapper::findProjectMemberByUsername, values("projectId", projectId, "username", username), "项目成员不存在");
     }
 
     private PageResponse<ScopedUserRoleView> scopedUserRoles(
@@ -792,21 +701,6 @@ public class PostgresManagementConsoleService implements ManagementConsoleServic
         );
         ensureEnabled(app.status(), "当前应用状态不允许新增专属环境");
         return app.id();
-    }
-
-    private void bindProjectRole(
-            UUID userId,
-            UUID roleId,
-            String roleCode,
-            UUID projectId,
-            AuthUserPrincipal actor
-    ) {
-        update(mapper::bindProjectRole, actor, values(
-                "userId", userId,
-                "roleId", roleId,
-                "roleCode", roleCode,
-                "projectId", projectId
-        ));
     }
 
     private void bindScopedRole(
@@ -885,13 +779,6 @@ public class PostgresManagementConsoleService implements ManagementConsoleServic
         return "{\"name\":\"" + escapeJson(name) + "\"}";
     }
 
-    /**
-     * Build a simple status-change JSON for before/after comparison.
-     */
-    private String statusJson(String status) {
-        return "{\"status\":\"" + escapeJson(status) + "\"}";
-    }
-
     private boolean hasPlatformScope(AuthUserPrincipal actor) {
         return actor.roles().stream().anyMatch(role -> List.of("SuperAdmin", "PlatformAdmin", "Auditor").contains(role));
     }
@@ -930,11 +817,6 @@ public class PostgresManagementConsoleService implements ManagementConsoleServic
         } catch (JsonProcessingException exception) {
             throw new BusinessException(ErrorCode.INTERNAL_ERROR, "环境连通性结果保存失败");
         }
-    }
-
-    private String defaultText(String value, String fallback) {
-        String normalized = value == null ? "" : value.trim();
-        return normalized.isBlank() ? fallback : normalized;
     }
 
     private UUID requireUserId(String username) {
@@ -1039,51 +921,12 @@ public class PostgresManagementConsoleService implements ManagementConsoleServic
         }
     }
 
-    private String normalizeProjectStatus(String status) {
-        String normalized = status == null ? "" : status.trim().toUpperCase();
-        if (!List.of("PREPARING", "ACTIVE", "ARCHIVED", "DISABLED").contains(normalized)) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "项目状态不支持");
-        }
-        return normalized;
-    }
-
     private String normalizeEnabledStatus(String status, String message) {
         String normalized = status == null ? "" : status.trim().toUpperCase();
         if (!List.of("ENABLED", "DISABLED").contains(normalized)) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, message);
         }
         return normalized;
-    }
-
-    private void ensureProjectStatusTransition(AuthUserPrincipal actor, ProjectRef project, String nextStatus) {
-        String currentStatus = project.status();
-        if (currentStatus.equals(nextStatus)) {
-            return;
-        }
-        boolean allowed = switch (currentStatus) {
-            case "PREPARING" -> List.of("ACTIVE", "DISABLED").contains(nextStatus);
-            case "ACTIVE" -> List.of("ARCHIVED", "DISABLED").contains(nextStatus);
-            case "ARCHIVED" -> List.of("ACTIVE", "DISABLED").contains(nextStatus);
-            case "DISABLED" -> List.of("PREPARING", "ACTIVE").contains(nextStatus);
-            default -> false;
-        };
-        if (!allowed) {
-            deniedAuditRecorder.recordProjectStatusDenied(actor, project.id(), project.name(), currentStatus, nextStatus);
-            throw new BusinessException(ErrorCode.INVALID_STATE, "项目状态不允许从 " + currentStatus + " 流转到 " + nextStatus);
-        }
-    }
-
-    private String projectStatusAction(String status) {
-        return switch (status) {
-            case "ARCHIVED" -> "归档项目";
-            case "DISABLED" -> "停用项目";
-            case "ACTIVE", "PREPARING" -> "恢复项目";
-            default -> "更新项目状态";
-        };
-    }
-
-    private String memberTypeForRole(String roleCode) {
-        return "ProjectOwner".equals(roleCode) ? "OWNER" : "MEMBER";
     }
 
     private String nextCode(String prefix) {
