@@ -33,7 +33,6 @@ import com.songhg.veri.agent.asset.api.response.RequirementResponse;
 import com.songhg.veri.agent.asset.api.response.TestCaseResponse;
 import com.songhg.veri.agent.asset.api.response.TestCaseStepResponse;
 import com.songhg.veri.agent.asset.api.response.TraceLinkResponse;
-import com.songhg.veri.agent.auth.application.AuthUserPrincipal;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
 import com.songhg.veri.agent.common.trace.TraceContext;
@@ -55,7 +54,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.Collections;
 import java.util.Comparator;
@@ -68,11 +66,9 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
-import com.songhg.veri.agent.modelaccess.security.ServicePrincipal;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -143,16 +139,27 @@ public class AssetService {
     private final AssetRepository repository;
     private final PlatformContextClient contextClient;
     private final ObjectMapper objectMapper;
+    private final AssetVersionHistoryService versionHistoryService;
 
     public AssetService(AssetRepository repository, PlatformContextClient contextClient) {
         this(repository, contextClient, new ObjectMapper().findAndRegisterModules());
     }
 
-    @Autowired
     public AssetService(AssetRepository repository, PlatformContextClient contextClient, ObjectMapper objectMapper) {
+        this(repository, contextClient, objectMapper, new AssetVersionHistoryService(repository, objectMapper));
+    }
+
+    @Autowired
+    public AssetService(
+            AssetRepository repository,
+            PlatformContextClient contextClient,
+            ObjectMapper objectMapper,
+            AssetVersionHistoryService versionHistoryService
+    ) {
         this.repository = repository;
         this.contextClient = contextClient;
         this.objectMapper = objectMapper;
+        this.versionHistoryService = versionHistoryService;
     }
 
     public String resolveProjectScopeId(String projectId) {
@@ -244,9 +251,8 @@ public class AssetService {
                     );
                 }
                 writeProjectAudit("UPSERT", "REQUIREMENT", merged.id(), scopeId);
-                VersionDiff diff = requirementDiff(existing.get(), merged);
                 AssetRequirement stored = repository.saveRequirement(merged);
-                saveRequirementHistory(stored, "UPSERT", diff);
+                versionHistoryService.recordRequirementChange(existing.get(), stored, "UPSERT");
                 log.info("Updated imported requirement id={}, sourceRef={}, trace_id={}",
                         stored.id(), sourceRef, TraceContext.getTraceId());
                 return toRequirementResponse(stored);
@@ -275,7 +281,7 @@ public class AssetService {
         writeProjectAudit("CREATE", "REQUIREMENT", id, scopeId);
         AssetRequirement stored = repository.saveRequirement(req);
         if (stored.id().equals(id)) {
-            saveRequirementHistory(stored, "CREATE", VersionDiff.empty());
+            versionHistoryService.recordRequirementCreated(stored);
             log.info("Created requirement id={}, title={}, trace_id={}", id, request.title(), TraceContext.getTraceId());
         }
         return toRequirementResponse(stored);
@@ -346,16 +352,14 @@ public class AssetService {
         );
         writeProjectAudit("UPDATE", "REQUIREMENT", id, existing.projectId());
         AssetRequirement stored = repository.saveRequirement(updated);
-        saveRequirementHistory(stored, "UPDATE", requirementDiff(existing, stored));
+        versionHistoryService.recordRequirementChange(existing, stored, "UPDATE");
         return toRequirementResponse(stored);
     }
 
     public List<AssetVersionHistoryResponse> requirementVersions(UUID id) {
         AssetRequirement requirement = repository.requirementIncludingInactive(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "需求不存在: " + id));
-        return repository.assetVersionHistory("REQUIREMENT", requirement.id()).stream()
-                .map(this::toVersionHistoryResponse)
-                .toList();
+        return versionHistoryService.responses("REQUIREMENT", requirement.id());
     }
 
     @Transactional
@@ -366,7 +370,7 @@ public class AssetService {
     ) {
         AssetRequirement existing = repository.requirementIncludingInactive(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "需求不存在: " + id));
-        AssetVersionHistory history = findVersionHistory("REQUIREMENT", id, version);
+        AssetVersionHistory history = versionHistoryService.historyOrThrow("REQUIREMENT", id, version);
         JsonNode snapshot = jsonNode(history.snapshotJson());
         Instant now = Instant.now();
         AssetRequirement rollback = new AssetRequirement(
@@ -394,7 +398,7 @@ public class AssetService {
         }
         writeProjectAudit("ROLLBACK", "REQUIREMENT", id, existing.projectId());
         AssetRequirement stored = repository.saveRequirement(rollback);
-        saveRequirementHistory(stored, "ROLLBACK", requirementDiff(existing, stored));
+        versionHistoryService.recordRequirementChange(existing, stored, "ROLLBACK");
         log.info("Rolled back requirement id={} to version={}, reason={}, trace_id={}",
                 id, version, trimToNull(request == null ? null : request.reason()), TraceContext.getTraceId());
         return toRequirementResponse(stored);
@@ -435,7 +439,7 @@ public class AssetService {
         );
         writeProjectAudit(lifecycleAction(nextLifecycle), "REQUIREMENT", id, existing.projectId());
         AssetRequirement stored = repository.saveRequirement(updated);
-        saveRequirementHistory(stored, lifecycleAction(nextLifecycle), requirementDiff(existing, stored));
+        versionHistoryService.recordRequirementChange(existing, stored, lifecycleAction(nextLifecycle));
         return toRequirementResponse(stored);
     }
 
@@ -874,7 +878,7 @@ public class AssetService {
         );
         writeProjectAudit("CREATE", "TEST_CASE", id, scopeId);
         TestCaseRecord stored = repository.saveTestCase(tc);
-        saveTestCaseHistory(stored, "CREATE", VersionDiff.empty());
+        versionHistoryService.recordTestCaseCreated(stored);
         log.info("Created test case id={}, title={}, trace_id={}", id, request.title(), TraceContext.getTraceId());
         return toTestCaseResponse(stored, steps);
     }
@@ -911,16 +915,14 @@ public class AssetService {
         );
         writeProjectAudit("UPDATE", "TEST_CASE", id, existing.projectId());
         TestCaseRecord stored = repository.saveTestCase(updated);
-        saveTestCaseHistory(stored, "UPDATE", testCaseDiff(existing, stored));
+        versionHistoryService.recordTestCaseChange(existing, stored, "UPDATE");
         return toTestCaseResponse(stored, existingSteps);
     }
 
     public List<AssetVersionHistoryResponse> testCaseVersions(UUID id) {
         TestCaseRecord testCase = repository.testCaseIncludingInactive(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "测试用例不存在: " + id));
-        return repository.assetVersionHistory("TEST_CASE", testCase.id()).stream()
-                .map(this::toVersionHistoryResponse)
-                .toList();
+        return versionHistoryService.responses("TEST_CASE", testCase.id());
     }
 
     @Transactional
@@ -931,7 +933,7 @@ public class AssetService {
     ) {
         TestCaseRecord existing = repository.testCaseIncludingInactive(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "测试用例不存在: " + id));
-        AssetVersionHistory history = findVersionHistory("TEST_CASE", id, version);
+        AssetVersionHistory history = versionHistoryService.historyOrThrow("TEST_CASE", id, version);
         JsonNode snapshot = jsonNode(history.snapshotJson());
         Instant now = Instant.now();
         TestCaseRecord rollback = new TestCaseRecord(
@@ -962,7 +964,7 @@ public class AssetService {
         }
         writeProjectAudit("ROLLBACK", "TEST_CASE", id, existing.projectId());
         TestCaseRecord stored = repository.saveTestCase(rollback);
-        saveTestCaseHistory(stored, "ROLLBACK", testCaseDiff(existing, stored));
+        versionHistoryService.recordTestCaseChange(existing, stored, "ROLLBACK");
         log.info("Rolled back test case id={} to version={}, reason={}, trace_id={}",
                 id, version, trimToNull(request == null ? null : request.reason()), TraceContext.getTraceId());
         return toTestCaseResponse(stored, stored.steps());
@@ -1004,7 +1006,7 @@ public class AssetService {
         );
         writeProjectAudit(lifecycleAction(nextLifecycle), "TEST_CASE", id, existing.projectId());
         TestCaseRecord stored = repository.saveTestCase(updated);
-        saveTestCaseHistory(stored, lifecycleAction(nextLifecycle), testCaseDiff(existing, stored));
+        versionHistoryService.recordTestCaseChange(existing, stored, lifecycleAction(nextLifecycle));
         return toTestCaseResponse(stored, stored.steps());
     }
 
@@ -1052,7 +1054,7 @@ public class AssetService {
                 now
         );
         TestCaseRecord stored = repository.saveTestCase(updated);
-        saveTestCaseHistory(stored, "STEPS_UPDATE", testCaseDiff(existing, stored));
+        versionHistoryService.recordTestCaseChange(existing, stored, "STEPS_UPDATE");
         return steps.stream()
                 .map(s -> new TestCaseStepResponse(s.stepOrder(), s.action(), s.expectedResult()))
                 .toList();
@@ -1993,195 +1995,8 @@ public class AssetService {
         );
     }
 
-    private AssetVersionHistoryResponse toVersionHistoryResponse(AssetVersionHistory history) {
-        return new AssetVersionHistoryResponse(
-                history.id(),
-                history.assetType(),
-                history.assetId(),
-                history.projectId(),
-                history.version(),
-                history.changeType(),
-                history.actor(),
-                splitChangedFields(history.changedFields()),
-                jsonNode(history.diffJson()),
-                jsonNode(history.snapshotJson()),
-                history.traceId(),
-                history.createdAt()
-        );
-    }
-
     private static TraceLinkResponse toTraceLinkResponse(TraceLink l) {
         return new TraceLinkResponse(l.id(), l.requirementId(), l.apiId(), l.pageId(), l.flowId(), l.caseId(), l.createdAt());
-    }
-
-    private void saveRequirementHistory(AssetRequirement requirement, String changeType, VersionDiff diff) {
-        repository.saveVersionHistory(new AssetVersionHistory(
-                UUID.randomUUID(),
-                "REQUIREMENT",
-                requirement.id(),
-                requirement.projectId(),
-                requirement.version(),
-                changeType,
-                currentActor(),
-                String.join(",", diff.changedFields()),
-                diff.diffJson(),
-                jsonString(requirementSnapshot(requirement)),
-                TraceContext.getTraceId(),
-                Instant.now()
-        ));
-    }
-
-    private void saveTestCaseHistory(TestCaseRecord testCase, String changeType, VersionDiff diff) {
-        repository.saveVersionHistory(new AssetVersionHistory(
-                UUID.randomUUID(),
-                "TEST_CASE",
-                testCase.id(),
-                testCase.projectId(),
-                testCase.version(),
-                changeType,
-                currentActor(),
-                String.join(",", diff.changedFields()),
-                diff.diffJson(),
-                jsonString(testCaseSnapshot(testCase)),
-                TraceContext.getTraceId(),
-                Instant.now()
-        ));
-    }
-
-    private VersionDiff requirementDiff(AssetRequirement before, AssetRequirement after) {
-        LinkedHashMap<String, Object> diff = new LinkedHashMap<>();
-        addDiff(diff, "title", before.title(), after.title());
-        addDiff(diff, "description", before.description(), after.description());
-        addDiff(diff, "sourceUrl", before.sourceUrl(), after.sourceUrl());
-        addDiff(diff, "acceptanceCriteria", before.acceptanceCriteria(), after.acceptanceCriteria());
-        addDiff(diff, "status", before.status(), after.status());
-        addDiff(diff, "priority", before.priority(), after.priority());
-        addDiff(diff, "tags", normalizedTags(before.tags()), normalizedTags(after.tags()));
-        addDiff(diff, "lifecycleStatus", lifecycleStatus(before.lifecycleStatus(), before.deletedAt()),
-                lifecycleStatus(after.lifecycleStatus(), after.deletedAt()));
-        addDiff(diff, "archivedAt", before.archivedAt(), after.archivedAt());
-        addDiff(diff, "deletedAt", before.deletedAt(), after.deletedAt());
-        return versionDiff(diff);
-    }
-
-    private VersionDiff testCaseDiff(TestCaseRecord before, TestCaseRecord after) {
-        LinkedHashMap<String, Object> diff = new LinkedHashMap<>();
-        addDiff(diff, "title", before.title(), after.title());
-        addDiff(diff, "description", before.description(), after.description());
-        addDiff(diff, "requirementId", before.requirementId(), after.requirementId());
-        addDiff(diff, "apiId", before.apiId(), after.apiId());
-        addDiff(diff, "status", before.status(), after.status());
-        addDiff(diff, "priority", before.priority(), after.priority());
-        addDiff(diff, "tags", normalizedTags(before.tags()), normalizedTags(after.tags()));
-        addDiff(diff, "steps", stepSnapshot(before.steps()), stepSnapshot(after.steps()));
-        addDiff(diff, "lifecycleStatus", lifecycleStatus(before.lifecycleStatus(), before.deletedAt()),
-                lifecycleStatus(after.lifecycleStatus(), after.deletedAt()));
-        addDiff(diff, "archivedAt", before.archivedAt(), after.archivedAt());
-        addDiff(diff, "deletedAt", before.deletedAt(), after.deletedAt());
-        return versionDiff(diff);
-    }
-
-    private static void addDiff(LinkedHashMap<String, Object> diff, String field, Object before, Object after) {
-        if (Objects.equals(before, after)) {
-            return;
-        }
-        LinkedHashMap<String, Object> fieldDiff = new LinkedHashMap<>();
-        fieldDiff.put("before", before);
-        fieldDiff.put("after", after);
-        diff.put(field, fieldDiff);
-    }
-
-    private static LinkedHashMap<String, Object> requirementSnapshot(AssetRequirement requirement) {
-        LinkedHashMap<String, Object> snapshot = new LinkedHashMap<>();
-        snapshot.put("id", requirement.id());
-        snapshot.put("code", requirement.code());
-        snapshot.put("title", requirement.title());
-        snapshot.put("description", requirement.description());
-        snapshot.put("source", requirement.source());
-        snapshot.put("sourceRef", requirement.sourceRef());
-        snapshot.put("sourceUrl", requirement.sourceUrl());
-        snapshot.put("acceptanceCriteria", requirement.acceptanceCriteria());
-        snapshot.put("status", requirement.status());
-        snapshot.put("priority", requirement.priority());
-        snapshot.put("projectId", requirement.projectId());
-        snapshot.put("tags", requirement.tags());
-        snapshot.put("version", requirement.version());
-        snapshot.put("lifecycleStatus", lifecycleStatus(requirement.lifecycleStatus(), requirement.deletedAt()));
-        snapshot.put("archivedAt", requirement.archivedAt());
-        snapshot.put("deletedAt", requirement.deletedAt());
-        snapshot.put("createdAt", requirement.createdAt());
-        snapshot.put("updatedAt", requirement.updatedAt());
-        return snapshot;
-    }
-
-    private static LinkedHashMap<String, Object> testCaseSnapshot(TestCaseRecord testCase) {
-        LinkedHashMap<String, Object> snapshot = new LinkedHashMap<>();
-        snapshot.put("id", testCase.id());
-        snapshot.put("code", testCase.code());
-        snapshot.put("title", testCase.title());
-        snapshot.put("description", testCase.description());
-        snapshot.put("projectId", testCase.projectId());
-        snapshot.put("requirementId", testCase.requirementId());
-        snapshot.put("apiId", testCase.apiId());
-        snapshot.put("source", testCase.source());
-        snapshot.put("sourceRef", testCase.sourceRef());
-        snapshot.put("status", testCase.status());
-        snapshot.put("priority", testCase.priority());
-        snapshot.put("tags", testCase.tags());
-        snapshot.put("steps", stepSnapshot(testCase.steps()));
-        snapshot.put("version", testCase.version());
-        snapshot.put("lifecycleStatus", lifecycleStatus(testCase.lifecycleStatus(), testCase.deletedAt()));
-        snapshot.put("archivedAt", testCase.archivedAt());
-        snapshot.put("deletedAt", testCase.deletedAt());
-        snapshot.put("createdAt", testCase.createdAt());
-        snapshot.put("updatedAt", testCase.updatedAt());
-        return snapshot;
-    }
-
-    private static List<Map<String, Object>> stepSnapshot(List<TestCaseStep> steps) {
-        if (steps == null) {
-            return List.of();
-        }
-        return steps.stream()
-                .sorted(Comparator.comparingInt(TestCaseStep::stepOrder))
-                .map(step -> {
-                    Map<String, Object> item = new LinkedHashMap<>();
-                    item.put("order", step.stepOrder());
-                    item.put("action", step.action());
-                    item.put("expectedResult", step.expectedResult());
-                    return item;
-                })
-                .toList();
-    }
-
-    private static String currentActor() {
-        var authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication == null || authentication.getPrincipal() == null) {
-            return "system";
-        }
-        Object principal = authentication.getPrincipal();
-        if (principal instanceof ServicePrincipal servicePrincipal) {
-            return servicePrincipal.callerService() + ":" + servicePrincipal.delegatedUserId();
-        }
-        if (principal instanceof AuthUserPrincipal userPrincipal) {
-            return StringUtils.hasText(userPrincipal.username())
-                    ? userPrincipal.username()
-                    : userPrincipal.userId().toString();
-        }
-        if (principal instanceof String text && StringUtils.hasText(text)) {
-            return text;
-        }
-        return "system";
-    }
-
-    private static List<String> splitChangedFields(String changedFields) {
-        if (!StringUtils.hasText(changedFields)) {
-            return List.of();
-        }
-        return Arrays.stream(changedFields.split(","))
-                .map(String::trim)
-                .filter(StringUtils::hasText)
-                .toList();
     }
 
     private JsonNode jsonNode(String json) {
@@ -2193,11 +2008,6 @@ public class AssetService {
         } catch (JsonProcessingException e) {
             return objectMapper.createObjectNode();
         }
-    }
-
-    private AssetVersionHistory findVersionHistory(String assetType, UUID assetId, int version) {
-        return AssetVersion.find(repository.assetVersionHistory(assetType, assetId), version)
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "资产版本不存在: " + assetType + "/" + assetId + "/v" + version));
     }
 
     private static String snapshotText(JsonNode snapshot, String field) {
@@ -2260,19 +2070,6 @@ public class AssetService {
             return objectMapper.writeValueAsString(value);
         } catch (JsonProcessingException e) {
             throw new BusinessException(ErrorCode.INTERNAL_ERROR, "资产版本历史序列化失败");
-        }
-    }
-
-    private VersionDiff versionDiff(LinkedHashMap<String, Object> diff) {
-        if (diff.isEmpty()) {
-            return VersionDiff.empty();
-        }
-        return new VersionDiff(new ArrayList<>(diff.keySet()), jsonString(diff));
-    }
-
-    private record VersionDiff(List<String> changedFields, String diffJson) {
-        private static VersionDiff empty() {
-            return new VersionDiff(List.of(), "{}");
         }
     }
 
