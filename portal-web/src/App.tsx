@@ -50,7 +50,6 @@ import {
   changeRoleStatus,
   changeSettingStatus,
   createRole,
-  createIntegration,
   createManagementItem,
   createSecretReference,
   createSetting,
@@ -90,6 +89,7 @@ import {
   updateSetting,
   updateUser,
   type ApplicationView,
+  type AuditLogView,
   type AuditOutboxFilters,
   type AuditOutboxView,
   type CreatableManagementResource,
@@ -98,6 +98,7 @@ import {
   type EnvironmentView,
   type IntegrationView,
   type ManagementData,
+  type PageResponse as ManagementPageResponse,
   type ProjectMemberView,
   type ProjectView,
   type PermissionView,
@@ -121,6 +122,12 @@ import {
 /* ===================== 常量 & 类型 ===================== */
 
 const initialLoginForm: LoginPayload = { username: '', password: '' };
+
+function optionalBoolean(value: string | undefined): boolean | undefined {
+  if (value === 'true') return true;
+  if (value === 'false') return false;
+  return undefined;
+}
 
 type PasswordForm = {
   oldPassword: string;
@@ -651,10 +658,9 @@ export function App() {
             <button
               className="btn btn-primary"
               type="submit"
-              disabled={loginState.status === 'loading'}
               style={{ minHeight: 44, fontSize: 16 }}
             >
-              {loginState.status === 'loading' ? '登录中...' : '登 录'}
+              登 录
             </button>
           </form>
         </div>
@@ -889,7 +895,6 @@ function OverviewPage(props: {
             <div style={{ display: 'grid', gap: 12 }}>
               <DetailItem label="后端健康" value={props.health.data?.status ?? (props.health.loading ? '检查中...' : '不可用')} />
               <DetailItem label="服务名称" value={props.health.data?.service ?? 'platform-api'} />
-              {props.health.data?.version && <DetailItem label="版本" value={props.health.data.version} />}
             </div>
           </div>
         </div>
@@ -1154,11 +1159,13 @@ function ManagementPage(props: ManagementPageProps) {
               ].filter(Boolean) as StatusOption[]}
               fetchDetail={fetchProject}
               updateDetail={(key, draft) => updateProject(key, {
-                name: draft.name, sensitivity_level: draft.sensitivity_level, allow_public_model: draft.allow_public_model
+                name: draft.name,
+                sensitivity_level: draft.sensitivity_level,
+                allow_public_model: optionalBoolean(draft.allow_public_model)
               })}
               changeStatus={changeProjectStatus}
               detailTitle={(d) => d.name}
-              draftFromDetail={(d) => ({ name: d.name, sensitivity_level: d.sensitivity_level, allow_public_model: d.allow_public_model })}
+              draftFromDetail={(d) => ({ name: d.name })}
               detailRows={(d) => [['归属部门', d.department], ['负责人', d.owner], ['应用数', d.apps], ['状态', d.status]]}
               onChanged={props.onRefresh}
             />
@@ -1234,7 +1241,7 @@ function ManagementPage(props: ManagementPageProps) {
               updateDetail={(key, draft) => updateApplication(key, {
                 name: draft.name, app_type: draft.app_type, default_web_url: draft.default_web_url,
                 default_api_base_url: draft.default_api_base_url, sensitivity_level: draft.sensitivity_level,
-                allow_public_model: draft.allow_public_model
+                allow_public_model: optionalBoolean(draft.allow_public_model)
               })}
               changeStatus={changeApplicationStatus}
               detailTitle={(d) => d.name}
@@ -1344,11 +1351,11 @@ function ManagementPage(props: ManagementPageProps) {
         icon={Link2}
         action="新增集成"
         createResource="integrations"
-        columns={['集成', '类型', 'Endpoint', '状态']}
-        rows={data.integrations.map((item: IntegrationView) => [item.name, item.type, item.endpoint, <StatusBadge key={item.name} status={item.status} />])}
+        columns={['集成', '类别', '范围', '状态']}
+        rows={data.integrations.map((item: IntegrationView) => [item.name, item.category, item.scope, <StatusBadge key={item.name} status={item.status} />])}
         loadState={loadState}
         signedIn={signedIn}
-        canCreate={hasPermission(currentUser, 'integration:create')}
+        canCreate={hasPermission(currentUser, 'config:edit')}
         onCreate={props.onCreate}
         onRefresh={props.onRefresh}
         sidePanel={
@@ -1359,23 +1366,23 @@ function ManagementPage(props: ManagementPageProps) {
             resources={data.integrations.map((i) => i.name)}
             fields={[
               { key: 'name', label: '集成名称', placeholder: '输入集成名称' },
-              { key: 'integration_type', label: '集成类型', placeholder: 'GITLAB / JIRA / SLACK' },
-              { key: 'endpoint_url', label: 'Endpoint', placeholder: 'https://git.example.com' }
+              { key: 'category', label: '类别', placeholder: '代码仓库 / CI/CD / 通知' },
+              { key: 'scope', label: '范围', placeholder: '全局 / 平台级 / 项目级' }
             ]}
             signedIn={signedIn}
-            canEdit={hasPermission(currentUser, 'integration:edit')}
+            canEdit={hasPermission(currentUser, 'config:edit')}
             statusOptions={[
-              hasPermission(currentUser, 'integration:edit') ? { value: 'CONNECTED', label: '已连接', icon: Power } as StatusOption : undefined,
-              hasPermission(currentUser, 'integration:edit') ? { value: 'DISCONNECTED', label: '已断开', icon: Power } as StatusOption : undefined,
+              hasPermission(currentUser, 'config:edit') ? { value: 'ENABLED', label: '启用集成', icon: Power } as StatusOption : undefined,
+              hasPermission(currentUser, 'config:edit') ? { value: 'DISABLED', label: '停用集成', icon: Power } as StatusOption : undefined,
             ].filter(Boolean) as StatusOption[]}
             fetchDetail={fetchIntegration}
             updateDetail={(key, draft) => updateIntegration(key, {
-              name: draft.name, integration_type: draft.integration_type, endpoint_url: draft.endpoint_url
+              name: draft.name, category: draft.category, scope: draft.scope
             })}
             changeStatus={changeIntegrationStatus}
             detailTitle={(d) => d.name}
-            draftFromDetail={(d) => ({ name: d.name })}
-            detailRows={(d) => [['类型', d.type], ['Endpoint', d.endpoint], ['状态', d.status]]}
+            draftFromDetail={(d) => ({ name: d.name, category: d.category, scope: d.scope })}
+            detailRows={(d) => [['类别', d.category], ['范围', d.scope], ['状态', d.status]]}
             onChanged={props.onRefresh}
           />
         }
@@ -1601,11 +1608,11 @@ interface ResourceLifecyclePanelProps<T> {
   changeStatus: (resourceKey: string, status: string) => Promise<unknown>;
   detailTitle: (detail: T) => string;
   draftFromDetail: (detail: T) => Record<string, string>;
-  detailRows: (detail: T) => Array<[string, string]>;
+  detailRows: (detail: T) => Array<[string, string | number | React.ReactNode | null | undefined]>;
   onChanged: () => void;
 }
 
-function ResourceLifecyclePanel<T extends Record<string, unknown>>(props: ResourceLifecyclePanelProps<T>) {
+function ResourceLifecyclePanel<T extends object>(props: ResourceLifecyclePanelProps<T>) {
   const [selectedKey, setSelectedKey] = useState('');
   const [detail, setDetail] = useState<T | null>(null);
   const [editDraft, setEditDraft] = useState<Record<string, string> | null>(null);
@@ -1793,6 +1800,13 @@ function RoleBindingControls(props: {
 
 /* ===================== Scoped Role Panel ===================== */
 
+type ScopedMemberView = ScopedUserRoleView | ProjectMemberView;
+type ScopedMembersPayload = ScopedMemberView[] | ManagementPageResponse<ScopedMemberView>;
+
+function scopedMembers(payload: ScopedMembersPayload): ScopedMemberView[] {
+  return Array.isArray(payload) ? payload : payload.items;
+}
+
 function ScopedRolePanel(props: {
   title: string;
   resourceLabel: string;
@@ -1801,14 +1815,15 @@ function ScopedRolePanel(props: {
   roles: string[];
   signedIn: boolean;
   canManage: boolean;
-  fetchMembers: (key: string) => Promise<{ data: ScopedUserRoleView[] }>;
-  addMember: (resourceKey: string, username: string) => Promise<unknown>;
+  fetchMembers: (key: string) => Promise<{ data: ScopedMembersPayload }>;
+  addMember: (resourceKey: string, username: string, roleCode: string) => Promise<unknown>;
   removeMember: (resourceKey: string, username: string) => Promise<unknown>;
   onChanged: () => void;
 }) {
   const [selectedKey, setSelectedKey] = useState('');
-  const [members, setMembers] = useState<ScopedUserRoleView[]>([]);
+  const [members, setMembers] = useState<ScopedMemberView[]>([]);
   const [username, setUsername] = useState('');
+  const [roleCode, setRoleCode] = useState(props.roles[0] ?? '');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -1817,7 +1832,7 @@ function ScopedRolePanel(props: {
     setLoading(true);
     setError('');
     props.fetchMembers(selectedKey)
-      .then((r) => { setMembers(r.data); setLoading(false); })
+      .then((r) => { setMembers(scopedMembers(r.data)); setLoading(false); })
       .catch((err: unknown) => { setError(err instanceof Error ? err.message : '加载失败'); setLoading(false); });
   }, [selectedKey, props]);
 
@@ -1826,11 +1841,11 @@ function ScopedRolePanel(props: {
     setLoading(true);
     setError('');
     try {
-      await props.addMember(selectedKey, username.trim());
+      await props.addMember(selectedKey, username.trim(), roleCode || props.roles[0] || '');
       setUsername('');
       props.onChanged();
       const r = await props.fetchMembers(selectedKey);
-      setMembers(r.data);
+      setMembers(scopedMembers(r.data));
       setLoading(false);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : '添加失败');
@@ -1846,7 +1861,7 @@ function ScopedRolePanel(props: {
       await props.removeMember(selectedKey, username);
       props.onChanged();
       const r = await props.fetchMembers(selectedKey);
-      setMembers(r.data);
+      setMembers(scopedMembers(r.data));
       setLoading(false);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : '移除失败');
@@ -1901,7 +1916,7 @@ function ScopedRolePanel(props: {
             )}
 
             {props.canManage && (
-              <div style={{ display: 'flex', gap: 6, marginTop: 12 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 110px auto', gap: 6, marginTop: 12 }}>
                 <input
                   type="text"
                   placeholder="输入用户名"
@@ -1909,6 +1924,13 @@ function ScopedRolePanel(props: {
                   onChange={(e) => setUsername(e.target.value)}
                   style={{ flex: 1, minHeight: 34, border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0 10px', fontSize: 13 }}
                 />
+                <select
+                  value={roleCode}
+                  onChange={(e) => setRoleCode(e.target.value)}
+                  style={{ minHeight: 34, border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0 8px', fontSize: 13 }}
+                >
+                  {props.roles.map((role) => <option key={role} value={role}>{role}</option>)}
+                </select>
                 <button className="btn btn-primary btn-sm" onClick={add} disabled={loading || !username.trim()}>添加</button>
               </div>
             )}
@@ -1981,7 +2003,7 @@ function EnvironmentConnectivityPanel(props: {
           <div style={{ padding: 12, background: 'var(--bg)', borderRadius: 'var(--radius-sm)', display: 'grid', gap: 8 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
               <StatusBadge status={result.status} />
-              <span className="text-tertiary text-xs">{result.latency_ms}ms</span>
+              <span className="text-tertiary text-xs">{result.latencyMs ?? '-'}ms</span>
             </div>
             <p className="text-secondary text-sm" style={{ lineHeight: 1.5, overflowWrap: 'anywhere' }}>{result.message}</p>
           </div>
@@ -2004,7 +2026,7 @@ function RoleDefinitionPanel(props: {
   const [detail, setDetail] = useState<RoleDetailView | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const canManageRole = hasPermission(props.currentUser, 'role:create');
+  const rolePermissions = detail?.permissionCodes ?? detail?.permission_codes ?? [];
 
   useEffect(() => {
     if (!selectedCode) { setDetail(null); return; }
@@ -2063,10 +2085,10 @@ function RoleDefinitionPanel(props: {
             </div>
 
             <div className="divider" />
-            <div className="text-tertiary text-xs font-semibold" style={{ marginBottom: 8 }}>权限点 ({detail.permissions?.length ?? 0})</div>
-            {detail.permissions && detail.permissions.length > 0 ? (
+            <div className="text-tertiary text-xs font-semibold" style={{ marginBottom: 8 }}>权限点 ({rolePermissions.length})</div>
+            {rolePermissions.length > 0 ? (
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                {detail.permissions.map((p: string) => (
+                {rolePermissions.map((p: string) => (
                   <span key={p} className="badge badge-info">{p}</span>
                 ))}
               </div>
@@ -2086,7 +2108,7 @@ function AuditPage(props: ManagementPageProps) {
   const { data, loadState, signedIn, currentUser, auditExportState, onAuditExport } = props;
 
   const canExport = canUseButton(currentUser, 'audit:export');
-  const canViewOutbox = hasPermission(currentUser, 'audit:write_internal');
+  const canViewOutbox = hasPermission(currentUser, 'audit:read');
 
   return (
     <div className="content-grid">
@@ -2135,15 +2157,14 @@ function AuditPage(props: ManagementPageProps) {
                   ) : (
                     data.auditLogs.map((log: AuditLogView, idx: number) => (
                       <tr key={idx}>
-                        <td className="text-sm">{log.created_at}</td>
+                        <td className="text-sm">{log.time}</td>
                         <td>{log.actor}</td>
                         <td>{log.action}</td>
                         <td>
-                          <div style={{ fontWeight: 600 }}>{log.resource_type}</div>
-                          <div className="text-tertiary text-xs">{log.resource_id}</div>
+                          <div style={{ fontWeight: 600 }}>{log.target}</div>
                         </td>
                         <td><StatusBadge status={log.result} /></td>
-                        <td className="text-sm text-secondary" style={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{log.target_name || '-'}</td>
+                        <td className="text-sm text-secondary" style={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{log.target || '-'}</td>
                       </tr>
                     ))
                   )}
@@ -2212,14 +2233,14 @@ function AuditOutboxPanel(props: ManagementPageProps) {
             props.data.auditOutbox.map((item: AuditOutboxView, idx: number) => (
               <div key={idx} style={{ padding: '8px 10px', border: '1px solid var(--border-light)', borderRadius: 'var(--radius-sm)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                  <strong style={{ fontSize: 13 }}>{item.action}</strong>
+                  <strong style={{ fontSize: 13 }}>{item.eventAction}</strong>
                   <StatusBadge status={item.status} />
                 </div>
                 <div className="text-tertiary text-xs" style={{ marginTop: 4 }}>
-                  {item.resource_type}/{item.resource_id}
+                  {item.resourceType}/{item.resourceId}
                 </div>
-                {item.error_message && (
-                  <div className="text-xs" style={{ color: 'var(--danger)', marginTop: 4 }}>{item.error_message}</div>
+                {item.lastError && (
+                  <div className="text-xs" style={{ color: 'var(--danger)', marginTop: 4 }}>{item.lastError}</div>
                 )}
               </div>
             ))

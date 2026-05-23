@@ -1,6 +1,7 @@
 package com.songhg.veri.agent.asset.infrastructure;
 
 import com.songhg.veri.agent.asset.application.AssetRepository;
+import com.songhg.veri.agent.asset.application.AssetListQuery;
 import com.songhg.veri.agent.asset.domain.AssetApi;
 import com.songhg.veri.agent.asset.domain.AssetBusinessFlow;
 import com.songhg.veri.agent.asset.domain.AssetPage;
@@ -32,6 +33,16 @@ public class PostgresAssetRepository implements AssetRepository {
     @Override
     public List<AssetRequirement> requirements(String projectId) {
         return mapper.listRequirements(projectId);
+    }
+
+    @Override
+    public List<AssetRequirement> requirements(AssetListQuery query) {
+        return mapper.listRequirementsByQuery(query);
+    }
+
+    @Override
+    public long countRequirements(AssetListQuery query) {
+        return mapper.countRequirementsByQuery(query);
     }
 
     @Override
@@ -102,6 +113,16 @@ public class PostgresAssetRepository implements AssetRepository {
     }
 
     @Override
+    public List<AssetApi> apis(AssetListQuery query) {
+        return mapper.listApisByQuery(query);
+    }
+
+    @Override
+    public long countApis(AssetListQuery query) {
+        return mapper.countApisByQuery(query);
+    }
+
+    @Override
     public Optional<AssetApi> api(UUID id) {
         return Optional.ofNullable(mapper.getApi(id));
     }
@@ -151,6 +172,16 @@ public class PostgresAssetRepository implements AssetRepository {
     }
 
     @Override
+    public List<AssetPage> pages(AssetListQuery query) {
+        return mapper.listPagesByQuery(query);
+    }
+
+    @Override
+    public long countPages(AssetListQuery query) {
+        return mapper.countPagesByQuery(query);
+    }
+
+    @Override
     public Optional<AssetPage> page(UUID id) {
         return Optional.ofNullable(mapper.getPage(id));
     }
@@ -191,6 +222,16 @@ public class PostgresAssetRepository implements AssetRepository {
     }
 
     @Override
+    public List<AssetBusinessFlow> businessFlows(AssetListQuery query) {
+        return mapper.listBusinessFlowsByQuery(query);
+    }
+
+    @Override
+    public long countBusinessFlows(AssetListQuery query) {
+        return mapper.countBusinessFlowsByQuery(query);
+    }
+
+    @Override
     public Optional<AssetBusinessFlow> businessFlow(UUID id) {
         return Optional.ofNullable(mapper.getBusinessFlow(id));
     }
@@ -223,6 +264,16 @@ public class PostgresAssetRepository implements AssetRepository {
     @Override
     public List<TestCaseRecord> testCases(String projectId) {
         return mapper.listTestCases(projectId);
+    }
+
+    @Override
+    public List<TestCaseRecord> testCases(AssetListQuery query) {
+        return mapper.listTestCasesByQuery(query);
+    }
+
+    @Override
+    public long countTestCases(AssetListQuery query) {
+        return mapper.countTestCasesByQuery(query);
     }
 
     @Override

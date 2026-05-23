@@ -139,7 +139,8 @@ export const resourceCreatePermissions: Record<CreatableManagementResource, Perm
   users: 'user:create',
   projects: 'project:create',
   applications: 'application:create',
-  environments: 'environment:create'
+  environments: 'environment:create',
+  integrations: 'config:edit'
 };
 
 /**

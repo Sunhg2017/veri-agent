@@ -19,7 +19,7 @@ const icons: Record<ToastType, ReactNode> = {
 
 function ToastCard({ item, onDone }: { item: ToastItem; onDone: (id: number) => void }) {
   const [leaving, setLeaving] = useState(false);
-  const timerRef = useRef<ReturnType<typeof setTimeout>>();
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const startLeave = useCallback(() => {
     setLeaving(true);
@@ -32,7 +32,11 @@ function ToastCard({ item, onDone }: { item: ToastItem; onDone: (id: number) => 
   }, [startLeave]);
 
   useEffect(() => {
-    return () => clearTimeout(timerRef.current);
+    return () => {
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+      }
+    };
   }, []);
 
   return (
