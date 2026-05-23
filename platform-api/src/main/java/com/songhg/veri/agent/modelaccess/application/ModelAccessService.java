@@ -17,8 +17,6 @@ import com.songhg.veri.agent.common.api.PageResponse;
 import com.songhg.veri.agent.modelaccess.config.ModelAccessProperties;
 import com.songhg.veri.agent.modelaccess.domain.InvocationRecord;
 import com.songhg.veri.agent.modelaccess.domain.ModelProviderConfig;
-import com.songhg.veri.agent.modelaccess.domain.PromptApprovalStatus;
-import com.songhg.veri.agent.modelaccess.domain.PromptStatus;
 import com.songhg.veri.agent.modelaccess.domain.PromptTemplate;
 import com.songhg.veri.agent.modelaccess.domain.ProviderStatus;
 import com.songhg.veri.agent.modelaccess.security.ServicePrincipal;
@@ -27,7 +25,6 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
-import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Locale;
@@ -42,6 +39,7 @@ public class ModelAccessService {
     private final ModelAccessRepository repository;
     private final ModelAccessProperties properties;
     private final ModelProviderManagementService providerManagementService;
+    private final PromptTemplateManagementService promptTemplateManagementService;
     private final ModelInvocationService invocationService;
     private final ModelCostAnalysisService costAnalysisService;
 
@@ -76,7 +74,8 @@ public class ModelAccessService {
                         properties,
                         metrics,
                         providerResilienceManager
-                )
+                ),
+                new PromptTemplateManagementService(repository)
         );
     }
 
@@ -86,11 +85,13 @@ public class ModelAccessService {
             ModelAccessProperties properties,
             ModelInvocationService invocationService,
             ModelCostAnalysisService costAnalysisService,
-            ModelProviderManagementService providerManagementService
+            ModelProviderManagementService providerManagementService,
+            PromptTemplateManagementService promptTemplateManagementService
     ) {
         this.repository = repository;
         this.properties = properties;
         this.providerManagementService = providerManagementService;
+        this.promptTemplateManagementService = promptTemplateManagementService;
         this.invocationService = invocationService;
         this.costAnalysisService = costAnalysisService;
     }
@@ -124,125 +125,23 @@ public class ModelAccessService {
     }
 
     public List<PromptTemplate> prompts(String promptKey) {
-        return repository.prompts(trimToNull(promptKey));
+        return promptTemplateManagementService.prompts(promptKey);
     }
 
     public PromptTemplate createPrompt(CreatePromptRequest request) {
-        String promptKey = request.promptKey().trim();
-        int nextVersion = repository.prompts(promptKey)
-                .stream()
-                .map(PromptTemplate::version)
-                .max(Integer::compareTo)
-                .orElse(0) + 1;
-        boolean highRisk = Boolean.TRUE.equals(request.highRisk());
-        PromptStatus status = Boolean.TRUE.equals(request.activate()) && !highRisk
-                ? PromptStatus.ACTIVE
-                : PromptStatus.DRAFT;
-        PromptApprovalStatus approvalStatus = highRisk
-                ? PromptApprovalStatus.PENDING
-                : PromptApprovalStatus.NOT_REQUIRED;
-        if (status == PromptStatus.ACTIVE) {
-            repository.deactivateActivePrompts(promptKey);
-        }
-        Instant now = Instant.now();
-        return repository.savePrompt(new PromptTemplate(
-                UUID.randomUUID(),
-                promptKey,
-                request.name().trim(),
-                nextVersion,
-                request.content(),
-                status,
-                trimToNull(request.changeNote()),
-                highRisk,
-                approvalStatus,
-                null,
-                null,
-                null,
-                now,
-                now
-        ));
+        return promptTemplateManagementService.createPrompt(request);
     }
 
     public PromptTemplate activatePrompt(UUID id) {
-        PromptTemplate prompt = repository.prompt(id)
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "Prompt 版本不存在"));
-        if (prompt.highRisk() && prompt.approvalStatus() != PromptApprovalStatus.APPROVED) {
-            throw new BusinessException(ErrorCode.INVALID_STATE, "高风险 Prompt 需审批通过后才能激活");
-        }
-        repository.deactivateActivePrompts(prompt.promptKey());
-        return repository.savePrompt(new PromptTemplate(
-                prompt.id(),
-                prompt.promptKey(),
-                prompt.name(),
-                prompt.version(),
-                prompt.content(),
-                PromptStatus.ACTIVE,
-                prompt.changeNote(),
-                prompt.highRisk(),
-                prompt.approvalStatus(),
-                prompt.approvedBy(),
-                prompt.approvedAt(),
-                prompt.approvalNote(),
-                prompt.createdAt(),
-                Instant.now()
-        ));
+        return promptTemplateManagementService.activatePrompt(id);
     }
 
     public PromptTemplate approvePrompt(UUID id, String approvedBy, String reviewNote) {
-        PromptTemplate prompt = promptForReview(id);
-        return repository.savePrompt(reviewedPrompt(
-                prompt,
-                PromptApprovalStatus.APPROVED,
-                approvedBy,
-                reviewNote
-        ));
+        return promptTemplateManagementService.approvePrompt(id, approvedBy, reviewNote);
     }
 
     public PromptTemplate rejectPrompt(UUID id, String approvedBy, String reviewNote) {
-        PromptTemplate prompt = promptForReview(id);
-        return repository.savePrompt(reviewedPrompt(
-                prompt,
-                PromptApprovalStatus.REJECTED,
-                approvedBy,
-                reviewNote
-        ));
-    }
-
-    private PromptTemplate promptForReview(UUID id) {
-        PromptTemplate prompt = repository.prompt(id)
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "Prompt 版本不存在"));
-        if (!prompt.highRisk()) {
-            throw new BusinessException(ErrorCode.INVALID_STATE, "低风险 Prompt 不需要审批");
-        }
-        if (prompt.status() == PromptStatus.ACTIVE) {
-            throw new BusinessException(ErrorCode.INVALID_STATE, "已激活 Prompt 不能重新审批");
-        }
-        return prompt;
-    }
-
-    private PromptTemplate reviewedPrompt(
-            PromptTemplate prompt,
-            PromptApprovalStatus approvalStatus,
-            String approvedBy,
-            String reviewNote
-    ) {
-        Instant now = Instant.now();
-        return new PromptTemplate(
-                prompt.id(),
-                prompt.promptKey(),
-                prompt.name(),
-                prompt.version(),
-                prompt.content(),
-                prompt.status(),
-                prompt.changeNote(),
-                prompt.highRisk(),
-                approvalStatus,
-                trimToNull(approvedBy) == null ? "system" : approvedBy.trim(),
-                now,
-                trimToNull(reviewNote),
-                prompt.createdAt(),
-                now
-        );
+        return promptTemplateManagementService.rejectPrompt(id, approvedBy, reviewNote);
     }
 
     public InvokeModelResponse invoke(InvokeModelRequest request, ServicePrincipal principal) {
@@ -320,7 +219,7 @@ public class ModelAccessService {
     }
 
     public int activePromptCount() {
-        return (int) repository.prompts(null).stream().filter(prompt -> prompt.status() == PromptStatus.ACTIVE).count();
+        return promptTemplateManagementService.activePromptCount();
     }
 
     public boolean providerRateLimitEnabled() {
