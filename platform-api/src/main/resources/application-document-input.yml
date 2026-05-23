@@ -1,0 +1,48 @@
+veri-agent:
+  document-input:
+    service-token: ${WP4_SERVICE_TOKEN:local-document-input-token}
+    webhook-secret: ${WP4_WEBHOOK_SECRET:}
+    webhook-secrets:
+      wp4-webhook-default: ${WP4_WEBHOOK_SECRET:}
+    webhook-clock-skew-seconds: ${WP4_WEBHOOK_CLOCK_SKEW_SECONDS:300}
+    input-enabled: ${WP4_INPUT_ENABLED:true}
+    webhook-enabled: ${WP4_WEBHOOK_ENABLED:true}
+    model-parse-enabled: ${WP4_MODEL_PARSE_ENABLED:false}
+    model-parse-prompt-key: ${WP4_MODEL_PARSE_PROMPT_KEY:wp4-document-requirement-parse}
+    model-parse-sensitivity-level: ${WP4_MODEL_PARSE_SENSITIVITY_LEVEL:INTERNAL}
+    model-parse-allow-public-model: ${WP4_MODEL_PARSE_ALLOW_PUBLIC_MODEL:false}
+    model-parse-max-content-chars: ${WP4_MODEL_PARSE_MAX_CONTENT_CHARS:8000}
+    import-max-content-bytes: ${WP4_IMPORT_MAX_CONTENT_BYTES:16777216}
+    document-binary-max-bytes: ${WP4_DOCUMENT_BINARY_MAX_BYTES:10485760}
+    ocr-command: ${WP4_OCR_COMMAND:}
+    ocr-timeout-seconds: ${WP4_OCR_TIMEOUT_SECONDS:30}
+    ocr-max-output-chars: ${WP4_OCR_MAX_OUTPUT_CHARS:20000}
+    ocr-max-concurrent-processes: ${WP4_OCR_MAX_CONCURRENT_PROCESSES:2}
+    local-webhook-secret-fallback-enabled: ${WP4_LOCAL_WEBHOOK_SECRET_FALLBACK_ENABLED:true}
+    webhook-max-payload-bytes: ${WP4_WEBHOOK_MAX_PAYLOAD_BYTES:262144}
+    batch-action-limit: ${WP4_BATCH_ACTION_LIMIT:100}
+    webhook-max-replay-attempts: ${WP4_WEBHOOK_MAX_REPLAY_ATTEMPTS:3}
+    webhook-auto-retry-enabled: ${WP4_WEBHOOK_AUTO_RETRY_ENABLED:false}
+    webhook-auto-retry-batch-size: ${WP4_WEBHOOK_AUTO_RETRY_BATCH_SIZE:20}
+    webhook-auto-retry-cron: "${WP4_WEBHOOK_AUTO_RETRY_CRON:0 */5 * * * *}"
+    webhook-secret-cache-ttl-seconds: ${WP4_WEBHOOK_SECRET_CACHE_TTL_SECONDS:60}
+    webhook-secret-rotation-overlap-seconds: ${WP4_WEBHOOK_SECRET_ROTATION_OVERLAP_SECONDS:300}
+    webhook-allowed-cidrs: ${WP4_WEBHOOK_ALLOWED_CIDRS:}
+    webhook-source-allowed-cidrs: {}
+    webhook-trusted-proxy-cidrs: ${WP4_WEBHOOK_TRUSTED_PROXY_CIDRS:}
+    webhook-rate-limit-max-requests: ${WP4_WEBHOOK_RATE_LIMIT_MAX_REQUESTS:0}
+    webhook-rate-limit-window-seconds: ${WP4_WEBHOOK_RATE_LIMIT_WINDOW_SECONDS:60}
+    binary-mime-validation-enabled: ${WP4_BINARY_MIME_VALIDATION_ENABLED:true}
+    pdf-max-pages: ${WP4_PDF_MAX_PAGES:0}
+    pdf-max-parse-millis: ${WP4_PDF_MAX_PARSE_MILLIS:0}
+    ocr-worker-mode: ${WP4_OCR_WORKER_MODE:LOCAL_COMMAND}
+    ocr-worker-url: ${WP4_OCR_WORKER_URL:}
+    ocr-worker-token: ${WP4_OCR_WORKER_TOKEN:}
+    ocr-local-command-fallback-enabled: ${WP4_OCR_LOCAL_COMMAND_FALLBACK_ENABLED:true}
+    malware-scan-command: ${WP4_MALWARE_SCAN_COMMAND:}
+    malware-scan-timeout-seconds: ${WP4_MALWARE_SCAN_TIMEOUT_SECONDS:15}
+    malware-scan-max-concurrent-processes: ${WP4_MALWARE_SCAN_MAX_CONCURRENT_PROCESSES:2}
+    malware-scan-max-output-chars: ${WP4_MALWARE_SCAN_MAX_OUTPUT_CHARS:2000}
+    retention-cleanup-enabled: ${WP4_RETENTION_CLEANUP_ENABLED:false}
+    import-retention-days: ${WP4_IMPORT_RETENTION_DAYS:90}
+    webhook-event-retention-days: ${WP4_WEBHOOK_EVENT_RETENTION_DAYS:90}

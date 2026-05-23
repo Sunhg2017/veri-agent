@@ -1,4 +1,10 @@
 spring:
+  config:
+    import:
+      - classpath:application-platform.yml
+      - classpath:application-model-access.yml
+      - classpath:application-asset.yml
+      - classpath:application-document-input.yml
   application:
     name: platform-api
   profiles:
@@ -32,107 +38,3 @@ springdoc:
 mybatis:
   mapper-locations: classpath*:mapper/**/*.xml
   type-handlers-package: com.songhg.veri.agent.common.mybatis
-
-veri-agent:
-  auth:
-    token-secret: ${WP1_AUTH_TOKEN_SECRET:}
-    access-token-ttl-minutes: ${WP1_ACCESS_TOKEN_TTL_MINUTES:30}
-    session-cleanup-enabled: ${WP1_SESSION_CLEANUP_ENABLED:true}
-    session-cleanup-retention-seconds: ${WP1_SESSION_CLEANUP_RETENTION_SECONDS:86400}
-    session-cleanup-interval-ms: ${WP1_SESSION_CLEANUP_INTERVAL_MS:3600000}
-  audit:
-    retention-cleanup-enabled: ${WP1_AUDIT_RETENTION_CLEANUP_ENABLED:false}
-    retention-days: ${WP1_AUDIT_RETENTION_DAYS:365}
-    min-retention-days: ${WP1_AUDIT_MIN_RETENTION_DAYS:30}
-    retention-cleanup-cron: "${WP1_AUDIT_RETENTION_CLEANUP_CRON:0 45 3 * * *}"
-    retention-cleanup-batch-size: ${WP1_AUDIT_RETENTION_CLEANUP_BATCH_SIZE:1000}
-  management:
-    environment-connectivity-check-enabled: ${WP1_ENV_CONNECTIVITY_CHECK_ENABLED:true}
-    environment-connectivity-timeout-ms: ${WP1_ENV_CONNECTIVITY_TIMEOUT_MS:3000}
-  integration:
-    service-token: ${WP1_SERVICE_TOKEN:local-platform-service-token}
-  service-caller:
-    model-access-trusted-services: ${WP2_TRUSTED_CALLER_SERVICES:model-access,model-access-console,wp5-test-design,wp4-document-input}
-    asset-trusted-services: ${WP3_TRUSTED_CALLER_SERVICES:asset-service,wp5-test-design,wp4-document-input}
-    document-input-trusted-services: ${WP4_TRUSTED_CALLER_SERVICES:document-input,wp4-document-input,wp5-test-design}
-  secret:
-    local-master-key: ${WP1_LOCAL_SECRET_MASTER_KEY:}
-    local-master-key-version: ${WP1_LOCAL_SECRET_MASTER_KEY_VERSION:v1}
-    external-resolve-url: ${WP1_EXTERNAL_SECRET_RESOLVE_URL:}
-    external-auth-token: ${WP1_EXTERNAL_SECRET_AUTH_TOKEN:}
-    external-timeout-seconds: ${WP1_EXTERNAL_SECRET_TIMEOUT_SECONDS:3}
-    external-max-retries: ${WP1_EXTERNAL_SECRET_MAX_RETRIES:1}
-    external-health-url: ${WP1_EXTERNAL_SECRET_HEALTH_URL:}
-    external-signing-key-id: ${WP1_EXTERNAL_SECRET_SIGNING_KEY_ID:external-vault-kms}
-    external-signing-secret: ${WP1_EXTERNAL_SECRET_SIGNING_SECRET:}
-  model-access:
-    service-token: ${WP2_SERVICE_TOKEN:local-model-access-token}
-    default-model: ${WP2_DEFAULT_MODEL:local-echo}
-    max-prompt-chars: ${WP2_MAX_PROMPT_CHARS:12000}
-    daily-platform-cost-limit: ${WP2_DAILY_PLATFORM_COST_LIMIT:0}
-    daily-project-cost-limit: ${WP2_DAILY_PROJECT_COST_LIMIT:0}
-    daily-caller-service-cost-limit: ${WP2_DAILY_CALLER_SERVICE_COST_LIMIT:0}
-    budget-estimated-output-tokens: ${WP2_BUDGET_ESTIMATED_OUTPUT_TOKENS:0}
-    budget-zone-id: ${WP2_BUDGET_ZONE_ID:Asia/Shanghai}
-    budget-overrun-action: ${WP2_BUDGET_OVERRUN_ACTION:BLOCK}
-    max-export-rows: ${WP2_MAX_EXPORT_ROWS:10000}
-    provider-max-retries: ${WP2_PROVIDER_MAX_RETRIES:1}
-    provider-circuit-failure-threshold: ${WP2_PROVIDER_CIRCUIT_FAILURE_THRESHOLD:3}
-    provider-circuit-open-ms: ${WP2_PROVIDER_CIRCUIT_OPEN_MS:60000}
-    provider-check-cache-ttl-ms: ${WP2_PROVIDER_CHECK_CACHE_TTL_MS:30000}
-    cost-alert-warning-ratio: ${WP2_COST_ALERT_WARNING_RATIO:0.8}
-    provider-rate-limit-max-requests: ${WP2_PROVIDER_RATE_LIMIT_MAX_REQUESTS:0}
-    provider-rate-limit-window-seconds: ${WP2_PROVIDER_RATE_LIMIT_WINDOW_SECONDS:60}
-    provider-max-concurrent-requests: ${WP2_PROVIDER_MAX_CONCURRENT_REQUESTS:0}
-    async-job-worker-threads: ${WP2_ASYNC_JOB_WORKER_THREADS:2}
-    async-job-dispatch-delay-ms: ${WP2_ASYNC_JOB_DISPATCH_DELAY_MS:0}
-    routing-rules: []
-  asset:
-    service-token: ${WP3_SERVICE_TOKEN:local-asset-token}
-  document-input:
-    service-token: ${WP4_SERVICE_TOKEN:local-document-input-token}
-    webhook-secret: ${WP4_WEBHOOK_SECRET:}
-    webhook-secrets:
-      wp4-webhook-default: ${WP4_WEBHOOK_SECRET:}
-    webhook-clock-skew-seconds: ${WP4_WEBHOOK_CLOCK_SKEW_SECONDS:300}
-    input-enabled: ${WP4_INPUT_ENABLED:true}
-    webhook-enabled: ${WP4_WEBHOOK_ENABLED:true}
-    model-parse-enabled: ${WP4_MODEL_PARSE_ENABLED:false}
-    model-parse-prompt-key: ${WP4_MODEL_PARSE_PROMPT_KEY:wp4-document-requirement-parse}
-    model-parse-sensitivity-level: ${WP4_MODEL_PARSE_SENSITIVITY_LEVEL:INTERNAL}
-    model-parse-allow-public-model: ${WP4_MODEL_PARSE_ALLOW_PUBLIC_MODEL:false}
-    model-parse-max-content-chars: ${WP4_MODEL_PARSE_MAX_CONTENT_CHARS:8000}
-    import-max-content-bytes: ${WP4_IMPORT_MAX_CONTENT_BYTES:16777216}
-    document-binary-max-bytes: ${WP4_DOCUMENT_BINARY_MAX_BYTES:10485760}
-    ocr-command: ${WP4_OCR_COMMAND:}
-    ocr-timeout-seconds: ${WP4_OCR_TIMEOUT_SECONDS:30}
-    ocr-max-output-chars: ${WP4_OCR_MAX_OUTPUT_CHARS:20000}
-    ocr-max-concurrent-processes: ${WP4_OCR_MAX_CONCURRENT_PROCESSES:2}
-    local-webhook-secret-fallback-enabled: ${WP4_LOCAL_WEBHOOK_SECRET_FALLBACK_ENABLED:true}
-    webhook-max-payload-bytes: ${WP4_WEBHOOK_MAX_PAYLOAD_BYTES:262144}
-    batch-action-limit: ${WP4_BATCH_ACTION_LIMIT:100}
-    webhook-max-replay-attempts: ${WP4_WEBHOOK_MAX_REPLAY_ATTEMPTS:3}
-    webhook-auto-retry-enabled: ${WP4_WEBHOOK_AUTO_RETRY_ENABLED:false}
-    webhook-auto-retry-batch-size: ${WP4_WEBHOOK_AUTO_RETRY_BATCH_SIZE:20}
-    webhook-auto-retry-cron: "${WP4_WEBHOOK_AUTO_RETRY_CRON:0 */5 * * * *}"
-    webhook-secret-cache-ttl-seconds: ${WP4_WEBHOOK_SECRET_CACHE_TTL_SECONDS:60}
-    webhook-secret-rotation-overlap-seconds: ${WP4_WEBHOOK_SECRET_ROTATION_OVERLAP_SECONDS:300}
-    webhook-allowed-cidrs: ${WP4_WEBHOOK_ALLOWED_CIDRS:}
-    webhook-source-allowed-cidrs: {}
-    webhook-trusted-proxy-cidrs: ${WP4_WEBHOOK_TRUSTED_PROXY_CIDRS:}
-    webhook-rate-limit-max-requests: ${WP4_WEBHOOK_RATE_LIMIT_MAX_REQUESTS:0}
-    webhook-rate-limit-window-seconds: ${WP4_WEBHOOK_RATE_LIMIT_WINDOW_SECONDS:60}
-    binary-mime-validation-enabled: ${WP4_BINARY_MIME_VALIDATION_ENABLED:true}
-    pdf-max-pages: ${WP4_PDF_MAX_PAGES:0}
-    pdf-max-parse-millis: ${WP4_PDF_MAX_PARSE_MILLIS:0}
-    ocr-worker-mode: ${WP4_OCR_WORKER_MODE:LOCAL_COMMAND}
-    ocr-worker-url: ${WP4_OCR_WORKER_URL:}
-    ocr-worker-token: ${WP4_OCR_WORKER_TOKEN:}
-    ocr-local-command-fallback-enabled: ${WP4_OCR_LOCAL_COMMAND_FALLBACK_ENABLED:true}
-    malware-scan-command: ${WP4_MALWARE_SCAN_COMMAND:}
-    malware-scan-timeout-seconds: ${WP4_MALWARE_SCAN_TIMEOUT_SECONDS:15}
-    malware-scan-max-concurrent-processes: ${WP4_MALWARE_SCAN_MAX_CONCURRENT_PROCESSES:2}
-    malware-scan-max-output-chars: ${WP4_MALWARE_SCAN_MAX_OUTPUT_CHARS:2000}
-    retention-cleanup-enabled: ${WP4_RETENTION_CLEANUP_ENABLED:false}
-    import-retention-days: ${WP4_IMPORT_RETENTION_DAYS:90}
-    webhook-event-retention-days: ${WP4_WEBHOOK_EVENT_RETENTION_DAYS:90}

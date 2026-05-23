@@ -1,0 +1,3 @@
+veri-agent:
+  asset:
+    service-token: ${WP3_SERVICE_TOKEN:local-asset-token}

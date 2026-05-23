@@ -43,7 +43,7 @@
 | D3 | 审计清理索引 | 已有保障 | 现有迁移已包含 `idx_audit_log_time` 和 `idx_audit_outbox_created_at` |
 | T1 | AssetService 核心单测 | 已完成 | 新增 `AssetServiceCoreTest`，覆盖需求状态转换拒绝、导入合并/审批后冲突和历史版本回滚生命周期恢复 |
 | T2 | SensitiveContentGuard 直接测试 | 已完成 | 已在上一批补充独立测试 |
-| M1 | application.yml 分层 | 专项任务 | 配置拆分影响启动和部署，拆为配置治理专项 |
+| M1 | application.yml 分层 | 已完成 | `application.yml` 保留 Spring/server/mybatis/OpenAPI 基线配置；WP1 平台治理、WP2 模型接入、WP3 资产和 WP4 文档输入配置拆到 `application-platform.yml`、`application-model-access.yml`、`application-asset.yml`、`application-document-input.yml` 并通过 `spring.config.import` 引入；新增配置分层绑定契约测试 |
 | M2 | API 版本策略 | 专项任务 | 拆为 API 兼容策略文档和 Controller 元数据专项 |
 | M3 | OpenAPI 注解覆盖 | 专项任务 | 拆为公开 API 文档覆盖专项，并增加 contract test |
 | X1 | 异步模型调用 Job 持久化 | 专项任务 | 拆为 DB job/outbox 或队列调度专项 |
@@ -54,7 +54,7 @@
 ### 剩余专项优先级
 
 1. 架构治理专项：A1、A2，按模块逐步拆分并保持接口兼容。
-2. 运行治理专项：D1、M1、M2、M3、X1、X3，补发布回滚、配置分层、API 版本策略、OpenAPI 覆盖和分布式可靠性。
+2. 运行治理专项：D1、M2、M3、X1、X3，补发布回滚、API 版本策略、OpenAPI 覆盖和分布式可靠性。
 
 ## 一、安全风险 (Security)
 
@@ -305,6 +305,7 @@
 - **文件**: `application.yml` (~137 行)
 - **问题**: 所有模块的配置（auth、audit、model-access、asset、document-input、secret、management）全部堆集在单一配置文件中。
 - **建议**: 按模块拆分到独立配置文件（如 `application-auth.yml`、`application-model-access.yml`），通过 `spring.config.import` 引入
+- **处理结果**: 已将平台基础治理配置拆入 `application-platform.yml`，模型接入配置拆入 `application-model-access.yml`，资产配置拆入 `application-asset.yml`，文档输入配置拆入 `application-document-input.yml`；主 `application.yml` 仅保留通用 Spring/server/mybatis/OpenAPI 基线并通过 `spring.config.import` 引入模块配置。新增 `ApplicationConfigurationLayeringTest` 校验模块 import 后默认配置可正常绑定，降低配置拆分导致启动失败的风险。
 
 ### [LOW] M2: 缺少 API 版本化管理策略
 
