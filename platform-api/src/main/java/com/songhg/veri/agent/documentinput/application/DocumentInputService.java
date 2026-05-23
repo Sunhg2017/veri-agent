@@ -69,6 +69,7 @@ import java.util.UUID;
 import java.util.regex.Pattern;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 @Service
@@ -355,6 +356,7 @@ public class DocumentInputService {
         return toFieldMappingResponse(updated);
     }
 
+    @Transactional
     public DocumentImportResponse importDocument(CreateDocumentImportRequest request) {
         ensureInputEnabled();
         return importContent(
@@ -370,6 +372,7 @@ public class DocumentInputService {
         );
     }
 
+    @Transactional
     public DocumentImportResponse importMultipart(
             String projectId,
             DocumentSourceType sourceType,

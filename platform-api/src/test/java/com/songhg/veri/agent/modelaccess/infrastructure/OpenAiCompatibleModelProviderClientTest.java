@@ -43,6 +43,21 @@ class OpenAiCompatibleModelProviderClientTest {
         }
     }
 
+    @Test
+    void reusesRestClientForSameProviderEndpointAndTimeout() throws Exception {
+        HttpServer server = startOpenAiCompatibleServer();
+        try {
+            OpenAiCompatibleModelProviderClient client = new OpenAiCompatibleModelProviderClient(RestClient.builder());
+            ModelProviderConfig provider = provider(server);
+
+            assertThat(client.restClient(provider)).isSameAs(client.restClient(provider));
+            assertThat(client.restClient(providerWithTimeout(server, 2000))).isNotSameAs(client.restClient(provider));
+        } finally {
+            server.stop(0);
+        }
+    }
+
+
     private HttpServer startOpenAiCompatibleServer() throws IOException {
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         server.createContext("/v1/chat/completions", exchange -> {
@@ -67,6 +82,10 @@ class OpenAiCompatibleModelProviderClientTest {
     }
 
     private ModelProviderConfig provider(HttpServer server) {
+        return providerWithTimeout(server, 1000);
+    }
+
+    private ModelProviderConfig providerWithTimeout(HttpServer server, int timeoutMs) {
         Instant now = Instant.now();
         return new ModelProviderConfig(
                 UUID.randomUUID(),
@@ -78,7 +97,7 @@ class OpenAiCompatibleModelProviderClientTest {
                 "env:TEST_MODEL_API_KEY",
                 ProviderStatus.ENABLED,
                 1,
-                1000,
+                timeoutMs,
                 BigDecimal.ZERO,
                 BigDecimal.ZERO,
                 now,

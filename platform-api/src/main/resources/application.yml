@@ -51,6 +51,10 @@ veri-agent:
     environment-connectivity-timeout-ms: ${WP1_ENV_CONNECTIVITY_TIMEOUT_MS:3000}
   integration:
     service-token: ${WP1_SERVICE_TOKEN:local-platform-service-token}
+  service-caller:
+    model-access-trusted-services: ${WP2_TRUSTED_CALLER_SERVICES:model-access,model-access-console,wp5-test-design,wp4-document-input}
+    asset-trusted-services: ${WP3_TRUSTED_CALLER_SERVICES:asset-service,wp5-test-design,wp4-document-input}
+    document-input-trusted-services: ${WP4_TRUSTED_CALLER_SERVICES:document-input,wp4-document-input,wp5-test-design}
   secret:
     local-master-key: ${WP1_LOCAL_SECRET_MASTER_KEY:}
     local-master-key-version: ${WP1_LOCAL_SECRET_MASTER_KEY_VERSION:v1}
@@ -87,9 +91,9 @@ veri-agent:
     service-token: ${WP3_SERVICE_TOKEN:local-asset-token}
   document-input:
     service-token: ${WP4_SERVICE_TOKEN:local-document-input-token}
-    webhook-secret: ${WP4_WEBHOOK_SECRET:local-document-input-webhook-secret}
+    webhook-secret: ${WP4_WEBHOOK_SECRET:}
     webhook-secrets:
-      wp4-webhook-default: ${WP4_WEBHOOK_SECRET:local-document-input-webhook-secret}
+      wp4-webhook-default: ${WP4_WEBHOOK_SECRET:}
     webhook-clock-skew-seconds: ${WP4_WEBHOOK_CLOCK_SKEW_SECONDS:300}
     input-enabled: ${WP4_INPUT_ENABLED:true}
     webhook-enabled: ${WP4_WEBHOOK_ENABLED:true}

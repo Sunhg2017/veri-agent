@@ -74,4 +74,23 @@ class PlatformIntegrationControllerTest {
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("FORBIDDEN"));
     }
+
+    @Test
+    void rejectsUntrustedCallerServiceForInternalAuditEvents() throws Exception {
+        mockMvc.perform(post("/api/v1/audit/events")
+                        .header("Authorization", "Bearer test-platform-service-token")
+                        .header("X-Caller-Service", "untrusted-service")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "action": "MODEL_INVOKE",
+                                  "resourceType": "MODEL_INVOCATION",
+                                  "resourceId": "inv-001",
+                                  "result": "SUCCEEDED"
+                                }
+                                """))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"))
+                .andExpect(jsonPath("$.message").value("服务调用方不可信"));
+    }
 }

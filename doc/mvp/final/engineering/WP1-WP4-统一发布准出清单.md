@@ -39,6 +39,8 @@
 | WP4 AI 质量 | golden corpus 质量门禁 | `bash scripts/wp4_ai_parse_quality_eval.sh` | 标题召回、优先级准确率、验收标准覆盖率 |
 | WP1-WP4 E2E | 统一平台端到端 smoke | `WP2_SERVICE_TOKEN=local-model-access-token WP3_SERVICE_TOKEN=local-asset-token WP4_SERVICE_TOKEN=local-document-input-token WP4_WEBHOOK_SECRET=local-document-input-webhook-secret bash scripts/wp_all_integration_test.sh` | WP1 context、WP2 invocation、WP3 asset、WP4 publish/webhook 串联 |
 
+> WP4 webhook smoke 中的 `WP4_WEBHOOK_SECRET` 只是本地签名样例；`application.yml` 不再提供默认明文密钥。对已启动服务执行 smoke 前，后端进程也必须显式设置相同的 `WP4_WEBHOOK_SECRET`，生产发布应使用 SecretProvider 并设置 `WP4_LOCAL_WEBHOOK_SECRET_FALLBACK_ENABLED=false`。
+
 ## 3. 推荐执行顺序
 
 ### 3.1 本地或 PR CI

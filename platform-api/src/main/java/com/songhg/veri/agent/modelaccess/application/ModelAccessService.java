@@ -422,6 +422,7 @@ public class ModelAccessService {
         RuntimeException lastFailure = null;
         boolean fallbackUsed = false;
         boolean fallbackOnBudgetOverrun = properties.fallbackOnBudgetOverrun();
+        BudgetWindow budgetWindow = budgetCheckEnabled() ? currentBudgetWindow() : null;
         for (int index = 0; index < candidates.size(); index++) {
             ModelProviderConfig provider = candidates.get(index);
             if (providerResilienceManager.isCircuitOpen(provider)) {
@@ -430,7 +431,7 @@ public class ModelAccessService {
                 continue;
             }
             ModelProviderClient client = clientFor(provider);
-            BudgetViolation budgetViolation = budgetViolation(request, principal, provider, fullPrompt);
+            BudgetViolation budgetViolation = budgetViolation(request, principal, provider, fullPrompt, budgetWindow);
             if (budgetViolation != null) {
                 if (fallbackOnBudgetOverrun && index < candidates.size() - 1) {
                     lastFailure = new BusinessException(ErrorCode.BUDGET_EXCEEDED, budgetViolation.message());
@@ -1206,14 +1207,12 @@ public class ModelAccessService {
             InvokeModelRequest request,
             ServicePrincipal principal,
             ModelProviderConfig provider,
-            String fullPrompt
+            String fullPrompt,
+            BudgetWindow window
     ) {
-        if (!properties.hasDailyPlatformCostLimit()
-                && !properties.hasDailyProjectCostLimit()
-                && !properties.hasDailyCallerServiceCostLimit()) {
+        if (!budgetCheckEnabled()) {
             return null;
         }
-        BudgetWindow window = currentBudgetWindow();
         BigDecimal estimatedCost = estimatedCost(provider, fullPrompt);
 
         if (properties.hasDailyProjectCostLimit()) {
@@ -1282,6 +1281,12 @@ public class ModelAccessService {
             );
         }
         return null;
+    }
+
+    private boolean budgetCheckEnabled() {
+        return properties.hasDailyPlatformCostLimit()
+                || properties.hasDailyProjectCostLimit()
+                || properties.hasDailyCallerServiceCostLimit();
     }
 
     private CostAlertResponse projectCostAlert(String projectId, BudgetWindow window) {

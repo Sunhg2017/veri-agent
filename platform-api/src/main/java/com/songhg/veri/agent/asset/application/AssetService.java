@@ -67,6 +67,7 @@ import java.util.function.Function;
 import com.songhg.veri.agent.modelaccess.security.ServicePrincipal;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -109,14 +110,20 @@ public class AssetService {
             "ACTIVE", Set.of("ACTIVE", "ARCHIVED"),
             "ARCHIVED", Set.of("ARCHIVED")
     );
-    private static final ObjectMapper JSON_MAPPER = new ObjectMapper().findAndRegisterModules();
 
     private final AssetRepository repository;
     private final PlatformContextClient contextClient;
+    private final ObjectMapper objectMapper;
 
     public AssetService(AssetRepository repository, PlatformContextClient contextClient) {
+        this(repository, contextClient, new ObjectMapper().findAndRegisterModules());
+    }
+
+    @Autowired
+    public AssetService(AssetRepository repository, PlatformContextClient contextClient, ObjectMapper objectMapper) {
         this.repository = repository;
         this.contextClient = contextClient;
+        this.objectMapper = objectMapper;
     }
 
     // ---- Requirements ----
@@ -297,7 +304,7 @@ public class AssetService {
         AssetRequirement requirement = repository.requirementIncludingInactive(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "需求不存在: " + id));
         return repository.assetVersionHistory("REQUIREMENT", requirement.id()).stream()
-                .map(AssetService::toVersionHistoryResponse)
+                .map(this::toVersionHistoryResponse)
                 .toList();
     }
 
@@ -897,7 +904,7 @@ public class AssetService {
         TestCaseRecord testCase = repository.testCaseIncludingInactive(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "测试用例不存在: " + id));
         return repository.assetVersionHistory("TEST_CASE", testCase.id()).stream()
-                .map(AssetService::toVersionHistoryResponse)
+                .map(this::toVersionHistoryResponse)
                 .toList();
     }
 
@@ -1315,7 +1322,7 @@ public class AssetService {
         );
     }
 
-    private static boolean samePage(AssetPage left, AssetPage right) {
+    private boolean samePage(AssetPage left, AssetPage right) {
         return Objects.equals(left.name(), right.name())
                 && Objects.equals(left.urlPattern(), right.urlPattern())
                 && Objects.equals(left.source(), right.source())
@@ -1542,7 +1549,7 @@ public class AssetService {
             return parseOpenApi(content);
         }
         try {
-            JsonNode root = JSON_MAPPER.readTree(content);
+            JsonNode root = objectMapper.readTree(content);
             JsonNode rows = root.isArray() ? root : root.path("items");
             if (!rows.isArray()) {
                 throw new BusinessException(ErrorCode.VALIDATION_ERROR, "JSON 导入内容必须是数组或包含 items 数组");
@@ -1559,7 +1566,7 @@ public class AssetService {
 
     private List<Map<String, String>> parseOpenApi(String content) {
         try {
-            JsonNode root = JSON_MAPPER.readTree(content);
+            JsonNode root = objectMapper.readTree(content);
             String apiVersion = trimToNull(textOrNull(root.path("info").path("version")));
             JsonNode paths = root.path("paths");
             if (!paths.isObject()) {
@@ -1714,7 +1721,7 @@ public class AssetService {
         );
     }
 
-    private static boolean sameApi(AssetApi left, AssetApi right) {
+    private boolean sameApi(AssetApi left, AssetApi right) {
         return Objects.equals(left.summary(), right.summary())
                 && Objects.equals(left.description(), right.description())
                 && Objects.equals(left.httpMethod(), right.httpMethod())
@@ -1982,7 +1989,7 @@ public class AssetService {
         );
     }
 
-    private static AssetVersionHistoryResponse toVersionHistoryResponse(AssetVersionHistory history) {
+    private AssetVersionHistoryResponse toVersionHistoryResponse(AssetVersionHistory history) {
         return new AssetVersionHistoryResponse(
                 history.id(),
                 history.assetType(),
@@ -2037,7 +2044,7 @@ public class AssetService {
         ));
     }
 
-    private static VersionDiff requirementDiff(AssetRequirement before, AssetRequirement after) {
+    private VersionDiff requirementDiff(AssetRequirement before, AssetRequirement after) {
         LinkedHashMap<String, Object> diff = new LinkedHashMap<>();
         addDiff(diff, "title", before.title(), after.title());
         addDiff(diff, "description", before.description(), after.description());
@@ -2050,10 +2057,10 @@ public class AssetService {
                 lifecycleStatus(after.lifecycleStatus(), after.deletedAt()));
         addDiff(diff, "archivedAt", before.archivedAt(), after.archivedAt());
         addDiff(diff, "deletedAt", before.deletedAt(), after.deletedAt());
-        return VersionDiff.of(diff);
+        return versionDiff(diff);
     }
 
-    private static VersionDiff testCaseDiff(TestCaseRecord before, TestCaseRecord after) {
+    private VersionDiff testCaseDiff(TestCaseRecord before, TestCaseRecord after) {
         LinkedHashMap<String, Object> diff = new LinkedHashMap<>();
         addDiff(diff, "title", before.title(), after.title());
         addDiff(diff, "description", before.description(), after.description());
@@ -2067,7 +2074,7 @@ public class AssetService {
                 lifecycleStatus(after.lifecycleStatus(), after.deletedAt()));
         addDiff(diff, "archivedAt", before.archivedAt(), after.archivedAt());
         addDiff(diff, "deletedAt", before.deletedAt(), after.deletedAt());
-        return VersionDiff.of(diff);
+        return versionDiff(diff);
     }
 
     private static void addDiff(LinkedHashMap<String, Object> diff, String field, Object before, Object after) {
@@ -2173,14 +2180,14 @@ public class AssetService {
                 .toList();
     }
 
-    private static JsonNode jsonNode(String json) {
+    private JsonNode jsonNode(String json) {
         if (!StringUtils.hasText(json)) {
-            return JSON_MAPPER.createObjectNode();
+            return objectMapper.createObjectNode();
         }
         try {
-            return JSON_MAPPER.readTree(json);
+            return objectMapper.readTree(json);
         } catch (JsonProcessingException e) {
-            return JSON_MAPPER.createObjectNode();
+            return objectMapper.createObjectNode();
         }
     }
 
@@ -2246,24 +2253,24 @@ public class AssetService {
         return steps;
     }
 
-    private static String jsonString(Object value) {
+    private String jsonString(Object value) {
         try {
-            return JSON_MAPPER.writeValueAsString(value);
+            return objectMapper.writeValueAsString(value);
         } catch (JsonProcessingException e) {
             throw new BusinessException(ErrorCode.INTERNAL_ERROR, "资产版本历史序列化失败");
         }
     }
 
+    private VersionDiff versionDiff(LinkedHashMap<String, Object> diff) {
+        if (diff.isEmpty()) {
+            return VersionDiff.empty();
+        }
+        return new VersionDiff(new ArrayList<>(diff.keySet()), jsonString(diff));
+    }
+
     private record VersionDiff(List<String> changedFields, String diffJson) {
         private static VersionDiff empty() {
             return new VersionDiff(List.of(), "{}");
-        }
-
-        private static VersionDiff of(LinkedHashMap<String, Object> diff) {
-            if (diff.isEmpty()) {
-                return empty();
-            }
-            return new VersionDiff(new ArrayList<>(diff.keySet()), jsonString(diff));
         }
     }
 
@@ -2362,7 +2369,7 @@ public class AssetService {
         return values;
     }
 
-    private static Map<String, String> flattenJsonObject(JsonNode item) {
+    private Map<String, String> flattenJsonObject(JsonNode item) {
         if (!item.isObject()) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "JSON 导入数组元素必须是对象");
         }
@@ -2425,12 +2432,12 @@ public class AssetService {
         return StringUtils.hasText(value) ? value : "{}";
     }
 
-    private static List<CreateTestCaseRequest.StepDto> parseImportSteps(String rawSteps) {
+    private List<CreateTestCaseRequest.StepDto> parseImportSteps(String rawSteps) {
         if (!StringUtils.hasText(rawSteps)) {
             return List.of();
         }
         try {
-            JsonNode root = JSON_MAPPER.readTree(rawSteps);
+            JsonNode root = objectMapper.readTree(rawSteps);
             if (!root.isArray()) {
                 return List.of(new CreateTestCaseRequest.StepDto(rawSteps, "待补充"));
             }
@@ -2504,7 +2511,7 @@ public class AssetService {
         return item;
     }
 
-    private static String exportApisOpenApi(List<ApiResponseDTO> rows) {
+    private String exportApisOpenApi(List<ApiResponseDTO> rows) {
         Map<String, Object> root = new LinkedHashMap<>();
         root.put("openapi", "3.0.3");
         root.put("info", Map.of("title", "WP3 API Assets", "version", "1.0.0"));
@@ -2545,12 +2552,12 @@ public class AssetService {
         return value.replace("~", "~0").replace("/", "~1");
     }
 
-    private static String openApiRequestSchema(JsonNode operation) {
+    private String openApiRequestSchema(JsonNode operation) {
         JsonNode schema = operation.path("requestBody").path("content").path("application/json").path("schema");
         return schema.isMissingNode() ? "{}" : jsonString(schema);
     }
 
-    private static String openApiResponseSchema(JsonNode operation) {
+    private String openApiResponseSchema(JsonNode operation) {
         JsonNode responses = operation.path("responses");
         if (!responses.isObject()) {
             return "{}";
@@ -2571,7 +2578,7 @@ public class AssetService {
         return "{}";
     }
 
-    private static String openApiResponseSchemaByCode(JsonNode response) {
+    private String openApiResponseSchemaByCode(JsonNode response) {
         JsonNode schema = response.path("content").path("application/json").path("schema");
         return schema.isMissingNode() ? null : jsonString(schema);
     }
@@ -2887,7 +2894,7 @@ public class AssetService {
         }
     }
 
-    private static String jsonValue(Object value) {
+    private String jsonValue(Object value) {
         if (value == null) {
             return null;
         }
@@ -2895,7 +2902,7 @@ public class AssetService {
             return StringUtils.hasText(text) ? text : null;
         }
         try {
-            return JSON_MAPPER.writeValueAsString(value);
+            return objectMapper.writeValueAsString(value);
         } catch (JsonProcessingException e) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "JSON 字段格式不合法");
         }

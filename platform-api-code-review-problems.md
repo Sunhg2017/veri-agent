@@ -1,0 +1,365 @@
+# Platform API 代码审查问题清单
+
+> 审查日期: 2026-05-23
+> 审查范围: `platform-api` 模块全部 Java 源代码及 MyBatis Mapper XML
+
+---
+
+## 处理状态与任务拆解（更新于 2026-05-23）
+
+### 本批处理结论
+
+本轮优先处理安全、审计完整性、启动装配、事务边界、DB 索引和低风险性能/质量项；架构拆分、资源级鉴权、SQL 分页下沉、db-profile Testcontainers 等高影响改造已拆为专项，避免在一次修复中引入跨 WP 行为风险。
+
+| 编号 | 拆分任务 | 状态 | 处理方式 / 下一步 |
+|---|---|---|---|
+| S1 | 服务 token 路径限制 `X-Caller-Service` 来源 | 已完成 | 新增 `ServiceCallerProperties` 白名单，`ServiceTokenAuthenticationFilter` 和 WP1 内部 audit 入口拒绝非可信 caller；网关剥离外部同名头仍作为发布配置要求 |
+| S2 | 审计 actor 为空时保留可追溯元数据 | 已完成 | `PostgresAuditLogWriter` 默认 afterJson 写入 `resourceId`、`actorType`、`actorUserId`，无 actor 标记为 `SYSTEM` |
+| S3 | token secret 强度校验 | 已完成 | 已在上一批加入至少 32 bytes 校验并覆盖测试 |
+| S4 | 移除配置文件中的默认 webhook 明文密钥 | 已完成 | `application.yml` 不再内嵌默认 secret；测试和 smoke 需显式设置 `WP4_WEBHOOK_SECRET`，生产使用 SecretProvider 并关闭本地 fallback |
+| S5 | 登录时序侧信道 | 已完成 | 已在上一批加入 dummy BCrypt 校验路径 |
+| S6 / Q1 | SensitiveContentGuard 规则重复和 mask 顺序依赖 | 已完成 | 已在上一批统一规则源并增加直接单测 |
+| S7 | 资产批量操作资源级鉴权 | 专项任务 | 拆到“WP3 资源级权限模型”专项：定义 resourceScope、统一授权服务、批量操作逐资源校验、补充拒绝用例 |
+| S8 | 文档导入事务边界 | 已完成 | `DocumentInputService.importDocument/importMultipart` 增加事务边界 |
+| A1 | Service 单一职责拆分 | 专项任务 | 拆到 WP2/WP3/WP4 分模块重构专项，先保留行为不变并以测试护栏推进 |
+| A2 | 贫血领域模型治理 | 专项任务 | 拆到领域规则内聚专项，优先迁移状态转换和版本规则 |
+| A3 | 统一权限注解/AOP | 专项任务 | 与 S7 合并推进，先定义统一 `AuthorizationService` 再考虑注解切面 |
+| A4 / Q8 / T3 | local/db profile 行为差异与 db 测试不足 | 专项任务 | 增加 Testcontainers db-profile 契约测试；本批只处理 P2 的内存 refresh 索引 |
+| A5 | 审计写入独立可靠性 | 专项任务 | 拆为审计 outbox/独立事务专项，需评估失败补偿和发布策略 |
+| A6 | 分层异常策略 | 专项任务 | 拆为异常层次和日志上下文规范专项 |
+| P1 | Asset 列表查询 SQL 分页/过滤/排序下沉 | 专项任务 | 拆为 Repository 查询模型、MyBatis 动态 SQL、分页契约和回归测试 |
+| P2 | InMemoryAuthSessionStore refresh 查询 O(n) | 已完成 | 已增加 refreshTokenHash 二级索引和回归测试 |
+| P3 | Cost Alert distinct 下沉 SQL | 专项任务 | 拆为 repository distinct project/service 查询接口和 db/local 一致性测试 |
+| P4 | CSV 导出转义和流式输出 | 有条件通过 | 当前 `appendCsvValue` 已处理逗号、引号、换行；全量加载和 StreamingResponseBody 另拆专项 |
+| P5 | 预算窗口重复计算 | 已完成 | invocation 内预先计算并复用 `BudgetWindow`，避免 fallback 多 provider 重复计算 |
+| Q2 | 中文错误信息 i18n | 专项任务 | 拆为错误码/消息资源化专项，不纳入本批行为修复 |
+| Q3 | AssetService 静态 ObjectMapper | 已完成 | 改为注入 Spring `ObjectMapper`，保留手工单测兼容构造器并标注容器构造器 |
+| Q4 | AssetService 常量清理 | 专项任务 | 需结合导入导出/OpenAPI/影响分析语义复核后清理 |
+| Q5 | 密码请求 DTO 脱敏 | 已完成 | 已在上一批覆盖 request `toString()` 脱敏 |
+| Q6 | String 标识符强类型化 | 专项任务 | 拆为 Value Object 渐进改造专项 |
+| Q7 | `AuditLogWriter.denied()` targetName 歧义 | 已完成 | 简化重载不再把 resourceId 写成 targetName，并补充审计单测 |
+| D1 | 迁移回滚策略 | 专项任务 | 拆为发布 Runbook/备份恢复/前滚脚本策略，不引入 Flyway Undo |
+| D2 | `iam_session` cleanup 索引 | 已完成 | 新增 expires/revoked/cleanup 索引 migration，并更新 schema validation |
+| D3 | 审计清理索引 | 已有保障 | 现有迁移已包含 `idx_audit_log_time` 和 `idx_audit_outbox_created_at` |
+| T1 | AssetService 核心单测 | 专项任务 | 与 P1/S7/WP3 版本回滚专项一起补状态转换、导入合并、回滚用例 |
+| T2 | SensitiveContentGuard 直接测试 | 已完成 | 已在上一批补充独立测试 |
+| M1 | application.yml 分层 | 专项任务 | 配置拆分影响启动和部署，拆为配置治理专项 |
+| M2 | API 版本策略 | 专项任务 | 拆为 API 兼容策略文档和 Controller 元数据专项 |
+| M3 | OpenAPI 注解覆盖 | 专项任务 | 拆为公开 API 文档覆盖专项，并增加 contract test |
+| X1 | 异步模型调用 Job 持久化 | 专项任务 | 拆为 DB job/outbox 或队列调度专项 |
+| X2 | RestClient 复用 | 已完成 | 按 baseUrl + timeout 缓存 `RestClient` |
+| X3 | 分布式限流/熔断 | 专项任务 | 拆为 Redis/网关限流专项 |
+| X4 | DocumentInputService Pattern 未使用 | 无影响 | 复核后确认这些 Pattern 被 `sanitizeFeedbackText()` 使用，不再作为缺陷处理 |
+
+### 剩余专项优先级
+
+1. WP3 数据与权限专项：P1、S7、A3、T1，完成 SQL 分页、资源级鉴权和服务层测试护栏。
+2. DB 集成测试专项：A4、Q8、T3，加入 db-profile Testcontainers 覆盖核心 mapper、事务和约束。
+3. WP2 查询/导出专项：P3、P4，补 distinct SQL、流式 CSV 和大数据量测试。
+4. 架构治理专项：A1、A2、A5、A6，按模块逐步拆分并保持接口兼容。
+5. 运行治理专项：D1、M1、M2、M3、X1、X3，补发布回滚、配置分层、API 版本策略、OpenAPI 覆盖和分布式可靠性。
+
+## 一、安全风险 (Security)
+
+### [CRITICAL] S1: ServiceTokenAuthenticationFilter 信任客户端请求头
+
+- **文件**: `common/security/ServiceTokenAuthenticationFilter.java`
+- **问题**: `doFilterInternal()` 方法从请求头 `X-Caller-Service` 和 `X-Delegated-User-Id` 中直接提取调用方身份，未验证这些头是否来自可信代理。
+- **风险**: 外部请求若直接到达 API 网关后的服务，可通过伪造 HTTP 头冒充其他服务身份，绕过权限检查执行越权操作。
+- **建议**: 
+  1. 在 API 网关层剥离外部请求的 `X-Caller-Service` 头
+  2. 或增加可信代理 CIDR 白名单验证
+  3. 或只从 Service Token 中提取调用方身份，而非请求头
+
+### [CRITICAL] S2: 审计日志记录 Actor 可能为 null
+
+- **文件**: `common/audit/AuditLogWriter.java`
+- **问题**: `AuditRecord` 中 `actor` 字段为 `AuthUserPrincipal` 类型但可为 null。`AuditLogWriter.denied()` 静态方法在无 actor 时创建 null 记录。检查 `PostgresAuditLogWriter` 实现发现 actor 的 userId 直接写入数据库时可能为 null。
+- **风险**: 审计日志中操作人信息不完整，影响事后追溯。
+
+### [HIGH] S3: 令牌签名密钥明文存储
+
+- **文件**: `application.yml` (line 40)
+- **问题**: `veri-agent.auth.token-secret` 必须由 `WP1_AUTH_TOKEN_SECRET` 显式配置；当前 `ensureTokenSecret()` 仅在未配置时抛出异常，但未对令牌密钥强度做任何校验。
+- **风险**: 弱密钥可被暴力破解，导致 JWT-like 令牌被伪造。
+- **建议**: 增加密钥强度校验（至少 32 字节随机值），启动时检查
+
+### [HIGH] S4: Webhook 签名密钥明文配置
+
+- **文件**: `application.yml` (line 92-94)
+- **问题**: `webhook-secret` 和 `webhook-secrets` 以明文方式配置在配置文件中，未加密存储。
+- **风险**: Webhook 签名密钥泄露后攻击者可伪造 webhook 请求。
+- **建议**: 生产环境应通过外部密钥管理服务（Vault/KMS）注入，配置文件中仅保留引用
+
+### [MEDIUM] S5: 登录接口存在用户存在性检测时序侧信道
+
+- **文件**: `auth/application/AuthService.java` (line 44-53)
+- **问题**: 先通过 `findEnabledByUsername()` 查找用户，再通过 `passwordEncoder.matches()` 验证密码。用户是否存在和密码是否错误是两个步骤，可能在响应时间上存在可测量的差异（BCrypt 验证比查找更耗时）。
+- **风险**: 攻击者可通过响应时间差异枚举有效用户名。
+- **建议**: 始终先执行 BCrypt 验证再检查用户是否存在，或对所有情况使用固定延迟
+
+### [MEDIUM] S6: SensitiveContentGuard 的 Mask 模式存在顺序依赖缺陷
+
+- **文件**: `modelaccess/application/SensitiveContentGuard.java` (line 46-61)
+- **问题**: `mask()` 方法依次对字符串应用替换。由于每次替换都修改字符串，后续 Pattern 操作的是已被部分替换的内容。例如：`***EMAIL***` 中包含 `***`，可能与后续掩码中的分隔符冲突。
+- **风险**: 掩码结果可能不一致或漏掉某些敏感信息。
+- **建议**: 使用占位符映射方式，在一次遍历中完成所有替换
+
+### [MEDIUM] S7: 批量操作接口缺少权限边界校验
+
+- **文件**: `asset/api/controller/AssetController.java`
+- **问题**: `requirePermission()` 方法对 `AuthUserPrincipal` 仅检查字符串级权限标识（如 `"asset:manage"`），未结合资源所属项目/组织等上下文进行细粒度鉴权。角色为 `ProjectOwner` 的用户可以管理自己项目的资产，但系统未校验操作的目标资源是否属于该用户的项目。
+- **建议**: 引入资源级鉴权（如 `AuthorizationService.require(principal, permission, resourceScope)`）
+
+### [MEDIUM] S8: DocumentInputController 批量操作缺少事务边界
+
+- **文件**: `documentinput/api/controller/DocumentInputController.java`
+- **问题**: `importMultipart()` 方法处理文件上传，若业务处理中发生异常可能导致部分数据已写入但后续操作回滚不一致。
+- **建议**: 在 Service 方法上添加 `@Transactional` 注解
+
+---
+
+## 二、架构设计 (Architecture)
+
+### [CRITICAL] A1: Service 层严重违反单一职责原则
+
+- **文件**: 
+  - `modelaccess/application/ModelAccessService.java` (~1486 行)
+  - `asset/application/AssetService.java` (~1100+ 行)
+  - `documentinput/application/DocumentInputService.java` (~800+ 行)
+  - `management/infrastructure/PostgresManagementWorkspaceService.java` (~1000+ 行)
+- **问题**: 核心 Service 类规模巨大，混合了路由决策、预算检查、供应商管理、Prompt 管理、审计追踪、CSV导出等不同职责。
+- **建议**: 
+  - 将 `ModelAccessService.invoke()` 拆分为策略选择器、预算执行器、调用执行器等独立组件
+  - `AssetService` 按资产类型拆分为 `RequirementService`、`ApiService`、`PageService`、`TestCaseService`
+  - `PostgresManagementWorkspaceService` 拆分为 `DepartmentService`、`UserService`、`ProjectService` 等
+
+### [HIGH] A2: 贫血领域模型（Anemic Domain Model）
+
+- **问题**: 所有 Domain 层对象（`AssetRequirement`, `InvocationRecord`, `DocumentSourceConfig` 等）均为纯数据 Record，不含任何业务方法。业务逻辑全部集中在 Service 层。
+- **风险**: 业务规则分散在 Service 方法中，难以复用和测试。领域概念缺乏封装。
+- **建议**: 将状态校验（如 `REVIEW_STATUS_TRANSITIONS`）、状态转换、业务规则判断移入 Domain 对象
+
+### [HIGH] A3: 认证逻辑与业务逻辑高度耦合
+
+- **问题**: `AssetController.requirePermission()`、`ModelAccessController.requirePermission()`、`DocumentInputController.requirePermission()` 各有一套独立的权限校验实现（直接读取 `SecurityContextHolder`），存在重复代码。
+- **建议**: 抽取统一的 `@RequirePermission` 注解 + AOP 切面实现权限校验
+
+### [MEDIUM] A4: InMemory 实现与 Postgres 实现行为不一致
+
+- **文件**: 
+  - `auth/infrastructure/InMemoryAuthSessionStore.java`
+  - `asset/infrastructure/InMemoryAssetRepository.java`
+  - `management/infrastructure/InMemoryManagementWorkspaceService.java`
+- **问题**: `@Profile("local")` 下的内存实现与 `@Profile("db")` 下的 Postgres 实现在行为上存在差异（如 InMemoryAuthSessionStore 的 `findByRefreshTokenHash` 使用 O(n) 遍历）。测试时使用 local profile 无法覆盖真实 DB 行为。
+- **建议**: 
+  - 集成测试应使用 Postgres 实现（Testcontainer 或嵌入式 PG）
+  - `local` profile 仅作为开发调试用途，不应作为测试验证的依据
+
+### [MEDIUM] A5: 审计日志写入与业务逻辑在同一事务中
+
+- **问题**: `PostgresAuditLogWriter` 与业务 DAO 使用同一数据源，审计日志写入操作混入业务事务中。业务事务回滚时审计日志也会丢失。
+- **建议**: 使用独立数据源或消息队列实现审计日志的可靠异步写入
+
+### [MEDIUM] A6: 缺少统一的分层异常处理策略
+
+- **问题**: Service 层在不同地方直接抛出 `BusinessException` 和 `AccessDeniedException` 两种异常。Controller 层 `requirePermission()` 抛出的是 Spring 的 `AccessDeniedException`，而 Service 层全部使用自定义 `BusinessException`。GlobalExceptionHandler 同时处理两者，但日志上下文不统一。
+- **建议**: 统一使用 `BusinessException`，或定义系统级异常层次结构
+
+---
+
+## 三、性能问题 (Performance)
+
+### [CRITICAL] P1: Asset 列表查询全量加载后在内存中过滤/排序/分页
+
+- **文件**: `asset/application/AssetService.java`
+- **问题**: `listRequirements()` (line 127-136)、`listApis()` (line 389-399)、`listPages()`、`listBusinessFlows()`、`listTestCases()` 全部从 Repository 加载所有数据到内存，然后使用 Stream API 进行过滤、排序、分页。
+- **风险**: 当数据量达到数千条时，每次列表查询都需要加载全量数据，内存和 GC 压力骤增，响应时间随数据量线性增长。
+- **建议**: 
+  - 将过滤、排序、分页下沉到 SQL 层面
+  - Repository 接口改为接受查询条件参数，返回分页结果
+  - 利用 MyBatis 动态 SQL 实现条件查询
+
+### [HIGH] P2: InMemoryAuthSessionStore 刷新令牌查找为 O(n)
+
+- **文件**: `auth/infrastructure/InMemoryAuthSessionStore.java` (line 37-41)
+- **问题**: `findByRefreshTokenHash()` 遍历整个 `ConcurrentHashMap` 查找匹配的 refresh token hash，复杂度 O(n)。
+- **风险**: 大量活跃会话时此操作会成为瓶颈。
+- **建议**: 增加以 refreshTokenHash 为键的二级索引 `Map<String, UUID>`
+
+### [MEDIUM] P3: Cost Alert 先拉取全量数据再去重
+
+- **文件**: `modelaccess/application/ModelAccessService.java` (line 589-613)
+- **问题**: `costAlerts()` 方法在需要生成项目级或服务级告警时，先从数据库加载最多 1000 条记录，然后 stream 提取 distinct projectId/actorService 再逐一查询。
+- **建议**: 使用 SQL `SELECT DISTINCT project_id` 直接从数据库获取
+
+### [MEDIUM] P4: CSV 导出使用字符串拼接
+
+- **文件**: `modelaccess/application/ModelAccessService.java` (line 652-673, 1163-1202)
+- **问题**: CSV 导出使用 `StringBuilder` 逐行拼接，且所有数据都一次性加载到内存中。未处理特殊字符（如逗号、换行符、引号）的转义。
+- **建议**: 
+  - 使用 CSV 专用库（如 Apache Commons CSV）
+  - 考虑流式写入直接返回 `StreamingResponseBody`
+
+### [LOW] P5: 预算窗口计算重复调用
+
+- **文件**: `modelaccess/application/ModelAccessService.java`
+- **问题**: `budgetViolation()` 和 `currentBudgetWindow()` 在单次调用中被多次调用计算同一预算窗口。
+- **建议**: 缓存本次调用中 `currentBudgetWindow()` 的结果，避免重复计算
+
+---
+
+## 四、代码质量 (Code Quality)
+
+### [HIGH] Q1: SensitiveContentGuard BLOCK_PATTERNS 和 MASK_PATTERNS 完全重复
+
+- **文件**: `modelaccess/application/SensitiveContentGuard.java` (line 17-34)
+- **问题**: `BLOCK_PATTERNS` 和 `MASK_PATTERNS` 是完全相同的 Pattern 列表。两处维护容易导致不同步。
+- **建议**: 使用相同的 Pattern 源，或提取常量
+
+### [HIGH] Q2: 大量硬编码中文字符串
+
+- **问题**: 整个代码库中错误消息大量使用中文硬编码字符串，混合在业务逻辑中。不利于国际化（i18n）。
+- **建议**: 提取到 messages properties 文件中，或定义常量类
+
+### [MEDIUM] Q3: 静态 ObjectMapper 实例
+
+- **文件**: `asset/application/AssetService.java` (line 112)
+- **问题**: `private static final ObjectMapper JSON_MAPPER = new ObjectMapper().findAndRegisterModules();` 创建了未配置的静态 ObjectMapper 实例，与 Spring 容器中的 ObjectMapper 配置（如日期格式、时区、忽略未知属性等）不一致。
+- **建议**: 注入 Spring 管理的 ObjectMapper Bean，而非自行创建
+
+### [MEDIUM] Q4: AssetService 中大量未使用的常量
+
+- **文件**: `asset/application/AssetService.java` (line 79-91)
+- **问题**: 常量 `IMPACT_SUBJECT_TYPES` 包含 `"FLOW"` 和 `"BUSINESS_FLOW"` 两个重复含义的条目；`PAGE_SOURCES`、`API_SOURCES` 等在代码中通过 `valueIn()` 校验输入时使用，但部分常量（如 `IMPORT_EXPORT_ASSET_TYPES` 含 `"API"` 而在 `IMPORT_EXPORT_FORMATS` 中无 `"OPENAPI"` 对应逻辑）可能已过时。
+- **建议**: 清理未使用常量，并确认各常量的实际用途
+
+### [MEDIUM] Q5: 密码修改接口新密码在日志中可能泄漏
+
+- **文件**: `auth/application/AuthService.java`
+- **问题**: 密码修改流程中 `ChangePasswordRequest` 包含 `oldPassword` 和 `newPassword`，若某处日志记录了整个请求对象，可能包含明文密码。
+- **建议**: 在 Request DTO 的 `toString()` 中遮盖密码字段，或确保日志中不记录密码信息
+
+### [LOW] Q6: 大量方法参数使用 String 表示标识符
+
+- **问题**: 代码中 projectId、applicationId、environmentId 等多处使用 `String` 而非强类型包装。容易导致参数传错位置（如 projectId 和 applicationId 互换）。
+- **建议**: 为业务标识符定义 Value Object 类型（如 `ProjectId`、`ApplicationId`）
+
+### [LOW] Q7: AuditLogWriter.denied() 方法重载存在意图歧义
+
+- **文件**: `common/audit/AuditLogWriter.java` (line 32-51)
+- **问题**: `denied(actor, action, resourceType, resourceId, reason)` 将 `resourceId` 同时作为 `targetName` 传入，而非独立的 targetName。这可能导致审计日志中 targetName 字段取值为 resourceId 而非预期的资源名称。
+- **建议**: 明确区分 resourceId 和 targetName 的语义
+
+### [LOW] Q8: 测试使用 @Profile("local") 覆盖真实行为
+
+- **问题**: 大量集成测试依赖 `local` profile 的内存实现进行验证，不涉及真实数据库操作。无法检测 SQL 语法错误、事务边界问题、数据库约束冲突等。
+- **建议**: 引入 Testcontainers 执行数据库集成测试
+
+---
+
+## 五、数据库 / SQL 问题 (Database)
+
+### [HIGH] D1: 缺少数据库迁移回滚策略
+
+- **文件**: `db/migration/wp1/` 目录下的 Flyway 迁移脚本
+- **问题**: 仅提供 V 版本迁移脚本，未包含 `U` (Undo) 或 `R` (Repeatable) 迁移。生产环境出现迁移失败时无法回滚。
+- **建议**: Flyway 官方不推荐 Undo 迁移（需 Teams 版），建议使用可逆的数据库变更策略或做好备份恢复流程
+
+### [MEDIUM] D2: AuthMapper XML 中 session 表缺少过期时间索引
+
+- **文件**: `resources/mapper/platform/AuthMapper.xml` (line 135-142)
+- **问题**: `cleanupSessions` SQL 使用 `expires_at` 和 `revoked_at` 做范围条件，但表上可能缺少对应索引，导致全表扫描影响线上清理性能。
+- **建议**: 为 `iam_session` 表的 `expires_at` 和 `revoked_at` 列分别建立索引
+
+### [MEDIUM] D3: 审计日志表缺少清理策略的索引
+
+- **问题**: `AuditRetentionCleanupService` 按 `created_at` 删除过期审计日志，但审计日志表上若缺少 `created_at` 索引，删除操作将非常缓慢。
+- **建议**: 确保 `audit_log` 和 `audit_outbox` 表的 `created_at` 列有索引
+
+---
+
+## 六、测试覆盖 (Testing)
+
+### [HIGH] T1: AssetService 核心逻辑缺少单元测试
+
+- **问题**: `AssetService` 包含状态转换、版本历史、导入合并等复杂业务逻辑，但 `test/` 目录下仅有 `AssetControllerTest`（Controller 层集成测试），缺少对 `AssetService` 业务逻辑的单元测试覆盖。
+- **建议**: 为状态转换、导入去重、版本回滚等核心逻辑补充单元测试
+
+### [MEDIUM] T2: SensitiveContentGuard 测试覆盖不全
+
+- **问题**: `SensitiveContentGuard` 包含敏感内容检测的核心逻辑，但仅为 `ModelAccessController` 中的策略测试（`ModelAccessPlatformPolicyTest`）间接覆盖，缺少对 Pattern 匹配、掩码行为的直接测试。
+- **建议**: 为 `SensitiveContentGuard` 编写独立的参数化单元测试，覆盖各种敏感数据类型
+
+### [MEDIUM] T3: `Profile("db")` 实现类测试覆盖不足
+
+- **问题**: `PostgresAuthSessionStore`、`PostgresAuthIdentityStore`、`PostgresManagementWorkspaceService` 等 `@Profile("db")` 实现类缺少对应的集成测试。
+- **建议**: 使用 Testcontainers + `@ActiveProfiles("db")` 对数据库实现进行集成测试
+
+---
+
+## 七、可维护性 (Maintainability)
+
+### [MEDIUM] M1: 配置文件过于集中且缺乏分层
+
+- **文件**: `application.yml` (~137 行)
+- **问题**: 所有模块的配置（auth、audit、model-access、asset、document-input、secret、management）全部堆集在单一配置文件中。
+- **建议**: 按模块拆分到独立配置文件（如 `application-auth.yml`、`application-model-access.yml`），通过 `spring.config.import` 引入
+
+### [LOW] M2: 缺少 API 版本化管理策略
+
+- **问题**: 所有 API 使用 `/api/v1/` 前缀，但未定义明确的版本化策略（如兼容性规则、版本生命周期）。
+- **建议**: 制定 API 版本化策略文档，并在 Controller 层增加版本注释
+
+### [LOW] M3: 缺少 OpenAPI 文档注解覆盖
+
+- **问题**: 除 `ModelAccessController` 外，其他 Controller 缺少 `@Operation` 和 `@ApiResponse` 注解，生成的 Swagger 文档不够完整。
+- **建议**: 为所有公开 API 添加 Swagger/OpenAPI 注解
+
+---
+
+## 八、其他问题 (Misc)
+
+### [MEDIUM] X1: 异步模型调用 Job 为纯内存态
+
+- **文件**: `modelaccess/application/ModelInvocationJobService.java`
+- **问题**: Job 状态、结果全部存储在内存 `ConcurrentHashMap` 中，服务重启后丢失。且 `ScheduledThreadPoolExecutor` 无队列持久化机制。
+- **建议**: 若需要可靠性，考虑使用数据库持久化 + 消息队列调度
+
+### [MEDIUM] X2: OpenAiCompatibleModelProviderClient 按请求创建 RestClient
+
+- **文件**: `modelaccess/infrastructure/OpenAiCompatibleModelProviderClient.java` (line 53-63)
+- **问题**: 每次 `call()` 都通过 `restClientBuilder.baseUrl(provider.baseUrl()).requestFactory(...).build()` 创建新的 `RestClient` 实例，无连接池复用。
+- **建议**: 缓存具有相同 baseUrl 的 RestClient 实例，或配置连接池
+
+### [LOW] X3: ProviderResilienceManager 的限流基于本地内存
+
+- **文件**: `modelaccess/application/ProviderResilienceManager.java`
+- **问题**: 速率限制和熔断器状态基于本地 `ConcurrentHashMap`，多实例部署时各节点独立计数，无法准确控制全局速率。
+- **建议**: 多实例部署时考虑使用 Redis 实现分布式限流和熔断
+
+### [LOW] X4: 静态常量 SECRET_ASSIGNMENT_PATTERN 未在代码中使用
+
+- **文件**: `documentinput/application/DocumentInputService.java` (line 87-94)
+- **问题**: `SECRET_ASSIGNMENT_PATTERN`、`EMAIL_PATTERN`、`URL_PATTERN`、`UUID_PATTERN`、`MOBILE_PATTERN`、`LONG_NUMBER_PATTERN` 等 Pattern 被定义但未在类中使用。
+- **建议**: 清理死代码
+
+---
+
+## 总结
+
+本次审查共发现 **40+** 个问题，其中：
+
+| 严重级别 | 数量 | 关键领域 |
+|---------|------|---------|
+| CRITICAL | 5 | 安全认证头注入、审计日志完整性、性能瓶颈 |
+| HIGH | 7 | 架构耦合、配置安全、数据库设计、测试覆盖 |
+| MEDIUM | 18 | 代码质量、性能优化、安全加固 |
+| LOW | 10+ | 代码风格、可维护性改进 |
+
+**最优先处理项：**
+1. **S1 - ServiceTokenAuthenticationFilter 信任客户端请求头**：存在越权风险
+2. **P1 - Asset 列表全量加载到内存**：严重影响系统可伸缩性
+3. **A1 - Service 层违反单一职责**：持续增加维护成本
+4. **S3/S4 - 密钥明文配置**：生产安全底线
+5. **T1 - 核心业务逻辑缺少单元测试**：版本迭代质量保障

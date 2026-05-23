@@ -18,7 +18,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "veri-agent.model-access.default-model=test-local-model",
         "veri-agent.model-access.daily-caller-service-cost-limit=0.000001",
         "veri-agent.model-access.budget-estimated-output-tokens=100",
-        "veri-agent.model-access.budget-zone-id=UTC"
+        "veri-agent.model-access.budget-zone-id=UTC",
+        "veri-agent.service-caller.model-access-trusted-services=model-access,wp2-budget-caller"
 })
 @AutoConfigureMockMvc
 @DirtiesContext(classMode = DirtiesContext.ClassMode.BEFORE_EACH_TEST_METHOD)

@@ -11,6 +11,8 @@ import com.songhg.veri.agent.modelaccess.domain.ProviderType;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.http.MediaType;
@@ -25,6 +27,7 @@ import org.springframework.web.client.RestClientResponseException;
 public class OpenAiCompatibleModelProviderClient implements ModelProviderClient {
 
     private final RestClient.Builder restClientBuilder;
+    private final ConcurrentMap<ClientKey, RestClient> clients = new ConcurrentHashMap<>();
 
     public OpenAiCompatibleModelProviderClient(RestClient.Builder restClientBuilder) {
         this.restClientBuilder = restClientBuilder;
@@ -50,10 +53,7 @@ public class OpenAiCompatibleModelProviderClient implements ModelProviderClient 
         );
         OpenAiChatCompletionResponse response;
         try {
-            response = restClientBuilder
-                    .baseUrl(provider.baseUrl())
-                    .requestFactory(requestFactory(provider.timeoutMs()))
-                    .build()
+            response = restClient(provider)
                     .post()
                     .uri("/v1/chat/completions")
                     .header(HttpHeaders.AUTHORIZATION, "Bearer " + apiKey)
@@ -82,6 +82,15 @@ public class OpenAiCompatibleModelProviderClient implements ModelProviderClient 
         requestFactory.setConnectTimeout(Duration.ofMillis(safeTimeoutMs));
         requestFactory.setReadTimeout(Duration.ofMillis(safeTimeoutMs));
         return requestFactory;
+    }
+
+    RestClient restClient(ModelProviderConfig provider) {
+        String baseUrl = provider.baseUrl().trim();
+        int timeoutMs = Math.max(100, provider.timeoutMs());
+        return clients.computeIfAbsent(new ClientKey(baseUrl, timeoutMs), key -> restClientBuilder
+                .baseUrl(key.baseUrl())
+                .requestFactory(requestFactory(key.timeoutMs()))
+                .build());
     }
 
     protected String resolveApiKey(String apiKeyRef) {
@@ -134,5 +143,8 @@ public class OpenAiCompatibleModelProviderClient implements ModelProviderClient 
             @JsonProperty("completion_tokens")
             int completionTokens
     ) {
+    }
+
+    private record ClientKey(String baseUrl, int timeoutMs) {
     }
 }

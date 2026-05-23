@@ -171,6 +171,15 @@ class DocumentWebhookSecretResolverTest {
     }
 
     @Test
+    void rejectsLocalFallbackWhenDefaultSecretIsNotConfigured() {
+        DocumentWebhookSecretResolver resolver = new DocumentWebhookSecretResolver(properties(Map.of(), true, 60, 300, ""));
+
+        assertThatThrownBy(() -> resolver.resolve(source("secret://wp4/source-b")))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("webhook 签名密钥未配置");
+    }
+
+    @Test
     void rejectsLocalFallbackWhenDisabled() {
         DocumentWebhookSecretResolver resolver = new DocumentWebhookSecretResolver(properties(Map.of(), false));
 
@@ -193,9 +202,19 @@ class DocumentWebhookSecretResolverTest {
             long cacheTtlSeconds,
             long rotationOverlapSeconds
     ) {
+        return properties(secrets, localFallbackEnabled, cacheTtlSeconds, rotationOverlapSeconds, "default-secret");
+    }
+
+    private DocumentInputProperties properties(
+            Map<String, String> secrets,
+            boolean localFallbackEnabled,
+            long cacheTtlSeconds,
+            long rotationOverlapSeconds,
+            String defaultWebhookSecret
+    ) {
         return new DocumentInputProperties(
                 "service-token",
-                "default-secret",
+                defaultWebhookSecret,
                 300,
                 true,
                 true,

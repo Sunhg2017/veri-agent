@@ -38,6 +38,7 @@ To run local in-memory mode:
 
 ```bash
 WP1_AUTH_TOKEN_SECRET=local-auth-secret-32-byte-minimum! \
+WP4_WEBHOOK_SECRET=local-document-input-webhook-secret \
 mvn -pl platform-api spring-boot:run
 ```
 
@@ -54,8 +55,11 @@ WP1_DATASOURCE_USERNAME=veri_agent \
 WP1_DATASOURCE_PASSWORD=veri_agent_dev \
 WP2_SERVICE_TOKEN=local-model-access-token \
 WP3_SERVICE_TOKEN=local-asset-token \
+WP4_WEBHOOK_SECRET=local-document-input-webhook-secret \
 mvn -pl platform-api spring-boot:run -Dspring-boot.run.profiles=db
 ```
+
+`WP4_WEBHOOK_SECRET` is only a local example for webhook smoke tests. Production should resolve WP4 webhook signing secrets through SecretProvider and disable the local fallback with `WP4_LOCAL_WEBHOOK_SECRET_FALLBACK_ENABLED=false`.
 
 Health endpoint:
 

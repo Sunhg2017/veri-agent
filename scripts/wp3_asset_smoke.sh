@@ -4,7 +4,7 @@ set -euo pipefail
 BASE_URL="${WP3_SMOKE_BASE_URL:-http://127.0.0.1:8080}"
 API_BASE="${BASE_URL%/}/api/v1/asset"
 SERVICE_TOKEN="${WP3_SERVICE_TOKEN:-local-asset-token}"
-CALLER_SERVICE="${WP3_SMOKE_CALLER_SERVICE:-wp3-smoke}"
+CALLER_SERVICE="${WP3_SMOKE_CALLER_SERVICE:-asset-service}"
 DELEGATED_USER_ID="${WP3_SMOKE_DELEGATED_USER_ID:-user-wp3-smoke}"
 PROJECT_ID="${WP3_SMOKE_PROJECT_ID:-project-wp3-smoke-$(date +%s)-$RANDOM}"
 PASS=0

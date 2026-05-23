@@ -76,6 +76,23 @@ class ModelAccessControllerTest {
     }
 
     @Test
+    void rejectsUntrustedCallerServiceHeaderEvenWithValidServiceToken() throws Exception {
+        mockMvc.perform(post("/api/v1/model-access/invoke")
+                        .headers(authHeaders("untrusted-service"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "projectId": "project-alpha",
+                                  "taskType": "requirement-summary",
+                                  "messageText": "summarize"
+                                }
+                                """))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"))
+                .andExpect(jsonPath("$.message").value("服务调用方不可信"));
+    }
+
+    @Test
     void allowsUserBearerTokenForModelAccessManagementRequests() throws Exception {
         String token = superAdminToken();
 

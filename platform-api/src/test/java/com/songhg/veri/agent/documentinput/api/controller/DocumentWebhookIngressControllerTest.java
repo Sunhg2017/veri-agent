@@ -25,6 +25,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @SpringBootTest(properties = {
         "veri-agent.document-input.service-token=test-document-input-token",
+        "veri-agent.document-input.webhook-secret=local-document-input-webhook-secret",
         "veri-agent.document-input.webhook-allowed-cidrs=127.0.0.1/32,203.0.113.0/24",
         "veri-agent.document-input.webhook-trusted-proxy-cidrs=127.0.0.1/32",
         "veri-agent.document-input.webhook-rate-limit-max-requests=1",

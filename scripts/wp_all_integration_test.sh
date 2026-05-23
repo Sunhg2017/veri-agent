@@ -6,6 +6,7 @@ WP2_SERVICE_TOKEN="${WP2_SERVICE_TOKEN:-local-model-access-token}"
 WP3_SERVICE_TOKEN="${WP3_SERVICE_TOKEN:-local-asset-token}"
 WP4_SERVICE_TOKEN="${WP4_SERVICE_TOKEN:-local-document-input-token}"
 WP4_WEBHOOK_SECRET="${WP4_WEBHOOK_SECRET:-local-document-input-webhook-secret}"
+CALLER_SERVICE="${WP_ALL_CALLER_SERVICE:-wp5-test-design}"
 ADMIN_USERNAME="${WP_ALL_ADMIN_USERNAME:-admin}"
 ADMIN_PASSWORD="${WP_ALL_ADMIN_PASSWORD:-AdminPass12345}"
 ADMIN_CHANGED_PASSWORD="${WP_ALL_ADMIN_NEW_PASSWORD:-AdminPass12345Changed!}"
@@ -149,17 +150,17 @@ main() {
   local auth_headers=(-H "Authorization: Bearer $token")
   local wp2_headers=(
     -H "Authorization: Bearer $WP2_SERVICE_TOKEN"
-    -H "X-Caller-Service: wp-all-integration"
+    -H "X-Caller-Service: $CALLER_SERVICE"
     -H "X-Delegated-User-Id: $ADMIN_USERNAME"
   )
   local wp3_headers=(
     -H "Authorization: Bearer $WP3_SERVICE_TOKEN"
-    -H "X-Caller-Service: wp-all-integration"
+    -H "X-Caller-Service: $CALLER_SERVICE"
     -H "X-Delegated-User-Id: $ADMIN_USERNAME"
   )
   local wp4_headers=(
     -H "Authorization: Bearer $WP4_SERVICE_TOKEN"
-    -H "X-Caller-Service: wp-all-integration"
+    -H "X-Caller-Service: $CALLER_SERVICE"
     -H "X-Delegated-User-Id: $ADMIN_USERNAME"
   )
 
@@ -173,7 +174,7 @@ main() {
   local context
   context="$(get_json "/api/v1/contexts/projects/$PROJECT_CODE?include=configs" \
     -H "Authorization: Bearer ${WP1_SERVICE_TOKEN:-local-platform-service-token}" \
-    -H "X-Caller-Service: wp-all-integration" \
+    -H "X-Caller-Service: $CALLER_SERVICE" \
     -H "X-Delegated-User-Id: $ADMIN_USERNAME")"
   check "WP1 service context" '.data.resourceType == "PROJECT" and .data.sensitivityLevel == "INTERNAL"' "$context"
 

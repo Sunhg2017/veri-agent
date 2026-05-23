@@ -1047,7 +1047,7 @@ public class InMemoryManagementWorkspaceService implements ManagementWorkspaceSe
 
     private void auditDenied(AuthUserPrincipal actor, String action, String target, String reason) {
         auditLogWriter.record(AuditLogWriter.denied(
-                actor, action, "management", target, reason
+                actor, action, "management", target, target, reason
         ));
     }
 

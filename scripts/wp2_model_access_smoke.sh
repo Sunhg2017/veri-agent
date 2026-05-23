@@ -3,7 +3,7 @@ set -euo pipefail
 
 API_BASE="${WP2_SMOKE_API_BASE:-http://127.0.0.1:8080/api/v1/model-access}"
 SERVICE_TOKEN="${WP2_SERVICE_TOKEN:-local-model-access-token}"
-CALLER_SERVICE="${WP2_SMOKE_CALLER_SERVICE:-wp2-smoke}"
+CALLER_SERVICE="${WP2_SMOKE_CALLER_SERVICE:-model-access}"
 DELEGATED_USER_ID="${WP2_SMOKE_DELEGATED_USER_ID:-user-smoke}"
 PROJECT_ID="${WP2_SMOKE_PROJECT_ID:-project-smoke-$(date +%s)-$RANDOM}"
 

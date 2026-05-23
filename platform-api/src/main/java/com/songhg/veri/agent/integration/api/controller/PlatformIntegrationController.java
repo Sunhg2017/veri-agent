@@ -2,6 +2,7 @@ package com.songhg.veri.agent.integration.api.controller;
 
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
+import com.songhg.veri.agent.common.security.ServiceCallerProperties;
 import com.songhg.veri.agent.common.security.TokenSecurity;
 import com.songhg.veri.agent.common.trace.TraceContext;
 import com.songhg.veri.agent.integration.api.request.AuditEventRequest;
@@ -12,6 +13,9 @@ import com.songhg.veri.agent.integration.application.PlatformIntegrationProperti
 import com.songhg.veri.agent.integration.application.PlatformIntegrationService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
+import java.util.Locale;
+import java.util.Set;
+import java.util.stream.Collectors;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.util.StringUtils;
@@ -31,13 +35,16 @@ public class PlatformIntegrationController {
     private static final String BEARER_PREFIX = "Bearer ";
 
     private final PlatformIntegrationProperties properties;
+    private final ServiceCallerProperties serviceCallerProperties;
     private final PlatformIntegrationService service;
 
     public PlatformIntegrationController(
             PlatformIntegrationProperties properties,
+            ServiceCallerProperties serviceCallerProperties,
             PlatformIntegrationService service
     ) {
         this.properties = properties;
+        this.serviceCallerProperties = serviceCallerProperties;
         this.service = service;
     }
 
@@ -67,10 +74,10 @@ public class PlatformIntegrationController {
             @Valid @RequestBody AuditEventRequest body,
             HttpServletRequest request
     ) {
-        requireServiceToken(request);
+        String callerService = requireServiceToken(request);
         service.writeAuditEvent(new InternalAuditEvent(
                 TraceContext.getTraceId(),
-                request.getHeader("X-Caller-Service"),
+                callerService,
                 body.action(),
                 body.resourceType(),
                 body.resourceId(),
@@ -94,7 +101,7 @@ public class PlatformIntegrationController {
         );
     }
 
-    private void requireServiceToken(HttpServletRequest request) {
+    private String requireServiceToken(HttpServletRequest request) {
         if (!StringUtils.hasText(properties.serviceToken())) {
             throw new BusinessException(ErrorCode.INVALID_STATE, "WP1 内部服务令牌未配置");
         }
@@ -105,5 +112,35 @@ public class PlatformIntegrationController {
         if (!TokenSecurity.constantTimeEquals(properties.serviceToken(), token)) {
             throw new BusinessException(ErrorCode.FORBIDDEN, "内部服务令牌无效");
         }
+        String callerService = request.getHeader("X-Caller-Service");
+        if (!StringUtils.hasText(callerService)) {
+            return "platform-integration";
+        }
+        String normalized = normalize(callerService);
+        if (!trustedCallerServices().contains(normalized)) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "服务调用方不可信");
+        }
+        return callerService.trim();
+    }
+
+    private Set<String> trustedCallerServices() {
+        Set<String> trusted = serviceCallerProperties.safeModelAccessTrustedServices().stream()
+                .filter(StringUtils::hasText)
+                .map(PlatformIntegrationController::normalize)
+                .collect(Collectors.toSet());
+        serviceCallerProperties.safeAssetTrustedServices().stream()
+                .filter(StringUtils::hasText)
+                .map(PlatformIntegrationController::normalize)
+                .forEach(trusted::add);
+        serviceCallerProperties.safeDocumentInputTrustedServices().stream()
+                .filter(StringUtils::hasText)
+                .map(PlatformIntegrationController::normalize)
+                .forEach(trusted::add);
+        trusted.add("platform-integration");
+        return trusted;
+    }
+
+    private static String normalize(String value) {
+        return value == null ? "" : value.trim().toLowerCase(Locale.ROOT);
     }
 }

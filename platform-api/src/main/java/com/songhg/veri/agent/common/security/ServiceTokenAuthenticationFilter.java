@@ -12,6 +12,9 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.List;
+import java.util.Locale;
+import java.util.Set;
+import java.util.stream.Collectors;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -30,15 +33,18 @@ public class ServiceTokenAuthenticationFilter extends OncePerRequestFilter {
     private final ModelAccessProperties modelAccessProperties;
     private final AssetProperties assetProperties;
     private final DocumentInputProperties documentInputProperties;
+    private final ServiceCallerProperties serviceCallerProperties;
 
     public ServiceTokenAuthenticationFilter(
             ModelAccessProperties modelAccessProperties,
             AssetProperties assetProperties,
-            DocumentInputProperties documentInputProperties
+            DocumentInputProperties documentInputProperties,
+            ServiceCallerProperties serviceCallerProperties
     ) {
         this.modelAccessProperties = modelAccessProperties;
         this.assetProperties = assetProperties;
         this.documentInputProperties = documentInputProperties;
+        this.serviceCallerProperties = serviceCallerProperties;
     }
 
     @Override
@@ -72,7 +78,8 @@ public class ServiceTokenAuthenticationFilter extends OncePerRequestFilter {
             filterChain.doFilter(request, response);
             return;
         }
-        if (!authenticateServiceCaller(request, response, serviceToken(path), serviceName(path))) {
+        String serviceName = serviceName(path);
+        if (!authenticateServiceCaller(request, response, serviceToken(path), serviceName, trustedCallerServices(path, serviceName))) {
             return;
         }
         filterChain.doFilter(request, response);
@@ -98,11 +105,29 @@ public class ServiceTokenAuthenticationFilter extends OncePerRequestFilter {
         return "asset-service";
     }
 
+    private Set<String> trustedCallerServices(String path, String defaultServiceName) {
+        List<String> configured;
+        if (path.startsWith("/api/v1/model-access/")) {
+            configured = serviceCallerProperties.safeModelAccessTrustedServices();
+        } else if (path.startsWith("/api/v1/document-input/")) {
+            configured = serviceCallerProperties.safeDocumentInputTrustedServices();
+        } else {
+            configured = serviceCallerProperties.safeAssetTrustedServices();
+        }
+        Set<String> trusted = configured.stream()
+                .filter(StringUtils::hasText)
+                .map(ServiceTokenAuthenticationFilter::normalizeCallerService)
+                .collect(Collectors.toSet());
+        trusted.add(normalizeCallerService(defaultServiceName));
+        return trusted;
+    }
+
     private boolean authenticateServiceCaller(
             HttpServletRequest request,
             HttpServletResponse response,
             String expectedToken,
-            String serviceName
+            String serviceName,
+            Set<String> trustedCallerServices
     ) throws IOException {
         if (!StringUtils.hasText(expectedToken)) {
             throw new BusinessException(ErrorCode.INVALID_STATE, serviceName + " 服务令牌未配置");
@@ -115,6 +140,12 @@ public class ServiceTokenAuthenticationFilter extends OncePerRequestFilter {
             return false;
         }
         String callerService = headerOrDefault(request, "X-Caller-Service", serviceName);
+        if (!trustedCallerServices.contains(normalizeCallerService(callerService))) {
+            response.setStatus(HttpStatus.FORBIDDEN.value());
+            response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+            response.getWriter().write("{\"code\":\"FORBIDDEN\",\"message\":\"服务调用方不可信\"}");
+            return false;
+        }
         String delegatedUserId = headerOrDefault(request, "X-Delegated-User-Id", "system");
         ServicePrincipal principal = new ServicePrincipal(callerService, delegatedUserId);
         var authentication = new UsernamePasswordAuthenticationToken(
@@ -137,5 +168,9 @@ public class ServiceTokenAuthenticationFilter extends OncePerRequestFilter {
     private String headerOrDefault(HttpServletRequest request, String headerName, String defaultValue) {
         String value = request.getHeader(headerName);
         return StringUtils.hasText(value) ? value.trim() : defaultValue;
+    }
+
+    private static String normalizeCallerService(String value) {
+        return value == null ? "" : value.trim().toLowerCase(Locale.ROOT);
     }
 }

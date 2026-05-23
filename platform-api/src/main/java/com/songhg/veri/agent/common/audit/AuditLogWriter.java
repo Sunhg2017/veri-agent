@@ -36,7 +36,7 @@ public interface AuditLogWriter {
             String resourceId,
             String reason
     ) {
-        return denied(actor, action, resourceType, resourceId, resourceId, reason);
+        return denied(actor, action, resourceType, resourceId, null, reason);
     }
 
     static AuditRecord denied(
