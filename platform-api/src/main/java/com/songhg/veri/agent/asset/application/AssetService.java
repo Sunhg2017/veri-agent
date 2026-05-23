@@ -77,37 +77,68 @@ import org.springframework.util.StringUtils;
 public class AssetService {
 
     private static final Logger log = LoggerFactory.getLogger(AssetService.class);
-    private static final Set<String> REVIEW_STATUSES = Set.of("DRAFT", "REVIEWING", "APPROVED", "DEPRECATED");
-    private static final Set<String> LIFECYCLE_STATUSES = Set.of("ACTIVE", "ARCHIVED", "DELETED");
+    private static final String ASSET_REQUIREMENT = "REQUIREMENT";
+    private static final String ASSET_API = "API";
+    private static final String ASSET_PAGE = "PAGE";
+    private static final String ASSET_BUSINESS_FLOW = "BUSINESS_FLOW";
+    private static final String ASSET_TEST_CASE = "TEST_CASE";
+    private static final String SUBJECT_FLOW = "FLOW";
+    private static final String SUBJECT_CASE = "CASE";
+    private static final String FORMAT_CSV = "CSV";
+    private static final String FORMAT_JSON = "JSON";
+    private static final String FORMAT_OPENAPI = "OPENAPI";
+    private static final String SOURCE_IMPORT = "IMPORT";
+    private static final String SOURCE_MANUAL = "MANUAL";
+    private static final String STATUS_ACTIVE = "ACTIVE";
+    private static final String STATUS_DRAFT = "DRAFT";
+    private static final String STATUS_PLANNED = "PLANNED";
+    private static final Set<String> REVIEW_STATUSES = Set.of(STATUS_DRAFT, "REVIEWING", "APPROVED", "DEPRECATED");
+    private static final Set<String> LIFECYCLE_STATUSES = Set.of(STATUS_ACTIVE, "ARCHIVED", "DELETED");
     private static final Set<String> PRIORITIES = Set.of("CRITICAL", "HIGH", "MEDIUM", "LOW");
-    private static final Set<String> REQUIREMENT_SOURCES = Set.of("IMPORT", "MANUAL");
-    private static final Set<String> API_STATUSES = Set.of("ACTIVE", "DEPRECATED", "REMOVED");
-    private static final Set<String> API_SOURCES = Set.of("OPENAPI", "MANUAL", "IMPORT");
+    private static final Set<String> REQUIREMENT_SOURCES = Set.of(SOURCE_IMPORT, SOURCE_MANUAL);
+    private static final Set<String> API_STATUSES = Set.of(STATUS_ACTIVE, "DEPRECATED", "REMOVED");
+    private static final Set<String> API_SOURCES = Set.of(FORMAT_OPENAPI, SOURCE_MANUAL, SOURCE_IMPORT);
     private static final Set<String> API_HTTP_METHODS = Set.of("GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS");
-    private static final Set<String> PAGE_STATUSES = Set.of("ACTIVE", "DEPRECATED");
-    private static final Set<String> PAGE_SOURCES = Set.of("FIGMA", "LANHU", "AXURE", "MANUAL");
-    private static final Set<String> FLOW_STATUSES = Set.of("DRAFT", "ACTIVE", "ARCHIVED");
-    private static final Set<String> IMPACT_SUBJECT_TYPES = Set.of("REQUIREMENT", "API", "PAGE", "FLOW", "BUSINESS_FLOW", "CASE", "TEST_CASE");
-    private static final Set<String> IMPORT_EXPORT_ASSET_TYPES = Set.of("REQUIREMENT", "API", "TEST_CASE");
-    private static final Set<String> IMPORT_EXPORT_FORMATS = Set.of("CSV", "JSON", "OPENAPI");
+    private static final Set<String> PAGE_STATUSES = Set.of(STATUS_ACTIVE, "DEPRECATED");
+    private static final Set<String> PAGE_SOURCES = Set.of("FIGMA", "LANHU", "AXURE", SOURCE_MANUAL);
+    private static final Set<String> PROTOTYPE_SOURCES = Set.of("FIGMA", "LANHU", "AXURE");
+    private static final Set<String> FLOW_STATUSES = Set.of(STATUS_DRAFT, STATUS_ACTIVE, "ARCHIVED");
+    private static final Set<String> IMPACT_SUBJECT_TYPES = Set.of(
+            ASSET_REQUIREMENT,
+            ASSET_API,
+            ASSET_PAGE,
+            SUBJECT_FLOW,
+            SUBJECT_CASE
+    );
+    private static final Map<String, String> IMPACT_SUBJECT_TYPE_ALIASES = Map.of(
+            ASSET_BUSINESS_FLOW, SUBJECT_FLOW,
+            ASSET_TEST_CASE, SUBJECT_CASE
+    );
+    private static final Set<String> IMPORT_EXPORT_FORMATS = Set.of(FORMAT_CSV, FORMAT_JSON, FORMAT_OPENAPI);
+    private static final Map<String, Set<String>> IMPORT_EXPORT_FORMATS_BY_ASSET_TYPE = Map.of(
+            ASSET_REQUIREMENT, Set.of(FORMAT_CSV, FORMAT_JSON),
+            ASSET_API, IMPORT_EXPORT_FORMATS,
+            ASSET_TEST_CASE, Set.of(FORMAT_CSV, FORMAT_JSON)
+    );
+    private static final Set<String> IMPORT_EXPORT_ASSET_TYPES = IMPORT_EXPORT_FORMATS_BY_ASSET_TYPE.keySet();
     private static final Map<String, Set<String>> REVIEW_STATUS_TRANSITIONS = Map.of(
-            "DRAFT", Set.of("DRAFT", "REVIEWING", "APPROVED", "DEPRECATED"),
-            "REVIEWING", Set.of("REVIEWING", "DRAFT", "APPROVED", "DEPRECATED"),
+            STATUS_DRAFT, Set.of(STATUS_DRAFT, "REVIEWING", "APPROVED", "DEPRECATED"),
+            "REVIEWING", Set.of("REVIEWING", STATUS_DRAFT, "APPROVED", "DEPRECATED"),
             "APPROVED", Set.of("APPROVED", "DEPRECATED"),
             "DEPRECATED", Set.of("DEPRECATED")
     );
     private static final Map<String, Set<String>> API_STATUS_TRANSITIONS = Map.of(
-            "ACTIVE", Set.of("ACTIVE", "DEPRECATED"),
+            STATUS_ACTIVE, Set.of(STATUS_ACTIVE, "DEPRECATED"),
             "DEPRECATED", Set.of("DEPRECATED", "REMOVED"),
             "REMOVED", Set.of("REMOVED")
     );
     private static final Map<String, Set<String>> PAGE_STATUS_TRANSITIONS = Map.of(
-            "ACTIVE", Set.of("ACTIVE", "DEPRECATED"),
+            STATUS_ACTIVE, Set.of(STATUS_ACTIVE, "DEPRECATED"),
             "DEPRECATED", Set.of("DEPRECATED")
     );
     private static final Map<String, Set<String>> FLOW_STATUS_TRANSITIONS = Map.of(
-            "DRAFT", Set.of("DRAFT", "ACTIVE", "ARCHIVED"),
-            "ACTIVE", Set.of("ACTIVE", "ARCHIVED"),
+            STATUS_DRAFT, Set.of(STATUS_DRAFT, STATUS_ACTIVE, "ARCHIVED"),
+            STATUS_ACTIVE, Set.of(STATUS_ACTIVE, "ARCHIVED"),
             "ARCHIVED", Set.of("ARCHIVED")
     );
 
@@ -1102,10 +1133,7 @@ public class AssetService {
 
     public AssetImportResponse importAssets(AssetImportRequest request) {
         String assetType = importExportAssetType(request.assetType());
-        String format = importExportFormat(request.format());
-        if ("OPENAPI".equals(format) && !"API".equals(assetType)) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "OpenAPI 导入仅支持 API 资产");
-        }
+        String format = importExportFormat(assetType, request.format(), "导入");
         validateProjectWhenProvided(request.projectId());
         boolean dryRun = Boolean.TRUE.equals(request.dryRun());
         List<Map<String, String>> rows = parseImportRows(assetType, format, request.content());
@@ -1113,7 +1141,7 @@ public class AssetService {
         List<AssetImportItemResponse> items = new ArrayList<>();
         for (int i = 0; i < rows.size(); i++) {
             ImportPlan plan = planImportRow(assetType, request.projectId(), rows.get(i), i + 1);
-            items.add(dryRun || !"PLANNED".equals(plan.status())
+            items.add(dryRun || !STATUS_PLANNED.equals(plan.status())
                     ? plan.toResponse()
                     : applyImportPlan(assetType, request.projectId(), rows.get(i), plan));
         }
@@ -1122,21 +1150,18 @@ public class AssetService {
 
     public AssetExportPayload exportAssets(AssetExportRequest request) {
         String assetType = importExportAssetType(request.getAssetType());
-        String format = importExportFormat(request.getFormat());
-        if ("OPENAPI".equals(format) && !"API".equals(assetType)) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "OpenAPI 导出仅支持 API 资产");
-        }
+        String format = importExportFormat(assetType, request.getFormat(), "导出");
         String projectId = trimToNull(request.getProjectId());
         validateProjectWhenProvided(projectId);
         String content = switch (assetType) {
-            case "REQUIREMENT" -> exportRequirements(request, format);
-            case "API" -> exportApis(request, format);
-            case "TEST_CASE" -> exportTestCases(request, format);
+            case ASSET_REQUIREMENT -> exportRequirements(request, format);
+            case ASSET_API -> exportApis(request, format);
+            case ASSET_TEST_CASE -> exportTestCases(request, format);
             default -> throw new BusinessException(ErrorCode.VALIDATION_ERROR, "assetType 不合法: " + assetType);
         };
         writeAssetBatchAudit("EXPORT", "ASSET_" + assetType, projectId, "SUCCEEDED");
-        String extension = "OPENAPI".equals(format) ? "json" : format.toLowerCase(Locale.ROOT);
-        String contentType = "CSV".equals(format) ? "text/csv;charset=UTF-8" : "application/json;charset=UTF-8";
+        String extension = FORMAT_OPENAPI.equals(format) ? "json" : format.toLowerCase(Locale.ROOT);
+        String contentType = FORMAT_CSV.equals(format) ? "text/csv;charset=UTF-8" : "application/json;charset=UTF-8";
         return new AssetExportPayload(
                 "wp3-" + assetType.toLowerCase(Locale.ROOT).replace("_", "-") + "." + extension,
                 contentType,
@@ -1148,7 +1173,7 @@ public class AssetService {
 
     @Transactional
     public AssetPrototypeSyncResponse syncPrototypePages(AssetPrototypeSyncRequest request) {
-        String source = valueIn(request.source(), null, Set.of("FIGMA", "LANHU", "AXURE"), "source");
+        String source = valueIn(request.source(), null, PROTOTYPE_SOURCES, "source");
         String projectId = projectContext(request.projectId()).projectId();
         boolean dryRun = Boolean.TRUE.equals(request.dryRun());
         writeAssetBatchAudit(dryRun ? "PROTOTYPE_SYNC_DRY_RUN" : "PROTOTYPE_SYNC", "PAGE", projectId, "SUCCEEDED");
@@ -1369,14 +1394,11 @@ public class AssetService {
             return null;
         }
         String value = rawValue.trim().toUpperCase(Locale.ROOT);
-        if (!IMPACT_SUBJECT_TYPES.contains(value)) {
+        String canonical = IMPACT_SUBJECT_TYPE_ALIASES.getOrDefault(value, value);
+        if (!IMPACT_SUBJECT_TYPES.contains(canonical)) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "assetType 不合法: " + rawValue);
         }
-        return switch (value) {
-            case "BUSINESS_FLOW" -> "FLOW";
-            case "TEST_CASE" -> "CASE";
-            default -> value;
-        };
+        return canonical;
     }
 
     private static void addSubject(
@@ -2619,8 +2641,15 @@ public class AssetService {
         return valueIn(rawValue, null, IMPORT_EXPORT_ASSET_TYPES, "assetType");
     }
 
-    private static String importExportFormat(String rawValue) {
-        return valueIn(rawValue, "CSV", IMPORT_EXPORT_FORMATS, "format");
+    private static String importExportFormat(String assetType, String rawValue, String operationName) {
+        String format = valueIn(rawValue, FORMAT_CSV, IMPORT_EXPORT_FORMATS, "format");
+        if (!IMPORT_EXPORT_FORMATS_BY_ASSET_TYPE.getOrDefault(assetType, Set.of()).contains(format)) {
+            if (FORMAT_OPENAPI.equals(format)) {
+                throw new BusinessException(ErrorCode.VALIDATION_ERROR, "OpenAPI " + operationName + "仅支持 API 资产");
+            }
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "format 不支持当前 assetType: " + format + "/" + assetType);
+        }
+        return format;
     }
 
     private static String textOrNull(JsonNode node) {

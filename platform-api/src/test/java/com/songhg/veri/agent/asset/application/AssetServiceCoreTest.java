@@ -107,6 +107,21 @@ class AssetServiceCoreTest {
     }
 
     @Test
+    void rejectsOpenApiImportFormatForNonApiAssets() {
+        assertThatThrownBy(() -> service.importAssets(new AssetImportRequest(
+                "REQUIREMENT",
+                "OPENAPI",
+                PROJECT_ID,
+                true,
+                "{}"
+        )))
+                .isInstanceOfSatisfying(BusinessException.class, exception -> {
+                    assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.VALIDATION_ERROR);
+                    assertThat(exception.getMessage()).contains("OpenAPI 导入仅支持 API 资产");
+                });
+    }
+
+    @Test
     void rollbackRestoresHistoricalSnapshotAndLifecycleState() {
         RequirementResponse requirement = service.createRequirement(requirementRequest("回滚需求V1", "DRAFT", "HIGH", "v1", "baseline"));
         RequirementResponse updated = service.updateRequirement(requirement.id(),

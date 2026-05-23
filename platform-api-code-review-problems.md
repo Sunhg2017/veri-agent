@@ -34,7 +34,7 @@
 | P5 | 预算窗口重复计算 | 已完成 | invocation 内预先计算并复用 `BudgetWindow`，避免 fallback 多 provider 重复计算 |
 | Q2 | 中文错误信息 i18n | 专项任务 | 拆为错误码/消息资源化专项，不纳入本批行为修复 |
 | Q3 | AssetService 静态 ObjectMapper | 已完成 | 改为注入 Spring `ObjectMapper`，保留手工单测兼容构造器并标注容器构造器 |
-| Q4 | AssetService 常量清理 | 专项任务 | 需结合导入导出/OpenAPI/影响分析语义复核后清理 |
+| Q4 | AssetService 常量清理 | 已完成 | 已将导入导出资产类型/格式收敛为按资产类型配置的格式矩阵，并将影响分析 `BUSINESS_FLOW`/`TEST_CASE` 作为别名映射到规范 `FLOW`/`CASE`，避免重复含义常量 |
 | Q5 | 密码请求 DTO 脱敏 | 已完成 | 已在上一批覆盖 request `toString()` 脱敏 |
 | Q6 | String 标识符强类型化 | 专项任务 | 拆为 Value Object 渐进改造专项 |
 | Q7 | `AuditLogWriter.denied()` targetName 歧义 | 已完成 | 简化重载不再把 resourceId 写成 targetName，并补充审计单测 |
@@ -233,6 +233,7 @@
 - **文件**: `asset/application/AssetService.java` (line 79-91)
 - **问题**: 常量 `IMPACT_SUBJECT_TYPES` 包含 `"FLOW"` 和 `"BUSINESS_FLOW"` 两个重复含义的条目；`PAGE_SOURCES`、`API_SOURCES` 等在代码中通过 `valueIn()` 校验输入时使用，但部分常量（如 `IMPORT_EXPORT_ASSET_TYPES` 含 `"API"` 而在 `IMPORT_EXPORT_FORMATS` 中无 `"OPENAPI"` 对应逻辑）可能已过时。
 - **建议**: 清理未使用常量，并确认各常量的实际用途
+- **处理结果**: 已拆分规范影响分析 subject type 与兼容别名，保留 `BUSINESS_FLOW`/`TEST_CASE` 入参兼容但内部统一为 `FLOW`/`CASE`；导入导出格式改为 `IMPORT_EXPORT_FORMATS_BY_ASSET_TYPE` 明确声明 `OPENAPI` 仅支持 API，去掉调用点重复判断，并补充非 API OpenAPI 导入拒绝回归测试。
 
 ### [MEDIUM] Q5: 密码修改接口新密码在日志中可能泄漏
 
