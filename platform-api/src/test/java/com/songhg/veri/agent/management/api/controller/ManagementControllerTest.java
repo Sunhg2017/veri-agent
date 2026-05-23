@@ -40,7 +40,7 @@ class ManagementControllerTest {
     private AuthTokenService tokenService;
 
     @Test
-    void readsManagementWorkspaceWithBearerToken() throws Exception {
+    void readsManagementConsoleWithBearerToken() throws Exception {
         String token = superAdminToken();
 
         mockMvc.perform(get("/api/v1/management/departments")

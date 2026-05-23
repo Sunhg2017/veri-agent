@@ -53,7 +53,7 @@
 
 ### 剩余专项优先级
 
-1. 架构治理专项：A1，按模块逐步拆分并保持接口兼容；已推进 WP3 版本历史、影响分析、资产导入导出、原型同步、追踪关系、测试用例步骤和项目审计上下文职责拆分，WP2 模型同步调用编排和成本分析职责拆分，WP4 AI 解析统一调用和模型解析人工纠错回流拆分；已完成 `DocumentInputService` 的文档源、候选项、发布和响应 DTO 映射职责拆分，以及 `PostgresManagementWorkspaceService` 的审计查询、配置管理、部门管理、角色/权限管理和密钥引用职责拆分。A1 仍作为渐进治理专项保留，后续仅针对新增或复燃的高耦合热点继续跟踪。
+1. 架构治理专项：A1，按模块逐步拆分并保持接口兼容；已推进 WP3 版本历史、影响分析、资产导入导出、原型同步、追踪关系、测试用例步骤和项目审计上下文职责拆分，WP2 模型同步调用编排和成本分析职责拆分，WP4 AI 解析统一调用和模型解析人工纠错回流拆分；已完成 `DocumentInputService` 的文档源、候选项、发布和响应 DTO 映射职责拆分，以及 `PostgresManagementConsoleService` 的审计查询、配置管理、部门管理、角色/权限管理和密钥引用职责拆分。A1 仍作为渐进治理专项保留，后续仅针对新增或复燃的高耦合热点继续跟踪。
 2. 运行治理专项：暂无独立剩余项；后续按生产部署形态继续观察 Redis 可用性和网关限流策略。
 
 ## 一、安全风险 (Security)
@@ -124,16 +124,16 @@
   - `modelaccess/application/ModelAccessService.java`（当前约 704 行，同步调用编排和成本分析职责已拆出）
   - `asset/application/AssetService.java`（当前约 1414 行，版本历史/影响分析/导入导出/原型同步/追踪关系/测试用例步骤/项目审计上下文/响应 DTO 映射职责已拆出）
   - `documentinput/application/DocumentInputService.java`（当前约 1216 行，源管理/候选流程/发布编排/纠错反馈/响应 DTO 映射已拆出）
-  - `management/infrastructure/PostgresManagementWorkspaceService.java`（当前约 1168 行，审计查询/配置管理/部门管理/角色权限管理/密钥引用已拆出）
+  - `management/infrastructure/PostgresManagementConsoleService.java`（当前约 1168 行，审计查询/配置管理/部门管理/角色权限管理/密钥引用已拆出）
 - **问题**: 核心 Service 类规模巨大，混合了路由决策、预算检查、供应商管理、Prompt 管理、审计追踪、CSV导出等不同职责。
 - **建议**: 
   - 将 `ModelAccessService.invoke()` 拆分为策略选择器、预算执行器、调用执行器等独立组件
   - `AssetService` 按资产类型拆分为 `RequirementService`、`ApiService`、`PageService`、`TestCaseService`
-  - `PostgresManagementWorkspaceService` 拆分为 `DepartmentService`、`UserService`、`ProjectService` 等
+  - `PostgresManagementConsoleService` 拆分为 `DepartmentService`、`UserService`、`ProjectService` 等
 - **当前处理结果**:
   - `DocumentInputService` 已拆出 `DocumentSourceManagementService`、`DocumentCandidateWorkflowService`、`DocumentRequirementPublishService`、`DocumentParseFeedbackCaptureService`。
   - `DocumentInputService` 已继续拆出 `DocumentInputResponseMapper`，承接导入记录、候选项、反馈样本、webhook 事件响应映射和 webhook 审计脱敏视图。
-  - `PostgresManagementWorkspaceService` 已拆出 `PostgresManagementAuditQueryService`、`PostgresManagementConfigService`、`PostgresManagementDepartmentService`、`PostgresManagementRoleService`、`PostgresManagementSecretReferenceService`。
+  - `PostgresManagementConsoleService` 已拆出 `PostgresManagementAuditQueryService`、`PostgresManagementConfigService`、`PostgresManagementDepartmentService`、`PostgresManagementRoleService`、`PostgresManagementSecretReferenceService`。
   - `ModelAccessService` 已拆出 `ModelInvocationService` 和 `ModelCostAnalysisService`，分别承接模型调用编排与成本告警/日报聚合。
   - `AssetService` 已继续拆出 `AssetTraceLinkService`，承接追踪关系查询/创建、目标资产跨项目校验和追踪关系审计。
   - `AssetService` 已继续拆出 `AssetTestCaseStepService`，承接测试用例步骤查询/替换、步骤审计和历史版本记录。
@@ -157,7 +157,7 @@
 - **文件**: 
   - `auth/infrastructure/InMemoryAuthSessionStore.java`
   - `asset/infrastructure/InMemoryAssetRepository.java`
-  - `management/infrastructure/InMemoryManagementWorkspaceService.java`
+  - `management/infrastructure/InMemoryManagementConsoleService.java`
 - **问题**: `@Profile("local")` 下的内存实现与 `@Profile("db")` 下的 Postgres 实现在行为上存在差异（如 InMemoryAuthSessionStore 的 `findByRefreshTokenHash` 使用 O(n) 遍历）。测试时使用 local profile 无法覆盖真实 DB 行为。
 - **建议**: 
   - 集成测试应使用 Postgres 实现（Testcontainer 或嵌入式 PG）
@@ -304,7 +304,7 @@
 
 ### [MEDIUM] T3: `Profile("db")` 实现类测试覆盖不足
 
-- **问题**: `PostgresAuthSessionStore`、`PostgresAuthIdentityStore`、`PostgresManagementWorkspaceService` 等 `@Profile("db")` 实现类缺少对应的集成测试。
+- **问题**: `PostgresAuthSessionStore`、`PostgresAuthIdentityStore`、`PostgresManagementConsoleService` 等 `@Profile("db")` 实现类缺少对应的集成测试。
 - **建议**: 使用 Testcontainers + `@ActiveProfiles("db")` 对数据库实现进行集成测试
 
 ---

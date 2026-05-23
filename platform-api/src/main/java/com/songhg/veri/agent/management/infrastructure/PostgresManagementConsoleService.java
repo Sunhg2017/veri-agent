@@ -48,7 +48,7 @@ import com.songhg.veri.agent.management.api.response.UserView;
 import com.songhg.veri.agent.management.application.AuditLogQuery;
 import com.songhg.veri.agent.management.application.AuditOutboxQuery;
 import com.songhg.veri.agent.management.application.EnvironmentConnectivityChecker;
-import com.songhg.veri.agent.management.application.ManagementWorkspaceService;
+import com.songhg.veri.agent.management.application.ManagementConsoleService;
 import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows.ApplicationRef;
 import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows.EnvironmentConnectivityTargetRow;
 import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows.EnvironmentRef;
@@ -70,7 +70,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Profile("db")
 @Service
-public class PostgresManagementWorkspaceService implements ManagementWorkspaceService {
+public class PostgresManagementConsoleService implements ManagementConsoleService {
 
     private final ManagementMapper mapper;
     private final PasswordEncoder passwordEncoder;
@@ -84,7 +84,7 @@ public class PostgresManagementWorkspaceService implements ManagementWorkspaceSe
     private final PostgresManagementRoleService roleService;
     private final PostgresManagementSecretReferenceService secretReferenceService;
 
-    public PostgresManagementWorkspaceService(
+    public PostgresManagementConsoleService(
             ManagementMapper mapper,
             PasswordEncoder passwordEncoder,
             AuditLogWriter auditLogWriter,

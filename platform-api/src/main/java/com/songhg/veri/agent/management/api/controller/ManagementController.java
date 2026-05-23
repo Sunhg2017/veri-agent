@@ -6,7 +6,7 @@ import com.songhg.veri.agent.common.api.PageResponse;
 import com.songhg.veri.agent.common.openapi.ApiVersion;
 import com.songhg.veri.agent.management.application.AuditLogQuery;
 import com.songhg.veri.agent.management.application.AuditOutboxQuery;
-import com.songhg.veri.agent.management.application.ManagementWorkspaceService;
+import com.songhg.veri.agent.management.application.ManagementConsoleService;
 import com.songhg.veri.agent.management.api.request.AuditLogPageRequest;
 import com.songhg.veri.agent.management.api.request.AuditOutboxPageRequest;
 import com.songhg.veri.agent.management.api.request.CreateApplicationRequest;
@@ -71,14 +71,14 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/v1/management")
 public class ManagementController {
 
-    private final ManagementWorkspaceService workspaceService;
+    private final ManagementConsoleService consoleService;
     private final AuthorizationService authorizationService;
 
     public ManagementController(
-            ManagementWorkspaceService workspaceService,
+            ManagementConsoleService consoleService,
             AuthorizationService authorizationService
     ) {
-        this.workspaceService = workspaceService;
+        this.consoleService = consoleService;
         this.authorizationService = authorizationService;
     }
 
@@ -88,7 +88,7 @@ public class ManagementController {
             @AuthenticationPrincipal AuthUserPrincipal principal
     ) {
         authorizationService.require(principal, "department:read");
-        return workspaceService.departments(pageRequest.toPageQuery());
+        return consoleService.departments(pageRequest.toPageQuery());
     }
 
     @PostMapping("/departments")
@@ -98,7 +98,7 @@ public class ManagementController {
             @AuthenticationPrincipal AuthUserPrincipal principal
     ) {
         authorizationService.require(principal, "department:create");
-        return workspaceService.createDepartment(normalize(request), principal);
+        return consoleService.createDepartment(normalize(request), principal);
     }
 
     @GetMapping("/departments/{key}")
@@ -107,7 +107,7 @@ public class ManagementController {
             @AuthenticationPrincipal AuthUserPrincipal principal
     ) {
         authorizationService.require(principal, "department:read");
-        return workspaceService.department(key.trim());
+        return consoleService.department(key.trim());
     }
 
     @PatchMapping("/departments/{key}")
@@ -117,7 +117,7 @@ public class ManagementController {
             @AuthenticationPrincipal AuthUserPrincipal principal
     ) {
         authorizationService.require(principal, "department:edit");
-        return workspaceService.updateDepartment(key.trim(), request, principal);
+        return consoleService.updateDepartment(key.trim(), request, principal);
     }
 
     @PatchMapping("/departments/{key}/status")
@@ -131,7 +131,7 @@ public class ManagementController {
         } else {
             authorizationService.require(principal, "department:enable");
         }
-        return workspaceService.changeDepartmentStatus(key.trim(), request.status(), principal);
+        return consoleService.changeDepartmentStatus(key.trim(), request.status(), principal);
     }
 
     @GetMapping("/users")
@@ -140,7 +140,7 @@ public class ManagementController {
             @AuthenticationPrincipal AuthUserPrincipal principal
     ) {
         authorizationService.require(principal, "user:read");
-        return workspaceService.users(pageRequest.toPageQuery());
+        return consoleService.users(pageRequest.toPageQuery());
     }
 
     @GetMapping("/users/{username}")
@@ -149,7 +149,7 @@ public class ManagementController {
             @AuthenticationPrincipal AuthUserPrincipal principal
     ) {
         authorizationService.require(principal, "user:read");
-        return workspaceService.user(username.trim());
+        return consoleService.user(username.trim());
     }
 
     @PatchMapping("/users/{username}")
@@ -159,7 +159,7 @@ public class ManagementController {
             @AuthenticationPrincipal AuthUserPrincipal principal
     ) {
         authorizationService.require(principal, "user:edit");
-        return workspaceService.updateUser(username.trim(), request, principal);
+        return consoleService.updateUser(username.trim(), request, principal);
     }
 
     @PostMapping("/users")
@@ -169,7 +169,7 @@ public class ManagementController {
             @AuthenticationPrincipal AuthUserPrincipal principal
     ) {
         authorizationService.require(principal, "user:create");
-        return workspaceService.createUser(normalize(request), principal);
+        return consoleService.createUser(normalize(request), principal);
     }
 
     @PostMapping("/users/{username}/enable")
@@ -178,7 +178,7 @@ public class ManagementController {
             @AuthenticationPrincipal AuthUserPrincipal principal
     ) {
         authorizationService.require(principal, "user:enable");
-        return workspaceService.enableUser(username.trim(), principal);
+        return consoleService.enableUser(username.trim(), principal);
     }
 
     @PostMapping("/users/{username}/disable")
@@ -187,7 +187,7 @@ public class ManagementController {
             @AuthenticationPrincipal AuthUserPrincipal principal
     ) {
         authorizationService.require(principal, "user:disable");
-        return workspaceService.disableUser(username.trim(), principal);
+        return consoleService.disableUser(username.trim(), principal);
     }
 
     @PostMapping("/users/{username}/lock")
@@ -196,7 +196,7 @@ public class ManagementController {
             @AuthenticationPrincipal AuthUserPrincipal principal
     ) {
         authorizationService.require(principal, "user:lock");
-        return workspaceService.lockUser(username.trim(), principal);
+        return consoleService.lockUser(username.trim(), principal);
     }
 
     @PostMapping("/users/{username}/unlock")
@@ -205,7 +205,7 @@ public class ManagementController {
             @AuthenticationPrincipal AuthUserPrincipal principal
     ) {
         authorizationService.require(principal, "user:unlock");
-        return workspaceService.unlockUser(username.trim(), principal);
+        return consoleService.unlockUser(username.trim(), principal);
     }
 
     @PostMapping("/users/{username}/reset-password")
@@ -215,7 +215,7 @@ public class ManagementController {
             @AuthenticationPrincipal AuthUserPrincipal principal
     ) {
         authorizationService.require(principal, "user:reset_password");
-        return workspaceService.resetUserPassword(username.trim(), request.newPassword(), principal);
+        return consoleService.resetUserPassword(username.trim(), request.newPassword(), principal);
     }
 
     @GetMapping("/roles")
@@ -224,7 +224,7 @@ public class ManagementController {
             @AuthenticationPrincipal AuthUserPrincipal principal
     ) {
         authorizationService.require(principal, "role:read");
-        return workspaceService.roles(pageRequest.toPageQuery());
+        return consoleService.roles(pageRequest.toPageQuery());
     }
 
     @GetMapping("/permissions")
@@ -233,7 +233,7 @@ public class ManagementController {
             @AuthenticationPrincipal AuthUserPrincipal principal
     ) {
         authorizationService.require(principal, "role:read");
-        return workspaceService.permissions(pageRequest.toPageQuery());
+        return consoleService.permissions(pageRequest.toPageQuery());
     }
 
     @GetMapping("/roles/{code}")
@@ -242,7 +242,7 @@ public class ManagementController {
             @AuthenticationPrincipal AuthUserPrincipal principal
     ) {
         authorizationService.require(principal, "role:read");
-        return workspaceService.role(code.trim());
+        return consoleService.role(code.trim());
     }
 
     @PostMapping("/roles")
@@ -253,7 +253,7 @@ public class ManagementController {
     ) {
         authorizationService.require(principal, "role:create");
         Set<String> assignablePermissions = authorizationService.permissions(principal);
-        return workspaceService.createRole(request, assignablePermissions, principal);
+        return consoleService.createRole(request, assignablePermissions, principal);
     }
 
     @PatchMapping("/roles/{code}")
@@ -264,7 +264,7 @@ public class ManagementController {
     ) {
         authorizationService.require(principal, "role:edit");
         Set<String> assignablePermissions = authorizationService.permissions(principal);
-        return workspaceService.updateRole(code.trim(), request, assignablePermissions, principal);
+        return consoleService.updateRole(code.trim(), request, assignablePermissions, principal);
     }
 
     @PatchMapping("/roles/{code}/status")
@@ -274,7 +274,7 @@ public class ManagementController {
             @AuthenticationPrincipal AuthUserPrincipal principal
     ) {
         authorizationService.require(principal, "role:edit");
-        return workspaceService.changeRoleStatus(code.trim(), request.status(), principal);
+        return consoleService.changeRoleStatus(code.trim(), request.status(), principal);
     }
 
     @PostMapping("/users/{username}/roles")
@@ -285,7 +285,7 @@ public class ManagementController {
     ) {
         authorizationService.require(principal, "user:assign_role");
         authorizationService.require(principal, "role:bind");
-        return workspaceService.assignUserRole(username.trim(), request.roleCode().trim(), principal);
+        return consoleService.assignUserRole(username.trim(), request.roleCode().trim(), principal);
     }
 
     @PostMapping("/users/{username}/roles/unassign")
@@ -296,7 +296,7 @@ public class ManagementController {
     ) {
         authorizationService.require(principal, "user:assign_role");
         authorizationService.require(principal, "role:unbind");
-        return workspaceService.unassignUserRole(username.trim(), request.roleCode().trim(), principal);
+        return consoleService.unassignUserRole(username.trim(), request.roleCode().trim(), principal);
     }
 
     @GetMapping("/projects")
@@ -305,7 +305,7 @@ public class ManagementController {
             @AuthenticationPrincipal AuthUserPrincipal principal
     ) {
         authorizationService.require(principal, "project:read");
-        return workspaceService.projects(pageRequest.toPageQuery(), principal);
+        return consoleService.projects(pageRequest.toPageQuery(), principal);
     }
 
     @PostMapping("/projects")
@@ -315,7 +315,7 @@ public class ManagementController {
             @AuthenticationPrincipal AuthUserPrincipal principal
     ) {
         authorizationService.require(principal, "project:create");
-        return workspaceService.createProject(request, principal);
+        return consoleService.createProject(request, principal);
     }
 
     @GetMapping("/projects/{key}")
@@ -324,7 +324,7 @@ public class ManagementController {
             @AuthenticationPrincipal AuthUserPrincipal principal
     ) {
         authorizationService.require(principal, "project:read");
-        return workspaceService.project(key.trim());
+        return consoleService.project(key.trim());
     }
 
     @PatchMapping("/projects/{key}")
@@ -334,7 +334,7 @@ public class ManagementController {
             @AuthenticationPrincipal AuthUserPrincipal principal
     ) {
         authorizationService.require(principal, "project:edit");
-        return workspaceService.updateProject(key.trim(), request, principal);
+        return consoleService.updateProject(key.trim(), request, principal);
     }
 
     @PatchMapping("/projects/{key}/status")
@@ -350,7 +350,7 @@ public class ManagementController {
         } else {
             authorizationService.require(principal, "project:edit");
         }
-        return workspaceService.changeProjectStatus(key.trim(), request.status(), principal);
+        return consoleService.changeProjectStatus(key.trim(), request.status(), principal);
     }
 
     @GetMapping("/projects/{key}/members")
@@ -360,7 +360,7 @@ public class ManagementController {
             @AuthenticationPrincipal AuthUserPrincipal principal
     ) {
         authorizationService.require(principal, "project:read");
-        return workspaceService.projectMembers(key.trim(), pageRequest.toPageQuery());
+        return consoleService.projectMembers(key.trim(), pageRequest.toPageQuery());
     }
 
     @PostMapping("/projects/{key}/members")
@@ -371,7 +371,7 @@ public class ManagementController {
     ) {
         authorizationService.require(principal, "project:member_manage");
         authorizationService.require(principal, "role:bind");
-        return workspaceService.addProjectMember(key.trim(), request, principal);
+        return consoleService.addProjectMember(key.trim(), request, principal);
     }
 
     @PostMapping("/projects/{key}/members/{username}/remove")
@@ -382,7 +382,7 @@ public class ManagementController {
     ) {
         authorizationService.require(principal, "project:member_manage");
         authorizationService.require(principal, "role:unbind");
-        return workspaceService.removeProjectMember(key.trim(), username.trim(), principal);
+        return consoleService.removeProjectMember(key.trim(), username.trim(), principal);
     }
 
     @GetMapping("/applications")
@@ -391,7 +391,7 @@ public class ManagementController {
             @AuthenticationPrincipal AuthUserPrincipal principal
     ) {
         authorizationService.require(principal, "application:read");
-        return workspaceService.applications(pageRequest.toPageQuery(), principal);
+        return consoleService.applications(pageRequest.toPageQuery(), principal);
     }
 
     @PostMapping("/applications")
@@ -401,7 +401,7 @@ public class ManagementController {
             @AuthenticationPrincipal AuthUserPrincipal principal
     ) {
         authorizationService.require(principal, "application:create");
-        return workspaceService.createApplication(request, principal);
+        return consoleService.createApplication(request, principal);
     }
 
     @GetMapping("/applications/{key}")
@@ -410,7 +410,7 @@ public class ManagementController {
             @AuthenticationPrincipal AuthUserPrincipal principal
     ) {
         authorizationService.require(principal, "application:read");
-        return workspaceService.application(key.trim());
+        return consoleService.application(key.trim());
     }
 
     @PatchMapping("/applications/{key}")
@@ -420,7 +420,7 @@ public class ManagementController {
             @AuthenticationPrincipal AuthUserPrincipal principal
     ) {
         authorizationService.require(principal, "application:edit");
-        return workspaceService.updateApplication(key.trim(), request, principal);
+        return consoleService.updateApplication(key.trim(), request, principal);
     }
 
     @PatchMapping("/applications/{key}/status")
@@ -434,7 +434,7 @@ public class ManagementController {
         } else {
             authorizationService.require(principal, "application:edit");
         }
-        return workspaceService.changeApplicationStatus(key.trim(), request.status(), principal);
+        return consoleService.changeApplicationStatus(key.trim(), request.status(), principal);
     }
 
     @GetMapping("/applications/{key}/owners")
@@ -444,7 +444,7 @@ public class ManagementController {
             @AuthenticationPrincipal AuthUserPrincipal principal
     ) {
         authorizationService.require(principal, "application:read");
-        return workspaceService.applicationOwners(key.trim(), pageRequest.toPageQuery());
+        return consoleService.applicationOwners(key.trim(), pageRequest.toPageQuery());
     }
 
     @PostMapping("/applications/{key}/owners")
@@ -455,7 +455,7 @@ public class ManagementController {
     ) {
         authorizationService.require(principal, "application:owner_manage");
         authorizationService.require(principal, "role:bind");
-        return workspaceService.addApplicationOwner(key.trim(), request, principal);
+        return consoleService.addApplicationOwner(key.trim(), request, principal);
     }
 
     @PostMapping("/applications/{key}/owners/{username}/remove")
@@ -466,7 +466,7 @@ public class ManagementController {
     ) {
         authorizationService.require(principal, "application:owner_manage");
         authorizationService.require(principal, "role:unbind");
-        return workspaceService.removeApplicationOwner(key.trim(), username.trim(), principal);
+        return consoleService.removeApplicationOwner(key.trim(), username.trim(), principal);
     }
 
     @GetMapping("/environments")
@@ -475,7 +475,7 @@ public class ManagementController {
             @AuthenticationPrincipal AuthUserPrincipal principal
     ) {
         authorizationService.require(principal, "environment:read");
-        return workspaceService.environments(pageRequest.toPageQuery(), principal);
+        return consoleService.environments(pageRequest.toPageQuery(), principal);
     }
 
     @PostMapping("/environments")
@@ -485,7 +485,7 @@ public class ManagementController {
             @AuthenticationPrincipal AuthUserPrincipal principal
     ) {
         authorizationService.require(principal, "environment:create");
-        return workspaceService.createEnvironment(request, principal);
+        return consoleService.createEnvironment(request, principal);
     }
 
     @GetMapping("/environments/{key}")
@@ -494,7 +494,7 @@ public class ManagementController {
             @AuthenticationPrincipal AuthUserPrincipal principal
     ) {
         authorizationService.require(principal, "environment:read");
-        return workspaceService.environment(key.trim());
+        return consoleService.environment(key.trim());
     }
 
     @PatchMapping("/environments/{key}")
@@ -504,7 +504,7 @@ public class ManagementController {
             @AuthenticationPrincipal AuthUserPrincipal principal
     ) {
         authorizationService.require(principal, "environment:edit");
-        return workspaceService.updateEnvironment(key.trim(), request, principal);
+        return consoleService.updateEnvironment(key.trim(), request, principal);
     }
 
     @PatchMapping("/environments/{key}/status")
@@ -518,7 +518,7 @@ public class ManagementController {
         } else {
             authorizationService.require(principal, "environment:edit");
         }
-        return workspaceService.changeEnvironmentStatus(key.trim(), request.status(), principal);
+        return consoleService.changeEnvironmentStatus(key.trim(), request.status(), principal);
     }
 
     @GetMapping("/environments/{key}/connectivity-check")
@@ -527,7 +527,7 @@ public class ManagementController {
             @AuthenticationPrincipal AuthUserPrincipal principal
     ) {
         authorizationService.require(principal, "environment:read");
-        return workspaceService.environmentConnectivityCheck(key.trim());
+        return consoleService.environmentConnectivityCheck(key.trim());
     }
 
     @PostMapping("/environments/{key}/connectivity-check")
@@ -536,7 +536,7 @@ public class ManagementController {
             @AuthenticationPrincipal AuthUserPrincipal principal
     ) {
         authorizationService.require(principal, "environment:edit");
-        return workspaceService.checkEnvironmentConnectivity(key.trim(), principal);
+        return consoleService.checkEnvironmentConnectivity(key.trim(), principal);
     }
 
     @GetMapping("/environments/{key}/users")
@@ -546,7 +546,7 @@ public class ManagementController {
             @AuthenticationPrincipal AuthUserPrincipal principal
     ) {
         authorizationService.require(principal, "environment:read");
-        return workspaceService.environmentUsers(key.trim(), pageRequest.toPageQuery());
+        return consoleService.environmentUsers(key.trim(), pageRequest.toPageQuery());
     }
 
     @PostMapping("/environments/{key}/users")
@@ -557,7 +557,7 @@ public class ManagementController {
     ) {
         authorizationService.require(principal, "environment:user_manage");
         authorizationService.require(principal, "role:bind");
-        return workspaceService.addEnvironmentUser(key.trim(), request, principal);
+        return consoleService.addEnvironmentUser(key.trim(), request, principal);
     }
 
     @PostMapping("/environments/{key}/users/{username}/remove")
@@ -568,7 +568,7 @@ public class ManagementController {
     ) {
         authorizationService.require(principal, "environment:user_manage");
         authorizationService.require(principal, "role:unbind");
-        return workspaceService.removeEnvironmentUser(key.trim(), username.trim(), principal);
+        return consoleService.removeEnvironmentUser(key.trim(), username.trim(), principal);
     }
 
     @GetMapping("/integrations")
@@ -577,7 +577,7 @@ public class ManagementController {
             @AuthenticationPrincipal AuthUserPrincipal principal
     ) {
         authorizationService.require(principal, "config:read");
-        return workspaceService.integrations(pageRequest.toPageQuery());
+        return consoleService.integrations(pageRequest.toPageQuery());
     }
 
     @PostMapping("/integrations")
@@ -587,7 +587,7 @@ public class ManagementController {
             @AuthenticationPrincipal AuthUserPrincipal principal
     ) {
         authorizationService.require(principal, "config:edit");
-        return workspaceService.createIntegration(request, principal);
+        return consoleService.createIntegration(request, principal);
     }
 
     @GetMapping("/integrations/{key}")
@@ -596,7 +596,7 @@ public class ManagementController {
             @AuthenticationPrincipal AuthUserPrincipal principal
     ) {
         authorizationService.require(principal, "config:read");
-        return workspaceService.integration(key.trim());
+        return consoleService.integration(key.trim());
     }
 
     @PatchMapping("/integrations/{key}")
@@ -606,7 +606,7 @@ public class ManagementController {
             @AuthenticationPrincipal AuthUserPrincipal principal
     ) {
         authorizationService.require(principal, "config:edit");
-        return workspaceService.updateIntegration(key.trim(), request, principal);
+        return consoleService.updateIntegration(key.trim(), request, principal);
     }
 
     @PatchMapping("/integrations/{key}/status")
@@ -616,7 +616,7 @@ public class ManagementController {
             @AuthenticationPrincipal AuthUserPrincipal principal
     ) {
         authorizationService.require(principal, "config:edit");
-        return workspaceService.changeIntegrationStatus(key.trim(), request.status(), principal);
+        return consoleService.changeIntegrationStatus(key.trim(), request.status(), principal);
     }
 
     @GetMapping("/audit-logs")
@@ -625,7 +625,7 @@ public class ManagementController {
             @AuthenticationPrincipal AuthUserPrincipal principal
     ) {
         authorizationService.require(principal, "audit:read");
-        return workspaceService.auditLogs(
+        return consoleService.auditLogs(
                 pageRequest.toPageQuery(),
                 AuditLogQuery.of(
                         pageRequest.getSearch(),
@@ -647,7 +647,7 @@ public class ManagementController {
     ) {
         authorizationService.require(principal, "audit:read");
         authorizationService.require(principal, "audit:export");
-        String csv = workspaceService.exportAuditLogsCsv(
+        String csv = consoleService.exportAuditLogsCsv(
                 AuditLogQuery.of(
                         pageRequest.getSearch(),
                         pageRequest.getActor(),
@@ -671,7 +671,7 @@ public class ManagementController {
             @AuthenticationPrincipal AuthUserPrincipal principal
     ) {
         authorizationService.require(principal, "audit:read");
-        return workspaceService.auditOutbox(
+        return consoleService.auditOutbox(
                 pageRequest.toPageQuery(),
                 AuditOutboxQuery.of(
                         pageRequest.getSearch(),
@@ -688,7 +688,7 @@ public class ManagementController {
             @AuthenticationPrincipal AuthUserPrincipal principal
     ) {
         authorizationService.require(principal, "config:read");
-        return workspaceService.settings(pageRequest.toPageQuery());
+        return consoleService.settings(pageRequest.toPageQuery());
     }
 
     @PostMapping("/settings")
@@ -698,7 +698,7 @@ public class ManagementController {
             @AuthenticationPrincipal AuthUserPrincipal principal
     ) {
         authorizationService.require(principal, "config:edit");
-        return workspaceService.createSetting(request, principal);
+        return consoleService.createSetting(request, principal);
     }
 
     @GetMapping("/settings/{key}")
@@ -707,7 +707,7 @@ public class ManagementController {
             @AuthenticationPrincipal AuthUserPrincipal principal
     ) {
         authorizationService.require(principal, "config:read");
-        return workspaceService.setting(key.trim());
+        return consoleService.setting(key.trim());
     }
 
     @PatchMapping("/settings/{key}")
@@ -717,7 +717,7 @@ public class ManagementController {
             @AuthenticationPrincipal AuthUserPrincipal principal
     ) {
         authorizationService.require(principal, "config:edit");
-        return workspaceService.updateSetting(key.trim(), request, principal);
+        return consoleService.updateSetting(key.trim(), request, principal);
     }
 
     @PatchMapping("/settings/{key}/status")
@@ -727,7 +727,7 @@ public class ManagementController {
             @AuthenticationPrincipal AuthUserPrincipal principal
     ) {
         authorizationService.require(principal, "config:edit");
-        return workspaceService.changeSettingStatus(key.trim(), request.status(), principal);
+        return consoleService.changeSettingStatus(key.trim(), request.status(), principal);
     }
 
     @GetMapping("/secrets")
@@ -736,7 +736,7 @@ public class ManagementController {
             @AuthenticationPrincipal AuthUserPrincipal principal
     ) {
         authorizationService.require(principal, "secret:read");
-        return workspaceService.secrets(pageRequest.toPageQuery());
+        return consoleService.secrets(pageRequest.toPageQuery());
     }
 
     @PostMapping("/secrets")
@@ -746,7 +746,7 @@ public class ManagementController {
             @AuthenticationPrincipal AuthUserPrincipal principal
     ) {
         authorizationService.require(principal, "secret:manage");
-        return workspaceService.createSecret(request, principal);
+        return consoleService.createSecret(request, principal);
     }
 
     @PostMapping("/secrets/rotate")
@@ -755,7 +755,7 @@ public class ManagementController {
             @AuthenticationPrincipal AuthUserPrincipal principal
     ) {
         authorizationService.require(principal, "secret:rotate");
-        return workspaceService.rotateSecret(request, principal);
+        return consoleService.rotateSecret(request, principal);
     }
 
     @PostMapping("/secrets/disable")
@@ -764,7 +764,7 @@ public class ManagementController {
             @AuthenticationPrincipal AuthUserPrincipal principal
     ) {
         authorizationService.require(principal, "secret:disable");
-        return workspaceService.disableSecret(request, principal);
+        return consoleService.disableSecret(request, principal);
     }
 
     private String normalize(CreateNamedRequest request) {

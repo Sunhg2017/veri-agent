@@ -25,7 +25,7 @@ import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
-class PostgresManagementWorkspaceServiceSecretTest {
+class PostgresManagementConsoleServiceSecretTest {
 
     private static final SecretProviderProperties SECRET_PROPERTIES = new SecretProviderProperties(
             "0123456789abcdef0123456789abcdef",
@@ -43,7 +43,7 @@ class PostgresManagementWorkspaceServiceSecretTest {
     void localEncryptedSecretLifecycleWritesCipherMaterialAndRevokesStore() {
         ManagementMapper mapper = mock(ManagementMapper.class);
         AuditLogWriter auditLogWriter = mock(AuditLogWriter.class);
-        PostgresManagementWorkspaceService service = new PostgresManagementWorkspaceService(
+        PostgresManagementConsoleService service = new PostgresManagementConsoleService(
                 mapper,
                 null,
                 auditLogWriter,

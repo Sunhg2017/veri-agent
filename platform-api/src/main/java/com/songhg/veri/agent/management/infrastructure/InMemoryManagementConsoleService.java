@@ -45,7 +45,7 @@ import com.songhg.veri.agent.management.api.response.UserView;
 import com.songhg.veri.agent.management.application.AuditLogQuery;
 import com.songhg.veri.agent.management.application.AuditOutboxQuery;
 import com.songhg.veri.agent.management.application.EnvironmentConnectivityChecker;
-import com.songhg.veri.agent.management.application.ManagementWorkspaceService;
+import com.songhg.veri.agent.management.application.ManagementConsoleService;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -62,7 +62,7 @@ import org.springframework.stereotype.Service;
 
 @Profile("local")
 @Service
-public class InMemoryManagementWorkspaceService implements ManagementWorkspaceService {
+public class InMemoryManagementConsoleService implements ManagementConsoleService {
 
     private static final DateTimeFormatter TIME_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
 
@@ -86,7 +86,7 @@ public class InMemoryManagementWorkspaceService implements ManagementWorkspaceSe
     private final AuditLogWriter auditLogWriter;
     private final EnvironmentConnectivityChecker connectivityChecker;
 
-    public InMemoryManagementWorkspaceService(
+    public InMemoryManagementConsoleService(
             AuditLogWriter auditLogWriter,
             EnvironmentConnectivityChecker connectivityChecker
     ) {

@@ -40,7 +40,7 @@ import com.songhg.veri.agent.management.api.request.UpdateUserRequest;
 import com.songhg.veri.agent.management.api.response.UserView;
 import java.util.Set;
 
-public interface ManagementWorkspaceService {
+public interface ManagementConsoleService {
 
     PageResponse<DepartmentView> departments(PageQuery pageQuery);
 
