@@ -197,6 +197,62 @@ class OpenApiContractTest {
     }
 
     @Test
+    void generatedContractDocumentsEveryApiOperation() throws Exception {
+        MvcResult result = mockMvc.perform(get("/v3/api-docs"))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode paths = objectMapper.readTree(result.getResponse().getContentAsString()).path("paths");
+        Iterator<Map.Entry<String, JsonNode>> pathEntries = paths.fields();
+        while (pathEntries.hasNext()) {
+            Map.Entry<String, JsonNode> pathEntry = pathEntries.next();
+            if (!pathEntry.getKey().startsWith("/api/v1")) {
+                continue;
+            }
+            Iterator<Map.Entry<String, JsonNode>> operationEntries = pathEntry.getValue().fields();
+            while (operationEntries.hasNext()) {
+                Map.Entry<String, JsonNode> operationEntry = operationEntries.next();
+                if (!HTTP_METHODS.contains(operationEntry.getKey())) {
+                    continue;
+                }
+                String label = operationEntry.getKey().toUpperCase() + " " + pathEntry.getKey();
+                JsonNode operation = operationEntry.getValue();
+                assertThat(operation.path("operationId").asText())
+                        .as(label + " declares operationId")
+                        .isNotBlank();
+                assertThat(operation.path("summary").asText())
+                        .as(label + " declares summary")
+                        .isNotBlank();
+                assertThat(operation.path("tags").isArray())
+                        .as(label + " declares tags")
+                        .isTrue();
+                assertThat(operation.path("tags").size())
+                        .as(label + " declares at least one tag")
+                        .isPositive();
+
+                JsonNode responses = operation.path("responses");
+                assertThat(responses.path("400").path("description").asText())
+                        .as(label + " documents validation errors")
+                        .isNotBlank();
+                assertThat(responses.path("401").path("description").asText())
+                        .as(label + " documents authentication errors")
+                        .isNotBlank();
+                assertThat(responses.path("403").path("description").asText())
+                        .as(label + " documents authorization errors")
+                        .isNotBlank();
+                assertThat(responses.path("500").path("description").asText())
+                        .as(label + " documents server errors")
+                        .contains("traceId");
+                responses.fields().forEachRemaining(responseEntry ->
+                        assertThat(responseEntry.getValue().path("description").asText())
+                                .as(label + " response " + responseEntry.getKey() + " has description")
+                                .isNotBlank()
+                );
+            }
+        }
+    }
+
+    @Test
     void successfulPagedResponsesUseStandardEnvelopeAndPageShape() throws Exception {
         mockMvc.perform(get("/api/v1/examples/paged"))
                 .andExpect(status().isOk())

@@ -45,7 +45,7 @@
 | T2 | SensitiveContentGuard 直接测试 | 已完成 | 已在上一批补充独立测试 |
 | M1 | application.yml 分层 | 已完成 | `application.yml` 保留 Spring/server/mybatis/OpenAPI 基线配置；WP1 平台治理、WP2 模型接入、WP3 资产和 WP4 文档输入配置拆到 `application-platform.yml`、`application-model-access.yml`、`application-asset.yml`、`application-document-input.yml` 并通过 `spring.config.import` 引入；新增配置分层绑定契约测试 |
 | M2 | API 版本策略 | 已完成 | 新增 `WP1-WP4-API版本化策略.md`；定义 `@ApiVersion`/`ApiLifecycle` Controller 元数据并通过 OpenAPI operation 扩展输出 `x-api-version`、`x-api-lifecycle`、`x-api-version-since`；契约测试覆盖全局版本策略和所有 `/api/v1` operation 的版本生命周期字段 |
-| M3 | OpenAPI 注解覆盖 | 专项任务 | 拆为公开 API 文档覆盖专项，并增加 contract test |
+| M3 | OpenAPI 文档覆盖 | 已完成 | 新增统一 OpenAPI 文档增强器，为缺少显式 `@Operation` 的公开 API 补齐 summary/tag/标准错误响应说明；新增 contract test 阻止 `/api/v1` operation 漏文档 |
 | X1 | 异步模型调用 Job 持久化 | 专项任务 | 拆为 DB job/outbox 或队列调度专项 |
 | X2 | RestClient 复用 | 已完成 | 按 baseUrl + timeout 缓存 `RestClient` |
 | X3 | 分布式限流/熔断 | 专项任务 | 拆为 Redis/网关限流专项 |
@@ -54,7 +54,7 @@
 ### 剩余专项优先级
 
 1. 架构治理专项：A1、A2，按模块逐步拆分并保持接口兼容。
-2. 运行治理专项：M3、X1、X3，补 OpenAPI 覆盖、异步 Job 持久化和分布式可靠性。
+2. 运行治理专项：X1、X3，补异步 Job 持久化和分布式可靠性。
 
 ## 一、安全风险 (Security)
 
@@ -318,6 +318,7 @@
 
 - **问题**: 除 `ModelAccessController` 外，其他 Controller 缺少 `@Operation` 和 `@ApiResponse` 注解，生成的 Swagger 文档不够完整。
 - **建议**: 为所有公开 API 添加 Swagger/OpenAPI 注解
+- **处理结果**: 已在 `OpenApiConfiguration` 增加公开 API 文档增强器，保留已有显式 `@Operation/@ApiResponse`，并对缺失文档元数据的 `/api/v1` operation 自动补齐领域 tag、summary 和标准 `400/401/403/500` 错误响应说明；`OpenApiContractTest.generatedContractDocumentsEveryApiOperation` 会遍历所有 `/api/v1` operation，校验 `operationId`、summary、tag 和响应 description，避免后续新增接口再次漏文档。
 
 ---
 
