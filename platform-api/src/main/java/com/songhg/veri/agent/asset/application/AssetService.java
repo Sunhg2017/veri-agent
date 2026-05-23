@@ -41,6 +41,7 @@ import com.songhg.veri.agent.asset.domain.AssetApi;
 import com.songhg.veri.agent.asset.domain.AssetBusinessFlow;
 import com.songhg.veri.agent.asset.domain.AssetPage;
 import com.songhg.veri.agent.asset.domain.AssetRequirement;
+import com.songhg.veri.agent.asset.domain.AssetReviewStatus;
 import com.songhg.veri.agent.asset.domain.AssetVersionHistory;
 import com.songhg.veri.agent.asset.domain.TestCaseRecord;
 import com.songhg.veri.agent.asset.domain.TestCaseStep;
@@ -92,7 +93,7 @@ public class AssetService {
     private static final String STATUS_ACTIVE = "ACTIVE";
     private static final String STATUS_DRAFT = "DRAFT";
     private static final String STATUS_PLANNED = "PLANNED";
-    private static final Set<String> REVIEW_STATUSES = Set.of(STATUS_DRAFT, "REVIEWING", "APPROVED", "DEPRECATED");
+    private static final Set<String> REVIEW_STATUSES = AssetReviewStatus.codes();
     private static final Set<String> LIFECYCLE_STATUSES = Set.of(STATUS_ACTIVE, "ARCHIVED", "DELETED");
     private static final Set<String> PRIORITIES = Set.of("CRITICAL", "HIGH", "MEDIUM", "LOW");
     private static final Set<String> REQUIREMENT_SOURCES = Set.of(SOURCE_IMPORT, SOURCE_MANUAL);
@@ -121,12 +122,6 @@ public class AssetService {
             ASSET_TEST_CASE, Set.of(FORMAT_CSV, FORMAT_JSON)
     );
     private static final Set<String> IMPORT_EXPORT_ASSET_TYPES = IMPORT_EXPORT_FORMATS_BY_ASSET_TYPE.keySet();
-    private static final Map<String, Set<String>> REVIEW_STATUS_TRANSITIONS = Map.of(
-            STATUS_DRAFT, Set.of(STATUS_DRAFT, "REVIEWING", "APPROVED", "DEPRECATED"),
-            "REVIEWING", Set.of("REVIEWING", STATUS_DRAFT, "APPROVED", "DEPRECATED"),
-            "APPROVED", Set.of("APPROVED", "DEPRECATED"),
-            "DEPRECATED", Set.of("DEPRECATED")
-    );
     private static final Map<String, Set<String>> API_STATUS_TRANSITIONS = Map.of(
             STATUS_ACTIVE, Set.of(STATUS_ACTIVE, "DEPRECATED"),
             "DEPRECATED", Set.of("DEPRECATED", "REMOVED"),
@@ -325,15 +320,7 @@ public class AssetService {
         AssetRequirement existing = repository.requirement(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "需求不存在: " + id));
         Instant now = Instant.now();
-        String nextStatus = nextStatus(
-                "REQUIREMENT",
-                id,
-                existing.projectId(),
-                existing.status(),
-                request.status(),
-                REVIEW_STATUSES,
-                REVIEW_STATUS_TRANSITIONS
-        );
+        String nextStatus = nextRequirementStatus(existing, request.status());
         AssetRequirement updated = new AssetRequirement(
                 id,
                 existing.code(),
@@ -905,15 +892,7 @@ public class AssetService {
         validateApiBelongsToProject(request.apiId(), existing.projectId());
         List<TestCaseStep> existingSteps = existing.steps();
         Instant now = Instant.now();
-        String nextStatus = nextStatus(
-                "TEST_CASE",
-                id,
-                existing.projectId(),
-                existing.status(),
-                request.status(),
-                REVIEW_STATUSES,
-                REVIEW_STATUS_TRANSITIONS
-        );
+        String nextStatus = nextTestCaseStatus(existing, request.status());
         TestCaseRecord updated = new TestCaseRecord(
                 id,
                 existing.code(),
@@ -2848,6 +2827,34 @@ public class AssetService {
         }
     }
 
+    private String nextRequirementStatus(AssetRequirement requirement, String rawNextStatus) {
+        String nextStatus = valueIn(rawNextStatus, requirement.status(), REVIEW_STATUSES, "status");
+        if (!requirement.canTransitionReviewStatusTo(nextStatus)) {
+            rejectReviewStatusTransition(
+                    "REQUIREMENT",
+                    requirement.id(),
+                    requirement.projectId(),
+                    requirement.status(),
+                    nextStatus
+            );
+        }
+        return nextStatus;
+    }
+
+    private String nextTestCaseStatus(TestCaseRecord testCase, String rawNextStatus) {
+        String nextStatus = valueIn(rawNextStatus, testCase.status(), REVIEW_STATUSES, "status");
+        if (!testCase.canTransitionReviewStatusTo(nextStatus)) {
+            rejectReviewStatusTransition(
+                    "TEST_CASE",
+                    testCase.id(),
+                    testCase.projectId(),
+                    testCase.status(),
+                    nextStatus
+            );
+        }
+        return nextStatus;
+    }
+
     private String nextStatus(
             String resourceType,
             UUID resourceId,
@@ -2866,6 +2873,20 @@ public class AssetService {
             );
         }
         return nextStatus;
+    }
+
+    private void rejectReviewStatusTransition(
+            String resourceType,
+            UUID resourceId,
+            String projectId,
+            String currentStatus,
+            String nextStatus
+    ) {
+        writeProjectAudit("STATUS_CHANGE_DENIED", resourceType, resourceId, projectId, "DENIED");
+        throw new BusinessException(
+                ErrorCode.INVALID_STATE,
+                resourceType + " 状态不允许从 " + currentStatus + " 变更为 " + nextStatus
+        );
     }
 
     private static <T> com.songhg.veri.agent.common.api.PageResponse<T> page(List<T> items, int index, int size) {

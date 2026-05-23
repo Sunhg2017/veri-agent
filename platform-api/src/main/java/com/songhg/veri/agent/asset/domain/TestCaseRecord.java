@@ -25,6 +25,10 @@ public record TestCaseRecord(
         Instant createdAt,
         Instant updatedAt
 ) {
+    public boolean canTransitionReviewStatusTo(String nextStatus) {
+        return AssetReviewStatus.canTransition(status, nextStatus);
+    }
+
     public TestCaseRecord(
             UUID id,
             String code,

@@ -23,4 +23,7 @@ public record AssetRequirement(
         Instant createdAt,
         Instant updatedAt
 ) {
+    public boolean canTransitionReviewStatusTo(String nextStatus) {
+        return AssetReviewStatus.canTransition(status, nextStatus);
+    }
 }
