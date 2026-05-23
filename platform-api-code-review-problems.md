@@ -41,7 +41,7 @@
 | D1 | 迁移回滚策略 | 专项任务 | 拆为发布 Runbook/备份恢复/前滚脚本策略，不引入 Flyway Undo |
 | D2 | `iam_session` cleanup 索引 | 已完成 | 新增 expires/revoked/cleanup 索引 migration，并更新 schema validation |
 | D3 | 审计清理索引 | 已有保障 | 现有迁移已包含 `idx_audit_log_time` 和 `idx_audit_outbox_created_at` |
-| T1 | AssetService 核心单测 | 专项任务 | 与 P1/S7/WP3 版本回滚专项一起补状态转换、导入合并、回滚用例 |
+| T1 | AssetService 核心单测 | 已完成 | 新增 `AssetServiceCoreTest`，覆盖需求状态转换拒绝、导入合并/审批后冲突和历史版本回滚生命周期恢复 |
 | T2 | SensitiveContentGuard 直接测试 | 已完成 | 已在上一批补充独立测试 |
 | M1 | application.yml 分层 | 专项任务 | 配置拆分影响启动和部署，拆为配置治理专项 |
 | M2 | API 版本策略 | 专项任务 | 拆为 API 兼容策略文档和 Controller 元数据专项 |
@@ -53,7 +53,7 @@
 
 ### 剩余专项优先级
 
-1. WP3 数据与权限专项：S7、A3、T1，继续完成资源级鉴权和服务层测试护栏。
+1. WP3 数据与权限专项：S7、A3，继续完成资源级鉴权和统一授权服务。
 2. DB 集成测试专项：A4、Q8、T3，加入 db-profile Testcontainers 覆盖核心 mapper、事务和约束。
 3. WP2 查询/导出专项：P3、P4，补 distinct SQL、流式 CSV 和大数据量测试。
 4. 架构治理专项：A1、A2、A5、A6，按模块逐步拆分并保持接口兼容。
