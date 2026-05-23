@@ -3,6 +3,7 @@ package com.songhg.veri.agent.management.api.controller;
 import com.songhg.veri.agent.auth.application.AuthUserPrincipal;
 import com.songhg.veri.agent.authorization.application.AuthorizationService;
 import com.songhg.veri.agent.common.api.PageResponse;
+import com.songhg.veri.agent.common.openapi.ApiVersion;
 import com.songhg.veri.agent.management.application.AuditLogQuery;
 import com.songhg.veri.agent.management.application.AuditOutboxQuery;
 import com.songhg.veri.agent.management.application.ManagementWorkspaceService;
@@ -65,6 +66,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+@ApiVersion
 @RestController
 @RequestMapping("/api/v1/management")
 public class ManagementController {

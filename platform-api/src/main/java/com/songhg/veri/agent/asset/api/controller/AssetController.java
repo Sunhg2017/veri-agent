@@ -35,6 +35,7 @@ import com.songhg.veri.agent.asset.application.AssetService;
 import com.songhg.veri.agent.auth.application.AuthUserPrincipal;
 import com.songhg.veri.agent.authorization.application.AuthorizationService;
 import com.songhg.veri.agent.authorization.application.ResourceScope;
+import com.songhg.veri.agent.common.openapi.ApiVersion;
 import jakarta.validation.Valid;
 import java.util.List;
 import java.util.Map;
@@ -55,6 +56,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+@ApiVersion
 @RestController
 @RequestMapping("/api/v1/asset")
 public class AssetController {

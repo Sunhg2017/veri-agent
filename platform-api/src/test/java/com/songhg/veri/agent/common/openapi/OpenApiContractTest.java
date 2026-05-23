@@ -1,5 +1,13 @@
 package com.songhg.veri.agent.common.openapi;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -8,12 +16,9 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-
-import static org.hamcrest.Matchers.not;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -27,6 +32,9 @@ class OpenApiContractTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @Autowired
+    private ObjectMapper objectMapper;
 
     @Test
     void exposesWp1ControlPlaneContractWithBearerSecurity() throws Exception {
@@ -154,6 +162,41 @@ class OpenApiContractTest {
     }
 
     @Test
+    void generatedContractIncludesApiVersionPolicyAndOperationLifecycleMetadata() throws Exception {
+        MvcResult result = mockMvc.perform(get("/v3/api-docs"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.info['x-api-version-policy'].current").value("v1"))
+                .andExpect(jsonPath("$.info['x-api-version-policy'].pathPrefix").value("/api/v1"))
+                .andExpect(jsonPath("$.paths['/api/v1/auth/login'].post['x-api-version']").value("v1"))
+                .andExpect(jsonPath("$.paths['/api/v1/auth/login'].post['x-api-lifecycle']").value("STABLE"))
+                .andExpect(jsonPath("$.paths['/api/v1/contexts/projects/{projectId}'].get['x-api-lifecycle']").value("INTERNAL"))
+                .andReturn();
+
+        JsonNode paths = objectMapper.readTree(result.getResponse().getContentAsString()).path("paths");
+        Iterator<Map.Entry<String, JsonNode>> pathEntries = paths.fields();
+        while (pathEntries.hasNext()) {
+            Map.Entry<String, JsonNode> pathEntry = pathEntries.next();
+            if (!pathEntry.getKey().startsWith("/api/v1")) {
+                continue;
+            }
+            Iterator<Map.Entry<String, JsonNode>> operationEntries = pathEntry.getValue().fields();
+            while (operationEntries.hasNext()) {
+                Map.Entry<String, JsonNode> operationEntry = operationEntries.next();
+                if (!HTTP_METHODS.contains(operationEntry.getKey())) {
+                    continue;
+                }
+                JsonNode operation = operationEntry.getValue();
+                assertThat(operation.path("x-api-version").asText())
+                        .as("%s %s declares API version", operationEntry.getKey(), pathEntry.getKey())
+                        .isEqualTo("v1");
+                assertThat(operation.path("x-api-lifecycle").asText())
+                        .as("%s %s declares API lifecycle", operationEntry.getKey(), pathEntry.getKey())
+                        .isIn("STABLE", "INTERNAL", "DEPRECATED");
+            }
+        }
+    }
+
+    @Test
     void successfulPagedResponsesUseStandardEnvelopeAndPageShape() throws Exception {
         mockMvc.perform(get("/api/v1/examples/paged"))
                 .andExpect(status().isOk())
@@ -179,4 +222,15 @@ class OpenApiContractTest {
                 .andExpect(jsonPath("$.data.fieldErrors[0].field").isString())
                 .andExpect(jsonPath("$.data.fieldErrors[0].reason").isString());
     }
+
+    private static final Set<String> HTTP_METHODS = Set.of(
+            "get",
+            "put",
+            "post",
+            "delete",
+            "options",
+            "head",
+            "patch",
+            "trace"
+    );
 }

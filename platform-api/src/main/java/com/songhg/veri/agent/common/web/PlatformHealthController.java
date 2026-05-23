@@ -1,11 +1,13 @@
 package com.songhg.veri.agent.common.web;
 
+import com.songhg.veri.agent.common.openapi.ApiVersion;
 import java.time.Instant;
 import java.util.Map;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+@ApiVersion
 @RestController
 @RequestMapping("/api/v1/health")
 public class PlatformHealthController {
@@ -19,4 +21,3 @@ public class PlatformHealthController {
         );
     }
 }
-

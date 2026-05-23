@@ -44,7 +44,7 @@
 | T1 | AssetService 核心单测 | 已完成 | 新增 `AssetServiceCoreTest`，覆盖需求状态转换拒绝、导入合并/审批后冲突和历史版本回滚生命周期恢复 |
 | T2 | SensitiveContentGuard 直接测试 | 已完成 | 已在上一批补充独立测试 |
 | M1 | application.yml 分层 | 已完成 | `application.yml` 保留 Spring/server/mybatis/OpenAPI 基线配置；WP1 平台治理、WP2 模型接入、WP3 资产和 WP4 文档输入配置拆到 `application-platform.yml`、`application-model-access.yml`、`application-asset.yml`、`application-document-input.yml` 并通过 `spring.config.import` 引入；新增配置分层绑定契约测试 |
-| M2 | API 版本策略 | 专项任务 | 拆为 API 兼容策略文档和 Controller 元数据专项 |
+| M2 | API 版本策略 | 已完成 | 新增 `WP1-WP4-API版本化策略.md`；定义 `@ApiVersion`/`ApiLifecycle` Controller 元数据并通过 OpenAPI operation 扩展输出 `x-api-version`、`x-api-lifecycle`、`x-api-version-since`；契约测试覆盖全局版本策略和所有 `/api/v1` operation 的版本生命周期字段 |
 | M3 | OpenAPI 注解覆盖 | 专项任务 | 拆为公开 API 文档覆盖专项，并增加 contract test |
 | X1 | 异步模型调用 Job 持久化 | 专项任务 | 拆为 DB job/outbox 或队列调度专项 |
 | X2 | RestClient 复用 | 已完成 | 按 baseUrl + timeout 缓存 `RestClient` |
@@ -54,7 +54,7 @@
 ### 剩余专项优先级
 
 1. 架构治理专项：A1、A2，按模块逐步拆分并保持接口兼容。
-2. 运行治理专项：D1、M2、M3、X1、X3，补发布回滚、API 版本策略、OpenAPI 覆盖和分布式可靠性。
+2. 运行治理专项：D1、M3、X1、X3，补发布回滚、OpenAPI 覆盖和分布式可靠性。
 
 ## 一、安全风险 (Security)
 
@@ -311,6 +311,7 @@
 
 - **问题**: 所有 API 使用 `/api/v1/` 前缀，但未定义明确的版本化策略（如兼容性规则、版本生命周期）。
 - **建议**: 制定 API 版本化策略文档，并在 Controller 层增加版本注释
+- **处理结果**: 已新增 `doc/mvp/final/engineering/WP1-WP4-API版本化策略.md`，明确 `v1` path 版本载体、兼容/破坏性变更规则、生命周期、废弃接口要求和验收入口。Controller 层新增 `@ApiVersion` 元数据，OpenAPI 通过 `x-api-version-policy` 和 operation 级 `x-api-version`、`x-api-lifecycle`、`x-api-version-since` 暴露版本策略；契约测试会遍历所有 `/api/v1` operation，阻止遗漏版本生命周期字段。
 
 ### [LOW] M3: 缺少 OpenAPI 文档注解覆盖
 

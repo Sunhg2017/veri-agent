@@ -5,6 +5,8 @@ import com.songhg.veri.agent.common.api.PageQuery;
 import com.songhg.veri.agent.common.api.PageResponse;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
+import com.songhg.veri.agent.common.openapi.ApiLifecycle;
+import com.songhg.veri.agent.common.openapi.ApiVersion;
 import jakarta.validation.Valid;
 import java.util.List;
 import org.springframework.validation.annotation.Validated;
@@ -14,6 +16,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @Validated
+@ApiVersion(lifecycle = ApiLifecycle.INTERNAL)
 @RestController
 @RequestMapping("/api/v1/examples")
 public class ExampleController {

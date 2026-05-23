@@ -12,6 +12,7 @@ import com.songhg.veri.agent.auth.api.response.LogoutResponse;
 import com.songhg.veri.agent.auth.application.AuthService;
 import com.songhg.veri.agent.auth.application.AuthUserPrincipal;
 import com.songhg.veri.agent.authorization.application.AuthorizationService;
+import com.songhg.veri.agent.common.openapi.ApiVersion;
 import jakarta.validation.Valid;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -20,6 +21,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+@ApiVersion
 @RestController
 @RequestMapping("/api/v1/auth")
 public class AuthController {

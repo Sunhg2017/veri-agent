@@ -2,6 +2,8 @@ package com.songhg.veri.agent.integration.api.controller;
 
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
+import com.songhg.veri.agent.common.openapi.ApiLifecycle;
+import com.songhg.veri.agent.common.openapi.ApiVersion;
 import com.songhg.veri.agent.common.security.ServiceCallerProperties;
 import com.songhg.veri.agent.common.security.TokenSecurity;
 import com.songhg.veri.agent.common.trace.TraceContext;
@@ -28,6 +30,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+@ApiVersion(lifecycle = ApiLifecycle.INTERNAL)
 @RestController
 @RequestMapping("/api/v1")
 public class PlatformIntegrationController {

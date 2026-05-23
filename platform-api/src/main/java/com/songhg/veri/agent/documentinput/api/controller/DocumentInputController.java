@@ -2,6 +2,7 @@ package com.songhg.veri.agent.documentinput.api.controller;
 
 import com.songhg.veri.agent.common.api.PageResponse;
 import com.songhg.veri.agent.authorization.application.RequirePermission;
+import com.songhg.veri.agent.common.openapi.ApiVersion;
 import com.songhg.veri.agent.documentinput.api.request.CandidateBatchActionRequest;
 import com.songhg.veri.agent.documentinput.api.request.ConfirmDocumentCandidateRequest;
 import com.songhg.veri.agent.documentinput.api.request.CreateDocumentImportRequest;
@@ -48,6 +49,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
+@ApiVersion
 @RestController
 @RequestMapping("/api/v1/document-input")
 public class DocumentInputController {
