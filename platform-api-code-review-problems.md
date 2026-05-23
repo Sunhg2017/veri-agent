@@ -38,7 +38,7 @@
 | Q5 | 密码请求 DTO 脱敏 | 已完成 | 已在上一批覆盖 request `toString()` 脱敏 |
 | Q6 | String 标识符强类型化 | 专项任务 | 拆为 Value Object 渐进改造专项 |
 | Q7 | `AuditLogWriter.denied()` targetName 歧义 | 已完成 | 简化重载不再把 resourceId 写成 targetName，并补充审计单测 |
-| D1 | 迁移回滚策略 | 专项任务 | 拆为发布 Runbook/备份恢复/前滚脚本策略，不引入 Flyway Undo |
+| D1 | 迁移回滚策略 | 已完成 | 新增迁移发布计划脚本和回滚/前滚 Runbook，统一准出清单已纳入发布证据要求；继续采用 forward-only V migration，不引入 Flyway Undo |
 | D2 | `iam_session` cleanup 索引 | 已完成 | 新增 expires/revoked/cleanup 索引 migration，并更新 schema validation |
 | D3 | 审计清理索引 | 已有保障 | 现有迁移已包含 `idx_audit_log_time` 和 `idx_audit_outbox_created_at` |
 | T1 | AssetService 核心单测 | 已完成 | 新增 `AssetServiceCoreTest`，覆盖需求状态转换拒绝、导入合并/审批后冲突和历史版本回滚生命周期恢复 |
@@ -54,7 +54,7 @@
 ### 剩余专项优先级
 
 1. 架构治理专项：A1、A2，按模块逐步拆分并保持接口兼容。
-2. 运行治理专项：D1、M3、X1、X3，补发布回滚、OpenAPI 覆盖和分布式可靠性。
+2. 运行治理专项：M3、X1、X3，补 OpenAPI 覆盖、异步 Job 持久化和分布式可靠性。
 
 ## 一、安全风险 (Security)
 
@@ -265,6 +265,7 @@
 - **文件**: `db/migration/wp1/` 目录下的 Flyway 迁移脚本
 - **问题**: 仅提供 V 版本迁移脚本，未包含 `U` (Undo) 或 `R` (Repeatable) 迁移。生产环境出现迁移失败时无法回滚。
 - **建议**: Flyway 官方不推荐 Undo 迁移（需 Teams 版），建议使用可逆的数据库变更策略或做好备份恢复流程
+- **处理结果**: 已新增 `scripts/wp1_migration_release_plan.sh`，在发布前生成待执行迁移 manifest、SHA-256 和 release plan；新增 `doc/mvp/final/engineering/WP1-WP4-数据库迁移回滚与前滚策略.md`，明确迁移前备份、失败分流、已切流后的前滚修复和禁止改写已发布 V 脚本；`WP1-WP4-统一发布准出清单.md` 已纳入该脚本和 Runbook 作为预发/生产证据。
 
 ### [MEDIUM] D2: AuthMapper XML 中 session 表缺少过期时间索引
 

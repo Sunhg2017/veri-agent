@@ -22,6 +22,7 @@
 | 基础前端 | 管理台测试 | `cd portal-web && npm run test` | `portal-web` 测试输出 |
 | 基础前端 | 管理台构建 | `cd portal-web && npm run build` | Vite/TypeScript 构建输出 |
 | WP1 DB | 临时库迁移、seed、安全、跨 WP schema validation | `bash db/validation/run_wp1_db_validation.sh` | `build/wp1-db-validation/`，包含 WP1/WP2/WP3/WP4 统一迁移结果 |
+| WP1 DB 发布计划 | WP1-WP4 统一 Flyway 迁移 manifest、目标版本和回滚/前滚证据 | `bash scripts/wp1_migration_release_plan.sh` | `build/wp1-migration-release-plan/`；详见 `WP1-WP4-数据库迁移回滚与前滚策略.md` |
 | WP1 smoke | 已启动 `db` profile 平台 API，已执行 SuperAdmin seed | `bash scripts/wp1_db_profile_smoke.sh` | 管理控制面、RBAC、审计、资源作用域、首次登录强制改密 |
 | WP1 quality gate | WP1 本地聚合门禁 | `bash scripts/wp1_quality_gate.sh` | 后端测试、前端测试、前端构建、WP1 DB validation |
 | WP1 预发/生产 DB 权限 | 真实 app/readonly/migration 数据库角色 | `WP1_RELEASE_DATABASE_URL=... WP1_RELEASE_SCHEMA=... WP1_RELEASE_APP_ROLE=... WP1_RELEASE_READONLY_ROLE=... WP1_RELEASE_MIGRATION_ROLE=... bash scripts/wp1_release_role_validation.sh` | `release.app_role.*`、`release.readonly_role.*`、`release.migration_role.*`、`release.audit_log.*`、`release.audit_retention_cleanup.*`、`release.secret_local_store.*` 检查；详见 `WP1-发布前DB权限Runbook.md` |
@@ -62,6 +63,10 @@ bash db/validation/run_wp1_db_validation.sh
 ```
 
 ```bash
+bash scripts/wp1_migration_release_plan.sh
+```
+
+```bash
 bash scripts/wp1_quality_gate.sh
 ```
 
@@ -85,8 +90,17 @@ bash scripts/wp4_ai_parse_quality_eval.sh
 
 ### 3.2 预发发布窗口
 
-1. 部署 `platform-api` 的候选版本到预发，连接预发 PostgreSQL。
-2. 对预发库执行真实角色权限校验：
+1. 为候选版本生成迁移发布计划，并按 `WP1-WP4-数据库迁移回滚与前滚策略.md` 归档 manifest、SHA-256、目标版本和备份/前滚决策。
+
+```bash
+WP1_RELEASE_NAME='preprod-YYYYMMDD-release' \
+WP1_MIGRATION_CURRENT_VERSION='<current-production-version>' \
+WP1_MIGRATION_TARGET_VERSION='latest' \
+bash scripts/wp1_migration_release_plan.sh
+```
+
+2. 部署 `platform-api` 的候选版本到预发，连接预发 PostgreSQL。
+3. 对预发库执行真实角色权限校验：
 
 ```bash
 WP1_RELEASE_DATABASE_URL='postgres://dba_readonly:***@preprod-db:5432/veri_agent' \
@@ -97,7 +111,7 @@ WP1_RELEASE_MIGRATION_ROLE='wp1_migration_preprod' \
 bash scripts/wp1_release_role_validation.sh
 ```
 
-3. 对已启动预发服务执行跨 WP smoke：
+4. 对已启动预发服务执行跨 WP smoke：
 
 ```bash
 WP_ALL_BASE_URL='https://preprod.example.test' \
@@ -108,17 +122,17 @@ WP4_WEBHOOK_SECRET='***' \
 bash scripts/wp_all_integration_test.sh
 ```
 
-4. 如果本次影响 WP2 外部 provider，按 `WP2-Provider接入与SecretRef轮换Runbook.md` 执行 provider check 和最小 invocation。
-5. 如果本次影响 WP4 webhook，按 `WP4-Webhook签名样例与联调说明.md` 用外部系统或联调脚本完成签名请求。
-6. 如果本次影响 WP4 OCR worker，按 `WP4-OCR隔离Worker接入Runbook.md` 使用真实 `WP4_OCR_WORKER_URL` 验证扫描件或 OCR 图片，并确认生产 fallback 策略。
-7. 如果本次影响 WP4 webhook signing secret，发布记录必须写明 `WP4_WEBHOOK_SECRET_CACHE_TTL_SECONDS`、`WP4_WEBHOOK_SECRET_ROTATION_OVERLAP_SECONDS`、旧密钥撤销时间和回滚 secretRef。
+5. 如果本次影响 WP2 外部 provider，按 `WP2-Provider接入与SecretRef轮换Runbook.md` 执行 provider check 和最小 invocation。
+6. 如果本次影响 WP4 webhook，按 `WP4-Webhook签名样例与联调说明.md` 用外部系统或联调脚本完成签名请求。
+7. 如果本次影响 WP4 OCR worker，按 `WP4-OCR隔离Worker接入Runbook.md` 使用真实 `WP4_OCR_WORKER_URL` 验证扫描件或 OCR 图片，并确认生产 fallback 策略。
+8. 如果本次影响 WP4 webhook signing secret，发布记录必须写明 `WP4_WEBHOOK_SECRET_CACHE_TTL_SECONDS`、`WP4_WEBHOOK_SECRET_ROTATION_OVERLAP_SECONDS`、旧密钥撤销时间和回滚 secretRef。
 
 ### 3.3 生产发布窗口
 
 | 检查 | 要求 |
 |---|---|
 | 变更影响矩阵 | 已按 `WP1-WP4-变更影响矩阵.md` 列出受影响 WP、测试入口和回滚点 |
-| 迁移 | 生产 migration 计划、回滚或前滚策略已确认；应用角色不执行 DDL |
+| 迁移 | 已执行 `scripts/wp1_migration_release_plan.sh` 并归档 manifest；生产 migration 计划、备份恢复点、回滚或前滚策略已确认；应用角色不执行 DDL |
 | DB 权限 | `scripts/wp1_release_role_validation.sh` 对真实生产 app/readonly/migration role 通过，确认 app/readonly 无 DDL 与危险写权限，app role 不能直接删改 `audit_log` 但可执行受控审计保留清理函数，migration role 承担 schema DDL，DBA 复核项完成 |
 | Secret/provider | 新旧密钥、provider、环境变量或 SecretProvider 引用均已进入轮换窗口；WP4 webhook 旧密钥撤销时间不早于 `max(WP4_WEBHOOK_SECRET_CACHE_TTL_SECONDS, WP4_WEBHOOK_SECRET_ROTATION_OVERLAP_SECONDS)`；resolve 审计只记录 `secretRefDigest` 和 provider/用途/作用域元数据，不记录完整 secretRef、明文、endpoint、token 或签名密钥 |
 | 指标告警 | 发布期间看板和告警已打开，traceId 能从响应串到审计/调用日志 |
@@ -144,7 +158,8 @@ bash scripts/wp_all_integration_test.sh
 
 1. 本清单中实际执行命令、执行环境和结果。
 2. DB validation 输出目录或 CI artifact 链接。
-3. 预发/生产 release role validation 输出。
-4. 受影响 provider、secretRef/env key、webhook sourceCode、projectId。
-5. 失败项、豁免项、owner、补救或回滚动作。
-6. 填写完成的 release notes。
+3. `wp1_migration_release_plan.sh` 生成的 release plan、manifest、目标版本和迁移前备份证据。
+4. 预发/生产 release role validation 输出。
+5. 受影响 provider、secretRef/env key、webhook sourceCode、projectId。
+6. 失败项、豁免项、owner、补救或回滚动作。
+7. 填写完成的 release notes。

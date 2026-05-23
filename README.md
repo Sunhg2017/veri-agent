@@ -36,6 +36,7 @@ AI 驱动的端到端企业级测试平台。WP1、WP2、WP3、WP4 是研发任�
 | `doc/mvp/final/engineering/WP1-单平台权限矩阵与菜单矩阵.md` | 当前 WP1 单平台权限、菜单和按钮规则。 |
 | `doc/mvp/final/engineering/WP1-审计事件字典.md` | 当前 WP1 P0 审计事件、字段和验收规则。 |
 | `doc/mvp/final/engineering/WP1-WP4-统一发布准出清单.md` | 跨 WP 本地、CI、预发和生产发布准出索引。 |
+| `doc/mvp/final/engineering/WP1-WP4-数据库迁移回滚与前滚策略.md` | WP1-WP4 统一 Flyway 迁移发布计划、备份恢复和前滚修复 Runbook。 |
 | `doc/mvp/final/engineering/WP1-WP4-变更影响矩阵.md` | WP1 context/audit/secret、WP2 invocation、WP3 asset、WP4 import/publish 的影响矩阵。 |
 | `doc/mvp/final/engineering/WP1-WP4-指标命名与看板规范.md` | 统一 metrics 命名、Grafana/告警建议和 traceId 串联口径。 |
 | `doc/mvp/final/engineering/WP1-WP4-Release-Notes-模板.md` | 面向验收和生产升级的 release notes 模板。 |
@@ -47,6 +48,7 @@ AI 驱动的端到端企业级测试平台。WP1、WP2、WP3、WP4 是研发任�
 | `infra/docker-compose.yml` | 本地 PostgreSQL + platform-api 研发环境。 |
 | `scripts/wp1_db_profile_smoke.sh` | 针对已启动 db profile 后端的 HTTP 烟测脚本。 |
 | `scripts/wp1_quality_gate.sh` | WP1 本地质量门禁入口，串联后端测试、前端测试、前端构建和数据库校验。 |
+| `scripts/wp1_migration_release_plan.sh` | WP1-WP4 统一 Flyway 迁移发布计划脚本，生成待发布 migration manifest 和回滚/前滚证据。 |
 | `scripts/wp2_model_access_smoke.sh` | 针对已启动 `platform-api` 的 WP2 API 烟测脚本。 |
 | `scripts/wp2_module_policy_smoke.sh` | 针对同一 `platform-api` 内 WP2 消费 WP1 策略的烟测脚本。 |
 | `scripts/wp2_model_quality_eval.sh` | WP2 通用模型评测集入口，支持按 `WP2_MODEL_EVAL_TASK` 跑任务类型评测。 |
