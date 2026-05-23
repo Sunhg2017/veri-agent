@@ -86,6 +86,24 @@
         </constructor>
     </resultMap>
 
+    <resultMap id="invocationJobMap" type="com.songhg.veri.agent.modelaccess.application.ModelInvocationJobRecord">
+        <constructor>
+            <arg column="job_id" javaType="java.util.UUID"/>
+            <arg column="status" javaType="com.songhg.veri.agent.modelaccess.application.ModelInvocationJobStatus"/>
+            <arg column="request_json" javaType="java.lang.String"/>
+            <arg column="actor_service" javaType="java.lang.String"/>
+            <arg column="delegated_user_id" javaType="java.lang.String"/>
+            <arg column="trace_id" javaType="java.lang.String"/>
+            <arg column="created_at" javaType="java.time.Instant"/>
+            <arg column="started_at" javaType="java.time.Instant"/>
+            <arg column="finished_at" javaType="java.time.Instant"/>
+            <arg column="invocation_id" javaType="java.util.UUID"/>
+            <arg column="error_code" javaType="java.lang.String"/>
+            <arg column="error_message" javaType="java.lang.String"/>
+            <arg column="response_json" javaType="java.lang.String"/>
+        </constructor>
+    </resultMap>
+
     <sql id="providerColumns">
         id, name, provider_type, routing_group, capabilities, base_url, api_key_ref, status, priority, timeout_ms,
         input_cost_per_1k_tokens, output_cost_per_1k_tokens, created_at, updated_at
@@ -103,6 +121,12 @@
         status, fallback_used, prompt_digest,
         request_preview, response_preview, input_tokens, output_tokens, total_cost,
         error_code, error_message, latency_ms, actor_service, delegated_user_id, created_at
+    </sql>
+
+    <sql id="invocationJobColumns">
+        job_id, status, request_json::text as request_json, actor_service, delegated_user_id, trace_id,
+        created_at, started_at, finished_at, invocation_id, error_code, error_message,
+        response_json::text as response_json
     </sql>
 
     <sql id="invocationWhere">
@@ -271,4 +295,98 @@
         from ma_invocation_log
         <include refid="invocationWhere"/>
     </select>
+
+    <insert id="insertInvocationJob">
+        insert into ma_invocation_job (
+            job_id, status, request_json, actor_service, delegated_user_id, trace_id,
+            created_at, started_at, finished_at, invocation_id, error_code, error_message, response_json
+        ) values (
+            #{jobId}, #{status}, cast(#{requestJson} as jsonb), #{actorService}, #{delegatedUserId}, #{traceId},
+            #{createdAt}, #{startedAt}, #{finishedAt}, #{invocationId}, #{errorCode}, #{errorMessage}, cast(#{responseJson} as jsonb)
+        )
+    </insert>
+
+    <select id="invocationJob" resultMap="invocationJobMap">
+        select <include refid="invocationJobColumns"/>
+        from ma_invocation_job
+        where job_id = #{jobId}
+    </select>
+
+    <select id="queuedInvocationJobs" resultMap="invocationJobMap">
+        select <include refid="invocationJobColumns"/>
+        from ma_invocation_job
+        where status = 'QUEUED'
+        order by created_at asc
+    </select>
+
+    <update id="markInvocationJobRunning">
+        update ma_invocation_job
+        set status = 'RUNNING',
+            started_at = #{startedAt},
+            finished_at = null,
+            error_code = null,
+            error_message = null,
+            updated_at = now(),
+            version = version + 1
+        where job_id = #{jobId}
+          and status = 'QUEUED'
+    </update>
+
+    <update id="markInvocationJobSucceeded">
+        update ma_invocation_job
+        set status = 'SUCCEEDED',
+            finished_at = #{finishedAt},
+            invocation_id = #{invocationId},
+            error_code = null,
+            error_message = null,
+            response_json = cast(#{responseJson} as jsonb),
+            updated_at = now(),
+            version = version + 1
+        where job_id = #{jobId}
+    </update>
+
+    <update id="markInvocationJobFailed">
+        update ma_invocation_job
+        set status = 'FAILED',
+            finished_at = #{finishedAt},
+            error_code = #{errorCode},
+            error_message = #{errorMessage},
+            updated_at = now(),
+            version = version + 1
+        where job_id = #{jobId}
+          and status in ('QUEUED', 'RUNNING')
+    </update>
+
+    <update id="cancelQueuedInvocationJob">
+        update ma_invocation_job
+        set status = 'CANCELLED',
+            finished_at = #{finishedAt},
+            error_code = #{errorCode},
+            error_message = #{errorMessage},
+            updated_at = now(),
+            version = version + 1
+        where job_id = #{jobId}
+          and status = 'QUEUED'
+    </update>
+
+    <update id="markInvocationJobCancelRequested">
+        update ma_invocation_job
+        set error_code = #{errorCode},
+            error_message = #{errorMessage},
+            updated_at = now(),
+            version = version + 1
+        where job_id = #{jobId}
+          and status = 'RUNNING'
+    </update>
+
+    <update id="markRunningInvocationJobsFailed">
+        update ma_invocation_job
+        set status = 'FAILED',
+            finished_at = #{finishedAt},
+            error_code = #{errorCode},
+            error_message = #{errorMessage},
+            updated_at = now(),
+            version = version + 1
+        where status = 'RUNNING'
+    </update>
 </mapper>

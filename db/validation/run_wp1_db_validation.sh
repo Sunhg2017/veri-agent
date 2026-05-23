@@ -146,6 +146,7 @@ grant select, insert, update on
     ma_model_provider,
     ma_prompt_template,
     ma_invocation_log,
+    ma_invocation_job,
     asset_requirement,
     asset_api,
     asset_page,

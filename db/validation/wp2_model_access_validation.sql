@@ -5,7 +5,8 @@ with expected(table_name) as (
     values
         ('ma_model_provider'),
         ('ma_prompt_template'),
-        ('ma_invocation_log')
+        ('ma_invocation_log'),
+        ('ma_invocation_job')
 ),
 missing as (
     select e.table_name
@@ -33,7 +34,10 @@ with expected(table_name, column_name) as (
         ('ma_invocation_log','project_id'), ('ma_invocation_log','sensitivity_level'), ('ma_invocation_log','prompt_digest'), ('ma_invocation_log','request_preview'),
         ('ma_invocation_log','routing_rule_name'), ('ma_invocation_log','routing_group'), ('ma_invocation_log','model_capability'),
         ('ma_invocation_log','input_tokens'), ('ma_invocation_log','output_tokens'), ('ma_invocation_log','total_cost'), ('ma_invocation_log','actor_service'),
-        ('ma_invocation_log','created_by'), ('ma_invocation_log','version')
+        ('ma_invocation_log','created_by'), ('ma_invocation_log','version'),
+        ('ma_invocation_job','job_id'), ('ma_invocation_job','status'), ('ma_invocation_job','request_json'), ('ma_invocation_job','actor_service'),
+        ('ma_invocation_job','delegated_user_id'), ('ma_invocation_job','trace_id'), ('ma_invocation_job','invocation_id'), ('ma_invocation_job','response_json'),
+        ('ma_invocation_job','created_at'), ('ma_invocation_job','started_at'), ('ma_invocation_job','finished_at'), ('ma_invocation_job','version')
 ),
 missing as (
     select e.table_name || '.' || e.column_name as item
@@ -64,7 +68,10 @@ with expected(index_name) as (
         ('idx_ma_prompt_template_deleted'),
         ('idx_ma_prompt_template_approval_status'),
         ('idx_ma_model_provider_routing_group'),
-        ('idx_ma_invocation_routing_time')
+        ('idx_ma_invocation_routing_time'),
+        ('idx_ma_invocation_job_status_created'),
+        ('idx_ma_invocation_job_trace_id'),
+        ('idx_ma_invocation_job_invocation_id')
 ),
 missing as (
     select e.index_name as item
@@ -113,6 +120,19 @@ where conname = 'ck_ma_prompt_template_approval_status'
   and pg_get_constraintdef(oid) like '%PENDING%'
   and pg_get_constraintdef(oid) like '%APPROVED%'
   and pg_get_constraintdef(oid) like '%REJECTED%';
+
+select
+    'wp2.schema.async_job_status_constraint_accepts_statuses' as check_name,
+    case when count(*) = 1 then 'PASS' else 'FAIL' end as status,
+    coalesce(max(pg_get_constraintdef(oid)), 'ck_ma_invocation_job_status missing expected statuses') as details
+from pg_constraint
+where conname = 'ck_ma_invocation_job_status'
+  and conrelid = 'ma_invocation_job'::regclass
+  and pg_get_constraintdef(oid) like '%QUEUED%'
+  and pg_get_constraintdef(oid) like '%RUNNING%'
+  and pg_get_constraintdef(oid) like '%SUCCEEDED%'
+  and pg_get_constraintdef(oid) like '%FAILED%'
+  and pg_get_constraintdef(oid) like '%CANCELLED%';
 
 with found as (
     select table_name || '.tenant_id' as item

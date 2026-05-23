@@ -46,7 +46,7 @@
 | M1 | application.yml 分层 | 已完成 | `application.yml` 保留 Spring/server/mybatis/OpenAPI 基线配置；WP1 平台治理、WP2 模型接入、WP3 资产和 WP4 文档输入配置拆到 `application-platform.yml`、`application-model-access.yml`、`application-asset.yml`、`application-document-input.yml` 并通过 `spring.config.import` 引入；新增配置分层绑定契约测试 |
 | M2 | API 版本策略 | 已完成 | 新增 `WP1-WP4-API版本化策略.md`；定义 `@ApiVersion`/`ApiLifecycle` Controller 元数据并通过 OpenAPI operation 扩展输出 `x-api-version`、`x-api-lifecycle`、`x-api-version-since`；契约测试覆盖全局版本策略和所有 `/api/v1` operation 的版本生命周期字段 |
 | M3 | OpenAPI 文档覆盖 | 已完成 | 新增统一 OpenAPI 文档增强器，为缺少显式 `@Operation` 的公开 API 补齐 summary/tag/标准错误响应说明；新增 contract test 阻止 `/api/v1` operation 漏文档 |
-| X1 | 异步模型调用 Job 持久化 | 专项任务 | 拆为 DB job/outbox 或队列调度专项 |
+| X1 | 异步模型调用 Job 持久化 | 已完成 | 新增 `ma_invocation_job` 持久化表和 db/local repository，异步任务提交、状态流转、取消、成功结果和失败信息持久化；服务启动时重排 QUEUED 任务并将遗留 RUNNING 标记失败 |
 | X2 | RestClient 复用 | 已完成 | 按 baseUrl + timeout 缓存 `RestClient` |
 | X3 | 分布式限流/熔断 | 专项任务 | 拆为 Redis/网关限流专项 |
 | X4 | DocumentInputService Pattern 未使用 | 无影响 | 复核后确认这些 Pattern 被 `sanitizeFeedbackText()` 使用，不再作为缺陷处理 |
@@ -54,7 +54,7 @@
 ### 剩余专项优先级
 
 1. 架构治理专项：A1、A2，按模块逐步拆分并保持接口兼容。
-2. 运行治理专项：X1、X3，补异步 Job 持久化和分布式可靠性。
+2. 运行治理专项：X3，补分布式限流和熔断。
 
 ## 一、安全风险 (Security)
 
@@ -329,6 +329,7 @@
 - **文件**: `modelaccess/application/ModelInvocationJobService.java`
 - **问题**: Job 状态、结果全部存储在内存 `ConcurrentHashMap` 中，服务重启后丢失。且 `ScheduledThreadPoolExecutor` 无队列持久化机制。
 - **建议**: 若需要可靠性，考虑使用数据库持久化 + 消息队列调度
+- **处理结果**: 已新增 `ma_invocation_job` Flyway 迁移、`ModelInvocationJobRepository` 及 db/local 实现；`ModelInvocationJobService` 改为以 repository 为状态源，任务提交、RUNNING/SUCCEEDED/FAILED/CANCELLED 状态、`invocationId`、错误摘要和成功响应均落库。服务启动时会重新调度持久化 `QUEUED` 任务，并把重启前遗留的 `RUNNING` 标记为 `WORKER_RESTARTED` 失败，避免任务长期悬挂；DB validation 与 Testcontainers 契约已覆盖表、索引、状态约束和仓储生命周期。
 
 ### [MEDIUM] X2: OpenAiCompatibleModelProviderClient 按请求创建 RestClient
 

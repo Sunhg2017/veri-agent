@@ -2,6 +2,7 @@ package com.songhg.veri.agent.modelaccess.infrastructure.mapper;
 
 import com.songhg.veri.agent.modelaccess.api.response.InvocationSummaryResponse;
 import com.songhg.veri.agent.modelaccess.application.InvocationQuery;
+import com.songhg.veri.agent.modelaccess.application.ModelInvocationJobRecord;
 import com.songhg.veri.agent.modelaccess.domain.InvocationRecord;
 import com.songhg.veri.agent.modelaccess.domain.ModelProviderConfig;
 import com.songhg.veri.agent.modelaccess.domain.PromptTemplate;
@@ -41,4 +42,45 @@ public interface ModelAccessMapper {
     List<String> distinctActorServices(@Param("startTime") Instant startTime, @Param("endTime") Instant endTime);
 
     InvocationSummaryResponse invocationSummary(@Param("query") InvocationQuery query);
+
+    void insertInvocationJob(ModelInvocationJobRecord job);
+
+    ModelInvocationJobRecord invocationJob(@Param("jobId") UUID jobId);
+
+    List<ModelInvocationJobRecord> queuedInvocationJobs();
+
+    int markInvocationJobRunning(@Param("jobId") UUID jobId, @Param("startedAt") Instant startedAt);
+
+    void markInvocationJobSucceeded(
+            @Param("jobId") UUID jobId,
+            @Param("finishedAt") Instant finishedAt,
+            @Param("invocationId") UUID invocationId,
+            @Param("responseJson") String responseJson
+    );
+
+    void markInvocationJobFailed(
+            @Param("jobId") UUID jobId,
+            @Param("finishedAt") Instant finishedAt,
+            @Param("errorCode") String errorCode,
+            @Param("errorMessage") String errorMessage
+    );
+
+    int cancelQueuedInvocationJob(
+            @Param("jobId") UUID jobId,
+            @Param("finishedAt") Instant finishedAt,
+            @Param("errorCode") String errorCode,
+            @Param("errorMessage") String errorMessage
+    );
+
+    void markInvocationJobCancelRequested(
+            @Param("jobId") UUID jobId,
+            @Param("errorCode") String errorCode,
+            @Param("errorMessage") String errorMessage
+    );
+
+    int markRunningInvocationJobsFailed(
+            @Param("finishedAt") Instant finishedAt,
+            @Param("errorCode") String errorCode,
+            @Param("errorMessage") String errorMessage
+    );
 }

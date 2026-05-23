@@ -250,7 +250,7 @@ public class ModelAccessController {
     @PostMapping("/invocations/jobs")
     @Operation(
             summary = "提交异步模型调用任务",
-            description = "复用同步 invocation 的请求体、策略、预算、供应商调用和调用日志链路；返回单进程内存 jobId，可查询或 best-effort 取消。"
+            description = "复用同步 invocation 的请求体、策略、预算、供应商调用和调用日志链路；返回持久化 jobId，可查询或 best-effort 取消。"
     )
     @ApiResponse(responseCode = "202", description = "异步任务已提交，状态为 QUEUED/RUNNING/SUCCEEDED/FAILED/CANCELLED")
     @RequirePermission(MANAGE_PERMISSION)
@@ -265,7 +265,7 @@ public class ModelAccessController {
     @GetMapping("/invocations/jobs/{jobId}")
     @Operation(
             summary = "查询异步模型调用任务",
-            description = "返回 job 状态、时间戳、关联 invocationId、错误摘要和成功响应。job registry 为单进程内存态，服务重启后不保留。"
+            description = "返回 job 状态、时间戳、关联 invocationId、错误摘要和成功响应。job 状态和结果持久化保存，服务重启后仍可查询。"
     )
     @RequirePermission(MANAGE_PERMISSION)
     public ModelInvocationJobResponse invocationJob(@PathVariable UUID jobId) {

@@ -1,5 +1,6 @@
 package com.songhg.veri.agent.db;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.songhg.veri.agent.asset.application.AssetListQuery;
 import com.songhg.veri.agent.asset.application.AssetRepository;
 import com.songhg.veri.agent.asset.domain.AssetRequirement;
@@ -9,10 +10,15 @@ import com.songhg.veri.agent.auth.domain.AuthSessionStore;
 import com.songhg.veri.agent.auth.infrastructure.PostgresAuthSessionStore;
 import com.songhg.veri.agent.common.audit.AuditLogWriter;
 import com.songhg.veri.agent.common.api.PageQuery;
+import com.songhg.veri.agent.modelaccess.api.response.InvokeModelResponse;
 import com.songhg.veri.agent.modelaccess.application.InvocationQuery;
 import com.songhg.veri.agent.modelaccess.application.ModelAccessRepository;
+import com.songhg.veri.agent.modelaccess.application.ModelInvocationJobRecord;
+import com.songhg.veri.agent.modelaccess.application.ModelInvocationJobRepository;
+import com.songhg.veri.agent.modelaccess.application.ModelInvocationJobStatus;
 import com.songhg.veri.agent.modelaccess.domain.InvocationRecord;
 import com.songhg.veri.agent.modelaccess.domain.InvocationStatus;
+import com.songhg.veri.agent.modelaccess.infrastructure.PostgresModelInvocationJobRepository;
 import com.songhg.veri.agent.modelaccess.infrastructure.PostgresModelAccessRepository;
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -66,6 +72,9 @@ class DbProfileRepositoryContractTest {
     private ModelAccessRepository modelAccessRepository;
 
     @Autowired
+    private ModelInvocationJobRepository modelInvocationJobRepository;
+
+    @Autowired
     private AssetRepository assetRepository;
 
     @Autowired
@@ -77,10 +86,14 @@ class DbProfileRepositoryContractTest {
     @Autowired
     private TransactionTemplate transactionTemplate;
 
+    @Autowired
+    private ObjectMapper objectMapper;
+
     @Test
     void dbProfileWiresPostgresImplementations() {
         assertThat(authSessionStore).isInstanceOf(PostgresAuthSessionStore.class);
         assertThat(modelAccessRepository).isInstanceOf(PostgresModelAccessRepository.class);
+        assertThat(modelInvocationJobRepository).isInstanceOf(PostgresModelInvocationJobRepository.class);
         assertThat(applicationContext.getBeanNamesForType(AssetRepository.class)).hasSize(1);
     }
 
@@ -139,6 +152,86 @@ class DbProfileRepositoryContractTest {
                 .contains(projectId, projectId + "-other");
         assertThat(modelAccessRepository.distinctActorServices(now.minusSeconds(60), now.plusSeconds(60)))
                 .contains("wp4-document-input", "wp5-test-design");
+    }
+
+    @Test
+    void modelInvocationJobRepositoryPersistsLifecycleAndRecoveryStateInPostgres() throws Exception {
+        UUID jobId = UUID.randomUUID();
+        UUID invocationId = UUID.randomUUID();
+        Instant now = Instant.now();
+        String requestJson = """
+                {"projectId":"project-job-db","messages":[{"role":"user","content":"db job"}],"allowPublicModel":false}
+                """;
+        InvokeModelResponse response = new InvokeModelResponse(
+                invocationId,
+                null,
+                "local-echo-primary",
+                "test-local-model",
+                false,
+                "local model response: db job",
+                10,
+                5,
+                new BigDecimal("0.00001000")
+        );
+
+        modelInvocationJobRepository.save(new ModelInvocationJobRecord(
+                jobId,
+                ModelInvocationJobStatus.QUEUED,
+                requestJson,
+                "wp5-test-design",
+                "db-user",
+                "trc_db_job",
+                now,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+        ));
+
+        assertThat(modelInvocationJobRepository.queuedJobs())
+                .extracting(ModelInvocationJobRecord::jobId)
+                .contains(jobId);
+        assertThat(modelInvocationJobRepository.markRunning(jobId, now.plusSeconds(1))).isTrue();
+        assertThat(modelInvocationJobRepository.markRunning(jobId, now.plusSeconds(2))).isFalse();
+
+        modelAccessRepository.saveInvocation(invocation("project-job-db", "wp5-test-design", now.plusSeconds(2), invocationId));
+        modelInvocationJobRepository.markSucceeded(
+                jobId,
+                now.plusSeconds(3),
+                response,
+                objectMapper.writeValueAsString(response)
+        );
+
+        ModelInvocationJobRecord stored = modelInvocationJobRepository.job(jobId).orElseThrow();
+        assertThat(stored.status()).isEqualTo(ModelInvocationJobStatus.SUCCEEDED);
+        assertThat(stored.invocationId()).isEqualTo(invocationId);
+        assertThat(stored.responseJson()).contains("local model response");
+
+        UUID runningJobId = UUID.randomUUID();
+        modelInvocationJobRepository.save(new ModelInvocationJobRecord(
+                runningJobId,
+                ModelInvocationJobStatus.RUNNING,
+                requestJson,
+                "wp5-test-design",
+                "db-user",
+                "trc_db_running_job",
+                now,
+                now.plusSeconds(1),
+                null,
+                null,
+                null,
+                null,
+                null
+        ));
+        assertThat(modelInvocationJobRepository.markRunningJobsFailed(
+                now.plusSeconds(4),
+                "WORKER_RESTARTED",
+                "recovered"
+        )).isEqualTo(1);
+        assertThat(modelInvocationJobRepository.job(runningJobId).orElseThrow().status())
+                .isEqualTo(ModelInvocationJobStatus.FAILED);
     }
 
     @Test
@@ -208,8 +301,12 @@ class DbProfileRepositoryContractTest {
     }
 
     private InvocationRecord invocation(String projectId, String actorService, Instant createdAt) {
+        return invocation(projectId, actorService, createdAt, UUID.randomUUID());
+    }
+
+    private InvocationRecord invocation(String projectId, String actorService, Instant createdAt, UUID invocationId) {
         return new InvocationRecord(
-                UUID.randomUUID(),
+                invocationId,
                 projectId,
                 "app-db",
                 "env-db",
