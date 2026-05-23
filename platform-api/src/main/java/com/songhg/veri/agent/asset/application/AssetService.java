@@ -22,7 +22,6 @@ import com.songhg.veri.agent.asset.api.request.UpdateTestCaseStepsRequest;
 import com.songhg.veri.agent.asset.api.response.ApiResponseDTO;
 import com.songhg.veri.agent.asset.api.response.AssetExportPayload;
 import com.songhg.veri.agent.asset.api.response.AssetImpactAnalysisResponse;
-import com.songhg.veri.agent.asset.api.response.AssetImpactNodeResponse;
 import com.songhg.veri.agent.asset.api.response.AssetImportItemResponse;
 import com.songhg.veri.agent.asset.api.response.AssetImportResponse;
 import com.songhg.veri.agent.asset.api.response.AssetPrototypeSyncResponse;
@@ -65,7 +64,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
-import java.util.function.Function;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -79,11 +77,7 @@ public class AssetService {
     private static final Logger log = LoggerFactory.getLogger(AssetService.class);
     private static final String ASSET_REQUIREMENT = "REQUIREMENT";
     private static final String ASSET_API = "API";
-    private static final String ASSET_PAGE = "PAGE";
-    private static final String ASSET_BUSINESS_FLOW = "BUSINESS_FLOW";
     private static final String ASSET_TEST_CASE = "TEST_CASE";
-    private static final String SUBJECT_FLOW = "FLOW";
-    private static final String SUBJECT_CASE = "CASE";
     private static final String FORMAT_CSV = "CSV";
     private static final String FORMAT_JSON = "JSON";
     private static final String FORMAT_OPENAPI = "OPENAPI";
@@ -103,17 +97,6 @@ public class AssetService {
     private static final Set<String> PAGE_SOURCES = Set.of("FIGMA", "LANHU", "AXURE", SOURCE_MANUAL);
     private static final Set<String> PROTOTYPE_SOURCES = Set.of("FIGMA", "LANHU", "AXURE");
     private static final Set<String> FLOW_STATUSES = Set.of(STATUS_DRAFT, STATUS_ACTIVE, "ARCHIVED");
-    private static final Set<String> IMPACT_SUBJECT_TYPES = Set.of(
-            ASSET_REQUIREMENT,
-            ASSET_API,
-            ASSET_PAGE,
-            SUBJECT_FLOW,
-            SUBJECT_CASE
-    );
-    private static final Map<String, String> IMPACT_SUBJECT_TYPE_ALIASES = Map.of(
-            ASSET_BUSINESS_FLOW, SUBJECT_FLOW,
-            ASSET_TEST_CASE, SUBJECT_CASE
-    );
     private static final Set<String> IMPORT_EXPORT_FORMATS = Set.of(FORMAT_CSV, FORMAT_JSON, FORMAT_OPENAPI);
     private static final Map<String, Set<String>> IMPORT_EXPORT_FORMATS_BY_ASSET_TYPE = Map.of(
             ASSET_REQUIREMENT, Set.of(FORMAT_CSV, FORMAT_JSON),
@@ -140,13 +123,20 @@ public class AssetService {
     private final PlatformContextClient contextClient;
     private final ObjectMapper objectMapper;
     private final AssetVersionHistoryService versionHistoryService;
+    private final AssetImpactAnalysisService impactAnalysisService;
 
     public AssetService(AssetRepository repository, PlatformContextClient contextClient) {
         this(repository, contextClient, new ObjectMapper().findAndRegisterModules());
     }
 
     public AssetService(AssetRepository repository, PlatformContextClient contextClient, ObjectMapper objectMapper) {
-        this(repository, contextClient, objectMapper, new AssetVersionHistoryService(repository, objectMapper));
+        this(
+                repository,
+                contextClient,
+                objectMapper,
+                new AssetVersionHistoryService(repository, objectMapper),
+                new AssetImpactAnalysisService(repository, contextClient)
+        );
     }
 
     @Autowired
@@ -154,12 +144,14 @@ public class AssetService {
             AssetRepository repository,
             PlatformContextClient contextClient,
             ObjectMapper objectMapper,
-            AssetVersionHistoryService versionHistoryService
+            AssetVersionHistoryService versionHistoryService,
+            AssetImpactAnalysisService impactAnalysisService
     ) {
         this.repository = repository;
         this.contextClient = contextClient;
         this.objectMapper = objectMapper;
         this.versionHistoryService = versionHistoryService;
+        this.impactAnalysisService = impactAnalysisService;
     }
 
     public String resolveProjectScopeId(String projectId) {
@@ -1168,86 +1160,7 @@ public class AssetService {
     }
 
     public AssetImpactAnalysisResponse analyzeImpact(String projectId, String rawSubjectType, UUID subjectId) {
-        String scopeProjectId = projectContext(projectId).projectId();
-        String subjectType = subjectType(rawSubjectType);
-        Map<UUID, AssetRequirement> requirements = mapById(repository.requirements(scopeProjectId), AssetRequirement::id);
-        Map<UUID, AssetApi> apis = mapById(repository.apis(scopeProjectId), AssetApi::id);
-        Map<UUID, AssetPage> pages = mapById(repository.pages(scopeProjectId), AssetPage::id);
-        Map<UUID, AssetBusinessFlow> flows = mapById(repository.businessFlows(scopeProjectId), AssetBusinessFlow::id);
-        Map<UUID, TestCaseRecord> cases = mapById(repository.testCases(scopeProjectId), TestCaseRecord::id);
-        List<TraceLink> links = repository.traceLinks(null, null, null, null, null);
-        LinkedHashSet<UUID> requirementIds = new LinkedHashSet<>();
-        LinkedHashSet<UUID> apiIds = new LinkedHashSet<>();
-        LinkedHashSet<UUID> pageIds = new LinkedHashSet<>();
-        LinkedHashSet<UUID> flowIds = new LinkedHashSet<>();
-        LinkedHashSet<UUID> caseIds = new LinkedHashSet<>();
-
-        if (subjectType == null || subjectId == null) {
-            requirementIds.addAll(requirements.keySet());
-            apiIds.addAll(apis.keySet());
-            pageIds.addAll(pages.keySet());
-            flowIds.addAll(flows.keySet());
-            caseIds.addAll(cases.keySet());
-        } else {
-            addSubject(subjectType, subjectId, requirements, apis, pages, flows, cases,
-                    requirementIds, apiIds, pageIds, flowIds, caseIds);
-        }
-
-        boolean changed;
-        do {
-            changed = false;
-            for (TraceLink link : links) {
-                if (link.requirementId() == null || !requirements.containsKey(link.requirementId())) {
-                    continue;
-                }
-                boolean related = requirementIds.contains(link.requirementId())
-                        || (link.apiId() != null && apiIds.contains(link.apiId()))
-                        || (link.pageId() != null && pageIds.contains(link.pageId()))
-                        || (link.flowId() != null && flowIds.contains(link.flowId()))
-                        || (link.caseId() != null && caseIds.contains(link.caseId()));
-                if (!related) {
-                    continue;
-                }
-                changed |= requirementIds.add(link.requirementId());
-                if (link.apiId() != null && apis.containsKey(link.apiId())) {
-                    changed |= apiIds.add(link.apiId());
-                }
-                if (link.pageId() != null && pages.containsKey(link.pageId())) {
-                    changed |= pageIds.add(link.pageId());
-                }
-                if (link.flowId() != null && flows.containsKey(link.flowId())) {
-                    changed |= flowIds.add(link.flowId());
-                }
-                if (link.caseId() != null && cases.containsKey(link.caseId())) {
-                    changed |= caseIds.add(link.caseId());
-                }
-            }
-        } while (changed);
-
-        List<String> gaps = impactGaps(requirementIds, apiIds, pageIds, flowIds, caseIds, links, requirements, apis, pages, flows, cases);
-        List<AssetImpactNodeResponse> requirementNodes = nodes(requirementIds, requirements, AssetService::toImpactNode);
-        List<AssetImpactNodeResponse> apiNodes = nodes(apiIds, apis, AssetService::toImpactNode);
-        List<AssetImpactNodeResponse> pageNodes = nodes(pageIds, pages, AssetService::toImpactNode);
-        List<AssetImpactNodeResponse> flowNodes = nodes(flowIds, flows, AssetService::toImpactNode);
-        List<AssetImpactNodeResponse> caseNodes = nodes(caseIds, cases, AssetService::toImpactNode);
-        writeAssetBatchAudit("IMPACT_ANALYSIS", "ASSET_IMPACT", scopeProjectId, "SUCCEEDED");
-        return new AssetImpactAnalysisResponse(
-                scopeProjectId,
-                subjectType,
-                subjectId,
-                requirementNodes.size(),
-                apiNodes.size(),
-                pageNodes.size(),
-                flowNodes.size(),
-                caseNodes.size(),
-                requirementNodes,
-                apiNodes,
-                pageNodes,
-                flowNodes,
-                caseNodes,
-                gaps,
-                Instant.now()
-        );
+        return impactAnalysisService.analyzeImpact(projectId, rawSubjectType, subjectId);
     }
 
     private AssetImportItemResponse syncPrototypePage(
@@ -1350,201 +1263,6 @@ public class AssetService {
             }
         }
         return null;
-    }
-
-    private static <T> Map<UUID, T> mapById(List<T> items, Function<T, UUID> idGetter) {
-        Map<UUID, T> result = new LinkedHashMap<>();
-        for (T item : items) {
-            UUID id = idGetter.apply(item);
-            if (id != null) {
-                result.put(id, item);
-            }
-        }
-        return result;
-    }
-
-    private static String subjectType(String rawValue) {
-        if (!StringUtils.hasText(rawValue)) {
-            return null;
-        }
-        String value = rawValue.trim().toUpperCase(Locale.ROOT);
-        String canonical = IMPACT_SUBJECT_TYPE_ALIASES.getOrDefault(value, value);
-        if (!IMPACT_SUBJECT_TYPES.contains(canonical)) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "assetType 不合法: " + rawValue);
-        }
-        return canonical;
-    }
-
-    private static void addSubject(
-            String subjectType,
-            UUID subjectId,
-            Map<UUID, AssetRequirement> requirements,
-            Map<UUID, AssetApi> apis,
-            Map<UUID, AssetPage> pages,
-            Map<UUID, AssetBusinessFlow> flows,
-            Map<UUID, TestCaseRecord> cases,
-            LinkedHashSet<UUID> requirementIds,
-            LinkedHashSet<UUID> apiIds,
-            LinkedHashSet<UUID> pageIds,
-            LinkedHashSet<UUID> flowIds,
-            LinkedHashSet<UUID> caseIds
-    ) {
-        boolean exists = switch (subjectType) {
-            case "REQUIREMENT" -> requirementIds.add(subjectId) && requirements.containsKey(subjectId);
-            case "API" -> apiIds.add(subjectId) && apis.containsKey(subjectId);
-            case "PAGE" -> pageIds.add(subjectId) && pages.containsKey(subjectId);
-            case "FLOW" -> flowIds.add(subjectId) && flows.containsKey(subjectId);
-            case "CASE" -> caseIds.add(subjectId) && cases.containsKey(subjectId);
-            default -> false;
-        };
-        if (!exists) {
-            throw new BusinessException(ErrorCode.NOT_FOUND, "影响分析资产不存在: " + subjectType + "/" + subjectId);
-        }
-    }
-
-    private static List<String> impactGaps(
-            Set<UUID> requirementIds,
-            Set<UUID> apiIds,
-            Set<UUID> pageIds,
-            Set<UUID> flowIds,
-            Set<UUID> caseIds,
-            List<TraceLink> links,
-            Map<UUID, AssetRequirement> requirements,
-            Map<UUID, AssetApi> apis,
-            Map<UUID, AssetPage> pages,
-            Map<UUID, AssetBusinessFlow> flows,
-            Map<UUID, TestCaseRecord> cases
-    ) {
-        List<String> gaps = new ArrayList<>();
-        for (UUID requirementId : requirementIds) {
-            AssetRequirement requirement = requirements.get(requirementId);
-            if (requirement == null) {
-                continue;
-            }
-            boolean hasApi = links.stream().anyMatch(link -> requirementId.equals(link.requirementId())
-                    && link.apiId() != null && apis.containsKey(link.apiId()));
-            boolean hasPage = links.stream().anyMatch(link -> requirementId.equals(link.requirementId())
-                    && link.pageId() != null && pages.containsKey(link.pageId()));
-            boolean hasFlow = links.stream().anyMatch(link -> requirementId.equals(link.requirementId())
-                    && link.flowId() != null && flows.containsKey(link.flowId()));
-            boolean hasCase = links.stream().anyMatch(link -> requirementId.equals(link.requirementId())
-                    && link.caseId() != null && cases.containsKey(link.caseId()));
-            if (!hasApi) {
-                gaps.add("需求 " + requirement.code() + " 缺少 API 覆盖");
-            }
-            if (!hasPage) {
-                gaps.add("需求 " + requirement.code() + " 缺少页面覆盖");
-            }
-            if (!hasFlow) {
-                gaps.add("需求 " + requirement.code() + " 缺少业务流覆盖");
-            }
-            if (!hasCase) {
-                gaps.add("需求 " + requirement.code() + " 缺少测试用例覆盖");
-            }
-        }
-        for (UUID apiId : apiIds) {
-            boolean linked = links.stream().anyMatch(link -> apiId.equals(link.apiId()));
-            if (!linked && apis.containsKey(apiId)) {
-                gaps.add("API " + apis.get(apiId).code() + " 未关联需求");
-            }
-        }
-        for (UUID pageId : pageIds) {
-            boolean linked = links.stream().anyMatch(link -> pageId.equals(link.pageId()));
-            if (!linked && pages.containsKey(pageId)) {
-                gaps.add("页面 " + pages.get(pageId).code() + " 未关联需求");
-            }
-        }
-        for (UUID flowId : flowIds) {
-            boolean linked = links.stream().anyMatch(link -> flowId.equals(link.flowId()));
-            if (!linked && flows.containsKey(flowId)) {
-                gaps.add("业务流 " + flows.get(flowId).code() + " 未关联需求");
-            }
-        }
-        for (UUID caseId : caseIds) {
-            boolean linked = links.stream().anyMatch(link -> caseId.equals(link.caseId()));
-            if (!linked && cases.containsKey(caseId)) {
-                gaps.add("测试用例 " + cases.get(caseId).code() + " 未关联需求");
-            }
-        }
-        return gaps;
-    }
-
-    private static <T> List<AssetImpactNodeResponse> nodes(
-            Set<UUID> ids,
-            Map<UUID, T> source,
-            Function<T, AssetImpactNodeResponse> mapper
-    ) {
-        return ids.stream()
-                .map(source::get)
-                .filter(Objects::nonNull)
-                .map(mapper)
-                .sorted(Comparator.comparing(AssetImpactNodeResponse::updatedAt, Comparator.nullsLast(Comparator.reverseOrder())))
-                .toList();
-    }
-
-    private static AssetImpactNodeResponse toImpactNode(AssetRequirement value) {
-        return new AssetImpactNodeResponse(
-                "REQUIREMENT",
-                value.id(),
-                value.code(),
-                value.title(),
-                value.projectId(),
-                value.status(),
-                lifecycleStatus(value.lifecycleStatus(), value.deletedAt()),
-                value.updatedAt()
-        );
-    }
-
-    private static AssetImpactNodeResponse toImpactNode(AssetApi value) {
-        return new AssetImpactNodeResponse(
-                "API",
-                value.id(),
-                value.code(),
-                value.summary(),
-                value.projectId(),
-                value.status(),
-                lifecycleStatus(value.lifecycleStatus(), value.deletedAt()),
-                value.updatedAt()
-        );
-    }
-
-    private static AssetImpactNodeResponse toImpactNode(AssetPage value) {
-        return new AssetImpactNodeResponse(
-                "PAGE",
-                value.id(),
-                value.code(),
-                value.name(),
-                value.projectId(),
-                value.status(),
-                lifecycleStatus(value.lifecycleStatus(), value.deletedAt()),
-                value.updatedAt()
-        );
-    }
-
-    private static AssetImpactNodeResponse toImpactNode(AssetBusinessFlow value) {
-        return new AssetImpactNodeResponse(
-                "FLOW",
-                value.id(),
-                value.code(),
-                value.name(),
-                value.projectId(),
-                value.status(),
-                lifecycleStatus(value.lifecycleStatus(), value.deletedAt()),
-                value.updatedAt()
-        );
-    }
-
-    private static AssetImpactNodeResponse toImpactNode(TestCaseRecord value) {
-        return new AssetImpactNodeResponse(
-                "CASE",
-                value.id(),
-                value.code(),
-                value.title(),
-                value.projectId(),
-                value.status(),
-                lifecycleStatus(value.lifecycleStatus(), value.deletedAt()),
-                value.updatedAt()
-        );
     }
 
     private List<Map<String, String>> parseImportRows(String assetType, String format, String content) {
