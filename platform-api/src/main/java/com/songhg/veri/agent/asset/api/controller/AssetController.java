@@ -32,6 +32,7 @@ import com.songhg.veri.agent.asset.api.response.TestCaseResponse;
 import com.songhg.veri.agent.asset.api.response.TestCaseStepResponse;
 import com.songhg.veri.agent.asset.api.response.TraceLinkResponse;
 import com.songhg.veri.agent.asset.application.AssetImportExportService;
+import com.songhg.veri.agent.asset.application.AssetPrototypeSyncService;
 import com.songhg.veri.agent.asset.application.AssetService;
 import com.songhg.veri.agent.auth.application.AuthUserPrincipal;
 import com.songhg.veri.agent.authorization.application.AuthorizationService;
@@ -64,15 +65,18 @@ public class AssetController {
 
     private final AssetService service;
     private final AssetImportExportService importExportService;
+    private final AssetPrototypeSyncService prototypeSyncService;
     private final AuthorizationService authorizationService;
 
     public AssetController(
             AssetService service,
             AssetImportExportService importExportService,
+            AssetPrototypeSyncService prototypeSyncService,
             AuthorizationService authorizationService
     ) {
         this.service = service;
         this.importExportService = importExportService;
+        this.prototypeSyncService = prototypeSyncService;
         this.authorizationService = authorizationService;
     }
 
@@ -100,7 +104,7 @@ public class AssetController {
     @PostMapping("/prototype-sync")
     public AssetPrototypeSyncResponse syncPrototypePages(@Valid @RequestBody AssetPrototypeSyncRequest request) {
         requireProjectPermission("asset:manage", request.projectId());
-        return service.syncPrototypePages(request);
+        return prototypeSyncService.syncPrototypePages(request);
     }
 
     @GetMapping("/impact")

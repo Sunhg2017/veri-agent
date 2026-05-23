@@ -22,7 +22,6 @@ import com.songhg.veri.agent.asset.api.request.UpdateTestCaseStepsRequest;
 import com.songhg.veri.agent.asset.api.response.ApiResponseDTO;
 import com.songhg.veri.agent.asset.api.response.AssetExportPayload;
 import com.songhg.veri.agent.asset.api.response.AssetImpactAnalysisResponse;
-import com.songhg.veri.agent.asset.api.response.AssetImportItemResponse;
 import com.songhg.veri.agent.asset.api.response.AssetImportResponse;
 import com.songhg.veri.agent.asset.api.response.AssetPrototypeSyncResponse;
 import com.songhg.veri.agent.asset.api.response.AssetVersionHistoryResponse;
@@ -58,7 +57,6 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -86,7 +84,6 @@ public class AssetService {
     private static final Set<String> API_HTTP_METHODS = Set.of("GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS");
     private static final Set<String> PAGE_STATUSES = Set.of(STATUS_ACTIVE, "DEPRECATED");
     private static final Set<String> PAGE_SOURCES = Set.of("FIGMA", "LANHU", "AXURE", SOURCE_MANUAL);
-    private static final Set<String> PROTOTYPE_SOURCES = Set.of("FIGMA", "LANHU", "AXURE");
     private static final Set<String> FLOW_STATUSES = Set.of(STATUS_DRAFT, STATUS_ACTIVE, "ARCHIVED");
     private static final Map<String, Set<String>> API_STATUS_TRANSITIONS = Map.of(
             STATUS_ACTIVE, Set.of(STATUS_ACTIVE, "DEPRECATED"),
@@ -108,6 +105,7 @@ public class AssetService {
     private final ObjectMapper objectMapper;
     private final AssetVersionHistoryService versionHistoryService;
     private final AssetImpactAnalysisService impactAnalysisService;
+    private final AssetPrototypeSyncService prototypeSyncService;
 
     public AssetService(AssetRepository repository, PlatformContextClient contextClient) {
         this(repository, contextClient, new ObjectMapper().findAndRegisterModules());
@@ -119,7 +117,8 @@ public class AssetService {
                 contextClient,
                 objectMapper,
                 new AssetVersionHistoryService(repository, objectMapper),
-                new AssetImpactAnalysisService(repository, contextClient)
+                new AssetImpactAnalysisService(repository, contextClient),
+                new AssetPrototypeSyncService(repository, contextClient, objectMapper)
         );
     }
 
@@ -129,13 +128,15 @@ public class AssetService {
             PlatformContextClient contextClient,
             ObjectMapper objectMapper,
             AssetVersionHistoryService versionHistoryService,
-            AssetImpactAnalysisService impactAnalysisService
+            AssetImpactAnalysisService impactAnalysisService,
+            AssetPrototypeSyncService prototypeSyncService
     ) {
         this.repository = repository;
         this.contextClient = contextClient;
         this.objectMapper = objectMapper;
         this.versionHistoryService = versionHistoryService;
         this.impactAnalysisService = impactAnalysisService;
+        this.prototypeSyncService = prototypeSyncService;
     }
 
     public String resolveProjectScopeId(String projectId) {
@@ -1095,139 +1096,12 @@ public class AssetService {
 
     // ---- Prototype sync / impact analysis ----
 
-    @Transactional
     public AssetPrototypeSyncResponse syncPrototypePages(AssetPrototypeSyncRequest request) {
-        String source = valueIn(request.source(), null, PROTOTYPE_SOURCES, "source");
-        String projectId = projectContext(request.projectId()).projectId();
-        boolean dryRun = Boolean.TRUE.equals(request.dryRun());
-        writeAssetBatchAudit(dryRun ? "PROTOTYPE_SYNC_DRY_RUN" : "PROTOTYPE_SYNC", "PAGE", projectId, "SUCCEEDED");
-        List<AssetImportItemResponse> items = new ArrayList<>();
-        for (int i = 0; i < request.pages().size(); i++) {
-            items.add(syncPrototypePage(projectId, source, request, request.pages().get(i), i + 1, dryRun));
-        }
-        return new AssetPrototypeSyncResponse(
-                source,
-                dryRun,
-                request.pages().size(),
-                countAction(items, "CREATE"),
-                countAction(items, "UPDATE"),
-                countAction(items, "LINK_EXISTING"),
-                (int) items.stream().filter(item -> "FAILED".equals(item.status())).count(),
-                items
-        );
+        return prototypeSyncService.syncPrototypePages(request);
     }
 
     public AssetImpactAnalysisResponse analyzeImpact(String projectId, String rawSubjectType, UUID subjectId) {
         return impactAnalysisService.analyzeImpact(projectId, rawSubjectType, subjectId);
-    }
-
-    private AssetImportItemResponse syncPrototypePage(
-            String projectId,
-            String source,
-            AssetPrototypeSyncRequest request,
-            AssetPrototypeSyncRequest.PageItem item,
-            int row,
-            boolean dryRun
-    ) {
-        try {
-            String sourceRef = trimToNull(item.sourceRef());
-            if (sourceRef == null) {
-                return new AssetImportItemResponse(row, "INVALID", null, null, "FAILED", "sourceRef 不能为空", List.of("sourceRef 不能为空"));
-            }
-            Optional<AssetPage> existing = repository.pageBySourceRef(projectId, source, sourceRef);
-            if (existing.isPresent()) {
-                AssetPage merged = mergePrototypePage(existing.get(), source, request, item);
-                if (samePage(existing.get(), merged)) {
-                    return new AssetImportItemResponse(row, "LINK_EXISTING", existing.get().id(), existing.get().code(), dryRun ? "PLANNED" : "SUCCEEDED", "无差异，复用既有页面", List.of());
-                }
-                if (!dryRun) {
-                    writeProjectAudit("PROTOTYPE_SYNC_UPDATE", "PAGE", existing.get().id(), projectId);
-                    repository.savePage(merged);
-                }
-                return new AssetImportItemResponse(row, "UPDATE", existing.get().id(), existing.get().code(), dryRun ? "PLANNED" : "SUCCEEDED", "同步更新页面", List.of());
-            }
-            UUID id = UUID.randomUUID();
-            Instant now = Instant.now();
-            AssetPage created = new AssetPage(
-                    id,
-                    assetCode("PAGE", id),
-                    item.name(),
-                    trimToNull(item.urlPattern()),
-                    source,
-                    sourceRef,
-                    firstText(item.sourceVersion(), request.sourceVersion()),
-                    jsonValue(item.componentTree()),
-                    trimToNull(item.screenshotUrl()),
-                    projectId,
-                    initialStatus(item.status(), "ACTIVE", "PAGE"),
-                    "ACTIVE",
-                    null,
-                    null,
-                    now,
-                    now
-            );
-            if (!dryRun) {
-                writeProjectAudit("PROTOTYPE_SYNC_CREATE", "PAGE", id, projectId);
-                repository.savePage(created);
-            }
-            return new AssetImportItemResponse(row, "CREATE", id, created.code(), dryRun ? "PLANNED" : "SUCCEEDED", "同步创建页面", List.of());
-        } catch (BusinessException e) {
-            return new AssetImportItemResponse(row, "FAILED", null, null, "FAILED", e.getMessage(), List.of(e.getMessage()));
-        }
-    }
-
-    private AssetPage mergePrototypePage(
-            AssetPage existing,
-            String source,
-            AssetPrototypeSyncRequest request,
-            AssetPrototypeSyncRequest.PageItem item
-    ) {
-        return new AssetPage(
-                existing.id(),
-                existing.code(),
-                item.name(),
-                trimToNull(item.urlPattern()),
-                source,
-                trimToNull(item.sourceRef()),
-                firstText(item.sourceVersion(), request.sourceVersion(), existing.sourceVersion()),
-                jsonValue(item.componentTree()),
-                trimToNull(item.screenshotUrl()),
-                existing.projectId(),
-                initialStatus(item.status(), existing.status(), "PAGE"),
-                existing.lifecycleStatus(),
-                existing.archivedAt(),
-                existing.deletedAt(),
-                existing.createdAt(),
-                Instant.now()
-        );
-    }
-
-    private boolean samePage(AssetPage left, AssetPage right) {
-        return Objects.equals(left.name(), right.name())
-                && Objects.equals(left.urlPattern(), right.urlPattern())
-                && Objects.equals(left.source(), right.source())
-                && Objects.equals(left.sourceRef(), right.sourceRef())
-                && Objects.equals(left.sourceVersion(), right.sourceVersion())
-                && Objects.equals(jsonNode(left.componentTree()), jsonNode(right.componentTree()))
-                && Objects.equals(left.screenshotUrl(), right.screenshotUrl())
-                && Objects.equals(left.status(), right.status());
-    }
-
-    private static String firstText(String... values) {
-        for (String value : values) {
-            String normalized = trimToNull(value);
-            if (normalized != null) {
-                return normalized;
-            }
-        }
-        return null;
-    }
-
-    private static int countAction(List<AssetImportItemResponse> items, String action) {
-        return (int) items.stream()
-                .filter(item -> action.equals(item.action()))
-                .filter(item -> !"FAILED".equals(item.status()))
-                .count();
     }
 
     // ---- Health ----
