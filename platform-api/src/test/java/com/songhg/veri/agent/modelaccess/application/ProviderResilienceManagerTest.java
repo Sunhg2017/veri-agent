@@ -119,6 +119,45 @@ class ProviderResilienceManagerTest {
                 .hasMessageContaining("模型供应商请求超过限流阈值");
     }
 
+    @Test
+    void sharesCircuitStateThroughExternalStateStore() {
+        InMemoryProviderResilienceStateStore stateStore = new InMemoryProviderResilienceStateStore();
+        ModelAccessProperties properties = properties(0, 2, 60_000, 30_000);
+        ProviderResilienceManager firstNode = new ProviderResilienceManager(properties, stateStore);
+        ProviderResilienceManager secondNode = new ProviderResilienceManager(properties, stateStore);
+        ModelProviderConfig provider = provider(Instant.now());
+
+        firstNode.recordProviderFailure(provider);
+        secondNode.recordProviderFailure(provider);
+
+        assertThat(firstNode.isCircuitOpen(provider)).isTrue();
+        assertThat(secondNode.isCircuitOpen(provider)).isTrue();
+        assertThat(secondNode.openCircuitCount()).isEqualTo(1);
+    }
+
+    @Test
+    void sharesRateLimitWindowThroughExternalStateStore() {
+        InMemoryProviderResilienceStateStore stateStore = new InMemoryProviderResilienceStateStore();
+        ModelAccessProperties properties = properties(0, 3, 60_000, 30_000, 1, 60, 0);
+        ProviderResilienceManager firstNode = new ProviderResilienceManager(properties, stateStore);
+        ProviderResilienceManager secondNode = new ProviderResilienceManager(properties, stateStore);
+        ModelProviderConfig provider = provider(Instant.now());
+
+        firstNode.callWithRetry(
+                client((ignoredProvider, request) -> new ProviderCallResult("ok", 1, 1)),
+                provider,
+                new ProviderCallRequest("model", "prompt", "message")
+        );
+
+        assertThatThrownBy(() -> secondNode.callWithRetry(
+                client((ignoredProvider, request) -> new ProviderCallResult("blocked", 1, 1)),
+                provider,
+                new ProviderCallRequest("model", "prompt", "message")
+        ))
+                .isInstanceOf(com.songhg.veri.agent.common.error.BusinessException.class)
+                .hasMessageContaining("模型供应商请求超过限流阈值");
+    }
+
     private void throwUnavailable() {
         throw new IllegalStateException("provider down");
     }

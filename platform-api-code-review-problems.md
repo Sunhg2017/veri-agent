@@ -48,13 +48,13 @@
 | M3 | OpenAPI 文档覆盖 | 已完成 | 新增统一 OpenAPI 文档增强器，为缺少显式 `@Operation` 的公开 API 补齐 summary/tag/标准错误响应说明；新增 contract test 阻止 `/api/v1` operation 漏文档 |
 | X1 | 异步模型调用 Job 持久化 | 已完成 | 新增 `ma_invocation_job` 持久化表和 db/local repository，异步任务提交、状态流转、取消、成功结果和失败信息持久化；服务启动时重排 QUEUED 任务并将遗留 RUNNING 标记失败 |
 | X2 | RestClient 复用 | 已完成 | 按 baseUrl + timeout 缓存 `RestClient` |
-| X3 | 分布式限流/熔断 | 专项任务 | 拆为 Redis/网关限流专项 |
+| X3 | 分布式限流/熔断 | 已完成 | 新增 `ProviderResilienceStateStore`，默认 local profile 继续使用本地实现，`redis` profile 下通过 Redis 共享 provider 固定窗口限流和熔断状态 |
 | X4 | DocumentInputService Pattern 未使用 | 无影响 | 复核后确认这些 Pattern 被 `sanitizeFeedbackText()` 使用，不再作为缺陷处理 |
 
 ### 剩余专项优先级
 
 1. 架构治理专项：A1、A2，按模块逐步拆分并保持接口兼容。
-2. 运行治理专项：X3，补分布式限流和熔断。
+2. 运行治理专项：暂无独立剩余项；后续按生产部署形态继续观察 Redis 可用性和网关限流策略。
 
 ## 一、安全风险 (Security)
 
@@ -343,6 +343,7 @@
 - **文件**: `modelaccess/application/ProviderResilienceManager.java`
 - **问题**: 速率限制和熔断器状态基于本地 `ConcurrentHashMap`，多实例部署时各节点独立计数，无法准确控制全局速率。
 - **建议**: 多实例部署时考虑使用 Redis 实现分布式限流和熔断
+- **处理结果**: 已抽象 `ProviderResilienceStateStore`，`ProviderResilienceManager` 不再直接持有限流/熔断 Map；默认 `!redis` profile 使用 `InMemoryProviderResilienceStateStore` 保持单机行为不变，`redis` profile 使用 `RedisProviderResilienceStateStore` 将熔断状态、打开熔断 provider 索引和固定窗口限流计数写入 Redis。单测覆盖两个 manager 共享同一 store 时的熔断和限流联动，作为多实例共享状态的回归护栏。
 
 ### [LOW] X4: 静态常量 SECRET_ASSIGNMENT_PATTERN 未在代码中使用
 

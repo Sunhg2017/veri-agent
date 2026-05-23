@@ -11,19 +11,25 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Semaphore;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 @Component
 public class ProviderResilienceManager {
 
     private final ModelAccessProperties properties;
-    private final Map<UUID, ProviderCircuitState> providerCircuitStates = new ConcurrentHashMap<>();
+    private final ProviderResilienceStateStore stateStore;
     private final Map<UUID, ProviderCheckCacheEntry> providerCheckCache = new ConcurrentHashMap<>();
-    private final Map<UUID, RateWindow> providerRateWindows = new ConcurrentHashMap<>();
     private final Map<UUID, Semaphore> providerConcurrencyLimits = new ConcurrentHashMap<>();
 
     public ProviderResilienceManager(ModelAccessProperties properties) {
+        this(properties, new InMemoryProviderResilienceStateStore());
+    }
+
+    @Autowired
+    public ProviderResilienceManager(ModelAccessProperties properties, ProviderResilienceStateStore stateStore) {
         this.properties = properties;
+        this.stateStore = stateStore;
     }
 
     public Optional<ProviderCheckResponse> cachedProviderCheck(ModelProviderConfig provider) {
@@ -50,26 +56,25 @@ public class ProviderResilienceManager {
     }
 
     public boolean isCircuitOpen(ModelProviderConfig provider) {
-        ProviderCircuitState state = providerCircuitStates.get(provider.id());
-        return state != null && state.openUntil() != null && state.openUntil().isAfter(Instant.now());
+        return stateStore.circuitState(provider.id())
+                .filter(state -> state.openUntil() != null)
+                .filter(state -> state.openUntil().isAfter(Instant.now()))
+                .isPresent();
     }
 
     public CircuitStateView circuitState(ModelProviderConfig provider) {
-        ProviderCircuitState state = providerCircuitStates.get(provider.id());
-        if (state == null) {
+        Optional<ProviderResilienceStateStore.CircuitSnapshot> state = stateStore.circuitState(provider.id());
+        if (state.isEmpty()) {
             return new CircuitStateView(false, 0, null);
         }
+        ProviderResilienceStateStore.CircuitSnapshot snapshot = state.get();
         Instant now = Instant.now();
-        boolean open = state.openUntil() != null && state.openUntil().isAfter(now);
-        return new CircuitStateView(open, state.consecutiveFailures(), open ? state.openUntil() : null);
+        boolean open = snapshot.openUntil() != null && snapshot.openUntil().isAfter(now);
+        return new CircuitStateView(open, snapshot.consecutiveFailures(), open ? snapshot.openUntil() : null);
     }
 
     public int openCircuitCount() {
-        Instant now = Instant.now();
-        return (int) providerCircuitStates.values()
-                .stream()
-                .filter(state -> state.openUntil() != null && state.openUntil().isAfter(now))
-                .count();
+        return stateStore.openCircuitCount(Instant.now());
     }
 
     public boolean rateLimitEnabled() {
@@ -102,11 +107,11 @@ public class ProviderResilienceManager {
     }
 
     public void recordProviderSuccess(ModelProviderConfig provider) {
-        providerCircuitStates.remove(provider.id());
+        stateStore.clearCircuit(provider.id());
     }
 
     public void resetCircuit(ModelProviderConfig provider) {
-        providerCircuitStates.remove(provider.id());
+        stateStore.clearCircuit(provider.id());
     }
 
     public void recordProviderFailure(ModelProviderConfig provider) {
@@ -115,14 +120,7 @@ public class ProviderResilienceManager {
         if (openMs <= 0) {
             return;
         }
-        providerCircuitStates.compute(provider.id(), (id, existing) -> {
-            boolean expiredOpenCircuit = existing != null
-                    && existing.openUntil() != null
-                    && existing.openUntil().isBefore(Instant.now());
-            int failures = existing == null || expiredOpenCircuit ? 1 : existing.consecutiveFailures() + 1;
-            Instant openUntil = failures >= threshold ? Instant.now().plusMillis(openMs) : null;
-            return new ProviderCircuitState(failures, openUntil);
-        });
+        stateStore.recordFailure(provider.id(), threshold, openMs, Instant.now());
     }
 
     public ProviderCallResult callWithRetry(
@@ -157,13 +155,8 @@ public class ProviderResilienceManager {
             return;
         }
         long windowSeconds = rateLimitWindowSeconds();
-        long currentWindow = Instant.now().getEpochSecond() / windowSeconds;
-        RateWindow updated = providerRateWindows.compute(provider.id(), (ignored, existing) -> {
-            if (existing == null || existing.window() != currentWindow) {
-                return new RateWindow(currentWindow, 1);
-            }
-            return new RateWindow(currentWindow, existing.count() + 1);
-        });
+        ProviderResilienceStateStore.RateLimitSnapshot updated =
+                stateStore.incrementRateLimit(provider.id(), windowSeconds, Instant.now());
         if (updated.count() > limit) {
             throw new BusinessException(ErrorCode.BUDGET_EXCEEDED,
                     "模型供应商请求超过限流阈值: " + limit + "/" + windowSeconds + "s");
@@ -202,17 +195,11 @@ public class ProviderResilienceManager {
         );
     }
 
-    private record ProviderCircuitState(int consecutiveFailures, Instant openUntil) {
-    }
-
     private record ProviderCheckCacheEntry(
             ProviderCheckResponse response,
             Instant providerUpdatedAt,
             Instant expiresAt
     ) {
-    }
-
-    private record RateWindow(long window, int count) {
     }
 
     public record CircuitStateView(boolean open, int consecutiveFailures, Instant openUntil) {
