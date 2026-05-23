@@ -284,7 +284,7 @@ export interface ManagementData {
   secrets: SecretReferenceView[];
 }
 
-export type CreatableManagementResource = 'departments' | 'users' | 'projects' | 'applications' | 'environments';
+export type CreatableManagementResource = 'departments' | 'users' | 'projects' | 'applications' | 'environments' | 'integrations';
 
 const endpoints = {
   departments: '/api/v1/management/departments',

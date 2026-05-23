@@ -27,7 +27,7 @@
 | A4 / Q8 / T3 | local/db profile 行为差异与 db 测试不足 | 专项任务 | 增加 Testcontainers db-profile 契约测试；本批只处理 P2 的内存 refresh 索引 |
 | A5 | 审计写入独立可靠性 | 专项任务 | 拆为审计 outbox/独立事务专项，需评估失败补偿和发布策略 |
 | A6 | 分层异常策略 | 专项任务 | 拆为异常层次和日志上下文规范专项 |
-| P1 | Asset 列表查询 SQL 分页/过滤/排序下沉 | 专项任务 | 拆为 Repository 查询模型、MyBatis 动态 SQL、分页契约和回归测试 |
+| P1 | Asset 列表查询 SQL 分页/过滤/排序下沉 | 已完成 | 新增 `AssetListQuery` 和 Repository 分页/count 契约，五类资产列表下沉到 MyBatis 动态 SQL；local 实现保持同等过滤/分页语义并补充回归测试 |
 | P2 | InMemoryAuthSessionStore refresh 查询 O(n) | 已完成 | 已增加 refreshTokenHash 二级索引和回归测试 |
 | P3 | Cost Alert distinct 下沉 SQL | 专项任务 | 拆为 repository distinct project/service 查询接口和 db/local 一致性测试 |
 | P4 | CSV 导出转义和流式输出 | 有条件通过 | 当前 `appendCsvValue` 已处理逗号、引号、换行；全量加载和 StreamingResponseBody 另拆专项 |
@@ -53,7 +53,7 @@
 
 ### 剩余专项优先级
 
-1. WP3 数据与权限专项：P1、S7、A3、T1，完成 SQL 分页、资源级鉴权和服务层测试护栏。
+1. WP3 数据与权限专项：S7、A3、T1，继续完成资源级鉴权和服务层测试护栏。
 2. DB 集成测试专项：A4、Q8、T3，加入 db-profile Testcontainers 覆盖核心 mapper、事务和约束。
 3. WP2 查询/导出专项：P3、P4，补 distinct SQL、流式 CSV 和大数据量测试。
 4. 架构治理专项：A1、A2、A5、A6，按模块逐步拆分并保持接口兼容。

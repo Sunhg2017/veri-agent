@@ -151,6 +151,39 @@ class AssetControllerTest {
     }
 
     @Test
+    void filtersAndPagesRequirementsWithListQuery() throws Exception {
+        createRequirement("Billing invoice approval", "billing first", "HIGH");
+        createRequirement("Inventory receiving", "warehouse", "LOW");
+        createRequirement("Billing refund review", "billing second", "MEDIUM");
+
+        mockMvc.perform(get("/api/v1/asset/requirements")
+                        .headers(authHeaders())
+                        .param("projectId", "project-wp3")
+                        .param("keyword", "BILLING")
+                        .param("status", "draft")
+                        .param("source", "manual")
+                        .param("index", "0")
+                        .param("size", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(2))
+                .andExpect(jsonPath("$.data.items", hasSize(1)))
+                .andExpect(jsonPath("$.data.items[0].title", containsString("Billing")));
+
+        mockMvc.perform(get("/api/v1/asset/requirements")
+                        .headers(authHeaders())
+                        .param("projectId", "project-wp3")
+                        .param("keyword", "billing")
+                        .param("status", "DRAFT")
+                        .param("source", "MANUAL")
+                        .param("index", "1")
+                        .param("size", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(2))
+                .andExpect(jsonPath("$.data.items", hasSize(1)))
+                .andExpect(jsonPath("$.data.items[0].title", containsString("Billing")));
+    }
+
+    @Test
     void rollsBackRequirementToHistoricalSnapshot() throws Exception {
         String reqId = createRequirement("回滚需求V1", "初始描述", "HIGH");
 

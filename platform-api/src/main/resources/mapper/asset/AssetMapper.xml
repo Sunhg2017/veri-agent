@@ -207,6 +207,123 @@
         min(l.created_at) as created_at
     </sql>
 
+    <sql id="requirementListWhere">
+        <where>
+            <if test="query.projectId != null">project_id = #{query.projectId}</if>
+            <choose>
+                <when test="query.lifecycleStatus == 'DELETED'">and deleted_at is not null</when>
+                <otherwise>
+                    and deleted_at is null
+                    and coalesce(lifecycle_status, 'ACTIVE') = #{query.lifecycleStatus}
+                </otherwise>
+            </choose>
+            <if test="query.status != null">and lower(status) = lower(#{query.status})</if>
+            <if test="query.source != null">and lower(source) = lower(#{query.source})</if>
+            <if test="query.keyword != null">
+                and (
+                    position(lower(#{query.keyword}) in lower(coalesce(code, ''))) > 0
+                    or position(lower(#{query.keyword}) in lower(coalesce(title, ''))) > 0
+                    or position(lower(#{query.keyword}) in lower(coalesce(description, ''))) > 0
+                    or position(lower(#{query.keyword}) in lower(coalesce(source_ref, ''))) > 0
+                    or position(lower(#{query.keyword}) in lower(coalesce(tags, ''))) > 0
+                )
+            </if>
+        </where>
+    </sql>
+
+    <sql id="apiListWhere">
+        <where>
+            <if test="query.projectId != null">project_id = #{query.projectId}</if>
+            <choose>
+                <when test="query.lifecycleStatus == 'DELETED'">and deleted_at is not null</when>
+                <otherwise>
+                    and deleted_at is null
+                    and coalesce(lifecycle_status, 'ACTIVE') = #{query.lifecycleStatus}
+                </otherwise>
+            </choose>
+            <if test="query.status != null">and lower(status) = lower(#{query.status})</if>
+            <if test="query.source != null">and lower(source) = lower(#{query.source})</if>
+            <if test="query.keyword != null">
+                and (
+                    position(lower(#{query.keyword}) in lower(coalesce(code, ''))) > 0
+                    or position(lower(#{query.keyword}) in lower(coalesce(summary, ''))) > 0
+                    or position(lower(#{query.keyword}) in lower(coalesce(description, ''))) > 0
+                    or position(lower(#{query.keyword}) in lower(coalesce(path, ''))) > 0
+                    or position(lower(#{query.keyword}) in lower(coalesce(source_ref, ''))) > 0
+                )
+            </if>
+        </where>
+    </sql>
+
+    <sql id="pageListWhere">
+        <where>
+            <if test="query.projectId != null">project_id = #{query.projectId}</if>
+            <choose>
+                <when test="query.lifecycleStatus == 'DELETED'">and deleted_at is not null</when>
+                <otherwise>
+                    and deleted_at is null
+                    and coalesce(lifecycle_status, 'ACTIVE') = #{query.lifecycleStatus}
+                </otherwise>
+            </choose>
+            <if test="query.status != null">and lower(status) = lower(#{query.status})</if>
+            <if test="query.source != null">and lower(source) = lower(#{query.source})</if>
+            <if test="query.keyword != null">
+                and (
+                    position(lower(#{query.keyword}) in lower(coalesce(code, ''))) > 0
+                    or position(lower(#{query.keyword}) in lower(coalesce(name, ''))) > 0
+                    or position(lower(#{query.keyword}) in lower(coalesce(url_pattern, ''))) > 0
+                    or position(lower(#{query.keyword}) in lower(coalesce(source_ref, ''))) > 0
+                    or position(lower(#{query.keyword}) in lower(coalesce(source_version, ''))) > 0
+                )
+            </if>
+        </where>
+    </sql>
+
+    <sql id="businessFlowListWhere">
+        <where>
+            <if test="query.projectId != null">project_id = #{query.projectId}</if>
+            <choose>
+                <when test="query.lifecycleStatus == 'DELETED'">and deleted_at is not null</when>
+                <otherwise>
+                    and deleted_at is null
+                    and coalesce(lifecycle_status, 'ACTIVE') = #{query.lifecycleStatus}
+                </otherwise>
+            </choose>
+            <if test="query.status != null">and lower(status) = lower(#{query.status})</if>
+            <if test="query.keyword != null">
+                and (
+                    position(lower(#{query.keyword}) in lower(coalesce(code, ''))) > 0
+                    or position(lower(#{query.keyword}) in lower(coalesce(name, ''))) > 0
+                    or position(lower(#{query.keyword}) in lower(coalesce(description, ''))) > 0
+                )
+            </if>
+        </where>
+    </sql>
+
+    <sql id="testCaseListWhere">
+        <where>
+            <if test="query.projectId != null">tc.project_id = #{query.projectId}</if>
+            <choose>
+                <when test="query.lifecycleStatus == 'DELETED'">and tc.deleted_at is not null</when>
+                <otherwise>
+                    and tc.deleted_at is null
+                    and coalesce(tc.lifecycle_status, 'ACTIVE') = #{query.lifecycleStatus}
+                </otherwise>
+            </choose>
+            <if test="query.status != null">and lower(tc.status) = lower(#{query.status})</if>
+            <if test="query.source != null">and lower(tc.source) = lower(#{query.source})</if>
+            <if test="query.keyword != null">
+                and (
+                    position(lower(#{query.keyword}) in lower(coalesce(tc.code, ''))) > 0
+                    or position(lower(#{query.keyword}) in lower(coalesce(tc.title, ''))) > 0
+                    or position(lower(#{query.keyword}) in lower(coalesce(tc.description, ''))) > 0
+                    or position(lower(#{query.keyword}) in lower(coalesce(tc.source_ref, ''))) > 0
+                    or position(lower(#{query.keyword}) in lower(coalesce(tc.tags, ''))) > 0
+                )
+            </if>
+        </where>
+    </sql>
+
     <!-- Requirements -->
 
     <select id="listRequirements" resultMap="requirementMap">
@@ -216,6 +333,20 @@
             <if test="projectId != null">project_id = #{projectId}</if>
         </where>
         order by created_at desc
+    </select>
+
+    <select id="listRequirementsByQuery" resultMap="requirementMap">
+        select <include refid="requirementColumns"/>
+        from asset_requirement
+        <include refid="requirementListWhere"/>
+        order by created_at desc
+        limit #{query.size} offset #{query.offset}
+    </select>
+
+    <select id="countRequirementsByQuery" resultType="long">
+        select count(*)
+        from asset_requirement
+        <include refid="requirementListWhere"/>
     </select>
 
     <select id="getRequirement" resultMap="requirementMap">
@@ -348,6 +479,20 @@
         order by created_at desc
     </select>
 
+    <select id="listApisByQuery" resultMap="apiMap">
+        select <include refid="apiColumns"/>
+        from asset_api
+        <include refid="apiListWhere"/>
+        order by created_at desc
+        limit #{query.size} offset #{query.offset}
+    </select>
+
+    <select id="countApisByQuery" resultType="long">
+        select count(*)
+        from asset_api
+        <include refid="apiListWhere"/>
+    </select>
+
     <select id="getApi" resultMap="apiMap">
         select <include refid="apiColumns"/>
         from asset_api
@@ -435,6 +580,20 @@
         order by created_at desc
     </select>
 
+    <select id="listPagesByQuery" resultMap="pageMap">
+        select <include refid="pageColumns"/>
+        from asset_page
+        <include refid="pageListWhere"/>
+        order by created_at desc
+        limit #{query.size} offset #{query.offset}
+    </select>
+
+    <select id="countPagesByQuery" resultType="long">
+        select count(*)
+        from asset_page
+        <include refid="pageListWhere"/>
+    </select>
+
     <select id="getPage" resultMap="pageMap">
         select <include refid="pageColumns"/>
         from asset_page
@@ -519,6 +678,20 @@
         order by created_at desc
     </select>
 
+    <select id="listBusinessFlowsByQuery" resultMap="businessFlowMap">
+        select <include refid="businessFlowColumns"/>
+        from asset_business_flow
+        <include refid="businessFlowListWhere"/>
+        order by created_at desc
+        limit #{query.size} offset #{query.offset}
+    </select>
+
+    <select id="countBusinessFlowsByQuery" resultType="long">
+        select count(*)
+        from asset_business_flow
+        <include refid="businessFlowListWhere"/>
+    </select>
+
     <select id="getBusinessFlow" resultMap="businessFlowMap">
         select <include refid="businessFlowColumns"/>
         from asset_business_flow
@@ -597,6 +770,44 @@
             <if test="projectId != null">tc.project_id = #{projectId}</if>
         </where>
         order by tc.created_at desc
+    </select>
+
+    <select id="listTestCasesByQuery" resultMap="testCaseMap">
+        select <include refid="testCaseColumns"/>
+        from asset_test_case tc
+        left join asset_link req
+          on req.target_type = 'CASE'
+         and req.target_id = tc.id
+         and req.source_type = 'REQUIREMENT'
+         and req.link_type = 'VERIFIES'
+         and req.deleted_at is null
+        left join asset_link api
+          on api.source_type = 'API'
+         and api.target_type = 'CASE'
+         and api.target_id = tc.id
+         and api.link_type = 'COVERS'
+         and api.deleted_at is null
+        <include refid="testCaseListWhere"/>
+        order by tc.created_at desc
+        limit #{query.size} offset #{query.offset}
+    </select>
+
+    <select id="countTestCasesByQuery" resultType="long">
+        select count(*)
+        from asset_test_case tc
+        left join asset_link req
+          on req.target_type = 'CASE'
+         and req.target_id = tc.id
+         and req.source_type = 'REQUIREMENT'
+         and req.link_type = 'VERIFIES'
+         and req.deleted_at is null
+        left join asset_link api
+          on api.source_type = 'API'
+         and api.target_type = 'CASE'
+         and api.target_id = tc.id
+         and api.link_type = 'COVERS'
+         and api.deleted_at is null
+        <include refid="testCaseListWhere"/>
     </select>
 
     <select id="getTestCase" resultMap="testCaseMap">

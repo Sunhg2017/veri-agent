@@ -130,16 +130,11 @@ public class AssetService {
 
     public com.songhg.veri.agent.common.api.PageResponse<RequirementResponse> listRequirements(AssetListRequest request) {
         validateProjectWhenProvided(request.getProjectId());
-        String lifecycleStatus = lifecycleFilter(request.getLifecycleStatus());
-        List<RequirementResponse> filtered = repository.requirements(trimToNull(request.getProjectId())).stream()
-                .filter(value -> matchesLifecycle(value.lifecycleStatus(), value.deletedAt(), lifecycleStatus))
-                .filter(value -> matches(value.status(), request.getStatus()))
-                .filter(value -> matches(value.source(), request.getSource()))
-                .filter(value -> containsKeyword(request.getKeyword(), value.code(), value.title(), value.description(), value.sourceRef(), value.tags()))
+        AssetListQuery query = assetListQuery(request);
+        List<RequirementResponse> items = repository.requirements(query).stream()
                 .map(AssetService::toRequirementResponse)
-                .sorted(Comparator.comparing(RequirementResponse::createdAt).reversed())
                 .toList();
-        return page(filtered, request.getIndex(), request.getSize());
+        return com.songhg.veri.agent.common.api.PageResponse.of(items, query.index(), query.size(), repository.countRequirements(query));
     }
 
     public RequirementResponse getRequirement(UUID id) {
@@ -395,16 +390,11 @@ public class AssetService {
 
     public com.songhg.veri.agent.common.api.PageResponse<ApiResponseDTO> listApis(AssetListRequest request) {
         validateProjectWhenProvided(request.getProjectId());
-        String lifecycleStatus = lifecycleFilter(request.getLifecycleStatus());
-        List<ApiResponseDTO> filtered = repository.apis(trimToNull(request.getProjectId())).stream()
-                .filter(value -> matchesLifecycle(value.lifecycleStatus(), value.deletedAt(), lifecycleStatus))
-                .filter(value -> matches(value.status(), request.getStatus()))
-                .filter(value -> matches(value.source(), request.getSource()))
-                .filter(value -> containsKeyword(request.getKeyword(), value.code(), value.summary(), value.description(), value.path(), value.sourceRef()))
+        AssetListQuery query = assetListQuery(request);
+        List<ApiResponseDTO> items = repository.apis(query).stream()
                 .map(AssetService::toApiResponse)
-                .sorted(Comparator.comparing(ApiResponseDTO::createdAt).reversed())
                 .toList();
-        return page(filtered, request.getIndex(), request.getSize());
+        return com.songhg.veri.agent.common.api.PageResponse.of(items, query.index(), query.size(), repository.countApis(query));
     }
 
     public ApiResponseDTO getApi(UUID id) {
@@ -539,16 +529,11 @@ public class AssetService {
 
     public com.songhg.veri.agent.common.api.PageResponse<PageResponse> listPages(AssetListRequest request) {
         validateProjectWhenProvided(request.getProjectId());
-        String lifecycleStatus = lifecycleFilter(request.getLifecycleStatus());
-        List<PageResponse> filtered = repository.pages(trimToNull(request.getProjectId())).stream()
-                .filter(value -> matchesLifecycle(value.lifecycleStatus(), value.deletedAt(), lifecycleStatus))
-                .filter(value -> matches(value.status(), request.getStatus()))
-                .filter(value -> matches(value.source(), request.getSource()))
-                .filter(value -> containsKeyword(request.getKeyword(), value.code(), value.name(), value.urlPattern(), value.sourceRef(), value.sourceVersion()))
+        AssetListQuery query = assetListQuery(request);
+        List<PageResponse> items = repository.pages(query).stream()
                 .map(AssetService::toPageResponse)
-                .sorted(Comparator.comparing(PageResponse::createdAt).reversed())
                 .toList();
-        return page(filtered, request.getIndex(), request.getSize());
+        return com.songhg.veri.agent.common.api.PageResponse.of(items, query.index(), query.size(), repository.countPages(query));
     }
 
     public PageResponse getPage(UUID id) {
@@ -669,15 +654,11 @@ public class AssetService {
 
     public com.songhg.veri.agent.common.api.PageResponse<BusinessFlowResponse> listBusinessFlows(AssetListRequest request) {
         validateProjectWhenProvided(request.getProjectId());
-        String lifecycleStatus = lifecycleFilter(request.getLifecycleStatus());
-        List<BusinessFlowResponse> filtered = repository.businessFlows(trimToNull(request.getProjectId())).stream()
-                .filter(value -> matchesLifecycle(value.lifecycleStatus(), value.deletedAt(), lifecycleStatus))
-                .filter(value -> matches(value.status(), request.getStatus()))
-                .filter(value -> containsKeyword(request.getKeyword(), value.code(), value.name(), value.description()))
+        AssetListQuery query = assetListQuery(request);
+        List<BusinessFlowResponse> items = repository.businessFlows(query).stream()
                 .map(AssetService::toBusinessFlowResponse)
-                .sorted(Comparator.comparing(BusinessFlowResponse::createdAt).reversed())
                 .toList();
-        return page(filtered, request.getIndex(), request.getSize());
+        return com.songhg.veri.agent.common.api.PageResponse.of(items, query.index(), query.size(), repository.countBusinessFlows(query));
     }
 
     public BusinessFlowResponse getBusinessFlow(UUID id) {
@@ -789,16 +770,11 @@ public class AssetService {
 
     public com.songhg.veri.agent.common.api.PageResponse<TestCaseResponse> listTestCases(AssetListRequest request) {
         validateProjectWhenProvided(request.getProjectId());
-        String lifecycleStatus = lifecycleFilter(request.getLifecycleStatus());
-        List<TestCaseResponse> filtered = repository.testCases(trimToNull(request.getProjectId())).stream()
-                .filter(value -> matchesLifecycle(value.lifecycleStatus(), value.deletedAt(), lifecycleStatus))
-                .filter(value -> matches(value.status(), request.getStatus()))
-                .filter(value -> matches(value.source(), request.getSource()))
-                .filter(value -> containsKeyword(request.getKeyword(), value.code(), value.title(), value.description(), value.sourceRef(), value.tags()))
+        AssetListQuery query = assetListQuery(request);
+        List<TestCaseResponse> items = repository.testCases(query).stream()
                 .map(tc -> toTestCaseResponse(tc, tc.steps()))
-                .sorted(Comparator.comparing(TestCaseResponse::createdAt).reversed())
                 .toList();
-        return page(filtered, request.getIndex(), request.getSize());
+        return com.songhg.veri.agent.common.api.PageResponse.of(items, query.index(), query.size(), repository.countTestCases(query));
     }
 
     public TestCaseResponse getTestCase(UUID id) {
@@ -2763,10 +2739,6 @@ public class AssetService {
         return valueIn(rawValue, "ACTIVE", LIFECYCLE_STATUSES, "lifecycleStatus");
     }
 
-    private static boolean matchesLifecycle(String actual, Instant deletedAt, String expected) {
-        return expected.equals(lifecycleStatus(actual, deletedAt));
-    }
-
     private static String lifecycleStatus(String lifecycleStatus, Instant deletedAt) {
         if (deletedAt != null) {
             return "DELETED";
@@ -2839,25 +2811,19 @@ public class AssetService {
         return com.songhg.veri.agent.common.api.PageResponse.of(items.subList(from, to), index, size, items.size());
     }
 
-    private static boolean matches(String actual, String expected) {
-        return !StringUtils.hasText(expected) || expected.trim().equalsIgnoreCase(actual);
-    }
-
-    private static boolean containsKeyword(String keyword, String... values) {
-        if (!StringUtils.hasText(keyword)) {
-            return true;
-        }
-        String normalized = keyword.trim().toLowerCase(Locale.ROOT);
-        for (String value : values) {
-            if (StringUtils.hasText(value) && value.toLowerCase(Locale.ROOT).contains(normalized)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
     private static String assetCode(String prefix, UUID id) {
         return prefix + "-" + id.toString().replace("-", "").substring(0, 12);
+    }
+
+    private static AssetListQuery assetListQuery(AssetListRequest request) {
+        return new AssetListQuery(
+                trimToNull(request.getProjectId()),
+                lifecycleFilter(request.getLifecycleStatus()),
+                request.getStatus(),
+                request.getSource(),
+                request.getKeyword(),
+                request.toPageQuery()
+        );
     }
 
     private static String trimToNull(String value) {

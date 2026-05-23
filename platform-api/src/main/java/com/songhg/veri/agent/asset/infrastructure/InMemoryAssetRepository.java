@@ -1,5 +1,6 @@
 package com.songhg.veri.agent.asset.infrastructure;
 
+import com.songhg.veri.agent.asset.application.AssetListQuery;
 import com.songhg.veri.agent.asset.application.AssetRepository;
 import com.songhg.veri.agent.asset.domain.AssetApi;
 import com.songhg.veri.agent.asset.domain.AssetBusinessFlow;
@@ -18,6 +19,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Stream;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Repository;
 
@@ -39,6 +41,19 @@ public class InMemoryAssetRepository implements AssetRepository {
                 .filter(value -> projectId == null || projectId.equals(value.projectId()))
                 .sorted(Comparator.comparing(AssetRequirement::createdAt).reversed())
                 .toList();
+    }
+
+    @Override
+    public List<AssetRequirement> requirements(AssetListQuery query) {
+        return filteredRequirements(query)
+                .skip(query.offset())
+                .limit(query.size())
+                .toList();
+    }
+
+    @Override
+    public long countRequirements(AssetListQuery query) {
+        return filteredRequirements(query).count();
     }
 
     @Override
@@ -118,6 +133,19 @@ public class InMemoryAssetRepository implements AssetRepository {
     }
 
     @Override
+    public List<AssetApi> apis(AssetListQuery query) {
+        return filteredApis(query)
+                .skip(query.offset())
+                .limit(query.size())
+                .toList();
+    }
+
+    @Override
+    public long countApis(AssetListQuery query) {
+        return filteredApis(query).count();
+    }
+
+    @Override
     public Optional<AssetApi> api(UUID id) {
         return apiIncludingInactive(id)
                 .filter(value -> !"DELETED".equals(lifecycleStatus(value.lifecycleStatus(), value.deletedAt())));
@@ -169,6 +197,19 @@ public class InMemoryAssetRepository implements AssetRepository {
     }
 
     @Override
+    public List<AssetPage> pages(AssetListQuery query) {
+        return filteredPages(query)
+                .skip(query.offset())
+                .limit(query.size())
+                .toList();
+    }
+
+    @Override
+    public long countPages(AssetListQuery query) {
+        return filteredPages(query).count();
+    }
+
+    @Override
     public Optional<AssetPage> page(UUID id) {
         return pageIncludingInactive(id)
                 .filter(value -> !"DELETED".equals(lifecycleStatus(value.lifecycleStatus(), value.deletedAt())));
@@ -216,6 +257,19 @@ public class InMemoryAssetRepository implements AssetRepository {
     }
 
     @Override
+    public List<AssetBusinessFlow> businessFlows(AssetListQuery query) {
+        return filteredBusinessFlows(query)
+                .skip(query.offset())
+                .limit(query.size())
+                .toList();
+    }
+
+    @Override
+    public long countBusinessFlows(AssetListQuery query) {
+        return filteredBusinessFlows(query).count();
+    }
+
+    @Override
     public Optional<AssetBusinessFlow> businessFlow(UUID id) {
         return businessFlowIncludingInactive(id)
                 .filter(value -> !"DELETED".equals(lifecycleStatus(value.lifecycleStatus(), value.deletedAt())));
@@ -247,6 +301,19 @@ public class InMemoryAssetRepository implements AssetRepository {
                 .filter(value -> projectId == null || projectId.equals(value.projectId()))
                 .sorted(Comparator.comparing(TestCaseRecord::createdAt).reversed())
                 .toList();
+    }
+
+    @Override
+    public List<TestCaseRecord> testCases(AssetListQuery query) {
+        return filteredTestCases(query)
+                .skip(query.offset())
+                .limit(query.size())
+                .toList();
+    }
+
+    @Override
+    public long countTestCases(AssetListQuery query) {
+        return filteredTestCases(query).count();
     }
 
     @Override
@@ -339,6 +406,80 @@ public class InMemoryAssetRepository implements AssetRepository {
                 left.caseId() == null ? right.caseId() : left.caseId(),
                 left.createdAt().isBefore(right.createdAt()) ? left.createdAt() : right.createdAt()
         );
+    }
+
+    private Stream<AssetRequirement> filteredRequirements(AssetListQuery query) {
+        return requirements.values().stream()
+                .filter(value -> matchesProject(query.projectId(), value.projectId()))
+                .filter(value -> matchesLifecycle(value.lifecycleStatus(), value.deletedAt(), query.lifecycleStatus()))
+                .filter(value -> matches(value.status(), query.status()))
+                .filter(value -> matches(value.source(), query.source()))
+                .filter(value -> containsKeyword(query.keyword(), value.code(), value.title(), value.description(), value.sourceRef(), value.tags()))
+                .sorted(Comparator.comparing(AssetRequirement::createdAt).reversed());
+    }
+
+    private Stream<AssetApi> filteredApis(AssetListQuery query) {
+        return apis.values().stream()
+                .filter(value -> matchesProject(query.projectId(), value.projectId()))
+                .filter(value -> matchesLifecycle(value.lifecycleStatus(), value.deletedAt(), query.lifecycleStatus()))
+                .filter(value -> matches(value.status(), query.status()))
+                .filter(value -> matches(value.source(), query.source()))
+                .filter(value -> containsKeyword(query.keyword(), value.code(), value.summary(), value.description(), value.path(), value.sourceRef()))
+                .sorted(Comparator.comparing(AssetApi::createdAt).reversed());
+    }
+
+    private Stream<AssetPage> filteredPages(AssetListQuery query) {
+        return pages.values().stream()
+                .filter(value -> matchesProject(query.projectId(), value.projectId()))
+                .filter(value -> matchesLifecycle(value.lifecycleStatus(), value.deletedAt(), query.lifecycleStatus()))
+                .filter(value -> matches(value.status(), query.status()))
+                .filter(value -> matches(value.source(), query.source()))
+                .filter(value -> containsKeyword(query.keyword(), value.code(), value.name(), value.urlPattern(), value.sourceRef(), value.sourceVersion()))
+                .sorted(Comparator.comparing(AssetPage::createdAt).reversed());
+    }
+
+    private Stream<AssetBusinessFlow> filteredBusinessFlows(AssetListQuery query) {
+        return businessFlows.values().stream()
+                .filter(value -> matchesProject(query.projectId(), value.projectId()))
+                .filter(value -> matchesLifecycle(value.lifecycleStatus(), value.deletedAt(), query.lifecycleStatus()))
+                .filter(value -> matches(value.status(), query.status()))
+                .filter(value -> containsKeyword(query.keyword(), value.code(), value.name(), value.description()))
+                .sorted(Comparator.comparing(AssetBusinessFlow::createdAt).reversed());
+    }
+
+    private Stream<TestCaseRecord> filteredTestCases(AssetListQuery query) {
+        return testCases.values().stream()
+                .filter(value -> matchesProject(query.projectId(), value.projectId()))
+                .filter(value -> matchesLifecycle(value.lifecycleStatus(), value.deletedAt(), query.lifecycleStatus()))
+                .filter(value -> matches(value.status(), query.status()))
+                .filter(value -> matches(value.source(), query.source()))
+                .filter(value -> containsKeyword(query.keyword(), value.code(), value.title(), value.description(), value.sourceRef(), value.tags()))
+                .sorted(Comparator.comparing(TestCaseRecord::createdAt).reversed());
+    }
+
+    private static boolean matchesProject(String expectedProjectId, String actualProjectId) {
+        return expectedProjectId == null || expectedProjectId.equals(actualProjectId);
+    }
+
+    private static boolean matchesLifecycle(String actual, Instant deletedAt, String expected) {
+        return expected.equals(lifecycleStatus(actual, deletedAt));
+    }
+
+    private static boolean matches(String actual, String expected) {
+        return expected == null || expected.equalsIgnoreCase(actual);
+    }
+
+    private static boolean containsKeyword(String keyword, String... values) {
+        if (keyword == null) {
+            return true;
+        }
+        String normalized = keyword.toLowerCase(Locale.ROOT);
+        for (String value : values) {
+            if (value != null && value.toLowerCase(Locale.ROOT).contains(normalized)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static String lifecycleStatus(String lifecycleStatus, Instant deletedAt) {

@@ -8,6 +8,7 @@ import com.songhg.veri.agent.asset.domain.AssetVersionHistory;
 import com.songhg.veri.agent.asset.domain.TestCaseRecord;
 import com.songhg.veri.agent.asset.domain.TestCaseStep;
 import com.songhg.veri.agent.asset.domain.TraceLink;
+import com.songhg.veri.agent.asset.application.AssetListQuery;
 import java.util.List;
 import java.util.UUID;
 import org.apache.ibatis.annotations.Mapper;
@@ -19,6 +20,10 @@ public interface AssetMapper {
     // ---- Requirements ----
 
     List<AssetRequirement> listRequirements(@Param("projectId") String projectId);
+
+    List<AssetRequirement> listRequirementsByQuery(@Param("query") AssetListQuery query);
+
+    long countRequirementsByQuery(@Param("query") AssetListQuery query);
 
     AssetRequirement getRequirement(@Param("id") UUID id);
 
@@ -60,6 +65,10 @@ public interface AssetMapper {
 
     List<AssetApi> listApis(@Param("projectId") String projectId);
 
+    List<AssetApi> listApisByQuery(@Param("query") AssetListQuery query);
+
+    long countApisByQuery(@Param("query") AssetListQuery query);
+
     AssetApi getApi(@Param("id") UUID id);
 
     AssetApi getApiIncludingInactive(@Param("id") UUID id);
@@ -87,6 +96,10 @@ public interface AssetMapper {
 
     List<AssetPage> listPages(@Param("projectId") String projectId);
 
+    List<AssetPage> listPagesByQuery(@Param("query") AssetListQuery query);
+
+    long countPagesByQuery(@Param("query") AssetListQuery query);
+
     AssetPage getPage(@Param("id") UUID id);
 
     AssetPage getPageIncludingInactive(@Param("id") UUID id);
@@ -113,6 +126,10 @@ public interface AssetMapper {
 
     List<AssetBusinessFlow> listBusinessFlows(@Param("projectId") String projectId);
 
+    List<AssetBusinessFlow> listBusinessFlowsByQuery(@Param("query") AssetListQuery query);
+
+    long countBusinessFlowsByQuery(@Param("query") AssetListQuery query);
+
     AssetBusinessFlow getBusinessFlow(@Param("id") UUID id);
 
     AssetBusinessFlow getBusinessFlowIncludingInactive(@Param("id") UUID id);
@@ -132,6 +149,10 @@ public interface AssetMapper {
     // ---- Test Cases ----
 
     List<TestCaseRecord> listTestCases(@Param("projectId") String projectId);
+
+    List<TestCaseRecord> listTestCasesByQuery(@Param("query") AssetListQuery query);
+
+    long countTestCasesByQuery(@Param("query") AssetListQuery query);
 
     TestCaseRecord getTestCase(@Param("id") UUID id);
 

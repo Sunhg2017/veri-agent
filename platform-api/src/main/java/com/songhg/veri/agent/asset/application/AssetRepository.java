@@ -16,6 +16,10 @@ public interface AssetRepository {
 
     List<AssetRequirement> requirements(String projectId);
 
+    List<AssetRequirement> requirements(AssetListQuery query);
+
+    long countRequirements(AssetListQuery query);
+
     Optional<AssetRequirement> requirement(UUID id);
 
     Optional<AssetRequirement> requirementIncludingInactive(UUID id);
@@ -34,6 +38,10 @@ public interface AssetRepository {
 
     List<AssetApi> apis(String projectId);
 
+    List<AssetApi> apis(AssetListQuery query);
+
+    long countApis(AssetListQuery query);
+
     Optional<AssetApi> api(UUID id);
 
     Optional<AssetApi> apiIncludingInactive(UUID id);
@@ -45,6 +53,10 @@ public interface AssetRepository {
     boolean hasActiveApiPathConflict(String projectId, String path, String httpMethod, UUID excludeId);
 
     List<AssetPage> pages(String projectId);
+
+    List<AssetPage> pages(AssetListQuery query);
+
+    long countPages(AssetListQuery query);
 
     Optional<AssetPage> page(UUID id);
 
@@ -58,6 +70,10 @@ public interface AssetRepository {
 
     List<AssetBusinessFlow> businessFlows(String projectId);
 
+    List<AssetBusinessFlow> businessFlows(AssetListQuery query);
+
+    long countBusinessFlows(AssetListQuery query);
+
     Optional<AssetBusinessFlow> businessFlow(UUID id);
 
     Optional<AssetBusinessFlow> businessFlowIncludingInactive(UUID id);
@@ -67,6 +83,10 @@ public interface AssetRepository {
     boolean hasActiveBusinessFlowCodeConflict(String projectId, String code, UUID excludeId);
 
     List<TestCaseRecord> testCases(String projectId);
+
+    List<TestCaseRecord> testCases(AssetListQuery query);
+
+    long countTestCases(AssetListQuery query);
 
     Optional<TestCaseRecord> testCase(UUID id);
 
