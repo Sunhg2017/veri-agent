@@ -1,5 +1,6 @@
 package com.songhg.veri.agent.asset.application;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.songhg.veri.agent.asset.api.request.AssetImportRequest;
 import com.songhg.veri.agent.asset.api.request.AssetListRequest;
 import com.songhg.veri.agent.asset.api.request.CreateRequirementRequest;
@@ -26,12 +27,19 @@ class AssetServiceCoreTest {
     private InMemoryAssetRepository repository;
     private RecordingPlatformContextClient contextClient;
     private AssetService service;
+    private AssetImportExportService importExportService;
 
     @BeforeEach
     void setUp() {
         repository = new InMemoryAssetRepository();
         contextClient = new RecordingPlatformContextClient();
         service = new AssetService(repository, contextClient);
+        importExportService = new AssetImportExportService(
+                repository,
+                contextClient,
+                new ObjectMapper().findAndRegisterModules(),
+                service
+        );
     }
 
     @Test
@@ -64,7 +72,7 @@ class AssetServiceCoreTest {
 
     @Test
     void importUpdatesDraftRequirementButRequiresManualReviewAfterApproval() {
-        AssetImportResponse created = service.importAssets(importRequest("""
+        AssetImportResponse created = importExportService.importAssets(importRequest("""
                 title,description,status,priority,sourceRef,tags,acceptanceCriteria
                 登录需求,初始说明,DRAFT,HIGH,REQ-IMPORT-1,auth,初始验收
                 """));
@@ -74,7 +82,7 @@ class AssetServiceCoreTest {
         assertThat(first.title()).isEqualTo("登录需求");
         assertThat(first.version()).isEqualTo(1);
 
-        AssetImportResponse updated = service.importAssets(importRequest("""
+        AssetImportResponse updated = importExportService.importAssets(importRequest("""
                 title,description,status,priority,sourceRef,tags,acceptanceCriteria
                 登录需求V2,更新说明,DRAFT,CRITICAL,REQ-IMPORT-1,auth,更新验收
                 """));
@@ -89,7 +97,7 @@ class AssetServiceCoreTest {
         service.updateRequirement(draftAfterMerge.id(),
                 new UpdateRequirementRequest("登录需求V2", "更新说明", "APPROVED", "CRITICAL", "auth"));
 
-        AssetImportResponse blocked = service.importAssets(importRequest("""
+        AssetImportResponse blocked = importExportService.importAssets(importRequest("""
                 title,description,status,priority,sourceRef,tags,acceptanceCriteria
                 登录需求V3,审批后变更,DRAFT,LOW,REQ-IMPORT-1,auth,审批后验收
                 """));
@@ -108,7 +116,7 @@ class AssetServiceCoreTest {
 
     @Test
     void rejectsOpenApiImportFormatForNonApiAssets() {
-        assertThatThrownBy(() -> service.importAssets(new AssetImportRequest(
+        assertThatThrownBy(() -> importExportService.importAssets(new AssetImportRequest(
                 "REQUIREMENT",
                 "OPENAPI",
                 PROJECT_ID,

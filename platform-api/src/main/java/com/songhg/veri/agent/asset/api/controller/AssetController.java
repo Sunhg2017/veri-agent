@@ -31,6 +31,7 @@ import com.songhg.veri.agent.asset.api.response.RequirementResponse;
 import com.songhg.veri.agent.asset.api.response.TestCaseResponse;
 import com.songhg.veri.agent.asset.api.response.TestCaseStepResponse;
 import com.songhg.veri.agent.asset.api.response.TraceLinkResponse;
+import com.songhg.veri.agent.asset.application.AssetImportExportService;
 import com.songhg.veri.agent.asset.application.AssetService;
 import com.songhg.veri.agent.auth.application.AuthUserPrincipal;
 import com.songhg.veri.agent.authorization.application.AuthorizationService;
@@ -62,10 +63,16 @@ import org.springframework.web.bind.annotation.RestController;
 public class AssetController {
 
     private final AssetService service;
+    private final AssetImportExportService importExportService;
     private final AuthorizationService authorizationService;
 
-    public AssetController(AssetService service, AuthorizationService authorizationService) {
+    public AssetController(
+            AssetService service,
+            AssetImportExportService importExportService,
+            AuthorizationService authorizationService
+    ) {
         this.service = service;
+        this.importExportService = importExportService;
         this.authorizationService = authorizationService;
     }
 
@@ -77,13 +84,13 @@ public class AssetController {
     @PostMapping("/imports")
     public AssetImportResponse importAssets(@Valid @RequestBody AssetImportRequest request) {
         requireProjectPermission("asset:manage", request.projectId());
-        return service.importAssets(request);
+        return importExportService.importAssets(request);
     }
 
     @GetMapping("/exports")
     public ResponseEntity<byte[]> exportAssets(@Valid AssetExportRequest request) {
         requireListPermission("asset:export", request);
-        AssetExportPayload payload = service.exportAssets(request);
+        AssetExportPayload payload = importExportService.exportAssets(request);
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType(payload.contentType()))
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + payload.fileName() + "\"")
