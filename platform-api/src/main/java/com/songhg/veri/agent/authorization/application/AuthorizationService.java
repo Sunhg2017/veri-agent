@@ -2,9 +2,11 @@ package com.songhg.veri.agent.authorization.application;
 
 import com.songhg.veri.agent.auth.application.AuthUserPrincipal;
 import com.songhg.veri.agent.common.audit.AuditLogWriter;
+import com.songhg.veri.agent.modelaccess.security.ServicePrincipal;
 import java.util.List;
 import java.util.Set;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -29,6 +31,28 @@ public class AuthorizationService {
             ));
             throw new AccessDeniedException("缺少权限：" + permission);
         }
+    }
+
+    public AuthUserPrincipal requireCurrent(String permission) {
+        Object principal = currentPrincipal();
+        if (principal instanceof ServicePrincipal) {
+            return null;
+        }
+        if (principal instanceof AuthUserPrincipal userPrincipal) {
+            require(userPrincipal, permission);
+            return userPrincipal;
+        }
+        throw new AccessDeniedException("缺少权限：" + permission);
+    }
+
+    public AuthUserPrincipal currentUserPrincipal() {
+        Object principal = currentPrincipal();
+        return principal instanceof AuthUserPrincipal userPrincipal ? userPrincipal : null;
+    }
+
+    public ServicePrincipal currentServicePrincipal() {
+        Object principal = currentPrincipal();
+        return principal instanceof ServicePrincipal servicePrincipal ? servicePrincipal : null;
     }
 
     public void require(AuthUserPrincipal principal, String permission, ResourceScope scope) {
@@ -68,5 +92,10 @@ public class AuthorizationService {
 
     public Set<String> permissions(List<String> roles) {
         return permissionResolver.permissionsForRoles(roles);
+    }
+
+    private Object currentPrincipal() {
+        var authentication = SecurityContextHolder.getContext().getAuthentication();
+        return authentication == null ? null : authentication.getPrincipal();
     }
 }

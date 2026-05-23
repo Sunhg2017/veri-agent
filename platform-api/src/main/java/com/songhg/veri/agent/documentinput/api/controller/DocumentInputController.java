@@ -1,8 +1,7 @@
 package com.songhg.veri.agent.documentinput.api.controller;
 
 import com.songhg.veri.agent.common.api.PageResponse;
-import com.songhg.veri.agent.auth.application.AuthUserPrincipal;
-import com.songhg.veri.agent.authorization.application.AuthorizationService;
+import com.songhg.veri.agent.authorization.application.RequirePermission;
 import com.songhg.veri.agent.documentinput.api.request.CandidateBatchActionRequest;
 import com.songhg.veri.agent.documentinput.api.request.ConfirmDocumentCandidateRequest;
 import com.songhg.veri.agent.documentinput.api.request.CreateDocumentImportRequest;
@@ -32,14 +31,11 @@ import com.songhg.veri.agent.documentinput.application.DocumentInputService;
 import com.songhg.veri.agent.documentinput.application.DocumentSourceQuery;
 import com.songhg.veri.agent.documentinput.application.DocumentWebhookEventQuery;
 import com.songhg.veri.agent.documentinput.domain.DocumentSourceType;
-import com.songhg.veri.agent.modelaccess.security.ServicePrincipal;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
-import org.springframework.security.access.AccessDeniedException;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -57,11 +53,9 @@ import org.springframework.web.multipart.MultipartFile;
 public class DocumentInputController {
 
     private final DocumentInputService service;
-    private final AuthorizationService authorizationService;
 
-    public DocumentInputController(DocumentInputService service, AuthorizationService authorizationService) {
+    public DocumentInputController(DocumentInputService service) {
         this.service = service;
-        this.authorizationService = authorizationService;
     }
 
     @GetMapping("/health")
@@ -70,8 +64,8 @@ public class DocumentInputController {
     }
 
     @GetMapping("/sources")
+    @RequirePermission("requirementInput:read")
     public PageResponse<DocumentSourceResponse> sources(@Valid DocumentSourcePageRequest request) {
-        requirePermission("requirementInput:read");
         return service.sources(new DocumentSourceQuery(
                 request.getSourceType(),
                 request.getStatus(),
@@ -81,47 +75,48 @@ public class DocumentInputController {
 
     @PostMapping("/sources")
     @ResponseStatus(HttpStatus.CREATED)
+    @RequirePermission("requirementInput:manage")
     public DocumentSourceResponse createSource(@Valid @RequestBody UpsertDocumentSourceRequest request) {
-        requirePermission("requirementInput:manage");
         return service.createSource(request);
     }
 
     @PutMapping("/sources/{id}")
+    @RequirePermission("requirementInput:manage")
     public DocumentSourceResponse updateSource(
             @PathVariable UUID id,
             @Valid @RequestBody UpsertDocumentSourceRequest request
     ) {
-        requirePermission("requirementInput:manage");
         return service.updateSource(id, request);
     }
 
     @GetMapping("/sources/{id}/health")
+    @RequirePermission("requirementInput:read")
     public DocumentSourceHealthResponse sourceHealth(@PathVariable UUID id) {
-        requirePermission("requirementInput:read");
         return service.sourceHealth(id);
     }
 
     @GetMapping("/field-mapping")
+    @RequirePermission("requirementInput:read")
     public FieldMappingResponse fieldMapping() {
-        requirePermission("requirementInput:read");
         return service.fieldMapping();
     }
 
     @PutMapping("/field-mapping")
+    @RequirePermission("requirementInput:manage")
     public FieldMappingResponse updateFieldMapping(@Valid @RequestBody UpdateFieldMappingRequest request) {
-        requirePermission("requirementInput:manage");
         return service.updateFieldMapping(request);
     }
 
     @PostMapping("/imports")
     @ResponseStatus(HttpStatus.CREATED)
+    @RequirePermission("requirementInput:import")
     public DocumentImportResponse importDocument(@Valid @RequestBody CreateDocumentImportRequest request) {
-        requirePermission("requirementInput:import");
         return service.importDocument(request);
     }
 
     @PostMapping(path = "/imports/multipart", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @ResponseStatus(HttpStatus.CREATED)
+    @RequirePermission("requirementInput:import")
     public DocumentImportResponse importMultipart(
             @RequestParam String projectId,
             @RequestParam DocumentSourceType sourceType,
@@ -132,7 +127,6 @@ public class DocumentInputController {
             @RequestParam(required = false) UUID sourceId,
             @RequestParam("file") MultipartFile file
     ) throws java.io.IOException {
-        requirePermission("requirementInput:import");
         return service.importMultipart(
                 projectId,
                 sourceType,
@@ -148,8 +142,8 @@ public class DocumentInputController {
     }
 
     @GetMapping("/imports")
+    @RequirePermission("requirementInput:read")
     public PageResponse<DocumentImportResponse> imports(@Valid DocumentImportPageRequest request) {
-        requirePermission("requirementInput:read");
         return service.imports(new DocumentImportQuery(
                 request.getProjectId(),
                 request.getSourceId(),
@@ -160,93 +154,93 @@ public class DocumentInputController {
     }
 
     @GetMapping("/imports/{id}")
+    @RequirePermission("requirementInput:read")
     public DocumentImportResponse importRecord(@PathVariable UUID id) {
-        requirePermission("requirementInput:read");
         return service.importRecord(id);
     }
 
     @GetMapping("/imports/{id}/candidates")
+    @RequirePermission("requirementInput:read")
     public PageResponse<DocumentCandidateResponse> candidates(
             @PathVariable UUID id,
             @Valid DocumentCandidatePageRequest request
     ) {
-        requirePermission("requirementInput:read");
         return service.candidates(request.toQuery(id));
     }
 
     @PostMapping("/imports/{id}/publish")
+    @RequirePermission("requirementInput:publish")
     public DocumentPublishResponse publishImport(
             @PathVariable UUID id,
             @RequestBody(required = false) DocumentPublishRequest request
     ) {
-        requirePermission("requirementInput:publish");
         return service.publishImport(id, request);
     }
 
     @GetMapping("/imports/{id}/publish-records")
+    @RequirePermission("requirementInput:read")
     public PageResponse<DocumentPublishRecordResponse> publishRecords(@PathVariable UUID id) {
-        requirePermission("requirementInput:read");
         return service.publishRecords(id);
     }
 
     @PutMapping("/candidates/{id}")
+    @RequirePermission("requirementInput:candidate_review")
     public DocumentCandidateResponse updateCandidate(
             @PathVariable UUID id,
             @Valid @RequestBody UpdateDocumentCandidateRequest request
     ) {
-        requirePermission("requirementInput:candidate_review");
         return service.updateCandidate(id, request);
     }
 
     @PostMapping("/candidates/{id}/confirm")
+    @RequirePermission("requirementInput:candidate_review")
     public DocumentCandidateResponse confirmCandidate(
             @PathVariable UUID id,
             @RequestBody(required = false) ConfirmDocumentCandidateRequest request
     ) {
-        requirePermission("requirementInput:candidate_review");
         return service.confirmCandidate(id, request);
     }
 
     @PostMapping("/candidates/{id}/ignore")
+    @RequirePermission("requirementInput:candidate_review")
     public DocumentCandidateResponse ignoreCandidate(
             @PathVariable UUID id,
             @Valid @RequestBody(required = false) IgnoreDocumentCandidateRequest request
     ) {
-        requirePermission("requirementInput:candidate_review");
         return service.ignoreCandidate(id, request);
     }
 
     @PostMapping("/candidates/batch-action")
+    @RequirePermission("requirementInput:candidate_review")
     public DocumentCandidateBatchActionResponse batchCandidateAction(
             @Valid @RequestBody CandidateBatchActionRequest request
     ) {
-        requirePermission("requirementInput:candidate_review");
         return service.batchCandidateAction(request);
     }
 
     @GetMapping("/feedback-samples")
+    @RequirePermission("requirementInput:read")
     public PageResponse<DocumentParseFeedbackSampleResponse> feedbackSamples(
             @Valid DocumentParseFeedbackPageRequest request
     ) {
-        requirePermission("requirementInput:read");
         return service.parseFeedbackSamples(request.toQuery());
     }
 
     @GetMapping("/webhook-events")
+    @RequirePermission("requirementInput:read")
     public PageResponse<DocumentWebhookEventResponse> webhookEvents(@Valid WebhookEventPageRequest request) {
-        requirePermission("requirementInput:read");
         return service.webhookEvents(request.toQuery());
     }
 
     @GetMapping("/webhook-events/{id}")
+    @RequirePermission("requirementInput:read")
     public DocumentWebhookEventResponse webhookEvent(@PathVariable UUID id) {
-        requirePermission("requirementInput:read");
         return service.webhookEvent(id);
     }
 
     @PostMapping("/webhook-events/{id}/replay")
+    @RequirePermission("requirementInput:webhook_replay")
     public DocumentWebhookEventResponse replayWebhookEvent(@PathVariable UUID id) {
-        requirePermission("requirementInput:webhook_replay");
         return service.replayWebhookEvent(id);
     }
 
@@ -276,15 +270,4 @@ public class DocumentInputController {
         );
     }
 
-    private void requirePermission(String permission) {
-        var authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication != null && authentication.getPrincipal() instanceof ServicePrincipal) {
-            return;
-        }
-        if (authentication != null && authentication.getPrincipal() instanceof AuthUserPrincipal principal) {
-            authorizationService.require(principal, permission);
-            return;
-        }
-        throw new AccessDeniedException("缺少权限：" + permission);
-    }
 }

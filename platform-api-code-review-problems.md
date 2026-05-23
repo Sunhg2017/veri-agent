@@ -23,7 +23,7 @@
 | S8 | 文档导入事务边界 | 已完成 | `DocumentInputService.importDocument/importMultipart` 增加事务边界 |
 | A1 | Service 单一职责拆分 | 专项任务 | 拆到 WP2/WP3/WP4 分模块重构专项，先保留行为不变并以测试护栏推进 |
 | A2 | 贫血领域模型治理 | 专项任务 | 拆到领域规则内聚专项，优先迁移状态转换和版本规则 |
-| A3 | 统一权限注解/AOP | 有条件通过 | AssetController 已统一走 `AuthorizationService` + `ResourceScope`；跨模块 `@RequirePermission` 注解/AOP 切面仍作为后续治理专项 |
+| A3 | 统一权限注解/AOP | 已完成 | 新增 `@RequirePermission` 注解和 AOP 切面；ModelAccessController、DocumentInputController 的普通权限入口改为注解校验；AssetController 保留资源级 `ResourceScope` 显式校验但不再直接读取 `SecurityContextHolder` |
 | A4 / Q8 / T3 | local/db profile 行为差异与 db 测试不足 | 专项任务 | 增加 Testcontainers db-profile 契约测试；本批只处理 P2 的内存 refresh 索引 |
 | A5 | 审计写入独立可靠性 | 专项任务 | 拆为审计 outbox/独立事务专项，需评估失败补偿和发布策略 |
 | A6 | 分层异常策略 | 专项任务 | 拆为异常层次和日志上下文规范专项 |
@@ -53,11 +53,10 @@
 
 ### 剩余专项优先级
 
-1. WP3 数据与权限专项：A3，继续完成跨模块权限注解/AOP 收敛。
-2. DB 集成测试专项：A4、Q8、T3，加入 db-profile Testcontainers 覆盖核心 mapper、事务和约束。
-3. WP2 查询/导出专项：P3、P4，补 distinct SQL、流式 CSV 和大数据量测试。
-4. 架构治理专项：A1、A2、A5、A6，按模块逐步拆分并保持接口兼容。
-5. 运行治理专项：D1、M1、M2、M3、X1、X3，补发布回滚、配置分层、API 版本策略、OpenAPI 覆盖和分布式可靠性。
+1. DB 集成测试专项：A4、Q8、T3，加入 db-profile Testcontainers 覆盖核心 mapper、事务和约束。
+2. WP2 查询/导出专项：P3、P4，补 distinct SQL、流式 CSV 和大数据量测试。
+3. 架构治理专项：A1、A2、A5、A6，按模块逐步拆分并保持接口兼容。
+4. 运行治理专项：D1、M1、M2、M3、X1、X3，补发布回滚、配置分层、API 版本策略、OpenAPI 覆盖和分布式可靠性。
 
 ## 一、安全风险 (Security)
 
@@ -144,6 +143,7 @@
 
 - **问题**: `AssetController.requirePermission()`、`ModelAccessController.requirePermission()`、`DocumentInputController.requirePermission()` 各有一套独立的权限校验实现（直接读取 `SecurityContextHolder`），存在重复代码。
 - **建议**: 抽取统一的 `@RequirePermission` 注解 + AOP 切面实现权限校验
+- **处理结果**: 已抽取 `@RequirePermission` + `RequirePermissionAspect`，普通控制器权限由注解统一触发；`AuthorizationService` 提供当前主体读取和服务令牌兼容逻辑；`AssetController` 的项目/资源级授权继续显式调用 `ResourceScope`，但底层主体读取已统一到 `AuthorizationService`。
 
 ### [MEDIUM] A4: InMemory 实现与 Postgres 实现行为不一致
 

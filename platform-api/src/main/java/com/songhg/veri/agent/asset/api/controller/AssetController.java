@@ -35,7 +35,6 @@ import com.songhg.veri.agent.asset.application.AssetService;
 import com.songhg.veri.agent.auth.application.AuthUserPrincipal;
 import com.songhg.veri.agent.authorization.application.AuthorizationService;
 import com.songhg.veri.agent.authorization.application.ResourceScope;
-import com.songhg.veri.agent.modelaccess.security.ServicePrincipal;
 import jakarta.validation.Valid;
 import java.util.List;
 import java.util.Map;
@@ -44,8 +43,6 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.AccessDeniedException;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -407,15 +404,7 @@ public class AssetController {
     }
 
     private AuthUserPrincipal requirePermission(String permission) {
-        var authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication != null && authentication.getPrincipal() instanceof ServicePrincipal) {
-            return null;
-        }
-        if (authentication != null && authentication.getPrincipal() instanceof AuthUserPrincipal principal) {
-            authorizationService.require(principal, permission);
-            return principal;
-        }
-        throw new AccessDeniedException("缺少权限：" + permission);
+        return authorizationService.requireCurrent(permission);
     }
 
     private void requireListPermission(String permission, AssetListRequest request) {
