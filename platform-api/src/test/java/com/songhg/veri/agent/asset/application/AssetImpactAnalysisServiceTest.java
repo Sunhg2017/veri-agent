@@ -37,7 +37,7 @@ class AssetImpactAnalysisServiceTest {
     void setUp() {
         repository = new InMemoryAssetRepository();
         contextClient = new RecordingPlatformContextClient();
-        service = new AssetImpactAnalysisService(repository, contextClient);
+        service = new AssetImpactAnalysisService(repository, new AssetProjectAuditService(contextClient));
     }
 
     @Test

@@ -28,25 +28,30 @@ public class AssetPrototypeSyncService {
     private static final Set<String> PROTOTYPE_SOURCES = Set.of("FIGMA", "LANHU", "AXURE");
 
     private final AssetRepository repository;
-    private final PlatformContextClient contextClient;
+    private final AssetProjectAuditService projectAuditService;
     private final ObjectMapper objectMapper;
 
     public AssetPrototypeSyncService(
             AssetRepository repository,
-            PlatformContextClient contextClient,
+            AssetProjectAuditService projectAuditService,
             ObjectMapper objectMapper
     ) {
         this.repository = repository;
-        this.contextClient = contextClient;
+        this.projectAuditService = projectAuditService;
         this.objectMapper = objectMapper;
     }
 
     @Transactional
     public AssetPrototypeSyncResponse syncPrototypePages(AssetPrototypeSyncRequest request) {
         String source = valueIn(request.source(), null, PROTOTYPE_SOURCES, "source");
-        String projectId = projectContext(request.projectId()).projectId();
+        String projectId = projectAuditService.resolveProjectScopeId(request.projectId());
         boolean dryRun = Boolean.TRUE.equals(request.dryRun());
-        writeAssetBatchAudit(dryRun ? "PROTOTYPE_SYNC_DRY_RUN" : "PROTOTYPE_SYNC", "PAGE", projectId, "SUCCEEDED");
+        projectAuditService.writeAssetBatchAudit(
+                dryRun ? "PROTOTYPE_SYNC_DRY_RUN" : "PROTOTYPE_SYNC",
+                "PAGE",
+                projectId,
+                "SUCCEEDED"
+        );
         List<AssetImportItemResponse> items = new ArrayList<>();
         for (int i = 0; i < request.pages().size(); i++) {
             items.add(syncPrototypePage(projectId, source, request, request.pages().get(i), i + 1, dryRun));
@@ -83,7 +88,7 @@ public class AssetPrototypeSyncService {
                     return new AssetImportItemResponse(row, "LINK_EXISTING", existing.get().id(), existing.get().code(), dryRun ? "PLANNED" : "SUCCEEDED", "无差异，复用既有页面", List.of());
                 }
                 if (!dryRun) {
-                    writeProjectAudit("PROTOTYPE_SYNC_UPDATE", "PAGE", existing.get().id(), projectId);
+                    projectAuditService.writeProjectAudit("PROTOTYPE_SYNC_UPDATE", "PAGE", existing.get().id(), projectId);
                     repository.savePage(merged);
                 }
                 return new AssetImportItemResponse(row, "UPDATE", existing.get().id(), existing.get().code(), dryRun ? "PLANNED" : "SUCCEEDED", "同步更新页面", List.of());
@@ -109,7 +114,7 @@ public class AssetPrototypeSyncService {
                     now
             );
             if (!dryRun) {
-                writeProjectAudit("PROTOTYPE_SYNC_CREATE", "PAGE", id, projectId);
+                projectAuditService.writeProjectAudit("PROTOTYPE_SYNC_CREATE", "PAGE", id, projectId);
                 repository.savePage(created);
             }
             return new AssetImportItemResponse(row, "CREATE", id, created.code(), dryRun ? "PLANNED" : "SUCCEEDED", "同步创建页面", List.of());
@@ -178,27 +183,6 @@ public class AssetPrototypeSyncService {
         } catch (JsonProcessingException e) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "JSON 字段格式不合法");
         }
-    }
-
-    private PlatformContextClient.ProjectContext projectContext(String projectId) {
-        PlatformContextClient.ProjectContext context = contextClient.getProjectContext(projectId);
-        if (!StringUtils.hasText(context.projectId())) {
-            throw new BusinessException(ErrorCode.NOT_FOUND, "项目上下文不存在: " + projectId);
-        }
-        if (!STATUS_ACTIVE.equals(context.status())) {
-            throw new BusinessException(ErrorCode.INVALID_STATE, "项目状态不允许写入资产: " + projectId);
-        }
-        return context;
-    }
-
-    private void writeProjectAudit(String action, String resourceType, UUID resourceId, String projectId) {
-        String scopeId = StringUtils.hasText(projectId) ? projectContext(projectId).projectId() : null;
-        contextClient.writeAuditEvent(action, resourceType, resourceId.toString(), scopeId, "SUCCEEDED");
-    }
-
-    private void writeAssetBatchAudit(String action, String resourceType, String projectId, String result) {
-        String scopeId = StringUtils.hasText(projectId) ? projectContext(projectId).projectId() : null;
-        contextClient.writeAuditEvent(action, resourceType, UUID.randomUUID().toString(), scopeId, result);
     }
 
     private static int countAction(List<AssetImportItemResponse> items, String action) {

@@ -47,15 +47,15 @@ public class AssetImpactAnalysisService {
     );
 
     private final AssetRepository repository;
-    private final PlatformContextClient contextClient;
+    private final AssetProjectAuditService projectAuditService;
 
-    public AssetImpactAnalysisService(AssetRepository repository, PlatformContextClient contextClient) {
+    public AssetImpactAnalysisService(AssetRepository repository, AssetProjectAuditService projectAuditService) {
         this.repository = repository;
-        this.contextClient = contextClient;
+        this.projectAuditService = projectAuditService;
     }
 
     public AssetImpactAnalysisResponse analyzeImpact(String projectId, String rawSubjectType, UUID subjectId) {
-        String scopeProjectId = projectContext(projectId).projectId();
+        String scopeProjectId = projectAuditService.resolveProjectScopeId(projectId);
         String subjectType = subjectType(rawSubjectType);
         Map<UUID, AssetRequirement> requirements = mapById(repository.requirements(scopeProjectId), AssetRequirement::id);
         Map<UUID, AssetApi> apis = mapById(repository.apis(scopeProjectId), AssetApi::id);
@@ -163,24 +163,7 @@ public class AssetImpactAnalysisService {
     }
 
     private void writeImpactAudit(String projectId) {
-        contextClient.writeAuditEvent(
-                "IMPACT_ANALYSIS",
-                "ASSET_IMPACT",
-                UUID.randomUUID().toString(),
-                projectId,
-                "SUCCEEDED"
-        );
-    }
-
-    private PlatformContextClient.ProjectContext projectContext(String projectId) {
-        PlatformContextClient.ProjectContext context = contextClient.getProjectContext(projectId);
-        if (!StringUtils.hasText(context.projectId())) {
-            throw new BusinessException(ErrorCode.NOT_FOUND, "项目上下文不存在: " + projectId);
-        }
-        if (!"ACTIVE".equals(context.status())) {
-            throw new BusinessException(ErrorCode.INVALID_STATE, "项目状态不允许写入资产: " + projectId);
-        }
-        return context;
+        projectAuditService.writeAssetBatchAudit("IMPACT_ANALYSIS", "ASSET_IMPACT", projectId, "SUCCEEDED");
     }
 
     private static <T> Map<UUID, T> mapById(List<T> items, Function<T, UUID> idGetter) {

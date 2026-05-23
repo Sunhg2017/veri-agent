@@ -100,8 +100,8 @@ public class AssetService {
     );
 
     private final AssetRepository repository;
-    private final PlatformContextClient contextClient;
     private final ObjectMapper objectMapper;
+    private final AssetProjectAuditService projectAuditService;
     private final AssetVersionHistoryService versionHistoryService;
     private final AssetImpactAnalysisService impactAnalysisService;
     private final AssetPrototypeSyncService prototypeSyncService;
@@ -113,36 +113,58 @@ public class AssetService {
     }
 
     public AssetService(AssetRepository repository, PlatformContextClient contextClient, ObjectMapper objectMapper) {
+        this(repository, objectMapper, new AssetProjectAuditService(contextClient));
+    }
+
+    private AssetService(
+            AssetRepository repository,
+            ObjectMapper objectMapper,
+            AssetProjectAuditService projectAuditService
+    ) {
         this(
                 repository,
-                contextClient,
                 objectMapper,
                 new AssetVersionHistoryService(repository, objectMapper),
-                new AssetImpactAnalysisService(repository, contextClient),
-                new AssetPrototypeSyncService(repository, contextClient, objectMapper),
-                new AssetTraceLinkService(repository, contextClient),
+                projectAuditService
+        );
+    }
+
+    private AssetService(
+            AssetRepository repository,
+            ObjectMapper objectMapper,
+            AssetVersionHistoryService versionHistoryService,
+            AssetProjectAuditService projectAuditService
+    ) {
+        this(
+                repository,
+                objectMapper,
+                versionHistoryService,
+                new AssetImpactAnalysisService(repository, projectAuditService),
+                new AssetPrototypeSyncService(repository, projectAuditService, objectMapper),
+                new AssetTraceLinkService(repository, projectAuditService),
                 new AssetTestCaseStepService(
                         repository,
-                        contextClient,
-                        new AssetVersionHistoryService(repository, objectMapper)
-                )
+                        projectAuditService,
+                        versionHistoryService
+                ),
+                projectAuditService
         );
     }
 
     @Autowired
     public AssetService(
             AssetRepository repository,
-            PlatformContextClient contextClient,
             ObjectMapper objectMapper,
             AssetVersionHistoryService versionHistoryService,
             AssetImpactAnalysisService impactAnalysisService,
             AssetPrototypeSyncService prototypeSyncService,
             AssetTraceLinkService traceLinkService,
-            AssetTestCaseStepService testCaseStepService
+            AssetTestCaseStepService testCaseStepService,
+            AssetProjectAuditService projectAuditService
     ) {
         this.repository = repository;
-        this.contextClient = contextClient;
         this.objectMapper = objectMapper;
+        this.projectAuditService = projectAuditService;
         this.versionHistoryService = versionHistoryService;
         this.impactAnalysisService = impactAnalysisService;
         this.prototypeSyncService = prototypeSyncService;
@@ -1030,7 +1052,7 @@ public class AssetService {
     }
 
     private AssetImportExportService importExportService() {
-        return new AssetImportExportService(repository, contextClient, objectMapper, this);
+        return new AssetImportExportService(repository, projectAuditService, objectMapper, this);
     }
 
     // ---- Prototype sync / impact analysis ----
@@ -1178,34 +1200,19 @@ public class AssetService {
     }
 
     private void validateProjectWhenProvided(String projectId) {
-        if (StringUtils.hasText(projectId)) {
-            projectContext(projectId);
-        }
+        projectAuditService.validateProjectWhenProvided(projectId);
     }
 
     private PlatformContextClient.ProjectContext projectContext(String projectId) {
-        PlatformContextClient.ProjectContext context = contextClient.getProjectContext(projectId);
-        if (!StringUtils.hasText(context.projectId())) {
-            throw new BusinessException(ErrorCode.NOT_FOUND, "项目上下文不存在: " + projectId);
-        }
-        if (!"ACTIVE".equals(context.status())) {
-            throw new BusinessException(ErrorCode.INVALID_STATE, "项目状态不允许写入资产: " + projectId);
-        }
-        return context;
+        return projectAuditService.projectContext(projectId);
     }
 
     private void writeProjectAudit(String action, String resourceType, UUID resourceId, String projectId) {
-        writeProjectAudit(action, resourceType, resourceId, projectId, "SUCCEEDED");
+        projectAuditService.writeProjectAudit(action, resourceType, resourceId, projectId);
     }
 
     private void writeProjectAudit(String action, String resourceType, UUID resourceId, String projectId, String result) {
-        String scopeId = StringUtils.hasText(projectId) ? projectContext(projectId).projectId() : null;
-        contextClient.writeAuditEvent(action, resourceType, resourceId.toString(), scopeId, result);
-    }
-
-    private void writeAssetBatchAudit(String action, String resourceType, String projectId, String result) {
-        String scopeId = StringUtils.hasText(projectId) ? projectContext(projectId).projectId() : null;
-        contextClient.writeAuditEvent(action, resourceType, UUID.randomUUID().toString(), scopeId, result);
+        projectAuditService.writeProjectAudit(action, resourceType, resourceId, projectId, result);
     }
 
     private void validateRequirementBelongsToProject(UUID requirementId, String projectId) {

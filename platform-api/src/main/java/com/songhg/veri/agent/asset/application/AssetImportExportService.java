@@ -62,18 +62,18 @@ public class AssetImportExportService {
     private static final Set<String> IMPORT_EXPORT_ASSET_TYPES = IMPORT_EXPORT_FORMATS_BY_ASSET_TYPE.keySet();
 
     private final AssetRepository repository;
-    private final PlatformContextClient contextClient;
+    private final AssetProjectAuditService projectAuditService;
     private final ObjectMapper objectMapper;
     private final AssetService assetService;
 
     public AssetImportExportService(
             AssetRepository repository,
-            PlatformContextClient contextClient,
+            AssetProjectAuditService projectAuditService,
             ObjectMapper objectMapper,
             AssetService assetService
     ) {
         this.repository = repository;
-        this.contextClient = contextClient;
+        this.projectAuditService = projectAuditService;
         this.objectMapper = objectMapper;
         this.assetService = assetService;
     }
@@ -81,10 +81,15 @@ public class AssetImportExportService {
     public AssetImportResponse importAssets(AssetImportRequest request) {
         String assetType = importExportAssetType(request.assetType());
         String format = importExportFormat(assetType, request.format(), "导入");
-        validateProjectWhenProvided(request.projectId());
+        projectAuditService.validateProjectWhenProvided(request.projectId());
         boolean dryRun = Boolean.TRUE.equals(request.dryRun());
         List<Map<String, String>> rows = parseImportRows(format, request.content());
-        writeAssetBatchAudit(dryRun ? "IMPORT_DRY_RUN" : "IMPORT", "ASSET_" + assetType, request.projectId(), "SUCCEEDED");
+        projectAuditService.writeAssetBatchAudit(
+                dryRun ? "IMPORT_DRY_RUN" : "IMPORT",
+                "ASSET_" + assetType,
+                request.projectId(),
+                "SUCCEEDED"
+        );
         List<AssetImportItemResponse> items = new ArrayList<>();
         for (int i = 0; i < rows.size(); i++) {
             ImportPlan plan = planImportRow(assetType, request.projectId(), rows.get(i), i + 1);
@@ -99,14 +104,14 @@ public class AssetImportExportService {
         String assetType = importExportAssetType(request.getAssetType());
         String format = importExportFormat(assetType, request.getFormat(), "导出");
         String projectId = trimToNull(request.getProjectId());
-        validateProjectWhenProvided(projectId);
+        projectAuditService.validateProjectWhenProvided(projectId);
         String content = switch (assetType) {
             case ASSET_REQUIREMENT -> exportRequirements(request, format);
             case ASSET_API -> exportApis(request, format);
             case ASSET_TEST_CASE -> exportTestCases(request, format);
             default -> throw new BusinessException(ErrorCode.VALIDATION_ERROR, "assetType 不合法: " + assetType);
         };
-        writeAssetBatchAudit("EXPORT", "ASSET_" + assetType, projectId, "SUCCEEDED");
+        projectAuditService.writeAssetBatchAudit("EXPORT", "ASSET_" + assetType, projectId, "SUCCEEDED");
         String extension = FORMAT_OPENAPI.equals(format) ? "json" : format.toLowerCase(Locale.ROOT);
         String contentType = FORMAT_CSV.equals(format) ? "text/csv;charset=UTF-8" : "application/json;charset=UTF-8";
         return new AssetExportPayload(
@@ -314,7 +319,7 @@ public class AssetImportExportService {
     }
 
     private AssetApi createImportedApi(String projectId, Map<String, String> row) {
-        String scopeId = projectContext(projectId).projectId();
+        String scopeId = projectAuditService.resolveProjectScopeId(projectId);
         UUID id = UUID.randomUUID();
         Instant now = Instant.now();
         AssetApi api = new AssetApi(
@@ -337,7 +342,7 @@ public class AssetImportExportService {
                 now,
                 now
         );
-        writeProjectAudit("CREATE", "API", id, scopeId);
+        projectAuditService.writeProjectAudit("CREATE", "API", id, scopeId);
         AssetApi stored = repository.saveApi(api);
         log.info("Created imported api id={}, path={}, method={}, trace_id={}",
                 id, api.path(), api.httpMethod(), TraceContext.getTraceId());
@@ -348,7 +353,7 @@ public class AssetImportExportService {
         AssetApi existing = repository.api(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "API不存在: " + id));
         AssetApi merged = mergeImportedApi(existing, row, Instant.now());
-        writeProjectAudit("UPDATE", "API", id, existing.projectId());
+        projectAuditService.writeProjectAudit("UPDATE", "API", id, existing.projectId());
         AssetApi stored = repository.saveApi(merged);
         log.info("Updated imported api id={}, path={}, method={}, trace_id={}",
                 id, stored.path(), stored.httpMethod(), TraceContext.getTraceId());
@@ -866,33 +871,6 @@ public class AssetImportExportService {
         } catch (JsonProcessingException e) {
             throw new BusinessException(ErrorCode.INTERNAL_ERROR, "资产导入导出序列化失败");
         }
-    }
-
-    private void validateProjectWhenProvided(String projectId) {
-        if (StringUtils.hasText(projectId)) {
-            projectContext(projectId);
-        }
-    }
-
-    private PlatformContextClient.ProjectContext projectContext(String projectId) {
-        PlatformContextClient.ProjectContext context = contextClient.getProjectContext(projectId);
-        if (!StringUtils.hasText(context.projectId())) {
-            throw new BusinessException(ErrorCode.NOT_FOUND, "项目上下文不存在: " + projectId);
-        }
-        if (!STATUS_ACTIVE.equals(context.status())) {
-            throw new BusinessException(ErrorCode.INVALID_STATE, "项目状态不允许写入资产: " + projectId);
-        }
-        return context;
-    }
-
-    private void writeProjectAudit(String action, String resourceType, UUID resourceId, String projectId) {
-        String scopeId = StringUtils.hasText(projectId) ? projectContext(projectId).projectId() : null;
-        contextClient.writeAuditEvent(action, resourceType, resourceId.toString(), scopeId, "SUCCEEDED");
-    }
-
-    private void writeAssetBatchAudit(String action, String resourceType, String projectId, String result) {
-        String scopeId = StringUtils.hasText(projectId) ? projectContext(projectId).projectId() : null;
-        contextClient.writeAuditEvent(action, resourceType, UUID.randomUUID().toString(), scopeId, result);
     }
 
     private void validateRequirementBelongsToProject(UUID requirementId, String projectId) {

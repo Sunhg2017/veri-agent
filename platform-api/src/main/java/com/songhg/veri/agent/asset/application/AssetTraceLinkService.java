@@ -26,11 +26,11 @@ public class AssetTraceLinkService {
     private static final Logger log = LoggerFactory.getLogger(AssetTraceLinkService.class);
 
     private final AssetRepository repository;
-    private final PlatformContextClient contextClient;
+    private final AssetProjectAuditService projectAuditService;
 
-    public AssetTraceLinkService(AssetRepository repository, PlatformContextClient contextClient) {
+    public AssetTraceLinkService(AssetRepository repository, AssetProjectAuditService projectAuditService) {
         this.repository = repository;
-        this.contextClient = contextClient;
+        this.projectAuditService = projectAuditService;
     }
 
     public PageResponse<TraceLinkResponse> listLinks(TraceLinkListRequest request) {
@@ -66,7 +66,7 @@ public class AssetTraceLinkService {
                 request.caseId(),
                 java.time.Instant.now()
         );
-        writeProjectAudit("CREATE", "TRACE_LINK", id, requirement.projectId());
+        projectAuditService.writeProjectAudit("CREATE", "TRACE_LINK", id, requirement.projectId());
         repository.saveTraceLink(link);
         log.info("Created trace link id={}, requirementId={}, trace_id={}",
                 id, request.requirementId(), TraceContext.getTraceId());
@@ -116,22 +116,6 @@ public class AssetTraceLinkService {
                     resourceName + "不属于当前项目: " + resourceId
             );
         }
-    }
-
-    private void writeProjectAudit(String action, String resourceType, UUID resourceId, String projectId) {
-        String scopeId = StringUtils.hasText(projectId) ? projectContext(projectId).projectId() : null;
-        contextClient.writeAuditEvent(action, resourceType, resourceId.toString(), scopeId, "SUCCEEDED");
-    }
-
-    private PlatformContextClient.ProjectContext projectContext(String projectId) {
-        PlatformContextClient.ProjectContext context = contextClient.getProjectContext(projectId);
-        if (!StringUtils.hasText(context.projectId())) {
-            throw new BusinessException(ErrorCode.NOT_FOUND, "项目上下文不存在: " + projectId);
-        }
-        if (!"ACTIVE".equals(context.status())) {
-            throw new BusinessException(ErrorCode.INVALID_STATE, "项目状态不允许写入资产: " + projectId);
-        }
-        return context;
     }
 
     private static TraceLinkResponse toTraceLinkResponse(TraceLink link) {

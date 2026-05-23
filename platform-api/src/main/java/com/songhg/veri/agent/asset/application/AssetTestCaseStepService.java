@@ -12,22 +12,21 @@ import java.util.List;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.util.StringUtils;
 
 @Service
 public class AssetTestCaseStepService {
 
     private final AssetRepository repository;
-    private final PlatformContextClient contextClient;
+    private final AssetProjectAuditService projectAuditService;
     private final AssetVersionHistoryService versionHistoryService;
 
     public AssetTestCaseStepService(
             AssetRepository repository,
-            PlatformContextClient contextClient,
+            AssetProjectAuditService projectAuditService,
             AssetVersionHistoryService versionHistoryService
     ) {
         this.repository = repository;
-        this.contextClient = contextClient;
+        this.projectAuditService = projectAuditService;
         this.versionHistoryService = versionHistoryService;
     }
 
@@ -47,7 +46,7 @@ public class AssetTestCaseStepService {
             UpdateTestCaseStepsRequest.StepItem item = request.steps().get(i);
             steps.add(new TestCaseStep(UUID.randomUUID(), caseId, i, item.action(), item.expectedResult()));
         }
-        writeProjectAudit("UPDATE", "TEST_CASE_STEPS", caseId, existing.projectId());
+        projectAuditService.writeProjectAudit("UPDATE", "TEST_CASE_STEPS", caseId, existing.projectId());
         Instant now = Instant.now();
         TestCaseRecord updated = new TestCaseRecord(
                 existing.id(),
@@ -80,22 +79,6 @@ public class AssetTestCaseStepService {
     private TestCaseRecord requireTestCase(UUID caseId) {
         return repository.testCase(caseId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "测试用例不存在: " + caseId));
-    }
-
-    private void writeProjectAudit(String action, String resourceType, UUID resourceId, String projectId) {
-        String scopeId = StringUtils.hasText(projectId) ? projectContext(projectId).projectId() : null;
-        contextClient.writeAuditEvent(action, resourceType, resourceId.toString(), scopeId, "SUCCEEDED");
-    }
-
-    private PlatformContextClient.ProjectContext projectContext(String projectId) {
-        PlatformContextClient.ProjectContext context = contextClient.getProjectContext(projectId);
-        if (!StringUtils.hasText(context.projectId())) {
-            throw new BusinessException(ErrorCode.NOT_FOUND, "项目上下文不存在: " + projectId);
-        }
-        if (!"ACTIVE".equals(context.status())) {
-            throw new BusinessException(ErrorCode.INVALID_STATE, "项目状态不允许写入资产: " + projectId);
-        }
-        return context;
     }
 
     private static TestCaseStepResponse toTestCaseStepResponse(TestCaseStep step) {

@@ -30,7 +30,7 @@ class AssetPrototypeSyncServiceTest {
         contextClient = new RecordingPlatformContextClient();
         service = new AssetPrototypeSyncService(
                 repository,
-                contextClient,
+                new AssetProjectAuditService(contextClient),
                 new ObjectMapper().findAndRegisterModules()
         );
     }

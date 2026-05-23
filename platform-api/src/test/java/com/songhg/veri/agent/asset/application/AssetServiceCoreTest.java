@@ -36,7 +36,7 @@ class AssetServiceCoreTest {
         service = new AssetService(repository, contextClient);
         importExportService = new AssetImportExportService(
                 repository,
-                contextClient,
+                new AssetProjectAuditService(contextClient),
                 new ObjectMapper().findAndRegisterModules(),
                 service
         );
