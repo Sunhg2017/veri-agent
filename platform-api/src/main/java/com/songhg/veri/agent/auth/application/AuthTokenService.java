@@ -30,6 +30,7 @@ import org.springframework.util.StringUtils;
 public class AuthTokenService {
 
     private static final String HMAC_ALGORITHM = "HmacSHA256";
+    private static final int MIN_TOKEN_SECRET_BYTES = 32;
 
     private final AuthProperties properties;
     private final ObjectMapper objectMapper;
@@ -167,6 +168,10 @@ public class AuthTokenService {
     private void ensureTokenSecret() {
         if (!StringUtils.hasText(properties.tokenSecret())) {
             throw new BusinessException(ErrorCode.INVALID_STATE, "认证签名密钥未配置");
+        }
+        int secretBytes = properties.tokenSecret().getBytes(StandardCharsets.UTF_8).length;
+        if (secretBytes < MIN_TOKEN_SECRET_BYTES) {
+            throw new BusinessException(ErrorCode.INVALID_STATE, "认证签名密钥长度不足，至少需要 32 字节随机值");
         }
     }
 

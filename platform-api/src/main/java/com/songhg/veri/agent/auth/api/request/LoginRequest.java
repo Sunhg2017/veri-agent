@@ -14,4 +14,8 @@ public record LoginRequest(
         @Size(min = 1, max = 128)
         String password
 ) {
+    @Override
+    public String toString() {
+        return "LoginRequest[username=%s, password=<masked>]".formatted(username);
+    }
 }

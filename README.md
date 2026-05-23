@@ -60,8 +60,10 @@ AI 驱动的端到端企业级测试平台。WP1、WP2、WP3、WP4 是研发任�
 
 ## 本地内存模式
 
+`WP1_AUTH_TOKEN_SECRET` 必须使用至少 32 字节的随机值；下面仅为本地示例。
+
 ```bash
-WP1_AUTH_TOKEN_SECRET=local-auth-secret \
+WP1_AUTH_TOKEN_SECRET=local-auth-secret-32-byte-minimum! \
 mvn -pl platform-api spring-boot:run
 ```
 
@@ -83,7 +85,7 @@ docker compose -f infra/docker-compose.wp1.yml up -d postgres
 ```
 
 ```bash
-WP1_AUTH_TOKEN_SECRET=local-auth-secret \
+WP1_AUTH_TOKEN_SECRET=local-auth-secret-32-byte-minimum! \
 WP1_DATASOURCE_URL=jdbc:postgresql://localhost:5432/veri_agent \
 WP1_DATASOURCE_USERNAME=veri_agent \
 WP1_DATASOURCE_PASSWORD=veri_agent_dev \

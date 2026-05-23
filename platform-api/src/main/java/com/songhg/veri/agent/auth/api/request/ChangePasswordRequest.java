@@ -12,4 +12,8 @@ public record ChangePasswordRequest(
         @Size(min = 10, max = 128)
         String newPassword
 ) {
+    @Override
+    public String toString() {
+        return "ChangePasswordRequest[oldPassword=<masked>, newPassword=<masked>]";
+    }
 }

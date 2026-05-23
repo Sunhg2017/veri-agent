@@ -43,7 +43,7 @@ services:
       WP1_DATASOURCE_PASSWORD: veri_agent_dev
       WP1_FLYWAY_LOCATIONS: filesystem:/app/db/migration/wp1
       # 认证
-      WP1_AUTH_TOKEN_SECRET: local-auth-secret
+      WP1_AUTH_TOKEN_SECRET: local-auth-secret-32-byte-minimum!
       WP1_ACCESS_TOKEN_TTL_MINUTES: 120
       WP1_LOCAL_SECRET_MASTER_KEY: "0123456789abcdef0123456789abcdef"
       # 外部 Vault/KMS 接入时启用，token 只通过环境变量注入，不能写入 secret_provider.config_json

@@ -16,10 +16,15 @@ import org.springframework.stereotype.Repository;
 public class InMemoryAuthSessionStore implements AuthSessionStore {
 
     private final Map<UUID, MutableSession> sessions = new ConcurrentHashMap<>();
+    private final Map<String, UUID> sessionIdsByRefreshTokenHash = new ConcurrentHashMap<>();
 
     @Override
     public void create(AuthSessionDraft draft) {
-        sessions.put(draft.sessionId(), new MutableSession(draft, false));
+        MutableSession previous = sessions.put(draft.sessionId(), new MutableSession(draft, false));
+        if (previous != null) {
+            sessionIdsByRefreshTokenHash.remove(previous.draft().refreshTokenHash(), draft.sessionId());
+        }
+        sessionIdsByRefreshTokenHash.put(draft.refreshTokenHash(), draft.sessionId());
     }
 
     @Override
@@ -34,11 +39,16 @@ public class InMemoryAuthSessionStore implements AuthSessionStore {
 
     @Override
     public Optional<AuthSessionRecord> findByRefreshTokenHash(String refreshTokenHash) {
-        return sessions.values()
-                .stream()
-                .filter(session -> session.draft().refreshTokenHash().equals(refreshTokenHash))
-                .findFirst()
-                .map(this::toRecord);
+        UUID sessionId = sessionIdsByRefreshTokenHash.get(refreshTokenHash);
+        if (sessionId == null) {
+            return Optional.empty();
+        }
+        MutableSession session = sessions.get(sessionId);
+        if (session == null) {
+            sessionIdsByRefreshTokenHash.remove(refreshTokenHash, sessionId);
+            return Optional.empty();
+        }
+        return Optional.of(toRecord(session));
     }
 
     @Override
@@ -53,7 +63,11 @@ public class InMemoryAuthSessionStore implements AuthSessionStore {
             MutableSession session = entry.getValue();
             boolean expired = !session.draft().expiresAt().isAfter(expiresBefore);
             boolean revokedAndOldEnough = session.revokedAt() != null && !session.revokedAt().isAfter(revokedBefore);
-            return expired || revokedAndOldEnough;
+            boolean remove = expired || revokedAndOldEnough;
+            if (remove) {
+                sessionIdsByRefreshTokenHash.remove(session.draft().refreshTokenHash(), entry.getKey());
+            }
+            return remove;
         });
         return before - sessions.size();
     }

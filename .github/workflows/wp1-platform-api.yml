@@ -77,7 +77,7 @@ jobs:
 
       - name: Start platform-api with db profile
         env:
-          WP1_AUTH_TOKEN_SECRET: local-auth-secret
+          WP1_AUTH_TOKEN_SECRET: local-auth-secret-32-byte-minimum!
           WP1_DATASOURCE_URL: jdbc:postgresql://localhost:5432/veri_agent
           WP1_DATASOURCE_USERNAME: veri_agent
           WP1_DATASOURCE_PASSWORD: veri_agent_dev

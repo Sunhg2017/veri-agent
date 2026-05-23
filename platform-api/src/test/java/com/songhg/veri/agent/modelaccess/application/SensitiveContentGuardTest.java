@@ -15,6 +15,7 @@ class SensitiveContentGuardTest {
         String content = """
                 internal_token=corp-abc-123456
                 owner email alice@example.com
+                Authorization: Bearer abcdefghijklmnop
                 phone 13800138000
                 bank card 6222 0000 0000 0000
                 """;
@@ -26,7 +27,18 @@ class SensitiveContentGuardTest {
         String masked = guard.mask(content);
 
         assertThat(masked)
-                .contains("internal_token=***", "***EMAIL***", "***PHONE***", "***BANK_CARD***")
-                .doesNotContain("alice@example.com", "13800138000", "6222 0000 0000 0000");
+                .contains("internal_token=***", "Bearer ***", "***EMAIL***", "***PHONE***", "***BANK_CARD***")
+                .doesNotContain("corp-abc-123456", "abcdefghijklmnop", "alice@example.com", "13800138000", "6222 0000 0000 0000");
+    }
+
+    @Test
+    void masksOverlappingRulesFromOriginalTextWithoutLeakingValues() {
+        String content = "internal_token=corp-secret-123 api_key=alice@example.com 11010519491231002X";
+
+        String masked = guard.mask(content);
+
+        assertThat(masked)
+                .isEqualTo("internal_token=*** api_key=*** ***ID_CARD***")
+                .doesNotContain("corp-secret-123", "alice@example.com", "11010519491231002X");
     }
 }

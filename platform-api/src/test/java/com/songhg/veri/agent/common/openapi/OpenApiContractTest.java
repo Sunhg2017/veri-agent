@@ -20,7 +20,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest(properties = {
-        "veri-agent.auth.token-secret=test-auth-secret"
+        "veri-agent.auth.token-secret=test-auth-secret-32-byte-minimum!"
 })
 @AutoConfigureMockMvc
 class OpenApiContractTest {

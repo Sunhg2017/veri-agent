@@ -34,8 +34,10 @@ The default profile is `local`, so the service can start before a database is co
 
 To run local in-memory mode:
 
+`WP1_AUTH_TOKEN_SECRET` must be at least 32 bytes. The value below is a local-only example.
+
 ```bash
-WP1_AUTH_TOKEN_SECRET=local-auth-secret \
+WP1_AUTH_TOKEN_SECRET=local-auth-secret-32-byte-minimum! \
 mvn -pl platform-api spring-boot:run
 ```
 
@@ -46,7 +48,7 @@ docker compose -f infra/docker-compose.yml up -d postgres
 ```
 
 ```bash
-WP1_AUTH_TOKEN_SECRET=local-auth-secret \
+WP1_AUTH_TOKEN_SECRET=local-auth-secret-32-byte-minimum! \
 WP1_DATASOURCE_URL=jdbc:postgresql://localhost:5432/veri_agent \
 WP1_DATASOURCE_USERNAME=veri_agent \
 WP1_DATASOURCE_PASSWORD=veri_agent_dev \

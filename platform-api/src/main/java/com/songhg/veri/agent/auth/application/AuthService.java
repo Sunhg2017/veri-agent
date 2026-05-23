@@ -20,6 +20,9 @@ import org.springframework.stereotype.Service;
 @Service
 public class AuthService {
 
+    private static final String DUMMY_PASSWORD_HASH =
+            "$2a$10$Jzq9ZfxqSLsHwZwYBrB7F.cxtw.TCZauDIX83dGCLMGAxXAjyqdJy";
+
     private final AuthIdentityStore identityStore;
     private final PasswordEncoder passwordEncoder;
     private final AuthTokenService tokenService;
@@ -42,7 +45,9 @@ public class AuthService {
 
     public LoginResponse login(LoginRequest request) {
         AuthUserRecord user = identityStore.findEnabledByUsername(request.username()).orElse(null);
-        if (user == null || !passwordEncoder.matches(request.password(), user.passwordHash())) {
+        String passwordHash = user == null ? DUMMY_PASSWORD_HASH : user.passwordHash();
+        boolean passwordMatches = passwordEncoder.matches(request.password(), passwordHash);
+        if (user == null || !passwordMatches) {
             auditLogWriter.record(AuditLogWriter.failed(
                     null,
                     "登录失败",

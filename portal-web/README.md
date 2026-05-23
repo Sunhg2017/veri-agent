@@ -28,7 +28,7 @@ During development, `/api/**` is proxied to `http://localhost:8080`.
 Start the backend with an auth token secret:
 
 ```bash
-WP1_AUTH_TOKEN_SECRET=local-auth-secret mvn -pl platform-api spring-boot:run
+WP1_AUTH_TOKEN_SECRET=local-auth-secret-32-byte-minimum! mvn -pl platform-api spring-boot:run
 ```
 
 For the `db` profile, initialize SuperAdmin with `scripts/wp1_seed_super_admin.sh` before logging in.

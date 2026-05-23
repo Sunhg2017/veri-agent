@@ -29,7 +29,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest(properties = {
-        "veri-agent.auth.token-secret=test-auth-secret",
+        "veri-agent.auth.token-secret=test-auth-secret-32-byte-minimum!",
         "veri-agent.model-access.service-token=test-model-token",
         "veri-agent.model-access.default-model=test-local-model",
         "veri-agent.model-access.provider-circuit-failure-threshold=1",
