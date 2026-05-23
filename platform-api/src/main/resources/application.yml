@@ -31,6 +31,7 @@ springdoc:
 
 mybatis:
   mapper-locations: classpath*:mapper/**/*.xml
+  type-handlers-package: com.songhg.veri.agent.common.mybatis
 
 veri-agent:
   bootstrap:

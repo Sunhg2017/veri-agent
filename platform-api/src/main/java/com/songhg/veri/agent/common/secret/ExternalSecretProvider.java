@@ -18,6 +18,7 @@ import java.util.Optional;
 import java.util.UUID;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Profile;
 import org.springframework.core.annotation.Order;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -43,6 +44,7 @@ public class ExternalSecretProvider implements SecretProvider {
     private final HttpClient httpClient;
     private final SecretProviderAuditRecorder auditRecorder;
 
+    @Autowired
     public ExternalSecretProvider(
             JdbcTemplate jdbcTemplate,
             SecretProviderProperties properties,

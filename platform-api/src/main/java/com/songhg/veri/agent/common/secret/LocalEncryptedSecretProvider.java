@@ -3,6 +3,7 @@ package com.songhg.veri.agent.common.secret;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
 import java.util.Optional;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Profile;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -17,6 +18,7 @@ public class LocalEncryptedSecretProvider implements SecretProvider {
     private final SecretProviderProperties properties;
     private final SecretProviderAuditRecorder auditRecorder;
 
+    @Autowired
     public LocalEncryptedSecretProvider(
             JdbcTemplate jdbcTemplate,
             SecretProviderProperties properties,
