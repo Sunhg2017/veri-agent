@@ -211,6 +211,7 @@ WP4 本轮 P0 已覆盖真实文件上传、Word/PDF/OCR、AI 解析、SecretPro
 
 | 编号 | 任务 | 优先级 | 状态 | 工作内容 | 验收标准 |
 |---|---|---|---|---|---|
+| WP4-D0 | 外部连接器接入 Runbook 与 mock 契约 | P2 | DONE-CURRENT | 已新增 `WP4-外部连接器接入Runbook与Mock契约.md`，冻结 Confluence、飞书、钉钉、语雀的统一配置 schema、secretRef 口径、连接测试、分页拉取、版本游标、错误码、同步任务状态、安全和准出策略 | 无真实凭证时仍保持预留状态；后续真实连接器可按同一 mock 契约、沙箱 smoke 和 SecretProvider 口径逐个平台灰度接入 |
 | WP4-D1 | Confluence 真实连接器 | P2 | TODO | OAuth/API 拉取、空间/页面映射、版本和权限策略 | 真实页面可导入，失败可重试，secretRef 不泄露 |
 | WP4-D2 | 飞书文档连接器 | P2 | TODO | 飞书开放平台凭证、文档 token、版本、内容转换 | 真实文档可进入候选确认 |
 | WP4-D3 | 钉钉文档连接器 | P2 | TODO | 钉钉文档 API、凭证、文档标识和同步任务 | 同步状态和最近错误可在 UI 展示 |
@@ -242,11 +243,11 @@ WP4 本轮 P0 已覆盖真实文件上传、Word/PDF/OCR、AI 解析、SecretPro
 | M1：生产准出硬化 | 补齐最容易影响上线安全和运维的缺口 | WP1-A、WP1-C、WP2-B、WP4-A、WP4-B | 预发 release validation、webhook 白名单/限流、OCR 安全策略均有测试或 runbook |
 | M2：管理台产品化 | 补齐日常运营和业务使用界面 | WP1-B、WP2-A、WP3-D、WP4-F | 管理员不依赖 curl 完成主要配置和排错 |
 | M3：质量与智能化增强 | 建立可长期迭代的质量体系 | WP2-D、WP4-C、WP3 追踪矩阵 | Prompt/解析器变更有评测门禁，资产覆盖率可视化 |
-| M4：企业集成扩展 | 接入协作文档和企业身份体系 | WP1-E、WP4-D | WP1-E 预留方案已冻结；WP4-D 仍需真实外部连接器凭证/沙箱后推进；外部系统接入不破坏当前 MVP 链路 |
+| M4：企业集成扩展 | 接入协作文档和企业身份体系 | WP1-E、WP4-D | WP1-E 预留方案已冻结；WP4-D 共同 runbook/mock 契约已冻结，真实连接器仍需外部凭证/沙箱后逐个平台推进；外部系统接入不破坏当前 MVP 链路 |
 
 ## 9. 推荐下一步
 
-1. `WP4-D1-D4` 真实外部连接器需要 Confluence、飞书、钉钉、语雀的沙箱凭证和 API 访问策略；未具备前可先补连接器 runbook、schema 兼容性和 mock 契约。
+1. `WP4-D1-D4` 真实外部连接器需要 Confluence、飞书、钉钉、语雀的沙箱凭证和 API 访问策略；共同前置已在 `WP4-外部连接器接入Runbook与Mock契约.md` 冻结，拿到沙箱后先按 mock 契约补真实 connector smoke，再逐个平台灰度启用。
 2. `WP4-B5` 后续进入代码落地时，先扩展 Word 表格/批注/页眉页脚 metadata，再新增 `wp4-high-fidelity-corpus` 和 `scripts/wp4_high_fidelity_parse_eval.sh`，最后把 PDF 版式和图片语义放入隔离 worker。
 3. `WP1-E` 后续进入代码落地时，先做默认关闭的身份源配置和审批只读/草稿能力，再灰度 SSO 登录、组织同步 dryRun 和审批必经策略。
 4. 每完成一个任务，补充对应交付说明、测试命令和 release note，并按当前约定提交清晰 commit。

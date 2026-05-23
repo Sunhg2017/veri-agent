@@ -42,6 +42,7 @@ AI 驱动的端到端企业级测试平台。WP1、WP2、WP3、WP4 是研发任�
 | `doc/mvp/final/engineering/WP1-发布前DB权限Runbook.md` | WP1 预发/生产数据库应用角色权限检查 runbook。 |
 | `doc/mvp/final/engineering/WP2-Provider接入与SecretRef轮换Runbook.md` | WP2 外部 provider 接入、探活、故障处理和密钥轮换 runbook。 |
 | `doc/mvp/final/engineering/WP4-Webhook签名样例与联调说明.md` | WP4 webhook cURL/Node.js/Java 签名样例和联调排错说明。 |
+| `doc/mvp/final/engineering/WP4-外部连接器接入Runbook与Mock契约.md` | WP4 Confluence、飞书、钉钉、语雀真实连接器的 schema、mock 契约、安全和准出口径。 |
 | `doc/mvp/final/engineering/WP4-高保真解析专项评估.md` | WP4 表格结构、图片语义、页眉页脚、批注/修订和附件抽取的高保真解析专项评估。 |
 | `infra/docker-compose.yml` | 本地 PostgreSQL + platform-api 研发环境。 |
 | `scripts/wp1_db_profile_smoke.sh` | 针对已启动 db profile 后端的 HTTP 烟测脚本。 |
@@ -266,6 +267,7 @@ bash scripts/wp4_ai_parse_quality_eval.sh
 - WP1 DB 权限：`doc/mvp/final/engineering/WP1-发布前DB权限Runbook.md`
 - WP2 provider 与密钥轮换：`doc/mvp/final/engineering/WP2-Provider接入与SecretRef轮换Runbook.md`
 - WP4 webhook 签名联调：`doc/mvp/final/engineering/WP4-Webhook签名样例与联调说明.md`
+- WP4 外部连接器接入：`doc/mvp/final/engineering/WP4-外部连接器接入Runbook与Mock契约.md`
 
 ## 验证
 
