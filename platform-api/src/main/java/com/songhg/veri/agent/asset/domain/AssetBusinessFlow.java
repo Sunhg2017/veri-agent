@@ -17,5 +17,5 @@ public record AssetBusinessFlow(
         Instant deletedAt,
         Instant createdAt,
         Instant updatedAt
-) {
+) implements LifecycleManagedAsset {
 }

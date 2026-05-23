@@ -22,7 +22,7 @@ public record AssetRequirement(
         Instant deletedAt,
         Instant createdAt,
         Instant updatedAt
-) {
+) implements LifecycleManagedAsset {
     public boolean canTransitionReviewStatusTo(String nextStatus) {
         return AssetReviewStatus.canTransition(status, nextStatus);
     }

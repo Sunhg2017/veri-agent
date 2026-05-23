@@ -22,5 +22,5 @@ public record AssetApi(
         Instant deletedAt,
         Instant createdAt,
         Instant updatedAt
-) {
+) implements LifecycleManagedAsset {
 }

@@ -14,5 +14,6 @@ class AssetReviewStatusTest {
 
         assertThat(AssetReviewStatus.canTransition("APPROVED", "DRAFT")).isFalse();
         assertThat(AssetReviewStatus.canTransition("DEPRECATED", "APPROVED")).isFalse();
+        assertThat(AssetReviewStatus.canTransition("LEGACY_UNKNOWN", "APPROVED")).isFalse();
     }
 }

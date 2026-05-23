@@ -20,5 +20,5 @@ public record AssetPage(
         Instant deletedAt,
         Instant createdAt,
         Instant updatedAt
-) {
+) implements LifecycleManagedAsset {
 }

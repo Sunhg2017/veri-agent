@@ -39,10 +39,12 @@ import com.songhg.veri.agent.common.error.ErrorCode;
 import com.songhg.veri.agent.common.trace.TraceContext;
 import com.songhg.veri.agent.asset.domain.AssetApi;
 import com.songhg.veri.agent.asset.domain.AssetBusinessFlow;
+import com.songhg.veri.agent.asset.domain.AssetLifecycleStatus;
 import com.songhg.veri.agent.asset.domain.AssetPage;
 import com.songhg.veri.agent.asset.domain.AssetRequirement;
 import com.songhg.veri.agent.asset.domain.AssetReviewStatus;
 import com.songhg.veri.agent.asset.domain.AssetVersionHistory;
+import com.songhg.veri.agent.asset.domain.LifecycleManagedAsset;
 import com.songhg.veri.agent.asset.domain.TestCaseRecord;
 import com.songhg.veri.agent.asset.domain.TestCaseStep;
 import com.songhg.veri.agent.asset.domain.TraceLink;
@@ -94,7 +96,7 @@ public class AssetService {
     private static final String STATUS_DRAFT = "DRAFT";
     private static final String STATUS_PLANNED = "PLANNED";
     private static final Set<String> REVIEW_STATUSES = AssetReviewStatus.codes();
-    private static final Set<String> LIFECYCLE_STATUSES = Set.of(STATUS_ACTIVE, "ARCHIVED", "DELETED");
+    private static final Set<String> LIFECYCLE_STATUSES = AssetLifecycleStatus.codes();
     private static final Set<String> PRIORITIES = Set.of("CRITICAL", "HIGH", "MEDIUM", "LOW");
     private static final Set<String> REQUIREMENT_SOURCES = Set.of(SOURCE_IMPORT, SOURCE_MANUAL);
     private static final Set<String> API_STATUSES = Set.of(STATUS_ACTIVE, "DEPRECATED", "REMOVED");
@@ -404,9 +406,7 @@ public class AssetService {
         Instant now = Instant.now();
         String nextLifecycle = nextLifecycle(
                 "REQUIREMENT",
-                id,
-                existing.projectId(),
-                lifecycleStatus(existing.lifecycleStatus(), existing.deletedAt()),
+                existing,
                 request.lifecycleStatus()
         );
         if ("ACTIVE".equals(nextLifecycle)) {
@@ -544,9 +544,7 @@ public class AssetService {
         Instant now = Instant.now();
         String nextLifecycle = nextLifecycle(
                 "API",
-                id,
-                existing.projectId(),
-                lifecycleStatus(existing.lifecycleStatus(), existing.deletedAt()),
+                existing,
                 request.lifecycleStatus()
         );
         if ("ACTIVE".equals(nextLifecycle)) {
@@ -671,9 +669,7 @@ public class AssetService {
         Instant now = Instant.now();
         String nextLifecycle = nextLifecycle(
                 "PAGE",
-                id,
-                existing.projectId(),
-                lifecycleStatus(existing.lifecycleStatus(), existing.deletedAt()),
+                existing,
                 request.lifecycleStatus()
         );
         if ("ACTIVE".equals(nextLifecycle)) {
@@ -790,9 +786,7 @@ public class AssetService {
         Instant now = Instant.now();
         String nextLifecycle = nextLifecycle(
                 "BUSINESS_FLOW",
-                id,
-                existing.projectId(),
-                existing.lifecycleStatus(),
+                existing,
                 request.lifecycleStatus()
         );
         if ("ACTIVE".equals(nextLifecycle)) {
@@ -980,9 +974,7 @@ public class AssetService {
         Instant now = Instant.now();
         String nextLifecycle = nextLifecycle(
                 "TEST_CASE",
-                id,
-                existing.projectId(),
-                lifecycleStatus(existing.lifecycleStatus(), existing.deletedAt()),
+                existing,
                 request.lifecycleStatus()
         );
         if ("ACTIVE".equals(nextLifecycle)) {
@@ -2735,24 +2727,13 @@ public class AssetService {
 
     private String nextLifecycle(
             String resourceType,
-            UUID resourceId,
-            String projectId,
-            String currentLifecycle,
+            LifecycleManagedAsset asset,
             String rawNextLifecycle
     ) {
-        String current = lifecycleStatus(currentLifecycle, null);
+        String current = asset.currentLifecycleStatus();
         String next = valueIn(rawNextLifecycle, current, LIFECYCLE_STATUSES, "lifecycleStatus");
-        if (current.equals(next)) {
-            return next;
-        }
-        boolean allowed = switch (current) {
-            case "ACTIVE" -> "ARCHIVED".equals(next) || "DELETED".equals(next);
-            case "ARCHIVED" -> "ACTIVE".equals(next) || "DELETED".equals(next);
-            case "DELETED" -> "ACTIVE".equals(next);
-            default -> false;
-        };
-        if (!allowed) {
-            writeProjectAudit("LIFECYCLE_CHANGE_DENIED", resourceType, resourceId, projectId, "DENIED");
+        if (!asset.canTransitionLifecycleTo(next)) {
+            writeProjectAudit("LIFECYCLE_CHANGE_DENIED", resourceType, asset.id(), asset.projectId(), "DENIED");
             throw new BusinessException(
                     ErrorCode.INVALID_STATE,
                     resourceType + " 生命周期不允许从 " + current + " 变更为 " + next
@@ -2782,10 +2763,7 @@ public class AssetService {
     }
 
     private static String lifecycleStatus(String lifecycleStatus, Instant deletedAt) {
-        if (deletedAt != null) {
-            return "DELETED";
-        }
-        return StringUtils.hasText(lifecycleStatus) ? lifecycleStatus : "ACTIVE";
+        return AssetLifecycleStatus.normalize(lifecycleStatus, deletedAt);
     }
 
     private void ensureRequirementRestoreHasNoConflict(AssetRequirement requirement) {

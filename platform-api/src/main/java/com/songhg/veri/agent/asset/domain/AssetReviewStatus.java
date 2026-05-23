@@ -31,7 +31,11 @@ public enum AssetReviewStatus {
     }
 
     public static boolean canTransition(String currentStatus, String nextStatus) {
-        return fromCode(currentStatus).canTransitionTo(fromCode(nextStatus));
+        try {
+            return fromCode(currentStatus).canTransitionTo(fromCode(nextStatus));
+        } catch (IllegalArgumentException exception) {
+            return false;
+        }
     }
 
     public static AssetReviewStatus fromCode(String value) {
