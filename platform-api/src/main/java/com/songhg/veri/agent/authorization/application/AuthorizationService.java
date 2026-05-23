@@ -31,11 +31,32 @@ public class AuthorizationService {
         }
     }
 
+    public void require(AuthUserPrincipal principal, String permission, ResourceScope scope) {
+        ResourceScope resourceScope = scope == null ? ResourceScope.platform() : scope;
+        if (!hasPermission(principal, permission, resourceScope)) {
+            auditLogWriter.record(AuditLogWriter.denied(
+                    principal,
+                    "资源权限校验",
+                    "permission",
+                    resourceScope.auditResourceId(permission),
+                    "缺少资源权限：" + permission
+            ));
+            throw new AccessDeniedException("缺少权限：" + permission);
+        }
+    }
+
     public boolean hasPermission(AuthUserPrincipal principal, String permission) {
         if (principal == null || permission == null || permission.isBlank()) {
             return false;
         }
         return permissions(principal).contains(permission);
+    }
+
+    public boolean hasPermission(AuthUserPrincipal principal, String permission, ResourceScope scope) {
+        if (principal == null || permission == null || permission.isBlank()) {
+            return false;
+        }
+        return permissionResolver.hasPermission(principal, permission, scope == null ? ResourceScope.platform() : scope);
     }
 
     public Set<String> permissions(AuthUserPrincipal principal) {

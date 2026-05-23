@@ -20,4 +20,34 @@
           and r.deleted_at is null
         order by p.code
     </select>
+
+    <select id="hasPermissionForScope" resultType="_boolean">
+        select exists (
+            select 1
+            from rbac_role_binding b
+            join rbac_role r on r.id = b.role_id
+                and r.status = 'ENABLED'
+                and r.deleted_at is null
+            join rbac_role_permission rp on rp.role_id = r.id
+                and rp.effect = 'ALLOW'
+                and rp.deleted_at is null
+            join rbac_permission p on p.id = rp.permission_id
+                and p.status = 'ENABLED'
+                and p.code = #{permission}
+            where b.subject_type = 'USER'
+              and b.subject_id = #{userId}
+              and b.status = 'ENABLED'
+              and b.deleted_at is null
+              and (b.expires_at is null or b.expires_at > now())
+              and (
+                  b.scope_type = 'PLATFORM'
+                  or (
+                      #{scopeType} = 'PROJECT'
+                      and b.scope_type = 'PROJECT'
+                      and b.scope_id = #{scopeId}
+                  )
+              )
+            limit 1
+        )
+    </select>
 </mapper>

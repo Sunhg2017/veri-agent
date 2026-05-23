@@ -34,6 +34,7 @@ import com.songhg.veri.agent.asset.api.response.TraceLinkResponse;
 import com.songhg.veri.agent.asset.application.AssetService;
 import com.songhg.veri.agent.auth.application.AuthUserPrincipal;
 import com.songhg.veri.agent.authorization.application.AuthorizationService;
+import com.songhg.veri.agent.authorization.application.ResourceScope;
 import com.songhg.veri.agent.modelaccess.security.ServicePrincipal;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -45,6 +46,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -75,13 +77,13 @@ public class AssetController {
 
     @PostMapping("/imports")
     public AssetImportResponse importAssets(@Valid @RequestBody AssetImportRequest request) {
-        requirePermission("asset:manage");
+        requireProjectPermission("asset:manage", request.projectId());
         return service.importAssets(request);
     }
 
     @GetMapping("/exports")
     public ResponseEntity<byte[]> exportAssets(@Valid AssetExportRequest request) {
-        requirePermission("asset:export");
+        requireListPermission("asset:export", request);
         AssetExportPayload payload = service.exportAssets(request);
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType(payload.contentType()))
@@ -91,7 +93,7 @@ public class AssetController {
 
     @PostMapping("/prototype-sync")
     public AssetPrototypeSyncResponse syncPrototypePages(@Valid @RequestBody AssetPrototypeSyncRequest request) {
-        requirePermission("asset:manage");
+        requireProjectPermission("asset:manage", request.projectId());
         return service.syncPrototypePages(request);
     }
 
@@ -101,7 +103,7 @@ public class AssetController {
             @RequestParam(required = false) String assetType,
             @RequestParam(required = false) UUID assetId
     ) {
-        requirePermission("asset:read");
+        requireProjectPermission("asset:read", projectId);
         return service.analyzeImpact(projectId, assetType, assetId);
     }
 
@@ -111,26 +113,26 @@ public class AssetController {
     public com.songhg.veri.agent.common.api.PageResponse<RequirementResponse> listRequirements(
             @Valid AssetListRequest request
     ) {
-        requirePermission("asset:read");
+        requireListPermission("asset:read", request);
         return service.listRequirements(request);
     }
 
     @PostMapping("/requirements")
     @ResponseStatus(HttpStatus.CREATED)
     public RequirementResponse createRequirement(@Valid @RequestBody CreateRequirementRequest request) {
-        requirePermission("asset:manage");
+        requireProjectPermission("asset:manage", request.projectId());
         return service.createRequirement(request);
     }
 
     @GetMapping("/requirements/{id}")
     public RequirementResponse getRequirement(@PathVariable UUID id) {
-        requirePermission("asset:read");
+        requireRequirementPermission("asset:read", id);
         return service.getRequirement(id);
     }
 
     @GetMapping("/requirements/{id}/lifecycle")
     public RequirementResponse getRequirementLifecycle(@PathVariable UUID id) {
-        requirePermission("asset:read");
+        requireRequirementPermission("asset:read", id);
         return service.getRequirementIncludingInactive(id);
     }
 
@@ -139,7 +141,7 @@ public class AssetController {
             @PathVariable UUID id,
             @Valid @RequestBody UpdateRequirementRequest request
     ) {
-        requirePermission("asset:manage");
+        requireRequirementPermission("asset:manage", id);
         return service.updateRequirement(id, request);
     }
 
@@ -148,13 +150,13 @@ public class AssetController {
             @PathVariable UUID id,
             @Valid @RequestBody UpdateAssetLifecycleRequest request
     ) {
-        requirePermission("asset:manage");
+        requireRequirementPermission("asset:manage", id);
         return service.updateRequirementLifecycle(id, request);
     }
 
     @GetMapping("/requirements/{id}/versions")
     public List<AssetVersionHistoryResponse> requirementVersions(@PathVariable UUID id) {
-        requirePermission("asset:read");
+        requireRequirementPermission("asset:read", id);
         return service.requirementVersions(id);
     }
 
@@ -164,7 +166,7 @@ public class AssetController {
             @PathVariable int version,
             @Valid @RequestBody(required = false) RollbackAssetVersionRequest request
     ) {
-        requirePermission("asset:manage");
+        requireRequirementPermission("asset:manage", id);
         return service.rollbackRequirementVersion(id, version, request);
     }
 
@@ -174,26 +176,26 @@ public class AssetController {
     public com.songhg.veri.agent.common.api.PageResponse<ApiResponseDTO> listApis(
             @Valid AssetListRequest request
     ) {
-        requirePermission("asset:read");
+        requireListPermission("asset:read", request);
         return service.listApis(request);
     }
 
     @PostMapping("/apis")
     @ResponseStatus(HttpStatus.CREATED)
     public ApiResponseDTO createApi(@Valid @RequestBody CreateApiRequest request) {
-        requirePermission("asset:manage");
+        requireProjectPermission("asset:manage", request.projectId());
         return service.createApi(request);
     }
 
     @GetMapping("/apis/{id}")
     public ApiResponseDTO getApi(@PathVariable UUID id) {
-        requirePermission("asset:read");
+        requireApiPermission("asset:read", id);
         return service.getApi(id);
     }
 
     @GetMapping("/apis/{id}/lifecycle")
     public ApiResponseDTO getApiLifecycle(@PathVariable UUID id) {
-        requirePermission("asset:read");
+        requireApiPermission("asset:read", id);
         return service.getApiIncludingInactive(id);
     }
 
@@ -202,7 +204,7 @@ public class AssetController {
             @PathVariable UUID id,
             @Valid @RequestBody UpdateApiRequest request
     ) {
-        requirePermission("asset:manage");
+        requireApiPermission("asset:manage", id);
         return service.updateApi(id, request);
     }
 
@@ -211,7 +213,7 @@ public class AssetController {
             @PathVariable UUID id,
             @Valid @RequestBody UpdateAssetLifecycleRequest request
     ) {
-        requirePermission("asset:manage");
+        requireApiPermission("asset:manage", id);
         return service.updateApiLifecycle(id, request);
     }
 
@@ -221,26 +223,26 @@ public class AssetController {
     public com.songhg.veri.agent.common.api.PageResponse<PageResponse> listPages(
             @Valid AssetListRequest request
     ) {
-        requirePermission("asset:read");
+        requireListPermission("asset:read", request);
         return service.listPages(request);
     }
 
     @PostMapping("/pages")
     @ResponseStatus(HttpStatus.CREATED)
     public PageResponse createPage(@Valid @RequestBody CreatePageRequest request) {
-        requirePermission("asset:manage");
+        requireProjectPermission("asset:manage", request.projectId());
         return service.createPage(request);
     }
 
     @GetMapping("/pages/{id}")
     public PageResponse getPage(@PathVariable UUID id) {
-        requirePermission("asset:read");
+        requirePagePermission("asset:read", id);
         return service.getPage(id);
     }
 
     @GetMapping("/pages/{id}/lifecycle")
     public PageResponse getPageLifecycle(@PathVariable UUID id) {
-        requirePermission("asset:read");
+        requirePagePermission("asset:read", id);
         return service.getPageIncludingInactive(id);
     }
 
@@ -249,7 +251,7 @@ public class AssetController {
             @PathVariable UUID id,
             @Valid @RequestBody UpdatePageRequest request
     ) {
-        requirePermission("asset:manage");
+        requirePagePermission("asset:manage", id);
         return service.updatePage(id, request);
     }
 
@@ -258,7 +260,7 @@ public class AssetController {
             @PathVariable UUID id,
             @Valid @RequestBody UpdateAssetLifecycleRequest request
     ) {
-        requirePermission("asset:manage");
+        requirePagePermission("asset:manage", id);
         return service.updatePageLifecycle(id, request);
     }
 
@@ -268,26 +270,26 @@ public class AssetController {
     public com.songhg.veri.agent.common.api.PageResponse<BusinessFlowResponse> listBusinessFlows(
             @Valid AssetListRequest request
     ) {
-        requirePermission("asset:read");
+        requireListPermission("asset:read", request);
         return service.listBusinessFlows(request);
     }
 
     @PostMapping("/business-flows")
     @ResponseStatus(HttpStatus.CREATED)
     public BusinessFlowResponse createBusinessFlow(@Valid @RequestBody CreateBusinessFlowRequest request) {
-        requirePermission("asset:manage");
+        requireProjectPermission("asset:manage", request.projectId());
         return service.createBusinessFlow(request);
     }
 
     @GetMapping("/business-flows/{id}")
     public BusinessFlowResponse getBusinessFlow(@PathVariable UUID id) {
-        requirePermission("asset:read");
+        requireBusinessFlowPermission("asset:read", id);
         return service.getBusinessFlow(id);
     }
 
     @GetMapping("/business-flows/{id}/lifecycle")
     public BusinessFlowResponse getBusinessFlowLifecycle(@PathVariable UUID id) {
-        requirePermission("asset:read");
+        requireBusinessFlowPermission("asset:read", id);
         return service.getBusinessFlowIncludingInactive(id);
     }
 
@@ -296,7 +298,7 @@ public class AssetController {
             @PathVariable UUID id,
             @Valid @RequestBody UpdateBusinessFlowRequest request
     ) {
-        requirePermission("asset:manage");
+        requireBusinessFlowPermission("asset:manage", id);
         return service.updateBusinessFlow(id, request);
     }
 
@@ -305,7 +307,7 @@ public class AssetController {
             @PathVariable UUID id,
             @Valid @RequestBody UpdateAssetLifecycleRequest request
     ) {
-        requirePermission("asset:manage");
+        requireBusinessFlowPermission("asset:manage", id);
         return service.updateBusinessFlowLifecycle(id, request);
     }
 
@@ -315,26 +317,26 @@ public class AssetController {
     public com.songhg.veri.agent.common.api.PageResponse<TestCaseResponse> listTestCases(
             @Valid AssetListRequest request
     ) {
-        requirePermission("asset:read");
+        requireListPermission("asset:read", request);
         return service.listTestCases(request);
     }
 
     @PostMapping("/test-cases")
     @ResponseStatus(HttpStatus.CREATED)
     public TestCaseResponse createTestCase(@Valid @RequestBody CreateTestCaseRequest request) {
-        requirePermission("asset:manage");
+        requireProjectPermission("asset:manage", request.projectId());
         return service.createTestCase(request);
     }
 
     @GetMapping("/test-cases/{id}")
     public TestCaseResponse getTestCase(@PathVariable UUID id) {
-        requirePermission("asset:read");
+        requireTestCasePermission("asset:read", id);
         return service.getTestCase(id);
     }
 
     @GetMapping("/test-cases/{id}/lifecycle")
     public TestCaseResponse getTestCaseLifecycle(@PathVariable UUID id) {
-        requirePermission("asset:read");
+        requireTestCasePermission("asset:read", id);
         return service.getTestCaseIncludingInactive(id);
     }
 
@@ -343,7 +345,7 @@ public class AssetController {
             @PathVariable UUID id,
             @Valid @RequestBody UpdateTestCaseRequest request
     ) {
-        requirePermission("asset:manage");
+        requireTestCasePermission("asset:manage", id);
         return service.updateTestCase(id, request);
     }
 
@@ -352,13 +354,13 @@ public class AssetController {
             @PathVariable UUID id,
             @Valid @RequestBody UpdateAssetLifecycleRequest request
     ) {
-        requirePermission("asset:manage");
+        requireTestCasePermission("asset:manage", id);
         return service.updateTestCaseLifecycle(id, request);
     }
 
     @GetMapping("/test-cases/{id}/versions")
     public List<AssetVersionHistoryResponse> testCaseVersions(@PathVariable UUID id) {
-        requirePermission("asset:read");
+        requireTestCasePermission("asset:read", id);
         return service.testCaseVersions(id);
     }
 
@@ -368,13 +370,13 @@ public class AssetController {
             @PathVariable int version,
             @Valid @RequestBody(required = false) RollbackAssetVersionRequest request
     ) {
-        requirePermission("asset:manage");
+        requireTestCasePermission("asset:manage", id);
         return service.rollbackTestCaseVersion(id, version, request);
     }
 
     @GetMapping("/test-cases/{id}/steps")
     public List<TestCaseStepResponse> listTestCaseSteps(@PathVariable UUID id) {
-        requirePermission("asset:read");
+        requireTestCasePermission("asset:read", id);
         return service.listTestCaseSteps(id);
     }
 
@@ -383,7 +385,7 @@ public class AssetController {
             @PathVariable UUID id,
             @Valid @RequestBody UpdateTestCaseStepsRequest request
     ) {
-        requirePermission("asset:manage");
+        requireTestCasePermission("asset:manage", id);
         return service.updateTestCaseSteps(id, request);
     }
 
@@ -393,26 +395,111 @@ public class AssetController {
     public com.songhg.veri.agent.common.api.PageResponse<TraceLinkResponse> listLinks(
             @Valid TraceLinkListRequest request
     ) {
-        requirePermission("asset:read");
+        requireTraceLinkListPermission("asset:read", request);
         return service.listLinks(request);
     }
 
     @PostMapping("/links")
     @ResponseStatus(HttpStatus.CREATED)
     public TraceLinkResponse createLink(@Valid @RequestBody CreateLinkRequest request) {
-        requirePermission("asset:manage");
+        requireRequirementPermission("asset:manage", request.requirementId());
         return service.createLink(request);
     }
 
-    private void requirePermission(String permission) {
+    private AuthUserPrincipal requirePermission(String permission) {
         var authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication != null && authentication.getPrincipal() instanceof ServicePrincipal) {
-            return;
+            return null;
         }
         if (authentication != null && authentication.getPrincipal() instanceof AuthUserPrincipal principal) {
             authorizationService.require(principal, permission);
-            return;
+            return principal;
         }
         throw new AccessDeniedException("缺少权限：" + permission);
+    }
+
+    private void requireListPermission(String permission, AssetListRequest request) {
+        if (request != null && StringUtils.hasText(request.getProjectId())) {
+            requireProjectPermission(permission, request.getProjectId());
+            return;
+        }
+        requirePlatformPermission(permission);
+    }
+
+    private void requirePlatformPermission(String permission) {
+        AuthUserPrincipal principal = requirePermission(permission);
+        if (principal != null) {
+            authorizationService.require(principal, permission, ResourceScope.platform());
+        }
+    }
+
+    private void requireProjectPermission(String permission, String projectId) {
+        AuthUserPrincipal principal = requirePermission(permission);
+        if (principal != null) {
+            authorizationService.require(principal, permission, ResourceScope.project(service.resolveProjectScopeId(projectId)));
+        }
+    }
+
+    private void requireRequirementPermission(String permission, UUID id) {
+        AuthUserPrincipal principal = requirePermission(permission);
+        if (principal != null) {
+            authorizationService.require(principal, permission, ResourceScope.project(service.requirementProjectScopeId(id)));
+        }
+    }
+
+    private void requireApiPermission(String permission, UUID id) {
+        AuthUserPrincipal principal = requirePermission(permission);
+        if (principal != null) {
+            authorizationService.require(principal, permission, ResourceScope.project(service.apiProjectScopeId(id)));
+        }
+    }
+
+    private void requirePagePermission(String permission, UUID id) {
+        AuthUserPrincipal principal = requirePermission(permission);
+        if (principal != null) {
+            authorizationService.require(principal, permission, ResourceScope.project(service.pageProjectScopeId(id)));
+        }
+    }
+
+    private void requireBusinessFlowPermission(String permission, UUID id) {
+        AuthUserPrincipal principal = requirePermission(permission);
+        if (principal != null) {
+            authorizationService.require(principal, permission, ResourceScope.project(service.businessFlowProjectScopeId(id)));
+        }
+    }
+
+    private void requireTestCasePermission(String permission, UUID id) {
+        AuthUserPrincipal principal = requirePermission(permission);
+        if (principal != null) {
+            authorizationService.require(principal, permission, ResourceScope.project(service.testCaseProjectScopeId(id)));
+        }
+    }
+
+    private void requireTraceLinkListPermission(String permission, TraceLinkListRequest request) {
+        if (request == null || (
+                request.getRequirementId() == null
+                        && request.getApiId() == null
+                        && request.getPageId() == null
+                        && request.getFlowId() == null
+                        && request.getCaseId() == null
+        )) {
+            requirePlatformPermission(permission);
+            return;
+        }
+        if (request.getRequirementId() != null) {
+            requireRequirementPermission(permission, request.getRequirementId());
+        }
+        if (request.getApiId() != null) {
+            requireApiPermission(permission, request.getApiId());
+        }
+        if (request.getPageId() != null) {
+            requirePagePermission(permission, request.getPageId());
+        }
+        if (request.getFlowId() != null) {
+            requireBusinessFlowPermission(permission, request.getFlowId());
+        }
+        if (request.getCaseId() != null) {
+            requireTestCasePermission(permission, request.getCaseId());
+        }
     }
 }

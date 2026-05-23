@@ -19,11 +19,11 @@
 | S4 | 移除配置文件中的默认 webhook 明文密钥 | 已完成 | `application.yml` 不再内嵌默认 secret；测试和 smoke 需显式设置 `WP4_WEBHOOK_SECRET`，生产使用 SecretProvider 并关闭本地 fallback |
 | S5 | 登录时序侧信道 | 已完成 | 已在上一批加入 dummy BCrypt 校验路径 |
 | S6 / Q1 | SensitiveContentGuard 规则重复和 mask 顺序依赖 | 已完成 | 已在上一批统一规则源并增加直接单测 |
-| S7 | 资产批量操作资源级鉴权 | 专项任务 | 拆到“WP3 资源级权限模型”专项：定义 resourceScope、统一授权服务、批量操作逐资源校验、补充拒绝用例 |
+| S7 | 资产批量操作资源级鉴权 | 已完成 | 新增 `ResourceScope` 资源级校验，AssetController 对项目级列表/导入/导出/同步/单资源操作按项目 scope 授权，并补充跨项目拒绝用例 |
 | S8 | 文档导入事务边界 | 已完成 | `DocumentInputService.importDocument/importMultipart` 增加事务边界 |
 | A1 | Service 单一职责拆分 | 专项任务 | 拆到 WP2/WP3/WP4 分模块重构专项，先保留行为不变并以测试护栏推进 |
 | A2 | 贫血领域模型治理 | 专项任务 | 拆到领域规则内聚专项，优先迁移状态转换和版本规则 |
-| A3 | 统一权限注解/AOP | 专项任务 | 与 S7 合并推进，先定义统一 `AuthorizationService` 再考虑注解切面 |
+| A3 | 统一权限注解/AOP | 有条件通过 | AssetController 已统一走 `AuthorizationService` + `ResourceScope`；跨模块 `@RequirePermission` 注解/AOP 切面仍作为后续治理专项 |
 | A4 / Q8 / T3 | local/db profile 行为差异与 db 测试不足 | 专项任务 | 增加 Testcontainers db-profile 契约测试；本批只处理 P2 的内存 refresh 索引 |
 | A5 | 审计写入独立可靠性 | 专项任务 | 拆为审计 outbox/独立事务专项，需评估失败补偿和发布策略 |
 | A6 | 分层异常策略 | 专项任务 | 拆为异常层次和日志上下文规范专项 |
@@ -53,7 +53,7 @@
 
 ### 剩余专项优先级
 
-1. WP3 数据与权限专项：S7、A3，继续完成资源级鉴权和统一授权服务。
+1. WP3 数据与权限专项：A3，继续完成跨模块权限注解/AOP 收敛。
 2. DB 集成测试专项：A4、Q8、T3，加入 db-profile Testcontainers 覆盖核心 mapper、事务和约束。
 3. WP2 查询/导出专项：P3、P4，补 distinct SQL、流式 CSV 和大数据量测试。
 4. 架构治理专项：A1、A2、A5、A6，按模块逐步拆分并保持接口兼容。

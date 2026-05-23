@@ -126,6 +126,40 @@ public class AssetService {
         this.objectMapper = objectMapper;
     }
 
+    public String resolveProjectScopeId(String projectId) {
+        return projectContext(projectId).projectId();
+    }
+
+    public String requirementProjectScopeId(UUID id) {
+        return resolveProjectScopeId(repository.requirementIncludingInactive(id)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "需求不存在: " + id))
+                .projectId());
+    }
+
+    public String apiProjectScopeId(UUID id) {
+        return resolveProjectScopeId(repository.apiIncludingInactive(id)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "API 不存在: " + id))
+                .projectId());
+    }
+
+    public String pageProjectScopeId(UUID id) {
+        return resolveProjectScopeId(repository.pageIncludingInactive(id)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "页面不存在: " + id))
+                .projectId());
+    }
+
+    public String businessFlowProjectScopeId(UUID id) {
+        return resolveProjectScopeId(repository.businessFlowIncludingInactive(id)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "业务流不存在: " + id))
+                .projectId());
+    }
+
+    public String testCaseProjectScopeId(UUID id) {
+        return resolveProjectScopeId(repository.testCaseIncludingInactive(id)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "测试用例不存在: " + id))
+                .projectId());
+    }
+
     // ---- Requirements ----
 
     public com.songhg.veri.agent.common.api.PageResponse<RequirementResponse> listRequirements(AssetListRequest request) {

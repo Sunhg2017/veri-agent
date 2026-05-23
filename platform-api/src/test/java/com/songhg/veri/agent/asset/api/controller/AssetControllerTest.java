@@ -98,6 +98,53 @@ class AssetControllerTest {
     }
 
     @Test
+    void enforcesProjectScopeForUserBearerAssetRequests() throws Exception {
+        String deniedRequirementId = createRequirement("越权项目需求", "不属于当前项目", "HIGH", "project-denied");
+        String scopedToken = userAccessToken(List.of("ProjectOwner@PROJECT:project-allowed"));
+
+        mockMvc.perform(get("/api/v1/asset/requirements/{id}", deniedRequirementId)
+                        .header("Authorization", "Bearer " + scopedToken))
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(get("/api/v1/asset/requirements")
+                        .header("Authorization", "Bearer " + scopedToken))
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(post("/api/v1/asset/imports")
+                        .header("Authorization", "Bearer " + scopedToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(JSON_MAPPER.writeValueAsString(Map.of(
+                                "assetType", "REQUIREMENT",
+                                "format", "CSV",
+                                "projectId", "project-denied",
+                                "dryRun", false,
+                                "content", "title,description,status,priority\n越权导入,blocked,DRAFT,HIGH"
+                        ))))
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(post("/api/v1/asset/requirements")
+                        .header("Authorization", "Bearer " + scopedToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "title": "授权项目需求",
+                                  "description": "属于当前项目",
+                                  "priority": "HIGH",
+                                  "projectId": "project-allowed"
+                                }
+                                """))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.projectId").value("project-allowed"));
+
+        mockMvc.perform(get("/api/v1/asset/requirements")
+                        .header("Authorization", "Bearer " + scopedToken)
+                        .param("projectId", "project-allowed"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(1))
+                .andExpect(jsonPath("$.data.items[0].title").value("授权项目需求"));
+    }
+
+    @Test
     void managesRequirementsFullLifecycle() throws Exception {
         String reqId = createRequirement("用户登录", "用户登录功能需求", "CRITICAL");
 
@@ -1289,6 +1336,10 @@ class AssetControllerTest {
     }
 
     private String userAccessToken() {
+        return userAccessToken(List.of("SuperAdmin"));
+    }
+
+    private String userAccessToken(List<String> roles) {
         return tokenService.issue(new AuthUserRecord(
                 UUID.randomUUID(),
                 "admin_user",
@@ -1297,7 +1348,7 @@ class AssetControllerTest {
                 "$2a$10$test",
                 false,
                 1,
-                List.of("SuperAdmin")
+                roles
         )).accessToken();
     }
 }
