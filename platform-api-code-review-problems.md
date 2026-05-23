@@ -21,7 +21,7 @@
 | S6 / Q1 | SensitiveContentGuard 规则重复和 mask 顺序依赖 | 已完成 | 已在上一批统一规则源并增加直接单测 |
 | S7 | 资产批量操作资源级鉴权 | 已完成 | 新增 `ResourceScope` 资源级校验，AssetController 对项目级列表/导入/导出/同步/单资源操作按项目 scope 授权，并补充跨项目拒绝用例 |
 | S8 | 文档导入事务边界 | 已完成 | `DocumentInputService.importDocument/importMultipart` 增加事务边界 |
-| A1 | Service 单一职责拆分 | 进行中 | 已完成 WP3 `AssetService` 版本历史记录/查询职责拆分到 `AssetVersionHistoryService`，影响分析图遍历、缺口计算和节点映射拆分到 `AssetImpactAnalysisService`，资产导入导出编排、CSV/JSON/OpenAPI 编解码和导入计划拆分到 `AssetImportExportService`，原型页面同步计划/创建/更新职责拆分到 `AssetPrototypeSyncService`，追踪关系查询/创建、跨项目目标校验和审计拆分到 `AssetTraceLinkService`，测试用例步骤查询/替换、步骤审计和历史记录拆分到 `AssetTestCaseStepService`，项目上下文校验和资产审计写入收敛到 `AssetProjectAuditService`，响应 DTO 映射、生命周期展示归一化和测试步骤响应排序拆分到 `AssetResponseMapper`；已完成 WP2 同步模型调用的 Prompt 渲染、平台策略、路由、预算、fallback、调用记录和审计编排拆分到 `ModelInvocationService`，并让 WP4 AI 解析直接复用该统一调用编排；已将 WP2 成本告警和成本日报聚合职责拆到 `ModelCostAnalysisService`；已将 WP4 模型解析人工纠错样本捕获、脱敏快照和审计职责拆分到 `DocumentParseFeedbackCaptureService`，并将 WP4 文档源管理、候选项生命周期、发布编排和响应 DTO 映射拆到 `DocumentSourceManagementService`、`DocumentCandidateWorkflowService`、`DocumentRequirementPublishService`、`DocumentInputResponseMapper`；已将管理台审计查询、配置管理、部门管理、用户管理、项目管理、环境管理、角色/权限管理和密钥引用生命周期拆到 `PostgresManagementAuditQueryService`、`PostgresManagementConfigService`、`PostgresManagementDepartmentService`、`PostgresManagementUserService`、`PostgresManagementProjectService`、`PostgresManagementEnvironmentService`、`PostgresManagementRoleService`、`PostgresManagementSecretReferenceService`；整体 A1 保持渐进治理，后续仅针对新增高耦合热点继续跟踪 |
+| A1 | Service 单一职责拆分 | 进行中 | 已完成 WP3 `AssetService` 版本历史记录/查询职责拆分到 `AssetVersionHistoryService`，影响分析图遍历、缺口计算和节点映射拆分到 `AssetImpactAnalysisService`，资产导入导出编排、CSV/JSON/OpenAPI 编解码和导入计划拆分到 `AssetImportExportService`，原型页面同步计划/创建/更新职责拆分到 `AssetPrototypeSyncService`，追踪关系查询/创建、跨项目目标校验和审计拆分到 `AssetTraceLinkService`，测试用例步骤查询/替换、步骤审计和历史记录拆分到 `AssetTestCaseStepService`，项目上下文校验和资产审计写入收敛到 `AssetProjectAuditService`，响应 DTO 映射、生命周期展示归一化和测试步骤响应排序拆分到 `AssetResponseMapper`；已完成 WP2 同步模型调用的 Prompt 渲染、平台策略、路由、预算、fallback、调用记录和审计编排拆分到 `ModelInvocationService`，并让 WP4 AI 解析直接复用该统一调用编排；已将 WP2 成本告警和成本日报聚合职责拆到 `ModelCostAnalysisService`；已将 WP4 模型解析人工纠错样本捕获、脱敏快照和审计职责拆分到 `DocumentParseFeedbackCaptureService`，并将 WP4 文档源管理、候选项生命周期、发布编排和响应 DTO 映射拆到 `DocumentSourceManagementService`、`DocumentCandidateWorkflowService`、`DocumentRequirementPublishService`、`DocumentInputResponseMapper`；已将管理台审计查询、配置管理、部门管理、用户管理、项目管理、应用管理、环境管理、角色/权限管理和密钥引用生命周期拆到 `PostgresManagementAuditQueryService`、`PostgresManagementConfigService`、`PostgresManagementDepartmentService`、`PostgresManagementUserService`、`PostgresManagementProjectService`、`PostgresManagementApplicationService`、`PostgresManagementEnvironmentService`、`PostgresManagementRoleService`、`PostgresManagementSecretReferenceService`；整体 A1 保持渐进治理，后续仅针对新增高耦合热点继续跟踪 |
 | A2 | 贫血领域模型治理 | 已完成 | 已将 WP3 需求/测试用例评审状态集合与转换规则迁入 `AssetReviewStatus`，将资产生命周期归一化与转换规则迁入 `AssetLifecycleStatus`/`LifecycleManagedAsset`，并将版本初始值、递增和历史版本匹配规则迁入 `AssetVersion`/`VersionedAsset` |
 | A3 | 统一权限注解/AOP | 已完成 | 新增 `@RequirePermission` 注解和 AOP 切面；ModelAccessController、DocumentInputController 的普通权限入口改为注解校验；AssetController 保留资源级 `ResourceScope` 显式校验但不再直接读取 `SecurityContextHolder` |
 | A4 / Q8 / T3 | local/db profile 行为差异与 db 测试不足 | 已完成 | 新增 PostgreSQL Testcontainers db-profile 契约测试，覆盖 Postgres AuthSessionStore、ModelAccessRepository、AssetRepository 的真实迁移、mapper、约束、分页和事务回滚路径 |
@@ -53,7 +53,7 @@
 
 ### 剩余专项优先级
 
-1. 架构治理专项：A1，按模块逐步拆分并保持接口兼容；已推进 WP3 版本历史、影响分析、资产导入导出、原型同步、追踪关系、测试用例步骤和项目审计上下文职责拆分，WP2 模型同步调用编排和成本分析职责拆分，WP4 AI 解析统一调用和模型解析人工纠错回流拆分；已完成 `DocumentInputService` 的文档源、候选项、发布和响应 DTO 映射职责拆分，以及 `PostgresManagementConsoleService` 的审计查询、配置管理、部门管理、用户管理、项目管理、环境管理、角色/权限管理和密钥引用职责拆分。A1 仍作为渐进治理专项保留，后续仅针对新增或复燃的高耦合热点继续跟踪。
+1. 架构治理专项：A1，按模块逐步拆分并保持接口兼容；已推进 WP3 版本历史、影响分析、资产导入导出、原型同步、追踪关系、测试用例步骤和项目审计上下文职责拆分，WP2 模型同步调用编排和成本分析职责拆分，WP4 AI 解析统一调用和模型解析人工纠错回流拆分；已完成 `DocumentInputService` 的文档源、候选项、发布和响应 DTO 映射职责拆分，以及 `PostgresManagementConsoleService` 的审计查询、配置管理、部门管理、用户管理、项目管理、应用管理、环境管理、角色/权限管理和密钥引用职责拆分。A1 仍作为渐进治理专项保留，后续仅针对新增或复燃的高耦合热点继续跟踪。
 2. 运行治理专项：暂无独立剩余项；后续按生产部署形态继续观察 Redis 可用性和网关限流策略。
 
 ## 一、安全风险 (Security)
@@ -124,7 +124,7 @@
   - `modelaccess/application/ModelAccessService.java`（当前约 704 行，同步调用编排和成本分析职责已拆出）
   - `asset/application/AssetService.java`（当前约 1414 行，版本历史/影响分析/导入导出/原型同步/追踪关系/测试用例步骤/项目审计上下文/响应 DTO 映射职责已拆出）
   - `documentinput/application/DocumentInputService.java`（当前约 1216 行，源管理/候选流程/发布编排/纠错反馈/响应 DTO 映射已拆出）
-  - `management/infrastructure/PostgresManagementConsoleService.java`（当前约 788 行，审计查询/配置管理/部门管理/用户管理/项目管理/环境管理/角色权限管理/密钥引用已拆出）
+  - `management/infrastructure/PostgresManagementConsoleService.java`（当前约 465 行，审计查询/配置管理/部门管理/用户管理/项目管理/应用管理/环境管理/角色权限管理/密钥引用已拆出）
 - **问题**: 核心 Service 类规模巨大，混合了路由决策、预算检查、供应商管理、Prompt 管理、审计追踪、CSV导出等不同职责。
 - **建议**: 
   - 将 `ModelAccessService.invoke()` 拆分为策略选择器、预算执行器、调用执行器等独立组件
@@ -133,7 +133,7 @@
 - **当前处理结果**:
   - `DocumentInputService` 已拆出 `DocumentSourceManagementService`、`DocumentCandidateWorkflowService`、`DocumentRequirementPublishService`、`DocumentParseFeedbackCaptureService`。
   - `DocumentInputService` 已继续拆出 `DocumentInputResponseMapper`，承接导入记录、候选项、反馈样本、webhook 事件响应映射和 webhook 审计脱敏视图。
-  - `PostgresManagementConsoleService` 已拆出 `PostgresManagementAuditQueryService`、`PostgresManagementConfigService`、`PostgresManagementDepartmentService`、`PostgresManagementUserService`、`PostgresManagementProjectService`、`PostgresManagementEnvironmentService`、`PostgresManagementRoleService`、`PostgresManagementSecretReferenceService`。
+  - `PostgresManagementConsoleService` 已拆出 `PostgresManagementAuditQueryService`、`PostgresManagementConfigService`、`PostgresManagementDepartmentService`、`PostgresManagementUserService`、`PostgresManagementProjectService`、`PostgresManagementApplicationService`、`PostgresManagementEnvironmentService`、`PostgresManagementRoleService`、`PostgresManagementSecretReferenceService`。
   - `ModelAccessService` 已拆出 `ModelInvocationService` 和 `ModelCostAnalysisService`，分别承接模型调用编排与成本告警/日报聚合。
   - `AssetService` 已继续拆出 `AssetTraceLinkService`，承接追踪关系查询/创建、目标资产跨项目校验和追踪关系审计。
   - `AssetService` 已继续拆出 `AssetTestCaseStepService`，承接测试用例步骤查询/替换、步骤审计和历史版本记录。

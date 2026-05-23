@@ -5,8 +5,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.songhg.veri.agent.common.api.PageQuery;
 import com.songhg.veri.agent.common.api.PageResponse;
 import com.songhg.veri.agent.common.audit.AuditLogWriter;
-import com.songhg.veri.agent.common.error.BusinessException;
-import com.songhg.veri.agent.common.error.ErrorCode;
 import com.songhg.veri.agent.common.secret.SecretProviderProperties;
 import com.songhg.veri.agent.management.api.response.ApplicationView;
 import com.songhg.veri.agent.management.api.response.AuditLogView;
@@ -47,19 +45,9 @@ import com.songhg.veri.agent.management.application.AuditLogQuery;
 import com.songhg.veri.agent.management.application.AuditOutboxQuery;
 import com.songhg.veri.agent.management.application.EnvironmentConnectivityChecker;
 import com.songhg.veri.agent.management.application.ManagementConsoleService;
-import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows.ApplicationRef;
-import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows.ProjectRef;
 import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapper;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
 import java.util.Set;
-import java.util.UUID;
-import java.util.function.Function;
-import java.util.function.ToIntFunction;
-import java.util.function.ToLongFunction;
 import org.springframework.context.annotation.Profile;
-import org.springframework.dao.DuplicateKeyException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -68,11 +56,10 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class PostgresManagementConsoleService implements ManagementConsoleService {
 
-    private final ManagementMapper mapper;
-    private final AuditLogWriter auditLogWriter;
     private final PostgresManagementDepartmentService departmentService;
     private final PostgresManagementUserService userService;
     private final PostgresManagementProjectService projectService;
+    private final PostgresManagementApplicationService applicationService;
     private final PostgresManagementEnvironmentService environmentService;
     private final PostgresManagementAuditQueryService auditQueryService;
     private final PostgresManagementConfigService configService;
@@ -88,11 +75,10 @@ public class PostgresManagementConsoleService implements ManagementConsoleServic
             ObjectMapper objectMapper,
             SecretProviderProperties secretProviderProperties
     ) {
-        this.mapper = mapper;
-        this.auditLogWriter = auditLogWriter;
         this.departmentService = new PostgresManagementDepartmentService(mapper, auditLogWriter);
         this.userService = new PostgresManagementUserService(mapper, auditLogWriter, passwordEncoder);
         this.projectService = new PostgresManagementProjectService(mapper, auditLogWriter, deniedAuditRecorder);
+        this.applicationService = new PostgresManagementApplicationService(mapper, auditLogWriter, projectService);
         this.environmentService = new PostgresManagementEnvironmentService(
                 mapper,
                 auditLogWriter,
@@ -282,115 +268,47 @@ public class PostgresManagementConsoleService implements ManagementConsoleServic
 
     @Override
     public PageResponse<ApplicationView> applications(PageQuery pageQuery, AuthUserPrincipal actor) {
-        return page(mapper::listApplications, mapper::countApplications, pageQuery, scope(actor));
+        return applicationService.applications(pageQuery, actor);
     }
 
     @Override
     public ApplicationView application(String key) {
-        return applicationByKey(key);
+        return applicationService.application(key);
     }
 
     @Override
     @Transactional
     public ApplicationView createApplication(CreateApplicationRequest request, AuthUserPrincipal actor) {
-        String name = request.name().trim();
-        String appType = normalizedOrDefault(request.appType(), "Web");
-        String code = normalizedOrGeneratedCode(request.code(), "app");
-        String sensitivityLevel = normalizedOrDefault(request.sensitivityLevel(), "INTERNAL");
-        boolean allowPublicModel = Boolean.TRUE.equals(request.allowPublicModel());
-        ProjectRef project = resolveProject(request.project(), actor);
-        ensureProjectEditable(project.status());
-        UUID appId = UUID.randomUUID();
-        try {
-            update(mapper::insertApplication, actor, values(
-                    "appId", appId,
-                    "projectId", project.id(),
-                    "code", code,
-                    "name", name,
-                    "appType", appType,
-                    "defaultWebUrl", blankToNull(request.defaultWebUrl()),
-                    "defaultApiBaseUrl", blankToNull(request.defaultApiBaseUrl()),
-                    "sensitivityLevel", sensitivityLevel,
-                    "allowPublicModel", allowPublicModel
-            ));
-        } catch (DuplicateKeyException exception) {
-            throw new BusinessException(ErrorCode.CONFLICT, "应用编码已存在");
-        }
-        audit(actor, "登记应用", "application", appId.toString(), name);
-        return new ApplicationView(name, appType, project.name(), "v0", "已接入");
+        return applicationService.createApplication(request, actor);
     }
 
     @Override
     @Transactional
     public ApplicationView updateApplication(String key, UpdateApplicationRequest request, AuthUserPrincipal actor) {
-        ApplicationRef application = resolveApplicationStrict(key);
-        ensureEnabled(application.status(), "当前应用状态不允许编辑");
-        ApplicationView before = applicationByKey(application.id().toString());
-        try {
-            update(mapper::updateApplication, actor, values(
-                    "applicationId", application.id(),
-                    "name", blankToNull(request.name()),
-                    "appType", blankToNull(request.appType()),
-                    "defaultWebUrl", blankToNull(request.defaultWebUrl()),
-                    "defaultApiBaseUrl", blankToNull(request.defaultApiBaseUrl()),
-                    "sensitivityLevel", blankToNull(request.sensitivityLevel()),
-                    "allowPublicModel", request.allowPublicModel()
-            ));
-        } catch (DuplicateKeyException exception) {
-            throw new BusinessException(ErrorCode.CONFLICT, "应用编码或名称已存在");
-        }
-        ApplicationView updated = applicationByKey(application.id().toString());
-        auditChange(actor, "更新应用", "application", application.id().toString(), updated.name(),
-                nameJson(before.name()), nameJson(updated.name()), null);
-        return updated;
+        return applicationService.updateApplication(key, request, actor);
     }
 
     @Override
     @Transactional
     public ApplicationView changeApplicationStatus(String key, String status, AuthUserPrincipal actor) {
-        ApplicationRef application = resolveApplicationStrict(key);
-        String nextStatus = normalizeEnabledStatus(status, "应用状态不支持");
-        update(mapper::changeApplicationStatus, actor, values("applicationId", application.id(), "status", nextStatus));
-        ApplicationView updated = applicationByKey(application.id().toString());
-        audit(actor, "ENABLED".equals(nextStatus) ? "启用应用" : "停用应用", "application", application.id().toString(), updated.name());
-        return updated;
+        return applicationService.changeApplicationStatus(key, status, actor);
     }
 
     @Override
     public PageResponse<ScopedUserRoleView> applicationOwners(String applicationKey, PageQuery pageQuery) {
-        ApplicationRef application = resolveApplicationStrict(applicationKey);
-        return scopedUserRoles(application.id(), "APPLICATION", "AppOwner", pageQuery);
+        return applicationService.applicationOwners(applicationKey, pageQuery);
     }
 
     @Override
     @Transactional
     public ScopedUserRoleView addApplicationOwner(String applicationKey, ScopedUserRoleRequest request, AuthUserPrincipal actor) {
-        ApplicationRef application = resolveApplicationStrict(applicationKey);
-        ensureEnabled(application.status(), "当前应用状态不允许维护负责人");
-        String roleCode = request.roleCode().trim();
-        if (!"AppOwner".equals(roleCode)) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "应用负责人只能绑定 AppOwner 角色");
-        }
-        String username = request.username().trim();
-        UUID userId = requireUserId(username);
-        UUID roleId = requireRoleId(roleCode);
-        bindScopedRole(userId, roleId, roleCode, "APPLICATION", application.id(), actor);
-        bumpUserAuthVersion(userId, actor);
-        ScopedUserRoleView view = scopedUserRoleByUsername(application.id(), "APPLICATION", "AppOwner", username, "应用负责人不存在");
-        audit(actor, "添加应用负责人", "application_owner", application.id() + ":" + userId, application.name() + ":" + username);
-        return view;
+        return applicationService.addApplicationOwner(applicationKey, request, actor);
     }
 
     @Override
     @Transactional
     public ScopedUserRoleView removeApplicationOwner(String applicationKey, String username, AuthUserPrincipal actor) {
-        ApplicationRef application = resolveApplicationStrict(applicationKey);
-        ScopedUserRoleView current = scopedUserRoleByUsername(application.id(), "APPLICATION", "AppOwner", username, "应用负责人不存在");
-        UUID userId = requireUserId(username);
-        disableScopedRoles(userId, "APPLICATION", application.id(), "AppOwner", actor);
-        bumpUserAuthVersion(userId, actor);
-        audit(actor, "移除应用负责人", "application_owner", application.id() + ":" + userId, application.name() + ":" + username);
-        return new ScopedUserRoleView(current.username(), current.displayName(), current.role(), current.scopeType(), "已移除");
+        return applicationService.removeApplicationOwner(applicationKey, username, actor);
     }
 
     @Override
@@ -542,247 +460,4 @@ public class PostgresManagementConsoleService implements ManagementConsoleServic
     public SecretReferenceView disableSecret(DisableSecretReferenceRequest request, AuthUserPrincipal actor) {
         return secretReferenceService.disableSecret(request, actor);
     }
-
-    private ProjectRef resolveProject(String project, AuthUserPrincipal actor) {
-        return projectService.resolveProject(project, actor);
-    }
-
-    private ApplicationRef resolveApplicationStrict(String key) {
-        return requireOne(mapper::findApplicationRef, values("keyword", key), "应用不存在");
-    }
-
-    private ApplicationView applicationByKey(String key) {
-        return requireOne(mapper::findApplicationView, values("keyword", key), "应用不存在");
-    }
-
-    private PageResponse<ScopedUserRoleView> scopedUserRoles(
-            UUID scopeId,
-            String scopeType,
-            String roleCode,
-            PageQuery pageQuery
-    ) {
-        return page(mapper::listScopedUserRoles, mapper::countScopedUserRoles, pageQuery, values(
-                "scopeId", scopeId,
-                "scopeType", scopeType,
-                "roleCode", normalizeSearch(roleCode)
-        ));
-    }
-
-    private ScopedUserRoleView scopedUserRoleByUsername(
-            UUID scopeId,
-            String scopeType,
-            String roleCode,
-            String username,
-            String notFoundMessage
-    ) {
-        return requireOne(mapper::findScopedUserRoleByUsername, values(
-                "scopeId", scopeId,
-                "scopeType", scopeType,
-                "roleCode", normalizeSearch(roleCode),
-                "username", username
-        ), notFoundMessage);
-    }
-
-    private void bindScopedRole(
-            UUID userId,
-            UUID roleId,
-            String roleCode,
-            String scopeType,
-            UUID scopeId,
-            AuthUserPrincipal actor
-    ) {
-        update(mapper::bindScopedRole, actor, values(
-                "userId", userId,
-                "roleId", roleId,
-                "roleCode", roleCode,
-                "scopeType", scopeType,
-                "scopeId", scopeId
-        ));
-    }
-
-    private void disableScopedRoles(
-            UUID userId,
-            String scopeType,
-            UUID scopeId,
-            String roleCode,
-            AuthUserPrincipal actor
-    ) {
-        update(mapper::disableScopedRoles, actor, values(
-                "userId", userId,
-                "scopeType", scopeType,
-                "scopeId", scopeId,
-                "roleCode", normalizeSearch(roleCode)
-        ));
-    }
-
-    /**
-     * Write a success audit event with the given action, resource, and target name.
-     * Uses AuditLogWriter (the canonical audit write path) instead of raw SQL,
-     * resolving the dual-write-path issue. The afterJson captures the current state.
-     */
-    private void audit(
-            AuthUserPrincipal actor,
-            String action,
-            String resourceType,
-            String resourceId,
-            String targetName
-    ) {
-        auditLogWriter.record(AuditLogWriter.success(
-                actor, action, resourceType, resourceId, targetName
-        ));
-    }
-
-    /**
-     * Write a change audit event with before/after JSON for change tracking.
-     * This enables the PRD-required "变更前摘要" and "变更后摘要" in audit logs.
-     */
-    private void auditChange(
-            AuthUserPrincipal actor,
-            String action,
-            String resourceType,
-            String resourceId,
-            String targetName,
-            String beforeJson,
-            String afterJson,
-            String diffJson
-    ) {
-        auditLogWriter.record(AuditLogWriter.changed(
-                actor, action, resourceType, resourceId, targetName,
-                beforeJson, afterJson, diffJson
-        ));
-    }
-
-    /**
-     * Build a simple {"name":"..."} JSON for after-state capture.
-     */
-    private String nameJson(String name) {
-        return "{\"name\":\"" + escapeJson(name) + "\"}";
-    }
-
-    private boolean hasPlatformScope(AuthUserPrincipal actor) {
-        return actor.roles().stream().anyMatch(role -> List.of("SuperAdmin", "PlatformAdmin", "Auditor").contains(role));
-    }
-
-    private String normalizeSearch(String search) {
-        return search == null ? "" : search.trim();
-    }
-
-    private UUID requireUserId(String username) {
-        return requireOne(mapper::findUserId, values("username", username), "用户不存在");
-    }
-
-    private UUID requireRoleId(String roleCode) {
-        return requireOne(mapper::findRoleId, values("roleCode", roleCode), "角色不存在");
-    }
-
-    private void bumpUserAuthVersion(UUID userId, AuthUserPrincipal actor) {
-        update(mapper::bumpUserAuthVersion, actor, values("userId", userId));
-    }
-
-    private int update(ToIntFunction<Map<String, Object>> statement, AuthUserPrincipal actor, Map<String, Object> params) {
-        return statement.applyAsInt(withActor(actor, params));
-    }
-
-    private <T> PageResponse<T> page(
-            Function<Map<String, Object>, List<T>> listStatement,
-            ToLongFunction<Map<String, Object>> countStatement,
-            PageQuery pageQuery,
-            Map<String, Object> extraParams
-    ) {
-        Map<String, Object> params = pageParams(pageQuery, extraParams);
-        List<T> items = listStatement.apply(params);
-        long total = countStatement.applyAsLong(params);
-        return PageResponse.of(items, pageQuery.index(), pageQuery.size(), total);
-    }
-
-    private Map<String, Object> pageParams(PageQuery pageQuery, Map<String, Object> extraParams) {
-        Map<String, Object> params = new HashMap<>(extraParams);
-        params.put("search", pageQuery.search());
-        params.put("searchPattern", pageQuery.searchPattern());
-        params.put("limit", pageQuery.size());
-        params.put("offset", pageQuery.offset());
-        return params;
-    }
-
-    private Map<String, Object> scope(AuthUserPrincipal actor) {
-        return values("actorId", actor.userId(), "platformScope", hasPlatformScope(actor));
-    }
-
-    private Map<String, Object> withActor(AuthUserPrincipal actor, Map<String, Object> source) {
-        Map<String, Object> params = new HashMap<>(source);
-        params.put("actorId", actor.userId());
-        return params;
-    }
-
-    private Map<String, Object> values(Object... pairs) {
-        if (pairs.length % 2 != 0) {
-            throw new IllegalArgumentException("参数必须成对出现");
-        }
-        Map<String, Object> params = new HashMap<>();
-        for (int index = 0; index < pairs.length; index += 2) {
-            params.put((String) pairs[index], pairs[index + 1]);
-        }
-        return params;
-    }
-
-    private <T> T requireOne(Function<Map<String, Object>, T> statement, Map<String, Object> params, String notFoundMessage) {
-        Map<String, Object> normalized = new HashMap<>(params);
-        if (normalized.containsKey("keyword")) {
-            String keyword = blankToNull((String) normalized.get("keyword"));
-            if (keyword == null) {
-                throw new BusinessException(ErrorCode.NOT_FOUND, notFoundMessage);
-            }
-            normalized.put("keyword", keyword);
-        }
-        T value = statement.apply(normalized);
-        if (value == null) {
-            throw new BusinessException(ErrorCode.NOT_FOUND, notFoundMessage);
-        }
-        return value;
-    }
-
-    private String normalizedOrGeneratedCode(String value, String prefix) {
-        return normalizedOrDefault(value, nextCode(prefix));
-    }
-
-    private String normalizedOrDefault(String value, String defaultValue) {
-        String normalized = blankToNull(value);
-        return normalized == null ? defaultValue : normalized;
-    }
-
-    private String blankToNull(String value) {
-        if (value == null || value.trim().isBlank()) {
-            return null;
-        }
-        return value.trim();
-    }
-
-    private void ensureProjectEditable(String status) {
-        if ("ARCHIVED".equals(status) || "DISABLED".equals(status)) {
-            throw new BusinessException(ErrorCode.INVALID_STATE, "当前项目状态不允许新增或编辑资源");
-        }
-    }
-
-    private void ensureEnabled(String status, String message) {
-        if (!"ENABLED".equals(status)) {
-            throw new BusinessException(ErrorCode.INVALID_STATE, message);
-        }
-    }
-
-    private String normalizeEnabledStatus(String status, String message) {
-        String normalized = status == null ? "" : status.trim().toUpperCase();
-        if (!List.of("ENABLED", "DISABLED").contains(normalized)) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, message);
-        }
-        return normalized;
-    }
-
-    private String nextCode(String prefix) {
-        return prefix + "-" + UUID.randomUUID().toString().substring(0, 8);
-    }
-
-    private String escapeJson(String value) {
-        return value.replace("\\", "\\\\").replace("\"", "\\\"");
-    }
-
 }
