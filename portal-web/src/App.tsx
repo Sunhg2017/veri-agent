@@ -6,29 +6,23 @@ import {
   CheckCircle2,
   ClipboardList,
   DatabaseZap,
-  Download,
   FileText,
   GitBranch,
   KeyRound,
   LayoutDashboard,
   Link2,
   LockKeyhole,
-  LogIn,
   LogOut,
   Pencil,
   Power,
-  Save,
-  ScrollText,
-  Search,
   ServerCog,
   Settings,
   ShieldCheck,
-  UserPlus,
-  UserMinus,
+  ScrollText,
   UsersRound,
   type LucideIcon
 } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import {
   changePassword,
   fetchCurrentUser,
@@ -37,11 +31,12 @@ import {
   type CurrentUser,
   type LoginPayload
 } from './api/auth';
-import { ApiError, clearAuthToken, getAuthToken } from './api/client';
+import { ApiError, clearAuthToken, getAuthToken, setAuthToken, setRefreshToken, setSessionId } from './api/client';
 import { fetchHealth, type HealthResult } from './api/health';
 import { AssetWorkbench } from './components/AssetWorkbench';
 import { DocumentInputConsole } from './components/DocumentInputConsole';
 import { ModelAccessConsole } from './components/ModelAccessConsole';
+import { useToast } from './components/Toast';
 import {
   assignUserRole,
   addApplicationOwner,
@@ -95,7 +90,6 @@ import {
   updateSetting,
   updateUser,
   type ApplicationView,
-  type AuditLogView,
   type AuditOutboxFilters,
   type AuditOutboxView,
   type CreatableManagementResource,
@@ -124,10 +118,9 @@ import {
   type UserLifecycleAction
 } from './permissions';
 
-const initialLoginForm: LoginPayload = {
-  username: '',
-  password: ''
-};
+/* ===================== 常量 & 类型 ===================== */
+
+const initialLoginForm: LoginPayload = { username: '', password: '' };
 
 type PasswordForm = {
   oldPassword: string;
@@ -141,28 +134,18 @@ type ResetPasswordForm = {
   confirmPassword: string;
 };
 
-const initialPasswordForm: PasswordForm = {
-  oldPassword: '',
-  newPassword: '',
-  confirmPassword: ''
-};
-
-const initialResetPasswordForm: ResetPasswordForm = {
-  username: '',
-  newPassword: '',
-  confirmPassword: ''
-};
+const initialPasswordForm: PasswordForm = { oldPassword: '', newPassword: '', confirmPassword: '' };
+const initialResetPasswordForm: ResetPasswordForm = { username: '', newPassword: '', confirmPassword: '' };
 
 type LoginState =
   | { status: 'idle' }
   | { status: 'loading' }
-  | { status: 'success'; traceId: string }
-  | { status: 'error'; traceId: string; message: string; code: string };
+  | { status: 'error'; message: string };
 
 type PasswordDialogState =
   | { status: 'idle' }
   | { status: 'submitting' }
-  | { status: 'error'; traceId: string; message: string; code: string };
+  | { status: 'error'; message: string };
 
 interface PageDefinition {
   key: PageKey;
@@ -205,12 +188,12 @@ const pages: PageDefinition[] = [
     key: 'organizations',
     label: '组织部门',
     title: '组织部门',
-    description: '维护部门层级、负责人和成员规模，为权限分配提供组织上下文。',
+    description: '维护部门层级、负责人和成员规模。',
     icon: GitBranch
   },
   {
     key: 'users',
-    label: '用户与权限',
+    label: '用户权限',
     title: '用户与权限',
     description: '集中查看用户、角色、权限策略与账号状态。',
     icon: UsersRound
@@ -267,233 +250,86 @@ const pages: PageDefinition[] = [
 ];
 
 const emptyManagementData: ManagementData = {
-  departments: [],
-  users: [],
-  roles: [],
-  permissions: [],
-  projects: [],
-  applications: [],
-  environments: [],
-  integrations: [],
-  auditLogs: [],
-  auditOutbox: [],
-  settings: [],
-  secrets: []
+  departments: [], users: [], roles: [], permissions: [],
+  projects: [], applications: [], environments: [], integrations: [],
+  auditLogs: [], auditOutbox: [], settings: [], secrets: []
 };
 
-type ResourceDraft = Record<string, string>;
-
-type ResourceEditField = {
-  key: string;
-  label: string;
-  placeholder?: string;
-  kind?: 'text' | 'select' | 'public-model';
-  options?: Array<{ value: string; label: string }>;
-};
-
-type StatusOption = {
-  value: string;
-  label: string;
-  icon: LucideIcon;
-};
-
-const sensitivityOptions = [
-  { value: '', label: '保持不变' },
-  { value: 'PUBLIC', label: 'PUBLIC' },
-  { value: 'INTERNAL', label: 'INTERNAL' },
-  { value: 'CONFIDENTIAL', label: 'CONFIDENTIAL' },
-  { value: 'STRICT', label: 'STRICT' }
-];
-
-const publicModelOptions = [
-  { value: '', label: '保持不变' },
-  { value: 'true', label: '允许公有云模型' },
-  { value: 'false', label: '禁用公有云模型' }
-];
-
-const appTypeOptions = [
-  { value: '', label: '保持不变' },
-  { value: 'Web', label: 'Web' },
-  { value: 'Backend', label: 'Backend' },
-  { value: 'Frontend', label: 'Frontend' },
-  { value: 'Mobile', label: 'Mobile' },
-  { value: 'Service', label: 'Service' },
-  { value: 'API', label: 'API' }
-];
-
-const envTypeOptions = [
-  { value: '', label: '保持不变' },
-  { value: 'DEV', label: 'DEV' },
-  { value: 'TEST', label: 'TEST' },
-  { value: 'STAGING', label: 'STAGING' },
-  { value: 'PREPROD', label: 'PREPROD' },
-  { value: 'PROD', label: 'PROD' }
-];
-
-const projectEditFields: ResourceEditField[] = [
-  { key: 'name', label: '项目名称', placeholder: '输入新项目名称' },
-  { key: 'sensitivity_level', label: '敏感级别', kind: 'select', options: sensitivityOptions },
-  { key: 'allow_public_model', label: '公有云模型', kind: 'public-model', options: publicModelOptions }
-];
-
-const applicationEditFields: ResourceEditField[] = [
-  { key: 'name', label: '应用名称', placeholder: '输入新应用名称' },
-  { key: 'app_type', label: '应用类型', kind: 'select', options: appTypeOptions },
-  { key: 'default_web_url', label: '默认 Web URL', placeholder: 'https://web.example.test' },
-  { key: 'default_api_base_url', label: '默认 API Base URL', placeholder: 'https://api.example.test' },
-  { key: 'sensitivity_level', label: '敏感级别', kind: 'select', options: sensitivityOptions },
-  { key: 'allow_public_model', label: '公有云模型', kind: 'public-model', options: publicModelOptions }
-];
-
-const environmentEditFields: ResourceEditField[] = [
-  { key: 'name', label: '环境名称', placeholder: '输入新环境名称' },
-  { key: 'env_type', label: '环境类型', kind: 'select', options: envTypeOptions },
-  { key: 'web_url', label: 'Web URL', placeholder: 'https://web.env.test' },
-  { key: 'api_base_url', label: 'API Base URL', placeholder: 'https://api.env.test' }
-];
-
-const departmentEditFields: ResourceEditField[] = [
-  { key: 'name', label: '部门名称', placeholder: '输入新部门名称' }
-];
-
-const userEditFields: ResourceEditField[] = [
-  { key: 'display_name', label: '显示名称', placeholder: '输入显示名称' },
-  { key: 'email', label: '邮箱', placeholder: 'user@example.com' }
-];
-
-type ManagementLoadState = {
-  loading: boolean;
-  traceId?: string;
-  error?: string;
-};
-
-type AuditExportState = {
-  loading: boolean;
-  traceId?: string;
-  error?: string;
-  filename?: string;
-};
+/* ===================== Page Routing ===================== */
 
 function activePageFromHash(): PageKey {
   const pageKey = window.location.hash.replace(/^#\/?/, '').split('/')[0];
-  return pages.some((page) => page.key === pageKey) ? (pageKey as PageKey) : 'overview';
+  return pages.some((p) => p.key === pageKey) ? (pageKey as PageKey) : 'overview';
 }
 
-function navigateToPage(page: PageKey, setPage: (page: PageKey) => void) {
-  const hash = `#${page}`;
-  if (window.location.hash === hash || window.location.hash.startsWith(`${hash}/`)) {
-    setPage(page);
-    return;
-  }
-  window.location.hash = hash;
+function navigateToPage(page: PageKey) {
+  window.location.hash = `#${page}`;
 }
+
+/* ===================== Main App ===================== */
 
 export function App() {
+  // -- Auth state --
   const [activePage, setActivePage] = useState<PageKey>(() => activePageFromHash());
   const [loginForm, setLoginForm] = useState<LoginPayload>(initialLoginForm);
   const [loginState, setLoginState] = useState<LoginState>({ status: 'idle' });
+  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
   const [passwordForm, setPasswordForm] = useState<PasswordForm>(initialPasswordForm);
   const [passwordDialogState, setPasswordDialogState] = useState<PasswordDialogState>({ status: 'idle' });
   const [resetPasswordDialogOpen, setResetPasswordDialogOpen] = useState(false);
   const [resetPasswordForm, setResetPasswordForm] = useState<ResetPasswordForm>(initialResetPasswordForm);
   const [resetPasswordDialogState, setResetPasswordDialogState] = useState<PasswordDialogState>({ status: 'idle' });
-  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
+
+  // -- Data state --
+  const [health, setHealth] = useState<{ loading: boolean; data?: HealthResult; error?: string }>({ loading: true });
   const [managementData, setManagementData] = useState<ManagementData>(emptyManagementData);
-  const [managementLoad, setManagementLoad] = useState<ManagementLoadState>({ loading: false });
-  const [auditExportState, setAuditExportState] = useState<AuditExportState>({ loading: false });
+  const [managementLoad, setManagementLoad] = useState<{ loading: boolean; error?: string }>({ loading: false });
+  const [auditExportState, setAuditExportState] = useState<{ loading: boolean; error?: string }>({ loading: false });
   const [auditOutboxFilters, setAuditOutboxFilters] = useState<AuditOutboxFilters>({ status: '', traceId: '', search: '' });
-  const [auditOutboxLoad, setAuditOutboxLoad] = useState<ManagementLoadState>({ loading: false });
-  const [health, setHealth] = useState<{ loading: boolean; traceId?: string; data?: HealthResult; error?: string }>({
-    loading: true
-  });
-  const visiblePages = useMemo(() => pages.filter((page) => canAccessPage(currentUser, page.key)), [currentUser]);
+  const [auditOutboxLoad, setAuditOutboxLoad] = useState<{ loading: boolean; error?: string }>({ loading: false });
+
+  // -- Toast --
+  const { addToast, toastContainer } = useToast();
+
+  const visiblePages = useMemo(() => pages.filter((p) => canAccessPage(currentUser, p.key)), [currentUser]);
+  const activeDefinition = pages.find((p) => p.key === activePage) ?? pages[0];
   const passwordChangeRequired = Boolean(currentUser?.must_change_password);
 
-  useEffect(() => {
-    function syncPageFromHash() {
-      setActivePage(activePageFromHash());
-    }
+  /* ---------- Hash routing ---------- */
 
-    window.addEventListener('hashchange', syncPageFromHash);
-    return () => window.removeEventListener('hashchange', syncPageFromHash);
+  useEffect(() => {
+    function sync() { setActivePage(activePageFromHash()); }
+    window.addEventListener('hashchange', sync);
+    return () => window.removeEventListener('hashchange', sync);
   }, []);
+
+  useEffect(() => {
+    if (!canAccessPage(currentUser, activePage)) {
+      window.history.replaceState(null, '', '#overview');
+      setActivePage('overview');
+    }
+  }, [activePage, currentUser]);
+
+  /* ---------- Initial data loading ---------- */
 
   useEffect(() => {
     let active = true;
     fetchHealth()
-      .then((response) => {
-        if (!active) return;
-        setHealth({ loading: false, traceId: response.trace_id, data: response.data });
-      })
-      .catch((error: unknown) => {
-        if (!active) return;
-        const message = error instanceof Error ? error.message : '健康检查失败';
-        setHealth({ loading: false, error: message });
-      });
-    return () => {
-      active = false;
-    };
+      .then((r) => { if (active) setHealth({ loading: false, data: r.data }); })
+      .catch((err: unknown) => { if (active) setHealth({ loading: false, error: err instanceof Error ? err.message : 'Health check failed' }); });
+    return () => { active = false; };
   }, []);
 
-  const refreshManagementData = useCallback(async () => {
-    if (!getAuthToken() || !currentUser || currentUser.must_change_password) {
-      setManagementData(emptyManagementData);
-      setManagementLoad({ loading: false });
-      setAuditOutboxLoad({ loading: false });
-      return;
-    }
-
-    setManagementLoad({ loading: true });
-    try {
-      const response = await fetchManagementData(currentUser.permissions ?? []);
-      setManagementData(response.data);
-      setManagementLoad({ loading: false, traceId: response.traceId });
-      setAuditOutboxLoad({ loading: false, traceId: response.traceId });
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : '管理数据加载失败';
-      setManagementLoad({ loading: false, error: message });
-    }
-  }, [currentUser]);
-
-  const refreshAuditOutbox = useCallback(async (filters: AuditOutboxFilters = auditOutboxFilters) => {
-    if (!getAuthToken() || !currentUser || currentUser.must_change_password) {
-      setAuditOutboxLoad({ loading: false, error: '请先登录后再操作' });
-      return;
-    }
-    if (!hasPermission(currentUser, 'audit:read')) {
-      setAuditOutboxLoad({ loading: false, error: '当前账号无审计查询权限' });
-      return;
-    }
-
-    setAuditOutboxLoad({ loading: true });
-    try {
-      const response = await fetchAuditOutbox(filters);
-      setManagementData((current) => ({ ...current, auditOutbox: response.data.items }));
-      setAuditOutboxLoad({ loading: false, traceId: response.trace_id });
-    } catch (error: unknown) {
-      if (error instanceof ApiError) {
-        setAuditOutboxLoad({ loading: false, error: error.message, traceId: error.traceId });
-      } else {
-        const message = error instanceof Error ? error.message : 'Audit outbox 加载失败';
-        setAuditOutboxLoad({ loading: false, error: message });
-      }
-    }
-  }, [auditOutboxFilters, currentUser]);
-
   useEffect(() => {
-    if (!getAuthToken()) {
-      return;
-    }
+    if (!getAuthToken()) return;
     fetchCurrentUser()
-      .then((response) => {
-        setCurrentUser(response.data);
-        setLoginState({ status: 'success', traceId: response.trace_id });
+      .then((r) => {
+        setCurrentUser(r.data);
       })
       .catch(() => {
         clearAuthToken();
         setCurrentUser(null);
-        setLoginState({ status: 'idle' });
       });
   }, []);
 
@@ -505,51 +341,71 @@ export function App() {
       return;
     }
     void refreshManagementData();
-  }, [currentUser, refreshManagementData]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser]);
 
   useEffect(() => {
     if (currentUser?.must_change_password) {
       setPasswordDialogOpen(true);
-      setPasswordDialogState({ status: 'idle' });
     }
   }, [currentUser?.must_change_password, currentUser?.user_id]);
 
-  useEffect(() => {
-    if (!canAccessPage(currentUser, activePage)) {
-      window.history.replaceState(null, '', '#overview');
-      setActivePage('overview');
-    }
-  }, [activePage, currentUser]);
+  /* ---------- API helpers ---------- */
 
-  const activeDefinition = pages.find((page) => page.key === activePage) ?? pages[0];
+  const refreshManagementData = useCallback(async () => {
+    if (!getAuthToken() || !currentUser || currentUser.must_change_password) {
+      setManagementData(emptyManagementData);
+      setManagementLoad({ loading: false });
+      return;
+    }
+    setManagementLoad({ loading: true });
+    try {
+      const r = await fetchManagementData(currentUser.permissions ?? []);
+      setManagementData(r.data);
+      setManagementLoad({ loading: false });
+    } catch (err: unknown) {
+      setManagementLoad({ loading: false, error: err instanceof Error ? err.message : '加载失败' });
+    }
+  }, [currentUser]);
+
+  const refreshAuditOutbox = useCallback(async (filters: AuditOutboxFilters = auditOutboxFilters) => {
+    if (!getAuthToken() || !currentUser || currentUser.must_change_password) return;
+    setAuditOutboxLoad({ loading: true });
+    try {
+      const r = await fetchAuditOutbox(filters);
+      setManagementData((prev) => ({ ...prev, auditOutbox: r.data.items }));
+      setAuditOutboxLoad({ loading: false });
+    } catch (err: unknown) {
+      setAuditOutboxLoad({ loading: false, error: err instanceof Error ? err.message : '加载失败' });
+    }
+  }, [auditOutboxFilters, currentUser]);
+
+  /* ---------- Auth actions ---------- */
 
   async function onLogin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!loginForm.username.trim() || !loginForm.password) {
-      setLoginState({ status: 'error', code: 'LOCAL_VALIDATION_ERROR', message: '请输入账号和密码', traceId: '' });
+      setLoginState({ status: 'error', message: '请输入账号和密码' });
       return;
     }
-
     setLoginState({ status: 'loading' });
     try {
-      const response = await loginRequest(loginForm);
-      const currentUserResponse = await fetchCurrentUser();
-      setCurrentUser(currentUserResponse.data);
-      setLoginForm((current) => ({ ...current, password: '' }));
-      setLoginState({ status: 'success', traceId: response.trace_id });
-    } catch (error: unknown) {
+      const r = await loginRequest(loginForm);
+      setAuthToken(r.data.access_token);
+      setRefreshToken(r.data.refresh_token);
+      setSessionId(r.data.session_id);
+      const userR = await fetchCurrentUser();
+      setCurrentUser(userR.data);
+      setLoginForm(initialLoginForm);
+      setLoginState({ status: 'idle' });
+      addToast('success', '登录成功');
+    } catch (err: unknown) {
       clearAuthToken();
       setCurrentUser(null);
-      if (error instanceof ApiError) {
-        setLoginState({
-          status: 'error',
-          code: error.code,
-          message: error.message,
-          traceId: error.traceId
-        });
+      if (err instanceof ApiError) {
+        setLoginState({ status: 'error', message: err.message });
       } else {
-        const message = error instanceof Error ? error.message : '登录失败';
-        setLoginState({ status: 'error', code: 'REQUEST_FAILED', message, traceId: '' });
+        setLoginState({ status: 'error', message: '登录失败，请检查网络连接' });
       }
     }
   }
@@ -569,69 +425,129 @@ export function App() {
   }
 
   async function onLogout() {
-    try {
-      await logoutRequest();
-    } catch {
-      // Local logout should still clear the browser state if the server session has already expired.
-    } finally {
+    try { await logoutRequest(); } catch { /* ignore */ } finally {
       resetSignedInState();
-      setLoginState({ status: 'idle' });
+      addToast('info', '已退出登录');
     }
-  }
-
-  function openPasswordDialog() {
-    setPasswordDialogOpen(true);
-    setPasswordForm(initialPasswordForm);
-    setPasswordDialogState({ status: 'idle' });
-  }
-
-  function closePasswordDialog() {
-    if (passwordDialogState.status === 'submitting') {
-      return;
-    }
-    setPasswordDialogOpen(false);
-    setPasswordForm(initialPasswordForm);
-    setPasswordDialogState({ status: 'idle' });
   }
 
   async function onChangePassword(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!currentUser) {
+    if (!currentUser) return;
+    const { oldPassword, newPassword, confirmPassword } = passwordForm;
+    if (!oldPassword || !newPassword || !confirmPassword) {
+      setPasswordDialogState({ status: 'error', message: '请填写完整密码信息' });
       return;
     }
-    const oldPassword = passwordForm.oldPassword;
-    const newPassword = passwordForm.newPassword;
-    if (!oldPassword || !newPassword || !passwordForm.confirmPassword) {
-      setPasswordDialogState({ status: 'error', code: 'LOCAL_VALIDATION_ERROR', message: '请填写完整密码信息', traceId: '' });
-      return;
-    }
-    if (newPassword !== passwordForm.confirmPassword) {
-      setPasswordDialogState({ status: 'error', code: 'LOCAL_VALIDATION_ERROR', message: '两次输入的新密码不一致', traceId: '' });
+    if (newPassword !== confirmPassword) {
+      setPasswordDialogState({ status: 'error', message: '两次输入的新密码不一致' });
       return;
     }
     if (newPassword.length < 10) {
-      setPasswordDialogState({ status: 'error', code: 'LOCAL_VALIDATION_ERROR', message: '新密码至少 10 位', traceId: '' });
+      setPasswordDialogState({ status: 'error', message: '新密码至少 10 位' });
       return;
     }
     if (oldPassword === newPassword) {
-      setPasswordDialogState({ status: 'error', code: 'LOCAL_VALIDATION_ERROR', message: '新密码不能与旧密码相同', traceId: '' });
+      setPasswordDialogState({ status: 'error', message: '新密码不能与旧密码相同' });
       return;
     }
     setPasswordDialogState({ status: 'submitting' });
     try {
-      const response = await changePassword({ old_password: oldPassword, new_password: newPassword });
+      await changePassword({ old_password: oldPassword, new_password: newPassword });
       resetSignedInState();
-      setPasswordDialogOpen(false);
-      setPasswordForm(initialPasswordForm);
-      setPasswordDialogState({ status: 'idle' });
-      setLoginState({ status: 'error', code: 'PASSWORD_CHANGED', message: '密码已修改，请重新登录', traceId: response.trace_id });
-    } catch (error: unknown) {
-      if (error instanceof ApiError) {
-        setPasswordDialogState({ status: 'error', code: error.code, message: error.message, traceId: error.traceId });
+      addToast('success', '密码已修改，请重新登录');
+    } catch (err: unknown) {
+      if (err instanceof ApiError) {
+        setPasswordDialogState({ status: 'error', message: err.message });
       } else {
-        const message = error instanceof Error ? error.message : '密码修改失败';
-        setPasswordDialogState({ status: 'error', code: 'REQUEST_FAILED', message, traceId: '' });
+        setPasswordDialogState({ status: 'error', message: '密码修改失败' });
       }
+    }
+  }
+
+  /* ---------- Management actions ---------- */
+
+  async function onCreateManagementItem(resource: CreatableManagementResource, _label: string, rawName: string) {
+    if (!currentUser) return;
+    const name = rawName.trim();
+    if (!name) return;
+    setManagementLoad({ loading: true });
+    try {
+      await createManagementItem(resource, name);
+      addToast('success', `${_label}「${name}」已创建`);
+      await refreshManagementData();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : '创建失败';
+      setManagementLoad({ loading: false, error: msg });
+      addToast('error', msg);
+    }
+  }
+
+  async function onAuditExport() {
+    if (!currentUser) return;
+    setAuditExportState({ loading: true });
+    try {
+      const r = await exportAuditLogsCsv();
+      const blob = new Blob([r.text], { type: r.contentType || 'text/csv;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = r.filename ?? '审计日志.csv';
+      a.click();
+      URL.revokeObjectURL(url);
+      setAuditExportState({ loading: false });
+      addToast('success', '审计日志已导出');
+      await refreshManagementData();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : '导出失败';
+      setAuditExportState({ loading: false, error: msg });
+      addToast('error', msg);
+    }
+  }
+
+  async function onUserLifecycleAction(username: string, action: UserLifecycleAction, roleCodeInput = '') {
+    if (!currentUser) return;
+    if ((action === 'disable' || action === 'lock') && username === currentUser.username) {
+      addToast('error', action === 'disable' ? '不能停用当前登录账号' : '不能锁定当前登录账号');
+      return;
+    }
+
+    let newPassword = '';
+    if (action === 'reset-password') {
+      newPassword = window.prompt(`为 ${username} 设置新密码（至少 10 位）`, '')?.trim() ?? '';
+      if (!newPassword || newPassword.length < 10) {
+        addToast('error', '密码至少 10 位');
+        return;
+      }
+    }
+
+    let roleCode = '';
+    if (action === 'assign-role' || action === 'unassign-role') {
+      roleCode = roleCodeInput.trim();
+      if (!roleCode) return;
+    }
+
+    setManagementLoad({ loading: true });
+    try {
+      const ops: Record<string, () => Promise<unknown>> = {
+        enable: () => enableUser(username),
+        unlock: () => unlockUser(username),
+        disable: () => disableUser(username),
+        lock: () => lockUser(username),
+        'reset-password': () => resetUserPassword(username, newPassword),
+        'assign-role': () => assignUserRole(username, roleCode),
+        'unassign-role': () => unassignUserRole(username, roleCode)
+      };
+      await ops[action]();
+      const actionLabels: Record<string, string> = {
+        enable: '已启用', unlock: '已解锁', disable: '已停用', lock: '已锁定',
+        'reset-password': '密码已重置', 'assign-role': '角色已分配', 'unassign-role': '角色已解绑'
+      };
+      addToast('success', `${username} ${actionLabels[action] ?? '操作成功'}`);
+      await refreshManagementData();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : '操作失败';
+      setManagementLoad({ loading: false, error: msg });
+      addToast('error', msg);
     }
   }
 
@@ -641,194 +557,145 @@ export function App() {
     setResetPasswordDialogState({ status: 'idle' });
   }
 
-  function closeResetPasswordDialog() {
-    if (resetPasswordDialogState.status === 'submitting') {
-      return;
-    }
-    setResetPasswordDialogOpen(false);
-    setResetPasswordForm(initialResetPasswordForm);
-    setResetPasswordDialogState({ status: 'idle' });
-  }
-
   async function onResetPassword(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!currentUser) {
-      setResetPasswordDialogState({ status: 'error', code: 'UNAUTHORIZED', message: '请先登录后再操作', traceId: '' });
+    if (!currentUser) return;
+    const { newPassword, confirmPassword } = resetPasswordForm;
+    if (!newPassword || !confirmPassword) {
+      setResetPasswordDialogState({ status: 'error', message: '请填写新密码和确认密码' });
       return;
     }
-    if (!hasPermission(currentUser, 'user:reset_password')) {
-      setResetPasswordDialogState({ status: 'error', code: 'FORBIDDEN', message: '当前账号无重置密码权限', traceId: '' });
+    if (newPassword !== confirmPassword) {
+      setResetPasswordDialogState({ status: 'error', message: '两次输入的密码不一致' });
       return;
     }
-    if (!resetPasswordForm.newPassword || !resetPasswordForm.confirmPassword) {
-      setResetPasswordDialogState({ status: 'error', code: 'LOCAL_VALIDATION_ERROR', message: '请填写新密码和确认密码', traceId: '' });
+    if (newPassword.length < 10) {
+      setResetPasswordDialogState({ status: 'error', message: '密码至少 10 位' });
       return;
     }
-    if (resetPasswordForm.newPassword !== resetPasswordForm.confirmPassword) {
-      setResetPasswordDialogState({ status: 'error', code: 'LOCAL_VALIDATION_ERROR', message: '两次输入的新密码不一致', traceId: '' });
-      return;
-    }
-    if (resetPasswordForm.newPassword.length < 10) {
-      setResetPasswordDialogState({ status: 'error', code: 'LOCAL_VALIDATION_ERROR', message: '新密码至少 10 位', traceId: '' });
-      return;
-    }
-
     setResetPasswordDialogState({ status: 'submitting' });
     try {
-      await resetUserPassword(resetPasswordForm.username, resetPasswordForm.newPassword);
+      await resetUserPassword(resetPasswordForm.username, newPassword);
       setResetPasswordDialogOpen(false);
       setResetPasswordForm(initialResetPasswordForm);
       setResetPasswordDialogState({ status: 'idle' });
+      addToast('success', `${resetPasswordForm.username} 密码已重置`);
       await refreshManagementData();
-    } catch (error: unknown) {
-      if (error instanceof ApiError) {
-        setResetPasswordDialogState({ status: 'error', code: error.code, message: error.message, traceId: error.traceId });
-      } else {
-        const message = error instanceof Error ? error.message : '重置密码失败';
-        setResetPasswordDialogState({ status: 'error', code: 'REQUEST_FAILED', message, traceId: '' });
-      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : '重置失败';
+      setResetPasswordDialogState({ status: 'error', message: msg });
     }
   }
 
-  async function onCreateManagementItem(resource: CreatableManagementResource, label: string, rawName: string) {
-    if (!currentUser) {
-      setManagementLoad({ loading: false, error: '请先登录后再操作' });
-      return;
-    }
-    if (!hasPermission(currentUser, resourceCreatePermissions[resource])) {
-      setManagementLoad({ loading: false, error: `当前账号无${label}创建权限` });
-      return;
-    }
+  /* ---------- Render helpers ---------- */
 
-    const name = rawName.trim();
-    if (!name) {
-      return;
-    }
-
-    setManagementLoad({ loading: true });
-    try {
-      await createManagementItem(resource, name);
-      await refreshManagementData();
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : '创建失败';
-      setManagementLoad({ loading: false, error: message });
-    }
+  function renderTopbarActions() {
+    return (
+      <div className="topbar-actions">
+        <HealthBadge health={health} />
+        {currentUser && (
+          <div className="auth-panel">
+            <div className="auth-info">
+              <strong>{currentUser.display_name || currentUser.username}</strong>
+              <span>{currentUser.email || currentUser.roles?.join(' · ') || ''}</span>
+            </div>
+            <button className="btn btn-ghost btn-sm" onClick={onLogout} title="退出登录">
+              <LogOut size={15} />
+              退出
+            </button>
+          </div>
+        )}
+      </div>
+    );
   }
 
-  async function onAuditExport() {
-    if (!currentUser) {
-      setAuditExportState({ loading: false, error: '请先登录后再操作' });
-      return;
-    }
-    if (!canUseButton(currentUser, 'audit:export')) {
-      setAuditExportState({ loading: false, error: '当前账号无审计导出权限' });
-      return;
-    }
+  /* ---------- Render ---------- */
 
-    setAuditExportState({ loading: true });
-    try {
-      const response = await exportAuditLogsCsv();
-      downloadText(response.filename ?? 'wp1-audit-logs.csv', response.text, response.contentType || 'text/csv;charset=utf-8');
-      setAuditExportState({
-        loading: false,
-        traceId: response.traceId,
-        filename: response.filename ?? 'wp1-audit-logs.csv'
-      });
-      await refreshManagementData();
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : '审计导出失败';
-      setAuditExportState({ loading: false, error: message });
-    }
+  // If not logged in, show full-page login
+  if (!getAuthToken() && !currentUser && loginState.status !== 'loading') {
+    return (
+      <div className="login-page">
+        <div className="login-card">
+          <div className="login-brand">
+            <div className="brand-mark" style={{ margin: '0 auto' }}>VA</div>
+            <div className="brand-name">Veri Agent</div>
+            <div className="brand-subtitle">测试平台 · 请登录</div>
+          </div>
+          <form className="login-form" onSubmit={onLogin}>
+            <div className="field">
+              <label className="field-label" htmlFor="login-username">账号</label>
+              <input
+                id="login-username"
+                type="text"
+                placeholder="请输入用户名"
+                autoComplete="username"
+                autoFocus
+                value={loginForm.username}
+                onChange={(e) => { setLoginForm((f) => ({ ...f, username: e.target.value })); setLoginState({ status: 'idle' }); }}
+              />
+            </div>
+            <div className="field">
+              <label className="field-label" htmlFor="login-password">密码</label>
+              <input
+                id="login-password"
+                type="password"
+                placeholder="请输入密码"
+                autoComplete="current-password"
+                value={loginForm.password}
+                onChange={(e) => { setLoginForm((f) => ({ ...f, password: e.target.value })); setLoginState({ status: 'idle' }); }}
+              />
+            </div>
+            {loginState.status === 'error' && (
+              <div className="login-error">{loginState.message}</div>
+            )}
+            <button
+              className="btn btn-primary"
+              type="submit"
+              disabled={loginState.status === 'loading'}
+              style={{ minHeight: 44, fontSize: 16 }}
+            >
+              {loginState.status === 'loading' ? '登录中...' : '登 录'}
+            </button>
+          </form>
+        </div>
+      </div>
+    );
   }
 
-  async function onUserLifecycleAction(username: string, action: UserLifecycleAction, roleCodeInput = '') {
-    if (!currentUser) {
-      setManagementLoad({ loading: false, error: '请先登录后再操作' });
-      return;
-    }
-    if (!hasPermission(currentUser, userLifecyclePermission(action))) {
-      setManagementLoad({ loading: false, error: '当前账号无该账号操作权限' });
-      return;
-    }
-    if (action === 'assign-role' && !hasPermission(currentUser, 'role:bind')) {
-      setManagementLoad({ loading: false, error: '当前账号无角色分配权限' });
-      return;
-    }
-    if (action === 'unassign-role' && !hasPermission(currentUser, 'role:unbind')) {
-      setManagementLoad({ loading: false, error: '当前账号无角色解绑权限' });
-      return;
-    }
-
-    if ((action === 'disable' || action === 'lock') && username === currentUser.username) {
-      setManagementLoad({ loading: false, error: action === 'disable' ? '不能停用当前登录账号' : '不能锁定当前登录账号' });
-      return;
-    }
-
-    let newPassword = '';
-    if (action === 'reset-password') {
-      newPassword = window.prompt(`为 ${username} 设置新密码`, '')?.trim() ?? '';
-      if (!newPassword) {
-        return;
-      }
-      if (newPassword.length < 10) {
-        setManagementLoad({ loading: false, error: '新密码至少 10 位' });
-        return;
-      }
-    }
-
-    let roleCode = '';
-    if (action === 'assign-role' || action === 'unassign-role') {
-      roleCode = roleCodeInput.trim();
-      if (!roleCode) {
-        return;
-      }
-    }
-
-    setManagementLoad({ loading: true });
-    try {
-      if (action === 'enable') {
-        await enableUser(username);
-      } else if (action === 'unlock') {
-        await unlockUser(username);
-      } else if (action === 'disable') {
-        await disableUser(username);
-      } else if (action === 'lock') {
-        await lockUser(username);
-      } else if (action === 'reset-password') {
-        await resetUserPassword(username, newPassword);
-      } else if (action === 'assign-role') {
-        await assignUserRole(username, roleCode);
-      } else {
-        await unassignUserRole(username, roleCode);
-      }
-      await refreshManagementData();
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : '账号操作失败';
-      setManagementLoad({ loading: false, error: message });
-    }
+  // Still checking auth
+  if (loginState.status === 'loading' && !currentUser) {
+    return (
+      <div className="login-page">
+        <div className="login-card" style={{ textAlign: 'center' }}>
+          <div className="brand-mark" style={{ margin: '0 auto 16px' }}>VA</div>
+          <div style={{ color: 'var(--text-secondary)', fontSize: 14 }}>正在验证登录状态...</div>
+        </div>
+      </div>
+    );
   }
 
   return (
     <div className="app-shell">
-      <aside className="sidebar" aria-label="主导航">
+      {/* Sidebar */}
+      <aside className="sidebar">
         <div className="brand">
           <div className="brand-mark">VA</div>
-          <div>
+          <div className="brand-text">
             <div className="brand-name">Veri Agent</div>
-            <div className="brand-subtitle">测试平台控制台</div>
+            <div className="brand-subtitle">测试平台</div>
           </div>
         </div>
 
-        <nav className="nav-list" aria-label="控制台页面">
+        <nav className="nav-list">
           {visiblePages.map((page) => {
             const Icon = page.icon;
             const selected = activePage === page.key;
             return (
               <button
-                className={`nav-item ${selected ? 'active' : ''}`}
-                type="button"
                 key={page.key}
-                onClick={() => navigateToPage(page.key, setActivePage)}
+                className={`nav-item${selected ? ' active' : ''}`}
+                type="button"
+                onClick={() => navigateToPage(page.key)}
                 aria-current={selected ? 'page' : undefined}
               >
                 <Icon size={18} />
@@ -839,36 +706,26 @@ export function App() {
         </nav>
       </aside>
 
+      {/* Main content */}
       <main className="workspace">
         <header className="topbar">
-          <div>
+          <div className="topbar-info">
             <h1>{activeDefinition.title}</h1>
             <p>{activeDefinition.description}</p>
           </div>
-          <div className="topbar-actions">
-            <HealthBadge health={health} />
-            <AuthPanel
-              currentUser={currentUser}
-              loginForm={loginForm}
-              loginState={loginState}
-              onLogin={onLogin}
-              onLogout={onLogout}
-              onChangePassword={openPasswordDialog}
-              updateLoginField={(key, value) => {
-                setLoginForm((current) => ({ ...current, [key]: value }));
-                setLoginState({ status: 'idle' });
-              }}
-            />
-          </div>
+          {renderTopbarActions()}
         </header>
 
         {activePage === 'overview' ? (
-          <OverviewPage
-            health={health}
-            managementData={managementData}
-          />
+          <OverviewPage health={health} managementData={managementData} />
+        ) : activePage === 'document-input' ? (
+          <DocumentInputConsole signedIn={Boolean(currentUser)} currentUser={currentUser} />
+        ) : activePage === 'asset-library' ? (
+          <AssetWorkbench signedIn={Boolean(currentUser)} currentUser={currentUser} />
+        ) : activePage === 'model-access' ? (
+          <ModelAccessConsole signedIn={Boolean(currentUser)} currentUser={currentUser} />
         ) : (
-          <ModulePage
+          <ManagementPage
             page={activePage}
             data={managementData}
             loadState={managementLoad}
@@ -888,151 +745,215 @@ export function App() {
         )}
       </main>
 
+      {/* Toasts */}
+      {toastContainer}
+
+      {/* Password change dialog */}
       {passwordDialogOpen && (
-        <ChangePasswordDialog
-          form={passwordForm}
-          state={passwordDialogState}
-          forced={passwordChangeRequired}
-          onCancel={passwordChangeRequired ? onLogout : closePasswordDialog}
-          onSubmit={onChangePassword}
-          updateField={(key, value) => {
-            setPasswordForm((current) => ({ ...current, [key]: value }));
-            setPasswordDialogState({ status: 'idle' });
-          }}
-        />
+        <div className="modal-backdrop" onClick={passwordChangeRequired ? undefined : () => setPasswordDialogOpen(false)}>
+          <div className="modal-panel" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-heading">
+              <h2>{passwordChangeRequired ? '请修改初始密码' : '修改密码'}</h2>
+              <button className="btn btn-ghost btn-sm" onClick={passwordChangeRequired ? onLogout : () => setPasswordDialogOpen(false)} disabled={passwordDialogState.status === 'submitting'}>
+                {passwordChangeRequired ? '退出登录' : '取消'}
+              </button>
+            </div>
+            <form className="modal-body" onSubmit={onChangePassword}>
+              {passwordChangeRequired && (
+                <div className="notice warning">首次登录或密码已被管理员重置，请设置新密码后继续使用。</div>
+              )}
+              <div className="field">
+                <label className="field-label">当前密码</label>
+                <input type="password" autoComplete="current-password" placeholder="输入当前密码"
+                  value={passwordForm.oldPassword}
+                  onChange={(e) => { setPasswordForm((f) => ({ ...f, oldPassword: e.target.value })); setPasswordDialogState({ status: 'idle' }); }} />
+              </div>
+              <div className="field">
+                <label className="field-label">新密码</label>
+                <input type="password" autoComplete="new-password" placeholder="至少 10 位"
+                  value={passwordForm.newPassword}
+                  onChange={(e) => { setPasswordForm((f) => ({ ...f, newPassword: e.target.value })); setPasswordDialogState({ status: 'idle' }); }} />
+              </div>
+              <div className="field">
+                <label className="field-label">确认新密码</label>
+                <input type="password" autoComplete="new-password" placeholder="再次输入新密码"
+                  value={passwordForm.confirmPassword}
+                  onChange={(e) => { setPasswordForm((f) => ({ ...f, confirmPassword: e.target.value })); setPasswordDialogState({ status: 'idle' }); }} />
+              </div>
+              {passwordDialogState.status === 'error' && (
+                <div className="notice error">{passwordDialogState.message}</div>
+              )}
+              <div className="modal-footer" style={{ padding: 0, marginTop: 4 }}>
+                <button className="btn btn-primary" type="submit" disabled={passwordDialogState.status === 'submitting'}>
+                  {passwordDialogState.status === 'submitting' ? '提交中...' : '确认修改'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
 
+      {/* Reset password dialog */}
       {resetPasswordDialogOpen && (
-        <ResetPasswordDialog
-          form={resetPasswordForm}
-          state={resetPasswordDialogState}
-          onCancel={closeResetPasswordDialog}
-          onSubmit={onResetPassword}
-          updateField={(key, value) => {
-            setResetPasswordForm((current) => ({ ...current, [key]: value }));
-            setResetPasswordDialogState({ status: 'idle' });
-          }}
-        />
+        <div className="modal-backdrop" onClick={() => resetPasswordDialogState.status !== 'submitting' && setResetPasswordDialogOpen(false)}>
+          <div className="modal-panel" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-heading">
+              <h2>重置密码</h2>
+              <button className="btn btn-ghost btn-sm" onClick={() => setResetPasswordDialogOpen(false)} disabled={resetPasswordDialogState.status === 'submitting'}>取消</button>
+            </div>
+            <form className="modal-body" onSubmit={onResetPassword}>
+              <div className="field">
+                <label className="field-label">账号</label>
+                <input type="text" value={resetPasswordForm.username} disabled />
+              </div>
+              <div className="field">
+                <label className="field-label">新密码</label>
+                <input type="password" autoComplete="new-password" placeholder="至少 10 位"
+                  value={resetPasswordForm.newPassword}
+                  onChange={(e) => { setResetPasswordForm((f) => ({ ...f, newPassword: e.target.value })); setResetPasswordDialogState({ status: 'idle' }); }} />
+              </div>
+              <div className="field">
+                <label className="field-label">确认新密码</label>
+                <input type="password" autoComplete="new-password" placeholder="再次输入新密码"
+                  value={resetPasswordForm.confirmPassword}
+                  onChange={(e) => { setResetPasswordForm((f) => ({ ...f, confirmPassword: e.target.value })); setResetPasswordDialogState({ status: 'idle' }); }} />
+              </div>
+              {resetPasswordDialogState.status === 'error' && (
+                <div className="notice error">{resetPasswordDialogState.message}</div>
+              )}
+              <div className="modal-footer" style={{ padding: 0, marginTop: 4 }}>
+                <button className="btn btn-primary" type="submit" disabled={resetPasswordDialogState.status === 'submitting'}>
+                  {resetPasswordDialogState.status === 'submitting' ? '提交中...' : '确认重置'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
     </div>
   );
 }
 
+/* ===================== Overview Page ===================== */
+
 function OverviewPage(props: {
-  health: { loading: boolean; traceId?: string; data?: HealthResult; error?: string };
+  health: { loading: boolean; data?: HealthResult; error?: string };
   managementData: ManagementData;
 }) {
   return (
-    <div className="overview-layout">
-      <section className="metrics-grid" aria-label="平台摘要">
-        <MetricCard
-          label="部门"
-          value={String(props.managementData.departments.length)}
-          detail={`${countByStatus(props.managementData.departments, '同步正常')} 个同步正常`}
-          icon={Building2}
-        />
-        <MetricCard
-          label="项目空间"
-          value={String(props.managementData.projects.length)}
-          detail={`${countByStatus(props.managementData.projects, '进行中')} 个进行中`}
-          icon={DatabaseZap}
-        />
-        <MetricCard
-          label="集成"
-          value={String(props.managementData.integrations.length)}
-          detail={`${countByStatus(props.managementData.integrations, '已连接')} 个已连接`}
-          icon={Link2}
-        />
-        <MetricCard
-          label="审计事件"
-          value={String(props.managementData.auditLogs.length)}
-          detail="当前工作区"
-          icon={ClipboardList}
-        />
+    <div>
+      <section className="metrics-grid">
+        <div className="metric-card">
+          <div className="metric-icon info"><Building2 size={20} /></div>
+          <div className="metric-body">
+            <span className="metric-label">部 门</span>
+            <strong className="metric-value">{props.managementData.departments.length}</strong>
+            <div className="metric-desc">{countByStatus(props.managementData.departments, '同步正常')} 个同步正常</div>
+          </div>
+        </div>
+        <div className="metric-card">
+          <div className="metric-icon success"><DatabaseZap size={20} /></div>
+          <div className="metric-body">
+            <span className="metric-label">项目空间</span>
+            <strong className="metric-value">{props.managementData.projects.length}</strong>
+            <div className="metric-desc">{countByStatus(props.managementData.projects, '进行中')} 个进行中</div>
+          </div>
+        </div>
+        <div className="metric-card">
+          <div className="metric-icon warning"><Link2 size={20} /></div>
+          <div className="metric-body">
+            <span className="metric-label">集 成</span>
+            <strong className="metric-value">{props.managementData.integrations.length}</strong>
+            <div className="metric-desc">{countByStatus(props.managementData.integrations, '已连接')} 个已连接</div>
+          </div>
+        </div>
+        <div className="metric-card">
+          <div className="metric-icon"><ClipboardList size={20} /></div>
+          <div className="metric-body">
+            <span className="metric-label">审计事件</span>
+            <strong className="metric-value">{props.managementData.auditLogs.length}</strong>
+            <div className="metric-desc">当前工作区</div>
+          </div>
+        </div>
       </section>
 
-      <section className="content-grid">
-        <section className="panel module-panel">
-          <div className="section-heading">
-            <div className="section-icon">
-              <ServerCog size={20} />
-            </div>
+      <div className="content-grid">
+        <div className="panel">
+          <div className="panel-header">
             <div>
-              <h2>运行状态</h2>
-              <p>平台 API、资源摘要和审计入口当前状态。</p>
+              <h2 className="panel-title">运行状态</h2>
+              <p className="panel-desc">平台 API、资源摘要和审计入口当前状态。</p>
             </div>
           </div>
+          <div className="panel-body">
+            <div style={{ display: 'grid', gap: 12 }}>
+              <DetailItem label="后端健康" value={props.health.data?.status ?? (props.health.loading ? '检查中...' : '不可用')} />
+              <DetailItem label="服务名称" value={props.health.data?.service ?? 'platform-api'} />
+              {props.health.data?.version && <DetailItem label="版本" value={props.health.data.version} />}
+            </div>
+          </div>
+        </div>
 
-          <div className="status-list">
-            <StatusItem label="后端健康检查" value={props.health.data?.status ?? (props.health.loading ? '检查中' : '异常')} />
-            <StatusItem label="服务名称" value={props.health.data?.service ?? 'platform-api'} />
-            <StatusItem label="Trace ID" value={props.health.traceId ?? '等待响应'} compact />
+        <div className="side-stack">
+          <div className="panel">
+            <div className="panel-body">
+              <div style={{ display: 'grid', gap: 8 }}>
+                <div className="badge badge-primary" style={{ width: 'max-content' }}>WP1 · 平台管理</div>
+                <p className="text-secondary text-sm" style={{ lineHeight: 1.6 }}>
+                  组织、用户、角色权限治理 · 项目、应用、环境基础配置 · 外部集成、审计日志、系统设置
+                </p>
+              </div>
+            </div>
           </div>
-        </section>
-
-        <aside className="panel detail-panel">
-          <h2>当前准入状态</h2>
-          <div className="status-list">
-            <StatusItem label="后端健康检查" value={props.health.data?.status ?? (props.health.loading ? '检查中' : '异常')} />
-            <StatusItem label="服务名称" value={props.health.data?.service ?? 'platform-api'} />
-            <StatusItem label="Trace ID" value={props.health.traceId ?? '等待响应'} compact />
-          </div>
-          <div className="divider" />
-          <h2>WP1 页面范围</h2>
-          <div className="roadmap-list">
-            <span>组织、用户、角色权限治理</span>
-            <span>项目、应用、环境基础配置</span>
-            <span>外部集成、审计日志、系统设置</span>
-            <span>列表接口、创建动作和审计记录已接入</span>
-          </div>
-        </aside>
-      </section>
+          {props.health.error && (
+            <div className="notice error">
+              <strong>健康检查异常</strong>
+              <span>{props.health.error}</span>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
 
-function ModulePage(props: {
+/* ===================== Management Pages ===================== */
+
+interface ManagementPageProps {
   page: PageKey;
   data: ManagementData;
-  loadState: ManagementLoadState;
+  loadState: { loading: boolean; error?: string };
   signedIn: boolean;
   currentUser: CurrentUser | null;
   onCreate: (resource: CreatableManagementResource, label: string, name: string) => Promise<void>;
   onUserLifecycleAction: (username: string, action: UserLifecycleAction, roleCode?: string) => Promise<void>;
   onResetPassword: (username: string) => void;
-  auditExportState: AuditExportState;
+  auditExportState: { loading: boolean; error?: string };
   onAuditExport: () => Promise<void>;
   auditOutboxFilters: AuditOutboxFilters;
-  auditOutboxLoad: ManagementLoadState;
+  auditOutboxLoad: { loading: boolean; error?: string };
   onAuditOutboxFiltersChange: (filters: AuditOutboxFilters) => void;
   onAuditOutboxRefresh: (filters?: AuditOutboxFilters) => Promise<void>;
   onRefresh: () => void;
-}) {
-  if (props.page === 'document-input') {
-    return <DocumentInputConsole signedIn={props.signedIn} currentUser={props.currentUser} />;
-  }
+}
 
-  if (props.page === 'asset-library') {
-    return <AssetWorkbench signedIn={props.signedIn} currentUser={props.currentUser} />;
-  }
+function ManagementPage(props: ManagementPageProps) {
+  const { page, data, loadState, signedIn, currentUser } = props;
 
-  if (props.page === 'model-access') {
-    return <ModelAccessConsole signedIn={props.signedIn} currentUser={props.currentUser} />;
-  }
-
-  if (props.page === 'organizations') {
+  // ===================== Organizations
+  if (page === 'organizations') {
     return (
       <DataSection
-        eyebrow="Organization"
+        eyebrow="组织架构"
         title="部门结构"
         icon={GitBranch}
         action="新增部门"
         createResource="departments"
         columns={['部门', '上级部门', '负责人', '成员', '状态']}
-        rows={props.data.departments.map((item: DepartmentView) => [item.name, item.parent, item.lead, item.members, item.status])}
-        loadState={props.loadState}
-        signedIn={props.signedIn}
-        canCreate={hasPermission(props.currentUser, 'department:create')}
+        rows={data.departments.map((d: DepartmentView) => [d.name, d.parent, d.lead, d.members, d.status])}
+        loadState={loadState}
+        signedIn={signedIn}
+        canCreate={hasPermission(currentUser, 'department:create')}
         onCreate={props.onCreate}
         onRefresh={props.onRefresh}
         sidePanel={
@@ -1040,25 +961,20 @@ function ModulePage(props: {
             title="部门详情"
             resourceLabel="部门"
             emptyLabel="暂无部门"
-            resources={props.data.departments.map((item) => item.name)}
-            fields={departmentEditFields}
-            signedIn={props.signedIn}
-            canEdit={hasPermission(props.currentUser, 'department:edit')}
+            resources={data.departments.map((d) => d.name)}
+            fields={[{ key: 'name', label: '部门名称', placeholder: '输入部门名称' }]}
+            signedIn={signedIn}
+            canEdit={hasPermission(currentUser, 'department:edit')}
             statusOptions={[
-              hasPermission(props.currentUser, 'department:enable') ? { value: 'ENABLED', label: '启用部门', icon: Power } : undefined,
-              hasPermission(props.currentUser, 'department:disable') ? { value: 'DISABLED', label: '停用部门', icon: Power } : undefined
-            ].filter((option): option is StatusOption => Boolean(option))}
+              hasPermission(currentUser, 'department:enable') ? { value: 'ENABLED', label: '启用部门', icon: Power } as StatusOption : undefined,
+              hasPermission(currentUser, 'department:disable') ? { value: 'DISABLED', label: '停用部门', icon: Power } as StatusOption : undefined,
+            ].filter(Boolean) as StatusOption[]}
             fetchDetail={fetchDepartment}
-            updateDetail={(resourceKey, draft) => updateDepartment(resourceKey, buildDepartmentUpdate(draft))}
+            updateDetail={(key, draft) => updateDepartment(key, { name: draft.name })}
             changeStatus={changeDepartmentStatus}
-            detailTitle={(detail) => detail.name}
-            draftFromDetail={(detail) => ({ name: detail.name })}
-            detailRows={(detail) => [
-              ['上级部门', detail.parent],
-              ['负责人', detail.lead],
-              ['成员数', detail.members],
-              ['状态', detail.status]
-            ]}
+            detailTitle={(d) => d.name}
+            draftFromDetail={(d) => ({ name: d.name })}
+            detailRows={(d) => [['上级部门', d.parent], ['负责人', d.lead], ['成员数', d.members], ['状态', d.status]]}
             onChanged={props.onRefresh}
           />
         }
@@ -1066,94 +982,73 @@ function ModulePage(props: {
     );
   }
 
-  if (props.page === 'users') {
-    const canEnable = hasPermission(props.currentUser, 'user:enable');
-    const canDisable = hasPermission(props.currentUser, 'user:disable');
-    const canLock = hasPermission(props.currentUser, 'user:lock');
-    const canEdit = hasPermission(props.currentUser, 'user:edit');
-    const canResetPassword = hasPermission(props.currentUser, 'user:reset_password');
-    const canAssignRole = hasPermission(props.currentUser, 'user:assign_role') && hasPermission(props.currentUser, 'role:bind');
-    const canUnassignRole = hasPermission(props.currentUser, 'user:assign_role') && hasPermission(props.currentUser, 'role:unbind');
+  // ===================== Users
+  if (page === 'users') {
+    const canEnable = hasPermission(currentUser, 'user:enable');
+    const canDisable = hasPermission(currentUser, 'user:disable');
+    const canLock = hasPermission(currentUser, 'user:lock');
+    const canEdit = hasPermission(currentUser, 'user:edit');
+    const canResetPassword = hasPermission(currentUser, 'user:reset_password');
+    const canAssignRole = hasPermission(currentUser, 'user:assign_role') && hasPermission(currentUser, 'role:bind');
+    const canUnassignRole = hasPermission(currentUser, 'user:assign_role') && hasPermission(currentUser, 'role:unbind');
     const canMutateUsers = canEnable || canDisable || canLock || canResetPassword || canAssignRole || canUnassignRole;
     return (
       <DataSection
-        eyebrow="Access"
+        eyebrow="账号管理"
         title="账号与角色"
         icon={ShieldCheck}
         action="邀请用户"
         createResource="users"
         columns={canMutateUsers ? ['用户名', '角色', '部门', '状态', '最近访问', '操作'] : ['用户名', '角色', '部门', '状态', '最近访问']}
-        rows={props.data.users.map((item: UserView) => [
+        rows={data.users.map((item: UserView) => [
           item.username,
           item.role,
           item.department,
-          item.status,
+          <span key={`${item.username}-status`}>
+            <StatusBadge status={item.status} />
+          </span>,
           item.last_seen,
-          canMutateUsers ? (
-            <div className="row-actions" key={`${item.username}-actions`}>
+          ...(canMutateUsers ? [(
+            <div className="row-actions" key={`${item.username}-actions`} style={{ justifyContent: 'flex-start' }}>
               <RoleBindingControls
                 username={item.username}
-                roles={props.data.roles}
-                loading={props.loadState.loading}
-                signedIn={props.signedIn}
+                roles={data.roles}
+                loading={loadState.loading}
+                signedIn={signedIn}
                 canAssign={canAssignRole}
                 canUnassign={canUnassignRole}
                 onAction={props.onUserLifecycleAction}
               />
               {canEnable && (
-                <button
-                  className="mini-button"
-                  type="button"
-                  disabled={!props.signedIn || props.loadState.loading}
-                  onClick={() => props.onUserLifecycleAction(item.username, item.status === '已锁定' ? 'unlock' : 'enable')}
-                  title={item.status === '已锁定' ? '解锁账号' : '启用账号'}
-                >
-                  <CheckCircle2 size={14} />
-                  {item.status === '已锁定' ? '解锁' : '启用'}
+                <button className="btn btn-xs btn-secondary" disabled={!signedIn || loadState.loading}
+                  onClick={() => props.onUserLifecycleAction(item.username, item.status === '已锁定' ? 'unlock' : 'enable')}>
+                  <CheckCircle2 size={13} />{item.status === '已锁定' ? '解锁' : '启用'}
                 </button>
               )}
               {canLock && (
-                <button
-                  className="mini-button"
-                  type="button"
-                  disabled={!props.signedIn || props.loadState.loading || item.username === props.currentUser?.username || item.status === '已锁定'}
-                  onClick={() => props.onUserLifecycleAction(item.username, 'lock')}
-                  title="锁定账号"
-                >
-                  <LockKeyhole size={14} />
-                  锁定
+                <button className="btn btn-xs btn-secondary" disabled={!signedIn || loadState.loading || item.username === currentUser?.username || item.status === '已锁定'}
+                  onClick={() => props.onUserLifecycleAction(item.username, 'lock')}>
+                  <LockKeyhole size={13} />锁定
                 </button>
               )}
               {canDisable && (
-                <button
-                  className="mini-button"
-                  type="button"
-                  disabled={!props.signedIn || props.loadState.loading || item.username === props.currentUser?.username}
-                  onClick={() => props.onUserLifecycleAction(item.username, 'disable')}
-                  title="停用账号"
-                >
-                  <LockKeyhole size={14} />
-                  停用
+                <button className="btn btn-xs btn-secondary" disabled={!signedIn || loadState.loading || item.username === currentUser?.username}
+                  onClick={() => props.onUserLifecycleAction(item.username, 'disable')}>
+                  <LockKeyhole size={13} />停用
                 </button>
               )}
               {canResetPassword && (
-                <button
-                  className="mini-button"
-                  type="button"
-                  disabled={!props.signedIn || props.loadState.loading}
-                  onClick={() => props.onResetPassword(item.username)}
-                  title="重置密码"
-                >
-                  <KeyRound size={14} />
-                  重置
+                <button className="btn btn-xs btn-secondary" disabled={!signedIn || loadState.loading}
+                  onClick={() => props.onResetPassword(item.username)}>
+                  <KeyRound size={13} />重置
                 </button>
               )}
             </div>
-          ) : undefined
-        ].filter((cell) => cell !== undefined))}
-        loadState={props.loadState}
-        signedIn={props.signedIn}
-        canCreate={hasPermission(props.currentUser, 'user:create')}
+          )] : [])
+        ])}
+        loadState={loadState}
+        signedIn={signedIn}
+        canCreate={hasPermission(currentUser, 'user:create')}
         onCreate={props.onCreate}
         onRefresh={props.onRefresh}
         sidePanel={
@@ -1161,27 +1056,17 @@ function ModulePage(props: {
             title="用户详情"
             resourceLabel="用户"
             emptyLabel="暂无用户"
-            resources={props.data.users.map((item) => item.username)}
-            fields={userEditFields}
-            signedIn={props.signedIn}
+            resources={data.users.map((u) => u.username)}
+            fields={[{ key: 'display_name', label: '显示名称', placeholder: '输入显示名称' }, { key: 'email', label: '邮箱', placeholder: 'user@example.com' }]}
+            signedIn={signedIn}
             canEdit={canEdit}
             statusOptions={[]}
             fetchDetail={fetchUser}
-            updateDetail={(resourceKey, draft) => updateUser(resourceKey, buildUserUpdate(draft))}
+            updateDetail={(key, draft) => updateUser(key, draft)}
             changeStatus={() => Promise.resolve()}
-            detailTitle={(detail) => detail.display_name || detail.username}
-            draftFromDetail={(detail) => ({
-              display_name: detail.display_name,
-              email: detail.email
-            })}
-            detailRows={(detail) => [
-              ['账号', detail.username],
-              ['邮箱', detail.email || '-'],
-              ['角色', detail.role],
-              ['部门', detail.department],
-              ['状态', detail.status],
-              ['最近访问', detail.last_seen]
-            ]}
+            detailTitle={(d) => d.display_name || d.username}
+            draftFromDetail={(d) => ({ display_name: d.display_name, email: d.email })}
+            detailRows={(d) => [['账号', d.username], ['邮箱', d.email || '-'], ['角色', d.role], ['部门', d.department], ['状态', d.status], ['最近访问', d.last_seen]]}
             onChanged={props.onRefresh}
           />
         }
@@ -1189,7 +1074,8 @@ function ModulePage(props: {
     );
   }
 
-  if (props.page === 'roles') {
+  // ===================== Roles
+  if (page === 'roles') {
     return (
       <DataSection
         eyebrow="RBAC"
@@ -1197,24 +1083,24 @@ function ModulePage(props: {
         icon={ShieldCheck}
         action="刷新"
         columns={['角色', '作用域', '状态', '说明']}
-        rows={props.data.roles.map((item: RoleView) => [
+        rows={data.roles.map((item: RoleView) => [
           <span key={item.code}>
-            <strong className="table-primary">{item.name}</strong>
-            <span className="table-secondary">{item.code}</span>
+            <div style={{ fontWeight: 600, fontSize: 14 }}>{item.name}</div>
+            <div className="text-tertiary text-xs">{item.code}</div>
           </span>,
           roleScope(item),
-          item.status,
+          <StatusBadge key={`${item.code}-st`} status={item.status} />,
           roleDescription(item) || '-'
         ])}
-        loadState={props.loadState}
-        signedIn={props.signedIn}
+        loadState={loadState}
+        signedIn={signedIn}
         onRefresh={props.onRefresh}
         sidePanel={
           <RoleDefinitionPanel
-            roles={props.data.roles}
-            permissions={props.data.permissions}
-            signedIn={props.signedIn}
-            currentUser={props.currentUser}
+            roles={data.roles}
+            permissions={data.permissions}
+            signedIn={signedIn}
+            currentUser={currentUser}
             onChanged={props.onRefresh}
           />
         }
@@ -1222,19 +1108,28 @@ function ModulePage(props: {
     );
   }
 
-  if (props.page === 'projects') {
+  // ===================== Projects
+  if (page === 'projects') {
+    const sensitivityOptions = [
+      { value: '', label: '保持不变' }, { value: 'PUBLIC', label: 'PUBLIC' },
+      { value: 'INTERNAL', label: 'INTERNAL' }, { value: 'CONFIDENTIAL', label: 'CONFIDENTIAL' },
+      { value: 'STRICT', label: 'STRICT' }
+    ];
+    const publicModelOptions = [
+      { value: '', label: '保持不变' }, { value: 'true', label: '允许公有云模型' }, { value: 'false', label: '禁用公有云模型' }
+    ];
     return (
       <DataSection
-        eyebrow="Workspace"
+        eyebrow="工作空间"
         title="项目空间"
         icon={DatabaseZap}
         action="创建项目"
         createResource="projects"
         columns={['项目', '归属部门', '负责人', '应用数', '状态']}
-        rows={props.data.projects.map((item: ProjectView) => [item.name, item.department, item.owner, item.apps, item.status])}
-        loadState={props.loadState}
-        signedIn={props.signedIn}
-        canCreate={hasPermission(props.currentUser, 'project:create')}
+        rows={data.projects.map((item: ProjectView) => [item.name, item.department, item.owner, item.apps, <StatusBadge key={item.name} status={item.status} />])}
+        loadState={loadState}
+        signedIn={signedIn}
+        canCreate={hasPermission(currentUser, 'project:create')}
         onCreate={props.onCreate}
         onRefresh={props.onRefresh}
         sidePanel={
@@ -1243,37 +1138,38 @@ function ModulePage(props: {
               title="项目详情"
               resourceLabel="项目"
               emptyLabel="暂无项目"
-              resources={props.data.projects.map((item) => item.name)}
-              fields={projectEditFields}
-              signedIn={props.signedIn}
-              canEdit={hasPermission(props.currentUser, 'project:edit')}
-              statusOptions={[
-                hasPermission(props.currentUser, 'project:edit') ? { value: 'ACTIVE', label: '设为进行中', icon: Power } : undefined,
-                hasPermission(props.currentUser, 'project:edit') ? { value: 'PREPARING', label: '设为规划中', icon: Pencil } : undefined,
-                hasPermission(props.currentUser, 'project:archive') ? { value: 'ARCHIVED', label: '归档项目', icon: Archive } : undefined,
-                hasPermission(props.currentUser, 'project:disable') ? { value: 'DISABLED', label: '停用项目', icon: Power } : undefined
-              ].filter((option): option is StatusOption => Boolean(option))}
-              fetchDetail={fetchProject}
-              updateDetail={(resourceKey, draft) => updateProject(resourceKey, buildProjectUpdate(draft))}
-              changeStatus={changeProjectStatus}
-              detailTitle={(detail) => detail.name}
-              draftFromDetail={(detail) => ({ name: detail.name })}
-              detailRows={(detail) => [
-                ['归属部门', detail.department],
-                ['负责人', detail.owner],
-                ['应用数', detail.apps],
-                ['状态', detail.status]
+              resources={data.projects.map((p) => p.name)}
+              fields={[
+                { key: 'name', label: '项目名称', placeholder: '输入项目名称' },
+                { key: 'sensitivity_level', label: '敏感级别', kind: 'select' as const, options: sensitivityOptions },
+                { key: 'allow_public_model', label: '公有云模型', kind: 'public-model' as const, options: publicModelOptions }
               ]}
+              signedIn={signedIn}
+              canEdit={hasPermission(currentUser, 'project:edit')}
+              statusOptions={[
+                hasPermission(currentUser, 'project:edit') ? { value: 'ACTIVE', label: '设为进行中', icon: Power } as StatusOption : undefined,
+                hasPermission(currentUser, 'project:edit') ? { value: 'PREPARING', label: '设为规划中', icon: Pencil } as StatusOption : undefined,
+                hasPermission(currentUser, 'project:archive') ? { value: 'ARCHIVED', label: '归档项目', icon: Archive } as StatusOption : undefined,
+                hasPermission(currentUser, 'project:disable') ? { value: 'DISABLED', label: '停用项目', icon: Power } as StatusOption : undefined
+              ].filter(Boolean) as StatusOption[]}
+              fetchDetail={fetchProject}
+              updateDetail={(key, draft) => updateProject(key, {
+                name: draft.name, sensitivity_level: draft.sensitivity_level, allow_public_model: draft.allow_public_model
+              })}
+              changeStatus={changeProjectStatus}
+              detailTitle={(d) => d.name}
+              draftFromDetail={(d) => ({ name: d.name, sensitivity_level: d.sensitivity_level, allow_public_model: d.allow_public_model })}
+              detailRows={(d) => [['归属部门', d.department], ['负责人', d.owner], ['应用数', d.apps], ['状态', d.status]]}
               onChanged={props.onRefresh}
             />
             <ScopedRolePanel
               title="项目成员"
               resourceLabel="项目"
               emptyLabel="暂无项目"
-              resources={props.data.projects.map((item) => item.name)}
+              resources={data.projects.map((p) => p.name)}
               roles={['ProjectOwner', 'Tester', 'Developer', 'Auditor']}
-              signedIn={props.signedIn}
-              canManage={hasPermission(props.currentUser, 'project:member_manage')}
+              signedIn={signedIn}
+              canManage={hasPermission(currentUser, 'project:member_manage')}
               fetchMembers={fetchProjectMembers}
               addMember={addProjectMember}
               removeMember={removeProjectMember}
@@ -1285,19 +1181,32 @@ function ModulePage(props: {
     );
   }
 
-  if (props.page === 'applications') {
+  // ===================== Applications
+  if (page === 'applications') {
+    const sensitivityOptions = [
+      { value: '', label: '保持不变' }, { value: 'PUBLIC', label: 'PUBLIC' },
+      { value: 'INTERNAL', label: 'INTERNAL' }, { value: 'CONFIDENTIAL', label: 'CONFIDENTIAL' },
+      { value: 'STRICT', label: 'STRICT' }
+    ];
+    const publicModelOptions = [
+      { value: '', label: '保持不变' }, { value: 'true', label: '允许公有云模型' }, { value: 'false', label: '禁用公有云模型' }
+    ];
+    const appTypeOptions = [
+      { value: '', label: '保持不变' }, { value: 'Web', label: 'Web' }, { value: 'Backend', label: 'Backend' },
+      { value: 'Frontend', label: 'Frontend' }, { value: 'Mobile', label: 'Mobile' }, { value: 'Service', label: 'Service' }, { value: 'API', label: 'API' }
+    ];
     return (
       <DataSection
-        eyebrow="Application"
+        eyebrow="应用管理"
         title="应用清单"
         icon={AppWindow}
         action="登记应用"
         createResource="applications"
         columns={['应用', '类型', '负责团队', '版本', '状态']}
-        rows={props.data.applications.map((item: ApplicationView) => [item.name, item.type, item.owner, item.version, item.status])}
-        loadState={props.loadState}
-        signedIn={props.signedIn}
-        canCreate={hasPermission(props.currentUser, 'application:create')}
+        rows={data.applications.map((item: ApplicationView) => [item.name, item.type, item.owner, item.version, <StatusBadge key={item.name} status={item.status} />])}
+        loadState={loadState}
+        signedIn={signedIn}
+        canCreate={hasPermission(currentUser, 'application:create')}
         onCreate={props.onCreate}
         onRefresh={props.onRefresh}
         sidePanel={
@@ -1306,37 +1215,43 @@ function ModulePage(props: {
               title="应用详情"
               resourceLabel="应用"
               emptyLabel="暂无应用"
-              resources={props.data.applications.map((item) => item.name)}
-              fields={applicationEditFields}
-              signedIn={props.signedIn}
-              canEdit={hasPermission(props.currentUser, 'application:edit')}
-              statusOptions={[
-                hasPermission(props.currentUser, 'application:edit') ? { value: 'ENABLED', label: '启用应用', icon: Power } : undefined,
-                hasPermission(props.currentUser, 'application:disable') ? { value: 'DISABLED', label: '停用应用', icon: Power } : undefined
-              ].filter((option): option is StatusOption => Boolean(option))}
-              fetchDetail={fetchApplication}
-              updateDetail={(resourceKey, draft) => updateApplication(resourceKey, buildApplicationUpdate(draft))}
-              changeStatus={changeApplicationStatus}
-              detailTitle={(detail) => detail.name}
-              draftFromDetail={(detail) => ({ name: detail.name, app_type: detail.type })}
-              detailRows={(detail) => [
-                ['类型', detail.type],
-                ['负责团队', detail.owner],
-                ['版本', detail.version],
-                ['状态', detail.status]
+              resources={data.applications.map((a) => a.name)}
+              fields={[
+                { key: 'name', label: '应用名称', placeholder: '输入应用名称' },
+                { key: 'app_type', label: '应用类型', kind: 'select' as const, options: appTypeOptions },
+                { key: 'default_web_url', label: 'Web URL', placeholder: 'https://web.example.test' },
+                { key: 'default_api_base_url', label: 'API Base URL', placeholder: 'https://api.example.test' },
+                { key: 'sensitivity_level', label: '敏感级别', kind: 'select' as const, options: sensitivityOptions },
+                { key: 'allow_public_model', label: '公有云模型', kind: 'public-model' as const, options: publicModelOptions }
               ]}
+              signedIn={signedIn}
+              canEdit={hasPermission(currentUser, 'application:edit')}
+              statusOptions={[
+                hasPermission(currentUser, 'application:edit') ? { value: 'ENABLED', label: '启用应用', icon: Power } as StatusOption : undefined,
+                hasPermission(currentUser, 'application:disable') ? { value: 'DISABLED', label: '停用应用', icon: Power } as StatusOption : undefined,
+              ].filter(Boolean) as StatusOption[]}
+              fetchDetail={fetchApplication}
+              updateDetail={(key, draft) => updateApplication(key, {
+                name: draft.name, app_type: draft.app_type, default_web_url: draft.default_web_url,
+                default_api_base_url: draft.default_api_base_url, sensitivity_level: draft.sensitivity_level,
+                allow_public_model: draft.allow_public_model
+              })}
+              changeStatus={changeApplicationStatus}
+              detailTitle={(d) => d.name}
+              draftFromDetail={(d) => ({ name: d.name, app_type: d.type })}
+              detailRows={(d) => [['类型', d.type], ['负责团队', d.owner], ['版本', d.version], ['状态', d.status]]}
               onChanged={props.onRefresh}
             />
             <ScopedRolePanel
               title="应用负责人"
               resourceLabel="应用"
               emptyLabel="暂无应用"
-              resources={props.data.applications.map((item) => item.name)}
+              resources={data.applications.map((a) => a.name)}
               roles={['AppOwner']}
-              signedIn={props.signedIn}
-              canManage={hasPermission(props.currentUser, 'application:owner_manage')}
+              signedIn={signedIn}
+              canManage={hasPermission(currentUser, 'application:owner_manage')}
               fetchMembers={fetchApplicationOwners}
-              addMember={(resourceKey, username) => addApplicationOwner(resourceKey, username)}
+              addMember={(rk, un) => addApplicationOwner(rk, un)}
               removeMember={removeApplicationOwner}
               onChanged={props.onRefresh}
             />
@@ -1346,19 +1261,24 @@ function ModulePage(props: {
     );
   }
 
-  if (props.page === 'environments') {
+  // ===================== Environments
+  if (page === 'environments') {
+    const envTypeOptions = [
+      { value: '', label: '保持不变' }, { value: 'DEV', label: 'DEV' }, { value: 'TEST', label: 'TEST' },
+      { value: 'STAGING', label: 'STAGING' }, { value: 'PREPROD', label: 'PREPROD' }, { value: 'PROD', label: 'PROD' }
+    ];
     return (
       <DataSection
-        eyebrow="Environment"
+        eyebrow="环境管理"
         title="环境配置"
         icon={ServerCog}
         action="新增环境"
         createResource="environments"
         columns={['环境', '集群', 'Endpoint', '状态']}
-        rows={props.data.environments.map((item: EnvironmentView) => [item.name, item.cluster, item.endpoint, item.status])}
-        loadState={props.loadState}
-        signedIn={props.signedIn}
-        canCreate={hasPermission(props.currentUser, 'environment:create')}
+        rows={data.environments.map((item: EnvironmentView) => [item.name, item.cluster, item.endpoint, <StatusBadge key={item.name} status={item.status} />])}
+        loadState={loadState}
+        signedIn={signedIn}
+        canCreate={hasPermission(currentUser, 'environment:create')}
         onCreate={props.onCreate}
         onRefresh={props.onRefresh}
         sidePanel={
@@ -1367,40 +1287,43 @@ function ModulePage(props: {
               title="环境详情"
               resourceLabel="环境"
               emptyLabel="暂无环境"
-              resources={props.data.environments.map((item) => item.name)}
-              fields={environmentEditFields}
-              signedIn={props.signedIn}
-              canEdit={hasPermission(props.currentUser, 'environment:edit')}
-              statusOptions={[
-                hasPermission(props.currentUser, 'environment:edit') ? { value: 'ENABLED', label: '启用环境', icon: Power } : undefined,
-                hasPermission(props.currentUser, 'environment:disable') ? { value: 'DISABLED', label: '停用环境', icon: Power } : undefined
-              ].filter((option): option is StatusOption => Boolean(option))}
-              fetchDetail={fetchEnvironment}
-              updateDetail={(resourceKey, draft) => updateEnvironment(resourceKey, buildEnvironmentUpdate(draft))}
-              changeStatus={changeEnvironmentStatus}
-              detailTitle={(detail) => detail.name}
-              draftFromDetail={(detail) => ({ name: detail.name, api_base_url: detail.endpoint })}
-              detailRows={(detail) => [
-                ['集群', detail.cluster],
-                ['Endpoint', detail.endpoint],
-                ['状态', detail.status]
+              resources={data.environments.map((e) => e.name)}
+              fields={[
+                { key: 'name', label: '环境名称', placeholder: '输入环境名称' },
+                { key: 'env_type', label: '环境类型', kind: 'select' as const, options: envTypeOptions },
+                { key: 'web_url', label: 'Web URL', placeholder: 'https://web.env.test' },
+                { key: 'api_base_url', label: 'API Base URL', placeholder: 'https://api.env.test' }
               ]}
+              signedIn={signedIn}
+              canEdit={hasPermission(currentUser, 'environment:edit')}
+              statusOptions={[
+                hasPermission(currentUser, 'environment:edit') ? { value: 'ENABLED', label: '启用环境', icon: Power } as StatusOption : undefined,
+                hasPermission(currentUser, 'environment:disable') ? { value: 'DISABLED', label: '停用环境', icon: Power } as StatusOption : undefined,
+              ].filter(Boolean) as StatusOption[]}
+              fetchDetail={fetchEnvironment}
+              updateDetail={(key, draft) => updateEnvironment(key, {
+                name: draft.name, env_type: draft.env_type, web_url: draft.web_url, api_base_url: draft.api_base_url
+              })}
+              changeStatus={changeEnvironmentStatus}
+              detailTitle={(d) => d.name}
+              draftFromDetail={(d) => ({ name: d.name, api_base_url: d.endpoint })}
+              detailRows={(d) => [['集群', d.cluster], ['Endpoint', d.endpoint], ['状态', d.status]]}
               onChanged={props.onRefresh}
             />
             <EnvironmentConnectivityPanel
-              resources={props.data.environments.map((item) => item.name)}
-              signedIn={props.signedIn}
-              canRun={hasPermission(props.currentUser, 'environment:edit')}
+              resources={data.environments.map((e) => e.name)}
+              signedIn={signedIn}
+              canRun={hasPermission(currentUser, 'environment:edit')}
               onChanged={props.onRefresh}
             />
             <ScopedRolePanel
               title="环境授权用户"
               resourceLabel="环境"
               emptyLabel="暂无环境"
-              resources={props.data.environments.map((item) => item.name)}
-              roles={['Tester', 'Developer', 'Auditor']}
-              signedIn={props.signedIn}
-              canManage={hasPermission(props.currentUser, 'environment:user_manage')}
+              resources={data.environments.map((e) => e.name)}
+              roles={['Developer', 'Tester']}
+              signedIn={signedIn}
+              canManage={hasPermission(currentUser, 'environment:user_manage')}
               fetchMembers={fetchEnvironmentUsers}
               addMember={addEnvironmentUser}
               removeMember={removeEnvironmentUser}
@@ -1412,56 +1335,47 @@ function ModulePage(props: {
     );
   }
 
-  if (props.page === 'integrations') {
+  // ===================== Integrations
+  if (page === 'integrations') {
     return (
       <DataSection
-        eyebrow="Integration"
-        title="外部集成"
+        eyebrow="集成管理"
+        title="集成配置"
         icon={Link2}
-        action="登记"
-        columns={['集成名称', '类型', '范围', '状态']}
-        rows={props.data.integrations.map((item: IntegrationView) => [item.name, item.category, item.scope, item.status])}
-        loadState={props.loadState}
-        signedIn={props.signedIn}
+        action="新增集成"
+        createResource="integrations"
+        columns={['集成', '类型', 'Endpoint', '状态']}
+        rows={data.integrations.map((item: IntegrationView) => [item.name, item.type, item.endpoint, <StatusBadge key={item.name} status={item.status} />])}
+        loadState={loadState}
+        signedIn={signedIn}
+        canCreate={hasPermission(currentUser, 'integration:create')}
+        onCreate={props.onCreate}
         onRefresh={props.onRefresh}
         sidePanel={
           <ResourceLifecyclePanel<IntegrationView>
-            title="集成维护"
+            title="集成详情"
             resourceLabel="集成"
             emptyLabel="暂无集成"
-            resources={props.data.integrations.map((item) => item.key)}
+            resources={data.integrations.map((i) => i.name)}
             fields={[
-              { key: 'name', label: '名称', placeholder: '禅道' },
-              { key: 'category', label: '类型', placeholder: '缺陷系统/通知/审批' },
-              { key: 'scope', label: '范围', placeholder: '平台级/项目级' }
+              { key: 'name', label: '集成名称', placeholder: '输入集成名称' },
+              { key: 'integration_type', label: '集成类型', placeholder: 'GITLAB / JIRA / SLACK' },
+              { key: 'endpoint_url', label: 'Endpoint', placeholder: 'https://git.example.com' }
             ]}
-            signedIn={props.signedIn}
-            canEdit={hasPermission(props.currentUser, 'config:edit')}
+            signedIn={signedIn}
+            canEdit={hasPermission(currentUser, 'integration:edit')}
             statusOptions={[
-              hasPermission(props.currentUser, 'config:edit') ? { value: 'ENABLED', label: '启用集成', icon: Power } : undefined,
-              hasPermission(props.currentUser, 'config:edit') ? { value: 'DISABLED', label: '停用集成', icon: Power } : undefined
-            ].filter((option): option is StatusOption => Boolean(option))}
+              hasPermission(currentUser, 'integration:edit') ? { value: 'CONNECTED', label: '已连接', icon: Power } as StatusOption : undefined,
+              hasPermission(currentUser, 'integration:edit') ? { value: 'DISCONNECTED', label: '已断开', icon: Power } as StatusOption : undefined,
+            ].filter(Boolean) as StatusOption[]}
             fetchDetail={fetchIntegration}
-            updateDetail={(resourceKey, draft) => updateIntegration(resourceKey, buildIntegrationUpdate(draft))}
+            updateDetail={(key, draft) => updateIntegration(key, {
+              name: draft.name, integration_type: draft.integration_type, endpoint_url: draft.endpoint_url
+            })}
             changeStatus={changeIntegrationStatus}
-            detailTitle={(detail) => detail.name}
-            draftFromDetail={(detail) => ({ name: detail.name, category: detail.category, scope: detail.scope })}
-            detailRows={(detail) => [
-              ['标识', detail.key],
-              ['类型', detail.category],
-              ['范围', detail.scope],
-              ['状态', detail.status]
-            ]}
-            createLabel="登记集成"
-            canCreate={hasPermission(props.currentUser, 'config:edit')}
-            createFields={[
-              { key: 'code', label: '标识', placeholder: 'zentao' },
-              { key: 'name', label: '名称', placeholder: '禅道' },
-              { key: 'category', label: '类型', placeholder: '缺陷系统' },
-              { key: 'scope', label: '范围', placeholder: '项目级' }
-            ]}
-            createInitialDraft={{ category: '通知/审批', scope: '平台级' }}
-            createDetail={(draft) => createIntegration(buildIntegrationCreate(draft))}
+            detailTitle={(d) => d.name}
+            draftFromDetail={(d) => ({ name: d.name })}
+            detailRows={(d) => [['类型', d.type], ['Endpoint', d.endpoint], ['状态', d.status]]}
             onChanged={props.onRefresh}
           />
         }
@@ -1469,1917 +1383,367 @@ function ModulePage(props: {
     );
   }
 
-  if (props.page === 'audit') {
+  // ===================== Audit
+  if (page === 'audit') {
+    return <AuditPage {...props} />;
+  }
+
+  // ===================== Settings
+  if (page === 'settings') {
     return (
       <DataSection
-        eyebrow="Audit"
-        title="审计事件"
-        icon={ScrollText}
+        eyebrow="系统配置"
+        title="系统设置"
+        icon={Settings}
         action="刷新"
-        columns={['时间', '操作人', '动作', '对象', '结果']}
-        rows={props.data.auditLogs.map((item: AuditLogView) => [item.time, item.actor, item.action, item.target, item.result])}
-        loadState={props.loadState}
-        signedIn={props.signedIn}
+        columns={['配置项', '键', '值', '状态']}
+        rows={data.settings.map((item: SettingView) => [item.name, item.key, item.value, <StatusBadge key={item.key} status={item.status} />])}
+        loadState={loadState}
+        signedIn={signedIn}
         onRefresh={props.onRefresh}
-        toolbarActions={
-          canUseButton(props.currentUser, 'audit:export') ? (
-            <button
-              className="primary-button"
-              type="button"
-              disabled={props.auditExportState.loading || props.loadState.loading || !props.signedIn}
-              onClick={() => void props.onAuditExport()}
-            >
-              <Download size={16} />
-              {props.auditExportState.loading ? '导出中' : '导出 CSV'}
-            </button>
-          ) : undefined
-        }
         sidePanel={
-          <>
-            <AuditOutboxPanel
-              signedIn={props.signedIn}
-              items={props.data.auditOutbox}
-              filters={props.auditOutboxFilters}
-              state={props.auditOutboxLoad}
-              onFiltersChange={props.onAuditOutboxFiltersChange}
-              onRefresh={props.onAuditOutboxRefresh}
-            />
-            <AuditExportPanel
-              signedIn={props.signedIn}
-              canExport={canUseButton(props.currentUser, 'audit:export')}
-              state={props.auditExportState}
-            />
-          </>
+          <ResourceLifecyclePanel<SettingView>
+            title="设置详情"
+            resourceLabel="设置"
+            emptyLabel="暂无设置"
+            resources={data.settings.map((s) => s.key)}
+            fields={[{ key: 'value', label: '值', placeholder: '输入新值' }]}
+            signedIn={signedIn}
+            canEdit={hasPermission(currentUser, 'config:edit')}
+            statusOptions={[
+              hasPermission(currentUser, 'config:edit') ? { value: 'ENABLED', label: '启用', icon: Power } as StatusOption : undefined,
+              hasPermission(currentUser, 'config:edit') ? { value: 'DISABLED', label: '停用', icon: Power } as StatusOption : undefined,
+            ].filter(Boolean) as StatusOption[]}
+            fetchDetail={fetchSetting}
+            updateDetail={(key, draft) => updateSetting(key, { value: draft.value })}
+            changeStatus={changeSettingStatus}
+            detailTitle={(d) => d.name}
+            draftFromDetail={(d) => ({ value: d.value })}
+            detailRows={(d) => [['键', d.key], ['值', d.value], ['状态', d.status]]}
+            onChanged={props.onRefresh}
+          />
         }
       />
     );
   }
 
+  return null;
+}
+
+/* ===================== Shared sub-components ===================== */
+
+function HealthBadge({ health }: { health: { loading: boolean; data?: HealthResult; error?: string } }) {
+  if (health.loading) {
+    return <div className="badge badge-neutral"><Activity size={13} />检查中</div>;
+  }
+  if (health.error || !health.data) {
+    return <div className="badge badge-danger"><Activity size={13} />异常</div>;
+  }
+  return <div className="badge badge-success"><CheckCircle2 size={13} />正常</div>;
+}
+
+function StatusBadge({ status }: { status: string }) {
+  const map: Record<string, string> = {
+    '同步正常': 'badge-success',
+    '已连接': 'badge-success',
+    'ENABLED': 'badge-success',
+    'ACTIVE': 'badge-success',
+    '进行中': 'badge-success',
+    '已启用': 'badge-success',
+    '解锁': 'badge-success',
+    '已解锁': 'badge-success',
+    '正常': 'badge-success',
+    'DISABLED': 'badge-warning',
+    '停用': 'badge-danger',
+    '已停用': 'badge-danger',
+    '锁定': 'badge-danger',
+    '已锁定': 'badge-danger',
+    'PREPARING': 'badge-warning',
+    'ARCHIVED': 'badge-neutral',
+    '规划中': 'badge-warning',
+    'DISCONNECTED': 'badge-warning',
+    'DRAFT': 'badge-warning'
+  };
+  const cls = map[status] || 'badge-neutral';
+  return <span className={`badge ${cls}`}>{status}</span>;
+}
+
+function DetailItem({ label, value }: { label: string; value: string }) {
   return (
-    <DataSection
-      eyebrow="Settings"
-      title="系统参数"
-      icon={Settings}
-      action="刷新"
-      columns={['配置项', '当前值', '作用域', '状态']}
-      rows={props.data.settings.map((item: SettingView) => [item.name, item.value, item.scope, item.status])}
-      loadState={props.loadState}
-      signedIn={props.signedIn}
-      onRefresh={props.onRefresh}
-      sidePanel={
-        <>
-          <ResourceLifecyclePanel<SettingView>
-            title="设置维护"
-            resourceLabel="设置"
-            emptyLabel="暂无设置"
-            resources={props.data.settings.map((item) => item.key)}
-            fields={[
-              { key: 'name', label: '名称', placeholder: '失败登录阈值' },
-              { key: 'value', label: '当前值', placeholder: '5' },
-              {
-                key: 'scope_type',
-                label: '作用域',
-                kind: 'select',
-                options: [
-                  { value: '', label: '保持不变' },
-                  { value: 'SYSTEM', label: '平台级' },
-                  { value: 'PROJECT', label: '项目级' },
-                  { value: 'APPLICATION', label: '应用级' },
-                  { value: 'ENVIRONMENT', label: '环境级' }
-                ]
-              }
-            ]}
-            signedIn={props.signedIn}
-            canEdit={hasPermission(props.currentUser, 'config:edit')}
-            statusOptions={[
-              hasPermission(props.currentUser, 'config:edit') ? { value: 'ENABLED', label: '启用设置', icon: Power } : undefined,
-              hasPermission(props.currentUser, 'config:edit') ? { value: 'DISABLED', label: '停用设置', icon: Power } : undefined
-            ].filter((option): option is StatusOption => Boolean(option))}
-            fetchDetail={fetchSetting}
-            updateDetail={(resourceKey, draft) => updateSetting(resourceKey, buildSettingUpdate(draft))}
-            changeStatus={changeSettingStatus}
-            detailTitle={(detail) => detail.name}
-            draftFromDetail={(detail) => ({ name: detail.name, value: detail.value })}
-            detailRows={(detail) => [
-              ['标识', detail.key],
-              ['当前值', detail.value],
-              ['作用域', detail.scope],
-              ['状态', detail.status]
-            ]}
-            createLabel="新增设置"
-            canCreate={hasPermission(props.currentUser, 'config:edit')}
-            createFields={[
-              { key: 'key', label: '标识', placeholder: 'account.failed_login_limit' },
-              { key: 'name', label: '名称', placeholder: '失败登录阈值' },
-              { key: 'value', label: '当前值', placeholder: '5' },
-              { key: 'scope_type', label: '作用域', placeholder: 'SYSTEM' }
-            ]}
-            createInitialDraft={{ scope_type: 'SYSTEM' }}
-            createDetail={(draft) => createSetting(buildSettingCreate(draft))}
-            onChanged={props.onRefresh}
-          />
-          <SecretManagementPanel
-            secrets={props.data.secrets}
-            signedIn={props.signedIn}
-            currentUser={props.currentUser}
-            onChanged={props.onRefresh}
-          />
-        </>
-      }
-    />
+    <div style={{ display: 'flex', gap: 8, alignItems: 'baseline', padding: '4px 0', borderBottom: '1px solid var(--border-light)' }}>
+      <span className="text-tertiary text-sm" style={{ flex: '0 0 80px' }}>{label}</span>
+      <span style={{ fontSize: 14, overflowWrap: 'anywhere' }}>{value}</span>
+    </div>
   );
 }
 
-function DataSection(props: {
+/* ===================== DataSection (table + create + side panel) ===================== */
+
+interface DataSectionProps {
   eyebrow: string;
   title: string;
-  action: string;
   icon: LucideIcon;
+  action: string;
   createResource?: CreatableManagementResource;
   columns: string[];
-  rows: Array<Array<string | number | ReactNode>>;
-  loadState: ManagementLoadState;
+  rows: (string | number | React.ReactNode)[][];
+  loadState: { loading: boolean; error?: string };
   signedIn: boolean;
   canCreate?: boolean;
   onCreate?: (resource: CreatableManagementResource, label: string, name: string) => Promise<void>;
-  onRefresh: () => void;
-  sidePanel?: ReactNode;
-  toolbarActions?: ReactNode;
-}) {
+  onRefresh?: () => void;
+  sidePanel?: React.ReactNode;
+}
+
+function DataSection(props: DataSectionProps) {
+  const [quickCreateValue, setQuickCreateValue] = useState('');
   const Icon = props.icon;
-  const [draftName, setDraftName] = useState('');
-  const actionDisabled = props.loadState.loading || !props.signedIn;
-
-  async function submitCreate(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!props.createResource || !props.onCreate || !draftName.trim()) {
-      return;
-    }
-    await props.onCreate(props.createResource, props.title, draftName);
-    setDraftName('');
-  }
 
   return (
-    <section className="module-layout">
-      <div className="panel module-panel">
-        <div className="panel-toolbar">
-          <div className="section-heading compact">
-            <div className="section-icon">
-              <Icon size={20} />
-            </div>
-            <div>
-              <span className="eyebrow">{props.eyebrow}</span>
-              <h2>{props.title}</h2>
-            </div>
-          </div>
-          <div className="panel-toolbar-actions">
-            {props.toolbarActions}
-            <button
-              className="secondary-button"
-              type="button"
-              disabled={actionDisabled}
-              onClick={props.onRefresh}
-            >
-              刷新
-            </button>
-          </div>
-        </div>
-
-        {props.createResource && props.canCreate && (
-          <form className="quick-create-form" onSubmit={submitCreate}>
-            <input
-              value={draftName}
-              disabled={actionDisabled}
-              onChange={(event) => setDraftName(event.target.value)}
-              placeholder={`${props.title}名称`}
-            />
-            <button className="primary-button" type="submit" disabled={actionDisabled || !draftName.trim()}>
-              {props.action}
-            </button>
-          </form>
-        )}
-
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                {props.columns.map((column) => (
-                  <th key={column}>{column}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {props.rows.length > 0 ? (
-                props.rows.map((row, rowIndex) => (
-                  <tr key={String(row[0] ?? rowIndex)}>
-                    {row.map((cell, index) => (
-                      <td key={`${props.columns[index]}-${index}`}>
-                        {isStatusColumn(props.columns[index]) && isPrimitiveCell(cell) ? (
-                          <StatusPill value={String(cell)} />
-                        ) : (
-                          cell
-                        )}
-                      </td>
-                    ))}
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td className="table-empty" colSpan={props.columns.length}>
-                    {props.signedIn ? (props.loadState.loading ? '加载中' : '暂无数据') : '请先登录'}
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <div className="side-stack">
-        {props.sidePanel}
-        <div className="panel insight-panel">
-          <h2>接口状态</h2>
-          <div className="empty-state">
-            <LockKeyhole size={22} />
-            <div>
-              <strong>{props.signedIn ? (props.loadState.loading ? '正在同步' : '已连接管理 API') : '等待登录'}</strong>
-              <span>{props.loadState.error ?? `当前列表 ${props.rows.length} 条`}</span>
-              {props.loadState.traceId && <span>Trace ID：{props.loadState.traceId}</span>}
-            </div>
-          </div>
-        </div>
-        <div className="panel insight-panel">
-          <h2>常用操作</h2>
-          <div className="quick-actions">
-            <button type="button">查看详情</button>
-            <button type="button">编辑配置</button>
-            <button type="button">查看审计</button>
-          </div>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function AuditExportPanel(props: {
-  signedIn: boolean;
-  canExport: boolean;
-  state: AuditExportState;
-}) {
-  const status = props.state.loading
-    ? '正在生成'
-    : props.state.error
-      ? '导出失败'
-      : props.state.filename
-        ? props.state.filename
-        : props.canExport
-          ? '可导出'
-          : props.signedIn
-            ? '无权限'
-            : '等待登录';
-
-  return (
-    <div className="panel insight-panel">
-      <h2>审计导出</h2>
-      <div className="empty-state">
-        <Download size={22} />
-        <div>
-          <strong>{status}</strong>
-          {props.state.error && <span>{props.state.error}</span>}
-          {props.state.traceId && <span>Trace ID：{props.state.traceId}</span>}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function AuditOutboxPanel(props: {
-  signedIn: boolean;
-  items: AuditOutboxView[];
-  filters: AuditOutboxFilters;
-  state: ManagementLoadState;
-  onFiltersChange: (filters: AuditOutboxFilters) => void;
-  onRefresh: (filters?: AuditOutboxFilters) => Promise<void>;
-}) {
-  const filters = {
-    search: props.filters.search ?? '',
-    status: props.filters.status ?? '',
-    traceId: props.filters.traceId ?? ''
-  };
-
-  function updateFilter(key: keyof AuditOutboxFilters, value: string) {
-    props.onFiltersChange({ ...filters, [key]: value });
-  }
-
-  function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    void props.onRefresh(filters);
-  }
-
-  function resetFilters() {
-    const next = { search: '', status: '', traceId: '' };
-    props.onFiltersChange(next);
-    void props.onRefresh(next);
-  }
-
-  const emptyLabel = props.signedIn ? (props.state.loading ? '加载中' : '暂无 outbox 事件') : '请先登录';
-
-  return (
-    <div className="panel insight-panel audit-outbox-panel">
-      <div className="panel-title-row">
-        <h2>Audit outbox</h2>
-        {props.state.traceId && <span className="panel-trace inline">Trace ID：{props.state.traceId}</span>}
-      </div>
-
-      <form className="audit-outbox-filters" onSubmit={submit}>
-        <label className="field">
-          状态
-          <select
-            value={filters.status}
-            disabled={!props.signedIn || props.state.loading}
-            onChange={(event) => updateFilter('status', event.target.value)}
-          >
-            <option value="">全部</option>
-            <option value="PENDING">PENDING</option>
-            <option value="PROCESSING">PROCESSING</option>
-            <option value="FAILED">FAILED</option>
-            <option value="DEAD">DEAD</option>
-            <option value="DONE">DONE</option>
-          </select>
-        </label>
-        <label className="field">
-          Trace ID
-          <input
-            value={filters.traceId}
-            disabled={!props.signedIn || props.state.loading}
-            onChange={(event) => updateFilter('traceId', event.target.value)}
-            placeholder="trc_"
-          />
-        </label>
-        <label className="field audit-outbox-search">
-          搜索
-          <input
-            value={filters.search}
-            disabled={!props.signedIn || props.state.loading}
-            onChange={(event) => updateFilter('search', event.target.value)}
-            placeholder="action / resource / error"
-          />
-        </label>
-        <div className="audit-outbox-actions">
-          <button className="primary-button" type="submit" disabled={!props.signedIn || props.state.loading}>
-            <Search size={16} />
-            {props.state.loading ? '查询中' : '查询'}
-          </button>
-          <button className="secondary-button" type="button" disabled={!props.signedIn || props.state.loading} onClick={resetFilters}>
-            重置
-          </button>
-        </div>
-      </form>
-
-      <div className="audit-outbox-summary" aria-label="Audit outbox 状态摘要">
-        {['PENDING', 'PROCESSING', 'FAILED', 'DEAD'].map((status) => (
-          <div key={status}>
-            <strong>{props.items.filter((item) => item.status === status).length}</strong>
-            <span>{status}</span>
-          </div>
-        ))}
-      </div>
-
-      {props.state.error ? (
-        <div className="empty-state compact">
-          <LockKeyhole size={22} />
+    <div className="content-grid">
+      <div className="panel">
+        <div className="panel-header">
           <div>
-            <strong>同步失败</strong>
-            <span>{props.state.error}</span>
-            {props.state.traceId && <span>Trace ID：{props.state.traceId}</span>}
-          </div>
-        </div>
-      ) : props.items.length === 0 ? (
-        <div className="empty-state compact">
-          <ScrollText size={22} />
-          <div>
-            <strong>{emptyLabel}</strong>
-          </div>
-        </div>
-      ) : (
-        <div className="audit-outbox-list">
-          {props.items.map((item) => (
-            <article className="audit-outbox-item" key={item.id}>
-              <div className="audit-outbox-row">
-                <StatusPill value={item.status} />
-                <strong>{item.traceId || item.id}</strong>
-              </div>
-              <div className="audit-outbox-meta">
-                <span>{item.eventAction || '-'}</span>
-                <span>{[item.resourceType, item.resourceId].filter(Boolean).join(':') || '-'}</span>
-                <span>retry {item.retryCount}</span>
-              </div>
-              <div className="audit-outbox-meta">
-                <span>{item.createdAt}</span>
-                <span>{item.nextRetryAt ? `next ${item.nextRetryAt}` : 'next -'}</span>
-              </div>
-              {item.lastError && <p>{item.lastError}</p>}
-            </article>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-type RoleDraft = {
-  code: string;
-  name: string;
-  scopeType: string;
-  description: string;
-  permissionCodes: string[];
-};
-
-const roleScopeOptions = [
-  { value: 'PLATFORM', label: 'PLATFORM' },
-  { value: 'DEPARTMENT', label: 'DEPARTMENT' },
-  { value: 'PROJECT', label: 'PROJECT' },
-  { value: 'APPLICATION', label: 'APPLICATION' },
-  { value: 'ENVIRONMENT', label: 'ENVIRONMENT' }
-];
-
-const initialRoleDraft: RoleDraft = {
-  code: '',
-  name: '',
-  scopeType: 'PROJECT',
-  description: '',
-  permissionCodes: []
-};
-
-function RoleDefinitionPanel(props: {
-  roles: RoleView[];
-  permissions: PermissionView[];
-  signedIn: boolean;
-  currentUser: CurrentUser | null;
-  onChanged: () => void | Promise<void>;
-}) {
-  const [selectedRoleCode, setSelectedRoleCode] = useState(props.roles[0]?.code ?? '');
-  const [detail, setDetail] = useState<RoleDetailView | null>(null);
-  const [editDraft, setEditDraft] = useState<RoleDraft>(initialRoleDraft);
-  const [createDraft, setCreateDraft] = useState<RoleDraft>(initialRoleDraft);
-  const [state, setState] = useState<{ loading: boolean; error?: string; traceId?: string }>({ loading: false });
-
-  useEffect(() => {
-    if (!props.roles.some((role) => role.code === selectedRoleCode)) {
-      setSelectedRoleCode(props.roles[0]?.code ?? '');
-    }
-  }, [props.roles, selectedRoleCode]);
-
-  const permissionGroups = useMemo(() => {
-    const groups = new Map<string, PermissionView[]>();
-    for (const permission of props.permissions) {
-      const resource = permissionResourceType(permission) || 'other';
-      groups.set(resource, [...(groups.get(resource) ?? []), permission]);
-    }
-    return Array.from(groups.entries())
-      .sort(([left], [right]) => left.localeCompare(right))
-      .map(([resource, permissions]) => [
-        resource,
-        permissions.sort((left, right) => left.code.localeCompare(right.code))
-      ] as const);
-  }, [props.permissions]);
-
-  const reloadDetail = useCallback(async () => {
-    if (!props.signedIn || !selectedRoleCode) {
-      setDetail(null);
-      setEditDraft(initialRoleDraft);
-      setState({ loading: false });
-      return;
-    }
-    setState({ loading: true });
-    try {
-      const response = await fetchRole(selectedRoleCode);
-      const role = response.data;
-      setDetail(role);
-      setEditDraft({
-        code: role.code,
-        name: role.name,
-        scopeType: roleScope(role) || 'PROJECT',
-        description: roleDescription(role),
-        permissionCodes: rolePermissionCodes(role)
-      });
-      setState({ loading: false, traceId: response.trace_id });
-    } catch (error: unknown) {
-      const message = error instanceof ApiError ? error.message : error instanceof Error ? error.message : '角色详情加载失败';
-      const traceId = error instanceof ApiError ? error.traceId : '';
-      setDetail(null);
-      setState({ loading: false, error: message, traceId });
-    }
-  }, [props.signedIn, selectedRoleCode]);
-
-  useEffect(() => {
-    void reloadDetail();
-  }, [reloadDetail]);
-
-  const canCreate = canUseButton(props.currentUser, 'role:create');
-  const canEdit = canUseButton(props.currentUser, 'role:edit');
-  const selectedIsProtected = Boolean(detail?.system || detail?.builtin);
-  const canEditSelected = canEdit && Boolean(detail) && !selectedIsProtected;
-  const disabled = !props.signedIn || state.loading;
-
-  async function submitCreate(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!canCreate) {
-      return;
-    }
-    const validationError = validateRoleDraft(createDraft, true);
-    if (validationError) {
-      setState({ loading: false, error: validationError });
-      return;
-    }
-    setState({ loading: true });
-    try {
-      const response = await createRole({
-        code: createDraft.code.trim(),
-        name: createDraft.name.trim(),
-        scopeType: createDraft.scopeType,
-        description: createDraft.description.trim(),
-        permissionCodes: createDraft.permissionCodes
-      });
-      const createdRole = response.data;
-      setCreateDraft(initialRoleDraft);
-      setDetail(response.data);
-      setEditDraft({
-        code: response.data.code,
-        name: response.data.name,
-        scopeType: roleScope(response.data) || 'PROJECT',
-        description: roleDescription(response.data),
-        permissionCodes: rolePermissionCodes(response.data)
-      });
-      setState({ loading: false, traceId: response.trace_id });
-      await props.onChanged();
-      setSelectedRoleCode(createdRole.code);
-    } catch (error: unknown) {
-      const message = error instanceof ApiError ? error.message : error instanceof Error ? error.message : '角色创建失败';
-      const traceId = error instanceof ApiError ? error.traceId : '';
-      setState({ loading: false, error: message, traceId });
-    }
-  }
-
-  async function submitUpdate(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!canEditSelected || !selectedRoleCode) {
-      return;
-    }
-    const validationError = validateRoleDraft(editDraft, false);
-    if (validationError) {
-      setState({ loading: false, error: validationError });
-      return;
-    }
-    setState({ loading: true });
-    try {
-      const response = await updateRole(selectedRoleCode, {
-        name: editDraft.name.trim(),
-        scopeType: editDraft.scopeType,
-        description: editDraft.description.trim(),
-        permissionCodes: editDraft.permissionCodes
-      });
-      setDetail(response.data);
-      setEditDraft({
-        code: response.data.code,
-        name: response.data.name,
-        scopeType: roleScope(response.data) || 'PROJECT',
-        description: roleDescription(response.data),
-        permissionCodes: rolePermissionCodes(response.data)
-      });
-      setState({ loading: false, traceId: response.trace_id });
-      await props.onChanged();
-    } catch (error: unknown) {
-      const message = error instanceof ApiError ? error.message : error instanceof Error ? error.message : '角色保存失败';
-      const traceId = error instanceof ApiError ? error.traceId : '';
-      setState({ loading: false, error: message, traceId });
-    }
-  }
-
-  async function submitStatus() {
-    if (!canEditSelected || !selectedRoleCode || !detail) {
-      return;
-    }
-    const nextStatus = isDisabledStatus(detail.status) ? 'ENABLED' : 'DISABLED';
-    setState({ loading: true });
-    try {
-      const response = await changeRoleStatus(selectedRoleCode, nextStatus);
-      setDetail(response.data);
-      setEditDraft((current) => ({
-        ...current,
-        scopeType: roleScope(response.data) || current.scopeType,
-        permissionCodes: rolePermissionCodes(response.data)
-      }));
-      setState({ loading: false, traceId: response.trace_id });
-      await props.onChanged();
-    } catch (error: unknown) {
-      const message = error instanceof ApiError ? error.message : error instanceof Error ? error.message : '角色状态变更失败';
-      const traceId = error instanceof ApiError ? error.traceId : '';
-      setState({ loading: false, error: message, traceId });
-    }
-  }
-
-  return (
-    <div className="panel insight-panel role-definition-panel">
-      <div className="panel-title-row">
-        <h2>角色定义</h2>
-        <StatusPill value={String(props.roles.length)} />
-      </div>
-
-      <label className="resource-selector">
-        <span>角色</span>
-        <select
-          value={selectedRoleCode}
-          disabled={!props.signedIn || state.loading || props.roles.length === 0}
-          onChange={(event) => setSelectedRoleCode(event.target.value)}
-        >
-          {props.roles.length === 0 ? (
-            <option value="">暂无角色</option>
-          ) : (
-            props.roles.map((role) => (
-              <option key={role.code} value={role.code}>
-                {role.name} / {role.code}
-              </option>
-            ))
-          )}
-        </select>
-      </label>
-
-      {detail ? (
-        <div className="resource-summary">
-          <strong>{detail.name}</strong>
-          {[
-            ['编码', detail.code],
-            ['作用域', roleScope(detail)],
-            ['版本', detail.version],
-            ['权限数', rolePermissionCodes(detail).length],
-            ['状态', detail.status],
-            ['保护', selectedIsProtected ? '内置/系统角色' : '自定义角色']
-          ].map(([label, value]) => (
-            <div key={label}>
-              <span>{label}</span>
-              {label === '状态' ? <StatusPill value={String(value)} /> : <em>{value}</em>}
-            </div>
-          ))}
-        </div>
-      ) : (
-        <div className="empty-state compact">
-          <ShieldCheck size={20} />
-          <div>
-            <strong>{state.loading ? '正在加载角色' : props.signedIn ? '暂无角色详情' : '等待登录'}</strong>
-            <span>{state.error ?? (hasPermission(props.currentUser, 'role:read') ? '请选择角色' : '当前账号无查看权限')}</span>
-          </div>
-        </div>
-      )}
-
-      <div className="role-impact-hint">
-        <Activity size={16} />
-        <span>保存权限集合或启停自定义角色后，后端会递增当前绑定用户的 authVersion，旧权限摘要随之失效。</span>
-      </div>
-
-      {canEditSelected && (
-        <form className="resource-edit-form role-form" onSubmit={submitUpdate}>
-          <strong>编辑自定义角色</strong>
-          <RoleFields draft={editDraft} disabled={disabled} includeCode={false} onChange={setEditDraft} />
-          <PermissionChecklist
-            title="权限点"
-            groups={permissionGroups}
-            currentUser={props.currentUser}
-            selected={editDraft.permissionCodes}
-            disabled={disabled}
-            onToggle={(code) => setEditDraft((current) => toggleRolePermission(current, code))}
-          />
-          <div className="role-form-actions">
-            <button className="mini-button" type="submit" disabled={disabled || editDraft.permissionCodes.length === 0}>
-              <Save size={14} />
-              保存角色
-            </button>
-            <button className="mini-button" type="button" disabled={disabled} onClick={submitStatus}>
-              <Power size={14} />
-              {detail && isDisabledStatus(detail.status) ? '启用角色' : '停用角色'}
-            </button>
-          </div>
-        </form>
-      )}
-
-      {canCreate && (
-        <form className="resource-edit-form role-form" onSubmit={submitCreate}>
-          <strong>创建自定义角色</strong>
-          <RoleFields draft={createDraft} disabled={disabled} includeCode onChange={setCreateDraft} />
-          <PermissionChecklist
-            title="权限点"
-            groups={permissionGroups}
-            currentUser={props.currentUser}
-            selected={createDraft.permissionCodes}
-            disabled={disabled}
-            onToggle={(code) => setCreateDraft((current) => toggleRolePermission(current, code))}
-          />
-          <button
-            className="mini-button"
-            type="submit"
-            disabled={disabled || !createDraft.code.trim() || !createDraft.name.trim() || createDraft.permissionCodes.length === 0}
-          >
-            <Save size={14} />
-            创建角色
-          </button>
-        </form>
-      )}
-
-      {state.error && (
-        <div className="inline-error">
-          <strong>操作失败</strong>
-          <span>{state.error}</span>
-          {state.traceId && <span>Trace ID：{state.traceId}</span>}
-        </div>
-      )}
-      {!state.error && state.traceId && <div className="panel-trace">Trace ID：{state.traceId}</div>}
-    </div>
-  );
-}
-
-function RoleFields(props: {
-  draft: RoleDraft;
-  disabled: boolean;
-  includeCode: boolean;
-  onChange: (next: RoleDraft | ((current: RoleDraft) => RoleDraft)) => void;
-}) {
-  function update(key: keyof RoleDraft, value: string) {
-    props.onChange((current) => ({ ...current, [key]: value }));
-  }
-
-  return (
-    <div className="role-definition-grid">
-      {props.includeCode && (
-        <label>
-          <span>编码</span>
-          <input
-            value={props.draft.code}
-            disabled={props.disabled}
-            maxLength={64}
-            onChange={(event) => update('code', event.target.value)}
-            placeholder="QaReviewer"
-          />
-        </label>
-      )}
-      <label>
-        <span>名称</span>
-        <input
-          value={props.draft.name}
-          disabled={props.disabled}
-          maxLength={64}
-          onChange={(event) => update('name', event.target.value)}
-          placeholder="QA 评审员"
-        />
-      </label>
-      <label>
-        <span>作用域</span>
-        <select value={props.draft.scopeType} disabled={props.disabled} onChange={(event) => update('scopeType', event.target.value)}>
-          {roleScopeOptions.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label className="role-description-field">
-        <span>说明</span>
-        <input
-          value={props.draft.description}
-          disabled={props.disabled}
-          maxLength={512}
-          onChange={(event) => update('description', event.target.value)}
-          placeholder="角色用途"
-        />
-      </label>
-    </div>
-  );
-}
-
-function PermissionChecklist(props: {
-  title: string;
-  groups: ReadonlyArray<readonly [string, PermissionView[]]>;
-  currentUser: CurrentUser | null;
-  selected: string[];
-  disabled: boolean;
-  onToggle: (code: string) => void;
-}) {
-  return (
-    <div className="permission-checklist">
-      <strong>{props.title}</strong>
-      {props.groups.length === 0 ? (
-        <div className="empty-state compact">
-          <KeyRound size={18} />
-          <div>
-            <span>{hasPermission(props.currentUser, 'role:read') ? '暂无权限点目录' : '当前账号无权限点查看权限'}</span>
-          </div>
-        </div>
-      ) : (
-        props.groups.map(([resource, permissions]) => (
-          <fieldset className="permission-group" key={resource}>
-            <legend>{resource}</legend>
-            <div className="permission-list">
-              {permissions.map((permission) => {
-                const selected = props.selected.includes(permission.code);
-                const canGrant = props.currentUser?.permissions?.includes(permission.code) ?? false;
-                return (
-                  <label className="permission-option" key={permission.code}>
-                    <input
-                      type="checkbox"
-                      checked={selected}
-                      disabled={props.disabled || !canGrant}
-                      onChange={() => props.onToggle(permission.code)}
-                    />
-                    <span>
-                      <strong>{permission.code}</strong>
-                      <em>{permission.description || permission.action}</em>
-                    </span>
-                  </label>
-                );
-              })}
-            </div>
-          </fieldset>
-        ))
-      )}
-    </div>
-  );
-}
-
-function roleScope(role: RoleView | RoleDetailView) {
-  return role.scopeType ?? role.scope_type ?? '';
-}
-
-function roleDescription(role: RoleView | RoleDetailView) {
-  return role.description ?? '';
-}
-
-function rolePermissionCodes(role: RoleDetailView) {
-  return role.permissionCodes ?? role.permission_codes ?? [];
-}
-
-function permissionResourceType(permission: PermissionView) {
-  return permission.resourceType ?? permission.resource_type ?? '';
-}
-
-function isDisabledStatus(status: string) {
-  const normalized = status.toUpperCase();
-  return normalized === 'DISABLED' || status === '已停用';
-}
-
-function toggleRolePermission(draft: RoleDraft, code: string): RoleDraft {
-  const exists = draft.permissionCodes.includes(code);
-  return {
-    ...draft,
-    permissionCodes: exists
-      ? draft.permissionCodes.filter((item) => item !== code)
-      : [...draft.permissionCodes, code].sort((left, right) => left.localeCompare(right))
-  };
-}
-
-function validateRoleDraft(draft: RoleDraft, includeCode: boolean) {
-  if (includeCode && !/^[A-Za-z][A-Za-z0-9_-]{2,63}$/.test(draft.code.trim())) {
-    return '角色编码需以字母开头，长度 3-64，仅允许字母、数字、下划线和中划线';
-  }
-  if (!draft.name.trim()) {
-    return '请填写角色名称';
-  }
-  if (!roleScopeOptions.some((option) => option.value === draft.scopeType)) {
-    return '请选择有效作用域';
-  }
-  if (draft.permissionCodes.length === 0) {
-    return '至少选择一个权限点';
-  }
-  return '';
-}
-
-type SecretDraft = {
-  secret_ref: string;
-  provider_code: string;
-  purpose: string;
-  scope_type: string;
-  scope_id: string;
-  secret_value: string;
-  secret_version: string;
-  expires_at: string;
-};
-
-const initialSecretDraft: SecretDraft = {
-  secret_ref: 'secret://wp1/',
-  provider_code: 'local',
-  purpose: 'WEBHOOK_SIGNING',
-  scope_type: 'CONFIG',
-  scope_id: '',
-  secret_value: '',
-  secret_version: 'v1',
-  expires_at: ''
-};
-
-function SecretManagementPanel(props: {
-  secrets: SecretReferenceView[];
-  signedIn: boolean;
-  currentUser: CurrentUser | null;
-  onChanged: () => void;
-}) {
-  const [createDraft, setCreateDraft] = useState<SecretDraft>(initialSecretDraft);
-  const [rotateDraft, setRotateDraft] = useState({ secret_value: '', secret_version: '', expires_at: '' });
-  const [selectedSecretRef, setSelectedSecretRef] = useState(props.secrets[0]?.secretRef ?? '');
-  const [state, setState] = useState<{ loading: boolean; error?: string; traceId?: string }>({ loading: false });
-
-  useEffect(() => {
-    if (!props.secrets.some((secret) => secret.secretRef === selectedSecretRef)) {
-      setSelectedSecretRef(props.secrets[0]?.secretRef ?? '');
-    }
-  }, [props.secrets, selectedSecretRef]);
-
-  const canCreate = hasPermission(props.currentUser, 'secret:manage');
-  const canRotate = hasPermission(props.currentUser, 'secret:rotate');
-  const canDisable = hasPermission(props.currentUser, 'secret:disable');
-  const selectedSecret = props.secrets.find((secret) => secret.secretRef === selectedSecretRef);
-  const disabled = !props.signedIn || state.loading;
-
-  async function submitCreate(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!canCreate) {
-      return;
-    }
-    const validationError = validateSecretDraft(createDraft);
-    if (validationError) {
-      setState({ loading: false, error: validationError });
-      return;
-    }
-    setState({ loading: true });
-    try {
-      const response = await createSecretReference(buildSecretCreatePayload(createDraft));
-      setCreateDraft({ ...initialSecretDraft, secret_ref: 'secret://wp1/', secret_value: '' });
-      setSelectedSecretRef(response.data.secretRef);
-      setState({ loading: false, traceId: response.trace_id });
-      props.onChanged();
-    } catch (error: unknown) {
-      const traceId = error instanceof ApiError ? error.traceId : '';
-      const message = error instanceof Error ? error.message : '密钥引用创建失败';
-      setCreateDraft((current) => ({ ...current, secret_value: '' }));
-      setState({ loading: false, error: message, traceId });
-    }
-  }
-
-  async function submitRotate(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!canRotate || !selectedSecretRef) {
-      return;
-    }
-    if (rotateDraft.secret_value.trim().length < 8) {
-      setState({ loading: false, error: '轮换密钥至少 8 位' });
-      return;
-    }
-    setState({ loading: true });
-    try {
-      const response = await rotateSecretReference({
-        secret_ref: selectedSecretRef,
-        secret_value: rotateDraft.secret_value,
-        secret_version: nonBlank(rotateDraft.secret_version),
-        expires_at: isoDateTime(rotateDraft.expires_at)
-      });
-      setRotateDraft({ secret_value: '', secret_version: '', expires_at: '' });
-      setSelectedSecretRef(response.data.secretRef);
-      setState({ loading: false, traceId: response.trace_id });
-      props.onChanged();
-    } catch (error: unknown) {
-      const traceId = error instanceof ApiError ? error.traceId : '';
-      const message = error instanceof Error ? error.message : '密钥引用轮换失败';
-      setRotateDraft((current) => ({ ...current, secret_value: '' }));
-      setState({ loading: false, error: message, traceId });
-    }
-  }
-
-  async function disableSelectedSecret() {
-    if (!canDisable || !selectedSecretRef) {
-      return;
-    }
-    setState({ loading: true });
-    try {
-      const response = await disableSecretReference(selectedSecretRef);
-      setState({ loading: false, traceId: response.trace_id });
-      props.onChanged();
-    } catch (error: unknown) {
-      const traceId = error instanceof ApiError ? error.traceId : '';
-      const message = error instanceof Error ? error.message : '密钥引用撤销失败';
-      setState({ loading: false, error: message, traceId });
-    }
-  }
-
-  return (
-    <div className="panel insight-panel secret-management-panel">
-      <div className="panel-title-row">
-        <h2>Secret 引用</h2>
-        <StatusPill value={String(props.secrets.length)} />
-      </div>
-
-      <div className="secret-reference-list">
-        {props.secrets.length > 0 ? (
-          props.secrets.slice(0, 4).map((secret) => (
-            <button
-              type="button"
-              className={`secret-reference-item ${secret.secretRef === selectedSecretRef ? 'active' : ''}`}
-              key={secret.secretRef}
-              onClick={() => setSelectedSecretRef(secret.secretRef)}
-            >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+              <div className="section-icon" style={{ width: 32, height: 32 }}><Icon size={17} /></div>
               <div>
-                <strong>{secret.secretRef}</strong>
-                <span>{secret.providerCode} · {secret.purpose} · {secret.scopeType}</span>
+                <div className="text-tertiary text-xs font-semibold" style={{ marginBottom: 2 }}>{props.eyebrow}</div>
+                <h2 className="panel-title">{props.title}</h2>
               </div>
-              <StatusPill value={secret.status} />
-            </button>
-          ))
-        ) : (
-          <div className="empty-state compact">
-            <KeyRound size={20} />
-            <div>
-              <strong>{props.signedIn ? '暂无 Secret 引用' : '等待登录'}</strong>
-              <span>{hasPermission(props.currentUser, 'secret:read') ? '0 条记录' : '当前账号无查看权限'}</span>
             </div>
           </div>
-        )}
+          <div className="toolbar-actions" style={{ flexWrap: 'wrap' }}>
+            {props.canCreate && props.onCreate && (
+              <div className="flex items-center gap-sm">
+                <input
+                  type="text"
+                  placeholder={`输入${props.action.replace('新增', '').replace('创建', '').replace('邀请', '') || '名称'}`}
+                  value={quickCreateValue}
+                  onChange={(e) => setQuickCreateValue(e.target.value)}
+                  style={{ width: 160, height: 36, border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0 10px', fontSize: 13 }}
+                  disabled={!props.signedIn}
+                />
+                <button
+                  className="btn btn-primary btn-sm"
+                  disabled={!props.signedIn || props.loadState.loading || !quickCreateValue.trim()}
+                  onClick={() => { props.onCreate!(props.createResource!, props.action, quickCreateValue); setQuickCreateValue(''); }}
+                >
+                  {props.action}
+                </button>
+              </div>
+            )}
+            {props.onRefresh && (
+              <button className="btn btn-secondary btn-sm" onClick={props.onRefresh} disabled={props.loadState.loading}>
+                刷新
+              </button>
+            )}
+          </div>
+        </div>
+        <div className="panel-body">
+          {props.loadState.error && (
+            <div className="notice error" style={{ marginBottom: 16 }}>{props.loadState.error}</div>
+          )}
+          {props.rows.length === 0 && !props.loadState.loading ? (
+            <div className="empty-state">
+              <div className="empty-state-icon"><Icon size={32} opacity={0.4} /></div>
+              <strong>暂无数据</strong>
+              <span>当前没有{props.title}，请先创建或同步数据。</span>
+            </div>
+          ) : (
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>{props.columns.map((col) => <th key={col}>{col}</th>)}</tr>
+                </thead>
+                <tbody>
+                  {props.loadState.loading ? (
+                    <tr><td colSpan={props.columns.length}><div className="skeleton skeleton-text" style={{ margin: '8px 0' }} /></td></tr>
+                  ) : (
+                    props.rows.map((row, idx) => (
+                      <tr key={idx}>{row.map((cell, ci) => <td key={ci}>{cell}</td>)}</tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
       </div>
 
-      {selectedSecret && (
-        <div className="resource-summary">
-          <strong>{selectedSecret.secretRef}</strong>
-          {[
-            ['Provider', selectedSecret.providerCode],
-            ['用途', selectedSecret.purpose],
-            ['作用域', `${selectedSecret.scopeType}:${selectedSecret.scopeId}`],
-            ['版本', selectedSecret.secretVersion || '-'],
-            ['掩码', selectedSecret.maskedValue],
-            ['状态', selectedSecret.status],
-            ['轮换时间', selectedSecret.rotatedAt || '-']
-          ].map(([label, value]) => (
-            <div key={label}>
-              <span>{label}</span>
-              {label === '状态' ? <StatusPill value={String(value)} /> : <em>{value}</em>}
-            </div>
-          ))}
+      {props.sidePanel && (
+        <div className="side-stack">
+          {props.sidePanel}
         </div>
       )}
-
-      {canCreate && (
-        <form className="resource-edit-form secret-form" onSubmit={submitCreate}>
-          <strong>创建 Secret</strong>
-          <label>
-            <span>引用</span>
-            <input
-              value={createDraft.secret_ref}
-              disabled={disabled}
-              maxLength={128}
-              onChange={(event) => setCreateDraft((current) => ({ ...current, secret_ref: event.target.value }))}
-              placeholder="secret://wp1/webhook"
-            />
-          </label>
-          <label>
-            <span>Provider</span>
-            <input
-              value={createDraft.provider_code}
-              disabled={disabled}
-              onChange={(event) => setCreateDraft((current) => ({ ...current, provider_code: event.target.value }))}
-              placeholder="local"
-            />
-          </label>
-          <label>
-            <span>用途</span>
-            <input
-              value={createDraft.purpose}
-              disabled={disabled}
-              onChange={(event) => setCreateDraft((current) => ({ ...current, purpose: event.target.value.toUpperCase() }))}
-              placeholder="WEBHOOK_SIGNING"
-            />
-          </label>
-          <label>
-            <span>作用域</span>
-            <select
-              value={createDraft.scope_type}
-              disabled={disabled}
-              onChange={(event) => setCreateDraft((current) => ({ ...current, scope_type: event.target.value }))}
-            >
-              <option value="CONFIG">CONFIG</option>
-              <option value="PROJECT">PROJECT</option>
-              <option value="APPLICATION">APPLICATION</option>
-              <option value="ENVIRONMENT">ENVIRONMENT</option>
-            </select>
-          </label>
-          <label>
-            <span>Scope ID</span>
-            <input
-              value={createDraft.scope_id}
-              disabled={disabled}
-              onChange={(event) => setCreateDraft((current) => ({ ...current, scope_id: event.target.value }))}
-              placeholder="00000000-0000-0000-0000-000000000000"
-            />
-          </label>
-          <label>
-            <span>明文</span>
-            <input
-              type="password"
-              autoComplete="new-password"
-              value={createDraft.secret_value}
-              disabled={disabled}
-              onChange={(event) => setCreateDraft((current) => ({ ...current, secret_value: event.target.value }))}
-              placeholder="至少 8 位"
-            />
-          </label>
-          <label>
-            <span>版本</span>
-            <input
-              value={createDraft.secret_version}
-              disabled={disabled}
-              onChange={(event) => setCreateDraft((current) => ({ ...current, secret_version: event.target.value }))}
-              placeholder="v1"
-            />
-          </label>
-          <label>
-            <span>过期时间</span>
-            <input
-              type="datetime-local"
-              value={createDraft.expires_at}
-              disabled={disabled}
-              onChange={(event) => setCreateDraft((current) => ({ ...current, expires_at: event.target.value }))}
-            />
-          </label>
-          <button className="mini-button" type="submit" disabled={disabled || !createDraft.secret_ref.trim() || !createDraft.secret_value.trim()}>
-            <Save size={14} />
-            创建
-          </button>
-        </form>
-      )}
-
-      {(canRotate || canDisable) && (
-        <form className="resource-edit-form secret-form" onSubmit={submitRotate}>
-          <strong>轮换与撤销</strong>
-          <label>
-            <span>Secret</span>
-            <select
-              value={selectedSecretRef}
-              disabled={disabled || props.secrets.length === 0}
-              onChange={(event) => setSelectedSecretRef(event.target.value)}
-            >
-              {props.secrets.length === 0 ? (
-                <option value="">暂无 Secret</option>
-              ) : (
-                props.secrets.map((secret) => (
-                  <option key={secret.secretRef} value={secret.secretRef}>
-                    {secret.secretRef}
-                  </option>
-                ))
-              )}
-            </select>
-          </label>
-          {canRotate && (
-            <>
-              <label>
-                <span>新明文</span>
-                <input
-                  type="password"
-                  autoComplete="new-password"
-                  value={rotateDraft.secret_value}
-                  disabled={disabled || !selectedSecretRef}
-                  onChange={(event) => setRotateDraft((current) => ({ ...current, secret_value: event.target.value }))}
-                  placeholder="至少 8 位"
-                />
-              </label>
-              <label>
-                <span>新版本</span>
-                <input
-                  value={rotateDraft.secret_version}
-                  disabled={disabled || !selectedSecretRef}
-                  onChange={(event) => setRotateDraft((current) => ({ ...current, secret_version: event.target.value }))}
-                  placeholder="自动递增"
-                />
-              </label>
-              <label>
-                <span>过期时间</span>
-                <input
-                  type="datetime-local"
-                  value={rotateDraft.expires_at}
-                  disabled={disabled || !selectedSecretRef}
-                  onChange={(event) => setRotateDraft((current) => ({ ...current, expires_at: event.target.value }))}
-                />
-              </label>
-              <button className="mini-button" type="submit" disabled={disabled || !selectedSecretRef || rotateDraft.secret_value.trim().length < 8}>
-                <KeyRound size={14} />
-                轮换
-              </button>
-            </>
-          )}
-          {canDisable && (
-            <button className="mini-button" type="button" disabled={disabled || !selectedSecretRef} onClick={disableSelectedSecret}>
-              <Power size={14} />
-              撤销
-            </button>
-          )}
-        </form>
-      )}
-
-      {state.error && (
-        <div className="inline-error">
-          <strong>操作失败</strong>
-          <span>{state.error}</span>
-        </div>
-      )}
-      {state.traceId && <div className="panel-trace">Trace ID：{state.traceId}</div>}
     </div>
   );
 }
 
-function emptyDraft(fields: ResourceEditField[]): ResourceDraft {
-  return Object.fromEntries(fields.map((field) => [field.key, '']));
+/* ===================== Resource Lifecycle Panel ===================== */
+
+interface StatusOption {
+  value: string;
+  label: string;
+  icon: LucideIcon;
 }
 
-function nonBlank(value?: string) {
-  const normalized = value?.trim() ?? '';
-  return normalized || undefined;
-}
-
-function publicModelValue(value?: string) {
-  if (value === 'true') return true;
-  if (value === 'false') return false;
-  return undefined;
-}
-
-function buildProjectUpdate(draft: ResourceDraft) {
-  return compactPayload({
-    name: nonBlank(draft.name),
-    sensitivity_level: nonBlank(draft.sensitivity_level),
-    allow_public_model: publicModelValue(draft.allow_public_model)
-  });
-}
-
-function buildDepartmentUpdate(draft: ResourceDraft) {
-  return compactPayload({
-    name: nonBlank(draft.name)
-  });
-}
-
-function buildUserUpdate(draft: ResourceDraft) {
-  return compactPayload({
-    display_name: nonBlank(draft.display_name),
-    email: nonBlank(draft.email)
-  });
-}
-
-function buildApplicationUpdate(draft: ResourceDraft) {
-  return compactPayload({
-    name: nonBlank(draft.name),
-    app_type: nonBlank(draft.app_type),
-    default_web_url: nonBlank(draft.default_web_url),
-    default_api_base_url: nonBlank(draft.default_api_base_url),
-    sensitivity_level: nonBlank(draft.sensitivity_level),
-    allow_public_model: publicModelValue(draft.allow_public_model)
-  });
-}
-
-function buildEnvironmentUpdate(draft: ResourceDraft) {
-  return compactPayload({
-    name: nonBlank(draft.name),
-    env_type: nonBlank(draft.env_type),
-    web_url: nonBlank(draft.web_url),
-    api_base_url: nonBlank(draft.api_base_url)
-  });
-}
-
-function buildIntegrationCreate(draft: ResourceDraft) {
-  return {
-    code: nonBlank(draft.code),
-    name: nonBlank(draft.name) ?? '',
-    category: nonBlank(draft.category),
-    scope: nonBlank(draft.scope)
-  };
-}
-
-function buildIntegrationUpdate(draft: ResourceDraft) {
-  return compactPayload({
-    name: nonBlank(draft.name),
-    category: nonBlank(draft.category),
-    scope: nonBlank(draft.scope)
-  });
-}
-
-function buildSettingCreate(draft: ResourceDraft) {
-  return {
-    key: nonBlank(draft.key) ?? '',
-    name: nonBlank(draft.name),
-    value: nonBlank(draft.value) ?? '',
-    scope_type: nonBlank(draft.scope_type)
-  };
-}
-
-function buildSettingUpdate(draft: ResourceDraft) {
-  return compactPayload({
-    name: nonBlank(draft.name),
-    value: nonBlank(draft.value),
-    scope_type: nonBlank(draft.scope_type)
-  });
-}
-
-function buildSecretCreatePayload(draft: SecretDraft) {
-  return {
-    secret_ref: draft.secret_ref.trim(),
-    provider_code: nonBlank(draft.provider_code),
-    purpose: draft.purpose.trim().toUpperCase(),
-    scope_type: draft.scope_type,
-    scope_id: draft.scope_id.trim(),
-    secret_value: draft.secret_value,
-    secret_version: nonBlank(draft.secret_version),
-    expires_at: isoDateTime(draft.expires_at)
-  };
-}
-
-function validateSecretDraft(draft: SecretDraft) {
-  if (!draft.secret_ref.trim().startsWith('secret://')) {
-    return 'Secret 引用必须以 secret:// 开头';
-  }
-  if (draft.secret_ref.trim().length > 128) {
-    return 'Secret 引用不能超过 128 个字符';
-  }
-  if (!draft.purpose.trim()) {
-    return '请填写用途';
-  }
-  if (!draft.scope_id.trim()) {
-    return '请填写 Scope ID';
-  }
-  if (draft.secret_value.trim().length < 8) {
-    return '明文至少 8 位';
-  }
-  return '';
-}
-
-function isoDateTime(value?: string) {
-  const normalized = value?.trim();
-  if (!normalized) {
-    return undefined;
-  }
-  return new Date(normalized).toISOString();
-}
-
-function compactPayload<T extends Record<string, string | boolean | undefined>>(payload: T) {
-  return Object.fromEntries(Object.entries(payload).filter(([, value]) => value !== undefined));
-}
-
-function downloadText(filename: string, text: string, contentType: string) {
-  const blob = new Blob([text], { type: contentType });
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement('a');
-  anchor.href = url;
-  anchor.download = filename;
-  document.body.append(anchor);
-  anchor.click();
-  anchor.remove();
-  URL.revokeObjectURL(url);
-}
-
-function ResourceLifecyclePanel<T extends { status: string }>(props: {
+interface ResourceLifecyclePanelProps<T> {
   title: string;
   resourceLabel: string;
   emptyLabel: string;
   resources: string[];
-  fields: ResourceEditField[];
+  fields: { key: string; label: string; placeholder?: string; kind?: 'text' | 'select' | 'public-model'; options?: Array<{ value: string; label: string }> }[];
   signedIn: boolean;
   canEdit: boolean;
   statusOptions: StatusOption[];
-  fetchDetail: (resourceKey: string) => Promise<{ trace_id: string; data: T }>;
-  updateDetail: (resourceKey: string, draft: ResourceDraft) => Promise<unknown>;
+  fetchDetail: (key: string) => Promise<{ data: T }>;
+  updateDetail: (resourceKey: string, draft: Record<string, string>) => Promise<unknown>;
   changeStatus: (resourceKey: string, status: string) => Promise<unknown>;
-  detailTitle?: (detail: T) => string;
-  draftFromDetail?: (detail: T) => ResourceDraft;
-  detailRows: (detail: T) => Array<[string, string | number]>;
-  createLabel?: string;
-  canCreate?: boolean;
-  createFields?: ResourceEditField[];
-  createInitialDraft?: ResourceDraft;
-  createDetail?: (draft: ResourceDraft) => Promise<unknown>;
+  detailTitle: (detail: T) => string;
+  draftFromDetail: (detail: T) => Record<string, string>;
+  detailRows: (detail: T) => Array<[string, string]>;
   onChanged: () => void;
-}) {
-  const [selectedResource, setSelectedResource] = useState(props.resources[0] ?? '');
+}
+
+function ResourceLifecyclePanel<T extends Record<string, unknown>>(props: ResourceLifecyclePanelProps<T>) {
+  const [selectedKey, setSelectedKey] = useState('');
   const [detail, setDetail] = useState<T | null>(null);
-  const [draft, setDraft] = useState<ResourceDraft>(emptyDraft(props.fields));
-  const [createDraft, setCreateDraft] = useState<ResourceDraft>({ ...emptyDraft(props.createFields ?? []), ...(props.createInitialDraft ?? {}) });
-  const [state, setState] = useState<{ loading: boolean; error?: string; traceId?: string }>({ loading: false });
+  const [editDraft, setEditDraft] = useState<Record<string, string> | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   useEffect(() => {
-    if (!props.resources.includes(selectedResource)) {
-      setSelectedResource(props.resources[0] ?? '');
-    }
-  }, [props.resources, selectedResource]);
+    if (!selectedKey) { setDetail(null); setEditDraft(null); return; }
+    setLoading(true);
+    setError('');
+    props.fetchDetail(selectedKey)
+      .then((r) => { setDetail(r.data); setEditDraft(props.draftFromDetail(r.data)); setLoading(false); })
+      .catch((err: unknown) => { setError(err instanceof Error ? err.message : '加载失败'); setLoading(false); });
+  }, [selectedKey, props]);
 
-  const reloadDetail = useCallback(async () => {
-    if (!props.signedIn || !selectedResource) {
-      setDetail(null);
-      setDraft(emptyDraft(props.fields));
-      setState({ loading: false });
-      return;
-    }
-    setState({ loading: true });
+  async function save() {
+    if (!selectedKey || !editDraft) return;
+    setLoading(true);
+    setError('');
     try {
-      const response = await props.fetchDetail(selectedResource);
-      setDetail(response.data);
-      setDraft({ ...emptyDraft(props.fields), ...(props.draftFromDetail ? props.draftFromDetail(response.data) : {}) });
-      setState({ loading: false, traceId: response.trace_id });
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : '详情加载失败';
-      setDetail(null);
-      setState({ loading: false, error: message });
-    }
-  }, [props.fetchDetail, props.fields, props.signedIn, selectedResource]);
-
-  useEffect(() => {
-    void reloadDetail();
-  }, [reloadDetail]);
-
-  async function submitDetail(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!selectedResource || !props.canEdit) {
-      return;
-    }
-    setState({ loading: true });
-    try {
-      await props.updateDetail(selectedResource, draft);
-      await reloadDetail();
+      await props.updateDetail(selectedKey, editDraft);
+      setDetail(null); setEditDraft(null); setSelectedKey('');
       props.onChanged();
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : '详情保存失败';
-      setState({ loading: false, error: message });
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : '保存失败');
+      setLoading(false);
     }
   }
 
-  async function submitStatus(status: string) {
-    if (!selectedResource || props.statusOptions.length === 0) {
-      return;
-    }
-    setState({ loading: true });
+  async function changeStatus(status: string) {
+    if (!selectedKey) return;
+    setLoading(true);
+    setError('');
     try {
-      await props.changeStatus(selectedResource, status);
-      await reloadDetail();
+      await props.changeStatus(selectedKey, status);
+      setDetail(null); setEditDraft(null); setSelectedKey('');
       props.onChanged();
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : '状态流转失败';
-      setState({ loading: false, error: message });
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : '状态变更失败');
+      setLoading(false);
     }
   }
-
-  async function submitCreate(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!props.createDetail || !props.canCreate) {
-      return;
-    }
-    setState({ loading: true });
-    try {
-      await props.createDetail(createDraft);
-      setCreateDraft({ ...emptyDraft(props.createFields ?? []), ...(props.createInitialDraft ?? {}) });
-      props.onChanged();
-      setState({ loading: false });
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : '资源登记失败';
-      setState({ loading: false, error: message });
-    }
-  }
-
-  const disabled = !props.signedIn || state.loading || !selectedResource;
 
   return (
-    <div className="panel insight-panel resource-lifecycle-panel">
-      <h2>{props.title}</h2>
-      <label className="resource-selector">
-        <span>{props.resourceLabel}</span>
-        <select
-          value={selectedResource}
-          disabled={!props.signedIn || state.loading || props.resources.length === 0}
-          onChange={(event) => setSelectedResource(event.target.value)}
-        >
-          {props.resources.length === 0 ? (
-            <option value="">{props.emptyLabel}</option>
-          ) : (
-            props.resources.map((resource) => (
-              <option key={resource} value={resource}>
-                {resource}
-              </option>
-            ))
-          )}
-        </select>
-      </label>
-
-      {detail ? (
-        <div className="resource-summary">
-          <strong>{props.detailTitle ? props.detailTitle(detail) : selectedResource}</strong>
-          {props.detailRows(detail).map(([label, value]) => (
-            <div key={label}>
-              <span>{label}</span>
-              {label === '状态' ? <StatusPill value={String(value)} /> : <em>{value}</em>}
-            </div>
-          ))}
+    <div className="panel">
+      <div className="panel-body">
+        <div style={{ marginBottom: 12 }}>
+          <div className="text-tertiary text-xs font-semibold" style={{ marginBottom: 2 }}>详情</div>
+          <h3 className="panel-title" style={{ fontSize: 15 }}>{props.title}</h3>
         </div>
-      ) : (
-        <div className="empty-state compact">
-          <Pencil size={20} />
-          <div>
-            <strong>{state.loading ? '正在加载详情' : props.signedIn ? '暂无详情' : '等待登录'}</strong>
-            <span>{state.error ?? props.emptyLabel}</span>
-          </div>
-        </div>
-      )}
 
-      {props.canEdit && (
-        <form className="resource-edit-form" onSubmit={submitDetail}>
-          {props.fields.map((field) => (
-            <label key={field.key}>
-              <span>{field.label}</span>
-              {field.kind === 'select' || field.kind === 'public-model' ? (
-                <select
-                  value={draft[field.key] ?? ''}
-                  disabled={disabled}
-                  onChange={(event) => setDraft((current) => ({ ...current, [field.key]: event.target.value }))}
-                >
-                  {(field.options ?? []).map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              ) : (
-                <input
-                  value={draft[field.key] ?? ''}
-                  disabled={disabled}
-                  onChange={(event) => setDraft((current) => ({ ...current, [field.key]: event.target.value }))}
-                  placeholder={field.placeholder}
-                />
-              )}
-            </label>
-          ))}
-          <button className="mini-button" type="submit" disabled={disabled}>
-            <Save size={14} />
-            保存详情
-          </button>
-        </form>
-      )}
-
-      {props.statusOptions.length > 0 && (
-        <div className="resource-status-actions">
-          {props.statusOptions.map((option) => {
-            const Icon = option.icon;
-            return (
-              <button
-                className="mini-button"
-                type="button"
-                key={option.value}
-                disabled={disabled}
-                onClick={() => submitStatus(option.value)}
-                title={option.label}
-              >
-                <Icon size={14} />
-                {option.label}
-              </button>
-            );
-          })}
-        </div>
-      )}
-
-      {props.canCreate && props.createFields && props.createDetail && (
-        <form className="resource-edit-form resource-create-form" onSubmit={submitCreate}>
-          <strong>{props.createLabel ?? '新增资源'}</strong>
-          {props.createFields.map((field) => (
-            <label key={field.key}>
-              <span>{field.label}</span>
-              <input
-                value={createDraft[field.key] ?? ''}
-                disabled={!props.signedIn || state.loading}
-                onChange={(event) => setCreateDraft((current) => ({ ...current, [field.key]: event.target.value }))}
-                placeholder={field.placeholder}
-              />
-            </label>
-          ))}
-          <button className="mini-button" type="submit" disabled={!props.signedIn || state.loading || !createDraft.name?.trim()}>
-            <Save size={14} />
-            {props.createLabel ?? '新增资源'}
-          </button>
-        </form>
-      )}
-
-      {state.error && detail && (
-        <div className="inline-error">
-          <strong>操作失败</strong>
-          <span>{state.error}</span>
-        </div>
-      )}
-      {state.traceId && <div className="panel-trace">Trace ID：{state.traceId}</div>}
-    </div>
-  );
-}
-
-function ScopedRolePanel(props: {
-  title: string;
-  resourceLabel: string;
-  emptyLabel: string;
-  resources: string[];
-  roles: string[];
-  signedIn: boolean;
-  canManage: boolean;
-  fetchMembers: (resourceKey: string) => Promise<{ trace_id: string; data: { items: Array<ScopedUserRoleView | ProjectMemberView> } }>;
-  addMember: (resourceKey: string, username: string, roleCode: string) => Promise<unknown>;
-  removeMember: (resourceKey: string, username: string) => Promise<unknown>;
-  onChanged: () => void;
-}) {
-  const [selectedResource, setSelectedResource] = useState(props.resources[0] ?? '');
-  const [username, setUsername] = useState('');
-  const [roleCode, setRoleCode] = useState(props.roles[0] ?? '');
-  const [members, setMembers] = useState<Array<ScopedUserRoleView | ProjectMemberView>>([]);
-  const [state, setState] = useState<{ loading: boolean; error?: string; traceId?: string }>({ loading: false });
-
-  useEffect(() => {
-    if (!props.resources.includes(selectedResource)) {
-      setSelectedResource(props.resources[0] ?? '');
-    }
-  }, [props.resources, selectedResource]);
-
-  useEffect(() => {
-    if (!props.roles.includes(roleCode)) {
-      setRoleCode(props.roles[0] ?? '');
-    }
-  }, [props.roles, roleCode]);
-
-  const reloadMembers = useCallback(async () => {
-    if (!props.signedIn || !selectedResource) {
-      setMembers([]);
-      setState({ loading: false });
-      return;
-    }
-    setState({ loading: true });
-    try {
-      const response = await props.fetchMembers(selectedResource);
-      setMembers(response.data.items);
-      setState({ loading: false, traceId: response.trace_id });
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : '授权列表加载失败';
-      setMembers([]);
-      setState({ loading: false, error: message });
-    }
-  }, [props.fetchMembers, props.signedIn, selectedResource]);
-
-  useEffect(() => {
-    void reloadMembers();
-  }, [reloadMembers]);
-
-  async function submitMember(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const normalizedUsername = username.trim();
-    if (!selectedResource || !normalizedUsername || !roleCode || !props.canManage) {
-      return;
-    }
-    setState({ loading: true });
-    try {
-      await props.addMember(selectedResource, normalizedUsername, roleCode);
-      setUsername('');
-      await reloadMembers();
-      props.onChanged();
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : '授权保存失败';
-      setState({ loading: false, error: message });
-    }
-  }
-
-  async function removeMember(usernameToRemove: string) {
-    if (!selectedResource || !props.canManage) {
-      return;
-    }
-    setState({ loading: true });
-    try {
-      await props.removeMember(selectedResource, usernameToRemove);
-      await reloadMembers();
-      props.onChanged();
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : '授权移除失败';
-      setState({ loading: false, error: message });
-    }
-  }
-
-  const disabled = !props.signedIn || state.loading || !selectedResource;
-
-  return (
-    <div className="panel insight-panel scoped-role-panel">
-      <h2>{props.title}</h2>
-      <div className="scoped-role-controls">
-        <label>
-          <span>{props.resourceLabel}</span>
+        <div className="field" style={{ marginBottom: 12 }}>
           <select
-            value={selectedResource}
-            disabled={!props.signedIn || state.loading || props.resources.length === 0}
-            onChange={(event) => setSelectedResource(event.target.value)}
+            value={selectedKey}
+            onChange={(e) => setSelectedKey(e.target.value)}
+            disabled={!props.signedIn}
+            style={{ width: '100%', minHeight: 38, border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0 10px', fontSize: 13 }}
           >
-            {props.resources.length === 0 ? (
-              <option value="">{props.emptyLabel}</option>
-            ) : (
-              props.resources.map((resource) => (
-                <option key={resource} value={resource}>
-                  {resource}
-                </option>
-              ))
-            )}
+            <option value="">选择{props.resourceLabel}...</option>
+            {props.resources.map((r) => (
+              <option key={r} value={r}>{r}</option>
+            ))}
           </select>
-        </label>
+        </div>
 
-        {props.canManage && (
-          <form className="scoped-role-form" onSubmit={submitMember}>
-            <input
-              value={username}
-              disabled={disabled}
-              onChange={(event) => setUsername(event.target.value)}
-              placeholder="用户名"
-            />
-            <select value={roleCode} disabled={disabled} onChange={(event) => setRoleCode(event.target.value)}>
-              {props.roles.map((role) => (
-                <option key={role} value={role}>
-                  {role}
-                </option>
-              ))}
-            </select>
-            <button className="mini-button" type="submit" disabled={disabled || !username.trim()}>
-              <UserPlus size={14} />
-              添加
-            </button>
-          </form>
-        )}
-      </div>
+        {loading && <div className="skeleton skeleton-text" />}
+        {error && <div className="notice error" style={{ marginBottom: 12 }}>{error}</div>}
 
-      <div className="scoped-role-list">
-        {members.length > 0 ? (
-          members.map((member) => (
-            <div className="scoped-role-row" key={member.username}>
-              <div>
-                <strong>{member.display_name || member.username}</strong>
-                <span>{member.username}</span>
-              </div>
-              <StatusPill value={member.role} />
-              {props.canManage && (
-                <button
-                  className="mini-button icon-only"
-                  type="button"
-                  disabled={disabled}
-                  onClick={() => removeMember(member.username)}
-                  title="移除授权"
-                  aria-label={`移除 ${member.username}`}
-                >
-                  <UserMinus size={14} />
-                </button>
-              )}
-            </div>
-          ))
-        ) : (
-          <div className="empty-state compact">
-            <UsersRound size={20} />
-            <div>
-              <strong>{state.loading ? '正在同步' : props.signedIn ? '暂无授权' : '等待登录'}</strong>
-              <span>{state.error ?? (selectedResource ? `当前${props.resourceLabel}未绑定用户` : props.emptyLabel)}</span>
-            </div>
-          </div>
-        )}
-      </div>
-      {state.traceId && <div className="panel-trace">Trace ID：{state.traceId}</div>}
-    </div>
-  );
-}
-
-function EnvironmentConnectivityPanel(props: {
-  resources: string[];
-  signedIn: boolean;
-  canRun: boolean;
-  onChanged: () => void;
-}) {
-  const [selectedResource, setSelectedResource] = useState(props.resources[0] ?? '');
-  const [result, setResult] = useState<EnvironmentConnectivityCheckView | null>(null);
-  const [state, setState] = useState<{ loading: boolean; error?: string; traceId?: string }>({ loading: false });
-
-  useEffect(() => {
-    if (!props.resources.includes(selectedResource)) {
-      setSelectedResource(props.resources[0] ?? '');
-    }
-  }, [props.resources, selectedResource]);
-
-  const reloadResult = useCallback(async () => {
-    if (!props.signedIn || !selectedResource) {
-      setResult(null);
-      setState({ loading: false });
-      return;
-    }
-    setState({ loading: true });
-    try {
-      const response = await fetchEnvironmentConnectivityCheck(selectedResource);
-      setResult(response.data);
-      setState({ loading: false, traceId: response.trace_id });
-    } catch (error: unknown) {
-      const message = error instanceof ApiError ? error.message : error instanceof Error ? error.message : '连通性结果加载失败';
-      const traceId = error instanceof ApiError ? error.traceId : '';
-      setResult(null);
-      setState({ loading: false, error: message, traceId });
-    }
-  }, [props.signedIn, selectedResource]);
-
-  useEffect(() => {
-    void reloadResult();
-  }, [reloadResult]);
-
-  async function runCheck() {
-    if (!props.signedIn || !props.canRun || !selectedResource) {
-      return;
-    }
-    setState({ loading: true });
-    try {
-      const response = await runEnvironmentConnectivityCheck(selectedResource);
-      setResult(response.data);
-      setState({ loading: false, traceId: response.trace_id });
-      props.onChanged();
-    } catch (error: unknown) {
-      const message = error instanceof ApiError ? error.message : error instanceof Error ? error.message : '环境探活失败';
-      const traceId = error instanceof ApiError ? error.traceId : '';
-      setState({ loading: false, error: message, traceId });
-    }
-  }
-
-  const disabled = !props.signedIn || state.loading || !selectedResource;
-
-  return (
-    <div className="panel insight-panel environment-connectivity-panel">
-      <h2>环境连通性</h2>
-      <label className="resource-selector">
-        <span>环境</span>
-        <select
-          value={selectedResource}
-          disabled={!props.signedIn || state.loading || props.resources.length === 0}
-          onChange={(event) => setSelectedResource(event.target.value)}
-        >
-          {props.resources.length === 0 ? (
-            <option value="">暂无环境</option>
-          ) : (
-            props.resources.map((resource) => (
-              <option key={resource} value={resource}>
-                {resource}
-              </option>
-            ))
-          )}
-        </select>
-      </label>
-
-      {result ? (
-        <div className="connectivity-summary">
-          <div className="connectivity-headline">
-            <StatusPill value={result.status} />
-            <span>{result.checkedAt || '尚未执行'}</span>
-          </div>
-          <p>{result.message}</p>
-          {result.latencyMs != null && <span className="connectivity-latency">{result.latencyMs} ms</span>}
-          <div className="connectivity-endpoints">
-            {result.endpoints.length > 0 ? (
-              result.endpoints.map((endpoint) => (
-                <div key={`${endpoint.target}:${endpoint.url}`}>
-                  <div>
-                    <strong>{endpoint.target}</strong>
-                    <StatusPill value={endpoint.status} />
-                  </div>
-                  <span>{endpoint.url}</span>
-                  <em>
-                    {[endpoint.statusCode ? `HTTP ${endpoint.statusCode}` : '', endpoint.latencyMs != null ? `${endpoint.latencyMs} ms` : '', endpoint.message]
-                      .filter(Boolean)
-                      .join(' · ')}
-                  </em>
+        {detail && !loading && (
+          <>
+            <div className="divider" />
+            <div className="detail-grid">
+              {props.detailRows(detail).map(([label, value]) => (
+                <div className="detail-row" key={label}>
+                  <span className="detail-label">{label}</span>
+                  <span className="detail-value">{value || '-'}</span>
                 </div>
-              ))
-            ) : (
-              <div>
-                <span>未记录 endpoint</span>
-              </div>
+              ))}
+            </div>
+
+            {props.canEdit && editDraft && (
+              <>
+                <div className="divider" />
+                <div style={{ display: 'grid', gap: 10 }}>
+                  {props.fields.map((field) => (
+                    <div className="field" key={field.key}>
+                      <label className="field-label">{field.label}</label>
+                      {field.kind === 'select' || field.kind === 'public-model' ? (
+                        <select
+                          value={editDraft[field.key] ?? ''}
+                          onChange={(e) => setEditDraft((d) => d ? { ...d, [field.key]: e.target.value } : d)}
+                          style={{ width: '100%', minHeight: 36, border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0 10px', fontSize: 13 }}
+                        >
+                          {(field.options ?? []).map((opt) => (
+                            <option key={opt.value} value={opt.value}>{opt.label}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <input
+                          type="text"
+                          value={editDraft[field.key] ?? ''}
+                          onChange={(e) => setEditDraft((d) => d ? { ...d, [field.key]: e.target.value } : d)}
+                          placeholder={field.placeholder}
+                          style={{ width: '100%', minHeight: 36, border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0 10px', fontSize: 13 }}
+                        />
+                      )}
+                    </div>
+                  ))}
+                  <button className="btn btn-primary btn-sm" onClick={save} disabled={loading}>
+                    {loading ? '保存中...' : '保存修改'}
+                  </button>
+                </div>
+              </>
             )}
-          </div>
-        </div>
-      ) : (
-        <div className="empty-state compact">
-          <Activity size={20} />
-          <div>
-            <strong>{state.loading ? '正在同步' : props.signedIn ? '暂无探活结果' : '等待登录'}</strong>
-            <span>{state.error ?? '暂无环境连通性记录'}</span>
-          </div>
-        </div>
-      )}
 
-      {props.canRun && (
-        <button className="mini-button" type="button" disabled={disabled} onClick={runCheck}>
-          <Activity size={14} />
-          {state.loading ? '检查中' : '执行探活'}
-        </button>
-      )}
-
-      {state.error && result && (
-        <div className="inline-error">
-          <strong>操作失败</strong>
-          <span>{state.error}</span>
-        </div>
-      )}
-      {state.traceId && <div className="panel-trace">Trace ID：{state.traceId}</div>}
+            {props.statusOptions.length > 0 && (
+              <>
+                <div className="divider" />
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+                  {props.statusOptions.map((opt) => {
+                    const OptIcon = opt.icon;
+                    return (
+                      <button key={opt.value} className="btn btn-secondary btn-sm" onClick={() => changeStatus(opt.value)} disabled={loading}>
+                        <OptIcon size={14} />{opt.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+          </>
+        )}
+      </div>
     </div>
   );
 }
+
+/* ===================== Role Binding Controls ===================== */
 
 function RoleBindingControls(props: {
   username: string;
@@ -3390,332 +1754,495 @@ function RoleBindingControls(props: {
   canUnassign: boolean;
   onAction: (username: string, action: UserLifecycleAction, roleCode?: string) => Promise<void>;
 }) {
-  const [roleCode, setRoleCode] = useState('');
-  const disabled = !props.signedIn || props.loading || !roleCode;
-  const visible = props.canAssign || props.canUnassign;
-
-  if (!visible) {
-    return null;
-  }
-
+  const [selectedRole, setSelectedRole] = useState('');
+  if (!props.canAssign && !props.canUnassign) return null;
   return (
-    <div className="role-binding-controls">
-      <select
-        value={roleCode}
-        disabled={!props.signedIn || props.loading}
-        onChange={(event) => setRoleCode(event.target.value)}
-        aria-label={`${props.username} 角色`}
-      >
-        <option value="">选择角色</option>
-        {props.roles.map((role) => (
-          <option key={role.code} value={role.code}>
-            {role.name}
-          </option>
-        ))}
-      </select>
+    <div className="role-binding-controls" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
       {props.canAssign && (
-        <button
-          className="mini-button icon-only"
-          type="button"
-          disabled={disabled}
-          onClick={() => props.onAction(props.username, 'assign-role', roleCode)}
-          title="分配角色"
-          aria-label="分配角色"
-        >
-          <ShieldCheck size={14} />
-        </button>
-      )}
-      {props.canUnassign && (
-        <button
-          className="mini-button icon-only"
-          type="button"
-          disabled={disabled}
-          onClick={() => props.onAction(props.username, 'unassign-role', roleCode)}
-          title="解绑角色"
-          aria-label="解绑角色"
-        >
-          <UsersRound size={14} />
-        </button>
-      )}
-    </div>
-  );
-}
-
-function ChangePasswordDialog(props: {
-  form: PasswordForm;
-  state: PasswordDialogState;
-  forced?: boolean;
-  onCancel: () => void;
-  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
-  updateField: <K extends keyof PasswordForm>(key: K, value: PasswordForm[K]) => void;
-}) {
-  const submitting = props.state.status === 'submitting';
-  const title = props.forced ? '首次登录修改密码' : '修改密码';
-
-  return (
-    <div className="modal-backdrop" role="presentation">
-      <section className="modal-panel" role="dialog" aria-modal="true" aria-labelledby="change-password-title">
-        <div className="modal-heading">
-          <div>
-            <span className="eyebrow">Security</span>
-            <h2 id="change-password-title">{title}</h2>
-          </div>
-          {!props.forced && (
-            <button className="icon-button" type="button" onClick={props.onCancel} aria-label="关闭" disabled={submitting}>
-              ×
-            </button>
-          )}
-        </div>
-
-        <form className="modal-form" onSubmit={props.onSubmit}>
-          <Field label="当前密码" htmlFor="old-password" required>
-            <input
-              id="old-password"
-              type="password"
-              autoComplete="current-password"
-              value={props.form.oldPassword}
-              disabled={submitting}
-              onChange={(event) => props.updateField('oldPassword', event.target.value)}
-            />
-          </Field>
-          <Field label="新密码" htmlFor="new-password" required>
-            <input
-              id="new-password"
-              type="password"
-              autoComplete="new-password"
-              value={props.form.newPassword}
-              disabled={submitting}
-              onChange={(event) => props.updateField('newPassword', event.target.value)}
-            />
-          </Field>
-          <Field label="确认新密码" htmlFor="confirm-password" required>
-            <input
-              id="confirm-password"
-              type="password"
-              autoComplete="new-password"
-              value={props.form.confirmPassword}
-              disabled={submitting}
-              onChange={(event) => props.updateField('confirmPassword', event.target.value)}
-            />
-          </Field>
-
-          {props.state.status === 'error' && (
-            <div className="notice error">
-              <strong>{props.state.code}</strong>
-              <span>{props.state.message}</span>
-              {props.state.traceId && <span>Trace ID：{props.state.traceId}</span>}
-            </div>
-          )}
-
-          <div className="modal-actions">
-            <button className="secondary-button" type="button" onClick={props.onCancel} disabled={submitting}>
-              {props.forced ? '退出登录' : '取消'}
-            </button>
-            <button className="primary-button" type="submit" disabled={submitting}>
-              <KeyRound size={17} />
-              {submitting ? '提交中' : '确认修改'}
-            </button>
-          </div>
-        </form>
-      </section>
-    </div>
-  );
-}
-
-function ResetPasswordDialog(props: {
-  form: ResetPasswordForm;
-  state: PasswordDialogState;
-  onCancel: () => void;
-  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
-  updateField: <K extends keyof ResetPasswordForm>(key: K, value: ResetPasswordForm[K]) => void;
-}) {
-  const submitting = props.state.status === 'submitting';
-
-  return (
-    <div className="modal-backdrop" role="presentation">
-      <section className="modal-panel" role="dialog" aria-modal="true" aria-labelledby="reset-password-title">
-        <div className="modal-heading">
-          <div>
-            <span className="eyebrow">Account</span>
-            <h2 id="reset-password-title">重置密码</h2>
-          </div>
-          <button className="icon-button" type="button" onClick={props.onCancel} aria-label="关闭" disabled={submitting}>
-            ×
+        <>
+          <select
+            value={selectedRole}
+            onChange={(e) => setSelectedRole(e.target.value)}
+            disabled={!props.signedIn}
+            style={{ width: 90, height: 28, border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', fontSize: 12, padding: '0 4px' }}
+          >
+            <option value="">角色</option>
+            {props.roles.map((r) => <option key={r.code} value={r.code}>{r.name}</option>)}
+          </select>
+          <button
+            className="btn btn-xs btn-secondary"
+            disabled={!props.signedIn || props.loading || !selectedRole}
+            onClick={() => { props.onAction(props.username, 'assign-role', selectedRole); setSelectedRole(''); }}
+          >
+            分配
           </button>
-        </div>
-
-        <form className="modal-form" onSubmit={props.onSubmit}>
-          <Field label="目标账号" htmlFor="reset-password-username" required>
-            <input id="reset-password-username" value={props.form.username} disabled readOnly />
-          </Field>
-          <Field label="新密码" htmlFor="reset-new-password" required>
-            <input
-              id="reset-new-password"
-              type="password"
-              autoComplete="new-password"
-              value={props.form.newPassword}
-              disabled={submitting}
-              onChange={(event) => props.updateField('newPassword', event.target.value)}
-            />
-          </Field>
-          <Field label="确认新密码" htmlFor="reset-confirm-password" required>
-            <input
-              id="reset-confirm-password"
-              type="password"
-              autoComplete="new-password"
-              value={props.form.confirmPassword}
-              disabled={submitting}
-              onChange={(event) => props.updateField('confirmPassword', event.target.value)}
-            />
-          </Field>
-
-          {props.state.status === 'error' && (
-            <div className="notice error">
-              <strong>{props.state.code}</strong>
-              <span>{props.state.message}</span>
-              {props.state.traceId && <span>Trace ID：{props.state.traceId}</span>}
-            </div>
-          )}
-
-          <div className="modal-actions">
-            <button className="secondary-button" type="button" onClick={props.onCancel} disabled={submitting}>
-              取消
-            </button>
-            <button className="primary-button" type="submit" disabled={submitting}>
-              <KeyRound size={17} />
-              {submitting ? '提交中' : '确认重置'}
-            </button>
-          </div>
-        </form>
-      </section>
+        </>
+      )}
+      {props.canUnassign && selectedRole && (
+        <button
+          className="btn btn-xs btn-secondary"
+          disabled={!props.signedIn || props.loading}
+          onClick={() => { props.onAction(props.username, 'unassign-role', selectedRole); setSelectedRole(''); }}
+        >
+          解绑
+        </button>
+      )}
     </div>
   );
 }
 
-function AuthPanel(props: {
-  currentUser: CurrentUser | null;
-  loginForm: LoginPayload;
-  loginState: LoginState;
-  onLogin: (event: FormEvent<HTMLFormElement>) => void;
-  onLogout: () => void | Promise<void>;
-  onChangePassword: () => void | Promise<void>;
-  updateLoginField: <K extends keyof LoginPayload>(key: K, value: LoginPayload[K]) => void;
+/* ===================== Scoped Role Panel ===================== */
+
+function ScopedRolePanel(props: {
+  title: string;
+  resourceLabel: string;
+  emptyLabel: string;
+  resources: string[];
+  roles: string[];
+  signedIn: boolean;
+  canManage: boolean;
+  fetchMembers: (key: string) => Promise<{ data: ScopedUserRoleView[] }>;
+  addMember: (resourceKey: string, username: string) => Promise<unknown>;
+  removeMember: (resourceKey: string, username: string) => Promise<unknown>;
+  onChanged: () => void;
 }) {
-  if (props.currentUser) {
-    return (
-      <div className="auth-panel signed-in">
-        <div>
-          <span>当前用户</span>
-          <strong>{props.currentUser.display_name || props.currentUser.username}</strong>
-          <em>{props.currentUser.roles.join(' / ') || '未分配角色'}</em>
-        </div>
-        <button type="button" className="icon-button" onClick={props.onLogout} aria-label="退出登录" title="退出登录">
-          <LogOut size={17} />
-        </button>
-        <button type="button" className="icon-button" onClick={props.onChangePassword} aria-label="修改密码" title="修改密码">
-          <KeyRound size={17} />
-        </button>
-      </div>
-    );
+  const [selectedKey, setSelectedKey] = useState('');
+  const [members, setMembers] = useState<ScopedUserRoleView[]>([]);
+  const [username, setUsername] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (!selectedKey) { setMembers([]); return; }
+    setLoading(true);
+    setError('');
+    props.fetchMembers(selectedKey)
+      .then((r) => { setMembers(r.data); setLoading(false); })
+      .catch((err: unknown) => { setError(err instanceof Error ? err.message : '加载失败'); setLoading(false); });
+  }, [selectedKey, props]);
+
+  async function add() {
+    if (!selectedKey || !username.trim()) return;
+    setLoading(true);
+    setError('');
+    try {
+      await props.addMember(selectedKey, username.trim());
+      setUsername('');
+      props.onChanged();
+      const r = await props.fetchMembers(selectedKey);
+      setMembers(r.data);
+      setLoading(false);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : '添加失败');
+      setLoading(false);
+    }
+  }
+
+  async function remove(username: string) {
+    if (!selectedKey) return;
+    setLoading(true);
+    setError('');
+    try {
+      await props.removeMember(selectedKey, username);
+      props.onChanged();
+      const r = await props.fetchMembers(selectedKey);
+      setMembers(r.data);
+      setLoading(false);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : '移除失败');
+      setLoading(false);
+    }
   }
 
   return (
-    <form className="auth-panel login-form" onSubmit={props.onLogin}>
-      <label>
-        <span>账号</span>
-        <input
-          value={props.loginForm.username}
-          onChange={(event) => props.updateLoginField('username', event.target.value)}
-          placeholder="admin_user"
-        />
-      </label>
-      <label>
-        <span>密码</span>
-        <input
-          type="password"
-          value={props.loginForm.password}
-          onChange={(event) => props.updateLoginField('password', event.target.value)}
-          placeholder="初始化密码"
-        />
-      </label>
-      <button type="submit" className="icon-button" aria-label="登录" title="登录" disabled={props.loginState.status === 'loading'}>
-        <LogIn size={17} />
-      </button>
-      {props.loginState.status === 'error' && <small>{props.loginState.message}</small>}
-    </form>
-  );
-}
+    <div className="panel">
+      <div className="panel-body">
+        <div style={{ marginBottom: 12 }}>
+          <div className="text-tertiary text-xs font-semibold" style={{ marginBottom: 2 }}>成员</div>
+          <h3 className="panel-title" style={{ fontSize: 15 }}>{props.title}</h3>
+        </div>
 
-function MetricCard(props: { label: string; value: string; detail: string; icon: LucideIcon }) {
-  const Icon = props.icon;
-  return (
-    <div className="metric-card">
-      <div className="metric-icon">
-        <Icon size={18} />
+        <div className="field" style={{ marginBottom: 12 }}>
+          <select
+            value={selectedKey}
+            onChange={(e) => setSelectedKey(e.target.value)}
+            disabled={!props.signedIn}
+            style={{ width: '100%', minHeight: 38, border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0 10px', fontSize: 13 }}
+          >
+            <option value="">选择{props.resourceLabel}...</option>
+            {props.resources.map((r) => <option key={r} value={r}>{r}</option>)}
+          </select>
+        </div>
+
+        {error && <div className="notice error" style={{ marginBottom: 12 }}>{error}</div>}
+
+        {selectedKey && (
+          <>
+            {loading ? (
+              <div className="skeleton skeleton-text" />
+            ) : members.length === 0 ? (
+              <div className="empty-state" style={{ padding: '12px 0' }}>
+                <span>暂无成员</span>
+              </div>
+            ) : (
+              <div style={{ display: 'grid', gap: 8 }}>
+                {members.map((m) => (
+                  <div key={m.username} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '6px 0', borderBottom: '1px solid var(--border-light)' }}>
+                    <div>
+                      <div style={{ fontSize: 14, fontWeight: 600 }}>{m.display_name || m.username}</div>
+                      <div className="text-tertiary text-xs">{m.role}</div>
+                    </div>
+                    {props.canManage && (
+                      <button className="btn btn-xs btn-secondary" onClick={() => remove(m.username)} disabled={loading}>移除</button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {props.canManage && (
+              <div style={{ display: 'flex', gap: 6, marginTop: 12 }}>
+                <input
+                  type="text"
+                  placeholder="输入用户名"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  style={{ flex: 1, minHeight: 34, border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0 10px', fontSize: 13 }}
+                />
+                <button className="btn btn-primary btn-sm" onClick={add} disabled={loading || !username.trim()}>添加</button>
+              </div>
+            )}
+          </>
+        )}
       </div>
-      <div>
-        <span>{props.label}</span>
-        <strong>{props.value}</strong>
-        <p>{props.detail}</p>
+    </div>
+  );
+}
+
+/* ===================== Environment Connectivity Panel ===================== */
+
+function EnvironmentConnectivityPanel(props: {
+  resources: string[];
+  signedIn: boolean;
+  canRun: boolean;
+  onChanged: () => void;
+}) {
+  const [selectedKey, setSelectedKey] = useState('');
+  const [result, setResult] = useState<EnvironmentConnectivityCheckView | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => { setResult(null); setError(''); }, [selectedKey]);
+
+  async function check() {
+    if (!selectedKey) return;
+    setLoading(true);
+    setError('');
+    try {
+      const r = await runEnvironmentConnectivityCheck(selectedKey);
+      setResult(r.data);
+      setLoading(false);
+      props.onChanged();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : '连通性检查失败');
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="panel">
+      <div className="panel-body">
+        <div style={{ marginBottom: 12 }}>
+          <div className="text-tertiary text-xs font-semibold" style={{ marginBottom: 2 }}>连通性</div>
+          <h3 className="panel-title" style={{ fontSize: 15 }}>环境连通性检查</h3>
+        </div>
+
+        <div className="field" style={{ marginBottom: 12 }}>
+          <select
+            value={selectedKey}
+            onChange={(e) => setSelectedKey(e.target.value)}
+            disabled={!props.signedIn}
+            style={{ width: '100%', minHeight: 38, border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0 10px', fontSize: 13 }}
+          >
+            <option value="">选择环境...</option>
+            {props.resources.map((r) => <option key={r} value={r}>{r}</option>)}
+          </select>
+        </div>
+
+        {props.canRun && selectedKey && (
+          <button className="btn btn-primary btn-sm" onClick={check} disabled={loading} style={{ width: '100%', marginBottom: 12 }}>
+            {loading ? '检查中...' : '执行连通性检查'}
+          </button>
+        )}
+
+        {error && <div className="notice error" style={{ marginBottom: 12 }}>{error}</div>}
+
+        {result && (
+          <div style={{ padding: 12, background: 'var(--bg)', borderRadius: 'var(--radius-sm)', display: 'grid', gap: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+              <StatusBadge status={result.status} />
+              <span className="text-tertiary text-xs">{result.latency_ms}ms</span>
+            </div>
+            <p className="text-secondary text-sm" style={{ lineHeight: 1.5, overflowWrap: 'anywhere' }}>{result.message}</p>
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
-function Field(props: { label: string; htmlFor: string; required?: boolean; children: ReactNode }) {
-  return (
-    <label className="field" htmlFor={props.htmlFor}>
-      <span>
-        {props.label}
-        {props.required && <b>*</b>}
-      </span>
-      {props.children}
-    </label>
-  );
-}
+/* ===================== Role Definition Panel ===================== */
 
-function HealthBadge(props: { health: { loading: boolean; data?: HealthResult; error?: string } }) {
-  const ok = props.health.data?.status === 'UP';
+function RoleDefinitionPanel(props: {
+  roles: RoleView[];
+  permissions: PermissionView[];
+  signedIn: boolean;
+  currentUser: CurrentUser | null;
+  onChanged: () => void;
+}) {
+  const [selectedCode, setSelectedCode] = useState('');
+  const [detail, setDetail] = useState<RoleDetailView | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const canManageRole = hasPermission(props.currentUser, 'role:create');
+
+  useEffect(() => {
+    if (!selectedCode) { setDetail(null); return; }
+    setLoading(true);
+    setError('');
+    fetchRole(selectedCode)
+      .then((r) => { setDetail(r.data); setLoading(false); })
+      .catch((err: unknown) => { setError(err instanceof Error ? err.message : '加载失败'); setLoading(false); });
+  }, [selectedCode]);
+
   return (
-    <div className={`health-badge ${ok ? 'ok' : props.health.error ? 'error' : ''}`}>
-      {ok ? <CheckCircle2 size={18} /> : <Activity size={18} />}
-      <span>{props.health.loading ? '检查服务中' : ok ? '平台服务正常' : '平台服务异常'}</span>
+    <div className="panel">
+      <div className="panel-body">
+        <div style={{ marginBottom: 12 }}>
+          <div className="text-tertiary text-xs font-semibold" style={{ marginBottom: 2 }}>角色定义</div>
+          <h3 className="panel-title" style={{ fontSize: 15 }}>角色详情</h3>
+        </div>
+
+        <div className="field" style={{ marginBottom: 12 }}>
+          <select
+            value={selectedCode}
+            onChange={(e) => setSelectedCode(e.target.value)}
+            disabled={!props.signedIn}
+            style={{ width: '100%', minHeight: 38, border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0 10px', fontSize: 13 }}
+          >
+            <option value="">选择角色...</option>
+            {props.roles.map((r) => <option key={r.code} value={r.code}>{r.name} ({r.code})</option>)}
+          </select>
+        </div>
+
+        {loading && <div className="skeleton skeleton-text" />}
+        {error && <div className="notice error" style={{ marginBottom: 12 }}>{error}</div>}
+
+        {detail && !loading && (
+          <>
+            <div className="divider" />
+            <div className="detail-grid">
+              <div className="detail-row">
+                <span className="detail-label">名称</span>
+                <span className="detail-value">{detail.name}</span>
+              </div>
+              <div className="detail-row">
+                <span className="detail-label">编码</span>
+                <span className="detail-value">{detail.code}</span>
+              </div>
+              <div className="detail-row">
+                <span className="detail-label">状态</span>
+                <span className="detail-value"><StatusBadge status={detail.status} /></span>
+              </div>
+              {detail.description && (
+                <div className="detail-row">
+                  <span className="detail-label">说明</span>
+                  <span className="detail-value">{detail.description}</span>
+                </div>
+              )}
+            </div>
+
+            <div className="divider" />
+            <div className="text-tertiary text-xs font-semibold" style={{ marginBottom: 8 }}>权限点 ({detail.permissions?.length ?? 0})</div>
+            {detail.permissions && detail.permissions.length > 0 ? (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                {detail.permissions.map((p: string) => (
+                  <span key={p} className="badge badge-info">{p}</span>
+                ))}
+              </div>
+            ) : (
+              <div className="text-tertiary text-sm">暂无权限点</div>
+            )}
+          </>
+        )}
+      </div>
     </div>
   );
 }
 
-function StatusItem(props: { label: string; value: string; compact?: boolean }) {
+/* ===================== Audit Page ===================== */
+
+function AuditPage(props: ManagementPageProps) {
+  const { data, loadState, signedIn, currentUser, auditExportState, onAuditExport } = props;
+
+  const canExport = canUseButton(currentUser, 'audit:export');
+  const canViewOutbox = hasPermission(currentUser, 'audit:write_internal');
+
   return (
-    <div className={`status-item ${props.compact ? 'compact' : ''}`}>
-      <span>{props.label}</span>
-      <strong title={props.value}>{props.value}</strong>
+    <div className="content-grid">
+      <div className="panel">
+        <div className="panel-header">
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+              <div className="section-icon" style={{ width: 32, height: 32 }}><ScrollText size={17} /></div>
+              <div>
+                <div className="text-tertiary text-xs font-semibold" style={{ marginBottom: 2 }}>审计</div>
+                <h2 className="panel-title">审计日志</h2>
+              </div>
+            </div>
+          </div>
+          <div className="toolbar-actions">
+            <button className="btn btn-secondary btn-sm" onClick={onAuditExport} disabled={!signedIn || auditExportState.loading || !canExport}>
+              {auditExportState.loading ? '导出中...' : '导出 CSV'}
+            </button>
+            <button className="btn btn-secondary btn-sm" onClick={props.onRefresh} disabled={loadState.loading}>刷新</button>
+          </div>
+        </div>
+        <div className="panel-body">
+          {loadState.error && <div className="notice error" style={{ marginBottom: 16 }}>{loadState.error}</div>}
+          {data.auditLogs.length === 0 && !loadState.loading ? (
+            <div className="empty-state">
+              <div className="empty-state-icon"><ScrollText size={32} opacity={0.4} /></div>
+              <strong>暂无审计日志</strong>
+              <span>系统操作日志将在此处显示。</span>
+            </div>
+          ) : (
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>时间</th>
+                    <th>操作人</th>
+                    <th>动作</th>
+                    <th>资源</th>
+                    <th>结果</th>
+                    <th>详情</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {loadState.loading ? (
+                    <tr><td colSpan={6}><div className="skeleton skeleton-text" style={{ margin: '8px 0' }} /></td></tr>
+                  ) : (
+                    data.auditLogs.map((log: AuditLogView, idx: number) => (
+                      <tr key={idx}>
+                        <td className="text-sm">{log.created_at}</td>
+                        <td>{log.actor}</td>
+                        <td>{log.action}</td>
+                        <td>
+                          <div style={{ fontWeight: 600 }}>{log.resource_type}</div>
+                          <div className="text-tertiary text-xs">{log.resource_id}</div>
+                        </td>
+                        <td><StatusBadge status={log.result} /></td>
+                        <td className="text-sm text-secondary" style={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{log.target_name || '-'}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="side-stack">
+        {canViewOutbox && <AuditOutboxPanel {...props} />}
+      </div>
     </div>
   );
 }
 
-function StatusPill(props: { value: string }) {
-  const normalized = props.value.toUpperCase();
-  const positive = ['启用', '同步正常', '进行中', '已接入', '可用', '已连接', '成功', 'DONE', 'SUCCESS', 'UP'];
-  const pending = ['试用', '待确认', '待激活', '规划中', '接入中', '待授权', '只读', 'PENDING', 'PROCESSING', 'SKIPPED'];
-  const negative = ['失败', '已停用', '已锁定', 'FAILED', 'DEAD', 'ERROR', 'DOWN'];
-  const tone = positive.includes(props.value) || positive.includes(normalized)
-    ? 'positive'
-    : pending.includes(props.value) || pending.includes(normalized)
-      ? 'pending'
-      : negative.includes(props.value) || negative.includes(normalized)
-        ? 'negative'
-        : 'neutral';
-  return <span className={`status-pill ${tone}`}>{props.value}</span>;
+/* ===================== Audit Outbox Panel ===================== */
+
+function AuditOutboxPanel(props: ManagementPageProps) {
+  return (
+    <div className="panel">
+      <div className="panel-body">
+        <div style={{ marginBottom: 12 }}>
+          <div className="text-tertiary text-xs font-semibold" style={{ marginBottom: 2 }}>待处理</div>
+          <h3 className="panel-title" style={{ fontSize: 15 }}>Audit Outbox</h3>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 12 }}>
+          <select
+            value={props.auditOutboxFilters.status}
+            onChange={(e) => props.onAuditOutboxFiltersChange({ ...props.auditOutboxFilters, status: e.target.value })}
+            style={{ width: '100%', minHeight: 34, border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0 8px', fontSize: 12 }}
+          >
+            <option value="">全部状态</option>
+            <option value="PENDING">待处理</option>
+            <option value="SUCCESS">成功</option>
+            <option value="FAILED">失败</option>
+          </select>
+          <input
+            type="text" placeholder="Trace ID"
+            value={props.auditOutboxFilters.traceId}
+            onChange={(e) => props.onAuditOutboxFiltersChange({ ...props.auditOutboxFilters, traceId: e.target.value })}
+            style={{ width: '100%', minHeight: 34, border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0 8px', fontSize: 12 }}
+          />
+        </div>
+        <input
+          type="text" placeholder="搜索资源 ID..."
+          value={props.auditOutboxFilters.search}
+          onChange={(e) => props.onAuditOutboxFiltersChange({ ...props.auditOutboxFilters, search: e.target.value })}
+          style={{ width: '100%', minHeight: 34, border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0 10px', fontSize: 13, marginBottom: 12 }}
+        />
+
+        <button className="btn btn-secondary btn-sm" onClick={() => props.onAuditOutboxRefresh()} disabled={props.auditOutboxLoad.loading} style={{ width: '100%', marginBottom: 12 }}>
+          {props.auditOutboxLoad.loading ? '加载中...' : '查询'}
+        </button>
+
+        {props.auditOutboxLoad.error && (
+          <div className="notice error" style={{ marginBottom: 12 }}>{props.auditOutboxLoad.error}</div>
+        )}
+
+        <div style={{ display: 'grid', gap: 8 }}>
+          {props.data.auditOutbox.length === 0 && !props.auditOutboxLoad.loading ? (
+            <div className="text-tertiary text-sm">暂无待处理事件</div>
+          ) : (
+            props.data.auditOutbox.map((item: AuditOutboxView, idx: number) => (
+              <div key={idx} style={{ padding: '8px 10px', border: '1px solid var(--border-light)', borderRadius: 'var(--radius-sm)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                  <strong style={{ fontSize: 13 }}>{item.action}</strong>
+                  <StatusBadge status={item.status} />
+                </div>
+                <div className="text-tertiary text-xs" style={{ marginTop: 4 }}>
+                  {item.resource_type}/{item.resource_id}
+                </div>
+                {item.error_message && (
+                  <div className="text-xs" style={{ color: 'var(--danger)', marginTop: 4 }}>{item.error_message}</div>
+                )}
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    </div>
+  );
 }
 
-function isStatusColumn(column?: string) {
-  return column === '状态' || column === '结果';
-}
+/* ===================== Helpers ===================== */
 
-function isPrimitiveCell(cell: string | number | ReactNode): cell is string | number {
-  return typeof cell === 'string' || typeof cell === 'number';
-}
-
-function countByStatus(items: Array<{ status: string }>, status: string) {
+function countByStatus(items: Array<{ status: string }>, status: string): number {
   return items.filter((item) => item.status === status).length;
+}
+
+function roleScope(role: RoleView): string {
+  if (role.scope_type) {
+    return role.scope_type.charAt(0).toUpperCase() + role.scope_type.slice(1).toLowerCase();
+  }
+  return 'Platform';
+}
+
+function roleDescription(role: RoleView): string {
+  return role.description || '';
 }
