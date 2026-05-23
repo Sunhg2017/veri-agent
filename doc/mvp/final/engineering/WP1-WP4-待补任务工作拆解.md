@@ -196,7 +196,7 @@ WP4 本轮 P0 已覆盖真实文件上传、Word/PDF/OCR、AI 解析、SecretPro
 | WP4-B2 | 恶意文件扫描 | P1 | DONE-CURRENT | 已补 `WP4_MALWARE_SCAN_COMMAND` 命令式文件扫描 provider，支持超时、并发和输出截断配置；Word/PDF/OCR 二进制解析前先扫描，健康接口暴露扫描开关和并发余量 | 被标记恶意文件不进入解析，错误摘要不泄露内部路径 |
 | WP4-B3 | 文件类型嗅探和 MIME 校验 | P1 | DONE-CURRENT | `binaryMimeValidationEnabled` 已接入 data URL 声明 MIME 与文件魔数/内容嗅探校验，覆盖 PDF、DOC/DOCX 和常见图片类型；健康接口暴露配置 | 伪造 MIME 被拒绝或按真实类型处理 |
 | WP4-B4 | PDF 页数/解析时间限制 | P1 | DONE-CURRENT | `pdfMaxPages/pdfMaxParseMillis` 已在 PDFBox 解析路径生效，并由单测覆盖页数超限和解析耗时超限；健康接口暴露配置 | 超限失败可读，临时文件清理稳定 |
-| WP4-B5 | 高保真解析专项 | P2 | TODO | 表格结构、图片语义、页眉页脚、批注、附件抽取专项评估 | 不影响当前文本抽取链路 |
+| WP4-B5 | 高保真解析专项 | P2 | DONE-CURRENT | 已新增 `WP4-高保真解析专项评估.md`，冻结表格结构、图片语义、页眉页脚、批注/修订、附件抽取的能力分层、metadata 契约、样本集、指标和 worker 路线 | 不影响当前文本抽取链路；后续代码落地必须继续通过候选确认，不得绕过 WP2 策略、WP3 发布和 WP1 审计 |
 
 ### WP4-C AI 解析质量体系
 
@@ -246,7 +246,7 @@ WP4 本轮 P0 已覆盖真实文件上传、Word/PDF/OCR、AI 解析、SecretPro
 
 ## 9. 推荐下一步
 
-1. M4 后续若继续本地闭环，优先推进 `WP4-B5` 高保真解析专项评估，输出表格结构、图片语义、页眉页脚、批注和附件抽取的解析能力边界、样本集和引擎选型建议。
-2. `WP4-D1-D4` 真实外部连接器需要 Confluence、飞书、钉钉、语雀的沙箱凭证和 API 访问策略；未具备前可先补连接器 runbook、schema 兼容性和 mock 契约。
+1. `WP4-D1-D4` 真实外部连接器需要 Confluence、飞书、钉钉、语雀的沙箱凭证和 API 访问策略；未具备前可先补连接器 runbook、schema 兼容性和 mock 契约。
+2. `WP4-B5` 后续进入代码落地时，先扩展 Word 表格/批注/页眉页脚 metadata，再新增 `wp4-high-fidelity-corpus` 和 `scripts/wp4_high_fidelity_parse_eval.sh`，最后把 PDF 版式和图片语义放入隔离 worker。
 3. `WP1-E` 后续进入代码落地时，先做默认关闭的身份源配置和审批只读/草稿能力，再灰度 SSO 登录、组织同步 dryRun 和审批必经策略。
 4. 每完成一个任务，补充对应交付说明、测试命令和 release note，并按当前约定提交清晰 commit。
