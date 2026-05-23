@@ -1,7 +1,6 @@
 package com.songhg.veri.agent.management.infrastructure;
 
 import com.songhg.veri.agent.auth.application.AuthUserPrincipal;
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.songhg.veri.agent.common.api.PageQuery;
 import com.songhg.veri.agent.common.api.PageResponse;
@@ -9,7 +8,6 @@ import com.songhg.veri.agent.common.audit.AuditLogWriter;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
 import com.songhg.veri.agent.common.secret.SecretProviderProperties;
-import com.songhg.veri.agent.common.trace.TraceContext;
 import com.songhg.veri.agent.management.api.response.ApplicationView;
 import com.songhg.veri.agent.management.api.response.AuditLogView;
 import com.songhg.veri.agent.management.api.response.AuditOutboxView;
@@ -50,8 +48,6 @@ import com.songhg.veri.agent.management.application.AuditOutboxQuery;
 import com.songhg.veri.agent.management.application.EnvironmentConnectivityChecker;
 import com.songhg.veri.agent.management.application.ManagementConsoleService;
 import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows.ApplicationRef;
-import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows.EnvironmentConnectivityTargetRow;
-import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows.EnvironmentRef;
 import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows.ProjectRef;
 import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapper;
 import java.util.HashMap;
@@ -74,11 +70,10 @@ public class PostgresManagementConsoleService implements ManagementConsoleServic
 
     private final ManagementMapper mapper;
     private final AuditLogWriter auditLogWriter;
-    private final EnvironmentConnectivityChecker connectivityChecker;
-    private final ObjectMapper objectMapper;
     private final PostgresManagementDepartmentService departmentService;
     private final PostgresManagementUserService userService;
     private final PostgresManagementProjectService projectService;
+    private final PostgresManagementEnvironmentService environmentService;
     private final PostgresManagementAuditQueryService auditQueryService;
     private final PostgresManagementConfigService configService;
     private final PostgresManagementRoleService roleService;
@@ -95,11 +90,16 @@ public class PostgresManagementConsoleService implements ManagementConsoleServic
     ) {
         this.mapper = mapper;
         this.auditLogWriter = auditLogWriter;
-        this.connectivityChecker = connectivityChecker;
-        this.objectMapper = objectMapper;
         this.departmentService = new PostgresManagementDepartmentService(mapper, auditLogWriter);
         this.userService = new PostgresManagementUserService(mapper, auditLogWriter, passwordEncoder);
         this.projectService = new PostgresManagementProjectService(mapper, auditLogWriter, deniedAuditRecorder);
+        this.environmentService = new PostgresManagementEnvironmentService(
+                mapper,
+                auditLogWriter,
+                connectivityChecker,
+                objectMapper,
+                projectService
+        );
         this.auditQueryService = new PostgresManagementAuditQueryService(mapper, auditLogWriter);
         this.configService = new PostgresManagementConfigService(mapper, auditLogWriter);
         this.roleService = new PostgresManagementRoleService(mapper, auditLogWriter);
@@ -395,138 +395,58 @@ public class PostgresManagementConsoleService implements ManagementConsoleServic
 
     @Override
     public PageResponse<EnvironmentView> environments(PageQuery pageQuery, AuthUserPrincipal actor) {
-        return page(mapper::listEnvironments, mapper::countEnvironments, pageQuery, scope(actor));
+        return environmentService.environments(pageQuery, actor);
     }
 
     @Override
     public EnvironmentView environment(String key) {
-        return environmentByKey(key);
+        return environmentService.environment(key);
     }
 
     @Override
     @Transactional
     public EnvironmentView createEnvironment(CreateEnvironmentRequest request, AuthUserPrincipal actor) {
-        String name = request.name().trim();
-        ProjectRef project = resolveProject(request.project(), actor);
-        ensureProjectEditable(project.status());
-        String scopeType = normalizedOrDefault(request.scopeType(), blankToNull(request.application()) == null ? "PROJECT" : "APPLICATION");
-        String envType = normalizedOrDefault(request.envType(), "TEST");
-        UUID appId = resolveEnvironmentApplicationId(request, project, scopeType);
-        UUID envId = UUID.randomUUID();
-        String code = normalizedOrGeneratedCode(request.code(), "env");
-        String endpoint = normalizedOrDefault(request.apiBaseUrl(), code + ".local");
-        try {
-            update(mapper::insertEnvironment, actor, values(
-                    "envId", envId,
-                    "projectId", project.id(),
-                    "appId", appId,
-                    "scopeType", scopeType,
-                    "code", code,
-                    "name", name,
-                    "envType", envType,
-                    "webUrl", blankToNull(request.webUrl()),
-                    "endpoint", endpoint
-            ));
-        } catch (DuplicateKeyException exception) {
-            throw new BusinessException(ErrorCode.CONFLICT, "环境编码已存在");
-        }
-        audit(actor, "新增环境", "environment", envId.toString(), name);
-        return new EnvironmentView(name, project.name(), endpoint, "可用");
+        return environmentService.createEnvironment(request, actor);
     }
 
     @Override
     @Transactional
     public EnvironmentView updateEnvironment(String key, UpdateEnvironmentRequest request, AuthUserPrincipal actor) {
-        EnvironmentRef environment = resolveEnvironmentStrict(key);
-        ensureEnabled(environment.status(), "当前环境状态不允许编辑");
-        EnvironmentView before = environmentByKey(environment.id().toString());
-        try {
-            update(mapper::updateEnvironment, actor, values(
-                    "environmentId", environment.id(),
-                    "name", blankToNull(request.name()),
-                    "envType", blankToNull(request.envType()),
-                    "webUrl", blankToNull(request.webUrl()),
-                    "apiBaseUrl", blankToNull(request.apiBaseUrl())
-            ));
-        } catch (DuplicateKeyException exception) {
-            throw new BusinessException(ErrorCode.CONFLICT, "环境编码或名称已存在");
-        }
-        EnvironmentView updated = environmentByKey(environment.id().toString());
-        auditChange(actor, "更新环境", "environment", environment.id().toString(), updated.name(),
-                nameJson(before.name()), nameJson(updated.name()), null);
-        return updated;
+        return environmentService.updateEnvironment(key, request, actor);
     }
 
     @Override
     @Transactional
     public EnvironmentView changeEnvironmentStatus(String key, String status, AuthUserPrincipal actor) {
-        EnvironmentRef environment = resolveEnvironmentStrict(key);
-        String nextStatus = normalizeEnabledStatus(status, "环境状态不支持");
-        update(mapper::changeEnvironmentStatus, actor, values("environmentId", environment.id(), "status", nextStatus));
-        EnvironmentView updated = environmentByKey(environment.id().toString());
-        audit(actor, "ENABLED".equals(nextStatus) ? "启用环境" : "停用环境", "environment", environment.id().toString(), updated.name());
-        return updated;
+        return environmentService.changeEnvironmentStatus(key, status, actor);
     }
 
     @Override
     public EnvironmentConnectivityCheckView environmentConnectivityCheck(String key) {
-        EnvironmentConnectivityTargetRow target = resolveEnvironmentConnectivityTarget(key);
-        return environmentConnectivityCheckView(target);
+        return environmentService.environmentConnectivityCheck(key);
     }
 
     @Override
     @Transactional
     public EnvironmentConnectivityCheckView checkEnvironmentConnectivity(String key, AuthUserPrincipal actor) {
-        EnvironmentConnectivityTargetRow target = resolveEnvironmentConnectivityTarget(key);
-        ensureEnabled(target.status(), "停用环境不可执行连通性检查");
-        EnvironmentConnectivityCheckView result = connectivityChecker.check(
-                target.name(),
-                target.webUrl(),
-                target.apiBaseUrl()
-        );
-        update(mapper::updateEnvironmentHealthCheck, actor, values(
-                "environmentId", target.id(),
-                "healthCheckJson", environmentConnectivityCheckJson(result)
-        ));
-        audit(actor, "环境连通性检查", "environment", target.id().toString(), target.name());
-        return result;
+        return environmentService.checkEnvironmentConnectivity(key, actor);
     }
 
     @Override
     public PageResponse<ScopedUserRoleView> environmentUsers(String environmentKey, PageQuery pageQuery) {
-        EnvironmentRef environment = resolveEnvironmentStrict(environmentKey);
-        return scopedUserRoles(environment.id(), "ENVIRONMENT", "", pageQuery);
+        return environmentService.environmentUsers(environmentKey, pageQuery);
     }
 
     @Override
     @Transactional
     public ScopedUserRoleView addEnvironmentUser(String environmentKey, ScopedUserRoleRequest request, AuthUserPrincipal actor) {
-        EnvironmentRef environment = resolveEnvironmentStrict(environmentKey);
-        ensureEnabled(environment.status(), "当前环境状态不允许维护授权用户");
-        String roleCode = request.roleCode().trim();
-        if (!List.of("Tester", "Developer", "Auditor").contains(roleCode)) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "环境授权用户只能绑定 Tester、Developer 或 Auditor 角色");
-        }
-        String username = request.username().trim();
-        UUID userId = requireUserId(username);
-        UUID roleId = requireRoleId(roleCode);
-        bindScopedRole(userId, roleId, roleCode, "ENVIRONMENT", environment.id(), actor);
-        bumpUserAuthVersion(userId, actor);
-        ScopedUserRoleView view = scopedUserRoleByUsername(environment.id(), "ENVIRONMENT", "", username, "环境授权用户不存在");
-        audit(actor, "添加环境授权", "environment_user", environment.id() + ":" + userId, environment.name() + ":" + username);
-        return view;
+        return environmentService.addEnvironmentUser(environmentKey, request, actor);
     }
 
     @Override
     @Transactional
     public ScopedUserRoleView removeEnvironmentUser(String environmentKey, String username, AuthUserPrincipal actor) {
-        EnvironmentRef environment = resolveEnvironmentStrict(environmentKey);
-        ScopedUserRoleView current = scopedUserRoleByUsername(environment.id(), "ENVIRONMENT", "", username, "环境授权用户不存在");
-        UUID userId = requireUserId(username);
-        disableScopedRoles(userId, "ENVIRONMENT", environment.id(), "", actor);
-        bumpUserAuthVersion(userId, actor);
-        audit(actor, "移除环境授权", "environment_user", environment.id() + ":" + userId, environment.name() + ":" + username);
-        return new ScopedUserRoleView(current.username(), current.displayName(), current.role(), current.scopeType(), "已移除");
+        return environmentService.removeEnvironmentUser(environmentKey, username, actor);
     }
 
     @Override
@@ -627,28 +547,12 @@ public class PostgresManagementConsoleService implements ManagementConsoleServic
         return projectService.resolveProject(project, actor);
     }
 
-    private ProjectRef resolveProjectStrict(String key) {
-        return projectService.resolveProjectStrict(key);
-    }
-
     private ApplicationRef resolveApplicationStrict(String key) {
         return requireOne(mapper::findApplicationRef, values("keyword", key), "应用不存在");
     }
 
-    private EnvironmentRef resolveEnvironmentStrict(String key) {
-        return requireOne(mapper::findEnvironmentRef, values("keyword", key), "环境不存在");
-    }
-
-    private EnvironmentConnectivityTargetRow resolveEnvironmentConnectivityTarget(String key) {
-        return requireOne(mapper::findEnvironmentConnectivityTarget, values("keyword", key), "环境不存在");
-    }
-
     private ApplicationView applicationByKey(String key) {
         return requireOne(mapper::findApplicationView, values("keyword", key), "应用不存在");
-    }
-
-    private EnvironmentView environmentByKey(String key) {
-        return requireOne(mapper::findEnvironmentView, values("keyword", key), "环境不存在");
     }
 
     private PageResponse<ScopedUserRoleView> scopedUserRoles(
@@ -677,30 +581,6 @@ public class PostgresManagementConsoleService implements ManagementConsoleServic
                 "roleCode", normalizeSearch(roleCode),
                 "username", username
         ), notFoundMessage);
-    }
-
-    private UUID resolveEnvironmentApplicationId(
-            CreateEnvironmentRequest request,
-            ProjectRef project,
-            String scopeType
-    ) {
-        String application = blankToNull(request.application());
-        if ("PROJECT".equals(scopeType)) {
-            if (application != null) {
-                throw new BusinessException(ErrorCode.VALIDATION_ERROR, "项目级环境不能绑定应用");
-            }
-            return null;
-        }
-        if (application == null) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "应用级环境必须指定应用");
-        }
-        ApplicationRef app = requireOne(
-                mapper::findApplicationRefInProject,
-                values("projectId", project.id(), "application", application),
-                "应用不存在"
-        );
-        ensureEnabled(app.status(), "当前应用状态不允许新增专属环境");
-        return app.id();
     }
 
     private void bindScopedRole(
@@ -785,38 +665,6 @@ public class PostgresManagementConsoleService implements ManagementConsoleServic
 
     private String normalizeSearch(String search) {
         return search == null ? "" : search.trim();
-    }
-
-    private EnvironmentConnectivityCheckView environmentConnectivityCheckView(EnvironmentConnectivityTargetRow row) {
-        String raw = blankToNull(row.healthCheckJson());
-        if (raw == null || "{}".equals(raw)) {
-            return EnvironmentConnectivityCheckView.notChecked(row.name());
-        }
-        try {
-            EnvironmentConnectivityCheckView view = objectMapper.readValue(raw, EnvironmentConnectivityCheckView.class);
-            if (view.status() == null || view.status().isBlank()) {
-                return EnvironmentConnectivityCheckView.notChecked(row.name());
-            }
-            return view;
-        } catch (JsonProcessingException exception) {
-            return new EnvironmentConnectivityCheckView(
-                    row.name(),
-                    "SKIPPED",
-                    "",
-                    null,
-                    "历史连通性结果不可读",
-                    TraceContext.getTraceId(),
-                    List.of()
-            );
-        }
-    }
-
-    private String environmentConnectivityCheckJson(EnvironmentConnectivityCheckView view) {
-        try {
-            return objectMapper.writeValueAsString(view);
-        } catch (JsonProcessingException exception) {
-            throw new BusinessException(ErrorCode.INTERNAL_ERROR, "环境连通性结果保存失败");
-        }
     }
 
     private UUID requireUserId(String username) {
