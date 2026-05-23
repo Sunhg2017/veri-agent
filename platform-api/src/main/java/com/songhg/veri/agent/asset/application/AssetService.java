@@ -45,7 +45,6 @@ import com.songhg.veri.agent.asset.domain.AssetVersionHistory;
 import com.songhg.veri.agent.asset.domain.LifecycleManagedAsset;
 import com.songhg.veri.agent.asset.domain.TestCaseRecord;
 import com.songhg.veri.agent.asset.domain.TestCaseStep;
-import com.songhg.veri.agent.asset.domain.TraceLink;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -106,6 +105,7 @@ public class AssetService {
     private final AssetVersionHistoryService versionHistoryService;
     private final AssetImpactAnalysisService impactAnalysisService;
     private final AssetPrototypeSyncService prototypeSyncService;
+    private final AssetTraceLinkService traceLinkService;
 
     public AssetService(AssetRepository repository, PlatformContextClient contextClient) {
         this(repository, contextClient, new ObjectMapper().findAndRegisterModules());
@@ -118,7 +118,8 @@ public class AssetService {
                 objectMapper,
                 new AssetVersionHistoryService(repository, objectMapper),
                 new AssetImpactAnalysisService(repository, contextClient),
-                new AssetPrototypeSyncService(repository, contextClient, objectMapper)
+                new AssetPrototypeSyncService(repository, contextClient, objectMapper),
+                new AssetTraceLinkService(repository, contextClient)
         );
     }
 
@@ -129,7 +130,8 @@ public class AssetService {
             ObjectMapper objectMapper,
             AssetVersionHistoryService versionHistoryService,
             AssetImpactAnalysisService impactAnalysisService,
-            AssetPrototypeSyncService prototypeSyncService
+            AssetPrototypeSyncService prototypeSyncService,
+            AssetTraceLinkService traceLinkService
     ) {
         this.repository = repository;
         this.contextClient = contextClient;
@@ -137,6 +139,7 @@ public class AssetService {
         this.versionHistoryService = versionHistoryService;
         this.impactAnalysisService = impactAnalysisService;
         this.prototypeSyncService = prototypeSyncService;
+        this.traceLinkService = traceLinkService;
     }
 
     public String resolveProjectScopeId(String projectId) {
@@ -1040,44 +1043,11 @@ public class AssetService {
     // ---- Trace Links ----
 
     public com.songhg.veri.agent.common.api.PageResponse<TraceLinkResponse> listLinks(TraceLinkListRequest request) {
-        List<TraceLinkResponse> filtered = repository.traceLinks(
-                        request.getRequirementId(),
-                        request.getApiId(),
-                        request.getPageId(),
-                        request.getFlowId(),
-                        request.getCaseId()
-                ).stream()
-                .map(AssetService::toTraceLinkResponse)
-                .toList();
-        return page(filtered, request.getIndex(), request.getSize());
+        return traceLinkService.listLinks(request);
     }
 
     public TraceLinkResponse createLink(CreateLinkRequest request) {
-        AssetRequirement requirement = repository.requirement(request.requirementId())
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "需求不存在: " + request.requirementId()));
-        if (request.apiId() == null && request.pageId() == null && request.flowId() == null && request.caseId() == null) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "追踪链接至少需要一个目标资产");
-        }
-        validateApiBelongsToProject(request.apiId(), requirement.projectId());
-        validatePageBelongsToProject(request.pageId(), requirement.projectId());
-        validateBusinessFlowBelongsToProject(request.flowId(), requirement.projectId());
-        validateTestCaseBelongsToProject(request.caseId(), requirement.projectId());
-        UUID id = UUID.randomUUID();
-        Instant now = Instant.now();
-        TraceLink link = new TraceLink(
-                id,
-                request.requirementId(),
-                request.apiId(),
-                request.pageId(),
-                request.flowId(),
-                request.caseId(),
-                now
-        );
-        writeProjectAudit("CREATE", "TRACE_LINK", id, requirement.projectId());
-        repository.saveTraceLink(link);
-        log.info("Created trace link id={}, requirementId={}, trace_id={}",
-                id, request.requirementId(), TraceContext.getTraceId());
-        return toTraceLinkResponse(link);
+        return traceLinkService.createLink(request);
     }
 
     // ---- Import / Export ----
@@ -1165,10 +1135,6 @@ public class AssetService {
                 lifecycleStatus(tc.lifecycleStatus(), tc.deletedAt()), tc.archivedAt(), tc.deletedAt(),
                 tc.createdAt(), tc.updatedAt()
         );
-    }
-
-    private static TraceLinkResponse toTraceLinkResponse(TraceLink l) {
-        return new TraceLinkResponse(l.id(), l.requirementId(), l.apiId(), l.pageId(), l.flowId(), l.caseId(), l.createdAt());
     }
 
     private JsonNode jsonNode(String json) {
@@ -1289,33 +1255,6 @@ public class AssetService {
         AssetApi api = repository.api(apiId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "API不存在: " + apiId));
         ensureSameProject("API", api.id(), api.projectId(), projectId);
-    }
-
-    private void validatePageBelongsToProject(UUID pageId, String projectId) {
-        if (pageId == null) {
-            return;
-        }
-        AssetPage page = repository.page(pageId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "页面资产不存在: " + pageId));
-        ensureSameProject("页面", page.id(), page.projectId(), projectId);
-    }
-
-    private void validateBusinessFlowBelongsToProject(UUID flowId, String projectId) {
-        if (flowId == null) {
-            return;
-        }
-        AssetBusinessFlow flow = repository.businessFlow(flowId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "业务流资产不存在: " + flowId));
-        ensureSameProject("业务流", flow.id(), flow.projectId(), projectId);
-    }
-
-    private void validateTestCaseBelongsToProject(UUID caseId, String projectId) {
-        if (caseId == null) {
-            return;
-        }
-        TestCaseRecord testCase = repository.testCase(caseId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "测试用例不存在: " + caseId));
-        ensureSameProject("测试用例", testCase.id(), testCase.projectId(), projectId);
     }
 
     private void ensureSameProject(String resourceName, UUID resourceId, String actualProjectId, String expectedProjectId) {
