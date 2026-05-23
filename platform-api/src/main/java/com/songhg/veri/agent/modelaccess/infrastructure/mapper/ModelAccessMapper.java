@@ -5,6 +5,7 @@ import com.songhg.veri.agent.modelaccess.application.InvocationQuery;
 import com.songhg.veri.agent.modelaccess.domain.InvocationRecord;
 import com.songhg.veri.agent.modelaccess.domain.ModelProviderConfig;
 import com.songhg.veri.agent.modelaccess.domain.PromptTemplate;
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import org.apache.ibatis.annotations.Mapper;
@@ -34,6 +35,10 @@ public interface ModelAccessMapper {
     List<InvocationRecord> invocations(@Param("query") InvocationQuery query);
 
     long countInvocations(@Param("query") InvocationQuery query);
+
+    List<String> distinctProjectIds(@Param("startTime") Instant startTime, @Param("endTime") Instant endTime);
+
+    List<String> distinctActorServices(@Param("startTime") Instant startTime, @Param("endTime") Instant endTime);
 
     InvocationSummaryResponse invocationSummary(@Param("query") InvocationQuery query);
 }

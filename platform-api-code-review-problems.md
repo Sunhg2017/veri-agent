@@ -29,8 +29,8 @@
 | A6 | 分层异常策略 | 专项任务 | 拆为异常层次和日志上下文规范专项 |
 | P1 | Asset 列表查询 SQL 分页/过滤/排序下沉 | 已完成 | 新增 `AssetListQuery` 和 Repository 分页/count 契约，五类资产列表下沉到 MyBatis 动态 SQL；local 实现保持同等过滤/分页语义并补充回归测试 |
 | P2 | InMemoryAuthSessionStore refresh 查询 O(n) | 已完成 | 已增加 refreshTokenHash 二级索引和回归测试 |
-| P3 | Cost Alert distinct 下沉 SQL | 专项任务 | 拆为 repository distinct project/service 查询接口和 db/local 一致性测试 |
-| P4 | CSV 导出转义和流式输出 | 有条件通过 | 当前 `appendCsvValue` 已处理逗号、引号、换行；全量加载和 StreamingResponseBody 另拆专项 |
+| P3 | Cost Alert distinct 下沉 SQL | 已完成 | 新增 repository distinct project/service 查询接口；Postgres 通过 `SELECT DISTINCT` 下沉，local profile 保持同等去空、排序语义，并补充 service 级回归测试 |
+| P4 | CSV 导出转义和流式输出 | 已完成 | `/model-access/invocations/export` 改为 `StreamingResponseBody`，service 按 100 行分页写出 CSV 并保留逗号、引号、换行转义测试 |
 | P5 | 预算窗口重复计算 | 已完成 | invocation 内预先计算并复用 `BudgetWindow`，避免 fallback 多 provider 重复计算 |
 | Q2 | 中文错误信息 i18n | 专项任务 | 拆为错误码/消息资源化专项，不纳入本批行为修复 |
 | Q3 | AssetService 静态 ObjectMapper | 已完成 | 改为注入 Spring `ObjectMapper`，保留手工单测兼容构造器并标注容器构造器 |
@@ -54,8 +54,7 @@
 ### 剩余专项优先级
 
 1. DB 集成测试专项：A4、Q8、T3，加入 db-profile Testcontainers 覆盖核心 mapper、事务和约束。
-2. WP2 查询/导出专项：P3、P4，补 distinct SQL、流式 CSV 和大数据量测试。
-3. 架构治理专项：A1、A2、A5、A6，按模块逐步拆分并保持接口兼容。
+2. 架构治理专项：A1、A2、A5、A6，按模块逐步拆分并保持接口兼容。
 4. 运行治理专项：D1、M1、M2、M3、X1、X3，补发布回滚、配置分层、API 版本策略、OpenAPI 覆盖和分布式可靠性。
 
 ## 一、安全风险 (Security)

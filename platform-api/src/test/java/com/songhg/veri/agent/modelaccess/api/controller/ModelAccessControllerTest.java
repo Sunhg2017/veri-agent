@@ -134,8 +134,11 @@ class ModelAccessControllerTest {
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("FORBIDDEN"));
 
-        mockMvc.perform(get("/api/v1/model-access/invocations/export")
+        MvcResult exportResult = mockMvc.perform(get("/api/v1/model-access/invocations/export")
                         .header("Authorization", "Bearer " + auditorToken))
+                .andExpect(request().asyncStarted())
+                .andReturn();
+        mockMvc.perform(asyncDispatch(exportResult))
                 .andExpect(status().isOk())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.valueOf("text/csv")));
 
@@ -579,10 +582,13 @@ class ModelAccessControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.total").value(0));
 
-        mockMvc.perform(get("/api/v1/model-access/invocations/export")
+        MvcResult sensitivityExportResult = mockMvc.perform(get("/api/v1/model-access/invocations/export")
                         .headers(authHeaders())
                         .param("projectId", "project-sensitive-policy")
                         .param("sensitivityLevel", "STRICT"))
+                .andExpect(request().asyncStarted())
+                .andReturn();
+        mockMvc.perform(asyncDispatch(sensitivityExportResult))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("project-sensitive-policy")))
                 .andExpect(content().string(containsString("RESTRICTED")));
@@ -847,9 +853,12 @@ class ModelAccessControllerTest {
                                 """))
                 .andExpect(status().isOk());
 
-        mockMvc.perform(get("/api/v1/model-access/invocations/export")
+        MvcResult exportResult = mockMvc.perform(get("/api/v1/model-access/invocations/export")
                         .headers(authHeaders())
                         .param("projectId", "project-export"))
+                .andExpect(request().asyncStarted())
+                .andReturn();
+        mockMvc.perform(asyncDispatch(exportResult))
                 .andExpect(status().isOk())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.valueOf("text/csv")))
                 .andExpect(header().string("Content-Disposition", "attachment; filename=\"wp2-invocations.csv\""))

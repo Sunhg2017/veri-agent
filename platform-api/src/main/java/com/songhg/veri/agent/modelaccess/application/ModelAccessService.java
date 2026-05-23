@@ -25,10 +25,15 @@ import com.songhg.veri.agent.modelaccess.domain.PromptTemplate;
 import com.songhg.veri.agent.modelaccess.domain.ProviderStatus;
 import com.songhg.veri.agent.modelaccess.domain.ProviderType;
 import com.songhg.veri.agent.modelaccess.security.ServicePrincipal;
+import java.io.BufferedWriter;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.io.OutputStreamWriter;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.nio.charset.StandardCharsets;
 import java.time.DateTimeException;
 import java.time.Duration;
 import java.time.Instant;
@@ -588,12 +593,7 @@ public class ModelAccessService {
         }
         if (properties.hasDailyProjectCostLimit()) {
             if (normalizedProjectId == null) {
-                repository.invocations(new InvocationQuery(null, null, null, null, null, null, window.startTime(), window.endTime(), PageQuery.of(0, 1000)))
-                        .stream()
-                        .map(InvocationRecord::projectId)
-                        .filter(StringUtils::hasText)
-                        .distinct()
-                        .sorted()
+                repository.distinctProjectIds(window.startTime(), window.endTime())
                         .forEach(id -> alerts.add(projectCostAlert(id, window)));
             } else {
                 alerts.add(projectCostAlert(normalizedProjectId, window));
@@ -601,12 +601,7 @@ public class ModelAccessService {
         }
         if (properties.hasDailyCallerServiceCostLimit()) {
             if (normalizedActorService == null) {
-                repository.invocations(new InvocationQuery(null, null, null, null, null, null, window.startTime(), window.endTime(), PageQuery.of(0, 1000)))
-                        .stream()
-                        .map(InvocationRecord::actorService)
-                        .filter(StringUtils::hasText)
-                        .distinct()
-                        .sorted()
+                repository.distinctActorServices(window.startTime(), window.endTime())
                         .forEach(service -> alerts.add(callerServiceCostAlert(service, window)));
             } else {
                 alerts.add(callerServiceCostAlert(normalizedActorService, window));
@@ -650,27 +645,47 @@ public class ModelAccessService {
         return new CostReportResponse(window.startDate(), window.endDate(), rows);
     }
 
-    public String exportInvocationsCsv(InvocationQuery query) {
+    public void writeInvocationsCsv(InvocationQuery query, OutputStream outputStream) throws IOException {
         InvocationQuery normalized = normalizeQuery(query);
-        int exportRows = properties.maxExportRows() <= 0 ? 10000 : properties.maxExportRows();
-        InvocationQuery exportQuery = new InvocationQuery(
-                normalized.projectId(),
-                normalized.applicationId(),
-                normalized.sensitivityLevel(),
-                normalized.status(),
-                normalized.providerId(),
-                normalized.actorService(),
-                normalized.startTime(),
-                normalized.endTime(),
-                PageQuery.of(0, Math.min(50000, exportRows))
-        );
-        StringBuilder csv = new StringBuilder();
-        csv.append("invocationId,createdAt,projectId,applicationId,environmentId,sensitivityLevel,status,")
+        int exportRows = properties.maxExportRows() <= 0 ? 10000 : Math.min(50000, properties.maxExportRows());
+        int chunkSize = 100;
+        BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(outputStream, StandardCharsets.UTF_8));
+        writer.append("invocationId,createdAt,projectId,applicationId,environmentId,sensitivityLevel,status,")
                 .append("providerId,providerName,modelName,routingRuleName,routingGroup,modelCapability,promptKey,promptVersion,fallbackUsed,")
                 .append("promptDigest,inputTokens,outputTokens,totalCost,latencyMs,actorService,")
                 .append("delegatedUserId,errorCode,errorMessage,requestPreview,responsePreview\n");
-        repository.invocations(exportQuery).forEach(record -> appendCsvRecord(csv, record));
-        return csv.toString();
+        int written = 0;
+        int pageIndex = 0;
+        while (written < exportRows) {
+            InvocationQuery exportQuery = new InvocationQuery(
+                    normalized.projectId(),
+                    normalized.applicationId(),
+                    normalized.sensitivityLevel(),
+                    normalized.status(),
+                    normalized.providerId(),
+                    normalized.actorService(),
+                    normalized.startTime(),
+                    normalized.endTime(),
+                    PageQuery.of(pageIndex, chunkSize)
+            );
+            List<InvocationRecord> records = repository.invocations(exportQuery);
+            if (records.isEmpty()) {
+                break;
+            }
+            for (InvocationRecord record : records) {
+                if (written >= exportRows) {
+                    break;
+                }
+                appendCsvRecord(writer, record);
+                written++;
+            }
+            writer.flush();
+            if (records.size() < chunkSize) {
+                break;
+            }
+            pageIndex++;
+        }
+        writer.flush();
     }
 
     public int enabledProviderCount() {
@@ -1161,46 +1176,57 @@ public class ModelAccessService {
         return input.add(output).setScale(8, RoundingMode.HALF_UP);
     }
 
-    private void appendCsvRecord(StringBuilder csv, InvocationRecord record) {
-        appendCsvValue(csv, record.id());
-        appendCsvValue(csv, record.createdAt());
-        appendCsvValue(csv, record.projectId());
-        appendCsvValue(csv, record.applicationId());
-        appendCsvValue(csv, record.environmentId());
-        appendCsvValue(csv, record.sensitivityLevel());
-        appendCsvValue(csv, record.status());
-        appendCsvValue(csv, record.providerId());
-        appendCsvValue(csv, record.providerName());
-        appendCsvValue(csv, record.modelName());
-        appendCsvValue(csv, record.routingRuleName());
-        appendCsvValue(csv, record.routingGroup());
-        appendCsvValue(csv, record.modelCapability());
-        appendCsvValue(csv, record.promptKey());
-        appendCsvValue(csv, record.promptVersion());
-        appendCsvValue(csv, record.fallbackUsed());
-        appendCsvValue(csv, record.promptDigest());
-        appendCsvValue(csv, record.inputTokens());
-        appendCsvValue(csv, record.outputTokens());
-        appendCsvValue(csv, record.totalCost());
-        appendCsvValue(csv, record.latencyMs());
-        appendCsvValue(csv, record.actorService());
-        appendCsvValue(csv, record.delegatedUserId());
-        appendCsvValue(csv, record.errorCode());
-        appendCsvValue(csv, record.errorMessage());
-        appendCsvValue(csv, record.requestPreview());
-        appendCsvValue(csv, record.responsePreview());
-        csv.setCharAt(csv.length() - 1, '\n');
+    private void appendCsvRecord(BufferedWriter writer, InvocationRecord record) throws IOException {
+        appendCsvRow(
+                writer,
+                record.id(),
+                record.createdAt(),
+                record.projectId(),
+                record.applicationId(),
+                record.environmentId(),
+                record.sensitivityLevel(),
+                record.status(),
+                record.providerId(),
+                record.providerName(),
+                record.modelName(),
+                record.routingRuleName(),
+                record.routingGroup(),
+                record.modelCapability(),
+                record.promptKey(),
+                record.promptVersion(),
+                record.fallbackUsed(),
+                record.promptDigest(),
+                record.inputTokens(),
+                record.outputTokens(),
+                record.totalCost(),
+                record.latencyMs(),
+                record.actorService(),
+                record.delegatedUserId(),
+                record.errorCode(),
+                record.errorMessage(),
+                record.requestPreview(),
+                record.responsePreview()
+        );
     }
 
-    private void appendCsvValue(StringBuilder csv, Object value) {
+    private void appendCsvRow(BufferedWriter writer, Object... values) throws IOException {
+        for (int i = 0; i < values.length; i++) {
+            if (i > 0) {
+                writer.append(',');
+            }
+            appendCsvValue(writer, values[i]);
+        }
+        writer.append('\n');
+    }
+
+    private void appendCsvValue(BufferedWriter writer, Object value) throws IOException {
         String text = value == null ? "" : String.valueOf(value);
         boolean quote = text.contains(",") || text.contains("\"") || text.contains("\n") || text.contains("\r");
         if (quote) {
-            csv.append('"').append(text.replace("\"", "\"\"")).append('"');
+            writer.append('"').append(text.replace("\"", "\"\"")).append('"');
         } else {
-            csv.append(text);
+            writer.append(text);
         }
-        csv.append(',');
     }
 
     private BudgetViolation budgetViolation(

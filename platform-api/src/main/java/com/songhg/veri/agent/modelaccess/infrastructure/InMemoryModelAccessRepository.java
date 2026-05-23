@@ -22,6 +22,7 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Repository;
+import org.springframework.util.StringUtils;
 
 @Repository
 @Profile("!db")
@@ -181,6 +182,28 @@ public class InMemoryModelAccessRepository implements ModelAccessRepository {
     }
 
     @Override
+    public synchronized List<String> distinctProjectIds(Instant startTime, Instant endTime) {
+        return invocations.stream()
+                .filter(record -> inWindow(record, startTime, endTime))
+                .map(InvocationRecord::projectId)
+                .filter(StringUtils::hasText)
+                .distinct()
+                .sorted()
+                .toList();
+    }
+
+    @Override
+    public synchronized List<String> distinctActorServices(Instant startTime, Instant endTime) {
+        return invocations.stream()
+                .filter(record -> inWindow(record, startTime, endTime))
+                .map(InvocationRecord::actorService)
+                .filter(StringUtils::hasText)
+                .distinct()
+                .sorted()
+                .toList();
+    }
+
+    @Override
     public synchronized InvocationSummaryResponse invocationSummary(InvocationQuery query) {
         List<InvocationRecord> records = filteredInvocations(query).toList();
         long succeeded = records.stream().filter(record -> record.status() == InvocationStatus.SUCCEEDED).count();
@@ -204,5 +227,10 @@ public class InMemoryModelAccessRepository implements ModelAccessRepository {
                 .filter(record -> query.actorService() == null || query.actorService().equals(record.actorService()))
                 .filter(record -> query.startTime() == null || !record.createdAt().isBefore(query.startTime()))
                 .filter(record -> query.endTime() == null || record.createdAt().isBefore(query.endTime()));
+    }
+
+    private boolean inWindow(InvocationRecord record, Instant startTime, Instant endTime) {
+        return (startTime == null || !record.createdAt().isBefore(startTime))
+                && (endTime == null || record.createdAt().isBefore(endTime));
     }
 }

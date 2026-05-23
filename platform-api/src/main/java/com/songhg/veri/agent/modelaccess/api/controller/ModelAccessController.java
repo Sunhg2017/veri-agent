@@ -300,16 +300,17 @@ public class ModelAccessController {
 
     @GetMapping(value = "/invocations/export", produces = "text/csv")
     @RequirePermission(EXPORT_PERMISSION)
-    public ResponseEntity<String> exportInvocations(
+    public ResponseEntity<StreamingResponseBody> exportInvocations(
             InvocationPageRequest pageRequest
     ) {
         pageRequest.setIndex(0);
         pageRequest.setSize(200);
-        String csv = service.exportInvocationsCsv(toQuery(pageRequest));
+        InvocationQuery exportQuery = toQuery(pageRequest);
+        StreamingResponseBody body = outputStream -> service.writeInvocationsCsv(exportQuery, outputStream);
         return ResponseEntity.ok()
                 .contentType(new MediaType("text", "csv"))
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"wp2-invocations.csv\"")
-                .body(csv);
+                .body(body);
     }
 
     @GetMapping("/cost/alerts")

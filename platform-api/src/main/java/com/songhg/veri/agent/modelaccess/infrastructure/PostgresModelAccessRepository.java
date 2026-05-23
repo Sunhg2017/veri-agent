@@ -7,6 +7,7 @@ import com.songhg.veri.agent.modelaccess.domain.InvocationRecord;
 import com.songhg.veri.agent.modelaccess.domain.ModelProviderConfig;
 import com.songhg.veri.agent.modelaccess.domain.PromptTemplate;
 import com.songhg.veri.agent.modelaccess.infrastructure.mapper.ModelAccessMapper;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -79,6 +80,16 @@ public class PostgresModelAccessRepository implements ModelAccessRepository {
     @Override
     public long countInvocations(InvocationQuery query) {
         return mapper.countInvocations(query);
+    }
+
+    @Override
+    public List<String> distinctProjectIds(Instant startTime, Instant endTime) {
+        return mapper.distinctProjectIds(startTime, endTime);
+    }
+
+    @Override
+    public List<String> distinctActorServices(Instant startTime, Instant endTime) {
+        return mapper.distinctActorServices(startTime, endTime);
     }
 
     @Override

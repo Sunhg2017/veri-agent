@@ -235,6 +235,30 @@
         <include refid="invocationWhere"/>
     </select>
 
+    <select id="distinctProjectIds" resultType="java.lang.String">
+        select distinct project_id
+        from ma_invocation_log
+        <where>
+            project_id is not null
+            and btrim(project_id) &lt;&gt; ''
+            <if test="startTime != null">and created_at &gt;= #{startTime}</if>
+            <if test="endTime != null">and created_at &lt; #{endTime}</if>
+        </where>
+        order by project_id asc
+    </select>
+
+    <select id="distinctActorServices" resultType="java.lang.String">
+        select distinct actor_service
+        from ma_invocation_log
+        <where>
+            actor_service is not null
+            and btrim(actor_service) &lt;&gt; ''
+            <if test="startTime != null">and created_at &gt;= #{startTime}</if>
+            <if test="endTime != null">and created_at &lt; #{endTime}</if>
+        </where>
+        order by actor_service asc
+    </select>
+
     <select id="invocationSummary" resultMap="summaryMap">
         select
             count(*) as total,

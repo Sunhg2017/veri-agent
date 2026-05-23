@@ -4,6 +4,7 @@ import com.songhg.veri.agent.modelaccess.domain.InvocationRecord;
 import com.songhg.veri.agent.modelaccess.domain.ModelProviderConfig;
 import com.songhg.veri.agent.modelaccess.domain.PromptTemplate;
 import com.songhg.veri.agent.modelaccess.api.response.InvocationSummaryResponse;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -31,6 +32,10 @@ public interface ModelAccessRepository {
     List<InvocationRecord> invocations(InvocationQuery query);
 
     long countInvocations(InvocationQuery query);
+
+    List<String> distinctProjectIds(Instant startTime, Instant endTime);
+
+    List<String> distinctActorServices(Instant startTime, Instant endTime);
 
     InvocationSummaryResponse invocationSummary(InvocationQuery query);
 }
