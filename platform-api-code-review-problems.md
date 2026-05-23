@@ -24,7 +24,7 @@
 | A1 | Service 单一职责拆分 | 专项任务 | 拆到 WP2/WP3/WP4 分模块重构专项，先保留行为不变并以测试护栏推进 |
 | A2 | 贫血领域模型治理 | 专项任务 | 拆到领域规则内聚专项，优先迁移状态转换和版本规则 |
 | A3 | 统一权限注解/AOP | 已完成 | 新增 `@RequirePermission` 注解和 AOP 切面；ModelAccessController、DocumentInputController 的普通权限入口改为注解校验；AssetController 保留资源级 `ResourceScope` 显式校验但不再直接读取 `SecurityContextHolder` |
-| A4 / Q8 / T3 | local/db profile 行为差异与 db 测试不足 | 专项任务 | 增加 Testcontainers db-profile 契约测试；本批只处理 P2 的内存 refresh 索引 |
+| A4 / Q8 / T3 | local/db profile 行为差异与 db 测试不足 | 已完成 | 新增 PostgreSQL Testcontainers db-profile 契约测试，覆盖 Postgres AuthSessionStore、ModelAccessRepository、AssetRepository 的真实迁移、mapper、约束、分页和事务回滚路径 |
 | A5 | 审计写入独立可靠性 | 专项任务 | 拆为审计 outbox/独立事务专项，需评估失败补偿和发布策略 |
 | A6 | 分层异常策略 | 专项任务 | 拆为异常层次和日志上下文规范专项 |
 | P1 | Asset 列表查询 SQL 分页/过滤/排序下沉 | 已完成 | 新增 `AssetListQuery` 和 Repository 分页/count 契约，五类资产列表下沉到 MyBatis 动态 SQL；local 实现保持同等过滤/分页语义并补充回归测试 |
@@ -53,9 +53,8 @@
 
 ### 剩余专项优先级
 
-1. DB 集成测试专项：A4、Q8、T3，加入 db-profile Testcontainers 覆盖核心 mapper、事务和约束。
-2. 架构治理专项：A1、A2、A5、A6，按模块逐步拆分并保持接口兼容。
-4. 运行治理专项：D1、M1、M2、M3、X1、X3，补发布回滚、配置分层、API 版本策略、OpenAPI 覆盖和分布式可靠性。
+1. 架构治理专项：A1、A2、A5、A6，按模块逐步拆分并保持接口兼容。
+2. 运行治理专项：D1、M1、M2、M3、X1、X3，补发布回滚、配置分层、API 版本策略、OpenAPI 覆盖和分布式可靠性。
 
 ## 一、安全风险 (Security)
 

@@ -1,0 +1,239 @@
+package com.songhg.veri.agent.db;
+
+import com.songhg.veri.agent.asset.application.AssetListQuery;
+import com.songhg.veri.agent.asset.application.AssetRepository;
+import com.songhg.veri.agent.asset.domain.AssetRequirement;
+import com.songhg.veri.agent.auth.domain.AuthSessionDraft;
+import com.songhg.veri.agent.auth.domain.AuthSessionRecord;
+import com.songhg.veri.agent.auth.domain.AuthSessionStore;
+import com.songhg.veri.agent.auth.infrastructure.PostgresAuthSessionStore;
+import com.songhg.veri.agent.common.api.PageQuery;
+import com.songhg.veri.agent.modelaccess.application.InvocationQuery;
+import com.songhg.veri.agent.modelaccess.application.ModelAccessRepository;
+import com.songhg.veri.agent.modelaccess.domain.InvocationRecord;
+import com.songhg.veri.agent.modelaccess.domain.InvocationStatus;
+import com.songhg.veri.agent.modelaccess.infrastructure.PostgresModelAccessRepository;
+import java.math.BigDecimal;
+import java.time.Instant;
+import java.util.List;
+import java.util.UUID;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.ApplicationContext;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.transaction.support.TransactionTemplate;
+import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.junit.jupiter.Container;
+import org.testcontainers.junit.jupiter.Testcontainers;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+@Testcontainers(disabledWithoutDocker = true)
+@SpringBootTest(properties = {
+        "spring.flyway.locations=filesystem:../db/migration/wp1",
+        "veri-agent.auth.token-secret=test-auth-secret-32-byte-minimum!",
+        "veri-agent.auth.session-cleanup-enabled=false",
+        "veri-agent.audit.retention-cleanup-enabled=false",
+        "veri-agent.secret.local-master-key=0123456789abcdef0123456789abcdef",
+        "veri-agent.document-input.webhook-secret=test-webhook-secret-32-byte-minimum!"
+})
+@ActiveProfiles("db")
+class DbProfileRepositoryContractTest {
+
+    @Container
+    static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:16-alpine");
+
+    @DynamicPropertySource
+    static void registerDatasource(DynamicPropertyRegistry registry) {
+        registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
+        registry.add("spring.datasource.username", POSTGRES::getUsername);
+        registry.add("spring.datasource.password", POSTGRES::getPassword);
+    }
+
+    @Autowired
+    private ApplicationContext applicationContext;
+
+    @Autowired
+    private AuthSessionStore authSessionStore;
+
+    @Autowired
+    private ModelAccessRepository modelAccessRepository;
+
+    @Autowired
+    private AssetRepository assetRepository;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private TransactionTemplate transactionTemplate;
+
+    @Test
+    void dbProfileWiresPostgresImplementations() {
+        assertThat(authSessionStore).isInstanceOf(PostgresAuthSessionStore.class);
+        assertThat(modelAccessRepository).isInstanceOf(PostgresModelAccessRepository.class);
+        assertThat(applicationContext.getBeanNamesForType(AssetRepository.class)).hasSize(1);
+    }
+
+    @Test
+    void authSessionStorePersistsFindsRevokesAndCleansSessionsInPostgres() {
+        UUID userId = createEnabledUser("session-user");
+        UUID sessionId = UUID.randomUUID();
+        Instant now = Instant.now();
+        AuthSessionDraft draft = new AuthSessionDraft(
+                sessionId,
+                userId,
+                "access-" + sessionId,
+                "refresh-" + sessionId,
+                1,
+                now.plusSeconds(3600)
+        );
+
+        authSessionStore.create(draft);
+
+        assertThat(authSessionStore.isActive(sessionId, userId, 1, now)).isTrue();
+        AuthSessionRecord stored = authSessionStore.findByRefreshTokenHash(draft.refreshTokenHash()).orElseThrow();
+        assertThat(stored.sessionId()).isEqualTo(sessionId);
+        assertThat(stored.activeAt(now)).isTrue();
+
+        authSessionStore.revoke(sessionId, userId, "db contract revoke");
+
+        assertThat(authSessionStore.isActive(sessionId, userId, 1, now)).isFalse();
+        assertThat(authSessionStore.findByRefreshTokenHash(draft.refreshTokenHash()).orElseThrow().revoked()).isTrue();
+        assertThat(authSessionStore.cleanupExpiredSessions(now.minusSeconds(1), now.plusSeconds(3600))).isEqualTo(1);
+        assertThat(authSessionStore.findByRefreshTokenHash(draft.refreshTokenHash())).isEmpty();
+    }
+
+    @Test
+    void modelAccessRepositoryPersistsInvocationsAndRunsDistinctQueriesInPostgres() {
+        String projectId = "project-db-" + UUID.randomUUID();
+        Instant now = Instant.now();
+        modelAccessRepository.saveInvocation(invocation(projectId, "wp4-document-input", now.minusSeconds(20)));
+        modelAccessRepository.saveInvocation(invocation(projectId, "wp4-document-input", now.minusSeconds(10)));
+        modelAccessRepository.saveInvocation(invocation(projectId + "-other", "wp5-test-design", now.minusSeconds(5)));
+
+        InvocationQuery projectQuery = new InvocationQuery(
+                projectId,
+                null,
+                null,
+                InvocationStatus.SUCCEEDED,
+                null,
+                null,
+                now.minusSeconds(60),
+                now.plusSeconds(60),
+                PageQuery.of(0, 10)
+        );
+
+        assertThat(modelAccessRepository.countInvocations(projectQuery)).isEqualTo(2);
+        assertThat(modelAccessRepository.invocationSummary(projectQuery).totalCost()).isEqualByComparingTo("0.03000000");
+        assertThat(modelAccessRepository.distinctProjectIds(now.minusSeconds(60), now.plusSeconds(60)))
+                .contains(projectId, projectId + "-other");
+        assertThat(modelAccessRepository.distinctActorServices(now.minusSeconds(60), now.plusSeconds(60)))
+                .contains("wp4-document-input", "wp5-test-design");
+    }
+
+    @Test
+    void assetRepositoryHonorsPostgresPagingConstraintsAndTransactionRollback() {
+        String projectId = "project-asset-db-" + UUID.randomUUID();
+        AssetRequirement first = requirement(projectId, "REQ-DB-1", "订单导入需求", "SRC-1", Instant.now().minusSeconds(10));
+        AssetRequirement second = requirement(projectId, "REQ-DB-2", "订单导出需求", "SRC-2", Instant.now());
+
+        assetRepository.saveRequirement(first);
+        assetRepository.saveRequirement(second);
+
+        AssetListQuery query = new AssetListQuery(projectId, "ACTIVE", null, "IMPORT", "订单", PageQuery.of(0, 1));
+        assertThat(assetRepository.countRequirements(query)).isEqualTo(2);
+        assertThat(assetRepository.requirements(query))
+                .extracting(AssetRequirement::code)
+                .containsExactly("REQ-DB-2");
+        assertThat(assetRepository.requirementBySourceRef(projectId, "IMPORT", "SRC-1")).contains(first);
+        assertThat(assetRepository.hasActiveRequirementSourceRefConflict(projectId, "IMPORT", "SRC-1", second.id())).isTrue();
+
+        AssetRequirement rolledBack = requirement(projectId, "REQ-ROLLBACK", "回滚需求", "SRC-ROLLBACK", Instant.now());
+        assertThatThrownBy(() -> transactionTemplate.executeWithoutResult(status -> {
+            assetRepository.saveRequirement(rolledBack);
+            throw new IllegalStateException("force rollback");
+        })).isInstanceOf(IllegalStateException.class);
+        assertThat(assetRepository.requirement(rolledBack.id())).isEmpty();
+    }
+
+    private UUID createEnabledUser(String namePrefix) {
+        UUID userId = UUID.randomUUID();
+        jdbcTemplate.update("""
+                insert into iam_user (id, username, password_hash, display_name, email, status, auth_version)
+                values (?, ?, ?, ?, ?, 'ENABLED', 1)
+                """,
+                userId,
+                namePrefix + "-" + userId,
+                "{bcrypt}$2a$10$abcdefghijklmnopqrstuv",
+                "DB Contract User",
+                namePrefix + "-" + userId + "@example.com");
+        return userId;
+    }
+
+    private InvocationRecord invocation(String projectId, String actorService, Instant createdAt) {
+        return new InvocationRecord(
+                UUID.randomUUID(),
+                projectId,
+                "app-db",
+                "env-db",
+                "INTERNAL",
+                "test-case-design",
+                1,
+                null,
+                "local-echo-primary",
+                "test-local-model",
+                "db-contract-route",
+                "default",
+                "CHAT",
+                InvocationStatus.SUCCEEDED,
+                false,
+                "digest-" + UUID.randomUUID().toString().replace("-", ""),
+                "masked request",
+                "masked response",
+                100,
+                50,
+                new BigDecimal("0.01500000"),
+                null,
+                null,
+                25,
+                actorService,
+                "db-test-user",
+                createdAt
+        );
+    }
+
+    private AssetRequirement requirement(
+            String projectId,
+            String code,
+            String title,
+            String sourceRef,
+            Instant createdAt
+    ) {
+        return new AssetRequirement(
+                UUID.randomUUID(),
+                code,
+                title,
+                "db profile contract requirement",
+                "IMPORT",
+                sourceRef,
+                null,
+                "must persist through Postgres mapper",
+                "DRAFT",
+                "HIGH",
+                projectId,
+                "db,contract",
+                1,
+                "ACTIVE",
+                null,
+                null,
+                createdAt,
+                createdAt
+        );
+    }
+}
