@@ -43,6 +43,7 @@ import com.songhg.veri.agent.asset.domain.AssetLifecycleStatus;
 import com.songhg.veri.agent.asset.domain.AssetPage;
 import com.songhg.veri.agent.asset.domain.AssetRequirement;
 import com.songhg.veri.agent.asset.domain.AssetReviewStatus;
+import com.songhg.veri.agent.asset.domain.AssetVersion;
 import com.songhg.veri.agent.asset.domain.AssetVersionHistory;
 import com.songhg.veri.agent.asset.domain.LifecycleManagedAsset;
 import com.songhg.veri.agent.asset.domain.TestCaseRecord;
@@ -264,7 +265,7 @@ public class AssetService {
                 valueIn(request.priority(), "MEDIUM", PRIORITIES, "priority"),
                 request.projectId(),
                 request.tags(),
-                1,
+                AssetVersion.initial(),
                 "ACTIVE",
                 null,
                 null,
@@ -298,7 +299,7 @@ public class AssetService {
                 valueIn(request.priority(), existing.priority(), PRIORITIES, "priority"),
                 existing.projectId(),
                 mergeTags(existing.tags(), request.tags()),
-                existing.version() + 1,
+                existing.nextVersion(),
                 existing.lifecycleStatus(),
                 existing.archivedAt(),
                 existing.deletedAt(),
@@ -336,7 +337,7 @@ public class AssetService {
                 valueIn(request.priority(), existing.priority(), PRIORITIES, "priority"),
                 existing.projectId(),
                 request.tags(),
-                existing.version() + 1,
+                existing.nextVersion(),
                 existing.lifecycleStatus(),
                 existing.archivedAt(),
                 existing.deletedAt(),
@@ -381,7 +382,7 @@ public class AssetService {
                 valueIn(snapshotText(snapshot, "priority"), existing.priority(), PRIORITIES, "priority"),
                 existing.projectId(),
                 snapshotText(snapshot, "tags"),
-                existing.version() + 1,
+                existing.nextVersion(),
                 lifecycleStatus(snapshotText(snapshot, "lifecycleStatus"), snapshotInstant(snapshot, "deletedAt")),
                 snapshotInstant(snapshot, "archivedAt"),
                 snapshotInstant(snapshot, "deletedAt"),
@@ -425,7 +426,7 @@ public class AssetService {
                 existing.priority(),
                 existing.projectId(),
                 existing.tags(),
-                existing.version() + 1,
+                existing.nextVersion(),
                 nextLifecycle,
                 archivedAtFor(nextLifecycle, existing.archivedAt(), now),
                 deletedAtFor(nextLifecycle, now),
@@ -864,7 +865,7 @@ public class AssetService {
                 valueIn(request.priority(), "MEDIUM", PRIORITIES, "priority"),
                 request.tags(),
                 steps,
-                1,
+                AssetVersion.initial(),
                 "ACTIVE",
                 null,
                 null,
@@ -901,7 +902,7 @@ public class AssetService {
                 valueIn(request.priority(), existing.priority(), PRIORITIES, "priority"),
                 request.tags(),
                 existingSteps,
-                existing.version() + 1,
+                existing.nextVersion(),
                 existing.lifecycleStatus(),
                 existing.archivedAt(),
                 existing.deletedAt(),
@@ -947,7 +948,7 @@ public class AssetService {
                 valueIn(snapshotText(snapshot, "priority"), existing.priority(), PRIORITIES, "priority"),
                 snapshotText(snapshot, "tags"),
                 snapshotSteps(snapshot.path("steps"), id),
-                existing.version() + 1,
+                existing.nextVersion(),
                 lifecycleStatus(snapshotText(snapshot, "lifecycleStatus"), snapshotInstant(snapshot, "deletedAt")),
                 snapshotInstant(snapshot, "archivedAt"),
                 snapshotInstant(snapshot, "deletedAt"),
@@ -994,7 +995,7 @@ public class AssetService {
                 existing.priority(),
                 existing.tags(),
                 existing.steps(),
-                existing.version() + 1,
+                existing.nextVersion(),
                 nextLifecycle,
                 archivedAtFor(nextLifecycle, existing.archivedAt(), now),
                 deletedAtFor(nextLifecycle, now),
@@ -1043,7 +1044,7 @@ public class AssetService {
                 existing.priority(),
                 existing.tags(),
                 steps,
-                existing.version() + 1,
+                existing.nextVersion(),
                 existing.lifecycleStatus(),
                 existing.archivedAt(),
                 existing.deletedAt(),
@@ -2195,9 +2196,7 @@ public class AssetService {
     }
 
     private AssetVersionHistory findVersionHistory(String assetType, UUID assetId, int version) {
-        return repository.assetVersionHistory(assetType, assetId).stream()
-                .filter(history -> history.version() == version)
-                .findFirst()
+        return AssetVersion.find(repository.assetVersionHistory(assetType, assetId), version)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "资产版本不存在: " + assetType + "/" + assetId + "/v" + version));
     }
 

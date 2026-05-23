@@ -22,7 +22,7 @@
 | S7 | 资产批量操作资源级鉴权 | 已完成 | 新增 `ResourceScope` 资源级校验，AssetController 对项目级列表/导入/导出/同步/单资源操作按项目 scope 授权，并补充跨项目拒绝用例 |
 | S8 | 文档导入事务边界 | 已完成 | `DocumentInputService.importDocument/importMultipart` 增加事务边界 |
 | A1 | Service 单一职责拆分 | 专项任务 | 拆到 WP2/WP3/WP4 分模块重构专项，先保留行为不变并以测试护栏推进 |
-| A2 | 贫血领域模型治理 | 进行中 | 已将 WP3 需求/测试用例评审状态集合与转换规则迁入 `AssetReviewStatus`，并将资产生命周期归一化与转换规则迁入 `AssetLifecycleStatus`/`LifecycleManagedAsset`；后续继续迁移版本规则 |
+| A2 | 贫血领域模型治理 | 已完成 | 已将 WP3 需求/测试用例评审状态集合与转换规则迁入 `AssetReviewStatus`，将资产生命周期归一化与转换规则迁入 `AssetLifecycleStatus`/`LifecycleManagedAsset`，并将版本初始值、递增和历史版本匹配规则迁入 `AssetVersion`/`VersionedAsset` |
 | A3 | 统一权限注解/AOP | 已完成 | 新增 `@RequirePermission` 注解和 AOP 切面；ModelAccessController、DocumentInputController 的普通权限入口改为注解校验；AssetController 保留资源级 `ResourceScope` 显式校验但不再直接读取 `SecurityContextHolder` |
 | A4 / Q8 / T3 | local/db profile 行为差异与 db 测试不足 | 已完成 | 新增 PostgreSQL Testcontainers db-profile 契约测试，覆盖 Postgres AuthSessionStore、ModelAccessRepository、AssetRepository 的真实迁移、mapper、约束、分页和事务回滚路径 |
 | A5 | 审计写入独立可靠性 | 已完成 | `PostgresAuditLogWriter.record` 使用 `REQUIRES_NEW` 独立事务，db-profile Testcontainers 合约覆盖业务事务回滚时审计仍落库；异步 outbox/失败补偿作为运行治理增强继续跟踪 |
@@ -53,7 +53,7 @@
 
 ### 剩余专项优先级
 
-1. 架构治理专项：A1、A2，按模块逐步拆分并保持接口兼容；A2 已启动 WP3 评审状态和生命周期规则内聚，后续继续处理版本规则。
+1. 架构治理专项：A1，按模块逐步拆分并保持接口兼容；A2 已完成本清单范围内的 WP3 评审状态、生命周期和版本规则内聚。
 2. 运行治理专项：暂无独立剩余项；后续按生产部署形态继续观察 Redis 可用性和网关限流策略。
 
 ## 一、安全风险 (Security)

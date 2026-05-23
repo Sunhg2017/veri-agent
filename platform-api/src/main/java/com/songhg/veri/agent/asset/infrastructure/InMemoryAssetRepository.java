@@ -365,7 +365,7 @@ public class InMemoryAssetRepository implements AssetRepository {
                 existing.priority(),
                 existing.tags(),
                 steps,
-                existing.version() + 1,
+                existing.nextVersion(),
                 existing.lifecycleStatus(),
                 existing.archivedAt(),
                 existing.deletedAt(),
