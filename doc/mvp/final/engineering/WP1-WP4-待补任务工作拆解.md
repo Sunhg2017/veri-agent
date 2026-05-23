@@ -35,7 +35,7 @@ WP1、WP2、WP4 的当前 P0 口径已经基本收敛，后续以生产硬化、
 | ALL-2 | 建立跨 WP 变更影响矩阵 | P1 | DONE-CURRENT | 已新增 `doc/mvp/final/engineering/WP1-WP4-变更影响矩阵.md`，覆盖 WP1 context/audit/secret、WP2 invocation、WP3 asset、WP4 import/publish 依赖 | 任一共享契约变更能列出受影响测试和 smoke |
 | ALL-3 | 统一 metrics 和 dashboard 命名 | P1 | DONE-CURRENT | 已新增 `doc/mvp/final/engineering/WP1-WP4-指标命名与看板规范.md`，包含指标命名、Grafana/告警建议和 traceId 串联说明 | WP1-WP4 关键链路能按 metrics + 审计/调用日志中的 projectId/actorService/status 观测 |
 | ALL-4 | 建立 release notes 模板 | P2 | DONE-CURRENT | 已新增 `doc/mvp/final/engineering/WP1-WP4-Release-Notes-模板.md` | 每次补充任务完成后能说明变更、迁移、配置、风险和回滚 |
-| ALL-5 | 后端 Service 职责拆分治理 | P1 | DONE-CURRENT | 已将 WP2 `ModelAccessService` 的同步调用编排、成本告警和成本日报聚合拆分到专门服务；已将 WP3 `AssetService` 的版本历史、影响分析、导入导出、原型同步、追踪关系、测试用例步骤、项目审计上下文和响应 DTO 映射职责拆分到专门服务；已将 WP4 `DocumentInputService` 的文档源管理、候选项生命周期、发布编排、模型纠错反馈和响应 DTO 映射拆分到专门服务；已将管理台 `PostgresManagementWorkspaceService` 的审计查询、配置管理和密钥引用生命周期拆分到专门服务 | 原 controller/API 契约保持兼容，相关 WP2、WP3、管理台和 WP4 controller 测试通过；后续新增高耦合热点继续按 A1 专项跟踪 |
+| ALL-5 | 后端 Service 职责拆分治理 | P1 | DONE-CURRENT | 已将 WP2 `ModelAccessService` 的同步调用编排、成本告警和成本日报聚合拆分到专门服务；已将 WP3 `AssetService` 的版本历史、影响分析、导入导出、原型同步、追踪关系、测试用例步骤、项目审计上下文和响应 DTO 映射职责拆分到专门服务；已将 WP4 `DocumentInputService` 的文档源管理、候选项生命周期、发布编排、模型纠错反馈和响应 DTO 映射拆分到专门服务；已将管理台 `PostgresManagementWorkspaceService` 的审计查询、配置管理、部门管理、角色权限管理和密钥引用生命周期拆分到专门服务 | 原 controller/API 契约保持兼容，相关 WP2、WP3、管理台和 WP4 controller 测试通过；后续新增高耦合热点继续按 A1 专项跟踪 |
 
 ## 4. WP1 平台基础底座待补任务
 

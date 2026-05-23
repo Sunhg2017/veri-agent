@@ -50,15 +50,11 @@ import com.songhg.veri.agent.management.application.AuditOutboxQuery;
 import com.songhg.veri.agent.management.application.EnvironmentConnectivityChecker;
 import com.songhg.veri.agent.management.application.ManagementWorkspaceService;
 import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows.ApplicationRef;
-import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows.DepartmentRef;
 import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows.EnvironmentConnectivityTargetRow;
 import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows.EnvironmentRef;
 import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows.ProjectRef;
-import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows.RoleRow;
 import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapper;
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -82,8 +78,10 @@ public class PostgresManagementWorkspaceService implements ManagementWorkspaceSe
     private final PostgresManagementDeniedAuditRecorder deniedAuditRecorder;
     private final EnvironmentConnectivityChecker connectivityChecker;
     private final ObjectMapper objectMapper;
+    private final PostgresManagementDepartmentService departmentService;
     private final PostgresManagementAuditQueryService auditQueryService;
     private final PostgresManagementConfigService configService;
+    private final PostgresManagementRoleService roleService;
     private final PostgresManagementSecretReferenceService secretReferenceService;
 
     public PostgresManagementWorkspaceService(
@@ -101,8 +99,10 @@ public class PostgresManagementWorkspaceService implements ManagementWorkspaceSe
         this.deniedAuditRecorder = deniedAuditRecorder;
         this.connectivityChecker = connectivityChecker;
         this.objectMapper = objectMapper;
+        this.departmentService = new PostgresManagementDepartmentService(mapper, auditLogWriter);
         this.auditQueryService = new PostgresManagementAuditQueryService(mapper, auditLogWriter);
         this.configService = new PostgresManagementConfigService(mapper, auditLogWriter);
+        this.roleService = new PostgresManagementRoleService(mapper, auditLogWriter);
         this.secretReferenceService = new PostgresManagementSecretReferenceService(
                 mapper,
                 auditLogWriter,
@@ -112,63 +112,30 @@ public class PostgresManagementWorkspaceService implements ManagementWorkspaceSe
 
     @Override
     public PageResponse<DepartmentView> departments(PageQuery pageQuery) {
-        return page(mapper::listDepartments, mapper::countDepartments, pageQuery, values());
+        return departmentService.departments(pageQuery);
     }
 
     @Override
     @Transactional
     public DepartmentView createDepartment(String name, AuthUserPrincipal actor) {
-        UUID deptId = UUID.randomUUID();
-        String code = nextCode("dept");
-        try {
-            update(mapper::insertDepartment, actor, values(
-                    "deptId", deptId,
-                    "code", code,
-                    "name", name,
-                    "path", "/" + deptId
-            ));
-            insertDepartmentManager(deptId, actor);
-        } catch (DuplicateKeyException exception) {
-            throw new BusinessException(ErrorCode.CONFLICT, "部门名称或编码已存在");
-        }
-        audit(actor, "创建部门", "department", deptId.toString(), name);
-        return new DepartmentView(name, "总部", actor.displayName(), 0, "同步正常");
+        return departmentService.createDepartment(name, actor);
     }
 
     @Override
     public DepartmentView department(String key) {
-        return departmentByKey(key);
+        return departmentService.department(key);
     }
 
     @Override
     @Transactional
     public DepartmentView updateDepartment(String key, UpdateDepartmentRequest request, AuthUserPrincipal actor) {
-        DepartmentRef department = resolveDepartmentStrict(key);
-        ensureEnabled(department.status(), "当前部门状态不允许编辑");
-        DepartmentView before = departmentByKey(department.id().toString());
-        try {
-            update(mapper::updateDepartment, actor, values(
-                    "deptId", department.id(),
-                    "name", blankToNull(request.name())
-            ));
-        } catch (DuplicateKeyException exception) {
-            throw new BusinessException(ErrorCode.CONFLICT, "部门名称已存在");
-        }
-        DepartmentView updated = departmentByKey(department.id().toString());
-        auditChange(actor, "更新部门", "department", department.id().toString(), updated.name(),
-                nameJson(before.name()), nameJson(updated.name()), null);
-        return updated;
+        return departmentService.updateDepartment(key, request, actor);
     }
 
     @Override
     @Transactional
     public DepartmentView changeDepartmentStatus(String key, String status, AuthUserPrincipal actor) {
-        DepartmentRef department = resolveDepartmentStrict(key);
-        String nextStatus = normalizeEnabledStatus(status, "部门状态不支持");
-        update(mapper::changeDepartmentStatus, actor, values("deptId", department.id(), "status", nextStatus));
-        DepartmentView updated = departmentByKey(department.id().toString());
-        audit(actor, "ENABLED".equals(nextStatus) ? "启用部门" : "停用部门", "department", department.id().toString(), updated.name());
-        return updated;
+        return departmentService.changeDepartmentStatus(key, status, actor);
     }
 
     @Override
@@ -266,112 +233,47 @@ public class PostgresManagementWorkspaceService implements ManagementWorkspaceSe
 
     @Override
     public PageResponse<RoleView> roles(PageQuery pageQuery) {
-        return page(mapper::listRoles, mapper::countRoles, pageQuery, values());
+        return roleService.roles(pageQuery);
     }
 
     @Override
     public PageResponse<PermissionView> permissions(PageQuery pageQuery) {
-        return page(mapper::listPermissions, mapper::countPermissions, pageQuery, values());
+        return roleService.permissions(pageQuery);
     }
 
     @Override
     public RoleDetailView role(String code) {
-        return roleDetail(requireRoleRow(code));
+        return roleService.role(code);
     }
 
     @Override
     @Transactional
     public RoleDetailView createRole(CreateRoleRequest request, Set<String> assignablePermissions, AuthUserPrincipal actor) {
-        String code = request.code().trim();
-        String name = request.name().trim();
-        String scopeType = request.scopeType().trim();
-        String description = blankToNull(request.description());
-        List<String> permissionCodes = normalizePermissionCodes(request.permissionCodes());
-        ensureAssignablePermissions(permissionCodes, assignablePermissions);
-        ensureEnabledPermissions(permissionCodes);
-        UUID roleId = UUID.randomUUID();
-        try {
-            update(mapper::insertRole, actor, values(
-                    "roleId", roleId,
-                    "code", code,
-                    "name", name,
-                    "scopeType", scopeType,
-                    "description", description
-            ));
-            replaceRolePermissions(roleId, permissionCodes, actor);
-        } catch (DuplicateKeyException exception) {
-            throw new BusinessException(ErrorCode.CONFLICT, "角色编码已存在");
-        }
-        RoleDetailView created = roleDetail(requireRoleRow(code));
-        audit(actor, "创建角色", "rbac_role", roleId.toString(), code);
-        return created;
+        return roleService.createRole(request, assignablePermissions, actor);
     }
 
     @Override
     @Transactional
     public RoleDetailView updateRole(String code, UpdateRoleRequest request, Set<String> assignablePermissions, AuthUserPrincipal actor) {
-        RoleRow role = requireRoleRow(code);
-        ensureCustomRole(role);
-        RoleDetailView before = roleDetail(role);
-        String name = blankToNull(request.name());
-        String scopeType = blankToNull(request.scopeType());
-        String description = request.description() == null ? null : request.description().trim();
-        List<String> permissionCodes = null;
-        if (request.permissionCodes() != null) {
-            permissionCodes = normalizePermissionCodes(request.permissionCodes());
-            ensureAssignablePermissions(permissionCodes, assignablePermissions);
-            ensureEnabledPermissions(permissionCodes);
-        }
-        update(mapper::updateRole, actor, values(
-                "roleId", role.id(),
-                "name", name,
-                "scopeType", scopeType,
-                "description", description
-        ));
-        if (permissionCodes != null) {
-            replaceRolePermissions(role.id(), permissionCodes, actor);
-        }
-        bumpUsersAuthVersionByRole(role.id(), actor);
-        RoleDetailView updated = roleDetail(requireRoleRow(code));
-        auditChange(actor, "更新角色", "rbac_role", role.id().toString(), updated.code(),
-                roleJson(before), roleJson(updated), null);
-        return updated;
+        return roleService.updateRole(code, request, assignablePermissions, actor);
     }
 
     @Override
     @Transactional
     public RoleDetailView changeRoleStatus(String code, String status, AuthUserPrincipal actor) {
-        RoleRow role = requireRoleRow(code);
-        ensureCustomRole(role);
-        String nextStatus = normalizeEnabledStatus(status, "角色状态只支持 ENABLED 或 DISABLED");
-        update(mapper::changeRoleStatus, actor, values("roleId", role.id(), "status", nextStatus));
-        bumpUsersAuthVersionByRole(role.id(), actor);
-        RoleDetailView updated = roleDetail(requireRoleRow(code));
-        audit(actor, "ENABLED".equals(nextStatus) ? "启用角色" : "停用角色", "rbac_role", role.id().toString(), updated.code());
-        return updated;
+        return roleService.changeRoleStatus(code, status, actor);
     }
 
     @Override
     @Transactional
     public UserView assignUserRole(String username, String roleCode, AuthUserPrincipal actor) {
-        UUID userId = requireUserId(username);
-        UUID roleId = requireRoleId(roleCode);
-        update(mapper::assignUserRole, actor, values("userId", userId, "roleId", roleId, "roleCode", roleCode));
-        bumpUserAuthVersion(userId, actor);
-        audit(actor, "分配角色", "rbac_role_binding", userId + ":" + roleCode, username + ":" + roleCode);
-        return userByUsername(username);
+        return roleService.assignUserRole(username, roleCode, actor);
     }
 
     @Override
     @Transactional
     public UserView unassignUserRole(String username, String roleCode, AuthUserPrincipal actor) {
-        UUID userId = requireUserId(username);
-        int rows = update(mapper::unassignUserRole, actor, values("userId", userId, "roleCode", roleCode));
-        if (rows > 0) {
-            bumpUserAuthVersion(userId, actor);
-        }
-        audit(actor, "解绑角色", "rbac_role_binding", userId + ":" + roleCode, username + ":" + roleCode);
-        return userByUsername(username);
+        return roleService.unassignUserRole(username, roleCode, actor);
     }
 
     @Override
@@ -829,10 +731,6 @@ public class PostgresManagementWorkspaceService implements ManagementWorkspaceSe
         update(mapper::insertProjectOwner, actor, values("projectId", projectId));
     }
 
-    private void insertDepartmentManager(UUID deptId, AuthUserPrincipal actor) {
-        update(mapper::insertDepartmentManager, actor, values("deptId", deptId));
-    }
-
     private UUID ensureDefaultProject(AuthUserPrincipal actor) {
         UUID existing = mapper.findDefaultProjectId(values());
         if (existing != null) {
@@ -853,10 +751,6 @@ public class PostgresManagementWorkspaceService implements ManagementWorkspaceSe
         return resolveProjectStrict(keyword);
     }
 
-    private DepartmentRef resolveDepartmentStrict(String key) {
-        return requireOne(mapper::findDepartmentRef, values("keyword", key), "部门不存在");
-    }
-
     private ProjectRef resolveProjectStrict(String key) {
         return requireOne(mapper::findProjectRef, values("keyword", key), "项目不存在");
     }
@@ -871,10 +765,6 @@ public class PostgresManagementWorkspaceService implements ManagementWorkspaceSe
 
     private EnvironmentConnectivityTargetRow resolveEnvironmentConnectivityTarget(String key) {
         return requireOne(mapper::findEnvironmentConnectivityTarget, values("keyword", key), "环境不存在");
-    }
-
-    private DepartmentView departmentByKey(String key) {
-        return requireOne(mapper::findDepartmentView, values("keyword", key), "部门不存在");
     }
 
     private ProjectView projectByKey(String key) {
@@ -1116,100 +1006,6 @@ public class PostgresManagementWorkspaceService implements ManagementWorkspaceSe
     private String defaultText(String value, String fallback) {
         String normalized = value == null ? "" : value.trim();
         return normalized.isBlank() ? fallback : normalized;
-    }
-
-    private RoleRow requireRoleRow(String code) {
-        String roleCode = blankToNull(code);
-        if (roleCode == null) {
-            throw new BusinessException(ErrorCode.NOT_FOUND, "角色不存在");
-        }
-        return requireOne(mapper::findRoleRow, values("roleCode", roleCode), "角色不存在");
-    }
-
-    private RoleDetailView roleDetail(RoleRow row) {
-        return new RoleDetailView(
-                row.code(),
-                row.name(),
-                row.scopeType(),
-                "ENABLED".equals(row.status()) ? "启用" : "已停用",
-                row.description(),
-                row.system(),
-                row.builtin(),
-                row.version(),
-                mapper.listRolePermissionCodes(values("roleId", row.id()))
-        );
-    }
-
-    private void ensureCustomRole(RoleRow row) {
-        if (row.system() || row.builtin()) {
-            throw new BusinessException(ErrorCode.INVALID_STATE, "内置角色不可编辑或停用");
-        }
-    }
-
-    private List<String> normalizePermissionCodes(List<String> permissionCodes) {
-        if (permissionCodes == null || permissionCodes.isEmpty()) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "角色至少需要一个权限点");
-        }
-        Set<String> normalizedCodes = new LinkedHashSet<>();
-        for (String permissionCode : permissionCodes) {
-            String normalized = blankToNull(permissionCode);
-            if (normalized == null) {
-                throw new BusinessException(ErrorCode.VALIDATION_ERROR, "权限点编码不能为空");
-            }
-            normalizedCodes.add(normalized);
-        }
-        if (normalizedCodes.isEmpty()) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "角色至少需要一个权限点");
-        }
-        return new ArrayList<>(normalizedCodes);
-    }
-
-    private void ensureAssignablePermissions(List<String> permissionCodes, Set<String> assignablePermissions) {
-        List<String> forbidden = permissionCodes.stream()
-                .filter(permissionCode -> assignablePermissions == null || !assignablePermissions.contains(permissionCode))
-                .toList();
-        if (!forbidden.isEmpty()) {
-            throw new BusinessException(ErrorCode.FORBIDDEN, "不能授予超过操作者自身权限的权限点: " + String.join(",", forbidden));
-        }
-    }
-
-    private void ensureEnabledPermissions(List<String> permissionCodes) {
-        Set<String> enabled = new LinkedHashSet<>(mapper.listEnabledPermissionCodes(values("permissionCodes", permissionCodes)));
-        List<String> missing = permissionCodes.stream()
-                .filter(permissionCode -> !enabled.contains(permissionCode))
-                .toList();
-        if (!missing.isEmpty()) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "权限点不存在或已停用: " + String.join(",", missing));
-        }
-    }
-
-    private void replaceRolePermissions(UUID roleId, List<String> permissionCodes, AuthUserPrincipal actor) {
-        update(mapper::softDeleteRolePermissions, actor, values("roleId", roleId));
-        update(mapper::insertRolePermissions, actor, values("roleId", roleId, "permissionCodes", permissionCodes));
-    }
-
-    private void bumpUsersAuthVersionByRole(UUID roleId, AuthUserPrincipal actor) {
-        update(mapper::bumpUsersAuthVersionByRole, actor, values("roleId", roleId));
-    }
-
-    private String roleJson(RoleDetailView role) {
-        return "{\"code\":\"" + escapeJson(role.code()) + "\","
-                + "\"name\":\"" + escapeJson(role.name()) + "\","
-                + "\"scopeType\":\"" + escapeJson(role.scopeType()) + "\","
-                + "\"status\":\"" + escapeJson(role.status()) + "\","
-                + "\"permissionCodes\":" + stringArrayJson(role.permissionCodes()) + ","
-                + "\"version\":" + role.version() + "}";
-    }
-
-    private String stringArrayJson(List<String> values) {
-        StringBuilder json = new StringBuilder("[");
-        for (int index = 0; index < values.size(); index++) {
-            if (index > 0) {
-                json.append(',');
-            }
-            json.append('"').append(escapeJson(values.get(index))).append('"');
-        }
-        return json.append(']').toString();
     }
 
     private UUID requireUserId(String username) {
