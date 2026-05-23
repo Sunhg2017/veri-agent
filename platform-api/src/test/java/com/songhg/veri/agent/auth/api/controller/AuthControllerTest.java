@@ -1,10 +1,13 @@
 package com.songhg.veri.agent.auth.api.controller;
 
+import com.songhg.veri.agent.auth.infrastructure.InMemoryAuthIdentityStore;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
@@ -17,7 +20,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest(properties = {
-        "veri-agent.bootstrap.token=init-token",
         "veri-agent.auth.token-secret=test-auth-secret"
 })
 @AutoConfigureMockMvc
@@ -27,9 +29,15 @@ class AuthControllerTest {
     @Autowired
     private MockMvc mockMvc;
 
+    @Autowired
+    private InMemoryAuthIdentityStore identityStore;
+
+    @Autowired
+    private PasswordEncoder passwordEncoder;
+
     @Test
     void logsInAndReadsCurrentUser() throws Exception {
-        bootstrapSuperAdmin();
+        seedSuperAdmin(true);
 
         MvcResult loginResult = mockMvc.perform(post("/api/v1/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -47,6 +55,7 @@ class AuthControllerTest {
                 .andExpect(jsonPath("$.data.sessionId", not("")))
                 .andExpect(jsonPath("$.data.tokenType").value("Bearer"))
                 .andExpect(jsonPath("$.data.username").value("admin_user"))
+                .andExpect(jsonPath("$.data.mustChangePassword").value(true))
                 .andExpect(jsonPath("$.data.roles[0]").value("SuperAdmin"))
                 .andReturn();
 
@@ -61,13 +70,14 @@ class AuthControllerTest {
                 .andExpect(jsonPath("$.code").value("OK"))
                 .andExpect(jsonPath("$.data.username").value("admin_user"))
                 .andExpect(jsonPath("$.data.displayName").value("平台管理员"))
+                .andExpect(jsonPath("$.data.mustChangePassword").value(true))
                 .andExpect(jsonPath("$.data.roles[0]").value("SuperAdmin"))
                 .andExpect(jsonPath("$.data.permissions").isArray());
     }
 
     @Test
     void refreshesAndRevokesSession() throws Exception {
-        bootstrapSuperAdmin();
+        seedSuperAdmin(false);
 
         MvcResult loginResult = mockMvc.perform(post("/api/v1/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -124,7 +134,7 @@ class AuthControllerTest {
 
     @Test
     void changesCurrentUserPasswordAndInvalidatesCurrentSession() throws Exception {
-        bootstrapSuperAdmin();
+        seedSuperAdmin(true);
 
         MvcResult loginResult = mockMvc.perform(post("/api/v1/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -141,6 +151,12 @@ class AuthControllerTest {
                 loginResult.getResponse().getContentAsString(),
                 "$.data.accessToken"
         );
+
+        mockMvc.perform(get("/api/v1/management/departments")
+                        .header("Authorization", "Bearer " + accessToken))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("PASSWORD_CHANGE_REQUIRED"))
+                .andExpect(jsonPath("$.message").value("首次登录必须先修改密码"));
 
         mockMvc.perform(post("/api/v1/auth/change-password")
                         .header("Authorization", "Bearer " + accessToken)
@@ -183,7 +199,7 @@ class AuthControllerTest {
 
     @Test
     void rejectsBadPassword() throws Exception {
-        bootstrapSuperAdmin();
+        seedSuperAdmin(false);
 
         mockMvc.perform(post("/api/v1/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -228,18 +244,14 @@ class AuthControllerTest {
                 .andExpect(status().isForbidden());
     }
 
-    private void bootstrapSuperAdmin() throws Exception {
-        mockMvc.perform(post("/api/v1/bootstrap/super-admin")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "bootstrapToken": "init-token",
-                                  "username": "admin_user",
-                                  "password": "PlainPassword123",
-                                  "displayName": "平台管理员",
-                                  "email": "admin@example.com"
-                                }
-                                """))
-                .andExpect(status().isOk());
+    private void seedSuperAdmin(boolean mustChangePassword) {
+        identityStore.seedUser(
+                "admin_user",
+                passwordEncoder.encode("PlainPassword123"),
+                "平台管理员",
+                "admin@example.com",
+                mustChangePassword,
+                List.of("SuperAdmin")
+        );
     }
 }

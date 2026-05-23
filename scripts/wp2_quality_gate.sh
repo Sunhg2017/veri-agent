@@ -20,7 +20,7 @@ run_step "wp2 model quality eval" bash "$ROOT_DIR/scripts/wp2_model_quality_eval
 
 run_step "platform-api tests" mvn -B -pl platform-api test
 
-run_step "portal-web model access tests" bash -lc "cd '$ROOT_DIR/portal-web' && npm run test -- auth.test.ts bootstrap.test.ts modelAccess.test.ts permissions.test.ts"
+run_step "portal-web model access tests" bash -lc "cd '$ROOT_DIR/portal-web' && npm run test -- auth.test.ts modelAccess.test.ts permissions.test.ts"
 
 run_step "portal-web build" bash -lc "cd '$ROOT_DIR/portal-web' && npm run build"
 

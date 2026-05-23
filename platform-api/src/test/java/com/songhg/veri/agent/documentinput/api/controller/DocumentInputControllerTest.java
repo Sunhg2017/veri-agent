@@ -1,9 +1,13 @@
 package com.songhg.veri.agent.documentinput.api.controller;
 
 import com.jayway.jsonpath.JsonPath;
+import com.songhg.veri.agent.auth.application.AuthTokenService;
+import com.songhg.veri.agent.auth.domain.AuthUserRecord;
 import com.songhg.veri.agent.documentinput.application.DocumentWebhookAutoRetryService;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.List;
+import java.util.UUID;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import org.junit.jupiter.api.Test;
@@ -26,7 +30,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest(properties = {
-        "veri-agent.bootstrap.token=init-token",
         "veri-agent.auth.token-secret=test-auth-secret",
         "veri-agent.document-input.service-token=test-document-input-token",
         "veri-agent.asset.service-token=test-asset-token"
@@ -37,6 +40,9 @@ class DocumentInputControllerTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @Autowired
+    private AuthTokenService tokenService;
 
     @Autowired
     private DocumentWebhookAutoRetryService autoRetryService;
@@ -1147,34 +1153,17 @@ class DocumentInputControllerTest {
         return java.util.HexFormat.of().formatHex(mac.doFinal(value.getBytes(StandardCharsets.UTF_8)));
     }
 
-    private String userAccessToken() throws Exception {
-        bootstrapSuperAdmin();
-        MvcResult loginResult = mockMvc.perform(post("/api/v1/auth/login")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "username": "admin_user",
-                                  "password": "PlainPassword123"
-                                }
-                                """))
-                .andExpect(status().isOk())
-                .andReturn();
-        return JsonPath.read(loginResult.getResponse().getContentAsString(), "$.data.accessToken");
-    }
-
-    private void bootstrapSuperAdmin() throws Exception {
-        mockMvc.perform(post("/api/v1/bootstrap/super-admin")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "bootstrapToken": "init-token",
-                                  "username": "admin_user",
-                                  "password": "PlainPassword123",
-                                  "displayName": "平台管理员",
-                                  "email": "admin@example.com"
-                                }
-                                """))
-                .andExpect(status().isOk());
+    private String userAccessToken() {
+        return tokenService.issue(new AuthUserRecord(
+                UUID.randomUUID(),
+                "admin_user",
+                "平台管理员",
+                "admin@example.com",
+                "$2a$10$test",
+                false,
+                1,
+                List.of("SuperAdmin")
+        )).accessToken();
     }
 
     private void assertAutoRetryResult(

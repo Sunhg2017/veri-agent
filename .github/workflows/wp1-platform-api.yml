@@ -77,7 +77,6 @@ jobs:
 
       - name: Start platform-api with db profile
         env:
-          WP1_BOOTSTRAP_TOKEN: local-init-token
           WP1_AUTH_TOKEN_SECRET: local-auth-secret
           WP1_DATASOURCE_URL: jdbc:postgresql://localhost:5432/veri_agent
           WP1_DATASOURCE_USERNAME: veri_agent
@@ -95,9 +94,12 @@ jobs:
           cat build/wp1-platform-api-db.log
           exit 1
 
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+
       - name: Run db profile smoke
-        env:
-          WP1_BOOTSTRAP_TOKEN: local-init-token
         run: bash scripts/wp1_db_profile_smoke.sh
 
       - name: Stop platform-api

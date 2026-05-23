@@ -7,7 +7,7 @@ Repository-level collaboration and delivery rules are defined in `../AGENTS.md`.
 ## Current Scope
 
 - Enterprise console layout with sidebar, top bar, and working area.
-- SuperAdmin bootstrap page calling `POST /api/v1/bootstrap/super-admin`.
+- Login, logout, current-user, and forced first-login password change flows.
 - Backend health widget calling `GET /api/v1/health`.
 - Unified API response handling with `trace_id` display.
 - Basic form validation, loading state, and error handling.
@@ -25,13 +25,13 @@ The Vite dev server listens on `http://localhost:5173`.
 
 During development, `/api/**` is proxied to `http://localhost:8080`.
 
-Start the backend with a bootstrap token:
+Start the backend with an auth token secret:
 
 ```bash
-WP1_BOOTSTRAP_TOKEN=local-init-token mvn -pl platform-api spring-boot:run
+WP1_AUTH_TOKEN_SECRET=local-auth-secret mvn -pl platform-api spring-boot:run
 ```
 
-Then open the frontend and initialize the first SuperAdmin with the same token.
+For the `db` profile, initialize SuperAdmin with `scripts/wp1_seed_super_admin.sh` before logging in.
 
 ## Build
 

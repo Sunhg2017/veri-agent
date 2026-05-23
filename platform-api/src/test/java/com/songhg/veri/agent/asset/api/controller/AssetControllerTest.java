@@ -2,9 +2,12 @@ package com.songhg.veri.agent.asset.api.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jayway.jsonpath.JsonPath;
+import com.songhg.veri.agent.auth.application.AuthTokenService;
+import com.songhg.veri.agent.auth.domain.AuthUserRecord;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import org.hamcrest.MatcherAssert;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -30,7 +33,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest(properties = {
-        "veri-agent.bootstrap.token=init-token",
         "veri-agent.auth.token-secret=test-auth-secret",
         "veri-agent.asset.service-token=test-asset-token"
 })
@@ -42,6 +44,9 @@ class AssetControllerTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @Autowired
+    private AuthTokenService tokenService;
 
     @Test
     void exposesHealthWithoutToken() throws Exception {
@@ -1250,33 +1255,16 @@ class AssetControllerTest {
         return headers;
     }
 
-    private String userAccessToken() throws Exception {
-        bootstrapSuperAdmin();
-        MvcResult loginResult = mockMvc.perform(post("/api/v1/auth/login")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "username": "admin_user",
-                                  "password": "PlainPassword123"
-                                }
-                                """))
-                .andExpect(status().isOk())
-                .andReturn();
-        return JsonPath.read(loginResult.getResponse().getContentAsString(), "$.data.accessToken");
-    }
-
-    private void bootstrapSuperAdmin() throws Exception {
-        mockMvc.perform(post("/api/v1/bootstrap/super-admin")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "bootstrapToken": "init-token",
-                                  "username": "admin_user",
-                                  "password": "PlainPassword123",
-                                  "displayName": "平台管理员",
-                                  "email": "admin@example.com"
-                                }
-                                """))
-                .andExpect(status().isOk());
+    private String userAccessToken() {
+        return tokenService.issue(new AuthUserRecord(
+                UUID.randomUUID(),
+                "admin_user",
+                "平台管理员",
+                "admin@example.com",
+                "$2a$10$test",
+                false,
+                1,
+                List.of("SuperAdmin")
+        )).accessToken();
     }
 }

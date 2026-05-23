@@ -45,7 +45,7 @@ P0 使用轻量角色口径，先满足样板后台准入和后续 RBAC 扩展�
 | 能力 | 接口 |
 |---|---|
 | 健康检查 | `GET /api/v1/health` |
-| 初始化 | `POST /api/v1/bootstrap/super-admin` |
+| 初始化 | `db/seed/wp1_super_admin.sql`，不提供页面/API 初始化入口 |
 | 登录 | `POST /api/v1/auth/login` |
 | 刷新令牌 | `POST /api/v1/auth/refresh` |
 | 注销 | `POST /api/v1/auth/logout` |
@@ -81,7 +81,7 @@ P0 使用轻量角色口径，先满足样板后台准入和后续 RBAC 扩展�
 | 模块 | 说明 |
 |---|---|
 | `common` | 统一响应、错误码、Trace ID、全局异常处理。 |
-| `bootstrap` | 首个 `SuperAdmin` 初始化。 |
+| `db/seed` | 首个 `SuperAdmin` 初始化，初始化后 `must_change_password=true`。 |
 | `auth` | 登录、刷新令牌、注销、当前用户、Bearer Token 签发和校验、会话存储。 |
 | `authorization` | RBAC 权限解析和管理 API 权限校验；支持 local 内置权限和 db 持久化权限。 |
 | `management` | P0 管理视图聚合、样板创建动作和账号生命周期；`local` profile 使用内存实现，`db` profile 使用 PostgreSQL 持久化实现。 |
@@ -120,7 +120,7 @@ mvn -pl platform-api test
 cd portal-web && npm run test
 cd portal-web && npm run build
 bash db/validation/run_wp1_db_validation.sh
-WP1_BOOTSTRAP_TOKEN=local-init-token bash scripts/wp1_db_profile_smoke.sh
+bash scripts/wp1_db_profile_smoke.sh
 ```
 
 浏览器验收：

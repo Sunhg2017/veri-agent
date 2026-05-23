@@ -2,13 +2,13 @@
 set -euo pipefail
 
 BASE_URL="${WP_ALL_BASE_URL:-http://localhost:8080}"
-BOOTSTRAP_TOKEN="${WP1_BOOTSTRAP_TOKEN:-local-init-token}"
 WP2_SERVICE_TOKEN="${WP2_SERVICE_TOKEN:-local-model-access-token}"
 WP3_SERVICE_TOKEN="${WP3_SERVICE_TOKEN:-local-asset-token}"
 WP4_SERVICE_TOKEN="${WP4_SERVICE_TOKEN:-local-document-input-token}"
 WP4_WEBHOOK_SECRET="${WP4_WEBHOOK_SECRET:-local-document-input-webhook-secret}"
 ADMIN_USERNAME="${WP_ALL_ADMIN_USERNAME:-admin}"
 ADMIN_PASSWORD="${WP_ALL_ADMIN_PASSWORD:-AdminPass12345}"
+ADMIN_CHANGED_PASSWORD="${WP_ALL_ADMIN_NEW_PASSWORD:-AdminPass12345Changed!}"
 PROJECT_CODE="${WP_ALL_PROJECT_CODE:-demo-$(date +%s)-$RANDOM}"
 WP4_SOURCE_CODE="${WP_ALL_WP4_SOURCE_CODE:-wp-all-$(date +%s)-$RANDOM}"
 PASS=0
@@ -65,6 +65,14 @@ get_json() {
   curl -sS "$BASE_URL$path" "$@"
 }
 
+login_admin() {
+  local password="$1"
+  post_json /api/v1/auth/login "$(jq -nc \
+    --arg username "$ADMIN_USERNAME" \
+    --arg password "$password" \
+    '{username:$username,password:$password}')"
+}
+
 urlencode() {
   jq -nr --arg value "$1" '$value | @uri'
 }
@@ -106,21 +114,37 @@ main() {
   health="$(get_json /api/v1/health)"
   check "platform health" '.data.status == "UP"' "$health"
 
-  local bootstrap
-  bootstrap="$(post_json /api/v1/bootstrap/super-admin "$(jq -nc \
-    --arg token "$BOOTSTRAP_TOKEN" \
-    --arg username "$ADMIN_USERNAME" \
-    --arg password "$ADMIN_PASSWORD" \
-    '{bootstrapToken:$token,username:$username,password:$password,displayName:"平台管理员",email:"admin@example.com"}')")"
-  check "bootstrap super admin" '.code == "OK" or .code == "CONFLICT"' "$bootstrap"
-
   local login token
-  login="$(post_json /api/v1/auth/login "$(jq -nc \
-    --arg username "$ADMIN_USERNAME" \
-    --arg password "$ADMIN_PASSWORD" \
-    '{username:$username,password:$password}')")"
+  login="$(login_admin "$ADMIN_PASSWORD")"
   token="$(printf '%s' "$login" | jq -r '.data.accessToken // empty')"
+
+  if [[ -z "$token" && "$ADMIN_CHANGED_PASSWORD" != "$ADMIN_PASSWORD" ]]; then
+    login="$(login_admin "$ADMIN_CHANGED_PASSWORD")"
+    token="$(printf '%s' "$login" | jq -r '.data.accessToken // empty')"
+    if [[ -n "$token" ]]; then
+      ADMIN_PASSWORD="$ADMIN_CHANGED_PASSWORD"
+    fi
+  fi
+
   check "login" '.data.accessToken | type == "string"' "$login"
+  if [[ -z "$token" ]]; then
+    echo "   HINT seed SuperAdmin with scripts/wp1_seed_super_admin.sh before running this smoke."
+  fi
+
+  if printf '%s' "$login" | jq -e '(.data.mustChangePassword == true) or (.data.must_change_password == true)' >/dev/null; then
+    local password_change
+    password_change="$(post_json /api/v1/auth/change-password "$(jq -nc \
+      --arg oldPassword "$ADMIN_PASSWORD" \
+      --arg newPassword "$ADMIN_CHANGED_PASSWORD" \
+      '{oldPassword:$oldPassword,newPassword:$newPassword}')" \
+      -H "Authorization: Bearer $token")"
+    check "force initial password change" '.code == "OK" and .data.passwordChanged == true' "$password_change"
+
+    ADMIN_PASSWORD="$ADMIN_CHANGED_PASSWORD"
+    login="$(login_admin "$ADMIN_PASSWORD")"
+    token="$(printf '%s' "$login" | jq -r '.data.accessToken // empty')"
+    check "login after password change" '(.data.accessToken | type == "string") and ((.data.mustChangePassword == false) or (.data.must_change_password == false))' "$login"
+  fi
 
   local auth_headers=(-H "Authorization: Bearer $token")
   local wp2_headers=(

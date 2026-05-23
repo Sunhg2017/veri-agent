@@ -2,8 +2,8 @@ package com.songhg.veri.agent.security.config;
 
 import com.songhg.veri.agent.auth.application.AuthProperties;
 import com.songhg.veri.agent.auth.config.BearerTokenAuthenticationFilter;
+import com.songhg.veri.agent.auth.config.PasswordChangeRequiredFilter;
 import com.songhg.veri.agent.asset.config.AssetProperties;
-import com.songhg.veri.agent.bootstrap.application.BootstrapProperties;
 import com.songhg.veri.agent.common.audit.AuditRetentionProperties;
 import com.songhg.veri.agent.common.secret.SecretProviderProperties;
 import com.songhg.veri.agent.common.security.ServiceTokenAuthenticationFilter;
@@ -31,14 +31,15 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 
 @Configuration
 @EnableWebSecurity
-@EnableConfigurationProperties({AuthProperties.class, BootstrapProperties.class, PlatformIntegrationProperties.class, ModelAccessProperties.class, AssetProperties.class, DocumentInputProperties.class, SecretProviderProperties.class, AuditRetentionProperties.class, ManagementProperties.class})
+@EnableConfigurationProperties({AuthProperties.class, PlatformIntegrationProperties.class, ModelAccessProperties.class, AssetProperties.class, DocumentInputProperties.class, SecretProviderProperties.class, AuditRetentionProperties.class, ManagementProperties.class})
 public class SecurityConfig {
 
     @Bean
     SecurityFilterChain securityFilterChain(
             HttpSecurity http,
             ServiceTokenAuthenticationFilter serviceTokenAuthenticationFilter,
-            ObjectProvider<BearerTokenAuthenticationFilter> bearerTokenAuthenticationFilterProvider
+            ObjectProvider<BearerTokenAuthenticationFilter> bearerTokenAuthenticationFilterProvider,
+            ObjectProvider<PasswordChangeRequiredFilter> passwordChangeRequiredFilterProvider
     ) throws Exception {
         http.addFilterBefore(
                 serviceTokenAuthenticationFilter,
@@ -47,6 +48,10 @@ public class SecurityConfig {
         bearerTokenAuthenticationFilterProvider.ifAvailable(filter -> http.addFilterBefore(
                 filter,
                 UsernamePasswordAuthenticationFilter.class
+        ));
+        passwordChangeRequiredFilterProvider.ifAvailable(filter -> http.addFilterAfter(
+                filter,
+                BearerTokenAuthenticationFilter.class
         ));
 
         return http
@@ -57,7 +62,6 @@ public class SecurityConfig {
                         .dispatcherTypeMatchers(DispatcherType.ASYNC, DispatcherType.ERROR).permitAll()
                         .requestMatchers("/actuator/health", "/actuator/info", "/actuator/metrics/**").permitAll()
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/api/v1/bootstrap/super-admin").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/auth/login").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/auth/refresh").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/health").permitAll()

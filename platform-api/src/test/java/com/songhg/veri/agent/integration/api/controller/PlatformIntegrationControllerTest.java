@@ -15,7 +15,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest(properties = {
-        "veri-agent.bootstrap.token=init-token",
         "veri-agent.auth.token-secret=test-auth-secret",
         "veri-agent.integration.service-token=test-platform-service-token"
 })

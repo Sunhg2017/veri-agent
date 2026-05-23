@@ -587,7 +587,7 @@ API 前缀为 `/api/v1`。所有接口默认从 Token 中获取 `tenant_id`，�
 
 | 方法 | 路径 | 权限点 | 审计事件 | 关键请求字段 | 关键响应字段 | 错误码 |
 |---|---|---|---|---|---|---|
-| `POST` | `/bootstrap/super-admin` | 初始化令牌 | `USER_CREATE` | `bootstrap_token`, `username`, `password`, `display_name`, `email` | `user_id`, `role=SuperAdmin` | `VALIDATION_ERROR`, `CONFLICT`, `FORBIDDEN` |
+| 数据脚本 | `db/seed/wp1_super_admin.sql` | 部署数据库权限 | `USER_CREATE` | `WP1_SUPER_ADMIN_USERNAME`, `WP1_SUPER_ADMIN_PASSWORD`, `WP1_SUPER_ADMIN_DISPLAY_NAME`, `WP1_SUPER_ADMIN_EMAIL` | 创建 `role=SuperAdmin`，`must_change_password=true` | 脚本异常中断 |
 | `POST` | `/auth/login` | 无 | `AUTH_LOGIN_SUCCESS/FAILED` | `tenant_code` 可选, `username`, `password` | `access_token`, `refresh_token`, `expires_in`, `user` | `UNAUTHORIZED`, `INVALID_STATE` |
 | `POST` | `/auth/logout` | 登录用户 | `AUTH_LOGOUT` | `refresh_token` 可选 | `revoked=true` | `UNAUTHORIZED` |
 | `POST` | `/auth/refresh` | 登录用户 | `AUTH_TOKEN_REFRESH` | `refresh_token` | `access_token`, `expires_in` | `UNAUTHORIZED`, `INVALID_STATE` |
@@ -748,21 +748,20 @@ sequenceDiagram
     participant DB as PostgreSQL
     participant AUD as Audit
 
-    O->>API: POST /bootstrap/super-admin + bootstrap_token
-    API->>DB: 校验系统未初始化
-    API->>DB: 创建 SYSTEM_TENANT
-    API->>DB: 初始化权限点和内置角色
-    API->>DB: 创建 SuperAdmin 用户
-    API->>DB: 绑定 SuperAdmin 平台角色
-    API->>AUD: USER_CREATE / ROLE_BIND
-    API-->>O: 返回初始化结果
+    O->>DB: 执行 db/seed/wp1_super_admin.sql
+    DB->>DB: 校验系统未初始化
+    DB->>DB: 确认权限点和内置角色已完成迁移
+    DB->>DB: 创建 SuperAdmin 用户
+    DB->>DB: 绑定 SuperAdmin 平台角色
+    DB->>AUD: USER_CREATE / SUPER_ADMIN_INIT
+    DB-->>O: 返回 seed 执行结果
 ```
 
 初始化规则：
 
-1. `bootstrap_token` 由部署环境变量提供，只允许使用一次。
-2. 系统已有 `SuperAdmin` 后接口返回 `CONFLICT`。
-3. 初始密码必须满足密码策略，响应不返回密码。
+1. 首个 `SuperAdmin` 只能通过数据库 seed 脚本初始化，不提供页面/API 初始化入口。
+2. 系统已有 `SuperAdmin` 后脚本只允许同用户名幂等跳过，不允许创建第二个首管。
+3. 初始密码必须满足密码策略，脚本只写入 BCrypt 哈希，首次登录后必须修改密码。
 
 ### 11.2 初始化租户与首个管理员
 

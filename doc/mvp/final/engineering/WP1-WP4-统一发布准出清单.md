@@ -22,7 +22,7 @@
 | 基础前端 | 管理台测试 | `cd portal-web && npm run test` | `portal-web` 测试输出 |
 | 基础前端 | 管理台构建 | `cd portal-web && npm run build` | Vite/TypeScript 构建输出 |
 | WP1 DB | 临时库迁移、seed、安全、跨 WP schema validation | `bash db/validation/run_wp1_db_validation.sh` | `build/wp1-db-validation/`，包含 WP1/WP2/WP3/WP4 统一迁移结果 |
-| WP1 smoke | 已启动 `db` profile 平台 API | `WP1_BOOTSTRAP_TOKEN=local-init-token bash scripts/wp1_db_profile_smoke.sh` | 管理控制面、RBAC、审计、资源作用域 |
+| WP1 smoke | 已启动 `db` profile 平台 API，已执行 SuperAdmin seed | `bash scripts/wp1_db_profile_smoke.sh` | 管理控制面、RBAC、审计、资源作用域、首次登录强制改密 |
 | WP1 quality gate | WP1 本地聚合门禁 | `bash scripts/wp1_quality_gate.sh` | 后端测试、前端测试、前端构建、WP1 DB validation |
 | WP1 预发/生产 DB 权限 | 真实 app/readonly/migration 数据库角色 | `WP1_RELEASE_DATABASE_URL=... WP1_RELEASE_SCHEMA=... WP1_RELEASE_APP_ROLE=... WP1_RELEASE_READONLY_ROLE=... WP1_RELEASE_MIGRATION_ROLE=... bash scripts/wp1_release_role_validation.sh` | `release.app_role.*`、`release.readonly_role.*`、`release.migration_role.*`、`release.audit_log.*`、`release.audit_retention_cleanup.*`、`release.secret_local_store.*` 检查；详见 `WP1-发布前DB权限Runbook.md` |
 | WP2 DB | WP2 model access schema/seed/security | `bash db/validation/run_wp2_db_validation.sh` | `build/wp2-db-validation/` |
@@ -37,7 +37,7 @@
 | WP4 frontend E2E | portal-web 文档输入核心浏览器路径 | `bash scripts/wp4_frontend_e2e_smoke.sh` | 真实文件上传、候选编辑/确认、发布 dryRun 预览、webhook 事件重放；本地无托管 Chromium 时可用系统 Chrome 或 `WP4_FRONTEND_INSTALL_BROWSERS=1` |
 | WP4 binary/retention | Word/PDF/OCR 文本抽取、OCR worker 隔离配置、文档输入保留清理 | `bash scripts/wp4_binary_document_smoke.sh` | docx、PDF、OCR provider、HTTP worker 配置口径、SecretProvider 测试，SecretProvider TTL 缓存/失效、resolve 审计脱敏，以及 retention cleanup 归档/审计单测；真实 worker 接入见 `WP4-OCR隔离Worker接入Runbook.md` |
 | WP4 AI 质量 | golden corpus 质量门禁 | `bash scripts/wp4_ai_parse_quality_eval.sh` | 标题召回、优先级准确率、验收标准覆盖率 |
-| WP1-WP4 E2E | 统一平台端到端 smoke | `WP1_BOOTSTRAP_TOKEN=local-init-token WP2_SERVICE_TOKEN=local-model-access-token WP3_SERVICE_TOKEN=local-asset-token WP4_SERVICE_TOKEN=local-document-input-token WP4_WEBHOOK_SECRET=local-document-input-webhook-secret bash scripts/wp_all_integration_test.sh` | WP1 context、WP2 invocation、WP3 asset、WP4 publish/webhook 串联 |
+| WP1-WP4 E2E | 统一平台端到端 smoke | `WP2_SERVICE_TOKEN=local-model-access-token WP3_SERVICE_TOKEN=local-asset-token WP4_SERVICE_TOKEN=local-document-input-token WP4_WEBHOOK_SECRET=local-document-input-webhook-secret bash scripts/wp_all_integration_test.sh` | WP1 context、WP2 invocation、WP3 asset、WP4 publish/webhook 串联 |
 
 ## 3. 推荐执行顺序
 
@@ -99,7 +99,6 @@ bash scripts/wp1_release_role_validation.sh
 
 ```bash
 WP_ALL_BASE_URL='https://preprod.example.test' \
-WP1_BOOTSTRAP_TOKEN='***' \
 WP2_SERVICE_TOKEN='***' \
 WP3_SERVICE_TOKEN='***' \
 WP4_SERVICE_TOKEN='***' \

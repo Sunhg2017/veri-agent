@@ -19,7 +19,7 @@ public class OpenApiConfiguration {
                 .info(new Info()
                         .title("Veri Agent WP1 Platform API")
                         .version("0.1.0")
-                        .description("Single-platform WP1 control-plane APIs for bootstrap, auth, management, audit, and settings."))
+                        .description("Single-platform WP1 control-plane APIs for auth, management, audit, settings, and WP2-WP4 modules."))
                 .components(new Components()
                         .addSecuritySchemes(BEARER_AUTH, new SecurityScheme()
                                 .type(SecurityScheme.Type.HTTP)

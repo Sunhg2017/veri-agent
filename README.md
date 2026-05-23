@@ -61,7 +61,6 @@ AI 驱动的端到端企业级测试平台。WP1、WP2、WP3、WP4 是研发任�
 ## 本地内存模式
 
 ```bash
-WP1_BOOTSTRAP_TOKEN=local-init-token \
 WP1_AUTH_TOKEN_SECRET=local-auth-secret \
 mvn -pl platform-api spring-boot:run
 ```
@@ -84,7 +83,6 @@ docker compose -f infra/docker-compose.wp1.yml up -d postgres
 ```
 
 ```bash
-WP1_BOOTSTRAP_TOKEN=local-init-token \
 WP1_AUTH_TOKEN_SECRET=local-auth-secret \
 WP1_DATASOURCE_URL=jdbc:postgresql://localhost:5432/veri_agent \
 WP1_DATASOURCE_USERNAME=veri_agent \
@@ -95,15 +93,14 @@ mvn -pl platform-api spring-boot:run -Dspring-boot.run.profiles=db
 初始化首个管理员：
 
 ```bash
-curl -X POST http://127.0.0.1:8080/api/v1/bootstrap/super-admin \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "bootstrapToken": "local-init-token",
-    "username": "admin_user",
-    "password": "PlainPassword123",
-    "displayName": "平台管理员",
-    "email": "admin@example.com"
-  }'
+WP1_DATASOURCE_URL=jdbc:postgresql://localhost:5432/veri_agent \
+WP1_DATASOURCE_USERNAME=veri_agent \
+WP1_DATASOURCE_PASSWORD=veri_agent_dev \
+WP1_SUPER_ADMIN_USERNAME=admin_user \
+WP1_SUPER_ADMIN_PASSWORD=PlainPassword123 \
+WP1_SUPER_ADMIN_DISPLAY_NAME=SuperAdmin \
+WP1_SUPER_ADMIN_EMAIL=admin@example.com \
+bash scripts/wp1_seed_super_admin.sh
 ```
 
 创建项目、应用和应用专属环境：
@@ -292,7 +289,7 @@ bash db/validation/run_wp1_db_validation.sh
 `run_wp1_db_validation.sh` 会顺序执行 WP1/WP2/WP3/WP4 迁移，并额外运行 `wp_all_schema_validation.sql` 与 `wp4_document_input_validation.sql`，覆盖 WP4 文档输入表、字段、索引、状态约束、webhook 幂等唯一索引和单平台字段回归。
 
 ```bash
-WP1_BOOTSTRAP_TOKEN=local-init-token bash scripts/wp1_db_profile_smoke.sh
+bash scripts/wp1_db_profile_smoke.sh
 ```
 
 ```bash
@@ -339,7 +336,6 @@ bash scripts/wp4_ai_parse_quality_eval.sh
 ```
 
 ```bash
-WP1_BOOTSTRAP_TOKEN=local-init-token \
 WP2_SERVICE_TOKEN=local-model-access-token \
 WP3_SERVICE_TOKEN=local-asset-token \
 WP4_SERVICE_TOKEN=local-document-input-token \

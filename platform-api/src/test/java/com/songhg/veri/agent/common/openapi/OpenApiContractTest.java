@@ -20,7 +20,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest(properties = {
-        "veri-agent.bootstrap.token=init-token",
         "veri-agent.auth.token-secret=test-auth-secret"
 })
 @AutoConfigureMockMvc
@@ -37,7 +36,7 @@ class OpenApiContractTest {
                 .andExpect(jsonPath("$.info.version").value("0.1.0"))
                 .andExpect(jsonPath("$.components.securitySchemes.bearerAuth.type").value("http"))
                 .andExpect(jsonPath("$.components.securitySchemes.bearerAuth.scheme").value("bearer"))
-                .andExpect(jsonPath("$.paths['/api/v1/bootstrap/super-admin'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/bootstrap/super-admin']").doesNotExist())
                 .andExpect(jsonPath("$.paths['/api/v1/auth/login'].post").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/auth/refresh'].post").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/auth/logout'].post").exists())
@@ -169,7 +168,7 @@ class OpenApiContractTest {
 
     @Test
     void validationErrorsUseStandardEnvelopeAndFieldErrorShape() throws Exception {
-        mockMvc.perform(post("/api/v1/bootstrap/super-admin")
+        mockMvc.perform(post("/api/v1/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
                 .andExpect(status().isBadRequest())

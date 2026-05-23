@@ -23,7 +23,6 @@ import {
   ServerCog,
   Settings,
   ShieldCheck,
-  UserCog,
   UserPlus,
   UserMinus,
   UsersRound,
@@ -38,7 +37,6 @@ import {
   type CurrentUser,
   type LoginPayload
 } from './api/auth';
-import { bootstrapSuperAdmin, type BootstrapPayload, type BootstrapResult } from './api/bootstrap';
 import { ApiError, clearAuthToken, getAuthToken } from './api/client';
 import { fetchHealth, type HealthResult } from './api/health';
 import { AssetWorkbench } from './components/AssetWorkbench';
@@ -126,14 +124,6 @@ import {
   type UserLifecycleAction
 } from './permissions';
 
-const initialForm: BootstrapPayload = {
-  bootstrap_token: '',
-  username: '',
-  password: '',
-  display_name: '',
-  email: ''
-};
-
 const initialLoginForm: LoginPayload = {
   username: '',
   password: ''
@@ -163,11 +153,6 @@ const initialResetPasswordForm: ResetPasswordForm = {
   confirmPassword: ''
 };
 
-type SubmitState =
-  | { status: 'idle' }
-  | { status: 'success'; traceId: string; data: BootstrapResult }
-  | { status: 'error'; traceId: string; message: string; code: string; fields?: string[] };
-
 type LoginState =
   | { status: 'idle' }
   | { status: 'loading' }
@@ -191,8 +176,8 @@ const pages: PageDefinition[] = [
   {
     key: 'overview',
     label: '系统概览',
-    title: '平台初始化',
-    description: '创建首个 SuperAdmin，确认后端健康状态，建立 WP1 管理后台入口。',
+    title: '系统概览',
+    description: '查看平台健康状态、资源摘要和 WP1-WP4 控制台入口。',
     icon: LayoutDashboard
   },
   {
@@ -405,9 +390,6 @@ function navigateToPage(page: PageKey, setPage: (page: PageKey) => void) {
 
 export function App() {
   const [activePage, setActivePage] = useState<PageKey>(() => activePageFromHash());
-  const [form, setForm] = useState<BootstrapPayload>(initialForm);
-  const [submitting, setSubmitting] = useState(false);
-  const [submitState, setSubmitState] = useState<SubmitState>({ status: 'idle' });
   const [loginForm, setLoginForm] = useState<LoginPayload>(initialLoginForm);
   const [loginState, setLoginState] = useState<LoginState>({ status: 'idle' });
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
@@ -426,6 +408,7 @@ export function App() {
     loading: true
   });
   const visiblePages = useMemo(() => pages.filter((page) => canAccessPage(currentUser, page.key)), [currentUser]);
+  const passwordChangeRequired = Boolean(currentUser?.must_change_password);
 
   useEffect(() => {
     function syncPageFromHash() {
@@ -454,7 +437,7 @@ export function App() {
   }, []);
 
   const refreshManagementData = useCallback(async () => {
-    if (!getAuthToken() || !currentUser) {
+    if (!getAuthToken() || !currentUser || currentUser.must_change_password) {
       setManagementData(emptyManagementData);
       setManagementLoad({ loading: false });
       setAuditOutboxLoad({ loading: false });
@@ -474,7 +457,7 @@ export function App() {
   }, [currentUser]);
 
   const refreshAuditOutbox = useCallback(async (filters: AuditOutboxFilters = auditOutboxFilters) => {
-    if (!getAuthToken() || !currentUser) {
+    if (!getAuthToken() || !currentUser || currentUser.must_change_password) {
       setAuditOutboxLoad({ loading: false, error: '请先登录后再操作' });
       return;
     }
@@ -515,7 +498,7 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    if (!currentUser) {
+    if (!currentUser || currentUser.must_change_password) {
       setManagementData(emptyManagementData);
       setManagementLoad({ loading: false });
       setAuditOutboxLoad({ loading: false });
@@ -525,6 +508,13 @@ export function App() {
   }, [currentUser, refreshManagementData]);
 
   useEffect(() => {
+    if (currentUser?.must_change_password) {
+      setPasswordDialogOpen(true);
+      setPasswordDialogState({ status: 'idle' });
+    }
+  }, [currentUser?.must_change_password, currentUser?.user_id]);
+
+  useEffect(() => {
     if (!canAccessPage(currentUser, activePage)) {
       window.history.replaceState(null, '', '#overview');
       setActivePage('overview');
@@ -532,49 +522,6 @@ export function App() {
   }, [activePage, currentUser]);
 
   const activeDefinition = pages.find((page) => page.key === activePage) ?? pages[0];
-  const validationErrors = useMemo(() => validateForm(form), [form]);
-  const canSubmit = validationErrors.length === 0 && !submitting;
-
-  function updateField<K extends keyof BootstrapPayload>(key: K, value: BootstrapPayload[K]) {
-    setForm((current) => ({ ...current, [key]: value }));
-    setSubmitState({ status: 'idle' });
-  }
-
-  async function onSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (validationErrors.length > 0) {
-      setSubmitState({
-        status: 'error',
-        code: 'LOCAL_VALIDATION_ERROR',
-        message: '请先修正表单字段',
-        traceId: '',
-        fields: validationErrors
-      });
-      return;
-    }
-    setSubmitting(true);
-    try {
-      const response = await bootstrapSuperAdmin(form);
-      setSubmitState({ status: 'success', traceId: response.trace_id, data: response.data });
-      setForm((current) => ({ ...current, password: '', bootstrap_token: '' }));
-    } catch (error: unknown) {
-      if (error instanceof ApiError) {
-        const fields = error.detail?.field_errors?.map((item) => `${item.field}: ${item.reason}`);
-        setSubmitState({
-          status: 'error',
-          code: error.code,
-          message: error.message,
-          traceId: error.traceId,
-          fields
-        });
-      } else {
-        const message = error instanceof Error ? error.message : '初始化请求失败';
-        setSubmitState({ status: 'error', code: 'REQUEST_FAILED', message, traceId: '' });
-      }
-    } finally {
-      setSubmitting(false);
-    }
-  }
 
   async function onLogin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -616,6 +563,9 @@ export function App() {
     setAuditOutboxFilters({ status: '', traceId: '', search: '' });
     setAuditOutboxLoad({ loading: false });
     setLoginForm(initialLoginForm);
+    setPasswordDialogOpen(false);
+    setPasswordForm(initialPasswordForm);
+    setPasswordDialogState({ status: 'idle' });
   }
 
   async function onLogout() {
@@ -914,15 +864,8 @@ export function App() {
 
         {activePage === 'overview' ? (
           <OverviewPage
-            form={form}
             health={health}
             managementData={managementData}
-            canSubmit={canSubmit}
-            submitting={submitting}
-            submitState={submitState}
-            validationErrors={validationErrors}
-            onSubmit={onSubmit}
-            updateField={updateField}
           />
         ) : (
           <ModulePage
@@ -949,7 +892,8 @@ export function App() {
         <ChangePasswordDialog
           form={passwordForm}
           state={passwordDialogState}
-          onCancel={closePasswordDialog}
+          forced={passwordChangeRequired}
+          onCancel={passwordChangeRequired ? onLogout : closePasswordDialog}
           onSubmit={onChangePassword}
           updateField={(key, value) => {
             setPasswordForm((current) => ({ ...current, [key]: value }));
@@ -975,15 +919,8 @@ export function App() {
 }
 
 function OverviewPage(props: {
-  form: BootstrapPayload;
   health: { loading: boolean; traceId?: string; data?: HealthResult; error?: string };
   managementData: ManagementData;
-  canSubmit: boolean;
-  submitting: boolean;
-  submitState: SubmitState;
-  validationErrors: string[];
-  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
-  updateField: <K extends keyof BootstrapPayload>(key: K, value: BootstrapPayload[K]) => void;
 }) {
   return (
     <div className="overview-layout">
@@ -1015,76 +952,22 @@ function OverviewPage(props: {
       </section>
 
       <section className="content-grid">
-        <section className="panel init-panel" id="bootstrap">
+        <section className="panel module-panel">
           <div className="section-heading">
             <div className="section-icon">
-              <UserCog size={20} />
+              <ServerCog size={20} />
             </div>
             <div>
-              <h2>超级管理员初始化</h2>
-              <p>初始化入口只应在系统首次部署时使用，成功后重复提交会被后端拒绝。</p>
+              <h2>运行状态</h2>
+              <p>平台 API、资源摘要和审计入口当前状态。</p>
             </div>
           </div>
 
-          <form className="form-grid" onSubmit={props.onSubmit}>
-            <Field label="初始化令牌" htmlFor="bootstrap-token" required>
-              <input
-                id="bootstrap-token"
-                type="password"
-                autoComplete="off"
-                value={props.form.bootstrap_token}
-                onChange={(event) => props.updateField('bootstrap_token', event.target.value)}
-                placeholder="输入 WP1_BOOTSTRAP_TOKEN"
-              />
-            </Field>
-            <Field label="登录账号" htmlFor="username" required>
-              <input
-                id="username"
-                value={props.form.username}
-                onChange={(event) => props.updateField('username', event.target.value)}
-                placeholder="admin_user"
-              />
-            </Field>
-            <Field label="初始密码" htmlFor="password" required>
-              <input
-                id="password"
-                type="password"
-                autoComplete="new-password"
-                value={props.form.password}
-                onChange={(event) => props.updateField('password', event.target.value)}
-                placeholder="至少 10 位"
-              />
-            </Field>
-            <Field label="显示名称" htmlFor="display-name" required>
-              <input
-                id="display-name"
-                value={props.form.display_name}
-                onChange={(event) => props.updateField('display_name', event.target.value)}
-                placeholder="平台管理员"
-              />
-            </Field>
-            <Field label="邮箱" htmlFor="email">
-              <input
-                id="email"
-                type="email"
-                value={props.form.email}
-                onChange={(event) => props.updateField('email', event.target.value)}
-                placeholder="admin@example.com"
-              />
-            </Field>
-
-            {props.submitState.status !== 'idle' && <SubmitNotice state={props.submitState} />}
-
-            <div className="actions">
-              <button className="primary-button" type="submit" disabled={!props.canSubmit}>
-                <KeyRound size={17} />
-                {props.submitting ? '正在初始化' : '创建 SuperAdmin'}
-              </button>
-              {props.submitState.status !== 'success' && props.validationErrors.length > 0 && (
-                <span className="inline-hint">{props.validationErrors[0]}</span>
-              )}
-            </div>
-          </form>
+          <div className="status-list">
+            <StatusItem label="后端健康检查" value={props.health.data?.status ?? (props.health.loading ? '检查中' : '异常')} />
+            <StatusItem label="服务名称" value={props.health.data?.service ?? 'platform-api'} />
+            <StatusItem label="Trace ID" value={props.health.traceId ?? '等待响应'} compact />
+          </div>
         </section>
 
         <aside className="panel detail-panel">
@@ -3561,11 +3444,13 @@ function RoleBindingControls(props: {
 function ChangePasswordDialog(props: {
   form: PasswordForm;
   state: PasswordDialogState;
+  forced?: boolean;
   onCancel: () => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   updateField: <K extends keyof PasswordForm>(key: K, value: PasswordForm[K]) => void;
 }) {
   const submitting = props.state.status === 'submitting';
+  const title = props.forced ? '首次登录修改密码' : '修改密码';
 
   return (
     <div className="modal-backdrop" role="presentation">
@@ -3573,11 +3458,13 @@ function ChangePasswordDialog(props: {
         <div className="modal-heading">
           <div>
             <span className="eyebrow">Security</span>
-            <h2 id="change-password-title">修改密码</h2>
+            <h2 id="change-password-title">{title}</h2>
           </div>
-          <button className="icon-button" type="button" onClick={props.onCancel} aria-label="关闭" disabled={submitting}>
-            ×
-          </button>
+          {!props.forced && (
+            <button className="icon-button" type="button" onClick={props.onCancel} aria-label="关闭" disabled={submitting}>
+              ×
+            </button>
+          )}
         </div>
 
         <form className="modal-form" onSubmit={props.onSubmit}>
@@ -3622,7 +3509,7 @@ function ChangePasswordDialog(props: {
 
           <div className="modal-actions">
             <button className="secondary-button" type="button" onClick={props.onCancel} disabled={submitting}>
-              取消
+              {props.forced ? '退出登录' : '取消'}
             </button>
             <button className="primary-button" type="submit" disabled={submitting}>
               <KeyRound size={17} />
@@ -3806,30 +3693,6 @@ function StatusItem(props: { label: string; value: string; compact?: boolean }) 
   );
 }
 
-function SubmitNotice(props: { state: SubmitState }) {
-  if (props.state.status === 'success') {
-    return (
-      <div className="notice success">
-        <strong>初始化成功</strong>
-        <span>用户 ID：{props.state.data.user_id}</span>
-        <span>角色：{props.state.data.role}</span>
-        <span>Trace ID：{props.state.traceId}</span>
-      </div>
-    );
-  }
-  if (props.state.status === 'error') {
-    return (
-      <div className="notice error">
-        <strong>{props.state.code}</strong>
-        <span>{props.state.message}</span>
-        {props.state.traceId && <span>Trace ID：{props.state.traceId}</span>}
-        {props.state.fields?.map((field) => <span key={field}>{field}</span>)}
-      </div>
-    );
-  }
-  return null;
-}
-
 function StatusPill(props: { value: string }) {
   const normalized = props.value.toUpperCase();
   const positive = ['启用', '同步正常', '进行中', '已接入', '可用', '已连接', '成功', 'DONE', 'SUCCESS', 'UP'];
@@ -3855,14 +3718,4 @@ function isPrimitiveCell(cell: string | number | ReactNode): cell is string | nu
 
 function countByStatus(items: Array<{ status: string }>, status: string) {
   return items.filter((item) => item.status === status).length;
-}
-
-function validateForm(form: BootstrapPayload) {
-  const errors: string[] = [];
-  if (!form.bootstrap_token.trim()) errors.push('初始化令牌不能为空');
-  if (!/^[A-Za-z0-9_-]{3,64}$/.test(form.username)) errors.push('账号需为 3-64 位字母、数字、下划线或中划线');
-  if (form.password.length < 10) errors.push('初始密码至少 10 位');
-  if (!form.display_name.trim()) errors.push('显示名称不能为空');
-  if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) errors.push('邮箱格式不正确');
-  return errors;
 }

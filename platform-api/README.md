@@ -11,8 +11,8 @@ Implemented in this baseline:
 - `X-Trace-Id` request/response propagation and MDC logging field.
 - Global exception handling for validation, business, authentication, authorization, and unexpected errors.
 - Stateless Spring Security baseline with public health and example endpoints.
-- SuperAdmin bootstrap API in both `local` and `db` profiles with token validation and BCrypt password hashing.
-- Login, refresh-token rotation, logout/session revoke, and current-user APIs with a lightweight Bearer token baseline.
+- SuperAdmin is initialized by the DB seed script and must change password after first login.
+- Login, forced password change, refresh-token rotation, logout/session revoke, and current-user APIs with a lightweight Bearer token baseline.
 - WP1 management APIs for departments, users, user account lifecycle, projects, applications, environments, integrations, audit logs, and settings CRUD.
 - Formal project/application/environment request models in the `db` profile, covering create, detail, update, status transitions, project members, application owners, environment authorized users, resource-scoped role binding, codes, project/application ownership, sensitivity level, public-model policy, default URLs, environment type, and project/application environment scope.
 - RBAC permission checks on management APIs. The `local` profile resolves built-in role permissions in memory; the `db` profile resolves permissions from `rbac_role_permission` and applies resource-scope filtering to project, application, environment, audit, and settings views.
@@ -35,7 +35,6 @@ The default profile is `local`, so the service can start before a database is co
 To run local in-memory mode:
 
 ```bash
-WP1_BOOTSTRAP_TOKEN=local-init-token \
 WP1_AUTH_TOKEN_SECRET=local-auth-secret \
 mvn -pl platform-api spring-boot:run
 ```
@@ -47,7 +46,6 @@ docker compose -f infra/docker-compose.yml up -d postgres
 ```
 
 ```bash
-WP1_BOOTSTRAP_TOKEN=local-init-token \
 WP1_AUTH_TOKEN_SECRET=local-auth-secret \
 WP1_DATASOURCE_URL=jdbc:postgresql://localhost:5432/veri_agent \
 WP1_DATASOURCE_USERNAME=veri_agent \
@@ -63,19 +61,17 @@ Health endpoint:
 curl http://localhost:8080/api/v1/health
 ```
 
-Bootstrap the first local SuperAdmin:
+Seed the first SuperAdmin after Flyway migrations have created the WP1 tables and roles:
 
 ```bash
-WP1_BOOTSTRAP_TOKEN=local-init-token mvn -pl platform-api spring-boot:run
-curl -X POST http://localhost:8080/api/v1/bootstrap/super-admin \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "bootstrapToken": "local-init-token",
-    "username": "admin_user",
-    "password": "PlainPassword123",
-    "displayName": "平台管理员",
-    "email": "admin@example.com"
-  }'
+WP1_DATASOURCE_URL=jdbc:postgresql://localhost:5432/veri_agent \
+WP1_DATASOURCE_USERNAME=veri_agent \
+WP1_DATASOURCE_PASSWORD=veri_agent_dev \
+WP1_SUPER_ADMIN_USERNAME=admin_user \
+WP1_SUPER_ADMIN_PASSWORD=PlainPassword123 \
+WP1_SUPER_ADMIN_DISPLAY_NAME=SuperAdmin \
+WP1_SUPER_ADMIN_EMAIL=admin@example.com \
+bash scripts/wp1_seed_super_admin.sh
 ```
 
 Login and call a management API:
@@ -168,10 +164,10 @@ bash db/validation/run_wp1_db_validation.sh
 bash db/validation/run_wp2_db_validation.sh
 ```
 
-When the `db` profile service is already running, execute the HTTP smoke test. It covers SuperAdmin bootstrap/login, token rotation, formal project/application/environment create/detail/update/status DTOs, project member add/list/remove with project-scoped role binding, application owner add/list/remove with application-scoped role binding, environment user add/list/remove with environment-scoped role binding, settings CRUD/status, sensitive setting rejection, core management object create/list paths, resource-scope list filtering, structured audit filters, failed-login audit, RBAC denial, account lock/unlock, account lifecycle, password change, and logout:
+When the `db` profile service is already running, execute the HTTP smoke test. It covers SuperAdmin login and first-login password change, token rotation, formal project/application/environment create/detail/update/status DTOs, project member add/list/remove with project-scoped role binding, application owner add/list/remove with application-scoped role binding, environment user add/list/remove with environment-scoped role binding, settings CRUD/status, sensitive setting rejection, core management object create/list paths, resource-scope list filtering, structured audit filters, failed-login audit, RBAC denial, account lock/unlock, account lifecycle, password change, and logout:
 
 ```bash
-WP1_BOOTSTRAP_TOKEN=local-init-token bash scripts/wp_all_integration_test.sh
+bash scripts/wp_all_integration_test.sh
 ```
 
 The GitHub Actions workflow also runs a db-profile smoke job against PostgreSQL.

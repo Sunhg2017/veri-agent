@@ -149,7 +149,7 @@ mvn -pl platform-api test
 ```
 
 ```bash
-cd portal-web && npm run test -- auth.test.ts bootstrap.test.ts modelAccess.test.ts permissions.test.ts
+cd portal-web && npm run test -- auth.test.ts modelAccess.test.ts permissions.test.ts
 cd portal-web && npm run build
 ```
 

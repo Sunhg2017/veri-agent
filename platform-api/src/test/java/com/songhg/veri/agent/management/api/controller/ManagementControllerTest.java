@@ -1,6 +1,5 @@
 package com.songhg.veri.agent.management.api.controller;
 
-import com.jayway.jsonpath.JsonPath;
 import com.songhg.veri.agent.auth.application.AuthTokenService;
 import com.songhg.veri.agent.auth.domain.AuthUserRecord;
 import java.util.List;
@@ -12,7 +11,6 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.MvcResult;
 
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItems;
@@ -28,7 +26,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest(properties = {
-        "veri-agent.bootstrap.token=init-token",
         "veri-agent.auth.token-secret=test-auth-secret",
         "veri-agent.management.environment-connectivity-check-enabled=false"
 })
@@ -44,7 +41,7 @@ class ManagementControllerTest {
 
     @Test
     void readsManagementWorkspaceWithBearerToken() throws Exception {
-        String token = bootstrapAndLogin();
+        String token = superAdminToken();
 
         mockMvc.perform(get("/api/v1/management/departments")
                         .header("Authorization", "Bearer " + token))
@@ -76,7 +73,7 @@ class ManagementControllerTest {
 
     @Test
     void createsCoreManagementResourcesAndWritesAuditLog() throws Exception {
-        String token = bootstrapAndLogin();
+        String token = superAdminToken();
 
         mockMvc.perform(post("/api/v1/management/departments")
                         .header("Authorization", "Bearer " + token)
@@ -133,7 +130,7 @@ class ManagementControllerTest {
 
     @Test
     void exportsFilteredAuditLogsAsCsvAndWritesAuditLog() throws Exception {
-        String token = bootstrapAndLogin();
+        String token = superAdminToken();
 
         mockMvc.perform(post("/api/v1/management/departments")
                         .header("Authorization", "Bearer " + token)
@@ -159,7 +156,7 @@ class ManagementControllerTest {
 
     @Test
     void readsUpdatesAndChangesDepartmentStatus() throws Exception {
-        String token = bootstrapAndLogin();
+        String token = superAdminToken();
 
         mockMvc.perform(get("/api/v1/management/departments/质量工程中心")
                         .header("Authorization", "Bearer " + token))
@@ -191,7 +188,7 @@ class ManagementControllerTest {
 
     @Test
     void managesIntegrationConfigurationLifecycle() throws Exception {
-        String token = bootstrapAndLogin();
+        String token = superAdminToken();
 
         mockMvc.perform(post("/api/v1/management/integrations")
                         .header("Authorization", "Bearer " + token)
@@ -237,7 +234,7 @@ class ManagementControllerTest {
 
     @Test
     void managesSettingLifecycle() throws Exception {
-        String token = bootstrapAndLogin();
+        String token = superAdminToken();
 
         mockMvc.perform(post("/api/v1/management/settings")
                         .header("Authorization", "Bearer " + token)
@@ -310,7 +307,7 @@ class ManagementControllerTest {
 
     @Test
     void managesSecretReferencesWithoutLeakingPlaintext() throws Exception {
-        String token = bootstrapAndLogin();
+        String token = superAdminToken();
         String scopeId = UUID.randomUUID().toString();
 
         mockMvc.perform(post("/api/v1/management/secrets")
@@ -377,7 +374,7 @@ class ManagementControllerTest {
 
     @Test
     void readsAndUpdatesUserProfile() throws Exception {
-        String token = bootstrapAndLogin();
+        String token = superAdminToken();
 
         mockMvc.perform(post("/api/v1/management/users")
                         .header("Authorization", "Bearer " + token)
@@ -405,7 +402,7 @@ class ManagementControllerTest {
 
     @Test
     void acceptsFormalProjectApplicationAndEnvironmentCreatePayloads() throws Exception {
-        String token = bootstrapAndLogin();
+        String token = superAdminToken();
 
         mockMvc.perform(post("/api/v1/management/projects")
                         .header("Authorization", "Bearer " + token)
@@ -462,7 +459,7 @@ class ManagementControllerTest {
 
     @Test
     void managesProjectApplicationAndEnvironmentDetailUpdateAndStatus() throws Exception {
-        String token = bootstrapAndLogin();
+        String token = superAdminToken();
 
         mockMvc.perform(post("/api/v1/management/projects")
                         .header("Authorization", "Bearer " + token)
@@ -534,7 +531,7 @@ class ManagementControllerTest {
 
     @Test
     void checksEnvironmentConnectivityAndRejectsDisabledEnvironment() throws Exception {
-        String token = bootstrapAndLogin();
+        String token = superAdminToken();
 
         mockMvc.perform(post("/api/v1/management/environments")
                         .header("Authorization", "Bearer " + token)
@@ -579,7 +576,7 @@ class ManagementControllerTest {
 
     @Test
     void rejectsIllegalStatusTransitionsAndWritesStableErrors() throws Exception {
-        String token = bootstrapAndLogin();
+        String token = superAdminToken();
 
         mockMvc.perform(post("/api/v1/management/projects")
                         .header("Authorization", "Bearer " + token)
@@ -703,7 +700,7 @@ class ManagementControllerTest {
 
     @Test
     void managesProjectMembersAndScopedRoles() throws Exception {
-        String token = bootstrapAndLogin();
+        String token = superAdminToken();
 
         mockMvc.perform(post("/api/v1/management/users")
                         .header("Authorization", "Bearer " + token)
@@ -742,7 +739,7 @@ class ManagementControllerTest {
 
     @Test
     void managesApplicationOwnersAndEnvironmentUsers() throws Exception {
-        String token = bootstrapAndLogin();
+        String token = superAdminToken();
 
         mockMvc.perform(post("/api/v1/management/users")
                         .header("Authorization", "Bearer " + token)
@@ -809,7 +806,7 @@ class ManagementControllerTest {
 
     @Test
     void validatesAuditLogTimeRange() throws Exception {
-        String token = bootstrapAndLogin();
+        String token = superAdminToken();
 
         mockMvc.perform(get("/api/v1/management/audit-logs")
                         .param("startTime", "not-a-time")
@@ -827,7 +824,7 @@ class ManagementControllerTest {
 
     @Test
     void readsAuditOutboxWithStatusAndTraceFilters() throws Exception {
-        String token = bootstrapAndLogin();
+        String token = superAdminToken();
 
         mockMvc.perform(get("/api/v1/management/audit-outbox")
                         .header("Authorization", "Bearer " + token))
@@ -855,7 +852,7 @@ class ManagementControllerTest {
 
     @Test
     void managesUserLifecycleAndWritesAuditLog() throws Exception {
-        String token = bootstrapAndLogin();
+        String token = superAdminToken();
 
         mockMvc.perform(post("/api/v1/management/users")
                         .header("Authorization", "Bearer " + token)
@@ -913,7 +910,7 @@ class ManagementControllerTest {
 
     @Test
     void managesRoleCatalogAndUserRoleBindings() throws Exception {
-        String token = bootstrapAndLogin();
+        String token = superAdminToken();
 
         mockMvc.perform(get("/api/v1/management/roles")
                         .header("Authorization", "Bearer " + token))
@@ -1074,7 +1071,7 @@ class ManagementControllerTest {
 
     @Test
     void validatesCreateRequest() throws Exception {
-        String token = bootstrapAndLogin();
+        String token = superAdminToken();
 
         mockMvc.perform(post("/api/v1/management/environments")
                         .header("Authorization", "Bearer " + token)
@@ -1099,31 +1096,16 @@ class ManagementControllerTest {
                 .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
     }
 
-    private String bootstrapAndLogin() throws Exception {
-        mockMvc.perform(post("/api/v1/bootstrap/super-admin")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "bootstrapToken": "init-token",
-                                  "username": "admin_user",
-                                  "password": "PlainPassword123",
-                                  "displayName": "平台管理员",
-                                  "email": "admin@example.com"
-                                }
-                                """))
-                .andExpect(status().isOk());
-
-        MvcResult loginResult = mockMvc.perform(post("/api/v1/auth/login")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "username": "admin_user",
-                                  "password": "PlainPassword123"
-                                }
-                                """))
-                .andExpect(status().isOk())
-                .andReturn();
-
-        return JsonPath.read(loginResult.getResponse().getContentAsString(), "$.data.accessToken");
+    private String superAdminToken() {
+        return tokenService.issue(new AuthUserRecord(
+                UUID.randomUUID(),
+                "admin_user",
+                "平台管理员",
+                "admin@example.com",
+                "$2a$10$test",
+                false,
+                1,
+                List.of("SuperAdmin")
+        )).accessToken();
     }
 }

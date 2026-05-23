@@ -9,6 +9,8 @@ DB_NAME="${WP1_DB_VALIDATION_DB:-veri_agent_wp1_test}"
 DB_USER="${WP1_DB_VALIDATION_USER:-wp1user}"
 DB_PASSWORD="${WP1_DB_VALIDATION_PASSWORD:-wp1pass}"
 KEEP_CONTAINER="${WP1_KEEP_CONTAINER:-0}"
+SUPER_ADMIN_SEED_SQL="$ROOT_DIR/db/seed/wp1_super_admin.sql"
+SUPER_ADMIN_SEED_VALIDATION_SQL="$ROOT_DIR/db/validation/wp1_super_admin_seed_validation.sql"
 
 MIGRATIONS=()
 while IFS= read -r migration_file; do
@@ -84,6 +86,24 @@ run_migrations() {
     echo "== ${prefix}${file#"$ROOT_DIR/"} ==" | tee -a "$log_file"
     run_psql_file "$file" >> "$log_file" 2>&1
   done
+}
+
+run_super_admin_seed() {
+  local log_file="$1"
+  local prefix="$2"
+  echo "== ${prefix}db/seed/wp1_super_admin.sql ==" | tee -a "$log_file"
+  docker exec -i "$CONTAINER" psql -v ON_ERROR_STOP=1 -U "$DB_USER" -d "$DB_NAME" \
+    -v WP1_SUPER_ADMIN_USERNAME=admin \
+    -v 'WP1_SUPER_ADMIN_PASSWORD=AdminPass12345!' \
+    -v 'WP1_SUPER_ADMIN_DISPLAY_NAME=SuperAdmin' \
+    -v 'WP1_SUPER_ADMIN_EMAIL=admin@example.com' \
+    < "$SUPER_ADMIN_SEED_SQL" >> "$log_file" 2>&1
+}
+
+run_super_admin_seed_validation() {
+  local out_file="$1"
+  echo "== validating db/validation/wp1_super_admin_seed_validation.sql ==" > "$out_file"
+  run_psql_file "$SUPER_ADMIN_SEED_VALIDATION_SQL" >> "$out_file" 2>&1
 }
 
 apply_runtime_role_policy() {
@@ -201,12 +221,16 @@ main() {
 
   start_postgres
   run_migrations "$OUT_DIR/migration.log" "running "
+  run_super_admin_seed "$OUT_DIR/migration.log" "running "
   apply_runtime_role_policy "$OUT_DIR/migration.log"
   run_release_role_validation "$OUT_DIR/wp1_release_role_validation.out"
+  run_super_admin_seed_validation "$OUT_DIR/wp1_super_admin_seed_validation.out"
   run_validations "" "validating "
   run_migrations "$OUT_DIR/migration-rerun.log" "rerun "
+  run_super_admin_seed "$OUT_DIR/migration-rerun.log" "rerun "
   apply_runtime_role_policy "$OUT_DIR/migration-rerun.log"
   run_release_role_validation "$OUT_DIR/rerun-wp1_release_role_validation.out"
+  run_super_admin_seed_validation "$OUT_DIR/rerun-wp1_super_admin_seed_validation.out"
   run_validations "rerun-" "rerun validating "
   assert_no_failures
   assert_no_warnings

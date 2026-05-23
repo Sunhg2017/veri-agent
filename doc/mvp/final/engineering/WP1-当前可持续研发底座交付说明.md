@@ -38,7 +38,7 @@ mvn -pl platform-api test
 cd portal-web && npm run test
 cd portal-web && npm run build
 bash db/validation/run_wp1_db_validation.sh
-WP1_BOOTSTRAP_TOKEN=local-init-token bash scripts/wp1_db_profile_smoke.sh
+bash scripts/wp1_db_profile_smoke.sh
 ```
 
 当前验证结论：

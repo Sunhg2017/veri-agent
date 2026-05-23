@@ -13,6 +13,10 @@ All WP1-WP4 migrations currently live in `db/migration/wp1` because the MVP depl
 7. Later `wp1/V20260518_*` and `wp1/V20260520_*` migrations add WP2 hardening, WP3 assets, WP4 document input, and WP3 asset version history.
 8. `wp1/V20260522_026__wp2_prompt_review_approval.sql` adds WP2 high-risk Prompt review and approval metadata.
 
+## SuperAdmin Seed
+
+The first `SuperAdmin` is initialized by `db/seed/wp1_super_admin.sql` through `scripts/wp1_seed_super_admin.sh`, not by an HTTP or UI bootstrap endpoint. The script requires `WP1_SUPER_ADMIN_PASSWORD`, stores only a BCrypt hash, binds the `SuperAdmin` platform role, writes seed audit rows, and sets `must_change_password=true` so first login is forced through password change.
+
 ## Prerequisites
 
 - PostgreSQL 15+.

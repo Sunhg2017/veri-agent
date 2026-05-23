@@ -185,7 +185,7 @@ P0 权限点使用 `{resource}:{action}`：
 | 接口 | 状态 | 用途 | 请求字段 | 响应摘要 |
 |---|---|---|---|---|
 | `GET /api/v1/health` | 已实现 | 后端健康检查 | 无 | `status`、`timestamp`、`service` |
-| `POST /api/v1/bootstrap/super-admin` | 已实现 | 首次初始化 `SuperAdmin` | `bootstrapToken`、`username`、`password`、`displayName`、`email` | `userId`、`role`、`mustChangePassword` |
+| `db/seed/wp1_super_admin.sql` | 已实现 | 首次初始化 `SuperAdmin`，不提供页面/API 初始化入口 | psql 变量：`WP1_SUPER_ADMIN_USERNAME`、`WP1_SUPER_ADMIN_PASSWORD`、`WP1_SUPER_ADMIN_DISPLAY_NAME`、`WP1_SUPER_ADMIN_EMAIL` | 创建平台级 `SuperAdmin` 绑定，`mustChangePassword=true` |
 | `POST /api/v1/auth/login` | 已实现 | 用户登录 | `username`、`password` | `accessToken`、`tokenType`、`expiresAt`、用户摘要、角色 |
 | `GET /api/v1/auth/me` | 已实现 | 获取当前用户 | Bearer Token | 用户摘要、角色、账号状态 |
 | `GET /api/v1/management/departments` | 已实现 | 查询部门管理视图 | Bearer Token | `name`、`parent`、`lead`、`members`、`status` |

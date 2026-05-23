@@ -19,19 +19,6 @@ export interface HealthResponse {
   [key: string]: unknown;
 }
 
-export interface BootstrapPayload {
-  bootstrap_token: string;
-  username: string;
-  password: string;
-  display_name: string;
-  email: string;
-}
-
-export interface BootstrapResponse {
-  trace_id?: string;
-  [key: string]: unknown;
-}
-
 function getTraceId(headers: Headers, body: unknown): string | undefined {
   const bodyTraceId =
     body && typeof body === 'object' && 'trace_id' in body
@@ -116,17 +103,4 @@ export async function requestJson<T>(
 
 export function fetchHealth(): Promise<ApiResult<HealthResponse>> {
   return requestJson<HealthResponse>('/api/v1/health', undefined, '健康检查接口不可用');
-}
-
-export function bootstrapSuperAdmin(
-  payload: BootstrapPayload
-): Promise<ApiResult<BootstrapResponse>> {
-  return requestJson<BootstrapResponse>(
-    '/api/v1/bootstrap/super-admin',
-    {
-      method: 'POST',
-      body: JSON.stringify(payload)
-    },
-    '超级管理员初始化失败'
-  );
 }

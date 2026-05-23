@@ -289,7 +289,6 @@ button, input, select, textarea {
   box-shadow: var(--shadow-sm);
 }
 
-.init-panel,
 .module-panel {
   padding: 24px;
 }
@@ -3167,7 +3166,6 @@ tbody tr:hover td {
     padding: 16px;
   }
 
-  .init-panel,
   .module-panel {
     padding: 16px;
   }

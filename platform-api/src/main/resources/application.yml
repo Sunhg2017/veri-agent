@@ -34,10 +34,8 @@ mybatis:
   type-handlers-package: com.songhg.veri.agent.common.mybatis
 
 veri-agent:
-  bootstrap:
-    token: ${WP1_BOOTSTRAP_TOKEN:}
   auth:
-    token-secret: ${WP1_AUTH_TOKEN_SECRET:${WP1_BOOTSTRAP_TOKEN:}}
+    token-secret: ${WP1_AUTH_TOKEN_SECRET:}
     access-token-ttl-minutes: ${WP1_ACCESS_TOKEN_TTL_MINUTES:30}
     session-cleanup-enabled: ${WP1_SESSION_CLEANUP_ENABLED:true}
     session-cleanup-retention-seconds: ${WP1_SESSION_CLEANUP_RETENTION_SECONDS:86400}

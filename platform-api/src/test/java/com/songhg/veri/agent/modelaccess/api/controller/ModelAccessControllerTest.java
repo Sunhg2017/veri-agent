@@ -29,7 +29,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest(properties = {
-        "veri-agent.bootstrap.token=init-token",
         "veri-agent.auth.token-secret=test-auth-secret",
         "veri-agent.model-access.service-token=test-model-token",
         "veri-agent.model-access.default-model=test-local-model",
@@ -78,7 +77,7 @@ class ModelAccessControllerTest {
 
     @Test
     void allowsUserBearerTokenForModelAccessManagementRequests() throws Exception {
-        String token = bootstrapAndLogin();
+        String token = superAdminToken();
 
         mockMvc.perform(get("/api/v1/model-access/providers")
                         .header("Authorization", "Bearer " + token))
@@ -393,7 +392,7 @@ class ModelAccessControllerTest {
 
     @Test
     void requiresApprovalBeforeActivatingHighRiskPrompt() throws Exception {
-        String token = bootstrapAndLogin();
+        String token = superAdminToken();
 
         MvcResult createResult = mockMvc.perform(post("/api/v1/model-access/prompts")
                         .header("Authorization", "Bearer " + token)
@@ -443,7 +442,7 @@ class ModelAccessControllerTest {
 
     @Test
     void rejectedHighRiskPromptCanBeReviewedAgainBeforeActivation() throws Exception {
-        String token = bootstrapAndLogin();
+        String token = superAdminToken();
 
         MvcResult createResult = mockMvc.perform(post("/api/v1/model-access/prompts")
                         .header("Authorization", "Bearer " + token)
@@ -1060,32 +1059,17 @@ class ModelAccessControllerTest {
         return headers;
     }
 
-    private String bootstrapAndLogin() throws Exception {
-        mockMvc.perform(post("/api/v1/bootstrap/super-admin")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "bootstrapToken": "init-token",
-                                  "username": "admin_user",
-                                  "password": "PlainPassword123",
-                                  "displayName": "平台管理员",
-                                  "email": "admin@example.com"
-                                }
-                                """))
-                .andExpect(status().isOk());
-
-        MvcResult loginResult = mockMvc.perform(post("/api/v1/auth/login")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "username": "admin_user",
-                                  "password": "PlainPassword123"
-                                }
-                                """))
-                .andExpect(status().isOk())
-                .andReturn();
-
-        return JsonPath.read(loginResult.getResponse().getContentAsString(), "$.data.accessToken");
+    private String superAdminToken() {
+        return tokenService.issue(new AuthUserRecord(
+                UUID.randomUUID(),
+                "admin_user",
+                "平台管理员",
+                "admin@example.com",
+                "$2a$10$test",
+                false,
+                1,
+                List.of("SuperAdmin")
+        )).accessToken();
     }
 
     private String tokenForRole(String role) {
