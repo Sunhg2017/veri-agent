@@ -29,13 +29,11 @@ import com.songhg.veri.agent.documentinput.api.response.DocumentSourceHealthResp
 import com.songhg.veri.agent.documentinput.api.response.DocumentSourceResponse;
 import com.songhg.veri.agent.documentinput.api.response.DocumentWebhookEventResponse;
 import com.songhg.veri.agent.documentinput.api.response.FieldMappingResponse;
-import com.songhg.veri.agent.documentinput.api.response.ParsedRequirementResponse;
 import com.songhg.veri.agent.documentinput.config.DocumentInputProperties;
 import com.songhg.veri.agent.documentinput.domain.DocumentCandidateStatus;
 import com.songhg.veri.agent.documentinput.domain.DocumentFieldMapping;
 import com.songhg.veri.agent.documentinput.domain.DocumentImportRecord;
 import com.songhg.veri.agent.documentinput.domain.DocumentImportStatus;
-import com.songhg.veri.agent.documentinput.domain.DocumentParseFeedbackSample;
 import com.songhg.veri.agent.documentinput.domain.DocumentRequirementCandidate;
 import com.songhg.veri.agent.documentinput.domain.DocumentSourceConfig;
 import com.songhg.veri.agent.documentinput.domain.DocumentSourceStatus;
@@ -90,6 +88,7 @@ public class DocumentInputService {
     private final DocumentInputMetrics metrics;
     private final DocumentWebhookSecretResolver webhookSecretResolver;
     private final DocumentWebhookIngressGuard webhookIngressGuard;
+    private final DocumentInputResponseMapper responseMapper;
 
     public DocumentInputService(
             DocumentInputRepository repository,
@@ -119,6 +118,7 @@ public class DocumentInputService {
         this.metrics = metrics;
         this.webhookSecretResolver = webhookSecretResolver;
         this.webhookIngressGuard = webhookIngressGuard;
+        this.responseMapper = new DocumentInputResponseMapper(repository, objectMapper);
     }
 
     public int supportedSourceTypeCount() {
@@ -268,7 +268,9 @@ public class DocumentInputService {
     public PageResponse<DocumentImportResponse> imports(DocumentImportQuery query) {
         ensureInputEnabled();
         return PageResponse.of(
-                repository.imports(query).stream().map(record -> toImportResponse(record, List.of())).toList(),
+                repository.imports(query).stream()
+                        .map(record -> responseMapper.toImportResponse(record, List.of()))
+                        .toList(),
                 query.index(),
                 query.size(),
                 repository.countImports(query)
@@ -278,7 +280,7 @@ public class DocumentInputService {
     public DocumentImportResponse importRecord(UUID id) {
         ensureInputEnabled();
         return repository.importRecord(id)
-                .map(record -> toImportResponse(record, List.of()))
+                .map(record -> responseMapper.toImportResponse(record, List.of()))
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "导入记录不存在: " + id));
     }
 
@@ -288,7 +290,7 @@ public class DocumentInputService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "导入记录不存在: " + query.importId()));
         return PageResponse.of(
                 repository.candidates(query).stream()
-                        .map(DocumentInputService::toCandidateResponse)
+                        .map(responseMapper::toCandidateResponse)
                         .toList(),
                 query.index(),
                 query.size(),
@@ -299,7 +301,7 @@ public class DocumentInputService {
     public PageResponse<DocumentParseFeedbackSampleResponse> parseFeedbackSamples(DocumentParseFeedbackQuery query) {
         ensureInputEnabled();
         List<DocumentParseFeedbackSampleResponse> items = repository.parseFeedbackSamples(query).stream()
-                .map(this::toParseFeedbackSampleResponse)
+                .map(responseMapper::toParseFeedbackSampleResponse)
                 .toList();
         return PageResponse.of(
                 items,
@@ -342,7 +344,7 @@ public class DocumentInputService {
     public PageResponse<DocumentWebhookEventResponse> webhookEvents(DocumentWebhookEventQuery query) {
         ensureInputEnabled();
         return PageResponse.of(
-                repository.webhookEvents(query).stream().map(DocumentInputService::toWebhookEventResponse).toList(),
+                repository.webhookEvents(query).stream().map(responseMapper::toWebhookEventResponse).toList(),
                 query.index(),
                 query.size(),
                 repository.countWebhookEvents(query)
@@ -352,7 +354,7 @@ public class DocumentInputService {
     public DocumentWebhookEventResponse webhookEvent(UUID id) {
         ensureInputEnabled();
         return repository.webhookEvent(id)
-                .map(DocumentInputService::toWebhookEventResponse)
+                .map(responseMapper::toWebhookEventResponse)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "webhook 事件不存在: " + id));
     }
 
@@ -370,7 +372,7 @@ public class DocumentInputService {
             throw new BusinessException(ErrorCode.INVALID_STATE, "仅失败或死信 webhook 事件允许重放");
         }
         DocumentWebhookEvent replayed = processWebhookEvent(event, event.rawPayload(), true);
-        return toWebhookEventResponse(replayed);
+        return responseMapper.toWebhookEventResponse(replayed);
     }
 
     public DocumentImportResponse handleWebhook(
@@ -454,7 +456,7 @@ public class DocumentInputService {
                         null
                 );
                 repository.saveWebhookEvent(rejected);
-                writeAudit("WEBHOOK_REJECTED", "DOCUMENT_WEBHOOK_EVENT", rejected.id().toString(), source.defaultProjectId(), sanitizeWebhookEvent(rejected));
+                writeAudit("WEBHOOK_REJECTED", "DOCUMENT_WEBHOOK_EVENT", rejected.id().toString(), source.defaultProjectId(), responseMapper.sanitizeWebhookEvent(rejected));
                 metrics.recordWebhook(signatureStatus, WebhookEventStatus.REJECTED, null);
             }
             throw new BusinessException(ErrorCode.FORBIDDEN, webhookSignatureFailureMessage(signatureStatus));
@@ -483,7 +485,7 @@ public class DocumentInputService {
                     null
             );
             repository.saveWebhookEvent(rejected);
-            writeAudit("WEBHOOK_REJECTED", "DOCUMENT_WEBHOOK_EVENT", rejected.id().toString(), source.defaultProjectId(), sanitizeWebhookEvent(rejected));
+            writeAudit("WEBHOOK_REJECTED", "DOCUMENT_WEBHOOK_EVENT", rejected.id().toString(), source.defaultProjectId(), responseMapper.sanitizeWebhookEvent(rejected));
             metrics.recordWebhook(signatureStatus, WebhookEventStatus.REJECTED, null);
             throw new BusinessException(ErrorCode.VALIDATION_ERROR,
                     "webhook payload 超过上限: " + maxWebhookPayloadBytes() + " bytes。下一步：缩减单次事件 payload 或联系管理员调整 WP4_WEBHOOK_MAX_PAYLOAD_BYTES。");
@@ -556,7 +558,7 @@ public class DocumentInputService {
                 null
         );
         repository.saveWebhookEvent(rejected);
-        writeAudit("WEBHOOK_REJECTED", "DOCUMENT_WEBHOOK_EVENT", rejected.id().toString(), source.defaultProjectId(), sanitizeWebhookEvent(rejected));
+        writeAudit("WEBHOOK_REJECTED", "DOCUMENT_WEBHOOK_EVENT", rejected.id().toString(), source.defaultProjectId(), responseMapper.sanitizeWebhookEvent(rejected));
         metrics.recordWebhook(signatureStatus, WebhookEventStatus.REJECTED, null);
         throw new BusinessException(responseCode, responseMessage);
     }
@@ -625,7 +627,7 @@ public class DocumentInputService {
                     processedAt
             );
             repository.saveWebhookEvent(processed);
-            writeAudit(replay ? "WEBHOOK_REPLAY" : "WEBHOOK_PROCESSED", "DOCUMENT_WEBHOOK_EVENT", processed.id().toString(), projectId, sanitizeWebhookEvent(processed));
+            writeAudit(replay ? "WEBHOOK_REPLAY" : "WEBHOOK_PROCESSED", "DOCUMENT_WEBHOOK_EVENT", processed.id().toString(), projectId, responseMapper.sanitizeWebhookEvent(processed));
             return processed;
         } catch (BusinessException exception) {
             int retryCount = replay ? event.retryCount() + 1 : event.retryCount();
@@ -656,7 +658,7 @@ public class DocumentInputService {
             );
             repository.saveWebhookEvent(failed);
             writeAudit(failed.status() == WebhookEventStatus.DEAD_LETTER ? "WEBHOOK_DEAD_LETTER" : "WEBHOOK_FAILED",
-                    "DOCUMENT_WEBHOOK_EVENT", failed.id().toString(), projectId, sanitizeWebhookEvent(failed));
+                    "DOCUMENT_WEBHOOK_EVENT", failed.id().toString(), projectId, responseMapper.sanitizeWebhookEvent(failed));
             metrics.recordWebhook(failed.signatureStatus(), failed.status(), failed.eventType());
             throw exception;
         }
@@ -842,7 +844,7 @@ public class DocumentInputService {
             }
             writeAudit("IMPORT", "DOCUMENT_IMPORT", record.id().toString(), context.resourceId(), record);
             metrics.recordImport(sourceType, record.status(), parsed.size());
-            return toImportResponse(record, parsed);
+            return responseMapper.toImportResponse(record, parsed);
         } catch (BusinessException exception) {
             DocumentImportRecord failed = new DocumentImportRecord(
                     importId,
@@ -1120,17 +1122,6 @@ public class DocumentInputService {
         }
     }
 
-    private List<UUID> requirementIds(String json) {
-        if (!StringUtils.hasText(json)) {
-            return List.of();
-        }
-        try {
-            return objectMapper.readerForListOf(UUID.class).readValue(json);
-        } catch (Exception exception) {
-            return List.of();
-        }
-    }
-
     private String sha256(String value) {
         try {
             byte[] digest = MessageDigest.getInstance("SHA-256")
@@ -1160,164 +1151,6 @@ public class DocumentInputService {
             }
         }
         return current.isValueNode() ? current.asText() : current.toString();
-    }
-
-    private DocumentImportResponse toImportResponse(DocumentImportRecord record, List<ParsedRequirementDraft> requirements) {
-        List<DocumentRequirementCandidate> candidates = repository.candidates(record.id(), 0, 10000);
-        return new DocumentImportResponse(
-                record.id(),
-                record.projectId(),
-                record.sourceId(),
-                record.sourceCode(),
-                record.sourceType(),
-                record.sourceRef(),
-                record.sourceUrl(),
-                record.title(),
-                record.status(),
-                record.totalParsed(),
-                record.totalCreated(),
-                requirementIds(record.createdRequirementIds()),
-                requirements.stream().map(DocumentInputService::toRequirementResponse).toList(),
-                countCandidates(candidates, DocumentCandidateStatus.PENDING),
-                countCandidates(candidates, DocumentCandidateStatus.CONFIRMED),
-                countCandidates(candidates, DocumentCandidateStatus.PUBLISHED),
-                countCandidates(candidates, DocumentCandidateStatus.PUBLISH_FAILED),
-                record.errorMessage(),
-                record.createdAt(),
-                record.updatedAt()
-        );
-    }
-
-    private static long countCandidates(List<DocumentRequirementCandidate> candidates, DocumentCandidateStatus status) {
-        return candidates.stream().filter(candidate -> candidate.status() == status).count();
-    }
-
-    private static DocumentCandidateResponse toCandidateResponse(DocumentRequirementCandidate candidate) {
-        return new DocumentCandidateResponse(
-                candidate.id(),
-                candidate.importId(),
-                candidate.projectId(),
-                candidate.title(),
-                candidate.description(),
-                candidate.priority(),
-                candidate.acceptanceCriteria(),
-                candidate.tags(),
-                candidate.status(),
-                candidate.sourceRef(),
-                candidate.sourceFragment(),
-                candidate.externalRequirementId(),
-                candidate.confidence(),
-                candidate.parseSource(),
-                candidate.modelInvocationId(),
-                candidate.modelProviderName(),
-                candidate.modelName(),
-                candidate.assetRequirementId(),
-                candidate.errorMessage(),
-                candidate.ignoredReason(),
-                candidate.confirmedBy(),
-                candidate.confirmedAt(),
-                candidate.version(),
-                candidate.createdAt(),
-                candidate.updatedAt()
-        );
-    }
-
-    private DocumentParseFeedbackSampleResponse toParseFeedbackSampleResponse(DocumentParseFeedbackSample sample) {
-        return new DocumentParseFeedbackSampleResponse(
-                sample.id(),
-                sample.candidateId(),
-                sample.importId(),
-                sample.projectId(),
-                sample.sourceType(),
-                sample.inputDigest(),
-                sample.sourceRefDigest(),
-                sample.sourceFragmentDigest(),
-                sample.parseSource(),
-                sample.modelInvocationId(),
-                sample.modelProviderName(),
-                sample.modelName(),
-                sample.correctionType(),
-                sample.changedFields(),
-                feedbackSnapshotNode(sample.beforeSnapshotJson()),
-                feedbackSnapshotNode(sample.afterSnapshotJson()),
-                sample.curationStatus(),
-                sample.createdBy(),
-                sample.createdAt(),
-                sample.updatedAt()
-        );
-    }
-
-    private JsonNode feedbackSnapshotNode(String json) {
-        if (!StringUtils.hasText(json)) {
-            return objectMapper.createObjectNode();
-        }
-        try {
-            return objectMapper.readTree(json);
-        } catch (JsonProcessingException exception) {
-            return objectMapper.createObjectNode();
-        }
-    }
-
-    private static DocumentWebhookEventResponse toWebhookEventResponse(DocumentWebhookEvent event) {
-        return new DocumentWebhookEventResponse(
-                event.id(),
-                event.sourceId(),
-                event.importId(),
-                event.sourceCode(),
-                event.eventId(),
-                event.idempotencyKey(),
-                event.eventType(),
-                event.eventVersion(),
-                event.signatureStatus(),
-                event.status(),
-                event.payloadDigest(),
-                event.errorMessage(),
-                event.retryCount(),
-                event.replayBy(),
-                event.replayAt(),
-                event.replayTraceId(),
-                event.receivedAt(),
-                event.processedAt()
-        );
-    }
-
-    private static DocumentWebhookEvent sanitizeWebhookEvent(DocumentWebhookEvent event) {
-        return new DocumentWebhookEvent(
-                event.id(),
-                event.sourceId(),
-                event.importId(),
-                event.sourceCode(),
-                event.eventId(),
-                event.idempotencyKey(),
-                event.eventType(),
-                event.eventVersion(),
-                event.signatureStatus(),
-                event.status(),
-                event.payloadDigest(),
-                null,
-                event.errorMessage(),
-                event.retryCount(),
-                event.replayBy(),
-                event.replayAt(),
-                event.replayTraceId(),
-                event.receivedAt(),
-                event.processedAt()
-        );
-    }
-
-    private static ParsedRequirementResponse toRequirementResponse(ParsedRequirementDraft draft) {
-        return new ParsedRequirementResponse(
-                draft.title(),
-                draft.description(),
-                draft.priority(),
-                draft.acceptanceCriteria(),
-                draft.tags(),
-                draft.assetRequirementId(),
-                draft.parseSource(),
-                draft.modelInvocationId(),
-                draft.modelProviderName(),
-                draft.modelName()
-        );
     }
 
     private UUID firstNonNull(UUID first, UUID second) {
