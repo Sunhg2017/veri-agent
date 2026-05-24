@@ -1,5 +1,6 @@
 package com.songhg.veri.agent.management.infrastructure;
 
+import com.songhg.veri.agent.authorization.application.PermissionCodes;
 import com.songhg.veri.agent.auth.application.AuthUserPrincipal;
 import com.songhg.veri.agent.common.api.PageQuery;
 import com.songhg.veri.agent.common.api.PageResponse;
@@ -38,20 +39,20 @@ final class InMemoryManagementRoleService {
         seedPermissions();
         rolePermissions.put("SuperAdmin", permissionCodes());
         rolePermissions.put("PlatformAdmin", List.of(
-                "department:read", "department:create", "department:edit", "department:enable", "department:disable",
-                "department:member_manage", "user:read", "user:create", "user:edit", "user:enable", "user:disable",
-                "user:lock", "user:unlock", "user:assign_role", "role:read", "role:bind", "role:unbind",
-                "project:read", "project:create", "project:edit", "project:archive", "project:disable", "project:member_manage",
-                "application:read", "application:create", "application:edit", "application:disable", "application:owner_manage",
-                "environment:read", "environment:create", "environment:edit", "environment:disable", "environment:use",
-                "environment:user_manage", "config:read", "config:edit", "audit:read", "audit:export",
-                "secret:reference", "context:read", "context:switch", "context:effective_read"
+                PermissionCodes.DEPARTMENT_READ, PermissionCodes.DEPARTMENT_CREATE, PermissionCodes.DEPARTMENT_EDIT, PermissionCodes.DEPARTMENT_ENABLE, PermissionCodes.DEPARTMENT_DISABLE,
+                PermissionCodes.DEPARTMENT_MEMBER_MANAGE, PermissionCodes.USER_READ, PermissionCodes.USER_CREATE, PermissionCodes.USER_EDIT, PermissionCodes.USER_ENABLE, PermissionCodes.USER_DISABLE,
+                PermissionCodes.USER_LOCK, PermissionCodes.USER_UNLOCK, PermissionCodes.USER_ASSIGN_ROLE, PermissionCodes.ROLE_READ, PermissionCodes.ROLE_BIND, PermissionCodes.ROLE_UNBIND,
+                PermissionCodes.PROJECT_READ, PermissionCodes.PROJECT_CREATE, PermissionCodes.PROJECT_EDIT, PermissionCodes.PROJECT_ARCHIVE, PermissionCodes.PROJECT_DISABLE, PermissionCodes.PROJECT_MEMBER_MANAGE,
+                PermissionCodes.APPLICATION_READ, PermissionCodes.APPLICATION_CREATE, PermissionCodes.APPLICATION_EDIT, PermissionCodes.APPLICATION_DISABLE, PermissionCodes.APPLICATION_OWNER_MANAGE,
+                PermissionCodes.ENVIRONMENT_READ, PermissionCodes.ENVIRONMENT_CREATE, PermissionCodes.ENVIRONMENT_EDIT, PermissionCodes.ENVIRONMENT_DISABLE, PermissionCodes.ENVIRONMENT_USE,
+                PermissionCodes.ENVIRONMENT_USER_MANAGE, PermissionCodes.CONFIG_READ, PermissionCodes.CONFIG_EDIT, PermissionCodes.AUDIT_READ, PermissionCodes.AUDIT_EXPORT,
+                PermissionCodes.SECRET_REFERENCE, PermissionCodes.CONTEXT_READ, PermissionCodes.CONTEXT_SWITCH, PermissionCodes.CONTEXT_EFFECTIVE_READ
         ));
         rolePermissions.put("Tester", List.of(
-                "project:read", "application:read", "environment:read", "environment:use",
-                "config:read", "context:read", "context:switch", "context:effective_read",
-                "asset:read", "asset:manage", "asset:review",
-                "requirementInput:read", "requirementInput:import", "requirementInput:candidate_review"
+                PermissionCodes.PROJECT_READ, PermissionCodes.APPLICATION_READ, PermissionCodes.ENVIRONMENT_READ, PermissionCodes.ENVIRONMENT_USE,
+                PermissionCodes.CONFIG_READ, PermissionCodes.CONTEXT_READ, PermissionCodes.CONTEXT_SWITCH, PermissionCodes.CONTEXT_EFFECTIVE_READ,
+                PermissionCodes.ASSET_READ, PermissionCodes.ASSET_MANAGE, PermissionCodes.ASSET_REVIEW,
+                PermissionCodes.REQUIREMENT_INPUT_READ, PermissionCodes.REQUIREMENT_INPUT_IMPORT, PermissionCodes.REQUIREMENT_INPUT_CANDIDATE_REVIEW
         ));
     }
 
@@ -139,25 +140,7 @@ final class InMemoryManagementRoleService {
     }
 
     private void seedPermissions() {
-        List.of(
-                "role:read", "role:create", "role:edit", "role:bind", "role:unbind",
-                "audit:read", "audit:export", "audit:write_internal",
-                "context:read", "context:switch", "context:effective_read",
-                "department:read", "department:create", "department:edit", "department:enable", "department:disable",
-                "department:member_manage",
-                "user:read", "user:create", "user:edit", "user:enable", "user:disable", "user:lock", "user:unlock",
-                "user:assign_role", "user:reset_password",
-                "project:read", "project:create", "project:edit", "project:archive", "project:disable", "project:member_manage",
-                "application:read", "application:create", "application:edit", "application:disable", "application:owner_manage",
-                "environment:read", "environment:create", "environment:edit", "environment:disable", "environment:use",
-                "environment:user_manage",
-                "config:read", "config:edit",
-                "secret:reference", "secret:read", "secret:manage", "secret:rotate", "secret:disable",
-                "asset:read", "asset:manage", "asset:review", "asset:export",
-                "modelAccess:read", "modelAccess:manage", "modelAccess:export",
-                "requirementInput:read", "requirementInput:manage", "requirementInput:import",
-                "requirementInput:candidate_review", "requirementInput:publish", "requirementInput:webhook_replay"
-        ).forEach(code -> permissions.add(permission(code)));
+        PermissionCodes.ALL.forEach(code -> permissions.add(permission(code)));
     }
 
     private PermissionView permission(String code) {

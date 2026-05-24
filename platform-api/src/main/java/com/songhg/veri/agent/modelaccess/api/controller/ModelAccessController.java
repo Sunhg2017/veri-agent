@@ -1,5 +1,6 @@
 package com.songhg.veri.agent.modelaccess.api.controller;
 
+import com.songhg.veri.agent.authorization.application.PermissionCodes;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.songhg.veri.agent.auth.application.AuthUserPrincipal;
 import com.songhg.veri.agent.authorization.application.AuthorizationService;
@@ -63,9 +64,6 @@ import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBo
 @RequestMapping("/api/v1/model-access")
 public class ModelAccessController {
 
-    private static final String READ_PERMISSION = "modelAccess:read";
-    private static final String MANAGE_PERMISSION = "modelAccess:manage";
-    private static final String EXPORT_PERMISSION = "modelAccess:export";
     private static final int STREAM_CHUNK_CODE_POINTS = 48;
 
     private final ModelAccessService service;
@@ -111,20 +109,20 @@ public class ModelAccessController {
     }
 
     @GetMapping("/providers")
-    @RequirePermission(READ_PERMISSION)
+    @RequirePermission(PermissionCodes.MODEL_ACCESS_READ)
     public List<ModelProviderConfig> providers() {
         return service.providers();
     }
 
     @PostMapping("/providers")
     @ResponseStatus(HttpStatus.CREATED)
-    @RequirePermission(MANAGE_PERMISSION)
+    @RequirePermission(PermissionCodes.MODEL_ACCESS_MANAGE)
     public ModelProviderConfig createProvider(@Valid @RequestBody CreateProviderRequest request) {
         return service.createProvider(apiMapper.toCommand(request));
     }
 
     @PutMapping("/providers/{id}")
-    @RequirePermission(MANAGE_PERMISSION)
+    @RequirePermission(PermissionCodes.MODEL_ACCESS_MANAGE)
     public ModelProviderConfig updateProvider(
             @PathVariable UUID id,
             @Valid @RequestBody UpdateProviderRequest request
@@ -133,44 +131,44 @@ public class ModelAccessController {
     }
 
     @PostMapping("/providers/{id}/enable")
-    @RequirePermission(MANAGE_PERMISSION)
+    @RequirePermission(PermissionCodes.MODEL_ACCESS_MANAGE)
     public ModelProviderConfig enableProvider(@PathVariable UUID id) {
         return service.setProviderStatus(id, ProviderStatus.ENABLED);
     }
 
     @PostMapping("/providers/{id}/disable")
-    @RequirePermission(MANAGE_PERMISSION)
+    @RequirePermission(PermissionCodes.MODEL_ACCESS_MANAGE)
     public ModelProviderConfig disableProvider(@PathVariable UUID id) {
         return service.setProviderStatus(id, ProviderStatus.DISABLED);
     }
 
     @PostMapping("/providers/{id}/check")
-    @RequirePermission(MANAGE_PERMISSION)
+    @RequirePermission(PermissionCodes.MODEL_ACCESS_MANAGE)
     public ProviderCheckResponse checkProvider(@PathVariable UUID id) {
         return apiMapper.toResponse(service.checkProvider(id));
     }
 
     @GetMapping("/providers/{id}/resilience")
-    @RequirePermission(READ_PERMISSION)
+    @RequirePermission(PermissionCodes.MODEL_ACCESS_READ)
     public ProviderResilienceResponse providerResilience(@PathVariable UUID id) {
         return apiMapper.toResponse(service.providerResilience(id));
     }
 
     @PostMapping("/providers/{id}/circuit/reset")
-    @RequirePermission(MANAGE_PERMISSION)
+    @RequirePermission(PermissionCodes.MODEL_ACCESS_MANAGE)
     public ProviderResilienceResponse resetProviderCircuit(@PathVariable UUID id) {
         return apiMapper.toResponse(service.resetProviderCircuit(id));
     }
 
     @GetMapping("/prompts")
-    @RequirePermission(READ_PERMISSION)
+    @RequirePermission(PermissionCodes.MODEL_ACCESS_READ)
     public List<PromptTemplate> prompts(@RequestParam(required = false) String promptKey) {
         return service.prompts(promptKey);
     }
 
     @PostMapping("/prompts")
     @ResponseStatus(HttpStatus.CREATED)
-    @RequirePermission(MANAGE_PERMISSION)
+    @RequirePermission(PermissionCodes.MODEL_ACCESS_MANAGE)
     public PromptTemplate createPrompt(@Valid @RequestBody CreatePromptRequest request) {
         AuthUserPrincipal actor = authorizationService.currentUserPrincipal();
         PromptTemplate prompt = service.createPrompt(apiMapper.toCommand(request));
@@ -181,7 +179,7 @@ public class ModelAccessController {
     }
 
     @PostMapping("/prompts/{id}/activate")
-    @RequirePermission(MANAGE_PERMISSION)
+    @RequirePermission(PermissionCodes.MODEL_ACCESS_MANAGE)
     public PromptTemplate activatePrompt(@PathVariable UUID id) {
         AuthUserPrincipal actor = authorizationService.currentUserPrincipal();
         PromptTemplate prompt = service.activatePrompt(id);
@@ -190,7 +188,7 @@ public class ModelAccessController {
     }
 
     @PostMapping("/prompts/{id}/approve")
-    @RequirePermission(MANAGE_PERMISSION)
+    @RequirePermission(PermissionCodes.MODEL_ACCESS_MANAGE)
     public PromptTemplate approvePrompt(
             @PathVariable UUID id,
             @Valid @RequestBody(required = false) ReviewPromptRequest request
@@ -202,7 +200,7 @@ public class ModelAccessController {
     }
 
     @PostMapping("/prompts/{id}/reject")
-    @RequirePermission(MANAGE_PERMISSION)
+    @RequirePermission(PermissionCodes.MODEL_ACCESS_MANAGE)
     public PromptTemplate rejectPrompt(
             @PathVariable UUID id,
             @Valid @RequestBody(required = false) ReviewPromptRequest request
@@ -214,7 +212,7 @@ public class ModelAccessController {
     }
 
     @PostMapping("/invocations")
-    @RequirePermission(MANAGE_PERMISSION)
+    @RequirePermission(PermissionCodes.MODEL_ACCESS_MANAGE)
     public InvokeModelResponse invoke(
             @Valid @RequestBody InvokeModelRequest request
     ) {
@@ -229,7 +227,7 @@ public class ModelAccessController {
                     + " delta 包含 index、content；done 包含 invocationId、finishReason。错误响应仍使用标准 JSON error envelope。"
     )
     @ApiResponse(responseCode = "200", description = "SSE event stream: metadata, delta, done")
-    @RequirePermission(MANAGE_PERMISSION)
+    @RequirePermission(PermissionCodes.MODEL_ACCESS_MANAGE)
     public ResponseEntity<StreamingResponseBody> invokeStream(
             @Valid @RequestBody InvokeModelRequest request
     ) {
@@ -263,7 +261,7 @@ public class ModelAccessController {
             description = "复用同步 invocation 的请求体、策略、预算、供应商调用和调用日志链路；返回持久化 jobId，可查询或 best-effort 取消。"
     )
     @ApiResponse(responseCode = "202", description = "异步任务已提交，状态为 QUEUED/RUNNING/SUCCEEDED/FAILED/CANCELLED")
-    @RequirePermission(MANAGE_PERMISSION)
+    @RequirePermission(PermissionCodes.MODEL_ACCESS_MANAGE)
     public ResponseEntity<ModelInvocationJobResponse> submitInvocationJob(
             @Valid @RequestBody InvokeModelRequest request
     ) {
@@ -277,7 +275,7 @@ public class ModelAccessController {
             summary = "查询异步模型调用任务",
             description = "返回 job 状态、时间戳、关联 invocationId、错误摘要和成功响应。job 状态和结果持久化保存，服务重启后仍可查询。"
     )
-    @RequirePermission(MANAGE_PERMISSION)
+    @RequirePermission(PermissionCodes.MODEL_ACCESS_MANAGE)
     public ModelInvocationJobResponse invocationJob(@PathVariable UUID jobId) {
         invocationPrincipal();
         return apiMapper.toResponse(jobService.get(jobId));
@@ -288,14 +286,14 @@ public class ModelAccessController {
             summary = "取消异步模型调用任务",
             description = "对未开始任务可稳定取消；运行中任务会 best-effort interrupt，若已完成则返回当前终态。"
     )
-    @RequirePermission(MANAGE_PERMISSION)
+    @RequirePermission(PermissionCodes.MODEL_ACCESS_MANAGE)
     public ModelInvocationJobResponse cancelInvocationJob(@PathVariable UUID jobId) {
         invocationPrincipal();
         return apiMapper.toResponse(jobService.cancel(jobId));
     }
 
     @GetMapping("/invocations")
-    @RequirePermission(READ_PERMISSION)
+    @RequirePermission(PermissionCodes.MODEL_ACCESS_READ)
     public PageResponse<InvocationRecord> invocations(
             @Valid InvocationPageRequest pageRequest
     ) {
@@ -303,7 +301,7 @@ public class ModelAccessController {
     }
 
     @GetMapping("/invocations/summary")
-    @RequirePermission(READ_PERMISSION)
+    @RequirePermission(PermissionCodes.MODEL_ACCESS_READ)
     public InvocationSummaryResponse invocationSummary(
             InvocationPageRequest pageRequest
     ) {
@@ -311,7 +309,7 @@ public class ModelAccessController {
     }
 
     @GetMapping(value = "/invocations/export", produces = "text/csv")
-    @RequirePermission(EXPORT_PERMISSION)
+    @RequirePermission(PermissionCodes.MODEL_ACCESS_EXPORT)
     public ResponseEntity<StreamingResponseBody> exportInvocations(
             InvocationPageRequest pageRequest
     ) {
@@ -326,7 +324,7 @@ public class ModelAccessController {
     }
 
     @GetMapping("/cost/alerts")
-    @RequirePermission(READ_PERMISSION)
+    @RequirePermission(PermissionCodes.MODEL_ACCESS_READ)
     public List<CostAlertResponse> costAlerts(
             @RequestParam(required = false) String projectId,
             @RequestParam(required = false) String actorService
@@ -335,7 +333,7 @@ public class ModelAccessController {
     }
 
     @GetMapping("/cost/report")
-    @RequirePermission(READ_PERMISSION)
+    @RequirePermission(PermissionCodes.MODEL_ACCESS_READ)
     public CostReportResponse costReport(
             @RequestParam(required = false) LocalDate startDate,
             @RequestParam(required = false) LocalDate endDate,
@@ -353,7 +351,7 @@ public class ModelAccessController {
         if (principal != null) {
             return new ServicePrincipal("model-access-console", principal.userId().toString());
         }
-        throw new PlatformAccessDeniedException(MANAGE_PERMISSION);
+        throw new PlatformAccessDeniedException(PermissionCodes.MODEL_ACCESS_MANAGE);
     }
 
     private void auditPromptActivation(AuthUserPrincipal actor, PromptTemplate prompt, String action) {

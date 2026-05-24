@@ -49,6 +49,13 @@ public class RequirePermissionAspect {
         }
     }
 
+    @Before("@annotation(requirePermissions)")
+    public void requirePermissions(JoinPoint joinPoint, RequirePermissions requirePermissions) {
+        for (RequirePermission requirePermission : requirePermissions.value()) {
+            requirePermission(joinPoint, requirePermission);
+        }
+    }
+
     private List<ResourceScope> resolveScopes(JoinPoint joinPoint, RequirePermission requirePermission) {
         Object value = expressionParser.parseExpression(requirePermission.scope())
                 .getValue(evaluationContext(joinPoint));

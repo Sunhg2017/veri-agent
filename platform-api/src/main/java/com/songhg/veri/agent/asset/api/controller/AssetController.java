@@ -1,5 +1,6 @@
 package com.songhg.veri.agent.asset.api.controller;
 
+import com.songhg.veri.agent.authorization.application.PermissionCodes;
 import com.songhg.veri.agent.asset.application.AssetListRequest;
 import com.songhg.veri.agent.asset.application.AssetExportRequest;
 import com.songhg.veri.agent.asset.application.AssetImportRequest;
@@ -60,9 +61,6 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/v1/asset")
 public class AssetController {
 
-    private static final String ASSET_READ = "asset:read";
-    private static final String ASSET_MANAGE = "asset:manage";
-    private static final String ASSET_EXPORT = "asset:export";
     private static final String PROJECT_REQUEST_SCOPE = "@assetPermissionScopeResolver.project(#request.projectId())";
     private static final String PROJECT_QUERY_SCOPE = "@assetPermissionScopeResolver.project(#projectId)";
     private static final String ASSET_LIST_SCOPE = "@assetPermissionScopeResolver.assetList(#request)";
@@ -95,13 +93,13 @@ public class AssetController {
     }
 
     @PostMapping("/imports")
-    @RequirePermission(value = ASSET_MANAGE, scope = PROJECT_REQUEST_SCOPE)
+    @RequirePermission(value = PermissionCodes.ASSET_MANAGE, scope = PROJECT_REQUEST_SCOPE)
     public AssetImportResponse importAssets(@Valid @RequestBody AssetImportRequest request) {
         return importExportService.importAssets(request);
     }
 
     @GetMapping("/exports")
-    @RequirePermission(value = ASSET_EXPORT, scope = ASSET_LIST_SCOPE)
+    @RequirePermission(value = PermissionCodes.ASSET_EXPORT, scope = ASSET_LIST_SCOPE)
     public ResponseEntity<byte[]> exportAssets(@Valid AssetExportRequest request) {
         AssetExportPayload payload = importExportService.exportAssets(request);
         return ResponseEntity.ok()
@@ -111,13 +109,13 @@ public class AssetController {
     }
 
     @PostMapping("/prototype-sync")
-    @RequirePermission(value = ASSET_MANAGE, scope = PROJECT_REQUEST_SCOPE)
+    @RequirePermission(value = PermissionCodes.ASSET_MANAGE, scope = PROJECT_REQUEST_SCOPE)
     public AssetPrototypeSyncResponse syncPrototypePages(@Valid @RequestBody AssetPrototypeSyncRequest request) {
         return prototypeSyncService.syncPrototypePages(request);
     }
 
     @GetMapping("/impact")
-    @RequirePermission(value = ASSET_READ, scope = PROJECT_QUERY_SCOPE)
+    @RequirePermission(value = PermissionCodes.ASSET_READ, scope = PROJECT_QUERY_SCOPE)
     public AssetImpactAnalysisResponse analyzeImpact(
             @RequestParam String projectId,
             @RequestParam(required = false) String assetType,
@@ -129,7 +127,7 @@ public class AssetController {
     // ---- Requirements ----
 
     @GetMapping("/requirements")
-    @RequirePermission(value = ASSET_READ, scope = ASSET_LIST_SCOPE)
+    @RequirePermission(value = PermissionCodes.ASSET_READ, scope = ASSET_LIST_SCOPE)
     public com.songhg.veri.agent.common.api.PageResponse<RequirementResponse> listRequirements(
             @Valid AssetListRequest request
     ) {
@@ -138,25 +136,25 @@ public class AssetController {
 
     @PostMapping("/requirements")
     @ResponseStatus(HttpStatus.CREATED)
-    @RequirePermission(value = ASSET_MANAGE, scope = PROJECT_REQUEST_SCOPE)
+    @RequirePermission(value = PermissionCodes.ASSET_MANAGE, scope = PROJECT_REQUEST_SCOPE)
     public RequirementResponse createRequirement(@Valid @RequestBody CreateRequirementRequest request) {
         return service.createRequirement(request);
     }
 
     @GetMapping("/requirements/{id}")
-    @RequirePermission(value = ASSET_READ, scope = REQUIREMENT_SCOPE)
+    @RequirePermission(value = PermissionCodes.ASSET_READ, scope = REQUIREMENT_SCOPE)
     public RequirementResponse getRequirement(@PathVariable UUID id) {
         return service.getRequirement(id);
     }
 
     @GetMapping("/requirements/{id}/lifecycle")
-    @RequirePermission(value = ASSET_READ, scope = REQUIREMENT_SCOPE)
+    @RequirePermission(value = PermissionCodes.ASSET_READ, scope = REQUIREMENT_SCOPE)
     public RequirementResponse getRequirementLifecycle(@PathVariable UUID id) {
         return service.getRequirementIncludingInactive(id);
     }
 
     @PutMapping("/requirements/{id}")
-    @RequirePermission(value = ASSET_MANAGE, scope = REQUIREMENT_SCOPE)
+    @RequirePermission(value = PermissionCodes.ASSET_MANAGE, scope = REQUIREMENT_SCOPE)
     public RequirementResponse updateRequirement(
             @PathVariable UUID id,
             @Valid @RequestBody UpdateRequirementRequest request
@@ -165,7 +163,7 @@ public class AssetController {
     }
 
     @PatchMapping("/requirements/{id}/lifecycle")
-    @RequirePermission(value = ASSET_MANAGE, scope = REQUIREMENT_SCOPE)
+    @RequirePermission(value = PermissionCodes.ASSET_MANAGE, scope = REQUIREMENT_SCOPE)
     public RequirementResponse updateRequirementLifecycle(
             @PathVariable UUID id,
             @Valid @RequestBody UpdateAssetLifecycleRequest request
@@ -174,13 +172,13 @@ public class AssetController {
     }
 
     @GetMapping("/requirements/{id}/versions")
-    @RequirePermission(value = ASSET_READ, scope = REQUIREMENT_SCOPE)
+    @RequirePermission(value = PermissionCodes.ASSET_READ, scope = REQUIREMENT_SCOPE)
     public List<AssetVersionHistoryResponse> requirementVersions(@PathVariable UUID id) {
         return service.requirementVersions(id);
     }
 
     @PostMapping("/requirements/{id}/versions/{version}/rollback")
-    @RequirePermission(value = ASSET_MANAGE, scope = REQUIREMENT_SCOPE)
+    @RequirePermission(value = PermissionCodes.ASSET_MANAGE, scope = REQUIREMENT_SCOPE)
     public RequirementResponse rollbackRequirementVersion(
             @PathVariable UUID id,
             @PathVariable int version,
@@ -192,7 +190,7 @@ public class AssetController {
     // ---- APIs ----
 
     @GetMapping("/apis")
-    @RequirePermission(value = ASSET_READ, scope = ASSET_LIST_SCOPE)
+    @RequirePermission(value = PermissionCodes.ASSET_READ, scope = ASSET_LIST_SCOPE)
     public com.songhg.veri.agent.common.api.PageResponse<ApiResponseDTO> listApis(
             @Valid AssetListRequest request
     ) {
@@ -201,25 +199,25 @@ public class AssetController {
 
     @PostMapping("/apis")
     @ResponseStatus(HttpStatus.CREATED)
-    @RequirePermission(value = ASSET_MANAGE, scope = PROJECT_REQUEST_SCOPE)
+    @RequirePermission(value = PermissionCodes.ASSET_MANAGE, scope = PROJECT_REQUEST_SCOPE)
     public ApiResponseDTO createApi(@Valid @RequestBody CreateApiRequest request) {
         return service.createApi(request);
     }
 
     @GetMapping("/apis/{id}")
-    @RequirePermission(value = ASSET_READ, scope = API_SCOPE)
+    @RequirePermission(value = PermissionCodes.ASSET_READ, scope = API_SCOPE)
     public ApiResponseDTO getApi(@PathVariable UUID id) {
         return service.getApi(id);
     }
 
     @GetMapping("/apis/{id}/lifecycle")
-    @RequirePermission(value = ASSET_READ, scope = API_SCOPE)
+    @RequirePermission(value = PermissionCodes.ASSET_READ, scope = API_SCOPE)
     public ApiResponseDTO getApiLifecycle(@PathVariable UUID id) {
         return service.getApiIncludingInactive(id);
     }
 
     @PutMapping("/apis/{id}")
-    @RequirePermission(value = ASSET_MANAGE, scope = API_SCOPE)
+    @RequirePermission(value = PermissionCodes.ASSET_MANAGE, scope = API_SCOPE)
     public ApiResponseDTO updateApi(
             @PathVariable UUID id,
             @Valid @RequestBody UpdateApiRequest request
@@ -228,7 +226,7 @@ public class AssetController {
     }
 
     @PatchMapping("/apis/{id}/lifecycle")
-    @RequirePermission(value = ASSET_MANAGE, scope = API_SCOPE)
+    @RequirePermission(value = PermissionCodes.ASSET_MANAGE, scope = API_SCOPE)
     public ApiResponseDTO updateApiLifecycle(
             @PathVariable UUID id,
             @Valid @RequestBody UpdateAssetLifecycleRequest request
@@ -239,7 +237,7 @@ public class AssetController {
     // ---- Pages ----
 
     @GetMapping("/pages")
-    @RequirePermission(value = ASSET_READ, scope = ASSET_LIST_SCOPE)
+    @RequirePermission(value = PermissionCodes.ASSET_READ, scope = ASSET_LIST_SCOPE)
     public com.songhg.veri.agent.common.api.PageResponse<PageResponse> listPages(
             @Valid AssetListRequest request
     ) {
@@ -248,25 +246,25 @@ public class AssetController {
 
     @PostMapping("/pages")
     @ResponseStatus(HttpStatus.CREATED)
-    @RequirePermission(value = ASSET_MANAGE, scope = PROJECT_REQUEST_SCOPE)
+    @RequirePermission(value = PermissionCodes.ASSET_MANAGE, scope = PROJECT_REQUEST_SCOPE)
     public PageResponse createPage(@Valid @RequestBody CreatePageRequest request) {
         return service.createPage(request);
     }
 
     @GetMapping("/pages/{id}")
-    @RequirePermission(value = ASSET_READ, scope = PAGE_SCOPE)
+    @RequirePermission(value = PermissionCodes.ASSET_READ, scope = PAGE_SCOPE)
     public PageResponse getPage(@PathVariable UUID id) {
         return service.getPage(id);
     }
 
     @GetMapping("/pages/{id}/lifecycle")
-    @RequirePermission(value = ASSET_READ, scope = PAGE_SCOPE)
+    @RequirePermission(value = PermissionCodes.ASSET_READ, scope = PAGE_SCOPE)
     public PageResponse getPageLifecycle(@PathVariable UUID id) {
         return service.getPageIncludingInactive(id);
     }
 
     @PutMapping("/pages/{id}")
-    @RequirePermission(value = ASSET_MANAGE, scope = PAGE_SCOPE)
+    @RequirePermission(value = PermissionCodes.ASSET_MANAGE, scope = PAGE_SCOPE)
     public PageResponse updatePage(
             @PathVariable UUID id,
             @Valid @RequestBody UpdatePageRequest request
@@ -275,7 +273,7 @@ public class AssetController {
     }
 
     @PatchMapping("/pages/{id}/lifecycle")
-    @RequirePermission(value = ASSET_MANAGE, scope = PAGE_SCOPE)
+    @RequirePermission(value = PermissionCodes.ASSET_MANAGE, scope = PAGE_SCOPE)
     public PageResponse updatePageLifecycle(
             @PathVariable UUID id,
             @Valid @RequestBody UpdateAssetLifecycleRequest request
@@ -286,7 +284,7 @@ public class AssetController {
     // ---- Business Flows ----
 
     @GetMapping("/business-flows")
-    @RequirePermission(value = ASSET_READ, scope = ASSET_LIST_SCOPE)
+    @RequirePermission(value = PermissionCodes.ASSET_READ, scope = ASSET_LIST_SCOPE)
     public com.songhg.veri.agent.common.api.PageResponse<BusinessFlowResponse> listBusinessFlows(
             @Valid AssetListRequest request
     ) {
@@ -295,25 +293,25 @@ public class AssetController {
 
     @PostMapping("/business-flows")
     @ResponseStatus(HttpStatus.CREATED)
-    @RequirePermission(value = ASSET_MANAGE, scope = PROJECT_REQUEST_SCOPE)
+    @RequirePermission(value = PermissionCodes.ASSET_MANAGE, scope = PROJECT_REQUEST_SCOPE)
     public BusinessFlowResponse createBusinessFlow(@Valid @RequestBody CreateBusinessFlowRequest request) {
         return service.createBusinessFlow(request);
     }
 
     @GetMapping("/business-flows/{id}")
-    @RequirePermission(value = ASSET_READ, scope = BUSINESS_FLOW_SCOPE)
+    @RequirePermission(value = PermissionCodes.ASSET_READ, scope = BUSINESS_FLOW_SCOPE)
     public BusinessFlowResponse getBusinessFlow(@PathVariable UUID id) {
         return service.getBusinessFlow(id);
     }
 
     @GetMapping("/business-flows/{id}/lifecycle")
-    @RequirePermission(value = ASSET_READ, scope = BUSINESS_FLOW_SCOPE)
+    @RequirePermission(value = PermissionCodes.ASSET_READ, scope = BUSINESS_FLOW_SCOPE)
     public BusinessFlowResponse getBusinessFlowLifecycle(@PathVariable UUID id) {
         return service.getBusinessFlowIncludingInactive(id);
     }
 
     @PutMapping("/business-flows/{id}")
-    @RequirePermission(value = ASSET_MANAGE, scope = BUSINESS_FLOW_SCOPE)
+    @RequirePermission(value = PermissionCodes.ASSET_MANAGE, scope = BUSINESS_FLOW_SCOPE)
     public BusinessFlowResponse updateBusinessFlow(
             @PathVariable UUID id,
             @Valid @RequestBody UpdateBusinessFlowRequest request
@@ -322,7 +320,7 @@ public class AssetController {
     }
 
     @PatchMapping("/business-flows/{id}/lifecycle")
-    @RequirePermission(value = ASSET_MANAGE, scope = BUSINESS_FLOW_SCOPE)
+    @RequirePermission(value = PermissionCodes.ASSET_MANAGE, scope = BUSINESS_FLOW_SCOPE)
     public BusinessFlowResponse updateBusinessFlowLifecycle(
             @PathVariable UUID id,
             @Valid @RequestBody UpdateAssetLifecycleRequest request
@@ -333,7 +331,7 @@ public class AssetController {
     // ---- Test Cases ----
 
     @GetMapping("/test-cases")
-    @RequirePermission(value = ASSET_READ, scope = ASSET_LIST_SCOPE)
+    @RequirePermission(value = PermissionCodes.ASSET_READ, scope = ASSET_LIST_SCOPE)
     public com.songhg.veri.agent.common.api.PageResponse<TestCaseResponse> listTestCases(
             @Valid AssetListRequest request
     ) {
@@ -342,25 +340,25 @@ public class AssetController {
 
     @PostMapping("/test-cases")
     @ResponseStatus(HttpStatus.CREATED)
-    @RequirePermission(value = ASSET_MANAGE, scope = PROJECT_REQUEST_SCOPE)
+    @RequirePermission(value = PermissionCodes.ASSET_MANAGE, scope = PROJECT_REQUEST_SCOPE)
     public TestCaseResponse createTestCase(@Valid @RequestBody CreateTestCaseRequest request) {
         return service.createTestCase(request);
     }
 
     @GetMapping("/test-cases/{id}")
-    @RequirePermission(value = ASSET_READ, scope = TEST_CASE_SCOPE)
+    @RequirePermission(value = PermissionCodes.ASSET_READ, scope = TEST_CASE_SCOPE)
     public TestCaseResponse getTestCase(@PathVariable UUID id) {
         return service.getTestCase(id);
     }
 
     @GetMapping("/test-cases/{id}/lifecycle")
-    @RequirePermission(value = ASSET_READ, scope = TEST_CASE_SCOPE)
+    @RequirePermission(value = PermissionCodes.ASSET_READ, scope = TEST_CASE_SCOPE)
     public TestCaseResponse getTestCaseLifecycle(@PathVariable UUID id) {
         return service.getTestCaseIncludingInactive(id);
     }
 
     @PutMapping("/test-cases/{id}")
-    @RequirePermission(value = ASSET_MANAGE, scope = TEST_CASE_SCOPE)
+    @RequirePermission(value = PermissionCodes.ASSET_MANAGE, scope = TEST_CASE_SCOPE)
     public TestCaseResponse updateTestCase(
             @PathVariable UUID id,
             @Valid @RequestBody UpdateTestCaseRequest request
@@ -369,7 +367,7 @@ public class AssetController {
     }
 
     @PatchMapping("/test-cases/{id}/lifecycle")
-    @RequirePermission(value = ASSET_MANAGE, scope = TEST_CASE_SCOPE)
+    @RequirePermission(value = PermissionCodes.ASSET_MANAGE, scope = TEST_CASE_SCOPE)
     public TestCaseResponse updateTestCaseLifecycle(
             @PathVariable UUID id,
             @Valid @RequestBody UpdateAssetLifecycleRequest request
@@ -378,13 +376,13 @@ public class AssetController {
     }
 
     @GetMapping("/test-cases/{id}/versions")
-    @RequirePermission(value = ASSET_READ, scope = TEST_CASE_SCOPE)
+    @RequirePermission(value = PermissionCodes.ASSET_READ, scope = TEST_CASE_SCOPE)
     public List<AssetVersionHistoryResponse> testCaseVersions(@PathVariable UUID id) {
         return service.testCaseVersions(id);
     }
 
     @PostMapping("/test-cases/{id}/versions/{version}/rollback")
-    @RequirePermission(value = ASSET_MANAGE, scope = TEST_CASE_SCOPE)
+    @RequirePermission(value = PermissionCodes.ASSET_MANAGE, scope = TEST_CASE_SCOPE)
     public TestCaseResponse rollbackTestCaseVersion(
             @PathVariable UUID id,
             @PathVariable int version,
@@ -394,13 +392,13 @@ public class AssetController {
     }
 
     @GetMapping("/test-cases/{id}/steps")
-    @RequirePermission(value = ASSET_READ, scope = TEST_CASE_SCOPE)
+    @RequirePermission(value = PermissionCodes.ASSET_READ, scope = TEST_CASE_SCOPE)
     public List<TestCaseStepResponse> listTestCaseSteps(@PathVariable UUID id) {
         return service.listTestCaseSteps(id);
     }
 
     @PutMapping("/test-cases/{id}/steps")
-    @RequirePermission(value = ASSET_MANAGE, scope = TEST_CASE_SCOPE)
+    @RequirePermission(value = PermissionCodes.ASSET_MANAGE, scope = TEST_CASE_SCOPE)
     public List<TestCaseStepResponse> updateTestCaseSteps(
             @PathVariable UUID id,
             @Valid @RequestBody UpdateTestCaseStepsRequest request
@@ -411,7 +409,7 @@ public class AssetController {
     // ---- Trace Links ----
 
     @GetMapping("/links")
-    @RequirePermission(value = ASSET_READ, scope = TRACE_LINK_LIST_SCOPE)
+    @RequirePermission(value = PermissionCodes.ASSET_READ, scope = TRACE_LINK_LIST_SCOPE)
     public com.songhg.veri.agent.common.api.PageResponse<TraceLinkResponse> listLinks(
             @Valid TraceLinkListRequest request
     ) {
@@ -420,7 +418,7 @@ public class AssetController {
 
     @PostMapping("/links")
     @ResponseStatus(HttpStatus.CREATED)
-    @RequirePermission(value = ASSET_MANAGE, scope = CREATE_LINK_SCOPE)
+    @RequirePermission(value = PermissionCodes.ASSET_MANAGE, scope = CREATE_LINK_SCOPE)
     public TraceLinkResponse createLink(@Valid @RequestBody CreateLinkRequest request) {
         return service.createLink(request);
     }

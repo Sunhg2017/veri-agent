@@ -1,5 +1,6 @@
 package com.songhg.veri.agent.documentinput.api.controller;
 
+import com.songhg.veri.agent.authorization.application.PermissionCodes;
 import com.songhg.veri.agent.common.api.PageResponse;
 import com.songhg.veri.agent.authorization.application.RequirePermission;
 import com.songhg.veri.agent.common.openapi.ApiVersion;
@@ -66,7 +67,7 @@ public class DocumentInputController {
     }
 
     @GetMapping("/sources")
-    @RequirePermission("requirementInput:read")
+    @RequirePermission(PermissionCodes.REQUIREMENT_INPUT_READ)
     public PageResponse<DocumentSourceResponse> sources(@Valid DocumentSourcePageRequest request) {
         return service.sources(new DocumentSourceQuery(
                 request.getSourceType(),
@@ -77,13 +78,13 @@ public class DocumentInputController {
 
     @PostMapping("/sources")
     @ResponseStatus(HttpStatus.CREATED)
-    @RequirePermission("requirementInput:manage")
+    @RequirePermission(PermissionCodes.REQUIREMENT_INPUT_MANAGE)
     public DocumentSourceResponse createSource(@Valid @RequestBody UpsertDocumentSourceRequest request) {
         return service.createSource(request);
     }
 
     @PutMapping("/sources/{id}")
-    @RequirePermission("requirementInput:manage")
+    @RequirePermission(PermissionCodes.REQUIREMENT_INPUT_MANAGE)
     public DocumentSourceResponse updateSource(
             @PathVariable UUID id,
             @Valid @RequestBody UpsertDocumentSourceRequest request
@@ -92,33 +93,33 @@ public class DocumentInputController {
     }
 
     @GetMapping("/sources/{id}/health")
-    @RequirePermission("requirementInput:read")
+    @RequirePermission(PermissionCodes.REQUIREMENT_INPUT_READ)
     public DocumentSourceHealthResponse sourceHealth(@PathVariable UUID id) {
         return service.sourceHealth(id);
     }
 
     @GetMapping("/field-mapping")
-    @RequirePermission("requirementInput:read")
+    @RequirePermission(PermissionCodes.REQUIREMENT_INPUT_READ)
     public FieldMappingResponse fieldMapping() {
         return service.fieldMapping();
     }
 
     @PutMapping("/field-mapping")
-    @RequirePermission("requirementInput:manage")
+    @RequirePermission(PermissionCodes.REQUIREMENT_INPUT_MANAGE)
     public FieldMappingResponse updateFieldMapping(@Valid @RequestBody UpdateFieldMappingRequest request) {
         return service.updateFieldMapping(request);
     }
 
     @PostMapping("/imports")
     @ResponseStatus(HttpStatus.CREATED)
-    @RequirePermission("requirementInput:import")
+    @RequirePermission(PermissionCodes.REQUIREMENT_INPUT_IMPORT)
     public DocumentImportResponse importDocument(@Valid @RequestBody CreateDocumentImportRequest request) {
         return service.importDocument(request);
     }
 
     @PostMapping(path = "/imports/multipart", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @ResponseStatus(HttpStatus.CREATED)
-    @RequirePermission("requirementInput:import")
+    @RequirePermission(PermissionCodes.REQUIREMENT_INPUT_IMPORT)
     public DocumentImportResponse importMultipart(
             @RequestParam String projectId,
             @RequestParam DocumentSourceType sourceType,
@@ -144,7 +145,7 @@ public class DocumentInputController {
     }
 
     @GetMapping("/imports")
-    @RequirePermission("requirementInput:read")
+    @RequirePermission(PermissionCodes.REQUIREMENT_INPUT_READ)
     public PageResponse<DocumentImportResponse> imports(@Valid DocumentImportPageRequest request) {
         return service.imports(new DocumentImportQuery(
                 request.getProjectId(),
@@ -156,13 +157,13 @@ public class DocumentInputController {
     }
 
     @GetMapping("/imports/{id}")
-    @RequirePermission("requirementInput:read")
+    @RequirePermission(PermissionCodes.REQUIREMENT_INPUT_READ)
     public DocumentImportResponse importRecord(@PathVariable UUID id) {
         return service.importRecord(id);
     }
 
     @GetMapping("/imports/{id}/candidates")
-    @RequirePermission("requirementInput:read")
+    @RequirePermission(PermissionCodes.REQUIREMENT_INPUT_READ)
     public PageResponse<DocumentCandidateResponse> candidates(
             @PathVariable UUID id,
             @Valid DocumentCandidatePageRequest request
@@ -171,7 +172,7 @@ public class DocumentInputController {
     }
 
     @PostMapping("/imports/{id}/publish")
-    @RequirePermission("requirementInput:publish")
+    @RequirePermission(PermissionCodes.REQUIREMENT_INPUT_PUBLISH)
     public DocumentPublishResponse publishImport(
             @PathVariable UUID id,
             @RequestBody(required = false) DocumentPublishRequest request
@@ -180,13 +181,13 @@ public class DocumentInputController {
     }
 
     @GetMapping("/imports/{id}/publish-records")
-    @RequirePermission("requirementInput:read")
+    @RequirePermission(PermissionCodes.REQUIREMENT_INPUT_READ)
     public PageResponse<DocumentPublishRecordResponse> publishRecords(@PathVariable UUID id) {
         return service.publishRecords(id);
     }
 
     @PutMapping("/candidates/{id}")
-    @RequirePermission("requirementInput:candidate_review")
+    @RequirePermission(PermissionCodes.REQUIREMENT_INPUT_CANDIDATE_REVIEW)
     public DocumentCandidateResponse updateCandidate(
             @PathVariable UUID id,
             @Valid @RequestBody UpdateDocumentCandidateRequest request
@@ -195,7 +196,7 @@ public class DocumentInputController {
     }
 
     @PostMapping("/candidates/{id}/confirm")
-    @RequirePermission("requirementInput:candidate_review")
+    @RequirePermission(PermissionCodes.REQUIREMENT_INPUT_CANDIDATE_REVIEW)
     public DocumentCandidateResponse confirmCandidate(
             @PathVariable UUID id,
             @RequestBody(required = false) ConfirmDocumentCandidateRequest request
@@ -204,7 +205,7 @@ public class DocumentInputController {
     }
 
     @PostMapping("/candidates/{id}/ignore")
-    @RequirePermission("requirementInput:candidate_review")
+    @RequirePermission(PermissionCodes.REQUIREMENT_INPUT_CANDIDATE_REVIEW)
     public DocumentCandidateResponse ignoreCandidate(
             @PathVariable UUID id,
             @Valid @RequestBody(required = false) IgnoreDocumentCandidateRequest request
@@ -213,7 +214,7 @@ public class DocumentInputController {
     }
 
     @PostMapping("/candidates/batch-action")
-    @RequirePermission("requirementInput:candidate_review")
+    @RequirePermission(PermissionCodes.REQUIREMENT_INPUT_CANDIDATE_REVIEW)
     public DocumentCandidateBatchActionResponse batchCandidateAction(
             @Valid @RequestBody CandidateBatchActionRequest request
     ) {
@@ -221,7 +222,7 @@ public class DocumentInputController {
     }
 
     @GetMapping("/feedback-samples")
-    @RequirePermission("requirementInput:read")
+    @RequirePermission(PermissionCodes.REQUIREMENT_INPUT_READ)
     public PageResponse<DocumentParseFeedbackSampleResponse> feedbackSamples(
             @Valid DocumentParseFeedbackPageRequest request
     ) {
@@ -229,19 +230,19 @@ public class DocumentInputController {
     }
 
     @GetMapping("/webhook-events")
-    @RequirePermission("requirementInput:read")
+    @RequirePermission(PermissionCodes.REQUIREMENT_INPUT_READ)
     public PageResponse<DocumentWebhookEventResponse> webhookEvents(@Valid WebhookEventPageRequest request) {
         return service.webhookEvents(request.toQuery());
     }
 
     @GetMapping("/webhook-events/{id}")
-    @RequirePermission("requirementInput:read")
+    @RequirePermission(PermissionCodes.REQUIREMENT_INPUT_READ)
     public DocumentWebhookEventResponse webhookEvent(@PathVariable UUID id) {
         return service.webhookEvent(id);
     }
 
     @PostMapping("/webhook-events/{id}/replay")
-    @RequirePermission("requirementInput:webhook_replay")
+    @RequirePermission(PermissionCodes.REQUIREMENT_INPUT_WEBHOOK_REPLAY)
     public DocumentWebhookEventResponse replayWebhookEvent(@PathVariable UUID id) {
         return service.replayWebhookEvent(id);
     }

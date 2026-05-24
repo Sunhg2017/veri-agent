@@ -94,6 +94,16 @@ class RequirePermissionAspectTest {
         assertThat(auditLogWriter.records).isEmpty();
     }
 
+    @Test
+    void checksRepeatedPermissionAnnotations() {
+        SecuredOperations operations = proxy();
+        authenticate(user("ProjectOwner@PROJECT:project-1"));
+
+        assertThatThrownBy(operations::exportAsset)
+                .isInstanceOf(PlatformAccessDeniedException.class)
+                .hasMessageContaining(PermissionCodes.ASSET_EXPORT);
+    }
+
     private SecuredOperations proxy() {
         AuthorizationService authorizationService = new AuthorizationService(
                 new ScopedPermissionResolver(),
@@ -133,19 +143,25 @@ class RequirePermissionAspectTest {
 
     public static class SecuredOperations {
 
-        @RequirePermission(value = "asset:manage", scope = "@testScopeResolver.project(#projectId)")
+        @RequirePermission(value = PermissionCodes.ASSET_MANAGE, scope = "@testScopeResolver.project(#projectId)")
         public String manageProject(String projectId) {
             return projectId;
         }
 
-        @RequirePermission(value = "asset:read", scope = "@testScopeResolver.projects(#first, #second)")
+        @RequirePermission(value = PermissionCodes.ASSET_READ, scope = "@testScopeResolver.projects(#first, #second)")
         public String readTwoProjects(String first, String second) {
             return first + "," + second;
         }
 
-        @RequirePermission(value = "asset:read", scope = "@testScopeResolver.projectIds(#first, #second)")
+        @RequirePermission(value = PermissionCodes.ASSET_READ, scope = "@testScopeResolver.projectIds(#first, #second)")
         public String readTwoProjectIds(String first, String second) {
             return first + "," + second;
+        }
+
+        @RequirePermission(PermissionCodes.ASSET_READ)
+        @RequirePermission(PermissionCodes.ASSET_EXPORT)
+        public String exportAsset() {
+            return "asset-export";
         }
     }
 
@@ -168,7 +184,7 @@ class RequirePermissionAspectTest {
 
         @Override
         public Set<String> permissionsForRoles(List<String> roles) {
-            return Set.of("asset:read", "asset:manage");
+            return Set.of(PermissionCodes.ASSET_READ, PermissionCodes.ASSET_MANAGE);
         }
 
         @Override
