@@ -1,7 +1,6 @@
 package com.songhg.veri.agent.documentinput.application;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.songhg.veri.agent.auth.application.AuthUserPrincipal;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
 import com.songhg.veri.agent.documentinput.api.request.CandidateBatchActionRequest;
@@ -14,7 +13,6 @@ import com.songhg.veri.agent.documentinput.api.response.DocumentCandidateRespons
 import com.songhg.veri.agent.documentinput.config.DocumentInputProperties;
 import com.songhg.veri.agent.documentinput.domain.DocumentCandidateStatus;
 import com.songhg.veri.agent.documentinput.domain.DocumentRequirementCandidate;
-import com.songhg.veri.agent.modelaccess.security.ServicePrincipal;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -22,7 +20,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -34,6 +31,7 @@ public class DocumentCandidateWorkflowService {
     private final DocumentInputPlatformContextClient contextClient;
     private final DocumentInputMetrics metrics;
     private final DocumentInputProperties properties;
+    private final DocumentInputActorResolver actorResolver;
 
     private record CandidateBatchTarget(UUID id, Long version) {
     }
@@ -43,13 +41,15 @@ public class DocumentCandidateWorkflowService {
             DocumentParseFeedbackCaptureService feedbackCaptureService,
             DocumentInputPlatformContextClient contextClient,
             DocumentInputMetrics metrics,
-            DocumentInputProperties properties
+            DocumentInputProperties properties,
+            DocumentInputActorResolver actorResolver
     ) {
         this.repository = repository;
         this.feedbackCaptureService = feedbackCaptureService;
         this.contextClient = contextClient;
         this.metrics = metrics;
         this.properties = properties;
+        this.actorResolver = actorResolver;
     }
 
     public DocumentCandidateResponse updateCandidate(UUID id, UpdateDocumentCandidateRequest request) {
@@ -105,14 +105,23 @@ public class DocumentCandidateWorkflowService {
     public DocumentCandidateBatchActionResponse batchCandidateAction(CandidateBatchActionRequest request) {
         List<CandidateBatchTarget> targets = batchTargets(request);
         if (targets.isEmpty()) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "批量候选操作必须指定 candidateIds 或 candidates");
+            throw new BusinessException(
+                    ErrorCode.VALIDATION_ERROR,
+                    "批量候选操作必须指定 candidateIds 或 candidates"
+            );
         }
         if (targets.size() > batchActionLimit()) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "批量候选操作最多支持 " + batchActionLimit() + " 项");
+            throw new BusinessException(
+                    ErrorCode.VALIDATION_ERROR,
+                    "批量候选操作最多支持 " + batchActionLimit() + " 项"
+            );
         }
         String action = request.action().trim().toUpperCase(Locale.ROOT);
         if (!List.of("CONFIRM", "IGNORE").contains(action)) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "不支持的候选批量动作: " + request.action());
+            throw new BusinessException(
+                    ErrorCode.VALIDATION_ERROR,
+                    "不支持的候选批量动作: " + request.action()
+            );
         }
         String ignoreReason = trimToNull(request.reason());
         if ("IGNORE".equals(action) && !StringUtils.hasText(ignoreReason)) {
@@ -196,7 +205,12 @@ public class DocumentCandidateWorkflowService {
         return toCandidateResponse(updated);
     }
 
-    private DocumentCandidateResponse ignoreCandidate(UUID id, String reason, Long expectedVersion, boolean requireVersion) {
+    private DocumentCandidateResponse ignoreCandidate(
+            UUID id,
+            String reason,
+            Long expectedVersion,
+            boolean requireVersion
+    ) {
         DocumentRequirementCandidate existing = candidateOrThrow(id);
         ensureCandidateEditable(existing);
         assertCandidateVersion(existing, expectedVersion, requireVersion);
@@ -269,7 +283,11 @@ public class DocumentCandidateWorkflowService {
         assertCandidateVersion(candidate, expectedVersion, true);
     }
 
-    private void assertCandidateVersion(DocumentRequirementCandidate candidate, Long expectedVersion, boolean requireVersion) {
+    private void assertCandidateVersion(
+            DocumentRequirementCandidate candidate,
+            Long expectedVersion,
+            boolean requireVersion
+    ) {
         if (expectedVersion == null) {
             if (requireVersion) {
                 throw new BusinessException(ErrorCode.VALIDATION_ERROR, "候选项版本号不能为空");
@@ -297,19 +315,7 @@ public class DocumentCandidateWorkflowService {
     }
 
     private String currentActor() {
-        var authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication == null || authentication.getPrincipal() == null) {
-            return "system";
-        }
-        Object principal = authentication.getPrincipal();
-        if (principal instanceof ServicePrincipal servicePrincipal && StringUtils.hasText(servicePrincipal.delegatedUserId())) {
-            return servicePrincipal.delegatedUserId();
-        }
-        if (principal instanceof AuthUserPrincipal userPrincipal) {
-            return userPrincipal.userId() == null ? userPrincipal.username() : userPrincipal.userId().toString();
-        }
-        String name = authentication.getName();
-        return StringUtils.hasText(name) ? name : "system";
+        return actorResolver.currentActor();
     }
 
     private String trimToNull(String value) {

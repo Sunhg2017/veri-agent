@@ -11,6 +11,7 @@ import com.songhg.veri.agent.asset.domain.AssetVersionHistory;
 import com.songhg.veri.agent.asset.domain.TestCaseRecord;
 import com.songhg.veri.agent.asset.domain.TestCaseStep;
 import com.songhg.veri.agent.auth.application.AuthUserPrincipal;
+import com.songhg.veri.agent.authorization.application.AuthorizationService;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
 import com.songhg.veri.agent.common.trace.TraceContext;
@@ -25,7 +26,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
-import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -34,10 +35,21 @@ public class AssetVersionHistoryService {
 
     private final AssetRepository repository;
     private final ObjectMapper objectMapper;
+    private final AuthorizationService authorizationService;
 
     public AssetVersionHistoryService(AssetRepository repository, ObjectMapper objectMapper) {
+        this(repository, objectMapper, null);
+    }
+
+    @Autowired
+    public AssetVersionHistoryService(
+            AssetRepository repository,
+            ObjectMapper objectMapper,
+            AuthorizationService authorizationService
+    ) {
         this.repository = repository;
         this.objectMapper = objectMapper;
+        this.authorizationService = authorizationService;
     }
 
     public List<AssetVersionHistoryResponse> responses(String assetType, UUID assetId) {
@@ -234,24 +246,36 @@ public class AssetVersionHistoryService {
                 .toList();
     }
 
-    private static String currentActor() {
-        var authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication == null || authentication.getPrincipal() == null) {
+    private String currentActor() {
+        if (authorizationService == null) {
             return "system";
         }
-        Object principal = authentication.getPrincipal();
-        if (principal instanceof ServicePrincipal servicePrincipal) {
-            return servicePrincipal.callerService() + ":" + servicePrincipal.delegatedUserId();
+        ServicePrincipal servicePrincipal = authorizationService.currentServicePrincipal();
+        if (servicePrincipal != null) {
+            return serviceActor(servicePrincipal);
         }
-        if (principal instanceof AuthUserPrincipal userPrincipal) {
-            return StringUtils.hasText(userPrincipal.username())
-                    ? userPrincipal.username()
-                    : userPrincipal.userId().toString();
-        }
-        if (principal instanceof String text && StringUtils.hasText(text)) {
-            return text;
+        AuthUserPrincipal userPrincipal = authorizationService.currentUserPrincipal();
+        if (userPrincipal != null) {
+            return userActor(userPrincipal);
         }
         return "system";
+    }
+
+    private static String userActor(AuthUserPrincipal principal) {
+        if (StringUtils.hasText(principal.username())) {
+            return principal.username();
+        }
+        return principal.userId() == null ? "system" : principal.userId().toString();
+    }
+
+    private static String serviceActor(ServicePrincipal principal) {
+        if (!StringUtils.hasText(principal.callerService())) {
+            return "system";
+        }
+        if (StringUtils.hasText(principal.delegatedUserId())) {
+            return principal.callerService() + ":" + principal.delegatedUserId();
+        }
+        return principal.callerService();
     }
 
     private static List<String> splitChangedFields(String changedFields) {

@@ -5,14 +5,21 @@ import com.songhg.veri.agent.asset.api.response.AssetVersionHistoryResponse;
 import com.songhg.veri.agent.asset.domain.AssetRequirement;
 import com.songhg.veri.agent.asset.domain.TestCaseRecord;
 import com.songhg.veri.agent.asset.domain.TestCaseStep;
+import com.songhg.veri.agent.auth.application.AuthUserPrincipal;
+import com.songhg.veri.agent.authorization.application.AuthorizationService;
 import com.songhg.veri.agent.asset.infrastructure.InMemoryAssetRepository;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
+import com.songhg.veri.agent.modelaccess.security.ServicePrincipal;
 import java.time.Instant;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.security.authentication.TestingAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -30,6 +37,11 @@ class AssetVersionHistoryServiceTest {
     void setUp() {
         repository = new InMemoryAssetRepository();
         service = new AssetVersionHistoryService(repository, new ObjectMapper().findAndRegisterModules());
+    }
+
+    @AfterEach
+    void tearDown() {
+        SecurityContextHolder.clearContext();
     }
 
     @Test
@@ -81,8 +93,59 @@ class AssetVersionHistoryServiceTest {
         assertThatThrownBy(() -> service.historyOrThrow("REQUIREMENT", REQUIREMENT_ID, 2))
                 .isInstanceOfSatisfying(BusinessException.class, exception -> {
                     assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.NOT_FOUND);
-                    assertThat(exception.getMessage()).contains("资产版本不存在: REQUIREMENT/" + REQUIREMENT_ID + "/v2");
+                    assertThat(exception.getMessage())
+                            .contains("资产版本不存在: REQUIREMENT/" + REQUIREMENT_ID + "/v2");
                 });
+    }
+
+    @Test
+    void recordsUserActorFromAuthorizationService() {
+        service = new AssetVersionHistoryService(
+                repository,
+                new ObjectMapper().findAndRegisterModules(),
+                authorizationService()
+        );
+        authenticate(new AuthUserPrincipal(
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                "history-user",
+                "History User",
+                "history@example.com",
+                false,
+                1,
+                List.of("asset-owner")
+        ));
+
+        service.recordRequirementCreated(requirement(1, "登录需求", "DRAFT", null, null));
+
+        AssetVersionHistoryResponse response = service.responses("REQUIREMENT", REQUIREMENT_ID).getFirst();
+        assertThat(response.actor()).isEqualTo("history-user");
+    }
+
+    @Test
+    void recordsServiceActorFromAuthorizationService() {
+        service = new AssetVersionHistoryService(
+                repository,
+                new ObjectMapper().findAndRegisterModules(),
+                authorizationService()
+        );
+        authenticate(new ServicePrincipal("wp4-document-input", "user-001"));
+
+        service.recordRequirementCreated(requirement(1, "登录需求", "DRAFT", null, null));
+
+        AssetVersionHistoryResponse response = service.responses("REQUIREMENT", REQUIREMENT_ID).getFirst();
+        assertThat(response.actor()).isEqualTo("wp4-document-input:user-001");
+    }
+
+    private static AuthorizationService authorizationService() {
+        return new AuthorizationService(roles -> Set.of(), record -> {
+        });
+    }
+
+    private static void authenticate(Object principal) {
+        SecurityContextHolder.getContext().setAuthentication(
+                new TestingAuthenticationToken(principal, null)
+        );
     }
 
     private static AssetRequirement requirement(
