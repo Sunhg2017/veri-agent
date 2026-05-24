@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Test;
 class ModuleLayerDependencyTest {
 
     private static final int MAX_CONTROLLER_LINES = 200;
+    private static final int MAX_ASSET_MAPPER_XML_LINES = 300;
 
     private static final Pattern FORBIDDEN_API_DTO_IMPORT = Pattern.compile(
             "^import com\\.songhg\\.veri\\.agent\\.[^.]+\\.api\\.(request|response)\\.",
@@ -184,6 +185,34 @@ class ModuleLayerDependencyTest {
     }
 
     @Test
+    void assetMapperXmlStaysSplitByAssetArea() throws Exception {
+        Path mapperRoot = Path.of("src/main/resources/mapper/asset");
+        List<String> requiredMapperFiles = List.of(
+                "AssetRequirementMapper.xml",
+                "AssetApiMapper.xml",
+                "AssetPageMapper.xml",
+                "AssetBusinessFlowMapper.xml",
+                "AssetTestCaseMapper.xml",
+                "AssetTraceLinkMapper.xml",
+                "AssetVersionHistoryMapper.xml"
+        );
+        List<Path> oversizedMappers;
+        try (var files = Files.list(mapperRoot)) {
+            oversizedMappers = files
+                    .filter(path -> path.toString().endsWith(".xml"))
+                    .filter(path -> lineCount(path) > MAX_ASSET_MAPPER_XML_LINES)
+                    .toList();
+        }
+
+        assertThat(requiredMapperFiles)
+                .as("asset SQL must stay grouped by asset area instead of returning to a giant mapper XML")
+                .allSatisfy(file -> assertThat(Files.exists(mapperRoot.resolve(file))).isTrue());
+        assertThat(oversizedMappers)
+                .as("asset mapper XML files above " + MAX_ASSET_MAPPER_XML_LINES + " lines must be split further")
+                .isEmpty();
+    }
+
+    @Test
     void nonAuthControllersDoNotReachIntoAuthorizationInternals() throws Exception {
         Path sourceRoot = Path.of("src/main/java/com/songhg/veri/agent");
         List<Path> violatedFiles;
@@ -348,6 +377,14 @@ class ModuleLayerDependencyTest {
     private boolean exceedsControllerLineLimit(Path path) {
         try {
             return Files.readAllLines(path).size() > MAX_CONTROLLER_LINES;
+        } catch (Exception exception) {
+            throw new IllegalStateException("Cannot inspect " + path, exception);
+        }
+    }
+
+    private int lineCount(Path path) {
+        try {
+            return Files.readAllLines(path).size();
         } catch (Exception exception) {
             throw new IllegalStateException("Cannot inspect " + path, exception);
         }

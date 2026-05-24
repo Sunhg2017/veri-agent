@@ -1,0 +1,166 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.songhg.veri.agent.asset.infrastructure.mapper.AssetMapper">
+    <resultMap id="requirementMap" type="com.songhg.veri.agent.asset.domain.AssetRequirement">
+        <constructor>
+            <arg column="id" javaType="java.util.UUID"/>
+            <arg column="code" javaType="java.lang.String"/>
+            <arg column="title" javaType="java.lang.String"/>
+            <arg column="description" javaType="java.lang.String"/>
+            <arg column="source" javaType="java.lang.String"/>
+            <arg column="source_ref" javaType="java.lang.String"/>
+            <arg column="source_url" javaType="java.lang.String"/>
+            <arg column="acceptance_criteria" javaType="java.lang.String"/>
+            <arg column="status" javaType="java.lang.String"/>
+            <arg column="priority" javaType="java.lang.String"/>
+            <arg column="project_id" javaType="java.lang.String"/>
+            <arg column="tags" javaType="java.lang.String"/>
+            <arg column="version" javaType="_int"/>
+            <arg column="lifecycle_status" javaType="java.lang.String"/>
+            <arg column="archived_at" javaType="java.time.Instant"/>
+            <arg column="deleted_at" javaType="java.time.Instant"/>
+            <arg column="created_at" javaType="java.time.Instant"/>
+            <arg column="updated_at" javaType="java.time.Instant"/>
+        </constructor>
+    </resultMap>
+
+    <sql id="requirementColumns">
+        id, code, title, description, source, source_ref, source_url, acceptance_criteria,
+        status, priority, project_id, tags, version, lifecycle_status, archived_at, deleted_at, created_at, updated_at
+    </sql>
+
+    <sql id="requirementListWhere">
+        <where>
+            <if test="query.projectId != null">project_id = #{query.projectId}</if>
+            <choose>
+                <when test="query.lifecycleStatus == 'DELETED'">and deleted_at is not null</when>
+                <otherwise>
+                    and deleted_at is null
+                    and coalesce(lifecycle_status, 'ACTIVE') = #{query.lifecycleStatus}
+                </otherwise>
+            </choose>
+            <if test="query.status != null">and lower(status) = lower(#{query.status})</if>
+            <if test="query.source != null">and lower(source) = lower(#{query.source})</if>
+            <if test="query.keyword != null">
+                and (
+                    position(lower(#{query.keyword}) in lower(coalesce(code, ''))) > 0
+                    or position(lower(#{query.keyword}) in lower(coalesce(title, ''))) > 0
+                    or position(lower(#{query.keyword}) in lower(coalesce(description, ''))) > 0
+                    or position(lower(#{query.keyword}) in lower(coalesce(source_ref, ''))) > 0
+                    or position(lower(#{query.keyword}) in lower(coalesce(tags, ''))) > 0
+                )
+            </if>
+        </where>
+    </sql>
+
+    <select id="listRequirements" resultMap="requirementMap">
+        select <include refid="requirementColumns"/>
+        from asset_requirement
+        <where>
+            <if test="projectId != null">project_id = #{projectId}</if>
+        </where>
+        order by created_at desc
+    </select>
+
+    <select id="listRequirementsByQuery" resultMap="requirementMap">
+        select <include refid="requirementColumns"/>
+        from asset_requirement
+        <include refid="requirementListWhere"/>
+        order by created_at desc
+        limit #{query.size} offset #{query.offset}
+    </select>
+
+    <select id="countRequirementsByQuery" resultType="long">
+        select count(*)
+        from asset_requirement
+        <include refid="requirementListWhere"/>
+    </select>
+
+    <select id="getRequirement" resultMap="requirementMap">
+        select <include refid="requirementColumns"/>
+        from asset_requirement
+        where id = #{id}
+          and deleted_at is null
+    </select>
+
+    <select id="getRequirementIncludingInactive" resultMap="requirementMap">
+        select <include refid="requirementColumns"/>
+        from asset_requirement
+        where id = #{id}
+    </select>
+
+    <select id="getRequirementBySourceRef" resultMap="requirementMap">
+        select <include refid="requirementColumns"/>
+        from asset_requirement
+        where project_id = #{projectId}
+          and source = #{source}
+          and source_ref = #{sourceRef}
+          and deleted_at is null
+        order by created_at asc
+        limit 1
+    </select>
+
+    <select id="countActiveRequirementCodeConflict" resultType="_int">
+        select count(*)
+        from asset_requirement
+        where project_id = #{projectId}
+          and code = #{code}
+          and id != #{excludeId}
+          and deleted_at is null
+    </select>
+
+    <select id="countActiveRequirementSourceRefConflict" resultType="_int">
+        select count(*)
+        from asset_requirement
+        where project_id = #{projectId}
+          and source = #{source}
+          and source_ref = #{sourceRef}
+          and id != #{excludeId}
+          and deleted_at is null
+    </select>
+
+    <insert id="insertRequirement">
+        insert into asset_requirement (
+            id, project_id, code, title, description, source, source_ref, source_url,
+            acceptance_criteria, priority, status, tags, version, lifecycle_status, archived_at, deleted_at,
+            created_at, updated_at
+        ) values (
+            #{id}, #{projectId}, #{code},
+            #{title}, #{description}, #{source}, #{sourceRef}, #{sourceUrl},
+            #{acceptanceCriteria}, #{priority}, #{status}, #{tags}, #{version}, #{lifecycleStatus},
+            #{archivedAt}, #{deletedAt}, #{createdAt}, #{updatedAt}
+        )
+    </insert>
+
+    <update id="updateRequirement">
+        update asset_requirement set
+            title = #{title},
+            description = #{description},
+            source = #{source},
+            source_ref = #{sourceRef},
+            source_url = #{sourceUrl},
+            acceptance_criteria = #{acceptanceCriteria},
+            status = #{status},
+            priority = #{priority},
+            tags = #{tags},
+            version = #{version},
+            lifecycle_status = #{lifecycleStatus},
+            archived_at = #{archivedAt},
+            deleted_at = #{deletedAt},
+            updated_at = #{updatedAt}
+        where id = #{id}
+          and deleted_at is null
+    </update>
+
+    <update id="updateRequirementLifecycle">
+        update asset_requirement set
+            version = #{version},
+            lifecycle_status = #{lifecycleStatus},
+            archived_at = #{archivedAt},
+            deleted_at = #{deletedAt},
+            updated_at = #{updatedAt}
+        where id = #{id}
+    </update>
+</mapper>

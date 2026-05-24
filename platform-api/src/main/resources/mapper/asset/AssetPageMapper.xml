@@ -1,0 +1,151 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.songhg.veri.agent.asset.infrastructure.mapper.AssetMapper">
+    <resultMap id="pageMap" type="com.songhg.veri.agent.asset.domain.AssetPage">
+        <constructor>
+            <arg column="id" javaType="java.util.UUID"/>
+            <arg column="code" javaType="java.lang.String"/>
+            <arg column="name" javaType="java.lang.String"/>
+            <arg column="url_pattern" javaType="java.lang.String"/>
+            <arg column="source" javaType="java.lang.String"/>
+            <arg column="source_ref" javaType="java.lang.String"/>
+            <arg column="source_version" javaType="java.lang.String"/>
+            <arg column="component_tree" javaType="java.lang.String"/>
+            <arg column="screenshot_url" javaType="java.lang.String"/>
+            <arg column="project_id" javaType="java.lang.String"/>
+            <arg column="status" javaType="java.lang.String"/>
+            <arg column="lifecycle_status" javaType="java.lang.String"/>
+            <arg column="archived_at" javaType="java.time.Instant"/>
+            <arg column="deleted_at" javaType="java.time.Instant"/>
+            <arg column="created_at" javaType="java.time.Instant"/>
+            <arg column="updated_at" javaType="java.time.Instant"/>
+        </constructor>
+    </resultMap>
+
+    <sql id="pageColumns">
+        id, code, name, url_pattern, source, source_ref, source_version, component_tree::text as component_tree, screenshot_url,
+        project_id, status, lifecycle_status, archived_at, deleted_at, created_at, updated_at
+    </sql>
+
+    <sql id="pageListWhere">
+        <where>
+            <if test="query.projectId != null">project_id = #{query.projectId}</if>
+            <choose>
+                <when test="query.lifecycleStatus == 'DELETED'">and deleted_at is not null</when>
+                <otherwise>
+                    and deleted_at is null
+                    and coalesce(lifecycle_status, 'ACTIVE') = #{query.lifecycleStatus}
+                </otherwise>
+            </choose>
+            <if test="query.status != null">and lower(status) = lower(#{query.status})</if>
+            <if test="query.source != null">and lower(source) = lower(#{query.source})</if>
+            <if test="query.keyword != null">
+                and (
+                    position(lower(#{query.keyword}) in lower(coalesce(code, ''))) > 0
+                    or position(lower(#{query.keyword}) in lower(coalesce(name, ''))) > 0
+                    or position(lower(#{query.keyword}) in lower(coalesce(url_pattern, ''))) > 0
+                    or position(lower(#{query.keyword}) in lower(coalesce(source_ref, ''))) > 0
+                    or position(lower(#{query.keyword}) in lower(coalesce(source_version, ''))) > 0
+                )
+            </if>
+        </where>
+    </sql>
+
+    <select id="listPages" resultMap="pageMap">
+        select <include refid="pageColumns"/>
+        from asset_page
+        <where>
+            <if test="projectId != null">project_id = #{projectId}</if>
+        </where>
+        order by created_at desc
+    </select>
+
+    <select id="listPagesByQuery" resultMap="pageMap">
+        select <include refid="pageColumns"/>
+        from asset_page
+        <include refid="pageListWhere"/>
+        order by created_at desc
+        limit #{query.size} offset #{query.offset}
+    </select>
+
+    <select id="countPagesByQuery" resultType="long">
+        select count(*)
+        from asset_page
+        <include refid="pageListWhere"/>
+    </select>
+
+    <select id="getPage" resultMap="pageMap">
+        select <include refid="pageColumns"/>
+        from asset_page
+        where id = #{id}
+          and deleted_at is null
+    </select>
+
+    <select id="getPageIncludingInactive" resultMap="pageMap">
+        select <include refid="pageColumns"/>
+        from asset_page
+        where id = #{id}
+    </select>
+
+    <select id="getPageBySourceRef" resultMap="pageMap">
+        select <include refid="pageColumns"/>
+        from asset_page
+        where project_id = #{projectId}
+          and source = #{source}
+          and source_ref = #{sourceRef}
+          and deleted_at is null
+        order by created_at asc
+        limit 1
+    </select>
+
+    <insert id="insertPage">
+        insert into asset_page (
+            id, project_id, code, name, url_pattern, source, source_ref,
+            source_version, component_tree, screenshot_url, status, lifecycle_status, archived_at, deleted_at, created_at, updated_at
+        ) values (
+            #{id}, #{projectId}, #{code},
+            #{name}, #{urlPattern}, #{source}, #{sourceRef},
+            #{sourceVersion},
+            cast(coalesce(#{componentTree}, '{}') as jsonb),
+            #{screenshotUrl}, #{status}, #{lifecycleStatus}, #{archivedAt}, #{deletedAt}, #{createdAt}, #{updatedAt}
+        )
+    </insert>
+
+    <update id="updatePage">
+        update asset_page set
+            name = #{name},
+            url_pattern = #{urlPattern},
+            source = #{source},
+            source_ref = #{sourceRef},
+            source_version = #{sourceVersion},
+            component_tree = cast(coalesce(#{componentTree}, '{}') as jsonb),
+            screenshot_url = #{screenshotUrl},
+            status = #{status},
+            lifecycle_status = #{lifecycleStatus},
+            archived_at = #{archivedAt},
+            deleted_at = #{deletedAt},
+            updated_at = #{updatedAt}
+        where id = #{id}
+          and deleted_at is null
+    </update>
+
+    <update id="updatePageLifecycle">
+        update asset_page set
+            lifecycle_status = #{lifecycleStatus},
+            archived_at = #{archivedAt},
+            deleted_at = #{deletedAt},
+            updated_at = #{updatedAt}
+        where id = #{id}
+    </update>
+
+    <select id="countActivePageCodeConflict" resultType="_int">
+        select count(*)
+        from asset_page
+        where project_id = #{projectId}
+          and code = #{code}
+          and id != #{excludeId}
+          and deleted_at is null
+    </select>
+</mapper>

@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.songhg.veri.agent.asset.infrastructure.mapper.AssetMapper">
+    <resultMap id="linkMap" type="com.songhg.veri.agent.asset.domain.TraceLink">
+        <constructor>
+            <arg column="id" javaType="java.util.UUID"/>
+            <arg column="requirement_id" javaType="java.util.UUID"/>
+            <arg column="api_id" javaType="java.util.UUID"/>
+            <arg column="page_id" javaType="java.util.UUID"/>
+            <arg column="flow_id" javaType="java.util.UUID"/>
+            <arg column="case_id" javaType="java.util.UUID"/>
+            <arg column="created_at" javaType="java.time.Instant"/>
+        </constructor>
+    </resultMap>
+
+    <sql id="linkColumns">
+        cast(min(l.id::text) as uuid) as id,
+        l.source_id as requirement_id,
+        cast(max(l.target_id::text) filter (where l.target_type = 'API') as uuid) as api_id,
+        cast(max(l.target_id::text) filter (where l.target_type = 'PAGE') as uuid) as page_id,
+        cast(max(l.target_id::text) filter (where l.target_type = 'FLOW') as uuid) as flow_id,
+        cast(max(l.target_id::text) filter (where l.target_type = 'CASE') as uuid) as case_id,
+        min(l.created_at) as created_at
+    </sql>
+
+    <select id="listTraceLinks" resultMap="linkMap">
+        select <include refid="linkColumns"/>
+        from asset_link l
+        <where>
+            l.deleted_at is null
+            and l.source_type = 'REQUIREMENT'
+            <if test="requirementId != null">and l.source_id = cast(#{requirementId} as uuid)</if>
+        </where>
+        group by l.source_id
+        <trim prefix="having" prefixOverrides="and">
+            <if test="apiId != null">
+                and bool_or(l.target_type = 'API' and l.target_id = cast(#{apiId} as uuid))
+            </if>
+            <if test="pageId != null">
+                and bool_or(l.target_type = 'PAGE' and l.target_id = cast(#{pageId} as uuid))
+            </if>
+            <if test="flowId != null">
+                and bool_or(l.target_type = 'FLOW' and l.target_id = cast(#{flowId} as uuid))
+            </if>
+            <if test="caseId != null">
+                and bool_or(l.target_type = 'CASE' and l.target_id = cast(#{caseId} as uuid))
+            </if>
+        </trim>
+        order by created_at desc
+    </select>
+
+    <insert id="insertTraceLink">
+        insert into asset_link (
+            id, source_type, source_id, target_type, target_id, link_type, created_at
+        )
+        select cast(#{id} as uuid), 'REQUIREMENT', cast(#{requirementId} as uuid), 'CASE', cast(#{caseId} as uuid), 'VERIFIES', cast(#{createdAt} as timestamptz)
+        where cast(#{caseId} as uuid) is not null
+        union all
+        select gen_random_uuid(), 'REQUIREMENT', cast(#{requirementId} as uuid), 'API', cast(#{apiId} as uuid), 'COVERS', cast(#{createdAt} as timestamptz)
+        where cast(#{apiId} as uuid) is not null
+        union all
+        select gen_random_uuid(), 'REQUIREMENT', cast(#{requirementId} as uuid), 'PAGE', cast(#{pageId} as uuid), 'COVERS', cast(#{createdAt} as timestamptz)
+        where cast(#{pageId} as uuid) is not null
+        union all
+        select gen_random_uuid(), 'REQUIREMENT', cast(#{requirementId} as uuid), 'FLOW', cast(#{flowId} as uuid), 'RELATED_TO', cast(#{createdAt} as timestamptz)
+        where cast(#{flowId} as uuid) is not null
+        on conflict do nothing
+    </insert>
+</mapper>

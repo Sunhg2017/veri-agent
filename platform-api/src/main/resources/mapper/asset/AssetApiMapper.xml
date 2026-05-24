@@ -1,0 +1,157 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.songhg.veri.agent.asset.infrastructure.mapper.AssetMapper">
+    <resultMap id="apiMap" type="com.songhg.veri.agent.asset.domain.AssetApi">
+        <constructor>
+            <arg column="id" javaType="java.util.UUID"/>
+            <arg column="code" javaType="java.lang.String"/>
+            <arg column="summary" javaType="java.lang.String"/>
+            <arg column="description" javaType="java.lang.String"/>
+            <arg column="http_method" javaType="java.lang.String"/>
+            <arg column="path" javaType="java.lang.String"/>
+            <arg column="source" javaType="java.lang.String"/>
+            <arg column="source_ref" javaType="java.lang.String"/>
+            <arg column="version" javaType="java.lang.String"/>
+            <arg column="request_schema" javaType="java.lang.String"/>
+            <arg column="response_schema" javaType="java.lang.String"/>
+            <arg column="project_id" javaType="java.lang.String"/>
+            <arg column="status" javaType="java.lang.String"/>
+            <arg column="lifecycle_status" javaType="java.lang.String"/>
+            <arg column="archived_at" javaType="java.time.Instant"/>
+            <arg column="deleted_at" javaType="java.time.Instant"/>
+            <arg column="created_at" javaType="java.time.Instant"/>
+            <arg column="updated_at" javaType="java.time.Instant"/>
+        </constructor>
+    </resultMap>
+
+    <sql id="apiColumns">
+        id, code, summary, description, http_method, path, source, source_ref,
+        version, request_schema::text as request_schema, response_schema::text as response_schema,
+        project_id, status, lifecycle_status, archived_at, deleted_at, created_at, updated_at
+    </sql>
+
+    <sql id="apiListWhere">
+        <where>
+            <if test="query.projectId != null">project_id = #{query.projectId}</if>
+            <choose>
+                <when test="query.lifecycleStatus == 'DELETED'">and deleted_at is not null</when>
+                <otherwise>
+                    and deleted_at is null
+                    and coalesce(lifecycle_status, 'ACTIVE') = #{query.lifecycleStatus}
+                </otherwise>
+            </choose>
+            <if test="query.status != null">and lower(status) = lower(#{query.status})</if>
+            <if test="query.source != null">and lower(source) = lower(#{query.source})</if>
+            <if test="query.keyword != null">
+                and (
+                    position(lower(#{query.keyword}) in lower(coalesce(code, ''))) > 0
+                    or position(lower(#{query.keyword}) in lower(coalesce(summary, ''))) > 0
+                    or position(lower(#{query.keyword}) in lower(coalesce(description, ''))) > 0
+                    or position(lower(#{query.keyword}) in lower(coalesce(path, ''))) > 0
+                    or position(lower(#{query.keyword}) in lower(coalesce(source_ref, ''))) > 0
+                )
+            </if>
+        </where>
+    </sql>
+
+    <select id="listApis" resultMap="apiMap">
+        select <include refid="apiColumns"/>
+        from asset_api
+        <where>
+            <if test="projectId != null">project_id = #{projectId}</if>
+        </where>
+        order by created_at desc
+    </select>
+
+    <select id="listApisByQuery" resultMap="apiMap">
+        select <include refid="apiColumns"/>
+        from asset_api
+        <include refid="apiListWhere"/>
+        order by created_at desc
+        limit #{query.size} offset #{query.offset}
+    </select>
+
+    <select id="countApisByQuery" resultType="long">
+        select count(*)
+        from asset_api
+        <include refid="apiListWhere"/>
+    </select>
+
+    <select id="getApi" resultMap="apiMap">
+        select <include refid="apiColumns"/>
+        from asset_api
+        where id = #{id}
+          and deleted_at is null
+    </select>
+
+    <select id="getApiIncludingInactive" resultMap="apiMap">
+        select <include refid="apiColumns"/>
+        from asset_api
+        where id = #{id}
+    </select>
+
+    <select id="getApiByPath" resultMap="apiMap">
+        select <include refid="apiColumns"/>
+        from asset_api
+        where project_id = #{projectId}
+          and path = #{path}
+          and http_method = #{httpMethod}
+          and deleted_at is null
+        limit 1
+    </select>
+
+    <insert id="insertApi">
+        insert into asset_api (
+            id, project_id, code, path, http_method, summary, description, source, source_ref,
+            version, request_schema, response_schema, status, lifecycle_status, archived_at, deleted_at, created_at, updated_at
+        ) values (
+            #{id}, #{projectId}, #{code},
+            #{path}, #{httpMethod}, #{summary}, #{description}, #{source}, #{sourceRef},
+            #{version},
+            cast(coalesce(#{requestSchema}, '{}') as jsonb),
+            cast(coalesce(#{responseSchema}, '{}') as jsonb),
+            #{status}, #{lifecycleStatus}, #{archivedAt}, #{deletedAt}, #{createdAt}, #{updatedAt}
+        )
+    </insert>
+
+    <update id="updateApi">
+        update asset_api set
+            summary = #{summary},
+            description = #{description},
+            http_method = #{httpMethod},
+            path = #{path},
+            source = coalesce(#{source}, source),
+            source_ref = coalesce(#{sourceRef}, source_ref),
+            version = coalesce(#{version}, version),
+            request_schema = cast(coalesce(#{requestSchema}, '{}') as jsonb),
+            response_schema = cast(coalesce(#{responseSchema}, '{}') as jsonb),
+            status = #{status},
+            lifecycle_status = #{lifecycleStatus},
+            archived_at = #{archivedAt},
+            deleted_at = #{deletedAt},
+            updated_at = #{updatedAt}
+        where id = #{id}
+          and deleted_at is null
+    </update>
+
+    <update id="updateApiLifecycle">
+        update asset_api set
+            lifecycle_status = #{lifecycleStatus},
+            archived_at = #{archivedAt},
+            deleted_at = #{deletedAt},
+            updated_at = #{updatedAt}
+        where id = #{id}
+    </update>
+
+    <select id="countActiveApiPathConflict" resultType="_int">
+        select count(*)
+        from asset_api
+        where project_id = #{projectId}
+          and path = #{path}
+          and http_method = #{httpMethod}
+          and id != #{excludeId}
+          and deleted_at is null
+    </select>
+</mapper>
