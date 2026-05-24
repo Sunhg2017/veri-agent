@@ -1,4 +1,4 @@
-package com.songhg.veri.agent.management.infrastructure;
+package com.songhg.veri.agent.management.application.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -17,16 +17,16 @@ import com.songhg.veri.agent.common.secret.SecretProviderProperties;
 import com.songhg.veri.agent.management.application.command.CreateSecretReferenceCommand;
 import com.songhg.veri.agent.management.application.command.RotateSecretReferenceCommand;
 import com.songhg.veri.agent.management.application.view.SecretReferenceView;
-import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapper;
-import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows.SecretProviderRow;
-import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows.SecretReferenceRow;
+import com.songhg.veri.agent.management.application.port.ManagementStore;
+import com.songhg.veri.agent.management.application.port.ManagementStoreRows.SecretProviderRow;
+import com.songhg.veri.agent.management.application.port.ManagementStoreRows.SecretReferenceRow;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
-class PostgresManagementSecretReferenceServiceTest {
+class ManagementSecretReferenceServiceTest {
 
     private static final SecretProviderProperties SECRET_PROPERTIES = new SecretProviderProperties(
             "0123456789abcdef0123456789abcdef",
@@ -42,9 +42,9 @@ class PostgresManagementSecretReferenceServiceTest {
 
     @Test
     void createSecretDefaultsVersionAndRejectsExternalProviderWrites() {
-        ManagementMapper mapper = mock(ManagementMapper.class);
+        ManagementStore mapper = mock(ManagementStore.class);
         AuditLogWriter auditLogWriter = mock(AuditLogWriter.class);
-        PostgresManagementSecretReferenceService service = service(mapper, auditLogWriter);
+        ManagementSecretReferenceService service = service(mapper, auditLogWriter);
         UUID providerId = UUID.randomUUID();
         UUID secretId = UUID.randomUUID();
         UUID scopeId = UUID.randomUUID();
@@ -73,8 +73,8 @@ class PostgresManagementSecretReferenceServiceTest {
 
     @Test
     void rotateSecretRejectsUnsupportedProviderOrNonActiveStatusBeforeWriting() {
-        ManagementMapper mapper = mock(ManagementMapper.class);
-        PostgresManagementSecretReferenceService service = service(mapper, mock(AuditLogWriter.class));
+        ManagementStore mapper = mock(ManagementStore.class);
+        ManagementSecretReferenceService service = service(mapper, mock(AuditLogWriter.class));
         UUID secretId = UUID.randomUUID();
         UUID scopeId = UUID.randomUUID();
         when(mapper.findSecretReferenceRow(anyMap()))
@@ -99,9 +99,9 @@ class PostgresManagementSecretReferenceServiceTest {
 
     @Test
     void rotateSecretDerivesNextVersionForNumericAndNamedVersions() {
-        ManagementMapper mapper = mock(ManagementMapper.class);
+        ManagementStore mapper = mock(ManagementStore.class);
         AuditLogWriter auditLogWriter = mock(AuditLogWriter.class);
-        PostgresManagementSecretReferenceService service = service(mapper, auditLogWriter);
+        ManagementSecretReferenceService service = service(mapper, auditLogWriter);
         UUID secretId = UUID.randomUUID();
         UUID scopeId = UUID.randomUUID();
         when(mapper.findSecretReferenceRow(anyMap()))
@@ -124,11 +124,11 @@ class PostgresManagementSecretReferenceServiceTest {
         verify(auditLogWriter, times(2)).record(any());
     }
 
-    private PostgresManagementSecretReferenceService service(
-            ManagementMapper mapper,
+    private ManagementSecretReferenceService service(
+            ManagementStore mapper,
             AuditLogWriter auditLogWriter
     ) {
-        return new PostgresManagementSecretReferenceService(mapper, auditLogWriter, SECRET_PROPERTIES);
+        return new ManagementSecretReferenceService(mapper, auditLogWriter, SECRET_PROPERTIES);
     }
 
     private AuthUserPrincipal actor() {
@@ -207,14 +207,14 @@ class PostgresManagementSecretReferenceServiceTest {
     }
 
     @SuppressWarnings("unchecked")
-    private Map<String, Object> capturedInsert(ManagementMapper mapper) {
+    private Map<String, Object> capturedInsert(ManagementStore mapper) {
         ArgumentCaptor<Map<String, Object>> captor = ArgumentCaptor.forClass(Map.class);
         verify(mapper).insertSecretReference(captor.capture());
         return captor.getValue();
     }
 
     @SuppressWarnings("unchecked")
-    private List<Map<String, Object>> capturedRotations(ManagementMapper mapper) {
+    private List<Map<String, Object>> capturedRotations(ManagementStore mapper) {
         ArgumentCaptor<Map<String, Object>> captor = ArgumentCaptor.forClass(Map.class);
         verify(mapper, times(2)).updateSecretReferenceRotation(captor.capture());
         return captor.getAllValues();

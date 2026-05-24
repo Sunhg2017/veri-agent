@@ -1,4 +1,4 @@
-package com.songhg.veri.agent.management.infrastructure;
+package com.songhg.veri.agent.management.application.service;
 
 import com.songhg.veri.agent.auth.application.AuthUserPrincipal;
 import com.songhg.veri.agent.common.api.PageQuery;
@@ -9,7 +9,7 @@ import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
 import com.songhg.veri.agent.management.application.command.UpdateUserCommand;
 import com.songhg.veri.agent.management.application.view.UserView;
-import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapper;
+import com.songhg.veri.agent.management.application.port.ManagementStore;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -17,33 +17,31 @@ import java.util.UUID;
 import java.util.function.Function;
 import java.util.function.ToIntFunction;
 import java.util.function.ToLongFunction;
-import org.springframework.context.annotation.Profile;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-@Profile("db")
 @Service
-class PostgresManagementUserService implements UserOperations {
+class ManagementUserService implements UserOperations {
 
-    private final ManagementMapper mapper;
+    private final ManagementStore store;
     private final AuditLogWriter auditLogWriter;
     private final PasswordEncoder passwordEncoder;
 
-    PostgresManagementUserService(
-            ManagementMapper mapper,
+    ManagementUserService(
+            ManagementStore store,
             AuditLogWriter auditLogWriter,
             PasswordEncoder passwordEncoder
     ) {
-        this.mapper = mapper;
+        this.store = store;
         this.auditLogWriter = auditLogWriter;
         this.passwordEncoder = passwordEncoder;
     }
 
     @Transactional(readOnly = true)
     public PageResponse<UserView> users(PageQuery pageQuery) {
-        return page(mapper::listUsers, mapper::countUsers, pageQuery, values());
+        return page(store::listUsers, store::countUsers, pageQuery, values());
     }
 
     @Transactional(readOnly = true)
@@ -55,7 +53,7 @@ class PostgresManagementUserService implements UserOperations {
     public UserView createUser(String username, AuthUserPrincipal actor) {
         UUID userId = UUID.randomUUID();
         try {
-            update(mapper::insertUser, actor, values("userId", userId, "username", username));
+            update(store::insertUser, actor, values("userId", userId, "username", username));
         } catch (DuplicateKeyException exception) {
             throw new BusinessException(ErrorCode.CONFLICT, "用户账号已存在");
         }
@@ -68,7 +66,7 @@ class PostgresManagementUserService implements UserOperations {
     public UserView updateUser(String username, UpdateUserCommand request, AuthUserPrincipal actor) {
         UserView before = userByUsername(username);
         try {
-            int rows = update(mapper::updateUser, actor, values(
+            int rows = update(store::updateUser, actor, values(
                     "username", username,
                     "displayName", blankToNull(request.displayName()),
                     "email", blankToNull(request.email())
@@ -85,7 +83,7 @@ class PostgresManagementUserService implements UserOperations {
 
     @Transactional
     public UserView enableUser(String username, AuthUserPrincipal actor) {
-        ensureUserUpdated(update(mapper::enableUser, actor, values("username", username)));
+        ensureUserUpdated(update(store::enableUser, actor, values("username", username)));
         audit(actor, "启用用户", "user", username, username);
         return userByUsername(username);
     }
@@ -95,7 +93,7 @@ class PostgresManagementUserService implements UserOperations {
         if (actor.username().equals(username)) {
             throw new BusinessException(ErrorCode.INVALID_STATE, "不能停用当前登录账号");
         }
-        ensureUserUpdated(update(mapper::disableUser, actor, values("username", username)));
+        ensureUserUpdated(update(store::disableUser, actor, values("username", username)));
         audit(actor, "停用用户", "user", username, username);
         return userByUsername(username);
     }
@@ -105,21 +103,21 @@ class PostgresManagementUserService implements UserOperations {
         if (actor.username().equals(username)) {
             throw new BusinessException(ErrorCode.INVALID_STATE, "不能锁定当前登录账号");
         }
-        ensureUserUpdated(update(mapper::lockUser, actor, values("username", username)));
+        ensureUserUpdated(update(store::lockUser, actor, values("username", username)));
         audit(actor, "锁定用户", "user", username, username);
         return userByUsername(username);
     }
 
     @Transactional
     public UserView unlockUser(String username, AuthUserPrincipal actor) {
-        ensureUserUpdated(update(mapper::unlockUser, actor, values("username", username)));
+        ensureUserUpdated(update(store::unlockUser, actor, values("username", username)));
         audit(actor, "解锁用户", "user", username, username);
         return userByUsername(username);
     }
 
     @Transactional
     public UserView resetUserPassword(String username, String newPassword, AuthUserPrincipal actor) {
-        ensureUserUpdated(update(mapper::resetUserPassword, actor, values(
+        ensureUserUpdated(update(store::resetUserPassword, actor, values(
                 "username", username,
                 "passwordHash", passwordEncoder.encode(newPassword)
         )));
@@ -134,11 +132,11 @@ class PostgresManagementUserService implements UserOperations {
             UUID scopeId,
             AuthUserPrincipal actor
     ) {
-        UUID roleId = mapper.findRoleId(values("roleCode", roleCode));
+        UUID roleId = store.findRoleId(values("roleCode", roleCode));
         if (roleId == null) {
             return;
         }
-        update(mapper::bindRoleIfPresent, actor, values(
+        update(store::bindRoleIfPresent, actor, values(
                 "userId", userId,
                 "roleId", roleId,
                 "roleCode", roleCode,
@@ -148,7 +146,7 @@ class PostgresManagementUserService implements UserOperations {
     }
 
     private UserView userByUsername(String username) {
-        return requireOne(mapper::findUserByUsername, values("username", username), "用户不存在");
+        return requireOne(store::findUserByUsername, values("username", username), "用户不存在");
     }
 
     private void ensureUserUpdated(int rows) {

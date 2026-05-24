@@ -1,4 +1,4 @@
-package com.songhg.veri.agent.management.infrastructure;
+package com.songhg.veri.agent.management.application.service;
 
 import com.songhg.veri.agent.auth.application.AuthUserPrincipal;
 import com.songhg.veri.agent.common.api.PageQuery;
@@ -14,35 +14,33 @@ import com.songhg.veri.agent.management.application.command.UpdateIntegrationCom
 import com.songhg.veri.agent.management.application.command.UpdateSettingCommand;
 import com.songhg.veri.agent.management.application.view.IntegrationView;
 import com.songhg.veri.agent.management.application.view.SettingView;
-import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapper;
-import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows.IntegrationRow;
-import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows.SettingRow;
+import com.songhg.veri.agent.management.application.port.ManagementStore;
+import com.songhg.veri.agent.management.application.port.ManagementStoreRows.IntegrationRow;
+import com.songhg.veri.agent.management.application.port.ManagementStoreRows.SettingRow;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.function.ToIntFunction;
 import java.util.function.ToLongFunction;
-import org.springframework.context.annotation.Profile;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-@Profile("db")
 @Service
-class PostgresManagementConfigService implements IntegrationOperations, SettingOperations {
+class ManagementConfigService implements IntegrationOperations, SettingOperations {
 
-    private final ManagementMapper mapper;
+    private final ManagementStore store;
     private final AuditLogWriter auditLogWriter;
 
-    PostgresManagementConfigService(ManagementMapper mapper, AuditLogWriter auditLogWriter) {
-        this.mapper = mapper;
+    ManagementConfigService(ManagementStore store, AuditLogWriter auditLogWriter) {
+        this.store = store;
         this.auditLogWriter = auditLogWriter;
     }
 
     @Transactional(readOnly = true)
     public PageResponse<IntegrationView> integrations(PageQuery pageQuery) {
-        return page(mapper::listIntegrations, mapper::countIntegrations, pageQuery, values());
+        return page(store::listIntegrations, store::countIntegrations, pageQuery, values());
     }
 
     @Transactional(readOnly = true)
@@ -61,7 +59,7 @@ class PostgresManagementConfigService implements IntegrationOperations, SettingO
         String scope = defaultText(request.scope(), "平台级");
         String configKey = integrationConfigKey(key);
         try {
-            update(mapper::insertConfig, actor, values(
+            update(store::insertConfig, actor, values(
                     "scopeType", "SYSTEM",
                     "configKey", configKey,
                     "valueJson", integrationJson(name, category, scope)
@@ -80,7 +78,7 @@ class PostgresManagementConfigService implements IntegrationOperations, SettingO
         String name = defaultText(request.name(), current.name());
         String category = defaultText(request.category(), current.category());
         String scope = defaultText(request.scope(), current.scope());
-        update(mapper::updateIntegration, actor, values(
+        update(store::updateIntegration, actor, values(
                 "configKey", current.configKey(),
                 "valueJson", integrationJson(name, category, scope)
         ));
@@ -95,7 +93,7 @@ class PostgresManagementConfigService implements IntegrationOperations, SettingO
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "集成配置状态只支持 ENABLED 或 DISABLED");
         }
         IntegrationRow current = integrationRow(key);
-        update(mapper::changeConfigStatus, actor, values("configKey", current.configKey(), "status", status));
+        update(store::changeConfigStatus, actor, values("configKey", current.configKey(), "status", status));
         IntegrationView updated = integrationView(integrationRow(current.key()));
         audit(actor, "ENABLED".equals(status) ? "启用集成" : "停用集成", "integration", current.configKey(), updated.name());
         return updated;
@@ -103,7 +101,7 @@ class PostgresManagementConfigService implements IntegrationOperations, SettingO
 
     @Transactional(readOnly = true)
     public PageResponse<SettingView> settings(PageQuery pageQuery) {
-        PageResponse<SettingRow> rows = page(mapper::listSettings, mapper::countSettings, pageQuery, values());
+        PageResponse<SettingRow> rows = page(store::listSettings, store::countSettings, pageQuery, values());
         return PageResponse.of(rows.items().stream().map(this::settingView).toList(), pageQuery.index(), pageQuery.size(), rows.total());
     }
 
@@ -119,7 +117,7 @@ class PostgresManagementConfigService implements IntegrationOperations, SettingO
         String scopeType = defaultText(request.scopeType(), "SYSTEM");
         String name = defaultText(request.name(), settingName(key));
         try {
-            update(mapper::insertConfig, actor, values(
+            update(store::insertConfig, actor, values(
                     "scopeType", scopeType,
                     "configKey", key,
                     "valueJson", settingJson(name, request.value().trim())
@@ -140,7 +138,7 @@ class PostgresManagementConfigService implements IntegrationOperations, SettingO
         String value = defaultText(request.value(), currentView.value());
         rejectSensitivePlainSetting(currentView.key(), value);
         String scopeType = defaultText(request.scopeType(), current.scopeType());
-        update(mapper::updateSetting, actor, values(
+        update(store::updateSetting, actor, values(
                 "scopeType", scopeType,
                 "configKey", current.configKey(),
                 "valueJson", settingJson(name, value)
@@ -156,18 +154,18 @@ class PostgresManagementConfigService implements IntegrationOperations, SettingO
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "系统设置状态只支持 ENABLED 或 DISABLED");
         }
         SettingRow current = settingRow(key);
-        update(mapper::changeConfigStatus, actor, values("status", status, "configKey", current.configKey()));
+        update(store::changeConfigStatus, actor, values("status", status, "configKey", current.configKey()));
         SettingView updated = settingView(settingRow(current.configKey()));
         audit(actor, "ENABLED".equals(status) ? "启用设置" : "停用设置", "config", current.configKey(), updated.name());
         return updated;
     }
 
     private IntegrationRow integrationRow(String key) {
-        return requireOne(mapper::findIntegrationRow, values("key", normalizeSearch(key)), "集成配置不存在");
+        return requireOne(store::findIntegrationRow, values("key", normalizeSearch(key)), "集成配置不存在");
     }
 
     private SettingRow settingRow(String key) {
-        return requireOne(mapper::findSettingRow, values("key", normalizeSearch(key)), "系统设置不存在");
+        return requireOne(store::findSettingRow, values("key", normalizeSearch(key)), "系统设置不存在");
     }
 
     private IntegrationView integrationView(IntegrationRow row) {

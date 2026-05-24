@@ -1,4 +1,4 @@
-package com.songhg.veri.agent.management.infrastructure;
+package com.songhg.veri.agent.management.application.service;
 
 import com.songhg.veri.agent.auth.application.AuthUserPrincipal;
 import com.songhg.veri.agent.common.api.PageQuery;
@@ -13,8 +13,8 @@ import com.songhg.veri.agent.management.application.command.UpdateProjectCommand
 import com.songhg.veri.agent.management.application.port.ProjectOperations;
 import com.songhg.veri.agent.management.application.view.ProjectMemberView;
 import com.songhg.veri.agent.management.application.view.ProjectView;
-import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapper;
-import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows.ProjectRef;
+import com.songhg.veri.agent.management.application.port.ManagementStore;
+import com.songhg.veri.agent.management.application.port.ManagementStoreRows.ProjectRef;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -22,27 +22,25 @@ import java.util.UUID;
 import java.util.function.Function;
 import java.util.function.ToIntFunction;
 import java.util.function.ToLongFunction;
-import org.springframework.context.annotation.Profile;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-@Profile("db")
 @Service
-class PostgresManagementProjectService implements ProjectOperations {
+class ManagementProjectService implements ProjectOperations {
 
-    private final ManagementMapper mapper;
+    private final ManagementStore store;
     private final AuditLogWriter auditLogWriter;
-    private final PostgresManagementDeniedAuditRecorder deniedAuditRecorder;
+    private final ManagementDeniedAuditRecorder deniedAuditRecorder;
     private final ManagementAuthorizationGuard authorizationGuard;
 
-    PostgresManagementProjectService(
-            ManagementMapper mapper,
+    ManagementProjectService(
+            ManagementStore store,
             AuditLogWriter auditLogWriter,
-            PostgresManagementDeniedAuditRecorder deniedAuditRecorder,
+            ManagementDeniedAuditRecorder deniedAuditRecorder,
             ManagementAuthorizationGuard authorizationGuard
     ) {
-        this.mapper = mapper;
+        this.store = store;
         this.auditLogWriter = auditLogWriter;
         this.deniedAuditRecorder = deniedAuditRecorder;
         this.authorizationGuard = authorizationGuard;
@@ -50,7 +48,7 @@ class PostgresManagementProjectService implements ProjectOperations {
 
     @Transactional(readOnly = true)
     public PageResponse<ProjectView> projects(PageQuery pageQuery, AuthUserPrincipal actor) {
-        return page(mapper::listProjects, mapper::countProjects, pageQuery, scope(actor));
+        return page(store::listProjects, store::countProjects, pageQuery, scope(actor));
     }
 
     @Transactional(readOnly = true)
@@ -66,7 +64,7 @@ class PostgresManagementProjectService implements ProjectOperations {
         String sensitivityLevel = normalizedOrDefault(request.sensitivityLevel(), "INTERNAL");
         boolean allowPublicModel = Boolean.TRUE.equals(request.allowPublicModel());
         try {
-            update(mapper::insertProject, actor, values(
+            update(store::insertProject, actor, values(
                     "projectId", projectId,
                     "code", code,
                     "name", name,
@@ -87,7 +85,7 @@ class PostgresManagementProjectService implements ProjectOperations {
         ensureProjectEditable(project.status());
         ProjectView before = projectByKey(project.id().toString());
         try {
-            update(mapper::updateProject, actor, values(
+            update(store::updateProject, actor, values(
                     "projectId", project.id(),
                     "name", blankToNull(request.name()),
                     "sensitivityLevel", blankToNull(request.sensitivityLevel()),
@@ -108,7 +106,7 @@ class PostgresManagementProjectService implements ProjectOperations {
         authorizationGuard.requireProjectStatus(actor, nextStatus);
         ProjectRef project = resolveProjectStrict(key);
         ensureProjectStatusTransition(actor, project, nextStatus);
-        update(mapper::changeProjectStatus, actor, values("projectId", project.id(), "status", nextStatus));
+        update(store::changeProjectStatus, actor, values("projectId", project.id(), "status", nextStatus));
         ProjectView updated = projectByKey(project.id().toString());
         audit(actor, projectStatusAction(nextStatus), "project", project.id().toString(), updated.name());
         return updated;
@@ -117,7 +115,7 @@ class PostgresManagementProjectService implements ProjectOperations {
     @Transactional(readOnly = true)
     public PageResponse<ProjectMemberView> projectMembers(String projectKey, PageQuery pageQuery) {
         ProjectRef project = resolveProjectStrict(projectKey);
-        return page(mapper::listProjectMembers, mapper::countProjectMembers, pageQuery, values("projectId", project.id()));
+        return page(store::listProjectMembers, store::countProjectMembers, pageQuery, values("projectId", project.id()));
     }
 
     @Transactional
@@ -129,7 +127,7 @@ class PostgresManagementProjectService implements ProjectOperations {
         UUID userId = requireUserId(username);
         UUID roleId = requireRoleId(roleCode);
         String memberType = memberTypeForRole(roleCode);
-        update(mapper::upsertProjectMember, actor, values("projectId", project.id(), "userId", userId, "memberType", memberType));
+        update(store::upsertProjectMember, actor, values("projectId", project.id(), "userId", userId, "memberType", memberType));
         bindProjectRole(userId, roleId, roleCode, project.id(), actor);
         bumpUserAuthVersion(userId, actor);
         ProjectMemberView view = projectMemberByUsername(project.id(), username);
@@ -142,11 +140,11 @@ class PostgresManagementProjectService implements ProjectOperations {
         ProjectRef project = resolveProjectStrict(projectKey);
         UUID userId = requireUserId(username);
         ProjectMemberView current = projectMemberByUsername(project.id(), username);
-        int rows = update(mapper::deleteProjectMember, actor, values("projectId", project.id(), "userId", userId));
+        int rows = update(store::deleteProjectMember, actor, values("projectId", project.id(), "userId", userId));
         if (rows == 0) {
             throw new BusinessException(ErrorCode.NOT_FOUND, "项目成员不存在");
         }
-        update(mapper::disableProjectRoleBindings, actor, values("projectId", project.id(), "userId", userId));
+        update(store::disableProjectRoleBindings, actor, values("projectId", project.id(), "userId", userId));
         bumpUserAuthVersion(userId, actor);
         audit(actor, "移除项目成员", "project_member", project.id() + ":" + userId, project.name() + ":" + username);
         return new ProjectMemberView(current.username(), current.displayName(), current.role(), current.memberType(), "已移除");
@@ -163,31 +161,31 @@ class PostgresManagementProjectService implements ProjectOperations {
 
     @Transactional(readOnly = true)
     public ProjectRef resolveProjectStrict(String key) {
-        return requireOne(mapper::findProjectRef, values("keyword", key), "项目不存在");
+        return requireOne(store::findProjectRef, values("keyword", key), "项目不存在");
     }
 
     private void insertProjectOwner(UUID projectId, AuthUserPrincipal actor) {
-        update(mapper::insertProjectOwner, actor, values("projectId", projectId));
+        update(store::insertProjectOwner, actor, values("projectId", projectId));
     }
 
     private UUID ensureDefaultProject(AuthUserPrincipal actor) {
-        UUID existing = mapper.findDefaultProjectId(values());
+        UUID existing = store.findDefaultProjectId(values());
         if (existing != null) {
             return existing;
         }
         UUID projectId = UUID.randomUUID();
-        update(mapper::insertDefaultProject, actor, values("projectId", projectId));
+        update(store::insertDefaultProject, actor, values("projectId", projectId));
         insertProjectOwner(projectId, actor);
-        UUID created = mapper.findDefaultProjectId(values());
+        UUID created = store.findDefaultProjectId(values());
         return created == null ? projectId : created;
     }
 
     private ProjectView projectByKey(String key) {
-        return requireOne(mapper::findProjectView, values("keyword", key), "项目不存在");
+        return requireOne(store::findProjectView, values("keyword", key), "项目不存在");
     }
 
     private ProjectMemberView projectMemberByUsername(UUID projectId, String username) {
-        return requireOne(mapper::findProjectMemberByUsername, values("projectId", projectId, "username", username), "项目成员不存在");
+        return requireOne(store::findProjectMemberByUsername, values("projectId", projectId, "username", username), "项目成员不存在");
     }
 
     private void bindProjectRole(
@@ -197,7 +195,7 @@ class PostgresManagementProjectService implements ProjectOperations {
             UUID projectId,
             AuthUserPrincipal actor
     ) {
-        update(mapper::bindProjectRole, actor, values(
+        update(store::bindProjectRole, actor, values(
                 "userId", userId,
                 "roleId", roleId,
                 "roleCode", roleCode,
@@ -206,15 +204,15 @@ class PostgresManagementProjectService implements ProjectOperations {
     }
 
     private UUID requireUserId(String username) {
-        return requireOne(mapper::findUserId, values("username", username), "用户不存在");
+        return requireOne(store::findUserId, values("username", username), "用户不存在");
     }
 
     private UUID requireRoleId(String roleCode) {
-        return requireOne(mapper::findRoleId, values("roleCode", roleCode), "角色不存在");
+        return requireOne(store::findRoleId, values("roleCode", roleCode), "角色不存在");
     }
 
     private void bumpUserAuthVersion(UUID userId, AuthUserPrincipal actor) {
-        update(mapper::bumpUserAuthVersion, actor, values("userId", userId));
+        update(store::bumpUserAuthVersion, actor, values("userId", userId));
     }
 
     private void audit(

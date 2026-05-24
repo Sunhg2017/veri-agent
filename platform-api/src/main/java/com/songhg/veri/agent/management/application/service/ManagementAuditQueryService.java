@@ -1,4 +1,4 @@
-package com.songhg.veri.agent.management.infrastructure;
+package com.songhg.veri.agent.management.application.service;
 
 import com.songhg.veri.agent.auth.application.AuthUserPrincipal;
 import com.songhg.veri.agent.common.api.PageQuery;
@@ -9,31 +9,29 @@ import com.songhg.veri.agent.management.application.view.AuditLogView;
 import com.songhg.veri.agent.management.application.view.AuditOutboxView;
 import com.songhg.veri.agent.management.application.query.AuditLogQuery;
 import com.songhg.veri.agent.management.application.query.AuditOutboxQuery;
-import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapper;
+import com.songhg.veri.agent.management.application.port.ManagementStore;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-@Profile("db")
 @Service
-class PostgresManagementAuditQueryService implements AuditOperations {
+class ManagementAuditQueryService implements AuditOperations {
 
-    private final ManagementMapper mapper;
+    private final ManagementStore store;
     private final AuditLogWriter auditLogWriter;
 
-    PostgresManagementAuditQueryService(ManagementMapper mapper, AuditLogWriter auditLogWriter) {
-        this.mapper = mapper;
+    ManagementAuditQueryService(ManagementStore store, AuditLogWriter auditLogWriter) {
+        this.store = store;
         this.auditLogWriter = auditLogWriter;
     }
 
     @Transactional(readOnly = true)
     public PageResponse<AuditLogView> auditLogs(PageQuery pageQuery, AuditLogQuery query, AuthUserPrincipal actor) {
         Map<String, Object> params = auditParams(pageQuery, query, actor);
-        List<AuditLogView> items = mapper.listAuditLogs(params);
-        long total = mapper.countAuditLogs(params);
+        List<AuditLogView> items = store.listAuditLogs(params);
+        long total = store.countAuditLogs(params);
         return PageResponse.of(items, pageQuery.index(), pageQuery.size(), total);
     }
 
@@ -62,8 +60,8 @@ class PostgresManagementAuditQueryService implements AuditOperations {
             AuthUserPrincipal actor
     ) {
         Map<String, Object> params = auditOutboxParams(pageQuery, query);
-        List<AuditOutboxView> items = mapper.listAuditOutbox(params);
-        long total = mapper.countAuditOutbox(params);
+        List<AuditOutboxView> items = store.listAuditOutbox(params);
+        long total = store.countAuditOutbox(params);
         return PageResponse.of(items, pageQuery.index(), pageQuery.size(), total);
     }
 

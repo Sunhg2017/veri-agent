@@ -1,4 +1,4 @@
-package com.songhg.veri.agent.management.infrastructure;
+package com.songhg.veri.agent.management.application.service;
 
 import com.songhg.veri.agent.auth.application.AuthUserPrincipal;
 import com.songhg.veri.agent.common.api.PageQuery;
@@ -10,8 +10,8 @@ import com.songhg.veri.agent.management.application.security.ManagementAuthoriza
 import com.songhg.veri.agent.management.application.command.UpdateDepartmentCommand;
 import com.songhg.veri.agent.management.application.port.DepartmentOperations;
 import com.songhg.veri.agent.management.application.view.DepartmentView;
-import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapper;
-import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows.DepartmentRef;
+import com.songhg.veri.agent.management.application.port.ManagementStore;
+import com.songhg.veri.agent.management.application.port.ManagementStoreRows.DepartmentRef;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -19,32 +19,30 @@ import java.util.UUID;
 import java.util.function.Function;
 import java.util.function.ToIntFunction;
 import java.util.function.ToLongFunction;
-import org.springframework.context.annotation.Profile;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-@Profile("db")
 @Service
-class PostgresManagementDepartmentService implements DepartmentOperations {
+class ManagementDepartmentService implements DepartmentOperations {
 
-    private final ManagementMapper mapper;
+    private final ManagementStore store;
     private final AuditLogWriter auditLogWriter;
     private final ManagementAuthorizationGuard authorizationGuard;
 
-    PostgresManagementDepartmentService(
-            ManagementMapper mapper,
+    ManagementDepartmentService(
+            ManagementStore store,
             AuditLogWriter auditLogWriter,
             ManagementAuthorizationGuard authorizationGuard
     ) {
-        this.mapper = mapper;
+        this.store = store;
         this.auditLogWriter = auditLogWriter;
         this.authorizationGuard = authorizationGuard;
     }
 
     @Transactional(readOnly = true)
     public PageResponse<DepartmentView> departments(PageQuery pageQuery) {
-        return page(mapper::listDepartments, mapper::countDepartments, pageQuery, values());
+        return page(store::listDepartments, store::countDepartments, pageQuery, values());
     }
 
     @Transactional
@@ -52,7 +50,7 @@ class PostgresManagementDepartmentService implements DepartmentOperations {
         UUID deptId = UUID.randomUUID();
         String code = nextCode("dept");
         try {
-            update(mapper::insertDepartment, actor, values(
+            update(store::insertDepartment, actor, values(
                     "deptId", deptId,
                     "code", code,
                     "name", name,
@@ -77,7 +75,7 @@ class PostgresManagementDepartmentService implements DepartmentOperations {
         ensureEnabled(department.status(), "当前部门状态不允许编辑");
         DepartmentView before = departmentByKey(department.id().toString());
         try {
-            update(mapper::updateDepartment, actor, values(
+            update(store::updateDepartment, actor, values(
                     "deptId", department.id(),
                     "name", blankToNull(request.name())
             ));
@@ -95,22 +93,22 @@ class PostgresManagementDepartmentService implements DepartmentOperations {
         String nextStatus = normalizeEnabledStatus(status, "部门状态不支持");
         authorizationGuard.requireDepartmentStatus(actor, nextStatus);
         DepartmentRef department = resolveDepartmentStrict(key);
-        update(mapper::changeDepartmentStatus, actor, values("deptId", department.id(), "status", nextStatus));
+        update(store::changeDepartmentStatus, actor, values("deptId", department.id(), "status", nextStatus));
         DepartmentView updated = departmentByKey(department.id().toString());
         audit(actor, "ENABLED".equals(nextStatus) ? "启用部门" : "停用部门", "department", department.id().toString(), updated.name());
         return updated;
     }
 
     private void insertDepartmentManager(UUID deptId, AuthUserPrincipal actor) {
-        update(mapper::insertDepartmentManager, actor, values("deptId", deptId));
+        update(store::insertDepartmentManager, actor, values("deptId", deptId));
     }
 
     private DepartmentRef resolveDepartmentStrict(String key) {
-        return requireOne(mapper::findDepartmentRef, values("keyword", key), "部门不存在");
+        return requireOne(store::findDepartmentRef, values("keyword", key), "部门不存在");
     }
 
     private DepartmentView departmentByKey(String key) {
-        return requireOne(mapper::findDepartmentView, values("keyword", key), "部门不存在");
+        return requireOne(store::findDepartmentView, values("keyword", key), "部门不存在");
     }
 
     private void ensureEnabled(String status, String message) {

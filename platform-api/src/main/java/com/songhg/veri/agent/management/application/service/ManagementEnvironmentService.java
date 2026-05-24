@@ -1,4 +1,4 @@
-package com.songhg.veri.agent.management.infrastructure;
+package com.songhg.veri.agent.management.application.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -18,11 +18,11 @@ import com.songhg.veri.agent.management.application.port.EnvironmentConnectivity
 import com.songhg.veri.agent.management.application.view.EnvironmentConnectivityCheckView;
 import com.songhg.veri.agent.management.application.view.EnvironmentView;
 import com.songhg.veri.agent.management.application.view.ScopedUserRoleView;
-import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapper;
-import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows.ApplicationRef;
-import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows.EnvironmentConnectivityTargetRow;
-import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows.EnvironmentRef;
-import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows.ProjectRef;
+import com.songhg.veri.agent.management.application.port.ManagementStore;
+import com.songhg.veri.agent.management.application.port.ManagementStoreRows.ApplicationRef;
+import com.songhg.veri.agent.management.application.port.ManagementStoreRows.EnvironmentConnectivityTargetRow;
+import com.songhg.veri.agent.management.application.port.ManagementStoreRows.EnvironmentRef;
+import com.songhg.veri.agent.management.application.port.ManagementStoreRows.ProjectRef;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -30,31 +30,29 @@ import java.util.UUID;
 import java.util.function.Function;
 import java.util.function.ToIntFunction;
 import java.util.function.ToLongFunction;
-import org.springframework.context.annotation.Profile;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-@Profile("db")
 @Service
-class PostgresManagementEnvironmentService implements EnvironmentOperations {
+class ManagementEnvironmentService implements EnvironmentOperations {
 
-    private final ManagementMapper mapper;
+    private final ManagementStore store;
     private final AuditLogWriter auditLogWriter;
     private final EnvironmentConnectivityChecker connectivityChecker;
     private final ObjectMapper objectMapper;
-    private final PostgresManagementProjectService projectService;
+    private final ManagementProjectService projectService;
     private final ManagementAuthorizationGuard authorizationGuard;
 
-    PostgresManagementEnvironmentService(
-            ManagementMapper mapper,
+    ManagementEnvironmentService(
+            ManagementStore store,
             AuditLogWriter auditLogWriter,
             EnvironmentConnectivityChecker connectivityChecker,
             ObjectMapper objectMapper,
-            PostgresManagementProjectService projectService,
+            ManagementProjectService projectService,
             ManagementAuthorizationGuard authorizationGuard
     ) {
-        this.mapper = mapper;
+        this.store = store;
         this.auditLogWriter = auditLogWriter;
         this.connectivityChecker = connectivityChecker;
         this.objectMapper = objectMapper;
@@ -64,7 +62,7 @@ class PostgresManagementEnvironmentService implements EnvironmentOperations {
 
     @Transactional(readOnly = true)
     public PageResponse<EnvironmentView> environments(PageQuery pageQuery, AuthUserPrincipal actor) {
-        return page(mapper::listEnvironments, mapper::countEnvironments, pageQuery, scope(actor));
+        return page(store::listEnvironments, store::countEnvironments, pageQuery, scope(actor));
     }
 
     @Transactional(readOnly = true)
@@ -84,7 +82,7 @@ class PostgresManagementEnvironmentService implements EnvironmentOperations {
         String code = normalizedOrGeneratedCode(request.code(), "env");
         String endpoint = normalizedOrDefault(request.apiBaseUrl(), code + ".local");
         try {
-            update(mapper::insertEnvironment, actor, values(
+            update(store::insertEnvironment, actor, values(
                     "envId", envId,
                     "projectId", project.id(),
                     "appId", appId,
@@ -108,7 +106,7 @@ class PostgresManagementEnvironmentService implements EnvironmentOperations {
         ensureEnabled(environment.status(), "当前环境状态不允许编辑");
         EnvironmentView before = environmentByKey(environment.id().toString());
         try {
-            update(mapper::updateEnvironment, actor, values(
+            update(store::updateEnvironment, actor, values(
                     "environmentId", environment.id(),
                     "name", blankToNull(request.name()),
                     "envType", blankToNull(request.envType()),
@@ -129,7 +127,7 @@ class PostgresManagementEnvironmentService implements EnvironmentOperations {
         String nextStatus = normalizeEnabledStatus(status, "环境状态不支持");
         authorizationGuard.requireEnvironmentStatus(actor, nextStatus);
         EnvironmentRef environment = resolveEnvironmentStrict(key);
-        update(mapper::changeEnvironmentStatus, actor, values("environmentId", environment.id(), "status", nextStatus));
+        update(store::changeEnvironmentStatus, actor, values("environmentId", environment.id(), "status", nextStatus));
         EnvironmentView updated = environmentByKey(environment.id().toString());
         audit(actor, "ENABLED".equals(nextStatus) ? "启用环境" : "停用环境", "environment", environment.id().toString(), updated.name());
         return updated;
@@ -150,7 +148,7 @@ class PostgresManagementEnvironmentService implements EnvironmentOperations {
                 target.webUrl(),
                 target.apiBaseUrl()
         );
-        update(mapper::updateEnvironmentHealthCheck, actor, values(
+        update(store::updateEnvironmentHealthCheck, actor, values(
                 "environmentId", target.id(),
                 "healthCheckJson", environmentConnectivityCheckJson(result)
         ));
@@ -194,15 +192,15 @@ class PostgresManagementEnvironmentService implements EnvironmentOperations {
     }
 
     private EnvironmentRef resolveEnvironmentStrict(String key) {
-        return requireOne(mapper::findEnvironmentRef, values("keyword", key), "环境不存在");
+        return requireOne(store::findEnvironmentRef, values("keyword", key), "环境不存在");
     }
 
     private EnvironmentConnectivityTargetRow resolveEnvironmentConnectivityTarget(String key) {
-        return requireOne(mapper::findEnvironmentConnectivityTarget, values("keyword", key), "环境不存在");
+        return requireOne(store::findEnvironmentConnectivityTarget, values("keyword", key), "环境不存在");
     }
 
     private EnvironmentView environmentByKey(String key) {
-        return requireOne(mapper::findEnvironmentView, values("keyword", key), "环境不存在");
+        return requireOne(store::findEnvironmentView, values("keyword", key), "环境不存在");
     }
 
     private PageResponse<ScopedUserRoleView> scopedUserRoles(
@@ -211,7 +209,7 @@ class PostgresManagementEnvironmentService implements EnvironmentOperations {
             String roleCode,
             PageQuery pageQuery
     ) {
-        return page(mapper::listScopedUserRoles, mapper::countScopedUserRoles, pageQuery, values(
+        return page(store::listScopedUserRoles, store::countScopedUserRoles, pageQuery, values(
                 "scopeId", scopeId,
                 "scopeType", scopeType,
                 "roleCode", normalizeSearch(roleCode)
@@ -225,7 +223,7 @@ class PostgresManagementEnvironmentService implements EnvironmentOperations {
             String username,
             String notFoundMessage
     ) {
-        return requireOne(mapper::findScopedUserRoleByUsername, values(
+        return requireOne(store::findScopedUserRoleByUsername, values(
                 "scopeId", scopeId,
                 "scopeType", scopeType,
                 "roleCode", normalizeSearch(roleCode),
@@ -249,7 +247,7 @@ class PostgresManagementEnvironmentService implements EnvironmentOperations {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "应用级环境必须指定应用");
         }
         ApplicationRef app = requireOne(
-                mapper::findApplicationRefInProject,
+                store::findApplicationRefInProject,
                 values("projectId", project.id(), "application", application),
                 "应用不存在"
         );
@@ -265,7 +263,7 @@ class PostgresManagementEnvironmentService implements EnvironmentOperations {
             UUID scopeId,
             AuthUserPrincipal actor
     ) {
-        update(mapper::bindScopedRole, actor, values(
+        update(store::bindScopedRole, actor, values(
                 "userId", userId,
                 "roleId", roleId,
                 "roleCode", roleCode,
@@ -281,7 +279,7 @@ class PostgresManagementEnvironmentService implements EnvironmentOperations {
             String roleCode,
             AuthUserPrincipal actor
     ) {
-        update(mapper::disableScopedRoles, actor, values(
+        update(store::disableScopedRoles, actor, values(
                 "userId", userId,
                 "scopeType", scopeType,
                 "scopeId", scopeId,
@@ -362,15 +360,15 @@ class PostgresManagementEnvironmentService implements EnvironmentOperations {
     }
 
     private UUID requireUserId(String username) {
-        return requireOne(mapper::findUserId, values("username", username), "用户不存在");
+        return requireOne(store::findUserId, values("username", username), "用户不存在");
     }
 
     private UUID requireRoleId(String roleCode) {
-        return requireOne(mapper::findRoleId, values("roleCode", roleCode), "角色不存在");
+        return requireOne(store::findRoleId, values("roleCode", roleCode), "角色不存在");
     }
 
     private void bumpUserAuthVersion(UUID userId, AuthUserPrincipal actor) {
-        update(mapper::bumpUserAuthVersion, actor, values("userId", userId));
+        update(store::bumpUserAuthVersion, actor, values("userId", userId));
     }
 
     private int update(ToIntFunction<Map<String, Object>> statement, AuthUserPrincipal actor, Map<String, Object> params) {

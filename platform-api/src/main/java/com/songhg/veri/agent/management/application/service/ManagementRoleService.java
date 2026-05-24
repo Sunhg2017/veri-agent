@@ -1,4 +1,4 @@
-package com.songhg.veri.agent.management.infrastructure;
+package com.songhg.veri.agent.management.application.service;
 
 import com.songhg.veri.agent.auth.application.AuthUserPrincipal;
 import com.songhg.veri.agent.common.api.PageQuery;
@@ -14,8 +14,8 @@ import com.songhg.veri.agent.management.application.view.PermissionView;
 import com.songhg.veri.agent.management.application.view.RoleDetailView;
 import com.songhg.veri.agent.management.application.view.RoleView;
 import com.songhg.veri.agent.management.application.view.UserView;
-import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapper;
-import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows.RoleRow;
+import com.songhg.veri.agent.management.application.port.ManagementStore;
+import com.songhg.veri.agent.management.application.port.ManagementStoreRows.RoleRow;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
@@ -26,37 +26,35 @@ import java.util.UUID;
 import java.util.function.Function;
 import java.util.function.ToIntFunction;
 import java.util.function.ToLongFunction;
-import org.springframework.context.annotation.Profile;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-@Profile("db")
 @Service
-class PostgresManagementRoleService implements RoleOperations {
+class ManagementRoleService implements RoleOperations {
 
-    private final ManagementMapper mapper;
+    private final ManagementStore store;
     private final AuditLogWriter auditLogWriter;
     private final ManagementAuthorizationGuard authorizationGuard;
 
-    PostgresManagementRoleService(
-            ManagementMapper mapper,
+    ManagementRoleService(
+            ManagementStore store,
             AuditLogWriter auditLogWriter,
             ManagementAuthorizationGuard authorizationGuard
     ) {
-        this.mapper = mapper;
+        this.store = store;
         this.auditLogWriter = auditLogWriter;
         this.authorizationGuard = authorizationGuard;
     }
 
     @Transactional(readOnly = true)
     public PageResponse<RoleView> roles(PageQuery pageQuery) {
-        return page(mapper::listRoles, mapper::countRoles, pageQuery, values());
+        return page(store::listRoles, store::countRoles, pageQuery, values());
     }
 
     @Transactional(readOnly = true)
     public PageResponse<PermissionView> permissions(PageQuery pageQuery) {
-        return page(mapper::listPermissions, mapper::countPermissions, pageQuery, values());
+        return page(store::listPermissions, store::countPermissions, pageQuery, values());
     }
 
     @Transactional(readOnly = true)
@@ -75,7 +73,7 @@ class PostgresManagementRoleService implements RoleOperations {
         ensureEnabledPermissions(permissionCodes);
         UUID roleId = UUID.randomUUID();
         try {
-            update(mapper::insertRole, actor, values(
+            update(store::insertRole, actor, values(
                     "roleId", roleId,
                     "code", code,
                     "name", name,
@@ -105,7 +103,7 @@ class PostgresManagementRoleService implements RoleOperations {
             ensureAssignablePermissions(permissionCodes, authorizationGuard.assignablePermissions(actor));
             ensureEnabledPermissions(permissionCodes);
         }
-        update(mapper::updateRole, actor, values(
+        update(store::updateRole, actor, values(
                 "roleId", role.id(),
                 "name", name,
                 "scopeType", scopeType,
@@ -126,7 +124,7 @@ class PostgresManagementRoleService implements RoleOperations {
         RoleRow role = requireRoleRow(code);
         ensureCustomRole(role);
         String nextStatus = normalizeEnabledStatus(status, "角色状态只支持 ENABLED 或 DISABLED");
-        update(mapper::changeRoleStatus, actor, values("roleId", role.id(), "status", nextStatus));
+        update(store::changeRoleStatus, actor, values("roleId", role.id(), "status", nextStatus));
         bumpUsersAuthVersionByRole(role.id(), actor);
         RoleDetailView updated = roleDetail(requireRoleRow(code));
         audit(actor, "ENABLED".equals(nextStatus) ? "启用角色" : "停用角色", "rbac_role", role.id().toString(), updated.code());
@@ -137,7 +135,7 @@ class PostgresManagementRoleService implements RoleOperations {
     public UserView assignUserRole(String username, String roleCode, AuthUserPrincipal actor) {
         UUID userId = requireUserId(username);
         UUID roleId = requireRoleId(roleCode);
-        update(mapper::assignUserRole, actor, values("userId", userId, "roleId", roleId, "roleCode", roleCode));
+        update(store::assignUserRole, actor, values("userId", userId, "roleId", roleId, "roleCode", roleCode));
         bumpUserAuthVersion(userId, actor);
         audit(actor, "分配角色", "rbac_role_binding", userId + ":" + roleCode, username + ":" + roleCode);
         return userByUsername(username);
@@ -146,7 +144,7 @@ class PostgresManagementRoleService implements RoleOperations {
     @Transactional
     public UserView unassignUserRole(String username, String roleCode, AuthUserPrincipal actor) {
         UUID userId = requireUserId(username);
-        int rows = update(mapper::unassignUserRole, actor, values("userId", userId, "roleCode", roleCode));
+        int rows = update(store::unassignUserRole, actor, values("userId", userId, "roleCode", roleCode));
         if (rows > 0) {
             bumpUserAuthVersion(userId, actor);
         }
@@ -159,7 +157,7 @@ class PostgresManagementRoleService implements RoleOperations {
         if (roleCode == null) {
             throw new BusinessException(ErrorCode.NOT_FOUND, "角色不存在");
         }
-        return requireOne(mapper::findRoleRow, values("roleCode", roleCode), "角色不存在");
+        return requireOne(store::findRoleRow, values("roleCode", roleCode), "角色不存在");
     }
 
     private RoleDetailView roleDetail(RoleRow row) {
@@ -172,7 +170,7 @@ class PostgresManagementRoleService implements RoleOperations {
                 row.system(),
                 row.builtin(),
                 row.version(),
-                mapper.listRolePermissionCodes(values("roleId", row.id()))
+                store.listRolePermissionCodes(values("roleId", row.id()))
         );
     }
 
@@ -210,7 +208,7 @@ class PostgresManagementRoleService implements RoleOperations {
     }
 
     private void ensureEnabledPermissions(List<String> permissionCodes) {
-        Set<String> enabled = new LinkedHashSet<>(mapper.listEnabledPermissionCodes(values("permissionCodes", permissionCodes)));
+        Set<String> enabled = new LinkedHashSet<>(store.listEnabledPermissionCodes(values("permissionCodes", permissionCodes)));
         List<String> missing = permissionCodes.stream()
                 .filter(permissionCode -> !enabled.contains(permissionCode))
                 .toList();
@@ -220,28 +218,28 @@ class PostgresManagementRoleService implements RoleOperations {
     }
 
     private void replaceRolePermissions(UUID roleId, List<String> permissionCodes, AuthUserPrincipal actor) {
-        update(mapper::softDeleteRolePermissions, actor, values("roleId", roleId));
-        update(mapper::insertRolePermissions, actor, values("roleId", roleId, "permissionCodes", permissionCodes));
+        update(store::softDeleteRolePermissions, actor, values("roleId", roleId));
+        update(store::insertRolePermissions, actor, values("roleId", roleId, "permissionCodes", permissionCodes));
     }
 
     private void bumpUsersAuthVersionByRole(UUID roleId, AuthUserPrincipal actor) {
-        update(mapper::bumpUsersAuthVersionByRole, actor, values("roleId", roleId));
+        update(store::bumpUsersAuthVersionByRole, actor, values("roleId", roleId));
     }
 
     private UserView userByUsername(String username) {
-        return requireOne(mapper::findUserByUsername, values("username", username), "用户不存在");
+        return requireOne(store::findUserByUsername, values("username", username), "用户不存在");
     }
 
     private UUID requireUserId(String username) {
-        return requireOne(mapper::findUserId, values("username", username), "用户不存在");
+        return requireOne(store::findUserId, values("username", username), "用户不存在");
     }
 
     private UUID requireRoleId(String roleCode) {
-        return requireOne(mapper::findRoleId, values("roleCode", roleCode), "角色不存在");
+        return requireOne(store::findRoleId, values("roleCode", roleCode), "角色不存在");
     }
 
     private void bumpUserAuthVersion(UUID userId, AuthUserPrincipal actor) {
-        update(mapper::bumpUserAuthVersion, actor, values("userId", userId));
+        update(store::bumpUserAuthVersion, actor, values("userId", userId));
     }
 
     private void audit(

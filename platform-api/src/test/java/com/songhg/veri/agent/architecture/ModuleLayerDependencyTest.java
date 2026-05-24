@@ -110,19 +110,51 @@ class ModuleLayerDependencyTest {
     }
 
     @Test
-    void managementPostgresServicesDoNotUseClassLevelTransactions() throws Exception {
-        Path infrastructureRoot = Path.of("src/main/java/com/songhg/veri/agent/management/infrastructure");
+    void managementApplicationServicesDoNotUseClassLevelTransactions() throws Exception {
+        Path serviceRoot = Path.of("src/main/java/com/songhg/veri/agent/management/application/service");
         List<Path> violatedFiles;
-        try (var files = Files.walk(infrastructureRoot)) {
+        try (var files = Files.walk(serviceRoot)) {
             violatedFiles = files
-                    .filter(path -> path.getFileName().toString().startsWith("PostgresManagement"))
                     .filter(path -> path.toString().endsWith(".java"))
                     .filter(this::usesClassLevelTransactional)
                     .toList();
         }
 
         assertThat(violatedFiles)
-                .as("management Postgres implementations must put transactions on use-case methods")
+                .as("management application services must put transactions on use-case methods")
+                .isEmpty();
+    }
+
+    @Test
+    void managementOperationImplementationsStayProfileIndependent() throws Exception {
+        Path managementRoot = Path.of("src/main/java/com/songhg/veri/agent/management");
+        List<Path> profileSpecificOperationImplementations;
+        try (var files = Files.walk(managementRoot)) {
+            profileSpecificOperationImplementations = files
+                    .filter(path -> path.toString().endsWith(".java"))
+                    .filter(this::implementsManagementOperation)
+                    .filter(path -> path.toString().contains("/infrastructure/") || usesSpringProfile(path))
+                    .toList();
+        }
+
+        assertThat(profileSpecificOperationImplementations)
+                .as("management business operations must be single application services; profile-specific code stays in stores/adapters")
+                .isEmpty();
+    }
+
+    @Test
+    void managementInfrastructureDoesNotContainProfileSplitServices() throws Exception {
+        Path infrastructureRoot = Path.of("src/main/java/com/songhg/veri/agent/management/infrastructure");
+        List<Path> splitServices;
+        try (var files = Files.walk(infrastructureRoot)) {
+            splitServices = files
+                    .filter(path -> path.toString().endsWith(".java"))
+                    .filter(path -> path.getFileName().toString().matches("(InMemory|Postgres)Management.*Service\\.java"))
+                    .toList();
+        }
+
+        assertThat(splitServices)
+                .as("local/db differences belong to ManagementStore adapters, not duplicated management services")
                 .isEmpty();
     }
 
@@ -266,6 +298,23 @@ class ModuleLayerDependencyTest {
             return lines.subList(0, classLine).stream()
                     .map(String::trim)
                     .anyMatch(line -> line.startsWith("@Transactional"));
+        } catch (Exception exception) {
+            throw new IllegalStateException("Cannot inspect " + path, exception);
+        }
+    }
+
+    private boolean implementsManagementOperation(Path path) {
+        try {
+            String content = Files.readString(path);
+            return content.contains(" implements ") && content.contains("Operations");
+        } catch (Exception exception) {
+            throw new IllegalStateException("Cannot inspect " + path, exception);
+        }
+    }
+
+    private boolean usesSpringProfile(Path path) {
+        try {
+            return Files.readString(path).contains("@Profile");
         } catch (Exception exception) {
             throw new IllegalStateException("Cannot inspect " + path, exception);
         }

@@ -1,4 +1,4 @@
-package com.songhg.veri.agent.management.infrastructure;
+package com.songhg.veri.agent.management.application.service;
 
 import com.songhg.veri.agent.auth.application.AuthUserPrincipal;
 import com.songhg.veri.agent.common.api.PageQuery;
@@ -13,9 +13,9 @@ import com.songhg.veri.agent.management.application.command.CreateSecretReferenc
 import com.songhg.veri.agent.management.application.command.DisableSecretReferenceCommand;
 import com.songhg.veri.agent.management.application.command.RotateSecretReferenceCommand;
 import com.songhg.veri.agent.management.application.view.SecretReferenceView;
-import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapper;
-import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows.SecretProviderRow;
-import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows.SecretReferenceRow;
+import com.songhg.veri.agent.management.application.port.ManagementStore;
+import com.songhg.veri.agent.management.application.port.ManagementStoreRows.SecretProviderRow;
+import com.songhg.veri.agent.management.application.port.ManagementStoreRows.SecretReferenceRow;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -23,32 +23,30 @@ import java.util.UUID;
 import java.util.function.Function;
 import java.util.function.ToIntFunction;
 import java.util.function.ToLongFunction;
-import org.springframework.context.annotation.Profile;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-@Profile("db")
 @Service
-class PostgresManagementSecretReferenceService implements SecretReferenceOperations {
+class ManagementSecretReferenceService implements SecretReferenceOperations {
 
-    private final ManagementMapper mapper;
+    private final ManagementStore store;
     private final AuditLogWriter auditLogWriter;
     private final SecretProviderProperties secretProviderProperties;
 
-    PostgresManagementSecretReferenceService(
-            ManagementMapper mapper,
+    ManagementSecretReferenceService(
+            ManagementStore store,
             AuditLogWriter auditLogWriter,
             SecretProviderProperties secretProviderProperties
     ) {
-        this.mapper = mapper;
+        this.store = store;
         this.auditLogWriter = auditLogWriter;
         this.secretProviderProperties = secretProviderProperties;
     }
 
     @Transactional(readOnly = true)
     public PageResponse<SecretReferenceView> secrets(PageQuery pageQuery) {
-        return page(mapper::listSecretReferences, mapper::countSecretReferences, pageQuery, values());
+        return page(store::listSecretReferences, store::countSecretReferences, pageQuery, values());
     }
 
     /**
@@ -60,7 +58,7 @@ class PostgresManagementSecretReferenceService implements SecretReferenceOperati
         String secretRef = request.secretRef().trim();
         String providerCode = defaultText(request.providerCode(), "");
         SecretProviderRow provider = requireOne(
-                mapper::findSecretProviderForManage,
+                store::findSecretProviderForManage,
                 values("providerCode", providerCode),
                 "密钥提供方不存在"
         );
@@ -72,7 +70,7 @@ class PostgresManagementSecretReferenceService implements SecretReferenceOperati
         );
         String secretVersion = defaultText(request.secretVersion(), "v1");
         try {
-            update(mapper::insertSecretReference, actor, values(
+            update(store::insertSecretReference, actor, values(
                     "secretRefId", secretRefId,
                     "providerId", provider.id(),
                     "secretRef", secretRef,
@@ -83,7 +81,7 @@ class PostgresManagementSecretReferenceService implements SecretReferenceOperati
                     "secretVersion", secretVersion,
                     "expiresAt", request.expiresAt()
             ));
-            update(mapper::insertSecretLocalStore, actor, values(
+            update(store::insertSecretLocalStore, actor, values(
                     "secretRefId", secretRefId,
                     "cipherText", material.cipherText(),
                     "iv", material.iv(),
@@ -115,13 +113,13 @@ class PostgresManagementSecretReferenceService implements SecretReferenceOperati
                 secretProviderProperties
         );
         String nextVersion = defaultText(request.secretVersion(), nextSecretVersion(current.secretVersion()));
-        update(mapper::updateSecretReferenceRotation, actor, values(
+        update(store::updateSecretReferenceRotation, actor, values(
                 "secretRefId", current.id(),
                 "secretVersion", nextVersion,
                 "maskedValue", maskedSecret(),
                 "expiresAt", request.expiresAt()
         ));
-        update(mapper::upsertSecretLocalStoreRotation, actor, values(
+        update(store::upsertSecretLocalStoreRotation, actor, values(
                 "secretRefId", current.id(),
                 "cipherText", material.cipherText(),
                 "iv", material.iv(),
@@ -141,8 +139,8 @@ class PostgresManagementSecretReferenceService implements SecretReferenceOperati
     @Transactional
     public SecretReferenceView disableSecret(DisableSecretReferenceCommand request, AuthUserPrincipal actor) {
         SecretReferenceRow current = secretReferenceRow(request.secretRef());
-        update(mapper::revokeSecretReference, actor, values("secretRefId", current.id()));
-        update(mapper::revokeSecretLocalStore, actor, values("secretRefId", current.id()));
+        update(store::revokeSecretReference, actor, values("secretRefId", current.id()));
+        update(store::revokeSecretLocalStore, actor, values("secretRefId", current.id()));
         SecretReferenceView updated = secretReferenceByRef(current.secretRef());
         audit(actor, "撤销密钥引用", "secret_reference", updated.id(), updated.secretRef());
         return updated;
@@ -150,7 +148,7 @@ class PostgresManagementSecretReferenceService implements SecretReferenceOperati
 
     private SecretReferenceRow secretReferenceRow(String secretRef) {
         return requireOne(
-                mapper::findSecretReferenceRow,
+                store::findSecretReferenceRow,
                 values("secretRef", normalizeSearch(secretRef)),
                 "密钥引用不存在"
         );
@@ -158,7 +156,7 @@ class PostgresManagementSecretReferenceService implements SecretReferenceOperati
 
     private SecretReferenceView secretReferenceByRef(String secretRef) {
         return requireOne(
-                mapper::findSecretReferenceView,
+                store::findSecretReferenceView,
                 values("secretRef", normalizeSearch(secretRef)),
                 "密钥引用不存在"
         );

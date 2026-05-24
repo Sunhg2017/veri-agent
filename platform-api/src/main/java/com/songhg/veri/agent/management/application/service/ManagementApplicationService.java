@@ -1,4 +1,4 @@
-package com.songhg.veri.agent.management.infrastructure;
+package com.songhg.veri.agent.management.application.service;
 
 import com.songhg.veri.agent.auth.application.AuthUserPrincipal;
 import com.songhg.veri.agent.common.api.PageQuery;
@@ -13,9 +13,9 @@ import com.songhg.veri.agent.management.application.command.UpdateApplicationCom
 import com.songhg.veri.agent.management.application.port.ApplicationOperations;
 import com.songhg.veri.agent.management.application.view.ApplicationView;
 import com.songhg.veri.agent.management.application.view.ScopedUserRoleView;
-import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapper;
-import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows.ApplicationRef;
-import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows.ProjectRef;
+import com.songhg.veri.agent.management.application.port.ManagementStore;
+import com.songhg.veri.agent.management.application.port.ManagementStoreRows.ApplicationRef;
+import com.songhg.veri.agent.management.application.port.ManagementStoreRows.ProjectRef;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -23,27 +23,25 @@ import java.util.UUID;
 import java.util.function.Function;
 import java.util.function.ToIntFunction;
 import java.util.function.ToLongFunction;
-import org.springframework.context.annotation.Profile;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-@Profile("db")
 @Service
-class PostgresManagementApplicationService implements ApplicationOperations {
+class ManagementApplicationService implements ApplicationOperations {
 
-    private final ManagementMapper mapper;
+    private final ManagementStore store;
     private final AuditLogWriter auditLogWriter;
-    private final PostgresManagementProjectService projectService;
+    private final ManagementProjectService projectService;
     private final ManagementAuthorizationGuard authorizationGuard;
 
-    PostgresManagementApplicationService(
-            ManagementMapper mapper,
+    ManagementApplicationService(
+            ManagementStore store,
             AuditLogWriter auditLogWriter,
-            PostgresManagementProjectService projectService,
+            ManagementProjectService projectService,
             ManagementAuthorizationGuard authorizationGuard
     ) {
-        this.mapper = mapper;
+        this.store = store;
         this.auditLogWriter = auditLogWriter;
         this.projectService = projectService;
         this.authorizationGuard = authorizationGuard;
@@ -51,7 +49,7 @@ class PostgresManagementApplicationService implements ApplicationOperations {
 
     @Transactional(readOnly = true)
     public PageResponse<ApplicationView> applications(PageQuery pageQuery, AuthUserPrincipal actor) {
-        return page(mapper::listApplications, mapper::countApplications, pageQuery, scope(actor));
+        return page(store::listApplications, store::countApplications, pageQuery, scope(actor));
     }
 
     @Transactional(readOnly = true)
@@ -70,7 +68,7 @@ class PostgresManagementApplicationService implements ApplicationOperations {
         ensureProjectEditable(project.status());
         UUID appId = UUID.randomUUID();
         try {
-            update(mapper::insertApplication, actor, values(
+            update(store::insertApplication, actor, values(
                     "appId", appId,
                     "projectId", project.id(),
                     "code", code,
@@ -94,7 +92,7 @@ class PostgresManagementApplicationService implements ApplicationOperations {
         ensureEnabled(application.status(), "当前应用状态不允许编辑");
         ApplicationView before = applicationByKey(application.id().toString());
         try {
-            update(mapper::updateApplication, actor, values(
+            update(store::updateApplication, actor, values(
                     "applicationId", application.id(),
                     "name", blankToNull(request.name()),
                     "appType", blankToNull(request.appType()),
@@ -117,7 +115,7 @@ class PostgresManagementApplicationService implements ApplicationOperations {
         String nextStatus = normalizeEnabledStatus(status, "应用状态不支持");
         authorizationGuard.requireApplicationStatus(actor, nextStatus);
         ApplicationRef application = resolveApplicationStrict(key);
-        update(mapper::changeApplicationStatus, actor, values("applicationId", application.id(), "status", nextStatus));
+        update(store::changeApplicationStatus, actor, values("applicationId", application.id(), "status", nextStatus));
         ApplicationView updated = applicationByKey(application.id().toString());
         audit(actor, "ENABLED".equals(nextStatus) ? "启用应用" : "停用应用", "application", application.id().toString(), updated.name());
         return updated;
@@ -159,11 +157,11 @@ class PostgresManagementApplicationService implements ApplicationOperations {
     }
 
     private ApplicationRef resolveApplicationStrict(String key) {
-        return requireOne(mapper::findApplicationRef, values("keyword", key), "应用不存在");
+        return requireOne(store::findApplicationRef, values("keyword", key), "应用不存在");
     }
 
     private ApplicationView applicationByKey(String key) {
-        return requireOne(mapper::findApplicationView, values("keyword", key), "应用不存在");
+        return requireOne(store::findApplicationView, values("keyword", key), "应用不存在");
     }
 
     private PageResponse<ScopedUserRoleView> scopedUserRoles(
@@ -172,7 +170,7 @@ class PostgresManagementApplicationService implements ApplicationOperations {
             String roleCode,
             PageQuery pageQuery
     ) {
-        return page(mapper::listScopedUserRoles, mapper::countScopedUserRoles, pageQuery, values(
+        return page(store::listScopedUserRoles, store::countScopedUserRoles, pageQuery, values(
                 "scopeId", scopeId,
                 "scopeType", scopeType,
                 "roleCode", normalizeSearch(roleCode)
@@ -186,7 +184,7 @@ class PostgresManagementApplicationService implements ApplicationOperations {
             String username,
             String notFoundMessage
     ) {
-        return requireOne(mapper::findScopedUserRoleByUsername, values(
+        return requireOne(store::findScopedUserRoleByUsername, values(
                 "scopeId", scopeId,
                 "scopeType", scopeType,
                 "roleCode", normalizeSearch(roleCode),
@@ -202,7 +200,7 @@ class PostgresManagementApplicationService implements ApplicationOperations {
             UUID scopeId,
             AuthUserPrincipal actor
     ) {
-        update(mapper::bindScopedRole, actor, values(
+        update(store::bindScopedRole, actor, values(
                 "userId", userId,
                 "roleId", roleId,
                 "roleCode", roleCode,
@@ -218,7 +216,7 @@ class PostgresManagementApplicationService implements ApplicationOperations {
             String roleCode,
             AuthUserPrincipal actor
     ) {
-        update(mapper::disableScopedRoles, actor, values(
+        update(store::disableScopedRoles, actor, values(
                 "userId", userId,
                 "scopeType", scopeType,
                 "scopeId", scopeId,
@@ -267,15 +265,15 @@ class PostgresManagementApplicationService implements ApplicationOperations {
     }
 
     private UUID requireUserId(String username) {
-        return requireOne(mapper::findUserId, values("username", username), "用户不存在");
+        return requireOne(store::findUserId, values("username", username), "用户不存在");
     }
 
     private UUID requireRoleId(String roleCode) {
-        return requireOne(mapper::findRoleId, values("roleCode", roleCode), "角色不存在");
+        return requireOne(store::findRoleId, values("roleCode", roleCode), "角色不存在");
     }
 
     private void bumpUserAuthVersion(UUID userId, AuthUserPrincipal actor) {
-        update(mapper::bumpUserAuthVersion, actor, values("userId", userId));
+        update(store::bumpUserAuthVersion, actor, values("userId", userId));
     }
 
     private int update(ToIntFunction<Map<String, Object>> statement, AuthUserPrincipal actor, Map<String, Object> params) {

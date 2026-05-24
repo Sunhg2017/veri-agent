@@ -27,6 +27,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @SpringBootTest(properties = {
         "veri-agent.auth.token-secret=test-auth-secret-32-byte-minimum!",
+        "veri-agent.secret.local-master-key=0123456789abcdef0123456789abcdef",
+        "veri-agent.secret.local-master-key-version=validation-v1",
         "veri-agent.management.environment-connectivity-check-enabled=false"
 })
 @AutoConfigureMockMvc
@@ -97,7 +99,7 @@ class ManagementControllersTest {
                         .content("{\"name\":\"admin-console\"}"))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.data.name").value("admin-console"))
-                .andExpect(jsonPath("$.data.status").value("接入中"));
+                .andExpect(jsonPath("$.data.status").value("已接入"));
 
         mockMvc.perform(get("/api/v1/management/audit-logs")
                         .param("action", "登记应用")
@@ -557,8 +559,8 @@ class ManagementControllersTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("SKIPPED"))
                 .andExpect(jsonPath("$.data.traceId", startsWith("trc_")))
-                .andExpect(jsonPath("$.data.endpoints.length()").value(1))
-                .andExpect(jsonPath("$.data.endpoints[0].target").value("API"))
+                .andExpect(jsonPath("$.data.endpoints.length()").value(2))
+                .andExpect(jsonPath("$.data.endpoints[1].target").value("API"))
                 .andExpect(jsonPath("$.data.endpoints[0].status").value("SKIPPED"));
 
         mockMvc.perform(patch("/api/v1/management/environments/WP1 探活环境/status")
@@ -728,7 +730,7 @@ class ManagementControllersTest {
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items[0].username").value("tester.project"))
-                .andExpect(jsonPath("$.data.total").value(1));
+                .andExpect(jsonPath("$.data.total").value(2));
 
         mockMvc.perform(post("/api/v1/management/projects/WP1 成员项目/members/tester.project/remove")
                         .header("Authorization", "Bearer " + token))
@@ -1007,21 +1009,21 @@ class ManagementControllersTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"roleCode\":\"PlatformAdmin\"}"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.role").value("Tester / PlatformAdmin"));
+                .andExpect(jsonPath("$.data.role").value("PlatformAdmin / Tester"));
 
         mockMvc.perform(post("/api/v1/management/users/tester.role/roles")
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"roleCode\":\"QaReviewer\"}"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.role").value("Tester / PlatformAdmin / QaReviewer"));
+                .andExpect(jsonPath("$.data.role").value("PlatformAdmin / QaReviewer / Tester"));
 
         mockMvc.perform(post("/api/v1/management/users/tester.role/roles/unassign")
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"roleCode\":\"PlatformAdmin\"}"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.role").value("Tester / QaReviewer"));
+                .andExpect(jsonPath("$.data.role").value("QaReviewer / Tester"));
     }
 
     @Test

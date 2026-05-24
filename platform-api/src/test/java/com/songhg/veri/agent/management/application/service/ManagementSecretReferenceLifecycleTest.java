@@ -1,4 +1,4 @@
-package com.songhg.veri.agent.management.infrastructure;
+package com.songhg.veri.agent.management.application.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyMap;
@@ -15,16 +15,16 @@ import com.songhg.veri.agent.management.application.command.CreateSecretReferenc
 import com.songhg.veri.agent.management.application.command.DisableSecretReferenceCommand;
 import com.songhg.veri.agent.management.application.command.RotateSecretReferenceCommand;
 import com.songhg.veri.agent.management.application.view.SecretReferenceView;
-import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapper;
-import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows.SecretProviderRow;
-import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows.SecretReferenceRow;
+import com.songhg.veri.agent.management.application.port.ManagementStore;
+import com.songhg.veri.agent.management.application.port.ManagementStoreRows.SecretProviderRow;
+import com.songhg.veri.agent.management.application.port.ManagementStoreRows.SecretReferenceRow;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
-class PostgresManagementSecretReferenceLifecycleTest {
+class ManagementSecretReferenceLifecycleTest {
 
     private static final SecretProviderProperties SECRET_PROPERTIES = new SecretProviderProperties(
             "0123456789abcdef0123456789abcdef",
@@ -40,9 +40,9 @@ class PostgresManagementSecretReferenceLifecycleTest {
 
     @Test
     void localEncryptedSecretLifecycleWritesCipherMaterialAndRevokesStore() {
-        ManagementMapper mapper = mock(ManagementMapper.class);
+        ManagementStore mapper = mock(ManagementStore.class);
         AuditLogWriter auditLogWriter = mock(AuditLogWriter.class);
-        PostgresManagementSecretReferenceService service = new PostgresManagementSecretReferenceService(
+        ManagementSecretReferenceService service = new ManagementSecretReferenceService(
                 mapper,
                 auditLogWriter,
                 SECRET_PROPERTIES
@@ -122,7 +122,7 @@ class PostgresManagementSecretReferenceLifecycleTest {
     }
 
     @SuppressWarnings("unchecked")
-    private static Map<String, Object> capturedMap(ManagementMapper mapper, String operation) {
+    private static Map<String, Object> capturedMap(ManagementStore mapper, String operation) {
         ArgumentCaptor<Map<String, Object>> captor = ArgumentCaptor.forClass(Map.class);
         if ("insert".equals(operation)) {
             verify(mapper).insertSecretLocalStore(captor.capture());

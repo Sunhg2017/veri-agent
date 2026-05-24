@@ -165,7 +165,7 @@
         </constructor>
     </resultMap>
 
-    <resultMap id="departmentRefMap" type="com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows$DepartmentRef">
+    <resultMap id="departmentRefMap" type="com.songhg.veri.agent.management.application.port.ManagementStoreRows$DepartmentRef">
         <constructor>
             <arg column="id" javaType="java.util.UUID"/>
             <arg column="name" javaType="java.lang.String"/>
@@ -173,7 +173,7 @@
         </constructor>
     </resultMap>
 
-    <resultMap id="roleRowMap" type="com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows$RoleRow">
+    <resultMap id="roleRowMap" type="com.songhg.veri.agent.management.application.port.ManagementStoreRows$RoleRow">
         <constructor>
             <arg column="id" javaType="java.util.UUID"/>
             <arg column="code" javaType="java.lang.String"/>
@@ -187,7 +187,7 @@
         </constructor>
     </resultMap>
 
-    <resultMap id="projectRefMap" type="com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows$ProjectRef">
+    <resultMap id="projectRefMap" type="com.songhg.veri.agent.management.application.port.ManagementStoreRows$ProjectRef">
         <constructor>
             <arg column="id" javaType="java.util.UUID"/>
             <arg column="name" javaType="java.lang.String"/>
@@ -195,17 +195,7 @@
         </constructor>
     </resultMap>
 
-    <resultMap id="applicationRefMap" type="com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows$ApplicationRef">
-        <constructor>
-            <arg column="id" javaType="java.util.UUID"/>
-            <arg column="name" javaType="java.lang.String"/>
-            <arg column="status" javaType="java.lang.String"/>
-            <arg column="project_id" javaType="java.util.UUID"/>
-            <arg column="project_name" javaType="java.lang.String"/>
-        </constructor>
-    </resultMap>
-
-    <resultMap id="environmentRefMap" type="com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows$EnvironmentRef">
+    <resultMap id="applicationRefMap" type="com.songhg.veri.agent.management.application.port.ManagementStoreRows$ApplicationRef">
         <constructor>
             <arg column="id" javaType="java.util.UUID"/>
             <arg column="name" javaType="java.lang.String"/>
@@ -215,7 +205,17 @@
         </constructor>
     </resultMap>
 
-    <resultMap id="environmentConnectivityTargetMap" type="com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows$EnvironmentConnectivityTargetRow">
+    <resultMap id="environmentRefMap" type="com.songhg.veri.agent.management.application.port.ManagementStoreRows$EnvironmentRef">
+        <constructor>
+            <arg column="id" javaType="java.util.UUID"/>
+            <arg column="name" javaType="java.lang.String"/>
+            <arg column="status" javaType="java.lang.String"/>
+            <arg column="project_id" javaType="java.util.UUID"/>
+            <arg column="project_name" javaType="java.lang.String"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="environmentConnectivityTargetMap" type="com.songhg.veri.agent.management.application.port.ManagementStoreRows$EnvironmentConnectivityTargetRow">
         <constructor>
             <arg column="id" javaType="java.util.UUID"/>
             <arg column="name" javaType="java.lang.String"/>
@@ -226,7 +226,7 @@
         </constructor>
     </resultMap>
 
-    <resultMap id="integrationRowMap" type="com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows$IntegrationRow">
+    <resultMap id="integrationRowMap" type="com.songhg.veri.agent.management.application.port.ManagementStoreRows$IntegrationRow">
         <constructor>
             <arg column="config_key" javaType="java.lang.String"/>
             <arg column="integration_key" javaType="java.lang.String"/>
@@ -237,7 +237,7 @@
         </constructor>
     </resultMap>
 
-    <resultMap id="settingRowMap" type="com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows$SettingRow">
+    <resultMap id="settingRowMap" type="com.songhg.veri.agent.management.application.port.ManagementStoreRows$SettingRow">
         <constructor>
             <arg column="config_key" javaType="java.lang.String"/>
             <arg column="scope_type" javaType="java.lang.String"/>
@@ -247,7 +247,7 @@
         </constructor>
     </resultMap>
 
-    <resultMap id="secretProviderRowMap" type="com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows$SecretProviderRow">
+    <resultMap id="secretProviderRowMap" type="com.songhg.veri.agent.management.application.port.ManagementStoreRows$SecretProviderRow">
         <constructor>
             <arg column="id" javaType="java.util.UUID"/>
             <arg column="provider_code" javaType="java.lang.String"/>
@@ -256,7 +256,7 @@
         </constructor>
     </resultMap>
 
-    <resultMap id="secretReferenceRowMap" type="com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows$SecretReferenceRow">
+    <resultMap id="secretReferenceRowMap" type="com.songhg.veri.agent.management.application.port.ManagementStoreRows$SecretReferenceRow">
         <constructor>
             <arg column="id" javaType="java.util.UUID"/>
             <arg column="secret_ref" javaType="java.lang.String"/>

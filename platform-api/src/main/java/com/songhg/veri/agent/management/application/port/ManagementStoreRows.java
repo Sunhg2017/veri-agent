@@ -1,10 +1,14 @@
-package com.songhg.veri.agent.management.infrastructure.mapper;
+package com.songhg.veri.agent.management.application.port;
 
 import java.util.UUID;
 
-public final class ManagementMapperRows {
+/**
+ * Lightweight persistence rows returned by {@link ManagementStore}. They represent identifiers and
+ * status codes needed by use-case services, not HTTP response DTOs.
+ */
+public final class ManagementStoreRows {
 
-    private ManagementMapperRows() {
+    private ManagementStoreRows() {
     }
 
     public record DepartmentRef(UUID id, String name, String status) {
