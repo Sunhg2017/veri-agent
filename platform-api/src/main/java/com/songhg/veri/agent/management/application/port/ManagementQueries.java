@@ -1,16 +1,13 @@
 package com.songhg.veri.agent.management.application.port;
 
 import com.songhg.veri.agent.common.api.PageQuery;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 
 /**
  * Typed parameter objects for management store queries.
  *
- * <p>These records replace {@code Map<String, Object>} parameter bags with
- * compile-time safety. Each {@code toMap()} method produces the same map
- * keys the MyBatis mapper expects.
+ * <p>These records replace raw parameter bags with compile-time visible query fields. Each
+ * {@code toParams()} method produces the same property names the MyBatis adapter expects.
  */
 public final class ManagementQueries {
 
@@ -22,8 +19,8 @@ public final class ManagementQueries {
             String status,
             PageQuery page
     ) {
-        public Map<String, Object> toMap() {
-            Map<String, Object> m = new LinkedHashMap<>();
+        public ManagementStoreParams toParams() {
+            ManagementStoreParams m = ManagementStoreParams.empty();
             m.put("search", search);
             m.put("status", status);
             if (page != null) {
@@ -41,8 +38,8 @@ public final class ManagementQueries {
             String status,
             PageQuery page
     ) {
-        public Map<String, Object> toMap() {
-            Map<String, Object> m = new LinkedHashMap<>();
+        public ManagementStoreParams toParams() {
+            ManagementStoreParams m = ManagementStoreParams.empty();
             m.put("search", search);
             m.put("roleCode", roleCode);
             m.put("departmentId", departmentId);
@@ -61,8 +58,8 @@ public final class ManagementQueries {
             String status,
             PageQuery page
     ) {
-        public Map<String, Object> toMap() {
-            Map<String, Object> m = new LinkedHashMap<>();
+        public ManagementStoreParams toParams() {
+            ManagementStoreParams m = ManagementStoreParams.empty();
             m.put("search", search);
             m.put("scopeType", scopeType);
             m.put("status", status);
@@ -82,8 +79,8 @@ public final class ManagementQueries {
             List<String> visibleProjectKeys,
             PageQuery page
     ) {
-        public Map<String, Object> toMap() {
-            Map<String, Object> m = new LinkedHashMap<>();
+        public ManagementStoreParams toParams() {
+            ManagementStoreParams m = ManagementStoreParams.empty();
             m.put("search", search);
             m.put("departmentId", departmentId);
             m.put("status", status);
@@ -105,8 +102,8 @@ public final class ManagementQueries {
             List<String> visibleProjectKeys,
             PageQuery page
     ) {
-        public Map<String, Object> toMap() {
-            Map<String, Object> m = new LinkedHashMap<>();
+        public ManagementStoreParams toParams() {
+            ManagementStoreParams m = ManagementStoreParams.empty();
             m.put("search", search);
             m.put("projectKey", projectKey);
             m.put("status", status);
@@ -128,8 +125,8 @@ public final class ManagementQueries {
             List<String> visibleProjectKeys,
             PageQuery page
     ) {
-        public Map<String, Object> toMap() {
-            Map<String, Object> m = new LinkedHashMap<>();
+        public ManagementStoreParams toParams() {
+            ManagementStoreParams m = ManagementStoreParams.empty();
             m.put("search", search);
             m.put("projectKey", projectKey);
             m.put("status", status);

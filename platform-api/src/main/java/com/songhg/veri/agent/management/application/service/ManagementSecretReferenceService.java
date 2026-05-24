@@ -14,11 +14,10 @@ import com.songhg.veri.agent.management.application.command.DisableSecretReferen
 import com.songhg.veri.agent.management.application.command.RotateSecretReferenceCommand;
 import com.songhg.veri.agent.management.application.view.SecretReferenceView;
 import com.songhg.veri.agent.management.application.port.ManagementStore;
+import com.songhg.veri.agent.management.application.port.ManagementStoreParams;
 import com.songhg.veri.agent.management.application.port.ManagementStoreRows.SecretProviderRow;
 import com.songhg.veri.agent.management.application.port.ManagementStoreRows.SecretReferenceRow;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.function.ToIntFunction;
@@ -197,27 +196,27 @@ class ManagementSecretReferenceService implements SecretReferenceOperations {
     }
 
     private int update(
-            ToIntFunction<Map<String, Object>> statement,
+            ToIntFunction<ManagementStoreParams> statement,
             AuthUserPrincipal actor,
-            Map<String, Object> params
+            ManagementStoreParams params
     ) {
         return statement.applyAsInt(withActor(actor, params));
     }
 
     private <T> PageResponse<T> page(
-            Function<Map<String, Object>, List<T>> listStatement,
-            ToLongFunction<Map<String, Object>> countStatement,
+            Function<ManagementStoreParams, List<T>> listStatement,
+            ToLongFunction<ManagementStoreParams> countStatement,
             PageQuery pageQuery,
-            Map<String, Object> extraParams
+            ManagementStoreParams extraParams
     ) {
-        Map<String, Object> params = pageParams(pageQuery, extraParams);
+        ManagementStoreParams params = pageParams(pageQuery, extraParams);
         List<T> items = listStatement.apply(params);
         long total = countStatement.applyAsLong(params);
         return PageResponse.of(items, pageQuery.index(), pageQuery.size(), total);
     }
 
-    private Map<String, Object> pageParams(PageQuery pageQuery, Map<String, Object> extraParams) {
-        Map<String, Object> params = new HashMap<>(extraParams);
+    private ManagementStoreParams pageParams(PageQuery pageQuery, ManagementStoreParams extraParams) {
+        ManagementStoreParams params = ManagementStoreParams.copyOf(extraParams);
         params.put("search", pageQuery.search());
         params.put("searchPattern", pageQuery.searchPattern());
         params.put("limit", pageQuery.size());
@@ -225,17 +224,17 @@ class ManagementSecretReferenceService implements SecretReferenceOperations {
         return params;
     }
 
-    private Map<String, Object> withActor(AuthUserPrincipal actor, Map<String, Object> source) {
-        Map<String, Object> params = new HashMap<>(source);
+    private ManagementStoreParams withActor(AuthUserPrincipal actor, ManagementStoreParams source) {
+        ManagementStoreParams params = ManagementStoreParams.copyOf(source);
         params.put("actorId", actor.userId());
         return params;
     }
 
-    private Map<String, Object> values(Object... pairs) {
+    private ManagementStoreParams values(Object... pairs) {
         if (pairs.length % 2 != 0) {
             throw new IllegalArgumentException("参数必须成对出现");
         }
-        Map<String, Object> params = new HashMap<>();
+        ManagementStoreParams params = ManagementStoreParams.empty();
         for (int index = 0; index < pairs.length; index += 2) {
             params.put((String) pairs[index], pairs[index + 1]);
         }
@@ -243,11 +242,11 @@ class ManagementSecretReferenceService implements SecretReferenceOperations {
     }
 
     private <T> T requireOne(
-            Function<Map<String, Object>, T> statement,
-            Map<String, Object> params,
+            Function<ManagementStoreParams, T> statement,
+            ManagementStoreParams params,
             String notFoundMessage
     ) {
-        Map<String, Object> normalized = new HashMap<>(params);
+        ManagementStoreParams normalized = ManagementStoreParams.copyOf(params);
         T value = statement.apply(normalized);
         if (value == null) {
             throw new BusinessException(ErrorCode.NOT_FOUND, notFoundMessage);

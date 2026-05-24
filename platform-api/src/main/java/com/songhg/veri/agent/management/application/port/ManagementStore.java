@@ -29,7 +29,6 @@ import com.songhg.veri.agent.management.application.port.ManagementStoreRows.Sec
 import com.songhg.veri.agent.management.application.port.ManagementStoreRows.SecretReferenceRow;
 import com.songhg.veri.agent.management.application.port.ManagementStoreRows.SettingRow;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -39,251 +38,247 @@ import java.util.UUID;
  */
 public interface ManagementStore {
 
-    // -- Typed query overloads (preferred over the Map variants) --
-
     default List<DepartmentView> listDepartments(DepartmentQuery query) {
-        return listDepartments(query.toMap());
+        return listDepartments(query.toParams());
     }
 
     default long countDepartments(DepartmentQuery query) {
-        return countDepartments(query.toMap());
+        return countDepartments(query.toParams());
     }
 
     default List<UserView> listUsers(UserQuery query) {
-        return listUsers(query.toMap());
+        return listUsers(query.toParams());
     }
 
     default long countUsers(UserQuery query) {
-        return countUsers(query.toMap());
+        return countUsers(query.toParams());
     }
 
     default List<ProjectView> listProjects(ProjectQuery query) {
-        return listProjects(query.toMap());
+        return listProjects(query.toParams());
     }
 
     default long countProjects(ProjectQuery query) {
-        return countProjects(query.toMap());
+        return countProjects(query.toParams());
     }
 
     default List<ApplicationView> listApplications(ApplicationQuery query) {
-        return listApplications(query.toMap());
+        return listApplications(query.toParams());
     }
 
     default long countApplications(ApplicationQuery query) {
-        return countApplications(query.toMap());
+        return countApplications(query.toParams());
     }
 
     default List<EnvironmentView> listEnvironments(EnvironmentQuery query) {
-        return listEnvironments(query.toMap());
+        return listEnvironments(query.toParams());
     }
 
     default long countEnvironments(EnvironmentQuery query) {
-        return countEnvironments(query.toMap());
+        return countEnvironments(query.toParams());
     }
 
-    // -- Map-based methods (legacy, keep for MyBatis mapper compatibility) --
+    List<DepartmentView> listDepartments(ManagementStoreParams params);
 
-    List<DepartmentView> listDepartments(Map<String, Object> params);
+    long countDepartments(ManagementStoreParams params);
 
-    long countDepartments(Map<String, Object> params);
+    int insertDepartment(ManagementStoreParams params);
 
-    int insertDepartment(Map<String, Object> params);
+    int updateDepartment(ManagementStoreParams params);
 
-    int updateDepartment(Map<String, Object> params);
+    int changeDepartmentStatus(ManagementStoreParams params);
 
-    int changeDepartmentStatus(Map<String, Object> params);
+    List<UserView> listUsers(ManagementStoreParams params);
 
-    List<UserView> listUsers(Map<String, Object> params);
+    long countUsers(ManagementStoreParams params);
 
-    long countUsers(Map<String, Object> params);
+    int insertUser(ManagementStoreParams params);
 
-    int insertUser(Map<String, Object> params);
+    int updateUser(ManagementStoreParams params);
 
-    int updateUser(Map<String, Object> params);
+    int enableUser(ManagementStoreParams params);
 
-    int enableUser(Map<String, Object> params);
+    int disableUser(ManagementStoreParams params);
 
-    int disableUser(Map<String, Object> params);
+    int lockUser(ManagementStoreParams params);
 
-    int lockUser(Map<String, Object> params);
+    int unlockUser(ManagementStoreParams params);
 
-    int unlockUser(Map<String, Object> params);
+    int resetUserPassword(ManagementStoreParams params);
 
-    int resetUserPassword(Map<String, Object> params);
+    List<RoleView> listRoles(ManagementStoreParams params);
 
-    List<RoleView> listRoles(Map<String, Object> params);
+    long countRoles(ManagementStoreParams params);
 
-    long countRoles(Map<String, Object> params);
+    List<PermissionView> listPermissions(ManagementStoreParams params);
 
-    List<PermissionView> listPermissions(Map<String, Object> params);
+    long countPermissions(ManagementStoreParams params);
 
-    long countPermissions(Map<String, Object> params);
+    RoleRow findRoleRow(ManagementStoreParams params);
 
-    RoleRow findRoleRow(Map<String, Object> params);
+    List<String> listRolePermissionCodes(ManagementStoreParams params);
 
-    List<String> listRolePermissionCodes(Map<String, Object> params);
+    List<String> listEnabledPermissionCodes(ManagementStoreParams params);
 
-    List<String> listEnabledPermissionCodes(Map<String, Object> params);
+    int insertRole(ManagementStoreParams params);
 
-    int insertRole(Map<String, Object> params);
+    int updateRole(ManagementStoreParams params);
 
-    int updateRole(Map<String, Object> params);
+    int changeRoleStatus(ManagementStoreParams params);
 
-    int changeRoleStatus(Map<String, Object> params);
+    int softDeleteRolePermissions(ManagementStoreParams params);
 
-    int softDeleteRolePermissions(Map<String, Object> params);
+    int insertRolePermissions(ManagementStoreParams params);
 
-    int insertRolePermissions(Map<String, Object> params);
+    int bumpUsersAuthVersionByRole(ManagementStoreParams params);
 
-    int bumpUsersAuthVersionByRole(Map<String, Object> params);
+    int assignUserRole(ManagementStoreParams params);
 
-    int assignUserRole(Map<String, Object> params);
+    int unassignUserRole(ManagementStoreParams params);
 
-    int unassignUserRole(Map<String, Object> params);
+    List<ProjectView> listProjects(ManagementStoreParams params);
 
-    List<ProjectView> listProjects(Map<String, Object> params);
+    long countProjects(ManagementStoreParams params);
 
-    long countProjects(Map<String, Object> params);
+    int insertProject(ManagementStoreParams params);
 
-    int insertProject(Map<String, Object> params);
+    int updateProject(ManagementStoreParams params);
 
-    int updateProject(Map<String, Object> params);
+    int changeProjectStatus(ManagementStoreParams params);
 
-    int changeProjectStatus(Map<String, Object> params);
+    List<ProjectMemberView> listProjectMembers(ManagementStoreParams params);
 
-    List<ProjectMemberView> listProjectMembers(Map<String, Object> params);
+    long countProjectMembers(ManagementStoreParams params);
 
-    long countProjectMembers(Map<String, Object> params);
+    int upsertProjectMember(ManagementStoreParams params);
 
-    int upsertProjectMember(Map<String, Object> params);
+    int deleteProjectMember(ManagementStoreParams params);
 
-    int deleteProjectMember(Map<String, Object> params);
+    int disableProjectRoleBindings(ManagementStoreParams params);
 
-    int disableProjectRoleBindings(Map<String, Object> params);
+    List<ApplicationView> listApplications(ManagementStoreParams params);
 
-    List<ApplicationView> listApplications(Map<String, Object> params);
+    long countApplications(ManagementStoreParams params);
 
-    long countApplications(Map<String, Object> params);
+    int insertApplication(ManagementStoreParams params);
 
-    int insertApplication(Map<String, Object> params);
+    int updateApplication(ManagementStoreParams params);
 
-    int updateApplication(Map<String, Object> params);
+    int changeApplicationStatus(ManagementStoreParams params);
 
-    int changeApplicationStatus(Map<String, Object> params);
+    List<EnvironmentView> listEnvironments(ManagementStoreParams params);
 
-    List<EnvironmentView> listEnvironments(Map<String, Object> params);
+    long countEnvironments(ManagementStoreParams params);
 
-    long countEnvironments(Map<String, Object> params);
+    int insertEnvironment(ManagementStoreParams params);
 
-    int insertEnvironment(Map<String, Object> params);
+    int updateEnvironment(ManagementStoreParams params);
 
-    int updateEnvironment(Map<String, Object> params);
+    int changeEnvironmentStatus(ManagementStoreParams params);
 
-    int changeEnvironmentStatus(Map<String, Object> params);
+    EnvironmentConnectivityTargetRow findEnvironmentConnectivityTarget(ManagementStoreParams params);
 
-    EnvironmentConnectivityTargetRow findEnvironmentConnectivityTarget(Map<String, Object> params);
+    int updateEnvironmentHealthCheck(ManagementStoreParams params);
 
-    int updateEnvironmentHealthCheck(Map<String, Object> params);
+    List<IntegrationView> listIntegrations(ManagementStoreParams params);
 
-    List<IntegrationView> listIntegrations(Map<String, Object> params);
+    long countIntegrations(ManagementStoreParams params);
 
-    long countIntegrations(Map<String, Object> params);
+    List<AuditLogView> listAuditLogs(ManagementStoreParams params);
 
-    List<AuditLogView> listAuditLogs(Map<String, Object> params);
+    long countAuditLogs(ManagementStoreParams params);
 
-    long countAuditLogs(Map<String, Object> params);
+    List<AuditOutboxView> listAuditOutbox(ManagementStoreParams params);
 
-    List<AuditOutboxView> listAuditOutbox(Map<String, Object> params);
+    long countAuditOutbox(ManagementStoreParams params);
 
-    long countAuditOutbox(Map<String, Object> params);
+    List<SettingRow> listSettings(ManagementStoreParams params);
 
-    List<SettingRow> listSettings(Map<String, Object> params);
+    long countSettings(ManagementStoreParams params);
 
-    long countSettings(Map<String, Object> params);
+    List<SecretReferenceView> listSecretReferences(ManagementStoreParams params);
 
-    List<SecretReferenceView> listSecretReferences(Map<String, Object> params);
+    long countSecretReferences(ManagementStoreParams params);
 
-    long countSecretReferences(Map<String, Object> params);
+    int insertConfig(ManagementStoreParams params);
 
-    int insertConfig(Map<String, Object> params);
+    SecretProviderRow findSecretProviderForManage(ManagementStoreParams params);
 
-    SecretProviderRow findSecretProviderForManage(Map<String, Object> params);
+    SecretReferenceRow findSecretReferenceRow(ManagementStoreParams params);
 
-    SecretReferenceRow findSecretReferenceRow(Map<String, Object> params);
+    SecretReferenceView findSecretReferenceView(ManagementStoreParams params);
 
-    SecretReferenceView findSecretReferenceView(Map<String, Object> params);
+    int insertSecretReference(ManagementStoreParams params);
 
-    int insertSecretReference(Map<String, Object> params);
+    int insertSecretLocalStore(ManagementStoreParams params);
 
-    int insertSecretLocalStore(Map<String, Object> params);
+    int updateSecretReferenceRotation(ManagementStoreParams params);
 
-    int updateSecretReferenceRotation(Map<String, Object> params);
+    int upsertSecretLocalStoreRotation(ManagementStoreParams params);
 
-    int upsertSecretLocalStoreRotation(Map<String, Object> params);
+    int revokeSecretReference(ManagementStoreParams params);
 
-    int revokeSecretReference(Map<String, Object> params);
+    int revokeSecretLocalStore(ManagementStoreParams params);
 
-    int revokeSecretLocalStore(Map<String, Object> params);
+    int updateIntegration(ManagementStoreParams params);
 
-    int updateIntegration(Map<String, Object> params);
+    int updateSetting(ManagementStoreParams params);
 
-    int updateSetting(Map<String, Object> params);
+    int changeConfigStatus(ManagementStoreParams params);
 
-    int changeConfigStatus(Map<String, Object> params);
+    int insertProjectOwner(ManagementStoreParams params);
 
-    int insertProjectOwner(Map<String, Object> params);
+    int insertDepartmentManager(ManagementStoreParams params);
 
-    int insertDepartmentManager(Map<String, Object> params);
+    UUID findDefaultProjectId(ManagementStoreParams params);
 
-    UUID findDefaultProjectId(Map<String, Object> params);
+    int insertDefaultProject(ManagementStoreParams params);
 
-    int insertDefaultProject(Map<String, Object> params);
+    DepartmentRef findDepartmentRef(ManagementStoreParams params);
 
-    DepartmentRef findDepartmentRef(Map<String, Object> params);
+    ProjectRef findProjectRef(ManagementStoreParams params);
 
-    ProjectRef findProjectRef(Map<String, Object> params);
+    ApplicationRef findApplicationRef(ManagementStoreParams params);
 
-    ApplicationRef findApplicationRef(Map<String, Object> params);
+    EnvironmentRef findEnvironmentRef(ManagementStoreParams params);
 
-    EnvironmentRef findEnvironmentRef(Map<String, Object> params);
+    DepartmentView findDepartmentView(ManagementStoreParams params);
 
-    DepartmentView findDepartmentView(Map<String, Object> params);
+    ProjectView findProjectView(ManagementStoreParams params);
 
-    ProjectView findProjectView(Map<String, Object> params);
+    ApplicationView findApplicationView(ManagementStoreParams params);
 
-    ApplicationView findApplicationView(Map<String, Object> params);
+    EnvironmentView findEnvironmentView(ManagementStoreParams params);
 
-    EnvironmentView findEnvironmentView(Map<String, Object> params);
+    ProjectMemberView findProjectMemberByUsername(ManagementStoreParams params);
 
-    ProjectMemberView findProjectMemberByUsername(Map<String, Object> params);
+    List<ScopedUserRoleView> listScopedUserRoles(ManagementStoreParams params);
 
-    List<ScopedUserRoleView> listScopedUserRoles(Map<String, Object> params);
+    long countScopedUserRoles(ManagementStoreParams params);
 
-    long countScopedUserRoles(Map<String, Object> params);
+    ScopedUserRoleView findScopedUserRoleByUsername(ManagementStoreParams params);
 
-    ScopedUserRoleView findScopedUserRoleByUsername(Map<String, Object> params);
+    ApplicationRef findApplicationRefInProject(ManagementStoreParams params);
 
-    ApplicationRef findApplicationRefInProject(Map<String, Object> params);
+    UUID findRoleId(ManagementStoreParams params);
 
-    UUID findRoleId(Map<String, Object> params);
+    int bindRoleIfPresent(ManagementStoreParams params);
 
-    int bindRoleIfPresent(Map<String, Object> params);
+    int bindProjectRole(ManagementStoreParams params);
 
-    int bindProjectRole(Map<String, Object> params);
+    int bindScopedRole(ManagementStoreParams params);
 
-    int bindScopedRole(Map<String, Object> params);
+    int disableScopedRoles(ManagementStoreParams params);
 
-    int disableScopedRoles(Map<String, Object> params);
+    int insertAuditLog(ManagementStoreParams params);
 
-    int insertAuditLog(Map<String, Object> params);
+    UserView findUserByUsername(ManagementStoreParams params);
 
-    UserView findUserByUsername(Map<String, Object> params);
+    IntegrationRow findIntegrationRow(ManagementStoreParams params);
 
-    IntegrationRow findIntegrationRow(Map<String, Object> params);
+    SettingRow findSettingRow(ManagementStoreParams params);
 
-    SettingRow findSettingRow(Map<String, Object> params);
+    UUID findUserId(ManagementStoreParams params);
 
-    UUID findUserId(Map<String, Object> params);
-
-    int bumpUserAuthVersion(Map<String, Object> params);
+    int bumpUserAuthVersion(ManagementStoreParams params);
 }

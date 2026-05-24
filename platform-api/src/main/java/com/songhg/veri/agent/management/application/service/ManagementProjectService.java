@@ -14,10 +14,9 @@ import com.songhg.veri.agent.management.application.port.ProjectOperations;
 import com.songhg.veri.agent.management.application.view.ProjectMemberView;
 import com.songhg.veri.agent.management.application.view.ProjectView;
 import com.songhg.veri.agent.management.application.port.ManagementStore;
+import com.songhg.veri.agent.management.application.port.ManagementStoreParams;
 import com.songhg.veri.agent.management.application.port.ManagementStoreRows.ProjectRef;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.function.ToIntFunction;
@@ -243,24 +242,24 @@ class ManagementProjectService implements ProjectOperations {
         ));
     }
 
-    private int update(ToIntFunction<Map<String, Object>> statement, AuthUserPrincipal actor, Map<String, Object> params) {
+    private int update(ToIntFunction<ManagementStoreParams> statement, AuthUserPrincipal actor, ManagementStoreParams params) {
         return statement.applyAsInt(withActor(actor, params));
     }
 
     private <T> PageResponse<T> page(
-            Function<Map<String, Object>, List<T>> listStatement,
-            ToLongFunction<Map<String, Object>> countStatement,
+            Function<ManagementStoreParams, List<T>> listStatement,
+            ToLongFunction<ManagementStoreParams> countStatement,
             PageQuery pageQuery,
-            Map<String, Object> extraParams
+            ManagementStoreParams extraParams
     ) {
-        Map<String, Object> params = pageParams(pageQuery, extraParams);
+        ManagementStoreParams params = pageParams(pageQuery, extraParams);
         List<T> items = listStatement.apply(params);
         long total = countStatement.applyAsLong(params);
         return PageResponse.of(items, pageQuery.index(), pageQuery.size(), total);
     }
 
-    private Map<String, Object> pageParams(PageQuery pageQuery, Map<String, Object> extraParams) {
-        Map<String, Object> params = new HashMap<>(extraParams);
+    private ManagementStoreParams pageParams(PageQuery pageQuery, ManagementStoreParams extraParams) {
+        ManagementStoreParams params = ManagementStoreParams.copyOf(extraParams);
         params.put("search", pageQuery.search());
         params.put("searchPattern", pageQuery.searchPattern());
         params.put("limit", pageQuery.size());
@@ -268,7 +267,7 @@ class ManagementProjectService implements ProjectOperations {
         return params;
     }
 
-    private Map<String, Object> scope(AuthUserPrincipal actor) {
+    private ManagementStoreParams scope(AuthUserPrincipal actor) {
         return values("actorId", actor.userId(), "platformScope", hasPlatformScope(actor));
     }
 
@@ -276,25 +275,25 @@ class ManagementProjectService implements ProjectOperations {
         return actor.roles().stream().anyMatch(role -> List.of("SuperAdmin", "PlatformAdmin", "Auditor").contains(role));
     }
 
-    private Map<String, Object> withActor(AuthUserPrincipal actor, Map<String, Object> source) {
-        Map<String, Object> params = new HashMap<>(source);
+    private ManagementStoreParams withActor(AuthUserPrincipal actor, ManagementStoreParams source) {
+        ManagementStoreParams params = ManagementStoreParams.copyOf(source);
         params.put("actorId", actor.userId());
         return params;
     }
 
-    private Map<String, Object> values(Object... pairs) {
+    private ManagementStoreParams values(Object... pairs) {
         if (pairs.length % 2 != 0) {
             throw new IllegalArgumentException("参数必须成对出现");
         }
-        Map<String, Object> params = new HashMap<>();
+        ManagementStoreParams params = ManagementStoreParams.empty();
         for (int index = 0; index < pairs.length; index += 2) {
             params.put((String) pairs[index], pairs[index + 1]);
         }
         return params;
     }
 
-    private <T> T requireOne(Function<Map<String, Object>, T> statement, Map<String, Object> params, String notFoundMessage) {
-        Map<String, Object> normalized = new HashMap<>(params);
+    private <T> T requireOne(Function<ManagementStoreParams, T> statement, ManagementStoreParams params, String notFoundMessage) {
+        ManagementStoreParams normalized = ManagementStoreParams.copyOf(params);
         if (normalized.containsKey("keyword")) {
             String keyword = blankToNull((String) normalized.get("keyword"));
             if (keyword == null) {

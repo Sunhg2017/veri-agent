@@ -3,7 +3,6 @@ package com.songhg.veri.agent.management.application.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -18,10 +17,10 @@ import com.songhg.veri.agent.management.application.command.CreateSecretReferenc
 import com.songhg.veri.agent.management.application.command.RotateSecretReferenceCommand;
 import com.songhg.veri.agent.management.application.view.SecretReferenceView;
 import com.songhg.veri.agent.management.application.port.ManagementStore;
+import com.songhg.veri.agent.management.application.port.ManagementStoreParams;
 import com.songhg.veri.agent.management.application.port.ManagementStoreRows.SecretProviderRow;
 import com.songhg.veri.agent.management.application.port.ManagementStoreRows.SecretReferenceRow;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -49,12 +48,12 @@ class ManagementSecretReferenceServiceTest {
         UUID secretId = UUID.randomUUID();
         UUID scopeId = UUID.randomUUID();
         String secretRef = "secret://wp1/default-version";
-        when(mapper.findSecretProviderForManage(anyMap()))
+        when(mapper.findSecretProviderForManage(any(ManagementStoreParams.class)))
                 .thenReturn(new SecretProviderRow(providerId, "local", "LOCAL_ENCRYPTED", "ENABLED"))
                 .thenReturn(new SecretProviderRow(providerId, "vault", "EXTERNAL_VAULT", "ENABLED"));
-        when(mapper.insertSecretReference(anyMap())).thenReturn(1);
-        when(mapper.insertSecretLocalStore(anyMap())).thenReturn(1);
-        when(mapper.findSecretReferenceView(anyMap())).thenReturn(view(secretId, secretRef, scopeId, "v1", "ACTIVE"));
+        when(mapper.insertSecretReference(any(ManagementStoreParams.class))).thenReturn(1);
+        when(mapper.insertSecretLocalStore(any(ManagementStoreParams.class))).thenReturn(1);
+        when(mapper.findSecretReferenceView(any(ManagementStoreParams.class))).thenReturn(view(secretId, secretRef, scopeId, "v1", "ACTIVE"));
 
         SecretReferenceView created = service.createSecret(createRequest(secretRef, "local", null, scopeId), actor());
 
@@ -66,8 +65,8 @@ class ManagementSecretReferenceServiceTest {
         ))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("当前密钥提供方不支持本地写入和轮换");
-        verify(mapper, times(1)).insertSecretReference(anyMap());
-        verify(mapper, times(1)).insertSecretLocalStore(anyMap());
+        verify(mapper, times(1)).insertSecretReference(any(ManagementStoreParams.class));
+        verify(mapper, times(1)).insertSecretLocalStore(any(ManagementStoreParams.class));
         verify(auditLogWriter).record(any());
     }
 
@@ -77,7 +76,7 @@ class ManagementSecretReferenceServiceTest {
         ManagementSecretReferenceService service = service(mapper, mock(AuditLogWriter.class));
         UUID secretId = UUID.randomUUID();
         UUID scopeId = UUID.randomUUID();
-        when(mapper.findSecretReferenceRow(anyMap()))
+        when(mapper.findSecretReferenceRow(any(ManagementStoreParams.class)))
                 .thenReturn(row(secretId, "secret://wp1/external", "EXTERNAL_VAULT", "ACTIVE", "v1", scopeId))
                 .thenReturn(row(secretId, "secret://wp1/revoked", "LOCAL_ENCRYPTED", "REVOKED", "v1", scopeId));
 
@@ -93,8 +92,8 @@ class ManagementSecretReferenceServiceTest {
         ))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("只有 ACTIVE 密钥可轮换");
-        verify(mapper, never()).updateSecretReferenceRotation(anyMap());
-        verify(mapper, never()).upsertSecretLocalStoreRotation(anyMap());
+        verify(mapper, never()).updateSecretReferenceRotation(any(ManagementStoreParams.class));
+        verify(mapper, never()).upsertSecretLocalStoreRotation(any(ManagementStoreParams.class));
     }
 
     @Test
@@ -104,12 +103,12 @@ class ManagementSecretReferenceServiceTest {
         ManagementSecretReferenceService service = service(mapper, auditLogWriter);
         UUID secretId = UUID.randomUUID();
         UUID scopeId = UUID.randomUUID();
-        when(mapper.findSecretReferenceRow(anyMap()))
+        when(mapper.findSecretReferenceRow(any(ManagementStoreParams.class)))
                 .thenReturn(row(secretId, "secret://wp1/numeric", "LOCAL_ENCRYPTED", "ACTIVE", "v1", scopeId))
                 .thenReturn(row(secretId, "secret://wp1/named", "LOCAL_ENCRYPTED", "ACTIVE", "blue", scopeId));
-        when(mapper.updateSecretReferenceRotation(anyMap())).thenReturn(1);
-        when(mapper.upsertSecretLocalStoreRotation(anyMap())).thenReturn(1);
-        when(mapper.findSecretReferenceView(anyMap()))
+        when(mapper.updateSecretReferenceRotation(any(ManagementStoreParams.class))).thenReturn(1);
+        when(mapper.upsertSecretLocalStoreRotation(any(ManagementStoreParams.class))).thenReturn(1);
+        when(mapper.findSecretReferenceView(any(ManagementStoreParams.class)))
                 .thenReturn(view(secretId, "secret://wp1/numeric", scopeId, "v2", "ACTIVE"))
                 .thenReturn(view(secretId, "secret://wp1/named", scopeId, "blue-rotated", "ACTIVE"));
 
@@ -206,16 +205,14 @@ class ManagementSecretReferenceServiceTest {
         );
     }
 
-    @SuppressWarnings("unchecked")
-    private Map<String, Object> capturedInsert(ManagementStore mapper) {
-        ArgumentCaptor<Map<String, Object>> captor = ArgumentCaptor.forClass(Map.class);
+    private ManagementStoreParams capturedInsert(ManagementStore mapper) {
+        ArgumentCaptor<ManagementStoreParams> captor = ArgumentCaptor.forClass(ManagementStoreParams.class);
         verify(mapper).insertSecretReference(captor.capture());
         return captor.getValue();
     }
 
-    @SuppressWarnings("unchecked")
-    private List<Map<String, Object>> capturedRotations(ManagementStore mapper) {
-        ArgumentCaptor<Map<String, Object>> captor = ArgumentCaptor.forClass(Map.class);
+    private List<ManagementStoreParams> capturedRotations(ManagementStore mapper) {
+        ArgumentCaptor<ManagementStoreParams> captor = ArgumentCaptor.forClass(ManagementStoreParams.class);
         verify(mapper, times(2)).updateSecretReferenceRotation(captor.capture());
         return captor.getAllValues();
     }

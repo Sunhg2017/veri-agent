@@ -175,6 +175,15 @@ class ModuleLayerDependencyTest {
     }
 
     @Test
+    void managementStorePortDoesNotExposeRawMapParameters() throws Exception {
+        Path store = Path.of("src/main/java/com/songhg/veri/agent/management/application/port/ManagementStore.java");
+
+        assertThat(Files.readString(store))
+                .as("management persistence port must use explicit parameter contracts instead of Map<String, Object>")
+                .doesNotContain("Map<String, Object>");
+    }
+
+    @Test
     void nonAuthControllersDoNotReachIntoAuthorizationInternals() throws Exception {
         Path sourceRoot = Path.of("src/main/java/com/songhg/veri/agent");
         List<Path> violatedFiles;

@@ -10,9 +10,8 @@ import com.songhg.veri.agent.management.application.view.AuditOutboxView;
 import com.songhg.veri.agent.management.application.query.AuditLogQuery;
 import com.songhg.veri.agent.management.application.query.AuditOutboxQuery;
 import com.songhg.veri.agent.management.application.port.ManagementStore;
-import java.util.HashMap;
+import com.songhg.veri.agent.management.application.port.ManagementStoreParams;
 import java.util.List;
-import java.util.Map;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,7 +28,7 @@ class ManagementAuditQueryService implements AuditOperations {
 
     @Transactional(readOnly = true)
     public PageResponse<AuditLogView> auditLogs(PageQuery pageQuery, AuditLogQuery query, AuthUserPrincipal actor) {
-        Map<String, Object> params = auditParams(pageQuery, query, actor);
+        ManagementStoreParams params = auditParams(pageQuery, query, actor);
         List<AuditLogView> items = store.listAuditLogs(params);
         long total = store.countAuditLogs(params);
         return PageResponse.of(items, pageQuery.index(), pageQuery.size(), total);
@@ -59,14 +58,14 @@ class ManagementAuditQueryService implements AuditOperations {
             AuditOutboxQuery query,
             AuthUserPrincipal actor
     ) {
-        Map<String, Object> params = auditOutboxParams(pageQuery, query);
+        ManagementStoreParams params = auditOutboxParams(pageQuery, query);
         List<AuditOutboxView> items = store.listAuditOutbox(params);
         long total = store.countAuditOutbox(params);
         return PageResponse.of(items, pageQuery.index(), pageQuery.size(), total);
     }
 
-    private Map<String, Object> auditParams(PageQuery pageQuery, AuditLogQuery query, AuthUserPrincipal actor) {
-        Map<String, Object> params = pageParams(pageQuery, scope(actor));
+    private ManagementStoreParams auditParams(PageQuery pageQuery, AuditLogQuery query, AuthUserPrincipal actor) {
+        ManagementStoreParams params = pageParams(pageQuery, scope(actor));
         params.put("actor", query.actor());
         params.put("action", query.action());
         params.put("resourceType", query.resourceType());
@@ -76,15 +75,15 @@ class ManagementAuditQueryService implements AuditOperations {
         return params;
     }
 
-    private Map<String, Object> auditOutboxParams(PageQuery pageQuery, AuditOutboxQuery query) {
-        Map<String, Object> params = pageParams(pageQuery, values());
+    private ManagementStoreParams auditOutboxParams(PageQuery pageQuery, AuditOutboxQuery query) {
+        ManagementStoreParams params = pageParams(pageQuery, values());
         params.put("status", query.status());
         params.put("traceId", query.traceId());
         return params;
     }
 
-    private Map<String, Object> pageParams(PageQuery pageQuery, Map<String, Object> extraParams) {
-        Map<String, Object> params = new HashMap<>(extraParams);
+    private ManagementStoreParams pageParams(PageQuery pageQuery, ManagementStoreParams extraParams) {
+        ManagementStoreParams params = ManagementStoreParams.copyOf(extraParams);
         params.put("search", pageQuery.search());
         params.put("searchPattern", pageQuery.searchPattern());
         params.put("limit", pageQuery.size());
@@ -92,7 +91,7 @@ class ManagementAuditQueryService implements AuditOperations {
         return params;
     }
 
-    private Map<String, Object> scope(AuthUserPrincipal actor) {
+    private ManagementStoreParams scope(AuthUserPrincipal actor) {
         return values("actorId", actor.userId(), "platformScope", hasPlatformScope(actor));
     }
 
@@ -131,11 +130,11 @@ class ManagementAuditQueryService implements AuditOperations {
         ));
     }
 
-    private Map<String, Object> values(Object... pairs) {
+    private ManagementStoreParams values(Object... pairs) {
         if (pairs.length % 2 != 0) {
             throw new IllegalArgumentException("参数必须成对出现");
         }
-        Map<String, Object> params = new HashMap<>();
+        ManagementStoreParams params = ManagementStoreParams.empty();
         for (int index = 0; index < pairs.length; index += 2) {
             params.put((String) pairs[index], pairs[index + 1]);
         }

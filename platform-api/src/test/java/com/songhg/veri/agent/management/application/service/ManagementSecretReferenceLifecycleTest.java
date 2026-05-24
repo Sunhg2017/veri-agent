@@ -1,7 +1,7 @@
 package com.songhg.veri.agent.management.application.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.anyMap;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -16,10 +16,10 @@ import com.songhg.veri.agent.management.application.command.DisableSecretReferen
 import com.songhg.veri.agent.management.application.command.RotateSecretReferenceCommand;
 import com.songhg.veri.agent.management.application.view.SecretReferenceView;
 import com.songhg.veri.agent.management.application.port.ManagementStore;
+import com.songhg.veri.agent.management.application.port.ManagementStoreParams;
 import com.songhg.veri.agent.management.application.port.ManagementStoreRows.SecretProviderRow;
 import com.songhg.veri.agent.management.application.port.ManagementStoreRows.SecretReferenceRow;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -62,22 +62,22 @@ class ManagementSecretReferenceLifecycleTest {
                 List.of("SuperAdmin")
         );
 
-        when(mapper.findSecretProviderForManage(anyMap()))
+        when(mapper.findSecretProviderForManage(any(ManagementStoreParams.class)))
                 .thenReturn(new SecretProviderRow(providerId, "local", "LOCAL_ENCRYPTED", "ENABLED"));
-        when(mapper.insertSecretReference(anyMap())).thenReturn(1);
-        when(mapper.insertSecretLocalStore(anyMap())).thenReturn(1);
-        when(mapper.updateSecretReferenceRotation(anyMap())).thenReturn(1);
-        when(mapper.upsertSecretLocalStoreRotation(anyMap())).thenReturn(1);
-        when(mapper.revokeSecretReference(anyMap())).thenReturn(1);
-        when(mapper.revokeSecretLocalStore(anyMap())).thenReturn(1);
-        when(mapper.findSecretReferenceRow(anyMap()))
+        when(mapper.insertSecretReference(any(ManagementStoreParams.class))).thenReturn(1);
+        when(mapper.insertSecretLocalStore(any(ManagementStoreParams.class))).thenReturn(1);
+        when(mapper.updateSecretReferenceRotation(any(ManagementStoreParams.class))).thenReturn(1);
+        when(mapper.upsertSecretLocalStoreRotation(any(ManagementStoreParams.class))).thenReturn(1);
+        when(mapper.revokeSecretReference(any(ManagementStoreParams.class))).thenReturn(1);
+        when(mapper.revokeSecretLocalStore(any(ManagementStoreParams.class))).thenReturn(1);
+        when(mapper.findSecretReferenceRow(any(ManagementStoreParams.class)))
                 .thenReturn(
                         new SecretReferenceRow(secretId, secretRef, "local", "LOCAL_ENCRYPTED",
                                 "WEBHOOK_SIGNING", "CONFIG", scopeId, "v1", "ACTIVE"),
                         new SecretReferenceRow(secretId, secretRef, "local", "LOCAL_ENCRYPTED",
                                 "WEBHOOK_SIGNING", "CONFIG", scopeId, "v2", "ACTIVE")
                 );
-        when(mapper.findSecretReferenceView(anyMap()))
+        when(mapper.findSecretReferenceView(any(ManagementStoreParams.class)))
                 .thenReturn(
                         view(secretId, secretRef, scopeId, "v1", "ACTIVE"),
                         view(secretId, secretRef, scopeId, "v2", "ACTIVE"),
@@ -96,7 +96,7 @@ class ManagementSecretReferenceLifecycleTest {
         ), actor);
 
         assertThat(created.secretVersion()).isEqualTo("v1");
-        Map<String, Object> createStore = capturedMap(mapper, "insert");
+        ManagementStoreParams createStore = capturedMap(mapper, "insert");
         assertThat(decrypt(createStore, secretRef)).isEqualTo("PlainSecret123");
         assertThat((String) createStore.get("cipherText")).doesNotContain("PlainSecret123");
         assertThat(createStore.get("masterKeyVersion")).isEqualTo("validation-v1");
@@ -109,21 +109,20 @@ class ManagementSecretReferenceLifecycleTest {
         ), actor);
 
         assertThat(rotated.secretVersion()).isEqualTo("v2");
-        Map<String, Object> rotatedStore = capturedMap(mapper, "rotate");
+        ManagementStoreParams rotatedStore = capturedMap(mapper, "rotate");
         assertThat(decrypt(rotatedStore, secretRef)).isEqualTo("RotatedSecret456");
         assertThat((String) rotatedStore.get("cipherText")).doesNotContain("RotatedSecret456");
 
         SecretReferenceView disabled = service.disableSecret(new DisableSecretReferenceCommand(secretRef), actor);
 
         assertThat(disabled.status()).isEqualTo("REVOKED");
-        verify(mapper).revokeSecretReference(anyMap());
-        verify(mapper).revokeSecretLocalStore(anyMap());
+        verify(mapper).revokeSecretReference(any(ManagementStoreParams.class));
+        verify(mapper).revokeSecretLocalStore(any(ManagementStoreParams.class));
         verify(auditLogWriter, times(3)).record(org.mockito.ArgumentMatchers.any());
     }
 
-    @SuppressWarnings("unchecked")
-    private static Map<String, Object> capturedMap(ManagementStore mapper, String operation) {
-        ArgumentCaptor<Map<String, Object>> captor = ArgumentCaptor.forClass(Map.class);
+    private static ManagementStoreParams capturedMap(ManagementStore mapper, String operation) {
+        ArgumentCaptor<ManagementStoreParams> captor = ArgumentCaptor.forClass(ManagementStoreParams.class);
         if ("insert".equals(operation)) {
             verify(mapper).insertSecretLocalStore(captor.capture());
         } else {
@@ -132,7 +131,7 @@ class ManagementSecretReferenceLifecycleTest {
         return captor.getValue();
     }
 
-    private static String decrypt(Map<String, Object> material, String secretRef) {
+    private static String decrypt(ManagementStoreParams material, String secretRef) {
         return LocalSecretCipher.decrypt(
                 (String) material.get("cipherText"),
                 (String) material.get("iv"),
