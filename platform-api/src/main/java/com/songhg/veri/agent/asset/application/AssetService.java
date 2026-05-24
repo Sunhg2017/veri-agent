@@ -64,24 +64,15 @@ import org.springframework.util.StringUtils;
 public class AssetService {
 
     private static final Logger log = LoggerFactory.getLogger(AssetService.class);
-    private static final String SOURCE_IMPORT = "IMPORT";
     private static final String SOURCE_MANUAL = "MANUAL";
     private static final String STATUS_ACTIVE = "ACTIVE";
     private static final String STATUS_DRAFT = "DRAFT";
     private static final Set<String> REVIEW_STATUSES = AssetReviewStatus.codes();
     private static final Set<String> LIFECYCLE_STATUSES = AssetLifecycleStatus.codes();
     private static final Set<String> PRIORITIES = Set.of("CRITICAL", "HIGH", "MEDIUM", "LOW");
-    private static final Set<String> API_STATUSES = Set.of(STATUS_ACTIVE, "DEPRECATED", "REMOVED");
-    private static final Set<String> API_SOURCES = Set.of("OPENAPI", SOURCE_MANUAL, SOURCE_IMPORT);
-    private static final Set<String> API_HTTP_METHODS = Set.of("GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS");
     private static final Set<String> PAGE_STATUSES = Set.of(STATUS_ACTIVE, "DEPRECATED");
     private static final Set<String> PAGE_SOURCES = Set.of("FIGMA", "LANHU", "AXURE", SOURCE_MANUAL);
     private static final Set<String> FLOW_STATUSES = Set.of(STATUS_DRAFT, STATUS_ACTIVE, "ARCHIVED");
-    private static final Map<String, Set<String>> API_STATUS_TRANSITIONS = Map.of(
-            STATUS_ACTIVE, Set.of(STATUS_ACTIVE, "DEPRECATED"),
-            "DEPRECATED", Set.of("DEPRECATED", "REMOVED"),
-            "REMOVED", Set.of("REMOVED")
-    );
     private static final Map<String, Set<String>> PAGE_STATUS_TRANSITIONS = Map.of(
             STATUS_ACTIVE, Set.of(STATUS_ACTIVE, "DEPRECATED"),
             "DEPRECATED", Set.of("DEPRECATED")
@@ -103,6 +94,7 @@ public class AssetService {
     private final AssetVersionRollbackService versionRollbackService;
     private final AssetLifecycleService lifecycleService;
     private final AssetRequirementService requirementService;
+    private final AssetApiService apiService;
 
     public AssetService(AssetRepository repository, PlatformContextClient contextClient) {
         this(repository, contextClient, new ObjectMapper().findAndRegisterModules());
@@ -147,6 +139,11 @@ public class AssetService {
                 versionRollbackService,
                 lifecycleService
         );
+        this.apiService = new AssetApiService(
+                repository,
+                projectAuditService,
+                lifecycleService
+        );
     }
 
     @Autowired
@@ -161,6 +158,7 @@ public class AssetService {
             AssetVersionRollbackService versionRollbackService,
             AssetLifecycleService lifecycleService,
             AssetRequirementService requirementService,
+            AssetApiService apiService,
             AssetProjectAuditService projectAuditService
     ) {
         this.repository = repository;
@@ -174,6 +172,7 @@ public class AssetService {
         this.versionRollbackService = versionRollbackService;
         this.lifecycleService = lifecycleService;
         this.requirementService = requirementService;
+        this.apiService = apiService;
     }
 
     public String resolveProjectScopeId(String projectId) {
@@ -185,9 +184,7 @@ public class AssetService {
     }
 
     public String apiProjectScopeId(UUID id) {
-        return resolveProjectScopeId(repository.apiIncludingInactive(id)
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "API 不存在: " + id))
-                .projectId());
+        return apiService.apiProjectScopeId(id);
     }
 
     public String pageProjectScopeId(UUID id) {
@@ -257,105 +254,27 @@ public class AssetService {
     // ---- APIs ----
 
     public com.songhg.veri.agent.common.api.PageResponse<ApiResponseDTO> listApis(AssetListRequest request) {
-        validateProjectWhenProvided(request.getProjectId());
-        AssetListQuery query = assetListQuery(request);
-        List<ApiResponseDTO> items = repository.apis(query).stream()
-                .map(AssetResponseMapper::toApiResponse)
-                .toList();
-        return com.songhg.veri.agent.common.api.PageResponse.of(items, query.index(), query.size(), repository.countApis(query));
+        return apiService.listApis(request);
     }
 
     public ApiResponseDTO getApi(UUID id) {
-        return repository.api(id)
-                .map(AssetResponseMapper::toApiResponse)
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "API不存在: " + id));
+        return apiService.getApi(id);
     }
 
     public ApiResponseDTO getApiIncludingInactive(UUID id) {
-        AssetApi api = repository.apiIncludingInactive(id)
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "API不存在: " + id));
-        validateProjectWhenProvided(api.projectId());
-        return AssetResponseMapper.toApiResponse(api);
+        return apiService.getApiIncludingInactive(id);
     }
 
     public ApiResponseDTO createApi(CreateApiRequest request) {
-        String scopeId = projectContext(request.projectId()).projectId();
-        String httpMethod = valueIn(request.httpMethod(), null, API_HTTP_METHODS, "httpMethod");
-        if (repository.hasActiveApiPathConflict(request.projectId(), request.path(), httpMethod, UUID.randomUUID())) {
-            throw new BusinessException(ErrorCode.CONFLICT, "同项目下 API 路径和方法已存在");
-        }
-        UUID id = UUID.randomUUID();
-        Instant now = Instant.now();
-        AssetApi api = new AssetApi(
-                id,
-                assetCode("API", id),
-                request.summary(),
-                request.description(),
-                httpMethod,
-                request.path(),
-                "MANUAL",
-                null,
-                trimToNull(request.version()),
-                request.requestSchema(),
-                request.responseSchema(),
-                request.projectId(),
-                initialStatus(request.status(), "ACTIVE", "API"),
-                "ACTIVE",
-                null,
-                null,
-                now,
-                now
-        );
-        writeProjectAudit("CREATE", "API", id, scopeId);
-        repository.saveApi(api);
-        log.info("Created api id={}, summary={}, trace_id={}", id, request.summary(), TraceContext.getTraceId());
-        return AssetResponseMapper.toApiResponse(api);
+        return apiService.createApi(request);
     }
 
     public ApiResponseDTO updateApi(UUID id, UpdateApiRequest request) {
-        AssetApi existing = repository.api(id)
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "API不存在: " + id));
-        Instant now = Instant.now();
-        String httpMethod = valueIn(request.httpMethod(), null, API_HTTP_METHODS, "httpMethod");
-        if (repository.hasActiveApiPathConflict(existing.projectId(), request.path(), httpMethod, id)) {
-            throw new BusinessException(ErrorCode.CONFLICT, "同项目下 API 路径和方法已存在");
-        }
-        String nextStatus = nextStatus(
-                "API",
-                id,
-                existing.projectId(),
-                existing.status(),
-                request.status(),
-                API_STATUSES,
-                API_STATUS_TRANSITIONS
-        );
-        AssetApi updated = new AssetApi(
-                id,
-                existing.code(),
-                request.summary(),
-                request.description(),
-                httpMethod,
-                request.path(),
-                existing.source(),
-                existing.sourceRef(),
-                valueOrDefault(request.version(), existing.version()),
-                request.requestSchema(),
-                request.responseSchema(),
-                existing.projectId(),
-                nextStatus,
-                existing.lifecycleStatus(),
-                existing.archivedAt(),
-                existing.deletedAt(),
-                existing.createdAt(),
-                now
-        );
-        writeProjectAudit("UPDATE", "API", id, existing.projectId());
-        repository.saveApi(updated);
-        return AssetResponseMapper.toApiResponse(updated);
+        return apiService.updateApi(id, request);
     }
 
     public ApiResponseDTO updateApiLifecycle(UUID id, UpdateAssetLifecycleRequest request) {
-        return lifecycleService.updateApiLifecycle(id, request);
+        return apiService.updateApiLifecycle(id, request);
     }
 
     // ---- Pages ----
@@ -762,7 +681,6 @@ public class AssetService {
 
     private static String initialStatus(String rawValue, String defaultValue, String resourceType) {
         return switch (resourceType) {
-            case "API" -> valueIn(rawValue, defaultValue, API_STATUSES, "status");
             case "PAGE" -> valueIn(rawValue, defaultValue, PAGE_STATUSES, "status");
             case "BUSINESS_FLOW" -> valueIn(rawValue, defaultValue, FLOW_STATUSES, "status");
             default -> valueIn(rawValue, defaultValue, REVIEW_STATUSES, "status");
@@ -842,11 +760,6 @@ public class AssetService {
 
     private static String trimToNull(String value) {
         return StringUtils.hasText(value) ? value.trim() : null;
-    }
-
-    private static String valueOrDefault(String value, String defaultValue) {
-        String trimmed = trimToNull(value);
-        return trimmed == null ? defaultValue : trimmed;
     }
 
     private String jsonValue(Object value) {
