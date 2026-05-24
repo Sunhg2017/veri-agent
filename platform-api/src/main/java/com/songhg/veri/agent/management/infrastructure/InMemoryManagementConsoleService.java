@@ -66,10 +66,6 @@ public class InMemoryManagementConsoleService implements ManagementConsoleServic
 
     private static final DateTimeFormatter TIME_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
 
-    private final List<ApplicationView> applications = new ArrayList<>();
-    private final List<ScopedUserRoleView> applicationOwners = new ArrayList<>();
-    private final List<EnvironmentView> environments = new ArrayList<>();
-    private final List<ScopedUserRoleView> environmentUsers = new ArrayList<>();
     private final List<IntegrationView> integrations = new ArrayList<>();
     private final List<RoleView> roles = new ArrayList<>();
     private final List<PermissionView> permissions = new ArrayList<>();
@@ -78,32 +74,23 @@ public class InMemoryManagementConsoleService implements ManagementConsoleServic
     private final List<SecretReferenceView> secrets = new ArrayList<>();
     private final List<AuditLogView> auditLogs = new ArrayList<>();
     private final List<AuditOutboxView> auditOutbox = new ArrayList<>();
-    private final Map<String, EnvironmentConnectivityCheckView> environmentConnectivityChecks = new HashMap<>();
     private final InMemoryManagementDepartmentService departmentService;
     private final InMemoryManagementUserService userService;
     private final InMemoryManagementProjectService projectService;
+    private final InMemoryManagementApplicationService applicationService;
+    private final InMemoryManagementEnvironmentService environmentService;
     private final AuditLogWriter auditLogWriter;
-    private final EnvironmentConnectivityChecker connectivityChecker;
 
     public InMemoryManagementConsoleService(
             AuditLogWriter auditLogWriter,
             EnvironmentConnectivityChecker connectivityChecker
     ) {
         this.auditLogWriter = auditLogWriter;
-        this.connectivityChecker = connectivityChecker;
         departmentService = new InMemoryManagementDepartmentService(auditLogWriter);
         userService = new InMemoryManagementUserService(auditLogWriter);
         projectService = new InMemoryManagementProjectService(userService, auditLogWriter);
-        applications.addAll(List.of(
-                new ApplicationView("veri-agent-api", "Backend", "平台组", "v0.3.2", "已接入"),
-                new ApplicationView("portal-web", "Frontend", "平台组", "v0.1.0", "接入中"),
-                new ApplicationView("mobile-client", "Mobile", "端体验组", "v2.8.1", "待接入")
-        ));
-        environments.addAll(List.of(
-                new EnvironmentView("dev", "Shanghai Dev", "api.dev.local", "可用"),
-                new EnvironmentView("staging", "Shanghai Staging", "api.stg.local", "可用"),
-                new EnvironmentView("prod", "Primary Prod", "api.veri-agent.local", "只读")
-        ));
+        applicationService = new InMemoryManagementApplicationService(userService, auditLogWriter);
+        environmentService = new InMemoryManagementEnvironmentService(userService, auditLogWriter, connectivityChecker);
         integrations.addAll(List.of(
                 new IntegrationView("github-enterprise", "GitHub Enterprise", "代码仓库", "全局", "已启用"),
                 new IntegrationView("jenkins", "Jenkins", "CI/CD", "平台级", "已启用"),
@@ -416,211 +403,92 @@ public class InMemoryManagementConsoleService implements ManagementConsoleServic
 
     @Override
     public synchronized PageResponse<ApplicationView> applications(PageQuery pageQuery, AuthUserPrincipal actor) {
-        return page(applications, pageQuery);
+        return applicationService.applications(pageQuery, actor);
     }
 
     @Override
     public synchronized ApplicationView application(String key) {
-        return requireApplication(key);
+        return applicationService.application(key);
     }
 
     @Override
     public synchronized ApplicationView createApplication(CreateApplicationRequest request, AuthUserPrincipal actor) {
-        String name = request.name().trim();
-        String appType = request.appType() == null || request.appType().isBlank() ? "Web" : request.appType().trim();
-        ApplicationView view = new ApplicationView(name, appType, actor.displayName(), "v0.1.0", "接入中");
-        applications.add(0, view);
-        audit(actor, "登记应用", name);
-        return view;
+        return applicationService.createApplication(request, actor);
     }
 
     @Override
     public synchronized ApplicationView updateApplication(String key, UpdateApplicationRequest request, AuthUserPrincipal actor) {
-        ApplicationView current = requireApplication(key);
-        if ("已停用".equals(current.status())) {
-            throw new BusinessException(ErrorCode.INVALID_STATE, "当前应用状态不允许编辑");
-        }
-        ApplicationView updated = replaceApplication(
-                current.name(),
-                new ApplicationView(
-                        trimOrDefault(request.name(), current.name()),
-                        trimOrDefault(request.appType(), current.type()),
-                        current.owner(),
-                        current.version(),
-                        current.status()
-                )
-        );
-        audit(actor, "更新应用", updated.name());
-        return updated;
+        return applicationService.updateApplication(key, request, actor);
     }
 
     @Override
     public synchronized ApplicationView changeApplicationStatus(String key, String status, AuthUserPrincipal actor) {
-        ApplicationView current = requireApplication(key);
-        if (!List.of("ENABLED", "DISABLED").contains(status)) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "应用状态不支持");
-        }
-        ApplicationView updated = replaceApplication(
-                current.name(),
-                new ApplicationView(current.name(), current.type(), current.owner(), current.version(), "ENABLED".equals(status) ? "已接入" : "已停用")
-        );
-        audit(actor, "ENABLED".equals(status) ? "启用应用" : "停用应用", updated.name());
-        return updated;
+        return applicationService.changeApplicationStatus(key, status, actor);
     }
 
     @Override
     public synchronized PageResponse<ScopedUserRoleView> applicationOwners(String applicationKey, PageQuery pageQuery) {
-        requireApplication(applicationKey);
-        return page(applicationOwners, pageQuery);
+        return applicationService.applicationOwners(applicationKey, pageQuery);
     }
 
     @Override
     public synchronized ScopedUserRoleView addApplicationOwner(String applicationKey, ScopedUserRoleRequest request, AuthUserPrincipal actor) {
-        requireApplication(applicationKey);
-        if (!"AppOwner".equals(request.roleCode().trim())) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "应用负责人只能绑定 AppOwner 角色");
-        }
-        UserView user = userService.requireUser(request.username().trim());
-        applicationOwners.removeIf(owner -> owner.username().equals(user.username()));
-        ScopedUserRoleView view = new ScopedUserRoleView(user.username(), user.username(), "AppOwner", "APPLICATION", "启用");
-        applicationOwners.add(0, view);
-        audit(actor, "添加应用负责人", applicationKey + ":" + user.username());
-        return view;
+        return applicationService.addApplicationOwner(applicationKey, request, actor);
     }
 
     @Override
     public synchronized ScopedUserRoleView removeApplicationOwner(String applicationKey, String username, AuthUserPrincipal actor) {
-        requireApplication(applicationKey);
-        ScopedUserRoleView current = applicationOwners.stream()
-                .filter(owner -> owner.username().equals(username))
-                .findFirst()
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "应用负责人不存在"));
-        applicationOwners.removeIf(owner -> owner.username().equals(username));
-        ScopedUserRoleView removed = new ScopedUserRoleView(
-                current.username(),
-                current.displayName(),
-                current.role(),
-                current.scopeType(),
-                "已移除"
-        );
-        audit(actor, "移除应用负责人", applicationKey + ":" + username);
-        return removed;
+        return applicationService.removeApplicationOwner(applicationKey, username, actor);
     }
 
     @Override
     public synchronized PageResponse<EnvironmentView> environments(PageQuery pageQuery, AuthUserPrincipal actor) {
-        return page(environments, pageQuery);
+        return environmentService.environments(pageQuery, actor);
     }
 
     @Override
     public synchronized EnvironmentView environment(String key) {
-        return requireEnvironment(key);
+        return environmentService.environment(key);
     }
 
     @Override
     public synchronized EnvironmentView createEnvironment(CreateEnvironmentRequest request, AuthUserPrincipal actor) {
-        String name = request.name().trim();
-        String endpoint = request.apiBaseUrl() == null || request.apiBaseUrl().isBlank()
-                ? name + ".local"
-                : request.apiBaseUrl().trim();
-        EnvironmentView view = new EnvironmentView(name, "Default Cluster", endpoint, "可用");
-        environments.add(0, view);
-        audit(actor, "新增环境", name);
-        return view;
+        return environmentService.createEnvironment(request, actor);
     }
 
     @Override
     public synchronized EnvironmentView updateEnvironment(String key, UpdateEnvironmentRequest request, AuthUserPrincipal actor) {
-        EnvironmentView current = requireEnvironment(key);
-        if ("已停用".equals(current.status())) {
-            throw new BusinessException(ErrorCode.INVALID_STATE, "当前环境状态不允许编辑");
-        }
-        EnvironmentView updated = replaceEnvironment(
-                current.name(),
-                new EnvironmentView(
-                        trimOrDefault(request.name(), current.name()),
-                        current.cluster(),
-                        trimOrDefault(request.apiBaseUrl(), current.endpoint()),
-                        current.status()
-                )
-        );
-        audit(actor, "更新环境", updated.name());
-        return updated;
+        return environmentService.updateEnvironment(key, request, actor);
     }
 
     @Override
     public synchronized EnvironmentView changeEnvironmentStatus(String key, String status, AuthUserPrincipal actor) {
-        EnvironmentView current = requireEnvironment(key);
-        if (!List.of("ENABLED", "DISABLED").contains(status)) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "环境状态不支持");
-        }
-        EnvironmentView updated = replaceEnvironment(
-                current.name(),
-                new EnvironmentView(current.name(), current.cluster(), current.endpoint(), "ENABLED".equals(status) ? "可用" : "已停用")
-        );
-        audit(actor, "ENABLED".equals(status) ? "启用环境" : "停用环境", updated.name());
-        return updated;
+        return environmentService.changeEnvironmentStatus(key, status, actor);
     }
 
     @Override
     public synchronized EnvironmentConnectivityCheckView environmentConnectivityCheck(String key) {
-        EnvironmentView current = requireEnvironment(key);
-        return environmentConnectivityChecks.getOrDefault(
-                current.name(),
-                EnvironmentConnectivityCheckView.notChecked(current.name())
-        );
+        return environmentService.environmentConnectivityCheck(key);
     }
 
     @Override
     public synchronized EnvironmentConnectivityCheckView checkEnvironmentConnectivity(String key, AuthUserPrincipal actor) {
-        EnvironmentView current = requireEnvironment(key);
-        if ("已停用".equals(current.status())) {
-            throw new BusinessException(ErrorCode.INVALID_STATE, "停用环境不可执行连通性检查");
-        }
-        EnvironmentConnectivityCheckView result = connectivityChecker.check(current.name(), "", current.endpoint());
-        environmentConnectivityChecks.put(current.name(), result);
-        audit(actor, "环境连通性检查", current.name());
-        return result;
+        return environmentService.checkEnvironmentConnectivity(key, actor);
     }
 
     @Override
     public synchronized PageResponse<ScopedUserRoleView> environmentUsers(String environmentKey, PageQuery pageQuery) {
-        requireEnvironment(environmentKey);
-        return page(environmentUsers, pageQuery);
+        return environmentService.environmentUsers(environmentKey, pageQuery);
     }
 
     @Override
     public synchronized ScopedUserRoleView addEnvironmentUser(String environmentKey, ScopedUserRoleRequest request, AuthUserPrincipal actor) {
-        requireEnvironment(environmentKey);
-        String roleCode = request.roleCode().trim();
-        if ("AppOwner".equals(roleCode)) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "环境授权用户不能绑定 AppOwner 角色");
-        }
-        UserView user = userService.requireUser(request.username().trim());
-        environmentUsers.removeIf(envUser -> envUser.username().equals(user.username()));
-        ScopedUserRoleView view = new ScopedUserRoleView(user.username(), user.username(), roleCode, "ENVIRONMENT", "启用");
-        environmentUsers.add(0, view);
-        audit(actor, "添加环境授权", environmentKey + ":" + user.username());
-        return view;
+        return environmentService.addEnvironmentUser(environmentKey, request, actor);
     }
 
     @Override
     public synchronized ScopedUserRoleView removeEnvironmentUser(String environmentKey, String username, AuthUserPrincipal actor) {
-        requireEnvironment(environmentKey);
-        ScopedUserRoleView current = environmentUsers.stream()
-                .filter(envUser -> envUser.username().equals(username))
-                .findFirst()
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "环境授权用户不存在"));
-        environmentUsers.removeIf(envUser -> envUser.username().equals(username));
-        ScopedUserRoleView removed = new ScopedUserRoleView(
-                current.username(),
-                current.displayName(),
-                current.role(),
-                current.scopeType(),
-                "已移除"
-        );
-        audit(actor, "移除环境授权", environmentKey + ":" + username);
-        return removed;
+        return environmentService.removeEnvironmentUser(environmentKey, username, actor);
     }
 
     @Override
@@ -1123,42 +991,6 @@ public class InMemoryManagementConsoleService implements ManagementConsoleServic
             }
         }
         throw new BusinessException(ErrorCode.NOT_FOUND, "角色不存在");
-    }
-
-    private ApplicationView requireApplication(String key) {
-        return applications.stream()
-                .filter(application -> application.name().equals(key))
-                .findFirst()
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "应用不存在"));
-    }
-
-    private EnvironmentView requireEnvironment(String key) {
-        return environments.stream()
-                .filter(environment -> environment.name().equals(key))
-                .findFirst()
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "环境不存在"));
-    }
-
-    private ApplicationView replaceApplication(String key, ApplicationView updated) {
-        for (int index = 0; index < applications.size(); index++) {
-            ApplicationView current = applications.get(index);
-            if (current.name().equals(key)) {
-                applications.set(index, updated);
-                return updated;
-            }
-        }
-        throw new BusinessException(ErrorCode.NOT_FOUND, "应用不存在");
-    }
-
-    private EnvironmentView replaceEnvironment(String key, EnvironmentView updated) {
-        for (int index = 0; index < environments.size(); index++) {
-            EnvironmentView current = environments.get(index);
-            if (current.name().equals(key)) {
-                environments.set(index, updated);
-                return updated;
-            }
-        }
-        throw new BusinessException(ErrorCode.NOT_FOUND, "环境不存在");
     }
 
     private void replaceSecret(SecretReferenceView updated) {
