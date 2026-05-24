@@ -12,7 +12,11 @@ import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapper;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import org.springframework.context.annotation.Profile;
+import org.springframework.stereotype.Service;
 
+@Profile("db")
+@Service
 final class PostgresManagementAuditQueryService {
 
     private final ManagementMapper mapper;

@@ -24,8 +24,12 @@ import java.util.UUID;
 import java.util.function.Function;
 import java.util.function.ToIntFunction;
 import java.util.function.ToLongFunction;
+import org.springframework.context.annotation.Profile;
 import org.springframework.dao.DuplicateKeyException;
+import org.springframework.stereotype.Service;
 
+@Profile("db")
+@Service
 final class PostgresManagementRoleService {
 
     private final ManagementMapper mapper;

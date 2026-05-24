@@ -22,8 +22,12 @@ import java.util.UUID;
 import java.util.function.Function;
 import java.util.function.ToIntFunction;
 import java.util.function.ToLongFunction;
+import org.springframework.context.annotation.Profile;
 import org.springframework.dao.DuplicateKeyException;
+import org.springframework.stereotype.Service;
 
+@Profile("db")
+@Service
 final class PostgresManagementSecretReferenceService {
 
     private final ManagementMapper mapper;
@@ -44,6 +48,10 @@ final class PostgresManagementSecretReferenceService {
         return page(mapper::listSecretReferences, mapper::countSecretReferences, pageQuery, values());
     }
 
+    /**
+     * Persists LOCAL_ENCRYPTED secret references in two steps: metadata for audit/query, encrypted
+     * material for runtime resolution. Non-local providers are read-only from this service.
+     */
     SecretReferenceView createSecret(CreateSecretReferenceRequest request, AuthUserPrincipal actor) {
         String secretRef = request.secretRef().trim();
         String providerCode = defaultText(request.providerCode(), "");
@@ -54,7 +62,10 @@ final class PostgresManagementSecretReferenceService {
         );
         ensureLocalProvider(provider);
         UUID secretRefId = UUID.randomUUID();
-        LocalSecretCipher.EncryptedMaterial material = LocalSecretCipher.encrypt(request.value(), secretProviderProperties);
+        LocalSecretCipher.EncryptedMaterial material = LocalSecretCipher.encrypt(
+                request.value(),
+                secretProviderProperties
+        );
         String secretVersion = defaultText(request.secretVersion(), "v1");
         try {
             update(mapper::insertSecretReference, actor, values(
@@ -84,13 +95,20 @@ final class PostgresManagementSecretReferenceService {
         return created;
     }
 
+    /**
+     * Rotates only ACTIVE local secrets so historical references cannot be silently revived or
+     * overwritten after revocation.
+     */
     SecretReferenceView rotateSecret(RotateSecretReferenceRequest request, AuthUserPrincipal actor) {
         SecretReferenceRow current = secretReferenceRow(request.secretRef());
         ensureLocalProvider(current);
         if (!"ACTIVE".equals(current.status())) {
             throw new BusinessException(ErrorCode.INVALID_STATE, "只有 ACTIVE 密钥可轮换");
         }
-        LocalSecretCipher.EncryptedMaterial material = LocalSecretCipher.encrypt(request.value(), secretProviderProperties);
+        LocalSecretCipher.EncryptedMaterial material = LocalSecretCipher.encrypt(
+                request.value(),
+                secretProviderProperties
+        );
         String nextVersion = defaultText(request.secretVersion(), nextSecretVersion(current.secretVersion()));
         update(mapper::updateSecretReferenceRotation, actor, values(
                 "secretRefId", current.id(),
@@ -111,6 +129,10 @@ final class PostgresManagementSecretReferenceService {
         return updated;
     }
 
+    /**
+     * Revokes both the visible reference and encrypted material; callers keep the audit trail but
+     * runtime resolution no longer has ciphertext to decrypt.
+     */
     SecretReferenceView disableSecret(DisableSecretReferenceRequest request, AuthUserPrincipal actor) {
         SecretReferenceRow current = secretReferenceRow(request.secretRef());
         update(mapper::revokeSecretReference, actor, values("secretRefId", current.id()));
@@ -121,11 +143,19 @@ final class PostgresManagementSecretReferenceService {
     }
 
     private SecretReferenceRow secretReferenceRow(String secretRef) {
-        return requireOne(mapper::findSecretReferenceRow, values("secretRef", normalizeSearch(secretRef)), "密钥引用不存在");
+        return requireOne(
+                mapper::findSecretReferenceRow,
+                values("secretRef", normalizeSearch(secretRef)),
+                "密钥引用不存在"
+        );
     }
 
     private SecretReferenceView secretReferenceByRef(String secretRef) {
-        return requireOne(mapper::findSecretReferenceView, values("secretRef", normalizeSearch(secretRef)), "密钥引用不存在");
+        return requireOne(
+                mapper::findSecretReferenceView,
+                values("secretRef", normalizeSearch(secretRef)),
+                "密钥引用不存在"
+        );
     }
 
     private void ensureLocalProvider(SecretProviderRow provider) {
@@ -162,7 +192,11 @@ final class PostgresManagementSecretReferenceService {
         return search == null ? "" : search.trim();
     }
 
-    private int update(ToIntFunction<Map<String, Object>> statement, AuthUserPrincipal actor, Map<String, Object> params) {
+    private int update(
+            ToIntFunction<Map<String, Object>> statement,
+            AuthUserPrincipal actor,
+            Map<String, Object> params
+    ) {
         return statement.applyAsInt(withActor(actor, params));
     }
 
@@ -204,7 +238,11 @@ final class PostgresManagementSecretReferenceService {
         return params;
     }
 
-    private <T> T requireOne(Function<Map<String, Object>, T> statement, Map<String, Object> params, String notFoundMessage) {
+    private <T> T requireOne(
+            Function<Map<String, Object>, T> statement,
+            Map<String, Object> params,
+            String notFoundMessage
+    ) {
         Map<String, Object> normalized = new HashMap<>(params);
         T value = statement.apply(normalized);
         if (value == null) {

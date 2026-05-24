@@ -36,6 +36,10 @@ public class ModelCostAnalysisService {
         this.properties = properties;
     }
 
+    /**
+     * Evaluates configured daily cost guardrails for platform, project and caller-service scopes.
+     * Empty scope arguments mean "discover active scopes from today's invocation records".
+     */
     public List<CostAlertResponse> costAlerts(String projectId, String actorService) {
         BudgetWindow window = currentBudgetWindow();
         List<CostAlertResponse> alerts = new ArrayList<>();
@@ -47,7 +51,17 @@ public class ModelCostAnalysisService {
                     null,
                     null,
                     properties.dailyPlatformCostLimit(),
-                    new InvocationQuery(null, null, null, null, null, null, window.startTime(), window.endTime(), PageQuery.of(0, 1)),
+                    new InvocationQuery(
+                            null,
+                            null,
+                            null,
+                            null,
+                            null,
+                            null,
+                            window.startTime(),
+                            window.endTime(),
+                            PageQuery.of(0, 1)
+                    ),
                     window
             ));
         }
@@ -73,6 +87,10 @@ public class ModelCostAnalysisService {
                 .toList();
     }
 
+    /**
+     * Builds a bounded daily cost report. The 31-day cap protects API latency and export memory use
+     * because repository implementations may need to aggregate raw invocation rows.
+     */
     public CostReportResponse costReport(LocalDate startDate, LocalDate endDate, String projectId) {
         BudgetReportWindow window = normalizeReportWindow(startDate, endDate);
         InvocationQuery query = new InvocationQuery(
@@ -84,7 +102,7 @@ public class ModelCostAnalysisService {
                 null,
                 window.startInstant(),
                 window.endExclusiveInstant(),
-                PageQuery.of(0, Math.max(1, properties.maxExportRows() <= 0 ? 10000 : Math.min(50000, properties.maxExportRows())))
+                PageQuery.of(0, safeReportPageSize())
         );
         Map<CostReportKey, List<InvocationRecord>> grouped = new LinkedHashMap<>();
         repository.invocations(query).forEach(record -> grouped
@@ -111,7 +129,17 @@ public class ModelCostAnalysisService {
                 projectId,
                 null,
                 properties.dailyProjectCostLimit(),
-                new InvocationQuery(projectId, null, null, null, null, null, window.startTime(), window.endTime(), PageQuery.of(0, 1)),
+                new InvocationQuery(
+                        projectId,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        window.startTime(),
+                        window.endTime(),
+                        PageQuery.of(0, 1)
+                ),
                 window
         );
     }
@@ -122,7 +150,17 @@ public class ModelCostAnalysisService {
                 null,
                 actorService,
                 properties.dailyCallerServiceCostLimit(),
-                new InvocationQuery(null, null, null, null, null, actorService, window.startTime(), window.endTime(), PageQuery.of(0, 1)),
+                new InvocationQuery(
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        actorService,
+                        window.startTime(),
+                        window.endTime(),
+                        PageQuery.of(0, 1)
+                ),
                 window
         );
     }
@@ -164,6 +202,11 @@ public class ModelCostAnalysisService {
                 level,
                 message
         );
+    }
+
+    private int safeReportPageSize() {
+        int configuredRows = properties.maxExportRows() <= 0 ? 10000 : properties.maxExportRows();
+        return Math.max(1, Math.min(50000, configuredRows));
     }
 
     private BudgetReportWindow normalizeReportWindow(LocalDate startDate, LocalDate endDate) {

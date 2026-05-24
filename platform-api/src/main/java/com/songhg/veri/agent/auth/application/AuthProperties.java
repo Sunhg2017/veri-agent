@@ -33,7 +33,7 @@ public record AuthProperties(
         }
 
         public static PasswordChangeRequired defaults() {
-            // Fail-safe defaults mirror application-platform.yml to avoid locking users out of password recovery.
+            // Fail-safe defaults mirror application-auth.yml to avoid locking users out of password recovery.
             return new PasswordChangeRequired(List.of(
                     allow(null, "/actuator/", PasswordChangePathMatch.PREFIX),
                     allow(null, "/v3/api-docs/", PasswordChangePathMatch.PREFIX),

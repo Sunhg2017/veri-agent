@@ -1,6 +1,7 @@
 spring:
   config:
     import:
+      - classpath:application-auth.yml
       - classpath:application-platform.yml
       - classpath:application-model-access.yml
       - classpath:application-asset.yml

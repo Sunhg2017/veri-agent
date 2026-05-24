@@ -47,6 +47,7 @@ import com.songhg.veri.agent.management.application.EnvironmentConnectivityCheck
 import com.songhg.veri.agent.management.application.ManagementConsoleService;
 import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapper;
 import java.util.Set;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Profile;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -66,7 +67,30 @@ public class PostgresManagementConsoleService implements ManagementConsoleServic
     private final PostgresManagementRoleService roleService;
     private final PostgresManagementSecretReferenceService secretReferenceService;
 
+    @Autowired
     public PostgresManagementConsoleService(
+            PostgresManagementDepartmentService departmentService,
+            PostgresManagementUserService userService,
+            PostgresManagementProjectService projectService,
+            PostgresManagementApplicationService applicationService,
+            PostgresManagementEnvironmentService environmentService,
+            PostgresManagementAuditQueryService auditQueryService,
+            PostgresManagementConfigService configService,
+            PostgresManagementRoleService roleService,
+            PostgresManagementSecretReferenceService secretReferenceService
+    ) {
+        this.departmentService = departmentService;
+        this.userService = userService;
+        this.projectService = projectService;
+        this.applicationService = applicationService;
+        this.environmentService = environmentService;
+        this.auditQueryService = auditQueryService;
+        this.configService = configService;
+        this.roleService = roleService;
+        this.secretReferenceService = secretReferenceService;
+    }
+
+    PostgresManagementConsoleService(
             ManagementMapper mapper,
             PasswordEncoder passwordEncoder,
             AuditLogWriter auditLogWriter,
