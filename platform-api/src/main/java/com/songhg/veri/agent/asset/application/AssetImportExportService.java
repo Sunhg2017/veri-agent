@@ -833,11 +833,6 @@ public class AssetImportExportService {
         CsvEncoder.appendLine(csv, values);
     }
 
-    @SuppressWarnings("unused")
-    private static void appendCsvValue(StringBuilder csv, Object value) {
-        CsvEncoder.appendValue(csv, value);
-    }
-
     private static String importExportAssetType(String rawValue) {
         return valueIn(rawValue, null, IMPORT_EXPORT_ASSET_TYPES, "assetType");
     }
