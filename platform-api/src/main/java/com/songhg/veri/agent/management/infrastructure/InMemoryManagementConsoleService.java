@@ -56,7 +56,6 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.UUID;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 
@@ -66,12 +65,9 @@ public class InMemoryManagementConsoleService implements ManagementConsoleServic
 
     private static final DateTimeFormatter TIME_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
 
-    private final List<IntegrationView> integrations = new ArrayList<>();
     private final List<RoleView> roles = new ArrayList<>();
     private final List<PermissionView> permissions = new ArrayList<>();
     private final Map<String, List<String>> rolePermissions = new HashMap<>();
-    private final List<SettingView> settings = new ArrayList<>();
-    private final List<SecretReferenceView> secrets = new ArrayList<>();
     private final List<AuditLogView> auditLogs = new ArrayList<>();
     private final List<AuditOutboxView> auditOutbox = new ArrayList<>();
     private final InMemoryManagementDepartmentService departmentService;
@@ -79,6 +75,9 @@ public class InMemoryManagementConsoleService implements ManagementConsoleServic
     private final InMemoryManagementProjectService projectService;
     private final InMemoryManagementApplicationService applicationService;
     private final InMemoryManagementEnvironmentService environmentService;
+    private final InMemoryManagementIntegrationService integrationService;
+    private final InMemoryManagementConfigService configService;
+    private final InMemoryManagementSecretReferenceService secretReferenceService;
     private final AuditLogWriter auditLogWriter;
 
     public InMemoryManagementConsoleService(
@@ -91,11 +90,9 @@ public class InMemoryManagementConsoleService implements ManagementConsoleServic
         projectService = new InMemoryManagementProjectService(userService, auditLogWriter);
         applicationService = new InMemoryManagementApplicationService(userService, auditLogWriter);
         environmentService = new InMemoryManagementEnvironmentService(userService, auditLogWriter, connectivityChecker);
-        integrations.addAll(List.of(
-                new IntegrationView("github-enterprise", "GitHub Enterprise", "代码仓库", "全局", "已启用"),
-                new IntegrationView("jenkins", "Jenkins", "CI/CD", "平台级", "已启用"),
-                new IntegrationView("feishu-bot", "Feishu Bot", "通知", "项目级", "已启用")
-        ));
+        integrationService = new InMemoryManagementIntegrationService(auditLogWriter);
+        configService = new InMemoryManagementConfigService(auditLogWriter);
+        secretReferenceService = new InMemoryManagementSecretReferenceService(auditLogWriter);
         roles.addAll(List.of(
                 new RoleView("SuperAdmin", "超级管理员", "PLATFORM", "启用", "平台初始化、组织治理、平台审计"),
                 new RoleView("PlatformAdmin", "平台管理员", "PLATFORM", "启用", "组织、用户、项目、应用、环境、权限、审计管理"),
@@ -118,13 +115,6 @@ public class InMemoryManagementConsoleService implements ManagementConsoleServic
                 "config:read", "context:read", "context:switch", "context:effective_read",
                 "asset:read", "asset:manage", "asset:review",
                 "requirementInput:read", "requirementInput:import", "requirementInput:candidate_review"
-        ));
-        settings.addAll(List.of(
-                new SettingView("password.min_length", "密码最小长度", "10 位", "全局安全策略", "已启用"),
-                new SettingView("audit.retention_days", "审计日志保留", "365 天", "合规策略", "已启用"),
-                new SettingView("audit.retention_cleanup_enabled", "审计保留清理", "false", "合规策略", "已停用"),
-                new SettingView("audit.retention_min_days", "审计最小保留", "30 天", "合规策略", "已启用"),
-                new SettingView("project.default_status", "默认项目状态", "规划中", "项目开通", "已启用")
         ));
         auditLogs.addAll(List.of(
                 new AuditLogView("2026-05-16 10:31", "system", "健康检查", "platform-api", "成功"),
@@ -493,57 +483,27 @@ public class InMemoryManagementConsoleService implements ManagementConsoleServic
 
     @Override
     public synchronized PageResponse<IntegrationView> integrations(PageQuery pageQuery) {
-        return page(integrations, pageQuery);
+        return integrationService.integrations(pageQuery);
     }
 
     @Override
     public synchronized IntegrationView integration(String key) {
-        return requireIntegration(key);
+        return integrationService.integration(key);
     }
 
     @Override
     public synchronized IntegrationView createIntegration(CreateIntegrationRequest request, AuthUserPrincipal actor) {
-        String key = integrationKey(request.code(), request.name());
-        if (integrations.stream().anyMatch(integration -> integration.key().equals(key))) {
-            throw new BusinessException(ErrorCode.CONFLICT, "集成配置已存在");
-        }
-        IntegrationView view = new IntegrationView(
-                key,
-                request.name().trim(),
-                defaultText(request.category(), "未分类"),
-                defaultText(request.scope(), "平台级"),
-                "已启用"
-        );
-        integrations.add(0, view);
-        audit(actor, "登记集成", view.name());
-        return view;
+        return integrationService.createIntegration(request, actor);
     }
 
     @Override
     public synchronized IntegrationView updateIntegration(String key, UpdateIntegrationRequest request, AuthUserPrincipal actor) {
-        IntegrationView current = requireIntegration(key);
-        IntegrationView updated = new IntegrationView(
-                current.key(),
-                defaultText(request.name(), current.name()),
-                defaultText(request.category(), current.category()),
-                defaultText(request.scope(), current.scope()),
-                current.status()
-        );
-        integrations.removeIf(integration -> integration.key().equals(current.key()));
-        integrations.add(0, updated);
-        audit(actor, "更新集成", updated.name());
-        return updated;
+        return integrationService.updateIntegration(key, request, actor);
     }
 
     @Override
     public synchronized IntegrationView changeIntegrationStatus(String key, String status, AuthUserPrincipal actor) {
-        IntegrationView current = requireIntegration(key);
-        String nextStatus = "DISABLED".equals(status) ? "已停用" : "已启用";
-        IntegrationView updated = new IntegrationView(current.key(), current.name(), current.category(), current.scope(), nextStatus);
-        integrations.removeIf(integration -> integration.key().equals(current.key()));
-        integrations.add(0, updated);
-        audit(actor, "DISABLED".equals(status) ? "停用集成" : "启用集成", updated.name());
-        return updated;
+        return integrationService.changeIntegrationStatus(key, status, actor);
     }
 
     @Override
@@ -606,155 +566,47 @@ public class InMemoryManagementConsoleService implements ManagementConsoleServic
 
     @Override
     public synchronized PageResponse<SettingView> settings(PageQuery pageQuery) {
-        return page(settings.stream()
-                .filter(setting -> "已启用".equals(setting.status()))
-                .toList(), pageQuery);
+        return configService.settings(pageQuery);
     }
 
     @Override
     public synchronized SettingView setting(String key) {
-        return requireSetting(key);
+        return configService.setting(key);
     }
 
     @Override
     public synchronized SettingView createSetting(CreateSettingRequest request, AuthUserPrincipal actor) {
-        String key = request.key().trim();
-        rejectSensitivePlainSetting(key, request.value());
-        if (settings.stream().anyMatch(setting -> setting.key().equals(key))) {
-            throw new BusinessException(ErrorCode.CONFLICT, "系统设置已存在");
-        }
-        SettingView view = new SettingView(
-                key,
-                defaultText(request.name(), key),
-                request.value().trim(),
-                settingScopeName(request.scopeType()),
-                "已启用"
-        );
-        settings.add(0, view);
-        audit(actor, "创建设置", view.name());
-        return view;
+        return configService.createSetting(request, actor);
     }
 
     @Override
     public synchronized SettingView updateSetting(String key, UpdateSettingRequest request, AuthUserPrincipal actor) {
-        SettingView current = requireSetting(key);
-        rejectSensitivePlainSetting(current.key(), defaultText(request.value(), current.value()));
-        SettingView updated = new SettingView(
-                current.key(),
-                defaultText(request.name(), current.name()),
-                defaultText(request.value(), current.value()),
-                settingScopeName(request.scopeType(), current.scope()),
-                current.status()
-        );
-        settings.removeIf(setting -> setting.key().equals(current.key()));
-        settings.add(0, updated);
-        audit(actor, "更新设置", updated.name());
-        return updated;
+        return configService.updateSetting(key, request, actor);
     }
 
     @Override
     public synchronized SettingView changeSettingStatus(String key, String status, AuthUserPrincipal actor) {
-        if (!List.of("ENABLED", "DISABLED").contains(status)) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "系统设置状态只支持 ENABLED 或 DISABLED");
-        }
-        SettingView current = requireSetting(key);
-        SettingView updated = new SettingView(
-                current.key(),
-                current.name(),
-                current.value(),
-                current.scope(),
-                "ENABLED".equals(status) ? "已启用" : "已停用"
-        );
-        settings.removeIf(setting -> setting.key().equals(current.key()));
-        settings.add(0, updated);
-        audit(actor, "ENABLED".equals(status) ? "启用设置" : "停用设置", updated.name());
-        return updated;
+        return configService.changeSettingStatus(key, status, actor);
     }
 
     @Override
     public synchronized PageResponse<SecretReferenceView> secrets(PageQuery pageQuery) {
-        return page(secrets, pageQuery);
+        return secretReferenceService.secrets(pageQuery);
     }
 
     @Override
     public synchronized SecretReferenceView createSecret(CreateSecretReferenceRequest request, AuthUserPrincipal actor) {
-        String secretRef = request.secretRef().trim();
-        if (secrets.stream().anyMatch(secret -> secret.secretRef().equals(secretRef))) {
-            throw new BusinessException(ErrorCode.CONFLICT, "密钥引用已存在");
-        }
-        String now = LocalDateTime.now().format(TIME_FORMAT);
-        SecretReferenceView view = new SecretReferenceView(
-                UUID.randomUUID().toString(),
-                secretRef,
-                defaultText(request.providerCode(), "local"),
-                "LOCAL_ENCRYPTED",
-                request.purpose().trim(),
-                request.scopeType().trim(),
-                request.scopeId().toString(),
-                maskedSecret(),
-                defaultText(request.secretVersion(), "v1"),
-                "ACTIVE",
-                now,
-                request.expiresAt() == null ? "" : request.expiresAt().toString(),
-                now,
-                now
-        );
-        secrets.add(0, view);
-        audit(actor, "创建密钥引用", secretRef);
-        return view;
+        return secretReferenceService.createSecret(request, actor);
     }
 
     @Override
     public synchronized SecretReferenceView rotateSecret(RotateSecretReferenceRequest request, AuthUserPrincipal actor) {
-        SecretReferenceView current = requireSecret(request.secretRef());
-        if ("REVOKED".equals(current.status())) {
-            throw new BusinessException(ErrorCode.INVALID_STATE, "已撤销密钥不可轮换");
-        }
-        String now = LocalDateTime.now().format(TIME_FORMAT);
-        SecretReferenceView updated = new SecretReferenceView(
-                current.id(),
-                current.secretRef(),
-                current.providerCode(),
-                current.providerType(),
-                current.purpose(),
-                current.scopeType(),
-                current.scopeId(),
-                maskedSecret(),
-                defaultText(request.secretVersion(), nextSecretVersion(current.secretVersion())),
-                "ACTIVE",
-                now,
-                request.expiresAt() == null ? current.expiresAt() : request.expiresAt().toString(),
-                current.createdAt(),
-                now
-        );
-        replaceSecret(updated);
-        audit(actor, "轮换密钥引用", current.secretRef());
-        return updated;
+        return secretReferenceService.rotateSecret(request, actor);
     }
 
     @Override
     public synchronized SecretReferenceView disableSecret(DisableSecretReferenceRequest request, AuthUserPrincipal actor) {
-        SecretReferenceView current = requireSecret(request.secretRef());
-        String now = LocalDateTime.now().format(TIME_FORMAT);
-        SecretReferenceView updated = new SecretReferenceView(
-                current.id(),
-                current.secretRef(),
-                current.providerCode(),
-                current.providerType(),
-                current.purpose(),
-                current.scopeType(),
-                current.scopeId(),
-                current.maskedValue(),
-                current.secretVersion(),
-                "REVOKED",
-                current.rotatedAt(),
-                current.expiresAt(),
-                current.createdAt(),
-                now
-        );
-        replaceSecret(updated);
-        audit(actor, "撤销密钥引用", current.secretRef());
-        return updated;
+        return secretReferenceService.disableSecret(request, actor);
     }
 
     private void audit(AuthUserPrincipal actor, String action, String target) {
@@ -769,73 +621,9 @@ public class InMemoryManagementConsoleService implements ManagementConsoleServic
         ));
     }
 
-    private IntegrationView requireIntegration(String key) {
-        return integrations.stream()
-                .filter(integration -> integration.key().equals(key) || integration.name().equals(key))
-                .findFirst()
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "集成配置不存在"));
-    }
-
-    private SettingView requireSetting(String key) {
-        return settings.stream()
-                .filter(setting -> setting.key().equals(key) || setting.name().equals(key))
-                .findFirst()
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "系统设置不存在"));
-    }
-
-    private SecretReferenceView requireSecret(String secretRef) {
-        String normalized = defaultText(secretRef, "");
-        return secrets.stream()
-                .filter(secret -> secret.secretRef().equals(normalized))
-                .findFirst()
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "密钥引用不存在"));
-    }
-
-    private String integrationKey(String code, String name) {
-        String seed = defaultText(code, name);
-        String normalized = seed.trim().toLowerCase().replaceAll("[^a-z0-9_-]+", "-").replaceAll("(^-+|-+$)", "");
-        return normalized.isBlank() ? "integration-" + Math.abs(seed.hashCode()) : normalized;
-    }
-
     private String defaultText(String value, String fallback) {
         String normalized = value == null ? "" : value.trim();
         return normalized.isBlank() ? fallback : normalized;
-    }
-
-    private String maskedSecret() {
-        return "********";
-    }
-
-    private String nextSecretVersion(String currentVersion) {
-        String normalized = defaultText(currentVersion, "v1");
-        if (normalized.matches("v\\d+")) {
-            int version = Integer.parseInt(normalized.substring(1));
-            return "v" + (version + 1);
-        }
-        return normalized + "-rotated";
-    }
-
-    private String settingScopeName(String scopeType) {
-        return settingScopeName(scopeType, "平台级");
-    }
-
-    private String settingScopeName(String scopeType, String fallback) {
-        return switch (defaultText(scopeType, "")) {
-            case "SYSTEM" -> "平台级";
-            case "PROJECT" -> "项目级";
-            case "APPLICATION" -> "应用级";
-            case "ENVIRONMENT" -> "环境级";
-            default -> fallback;
-        };
-    }
-
-    private void rejectSensitivePlainSetting(String key, String value) {
-        String normalizedKey = defaultText(key, "").toLowerCase();
-        String normalizedValue = defaultText(value, "");
-        boolean sensitiveKey = normalizedKey.matches(".*(password|passwd|pwd|secret|token|api[_.-]?key|cookie|credential|private[_.-]?key).*");
-        if (sensitiveKey && !normalizedValue.matches("^(\\*+|已配置|secret-ref:.+|\\$\\{[A-Za-z0-9_]+})$")) {
-            throw new BusinessException(ErrorCode.SECRET_POLICY_VIOLATION, "敏感配置必须使用密钥引用或掩码值");
-        }
     }
 
     private <T> PageResponse<T> page(List<T> source, PageQuery pageQuery) {
@@ -991,17 +779,6 @@ public class InMemoryManagementConsoleService implements ManagementConsoleServic
             }
         }
         throw new BusinessException(ErrorCode.NOT_FOUND, "角色不存在");
-    }
-
-    private void replaceSecret(SecretReferenceView updated) {
-        for (int index = 0; index < secrets.size(); index++) {
-            SecretReferenceView current = secrets.get(index);
-            if (current.secretRef().equals(updated.secretRef())) {
-                secrets.set(index, updated);
-                return;
-            }
-        }
-        throw new BusinessException(ErrorCode.NOT_FOUND, "密钥引用不存在");
     }
 
     private String trimOrDefault(String value, String defaultValue) {
