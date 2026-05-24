@@ -97,25 +97,10 @@ public class ModelProviderInvocationService {
             fallbackUsed = attempt.fallbackUsed();
         }
 
-        InvocationRecord failed = saveRecord(
-                request,
-                principal,
-                plan.prompt(),
-                null,
-                InvocationStatus.FAILED,
-                fallbackUsed,
-                contentGuard.digest(plan.fullPrompt()),
-                contentGuard.mask(plan.fullPrompt()),
-                null,
-                0,
-                0,
-                BigDecimal.ZERO,
+        InvocationRecord failed = saveFailedRecord(
+                request, principal, plan, null, fallbackUsed,
                 ErrorCode.MODEL_PROVIDER_UNAVAILABLE.name(),
-                lastFailure == null ? "无可用模型供应商" : lastFailure.getMessage(),
-                plan.routingRuleName(),
-                plan.modelCapability(),
-                plan.effectiveSensitivityLevel(),
-                plan.startedAt()
+                lastFailure == null ? "无可用模型供应商" : lastFailure.getMessage()
         );
         throw new BusinessException(
                 ErrorCode.MODEL_PROVIDER_UNAVAILABLE,
@@ -163,18 +148,10 @@ public class ModelProviderInvocationService {
             if (exception instanceof BusinessException businessException
                     && businessException.getErrorCode() == ErrorCode.BUDGET_EXCEEDED) {
                 recordBlocked(
-                        request,
-                        principal,
-                        plan.prompt(),
-                        provider,
+                        request, principal, plan, provider,
                         index > 0 || fallbackUsed,
-                        plan.fullPrompt(),
                         ErrorCode.BUDGET_EXCEEDED.name(),
-                        businessException.getMessage(),
-                        plan.routingRuleName(),
-                        plan.modelCapability(),
-                        plan.effectiveSensitivityLevel(),
-                        plan.startedAt()
+                        businessException.getMessage()
                 );
                 throw businessException;
             }
@@ -198,18 +175,9 @@ public class ModelProviderInvocationService {
             );
         }
         recordBlocked(
-                request,
-                principal,
-                plan.prompt(),
-                provider,
-                fallbackUsed,
-                plan.fullPrompt(),
+                request, principal, plan, provider, fallbackUsed,
                 ErrorCode.BUDGET_EXCEEDED.name(),
-                budgetViolation.message(),
-                plan.routingRuleName(),
-                plan.modelCapability(),
-                plan.effectiveSensitivityLevel(),
-                plan.startedAt()
+                budgetViolation.message()
         );
         throw new BusinessException(ErrorCode.BUDGET_EXCEEDED, budgetViolation.message());
     }
@@ -232,25 +200,10 @@ public class ModelProviderInvocationService {
         ));
         providerResilienceManager.recordProviderSuccess(provider);
         BigDecimal totalCost = budgetService.actualCost(provider, result.inputTokens(), result.outputTokens());
-        InvocationRecord record = saveRecord(
-                request,
-                principal,
-                plan.prompt(),
-                provider,
-                InvocationStatus.SUCCEEDED,
-                fallbackUsed,
-                contentGuard.digest(plan.fullPrompt()),
-                contentGuard.mask(plan.fullPrompt()),
+        InvocationRecord record = saveSucceededRecord(
+                request, principal, plan, provider, fallbackUsed,
                 contentGuard.mask(result.content()),
-                result.inputTokens(),
-                result.outputTokens(),
-                totalCost,
-                null,
-                null,
-                plan.routingRuleName(),
-                plan.modelCapability(),
-                plan.effectiveSensitivityLevel(),
-                plan.startedAt()
+                result.inputTokens(), result.outputTokens(), totalCost
         );
         return ProviderAttemptResult.success(new ModelInvocationResult(
                 record.id(),
@@ -281,43 +234,63 @@ public class ModelProviderInvocationService {
     void recordBlocked(
             ModelInvocationCommand request,
             ServicePrincipal principal,
-            PromptTemplate prompt,
+            ModelInvocationExecutionPlan plan,
             ModelProviderConfig provider,
             boolean fallbackUsed,
-            String fullPrompt,
             String errorCode,
-            String errorMessage,
-            String routingRuleName,
-            String modelCapability,
-            String sensitivityLevel,
-            Instant startedAt
+            String errorMessage
     ) {
-        saveRecord(
-                request,
-                principal,
-                prompt,
-                provider,
-                InvocationStatus.BLOCKED,
-                fallbackUsed,
-                contentGuard.digest(fullPrompt),
-                contentGuard.mask(fullPrompt),
-                null,
-                0,
-                0,
-                BigDecimal.ZERO,
-                errorCode,
-                errorMessage,
-                routingRuleName,
-                modelCapability,
-                sensitivityLevel,
-                startedAt
+        saveInvocationRecord(
+                request, principal, plan, provider, InvocationStatus.BLOCKED, fallbackUsed,
+                contentGuard.digest(plan.fullPrompt()),
+                contentGuard.mask(plan.fullPrompt()), null,
+                0, 0, BigDecimal.ZERO,
+                errorCode, errorMessage
         );
     }
 
-    private InvocationRecord saveRecord(
+    private InvocationRecord saveSucceededRecord(
             ModelInvocationCommand request,
             ServicePrincipal principal,
-            PromptTemplate prompt,
+            ModelInvocationExecutionPlan plan,
+            ModelProviderConfig provider,
+            boolean fallbackUsed,
+            String responsePreview,
+            int inputTokens,
+            int outputTokens,
+            BigDecimal totalCost
+    ) {
+        return saveInvocationRecord(
+                request, principal, plan, provider, InvocationStatus.SUCCEEDED, fallbackUsed,
+                contentGuard.digest(plan.fullPrompt()),
+                contentGuard.mask(plan.fullPrompt()), responsePreview,
+                inputTokens, outputTokens, totalCost,
+                null, null
+        );
+    }
+
+    private InvocationRecord saveFailedRecord(
+            ModelInvocationCommand request,
+            ServicePrincipal principal,
+            ModelInvocationExecutionPlan plan,
+            ModelProviderConfig provider,
+            boolean fallbackUsed,
+            String errorCode,
+            String errorMessage
+    ) {
+        return saveInvocationRecord(
+                request, principal, plan, provider, InvocationStatus.FAILED, fallbackUsed,
+                contentGuard.digest(plan.fullPrompt()),
+                contentGuard.mask(plan.fullPrompt()), null,
+                0, 0, BigDecimal.ZERO,
+                errorCode, errorMessage
+        );
+    }
+
+    private InvocationRecord saveInvocationRecord(
+            ModelInvocationCommand request,
+            ServicePrincipal principal,
+            ModelInvocationExecutionPlan plan,
             ModelProviderConfig provider,
             InvocationStatus status,
             boolean fallbackUsed,
@@ -328,26 +301,23 @@ public class ModelProviderInvocationService {
             int outputTokens,
             BigDecimal totalCost,
             String errorCode,
-            String errorMessage,
-            String routingRuleName,
-            String modelCapability,
-            String sensitivityLevel,
-            Instant startedAt
+            String errorMessage
     ) {
+        PromptTemplate prompt = plan.prompt();
         InvocationRecord record = repository.saveInvocation(new InvocationRecord(
                 UUID.randomUUID(),
                 request.projectId(),
                 request.applicationId(),
                 request.environmentId(),
-                sensitivityLevel,
+                plan.effectiveSensitivityLevel(),
                 prompt == null ? null : prompt.promptKey(),
                 prompt == null ? null : prompt.version(),
                 provider == null ? null : provider.id(),
                 provider == null ? null : provider.name(),
                 StringUtils.hasText(request.modelName()) ? request.modelName().trim() : properties.defaultModel(),
-                routingRuleName,
+                plan.routingRuleName(),
                 provider == null ? null : provider.routingGroup(),
-                modelCapability,
+                plan.modelCapability(),
                 status,
                 fallbackUsed,
                 promptDigest,
@@ -358,7 +328,7 @@ public class ModelProviderInvocationService {
                 totalCost,
                 errorCode,
                 errorMessage,
-                Duration.between(startedAt, Instant.now()).toMillis(),
+                Duration.between(plan.startedAt(), Instant.now()).toMillis(),
                 principal.callerService(),
                 principal.delegatedUserId(),
                 Instant.now()

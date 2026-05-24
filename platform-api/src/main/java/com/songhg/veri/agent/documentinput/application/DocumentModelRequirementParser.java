@@ -89,7 +89,7 @@ public class DocumentModelRequirementParser {
                         response.providerName(),
                         response.modelName(),
                         "MODEL_RESPONSE_EMPTY",
-                        "模型未返回有效候选需求"
+                        DocumentInputMessages.MODEL_NO_VALID_REQUIREMENTS
                 );
             }
             return DocumentModelParseResult.succeeded(
@@ -112,7 +112,7 @@ public class DocumentModelRequirementParser {
                     response == null ? null : response.providerName(),
                     response == null ? null : response.modelName(),
                     "MODEL_PARSE_FAILED",
-                    StringUtils.hasText(exception.getMessage()) ? exception.getMessage() : "模型解析失败"
+                    StringUtils.hasText(exception.getMessage()) ? exception.getMessage() : DocumentInputMessages.MODEL_PARSE_FAILED
             );
         }
     }
@@ -120,7 +120,7 @@ public class DocumentModelRequirementParser {
     private List<ParsedRequirementDraft> parseModelResponse(ModelInvocationResult response) {
         String json = extractJson(response.content());
         if (!StringUtils.hasText(json)) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "模型响应不是有效 JSON");
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, DocumentInputMessages.MODEL_RESPONSE_NOT_JSON);
         }
         try {
             var root = objectMapper.readTree(json);
@@ -128,7 +128,7 @@ public class DocumentModelRequirementParser {
                 return List.of();
             }
         } catch (Exception exception) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "模型响应不是有效 JSON");
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, DocumentInputMessages.MODEL_RESPONSE_NOT_JSON);
         }
         return requirementParser.parse(DocumentSourceType.CUSTOM_API, null, json, modelMapping());
     }
@@ -150,7 +150,7 @@ public class DocumentModelRequirementParser {
                     "content", truncate(content)
             ));
         } catch (Exception exception) {
-            throw new BusinessException(ErrorCode.INTERNAL_ERROR, "模型解析请求无法序列化");
+            throw new BusinessException(ErrorCode.INTERNAL_ERROR, DocumentInputMessages.MODEL_REQUEST_SERIALIZE_FAILED);
         }
     }
 

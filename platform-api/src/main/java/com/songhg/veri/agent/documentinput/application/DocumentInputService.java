@@ -329,21 +329,21 @@ public class DocumentInputService {
         ensureInputEnabled();
         return repository.webhookEvent(id)
                 .map(responseMapper::toWebhookEventResponse)
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "webhook 事件不存在: " + id));
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, DocumentInputMessages.WEBHOOK_EVENT_NOT_FOUND.formatted(id)));
     }
 
     public DocumentWebhookEventResponse replayWebhookEvent(UUID id) {
         ensureInputEnabled();
         DocumentWebhookEvent event = repository.webhookEvent(id)
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "webhook 事件不存在: " + id));
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, DocumentInputMessages.WEBHOOK_EVENT_NOT_FOUND.formatted(id)));
         if (event.rawPayload() == null) {
-            throw new BusinessException(ErrorCode.INVALID_STATE, "webhook 原始 payload 不可重放");
+            throw new BusinessException(ErrorCode.INVALID_STATE, DocumentInputMessages.WEBHOOK_PAYLOAD_NOT_REPLAYABLE);
         }
         if (event.signatureStatus() != WebhookSignatureStatus.VALID) {
-            throw new BusinessException(ErrorCode.INVALID_STATE, "签名未通过的 webhook 事件不可重放");
+            throw new BusinessException(ErrorCode.INVALID_STATE, DocumentInputMessages.WEBHOOK_SIGNATURE_FAILED);
         }
         if (event.status() != WebhookEventStatus.FAILED && event.status() != WebhookEventStatus.DEAD_LETTER) {
-            throw new BusinessException(ErrorCode.INVALID_STATE, "仅失败或死信 webhook 事件允许重放");
+            throw new BusinessException(ErrorCode.INVALID_STATE, DocumentInputMessages.WEBHOOK_ONLY_FAILED_OR_DEAD);
         }
         DocumentWebhookEvent replayed = processWebhookEvent(event, event.rawPayload(), true);
         return responseMapper.toWebhookEventResponse(replayed);
@@ -364,7 +364,7 @@ public class DocumentInputService {
         ensureInputEnabled();
         ensureWebhookEnabled();
         DocumentSourceConfig source = repository.sourceByCode(normalizeSourceCode(sourceCode))
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "文档源不存在: " + sourceCode));
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, DocumentInputMessages.SOURCE_NOT_FOUND.formatted(sourceCode)));
         ensureExecutableSource(source.sourceType(), source.status());
         String clientIp = webhookIngressGuard.resolveClientIp(remoteAddress, forwardedFor, realIp);
         if (!webhookIngressGuard.isIpAllowed(source.sourceCode(), clientIp)) {
@@ -376,8 +376,8 @@ public class DocumentInputService {
                     eventVersion,
                     WebhookSignatureStatus.INVALID,
                     ErrorCode.FORBIDDEN,
-                    "webhook 来源 IP 不在白名单",
-                    "webhook 来源 IP 不在白名单: " + clientIp
+                    DocumentInputMessages.WEBHOOK_IP_NOT_ALLOWED,
+                    DocumentInputMessages.WEBHOOK_IP_NOT_ALLOWED.formatted(clientIp)
             );
         }
         ensureRequiredWebhookHeaders(timestamp, signature, eventId, idempotencyKey, eventVersion);
@@ -392,8 +392,8 @@ public class DocumentInputService {
                     eventVersion,
                     WebhookSignatureStatus.MISSING,
                     ErrorCode.BUDGET_EXCEEDED,
-                    "webhook 请求过于频繁",
-                    "webhook 请求过于频繁: dimension=%s, limit=%d, windowSeconds=%d, remoteIp=%s".formatted(
+                    DocumentInputMessages.WEBHOOK_RATE_LIMITED,
+                    DocumentInputMessages.WEBHOOK_RATE_LIMITED.formatted(
                             rateLimit.dimension(),
                             rateLimit.limit(),
                             rateLimit.windowSeconds(),
@@ -571,19 +571,19 @@ public class DocumentInputService {
             String payloadDigest
     ) {
         if (!payloadDigest.equals(duplicate.payloadDigest())) {
-            throw new BusinessException(ErrorCode.CONFLICT, "webhook 幂等键已使用但 payload 不一致");
+            throw new BusinessException(ErrorCode.CONFLICT, DocumentInputMessages.WEBHOOK_IDEMPOTENCY_KEY_CONFLICT);
         }
         if (duplicate.importId() != null) {
             return importService.importRecord(duplicate.importId());
         }
-        throw new BusinessException(ErrorCode.CONFLICT, "webhook 事件已接收但未成功处理");
+        throw new BusinessException(ErrorCode.CONFLICT, DocumentInputMessages.WEBHOOK_EVENT_PENDING);
     }
 
     private DocumentWebhookEvent processWebhookEvent(DocumentWebhookEvent event, String rawPayload, boolean replay) {
         DocumentSourceConfig source = repository.sourceByCode(normalizeSourceCode(event.sourceCode()))
                 .orElseThrow(() -> new BusinessException(
                         ErrorCode.NOT_FOUND,
-                        "文档源不存在: " + event.sourceCode()
+                        DocumentInputMessages.SOURCE_NOT_FOUND.formatted(event.sourceCode())
                 ));
         String eventType = null;
         String eventVersion = null;
@@ -597,7 +597,7 @@ public class DocumentInputService {
             ensureSourceWebhookEventVersion(source, eventVersion);
             projectId = firstText(textAt(payload, "projectId"), source.defaultProjectId());
             if (!StringUtils.hasText(projectId)) {
-                throw new BusinessException(ErrorCode.VALIDATION_ERROR, "webhook payload 缺少 projectId");
+                throw new BusinessException(ErrorCode.VALIDATION_ERROR, DocumentInputMessages.WEBHOOK_PAYLOAD_MISSING_PROJECT_ID);
             }
             String title = firstText(textAt(payload, "title"), textAt(payload, "name"), source.name());
             String sourceRef = firstText(textAt(payload, "sourceRef"), textAt(payload, "id"), source.sourceCode());
@@ -690,7 +690,7 @@ public class DocumentInputService {
         try {
             return objectMapper.readTree(rawPayload);
         } catch (Exception exception) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "webhook payload 不是合法 JSON");
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, DocumentInputMessages.WEBHOOK_PAYLOAD_INVALID_JSON);
         }
     }
 
@@ -702,19 +702,19 @@ public class DocumentInputService {
             String eventVersion
     ) {
         if (!StringUtils.hasText(timestamp)) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "webhook 缺少 X-VA-Timestamp");
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, DocumentInputMessages.WEBHOOK_MISSING_TIMESTAMP);
         }
         if (!StringUtils.hasText(signature)) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "webhook 缺少 X-VA-Signature");
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, DocumentInputMessages.WEBHOOK_MISSING_SIGNATURE);
         }
         if (!StringUtils.hasText(eventId)) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "webhook 缺少 X-VA-Event-Id");
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, DocumentInputMessages.WEBHOOK_MISSING_EVENT_ID);
         }
         if (!StringUtils.hasText(idempotencyKey)) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "webhook 缺少 X-VA-Idempotency-Key");
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, DocumentInputMessages.WEBHOOK_MISSING_IDEMPOTENCY_KEY);
         }
         if (!StringUtils.hasText(eventVersion)) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "webhook 缺少 X-VA-Event-Version");
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, DocumentInputMessages.WEBHOOK_MISSING_EVENT_VERSION);
         }
     }
 
@@ -760,7 +760,7 @@ public class DocumentInputService {
             mac.init(new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
             return HexFormat.of().formatHex(mac.doFinal(value.getBytes(StandardCharsets.UTF_8)));
         } catch (Exception exception) {
-            throw new BusinessException(ErrorCode.INTERNAL_ERROR, "webhook 签名校验失败");
+            throw new BusinessException(ErrorCode.INTERNAL_ERROR, DocumentInputMessages.WEBHOOK_SIGNATURE_VERIFICATION_FAILED);
         }
     }
 
@@ -775,22 +775,22 @@ public class DocumentInputService {
 
     private void ensureExecutableSource(DocumentSourceType sourceType, DocumentSourceStatus status) {
         if (!SUPPORTED_SOURCE_TYPES.contains(sourceType)) {
-            throw new BusinessException(ErrorCode.INVALID_STATE, sourceType + " 数据流尚未实现");
+            throw new BusinessException(ErrorCode.INVALID_STATE, DocumentInputMessages.SOURCE_TYPE_NOT_IMPLEMENTED.formatted(sourceType));
         }
         if (status != DocumentSourceStatus.ENABLED) {
-            throw new BusinessException(ErrorCode.INVALID_STATE, "文档源未启用");
+            throw new BusinessException(ErrorCode.INVALID_STATE, DocumentInputMessages.SOURCE_NOT_ENABLED);
         }
     }
 
     private void ensureInputEnabled() {
         if (!properties.inputEnabled()) {
-            throw new BusinessException(ErrorCode.INVALID_STATE, "WP4 文档输入已关闭");
+            throw new BusinessException(ErrorCode.INVALID_STATE, DocumentInputMessages.INPUT_DISABLED);
         }
     }
 
     private void ensureWebhookEnabled() {
         if (!properties.webhookEnabled()) {
-            throw new BusinessException(ErrorCode.INVALID_STATE, "WP4 webhook 输入已关闭");
+            throw new BusinessException(ErrorCode.INVALID_STATE, DocumentInputMessages.WEBHOOK_INPUT_DISABLED);
         }
     }
 
@@ -801,7 +801,7 @@ public class DocumentInputService {
                 "requirement.statusChanged",
                 "requirement.archived"
         ).contains(eventType)) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "不支持的 webhook eventType: " + eventType);
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, DocumentInputMessages.UNSUPPORTED_EVENT_TYPE.formatted(eventType));
         }
     }
 
@@ -810,7 +810,7 @@ public class DocumentInputService {
                 || !SUPPORTED_WEBHOOK_EVENT_VERSIONS.contains(eventVersion.trim())) {
             throw new BusinessException(
                     ErrorCode.VALIDATION_ERROR,
-                    "不支持的 webhook eventVersion: " + eventVersion
+                    DocumentInputMessages.UNSUPPORTED_EVENT_VERSION.formatted(eventVersion)
             );
         }
     }
@@ -822,7 +822,7 @@ public class DocumentInputService {
         String configured = normalizeEventVersion(source.eventVersion());
         if (!configured.equals(eventVersion.trim())) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR,
-                    "webhook eventVersion 与文档源配置不一致: " + eventVersion);
+                    DocumentInputMessages.WEBHOOK_EVENT_VERSION_MISMATCH.formatted(eventVersion));
         }
     }
 
@@ -835,7 +835,7 @@ public class DocumentInputService {
     }
 
     private String webhookPayloadLimitMessage() {
-        return "webhook payload 超过上限: "
+        return DocumentInputMessages.WEBHOOK_PAYLOAD_EXCEEDS_LIMIT
                 + maxWebhookPayloadBytes()
                 + " bytes。下一步：缩减单次事件 payload 或联系管理员调整 "
                 + "WP4_WEBHOOK_MAX_PAYLOAD_BYTES。";
@@ -843,14 +843,14 @@ public class DocumentInputService {
 
     private String webhookSignatureFailureMessage(WebhookSignatureStatus signatureStatus) {
         return switch (signatureStatus) {
-            case MISSING -> "webhook 签名缺失。下一步：确认外部系统和网关转发 "
+            case MISSING -> DocumentInputMessages.WEBHOOK_SIGNATURE_MISSING_HINT
                     + "X-VA-Timestamp、X-VA-Signature、X-VA-Event-Id、X-VA-Idempotency-Key "
                     + "与 X-VA-Event-Version。";
-            case EXPIRED -> "webhook 签名已过期。下一步：校准外部系统和平台服务器时间，"
+            case EXPIRED -> DocumentInputMessages.WEBHOOK_SIGNATURE_EXPIRED_HINT
                     + "并确认请求在 WP4_WEBHOOK_CLOCK_SKEW_SECONDS 窗口内发送。";
-            case INVALID -> "webhook 签名无效。下一步：确认 secretRef/WP4_WEBHOOK_SECRET、raw body、"
+            case INVALID -> DocumentInputMessages.WEBHOOK_SIGNATURE_INVALID_HINT
                     + "timestamp.eventId.idempotencyKey.rawBody 签名串和小写 hex 输出一致。";
-            case VALID -> "webhook 签名无效或已过期。下一步：检查签名串、时间窗口和 "
+            case VALID -> DocumentInputMessages.WEBHOOK_SIGNATURE_UNKNOWN_HINT
                     + "secretRef 配置。";
         };
     }
