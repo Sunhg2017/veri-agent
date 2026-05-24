@@ -246,6 +246,9 @@ public class AssetVersionHistoryService {
                 .toList();
     }
 
+    /**
+     * Resolves the version-history actor through the shared authorization boundary.
+     */
     private String currentActor() {
         if (authorizationService == null) {
             return "system";
@@ -261,6 +264,9 @@ public class AssetVersionHistoryService {
         return "system";
     }
 
+    /**
+     * Keeps user audit labels stable when display metadata is partially missing.
+     */
     private static String userActor(AuthUserPrincipal principal) {
         if (StringUtils.hasText(principal.username())) {
             return principal.username();
@@ -268,6 +274,9 @@ public class AssetVersionHistoryService {
         return principal.userId() == null ? "system" : principal.userId().toString();
     }
 
+    /**
+     * Preserves service caller identity while appending delegated user context when available.
+     */
     private static String serviceActor(ServicePrincipal principal) {
         if (!StringUtils.hasText(principal.callerService())) {
             return "system";

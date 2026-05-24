@@ -314,6 +314,9 @@ public class DocumentCandidateWorkflowService {
         );
     }
 
+    /**
+     * Uses the shared actor resolver so candidate audit and feedback samples agree on identity.
+     */
     private String currentActor() {
         return actorResolver.currentActor();
     }
