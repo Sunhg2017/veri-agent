@@ -22,11 +22,13 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import org.springframework.context.annotation.Primary;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Repository;
 
 @Repository
 @Profile("local")
+@Primary
 public class InMemoryDocumentInputRepository implements DocumentInputRepository {
 
     private static final UUID DEFAULT_MAPPING_ID = UUID.fromString("00000000-0000-0000-0000-000000000401");

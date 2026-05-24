@@ -60,7 +60,7 @@ class ManagementApplicationService implements ApplicationOperations {
     @Transactional
     public ApplicationView createApplication(CreateApplicationCommand request, AuthUserPrincipal actor) {
         String name = request.name().trim();
-        String appType = normalizedOrDefault(request.appType(), "Web");
+        String appType = normalizedOrDefault(request.appType(), "WEB_ADMIN");
         String code = normalizedOrGeneratedCode(request.code(), "app");
         String sensitivityLevel = normalizedOrDefault(request.sensitivityLevel(), "INTERNAL");
         boolean allowPublicModel = Boolean.TRUE.equals(request.allowPublicModel());

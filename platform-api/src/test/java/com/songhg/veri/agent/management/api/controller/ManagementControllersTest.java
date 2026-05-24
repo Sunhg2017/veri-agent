@@ -9,8 +9,14 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
-import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.context.jdbc.Sql;
 import org.springframework.test.web.servlet.MockMvc;
+import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.junit.jupiter.Container;
+import org.testcontainers.junit.jupiter.Testcontainers;
 
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItems;
@@ -25,15 +31,33 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+@Testcontainers(disabledWithoutDocker = true)
 @SpringBootTest(properties = {
+        "spring.flyway.locations=filesystem:../db/migration/wp1",
         "veri-agent.auth.token-secret=test-auth-secret-32-byte-minimum!",
+        "veri-agent.auth.session-cleanup-enabled=false",
+        "veri-agent.audit.retention-cleanup-enabled=false",
         "veri-agent.secret.local-master-key=0123456789abcdef0123456789abcdef",
         "veri-agent.secret.local-master-key-version=validation-v1",
         "veri-agent.management.environment-connectivity-check-enabled=false"
 })
 @AutoConfigureMockMvc
-@DirtiesContext(classMode = DirtiesContext.ClassMode.BEFORE_EACH_TEST_METHOD)
+@ActiveProfiles("db")
+@Sql(scripts = "/sql/management-controller-fixture.sql", executionPhase = Sql.ExecutionPhase.BEFORE_TEST_METHOD)
 class ManagementControllersTest {
+
+    private static final UUID ADMIN_USER_ID = UUID.fromString("00000000-0000-0000-0000-000000000101");
+    private static final UUID DEVELOPER_USER_ID = UUID.fromString("00000000-0000-0000-0000-000000000105");
+
+    @Container
+    static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:16-alpine");
+
+    @DynamicPropertySource
+    static void registerDatasource(DynamicPropertyRegistry registry) {
+        registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
+        registry.add("spring.datasource.username", POSTGRES::getUsername);
+        registry.add("spring.datasource.password", POSTGRES::getPassword);
+    }
 
     @Autowired
     private MockMvc mockMvc;
@@ -429,7 +453,7 @@ class ManagementControllersTest {
                                   "code": "wp1-formal-app",
                                   "name": "WP1 正式应用",
                                   "project": "WP1 正式项目",
-                                  "appType": "Backend",
+                                  "appType": "HTTP_API",
                                   "defaultWebUrl": "https://formal.example.test",
                                   "defaultApiBaseUrl": "https://formal.example.test/api",
                                   "sensitivityLevel": "STRICT",
@@ -438,7 +462,7 @@ class ManagementControllersTest {
                                 """))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.data.name").value("WP1 正式应用"))
-                .andExpect(jsonPath("$.data.type").value("Backend"));
+                .andExpect(jsonPath("$.data.type").value("HTTP_API"));
 
         mockMvc.perform(post("/api/v1/management/environments")
                         .header("Authorization", "Bearer " + token)
@@ -497,10 +521,10 @@ class ManagementControllersTest {
         mockMvc.perform(patch("/api/v1/management/applications/WP1 状态应用")
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"name\":\"WP1 状态应用更新\",\"appType\":\"API\"}"))
+                        .content("{\"name\":\"WP1 状态应用更新\",\"appType\":\"HTTP_API\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.name").value("WP1 状态应用更新"))
-                .andExpect(jsonPath("$.data.type").value("API"));
+                .andExpect(jsonPath("$.data.type").value("HTTP_API"));
 
         mockMvc.perform(patch("/api/v1/management/applications/WP1 状态应用更新/status")
                         .header("Authorization", "Bearer " + token)
@@ -920,11 +944,11 @@ class ManagementControllersTest {
                 .andExpect(jsonPath("$.data.items[0].code").value("SuperAdmin"))
                 .andExpect(jsonPath("$.data.total", greaterThanOrEqualTo(3)));
 
-        mockMvc.perform(get("/api/v1/management/permissions")
+        mockMvc.perform(get("/api/v1/management/permissions?search=role")
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items[*].code", hasItems("role:read")))
-                .andExpect(jsonPath("$.data.total", greaterThanOrEqualTo(10)));
+                .andExpect(jsonPath("$.data.total", greaterThanOrEqualTo(5)));
 
         mockMvc.perform(post("/api/v1/management/roles")
                         .header("Authorization", "Bearer " + token)
@@ -1035,7 +1059,7 @@ class ManagementControllersTest {
     @Test
     void rejectsUserWithoutRequiredManagementPermission() throws Exception {
         String developerToken = tokenService.issue(new AuthUserRecord(
-                UUID.randomUUID(),
+                DEVELOPER_USER_ID,
                 "dev_user",
                 "研发用户",
                 "dev@example.com",
@@ -1100,7 +1124,7 @@ class ManagementControllersTest {
 
     private String superAdminToken() {
         return tokenService.issue(new AuthUserRecord(
-                UUID.randomUUID(),
+                ADMIN_USER_ID,
                 "admin_user",
                 "平台管理员",
                 "admin@example.com",

@@ -12,7 +12,7 @@ import org.springframework.stereotype.Component;
 
 @Component
 @Profile("!redis")
-public class InMemoryProviderResilienceStateStore implements ProviderResilienceStateStore {
+public class ProcessLocalProviderResilienceStateStore implements ProviderResilienceStateStore {
 
     private final Map<UUID, CircuitSnapshot> circuitStates = new ConcurrentHashMap<>();
     private final Map<UUID, RateLimitSnapshot> rateWindows = new ConcurrentHashMap<>();

@@ -5,7 +5,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
-import java.util.Set;
 import java.util.regex.Pattern;
 import org.junit.jupiter.api.Test;
 
@@ -17,16 +16,19 @@ class InMemoryProfileBoundaryTest {
     private static final Pattern DB_PROFILE = Pattern.compile("@Profile\\(\\s*\"db\"\\s*\\)");
     private static final Pattern SPRING_STEREOTYPE = Pattern.compile("@(?:Component|Repository|Service)\\b");
 
-    private static final Set<Path> EXPLICIT_RUNTIME_FALLBACKS = Set.of(
-            // Redis-backed resilience state can still fall back in non-redis runtimes; it is not a Postgres twin.
-            Path.of("modelaccess/application/InMemoryProviderResilienceStateStore.java")
-    );
+    @Test
+    void mainRuntimeDoesNotContainInMemoryImplementations() throws Exception {
+        List<Path> runtimeInMemoryFiles = inMemorySourceFiles();
+
+        assertThat(runtimeInMemoryFiles)
+                .as("runtime code must not carry InMemory fixture stores; place test doubles under src/test")
+                .isEmpty();
+    }
 
     @Test
     void inMemoryImplementationsDoNotUseNegatedDbProfile() throws Exception {
         List<Path> violatedFiles = inMemorySourceFiles()
                 .stream()
-                .filter(path -> !explicitRuntimeFallback(path))
                 .filter(path -> NOT_DB_PROFILE.matcher(read(path)).find())
                 .toList();
 
@@ -39,7 +41,6 @@ class InMemoryProfileBoundaryTest {
     void springManagedInMemoryImplementationsAreLocalOnlyUnlessAllowlisted() throws Exception {
         List<Path> violatedFiles = inMemorySourceFiles()
                 .stream()
-                .filter(path -> !explicitRuntimeFallback(path))
                 .filter(path -> SPRING_STEREOTYPE.matcher(read(path)).find())
                 .filter(path -> !LOCAL_PROFILE.matcher(read(path)).find())
                 .toList();
@@ -77,10 +78,6 @@ class InMemoryProfileBoundaryTest {
                     .filter(path -> path.toString().endsWith(".java"))
                     .toList();
         }
-    }
-
-    private boolean explicitRuntimeFallback(Path path) {
-        return EXPLICIT_RUNTIME_FALLBACKS.contains(SOURCE_ROOT.relativize(path));
     }
 
     private String read(Path path) {

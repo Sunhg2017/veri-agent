@@ -159,6 +159,22 @@ class ModuleLayerDependencyTest {
     }
 
     @Test
+    void managementRuntimeDoesNotContainInMemoryFixtureStore() throws Exception {
+        Path infrastructureRoot = Path.of("src/main/java/com/songhg/veri/agent/management/infrastructure");
+        List<Path> fixtureStores;
+        try (var files = Files.walk(infrastructureRoot)) {
+            fixtureStores = files
+                    .filter(path -> path.toString().endsWith(".java"))
+                    .filter(path -> path.getFileName().toString().matches("InMemoryManagement.*Store\\.java"))
+                    .toList();
+        }
+
+        assertThat(fixtureStores)
+                .as("management fixture data must stay in test resources; runtime flow must use db storage")
+                .isEmpty();
+    }
+
+    @Test
     void nonAuthControllersDoNotReachIntoAuthorizationInternals() throws Exception {
         Path sourceRoot = Path.of("src/main/java/com/songhg/veri/agent");
         List<Path> violatedFiles;

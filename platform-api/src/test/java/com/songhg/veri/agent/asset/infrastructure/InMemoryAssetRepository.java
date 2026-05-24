@@ -20,10 +20,12 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Stream;
+import org.springframework.context.annotation.Primary;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Repository;
 
 @Profile("local")
+@Primary
 @Repository
 public class InMemoryAssetRepository implements AssetRepository {
 

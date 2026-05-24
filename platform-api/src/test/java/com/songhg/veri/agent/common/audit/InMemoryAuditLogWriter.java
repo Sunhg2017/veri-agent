@@ -2,10 +2,12 @@ package com.songhg.veri.agent.common.audit;
 
 import java.util.ArrayList;
 import java.util.List;
+import org.springframework.context.annotation.Primary;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
 @Profile("local")
+@Primary
 @Component
 public class InMemoryAuditLogWriter implements AuditLogWriter {
 

@@ -1,6 +1,8 @@
 package com.songhg.veri.agent.auth.api.controller;
 
 import com.songhg.veri.agent.auth.infrastructure.InMemoryAuthIdentityStore;
+import com.songhg.veri.agent.common.audit.AuditLogWriter.AuditRecord;
+import com.songhg.veri.agent.common.audit.InMemoryAuditLogWriter;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -12,6 +14,7 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -213,29 +216,13 @@ class AuthControllerTest {
                 .andExpect(jsonPath("$.code").value("UNAUTHORIZED"))
                 .andExpect(jsonPath("$.message").value("账号或密码错误"));
 
-        MvcResult loginResult = mockMvc.perform(post("/api/v1/auth/login")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "username": "admin_user",
-                                  "password": "PlainPassword123"
-                                }
-                                """))
-                .andExpect(status().isOk())
-                .andReturn();
-
-        String token = com.jayway.jsonpath.JsonPath.read(
-                loginResult.getResponse().getContentAsString(),
-                "$.data.accessToken"
-        );
-
-        mockMvc.perform(get("/api/v1/management/audit-logs")
-                        .param("action", "登录失败")
-                        .param("result", "FAILED")
-                        .header("Authorization", "Bearer " + token))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.items[0].target").value("admin_user"))
-                .andExpect(jsonPath("$.data.items[0].result").value("失败"));
+        List<AuditRecord> auditRecords = InMemoryAuditLogWriter.records();
+        assertThat(auditRecords)
+                .anySatisfy(record -> {
+                    assertThat(record.action()).isEqualTo("登录失败");
+                    assertThat(record.resourceId()).isEqualTo("admin_user");
+                    assertThat(record.result()).isEqualTo("FAILED");
+                });
     }
 
     @Test

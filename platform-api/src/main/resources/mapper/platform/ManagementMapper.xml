@@ -594,7 +594,19 @@
         from rbac_role
         where deleted_at is null
           and (#{search} = '' or code ilike #{searchPattern} or name ilike #{searchPattern})
-        order by is_system desc, created_at asc
+        order by is_system desc,
+            case code
+                when 'SuperAdmin' then 0
+                when 'PlatformAdmin' then 1
+                when 'DepartmentManager' then 2
+                when 'ProjectOwner' then 3
+                when 'AppOwner' then 4
+                when 'Tester' then 5
+                when 'Developer' then 6
+                when 'Auditor' then 7
+                else 100
+            end,
+            created_at asc
         limit #{limit} offset #{offset}
     </select>
 
@@ -1175,7 +1187,7 @@
             config_key,
             coalesce(value_json -&gt;&gt; '_display_name', '') as display_name,
             case
-                when value_json ? '_value' then value_json -&gt;&gt; '_value'
+                when jsonb_exists(value_json, '_value') then value_json -&gt;&gt; '_value'
                 when value_json is null then coalesce(masked_value, '已配置')
                 else trim(both '"' from value_json::text)
             end as config_value,
@@ -1700,7 +1712,7 @@
             scope_type,
             coalesce(value_json -&gt;&gt; '_display_name', '') as display_name,
             case
-                when value_json ? '_value' then value_json -&gt;&gt; '_value'
+                when jsonb_exists(value_json, '_value') then value_json -&gt;&gt; '_value'
                 when value_json is null then coalesce(masked_value, '已配置')
                 else trim(both '"' from value_json::text)
             end as config_value,

@@ -128,7 +128,7 @@ class ProviderResilienceManagerTest {
 
     @Test
     void sharesCircuitStateThroughExternalStateStore() {
-        InMemoryProviderResilienceStateStore stateStore = new InMemoryProviderResilienceStateStore();
+        ProcessLocalProviderResilienceStateStore stateStore = new ProcessLocalProviderResilienceStateStore();
         ModelAccessProperties properties = properties(0, 2, 60_000, 30_000);
         ProviderResilienceManager firstNode = new ProviderResilienceManager(properties, stateStore);
         ProviderResilienceManager secondNode = new ProviderResilienceManager(properties, stateStore);
@@ -144,7 +144,7 @@ class ProviderResilienceManagerTest {
 
     @Test
     void sharesRateLimitWindowThroughExternalStateStore() {
-        InMemoryProviderResilienceStateStore stateStore = new InMemoryProviderResilienceStateStore();
+        ProcessLocalProviderResilienceStateStore stateStore = new ProcessLocalProviderResilienceStateStore();
         ModelAccessProperties properties = properties(0, 3, 60_000, 30_000, 1, 60, 0);
         ProviderResilienceManager firstNode = new ProviderResilienceManager(properties, stateStore);
         ProviderResilienceManager secondNode = new ProviderResilienceManager(properties, stateStore);

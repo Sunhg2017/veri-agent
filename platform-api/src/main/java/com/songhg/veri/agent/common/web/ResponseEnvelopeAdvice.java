@@ -13,6 +13,8 @@ import org.springframework.web.servlet.mvc.method.annotation.ResponseBodyAdvice;
 @RestControllerAdvice
 public class ResponseEnvelopeAdvice implements ResponseBodyAdvice<Object> {
 
+    private static final String API_DOCS_PATH_PREFIX = "/v3/api-docs";
+
     @Override
     public boolean supports(
             MethodParameter returnType,
@@ -33,7 +35,7 @@ public class ResponseEnvelopeAdvice implements ResponseBodyAdvice<Object> {
         if (body instanceof ApiResponse<?>) {
             return body;
         }
-        if (body instanceof byte[] || request.getURI().getPath().startsWith("/v3/api-docs")) {
+        if (body instanceof byte[] || request.getURI().getPath().startsWith(API_DOCS_PATH_PREFIX)) {
             return body;
         }
         if (!selectedContentType.isCompatibleWith(MediaType.APPLICATION_JSON)) {

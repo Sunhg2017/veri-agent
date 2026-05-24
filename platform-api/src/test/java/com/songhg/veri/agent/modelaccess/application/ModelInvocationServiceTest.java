@@ -63,7 +63,7 @@ class ModelInvocationServiceTest {
                 new PromptRenderer(),
                 properties,
                 metrics,
-                new ProviderResilienceManager(properties, new InMemoryProviderResilienceStateStore())
+                new ProviderResilienceManager(properties, new ProcessLocalProviderResilienceStateStore())
         );
     }
 
