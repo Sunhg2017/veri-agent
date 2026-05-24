@@ -29,7 +29,8 @@ import java.util.UUID;
 
 /**
  * Persistence port used by management application services. Business rules stay in the services;
- * profile-specific adapters only provide data access semantics compatible with the Postgres mapper.
+ * the production implementation is the db/MyBatis adapter, while controller integration data lives
+ * in test SQL fixtures instead of a runtime in-memory management store.
  */
 public interface ManagementStore {
 

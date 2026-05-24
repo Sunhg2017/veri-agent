@@ -16,7 +16,7 @@ public record CreateApplicationRequest(
         @Size(max = 64)
         String project,
 
-        @Pattern(regexp = "^(|Web|Backend|Frontend|Mobile|Service|API)$")
+        @Pattern(regexp = "^(|WEB_ADMIN|HTTP_API|MIXED|OTHER)$")
         String appType,
 
         @Size(max = 512)

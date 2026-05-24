@@ -7,7 +7,7 @@ public record UpdateApplicationRequest(
         @Size(max = 64)
         String name,
 
-        @Pattern(regexp = "^(|Web|Backend|Frontend|Mobile|Service|API)$")
+        @Pattern(regexp = "^(|WEB_ADMIN|HTTP_API|MIXED|OTHER)$")
         String appType,
 
         @Size(max = 512)

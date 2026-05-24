@@ -173,16 +173,11 @@ public class ModelInvocationService {
                 providerInvocationService.recordBlocked(
                         request,
                         principal,
-                        prompt,
+                        blockedPlan(prompt, fullPrompt, modelCapability, requestSensitivityLevel, startedAt),
                         null,
                         false,
-                        fullPrompt,
                         exception.getErrorCode().name(),
-                        exception.getMessage(),
-                        null,
-                        modelCapability,
-                        requestSensitivityLevel,
-                        startedAt
+                        exception.getMessage()
                 );
             }
             throw exception;
@@ -387,18 +382,33 @@ public class ModelInvocationService {
         providerInvocationService.recordBlocked(
                 request,
                 principal,
-                prompt,
+                blockedPlan(prompt, fullPrompt, modelCapability, sensitivityLevel, startedAt),
                 provider,
                 false,
-                fullPrompt,
                 ErrorCode.MODEL_POLICY_VIOLATION.name(),
-                message,
-                null,
-                modelCapability,
-                sensitivityLevel,
-                startedAt
+                message
         );
         throw new BusinessException(ErrorCode.MODEL_POLICY_VIOLATION, message);
+    }
+
+    private ModelInvocationExecutionPlan blockedPlan(
+            PromptTemplate prompt,
+            String fullPrompt,
+            String modelCapability,
+            String sensitivityLevel,
+            Instant startedAt
+    ) {
+        return new ModelInvocationExecutionPlan(
+                startedAt,
+                prompt,
+                "",
+                "",
+                fullPrompt,
+                sensitivityLevel,
+                modelCapability,
+                List.of(),
+                null
+        );
     }
 
     private String sensitivityLevel(String sensitivityLevel) {
