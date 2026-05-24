@@ -35,20 +35,17 @@ import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
 import com.songhg.veri.agent.common.trace.TraceContext;
 import com.songhg.veri.agent.asset.domain.AssetApi;
-import com.songhg.veri.agent.asset.domain.AssetBusinessFlow;
 import com.songhg.veri.agent.asset.domain.AssetLifecycleStatus;
 import com.songhg.veri.agent.asset.domain.AssetRequirement;
 import com.songhg.veri.agent.asset.domain.AssetReviewStatus;
 import com.songhg.veri.agent.asset.domain.AssetVersion;
 import com.songhg.veri.agent.asset.domain.TestCaseRecord;
 import com.songhg.veri.agent.asset.domain.TestCaseStep;
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Instant;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -68,12 +65,6 @@ public class AssetService {
     private static final Set<String> REVIEW_STATUSES = AssetReviewStatus.codes();
     private static final Set<String> LIFECYCLE_STATUSES = AssetLifecycleStatus.codes();
     private static final Set<String> PRIORITIES = Set.of("CRITICAL", "HIGH", "MEDIUM", "LOW");
-    private static final Set<String> FLOW_STATUSES = Set.of(STATUS_DRAFT, STATUS_ACTIVE, "ARCHIVED");
-    private static final Map<String, Set<String>> FLOW_STATUS_TRANSITIONS = Map.of(
-            STATUS_DRAFT, Set.of(STATUS_DRAFT, STATUS_ACTIVE, "ARCHIVED"),
-            STATUS_ACTIVE, Set.of(STATUS_ACTIVE, "ARCHIVED"),
-            "ARCHIVED", Set.of("ARCHIVED")
-    );
 
     private final AssetRepository repository;
     private final ObjectMapper objectMapper;
@@ -88,6 +79,7 @@ public class AssetService {
     private final AssetRequirementService requirementService;
     private final AssetApiService apiService;
     private final AssetPageService pageService;
+    private final AssetBusinessFlowService businessFlowService;
 
     public AssetService(AssetRepository repository, PlatformContextClient contextClient) {
         this(repository, contextClient, new ObjectMapper().findAndRegisterModules());
@@ -143,6 +135,12 @@ public class AssetService {
                 lifecycleService,
                 objectMapper
         );
+        this.businessFlowService = new AssetBusinessFlowService(
+                repository,
+                projectAuditService,
+                lifecycleService,
+                objectMapper
+        );
     }
 
     @Autowired
@@ -159,6 +157,7 @@ public class AssetService {
             AssetRequirementService requirementService,
             AssetApiService apiService,
             AssetPageService pageService,
+            AssetBusinessFlowService businessFlowService,
             AssetProjectAuditService projectAuditService
     ) {
         this.repository = repository;
@@ -174,6 +173,7 @@ public class AssetService {
         this.requirementService = requirementService;
         this.apiService = apiService;
         this.pageService = pageService;
+        this.businessFlowService = businessFlowService;
     }
 
     public String resolveProjectScopeId(String projectId) {
@@ -193,9 +193,7 @@ public class AssetService {
     }
 
     public String businessFlowProjectScopeId(UUID id) {
-        return resolveProjectScopeId(repository.businessFlowIncludingInactive(id)
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "业务流不存在: " + id))
-                .projectId());
+        return businessFlowService.businessFlowProjectScopeId(id);
     }
 
     public String testCaseProjectScopeId(UUID id) {
@@ -305,87 +303,27 @@ public class AssetService {
     // ---- Business Flows ----
 
     public com.songhg.veri.agent.common.api.PageResponse<BusinessFlowResponse> listBusinessFlows(AssetListRequest request) {
-        validateProjectWhenProvided(request.getProjectId());
-        AssetListQuery query = assetListQuery(request);
-        List<BusinessFlowResponse> items = repository.businessFlows(query).stream()
-                .map(AssetResponseMapper::toBusinessFlowResponse)
-                .toList();
-        return com.songhg.veri.agent.common.api.PageResponse.of(items, query.index(), query.size(), repository.countBusinessFlows(query));
+        return businessFlowService.listBusinessFlows(request);
     }
 
     public BusinessFlowResponse getBusinessFlow(UUID id) {
-        return repository.businessFlow(id)
-                .map(AssetResponseMapper::toBusinessFlowResponse)
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "业务流资产不存在: " + id));
+        return businessFlowService.getBusinessFlow(id);
     }
 
     public BusinessFlowResponse getBusinessFlowIncludingInactive(UUID id) {
-        AssetBusinessFlow flow = repository.businessFlowIncludingInactive(id)
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "业务流资产不存在: " + id));
-        validateProjectWhenProvided(flow.projectId());
-        return AssetResponseMapper.toBusinessFlowResponse(flow);
+        return businessFlowService.getBusinessFlowIncludingInactive(id);
     }
 
     public BusinessFlowResponse createBusinessFlow(CreateBusinessFlowRequest request) {
-        String scopeId = projectContext(request.projectId()).projectId();
-        UUID id = UUID.randomUUID();
-        Instant now = Instant.now();
-        AssetBusinessFlow flow = new AssetBusinessFlow(
-                id,
-                assetCode("FLOW", id),
-                request.name(),
-                request.description(),
-                jsonValue(request.flowJson()),
-                valueIn(request.priority(), "MEDIUM", PRIORITIES, "priority"),
-                request.projectId(),
-                initialStatus(request.status(), "DRAFT", "BUSINESS_FLOW"),
-                "ACTIVE",
-                null,
-                null,
-                now,
-                now
-        );
-        writeProjectAudit("CREATE", "BUSINESS_FLOW", id, scopeId);
-        repository.saveBusinessFlow(flow);
-        log.info("Created business flow id={}, name={}, trace_id={}", id, request.name(), TraceContext.getTraceId());
-        return AssetResponseMapper.toBusinessFlowResponse(flow);
+        return businessFlowService.createBusinessFlow(request);
     }
 
     public BusinessFlowResponse updateBusinessFlow(UUID id, UpdateBusinessFlowRequest request) {
-        AssetBusinessFlow existing = repository.businessFlow(id)
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "业务流资产不存在: " + id));
-        Instant now = Instant.now();
-        String nextStatus = nextStatus(
-                "BUSINESS_FLOW",
-                id,
-                existing.projectId(),
-                existing.status(),
-                request.status(),
-                FLOW_STATUSES,
-                FLOW_STATUS_TRANSITIONS
-        );
-        AssetBusinessFlow updated = new AssetBusinessFlow(
-                id,
-                existing.code(),
-                request.name(),
-                request.description(),
-                jsonValue(request.flowJson()),
-                valueIn(request.priority(), existing.priority(), PRIORITIES, "priority"),
-                existing.projectId(),
-                nextStatus,
-                lifecycleStatus(existing.lifecycleStatus(), existing.deletedAt()),
-                existing.archivedAt(),
-                existing.deletedAt(),
-                existing.createdAt(),
-                now
-        );
-        writeProjectAudit("UPDATE", "BUSINESS_FLOW", id, existing.projectId());
-        repository.saveBusinessFlow(updated);
-        return AssetResponseMapper.toBusinessFlowResponse(updated);
+        return businessFlowService.updateBusinessFlow(id, request);
     }
 
     public BusinessFlowResponse updateBusinessFlowLifecycle(UUID id, UpdateAssetLifecycleRequest request) {
-        return lifecycleService.updateBusinessFlowLifecycle(id, request);
+        return businessFlowService.updateBusinessFlowLifecycle(id, request);
     }
 
     // ---- Test Cases ----
@@ -436,7 +374,7 @@ public class AssetService {
                 request.apiId(),
                 "MANUAL",
                 null,
-                initialStatus(request.status(), "DRAFT", "TEST_CASE"),
+                initialStatus(request.status(), STATUS_DRAFT),
                 valueIn(request.priority(), "MEDIUM", PRIORITIES, "priority"),
                 request.tags(),
                 steps,
@@ -612,19 +550,12 @@ public class AssetService {
         return value;
     }
 
-    private static String initialStatus(String rawValue, String defaultValue, String resourceType) {
-        return switch (resourceType) {
-            case "BUSINESS_FLOW" -> valueIn(rawValue, defaultValue, FLOW_STATUSES, "status");
-            default -> valueIn(rawValue, defaultValue, REVIEW_STATUSES, "status");
-        };
+    private static String initialStatus(String rawValue, String defaultValue) {
+        return valueIn(rawValue, defaultValue, REVIEW_STATUSES, "status");
     }
 
     private static String lifecycleFilter(String rawValue) {
-        return valueIn(rawValue, "ACTIVE", LIFECYCLE_STATUSES, "lifecycleStatus");
-    }
-
-    private static String lifecycleStatus(String lifecycleStatus, Instant deletedAt) {
-        return AssetLifecycleStatus.normalize(lifecycleStatus, deletedAt);
+        return valueIn(rawValue, STATUS_ACTIVE, LIFECYCLE_STATUSES, "lifecycleStatus");
     }
 
     private String nextTestCaseStatus(TestCaseRecord testCase, String rawNextStatus) {
@@ -636,26 +567,6 @@ public class AssetService {
                     testCase.projectId(),
                     testCase.status(),
                     nextStatus
-            );
-        }
-        return nextStatus;
-    }
-
-    private String nextStatus(
-            String resourceType,
-            UUID resourceId,
-            String projectId,
-            String currentStatus,
-            String rawNextStatus,
-            Set<String> allowedStatuses,
-            Map<String, Set<String>> transitions
-    ) {
-        String nextStatus = valueIn(rawNextStatus, currentStatus, allowedStatuses, "status");
-        if (!transitions.getOrDefault(currentStatus, Set.of(currentStatus)).contains(nextStatus)) {
-            writeProjectAudit("STATUS_CHANGE_DENIED", resourceType, resourceId, projectId, "DENIED");
-            throw new BusinessException(
-                    ErrorCode.INVALID_STATE,
-                    resourceType + " 状态不允许从 " + currentStatus + " 变更为 " + nextStatus
             );
         }
         return nextStatus;
@@ -694,17 +605,4 @@ public class AssetService {
         return StringUtils.hasText(value) ? value.trim() : null;
     }
 
-    private String jsonValue(Object value) {
-        if (value == null) {
-            return null;
-        }
-        if (value instanceof String text) {
-            return StringUtils.hasText(text) ? text : null;
-        }
-        try {
-            return objectMapper.writeValueAsString(value);
-        } catch (JsonProcessingException e) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "JSON 字段格式不合法");
-        }
-    }
 }
