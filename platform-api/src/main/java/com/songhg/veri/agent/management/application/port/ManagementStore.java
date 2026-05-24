@@ -13,6 +13,11 @@ import com.songhg.veri.agent.management.application.view.RoleView;
 import com.songhg.veri.agent.management.application.view.ScopedUserRoleView;
 import com.songhg.veri.agent.management.application.view.SecretReferenceView;
 import com.songhg.veri.agent.management.application.view.UserView;
+import com.songhg.veri.agent.management.application.port.ManagementQueries.ApplicationQuery;
+import com.songhg.veri.agent.management.application.port.ManagementQueries.DepartmentQuery;
+import com.songhg.veri.agent.management.application.port.ManagementQueries.EnvironmentQuery;
+import com.songhg.veri.agent.management.application.port.ManagementQueries.ProjectQuery;
+import com.songhg.veri.agent.management.application.port.ManagementQueries.UserQuery;
 import com.songhg.veri.agent.management.application.port.ManagementStoreRows.ApplicationRef;
 import com.songhg.veri.agent.management.application.port.ManagementStoreRows.DepartmentRef;
 import com.songhg.veri.agent.management.application.port.ManagementStoreRows.EnvironmentConnectivityTargetRow;
@@ -33,6 +38,50 @@ import java.util.UUID;
  * in test SQL fixtures instead of a runtime in-memory management store.
  */
 public interface ManagementStore {
+
+    // -- Typed query overloads (preferred over the Map variants) --
+
+    default List<DepartmentView> listDepartments(DepartmentQuery query) {
+        return listDepartments(query.toMap());
+    }
+
+    default long countDepartments(DepartmentQuery query) {
+        return countDepartments(query.toMap());
+    }
+
+    default List<UserView> listUsers(UserQuery query) {
+        return listUsers(query.toMap());
+    }
+
+    default long countUsers(UserQuery query) {
+        return countUsers(query.toMap());
+    }
+
+    default List<ProjectView> listProjects(ProjectQuery query) {
+        return listProjects(query.toMap());
+    }
+
+    default long countProjects(ProjectQuery query) {
+        return countProjects(query.toMap());
+    }
+
+    default List<ApplicationView> listApplications(ApplicationQuery query) {
+        return listApplications(query.toMap());
+    }
+
+    default long countApplications(ApplicationQuery query) {
+        return countApplications(query.toMap());
+    }
+
+    default List<EnvironmentView> listEnvironments(EnvironmentQuery query) {
+        return listEnvironments(query.toMap());
+    }
+
+    default long countEnvironments(EnvironmentQuery query) {
+        return countEnvironments(query.toMap());
+    }
+
+    // -- Map-based methods (legacy, keep for MyBatis mapper compatibility) --
 
     List<DepartmentView> listDepartments(Map<String, Object> params);
 
