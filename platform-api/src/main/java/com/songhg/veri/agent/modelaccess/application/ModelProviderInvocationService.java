@@ -2,8 +2,6 @@ package com.songhg.veri.agent.modelaccess.application;
 
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
-import com.songhg.veri.agent.modelaccess.api.request.InvokeModelRequest;
-import com.songhg.veri.agent.modelaccess.api.response.InvokeModelResponse;
 import com.songhg.veri.agent.modelaccess.config.ModelAccessProperties;
 import com.songhg.veri.agent.modelaccess.domain.InvocationRecord;
 import com.songhg.veri.agent.modelaccess.domain.InvocationStatus;
@@ -56,8 +54,8 @@ public class ModelProviderInvocationService {
     /**
      * Attempts routed providers in order and persists the final failure record when all candidates fail.
      */
-    public InvokeModelResponse invoke(
-            InvokeModelRequest request,
+    public ModelInvocationResult invoke(
+            ModelInvocationCommand request,
             ServicePrincipal principal,
             ModelInvocationExecutionPlan plan
     ) {
@@ -111,7 +109,7 @@ public class ModelProviderInvocationService {
     }
 
     private ProviderAttemptResult attemptProvider(
-            InvokeModelRequest request,
+            ModelInvocationCommand request,
             ServicePrincipal principal,
             ModelInvocationExecutionPlan plan,
             ModelProviderConfig provider,
@@ -171,7 +169,7 @@ public class ModelProviderInvocationService {
     }
 
     private ProviderAttemptResult handleBudgetViolation(
-            InvokeModelRequest request,
+            ModelInvocationCommand request,
             ServicePrincipal principal,
             ModelInvocationExecutionPlan plan,
             ModelProviderConfig provider,
@@ -205,7 +203,7 @@ public class ModelProviderInvocationService {
      * Performs the provider call and persists the successful invocation record.
      */
     private ProviderAttemptResult invokeProvider(
-            InvokeModelRequest request,
+            ModelInvocationCommand request,
             ServicePrincipal principal,
             ModelInvocationExecutionPlan plan,
             ModelProviderConfig provider,
@@ -239,7 +237,7 @@ public class ModelProviderInvocationService {
                 plan.effectiveSensitivityLevel(),
                 plan.startedAt()
         );
-        return ProviderAttemptResult.success(new InvokeModelResponse(
+        return ProviderAttemptResult.success(new ModelInvocationResult(
                 record.id(),
                 provider.id(),
                 provider.name(),
@@ -266,7 +264,7 @@ public class ModelProviderInvocationService {
      * Persists a blocked invocation with masked request preview and audit side effect.
      */
     void recordBlocked(
-            InvokeModelRequest request,
+            ModelInvocationCommand request,
             ServicePrincipal principal,
             PromptTemplate prompt,
             ModelProviderConfig provider,
@@ -302,7 +300,7 @@ public class ModelProviderInvocationService {
     }
 
     private InvocationRecord saveRecord(
-            InvokeModelRequest request,
+            ModelInvocationCommand request,
             ServicePrincipal principal,
             PromptTemplate prompt,
             ModelProviderConfig provider,
@@ -360,12 +358,12 @@ public class ModelProviderInvocationService {
     }
 
     private record ProviderAttemptResult(
-            InvokeModelResponse response,
+            ModelInvocationResult response,
             RuntimeException failure,
             boolean fallbackUsed
     ) {
 
-        static ProviderAttemptResult success(InvokeModelResponse response) {
+        static ProviderAttemptResult success(ModelInvocationResult response) {
             return new ProviderAttemptResult(response, null, false);
         }
 

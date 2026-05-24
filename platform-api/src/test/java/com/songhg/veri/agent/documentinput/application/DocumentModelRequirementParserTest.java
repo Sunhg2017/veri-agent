@@ -5,8 +5,8 @@ import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
 import com.songhg.veri.agent.documentinput.config.DocumentInputProperties;
 import com.songhg.veri.agent.documentinput.domain.DocumentSourceType;
-import com.songhg.veri.agent.modelaccess.api.request.InvokeModelRequest;
-import com.songhg.veri.agent.modelaccess.api.response.InvokeModelResponse;
+import com.songhg.veri.agent.modelaccess.application.ModelInvocationCommand;
+import com.songhg.veri.agent.modelaccess.application.ModelInvocationResult;
 import com.songhg.veri.agent.modelaccess.application.ModelInvocationService;
 import com.songhg.veri.agent.modelaccess.security.ServicePrincipal;
 import java.math.BigDecimal;
@@ -32,8 +32,8 @@ class DocumentModelRequirementParserTest {
         ModelInvocationService invocationService = mock(ModelInvocationService.class);
         UUID invocationId = UUID.randomUUID();
         UUID providerId = UUID.randomUUID();
-        when(invocationService.invoke(any(InvokeModelRequest.class), any(ServicePrincipal.class)))
-                .thenReturn(new InvokeModelResponse(
+        when(invocationService.invoke(any(ModelInvocationCommand.class), any(ServicePrincipal.class)))
+                .thenReturn(new ModelInvocationResult(
                         invocationId,
                         providerId,
                         "local-echo-primary",
@@ -75,10 +75,10 @@ class DocumentModelRequirementParserTest {
             assertThat(draft.modelName()).isEqualTo("test-local-model");
         });
 
-        ArgumentCaptor<InvokeModelRequest> requestCaptor = ArgumentCaptor.forClass(InvokeModelRequest.class);
+        ArgumentCaptor<ModelInvocationCommand> requestCaptor = ArgumentCaptor.forClass(ModelInvocationCommand.class);
         ArgumentCaptor<ServicePrincipal> principalCaptor = ArgumentCaptor.forClass(ServicePrincipal.class);
         verify(invocationService).invoke(requestCaptor.capture(), principalCaptor.capture());
-        InvokeModelRequest request = requestCaptor.getValue();
+        ModelInvocationCommand request = requestCaptor.getValue();
         assertThat(request.projectId()).isEqualTo("project-ai");
         assertThat(request.promptKey()).isEqualTo("custom-wp4-parse");
         assertThat(request.allowPublicModel()).isTrue();
@@ -126,7 +126,7 @@ class DocumentModelRequirementParserTest {
     @Test
     void convertsModelInvocationBusinessExceptionToParseFailure() {
         ModelInvocationService invocationService = mock(ModelInvocationService.class);
-        when(invocationService.invoke(any(InvokeModelRequest.class), any(ServicePrincipal.class)))
+        when(invocationService.invoke(any(ModelInvocationCommand.class), any(ServicePrincipal.class)))
                 .thenThrow(new BusinessException(ErrorCode.SENSITIVE_CONTENT_BLOCKED, "发现敏感内容"));
         DocumentModelRequirementParser parser = new DocumentModelRequirementParser(
                 invocationService,

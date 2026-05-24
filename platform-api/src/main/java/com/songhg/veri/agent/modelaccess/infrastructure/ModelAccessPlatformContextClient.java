@@ -4,7 +4,7 @@ import com.songhg.veri.agent.common.trace.TraceContext;
 import com.songhg.veri.agent.integration.application.InternalAuditEvent;
 import com.songhg.veri.agent.integration.application.PlatformContext;
 import com.songhg.veri.agent.integration.application.PlatformIntegrationService;
-import com.songhg.veri.agent.modelaccess.api.request.InvokeModelRequest;
+import com.songhg.veri.agent.modelaccess.application.ModelInvocationCommand;
 import com.songhg.veri.agent.modelaccess.application.PlatformContextClient;
 import com.songhg.veri.agent.modelaccess.application.PlatformInvocationPolicy;
 import com.songhg.veri.agent.modelaccess.domain.InvocationRecord;
@@ -24,7 +24,7 @@ public class ModelAccessPlatformContextClient implements PlatformContextClient {
     }
 
     @Override
-    public PlatformInvocationPolicy verifyInvocationContext(InvokeModelRequest request, ServicePrincipal principal) {
+    public PlatformInvocationPolicy verifyInvocationContext(ModelInvocationCommand request, ServicePrincipal principal) {
         PlatformInvocationPolicy projectPolicy = readPolicy(
                 platformIntegrationService.projectContext(request.projectId(), "apps,environments,configs")
         );

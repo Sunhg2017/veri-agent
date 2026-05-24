@@ -3,7 +3,6 @@ package com.songhg.veri.agent.modelaccess.application;
 import com.songhg.veri.agent.common.api.PageQuery;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
-import com.songhg.veri.agent.modelaccess.api.request.InvokeModelRequest;
 import com.songhg.veri.agent.modelaccess.config.ModelAccessProperties;
 import com.songhg.veri.agent.modelaccess.domain.ModelProviderConfig;
 import com.songhg.veri.agent.modelaccess.security.ServicePrincipal;
@@ -55,7 +54,7 @@ public class ModelInvocationBudgetService {
      * Checks project, caller-service and platform budgets in the same priority order used by WP2 policy.
      */
     BudgetViolation budgetViolation(
-            InvokeModelRequest request,
+            ModelInvocationCommand request,
             ServicePrincipal principal,
             ModelProviderConfig provider,
             String fullPrompt,

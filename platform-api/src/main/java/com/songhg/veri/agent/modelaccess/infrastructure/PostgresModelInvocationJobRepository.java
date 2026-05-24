@@ -1,8 +1,8 @@
 package com.songhg.veri.agent.modelaccess.infrastructure;
 
-import com.songhg.veri.agent.modelaccess.api.response.InvokeModelResponse;
 import com.songhg.veri.agent.modelaccess.application.ModelInvocationJobRecord;
 import com.songhg.veri.agent.modelaccess.application.ModelInvocationJobRepository;
+import com.songhg.veri.agent.modelaccess.application.ModelInvocationResult;
 import com.songhg.veri.agent.modelaccess.infrastructure.mapper.ModelAccessMapper;
 import java.time.Instant;
 import java.util.List;
@@ -43,7 +43,7 @@ public class PostgresModelInvocationJobRepository implements ModelInvocationJobR
     }
 
     @Override
-    public void markSucceeded(UUID jobId, Instant finishedAt, InvokeModelResponse response, String responseJson) {
+    public void markSucceeded(UUID jobId, Instant finishedAt, ModelInvocationResult response, String responseJson) {
         mapper.markInvocationJobSucceeded(jobId, finishedAt, response.invocationId(), responseJson);
     }
 

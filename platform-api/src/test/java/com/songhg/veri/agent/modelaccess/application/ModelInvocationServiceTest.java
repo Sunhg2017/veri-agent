@@ -3,8 +3,6 @@ package com.songhg.veri.agent.modelaccess.application;
 import com.songhg.veri.agent.common.api.PageQuery;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
-import com.songhg.veri.agent.modelaccess.api.request.InvokeModelRequest;
-import com.songhg.veri.agent.modelaccess.api.response.InvokeModelResponse;
 import com.songhg.veri.agent.modelaccess.config.ModelAccessProperties;
 import com.songhg.veri.agent.modelaccess.domain.ChatMessage;
 import com.songhg.veri.agent.modelaccess.domain.InvocationRecord;
@@ -55,7 +53,7 @@ class ModelInvocationServiceTest {
 
     @Test
     void invokesProviderAndPersistsAuditedInvocationRecord() {
-        InvokeModelResponse response = service.invoke(
+        ModelInvocationResult response = service.invoke(
                 request("project-invoke", "生成调用编排验证文本", false),
                 new ServicePrincipal("wp4-document-input", "user-1")
         );
@@ -103,8 +101,8 @@ class ModelInvocationServiceTest {
         verify(metrics).recordInvocation(any(InvocationRecord.class), eq(null));
     }
 
-    private InvokeModelRequest request(String projectId, String content, boolean allowPublicModel) {
-        return new InvokeModelRequest(
+    private ModelInvocationCommand request(String projectId, String content, boolean allowPublicModel) {
+        return new ModelInvocationCommand(
                 projectId,
                 "app-1",
                 "env-1",
@@ -179,7 +177,7 @@ class ModelInvocationServiceTest {
         private final List<InvocationRecord> auditRecords = new ArrayList<>();
 
         @Override
-        public PlatformInvocationPolicy verifyInvocationContext(InvokeModelRequest request, ServicePrincipal principal) {
+        public PlatformInvocationPolicy verifyInvocationContext(ModelInvocationCommand request, ServicePrincipal principal) {
             return new PlatformInvocationPolicy("CONFIDENTIAL", false);
         }
 

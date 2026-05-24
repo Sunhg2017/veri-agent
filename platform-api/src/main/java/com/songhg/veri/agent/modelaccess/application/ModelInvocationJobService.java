@@ -5,9 +5,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
 import com.songhg.veri.agent.common.trace.TraceContext;
-import com.songhg.veri.agent.modelaccess.api.request.InvokeModelRequest;
-import com.songhg.veri.agent.modelaccess.api.response.InvokeModelResponse;
-import com.songhg.veri.agent.modelaccess.api.response.ModelInvocationJobResponse;
 import com.songhg.veri.agent.modelaccess.config.ModelAccessProperties;
 import com.songhg.veri.agent.modelaccess.security.ServicePrincipal;
 import jakarta.annotation.PostConstruct;
@@ -64,7 +61,10 @@ public class ModelInvocationJobService {
         repository.queuedJobs().forEach(this::schedule);
     }
 
-    public ModelInvocationJobResponse submit(InvokeModelRequest request, ServicePrincipal principal) {
+    /**
+     * Persists the invocation command before asynchronous dispatch so queued jobs survive restarts.
+     */
+    public ModelInvocationJobResult submit(ModelInvocationCommand request, ServicePrincipal principal) {
         UUID jobId = UUID.randomUUID();
         ModelInvocationJobRecord job = new ModelInvocationJobRecord(
                 jobId,
@@ -83,17 +83,17 @@ public class ModelInvocationJobService {
         );
         repository.save(job);
         schedule(job);
-        return toResponse(job);
+        return toResult(job);
     }
 
-    public ModelInvocationJobResponse get(UUID jobId) {
-        return toResponse(job(jobId));
+    public ModelInvocationJobResult get(UUID jobId) {
+        return toResult(job(jobId));
     }
 
-    public ModelInvocationJobResponse cancel(UUID jobId) {
+    public ModelInvocationJobResult cancel(UUID jobId) {
         ModelInvocationJobRecord current = job(jobId);
         if (terminal(current.status())) {
-            return toResponse(current);
+            return toResult(current);
         }
 
         ScheduledFuture<?> future = futures.get(jobId);
@@ -137,7 +137,7 @@ public class ModelInvocationJobService {
         try {
             TraceContext.setTraceId(job.traceId());
             MDC.put(TraceContext.MDC_TRACE_ID, job.traceId());
-            InvokeModelResponse response = invocationService.invoke(request(job), principal(job));
+            ModelInvocationResult response = invocationService.invoke(request(job), principal(job));
             repository.markSucceeded(jobId, Instant.now(), response, json(response));
         } catch (RuntimeException exception) {
             repository.markFailed(jobId, Instant.now(), errorCode(exception), exception.getMessage());
@@ -148,9 +148,9 @@ public class ModelInvocationJobService {
         }
     }
 
-    private InvokeModelRequest request(ModelInvocationJobRecord job) {
+    private ModelInvocationCommand request(ModelInvocationJobRecord job) {
         try {
-            return objectMapper.readValue(job.requestJson(), InvokeModelRequest.class);
+            return objectMapper.readValue(job.requestJson(), ModelInvocationCommand.class);
         } catch (JsonProcessingException exception) {
             throw new BusinessException(ErrorCode.INVALID_STATE, "异步模型调用请求载荷无法解析");
         }
@@ -160,8 +160,8 @@ public class ModelInvocationJobService {
         return new ServicePrincipal(job.actorService(), job.delegatedUserId());
     }
 
-    private ModelInvocationJobResponse toResponse(ModelInvocationJobRecord job) {
-        return new ModelInvocationJobResponse(
+    private ModelInvocationJobResult toResult(ModelInvocationJobRecord job) {
+        return new ModelInvocationJobResult(
                 job.jobId(),
                 job.status(),
                 job.createdAt(),
@@ -175,12 +175,12 @@ public class ModelInvocationJobService {
         );
     }
 
-    private InvokeModelResponse response(ModelInvocationJobRecord job) {
+    private ModelInvocationResult response(ModelInvocationJobRecord job) {
         if (job.responseJson() == null || job.responseJson().isBlank()) {
             return null;
         }
         try {
-            return objectMapper.readValue(job.responseJson(), InvokeModelResponse.class);
+            return objectMapper.readValue(job.responseJson(), ModelInvocationResult.class);
         } catch (JsonProcessingException exception) {
             throw new BusinessException(ErrorCode.INVALID_STATE, "异步模型调用结果载荷无法解析");
         }

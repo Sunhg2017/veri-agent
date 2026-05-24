@@ -1,6 +1,5 @@
 package com.songhg.veri.agent.modelaccess.application;
 
-import com.songhg.veri.agent.modelaccess.api.request.InvokeModelRequest;
 import com.songhg.veri.agent.modelaccess.config.ModelAccessProperties;
 import com.songhg.veri.agent.modelaccess.domain.ChatMessage;
 import com.songhg.veri.agent.modelaccess.domain.ModelProviderConfig;
@@ -58,8 +57,8 @@ class ModelInvocationBudgetServiceTest {
         assertThat(cost).isEqualByComparingTo("0.00000160");
     }
 
-    private InvokeModelRequest request(String projectId) {
-        return new InvokeModelRequest(
+    private ModelInvocationCommand request(String projectId) {
+        return new ModelInvocationCommand(
                 projectId,
                 "app-1",
                 "env-1",

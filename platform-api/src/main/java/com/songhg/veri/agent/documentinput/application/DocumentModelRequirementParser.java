@@ -7,8 +7,8 @@ import com.songhg.veri.agent.documentinput.config.DocumentInputProperties;
 import com.songhg.veri.agent.documentinput.domain.DocumentFieldMapping;
 import com.songhg.veri.agent.documentinput.domain.DocumentSourceType;
 import com.songhg.veri.agent.documentinput.domain.ParsedRequirementDraft;
-import com.songhg.veri.agent.modelaccess.api.request.InvokeModelRequest;
-import com.songhg.veri.agent.modelaccess.api.response.InvokeModelResponse;
+import com.songhg.veri.agent.modelaccess.application.ModelInvocationCommand;
+import com.songhg.veri.agent.modelaccess.application.ModelInvocationResult;
 import com.songhg.veri.agent.modelaccess.application.ModelInvocationService;
 import com.songhg.veri.agent.modelaccess.domain.ChatMessage;
 import com.songhg.veri.agent.modelaccess.security.ServicePrincipal;
@@ -55,9 +55,10 @@ public class DocumentModelRequirementParser {
         if (!properties.modelParseEnabled()) {
             return DocumentModelParseResult.disabled();
         }
-        InvokeModelResponse response = null;
+        ModelInvocationResult response = null;
         try {
-            response = modelInvocationService.invoke(new InvokeModelRequest(
+            // WP4 depends on the modelaccess application contract, not HTTP DTOs.
+            response = modelInvocationService.invoke(new ModelInvocationCommand(
                     projectId,
                     null,
                     null,
@@ -70,7 +71,7 @@ public class DocumentModelRequirementParser {
                     modelParseSensitivityLevel(),
                     "REQUIREMENT_PARSE"
             ), new ServicePrincipal("wp4-document-input", delegatedUserId));
-            InvokeModelResponse invokeResponse = response;
+            ModelInvocationResult invokeResponse = response;
             List<ParsedRequirementDraft> drafts = parseModelResponse(invokeResponse)
                     .stream()
                     .map(draft -> draft.withParseMetadata(
@@ -114,7 +115,7 @@ public class DocumentModelRequirementParser {
         }
     }
 
-    private List<ParsedRequirementDraft> parseModelResponse(InvokeModelResponse response) {
+    private List<ParsedRequirementDraft> parseModelResponse(ModelInvocationResult response) {
         String json = extractJson(response.content());
         if (!StringUtils.hasText(json)) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "模型响应不是有效 JSON");

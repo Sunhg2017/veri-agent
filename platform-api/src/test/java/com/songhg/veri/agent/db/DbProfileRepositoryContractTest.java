@@ -10,12 +10,12 @@ import com.songhg.veri.agent.auth.domain.AuthSessionStore;
 import com.songhg.veri.agent.auth.infrastructure.PostgresAuthSessionStore;
 import com.songhg.veri.agent.common.audit.AuditLogWriter;
 import com.songhg.veri.agent.common.api.PageQuery;
-import com.songhg.veri.agent.modelaccess.api.response.InvokeModelResponse;
 import com.songhg.veri.agent.modelaccess.application.InvocationQuery;
 import com.songhg.veri.agent.modelaccess.application.ModelAccessRepository;
 import com.songhg.veri.agent.modelaccess.application.ModelInvocationJobRecord;
 import com.songhg.veri.agent.modelaccess.application.ModelInvocationJobRepository;
 import com.songhg.veri.agent.modelaccess.application.ModelInvocationJobStatus;
+import com.songhg.veri.agent.modelaccess.application.ModelInvocationResult;
 import com.songhg.veri.agent.modelaccess.domain.InvocationRecord;
 import com.songhg.veri.agent.modelaccess.domain.InvocationStatus;
 import com.songhg.veri.agent.modelaccess.infrastructure.PostgresModelInvocationJobRepository;
@@ -162,7 +162,7 @@ class DbProfileRepositoryContractTest {
         String requestJson = """
                 {"projectId":"project-job-db","messages":[{"role":"user","content":"db job"}],"allowPublicModel":false}
                 """;
-        InvokeModelResponse response = new InvokeModelResponse(
+        ModelInvocationResult response = new ModelInvocationResult(
                 invocationId,
                 null,
                 "local-echo-primary",

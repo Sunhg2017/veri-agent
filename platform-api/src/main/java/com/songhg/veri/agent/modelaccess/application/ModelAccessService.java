@@ -4,8 +4,6 @@ import com.songhg.veri.agent.modelaccess.api.request.CreatePromptRequest;
 import com.songhg.veri.agent.modelaccess.api.request.CreateProviderRequest;
 import com.songhg.veri.agent.modelaccess.api.response.CostAlertResponse;
 import com.songhg.veri.agent.modelaccess.api.response.CostReportResponse;
-import com.songhg.veri.agent.modelaccess.api.request.InvokeModelRequest;
-import com.songhg.veri.agent.modelaccess.api.response.InvokeModelResponse;
 import com.songhg.veri.agent.modelaccess.api.response.InvocationSummaryResponse;
 import com.songhg.veri.agent.modelaccess.api.response.ProviderCheckResponse;
 import com.songhg.veri.agent.modelaccess.api.request.UpdateProviderRequest;
@@ -144,7 +142,7 @@ public class ModelAccessService {
         return promptTemplateManagementService.rejectPrompt(id, approvedBy, reviewNote);
     }
 
-    public InvokeModelResponse invoke(InvokeModelRequest request, ServicePrincipal principal) {
+    public ModelInvocationResult invoke(ModelInvocationCommand request, ServicePrincipal principal) {
         return invocationService.invoke(request, principal);
     }
 

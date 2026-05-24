@@ -1,6 +1,5 @@
 package com.songhg.veri.agent.modelaccess.application;
 
-import com.songhg.veri.agent.modelaccess.api.response.InvokeModelResponse;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -16,7 +15,7 @@ public interface ModelInvocationJobRepository {
 
     boolean markRunning(UUID jobId, Instant startedAt);
 
-    void markSucceeded(UUID jobId, Instant finishedAt, InvokeModelResponse response, String responseJson);
+    void markSucceeded(UUID jobId, Instant finishedAt, ModelInvocationResult response, String responseJson);
 
     void markFailed(UUID jobId, Instant finishedAt, String errorCode, String errorMessage);
 

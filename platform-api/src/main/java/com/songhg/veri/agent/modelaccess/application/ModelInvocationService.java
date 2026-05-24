@@ -2,8 +2,6 @@ package com.songhg.veri.agent.modelaccess.application;
 
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
-import com.songhg.veri.agent.modelaccess.api.request.InvokeModelRequest;
-import com.songhg.veri.agent.modelaccess.api.response.InvokeModelResponse;
 import com.songhg.veri.agent.modelaccess.config.ModelAccessProperties;
 import com.songhg.veri.agent.modelaccess.domain.ChatMessage;
 import com.songhg.veri.agent.modelaccess.domain.ModelProviderConfig;
@@ -80,7 +78,7 @@ public class ModelInvocationService {
     /**
      * Executes one model invocation through policy validation, routing, fallback and audit persistence.
      */
-    public InvokeModelResponse invoke(InvokeModelRequest request, ServicePrincipal principal) {
+    public ModelInvocationResult invoke(ModelInvocationCommand request, ServicePrincipal principal) {
         Instant startedAt = Instant.now();
         ModelInvocationExecutionPlan plan = prepareInvocationPlan(request, principal, startedAt);
         return providerInvocationService.invoke(request, principal, plan);
@@ -90,7 +88,7 @@ public class ModelInvocationService {
      * Builds immutable invocation context before provider attempts start.
      */
     private ModelInvocationExecutionPlan prepareInvocationPlan(
-            InvokeModelRequest request,
+            ModelInvocationCommand request,
             ServicePrincipal principal,
             Instant startedAt
     ) {
@@ -147,7 +145,7 @@ public class ModelInvocationService {
     }
 
     private void assertPromptSafe(
-            InvokeModelRequest request,
+            ModelInvocationCommand request,
             ServicePrincipal principal,
             PromptTemplate prompt,
             String fullPrompt,
@@ -190,7 +188,7 @@ public class ModelInvocationService {
     }
 
     private RoutingDecision candidateProviders(
-            InvokeModelRequest request,
+            ModelInvocationCommand request,
             ServicePrincipal principal,
             Boolean allowPublicModel,
             String sensitivityLevel,
@@ -225,7 +223,7 @@ public class ModelInvocationService {
     }
 
     private ModelAccessProperties.RoutingRule matchingRoutingRule(
-            InvokeModelRequest request,
+            ModelInvocationCommand request,
             ServicePrincipal principal,
             String sensitivityLevel,
             String capability
@@ -293,13 +291,13 @@ public class ModelInvocationService {
         return capabilities.contains("*") || capabilities.contains(capability);
     }
 
-    private String modelCapability(InvokeModelRequest request) {
+    private String modelCapability(ModelInvocationCommand request) {
         String capability = normalizeRouteToken(request.capability());
         return StringUtils.hasText(capability) ? capability : DEFAULT_MODEL_CAPABILITY;
     }
 
     private void enforceModelPolicy(
-            InvokeModelRequest request,
+            ModelInvocationCommand request,
             ServicePrincipal principal,
             PromptTemplate prompt,
             String fullPrompt,
@@ -363,7 +361,7 @@ public class ModelInvocationService {
     }
 
     private void blockBySensitivityPolicy(
-            InvokeModelRequest request,
+            ModelInvocationCommand request,
             ServicePrincipal principal,
             PromptTemplate prompt,
             ModelProviderConfig provider,

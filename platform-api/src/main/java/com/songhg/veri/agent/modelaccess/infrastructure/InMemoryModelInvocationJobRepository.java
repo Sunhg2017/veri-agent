@@ -1,9 +1,9 @@
 package com.songhg.veri.agent.modelaccess.infrastructure;
 
-import com.songhg.veri.agent.modelaccess.api.response.InvokeModelResponse;
 import com.songhg.veri.agent.modelaccess.application.ModelInvocationJobRecord;
 import com.songhg.veri.agent.modelaccess.application.ModelInvocationJobRepository;
 import com.songhg.veri.agent.modelaccess.application.ModelInvocationJobStatus;
+import com.songhg.veri.agent.modelaccess.application.ModelInvocationResult;
 import java.time.Instant;
 import java.util.Comparator;
 import java.util.List;
@@ -60,7 +60,7 @@ public class InMemoryModelInvocationJobRepository implements ModelInvocationJobR
     }
 
     @Override
-    public void markSucceeded(UUID jobId, Instant finishedAt, InvokeModelResponse response, String responseJson) {
+    public void markSucceeded(UUID jobId, Instant finishedAt, ModelInvocationResult response, String responseJson) {
         update(jobId, job -> new ModelInvocationJobRecord(
                 job.jobId(),
                 ModelInvocationJobStatus.SUCCEEDED,
