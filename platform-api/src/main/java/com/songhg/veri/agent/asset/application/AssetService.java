@@ -156,10 +156,6 @@ public class AssetService {
         this.testCaseService = testCaseService;
     }
 
-    public String resolveProjectScopeId(String projectId) {
-        return projectContext(projectId).projectId();
-    }
-
     public String requirementProjectScopeId(UUID id) {
         return requirementService.requirementProjectScopeId(id);
     }
@@ -399,10 +395,6 @@ public class AssetService {
 
     public String health() {
         return "UP";
-    }
-
-    private PlatformContextClient.ProjectContext projectContext(String projectId) {
-        return projectAuditService.projectContext(projectId);
     }
 
 }
