@@ -7,7 +7,7 @@ import com.songhg.veri.agent.common.audit.AuditLogWriter;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
 import com.songhg.veri.agent.management.application.security.ManagementAuthorizationGuard;
-import com.songhg.veri.agent.management.application.command.UpdateDepartmentRequest;
+import com.songhg.veri.agent.management.application.command.UpdateDepartmentCommand;
 import com.songhg.veri.agent.management.application.port.DepartmentOperations;
 import com.songhg.veri.agent.management.application.view.DepartmentView;
 import java.util.ArrayList;
@@ -48,7 +48,7 @@ final class InMemoryManagementDepartmentService implements DepartmentOperations 
         return requireDepartment(key);
     }
 
-    public synchronized DepartmentView updateDepartment(String key, UpdateDepartmentRequest request, AuthUserPrincipal actor) {
+    public synchronized DepartmentView updateDepartment(String key, UpdateDepartmentCommand request, AuthUserPrincipal actor) {
         DepartmentView current = requireDepartment(key);
         if ("已停用".equals(current.status())) {
             throw new BusinessException(ErrorCode.INVALID_STATE, "当前部门状态不允许编辑");

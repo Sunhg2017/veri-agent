@@ -11,8 +11,8 @@ import com.songhg.veri.agent.management.api.request.ManagementPageRequest;
 import com.songhg.veri.agent.management.api.request.ProjectMemberRequest;
 import com.songhg.veri.agent.management.api.request.StatusChangeRequest;
 import com.songhg.veri.agent.management.api.request.UpdateProjectRequest;
-import com.songhg.veri.agent.management.api.response.ProjectMemberView;
-import com.songhg.veri.agent.management.api.response.ProjectView;
+import com.songhg.veri.agent.management.api.response.ProjectMemberResponse;
+import com.songhg.veri.agent.management.api.response.ProjectResponse;
 import com.songhg.veri.agent.management.application.port.ProjectOperations;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -48,7 +48,7 @@ public class ProjectController {
 
     @GetMapping("/projects")
     @RequirePermission(PermissionCodes.PROJECT_READ)
-    public PageResponse<ProjectView> projects(
+    public PageResponse<ProjectResponse> projects(
             @Valid ManagementPageRequest pageRequest,
             @AuthenticationPrincipal AuthUserPrincipal principal
     ) {
@@ -58,7 +58,7 @@ public class ProjectController {
     @PostMapping("/projects")
     @ResponseStatus(HttpStatus.CREATED)
     @RequirePermission(PermissionCodes.PROJECT_CREATE)
-    public ProjectView createProject(
+    public ProjectResponse createProject(
             @Valid @RequestBody CreateProjectRequest request,
             @AuthenticationPrincipal AuthUserPrincipal principal
     ) {
@@ -67,7 +67,7 @@ public class ProjectController {
 
     @GetMapping("/projects/{key}")
     @RequirePermission(PermissionCodes.PROJECT_READ)
-    public ProjectView project(
+    public ProjectResponse project(
             @PathVariable String key,
             @AuthenticationPrincipal AuthUserPrincipal principal
     ) {
@@ -76,7 +76,7 @@ public class ProjectController {
 
     @PatchMapping("/projects/{key}")
     @RequirePermission(PermissionCodes.PROJECT_EDIT)
-    public ProjectView updateProject(
+    public ProjectResponse updateProject(
             @PathVariable String key,
             @Valid @RequestBody UpdateProjectRequest request,
             @AuthenticationPrincipal AuthUserPrincipal principal
@@ -85,7 +85,7 @@ public class ProjectController {
     }
 
     @PatchMapping("/projects/{key}/status")
-    public ProjectView changeProjectStatus(
+    public ProjectResponse changeProjectStatus(
             @PathVariable String key,
             @Valid @RequestBody StatusChangeRequest request,
             @AuthenticationPrincipal AuthUserPrincipal principal
@@ -95,7 +95,7 @@ public class ProjectController {
 
     @GetMapping("/projects/{key}/members")
     @RequirePermission(PermissionCodes.PROJECT_READ)
-    public PageResponse<ProjectMemberView> projectMembers(
+    public PageResponse<ProjectMemberResponse> projectMembers(
             @PathVariable String key,
             @Valid ManagementPageRequest pageRequest,
             @AuthenticationPrincipal AuthUserPrincipal principal
@@ -106,7 +106,7 @@ public class ProjectController {
     @PostMapping("/projects/{key}/members")
     @RequirePermission(PermissionCodes.PROJECT_MEMBER_MANAGE)
     @RequirePermission(PermissionCodes.ROLE_BIND)
-    public ProjectMemberView addProjectMember(
+    public ProjectMemberResponse addProjectMember(
             @PathVariable String key,
             @Valid @RequestBody ProjectMemberRequest request,
             @AuthenticationPrincipal AuthUserPrincipal principal
@@ -117,7 +117,7 @@ public class ProjectController {
     @PostMapping("/projects/{key}/members/{username}/remove")
     @RequirePermission(PermissionCodes.PROJECT_MEMBER_MANAGE)
     @RequirePermission(PermissionCodes.ROLE_UNBIND)
-    public ProjectMemberView removeProjectMember(
+    public ProjectMemberResponse removeProjectMember(
             @PathVariable String key,
             @PathVariable String username,
             @AuthenticationPrincipal AuthUserPrincipal principal

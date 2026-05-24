@@ -10,7 +10,7 @@ import com.songhg.veri.agent.management.api.request.CreateSettingRequest;
 import com.songhg.veri.agent.management.api.request.ManagementPageRequest;
 import com.songhg.veri.agent.management.api.request.StatusChangeRequest;
 import com.songhg.veri.agent.management.api.request.UpdateSettingRequest;
-import com.songhg.veri.agent.management.api.response.SettingView;
+import com.songhg.veri.agent.management.api.response.SettingResponse;
 import com.songhg.veri.agent.management.application.port.SettingOperations;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -43,7 +43,7 @@ public class SettingController {
 
     @GetMapping("/settings")
     @RequirePermission(PermissionCodes.CONFIG_READ)
-    public PageResponse<SettingView> settings(
+    public PageResponse<SettingResponse> settings(
             @Valid ManagementPageRequest pageRequest,
             @AuthenticationPrincipal AuthUserPrincipal principal
     ) {
@@ -53,7 +53,7 @@ public class SettingController {
     @PostMapping("/settings")
     @ResponseStatus(HttpStatus.CREATED)
     @RequirePermission(PermissionCodes.CONFIG_EDIT)
-    public SettingView createSetting(
+    public SettingResponse createSetting(
             @Valid @RequestBody CreateSettingRequest request,
             @AuthenticationPrincipal AuthUserPrincipal principal
     ) {
@@ -62,7 +62,7 @@ public class SettingController {
 
     @GetMapping("/settings/{key}")
     @RequirePermission(PermissionCodes.CONFIG_READ)
-    public SettingView setting(
+    public SettingResponse setting(
             @PathVariable String key,
             @AuthenticationPrincipal AuthUserPrincipal principal
     ) {
@@ -71,7 +71,7 @@ public class SettingController {
 
     @PatchMapping("/settings/{key}")
     @RequirePermission(PermissionCodes.CONFIG_EDIT)
-    public SettingView updateSetting(
+    public SettingResponse updateSetting(
             @PathVariable String key,
             @Valid @RequestBody UpdateSettingRequest request,
             @AuthenticationPrincipal AuthUserPrincipal principal
@@ -81,7 +81,7 @@ public class SettingController {
 
     @PatchMapping("/settings/{key}/status")
     @RequirePermission(PermissionCodes.CONFIG_EDIT)
-    public SettingView changeSettingStatus(
+    public SettingResponse changeSettingStatus(
             @PathVariable String key,
             @Valid @RequestBody StatusChangeRequest request,
             @AuthenticationPrincipal AuthUserPrincipal principal

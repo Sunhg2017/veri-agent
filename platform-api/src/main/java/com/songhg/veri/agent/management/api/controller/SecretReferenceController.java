@@ -10,7 +10,7 @@ import com.songhg.veri.agent.management.api.request.CreateSecretReferenceRequest
 import com.songhg.veri.agent.management.api.request.DisableSecretReferenceRequest;
 import com.songhg.veri.agent.management.api.request.ManagementPageRequest;
 import com.songhg.veri.agent.management.api.request.RotateSecretReferenceRequest;
-import com.songhg.veri.agent.management.api.response.SecretReferenceView;
+import com.songhg.veri.agent.management.api.response.SecretReferenceResponse;
 import com.songhg.veri.agent.management.application.port.SecretReferenceOperations;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -44,7 +44,7 @@ public class SecretReferenceController {
 
     @GetMapping("/secrets")
     @RequirePermission(PermissionCodes.SECRET_READ)
-    public PageResponse<SecretReferenceView> secrets(
+    public PageResponse<SecretReferenceResponse> secrets(
             @Valid ManagementPageRequest pageRequest,
             @AuthenticationPrincipal AuthUserPrincipal principal
     ) {
@@ -54,7 +54,7 @@ public class SecretReferenceController {
     @PostMapping("/secrets")
     @ResponseStatus(HttpStatus.CREATED)
     @RequirePermission(PermissionCodes.SECRET_MANAGE)
-    public SecretReferenceView createSecret(
+    public SecretReferenceResponse createSecret(
             @Valid @RequestBody CreateSecretReferenceRequest request,
             @AuthenticationPrincipal AuthUserPrincipal principal
     ) {
@@ -63,7 +63,7 @@ public class SecretReferenceController {
 
     @PostMapping("/secrets/rotate")
     @RequirePermission(PermissionCodes.SECRET_ROTATE)
-    public SecretReferenceView rotateSecret(
+    public SecretReferenceResponse rotateSecret(
             @Valid @RequestBody RotateSecretReferenceRequest request,
             @AuthenticationPrincipal AuthUserPrincipal principal
     ) {
@@ -72,7 +72,7 @@ public class SecretReferenceController {
 
     @PostMapping("/secrets/disable")
     @RequirePermission(PermissionCodes.SECRET_DISABLE)
-    public SecretReferenceView disableSecret(
+    public SecretReferenceResponse disableSecret(
             @Valid @RequestBody DisableSecretReferenceRequest request,
             @AuthenticationPrincipal AuthUserPrincipal principal
     ) {

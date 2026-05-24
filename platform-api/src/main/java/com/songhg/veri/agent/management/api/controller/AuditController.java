@@ -8,8 +8,8 @@ import com.songhg.veri.agent.common.openapi.ApiVersion;
 import com.songhg.veri.agent.management.api.mapper.ManagementApiMapper;
 import com.songhg.veri.agent.management.api.request.AuditLogPageRequest;
 import com.songhg.veri.agent.management.api.request.AuditOutboxPageRequest;
-import com.songhg.veri.agent.management.api.response.AuditLogView;
-import com.songhg.veri.agent.management.api.response.AuditOutboxView;
+import com.songhg.veri.agent.management.api.response.AuditLogResponse;
+import com.songhg.veri.agent.management.api.response.AuditOutboxResponse;
 import com.songhg.veri.agent.management.application.port.AuditOperations;
 import com.songhg.veri.agent.management.application.query.AuditLogQuery;
 import com.songhg.veri.agent.management.application.query.AuditOutboxQuery;
@@ -42,7 +42,7 @@ public class AuditController {
 
     @GetMapping("/audit-logs")
     @RequirePermission(PermissionCodes.AUDIT_READ)
-    public PageResponse<AuditLogView> auditLogs(
+    public PageResponse<AuditLogResponse> auditLogs(
             @Valid AuditLogPageRequest pageRequest,
             @AuthenticationPrincipal AuthUserPrincipal principal
     ) {
@@ -67,7 +67,7 @@ public class AuditController {
 
     @GetMapping("/audit-outbox")
     @RequirePermission(PermissionCodes.AUDIT_READ)
-    public PageResponse<AuditOutboxView> auditOutbox(
+    public PageResponse<AuditOutboxResponse> auditOutbox(
             @Valid AuditOutboxPageRequest pageRequest,
             @AuthenticationPrincipal AuthUserPrincipal principal
     ) {

@@ -11,9 +11,9 @@ import com.songhg.veri.agent.management.api.request.ManagementPageRequest;
 import com.songhg.veri.agent.management.api.request.ScopedUserRoleRequest;
 import com.songhg.veri.agent.management.api.request.StatusChangeRequest;
 import com.songhg.veri.agent.management.api.request.UpdateEnvironmentRequest;
-import com.songhg.veri.agent.management.api.response.EnvironmentConnectivityCheckView;
-import com.songhg.veri.agent.management.api.response.EnvironmentView;
-import com.songhg.veri.agent.management.api.response.ScopedUserRoleView;
+import com.songhg.veri.agent.management.api.response.EnvironmentConnectivityCheckResponse;
+import com.songhg.veri.agent.management.api.response.EnvironmentResponse;
+import com.songhg.veri.agent.management.api.response.ScopedUserRoleResponse;
 import com.songhg.veri.agent.management.application.port.EnvironmentOperations;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -49,7 +49,7 @@ public class EnvironmentController {
 
     @GetMapping("/environments")
     @RequirePermission(PermissionCodes.ENVIRONMENT_READ)
-    public PageResponse<EnvironmentView> environments(
+    public PageResponse<EnvironmentResponse> environments(
             @Valid ManagementPageRequest pageRequest,
             @AuthenticationPrincipal AuthUserPrincipal principal
     ) {
@@ -59,7 +59,7 @@ public class EnvironmentController {
     @PostMapping("/environments")
     @ResponseStatus(HttpStatus.CREATED)
     @RequirePermission(PermissionCodes.ENVIRONMENT_CREATE)
-    public EnvironmentView createEnvironment(
+    public EnvironmentResponse createEnvironment(
             @Valid @RequestBody CreateEnvironmentRequest request,
             @AuthenticationPrincipal AuthUserPrincipal principal
     ) {
@@ -68,7 +68,7 @@ public class EnvironmentController {
 
     @GetMapping("/environments/{key}")
     @RequirePermission(PermissionCodes.ENVIRONMENT_READ)
-    public EnvironmentView environment(
+    public EnvironmentResponse environment(
             @PathVariable String key,
             @AuthenticationPrincipal AuthUserPrincipal principal
     ) {
@@ -77,7 +77,7 @@ public class EnvironmentController {
 
     @PatchMapping("/environments/{key}")
     @RequirePermission(PermissionCodes.ENVIRONMENT_EDIT)
-    public EnvironmentView updateEnvironment(
+    public EnvironmentResponse updateEnvironment(
             @PathVariable String key,
             @Valid @RequestBody UpdateEnvironmentRequest request,
             @AuthenticationPrincipal AuthUserPrincipal principal
@@ -86,7 +86,7 @@ public class EnvironmentController {
     }
 
     @PatchMapping("/environments/{key}/status")
-    public EnvironmentView changeEnvironmentStatus(
+    public EnvironmentResponse changeEnvironmentStatus(
             @PathVariable String key,
             @Valid @RequestBody StatusChangeRequest request,
             @AuthenticationPrincipal AuthUserPrincipal principal
@@ -96,7 +96,7 @@ public class EnvironmentController {
 
     @GetMapping("/environments/{key}/connectivity-check")
     @RequirePermission(PermissionCodes.ENVIRONMENT_READ)
-    public EnvironmentConnectivityCheckView environmentConnectivityCheck(
+    public EnvironmentConnectivityCheckResponse environmentConnectivityCheck(
             @PathVariable String key,
             @AuthenticationPrincipal AuthUserPrincipal principal
     ) {
@@ -105,7 +105,7 @@ public class EnvironmentController {
 
     @PostMapping("/environments/{key}/connectivity-check")
     @RequirePermission(PermissionCodes.ENVIRONMENT_EDIT)
-    public EnvironmentConnectivityCheckView checkEnvironmentConnectivity(
+    public EnvironmentConnectivityCheckResponse checkEnvironmentConnectivity(
             @PathVariable String key,
             @AuthenticationPrincipal AuthUserPrincipal principal
     ) {
@@ -114,7 +114,7 @@ public class EnvironmentController {
 
     @GetMapping("/environments/{key}/users")
     @RequirePermission(PermissionCodes.ENVIRONMENT_READ)
-    public PageResponse<ScopedUserRoleView> environmentUsers(
+    public PageResponse<ScopedUserRoleResponse> environmentUsers(
             @PathVariable String key,
             @Valid ManagementPageRequest pageRequest,
             @AuthenticationPrincipal AuthUserPrincipal principal
@@ -125,7 +125,7 @@ public class EnvironmentController {
     @PostMapping("/environments/{key}/users")
     @RequirePermission(PermissionCodes.ENVIRONMENT_USER_MANAGE)
     @RequirePermission(PermissionCodes.ROLE_BIND)
-    public ScopedUserRoleView addEnvironmentUser(
+    public ScopedUserRoleResponse addEnvironmentUser(
             @PathVariable String key,
             @Valid @RequestBody ScopedUserRoleRequest request,
             @AuthenticationPrincipal AuthUserPrincipal principal
@@ -136,7 +136,7 @@ public class EnvironmentController {
     @PostMapping("/environments/{key}/users/{username}/remove")
     @RequirePermission(PermissionCodes.ENVIRONMENT_USER_MANAGE)
     @RequirePermission(PermissionCodes.ROLE_UNBIND)
-    public ScopedUserRoleView removeEnvironmentUser(
+    public ScopedUserRoleResponse removeEnvironmentUser(
             @PathVariable String key,
             @PathVariable String username,
             @AuthenticationPrincipal AuthUserPrincipal principal

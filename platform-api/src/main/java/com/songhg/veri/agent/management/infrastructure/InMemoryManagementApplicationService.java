@@ -7,9 +7,9 @@ import com.songhg.veri.agent.common.audit.AuditLogWriter;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
 import com.songhg.veri.agent.management.application.security.ManagementAuthorizationGuard;
-import com.songhg.veri.agent.management.application.command.CreateApplicationRequest;
-import com.songhg.veri.agent.management.application.command.ScopedUserRoleRequest;
-import com.songhg.veri.agent.management.application.command.UpdateApplicationRequest;
+import com.songhg.veri.agent.management.application.command.CreateApplicationCommand;
+import com.songhg.veri.agent.management.application.command.ScopedUserRoleCommand;
+import com.songhg.veri.agent.management.application.command.UpdateApplicationCommand;
 import com.songhg.veri.agent.management.application.port.ApplicationOperations;
 import com.songhg.veri.agent.management.application.view.ApplicationView;
 import com.songhg.veri.agent.management.application.view.ScopedUserRoleView;
@@ -52,7 +52,7 @@ final class InMemoryManagementApplicationService implements ApplicationOperation
         return requireApplication(key);
     }
 
-    public synchronized ApplicationView createApplication(CreateApplicationRequest request, AuthUserPrincipal actor) {
+    public synchronized ApplicationView createApplication(CreateApplicationCommand request, AuthUserPrincipal actor) {
         String name = request.name().trim();
         String appType = request.appType() == null || request.appType().isBlank() ? "Web" : request.appType().trim();
         ApplicationView view = new ApplicationView(name, appType, actor.displayName(), "v0.1.0", "接入中");
@@ -61,7 +61,7 @@ final class InMemoryManagementApplicationService implements ApplicationOperation
         return view;
     }
 
-    public synchronized ApplicationView updateApplication(String key, UpdateApplicationRequest request, AuthUserPrincipal actor) {
+    public synchronized ApplicationView updateApplication(String key, UpdateApplicationCommand request, AuthUserPrincipal actor) {
         ApplicationView current = requireApplication(key);
         if ("已停用".equals(current.status())) {
             throw new BusinessException(ErrorCode.INVALID_STATE, "当前应用状态不允许编辑");
@@ -107,7 +107,7 @@ final class InMemoryManagementApplicationService implements ApplicationOperation
 
     public synchronized ScopedUserRoleView addApplicationOwner(
             String applicationKey,
-            ScopedUserRoleRequest request,
+            ScopedUserRoleCommand request,
             AuthUserPrincipal actor
     ) {
         requireApplication(applicationKey);

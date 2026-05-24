@@ -7,8 +7,8 @@ import com.songhg.veri.agent.common.audit.AuditLogWriter;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
 import com.songhg.veri.agent.management.application.security.ManagementAuthorizationGuard;
-import com.songhg.veri.agent.management.application.command.CreateRoleRequest;
-import com.songhg.veri.agent.management.application.command.UpdateRoleRequest;
+import com.songhg.veri.agent.management.application.command.CreateRoleCommand;
+import com.songhg.veri.agent.management.application.command.UpdateRoleCommand;
 import com.songhg.veri.agent.management.application.port.RoleOperations;
 import com.songhg.veri.agent.management.application.view.PermissionView;
 import com.songhg.veri.agent.management.application.view.RoleDetailView;
@@ -33,7 +33,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Profile("db")
 @Service
-@Transactional
 class PostgresManagementRoleService implements RoleOperations {
 
     private final ManagementMapper mapper;
@@ -50,19 +49,23 @@ class PostgresManagementRoleService implements RoleOperations {
         this.authorizationGuard = authorizationGuard;
     }
 
+    @Transactional(readOnly = true)
     public PageResponse<RoleView> roles(PageQuery pageQuery) {
         return page(mapper::listRoles, mapper::countRoles, pageQuery, values());
     }
 
+    @Transactional(readOnly = true)
     public PageResponse<PermissionView> permissions(PageQuery pageQuery) {
         return page(mapper::listPermissions, mapper::countPermissions, pageQuery, values());
     }
 
+    @Transactional(readOnly = true)
     public RoleDetailView role(String code) {
         return roleDetail(requireRoleRow(code));
     }
 
-    public RoleDetailView createRole(CreateRoleRequest request, AuthUserPrincipal actor) {
+    @Transactional
+    public RoleDetailView createRole(CreateRoleCommand request, AuthUserPrincipal actor) {
         String code = request.code().trim();
         String name = request.name().trim();
         String scopeType = request.scopeType().trim();
@@ -88,7 +91,8 @@ class PostgresManagementRoleService implements RoleOperations {
         return created;
     }
 
-    public RoleDetailView updateRole(String code, UpdateRoleRequest request, AuthUserPrincipal actor) {
+    @Transactional
+    public RoleDetailView updateRole(String code, UpdateRoleCommand request, AuthUserPrincipal actor) {
         RoleRow role = requireRoleRow(code);
         ensureCustomRole(role);
         RoleDetailView before = roleDetail(role);
@@ -117,6 +121,7 @@ class PostgresManagementRoleService implements RoleOperations {
         return updated;
     }
 
+    @Transactional
     public RoleDetailView changeRoleStatus(String code, String status, AuthUserPrincipal actor) {
         RoleRow role = requireRoleRow(code);
         ensureCustomRole(role);
@@ -128,6 +133,7 @@ class PostgresManagementRoleService implements RoleOperations {
         return updated;
     }
 
+    @Transactional
     public UserView assignUserRole(String username, String roleCode, AuthUserPrincipal actor) {
         UUID userId = requireUserId(username);
         UUID roleId = requireRoleId(roleCode);
@@ -137,6 +143,7 @@ class PostgresManagementRoleService implements RoleOperations {
         return userByUsername(username);
     }
 
+    @Transactional
     public UserView unassignUserRole(String username, String roleCode, AuthUserPrincipal actor) {
         UUID userId = requireUserId(username);
         int rows = update(mapper::unassignUserRole, actor, values("userId", userId, "roleCode", roleCode));

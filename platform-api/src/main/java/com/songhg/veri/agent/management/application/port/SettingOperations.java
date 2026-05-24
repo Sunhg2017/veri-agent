@@ -3,8 +3,8 @@ package com.songhg.veri.agent.management.application.port;
 import com.songhg.veri.agent.auth.application.AuthUserPrincipal;
 import com.songhg.veri.agent.common.api.PageQuery;
 import com.songhg.veri.agent.common.api.PageResponse;
-import com.songhg.veri.agent.management.application.command.CreateSettingRequest;
-import com.songhg.veri.agent.management.application.command.UpdateSettingRequest;
+import com.songhg.veri.agent.management.application.command.CreateSettingCommand;
+import com.songhg.veri.agent.management.application.command.UpdateSettingCommand;
 import com.songhg.veri.agent.management.application.view.SettingView;
 
 /**
@@ -26,12 +26,12 @@ public interface SettingOperations {
     /**
      * Creates a setting with actor attribution.
      */
-    SettingView createSetting(CreateSettingRequest request, AuthUserPrincipal actor);
+    SettingView createSetting(CreateSettingCommand request, AuthUserPrincipal actor);
 
     /**
      * Updates setting metadata or value while preserving the setting key.
      */
-    SettingView updateSetting(String key, UpdateSettingRequest request, AuthUserPrincipal actor);
+    SettingView updateSetting(String key, UpdateSettingCommand request, AuthUserPrincipal actor);
 
     /**
      * Applies the requested setting status after the caller passes permission checks.

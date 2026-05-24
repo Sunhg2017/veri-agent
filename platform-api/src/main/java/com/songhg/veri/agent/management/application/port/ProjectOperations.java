@@ -3,9 +3,9 @@ package com.songhg.veri.agent.management.application.port;
 import com.songhg.veri.agent.auth.application.AuthUserPrincipal;
 import com.songhg.veri.agent.common.api.PageQuery;
 import com.songhg.veri.agent.common.api.PageResponse;
-import com.songhg.veri.agent.management.application.command.CreateProjectRequest;
-import com.songhg.veri.agent.management.application.command.ProjectMemberRequest;
-import com.songhg.veri.agent.management.application.command.UpdateProjectRequest;
+import com.songhg.veri.agent.management.application.command.CreateProjectCommand;
+import com.songhg.veri.agent.management.application.command.ProjectMemberCommand;
+import com.songhg.veri.agent.management.application.command.UpdateProjectCommand;
 import com.songhg.veri.agent.management.application.view.ProjectMemberView;
 import com.songhg.veri.agent.management.application.view.ProjectView;
 
@@ -28,12 +28,12 @@ public interface ProjectOperations {
     /**
      * Creates a project and initializes its management metadata.
      */
-    ProjectView createProject(CreateProjectRequest request, AuthUserPrincipal actor);
+    ProjectView createProject(CreateProjectCommand request, AuthUserPrincipal actor);
 
     /**
      * Updates project metadata without changing member bindings.
      */
-    ProjectView updateProject(String key, UpdateProjectRequest request, AuthUserPrincipal actor);
+    ProjectView updateProject(String key, UpdateProjectCommand request, AuthUserPrincipal actor);
 
     /**
      * Applies the requested project lifecycle status after status-specific authorization.
@@ -48,7 +48,7 @@ public interface ProjectOperations {
     /**
      * Adds a project member and binds the requested project-scoped role.
      */
-    ProjectMemberView addProjectMember(String projectKey, ProjectMemberRequest request, AuthUserPrincipal actor);
+    ProjectMemberView addProjectMember(String projectKey, ProjectMemberCommand request, AuthUserPrincipal actor);
 
     /**
      * Removes a project member binding while keeping the user account intact.

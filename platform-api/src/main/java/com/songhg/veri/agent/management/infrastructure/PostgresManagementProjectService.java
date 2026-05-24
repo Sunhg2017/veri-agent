@@ -7,9 +7,9 @@ import com.songhg.veri.agent.common.audit.AuditLogWriter;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
 import com.songhg.veri.agent.management.application.security.ManagementAuthorizationGuard;
-import com.songhg.veri.agent.management.application.command.CreateProjectRequest;
-import com.songhg.veri.agent.management.application.command.ProjectMemberRequest;
-import com.songhg.veri.agent.management.application.command.UpdateProjectRequest;
+import com.songhg.veri.agent.management.application.command.CreateProjectCommand;
+import com.songhg.veri.agent.management.application.command.ProjectMemberCommand;
+import com.songhg.veri.agent.management.application.command.UpdateProjectCommand;
 import com.songhg.veri.agent.management.application.port.ProjectOperations;
 import com.songhg.veri.agent.management.application.view.ProjectMemberView;
 import com.songhg.veri.agent.management.application.view.ProjectView;
@@ -29,7 +29,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Profile("db")
 @Service
-@Transactional
 class PostgresManagementProjectService implements ProjectOperations {
 
     private final ManagementMapper mapper;
@@ -49,15 +48,18 @@ class PostgresManagementProjectService implements ProjectOperations {
         this.authorizationGuard = authorizationGuard;
     }
 
+    @Transactional(readOnly = true)
     public PageResponse<ProjectView> projects(PageQuery pageQuery, AuthUserPrincipal actor) {
         return page(mapper::listProjects, mapper::countProjects, pageQuery, scope(actor));
     }
 
+    @Transactional(readOnly = true)
     public ProjectView project(String key) {
         return projectByKey(key);
     }
 
-    public ProjectView createProject(CreateProjectRequest request, AuthUserPrincipal actor) {
+    @Transactional
+    public ProjectView createProject(CreateProjectCommand request, AuthUserPrincipal actor) {
         UUID projectId = UUID.randomUUID();
         String name = request.name().trim();
         String code = normalizedOrGeneratedCode(request.code(), "prj");
@@ -79,7 +81,8 @@ class PostgresManagementProjectService implements ProjectOperations {
         return new ProjectView(name, "未分配", actor.displayName(), 0, "规划中");
     }
 
-    public ProjectView updateProject(String key, UpdateProjectRequest request, AuthUserPrincipal actor) {
+    @Transactional
+    public ProjectView updateProject(String key, UpdateProjectCommand request, AuthUserPrincipal actor) {
         ProjectRef project = resolveProjectStrict(key);
         ensureProjectEditable(project.status());
         ProjectView before = projectByKey(project.id().toString());
@@ -99,6 +102,7 @@ class PostgresManagementProjectService implements ProjectOperations {
         return updated;
     }
 
+    @Transactional
     public ProjectView changeProjectStatus(String key, String status, AuthUserPrincipal actor) {
         String nextStatus = normalizeProjectStatus(status);
         authorizationGuard.requireProjectStatus(actor, nextStatus);
@@ -110,12 +114,14 @@ class PostgresManagementProjectService implements ProjectOperations {
         return updated;
     }
 
+    @Transactional(readOnly = true)
     public PageResponse<ProjectMemberView> projectMembers(String projectKey, PageQuery pageQuery) {
         ProjectRef project = resolveProjectStrict(projectKey);
         return page(mapper::listProjectMembers, mapper::countProjectMembers, pageQuery, values("projectId", project.id()));
     }
 
-    public ProjectMemberView addProjectMember(String projectKey, ProjectMemberRequest request, AuthUserPrincipal actor) {
+    @Transactional
+    public ProjectMemberView addProjectMember(String projectKey, ProjectMemberCommand request, AuthUserPrincipal actor) {
         ProjectRef project = resolveProjectStrict(projectKey);
         ensureProjectEditable(project.status());
         String username = request.username().trim();
@@ -131,6 +137,7 @@ class PostgresManagementProjectService implements ProjectOperations {
         return view;
     }
 
+    @Transactional
     public ProjectMemberView removeProjectMember(String projectKey, String username, AuthUserPrincipal actor) {
         ProjectRef project = resolveProjectStrict(projectKey);
         UUID userId = requireUserId(username);
@@ -145,6 +152,7 @@ class PostgresManagementProjectService implements ProjectOperations {
         return new ProjectMemberView(current.username(), current.displayName(), current.role(), current.memberType(), "已移除");
     }
 
+    @Transactional
     public ProjectRef resolveProject(String project, AuthUserPrincipal actor) {
         String keyword = blankToNull(project);
         if (keyword == null) {
@@ -153,6 +161,7 @@ class PostgresManagementProjectService implements ProjectOperations {
         return resolveProjectStrict(keyword);
     }
 
+    @Transactional(readOnly = true)
     public ProjectRef resolveProjectStrict(String key) {
         return requireOne(mapper::findProjectRef, values("keyword", key), "项目不存在");
     }

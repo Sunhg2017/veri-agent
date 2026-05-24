@@ -10,7 +10,7 @@ import com.songhg.veri.agent.management.api.request.CreateNamedRequest;
 import com.songhg.veri.agent.management.api.request.ManagementPageRequest;
 import com.songhg.veri.agent.management.api.request.StatusChangeRequest;
 import com.songhg.veri.agent.management.api.request.UpdateDepartmentRequest;
-import com.songhg.veri.agent.management.api.response.DepartmentView;
+import com.songhg.veri.agent.management.api.response.DepartmentResponse;
 import com.songhg.veri.agent.management.application.port.DepartmentOperations;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -46,7 +46,7 @@ public class DepartmentController {
 
     @GetMapping("/departments")
     @RequirePermission(PermissionCodes.DEPARTMENT_READ)
-    public PageResponse<DepartmentView> departments(
+    public PageResponse<DepartmentResponse> departments(
             @Valid ManagementPageRequest pageRequest,
             @AuthenticationPrincipal AuthUserPrincipal principal
     ) {
@@ -56,7 +56,7 @@ public class DepartmentController {
     @PostMapping("/departments")
     @ResponseStatus(HttpStatus.CREATED)
     @RequirePermission(PermissionCodes.DEPARTMENT_CREATE)
-    public DepartmentView createDepartment(
+    public DepartmentResponse createDepartment(
             @Valid @RequestBody CreateNamedRequest request,
             @AuthenticationPrincipal AuthUserPrincipal principal
     ) {
@@ -65,7 +65,7 @@ public class DepartmentController {
 
     @GetMapping("/departments/{key}")
     @RequirePermission(PermissionCodes.DEPARTMENT_READ)
-    public DepartmentView department(
+    public DepartmentResponse department(
             @PathVariable String key,
             @AuthenticationPrincipal AuthUserPrincipal principal
     ) {
@@ -74,7 +74,7 @@ public class DepartmentController {
 
     @PatchMapping("/departments/{key}")
     @RequirePermission(PermissionCodes.DEPARTMENT_EDIT)
-    public DepartmentView updateDepartment(
+    public DepartmentResponse updateDepartment(
             @PathVariable String key,
             @Valid @RequestBody UpdateDepartmentRequest request,
             @AuthenticationPrincipal AuthUserPrincipal principal
@@ -83,7 +83,7 @@ public class DepartmentController {
     }
 
     @PatchMapping("/departments/{key}/status")
-    public DepartmentView changeDepartmentStatus(
+    public DepartmentResponse changeDepartmentStatus(
             @PathVariable String key,
             @Valid @RequestBody StatusChangeRequest request,
             @AuthenticationPrincipal AuthUserPrincipal principal

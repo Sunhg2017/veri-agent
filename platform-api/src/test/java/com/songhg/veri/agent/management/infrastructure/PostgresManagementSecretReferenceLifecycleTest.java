@@ -11,9 +11,9 @@ import com.songhg.veri.agent.auth.application.AuthUserPrincipal;
 import com.songhg.veri.agent.common.audit.AuditLogWriter;
 import com.songhg.veri.agent.common.secret.LocalSecretCipher;
 import com.songhg.veri.agent.common.secret.SecretProviderProperties;
-import com.songhg.veri.agent.management.application.command.CreateSecretReferenceRequest;
-import com.songhg.veri.agent.management.application.command.DisableSecretReferenceRequest;
-import com.songhg.veri.agent.management.application.command.RotateSecretReferenceRequest;
+import com.songhg.veri.agent.management.application.command.CreateSecretReferenceCommand;
+import com.songhg.veri.agent.management.application.command.DisableSecretReferenceCommand;
+import com.songhg.veri.agent.management.application.command.RotateSecretReferenceCommand;
 import com.songhg.veri.agent.management.application.view.SecretReferenceView;
 import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapper;
 import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows.SecretProviderRow;
@@ -84,7 +84,7 @@ class PostgresManagementSecretReferenceLifecycleTest {
                         view(secretId, secretRef, scopeId, "v2", "REVOKED")
                 );
 
-        SecretReferenceView created = service.createSecret(new CreateSecretReferenceRequest(
+        SecretReferenceView created = service.createSecret(new CreateSecretReferenceCommand(
                 secretRef,
                 "local",
                 "WEBHOOK_SIGNING",
@@ -101,7 +101,7 @@ class PostgresManagementSecretReferenceLifecycleTest {
         assertThat((String) createStore.get("cipherText")).doesNotContain("PlainSecret123");
         assertThat(createStore.get("masterKeyVersion")).isEqualTo("validation-v1");
 
-        SecretReferenceView rotated = service.rotateSecret(new RotateSecretReferenceRequest(
+        SecretReferenceView rotated = service.rotateSecret(new RotateSecretReferenceCommand(
                 secretRef,
                 "RotatedSecret456",
                 "v2",
@@ -113,7 +113,7 @@ class PostgresManagementSecretReferenceLifecycleTest {
         assertThat(decrypt(rotatedStore, secretRef)).isEqualTo("RotatedSecret456");
         assertThat((String) rotatedStore.get("cipherText")).doesNotContain("RotatedSecret456");
 
-        SecretReferenceView disabled = service.disableSecret(new DisableSecretReferenceRequest(secretRef), actor);
+        SecretReferenceView disabled = service.disableSecret(new DisableSecretReferenceCommand(secretRef), actor);
 
         assertThat(disabled.status()).isEqualTo("REVOKED");
         verify(mapper).revokeSecretReference(anyMap());

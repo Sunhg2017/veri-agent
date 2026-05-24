@@ -3,9 +3,9 @@ package com.songhg.veri.agent.management.application.port;
 import com.songhg.veri.agent.auth.application.AuthUserPrincipal;
 import com.songhg.veri.agent.common.api.PageQuery;
 import com.songhg.veri.agent.common.api.PageResponse;
-import com.songhg.veri.agent.management.application.command.CreateApplicationRequest;
-import com.songhg.veri.agent.management.application.command.ScopedUserRoleRequest;
-import com.songhg.veri.agent.management.application.command.UpdateApplicationRequest;
+import com.songhg.veri.agent.management.application.command.CreateApplicationCommand;
+import com.songhg.veri.agent.management.application.command.ScopedUserRoleCommand;
+import com.songhg.veri.agent.management.application.command.UpdateApplicationCommand;
 import com.songhg.veri.agent.management.application.view.ApplicationView;
 import com.songhg.veri.agent.management.application.view.ScopedUserRoleView;
 
@@ -29,12 +29,12 @@ public interface ApplicationOperations {
     /**
      * Creates an application under an existing project and records the actor as the mutating user.
      */
-    ApplicationView createApplication(CreateApplicationRequest request, AuthUserPrincipal actor);
+    ApplicationView createApplication(CreateApplicationCommand request, AuthUserPrincipal actor);
 
     /**
      * Updates editable application metadata without changing owners or lifecycle status.
      */
-    ApplicationView updateApplication(String key, UpdateApplicationRequest request, AuthUserPrincipal actor);
+    ApplicationView updateApplication(String key, UpdateApplicationCommand request, AuthUserPrincipal actor);
 
     /**
      * Applies the requested lifecycle status; callers must already have resolved the dynamic status
@@ -52,7 +52,7 @@ public interface ApplicationOperations {
      */
     ScopedUserRoleView addApplicationOwner(
             String applicationKey,
-            ScopedUserRoleRequest request,
+            ScopedUserRoleCommand request,
             AuthUserPrincipal actor
     );
 

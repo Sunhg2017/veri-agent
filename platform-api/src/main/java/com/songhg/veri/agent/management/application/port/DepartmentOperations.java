@@ -3,7 +3,7 @@ package com.songhg.veri.agent.management.application.port;
 import com.songhg.veri.agent.auth.application.AuthUserPrincipal;
 import com.songhg.veri.agent.common.api.PageQuery;
 import com.songhg.veri.agent.common.api.PageResponse;
-import com.songhg.veri.agent.management.application.command.UpdateDepartmentRequest;
+import com.songhg.veri.agent.management.application.command.UpdateDepartmentCommand;
 import com.songhg.veri.agent.management.application.view.DepartmentView;
 
 /**
@@ -30,7 +30,7 @@ public interface DepartmentOperations {
     /**
      * Updates department metadata while keeping the department identity stable.
      */
-    DepartmentView updateDepartment(String key, UpdateDepartmentRequest request, AuthUserPrincipal actor);
+    DepartmentView updateDepartment(String key, UpdateDepartmentCommand request, AuthUserPrincipal actor);
 
     /**
      * Changes department lifecycle status after the controller resolves the dynamic status permission.

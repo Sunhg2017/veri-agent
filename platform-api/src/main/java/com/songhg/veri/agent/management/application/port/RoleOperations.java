@@ -3,8 +3,8 @@ package com.songhg.veri.agent.management.application.port;
 import com.songhg.veri.agent.auth.application.AuthUserPrincipal;
 import com.songhg.veri.agent.common.api.PageQuery;
 import com.songhg.veri.agent.common.api.PageResponse;
-import com.songhg.veri.agent.management.application.command.CreateRoleRequest;
-import com.songhg.veri.agent.management.application.command.UpdateRoleRequest;
+import com.songhg.veri.agent.management.application.command.CreateRoleCommand;
+import com.songhg.veri.agent.management.application.command.UpdateRoleCommand;
 import com.songhg.veri.agent.management.application.view.PermissionView;
 import com.songhg.veri.agent.management.application.view.RoleDetailView;
 import com.songhg.veri.agent.management.application.view.RoleView;
@@ -34,12 +34,12 @@ public interface RoleOperations {
     /**
      * Creates a role using only permissions included in the caller's assignable closure.
      */
-    RoleDetailView createRole(CreateRoleRequest request, AuthUserPrincipal actor);
+    RoleDetailView createRole(CreateRoleCommand request, AuthUserPrincipal actor);
 
     /**
      * Replaces editable role metadata and permission bindings within the assignable closure.
      */
-    RoleDetailView updateRole(String code, UpdateRoleRequest request, AuthUserPrincipal actor);
+    RoleDetailView updateRole(String code, UpdateRoleCommand request, AuthUserPrincipal actor);
 
     /**
      * Changes role lifecycle status without deleting historical bindings.

@@ -9,9 +9,9 @@ import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
 import com.songhg.veri.agent.common.secret.LocalSecretCipher;
 import com.songhg.veri.agent.common.secret.SecretProviderProperties;
-import com.songhg.veri.agent.management.application.command.CreateSecretReferenceRequest;
-import com.songhg.veri.agent.management.application.command.DisableSecretReferenceRequest;
-import com.songhg.veri.agent.management.application.command.RotateSecretReferenceRequest;
+import com.songhg.veri.agent.management.application.command.CreateSecretReferenceCommand;
+import com.songhg.veri.agent.management.application.command.DisableSecretReferenceCommand;
+import com.songhg.veri.agent.management.application.command.RotateSecretReferenceCommand;
 import com.songhg.veri.agent.management.application.view.SecretReferenceView;
 import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapper;
 import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows.SecretProviderRow;
@@ -30,7 +30,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Profile("db")
 @Service
-@Transactional
 class PostgresManagementSecretReferenceService implements SecretReferenceOperations {
 
     private final ManagementMapper mapper;
@@ -47,6 +46,7 @@ class PostgresManagementSecretReferenceService implements SecretReferenceOperati
         this.secretProviderProperties = secretProviderProperties;
     }
 
+    @Transactional(readOnly = true)
     public PageResponse<SecretReferenceView> secrets(PageQuery pageQuery) {
         return page(mapper::listSecretReferences, mapper::countSecretReferences, pageQuery, values());
     }
@@ -55,7 +55,8 @@ class PostgresManagementSecretReferenceService implements SecretReferenceOperati
      * Persists LOCAL_ENCRYPTED secret references in two steps: metadata for audit/query, encrypted
      * material for runtime resolution. Non-local providers are read-only from this service.
      */
-    public SecretReferenceView createSecret(CreateSecretReferenceRequest request, AuthUserPrincipal actor) {
+    @Transactional
+    public SecretReferenceView createSecret(CreateSecretReferenceCommand request, AuthUserPrincipal actor) {
         String secretRef = request.secretRef().trim();
         String providerCode = defaultText(request.providerCode(), "");
         SecretProviderRow provider = requireOne(
@@ -102,7 +103,8 @@ class PostgresManagementSecretReferenceService implements SecretReferenceOperati
      * Rotates only ACTIVE local secrets so historical references cannot be silently revived or
      * overwritten after revocation.
      */
-    public SecretReferenceView rotateSecret(RotateSecretReferenceRequest request, AuthUserPrincipal actor) {
+    @Transactional
+    public SecretReferenceView rotateSecret(RotateSecretReferenceCommand request, AuthUserPrincipal actor) {
         SecretReferenceRow current = secretReferenceRow(request.secretRef());
         ensureLocalProvider(current);
         if (!"ACTIVE".equals(current.status())) {
@@ -136,7 +138,8 @@ class PostgresManagementSecretReferenceService implements SecretReferenceOperati
      * Revokes both the visible reference and encrypted material; callers keep the audit trail but
      * runtime resolution no longer has ciphertext to decrypt.
      */
-    public SecretReferenceView disableSecret(DisableSecretReferenceRequest request, AuthUserPrincipal actor) {
+    @Transactional
+    public SecretReferenceView disableSecret(DisableSecretReferenceCommand request, AuthUserPrincipal actor) {
         SecretReferenceRow current = secretReferenceRow(request.secretRef());
         update(mapper::revokeSecretReference, actor, values("secretRefId", current.id()));
         update(mapper::revokeSecretLocalStore, actor, values("secretRefId", current.id()));

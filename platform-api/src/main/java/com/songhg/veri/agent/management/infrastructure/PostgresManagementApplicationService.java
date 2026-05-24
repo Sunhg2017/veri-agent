@@ -7,9 +7,9 @@ import com.songhg.veri.agent.common.audit.AuditLogWriter;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
 import com.songhg.veri.agent.management.application.security.ManagementAuthorizationGuard;
-import com.songhg.veri.agent.management.application.command.CreateApplicationRequest;
-import com.songhg.veri.agent.management.application.command.ScopedUserRoleRequest;
-import com.songhg.veri.agent.management.application.command.UpdateApplicationRequest;
+import com.songhg.veri.agent.management.application.command.CreateApplicationCommand;
+import com.songhg.veri.agent.management.application.command.ScopedUserRoleCommand;
+import com.songhg.veri.agent.management.application.command.UpdateApplicationCommand;
 import com.songhg.veri.agent.management.application.port.ApplicationOperations;
 import com.songhg.veri.agent.management.application.view.ApplicationView;
 import com.songhg.veri.agent.management.application.view.ScopedUserRoleView;
@@ -30,7 +30,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Profile("db")
 @Service
-@Transactional
 class PostgresManagementApplicationService implements ApplicationOperations {
 
     private final ManagementMapper mapper;
@@ -50,15 +49,18 @@ class PostgresManagementApplicationService implements ApplicationOperations {
         this.authorizationGuard = authorizationGuard;
     }
 
+    @Transactional(readOnly = true)
     public PageResponse<ApplicationView> applications(PageQuery pageQuery, AuthUserPrincipal actor) {
         return page(mapper::listApplications, mapper::countApplications, pageQuery, scope(actor));
     }
 
+    @Transactional(readOnly = true)
     public ApplicationView application(String key) {
         return applicationByKey(key);
     }
 
-    public ApplicationView createApplication(CreateApplicationRequest request, AuthUserPrincipal actor) {
+    @Transactional
+    public ApplicationView createApplication(CreateApplicationCommand request, AuthUserPrincipal actor) {
         String name = request.name().trim();
         String appType = normalizedOrDefault(request.appType(), "Web");
         String code = normalizedOrGeneratedCode(request.code(), "app");
@@ -86,7 +88,8 @@ class PostgresManagementApplicationService implements ApplicationOperations {
         return new ApplicationView(name, appType, project.name(), "v0", "已接入");
     }
 
-    public ApplicationView updateApplication(String key, UpdateApplicationRequest request, AuthUserPrincipal actor) {
+    @Transactional
+    public ApplicationView updateApplication(String key, UpdateApplicationCommand request, AuthUserPrincipal actor) {
         ApplicationRef application = resolveApplicationStrict(key);
         ensureEnabled(application.status(), "当前应用状态不允许编辑");
         ApplicationView before = applicationByKey(application.id().toString());
@@ -109,6 +112,7 @@ class PostgresManagementApplicationService implements ApplicationOperations {
         return updated;
     }
 
+    @Transactional
     public ApplicationView changeApplicationStatus(String key, String status, AuthUserPrincipal actor) {
         String nextStatus = normalizeEnabledStatus(status, "应用状态不支持");
         authorizationGuard.requireApplicationStatus(actor, nextStatus);
@@ -119,12 +123,14 @@ class PostgresManagementApplicationService implements ApplicationOperations {
         return updated;
     }
 
+    @Transactional(readOnly = true)
     public PageResponse<ScopedUserRoleView> applicationOwners(String applicationKey, PageQuery pageQuery) {
         ApplicationRef application = resolveApplicationStrict(applicationKey);
         return scopedUserRoles(application.id(), "APPLICATION", "AppOwner", pageQuery);
     }
 
-    public ScopedUserRoleView addApplicationOwner(String applicationKey, ScopedUserRoleRequest request, AuthUserPrincipal actor) {
+    @Transactional
+    public ScopedUserRoleView addApplicationOwner(String applicationKey, ScopedUserRoleCommand request, AuthUserPrincipal actor) {
         ApplicationRef application = resolveApplicationStrict(applicationKey);
         ensureEnabled(application.status(), "当前应用状态不允许维护负责人");
         String roleCode = request.roleCode().trim();
@@ -141,6 +147,7 @@ class PostgresManagementApplicationService implements ApplicationOperations {
         return view;
     }
 
+    @Transactional
     public ScopedUserRoleView removeApplicationOwner(String applicationKey, String username, AuthUserPrincipal actor) {
         ApplicationRef application = resolveApplicationStrict(applicationKey);
         ScopedUserRoleView current = scopedUserRoleByUsername(application.id(), "APPLICATION", "AppOwner", username, "应用负责人不存在");

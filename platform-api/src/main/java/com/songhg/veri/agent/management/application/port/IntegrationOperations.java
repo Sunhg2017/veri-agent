@@ -3,8 +3,8 @@ package com.songhg.veri.agent.management.application.port;
 import com.songhg.veri.agent.auth.application.AuthUserPrincipal;
 import com.songhg.veri.agent.common.api.PageQuery;
 import com.songhg.veri.agent.common.api.PageResponse;
-import com.songhg.veri.agent.management.application.command.CreateIntegrationRequest;
-import com.songhg.veri.agent.management.application.command.UpdateIntegrationRequest;
+import com.songhg.veri.agent.management.application.command.CreateIntegrationCommand;
+import com.songhg.veri.agent.management.application.command.UpdateIntegrationCommand;
 import com.songhg.veri.agent.management.application.view.IntegrationView;
 
 /**
@@ -26,12 +26,12 @@ public interface IntegrationOperations {
     /**
      * Creates an integration configuration after input validation at the API boundary.
      */
-    IntegrationView createIntegration(CreateIntegrationRequest request, AuthUserPrincipal actor);
+    IntegrationView createIntegration(CreateIntegrationCommand request, AuthUserPrincipal actor);
 
     /**
      * Updates non-secret integration metadata and records the actor.
      */
-    IntegrationView updateIntegration(String key, UpdateIntegrationRequest request, AuthUserPrincipal actor);
+    IntegrationView updateIntegration(String key, UpdateIntegrationCommand request, AuthUserPrincipal actor);
 
     /**
      * Enables or disables an integration after the caller passes status-specific permission checks.

@@ -7,8 +7,8 @@ import com.songhg.veri.agent.common.audit.AuditLogWriter;
 import com.songhg.veri.agent.management.application.port.IntegrationOperations;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
-import com.songhg.veri.agent.management.application.command.CreateIntegrationRequest;
-import com.songhg.veri.agent.management.application.command.UpdateIntegrationRequest;
+import com.songhg.veri.agent.management.application.command.CreateIntegrationCommand;
+import com.songhg.veri.agent.management.application.command.UpdateIntegrationCommand;
 import com.songhg.veri.agent.management.application.view.IntegrationView;
 import java.util.ArrayList;
 import java.util.List;
@@ -39,7 +39,7 @@ final class InMemoryManagementIntegrationService implements IntegrationOperation
         return requireIntegration(key);
     }
 
-    public synchronized IntegrationView createIntegration(CreateIntegrationRequest request, AuthUserPrincipal actor) {
+    public synchronized IntegrationView createIntegration(CreateIntegrationCommand request, AuthUserPrincipal actor) {
         String key = integrationKey(request.code(), request.name());
         if (integrations.stream().anyMatch(integration -> integration.key().equals(key))) {
             throw new BusinessException(ErrorCode.CONFLICT, "集成配置已存在");
@@ -56,7 +56,7 @@ final class InMemoryManagementIntegrationService implements IntegrationOperation
         return view;
     }
 
-    public synchronized IntegrationView updateIntegration(String key, UpdateIntegrationRequest request, AuthUserPrincipal actor) {
+    public synchronized IntegrationView updateIntegration(String key, UpdateIntegrationCommand request, AuthUserPrincipal actor) {
         IntegrationView current = requireIntegration(key);
         IntegrationView updated = new IntegrationView(
                 current.key(),

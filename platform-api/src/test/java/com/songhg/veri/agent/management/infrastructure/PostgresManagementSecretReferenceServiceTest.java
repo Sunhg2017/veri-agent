@@ -14,8 +14,8 @@ import com.songhg.veri.agent.auth.application.AuthUserPrincipal;
 import com.songhg.veri.agent.common.audit.AuditLogWriter;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.secret.SecretProviderProperties;
-import com.songhg.veri.agent.management.application.command.CreateSecretReferenceRequest;
-import com.songhg.veri.agent.management.application.command.RotateSecretReferenceRequest;
+import com.songhg.veri.agent.management.application.command.CreateSecretReferenceCommand;
+import com.songhg.veri.agent.management.application.command.RotateSecretReferenceCommand;
 import com.songhg.veri.agent.management.application.view.SecretReferenceView;
 import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapper;
 import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows.SecretProviderRow;
@@ -144,13 +144,13 @@ class PostgresManagementSecretReferenceServiceTest {
         );
     }
 
-    private CreateSecretReferenceRequest createRequest(
+    private CreateSecretReferenceCommand createRequest(
             String secretRef,
             String providerCode,
             String secretVersion,
             UUID scopeId
     ) {
-        return new CreateSecretReferenceRequest(
+        return new CreateSecretReferenceCommand(
                 secretRef,
                 providerCode,
                 "WEBHOOK_SIGNING",
@@ -162,8 +162,8 @@ class PostgresManagementSecretReferenceServiceTest {
         );
     }
 
-    private RotateSecretReferenceRequest rotateRequest(String secretRef, String secretVersion) {
-        return new RotateSecretReferenceRequest(secretRef, "RotatedSecret456", secretVersion, null);
+    private RotateSecretReferenceCommand rotateRequest(String secretRef, String secretVersion) {
+        return new RotateSecretReferenceCommand(secretRef, "RotatedSecret456", secretVersion, null);
     }
 
     private SecretReferenceRow row(

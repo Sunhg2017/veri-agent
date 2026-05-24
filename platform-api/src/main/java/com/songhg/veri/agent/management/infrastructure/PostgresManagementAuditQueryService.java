@@ -19,7 +19,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Profile("db")
 @Service
-@Transactional
 class PostgresManagementAuditQueryService implements AuditOperations {
 
     private final ManagementMapper mapper;
@@ -30,6 +29,7 @@ class PostgresManagementAuditQueryService implements AuditOperations {
         this.auditLogWriter = auditLogWriter;
     }
 
+    @Transactional(readOnly = true)
     public PageResponse<AuditLogView> auditLogs(PageQuery pageQuery, AuditLogQuery query, AuthUserPrincipal actor) {
         Map<String, Object> params = auditParams(pageQuery, query, actor);
         List<AuditLogView> items = mapper.listAuditLogs(params);
@@ -37,6 +37,7 @@ class PostgresManagementAuditQueryService implements AuditOperations {
         return PageResponse.of(items, pageQuery.index(), pageQuery.size(), total);
     }
 
+    @Transactional
     public String exportAuditLogsCsv(AuditLogQuery query, AuthUserPrincipal actor) {
         PageQuery exportPage = PageQuery.of(0, 100);
         PageResponse<AuditLogView> page = auditLogs(exportPage, query, actor);
@@ -54,6 +55,7 @@ class PostgresManagementAuditQueryService implements AuditOperations {
         return csv.toString();
     }
 
+    @Transactional(readOnly = true)
     public PageResponse<AuditOutboxView> auditOutbox(
             PageQuery pageQuery,
             AuditOutboxQuery query,

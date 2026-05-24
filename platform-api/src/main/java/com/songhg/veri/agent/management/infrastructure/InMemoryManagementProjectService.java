@@ -7,9 +7,9 @@ import com.songhg.veri.agent.common.audit.AuditLogWriter;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
 import com.songhg.veri.agent.management.application.security.ManagementAuthorizationGuard;
-import com.songhg.veri.agent.management.application.command.CreateProjectRequest;
-import com.songhg.veri.agent.management.application.command.ProjectMemberRequest;
-import com.songhg.veri.agent.management.application.command.UpdateProjectRequest;
+import com.songhg.veri.agent.management.application.command.CreateProjectCommand;
+import com.songhg.veri.agent.management.application.command.ProjectMemberCommand;
+import com.songhg.veri.agent.management.application.command.UpdateProjectCommand;
 import com.songhg.veri.agent.management.application.port.ProjectOperations;
 import com.songhg.veri.agent.management.application.view.ProjectMemberView;
 import com.songhg.veri.agent.management.application.view.ProjectView;
@@ -52,7 +52,7 @@ final class InMemoryManagementProjectService implements ProjectOperations {
         return requireProject(key);
     }
 
-    public synchronized ProjectView createProject(CreateProjectRequest request, AuthUserPrincipal actor) {
+    public synchronized ProjectView createProject(CreateProjectCommand request, AuthUserPrincipal actor) {
         String name = request.name().trim();
         ProjectView view = new ProjectView(name, "质量工程中心", actor.displayName(), 0, "规划中");
         projects.add(0, view);
@@ -60,7 +60,7 @@ final class InMemoryManagementProjectService implements ProjectOperations {
         return view;
     }
 
-    public synchronized ProjectView updateProject(String key, UpdateProjectRequest request, AuthUserPrincipal actor) {
+    public synchronized ProjectView updateProject(String key, UpdateProjectCommand request, AuthUserPrincipal actor) {
         ProjectView current = requireProject(key);
         if ("已归档".equals(current.status()) || "已停用".equals(current.status())) {
             throw new BusinessException(ErrorCode.INVALID_STATE, "当前项目状态不允许编辑");
@@ -104,7 +104,7 @@ final class InMemoryManagementProjectService implements ProjectOperations {
         return page(projectMembers, pageQuery);
     }
 
-    public synchronized ProjectMemberView addProjectMember(String projectKey, ProjectMemberRequest request, AuthUserPrincipal actor) {
+    public synchronized ProjectMemberView addProjectMember(String projectKey, ProjectMemberCommand request, AuthUserPrincipal actor) {
         requireProject(projectKey);
         UserView user = userService.requireUser(request.username().trim());
         projectMembers.removeIf(member -> member.username().equals(user.username()));

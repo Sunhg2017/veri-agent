@@ -7,9 +7,9 @@ import com.songhg.veri.agent.common.audit.AuditLogWriter;
 import com.songhg.veri.agent.management.application.port.SecretReferenceOperations;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
-import com.songhg.veri.agent.management.application.command.CreateSecretReferenceRequest;
-import com.songhg.veri.agent.management.application.command.DisableSecretReferenceRequest;
-import com.songhg.veri.agent.management.application.command.RotateSecretReferenceRequest;
+import com.songhg.veri.agent.management.application.command.CreateSecretReferenceCommand;
+import com.songhg.veri.agent.management.application.command.DisableSecretReferenceCommand;
+import com.songhg.veri.agent.management.application.command.RotateSecretReferenceCommand;
 import com.songhg.veri.agent.management.application.view.SecretReferenceView;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -36,7 +36,7 @@ final class InMemoryManagementSecretReferenceService implements SecretReferenceO
         return page(secrets, pageQuery);
     }
 
-    public synchronized SecretReferenceView createSecret(CreateSecretReferenceRequest request, AuthUserPrincipal actor) {
+    public synchronized SecretReferenceView createSecret(CreateSecretReferenceCommand request, AuthUserPrincipal actor) {
         String secretRef = request.secretRef().trim();
         if (secrets.stream().anyMatch(secret -> secret.secretRef().equals(secretRef))) {
             throw new BusinessException(ErrorCode.CONFLICT, "密钥引用已存在");
@@ -63,7 +63,7 @@ final class InMemoryManagementSecretReferenceService implements SecretReferenceO
         return view;
     }
 
-    public synchronized SecretReferenceView rotateSecret(RotateSecretReferenceRequest request, AuthUserPrincipal actor) {
+    public synchronized SecretReferenceView rotateSecret(RotateSecretReferenceCommand request, AuthUserPrincipal actor) {
         SecretReferenceView current = requireSecret(request.secretRef());
         if ("REVOKED".equals(current.status())) {
             throw new BusinessException(ErrorCode.INVALID_STATE, "已撤销密钥不可轮换");
@@ -90,7 +90,7 @@ final class InMemoryManagementSecretReferenceService implements SecretReferenceO
         return updated;
     }
 
-    public synchronized SecretReferenceView disableSecret(DisableSecretReferenceRequest request, AuthUserPrincipal actor) {
+    public synchronized SecretReferenceView disableSecret(DisableSecretReferenceCommand request, AuthUserPrincipal actor) {
         SecretReferenceView current = requireSecret(request.secretRef());
         String now = LocalDateTime.now().format(TIME_FORMAT);
         SecretReferenceView updated = new SecretReferenceView(

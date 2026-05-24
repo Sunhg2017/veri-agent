@@ -7,8 +7,8 @@ import com.songhg.veri.agent.common.audit.AuditLogWriter;
 import com.songhg.veri.agent.management.application.port.SettingOperations;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
-import com.songhg.veri.agent.management.application.command.CreateSettingRequest;
-import com.songhg.veri.agent.management.application.command.UpdateSettingRequest;
+import com.songhg.veri.agent.management.application.command.CreateSettingCommand;
+import com.songhg.veri.agent.management.application.command.UpdateSettingCommand;
 import com.songhg.veri.agent.management.application.view.SettingView;
 import java.util.ArrayList;
 import java.util.List;
@@ -43,7 +43,7 @@ final class InMemoryManagementConfigService implements SettingOperations {
         return requireSetting(key);
     }
 
-    public synchronized SettingView createSetting(CreateSettingRequest request, AuthUserPrincipal actor) {
+    public synchronized SettingView createSetting(CreateSettingCommand request, AuthUserPrincipal actor) {
         String key = request.key().trim();
         rejectSensitivePlainSetting(key, request.value());
         if (settings.stream().anyMatch(setting -> setting.key().equals(key))) {
@@ -61,7 +61,7 @@ final class InMemoryManagementConfigService implements SettingOperations {
         return view;
     }
 
-    public synchronized SettingView updateSetting(String key, UpdateSettingRequest request, AuthUserPrincipal actor) {
+    public synchronized SettingView updateSetting(String key, UpdateSettingCommand request, AuthUserPrincipal actor) {
         SettingView current = requireSetting(key);
         rejectSensitivePlainSetting(current.key(), defaultText(request.value(), current.value()));
         SettingView updated = new SettingView(

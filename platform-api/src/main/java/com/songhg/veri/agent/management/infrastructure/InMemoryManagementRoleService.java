@@ -8,8 +8,8 @@ import com.songhg.veri.agent.common.audit.AuditLogWriter;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
 import com.songhg.veri.agent.management.application.security.ManagementAuthorizationGuard;
-import com.songhg.veri.agent.management.application.command.CreateRoleRequest;
-import com.songhg.veri.agent.management.application.command.UpdateRoleRequest;
+import com.songhg.veri.agent.management.application.command.CreateRoleCommand;
+import com.songhg.veri.agent.management.application.command.UpdateRoleCommand;
 import com.songhg.veri.agent.management.application.port.RoleOperations;
 import com.songhg.veri.agent.management.application.view.PermissionView;
 import com.songhg.veri.agent.management.application.view.RoleDetailView;
@@ -81,7 +81,7 @@ final class InMemoryManagementRoleService implements RoleOperations {
         return roleDetail(role);
     }
 
-    public synchronized RoleDetailView createRole(CreateRoleRequest request, AuthUserPrincipal actor) {
+    public synchronized RoleDetailView createRole(CreateRoleCommand request, AuthUserPrincipal actor) {
         String code = request.code().trim();
         if (roles.stream().anyMatch(role -> role.code().equals(code))) {
             throw new BusinessException(ErrorCode.CONFLICT, "角色编码已存在");
@@ -102,7 +102,7 @@ final class InMemoryManagementRoleService implements RoleOperations {
         return roleDetail(view);
     }
 
-    public synchronized RoleDetailView updateRole(String code, UpdateRoleRequest request, AuthUserPrincipal actor) {
+    public synchronized RoleDetailView updateRole(String code, UpdateRoleCommand request, AuthUserPrincipal actor) {
         RoleView current = requireRoleView(code);
         ensureCustomRole(current);
         List<String> nextPermissionCodes = rolePermissions.getOrDefault(current.code(), List.of());

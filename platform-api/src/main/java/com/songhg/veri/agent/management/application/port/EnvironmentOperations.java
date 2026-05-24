@@ -3,9 +3,9 @@ package com.songhg.veri.agent.management.application.port;
 import com.songhg.veri.agent.auth.application.AuthUserPrincipal;
 import com.songhg.veri.agent.common.api.PageQuery;
 import com.songhg.veri.agent.common.api.PageResponse;
-import com.songhg.veri.agent.management.application.command.CreateEnvironmentRequest;
-import com.songhg.veri.agent.management.application.command.ScopedUserRoleRequest;
-import com.songhg.veri.agent.management.application.command.UpdateEnvironmentRequest;
+import com.songhg.veri.agent.management.application.command.CreateEnvironmentCommand;
+import com.songhg.veri.agent.management.application.command.ScopedUserRoleCommand;
+import com.songhg.veri.agent.management.application.command.UpdateEnvironmentCommand;
 import com.songhg.veri.agent.management.application.view.EnvironmentConnectivityCheckView;
 import com.songhg.veri.agent.management.application.view.EnvironmentView;
 import com.songhg.veri.agent.management.application.view.ScopedUserRoleView;
@@ -29,12 +29,12 @@ public interface EnvironmentOperations {
     /**
      * Creates an environment and stores its deployment/connectivity metadata.
      */
-    EnvironmentView createEnvironment(CreateEnvironmentRequest request, AuthUserPrincipal actor);
+    EnvironmentView createEnvironment(CreateEnvironmentCommand request, AuthUserPrincipal actor);
 
     /**
      * Updates environment metadata without performing connectivity probes.
      */
-    EnvironmentView updateEnvironment(String key, UpdateEnvironmentRequest request, AuthUserPrincipal actor);
+    EnvironmentView updateEnvironment(String key, UpdateEnvironmentCommand request, AuthUserPrincipal actor);
 
     /**
      * Applies a lifecycle status selected by the caller after dynamic permission validation.
@@ -61,7 +61,7 @@ public interface EnvironmentOperations {
      */
     ScopedUserRoleView addEnvironmentUser(
             String environmentKey,
-            ScopedUserRoleRequest request,
+            ScopedUserRoleCommand request,
             AuthUserPrincipal actor
     );
 

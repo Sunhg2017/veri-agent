@@ -3,7 +3,7 @@ package com.songhg.veri.agent.management.application.port;
 import com.songhg.veri.agent.auth.application.AuthUserPrincipal;
 import com.songhg.veri.agent.common.api.PageQuery;
 import com.songhg.veri.agent.common.api.PageResponse;
-import com.songhg.veri.agent.management.application.command.UpdateUserRequest;
+import com.songhg.veri.agent.management.application.command.UpdateUserCommand;
 import com.songhg.veri.agent.management.application.view.UserView;
 
 /**
@@ -30,7 +30,7 @@ public interface UserOperations {
     /**
      * Updates editable user profile fields without changing roles or lifecycle status.
      */
-    UserView updateUser(String username, UpdateUserRequest request, AuthUserPrincipal actor);
+    UserView updateUser(String username, UpdateUserCommand request, AuthUserPrincipal actor);
 
     /**
      * Enables a disabled account.

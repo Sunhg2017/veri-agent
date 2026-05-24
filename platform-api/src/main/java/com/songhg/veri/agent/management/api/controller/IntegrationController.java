@@ -10,7 +10,7 @@ import com.songhg.veri.agent.management.api.request.CreateIntegrationRequest;
 import com.songhg.veri.agent.management.api.request.ManagementPageRequest;
 import com.songhg.veri.agent.management.api.request.StatusChangeRequest;
 import com.songhg.veri.agent.management.api.request.UpdateIntegrationRequest;
-import com.songhg.veri.agent.management.api.response.IntegrationView;
+import com.songhg.veri.agent.management.api.response.IntegrationResponse;
 import com.songhg.veri.agent.management.application.port.IntegrationOperations;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -43,7 +43,7 @@ public class IntegrationController {
 
     @GetMapping("/integrations")
     @RequirePermission(PermissionCodes.CONFIG_READ)
-    public PageResponse<IntegrationView> integrations(
+    public PageResponse<IntegrationResponse> integrations(
             @Valid ManagementPageRequest pageRequest,
             @AuthenticationPrincipal AuthUserPrincipal principal
     ) {
@@ -53,7 +53,7 @@ public class IntegrationController {
     @PostMapping("/integrations")
     @ResponseStatus(HttpStatus.CREATED)
     @RequirePermission(PermissionCodes.CONFIG_EDIT)
-    public IntegrationView createIntegration(
+    public IntegrationResponse createIntegration(
             @Valid @RequestBody CreateIntegrationRequest request,
             @AuthenticationPrincipal AuthUserPrincipal principal
     ) {
@@ -62,7 +62,7 @@ public class IntegrationController {
 
     @GetMapping("/integrations/{key}")
     @RequirePermission(PermissionCodes.CONFIG_READ)
-    public IntegrationView integration(
+    public IntegrationResponse integration(
             @PathVariable String key,
             @AuthenticationPrincipal AuthUserPrincipal principal
     ) {
@@ -71,7 +71,7 @@ public class IntegrationController {
 
     @PatchMapping("/integrations/{key}")
     @RequirePermission(PermissionCodes.CONFIG_EDIT)
-    public IntegrationView updateIntegration(
+    public IntegrationResponse updateIntegration(
             @PathVariable String key,
             @Valid @RequestBody UpdateIntegrationRequest request,
             @AuthenticationPrincipal AuthUserPrincipal principal
@@ -81,7 +81,7 @@ public class IntegrationController {
 
     @PatchMapping("/integrations/{key}/status")
     @RequirePermission(PermissionCodes.CONFIG_EDIT)
-    public IntegrationView changeIntegrationStatus(
+    public IntegrationResponse changeIntegrationStatus(
             @PathVariable String key,
             @Valid @RequestBody StatusChangeRequest request,
             @AuthenticationPrincipal AuthUserPrincipal principal

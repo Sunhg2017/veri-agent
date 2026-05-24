@@ -71,6 +71,62 @@ class ModuleLayerDependencyTest {
     }
 
     @Test
+    void managementApiMapperDoesNotUseFullyQualifiedProjectTypes() throws Exception {
+        Path mapper = Path.of("src/main/java/com/songhg/veri/agent/management/api/mapper/ManagementApiMapper.java");
+
+        assertThat(containsFullyQualifiedProjectTypeOutsideImports(mapper))
+                .as("management API mapper must rely on imports; FQCNs hide DTO naming collisions")
+                .isFalse();
+    }
+
+    @Test
+    void managementApplicationCommandsUseCommandSuffix() throws Exception {
+        Path commandRoot = Path.of("src/main/java/com/songhg/veri/agent/management/application/command");
+        List<Path> misplacedRequests;
+        try (var files = Files.list(commandRoot)) {
+            misplacedRequests = files
+                    .filter(path -> path.toString().endsWith("Request.java"))
+                    .toList();
+        }
+
+        assertThat(misplacedRequests)
+                .as("application write contracts must be commands, leaving Request names to HTTP DTOs")
+                .isEmpty();
+    }
+
+    @Test
+    void managementApiResponsesUseResponseSuffix() throws Exception {
+        Path responseRoot = Path.of("src/main/java/com/songhg/veri/agent/management/api/response");
+        List<Path> misplacedViews;
+        try (var files = Files.list(responseRoot)) {
+            misplacedViews = files
+                    .filter(path -> path.toString().endsWith("View.java"))
+                    .toList();
+        }
+
+        assertThat(misplacedViews)
+                .as("HTTP response DTOs must use Response names so application View types remain importable")
+                .isEmpty();
+    }
+
+    @Test
+    void managementPostgresServicesDoNotUseClassLevelTransactions() throws Exception {
+        Path infrastructureRoot = Path.of("src/main/java/com/songhg/veri/agent/management/infrastructure");
+        List<Path> violatedFiles;
+        try (var files = Files.walk(infrastructureRoot)) {
+            violatedFiles = files
+                    .filter(path -> path.getFileName().toString().startsWith("PostgresManagement"))
+                    .filter(path -> path.toString().endsWith(".java"))
+                    .filter(this::usesClassLevelTransactional)
+                    .toList();
+        }
+
+        assertThat(violatedFiles)
+                .as("management Postgres implementations must put transactions on use-case methods")
+                .isEmpty();
+    }
+
+    @Test
     void nonAuthControllersDoNotReachIntoAuthorizationInternals() throws Exception {
         Path sourceRoot = Path.of("src/main/java/com/songhg/veri/agent");
         List<Path> violatedFiles;
@@ -177,6 +233,39 @@ class ModuleLayerDependencyTest {
         try {
             String content = Files.readString(path);
             return content.contains("AuthorizationService") || content.contains("PlatformAccessDeniedException");
+        } catch (Exception exception) {
+            throw new IllegalStateException("Cannot inspect " + path, exception);
+        }
+    }
+
+    private boolean containsFullyQualifiedProjectTypeOutsideImports(Path path) {
+        try {
+            return Files.readAllLines(path).stream()
+                    .map(String::trim)
+                    .filter(line -> !line.startsWith("package "))
+                    .filter(line -> !line.startsWith("import "))
+                    .anyMatch(line -> line.contains("com.songhg.veri.agent."));
+        } catch (Exception exception) {
+            throw new IllegalStateException("Cannot inspect " + path, exception);
+        }
+    }
+
+    private boolean usesClassLevelTransactional(Path path) {
+        try {
+            List<String> lines = Files.readAllLines(path);
+            int classLine = -1;
+            for (int index = 0; index < lines.size(); index++) {
+                if (lines.get(index).contains(" class ")) {
+                    classLine = index;
+                    break;
+                }
+            }
+            if (classLine < 0) {
+                return false;
+            }
+            return lines.subList(0, classLine).stream()
+                    .map(String::trim)
+                    .anyMatch(line -> line.startsWith("@Transactional"));
         } catch (Exception exception) {
             throw new IllegalStateException("Cannot inspect " + path, exception);
         }

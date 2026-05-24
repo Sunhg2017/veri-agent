@@ -7,9 +7,9 @@ import com.songhg.veri.agent.common.audit.AuditLogWriter;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
 import com.songhg.veri.agent.management.application.security.ManagementAuthorizationGuard;
-import com.songhg.veri.agent.management.application.command.CreateEnvironmentRequest;
-import com.songhg.veri.agent.management.application.command.ScopedUserRoleRequest;
-import com.songhg.veri.agent.management.application.command.UpdateEnvironmentRequest;
+import com.songhg.veri.agent.management.application.command.CreateEnvironmentCommand;
+import com.songhg.veri.agent.management.application.command.ScopedUserRoleCommand;
+import com.songhg.veri.agent.management.application.command.UpdateEnvironmentCommand;
 import com.songhg.veri.agent.management.application.view.EnvironmentConnectivityCheckView;
 import com.songhg.veri.agent.management.application.view.EnvironmentView;
 import com.songhg.veri.agent.management.application.view.ScopedUserRoleView;
@@ -60,7 +60,7 @@ final class InMemoryManagementEnvironmentService implements EnvironmentOperation
         return requireEnvironment(key);
     }
 
-    public synchronized EnvironmentView createEnvironment(CreateEnvironmentRequest request, AuthUserPrincipal actor) {
+    public synchronized EnvironmentView createEnvironment(CreateEnvironmentCommand request, AuthUserPrincipal actor) {
         String name = request.name().trim();
         String endpoint = request.apiBaseUrl() == null || request.apiBaseUrl().isBlank()
                 ? name + ".local"
@@ -71,7 +71,7 @@ final class InMemoryManagementEnvironmentService implements EnvironmentOperation
         return view;
     }
 
-    public synchronized EnvironmentView updateEnvironment(String key, UpdateEnvironmentRequest request, AuthUserPrincipal actor) {
+    public synchronized EnvironmentView updateEnvironment(String key, UpdateEnvironmentCommand request, AuthUserPrincipal actor) {
         EnvironmentView current = requireEnvironment(key);
         if ("已停用".equals(current.status())) {
             throw new BusinessException(ErrorCode.INVALID_STATE, "当前环境状态不允许编辑");
@@ -134,7 +134,7 @@ final class InMemoryManagementEnvironmentService implements EnvironmentOperation
 
     public synchronized ScopedUserRoleView addEnvironmentUser(
             String environmentKey,
-            ScopedUserRoleRequest request,
+            ScopedUserRoleCommand request,
             AuthUserPrincipal actor
     ) {
         requireEnvironment(environmentKey);

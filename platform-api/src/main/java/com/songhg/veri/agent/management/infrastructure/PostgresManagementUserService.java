@@ -7,7 +7,7 @@ import com.songhg.veri.agent.common.audit.AuditLogWriter;
 import com.songhg.veri.agent.management.application.port.UserOperations;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
-import com.songhg.veri.agent.management.application.command.UpdateUserRequest;
+import com.songhg.veri.agent.management.application.command.UpdateUserCommand;
 import com.songhg.veri.agent.management.application.view.UserView;
 import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapper;
 import java.util.HashMap;
@@ -25,7 +25,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Profile("db")
 @Service
-@Transactional
 class PostgresManagementUserService implements UserOperations {
 
     private final ManagementMapper mapper;
@@ -42,14 +41,17 @@ class PostgresManagementUserService implements UserOperations {
         this.passwordEncoder = passwordEncoder;
     }
 
+    @Transactional(readOnly = true)
     public PageResponse<UserView> users(PageQuery pageQuery) {
         return page(mapper::listUsers, mapper::countUsers, pageQuery, values());
     }
 
+    @Transactional(readOnly = true)
     public UserView user(String username) {
         return userByUsername(username);
     }
 
+    @Transactional
     public UserView createUser(String username, AuthUserPrincipal actor) {
         UUID userId = UUID.randomUUID();
         try {
@@ -62,7 +64,8 @@ class PostgresManagementUserService implements UserOperations {
         return new UserView(username, username, "", "Tester", "未分配", "待激活", "尚未登录");
     }
 
-    public UserView updateUser(String username, UpdateUserRequest request, AuthUserPrincipal actor) {
+    @Transactional
+    public UserView updateUser(String username, UpdateUserCommand request, AuthUserPrincipal actor) {
         UserView before = userByUsername(username);
         try {
             int rows = update(mapper::updateUser, actor, values(
@@ -80,12 +83,14 @@ class PostgresManagementUserService implements UserOperations {
         return updated;
     }
 
+    @Transactional
     public UserView enableUser(String username, AuthUserPrincipal actor) {
         ensureUserUpdated(update(mapper::enableUser, actor, values("username", username)));
         audit(actor, "启用用户", "user", username, username);
         return userByUsername(username);
     }
 
+    @Transactional
     public UserView disableUser(String username, AuthUserPrincipal actor) {
         if (actor.username().equals(username)) {
             throw new BusinessException(ErrorCode.INVALID_STATE, "不能停用当前登录账号");
@@ -95,6 +100,7 @@ class PostgresManagementUserService implements UserOperations {
         return userByUsername(username);
     }
 
+    @Transactional
     public UserView lockUser(String username, AuthUserPrincipal actor) {
         if (actor.username().equals(username)) {
             throw new BusinessException(ErrorCode.INVALID_STATE, "不能锁定当前登录账号");
@@ -104,12 +110,14 @@ class PostgresManagementUserService implements UserOperations {
         return userByUsername(username);
     }
 
+    @Transactional
     public UserView unlockUser(String username, AuthUserPrincipal actor) {
         ensureUserUpdated(update(mapper::unlockUser, actor, values("username", username)));
         audit(actor, "解锁用户", "user", username, username);
         return userByUsername(username);
     }
 
+    @Transactional
     public UserView resetUserPassword(String username, String newPassword, AuthUserPrincipal actor) {
         ensureUserUpdated(update(mapper::resetUserPassword, actor, values(
                 "username", username,

@@ -11,7 +11,7 @@ import com.songhg.veri.agent.management.api.request.ManagementPageRequest;
 import com.songhg.veri.agent.management.api.request.ResetPasswordRequest;
 import com.songhg.veri.agent.management.api.request.RoleBindingRequest;
 import com.songhg.veri.agent.management.api.request.UpdateUserRequest;
-import com.songhg.veri.agent.management.api.response.UserView;
+import com.songhg.veri.agent.management.api.response.UserResponse;
 import com.songhg.veri.agent.management.application.port.RoleOperations;
 import com.songhg.veri.agent.management.application.port.UserOperations;
 import jakarta.validation.Valid;
@@ -51,7 +51,7 @@ public class UserController {
 
     @GetMapping("/users")
     @RequirePermission(PermissionCodes.USER_READ)
-    public PageResponse<UserView> users(
+    public PageResponse<UserResponse> users(
             @Valid ManagementPageRequest pageRequest,
             @AuthenticationPrincipal AuthUserPrincipal principal
     ) {
@@ -60,7 +60,7 @@ public class UserController {
 
     @GetMapping("/users/{username}")
     @RequirePermission(PermissionCodes.USER_READ)
-    public UserView user(
+    public UserResponse user(
             @PathVariable String username,
             @AuthenticationPrincipal AuthUserPrincipal principal
     ) {
@@ -69,7 +69,7 @@ public class UserController {
 
     @PatchMapping("/users/{username}")
     @RequirePermission(PermissionCodes.USER_EDIT)
-    public UserView updateUser(
+    public UserResponse updateUser(
             @PathVariable String username,
             @Valid @RequestBody UpdateUserRequest request,
             @AuthenticationPrincipal AuthUserPrincipal principal
@@ -80,7 +80,7 @@ public class UserController {
     @PostMapping("/users")
     @ResponseStatus(HttpStatus.CREATED)
     @RequirePermission(PermissionCodes.USER_CREATE)
-    public UserView createUser(
+    public UserResponse createUser(
             @Valid @RequestBody CreateNamedRequest request,
             @AuthenticationPrincipal AuthUserPrincipal principal
     ) {
@@ -89,7 +89,7 @@ public class UserController {
 
     @PostMapping("/users/{username}/enable")
     @RequirePermission(PermissionCodes.USER_ENABLE)
-    public UserView enableUser(
+    public UserResponse enableUser(
             @PathVariable String username,
             @AuthenticationPrincipal AuthUserPrincipal principal
     ) {
@@ -98,7 +98,7 @@ public class UserController {
 
     @PostMapping("/users/{username}/disable")
     @RequirePermission(PermissionCodes.USER_DISABLE)
-    public UserView disableUser(
+    public UserResponse disableUser(
             @PathVariable String username,
             @AuthenticationPrincipal AuthUserPrincipal principal
     ) {
@@ -107,7 +107,7 @@ public class UserController {
 
     @PostMapping("/users/{username}/lock")
     @RequirePermission(PermissionCodes.USER_LOCK)
-    public UserView lockUser(
+    public UserResponse lockUser(
             @PathVariable String username,
             @AuthenticationPrincipal AuthUserPrincipal principal
     ) {
@@ -116,7 +116,7 @@ public class UserController {
 
     @PostMapping("/users/{username}/unlock")
     @RequirePermission(PermissionCodes.USER_UNLOCK)
-    public UserView unlockUser(
+    public UserResponse unlockUser(
             @PathVariable String username,
             @AuthenticationPrincipal AuthUserPrincipal principal
     ) {
@@ -125,7 +125,7 @@ public class UserController {
 
     @PostMapping("/users/{username}/reset-password")
     @RequirePermission(PermissionCodes.USER_RESET_PASSWORD)
-    public UserView resetUserPassword(
+    public UserResponse resetUserPassword(
             @PathVariable String username,
             @Valid @RequestBody ResetPasswordRequest request,
             @AuthenticationPrincipal AuthUserPrincipal principal
@@ -136,7 +136,7 @@ public class UserController {
     @PostMapping("/users/{username}/roles")
     @RequirePermission(PermissionCodes.USER_ASSIGN_ROLE)
     @RequirePermission(PermissionCodes.ROLE_BIND)
-    public UserView assignUserRole(
+    public UserResponse assignUserRole(
             @PathVariable String username,
             @Valid @RequestBody RoleBindingRequest request,
             @AuthenticationPrincipal AuthUserPrincipal principal
@@ -147,7 +147,7 @@ public class UserController {
     @PostMapping("/users/{username}/roles/unassign")
     @RequirePermission(PermissionCodes.USER_ASSIGN_ROLE)
     @RequirePermission(PermissionCodes.ROLE_UNBIND)
-    public UserView unassignUserRole(
+    public UserResponse unassignUserRole(
             @PathVariable String username,
             @Valid @RequestBody RoleBindingRequest request,
             @AuthenticationPrincipal AuthUserPrincipal principal

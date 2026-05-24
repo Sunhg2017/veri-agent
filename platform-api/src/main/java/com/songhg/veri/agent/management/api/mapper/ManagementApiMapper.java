@@ -20,23 +20,59 @@ import com.songhg.veri.agent.management.api.request.UpdateProjectRequest;
 import com.songhg.veri.agent.management.api.request.UpdateRoleRequest;
 import com.songhg.veri.agent.management.api.request.UpdateSettingRequest;
 import com.songhg.veri.agent.management.api.request.UpdateUserRequest;
-import com.songhg.veri.agent.management.api.response.ApplicationView;
-import com.songhg.veri.agent.management.api.response.AuditLogView;
-import com.songhg.veri.agent.management.api.response.AuditOutboxView;
-import com.songhg.veri.agent.management.api.response.DepartmentView;
-import com.songhg.veri.agent.management.api.response.EnvironmentConnectivityCheckView;
-import com.songhg.veri.agent.management.api.response.EnvironmentConnectivityEndpointView;
-import com.songhg.veri.agent.management.api.response.EnvironmentView;
-import com.songhg.veri.agent.management.api.response.IntegrationView;
-import com.songhg.veri.agent.management.api.response.PermissionView;
-import com.songhg.veri.agent.management.api.response.ProjectMemberView;
-import com.songhg.veri.agent.management.api.response.ProjectView;
-import com.songhg.veri.agent.management.api.response.RoleDetailView;
-import com.songhg.veri.agent.management.api.response.RoleView;
-import com.songhg.veri.agent.management.api.response.ScopedUserRoleView;
-import com.songhg.veri.agent.management.api.response.SecretReferenceView;
-import com.songhg.veri.agent.management.api.response.SettingView;
-import com.songhg.veri.agent.management.api.response.UserView;
+import com.songhg.veri.agent.management.api.response.ApplicationResponse;
+import com.songhg.veri.agent.management.api.response.AuditLogResponse;
+import com.songhg.veri.agent.management.api.response.AuditOutboxResponse;
+import com.songhg.veri.agent.management.api.response.DepartmentResponse;
+import com.songhg.veri.agent.management.api.response.EnvironmentConnectivityCheckResponse;
+import com.songhg.veri.agent.management.api.response.EnvironmentConnectivityEndpointResponse;
+import com.songhg.veri.agent.management.api.response.EnvironmentResponse;
+import com.songhg.veri.agent.management.api.response.IntegrationResponse;
+import com.songhg.veri.agent.management.api.response.PermissionResponse;
+import com.songhg.veri.agent.management.api.response.ProjectMemberResponse;
+import com.songhg.veri.agent.management.api.response.ProjectResponse;
+import com.songhg.veri.agent.management.api.response.RoleDetailResponse;
+import com.songhg.veri.agent.management.api.response.RoleResponse;
+import com.songhg.veri.agent.management.api.response.ScopedUserRoleResponse;
+import com.songhg.veri.agent.management.api.response.SecretReferenceResponse;
+import com.songhg.veri.agent.management.api.response.SettingResponse;
+import com.songhg.veri.agent.management.api.response.UserResponse;
+import com.songhg.veri.agent.management.application.command.CreateApplicationCommand;
+import com.songhg.veri.agent.management.application.command.CreateEnvironmentCommand;
+import com.songhg.veri.agent.management.application.command.CreateIntegrationCommand;
+import com.songhg.veri.agent.management.application.command.CreateProjectCommand;
+import com.songhg.veri.agent.management.application.command.CreateRoleCommand;
+import com.songhg.veri.agent.management.application.command.CreateSecretReferenceCommand;
+import com.songhg.veri.agent.management.application.command.CreateSettingCommand;
+import com.songhg.veri.agent.management.application.command.DisableSecretReferenceCommand;
+import com.songhg.veri.agent.management.application.command.ProjectMemberCommand;
+import com.songhg.veri.agent.management.application.command.RotateSecretReferenceCommand;
+import com.songhg.veri.agent.management.application.command.ScopedUserRoleCommand;
+import com.songhg.veri.agent.management.application.command.UpdateApplicationCommand;
+import com.songhg.veri.agent.management.application.command.UpdateDepartmentCommand;
+import com.songhg.veri.agent.management.application.command.UpdateEnvironmentCommand;
+import com.songhg.veri.agent.management.application.command.UpdateIntegrationCommand;
+import com.songhg.veri.agent.management.application.command.UpdateProjectCommand;
+import com.songhg.veri.agent.management.application.command.UpdateRoleCommand;
+import com.songhg.veri.agent.management.application.command.UpdateSettingCommand;
+import com.songhg.veri.agent.management.application.command.UpdateUserCommand;
+import com.songhg.veri.agent.management.application.view.ApplicationView;
+import com.songhg.veri.agent.management.application.view.AuditLogView;
+import com.songhg.veri.agent.management.application.view.AuditOutboxView;
+import com.songhg.veri.agent.management.application.view.DepartmentView;
+import com.songhg.veri.agent.management.application.view.EnvironmentConnectivityCheckView;
+import com.songhg.veri.agent.management.application.view.EnvironmentConnectivityEndpointView;
+import com.songhg.veri.agent.management.application.view.EnvironmentView;
+import com.songhg.veri.agent.management.application.view.IntegrationView;
+import com.songhg.veri.agent.management.application.view.PermissionView;
+import com.songhg.veri.agent.management.application.view.ProjectMemberView;
+import com.songhg.veri.agent.management.application.view.ProjectView;
+import com.songhg.veri.agent.management.application.view.RoleDetailView;
+import com.songhg.veri.agent.management.application.view.RoleView;
+import com.songhg.veri.agent.management.application.view.ScopedUserRoleView;
+import com.songhg.veri.agent.management.application.view.SecretReferenceView;
+import com.songhg.veri.agent.management.application.view.SettingView;
+import com.songhg.veri.agent.management.application.view.UserView;
 import java.util.function.Function;
 import org.mapstruct.Mapper;
 import org.mapstruct.ReportingPolicy;
@@ -48,185 +84,131 @@ import org.mapstruct.ReportingPolicy;
 @Mapper(componentModel = "spring", unmappedTargetPolicy = ReportingPolicy.ERROR)
 public interface ManagementApiMapper {
 
-    com.songhg.veri.agent.management.application.command.CreateApplicationRequest toCommand(
-            CreateApplicationRequest request
-    );
+    CreateApplicationCommand toCommand(CreateApplicationRequest request);
 
-    com.songhg.veri.agent.management.application.command.UpdateApplicationRequest toCommand(
-            UpdateApplicationRequest request
-    );
+    UpdateApplicationCommand toCommand(UpdateApplicationRequest request);
 
-    com.songhg.veri.agent.management.application.command.CreateEnvironmentRequest toCommand(
-            CreateEnvironmentRequest request
-    );
+    CreateEnvironmentCommand toCommand(CreateEnvironmentRequest request);
 
-    com.songhg.veri.agent.management.application.command.UpdateEnvironmentRequest toCommand(
-            UpdateEnvironmentRequest request
-    );
+    UpdateEnvironmentCommand toCommand(UpdateEnvironmentRequest request);
 
-    com.songhg.veri.agent.management.application.command.CreateIntegrationRequest toCommand(
-            CreateIntegrationRequest request
-    );
+    CreateIntegrationCommand toCommand(CreateIntegrationRequest request);
 
-    com.songhg.veri.agent.management.application.command.UpdateIntegrationRequest toCommand(
-            UpdateIntegrationRequest request
-    );
+    UpdateIntegrationCommand toCommand(UpdateIntegrationRequest request);
 
-    com.songhg.veri.agent.management.application.command.CreateProjectRequest toCommand(CreateProjectRequest request);
+    CreateProjectCommand toCommand(CreateProjectRequest request);
 
-    com.songhg.veri.agent.management.application.command.UpdateProjectRequest toCommand(UpdateProjectRequest request);
+    UpdateProjectCommand toCommand(UpdateProjectRequest request);
 
-    com.songhg.veri.agent.management.application.command.CreateRoleRequest toCommand(CreateRoleRequest request);
+    CreateRoleCommand toCommand(CreateRoleRequest request);
 
-    com.songhg.veri.agent.management.application.command.UpdateRoleRequest toCommand(UpdateRoleRequest request);
+    UpdateRoleCommand toCommand(UpdateRoleRequest request);
 
-    com.songhg.veri.agent.management.application.command.ProjectMemberRequest toCommand(ProjectMemberRequest request);
+    ProjectMemberCommand toCommand(ProjectMemberRequest request);
 
-    com.songhg.veri.agent.management.application.command.ScopedUserRoleRequest toCommand(
-            ScopedUserRoleRequest request
-    );
+    ScopedUserRoleCommand toCommand(ScopedUserRoleRequest request);
 
-    com.songhg.veri.agent.management.application.command.CreateSettingRequest toCommand(CreateSettingRequest request);
+    CreateSettingCommand toCommand(CreateSettingRequest request);
 
-    com.songhg.veri.agent.management.application.command.UpdateSettingRequest toCommand(UpdateSettingRequest request);
+    UpdateSettingCommand toCommand(UpdateSettingRequest request);
 
-    com.songhg.veri.agent.management.application.command.UpdateDepartmentRequest toCommand(
-            UpdateDepartmentRequest request
-    );
+    UpdateDepartmentCommand toCommand(UpdateDepartmentRequest request);
 
-    com.songhg.veri.agent.management.application.command.UpdateUserRequest toCommand(UpdateUserRequest request);
+    UpdateUserCommand toCommand(UpdateUserRequest request);
 
-    com.songhg.veri.agent.management.application.command.CreateSecretReferenceRequest toCommand(
-            CreateSecretReferenceRequest request
-    );
+    CreateSecretReferenceCommand toCommand(CreateSecretReferenceRequest request);
 
-    com.songhg.veri.agent.management.application.command.RotateSecretReferenceRequest toCommand(
-            RotateSecretReferenceRequest request
-    );
+    RotateSecretReferenceCommand toCommand(RotateSecretReferenceRequest request);
 
-    com.songhg.veri.agent.management.application.command.DisableSecretReferenceRequest toCommand(
-            DisableSecretReferenceRequest request
-    );
+    DisableSecretReferenceCommand toCommand(DisableSecretReferenceRequest request);
 
-    DepartmentView toResponse(com.songhg.veri.agent.management.application.view.DepartmentView view);
+    DepartmentResponse toResponse(DepartmentView view);
 
-    UserView toResponse(com.songhg.veri.agent.management.application.view.UserView view);
+    UserResponse toResponse(UserView view);
 
-    RoleView toResponse(com.songhg.veri.agent.management.application.view.RoleView view);
+    RoleResponse toResponse(RoleView view);
 
-    RoleDetailView toResponse(com.songhg.veri.agent.management.application.view.RoleDetailView view);
+    RoleDetailResponse toResponse(RoleDetailView view);
 
-    PermissionView toResponse(com.songhg.veri.agent.management.application.view.PermissionView view);
+    PermissionResponse toResponse(PermissionView view);
 
-    ProjectView toResponse(com.songhg.veri.agent.management.application.view.ProjectView view);
+    ProjectResponse toResponse(ProjectView view);
 
-    ProjectMemberView toResponse(com.songhg.veri.agent.management.application.view.ProjectMemberView view);
+    ProjectMemberResponse toResponse(ProjectMemberView view);
 
-    ApplicationView toResponse(com.songhg.veri.agent.management.application.view.ApplicationView view);
+    ApplicationResponse toResponse(ApplicationView view);
 
-    EnvironmentView toResponse(com.songhg.veri.agent.management.application.view.EnvironmentView view);
+    EnvironmentResponse toResponse(EnvironmentView view);
 
-    EnvironmentConnectivityCheckView toResponse(
-            com.songhg.veri.agent.management.application.view.EnvironmentConnectivityCheckView view
-    );
+    EnvironmentConnectivityCheckResponse toResponse(EnvironmentConnectivityCheckView view);
 
-    EnvironmentConnectivityEndpointView toResponse(
-            com.songhg.veri.agent.management.application.view.EnvironmentConnectivityEndpointView view
-    );
+    EnvironmentConnectivityEndpointResponse toResponse(EnvironmentConnectivityEndpointView view);
 
-    ScopedUserRoleView toResponse(com.songhg.veri.agent.management.application.view.ScopedUserRoleView view);
+    ScopedUserRoleResponse toResponse(ScopedUserRoleView view);
 
-    IntegrationView toResponse(com.songhg.veri.agent.management.application.view.IntegrationView view);
+    IntegrationResponse toResponse(IntegrationView view);
 
-    AuditLogView toResponse(com.songhg.veri.agent.management.application.view.AuditLogView view);
+    AuditLogResponse toResponse(AuditLogView view);
 
-    AuditOutboxView toResponse(com.songhg.veri.agent.management.application.view.AuditOutboxView view);
+    AuditOutboxResponse toResponse(AuditOutboxView view);
 
-    SettingView toResponse(com.songhg.veri.agent.management.application.view.SettingView view);
+    SettingResponse toResponse(SettingView view);
 
-    SecretReferenceView toResponse(com.songhg.veri.agent.management.application.view.SecretReferenceView view);
+    SecretReferenceResponse toResponse(SecretReferenceView view);
 
-    default PageResponse<DepartmentView> toDepartmentPage(
-            PageResponse<com.songhg.veri.agent.management.application.view.DepartmentView> page
-    ) {
+    default PageResponse<DepartmentResponse> toDepartmentPage(PageResponse<DepartmentView> page) {
         return mapPage(page, item -> toResponse(item));
     }
 
-    default PageResponse<UserView> toUserPage(
-            PageResponse<com.songhg.veri.agent.management.application.view.UserView> page
-    ) {
+    default PageResponse<UserResponse> toUserPage(PageResponse<UserView> page) {
         return mapPage(page, item -> toResponse(item));
     }
 
-    default PageResponse<RoleView> toRolePage(
-            PageResponse<com.songhg.veri.agent.management.application.view.RoleView> page
-    ) {
+    default PageResponse<RoleResponse> toRolePage(PageResponse<RoleView> page) {
         return mapPage(page, item -> toResponse(item));
     }
 
-    default PageResponse<PermissionView> toPermissionPage(
-            PageResponse<com.songhg.veri.agent.management.application.view.PermissionView> page
-    ) {
+    default PageResponse<PermissionResponse> toPermissionPage(PageResponse<PermissionView> page) {
         return mapPage(page, item -> toResponse(item));
     }
 
-    default PageResponse<ProjectView> toProjectPage(
-            PageResponse<com.songhg.veri.agent.management.application.view.ProjectView> page
-    ) {
+    default PageResponse<ProjectResponse> toProjectPage(PageResponse<ProjectView> page) {
         return mapPage(page, item -> toResponse(item));
     }
 
-    default PageResponse<ProjectMemberView> toProjectMemberPage(
-            PageResponse<com.songhg.veri.agent.management.application.view.ProjectMemberView> page
-    ) {
+    default PageResponse<ProjectMemberResponse> toProjectMemberPage(PageResponse<ProjectMemberView> page) {
         return mapPage(page, item -> toResponse(item));
     }
 
-    default PageResponse<ApplicationView> toApplicationPage(
-            PageResponse<com.songhg.veri.agent.management.application.view.ApplicationView> page
-    ) {
+    default PageResponse<ApplicationResponse> toApplicationPage(PageResponse<ApplicationView> page) {
         return mapPage(page, item -> toResponse(item));
     }
 
-    default PageResponse<ScopedUserRoleView> toScopedUserRolePage(
-            PageResponse<com.songhg.veri.agent.management.application.view.ScopedUserRoleView> page
-    ) {
+    default PageResponse<ScopedUserRoleResponse> toScopedUserRolePage(PageResponse<ScopedUserRoleView> page) {
         return mapPage(page, item -> toResponse(item));
     }
 
-    default PageResponse<EnvironmentView> toEnvironmentPage(
-            PageResponse<com.songhg.veri.agent.management.application.view.EnvironmentView> page
-    ) {
+    default PageResponse<EnvironmentResponse> toEnvironmentPage(PageResponse<EnvironmentView> page) {
         return mapPage(page, item -> toResponse(item));
     }
 
-    default PageResponse<IntegrationView> toIntegrationPage(
-            PageResponse<com.songhg.veri.agent.management.application.view.IntegrationView> page
-    ) {
+    default PageResponse<IntegrationResponse> toIntegrationPage(PageResponse<IntegrationView> page) {
         return mapPage(page, item -> toResponse(item));
     }
 
-    default PageResponse<AuditLogView> toAuditLogPage(
-            PageResponse<com.songhg.veri.agent.management.application.view.AuditLogView> page
-    ) {
+    default PageResponse<AuditLogResponse> toAuditLogPage(PageResponse<AuditLogView> page) {
         return mapPage(page, item -> toResponse(item));
     }
 
-    default PageResponse<AuditOutboxView> toAuditOutboxPage(
-            PageResponse<com.songhg.veri.agent.management.application.view.AuditOutboxView> page
-    ) {
+    default PageResponse<AuditOutboxResponse> toAuditOutboxPage(PageResponse<AuditOutboxView> page) {
         return mapPage(page, item -> toResponse(item));
     }
 
-    default PageResponse<SettingView> toSettingPage(
-            PageResponse<com.songhg.veri.agent.management.application.view.SettingView> page
-    ) {
+    default PageResponse<SettingResponse> toSettingPage(PageResponse<SettingView> page) {
         return mapPage(page, item -> toResponse(item));
     }
 
-    default PageResponse<SecretReferenceView> toSecretReferencePage(
-            PageResponse<com.songhg.veri.agent.management.application.view.SecretReferenceView> page
-    ) {
+    default PageResponse<SecretReferenceResponse> toSecretReferencePage(PageResponse<SecretReferenceView> page) {
         return mapPage(page, item -> toResponse(item));
     }
 

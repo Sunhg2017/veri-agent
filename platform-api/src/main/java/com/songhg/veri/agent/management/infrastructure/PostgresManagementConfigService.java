@@ -8,10 +8,10 @@ import com.songhg.veri.agent.management.application.port.IntegrationOperations;
 import com.songhg.veri.agent.management.application.port.SettingOperations;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
-import com.songhg.veri.agent.management.application.command.CreateIntegrationRequest;
-import com.songhg.veri.agent.management.application.command.CreateSettingRequest;
-import com.songhg.veri.agent.management.application.command.UpdateIntegrationRequest;
-import com.songhg.veri.agent.management.application.command.UpdateSettingRequest;
+import com.songhg.veri.agent.management.application.command.CreateIntegrationCommand;
+import com.songhg.veri.agent.management.application.command.CreateSettingCommand;
+import com.songhg.veri.agent.management.application.command.UpdateIntegrationCommand;
+import com.songhg.veri.agent.management.application.command.UpdateSettingCommand;
 import com.songhg.veri.agent.management.application.view.IntegrationView;
 import com.songhg.veri.agent.management.application.view.SettingView;
 import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapper;
@@ -30,7 +30,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Profile("db")
 @Service
-@Transactional
 class PostgresManagementConfigService implements IntegrationOperations, SettingOperations {
 
     private final ManagementMapper mapper;
@@ -41,15 +40,18 @@ class PostgresManagementConfigService implements IntegrationOperations, SettingO
         this.auditLogWriter = auditLogWriter;
     }
 
+    @Transactional(readOnly = true)
     public PageResponse<IntegrationView> integrations(PageQuery pageQuery) {
         return page(mapper::listIntegrations, mapper::countIntegrations, pageQuery, values());
     }
 
+    @Transactional(readOnly = true)
     public IntegrationView integration(String key) {
         return integrationView(integrationRow(key));
     }
 
-    public IntegrationView createIntegration(CreateIntegrationRequest request, AuthUserPrincipal actor) {
+    @Transactional
+    public IntegrationView createIntegration(CreateIntegrationCommand request, AuthUserPrincipal actor) {
         String key = integrationKey(request.code());
         if (key.isBlank()) {
             key = nextCode("integration");
@@ -72,7 +74,8 @@ class PostgresManagementConfigService implements IntegrationOperations, SettingO
         return created;
     }
 
-    public IntegrationView updateIntegration(String key, UpdateIntegrationRequest request, AuthUserPrincipal actor) {
+    @Transactional
+    public IntegrationView updateIntegration(String key, UpdateIntegrationCommand request, AuthUserPrincipal actor) {
         IntegrationRow current = integrationRow(key);
         String name = defaultText(request.name(), current.name());
         String category = defaultText(request.category(), current.category());
@@ -86,6 +89,7 @@ class PostgresManagementConfigService implements IntegrationOperations, SettingO
         return updated;
     }
 
+    @Transactional
     public IntegrationView changeIntegrationStatus(String key, String status, AuthUserPrincipal actor) {
         if (!List.of("ENABLED", "DISABLED").contains(status)) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "集成配置状态只支持 ENABLED 或 DISABLED");
@@ -97,16 +101,19 @@ class PostgresManagementConfigService implements IntegrationOperations, SettingO
         return updated;
     }
 
+    @Transactional(readOnly = true)
     public PageResponse<SettingView> settings(PageQuery pageQuery) {
         PageResponse<SettingRow> rows = page(mapper::listSettings, mapper::countSettings, pageQuery, values());
         return PageResponse.of(rows.items().stream().map(this::settingView).toList(), pageQuery.index(), pageQuery.size(), rows.total());
     }
 
+    @Transactional(readOnly = true)
     public SettingView setting(String key) {
         return settingView(settingRow(key));
     }
 
-    public SettingView createSetting(CreateSettingRequest request, AuthUserPrincipal actor) {
+    @Transactional
+    public SettingView createSetting(CreateSettingCommand request, AuthUserPrincipal actor) {
         String key = normalizeSearch(request.key());
         rejectSensitivePlainSetting(key, request.value());
         String scopeType = defaultText(request.scopeType(), "SYSTEM");
@@ -125,7 +132,8 @@ class PostgresManagementConfigService implements IntegrationOperations, SettingO
         return created;
     }
 
-    public SettingView updateSetting(String key, UpdateSettingRequest request, AuthUserPrincipal actor) {
+    @Transactional
+    public SettingView updateSetting(String key, UpdateSettingCommand request, AuthUserPrincipal actor) {
         SettingRow current = settingRow(key);
         SettingView currentView = settingView(current);
         String name = defaultText(request.name(), currentView.name());
@@ -142,6 +150,7 @@ class PostgresManagementConfigService implements IntegrationOperations, SettingO
         return updated;
     }
 
+    @Transactional
     public SettingView changeSettingStatus(String key, String status, AuthUserPrincipal actor) {
         if (!List.of("ENABLED", "DISABLED").contains(status)) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "系统设置状态只支持 ENABLED 或 DISABLED");

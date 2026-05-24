@@ -7,7 +7,7 @@ import com.songhg.veri.agent.common.audit.AuditLogWriter;
 import com.songhg.veri.agent.management.application.port.UserOperations;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
-import com.songhg.veri.agent.management.application.command.UpdateUserRequest;
+import com.songhg.veri.agent.management.application.command.UpdateUserCommand;
 import com.songhg.veri.agent.management.application.view.UserView;
 import java.util.ArrayList;
 import java.util.List;
@@ -45,7 +45,7 @@ final class InMemoryManagementUserService implements UserOperations {
         return view;
     }
 
-    public synchronized UserView updateUser(String username, UpdateUserRequest request, AuthUserPrincipal actor) {
+    public synchronized UserView updateUser(String username, UpdateUserCommand request, AuthUserPrincipal actor) {
         UserView current = requireUser(username);
         UserView updated = new UserView(
                 current.username(),

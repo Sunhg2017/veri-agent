@@ -7,7 +7,7 @@ import com.songhg.veri.agent.common.audit.AuditLogWriter;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
 import com.songhg.veri.agent.management.application.security.ManagementAuthorizationGuard;
-import com.songhg.veri.agent.management.application.command.UpdateDepartmentRequest;
+import com.songhg.veri.agent.management.application.command.UpdateDepartmentCommand;
 import com.songhg.veri.agent.management.application.port.DepartmentOperations;
 import com.songhg.veri.agent.management.application.view.DepartmentView;
 import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapper;
@@ -26,7 +26,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Profile("db")
 @Service
-@Transactional
 class PostgresManagementDepartmentService implements DepartmentOperations {
 
     private final ManagementMapper mapper;
@@ -43,10 +42,12 @@ class PostgresManagementDepartmentService implements DepartmentOperations {
         this.authorizationGuard = authorizationGuard;
     }
 
+    @Transactional(readOnly = true)
     public PageResponse<DepartmentView> departments(PageQuery pageQuery) {
         return page(mapper::listDepartments, mapper::countDepartments, pageQuery, values());
     }
 
+    @Transactional
     public DepartmentView createDepartment(String name, AuthUserPrincipal actor) {
         UUID deptId = UUID.randomUUID();
         String code = nextCode("dept");
@@ -65,11 +66,13 @@ class PostgresManagementDepartmentService implements DepartmentOperations {
         return new DepartmentView(name, "总部", actor.displayName(), 0, "同步正常");
     }
 
+    @Transactional(readOnly = true)
     public DepartmentView department(String key) {
         return departmentByKey(key);
     }
 
-    public DepartmentView updateDepartment(String key, UpdateDepartmentRequest request, AuthUserPrincipal actor) {
+    @Transactional
+    public DepartmentView updateDepartment(String key, UpdateDepartmentCommand request, AuthUserPrincipal actor) {
         DepartmentRef department = resolveDepartmentStrict(key);
         ensureEnabled(department.status(), "当前部门状态不允许编辑");
         DepartmentView before = departmentByKey(department.id().toString());
@@ -87,6 +90,7 @@ class PostgresManagementDepartmentService implements DepartmentOperations {
         return updated;
     }
 
+    @Transactional
     public DepartmentView changeDepartmentStatus(String key, String status, AuthUserPrincipal actor) {
         String nextStatus = normalizeEnabledStatus(status, "部门状态不支持");
         authorizationGuard.requireDepartmentStatus(actor, nextStatus);

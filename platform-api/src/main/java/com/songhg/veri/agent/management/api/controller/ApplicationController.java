@@ -11,8 +11,8 @@ import com.songhg.veri.agent.management.api.request.ManagementPageRequest;
 import com.songhg.veri.agent.management.api.request.ScopedUserRoleRequest;
 import com.songhg.veri.agent.management.api.request.StatusChangeRequest;
 import com.songhg.veri.agent.management.api.request.UpdateApplicationRequest;
-import com.songhg.veri.agent.management.api.response.ApplicationView;
-import com.songhg.veri.agent.management.api.response.ScopedUserRoleView;
+import com.songhg.veri.agent.management.api.response.ApplicationResponse;
+import com.songhg.veri.agent.management.api.response.ScopedUserRoleResponse;
 import com.songhg.veri.agent.management.application.port.ApplicationOperations;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -48,7 +48,7 @@ public class ApplicationController {
 
     @GetMapping("/applications")
     @RequirePermission(PermissionCodes.APPLICATION_READ)
-    public PageResponse<ApplicationView> applications(
+    public PageResponse<ApplicationResponse> applications(
             @Valid ManagementPageRequest pageRequest,
             @AuthenticationPrincipal AuthUserPrincipal principal
     ) {
@@ -58,7 +58,7 @@ public class ApplicationController {
     @PostMapping("/applications")
     @ResponseStatus(HttpStatus.CREATED)
     @RequirePermission(PermissionCodes.APPLICATION_CREATE)
-    public ApplicationView createApplication(
+    public ApplicationResponse createApplication(
             @Valid @RequestBody CreateApplicationRequest request,
             @AuthenticationPrincipal AuthUserPrincipal principal
     ) {
@@ -67,7 +67,7 @@ public class ApplicationController {
 
     @GetMapping("/applications/{key}")
     @RequirePermission(PermissionCodes.APPLICATION_READ)
-    public ApplicationView application(
+    public ApplicationResponse application(
             @PathVariable String key,
             @AuthenticationPrincipal AuthUserPrincipal principal
     ) {
@@ -76,7 +76,7 @@ public class ApplicationController {
 
     @PatchMapping("/applications/{key}")
     @RequirePermission(PermissionCodes.APPLICATION_EDIT)
-    public ApplicationView updateApplication(
+    public ApplicationResponse updateApplication(
             @PathVariable String key,
             @Valid @RequestBody UpdateApplicationRequest request,
             @AuthenticationPrincipal AuthUserPrincipal principal
@@ -85,7 +85,7 @@ public class ApplicationController {
     }
 
     @PatchMapping("/applications/{key}/status")
-    public ApplicationView changeApplicationStatus(
+    public ApplicationResponse changeApplicationStatus(
             @PathVariable String key,
             @Valid @RequestBody StatusChangeRequest request,
             @AuthenticationPrincipal AuthUserPrincipal principal
@@ -95,7 +95,7 @@ public class ApplicationController {
 
     @GetMapping("/applications/{key}/owners")
     @RequirePermission(PermissionCodes.APPLICATION_READ)
-    public PageResponse<ScopedUserRoleView> applicationOwners(
+    public PageResponse<ScopedUserRoleResponse> applicationOwners(
             @PathVariable String key,
             @Valid ManagementPageRequest pageRequest,
             @AuthenticationPrincipal AuthUserPrincipal principal
@@ -106,7 +106,7 @@ public class ApplicationController {
     @PostMapping("/applications/{key}/owners")
     @RequirePermission(PermissionCodes.APPLICATION_OWNER_MANAGE)
     @RequirePermission(PermissionCodes.ROLE_BIND)
-    public ScopedUserRoleView addApplicationOwner(
+    public ScopedUserRoleResponse addApplicationOwner(
             @PathVariable String key,
             @Valid @RequestBody ScopedUserRoleRequest request,
             @AuthenticationPrincipal AuthUserPrincipal principal
@@ -117,7 +117,7 @@ public class ApplicationController {
     @PostMapping("/applications/{key}/owners/{username}/remove")
     @RequirePermission(PermissionCodes.APPLICATION_OWNER_MANAGE)
     @RequirePermission(PermissionCodes.ROLE_UNBIND)
-    public ScopedUserRoleView removeApplicationOwner(
+    public ScopedUserRoleResponse removeApplicationOwner(
             @PathVariable String key,
             @PathVariable String username,
             @AuthenticationPrincipal AuthUserPrincipal principal

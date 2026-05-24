@@ -10,9 +10,9 @@ import com.songhg.veri.agent.management.api.request.CreateRoleRequest;
 import com.songhg.veri.agent.management.api.request.ManagementPageRequest;
 import com.songhg.veri.agent.management.api.request.StatusChangeRequest;
 import com.songhg.veri.agent.management.api.request.UpdateRoleRequest;
-import com.songhg.veri.agent.management.api.response.PermissionView;
-import com.songhg.veri.agent.management.api.response.RoleDetailView;
-import com.songhg.veri.agent.management.api.response.RoleView;
+import com.songhg.veri.agent.management.api.response.PermissionResponse;
+import com.songhg.veri.agent.management.api.response.RoleDetailResponse;
+import com.songhg.veri.agent.management.api.response.RoleResponse;
 import com.songhg.veri.agent.management.application.port.RoleOperations;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -48,7 +48,7 @@ public class RoleController {
 
     @GetMapping("/roles")
     @RequirePermission(PermissionCodes.ROLE_READ)
-    public PageResponse<RoleView> roles(
+    public PageResponse<RoleResponse> roles(
             @Valid ManagementPageRequest pageRequest,
             @AuthenticationPrincipal AuthUserPrincipal principal
     ) {
@@ -57,7 +57,7 @@ public class RoleController {
 
     @GetMapping("/permissions")
     @RequirePermission(PermissionCodes.ROLE_READ)
-    public PageResponse<PermissionView> permissions(
+    public PageResponse<PermissionResponse> permissions(
             @Valid ManagementPageRequest pageRequest,
             @AuthenticationPrincipal AuthUserPrincipal principal
     ) {
@@ -66,7 +66,7 @@ public class RoleController {
 
     @GetMapping("/roles/{code}")
     @RequirePermission(PermissionCodes.ROLE_READ)
-    public RoleDetailView role(
+    public RoleDetailResponse role(
             @PathVariable String code,
             @AuthenticationPrincipal AuthUserPrincipal principal
     ) {
@@ -76,7 +76,7 @@ public class RoleController {
     @PostMapping("/roles")
     @ResponseStatus(HttpStatus.CREATED)
     @RequirePermission(PermissionCodes.ROLE_CREATE)
-    public RoleDetailView createRole(
+    public RoleDetailResponse createRole(
             @Valid @RequestBody CreateRoleRequest request,
             @AuthenticationPrincipal AuthUserPrincipal principal
     ) {
@@ -85,7 +85,7 @@ public class RoleController {
 
     @PatchMapping("/roles/{code}")
     @RequirePermission(PermissionCodes.ROLE_EDIT)
-    public RoleDetailView updateRole(
+    public RoleDetailResponse updateRole(
             @PathVariable String code,
             @Valid @RequestBody UpdateRoleRequest request,
             @AuthenticationPrincipal AuthUserPrincipal principal
@@ -95,7 +95,7 @@ public class RoleController {
 
     @PatchMapping("/roles/{code}/status")
     @RequirePermission(PermissionCodes.ROLE_EDIT)
-    public RoleDetailView changeRoleStatus(
+    public RoleDetailResponse changeRoleStatus(
             @PathVariable String code,
             @Valid @RequestBody StatusChangeRequest request,
             @AuthenticationPrincipal AuthUserPrincipal principal
