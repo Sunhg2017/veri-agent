@@ -41,7 +41,6 @@ import com.songhg.veri.agent.asset.domain.AssetPage;
 import com.songhg.veri.agent.asset.domain.AssetRequirement;
 import com.songhg.veri.agent.asset.domain.AssetReviewStatus;
 import com.songhg.veri.agent.asset.domain.AssetVersion;
-import com.songhg.veri.agent.asset.domain.LifecycleManagedAsset;
 import com.songhg.veri.agent.asset.domain.TestCaseRecord;
 import com.songhg.veri.agent.asset.domain.TestCaseStep;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -104,6 +103,7 @@ public class AssetService {
     private final AssetTraceLinkService traceLinkService;
     private final AssetTestCaseStepService testCaseStepService;
     private final AssetVersionRollbackService versionRollbackService;
+    private final AssetLifecycleService lifecycleService;
 
     public AssetService(AssetRepository repository, PlatformContextClient contextClient) {
         this(repository, contextClient, new ObjectMapper().findAndRegisterModules());
@@ -150,6 +150,11 @@ public class AssetService {
                         versionHistoryService,
                         projectAuditService
                 ),
+                new AssetLifecycleService(
+                        repository,
+                        projectAuditService,
+                        versionHistoryService
+                ),
                 projectAuditService
         );
     }
@@ -164,6 +169,7 @@ public class AssetService {
             AssetTraceLinkService traceLinkService,
             AssetTestCaseStepService testCaseStepService,
             AssetVersionRollbackService versionRollbackService,
+            AssetLifecycleService lifecycleService,
             AssetProjectAuditService projectAuditService
     ) {
         this.repository = repository;
@@ -175,6 +181,7 @@ public class AssetService {
         this.traceLinkService = traceLinkService;
         this.testCaseStepService = testCaseStepService;
         this.versionRollbackService = versionRollbackService;
+        this.lifecycleService = lifecycleService;
     }
 
     public String resolveProjectScopeId(String projectId) {
@@ -388,41 +395,7 @@ public class AssetService {
 
     @Transactional
     public RequirementResponse updateRequirementLifecycle(UUID id, UpdateAssetLifecycleRequest request) {
-        AssetRequirement existing = repository.requirementIncludingInactive(id)
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "需求不存在: " + id));
-        Instant now = Instant.now();
-        String nextLifecycle = nextLifecycle(
-                "REQUIREMENT",
-                existing,
-                request.lifecycleStatus()
-        );
-        if ("ACTIVE".equals(nextLifecycle)) {
-            ensureRequirementRestoreHasNoConflict(existing);
-        }
-        AssetRequirement updated = new AssetRequirement(
-                existing.id(),
-                existing.code(),
-                existing.title(),
-                existing.description(),
-                existing.source(),
-                existing.sourceRef(),
-                existing.sourceUrl(),
-                existing.acceptanceCriteria(),
-                existing.status(),
-                existing.priority(),
-                existing.projectId(),
-                existing.tags(),
-                existing.nextVersion(),
-                nextLifecycle,
-                archivedAtFor(nextLifecycle, existing.archivedAt(), now),
-                deletedAtFor(nextLifecycle, now),
-                existing.createdAt(),
-                now
-        );
-        writeProjectAudit(lifecycleAction(nextLifecycle), "REQUIREMENT", id, existing.projectId());
-        AssetRequirement stored = repository.saveRequirement(updated);
-        versionHistoryService.recordRequirementChange(existing, stored, lifecycleAction(nextLifecycle));
-        return AssetResponseMapper.toRequirementResponse(stored);
+        return lifecycleService.updateRequirementLifecycle(id, request);
     }
 
     // ---- APIs ----
@@ -526,40 +499,7 @@ public class AssetService {
     }
 
     public ApiResponseDTO updateApiLifecycle(UUID id, UpdateAssetLifecycleRequest request) {
-        AssetApi existing = repository.apiIncludingInactive(id)
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "API不存在: " + id));
-        Instant now = Instant.now();
-        String nextLifecycle = nextLifecycle(
-                "API",
-                existing,
-                request.lifecycleStatus()
-        );
-        if ("ACTIVE".equals(nextLifecycle)) {
-            ensureApiRestoreHasNoConflict(existing);
-        }
-        AssetApi updated = new AssetApi(
-                existing.id(),
-                existing.code(),
-                existing.summary(),
-                existing.description(),
-                existing.httpMethod(),
-                existing.path(),
-                existing.source(),
-                existing.sourceRef(),
-                existing.version(),
-                existing.requestSchema(),
-                existing.responseSchema(),
-                existing.projectId(),
-                existing.status(),
-                nextLifecycle,
-                archivedAtFor(nextLifecycle, existing.archivedAt(), now),
-                deletedAtFor(nextLifecycle, now),
-                existing.createdAt(),
-                now
-        );
-        writeProjectAudit(lifecycleAction(nextLifecycle), "API", id, existing.projectId());
-        repository.saveApi(updated);
-        return AssetResponseMapper.toApiResponse(updated);
+        return lifecycleService.updateApiLifecycle(id, request);
     }
 
     // ---- Pages ----
@@ -651,38 +591,7 @@ public class AssetService {
     }
 
     public PageResponse updatePageLifecycle(UUID id, UpdateAssetLifecycleRequest request) {
-        AssetPage existing = repository.pageIncludingInactive(id)
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "页面资产不存在: " + id));
-        Instant now = Instant.now();
-        String nextLifecycle = nextLifecycle(
-                "PAGE",
-                existing,
-                request.lifecycleStatus()
-        );
-        if ("ACTIVE".equals(nextLifecycle)) {
-            ensurePageRestoreHasNoConflict(existing);
-        }
-        AssetPage updated = new AssetPage(
-                existing.id(),
-                existing.code(),
-                existing.name(),
-                existing.urlPattern(),
-                existing.source(),
-                existing.sourceRef(),
-                existing.sourceVersion(),
-                existing.componentTree(),
-                existing.screenshotUrl(),
-                existing.projectId(),
-                existing.status(),
-                nextLifecycle,
-                archivedAtFor(nextLifecycle, existing.archivedAt(), now),
-                deletedAtFor(nextLifecycle, now),
-                existing.createdAt(),
-                now
-        );
-        writeProjectAudit(lifecycleAction(nextLifecycle), "PAGE", id, existing.projectId());
-        repository.savePage(updated);
-        return AssetResponseMapper.toPageResponse(updated);
+        return lifecycleService.updatePageLifecycle(id, request);
     }
 
     // ---- Business Flows ----
@@ -768,35 +677,7 @@ public class AssetService {
     }
 
     public BusinessFlowResponse updateBusinessFlowLifecycle(UUID id, UpdateAssetLifecycleRequest request) {
-        AssetBusinessFlow existing = repository.businessFlowIncludingInactive(id)
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "业务流资产不存在: " + id));
-        Instant now = Instant.now();
-        String nextLifecycle = nextLifecycle(
-                "BUSINESS_FLOW",
-                existing,
-                request.lifecycleStatus()
-        );
-        if ("ACTIVE".equals(nextLifecycle)) {
-            ensureBusinessFlowRestoreHasNoConflict(existing);
-        }
-        AssetBusinessFlow updated = new AssetBusinessFlow(
-                existing.id(),
-                existing.code(),
-                existing.name(),
-                existing.description(),
-                existing.flowJson(),
-                existing.priority(),
-                existing.projectId(),
-                existing.status(),
-                nextLifecycle,
-                archivedAtFor(nextLifecycle, existing.archivedAt(), now),
-                deletedAtFor(nextLifecycle, now),
-                existing.createdAt(),
-                now
-        );
-        writeProjectAudit(lifecycleAction(nextLifecycle), "BUSINESS_FLOW", id, existing.projectId());
-        repository.saveBusinessFlow(updated);
-        return AssetResponseMapper.toBusinessFlowResponse(updated);
+        return lifecycleService.updateBusinessFlowLifecycle(id, request);
     }
 
     // ---- Test Cases ----
@@ -918,42 +799,7 @@ public class AssetService {
 
     @Transactional
     public TestCaseResponse updateTestCaseLifecycle(UUID id, UpdateAssetLifecycleRequest request) {
-        TestCaseRecord existing = repository.testCaseIncludingInactive(id)
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "测试用例不存在: " + id));
-        Instant now = Instant.now();
-        String nextLifecycle = nextLifecycle(
-                "TEST_CASE",
-                existing,
-                request.lifecycleStatus()
-        );
-        if ("ACTIVE".equals(nextLifecycle)) {
-            ensureTestCaseRestoreHasNoConflict(existing);
-        }
-        TestCaseRecord updated = new TestCaseRecord(
-                existing.id(),
-                existing.code(),
-                existing.title(),
-                existing.description(),
-                existing.projectId(),
-                existing.requirementId(),
-                existing.apiId(),
-                existing.source(),
-                existing.sourceRef(),
-                existing.status(),
-                existing.priority(),
-                existing.tags(),
-                existing.steps(),
-                existing.nextVersion(),
-                nextLifecycle,
-                archivedAtFor(nextLifecycle, existing.archivedAt(), now),
-                deletedAtFor(nextLifecycle, now),
-                existing.createdAt(),
-                now
-        );
-        writeProjectAudit(lifecycleAction(nextLifecycle), "TEST_CASE", id, existing.projectId());
-        TestCaseRecord stored = repository.saveTestCase(updated);
-        versionHistoryService.recordTestCaseChange(existing, stored, lifecycleAction(nextLifecycle));
-        return AssetResponseMapper.toTestCaseResponse(stored, stored.steps());
+        return lifecycleService.updateTestCaseLifecycle(id, request);
     }
 
     // ---- Test Case Steps ----
@@ -1067,84 +913,12 @@ public class AssetService {
         };
     }
 
-    private String nextLifecycle(
-            String resourceType,
-            LifecycleManagedAsset asset,
-            String rawNextLifecycle
-    ) {
-        String current = asset.currentLifecycleStatus();
-        String next = valueIn(rawNextLifecycle, current, LIFECYCLE_STATUSES, "lifecycleStatus");
-        if (!asset.canTransitionLifecycleTo(next)) {
-            writeProjectAudit("LIFECYCLE_CHANGE_DENIED", resourceType, asset.id(), asset.projectId(), "DENIED");
-            throw new BusinessException(
-                    ErrorCode.INVALID_STATE,
-                    resourceType + " 生命周期不允许从 " + current + " 变更为 " + next
-            );
-        }
-        return next;
-    }
-
-    private static Instant archivedAtFor(String lifecycleStatus, Instant existingArchivedAt, Instant now) {
-        return "ARCHIVED".equals(lifecycleStatus) ? (existingArchivedAt == null ? now : existingArchivedAt) : null;
-    }
-
-    private static Instant deletedAtFor(String lifecycleStatus, Instant now) {
-        return "DELETED".equals(lifecycleStatus) ? now : null;
-    }
-
-    private static String lifecycleAction(String lifecycleStatus) {
-        return switch (lifecycleStatus) {
-            case "ARCHIVED" -> "ARCHIVE";
-            case "DELETED" -> "SOFT_DELETE";
-            default -> "RESTORE";
-        };
-    }
-
     private static String lifecycleFilter(String rawValue) {
         return valueIn(rawValue, "ACTIVE", LIFECYCLE_STATUSES, "lifecycleStatus");
     }
 
     private static String lifecycleStatus(String lifecycleStatus, Instant deletedAt) {
         return AssetLifecycleStatus.normalize(lifecycleStatus, deletedAt);
-    }
-
-    private void ensureRequirementRestoreHasNoConflict(AssetRequirement requirement) {
-        if (repository.hasActiveRequirementCodeConflict(requirement.projectId(), requirement.code(), requirement.id())) {
-            throw new BusinessException(ErrorCode.CONFLICT, "同项目下需求编码已被其他资产占用，无法恢复: " + requirement.code());
-        }
-        if ("IMPORT".equals(requirement.source()) && StringUtils.hasText(requirement.sourceRef())
-                && repository.hasActiveRequirementSourceRefConflict(
-                        requirement.projectId(),
-                        requirement.source(),
-                        requirement.sourceRef(),
-                        requirement.id()
-                )) {
-            throw new BusinessException(ErrorCode.CONFLICT, "同项目下导入来源已被其他需求占用，无法恢复: " + requirement.sourceRef());
-        }
-    }
-
-    private void ensureApiRestoreHasNoConflict(AssetApi api) {
-        if (repository.hasActiveApiPathConflict(api.projectId(), api.path(), api.httpMethod(), api.id())) {
-            throw new BusinessException(ErrorCode.CONFLICT, "同项目下 API 路径和方法已被其他资产占用，无法恢复");
-        }
-    }
-
-    private void ensurePageRestoreHasNoConflict(AssetPage page) {
-        if (repository.hasActivePageCodeConflict(page.projectId(), page.code(), page.id())) {
-            throw new BusinessException(ErrorCode.CONFLICT, "同项目下页面编码已被其他资产占用，无法恢复: " + page.code());
-        }
-    }
-
-    private void ensureBusinessFlowRestoreHasNoConflict(AssetBusinessFlow flow) {
-        if (repository.hasActiveBusinessFlowCodeConflict(flow.projectId(), flow.code(), flow.id())) {
-            throw new BusinessException(ErrorCode.CONFLICT, "同项目下业务流编码已被其他资产占用，无法恢复: " + flow.code());
-        }
-    }
-
-    private void ensureTestCaseRestoreHasNoConflict(TestCaseRecord testCase) {
-        if (repository.hasActiveTestCaseCodeConflict(testCase.projectId(), testCase.code(), testCase.id())) {
-            throw new BusinessException(ErrorCode.CONFLICT, "同项目下测试用例编码已被其他资产占用，无法恢复: " + testCase.code());
-        }
     }
 
     private String nextRequirementStatus(AssetRequirement requirement, String rawNextStatus) {
