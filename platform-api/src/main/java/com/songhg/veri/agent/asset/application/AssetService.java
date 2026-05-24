@@ -31,55 +31,29 @@ import com.songhg.veri.agent.asset.api.response.RequirementResponse;
 import com.songhg.veri.agent.asset.api.response.TestCaseResponse;
 import com.songhg.veri.agent.asset.api.response.TestCaseStepResponse;
 import com.songhg.veri.agent.asset.api.response.TraceLinkResponse;
-import com.songhg.veri.agent.common.error.BusinessException;
-import com.songhg.veri.agent.common.error.ErrorCode;
-import com.songhg.veri.agent.common.trace.TraceContext;
-import com.songhg.veri.agent.asset.domain.AssetApi;
-import com.songhg.veri.agent.asset.domain.AssetLifecycleStatus;
-import com.songhg.veri.agent.asset.domain.AssetRequirement;
-import com.songhg.veri.agent.asset.domain.AssetReviewStatus;
-import com.songhg.veri.agent.asset.domain.AssetVersion;
-import com.songhg.veri.agent.asset.domain.TestCaseRecord;
-import com.songhg.veri.agent.asset.domain.TestCaseStep;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import java.time.Instant;
-import java.util.Collections;
 import java.util.List;
-import java.util.Locale;
 import java.util.Optional;
-import java.util.Set;
 import java.util.UUID;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.util.StringUtils;
 
 @Service
 public class AssetService {
 
-    private static final Logger log = LoggerFactory.getLogger(AssetService.class);
-    private static final String STATUS_ACTIVE = "ACTIVE";
-    private static final String STATUS_DRAFT = "DRAFT";
-    private static final Set<String> REVIEW_STATUSES = AssetReviewStatus.codes();
-    private static final Set<String> LIFECYCLE_STATUSES = AssetLifecycleStatus.codes();
-    private static final Set<String> PRIORITIES = Set.of("CRITICAL", "HIGH", "MEDIUM", "LOW");
-
     private final AssetRepository repository;
     private final ObjectMapper objectMapper;
     private final AssetProjectAuditService projectAuditService;
-    private final AssetVersionHistoryService versionHistoryService;
     private final AssetImpactAnalysisService impactAnalysisService;
     private final AssetPrototypeSyncService prototypeSyncService;
     private final AssetTraceLinkService traceLinkService;
     private final AssetTestCaseStepService testCaseStepService;
-    private final AssetVersionRollbackService versionRollbackService;
-    private final AssetLifecycleService lifecycleService;
     private final AssetRequirementService requirementService;
     private final AssetApiService apiService;
     private final AssetPageService pageService;
     private final AssetBusinessFlowService businessFlowService;
+    private final AssetTestCaseService testCaseService;
 
     public AssetService(AssetRepository repository, PlatformContextClient contextClient) {
         this(repository, contextClient, new ObjectMapper().findAndRegisterModules());
@@ -97,7 +71,7 @@ public class AssetService {
         this.repository = repository;
         this.objectMapper = objectMapper;
         this.projectAuditService = projectAuditService;
-        this.versionHistoryService = new AssetVersionHistoryService(repository, objectMapper);
+        AssetVersionHistoryService versionHistoryService = new AssetVersionHistoryService(repository, objectMapper);
         this.impactAnalysisService = new AssetImpactAnalysisService(repository, projectAuditService);
         this.prototypeSyncService = new AssetPrototypeSyncService(repository, projectAuditService, objectMapper);
         this.traceLinkService = new AssetTraceLinkService(repository, projectAuditService);
@@ -106,13 +80,13 @@ public class AssetService {
                 projectAuditService,
                 versionHistoryService
         );
-        this.versionRollbackService = new AssetVersionRollbackService(
+        AssetVersionRollbackService versionRollbackService = new AssetVersionRollbackService(
                 repository,
                 objectMapper,
                 versionHistoryService,
                 projectAuditService
         );
-        this.lifecycleService = new AssetLifecycleService(
+        AssetLifecycleService lifecycleService = new AssetLifecycleService(
                 repository,
                 projectAuditService,
                 versionHistoryService
@@ -141,6 +115,13 @@ public class AssetService {
                 lifecycleService,
                 objectMapper
         );
+        this.testCaseService = new AssetTestCaseService(
+                repository,
+                projectAuditService,
+                versionHistoryService,
+                versionRollbackService,
+                lifecycleService
+        );
     }
 
     @Autowired
@@ -158,22 +139,21 @@ public class AssetService {
             AssetApiService apiService,
             AssetPageService pageService,
             AssetBusinessFlowService businessFlowService,
+            AssetTestCaseService testCaseService,
             AssetProjectAuditService projectAuditService
     ) {
         this.repository = repository;
         this.objectMapper = objectMapper;
         this.projectAuditService = projectAuditService;
-        this.versionHistoryService = versionHistoryService;
         this.impactAnalysisService = impactAnalysisService;
         this.prototypeSyncService = prototypeSyncService;
         this.traceLinkService = traceLinkService;
         this.testCaseStepService = testCaseStepService;
-        this.versionRollbackService = versionRollbackService;
-        this.lifecycleService = lifecycleService;
         this.requirementService = requirementService;
         this.apiService = apiService;
         this.pageService = pageService;
         this.businessFlowService = businessFlowService;
+        this.testCaseService = testCaseService;
     }
 
     public String resolveProjectScopeId(String projectId) {
@@ -197,14 +177,14 @@ public class AssetService {
     }
 
     public String testCaseProjectScopeId(UUID id) {
-        return resolveProjectScopeId(repository.testCaseIncludingInactive(id)
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "测试用例不存在: " + id))
-                .projectId());
+        return testCaseService.testCaseProjectScopeId(id);
     }
 
     // ---- Requirements ----
 
-    public com.songhg.veri.agent.common.api.PageResponse<RequirementResponse> listRequirements(AssetListRequest request) {
+    public com.songhg.veri.agent.common.api.PageResponse<RequirementResponse> listRequirements(
+            AssetListRequest request
+    ) {
         return requirementService.listRequirements(request);
     }
 
@@ -302,7 +282,9 @@ public class AssetService {
 
     // ---- Business Flows ----
 
-    public com.songhg.veri.agent.common.api.PageResponse<BusinessFlowResponse> listBusinessFlows(AssetListRequest request) {
+    public com.songhg.veri.agent.common.api.PageResponse<BusinessFlowResponse> listBusinessFlows(
+            AssetListRequest request
+    ) {
         return businessFlowService.listBusinessFlows(request);
     }
 
@@ -329,109 +311,29 @@ public class AssetService {
     // ---- Test Cases ----
 
     public com.songhg.veri.agent.common.api.PageResponse<TestCaseResponse> listTestCases(AssetListRequest request) {
-        validateProjectWhenProvided(request.getProjectId());
-        AssetListQuery query = assetListQuery(request);
-        List<TestCaseResponse> items = repository.testCases(query).stream()
-                .map(tc -> AssetResponseMapper.toTestCaseResponse(tc, tc.steps()))
-                .toList();
-        return com.songhg.veri.agent.common.api.PageResponse.of(items, query.index(), query.size(), repository.countTestCases(query));
+        return testCaseService.listTestCases(request);
     }
 
     public TestCaseResponse getTestCase(UUID id) {
-        TestCaseRecord testCase = repository.testCase(id)
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "测试用例不存在: " + id));
-        return AssetResponseMapper.toTestCaseResponse(testCase, testCase.steps());
+        return testCaseService.getTestCase(id);
     }
 
     public TestCaseResponse getTestCaseIncludingInactive(UUID id) {
-        TestCaseRecord testCase = repository.testCaseIncludingInactive(id)
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "测试用例不存在: " + id));
-        validateProjectWhenProvided(testCase.projectId());
-        return AssetResponseMapper.toTestCaseResponse(testCase, testCase.steps());
+        return testCaseService.getTestCaseIncludingInactive(id);
     }
 
     @Transactional
     public TestCaseResponse createTestCase(CreateTestCaseRequest request) {
-        String scopeId = projectContext(request.projectId()).projectId();
-        validateRequirementBelongsToProject(request.requirementId(), request.projectId());
-        validateApiBelongsToProject(request.apiId(), request.projectId());
-        UUID id = UUID.randomUUID();
-        Instant now = Instant.now();
-        List<CreateTestCaseRequest.StepDto> requestedSteps = Optional.ofNullable(request.steps())
-                .orElse(Collections.emptyList());
-        List<TestCaseStep> steps = new java.util.ArrayList<>();
-        for (int i = 0; i < requestedSteps.size(); i++) {
-            CreateTestCaseRequest.StepDto step = requestedSteps.get(i);
-            steps.add(new TestCaseStep(UUID.randomUUID(), id, i, step.action(), step.expectedResult()));
-        }
-        TestCaseRecord tc = new TestCaseRecord(
-                id,
-                assetCode("TC", id),
-                request.title(),
-                request.description(),
-                request.projectId(),
-                request.requirementId(),
-                request.apiId(),
-                "MANUAL",
-                null,
-                initialStatus(request.status(), STATUS_DRAFT),
-                valueIn(request.priority(), "MEDIUM", PRIORITIES, "priority"),
-                request.tags(),
-                steps,
-                AssetVersion.initial(),
-                "ACTIVE",
-                null,
-                null,
-                now,
-                now
-        );
-        writeProjectAudit("CREATE", "TEST_CASE", id, scopeId);
-        TestCaseRecord stored = repository.saveTestCase(tc);
-        versionHistoryService.recordTestCaseCreated(stored);
-        log.info("Created test case id={}, title={}, trace_id={}", id, request.title(), TraceContext.getTraceId());
-        return AssetResponseMapper.toTestCaseResponse(stored, steps);
+        return testCaseService.createTestCase(request);
     }
 
     @Transactional
     public TestCaseResponse updateTestCase(UUID id, UpdateTestCaseRequest request) {
-        TestCaseRecord existing = repository.testCase(id)
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "测试用例不存在: " + id));
-        validateRequirementBelongsToProject(request.requirementId(), existing.projectId());
-        validateApiBelongsToProject(request.apiId(), existing.projectId());
-        List<TestCaseStep> existingSteps = existing.steps();
-        Instant now = Instant.now();
-        String nextStatus = nextTestCaseStatus(existing, request.status());
-        TestCaseRecord updated = new TestCaseRecord(
-                id,
-                existing.code(),
-                request.title(),
-                request.description(),
-                existing.projectId(),
-                request.requirementId(),
-                request.apiId(),
-                existing.source(),
-                existing.sourceRef(),
-                nextStatus,
-                valueIn(request.priority(), existing.priority(), PRIORITIES, "priority"),
-                request.tags(),
-                existingSteps,
-                existing.nextVersion(),
-                existing.lifecycleStatus(),
-                existing.archivedAt(),
-                existing.deletedAt(),
-                existing.createdAt(),
-                now
-        );
-        writeProjectAudit("UPDATE", "TEST_CASE", id, existing.projectId());
-        TestCaseRecord stored = repository.saveTestCase(updated);
-        versionHistoryService.recordTestCaseChange(existing, stored, "UPDATE");
-        return AssetResponseMapper.toTestCaseResponse(stored, existingSteps);
+        return testCaseService.updateTestCase(id, request);
     }
 
     public List<AssetVersionHistoryResponse> testCaseVersions(UUID id) {
-        TestCaseRecord testCase = repository.testCaseIncludingInactive(id)
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "测试用例不存在: " + id));
-        return versionHistoryService.responses("TEST_CASE", testCase.id());
+        return testCaseService.testCaseVersions(id);
     }
 
     @Transactional
@@ -440,12 +342,12 @@ public class AssetService {
             int version,
             RollbackAssetVersionRequest request
     ) {
-        return versionRollbackService.rollbackTestCaseVersion(id, version, request);
+        return testCaseService.rollbackTestCaseVersion(id, version, request);
     }
 
     @Transactional
     public TestCaseResponse updateTestCaseLifecycle(UUID id, UpdateAssetLifecycleRequest request) {
-        return lifecycleService.updateTestCaseLifecycle(id, request);
+        return testCaseService.updateTestCaseLifecycle(id, request);
     }
 
     // ---- Test Case Steps ----
@@ -499,110 +401,8 @@ public class AssetService {
         return "UP";
     }
 
-    private void validateProjectWhenProvided(String projectId) {
-        projectAuditService.validateProjectWhenProvided(projectId);
-    }
-
     private PlatformContextClient.ProjectContext projectContext(String projectId) {
         return projectAuditService.projectContext(projectId);
-    }
-
-    private void writeProjectAudit(String action, String resourceType, UUID resourceId, String projectId) {
-        projectAuditService.writeProjectAudit(action, resourceType, resourceId, projectId);
-    }
-
-    private void writeProjectAudit(String action, String resourceType, UUID resourceId, String projectId, String result) {
-        projectAuditService.writeProjectAudit(action, resourceType, resourceId, projectId, result);
-    }
-
-    private void validateRequirementBelongsToProject(UUID requirementId, String projectId) {
-        if (requirementId == null) {
-            return;
-        }
-        AssetRequirement requirement = repository.requirement(requirementId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "需求不存在: " + requirementId));
-        ensureSameProject("需求", requirement.id(), requirement.projectId(), projectId);
-    }
-
-    private void validateApiBelongsToProject(UUID apiId, String projectId) {
-        if (apiId == null) {
-            return;
-        }
-        AssetApi api = repository.api(apiId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "API不存在: " + apiId));
-        ensureSameProject("API", api.id(), api.projectId(), projectId);
-    }
-
-    private void ensureSameProject(String resourceName, UUID resourceId, String actualProjectId, String expectedProjectId) {
-        if (!StringUtils.hasText(actualProjectId) || !actualProjectId.equals(expectedProjectId)) {
-            throw new BusinessException(
-                    ErrorCode.VALIDATION_ERROR,
-                    resourceName + "不属于当前项目: " + resourceId
-            );
-        }
-    }
-
-    private static String valueIn(String rawValue, String defaultValue, Set<String> allowedValues, String fieldName) {
-        String value = StringUtils.hasText(rawValue) ? rawValue.trim().toUpperCase(Locale.ROOT) : defaultValue;
-        if (!allowedValues.contains(value)) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, fieldName + " 不合法: " + rawValue);
-        }
-        return value;
-    }
-
-    private static String initialStatus(String rawValue, String defaultValue) {
-        return valueIn(rawValue, defaultValue, REVIEW_STATUSES, "status");
-    }
-
-    private static String lifecycleFilter(String rawValue) {
-        return valueIn(rawValue, STATUS_ACTIVE, LIFECYCLE_STATUSES, "lifecycleStatus");
-    }
-
-    private String nextTestCaseStatus(TestCaseRecord testCase, String rawNextStatus) {
-        String nextStatus = valueIn(rawNextStatus, testCase.status(), REVIEW_STATUSES, "status");
-        if (!testCase.canTransitionReviewStatusTo(nextStatus)) {
-            rejectReviewStatusTransition(
-                    "TEST_CASE",
-                    testCase.id(),
-                    testCase.projectId(),
-                    testCase.status(),
-                    nextStatus
-            );
-        }
-        return nextStatus;
-    }
-
-    private void rejectReviewStatusTransition(
-            String resourceType,
-            UUID resourceId,
-            String projectId,
-            String currentStatus,
-            String nextStatus
-    ) {
-        writeProjectAudit("STATUS_CHANGE_DENIED", resourceType, resourceId, projectId, "DENIED");
-        throw new BusinessException(
-                ErrorCode.INVALID_STATE,
-                resourceType + " 状态不允许从 " + currentStatus + " 变更为 " + nextStatus
-        );
-    }
-
-    private static String assetCode(String prefix, UUID id) {
-        return prefix + "-" + id.toString().replace("-", "").substring(0, 12);
-    }
-
-    private static AssetListQuery assetListQuery(AssetListRequest request) {
-        return new AssetListQuery(
-                trimToNull(request.getProjectId()),
-                lifecycleFilter(request.getLifecycleStatus()),
-                request.getStatus(),
-                request.getSource(),
-                request.getKeyword(),
-                request.toPageQuery()
-        );
-    }
-
-    private static String trimToNull(String value) {
-        return StringUtils.hasText(value) ? value.trim() : null;
     }
 
 }
