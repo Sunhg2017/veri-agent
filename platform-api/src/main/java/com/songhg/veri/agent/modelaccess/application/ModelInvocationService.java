@@ -54,7 +54,8 @@ public class ModelInvocationService {
                         contentGuard,
                         properties,
                         metrics,
-                        providerResilienceManager
+                        providerResilienceManager,
+                        new ModelInvocationBudgetService(repository, properties)
                 )
         );
     }
