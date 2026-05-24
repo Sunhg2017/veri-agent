@@ -41,15 +41,12 @@ import com.songhg.veri.agent.asset.domain.AssetPage;
 import com.songhg.veri.agent.asset.domain.AssetRequirement;
 import com.songhg.veri.agent.asset.domain.AssetReviewStatus;
 import com.songhg.veri.agent.asset.domain.AssetVersion;
-import com.songhg.veri.agent.asset.domain.AssetVersionHistory;
 import com.songhg.veri.agent.asset.domain.LifecycleManagedAsset;
 import com.songhg.veri.agent.asset.domain.TestCaseRecord;
 import com.songhg.veri.agent.asset.domain.TestCaseStep;
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -106,6 +103,7 @@ public class AssetService {
     private final AssetPrototypeSyncService prototypeSyncService;
     private final AssetTraceLinkService traceLinkService;
     private final AssetTestCaseStepService testCaseStepService;
+    private final AssetVersionRollbackService versionRollbackService;
 
     public AssetService(AssetRepository repository, PlatformContextClient contextClient) {
         this(repository, contextClient, new ObjectMapper().findAndRegisterModules());
@@ -146,6 +144,12 @@ public class AssetService {
                         projectAuditService,
                         versionHistoryService
                 ),
+                new AssetVersionRollbackService(
+                        repository,
+                        objectMapper,
+                        versionHistoryService,
+                        projectAuditService
+                ),
                 projectAuditService
         );
     }
@@ -159,6 +163,7 @@ public class AssetService {
             AssetPrototypeSyncService prototypeSyncService,
             AssetTraceLinkService traceLinkService,
             AssetTestCaseStepService testCaseStepService,
+            AssetVersionRollbackService versionRollbackService,
             AssetProjectAuditService projectAuditService
     ) {
         this.repository = repository;
@@ -169,6 +174,7 @@ public class AssetService {
         this.prototypeSyncService = prototypeSyncService;
         this.traceLinkService = traceLinkService;
         this.testCaseStepService = testCaseStepService;
+        this.versionRollbackService = versionRollbackService;
     }
 
     public String resolveProjectScopeId(String projectId) {
@@ -377,40 +383,7 @@ public class AssetService {
             int version,
             RollbackAssetVersionRequest request
     ) {
-        AssetRequirement existing = repository.requirementIncludingInactive(id)
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "需求不存在: " + id));
-        AssetVersionHistory history = versionHistoryService.historyOrThrow("REQUIREMENT", id, version);
-        JsonNode snapshot = jsonNode(history.snapshotJson());
-        Instant now = Instant.now();
-        AssetRequirement rollback = new AssetRequirement(
-                existing.id(),
-                existing.code(),
-                requiredSnapshotText(snapshot, "title"),
-                snapshotText(snapshot, "description"),
-                existing.source(),
-                existing.sourceRef(),
-                snapshotText(snapshot, "sourceUrl"),
-                snapshotText(snapshot, "acceptanceCriteria"),
-                valueIn(snapshotText(snapshot, "status"), existing.status(), REVIEW_STATUSES, "status"),
-                valueIn(snapshotText(snapshot, "priority"), existing.priority(), PRIORITIES, "priority"),
-                existing.projectId(),
-                snapshotText(snapshot, "tags"),
-                existing.nextVersion(),
-                lifecycleStatus(snapshotText(snapshot, "lifecycleStatus"), snapshotInstant(snapshot, "deletedAt")),
-                snapshotInstant(snapshot, "archivedAt"),
-                snapshotInstant(snapshot, "deletedAt"),
-                existing.createdAt(),
-                now
-        );
-        if ("ACTIVE".equals(lifecycleStatus(rollback.lifecycleStatus(), rollback.deletedAt()))) {
-            ensureRequirementRestoreHasNoConflict(rollback);
-        }
-        writeProjectAudit("ROLLBACK", "REQUIREMENT", id, existing.projectId());
-        AssetRequirement stored = repository.saveRequirement(rollback);
-        versionHistoryService.recordRequirementChange(existing, stored, "ROLLBACK");
-        log.info("Rolled back requirement id={} to version={}, reason={}, trace_id={}",
-                id, version, trimToNull(request == null ? null : request.reason()), TraceContext.getTraceId());
-        return AssetResponseMapper.toRequirementResponse(stored);
+        return versionRollbackService.rollbackRequirementVersion(id, version, request);
     }
 
     @Transactional
@@ -940,43 +913,7 @@ public class AssetService {
             int version,
             RollbackAssetVersionRequest request
     ) {
-        TestCaseRecord existing = repository.testCaseIncludingInactive(id)
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "测试用例不存在: " + id));
-        AssetVersionHistory history = versionHistoryService.historyOrThrow("TEST_CASE", id, version);
-        JsonNode snapshot = jsonNode(history.snapshotJson());
-        Instant now = Instant.now();
-        TestCaseRecord rollback = new TestCaseRecord(
-                existing.id(),
-                existing.code(),
-                requiredSnapshotText(snapshot, "title"),
-                snapshotText(snapshot, "description"),
-                existing.projectId(),
-                snapshotUuid(snapshot, "requirementId"),
-                snapshotUuid(snapshot, "apiId"),
-                existing.source(),
-                existing.sourceRef(),
-                valueIn(snapshotText(snapshot, "status"), existing.status(), REVIEW_STATUSES, "status"),
-                valueIn(snapshotText(snapshot, "priority"), existing.priority(), PRIORITIES, "priority"),
-                snapshotText(snapshot, "tags"),
-                snapshotSteps(snapshot.path("steps"), id),
-                existing.nextVersion(),
-                lifecycleStatus(snapshotText(snapshot, "lifecycleStatus"), snapshotInstant(snapshot, "deletedAt")),
-                snapshotInstant(snapshot, "archivedAt"),
-                snapshotInstant(snapshot, "deletedAt"),
-                existing.createdAt(),
-                now
-        );
-        validateRequirementBelongsToProject(rollback.requirementId(), rollback.projectId());
-        validateApiBelongsToProject(rollback.apiId(), rollback.projectId());
-        if ("ACTIVE".equals(lifecycleStatus(rollback.lifecycleStatus(), rollback.deletedAt()))) {
-            ensureTestCaseRestoreHasNoConflict(rollback);
-        }
-        writeProjectAudit("ROLLBACK", "TEST_CASE", id, existing.projectId());
-        TestCaseRecord stored = repository.saveTestCase(rollback);
-        versionHistoryService.recordTestCaseChange(existing, stored, "ROLLBACK");
-        log.info("Rolled back test case id={} to version={}, reason={}, trace_id={}",
-                id, version, trimToNull(request == null ? null : request.reason()), TraceContext.getTraceId());
-        return AssetResponseMapper.toTestCaseResponse(stored, stored.steps());
+        return versionRollbackService.rollbackTestCaseVersion(id, version, request);
     }
 
     @Transactional
@@ -1068,77 +1005,6 @@ public class AssetService {
 
     public String health() {
         return "UP";
-    }
-
-    private JsonNode jsonNode(String json) {
-        if (!StringUtils.hasText(json)) {
-            return objectMapper.createObjectNode();
-        }
-        try {
-            return objectMapper.readTree(json);
-        } catch (JsonProcessingException e) {
-            return objectMapper.createObjectNode();
-        }
-    }
-
-    private static String snapshotText(JsonNode snapshot, String field) {
-        JsonNode node = snapshot.path(field);
-        return node.isMissingNode() || node.isNull() ? null : node.asText();
-    }
-
-    private static String textOrDefault(JsonNode node, String defaultValue) {
-        String value = node == null || node.isMissingNode() || node.isNull() ? null : node.asText();
-        return StringUtils.hasText(value) ? value : defaultValue;
-    }
-
-    private static String requiredSnapshotText(JsonNode snapshot, String field) {
-        String value = snapshotText(snapshot, field);
-        if (!StringUtils.hasText(value)) {
-            throw new BusinessException(ErrorCode.INVALID_STATE, "版本快照缺少字段: " + field);
-        }
-        return value;
-    }
-
-    private static Instant snapshotInstant(JsonNode snapshot, String field) {
-        String value = snapshotText(snapshot, field);
-        if (!StringUtils.hasText(value)) {
-            return null;
-        }
-        try {
-            return Instant.parse(value);
-        } catch (RuntimeException e) {
-            throw new BusinessException(ErrorCode.INVALID_STATE, "版本快照时间字段不合法: " + field);
-        }
-    }
-
-    private static UUID snapshotUuid(JsonNode snapshot, String field) {
-        String value = snapshotText(snapshot, field);
-        if (!StringUtils.hasText(value)) {
-            return null;
-        }
-        try {
-            return UUID.fromString(value);
-        } catch (IllegalArgumentException e) {
-            throw new BusinessException(ErrorCode.INVALID_STATE, "版本快照 UUID 字段不合法: " + field);
-        }
-    }
-
-    private static List<TestCaseStep> snapshotSteps(JsonNode stepsNode, UUID caseId) {
-        if (!stepsNode.isArray()) {
-            return List.of();
-        }
-        List<TestCaseStep> steps = new ArrayList<>();
-        int order = 0;
-        for (JsonNode item : stepsNode) {
-            steps.add(new TestCaseStep(
-                    UUID.randomUUID(),
-                    caseId,
-                    order++,
-                    textOrDefault(item.path("action"), "待补充操作"),
-                    textOrDefault(item.path("expectedResult"), "待补充预期")
-            ));
-        }
-        return steps;
     }
 
     private void validateProjectWhenProvided(String projectId) {
@@ -1341,12 +1207,6 @@ public class AssetService {
                 ErrorCode.INVALID_STATE,
                 resourceType + " 状态不允许从 " + currentStatus + " 变更为 " + nextStatus
         );
-    }
-
-    private static <T> com.songhg.veri.agent.common.api.PageResponse<T> page(List<T> items, int index, int size) {
-        int from = Math.min(index * size, items.size());
-        int to = Math.min(from + size, items.size());
-        return com.songhg.veri.agent.common.api.PageResponse.of(items.subList(from, to), index, size, items.size());
     }
 
     private static String assetCode(String prefix, UUID id) {
