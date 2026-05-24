@@ -4,9 +4,9 @@ import com.songhg.veri.agent.auth.application.AuthUserPrincipal;
 import com.songhg.veri.agent.common.api.PageQuery;
 import com.songhg.veri.agent.common.api.PageResponse;
 import com.songhg.veri.agent.common.audit.AuditLogWriter;
-import com.songhg.veri.agent.management.application.port.EnvironmentOperations;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
+import com.songhg.veri.agent.management.application.security.ManagementAuthorizationGuard;
 import com.songhg.veri.agent.management.application.command.CreateEnvironmentRequest;
 import com.songhg.veri.agent.management.application.command.ScopedUserRoleRequest;
 import com.songhg.veri.agent.management.application.command.UpdateEnvironmentRequest;
@@ -15,6 +15,7 @@ import com.songhg.veri.agent.management.application.view.EnvironmentView;
 import com.songhg.veri.agent.management.application.view.ScopedUserRoleView;
 import com.songhg.veri.agent.management.application.view.UserView;
 import com.songhg.veri.agent.management.application.port.EnvironmentConnectivityChecker;
+import com.songhg.veri.agent.management.application.port.EnvironmentOperations;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -32,15 +33,18 @@ final class InMemoryManagementEnvironmentService implements EnvironmentOperation
     private final InMemoryManagementUserService userService;
     private final AuditLogWriter auditLogWriter;
     private final EnvironmentConnectivityChecker connectivityChecker;
+    private final ManagementAuthorizationGuard authorizationGuard;
 
     InMemoryManagementEnvironmentService(
             InMemoryManagementUserService userService,
             AuditLogWriter auditLogWriter,
-            EnvironmentConnectivityChecker connectivityChecker
+            EnvironmentConnectivityChecker connectivityChecker,
+            ManagementAuthorizationGuard authorizationGuard
     ) {
         this.userService = userService;
         this.auditLogWriter = auditLogWriter;
         this.connectivityChecker = connectivityChecker;
+        this.authorizationGuard = authorizationGuard;
         environments.addAll(List.of(
                 new EnvironmentView("dev", "Shanghai Dev", "api.dev.local", "可用"),
                 new EnvironmentView("staging", "Shanghai Staging", "api.stg.local", "可用"),
@@ -90,6 +94,7 @@ final class InMemoryManagementEnvironmentService implements EnvironmentOperation
         if (!List.of("ENABLED", "DISABLED").contains(status)) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "环境状态不支持");
         }
+        authorizationGuard.requireEnvironmentStatus(actor, status);
         EnvironmentView updated = replaceEnvironment(
                 current.name(),
                 new EnvironmentView(

@@ -5,6 +5,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
 import com.songhg.veri.agent.common.trace.TraceContext;
+import com.songhg.veri.agent.modelaccess.application.command.ModelInvocationCommand;
+import com.songhg.veri.agent.modelaccess.application.port.ModelInvocationJobRepository;
+import com.songhg.veri.agent.modelaccess.application.view.ModelInvocationJobRecord;
+import com.songhg.veri.agent.modelaccess.application.view.ModelInvocationJobResult;
+import com.songhg.veri.agent.modelaccess.application.view.ModelInvocationJobStatus;
+import com.songhg.veri.agent.modelaccess.application.view.ModelInvocationResult;
 import com.songhg.veri.agent.modelaccess.config.ModelAccessProperties;
 import com.songhg.veri.agent.modelaccess.security.ServicePrincipal;
 import jakarta.annotation.PostConstruct;
@@ -19,6 +25,12 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import org.slf4j.MDC;
 import org.springframework.stereotype.Service;
+
+
+
+
+
+
 
 @Service
 public class ModelInvocationJobService {

@@ -1,7 +1,7 @@
 package com.songhg.veri.agent.asset.application;
 
-import com.songhg.veri.agent.asset.application.AssetListRequest;
-import com.songhg.veri.agent.asset.application.TraceLinkListRequest;
+import com.songhg.veri.agent.asset.application.query.AssetListRequest;
+import com.songhg.veri.agent.asset.application.query.TraceLinkListRequest;
 import com.songhg.veri.agent.authorization.application.ResourceScope;
 import java.util.ArrayList;
 import java.util.List;

@@ -9,11 +9,10 @@ import com.songhg.veri.agent.management.application.view.PermissionView;
 import com.songhg.veri.agent.management.application.view.RoleDetailView;
 import com.songhg.veri.agent.management.application.view.RoleView;
 import com.songhg.veri.agent.management.application.view.UserView;
-import java.util.Set;
 
 /**
- * Role and permission management use cases. Callers pass the assignable permission closure so the
- * implementation cannot grant permissions outside the actor's management boundary.
+ * Role and permission management use cases. Implementations resolve the caller's assignable
+ * permission closure before changing role bindings.
  */
 public interface RoleOperations {
 
@@ -35,17 +34,12 @@ public interface RoleOperations {
     /**
      * Creates a role using only permissions included in the caller's assignable closure.
      */
-    RoleDetailView createRole(CreateRoleRequest request, Set<String> assignablePermissions, AuthUserPrincipal actor);
+    RoleDetailView createRole(CreateRoleRequest request, AuthUserPrincipal actor);
 
     /**
      * Replaces editable role metadata and permission bindings within the assignable closure.
      */
-    RoleDetailView updateRole(
-            String code,
-            UpdateRoleRequest request,
-            Set<String> assignablePermissions,
-            AuthUserPrincipal actor
-    );
+    RoleDetailView updateRole(String code, UpdateRoleRequest request, AuthUserPrincipal actor);
 
     /**
      * Changes role lifecycle status without deleting historical bindings.

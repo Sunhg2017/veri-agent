@@ -1,9 +1,23 @@
 package com.songhg.veri.agent.modelaccess.application;
 
-import com.songhg.veri.agent.common.error.BusinessException;
-import com.songhg.veri.agent.common.error.ErrorCode;
 import com.songhg.veri.agent.common.api.PageQuery;
 import com.songhg.veri.agent.common.api.PageResponse;
+import com.songhg.veri.agent.common.error.BusinessException;
+import com.songhg.veri.agent.common.error.ErrorCode;
+import com.songhg.veri.agent.modelaccess.application.command.CreatePromptCommand;
+import com.songhg.veri.agent.modelaccess.application.command.CreateProviderCommand;
+import com.songhg.veri.agent.modelaccess.application.command.ModelInvocationCommand;
+import com.songhg.veri.agent.modelaccess.application.command.UpdateProviderCommand;
+import com.songhg.veri.agent.modelaccess.application.port.ModelAccessRepository;
+import com.songhg.veri.agent.modelaccess.application.port.ModelProviderClient;
+import com.songhg.veri.agent.modelaccess.application.port.PlatformContextClient;
+import com.songhg.veri.agent.modelaccess.application.query.InvocationQuery;
+import com.songhg.veri.agent.modelaccess.application.view.CostAlertResult;
+import com.songhg.veri.agent.modelaccess.application.view.CostReportResult;
+import com.songhg.veri.agent.modelaccess.application.view.InvocationSummaryResult;
+import com.songhg.veri.agent.modelaccess.application.view.ModelInvocationResult;
+import com.songhg.veri.agent.modelaccess.application.view.ProviderCheckResult;
+import com.songhg.veri.agent.modelaccess.application.view.ProviderResilienceResult;
 import com.songhg.veri.agent.modelaccess.config.ModelAccessProperties;
 import com.songhg.veri.agent.modelaccess.domain.InvocationRecord;
 import com.songhg.veri.agent.modelaccess.domain.ModelProviderConfig;
@@ -22,6 +36,20 @@ import java.util.UUID;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 @Service
 public class ModelAccessService {
@@ -130,8 +158,16 @@ public class ModelAccessService {
         return promptTemplateManagementService.approvePrompt(id, approvedBy, reviewNote);
     }
 
+    public PromptTemplate approvePrompt(UUID id, String reviewNote) {
+        return promptTemplateManagementService.approvePrompt(id, reviewNote);
+    }
+
     public PromptTemplate rejectPrompt(UUID id, String approvedBy, String reviewNote) {
         return promptTemplateManagementService.rejectPrompt(id, approvedBy, reviewNote);
+    }
+
+    public PromptTemplate rejectPrompt(UUID id, String reviewNote) {
+        return promptTemplateManagementService.rejectPrompt(id, reviewNote);
     }
 
     public ModelInvocationResult invoke(ModelInvocationCommand request, ServicePrincipal principal) {

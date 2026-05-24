@@ -1,8 +1,8 @@
 package com.songhg.veri.agent.modelaccess.infrastructure;
 
-import com.songhg.veri.agent.modelaccess.application.ModelProviderClient;
-import com.songhg.veri.agent.modelaccess.application.ProviderCallRequest;
-import com.songhg.veri.agent.modelaccess.application.ProviderCallResult;
+import com.songhg.veri.agent.modelaccess.application.port.ModelProviderClient;
+import com.songhg.veri.agent.modelaccess.application.command.ProviderCallRequest;
+import com.songhg.veri.agent.modelaccess.application.view.ProviderCallResult;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
 import com.songhg.veri.agent.modelaccess.domain.ModelProviderConfig;

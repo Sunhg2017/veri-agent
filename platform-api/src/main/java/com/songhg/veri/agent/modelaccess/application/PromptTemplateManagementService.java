@@ -1,23 +1,43 @@
 package com.songhg.veri.agent.modelaccess.application;
 
+import com.songhg.veri.agent.auth.application.AuthUserPrincipal;
+import com.songhg.veri.agent.common.audit.AuditLogWriter;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
+import com.songhg.veri.agent.modelaccess.application.command.CreatePromptCommand;
+import com.songhg.veri.agent.modelaccess.application.port.ModelAccessRepository;
 import com.songhg.veri.agent.modelaccess.domain.PromptApprovalStatus;
 import com.songhg.veri.agent.modelaccess.domain.PromptStatus;
 import com.songhg.veri.agent.modelaccess.domain.PromptTemplate;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
+
+
 
 @Service
 public class PromptTemplateManagementService {
 
     private final ModelAccessRepository repository;
+    private final ModelAccessActorResolver actorResolver;
+    private final AuditLogWriter auditLogWriter;
 
     public PromptTemplateManagementService(ModelAccessRepository repository) {
+        this(repository, null, null);
+    }
+
+    @Autowired
+    public PromptTemplateManagementService(
+            ModelAccessRepository repository,
+            ModelAccessActorResolver actorResolver,
+            AuditLogWriter auditLogWriter
+    ) {
         this.repository = repository;
+        this.actorResolver = actorResolver;
+        this.auditLogWriter = auditLogWriter;
     }
 
     public List<PromptTemplate> prompts(String promptKey) {
@@ -42,7 +62,7 @@ public class PromptTemplateManagementService {
             repository.deactivateActivePrompts(promptKey);
         }
         Instant now = Instant.now();
-        return repository.savePrompt(new PromptTemplate(
+        PromptTemplate created = repository.savePrompt(new PromptTemplate(
                 UUID.randomUUID(),
                 promptKey,
                 request.name().trim(),
@@ -58,6 +78,10 @@ public class PromptTemplateManagementService {
                 now,
                 now
         ));
+        if (created.status() == PromptStatus.ACTIVE) {
+            auditPromptActivation(currentActor(), created, "MODEL_PROMPT_CREATE_ACTIVATE");
+        }
+        return created;
     }
 
     public PromptTemplate activatePrompt(UUID id) {
@@ -67,7 +91,7 @@ public class PromptTemplateManagementService {
             throw new BusinessException(ErrorCode.INVALID_STATE, "高风险 Prompt 需审批通过后才能激活");
         }
         repository.deactivateActivePrompts(prompt.promptKey());
-        return repository.savePrompt(new PromptTemplate(
+        PromptTemplate activated = repository.savePrompt(new PromptTemplate(
                 prompt.id(),
                 prompt.promptKey(),
                 prompt.name(),
@@ -83,26 +107,40 @@ public class PromptTemplateManagementService {
                 prompt.createdAt(),
                 Instant.now()
         ));
+        auditPromptActivation(currentActor(), activated, "MODEL_PROMPT_ACTIVATE");
+        return activated;
+    }
+
+    public PromptTemplate approvePrompt(UUID id, String reviewNote) {
+        return approvePrompt(id, approvalActor(currentActor()), reviewNote);
     }
 
     public PromptTemplate approvePrompt(UUID id, String approvedBy, String reviewNote) {
         PromptTemplate prompt = promptForReview(id);
-        return repository.savePrompt(reviewedPrompt(
+        PromptTemplate reviewed = repository.savePrompt(reviewedPrompt(
                 prompt,
                 PromptApprovalStatus.APPROVED,
                 approvedBy,
                 reviewNote
         ));
+        auditPromptReview(currentActor(), reviewed, "MODEL_PROMPT_APPROVE");
+        return reviewed;
+    }
+
+    public PromptTemplate rejectPrompt(UUID id, String reviewNote) {
+        return rejectPrompt(id, approvalActor(currentActor()), reviewNote);
     }
 
     public PromptTemplate rejectPrompt(UUID id, String approvedBy, String reviewNote) {
         PromptTemplate prompt = promptForReview(id);
-        return repository.savePrompt(reviewedPrompt(
+        PromptTemplate reviewed = repository.savePrompt(reviewedPrompt(
                 prompt,
                 PromptApprovalStatus.REJECTED,
                 approvedBy,
                 reviewNote
         ));
+        auditPromptReview(currentActor(), reviewed, "MODEL_PROMPT_REJECT");
+        return reviewed;
     }
 
     public int activePromptCount() {
@@ -144,6 +182,40 @@ public class PromptTemplateManagementService {
                 prompt.createdAt(),
                 now
         );
+    }
+
+    private AuthUserPrincipal currentActor() {
+        return actorResolver == null ? null : actorResolver.currentUserPrincipal();
+    }
+
+    private String approvalActor(AuthUserPrincipal actor) {
+        return actor == null ? "system" : actor.username();
+    }
+
+    private void auditPromptActivation(AuthUserPrincipal actor, PromptTemplate prompt, String action) {
+        if (auditLogWriter == null) {
+            return;
+        }
+        auditLogWriter.record(AuditLogWriter.success(
+                actor,
+                action,
+                "ma_prompt_template",
+                prompt.id().toString(),
+                prompt.promptKey() + ":v" + prompt.version()
+        ));
+    }
+
+    private void auditPromptReview(AuthUserPrincipal actor, PromptTemplate prompt, String action) {
+        if (auditLogWriter == null) {
+            return;
+        }
+        auditLogWriter.record(AuditLogWriter.success(
+                actor,
+                action,
+                "ma_prompt_template",
+                prompt.id().toString(),
+                prompt.promptKey() + ":v" + prompt.version() + ":" + prompt.approvalStatus()
+        ));
     }
 
     private String trimToNull(String value) {

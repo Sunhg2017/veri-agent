@@ -3,13 +3,15 @@ package com.songhg.veri.agent.documentinput.application;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
-import com.songhg.veri.agent.documentinput.application.CandidateBatchActionRequest;
-import com.songhg.veri.agent.documentinput.application.ConfirmDocumentCandidateRequest;
-import com.songhg.veri.agent.documentinput.application.IgnoreDocumentCandidateRequest;
-import com.songhg.veri.agent.documentinput.application.UpdateDocumentCandidateRequest;
-import com.songhg.veri.agent.documentinput.application.DocumentCandidateBatchActionItemResponse;
-import com.songhg.veri.agent.documentinput.application.DocumentCandidateBatchActionResponse;
-import com.songhg.veri.agent.documentinput.application.DocumentCandidateResponse;
+import com.songhg.veri.agent.documentinput.application.command.CandidateBatchActionRequest;
+import com.songhg.veri.agent.documentinput.application.command.ConfirmDocumentCandidateRequest;
+import com.songhg.veri.agent.documentinput.application.command.IgnoreDocumentCandidateRequest;
+import com.songhg.veri.agent.documentinput.application.command.UpdateDocumentCandidateRequest;
+import com.songhg.veri.agent.documentinput.application.port.DocumentInputRepository;
+import com.songhg.veri.agent.documentinput.application.view.DocumentCandidateBatchActionItemResponse;
+import com.songhg.veri.agent.documentinput.application.view.DocumentCandidateBatchActionResponse;
+import com.songhg.veri.agent.documentinput.application.view.DocumentCandidateResponse;
+import com.songhg.veri.agent.documentinput.application.view.DocumentInputMetrics;
 import com.songhg.veri.agent.documentinput.config.DocumentInputProperties;
 import com.songhg.veri.agent.documentinput.domain.DocumentCandidateStatus;
 import com.songhg.veri.agent.documentinput.domain.DocumentRequirementCandidate;
@@ -22,6 +24,8 @@ import java.util.Objects;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
+
+
 
 @Service
 public class DocumentCandidateWorkflowService {

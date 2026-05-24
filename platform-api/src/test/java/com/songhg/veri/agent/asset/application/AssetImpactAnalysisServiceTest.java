@@ -1,6 +1,7 @@
 package com.songhg.veri.agent.asset.application;
 
-import com.songhg.veri.agent.asset.application.AssetImpactAnalysisResponse;
+import com.songhg.veri.agent.asset.application.port.PlatformContextClient;
+import com.songhg.veri.agent.asset.application.view.AssetImpactAnalysisResponse;
 import com.songhg.veri.agent.asset.domain.AssetApi;
 import com.songhg.veri.agent.asset.domain.AssetBusinessFlow;
 import com.songhg.veri.agent.asset.domain.AssetPage;
@@ -16,9 +17,10 @@ import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+
 
 class AssetImpactAnalysisServiceTest {
 

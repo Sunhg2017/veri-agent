@@ -1,5 +1,6 @@
 package com.songhg.veri.agent.documentinput.application;
 
+import com.songhg.veri.agent.documentinput.application.port.DocumentInputRepository;
 import com.songhg.veri.agent.documentinput.config.DocumentInputProperties;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -9,6 +10,7 @@ import java.util.Map;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+
 
 @Service
 public class DocumentInputRetentionCleanupService {

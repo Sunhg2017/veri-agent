@@ -4,12 +4,13 @@ import com.songhg.veri.agent.auth.application.AuthUserPrincipal;
 import com.songhg.veri.agent.common.api.PageQuery;
 import com.songhg.veri.agent.common.api.PageResponse;
 import com.songhg.veri.agent.common.audit.AuditLogWriter;
-import com.songhg.veri.agent.management.application.port.ApplicationOperations;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
+import com.songhg.veri.agent.management.application.security.ManagementAuthorizationGuard;
 import com.songhg.veri.agent.management.application.command.CreateApplicationRequest;
 import com.songhg.veri.agent.management.application.command.ScopedUserRoleRequest;
 import com.songhg.veri.agent.management.application.command.UpdateApplicationRequest;
+import com.songhg.veri.agent.management.application.port.ApplicationOperations;
 import com.songhg.veri.agent.management.application.view.ApplicationView;
 import com.songhg.veri.agent.management.application.view.ScopedUserRoleView;
 import com.songhg.veri.agent.management.application.view.UserView;
@@ -26,13 +27,16 @@ final class InMemoryManagementApplicationService implements ApplicationOperation
     private final List<ScopedUserRoleView> applicationOwners = new ArrayList<>();
     private final InMemoryManagementUserService userService;
     private final AuditLogWriter auditLogWriter;
+    private final ManagementAuthorizationGuard authorizationGuard;
 
     InMemoryManagementApplicationService(
             InMemoryManagementUserService userService,
-            AuditLogWriter auditLogWriter
+            AuditLogWriter auditLogWriter,
+            ManagementAuthorizationGuard authorizationGuard
     ) {
         this.userService = userService;
         this.auditLogWriter = auditLogWriter;
+        this.authorizationGuard = authorizationGuard;
         applications.addAll(List.of(
                 new ApplicationView("veri-agent-api", "Backend", "平台组", "v0.3.2", "已接入"),
                 new ApplicationView("portal-web", "Frontend", "平台组", "v0.1.0", "接入中"),
@@ -81,6 +85,7 @@ final class InMemoryManagementApplicationService implements ApplicationOperation
         if (!List.of("ENABLED", "DISABLED").contains(status)) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "应用状态不支持");
         }
+        authorizationGuard.requireApplicationStatus(actor, status);
         ApplicationView updated = replaceApplication(
                 current.name(),
                 new ApplicationView(

@@ -1,9 +1,9 @@
 package com.songhg.veri.agent.documentinput.infrastructure;
 
 import com.songhg.veri.agent.common.api.PageQuery;
-import com.songhg.veri.agent.documentinput.application.DocumentCandidateQuery;
-import com.songhg.veri.agent.documentinput.application.DocumentImportQuery;
-import com.songhg.veri.agent.documentinput.application.DocumentSourceQuery;
+import com.songhg.veri.agent.documentinput.application.query.DocumentCandidateQuery;
+import com.songhg.veri.agent.documentinput.application.query.DocumentImportQuery;
+import com.songhg.veri.agent.documentinput.application.query.DocumentSourceQuery;
 import com.songhg.veri.agent.documentinput.domain.DocumentCandidateStatus;
 import com.songhg.veri.agent.documentinput.domain.DocumentImportRecord;
 import com.songhg.veri.agent.documentinput.domain.DocumentImportStatus;

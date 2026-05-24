@@ -74,7 +74,7 @@
         </constructor>
     </resultMap>
 
-    <resultMap id="summaryMap" type="com.songhg.veri.agent.modelaccess.application.InvocationSummaryResult">
+    <resultMap id="summaryMap" type="com.songhg.veri.agent.modelaccess.application.view.InvocationSummaryResult">
         <constructor>
             <arg column="total" javaType="_long"/>
             <arg column="succeeded" javaType="_long"/>
@@ -86,10 +86,10 @@
         </constructor>
     </resultMap>
 
-    <resultMap id="invocationJobMap" type="com.songhg.veri.agent.modelaccess.application.ModelInvocationJobRecord">
+    <resultMap id="invocationJobMap" type="com.songhg.veri.agent.modelaccess.application.view.ModelInvocationJobRecord">
         <constructor>
             <arg column="job_id" javaType="java.util.UUID"/>
-            <arg column="status" javaType="com.songhg.veri.agent.modelaccess.application.ModelInvocationJobStatus"/>
+            <arg column="status" javaType="com.songhg.veri.agent.modelaccess.application.view.ModelInvocationJobStatus"/>
             <arg column="request_json" javaType="java.lang.String"/>
             <arg column="actor_service" javaType="java.lang.String"/>
             <arg column="delegated_user_id" javaType="java.lang.String"/>

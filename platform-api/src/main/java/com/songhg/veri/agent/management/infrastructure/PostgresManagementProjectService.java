@@ -4,12 +4,13 @@ import com.songhg.veri.agent.auth.application.AuthUserPrincipal;
 import com.songhg.veri.agent.common.api.PageQuery;
 import com.songhg.veri.agent.common.api.PageResponse;
 import com.songhg.veri.agent.common.audit.AuditLogWriter;
-import com.songhg.veri.agent.management.application.port.ProjectOperations;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
+import com.songhg.veri.agent.management.application.security.ManagementAuthorizationGuard;
 import com.songhg.veri.agent.management.application.command.CreateProjectRequest;
 import com.songhg.veri.agent.management.application.command.ProjectMemberRequest;
 import com.songhg.veri.agent.management.application.command.UpdateProjectRequest;
+import com.songhg.veri.agent.management.application.port.ProjectOperations;
 import com.songhg.veri.agent.management.application.view.ProjectMemberView;
 import com.songhg.veri.agent.management.application.view.ProjectView;
 import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapper;
@@ -34,15 +35,18 @@ class PostgresManagementProjectService implements ProjectOperations {
     private final ManagementMapper mapper;
     private final AuditLogWriter auditLogWriter;
     private final PostgresManagementDeniedAuditRecorder deniedAuditRecorder;
+    private final ManagementAuthorizationGuard authorizationGuard;
 
     PostgresManagementProjectService(
             ManagementMapper mapper,
             AuditLogWriter auditLogWriter,
-            PostgresManagementDeniedAuditRecorder deniedAuditRecorder
+            PostgresManagementDeniedAuditRecorder deniedAuditRecorder,
+            ManagementAuthorizationGuard authorizationGuard
     ) {
         this.mapper = mapper;
         this.auditLogWriter = auditLogWriter;
         this.deniedAuditRecorder = deniedAuditRecorder;
+        this.authorizationGuard = authorizationGuard;
     }
 
     public PageResponse<ProjectView> projects(PageQuery pageQuery, AuthUserPrincipal actor) {
@@ -96,8 +100,9 @@ class PostgresManagementProjectService implements ProjectOperations {
     }
 
     public ProjectView changeProjectStatus(String key, String status, AuthUserPrincipal actor) {
-        ProjectRef project = resolveProjectStrict(key);
         String nextStatus = normalizeProjectStatus(status);
+        authorizationGuard.requireProjectStatus(actor, nextStatus);
+        ProjectRef project = resolveProjectStrict(key);
         ensureProjectStatusTransition(actor, project, nextStatus);
         update(mapper::changeProjectStatus, actor, values("projectId", project.id(), "status", nextStatus));
         ProjectView updated = projectByKey(project.id().toString());

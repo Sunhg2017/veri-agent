@@ -1,10 +1,12 @@
 package com.songhg.veri.agent.documentinput.api.response;
 
+import com.songhg.veri.agent.documentinput.application.view.ParsedRequirementResponse;
 import com.songhg.veri.agent.documentinput.domain.DocumentImportStatus;
 import com.songhg.veri.agent.documentinput.domain.DocumentSourceType;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
+
 
 public record DocumentImportResponse(
         UUID id,

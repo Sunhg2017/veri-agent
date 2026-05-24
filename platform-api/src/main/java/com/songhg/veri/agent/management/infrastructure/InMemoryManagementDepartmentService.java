@@ -4,10 +4,11 @@ import com.songhg.veri.agent.auth.application.AuthUserPrincipal;
 import com.songhg.veri.agent.common.api.PageQuery;
 import com.songhg.veri.agent.common.api.PageResponse;
 import com.songhg.veri.agent.common.audit.AuditLogWriter;
-import com.songhg.veri.agent.management.application.port.DepartmentOperations;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
+import com.songhg.veri.agent.management.application.security.ManagementAuthorizationGuard;
 import com.songhg.veri.agent.management.application.command.UpdateDepartmentRequest;
+import com.songhg.veri.agent.management.application.port.DepartmentOperations;
 import com.songhg.veri.agent.management.application.view.DepartmentView;
 import java.util.ArrayList;
 import java.util.List;
@@ -20,9 +21,11 @@ final class InMemoryManagementDepartmentService implements DepartmentOperations 
 
     private final List<DepartmentView> departments = new ArrayList<>();
     private final AuditLogWriter auditLogWriter;
+    private final ManagementAuthorizationGuard authorizationGuard;
 
-    InMemoryManagementDepartmentService(AuditLogWriter auditLogWriter) {
+    InMemoryManagementDepartmentService(AuditLogWriter auditLogWriter, ManagementAuthorizationGuard authorizationGuard) {
         this.auditLogWriter = auditLogWriter;
+        this.authorizationGuard = authorizationGuard;
         departments.addAll(List.of(
                 new DepartmentView("质量工程中心", "总部", "邵敏", 68, "同步正常"),
                 new DepartmentView("自动化平台组", "质量工程中心", "何序", 16, "同步正常"),
@@ -69,6 +72,7 @@ final class InMemoryManagementDepartmentService implements DepartmentOperations 
         if (!List.of("ENABLED", "DISABLED").contains(status)) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "部门状态不支持");
         }
+        authorizationGuard.requireDepartmentStatus(actor, status);
         DepartmentView updated = replaceDepartment(
                 current.name(),
                 new DepartmentView(

@@ -1,6 +1,6 @@
 package com.songhg.veri.agent.modelaccess.api.response;
 
-import com.songhg.veri.agent.modelaccess.application.ModelInvocationJobStatus;
+import com.songhg.veri.agent.modelaccess.application.view.ModelInvocationJobStatus;
 import java.time.Instant;
 import java.util.UUID;
 

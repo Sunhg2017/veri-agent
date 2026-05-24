@@ -1,5 +1,7 @@
 package com.songhg.veri.agent.documentinput.api.response;
 
+import com.songhg.veri.agent.documentinput.application.view.DocumentSecretProviderHealthResponse;
+
 public record DocumentInputHealthResponse(
         String service,
         String status,

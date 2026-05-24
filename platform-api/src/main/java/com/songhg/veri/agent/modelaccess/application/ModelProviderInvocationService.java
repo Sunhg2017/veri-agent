@@ -2,6 +2,13 @@ package com.songhg.veri.agent.modelaccess.application;
 
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
+import com.songhg.veri.agent.modelaccess.application.command.ModelInvocationCommand;
+import com.songhg.veri.agent.modelaccess.application.command.ProviderCallRequest;
+import com.songhg.veri.agent.modelaccess.application.port.ModelAccessRepository;
+import com.songhg.veri.agent.modelaccess.application.port.ModelProviderClient;
+import com.songhg.veri.agent.modelaccess.application.port.PlatformContextClient;
+import com.songhg.veri.agent.modelaccess.application.view.ModelInvocationResult;
+import com.songhg.veri.agent.modelaccess.application.view.ProviderCallResult;
 import com.songhg.veri.agent.modelaccess.config.ModelAccessProperties;
 import com.songhg.veri.agent.modelaccess.domain.InvocationRecord;
 import com.songhg.veri.agent.modelaccess.domain.InvocationStatus;
@@ -15,6 +22,14 @@ import java.util.List;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
+
+
+
+
+
+
+
+
 
 /**
  * Owns provider attempts, budget checks, fallback handling and invocation persistence.

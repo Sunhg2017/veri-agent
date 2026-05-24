@@ -1,7 +1,6 @@
 package com.songhg.veri.agent.management.api.controller;
 
 import com.songhg.veri.agent.auth.application.AuthUserPrincipal;
-import com.songhg.veri.agent.authorization.application.AuthorizationService;
 import com.songhg.veri.agent.authorization.application.PermissionCodes;
 import com.songhg.veri.agent.authorization.application.RequirePermission;
 import com.songhg.veri.agent.common.api.PageResponse;
@@ -28,8 +27,8 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * Project management endpoint. Project status uses a state-sensitive permission code so archived
- * and re-enabled flows remain auditable through the common authorization layer.
+ * Project management endpoint. Payload-dependent status authorization is handled below the HTTP
+ * boundary so the resource controller only translates requests and responses.
  */
 @ApiVersion
 @RestController
@@ -37,16 +36,13 @@ import org.springframework.web.bind.annotation.RestController;
 public class ProjectController {
 
     private final ProjectOperations projectOperations;
-    private final AuthorizationService authorizationService;
     private final ManagementApiMapper mapper;
 
     public ProjectController(
             ProjectOperations projectOperations,
-            AuthorizationService authorizationService,
             ManagementApiMapper mapper
     ) {
         this.projectOperations = projectOperations;
-        this.authorizationService = authorizationService;
         this.mapper = mapper;
     }
 
@@ -94,7 +90,6 @@ public class ProjectController {
             @Valid @RequestBody StatusChangeRequest request,
             @AuthenticationPrincipal AuthUserPrincipal principal
     ) {
-        authorizationService.require(principal, PermissionCodes.projectStatusPermission(request.status()));
         return mapper.toResponse(projectOperations.changeProjectStatus(key.trim(), request.status(), principal));
     }
 

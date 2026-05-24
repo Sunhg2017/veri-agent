@@ -1,6 +1,6 @@
 package com.songhg.veri.agent.modelaccess.infrastructure;
 
-import com.songhg.veri.agent.modelaccess.application.ProviderResilienceStateStore;
+import com.songhg.veri.agent.modelaccess.application.port.ProviderResilienceStateStore;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;

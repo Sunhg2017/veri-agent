@@ -8,7 +8,7 @@ import com.songhg.veri.agent.asset.domain.AssetVersionHistory;
 import com.songhg.veri.agent.asset.domain.TestCaseRecord;
 import com.songhg.veri.agent.asset.domain.TestCaseStep;
 import com.songhg.veri.agent.asset.domain.TraceLink;
-import com.songhg.veri.agent.asset.application.AssetListQuery;
+import com.songhg.veri.agent.asset.application.query.AssetListQuery;
 import java.util.List;
 import java.util.UUID;
 import org.apache.ibatis.annotations.Mapper;

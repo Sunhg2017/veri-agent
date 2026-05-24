@@ -6,26 +6,33 @@ import com.songhg.veri.agent.common.api.PageResponse;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
 import com.songhg.veri.agent.common.trace.TraceContext;
-import com.songhg.veri.agent.documentinput.application.CandidateBatchActionRequest;
-import com.songhg.veri.agent.documentinput.application.ConfirmDocumentCandidateRequest;
-import com.songhg.veri.agent.documentinput.application.CreateDocumentImportRequest;
-import com.songhg.veri.agent.documentinput.application.DocumentPublishRequest;
-import com.songhg.veri.agent.documentinput.application.IgnoreDocumentCandidateRequest;
-import com.songhg.veri.agent.documentinput.application.UpdateFieldMappingRequest;
-import com.songhg.veri.agent.documentinput.application.UpdateDocumentCandidateRequest;
-import com.songhg.veri.agent.documentinput.application.UpsertDocumentSourceRequest;
-import com.songhg.veri.agent.documentinput.application.DocumentCandidateBatchActionResponse;
-import com.songhg.veri.agent.documentinput.application.DocumentCandidateResponse;
-import com.songhg.veri.agent.documentinput.application.DocumentImportResponse;
-import com.songhg.veri.agent.documentinput.application.DocumentInputHealthResponse;
-import com.songhg.veri.agent.documentinput.application.DocumentParseFeedbackSampleResponse;
-import com.songhg.veri.agent.documentinput.application.DocumentPublishRecordResponse;
-import com.songhg.veri.agent.documentinput.application.DocumentPublishResponse;
-import com.songhg.veri.agent.documentinput.application.DocumentSecretProviderHealthResponse;
-import com.songhg.veri.agent.documentinput.application.DocumentSourceHealthResponse;
-import com.songhg.veri.agent.documentinput.application.DocumentSourceResponse;
-import com.songhg.veri.agent.documentinput.application.DocumentWebhookEventResponse;
-import com.songhg.veri.agent.documentinput.application.FieldMappingResponse;
+import com.songhg.veri.agent.documentinput.application.command.CandidateBatchActionRequest;
+import com.songhg.veri.agent.documentinput.application.command.ConfirmDocumentCandidateRequest;
+import com.songhg.veri.agent.documentinput.application.command.CreateDocumentImportRequest;
+import com.songhg.veri.agent.documentinput.application.command.DocumentPublishRequest;
+import com.songhg.veri.agent.documentinput.application.command.IgnoreDocumentCandidateRequest;
+import com.songhg.veri.agent.documentinput.application.command.UpdateDocumentCandidateRequest;
+import com.songhg.veri.agent.documentinput.application.command.UpdateFieldMappingRequest;
+import com.songhg.veri.agent.documentinput.application.command.UpsertDocumentSourceRequest;
+import com.songhg.veri.agent.documentinput.application.port.DocumentInputRepository;
+import com.songhg.veri.agent.documentinput.application.query.DocumentCandidateQuery;
+import com.songhg.veri.agent.documentinput.application.query.DocumentImportQuery;
+import com.songhg.veri.agent.documentinput.application.query.DocumentParseFeedbackQuery;
+import com.songhg.veri.agent.documentinput.application.query.DocumentSourceQuery;
+import com.songhg.veri.agent.documentinput.application.query.DocumentWebhookEventQuery;
+import com.songhg.veri.agent.documentinput.application.view.DocumentCandidateBatchActionResponse;
+import com.songhg.veri.agent.documentinput.application.view.DocumentCandidateResponse;
+import com.songhg.veri.agent.documentinput.application.view.DocumentImportResponse;
+import com.songhg.veri.agent.documentinput.application.view.DocumentInputHealthResponse;
+import com.songhg.veri.agent.documentinput.application.view.DocumentInputMetrics;
+import com.songhg.veri.agent.documentinput.application.view.DocumentParseFeedbackSampleResponse;
+import com.songhg.veri.agent.documentinput.application.view.DocumentPublishRecordResponse;
+import com.songhg.veri.agent.documentinput.application.view.DocumentPublishResponse;
+import com.songhg.veri.agent.documentinput.application.view.DocumentSecretProviderHealthResponse;
+import com.songhg.veri.agent.documentinput.application.view.DocumentSourceHealthResponse;
+import com.songhg.veri.agent.documentinput.application.view.DocumentSourceResponse;
+import com.songhg.veri.agent.documentinput.application.view.DocumentWebhookEventResponse;
+import com.songhg.veri.agent.documentinput.application.view.FieldMappingResponse;
 import com.songhg.veri.agent.documentinput.config.DocumentInputProperties;
 import com.songhg.veri.agent.documentinput.domain.DocumentSourceConfig;
 import com.songhg.veri.agent.documentinput.domain.DocumentSourceStatus;
@@ -36,16 +43,23 @@ import com.songhg.veri.agent.documentinput.domain.WebhookSignatureStatus;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Instant;
-import javax.crypto.Mac;
-import javax.crypto.spec.SecretKeySpec;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
+
+
+
+
+
+
+
 
 @Service
 public class DocumentInputService {

@@ -1,12 +1,14 @@
 package com.songhg.veri.agent.asset.application;
 
-import com.songhg.veri.agent.asset.application.AssetListRequest;
-import com.songhg.veri.agent.asset.application.CreateTestCaseRequest;
-import com.songhg.veri.agent.asset.application.RollbackAssetVersionRequest;
-import com.songhg.veri.agent.asset.application.UpdateAssetLifecycleRequest;
-import com.songhg.veri.agent.asset.application.UpdateTestCaseRequest;
-import com.songhg.veri.agent.asset.application.AssetVersionHistoryResponse;
-import com.songhg.veri.agent.asset.application.TestCaseResponse;
+import com.songhg.veri.agent.asset.application.command.CreateTestCaseRequest;
+import com.songhg.veri.agent.asset.application.command.RollbackAssetVersionRequest;
+import com.songhg.veri.agent.asset.application.command.UpdateAssetLifecycleRequest;
+import com.songhg.veri.agent.asset.application.command.UpdateTestCaseRequest;
+import com.songhg.veri.agent.asset.application.port.AssetRepository;
+import com.songhg.veri.agent.asset.application.query.AssetListQuery;
+import com.songhg.veri.agent.asset.application.query.AssetListRequest;
+import com.songhg.veri.agent.asset.application.view.AssetVersionHistoryResponse;
+import com.songhg.veri.agent.asset.application.view.TestCaseResponse;
 import com.songhg.veri.agent.asset.domain.AssetApi;
 import com.songhg.veri.agent.asset.domain.AssetLifecycleStatus;
 import com.songhg.veri.agent.asset.domain.AssetRequirement;
@@ -30,6 +32,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
+
+
 
 /**
  * Owns test case asset CRUD, linked resource scope checks and version/lifecycle entry points.

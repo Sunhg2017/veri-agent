@@ -4,8 +4,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.songhg.veri.agent.common.api.PageResponse;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
-import com.songhg.veri.agent.documentinput.application.CreateDocumentImportRequest;
-import com.songhg.veri.agent.documentinput.application.DocumentImportResponse;
+import com.songhg.veri.agent.documentinput.application.command.CreateDocumentImportRequest;
+import com.songhg.veri.agent.documentinput.application.port.DocumentInputRepository;
+import com.songhg.veri.agent.documentinput.application.query.DocumentImportQuery;
+import com.songhg.veri.agent.documentinput.application.view.DocumentImportResponse;
+import com.songhg.veri.agent.documentinput.application.view.DocumentInputMetrics;
+import com.songhg.veri.agent.documentinput.application.view.DocumentModelParseResult;
 import com.songhg.veri.agent.documentinput.config.DocumentInputProperties;
 import com.songhg.veri.agent.documentinput.domain.DocumentCandidateStatus;
 import com.songhg.veri.agent.documentinput.domain.DocumentFieldMapping;
@@ -16,7 +20,7 @@ import com.songhg.veri.agent.documentinput.domain.DocumentSourceConfig;
 import com.songhg.veri.agent.documentinput.domain.DocumentSourceStatus;
 import com.songhg.veri.agent.documentinput.domain.DocumentSourceType;
 import com.songhg.veri.agent.documentinput.domain.ParsedRequirementDraft;
-import com.songhg.veri.agent.integration.application.PlatformContext;
+import com.songhg.veri.agent.integration.application.view.PlatformContext;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Instant;
@@ -32,6 +36,10 @@ import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
+
+
+
+
 
 /**
  * Owns document import orchestration, parsing fallback and candidate persistence.

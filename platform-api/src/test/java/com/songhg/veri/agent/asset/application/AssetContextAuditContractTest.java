@@ -1,7 +1,8 @@
 package com.songhg.veri.agent.asset.application;
 
-import com.songhg.veri.agent.asset.application.AssetListRequest;
-import com.songhg.veri.agent.asset.application.CreateRequirementRequest;
+import com.songhg.veri.agent.asset.application.command.CreateRequirementRequest;
+import com.songhg.veri.agent.asset.application.port.PlatformContextClient;
+import com.songhg.veri.agent.asset.application.query.AssetListRequest;
 import com.songhg.veri.agent.asset.infrastructure.InMemoryAssetRepository;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
@@ -11,9 +12,10 @@ import java.util.Map;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.access.AccessDeniedException;
-
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+
 
 class AssetContextAuditContractTest {
 

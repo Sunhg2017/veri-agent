@@ -5,11 +5,12 @@ import com.songhg.veri.agent.auth.application.AuthUserPrincipal;
 import com.songhg.veri.agent.common.api.PageQuery;
 import com.songhg.veri.agent.common.api.PageResponse;
 import com.songhg.veri.agent.common.audit.AuditLogWriter;
-import com.songhg.veri.agent.management.application.port.RoleOperations;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
+import com.songhg.veri.agent.management.application.security.ManagementAuthorizationGuard;
 import com.songhg.veri.agent.management.application.command.CreateRoleRequest;
 import com.songhg.veri.agent.management.application.command.UpdateRoleRequest;
+import com.songhg.veri.agent.management.application.port.RoleOperations;
 import com.songhg.veri.agent.management.application.view.PermissionView;
 import com.songhg.veri.agent.management.application.view.RoleDetailView;
 import com.songhg.veri.agent.management.application.view.RoleView;
@@ -32,10 +33,16 @@ final class InMemoryManagementRoleService implements RoleOperations {
     private final Map<String, List<String>> rolePermissions = new HashMap<>();
     private final InMemoryManagementUserService userService;
     private final AuditLogWriter auditLogWriter;
+    private final ManagementAuthorizationGuard authorizationGuard;
 
-    InMemoryManagementRoleService(InMemoryManagementUserService userService, AuditLogWriter auditLogWriter) {
+    InMemoryManagementRoleService(
+            InMemoryManagementUserService userService,
+            AuditLogWriter auditLogWriter,
+            ManagementAuthorizationGuard authorizationGuard
+    ) {
         this.userService = userService;
         this.auditLogWriter = auditLogWriter;
+        this.authorizationGuard = authorizationGuard;
         roles.addAll(List.of(
                 new RoleView("SuperAdmin", "超级管理员", "PLATFORM", "启用", "平台初始化、组织治理、平台审计"),
                 new RoleView("PlatformAdmin", "平台管理员", "PLATFORM", "启用", "组织、用户、项目、应用、环境、权限、审计管理"),
@@ -74,13 +81,13 @@ final class InMemoryManagementRoleService implements RoleOperations {
         return roleDetail(role);
     }
 
-    public synchronized RoleDetailView createRole(CreateRoleRequest request, Set<String> assignablePermissions, AuthUserPrincipal actor) {
+    public synchronized RoleDetailView createRole(CreateRoleRequest request, AuthUserPrincipal actor) {
         String code = request.code().trim();
         if (roles.stream().anyMatch(role -> role.code().equals(code))) {
             throw new BusinessException(ErrorCode.CONFLICT, "角色编码已存在");
         }
         List<String> permissionCodes = normalizePermissionCodes(request.permissionCodes());
-        ensureAssignablePermissions(permissionCodes, assignablePermissions);
+        ensureAssignablePermissions(permissionCodes, authorizationGuard.assignablePermissions(actor));
         ensureKnownPermissions(permissionCodes);
         RoleView view = new RoleView(
                 code,
@@ -95,13 +102,13 @@ final class InMemoryManagementRoleService implements RoleOperations {
         return roleDetail(view);
     }
 
-    public synchronized RoleDetailView updateRole(String code, UpdateRoleRequest request, Set<String> assignablePermissions, AuthUserPrincipal actor) {
+    public synchronized RoleDetailView updateRole(String code, UpdateRoleRequest request, AuthUserPrincipal actor) {
         RoleView current = requireRoleView(code);
         ensureCustomRole(current);
         List<String> nextPermissionCodes = rolePermissions.getOrDefault(current.code(), List.of());
         if (request.permissionCodes() != null) {
             nextPermissionCodes = normalizePermissionCodes(request.permissionCodes());
-            ensureAssignablePermissions(nextPermissionCodes, assignablePermissions);
+            ensureAssignablePermissions(nextPermissionCodes, authorizationGuard.assignablePermissions(actor));
             ensureKnownPermissions(nextPermissionCodes);
         }
         RoleView updated = new RoleView(

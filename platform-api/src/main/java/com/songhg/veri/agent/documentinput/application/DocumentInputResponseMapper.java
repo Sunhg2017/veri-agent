@@ -2,11 +2,12 @@ package com.songhg.veri.agent.documentinput.application;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.songhg.veri.agent.documentinput.application.DocumentCandidateResponse;
-import com.songhg.veri.agent.documentinput.application.DocumentImportResponse;
-import com.songhg.veri.agent.documentinput.application.DocumentParseFeedbackSampleResponse;
-import com.songhg.veri.agent.documentinput.application.DocumentWebhookEventResponse;
-import com.songhg.veri.agent.documentinput.application.ParsedRequirementResponse;
+import com.songhg.veri.agent.documentinput.application.port.DocumentInputRepository;
+import com.songhg.veri.agent.documentinput.application.view.DocumentCandidateResponse;
+import com.songhg.veri.agent.documentinput.application.view.DocumentImportResponse;
+import com.songhg.veri.agent.documentinput.application.view.DocumentParseFeedbackSampleResponse;
+import com.songhg.veri.agent.documentinput.application.view.DocumentWebhookEventResponse;
+import com.songhg.veri.agent.documentinput.application.view.ParsedRequirementResponse;
 import com.songhg.veri.agent.documentinput.domain.DocumentCandidateStatus;
 import com.songhg.veri.agent.documentinput.domain.DocumentImportRecord;
 import com.songhg.veri.agent.documentinput.domain.DocumentParseFeedbackSample;
@@ -16,6 +17,7 @@ import com.songhg.veri.agent.documentinput.domain.ParsedRequirementDraft;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.util.StringUtils;
+
 
 final class DocumentInputResponseMapper {
 

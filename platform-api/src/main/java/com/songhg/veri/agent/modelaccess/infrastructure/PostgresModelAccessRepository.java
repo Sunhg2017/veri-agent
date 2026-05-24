@@ -1,8 +1,8 @@
 package com.songhg.veri.agent.modelaccess.infrastructure;
 
-import com.songhg.veri.agent.modelaccess.application.InvocationQuery;
-import com.songhg.veri.agent.modelaccess.application.InvocationSummaryResult;
-import com.songhg.veri.agent.modelaccess.application.ModelAccessRepository;
+import com.songhg.veri.agent.modelaccess.application.query.InvocationQuery;
+import com.songhg.veri.agent.modelaccess.application.view.InvocationSummaryResult;
+import com.songhg.veri.agent.modelaccess.application.port.ModelAccessRepository;
 import com.songhg.veri.agent.modelaccess.domain.InvocationRecord;
 import com.songhg.veri.agent.modelaccess.domain.ModelProviderConfig;
 import com.songhg.veri.agent.modelaccess.domain.PromptTemplate;

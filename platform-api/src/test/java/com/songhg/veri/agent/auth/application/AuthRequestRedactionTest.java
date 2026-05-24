@@ -2,6 +2,8 @@ package com.songhg.veri.agent.auth.application;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.songhg.veri.agent.auth.application.command.ChangePasswordRequest;
+import com.songhg.veri.agent.auth.application.command.LoginRequest;
 import org.junit.jupiter.api.Test;
 
 class AuthRequestRedactionTest {

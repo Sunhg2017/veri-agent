@@ -3,7 +3,8 @@ package com.songhg.veri.agent.asset.application;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.songhg.veri.agent.asset.application.AssetVersionHistoryResponse;
+import com.songhg.veri.agent.asset.application.port.AssetRepository;
+import com.songhg.veri.agent.asset.application.view.AssetVersionHistoryResponse;
 import com.songhg.veri.agent.asset.domain.AssetLifecycleStatus;
 import com.songhg.veri.agent.asset.domain.AssetRequirement;
 import com.songhg.veri.agent.asset.domain.AssetVersion;
@@ -29,6 +30,7 @@ import java.util.UUID;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
+
 
 @Service
 public class AssetVersionHistoryService {

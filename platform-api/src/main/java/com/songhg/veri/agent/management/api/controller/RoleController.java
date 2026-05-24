@@ -1,7 +1,6 @@
 package com.songhg.veri.agent.management.api.controller;
 
 import com.songhg.veri.agent.auth.application.AuthUserPrincipal;
-import com.songhg.veri.agent.authorization.application.AuthorizationService;
 import com.songhg.veri.agent.authorization.application.PermissionCodes;
 import com.songhg.veri.agent.authorization.application.RequirePermission;
 import com.songhg.veri.agent.common.api.PageResponse;
@@ -16,7 +15,6 @@ import com.songhg.veri.agent.management.api.response.RoleDetailView;
 import com.songhg.veri.agent.management.api.response.RoleView;
 import com.songhg.veri.agent.management.application.port.RoleOperations;
 import jakarta.validation.Valid;
-import java.util.Set;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -29,8 +27,8 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * RBAC role endpoint. Creation and update receive the caller's assignable permissions so lower
- * layers can reject privilege escalation consistently.
+ * RBAC role endpoint. Privilege-escalation checks live with the role use case so controllers do
+ * not need to assemble authorization context by hand.
  */
 @ApiVersion
 @RestController
@@ -38,16 +36,13 @@ import org.springframework.web.bind.annotation.RestController;
 public class RoleController {
 
     private final RoleOperations roleOperations;
-    private final AuthorizationService authorizationService;
     private final ManagementApiMapper mapper;
 
     public RoleController(
             RoleOperations roleOperations,
-            AuthorizationService authorizationService,
             ManagementApiMapper mapper
     ) {
         this.roleOperations = roleOperations;
-        this.authorizationService = authorizationService;
         this.mapper = mapper;
     }
 
@@ -85,8 +80,7 @@ public class RoleController {
             @Valid @RequestBody CreateRoleRequest request,
             @AuthenticationPrincipal AuthUserPrincipal principal
     ) {
-        Set<String> assignablePermissions = authorizationService.permissions(principal);
-        return mapper.toResponse(roleOperations.createRole(mapper.toCommand(request), assignablePermissions, principal));
+        return mapper.toResponse(roleOperations.createRole(mapper.toCommand(request), principal));
     }
 
     @PatchMapping("/roles/{code}")
@@ -96,10 +90,7 @@ public class RoleController {
             @Valid @RequestBody UpdateRoleRequest request,
             @AuthenticationPrincipal AuthUserPrincipal principal
     ) {
-        Set<String> assignablePermissions = authorizationService.permissions(principal);
-        return mapper.toResponse(
-                roleOperations.updateRole(code.trim(), mapper.toCommand(request), assignablePermissions, principal)
-        );
+        return mapper.toResponse(roleOperations.updateRole(code.trim(), mapper.toCommand(request), principal));
     }
 
     @PatchMapping("/roles/{code}/status")

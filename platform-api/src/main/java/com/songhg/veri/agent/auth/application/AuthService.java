@@ -1,12 +1,14 @@
 package com.songhg.veri.agent.auth.application;
 
-import com.songhg.veri.agent.auth.application.ChangePasswordRequest;
-import com.songhg.veri.agent.auth.application.LoginRequest;
-import com.songhg.veri.agent.auth.application.LogoutRequest;
-import com.songhg.veri.agent.auth.application.RefreshTokenRequest;
-import com.songhg.veri.agent.auth.application.ChangePasswordResponse;
-import com.songhg.veri.agent.auth.application.LoginResponse;
-import com.songhg.veri.agent.auth.application.LogoutResponse;
+import com.songhg.veri.agent.auth.application.command.ChangePasswordRequest;
+import com.songhg.veri.agent.auth.application.command.LoginRequest;
+import com.songhg.veri.agent.auth.application.command.LogoutRequest;
+import com.songhg.veri.agent.auth.application.command.RefreshTokenRequest;
+import com.songhg.veri.agent.auth.application.view.ChangePasswordResponse;
+import com.songhg.veri.agent.auth.application.view.CurrentUserResponse;
+import com.songhg.veri.agent.auth.application.view.LoginResponse;
+import com.songhg.veri.agent.auth.application.view.LogoutResponse;
+import com.songhg.veri.agent.authorization.application.AuthorizationService;
 import com.songhg.veri.agent.auth.domain.AuthSessionRecord;
 import com.songhg.veri.agent.auth.domain.AuthSessionStore;
 import com.songhg.veri.agent.auth.domain.AuthIdentityStore;
@@ -28,19 +30,22 @@ public class AuthService {
     private final AuthTokenService tokenService;
     private final AuthSessionStore sessionStore;
     private final AuditLogWriter auditLogWriter;
+    private final AuthorizationService authorizationService;
 
     public AuthService(
             AuthIdentityStore identityStore,
             PasswordEncoder passwordEncoder,
             AuthTokenService tokenService,
             AuthSessionStore sessionStore,
-            AuditLogWriter auditLogWriter
+            AuditLogWriter auditLogWriter,
+            AuthorizationService authorizationService
     ) {
         this.identityStore = identityStore;
         this.passwordEncoder = passwordEncoder;
         this.tokenService = tokenService;
         this.sessionStore = sessionStore;
         this.auditLogWriter = auditLogWriter;
+        this.authorizationService = authorizationService;
     }
 
     public LoginResponse login(LoginRequest request) {
@@ -113,6 +118,11 @@ public class AuthService {
         ));
         sessionStore.revoke(principal.sessionId(), principal.userId(), "password changed");
         return new ChangePasswordResponse(true, true, principal.userId());
+    }
+
+    public CurrentUserResponse currentUser(AuthUserPrincipal principal) {
+        // Keep permission aggregation inside the authentication use case so controllers stay transport-only.
+        return CurrentUserResponse.from(principal, authorizationService.permissions(principal));
     }
 
     private LoginResponse toLoginResponse(AuthUserRecord user, AuthTokenService.IssuedToken token) {

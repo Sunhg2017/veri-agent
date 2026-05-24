@@ -3,9 +3,10 @@ package com.songhg.veri.agent.asset.application;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.songhg.veri.agent.asset.application.RollbackAssetVersionRequest;
-import com.songhg.veri.agent.asset.application.RequirementResponse;
-import com.songhg.veri.agent.asset.application.TestCaseResponse;
+import com.songhg.veri.agent.asset.application.command.RollbackAssetVersionRequest;
+import com.songhg.veri.agent.asset.application.port.AssetRepository;
+import com.songhg.veri.agent.asset.application.view.RequirementResponse;
+import com.songhg.veri.agent.asset.application.view.TestCaseResponse;
 import com.songhg.veri.agent.asset.domain.AssetApi;
 import com.songhg.veri.agent.asset.domain.AssetLifecycleStatus;
 import com.songhg.veri.agent.asset.domain.AssetRequirement;
@@ -26,6 +27,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
+
 
 @Service
 public class AssetVersionRollbackService {

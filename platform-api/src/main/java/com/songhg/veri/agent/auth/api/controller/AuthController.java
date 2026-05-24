@@ -1,17 +1,16 @@
 package com.songhg.veri.agent.auth.api.controller;
 
-import com.songhg.veri.agent.auth.application.ChangePasswordRequest;
-import com.songhg.veri.agent.auth.application.LoginRequest;
-import com.songhg.veri.agent.auth.application.LogoutRequest;
-import com.songhg.veri.agent.auth.application.RefreshTokenRequest;
-import com.songhg.veri.agent.auth.application.ChangePasswordResponse;
-import com.songhg.veri.agent.auth.application.CurrentUserResponse;
-import com.songhg.veri.agent.auth.application.LoginResponse;
-import com.songhg.veri.agent.auth.application.LogoutResponse;
+import com.songhg.veri.agent.auth.application.command.ChangePasswordRequest;
+import com.songhg.veri.agent.auth.application.command.LoginRequest;
+import com.songhg.veri.agent.auth.application.command.LogoutRequest;
+import com.songhg.veri.agent.auth.application.command.RefreshTokenRequest;
+import com.songhg.veri.agent.auth.application.view.ChangePasswordResponse;
+import com.songhg.veri.agent.auth.application.view.CurrentUserResponse;
+import com.songhg.veri.agent.auth.application.view.LoginResponse;
+import com.songhg.veri.agent.auth.application.view.LogoutResponse;
 
 import com.songhg.veri.agent.auth.application.AuthService;
 import com.songhg.veri.agent.auth.application.AuthUserPrincipal;
-import com.songhg.veri.agent.authorization.application.AuthorizationService;
 import com.songhg.veri.agent.common.openapi.ApiVersion;
 import jakarta.validation.Valid;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -27,14 +26,9 @@ import org.springframework.web.bind.annotation.RestController;
 public class AuthController {
 
     private final AuthService authService;
-    private final AuthorizationService authorizationService;
 
-    public AuthController(
-            AuthService authService,
-            AuthorizationService authorizationService
-    ) {
+    public AuthController(AuthService authService) {
         this.authService = authService;
-        this.authorizationService = authorizationService;
     }
 
     @PostMapping("/login")
@@ -65,6 +59,6 @@ public class AuthController {
 
     @GetMapping("/me")
     public CurrentUserResponse me(@AuthenticationPrincipal AuthUserPrincipal principal) {
-        return CurrentUserResponse.from(principal, authorizationService.permissions(principal));
+        return authService.currentUser(principal);
     }
 }

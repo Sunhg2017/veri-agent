@@ -2,15 +2,17 @@ package com.songhg.veri.agent.documentinput.application;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.songhg.veri.agent.asset.application.CreateRequirementRequest;
-import com.songhg.veri.agent.asset.application.RequirementResponse;
 import com.songhg.veri.agent.asset.application.AssetService;
+import com.songhg.veri.agent.asset.application.command.CreateRequirementRequest;
+import com.songhg.veri.agent.asset.application.view.RequirementResponse;
 import com.songhg.veri.agent.common.api.PageResponse;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
-import com.songhg.veri.agent.documentinput.application.DocumentPublishRequest;
-import com.songhg.veri.agent.documentinput.application.DocumentPublishRecordResponse;
-import com.songhg.veri.agent.documentinput.application.DocumentPublishResponse;
+import com.songhg.veri.agent.documentinput.application.command.DocumentPublishRequest;
+import com.songhg.veri.agent.documentinput.application.port.DocumentInputRepository;
+import com.songhg.veri.agent.documentinput.application.view.DocumentInputMetrics;
+import com.songhg.veri.agent.documentinput.application.view.DocumentPublishRecordResponse;
+import com.songhg.veri.agent.documentinput.application.view.DocumentPublishResponse;
 import com.songhg.veri.agent.documentinput.domain.DocumentCandidateStatus;
 import com.songhg.veri.agent.documentinput.domain.DocumentImportRecord;
 import com.songhg.veri.agent.documentinput.domain.DocumentRequirementCandidate;
@@ -23,6 +25,8 @@ import java.util.Objects;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
+
+
 
 @Service
 public class DocumentRequirementPublishService {

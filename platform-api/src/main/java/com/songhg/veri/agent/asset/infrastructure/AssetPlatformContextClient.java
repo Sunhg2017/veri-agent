@@ -1,9 +1,9 @@
 package com.songhg.veri.agent.asset.infrastructure;
 
-import com.songhg.veri.agent.asset.application.PlatformContextClient;
+import com.songhg.veri.agent.asset.application.port.PlatformContextClient;
 import com.songhg.veri.agent.common.trace.TraceContext;
-import com.songhg.veri.agent.integration.application.InternalAuditEvent;
-import com.songhg.veri.agent.integration.application.PlatformContext;
+import com.songhg.veri.agent.integration.application.command.InternalAuditEvent;
+import com.songhg.veri.agent.integration.application.view.PlatformContext;
 import com.songhg.veri.agent.integration.application.PlatformIntegrationService;
 import java.util.Map;
 import org.springframework.stereotype.Component;

@@ -1,12 +1,12 @@
 package com.songhg.veri.agent.modelaccess.infrastructure;
 
 import com.songhg.veri.agent.common.trace.TraceContext;
-import com.songhg.veri.agent.integration.application.InternalAuditEvent;
-import com.songhg.veri.agent.integration.application.PlatformContext;
+import com.songhg.veri.agent.integration.application.command.InternalAuditEvent;
+import com.songhg.veri.agent.integration.application.view.PlatformContext;
 import com.songhg.veri.agent.integration.application.PlatformIntegrationService;
-import com.songhg.veri.agent.modelaccess.application.ModelInvocationCommand;
-import com.songhg.veri.agent.modelaccess.application.PlatformContextClient;
-import com.songhg.veri.agent.modelaccess.application.PlatformInvocationPolicy;
+import com.songhg.veri.agent.modelaccess.application.command.ModelInvocationCommand;
+import com.songhg.veri.agent.modelaccess.application.port.PlatformContextClient;
+import com.songhg.veri.agent.modelaccess.application.port.PlatformInvocationPolicy;
 import com.songhg.veri.agent.modelaccess.domain.InvocationRecord;
 import com.songhg.veri.agent.modelaccess.domain.InvocationStatus;
 import com.songhg.veri.agent.modelaccess.security.ServicePrincipal;

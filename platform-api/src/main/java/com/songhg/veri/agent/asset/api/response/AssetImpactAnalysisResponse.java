@@ -1,8 +1,10 @@
 package com.songhg.veri.agent.asset.api.response;
 
+import com.songhg.veri.agent.asset.application.view.AssetImpactNodeResponse;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
+
 
 public record AssetImpactAnalysisResponse(
         String projectId,

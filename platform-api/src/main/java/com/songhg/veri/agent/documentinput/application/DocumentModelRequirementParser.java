@@ -3,13 +3,14 @@ package com.songhg.veri.agent.documentinput.application;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
+import com.songhg.veri.agent.documentinput.application.view.DocumentModelParseResult;
 import com.songhg.veri.agent.documentinput.config.DocumentInputProperties;
 import com.songhg.veri.agent.documentinput.domain.DocumentFieldMapping;
 import com.songhg.veri.agent.documentinput.domain.DocumentSourceType;
 import com.songhg.veri.agent.documentinput.domain.ParsedRequirementDraft;
-import com.songhg.veri.agent.modelaccess.application.ModelInvocationCommand;
-import com.songhg.veri.agent.modelaccess.application.ModelInvocationResult;
 import com.songhg.veri.agent.modelaccess.application.ModelInvocationService;
+import com.songhg.veri.agent.modelaccess.application.command.ModelInvocationCommand;
+import com.songhg.veri.agent.modelaccess.application.view.ModelInvocationResult;
 import com.songhg.veri.agent.modelaccess.domain.ChatMessage;
 import com.songhg.veri.agent.modelaccess.security.ServicePrincipal;
 import java.time.Instant;
@@ -18,6 +19,7 @@ import java.util.Map;
 import java.util.UUID;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
+
 
 @Component
 public class DocumentModelRequirementParser {

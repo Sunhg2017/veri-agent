@@ -4,24 +4,30 @@ import com.songhg.veri.agent.common.api.PageQuery;
 import com.songhg.veri.agent.common.api.PageResponse;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
-import com.songhg.veri.agent.documentinput.application.UpdateFieldMappingRequest;
-import com.songhg.veri.agent.documentinput.application.UpsertDocumentSourceRequest;
-import com.songhg.veri.agent.documentinput.application.DocumentSourceHealthResponse;
-import com.songhg.veri.agent.documentinput.application.DocumentSourceResponse;
-import com.songhg.veri.agent.documentinput.application.FieldMappingResponse;
+import com.songhg.veri.agent.documentinput.application.command.UpdateFieldMappingRequest;
+import com.songhg.veri.agent.documentinput.application.command.UpsertDocumentSourceRequest;
+import com.songhg.veri.agent.documentinput.application.port.DocumentInputRepository;
+import com.songhg.veri.agent.documentinput.application.query.DocumentSourceQuery;
+import com.songhg.veri.agent.documentinput.application.query.DocumentWebhookEventQuery;
+import com.songhg.veri.agent.documentinput.application.view.DocumentSourceHealthResponse;
+import com.songhg.veri.agent.documentinput.application.view.DocumentSourceResponse;
+import com.songhg.veri.agent.documentinput.application.view.FieldMappingResponse;
 import com.songhg.veri.agent.documentinput.config.DocumentInputProperties;
 import com.songhg.veri.agent.documentinput.domain.DocumentFieldMapping;
 import com.songhg.veri.agent.documentinput.domain.DocumentSourceConfig;
 import com.songhg.veri.agent.documentinput.domain.DocumentSourceStatus;
 import com.songhg.veri.agent.documentinput.domain.DocumentSourceType;
 import com.songhg.veri.agent.documentinput.domain.DocumentWebhookEvent;
-import com.songhg.veri.agent.integration.application.PlatformContext;
+import com.songhg.veri.agent.integration.application.view.PlatformContext;
 import java.time.Instant;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
+
+
+
 
 @Service
 public class DocumentSourceManagementService {

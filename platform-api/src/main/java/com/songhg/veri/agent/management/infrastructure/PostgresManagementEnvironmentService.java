@@ -10,13 +10,15 @@ import com.songhg.veri.agent.management.application.port.EnvironmentOperations;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
 import com.songhg.veri.agent.common.trace.TraceContext;
+import com.songhg.veri.agent.management.application.security.ManagementAuthorizationGuard;
 import com.songhg.veri.agent.management.application.command.CreateEnvironmentRequest;
 import com.songhg.veri.agent.management.application.command.ScopedUserRoleRequest;
 import com.songhg.veri.agent.management.application.command.UpdateEnvironmentRequest;
+import com.songhg.veri.agent.management.application.port.EnvironmentConnectivityChecker;
+import com.songhg.veri.agent.management.application.port.EnvironmentOperations;
 import com.songhg.veri.agent.management.application.view.EnvironmentConnectivityCheckView;
 import com.songhg.veri.agent.management.application.view.EnvironmentView;
 import com.songhg.veri.agent.management.application.view.ScopedUserRoleView;
-import com.songhg.veri.agent.management.application.port.EnvironmentConnectivityChecker;
 import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapper;
 import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows.ApplicationRef;
 import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows.EnvironmentConnectivityTargetRow;
@@ -44,19 +46,22 @@ class PostgresManagementEnvironmentService implements EnvironmentOperations {
     private final EnvironmentConnectivityChecker connectivityChecker;
     private final ObjectMapper objectMapper;
     private final PostgresManagementProjectService projectService;
+    private final ManagementAuthorizationGuard authorizationGuard;
 
     PostgresManagementEnvironmentService(
             ManagementMapper mapper,
             AuditLogWriter auditLogWriter,
             EnvironmentConnectivityChecker connectivityChecker,
             ObjectMapper objectMapper,
-            PostgresManagementProjectService projectService
+            PostgresManagementProjectService projectService,
+            ManagementAuthorizationGuard authorizationGuard
     ) {
         this.mapper = mapper;
         this.auditLogWriter = auditLogWriter;
         this.connectivityChecker = connectivityChecker;
         this.objectMapper = objectMapper;
         this.projectService = projectService;
+        this.authorizationGuard = authorizationGuard;
     }
 
     public PageResponse<EnvironmentView> environments(PageQuery pageQuery, AuthUserPrincipal actor) {
@@ -118,8 +123,9 @@ class PostgresManagementEnvironmentService implements EnvironmentOperations {
     }
 
     public EnvironmentView changeEnvironmentStatus(String key, String status, AuthUserPrincipal actor) {
-        EnvironmentRef environment = resolveEnvironmentStrict(key);
         String nextStatus = normalizeEnabledStatus(status, "环境状态不支持");
+        authorizationGuard.requireEnvironmentStatus(actor, nextStatus);
+        EnvironmentRef environment = resolveEnvironmentStrict(key);
         update(mapper::changeEnvironmentStatus, actor, values("environmentId", environment.id(), "status", nextStatus));
         EnvironmentView updated = environmentByKey(environment.id().toString());
         audit(actor, "ENABLED".equals(nextStatus) ? "启用环境" : "停用环境", "environment", environment.id().toString(), updated.name());

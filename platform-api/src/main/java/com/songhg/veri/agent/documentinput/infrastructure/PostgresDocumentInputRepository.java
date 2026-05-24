@@ -1,11 +1,11 @@
 package com.songhg.veri.agent.documentinput.infrastructure;
 
-import com.songhg.veri.agent.documentinput.application.DocumentCandidateQuery;
-import com.songhg.veri.agent.documentinput.application.DocumentImportQuery;
-import com.songhg.veri.agent.documentinput.application.DocumentInputRepository;
-import com.songhg.veri.agent.documentinput.application.DocumentParseFeedbackQuery;
-import com.songhg.veri.agent.documentinput.application.DocumentSourceQuery;
-import com.songhg.veri.agent.documentinput.application.DocumentWebhookEventQuery;
+import com.songhg.veri.agent.documentinput.application.query.DocumentCandidateQuery;
+import com.songhg.veri.agent.documentinput.application.query.DocumentImportQuery;
+import com.songhg.veri.agent.documentinput.application.port.DocumentInputRepository;
+import com.songhg.veri.agent.documentinput.application.query.DocumentParseFeedbackQuery;
+import com.songhg.veri.agent.documentinput.application.query.DocumentSourceQuery;
+import com.songhg.veri.agent.documentinput.application.query.DocumentWebhookEventQuery;
 import com.songhg.veri.agent.documentinput.domain.DocumentFieldMapping;
 import com.songhg.veri.agent.documentinput.domain.DocumentImportRecord;
 import com.songhg.veri.agent.documentinput.domain.DocumentParseFeedbackSample;

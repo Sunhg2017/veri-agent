@@ -1,6 +1,8 @@
 package com.songhg.veri.agent.asset.api.response;
 
+import com.songhg.veri.agent.asset.application.view.AssetImportItemResponse;
 import java.util.List;
+
 
 public record AssetPrototypeSyncResponse(
         String source,

@@ -1,9 +1,10 @@
 package com.songhg.veri.agent.asset.application;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.songhg.veri.agent.asset.application.UpdateAssetLifecycleRequest;
-import com.songhg.veri.agent.asset.application.AssetVersionHistoryResponse;
-import com.songhg.veri.agent.asset.application.RequirementResponse;
+import com.songhg.veri.agent.asset.application.command.UpdateAssetLifecycleRequest;
+import com.songhg.veri.agent.asset.application.port.PlatformContextClient;
+import com.songhg.veri.agent.asset.application.view.AssetVersionHistoryResponse;
+import com.songhg.veri.agent.asset.application.view.RequirementResponse;
 import com.songhg.veri.agent.asset.domain.AssetRequirement;
 import com.songhg.veri.agent.asset.infrastructure.InMemoryAssetRepository;
 import com.songhg.veri.agent.common.error.BusinessException;
@@ -14,9 +15,10 @@ import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+
 
 class AssetLifecycleServiceTest {
 

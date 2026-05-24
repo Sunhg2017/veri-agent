@@ -4,12 +4,13 @@ import com.songhg.veri.agent.auth.application.AuthUserPrincipal;
 import com.songhg.veri.agent.common.api.PageQuery;
 import com.songhg.veri.agent.common.api.PageResponse;
 import com.songhg.veri.agent.common.audit.AuditLogWriter;
-import com.songhg.veri.agent.management.application.port.ProjectOperations;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
+import com.songhg.veri.agent.management.application.security.ManagementAuthorizationGuard;
 import com.songhg.veri.agent.management.application.command.CreateProjectRequest;
 import com.songhg.veri.agent.management.application.command.ProjectMemberRequest;
 import com.songhg.veri.agent.management.application.command.UpdateProjectRequest;
+import com.songhg.veri.agent.management.application.port.ProjectOperations;
 import com.songhg.veri.agent.management.application.view.ProjectMemberView;
 import com.songhg.veri.agent.management.application.view.ProjectView;
 import com.songhg.veri.agent.management.application.view.UserView;
@@ -26,10 +27,16 @@ final class InMemoryManagementProjectService implements ProjectOperations {
     private final List<ProjectMemberView> projectMembers = new ArrayList<>();
     private final InMemoryManagementUserService userService;
     private final AuditLogWriter auditLogWriter;
+    private final ManagementAuthorizationGuard authorizationGuard;
 
-    InMemoryManagementProjectService(InMemoryManagementUserService userService, AuditLogWriter auditLogWriter) {
+    InMemoryManagementProjectService(
+            InMemoryManagementUserService userService,
+            AuditLogWriter auditLogWriter,
+            ManagementAuthorizationGuard authorizationGuard
+    ) {
         this.userService = userService;
         this.auditLogWriter = auditLogWriter;
+        this.authorizationGuard = authorizationGuard;
         projects.addAll(List.of(
                 new ProjectView("Checkout Regression", "自动化平台组", "何序", 4, "进行中"),
                 new ProjectView("Mobile Smoke", "端体验组", "陈乔", 2, "规划中"),
@@ -75,6 +82,7 @@ final class InMemoryManagementProjectService implements ProjectOperations {
     public synchronized ProjectView changeProjectStatus(String key, String status, AuthUserPrincipal actor) {
         ProjectView current = requireProject(key);
         String nextStatusCode = normalizeProjectStatus(status);
+        authorizationGuard.requireProjectStatus(actor, nextStatusCode);
         ensureProjectStatusTransition(actor, current.name(), projectStatusCode(current.status()), nextStatusCode);
         String nextStatus = switch (nextStatusCode) {
             case "PREPARING" -> "规划中";

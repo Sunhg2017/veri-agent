@@ -1,12 +1,14 @@
 package com.songhg.veri.agent.asset.application;
 
-import com.songhg.veri.agent.asset.application.AssetListRequest;
-import com.songhg.veri.agent.asset.application.CreateRequirementRequest;
-import com.songhg.veri.agent.asset.application.RollbackAssetVersionRequest;
-import com.songhg.veri.agent.asset.application.UpdateAssetLifecycleRequest;
-import com.songhg.veri.agent.asset.application.UpdateRequirementRequest;
-import com.songhg.veri.agent.asset.application.AssetVersionHistoryResponse;
-import com.songhg.veri.agent.asset.application.RequirementResponse;
+import com.songhg.veri.agent.asset.application.command.CreateRequirementRequest;
+import com.songhg.veri.agent.asset.application.command.RollbackAssetVersionRequest;
+import com.songhg.veri.agent.asset.application.command.UpdateAssetLifecycleRequest;
+import com.songhg.veri.agent.asset.application.command.UpdateRequirementRequest;
+import com.songhg.veri.agent.asset.application.port.AssetRepository;
+import com.songhg.veri.agent.asset.application.query.AssetListQuery;
+import com.songhg.veri.agent.asset.application.query.AssetListRequest;
+import com.songhg.veri.agent.asset.application.view.AssetVersionHistoryResponse;
+import com.songhg.veri.agent.asset.application.view.RequirementResponse;
 import com.songhg.veri.agent.asset.domain.AssetLifecycleStatus;
 import com.songhg.veri.agent.asset.domain.AssetRequirement;
 import com.songhg.veri.agent.asset.domain.AssetReviewStatus;
@@ -26,6 +28,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
+
+
 
 @Service
 public class AssetRequirementService {

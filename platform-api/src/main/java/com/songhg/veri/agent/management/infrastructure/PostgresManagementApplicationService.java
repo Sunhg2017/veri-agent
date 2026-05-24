@@ -4,12 +4,13 @@ import com.songhg.veri.agent.auth.application.AuthUserPrincipal;
 import com.songhg.veri.agent.common.api.PageQuery;
 import com.songhg.veri.agent.common.api.PageResponse;
 import com.songhg.veri.agent.common.audit.AuditLogWriter;
-import com.songhg.veri.agent.management.application.port.ApplicationOperations;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
+import com.songhg.veri.agent.management.application.security.ManagementAuthorizationGuard;
 import com.songhg.veri.agent.management.application.command.CreateApplicationRequest;
 import com.songhg.veri.agent.management.application.command.ScopedUserRoleRequest;
 import com.songhg.veri.agent.management.application.command.UpdateApplicationRequest;
+import com.songhg.veri.agent.management.application.port.ApplicationOperations;
 import com.songhg.veri.agent.management.application.view.ApplicationView;
 import com.songhg.veri.agent.management.application.view.ScopedUserRoleView;
 import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapper;
@@ -35,15 +36,18 @@ class PostgresManagementApplicationService implements ApplicationOperations {
     private final ManagementMapper mapper;
     private final AuditLogWriter auditLogWriter;
     private final PostgresManagementProjectService projectService;
+    private final ManagementAuthorizationGuard authorizationGuard;
 
     PostgresManagementApplicationService(
             ManagementMapper mapper,
             AuditLogWriter auditLogWriter,
-            PostgresManagementProjectService projectService
+            PostgresManagementProjectService projectService,
+            ManagementAuthorizationGuard authorizationGuard
     ) {
         this.mapper = mapper;
         this.auditLogWriter = auditLogWriter;
         this.projectService = projectService;
+        this.authorizationGuard = authorizationGuard;
     }
 
     public PageResponse<ApplicationView> applications(PageQuery pageQuery, AuthUserPrincipal actor) {
@@ -106,8 +110,9 @@ class PostgresManagementApplicationService implements ApplicationOperations {
     }
 
     public ApplicationView changeApplicationStatus(String key, String status, AuthUserPrincipal actor) {
-        ApplicationRef application = resolveApplicationStrict(key);
         String nextStatus = normalizeEnabledStatus(status, "应用状态不支持");
+        authorizationGuard.requireApplicationStatus(actor, nextStatus);
+        ApplicationRef application = resolveApplicationStrict(key);
         update(mapper::changeApplicationStatus, actor, values("applicationId", application.id(), "status", nextStatus));
         ApplicationView updated = applicationByKey(application.id().toString());
         audit(actor, "ENABLED".equals(nextStatus) ? "启用应用" : "停用应用", "application", application.id().toString(), updated.name());

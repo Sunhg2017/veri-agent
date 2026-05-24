@@ -1,7 +1,6 @@
 package com.songhg.veri.agent.management.api.controller;
 
 import com.songhg.veri.agent.auth.application.AuthUserPrincipal;
-import com.songhg.veri.agent.authorization.application.AuthorizationService;
 import com.songhg.veri.agent.authorization.application.PermissionCodes;
 import com.songhg.veri.agent.authorization.application.RequirePermission;
 import com.songhg.veri.agent.common.api.PageResponse;
@@ -26,8 +25,8 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * Department management endpoint. Dynamic status permissions stay here because the required
- * permission code depends on the requested target state.
+ * Department management endpoint. Controller stays thin: authorization and lifecycle rules are
+ * delegated to common annotations and the management use-case implementation.
  */
 @ApiVersion
 @RestController
@@ -35,16 +34,13 @@ import org.springframework.web.bind.annotation.RestController;
 public class DepartmentController {
 
     private final DepartmentOperations departmentOperations;
-    private final AuthorizationService authorizationService;
     private final ManagementApiMapper mapper;
 
     public DepartmentController(
             DepartmentOperations departmentOperations,
-            AuthorizationService authorizationService,
             ManagementApiMapper mapper
     ) {
         this.departmentOperations = departmentOperations;
-        this.authorizationService = authorizationService;
         this.mapper = mapper;
     }
 
@@ -92,7 +88,6 @@ public class DepartmentController {
             @Valid @RequestBody StatusChangeRequest request,
             @AuthenticationPrincipal AuthUserPrincipal principal
     ) {
-        authorizationService.require(principal, PermissionCodes.departmentStatusPermission(request.status()));
         return mapper.toResponse(departmentOperations.changeDepartmentStatus(key.trim(), request.status(), principal));
     }
 }

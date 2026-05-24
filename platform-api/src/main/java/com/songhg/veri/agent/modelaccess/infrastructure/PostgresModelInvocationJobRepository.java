@@ -1,8 +1,8 @@
 package com.songhg.veri.agent.modelaccess.infrastructure;
 
-import com.songhg.veri.agent.modelaccess.application.ModelInvocationJobRecord;
-import com.songhg.veri.agent.modelaccess.application.ModelInvocationJobRepository;
-import com.songhg.veri.agent.modelaccess.application.ModelInvocationResult;
+import com.songhg.veri.agent.modelaccess.application.view.ModelInvocationJobRecord;
+import com.songhg.veri.agent.modelaccess.application.port.ModelInvocationJobRepository;
+import com.songhg.veri.agent.modelaccess.application.view.ModelInvocationResult;
 import com.songhg.veri.agent.modelaccess.infrastructure.mapper.ModelAccessMapper;
 import java.time.Instant;
 import java.util.List;

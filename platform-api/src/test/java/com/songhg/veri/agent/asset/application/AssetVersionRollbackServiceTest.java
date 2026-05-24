@@ -1,10 +1,11 @@
 package com.songhg.veri.agent.asset.application;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.songhg.veri.agent.asset.application.RollbackAssetVersionRequest;
-import com.songhg.veri.agent.asset.application.AssetVersionHistoryResponse;
-import com.songhg.veri.agent.asset.application.RequirementResponse;
-import com.songhg.veri.agent.asset.application.TestCaseResponse;
+import com.songhg.veri.agent.asset.application.command.RollbackAssetVersionRequest;
+import com.songhg.veri.agent.asset.application.port.PlatformContextClient;
+import com.songhg.veri.agent.asset.application.view.AssetVersionHistoryResponse;
+import com.songhg.veri.agent.asset.application.view.RequirementResponse;
+import com.songhg.veri.agent.asset.application.view.TestCaseResponse;
 import com.songhg.veri.agent.asset.domain.AssetApi;
 import com.songhg.veri.agent.asset.domain.AssetRequirement;
 import com.songhg.veri.agent.asset.domain.AssetVersionHistory;
@@ -19,9 +20,10 @@ import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+
 
 class AssetVersionRollbackServiceTest {
 

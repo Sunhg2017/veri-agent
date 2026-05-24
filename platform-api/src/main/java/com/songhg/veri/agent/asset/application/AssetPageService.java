@@ -2,11 +2,13 @@ package com.songhg.veri.agent.asset.application;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.songhg.veri.agent.asset.application.AssetListRequest;
-import com.songhg.veri.agent.asset.application.CreatePageRequest;
-import com.songhg.veri.agent.asset.application.UpdateAssetLifecycleRequest;
-import com.songhg.veri.agent.asset.application.UpdatePageRequest;
-import com.songhg.veri.agent.asset.application.PageResponse;
+import com.songhg.veri.agent.asset.application.command.CreatePageRequest;
+import com.songhg.veri.agent.asset.application.command.UpdateAssetLifecycleRequest;
+import com.songhg.veri.agent.asset.application.command.UpdatePageRequest;
+import com.songhg.veri.agent.asset.application.port.AssetRepository;
+import com.songhg.veri.agent.asset.application.query.AssetListQuery;
+import com.songhg.veri.agent.asset.application.query.AssetListRequest;
+import com.songhg.veri.agent.asset.application.view.PageResponse;
 import com.songhg.veri.agent.asset.domain.AssetLifecycleStatus;
 import com.songhg.veri.agent.asset.domain.AssetPage;
 import com.songhg.veri.agent.common.error.BusinessException;
@@ -22,6 +24,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
+
+
 
 /**
  * Owns page asset CRUD, JSON normalization and page review-state transition rules.

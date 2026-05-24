@@ -3,16 +3,17 @@ package com.songhg.veri.agent.asset.application;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.songhg.veri.agent.asset.application.AssetExportRequest;
-import com.songhg.veri.agent.asset.application.AssetImportRequest;
-import com.songhg.veri.agent.asset.application.CreateRequirementRequest;
-import com.songhg.veri.agent.asset.application.CreateTestCaseRequest;
-import com.songhg.veri.agent.asset.application.ApiResponseDTO;
-import com.songhg.veri.agent.asset.application.AssetExportPayload;
-import com.songhg.veri.agent.asset.application.AssetImportItemResponse;
-import com.songhg.veri.agent.asset.application.AssetImportResponse;
-import com.songhg.veri.agent.asset.application.RequirementResponse;
-import com.songhg.veri.agent.asset.application.TestCaseResponse;
+import com.songhg.veri.agent.asset.application.command.AssetImportRequest;
+import com.songhg.veri.agent.asset.application.command.CreateRequirementRequest;
+import com.songhg.veri.agent.asset.application.command.CreateTestCaseRequest;
+import com.songhg.veri.agent.asset.application.port.AssetRepository;
+import com.songhg.veri.agent.asset.application.query.AssetExportRequest;
+import com.songhg.veri.agent.asset.application.view.ApiResponseDTO;
+import com.songhg.veri.agent.asset.application.view.AssetExportPayload;
+import com.songhg.veri.agent.asset.application.view.AssetImportItemResponse;
+import com.songhg.veri.agent.asset.application.view.AssetImportResponse;
+import com.songhg.veri.agent.asset.application.view.RequirementResponse;
+import com.songhg.veri.agent.asset.application.view.TestCaseResponse;
 import com.songhg.veri.agent.asset.domain.AssetApi;
 import com.songhg.veri.agent.asset.domain.AssetRequirement;
 import com.songhg.veri.agent.asset.domain.AssetReviewStatus;
@@ -35,6 +36,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
+
 
 @Service
 public class AssetImportExportService {

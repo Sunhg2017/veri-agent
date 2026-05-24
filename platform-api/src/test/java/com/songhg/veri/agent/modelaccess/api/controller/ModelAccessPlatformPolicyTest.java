@@ -1,7 +1,7 @@
 package com.songhg.veri.agent.modelaccess.api.controller;
 
-import com.songhg.veri.agent.modelaccess.application.PlatformContextClient;
-import com.songhg.veri.agent.modelaccess.application.PlatformInvocationPolicy;
+import com.songhg.veri.agent.modelaccess.application.port.PlatformContextClient;
+import com.songhg.veri.agent.modelaccess.application.port.PlatformInvocationPolicy;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;

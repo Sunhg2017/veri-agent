@@ -1,7 +1,7 @@
 package com.songhg.veri.agent.documentinput.api.request;
 
 import com.songhg.veri.agent.common.api.BasePageRequest;
-import com.songhg.veri.agent.documentinput.application.DocumentCandidateQuery;
+import com.songhg.veri.agent.documentinput.application.query.DocumentCandidateQuery;
 import com.songhg.veri.agent.documentinput.domain.DocumentCandidateStatus;
 import java.util.UUID;
 import org.springframework.util.StringUtils;

@@ -2,9 +2,9 @@ package com.songhg.veri.agent.modelaccess.infrastructure;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.songhg.veri.agent.modelaccess.application.ModelProviderClient;
-import com.songhg.veri.agent.modelaccess.application.ProviderCallRequest;
-import com.songhg.veri.agent.modelaccess.application.ProviderCallResult;
+import com.songhg.veri.agent.modelaccess.application.port.ModelProviderClient;
+import com.songhg.veri.agent.modelaccess.application.command.ProviderCallRequest;
+import com.songhg.veri.agent.modelaccess.application.view.ProviderCallResult;
 import com.songhg.veri.agent.modelaccess.domain.ModelProviderConfig;
 import com.songhg.veri.agent.modelaccess.domain.ProviderType;
 import java.util.ArrayList;

@@ -1,7 +1,6 @@
 package com.songhg.veri.agent.management.api.controller;
 
 import com.songhg.veri.agent.auth.application.AuthUserPrincipal;
-import com.songhg.veri.agent.authorization.application.AuthorizationService;
 import com.songhg.veri.agent.authorization.application.PermissionCodes;
 import com.songhg.veri.agent.authorization.application.RequirePermission;
 import com.songhg.veri.agent.common.api.PageResponse;
@@ -37,16 +36,13 @@ import org.springframework.web.bind.annotation.RestController;
 public class ApplicationController {
 
     private final ApplicationOperations applicationOperations;
-    private final AuthorizationService authorizationService;
     private final ManagementApiMapper mapper;
 
     public ApplicationController(
             ApplicationOperations applicationOperations,
-            AuthorizationService authorizationService,
             ManagementApiMapper mapper
     ) {
         this.applicationOperations = applicationOperations;
-        this.authorizationService = authorizationService;
         this.mapper = mapper;
     }
 
@@ -94,7 +90,6 @@ public class ApplicationController {
             @Valid @RequestBody StatusChangeRequest request,
             @AuthenticationPrincipal AuthUserPrincipal principal
     ) {
-        authorizationService.require(principal, PermissionCodes.applicationStatusPermission(request.status()));
         return mapper.toResponse(applicationOperations.changeApplicationStatus(key.trim(), request.status(), principal));
     }
 

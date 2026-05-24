@@ -1,5 +1,7 @@
 package com.songhg.veri.agent.asset.api.request;
 
+import com.songhg.veri.agent.asset.application.query.AssetListRequest;
+
 public class AssetExportRequest extends AssetListRequest {
 
     private String assetType;

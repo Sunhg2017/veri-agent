@@ -1,7 +1,7 @@
 package com.songhg.veri.agent.documentinput.api.request;
 
 import com.songhg.veri.agent.common.api.BasePageRequest;
-import com.songhg.veri.agent.documentinput.application.DocumentWebhookEventQuery;
+import com.songhg.veri.agent.documentinput.application.query.DocumentWebhookEventQuery;
 import com.songhg.veri.agent.documentinput.domain.WebhookEventStatus;
 import java.time.Instant;
 import java.util.UUID;

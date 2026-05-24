@@ -1,7 +1,7 @@
 package com.songhg.veri.agent.asset.infrastructure;
 
-import com.songhg.veri.agent.asset.application.AssetRepository;
-import com.songhg.veri.agent.asset.application.AssetListQuery;
+import com.songhg.veri.agent.asset.application.port.AssetRepository;
+import com.songhg.veri.agent.asset.application.query.AssetListQuery;
 import com.songhg.veri.agent.asset.domain.AssetApi;
 import com.songhg.veri.agent.asset.domain.AssetBusinessFlow;
 import com.songhg.veri.agent.asset.domain.AssetPage;

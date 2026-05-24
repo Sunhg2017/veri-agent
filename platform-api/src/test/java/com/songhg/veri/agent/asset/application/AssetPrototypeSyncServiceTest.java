@@ -1,8 +1,9 @@
 package com.songhg.veri.agent.asset.application;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.songhg.veri.agent.asset.application.AssetPrototypeSyncRequest;
-import com.songhg.veri.agent.asset.application.AssetPrototypeSyncResponse;
+import com.songhg.veri.agent.asset.application.command.AssetPrototypeSyncRequest;
+import com.songhg.veri.agent.asset.application.port.PlatformContextClient;
+import com.songhg.veri.agent.asset.application.view.AssetPrototypeSyncResponse;
 import com.songhg.veri.agent.asset.domain.AssetPage;
 import com.songhg.veri.agent.asset.infrastructure.InMemoryAssetRepository;
 import java.time.Instant;
@@ -12,8 +13,9 @@ import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-
 import static org.assertj.core.api.Assertions.assertThat;
+
+
 
 class AssetPrototypeSyncServiceTest {
 

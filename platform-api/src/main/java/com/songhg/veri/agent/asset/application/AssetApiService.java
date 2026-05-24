@@ -1,10 +1,12 @@
 package com.songhg.veri.agent.asset.application;
 
-import com.songhg.veri.agent.asset.application.AssetListRequest;
-import com.songhg.veri.agent.asset.application.CreateApiRequest;
-import com.songhg.veri.agent.asset.application.UpdateApiRequest;
-import com.songhg.veri.agent.asset.application.UpdateAssetLifecycleRequest;
-import com.songhg.veri.agent.asset.application.ApiResponseDTO;
+import com.songhg.veri.agent.asset.application.command.CreateApiRequest;
+import com.songhg.veri.agent.asset.application.command.UpdateApiRequest;
+import com.songhg.veri.agent.asset.application.command.UpdateAssetLifecycleRequest;
+import com.songhg.veri.agent.asset.application.port.AssetRepository;
+import com.songhg.veri.agent.asset.application.query.AssetListQuery;
+import com.songhg.veri.agent.asset.application.query.AssetListRequest;
+import com.songhg.veri.agent.asset.application.view.ApiResponseDTO;
 import com.songhg.veri.agent.asset.domain.AssetApi;
 import com.songhg.veri.agent.asset.domain.AssetLifecycleStatus;
 import com.songhg.veri.agent.common.error.BusinessException;
@@ -20,6 +22,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
+
+
 
 /**
  * Owns API asset CRUD and status rules while AssetService remains a backward-compatible facade.

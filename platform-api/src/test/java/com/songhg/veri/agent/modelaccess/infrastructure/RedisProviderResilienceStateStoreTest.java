@@ -1,7 +1,8 @@
 package com.songhg.veri.agent.modelaccess.infrastructure;
 
-import com.songhg.veri.agent.modelaccess.application.ProviderResilienceStateStore.CircuitSnapshot;
-import com.songhg.veri.agent.modelaccess.application.ProviderResilienceStateStore.RateLimitSnapshot;
+import com.songhg.veri.agent.modelaccess.application.port.ProviderResilienceStateStore.CircuitSnapshot;
+import com.songhg.veri.agent.modelaccess.application.port.ProviderResilienceStateStore.RateLimitSnapshot;
+import com.songhg.veri.agent.modelaccess.application.port.ProviderResilienceStateStore;
 import java.time.Instant;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
@@ -12,8 +13,9 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
-
 import static org.assertj.core.api.Assertions.assertThat;
+
+
 
 @Testcontainers(disabledWithoutDocker = true)
 class RedisProviderResilienceStateStoreTest {

@@ -4,11 +4,12 @@ import com.songhg.veri.agent.auth.application.AuthUserPrincipal;
 import com.songhg.veri.agent.common.api.PageQuery;
 import com.songhg.veri.agent.common.api.PageResponse;
 import com.songhg.veri.agent.common.audit.AuditLogWriter;
-import com.songhg.veri.agent.management.application.port.RoleOperations;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
+import com.songhg.veri.agent.management.application.security.ManagementAuthorizationGuard;
 import com.songhg.veri.agent.management.application.command.CreateRoleRequest;
 import com.songhg.veri.agent.management.application.command.UpdateRoleRequest;
+import com.songhg.veri.agent.management.application.port.RoleOperations;
 import com.songhg.veri.agent.management.application.view.PermissionView;
 import com.songhg.veri.agent.management.application.view.RoleDetailView;
 import com.songhg.veri.agent.management.application.view.RoleView;
@@ -37,10 +38,16 @@ class PostgresManagementRoleService implements RoleOperations {
 
     private final ManagementMapper mapper;
     private final AuditLogWriter auditLogWriter;
+    private final ManagementAuthorizationGuard authorizationGuard;
 
-    PostgresManagementRoleService(ManagementMapper mapper, AuditLogWriter auditLogWriter) {
+    PostgresManagementRoleService(
+            ManagementMapper mapper,
+            AuditLogWriter auditLogWriter,
+            ManagementAuthorizationGuard authorizationGuard
+    ) {
         this.mapper = mapper;
         this.auditLogWriter = auditLogWriter;
+        this.authorizationGuard = authorizationGuard;
     }
 
     public PageResponse<RoleView> roles(PageQuery pageQuery) {
@@ -55,13 +62,13 @@ class PostgresManagementRoleService implements RoleOperations {
         return roleDetail(requireRoleRow(code));
     }
 
-    public RoleDetailView createRole(CreateRoleRequest request, Set<String> assignablePermissions, AuthUserPrincipal actor) {
+    public RoleDetailView createRole(CreateRoleRequest request, AuthUserPrincipal actor) {
         String code = request.code().trim();
         String name = request.name().trim();
         String scopeType = request.scopeType().trim();
         String description = blankToNull(request.description());
         List<String> permissionCodes = normalizePermissionCodes(request.permissionCodes());
-        ensureAssignablePermissions(permissionCodes, assignablePermissions);
+        ensureAssignablePermissions(permissionCodes, authorizationGuard.assignablePermissions(actor));
         ensureEnabledPermissions(permissionCodes);
         UUID roleId = UUID.randomUUID();
         try {
@@ -81,7 +88,7 @@ class PostgresManagementRoleService implements RoleOperations {
         return created;
     }
 
-    public RoleDetailView updateRole(String code, UpdateRoleRequest request, Set<String> assignablePermissions, AuthUserPrincipal actor) {
+    public RoleDetailView updateRole(String code, UpdateRoleRequest request, AuthUserPrincipal actor) {
         RoleRow role = requireRoleRow(code);
         ensureCustomRole(role);
         RoleDetailView before = roleDetail(role);
@@ -91,7 +98,7 @@ class PostgresManagementRoleService implements RoleOperations {
         List<String> permissionCodes = null;
         if (request.permissionCodes() != null) {
             permissionCodes = normalizePermissionCodes(request.permissionCodes());
-            ensureAssignablePermissions(permissionCodes, assignablePermissions);
+            ensureAssignablePermissions(permissionCodes, authorizationGuard.assignablePermissions(actor));
             ensureEnabledPermissions(permissionCodes);
         }
         update(mapper::updateRole, actor, values(

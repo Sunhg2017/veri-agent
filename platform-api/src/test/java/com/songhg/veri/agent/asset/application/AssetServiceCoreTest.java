@@ -1,14 +1,15 @@
 package com.songhg.veri.agent.asset.application;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.songhg.veri.agent.asset.application.AssetImportRequest;
-import com.songhg.veri.agent.asset.application.AssetListRequest;
-import com.songhg.veri.agent.asset.application.CreateRequirementRequest;
-import com.songhg.veri.agent.asset.application.RollbackAssetVersionRequest;
-import com.songhg.veri.agent.asset.application.UpdateAssetLifecycleRequest;
-import com.songhg.veri.agent.asset.application.UpdateRequirementRequest;
-import com.songhg.veri.agent.asset.application.AssetImportResponse;
-import com.songhg.veri.agent.asset.application.RequirementResponse;
+import com.songhg.veri.agent.asset.application.command.AssetImportRequest;
+import com.songhg.veri.agent.asset.application.command.CreateRequirementRequest;
+import com.songhg.veri.agent.asset.application.command.RollbackAssetVersionRequest;
+import com.songhg.veri.agent.asset.application.command.UpdateAssetLifecycleRequest;
+import com.songhg.veri.agent.asset.application.command.UpdateRequirementRequest;
+import com.songhg.veri.agent.asset.application.port.PlatformContextClient;
+import com.songhg.veri.agent.asset.application.query.AssetListRequest;
+import com.songhg.veri.agent.asset.application.view.AssetImportResponse;
+import com.songhg.veri.agent.asset.application.view.RequirementResponse;
 import com.songhg.veri.agent.asset.infrastructure.InMemoryAssetRepository;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
@@ -16,9 +17,10 @@ import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+
 
 class AssetServiceCoreTest {
 

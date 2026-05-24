@@ -1,7 +1,7 @@
 package com.songhg.veri.agent.modelaccess.infrastructure;
 
-import com.songhg.veri.agent.modelaccess.application.ProviderCallRequest;
-import com.songhg.veri.agent.modelaccess.application.ProviderCallResult;
+import com.songhg.veri.agent.modelaccess.application.command.ProviderCallRequest;
+import com.songhg.veri.agent.modelaccess.application.view.ProviderCallResult;
 import com.songhg.veri.agent.modelaccess.domain.ModelProviderConfig;
 import com.songhg.veri.agent.modelaccess.domain.ProviderStatus;
 import com.songhg.veri.agent.modelaccess.domain.ProviderType;

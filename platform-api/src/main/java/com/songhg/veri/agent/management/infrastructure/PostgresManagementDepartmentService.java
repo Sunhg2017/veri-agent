@@ -4,10 +4,11 @@ import com.songhg.veri.agent.auth.application.AuthUserPrincipal;
 import com.songhg.veri.agent.common.api.PageQuery;
 import com.songhg.veri.agent.common.api.PageResponse;
 import com.songhg.veri.agent.common.audit.AuditLogWriter;
-import com.songhg.veri.agent.management.application.port.DepartmentOperations;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
+import com.songhg.veri.agent.management.application.security.ManagementAuthorizationGuard;
 import com.songhg.veri.agent.management.application.command.UpdateDepartmentRequest;
+import com.songhg.veri.agent.management.application.port.DepartmentOperations;
 import com.songhg.veri.agent.management.application.view.DepartmentView;
 import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapper;
 import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows.DepartmentRef;
@@ -30,10 +31,16 @@ class PostgresManagementDepartmentService implements DepartmentOperations {
 
     private final ManagementMapper mapper;
     private final AuditLogWriter auditLogWriter;
+    private final ManagementAuthorizationGuard authorizationGuard;
 
-    PostgresManagementDepartmentService(ManagementMapper mapper, AuditLogWriter auditLogWriter) {
+    PostgresManagementDepartmentService(
+            ManagementMapper mapper,
+            AuditLogWriter auditLogWriter,
+            ManagementAuthorizationGuard authorizationGuard
+    ) {
         this.mapper = mapper;
         this.auditLogWriter = auditLogWriter;
+        this.authorizationGuard = authorizationGuard;
     }
 
     public PageResponse<DepartmentView> departments(PageQuery pageQuery) {
@@ -81,8 +88,9 @@ class PostgresManagementDepartmentService implements DepartmentOperations {
     }
 
     public DepartmentView changeDepartmentStatus(String key, String status, AuthUserPrincipal actor) {
-        DepartmentRef department = resolveDepartmentStrict(key);
         String nextStatus = normalizeEnabledStatus(status, "部门状态不支持");
+        authorizationGuard.requireDepartmentStatus(actor, nextStatus);
+        DepartmentRef department = resolveDepartmentStrict(key);
         update(mapper::changeDepartmentStatus, actor, values("deptId", department.id(), "status", nextStatus));
         DepartmentView updated = departmentByKey(department.id().toString());
         audit(actor, "ENABLED".equals(nextStatus) ? "启用部门" : "停用部门", "department", department.id().toString(), updated.name());
