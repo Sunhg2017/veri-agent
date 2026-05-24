@@ -1,6 +1,7 @@
 package com.songhg.veri.agent.auth.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.songhg.veri.agent.auth.application.AuthProperties;
 import com.songhg.veri.agent.auth.application.AuthTokenService;
 import com.songhg.veri.agent.auth.application.AuthUserPrincipal;
 import com.songhg.veri.agent.common.api.ApiResponse;
@@ -12,7 +13,6 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
-import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -24,9 +24,11 @@ import org.springframework.web.filter.OncePerRequestFilter;
 public class PasswordChangeRequiredFilter extends OncePerRequestFilter {
 
     private final ObjectMapper objectMapper;
+    private final PasswordChangeRequiredPolicy passwordChangeRequiredPolicy;
 
-    public PasswordChangeRequiredFilter(ObjectMapper objectMapper) {
+    public PasswordChangeRequiredFilter(ObjectMapper objectMapper, AuthProperties authProperties) {
         this.objectMapper = objectMapper;
+        this.passwordChangeRequiredPolicy = new PasswordChangeRequiredPolicy(authProperties.passwordChangeRequired());
     }
 
     @Override
@@ -39,7 +41,7 @@ public class PasswordChangeRequiredFilter extends OncePerRequestFilter {
         Object principal = authentication == null ? null : authentication.getPrincipal();
         if (!(principal instanceof AuthUserPrincipal user)
                 || !user.mustChangePassword()
-                || isAllowedBeforePasswordChange(request)) {
+                || passwordChangeRequiredPolicy.allows(request)) {
             filterChain.doFilter(request, response);
             return;
         }
@@ -55,32 +57,5 @@ public class PasswordChangeRequiredFilter extends OncePerRequestFilter {
                         null
                 )
         );
-    }
-
-    private boolean isAllowedBeforePasswordChange(HttpServletRequest request) {
-        String method = request.getMethod();
-        String path = request.getRequestURI();
-        if (HttpMethod.OPTIONS.matches(method)) {
-            return true;
-        }
-        if (path.startsWith("/actuator/")
-                || path.startsWith("/v3/api-docs/")
-                || path.startsWith("/swagger-ui/")
-                || path.equals("/swagger-ui.html")) {
-            return true;
-        }
-        if (HttpMethod.GET.matches(method) && (
-                path.equals("/api/v1/health")
-                        || path.equals("/api/v1/model-access/health")
-                        || path.equals("/api/v1/asset/health")
-                        || path.equals("/api/v1/document-input/health")
-                        || path.equals("/api/v1/auth/me"))) {
-            return true;
-        }
-        return HttpMethod.POST.matches(method) && (
-                path.equals("/api/v1/auth/login")
-                        || path.equals("/api/v1/auth/refresh")
-                        || path.equals("/api/v1/auth/logout")
-                        || path.equals("/api/v1/auth/change-password"));
     }
 }

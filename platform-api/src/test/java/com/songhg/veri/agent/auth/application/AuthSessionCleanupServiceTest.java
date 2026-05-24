@@ -29,7 +29,7 @@ class AuthSessionCleanupServiceTest {
 
         AuthSessionCleanupService cleanupService = new AuthSessionCleanupService(
                 store,
-                new AuthProperties("secret", 30, true, 60),
+                new AuthProperties("secret", 30, true, 60, AuthProperties.PasswordChangeRequired.defaults()),
                 new SimpleMeterRegistry(),
                 Clock.fixed(now, ZoneOffset.UTC)
         );
@@ -47,7 +47,7 @@ class AuthSessionCleanupServiceTest {
         CountingStore store = new CountingStore();
         AuthSessionCleanupService cleanupService = new AuthSessionCleanupService(
                 store,
-                new AuthProperties("secret", 30, false, 60),
+                new AuthProperties("secret", 30, false, 60, AuthProperties.PasswordChangeRequired.defaults()),
                 new SimpleMeterRegistry(),
                 Clock.fixed(Instant.parse("2026-05-20T00:00:00Z"), ZoneOffset.UTC)
         );

@@ -40,7 +40,7 @@ class AuthTokenServiceTest {
 
     private AuthTokenService tokenService(String tokenSecret) {
         return new AuthTokenService(
-                new AuthProperties(tokenSecret, 30, true, 60),
+                new AuthProperties(tokenSecret, 30, true, 60, AuthProperties.PasswordChangeRequired.defaults()),
                 new ObjectMapper().findAndRegisterModules(),
                 new InMemoryAuthSessionStore(),
                 Clock.fixed(Instant.parse("2030-05-23T00:00:00Z"), ZoneOffset.UTC)
