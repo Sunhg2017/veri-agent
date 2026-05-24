@@ -43,30 +43,10 @@ import org.springframework.util.StringUtils;
 public class AssetImportExportService {
 
     private static final Logger log = LoggerFactory.getLogger(AssetImportExportService.class);
-    private static final String ASSET_REQUIREMENT = "REQUIREMENT";
-    private static final String ASSET_API = "API";
-    private static final String ASSET_TEST_CASE = "TEST_CASE";
-    private static final String FORMAT_CSV = "CSV";
-    private static final String FORMAT_JSON = "JSON";
-    private static final String FORMAT_OPENAPI = "OPENAPI";
-    private static final String SOURCE_IMPORT = "IMPORT";
-    private static final String STATUS_ACTIVE = "ACTIVE";
-    private static final Set<String> REVIEW_STATUSES = AssetReviewStatus.codes();
-    private static final Set<String> PRIORITIES = Set.of("CRITICAL", "HIGH", "MEDIUM", "LOW");
-    private static final Set<String> API_STATUSES = Set.of(STATUS_ACTIVE, "DEPRECATED", "REMOVED");
-    private static final Set<String> API_SOURCES = Set.of(FORMAT_OPENAPI, "MANUAL", SOURCE_IMPORT);
-    private static final Set<String> API_HTTP_METHODS = Set.of("GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS");
-    private static final Set<String> IMPORT_EXPORT_FORMATS = Set.of(FORMAT_CSV, FORMAT_JSON, FORMAT_OPENAPI);
-    private static final Map<String, Set<String>> IMPORT_EXPORT_FORMATS_BY_ASSET_TYPE = Map.of(
-            ASSET_REQUIREMENT, Set.of(FORMAT_CSV, FORMAT_JSON),
-            ASSET_API, IMPORT_EXPORT_FORMATS,
-            ASSET_TEST_CASE, Set.of(FORMAT_CSV, FORMAT_JSON)
-    );
-    private static final Set<String> IMPORT_EXPORT_ASSET_TYPES = IMPORT_EXPORT_FORMATS_BY_ASSET_TYPE.keySet();
 
     private final AssetRepository repository;
     private final AssetProjectAuditService projectAuditService;
-    private final ObjectMapper objectMapper;
+    private final AssetJsonCodec assetJsonCodec;
     private final AssetService assetService;
 
     public AssetImportExportService(
@@ -77,7 +57,7 @@ public class AssetImportExportService {
     ) {
         this.repository = repository;
         this.projectAuditService = projectAuditService;
-        this.objectMapper = objectMapper;
+        this.assetJsonCodec = new AssetJsonCodec(objectMapper);
         this.assetService = assetService;
     }
 
@@ -834,37 +814,19 @@ public class AssetImportExportService {
     }
 
     private static String importExportAssetType(String rawValue) {
-        return valueIn(rawValue, null, IMPORT_EXPORT_ASSET_TYPES, "assetType");
+        return AssetFormatValidator.normalizeAssetType(rawValue);
     }
 
     private static String importExportFormat(String assetType, String rawValue, String operationName) {
-        String format = valueIn(rawValue, FORMAT_CSV, IMPORT_EXPORT_FORMATS, "format");
-        if (!IMPORT_EXPORT_FORMATS_BY_ASSET_TYPE.getOrDefault(assetType, Set.of()).contains(format)) {
-            if (FORMAT_OPENAPI.equals(format)) {
-                throw new BusinessException(ErrorCode.VALIDATION_ERROR, "OpenAPI " + operationName + "仅支持 API 资产");
-            }
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "format 不支持当前 assetType: " + format + "/" + assetType);
-        }
-        return format;
+        return AssetFormatValidator.normalizeFormat(assetType, rawValue, operationName);
     }
 
     private JsonNode jsonNode(String json) {
-        if (!StringUtils.hasText(json)) {
-            return objectMapper.createObjectNode();
-        }
-        try {
-            return objectMapper.readTree(json);
-        } catch (JsonProcessingException e) {
-            return objectMapper.createObjectNode();
-        }
+        return assetJsonCodec.parseJson(json);
     }
 
     private String jsonString(Object value) {
-        try {
-            return objectMapper.writeValueAsString(value);
-        } catch (JsonProcessingException e) {
-            throw new BusinessException(ErrorCode.INTERNAL_ERROR, "资产导入导出序列化失败");
-        }
+        return assetJsonCodec.toJsonString(value);
     }
 
     private void validateRequirementBelongsToProject(UUID requirementId, String projectId) {
