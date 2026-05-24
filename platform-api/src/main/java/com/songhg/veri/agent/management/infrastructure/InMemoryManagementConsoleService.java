@@ -68,8 +68,6 @@ public class InMemoryManagementConsoleService implements ManagementConsoleServic
 
     private final List<DepartmentView> departments = new ArrayList<>();
     private final List<UserView> users = new ArrayList<>();
-    private final List<ProjectView> projects = new ArrayList<>();
-    private final List<ProjectMemberView> projectMembers = new ArrayList<>();
     private final List<ApplicationView> applications = new ArrayList<>();
     private final List<ScopedUserRoleView> applicationOwners = new ArrayList<>();
     private final List<EnvironmentView> environments = new ArrayList<>();
@@ -83,6 +81,7 @@ public class InMemoryManagementConsoleService implements ManagementConsoleServic
     private final List<AuditLogView> auditLogs = new ArrayList<>();
     private final List<AuditOutboxView> auditOutbox = new ArrayList<>();
     private final Map<String, EnvironmentConnectivityCheckView> environmentConnectivityChecks = new HashMap<>();
+    private final InMemoryManagementProjectService projectService;
     private final AuditLogWriter auditLogWriter;
     private final EnvironmentConnectivityChecker connectivityChecker;
 
@@ -102,11 +101,7 @@ public class InMemoryManagementConsoleService implements ManagementConsoleServic
                 new UserView("he.xu", "何序", "he.xu@example.com", "ProjectOwner", "自动化平台组", "启用", "今天 09:43"),
                 new UserView("zhao.wen", "赵文", "zhao.wen@example.com", "Auditor", "业务验收组", "待激活", "尚未登录")
         ));
-        projects.addAll(List.of(
-                new ProjectView("Checkout Regression", "自动化平台组", "何序", 4, "进行中"),
-                new ProjectView("Mobile Smoke", "端体验组", "陈乔", 2, "规划中"),
-                new ProjectView("API Stability", "质量工程中心", "平台组", 6, "进行中")
-        ));
+        projectService = new InMemoryManagementProjectService(users, auditLogWriter);
         applications.addAll(List.of(
                 new ApplicationView("veri-agent-api", "Backend", "平台组", "v0.3.2", "已接入"),
                 new ApplicationView("portal-web", "Frontend", "平台组", "v0.1.0", "接入中"),
@@ -465,103 +460,42 @@ public class InMemoryManagementConsoleService implements ManagementConsoleServic
 
     @Override
     public synchronized PageResponse<ProjectView> projects(PageQuery pageQuery, AuthUserPrincipal actor) {
-        return page(projects, pageQuery);
+        return projectService.projects(pageQuery, actor);
     }
 
     @Override
     public synchronized ProjectView project(String key) {
-        return requireProject(key);
+        return projectService.project(key);
     }
 
     @Override
     public synchronized ProjectView createProject(CreateProjectRequest request, AuthUserPrincipal actor) {
-        String name = request.name().trim();
-        ProjectView view = new ProjectView(name, "质量工程中心", actor.displayName(), 0, "规划中");
-        projects.add(0, view);
-        audit(actor, "创建项目", name);
-        return view;
+        return projectService.createProject(request, actor);
     }
 
     @Override
     public synchronized ProjectView updateProject(String key, UpdateProjectRequest request, AuthUserPrincipal actor) {
-        ProjectView current = requireProject(key);
-        if ("已归档".equals(current.status()) || "已停用".equals(current.status())) {
-            throw new BusinessException(ErrorCode.INVALID_STATE, "当前项目状态不允许编辑");
-        }
-        ProjectView updated = replaceProject(
-                current.name(),
-                new ProjectView(
-                        trimOrDefault(request.name(), current.name()),
-                        current.department(),
-                        current.owner(),
-                        current.apps(),
-                        current.status()
-                )
-        );
-        audit(actor, "更新项目", updated.name());
-        return updated;
+        return projectService.updateProject(key, request, actor);
     }
 
     @Override
     public synchronized ProjectView changeProjectStatus(String key, String status, AuthUserPrincipal actor) {
-        ProjectView current = requireProject(key);
-        String nextStatusCode = normalizeProjectStatus(status);
-        ensureProjectStatusTransition(actor, current.name(), projectStatusCode(current.status()), nextStatusCode);
-        String nextStatus = switch (nextStatusCode) {
-            case "PREPARING" -> "规划中";
-            case "ACTIVE" -> "进行中";
-            case "ARCHIVED" -> "已归档";
-            case "DISABLED" -> "已停用";
-            default -> throw new BusinessException(ErrorCode.VALIDATION_ERROR, "项目状态不支持");
-        };
-        ProjectView updated = replaceProject(
-                current.name(),
-                new ProjectView(current.name(), current.department(), current.owner(), current.apps(), nextStatus)
-        );
-        audit(actor, projectStatusAction(nextStatusCode), updated.name());
-        return updated;
+        return projectService.changeProjectStatus(key, status, actor);
     }
 
     @Override
     public synchronized PageResponse<ProjectMemberView> projectMembers(String projectKey, PageQuery pageQuery) {
-        requireProject(projectKey);
-        return page(projectMembers, pageQuery);
+        return projectService.projectMembers(projectKey, pageQuery);
     }
 
     @Override
     public synchronized ProjectMemberView addProjectMember(String projectKey, ProjectMemberRequest request, AuthUserPrincipal actor) {
-        requireProject(projectKey);
-        UserView user = requireUser(request.username().trim());
-        projectMembers.removeIf(member -> member.username().equals(user.username()));
-        ProjectMemberView view = new ProjectMemberView(
-                user.username(),
-                user.username(),
-                request.roleCode().trim(),
-                memberTypeForRole(request.roleCode().trim()),
-                "启用"
-        );
-        projectMembers.add(0, view);
-        audit(actor, "添加项目成员", projectKey + ":" + user.username());
-        return view;
+        return projectService.addProjectMember(projectKey, request, actor);
     }
 
     @Override
     public synchronized ProjectMemberView removeProjectMember(String projectKey, String username, AuthUserPrincipal actor) {
-        requireProject(projectKey);
-        ProjectMemberView current = projectMembers.stream()
-                .filter(member -> member.username().equals(username))
-                .findFirst()
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "项目成员不存在"));
-        projectMembers.removeIf(member -> member.username().equals(username));
-        ProjectMemberView removed = new ProjectMemberView(
-                current.username(),
-                current.displayName(),
-                current.role(),
-                current.memberType(),
-                "已移除"
-        );
-        audit(actor, "移除项目成员", projectKey + ":" + username);
-        return removed;
+        return projectService.removeProjectMember(projectKey, username, actor);
     }
 
     @Override
@@ -1289,13 +1223,6 @@ public class InMemoryManagementConsoleService implements ManagementConsoleServic
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "部门不存在"));
     }
 
-    private ProjectView requireProject(String key) {
-        return projects.stream()
-                .filter(project -> project.name().equals(key))
-                .findFirst()
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "项目不存在"));
-    }
-
     private ApplicationView requireApplication(String key) {
         return applications.stream()
                 .filter(application -> application.name().equals(key))
@@ -1308,17 +1235,6 @@ public class InMemoryManagementConsoleService implements ManagementConsoleServic
                 .filter(environment -> environment.name().equals(key))
                 .findFirst()
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "环境不存在"));
-    }
-
-    private ProjectView replaceProject(String key, ProjectView updated) {
-        for (int index = 0; index < projects.size(); index++) {
-            ProjectView current = projects.get(index);
-            if (current.name().equals(key)) {
-                projects.set(index, updated);
-                return updated;
-            }
-        }
-        throw new BusinessException(ErrorCode.NOT_FOUND, "项目不存在");
     }
 
     private ApplicationView replaceApplication(String key, ApplicationView updated) {
@@ -1370,54 +1286,6 @@ public class InMemoryManagementConsoleService implements ManagementConsoleServic
             return defaultValue;
         }
         return value.trim();
-    }
-
-    private String projectStatusAction(String status) {
-        return switch (status) {
-            case "ARCHIVED" -> "归档项目";
-            case "DISABLED" -> "停用项目";
-            case "ACTIVE", "PREPARING" -> "恢复项目";
-            default -> "更新项目状态";
-        };
-    }
-
-    private String normalizeProjectStatus(String status) {
-        String normalized = status == null ? "" : status.trim().toUpperCase();
-        if (!List.of("PREPARING", "ACTIVE", "ARCHIVED", "DISABLED").contains(normalized)) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "项目状态不支持");
-        }
-        return normalized;
-    }
-
-    private String projectStatusCode(String status) {
-        return switch (status) {
-            case "规划中" -> "PREPARING";
-            case "进行中" -> "ACTIVE";
-            case "已归档" -> "ARCHIVED";
-            case "已停用" -> "DISABLED";
-            default -> "";
-        };
-    }
-
-    private void ensureProjectStatusTransition(AuthUserPrincipal actor, String projectName, String currentStatus, String nextStatus) {
-        if (currentStatus.equals(nextStatus)) {
-            return;
-        }
-        boolean allowed = switch (currentStatus) {
-            case "PREPARING" -> List.of("ACTIVE", "DISABLED").contains(nextStatus);
-            case "ACTIVE" -> List.of("ARCHIVED", "DISABLED").contains(nextStatus);
-            case "ARCHIVED" -> List.of("ACTIVE", "DISABLED").contains(nextStatus);
-            case "DISABLED" -> List.of("PREPARING", "ACTIVE").contains(nextStatus);
-            default -> false;
-        };
-        if (!allowed) {
-            auditDenied(actor, "项目状态拒绝", projectName, "项目状态流不允许: " + currentStatus + "->" + nextStatus);
-            throw new BusinessException(ErrorCode.INVALID_STATE, "项目状态不允许从 " + currentStatus + " 流转到 " + nextStatus);
-        }
-    }
-
-    private String memberTypeForRole(String roleCode) {
-        return "ProjectOwner".equals(roleCode) ? "OWNER" : "MEMBER";
     }
 
     private boolean hasRole(String roleNames, String roleCode) {
