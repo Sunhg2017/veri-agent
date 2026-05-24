@@ -108,90 +108,33 @@ public class DocumentContentExtractor {
                 || (ocrRemoteWorkerMode() && ocrRemoteWorkerConfigured());
     }
 
-    public int ocrMaxConcurrentProcesses() {
-        return properties.ocrMaxConcurrentProcesses() <= 0
-                ? DEFAULT_OCR_MAX_CONCURRENT_PROCESSES
-                : properties.ocrMaxConcurrentProcesses();
-    }
-
     public int ocrAvailablePermits() {
         return ocrPermits.availablePermits();
-    }
-
-    public int ocrTimeoutSeconds() {
-        return properties.ocrTimeoutSeconds() <= 0
-                ? DEFAULT_OCR_TIMEOUT_SECONDS
-                : properties.ocrTimeoutSeconds();
-    }
-
-    public int ocrMaxOutputChars() {
-        return properties.ocrMaxOutputChars() <= 0
-                ? DEFAULT_OCR_MAX_OUTPUT_CHARS
-                : properties.ocrMaxOutputChars();
-    }
-
-    public String ocrWorkerMode() {
-        String mode = trimToNull(properties.ocrWorkerMode());
-        return mode == null ? "LOCAL_COMMAND" : mode.toUpperCase(Locale.ROOT);
-    }
-
-    public boolean ocrRemoteWorkerMode() {
-        return "HTTP_WORKER".equals(ocrWorkerMode()) || "EXTERNAL_WORKER".equals(ocrWorkerMode());
-    }
-
-    public boolean ocrRemoteWorkerConfigured() {
-        return StringUtils.hasText(properties.ocrWorkerUrl());
-    }
-
-    public boolean ocrWorkerTokenConfigured() {
-        return StringUtils.hasText(properties.ocrWorkerToken());
-    }
-
-    public boolean ocrLocalCommandFallbackEnabled() {
-        return properties.ocrLocalCommandFallbackEnabled();
-    }
-
-    public boolean ocrLocalCommandExecutionAllowed() {
-        return "LOCAL_COMMAND".equals(ocrWorkerMode())
-                || (ocrRemoteWorkerMode() && ocrLocalCommandFallbackEnabled());
-    }
-
-    public boolean binaryMimeValidationEnabled() {
-        return properties.binaryMimeValidationEnabled();
-    }
-
-    public boolean malwareScanEnabled() {
-        return StringUtils.hasText(properties.malwareScanCommand());
-    }
-
-    public int malwareScanTimeoutSeconds() {
-        return properties.malwareScanTimeoutSeconds() <= 0
-                ? DEFAULT_MALWARE_SCAN_TIMEOUT_SECONDS
-                : properties.malwareScanTimeoutSeconds();
-    }
-
-    public int malwareScanMaxConcurrentProcesses() {
-        return properties.malwareScanMaxConcurrentProcesses() <= 0
-                ? DEFAULT_MALWARE_SCAN_MAX_CONCURRENT_PROCESSES
-                : properties.malwareScanMaxConcurrentProcesses();
     }
 
     public int malwareScanAvailablePermits() {
         return malwareScanPermits.availablePermits();
     }
 
-    public int pdfMaxPages() {
-        return Math.max(0, properties.pdfMaxPages());
+    public boolean ocrLocalCommandExecutionAllowed() {
+        String mode = resolvedOcrWorkerMode();
+        return "LOCAL_COMMAND".equals(mode)
+                || ("HTTP_WORKER".equals(mode) || "EXTERNAL_WORKER".equals(mode))
+                && properties.ocrLocalCommandFallbackEnabled();
     }
 
-    public long pdfMaxParseMillis() {
-        return Math.max(0, properties.pdfMaxParseMillis());
+    private String resolvedOcrWorkerMode() {
+        String mode = trimToNull(properties.ocrWorkerMode());
+        return mode == null ? "LOCAL_COMMAND" : mode.toUpperCase(Locale.ROOT);
     }
 
-    public long documentBinaryMaxBytes() {
-        return properties.documentBinaryMaxBytes() <= 0
-                ? DEFAULT_BINARY_MAX_BYTES
-                : properties.documentBinaryMaxBytes();
+    private boolean ocrRemoteWorkerMode() {
+        String mode = resolvedOcrWorkerMode();
+        return "HTTP_WORKER".equals(mode) || "EXTERNAL_WORKER".equals(mode);
+    }
+
+    private boolean ocrRemoteWorkerConfigured() {
+        return StringUtils.hasText(properties.ocrWorkerUrl());
     }
 
     private String extractBinary(DocumentSourceType sourceType, byte[] bytes, String declaredMimeType) {
@@ -432,11 +375,11 @@ public class DocumentContentExtractor {
             if (ocrRemoteWorkerMode()) {
                 return runRemoteOcrOrFallback(bytes);
             }
-            if ("LOCAL_COMMAND".equals(ocrWorkerMode())) {
+            if ("LOCAL_COMMAND".equals(resolvedOcrWorkerMode())) {
                 return runLocalOcrCommand(bytes);
             }
             throw new BusinessException(ErrorCode.INVALID_STATE,
-                    "不支持的 OCR worker mode: " + ocrWorkerMode()
+                    "不支持的 OCR worker mode: " + resolvedOcrWorkerMode()
                             + "。下一步：设置 WP4_OCR_WORKER_MODE=LOCAL_COMMAND 或 HTTP_WORKER。");
         } finally {
             ocrPermits.release();
@@ -445,7 +388,7 @@ public class DocumentContentExtractor {
 
     private String runRemoteOcrOrFallback(byte[] bytes) {
         if (!ocrRemoteWorkerConfigured()) {
-            if (ocrLocalCommandFallbackEnabled()) {
+            if (properties.ocrLocalCommandFallbackEnabled()) {
                 return runLocalOcrCommand(bytes);
             }
             throw new BusinessException(ErrorCode.INVALID_STATE,
@@ -454,7 +397,7 @@ public class DocumentContentExtractor {
         try {
             return runRemoteOcrWorker(bytes);
         } catch (BusinessException exception) {
-            if (ocrLocalCommandFallbackEnabled()) {
+            if (properties.ocrLocalCommandFallbackEnabled()) {
                 return runLocalOcrCommand(bytes);
             }
             throw exception;
@@ -469,7 +412,7 @@ public class DocumentContentExtractor {
         }
         if (!ocrLocalCommandExecutionAllowed()) {
             throw new BusinessException(ErrorCode.INVALID_STATE,
-                    "OCR 当前配置为 " + ocrWorkerMode()
+                    "OCR 当前配置为 " + resolvedOcrWorkerMode()
                             + "，已禁止 platform-api 本地执行 WP4_OCR_COMMAND。下一步：请接入隔离 OCR worker，或在 dev/test 设置 WP4_OCR_LOCAL_COMMAND_FALLBACK_ENABLED=true。");
         }
         Path input = null;

@@ -81,6 +81,7 @@ public class DocumentInputService {
     private final DocumentRequirementPublishService publishService;
     private final DocumentInputPlatformContextClient contextClient;
     private final DocumentContentExtractor contentExtractor;
+    private final DocumentInputConfiguration configuration;
     private final ObjectMapper objectMapper;
     private final DocumentInputProperties properties;
     private final DocumentInputMetrics metrics;
@@ -97,6 +98,7 @@ public class DocumentInputService {
             DocumentRequirementPublishService publishService,
             DocumentInputPlatformContextClient contextClient,
             DocumentContentExtractor contentExtractor,
+            DocumentInputConfiguration configuration,
             ObjectMapper objectMapper,
             DocumentInputProperties properties,
             DocumentInputMetrics metrics,
@@ -111,6 +113,7 @@ public class DocumentInputService {
         this.publishService = publishService;
         this.contextClient = contextClient;
         this.contentExtractor = contentExtractor;
+        this.configuration = configuration;
         this.objectMapper = objectMapper;
         this.properties = properties;
         this.metrics = metrics;
@@ -134,16 +137,16 @@ public class DocumentInputService {
                 properties.modelParseEnabled(),
                 maxWebhookPayloadBytes(),
                 maxImportContentBytes(),
-                contentExtractor.documentBinaryMaxBytes(),
-                contentExtractor.ocrConfigured(),
-                contentExtractor.ocrTimeoutSeconds(),
-                contentExtractor.ocrMaxOutputChars(),
-                contentExtractor.ocrMaxConcurrentProcesses(),
+                configuration.documentBinaryMaxBytes(),
+                configuration.ocrConfigured(),
+                configuration.ocrTimeoutSeconds(),
+                configuration.ocrMaxOutputChars(),
+                configuration.ocrMaxConcurrentProcesses(),
                 contentExtractor.ocrAvailablePermits(),
-                contentExtractor.ocrWorkerMode(),
-                contentExtractor.ocrRemoteWorkerConfigured(),
-                contentExtractor.ocrWorkerTokenConfigured(),
-                contentExtractor.ocrLocalCommandFallbackEnabled(),
+                configuration.ocrWorkerMode(),
+                configuration.ocrRemoteWorkerConfigured(),
+                configuration.ocrWorkerTokenConfigured(),
+                configuration.ocrLocalCommandFallbackEnabled(),
                 contentExtractor.ocrLocalCommandExecutionAllowed(),
                 batchActionLimit(),
                 webhookIngressGuard.ipAllowlistConfigured(),
@@ -151,12 +154,12 @@ public class DocumentInputService {
                 webhookIngressGuard.rateLimitEnabled(),
                 webhookIngressGuard.rateLimitMaxRequests(),
                 webhookIngressGuard.rateLimitWindowSeconds(),
-                contentExtractor.binaryMimeValidationEnabled(),
-                contentExtractor.pdfMaxPages(),
-                contentExtractor.pdfMaxParseMillis(),
-                contentExtractor.malwareScanEnabled(),
-                contentExtractor.malwareScanTimeoutSeconds(),
-                contentExtractor.malwareScanMaxConcurrentProcesses(),
+                configuration.binaryMimeValidationEnabled(),
+                configuration.pdfMaxPages(),
+                configuration.pdfMaxParseMillis(),
+                configuration.malwareScanEnabled(),
+                configuration.malwareScanTimeoutSeconds(),
+                configuration.malwareScanMaxConcurrentProcesses(),
                 contentExtractor.malwareScanAvailablePermits(),
                 webhookSecretResolver.cacheEnabled(),
                 webhookSecretResolver.cacheTtlSeconds(),
