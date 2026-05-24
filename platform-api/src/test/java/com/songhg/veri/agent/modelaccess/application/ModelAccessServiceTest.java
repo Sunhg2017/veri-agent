@@ -1,8 +1,6 @@
 package com.songhg.veri.agent.modelaccess.application;
 
 import com.songhg.veri.agent.common.api.PageQuery;
-import com.songhg.veri.agent.modelaccess.api.response.CostAlertResponse;
-import com.songhg.veri.agent.modelaccess.api.response.InvocationSummaryResponse;
 import com.songhg.veri.agent.modelaccess.config.ModelAccessProperties;
 import com.songhg.veri.agent.modelaccess.domain.InvocationRecord;
 import com.songhg.veri.agent.modelaccess.domain.InvocationStatus;
@@ -30,7 +28,7 @@ class ModelAccessServiceTest {
         ModelAccessRepository repository = mock(ModelAccessRepository.class);
         when(repository.distinctProjectIds(any(), any())).thenReturn(List.of("project-a"));
         when(repository.distinctActorServices(any(), any())).thenReturn(List.of("wp4-document-input"));
-        when(repository.invocationSummary(any())).thenReturn(new InvocationSummaryResponse(
+        when(repository.invocationSummary(any())).thenReturn(new InvocationSummaryResult(
                 1,
                 1,
                 0,
@@ -41,10 +39,10 @@ class ModelAccessServiceTest {
         ));
         ModelAccessService service = service(repository);
 
-        List<CostAlertResponse> alerts = service.costAlerts(null, null);
+        List<CostAlertResult> alerts = service.costAlerts(null, null);
 
         assertThat(alerts)
-                .extracting(CostAlertResponse::scope)
+                .extracting(CostAlertResult::scope)
                 .containsExactly("PROJECT", "CALLER_SERVICE");
         verify(repository).distinctProjectIds(any(), any());
         verify(repository).distinctActorServices(any(), any());

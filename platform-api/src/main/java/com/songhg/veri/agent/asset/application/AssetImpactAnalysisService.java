@@ -1,7 +1,7 @@
 package com.songhg.veri.agent.asset.application;
 
-import com.songhg.veri.agent.asset.api.response.AssetImpactAnalysisResponse;
-import com.songhg.veri.agent.asset.api.response.AssetImpactNodeResponse;
+import com.songhg.veri.agent.asset.application.AssetImpactAnalysisResponse;
+import com.songhg.veri.agent.asset.application.AssetImpactNodeResponse;
 import com.songhg.veri.agent.asset.domain.AssetApi;
 import com.songhg.veri.agent.asset.domain.AssetBusinessFlow;
 import com.songhg.veri.agent.asset.domain.AssetLifecycleStatus;

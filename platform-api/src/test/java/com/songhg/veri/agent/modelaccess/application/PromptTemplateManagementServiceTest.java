@@ -2,7 +2,6 @@ package com.songhg.veri.agent.modelaccess.application;
 
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
-import com.songhg.veri.agent.modelaccess.api.request.CreatePromptRequest;
 import com.songhg.veri.agent.modelaccess.domain.PromptApprovalStatus;
 import com.songhg.veri.agent.modelaccess.domain.PromptStatus;
 import com.songhg.veri.agent.modelaccess.domain.PromptTemplate;
@@ -149,7 +148,7 @@ class PromptTemplateManagementServiceTest {
                 });
     }
 
-    private static CreatePromptRequest promptRequest(
+    private static CreatePromptCommand promptRequest(
             String promptKey,
             String name,
             String content,
@@ -157,6 +156,6 @@ class PromptTemplateManagementServiceTest {
             Boolean highRisk,
             Boolean activate
     ) {
-        return new CreatePromptRequest(promptKey, name, content, changeNote, highRisk, activate);
+        return new CreatePromptCommand(promptKey, name, content, changeNote, highRisk, activate);
     }
 }

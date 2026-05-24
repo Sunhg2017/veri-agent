@@ -1,9 +1,9 @@
 package com.songhg.veri.agent.asset.application;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.songhg.veri.agent.asset.api.request.UpdateAssetLifecycleRequest;
-import com.songhg.veri.agent.asset.api.response.AssetVersionHistoryResponse;
-import com.songhg.veri.agent.asset.api.response.RequirementResponse;
+import com.songhg.veri.agent.asset.application.UpdateAssetLifecycleRequest;
+import com.songhg.veri.agent.asset.application.AssetVersionHistoryResponse;
+import com.songhg.veri.agent.asset.application.RequirementResponse;
 import com.songhg.veri.agent.asset.domain.AssetRequirement;
 import com.songhg.veri.agent.asset.infrastructure.InMemoryAssetRepository;
 import com.songhg.veri.agent.common.error.BusinessException;

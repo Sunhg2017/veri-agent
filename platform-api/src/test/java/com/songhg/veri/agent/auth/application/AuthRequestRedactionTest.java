@@ -1,8 +1,8 @@
-package com.songhg.veri.agent.auth.api.request;
-
-import org.junit.jupiter.api.Test;
+package com.songhg.veri.agent.auth.application;
 
 import static org.assertj.core.api.Assertions.assertThat;
+
+import org.junit.jupiter.api.Test;
 
 class AuthRequestRedactionTest {
 

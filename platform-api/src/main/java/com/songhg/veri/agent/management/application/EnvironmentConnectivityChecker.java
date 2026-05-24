@@ -1,8 +1,8 @@
 package com.songhg.veri.agent.management.application;
 
 import com.songhg.veri.agent.common.trace.TraceContext;
-import com.songhg.veri.agent.management.api.response.EnvironmentConnectivityCheckView;
-import com.songhg.veri.agent.management.api.response.EnvironmentConnectivityEndpointView;
+import com.songhg.veri.agent.management.application.EnvironmentConnectivityCheckView;
+import com.songhg.veri.agent.management.application.EnvironmentConnectivityEndpointView;
 import com.songhg.veri.agent.management.config.ManagementProperties;
 import java.io.IOException;
 import java.net.URI;

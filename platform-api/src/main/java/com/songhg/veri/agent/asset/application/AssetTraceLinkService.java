@@ -1,8 +1,8 @@
 package com.songhg.veri.agent.asset.application;
 
-import com.songhg.veri.agent.asset.api.request.CreateLinkRequest;
-import com.songhg.veri.agent.asset.api.request.TraceLinkListRequest;
-import com.songhg.veri.agent.asset.api.response.TraceLinkResponse;
+import com.songhg.veri.agent.asset.application.CreateLinkRequest;
+import com.songhg.veri.agent.asset.application.TraceLinkListRequest;
+import com.songhg.veri.agent.asset.application.TraceLinkResponse;
 import com.songhg.veri.agent.asset.domain.AssetApi;
 import com.songhg.veri.agent.asset.domain.AssetBusinessFlow;
 import com.songhg.veri.agent.asset.domain.AssetPage;

@@ -1,7 +1,7 @@
 package com.songhg.veri.agent.modelaccess.infrastructure;
 
-import com.songhg.veri.agent.modelaccess.api.response.InvocationSummaryResponse;
 import com.songhg.veri.agent.modelaccess.application.InvocationQuery;
+import com.songhg.veri.agent.modelaccess.application.InvocationSummaryResult;
 import com.songhg.veri.agent.modelaccess.application.ModelAccessRepository;
 import com.songhg.veri.agent.modelaccess.domain.InvocationRecord;
 import com.songhg.veri.agent.modelaccess.domain.ModelProviderConfig;
@@ -93,7 +93,7 @@ public class PostgresModelAccessRepository implements ModelAccessRepository {
     }
 
     @Override
-    public InvocationSummaryResponse invocationSummary(InvocationQuery query) {
+    public InvocationSummaryResult invocationSummary(InvocationQuery query) {
         return mapper.invocationSummary(query);
     }
 }

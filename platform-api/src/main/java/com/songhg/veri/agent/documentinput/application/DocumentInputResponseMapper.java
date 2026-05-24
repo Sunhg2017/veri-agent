@@ -2,11 +2,11 @@ package com.songhg.veri.agent.documentinput.application;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.songhg.veri.agent.documentinput.api.response.DocumentCandidateResponse;
-import com.songhg.veri.agent.documentinput.api.response.DocumentImportResponse;
-import com.songhg.veri.agent.documentinput.api.response.DocumentParseFeedbackSampleResponse;
-import com.songhg.veri.agent.documentinput.api.response.DocumentWebhookEventResponse;
-import com.songhg.veri.agent.documentinput.api.response.ParsedRequirementResponse;
+import com.songhg.veri.agent.documentinput.application.DocumentCandidateResponse;
+import com.songhg.veri.agent.documentinput.application.DocumentImportResponse;
+import com.songhg.veri.agent.documentinput.application.DocumentParseFeedbackSampleResponse;
+import com.songhg.veri.agent.documentinput.application.DocumentWebhookEventResponse;
+import com.songhg.veri.agent.documentinput.application.ParsedRequirementResponse;
 import com.songhg.veri.agent.documentinput.domain.DocumentCandidateStatus;
 import com.songhg.veri.agent.documentinput.domain.DocumentImportRecord;
 import com.songhg.veri.agent.documentinput.domain.DocumentParseFeedbackSample;

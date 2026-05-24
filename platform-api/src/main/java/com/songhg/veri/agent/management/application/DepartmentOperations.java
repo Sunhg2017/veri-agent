@@ -3,8 +3,8 @@ package com.songhg.veri.agent.management.application;
 import com.songhg.veri.agent.auth.application.AuthUserPrincipal;
 import com.songhg.veri.agent.common.api.PageQuery;
 import com.songhg.veri.agent.common.api.PageResponse;
-import com.songhg.veri.agent.management.api.request.UpdateDepartmentRequest;
-import com.songhg.veri.agent.management.api.response.DepartmentView;
+import com.songhg.veri.agent.management.application.UpdateDepartmentRequest;
+import com.songhg.veri.agent.management.application.DepartmentView;
 
 public interface DepartmentOperations {
 

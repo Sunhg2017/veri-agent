@@ -1,7 +1,7 @@
 package com.songhg.veri.agent.asset.application;
 
-import com.songhg.veri.agent.asset.api.request.UpdateTestCaseStepsRequest;
-import com.songhg.veri.agent.asset.api.response.TestCaseStepResponse;
+import com.songhg.veri.agent.asset.application.UpdateTestCaseStepsRequest;
+import com.songhg.veri.agent.asset.application.TestCaseStepResponse;
 import com.songhg.veri.agent.asset.domain.TestCaseRecord;
 import com.songhg.veri.agent.asset.domain.TestCaseStep;
 import com.songhg.veri.agent.common.error.BusinessException;

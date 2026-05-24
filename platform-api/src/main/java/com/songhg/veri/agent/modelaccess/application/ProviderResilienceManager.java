@@ -1,6 +1,5 @@
 package com.songhg.veri.agent.modelaccess.application;
 
-import com.songhg.veri.agent.modelaccess.api.response.ProviderCheckResponse;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
 import com.songhg.veri.agent.modelaccess.config.ModelAccessProperties;
@@ -32,7 +31,7 @@ public class ProviderResilienceManager {
         this.stateStore = stateStore;
     }
 
-    public Optional<ProviderCheckResponse> cachedProviderCheck(ModelProviderConfig provider) {
+    public Optional<ProviderCheckResult> cachedProviderCheck(ModelProviderConfig provider) {
         ProviderCheckCacheEntry cached = providerCheckCache.get(provider.id());
         Instant now = Instant.now();
         if (cached == null
@@ -44,7 +43,7 @@ public class ProviderResilienceManager {
         return Optional.of(withCachedFlag(cached.response(), true));
     }
 
-    public void cacheProviderCheck(ModelProviderConfig provider, ProviderCheckResponse response) {
+    public void cacheProviderCheck(ModelProviderConfig provider, ProviderCheckResult response) {
         if (properties.safeProviderCheckCacheTtlMs() <= 0) {
             return;
         }
@@ -179,8 +178,8 @@ public class ProviderResilienceManager {
         return semaphore;
     }
 
-    private ProviderCheckResponse withCachedFlag(ProviderCheckResponse response, boolean cached) {
-        return new ProviderCheckResponse(
+    private ProviderCheckResult withCachedFlag(ProviderCheckResult response, boolean cached) {
+        return new ProviderCheckResult(
                 response.providerId(),
                 response.providerName(),
                 response.providerType(),
@@ -196,7 +195,7 @@ public class ProviderResilienceManager {
     }
 
     private record ProviderCheckCacheEntry(
-            ProviderCheckResponse response,
+            ProviderCheckResult response,
             Instant providerUpdatedAt,
             Instant expiresAt
     ) {

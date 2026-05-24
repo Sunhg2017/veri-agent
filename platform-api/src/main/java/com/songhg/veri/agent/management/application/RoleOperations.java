@@ -3,12 +3,12 @@ package com.songhg.veri.agent.management.application;
 import com.songhg.veri.agent.auth.application.AuthUserPrincipal;
 import com.songhg.veri.agent.common.api.PageQuery;
 import com.songhg.veri.agent.common.api.PageResponse;
-import com.songhg.veri.agent.management.api.request.CreateRoleRequest;
-import com.songhg.veri.agent.management.api.request.UpdateRoleRequest;
-import com.songhg.veri.agent.management.api.response.PermissionView;
-import com.songhg.veri.agent.management.api.response.RoleDetailView;
-import com.songhg.veri.agent.management.api.response.RoleView;
-import com.songhg.veri.agent.management.api.response.UserView;
+import com.songhg.veri.agent.management.application.CreateRoleRequest;
+import com.songhg.veri.agent.management.application.UpdateRoleRequest;
+import com.songhg.veri.agent.management.application.PermissionView;
+import com.songhg.veri.agent.management.application.RoleDetailView;
+import com.songhg.veri.agent.management.application.RoleView;
+import com.songhg.veri.agent.management.application.UserView;
 import java.util.Set;
 
 public interface RoleOperations {

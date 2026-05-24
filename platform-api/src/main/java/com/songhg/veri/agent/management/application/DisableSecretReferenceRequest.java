@@ -1,0 +1,13 @@
+package com.songhg.veri.agent.management.application;
+
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
+
+public record DisableSecretReferenceRequest(
+        @NotBlank
+        @Size(max = 128)
+        @Pattern(regexp = "^secret://[A-Za-z0-9._~:/?#\\[\\]@!$&'()*+,;=%-]+$", message = "secretRef must start with secret://")
+        String secretRef
+) {
+}

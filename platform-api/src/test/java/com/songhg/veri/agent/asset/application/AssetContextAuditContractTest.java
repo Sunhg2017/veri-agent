@@ -1,7 +1,7 @@
 package com.songhg.veri.agent.asset.application;
 
-import com.songhg.veri.agent.asset.api.request.AssetListRequest;
-import com.songhg.veri.agent.asset.api.request.CreateRequirementRequest;
+import com.songhg.veri.agent.asset.application.AssetListRequest;
+import com.songhg.veri.agent.asset.application.CreateRequirementRequest;
 import com.songhg.veri.agent.asset.infrastructure.InMemoryAssetRepository;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;

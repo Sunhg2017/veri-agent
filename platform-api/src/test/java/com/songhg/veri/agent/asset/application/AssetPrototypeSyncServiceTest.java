@@ -1,8 +1,8 @@
 package com.songhg.veri.agent.asset.application;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.songhg.veri.agent.asset.api.request.AssetPrototypeSyncRequest;
-import com.songhg.veri.agent.asset.api.response.AssetPrototypeSyncResponse;
+import com.songhg.veri.agent.asset.application.AssetPrototypeSyncRequest;
+import com.songhg.veri.agent.asset.application.AssetPrototypeSyncResponse;
 import com.songhg.veri.agent.asset.domain.AssetPage;
 import com.songhg.veri.agent.asset.infrastructure.InMemoryAssetRepository;
 import java.time.Instant;

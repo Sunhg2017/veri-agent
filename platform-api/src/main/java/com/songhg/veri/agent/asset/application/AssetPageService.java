@@ -2,11 +2,11 @@ package com.songhg.veri.agent.asset.application;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.songhg.veri.agent.asset.api.request.AssetListRequest;
-import com.songhg.veri.agent.asset.api.request.CreatePageRequest;
-import com.songhg.veri.agent.asset.api.request.UpdateAssetLifecycleRequest;
-import com.songhg.veri.agent.asset.api.request.UpdatePageRequest;
-import com.songhg.veri.agent.asset.api.response.PageResponse;
+import com.songhg.veri.agent.asset.application.AssetListRequest;
+import com.songhg.veri.agent.asset.application.CreatePageRequest;
+import com.songhg.veri.agent.asset.application.UpdateAssetLifecycleRequest;
+import com.songhg.veri.agent.asset.application.UpdatePageRequest;
+import com.songhg.veri.agent.asset.application.PageResponse;
 import com.songhg.veri.agent.asset.domain.AssetLifecycleStatus;
 import com.songhg.veri.agent.asset.domain.AssetPage;
 import com.songhg.veri.agent.common.error.BusinessException;

@@ -6,12 +6,12 @@ import com.songhg.veri.agent.common.api.PageResponse;
 import com.songhg.veri.agent.common.audit.AuditLogWriter;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
-import com.songhg.veri.agent.management.api.request.CreateApplicationRequest;
-import com.songhg.veri.agent.management.api.request.ScopedUserRoleRequest;
-import com.songhg.veri.agent.management.api.request.UpdateApplicationRequest;
-import com.songhg.veri.agent.management.api.response.ApplicationView;
-import com.songhg.veri.agent.management.api.response.ScopedUserRoleView;
-import com.songhg.veri.agent.management.api.response.UserView;
+import com.songhg.veri.agent.management.application.CreateApplicationRequest;
+import com.songhg.veri.agent.management.application.ScopedUserRoleRequest;
+import com.songhg.veri.agent.management.application.UpdateApplicationRequest;
+import com.songhg.veri.agent.management.application.ApplicationView;
+import com.songhg.veri.agent.management.application.ScopedUserRoleView;
+import com.songhg.veri.agent.management.application.UserView;
 import java.util.ArrayList;
 import java.util.List;
 

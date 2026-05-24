@@ -4,8 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.songhg.veri.agent.common.error.BusinessException;
-import com.songhg.veri.agent.modelaccess.api.response.CostAlertResponse;
-import com.songhg.veri.agent.modelaccess.api.response.CostReportResponse;
 import com.songhg.veri.agent.modelaccess.config.ModelAccessProperties;
 import com.songhg.veri.agent.modelaccess.domain.InvocationRecord;
 import com.songhg.veri.agent.modelaccess.domain.InvocationStatus;
@@ -70,7 +68,7 @@ class ModelCostAnalysisServiceTest {
         ));
         ModelCostAnalysisService service = new ModelCostAnalysisService(repository, properties());
 
-        CostReportResponse report = service.costReport(
+        CostReportResult report = service.costReport(
                 LocalDate.parse("2026-05-23"),
                 LocalDate.parse("2026-05-24"),
                 null
@@ -79,7 +77,7 @@ class ModelCostAnalysisServiceTest {
         assertThat(report.startDate()).isEqualTo(LocalDate.parse("2026-05-23"));
         assertThat(report.endDate()).isEqualTo(LocalDate.parse("2026-05-24"));
         assertThat(report.rows()).hasSize(3);
-        CostReportResponse.CostReportRow first = report.rows().get(0);
+        CostReportResult.CostReportRowResult first = report.rows().get(0);
         assertThat(first.projectId()).isEqualTo("project-a");
         assertThat(first.applicationId()).isEqualTo("app-a");
         assertThat(first.total()).isEqualTo(2);
@@ -90,14 +88,14 @@ class ModelCostAnalysisServiceTest {
         assertThat(first.outputTokens()).isEqualTo(8);
         assertThat(first.totalCost()).isEqualByComparingTo("0.12000000");
 
-        CostReportResponse projectOnly = service.costReport(
+        CostReportResult projectOnly = service.costReport(
                 LocalDate.parse("2026-05-23"),
                 LocalDate.parse("2026-05-24"),
                 " project-a "
         );
 
         assertThat(projectOnly.rows())
-                .extracting(CostReportResponse.CostReportRow::projectId)
+                .extracting(CostReportResult.CostReportRowResult::projectId)
                 .containsExactly("project-a", "project-a");
     }
 
@@ -132,9 +130,9 @@ class ModelCostAnalysisServiceTest {
         repository.saveInvocation(currentInvocation("project-b", "wp5-test-design", "1.00000000"));
         ModelCostAnalysisService service = new ModelCostAnalysisService(repository, properties());
 
-        Map<String, CostAlertResponse> alerts = service.costAlerts(" project-a ", " wp4-document-input ")
+        Map<String, CostAlertResult> alerts = service.costAlerts(" project-a ", " wp4-document-input ")
                 .stream()
-                .collect(java.util.stream.Collectors.toMap(CostAlertResponse::scope, alert -> alert));
+                .collect(java.util.stream.Collectors.toMap(CostAlertResult::scope, alert -> alert));
 
         assertThat(alerts.get("PLATFORM").level()).isEqualTo("EXCEEDED");
         assertThat(alerts.get("PLATFORM").spentCost()).isEqualByComparingTo("9.00000000");

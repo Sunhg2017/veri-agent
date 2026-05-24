@@ -9,11 +9,9 @@ import com.songhg.veri.agent.common.openapi.ApiVersion;
 import com.songhg.veri.agent.common.trace.TraceContext;
 import com.songhg.veri.agent.modelaccess.application.InvocationQuery;
 import com.songhg.veri.agent.modelaccess.application.ModelAccessService;
-import com.songhg.veri.agent.modelaccess.application.ModelInvocationCommand;
-import com.songhg.veri.agent.modelaccess.application.ModelInvocationJobResult;
 import com.songhg.veri.agent.modelaccess.application.ModelInvocationJobService;
-import com.songhg.veri.agent.modelaccess.application.ModelInvocationResult;
 import com.songhg.veri.agent.modelaccess.application.ModelInvocationService;
+import com.songhg.veri.agent.modelaccess.api.mapper.ModelAccessApiMapper;
 import com.songhg.veri.agent.modelaccess.api.request.CreatePromptRequest;
 import com.songhg.veri.agent.modelaccess.api.request.CreateProviderRequest;
 import com.songhg.veri.agent.modelaccess.api.request.InvocationPageRequest;
@@ -76,6 +74,7 @@ public class ModelAccessController {
     private final AuthorizationService authorizationService;
     private final AuditLogWriter auditLogWriter;
     private final ObjectMapper objectMapper;
+    private final ModelAccessApiMapper apiMapper;
 
     public ModelAccessController(
             ModelAccessService service,
@@ -83,7 +82,8 @@ public class ModelAccessController {
             ModelInvocationJobService jobService,
             AuthorizationService authorizationService,
             AuditLogWriter auditLogWriter,
-            ObjectMapper objectMapper
+            ObjectMapper objectMapper,
+            ModelAccessApiMapper apiMapper
     ) {
         this.service = service;
         this.invocationService = invocationService;
@@ -91,6 +91,7 @@ public class ModelAccessController {
         this.authorizationService = authorizationService;
         this.auditLogWriter = auditLogWriter;
         this.objectMapper = objectMapper;
+        this.apiMapper = apiMapper;
     }
 
     @GetMapping("/health")
@@ -119,7 +120,7 @@ public class ModelAccessController {
     @ResponseStatus(HttpStatus.CREATED)
     @RequirePermission(MANAGE_PERMISSION)
     public ModelProviderConfig createProvider(@Valid @RequestBody CreateProviderRequest request) {
-        return service.createProvider(request);
+        return service.createProvider(apiMapper.toCommand(request));
     }
 
     @PutMapping("/providers/{id}")
@@ -128,7 +129,7 @@ public class ModelAccessController {
             @PathVariable UUID id,
             @Valid @RequestBody UpdateProviderRequest request
     ) {
-        return service.updateProvider(id, request);
+        return service.updateProvider(id, apiMapper.toCommand(request));
     }
 
     @PostMapping("/providers/{id}/enable")
@@ -146,19 +147,19 @@ public class ModelAccessController {
     @PostMapping("/providers/{id}/check")
     @RequirePermission(MANAGE_PERMISSION)
     public ProviderCheckResponse checkProvider(@PathVariable UUID id) {
-        return service.checkProvider(id);
+        return apiMapper.toResponse(service.checkProvider(id));
     }
 
     @GetMapping("/providers/{id}/resilience")
     @RequirePermission(READ_PERMISSION)
     public ProviderResilienceResponse providerResilience(@PathVariable UUID id) {
-        return service.providerResilience(id);
+        return apiMapper.toResponse(service.providerResilience(id));
     }
 
     @PostMapping("/providers/{id}/circuit/reset")
     @RequirePermission(MANAGE_PERMISSION)
     public ProviderResilienceResponse resetProviderCircuit(@PathVariable UUID id) {
-        return service.resetProviderCircuit(id);
+        return apiMapper.toResponse(service.resetProviderCircuit(id));
     }
 
     @GetMapping("/prompts")
@@ -172,7 +173,7 @@ public class ModelAccessController {
     @RequirePermission(MANAGE_PERMISSION)
     public PromptTemplate createPrompt(@Valid @RequestBody CreatePromptRequest request) {
         AuthUserPrincipal actor = authorizationService.currentUserPrincipal();
-        PromptTemplate prompt = service.createPrompt(request);
+        PromptTemplate prompt = service.createPrompt(apiMapper.toCommand(request));
         if (prompt.status() == PromptStatus.ACTIVE) {
             auditPromptActivation(actor, prompt, "MODEL_PROMPT_CREATE_ACTIVATE");
         }
@@ -217,7 +218,7 @@ public class ModelAccessController {
     public InvokeModelResponse invoke(
             @Valid @RequestBody InvokeModelRequest request
     ) {
-        return toResponse(invocationService.invoke(toCommand(request), invocationPrincipal()));
+        return apiMapper.toResponse(invocationService.invoke(apiMapper.toCommand(request), invocationPrincipal()));
     }
 
     @PostMapping(value = "/invocations/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
@@ -232,7 +233,9 @@ public class ModelAccessController {
     public ResponseEntity<StreamingResponseBody> invokeStream(
             @Valid @RequestBody InvokeModelRequest request
     ) {
-        InvokeModelResponse response = toResponse(invocationService.invoke(toCommand(request), invocationPrincipal()));
+        InvokeModelResponse response = apiMapper.toResponse(
+                invocationService.invoke(apiMapper.toCommand(request), invocationPrincipal())
+        );
         String traceId = TraceContext.getTraceId();
         return ResponseEntity.ok()
                 .contentType(new MediaType(MediaType.TEXT_EVENT_STREAM, StandardCharsets.UTF_8))
@@ -266,7 +269,7 @@ public class ModelAccessController {
     ) {
         return ResponseEntity
                 .status(HttpStatus.ACCEPTED)
-                .body(toResponse(jobService.submit(toCommand(request), invocationPrincipal())));
+                .body(apiMapper.toResponse(jobService.submit(apiMapper.toCommand(request), invocationPrincipal())));
     }
 
     @GetMapping("/invocations/jobs/{jobId}")
@@ -277,7 +280,7 @@ public class ModelAccessController {
     @RequirePermission(MANAGE_PERMISSION)
     public ModelInvocationJobResponse invocationJob(@PathVariable UUID jobId) {
         invocationPrincipal();
-        return toResponse(jobService.get(jobId));
+        return apiMapper.toResponse(jobService.get(jobId));
     }
 
     @PostMapping("/invocations/jobs/{jobId}/cancel")
@@ -288,7 +291,7 @@ public class ModelAccessController {
     @RequirePermission(MANAGE_PERMISSION)
     public ModelInvocationJobResponse cancelInvocationJob(@PathVariable UUID jobId) {
         invocationPrincipal();
-        return toResponse(jobService.cancel(jobId));
+        return apiMapper.toResponse(jobService.cancel(jobId));
     }
 
     @GetMapping("/invocations")
@@ -296,7 +299,7 @@ public class ModelAccessController {
     public PageResponse<InvocationRecord> invocations(
             @Valid InvocationPageRequest pageRequest
     ) {
-        return service.invocations(toQuery(pageRequest));
+        return service.invocations(apiMapper.toQuery(pageRequest));
     }
 
     @GetMapping("/invocations/summary")
@@ -304,7 +307,7 @@ public class ModelAccessController {
     public InvocationSummaryResponse invocationSummary(
             InvocationPageRequest pageRequest
     ) {
-        return service.invocationSummary(toQuery(pageRequest));
+        return apiMapper.toResponse(service.invocationSummary(apiMapper.toQuery(pageRequest)));
     }
 
     @GetMapping(value = "/invocations/export", produces = "text/csv")
@@ -314,7 +317,7 @@ public class ModelAccessController {
     ) {
         pageRequest.setIndex(0);
         pageRequest.setSize(200);
-        InvocationQuery exportQuery = toQuery(pageRequest);
+        InvocationQuery exportQuery = apiMapper.toQuery(pageRequest);
         StreamingResponseBody body = outputStream -> service.writeInvocationsCsv(exportQuery, outputStream);
         return ResponseEntity.ok()
                 .contentType(new MediaType("text", "csv"))
@@ -328,7 +331,7 @@ public class ModelAccessController {
             @RequestParam(required = false) String projectId,
             @RequestParam(required = false) String actorService
     ) {
-        return service.costAlerts(projectId, actorService);
+        return apiMapper.toCostAlertResponses(service.costAlerts(projectId, actorService));
     }
 
     @GetMapping("/cost/report")
@@ -338,21 +341,7 @@ public class ModelAccessController {
             @RequestParam(required = false) LocalDate endDate,
             @RequestParam(required = false) String projectId
     ) {
-        return service.costReport(startDate, endDate, projectId);
-    }
-
-    private InvocationQuery toQuery(InvocationPageRequest pageRequest) {
-        return new InvocationQuery(
-                pageRequest.getProjectId(),
-                pageRequest.getApplicationId(),
-                pageRequest.getSensitivityLevel(),
-                pageRequest.getStatus(),
-                pageRequest.getProviderId(),
-                pageRequest.getActorService(),
-                pageRequest.getStartTime(),
-                pageRequest.getEndTime(),
-                pageRequest.toPageQuery()
-        );
+        return apiMapper.toResponse(service.costReport(startDate, endDate, projectId));
     }
 
     private ServicePrincipal invocationPrincipal() {
@@ -365,54 +354,6 @@ public class ModelAccessController {
             return new ServicePrincipal("model-access-console", principal.userId().toString());
         }
         throw new PlatformAccessDeniedException(MANAGE_PERMISSION);
-    }
-
-    private ModelInvocationCommand toCommand(InvokeModelRequest request) {
-        return new ModelInvocationCommand(
-                request.projectId(),
-                request.applicationId(),
-                request.environmentId(),
-                request.promptKey(),
-                request.promptVariables(),
-                request.messages(),
-                request.providerId(),
-                request.modelName(),
-                request.allowPublicModel(),
-                request.sensitivityLevel(),
-                request.capability()
-        );
-    }
-
-    private InvokeModelResponse toResponse(ModelInvocationResult result) {
-        if (result == null) {
-            return null;
-        }
-        return new InvokeModelResponse(
-                result.invocationId(),
-                result.providerId(),
-                result.providerName(),
-                result.modelName(),
-                result.fallbackUsed(),
-                result.content(),
-                result.inputTokens(),
-                result.outputTokens(),
-                result.totalCost()
-        );
-    }
-
-    private ModelInvocationJobResponse toResponse(ModelInvocationJobResult result) {
-        return new ModelInvocationJobResponse(
-                result.jobId(),
-                result.status(),
-                result.createdAt(),
-                result.startedAt(),
-                result.finishedAt(),
-                result.invocationId(),
-                result.errorCode(),
-                result.errorMessage(),
-                result.traceId(),
-                toResponse(result.response())
-        );
     }
 
     private void auditPromptActivation(AuthUserPrincipal actor, PromptTemplate prompt, String action) {

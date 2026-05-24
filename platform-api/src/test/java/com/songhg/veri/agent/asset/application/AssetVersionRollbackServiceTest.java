@@ -1,10 +1,10 @@
 package com.songhg.veri.agent.asset.application;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.songhg.veri.agent.asset.api.request.RollbackAssetVersionRequest;
-import com.songhg.veri.agent.asset.api.response.AssetVersionHistoryResponse;
-import com.songhg.veri.agent.asset.api.response.RequirementResponse;
-import com.songhg.veri.agent.asset.api.response.TestCaseResponse;
+import com.songhg.veri.agent.asset.application.RollbackAssetVersionRequest;
+import com.songhg.veri.agent.asset.application.AssetVersionHistoryResponse;
+import com.songhg.veri.agent.asset.application.RequirementResponse;
+import com.songhg.veri.agent.asset.application.TestCaseResponse;
 import com.songhg.veri.agent.asset.domain.AssetApi;
 import com.songhg.veri.agent.asset.domain.AssetRequirement;
 import com.songhg.veri.agent.asset.domain.AssetVersionHistory;

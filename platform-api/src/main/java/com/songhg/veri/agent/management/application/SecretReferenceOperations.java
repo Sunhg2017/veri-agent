@@ -3,10 +3,10 @@ package com.songhg.veri.agent.management.application;
 import com.songhg.veri.agent.auth.application.AuthUserPrincipal;
 import com.songhg.veri.agent.common.api.PageQuery;
 import com.songhg.veri.agent.common.api.PageResponse;
-import com.songhg.veri.agent.management.api.request.CreateSecretReferenceRequest;
-import com.songhg.veri.agent.management.api.request.DisableSecretReferenceRequest;
-import com.songhg.veri.agent.management.api.request.RotateSecretReferenceRequest;
-import com.songhg.veri.agent.management.api.response.SecretReferenceView;
+import com.songhg.veri.agent.management.application.CreateSecretReferenceRequest;
+import com.songhg.veri.agent.management.application.DisableSecretReferenceRequest;
+import com.songhg.veri.agent.management.application.RotateSecretReferenceRequest;
+import com.songhg.veri.agent.management.application.SecretReferenceView;
 
 public interface SecretReferenceOperations {
 

@@ -3,9 +3,6 @@ package com.songhg.veri.agent.modelaccess.application;
 import com.songhg.veri.agent.common.api.PageQuery;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
-import com.songhg.veri.agent.modelaccess.api.response.CostAlertResponse;
-import com.songhg.veri.agent.modelaccess.api.response.CostReportResponse;
-import com.songhg.veri.agent.modelaccess.api.response.InvocationSummaryResponse;
 import com.songhg.veri.agent.modelaccess.config.ModelAccessProperties;
 import com.songhg.veri.agent.modelaccess.domain.InvocationRecord;
 import com.songhg.veri.agent.modelaccess.domain.InvocationStatus;
@@ -40,9 +37,9 @@ public class ModelCostAnalysisService {
      * Evaluates configured daily cost guardrails for platform, project and caller-service scopes.
      * Empty scope arguments mean "discover active scopes from today's invocation records".
      */
-    public List<CostAlertResponse> costAlerts(String projectId, String actorService) {
+    public List<CostAlertResult> costAlerts(String projectId, String actorService) {
         BudgetWindow window = currentBudgetWindow();
-        List<CostAlertResponse> alerts = new ArrayList<>();
+        List<CostAlertResult> alerts = new ArrayList<>();
         String normalizedProjectId = trimToNull(projectId);
         String normalizedActorService = trimToNull(actorService);
         if (properties.hasDailyPlatformCostLimit()) {
@@ -91,7 +88,7 @@ public class ModelCostAnalysisService {
      * Builds a bounded daily cost report. The 31-day cap protects API latency and export memory use
      * because repository implementations may need to aggregate raw invocation rows.
      */
-    public CostReportResponse costReport(LocalDate startDate, LocalDate endDate, String projectId) {
+    public CostReportResult costReport(LocalDate startDate, LocalDate endDate, String projectId) {
         BudgetReportWindow window = normalizeReportWindow(startDate, endDate);
         InvocationQuery query = new InvocationQuery(
                 trimToNull(projectId),
@@ -112,18 +109,18 @@ public class ModelCostAnalysisService {
                         record.applicationId()
                 ), ignored -> new ArrayList<>())
                 .add(record));
-        List<CostReportResponse.CostReportRow> rows = grouped.entrySet()
+        List<CostReportResult.CostReportRowResult> rows = grouped.entrySet()
                 .stream()
                 .map(entry -> costReportRow(entry.getKey(), entry.getValue()))
                 .sorted(Comparator
-                        .comparing(CostReportResponse.CostReportRow::date)
+                        .comparing(CostReportResult.CostReportRowResult::date)
                         .thenComparing(row -> row.projectId() == null ? "" : row.projectId())
                         .thenComparing(row -> row.applicationId() == null ? "" : row.applicationId()))
                 .toList();
-        return new CostReportResponse(window.startDate(), window.endDate(), rows);
+        return new CostReportResult(window.startDate(), window.endDate(), rows);
     }
 
-    private CostAlertResponse projectCostAlert(String projectId, BudgetWindow window) {
+    private CostAlertResult projectCostAlert(String projectId, BudgetWindow window) {
         return costAlert(
                 "PROJECT",
                 projectId,
@@ -144,7 +141,7 @@ public class ModelCostAnalysisService {
         );
     }
 
-    private CostAlertResponse callerServiceCostAlert(String actorService, BudgetWindow window) {
+    private CostAlertResult callerServiceCostAlert(String actorService, BudgetWindow window) {
         return costAlert(
                 "CALLER_SERVICE",
                 null,
@@ -165,7 +162,7 @@ public class ModelCostAnalysisService {
         );
     }
 
-    private CostAlertResponse costAlert(
+    private CostAlertResult costAlert(
             String scope,
             String projectId,
             String actorService,
@@ -173,7 +170,7 @@ public class ModelCostAnalysisService {
             InvocationQuery query,
             BudgetWindow window
     ) {
-        InvocationSummaryResponse summary = repository.invocationSummary(query);
+        InvocationSummaryResult summary = repository.invocationSummary(query);
         BigDecimal spent = summary.totalCost() == null ? BigDecimal.ZERO : summary.totalCost();
         BigDecimal ratio = limit.signum() <= 0
                 ? BigDecimal.ZERO
@@ -190,7 +187,7 @@ public class ModelCostAnalysisService {
                 ? scope.toLowerCase(Locale.ROOT)
                 : scope.toLowerCase(Locale.ROOT) + "[" + actorService + "]";
         String message = "%s daily cost %s/%s".formatted(subject, spent, limit);
-        return new CostAlertResponse(
+        return new CostAlertResult(
                 scope,
                 projectId,
                 actorService,
@@ -237,7 +234,7 @@ public class ModelCostAnalysisService {
         }
     }
 
-    private CostReportResponse.CostReportRow costReportRow(CostReportKey key, List<InvocationRecord> records) {
+    private CostReportResult.CostReportRowResult costReportRow(CostReportKey key, List<InvocationRecord> records) {
         long succeeded = records.stream().filter(record -> record.status() == InvocationStatus.SUCCEEDED).count();
         long failed = records.stream().filter(record -> record.status() == InvocationStatus.FAILED).count();
         long blocked = records.stream().filter(record -> record.status() == InvocationStatus.BLOCKED).count();
@@ -247,7 +244,7 @@ public class ModelCostAnalysisService {
                 .map(InvocationRecord::totalCost)
                 .reduce(BigDecimal.ZERO, BigDecimal::add)
                 .setScale(8, RoundingMode.HALF_UP);
-        return new CostReportResponse.CostReportRow(
+        return new CostReportResult.CostReportRowResult(
                 key.date(),
                 key.projectId(),
                 key.applicationId(),

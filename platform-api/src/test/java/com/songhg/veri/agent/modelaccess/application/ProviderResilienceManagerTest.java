@@ -1,6 +1,5 @@
 package com.songhg.veri.agent.modelaccess.application;
 
-import com.songhg.veri.agent.modelaccess.api.response.ProviderCheckResponse;
 import com.songhg.veri.agent.modelaccess.config.ModelAccessProperties;
 import com.songhg.veri.agent.modelaccess.domain.ModelProviderConfig;
 import com.songhg.veri.agent.modelaccess.domain.ProviderStatus;
@@ -56,7 +55,7 @@ class ProviderResilienceManagerTest {
         ProviderResilienceManager manager = new ProviderResilienceManager(properties(0, 3, 60_000, 30_000));
         Instant firstUpdate = Instant.parse("2026-05-17T00:00:00Z");
         ModelProviderConfig provider = provider(firstUpdate);
-        ProviderCheckResponse response = new ProviderCheckResponse(
+        ProviderCheckResult response = new ProviderCheckResult(
                 provider.id(),
                 provider.name(),
                 provider.providerType(),
@@ -75,7 +74,7 @@ class ProviderResilienceManagerTest {
         assertThat(manager.cachedProviderCheck(provider))
                 .isPresent()
                 .get()
-                .extracting(ProviderCheckResponse::cached)
+                .extracting(ProviderCheckResult::cached)
                 .isEqualTo(true);
         assertThat(manager.cachedProviderCheck(provider(firstUpdate.plusSeconds(1)))).isEmpty();
     }

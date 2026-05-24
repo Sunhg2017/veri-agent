@@ -3,11 +3,11 @@ package com.songhg.veri.agent.management.application;
 import com.songhg.veri.agent.auth.application.AuthUserPrincipal;
 import com.songhg.veri.agent.common.api.PageQuery;
 import com.songhg.veri.agent.common.api.PageResponse;
-import com.songhg.veri.agent.management.api.request.CreateProjectRequest;
-import com.songhg.veri.agent.management.api.request.ProjectMemberRequest;
-import com.songhg.veri.agent.management.api.request.UpdateProjectRequest;
-import com.songhg.veri.agent.management.api.response.ProjectMemberView;
-import com.songhg.veri.agent.management.api.response.ProjectView;
+import com.songhg.veri.agent.management.application.CreateProjectRequest;
+import com.songhg.veri.agent.management.application.ProjectMemberRequest;
+import com.songhg.veri.agent.management.application.UpdateProjectRequest;
+import com.songhg.veri.agent.management.application.ProjectMemberView;
+import com.songhg.veri.agent.management.application.ProjectView;
 
 public interface ProjectOperations {
 

@@ -6,9 +6,9 @@ import com.songhg.veri.agent.common.api.PageResponse;
 import com.songhg.veri.agent.common.audit.AuditLogWriter;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
-import com.songhg.veri.agent.management.api.request.CreateSettingRequest;
-import com.songhg.veri.agent.management.api.request.UpdateSettingRequest;
-import com.songhg.veri.agent.management.api.response.SettingView;
+import com.songhg.veri.agent.management.application.CreateSettingRequest;
+import com.songhg.veri.agent.management.application.UpdateSettingRequest;
+import com.songhg.veri.agent.management.application.SettingView;
 import java.util.ArrayList;
 import java.util.List;
 

@@ -3,12 +3,12 @@ package com.songhg.veri.agent.management.application;
 import com.songhg.veri.agent.auth.application.AuthUserPrincipal;
 import com.songhg.veri.agent.common.api.PageQuery;
 import com.songhg.veri.agent.common.api.PageResponse;
-import com.songhg.veri.agent.management.api.request.CreateEnvironmentRequest;
-import com.songhg.veri.agent.management.api.request.ScopedUserRoleRequest;
-import com.songhg.veri.agent.management.api.request.UpdateEnvironmentRequest;
-import com.songhg.veri.agent.management.api.response.EnvironmentConnectivityCheckView;
-import com.songhg.veri.agent.management.api.response.EnvironmentView;
-import com.songhg.veri.agent.management.api.response.ScopedUserRoleView;
+import com.songhg.veri.agent.management.application.CreateEnvironmentRequest;
+import com.songhg.veri.agent.management.application.ScopedUserRoleRequest;
+import com.songhg.veri.agent.management.application.UpdateEnvironmentRequest;
+import com.songhg.veri.agent.management.application.EnvironmentConnectivityCheckView;
+import com.songhg.veri.agent.management.application.EnvironmentView;
+import com.songhg.veri.agent.management.application.ScopedUserRoleView;
 
 public interface EnvironmentOperations {
 

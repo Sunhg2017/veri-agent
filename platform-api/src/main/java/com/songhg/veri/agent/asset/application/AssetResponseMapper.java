@@ -1,11 +1,11 @@
 package com.songhg.veri.agent.asset.application;
 
-import com.songhg.veri.agent.asset.api.response.ApiResponseDTO;
-import com.songhg.veri.agent.asset.api.response.BusinessFlowResponse;
-import com.songhg.veri.agent.asset.api.response.PageResponse;
-import com.songhg.veri.agent.asset.api.response.RequirementResponse;
-import com.songhg.veri.agent.asset.api.response.TestCaseResponse;
-import com.songhg.veri.agent.asset.api.response.TestCaseStepResponse;
+import com.songhg.veri.agent.asset.application.ApiResponseDTO;
+import com.songhg.veri.agent.asset.application.BusinessFlowResponse;
+import com.songhg.veri.agent.asset.application.PageResponse;
+import com.songhg.veri.agent.asset.application.RequirementResponse;
+import com.songhg.veri.agent.asset.application.TestCaseResponse;
+import com.songhg.veri.agent.asset.application.TestCaseStepResponse;
 import com.songhg.veri.agent.asset.domain.AssetApi;
 import com.songhg.veri.agent.asset.domain.AssetBusinessFlow;
 import com.songhg.veri.agent.asset.domain.AssetLifecycleStatus;

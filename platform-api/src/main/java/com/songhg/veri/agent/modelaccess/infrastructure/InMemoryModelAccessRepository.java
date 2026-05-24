@@ -1,7 +1,7 @@
 package com.songhg.veri.agent.modelaccess.infrastructure;
 
-import com.songhg.veri.agent.modelaccess.api.response.InvocationSummaryResponse;
 import com.songhg.veri.agent.modelaccess.application.InvocationQuery;
+import com.songhg.veri.agent.modelaccess.application.InvocationSummaryResult;
 import com.songhg.veri.agent.modelaccess.application.ModelAccessRepository;
 import com.songhg.veri.agent.modelaccess.domain.InvocationRecord;
 import com.songhg.veri.agent.modelaccess.domain.InvocationStatus;
@@ -204,7 +204,7 @@ public class InMemoryModelAccessRepository implements ModelAccessRepository {
     }
 
     @Override
-    public synchronized InvocationSummaryResponse invocationSummary(InvocationQuery query) {
+    public synchronized InvocationSummaryResult invocationSummary(InvocationQuery query) {
         List<InvocationRecord> records = filteredInvocations(query).toList();
         long succeeded = records.stream().filter(record -> record.status() == InvocationStatus.SUCCEEDED).count();
         long failed = records.stream().filter(record -> record.status() == InvocationStatus.FAILED).count();
@@ -214,7 +214,7 @@ public class InMemoryModelAccessRepository implements ModelAccessRepository {
         BigDecimal totalCost = records.stream()
                 .map(InvocationRecord::totalCost)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
-        return new InvocationSummaryResponse(records.size(), succeeded, failed, blocked, inputTokens, outputTokens, totalCost);
+        return new InvocationSummaryResult(records.size(), succeeded, failed, blocked, inputTokens, outputTokens, totalCost);
     }
 
     private java.util.stream.Stream<InvocationRecord> filteredInvocations(InvocationQuery query) {

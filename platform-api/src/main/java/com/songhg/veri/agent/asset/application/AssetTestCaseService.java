@@ -1,12 +1,12 @@
 package com.songhg.veri.agent.asset.application;
 
-import com.songhg.veri.agent.asset.api.request.AssetListRequest;
-import com.songhg.veri.agent.asset.api.request.CreateTestCaseRequest;
-import com.songhg.veri.agent.asset.api.request.RollbackAssetVersionRequest;
-import com.songhg.veri.agent.asset.api.request.UpdateAssetLifecycleRequest;
-import com.songhg.veri.agent.asset.api.request.UpdateTestCaseRequest;
-import com.songhg.veri.agent.asset.api.response.AssetVersionHistoryResponse;
-import com.songhg.veri.agent.asset.api.response.TestCaseResponse;
+import com.songhg.veri.agent.asset.application.AssetListRequest;
+import com.songhg.veri.agent.asset.application.CreateTestCaseRequest;
+import com.songhg.veri.agent.asset.application.RollbackAssetVersionRequest;
+import com.songhg.veri.agent.asset.application.UpdateAssetLifecycleRequest;
+import com.songhg.veri.agent.asset.application.UpdateTestCaseRequest;
+import com.songhg.veri.agent.asset.application.AssetVersionHistoryResponse;
+import com.songhg.veri.agent.asset.application.TestCaseResponse;
 import com.songhg.veri.agent.asset.domain.AssetApi;
 import com.songhg.veri.agent.asset.domain.AssetLifecycleStatus;
 import com.songhg.veri.agent.asset.domain.AssetRequirement;

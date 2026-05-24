@@ -1,7 +1,7 @@
 package com.songhg.veri.agent.modelaccess.infrastructure.mapper;
 
-import com.songhg.veri.agent.modelaccess.api.response.InvocationSummaryResponse;
 import com.songhg.veri.agent.modelaccess.application.InvocationQuery;
+import com.songhg.veri.agent.modelaccess.application.InvocationSummaryResult;
 import com.songhg.veri.agent.modelaccess.application.ModelInvocationJobRecord;
 import com.songhg.veri.agent.modelaccess.domain.InvocationRecord;
 import com.songhg.veri.agent.modelaccess.domain.ModelProviderConfig;
@@ -41,7 +41,7 @@ public interface ModelAccessMapper {
 
     List<String> distinctActorServices(@Param("startTime") Instant startTime, @Param("endTime") Instant endTime);
 
-    InvocationSummaryResponse invocationSummary(@Param("query") InvocationQuery query);
+    InvocationSummaryResult invocationSummary(@Param("query") InvocationQuery query);
 
     void insertInvocationJob(ModelInvocationJobRecord job);
 

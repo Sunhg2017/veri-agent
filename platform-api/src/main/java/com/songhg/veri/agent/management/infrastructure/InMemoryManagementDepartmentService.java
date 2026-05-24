@@ -6,8 +6,8 @@ import com.songhg.veri.agent.common.api.PageResponse;
 import com.songhg.veri.agent.common.audit.AuditLogWriter;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
-import com.songhg.veri.agent.management.api.request.UpdateDepartmentRequest;
-import com.songhg.veri.agent.management.api.response.DepartmentView;
+import com.songhg.veri.agent.management.application.UpdateDepartmentRequest;
+import com.songhg.veri.agent.management.application.DepartmentView;
 import java.util.ArrayList;
 import java.util.List;
 

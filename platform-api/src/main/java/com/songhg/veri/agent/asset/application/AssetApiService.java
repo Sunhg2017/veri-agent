@@ -1,10 +1,10 @@
 package com.songhg.veri.agent.asset.application;
 
-import com.songhg.veri.agent.asset.api.request.AssetListRequest;
-import com.songhg.veri.agent.asset.api.request.CreateApiRequest;
-import com.songhg.veri.agent.asset.api.request.UpdateApiRequest;
-import com.songhg.veri.agent.asset.api.request.UpdateAssetLifecycleRequest;
-import com.songhg.veri.agent.asset.api.response.ApiResponseDTO;
+import com.songhg.veri.agent.asset.application.AssetListRequest;
+import com.songhg.veri.agent.asset.application.CreateApiRequest;
+import com.songhg.veri.agent.asset.application.UpdateApiRequest;
+import com.songhg.veri.agent.asset.application.UpdateAssetLifecycleRequest;
+import com.songhg.veri.agent.asset.application.ApiResponseDTO;
 import com.songhg.veri.agent.asset.domain.AssetApi;
 import com.songhg.veri.agent.asset.domain.AssetLifecycleStatus;
 import com.songhg.veri.agent.common.error.BusinessException;

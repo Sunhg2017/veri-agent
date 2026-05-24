@@ -3,7 +3,7 @@ package com.songhg.veri.agent.asset.application;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.songhg.veri.agent.asset.api.response.AssetVersionHistoryResponse;
+import com.songhg.veri.agent.asset.application.AssetVersionHistoryResponse;
 import com.songhg.veri.agent.asset.domain.AssetLifecycleStatus;
 import com.songhg.veri.agent.asset.domain.AssetRequirement;
 import com.songhg.veri.agent.asset.domain.AssetVersion;

@@ -1,6 +1,5 @@
 package com.songhg.veri.agent.modelaccess.application;
 
-import com.songhg.veri.agent.modelaccess.api.response.ProviderCheckResponse;
 import com.songhg.veri.agent.modelaccess.domain.InvocationRecord;
 import com.songhg.veri.agent.modelaccess.domain.ProviderType;
 import io.micrometer.core.instrument.Counter;
@@ -49,7 +48,7 @@ public class ModelAccessMetrics {
         recordCost(record.totalCost(), provider, sensitivityLevel);
     }
 
-    public void recordProviderCheck(ProviderCheckResponse response) {
+    public void recordProviderCheck(ProviderCheckResult response) {
         Counter.builder("veri.agent.model_access.provider.checks")
                 .description("WP2 provider readiness checks by provider type and result")
                 .tag("provider_type", value(response.providerType()))

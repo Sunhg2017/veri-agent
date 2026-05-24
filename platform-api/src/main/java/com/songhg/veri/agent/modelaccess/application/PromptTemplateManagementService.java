@@ -2,7 +2,6 @@ package com.songhg.veri.agent.modelaccess.application;
 
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
-import com.songhg.veri.agent.modelaccess.api.request.CreatePromptRequest;
 import com.songhg.veri.agent.modelaccess.domain.PromptApprovalStatus;
 import com.songhg.veri.agent.modelaccess.domain.PromptStatus;
 import com.songhg.veri.agent.modelaccess.domain.PromptTemplate;
@@ -25,7 +24,7 @@ public class PromptTemplateManagementService {
         return repository.prompts(trimToNull(promptKey));
     }
 
-    public PromptTemplate createPrompt(CreatePromptRequest request) {
+    public PromptTemplate createPrompt(CreatePromptCommand request) {
         String promptKey = request.promptKey().trim();
         int nextVersion = repository.prompts(promptKey)
                 .stream()

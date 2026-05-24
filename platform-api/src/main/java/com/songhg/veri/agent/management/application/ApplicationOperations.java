@@ -3,11 +3,11 @@ package com.songhg.veri.agent.management.application;
 import com.songhg.veri.agent.auth.application.AuthUserPrincipal;
 import com.songhg.veri.agent.common.api.PageQuery;
 import com.songhg.veri.agent.common.api.PageResponse;
-import com.songhg.veri.agent.management.api.request.CreateApplicationRequest;
-import com.songhg.veri.agent.management.api.request.ScopedUserRoleRequest;
-import com.songhg.veri.agent.management.api.request.UpdateApplicationRequest;
-import com.songhg.veri.agent.management.api.response.ApplicationView;
-import com.songhg.veri.agent.management.api.response.ScopedUserRoleView;
+import com.songhg.veri.agent.management.application.CreateApplicationRequest;
+import com.songhg.veri.agent.management.application.ScopedUserRoleRequest;
+import com.songhg.veri.agent.management.application.UpdateApplicationRequest;
+import com.songhg.veri.agent.management.application.ApplicationView;
+import com.songhg.veri.agent.management.application.ScopedUserRoleView;
 
 public interface ApplicationOperations {
 

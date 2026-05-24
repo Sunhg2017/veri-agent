@@ -3,9 +3,9 @@ package com.songhg.veri.agent.management.application;
 import com.songhg.veri.agent.auth.application.AuthUserPrincipal;
 import com.songhg.veri.agent.common.api.PageQuery;
 import com.songhg.veri.agent.common.api.PageResponse;
-import com.songhg.veri.agent.management.api.request.CreateIntegrationRequest;
-import com.songhg.veri.agent.management.api.request.UpdateIntegrationRequest;
-import com.songhg.veri.agent.management.api.response.IntegrationView;
+import com.songhg.veri.agent.management.application.CreateIntegrationRequest;
+import com.songhg.veri.agent.management.application.UpdateIntegrationRequest;
+import com.songhg.veri.agent.management.application.IntegrationView;
 
 public interface IntegrationOperations {
 

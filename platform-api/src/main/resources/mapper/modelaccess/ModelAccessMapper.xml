@@ -74,7 +74,7 @@
         </constructor>
     </resultMap>
 
-    <resultMap id="summaryMap" type="com.songhg.veri.agent.modelaccess.api.response.InvocationSummaryResponse">
+    <resultMap id="summaryMap" type="com.songhg.veri.agent.modelaccess.application.InvocationSummaryResult">
         <constructor>
             <arg column="total" javaType="_long"/>
             <arg column="succeeded" javaType="_long"/>

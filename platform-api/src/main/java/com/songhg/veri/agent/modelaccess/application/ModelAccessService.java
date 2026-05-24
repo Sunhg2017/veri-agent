@@ -1,13 +1,5 @@
 package com.songhg.veri.agent.modelaccess.application;
 
-import com.songhg.veri.agent.modelaccess.api.request.CreatePromptRequest;
-import com.songhg.veri.agent.modelaccess.api.request.CreateProviderRequest;
-import com.songhg.veri.agent.modelaccess.api.response.CostAlertResponse;
-import com.songhg.veri.agent.modelaccess.api.response.CostReportResponse;
-import com.songhg.veri.agent.modelaccess.api.response.InvocationSummaryResponse;
-import com.songhg.veri.agent.modelaccess.api.response.ProviderCheckResponse;
-import com.songhg.veri.agent.modelaccess.api.request.UpdateProviderRequest;
-import com.songhg.veri.agent.modelaccess.api.response.ProviderResilienceResponse;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
 import com.songhg.veri.agent.common.api.PageQuery;
@@ -98,11 +90,11 @@ public class ModelAccessService {
         return providerManagementService.providers();
     }
 
-    public ModelProviderConfig createProvider(CreateProviderRequest request) {
+    public ModelProviderConfig createProvider(CreateProviderCommand request) {
         return providerManagementService.createProvider(request);
     }
 
-    public ModelProviderConfig updateProvider(UUID id, UpdateProviderRequest request) {
+    public ModelProviderConfig updateProvider(UUID id, UpdateProviderCommand request) {
         return providerManagementService.updateProvider(id, request);
     }
 
@@ -110,15 +102,15 @@ public class ModelAccessService {
         return providerManagementService.setProviderStatus(id, status);
     }
 
-    public ProviderCheckResponse checkProvider(UUID id) {
+    public ProviderCheckResult checkProvider(UUID id) {
         return providerManagementService.checkProvider(id);
     }
 
-    public ProviderResilienceResponse providerResilience(UUID id) {
+    public ProviderResilienceResult providerResilience(UUID id) {
         return providerManagementService.providerResilience(id);
     }
 
-    public ProviderResilienceResponse resetProviderCircuit(UUID id) {
+    public ProviderResilienceResult resetProviderCircuit(UUID id) {
         return providerManagementService.resetProviderCircuit(id);
     }
 
@@ -126,7 +118,7 @@ public class ModelAccessService {
         return promptTemplateManagementService.prompts(promptKey);
     }
 
-    public PromptTemplate createPrompt(CreatePromptRequest request) {
+    public PromptTemplate createPrompt(CreatePromptCommand request) {
         return promptTemplateManagementService.createPrompt(request);
     }
 
@@ -157,15 +149,15 @@ public class ModelAccessService {
         return PageResponse.of(items, normalized.index(), normalized.size(), total);
     }
 
-    public InvocationSummaryResponse invocationSummary(InvocationQuery query) {
+    public InvocationSummaryResult invocationSummary(InvocationQuery query) {
         return repository.invocationSummary(normalizeQuery(query));
     }
 
-    public List<CostAlertResponse> costAlerts(String projectId, String actorService) {
+    public List<CostAlertResult> costAlerts(String projectId, String actorService) {
         return costAnalysisService.costAlerts(projectId, actorService);
     }
 
-    public CostReportResponse costReport(LocalDate startDate, LocalDate endDate, String projectId) {
+    public CostReportResult costReport(LocalDate startDate, LocalDate endDate, String projectId) {
         return costAnalysisService.costReport(startDate, endDate, projectId);
     }
 

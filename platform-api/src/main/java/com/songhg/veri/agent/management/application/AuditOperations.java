@@ -3,8 +3,8 @@ package com.songhg.veri.agent.management.application;
 import com.songhg.veri.agent.auth.application.AuthUserPrincipal;
 import com.songhg.veri.agent.common.api.PageQuery;
 import com.songhg.veri.agent.common.api.PageResponse;
-import com.songhg.veri.agent.management.api.response.AuditLogView;
-import com.songhg.veri.agent.management.api.response.AuditOutboxView;
+import com.songhg.veri.agent.management.application.AuditLogView;
+import com.songhg.veri.agent.management.application.AuditOutboxView;
 
 public interface AuditOperations {
 

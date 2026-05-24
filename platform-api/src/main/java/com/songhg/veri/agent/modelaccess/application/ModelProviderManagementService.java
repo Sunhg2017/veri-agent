@@ -2,10 +2,6 @@ package com.songhg.veri.agent.modelaccess.application;
 
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
-import com.songhg.veri.agent.modelaccess.api.request.CreateProviderRequest;
-import com.songhg.veri.agent.modelaccess.api.request.UpdateProviderRequest;
-import com.songhg.veri.agent.modelaccess.api.response.ProviderCheckResponse;
-import com.songhg.veri.agent.modelaccess.api.response.ProviderResilienceResponse;
 import com.songhg.veri.agent.modelaccess.config.ModelAccessProperties;
 import com.songhg.veri.agent.modelaccess.domain.ModelProviderConfig;
 import com.songhg.veri.agent.modelaccess.domain.ProviderStatus;
@@ -55,7 +51,7 @@ public class ModelProviderManagementService {
         return repository.providers();
     }
 
-    public ModelProviderConfig createProvider(CreateProviderRequest request) {
+    public ModelProviderConfig createProvider(CreateProviderCommand request) {
         Instant now = Instant.now();
         ModelProviderConfig provider = new ModelProviderConfig(
                 UUID.randomUUID(),
@@ -78,7 +74,7 @@ public class ModelProviderManagementService {
         return repository.saveProvider(provider);
     }
 
-    public ModelProviderConfig updateProvider(UUID id, UpdateProviderRequest request) {
+    public ModelProviderConfig updateProvider(UUID id, UpdateProviderCommand request) {
         ModelProviderConfig existing = repository.provider(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "模型供应商不存在"));
         ModelProviderConfig updated = new ModelProviderConfig(
@@ -123,16 +119,16 @@ public class ModelProviderManagementService {
         ));
     }
 
-    public ProviderCheckResponse checkProvider(UUID id) {
+    public ProviderCheckResult checkProvider(UUID id) {
         ModelProviderConfig provider = repository.provider(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "模型供应商不存在"));
-        java.util.Optional<ProviderCheckResponse> cached = providerResilienceManager.cachedProviderCheck(provider);
+        java.util.Optional<ProviderCheckResult> cached = providerResilienceManager.cachedProviderCheck(provider);
         if (cached.isPresent()) {
             return cached.get();
         }
         Instant startedAt = Instant.now();
         String modelName = properties.defaultModel();
-        ProviderCheckResponse response;
+        ProviderCheckResult response;
         try {
             ModelProviderClient client = clientFor(provider);
             client.call(provider, new ProviderCallRequest(
@@ -140,7 +136,7 @@ public class ModelProviderManagementService {
                     "WP2 provider readiness check. Do not include secrets.",
                     "Return OK."
             ));
-            response = new ProviderCheckResponse(
+            response = new ProviderCheckResult(
                     provider.id(),
                     provider.name(),
                     provider.providerType(),
@@ -154,7 +150,7 @@ public class ModelProviderManagementService {
                     Instant.now()
             );
         } catch (RuntimeException exception) {
-            response = new ProviderCheckResponse(
+            response = new ProviderCheckResult(
                     provider.id(),
                     provider.name(),
                     provider.providerType(),
@@ -173,11 +169,11 @@ public class ModelProviderManagementService {
         return response;
     }
 
-    public ProviderResilienceResponse providerResilience(UUID id) {
+    public ProviderResilienceResult providerResilience(UUID id) {
         ModelProviderConfig provider = repository.provider(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "模型供应商不存在"));
         ProviderResilienceManager.CircuitStateView circuitState = providerResilienceManager.circuitState(provider);
-        return new ProviderResilienceResponse(
+        return new ProviderResilienceResult(
                 provider.id(),
                 provider.name(),
                 circuitState.open(),
@@ -192,7 +188,7 @@ public class ModelProviderManagementService {
         );
     }
 
-    public ProviderResilienceResponse resetProviderCircuit(UUID id) {
+    public ProviderResilienceResult resetProviderCircuit(UUID id) {
         ModelProviderConfig provider = repository.provider(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "模型供应商不存在"));
         providerResilienceManager.resetCircuit(provider);

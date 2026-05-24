@@ -1,0 +1,12 @@
+package com.songhg.veri.agent.asset.application;
+
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotEmpty;
+import java.util.List;
+
+public record UpdateTestCaseStepsRequest(
+        @NotEmpty @Valid List<StepItem> steps
+) {
+    public record StepItem(String action, String expectedResult) {
+    }
+}
