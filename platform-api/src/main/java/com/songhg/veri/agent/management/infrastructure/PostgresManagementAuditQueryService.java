@@ -4,20 +4,23 @@ import com.songhg.veri.agent.auth.application.AuthUserPrincipal;
 import com.songhg.veri.agent.common.api.PageQuery;
 import com.songhg.veri.agent.common.api.PageResponse;
 import com.songhg.veri.agent.common.audit.AuditLogWriter;
-import com.songhg.veri.agent.management.application.AuditLogView;
-import com.songhg.veri.agent.management.application.AuditOutboxView;
-import com.songhg.veri.agent.management.application.AuditLogQuery;
-import com.songhg.veri.agent.management.application.AuditOutboxQuery;
+import com.songhg.veri.agent.management.application.port.AuditOperations;
+import com.songhg.veri.agent.management.application.view.AuditLogView;
+import com.songhg.veri.agent.management.application.view.AuditOutboxView;
+import com.songhg.veri.agent.management.application.query.AuditLogQuery;
+import com.songhg.veri.agent.management.application.query.AuditOutboxQuery;
 import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapper;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Profile("db")
 @Service
-final class PostgresManagementAuditQueryService {
+@Transactional
+class PostgresManagementAuditQueryService implements AuditOperations {
 
     private final ManagementMapper mapper;
     private final AuditLogWriter auditLogWriter;
@@ -27,14 +30,14 @@ final class PostgresManagementAuditQueryService {
         this.auditLogWriter = auditLogWriter;
     }
 
-    PageResponse<AuditLogView> auditLogs(PageQuery pageQuery, AuditLogQuery query, AuthUserPrincipal actor) {
+    public PageResponse<AuditLogView> auditLogs(PageQuery pageQuery, AuditLogQuery query, AuthUserPrincipal actor) {
         Map<String, Object> params = auditParams(pageQuery, query, actor);
         List<AuditLogView> items = mapper.listAuditLogs(params);
         long total = mapper.countAuditLogs(params);
         return PageResponse.of(items, pageQuery.index(), pageQuery.size(), total);
     }
 
-    String exportAuditLogsCsv(AuditLogQuery query, AuthUserPrincipal actor) {
+    public String exportAuditLogsCsv(AuditLogQuery query, AuthUserPrincipal actor) {
         PageQuery exportPage = PageQuery.of(0, 100);
         PageResponse<AuditLogView> page = auditLogs(exportPage, query, actor);
         StringBuilder csv = new StringBuilder("time,actor,action,target,result\n");
@@ -51,7 +54,11 @@ final class PostgresManagementAuditQueryService {
         return csv.toString();
     }
 
-    PageResponse<AuditOutboxView> auditOutbox(PageQuery pageQuery, AuditOutboxQuery query) {
+    public PageResponse<AuditOutboxView> auditOutbox(
+            PageQuery pageQuery,
+            AuditOutboxQuery query,
+            AuthUserPrincipal actor
+    ) {
         Map<String, Object> params = auditOutboxParams(pageQuery, query);
         List<AuditOutboxView> items = mapper.listAuditOutbox(params);
         long total = mapper.countAuditOutbox(params);

@@ -4,18 +4,23 @@ import com.songhg.veri.agent.auth.application.AuthUserPrincipal;
 import com.songhg.veri.agent.common.api.PageQuery;
 import com.songhg.veri.agent.common.api.PageResponse;
 import com.songhg.veri.agent.common.audit.AuditLogWriter;
+import com.songhg.veri.agent.management.application.port.ApplicationOperations;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
-import com.songhg.veri.agent.management.application.CreateApplicationRequest;
-import com.songhg.veri.agent.management.application.ScopedUserRoleRequest;
-import com.songhg.veri.agent.management.application.UpdateApplicationRequest;
-import com.songhg.veri.agent.management.application.ApplicationView;
-import com.songhg.veri.agent.management.application.ScopedUserRoleView;
-import com.songhg.veri.agent.management.application.UserView;
+import com.songhg.veri.agent.management.application.command.CreateApplicationRequest;
+import com.songhg.veri.agent.management.application.command.ScopedUserRoleRequest;
+import com.songhg.veri.agent.management.application.command.UpdateApplicationRequest;
+import com.songhg.veri.agent.management.application.view.ApplicationView;
+import com.songhg.veri.agent.management.application.view.ScopedUserRoleView;
+import com.songhg.veri.agent.management.application.view.UserView;
 import java.util.ArrayList;
 import java.util.List;
+import org.springframework.context.annotation.Profile;
+import org.springframework.stereotype.Service;
 
-final class InMemoryManagementApplicationService {
+@Profile("local")
+@Service
+final class InMemoryManagementApplicationService implements ApplicationOperations {
 
     private final List<ApplicationView> applications = new ArrayList<>();
     private final List<ScopedUserRoleView> applicationOwners = new ArrayList<>();
@@ -35,15 +40,15 @@ final class InMemoryManagementApplicationService {
         ));
     }
 
-    PageResponse<ApplicationView> applications(PageQuery pageQuery, AuthUserPrincipal actor) {
+    public synchronized PageResponse<ApplicationView> applications(PageQuery pageQuery, AuthUserPrincipal actor) {
         return page(applications, pageQuery);
     }
 
-    ApplicationView application(String key) {
+    public synchronized ApplicationView application(String key) {
         return requireApplication(key);
     }
 
-    ApplicationView createApplication(CreateApplicationRequest request, AuthUserPrincipal actor) {
+    public synchronized ApplicationView createApplication(CreateApplicationRequest request, AuthUserPrincipal actor) {
         String name = request.name().trim();
         String appType = request.appType() == null || request.appType().isBlank() ? "Web" : request.appType().trim();
         ApplicationView view = new ApplicationView(name, appType, actor.displayName(), "v0.1.0", "接入中");
@@ -52,7 +57,7 @@ final class InMemoryManagementApplicationService {
         return view;
     }
 
-    ApplicationView updateApplication(String key, UpdateApplicationRequest request, AuthUserPrincipal actor) {
+    public synchronized ApplicationView updateApplication(String key, UpdateApplicationRequest request, AuthUserPrincipal actor) {
         ApplicationView current = requireApplication(key);
         if ("已停用".equals(current.status())) {
             throw new BusinessException(ErrorCode.INVALID_STATE, "当前应用状态不允许编辑");
@@ -71,7 +76,7 @@ final class InMemoryManagementApplicationService {
         return updated;
     }
 
-    ApplicationView changeApplicationStatus(String key, String status, AuthUserPrincipal actor) {
+    public synchronized ApplicationView changeApplicationStatus(String key, String status, AuthUserPrincipal actor) {
         ApplicationView current = requireApplication(key);
         if (!List.of("ENABLED", "DISABLED").contains(status)) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "应用状态不支持");
@@ -90,12 +95,12 @@ final class InMemoryManagementApplicationService {
         return updated;
     }
 
-    PageResponse<ScopedUserRoleView> applicationOwners(String applicationKey, PageQuery pageQuery) {
+    public synchronized PageResponse<ScopedUserRoleView> applicationOwners(String applicationKey, PageQuery pageQuery) {
         requireApplication(applicationKey);
         return page(applicationOwners, pageQuery);
     }
 
-    ScopedUserRoleView addApplicationOwner(
+    public synchronized ScopedUserRoleView addApplicationOwner(
             String applicationKey,
             ScopedUserRoleRequest request,
             AuthUserPrincipal actor
@@ -112,7 +117,7 @@ final class InMemoryManagementApplicationService {
         return view;
     }
 
-    ScopedUserRoleView removeApplicationOwner(String applicationKey, String username, AuthUserPrincipal actor) {
+    public synchronized ScopedUserRoleView removeApplicationOwner(String applicationKey, String username, AuthUserPrincipal actor) {
         requireApplication(applicationKey);
         ScopedUserRoleView current = applicationOwners.stream()
                 .filter(owner -> owner.username().equals(username))

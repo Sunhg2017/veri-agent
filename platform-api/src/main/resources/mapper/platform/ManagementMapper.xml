@@ -4,7 +4,7 @@
         "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapper">
 
-    <resultMap id="departmentViewMap" type="com.songhg.veri.agent.management.api.response.DepartmentView">
+    <resultMap id="departmentViewMap" type="com.songhg.veri.agent.management.application.view.DepartmentView">
         <constructor>
             <arg column="name" javaType="java.lang.String"/>
             <arg column="parent_name" javaType="java.lang.String"/>
@@ -14,7 +14,7 @@
         </constructor>
     </resultMap>
 
-    <resultMap id="userViewMap" type="com.songhg.veri.agent.management.api.response.UserView">
+    <resultMap id="userViewMap" type="com.songhg.veri.agent.management.application.view.UserView">
         <constructor>
             <arg column="username" javaType="java.lang.String"/>
             <arg column="display_name" javaType="java.lang.String"/>
@@ -26,7 +26,7 @@
         </constructor>
     </resultMap>
 
-    <resultMap id="roleViewMap" type="com.songhg.veri.agent.management.api.response.RoleView">
+    <resultMap id="roleViewMap" type="com.songhg.veri.agent.management.application.view.RoleView">
         <constructor>
             <arg column="code" javaType="java.lang.String"/>
             <arg column="name" javaType="java.lang.String"/>
@@ -36,7 +36,7 @@
         </constructor>
     </resultMap>
 
-    <resultMap id="permissionViewMap" type="com.songhg.veri.agent.management.api.response.PermissionView">
+    <resultMap id="permissionViewMap" type="com.songhg.veri.agent.management.application.view.PermissionView">
         <constructor>
             <arg column="code" javaType="java.lang.String"/>
             <arg column="resource_type" javaType="java.lang.String"/>
@@ -47,7 +47,7 @@
         </constructor>
     </resultMap>
 
-    <resultMap id="projectViewMap" type="com.songhg.veri.agent.management.api.response.ProjectView">
+    <resultMap id="projectViewMap" type="com.songhg.veri.agent.management.application.view.ProjectView">
         <constructor>
             <arg column="name" javaType="java.lang.String"/>
             <arg column="department_name" javaType="java.lang.String"/>
@@ -57,7 +57,7 @@
         </constructor>
     </resultMap>
 
-    <resultMap id="projectMemberViewMap" type="com.songhg.veri.agent.management.api.response.ProjectMemberView">
+    <resultMap id="projectMemberViewMap" type="com.songhg.veri.agent.management.application.view.ProjectMemberView">
         <constructor>
             <arg column="username" javaType="java.lang.String"/>
             <arg column="display_name" javaType="java.lang.String"/>
@@ -67,7 +67,7 @@
         </constructor>
     </resultMap>
 
-    <resultMap id="applicationViewMap" type="com.songhg.veri.agent.management.api.response.ApplicationView">
+    <resultMap id="applicationViewMap" type="com.songhg.veri.agent.management.application.view.ApplicationView">
         <constructor>
             <arg column="name" javaType="java.lang.String"/>
             <arg column="app_type" javaType="java.lang.String"/>
@@ -77,7 +77,7 @@
         </constructor>
     </resultMap>
 
-    <resultMap id="environmentViewMap" type="com.songhg.veri.agent.management.api.response.EnvironmentView">
+    <resultMap id="environmentViewMap" type="com.songhg.veri.agent.management.application.view.EnvironmentView">
         <constructor>
             <arg column="name" javaType="java.lang.String"/>
             <arg column="cluster_name" javaType="java.lang.String"/>
@@ -86,7 +86,7 @@
         </constructor>
     </resultMap>
 
-    <resultMap id="integrationViewMap" type="com.songhg.veri.agent.management.api.response.IntegrationView">
+    <resultMap id="integrationViewMap" type="com.songhg.veri.agent.management.application.view.IntegrationView">
         <constructor>
             <arg column="integration_key" javaType="java.lang.String"/>
             <arg column="integration_name" javaType="java.lang.String"/>
@@ -96,7 +96,7 @@
         </constructor>
     </resultMap>
 
-    <resultMap id="auditLogViewMap" type="com.songhg.veri.agent.management.api.response.AuditLogView">
+    <resultMap id="auditLogViewMap" type="com.songhg.veri.agent.management.application.view.AuditLogView">
         <constructor>
             <arg column="created_time" javaType="java.lang.String"/>
             <arg column="actor_name" javaType="java.lang.String"/>
@@ -106,7 +106,7 @@
         </constructor>
     </resultMap>
 
-    <resultMap id="auditOutboxViewMap" type="com.songhg.veri.agent.management.api.response.AuditOutboxView">
+    <resultMap id="auditOutboxViewMap" type="com.songhg.veri.agent.management.application.view.AuditOutboxView">
         <constructor>
             <arg column="id" javaType="java.lang.String"/>
             <arg column="trace_id" javaType="java.lang.String"/>
@@ -126,7 +126,7 @@
         </constructor>
     </resultMap>
 
-    <resultMap id="settingViewMap" type="com.songhg.veri.agent.management.api.response.SettingView">
+    <resultMap id="settingViewMap" type="com.songhg.veri.agent.management.application.view.SettingView">
         <constructor>
             <arg column="config_key" javaType="java.lang.String"/>
             <arg column="display_name" javaType="java.lang.String"/>
@@ -136,7 +136,7 @@
         </constructor>
     </resultMap>
 
-    <resultMap id="secretReferenceViewMap" type="com.songhg.veri.agent.management.api.response.SecretReferenceView">
+    <resultMap id="secretReferenceViewMap" type="com.songhg.veri.agent.management.application.view.SecretReferenceView">
         <constructor>
             <arg column="id" javaType="java.lang.String"/>
             <arg column="secret_ref" javaType="java.lang.String"/>
@@ -155,7 +155,7 @@
         </constructor>
     </resultMap>
 
-    <resultMap id="scopedUserRoleViewMap" type="com.songhg.veri.agent.management.api.response.ScopedUserRoleView">
+    <resultMap id="scopedUserRoleViewMap" type="com.songhg.veri.agent.management.application.view.ScopedUserRoleView">
         <constructor>
             <arg column="username" javaType="java.lang.String"/>
             <arg column="display_name" javaType="java.lang.String"/>

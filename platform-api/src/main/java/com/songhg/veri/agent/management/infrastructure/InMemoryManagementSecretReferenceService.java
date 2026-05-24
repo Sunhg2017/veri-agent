@@ -4,19 +4,24 @@ import com.songhg.veri.agent.auth.application.AuthUserPrincipal;
 import com.songhg.veri.agent.common.api.PageQuery;
 import com.songhg.veri.agent.common.api.PageResponse;
 import com.songhg.veri.agent.common.audit.AuditLogWriter;
+import com.songhg.veri.agent.management.application.port.SecretReferenceOperations;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
-import com.songhg.veri.agent.management.application.CreateSecretReferenceRequest;
-import com.songhg.veri.agent.management.application.DisableSecretReferenceRequest;
-import com.songhg.veri.agent.management.application.RotateSecretReferenceRequest;
-import com.songhg.veri.agent.management.application.SecretReferenceView;
+import com.songhg.veri.agent.management.application.command.CreateSecretReferenceRequest;
+import com.songhg.veri.agent.management.application.command.DisableSecretReferenceRequest;
+import com.songhg.veri.agent.management.application.command.RotateSecretReferenceRequest;
+import com.songhg.veri.agent.management.application.view.SecretReferenceView;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import org.springframework.context.annotation.Profile;
+import org.springframework.stereotype.Service;
 import java.util.UUID;
 
-final class InMemoryManagementSecretReferenceService {
+@Profile("local")
+@Service
+final class InMemoryManagementSecretReferenceService implements SecretReferenceOperations {
 
     private static final DateTimeFormatter TIME_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
 
@@ -27,11 +32,11 @@ final class InMemoryManagementSecretReferenceService {
         this.auditLogWriter = auditLogWriter;
     }
 
-    PageResponse<SecretReferenceView> secrets(PageQuery pageQuery) {
+    public synchronized PageResponse<SecretReferenceView> secrets(PageQuery pageQuery) {
         return page(secrets, pageQuery);
     }
 
-    SecretReferenceView createSecret(CreateSecretReferenceRequest request, AuthUserPrincipal actor) {
+    public synchronized SecretReferenceView createSecret(CreateSecretReferenceRequest request, AuthUserPrincipal actor) {
         String secretRef = request.secretRef().trim();
         if (secrets.stream().anyMatch(secret -> secret.secretRef().equals(secretRef))) {
             throw new BusinessException(ErrorCode.CONFLICT, "密钥引用已存在");
@@ -58,7 +63,7 @@ final class InMemoryManagementSecretReferenceService {
         return view;
     }
 
-    SecretReferenceView rotateSecret(RotateSecretReferenceRequest request, AuthUserPrincipal actor) {
+    public synchronized SecretReferenceView rotateSecret(RotateSecretReferenceRequest request, AuthUserPrincipal actor) {
         SecretReferenceView current = requireSecret(request.secretRef());
         if ("REVOKED".equals(current.status())) {
             throw new BusinessException(ErrorCode.INVALID_STATE, "已撤销密钥不可轮换");
@@ -85,7 +90,7 @@ final class InMemoryManagementSecretReferenceService {
         return updated;
     }
 
-    SecretReferenceView disableSecret(DisableSecretReferenceRequest request, AuthUserPrincipal actor) {
+    public synchronized SecretReferenceView disableSecret(DisableSecretReferenceRequest request, AuthUserPrincipal actor) {
         SecretReferenceView current = requireSecret(request.secretRef());
         String now = LocalDateTime.now().format(TIME_FORMAT);
         SecretReferenceView updated = new SecretReferenceView(

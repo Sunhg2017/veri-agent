@@ -4,13 +4,14 @@ import com.songhg.veri.agent.auth.application.AuthUserPrincipal;
 import com.songhg.veri.agent.common.api.PageQuery;
 import com.songhg.veri.agent.common.api.PageResponse;
 import com.songhg.veri.agent.common.audit.AuditLogWriter;
+import com.songhg.veri.agent.management.application.port.ProjectOperations;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
-import com.songhg.veri.agent.management.application.CreateProjectRequest;
-import com.songhg.veri.agent.management.application.ProjectMemberRequest;
-import com.songhg.veri.agent.management.application.UpdateProjectRequest;
-import com.songhg.veri.agent.management.application.ProjectMemberView;
-import com.songhg.veri.agent.management.application.ProjectView;
+import com.songhg.veri.agent.management.application.command.CreateProjectRequest;
+import com.songhg.veri.agent.management.application.command.ProjectMemberRequest;
+import com.songhg.veri.agent.management.application.command.UpdateProjectRequest;
+import com.songhg.veri.agent.management.application.view.ProjectMemberView;
+import com.songhg.veri.agent.management.application.view.ProjectView;
 import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapper;
 import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows.ProjectRef;
 import java.util.HashMap;
@@ -23,10 +24,12 @@ import java.util.function.ToLongFunction;
 import org.springframework.context.annotation.Profile;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Profile("db")
 @Service
-final class PostgresManagementProjectService {
+@Transactional
+class PostgresManagementProjectService implements ProjectOperations {
 
     private final ManagementMapper mapper;
     private final AuditLogWriter auditLogWriter;
@@ -42,15 +45,15 @@ final class PostgresManagementProjectService {
         this.deniedAuditRecorder = deniedAuditRecorder;
     }
 
-    PageResponse<ProjectView> projects(PageQuery pageQuery, AuthUserPrincipal actor) {
+    public PageResponse<ProjectView> projects(PageQuery pageQuery, AuthUserPrincipal actor) {
         return page(mapper::listProjects, mapper::countProjects, pageQuery, scope(actor));
     }
 
-    ProjectView project(String key) {
+    public ProjectView project(String key) {
         return projectByKey(key);
     }
 
-    ProjectView createProject(CreateProjectRequest request, AuthUserPrincipal actor) {
+    public ProjectView createProject(CreateProjectRequest request, AuthUserPrincipal actor) {
         UUID projectId = UUID.randomUUID();
         String name = request.name().trim();
         String code = normalizedOrGeneratedCode(request.code(), "prj");
@@ -72,7 +75,7 @@ final class PostgresManagementProjectService {
         return new ProjectView(name, "未分配", actor.displayName(), 0, "规划中");
     }
 
-    ProjectView updateProject(String key, UpdateProjectRequest request, AuthUserPrincipal actor) {
+    public ProjectView updateProject(String key, UpdateProjectRequest request, AuthUserPrincipal actor) {
         ProjectRef project = resolveProjectStrict(key);
         ensureProjectEditable(project.status());
         ProjectView before = projectByKey(project.id().toString());
@@ -92,7 +95,7 @@ final class PostgresManagementProjectService {
         return updated;
     }
 
-    ProjectView changeProjectStatus(String key, String status, AuthUserPrincipal actor) {
+    public ProjectView changeProjectStatus(String key, String status, AuthUserPrincipal actor) {
         ProjectRef project = resolveProjectStrict(key);
         String nextStatus = normalizeProjectStatus(status);
         ensureProjectStatusTransition(actor, project, nextStatus);
@@ -102,12 +105,12 @@ final class PostgresManagementProjectService {
         return updated;
     }
 
-    PageResponse<ProjectMemberView> projectMembers(String projectKey, PageQuery pageQuery) {
+    public PageResponse<ProjectMemberView> projectMembers(String projectKey, PageQuery pageQuery) {
         ProjectRef project = resolveProjectStrict(projectKey);
         return page(mapper::listProjectMembers, mapper::countProjectMembers, pageQuery, values("projectId", project.id()));
     }
 
-    ProjectMemberView addProjectMember(String projectKey, ProjectMemberRequest request, AuthUserPrincipal actor) {
+    public ProjectMemberView addProjectMember(String projectKey, ProjectMemberRequest request, AuthUserPrincipal actor) {
         ProjectRef project = resolveProjectStrict(projectKey);
         ensureProjectEditable(project.status());
         String username = request.username().trim();
@@ -123,7 +126,7 @@ final class PostgresManagementProjectService {
         return view;
     }
 
-    ProjectMemberView removeProjectMember(String projectKey, String username, AuthUserPrincipal actor) {
+    public ProjectMemberView removeProjectMember(String projectKey, String username, AuthUserPrincipal actor) {
         ProjectRef project = resolveProjectStrict(projectKey);
         UUID userId = requireUserId(username);
         ProjectMemberView current = projectMemberByUsername(project.id(), username);
@@ -137,7 +140,7 @@ final class PostgresManagementProjectService {
         return new ProjectMemberView(current.username(), current.displayName(), current.role(), current.memberType(), "已移除");
     }
 
-    ProjectRef resolveProject(String project, AuthUserPrincipal actor) {
+    public ProjectRef resolveProject(String project, AuthUserPrincipal actor) {
         String keyword = blankToNull(project);
         if (keyword == null) {
             return new ProjectRef(ensureDefaultProject(actor), "默认项目", "ACTIVE");
@@ -145,7 +148,7 @@ final class PostgresManagementProjectService {
         return resolveProjectStrict(keyword);
     }
 
-    ProjectRef resolveProjectStrict(String key) {
+    public ProjectRef resolveProjectStrict(String key) {
         return requireOne(mapper::findProjectRef, values("keyword", key), "项目不存在");
     }
 

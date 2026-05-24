@@ -4,14 +4,16 @@ import com.songhg.veri.agent.auth.application.AuthUserPrincipal;
 import com.songhg.veri.agent.common.api.PageQuery;
 import com.songhg.veri.agent.common.api.PageResponse;
 import com.songhg.veri.agent.common.audit.AuditLogWriter;
+import com.songhg.veri.agent.management.application.port.IntegrationOperations;
+import com.songhg.veri.agent.management.application.port.SettingOperations;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
-import com.songhg.veri.agent.management.application.CreateIntegrationRequest;
-import com.songhg.veri.agent.management.application.CreateSettingRequest;
-import com.songhg.veri.agent.management.application.UpdateIntegrationRequest;
-import com.songhg.veri.agent.management.application.UpdateSettingRequest;
-import com.songhg.veri.agent.management.application.IntegrationView;
-import com.songhg.veri.agent.management.application.SettingView;
+import com.songhg.veri.agent.management.application.command.CreateIntegrationRequest;
+import com.songhg.veri.agent.management.application.command.CreateSettingRequest;
+import com.songhg.veri.agent.management.application.command.UpdateIntegrationRequest;
+import com.songhg.veri.agent.management.application.command.UpdateSettingRequest;
+import com.songhg.veri.agent.management.application.view.IntegrationView;
+import com.songhg.veri.agent.management.application.view.SettingView;
 import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapper;
 import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows.IntegrationRow;
 import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows.SettingRow;
@@ -24,10 +26,12 @@ import java.util.function.ToLongFunction;
 import org.springframework.context.annotation.Profile;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Profile("db")
 @Service
-final class PostgresManagementConfigService {
+@Transactional
+class PostgresManagementConfigService implements IntegrationOperations, SettingOperations {
 
     private final ManagementMapper mapper;
     private final AuditLogWriter auditLogWriter;
@@ -37,15 +41,15 @@ final class PostgresManagementConfigService {
         this.auditLogWriter = auditLogWriter;
     }
 
-    PageResponse<IntegrationView> integrations(PageQuery pageQuery) {
+    public PageResponse<IntegrationView> integrations(PageQuery pageQuery) {
         return page(mapper::listIntegrations, mapper::countIntegrations, pageQuery, values());
     }
 
-    IntegrationView integration(String key) {
+    public IntegrationView integration(String key) {
         return integrationView(integrationRow(key));
     }
 
-    IntegrationView createIntegration(CreateIntegrationRequest request, AuthUserPrincipal actor) {
+    public IntegrationView createIntegration(CreateIntegrationRequest request, AuthUserPrincipal actor) {
         String key = integrationKey(request.code());
         if (key.isBlank()) {
             key = nextCode("integration");
@@ -68,7 +72,7 @@ final class PostgresManagementConfigService {
         return created;
     }
 
-    IntegrationView updateIntegration(String key, UpdateIntegrationRequest request, AuthUserPrincipal actor) {
+    public IntegrationView updateIntegration(String key, UpdateIntegrationRequest request, AuthUserPrincipal actor) {
         IntegrationRow current = integrationRow(key);
         String name = defaultText(request.name(), current.name());
         String category = defaultText(request.category(), current.category());
@@ -82,7 +86,7 @@ final class PostgresManagementConfigService {
         return updated;
     }
 
-    IntegrationView changeIntegrationStatus(String key, String status, AuthUserPrincipal actor) {
+    public IntegrationView changeIntegrationStatus(String key, String status, AuthUserPrincipal actor) {
         if (!List.of("ENABLED", "DISABLED").contains(status)) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "集成配置状态只支持 ENABLED 或 DISABLED");
         }
@@ -93,16 +97,16 @@ final class PostgresManagementConfigService {
         return updated;
     }
 
-    PageResponse<SettingView> settings(PageQuery pageQuery) {
+    public PageResponse<SettingView> settings(PageQuery pageQuery) {
         PageResponse<SettingRow> rows = page(mapper::listSettings, mapper::countSettings, pageQuery, values());
         return PageResponse.of(rows.items().stream().map(this::settingView).toList(), pageQuery.index(), pageQuery.size(), rows.total());
     }
 
-    SettingView setting(String key) {
+    public SettingView setting(String key) {
         return settingView(settingRow(key));
     }
 
-    SettingView createSetting(CreateSettingRequest request, AuthUserPrincipal actor) {
+    public SettingView createSetting(CreateSettingRequest request, AuthUserPrincipal actor) {
         String key = normalizeSearch(request.key());
         rejectSensitivePlainSetting(key, request.value());
         String scopeType = defaultText(request.scopeType(), "SYSTEM");
@@ -121,7 +125,7 @@ final class PostgresManagementConfigService {
         return created;
     }
 
-    SettingView updateSetting(String key, UpdateSettingRequest request, AuthUserPrincipal actor) {
+    public SettingView updateSetting(String key, UpdateSettingRequest request, AuthUserPrincipal actor) {
         SettingRow current = settingRow(key);
         SettingView currentView = settingView(current);
         String name = defaultText(request.name(), currentView.name());
@@ -138,7 +142,7 @@ final class PostgresManagementConfigService {
         return updated;
     }
 
-    SettingView changeSettingStatus(String key, String status, AuthUserPrincipal actor) {
+    public SettingView changeSettingStatus(String key, String status, AuthUserPrincipal actor) {
         if (!List.of("ENABLED", "DISABLED").contains(status)) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "系统设置状态只支持 ENABLED 或 DISABLED");
         }

@@ -4,18 +4,23 @@ import com.songhg.veri.agent.auth.application.AuthUserPrincipal;
 import com.songhg.veri.agent.common.api.PageQuery;
 import com.songhg.veri.agent.common.api.PageResponse;
 import com.songhg.veri.agent.common.audit.AuditLogWriter;
+import com.songhg.veri.agent.management.application.port.ProjectOperations;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
-import com.songhg.veri.agent.management.application.CreateProjectRequest;
-import com.songhg.veri.agent.management.application.ProjectMemberRequest;
-import com.songhg.veri.agent.management.application.UpdateProjectRequest;
-import com.songhg.veri.agent.management.application.ProjectMemberView;
-import com.songhg.veri.agent.management.application.ProjectView;
-import com.songhg.veri.agent.management.application.UserView;
+import com.songhg.veri.agent.management.application.command.CreateProjectRequest;
+import com.songhg.veri.agent.management.application.command.ProjectMemberRequest;
+import com.songhg.veri.agent.management.application.command.UpdateProjectRequest;
+import com.songhg.veri.agent.management.application.view.ProjectMemberView;
+import com.songhg.veri.agent.management.application.view.ProjectView;
+import com.songhg.veri.agent.management.application.view.UserView;
 import java.util.ArrayList;
 import java.util.List;
+import org.springframework.context.annotation.Profile;
+import org.springframework.stereotype.Service;
 
-final class InMemoryManagementProjectService {
+@Profile("local")
+@Service
+final class InMemoryManagementProjectService implements ProjectOperations {
 
     private final List<ProjectView> projects = new ArrayList<>();
     private final List<ProjectMemberView> projectMembers = new ArrayList<>();
@@ -32,15 +37,15 @@ final class InMemoryManagementProjectService {
         ));
     }
 
-    PageResponse<ProjectView> projects(PageQuery pageQuery, AuthUserPrincipal actor) {
+    public synchronized PageResponse<ProjectView> projects(PageQuery pageQuery, AuthUserPrincipal actor) {
         return page(projects, pageQuery);
     }
 
-    ProjectView project(String key) {
+    public synchronized ProjectView project(String key) {
         return requireProject(key);
     }
 
-    ProjectView createProject(CreateProjectRequest request, AuthUserPrincipal actor) {
+    public synchronized ProjectView createProject(CreateProjectRequest request, AuthUserPrincipal actor) {
         String name = request.name().trim();
         ProjectView view = new ProjectView(name, "质量工程中心", actor.displayName(), 0, "规划中");
         projects.add(0, view);
@@ -48,7 +53,7 @@ final class InMemoryManagementProjectService {
         return view;
     }
 
-    ProjectView updateProject(String key, UpdateProjectRequest request, AuthUserPrincipal actor) {
+    public synchronized ProjectView updateProject(String key, UpdateProjectRequest request, AuthUserPrincipal actor) {
         ProjectView current = requireProject(key);
         if ("已归档".equals(current.status()) || "已停用".equals(current.status())) {
             throw new BusinessException(ErrorCode.INVALID_STATE, "当前项目状态不允许编辑");
@@ -67,7 +72,7 @@ final class InMemoryManagementProjectService {
         return updated;
     }
 
-    ProjectView changeProjectStatus(String key, String status, AuthUserPrincipal actor) {
+    public synchronized ProjectView changeProjectStatus(String key, String status, AuthUserPrincipal actor) {
         ProjectView current = requireProject(key);
         String nextStatusCode = normalizeProjectStatus(status);
         ensureProjectStatusTransition(actor, current.name(), projectStatusCode(current.status()), nextStatusCode);
@@ -86,12 +91,12 @@ final class InMemoryManagementProjectService {
         return updated;
     }
 
-    PageResponse<ProjectMemberView> projectMembers(String projectKey, PageQuery pageQuery) {
+    public synchronized PageResponse<ProjectMemberView> projectMembers(String projectKey, PageQuery pageQuery) {
         requireProject(projectKey);
         return page(projectMembers, pageQuery);
     }
 
-    ProjectMemberView addProjectMember(String projectKey, ProjectMemberRequest request, AuthUserPrincipal actor) {
+    public synchronized ProjectMemberView addProjectMember(String projectKey, ProjectMemberRequest request, AuthUserPrincipal actor) {
         requireProject(projectKey);
         UserView user = userService.requireUser(request.username().trim());
         projectMembers.removeIf(member -> member.username().equals(user.username()));
@@ -107,7 +112,7 @@ final class InMemoryManagementProjectService {
         return view;
     }
 
-    ProjectMemberView removeProjectMember(String projectKey, String username, AuthUserPrincipal actor) {
+    public synchronized ProjectMemberView removeProjectMember(String projectKey, String username, AuthUserPrincipal actor) {
         requireProject(projectKey);
         ProjectMemberView current = projectMembers.stream()
                 .filter(member -> member.username().equals(username))

@@ -4,10 +4,11 @@ import com.songhg.veri.agent.auth.application.AuthUserPrincipal;
 import com.songhg.veri.agent.common.api.PageQuery;
 import com.songhg.veri.agent.common.api.PageResponse;
 import com.songhg.veri.agent.common.audit.AuditLogWriter;
+import com.songhg.veri.agent.management.application.port.UserOperations;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
-import com.songhg.veri.agent.management.application.UpdateUserRequest;
-import com.songhg.veri.agent.management.application.UserView;
+import com.songhg.veri.agent.management.application.command.UpdateUserRequest;
+import com.songhg.veri.agent.management.application.view.UserView;
 import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapper;
 import java.util.HashMap;
 import java.util.List;
@@ -20,10 +21,12 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Profile("db")
 @Service
-final class PostgresManagementUserService {
+@Transactional
+class PostgresManagementUserService implements UserOperations {
 
     private final ManagementMapper mapper;
     private final AuditLogWriter auditLogWriter;
@@ -39,15 +42,15 @@ final class PostgresManagementUserService {
         this.passwordEncoder = passwordEncoder;
     }
 
-    PageResponse<UserView> users(PageQuery pageQuery) {
+    public PageResponse<UserView> users(PageQuery pageQuery) {
         return page(mapper::listUsers, mapper::countUsers, pageQuery, values());
     }
 
-    UserView user(String username) {
+    public UserView user(String username) {
         return userByUsername(username);
     }
 
-    UserView createUser(String username, AuthUserPrincipal actor) {
+    public UserView createUser(String username, AuthUserPrincipal actor) {
         UUID userId = UUID.randomUUID();
         try {
             update(mapper::insertUser, actor, values("userId", userId, "username", username));
@@ -59,7 +62,7 @@ final class PostgresManagementUserService {
         return new UserView(username, username, "", "Tester", "未分配", "待激活", "尚未登录");
     }
 
-    UserView updateUser(String username, UpdateUserRequest request, AuthUserPrincipal actor) {
+    public UserView updateUser(String username, UpdateUserRequest request, AuthUserPrincipal actor) {
         UserView before = userByUsername(username);
         try {
             int rows = update(mapper::updateUser, actor, values(
@@ -77,13 +80,13 @@ final class PostgresManagementUserService {
         return updated;
     }
 
-    UserView enableUser(String username, AuthUserPrincipal actor) {
+    public UserView enableUser(String username, AuthUserPrincipal actor) {
         ensureUserUpdated(update(mapper::enableUser, actor, values("username", username)));
         audit(actor, "启用用户", "user", username, username);
         return userByUsername(username);
     }
 
-    UserView disableUser(String username, AuthUserPrincipal actor) {
+    public UserView disableUser(String username, AuthUserPrincipal actor) {
         if (actor.username().equals(username)) {
             throw new BusinessException(ErrorCode.INVALID_STATE, "不能停用当前登录账号");
         }
@@ -92,7 +95,7 @@ final class PostgresManagementUserService {
         return userByUsername(username);
     }
 
-    UserView lockUser(String username, AuthUserPrincipal actor) {
+    public UserView lockUser(String username, AuthUserPrincipal actor) {
         if (actor.username().equals(username)) {
             throw new BusinessException(ErrorCode.INVALID_STATE, "不能锁定当前登录账号");
         }
@@ -101,13 +104,13 @@ final class PostgresManagementUserService {
         return userByUsername(username);
     }
 
-    UserView unlockUser(String username, AuthUserPrincipal actor) {
+    public UserView unlockUser(String username, AuthUserPrincipal actor) {
         ensureUserUpdated(update(mapper::unlockUser, actor, values("username", username)));
         audit(actor, "解锁用户", "user", username, username);
         return userByUsername(username);
     }
 
-    UserView resetUserPassword(String username, String newPassword, AuthUserPrincipal actor) {
+    public UserView resetUserPassword(String username, String newPassword, AuthUserPrincipal actor) {
         ensureUserUpdated(update(mapper::resetUserPassword, actor, values(
                 "username", username,
                 "passwordHash", passwordEncoder.encode(newPassword)

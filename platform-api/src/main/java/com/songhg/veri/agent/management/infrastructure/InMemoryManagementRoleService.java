@@ -5,22 +5,27 @@ import com.songhg.veri.agent.auth.application.AuthUserPrincipal;
 import com.songhg.veri.agent.common.api.PageQuery;
 import com.songhg.veri.agent.common.api.PageResponse;
 import com.songhg.veri.agent.common.audit.AuditLogWriter;
+import com.songhg.veri.agent.management.application.port.RoleOperations;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
-import com.songhg.veri.agent.management.application.CreateRoleRequest;
-import com.songhg.veri.agent.management.application.UpdateRoleRequest;
-import com.songhg.veri.agent.management.application.PermissionView;
-import com.songhg.veri.agent.management.application.RoleDetailView;
-import com.songhg.veri.agent.management.application.RoleView;
-import com.songhg.veri.agent.management.application.UserView;
+import com.songhg.veri.agent.management.application.command.CreateRoleRequest;
+import com.songhg.veri.agent.management.application.command.UpdateRoleRequest;
+import com.songhg.veri.agent.management.application.view.PermissionView;
+import com.songhg.veri.agent.management.application.view.RoleDetailView;
+import com.songhg.veri.agent.management.application.view.RoleView;
+import com.songhg.veri.agent.management.application.view.UserView;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.springframework.context.annotation.Profile;
+import org.springframework.stereotype.Service;
 
-final class InMemoryManagementRoleService {
+@Profile("local")
+@Service
+final class InMemoryManagementRoleService implements RoleOperations {
 
     private final List<RoleView> roles = new ArrayList<>();
     private final List<PermissionView> permissions = new ArrayList<>();
@@ -56,20 +61,20 @@ final class InMemoryManagementRoleService {
         ));
     }
 
-    PageResponse<RoleView> roles(PageQuery pageQuery) {
+    public synchronized PageResponse<RoleView> roles(PageQuery pageQuery) {
         return page(roles, pageQuery);
     }
 
-    PageResponse<PermissionView> permissions(PageQuery pageQuery) {
+    public synchronized PageResponse<PermissionView> permissions(PageQuery pageQuery) {
         return page(permissions, pageQuery);
     }
 
-    RoleDetailView role(String code) {
+    public synchronized RoleDetailView role(String code) {
         RoleView role = requireRoleView(code);
         return roleDetail(role);
     }
 
-    RoleDetailView createRole(CreateRoleRequest request, Set<String> assignablePermissions, AuthUserPrincipal actor) {
+    public synchronized RoleDetailView createRole(CreateRoleRequest request, Set<String> assignablePermissions, AuthUserPrincipal actor) {
         String code = request.code().trim();
         if (roles.stream().anyMatch(role -> role.code().equals(code))) {
             throw new BusinessException(ErrorCode.CONFLICT, "角色编码已存在");
@@ -90,7 +95,7 @@ final class InMemoryManagementRoleService {
         return roleDetail(view);
     }
 
-    RoleDetailView updateRole(String code, UpdateRoleRequest request, Set<String> assignablePermissions, AuthUserPrincipal actor) {
+    public synchronized RoleDetailView updateRole(String code, UpdateRoleRequest request, Set<String> assignablePermissions, AuthUserPrincipal actor) {
         RoleView current = requireRoleView(code);
         ensureCustomRole(current);
         List<String> nextPermissionCodes = rolePermissions.getOrDefault(current.code(), List.of());
@@ -112,7 +117,7 @@ final class InMemoryManagementRoleService {
         return roleDetail(updated);
     }
 
-    RoleDetailView changeRoleStatus(String code, String status, AuthUserPrincipal actor) {
+    public synchronized RoleDetailView changeRoleStatus(String code, String status, AuthUserPrincipal actor) {
         RoleView current = requireRoleView(code);
         ensureCustomRole(current);
         if (!List.of("ENABLED", "DISABLED").contains(status)) {
@@ -130,12 +135,12 @@ final class InMemoryManagementRoleService {
         return roleDetail(updated);
     }
 
-    UserView assignUserRole(String username, String roleCode, AuthUserPrincipal actor) {
+    public synchronized UserView assignUserRole(String username, String roleCode, AuthUserPrincipal actor) {
         requireRole(roleCode);
         return userService.assignUserRole(username, roleCode, actor);
     }
 
-    UserView unassignUserRole(String username, String roleCode, AuthUserPrincipal actor) {
+    public synchronized UserView unassignUserRole(String username, String roleCode, AuthUserPrincipal actor) {
         return userService.unassignUserRole(username, roleCode, actor);
     }
 

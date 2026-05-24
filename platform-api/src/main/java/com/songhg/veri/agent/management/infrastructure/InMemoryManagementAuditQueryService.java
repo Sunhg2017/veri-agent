@@ -4,19 +4,24 @@ import com.songhg.veri.agent.auth.application.AuthUserPrincipal;
 import com.songhg.veri.agent.common.api.PageQuery;
 import com.songhg.veri.agent.common.api.PageResponse;
 import com.songhg.veri.agent.common.audit.AuditLogWriter;
+import com.songhg.veri.agent.management.application.port.AuditOperations;
 import com.songhg.veri.agent.common.audit.InMemoryAuditLogWriter;
-import com.songhg.veri.agent.management.application.AuditLogView;
-import com.songhg.veri.agent.management.application.AuditOutboxView;
-import com.songhg.veri.agent.management.application.AuditLogQuery;
-import com.songhg.veri.agent.management.application.AuditOutboxQuery;
+import com.songhg.veri.agent.management.application.view.AuditLogView;
+import com.songhg.veri.agent.management.application.view.AuditOutboxView;
+import com.songhg.veri.agent.management.application.query.AuditLogQuery;
+import com.songhg.veri.agent.management.application.query.AuditOutboxQuery;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import org.springframework.context.annotation.Profile;
+import org.springframework.stereotype.Service;
 
-final class InMemoryManagementAuditQueryService {
+@Profile("local")
+@Service
+final class InMemoryManagementAuditQueryService implements AuditOperations {
 
     private static final DateTimeFormatter TIME_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
 
@@ -69,7 +74,7 @@ final class InMemoryManagementAuditQueryService {
         ));
     }
 
-    PageResponse<AuditLogView> auditLogs(PageQuery pageQuery, AuditLogQuery query, AuthUserPrincipal actor) {
+    public synchronized PageResponse<AuditLogView> auditLogs(PageQuery pageQuery, AuditLogQuery query, AuthUserPrincipal actor) {
         List<AuditLogView> combined = new ArrayList<>();
         combined.addAll(InMemoryAuditLogWriter.records().stream()
                 .map(this::auditRecordView)
@@ -81,7 +86,7 @@ final class InMemoryManagementAuditQueryService {
         return page(filtered, PageQuery.of(pageQuery.index(), pageQuery.size()));
     }
 
-    String exportAuditLogsCsv(AuditLogQuery query, AuthUserPrincipal actor) {
+    public synchronized String exportAuditLogsCsv(AuditLogQuery query, AuthUserPrincipal actor) {
         PageResponse<AuditLogView> page = auditLogs(PageQuery.of(0, 100), query, actor);
         StringBuilder csv = new StringBuilder("time,actor,action,target,result\n");
         page.items().forEach(item -> {
@@ -97,7 +102,7 @@ final class InMemoryManagementAuditQueryService {
         return csv.toString();
     }
 
-    PageResponse<AuditOutboxView> auditOutbox(PageQuery pageQuery, AuditOutboxQuery query, AuthUserPrincipal actor) {
+    public synchronized PageResponse<AuditOutboxView> auditOutbox(PageQuery pageQuery, AuditOutboxQuery query, AuthUserPrincipal actor) {
         List<AuditOutboxView> filtered = auditOutbox.stream()
                 .filter(item -> matchesAuditOutbox(item, query))
                 .toList();

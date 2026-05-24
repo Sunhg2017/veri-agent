@@ -6,16 +6,17 @@ import com.songhg.veri.agent.auth.application.AuthUserPrincipal;
 import com.songhg.veri.agent.common.api.PageQuery;
 import com.songhg.veri.agent.common.api.PageResponse;
 import com.songhg.veri.agent.common.audit.AuditLogWriter;
+import com.songhg.veri.agent.management.application.port.EnvironmentOperations;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
 import com.songhg.veri.agent.common.trace.TraceContext;
-import com.songhg.veri.agent.management.application.CreateEnvironmentRequest;
-import com.songhg.veri.agent.management.application.ScopedUserRoleRequest;
-import com.songhg.veri.agent.management.application.UpdateEnvironmentRequest;
-import com.songhg.veri.agent.management.application.EnvironmentConnectivityCheckView;
-import com.songhg.veri.agent.management.application.EnvironmentView;
-import com.songhg.veri.agent.management.application.ScopedUserRoleView;
-import com.songhg.veri.agent.management.application.EnvironmentConnectivityChecker;
+import com.songhg.veri.agent.management.application.command.CreateEnvironmentRequest;
+import com.songhg.veri.agent.management.application.command.ScopedUserRoleRequest;
+import com.songhg.veri.agent.management.application.command.UpdateEnvironmentRequest;
+import com.songhg.veri.agent.management.application.view.EnvironmentConnectivityCheckView;
+import com.songhg.veri.agent.management.application.view.EnvironmentView;
+import com.songhg.veri.agent.management.application.view.ScopedUserRoleView;
+import com.songhg.veri.agent.management.application.port.EnvironmentConnectivityChecker;
 import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapper;
 import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows.ApplicationRef;
 import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows.EnvironmentConnectivityTargetRow;
@@ -31,10 +32,12 @@ import java.util.function.ToLongFunction;
 import org.springframework.context.annotation.Profile;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Profile("db")
 @Service
-final class PostgresManagementEnvironmentService {
+@Transactional
+class PostgresManagementEnvironmentService implements EnvironmentOperations {
 
     private final ManagementMapper mapper;
     private final AuditLogWriter auditLogWriter;
@@ -56,15 +59,15 @@ final class PostgresManagementEnvironmentService {
         this.projectService = projectService;
     }
 
-    PageResponse<EnvironmentView> environments(PageQuery pageQuery, AuthUserPrincipal actor) {
+    public PageResponse<EnvironmentView> environments(PageQuery pageQuery, AuthUserPrincipal actor) {
         return page(mapper::listEnvironments, mapper::countEnvironments, pageQuery, scope(actor));
     }
 
-    EnvironmentView environment(String key) {
+    public EnvironmentView environment(String key) {
         return environmentByKey(key);
     }
 
-    EnvironmentView createEnvironment(CreateEnvironmentRequest request, AuthUserPrincipal actor) {
+    public EnvironmentView createEnvironment(CreateEnvironmentRequest request, AuthUserPrincipal actor) {
         String name = request.name().trim();
         ProjectRef project = projectService.resolveProject(request.project(), actor);
         ensureProjectEditable(project.status());
@@ -93,7 +96,7 @@ final class PostgresManagementEnvironmentService {
         return new EnvironmentView(name, project.name(), endpoint, "可用");
     }
 
-    EnvironmentView updateEnvironment(String key, UpdateEnvironmentRequest request, AuthUserPrincipal actor) {
+    public EnvironmentView updateEnvironment(String key, UpdateEnvironmentRequest request, AuthUserPrincipal actor) {
         EnvironmentRef environment = resolveEnvironmentStrict(key);
         ensureEnabled(environment.status(), "当前环境状态不允许编辑");
         EnvironmentView before = environmentByKey(environment.id().toString());
@@ -114,7 +117,7 @@ final class PostgresManagementEnvironmentService {
         return updated;
     }
 
-    EnvironmentView changeEnvironmentStatus(String key, String status, AuthUserPrincipal actor) {
+    public EnvironmentView changeEnvironmentStatus(String key, String status, AuthUserPrincipal actor) {
         EnvironmentRef environment = resolveEnvironmentStrict(key);
         String nextStatus = normalizeEnabledStatus(status, "环境状态不支持");
         update(mapper::changeEnvironmentStatus, actor, values("environmentId", environment.id(), "status", nextStatus));
@@ -123,12 +126,12 @@ final class PostgresManagementEnvironmentService {
         return updated;
     }
 
-    EnvironmentConnectivityCheckView environmentConnectivityCheck(String key) {
+    public EnvironmentConnectivityCheckView environmentConnectivityCheck(String key) {
         EnvironmentConnectivityTargetRow target = resolveEnvironmentConnectivityTarget(key);
         return environmentConnectivityCheckView(target);
     }
 
-    EnvironmentConnectivityCheckView checkEnvironmentConnectivity(String key, AuthUserPrincipal actor) {
+    public EnvironmentConnectivityCheckView checkEnvironmentConnectivity(String key, AuthUserPrincipal actor) {
         EnvironmentConnectivityTargetRow target = resolveEnvironmentConnectivityTarget(key);
         ensureEnabled(target.status(), "停用环境不可执行连通性检查");
         EnvironmentConnectivityCheckView result = connectivityChecker.check(
@@ -144,12 +147,12 @@ final class PostgresManagementEnvironmentService {
         return result;
     }
 
-    PageResponse<ScopedUserRoleView> environmentUsers(String environmentKey, PageQuery pageQuery) {
+    public PageResponse<ScopedUserRoleView> environmentUsers(String environmentKey, PageQuery pageQuery) {
         EnvironmentRef environment = resolveEnvironmentStrict(environmentKey);
         return scopedUserRoles(environment.id(), "ENVIRONMENT", "", pageQuery);
     }
 
-    ScopedUserRoleView addEnvironmentUser(String environmentKey, ScopedUserRoleRequest request, AuthUserPrincipal actor) {
+    public ScopedUserRoleView addEnvironmentUser(String environmentKey, ScopedUserRoleRequest request, AuthUserPrincipal actor) {
         EnvironmentRef environment = resolveEnvironmentStrict(environmentKey);
         ensureEnabled(environment.status(), "当前环境状态不允许维护授权用户");
         String roleCode = request.roleCode().trim();
@@ -166,7 +169,7 @@ final class PostgresManagementEnvironmentService {
         return view;
     }
 
-    ScopedUserRoleView removeEnvironmentUser(String environmentKey, String username, AuthUserPrincipal actor) {
+    public ScopedUserRoleView removeEnvironmentUser(String environmentKey, String username, AuthUserPrincipal actor) {
         EnvironmentRef environment = resolveEnvironmentStrict(environmentKey);
         ScopedUserRoleView current = scopedUserRoleByUsername(environment.id(), "ENVIRONMENT", "", username, "环境授权用户不存在");
         UUID userId = requireUserId(username);

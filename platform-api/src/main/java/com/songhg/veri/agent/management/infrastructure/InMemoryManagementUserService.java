@@ -4,14 +4,19 @@ import com.songhg.veri.agent.auth.application.AuthUserPrincipal;
 import com.songhg.veri.agent.common.api.PageQuery;
 import com.songhg.veri.agent.common.api.PageResponse;
 import com.songhg.veri.agent.common.audit.AuditLogWriter;
+import com.songhg.veri.agent.management.application.port.UserOperations;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
-import com.songhg.veri.agent.management.application.UpdateUserRequest;
-import com.songhg.veri.agent.management.application.UserView;
+import com.songhg.veri.agent.management.application.command.UpdateUserRequest;
+import com.songhg.veri.agent.management.application.view.UserView;
 import java.util.ArrayList;
 import java.util.List;
+import org.springframework.context.annotation.Profile;
+import org.springframework.stereotype.Service;
 
-final class InMemoryManagementUserService {
+@Profile("local")
+@Service
+final class InMemoryManagementUserService implements UserOperations {
 
     private final List<UserView> users = new ArrayList<>();
     private final AuditLogWriter auditLogWriter;
@@ -25,22 +30,22 @@ final class InMemoryManagementUserService {
         ));
     }
 
-    PageResponse<UserView> users(PageQuery pageQuery) {
+    public synchronized PageResponse<UserView> users(PageQuery pageQuery) {
         return page(users, pageQuery);
     }
 
-    UserView user(String username) {
+    public synchronized UserView user(String username) {
         return requireUser(username);
     }
 
-    UserView createUser(String username, AuthUserPrincipal actor) {
+    public synchronized UserView createUser(String username, AuthUserPrincipal actor) {
         UserView view = new UserView(username, username, "", "Tester", "质量工程中心", "待激活", "尚未登录");
         users.add(0, view);
         audit(actor, "邀请用户", username);
         return view;
     }
 
-    UserView updateUser(String username, UpdateUserRequest request, AuthUserPrincipal actor) {
+    public synchronized UserView updateUser(String username, UpdateUserRequest request, AuthUserPrincipal actor) {
         UserView current = requireUser(username);
         UserView updated = new UserView(
                 current.username(),
@@ -56,13 +61,13 @@ final class InMemoryManagementUserService {
         return updated;
     }
 
-    UserView enableUser(String username, AuthUserPrincipal actor) {
+    public synchronized UserView enableUser(String username, AuthUserPrincipal actor) {
         UserView view = replaceUserStatus(username, "启用");
         audit(actor, "启用用户", username);
         return view;
     }
 
-    UserView disableUser(String username, AuthUserPrincipal actor) {
+    public synchronized UserView disableUser(String username, AuthUserPrincipal actor) {
         if (actor.username().equals(username)) {
             throw new BusinessException(ErrorCode.INVALID_STATE, "不能停用当前登录账号");
         }
@@ -71,7 +76,7 @@ final class InMemoryManagementUserService {
         return view;
     }
 
-    UserView lockUser(String username, AuthUserPrincipal actor) {
+    public synchronized UserView lockUser(String username, AuthUserPrincipal actor) {
         if (actor.username().equals(username)) {
             throw new BusinessException(ErrorCode.INVALID_STATE, "不能锁定当前登录账号");
         }
@@ -80,19 +85,19 @@ final class InMemoryManagementUserService {
         return view;
     }
 
-    UserView unlockUser(String username, AuthUserPrincipal actor) {
+    public synchronized UserView unlockUser(String username, AuthUserPrincipal actor) {
         UserView view = replaceUserStatus(username, "启用");
         audit(actor, "解锁用户", username);
         return view;
     }
 
-    UserView resetUserPassword(String username, String newPassword, AuthUserPrincipal actor) {
+    public synchronized UserView resetUserPassword(String username, String newPassword, AuthUserPrincipal actor) {
         UserView view = replaceUserStatus(username, "启用");
         audit(actor, "重置密码", username);
         return view;
     }
 
-    UserView assignUserRole(String username, String roleCode, AuthUserPrincipal actor) {
+    public synchronized UserView assignUserRole(String username, String roleCode, AuthUserPrincipal actor) {
         UserView current = requireUser(username);
         if (hasRole(current.role(), roleCode)) {
             return current;
@@ -102,7 +107,7 @@ final class InMemoryManagementUserService {
         return updated;
     }
 
-    UserView unassignUserRole(String username, String roleCode, AuthUserPrincipal actor) {
+    public synchronized UserView unassignUserRole(String username, String roleCode, AuthUserPrincipal actor) {
         UserView current = requireUser(username);
         List<String> roleCodes = List.of(current.role().split(" / ")).stream()
                 .filter(role -> !role.equals(roleCode))
@@ -112,7 +117,7 @@ final class InMemoryManagementUserService {
         return updated;
     }
 
-    UserView requireUser(String username) {
+    public synchronized UserView requireUser(String username) {
         return users.stream()
                 .filter(user -> user.username().equals(username))
                 .findFirst()

@@ -4,14 +4,15 @@ import com.songhg.veri.agent.auth.application.AuthUserPrincipal;
 import com.songhg.veri.agent.common.api.PageQuery;
 import com.songhg.veri.agent.common.api.PageResponse;
 import com.songhg.veri.agent.common.audit.AuditLogWriter;
+import com.songhg.veri.agent.management.application.port.RoleOperations;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
-import com.songhg.veri.agent.management.application.CreateRoleRequest;
-import com.songhg.veri.agent.management.application.UpdateRoleRequest;
-import com.songhg.veri.agent.management.application.PermissionView;
-import com.songhg.veri.agent.management.application.RoleDetailView;
-import com.songhg.veri.agent.management.application.RoleView;
-import com.songhg.veri.agent.management.application.UserView;
+import com.songhg.veri.agent.management.application.command.CreateRoleRequest;
+import com.songhg.veri.agent.management.application.command.UpdateRoleRequest;
+import com.songhg.veri.agent.management.application.view.PermissionView;
+import com.songhg.veri.agent.management.application.view.RoleDetailView;
+import com.songhg.veri.agent.management.application.view.RoleView;
+import com.songhg.veri.agent.management.application.view.UserView;
 import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapper;
 import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows.RoleRow;
 import java.util.ArrayList;
@@ -27,10 +28,12 @@ import java.util.function.ToLongFunction;
 import org.springframework.context.annotation.Profile;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Profile("db")
 @Service
-final class PostgresManagementRoleService {
+@Transactional
+class PostgresManagementRoleService implements RoleOperations {
 
     private final ManagementMapper mapper;
     private final AuditLogWriter auditLogWriter;
@@ -40,19 +43,19 @@ final class PostgresManagementRoleService {
         this.auditLogWriter = auditLogWriter;
     }
 
-    PageResponse<RoleView> roles(PageQuery pageQuery) {
+    public PageResponse<RoleView> roles(PageQuery pageQuery) {
         return page(mapper::listRoles, mapper::countRoles, pageQuery, values());
     }
 
-    PageResponse<PermissionView> permissions(PageQuery pageQuery) {
+    public PageResponse<PermissionView> permissions(PageQuery pageQuery) {
         return page(mapper::listPermissions, mapper::countPermissions, pageQuery, values());
     }
 
-    RoleDetailView role(String code) {
+    public RoleDetailView role(String code) {
         return roleDetail(requireRoleRow(code));
     }
 
-    RoleDetailView createRole(CreateRoleRequest request, Set<String> assignablePermissions, AuthUserPrincipal actor) {
+    public RoleDetailView createRole(CreateRoleRequest request, Set<String> assignablePermissions, AuthUserPrincipal actor) {
         String code = request.code().trim();
         String name = request.name().trim();
         String scopeType = request.scopeType().trim();
@@ -78,7 +81,7 @@ final class PostgresManagementRoleService {
         return created;
     }
 
-    RoleDetailView updateRole(String code, UpdateRoleRequest request, Set<String> assignablePermissions, AuthUserPrincipal actor) {
+    public RoleDetailView updateRole(String code, UpdateRoleRequest request, Set<String> assignablePermissions, AuthUserPrincipal actor) {
         RoleRow role = requireRoleRow(code);
         ensureCustomRole(role);
         RoleDetailView before = roleDetail(role);
@@ -107,7 +110,7 @@ final class PostgresManagementRoleService {
         return updated;
     }
 
-    RoleDetailView changeRoleStatus(String code, String status, AuthUserPrincipal actor) {
+    public RoleDetailView changeRoleStatus(String code, String status, AuthUserPrincipal actor) {
         RoleRow role = requireRoleRow(code);
         ensureCustomRole(role);
         String nextStatus = normalizeEnabledStatus(status, "角色状态只支持 ENABLED 或 DISABLED");
@@ -118,7 +121,7 @@ final class PostgresManagementRoleService {
         return updated;
     }
 
-    UserView assignUserRole(String username, String roleCode, AuthUserPrincipal actor) {
+    public UserView assignUserRole(String username, String roleCode, AuthUserPrincipal actor) {
         UUID userId = requireUserId(username);
         UUID roleId = requireRoleId(roleCode);
         update(mapper::assignUserRole, actor, values("userId", userId, "roleId", roleId, "roleCode", roleCode));
@@ -127,7 +130,7 @@ final class PostgresManagementRoleService {
         return userByUsername(username);
     }
 
-    UserView unassignUserRole(String username, String roleCode, AuthUserPrincipal actor) {
+    public UserView unassignUserRole(String username, String roleCode, AuthUserPrincipal actor) {
         UUID userId = requireUserId(username);
         int rows = update(mapper::unassignUserRole, actor, values("userId", userId, "roleCode", roleCode));
         if (rows > 0) {

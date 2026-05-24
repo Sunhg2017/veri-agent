@@ -4,22 +4,27 @@ import com.songhg.veri.agent.auth.application.AuthUserPrincipal;
 import com.songhg.veri.agent.common.api.PageQuery;
 import com.songhg.veri.agent.common.api.PageResponse;
 import com.songhg.veri.agent.common.audit.AuditLogWriter;
+import com.songhg.veri.agent.management.application.port.EnvironmentOperations;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
-import com.songhg.veri.agent.management.application.CreateEnvironmentRequest;
-import com.songhg.veri.agent.management.application.ScopedUserRoleRequest;
-import com.songhg.veri.agent.management.application.UpdateEnvironmentRequest;
-import com.songhg.veri.agent.management.application.EnvironmentConnectivityCheckView;
-import com.songhg.veri.agent.management.application.EnvironmentView;
-import com.songhg.veri.agent.management.application.ScopedUserRoleView;
-import com.songhg.veri.agent.management.application.UserView;
-import com.songhg.veri.agent.management.application.EnvironmentConnectivityChecker;
+import com.songhg.veri.agent.management.application.command.CreateEnvironmentRequest;
+import com.songhg.veri.agent.management.application.command.ScopedUserRoleRequest;
+import com.songhg.veri.agent.management.application.command.UpdateEnvironmentRequest;
+import com.songhg.veri.agent.management.application.view.EnvironmentConnectivityCheckView;
+import com.songhg.veri.agent.management.application.view.EnvironmentView;
+import com.songhg.veri.agent.management.application.view.ScopedUserRoleView;
+import com.songhg.veri.agent.management.application.view.UserView;
+import com.songhg.veri.agent.management.application.port.EnvironmentConnectivityChecker;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import org.springframework.context.annotation.Profile;
+import org.springframework.stereotype.Service;
 import java.util.Map;
 
-final class InMemoryManagementEnvironmentService {
+@Profile("local")
+@Service
+final class InMemoryManagementEnvironmentService implements EnvironmentOperations {
 
     private final List<EnvironmentView> environments = new ArrayList<>();
     private final List<ScopedUserRoleView> environmentUsers = new ArrayList<>();
@@ -43,15 +48,15 @@ final class InMemoryManagementEnvironmentService {
         ));
     }
 
-    PageResponse<EnvironmentView> environments(PageQuery pageQuery, AuthUserPrincipal actor) {
+    public synchronized PageResponse<EnvironmentView> environments(PageQuery pageQuery, AuthUserPrincipal actor) {
         return page(environments, pageQuery);
     }
 
-    EnvironmentView environment(String key) {
+    public synchronized EnvironmentView environment(String key) {
         return requireEnvironment(key);
     }
 
-    EnvironmentView createEnvironment(CreateEnvironmentRequest request, AuthUserPrincipal actor) {
+    public synchronized EnvironmentView createEnvironment(CreateEnvironmentRequest request, AuthUserPrincipal actor) {
         String name = request.name().trim();
         String endpoint = request.apiBaseUrl() == null || request.apiBaseUrl().isBlank()
                 ? name + ".local"
@@ -62,7 +67,7 @@ final class InMemoryManagementEnvironmentService {
         return view;
     }
 
-    EnvironmentView updateEnvironment(String key, UpdateEnvironmentRequest request, AuthUserPrincipal actor) {
+    public synchronized EnvironmentView updateEnvironment(String key, UpdateEnvironmentRequest request, AuthUserPrincipal actor) {
         EnvironmentView current = requireEnvironment(key);
         if ("已停用".equals(current.status())) {
             throw new BusinessException(ErrorCode.INVALID_STATE, "当前环境状态不允许编辑");
@@ -80,7 +85,7 @@ final class InMemoryManagementEnvironmentService {
         return updated;
     }
 
-    EnvironmentView changeEnvironmentStatus(String key, String status, AuthUserPrincipal actor) {
+    public synchronized EnvironmentView changeEnvironmentStatus(String key, String status, AuthUserPrincipal actor) {
         EnvironmentView current = requireEnvironment(key);
         if (!List.of("ENABLED", "DISABLED").contains(status)) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "环境状态不支持");
@@ -98,7 +103,7 @@ final class InMemoryManagementEnvironmentService {
         return updated;
     }
 
-    EnvironmentConnectivityCheckView environmentConnectivityCheck(String key) {
+    public synchronized EnvironmentConnectivityCheckView environmentConnectivityCheck(String key) {
         EnvironmentView current = requireEnvironment(key);
         return environmentConnectivityChecks.getOrDefault(
                 current.name(),
@@ -106,7 +111,7 @@ final class InMemoryManagementEnvironmentService {
         );
     }
 
-    EnvironmentConnectivityCheckView checkEnvironmentConnectivity(String key, AuthUserPrincipal actor) {
+    public synchronized EnvironmentConnectivityCheckView checkEnvironmentConnectivity(String key, AuthUserPrincipal actor) {
         EnvironmentView current = requireEnvironment(key);
         if ("已停用".equals(current.status())) {
             throw new BusinessException(ErrorCode.INVALID_STATE, "停用环境不可执行连通性检查");
@@ -117,12 +122,12 @@ final class InMemoryManagementEnvironmentService {
         return result;
     }
 
-    PageResponse<ScopedUserRoleView> environmentUsers(String environmentKey, PageQuery pageQuery) {
+    public synchronized PageResponse<ScopedUserRoleView> environmentUsers(String environmentKey, PageQuery pageQuery) {
         requireEnvironment(environmentKey);
         return page(environmentUsers, pageQuery);
     }
 
-    ScopedUserRoleView addEnvironmentUser(
+    public synchronized ScopedUserRoleView addEnvironmentUser(
             String environmentKey,
             ScopedUserRoleRequest request,
             AuthUserPrincipal actor
@@ -140,7 +145,7 @@ final class InMemoryManagementEnvironmentService {
         return view;
     }
 
-    ScopedUserRoleView removeEnvironmentUser(String environmentKey, String username, AuthUserPrincipal actor) {
+    public synchronized ScopedUserRoleView removeEnvironmentUser(String environmentKey, String username, AuthUserPrincipal actor) {
         requireEnvironment(environmentKey);
         ScopedUserRoleView current = environmentUsers.stream()
                 .filter(envUser -> envUser.username().equals(username))

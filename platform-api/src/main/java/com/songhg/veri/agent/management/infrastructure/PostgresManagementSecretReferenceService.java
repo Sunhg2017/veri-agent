@@ -4,14 +4,15 @@ import com.songhg.veri.agent.auth.application.AuthUserPrincipal;
 import com.songhg.veri.agent.common.api.PageQuery;
 import com.songhg.veri.agent.common.api.PageResponse;
 import com.songhg.veri.agent.common.audit.AuditLogWriter;
+import com.songhg.veri.agent.management.application.port.SecretReferenceOperations;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
 import com.songhg.veri.agent.common.secret.LocalSecretCipher;
 import com.songhg.veri.agent.common.secret.SecretProviderProperties;
-import com.songhg.veri.agent.management.application.CreateSecretReferenceRequest;
-import com.songhg.veri.agent.management.application.DisableSecretReferenceRequest;
-import com.songhg.veri.agent.management.application.RotateSecretReferenceRequest;
-import com.songhg.veri.agent.management.application.SecretReferenceView;
+import com.songhg.veri.agent.management.application.command.CreateSecretReferenceRequest;
+import com.songhg.veri.agent.management.application.command.DisableSecretReferenceRequest;
+import com.songhg.veri.agent.management.application.command.RotateSecretReferenceRequest;
+import com.songhg.veri.agent.management.application.view.SecretReferenceView;
 import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapper;
 import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows.SecretProviderRow;
 import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows.SecretReferenceRow;
@@ -25,10 +26,12 @@ import java.util.function.ToLongFunction;
 import org.springframework.context.annotation.Profile;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Profile("db")
 @Service
-final class PostgresManagementSecretReferenceService {
+@Transactional
+class PostgresManagementSecretReferenceService implements SecretReferenceOperations {
 
     private final ManagementMapper mapper;
     private final AuditLogWriter auditLogWriter;
@@ -44,7 +47,7 @@ final class PostgresManagementSecretReferenceService {
         this.secretProviderProperties = secretProviderProperties;
     }
 
-    PageResponse<SecretReferenceView> secrets(PageQuery pageQuery) {
+    public PageResponse<SecretReferenceView> secrets(PageQuery pageQuery) {
         return page(mapper::listSecretReferences, mapper::countSecretReferences, pageQuery, values());
     }
 
@@ -52,7 +55,7 @@ final class PostgresManagementSecretReferenceService {
      * Persists LOCAL_ENCRYPTED secret references in two steps: metadata for audit/query, encrypted
      * material for runtime resolution. Non-local providers are read-only from this service.
      */
-    SecretReferenceView createSecret(CreateSecretReferenceRequest request, AuthUserPrincipal actor) {
+    public SecretReferenceView createSecret(CreateSecretReferenceRequest request, AuthUserPrincipal actor) {
         String secretRef = request.secretRef().trim();
         String providerCode = defaultText(request.providerCode(), "");
         SecretProviderRow provider = requireOne(
@@ -99,7 +102,7 @@ final class PostgresManagementSecretReferenceService {
      * Rotates only ACTIVE local secrets so historical references cannot be silently revived or
      * overwritten after revocation.
      */
-    SecretReferenceView rotateSecret(RotateSecretReferenceRequest request, AuthUserPrincipal actor) {
+    public SecretReferenceView rotateSecret(RotateSecretReferenceRequest request, AuthUserPrincipal actor) {
         SecretReferenceRow current = secretReferenceRow(request.secretRef());
         ensureLocalProvider(current);
         if (!"ACTIVE".equals(current.status())) {
@@ -133,7 +136,7 @@ final class PostgresManagementSecretReferenceService {
      * Revokes both the visible reference and encrypted material; callers keep the audit trail but
      * runtime resolution no longer has ciphertext to decrypt.
      */
-    SecretReferenceView disableSecret(DisableSecretReferenceRequest request, AuthUserPrincipal actor) {
+    public SecretReferenceView disableSecret(DisableSecretReferenceRequest request, AuthUserPrincipal actor) {
         SecretReferenceRow current = secretReferenceRow(request.secretRef());
         update(mapper::revokeSecretReference, actor, values("secretRefId", current.id()));
         update(mapper::revokeSecretLocalStore, actor, values("secretRefId", current.id()));

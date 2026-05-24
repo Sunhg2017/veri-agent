@@ -4,14 +4,19 @@ import com.songhg.veri.agent.auth.application.AuthUserPrincipal;
 import com.songhg.veri.agent.common.api.PageQuery;
 import com.songhg.veri.agent.common.api.PageResponse;
 import com.songhg.veri.agent.common.audit.AuditLogWriter;
+import com.songhg.veri.agent.management.application.port.DepartmentOperations;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
-import com.songhg.veri.agent.management.application.UpdateDepartmentRequest;
-import com.songhg.veri.agent.management.application.DepartmentView;
+import com.songhg.veri.agent.management.application.command.UpdateDepartmentRequest;
+import com.songhg.veri.agent.management.application.view.DepartmentView;
 import java.util.ArrayList;
 import java.util.List;
+import org.springframework.context.annotation.Profile;
+import org.springframework.stereotype.Service;
 
-final class InMemoryManagementDepartmentService {
+@Profile("local")
+@Service
+final class InMemoryManagementDepartmentService implements DepartmentOperations {
 
     private final List<DepartmentView> departments = new ArrayList<>();
     private final AuditLogWriter auditLogWriter;
@@ -25,22 +30,22 @@ final class InMemoryManagementDepartmentService {
         ));
     }
 
-    PageResponse<DepartmentView> departments(PageQuery pageQuery) {
+    public synchronized PageResponse<DepartmentView> departments(PageQuery pageQuery) {
         return page(departments, pageQuery);
     }
 
-    DepartmentView createDepartment(String name, AuthUserPrincipal actor) {
+    public synchronized DepartmentView createDepartment(String name, AuthUserPrincipal actor) {
         DepartmentView view = new DepartmentView(name, "总部", actor.displayName(), 0, "同步正常");
         departments.add(0, view);
         audit(actor, "创建部门", name);
         return view;
     }
 
-    DepartmentView department(String key) {
+    public synchronized DepartmentView department(String key) {
         return requireDepartment(key);
     }
 
-    DepartmentView updateDepartment(String key, UpdateDepartmentRequest request, AuthUserPrincipal actor) {
+    public synchronized DepartmentView updateDepartment(String key, UpdateDepartmentRequest request, AuthUserPrincipal actor) {
         DepartmentView current = requireDepartment(key);
         if ("已停用".equals(current.status())) {
             throw new BusinessException(ErrorCode.INVALID_STATE, "当前部门状态不允许编辑");
@@ -59,7 +64,7 @@ final class InMemoryManagementDepartmentService {
         return updated;
     }
 
-    DepartmentView changeDepartmentStatus(String key, String status, AuthUserPrincipal actor) {
+    public synchronized DepartmentView changeDepartmentStatus(String key, String status, AuthUserPrincipal actor) {
         DepartmentView current = requireDepartment(key);
         if (!List.of("ENABLED", "DISABLED").contains(status)) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "部门状态不支持");

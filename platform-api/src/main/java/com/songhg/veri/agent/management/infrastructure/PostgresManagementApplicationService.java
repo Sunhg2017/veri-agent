@@ -4,13 +4,14 @@ import com.songhg.veri.agent.auth.application.AuthUserPrincipal;
 import com.songhg.veri.agent.common.api.PageQuery;
 import com.songhg.veri.agent.common.api.PageResponse;
 import com.songhg.veri.agent.common.audit.AuditLogWriter;
+import com.songhg.veri.agent.management.application.port.ApplicationOperations;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
-import com.songhg.veri.agent.management.application.CreateApplicationRequest;
-import com.songhg.veri.agent.management.application.ScopedUserRoleRequest;
-import com.songhg.veri.agent.management.application.UpdateApplicationRequest;
-import com.songhg.veri.agent.management.application.ApplicationView;
-import com.songhg.veri.agent.management.application.ScopedUserRoleView;
+import com.songhg.veri.agent.management.application.command.CreateApplicationRequest;
+import com.songhg.veri.agent.management.application.command.ScopedUserRoleRequest;
+import com.songhg.veri.agent.management.application.command.UpdateApplicationRequest;
+import com.songhg.veri.agent.management.application.view.ApplicationView;
+import com.songhg.veri.agent.management.application.view.ScopedUserRoleView;
 import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapper;
 import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows.ApplicationRef;
 import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows.ProjectRef;
@@ -24,10 +25,12 @@ import java.util.function.ToLongFunction;
 import org.springframework.context.annotation.Profile;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Profile("db")
 @Service
-final class PostgresManagementApplicationService {
+@Transactional
+class PostgresManagementApplicationService implements ApplicationOperations {
 
     private final ManagementMapper mapper;
     private final AuditLogWriter auditLogWriter;
@@ -43,15 +46,15 @@ final class PostgresManagementApplicationService {
         this.projectService = projectService;
     }
 
-    PageResponse<ApplicationView> applications(PageQuery pageQuery, AuthUserPrincipal actor) {
+    public PageResponse<ApplicationView> applications(PageQuery pageQuery, AuthUserPrincipal actor) {
         return page(mapper::listApplications, mapper::countApplications, pageQuery, scope(actor));
     }
 
-    ApplicationView application(String key) {
+    public ApplicationView application(String key) {
         return applicationByKey(key);
     }
 
-    ApplicationView createApplication(CreateApplicationRequest request, AuthUserPrincipal actor) {
+    public ApplicationView createApplication(CreateApplicationRequest request, AuthUserPrincipal actor) {
         String name = request.name().trim();
         String appType = normalizedOrDefault(request.appType(), "Web");
         String code = normalizedOrGeneratedCode(request.code(), "app");
@@ -79,7 +82,7 @@ final class PostgresManagementApplicationService {
         return new ApplicationView(name, appType, project.name(), "v0", "已接入");
     }
 
-    ApplicationView updateApplication(String key, UpdateApplicationRequest request, AuthUserPrincipal actor) {
+    public ApplicationView updateApplication(String key, UpdateApplicationRequest request, AuthUserPrincipal actor) {
         ApplicationRef application = resolveApplicationStrict(key);
         ensureEnabled(application.status(), "当前应用状态不允许编辑");
         ApplicationView before = applicationByKey(application.id().toString());
@@ -102,7 +105,7 @@ final class PostgresManagementApplicationService {
         return updated;
     }
 
-    ApplicationView changeApplicationStatus(String key, String status, AuthUserPrincipal actor) {
+    public ApplicationView changeApplicationStatus(String key, String status, AuthUserPrincipal actor) {
         ApplicationRef application = resolveApplicationStrict(key);
         String nextStatus = normalizeEnabledStatus(status, "应用状态不支持");
         update(mapper::changeApplicationStatus, actor, values("applicationId", application.id(), "status", nextStatus));
@@ -111,12 +114,12 @@ final class PostgresManagementApplicationService {
         return updated;
     }
 
-    PageResponse<ScopedUserRoleView> applicationOwners(String applicationKey, PageQuery pageQuery) {
+    public PageResponse<ScopedUserRoleView> applicationOwners(String applicationKey, PageQuery pageQuery) {
         ApplicationRef application = resolveApplicationStrict(applicationKey);
         return scopedUserRoles(application.id(), "APPLICATION", "AppOwner", pageQuery);
     }
 
-    ScopedUserRoleView addApplicationOwner(String applicationKey, ScopedUserRoleRequest request, AuthUserPrincipal actor) {
+    public ScopedUserRoleView addApplicationOwner(String applicationKey, ScopedUserRoleRequest request, AuthUserPrincipal actor) {
         ApplicationRef application = resolveApplicationStrict(applicationKey);
         ensureEnabled(application.status(), "当前应用状态不允许维护负责人");
         String roleCode = request.roleCode().trim();
@@ -133,7 +136,7 @@ final class PostgresManagementApplicationService {
         return view;
     }
 
-    ScopedUserRoleView removeApplicationOwner(String applicationKey, String username, AuthUserPrincipal actor) {
+    public ScopedUserRoleView removeApplicationOwner(String applicationKey, String username, AuthUserPrincipal actor) {
         ApplicationRef application = resolveApplicationStrict(applicationKey);
         ScopedUserRoleView current = scopedUserRoleByUsername(application.id(), "APPLICATION", "AppOwner", username, "应用负责人不存在");
         UUID userId = requireUserId(username);

@@ -4,15 +4,20 @@ import com.songhg.veri.agent.auth.application.AuthUserPrincipal;
 import com.songhg.veri.agent.common.api.PageQuery;
 import com.songhg.veri.agent.common.api.PageResponse;
 import com.songhg.veri.agent.common.audit.AuditLogWriter;
+import com.songhg.veri.agent.management.application.port.SettingOperations;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
-import com.songhg.veri.agent.management.application.CreateSettingRequest;
-import com.songhg.veri.agent.management.application.UpdateSettingRequest;
-import com.songhg.veri.agent.management.application.SettingView;
+import com.songhg.veri.agent.management.application.command.CreateSettingRequest;
+import com.songhg.veri.agent.management.application.command.UpdateSettingRequest;
+import com.songhg.veri.agent.management.application.view.SettingView;
 import java.util.ArrayList;
 import java.util.List;
+import org.springframework.context.annotation.Profile;
+import org.springframework.stereotype.Service;
 
-final class InMemoryManagementConfigService {
+@Profile("local")
+@Service
+final class InMemoryManagementConfigService implements SettingOperations {
 
     private final List<SettingView> settings = new ArrayList<>();
     private final AuditLogWriter auditLogWriter;
@@ -28,17 +33,17 @@ final class InMemoryManagementConfigService {
         ));
     }
 
-    PageResponse<SettingView> settings(PageQuery pageQuery) {
+    public synchronized PageResponse<SettingView> settings(PageQuery pageQuery) {
         return page(settings.stream()
                 .filter(setting -> "已启用".equals(setting.status()))
                 .toList(), pageQuery);
     }
 
-    SettingView setting(String key) {
+    public synchronized SettingView setting(String key) {
         return requireSetting(key);
     }
 
-    SettingView createSetting(CreateSettingRequest request, AuthUserPrincipal actor) {
+    public synchronized SettingView createSetting(CreateSettingRequest request, AuthUserPrincipal actor) {
         String key = request.key().trim();
         rejectSensitivePlainSetting(key, request.value());
         if (settings.stream().anyMatch(setting -> setting.key().equals(key))) {
@@ -56,7 +61,7 @@ final class InMemoryManagementConfigService {
         return view;
     }
 
-    SettingView updateSetting(String key, UpdateSettingRequest request, AuthUserPrincipal actor) {
+    public synchronized SettingView updateSetting(String key, UpdateSettingRequest request, AuthUserPrincipal actor) {
         SettingView current = requireSetting(key);
         rejectSensitivePlainSetting(current.key(), defaultText(request.value(), current.value()));
         SettingView updated = new SettingView(
@@ -72,7 +77,7 @@ final class InMemoryManagementConfigService {
         return updated;
     }
 
-    SettingView changeSettingStatus(String key, String status, AuthUserPrincipal actor) {
+    public synchronized SettingView changeSettingStatus(String key, String status, AuthUserPrincipal actor) {
         if (!List.of("ENABLED", "DISABLED").contains(status)) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "系统设置状态只支持 ENABLED 或 DISABLED");
         }

@@ -4,15 +4,20 @@ import com.songhg.veri.agent.auth.application.AuthUserPrincipal;
 import com.songhg.veri.agent.common.api.PageQuery;
 import com.songhg.veri.agent.common.api.PageResponse;
 import com.songhg.veri.agent.common.audit.AuditLogWriter;
+import com.songhg.veri.agent.management.application.port.IntegrationOperations;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
-import com.songhg.veri.agent.management.application.CreateIntegrationRequest;
-import com.songhg.veri.agent.management.application.UpdateIntegrationRequest;
-import com.songhg.veri.agent.management.application.IntegrationView;
+import com.songhg.veri.agent.management.application.command.CreateIntegrationRequest;
+import com.songhg.veri.agent.management.application.command.UpdateIntegrationRequest;
+import com.songhg.veri.agent.management.application.view.IntegrationView;
 import java.util.ArrayList;
 import java.util.List;
+import org.springframework.context.annotation.Profile;
+import org.springframework.stereotype.Service;
 
-final class InMemoryManagementIntegrationService {
+@Profile("local")
+@Service
+final class InMemoryManagementIntegrationService implements IntegrationOperations {
 
     private final List<IntegrationView> integrations = new ArrayList<>();
     private final AuditLogWriter auditLogWriter;
@@ -26,15 +31,15 @@ final class InMemoryManagementIntegrationService {
         ));
     }
 
-    PageResponse<IntegrationView> integrations(PageQuery pageQuery) {
+    public synchronized PageResponse<IntegrationView> integrations(PageQuery pageQuery) {
         return page(integrations, pageQuery);
     }
 
-    IntegrationView integration(String key) {
+    public synchronized IntegrationView integration(String key) {
         return requireIntegration(key);
     }
 
-    IntegrationView createIntegration(CreateIntegrationRequest request, AuthUserPrincipal actor) {
+    public synchronized IntegrationView createIntegration(CreateIntegrationRequest request, AuthUserPrincipal actor) {
         String key = integrationKey(request.code(), request.name());
         if (integrations.stream().anyMatch(integration -> integration.key().equals(key))) {
             throw new BusinessException(ErrorCode.CONFLICT, "集成配置已存在");
@@ -51,7 +56,7 @@ final class InMemoryManagementIntegrationService {
         return view;
     }
 
-    IntegrationView updateIntegration(String key, UpdateIntegrationRequest request, AuthUserPrincipal actor) {
+    public synchronized IntegrationView updateIntegration(String key, UpdateIntegrationRequest request, AuthUserPrincipal actor) {
         IntegrationView current = requireIntegration(key);
         IntegrationView updated = new IntegrationView(
                 current.key(),
@@ -66,7 +71,7 @@ final class InMemoryManagementIntegrationService {
         return updated;
     }
 
-    IntegrationView changeIntegrationStatus(String key, String status, AuthUserPrincipal actor) {
+    public synchronized IntegrationView changeIntegrationStatus(String key, String status, AuthUserPrincipal actor) {
         IntegrationView current = requireIntegration(key);
         String nextStatus = "DISABLED".equals(status) ? "已停用" : "已启用";
         IntegrationView updated = new IntegrationView(current.key(), current.name(), current.category(), current.scope(), nextStatus);

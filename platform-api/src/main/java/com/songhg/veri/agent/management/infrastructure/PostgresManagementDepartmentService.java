@@ -4,10 +4,11 @@ import com.songhg.veri.agent.auth.application.AuthUserPrincipal;
 import com.songhg.veri.agent.common.api.PageQuery;
 import com.songhg.veri.agent.common.api.PageResponse;
 import com.songhg.veri.agent.common.audit.AuditLogWriter;
+import com.songhg.veri.agent.management.application.port.DepartmentOperations;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
-import com.songhg.veri.agent.management.application.UpdateDepartmentRequest;
-import com.songhg.veri.agent.management.application.DepartmentView;
+import com.songhg.veri.agent.management.application.command.UpdateDepartmentRequest;
+import com.songhg.veri.agent.management.application.view.DepartmentView;
 import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapper;
 import com.songhg.veri.agent.management.infrastructure.mapper.ManagementMapperRows.DepartmentRef;
 import java.util.HashMap;
@@ -20,10 +21,12 @@ import java.util.function.ToLongFunction;
 import org.springframework.context.annotation.Profile;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Profile("db")
 @Service
-final class PostgresManagementDepartmentService {
+@Transactional
+class PostgresManagementDepartmentService implements DepartmentOperations {
 
     private final ManagementMapper mapper;
     private final AuditLogWriter auditLogWriter;
@@ -33,11 +36,11 @@ final class PostgresManagementDepartmentService {
         this.auditLogWriter = auditLogWriter;
     }
 
-    PageResponse<DepartmentView> departments(PageQuery pageQuery) {
+    public PageResponse<DepartmentView> departments(PageQuery pageQuery) {
         return page(mapper::listDepartments, mapper::countDepartments, pageQuery, values());
     }
 
-    DepartmentView createDepartment(String name, AuthUserPrincipal actor) {
+    public DepartmentView createDepartment(String name, AuthUserPrincipal actor) {
         UUID deptId = UUID.randomUUID();
         String code = nextCode("dept");
         try {
@@ -55,11 +58,11 @@ final class PostgresManagementDepartmentService {
         return new DepartmentView(name, "总部", actor.displayName(), 0, "同步正常");
     }
 
-    DepartmentView department(String key) {
+    public DepartmentView department(String key) {
         return departmentByKey(key);
     }
 
-    DepartmentView updateDepartment(String key, UpdateDepartmentRequest request, AuthUserPrincipal actor) {
+    public DepartmentView updateDepartment(String key, UpdateDepartmentRequest request, AuthUserPrincipal actor) {
         DepartmentRef department = resolveDepartmentStrict(key);
         ensureEnabled(department.status(), "当前部门状态不允许编辑");
         DepartmentView before = departmentByKey(department.id().toString());
@@ -77,7 +80,7 @@ final class PostgresManagementDepartmentService {
         return updated;
     }
 
-    DepartmentView changeDepartmentStatus(String key, String status, AuthUserPrincipal actor) {
+    public DepartmentView changeDepartmentStatus(String key, String status, AuthUserPrincipal actor) {
         DepartmentRef department = resolveDepartmentStrict(key);
         String nextStatus = normalizeEnabledStatus(status, "部门状态不支持");
         update(mapper::changeDepartmentStatus, actor, values("deptId", department.id(), "status", nextStatus));
