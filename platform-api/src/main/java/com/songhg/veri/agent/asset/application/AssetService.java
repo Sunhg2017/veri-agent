@@ -47,7 +47,6 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Instant;
 import java.util.Collections;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -72,7 +71,6 @@ public class AssetService {
     private static final Set<String> REVIEW_STATUSES = AssetReviewStatus.codes();
     private static final Set<String> LIFECYCLE_STATUSES = AssetLifecycleStatus.codes();
     private static final Set<String> PRIORITIES = Set.of("CRITICAL", "HIGH", "MEDIUM", "LOW");
-    private static final Set<String> REQUIREMENT_SOURCES = Set.of(SOURCE_IMPORT, SOURCE_MANUAL);
     private static final Set<String> API_STATUSES = Set.of(STATUS_ACTIVE, "DEPRECATED", "REMOVED");
     private static final Set<String> API_SOURCES = Set.of("OPENAPI", SOURCE_MANUAL, SOURCE_IMPORT);
     private static final Set<String> API_HTTP_METHODS = Set.of("GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS");
@@ -104,6 +102,7 @@ public class AssetService {
     private final AssetTestCaseStepService testCaseStepService;
     private final AssetVersionRollbackService versionRollbackService;
     private final AssetLifecycleService lifecycleService;
+    private final AssetRequirementService requirementService;
 
     public AssetService(AssetRepository repository, PlatformContextClient contextClient) {
         this(repository, contextClient, new ObjectMapper().findAndRegisterModules());
@@ -118,44 +117,35 @@ public class AssetService {
             ObjectMapper objectMapper,
             AssetProjectAuditService projectAuditService
     ) {
-        this(
+        this.repository = repository;
+        this.objectMapper = objectMapper;
+        this.projectAuditService = projectAuditService;
+        this.versionHistoryService = new AssetVersionHistoryService(repository, objectMapper);
+        this.impactAnalysisService = new AssetImpactAnalysisService(repository, projectAuditService);
+        this.prototypeSyncService = new AssetPrototypeSyncService(repository, projectAuditService, objectMapper);
+        this.traceLinkService = new AssetTraceLinkService(repository, projectAuditService);
+        this.testCaseStepService = new AssetTestCaseStepService(
                 repository,
-                objectMapper,
-                new AssetVersionHistoryService(repository, objectMapper),
-                projectAuditService
+                projectAuditService,
+                versionHistoryService
         );
-    }
-
-    private AssetService(
-            AssetRepository repository,
-            ObjectMapper objectMapper,
-            AssetVersionHistoryService versionHistoryService,
-            AssetProjectAuditService projectAuditService
-    ) {
-        this(
+        this.versionRollbackService = new AssetVersionRollbackService(
                 repository,
                 objectMapper,
                 versionHistoryService,
-                new AssetImpactAnalysisService(repository, projectAuditService),
-                new AssetPrototypeSyncService(repository, projectAuditService, objectMapper),
-                new AssetTraceLinkService(repository, projectAuditService),
-                new AssetTestCaseStepService(
-                        repository,
-                        projectAuditService,
-                        versionHistoryService
-                ),
-                new AssetVersionRollbackService(
-                        repository,
-                        objectMapper,
-                        versionHistoryService,
-                        projectAuditService
-                ),
-                new AssetLifecycleService(
-                        repository,
-                        projectAuditService,
-                        versionHistoryService
-                ),
                 projectAuditService
+        );
+        this.lifecycleService = new AssetLifecycleService(
+                repository,
+                projectAuditService,
+                versionHistoryService
+        );
+        this.requirementService = new AssetRequirementService(
+                repository,
+                projectAuditService,
+                versionHistoryService,
+                versionRollbackService,
+                lifecycleService
         );
     }
 
@@ -170,6 +160,7 @@ public class AssetService {
             AssetTestCaseStepService testCaseStepService,
             AssetVersionRollbackService versionRollbackService,
             AssetLifecycleService lifecycleService,
+            AssetRequirementService requirementService,
             AssetProjectAuditService projectAuditService
     ) {
         this.repository = repository;
@@ -182,6 +173,7 @@ public class AssetService {
         this.testCaseStepService = testCaseStepService;
         this.versionRollbackService = versionRollbackService;
         this.lifecycleService = lifecycleService;
+        this.requirementService = requirementService;
     }
 
     public String resolveProjectScopeId(String projectId) {
@@ -189,9 +181,7 @@ public class AssetService {
     }
 
     public String requirementProjectScopeId(UUID id) {
-        return resolveProjectScopeId(repository.requirementIncludingInactive(id)
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "需求不存在: " + id))
-                .projectId());
+        return requirementService.requirementProjectScopeId(id);
     }
 
     public String apiProjectScopeId(UUID id) {
@@ -221,167 +211,33 @@ public class AssetService {
     // ---- Requirements ----
 
     public com.songhg.veri.agent.common.api.PageResponse<RequirementResponse> listRequirements(AssetListRequest request) {
-        validateProjectWhenProvided(request.getProjectId());
-        AssetListQuery query = assetListQuery(request);
-        List<RequirementResponse> items = repository.requirements(query).stream()
-                .map(AssetResponseMapper::toRequirementResponse)
-                .toList();
-        return com.songhg.veri.agent.common.api.PageResponse.of(items, query.index(), query.size(), repository.countRequirements(query));
+        return requirementService.listRequirements(request);
     }
 
     public RequirementResponse getRequirement(UUID id) {
-        return repository.requirement(id)
-                .map(AssetResponseMapper::toRequirementResponse)
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "需求不存在: " + id));
+        return requirementService.getRequirement(id);
     }
 
     public RequirementResponse getRequirementIncludingInactive(UUID id) {
-        AssetRequirement requirement = repository.requirementIncludingInactive(id)
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "需求不存在: " + id));
-        validateProjectWhenProvided(requirement.projectId());
-        return AssetResponseMapper.toRequirementResponse(requirement);
+        return requirementService.getRequirementIncludingInactive(id);
     }
 
     public Optional<RequirementResponse> findImportedRequirement(String projectId, String sourceRef) {
-        if (!StringUtils.hasText(projectId) || !StringUtils.hasText(sourceRef)) {
-            return Optional.empty();
-        }
-        validateProjectWhenProvided(projectId);
-        return repository.requirementBySourceRef(projectId, "IMPORT", sourceRef.trim())
-                .map(AssetResponseMapper::toRequirementResponse);
+        return requirementService.findImportedRequirement(projectId, sourceRef);
     }
 
     @Transactional
     public RequirementResponse createRequirement(CreateRequirementRequest request) {
-        String scopeId = projectContext(request.projectId()).projectId();
-        UUID id = UUID.randomUUID();
-        Instant now = Instant.now();
-        String source = valueIn(request.source(), "MANUAL", REQUIREMENT_SOURCES, "source");
-        String sourceRef = trimToNull(request.sourceRef());
-        if ("IMPORT".equals(source) && sourceRef != null) {
-            Optional<AssetRequirement> existing = repository.requirementBySourceRef(request.projectId(), source, sourceRef);
-            if (existing.isPresent()) {
-                AssetRequirement merged = mergeImportedRequirement(existing.get(), request, now);
-                if (sameRequirement(existing.get(), merged)) {
-                    return AssetResponseMapper.toRequirementResponse(existing.get());
-                }
-                if (!"DRAFT".equals(existing.get().status())) {
-                    writeProjectAudit("UPSERT_DENIED", "REQUIREMENT", existing.get().id(), scopeId, "DENIED");
-                    throw new BusinessException(
-                            ErrorCode.INVALID_STATE,
-                            "既有导入需求已进入评审或审批状态，需人工处理差异后再更新"
-                    );
-                }
-                writeProjectAudit("UPSERT", "REQUIREMENT", merged.id(), scopeId);
-                AssetRequirement stored = repository.saveRequirement(merged);
-                versionHistoryService.recordRequirementChange(existing.get(), stored, "UPSERT");
-                log.info("Updated imported requirement id={}, sourceRef={}, trace_id={}",
-                        stored.id(), sourceRef, TraceContext.getTraceId());
-                return AssetResponseMapper.toRequirementResponse(stored);
-            }
-        }
-        AssetRequirement req = new AssetRequirement(
-                id,
-                assetCode("REQ", id),
-                request.title(),
-                request.description(),
-                source,
-                sourceRef,
-                trimToNull(request.sourceUrl()),
-                trimToNull(request.acceptanceCriteria()),
-                initialStatus(request.status(), "DRAFT", "REQUIREMENT"),
-                valueIn(request.priority(), "MEDIUM", PRIORITIES, "priority"),
-                request.projectId(),
-                request.tags(),
-                AssetVersion.initial(),
-                "ACTIVE",
-                null,
-                null,
-                now,
-                now
-        );
-        writeProjectAudit("CREATE", "REQUIREMENT", id, scopeId);
-        AssetRequirement stored = repository.saveRequirement(req);
-        if (stored.id().equals(id)) {
-            versionHistoryService.recordRequirementCreated(stored);
-            log.info("Created requirement id={}, title={}, trace_id={}", id, request.title(), TraceContext.getTraceId());
-        }
-        return AssetResponseMapper.toRequirementResponse(stored);
-    }
-
-    private AssetRequirement mergeImportedRequirement(
-            AssetRequirement existing,
-            CreateRequirementRequest request,
-            Instant now
-    ) {
-        return new AssetRequirement(
-                existing.id(),
-                existing.code(),
-                request.title(),
-                trimToNull(request.description()),
-                existing.source(),
-                existing.sourceRef(),
-                trimToNull(request.sourceUrl()),
-                trimToNull(request.acceptanceCriteria()),
-                existing.status(),
-                valueIn(request.priority(), existing.priority(), PRIORITIES, "priority"),
-                existing.projectId(),
-                mergeTags(existing.tags(), request.tags()),
-                existing.nextVersion(),
-                existing.lifecycleStatus(),
-                existing.archivedAt(),
-                existing.deletedAt(),
-                existing.createdAt(),
-                now
-        );
-    }
-
-    private static boolean sameRequirement(AssetRequirement left, AssetRequirement right) {
-        return java.util.Objects.equals(left.title(), right.title())
-                && java.util.Objects.equals(left.description(), right.description())
-                && java.util.Objects.equals(left.sourceUrl(), right.sourceUrl())
-                && java.util.Objects.equals(left.acceptanceCriteria(), right.acceptanceCriteria())
-                && java.util.Objects.equals(left.status(), right.status())
-                && java.util.Objects.equals(left.priority(), right.priority())
-                && java.util.Objects.equals(normalizedTags(left.tags()), normalizedTags(right.tags()));
+        return requirementService.createRequirement(request);
     }
 
     @Transactional
     public RequirementResponse updateRequirement(UUID id, UpdateRequirementRequest request) {
-        AssetRequirement existing = repository.requirement(id)
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "需求不存在: " + id));
-        Instant now = Instant.now();
-        String nextStatus = nextRequirementStatus(existing, request.status());
-        AssetRequirement updated = new AssetRequirement(
-                id,
-                existing.code(),
-                request.title(),
-                request.description(),
-                existing.source(),
-                existing.sourceRef(),
-                existing.sourceUrl(),
-                existing.acceptanceCriteria(),
-                nextStatus,
-                valueIn(request.priority(), existing.priority(), PRIORITIES, "priority"),
-                existing.projectId(),
-                request.tags(),
-                existing.nextVersion(),
-                existing.lifecycleStatus(),
-                existing.archivedAt(),
-                existing.deletedAt(),
-                existing.createdAt(),
-                now
-        );
-        writeProjectAudit("UPDATE", "REQUIREMENT", id, existing.projectId());
-        AssetRequirement stored = repository.saveRequirement(updated);
-        versionHistoryService.recordRequirementChange(existing, stored, "UPDATE");
-        return AssetResponseMapper.toRequirementResponse(stored);
+        return requirementService.updateRequirement(id, request);
     }
 
     public List<AssetVersionHistoryResponse> requirementVersions(UUID id) {
-        AssetRequirement requirement = repository.requirementIncludingInactive(id)
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "需求不存在: " + id));
-        return versionHistoryService.responses("REQUIREMENT", requirement.id());
+        return requirementService.requirementVersions(id);
     }
 
     @Transactional
@@ -390,12 +246,12 @@ public class AssetService {
             int version,
             RollbackAssetVersionRequest request
     ) {
-        return versionRollbackService.rollbackRequirementVersion(id, version, request);
+        return requirementService.rollbackRequirementVersion(id, version, request);
     }
 
     @Transactional
     public RequirementResponse updateRequirementLifecycle(UUID id, UpdateAssetLifecycleRequest request) {
-        return lifecycleService.updateRequirementLifecycle(id, request);
+        return requirementService.updateRequirementLifecycle(id, request);
     }
 
     // ---- APIs ----
@@ -921,20 +777,6 @@ public class AssetService {
         return AssetLifecycleStatus.normalize(lifecycleStatus, deletedAt);
     }
 
-    private String nextRequirementStatus(AssetRequirement requirement, String rawNextStatus) {
-        String nextStatus = valueIn(rawNextStatus, requirement.status(), REVIEW_STATUSES, "status");
-        if (!requirement.canTransitionReviewStatusTo(nextStatus)) {
-            rejectReviewStatusTransition(
-                    "REQUIREMENT",
-                    requirement.id(),
-                    requirement.projectId(),
-                    requirement.status(),
-                    nextStatus
-            );
-        }
-        return nextStatus;
-    }
-
     private String nextTestCaseStatus(TestCaseRecord testCase, String rawNextStatus) {
         String nextStatus = valueIn(rawNextStatus, testCase.status(), REVIEW_STATUSES, "status");
         if (!testCase.canTransitionReviewStatusTo(nextStatus)) {
@@ -1005,31 +847,6 @@ public class AssetService {
     private static String valueOrDefault(String value, String defaultValue) {
         String trimmed = trimToNull(value);
         return trimmed == null ? defaultValue : trimmed;
-    }
-
-    private static String mergeTags(String existing, String incoming) {
-        LinkedHashSet<String> tags = new LinkedHashSet<>();
-        addTags(tags, existing);
-        addTags(tags, incoming);
-        return tags.isEmpty() ? null : String.join(",", tags);
-    }
-
-    private static String normalizedTags(String rawTags) {
-        LinkedHashSet<String> tags = new LinkedHashSet<>();
-        addTags(tags, rawTags);
-        return String.join(",", tags);
-    }
-
-    private static void addTags(LinkedHashSet<String> tags, String rawTags) {
-        if (!StringUtils.hasText(rawTags)) {
-            return;
-        }
-        for (String tag : rawTags.replace("，", ",").split(",")) {
-            String trimmed = tag.trim();
-            if (StringUtils.hasText(trimmed)) {
-                tags.add(trimmed);
-            }
-        }
     }
 
     private String jsonValue(Object value) {
