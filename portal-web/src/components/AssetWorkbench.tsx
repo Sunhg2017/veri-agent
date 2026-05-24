@@ -1313,6 +1313,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
         </section>
 
         <AssetImportExportPanel
+          assetTypes={activeTab === 'apis' ? ['API'] : ['REQUIREMENT']}
           currentUser={props.currentUser}
           onImported={activeTab === 'apis' ? refreshApis : refreshRequirements}
           signedIn={props.signedIn}

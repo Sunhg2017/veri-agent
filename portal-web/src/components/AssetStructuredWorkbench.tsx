@@ -39,6 +39,7 @@ import {
   type AssetPrototypeSyncResult
 } from '../api/assets';
 import { hasPermission } from '../permissions';
+import { AssetImportExportPanel } from './AssetImportExportPanel';
 
 export type AssetNavigationKey = 'requirements' | 'apis' | 'pages' | 'flows' | 'cases' | 'trace';
 
@@ -694,6 +695,13 @@ export function AssetStructuredWorkbench(props: {
             <StateLine state={prototypeSyncState} />
           </section>
         )}
+
+        <AssetImportExportPanel
+          assetTypes={[props.activeTab === 'pages' ? 'PAGE' : 'BUSINESS_FLOW']}
+          currentUser={props.currentUser}
+          onImported={refreshAssets}
+          signedIn={props.signedIn}
+        />
 
         <section className="panel insight-panel asset-detail-panel">
           <div className="panel-title-row">

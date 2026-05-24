@@ -286,7 +286,7 @@ export interface TraceLinkFilters {
   caseId?: string;
 }
 
-export type AssetImportExportType = 'REQUIREMENT' | 'API' | 'TEST_CASE';
+export type AssetImportExportType = 'REQUIREMENT' | 'API' | 'PAGE' | 'BUSINESS_FLOW' | 'TEST_CASE';
 export type AssetImportExportFormat = 'CSV' | 'JSON' | 'OPENAPI';
 
 export interface AssetImportPayload {

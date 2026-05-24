@@ -1037,6 +1037,116 @@ class AssetControllerTest {
     }
 
     @Test
+    void importsPageJsonAndExportsSanitizedJson() throws Exception {
+        String content = """
+                {
+                  "items": [
+                    {
+                      "name": "导入页面",
+                      "urlPattern": "/imported/page",
+                      "source": "FIGMA",
+                      "sourceRef": "figma-imported-page",
+                      "sourceVersion": "v1",
+                      "status": "ACTIVE",
+                      "componentTree": {"type": "page", "children": [{"role": "button", "text": "提交"}]},
+                      "screenshotUrl": "https://cdn.example.test/imported-page.png"
+                    }
+                  ]
+                }
+                """;
+
+        MvcResult imported = importAssets("PAGE", "JSON", false, content)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.assetType").value("PAGE"))
+                .andExpect(jsonPath("$.data.format").value("JSON"))
+                .andExpect(jsonPath("$.data.created").value(1))
+                .andExpect(jsonPath("$.data.failed").value(0))
+                .andReturn();
+        String pageId = JsonPath.read(imported.getResponse().getContentAsString(), "$.data.items[0].id");
+
+        mockMvc.perform(get("/api/v1/asset/pages/{id}", pageId)
+                        .headers(authHeaders()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.name").value("导入页面"))
+                .andExpect(jsonPath("$.data.source").value("FIGMA"))
+                .andExpect(jsonPath("$.data.sourceRef").value("figma-imported-page"))
+                .andExpect(jsonPath("$.data.componentTree").value(containsString("button")));
+
+        importAssets("PAGE", "JSON", true, content)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.created").value(0))
+                .andExpect(jsonPath("$.data.skipped").value(1))
+                .andExpect(jsonPath("$.data.items[0].action").value("LINK_EXISTING"));
+
+        MvcResult exported = mockMvc.perform(get("/api/v1/asset/exports")
+                        .headers(authHeaders())
+                        .param("assetType", "PAGE")
+                        .param("format", "JSON")
+                        .param("projectId", "project-wp3"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Type", startsWith("application/json")))
+                .andExpect(header().string("Content-Disposition", "attachment; filename=\"wp3-page.json\""))
+                .andReturn();
+        String json = exported.getResponse().getContentAsString(StandardCharsets.UTF_8);
+        MatcherAssert.assertThat(json, containsString("导入页面"));
+        MatcherAssert.assertThat(json, containsString("figma-imported-page"));
+        MatcherAssert.assertThat(json, containsString("button"));
+        MatcherAssert.assertThat(json, not(containsString("traceId")));
+        MatcherAssert.assertThat(json, not(containsString("snapshot")));
+    }
+
+    @Test
+    void importsFlowAliasJsonAndExportsBusinessFlowCsv() throws Exception {
+        MvcResult imported = importAssets(
+                        "FLOW",
+                        "JSON",
+                        false,
+                        """
+                                [
+                                  {
+                                    "name": "导入业务流",
+                                    "description": "覆盖核心链路",
+                                    "priority": "HIGH",
+                                    "status": "ACTIVE",
+                                    "flowJson": {"nodes": ["cart", "checkout"], "edges": [["cart", "checkout"]]}
+                                  }
+                                ]
+                                """
+                )
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.assetType").value("BUSINESS_FLOW"))
+                .andExpect(jsonPath("$.data.format").value("JSON"))
+                .andExpect(jsonPath("$.data.created").value(1))
+                .andExpect(jsonPath("$.data.failed").value(0))
+                .andReturn();
+        String flowId = JsonPath.read(imported.getResponse().getContentAsString(), "$.data.items[0].id");
+
+        mockMvc.perform(get("/api/v1/asset/business-flows/{id}", flowId)
+                        .headers(authHeaders()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.name").value("导入业务流"))
+                .andExpect(jsonPath("$.data.priority").value("HIGH"))
+                .andExpect(jsonPath("$.data.status").value("ACTIVE"))
+                .andExpect(jsonPath("$.data.flowJson").value(containsString("checkout")));
+
+        MvcResult exported = mockMvc.perform(get("/api/v1/asset/exports")
+                        .headers(authHeaders())
+                        .param("assetType", "BUSINESS_FLOW")
+                        .param("format", "CSV")
+                        .param("projectId", "project-wp3"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Type", startsWith("text/csv")))
+                .andExpect(header().string("Content-Disposition", "attachment; filename=\"wp3-business-flow.csv\""))
+                .andReturn();
+        String csv = exported.getResponse().getContentAsString(StandardCharsets.UTF_8);
+        MatcherAssert.assertThat(csv, containsString("code,name,description,status,priority,projectId,flowJson"));
+        MatcherAssert.assertThat(csv, containsString("导入业务流"));
+        MatcherAssert.assertThat(csv, containsString("checkout"));
+        MatcherAssert.assertThat(csv, not(containsString("traceId")));
+        MatcherAssert.assertThat(csv, not(containsString("snapshot")));
+    }
+
+    @Test
     void exportsSanitizedRequirementCsvAndApiOpenApi() throws Exception {
         createRequirement("导出需求", "用于 CSV 导出", "HIGH");
         createApi("导出 API", "POST", "/api/exported/orders");

@@ -1,5 +1,5 @@
 import { Download, Upload } from 'lucide-react';
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import {
   exportAssetsText,
   importAssets,
@@ -33,20 +33,39 @@ const initialDraft: Draft = {
   content: ''
 };
 
+const allAssetTypes: AssetImportExportType[] = ['REQUIREMENT', 'API', 'PAGE', 'BUSINESS_FLOW', 'TEST_CASE'];
+
 export function AssetImportExportPanel(props: {
+  assetTypes?: AssetImportExportType[];
   currentUser: CurrentUser | null;
   onImported?: () => void;
   signedIn: boolean;
 }) {
+  const assetTypeOptions = props.assetTypes?.length ? props.assetTypes : allAssetTypes;
+  const assetTypeKey = assetTypeOptions.join('|');
   const canManageAssets = hasPermission(props.currentUser, 'asset:manage');
   const canExportAssets = hasPermission(props.currentUser, 'asset:export');
-  const [draft, setDraft] = useState<Draft>(initialDraft);
+  const [draft, setDraft] = useState<Draft>(() => ({
+    ...initialDraft,
+    assetType: assetTypeOptions[0] ?? initialDraft.assetType
+  }));
   const [state, setState] = useState<WorkState>({ loading: false });
   const [lastResult, setLastResult] = useState<AssetImportResult | null>(null);
 
   const importDisabled = !props.signedIn || !canManageAssets || state.loading;
   const exportDisabled = !props.signedIn || !canExportAssets || state.loading;
-  const formatOptions: AssetImportExportFormat[] = draft.assetType === 'API' ? ['CSV', 'JSON', 'OPENAPI'] : ['CSV', 'JSON'];
+  const formatOptions = formatsForAssetType(draft.assetType);
+
+  useEffect(() => {
+    setDraft((current) => {
+      if (assetTypeOptions.includes(current.assetType)) {
+        return current;
+      }
+      const assetType = assetTypeOptions[0] ?? initialDraft.assetType;
+      return { ...current, assetType, format: normalizeFormat(assetType, current.format) };
+    });
+    setLastResult(null);
+  }, [assetTypeKey]);
 
   async function submitImport(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -91,7 +110,7 @@ export function AssetImportExportPanel(props: {
   }
 
   function updateAssetType(assetType: AssetImportExportType) {
-    const nextFormat = assetType === 'API' ? draft.format : draft.format === 'OPENAPI' ? 'CSV' : draft.format;
+    const nextFormat = normalizeFormat(assetType, draft.format);
     setDraft((current) => ({ ...current, assetType, format: nextFormat }));
   }
 
@@ -108,9 +127,9 @@ export function AssetImportExportPanel(props: {
               disabled={state.loading}
               onChange={(event) => updateAssetType(event.target.value as AssetImportExportType)}
             >
-              <option value="REQUIREMENT">REQUIREMENT</option>
-              <option value="API">API</option>
-              <option value="TEST_CASE">TEST_CASE</option>
+              {assetTypeOptions.map((assetType) => (
+                <option key={assetType} value={assetType}>{assetType}</option>
+              ))}
             </select>
           </label>
           <label className="field" htmlFor="asset-io-format">
@@ -177,6 +196,15 @@ export function AssetImportExportPanel(props: {
       <StateLine state={state} />
     </section>
   );
+}
+
+function formatsForAssetType(assetType: AssetImportExportType): AssetImportExportFormat[] {
+  return assetType === 'API' ? ['CSV', 'JSON', 'OPENAPI'] : ['CSV', 'JSON'];
+}
+
+function normalizeFormat(assetType: AssetImportExportType, format: AssetImportExportFormat): AssetImportExportFormat {
+  const formats = formatsForAssetType(assetType);
+  return formats.includes(format) ? format : formats[0];
 }
 
 function downloadText(text: string, filename: string, contentType: string) {

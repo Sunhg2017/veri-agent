@@ -4,11 +4,17 @@ import static com.songhg.veri.agent.asset.application.AssetFormatValidator.API_H
 import static com.songhg.veri.agent.asset.application.AssetFormatValidator.API_SOURCES;
 import static com.songhg.veri.agent.asset.application.AssetFormatValidator.API_STATUSES;
 import static com.songhg.veri.agent.asset.application.AssetFormatValidator.ASSET_API;
+import static com.songhg.veri.agent.asset.application.AssetFormatValidator.ASSET_BUSINESS_FLOW;
+import static com.songhg.veri.agent.asset.application.AssetFormatValidator.ASSET_PAGE;
 import static com.songhg.veri.agent.asset.application.AssetFormatValidator.ASSET_REQUIREMENT;
 import static com.songhg.veri.agent.asset.application.AssetFormatValidator.ASSET_TEST_CASE;
 import static com.songhg.veri.agent.asset.application.AssetFormatValidator.FORMAT_CSV;
 import static com.songhg.veri.agent.asset.application.AssetFormatValidator.FORMAT_JSON;
 import static com.songhg.veri.agent.asset.application.AssetFormatValidator.FORMAT_OPENAPI;
+import static com.songhg.veri.agent.asset.application.AssetFormatValidator.FLOW_STATUSES;
+import static com.songhg.veri.agent.asset.application.AssetFormatValidator.PAGE_SOURCES;
+import static com.songhg.veri.agent.asset.application.AssetFormatValidator.PAGE_SOURCE_MANUAL;
+import static com.songhg.veri.agent.asset.application.AssetFormatValidator.PAGE_STATUSES;
 import static com.songhg.veri.agent.asset.application.AssetFormatValidator.PRIORITIES;
 import static com.songhg.veri.agent.asset.application.AssetFormatValidator.REVIEW_STATUSES;
 import static com.songhg.veri.agent.asset.application.AssetFormatValidator.SOURCE_IMPORT;
@@ -17,24 +23,31 @@ import static com.songhg.veri.agent.asset.application.AssetFormatValidator.STATU
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.songhg.veri.agent.common.util.CsvEncoder;
 import com.songhg.veri.agent.asset.application.command.AssetImportRequest;
+import com.songhg.veri.agent.asset.application.command.CreateBusinessFlowRequest;
+import com.songhg.veri.agent.asset.application.command.CreatePageRequest;
 import com.songhg.veri.agent.asset.application.command.CreateRequirementRequest;
 import com.songhg.veri.agent.asset.application.command.CreateTestCaseRequest;
+import com.songhg.veri.agent.asset.application.command.UpdatePageRequest;
 import com.songhg.veri.agent.asset.application.port.AssetRepository;
 import com.songhg.veri.agent.asset.application.query.AssetExportRequest;
 import com.songhg.veri.agent.asset.application.view.ApiResponseDTO;
 import com.songhg.veri.agent.asset.application.view.AssetExportPayload;
 import com.songhg.veri.agent.asset.application.view.AssetImportItemResponse;
 import com.songhg.veri.agent.asset.application.view.AssetImportResponse;
+import com.songhg.veri.agent.asset.application.view.BusinessFlowResponse;
+import com.songhg.veri.agent.asset.application.view.PageResponse;
 import com.songhg.veri.agent.asset.application.view.RequirementResponse;
 import com.songhg.veri.agent.asset.application.view.TestCaseResponse;
 import com.songhg.veri.agent.asset.domain.AssetApi;
+import com.songhg.veri.agent.asset.domain.AssetBusinessFlow;
+import com.songhg.veri.agent.asset.domain.AssetPage;
 import com.songhg.veri.agent.asset.domain.AssetRequirement;
 import com.songhg.veri.agent.asset.domain.AssetReviewStatus;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
 import com.songhg.veri.agent.common.trace.TraceContext;
+import com.songhg.veri.agent.common.util.CsvEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -107,6 +120,8 @@ public class AssetImportExportService {
         String content = switch (assetType) {
             case ASSET_REQUIREMENT -> exportRequirements(request, format);
             case ASSET_API -> exportApis(request, format);
+            case ASSET_PAGE -> exportPages(request, format);
+            case ASSET_BUSINESS_FLOW -> exportBusinessFlows(request, format);
             case ASSET_TEST_CASE -> exportTestCases(request, format);
             default -> throw new BusinessException(ErrorCode.VALIDATION_ERROR, "assetType 不合法: " + assetType);
         };
@@ -185,6 +200,8 @@ public class AssetImportExportService {
         return switch (assetType) {
             case ASSET_REQUIREMENT -> planRequirementImport(projectId, rowNumber, row);
             case ASSET_API -> planApiImport(projectId, rowNumber, row);
+            case ASSET_PAGE -> planPageImport(projectId, rowNumber, row);
+            case ASSET_BUSINESS_FLOW -> ImportPlan.planned(rowNumber, "CREATE", null, null, "将创建业务流资产");
             case ASSET_TEST_CASE -> planTestCaseImport(projectId, rowNumber, row);
             default -> ImportPlan.failed(rowNumber, "INVALID", "assetType 不合法", List.of("assetType 不合法"));
         };
@@ -235,6 +252,22 @@ public class AssetImportExportService {
         return ImportPlan.planned(rowNumber, "CREATE", null, null, "将创建 API 资产");
     }
 
+    private ImportPlan planPageImport(String projectId, int rowNumber, Map<String, String> row) {
+        String sourceRef = trimToNull(rowValue(row, "sourceRef"));
+        if (sourceRef == null) {
+            return ImportPlan.planned(rowNumber, "CREATE", null, null, "将创建页面资产");
+        }
+        Optional<AssetPage> existing = repository.pageBySourceRef(projectId, pageImportSource(row), sourceRef);
+        if (existing.isEmpty()) {
+            return ImportPlan.planned(rowNumber, "CREATE", null, null, "将创建页面资产");
+        }
+        AssetPage merged = mergeImportedPage(existing.get(), row, Instant.now());
+        if (samePage(existing.get(), merged)) {
+            return ImportPlan.planned(rowNumber, "LINK_EXISTING", existing.get().id(), existing.get().code(), "无差异，复用既有页面");
+        }
+        return ImportPlan.planned(rowNumber, "UPDATE", existing.get().id(), existing.get().code(), "将更新既有页面资产");
+    }
+
     private ImportPlan planTestCaseImport(String projectId, int rowNumber, Map<String, String> row) {
         UUID requirementId = uuidOrNull(rowValue(row, "requirementId"));
         UUID apiId = uuidOrNull(rowValue(row, "apiId"));
@@ -257,6 +290,8 @@ public class AssetImportExportService {
             return switch (assetType) {
                 case ASSET_REQUIREMENT -> importRequirement(projectId, row, plan.row());
                 case ASSET_API -> importApi(projectId, row, plan.row());
+                case ASSET_PAGE -> importPage(projectId, row, plan.row());
+                case ASSET_BUSINESS_FLOW -> importBusinessFlow(projectId, row, plan.row());
                 case ASSET_TEST_CASE -> importTestCase(projectId, row, plan.row());
                 default -> plan.toResponse();
             };
@@ -300,6 +335,41 @@ public class AssetImportExportService {
             default -> createImportedApi(projectId, row);
         };
         return new AssetImportItemResponse(rowNumber, before.action(), saved.id(), saved.code(), "SUCCEEDED", "导入成功", List.of());
+    }
+
+    private AssetImportItemResponse importPage(String projectId, Map<String, String> row, int rowNumber) {
+        ImportPlan before = planPageImport(projectId, rowNumber, row);
+        if (!"PLANNED".equals(before.status())) {
+            return before.toResponse();
+        }
+        if ("LINK_EXISTING".equals(before.action())) {
+            return new AssetImportItemResponse(
+                    rowNumber,
+                    "LINK_EXISTING",
+                    before.id(),
+                    before.code(),
+                    "SUCCEEDED",
+                    "导入成功",
+                    List.of()
+            );
+        }
+        PageResponse saved = switch (before.action()) {
+            case "UPDATE" -> assetService.updatePage(before.id(), pageUpdateRequest(row));
+            default -> assetService.createPage(pageCreateRequest(projectId, row));
+        };
+        return new AssetImportItemResponse(rowNumber, before.action(), saved.id(), saved.code(), "SUCCEEDED", "导入成功", List.of());
+    }
+
+    private AssetImportItemResponse importBusinessFlow(String projectId, Map<String, String> row, int rowNumber) {
+        BusinessFlowResponse saved = assetService.createBusinessFlow(new CreateBusinessFlowRequest(
+                rowValue(row, "name"),
+                trimToNull(rowValue(row, "description")),
+                jsonCommandValue(rowValue(row, "flowJson")),
+                rowValue(row, "priority"),
+                projectId,
+                rowValue(row, "status")
+        ));
+        return new AssetImportItemResponse(rowNumber, "CREATE", saved.id(), saved.code(), "SUCCEEDED", "导入成功", List.of());
     }
 
     private AssetImportItemResponse importTestCase(String projectId, Map<String, String> row, int rowNumber) {
@@ -382,6 +452,27 @@ public class AssetImportExportService {
         );
     }
 
+    private AssetPage mergeImportedPage(AssetPage existing, Map<String, String> row, Instant now) {
+        return new AssetPage(
+                existing.id(),
+                existing.code(),
+                rowValue(row, "name"),
+                trimToNull(rowValue(row, "urlPattern")),
+                pageImportSource(row),
+                trimToNull(rowValue(row, "sourceRef")),
+                trimToNull(rowValue(row, "sourceVersion")),
+                jsonCommandString(rowValue(row, "componentTree")),
+                trimToNull(rowValue(row, "screenshotUrl")),
+                existing.projectId(),
+                valueIn(rowValue(row, "status"), existing.status(), PAGE_STATUSES, "status"),
+                existing.lifecycleStatus(),
+                existing.archivedAt(),
+                existing.deletedAt(),
+                existing.createdAt(),
+                now
+        );
+    }
+
     private AssetRequirement mergeImportedRequirement(
             AssetRequirement existing,
             CreateRequirementRequest request,
@@ -432,6 +523,44 @@ public class AssetImportExportService {
                 && Objects.equals(left.status(), right.status());
     }
 
+    private boolean samePage(AssetPage left, AssetPage right) {
+        return Objects.equals(left.name(), right.name())
+                && Objects.equals(left.urlPattern(), right.urlPattern())
+                && Objects.equals(left.source(), right.source())
+                && Objects.equals(left.sourceRef(), right.sourceRef())
+                && Objects.equals(left.sourceVersion(), right.sourceVersion())
+                && Objects.equals(jsonNode(left.componentTree()), jsonNode(right.componentTree()))
+                && Objects.equals(left.screenshotUrl(), right.screenshotUrl())
+                && Objects.equals(left.status(), right.status());
+    }
+
+    private CreatePageRequest pageCreateRequest(String projectId, Map<String, String> row) {
+        return new CreatePageRequest(
+                rowValue(row, "name"),
+                trimToNull(rowValue(row, "urlPattern")),
+                pageImportSource(row),
+                trimToNull(rowValue(row, "sourceRef")),
+                trimToNull(rowValue(row, "sourceVersion")),
+                jsonCommandValue(rowValue(row, "componentTree")),
+                trimToNull(rowValue(row, "screenshotUrl")),
+                projectId,
+                rowValue(row, "status")
+        );
+    }
+
+    private UpdatePageRequest pageUpdateRequest(Map<String, String> row) {
+        return new UpdatePageRequest(
+                rowValue(row, "name"),
+                trimToNull(rowValue(row, "urlPattern")),
+                pageImportSource(row),
+                trimToNull(rowValue(row, "sourceRef")),
+                trimToNull(rowValue(row, "sourceVersion")),
+                jsonCommandValue(rowValue(row, "componentTree")),
+                trimToNull(rowValue(row, "screenshotUrl")),
+                rowValue(row, "status")
+        );
+    }
+
     private CreateRequirementRequest requirementImportRequest(String projectId, Map<String, String> row) {
         return new CreateRequirementRequest(
                 rowValue(row, "title"),
@@ -462,6 +591,18 @@ public class AssetImportExportService {
                 validateImportEnum(row, "source", API_SOURCES, errors);
                 validateImportEnum(row, "status", API_STATUSES, errors);
                 validateImportEnum(row, "httpMethod", API_HTTP_METHODS, errors);
+            }
+            case ASSET_PAGE -> {
+                requireImportField(row, "name", errors);
+                validateImportEnum(row, "source", PAGE_SOURCES, errors);
+                validateImportEnum(row, "status", PAGE_STATUSES, errors);
+                validateJsonField(row, "componentTree", errors);
+            }
+            case ASSET_BUSINESS_FLOW -> {
+                requireImportField(row, "name", errors);
+                validateImportEnum(row, "status", FLOW_STATUSES, errors);
+                validateImportEnum(row, "priority", PRIORITIES, errors);
+                validateJsonField(row, "flowJson", errors);
             }
             case ASSET_TEST_CASE -> {
                 requireImportField(row, "title", errors);
@@ -501,6 +642,31 @@ public class AssetImportExportService {
                 row.code(), row.summary(), row.description(), row.httpMethod(), row.path(), row.status(),
                 row.projectId(), row.source(), row.sourceRef(), row.version(), row.requestSchema(), row.responseSchema(),
                 row.lifecycleStatus(), row.createdAt(), row.updatedAt()));
+        return csv.toString();
+    }
+
+    private String exportPages(AssetExportRequest request, String format) {
+        List<PageResponse> rows = exportPageRows(request);
+        if (FORMAT_JSON.equals(format)) {
+            return jsonString(rows.stream().map(AssetImportExportService::pageExportMap).toList());
+        }
+        StringBuilder csv = new StringBuilder("code,name,urlPattern,status,projectId,source,sourceRef,sourceVersion,componentTree,screenshotUrl,lifecycleStatus,createdAt,updatedAt\n");
+        rows.forEach(row -> appendCsvLine(csv,
+                row.code(), row.name(), row.urlPattern(), row.status(), row.projectId(),
+                row.source(), row.sourceRef(), row.sourceVersion(), row.componentTree(), row.screenshotUrl(),
+                row.lifecycleStatus(), row.createdAt(), row.updatedAt()));
+        return csv.toString();
+    }
+
+    private String exportBusinessFlows(AssetExportRequest request, String format) {
+        List<BusinessFlowResponse> rows = exportBusinessFlowRows(request);
+        if (FORMAT_JSON.equals(format)) {
+            return jsonString(rows.stream().map(AssetImportExportService::businessFlowExportMap).toList());
+        }
+        StringBuilder csv = new StringBuilder("code,name,description,status,priority,projectId,flowJson,lifecycleStatus,createdAt,updatedAt\n");
+        rows.forEach(row -> appendCsvLine(csv,
+                row.code(), row.name(), row.description(), row.status(), row.priority(), row.projectId(),
+                row.flowJson(), row.lifecycleStatus(), row.createdAt(), row.updatedAt()));
         return csv.toString();
     }
 
@@ -548,6 +714,18 @@ public class AssetImportExportService {
         request.setIndex(0);
         request.setSize(100);
         return assetService.listApis(request).items();
+    }
+
+    private List<PageResponse> exportPageRows(AssetExportRequest request) {
+        request.setIndex(0);
+        request.setSize(100);
+        return assetService.listPages(request).items();
+    }
+
+    private List<BusinessFlowResponse> exportBusinessFlowRows(AssetExportRequest request) {
+        request.setIndex(0);
+        request.setSize(100);
+        return assetService.listBusinessFlows(request).items();
     }
 
     private List<TestCaseResponse> exportTestCaseRows(AssetExportRequest request) {
@@ -644,6 +822,18 @@ public class AssetImportExportService {
         }
     }
 
+    private void validateJsonField(Map<String, String> row, String field, List<String> errors) {
+        String value = trimToNull(rowValue(row, field));
+        if (value == null) {
+            return;
+        }
+        try {
+            objectMapper.readTree(value);
+        } catch (JsonProcessingException e) {
+            errors.add(field + " 不是合法 JSON");
+        }
+    }
+
     private static String rowValue(Map<String, String> row, String field) {
         if (row.containsKey(field)) {
             return row.get(field);
@@ -663,6 +853,18 @@ public class AssetImportExportService {
 
     private static String defaultJson(String value) {
         return StringUtils.hasText(value) ? value : "{}";
+    }
+
+    private Object jsonCommandValue(String rawValue) {
+        try {
+            return objectMapper.readTree(defaultJson(rawValue));
+        } catch (JsonProcessingException e) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "JSON 字段格式不合法");
+        }
+    }
+
+    private String jsonCommandString(String rawValue) {
+        return jsonString(jsonCommandValue(rawValue));
     }
 
     private List<CreateTestCaseRequest.StepDto> parseImportSteps(String rawSteps) {
@@ -720,6 +922,39 @@ public class AssetImportExportService {
         item.put("version", row.version());
         item.put("requestSchema", row.requestSchema());
         item.put("responseSchema", row.responseSchema());
+        item.put("lifecycleStatus", row.lifecycleStatus());
+        item.put("createdAt", row.createdAt());
+        item.put("updatedAt", row.updatedAt());
+        return item;
+    }
+
+    private static Map<String, Object> pageExportMap(PageResponse row) {
+        Map<String, Object> item = new LinkedHashMap<>();
+        item.put("code", row.code());
+        item.put("name", row.name());
+        item.put("urlPattern", row.urlPattern());
+        item.put("status", row.status());
+        item.put("projectId", row.projectId());
+        item.put("source", row.source());
+        item.put("sourceRef", row.sourceRef());
+        item.put("sourceVersion", row.sourceVersion());
+        item.put("componentTree", row.componentTree());
+        item.put("screenshotUrl", row.screenshotUrl());
+        item.put("lifecycleStatus", row.lifecycleStatus());
+        item.put("createdAt", row.createdAt());
+        item.put("updatedAt", row.updatedAt());
+        return item;
+    }
+
+    private static Map<String, Object> businessFlowExportMap(BusinessFlowResponse row) {
+        Map<String, Object> item = new LinkedHashMap<>();
+        item.put("code", row.code());
+        item.put("name", row.name());
+        item.put("description", row.description());
+        item.put("status", row.status());
+        item.put("priority", row.priority());
+        item.put("projectId", row.projectId());
+        item.put("flowJson", row.flowJson());
         item.put("lifecycleStatus", row.lifecycleStatus());
         item.put("createdAt", row.createdAt());
         item.put("updatedAt", row.updatedAt());
@@ -874,6 +1109,10 @@ public class AssetImportExportService {
 
     private static String apiImportSource(Map<String, String> row) {
         return valueIn(rowValue(row, "source"), SOURCE_IMPORT, API_SOURCES, "source");
+    }
+
+    private static String pageImportSource(Map<String, String> row) {
+        return valueIn(rowValue(row, "source"), PAGE_SOURCE_MANUAL, PAGE_SOURCES, "source");
     }
 
     private static String initialStatus(String rawValue, String defaultValue, String resourceType) {

@@ -631,6 +631,7 @@ export function AssetCaseWorkbench(props: {
         </section>
 
         <AssetImportExportPanel
+          assetTypes={['TEST_CASE']}
           currentUser={props.currentUser}
           onImported={refreshCases}
           signedIn={props.signedIn}

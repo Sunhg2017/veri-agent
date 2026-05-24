@@ -16,11 +16,14 @@ final class AssetFormatValidator {
 
     static final String ASSET_REQUIREMENT = "REQUIREMENT";
     static final String ASSET_API = "API";
+    static final String ASSET_PAGE = "PAGE";
+    static final String ASSET_BUSINESS_FLOW = "BUSINESS_FLOW";
     static final String ASSET_TEST_CASE = "TEST_CASE";
     static final String FORMAT_CSV = "CSV";
     static final String FORMAT_JSON = "JSON";
     static final String FORMAT_OPENAPI = "OPENAPI";
     static final String SOURCE_IMPORT = "IMPORT";
+    static final String PAGE_SOURCE_MANUAL = "MANUAL";
     static final String STATUS_ACTIVE = "ACTIVE";
 
     static final Set<String> REVIEW_STATUSES = AssetReviewStatus.codes();
@@ -28,19 +31,33 @@ final class AssetFormatValidator {
     static final Set<String> API_STATUSES = Set.of(STATUS_ACTIVE, "DEPRECATED", "REMOVED");
     static final Set<String> API_SOURCES = Set.of(FORMAT_OPENAPI, "MANUAL", SOURCE_IMPORT);
     static final Set<String> API_HTTP_METHODS = Set.of("GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS");
+    static final Set<String> PAGE_STATUSES = Set.of(STATUS_ACTIVE, "DEPRECATED");
+    static final Set<String> PAGE_SOURCES = Set.of(PAGE_SOURCE_MANUAL, "FIGMA", "LANHU", "AXURE");
+    static final Set<String> FLOW_STATUSES = Set.of("DRAFT", STATUS_ACTIVE, "ARCHIVED");
     static final Set<String> IMPORT_EXPORT_FORMATS = Set.of(FORMAT_CSV, FORMAT_JSON, FORMAT_OPENAPI);
     static final Map<String, Set<String>> FORMATS_BY_ASSET_TYPE = Map.of(
             ASSET_REQUIREMENT, Set.of(FORMAT_CSV, FORMAT_JSON),
             ASSET_API, IMPORT_EXPORT_FORMATS,
+            ASSET_PAGE, Set.of(FORMAT_CSV, FORMAT_JSON),
+            ASSET_BUSINESS_FLOW, Set.of(FORMAT_CSV, FORMAT_JSON),
             ASSET_TEST_CASE, Set.of(FORMAT_CSV, FORMAT_JSON)
     );
-    static final Set<String> IMPORT_EXPORT_ASSET_TYPES = FORMATS_BY_ASSET_TYPE.keySet();
+    static final Map<String, String> ASSET_TYPE_ALIASES = Map.of("FLOW", ASSET_BUSINESS_FLOW);
+    static final Set<String> IMPORT_EXPORT_ASSET_TYPES = Set.of(
+            ASSET_REQUIREMENT,
+            ASSET_API,
+            ASSET_PAGE,
+            ASSET_BUSINESS_FLOW,
+            "FLOW",
+            ASSET_TEST_CASE
+    );
 
     private AssetFormatValidator() {
     }
 
     static String normalizeAssetType(String rawValue) {
-        return valueIn(rawValue, null, IMPORT_EXPORT_ASSET_TYPES, "assetType");
+        String assetType = valueIn(rawValue, null, IMPORT_EXPORT_ASSET_TYPES, "assetType");
+        return ASSET_TYPE_ALIASES.getOrDefault(assetType, assetType);
     }
 
     static String normalizeFormat(String assetType, String rawValue, String operationName) {
