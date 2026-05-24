@@ -19,11 +19,11 @@ final class InMemoryManagementProjectService {
 
     private final List<ProjectView> projects = new ArrayList<>();
     private final List<ProjectMemberView> projectMembers = new ArrayList<>();
-    private final List<UserView> users;
+    private final InMemoryManagementUserService userService;
     private final AuditLogWriter auditLogWriter;
 
-    InMemoryManagementProjectService(List<UserView> users, AuditLogWriter auditLogWriter) {
-        this.users = users;
+    InMemoryManagementProjectService(InMemoryManagementUserService userService, AuditLogWriter auditLogWriter) {
+        this.userService = userService;
         this.auditLogWriter = auditLogWriter;
         projects.addAll(List.of(
                 new ProjectView("Checkout Regression", "自动化平台组", "何序", 4, "进行中"),
@@ -93,7 +93,7 @@ final class InMemoryManagementProjectService {
 
     ProjectMemberView addProjectMember(String projectKey, ProjectMemberRequest request, AuthUserPrincipal actor) {
         requireProject(projectKey);
-        UserView user = requireUser(request.username().trim());
+        UserView user = userService.requireUser(request.username().trim());
         projectMembers.removeIf(member -> member.username().equals(user.username()));
         ProjectMemberView view = new ProjectMemberView(
                 user.username(),
@@ -130,13 +130,6 @@ final class InMemoryManagementProjectService {
                 .filter(project -> project.name().equals(key))
                 .findFirst()
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "项目不存在"));
-    }
-
-    private UserView requireUser(String username) {
-        return users.stream()
-                .filter(user -> user.username().equals(username))
-                .findFirst()
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "用户不存在"));
     }
 
     private ProjectView replaceProject(String key, ProjectView updated) {

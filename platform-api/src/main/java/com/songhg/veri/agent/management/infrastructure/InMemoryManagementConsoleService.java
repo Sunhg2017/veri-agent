@@ -66,7 +66,6 @@ public class InMemoryManagementConsoleService implements ManagementConsoleServic
 
     private static final DateTimeFormatter TIME_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
 
-    private final List<UserView> users = new ArrayList<>();
     private final List<ApplicationView> applications = new ArrayList<>();
     private final List<ScopedUserRoleView> applicationOwners = new ArrayList<>();
     private final List<EnvironmentView> environments = new ArrayList<>();
@@ -81,6 +80,7 @@ public class InMemoryManagementConsoleService implements ManagementConsoleServic
     private final List<AuditOutboxView> auditOutbox = new ArrayList<>();
     private final Map<String, EnvironmentConnectivityCheckView> environmentConnectivityChecks = new HashMap<>();
     private final InMemoryManagementDepartmentService departmentService;
+    private final InMemoryManagementUserService userService;
     private final InMemoryManagementProjectService projectService;
     private final AuditLogWriter auditLogWriter;
     private final EnvironmentConnectivityChecker connectivityChecker;
@@ -92,12 +92,8 @@ public class InMemoryManagementConsoleService implements ManagementConsoleServic
         this.auditLogWriter = auditLogWriter;
         this.connectivityChecker = connectivityChecker;
         departmentService = new InMemoryManagementDepartmentService(auditLogWriter);
-        users.addAll(List.of(
-                new UserView("shao.min", "邵敏", "shao.min@example.com", "PlatformAdmin", "质量工程中心", "启用", "今天 10:24"),
-                new UserView("he.xu", "何序", "he.xu@example.com", "ProjectOwner", "自动化平台组", "启用", "今天 09:43"),
-                new UserView("zhao.wen", "赵文", "zhao.wen@example.com", "Auditor", "业务验收组", "待激活", "尚未登录")
-        ));
-        projectService = new InMemoryManagementProjectService(users, auditLogWriter);
+        userService = new InMemoryManagementUserService(auditLogWriter);
+        projectService = new InMemoryManagementProjectService(userService, auditLogWriter);
         applications.addAll(List.of(
                 new ApplicationView("veri-agent-api", "Backend", "平台组", "v0.3.2", "已接入"),
                 new ApplicationView("portal-web", "Frontend", "平台组", "v0.1.0", "接入中"),
@@ -244,78 +240,47 @@ public class InMemoryManagementConsoleService implements ManagementConsoleServic
 
     @Override
     public synchronized PageResponse<UserView> users(PageQuery pageQuery) {
-        return page(users, pageQuery);
+        return userService.users(pageQuery);
     }
 
     @Override
     public synchronized UserView user(String username) {
-        return requireUser(username);
+        return userService.user(username);
     }
 
     @Override
     public synchronized UserView createUser(String username, AuthUserPrincipal actor) {
-        UserView view = new UserView(username, username, "", "Tester", "质量工程中心", "待激活", "尚未登录");
-        users.add(0, view);
-        audit(actor, "邀请用户", username);
-        return view;
+        return userService.createUser(username, actor);
     }
 
     @Override
     public synchronized UserView updateUser(String username, UpdateUserRequest request, AuthUserPrincipal actor) {
-        UserView current = requireUser(username);
-        UserView updated = new UserView(
-                current.username(),
-                trimOrDefault(request.displayName(), current.displayName()),
-                trimOrDefault(request.email(), current.email()),
-                current.role(),
-                current.department(),
-                current.status(),
-                current.lastSeen()
-        );
-        replaceUser(updated);
-        audit(actor, "更新用户", username);
-        return updated;
+        return userService.updateUser(username, request, actor);
     }
 
     @Override
     public synchronized UserView enableUser(String username, AuthUserPrincipal actor) {
-        UserView view = replaceUserStatus(username, "启用");
-        audit(actor, "启用用户", username);
-        return view;
+        return userService.enableUser(username, actor);
     }
 
     @Override
     public synchronized UserView disableUser(String username, AuthUserPrincipal actor) {
-        if (actor.username().equals(username)) {
-            throw new BusinessException(ErrorCode.INVALID_STATE, "不能停用当前登录账号");
-        }
-        UserView view = replaceUserStatus(username, "已停用");
-        audit(actor, "停用用户", username);
-        return view;
+        return userService.disableUser(username, actor);
     }
 
     @Override
     public synchronized UserView lockUser(String username, AuthUserPrincipal actor) {
-        if (actor.username().equals(username)) {
-            throw new BusinessException(ErrorCode.INVALID_STATE, "不能锁定当前登录账号");
-        }
-        UserView view = replaceUserStatus(username, "已锁定");
-        audit(actor, "锁定用户", username);
-        return view;
+        return userService.lockUser(username, actor);
     }
 
     @Override
     public synchronized UserView unlockUser(String username, AuthUserPrincipal actor) {
-        UserView view = replaceUserStatus(username, "启用");
-        audit(actor, "解锁用户", username);
-        return view;
+        return userService.unlockUser(username, actor);
     }
 
     @Override
     public synchronized UserView resetUserPassword(String username, String newPassword, AuthUserPrincipal actor) {
-        UserView view = replaceUserStatus(username, "启用");
-        audit(actor, "重置密码", username);
-        return view;
+        return userService.resetUserPassword(username, newPassword, actor);
     }
 
     @Override
@@ -401,24 +366,12 @@ public class InMemoryManagementConsoleService implements ManagementConsoleServic
     @Override
     public synchronized UserView assignUserRole(String username, String roleCode, AuthUserPrincipal actor) {
         requireRole(roleCode);
-        UserView current = requireUser(username);
-        if (hasRole(current.role(), roleCode)) {
-            return current;
-        }
-        UserView updated = replaceUserRole(username, current.role() + " / " + roleCode);
-        audit(actor, "分配角色", username + ":" + roleCode);
-        return updated;
+        return userService.assignUserRole(username, roleCode, actor);
     }
 
     @Override
     public synchronized UserView unassignUserRole(String username, String roleCode, AuthUserPrincipal actor) {
-        UserView current = requireUser(username);
-        List<String> roleCodes = List.of(current.role().split(" / ")).stream()
-                .filter(role -> !role.equals(roleCode))
-                .toList();
-        UserView updated = replaceUserRole(username, roleCodes.isEmpty() ? "未分配" : String.join(" / ", roleCodes));
-        audit(actor, "解绑角色", username + ":" + roleCode);
-        return updated;
+        return userService.unassignUserRole(username, roleCode, actor);
     }
 
     @Override
@@ -527,7 +480,7 @@ public class InMemoryManagementConsoleService implements ManagementConsoleServic
         if (!"AppOwner".equals(request.roleCode().trim())) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "应用负责人只能绑定 AppOwner 角色");
         }
-        UserView user = requireUser(request.username().trim());
+        UserView user = userService.requireUser(request.username().trim());
         applicationOwners.removeIf(owner -> owner.username().equals(user.username()));
         ScopedUserRoleView view = new ScopedUserRoleView(user.username(), user.username(), "AppOwner", "APPLICATION", "启用");
         applicationOwners.add(0, view);
@@ -643,7 +596,7 @@ public class InMemoryManagementConsoleService implements ManagementConsoleServic
         if ("AppOwner".equals(roleCode)) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "环境授权用户不能绑定 AppOwner 角色");
         }
-        UserView user = requireUser(request.username().trim());
+        UserView user = userService.requireUser(request.username().trim());
         environmentUsers.removeIf(envUser -> envUser.username().equals(user.username()));
         ScopedUserRoleView view = new ScopedUserRoleView(user.username(), user.username(), roleCode, "ENVIRONMENT", "启用");
         environmentUsers.add(0, view);
@@ -1172,13 +1125,6 @@ public class InMemoryManagementConsoleService implements ManagementConsoleServic
         throw new BusinessException(ErrorCode.NOT_FOUND, "角色不存在");
     }
 
-    private UserView requireUser(String username) {
-        return users.stream()
-                .filter(user -> user.username().equals(username))
-                .findFirst()
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "用户不存在"));
-    }
-
     private ApplicationView requireApplication(String key) {
         return applications.stream()
                 .filter(application -> application.name().equals(key))
@@ -1233,58 +1179,4 @@ public class InMemoryManagementConsoleService implements ManagementConsoleServic
         return value.trim();
     }
 
-    private boolean hasRole(String roleNames, String roleCode) {
-        return List.of(roleNames.split(" / ")).contains(roleCode);
-    }
-
-    private UserView replaceUserRole(String username, String role) {
-        for (int index = 0; index < users.size(); index++) {
-            UserView current = users.get(index);
-            if (current.username().equals(username)) {
-                UserView updated = new UserView(
-                        current.username(),
-                        current.displayName(),
-                        current.email(),
-                        role,
-                        current.department(),
-                        current.status(),
-                        current.lastSeen()
-                );
-                users.set(index, updated);
-                return updated;
-            }
-        }
-        throw new BusinessException(ErrorCode.NOT_FOUND, "用户不存在");
-    }
-
-    private UserView replaceUserStatus(String username, String status) {
-        for (int index = 0; index < users.size(); index++) {
-            UserView current = users.get(index);
-            if (current.username().equals(username)) {
-                UserView updated = new UserView(
-                        current.username(),
-                        current.displayName(),
-                        current.email(),
-                        current.role(),
-                        current.department(),
-                        status,
-                        current.lastSeen()
-                );
-                users.set(index, updated);
-                return updated;
-            }
-        }
-        throw new BusinessException(ErrorCode.NOT_FOUND, "用户不存在");
-    }
-
-    private void replaceUser(UserView updated) {
-        for (int index = 0; index < users.size(); index++) {
-            UserView current = users.get(index);
-            if (current.username().equals(updated.username())) {
-                users.set(index, updated);
-                return;
-            }
-        }
-        throw new BusinessException(ErrorCode.NOT_FOUND, "用户不存在");
-    }
 }
