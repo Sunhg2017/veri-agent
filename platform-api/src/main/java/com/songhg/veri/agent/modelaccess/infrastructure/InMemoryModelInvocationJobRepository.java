@@ -15,7 +15,7 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Repository;
 
 @Repository
-@Profile("!db")
+@Profile("local")
 public class InMemoryModelInvocationJobRepository implements ModelInvocationJobRepository {
 
     private final Map<UUID, ModelInvocationJobRecord> jobs = new ConcurrentHashMap<>();

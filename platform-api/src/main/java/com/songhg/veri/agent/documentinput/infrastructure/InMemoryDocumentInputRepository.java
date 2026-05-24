@@ -26,7 +26,7 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Repository;
 
 @Repository
-@Profile("!db")
+@Profile("local")
 public class InMemoryDocumentInputRepository implements DocumentInputRepository {
 
     private static final UUID DEFAULT_MAPPING_ID = UUID.fromString("00000000-0000-0000-0000-000000000401");

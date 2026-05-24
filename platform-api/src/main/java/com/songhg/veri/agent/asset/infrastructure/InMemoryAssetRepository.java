@@ -23,7 +23,7 @@ import java.util.stream.Stream;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Repository;
 
-@Profile("!db")
+@Profile("local")
 @Repository
 public class InMemoryAssetRepository implements AssetRepository {
 

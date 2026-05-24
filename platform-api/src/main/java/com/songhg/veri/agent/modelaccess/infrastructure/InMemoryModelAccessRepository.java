@@ -25,7 +25,7 @@ import org.springframework.stereotype.Repository;
 import org.springframework.util.StringUtils;
 
 @Repository
-@Profile("!db")
+@Profile("local")
 public class InMemoryModelAccessRepository implements ModelAccessRepository {
 
     private final Map<UUID, ModelProviderConfig> providers = new ConcurrentHashMap<>();
