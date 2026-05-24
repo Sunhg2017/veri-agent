@@ -140,7 +140,7 @@ class VeriAgentWebhookSample {
 1. 已创建 `CUSTOM_API` source，`sourceCode` 与请求路径一致。
 2. source 状态为 ENABLED，`eventVersion` 与 `X-VA-Event-Version` 一致。
 3. source 配置了 `secretRef`，且 WP1 SecretProvider 能解析 ACTIVE、未过期、用途为 `WEBHOOK_SIGNING`、作用域为 `CONFIG + document_input_source.id` 的密钥。
-4. dev/test 可使用 `WP4_WEBHOOK_SECRET` 或 `veri-agent.document-input.webhook-secrets` fallback；生产建议设置 `WP4_LOCAL_WEBHOOK_SECRET_FALLBACK_ENABLED=false`。
+4. dev/test 可使用显式 `WP4_WEBHOOK_SECRET`、`wp4-webhook-default` 或自定义 `veri-agent.document-input.webhook-secrets` fallback；生产建议设置 `WP4_LOCAL_WEBHOOK_SECRET_FALLBACK_ENABLED=false`。
 5. SecretProvider 成功解析结果会按 `WP4_WEBHOOK_SECRET_CACHE_TTL_SECONDS` 短 TTL 缓存，配置/default fallback 不缓存；轮换时旧密钥至少保留 `max(WP4_WEBHOOK_SECRET_CACHE_TTL_SECONDS, WP4_WEBHOOK_SECRET_ROTATION_OVERLAP_SECONDS)`。
 6. payload 大小不超过 `WP4_WEBHOOK_MAX_PAYLOAD_BYTES`。
 

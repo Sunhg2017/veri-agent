@@ -16,7 +16,7 @@
 | S1 | 服务 token 路径限制 `X-Caller-Service` 来源 | 已完成 | 新增 `ServiceCallerProperties` 白名单，`ServiceTokenAuthenticationFilter` 和 WP1 内部 audit 入口拒绝非可信 caller；网关剥离外部同名头仍作为发布配置要求 |
 | S2 | 审计 actor 为空时保留可追溯元数据 | 已完成 | `PostgresAuditLogWriter` 默认 afterJson 写入 `resourceId`、`actorType`、`actorUserId`，无 actor 标记为 `SYSTEM` |
 | S3 | token secret 强度校验 | 已完成 | 已在上一批加入至少 32 bytes 校验并覆盖测试 |
-| S4 | 移除配置文件中的默认 webhook 明文密钥 | 已完成 | `application.yml` 不再内嵌默认 secret；测试和 smoke 需显式设置 `WP4_WEBHOOK_SECRET`，生产使用 SecretProvider 并关闭本地 fallback |
+| S4 | 移除配置文件中的默认 webhook 明文密钥 | 已完成 | `application.yml` 不再内嵌默认 secret；`application-document-input.yml` 不再预置 `wp4-webhook-default` 的 `webhook-secrets` 映射；测试和 smoke 需显式设置 `WP4_WEBHOOK_SECRET`，生产使用 SecretProvider 并关闭本地 fallback |
 | S5 | 登录时序侧信道 | 已完成 | 已在上一批加入 dummy BCrypt 校验路径 |
 | S6 / Q1 | SensitiveContentGuard 规则重复和 mask 顺序依赖 | 已完成 | 已在上一批统一规则源并增加直接单测 |
 | S7 | 资产批量操作资源级鉴权 | 已完成 | 新增 `ResourceScope` 资源级校验，AssetController 对项目级列表/导入/导出/同步/单资源操作按项目 scope 授权，并补充跨项目拒绝用例 |

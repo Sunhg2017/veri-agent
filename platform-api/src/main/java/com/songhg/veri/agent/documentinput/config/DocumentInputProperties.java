@@ -30,7 +30,7 @@ public record DocumentInputProperties(
         int webhookAutoRetryBatchSize,
         long webhookSecretCacheTtlSeconds,
         long webhookSecretRotationOverlapSeconds,
-        Map<String, String> webhookSecrets,
+        @DefaultValue Map<String, String> webhookSecrets,
         String webhookAllowedCidrs,
         Map<String, String> webhookSourceAllowedCidrs,
         String webhookTrustedProxyCidrs,

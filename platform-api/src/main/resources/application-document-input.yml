@@ -2,8 +2,7 @@ veri-agent:
   document-input:
     service-token: ${WP4_SERVICE_TOKEN:local-document-input-token}
     webhook-secret: ${WP4_WEBHOOK_SECRET:}
-    webhook-secrets:
-      wp4-webhook-default: ${WP4_WEBHOOK_SECRET:}
+    webhook-secrets: {}
     webhook-clock-skew-seconds: ${WP4_WEBHOOK_CLOCK_SKEW_SECONDS:300}
     input-enabled: ${WP4_INPUT_ENABLED:true}
     webhook-enabled: ${WP4_WEBHOOK_ENABLED:true}

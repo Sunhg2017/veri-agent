@@ -41,8 +41,7 @@ class ApplicationConfigurationLayeringTest {
         assertThat(assetProperties.serviceToken()).isEqualTo("local-asset-token");
 
         assertThat(documentInputProperties.serviceToken()).isEqualTo("local-document-input-token");
-        assertThat(documentInputProperties.webhookSecrets())
-                .containsEntry("wp4-webhook-default", "");
+        assertThat(documentInputProperties.webhookSecrets()).isEmpty();
         assertThat(documentInputProperties.webhookMaxPayloadBytes()).isEqualTo(262144);
     }
 }
