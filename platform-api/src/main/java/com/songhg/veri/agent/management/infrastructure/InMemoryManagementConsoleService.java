@@ -4,9 +4,6 @@ import com.songhg.veri.agent.auth.application.AuthUserPrincipal;
 import com.songhg.veri.agent.common.api.PageQuery;
 import com.songhg.veri.agent.common.api.PageResponse;
 import com.songhg.veri.agent.common.audit.AuditLogWriter;
-import com.songhg.veri.agent.common.audit.InMemoryAuditLogWriter;
-import com.songhg.veri.agent.common.error.BusinessException;
-import com.songhg.veri.agent.common.error.ErrorCode;
 import com.songhg.veri.agent.management.api.response.ApplicationView;
 import com.songhg.veri.agent.management.api.response.AuditLogView;
 import com.songhg.veri.agent.management.api.response.AuditOutboxView;
@@ -46,15 +43,6 @@ import com.songhg.veri.agent.management.application.AuditLogQuery;
 import com.songhg.veri.agent.management.application.AuditOutboxQuery;
 import com.songhg.veri.agent.management.application.EnvironmentConnectivityChecker;
 import com.songhg.veri.agent.management.application.ManagementConsoleService;
-import java.time.LocalDateTime;
-import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
-import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
@@ -63,131 +51,31 @@ import org.springframework.stereotype.Service;
 @Service
 public class InMemoryManagementConsoleService implements ManagementConsoleService {
 
-    private static final DateTimeFormatter TIME_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
-
-    private final List<RoleView> roles = new ArrayList<>();
-    private final List<PermissionView> permissions = new ArrayList<>();
-    private final Map<String, List<String>> rolePermissions = new HashMap<>();
-    private final List<AuditLogView> auditLogs = new ArrayList<>();
-    private final List<AuditOutboxView> auditOutbox = new ArrayList<>();
     private final InMemoryManagementDepartmentService departmentService;
     private final InMemoryManagementUserService userService;
+    private final InMemoryManagementRoleService roleService;
     private final InMemoryManagementProjectService projectService;
     private final InMemoryManagementApplicationService applicationService;
     private final InMemoryManagementEnvironmentService environmentService;
     private final InMemoryManagementIntegrationService integrationService;
+    private final InMemoryManagementAuditQueryService auditQueryService;
     private final InMemoryManagementConfigService configService;
     private final InMemoryManagementSecretReferenceService secretReferenceService;
-    private final AuditLogWriter auditLogWriter;
 
     public InMemoryManagementConsoleService(
             AuditLogWriter auditLogWriter,
             EnvironmentConnectivityChecker connectivityChecker
     ) {
-        this.auditLogWriter = auditLogWriter;
         departmentService = new InMemoryManagementDepartmentService(auditLogWriter);
         userService = new InMemoryManagementUserService(auditLogWriter);
+        roleService = new InMemoryManagementRoleService(userService, auditLogWriter);
         projectService = new InMemoryManagementProjectService(userService, auditLogWriter);
         applicationService = new InMemoryManagementApplicationService(userService, auditLogWriter);
         environmentService = new InMemoryManagementEnvironmentService(userService, auditLogWriter, connectivityChecker);
         integrationService = new InMemoryManagementIntegrationService(auditLogWriter);
+        auditQueryService = new InMemoryManagementAuditQueryService(auditLogWriter);
         configService = new InMemoryManagementConfigService(auditLogWriter);
         secretReferenceService = new InMemoryManagementSecretReferenceService(auditLogWriter);
-        roles.addAll(List.of(
-                new RoleView("SuperAdmin", "超级管理员", "PLATFORM", "启用", "平台初始化、组织治理、平台审计"),
-                new RoleView("PlatformAdmin", "平台管理员", "PLATFORM", "启用", "组织、用户、项目、应用、环境、权限、审计管理"),
-                new RoleView("Tester", "测试工程师", "ENVIRONMENT", "启用", "授权范围只读和启用环境使用")
-        ));
-        seedPermissions();
-        rolePermissions.put("SuperAdmin", permissionCodes());
-        rolePermissions.put("PlatformAdmin", List.of(
-                "department:read", "department:create", "department:edit", "department:enable", "department:disable",
-                "department:member_manage", "user:read", "user:create", "user:edit", "user:enable", "user:disable",
-                "user:lock", "user:unlock", "user:assign_role", "role:read", "role:bind", "role:unbind",
-                "project:read", "project:create", "project:edit", "project:archive", "project:disable", "project:member_manage",
-                "application:read", "application:create", "application:edit", "application:disable", "application:owner_manage",
-                "environment:read", "environment:create", "environment:edit", "environment:disable", "environment:use",
-                "environment:user_manage", "config:read", "config:edit", "audit:read", "audit:export",
-                "secret:reference", "context:read", "context:switch", "context:effective_read"
-        ));
-        rolePermissions.put("Tester", List.of(
-                "project:read", "application:read", "environment:read", "environment:use",
-                "config:read", "context:read", "context:switch", "context:effective_read",
-                "asset:read", "asset:manage", "asset:review",
-                "requirementInput:read", "requirementInput:import", "requirementInput:candidate_review"
-        ));
-        auditLogs.addAll(List.of(
-                new AuditLogView("2026-05-16 10:31", "system", "健康检查", "platform-api", "成功"),
-                new AuditLogView("2026-05-16 09:48", "shao.min", "创建部门", "端体验组", "成功"),
-                new AuditLogView("2026-05-15 18:12", "he.xu", "更新角色", "ProjectOwner", "成功")
-        ));
-        auditOutbox.addAll(List.of(
-                new AuditOutboxView(
-                        "8f57078c-4a7f-4b80-bf72-7ef03d252001",
-                        "trc_outbox_pending",
-                        "audit:pending:001",
-                        "PENDING",
-                        1,
-                        "2026-05-21 10:05",
-                        "",
-                        "",
-                        "",
-                        "创建部门",
-                        "department",
-                        "dept-qa",
-                        "SUCCESS",
-                        "2026-05-21 10:00",
-                        "2026-05-21 10:00"
-                ),
-                new AuditOutboxView(
-                        "8f57078c-4a7f-4b80-bf72-7ef03d252002",
-                        "trc_outbox_failed",
-                        "audit:failed:001",
-                        "FAILED",
-                        4,
-                        "2026-05-21 10:30",
-                        "",
-                        "wp1-audit-worker-1",
-                        "insert audit_log timeout",
-                        "重置密码",
-                        "user",
-                        "tester.lifecycle",
-                        "SUCCESS",
-                        "2026-05-21 09:45",
-                        "2026-05-21 09:58"
-                )
-        ));
-    }
-
-    private void seedPermissions() {
-        List.of(
-                "role:read", "role:create", "role:edit", "role:bind", "role:unbind",
-                "audit:read", "audit:export", "audit:write_internal",
-                "context:read", "context:switch", "context:effective_read",
-                "department:read", "department:create", "department:edit", "department:enable", "department:disable",
-                "department:member_manage",
-                "user:read", "user:create", "user:edit", "user:enable", "user:disable", "user:lock", "user:unlock",
-                "user:assign_role", "user:reset_password",
-                "project:read", "project:create", "project:edit", "project:archive", "project:disable", "project:member_manage",
-                "application:read", "application:create", "application:edit", "application:disable", "application:owner_manage",
-                "environment:read", "environment:create", "environment:edit", "environment:disable", "environment:use",
-                "environment:user_manage",
-                "config:read", "config:edit",
-                "secret:reference", "secret:read", "secret:manage", "secret:rotate", "secret:disable",
-                "asset:read", "asset:manage", "asset:review", "asset:export",
-                "modelAccess:read", "modelAccess:manage", "modelAccess:export",
-                "requirementInput:read", "requirementInput:manage", "requirementInput:import",
-                "requirementInput:candidate_review", "requirementInput:publish", "requirementInput:webhook_replay"
-        ).forEach(code -> permissions.add(permission(code)));
-    }
-
-    private PermissionView permission(String code) {
-        String[] parts = code.split(":", 2);
-        return new PermissionView(code, parts[0], parts.length == 2 ? parts[1] : "", "PLATFORM,PROJECT,APPLICATION,ENVIRONMENT", "", "启用");
-    }
-
-    private List<String> permissionCodes() {
-        return permissions.stream().map(PermissionView::code).toList();
     }
 
     @Override
@@ -262,93 +150,42 @@ public class InMemoryManagementConsoleService implements ManagementConsoleServic
 
     @Override
     public synchronized PageResponse<RoleView> roles(PageQuery pageQuery) {
-        return page(roles, pageQuery);
+        return roleService.roles(pageQuery);
     }
 
     @Override
     public synchronized PageResponse<PermissionView> permissions(PageQuery pageQuery) {
-        return page(permissions, pageQuery);
+        return roleService.permissions(pageQuery);
     }
 
     @Override
     public synchronized RoleDetailView role(String code) {
-        RoleView role = requireRoleView(code);
-        return roleDetail(role);
+        return roleService.role(code);
     }
 
     @Override
     public synchronized RoleDetailView createRole(CreateRoleRequest request, Set<String> assignablePermissions, AuthUserPrincipal actor) {
-        String code = request.code().trim();
-        if (roles.stream().anyMatch(role -> role.code().equals(code))) {
-            throw new BusinessException(ErrorCode.CONFLICT, "角色编码已存在");
-        }
-        List<String> permissionCodes = normalizePermissionCodes(request.permissionCodes());
-        ensureAssignablePermissions(permissionCodes, assignablePermissions);
-        ensureKnownPermissions(permissionCodes);
-        RoleView view = new RoleView(
-                code,
-                request.name().trim(),
-                request.scopeType().trim(),
-                "启用",
-                defaultText(request.description(), "")
-        );
-        roles.add(view);
-        rolePermissions.put(code, permissionCodes);
-        audit(actor, "创建角色", code);
-        return roleDetail(view);
+        return roleService.createRole(request, assignablePermissions, actor);
     }
 
     @Override
     public synchronized RoleDetailView updateRole(String code, UpdateRoleRequest request, Set<String> assignablePermissions, AuthUserPrincipal actor) {
-        RoleView current = requireRoleView(code);
-        ensureCustomRole(current);
-        List<String> nextPermissionCodes = rolePermissions.getOrDefault(current.code(), List.of());
-        if (request.permissionCodes() != null) {
-            nextPermissionCodes = normalizePermissionCodes(request.permissionCodes());
-            ensureAssignablePermissions(nextPermissionCodes, assignablePermissions);
-            ensureKnownPermissions(nextPermissionCodes);
-        }
-        RoleView updated = new RoleView(
-                current.code(),
-                trimOrDefault(request.name(), current.name()),
-                trimOrDefault(request.scopeType(), current.scopeType()),
-                current.status(),
-                request.description() == null ? current.description() : request.description().trim()
-        );
-        replaceRole(updated);
-        rolePermissions.put(updated.code(), nextPermissionCodes);
-        audit(actor, "更新角色", updated.code());
-        return roleDetail(updated);
+        return roleService.updateRole(code, request, assignablePermissions, actor);
     }
 
     @Override
     public synchronized RoleDetailView changeRoleStatus(String code, String status, AuthUserPrincipal actor) {
-        RoleView current = requireRoleView(code);
-        ensureCustomRole(current);
-        if (!List.of("ENABLED", "DISABLED").contains(status)) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "角色状态只支持 ENABLED 或 DISABLED");
-        }
-        RoleView updated = new RoleView(
-                current.code(),
-                current.name(),
-                current.scopeType(),
-                "ENABLED".equals(status) ? "启用" : "已停用",
-                current.description()
-        );
-        replaceRole(updated);
-        audit(actor, "ENABLED".equals(status) ? "启用角色" : "停用角色", updated.code());
-        return roleDetail(updated);
+        return roleService.changeRoleStatus(code, status, actor);
     }
 
     @Override
     public synchronized UserView assignUserRole(String username, String roleCode, AuthUserPrincipal actor) {
-        requireRole(roleCode);
-        return userService.assignUserRole(username, roleCode, actor);
+        return roleService.assignUserRole(username, roleCode, actor);
     }
 
     @Override
     public synchronized UserView unassignUserRole(String username, String roleCode, AuthUserPrincipal actor) {
-        return userService.unassignUserRole(username, roleCode, actor);
+        return roleService.unassignUserRole(username, roleCode, actor);
     }
 
     @Override
@@ -508,32 +345,12 @@ public class InMemoryManagementConsoleService implements ManagementConsoleServic
 
     @Override
     public synchronized PageResponse<AuditLogView> auditLogs(PageQuery pageQuery, AuditLogQuery query, AuthUserPrincipal actor) {
-        List<AuditLogView> combined = new ArrayList<>();
-        combined.addAll(InMemoryAuditLogWriter.records().stream()
-                .map(this::auditRecordView)
-                .toList());
-        combined.addAll(auditLogs);
-        List<AuditLogView> filtered = combined.stream()
-                .filter(item -> matchesAuditLog(item, query))
-                .toList();
-        return page(filtered, PageQuery.of(pageQuery.index(), pageQuery.size()));
+        return auditQueryService.auditLogs(pageQuery, query, actor);
     }
 
     @Override
     public synchronized String exportAuditLogsCsv(AuditLogQuery query, AuthUserPrincipal actor) {
-        PageResponse<AuditLogView> page = auditLogs(PageQuery.of(0, 100), query, actor);
-        StringBuilder csv = new StringBuilder("time,actor,action,target,result\n");
-        page.items().forEach(item -> {
-            appendCsvValue(csv, item.time());
-            appendCsvValue(csv, item.actor());
-            appendCsvValue(csv, item.action());
-            appendCsvValue(csv, item.target());
-            appendCsvValue(csv, item.result());
-            csv.setLength(csv.length() - 1);
-            csv.append('\n');
-        });
-        audit(actor, "导出审计", "audit_log");
-        return csv.toString();
+        return auditQueryService.exportAuditLogsCsv(query, actor);
     }
 
     @Override
@@ -542,26 +359,7 @@ public class InMemoryManagementConsoleService implements ManagementConsoleServic
             AuditOutboxQuery query,
             AuthUserPrincipal actor
     ) {
-        List<AuditOutboxView> filtered = auditOutbox.stream()
-                .filter(item -> matchesAuditOutbox(item, query))
-                .toList();
-        return page(filtered, PageQuery.of(pageQuery.index(), pageQuery.size()));
-    }
-
-    private AuditLogView auditRecordView(AuditLogWriter.AuditRecord record) {
-        return new AuditLogView(
-                LocalDateTime.now().format(TIME_FORMAT),
-                record.actor() == null ? "system" : record.actor().username(),
-                record.action(),
-                record.targetName(),
-                resultName(record.result())
-        );
-    }
-
-    private void appendCsvValue(StringBuilder csv, Object value) {
-        String raw = value == null ? "" : String.valueOf(value);
-        String escaped = raw.replace("\"", "\"\"");
-        csv.append('"').append(escaped).append('"').append(',');
+        return auditQueryService.auditOutbox(pageQuery, query, actor);
     }
 
     @Override
@@ -607,185 +405,6 @@ public class InMemoryManagementConsoleService implements ManagementConsoleServic
     @Override
     public synchronized SecretReferenceView disableSecret(DisableSecretReferenceRequest request, AuthUserPrincipal actor) {
         return secretReferenceService.disableSecret(request, actor);
-    }
-
-    private void audit(AuthUserPrincipal actor, String action, String target) {
-        auditLogWriter.record(AuditLogWriter.success(
-                actor, action, "management", target, target
-        ));
-    }
-
-    private void auditDenied(AuthUserPrincipal actor, String action, String target, String reason) {
-        auditLogWriter.record(AuditLogWriter.denied(
-                actor, action, "management", target, target, reason
-        ));
-    }
-
-    private String defaultText(String value, String fallback) {
-        String normalized = value == null ? "" : value.trim();
-        return normalized.isBlank() ? fallback : normalized;
-    }
-
-    private <T> PageResponse<T> page(List<T> source, PageQuery pageQuery) {
-        String keyword = pageQuery.search().toLowerCase();
-        List<T> filtered = source.stream()
-                .filter(item -> keyword.isBlank() || item.toString().toLowerCase().contains(keyword))
-                .toList();
-        int from = Math.min(pageQuery.offset(), filtered.size());
-        int to = Math.min(from + pageQuery.size(), filtered.size());
-        return PageResponse.of(filtered.subList(from, to), pageQuery.index(), pageQuery.size(), filtered.size());
-    }
-
-    private boolean matchesAuditLog(AuditLogView item, AuditLogQuery query) {
-        String keyword = query.search().toLowerCase();
-        if (!keyword.isBlank() && !item.toString().toLowerCase().contains(keyword)) {
-            return false;
-        }
-        if (!query.actor().isBlank() && !item.actor().equalsIgnoreCase(query.actor())) {
-            return false;
-        }
-        if (!query.action().isBlank() && !item.action().equals(query.action())) {
-            return false;
-        }
-        if (!query.resourceType().isBlank() && !displayResourceType(item.action()).equalsIgnoreCase(query.resourceType())) {
-            return false;
-        }
-        if (!query.result().isBlank()
-                && !item.result().equalsIgnoreCase(query.result())
-                && !item.result().equals(resultName(query.result()))) {
-            return false;
-        }
-        OffsetDateTime itemTime = parseDisplayTime(item.time());
-        if (query.startTime() != null && itemTime.isBefore(query.startTime())) {
-            return false;
-        }
-        return query.endTime() == null || !itemTime.isAfter(query.endTime());
-    }
-
-    private boolean matchesAuditOutbox(AuditOutboxView item, AuditOutboxQuery query) {
-        String keyword = query.search().toLowerCase();
-        if (!keyword.isBlank() && !item.toString().toLowerCase().contains(keyword)) {
-            return false;
-        }
-        if (!query.status().isBlank() && !item.status().equals(query.status())) {
-            return false;
-        }
-        return query.traceId().isBlank() || item.traceId().equals(query.traceId());
-    }
-
-    private OffsetDateTime parseDisplayTime(String value) {
-        LocalDateTime localDateTime = LocalDateTime.parse(value, TIME_FORMAT);
-        return localDateTime.atOffset(ZoneOffset.ofHours(8));
-    }
-
-    private String displayResourceType(String action) {
-        return switch (action) {
-            case "创建部门" -> "department";
-            case "邀请用户", "启用用户", "停用用户", "锁定用户", "解锁用户", "重置密码" -> "user";
-            case "创建项目" -> "project";
-            case "登记应用" -> "application";
-            case "新增环境", "环境连通性检查" -> "environment";
-            case "分配角色", "解绑角色" -> "rbac_role_binding";
-            case "创建角色", "更新角色", "启用角色", "停用角色" -> "rbac_role";
-            case "创建密钥引用", "轮换密钥引用", "撤销密钥引用" -> "secret_reference";
-            default -> "";
-        };
-    }
-
-    private String resultName(String result) {
-        return switch (result.toUpperCase()) {
-            case "SUCCESS" -> "成功";
-            case "DENIED" -> "拒绝";
-            case "FAILED" -> "失败";
-            default -> result;
-        };
-    }
-
-    private void requireRole(String roleCode) {
-        requireRoleView(roleCode);
-    }
-
-    private RoleView requireRoleView(String roleCode) {
-        return roles.stream()
-                .filter(role -> role.code().equals(roleCode))
-                .findFirst()
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "角色不存在"));
-    }
-
-    private RoleDetailView roleDetail(RoleView role) {
-        return new RoleDetailView(
-                role.code(),
-                role.name(),
-                role.scopeType(),
-                role.status(),
-                role.description(),
-                isBuiltinRole(role.code()),
-                isBuiltinRole(role.code()),
-                0,
-                rolePermissions.getOrDefault(role.code(), List.of())
-        );
-    }
-
-    private void ensureCustomRole(RoleView role) {
-        if (isBuiltinRole(role.code())) {
-            throw new BusinessException(ErrorCode.INVALID_STATE, "内置角色不可编辑或停用");
-        }
-    }
-
-    private boolean isBuiltinRole(String roleCode) {
-        return List.of("SuperAdmin", "PlatformAdmin", "DepartmentManager", "ProjectOwner", "AppOwner", "Tester", "Developer", "Auditor")
-                .contains(roleCode);
-    }
-
-    private List<String> normalizePermissionCodes(List<String> permissionCodes) {
-        if (permissionCodes == null || permissionCodes.isEmpty()) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "角色至少需要一个权限点");
-        }
-        Set<String> normalizedCodes = new LinkedHashSet<>();
-        for (String permissionCode : permissionCodes) {
-            String normalized = defaultText(permissionCode, "");
-            if (normalized.isBlank()) {
-                throw new BusinessException(ErrorCode.VALIDATION_ERROR, "权限点编码不能为空");
-            }
-            normalizedCodes.add(normalized);
-        }
-        return new ArrayList<>(normalizedCodes);
-    }
-
-    private void ensureAssignablePermissions(List<String> permissionCodes, Set<String> assignablePermissions) {
-        List<String> forbidden = permissionCodes.stream()
-                .filter(permissionCode -> assignablePermissions == null || !assignablePermissions.contains(permissionCode))
-                .toList();
-        if (!forbidden.isEmpty()) {
-            throw new BusinessException(ErrorCode.FORBIDDEN, "不能授予超过操作者自身权限的权限点: " + String.join(",", forbidden));
-        }
-    }
-
-    private void ensureKnownPermissions(List<String> permissionCodes) {
-        Set<String> known = new LinkedHashSet<>(permissionCodes());
-        List<String> missing = permissionCodes.stream()
-                .filter(permissionCode -> !known.contains(permissionCode))
-                .toList();
-        if (!missing.isEmpty()) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "权限点不存在或已停用: " + String.join(",", missing));
-        }
-    }
-
-    private void replaceRole(RoleView updated) {
-        for (int index = 0; index < roles.size(); index++) {
-            if (roles.get(index).code().equals(updated.code())) {
-                roles.set(index, updated);
-                return;
-            }
-        }
-        throw new BusinessException(ErrorCode.NOT_FOUND, "角色不存在");
-    }
-
-    private String trimOrDefault(String value, String defaultValue) {
-        if (value == null || value.trim().isBlank()) {
-            return defaultValue;
-        }
-        return value.trim();
     }
 
 }
