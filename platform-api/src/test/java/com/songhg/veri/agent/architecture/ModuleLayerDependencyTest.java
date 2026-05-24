@@ -149,7 +149,7 @@ class ModuleLayerDependencyTest {
         try (var files = Files.walk(infrastructureRoot)) {
             splitServices = files
                     .filter(path -> path.toString().endsWith(".java"))
-                    .filter(path -> path.getFileName().toString().matches("(InMemory|Postgres)Management.*Service\\.java"))
+                    .filter(path -> path.getFileName().toString().matches("(InMemory|Jdbc|Database)Management.*Service\\.java"))
                     .toList();
         }
 

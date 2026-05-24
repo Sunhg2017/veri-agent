@@ -23,11 +23,11 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 @Profile("db")
-public class PostgresDocumentInputRepository implements DocumentInputRepository {
+public class JdbcDocumentInputRepository implements DocumentInputRepository {
 
     private final DocumentInputMapper mapper;
 
-    public PostgresDocumentInputRepository(DocumentInputMapper mapper) {
+    public JdbcDocumentInputRepository(DocumentInputMapper mapper) {
         this.mapper = mapper;
     }
 

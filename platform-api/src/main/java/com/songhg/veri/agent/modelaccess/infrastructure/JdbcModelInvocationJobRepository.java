@@ -13,11 +13,11 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 @Profile("db")
-public class PostgresModelInvocationJobRepository implements ModelInvocationJobRepository {
+public class JdbcModelInvocationJobRepository implements ModelInvocationJobRepository {
 
     private final ModelAccessMapper mapper;
 
-    public PostgresModelInvocationJobRepository(ModelAccessMapper mapper) {
+    public JdbcModelInvocationJobRepository(ModelAccessMapper mapper) {
         this.mapper = mapper;
     }
 

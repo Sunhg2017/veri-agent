@@ -13,11 +13,11 @@ import org.springframework.stereotype.Repository;
 
 @Profile("db")
 @Repository
-public class PostgresAuthIdentityStore implements AuthIdentityStore {
+public class JdbcAuthIdentityStore implements AuthIdentityStore {
 
     private final AuthMapper mapper;
 
-    public PostgresAuthIdentityStore(AuthMapper mapper) {
+    public JdbcAuthIdentityStore(AuthMapper mapper) {
         this.mapper = mapper;
     }
 

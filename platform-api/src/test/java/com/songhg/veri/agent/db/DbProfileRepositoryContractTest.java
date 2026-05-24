@@ -7,7 +7,7 @@ import com.songhg.veri.agent.asset.domain.AssetRequirement;
 import com.songhg.veri.agent.auth.domain.AuthSessionDraft;
 import com.songhg.veri.agent.auth.domain.AuthSessionRecord;
 import com.songhg.veri.agent.auth.domain.AuthSessionStore;
-import com.songhg.veri.agent.auth.infrastructure.PostgresAuthSessionStore;
+import com.songhg.veri.agent.auth.infrastructure.JdbcAuthSessionStore;
 import com.songhg.veri.agent.common.audit.AuditLogWriter;
 import com.songhg.veri.agent.common.api.PageQuery;
 import com.songhg.veri.agent.modelaccess.application.query.InvocationQuery;
@@ -18,8 +18,8 @@ import com.songhg.veri.agent.modelaccess.application.view.ModelInvocationJobStat
 import com.songhg.veri.agent.modelaccess.application.view.ModelInvocationResult;
 import com.songhg.veri.agent.modelaccess.domain.InvocationRecord;
 import com.songhg.veri.agent.modelaccess.domain.InvocationStatus;
-import com.songhg.veri.agent.modelaccess.infrastructure.PostgresModelInvocationJobRepository;
-import com.songhg.veri.agent.modelaccess.infrastructure.PostgresModelAccessRepository;
+import com.songhg.veri.agent.modelaccess.infrastructure.JdbcModelInvocationJobRepository;
+import com.songhg.veri.agent.modelaccess.infrastructure.JdbcModelAccessRepository;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
@@ -90,15 +90,15 @@ class DbProfileRepositoryContractTest {
     private ObjectMapper objectMapper;
 
     @Test
-    void dbProfileWiresPostgresImplementations() {
-        assertThat(authSessionStore).isInstanceOf(PostgresAuthSessionStore.class);
-        assertThat(modelAccessRepository).isInstanceOf(PostgresModelAccessRepository.class);
-        assertThat(modelInvocationJobRepository).isInstanceOf(PostgresModelInvocationJobRepository.class);
+    void dbProfileWiresJdbcImplementations() {
+        assertThat(authSessionStore).isInstanceOf(JdbcAuthSessionStore.class);
+        assertThat(modelAccessRepository).isInstanceOf(JdbcModelAccessRepository.class);
+        assertThat(modelInvocationJobRepository).isInstanceOf(JdbcModelInvocationJobRepository.class);
         assertThat(applicationContext.getBeanNamesForType(AssetRepository.class)).hasSize(1);
     }
 
     @Test
-    void authSessionStorePersistsFindsRevokesAndCleansSessionsInPostgres() {
+    void authSessionStorePersistsFindsRevokesAndCleansSessionsThroughJdbc() {
         UUID userId = createEnabledUser("session-user");
         UUID sessionId = UUID.randomUUID();
         Instant now = Instant.now();
@@ -127,7 +127,7 @@ class DbProfileRepositoryContractTest {
     }
 
     @Test
-    void modelAccessRepositoryPersistsInvocationsAndRunsDistinctQueriesInPostgres() {
+    void modelAccessRepositoryPersistsInvocationsAndRunsDistinctQueriesThroughJdbc() {
         String projectId = "project-db-" + UUID.randomUUID();
         Instant now = Instant.now();
         modelAccessRepository.saveInvocation(invocation(projectId, "wp4-document-input", now.minusSeconds(20)));
@@ -155,7 +155,7 @@ class DbProfileRepositoryContractTest {
     }
 
     @Test
-    void modelInvocationJobRepositoryPersistsLifecycleAndRecoveryStateInPostgres() throws Exception {
+    void modelInvocationJobRepositoryPersistsLifecycleAndRecoveryStateThroughJdbc() throws Exception {
         UUID jobId = UUID.randomUUID();
         UUID invocationId = UUID.randomUUID();
         Instant now = Instant.now();
@@ -235,7 +235,7 @@ class DbProfileRepositoryContractTest {
     }
 
     @Test
-    void assetRepositoryHonorsPostgresPagingConstraintsAndTransactionRollback() {
+    void assetRepositoryHonorsJdbcPagingConstraintsAndTransactionRollback() {
         String projectId = "project-asset-db-" + UUID.randomUUID();
         AssetRequirement first = requirement(projectId, "REQ-DB-1", "订单导入需求", "SRC-1", Instant.now().minusSeconds(10));
         AssetRequirement second = requirement(projectId, "REQ-DB-2", "订单导出需求", "SRC-2", Instant.now());
@@ -351,7 +351,7 @@ class DbProfileRepositoryContractTest {
                 "IMPORT",
                 sourceRef,
                 null,
-                "must persist through Postgres mapper",
+                "must persist through JDBC mapper",
                 "DRAFT",
                 "HIGH",
                 projectId,

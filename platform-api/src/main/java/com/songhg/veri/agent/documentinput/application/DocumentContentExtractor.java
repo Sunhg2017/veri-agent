@@ -55,6 +55,7 @@ public class DocumentContentExtractor {
     private static final int DEFAULT_MALWARE_SCAN_MAX_CONCURRENT_PROCESSES = 2;
 
     private final DocumentInputProperties properties;
+    private final DocumentInputConfiguration configuration;
     private final Semaphore ocrPermits;
     private final Semaphore malwareScanPermits;
     private final LongSupplier nanoTime;
@@ -79,6 +80,7 @@ public class DocumentContentExtractor {
             ObjectMapper objectMapper
     ) {
         this.properties = properties;
+        this.configuration = new DocumentInputConfiguration(properties);
         this.ocrPermits = new Semaphore(ocrMaxConcurrentProcesses(), true);
         this.malwareScanPermits = new Semaphore(malwareScanMaxConcurrentProcesses(), true);
         this.nanoTime = nanoTime;
@@ -133,7 +135,11 @@ public class DocumentContentExtractor {
         return "HTTP_WORKER".equals(mode) || "EXTERNAL_WORKER".equals(mode);
     }
 
-    private boolean ocrRemoteWorkerConfigured() {
+    public String ocrWorkerMode() {
+        return resolvedOcrWorkerMode();
+    }
+
+    public boolean ocrRemoteWorkerConfigured() {
         return StringUtils.hasText(properties.ocrWorkerUrl());
     }
 
@@ -554,6 +560,43 @@ public class DocumentContentExtractor {
 
     private Duration ocrTimeout() {
         return Duration.ofSeconds(ocrTimeoutSeconds());
+    }
+
+    public long documentBinaryMaxBytes() {
+        return configuration.documentBinaryMaxBytes();
+    }
+
+    private int ocrMaxConcurrentProcesses() {
+        return configuration.ocrMaxConcurrentProcesses();
+    }
+
+    private int ocrTimeoutSeconds() {
+        return configuration.ocrTimeoutSeconds();
+    }
+
+    private int ocrMaxOutputChars() {
+        return configuration.ocrMaxOutputChars();
+    }
+
+    private boolean binaryMimeValidationEnabled() {
+        return configuration.binaryMimeValidationEnabled();
+    }
+
+    private int malwareScanTimeoutSeconds() {
+        return configuration.malwareScanTimeoutSeconds();
+    }
+
+    private int malwareScanMaxConcurrentProcesses() {
+        return configuration.malwareScanMaxConcurrentProcesses();
+    }
+
+    private int pdfMaxPages() {
+        int maxPages = configuration.pdfMaxPages();
+        return maxPages <= 0 ? Integer.MAX_VALUE : maxPages;
+    }
+
+    private long pdfMaxParseMillis() {
+        return configuration.pdfMaxParseMillis();
     }
 
     private static int resolveOcrTimeoutSeconds(DocumentInputProperties properties) {

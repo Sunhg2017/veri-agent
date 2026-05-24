@@ -11,11 +11,11 @@ import org.springframework.util.StringUtils;
 
 @Profile("db")
 @Component
-public class PostgresAuditLogWriter implements AuditLogWriter {
+public class JdbcAuditLogWriter implements AuditLogWriter {
 
     private final AuditMapper mapper;
 
-    public PostgresAuditLogWriter(AuditMapper mapper) {
+    public JdbcAuditLogWriter(AuditMapper mapper) {
         this.mapper = mapper;
     }
 

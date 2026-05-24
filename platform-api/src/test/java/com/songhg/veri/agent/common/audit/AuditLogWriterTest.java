@@ -28,9 +28,9 @@ class AuditLogWriterTest {
     }
 
     @Test
-    void postgresWriterRecordsSystemActorMetadataWhenActorIsMissing() {
+    void jdbcWriterRecordsSystemActorMetadataWhenActorIsMissing() {
         AuditMapper mapper = mock(AuditMapper.class);
-        PostgresAuditLogWriter writer = new PostgresAuditLogWriter(mapper);
+        JdbcAuditLogWriter writer = new JdbcAuditLogWriter(mapper);
         ArgumentCaptor<String> afterJson = ArgumentCaptor.forClass(String.class);
 
         writer.record(AuditLogWriter.denied(

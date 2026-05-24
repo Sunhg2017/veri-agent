@@ -22,11 +22,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Profile("db")
 @Repository
-public class PostgresAssetRepository implements AssetRepository {
+public class JdbcAssetRepository implements AssetRepository {
 
     private final AssetMapper mapper;
 
-    public PostgresAssetRepository(AssetMapper mapper) {
+    public JdbcAssetRepository(AssetMapper mapper) {
         this.mapper = mapper;
     }
 

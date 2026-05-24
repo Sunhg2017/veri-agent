@@ -15,11 +15,11 @@ import org.springframework.util.StringUtils;
 
 @Profile("db")
 @Component
-public class PostgresPermissionResolver implements PermissionResolver {
+public class JdbcPermissionResolver implements PermissionResolver {
 
     private final PermissionMapper mapper;
 
-    public PostgresPermissionResolver(PermissionMapper mapper) {
+    public JdbcPermissionResolver(PermissionMapper mapper) {
         this.mapper = mapper;
     }
 

@@ -8,7 +8,7 @@ import java.util.List;
 import java.util.regex.Pattern;
 import org.junit.jupiter.api.Test;
 
-class InMemoryProfileBoundaryTest {
+class PersistenceProfileBoundaryTest {
 
     private static final Path SOURCE_ROOT = Path.of("src/main/java/com/songhg/veri/agent");
     private static final Pattern NOT_DB_PROFILE = Pattern.compile("@Profile\\(\\s*\"!db\"\\s*\\)");
@@ -46,20 +46,27 @@ class InMemoryProfileBoundaryTest {
                 .toList();
 
         assertThat(violatedFiles)
-                .as("Spring-managed InMemory implementations must stay local-only to avoid semantic drift from Postgres")
+                .as("Spring-managed InMemory implementations must stay local-only to avoid semantic drift from database stores")
                 .isEmpty();
     }
 
     @Test
-    void springManagedPostgresImplementationsAreDbOnly() throws Exception {
-        List<Path> violatedFiles = postgresSourceFiles()
+    void springManagedJdbcImplementationsAreDbOnly() throws Exception {
+        List<Path> violatedFiles = jdbcSourceFiles()
                 .stream()
                 .filter(path -> SPRING_STEREOTYPE.matcher(read(path)).find())
                 .filter(path -> !DB_PROFILE.matcher(read(path)).find())
                 .toList();
 
         assertThat(violatedFiles)
-                .as("Spring-managed Postgres implementations must be bound to the db profile")
+                .as("Spring-managed JDBC implementations must be bound to the db profile")
+                .isEmpty();
+    }
+
+    @Test
+    void mainRuntimeDoesNotUseDatabaseVendorInPersistenceImplementationNames() throws Exception {
+        assertThat(sourceFilesNamed("Postgres"))
+                .as("persistence implementation names should describe the adapter style, not the current database vendor")
                 .isEmpty();
     }
 
@@ -67,8 +74,8 @@ class InMemoryProfileBoundaryTest {
         return sourceFilesNamed("InMemory");
     }
 
-    private List<Path> postgresSourceFiles() throws Exception {
-        return sourceFilesNamed("Postgres");
+    private List<Path> jdbcSourceFiles() throws Exception {
+        return sourceFilesNamed("Jdbc");
     }
 
     private List<Path> sourceFilesNamed(String prefix) throws Exception {

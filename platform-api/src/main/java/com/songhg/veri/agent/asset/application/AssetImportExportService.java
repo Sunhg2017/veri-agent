@@ -1,5 +1,19 @@
 package com.songhg.veri.agent.asset.application;
 
+import static com.songhg.veri.agent.asset.application.AssetFormatValidator.API_HTTP_METHODS;
+import static com.songhg.veri.agent.asset.application.AssetFormatValidator.API_SOURCES;
+import static com.songhg.veri.agent.asset.application.AssetFormatValidator.API_STATUSES;
+import static com.songhg.veri.agent.asset.application.AssetFormatValidator.ASSET_API;
+import static com.songhg.veri.agent.asset.application.AssetFormatValidator.ASSET_REQUIREMENT;
+import static com.songhg.veri.agent.asset.application.AssetFormatValidator.ASSET_TEST_CASE;
+import static com.songhg.veri.agent.asset.application.AssetFormatValidator.FORMAT_CSV;
+import static com.songhg.veri.agent.asset.application.AssetFormatValidator.FORMAT_JSON;
+import static com.songhg.veri.agent.asset.application.AssetFormatValidator.FORMAT_OPENAPI;
+import static com.songhg.veri.agent.asset.application.AssetFormatValidator.PRIORITIES;
+import static com.songhg.veri.agent.asset.application.AssetFormatValidator.REVIEW_STATUSES;
+import static com.songhg.veri.agent.asset.application.AssetFormatValidator.SOURCE_IMPORT;
+import static com.songhg.veri.agent.asset.application.AssetFormatValidator.STATUS_ACTIVE;
+
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -47,6 +61,7 @@ public class AssetImportExportService {
     private final AssetRepository repository;
     private final AssetProjectAuditService projectAuditService;
     private final AssetJsonCodec assetJsonCodec;
+    private final ObjectMapper objectMapper;
     private final AssetService assetService;
 
     public AssetImportExportService(
@@ -58,6 +73,7 @@ public class AssetImportExportService {
         this.repository = repository;
         this.projectAuditService = projectAuditService;
         this.assetJsonCodec = new AssetJsonCodec(objectMapper);
+        this.objectMapper = objectMapper;
         this.assetService = assetService;
     }
 

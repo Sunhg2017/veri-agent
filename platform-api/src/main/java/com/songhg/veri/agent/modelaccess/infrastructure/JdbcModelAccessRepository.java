@@ -16,11 +16,11 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 @Profile("db")
-public class PostgresModelAccessRepository implements ModelAccessRepository {
+public class JdbcModelAccessRepository implements ModelAccessRepository {
 
     private final ModelAccessMapper mapper;
 
-    public PostgresModelAccessRepository(ModelAccessMapper mapper) {
+    public JdbcModelAccessRepository(ModelAccessMapper mapper) {
         this.mapper = mapper;
     }
 

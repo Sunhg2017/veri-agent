@@ -39,10 +39,10 @@ public final class CsvEncoder {
     /**
      * Encodes a header row followed by data rows.
      */
-    public static StringBuilder encode(String headerLine, List<?> rows, RowEncoder<?> rowEncoder) {
+    public static <T> StringBuilder encode(String headerLine, List<T> rows, RowEncoder<? super T> rowEncoder) {
         StringBuilder csv = new StringBuilder();
         csv.append(headerLine).append('\n');
-        for (Object row : rows) {
+        for (T row : rows) {
             rowEncoder.encode(csv, row);
             csv.setCharAt(csv.length() - 1, '\n');
         }

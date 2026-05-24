@@ -7,11 +7,11 @@ import org.springframework.stereotype.Repository;
 
 @Profile("db")
 @Repository
-public class PostgresAuditRetentionStore implements AuditRetentionStore {
+public class JdbcAuditRetentionStore implements AuditRetentionStore {
 
     private final AuditMapper mapper;
 
-    public PostgresAuditRetentionStore(AuditMapper mapper) {
+    public JdbcAuditRetentionStore(AuditMapper mapper) {
         this.mapper = mapper;
     }
 

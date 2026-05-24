@@ -12,11 +12,11 @@ import org.springframework.stereotype.Repository;
 
 @Profile("db")
 @Repository
-public class PostgresAuthSessionStore implements AuthSessionStore {
+public class JdbcAuthSessionStore implements AuthSessionStore {
 
     private final AuthMapper mapper;
 
-    public PostgresAuthSessionStore(AuthMapper mapper) {
+    public JdbcAuthSessionStore(AuthMapper mapper) {
         this.mapper = mapper;
     }
 

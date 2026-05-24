@@ -91,11 +91,11 @@ public class DocumentInputConfiguration {
     }
 
     public int pdfMaxPages() {
-        return properties.pdfMaxPages() <= 0 ? Integer.MAX_VALUE : properties.pdfMaxPages();
+        return properties.pdfMaxPages();
     }
 
     public long pdfMaxParseMillis() {
-        return properties.pdfMaxParseMillis() <= 0 ? 30000L : properties.pdfMaxParseMillis();
+        return properties.pdfMaxParseMillis();
     }
 
     public long documentBinaryMaxBytes() {
