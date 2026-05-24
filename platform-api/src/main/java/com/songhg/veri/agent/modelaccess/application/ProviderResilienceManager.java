@@ -32,7 +32,7 @@ public class ProviderResilienceManager {
     private final Map<UUID, Semaphore> providerConcurrencyLimits = new ConcurrentHashMap<>();
 
     public ProviderResilienceManager(ModelAccessProperties properties) {
-        this(properties, new InMemoryProviderResilienceStateStore());
+        this(properties, new ProcessLocalProviderResilienceStateStore());
     }
 
     @Autowired

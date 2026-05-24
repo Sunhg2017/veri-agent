@@ -8,11 +8,13 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import org.springframework.context.annotation.Primary;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
 @Profile("local")
+@Primary
 @Component
 public class InMemoryPermissionResolver implements PermissionResolver {
 

@@ -20,12 +20,14 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import org.springframework.context.annotation.Primary;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Repository;
 import org.springframework.util.StringUtils;
 
 @Repository
 @Profile("local")
+@Primary
 public class InMemoryModelAccessRepository implements ModelAccessRepository {
 
     private final Map<UUID, ModelProviderConfig> providers = new ConcurrentHashMap<>();
