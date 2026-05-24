@@ -3,6 +3,7 @@ package com.songhg.veri.agent.asset.application;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.songhg.veri.agent.common.util.CsvEncoder;
 import com.songhg.veri.agent.asset.application.command.AssetImportRequest;
 import com.songhg.veri.agent.asset.application.command.CreateRequirementRequest;
 import com.songhg.veri.agent.asset.application.command.CreateTestCaseRequest;
@@ -829,16 +830,12 @@ public class AssetImportExportService {
     }
 
     private static void appendCsvLine(StringBuilder csv, Object... values) {
-        for (Object value : values) {
-            appendCsvValue(csv, value);
-        }
-        csv.setLength(csv.length() - 1);
-        csv.append('\n');
+        CsvEncoder.appendLine(csv, values);
     }
 
+    @SuppressWarnings("unused")
     private static void appendCsvValue(StringBuilder csv, Object value) {
-        String text = value == null ? "" : String.valueOf(value);
-        csv.append('"').append(text.replace("\"", "\"\"")).append('"').append(',');
+        CsvEncoder.appendValue(csv, value);
     }
 
     private static String importExportAssetType(String rawValue) {
