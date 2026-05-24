@@ -37,7 +37,6 @@ import com.songhg.veri.agent.common.trace.TraceContext;
 import com.songhg.veri.agent.asset.domain.AssetApi;
 import com.songhg.veri.agent.asset.domain.AssetBusinessFlow;
 import com.songhg.veri.agent.asset.domain.AssetLifecycleStatus;
-import com.songhg.veri.agent.asset.domain.AssetPage;
 import com.songhg.veri.agent.asset.domain.AssetRequirement;
 import com.songhg.veri.agent.asset.domain.AssetReviewStatus;
 import com.songhg.veri.agent.asset.domain.AssetVersion;
@@ -64,19 +63,12 @@ import org.springframework.util.StringUtils;
 public class AssetService {
 
     private static final Logger log = LoggerFactory.getLogger(AssetService.class);
-    private static final String SOURCE_MANUAL = "MANUAL";
     private static final String STATUS_ACTIVE = "ACTIVE";
     private static final String STATUS_DRAFT = "DRAFT";
     private static final Set<String> REVIEW_STATUSES = AssetReviewStatus.codes();
     private static final Set<String> LIFECYCLE_STATUSES = AssetLifecycleStatus.codes();
     private static final Set<String> PRIORITIES = Set.of("CRITICAL", "HIGH", "MEDIUM", "LOW");
-    private static final Set<String> PAGE_STATUSES = Set.of(STATUS_ACTIVE, "DEPRECATED");
-    private static final Set<String> PAGE_SOURCES = Set.of("FIGMA", "LANHU", "AXURE", SOURCE_MANUAL);
     private static final Set<String> FLOW_STATUSES = Set.of(STATUS_DRAFT, STATUS_ACTIVE, "ARCHIVED");
-    private static final Map<String, Set<String>> PAGE_STATUS_TRANSITIONS = Map.of(
-            STATUS_ACTIVE, Set.of(STATUS_ACTIVE, "DEPRECATED"),
-            "DEPRECATED", Set.of("DEPRECATED")
-    );
     private static final Map<String, Set<String>> FLOW_STATUS_TRANSITIONS = Map.of(
             STATUS_DRAFT, Set.of(STATUS_DRAFT, STATUS_ACTIVE, "ARCHIVED"),
             STATUS_ACTIVE, Set.of(STATUS_ACTIVE, "ARCHIVED"),
@@ -95,6 +87,7 @@ public class AssetService {
     private final AssetLifecycleService lifecycleService;
     private final AssetRequirementService requirementService;
     private final AssetApiService apiService;
+    private final AssetPageService pageService;
 
     public AssetService(AssetRepository repository, PlatformContextClient contextClient) {
         this(repository, contextClient, new ObjectMapper().findAndRegisterModules());
@@ -144,6 +137,12 @@ public class AssetService {
                 projectAuditService,
                 lifecycleService
         );
+        this.pageService = new AssetPageService(
+                repository,
+                projectAuditService,
+                lifecycleService,
+                objectMapper
+        );
     }
 
     @Autowired
@@ -159,6 +158,7 @@ public class AssetService {
             AssetLifecycleService lifecycleService,
             AssetRequirementService requirementService,
             AssetApiService apiService,
+            AssetPageService pageService,
             AssetProjectAuditService projectAuditService
     ) {
         this.repository = repository;
@@ -173,6 +173,7 @@ public class AssetService {
         this.lifecycleService = lifecycleService;
         this.requirementService = requirementService;
         this.apiService = apiService;
+        this.pageService = pageService;
     }
 
     public String resolveProjectScopeId(String projectId) {
@@ -188,9 +189,7 @@ public class AssetService {
     }
 
     public String pageProjectScopeId(UUID id) {
-        return resolveProjectScopeId(repository.pageIncludingInactive(id)
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "页面不存在: " + id))
-                .projectId());
+        return pageService.pageProjectScopeId(id);
     }
 
     public String businessFlowProjectScopeId(UUID id) {
@@ -280,93 +279,27 @@ public class AssetService {
     // ---- Pages ----
 
     public com.songhg.veri.agent.common.api.PageResponse<PageResponse> listPages(AssetListRequest request) {
-        validateProjectWhenProvided(request.getProjectId());
-        AssetListQuery query = assetListQuery(request);
-        List<PageResponse> items = repository.pages(query).stream()
-                .map(AssetResponseMapper::toPageResponse)
-                .toList();
-        return com.songhg.veri.agent.common.api.PageResponse.of(items, query.index(), query.size(), repository.countPages(query));
+        return pageService.listPages(request);
     }
 
     public PageResponse getPage(UUID id) {
-        return repository.page(id)
-                .map(AssetResponseMapper::toPageResponse)
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "页面资产不存在: " + id));
+        return pageService.getPage(id);
     }
 
     public PageResponse getPageIncludingInactive(UUID id) {
-        AssetPage page = repository.pageIncludingInactive(id)
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "页面资产不存在: " + id));
-        validateProjectWhenProvided(page.projectId());
-        return AssetResponseMapper.toPageResponse(page);
+        return pageService.getPageIncludingInactive(id);
     }
 
     public PageResponse createPage(CreatePageRequest request) {
-        String scopeId = projectContext(request.projectId()).projectId();
-        UUID id = UUID.randomUUID();
-        Instant now = Instant.now();
-        AssetPage page = new AssetPage(
-                id,
-                assetCode("PAGE", id),
-                request.name(),
-                request.urlPattern(),
-                valueIn(request.source(), "MANUAL", PAGE_SOURCES, "source"),
-                request.sourceRef(),
-                trimToNull(request.sourceVersion()),
-                jsonValue(request.componentTree()),
-                request.screenshotUrl(),
-                request.projectId(),
-                initialStatus(request.status(), "ACTIVE", "PAGE"),
-                "ACTIVE",
-                null,
-                null,
-                now,
-                now
-        );
-        writeProjectAudit("CREATE", "PAGE", id, scopeId);
-        repository.savePage(page);
-        log.info("Created page id={}, name={}, trace_id={}", id, request.name(), TraceContext.getTraceId());
-        return AssetResponseMapper.toPageResponse(page);
+        return pageService.createPage(request);
     }
 
     public PageResponse updatePage(UUID id, UpdatePageRequest request) {
-        AssetPage existing = repository.page(id)
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "页面资产不存在: " + id));
-        Instant now = Instant.now();
-        String nextStatus = nextStatus(
-                "PAGE",
-                id,
-                existing.projectId(),
-                existing.status(),
-                request.status(),
-                PAGE_STATUSES,
-                PAGE_STATUS_TRANSITIONS
-        );
-        AssetPage updated = new AssetPage(
-                id,
-                existing.code(),
-                request.name(),
-                request.urlPattern(),
-                valueIn(request.source(), existing.source(), PAGE_SOURCES, "source"),
-                request.sourceRef(),
-                trimToNull(request.sourceVersion()),
-                jsonValue(request.componentTree()),
-                request.screenshotUrl(),
-                existing.projectId(),
-                nextStatus,
-                existing.lifecycleStatus(),
-                existing.archivedAt(),
-                existing.deletedAt(),
-                existing.createdAt(),
-                now
-        );
-        writeProjectAudit("UPDATE", "PAGE", id, existing.projectId());
-        repository.savePage(updated);
-        return AssetResponseMapper.toPageResponse(updated);
+        return pageService.updatePage(id, request);
     }
 
     public PageResponse updatePageLifecycle(UUID id, UpdateAssetLifecycleRequest request) {
-        return lifecycleService.updatePageLifecycle(id, request);
+        return pageService.updatePageLifecycle(id, request);
     }
 
     // ---- Business Flows ----
@@ -681,7 +614,6 @@ public class AssetService {
 
     private static String initialStatus(String rawValue, String defaultValue, String resourceType) {
         return switch (resourceType) {
-            case "PAGE" -> valueIn(rawValue, defaultValue, PAGE_STATUSES, "status");
             case "BUSINESS_FLOW" -> valueIn(rawValue, defaultValue, FLOW_STATUSES, "status");
             default -> valueIn(rawValue, defaultValue, REVIEW_STATUSES, "status");
         };
