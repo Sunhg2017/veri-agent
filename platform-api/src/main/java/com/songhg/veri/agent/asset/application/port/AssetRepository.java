@@ -94,6 +94,8 @@ public interface AssetRepository {
 
     Optional<TestCaseRecord> testCaseIncludingInactive(UUID id);
 
+    Optional<TestCaseRecord> testCaseBySourceRef(String projectId, String source, String sourceRef);
+
     TestCaseRecord saveTestCase(TestCaseRecord testCase);
 
     boolean hasActiveTestCaseCodeConflict(String projectId, String code, UUID excludeId);

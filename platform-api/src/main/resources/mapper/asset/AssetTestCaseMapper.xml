@@ -181,6 +181,29 @@
         where tc.id = #{id}
     </select>
 
+    <select id="getTestCaseBySourceRef" resultMap="testCaseMap">
+        select <include refid="testCaseColumns"/>
+        from asset_test_case tc
+        left join asset_link req
+          on req.target_type = 'CASE'
+         and req.target_id = tc.id
+         and req.source_type = 'REQUIREMENT'
+         and req.link_type = 'VERIFIES'
+         and req.deleted_at is null
+        left join asset_link api
+          on api.source_type = 'API'
+         and api.target_type = 'CASE'
+         and api.target_id = tc.id
+         and api.link_type = 'COVERS'
+         and api.deleted_at is null
+        where tc.project_id = #{projectId}
+          and lower(tc.source) = lower(#{source})
+          and tc.source_ref = #{sourceRef}
+          and tc.deleted_at is null
+        order by tc.created_at desc
+        limit 1
+    </select>
+
     <insert id="insertTestCase">
         insert into asset_test_case (
             id, project_id, code, title, description, source, source_ref, priority, status, tags, version,

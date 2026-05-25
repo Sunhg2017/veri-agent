@@ -117,6 +117,18 @@ public class AssetTestCaseService {
     }
 
     /**
+     * Finds an active test case by source identity so upstream work packages can publish idempotently.
+     */
+    public Optional<TestCaseResponse> findTestCaseBySourceRef(String projectId, String source, String sourceRef) {
+        if (!StringUtils.hasText(projectId) || !StringUtils.hasText(source) || !StringUtils.hasText(sourceRef)) {
+            return Optional.empty();
+        }
+        String scopeProjectId = projectAuditService.projectContext(projectId).projectId();
+        return repository.testCaseBySourceRef(scopeProjectId, source.trim().toUpperCase(Locale.ROOT), sourceRef.trim())
+                .map(testCase -> AssetResponseMapper.toTestCaseResponse(testCase, testCase.steps()));
+    }
+
+    /**
      * Creates a manual test case after confirming linked requirement/API assets belong to the same project.
      */
     @Transactional

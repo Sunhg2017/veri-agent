@@ -330,6 +330,19 @@ public class InMemoryAssetRepository implements AssetRepository {
     }
 
     @Override
+    public Optional<TestCaseRecord> testCaseBySourceRef(String projectId, String source, String sourceRef) {
+        if (projectId == null || source == null || sourceRef == null) {
+            return Optional.empty();
+        }
+        return testCases.values().stream()
+                .filter(value -> projectId.equals(value.projectId()))
+                .filter(value -> source.equalsIgnoreCase(value.source()))
+                .filter(value -> sourceRef.equals(value.sourceRef()))
+                .filter(value -> !"DELETED".equals(lifecycleStatus(value.lifecycleStatus(), value.deletedAt())))
+                .findFirst();
+    }
+
+    @Override
     public TestCaseRecord saveTestCase(TestCaseRecord testCase) {
         testCases.put(testCase.id(), testCase);
         return testCase;

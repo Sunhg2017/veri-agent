@@ -322,6 +322,10 @@ public class AssetService {
         return testCaseService.getTestCaseIncludingInactive(id);
     }
 
+    public Optional<TestCaseResponse> findTestCaseBySourceRef(String projectId, String source, String sourceRef) {
+        return testCaseService.findTestCaseBySourceRef(projectId, source, sourceRef);
+    }
+
     @Transactional
     public TestCaseResponse createTestCase(CreateTestCaseRequest request) {
         return testCaseService.createTestCase(request);

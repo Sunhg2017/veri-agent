@@ -295,6 +295,18 @@ public class JdbcAssetRepository implements AssetRepository {
     }
 
     @Override
+    public Optional<TestCaseRecord> testCaseBySourceRef(String projectId, String source, String sourceRef) {
+        if (projectId == null || source == null || sourceRef == null) {
+            return Optional.empty();
+        }
+        TestCaseRecord testCase = mapper.getTestCaseBySourceRef(projectId, source, sourceRef);
+        if (testCase == null) {
+            return Optional.empty();
+        }
+        return Optional.of(withSteps(testCase));
+    }
+
+    @Override
     @Transactional
     public TestCaseRecord saveTestCase(TestCaseRecord testCase) {
         TestCaseRecord stored = normalizeTestCase(testCase);

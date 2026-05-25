@@ -43,6 +43,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
@@ -57,6 +58,8 @@ public class TestDesignService {
 
     private static final List<String> DEFAULT_COVERAGE_TYPES = List.of("SMOKE", "FUNCTIONAL", "EXCEPTION");
     private static final Set<String> CANDIDATE_PRIORITIES = Set.of("CRITICAL", "HIGH", "MEDIUM", "LOW");
+    private static final String TEST_CASE_SOURCE_AI_GENERATED = "AI_GENERATED";
+    private static final String TEST_CASE_SOURCE_REF_PREFIX = "wp5:";
     private static final Set<String> RETRYABLE_TASK_STATUSES = Set.of(
             TestDesignTaskStatus.FAILED.name(),
             TestDesignTaskStatus.PARTIAL_SUCCESS.name(),
@@ -475,7 +478,10 @@ public class TestDesignService {
                     ? plannedPublishRecord(task, candidate, actor)
                     : publishCandidate(task, candidate, actor);
             records.add(record);
-            if (!dryRun && "SUCCEEDED".equals(record.result()) && record.assetCaseId() != null) {
+            if (!dryRun
+                    && "CREATE".equals(record.action())
+                    && "SUCCEEDED".equals(record.result())
+                    && record.assetCaseId() != null) {
                 createdCaseIds.add(record.assetCaseId());
             }
         }
@@ -667,6 +673,13 @@ public class TestDesignService {
         if (!candidate.status().equals(TestDesignCandidateStatus.CONFIRMED.name())) {
             return publishRecord(task, candidate, false, "SKIP_UNCONFIRMED", "SKIPPED", null, "候选用例未确认", actor);
         }
+        Optional<TestCaseResponse> existingTestCase = existingWp5TestCase(candidate);
+        if (existingTestCase.isPresent()) {
+            TestCaseResponse testCase = existingTestCase.get();
+            TestDesignCandidate linked = withPublishedCandidate(candidate, testCase.id(), null);
+            repository.saveCandidate(linked);
+            return publishRecord(task, linked, false, "LINK_EXISTING", "SUCCEEDED", testCase.id(), null, actor);
+        }
         try {
             TestCaseResponse testCase = assetService.createTestCase(new CreateTestCaseRequest(
                     candidate.title(),
@@ -678,8 +691,8 @@ public class TestDesignService {
                     candidate.priority(),
                     mergeTags(candidate.tags(), "wp5"),
                     toAssetSteps(candidate),
-                    "AI_GENERATED",
-                    "wp5:" + candidate.id()
+                    TEST_CASE_SOURCE_AI_GENERATED,
+                    candidateSourceRef(candidate)
             ));
             assetService.createLink(new CreateLinkRequest(
                     candidate.requirementId(),
@@ -711,7 +724,23 @@ public class TestDesignService {
         if (!candidate.status().equals(TestDesignCandidateStatus.CONFIRMED.name())) {
             return publishRecord(task, candidate, true, "SKIP_UNCONFIRMED", "SKIPPED", null, "候选用例未确认", actor);
         }
+        Optional<TestCaseResponse> existingTestCase = existingWp5TestCase(candidate);
+        if (existingTestCase.isPresent()) {
+            return publishRecord(task, candidate, true, "LINK_EXISTING", "PLANNED", existingTestCase.get().id(), null, actor);
+        }
         return publishRecord(task, candidate, true, "CREATE", "PLANNED", null, null, actor);
+    }
+
+    private Optional<TestCaseResponse> existingWp5TestCase(TestDesignCandidate candidate) {
+        return assetService.findTestCaseBySourceRef(
+                candidate.projectId(),
+                TEST_CASE_SOURCE_AI_GENERATED,
+                candidateSourceRef(candidate)
+        );
+    }
+
+    private static String candidateSourceRef(TestDesignCandidate candidate) {
+        return TEST_CASE_SOURCE_REF_PREFIX + candidate.id();
     }
 
     private TestDesignPublishRecord publishRecord(

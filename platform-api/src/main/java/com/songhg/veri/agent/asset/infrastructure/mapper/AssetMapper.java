@@ -158,6 +158,12 @@ public interface AssetMapper {
 
     TestCaseRecord getTestCaseIncludingInactive(@Param("id") UUID id);
 
+    TestCaseRecord getTestCaseBySourceRef(
+            @Param("projectId") String projectId,
+            @Param("source") String source,
+            @Param("sourceRef") String sourceRef
+    );
+
     void insertTestCase(TestCaseRecord testCase);
 
     void updateTestCase(TestCaseRecord testCase);

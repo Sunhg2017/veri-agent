@@ -62,6 +62,7 @@
 | 生成文本安全兜底 | 规则模板输出对明显 `apiKey`、`token`、`secret`、`bearer` 等文本做本地脱敏，作为 WP2 完整上下文脱敏前的兜底。 |
 | 质量评估入口 | 新增 `scripts/wp5_case_generation_quality_eval.sh` 和 `TestDesignQualityEvaluationTest`，覆盖候选唯一性、步骤预期完整性、覆盖类型顺序和敏感泄露基线。 |
 | quality gate | `scripts/wp5_quality_gate.sh` 支持 `WP5_RUN_AI_EVAL=1` 运行 WP5 质量评估。 |
+| 发布 sourceRef 幂等 | WP5 发布 dryRun 和正式发布已能识别同项目同 `source=AI_GENERATED`、同 `sourceRef=wp5:{candidateId}` 的 WP3 用例，并返回 `LINK_EXISTING`，避免重复创建。 |
 
 ## 6. 里程碑拆解
 
@@ -89,6 +90,7 @@
 |---|---|---|
 | 规则模板被误认为真实 AI | 健康接口和任务元数据保留 `generationMode=RULE_TEMPLATE`。 | 接入 WP2 后区分 `MODEL`、`FALLBACK_TEMPLATE` 和失败状态。 |
 | 重试导致候选重复 | 本次重试按 duplicateKey 跳过已有候选。 | 增加数据库唯一约束或幂等表。 |
+| 发布重复创建 WP3 用例 | 本次已按 `sourceRef=wp5:{candidateId}` 识别已存在用例并链接。 | 继续补同需求高相似用例检测和人工冲突处理。 |
 | 本地脱敏覆盖不足 | 本次只覆盖明显 secret/token 模式。 | 上下文 packer 接入统一敏感字段分类和 WP2 策略。 |
 | 发布失败产生部分成功 | 已记录逐候选 publish record。 | 增加补偿计划和二次发布幂等锁。 |
 
