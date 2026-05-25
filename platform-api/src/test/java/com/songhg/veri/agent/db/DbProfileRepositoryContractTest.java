@@ -24,6 +24,9 @@ import com.songhg.veri.agent.modelaccess.domain.InvocationRecord;
 import com.songhg.veri.agent.modelaccess.domain.InvocationStatus;
 import com.songhg.veri.agent.modelaccess.infrastructure.JdbcModelInvocationJobRepository;
 import com.songhg.veri.agent.modelaccess.infrastructure.JdbcModelAccessRepository;
+import com.songhg.veri.agent.testdesign.application.port.TestDesignRepository;
+import com.songhg.veri.agent.testdesign.domain.TestDesignTask;
+import com.songhg.veri.agent.testdesign.domain.TestDesignTaskStatus;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
@@ -82,6 +85,9 @@ class DbProfileRepositoryContractTest {
     private AssetRepository assetRepository;
 
     @Autowired
+    private TestDesignRepository testDesignRepository;
+
+    @Autowired
     private AuditLogWriter auditLogWriter;
 
     @Autowired
@@ -99,6 +105,49 @@ class DbProfileRepositoryContractTest {
         assertThat(modelAccessRepository).isInstanceOf(JdbcModelAccessRepository.class);
         assertThat(modelInvocationJobRepository).isInstanceOf(JdbcModelInvocationJobRepository.class);
         assertThat(applicationContext.getBeanNamesForType(AssetRepository.class)).hasSize(1);
+    }
+
+    @Test
+    void testDesignRepositoryPersistsIdempotencyFieldsAndLocksThroughJdbc() {
+        String projectId = "project-wp5-idem-db-" + UUID.randomUUID();
+        String idempotencyKey = "db-idempotency-" + UUID.randomUUID();
+        String requestDigest = "a".repeat(64);
+        UUID taskId = UUID.randomUUID();
+        Instant now = Instant.now();
+
+        transactionTemplate.executeWithoutResult(status -> {
+            testDesignRepository.lockTaskIdempotencyKey(projectId, idempotencyKey);
+            testDesignRepository.saveTask(new TestDesignTask(
+                    taskId,
+                    projectId,
+                    "DB 幂等创建任务",
+                    TestDesignTaskStatus.SUCCEEDED.name(),
+                    UUID.randomUUID().toString(),
+                    "SMOKE",
+                    "wp5.case.generate",
+                    "v1",
+                    null,
+                    null,
+                    "RULE_TEMPLATE",
+                    1,
+                    1,
+                    0,
+                    0,
+                    null,
+                    "db-contract",
+                    idempotencyKey,
+                    requestDigest,
+                    now,
+                    now
+            ));
+        });
+
+        assertThat(testDesignRepository.taskByIdempotencyKey(projectId, idempotencyKey))
+                .get()
+                .satisfies(task -> {
+                    assertThat(task.id()).isEqualTo(taskId);
+                    assertThat(task.requestDigest()).isEqualTo(requestDigest);
+                });
     }
 
     @Test

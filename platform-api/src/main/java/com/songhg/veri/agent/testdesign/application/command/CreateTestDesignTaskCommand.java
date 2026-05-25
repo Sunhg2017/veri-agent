@@ -10,6 +10,7 @@ public record CreateTestDesignTaskCommand(
         String title,
         @NotEmpty List<UUID> requirementIds,
         List<String> coverageTypes,
-        Integer caseCountPerRequirement
+        Integer caseCountPerRequirement,
+        String idempotencyKey
 ) {
 }

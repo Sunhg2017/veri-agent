@@ -21,6 +21,8 @@ public record TestDesignTask(
         int publishedCount,
         String errorMessage,
         String requestedBy,
+        String idempotencyKey,
+        String requestDigest,
         Instant createdAt,
         Instant updatedAt
 ) {

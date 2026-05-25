@@ -22,6 +22,7 @@ public record TestDesignTaskResponse(
         int publishedCount,
         String errorMessage,
         String requestedBy,
+        String idempotencyKey,
         Instant createdAt,
         Instant updatedAt
 ) {

@@ -23,6 +23,45 @@ select
     coalesce(string_agg(table_name, ', ' order by table_name), 'all WP5 tables exist') as details
 from missing;
 
+with expected(column_name) as (
+    values
+        ('idempotency_key'),
+        ('request_digest')
+),
+missing as (
+    select e.column_name
+    from expected e
+    left join information_schema.columns c
+        on c.table_schema = current_schema()
+       and c.table_name = 'test_design_task'
+       and c.column_name = e.column_name
+    where c.column_name is null
+)
+select
+    'wp5.task_idempotency_columns_exist' as check_name,
+    case when count(*) = 0 then 'PASS' else 'FAIL' end as status,
+    coalesce(string_agg(column_name, ', ' order by column_name), 'WP5 task idempotency columns exist') as details
+from missing;
+
+with expected(index_name) as (
+    values
+        ('uk_test_design_task_project_idempotency')
+),
+missing as (
+    select e.index_name
+    from expected e
+    left join pg_indexes i
+        on i.schemaname = current_schema()
+       and i.tablename = 'test_design_task'
+       and i.indexname = e.index_name
+    where i.indexname is null
+)
+select
+    'wp5.task_idempotency_indexes_exist' as check_name,
+    case when count(*) = 0 then 'PASS' else 'FAIL' end as status,
+    coalesce(string_agg(index_name, ', ' order by index_name), 'WP5 task idempotency indexes exist') as details
+from missing;
+
 with expected(table_name, constraint_name) as (
     values
         ('test_design_task','ck_test_design_task_status'),

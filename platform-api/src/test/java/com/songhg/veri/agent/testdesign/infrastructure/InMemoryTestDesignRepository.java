@@ -47,6 +47,17 @@ public class InMemoryTestDesignRepository implements TestDesignRepository {
     }
 
     @Override
+    public Optional<TestDesignTask> taskByIdempotencyKey(String projectId, String idempotencyKey) {
+        if (!StringUtils.hasText(projectId) || !StringUtils.hasText(idempotencyKey)) {
+            return Optional.empty();
+        }
+        return tasks.values().stream()
+                .filter(task -> projectId.equals(task.projectId()))
+                .filter(task -> idempotencyKey.equals(task.idempotencyKey()))
+                .findFirst();
+    }
+
+    @Override
     public TestDesignTask saveTask(TestDesignTask task) {
         tasks.put(task.id(), task);
         return task;

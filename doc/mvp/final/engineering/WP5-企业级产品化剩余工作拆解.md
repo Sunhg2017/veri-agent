@@ -43,7 +43,7 @@
 | P0 | 企业级上下文装配 | 服务端架构师 | 尚未装配 API、页面、业务流、历史用例、WP4 来源摘要。 | 上下文有裁剪、脱敏、inputDigest 和来源引用。 |
 | P0 | 输出 Schema 和质量门禁 | 质量工程师 | 已补候选 JSON Schema、生成/编辑落库前质量门禁、重复键和敏感泄露阻断；仍缺模型原始输出 Schema 校验和运营化阈值报表。 | 不合格输出不得静默落库；golden set 阈值可回归。 |
 | P0 | 重复和冲突治理 | 服务端架构师 | 已补 `LINK_EXISTING` 和同需求高相似 `DUPLICATE_REVIEW_REQUIRED`，仍缺可配置相似度策略和人工冲突处理台。 | 发布前能识别同 sourceRef、同需求高相似和已发布候选。 |
-| P0 | 任务编排与幂等 | 项目经理、服务端架构师 | 已补 retry/cancel 契约和状态保护，仍缺异步队列、任务幂等键、超时和补偿。 | 重试不重复污染候选；取消可阻断运行中任务；重复请求可识别。 |
+| P0 | 任务编排与幂等 | 项目经理、服务端架构师 | 已补 retry/cancel 契约、状态保护、创建任务幂等键、requestDigest 冲突检测和 DB 事务锁；仍缺异步队列、超时和补偿。 | 重试不重复污染候选；取消可阻断运行中任务；重复请求可识别。 |
 | P0 | 权限和资源作用域加固 | 服务端架构师、质量工程师 | 已补批量候选操作按候选项目 scope 鉴权，仍需覆盖导出、评测和未来异步回调。 | 项目角色不能操作其他项目候选；服务令牌调用可审计。 |
 | P0 | 发布幂等和补偿 | 服务端架构师 | 已发布候选可跳过，仍缺 sourceRef 唯一约束、失败补偿和跨 WP 事务边界说明。 | 重复发布不重复建用例；失败有记录和可重试策略。 |
 | P0 | HTTP smoke 常态化 | 质量工程师 | 已有 smoke 脚本，默认 gate 未启动真实服务 smoke。 | 发布前在运行环境执行 `WP5_RUN_HTTP_SMOKE=1 bash scripts/wp5_quality_gate.sh`。 |
@@ -65,6 +65,7 @@
 | 发布 sourceRef 幂等 | WP5 发布 dryRun 和正式发布已能识别同项目同 `source=AI_GENERATED`、同 `sourceRef=wp5:{candidateId}` 的 WP3 用例，并返回 `LINK_EXISTING`，避免重复创建。 |
 | 同需求高相似冲突治理 | WP5 发布 dryRun 和正式发布已能识别同需求下高相似 WP3 用例，并返回 `DUPLICATE_REVIEW_REQUIRED/CONFLICT`，阻断静默重复创建。 |
 | 候选质量门禁 | 新增 WP5 候选 JSON Schema 资源和服务端质量门禁，生成、重试和人工编辑均校验必填字段、步骤完整性、优先级/覆盖类型、重复键、置信度和明显敏感泄露。 |
+| 创建任务幂等 | `POST /api/v1/test-design/tasks` 支持 `Idempotency-Key` 请求头或请求体 `idempotencyKey`，按项目唯一回放相同请求，并用 `requestDigest` 阻断同 key 不同 payload；DB profile 对同项目同 key 使用事务级锁避免并发重复创建竞态。 |
 
 ## 6. 里程碑拆解
 
@@ -95,6 +96,7 @@
 | 发布重复创建 WP3 用例 | 本次已按 `sourceRef=wp5:{candidateId}` 识别已存在用例并链接，并补同需求高相似用例检测。 | 继续补可配置相似度策略和人工冲突处理。 |
 | 本地脱敏覆盖不足 | 本次只覆盖明显 secret/token 模式。 | 上下文 packer 接入统一敏感字段分类和 WP2 策略。 |
 | 候选质量门禁过严影响人工编辑 | 编辑前会复用已有步骤的最终预期作为兜底，但会阻断明显 secret/token。 | 前端增加字段级质量提示，并将阈值逐步配置化。 |
+| 幂等键被误复用 | 本次对同项目同 key 存储 requestDigest，不同 payload 返回 `CONFLICT`，并用事务级锁降低并发重复提交竞态。 | 后续在前端任务创建表单生成稳定 requestId，并在任务列表展示回放来源。 |
 | 发布失败产生部分成功 | 已记录逐候选 publish record。 | 增加补偿计划和二次发布幂等锁。 |
 
 回滚方式：

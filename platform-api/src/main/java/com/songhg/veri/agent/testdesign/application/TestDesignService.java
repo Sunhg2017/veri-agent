@@ -35,9 +35,14 @@ import com.songhg.veri.agent.testdesign.domain.TestDesignPublishRecord;
 import com.songhg.veri.agent.testdesign.domain.TestDesignReviewRecord;
 import com.songhg.veri.agent.testdesign.domain.TestDesignTask;
 import com.songhg.veri.agent.testdesign.domain.TestDesignTaskStatus;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HexFormat;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -63,6 +68,7 @@ public class TestDesignService {
     private static final String RESULT_CONFLICT = "CONFLICT";
     private static final double HIGH_SIMILAR_TITLE_THRESHOLD = 0.86D;
     private static final double HIGH_SIMILAR_CONTENT_THRESHOLD = 0.90D;
+    private static final int MAX_IDEMPOTENCY_KEY_LENGTH = 128;
     private static final Set<String> RETRYABLE_TASK_STATUSES = Set.of(
             TestDesignTaskStatus.FAILED.name(),
             TestDesignTaskStatus.PARTIAL_SUCCESS.name(),
@@ -147,10 +153,26 @@ public class TestDesignService {
      */
     @Transactional
     public TestDesignTaskDetailResponse createTask(CreateTestDesignTaskCommand command) {
+        return createTask(command, null);
+    }
+
+    /**
+     * Creates a task with project-scoped idempotency support.
+     *
+     * <p>The request digest is stored with the idempotency key so an accidental key reuse with a different payload
+     * returns a stable conflict instead of silently replaying the wrong generated candidates.
+     */
+    @Transactional
+    public TestDesignTaskDetailResponse createTask(CreateTestDesignTaskCommand command, String idempotencyHeader) {
         if (!properties.generationEnabled()) {
             throw new BusinessException(ErrorCode.INVALID_STATE, "WP5 用例生成未启用");
         }
         String projectId = contextClient.projectContext(command.projectId()).resourceId();
+        String idempotencyKey = resolveIdempotencyKey(command.idempotencyKey(), idempotencyHeader);
+        if (StringUtils.hasText(idempotencyKey)) {
+            // DB profile uses a transaction-scoped advisory lock so concurrent retries replay instead of racing the unique index.
+            repository.lockTaskIdempotencyKey(projectId, idempotencyKey);
+        }
         List<UUID> requirementIds = distinctRequirementIds(command.requirementIds());
         if (requirementIds.isEmpty()) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "生成任务必须选择需求");
@@ -159,17 +181,29 @@ public class TestDesignService {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "单次生成最多支持 " + maxRequirementsPerTask() + " 个需求");
         }
         List<String> coverageTypes = normalizedCoverageTypes(command.coverageTypes());
+        String requestDigest = taskRequestDigest(
+                projectId,
+                command.title(),
+                requirementIds,
+                coverageTypes,
+                command.caseCountPerRequirement()
+        );
+        Optional<TestDesignTask> replayedTask = replayIdempotentTaskIfPresent(projectId, idempotencyKey, requestDigest);
+        if (replayedTask.isPresent()) {
+            return task(replayedTask.get().id());
+        }
         List<RequirementResponse> requirements = requirementIds.stream()
                 .map(assetService::getRequirement)
                 .peek(requirement -> ensureSameProject(requirement, projectId))
                 .toList();
         Instant now = Instant.now();
+        String title = taskTitle(command.title(), requirements);
         UUID taskId = UUID.randomUUID();
         String requestedBy = actorResolver.currentActor();
         TestDesignTask task = new TestDesignTask(
                 taskId,
                 projectId,
-                taskTitle(command.title(), requirements),
+                title,
                 TestDesignTaskStatus.SUCCEEDED.name(),
                 idsText(requirementIds),
                 String.join(",", coverageTypes),
@@ -184,6 +218,8 @@ public class TestDesignService {
                 0,
                 null,
                 requestedBy,
+                idempotencyKey,
+                requestDigest,
                 now,
                 now
         );
@@ -196,11 +232,12 @@ public class TestDesignService {
         candidates.forEach(repository::saveCandidate);
         TestDesignTask stored = withTaskCounts(task, candidates);
         repository.saveTask(stored);
-        writeAudit("CREATE", "TEST_DESIGN_TASK", taskId, projectId, Map.of(
-                "taskId", taskId,
-                "requirementCount", requirements.size(),
-                "candidateCount", candidates.size(),
-                "coverageTypes", coverageTypes
+        writeAudit("CREATE", "TEST_DESIGN_TASK", taskId, projectId, taskAuditDetails(
+                taskId,
+                requirements.size(),
+                candidates.size(),
+                coverageTypes,
+                idempotencyKey
         ));
         return task(taskId);
     }
@@ -470,7 +507,7 @@ public class TestDesignService {
                     task.requirementIds(), task.coverageTypes(), task.promptKey(), task.promptVersion(),
                     task.modelInvocationId(), task.modelProviderName(), task.modelName(), task.totalRequirements(),
                     task.generatedCount(), task.confirmedCount(), task.publishedCount(), task.errorMessage(),
-                    task.requestedBy(), task.createdAt(), Instant.now()
+                    task.requestedBy(), task.idempotencyKey(), task.requestDigest(), task.createdAt(), Instant.now()
             ));
         }
         List<TestDesignPublishRecord> records = new ArrayList<>();
@@ -858,7 +895,8 @@ public class TestDesignService {
                 task.id(), task.projectId(), task.title(), status, task.requirementIds(), task.coverageTypes(),
                 task.promptKey(), task.promptVersion(), task.modelInvocationId(), task.modelProviderName(),
                 task.modelName(), task.totalRequirements(), generatedCount, confirmedCount, publishedCount,
-                task.errorMessage(), task.requestedBy(), task.createdAt(), Instant.now()
+                task.errorMessage(), task.requestedBy(), task.idempotencyKey(), task.requestDigest(),
+                task.createdAt(), Instant.now()
         );
     }
 
@@ -882,7 +920,7 @@ public class TestDesignService {
                 counted.coverageTypes(), counted.promptKey(), counted.promptVersion(), counted.modelInvocationId(),
                 counted.modelProviderName(), counted.modelName(), counted.totalRequirements(), counted.generatedCount(),
                 counted.confirmedCount(), counted.publishedCount(), counted.errorMessage(), counted.requestedBy(),
-                counted.createdAt(), Instant.now()
+                counted.idempotencyKey(), counted.requestDigest(), counted.createdAt(), Instant.now()
         ));
     }
 
@@ -949,7 +987,8 @@ public class TestDesignService {
                 task.id(), task.projectId(), task.title(), status.name(), task.requirementIds(), task.coverageTypes(),
                 task.promptKey(), task.promptVersion(), task.modelInvocationId(), task.modelProviderName(),
                 task.modelName(), task.totalRequirements(), task.generatedCount(), task.confirmedCount(),
-                task.publishedCount(), errorMessage, task.requestedBy(), task.createdAt(), Instant.now()
+                task.publishedCount(), errorMessage, task.requestedBy(), task.idempotencyKey(), task.requestDigest(),
+                task.createdAt(), Instant.now()
         );
     }
 
@@ -1138,6 +1177,94 @@ public class TestDesignService {
         return "批量生成 " + requirements.size() + " 个需求的测试用例";
     }
 
+    private Optional<TestDesignTask> replayIdempotentTaskIfPresent(
+            String projectId,
+            String idempotencyKey,
+            String requestDigest
+    ) {
+        if (!StringUtils.hasText(idempotencyKey)) {
+            return Optional.empty();
+        }
+        Optional<TestDesignTask> existingTask = repository.taskByIdempotencyKey(projectId, idempotencyKey);
+        if (existingTask.isEmpty()) {
+            return Optional.empty();
+        }
+        TestDesignTask task = existingTask.get();
+        if (!Objects.equals(task.requestDigest(), requestDigest)) {
+            throw new BusinessException(ErrorCode.CONFLICT, "幂等键已被不同创建请求使用，请更换 Idempotency-Key");
+        }
+        writeAudit("IDEMPOTENT_REPLAY", "TEST_DESIGN_TASK", task.id(), projectId, Map.of(
+                "taskId", task.id(),
+                "idempotencyKey", idempotencyKey
+        ));
+        return existingTask;
+    }
+
+    private String taskRequestDigest(
+            String projectId,
+            String requestedTitle,
+            List<UUID> requirementIds,
+            List<String> coverageTypes,
+            Integer caseCountPerRequirement
+    ) {
+        // Hash only immutable request inputs and generation config; mutable requirement titles/content are excluded.
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("projectId", projectId);
+        payload.put("title", trimToNull(requestedTitle));
+        payload.put("requirementIds", requirementIds.stream().map(UUID::toString).toList());
+        payload.put("coverageTypes", coverageTypes);
+        payload.put("caseCountPerRequirement", normalizedCaseCount(caseCountPerRequirement));
+        payload.put("promptKey", properties.promptKey());
+        payload.put("promptVersion", properties.promptVersion());
+        payload.put("generationMode", properties.generationMode());
+        try {
+            return sha256(objectMapper.writeValueAsString(payload));
+        } catch (JsonProcessingException exception) {
+            throw new IllegalStateException("WP5 task request digest serialization failed", exception);
+        }
+    }
+
+    private int normalizedCaseCount(Integer requestedCount) {
+        return requestedCount == null || requestedCount <= 0 ? maxCasesPerRequirement()
+                : Math.min(requestedCount, maxCasesPerRequirement());
+    }
+
+    private static String resolveIdempotencyKey(String bodyKey, String headerKey) {
+        String normalizedBody = normalizeIdempotencyKey(bodyKey, "idempotencyKey");
+        String normalizedHeader = normalizeIdempotencyKey(headerKey, "Idempotency-Key");
+        if (StringUtils.hasText(normalizedBody) && StringUtils.hasText(normalizedHeader)
+                && !normalizedBody.equals(normalizedHeader)) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "请求体 idempotencyKey 与 Idempotency-Key 请求头不一致");
+        }
+        return StringUtils.hasText(normalizedBody) ? normalizedBody : normalizedHeader;
+    }
+
+    private static String normalizeIdempotencyKey(String value, String fieldName) {
+        if (!StringUtils.hasText(value)) {
+            return null;
+        }
+        String normalized = value.trim();
+        if (normalized.length() > MAX_IDEMPOTENCY_KEY_LENGTH) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, fieldName + " 长度不能超过 " + MAX_IDEMPOTENCY_KEY_LENGTH);
+        }
+        if (TestDesignSensitiveText.containsSensitiveText(normalized)) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, fieldName + " 不能包含疑似敏感信息");
+        }
+        boolean valid = normalized.codePoints().allMatch(TestDesignService::isIdempotencyKeyCharacter);
+        if (!valid) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, fieldName + " 仅支持字母、数字、点、冒号、下划线和连字符");
+        }
+        return normalized;
+    }
+
+    private static boolean isIdempotencyKeyCharacter(int codePoint) {
+        return Character.isLetterOrDigit(codePoint)
+                || codePoint == '.'
+                || codePoint == ':'
+                || codePoint == '_'
+                || codePoint == '-';
+    }
+
     private static List<String> normalizedCoverageTypes(List<String> requestedTypes) {
         List<String> source = requestedTypes == null || requestedTypes.isEmpty() ? DEFAULT_COVERAGE_TYPES : requestedTypes;
         LinkedHashSet<String> result = new LinkedHashSet<>();
@@ -1302,6 +1429,34 @@ public class TestDesignService {
 
     private String trimToNull(String value) {
         return StringUtils.hasText(value) ? value.trim() : null;
+    }
+
+    private static String sha256(String value) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            return HexFormat.of().formatHex(digest.digest(value.getBytes(StandardCharsets.UTF_8)));
+        } catch (NoSuchAlgorithmException exception) {
+            throw new IllegalStateException("SHA-256 is required", exception);
+        }
+    }
+
+    private static Map<String, Object> taskAuditDetails(
+            UUID taskId,
+            int requirementCount,
+            int candidateCount,
+            List<String> coverageTypes,
+            String idempotencyKey
+    ) {
+        Map<String, Object> details = new LinkedHashMap<>();
+        details.put("taskId", taskId);
+        details.put("requirementCount", requirementCount);
+        details.put("candidateCount", candidateCount);
+        details.put("coverageTypes", coverageTypes);
+        details.put("idempotencyKeyPresent", StringUtils.hasText(idempotencyKey));
+        if (StringUtils.hasText(idempotencyKey)) {
+            details.put("idempotencyKey", idempotencyKey);
+        }
+        return details;
     }
 
     private void writeAudit(String action, String resourceType, UUID resourceId, String projectId, Map<String, Object> after) {

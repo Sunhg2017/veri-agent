@@ -20,6 +20,13 @@ public interface TestDesignMapper {
 
     TestDesignTask task(@Param("id") UUID id);
 
+    TestDesignTask taskByIdempotencyKey(
+            @Param("projectId") String projectId,
+            @Param("idempotencyKey") String idempotencyKey
+    );
+
+    int lockTaskIdempotencyKey(@Param("lockKey") String lockKey);
+
     void insertTask(TestDesignTask task);
 
     void updateTask(TestDesignTask task);

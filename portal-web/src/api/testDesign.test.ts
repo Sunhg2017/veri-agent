@@ -66,7 +66,8 @@ describe('WP5 test design API helpers', () => {
       total_requirements: '2',
       generated_count: '4',
       confirmed_count: '1',
-      published_count: '0'
+      published_count: '0',
+      idempotency_key: 'wp5-create-001'
     });
     expect(task).toMatchObject({
       id: 'task-1',
@@ -76,7 +77,8 @@ describe('WP5 test design API helpers', () => {
       totalRequirements: 2,
       generatedCount: 4,
       confirmedCount: 1,
-      publishedCount: 0
+      publishedCount: 0,
+      idempotencyKey: 'wp5-create-001'
     });
 
     const candidate = normalizeTestDesignCandidate({
@@ -147,7 +149,8 @@ describe('WP5 test design API helpers', () => {
       title: '',
       requirementIds: ['req-1'],
       coverageTypes: ['SMOKE'],
-      caseCountPerRequirement: 2
+      caseCountPerRequirement: 2,
+      idempotencyKey: ' wp5-create-001 '
     });
     expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/test-design/tasks', {
       method: 'POST',
@@ -155,7 +158,8 @@ describe('WP5 test design API helpers', () => {
         projectId: 'project-1',
         requirementIds: ['req-1'],
         coverageTypes: ['SMOKE'],
-        caseCountPerRequirement: 2
+        caseCountPerRequirement: 2,
+        idempotencyKey: 'wp5-create-001'
       })
     });
 

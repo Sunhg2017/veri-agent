@@ -40,6 +40,16 @@ public class JdbcTestDesignRepository implements TestDesignRepository {
     }
 
     @Override
+    public Optional<TestDesignTask> taskByIdempotencyKey(String projectId, String idempotencyKey) {
+        return Optional.ofNullable(mapper.taskByIdempotencyKey(projectId, idempotencyKey));
+    }
+
+    @Override
+    public void lockTaskIdempotencyKey(String projectId, String idempotencyKey) {
+        mapper.lockTaskIdempotencyKey("wp5:test-design-task:" + projectId + ":" + idempotencyKey);
+    }
+
+    @Override
     public TestDesignTask saveTask(TestDesignTask task) {
         if (mapper.task(task.id()) == null) {
             mapper.insertTask(task);

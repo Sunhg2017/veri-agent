@@ -44,6 +44,7 @@ public class TestDesignResponseMapper {
                 task.publishedCount(),
                 task.errorMessage(),
                 task.requestedBy(),
+                task.idempotencyKey(),
                 task.createdAt(),
                 task.updatedAt()
         );

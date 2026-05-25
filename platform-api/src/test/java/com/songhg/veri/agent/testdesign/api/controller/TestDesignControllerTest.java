@@ -194,6 +194,58 @@ class TestDesignControllerTest {
     }
 
     @Test
+    void replaysCreateTaskByIdempotencyKeyAndRejectsPayloadReuse() throws Exception {
+        String userToken = userAccessToken(List.of("ProjectOwner@PROJECT:project-wp5"));
+        String requirementId = createRequirement(userToken, "幂等创建需求", "重复请求只生成一个任务", "project-wp5");
+        String requestBody = """
+                {
+                  "projectId": "project-wp5",
+                  "title": "幂等创建任务",
+                  "requirementIds": ["%s"],
+                  "coverageTypes": ["SMOKE"]
+                }
+                """.formatted(requirementId);
+
+        MvcResult first = mockMvc.perform(post("/api/v1/test-design/tasks")
+                        .header("Authorization", "Bearer " + userToken)
+                        .header("Idempotency-Key", "wp5-create-task-001")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.task.idempotencyKey").value("wp5-create-task-001"))
+                .andExpect(jsonPath("$.data.task.requestDigest").doesNotExist())
+                .andExpect(jsonPath("$.data.task.generatedCount").value(1))
+                .andReturn();
+        String firstTaskId = JsonPath.read(first.getResponse().getContentAsString(), "$.data.task.id");
+
+        mockMvc.perform(post("/api/v1/test-design/tasks")
+                        .header("Authorization", "Bearer " + userToken)
+                        .header("Idempotency-Key", "wp5-create-task-001")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.task.id").value(firstTaskId))
+                .andExpect(jsonPath("$.data.task.generatedCount").value(1))
+                .andExpect(jsonPath("$.data.candidates", hasSize(1)));
+
+        mockMvc.perform(post("/api/v1/test-design/tasks")
+                        .header("Authorization", "Bearer " + userToken)
+                        .header("Idempotency-Key", "wp5-create-task-001")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "projectId": "project-wp5",
+                                  "title": "复用同一个幂等键但变更标题",
+                                  "requirementIds": ["%s"],
+                                  "coverageTypes": ["SMOKE"]
+                                }
+                                """.formatted(requirementId)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("CONFLICT"))
+                .andExpect(jsonPath("$.message", containsString("幂等键")));
+    }
+
+    @Test
     void enforcesPublishPermissionAndProjectScope() throws Exception {
         String ownerToken = userAccessToken(List.of("ProjectOwner@PROJECT:project-wp5"));
         String developerToken = userAccessToken(List.of("Developer@PROJECT:project-wp5"));
@@ -506,6 +558,8 @@ class TestDesignControllerTest {
                 task.publishedCount(),
                 errorMessage,
                 task.requestedBy(),
+                task.idempotencyKey(),
+                task.requestDigest(),
                 task.createdAt(),
                 Instant.now()
         ));

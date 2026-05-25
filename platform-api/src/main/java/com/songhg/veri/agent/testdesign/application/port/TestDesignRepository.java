@@ -18,6 +18,14 @@ public interface TestDesignRepository {
 
     Optional<TestDesignTask> task(UUID id);
 
+    Optional<TestDesignTask> taskByIdempotencyKey(String projectId, String idempotencyKey);
+
+    /**
+     * Serializes project-local idempotent creation attempts when the backing store supports transactional locks.
+     */
+    default void lockTaskIdempotencyKey(String projectId, String idempotencyKey) {
+    }
+
     TestDesignTask saveTask(TestDesignTask task);
 
     List<TestDesignCandidate> candidates(TestDesignCandidateQuery query);

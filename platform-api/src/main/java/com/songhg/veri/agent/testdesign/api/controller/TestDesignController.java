@@ -22,6 +22,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
@@ -51,8 +52,11 @@ public class TestDesignController {
     @PostMapping("/tasks")
     @ResponseStatus(HttpStatus.CREATED)
     @RequirePermission(value = PermissionCodes.TEST_DESIGN_GENERATE, scope = TestDesignPermissionScopes.PROJECT_REQUEST)
-    public TestDesignTaskDetailResponse createTask(@Valid @RequestBody CreateTestDesignTaskCommand command) {
-        return service.createTask(command);
+    public TestDesignTaskDetailResponse createTask(
+            @RequestHeader(name = "Idempotency-Key", required = false) String idempotencyKey,
+            @Valid @RequestBody CreateTestDesignTaskCommand command
+    ) {
+        return service.createTask(command, idempotencyKey);
     }
 
     @GetMapping("/tasks/{id}")

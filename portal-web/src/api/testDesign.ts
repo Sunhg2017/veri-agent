@@ -36,6 +36,7 @@ export interface TestDesignTaskView {
   publishedCount: number;
   errorMessage?: string;
   requestedBy?: string;
+  idempotencyKey?: string;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -122,6 +123,7 @@ export interface CreateTestDesignTaskPayload {
   requirementIds: string[];
   coverageTypes?: string[];
   caseCountPerRequirement?: number;
+  idempotencyKey?: string;
 }
 
 export interface UpdateTestDesignCandidatePayload {
@@ -286,6 +288,7 @@ export function normalizeTestDesignTask(raw: unknown): TestDesignTaskView {
     publishedCount: numberValue(item.publishedCount ?? item.published_count, 0),
     errorMessage: optionalString(item.errorMessage) ?? optionalString(item.error_message),
     requestedBy: optionalString(item.requestedBy) ?? optionalString(item.requested_by),
+    idempotencyKey: optionalString(item.idempotencyKey) ?? optionalString(item.idempotency_key),
     createdAt: optionalString(item.createdAt) ?? optionalString(item.created_at),
     updatedAt: optionalString(item.updatedAt) ?? optionalString(item.updated_at)
   };
