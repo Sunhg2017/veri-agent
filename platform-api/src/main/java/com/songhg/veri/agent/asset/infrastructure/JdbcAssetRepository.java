@@ -307,6 +307,16 @@ public class JdbcAssetRepository implements AssetRepository {
     }
 
     @Override
+    public List<TestCaseRecord> testCasesByRequirement(String projectId, UUID requirementId) {
+        if (projectId == null || requirementId == null) {
+            return List.of();
+        }
+        return mapper.listTestCasesByRequirement(projectId, requirementId).stream()
+                .map(this::withSteps)
+                .toList();
+    }
+
+    @Override
     @Transactional
     public TestCaseRecord saveTestCase(TestCaseRecord testCase) {
         TestCaseRecord stored = normalizeTestCase(testCase);

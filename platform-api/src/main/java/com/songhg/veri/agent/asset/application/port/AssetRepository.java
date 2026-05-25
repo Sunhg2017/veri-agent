@@ -96,6 +96,8 @@ public interface AssetRepository {
 
     Optional<TestCaseRecord> testCaseBySourceRef(String projectId, String source, String sourceRef);
 
+    List<TestCaseRecord> testCasesByRequirement(String projectId, UUID requirementId);
+
     TestCaseRecord saveTestCase(TestCaseRecord testCase);
 
     boolean hasActiveTestCaseCodeConflict(String projectId, String code, UUID excludeId);

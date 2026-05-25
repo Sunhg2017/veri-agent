@@ -343,6 +343,21 @@ public class InMemoryAssetRepository implements AssetRepository {
     }
 
     @Override
+    public List<TestCaseRecord> testCasesByRequirement(String projectId, UUID requirementId) {
+        if (projectId == null || requirementId == null) {
+            return List.of();
+        }
+        return testCases.values().stream()
+                .filter(value -> projectId.equals(value.projectId()))
+                .filter(value -> requirementId.equals(value.requirementId())
+                        || links.values().stream().anyMatch(link -> requirementId.equals(link.requirementId())
+                                && value.id().equals(link.caseId())))
+                .filter(value -> !"DELETED".equals(lifecycleStatus(value.lifecycleStatus(), value.deletedAt())))
+                .sorted(Comparator.comparing(TestCaseRecord::createdAt).reversed())
+                .toList();
+    }
+
+    @Override
     public TestCaseRecord saveTestCase(TestCaseRecord testCase) {
         testCases.put(testCase.id(), testCase);
         return testCase;

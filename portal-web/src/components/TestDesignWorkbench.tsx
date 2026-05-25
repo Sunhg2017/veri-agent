@@ -28,6 +28,7 @@ import {
   updateTestDesignCandidate,
   type TestDesignCandidateView,
   type TestDesignHealth,
+  type TestDesignPublishRecordView,
   type TestDesignPublishResult,
   type TestDesignTaskView
 } from '../api/testDesign';
@@ -684,13 +685,22 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
             </button>
             <StateLine state={publishState} />
             {publishResult && (
-              <div className="detail-grid">
-                <Detail label="总数" value={publishResult.total} />
-                <Detail label="创建" value={publishResult.created} />
-                <Detail label="跳过" value={publishResult.skipped} />
-                <Detail label="失败" value={publishResult.failed} />
-                <Detail label="用例" value={publishResult.createdCaseIds.join(', ') || '-'} />
-              </div>
+              <>
+                <div className="detail-grid">
+                  <Detail label="总数" value={publishResult.total} />
+                  <Detail label="创建" value={publishResult.created} />
+                  <Detail label="跳过" value={publishResult.skipped} />
+                  <Detail label="失败" value={publishResult.failed} />
+                  <Detail label="用例" value={publishResult.createdCaseIds.join(', ') || '-'} />
+                </div>
+                {publishResult.records.length > 0 && (
+                  <div className="test-design-publish-records">
+                    {publishResult.records.slice(0, 6).map((record) => (
+                      <PublishRecordRow key={`${record.candidateId}-${record.action}-${record.result}-${record.assetCaseId ?? ''}`} record={record} />
+                    ))}
+                  </div>
+                )}
+              </>
             )}
           </div>
         </section>
@@ -746,6 +756,31 @@ function CandidateStatus(props: { value: string }) {
     : value === 'REJECTED' || value === 'FAILED'
       ? 'badge badge-danger'
       : value === 'IGNORED'
+        ? 'badge badge-neutral'
+        : 'badge badge-warning';
+  return <span className={className}>{value}</span>;
+}
+
+function PublishRecordRow(props: { record: TestDesignPublishRecordView }) {
+  return (
+    <div className="test-design-publish-record">
+      <span>
+        <strong>{props.record.title ?? props.record.candidateId ?? '-'}</strong>
+        <em>{props.record.action} · {props.record.assetCaseId ?? props.record.requirementId ?? '-'}</em>
+        {props.record.errorMessage && <small>{props.record.errorMessage}</small>}
+      </span>
+      <PublishResultBadge value={props.record.result} />
+    </div>
+  );
+}
+
+function PublishResultBadge(props: { value: string }) {
+  const value = props.value;
+  const className = value === 'SUCCEEDED' || value === 'PLANNED'
+    ? 'badge badge-success'
+    : value === 'CONFLICT' || value === 'FAILED'
+      ? 'badge badge-danger'
+      : value === 'SKIPPED'
         ? 'badge badge-neutral'
         : 'badge badge-warning';
   return <span className={className}>{value}</span>;

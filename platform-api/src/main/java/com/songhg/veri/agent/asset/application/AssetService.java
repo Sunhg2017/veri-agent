@@ -326,6 +326,10 @@ public class AssetService {
         return testCaseService.findTestCaseBySourceRef(projectId, source, sourceRef);
     }
 
+    public List<TestCaseResponse> findActiveTestCasesByRequirement(String projectId, UUID requirementId) {
+        return testCaseService.findActiveTestCasesByRequirement(projectId, requirementId);
+    }
+
     @Transactional
     public TestCaseResponse createTestCase(CreateTestCaseRequest request) {
         return testCaseService.createTestCase(request);

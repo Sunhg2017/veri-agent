@@ -4,6 +4,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.songhg.veri.agent.asset.application.query.AssetListQuery;
 import com.songhg.veri.agent.asset.application.port.AssetRepository;
 import com.songhg.veri.agent.asset.domain.AssetRequirement;
+import com.songhg.veri.agent.asset.domain.AssetVersion;
+import com.songhg.veri.agent.asset.domain.TestCaseRecord;
+import com.songhg.veri.agent.asset.domain.TestCaseStep;
+import com.songhg.veri.agent.asset.domain.TraceLink;
 import com.songhg.veri.agent.auth.domain.AuthSessionDraft;
 import com.songhg.veri.agent.auth.domain.AuthSessionRecord;
 import com.songhg.veri.agent.auth.domain.AuthSessionStore;
@@ -260,6 +264,30 @@ class DbProfileRepositoryContractTest {
     }
 
     @Test
+    void assetRepositoryFindsActiveTestCasesByRequirementThroughTraceLinks() {
+        String projectId = "project-wp5-conflict-db-" + UUID.randomUUID();
+        AssetRequirement requirement = requirement(projectId, "REQ-WP5-CONFLICT", "WP5 冲突需求", "SRC-WP5", Instant.now());
+        assetRepository.saveRequirement(requirement);
+        UUID caseId = UUID.randomUUID();
+        TestCaseRecord testCase = testCase(projectId, caseId, "TC-WP5-CONFLICT", "验证WP5冲突需求核心冒烟流程");
+        assetRepository.saveTestCase(testCase);
+        assetRepository.saveTraceLink(new TraceLink(
+                UUID.randomUUID(),
+                requirement.id(),
+                null,
+                null,
+                null,
+                caseId,
+                Instant.now()
+        ));
+
+        assertThat(assetRepository.testCasesByRequirement(projectId, requirement.id()))
+                .extracting(TestCaseRecord::id)
+                .containsExactly(caseId);
+        assertThat(assetRepository.testCasesByRequirement(projectId + "-other", requirement.id())).isEmpty();
+    }
+
+    @Test
     void auditLogWriterCommitsInIndependentTransactionWhenBusinessTransactionRollsBack() {
         String action = "db-contract-independent-audit-" + UUID.randomUUID();
         String resourceId = "audit-resource-" + UUID.randomUUID();
@@ -362,6 +390,37 @@ class DbProfileRepositoryContractTest {
                 null,
                 createdAt,
                 createdAt
+        );
+    }
+
+    private TestCaseRecord testCase(String projectId, UUID caseId, String code, String title) {
+        Instant now = Instant.now();
+        return new TestCaseRecord(
+                caseId,
+                code,
+                title,
+                "db profile contract test case",
+                projectId,
+                null,
+                null,
+                "AI_GENERATED",
+                "wp5:" + caseId,
+                "DRAFT",
+                "HIGH",
+                "wp5,db-contract",
+                List.of(new TestCaseStep(
+                        UUID.randomUUID(),
+                        caseId,
+                        0,
+                        "执行核心流程",
+                        "核心流程通过"
+                )),
+                AssetVersion.initial(),
+                "ACTIVE",
+                null,
+                null,
+                now,
+                now
         );
     }
 }

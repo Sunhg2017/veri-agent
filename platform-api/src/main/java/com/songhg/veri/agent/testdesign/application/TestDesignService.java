@@ -60,6 +60,10 @@ public class TestDesignService {
     private static final Set<String> CANDIDATE_PRIORITIES = Set.of("CRITICAL", "HIGH", "MEDIUM", "LOW");
     private static final String TEST_CASE_SOURCE_AI_GENERATED = "AI_GENERATED";
     private static final String TEST_CASE_SOURCE_REF_PREFIX = "wp5:";
+    private static final String ACTION_DUPLICATE_REVIEW_REQUIRED = "DUPLICATE_REVIEW_REQUIRED";
+    private static final String RESULT_CONFLICT = "CONFLICT";
+    private static final double HIGH_SIMILAR_TITLE_THRESHOLD = 0.86D;
+    private static final double HIGH_SIMILAR_CONTENT_THRESHOLD = 0.90D;
     private static final Set<String> RETRYABLE_TASK_STATUSES = Set.of(
             TestDesignTaskStatus.FAILED.name(),
             TestDesignTaskStatus.PARTIAL_SUCCESS.name(),
@@ -487,7 +491,7 @@ public class TestDesignService {
         }
         if (!dryRun) {
             records.forEach(repository::savePublishRecord);
-            refreshTaskCounts(task.id());
+            refreshTaskCountsAfterPublish(task.id(), task.status());
         }
         List<TestDesignPublishRecordResponse> responses = records.stream()
                 .map(record -> responseMapper.toPublishRecordResponse(record, candidateById(selected).get(record.candidateId())))
@@ -680,6 +684,20 @@ public class TestDesignService {
             repository.saveCandidate(linked);
             return publishRecord(task, linked, false, "LINK_EXISTING", "SUCCEEDED", testCase.id(), null, actor);
         }
+        Optional<TestCaseResponse> duplicateTestCase = highSimilarRequirementTestCase(candidate);
+        if (duplicateTestCase.isPresent()) {
+            TestCaseResponse testCase = duplicateTestCase.get();
+            return publishRecord(
+                    task,
+                    candidate,
+                    false,
+                    ACTION_DUPLICATE_REVIEW_REQUIRED,
+                    RESULT_CONFLICT,
+                    testCase.id(),
+                    duplicateReviewMessage(testCase),
+                    actor
+            );
+        }
         try {
             TestCaseResponse testCase = assetService.createTestCase(new CreateTestCaseRequest(
                     candidate.title(),
@@ -728,6 +746,20 @@ public class TestDesignService {
         if (existingTestCase.isPresent()) {
             return publishRecord(task, candidate, true, "LINK_EXISTING", "PLANNED", existingTestCase.get().id(), null, actor);
         }
+        Optional<TestCaseResponse> duplicateTestCase = highSimilarRequirementTestCase(candidate);
+        if (duplicateTestCase.isPresent()) {
+            TestCaseResponse testCase = duplicateTestCase.get();
+            return publishRecord(
+                    task,
+                    candidate,
+                    true,
+                    ACTION_DUPLICATE_REVIEW_REQUIRED,
+                    RESULT_CONFLICT,
+                    testCase.id(),
+                    duplicateReviewMessage(testCase),
+                    actor
+            );
+        }
         return publishRecord(task, candidate, true, "CREATE", "PLANNED", null, null, actor);
     }
 
@@ -737,6 +769,49 @@ public class TestDesignService {
                 TEST_CASE_SOURCE_AI_GENERATED,
                 candidateSourceRef(candidate)
         );
+    }
+
+    private Optional<TestCaseResponse> highSimilarRequirementTestCase(TestDesignCandidate candidate) {
+        return assetService.findActiveTestCasesByRequirement(candidate.projectId(), candidate.requirementId()).stream()
+                .filter(testCase -> !Objects.equals(candidateSourceRef(candidate), testCase.sourceRef()))
+                .filter(testCase -> isHighSimilarTestCase(candidate, testCase))
+                .findFirst();
+    }
+
+    /**
+     * Compares normalized titles first, then the title/expected/step body, to catch near-duplicate WP3 cases before
+     * WP5 publishes another asset under the same requirement.
+     */
+    private boolean isHighSimilarTestCase(TestDesignCandidate candidate, TestCaseResponse testCase) {
+        String candidateTitle = normalizeSimilarityText(candidate.title());
+        String testCaseTitle = normalizeSimilarityText(testCase.title());
+        if (candidateTitle.equals(testCaseTitle)) {
+            return true;
+        }
+        if (similarity(candidateTitle, testCaseTitle) >= HIGH_SIMILAR_TITLE_THRESHOLD) {
+            return true;
+        }
+        String candidateBody = normalizeSimilarityText(candidateSimilarityText(candidate));
+        String testCaseBody = normalizeSimilarityText(testCaseSimilarityText(testCase));
+        return similarity(candidateBody, testCaseBody) >= HIGH_SIMILAR_CONTENT_THRESHOLD;
+    }
+
+    private String candidateSimilarityText(TestDesignCandidate candidate) {
+        String steps = responseMapper.steps(candidate.stepsJson()).stream()
+                .map(step -> step.action() + " " + step.expectedResult())
+                .collect(Collectors.joining(" "));
+        return String.join(" ", nullToEmpty(candidate.title()), nullToEmpty(candidate.expectedResult()), steps);
+    }
+
+    private static String testCaseSimilarityText(TestCaseResponse testCase) {
+        String steps = testCase.steps().stream()
+                .map(step -> step.action() + " " + step.expectedResult())
+                .collect(Collectors.joining(" "));
+        return String.join(" ", nullToEmpty(testCase.title()), nullToEmpty(testCase.description()), steps);
+    }
+
+    private static String duplicateReviewMessage(TestCaseResponse testCase) {
+        return "同一需求下已存在高相似测试用例，需人工确认后再发布: " + testCase.code();
     }
 
     private static String candidateSourceRef(TestDesignCandidate candidate) {
@@ -791,6 +866,25 @@ public class TestDesignService {
     private void refreshTaskCounts(UUID taskId) {
         TestDesignTask task = taskOrThrow(taskId);
         repository.saveTask(withTaskCounts(task, repository.candidatesByTask(taskId)));
+    }
+
+    /**
+     * Publish conflicts or partial publish results must not leave the task stuck in the transient PUBLISHING state.
+     */
+    private void refreshTaskCountsAfterPublish(UUID taskId, String fallbackStatus) {
+        TestDesignTask task = taskOrThrow(taskId);
+        TestDesignTask counted = withTaskCounts(task, repository.candidatesByTask(taskId));
+        if (!TestDesignTaskStatus.PUBLISHING.name().equals(counted.status())) {
+            repository.saveTask(counted);
+            return;
+        }
+        repository.saveTask(new TestDesignTask(
+                counted.id(), counted.projectId(), counted.title(), fallbackStatus, counted.requirementIds(),
+                counted.coverageTypes(), counted.promptKey(), counted.promptVersion(), counted.modelInvocationId(),
+                counted.modelProviderName(), counted.modelName(), counted.totalRequirements(), counted.generatedCount(),
+                counted.confirmedCount(), counted.publishedCount(), counted.errorMessage(), counted.requestedBy(),
+                counted.createdAt(), Instant.now()
+        ));
     }
 
     private void saveReviewRecord(TestDesignCandidate before, TestDesignCandidate after, String action, String comment) {
@@ -1132,6 +1226,52 @@ public class TestDesignService {
             tags.add(requiredTag.trim());
         }
         return String.join(",", tags);
+    }
+
+    private static String normalizeSimilarityText(String value) {
+        if (!StringUtils.hasText(value)) {
+            return "";
+        }
+        StringBuilder builder = new StringBuilder();
+        value.trim().toLowerCase(Locale.ROOT).codePoints()
+                .filter(Character::isLetterOrDigit)
+                .forEach(builder::appendCodePoint);
+        return builder.toString();
+    }
+
+    private static double similarity(String left, String right) {
+        if (!StringUtils.hasText(left) || !StringUtils.hasText(right)) {
+            return 0D;
+        }
+        if (left.equals(right)) {
+            return 1D;
+        }
+        Set<String> leftGrams = grams(left);
+        Set<String> rightGrams = grams(right);
+        int intersection = 0;
+        for (String gram : leftGrams) {
+            if (rightGrams.contains(gram)) {
+                intersection++;
+            }
+        }
+        int union = leftGrams.size() + rightGrams.size() - intersection;
+        return union == 0 ? 0D : (double) intersection / union;
+    }
+
+    private static Set<String> grams(String value) {
+        int[] codePoints = value.codePoints().toArray();
+        if (codePoints.length <= 1) {
+            return Set.of(value);
+        }
+        LinkedHashSet<String> grams = new LinkedHashSet<>();
+        for (int i = 0; i < codePoints.length - 1; i++) {
+            grams.add(new String(codePoints, i, 2));
+        }
+        return grams;
+    }
+
+    private static String nullToEmpty(String value) {
+        return value == null ? "" : value;
     }
 
     private String requiredReason(TestDesignCandidateActionCommand command, String message) {

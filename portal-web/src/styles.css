@@ -1409,6 +1409,41 @@ tbody tr:hover td {
   gap: 6px;
 }
 
+.test-design-publish-records {
+  display: grid;
+  gap: 8px;
+  padding-top: var(--space-sm);
+  border-top: 1px solid var(--border-light);
+}
+
+.test-design-publish-record {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: start;
+  padding: 8px 0;
+}
+
+.test-design-publish-record span:first-child {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.test-design-publish-record strong,
+.test-design-publish-record em,
+.test-design-publish-record small {
+  overflow-wrap: anywhere;
+}
+
+.test-design-publish-record em,
+.test-design-publish-record small {
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+  font-style: normal;
+  line-height: 1.45;
+}
+
 /* ============================================================
    行操作按钮组
    ============================================================ */

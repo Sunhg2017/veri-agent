@@ -42,7 +42,7 @@
 | P0 | 接入 WP2 模型生成 | 服务端架构师 | 当前仍是规则模板生成，`modelInvocationId/provider/model` 为空。 | 成功、失败、预算阻断、fallback 全部可追踪；不直连厂商。 |
 | P0 | 企业级上下文装配 | 服务端架构师 | 尚未装配 API、页面、业务流、历史用例、WP4 来源摘要。 | 上下文有裁剪、脱敏、inputDigest 和来源引用。 |
 | P0 | 输出 Schema 和质量门禁 | 质量工程师 | 已有基础质量评估脚本入口，仍缺完整 JSON Schema、重复率、覆盖率和相似度评估。 | 不合格输出不得静默落库；golden set 阈值可回归。 |
-| P0 | 重复和冲突治理 | 服务端架构师 | dryRun 当前主要返回 CREATE/SKIP，缺 LINK_EXISTING、DUPLICATE_REVIEW_REQUIRED。 | 发布前能识别同 sourceRef、同需求高相似和已发布候选。 |
+| P0 | 重复和冲突治理 | 服务端架构师 | 已补 `LINK_EXISTING` 和同需求高相似 `DUPLICATE_REVIEW_REQUIRED`，仍缺可配置相似度策略和人工冲突处理台。 | 发布前能识别同 sourceRef、同需求高相似和已发布候选。 |
 | P0 | 任务编排与幂等 | 项目经理、服务端架构师 | 已补 retry/cancel 契约和状态保护，仍缺异步队列、任务幂等键、超时和补偿。 | 重试不重复污染候选；取消可阻断运行中任务；重复请求可识别。 |
 | P0 | 权限和资源作用域加固 | 服务端架构师、质量工程师 | 已补批量候选操作按候选项目 scope 鉴权，仍需覆盖导出、评测和未来异步回调。 | 项目角色不能操作其他项目候选；服务令牌调用可审计。 |
 | P0 | 发布幂等和补偿 | 服务端架构师 | 已发布候选可跳过，仍缺 sourceRef 唯一约束、失败补偿和跨 WP 事务边界说明。 | 重复发布不重复建用例；失败有记录和可重试策略。 |
@@ -63,6 +63,7 @@
 | 质量评估入口 | 新增 `scripts/wp5_case_generation_quality_eval.sh` 和 `TestDesignQualityEvaluationTest`，覆盖候选唯一性、步骤预期完整性、覆盖类型顺序和敏感泄露基线。 |
 | quality gate | `scripts/wp5_quality_gate.sh` 支持 `WP5_RUN_AI_EVAL=1` 运行 WP5 质量评估。 |
 | 发布 sourceRef 幂等 | WP5 发布 dryRun 和正式发布已能识别同项目同 `source=AI_GENERATED`、同 `sourceRef=wp5:{candidateId}` 的 WP3 用例，并返回 `LINK_EXISTING`，避免重复创建。 |
+| 同需求高相似冲突治理 | WP5 发布 dryRun 和正式发布已能识别同需求下高相似 WP3 用例，并返回 `DUPLICATE_REVIEW_REQUIRED/CONFLICT`，阻断静默重复创建。 |
 
 ## 6. 里程碑拆解
 
@@ -90,7 +91,7 @@
 |---|---|---|
 | 规则模板被误认为真实 AI | 健康接口和任务元数据保留 `generationMode=RULE_TEMPLATE`。 | 接入 WP2 后区分 `MODEL`、`FALLBACK_TEMPLATE` 和失败状态。 |
 | 重试导致候选重复 | 本次重试按 duplicateKey 跳过已有候选。 | 增加数据库唯一约束或幂等表。 |
-| 发布重复创建 WP3 用例 | 本次已按 `sourceRef=wp5:{candidateId}` 识别已存在用例并链接。 | 继续补同需求高相似用例检测和人工冲突处理。 |
+| 发布重复创建 WP3 用例 | 本次已按 `sourceRef=wp5:{candidateId}` 识别已存在用例并链接，并补同需求高相似用例检测。 | 继续补可配置相似度策略和人工冲突处理。 |
 | 本地脱敏覆盖不足 | 本次只覆盖明显 secret/token 模式。 | 上下文 packer 接入统一敏感字段分类和 WP2 策略。 |
 | 发布失败产生部分成功 | 已记录逐候选 publish record。 | 增加补偿计划和二次发布幂等锁。 |
 

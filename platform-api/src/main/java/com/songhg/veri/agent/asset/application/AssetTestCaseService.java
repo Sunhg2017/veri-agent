@@ -129,6 +129,20 @@ public class AssetTestCaseService {
     }
 
     /**
+     * Returns active test cases linked to one requirement for upstream duplicate/conflict checks.
+     */
+    public List<TestCaseResponse> findActiveTestCasesByRequirement(String projectId, UUID requirementId) {
+        if (!StringUtils.hasText(projectId) || requirementId == null) {
+            return List.of();
+        }
+        String scopeProjectId = projectAuditService.projectContext(projectId).projectId();
+        validateRequirementBelongsToProject(requirementId, scopeProjectId);
+        return repository.testCasesByRequirement(scopeProjectId, requirementId).stream()
+                .map(testCase -> AssetResponseMapper.toTestCaseResponse(testCase, testCase.steps()))
+                .toList();
+    }
+
+    /**
      * Creates a manual test case after confirming linked requirement/API assets belong to the same project.
      */
     @Transactional
