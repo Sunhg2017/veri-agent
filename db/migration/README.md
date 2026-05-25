@@ -17,6 +17,10 @@ All WP1-WP4 migrations currently live in `db/migration/wp1` because the MVP depl
 
 The first `SuperAdmin` is initialized by `db/seed/wp1_super_admin.sql` through `scripts/wp1_seed_super_admin.sh`, not by an HTTP or UI bootstrap endpoint. The script requires `WP1_SUPER_ADMIN_PASSWORD`, stores only a BCrypt hash, binds the `SuperAdmin` platform role, writes seed audit rows, and sets `must_change_password=true` so first login is forced through password change.
 
+`SuperAdmin` baseline permissions are seeded with the built-in role definitions in `wp1/V20260516_002__wp1_seed_permissions_roles.sql` and extended only by feature-owned permission migrations. Retired HTTP/UI bootstrap migrations must not be kept in the active Flyway directory.
+
+If an environment has already recorded a retired migration in `flyway_schema_history`, coordinate a DBA-approved Flyway repair or forward-fix plan before deploying this cleaned migration set.
+
 ## Prerequisites
 
 - PostgreSQL 15+.

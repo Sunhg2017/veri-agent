@@ -217,3 +217,29 @@ select
     case when count(*) = 0 then 'PASS' else 'FAIL' end as status,
     coalesce(string_agg(binding, ', ' order by binding), 'core role-permission bindings exist') as details
 from missing;
+
+with super_admin as (
+    select id
+    from rbac_role
+    where code = 'SuperAdmin'
+      and status = 'ENABLED'
+      and deleted_at is null
+    limit 1
+),
+missing as (
+    select p.code
+    from rbac_permission p
+    left join super_admin r on true
+    left join rbac_role_permission rp
+        on rp.role_id = r.id
+       and rp.permission_id = p.id
+       and rp.effect = 'ALLOW'
+       and rp.deleted_at is null
+    where p.status = 'ENABLED'
+      and (r.id is null or rp.id is null)
+)
+select
+    'seed.super_admin_all_permissions_bound' as check_name,
+    case when count(*) = 0 then 'PASS' else 'FAIL' end as status,
+    coalesce(string_agg(code, ', ' order by code), 'SuperAdmin is bound to every enabled permission') as details
+from missing;

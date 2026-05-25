@@ -26,6 +26,10 @@ ALLOWLIST=(
   "$ROOT_DIR/db/migration/wp1/V20260518_012__wp2_single_platform_scope.sql"
 )
 
+OBSOLETE_MIGRATIONS=(
+  "$ROOT_DIR/db/migration/wp1/V20260517_006__wp1_super_admin_permission_closure.sql"
+)
+
 if ! command -v rg >/dev/null 2>&1; then
   echo "rg is required for WP1 single-platform guard" >&2
   exit 2
@@ -43,5 +47,12 @@ if [[ -n "${matches//[[:space:]]/}" ]]; then
   printf '%s\n' "$matches" >&2
   exit 1
 fi
+
+for obsolete in "${OBSOLETE_MIGRATIONS[@]}"; do
+  if [[ -e "$obsolete" ]]; then
+    echo "WP1 single-platform guard failed. Obsolete bootstrap-era migration must not be restored: ${obsolete#$ROOT_DIR/}" >&2
+    exit 1
+  fi
+done
 
 echo "WP1 single-platform guard passed."
