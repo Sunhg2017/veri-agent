@@ -112,6 +112,8 @@ class DbProfileRepositoryContractTest {
         String projectId = "project-wp5-idem-db-" + UUID.randomUUID();
         String idempotencyKey = "db-idempotency-" + UUID.randomUUID();
         String requestDigest = "a".repeat(64);
+        String inputDigest = "b".repeat(64);
+        String contextSummaryJson = "{\"contextVersion\":\"wp5-context-v1\"}";
         UUID taskId = UUID.randomUUID();
         Instant now = Instant.now();
 
@@ -137,6 +139,8 @@ class DbProfileRepositoryContractTest {
                     "db-contract",
                     idempotencyKey,
                     requestDigest,
+                    inputDigest,
+                    contextSummaryJson,
                     now,
                     now
             ));
@@ -147,6 +151,8 @@ class DbProfileRepositoryContractTest {
                 .satisfies(task -> {
                     assertThat(task.id()).isEqualTo(taskId);
                     assertThat(task.requestDigest()).isEqualTo(requestDigest);
+                    assertThat(task.inputDigest()).isEqualTo(inputDigest);
+                    assertThat(task.contextSummaryJson()).contains("wp5-context-v1");
                 });
     }
 

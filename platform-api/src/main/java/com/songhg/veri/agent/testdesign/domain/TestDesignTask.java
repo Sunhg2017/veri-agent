@@ -23,6 +23,8 @@ public record TestDesignTask(
         String requestedBy,
         String idempotencyKey,
         String requestDigest,
+        String inputDigest,
+        String contextSummaryJson,
         Instant createdAt,
         Instant updatedAt
 ) {

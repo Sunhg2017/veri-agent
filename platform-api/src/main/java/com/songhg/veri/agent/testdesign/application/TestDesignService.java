@@ -196,6 +196,7 @@ public class TestDesignService {
                 .map(assetService::getRequirement)
                 .peek(requirement -> ensureSameProject(requirement, projectId))
                 .toList();
+        TestDesignGenerationContext generationContext = generationContext(projectId, requirements);
         Instant now = Instant.now();
         String title = taskTitle(command.title(), requirements);
         UUID taskId = UUID.randomUUID();
@@ -220,6 +221,8 @@ public class TestDesignService {
                 requestedBy,
                 idempotencyKey,
                 requestDigest,
+                generationContext.inputDigest(),
+                generationContext.contextSummaryJson(),
                 now,
                 now
         );
@@ -237,7 +240,8 @@ public class TestDesignService {
                 requirements.size(),
                 candidates.size(),
                 coverageTypes,
-                idempotencyKey
+                idempotencyKey,
+                generationContext.inputDigest()
         ));
         return task(taskId);
     }
@@ -507,7 +511,8 @@ public class TestDesignService {
                     task.requirementIds(), task.coverageTypes(), task.promptKey(), task.promptVersion(),
                     task.modelInvocationId(), task.modelProviderName(), task.modelName(), task.totalRequirements(),
                     task.generatedCount(), task.confirmedCount(), task.publishedCount(), task.errorMessage(),
-                    task.requestedBy(), task.idempotencyKey(), task.requestDigest(), task.createdAt(), Instant.now()
+                    task.requestedBy(), task.idempotencyKey(), task.requestDigest(), task.inputDigest(),
+                    task.contextSummaryJson(), task.createdAt(), Instant.now()
             ));
         }
         List<TestDesignPublishRecord> records = new ArrayList<>();
@@ -560,6 +565,92 @@ public class TestDesignService {
 
     public String candidateProjectScopeId(UUID id) {
         return candidateOrThrow(id).projectId();
+    }
+
+    private TestDesignGenerationContext generationContext(
+            String projectId,
+            List<RequirementResponse> requirements
+    ) {
+        Map<String, Object> summary = new LinkedHashMap<>();
+        summary.put("contextVersion", "wp5-context-v1");
+        summary.put("projectId", projectId);
+        summary.put("promptKey", properties.promptKey());
+        summary.put("promptVersion", properties.promptVersion());
+        summary.put("generationMode", properties.generationMode());
+        summary.put("requirements", requirements.stream()
+                .sorted(Comparator.comparing(RequirementResponse::id))
+                .map(this::requirementContextSummary)
+                .toList());
+        summary.put("existingCasesByRequirement", requirements.stream()
+                .sorted(Comparator.comparing(RequirementResponse::id))
+                .map(requirement -> existingCaseContextSummary(projectId, requirement.id()))
+                .toList());
+        summary.put("limits", contextSummaryLimits());
+        try {
+            String contextSummaryJson = objectMapper.writeValueAsString(summary);
+            return new TestDesignGenerationContext(sha256(contextSummaryJson), contextSummaryJson);
+        } catch (JsonProcessingException exception) {
+            throw new IllegalStateException("WP5 generation context summary serialization failed", exception);
+        }
+    }
+
+    /**
+     * Builds the model-ready requirement summary from WP3/WP4-facing fields only.
+     *
+     * <p>The summary is deliberately redacted and truncated before it is persisted; future WP2 prompt assembly can
+     * reuse the same digest to explain exactly which source snapshot produced a task without storing raw prompt text.
+     */
+    private Map<String, Object> requirementContextSummary(RequirementResponse requirement) {
+        Map<String, Object> item = new LinkedHashMap<>();
+        item.put("id", requirement.id().toString());
+        item.put("code", redactedPreview(requirement.code(), 80));
+        item.put("title", redactedPreview(requirement.title(), 160));
+        item.put("priority", requirement.priority());
+        item.put("status", requirement.status());
+        item.put("source", redactedPreview(requirement.source(), 80));
+        item.put("sourceRef", redactedPreview(requirement.sourceRef(), 160));
+        item.put("version", requirement.version());
+        item.put("descriptionPreview", redactedPreview(requirement.description(), 240));
+        item.put("acceptanceCriteriaPreview", redactedPreview(requirement.acceptanceCriteria(), 240));
+        item.put("tags", summaryTags(requirement.tags()));
+        return item;
+    }
+
+    private Map<String, Object> existingCaseContextSummary(String projectId, UUID requirementId) {
+        List<TestCaseResponse> cases = assetService.findActiveTestCasesByRequirement(projectId, requirementId).stream()
+                .sorted(Comparator.comparing(TestCaseResponse::title, Comparator.nullsLast(String::compareTo))
+                        .thenComparing(TestCaseResponse::id))
+                .toList();
+        Map<String, Object> item = new LinkedHashMap<>();
+        item.put("requirementId", requirementId.toString());
+        item.put("count", cases.size());
+        item.put("cases", cases.stream().limit(5).map(this::testCaseContextSummary).toList());
+        return item;
+    }
+
+    private Map<String, Object> testCaseContextSummary(TestCaseResponse testCase) {
+        Map<String, Object> item = new LinkedHashMap<>();
+        item.put("id", testCase.id().toString());
+        item.put("title", redactedPreview(testCase.title(), 160));
+        item.put("priority", testCase.priority());
+        item.put("status", testCase.status());
+        item.put("source", redactedPreview(testCase.source(), 80));
+        item.put("sourceRef", redactedPreview(testCase.sourceRef(), 160));
+        item.put("stepCount", testCase.steps() == null ? 0 : testCase.steps().size());
+        item.put("descriptionPreview", redactedPreview(testCase.description(), 200));
+        return item;
+    }
+
+    private static Map<String, Object> contextSummaryLimits() {
+        Map<String, Object> limits = new LinkedHashMap<>();
+        limits.put("requirementDescriptionChars", 240);
+        limits.put("acceptanceCriteriaChars", 240);
+        limits.put("existingCasesPerRequirement", 5);
+        limits.put("rawPromptStored", false);
+        return limits;
+    }
+
+    private record TestDesignGenerationContext(String inputDigest, String contextSummaryJson) {
     }
 
     private List<TestDesignCandidate> generateCandidates(
@@ -896,7 +987,7 @@ public class TestDesignService {
                 task.promptKey(), task.promptVersion(), task.modelInvocationId(), task.modelProviderName(),
                 task.modelName(), task.totalRequirements(), generatedCount, confirmedCount, publishedCount,
                 task.errorMessage(), task.requestedBy(), task.idempotencyKey(), task.requestDigest(),
-                task.createdAt(), Instant.now()
+                task.inputDigest(), task.contextSummaryJson(), task.createdAt(), Instant.now()
         );
     }
 
@@ -920,7 +1011,8 @@ public class TestDesignService {
                 counted.coverageTypes(), counted.promptKey(), counted.promptVersion(), counted.modelInvocationId(),
                 counted.modelProviderName(), counted.modelName(), counted.totalRequirements(), counted.generatedCount(),
                 counted.confirmedCount(), counted.publishedCount(), counted.errorMessage(), counted.requestedBy(),
-                counted.idempotencyKey(), counted.requestDigest(), counted.createdAt(), Instant.now()
+                counted.idempotencyKey(), counted.requestDigest(), counted.inputDigest(), counted.contextSummaryJson(),
+                counted.createdAt(), Instant.now()
         ));
     }
 
@@ -988,7 +1080,7 @@ public class TestDesignService {
                 task.promptKey(), task.promptVersion(), task.modelInvocationId(), task.modelProviderName(),
                 task.modelName(), task.totalRequirements(), task.generatedCount(), task.confirmedCount(),
                 task.publishedCount(), errorMessage, task.requestedBy(), task.idempotencyKey(), task.requestDigest(),
-                task.createdAt(), Instant.now()
+                task.inputDigest(), task.contextSummaryJson(), task.createdAt(), Instant.now()
         );
     }
 
@@ -1326,6 +1418,28 @@ public class TestDesignService {
         return TestDesignSensitiveText.redact(value);
     }
 
+    private static String redactedPreview(String value, int maxLength) {
+        if (!StringUtils.hasText(value)) {
+            return null;
+        }
+        String normalized = redactSensitiveText(value).replaceAll("\\s+", " ").trim();
+        if (normalized.length() <= maxLength) {
+            return normalized;
+        }
+        return normalized.substring(0, Math.max(0, maxLength - 3)) + "...";
+    }
+
+    private static List<String> summaryTags(String value) {
+        if (!StringUtils.hasText(value)) {
+            return List.of();
+        }
+        return List.of(value.replace('，', ',').split(",")).stream()
+                .map(tag -> redactedPreview(tag, 64))
+                .filter(StringUtils::hasText)
+                .distinct()
+                .toList();
+    }
+
     private static String duplicateKey(UUID requirementId, String coverageType, String title) {
         return requirementId + ":" + coverageType + ":" + (title == null ? "" : title.trim().toLowerCase(Locale.ROOT));
     }
@@ -1445,7 +1559,8 @@ public class TestDesignService {
             int requirementCount,
             int candidateCount,
             List<String> coverageTypes,
-            String idempotencyKey
+            String idempotencyKey,
+            String inputDigest
     ) {
         Map<String, Object> details = new LinkedHashMap<>();
         details.put("taskId", taskId);
@@ -1453,6 +1568,7 @@ public class TestDesignService {
         details.put("candidateCount", candidateCount);
         details.put("coverageTypes", coverageTypes);
         details.put("idempotencyKeyPresent", StringUtils.hasText(idempotencyKey));
+        details.put("inputDigest", inputDigest);
         if (StringUtils.hasText(idempotencyKey)) {
             details.put("idempotencyKey", idempotencyKey);
         }

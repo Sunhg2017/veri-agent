@@ -26,7 +26,9 @@ from missing;
 with expected(column_name) as (
     values
         ('idempotency_key'),
-        ('request_digest')
+        ('request_digest'),
+        ('input_digest'),
+        ('context_summary_json')
 ),
 missing as (
     select e.column_name
@@ -40,12 +42,13 @@ missing as (
 select
     'wp5.task_idempotency_columns_exist' as check_name,
     case when count(*) = 0 then 'PASS' else 'FAIL' end as status,
-    coalesce(string_agg(column_name, ', ' order by column_name), 'WP5 task idempotency columns exist') as details
+    coalesce(string_agg(column_name, ', ' order by column_name), 'WP5 task idempotency and context columns exist') as details
 from missing;
 
 with expected(index_name) as (
     values
-        ('uk_test_design_task_project_idempotency')
+        ('uk_test_design_task_project_idempotency'),
+        ('idx_test_design_task_input_digest')
 ),
 missing as (
     select e.index_name
@@ -59,7 +62,7 @@ missing as (
 select
     'wp5.task_idempotency_indexes_exist' as check_name,
     case when count(*) = 0 then 'PASS' else 'FAIL' end as status,
-    coalesce(string_agg(index_name, ', ' order by index_name), 'WP5 task idempotency indexes exist') as details
+    coalesce(string_agg(index_name, ', ' order by index_name), 'WP5 task idempotency and context indexes exist') as details
 from missing;
 
 with expected(table_name, constraint_name) as (

@@ -219,6 +219,7 @@ with expected(table_name, column_name) as (
         ('test_design_task','prompt_version'), ('test_design_task','model_invocation_id'), ('test_design_task','model_provider_name'),
         ('test_design_task','model_name'), ('test_design_task','generated_count'), ('test_design_task','confirmed_count'),
         ('test_design_task','published_count'), ('test_design_task','idempotency_key'), ('test_design_task','request_digest'),
+        ('test_design_task','input_digest'), ('test_design_task','context_summary_json'),
         ('test_design_candidate','id'), ('test_design_candidate','task_id'),
         ('test_design_candidate','project_id'), ('test_design_candidate','requirement_id'), ('test_design_candidate','api_id'),
         ('test_design_candidate','title'), ('test_design_candidate','coverage_type'), ('test_design_candidate','priority'),
@@ -306,6 +307,7 @@ with expected(table_name, index_name) as (
         -- WP5 key indexes
         ('test_design_task','idx_test_design_task_project_status'),
         ('test_design_task','uk_test_design_task_project_idempotency'),
+        ('test_design_task','idx_test_design_task_input_digest'),
         ('test_design_candidate','uk_test_design_candidate_task_duplicate'),
         ('test_design_candidate','idx_test_design_candidate_task_status'),
         ('test_design_candidate','idx_test_design_candidate_project_status'),

@@ -67,7 +67,12 @@ describe('WP5 test design API helpers', () => {
       generated_count: '4',
       confirmed_count: '1',
       published_count: '0',
-      idempotency_key: 'wp5-create-001'
+      idempotency_key: 'wp5-create-001',
+      input_digest: 'a'.repeat(64),
+      context_summary: {
+        contextVersion: 'wp5-context-v1',
+        requirements: [{ id: 'req-1', title: '登录需求' }]
+      }
     });
     expect(task).toMatchObject({
       id: 'task-1',
@@ -78,8 +83,10 @@ describe('WP5 test design API helpers', () => {
       generatedCount: 4,
       confirmedCount: 1,
       publishedCount: 0,
-      idempotencyKey: 'wp5-create-001'
+      idempotencyKey: 'wp5-create-001',
+      inputDigest: 'a'.repeat(64)
     });
+    expect(task.contextSummary.contextVersion).toBe('wp5-context-v1');
 
     const candidate = normalizeTestDesignCandidate({
       candidate_id: 'cand-1',

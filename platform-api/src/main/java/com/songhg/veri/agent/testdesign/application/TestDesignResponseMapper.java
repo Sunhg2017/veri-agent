@@ -1,6 +1,7 @@
 package com.songhg.veri.agent.testdesign.application;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignCandidateResponse;
@@ -12,6 +13,7 @@ import com.songhg.veri.agent.testdesign.domain.TestDesignPublishRecord;
 import com.songhg.veri.agent.testdesign.domain.TestDesignTask;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
@@ -45,6 +47,8 @@ public class TestDesignResponseMapper {
                 task.errorMessage(),
                 task.requestedBy(),
                 task.idempotencyKey(),
+                task.inputDigest(),
+                jsonMap(task.contextSummaryJson()),
                 task.createdAt(),
                 task.updatedAt()
         );
@@ -156,6 +160,18 @@ public class TestDesignResponseMapper {
         return stringList(value).stream()
                 .map(UUID::fromString)
                 .toList();
+    }
+
+    private Map<String, Object> jsonMap(String rawValue) {
+        if (!StringUtils.hasText(rawValue)) {
+            return Map.of();
+        }
+        try {
+            return objectMapper.readValue(rawValue, new TypeReference<>() {
+            });
+        } catch (JsonProcessingException exception) {
+            return Map.of();
+        }
     }
 
     private static String text(JsonNode node) {

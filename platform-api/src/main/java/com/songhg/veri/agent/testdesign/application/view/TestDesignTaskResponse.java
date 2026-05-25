@@ -2,6 +2,7 @@ package com.songhg.veri.agent.testdesign.application.view;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 public record TestDesignTaskResponse(
@@ -23,6 +24,8 @@ public record TestDesignTaskResponse(
         String errorMessage,
         String requestedBy,
         String idempotencyKey,
+        String inputDigest,
+        Map<String, Object> contextSummary,
         Instant createdAt,
         Instant updatedAt
 ) {

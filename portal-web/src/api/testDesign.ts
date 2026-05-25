@@ -37,6 +37,8 @@ export interface TestDesignTaskView {
   errorMessage?: string;
   requestedBy?: string;
   idempotencyKey?: string;
+  inputDigest?: string;
+  contextSummary: Record<string, unknown>;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -214,6 +216,10 @@ function stringArrayValue(value: unknown): string[] {
   return [];
 }
 
+function recordValue(value: unknown): Record<string, unknown> {
+  return isRecord(value) ? value : {};
+}
+
 function listItems(value: unknown): unknown[] {
   if (Array.isArray(value)) return value;
   if (!isRecord(value)) return [];
@@ -289,6 +295,8 @@ export function normalizeTestDesignTask(raw: unknown): TestDesignTaskView {
     errorMessage: optionalString(item.errorMessage) ?? optionalString(item.error_message),
     requestedBy: optionalString(item.requestedBy) ?? optionalString(item.requested_by),
     idempotencyKey: optionalString(item.idempotencyKey) ?? optionalString(item.idempotency_key),
+    inputDigest: optionalString(item.inputDigest) ?? optionalString(item.input_digest),
+    contextSummary: recordValue(item.contextSummary ?? item.context_summary),
     createdAt: optionalString(item.createdAt) ?? optionalString(item.created_at),
     updatedAt: optionalString(item.updatedAt) ?? optionalString(item.updated_at)
   };

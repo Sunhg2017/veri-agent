@@ -22,6 +22,7 @@ import org.springframework.test.web.servlet.MvcResult;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.startsWith;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.matchesPattern;
 import static org.hamcrest.Matchers.not;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -243,6 +244,63 @@ class TestDesignControllerTest {
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("CONFLICT"))
                 .andExpect(jsonPath("$.message", containsString("幂等键")));
+    }
+
+    @Test
+    void storesRedactedContextSummaryAndInputDigest() throws Exception {
+        String userToken = userAccessToken(List.of("ProjectOwner@PROJECT:project-wp5"));
+        String requirementId = createRequirement(
+                userToken,
+                "上下文摘要需求",
+                "apiKey=sk_live_12345678 登录成功后进入工作台",
+                "project-wp5"
+        );
+        mockMvc.perform(post("/api/v1/asset/test-cases")
+                        .header("Authorization", "Bearer " + userToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "projectId": "project-wp5",
+                                  "requirementId": "%s",
+                                  "title": "历史登录主流程用例",
+                                  "description": "人工维护的历史用例",
+                                  "source": "MANUAL",
+                                  "status": "DRAFT",
+                                  "priority": "HIGH",
+                                  "steps": [
+                                    {"action": "执行登录", "expectedResult": "进入工作台"}
+                                  ]
+                                }
+                                """.formatted(requirementId)))
+                .andExpect(status().isCreated());
+
+        MvcResult taskResult = mockMvc.perform(post("/api/v1/test-design/tasks")
+                        .header("Authorization", "Bearer " + userToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "projectId": "project-wp5",
+                                  "title": "上下文摘要任务",
+                                  "requirementIds": ["%s"],
+                                  "coverageTypes": ["SMOKE"]
+                                }
+                                """.formatted(requirementId)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.task.inputDigest", matchesPattern("[a-f0-9]{64}")))
+                .andExpect(jsonPath("$.data.task.requestDigest").doesNotExist())
+                .andExpect(jsonPath("$.data.task.contextSummary.contextVersion").value("wp5-context-v1"))
+                .andExpect(jsonPath("$.data.task.contextSummary.requirements[0].id").value(requirementId))
+                .andExpect(jsonPath(
+                        "$.data.task.contextSummary.requirements[0].acceptanceCriteriaPreview",
+                        containsString("[REDACTED]")
+                ))
+                .andExpect(jsonPath("$.data.task.contextSummary.existingCasesByRequirement[0].count").value(1))
+                .andExpect(jsonPath(
+                        "$.data.task.contextSummary.existingCasesByRequirement[0].cases[0].title"
+                ).value("历史登录主流程用例"))
+                .andReturn();
+
+        MatcherAssert.assertThat(taskResult.getResponse().getContentAsString(), not(containsString("sk_live_12345678")));
     }
 
     @Test
@@ -560,6 +618,8 @@ class TestDesignControllerTest {
                 task.requestedBy(),
                 task.idempotencyKey(),
                 task.requestDigest(),
+                task.inputDigest(),
+                task.contextSummaryJson(),
                 task.createdAt(),
                 Instant.now()
         ));
