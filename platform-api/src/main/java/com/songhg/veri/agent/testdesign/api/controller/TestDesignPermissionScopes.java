@@ -7,6 +7,7 @@ final class TestDesignPermissionScopes {
     static final String CANDIDATE_LIST = "@testDesignPermissionScopeResolver.candidateList(#request)";
     static final String TASK = "@testDesignPermissionScopeResolver.task(#id)";
     static final String CANDIDATE = "@testDesignPermissionScopeResolver.candidate(#id)";
+    static final String CANDIDATE_BATCH = "@testDesignPermissionScopeResolver.candidateBatch(#command)";
 
     private TestDesignPermissionScopes() {
     }

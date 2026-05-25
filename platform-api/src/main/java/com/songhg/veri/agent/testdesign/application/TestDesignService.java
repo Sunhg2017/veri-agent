@@ -46,6 +46,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -56,6 +57,23 @@ public class TestDesignService {
 
     private static final List<String> DEFAULT_COVERAGE_TYPES = List.of("SMOKE", "FUNCTIONAL", "EXCEPTION");
     private static final Set<String> CANDIDATE_PRIORITIES = Set.of("CRITICAL", "HIGH", "MEDIUM", "LOW");
+    private static final Set<String> RETRYABLE_TASK_STATUSES = Set.of(
+            TestDesignTaskStatus.FAILED.name(),
+            TestDesignTaskStatus.PARTIAL_SUCCESS.name(),
+            TestDesignTaskStatus.CANCELLED.name()
+    );
+    private static final Set<String> CANCELLABLE_TASK_STATUSES = Set.of(
+            TestDesignTaskStatus.DRAFT.name(),
+            TestDesignTaskStatus.RUNNING.name(),
+            TestDesignTaskStatus.PARTIAL_SUCCESS.name(),
+            TestDesignTaskStatus.FAILED.name()
+    );
+    private static final String REDACTED_SECRET = "[REDACTED]";
+    private static final List<Pattern> SENSITIVE_TEXT_PATTERNS = List.of(
+            Pattern.compile("(?i)\\bbearer\\s+[a-z0-9._\\-]{8,}"),
+            Pattern.compile("(?i)\\b(api[_-]?key|secret|token|password|passwd|authorization)\\s*[:=]\\s*[^\\s,;，；]+"),
+            Pattern.compile("(?i)\\b(sk|pk|rk)_[a-z0-9]{8,}\\b")
+    );
 
     private final TestDesignRepository repository;
     private final AssetService assetService;
@@ -182,6 +200,89 @@ public class TestDesignService {
                 "coverageTypes", coverageTypes
         ));
         return task(taskId);
+    }
+
+    /**
+     * Retries a failed generation task without deleting reviewed candidates.
+     *
+     * <p>The current WP5 slice is synchronous and template-backed, so retry fills only missing candidate duplicate keys.
+     * This keeps the contract compatible with the later WP2 async generator while protecting manual review work from
+     * being overwritten.
+     */
+    @Transactional
+    public TestDesignTaskDetailResponse retryTask(UUID id) {
+        if (!properties.generationEnabled()) {
+            throw new BusinessException(ErrorCode.INVALID_STATE, "WP5 用例生成未启用");
+        }
+        TestDesignTask task = taskOrThrow(id);
+        if (!RETRYABLE_TASK_STATUSES.contains(task.status())) {
+            throw new BusinessException(ErrorCode.INVALID_STATE, "当前任务状态不可重试: " + task.status());
+        }
+        List<UUID> requirementIds = requirementIdsFromText(task.requirementIds());
+        if (requirementIds.isEmpty()) {
+            throw new BusinessException(ErrorCode.INVALID_STATE, "任务缺少需求上下文，无法重试");
+        }
+        TestDesignTask running = withTaskStatus(task, TestDesignTaskStatus.RUNNING, null);
+        repository.saveTask(running);
+
+        List<String> coverageTypes = normalizedCoverageTypes(csvValues(task.coverageTypes()));
+        List<TestDesignCandidate> existingCandidates = repository.candidatesByTask(id);
+        Set<String> existingDuplicateKeys = existingCandidates.stream()
+                .map(TestDesignCandidate::duplicateKey)
+                .filter(StringUtils::hasText)
+                .collect(Collectors.toSet());
+        List<RequirementResponse> requirements = requirementIds.stream()
+                .map(assetService::getRequirement)
+                .peek(requirement -> ensureSameProject(requirement, task.projectId()))
+                .toList();
+        Instant now = Instant.now();
+        List<TestDesignCandidate> createdCandidates = new ArrayList<>();
+        for (RequirementResponse requirement : requirements) {
+            List<TestDesignCandidate> generatedCandidates = generateCandidates(running, requirement, coverageTypes, null, now);
+            for (TestDesignCandidate candidate : generatedCandidates) {
+                if (existingDuplicateKeys.add(candidate.duplicateKey())) {
+                    repository.saveCandidate(candidate);
+                    createdCandidates.add(candidate);
+                }
+            }
+        }
+
+        List<TestDesignCandidate> mergedCandidates = new ArrayList<>(existingCandidates);
+        mergedCandidates.addAll(createdCandidates);
+        TestDesignTask finished = withTaskCounts(withTaskStatus(running, TestDesignTaskStatus.SUCCEEDED, null), mergedCandidates);
+        repository.saveTask(finished);
+        writeAudit("RETRY", "TEST_DESIGN_TASK", id, task.projectId(), Map.of(
+                "taskId", id,
+                "createdCandidateCount", createdCandidates.size(),
+                "totalCandidateCount", mergedCandidates.size(),
+                "coverageTypes", coverageTypes
+        ));
+        return task(id);
+    }
+
+    /**
+     * Cancels a generation task at the task state level.
+     *
+     * <p>Candidate rows are intentionally left untouched: they are review evidence and may be reused if a cancelled or
+     * partially failed task is retried later.
+     */
+    @Transactional
+    public TestDesignTaskDetailResponse cancelTask(UUID id) {
+        TestDesignTask task = taskOrThrow(id);
+        if (TestDesignTaskStatus.CANCELLED.name().equals(task.status())) {
+            return task(id);
+        }
+        if (!CANCELLABLE_TASK_STATUSES.contains(task.status())) {
+            throw new BusinessException(ErrorCode.INVALID_STATE, "当前任务状态不可取消: " + task.status());
+        }
+        TestDesignTask cancelled = withTaskStatus(task, TestDesignTaskStatus.CANCELLED, "用户取消生成任务");
+        repository.saveTask(cancelled);
+        writeAudit("CANCEL", "TEST_DESIGN_TASK", id, task.projectId(), Map.of(
+                "taskId", id,
+                "fromStatus", task.status(),
+                "toStatus", TestDesignTaskStatus.CANCELLED.name()
+        ));
+        return task(id);
     }
 
     public PageResponse<TestDesignCandidateResponse> candidates(TestDesignCandidateQuery query) {
@@ -439,13 +540,14 @@ public class TestDesignService {
             Instant now
     ) {
         UUID id = UUID.randomUUID();
+        String requirementTitle = redactSensitiveText(requirement.title());
         String title = switch (coverageType) {
-            case "SMOKE" -> "验证" + requirement.title() + "核心冒烟流程";
-            case "EXCEPTION" -> "验证" + requirement.title() + "异常提示与阻断";
-            case "BOUNDARY" -> "验证" + requirement.title() + "边界条件";
-            case "PERMISSION" -> "验证" + requirement.title() + "权限控制";
-            case "REGRESSION" -> "回归验证" + requirement.title();
-            default -> "验证" + requirement.title() + "主流程";
+            case "SMOKE" -> "验证" + requirementTitle + "核心冒烟流程";
+            case "EXCEPTION" -> "验证" + requirementTitle + "异常提示与阻断";
+            case "BOUNDARY" -> "验证" + requirementTitle + "边界条件";
+            case "PERMISSION" -> "验证" + requirementTitle + "权限控制";
+            case "REGRESSION" -> "回归验证" + requirementTitle;
+            default -> "验证" + requirementTitle + "主流程";
         };
         String description = "基于 WP3 需求生成的 " + coverageType + " 候选用例。需求编号: " + requirement.code();
         List<TestDesignStepResponse> steps = templateSteps(requirement, coverageType);
@@ -486,18 +588,19 @@ public class TestDesignService {
     }
 
     private List<TestDesignStepResponse> templateSteps(RequirementResponse requirement, String coverageType) {
+        String requirementTitle = redactSensitiveText(requirement.title());
         String criteria = StringUtils.hasText(requirement.acceptanceCriteria())
-                ? requirement.acceptanceCriteria()
+                ? redactSensitiveText(requirement.acceptanceCriteria())
                 : "需求验收标准被满足";
         return switch (coverageType) {
             case "SMOKE" -> List.of(
                     step(0, "准备满足前置条件的基础测试数据", "测试数据可用于执行核心流程"),
-                    step(1, "执行需求「" + requirement.title() + "」的核心操作", "核心操作完成且无阻断错误"),
+                    step(1, "执行需求「" + requirementTitle + "」的核心操作", "核心操作完成且无阻断错误"),
                     step(2, "检查关键结果和页面/接口反馈", criteria)
             );
             case "EXCEPTION" -> List.of(
                     step(0, "准备缺失或非法的输入数据", "系统接受测试输入并进入校验逻辑"),
-                    step(1, "执行需求「" + requirement.title() + "」的异常路径", "系统阻断非法操作"),
+                    step(1, "执行需求「" + requirementTitle + "」的异常路径", "系统阻断非法操作"),
                     step(2, "检查错误提示、状态和审计记录", "错误提示清晰且未产生脏数据")
             );
             case "BOUNDARY" -> List.of(
@@ -507,17 +610,17 @@ public class TestDesignService {
             );
             case "PERMISSION" -> List.of(
                     step(0, "准备有权限与无权限两个账号", "账号权限边界清晰"),
-                    step(1, "分别访问需求「" + requirement.title() + "」相关功能", "有权限账号可操作，无权限账号被拒绝"),
+                    step(1, "分别访问需求「" + requirementTitle + "」相关功能", "有权限账号可操作，无权限账号被拒绝"),
                     step(2, "核对权限失败响应和审计结果", "权限拒绝返回 403 或业务阻断信息")
             );
             case "REGRESSION" -> List.of(
                     step(0, "准备历史通过版本的关键输入", "回归基线数据可用"),
-                    step(1, "执行需求「" + requirement.title() + "」历史主路径", "历史主路径仍然通过"),
+                    step(1, "执行需求「" + requirementTitle + "」历史主路径", "历史主路径仍然通过"),
                     step(2, "核对关联需求、接口或页面未出现回归", criteria)
             );
             default -> List.of(
                     step(0, "确认需求前置条件和测试数据", "前置条件满足"),
-                    step(1, "执行需求「" + requirement.title() + "」主流程", "主流程完成"),
+                    step(1, "执行需求「" + requirementTitle + "」主流程", "主流程完成"),
                     step(2, "核对验收标准", criteria)
             );
         };
@@ -715,6 +818,19 @@ public class TestDesignService {
         );
     }
 
+    private static TestDesignTask withTaskStatus(
+            TestDesignTask task,
+            TestDesignTaskStatus status,
+            String errorMessage
+    ) {
+        return new TestDesignTask(
+                task.id(), task.projectId(), task.title(), status.name(), task.requirementIds(), task.coverageTypes(),
+                task.promptKey(), task.promptVersion(), task.modelInvocationId(), task.modelProviderName(),
+                task.modelName(), task.totalRequirements(), task.generatedCount(), task.confirmedCount(),
+                task.publishedCount(), errorMessage, task.requestedBy(), task.createdAt(), Instant.now()
+        );
+    }
+
     private List<TestDesignCandidate> selectPublishCandidates(TestDesignTask task, List<UUID> candidateIds) {
         List<TestDesignCandidate> candidates = repository.candidatesByTask(task.id());
         if (candidateIds == null || candidateIds.isEmpty()) {
@@ -846,12 +962,41 @@ public class TestDesignService {
                 .toList();
     }
 
+    private static List<UUID> requirementIdsFromText(String rawValue) {
+        if (!StringUtils.hasText(rawValue)) {
+            return List.of();
+        }
+        List<UUID> ids = new ArrayList<>();
+        for (String value : rawValue.split(",")) {
+            if (!StringUtils.hasText(value)) {
+                continue;
+            }
+            try {
+                ids.add(UUID.fromString(value.trim()));
+            } catch (IllegalArgumentException exception) {
+                throw new BusinessException(ErrorCode.INVALID_STATE, "任务需求 ID 格式非法: " + value.trim());
+            }
+        }
+        return ids.stream().distinct().toList();
+    }
+
+    private static List<String> csvValues(String rawValue) {
+        if (!StringUtils.hasText(rawValue)) {
+            return List.of();
+        }
+        return List.of(rawValue.split(",")).stream()
+                .map(String::trim)
+                .filter(StringUtils::hasText)
+                .distinct()
+                .toList();
+    }
+
     private static String taskTitle(String requestedTitle, List<RequirementResponse> requirements) {
         if (StringUtils.hasText(requestedTitle)) {
-            return requestedTitle.trim();
+            return redactSensitiveText(requestedTitle.trim());
         }
         if (requirements.size() == 1) {
-            return "生成 " + requirements.getFirst().title() + " 测试用例";
+            return "生成 " + redactSensitiveText(requirements.getFirst().title()) + " 测试用例";
         }
         return "批量生成 " + requirements.size() + " 个需求的测试用例";
     }
@@ -910,6 +1055,18 @@ public class TestDesignService {
             return "需求验收标准已明确，测试前需准备满足业务上下文的数据";
         }
         return "需求描述已确认，测试数据和账号权限已准备";
+    }
+
+    private static String redactSensitiveText(String value) {
+        if (!StringUtils.hasText(value)) {
+            return value;
+        }
+        String redacted = value;
+        // WP5 must not echo obvious secrets from WP3/WP4 source text while the full WP2 context packer is still pending.
+        for (Pattern pattern : SENSITIVE_TEXT_PATTERNS) {
+            redacted = pattern.matcher(redacted).replaceAll(REDACTED_SECRET);
+        }
+        return redacted;
     }
 
     private static String duplicateKey(UUID requirementId, String coverageType, String title) {

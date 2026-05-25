@@ -29,6 +29,8 @@ class TestDesignOpenApiContractTest {
                 .andExpect(jsonPath("$.paths['/api/v1/test-design/tasks'].get").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/test-design/tasks'].post").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/test-design/tasks/{id}'].get").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/test-design/tasks/{id}/retry'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/test-design/tasks/{id}/cancel'].post").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/test-design/tasks/{id}/candidates'].get").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/test-design/tasks/{id}/publish-dry-run'].post").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/test-design/tasks/{id}/publish'].post").exists())

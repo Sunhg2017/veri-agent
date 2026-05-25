@@ -61,6 +61,18 @@ public class TestDesignController {
         return service.task(id);
     }
 
+    @PostMapping("/tasks/{id}/retry")
+    @RequirePermission(value = PermissionCodes.TEST_DESIGN_GENERATE, scope = TestDesignPermissionScopes.TASK)
+    public TestDesignTaskDetailResponse retryTask(@PathVariable UUID id) {
+        return service.retryTask(id);
+    }
+
+    @PostMapping("/tasks/{id}/cancel")
+    @RequirePermission(value = PermissionCodes.TEST_DESIGN_GENERATE, scope = TestDesignPermissionScopes.TASK)
+    public TestDesignTaskDetailResponse cancelTask(@PathVariable UUID id) {
+        return service.cancelTask(id);
+    }
+
     @GetMapping("/tasks/{id}/candidates")
     @RequirePermission(value = PermissionCodes.TEST_DESIGN_READ, scope = TestDesignPermissionScopes.TASK)
     public PageResponse<TestDesignCandidateResponse> taskCandidates(

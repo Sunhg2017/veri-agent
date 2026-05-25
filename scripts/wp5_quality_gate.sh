@@ -27,6 +27,12 @@ main() {
     echo "== wp5 database validation skipped by WP5_SKIP_DB_VALIDATION=1 =="
   fi
 
+  if [[ "${WP5_RUN_AI_EVAL:-0}" == "1" ]]; then
+    run_step "wp5 case generation quality eval" bash "$ROOT_DIR/scripts/wp5_case_generation_quality_eval.sh"
+  else
+    echo "== wp5 case generation quality eval skipped; set WP5_RUN_AI_EVAL=1 to run baseline corpus =="
+  fi
+
   if [[ "${WP5_RUN_HTTP_SMOKE:-0}" == "1" ]]; then
     run_step "wp5 http smoke" bash "$ROOT_DIR/scripts/wp5_test_design_smoke.sh"
   else

@@ -75,7 +75,7 @@ public class TestDesignCandidateController {
     }
 
     @PostMapping("/batch-action")
-    @RequirePermission(PermissionCodes.TEST_DESIGN_REVIEW)
+    @RequirePermission(value = PermissionCodes.TEST_DESIGN_REVIEW, scope = TestDesignPermissionScopes.CANDIDATE_BATCH)
     public TestDesignCandidateBatchActionResponse batchAction(
             @Valid @RequestBody TestDesignCandidateBatchActionCommand command
     ) {

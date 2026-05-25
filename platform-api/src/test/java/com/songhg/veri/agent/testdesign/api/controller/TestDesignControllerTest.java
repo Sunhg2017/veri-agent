@@ -3,6 +3,10 @@ package com.songhg.veri.agent.testdesign.api.controller;
 import com.jayway.jsonpath.JsonPath;
 import com.songhg.veri.agent.auth.application.AuthTokenService;
 import com.songhg.veri.agent.auth.domain.AuthUserRecord;
+import com.songhg.veri.agent.testdesign.application.port.TestDesignRepository;
+import com.songhg.veri.agent.testdesign.domain.TestDesignTask;
+import com.songhg.veri.agent.testdesign.domain.TestDesignTaskStatus;
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import org.hamcrest.MatcherAssert;
@@ -39,6 +43,9 @@ class TestDesignControllerTest {
 
     @Autowired
     private AuthTokenService tokenService;
+
+    @Autowired
+    private TestDesignRepository testDesignRepository;
 
     @Test
     void exposesHealthWithoutToken() throws Exception {
@@ -214,6 +221,74 @@ class TestDesignControllerTest {
     }
 
     @Test
+    void enforcesBatchReviewPermissionByCandidateProjectScope() throws Exception {
+        String ownerToken = userAccessToken(List.of("ProjectOwner@PROJECT:project-wp5"));
+        String deniedToken = userAccessToken(List.of("ProjectOwner@PROJECT:project-other"));
+        String requirementId = createRequirement(ownerToken, "批量评审权限需求", "批量评审验收", "project-wp5");
+        MvcResult taskResult = mockMvc.perform(post("/api/v1/test-design/tasks")
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"projectId":"project-wp5","requirementIds":["%s"],"coverageTypes":["SMOKE"]}
+                                """.formatted(requirementId)))
+                .andExpect(status().isCreated())
+                .andReturn();
+        String candidateId = JsonPath.read(taskResult.getResponse().getContentAsString(), "$.data.candidates[0].id");
+        Integer version = JsonPath.read(taskResult.getResponse().getContentAsString(), "$.data.candidates[0].version");
+
+        mockMvc.perform(post("/api/v1/test-design/candidates/batch-action")
+                        .header("Authorization", "Bearer " + deniedToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"action":"CONFIRM","candidates":[{"id":"%s","version":%d}]}
+                                """.formatted(candidateId, version)))
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(post("/api/v1/test-design/candidates/batch-action")
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"action":"CONFIRM","candidates":[{"id":"%s","version":%d}]}
+                                """.formatted(candidateId, version)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.succeededCount").value(1))
+                .andExpect(jsonPath("$.data.items[0].candidate.status").value("CONFIRMED"));
+    }
+
+    @Test
+    void retriesAndCancelsFailedGenerationTasks() throws Exception {
+        String ownerToken = userAccessToken(List.of("ProjectOwner@PROJECT:project-wp5"));
+        String requirementId = createRequirement(ownerToken, "任务状态需求", "状态流验收", "project-wp5");
+        MvcResult taskResult = mockMvc.perform(post("/api/v1/test-design/tasks")
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"projectId":"project-wp5","requirementIds":["%s"],"coverageTypes":["SMOKE"]}
+                                """.formatted(requirementId)))
+                .andExpect(status().isCreated())
+                .andReturn();
+        String taskId = JsonPath.read(taskResult.getResponse().getContentAsString(), "$.data.task.id");
+
+        saveTaskStatus(taskId, TestDesignTaskStatus.FAILED, "模型输出非法");
+        mockMvc.perform(post("/api/v1/test-design/tasks/{id}/cancel", taskId)
+                        .header("Authorization", "Bearer " + ownerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.task.status").value("CANCELLED"))
+                .andExpect(jsonPath("$.data.task.errorMessage").value("用户取消生成任务"));
+
+        mockMvc.perform(post("/api/v1/test-design/tasks/{id}/retry", taskId)
+                        .header("Authorization", "Bearer " + ownerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.task.status").value("SUCCEEDED"))
+                .andExpect(jsonPath("$.data.task.generatedCount").value(1))
+                .andExpect(jsonPath("$.data.candidates", hasSize(1)));
+
+        mockMvc.perform(post("/api/v1/test-design/tasks/{id}/retry", taskId)
+                        .header("Authorization", "Bearer " + ownerToken))
+                .andExpect(status().isConflict());
+    }
+
+    @Test
     void contractDoesNotExposeRawPromptOrSecrets() throws Exception {
         MvcResult result = mockMvc.perform(get("/v3/api-docs"))
                 .andExpect(status().isOk())
@@ -247,6 +322,31 @@ class TestDesignControllerTest {
                 .andExpect(status().isCreated())
                 .andReturn();
         return JsonPath.read(result.getResponse().getContentAsString(), "$.data.id");
+    }
+
+    private void saveTaskStatus(String taskId, TestDesignTaskStatus status, String errorMessage) {
+        TestDesignTask task = testDesignRepository.task(UUID.fromString(taskId)).orElseThrow();
+        testDesignRepository.saveTask(new TestDesignTask(
+                task.id(),
+                task.projectId(),
+                task.title(),
+                status.name(),
+                task.requirementIds(),
+                task.coverageTypes(),
+                task.promptKey(),
+                task.promptVersion(),
+                task.modelInvocationId(),
+                task.modelProviderName(),
+                task.modelName(),
+                task.totalRequirements(),
+                task.generatedCount(),
+                task.confirmedCount(),
+                task.publishedCount(),
+                errorMessage,
+                task.requestedBy(),
+                task.createdAt(),
+                Instant.now()
+        ));
     }
 
     private String userAccessToken(List<String> roles) {
