@@ -70,6 +70,29 @@ class TestDesignQualityEvaluationTest {
     }
 
     @Test
+    void modelOutputSchemaDocumentsRawResponseQualityContract() throws Exception {
+        JsonNode schema = objectMapper.readTree(new ClassPathResource(
+                "schemas/testdesign/wp5-test-design-model-output.schema.json"
+        ).getInputStream());
+
+        List<String> required = StreamSupport.stream(schema.path("required").spliterator(), false)
+                .map(JsonNode::asText)
+                .toList();
+        assertThat(required).containsExactly("cases");
+        assertThat(schema.at("/properties/cases/minItems").asInt()).isEqualTo(1);
+        assertThat(schema.at("/properties/cases/maxItems").asInt()).isEqualTo(50);
+        assertThat(schema.at("/properties/cases/items/additionalProperties").asBoolean()).isFalse();
+        assertThat(schema.at("/properties/cases/items/properties/steps/minItems").asInt()).isEqualTo(2);
+        assertThat(schema.at("/properties/cases/items/properties/steps/maxItems").asInt()).isEqualTo(12);
+        assertThat(StreamSupport.stream(schema.at("/properties/cases/items/properties/coverageType/enum").spliterator(), false)
+                .map(JsonNode::asText)
+                .toList())
+                .contains("SMOKE", "EXCEPTION", "PERMISSION", "REGRESSION");
+        assertThat(schema.at("/properties/cases/items/properties/confidence/minimum").asDouble()).isZero();
+        assertThat(schema.at("/properties/cases/items/properties/confidence/maximum").asDouble()).isEqualTo(1D);
+    }
+
+    @Test
     void generatedCandidatesMeetBaselineQualityAndRedactObviousSecrets() throws Exception {
         String userToken = userAccessToken(List.of("ProjectOwner@PROJECT:project-wp5"));
         String requirementId = createRequirement(
