@@ -47,7 +47,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -75,18 +74,12 @@ public class TestDesignService {
             TestDesignTaskStatus.PARTIAL_SUCCESS.name(),
             TestDesignTaskStatus.FAILED.name()
     );
-    private static final String REDACTED_SECRET = "[REDACTED]";
-    private static final List<Pattern> SENSITIVE_TEXT_PATTERNS = List.of(
-            Pattern.compile("(?i)\\bbearer\\s+[a-z0-9._\\-]{8,}"),
-            Pattern.compile("(?i)\\b(api[_-]?key|secret|token|password|passwd|authorization)\\s*[:=]\\s*[^\\s,;，；]+"),
-            Pattern.compile("(?i)\\b(sk|pk|rk)_[a-z0-9]{8,}\\b")
-    );
-
     private final TestDesignRepository repository;
     private final AssetService assetService;
     private final TestDesignPlatformContextClient contextClient;
     private final TestDesignActorResolver actorResolver;
     private final TestDesignResponseMapper responseMapper;
+    private final TestDesignCandidateQualityGate qualityGate;
     private final TestDesignProperties properties;
     private final ObjectMapper objectMapper;
 
@@ -96,6 +89,7 @@ public class TestDesignService {
             TestDesignPlatformContextClient contextClient,
             TestDesignActorResolver actorResolver,
             TestDesignResponseMapper responseMapper,
+            TestDesignCandidateQualityGate qualityGate,
             TestDesignProperties properties,
             ObjectMapper objectMapper
     ) {
@@ -104,6 +98,7 @@ public class TestDesignService {
         this.contextClient = contextClient;
         this.actorResolver = actorResolver;
         this.responseMapper = responseMapper;
+        this.qualityGate = qualityGate;
         this.properties = properties;
         this.objectMapper = objectMapper;
     }
@@ -197,6 +192,7 @@ public class TestDesignService {
         for (RequirementResponse requirement : requirements) {
             candidates.addAll(generateCandidates(task, requirement, coverageTypes, command.caseCountPerRequirement(), now));
         }
+        qualityGate.validateGeneratedBatch(candidates);
         candidates.forEach(repository::saveCandidate);
         TestDesignTask stored = withTaskCounts(task, candidates);
         repository.saveTask(stored);
@@ -246,6 +242,7 @@ public class TestDesignService {
         List<TestDesignCandidate> createdCandidates = new ArrayList<>();
         for (RequirementResponse requirement : requirements) {
             List<TestDesignCandidate> generatedCandidates = generateCandidates(running, requirement, coverageTypes, null, now);
+            qualityGate.validateGeneratedBatch(generatedCandidates);
             for (TestDesignCandidate candidate : generatedCandidates) {
                 if (existingDuplicateKeys.add(candidate.duplicateKey())) {
                     repository.saveCandidate(candidate);
@@ -306,6 +303,7 @@ public class TestDesignService {
         ensureEditable(existing);
         assertVersion(existing, command.version(), true);
         List<TestDesignStepResponse> steps = normalizeSteps(command.steps(), responseMapper.steps(existing.stepsJson()));
+        String expectedResult = expectedResultForUpdate(command.expectedResult(), steps, existing.expectedResult());
         Instant now = Instant.now();
         TestDesignCandidate updated = new TestDesignCandidate(
                 existing.id(),
@@ -320,7 +318,7 @@ public class TestDesignService {
                 TestDesignCandidateStatus.EDITED.name(),
                 trimToNull(command.preconditions()),
                 stepsJson(steps),
-                trimToNull(command.expectedResult()),
+                expectedResult,
                 tagsText(command.tags()),
                 duplicateKey(existing.requirementId(), normalizeCoverageType(command.coverageType(), existing.coverageType()), command.title()),
                 existing.confidence(),
@@ -340,6 +338,7 @@ public class TestDesignService {
                 existing.createdAt(),
                 now
         );
+        qualityGate.validateReviewCandidate(updated, repository.candidatesByTask(existing.taskId()));
         repository.saveCandidate(updated);
         saveReviewRecord(existing, updated, "UPDATE", null);
         refreshTaskCounts(updated.taskId());
@@ -1035,6 +1034,21 @@ public class TestDesignService {
         return new TestDesignStepResponse(order, action, expectedResult);
     }
 
+    private String expectedResultForUpdate(
+            String requestedValue,
+            List<TestDesignStepResponse> steps,
+            String fallback
+    ) {
+        String value = trimToNull(requestedValue);
+        if (StringUtils.hasText(value)) {
+            return value;
+        }
+        if (steps != null && !steps.isEmpty() && StringUtils.hasText(steps.getLast().expectedResult())) {
+            return steps.getLast().expectedResult();
+        }
+        return fallback;
+    }
+
     private void validateProjectWhenProvided(String projectId) {
         if (StringUtils.hasText(projectId)) {
             contextClient.projectContext(projectId);
@@ -1181,15 +1195,8 @@ public class TestDesignService {
     }
 
     private static String redactSensitiveText(String value) {
-        if (!StringUtils.hasText(value)) {
-            return value;
-        }
-        String redacted = value;
         // WP5 must not echo obvious secrets from WP3/WP4 source text while the full WP2 context packer is still pending.
-        for (Pattern pattern : SENSITIVE_TEXT_PATTERNS) {
-            redacted = pattern.matcher(redacted).replaceAll(REDACTED_SECRET);
-        }
-        return redacted;
+        return TestDesignSensitiveText.redact(value);
     }
 
     private static String duplicateKey(UUID requirementId, String coverageType, String title) {
