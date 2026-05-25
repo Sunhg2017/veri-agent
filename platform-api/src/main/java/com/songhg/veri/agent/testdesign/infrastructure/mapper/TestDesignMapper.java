@@ -1,0 +1,44 @@
+package com.songhg.veri.agent.testdesign.infrastructure.mapper;
+
+import com.songhg.veri.agent.testdesign.application.query.TestDesignCandidateQuery;
+import com.songhg.veri.agent.testdesign.application.query.TestDesignTaskQuery;
+import com.songhg.veri.agent.testdesign.domain.TestDesignCandidate;
+import com.songhg.veri.agent.testdesign.domain.TestDesignPublishRecord;
+import com.songhg.veri.agent.testdesign.domain.TestDesignReviewRecord;
+import com.songhg.veri.agent.testdesign.domain.TestDesignTask;
+import java.util.List;
+import java.util.UUID;
+import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
+
+@Mapper
+public interface TestDesignMapper {
+
+    List<TestDesignTask> tasks(@Param("query") TestDesignTaskQuery query);
+
+    long countTasks(@Param("query") TestDesignTaskQuery query);
+
+    TestDesignTask task(@Param("id") UUID id);
+
+    void insertTask(TestDesignTask task);
+
+    void updateTask(TestDesignTask task);
+
+    List<TestDesignCandidate> candidates(@Param("query") TestDesignCandidateQuery query);
+
+    long countCandidates(@Param("query") TestDesignCandidateQuery query);
+
+    List<TestDesignCandidate> candidatesByTask(@Param("taskId") UUID taskId);
+
+    TestDesignCandidate candidate(@Param("id") UUID id);
+
+    void insertCandidate(TestDesignCandidate candidate);
+
+    void updateCandidate(TestDesignCandidate candidate);
+
+    void insertReviewRecord(TestDesignReviewRecord record);
+
+    void insertPublishRecord(TestDesignPublishRecord record);
+
+    List<TestDesignPublishRecord> publishRecords(@Param("taskId") UUID taskId);
+}

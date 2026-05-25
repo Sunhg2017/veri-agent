@@ -83,6 +83,12 @@ public final class PermissionCodes {
     public static final String REQUIREMENT_INPUT_PUBLISH = "requirementInput:publish";
     public static final String REQUIREMENT_INPUT_WEBHOOK_REPLAY = "requirementInput:webhook_replay";
 
+    public static final String TEST_DESIGN_READ = "testDesign:read";
+    public static final String TEST_DESIGN_GENERATE = "testDesign:generate";
+    public static final String TEST_DESIGN_REVIEW = "testDesign:review";
+    public static final String TEST_DESIGN_PUBLISH = "testDesign:publish";
+    public static final String TEST_DESIGN_EXPORT = "testDesign:export";
+
     public static final List<String> ALL = List.of(
             ROLE_READ, ROLE_CREATE, ROLE_EDIT, ROLE_BIND, ROLE_UNBIND,
             AUDIT_READ, AUDIT_EXPORT, AUDIT_WRITE_INTERNAL,
@@ -100,7 +106,9 @@ public final class PermissionCodes {
             ASSET_READ, ASSET_MANAGE, ASSET_REVIEW, ASSET_EXPORT,
             MODEL_ACCESS_READ, MODEL_ACCESS_MANAGE, MODEL_ACCESS_EXPORT,
             REQUIREMENT_INPUT_READ, REQUIREMENT_INPUT_MANAGE, REQUIREMENT_INPUT_IMPORT,
-            REQUIREMENT_INPUT_CANDIDATE_REVIEW, REQUIREMENT_INPUT_PUBLISH, REQUIREMENT_INPUT_WEBHOOK_REPLAY
+            REQUIREMENT_INPUT_CANDIDATE_REVIEW, REQUIREMENT_INPUT_PUBLISH, REQUIREMENT_INPUT_WEBHOOK_REPLAY,
+            TEST_DESIGN_READ, TEST_DESIGN_GENERATE, TEST_DESIGN_REVIEW, TEST_DESIGN_PUBLISH,
+            TEST_DESIGN_EXPORT
     );
 
     private static final String ARCHIVED_STATUS = "ARCHIVED";

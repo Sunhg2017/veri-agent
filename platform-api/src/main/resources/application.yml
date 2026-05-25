@@ -6,6 +6,7 @@ spring:
       - classpath:application-model-access.yml
       - classpath:application-asset.yml
       - classpath:application-document-input.yml
+      - classpath:application-test-design.yml
   application:
     name: platform-api
   profiles:

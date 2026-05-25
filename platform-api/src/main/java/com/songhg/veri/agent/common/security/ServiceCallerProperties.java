@@ -7,7 +7,8 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public record ServiceCallerProperties(
         List<String> modelAccessTrustedServices,
         List<String> assetTrustedServices,
-        List<String> documentInputTrustedServices
+        List<String> documentInputTrustedServices,
+        List<String> testDesignTrustedServices
 ) {
     public List<String> safeModelAccessTrustedServices() {
         return safeList(modelAccessTrustedServices);
@@ -19,6 +20,10 @@ public record ServiceCallerProperties(
 
     public List<String> safeDocumentInputTrustedServices() {
         return safeList(documentInputTrustedServices);
+    }
+
+    public List<String> safeTestDesignTrustedServices() {
+        return safeList(testDesignTrustedServices);
     }
 
     private List<String> safeList(List<String> values) {

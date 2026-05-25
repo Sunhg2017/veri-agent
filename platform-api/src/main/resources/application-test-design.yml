@@ -1,0 +1,9 @@
+veri-agent:
+  test-design:
+    generation-enabled: true
+    generation-mode: RULE_TEMPLATE
+    prompt-key: wp5-test-design-v1
+    prompt-version: 1.0.0
+    max-requirements-per-task: 20
+    max-cases-per-requirement: 3
+    batch-action-limit: 100

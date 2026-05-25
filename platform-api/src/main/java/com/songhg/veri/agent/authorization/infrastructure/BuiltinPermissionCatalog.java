@@ -29,7 +29,9 @@ final class BuiltinPermissionCatalog {
                     PermissionCodes.ASSET_READ, PermissionCodes.ASSET_MANAGE, PermissionCodes.ASSET_REVIEW, PermissionCodes.ASSET_EXPORT,
                     PermissionCodes.MODEL_ACCESS_READ, PermissionCodes.MODEL_ACCESS_MANAGE, PermissionCodes.MODEL_ACCESS_EXPORT,
                     PermissionCodes.REQUIREMENT_INPUT_READ, PermissionCodes.REQUIREMENT_INPUT_MANAGE, PermissionCodes.REQUIREMENT_INPUT_IMPORT,
-                    PermissionCodes.REQUIREMENT_INPUT_CANDIDATE_REVIEW, PermissionCodes.REQUIREMENT_INPUT_PUBLISH, PermissionCodes.REQUIREMENT_INPUT_WEBHOOK_REPLAY
+                    PermissionCodes.REQUIREMENT_INPUT_CANDIDATE_REVIEW, PermissionCodes.REQUIREMENT_INPUT_PUBLISH, PermissionCodes.REQUIREMENT_INPUT_WEBHOOK_REPLAY,
+                    PermissionCodes.TEST_DESIGN_READ, PermissionCodes.TEST_DESIGN_GENERATE, PermissionCodes.TEST_DESIGN_REVIEW,
+                    PermissionCodes.TEST_DESIGN_PUBLISH, PermissionCodes.TEST_DESIGN_EXPORT
             ),
             "DepartmentManager", Set.of(
                     PermissionCodes.DEPARTMENT_READ, PermissionCodes.DEPARTMENT_EDIT, PermissionCodes.DEPARTMENT_ENABLE, PermissionCodes.DEPARTMENT_DISABLE,
@@ -50,7 +52,9 @@ final class BuiltinPermissionCatalog {
                     PermissionCodes.CONTEXT_READ, PermissionCodes.CONTEXT_SWITCH, PermissionCodes.CONTEXT_EFFECTIVE_READ,
                     PermissionCodes.ASSET_READ, PermissionCodes.ASSET_MANAGE, PermissionCodes.ASSET_REVIEW, PermissionCodes.ASSET_EXPORT,
                     PermissionCodes.REQUIREMENT_INPUT_READ, PermissionCodes.REQUIREMENT_INPUT_IMPORT,
-                    PermissionCodes.REQUIREMENT_INPUT_CANDIDATE_REVIEW, PermissionCodes.REQUIREMENT_INPUT_PUBLISH
+                    PermissionCodes.REQUIREMENT_INPUT_CANDIDATE_REVIEW, PermissionCodes.REQUIREMENT_INPUT_PUBLISH,
+                    PermissionCodes.TEST_DESIGN_READ, PermissionCodes.TEST_DESIGN_GENERATE, PermissionCodes.TEST_DESIGN_REVIEW,
+                    PermissionCodes.TEST_DESIGN_PUBLISH
             ),
             "AppOwner", Set.of(
                     PermissionCodes.PROJECT_READ, PermissionCodes.APPLICATION_READ, PermissionCodes.APPLICATION_EDIT, PermissionCodes.APPLICATION_DISABLE,
@@ -61,24 +65,29 @@ final class BuiltinPermissionCatalog {
                     PermissionCodes.CONTEXT_READ, PermissionCodes.CONTEXT_SWITCH, PermissionCodes.CONTEXT_EFFECTIVE_READ,
                     PermissionCodes.ASSET_READ, PermissionCodes.ASSET_MANAGE, PermissionCodes.ASSET_REVIEW,
                     PermissionCodes.REQUIREMENT_INPUT_READ, PermissionCodes.REQUIREMENT_INPUT_IMPORT,
-                    PermissionCodes.REQUIREMENT_INPUT_CANDIDATE_REVIEW, PermissionCodes.REQUIREMENT_INPUT_PUBLISH
+                    PermissionCodes.REQUIREMENT_INPUT_CANDIDATE_REVIEW, PermissionCodes.REQUIREMENT_INPUT_PUBLISH,
+                    PermissionCodes.TEST_DESIGN_READ, PermissionCodes.TEST_DESIGN_GENERATE, PermissionCodes.TEST_DESIGN_REVIEW,
+                    PermissionCodes.TEST_DESIGN_PUBLISH
             ),
             "Tester", Set.of(
                     PermissionCodes.PROJECT_READ, PermissionCodes.APPLICATION_READ, PermissionCodes.ENVIRONMENT_READ, PermissionCodes.ENVIRONMENT_USE,
                     PermissionCodes.CONFIG_READ, PermissionCodes.CONTEXT_READ, PermissionCodes.CONTEXT_SWITCH, PermissionCodes.CONTEXT_EFFECTIVE_READ,
                     PermissionCodes.ASSET_READ, PermissionCodes.ASSET_MANAGE, PermissionCodes.ASSET_REVIEW,
-                    PermissionCodes.REQUIREMENT_INPUT_READ, PermissionCodes.REQUIREMENT_INPUT_IMPORT, PermissionCodes.REQUIREMENT_INPUT_CANDIDATE_REVIEW
+                    PermissionCodes.REQUIREMENT_INPUT_READ, PermissionCodes.REQUIREMENT_INPUT_IMPORT, PermissionCodes.REQUIREMENT_INPUT_CANDIDATE_REVIEW,
+                    PermissionCodes.TEST_DESIGN_READ, PermissionCodes.TEST_DESIGN_GENERATE, PermissionCodes.TEST_DESIGN_REVIEW,
+                    PermissionCodes.TEST_DESIGN_PUBLISH
             ),
             "Developer", Set.of(
                     PermissionCodes.PROJECT_READ, PermissionCodes.APPLICATION_READ, PermissionCodes.ENVIRONMENT_READ, PermissionCodes.CONFIG_READ,
                     PermissionCodes.CONTEXT_READ, PermissionCodes.CONTEXT_SWITCH, PermissionCodes.CONTEXT_EFFECTIVE_READ,
-                    PermissionCodes.ASSET_READ, PermissionCodes.REQUIREMENT_INPUT_READ
+                    PermissionCodes.ASSET_READ, PermissionCodes.REQUIREMENT_INPUT_READ, PermissionCodes.TEST_DESIGN_READ
             ),
             "Auditor", Set.of(
                     PermissionCodes.DEPARTMENT_READ, PermissionCodes.USER_READ, PermissionCodes.PROJECT_READ, PermissionCodes.APPLICATION_READ,
                     PermissionCodes.ENVIRONMENT_READ, PermissionCodes.CONFIG_READ, PermissionCodes.ROLE_READ, PermissionCodes.AUDIT_READ, PermissionCodes.AUDIT_EXPORT,
                     PermissionCodes.CONTEXT_READ, PermissionCodes.CONTEXT_EFFECTIVE_READ, PermissionCodes.ASSET_READ, PermissionCodes.ASSET_EXPORT,
-                    PermissionCodes.MODEL_ACCESS_READ, PermissionCodes.MODEL_ACCESS_EXPORT, PermissionCodes.REQUIREMENT_INPUT_READ
+                    PermissionCodes.MODEL_ACCESS_READ, PermissionCodes.MODEL_ACCESS_EXPORT, PermissionCodes.REQUIREMENT_INPUT_READ,
+                    PermissionCodes.TEST_DESIGN_READ, PermissionCodes.TEST_DESIGN_EXPORT
             )
     );
 }

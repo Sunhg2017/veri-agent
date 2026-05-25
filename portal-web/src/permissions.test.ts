@@ -28,7 +28,16 @@ describe('WP1 permission helpers', () => {
   });
 
   it('maps read permissions to protected management pages', () => {
-    const currentUser = user(['user:read', 'role:read', 'audit:read', 'config:read', 'requirementInput:read', 'asset:read', 'modelAccess:read']);
+    const currentUser = user([
+      'user:read',
+      'role:read',
+      'audit:read',
+      'config:read',
+      'requirementInput:read',
+      'asset:read',
+      'testDesign:read',
+      'modelAccess:read'
+    ]);
 
     expect(canAccessPage(currentUser, 'users')).toBe(true);
     expect(canAccessPage(currentUser, 'roles')).toBe(true);
@@ -36,6 +45,7 @@ describe('WP1 permission helpers', () => {
     expect(canAccessPage(currentUser, 'settings')).toBe(true);
     expect(canAccessPage(currentUser, 'document-input')).toBe(true);
     expect(canAccessPage(currentUser, 'asset-library')).toBe(true);
+    expect(canAccessPage(currentUser, 'test-design')).toBe(true);
     expect(canAccessPage(currentUser, 'model-access')).toBe(true);
     expect(canAccessPage(currentUser, 'projects')).toBe(false);
   });
@@ -48,6 +58,11 @@ describe('WP1 permission helpers', () => {
   it('requires WP3 asset read permission for the asset workbench', () => {
     expect(canAccessPage(user(['requirementInput:read']), 'asset-library')).toBe(false);
     expect(canAccessPage(user(['asset:read']), 'asset-library')).toBe(true);
+  });
+
+  it('requires WP5 test design read permission for the test design workbench', () => {
+    expect(canAccessPage(user(['asset:read']), 'test-design')).toBe(false);
+    expect(canAccessPage(user(['testDesign:read']), 'test-design')).toBe(true);
   });
 
   it('requires WP2 model access read permission for the model access console', () => {
@@ -151,6 +166,11 @@ describe('WP1 permission helpers', () => {
     expect(canUseButton(user(['asset:read']), 'asset:flow_edit')).toBe(false);
     expect(canUseButton(user(['asset:read']), 'asset:case_edit')).toBe(false);
     expect(canUseButton(user(['asset:export']), 'asset:export')).toBe(true);
+    expect(canUseButton(user(['testDesign:generate']), 'testDesign:generate')).toBe(true);
+    expect(canUseButton(user(['testDesign:read']), 'testDesign:generate')).toBe(false);
+    expect(canUseButton(user(['testDesign:review']), 'testDesign:review')).toBe(true);
+    expect(canUseButton(user(['testDesign:publish']), 'testDesign:publish')).toBe(true);
+    expect(canUseButton(user(['testDesign:export']), 'testDesign:export')).toBe(true);
     expect(canUseButton(user(['modelAccess:manage']), 'modelAccess:provider_manage')).toBe(true);
     expect(canUseButton(user(['modelAccess:manage']), 'modelAccess:prompt_manage')).toBe(true);
     expect(canUseButton(user(['modelAccess:read']), 'modelAccess:provider_manage')).toBe(false);

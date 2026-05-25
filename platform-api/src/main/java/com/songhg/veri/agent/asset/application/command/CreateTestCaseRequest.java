@@ -14,8 +14,24 @@ public record CreateTestCaseRequest(
         String status,
         String priority,
         String tags,
-        List<StepDto> steps
+        List<StepDto> steps,
+        String source,
+        String sourceRef
 ) {
+    public CreateTestCaseRequest(
+            String title,
+            String description,
+            UUID requirementId,
+            UUID apiId,
+            String projectId,
+            String status,
+            String priority,
+            String tags,
+            List<StepDto> steps
+    ) {
+        this(title, description, requirementId, apiId, projectId, status, priority, tags, steps, null, null);
+    }
+
     public record StepDto(String action, String expectedResult) {
     }
 }

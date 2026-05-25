@@ -47,6 +47,7 @@ public class AssetTestCaseService {
     private static final Set<String> REVIEW_STATUSES = AssetReviewStatus.codes();
     private static final Set<String> LIFECYCLE_STATUSES = AssetLifecycleStatus.codes();
     private static final Set<String> PRIORITIES = Set.of("CRITICAL", "HIGH", "MEDIUM", "LOW");
+    private static final Set<String> TEST_CASE_SOURCES = Set.of("AI_GENERATED", "MANUAL", "IMPORTED");
 
     private final AssetRepository repository;
     private final AssetProjectAuditService projectAuditService;
@@ -134,8 +135,8 @@ public class AssetTestCaseService {
                 request.projectId(),
                 request.requirementId(),
                 request.apiId(),
-                "MANUAL",
-                null,
+                valueIn(request.source(), "MANUAL", TEST_CASE_SOURCES, "source"),
+                trimToNull(request.sourceRef()),
                 initialStatus(request.status()),
                 valueIn(request.priority(), "MEDIUM", PRIORITIES, "priority"),
                 request.tags(),

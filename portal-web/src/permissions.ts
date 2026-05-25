@@ -5,6 +5,7 @@ export type PageKey =
   | 'overview'
   | 'document-input'
   | 'asset-library'
+  | 'test-design'
   | 'model-access'
   | 'organizations'
   | 'users'
@@ -71,6 +72,11 @@ export type Permission =
   | 'asset:manage'
   | 'asset:review'
   | 'asset:export'
+  | 'testDesign:read'
+  | 'testDesign:generate'
+  | 'testDesign:review'
+  | 'testDesign:publish'
+  | 'testDesign:export'
   | 'modelAccess:read'
   | 'modelAccess:manage'
   | 'modelAccess:export';
@@ -113,6 +119,10 @@ export type ButtonKey =
   | 'asset:case_edit'
   | 'asset:case_review'
   | 'asset:export'
+  | 'testDesign:generate'
+  | 'testDesign:review'
+  | 'testDesign:publish'
+  | 'testDesign:export'
   | 'modelAccess:provider_manage'
   | 'modelAccess:prompt_manage'
   | 'modelAccess:export';
@@ -122,6 +132,7 @@ export type UserLifecycleAction = 'enable' | 'disable' | 'lock' | 'unlock' | 're
 export const pageReadPermissions: Partial<Record<PageKey, Permission>> = {
   'document-input': 'requirementInput:read',
   'asset-library': 'asset:read',
+  'test-design': 'testDesign:read',
   'model-access': 'modelAccess:read',
   organizations: 'department:read',
   users: 'user:read',
@@ -195,6 +206,10 @@ const buttonPermissionGroups: Record<ButtonKey, Permission[][]> = {
   'asset:case_edit': [['asset:manage']],
   'asset:case_review': [['asset:review']],
   'asset:export': [['asset:export']],
+  'testDesign:generate': [['testDesign:generate']],
+  'testDesign:review': [['testDesign:review']],
+  'testDesign:publish': [['testDesign:publish']],
+  'testDesign:export': [['testDesign:export']],
   'modelAccess:provider_manage': [['modelAccess:manage']],
   'modelAccess:prompt_manage': [['modelAccess:manage']],
   'modelAccess:export': [['modelAccess:export']],

@@ -1,0 +1,283 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.songhg.veri.agent.testdesign.infrastructure.mapper.TestDesignMapper">
+    <resultMap id="taskMap" type="com.songhg.veri.agent.testdesign.domain.TestDesignTask">
+        <constructor>
+            <arg column="id" javaType="java.util.UUID"/>
+            <arg column="project_id" javaType="java.lang.String"/>
+            <arg column="title" javaType="java.lang.String"/>
+            <arg column="status" javaType="java.lang.String"/>
+            <arg column="requirement_ids" javaType="java.lang.String"/>
+            <arg column="coverage_types" javaType="java.lang.String"/>
+            <arg column="prompt_key" javaType="java.lang.String"/>
+            <arg column="prompt_version" javaType="java.lang.String"/>
+            <arg column="model_invocation_id" javaType="java.util.UUID"/>
+            <arg column="model_provider_name" javaType="java.lang.String"/>
+            <arg column="model_name" javaType="java.lang.String"/>
+            <arg column="total_requirements" javaType="_int"/>
+            <arg column="generated_count" javaType="_int"/>
+            <arg column="confirmed_count" javaType="_int"/>
+            <arg column="published_count" javaType="_int"/>
+            <arg column="error_message" javaType="java.lang.String"/>
+            <arg column="requested_by" javaType="java.lang.String"/>
+            <arg column="created_at" javaType="java.time.Instant"/>
+            <arg column="updated_at" javaType="java.time.Instant"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="candidateMap" type="com.songhg.veri.agent.testdesign.domain.TestDesignCandidate">
+        <constructor>
+            <arg column="id" javaType="java.util.UUID"/>
+            <arg column="task_id" javaType="java.util.UUID"/>
+            <arg column="project_id" javaType="java.lang.String"/>
+            <arg column="requirement_id" javaType="java.util.UUID"/>
+            <arg column="api_id" javaType="java.util.UUID"/>
+            <arg column="title" javaType="java.lang.String"/>
+            <arg column="description" javaType="java.lang.String"/>
+            <arg column="coverage_type" javaType="java.lang.String"/>
+            <arg column="priority" javaType="java.lang.String"/>
+            <arg column="status" javaType="java.lang.String"/>
+            <arg column="preconditions" javaType="java.lang.String"/>
+            <arg column="steps_json" javaType="java.lang.String"/>
+            <arg column="expected_result" javaType="java.lang.String"/>
+            <arg column="tags" javaType="java.lang.String"/>
+            <arg column="duplicate_key" javaType="java.lang.String"/>
+            <arg column="confidence" javaType="_double"/>
+            <arg column="prompt_key" javaType="java.lang.String"/>
+            <arg column="prompt_version" javaType="java.lang.String"/>
+            <arg column="model_invocation_id" javaType="java.util.UUID"/>
+            <arg column="model_provider_name" javaType="java.lang.String"/>
+            <arg column="model_name" javaType="java.lang.String"/>
+            <arg column="asset_case_id" javaType="java.util.UUID"/>
+            <arg column="review_comment" javaType="java.lang.String"/>
+            <arg column="rejected_reason" javaType="java.lang.String"/>
+            <arg column="ignored_reason" javaType="java.lang.String"/>
+            <arg column="error_message" javaType="java.lang.String"/>
+            <arg column="confirmed_by" javaType="java.lang.String"/>
+            <arg column="confirmed_at" javaType="java.time.Instant"/>
+            <arg column="version" javaType="_long"/>
+            <arg column="created_at" javaType="java.time.Instant"/>
+            <arg column="updated_at" javaType="java.time.Instant"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="publishRecordMap" type="com.songhg.veri.agent.testdesign.domain.TestDesignPublishRecord">
+        <constructor>
+            <arg column="id" javaType="java.util.UUID"/>
+            <arg column="task_id" javaType="java.util.UUID"/>
+            <arg column="candidate_id" javaType="java.util.UUID"/>
+            <arg column="project_id" javaType="java.lang.String"/>
+            <arg column="requirement_id" javaType="java.util.UUID"/>
+            <arg column="asset_case_id" javaType="java.util.UUID"/>
+            <arg column="dry_run" javaType="_boolean"/>
+            <arg column="action" javaType="java.lang.String"/>
+            <arg column="result" javaType="java.lang.String"/>
+            <arg column="error_message" javaType="java.lang.String"/>
+            <arg column="published_by" javaType="java.lang.String"/>
+            <arg column="created_at" javaType="java.time.Instant"/>
+        </constructor>
+    </resultMap>
+
+    <sql id="taskColumns">
+        id, project_id, title, status, requirement_ids, coverage_types, prompt_key, prompt_version,
+        model_invocation_id, model_provider_name, model_name, total_requirements, generated_count,
+        confirmed_count, published_count, error_message, requested_by, created_at, updated_at
+    </sql>
+
+    <sql id="candidateColumns">
+        id, task_id, project_id, requirement_id, api_id, title, description, coverage_type, priority,
+        status, preconditions, steps_json::text as steps_json, expected_result, tags, duplicate_key,
+        confidence, prompt_key, prompt_version, model_invocation_id, model_provider_name, model_name,
+        asset_case_id, review_comment, rejected_reason, ignored_reason, error_message, confirmed_by,
+        confirmed_at, version, created_at, updated_at
+    </sql>
+
+    <sql id="taskWhere">
+        <where>
+            <if test="query.projectId != null">project_id = #{query.projectId}</if>
+            <if test="query.status != null">and lower(status) = lower(#{query.status})</if>
+            <if test="query.keyword != null and query.keyword != ''">
+                and (
+                    position(lower(#{query.keyword}) in lower(coalesce(title, ''))) > 0
+                    or position(lower(#{query.keyword}) in lower(coalesce(requirement_ids, ''))) > 0
+                )
+            </if>
+        </where>
+    </sql>
+
+    <sql id="candidateWhere">
+        <where>
+            <if test="query.taskId != null">task_id = cast(#{query.taskId} as uuid)</if>
+            <if test="query.projectId != null">and project_id = #{query.projectId}</if>
+            <if test="query.requirementId != null">and requirement_id = cast(#{query.requirementId} as uuid)</if>
+            <if test="query.status != null">and lower(status) = lower(#{query.status})</if>
+            <if test="query.coverageType != null">and lower(coverage_type) = lower(#{query.coverageType})</if>
+            <if test="query.keyword != null and query.keyword != ''">
+                and (
+                    position(lower(#{query.keyword}) in lower(coalesce(title, ''))) > 0
+                    or position(lower(#{query.keyword}) in lower(coalesce(description, ''))) > 0
+                    or position(lower(#{query.keyword}) in lower(coalesce(tags, ''))) > 0
+                )
+            </if>
+        </where>
+    </sql>
+
+    <select id="tasks" resultMap="taskMap">
+        select <include refid="taskColumns"/>
+        from test_design_task
+        <include refid="taskWhere"/>
+        order by created_at desc
+        limit #{query.size} offset #{query.offset}
+    </select>
+
+    <select id="countTasks" resultType="long">
+        select count(*)
+        from test_design_task
+        <include refid="taskWhere"/>
+    </select>
+
+    <select id="task" resultMap="taskMap">
+        select <include refid="taskColumns"/>
+        from test_design_task
+        where id = cast(#{id} as uuid)
+    </select>
+
+    <insert id="insertTask">
+        insert into test_design_task (
+            id, project_id, title, status, requirement_ids, coverage_types, prompt_key, prompt_version,
+            model_invocation_id, model_provider_name, model_name, total_requirements, generated_count,
+            confirmed_count, published_count, error_message, requested_by, created_at, updated_at
+        ) values (
+            cast(#{id} as uuid), #{projectId}, #{title}, #{status}, #{requirementIds}, #{coverageTypes},
+            #{promptKey}, #{promptVersion}, cast(#{modelInvocationId} as uuid), #{modelProviderName},
+            #{modelName}, #{totalRequirements}, #{generatedCount}, #{confirmedCount}, #{publishedCount},
+            #{errorMessage}, #{requestedBy}, #{createdAt}, #{updatedAt}
+        )
+    </insert>
+
+    <update id="updateTask">
+        update test_design_task set
+            title = #{title},
+            status = #{status},
+            requirement_ids = #{requirementIds},
+            coverage_types = #{coverageTypes},
+            prompt_key = #{promptKey},
+            prompt_version = #{promptVersion},
+            model_invocation_id = cast(#{modelInvocationId} as uuid),
+            model_provider_name = #{modelProviderName},
+            model_name = #{modelName},
+            total_requirements = #{totalRequirements},
+            generated_count = #{generatedCount},
+            confirmed_count = #{confirmedCount},
+            published_count = #{publishedCount},
+            error_message = #{errorMessage},
+            updated_at = #{updatedAt}
+        where id = cast(#{id} as uuid)
+    </update>
+
+    <select id="candidates" resultMap="candidateMap">
+        select <include refid="candidateColumns"/>
+        from test_design_candidate
+        <include refid="candidateWhere"/>
+        order by created_at desc
+        limit #{query.size} offset #{query.offset}
+    </select>
+
+    <select id="countCandidates" resultType="long">
+        select count(*)
+        from test_design_candidate
+        <include refid="candidateWhere"/>
+    </select>
+
+    <select id="candidatesByTask" resultMap="candidateMap">
+        select <include refid="candidateColumns"/>
+        from test_design_candidate
+        where task_id = cast(#{taskId} as uuid)
+        order by created_at asc
+    </select>
+
+    <select id="candidate" resultMap="candidateMap">
+        select <include refid="candidateColumns"/>
+        from test_design_candidate
+        where id = cast(#{id} as uuid)
+    </select>
+
+    <insert id="insertCandidate">
+        insert into test_design_candidate (
+            id, task_id, project_id, requirement_id, api_id, title, description, coverage_type, priority,
+            status, preconditions, steps_json, expected_result, tags, duplicate_key, confidence, prompt_key,
+            prompt_version, model_invocation_id, model_provider_name, model_name, asset_case_id, review_comment,
+            rejected_reason, ignored_reason, error_message, confirmed_by, confirmed_at, version, created_at, updated_at
+        ) values (
+            cast(#{id} as uuid), cast(#{taskId} as uuid), #{projectId}, cast(#{requirementId} as uuid),
+            cast(#{apiId} as uuid), #{title}, #{description}, #{coverageType}, #{priority}, #{status},
+            #{preconditions}, cast(#{stepsJson} as jsonb), #{expectedResult}, #{tags}, #{duplicateKey},
+            #{confidence}, #{promptKey}, #{promptVersion}, cast(#{modelInvocationId} as uuid), #{modelProviderName},
+            #{modelName}, cast(#{assetCaseId} as uuid), #{reviewComment}, #{rejectedReason}, #{ignoredReason},
+            #{errorMessage}, #{confirmedBy}, #{confirmedAt}, #{version}, #{createdAt}, #{updatedAt}
+        )
+    </insert>
+
+    <update id="updateCandidate">
+        update test_design_candidate set
+            api_id = cast(#{apiId} as uuid),
+            title = #{title},
+            description = #{description},
+            coverage_type = #{coverageType},
+            priority = #{priority},
+            status = #{status},
+            preconditions = #{preconditions},
+            steps_json = cast(#{stepsJson} as jsonb),
+            expected_result = #{expectedResult},
+            tags = #{tags},
+            duplicate_key = #{duplicateKey},
+            confidence = #{confidence},
+            prompt_key = #{promptKey},
+            prompt_version = #{promptVersion},
+            model_invocation_id = cast(#{modelInvocationId} as uuid),
+            model_provider_name = #{modelProviderName},
+            model_name = #{modelName},
+            asset_case_id = cast(#{assetCaseId} as uuid),
+            review_comment = #{reviewComment},
+            rejected_reason = #{rejectedReason},
+            ignored_reason = #{ignoredReason},
+            error_message = #{errorMessage},
+            confirmed_by = #{confirmedBy},
+            confirmed_at = #{confirmedAt},
+            version = #{version},
+            updated_at = #{updatedAt}
+        where id = cast(#{id} as uuid)
+    </update>
+
+    <insert id="insertReviewRecord">
+        insert into test_design_review_record (
+            id, candidate_id, task_id, project_id, action, before_status, after_status, reviewer,
+            comment, diff_json, created_at
+        ) values (
+            cast(#{id} as uuid), cast(#{candidateId} as uuid), cast(#{taskId} as uuid), #{projectId},
+            #{action}, #{beforeStatus}, #{afterStatus}, #{reviewer}, #{comment}, cast(#{diffJson} as jsonb),
+            #{createdAt}
+        )
+    </insert>
+
+    <insert id="insertPublishRecord">
+        insert into test_design_publish_record (
+            id, task_id, candidate_id, project_id, requirement_id, asset_case_id, dry_run, action, result,
+            error_message, published_by, created_at
+        ) values (
+            cast(#{id} as uuid), cast(#{taskId} as uuid), cast(#{candidateId} as uuid), #{projectId},
+            cast(#{requirementId} as uuid), cast(#{assetCaseId} as uuid), #{dryRun}, #{action}, #{result},
+            #{errorMessage}, #{publishedBy}, #{createdAt}
+        )
+    </insert>
+
+    <select id="publishRecords" resultMap="publishRecordMap">
+        select id, task_id, candidate_id, project_id, requirement_id, asset_case_id, dry_run, action, result,
+               error_message, published_by, created_at
+        from test_design_publish_record
+        where task_id = cast(#{taskId} as uuid)
+        order by created_at desc
+    </select>
+</mapper>

@@ -48,7 +48,12 @@ with expected(table_name) as (
         ('document_input_candidate'),
         ('document_input_parse_feedback_sample'),
         ('document_input_webhook_event'),
-        ('document_input_retention_archive')
+        ('document_input_retention_archive'),
+        -- WP5 AI test design tables
+        ('test_design_task'),
+        ('test_design_candidate'),
+        ('test_design_review_record'),
+        ('test_design_publish_record')
 ),
 missing as (
     select e.table_name
@@ -207,7 +212,22 @@ with expected(table_name, column_name) as (
         ('document_input_webhook_event','event_version'), ('document_input_webhook_event','signature_status'), ('document_input_webhook_event','status'), ('document_input_webhook_event','payload_digest'),
         ('document_input_webhook_event','replay_by'), ('document_input_webhook_event','replay_at'), ('document_input_webhook_event','replay_trace_id'),
         ('document_input_retention_archive','id'), ('document_input_retention_archive','record_type'), ('document_input_retention_archive','record_id'),
-        ('document_input_retention_archive','snapshot_json'), ('document_input_retention_archive','archived_at')
+        ('document_input_retention_archive','snapshot_json'), ('document_input_retention_archive','archived_at'),
+        -- WP5 key columns
+        ('test_design_task','id'), ('test_design_task','project_id'), ('test_design_task','title'), ('test_design_task','status'),
+        ('test_design_task','requirement_ids'), ('test_design_task','coverage_types'), ('test_design_task','prompt_key'),
+        ('test_design_task','prompt_version'), ('test_design_task','model_invocation_id'), ('test_design_task','model_provider_name'),
+        ('test_design_task','model_name'), ('test_design_task','generated_count'), ('test_design_task','confirmed_count'),
+        ('test_design_task','published_count'), ('test_design_candidate','id'), ('test_design_candidate','task_id'),
+        ('test_design_candidate','project_id'), ('test_design_candidate','requirement_id'), ('test_design_candidate','api_id'),
+        ('test_design_candidate','title'), ('test_design_candidate','coverage_type'), ('test_design_candidate','priority'),
+        ('test_design_candidate','status'), ('test_design_candidate','steps_json'), ('test_design_candidate','duplicate_key'),
+        ('test_design_candidate','confidence'), ('test_design_candidate','asset_case_id'), ('test_design_candidate','version'),
+        ('test_design_review_record','id'), ('test_design_review_record','candidate_id'), ('test_design_review_record','task_id'),
+        ('test_design_review_record','project_id'), ('test_design_review_record','action'), ('test_design_review_record','diff_json'),
+        ('test_design_publish_record','id'), ('test_design_publish_record','task_id'), ('test_design_publish_record','candidate_id'),
+        ('test_design_publish_record','project_id'), ('test_design_publish_record','requirement_id'), ('test_design_publish_record','asset_case_id'),
+        ('test_design_publish_record','dry_run'), ('test_design_publish_record','action'), ('test_design_publish_record','result')
 ),
 missing as (
     select e.table_name || '.' || e.column_name as item
@@ -281,7 +301,15 @@ with expected(table_name, index_name) as (
         ('document_input_webhook_event','uk_document_input_webhook_event_id'),
         ('document_input_webhook_event','uk_document_input_webhook_idempotency'),
         ('document_input_retention_archive','uk_document_input_retention_archive_record'),
-        ('document_input_retention_archive','idx_document_input_retention_archive_type_time')
+        ('document_input_retention_archive','idx_document_input_retention_archive_type_time'),
+        -- WP5 key indexes
+        ('test_design_task','idx_test_design_task_project_status'),
+        ('test_design_candidate','uk_test_design_candidate_task_duplicate'),
+        ('test_design_candidate','idx_test_design_candidate_task_status'),
+        ('test_design_candidate','idx_test_design_candidate_project_status'),
+        ('test_design_candidate','idx_test_design_candidate_requirement'),
+        ('test_design_review_record','idx_test_design_review_candidate_created'),
+        ('test_design_publish_record','idx_test_design_publish_task_created')
 ),
 missing as (
     select e.table_name || '.' || e.index_name as item

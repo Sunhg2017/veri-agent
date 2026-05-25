@@ -23,6 +23,7 @@ VALIDATIONS=(
   "$ROOT_DIR/db/validation/wp1_security_validation.sql"
   "$ROOT_DIR/db/validation/wp_all_schema_validation.sql"
   "$ROOT_DIR/db/validation/wp4_document_input_validation.sql"
+  "$ROOT_DIR/db/validation/wp5_test_design_validation.sql"
 )
 
 run_psql_file() {
@@ -163,6 +164,10 @@ grant select, insert, update on
     document_input_candidate,
     document_input_parse_feedback_sample,
     document_input_webhook_event,
+    test_design_task,
+    test_design_candidate,
+    test_design_review_record,
+    test_design_publish_record,
     audit_outbox
 to wp1_app;
 

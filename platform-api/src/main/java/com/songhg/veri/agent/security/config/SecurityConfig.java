@@ -12,6 +12,7 @@ import com.songhg.veri.agent.documentinput.config.DocumentInputProperties;
 import com.songhg.veri.agent.integration.application.PlatformIntegrationProperties;
 import com.songhg.veri.agent.management.config.ManagementProperties;
 import com.songhg.veri.agent.modelaccess.config.ModelAccessProperties;
+import com.songhg.veri.agent.testdesign.config.TestDesignProperties;
 import jakarta.servlet.DispatcherType;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.beans.factory.ObjectProvider;
@@ -32,7 +33,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 
 @Configuration
 @EnableWebSecurity
-@EnableConfigurationProperties({AuthProperties.class, PlatformIntegrationProperties.class, ModelAccessProperties.class, AssetProperties.class, DocumentInputProperties.class, SecretProviderProperties.class, AuditRetentionProperties.class, ManagementProperties.class, ServiceCallerProperties.class})
+@EnableConfigurationProperties({AuthProperties.class, PlatformIntegrationProperties.class, ModelAccessProperties.class, AssetProperties.class, DocumentInputProperties.class, TestDesignProperties.class, SecretProviderProperties.class, AuditRetentionProperties.class, ManagementProperties.class, ServiceCallerProperties.class})
 public class SecurityConfig {
 
     @Bean
@@ -69,6 +70,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/v1/model-access/health").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/asset/health").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/document-input/health").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/test-design/health").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/document-input/webhooks/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/examples/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/contexts/**").permitAll()

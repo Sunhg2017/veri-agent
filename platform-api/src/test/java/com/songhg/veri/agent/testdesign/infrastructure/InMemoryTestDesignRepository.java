@@ -1,0 +1,142 @@
+package com.songhg.veri.agent.testdesign.infrastructure;
+
+import com.songhg.veri.agent.testdesign.application.port.TestDesignRepository;
+import com.songhg.veri.agent.testdesign.application.query.TestDesignCandidateQuery;
+import com.songhg.veri.agent.testdesign.application.query.TestDesignTaskQuery;
+import com.songhg.veri.agent.testdesign.domain.TestDesignCandidate;
+import com.songhg.veri.agent.testdesign.domain.TestDesignPublishRecord;
+import com.songhg.veri.agent.testdesign.domain.TestDesignReviewRecord;
+import com.songhg.veri.agent.testdesign.domain.TestDesignTask;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Stream;
+import org.springframework.context.annotation.Primary;
+import org.springframework.context.annotation.Profile;
+import org.springframework.stereotype.Repository;
+import org.springframework.util.StringUtils;
+
+@Profile("local")
+@Primary
+@Repository
+public class InMemoryTestDesignRepository implements TestDesignRepository {
+
+    private final ConcurrentHashMap<UUID, TestDesignTask> tasks = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<UUID, TestDesignCandidate> candidates = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<UUID, TestDesignReviewRecord> reviewRecords = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<UUID, TestDesignPublishRecord> publishRecords = new ConcurrentHashMap<>();
+
+    @Override
+    public List<TestDesignTask> tasks(TestDesignTaskQuery query) {
+        return filteredTasks(query)
+                .skip(query.offset())
+                .limit(query.size())
+                .toList();
+    }
+
+    @Override
+    public long countTasks(TestDesignTaskQuery query) {
+        return filteredTasks(query).count();
+    }
+
+    @Override
+    public Optional<TestDesignTask> task(UUID id) {
+        return Optional.ofNullable(tasks.get(id));
+    }
+
+    @Override
+    public TestDesignTask saveTask(TestDesignTask task) {
+        tasks.put(task.id(), task);
+        return task;
+    }
+
+    @Override
+    public List<TestDesignCandidate> candidates(TestDesignCandidateQuery query) {
+        return filteredCandidates(query)
+                .skip(query.offset())
+                .limit(query.size())
+                .toList();
+    }
+
+    @Override
+    public long countCandidates(TestDesignCandidateQuery query) {
+        return filteredCandidates(query).count();
+    }
+
+    @Override
+    public List<TestDesignCandidate> candidatesByTask(UUID taskId) {
+        return candidates.values().stream()
+                .filter(candidate -> taskId.equals(candidate.taskId()))
+                .sorted(Comparator.comparing(TestDesignCandidate::createdAt))
+                .toList();
+    }
+
+    @Override
+    public Optional<TestDesignCandidate> candidate(UUID id) {
+        return Optional.ofNullable(candidates.get(id));
+    }
+
+    @Override
+    public TestDesignCandidate saveCandidate(TestDesignCandidate candidate) {
+        candidates.put(candidate.id(), candidate);
+        return candidate;
+    }
+
+    @Override
+    public TestDesignReviewRecord saveReviewRecord(TestDesignReviewRecord record) {
+        reviewRecords.put(record.id(), record);
+        return record;
+    }
+
+    @Override
+    public TestDesignPublishRecord savePublishRecord(TestDesignPublishRecord record) {
+        publishRecords.put(record.id(), record);
+        return record;
+    }
+
+    @Override
+    public List<TestDesignPublishRecord> publishRecords(UUID taskId) {
+        return publishRecords.values().stream()
+                .filter(record -> taskId.equals(record.taskId()))
+                .sorted(Comparator.comparing(TestDesignPublishRecord::createdAt).reversed())
+                .toList();
+    }
+
+    private Stream<TestDesignTask> filteredTasks(TestDesignTaskQuery query) {
+        return tasks.values().stream()
+                .filter(task -> matches(query.projectId(), task.projectId()))
+                .filter(task -> matches(query.status(), task.status()))
+                .filter(task -> contains(query.keyword(), task.title(), task.requirementIds()))
+                .sorted(Comparator.comparing(TestDesignTask::createdAt).reversed());
+    }
+
+    private Stream<TestDesignCandidate> filteredCandidates(TestDesignCandidateQuery query) {
+        return candidates.values().stream()
+                .filter(candidate -> query.taskId() == null || query.taskId().equals(candidate.taskId()))
+                .filter(candidate -> matches(query.projectId(), candidate.projectId()))
+                .filter(candidate -> query.requirementId() == null || query.requirementId().equals(candidate.requirementId()))
+                .filter(candidate -> matches(query.status(), candidate.status()))
+                .filter(candidate -> matches(query.coverageType(), candidate.coverageType()))
+                .filter(candidate -> contains(query.keyword(), candidate.title(), candidate.description(), candidate.tags()))
+                .sorted(Comparator.comparing(TestDesignCandidate::createdAt).reversed());
+    }
+
+    private static boolean matches(String expected, String actual) {
+        return !StringUtils.hasText(expected) || expected.equalsIgnoreCase(actual);
+    }
+
+    private static boolean contains(String keyword, String... values) {
+        if (!StringUtils.hasText(keyword)) {
+            return true;
+        }
+        String normalized = keyword.trim().toLowerCase(java.util.Locale.ROOT);
+        for (String value : values) {
+            if (value != null && value.toLowerCase(java.util.Locale.ROOT).contains(normalized)) {
+                return true;
+            }
+        }
+        return false;
+    }
+}

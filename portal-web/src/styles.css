@@ -1114,6 +1114,58 @@ tbody tr:hover td {
   color: var(--text-primary);
 }
 
+.quick-actions button.active {
+  border-color: var(--primary);
+  background: var(--primary-bg);
+  color: var(--primary);
+}
+
+.quick-actions button span {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.quick-actions button strong,
+.quick-actions button em {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.quick-actions button strong {
+  color: var(--text-primary);
+  font-style: normal;
+}
+
+.quick-actions button em {
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+  font-style: normal;
+}
+
+.selected-row td {
+  background: var(--primary-bg);
+}
+
+.document-state-line {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.document-state-line.success {
+  color: var(--success-dark);
+}
+
+.document-state-line.error {
+  color: var(--danger-dark);
+}
+
 /* ============================================================
    认证状态面板
    ============================================================ */
@@ -1312,6 +1364,49 @@ tbody tr:hover td {
 
 .model-access-log-filter {
   grid-template-columns: repeat(5, minmax(0, 1fr)) auto;
+}
+
+/* ============================================================
+   WP5 用例生成特定
+   ============================================================ */
+
+.test-design-editor {
+  display: grid;
+  gap: var(--space-md);
+  margin-top: var(--space-lg);
+  padding-top: var(--space-lg);
+  border-top: 1px solid var(--border-light);
+}
+
+.test-design-checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.test-design-checks label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+}
+
+.test-design-checks input {
+  width: auto;
+  min-height: auto;
+}
+
+.test-design-scope {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 
 /* ============================================================

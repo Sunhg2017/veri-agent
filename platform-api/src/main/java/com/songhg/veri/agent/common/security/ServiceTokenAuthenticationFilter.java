@@ -6,6 +6,7 @@ import com.songhg.veri.agent.common.error.ErrorCode;
 import com.songhg.veri.agent.documentinput.config.DocumentInputProperties;
 import com.songhg.veri.agent.modelaccess.config.ModelAccessProperties;
 import com.songhg.veri.agent.modelaccess.security.ServicePrincipal;
+import com.songhg.veri.agent.testdesign.config.TestDesignProperties;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -33,17 +34,20 @@ public class ServiceTokenAuthenticationFilter extends OncePerRequestFilter {
     private final ModelAccessProperties modelAccessProperties;
     private final AssetProperties assetProperties;
     private final DocumentInputProperties documentInputProperties;
+    private final TestDesignProperties testDesignProperties;
     private final ServiceCallerProperties serviceCallerProperties;
 
     public ServiceTokenAuthenticationFilter(
             ModelAccessProperties modelAccessProperties,
             AssetProperties assetProperties,
             DocumentInputProperties documentInputProperties,
+            TestDesignProperties testDesignProperties,
             ServiceCallerProperties serviceCallerProperties
     ) {
         this.modelAccessProperties = modelAccessProperties;
         this.assetProperties = assetProperties;
         this.documentInputProperties = documentInputProperties;
+        this.testDesignProperties = testDesignProperties;
         this.serviceCallerProperties = serviceCallerProperties;
     }
 
@@ -63,8 +67,13 @@ public class ServiceTokenAuthenticationFilter extends OncePerRequestFilter {
             return path.equals("/api/v1/model-access/health")
                     || !TokenSecurity.constantTimeEquals(modelAccessProperties.serviceToken(), bearerToken(request));
         }
+        if (path.startsWith("/api/v1/test-design/")) {
+            return path.equals("/api/v1/test-design/health")
+                    || !TokenSecurity.constantTimeEquals(testDesignProperties.serviceToken(), bearerToken(request));
+        }
         return !path.startsWith("/api/v1/model-access/")
-                && !path.startsWith("/api/v1/asset/");
+                && !path.startsWith("/api/v1/asset/")
+                && !path.startsWith("/api/v1/test-design/");
     }
 
     @Override
@@ -92,6 +101,9 @@ public class ServiceTokenAuthenticationFilter extends OncePerRequestFilter {
         if (path.startsWith("/api/v1/document-input/")) {
             return documentInputProperties.serviceToken();
         }
+        if (path.startsWith("/api/v1/test-design/")) {
+            return testDesignProperties.serviceToken();
+        }
         return assetProperties.serviceToken();
     }
 
@@ -102,6 +114,9 @@ public class ServiceTokenAuthenticationFilter extends OncePerRequestFilter {
         if (path.startsWith("/api/v1/document-input/")) {
             return "document-input";
         }
+        if (path.startsWith("/api/v1/test-design/")) {
+            return "test-design";
+        }
         return "asset-service";
     }
 
@@ -111,6 +126,8 @@ public class ServiceTokenAuthenticationFilter extends OncePerRequestFilter {
             configured = serviceCallerProperties.safeModelAccessTrustedServices();
         } else if (path.startsWith("/api/v1/document-input/")) {
             configured = serviceCallerProperties.safeDocumentInputTrustedServices();
+        } else if (path.startsWith("/api/v1/test-design/")) {
+            configured = serviceCallerProperties.safeTestDesignTrustedServices();
         } else {
             configured = serviceCallerProperties.safeAssetTrustedServices();
         }

@@ -4,6 +4,7 @@ import com.songhg.veri.agent.asset.config.AssetProperties;
 import com.songhg.veri.agent.documentinput.config.DocumentInputProperties;
 import com.songhg.veri.agent.modelaccess.config.ModelAccessProperties;
 import com.songhg.veri.agent.modelaccess.security.ServicePrincipal;
+import com.songhg.veri.agent.testdesign.config.TestDesignProperties;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.AfterEach;
@@ -77,8 +78,18 @@ class ServiceTokenAuthenticationFilterTest {
                 modelAccessProperties(),
                 new AssetProperties("asset-token"),
                 documentInputProperties(),
-                new ServiceCallerProperties(List.of("document-input"), List.of("model-access"), List.of("asset-service"))
+                testDesignProperties(),
+                new ServiceCallerProperties(
+                        List.of("document-input"),
+                        List.of("model-access"),
+                        List.of("asset-service"),
+                        List.of("asset-service")
+                )
         );
+    }
+
+    private static TestDesignProperties testDesignProperties() {
+        return new TestDesignProperties("test-design-token", true, "RULE_TEMPLATE", "wp5", "1.0", 20, 3, 100);
     }
 
     private static ModelAccessProperties modelAccessProperties() {

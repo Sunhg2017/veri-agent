@@ -18,6 +18,7 @@ import {
   ServerCog,
   Settings,
   ShieldCheck,
+  Sparkles,
   ScrollText,
   UsersRound,
   type LucideIcon
@@ -36,6 +37,7 @@ import { fetchHealth, type HealthResult } from './api/health';
 import { AssetWorkbench } from './components/AssetWorkbench';
 import { DocumentInputConsole } from './components/DocumentInputConsole';
 import { ModelAccessConsole } from './components/ModelAccessConsole';
+import { TestDesignWorkbench } from './components/TestDesignWorkbench';
 import { useToast } from './components/Toast';
 import {
   assignUserRole,
@@ -183,6 +185,13 @@ const pages: PageDefinition[] = [
     title: '资产库',
     description: '管理 WP3 需求资产，查看来源追踪和后续资产类型入口。',
     icon: Archive
+  },
+  {
+    key: 'test-design',
+    label: '用例生成',
+    title: '用例生成',
+    description: '基于 WP3 需求生成候选测试用例，完成评审后发布到资产库。',
+    icon: Sparkles
   },
   {
     key: 'model-access',
@@ -728,6 +737,8 @@ export function App() {
           <DocumentInputConsole signedIn={Boolean(currentUser)} currentUser={currentUser} />
         ) : activePage === 'asset-library' ? (
           <AssetWorkbench signedIn={Boolean(currentUser)} currentUser={currentUser} />
+        ) : activePage === 'test-design' ? (
+          <TestDesignWorkbench signedIn={Boolean(currentUser)} currentUser={currentUser} />
         ) : activePage === 'model-access' ? (
           <ModelAccessConsole signedIn={Boolean(currentUser)} currentUser={currentUser} />
         ) : (

@@ -12,7 +12,7 @@ class PermissionCodeUsageTest {
 
     private static final Pattern PERMISSION_LITERAL = Pattern.compile(
             "\"(?:role|audit|context|department|user|project|application|environment|config|secret|asset"
-                    + "|modelAccess|requirementInput):[A-Za-z0-9_]+\""
+                    + "|modelAccess|requirementInput|testDesign):[A-Za-z0-9_]+\""
     );
 
     @Test
