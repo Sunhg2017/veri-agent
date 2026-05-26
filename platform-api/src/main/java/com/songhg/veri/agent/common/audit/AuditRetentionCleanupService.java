@@ -91,6 +91,15 @@ public class AuditRetentionCleanupService {
                 .increment(count);
     }
 
-    public record CleanupResult(Instant cutoff, int retentionDays, int batchSize, int deleted) {
+    public record CleanupResult(
+            /** 本次清理使用的截止时间。 */
+            Instant cutoff,
+            /** 实际生效的保留天数。 */
+            int retentionDays,
+            /** 本次清理使用的批量大小。 */
+            int batchSize,
+            /** 已删除的审计日志数量。 */
+            int deleted
+    ) {
     }
 }

@@ -225,7 +225,16 @@ public class DocumentWebhookIngressGuard {
         return StringUtils.hasText(value) ? value.trim().toLowerCase(Locale.ROOT) : "unknown";
     }
 
-    public record RateLimitDecision(boolean allowed, String dimension, int limit, long windowSeconds) {
+    public record RateLimitDecision(
+            /** 是否允许当前请求继续处理。 */
+            boolean allowed,
+            /** 命中的限流维度。 */
+            String dimension,
+            /** 当前限流窗口允许的最大请求数。 */
+            int limit,
+            /** 当前限流窗口秒数。 */
+            long windowSeconds
+    ) {
         static RateLimitDecision allowed(int limit, long windowSeconds) {
             return new RateLimitDecision(true, null, limit, windowSeconds);
         }

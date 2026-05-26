@@ -2,7 +2,12 @@ package com.songhg.veri.agent.authorization.application;
 
 import org.springframework.util.StringUtils;
 
-public record ResourceScope(String scopeType, String scopeId) {
+public record ResourceScope(
+        /** 权限资源范围类型，默认 PLATFORM，项目级为 PROJECT。 */
+        String scopeType,
+        /** 范围实例 ID；平台级范围固定为空。 */
+        String scopeId
+) {
 
     private static final String PLATFORM = "PLATFORM";
     private static final String PROJECT = "PROJECT";

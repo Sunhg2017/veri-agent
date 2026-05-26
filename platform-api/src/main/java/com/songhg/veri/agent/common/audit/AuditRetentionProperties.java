@@ -7,9 +7,13 @@ import org.springframework.validation.annotation.Validated;
 @Validated
 @ConfigurationProperties(prefix = "veri-agent.audit")
 public record AuditRetentionProperties(
+        /** 是否启用审计日志保留清理任务。 */
         boolean retentionCleanupEnabled,
+        /** 审计日志保留天数。 */
         @Min(1) int retentionDays,
+        /** 审计日志最小保留天数，防止误配过短清理窗口。 */
         @Min(1) int minRetentionDays,
+        /** 单次清理批量上限配置。 */
         @Min(1) int retentionCleanupBatchSize
 ) {
 

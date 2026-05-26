@@ -80,6 +80,13 @@ public class DocumentWebhookAutoRetryService {
         return properties.webhookAutoRetryBatchSize() <= 0 ? 20 : properties.webhookAutoRetryBatchSize();
     }
 
-    public record AutoRetryResult(int attempted, int succeeded, int failed) {
+    public record AutoRetryResult(
+            /** 本次尝试重放的事件数量。 */
+            int attempted,
+            /** 重放成功的事件数量。 */
+            int succeeded,
+            /** 重放失败的事件数量。 */
+            int failed
+    ) {
     }
 }

@@ -1,7 +1,10 @@
 package com.songhg.veri.agent.management.api.request;
 
+import io.swagger.v3.oas.annotations.media.Schema;
+
 public class AuditOutboxPageRequest extends ManagementPageRequest {
 
+    @Schema(description = "业务状态。")
     private String status = "";
     private String traceId = "";
 

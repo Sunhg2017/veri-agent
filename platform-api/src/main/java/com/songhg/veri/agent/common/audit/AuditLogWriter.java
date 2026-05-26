@@ -61,15 +61,25 @@ public interface AuditLogWriter {
     }
 
     record AuditRecord(
+            /** 操作人身份；系统任务可为空。 */
             AuthUserPrincipal actor,
+            /** 审计动作编码。 */
             String action,
+            /** 被操作资源类型。 */
             String resourceType,
+            /** 被操作资源 ID。 */
             String resourceId,
+            /** 操作结果，如 SUCCESS、DENIED、FAILED。 */
             String result,
+            /** 失败或拒绝原因。 */
             String reason,
+            /** 被操作目标展示名称。 */
             String targetName,
+            /** 变更前 JSON 快照。 */
             String beforeJson,
+            /** 变更后 JSON 快照。 */
             String afterJson,
+            /** 字段级差异 JSON。 */
             String diffJson
     ) {
     }

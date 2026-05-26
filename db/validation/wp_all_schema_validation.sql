@@ -70,6 +70,54 @@ select
     coalesce(string_agg(table_name, ', ' order by table_name), 'all WP1+WP2+WP3+WP4 core tables exist') as details
 from missing;
 
+with missing as (
+    select t.table_name
+    from information_schema.tables t
+    join pg_class c on c.relname = t.table_name
+    join pg_namespace n on n.oid = c.relnamespace
+        and n.nspname = t.table_schema
+    where t.table_schema = current_schema()
+      and t.table_type = 'BASE TABLE'
+      and (
+          obj_description(c.oid, 'pg_class') is null
+          or btrim(obj_description(c.oid, 'pg_class')) = ''
+      )
+)
+select
+    'schema.table_comments_exist' as check_name,
+    case when count(*) = 0 then 'PASS' else 'FAIL' end as status,
+    coalesce(string_agg(table_name, ', ' order by table_name), 'all platform table comments exist') as details
+from missing;
+
+with missing as (
+    select c.table_name || '.' || c.column_name as item
+    from information_schema.columns c
+    join pg_class pc on pc.relname = c.table_name
+    join pg_namespace pn on pn.oid = pc.relnamespace
+        and pn.nspname = c.table_schema
+    join pg_attribute pa on pa.attrelid = pc.oid
+        and pa.attname = c.column_name
+        and pa.attnum > 0
+        and not pa.attisdropped
+    where c.table_schema = current_schema()
+      and exists (
+          select 1
+          from information_schema.tables t
+          where t.table_schema = c.table_schema
+            and t.table_name = c.table_name
+            and t.table_type = 'BASE TABLE'
+      )
+      and (
+          col_description(pc.oid, pa.attnum) is null
+          or btrim(col_description(pc.oid, pa.attnum)) = ''
+      )
+)
+select
+    'schema.column_comments_exist' as check_name,
+    case when count(*) = 0 then 'PASS' else 'FAIL' end as status,
+    coalesce(string_agg(item, ', ' order by item), 'all platform column comments exist') as details
+from missing;
+
 with expected(table_name, constraint_name) as (
     values
         ('asset_requirement','ck_asset_requirement_lifecycle_status'),

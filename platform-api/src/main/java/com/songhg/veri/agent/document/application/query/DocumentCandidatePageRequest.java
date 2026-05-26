@@ -2,10 +2,12 @@ package com.songhg.veri.agent.document.application.query;
 
 import com.songhg.veri.agent.common.api.BasePageRequest;
 import com.songhg.veri.agent.document.domain.DocumentCandidateStatus;
+import io.swagger.v3.oas.annotations.media.Schema;
 import java.util.UUID;
 import org.springframework.util.StringUtils;
 
 public class DocumentCandidatePageRequest extends BasePageRequest {
+    @Schema(description = "候选生命周期状态。")
     private DocumentCandidateStatus status;
     private String sourceRef;
     private String keyword;

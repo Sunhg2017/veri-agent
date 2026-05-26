@@ -744,7 +744,12 @@ public class DocumentContentExtractor {
         return StringUtils.hasText(value) ? value.trim() : null;
     }
 
-    public record ExtractedDocumentContent(String text, String extractionSource) {
+    public record ExtractedDocumentContent(
+            /** 抽取后的纯文本内容。 */
+            String text,
+            /** 内容抽取来源，如文本直读、PDF 解析或 OCR。 */
+            String extractionSource
+    ) {
     }
 
     private enum DetectedBinaryType {

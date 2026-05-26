@@ -137,6 +137,56 @@ select
     coalesce(string_agg(item, ', ' order by item), 'WP5 stores prompt/model references only') as details
 from found;
 
+with wp5_tables(table_name) as (
+    values
+        ('test_design_task'),
+        ('test_design_candidate'),
+        ('test_design_review_record'),
+        ('test_design_publish_record')
+),
+missing as (
+    select t.table_name
+    from wp5_tables t
+    join pg_class c on c.relname = t.table_name
+    join pg_namespace n on n.oid = c.relnamespace
+        and n.nspname = current_schema()
+    where obj_description(c.oid, 'pg_class') is null
+       or btrim(obj_description(c.oid, 'pg_class')) = ''
+)
+select
+    'wp5.table_comments_exist' as check_name,
+    case when count(*) = 0 then 'PASS' else 'FAIL' end as status,
+    coalesce(string_agg(table_name, ', ' order by table_name), 'WP5 table comments exist') as details
+from missing;
+
+with missing as (
+    select c.table_name || '.' || c.column_name as item
+    from information_schema.columns c
+    join pg_class pc on pc.relname = c.table_name
+    join pg_namespace pn on pn.oid = pc.relnamespace
+        and pn.nspname = c.table_schema
+    join pg_attribute pa on pa.attrelid = pc.oid
+        and pa.attname = c.column_name
+        and pa.attnum > 0
+        and not pa.attisdropped
+    where c.table_schema = current_schema()
+      and c.table_name in (
+          'test_design_task',
+          'test_design_candidate',
+          'test_design_review_record',
+          'test_design_publish_record'
+      )
+      and (
+          col_description(pc.oid, pa.attnum) is null
+          or btrim(col_description(pc.oid, pa.attnum)) = ''
+      )
+)
+select
+    'wp5.column_comments_exist' as check_name,
+    case when count(*) = 0 then 'PASS' else 'FAIL' end as status,
+    coalesce(string_agg(item, ', ' order by item), 'WP5 column comments exist') as details
+from missing;
+
 with expected(code) as (
     values
         ('testDesign:read'),

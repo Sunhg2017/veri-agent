@@ -5,8 +5,11 @@ import com.songhg.veri.agent.common.error.ErrorCode;
 import java.util.List;
 
 public record AuditOutboxQuery(
+        /** 模糊搜索关键字。 */
         String search,
+        /** outbox 状态过滤条件。 */
         String status,
+        /** 链路追踪 ID 过滤条件。 */
         String traceId
 ) {
     private static final List<String> STATUSES = List.of("PENDING", "PROCESSING", "DONE", "FAILED", "DEAD");

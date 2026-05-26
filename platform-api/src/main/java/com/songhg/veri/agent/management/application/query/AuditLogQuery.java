@@ -6,12 +6,19 @@ import java.time.OffsetDateTime;
 import java.time.format.DateTimeParseException;
 
 public record AuditLogQuery(
+        /** 模糊搜索关键字。 */
         String search,
+        /** 操作人过滤条件。 */
         String actor,
+        /** 审计动作过滤条件。 */
         String action,
+        /** 资源类型过滤条件。 */
         String resourceType,
+        /** 操作结果过滤条件。 */
         String result,
+        /** 审计时间起点。 */
         OffsetDateTime startTime,
+        /** 审计时间终点。 */
         OffsetDateTime endTime
 ) {
     public static AuditLogQuery of(

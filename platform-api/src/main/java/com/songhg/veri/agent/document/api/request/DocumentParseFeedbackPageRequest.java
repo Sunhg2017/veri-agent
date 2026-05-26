@@ -2,13 +2,16 @@ package com.songhg.veri.agent.document.api.request;
 
 import com.songhg.veri.agent.common.api.BasePageRequest;
 import com.songhg.veri.agent.document.application.query.DocumentParseFeedbackQuery;
+import io.swagger.v3.oas.annotations.media.Schema;
 import java.util.UUID;
 import org.springframework.util.StringUtils;
 
 public class DocumentParseFeedbackPageRequest extends BasePageRequest {
+    @Schema(description = "候选 ID。")
     private UUID candidateId;
     private UUID importId;
     private String projectId;
+    @Schema(description = "解析来源，例如规则解析或模型解析。")
     private String parseSource;
     private String curationStatus;
 

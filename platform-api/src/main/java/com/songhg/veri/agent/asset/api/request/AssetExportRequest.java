@@ -1,9 +1,11 @@
 package com.songhg.veri.agent.asset.api.request;
 
 import com.songhg.veri.agent.asset.application.query.AssetListRequest;
+import io.swagger.v3.oas.annotations.media.Schema;
 
 public class AssetExportRequest extends AssetListRequest {
 
+    @Schema(description = "资产类型。")
     private String assetType;
     private String format;
 

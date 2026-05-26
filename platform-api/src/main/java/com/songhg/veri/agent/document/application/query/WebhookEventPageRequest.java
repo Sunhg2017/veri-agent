@@ -2,6 +2,7 @@ package com.songhg.veri.agent.document.application.query;
 
 import com.songhg.veri.agent.common.api.BasePageRequest;
 import com.songhg.veri.agent.document.domain.WebhookEventStatus;
+import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.Instant;
 import java.util.UUID;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -9,13 +10,16 @@ import org.springframework.util.StringUtils;
 
 public class WebhookEventPageRequest extends BasePageRequest {
 
+    @Schema(description = "文档输入源 ID。")
     private UUID sourceId;
     private String sourceCode;
     private String eventType;
+    @Schema(description = "业务状态。")
     private WebhookEventStatus status;
     @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
     private Instant receivedFrom;
     @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
+    @Schema(description = "接收时间范围结束。")
     private Instant receivedTo;
 
     public UUID getSourceId() {

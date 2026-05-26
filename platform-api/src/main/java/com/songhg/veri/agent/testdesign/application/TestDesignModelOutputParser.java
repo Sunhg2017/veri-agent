@@ -277,27 +277,45 @@ public class TestDesignModelOutputParser {
     }
 
     public record ModelGeneratedCase(
+            /** 模型生成的用例标题。 */
             String title,
+            /** 模型生成的用例说明。 */
             String description,
+            /** 覆盖类型编码。 */
             String coverageType,
+            /** 优先级编码。 */
             String priority,
+            /** 执行前置条件。 */
             String preconditions,
+            /** 用例步骤列表。 */
             List<ModelGeneratedStep> steps,
+            /** 用例整体预期结果。 */
             String expectedResult,
+            /** 需求引用编码或 ID。 */
             String requirementRef,
+            /** 关联 API 引用列表。 */
             List<String> apiRefs,
+            /** 关联页面引用列表。 */
             List<String> pageRefs,
+            /** 关联业务流程引用列表。 */
             List<String> flowRefs,
+            /** 模型生成的标签列表。 */
             List<String> tags,
+            /** 生成理由或覆盖依据。 */
             String rationale,
+            /** 风险提示。 */
             String riskNotes,
+            /** 模型自评置信度，范围 0 到 1。 */
             double confidence
     ) {
     }
 
     public record ModelGeneratedStep(
+            /** 步骤序号，从 0 开始按模型输出顺序归一化。 */
             int stepOrder,
+            /** 步骤操作。 */
             String action,
+            /** 步骤预期结果。 */
             String expectedResult
     ) {
     }

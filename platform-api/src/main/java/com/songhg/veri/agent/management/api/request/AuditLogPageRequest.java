@@ -1,10 +1,14 @@
 package com.songhg.veri.agent.management.api.request;
 
+import io.swagger.v3.oas.annotations.media.Schema;
+
 public class AuditLogPageRequest extends ManagementPageRequest {
 
+    @Schema(description = "操作人。")
     private String actor = "";
     private String action = "";
     private String resourceType = "";
+    @Schema(description = "处理结果。")
     private String result = "";
     private String startTime = "";
     private String endTime = "";

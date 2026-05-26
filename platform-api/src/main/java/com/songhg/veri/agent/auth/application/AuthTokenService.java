@@ -182,10 +182,15 @@ public class AuthTokenService {
     }
 
     public record IssuedToken(
+            /** 签发给客户端的访问令牌。 */
             String accessToken,
+            /** 用于刷新会话的刷新令牌。 */
             String refreshToken,
+            /** 本次登录创建的会话 ID。 */
             UUID sessionId,
+            /** 令牌类型，当前固定为 Bearer。 */
             String tokenType,
+            /** 访问令牌过期时间。 */
             Instant expiresAt
     ) {
     }
