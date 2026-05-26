@@ -3,7 +3,7 @@ package com.songhg.veri.agent.common.security;
 import com.songhg.veri.agent.asset.config.AssetProperties;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
-import com.songhg.veri.agent.documentinput.config.DocumentInputProperties;
+import com.songhg.veri.agent.document.config.DocumentInputProperties;
 import com.songhg.veri.agent.modelaccess.config.ModelAccessProperties;
 import com.songhg.veri.agent.modelaccess.security.ServicePrincipal;
 import com.songhg.veri.agent.testdesign.config.TestDesignProperties;

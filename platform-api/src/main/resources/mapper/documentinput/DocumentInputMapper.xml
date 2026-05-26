@@ -2,15 +2,15 @@
 <!DOCTYPE mapper
         PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
-<mapper namespace="com.songhg.veri.agent.documentinput.infrastructure.mapper.DocumentInputMapper">
+<mapper namespace="com.songhg.veri.agent.document.infrastructure.mapper.DocumentInputMapper">
 
-    <resultMap id="sourceMap" type="com.songhg.veri.agent.documentinput.domain.DocumentSourceConfig">
+    <resultMap id="sourceMap" type="com.songhg.veri.agent.document.domain.DocumentSourceConfig">
         <constructor>
             <arg column="id" javaType="java.util.UUID"/>
             <arg column="source_code" javaType="java.lang.String"/>
             <arg column="name" javaType="java.lang.String"/>
-            <arg column="source_type" javaType="com.songhg.veri.agent.documentinput.domain.DocumentSourceType"/>
-            <arg column="status" javaType="com.songhg.veri.agent.documentinput.domain.DocumentSourceStatus"/>
+            <arg column="source_type" javaType="com.songhg.veri.agent.document.domain.DocumentSourceType"/>
+            <arg column="status" javaType="com.songhg.veri.agent.document.domain.DocumentSourceStatus"/>
             <arg column="endpoint_url" javaType="java.lang.String"/>
             <arg column="default_project_id" javaType="java.lang.String"/>
             <arg column="mapping_id" javaType="java.util.UUID"/>
@@ -23,7 +23,7 @@
         </constructor>
     </resultMap>
 
-    <resultMap id="fieldMappingMap" type="com.songhg.veri.agent.documentinput.domain.DocumentFieldMapping">
+    <resultMap id="fieldMappingMap" type="com.songhg.veri.agent.document.domain.DocumentFieldMapping">
         <constructor>
             <arg column="id" javaType="java.util.UUID"/>
             <arg column="mapping_code" javaType="java.lang.String"/>
@@ -39,17 +39,17 @@
         </constructor>
     </resultMap>
 
-    <resultMap id="importMap" type="com.songhg.veri.agent.documentinput.domain.DocumentImportRecord">
+    <resultMap id="importMap" type="com.songhg.veri.agent.document.domain.DocumentImportRecord">
         <constructor>
             <arg column="id" javaType="java.util.UUID"/>
             <arg column="project_id" javaType="java.lang.String"/>
             <arg column="source_id" javaType="java.util.UUID"/>
             <arg column="source_code" javaType="java.lang.String"/>
-            <arg column="source_type" javaType="com.songhg.veri.agent.documentinput.domain.DocumentSourceType"/>
+            <arg column="source_type" javaType="com.songhg.veri.agent.document.domain.DocumentSourceType"/>
             <arg column="source_ref" javaType="java.lang.String"/>
             <arg column="source_url" javaType="java.lang.String"/>
             <arg column="title" javaType="java.lang.String"/>
-            <arg column="status" javaType="com.songhg.veri.agent.documentinput.domain.DocumentImportStatus"/>
+            <arg column="status" javaType="com.songhg.veri.agent.document.domain.DocumentImportStatus"/>
             <arg column="total_parsed" javaType="_int"/>
             <arg column="total_created" javaType="_int"/>
             <arg column="created_requirement_ids" javaType="java.lang.String"/>
@@ -60,7 +60,7 @@
         </constructor>
     </resultMap>
 
-    <resultMap id="candidateMap" type="com.songhg.veri.agent.documentinput.domain.DocumentRequirementCandidate">
+    <resultMap id="candidateMap" type="com.songhg.veri.agent.document.domain.DocumentRequirementCandidate">
         <constructor>
             <arg column="id" javaType="java.util.UUID"/>
             <arg column="import_id" javaType="java.util.UUID"/>
@@ -70,7 +70,7 @@
             <arg column="priority" javaType="java.lang.String"/>
             <arg column="acceptance_criteria" javaType="java.lang.String"/>
             <arg column="tags" javaType="java.lang.String"/>
-            <arg column="status" javaType="com.songhg.veri.agent.documentinput.domain.DocumentCandidateStatus"/>
+            <arg column="status" javaType="com.songhg.veri.agent.document.domain.DocumentCandidateStatus"/>
             <arg column="source_ref" javaType="java.lang.String"/>
             <arg column="source_fragment" javaType="java.lang.String"/>
             <arg column="external_requirement_id" javaType="java.lang.String"/>
@@ -90,7 +90,7 @@
         </constructor>
     </resultMap>
 
-    <resultMap id="parseFeedbackSampleMap" type="com.songhg.veri.agent.documentinput.domain.DocumentParseFeedbackSample">
+    <resultMap id="parseFeedbackSampleMap" type="com.songhg.veri.agent.document.domain.DocumentParseFeedbackSample">
         <constructor>
             <arg column="id" javaType="java.util.UUID"/>
             <arg column="candidate_id" javaType="java.util.UUID"/>
@@ -115,7 +115,7 @@
         </constructor>
     </resultMap>
 
-    <resultMap id="webhookEventMap" type="com.songhg.veri.agent.documentinput.domain.DocumentWebhookEvent">
+    <resultMap id="webhookEventMap" type="com.songhg.veri.agent.document.domain.DocumentWebhookEvent">
         <constructor>
             <arg column="id" javaType="java.util.UUID"/>
             <arg column="source_id" javaType="java.util.UUID"/>
@@ -125,8 +125,8 @@
             <arg column="idempotency_key" javaType="java.lang.String"/>
             <arg column="event_type" javaType="java.lang.String"/>
             <arg column="event_version" javaType="java.lang.String"/>
-            <arg column="signature_status" javaType="com.songhg.veri.agent.documentinput.domain.WebhookSignatureStatus"/>
-            <arg column="status" javaType="com.songhg.veri.agent.documentinput.domain.WebhookEventStatus"/>
+            <arg column="signature_status" javaType="com.songhg.veri.agent.document.domain.WebhookSignatureStatus"/>
+            <arg column="status" javaType="com.songhg.veri.agent.document.domain.WebhookEventStatus"/>
             <arg column="payload_digest" javaType="java.lang.String"/>
             <arg column="raw_payload" javaType="java.lang.String"/>
             <arg column="error_message" javaType="java.lang.String"/>

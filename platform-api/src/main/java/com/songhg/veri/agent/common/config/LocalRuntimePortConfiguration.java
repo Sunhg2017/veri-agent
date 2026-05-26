@@ -7,7 +7,7 @@ import com.songhg.veri.agent.authorization.application.PermissionResolver;
 import com.songhg.veri.agent.common.audit.AuditLogWriter;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
-import com.songhg.veri.agent.documentinput.application.port.DocumentInputRepository;
+import com.songhg.veri.agent.document.application.port.DocumentInputRepository;
 import com.songhg.veri.agent.modelaccess.application.port.ModelAccessRepository;
 import com.songhg.veri.agent.modelaccess.application.port.ModelInvocationJobRepository;
 import java.lang.reflect.Proxy;

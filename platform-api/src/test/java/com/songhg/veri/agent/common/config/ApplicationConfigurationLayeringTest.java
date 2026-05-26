@@ -5,7 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.songhg.veri.agent.asset.config.AssetProperties;
 import com.songhg.veri.agent.auth.application.AuthProperties;
 import com.songhg.veri.agent.common.secret.SecretProviderProperties;
-import com.songhg.veri.agent.documentinput.config.DocumentInputProperties;
+import com.songhg.veri.agent.document.config.DocumentInputProperties;
 import com.songhg.veri.agent.modelaccess.config.ModelAccessProperties;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;

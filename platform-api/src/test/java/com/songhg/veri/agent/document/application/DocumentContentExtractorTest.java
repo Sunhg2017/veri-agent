@@ -1,0 +1,412 @@
+package com.songhg.veri.agent.document.application;
+
+import com.songhg.veri.agent.common.error.BusinessException;
+import com.songhg.veri.agent.document.config.DocumentInputProperties;
+import com.songhg.veri.agent.document.domain.DocumentSourceType;
+import java.io.ByteArrayOutputStream;
+import java.net.InetSocketAddress;
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+import com.sun.net.httpserver.HttpServer;
+import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.pdmodel.PDPage;
+import org.apache.pdfbox.pdmodel.PDPageContentStream;
+import org.apache.pdfbox.pdmodel.font.PDType1Font;
+import org.apache.pdfbox.pdmodel.font.Standard14Fonts;
+import org.apache.poi.xwpf.usermodel.XWPFDocument;
+import org.junit.jupiter.api.Test;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+class DocumentContentExtractorTest {
+
+    @Test
+    void extractsRealDocxTextFromBase64DataUrl() throws Exception {
+        DocumentContentExtractor extractor = new DocumentContentExtractor(properties(""));
+
+        String text = extractor.extract(DocumentSourceType.WORD, dataUrl(
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                docx("Word login requirement", "Priority: HIGH", "Acceptance Criteria:", "- login succeeds")
+        )).text();
+
+        assertThat(text).contains("Word login requirement", "Priority: HIGH", "login succeeds");
+    }
+
+    @Test
+    void extractsRealPdfTextFromBase64DataUrl() throws Exception {
+        DocumentContentExtractor extractor = new DocumentContentExtractor(properties(""));
+
+        String text = extractor.extract(DocumentSourceType.PDF, dataUrl(
+                "application/pdf",
+                pdf("PDF refund requirement", "Priority: LOW", "Acceptance Criteria:", "refund succeeds")
+        )).text();
+
+        assertThat(text).contains("PDF refund requirement", "Priority: LOW", "refund succeeds");
+    }
+
+    @Test
+    void runsConfiguredOcrCommandForBinaryOcrInput() {
+        DocumentContentExtractor extractor = new DocumentContentExtractor(properties("/bin/cat {input}"));
+        String content = dataUrl("image/png", withPngMagic("""
+                OCR invoice requirement
+                Priority: HIGH
+                Acceptance Criteria:
+                - invoice image is parsed
+                """));
+
+        String text = extractor.extract(DocumentSourceType.OCR, content).text();
+
+        assertThat(text).contains("OCR invoice requirement", "invoice image is parsed");
+    }
+
+    @Test
+    void explainsHowToRecoverWhenOcrCommandIsMissing() {
+        DocumentContentExtractor extractor = new DocumentContentExtractor(properties(""));
+        String content = dataUrl("image/png", withPngMagic("scanned requirement"));
+
+        assertThatThrownBy(() -> extractor.extract(DocumentSourceType.OCR, content))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("WP4_OCR_COMMAND")
+                .hasMessageContaining("下一步");
+    }
+
+    @Test
+    void rejectsForgedPdfMimeWhenValidationIsEnabled() {
+        DocumentContentExtractor extractor = new DocumentContentExtractor(properties(""));
+        String content = dataUrl("image/png", new byte[]{(byte) 0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a});
+
+        assertThatThrownBy(() -> extractor.extract(DocumentSourceType.PDF, content))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("PDF 内容类型与实际文件内容不匹配");
+    }
+
+    @Test
+    void rejectsDeclaredPdfMimeWithDocxContentWhenValidationIsEnabled() throws Exception {
+        DocumentContentExtractor extractor = new DocumentContentExtractor(properties(""));
+
+        assertThatThrownBy(() -> extractor.extract(DocumentSourceType.PDF, dataUrl(
+                "application/pdf",
+                docx("Forged document")
+        )))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("PDF 内容类型与实际文件内容不匹配");
+    }
+
+    @Test
+    void allowsForgedPdfMimeWhenValidationIsDisabledAndContentIsText() {
+        DocumentContentExtractor extractor = new DocumentContentExtractor(properties("", false, 0, 0));
+
+        String text = extractor.extract(DocumentSourceType.PDF, dataUrl(
+                "application/pdf",
+                "fallback text requirement".getBytes(StandardCharsets.UTF_8)
+        )).text();
+
+        assertThat(text).contains("fallback text requirement");
+    }
+
+    @Test
+    void rejectsPdfOverConfiguredPageLimit() throws Exception {
+        DocumentContentExtractor extractor = new DocumentContentExtractor(properties("", true, 1, 0));
+
+        assertThatThrownBy(() -> extractor.extract(DocumentSourceType.PDF, dataUrl(
+                "application/pdf",
+                pdfPages(2, "Page limited requirement")
+        )))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("PDF 页数超过上限: 1");
+    }
+
+    @Test
+    void explainsHowToRecoverWhenPdfHasNoTextAndOcrIsMissing() throws Exception {
+        DocumentContentExtractor extractor = new DocumentContentExtractor(properties(""));
+
+        assertThatThrownBy(() -> extractor.extract(DocumentSourceType.PDF, dataUrl(
+                "application/pdf",
+                blankPdf()
+        )))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("PDF 未抽取到文本")
+                .hasMessageContaining("WP4_OCR_COMMAND")
+                .hasMessageContaining("下一步");
+    }
+
+    @Test
+    void rejectsPdfWhenParseTimeBudgetIsExceeded() throws Exception {
+        AtomicInteger calls = new AtomicInteger();
+        DocumentContentExtractor extractor = new DocumentContentExtractor(
+                properties("", true, 0, 1),
+                () -> calls.getAndIncrement() == 0 ? 0 : TimeUnit.MILLISECONDS.toNanos(2)
+        );
+
+        assertThatThrownBy(() -> extractor.extract(DocumentSourceType.PDF, dataUrl(
+                "application/pdf",
+                pdf("Timed PDF requirement")
+        )))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("PDF 解析超过时间上限: 1 ms");
+    }
+
+    @Test
+    void runsConfiguredMalwareScanBeforeBinaryExtraction() {
+        DocumentContentExtractor extractor = new DocumentContentExtractor(
+                properties("", true, 0, 0, "/bin/sh -c \"echo malware >&2; exit 7\"")
+        );
+
+        assertThatThrownBy(() -> extractor.extract(DocumentSourceType.OCR, dataUrl("image/png", withPngMagic("unsafe"))))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("文件安全扫描未通过");
+    }
+
+    @Test
+    void rejectsExternalOcrWorkerModeWithoutUrlAndFallbackDisabled() {
+        DocumentContentExtractor extractor = new DocumentContentExtractor(
+                properties("/bin/cat {input}", true, 0, 0, "", "EXTERNAL_WORKER", false)
+        );
+
+        assertThatThrownBy(() -> extractor.extract(DocumentSourceType.OCR, dataUrl("image/png", withPngMagic("isolated"))))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("WP4_OCR_WORKER_URL")
+                .hasMessageContaining("WP4_OCR_LOCAL_COMMAND_FALLBACK_ENABLED");
+    }
+
+    @Test
+    void allowsLocalOcrCommandFallbackWhenExternalWorkerModeKeepsFallbackEnabled() {
+        DocumentContentExtractor extractor = new DocumentContentExtractor(
+                properties("/bin/cat {input}", true, 0, 0, "", "EXTERNAL_WORKER", true)
+        );
+
+        String text = extractor.extract(DocumentSourceType.OCR, dataUrl("image/png", withPngMagic("fallback ocr"))).text();
+
+        assertThat(text).contains("fallback ocr");
+        assertThat(extractor.ocrWorkerMode()).isEqualTo("EXTERNAL_WORKER");
+        assertThat(extractor.ocrLocalCommandExecutionAllowed()).isTrue();
+    }
+
+    @Test
+    void callsConfiguredHttpOcrWorkerWithoutRunningLocalCommand() throws Exception {
+        AtomicReference<String> authorization = new AtomicReference<>();
+        AtomicReference<String> requestBody = new AtomicReference<>();
+        HttpServer server = startOcrWorkerServer("""
+                {"text":"remote worker requirement\\nPriority: HIGH\\nAcceptance Criteria:\\n- worker returns text"}
+                """, authorization, requestBody);
+        try {
+            String workerUrl = "http://127.0.0.1:" + server.getAddress().getPort() + "/ocr";
+            DocumentContentExtractor extractor = new DocumentContentExtractor(
+                    properties("", true, 0, 0, "", "HTTP_WORKER", workerUrl, "worker-token", false)
+            );
+
+            String text = extractor.extract(DocumentSourceType.OCR, dataUrl("image/png", withPngMagic("remote bytes"))).text();
+
+            assertThat(text).contains("remote worker requirement", "worker returns text");
+            assertThat(authorization.get()).isEqualTo("Bearer worker-token");
+            assertThat(requestBody.get()).contains("contentBase64", "maxOutputChars", "timeoutSeconds");
+            assertThat(extractor.ocrRemoteWorkerConfigured()).isTrue();
+            assertThat(extractor.ocrLocalCommandExecutionAllowed()).isFalse();
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    private static HttpServer startOcrWorkerServer(
+            String responseBody,
+            AtomicReference<String> authorization,
+            AtomicReference<String> requestBody
+    ) throws Exception {
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/ocr", exchange -> {
+            authorization.set(exchange.getRequestHeaders().getFirst("Authorization"));
+            requestBody.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+            byte[] response = responseBody.getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().add("Content-Type", "application/json");
+            exchange.sendResponseHeaders(200, response.length);
+            exchange.getResponseBody().write(response);
+            exchange.close();
+        });
+        server.start();
+        return server;
+    }
+
+    private static byte[] docx(String... paragraphs) throws Exception {
+        try (XWPFDocument document = new XWPFDocument();
+             ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+            for (String paragraph : paragraphs) {
+                document.createParagraph().createRun().setText(paragraph);
+            }
+            document.write(output);
+            return output.toByteArray();
+        }
+    }
+
+    private static byte[] pdf(String... lines) throws Exception {
+        return pdfPages(1, lines);
+    }
+
+    private static byte[] blankPdf() throws Exception {
+        try (PDDocument document = new PDDocument();
+             ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+            document.addPage(new PDPage());
+            document.save(output);
+            return output.toByteArray();
+        }
+    }
+
+    private static byte[] pdfPages(int pages, String... lines) throws Exception {
+        try (PDDocument document = new PDDocument();
+             ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+            for (int i = 0; i < pages; i++) {
+                PDPage page = new PDPage();
+                document.addPage(page);
+                try (PDPageContentStream content = new PDPageContentStream(document, page)) {
+                    content.beginText();
+                    content.setFont(new PDType1Font(Standard14Fonts.FontName.HELVETICA), 12);
+                    content.newLineAtOffset(50, 740);
+                    for (String line : lines) {
+                        content.showText(line);
+                        content.newLineAtOffset(0, -16);
+                    }
+                    content.endText();
+                }
+            }
+            document.save(output);
+            return output.toByteArray();
+        }
+    }
+
+    private static byte[] withPngMagic(String text) {
+        byte[] body = text.getBytes(StandardCharsets.UTF_8);
+        byte[] bytes = new byte[8 + body.length];
+        bytes[0] = (byte) 0x89;
+        bytes[1] = 0x50;
+        bytes[2] = 0x4e;
+        bytes[3] = 0x47;
+        bytes[4] = 0x0d;
+        bytes[5] = 0x0a;
+        bytes[6] = 0x1a;
+        bytes[7] = 0x0a;
+        System.arraycopy(body, 0, bytes, 8, body.length);
+        return bytes;
+    }
+
+    private static String dataUrl(String mimeType, byte[] bytes) {
+        return "data:" + mimeType + ";base64," + Base64.getEncoder().encodeToString(bytes);
+    }
+
+    private static DocumentInputProperties properties(String ocrCommand) {
+        return properties(ocrCommand, true, 0, 0);
+    }
+
+    private static DocumentInputProperties properties(
+            String ocrCommand,
+            boolean binaryMimeValidationEnabled,
+            int pdfMaxPages,
+            long pdfMaxParseMillis
+    ) {
+        return properties(ocrCommand, binaryMimeValidationEnabled, pdfMaxPages, pdfMaxParseMillis, "");
+    }
+
+    private static DocumentInputProperties properties(
+            String ocrCommand,
+            boolean binaryMimeValidationEnabled,
+            int pdfMaxPages,
+            long pdfMaxParseMillis,
+            String malwareScanCommand
+    ) {
+        return properties(
+                ocrCommand,
+                binaryMimeValidationEnabled,
+                pdfMaxPages,
+                pdfMaxParseMillis,
+                malwareScanCommand,
+                "LOCAL_COMMAND",
+                "",
+                "",
+                true
+        );
+    }
+
+    private static DocumentInputProperties properties(
+            String ocrCommand,
+            boolean binaryMimeValidationEnabled,
+            int pdfMaxPages,
+            long pdfMaxParseMillis,
+            String malwareScanCommand,
+            String ocrWorkerMode,
+            boolean ocrLocalCommandFallbackEnabled
+    ) {
+        return properties(
+                ocrCommand,
+                binaryMimeValidationEnabled,
+                pdfMaxPages,
+                pdfMaxParseMillis,
+                malwareScanCommand,
+                ocrWorkerMode,
+                "",
+                "",
+                ocrLocalCommandFallbackEnabled
+        );
+    }
+
+    private static DocumentInputProperties properties(
+            String ocrCommand,
+            boolean binaryMimeValidationEnabled,
+            int pdfMaxPages,
+            long pdfMaxParseMillis,
+            String malwareScanCommand,
+            String ocrWorkerMode,
+            String ocrWorkerUrl,
+            String ocrWorkerToken,
+            boolean ocrLocalCommandFallbackEnabled
+    ) {
+        return new DocumentInputProperties(
+                "service-token",
+                "default-secret",
+                300,
+                true,
+                true,
+                false,
+                "wp4-document-requirement-parse",
+                "INTERNAL",
+                false,
+                8000,
+                16777216,
+                10485760,
+                ocrCommand,
+                30,
+                20000,
+                2,
+                true,
+                262144,
+                100,
+                3,
+                false,
+                20,
+                60,
+                300,
+                Map.of(),
+                "",
+                Map.of(),
+                "",
+                0,
+                60,
+                binaryMimeValidationEnabled,
+                pdfMaxPages,
+                pdfMaxParseMillis,
+                ocrWorkerMode,
+                ocrWorkerUrl,
+                ocrWorkerToken,
+                ocrLocalCommandFallbackEnabled,
+                malwareScanCommand,
+                15,
+                2,
+                2000,
+                false,
+                90,
+                90
+        );
+    }
+}
