@@ -56,6 +56,12 @@ import {
   selectedTestDesignReviewCandidates,
   testDesignPublishTargets
 } from '../testDesignSelection';
+import {
+  buildTestDesignBatchReviewConfirmation,
+  buildTestDesignPublishConfirmation,
+  testDesignBatchActionLabel,
+  type TestDesignConfirmationSummary
+} from '../testDesignConfirmation';
 
 type WorkState = {
   loading: boolean;
@@ -100,6 +106,10 @@ type CandidateDraft = {
   expectedResult: string;
   tags: string;
 };
+
+type PendingConfirmation =
+  | { kind: 'batchReview'; action: TestDesignCandidateBatchActionType; summary: TestDesignConfirmationSummary }
+  | { kind: 'publish'; dryRun: boolean; summary: TestDesignConfirmationSummary };
 
 const initialFilters: RequirementFilters = {
   projectId: '',
@@ -150,6 +160,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
   const [publishResult, setPublishResult] = useState<TestDesignPublishResult | null>(null);
   const [batchActionResult, setBatchActionResult] = useState<TestDesignCandidateBatchActionResult | null>(null);
   const [selectedCandidateIds, setSelectedCandidateIds] = useState<string[]>([]);
+  const [pendingConfirmation, setPendingConfirmation] = useState<PendingConfirmation | null>(null);
   const [loadState, setLoadState] = useState<WorkState>({ loading: false });
   const [taskState, setTaskState] = useState<WorkState>({ loading: false });
   const [mutationState, setMutationState] = useState<WorkState>({ loading: false });
@@ -217,6 +228,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       setCandidateDraft(null);
       setCandidatePageIndex(0);
       setBatchActionResult(null);
+      setPendingConfirmation(null);
       setTaskState({ loading: false });
       return;
     }
@@ -229,6 +241,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
     setCandidateDraft(null);
     setPublishResult(null);
     setBatchActionResult(null);
+    setPendingConfirmation(null);
     try {
       const response = await fetchTestDesignTask(taskId);
       const detail = response.data;
@@ -262,6 +275,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       setSelectedCandidateIds([]);
       setCandidatePageIndex(0);
       setBatchActionResult(null);
+      setPendingConfirmation(null);
       setLoadState({ loading: false });
       setTaskState({ loading: false });
       return;
@@ -433,6 +447,8 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       setSelectedCandidateId(response.data.candidates[0]?.id ?? '');
       setSelectedCandidateIds([]);
       setPublishResult(null);
+      setBatchActionResult(null);
+      setPendingConfirmation(null);
       setMutationState({ loading: false, success: '候选用例已生成', traceId: response.trace_id });
     } catch (error: unknown) {
       setMutationState({ loading: false, error: testDesignErrorMessage(error, '候选用例生成失败') });
@@ -497,7 +513,28 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
     }
   }
 
-  async function batchReviewCandidates(action: TestDesignCandidateBatchActionType) {
+  function requestBatchReviewCandidates(action: TestDesignCandidateBatchActionType) {
+    if (!canReview) {
+      setMutationState({ loading: false, error: '缺少 testDesign:review 权限' });
+      return;
+    }
+    if (!selectedReviewCandidates.length) {
+      setMutationState({ loading: false, error: '请先选择可评审候选' });
+      return;
+    }
+    if ((action === 'REJECT' || action === 'IGNORE') && !reviewComment.trim()) {
+      setMutationState({ loading: false, error: '批量驳回或忽略需要填写评审意见' });
+      return;
+    }
+
+    setPendingConfirmation({
+      kind: 'batchReview',
+      action,
+      summary: buildTestDesignBatchReviewConfirmation(action, selectedReviewCandidates, reviewComment)
+    });
+  }
+
+  async function executeBatchReviewCandidates(action: TestDesignCandidateBatchActionType) {
     if (!canReview) {
       setMutationState({ loading: false, error: '缺少 testDesign:review 权限' });
       return;
@@ -527,15 +564,40 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       setBatchActionResult(response.data);
       setMutationState({
         loading: false,
-        success: `批量${batchActionLabel(action)}完成：成功 ${response.data.succeededCount}，失败 ${response.data.failedCount}`,
+        success: `批量${testDesignBatchActionLabel(action)}完成：成功 ${response.data.succeededCount}，失败 ${response.data.failedCount}`,
         traceId: response.trace_id
       });
     } catch (error: unknown) {
-      setMutationState({ loading: false, error: testDesignErrorMessage(error, `批量${batchActionLabel(action)}失败`) });
+      setMutationState({ loading: false, error: testDesignErrorMessage(error, `批量${testDesignBatchActionLabel(action)}失败`) });
     }
   }
 
-  async function publishTask(dryRun: boolean) {
+  function requestPublishTask(dryRun: boolean) {
+    if (!selectedTaskId) {
+      return;
+    }
+    if (!canPublish) {
+      setPublishState({ loading: false, error: '缺少 testDesign:publish 权限' });
+      return;
+    }
+    if (!publishTargetCandidates.length) {
+      setPublishState({ loading: false, error: '当前没有可发布候选' });
+      return;
+    }
+
+    setPendingConfirmation({
+      kind: 'publish',
+      dryRun,
+      summary: buildTestDesignPublishConfirmation(
+        dryRun,
+        publishTargetCandidates,
+        publishableCandidates.length,
+        selectedCandidateIds.length
+      )
+    });
+  }
+
+  async function executePublishTask(dryRun: boolean) {
     if (!selectedTaskId) {
       return;
     }
@@ -564,13 +626,34 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
     }
   }
 
+  async function confirmPendingAction() {
+    const confirmation = pendingConfirmation;
+    if (!confirmation) {
+      return;
+    }
+    setPendingConfirmation(null);
+    if (confirmation.kind === 'batchReview') {
+      await executeBatchReviewCandidates(confirmation.action);
+      return;
+    }
+    await executePublishTask(confirmation.dryRun);
+  }
+
   function updateCandidateInState(nextCandidate: TestDesignCandidateView) {
     setCandidates((current) => current.map((candidate) => (candidate.id === nextCandidate.id ? nextCandidate : candidate)));
     setSelectedCandidateId(nextCandidate.id);
   }
 
   return (
-    <div className="module-layout">
+    <>
+      {pendingConfirmation && (
+        <ConfirmationDialog
+          summary={pendingConfirmation.summary}
+          onCancel={() => setPendingConfirmation(null)}
+          onConfirm={() => void confirmPendingAction()}
+        />
+      )}
+      <div className="module-layout">
       <div className="main-stack">
         <div className="metrics-grid">
           <Metric icon={<Sparkles size={20} />} label="服务状态" value={health?.status ?? '-'} desc={health?.generationMode ?? '未加载'} />
@@ -749,13 +832,13 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
               <div className="test-design-batch-toolbar">
                 <span>批量评审 {selectedReviewCandidates.length} 个候选</span>
                 <div className="toolbar-actions">
-                  <button className="btn btn-secondary btn-sm" type="button" disabled={!canReview || mutationState.loading} onClick={() => void batchReviewCandidates('CONFIRM')}>
+                  <button className="btn btn-secondary btn-sm" type="button" disabled={!canReview || mutationState.loading} onClick={() => requestBatchReviewCandidates('CONFIRM')}>
                     批量确认
                   </button>
-                  <button className="btn btn-secondary btn-sm" type="button" disabled={!canReview || mutationState.loading || !reviewComment.trim()} onClick={() => void batchReviewCandidates('REJECT')}>
+                  <button className="btn btn-secondary btn-sm" type="button" disabled={!canReview || mutationState.loading || !reviewComment.trim()} onClick={() => requestBatchReviewCandidates('REJECT')}>
                     批量驳回
                   </button>
-                  <button className="btn btn-ghost btn-sm" type="button" disabled={!canReview || mutationState.loading || !reviewComment.trim()} onClick={() => void batchReviewCandidates('IGNORE')}>
+                  <button className="btn btn-ghost btn-sm" type="button" disabled={!canReview || mutationState.loading || !reviewComment.trim()} onClick={() => requestBatchReviewCandidates('IGNORE')}>
                     批量忽略
                   </button>
                 </div>
@@ -1013,11 +1096,11 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
             ) : (
               <div className="notice info">当前将覆盖全部可发布候选。</div>
             )}
-            <button className="btn btn-secondary" type="button" disabled={!canPublish || taskState.loading || publishState.loading || !selectedTaskId || !publishTargetCandidates.length} onClick={() => void publishTask(true)}>
+            <button className="btn btn-secondary" type="button" disabled={!canPublish || taskState.loading || publishState.loading || !selectedTaskId || !publishTargetCandidates.length} onClick={() => requestPublishTask(true)}>
               <Eye size={16} />
               预发布
             </button>
-            <button className="btn btn-primary" type="button" disabled={!canPublish || taskState.loading || publishState.loading || !selectedTaskId || !publishTargetCandidates.length} onClick={() => void publishTask(false)}>
+            <button className="btn btn-primary" type="button" disabled={!canPublish || taskState.loading || publishState.loading || !selectedTaskId || !publishTargetCandidates.length} onClick={() => requestPublishTask(false)}>
               <Send size={16} />
               发布到资产库
             </button>
@@ -1070,7 +1153,8 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
           </div>
         </section>
       </aside>
-    </div>
+      </div>
+    </>
   );
 }
 
@@ -1145,7 +1229,7 @@ function BatchActionSummary(props: { result: TestDesignCandidateBatchActionResul
   const failedItems = props.result.items.filter((item) => item.result !== 'SUCCEEDED');
   return (
     <div className={failedItems.length ? 'notice warning test-design-batch-summary' : 'notice success test-design-batch-summary'}>
-      <strong>{batchActionLabel(props.result.action)}结果</strong>
+      <strong>{testDesignBatchActionLabel(props.result.action)}结果</strong>
       <span>成功 {props.result.succeededCount} / {props.result.total}，失败 {props.result.failedCount}</span>
       {failedItems.length > 0 && (
         <div className="test-design-batch-failures">
@@ -1156,6 +1240,61 @@ function BatchActionSummary(props: { result: TestDesignCandidateBatchActionResul
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+function ConfirmationDialog(props: {
+  summary: TestDesignConfirmationSummary;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <div className="modal-backdrop" onClick={props.onCancel}>
+      <div
+        aria-labelledby="test-design-confirmation-title"
+        aria-modal="true"
+        className="modal-panel test-design-confirmation-modal"
+        role="dialog"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="modal-heading">
+          <div>
+            <h2 id="test-design-confirmation-title">{props.summary.title}</h2>
+            <p className="panel-desc">请确认范围和影响后再继续。</p>
+          </div>
+        </div>
+        <div className="modal-body">
+          <div className="detail-grid">
+            {props.summary.details.map((detail) => (
+              <Detail key={detail.label} label={detail.label} value={detail.value} />
+            ))}
+          </div>
+          <div className={props.summary.tone === 'warning' ? 'notice warning' : 'notice info'}>
+            {props.summary.warnings.map((warning) => (
+              <span key={warning}>{warning}</span>
+            ))}
+          </div>
+          {props.summary.candidateTitles.length > 0 && (
+            <div className="test-design-confirmation-candidates">
+              <strong>候选预览</strong>
+              <ul>
+                {props.summary.candidateTitles.map((title, index) => (
+                  <li key={`${title}-${index}`}>{title}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+        <div className="modal-footer">
+          <button className="btn btn-secondary btn-sm" type="button" onClick={props.onCancel}>
+            取消
+          </button>
+          <button className="btn btn-primary btn-sm" type="button" onClick={props.onConfirm}>
+            {props.summary.confirmLabel}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -1327,19 +1466,6 @@ function reviewSuccessText(action: 'confirm' | 'reject' | 'ignore') {
     return '候选用例已驳回';
   }
   return '候选用例已忽略';
-}
-
-function batchActionLabel(action: string) {
-  if (action === 'CONFIRM') {
-    return '确认';
-  }
-  if (action === 'REJECT') {
-    return '驳回';
-  }
-  if (action === 'IGNORE') {
-    return '忽略';
-  }
-  return action;
 }
 
 function emptyRequirementText(signedIn: boolean, canRead: boolean, loading: boolean) {

@@ -1496,6 +1496,38 @@ tbody tr:hover td {
   font-weight: 600;
 }
 
+.test-design-confirmation-modal {
+  width: min(520px, 100%);
+}
+
+.test-design-confirmation-modal .detail-value {
+  overflow-wrap: anywhere;
+}
+
+.test-design-confirmation-candidates {
+  display: grid;
+  gap: 6px;
+}
+
+.test-design-confirmation-candidates strong {
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+}
+
+.test-design-confirmation-candidates ul {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding-left: 18px;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: 1.5;
+}
+
+.test-design-confirmation-candidates li {
+  overflow-wrap: anywhere;
+}
+
 .test-design-scope {
   display: flex;
   flex-wrap: wrap;
