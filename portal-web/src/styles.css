@@ -1461,6 +1461,41 @@ tbody tr:hover td {
   overflow-wrap: anywhere;
 }
 
+.test-design-batch-summary {
+  display: grid;
+  gap: 6px;
+}
+
+.test-design-batch-summary strong {
+  color: var(--text-primary);
+}
+
+.test-design-batch-failures {
+  display: grid;
+  gap: 4px;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  overflow-wrap: anywhere;
+}
+
+.test-design-batch-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  padding: var(--space-sm);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-hover);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.test-design-batch-toolbar > span {
+  font-weight: 600;
+}
+
 .test-design-scope {
   display: flex;
   flex-wrap: wrap;

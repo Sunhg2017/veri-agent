@@ -147,6 +147,32 @@ export interface TestDesignCandidateActionPayload {
   comment?: string;
 }
 
+export type TestDesignCandidateBatchActionType = 'CONFIRM' | 'REJECT' | 'IGNORE';
+
+export interface TestDesignCandidateBatchActionPayload {
+  action: TestDesignCandidateBatchActionType;
+  candidates?: Array<{ id: string; version?: number }>;
+  candidateIds?: string[];
+  reason?: string;
+  comment?: string;
+}
+
+export interface TestDesignCandidateBatchActionItem {
+  candidateId: string;
+  result: string;
+  candidate?: TestDesignCandidateView;
+  errorCode?: string;
+  errorMessage?: string;
+}
+
+export interface TestDesignCandidateBatchActionResult {
+  action: string;
+  total: number;
+  succeededCount: number;
+  failedCount: number;
+  items: TestDesignCandidateBatchActionItem[];
+}
+
 export interface TestDesignPublishPayload {
   candidateIds?: string[];
   dryRun?: boolean;
@@ -368,6 +394,28 @@ export function normalizeTestDesignPublishRecord(raw: unknown): TestDesignPublis
   };
 }
 
+export function normalizeTestDesignCandidateBatchActionItem(raw: unknown): TestDesignCandidateBatchActionItem {
+  const item = isRecord(raw) ? raw : {};
+  return {
+    candidateId: stringValue(item.candidateId ?? item.candidate_id),
+    result: stringValue(item.result, 'UNKNOWN'),
+    candidate: item.candidate ? normalizeTestDesignCandidate(item.candidate) : undefined,
+    errorCode: optionalString(item.errorCode) ?? optionalString(item.error_code),
+    errorMessage: optionalString(item.errorMessage) ?? optionalString(item.error_message)
+  };
+}
+
+export function normalizeTestDesignCandidateBatchActionResult(raw: unknown): TestDesignCandidateBatchActionResult {
+  const item = isRecord(raw) ? raw : {};
+  return {
+    action: stringValue(item.action, 'UNKNOWN'),
+    total: numberValue(item.total, 0),
+    succeededCount: numberValue(item.succeededCount ?? item.succeeded_count, 0),
+    failedCount: numberValue(item.failedCount ?? item.failed_count, 0),
+    items: listItems(item.items).map(normalizeTestDesignCandidateBatchActionItem)
+  };
+}
+
 export function normalizeTestDesignTaskDetail(raw: unknown): TestDesignTaskDetail {
   const item = isRecord(raw) ? raw : {};
   return {
@@ -492,6 +540,16 @@ export async function ignoreTestDesignCandidate(
     body: JSON.stringify(compactPayload(payload))
   });
   return { ...response, data: normalizeTestDesignCandidate(response.data) };
+}
+
+export async function batchActionTestDesignCandidates(
+  payload: TestDesignCandidateBatchActionPayload
+): Promise<ApiResponse<TestDesignCandidateBatchActionResult>> {
+  const response = await requestJson<unknown>('/api/v1/test-design/candidates/batch-action', {
+    method: 'POST',
+    body: JSON.stringify(compactPayload(payload))
+  });
+  return { ...response, data: normalizeTestDesignCandidateBatchActionResult(response.data) };
 }
 
 export async function publishTestDesignDryRun(

@@ -19,6 +19,7 @@ import { fetchAssetRequirements, type AssetRequirementView } from '../api/assets
 import {
   TEST_DESIGN_CANDIDATE_STATUSES,
   TEST_DESIGN_COVERAGE_TYPES,
+  batchActionTestDesignCandidates,
   confirmTestDesignCandidate,
   createTestDesignTask,
   fetchTestDesignHealth,
@@ -30,6 +31,8 @@ import {
   rejectTestDesignCandidate,
   testDesignErrorMessage,
   updateTestDesignCandidate,
+  type TestDesignCandidateBatchActionResult,
+  type TestDesignCandidateBatchActionType,
   type TestDesignCandidateView,
   type TestDesignHealth,
   type TestDesignPublishRecordView,
@@ -46,6 +49,13 @@ import {
   TEST_DESIGN_CANDIDATE_PAGE_SIZES,
   paginateItems
 } from '../testDesignPagination';
+import {
+  canPublishTestDesignCandidate,
+  canSelectTestDesignCandidate,
+  selectedTestDesignPublishCandidates,
+  selectedTestDesignReviewCandidates,
+  testDesignPublishTargets
+} from '../testDesignSelection';
 
 type WorkState = {
   loading: boolean;
@@ -138,7 +148,8 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
   const [generationDraft, setGenerationDraft] = useState<GenerationDraft>(initialGenerationDraft);
   const [reviewComment, setReviewComment] = useState('');
   const [publishResult, setPublishResult] = useState<TestDesignPublishResult | null>(null);
-  const [selectedPublishCandidateIds, setSelectedPublishCandidateIds] = useState<string[]>([]);
+  const [batchActionResult, setBatchActionResult] = useState<TestDesignCandidateBatchActionResult | null>(null);
+  const [selectedCandidateIds, setSelectedCandidateIds] = useState<string[]>([]);
   const [loadState, setLoadState] = useState<WorkState>({ loading: false });
   const [taskState, setTaskState] = useState<WorkState>({ loading: false });
   const [mutationState, setMutationState] = useState<WorkState>({ loading: false });
@@ -153,19 +164,30 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
     () => paginateItems(visibleCandidates, candidatePageIndex, candidatePageSize),
     [candidatePageIndex, candidatePageSize, visibleCandidates]
   );
-  const currentPagePublishableCandidates = useMemo(
-    () => candidatePage.items.filter(canPublishCandidate),
+  const currentPageSelectableCandidates = useMemo(
+    () => candidatePage.items.filter(canSelectTestDesignCandidate),
     [candidatePage.items]
   );
   const publishableCandidates = useMemo(
-    () => candidates.filter(canPublishCandidate),
+    () => candidates.filter(canPublishTestDesignCandidate),
     [candidates]
   );
-  const selectedPublishableCandidates = useMemo(
-    () => publishableCandidates.filter((candidate) => selectedPublishCandidateIds.includes(candidate.id)),
-    [publishableCandidates, selectedPublishCandidateIds]
+  const selectedCandidates = useMemo(
+    () => candidates.filter((candidate) => selectedCandidateIds.includes(candidate.id)),
+    [candidates, selectedCandidateIds]
   );
-  const publishTargetCandidates = selectedPublishableCandidates.length ? selectedPublishableCandidates : publishableCandidates;
+  const selectedPublishableCandidates = useMemo(
+    () => selectedTestDesignPublishCandidates(candidates, selectedCandidateIds),
+    [candidates, selectedCandidateIds]
+  );
+  const selectedReviewCandidates = useMemo(
+    () => selectedTestDesignReviewCandidates(candidates, selectedCandidateIds),
+    [candidates, selectedCandidateIds]
+  );
+  const publishTargetCandidates = useMemo(
+    () => testDesignPublishTargets(candidates, selectedCandidateIds),
+    [candidates, selectedCandidateIds]
+  );
   const statusCounts = useMemo(() => countByStatus(candidates), [candidates]);
   const publishIssueRecords = useMemo(
     () => publishResult?.records.filter(isPublishIssueRecord) ?? [],
@@ -191,8 +213,10 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
     if (!props.signedIn || !canRead || !taskId) {
       setCandidates([]);
       setSelectedCandidateId('');
+      setSelectedCandidateIds([]);
       setCandidateDraft(null);
       setCandidatePageIndex(0);
+      setBatchActionResult(null);
       setTaskState({ loading: false });
       return;
     }
@@ -200,16 +224,17 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
     setTaskState({ loading: true });
     setCandidates([]);
     setSelectedCandidateId('');
-    setSelectedPublishCandidateIds([]);
+    setSelectedCandidateIds([]);
     setCandidatePageIndex(0);
     setCandidateDraft(null);
     setPublishResult(null);
+    setBatchActionResult(null);
     try {
       const response = await fetchTestDesignTask(taskId);
       const detail = response.data;
       setTasks((current) => upsertTask(current, detail.task));
       setCandidates(detail.candidates);
-      setSelectedPublishCandidateIds((current) => current.filter((id) => detail.candidates.some((candidate) => candidate.id === id && canPublishCandidate(candidate))));
+      setSelectedCandidateIds((current) => current.filter((id) => detail.candidates.some((candidate) => candidate.id === id && canSelectTestDesignCandidate(candidate))));
       setSelectedCandidateId((current) => {
         if (current && detail.candidates.some((candidate) => candidate.id === current)) {
           return current;
@@ -234,8 +259,9 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       setSelectedRequirementIds([]);
       setSelectedTaskId('');
       setSelectedCandidateId('');
-      setSelectedPublishCandidateIds([]);
+      setSelectedCandidateIds([]);
       setCandidatePageIndex(0);
+      setBatchActionResult(null);
       setLoadState({ loading: false });
       setTaskState({ loading: false });
       return;
@@ -352,8 +378,8 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
     });
   }
 
-  function togglePublishCandidate(candidateId: string) {
-    setSelectedPublishCandidateIds((current) => {
+  function toggleCandidateSelection(candidateId: string) {
+    setSelectedCandidateIds((current) => {
       if (current.includes(candidateId)) {
         return current.filter((item) => item !== candidateId);
       }
@@ -361,10 +387,10 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
     });
   }
 
-  function selectCurrentPagePublishableCandidates() {
-    setSelectedPublishCandidateIds((current) => {
+  function selectCurrentPageCandidates() {
+    setSelectedCandidateIds((current) => {
       const next = new Set(current);
-      currentPagePublishableCandidates.forEach((candidate) => next.add(candidate.id));
+      currentPageSelectableCandidates.forEach((candidate) => next.add(candidate.id));
       return Array.from(next);
     });
   }
@@ -405,7 +431,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       setCandidates(response.data.candidates);
       setSelectedTaskId(response.data.task.id);
       setSelectedCandidateId(response.data.candidates[0]?.id ?? '');
-      setSelectedPublishCandidateIds([]);
+      setSelectedCandidateIds([]);
       setPublishResult(null);
       setMutationState({ loading: false, success: '候选用例已生成', traceId: response.trace_id });
     } catch (error: unknown) {
@@ -468,6 +494,44 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       setMutationState({ loading: false, success: reviewSuccessText(action), traceId: response.trace_id });
     } catch (error: unknown) {
       setMutationState({ loading: false, error: testDesignErrorMessage(error, '候选用例状态更新失败') });
+    }
+  }
+
+  async function batchReviewCandidates(action: TestDesignCandidateBatchActionType) {
+    if (!canReview) {
+      setMutationState({ loading: false, error: '缺少 testDesign:review 权限' });
+      return;
+    }
+    if (!selectedReviewCandidates.length) {
+      setMutationState({ loading: false, error: '请先选择可评审候选' });
+      return;
+    }
+    if ((action === 'REJECT' || action === 'IGNORE') && !reviewComment.trim()) {
+      setMutationState({ loading: false, error: '批量驳回或忽略需要填写评审意见' });
+      return;
+    }
+
+    setMutationState({ loading: true });
+    try {
+      const response = await batchActionTestDesignCandidates({
+        action,
+        candidates: selectedReviewCandidates.map((candidate) => ({ id: candidate.id, version: candidate.version })),
+        reason: action === 'REJECT' || action === 'IGNORE' ? reviewComment : undefined,
+        comment: reviewComment
+      });
+      const nextCandidates = mergeBatchCandidates(candidates, response.data);
+      const failedIds = new Set(response.data.items.filter((item) => item.result !== 'SUCCEEDED').map((item) => item.candidateId));
+      setCandidates(nextCandidates);
+      setTasks((current) => current.map((task) => (task.id === selectedTaskId ? withTaskCandidateCounts(task, nextCandidates) : task)));
+      setSelectedCandidateIds((current) => current.filter((id) => failedIds.has(id)));
+      setBatchActionResult(response.data);
+      setMutationState({
+        loading: false,
+        success: `批量${batchActionLabel(action)}完成：成功 ${response.data.succeededCount}，失败 ${response.data.failedCount}`,
+        traceId: response.trace_id
+      });
+    } catch (error: unknown) {
+      setMutationState({ loading: false, error: testDesignErrorMessage(error, `批量${batchActionLabel(action)}失败`) });
     }
   }
 
@@ -635,11 +699,11 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
                   <Search size={15} />
                   重置
                 </button>
-                <button className="btn btn-ghost btn-sm" type="button" disabled={!currentPagePublishableCandidates.length} onClick={selectCurrentPagePublishableCandidates}>
+                <button className="btn btn-ghost btn-sm" type="button" disabled={!currentPageSelectableCandidates.length} onClick={selectCurrentPageCandidates}>
                   选中本页
                 </button>
-                <button className="btn btn-ghost btn-sm" type="button" disabled={!selectedPublishCandidateIds.length} onClick={() => setSelectedPublishCandidateIds([])}>
-                  清空发布
+                <button className="btn btn-ghost btn-sm" type="button" disabled={!selectedCandidateIds.length} onClick={() => setSelectedCandidateIds([])}>
+                  清空选择
                 </button>
               </div>
             </div>
@@ -647,7 +711,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
               <div className="test-design-pagination" aria-label="候选分页">
                 <span>
                   {candidatePage.start}-{candidatePage.end} / {candidatePage.total}
-                  {selectedPublishableCandidates.length ? ` · 已选 ${selectedPublishableCandidates.length}` : ''}
+                  {selectedCandidates.length ? ` · 已选 ${selectedCandidates.length}` : ''}
                 </span>
                 <label>
                   <span>每页</span>
@@ -680,6 +744,23 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
                 </div>
               </div>
             )}
+            {batchActionResult && <BatchActionSummary result={batchActionResult} />}
+            {selectedReviewCandidates.length > 0 && (
+              <div className="test-design-batch-toolbar">
+                <span>批量评审 {selectedReviewCandidates.length} 个候选</span>
+                <div className="toolbar-actions">
+                  <button className="btn btn-secondary btn-sm" type="button" disabled={!canReview || mutationState.loading} onClick={() => void batchReviewCandidates('CONFIRM')}>
+                    批量确认
+                  </button>
+                  <button className="btn btn-secondary btn-sm" type="button" disabled={!canReview || mutationState.loading || !reviewComment.trim()} onClick={() => void batchReviewCandidates('REJECT')}>
+                    批量驳回
+                  </button>
+                  <button className="btn btn-ghost btn-sm" type="button" disabled={!canReview || mutationState.loading || !reviewComment.trim()} onClick={() => void batchReviewCandidates('IGNORE')}>
+                    批量忽略
+                  </button>
+                </div>
+              </div>
+            )}
             <div className="table-wrap">
               <table>
                 <thead>
@@ -698,11 +779,11 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
                       <tr className={candidate.id === selectedCandidateId ? 'selected-row' : ''} key={candidate.id}>
                         <td>
                           <input
-                            aria-label={`选择发布候选 ${candidate.title}`}
+                            aria-label={`选择候选 ${candidate.title}`}
                             type="checkbox"
-                            checked={selectedPublishCandidateIds.includes(candidate.id)}
-                            onChange={() => togglePublishCandidate(candidate.id)}
-                            disabled={!canPublishCandidate(candidate)}
+                            checked={selectedCandidateIds.includes(candidate.id)}
+                            onChange={() => toggleCandidateSelection(candidate.id)}
+                            disabled={!canSelectTestDesignCandidate(candidate)}
                           />
                         </td>
                         <td>
@@ -927,8 +1008,8 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
             </div>
           </div>
           <div className="panel-body compact main-stack">
-            {selectedPublishableCandidates.length > 0 ? (
-              <div className="notice info">已按勾选候选发布；未勾选时默认覆盖全部可发布候选。</div>
+            {selectedCandidateIds.length > 0 ? (
+              <div className="notice info">已按勾选候选中的可发布项发布：{selectedPublishableCandidates.length} / {selectedCandidateIds.length}。</div>
             ) : (
               <div className="notice info">当前将覆盖全部可发布候选。</div>
             )}
@@ -1060,6 +1141,25 @@ function PublishResultBadge(props: { value: string }) {
   return <span className={className}>{value}</span>;
 }
 
+function BatchActionSummary(props: { result: TestDesignCandidateBatchActionResult }) {
+  const failedItems = props.result.items.filter((item) => item.result !== 'SUCCEEDED');
+  return (
+    <div className={failedItems.length ? 'notice warning test-design-batch-summary' : 'notice success test-design-batch-summary'}>
+      <strong>{batchActionLabel(props.result.action)}结果</strong>
+      <span>成功 {props.result.succeededCount} / {props.result.total}，失败 {props.result.failedCount}</span>
+      {failedItems.length > 0 && (
+        <div className="test-design-batch-failures">
+          {failedItems.slice(0, 4).map((item) => (
+            <span key={`${item.candidateId}-${item.errorCode ?? ''}`}>
+              {item.candidateId}：{item.errorMessage ?? item.errorCode ?? item.result}
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function StateLine(props: { state: WorkState }) {
   if (props.state.loading) {
     return <span className="document-state-line">处理中</span>;
@@ -1136,10 +1236,6 @@ function filterCandidates(candidates: TestDesignCandidateView[], filters: Candid
   });
 }
 
-function canPublishCandidate(candidate: TestDesignCandidateView) {
-  return candidate.status === 'CONFIRMED' || candidate.status === 'FAILED';
-}
-
 function isPublishIssueRecord(record: TestDesignPublishRecordView) {
   return ['CONFLICT', 'FAILED', 'DUPLICATE_REVIEW_REQUIRED'].includes(record.result) || Boolean(record.errorMessage);
 }
@@ -1161,6 +1257,31 @@ function upsertTask(current: TestDesignTaskView[], task: TestDesignTaskView) {
     return [task, ...current];
   }
   return current.map((item) => (item.id === task.id ? task : item));
+}
+
+function mergeBatchCandidates(current: TestDesignCandidateView[], result: TestDesignCandidateBatchActionResult) {
+  const candidateById = new Map(
+    result.items
+      .map((item) => item.candidate)
+      .filter((candidate): candidate is TestDesignCandidateView => Boolean(candidate))
+      .map((candidate) => [candidate.id, candidate])
+  );
+  return current.map((candidate) => candidateById.get(candidate.id) ?? candidate);
+}
+
+function withTaskCandidateCounts(task: TestDesignTaskView, nextCandidates: TestDesignCandidateView[]): TestDesignTaskView {
+  const taskCandidates = nextCandidates.filter((candidate) => !candidate.taskId || candidate.taskId === task.id);
+  if (taskCandidates.length !== nextCandidates.length) {
+    return task;
+  }
+  const confirmedCount = taskCandidates.filter((candidate) => candidate.status === 'CONFIRMED').length;
+  const publishedCount = taskCandidates.filter((candidate) => candidate.status === 'PUBLISHED').length;
+  return {
+    ...task,
+    generatedCount: taskCandidates.length,
+    confirmedCount,
+    publishedCount
+  };
 }
 
 function draftFromCandidate(candidate: TestDesignCandidateView): CandidateDraft {
@@ -1206,6 +1327,19 @@ function reviewSuccessText(action: 'confirm' | 'reject' | 'ignore') {
     return '候选用例已驳回';
   }
   return '候选用例已忽略';
+}
+
+function batchActionLabel(action: string) {
+  if (action === 'CONFIRM') {
+    return '确认';
+  }
+  if (action === 'REJECT') {
+    return '驳回';
+  }
+  if (action === 'IGNORE') {
+    return '忽略';
+  }
+  return action;
 }
 
 function emptyRequirementText(signedIn: boolean, canRead: boolean, loading: boolean) {

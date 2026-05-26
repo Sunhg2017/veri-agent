@@ -3,6 +3,7 @@ import { requestJson } from './client';
 import {
   TEST_DESIGN_CANDIDATE_STATUSES,
   TEST_DESIGN_COVERAGE_TYPES,
+  batchActionTestDesignCandidates,
   confirmTestDesignCandidate,
   createTestDesignTask,
   fetchTaskTestDesignCandidates,
@@ -11,6 +12,7 @@ import {
   fetchTestDesignTask,
   fetchTestDesignTasks,
   normalizeTestDesignCandidate,
+  normalizeTestDesignCandidateBatchActionResult,
   normalizeTestDesignCandidateList,
   normalizeTestDesignHealth,
   normalizeTestDesignPublishResult,
@@ -248,6 +250,43 @@ describe('WP5 test design API helpers', () => {
     });
 
     expect(normalizeTestDesignPublishResult({ records: [{ result: 'READY' }] }).records[0].result).toBe('READY');
+  });
+
+  it('calls batch review endpoint and normalizes partial results', async () => {
+    requestJsonMock.mockResolvedValue({
+      code: 'OK',
+      message: 'ok',
+      trace_id: 'trace-batch',
+      data: {
+        action: 'CONFIRM',
+        total: '2',
+        succeeded_count: '1',
+        failed_count: '1',
+        items: [
+          { candidate_id: 'cand-1', result: 'SUCCEEDED', candidate: { id: 'cand-1', status: 'CONFIRMED', version: '2' } },
+          { candidate_id: 'cand-2', result: 'FAILED', error_code: 'VERSION_CONFLICT', error_message: '候选版本已变更' }
+        ]
+      }
+    });
+
+    const response = await batchActionTestDesignCandidates({
+      action: 'CONFIRM',
+      candidates: [{ id: 'cand-1', version: 1 }, { id: 'cand-2', version: 1 }],
+      comment: '批量确认'
+    });
+
+    expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/test-design/candidates/batch-action', {
+      method: 'POST',
+      body: JSON.stringify({
+        action: 'CONFIRM',
+        candidates: [{ id: 'cand-1', version: 1 }, { id: 'cand-2', version: 1 }],
+        comment: '批量确认'
+      })
+    });
+    expect(response.data).toMatchObject({ action: 'CONFIRM', total: 2, succeededCount: 1, failedCount: 1 });
+    expect(response.data.items[0].candidate?.status).toBe('CONFIRMED');
+    expect(response.data.items[1]).toMatchObject({ candidateId: 'cand-2', result: 'FAILED', errorCode: 'VERSION_CONFLICT' });
+    expect(normalizeTestDesignCandidateBatchActionResult({ items: [{ candidate_id: 'cand-3', result: 'FAILED' }] }).items[0].candidateId).toBe('cand-3');
   });
 
   it('loads health endpoint without auth-specific payload assumptions', async () => {
