@@ -1,4 +1,4 @@
-package com.songhg.veri.agent.security.config;
+package com.songhg.veri.agent.common.security;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;

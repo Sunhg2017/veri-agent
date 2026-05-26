@@ -1,4 +1,4 @@
-package com.songhg.veri.agent.security.config;
+package com.songhg.veri.agent.common.security;
 
 import com.songhg.veri.agent.auth.application.AuthProperties;
 import com.songhg.veri.agent.auth.config.BearerTokenAuthenticationFilter;
