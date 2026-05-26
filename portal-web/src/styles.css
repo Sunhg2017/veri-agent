@@ -1403,6 +1403,15 @@ tbody tr:hover td {
   min-height: auto;
 }
 
+.test-design-candidate-filter {
+  grid-template-columns: repeat(3, minmax(150px, 1fr)) auto;
+}
+
+.test-design-side-filter {
+  grid-template-columns: 1fr;
+  margin-bottom: var(--space-sm);
+}
+
 .test-design-scope {
   display: flex;
   flex-wrap: wrap;
@@ -1442,6 +1451,27 @@ tbody tr:hover td {
   font-size: var(--font-size-xs);
   font-style: normal;
   line-height: 1.45;
+}
+
+.test-design-asset-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  width: fit-content;
+  max-width: 100%;
+  color: var(--primary);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+
+.test-design-asset-link:hover {
+  text-decoration: underline;
+}
+
+.test-design-publish-issues span {
+  overflow-wrap: anywhere;
 }
 
 /* ============================================================
@@ -1504,6 +1534,7 @@ tbody tr:hover td {
   .document-layout { grid-template-columns: 1fr; }
   .model-summary-grid { grid-template-columns: repeat(3, 1fr); }
   .model-provider-grid { grid-template-columns: repeat(2, 1fr); }
+  .test-design-candidate-filter { grid-template-columns: repeat(2, minmax(150px, 1fr)); }
 }
 
 @media (max-width: 900px) {
@@ -1562,7 +1593,8 @@ tbody tr:hover td {
   .form-grid,
   .asset-form-grid,
   .document-form-grid,
-  .filter-bar { grid-template-columns: 1fr; }
+  .filter-bar,
+  .test-design-candidate-filter { grid-template-columns: 1fr; }
 
   .topbar h1 { font-size: var(--font-size-lg); }
 
