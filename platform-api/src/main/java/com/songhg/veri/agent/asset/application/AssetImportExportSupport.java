@@ -23,10 +23,10 @@ import java.util.UUID;
 import org.springframework.util.StringUtils;
 
 /**
- * 导入导出公共格式支持。
+ * 导入导出公共格式支持
  *
  * <p>CSV/JSON/OpenAPI 解析、JSON 标准化、枚举/UUID 校验等跨资产类型逻辑集中在这里；
- * handler 不再复制格式细节，只保留资产本身的业务规则。
+ * handler 不再复制格式细节，只保留资产本身的业务规则
  */
 final class AssetImportExportSupport {
 

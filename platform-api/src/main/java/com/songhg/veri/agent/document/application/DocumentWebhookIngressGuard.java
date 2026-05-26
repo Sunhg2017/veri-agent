@@ -226,13 +226,13 @@ public class DocumentWebhookIngressGuard {
     }
 
     public record RateLimitDecision(
-            /** 是否允许当前请求继续处理。 */
+            /** 是否允许当前请求继续处理 */
             boolean allowed,
-            /** 命中的限流维度。 */
+            /** 命中的限流维度 */
             String dimension,
-            /** 当前限流窗口允许的最大请求数。 */
+            /** 当前限流窗口允许的最大请求数 */
             int limit,
-            /** 当前限流窗口秒数。 */
+            /** 当前限流窗口秒数 */
             long windowSeconds
     ) {
         static RateLimitDecision allowed(int limit, long windowSeconds) {

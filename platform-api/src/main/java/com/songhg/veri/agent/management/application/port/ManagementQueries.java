@@ -15,11 +15,11 @@ public final class ManagementQueries {
     }
 
     public record DepartmentQuery(
-            /** 部门名称或编码搜索关键字。 */
+            /** 部门名称或编码搜索关键字 */
             String search,
-            /** 部门状态过滤条件。 */
+            /** 部门状态过滤条件 */
             String status,
-            /** 分页参数。 */
+            /** 分页参数 */
             PageQuery page
     ) {
         public ManagementStoreParams toParams() {
@@ -35,15 +35,15 @@ public final class ManagementQueries {
     }
 
     public record UserQuery(
-            /** 用户名、展示名或邮箱搜索关键字。 */
+            /** 用户名、展示名或邮箱搜索关键字 */
             String search,
-            /** 角色编码过滤条件。 */
+            /** 角色编码过滤条件 */
             String roleCode,
-            /** 所属部门 ID 过滤条件。 */
+            /** 所属部门 ID 过滤条件 */
             String departmentId,
-            /** 用户状态过滤条件。 */
+            /** 用户状态过滤条件 */
             String status,
-            /** 分页参数。 */
+            /** 分页参数 */
             PageQuery page
     ) {
         public ManagementStoreParams toParams() {
@@ -61,13 +61,13 @@ public final class ManagementQueries {
     }
 
     public record RoleQuery(
-            /** 角色编码或名称搜索关键字。 */
+            /** 角色编码或名称搜索关键字 */
             String search,
-            /** 角色适用范围类型。 */
+            /** 角色适用范围类型 */
             String scopeType,
-            /** 角色状态过滤条件。 */
+            /** 角色状态过滤条件 */
             String status,
-            /** 分页参数。 */
+            /** 分页参数 */
             PageQuery page
     ) {
         public ManagementStoreParams toParams() {
@@ -84,17 +84,17 @@ public final class ManagementQueries {
     }
 
     public record ProjectQuery(
-            /** 项目名称或编码搜索关键字。 */
+            /** 项目名称或编码搜索关键字 */
             String search,
-            /** 所属部门 ID 过滤条件。 */
+            /** 所属部门 ID 过滤条件 */
             String departmentId,
-            /** 项目状态过滤条件。 */
+            /** 项目状态过滤条件 */
             String status,
-            /** 当前用户 ID，用于成员关系过滤。 */
+            /** 当前用户 ID，用于成员关系过滤 */
             String userId,
-            /** 当前用户可见的项目编码列表。 */
+            /** 当前用户可见的项目编码列表 */
             List<String> visibleProjectKeys,
-            /** 分页参数。 */
+            /** 分页参数 */
             PageQuery page
     ) {
         public ManagementStoreParams toParams() {
@@ -113,17 +113,17 @@ public final class ManagementQueries {
     }
 
     public record ApplicationQuery(
-            /** 应用名称或编码搜索关键字。 */
+            /** 应用名称或编码搜索关键字 */
             String search,
-            /** 所属项目编码过滤条件。 */
+            /** 所属项目编码过滤条件 */
             String projectKey,
-            /** 应用状态过滤条件。 */
+            /** 应用状态过滤条件 */
             String status,
-            /** 当前用户 ID，用于成员关系过滤。 */
+            /** 当前用户 ID，用于成员关系过滤 */
             String userId,
-            /** 当前用户可见的项目编码列表。 */
+            /** 当前用户可见的项目编码列表 */
             List<String> visibleProjectKeys,
-            /** 分页参数。 */
+            /** 分页参数 */
             PageQuery page
     ) {
         public ManagementStoreParams toParams() {
@@ -142,17 +142,17 @@ public final class ManagementQueries {
     }
 
     public record EnvironmentQuery(
-            /** 环境名称或编码搜索关键字。 */
+            /** 环境名称或编码搜索关键字 */
             String search,
-            /** 所属项目编码过滤条件。 */
+            /** 所属项目编码过滤条件 */
             String projectKey,
-            /** 环境状态过滤条件。 */
+            /** 环境状态过滤条件 */
             String status,
-            /** 当前用户 ID，用于成员关系过滤。 */
+            /** 当前用户 ID，用于成员关系过滤 */
             String userId,
-            /** 当前用户可见的项目编码列表。 */
+            /** 当前用户可见的项目编码列表 */
             List<String> visibleProjectKeys,
-            /** 分页参数。 */
+            /** 分页参数 */
             PageQuery page
     ) {
         public ManagementStoreParams toParams() {

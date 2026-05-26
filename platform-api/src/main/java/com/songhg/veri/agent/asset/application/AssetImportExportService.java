@@ -20,10 +20,10 @@ import java.util.Map;
 import org.springframework.stereotype.Service;
 
 /**
- * 资产导入导出编排服务。
+ * 资产导入导出编排服务
  *
  * <p>本类只负责资产类型/格式归一、批量审计、导入行分发和导出载荷封装；
- * 各资产类型的校验、计划、落库和导出格式由独立 handler 承接，避免入口类继续膨胀。
+ * 各资产类型的校验、计划、落库和导出格式由独立 handler 承接，避免入口类继续膨胀
  */
 @Service
 public class AssetImportExportService {

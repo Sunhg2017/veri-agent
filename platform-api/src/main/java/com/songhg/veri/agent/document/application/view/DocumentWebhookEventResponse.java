@@ -7,41 +7,41 @@ import java.time.Instant;
 import java.util.UUID;
 
 public record DocumentWebhookEventResponse(
-        @Schema(description = "主键 ID。")
+        @Schema(description = "主键 ID")
         UUID id,
-        @Schema(description = "文档输入源 ID。")
+        @Schema(description = "文档输入源 ID")
         UUID sourceId,
-        @Schema(description = "文档导入任务 ID。")
+        @Schema(description = "文档导入任务 ID")
         UUID importId,
-        @Schema(description = "文档输入源编码。")
+        @Schema(description = "文档输入源编码")
         String sourceCode,
-        @Schema(description = "外部事件 ID。")
+        @Schema(description = "外部事件 ID")
         String eventId,
-        @Schema(description = "幂等键，用于重复请求回放和并发去重。")
+        @Schema(description = "幂等键，用于重复请求回放和并发去重")
         String idempotencyKey,
-        @Schema(description = "外部事件类型。")
+        @Schema(description = "外部事件类型")
         String eventType,
-        @Schema(description = "事件协议版本。")
+        @Schema(description = "事件协议版本")
         String eventVersion,
-        @Schema(description = "签名校验状态。")
+        @Schema(description = "签名校验状态")
         WebhookSignatureStatus signatureStatus,
-        @Schema(description = "业务状态。")
+        @Schema(description = "业务状态")
         WebhookEventStatus status,
-        @Schema(description = "请求载荷摘要。")
+        @Schema(description = "请求载荷摘要")
         String payloadDigest,
-        @Schema(description = "错误摘要。")
+        @Schema(description = "错误摘要")
         String errorMessage,
-        @Schema(description = "已重试次数。")
+        @Schema(description = "已重试次数")
         int retryCount,
-        @Schema(description = "重放操作人。")
+        @Schema(description = "重放操作人")
         String replayBy,
-        @Schema(description = "重放时间。")
+        @Schema(description = "重放时间")
         Instant replayAt,
-        @Schema(description = "重放链路追踪 ID。")
+        @Schema(description = "重放链路追踪 ID")
         String replayTraceId,
-        @Schema(description = "接收时间。")
+        @Schema(description = "接收时间")
         Instant receivedAt,
-        @Schema(description = "处理完成时间。")
+        @Schema(description = "处理完成时间")
         Instant processedAt
 ) {
 }

@@ -8,11 +8,11 @@ import java.util.UUID;
 
 public class DocumentImportPageRequest extends BasePageRequest {
 
-    @Schema(description = "所属项目 ID，用于权限 scope、筛选和数据隔离。")
+    @Schema(description = "所属项目 ID，用于权限 scope、筛选和数据隔离")
     private String projectId;
     private UUID sourceId;
     private DocumentSourceType sourceType;
-    @Schema(description = "业务状态。")
+    @Schema(description = "业务状态")
     private DocumentImportStatus status;
 
     public String getProjectId() {

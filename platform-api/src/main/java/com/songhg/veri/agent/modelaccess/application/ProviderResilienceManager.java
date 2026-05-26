@@ -212,11 +212,11 @@ public class ProviderResilienceManager {
     }
 
     public record CircuitStateView(
-            /** 当前熔断器是否打开。 */
+            /** 当前熔断器是否打开 */
             boolean open,
-            /** 当前连续失败次数。 */
+            /** 当前连续失败次数 */
             int consecutiveFailures,
-            /** 熔断器预计关闭时间。 */
+            /** 熔断器预计关闭时间 */
             Instant openUntil
     ) {
     }

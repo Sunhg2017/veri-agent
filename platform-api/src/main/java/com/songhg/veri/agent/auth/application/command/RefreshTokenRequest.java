@@ -5,7 +5,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
 public record RefreshTokenRequest(
-        @Schema(description = "刷新令牌。")
+        @Schema(description = "刷新令牌")
         @NotBlank
         @Size(max = 512)
         String refreshToken

@@ -22,7 +22,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * WP5 候选用例查询、编辑和评审接口。
+ * WP5 候选用例查询、编辑和评审接口
  */
 @ApiVersion
 @RestController
@@ -36,7 +36,7 @@ public class TestDesignCandidateController {
     }
 
     /**
-     * 分页查询当前调用方可见的候选用例。
+     * 分页查询当前调用方可见的候选用例
      */
     @GetMapping
     @RequirePermission(value = PermissionCodes.TEST_DESIGN_READ, scope = TestDesignPermissionScopes.CANDIDATE_LIST)
@@ -45,7 +45,7 @@ public class TestDesignCandidateController {
     }
 
     /**
-     * 人工编辑候选用例内容，成功后候选进入 EDITED 状态并记录差异。
+     * 人工编辑候选用例内容，成功后候选进入 EDITED 状态并记录差异
      */
     @PutMapping("/{id}")
     @RequirePermission(value = PermissionCodes.TEST_DESIGN_REVIEW, scope = TestDesignPermissionScopes.CANDIDATE)
@@ -57,7 +57,7 @@ public class TestDesignCandidateController {
     }
 
     /**
-     * 确认候选用例，使其进入发布池。
+     * 确认候选用例，使其进入发布池
      */
     @PostMapping("/{id}/confirm")
     @RequirePermission(value = PermissionCodes.TEST_DESIGN_REVIEW, scope = TestDesignPermissionScopes.CANDIDATE)
@@ -69,7 +69,7 @@ public class TestDesignCandidateController {
     }
 
     /**
-     * 驳回候选用例，候选不会进入发布池。
+     * 驳回候选用例，候选不会进入发布池
      */
     @PostMapping("/{id}/reject")
     @RequirePermission(value = PermissionCodes.TEST_DESIGN_REVIEW, scope = TestDesignPermissionScopes.CANDIDATE)
@@ -81,7 +81,7 @@ public class TestDesignCandidateController {
     }
 
     /**
-     * 忽略候选用例，候选保留在任务记录中但不会进入发布池。
+     * 忽略候选用例，候选保留在任务记录中但不会进入发布池
      */
     @PostMapping("/{id}/ignore")
     @RequirePermission(value = PermissionCodes.TEST_DESIGN_REVIEW, scope = TestDesignPermissionScopes.CANDIDATE)
@@ -93,7 +93,7 @@ public class TestDesignCandidateController {
     }
 
     /**
-     * 批量确认、驳回或忽略候选用例，逐候选返回成功或失败明细。
+     * 批量确认、驳回或忽略候选用例，逐候选返回成功或失败明细
      */
     @PostMapping("/batch-action")
     @RequirePermission(value = PermissionCodes.TEST_DESIGN_REVIEW, scope = TestDesignPermissionScopes.CANDIDATE_BATCH)

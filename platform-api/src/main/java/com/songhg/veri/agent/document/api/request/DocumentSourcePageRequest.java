@@ -7,7 +7,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 
 public class DocumentSourcePageRequest extends BasePageRequest {
 
-    @Schema(description = "文档或数据源类型。")
+    @Schema(description = "文档或数据源类型")
     private DocumentSourceType sourceType;
     private DocumentSourceStatus status;
 

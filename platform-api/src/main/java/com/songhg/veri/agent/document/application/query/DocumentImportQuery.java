@@ -6,15 +6,15 @@ import com.songhg.veri.agent.document.domain.DocumentSourceType;
 import java.util.UUID;
 
 public record DocumentImportQuery(
-        /** 所属项目 ID 过滤条件。 */
+        /** 所属项目 ID 过滤条件 */
         String projectId,
-        /** 文档来源 ID 过滤条件。 */
+        /** 文档来源 ID 过滤条件 */
         UUID sourceId,
-        /** 文档来源类型过滤条件。 */
+        /** 文档来源类型过滤条件 */
         DocumentSourceType sourceType,
-        /** 导入状态过滤条件。 */
+        /** 导入状态过滤条件 */
         DocumentImportStatus status,
-        /** 分页参数。 */
+        /** 分页参数 */
         PageQuery pageQuery
 ) {
 

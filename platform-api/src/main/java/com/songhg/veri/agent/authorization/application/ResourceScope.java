@@ -3,9 +3,9 @@ package com.songhg.veri.agent.authorization.application;
 import org.springframework.util.StringUtils;
 
 public record ResourceScope(
-        /** 权限资源范围类型，默认 PLATFORM，项目级为 PROJECT。 */
+        /** 权限资源范围类型，默认 PLATFORM，项目级为 PROJECT */
         String scopeType,
-        /** 范围实例 ID；平台级范围固定为空。 */
+        /** 范围实例 ID；平台级范围固定为空 */
         String scopeId
 ) {
 

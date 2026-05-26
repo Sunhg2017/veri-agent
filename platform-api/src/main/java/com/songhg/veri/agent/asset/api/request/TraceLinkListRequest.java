@@ -6,11 +6,11 @@ import java.util.UUID;
 
 public class TraceLinkListRequest extends BasePageRequest {
 
-    @Schema(description = "关联需求 ID。")
+    @Schema(description = "关联需求 ID")
     private UUID requirementId;
     private UUID apiId;
     private UUID pageId;
-    @Schema(description = "关联业务流资产 ID。")
+    @Schema(description = "关联业务流资产 ID")
     private UUID flowId;
     private UUID caseId;
 

@@ -81,11 +81,11 @@ public class DocumentWebhookAutoRetryService {
     }
 
     public record AutoRetryResult(
-            /** 本次尝试重放的事件数量。 */
+            /** 本次尝试重放的事件数量 */
             int attempted,
-            /** 重放成功的事件数量。 */
+            /** 重放成功的事件数量 */
             int succeeded,
-            /** 重放失败的事件数量。 */
+            /** 重放失败的事件数量 */
             int failed
     ) {
     }

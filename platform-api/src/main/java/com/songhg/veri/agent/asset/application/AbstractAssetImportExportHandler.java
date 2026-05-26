@@ -10,7 +10,7 @@ import java.util.UUID;
 import org.springframework.util.StringUtils;
 
 /**
- * 资产导入导出处理器基类，集中保留跨资产类型的项目归属校验和导出分页策略。
+ * 资产导入导出处理器基类，集中保留跨资产类型的项目归属校验和导出分页策略
  */
 abstract class AbstractAssetImportExportHandler implements AssetImportExportHandler {
 

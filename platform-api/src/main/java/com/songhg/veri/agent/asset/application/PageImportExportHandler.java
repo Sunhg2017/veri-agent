@@ -28,7 +28,7 @@ import java.util.Objects;
 import java.util.Optional;
 
 /**
- * 页面导入导出处理器，负责原型 sourceRef 幂等导入和组件树 JSON 标准化。
+ * 页面导入导出处理器，负责原型 sourceRef 幂等导入和组件树 JSON 标准化
  */
 final class PageImportExportHandler extends AbstractAssetImportExportHandler {
 

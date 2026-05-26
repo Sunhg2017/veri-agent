@@ -6,13 +6,13 @@ import jakarta.validation.constraints.NotEmpty;
 import java.util.List;
 
 public record UpdateTestCaseStepsRequest(
-        @Schema(description = "测试步骤列表。")
+        @Schema(description = "测试步骤列表")
         @NotEmpty @Valid List<StepItem> steps
 ) {
     public record StepItem(
-        @Schema(description = "操作类型或动作编码。")
+        @Schema(description = "操作类型或动作编码")
         String action,
-        @Schema(description = "预期结果。")
+        @Schema(description = "预期结果")
         String expectedResult
 ) {
     }

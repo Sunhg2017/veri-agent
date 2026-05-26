@@ -5,21 +5,21 @@ import jakarta.validation.constraints.NotBlank;
 import java.util.Map;
 
 public record AuditEventRequest(
-        @Schema(description = "操作类型或动作编码。")
+        @Schema(description = "操作类型或动作编码")
         @NotBlank String action,
-        @Schema(description = "资源类型。")
+        @Schema(description = "资源类型")
         @NotBlank String resourceType,
-        @Schema(description = "资源 ID。")
+        @Schema(description = "资源 ID")
         @NotBlank String resourceId,
-        @Schema(description = "权限或配置作用域类型。")
+        @Schema(description = "权限或配置作用域类型")
         String scopeType,
-        @Schema(description = "权限或配置作用域 ID。")
+        @Schema(description = "权限或配置作用域 ID")
         String scopeId,
-        @Schema(description = "处理结果。")
+        @Schema(description = "处理结果")
         @NotBlank String result,
-        @Schema(description = "操作原因。")
+        @Schema(description = "操作原因")
         String reason,
-        @Schema(description = "操作后的资源快照 JSON。")
+        @Schema(description = "操作后的资源快照 JSON")
         Map<String, Object> afterJson
 ) {
 }

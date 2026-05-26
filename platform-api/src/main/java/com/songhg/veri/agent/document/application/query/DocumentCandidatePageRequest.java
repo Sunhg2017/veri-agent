@@ -7,7 +7,7 @@ import java.util.UUID;
 import org.springframework.util.StringUtils;
 
 public class DocumentCandidatePageRequest extends BasePageRequest {
-    @Schema(description = "候选生命周期状态。")
+    @Schema(description = "候选生命周期状态")
     private DocumentCandidateStatus status;
     private String sourceRef;
     private String keyword;

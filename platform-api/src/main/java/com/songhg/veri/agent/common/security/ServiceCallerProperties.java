@@ -5,13 +5,13 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 
 @ConfigurationProperties(prefix = "veri-agent.service-caller")
 public record ServiceCallerProperties(
-        /** 允许调用模型访问模块的服务编码列表。 */
+        /** 允许调用模型访问模块的服务编码列表 */
         List<String> modelAccessTrustedServices,
-        /** 允许调用资产模块的服务编码列表。 */
+        /** 允许调用资产模块的服务编码列表 */
         List<String> assetTrustedServices,
-        /** 允许调用文档输入模块的服务编码列表。 */
+        /** 允许调用文档输入模块的服务编码列表 */
         List<String> documentInputTrustedServices,
-        /** 允许调用测试设计模块的服务编码列表。 */
+        /** 允许调用测试设计模块的服务编码列表 */
         List<String> testDesignTrustedServices
 ) {
     public List<String> safeModelAccessTrustedServices() {

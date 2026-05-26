@@ -3,17 +3,17 @@ package com.songhg.veri.agent.asset.application.query;
 import com.songhg.veri.agent.common.api.PageQuery;
 
 public record AssetListQuery(
-        /** 所属项目 ID，用于权限过滤和租户数据隔离。 */
+        /** 所属项目 ID，用于权限过滤和租户数据隔离 */
         String projectId,
-        /** 生命周期状态过滤条件，未传时默认查询 ACTIVE。 */
+        /** 生命周期状态过滤条件，未传时默认查询 ACTIVE */
         String lifecycleStatus,
-        /** 业务审核状态过滤条件。 */
+        /** 业务审核状态过滤条件 */
         String status,
-        /** 资产来源过滤条件。 */
+        /** 资产来源过滤条件 */
         String source,
-        /** 标题、编码等文本字段的搜索关键字。 */
+        /** 标题、编码等文本字段的搜索关键字 */
         String keyword,
-        /** 分页参数，进入查询前会按平台限制归一化。 */
+        /** 分页参数，进入查询前会按平台限制归一化 */
         PageQuery pageQuery
 ) {
 

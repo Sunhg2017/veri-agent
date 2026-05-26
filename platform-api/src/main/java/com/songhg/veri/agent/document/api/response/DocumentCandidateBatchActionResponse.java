@@ -6,15 +6,15 @@ import java.util.List;
 
 
 public record DocumentCandidateBatchActionResponse(
-        @Schema(description = "批量动作编码。")
+        @Schema(description = "批量动作编码")
         String action,
-        @Schema(description = "本次处理总数。")
+        @Schema(description = "本次处理总数")
         int total,
-        @Schema(description = "处理成功数量。")
+        @Schema(description = "处理成功数量")
         int succeededCount,
-        @Schema(description = "处理失败数量。")
+        @Schema(description = "处理失败数量")
         int failedCount,
-        @Schema(description = "逐项处理结果列表。")
+        @Schema(description = "逐项处理结果列表")
         List<DocumentCandidateBatchActionItemResponse> items
 ) {
 }

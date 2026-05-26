@@ -11,16 +11,16 @@ import org.springframework.util.StringUtils;
 
 public class WebhookEventPageRequest extends BasePageRequest {
 
-    @Schema(description = "文档输入源 ID。")
+    @Schema(description = "文档输入源 ID")
     private UUID sourceId;
     private String sourceCode;
     private String eventType;
-    @Schema(description = "业务状态。")
+    @Schema(description = "业务状态")
     private WebhookEventStatus status;
     @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
     private Instant receivedFrom;
     @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
-    @Schema(description = "接收时间范围结束。")
+    @Schema(description = "接收时间范围结束")
     private Instant receivedTo;
 
     public UUID getSourceId() {

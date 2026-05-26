@@ -4,32 +4,32 @@ import java.time.Instant;
 import java.util.UUID;
 
 /**
- * WP5 候选发布到 WP3 测试用例资产时的单候选记录。
+ * WP5 候选发布到 WP3 测试用例资产时的单候选记录
  */
 public record TestDesignPublishRecord(
-        /** 主键 ID。 */
+        /** 主键 ID */
         UUID id,
-        /** 任务 ID。 */
+        /** 任务 ID */
         UUID taskId,
-        /** 候选 ID。 */
+        /** 候选 ID */
         UUID candidateId,
-        /** 所属项目 ID。 */
+        /** 所属项目 ID */
         String projectId,
-        /** 关联需求 ID。 */
+        /** 关联需求 ID */
         UUID requirementId,
-        /** 测试用例资产 ID。 */
+        /** 测试用例资产 ID */
         UUID assetCaseId,
-        /** 是否预演。 */
+        /** 是否预演 */
         boolean dryRun,
-        /** 操作动作。 */
+        /** 操作动作 */
         String action,
-        /** 处理结果。 */
+        /** 处理结果 */
         String result,
-        /** 错误摘要。 */
+        /** 错误摘要 */
         String errorMessage,
-        /** 发布人。 */
+        /** 发布人 */
         String publishedBy,
-        /** 创建时间。 */
+        /** 创建时间 */
         Instant createdAt
 ) {
 }

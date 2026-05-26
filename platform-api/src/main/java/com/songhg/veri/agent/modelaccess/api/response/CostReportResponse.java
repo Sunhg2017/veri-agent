@@ -6,34 +6,34 @@ import java.time.LocalDate;
 import java.util.List;
 
 public record CostReportResponse(
-        @Schema(description = "查询开始日期。")
+        @Schema(description = "查询开始日期")
         LocalDate startDate,
-        @Schema(description = "查询结束日期。")
+        @Schema(description = "查询结束日期")
         LocalDate endDate,
-        @Schema(description = "报表行数据。")
+        @Schema(description = "报表行数据")
         List<CostReportRow> rows
 ) {
 
     public record CostReportRow(
-        @Schema(description = "统计日期。")
+        @Schema(description = "统计日期")
         LocalDate date,
-        @Schema(description = "所属项目 ID，用于权限 scope、筛选和数据隔离。")
+        @Schema(description = "所属项目 ID，用于权限 scope、筛选和数据隔离")
         String projectId,
-        @Schema(description = "所属应用 ID。")
+        @Schema(description = "所属应用 ID")
         String applicationId,
-        @Schema(description = "本次处理总数。")
+        @Schema(description = "本次处理总数")
         long total,
-        @Schema(description = "成功数量。")
+        @Schema(description = "成功数量")
         long succeeded,
-        @Schema(description = "失败数量。")
+        @Schema(description = "失败数量")
         long failed,
-        @Schema(description = "被阻断数量。")
+        @Schema(description = "被阻断数量")
         long blocked,
-        @Schema(description = "输入 token 数。")
+        @Schema(description = "输入 token 数")
         long inputTokens,
-        @Schema(description = "输出 token 数。")
+        @Schema(description = "输出 token 数")
         long outputTokens,
-        @Schema(description = "总成本。")
+        @Schema(description = "总成本")
         BigDecimal totalCost
 ) {
     }

@@ -138,23 +138,23 @@ public class DocumentInputRetentionCleanupService {
     }
 
     public record CleanupResult(
-            /** 导入记录清理截止时间。 */
+            /** 导入记录清理截止时间 */
             Instant importCutoff,
-            /** webhook 事件清理截止时间。 */
+            /** webhook 事件清理截止时间 */
             Instant webhookEventCutoff,
-            /** 导入记录实际保留天数。 */
+            /** 导入记录实际保留天数 */
             int importRetentionDays,
-            /** webhook 事件实际保留天数。 */
+            /** webhook 事件实际保留天数 */
             int webhookEventRetentionDays,
-            /** 已归档导入记录数量。 */
+            /** 已归档导入记录数量 */
             int archivedImports,
-            /** 已归档候选需求数量。 */
+            /** 已归档候选需求数量 */
             int archivedCandidates,
-            /** 已归档 webhook 事件数量。 */
+            /** 已归档 webhook 事件数量 */
             int archivedWebhookEvents,
-            /** 已清理导入记录数量。 */
+            /** 已清理导入记录数量 */
             int imports,
-            /** 已清理 webhook 事件数量。 */
+            /** 已清理 webhook 事件数量 */
             int webhookEvents
     ) {
     }

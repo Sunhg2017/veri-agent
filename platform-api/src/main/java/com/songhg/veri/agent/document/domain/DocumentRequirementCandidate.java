@@ -4,55 +4,55 @@ import java.time.Instant;
 import java.util.UUID;
 
 public record DocumentRequirementCandidate(
-        /** 主键 ID。 */
+        /** 主键 ID */
         UUID id,
-        /** 导入任务 ID。 */
+        /** 导入任务 ID */
         UUID importId,
-        /** 所属项目 ID。 */
+        /** 所属项目 ID */
         String projectId,
-        /** 标题。 */
+        /** 标题 */
         String title,
-        /** 业务说明。 */
+        /** 业务说明 */
         String description,
-        /** 优先级。 */
+        /** 优先级 */
         String priority,
-        /** 验收标准。 */
+        /** 验收标准 */
         String acceptanceCriteria,
-        /** 标签。 */
+        /** 标签 */
         String tags,
-        /** 业务状态。 */
+        /** 业务状态 */
         DocumentCandidateStatus status,
-        /** 外部来源引用。 */
+        /** 外部来源引用 */
         String sourceRef,
-        /** 来源片段。 */
+        /** 来源片段 */
         String sourceFragment,
-        /** 外部需求 ID。 */
+        /** 外部需求 ID */
         String externalRequirementId,
-        /** 置信度。 */
+        /** 置信度 */
         double confidence,
-        /** 解析来源。 */
+        /** 解析来源 */
         String parseSource,
-        /** 模型调用记录 ID。 */
+        /** 模型调用记录 ID */
         UUID modelInvocationId,
-        /** 模型供应商名称。 */
+        /** 模型供应商名称 */
         String modelProviderName,
-        /** 模型名称。 */
+        /** 模型名称 */
         String modelName,
-        /** 需求资产 ID。 */
+        /** 需求资产 ID */
         UUID assetRequirementId,
-        /** 错误摘要。 */
+        /** 错误摘要 */
         String errorMessage,
-        /** 忽略原因。 */
+        /** 忽略原因 */
         String ignoredReason,
-        /** 确认人。 */
+        /** 确认人 */
         String confirmedBy,
-        /** 确认时间。 */
+        /** 确认时间 */
         Instant confirmedAt,
-        /** 版本号。 */
+        /** 版本号 */
         long version,
-        /** 创建时间。 */
+        /** 创建时间 */
         Instant createdAt,
-        /** 最近更新时间。 */
+        /** 最近更新时间 */
         Instant updatedAt
 ) {
 

@@ -6,12 +6,12 @@ import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 public record LoginRequest(
-        @Schema(description = "用户名。")
+        @Schema(description = "用户名")
         @NotBlank
         @Size(min = 3, max = 64)
         @Pattern(regexp = "^[A-Za-z0-9_-]+$", message = "账号只能包含字母、数字、下划线和中划线")
         String username,
-        @Schema(description = "登录密码。")
+        @Schema(description = "登录密码")
         @NotBlank
         @Size(min = 1, max = 128)
         String password

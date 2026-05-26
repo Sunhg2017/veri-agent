@@ -6,15 +6,15 @@ import java.util.UUID;
 
 
 public record DocumentCandidateBatchActionItemResponse(
-        @Schema(description = "候选 ID。")
+        @Schema(description = "候选 ID")
         UUID candidateId,
-        @Schema(description = "处理结果。")
+        @Schema(description = "处理结果")
         String result,
-        @Schema(description = "候选详情。")
+        @Schema(description = "候选详情")
         DocumentCandidateResponse candidate,
-        @Schema(description = "错误编码。")
+        @Schema(description = "错误编码")
         String errorCode,
-        @Schema(description = "错误摘要。")
+        @Schema(description = "错误摘要")
         String errorMessage
 ) {
 }

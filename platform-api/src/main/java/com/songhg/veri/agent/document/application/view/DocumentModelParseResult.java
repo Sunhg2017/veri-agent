@@ -6,17 +6,17 @@ import java.util.List;
 import java.util.UUID;
 
 public record DocumentModelParseResult(
-        @Schema(description = "模型解析出的需求草稿列表。")
+        @Schema(description = "模型解析出的需求草稿列表")
         List<ParsedRequirementDraft> drafts,
-        @Schema(description = "模型调用记录 ID。")
+        @Schema(description = "模型调用记录 ID")
         UUID invocationId,
-        @Schema(description = "模型供应商名称。")
+        @Schema(description = "模型供应商名称")
         String providerName,
-        @Schema(description = "模型名称。")
+        @Schema(description = "模型名称")
         String modelName,
-        @Schema(description = "错误编码。")
+        @Schema(description = "错误编码")
         String errorCode,
-        @Schema(description = "错误摘要。")
+        @Schema(description = "错误摘要")
         String errorMessage
 ) {
 

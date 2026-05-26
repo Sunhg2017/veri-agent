@@ -6,7 +6,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 
 public class ManagementPageRequest extends BasePageRequest {
 
-    @Schema(description = "搜索关键字。")
+    @Schema(description = "搜索关键字")
     private String search = "";
 
     public String getSearch() {

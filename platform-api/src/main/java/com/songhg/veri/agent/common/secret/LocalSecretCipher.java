@@ -136,15 +136,15 @@ public final class LocalSecretCipher {
     }
 
     public record EncryptedMaterial(
-            /** 密文主体，不包含 IV 和认证标签。 */
+            /** 密文主体，不包含 IV 和认证标签 */
             String cipherText,
-            /** AES-GCM 初始化向量。 */
+            /** AES-GCM 初始化向量 */
             String iv,
-            /** AES-GCM 认证标签。 */
+            /** AES-GCM 认证标签 */
             String authTag,
-            /** 加密算法标识。 */
+            /** 加密算法标识 */
             String algorithm,
-            /** 加密时使用的主密钥版本。 */
+            /** 加密时使用的主密钥版本 */
             String masterKeyVersion
     ) {
     }

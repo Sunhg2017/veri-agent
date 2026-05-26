@@ -745,9 +745,9 @@ public class DocumentContentExtractor {
     }
 
     public record ExtractedDocumentContent(
-            /** 抽取后的纯文本内容。 */
+            /** 抽取后的纯文本内容 */
             String text,
-            /** 内容抽取来源，如文本直读、PDF 解析或 OCR。 */
+            /** 内容抽取来源，如文本直读、PDF 解析或 OCR */
             String extractionSource
     ) {
     }

@@ -11,15 +11,15 @@ import org.springframework.validation.annotation.Validated;
 @Validated
 @ConfigurationProperties(prefix = "veri-agent.auth")
 public record AuthProperties(
-        /** JWT 签名密钥，生产环境必须由安全配置注入。 */
+        /** JWT 签名密钥，生产环境必须由安全配置注入 */
         String tokenSecret,
-        /** 访问令牌有效期，单位分钟。 */
+        /** 访问令牌有效期，单位分钟 */
         @Min(1) long accessTokenTtlMinutes,
-        /** 是否启用会话清理任务。 */
+        /** 是否启用会话清理任务 */
         boolean sessionCleanupEnabled,
-        /** 会话清理保留时长，单位秒。 */
+        /** 会话清理保留时长，单位秒 */
         @Min(1) long sessionCleanupRetentionSeconds,
-        /** 强制改密期间仍允许访问的请求白名单。 */
+        /** 强制改密期间仍允许访问的请求白名单 */
         @Valid PasswordChangeRequired passwordChangeRequired
 ) {
     public AuthProperties {
@@ -29,7 +29,7 @@ public record AuthProperties(
     }
 
     public record PasswordChangeRequired(
-            /** 强制改密场景下允许放行的接口列表。 */
+            /** 强制改密场景下允许放行的接口列表 */
             @Valid List<PasswordChangeAllowedRequest> allowedRequests
     ) {
         public PasswordChangeRequired {
@@ -67,11 +67,11 @@ public record AuthProperties(
     }
 
     public record PasswordChangeAllowedRequest(
-            /** HTTP 方法；空值归一化为通配符。 */
+            /** HTTP 方法；空值归一化为通配符 */
             String method,
-            /** 请求路径。 */
+            /** 请求路径 */
             @NotBlank String path,
-            /** 路径匹配方式。 */
+            /** 路径匹配方式 */
             PasswordChangePathMatch match
     ) {
         public PasswordChangeAllowedRequest {

@@ -24,7 +24,7 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * 测试用例导入导出处理器，负责关联需求/API 的项目归属校验和步骤 JSON 转换。
+ * 测试用例导入导出处理器，负责关联需求/API 的项目归属校验和步骤 JSON 转换
  */
 final class TestCaseImportExportHandler extends AbstractAssetImportExportHandler {
 

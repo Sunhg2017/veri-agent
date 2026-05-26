@@ -28,7 +28,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * WP5 用例生成任务、发布和发布记录接口。
+ * WP5 用例生成任务、发布和发布记录接口
  */
 @ApiVersion
 @RestController
@@ -42,7 +42,7 @@ public class TestDesignController {
     }
 
     /**
-     * 查询 WP5 服务状态、生成模式和当前配置上限。
+     * 查询 WP5 服务状态、生成模式和当前配置上限
      */
     @GetMapping("/health")
     public TestDesignHealthResponse health() {
@@ -50,7 +50,7 @@ public class TestDesignController {
     }
 
     /**
-     * 分页查询当前调用方可见的 WP5 用例生成任务。
+     * 分页查询当前调用方可见的 WP5 用例生成任务
      */
     @GetMapping("/tasks")
     @RequirePermission(value = PermissionCodes.TEST_DESIGN_READ, scope = TestDesignPermissionScopes.TASK_LIST)
@@ -59,11 +59,11 @@ public class TestDesignController {
     }
 
     /**
-     * 创建 WP5 用例生成任务。
+     * 创建 WP5 用例生成任务
      *
-     * @param idempotencyKey 请求头中的幂等键；与请求体幂等键二选一，优先参与任务创建回放。
-     * @param command 创建任务请求体。
-     * @return 新建或幂等回放的任务详情。
+     * @param idempotencyKey 请求头中的幂等键；与请求体幂等键二选一，优先参与任务创建回放
+     * @param command 创建任务请求体
+     * @return 新建或幂等回放的任务详情
      */
     @PostMapping("/tasks")
     @ResponseStatus(HttpStatus.CREATED)
@@ -76,7 +76,7 @@ public class TestDesignController {
     }
 
     /**
-     * 查询单个 WP5 任务详情，包含候选和发布记录摘要。
+     * 查询单个 WP5 任务详情，包含候选和发布记录摘要
      */
     @GetMapping("/tasks/{id}")
     @RequirePermission(value = PermissionCodes.TEST_DESIGN_READ, scope = TestDesignPermissionScopes.TASK)
@@ -85,7 +85,7 @@ public class TestDesignController {
     }
 
     /**
-     * 对失败或部分失败的任务发起重试。
+     * 对失败或部分失败的任务发起重试
      */
     @PostMapping("/tasks/{id}/retry")
     @RequirePermission(value = PermissionCodes.TEST_DESIGN_GENERATE, scope = TestDesignPermissionScopes.TASK)
@@ -94,7 +94,7 @@ public class TestDesignController {
     }
 
     /**
-     * 取消尚未完成的 WP5 生成任务。
+     * 取消尚未完成的 WP5 生成任务
      */
     @PostMapping("/tasks/{id}/cancel")
     @RequirePermission(value = PermissionCodes.TEST_DESIGN_GENERATE, scope = TestDesignPermissionScopes.TASK)
@@ -103,7 +103,7 @@ public class TestDesignController {
     }
 
     /**
-     * 分页查询某个任务下的候选用例。
+     * 分页查询某个任务下的候选用例
      */
     @GetMapping("/tasks/{id}/candidates")
     @RequirePermission(value = PermissionCodes.TEST_DESIGN_READ, scope = TestDesignPermissionScopes.TASK)
@@ -115,7 +115,7 @@ public class TestDesignController {
     }
 
     /**
-     * 预发布检查候选，不写入 WP3 资产库。
+     * 预发布检查候选，不写入 WP3 资产库
      */
     @PostMapping("/tasks/{id}/publish-dry-run")
     @RequirePermission(value = PermissionCodes.TEST_DESIGN_PUBLISH, scope = TestDesignPermissionScopes.TASK)
@@ -127,7 +127,7 @@ public class TestDesignController {
     }
 
     /**
-     * 正式发布已确认候选到 WP3 测试用例资产库。
+     * 正式发布已确认候选到 WP3 测试用例资产库
      */
     @PostMapping("/tasks/{id}/publish")
     @RequirePermission(value = PermissionCodes.TEST_DESIGN_PUBLISH, scope = TestDesignPermissionScopes.TASK)
@@ -139,7 +139,7 @@ public class TestDesignController {
     }
 
     /**
-     * 查询某个任务下的发布和预发布记录。
+     * 查询某个任务下的发布和预发布记录
      */
     @GetMapping("/tasks/{id}/publish-records")
     @RequirePermission(value = PermissionCodes.TEST_DESIGN_READ, scope = TestDesignPermissionScopes.TASK)

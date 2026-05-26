@@ -3,25 +3,25 @@ package com.songhg.veri.agent.document.domain;
 import java.util.UUID;
 
 public record ParsedRequirementDraft(
-        /** 标题。 */
+        /** 标题 */
         String title,
-        /** 业务说明。 */
+        /** 业务说明 */
         String description,
-        /** 优先级。 */
+        /** 优先级 */
         String priority,
-        /** 验收标准。 */
+        /** 验收标准 */
         String acceptanceCriteria,
-        /** 标签。 */
+        /** 标签 */
         String tags,
-        /** 需求资产 ID。 */
+        /** 需求资产 ID */
         UUID assetRequirementId,
-        /** 解析来源。 */
+        /** 解析来源 */
         String parseSource,
-        /** 模型调用记录 ID。 */
+        /** 模型调用记录 ID */
         UUID modelInvocationId,
-        /** 模型供应商名称。 */
+        /** 模型供应商名称 */
         String modelProviderName,
-        /** 模型名称。 */
+        /** 模型名称 */
         String modelName
 ) {
 

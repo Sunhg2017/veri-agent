@@ -29,7 +29,7 @@ import java.util.Objects;
 import java.util.Optional;
 
 /**
- * 需求导入导出处理器，负责 sourceRef 幂等导入和 DRAFT 状态下的差异更新。
+ * 需求导入导出处理器，负责 sourceRef 幂等导入和 DRAFT 状态下的差异更新
  */
 final class RequirementImportExportHandler extends AbstractAssetImportExportHandler {
 

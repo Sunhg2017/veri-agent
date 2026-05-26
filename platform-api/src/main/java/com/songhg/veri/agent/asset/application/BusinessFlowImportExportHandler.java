@@ -21,7 +21,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 业务流导入导出处理器，负责 flowJson 校验和业务流 CSV/JSON 导出。
+ * 业务流导入导出处理器，负责 flowJson 校验和业务流 CSV/JSON 导出
  */
 final class BusinessFlowImportExportHandler extends AbstractAssetImportExportHandler {
 

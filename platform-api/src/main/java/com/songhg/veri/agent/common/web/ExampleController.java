@@ -40,11 +40,11 @@ public class ExampleController {
     }
 
     public record ExampleItem(
-            @Schema(description = "示例资源编码。")
+            @Schema(description = "示例资源编码")
             String code,
-            @Schema(description = "示例资源名称。")
+            @Schema(description = "示例资源名称")
             String name,
-            @Schema(description = "示例资源状态。")
+            @Schema(description = "示例资源状态")
             String status
     ) {
     }

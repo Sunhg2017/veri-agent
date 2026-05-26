@@ -40,7 +40,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * API 导入导出处理器，负责 OpenAPI 幂等导入、路径方法冲突判断和 OpenAPI 结构导出。
+ * API 导入导出处理器，负责 OpenAPI 幂等导入、路径方法冲突判断和 OpenAPI 结构导出
  */
 final class ApiImportExportHandler extends AbstractAssetImportExportHandler {
 

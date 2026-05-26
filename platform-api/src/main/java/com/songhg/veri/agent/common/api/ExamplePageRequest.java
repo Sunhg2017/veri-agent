@@ -6,11 +6,11 @@ import jakarta.validation.constraints.Pattern;
 public class ExamplePageRequest extends BasePageRequest {
 
     @Pattern(regexp = "created_at|name|code")
-    @Schema(description = "排序字段。")
+    @Schema(description = "排序字段")
     private String sort = "created_at";
 
     @Pattern(regexp = "asc|desc")
-    @Schema(description = "排序方向，例如 asc 或 desc。")
+    @Schema(description = "排序方向，例如 asc 或 desc")
     private String order = "desc";
 
     private String keyword = "";
