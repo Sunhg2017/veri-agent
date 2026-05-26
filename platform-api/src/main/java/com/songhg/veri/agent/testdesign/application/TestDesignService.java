@@ -64,6 +64,7 @@ public class TestDesignService {
     private static final Set<String> CANDIDATE_PRIORITIES = Set.of("CRITICAL", "HIGH", "MEDIUM", "LOW");
     private static final String TEST_CASE_SOURCE_AI_GENERATED = "AI_GENERATED";
     private static final String TEST_CASE_SOURCE_REF_PREFIX = "wp5:";
+    private static final String ACTION_RETRY_LINK_EXISTING = "RETRY_LINK_EXISTING";
     private static final String ACTION_DUPLICATE_REVIEW_REQUIRED = "DUPLICATE_REVIEW_REQUIRED";
     private static final String RESULT_CONFLICT = "CONFLICT";
     private static final double HIGH_SIMILAR_TITLE_THRESHOLD = 0.86D;
@@ -801,15 +802,25 @@ public class TestDesignService {
         if (candidate.status().equals(TestDesignCandidateStatus.PUBLISHED.name()) && candidate.assetCaseId() != null) {
             return publishRecord(task, candidate, false, "SKIP_PUBLISHED", "SKIPPED", candidate.assetCaseId(), null, actor);
         }
-        if (!candidate.status().equals(TestDesignCandidateStatus.CONFIRMED.name())) {
+        if (!isPublishableCandidate(candidate)) {
             return publishRecord(task, candidate, false, "SKIP_UNCONFIRMED", "SKIPPED", null, "候选用例未确认", actor);
         }
         Optional<TestCaseResponse> existingTestCase = existingWp5TestCase(candidate);
         if (existingTestCase.isPresent()) {
             TestCaseResponse testCase = existingTestCase.get();
-            TestDesignCandidate linked = withPublishedCandidate(candidate, testCase.id(), null);
-            repository.saveCandidate(linked);
-            return publishRecord(task, linked, false, "LINK_EXISTING", "SUCCEEDED", testCase.id(), null, actor);
+            String action = TestDesignCandidateStatus.FAILED.name().equals(candidate.status())
+                    ? ACTION_RETRY_LINK_EXISTING
+                    : "LINK_EXISTING";
+            try {
+                ensureTraceLink(candidate, testCase);
+                TestDesignCandidate linked = withPublishedCandidate(candidate, testCase.id(), null);
+                repository.saveCandidate(linked);
+                return publishRecord(task, linked, false, action, "SUCCEEDED", testCase.id(), null, actor);
+            } catch (BusinessException exception) {
+                TestDesignCandidate failed = withFailedCandidate(candidate, testCase.id(), exception.getMessage());
+                repository.saveCandidate(failed);
+                return publishRecord(task, failed, false, action, "FAILED", testCase.id(), exception.getMessage(), actor);
+            }
         }
         Optional<TestCaseResponse> duplicateTestCase = highSimilarRequirementTestCase(candidate);
         if (duplicateTestCase.isPresent()) {
@@ -839,20 +850,15 @@ public class TestDesignService {
                     TEST_CASE_SOURCE_AI_GENERATED,
                     candidateSourceRef(candidate)
             ));
-            assetService.createLink(new CreateLinkRequest(
-                    candidate.requirementId(),
-                    candidate.apiId(),
-                    null,
-                    null,
-                    testCase.id()
-            ));
+            ensureTraceLink(candidate, testCase);
             TestDesignCandidate updated = withPublishedCandidate(candidate, testCase.id(), null);
             repository.saveCandidate(updated);
             return publishRecord(task, updated, false, "CREATE", "SUCCEEDED", testCase.id(), null, actor);
         } catch (BusinessException exception) {
-            TestDesignCandidate failed = withFailedCandidate(candidate, exception.getMessage());
+            UUID partialCaseId = existingWp5TestCase(candidate).map(TestCaseResponse::id).orElse(candidate.assetCaseId());
+            TestDesignCandidate failed = withFailedCandidate(candidate, partialCaseId, exception.getMessage());
             repository.saveCandidate(failed);
-            return publishRecord(task, failed, false, "CREATE", "FAILED", null, exception.getMessage(), actor);
+            return publishRecord(task, failed, false, "CREATE", "FAILED", partialCaseId, exception.getMessage(), actor);
         }
     }
 
@@ -866,7 +872,7 @@ public class TestDesignService {
         if (candidate.status().equals(TestDesignCandidateStatus.PUBLISHED.name()) && candidate.assetCaseId() != null) {
             return publishRecord(task, candidate, true, "SKIP_PUBLISHED", "SKIPPED", candidate.assetCaseId(), null, actor);
         }
-        if (!candidate.status().equals(TestDesignCandidateStatus.CONFIRMED.name())) {
+        if (!isPublishableCandidate(candidate)) {
             return publishRecord(task, candidate, true, "SKIP_UNCONFIRMED", "SKIPPED", null, "候选用例未确认", actor);
         }
         Optional<TestCaseResponse> existingTestCase = existingWp5TestCase(candidate);
@@ -888,6 +894,28 @@ public class TestDesignService {
             );
         }
         return publishRecord(task, candidate, true, "CREATE", "PLANNED", null, null, actor);
+    }
+
+    private static boolean isPublishableCandidate(TestDesignCandidate candidate) {
+        return TestDesignCandidateStatus.CONFIRMED.name().equals(candidate.status())
+                || TestDesignCandidateStatus.FAILED.name().equals(candidate.status());
+    }
+
+    /**
+     * Completes the WP3 trace-link side effect for both first-time publishes and replayed partial publishes.
+     *
+     * <p>WP5 and WP3 do not share a single transaction boundary. If a previous attempt created the test case and failed
+     * before linking it back to the requirement, publish retry must repair the missing link before marking the candidate
+     * as published.
+     */
+    private void ensureTraceLink(TestDesignCandidate candidate, TestCaseResponse testCase) {
+        assetService.createLink(new CreateLinkRequest(
+                candidate.requirementId(),
+                candidate.apiId(),
+                null,
+                null,
+                testCase.id()
+        ));
     }
 
     private Optional<TestCaseResponse> existingWp5TestCase(TestDesignCandidate candidate) {
@@ -1057,14 +1085,14 @@ public class TestDesignService {
         );
     }
 
-    private TestDesignCandidate withFailedCandidate(TestDesignCandidate candidate, String errorMessage) {
+    private TestDesignCandidate withFailedCandidate(TestDesignCandidate candidate, UUID assetCaseId, String errorMessage) {
         return new TestDesignCandidate(
                 candidate.id(), candidate.taskId(), candidate.projectId(), candidate.requirementId(), candidate.apiId(),
                 candidate.title(), candidate.description(), candidate.coverageType(), candidate.priority(),
                 TestDesignCandidateStatus.FAILED.name(), candidate.preconditions(), candidate.stepsJson(),
                 candidate.expectedResult(), candidate.tags(), candidate.duplicateKey(), candidate.confidence(),
                 candidate.promptKey(), candidate.promptVersion(), candidate.modelInvocationId(),
-                candidate.modelProviderName(), candidate.modelName(), candidate.assetCaseId(), candidate.reviewComment(),
+                candidate.modelProviderName(), candidate.modelName(), assetCaseId, candidate.reviewComment(),
                 candidate.rejectedReason(), candidate.ignoredReason(), errorMessage, candidate.confirmedBy(),
                 candidate.confirmedAt(), candidate.version() + 1, candidate.createdAt(), Instant.now()
         );
@@ -1089,7 +1117,8 @@ public class TestDesignService {
         if (candidateIds == null || candidateIds.isEmpty()) {
             return candidates.stream()
                     .filter(candidate -> TestDesignCandidateStatus.CONFIRMED.name().equals(candidate.status())
-                            || TestDesignCandidateStatus.PUBLISHED.name().equals(candidate.status()))
+                            || TestDesignCandidateStatus.PUBLISHED.name().equals(candidate.status())
+                            || TestDesignCandidateStatus.FAILED.name().equals(candidate.status()))
                     .sorted(Comparator.comparing(TestDesignCandidate::createdAt))
                     .toList();
         }

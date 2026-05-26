@@ -69,7 +69,7 @@
 | WP5-FUNC-013 | P0 | 发布 dryRun | 返回 CREATE/LINK_EXISTING/DUPLICATE_REVIEW_REQUIRED/SKIPPED 明细。 |
 | WP5-FUNC-014 | P0 | 发布已确认候选 | WP3 新增测试用例，步骤完整，候选状态为 `PUBLISHED`。 |
 | WP5-FUNC-015 | P0 | 发布未确认候选 | 返回非法状态，候选不写入 WP3。 |
-| WP5-FUNC-016 | P0 | WP3 写入失败 | 发布记录失败，候选仍为 `CONFIRMED` 或失败可重试状态。 |
+| WP5-FUNC-016 | P0 | WP3 写入失败或部分成功 | 发布记录失败，候选保留 `assetCaseId/errorMessage`；重试能按 `sourceRef` 找回既有用例并补建 trace link。 |
 | WP5-FUNC-017 | P1 | 任务重试 | 失败任务可重试，保留历史错误和新 traceId。 |
 | WP5-FUNC-018 | P1 | 取消运行中任务 | 任务进入 `CANCELLED`，不继续生成候选。 |
 

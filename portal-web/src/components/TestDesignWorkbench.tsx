@@ -106,8 +106,8 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
   const selectedTask = tasks.find((task) => task.id === selectedTaskId) ?? null;
   const selectedCandidate = candidates.find((candidate) => candidate.id === selectedCandidateId) ?? null;
   const filteredRequirements = useMemo(() => filterRequirements(requirements, filters), [requirements, filters]);
-  const confirmedCandidates = useMemo(
-    () => candidates.filter((candidate) => candidate.status === 'CONFIRMED'),
+  const publishableCandidates = useMemo(
+    () => candidates.filter((candidate) => candidate.status === 'CONFIRMED' || candidate.status === 'FAILED'),
     [candidates]
   );
   const statusCounts = useMemo(() => countByStatus(candidates), [candidates]);
@@ -356,7 +356,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
 
     setPublishState({ loading: true });
     try {
-      const candidateIds = confirmedCandidates.map((candidate) => candidate.id);
+      const candidateIds = publishableCandidates.map((candidate) => candidate.id);
       const response = dryRun
         ? await publishTestDesignDryRun(selectedTaskId, { candidateIds })
         : await publishTestDesignTask(selectedTaskId, { candidateIds });
@@ -384,7 +384,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       <div className="main-stack">
         <div className="metrics-grid">
           <Metric icon={<Sparkles size={20} />} label="服务状态" value={health?.status ?? '-'} desc={health?.generationMode ?? '未加载'} />
-          <Metric icon={<FileText size={20} />} label="候选用例" value={String(candidates.length)} desc={`确认 ${statusCounts.CONFIRMED ?? 0}`} />
+          <Metric icon={<FileText size={20} />} label="候选用例" value={String(candidates.length)} desc={`确认 ${statusCounts.CONFIRMED ?? 0} · 待重试 ${statusCounts.FAILED ?? 0}`} />
           <Metric icon={<ClipboardCheck size={20} />} label="已发布" value={String(selectedTask?.publishedCount ?? 0)} desc={selectedTask?.status ?? '-'} />
         </div>
 
@@ -671,7 +671,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
           <div className="panel-header compact">
             <div>
               <h2 className="panel-title">发布</h2>
-              <p className="panel-desc">确认候选 {confirmedCandidates.length} 个。</p>
+              <p className="panel-desc">可发布/重试候选 {publishableCandidates.length} 个。</p>
             </div>
           </div>
           <div className="panel-body compact main-stack">
@@ -679,7 +679,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
               <Eye size={16} />
               预发布
             </button>
-            <button className="btn btn-primary" type="button" disabled={!canPublish || publishState.loading || !selectedTaskId || !confirmedCandidates.length} onClick={() => void publishTask(false)}>
+            <button className="btn btn-primary" type="button" disabled={!canPublish || publishState.loading || !selectedTaskId || !publishableCandidates.length} onClick={() => void publishTask(false)}>
               <Send size={16} />
               发布到资产库
             </button>

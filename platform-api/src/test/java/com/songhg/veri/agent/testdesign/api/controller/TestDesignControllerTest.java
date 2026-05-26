@@ -4,6 +4,7 @@ import com.jayway.jsonpath.JsonPath;
 import com.songhg.veri.agent.auth.application.AuthTokenService;
 import com.songhg.veri.agent.auth.domain.AuthUserRecord;
 import com.songhg.veri.agent.testdesign.application.port.TestDesignRepository;
+import com.songhg.veri.agent.testdesign.domain.TestDesignCandidate;
 import com.songhg.veri.agent.testdesign.domain.TestDesignTask;
 import com.songhg.veri.agent.testdesign.domain.TestDesignTaskStatus;
 import java.time.Instant;
@@ -405,6 +406,85 @@ class TestDesignControllerTest {
     }
 
     @Test
+    void repairsMissingTraceLinkWhenRetryingPartialPublish() throws Exception {
+        String ownerToken = userAccessToken(List.of("ProjectOwner@PROJECT:project-wp5"));
+        String requirementId = createRequirement(ownerToken, "补偿发布需求", "补偿发布验收", "project-wp5");
+        MvcResult taskResult = mockMvc.perform(post("/api/v1/test-design/tasks")
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"projectId":"project-wp5","requirementIds":["%s"],"coverageTypes":["SMOKE"]}
+                                """.formatted(requirementId)))
+                .andExpect(status().isCreated())
+                .andReturn();
+        String taskId = JsonPath.read(taskResult.getResponse().getContentAsString(), "$.data.task.id");
+        String candidateId = JsonPath.read(taskResult.getResponse().getContentAsString(), "$.data.candidates[0].id");
+        Integer version = JsonPath.read(taskResult.getResponse().getContentAsString(), "$.data.candidates[0].version");
+
+        mockMvc.perform(post("/api/v1/test-design/candidates/{id}/confirm", candidateId)
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"version\": %d}".formatted(version)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("CONFIRMED"));
+
+        MvcResult existingCase = mockMvc.perform(post("/api/v1/asset/test-cases")
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "projectId": "project-wp5",
+                                  "title": "部分成功遗留的 WP5 用例",
+                                  "description": "模拟上次发布已创建用例但未创建追踪链接",
+                                  "source": "AI_GENERATED",
+                                  "sourceRef": "wp5:%s",
+                                  "status": "DRAFT",
+                                  "priority": "HIGH",
+                                  "steps": [
+                                    {"action": "执行补偿用例", "expectedResult": "补偿用例可复用"}
+                                  ]
+                                }
+                                """.formatted(candidateId)))
+                .andExpect(status().isCreated())
+                .andReturn();
+        String existingCaseId = JsonPath.read(existingCase.getResponse().getContentAsString(), "$.data.id");
+        saveCandidateStatus(candidateId, "FAILED", existingCaseId, "追踪链接创建失败");
+
+        mockMvc.perform(get("/api/v1/asset/links")
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .param("requirementId", requirementId)
+                        .param("caseId", existingCaseId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(0));
+
+        mockMvc.perform(post("/api/v1/test-design/tasks/{id}/publish", taskId)
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.created").value(0))
+                .andExpect(jsonPath("$.data.failed").value(0))
+                .andExpect(jsonPath("$.data.records[0].action").value("RETRY_LINK_EXISTING"))
+                .andExpect(jsonPath("$.data.records[0].result").value("SUCCEEDED"))
+                .andExpect(jsonPath("$.data.records[0].assetCaseId").value(existingCaseId));
+
+        mockMvc.perform(get("/api/v1/asset/links")
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .param("requirementId", requirementId)
+                        .param("caseId", existingCaseId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(1));
+
+        mockMvc.perform(get("/api/v1/test-design/tasks/{id}", taskId)
+                        .header("Authorization", "Bearer " + ownerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.task.status").value("PUBLISHED"))
+                .andExpect(jsonPath("$.data.candidates[0].status").value("PUBLISHED"))
+                .andExpect(jsonPath("$.data.candidates[0].assetCaseId").value(existingCaseId))
+                .andExpect(jsonPath("$.data.candidates[0].errorMessage").doesNotExist());
+    }
+
+    @Test
     void blocksHighSimilarRequirementCaseDuringPublish() throws Exception {
         String ownerToken = userAccessToken(List.of("ProjectOwner@PROJECT:project-wp5"));
         String requirementId = createRequirement(ownerToken, "重复冲突需求", "重复冲突验收", "project-wp5");
@@ -621,6 +701,43 @@ class TestDesignControllerTest {
                 task.inputDigest(),
                 task.contextSummaryJson(),
                 task.createdAt(),
+                Instant.now()
+        ));
+    }
+
+    private void saveCandidateStatus(String candidateId, String status, String assetCaseId, String errorMessage) {
+        TestDesignCandidate candidate = testDesignRepository.candidate(UUID.fromString(candidateId)).orElseThrow();
+        testDesignRepository.saveCandidate(new TestDesignCandidate(
+                candidate.id(),
+                candidate.taskId(),
+                candidate.projectId(),
+                candidate.requirementId(),
+                candidate.apiId(),
+                candidate.title(),
+                candidate.description(),
+                candidate.coverageType(),
+                candidate.priority(),
+                status,
+                candidate.preconditions(),
+                candidate.stepsJson(),
+                candidate.expectedResult(),
+                candidate.tags(),
+                candidate.duplicateKey(),
+                candidate.confidence(),
+                candidate.promptKey(),
+                candidate.promptVersion(),
+                candidate.modelInvocationId(),
+                candidate.modelProviderName(),
+                candidate.modelName(),
+                assetCaseId == null ? null : UUID.fromString(assetCaseId),
+                candidate.reviewComment(),
+                candidate.rejectedReason(),
+                candidate.ignoredReason(),
+                errorMessage,
+                candidate.confirmedBy(),
+                candidate.confirmedAt(),
+                candidate.version() + 1,
+                candidate.createdAt(),
                 Instant.now()
         ));
     }
