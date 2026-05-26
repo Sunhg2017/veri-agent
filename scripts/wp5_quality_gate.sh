@@ -11,6 +11,12 @@ run_step() {
 }
 
 main() {
+  run_step "wp5 script syntax" \
+    bash -n \
+      "$ROOT_DIR/scripts/wp5_quality_gate.sh" \
+      "$ROOT_DIR/scripts/wp5_test_design_smoke.sh" \
+      "$ROOT_DIR/scripts/wp5_managed_http_smoke.sh"
+
   run_step "wp5 backend and OpenAPI tests" \
     mvn -B -pl platform-api -Dtest=TestDesignControllerTest,TestDesignOpenApiContractTest,PermissionCodeUsageTest,ServiceTokenAuthenticationFilterTest test
 
@@ -33,11 +39,28 @@ main() {
     echo "== wp5 case generation quality eval skipped; set WP5_RUN_AI_EVAL=1 to run baseline corpus =="
   fi
 
-  if [[ "${WP5_RUN_HTTP_SMOKE:-0}" == "1" ]]; then
-    run_step "wp5 http smoke" bash "$ROOT_DIR/scripts/wp5_test_design_smoke.sh"
-  else
-    echo "== wp5 http smoke skipped; set WP5_RUN_HTTP_SMOKE=1 when platform-api is running =="
-  fi
+  case "${WP5_RUN_HTTP_SMOKE:-0}" in
+    1|true|TRUE)
+      if [[ -n "${WP5_SMOKE_BASE_URL:-}" ]]; then
+        run_step "wp5 http smoke" bash "$ROOT_DIR/scripts/wp5_test_design_smoke.sh"
+      else
+        run_step "wp5 managed http smoke" bash "$ROOT_DIR/scripts/wp5_managed_http_smoke.sh"
+      fi
+      ;;
+    external)
+      run_step "wp5 http smoke" bash "$ROOT_DIR/scripts/wp5_test_design_smoke.sh"
+      ;;
+    managed|auto)
+      run_step "wp5 managed http smoke" bash "$ROOT_DIR/scripts/wp5_managed_http_smoke.sh"
+      ;;
+    0|false|FALSE|"")
+      echo "== wp5 http smoke skipped; set WP5_RUN_HTTP_SMOKE=1 to run managed smoke, or WP5_RUN_HTTP_SMOKE=external with WP5_SMOKE_BASE_URL for an existing platform-api =="
+      ;;
+    *)
+      echo "Unsupported WP5_RUN_HTTP_SMOKE=${WP5_RUN_HTTP_SMOKE}; use 1, managed, auto, external, or 0." >&2
+      exit 2
+      ;;
+  esac
 
   echo "WP5 quality gate passed."
 }

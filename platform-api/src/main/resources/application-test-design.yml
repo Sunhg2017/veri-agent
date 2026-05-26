@@ -1,5 +1,6 @@
 veri-agent:
   test-design:
+    service-token: ${WP5_SERVICE_TOKEN:local-test-design-token}
     generation-enabled: true
     generation-mode: RULE_TEMPLATE
     prompt-key: wp5-test-design-v1

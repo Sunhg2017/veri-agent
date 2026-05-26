@@ -265,7 +265,7 @@ class ModuleLayerDependencyTest {
         List<Path> roots = List.of(
                 Path.of("src/main/java/com/songhg/veri/agent/asset/application"),
                 Path.of("src/main/java/com/songhg/veri/agent/auth/application"),
-                Path.of("src/main/java/com/songhg/veri/agent/documentinput/application"),
+                Path.of("src/main/java/com/songhg/veri/agent/document/application"),
                 Path.of("src/main/java/com/songhg/veri/agent/integration/application"),
                 Path.of("src/main/java/com/songhg/veri/agent/modelaccess/application")
         );

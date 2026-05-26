@@ -54,6 +54,24 @@ class ServiceTokenAuthenticationFilterTest {
     }
 
     @Test
+    void authenticatesTrustedTestDesignCallerWhenServiceTokenMatches() throws Exception {
+        MockHttpServletRequest request = request("/api/v1/test-design/tasks");
+        request.addHeader(HttpHeaders.AUTHORIZATION, "Bearer test-design-token");
+        request.addHeader("X-Caller-Service", "wp5-test-design");
+        request.addHeader("X-Delegated-User-Id", "user-wp5-smoke");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        newFilter().doFilter(request, response, new MockFilterChain());
+
+        assertThat(response.getStatus()).isEqualTo(200);
+        var authentication = SecurityContextHolder.getContext().getAuthentication();
+        assertThat(authentication).isNotNull();
+        assertThat(authentication.getPrincipal()).isEqualTo(new ServicePrincipal("wp5-test-design", "user-wp5-smoke"));
+        assertThat(authentication.getAuthorities())
+                .anySatisfy(authority -> assertThat(authority.getAuthority()).isEqualTo("ROLE_SERVICE"));
+    }
+
+    @Test
     void rejectsMatchingServiceTokenWhenCallerIsNotTrusted() throws Exception {
         MockHttpServletRequest request = request("/api/v1/asset/apis");
         request.addHeader(HttpHeaders.AUTHORIZATION, "Bearer asset-token");
@@ -83,7 +101,7 @@ class ServiceTokenAuthenticationFilterTest {
                         List.of("document-input"),
                         List.of("model-access"),
                         List.of("asset-service"),
-                        List.of("asset-service")
+                        List.of("wp5-test-design")
                 )
         );
     }

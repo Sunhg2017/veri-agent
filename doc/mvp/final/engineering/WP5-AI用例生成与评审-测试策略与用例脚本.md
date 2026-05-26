@@ -6,8 +6,8 @@
 | 角色产出 | 资深质量工程师 |
 | 文档性质 | 测试策略、功能用例、安全和可测试性建议、脚本设计 |
 | 当前口径 | 文档阶段先冻结测试范围和脚本入口；实现阶段补自动化 |
-| 版本 | v0.1 |
-| 日期 | 2026-05-25 |
+| 版本 | v0.2 |
+| 日期 | 2026-05-26 |
 
 ## 1. 测试目标
 
@@ -140,6 +140,11 @@ cd -
 bash db/validation/run_wp1_db_validation.sh
 
 if [[ "${WP5_RUN_HTTP_SMOKE:-0}" == "1" ]]; then
+  # 未设置 WP5_SMOKE_BASE_URL 时，quality gate 会自启动临时 PostgreSQL 和 db profile platform-api。
+  bash scripts/wp5_managed_http_smoke.sh
+fi
+
+if [[ "${WP5_RUN_HTTP_SMOKE:-0}" == "external" ]]; then
   bash scripts/wp5_test_design_smoke.sh
 fi
 
@@ -159,13 +164,13 @@ TOKEN="${WP5_SERVICE_TOKEN:-local-test-design-token}"
 PROJECT_ID="${WP5_SMOKE_PROJECT_ID:-project-001}"
 
 # 1. 查询 WP5 健康。
-# 2. 准备或读取 WP3 需求资产。
-# 3. 创建生成任务。
-# 4. 轮询任务状态直到 SUCCEEDED/PARTIAL_SUCCESS/FAILED。
-# 5. 查询候选并确认第一条候选。
+# 2. 通过 WP1 管理接口准备并激活项目，解析真实 project resourceId。
+# 3. 准备 WP3 需求资产。
+# 4. 创建生成任务。
+# 5. 查询候选并批量确认。
 # 6. 调用 publish-dry-run。
 # 7. 正式 publish。
-# 8. 查询 WP3 test-cases 确认用例和步骤存在。
+# 8. 查询 WP3 test-cases 和 trace link 确认资产写入。
 ```
 
 ### 9.3 `scripts/wp5_case_generation_quality_eval.sh`
@@ -214,6 +219,7 @@ bash scripts/wp5_quality_gate.sh
 
 ```bash
 WP5_RUN_HTTP_SMOKE=1 bash scripts/wp5_quality_gate.sh
+WP5_RUN_HTTP_SMOKE=external WP5_SMOKE_BASE_URL=http://127.0.0.1:8080 bash scripts/wp5_quality_gate.sh
 WP5_RUN_AI_EVAL=1 bash scripts/wp5_quality_gate.sh
 ```
 

@@ -5,7 +5,7 @@
 | 工作包 | WP5 AI 用例生成与评审 |
 | 文档性质 | 企业级产品化缺口审查、工作拆解和推进记录 |
 | 当前状态 | WP5 已具备规则模板生成、候选评审、dryRun、发布到 WP3 的最小闭环；仍未达到企业级产品完成态 |
-| 版本 | v0.4 |
+| 版本 | v0.5 |
 | 日期 | 2026-05-26 |
 
 ## 1. 目标
@@ -46,7 +46,7 @@
 | P0 | 任务编排与幂等 | 项目经理、服务端架构师 | 已补 retry/cancel 契约、状态保护、创建任务幂等键、requestDigest 冲突检测和 DB 事务锁；仍缺异步队列、超时和补偿。 | 重试不重复污染候选；取消可阻断运行中任务；重复请求可识别。 |
 | P0 | 权限和资源作用域加固 | 服务端架构师、质量工程师 | 已补批量候选操作按候选项目 scope 鉴权，仍需覆盖导出、评测和未来异步回调。 | 项目角色不能操作其他项目候选；服务令牌调用可审计。 |
 | P0 | 发布幂等和补偿 | 服务端架构师 | 已补 AI 生成用例 `sourceRef` 服务层回放、事务级锁、数据库唯一约束和部分成功补链重试；仍缺补偿后台和异步跨 WP 事务编排。 | 重复发布不重复建用例；失败有记录和可重试策略。 |
-| P0 | HTTP smoke 常态化 | 质量工程师 | 已有 smoke 脚本，默认 gate 未启动真实服务 smoke。 | 发布前在运行环境执行 `WP5_RUN_HTTP_SMOKE=1 bash scripts/wp5_quality_gate.sh`。 |
+| P0 | HTTP smoke 常态化 | 质量工程师 | 已补 managed HTTP smoke runtime，显式开启时可自启动临时 PostgreSQL 和 `platform-api`；默认 gate 仍避免无意启动 Docker。 | 发布前执行 `WP5_RUN_HTTP_SMOKE=1 bash scripts/wp5_quality_gate.sh`，或对既有环境执行 `WP5_RUN_HTTP_SMOKE=external WP5_SMOKE_BASE_URL=... bash scripts/wp5_quality_gate.sh`。 |
 | P1 | 前端产品化 | 前端工程师 | 页面已具备基础入口但仍需企业级列表、筛选、评审效率、冲突提示和发布结果链接。 | 用户无需 curl 可完成主链路；移动/窄屏无重叠。 |
 | P1 | AI 质量运营 | 产品经理、质量工程师 | 缺运营阈值、样本集维护、Prompt 版本对比和人工反馈回流。 | 每次 Prompt 变更可比较覆盖率、重复率、泄露数和有效步骤率。 |
 | P1 | 审计与观测 | 服务端架构师 | 生成、评审、发布已有部分审计，缺成本、延迟、traceId 串联看板。 | 任务详情能定位模型调用、错误原因和审计链。 |
@@ -65,6 +65,7 @@
 | 发布 sourceRef 幂等 | WP5 发布 dryRun 和正式发布已能识别同项目同 `source=AI_GENERATED`、同 `sourceRef=wp5:{candidateId}` 的 WP3 用例，并返回 `LINK_EXISTING`，避免重复创建。 |
 | 发布 sourceRef 数据库兜底 | WP3 测试用例新增同项目同 AI `sourceRef` 部分唯一索引，迁移前会阻断历史重复数据；服务层通过事务级 advisory lock 先查回放，避免并发发布重复写入和事务内唯一冲突污染。 |
 | 发布部分成功补偿 | 正式发布发现既有 WP3 用例时会幂等补建 requirement-case trace link；发布失败候选保留 `assetCaseId/errorMessage` 并可重试，前端发布按钮纳入失败候选的重试入口。 |
+| HTTP smoke 自启动准出 | `scripts/wp5_quality_gate.sh` 已支持 `WP5_RUN_HTTP_SMOKE=1` 自启动临时 PostgreSQL 和 db profile `platform-api`，完成 SuperAdmin seed、项目创建/激活、WP3 需求准备后执行 WP5 HTTP smoke；保留 `external` 模式复用已运行环境。 |
 | 同需求高相似冲突治理 | WP5 发布 dryRun 和正式发布已能识别同需求下高相似 WP3 用例，并返回 `DUPLICATE_REVIEW_REQUIRED/CONFLICT`，阻断静默重复创建。 |
 | 候选质量门禁 | 新增 WP5 候选 JSON Schema 资源和服务端质量门禁，生成、重试和人工编辑均校验必填字段、步骤完整性、优先级/覆盖类型、重复键、置信度和明显敏感泄露。 |
 | 创建任务幂等 | `POST /api/v1/test-design/tasks` 支持 `Idempotency-Key` 请求头或请求体 `idempotencyKey`，按项目唯一回放相同请求，并用 `requestDigest` 阻断同 key 不同 payload；DB profile 对同项目同 key 使用事务级锁避免并发重复创建竞态。 |
@@ -104,6 +105,7 @@
 | 幂等键被误复用 | 本次对同项目同 key 存储 requestDigest，不同 payload 返回 `CONFLICT`，并用事务级锁降低并发重复提交竞态。 | 后续在前端任务创建表单生成稳定 requestId，并在任务列表展示回放来源。 |
 | 上下文摘要误含敏感信息 | 本次仅持久化脱敏截断摘要和 `inputDigest`，不保存原始 Prompt、完整文档正文或密钥字段。 | 后续接入 WP2 统一敏感分类和公开模型策略时扩大上下文红线测试。 |
 | 发布失败产生部分成功 | 已记录逐候选 publish record；若 WP3 用例已创建但 trace link 缺失，重试会按 sourceRef 找回用例并补建链接，候选保留失败原因和资产 ID。 | 增加补偿后台、重试调度和跨 WP 发布事务边界运行手册。 |
+| managed HTTP smoke 环境依赖 | `WP5_RUN_HTTP_SMOKE=1` 会启动 Docker PostgreSQL 和 Maven `platform-api`，日志保存在 `build/wp5-http-smoke/`。 | CI 或受限环境可改用 `WP5_RUN_HTTP_SMOKE=external` 指向已部署服务，失败时保留日志并阻断发布。 |
 
 回滚方式：
 
