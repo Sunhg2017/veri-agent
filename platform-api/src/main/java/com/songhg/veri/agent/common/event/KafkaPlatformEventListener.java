@@ -27,7 +27,10 @@ public class KafkaPlatformEventListener {
     }
 
     @KafkaListener(
-            topics = "${veri-agent.events.kafka.topics.model-invocation-job-requested:veri-agent.model-invocation-job-requested}",
+            topics = {
+                    "${veri-agent.events.kafka.topics.model-invocation-job-requested:veri-agent.model-invocation-job-requested}",
+                    "${veri-agent.events.kafka.topics.audit-log-recorded:veri-agent.audit-log-recorded}"
+            },
             groupId = "${veri-agent.events.kafka.consumer-group:platform-api}"
     )
     public void onMessage(ConsumerRecord<String, String> record) {

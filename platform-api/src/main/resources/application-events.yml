@@ -11,6 +11,7 @@ veri-agent:
       topic-replicas: ${PLATFORM_EVENT_KAFKA_TOPIC_REPLICAS:1}
       topics:
         model-invocation-job-requested: ${WP2_MODEL_INVOCATION_JOB_TOPIC:veri-agent.model-invocation-job-requested}
+        audit-log-recorded: ${PLATFORM_AUDIT_LOG_RECORDED_TOPIC:veri-agent.audit-log-recorded}
 
 spring:
   kafka:

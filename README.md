@@ -10,12 +10,12 @@ AI 驱动的端到端企业级测试平台。WP1、WP2、WP3、WP4 是研发任�
 - 支持多部门、多项目、多应用、多环境。
 - 后端基础包路径：`com.songhg.veri.agent`。
 - P0 样板已支持初始化、登录、刷新令牌、注销、管理视图查询、部门详情/编辑/启停、用户详情/资料编辑、项目/应用/环境正式创建、详情、编辑和状态流，设置分页 CRUD/启停，项目成员、应用负责人、环境授权用户与资源级角色绑定，账号启停、锁定/解锁、重置密码和审计追踪。
-- 管理 API 已接入 RBAC 权限校验，`local` 模式使用内置角色权限，`db` 模式从 `rbac_role_permission` 解析，并对项目、应用、环境、审计和设置列表执行资源作用域过滤；前端菜单和按钮权限已有规则与测试。
+- 管理 API 已接入 RBAC 权限校验，`local` 模式使用内置角色权限，`db` 模式从 `rbac_role_permission` 解析，并对项目、应用、环境、审计和设置列表执行资源作用域过滤；`db,redis` 模式会用 Redisson 对会话和权限解析做短 TTL 缓存。前端菜单和按钮权限已有规则与测试。
 - OpenAPI 已声明 WP1 控制面标题、版本和 Bearer 鉴权方案，并通过契约测试保护认证、管理、账号生命周期和设置 CRUD 关键路径。
 - WP2/WP3 通过同进程 Spring 应用服务复用 WP1 上下文校验和审计写入能力，不通过 HTTP 回调本服务。
 - 前端管理台已接入部门、用户、项目、应用、环境、设置详情回读、基础字段编辑、状态流转、项目成员、应用负责人和环境授权用户操作面板，和资源级 API 对齐。
 - `local` profile 使用内存数据，方便前端和接口样板开发。
-- `db` profile 使用 PostgreSQL + Flyway，已接入部门、用户、项目、应用、环境、设置、会话、资源级角色绑定和审计的持久化路径；部门已支持详情、编辑和启停，用户已支持详情和资料编辑，项目/应用/环境已支持编码、归属、敏感级别、公有云模型开关、默认访问地址、环境作用域、详情、编辑、状态流和协作授权字段；审计已持久化失败/拒绝/变更结果和 before/after/diff 字段，敏感设置明文写入会被拒绝。
+- `db` profile 使用 PostgreSQL + Flyway，已接入部门、用户、项目、应用、环境、设置、会话、资源级角色绑定和审计的持久化路径；部门已支持详情、编辑和启停，用户已支持详情和资料编辑，项目/应用/环境已支持编码、归属、敏感级别、公有云模型开关、默认访问地址、环境作用域、详情、编辑、状态流和协作授权字段；审计已持久化失败/拒绝/变更结果和 before/after/diff 字段，`db,kafka` 模式会把审计记录先发布为 trace-aware 事件再异步落库，敏感设置明文写入会被拒绝。
 
 ## 模块
 
@@ -102,7 +102,7 @@ mvn -pl platform-api spring-boot:run -Dspring-boot.run.profiles=db
 
 ## Redis + Kafka 事件驱动模式
 
-WP2 异步模型调用可启用 Redis/Redisson 与 Kafka 事件总线，本地联调用：
+WP2 异步模型调用、WP1 会话/权限缓存和审计异步落库可启用 Redis/Redisson 与 Kafka 事件总线，本地联调用：
 
 ```bash
 docker compose -f infra/docker-compose.yml up -d postgres redis kafka
@@ -118,7 +118,7 @@ PLATFORM_KAFKA_BOOTSTRAP_SERVERS=localhost:9092 \
 mvn -pl platform-api spring-boot:run -Dspring-boot.run.profiles=db,redis,kafka
 ```
 
-不启用 `redis,kafka` profile 时，服务仍使用本地事件总线和进程内 resilience state，便于单元测试和轻量开发。
+启用 `db,redis,kafka` 后，Redisson 承载会话短缓存、权限短缓存、provider 熔断/限流/并发状态；Kafka 承载模型调用任务和审计写入事件，事件 envelope 与日志继续使用同一 `traceId`。不启用 `redis,kafka` profile 时，服务仍使用本地事件总线、JDBC 会话/权限路径和进程内 resilience state，便于单元测试和轻量开发。
 
 初始化首个管理员：
 

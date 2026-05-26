@@ -13,7 +13,7 @@ class PersistenceProfileBoundaryTest {
     private static final Path SOURCE_ROOT = Path.of("src/main/java/com/songhg/veri/agent");
     private static final Pattern NOT_DB_PROFILE = Pattern.compile("@Profile\\(\\s*\"!db\"\\s*\\)");
     private static final Pattern LOCAL_PROFILE = Pattern.compile("@Profile\\(\\s*\"local\"\\s*\\)");
-    private static final Pattern DB_PROFILE = Pattern.compile("@Profile\\(\\s*\"db\"\\s*\\)");
+    private static final Pattern DB_PROFILE = Pattern.compile("@Profile\\(\\s*\"(?=[^\"]*\\bdb\\b)(?![^\"]*!db)[^\"]*\"\\s*\\)");
     private static final Pattern SPRING_STEREOTYPE = Pattern.compile("@(?:Component|Repository|Service)\\b");
 
     @Test
@@ -59,7 +59,7 @@ class PersistenceProfileBoundaryTest {
                 .toList();
 
         assertThat(violatedFiles)
-                .as("Spring-managed JDBC implementations must be bound to the db profile")
+                .as("Spring-managed JDBC implementations must be bound to the db profile or a db-qualified profile variant")
                 .isEmpty();
     }
 

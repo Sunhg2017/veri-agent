@@ -15,8 +15,8 @@ Implemented in this baseline:
 - Login, forced password change, refresh-token rotation, logout/session revoke, and current-user APIs with a lightweight Bearer token baseline.
 - WP1 management APIs for departments, users, user account lifecycle, projects, applications, environments, integrations, audit logs, and settings CRUD.
 - Formal project/application/environment request models in the `db` profile, covering create, detail, update, status transitions, project members, application owners, environment authorized users, resource-scoped role binding, codes, project/application ownership, sensitivity level, public-model policy, default URLs, environment type, and project/application environment scope.
-- RBAC permission checks on management APIs. The `local` profile resolves built-in role permissions in memory; the `db` profile resolves permissions from `rbac_role_permission` and applies resource-scope filtering to project, application, environment, audit, and settings views.
-- Local profile keeps in-memory sample data; `db` profile persists departments, users, sessions, projects, applications, environments, settings, and audit logs in PostgreSQL, including audit before/after/diff fields.
+- RBAC permission checks on management APIs. The `local` profile resolves built-in role permissions in memory; the `db` profile resolves permissions from `rbac_role_permission` and applies resource-scope filtering to project, application, environment, audit, and settings views. The `db,redis` profile caches session and permission hot paths with Redisson short TTLs.
+- Local profile keeps in-memory sample data; `db` profile persists departments, users, sessions, projects, applications, environments, settings, and audit logs in PostgreSQL, including audit before/after/diff fields. The `db,kafka` profile publishes trace-aware audit events and appends audit logs asynchronously through the platform event dispatcher.
 - OpenAPI metadata and Bearer security scheme are configured, and contract tests protect WP1/WP2/WP3 key paths.
 - WP2 model access APIs are available under `/api/v1/model-access`.
 - WP2 async model invocation jobs use a trace-aware event boundary: local event bus by default, Kafka under the `kafka` profile, and Redisson-backed Redis state under the `redis` profile.
@@ -60,7 +60,7 @@ WP4_WEBHOOK_SECRET=local-document-input-webhook-secret \
 mvn -pl platform-api spring-boot:run -Dspring-boot.run.profiles=db
 ```
 
-To run WP2 async events with Redis/Redisson and Kafka:
+To run WP2 async events, WP1 Redis hot-path caches, and trace-aware async audit with Redis/Redisson and Kafka:
 
 ```bash
 docker compose -f infra/docker-compose.yml up -d postgres redis kafka

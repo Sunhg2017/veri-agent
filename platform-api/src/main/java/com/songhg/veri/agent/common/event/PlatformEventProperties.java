@@ -14,6 +14,7 @@ public record PlatformEventProperties(
     private static final int DEFAULT_LOCAL_WORKER_THREADS = 2;
     private static final String DEFAULT_CONSUMER_GROUP = "platform-api";
     private static final String DEFAULT_MODEL_INVOCATION_JOB_TOPIC = "veri-agent.model-invocation-job-requested";
+    private static final String DEFAULT_AUDIT_LOG_RECORDED_TOPIC = "veri-agent.audit-log-recorded";
 
     public int safeLocalWorkerThreads() {
         return Math.max(1, localWorkerThreads <= 0 ? DEFAULT_LOCAL_WORKER_THREADS : localWorkerThreads);
@@ -25,6 +26,10 @@ public record PlatformEventProperties(
 
     public String modelInvocationJobRequestedTopic() {
         return safeKafka().safeTopics().modelInvocationJobRequestedTopic();
+    }
+
+    public String auditLogRecordedTopic() {
+        return safeKafka().safeTopics().auditLogRecordedTopic();
     }
 
     public String kafkaConsumerGroup() {
@@ -51,7 +56,7 @@ public record PlatformEventProperties(
     ) {
 
         private Topics safeTopics() {
-            return topics == null ? new Topics(null) : topics;
+            return topics == null ? new Topics(null, null) : topics;
         }
 
         private String consumerGroupValue() {
@@ -61,13 +66,21 @@ public record PlatformEventProperties(
 
     public record Topics(
             /** WP2 async model invocation job request topic */
-            String modelInvocationJobRequested
+            String modelInvocationJobRequested,
+            /** Platform audit log append topic */
+            String auditLogRecorded
     ) {
 
         private String modelInvocationJobRequestedTopic() {
             return StringUtils.hasText(modelInvocationJobRequested)
                     ? modelInvocationJobRequested
                     : DEFAULT_MODEL_INVOCATION_JOB_TOPIC;
+        }
+
+        private String auditLogRecordedTopic() {
+            return StringUtils.hasText(auditLogRecorded)
+                    ? auditLogRecorded
+                    : DEFAULT_AUDIT_LOG_RECORDED_TOPIC;
         }
     }
 }

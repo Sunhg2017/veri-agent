@@ -111,6 +111,19 @@
         )
     </select>
 
+    <select id="findSessionById" resultMap="sessionMap">
+        select
+            id,
+            user_id,
+            refresh_token_hash,
+            auth_version,
+            expires_at,
+            revoked_at is not null as revoked
+        from iam_session
+        where id = #{sessionId}
+        limit 1
+    </select>
+
     <select id="findByRefreshTokenHash" resultMap="sessionMap">
         select
             id,

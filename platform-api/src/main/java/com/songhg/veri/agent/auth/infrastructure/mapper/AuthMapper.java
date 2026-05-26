@@ -29,6 +29,8 @@ public interface AuthMapper {
             @Param("now") Instant now
     );
 
+    AuthSessionRecord findSessionById(@Param("sessionId") UUID sessionId);
+
     AuthSessionRecord findByRefreshTokenHash(@Param("refreshTokenHash") String refreshTokenHash);
 
     void revokeSession(

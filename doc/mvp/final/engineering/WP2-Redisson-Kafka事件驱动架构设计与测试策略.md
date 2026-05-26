@@ -3,7 +3,7 @@
 | 项目 | 内容 |
 |---|---|
 | 日期 | 2026-05-27 |
-| 覆盖范围 | `platform-api` 公共事件层、WP2 模型异步调用、Redis provider resilience |
+| 覆盖范围 | `platform-api` 公共事件层、WP1 会话/权限/审计热路径、WP2 模型异步调用、Redis provider resilience |
 | 关联准出 | `WP1-WP4-统一发布准出清单.md` |
 
 ## 1. 任务定义
@@ -14,6 +14,7 @@
 2. 将 WP2 异步模型调用从进程内线程池派发调整为事件驱动：API 提交只保存任务并发布事件，消费者收到事件后执行任务。
 3. 异步链路必须保持同一 `traceId`：HTTP 入口、任务记录、事件 envelope、Kafka header、本地事件 worker、消费者执行日志和模型调用日志均可串联。
 4. 修正多实例下不合理的本地状态：provider 熔断、限流和并发限制在 `redis` profile 下使用 Redis/Redisson 共享状态。
+5. 将认证会话、RBAC 高频鉴权和审计写入纳入 Redis/Kafka 架构边界：`redis` profile 下缓存会话与权限，`kafka` profile 下审计先发布事件再异步落库。
 
 ### 1.2 范围
 
@@ -21,6 +22,9 @@
 |---|---|
 | `common.event` | 新增 `PlatformEventEnvelope`、`PlatformEventPublisher`、本地事件总线、Kafka publisher/listener 和 trace-aware dispatcher。 |
 | `common.redis` | 新增 RedissonClient 配置，启用 `redis` profile 时连接 Redis。 |
+| `auth` | `db,redis` profile 使用 `RedisAuthSessionStore`，会话写穿 PostgreSQL，热点校验和刷新令牌索引走 Redisson 短 TTL 缓存。 |
+| `authorization` | `db,redis` profile 使用 `RedisPermissionResolver`，角色权限聚合和资源作用域鉴权结果走 Redisson 短 TTL 缓存。 |
+| `common.audit` | `db,kafka` profile 使用 `KafkaAuditLogWriter` 发布 `audit.log-recorded` 事件，由事件 handler 恢复 trace 后异步写 `audit_log`。 |
 | `modelaccess` | WP2 异步模型任务改为 `ma_invocation_job` 持久化 + `model-access.invocation-job.requested` 事件 + executor 消费。 |
 | `infra` | docker compose 增加 Redis、Kafka，并让 `platform-api` 使用 `db,redis,kafka` profile。 |
 | 文档与测试 | 更新组件选型，补充事件 trace、Redisson 状态和并发控制测试。 |
@@ -29,7 +33,7 @@
 
 1. 不把所有同步 API 改成 MQ；只有天然异步、可幂等重放的链路进入事件总线。
 2. 不把 `platform-api` 拆成多个服务；本次仍是模块化单体内的事件边界。
-3. 不把审计 `audit_outbox` 立即迁移到 Kafka；审计仍保持事务内写库 + outbox，后续按吞吐和可靠性要求迁移。
+3. 不在本次直接改造 WP4 导入、发布和 webhook API 返回语义；这些链路需要先扩展 `PROCESSING/PUBLISH_QUEUED` 等状态机，避免用户拿到“已完成”响应但后台仍在处理。
 4. 不引入复杂延迟消息平台；本地/Kafka publisher 仅保留现有 WP2 dispatch delay 兼容能力，生产建议设置为 0。
 
 ### 1.4 风险与回滚
@@ -40,6 +44,7 @@
 | 进程崩溃留下 RUNNING 任务 | 启动恢复只标记超过 `WP2_ASYNC_JOB_RUNNING_TIMEOUT_MS` 的 stale running 任务失败，避免多实例误伤仍在运行的任务。 |
 | Redis/Kafka 不可用 | 默认本地 profile 不强依赖；集成部署启用 `redis,kafka` profile，Kafka 发布失败会以同进程 dispatcher 兜底执行当前事件，故障时也可回滚到仅 `db` profile + local event bus。 |
 | traceId 丢失 | 事件 envelope 写入 `traceId`，Kafka header 同步写 `X-Trace-Id`，dispatcher 在 handler 前恢复 `TraceContext` 和 MDC。 |
+| 权限或会话缓存陈旧 | 会话和 scope 鉴权只使用短 TTL；注销/刷新路径会主动写回撤销状态，权限绑定变更最多在 TTL 窗口内收敛。 |
 
 ## 2. 产品 PRD
 
@@ -68,7 +73,12 @@
 }
 ```
 
-Kafka topic 默认：`veri-agent.model-invocation-job-requested`。
+Kafka topic 默认：
+
+| 事件 | Topic |
+|---|---|
+| `model-access.invocation-job.requested` | `veri-agent.model-invocation-job-requested` |
+| `audit.log-recorded` | `veri-agent.audit-log-recorded` |
 
 Kafka header：
 
@@ -104,6 +114,20 @@ terminal -> no-op
 | provider 熔断状态 | `RMapCache` + provider 维度 `RLock`。 |
 | provider 限流窗口 | `RAtomicLong` + TTL。 |
 | provider 并发限制 | `RSemaphore`，跨实例共享可用 permit。 |
+| 认证会话缓存 | `RMapCache` 保存 session 记录和 refresh token 索引，写穿 PostgreSQL，活动会话最大缓存 30 秒。 |
+| 权限缓存 | `RMapCache` 保存角色权限集合和 scope 鉴权布尔结果，按 30-60 秒短 TTL 收敛。 |
+
+### 3.4 截图架构清单处理结论
+
+| 条目 | 处理 |
+|---|---|
+| AuthSessionStore 无缓存抽象 | 已处理：新增 `RedisAuthSessionStore`，`db,redis` profile 自动切换。 |
+| Provider 限流器本地内存 | 已处理：上一轮已新增 `ProviderConcurrencyLimiter` 和 `RedissonProviderConcurrencyLimiter`，限流窗口也在 Redisson。 |
+| PermissionResolver 无缓存 | 已处理：新增 `RedisPermissionResolver`，角色权限和资源 scope 决策使用短 TTL Redis 缓存。 |
+| WP4 -> WP2 模型解析同步阻塞 | 需单独版本：当前 `DocumentImportStatus` 只有 `SUCCEEDED/FAILED`，直接异步化会破坏导入接口语义；建议新增 `PROCESSING/MODEL_PARSE_QUEUED/MODEL_PARSE_FAILED` 状态和 `ModelParseRequested/Completed` 事件后切换。 |
+| WP4 -> WP3 资产创建同步调用 | 需单独版本：候选状态缺少 `PUBLISH_QUEUED/PUBLISHING`，应先扩展发布状态机和查询契约，再用事件逐条消费。 |
+| 审计写入同步 `REQUIRES_NEW` | 已处理：`db,kafka` profile 下发布 `audit.log-recorded` 事件异步落库；非 Kafka profile 仍保留同步写库便于本地和测试。 |
+| Webhook 事件处理同步编排 | 需单独版本：当前 webhook API 返回 `DocumentImportResponse`，改成异步需新增 `ACCEPTED` 响应或查询轮询契约，并复用 import/model/publish 状态机。 |
 
 ## 4. 测试策略与用例
 
@@ -114,6 +138,9 @@ terminal -> no-op
 | 排队任务取消后事件到达不执行 | `ModelAccessControllerTest#cancelsQueuedAsyncInvocationJobWithoutWritingInvocationLog`。 |
 | Redisson 熔断/限流跨实例共享 | `RedisProviderResilienceStateStoreTest`。 |
 | Redisson provider 并发限制跨实例共享 | `RedisProviderResilienceStateStoreTest#limitsProviderConcurrencyAcrossRedissonLimiterInstances`。 |
+| Redis 会话缓存和撤销写回 | `RedisAuthSessionStoreTest`。 |
+| Redis 权限聚合和 scope 决策缓存 | `RedisPermissionResolverTest`。 |
+| Kafka 审计事件发布保持 traceId | `KafkaAuditLogWriterTest`。 |
 | DB 任务恢复只处理 stale running | `DbProfileRepositoryContractTest`。 |
 
 ## 5. 五角色结论

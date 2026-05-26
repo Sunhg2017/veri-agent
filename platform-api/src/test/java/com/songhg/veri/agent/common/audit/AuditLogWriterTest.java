@@ -30,7 +30,7 @@ class AuditLogWriterTest {
     @Test
     void jdbcWriterRecordsSystemActorMetadataWhenActorIsMissing() {
         AuditMapper mapper = mock(AuditMapper.class);
-        JdbcAuditLogWriter writer = new JdbcAuditLogWriter(mapper);
+        JdbcAuditLogWriter writer = new JdbcAuditLogWriter(new AuditLogAppender(mapper));
         ArgumentCaptor<String> afterJson = ArgumentCaptor.forClass(String.class);
 
         writer.record(AuditLogWriter.denied(

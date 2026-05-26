@@ -37,7 +37,7 @@ P0 不建议一开始拆成多个微服务。WP1 的核心风险不在服务数�
 | API 契约 | OpenAPI 3.1 + springdoc-openapi | Swagger 手写文档 | 采用 OpenAPI 3.1 | 支持前后端评审、Mock、契约测试和接口自动化生成。 |
 | 统一响应 | 自研 `ApiResponse<T>` | Spring 默认错误结构 | 采用自研统一响应 | 匹配当前 API 契约中的 `code/message/traceId/data`。 |
 | 错误码 | 自研错误码枚举 | HTTP status only | 采用自研错误码枚举 | 便于前端提示、自动化断言和审计归因。 |
-| 审计写入 | 业务事务内写 `audit_log` + `audit_outbox` | 消息队列直接写 | P0 采用 DB outbox | 不引入 MQ 也能保证审计可补偿；后续可从 outbox 转 Kafka/RocketMQ。 |
+| 审计写入 | `audit_log` 同步写入 + Kafka trace-aware 异步事件 | 仅 DB outbox、消息队列直接写 | P0 保留同步兜底，`db,kafka` 启用异步审计事件 | 不启用 Kafka 时保持事务内写库；启用 Kafka 时业务链路发布 `audit.log-recorded` 事件，消费者按 traceId 异步落 `audit_log`。 |
 | 异步任务 | DB 任务账本 + Kafka/local event bus | Spring Scheduler、Quartz、XXL-JOB | P0 采用事件驱动异步 | 业务提交只持久化任务并发布事件，消费者按 traceId 恢复上下文执行，重复消费由状态机幂等。 |
 | 消息队列 | Kafka | RocketMQ、RabbitMQ | P0 引入 Kafka 承载异步领域事件 | WP2 模型异步调用先落地，后续审计 outbox、通知和集成事件可按吞吐与可靠性要求迁移。 |
 | 密钥管理 | 本地加密 SecretProvider | Vault、KMS | P0 采用 LocalEncryptedSecretProvider | 用户已确认不需要完全离线，但平台需自建模型和密钥封装；本地 provider 可先跑通，后续适配企业 KMS。 |
@@ -83,7 +83,7 @@ P0 不建议一开始拆成多个微服务。WP1 的核心风险不在服务数�
 | 密码哈希 | BCrypt | 保存哈希，不保存明文；后续支持算法版本升级字段。 |
 | SecretProvider | `LocalEncryptedSecretProvider` | 使用环境变量注入主密钥，密文落 `secret_local_store`。 |
 | 加密算法 | AES-256-GCM | 存储 `cipher_text`、`iv`、`auth_tag`、`master_key_version`。 |
-| 审计 | `audit_log` + `audit_outbox` | 写操作同步记录审计，失败进入 outbox 补偿。 |
+| 审计 | `audit_log` + `audit.log-recorded` 事件 | 非 Kafka profile 同步记录审计；`db,kafka` profile 发布 trace-aware 事件并异步落库。 |
 | 敏感扫描 | Gitleaks | 阻断密钥、Token、密码误提交。 |
 
 ### 3.3 测试与准出组件
@@ -102,7 +102,7 @@ P0 不建议一开始拆成多个微服务。WP1 的核心风险不在服务数�
 |---|---|---|---|
 | 服务拆分 | `platform-api` 模块化单体 | Spring Cloud Gateway、Nacos、OpenFeign | 多团队独立发布、服务容量或边界压力明显。 |
 | 策略引擎 | 自研 RBAC | Casbin、OPA | 权限规则变成客户可配置策略语言。 |
-| 消息队列扩展 | WP2 异步事件先用 Kafka | Kafka 多 topic、RocketMQ、RabbitMQ | 审计 outbox、通知、集成事件吞吐超过 DB outbox 能力，或需要跨服务解耦。 |
+| 消息队列扩展 | WP2 模型任务和审计写入先用 Kafka | Kafka 多 topic、RocketMQ、RabbitMQ | 通知、集成事件或更多异步编排吞吐超过同步路径能力，或需要跨服务解耦。 |
 | 分布式调度 | Spring Scheduler | XXL-JOB、Quartz | WP9 需要复杂任务编排、失败重试、分片调度。 |
 | 配置中心 | Spring Profiles | Nacos、Apollo、Spring Cloud Config | 多环境、多集群配置变更需要集中治理。 |
 | 密钥服务 | LocalEncryptedSecretProvider | Vault、云 KMS、企业 KMS | 客户要求集中密钥、轮换、审计或 HSM 对接。 |
@@ -118,7 +118,7 @@ P0 不建议一开始拆成多个微服务。WP1 的核心风险不在服务数�
 | WebFlux 全响应式栈 | 管理后台 API 并发模型简单，收益小，团队排障成本高。 |
 | JPA 作为主数据访问层 | 权限范围过滤、部分索引、复杂审计查询需要 SQL 显式可控。 |
 | H2 作为集成测试数据库 | 无法真实覆盖 PostgreSQL 的部分索引、JSONB、约束和权限行为。 |
-| 所有写路径一刀切直接发 MQ | 审计和强一致业务仍以事务内写库/outbox 为准；Kafka 先承载天然异步、可幂等重放的领域事件。 |
+| 所有写路径一刀切直接发 MQ | 强一致业务仍以事务内写库为准；Kafka 先承载模型调用、审计写入等天然异步且可按 traceId 追踪的事件。 |
 | OPA/Casbin 作为 P0 权限核心 | 当前权限矩阵清晰，自研 RBAC 更便于产品、测试和后端共同验收。 |
 | Vault/KMS 作为 P0 强依赖 | 用户已确认不需要完全离线和强企业密钥依赖；本地加密 provider 更适合 MVP 启动。 |
 
@@ -179,6 +179,6 @@ P0 CI 至少包含以下 job：
 
 ## 10. 架构师最终建议
 
-WP1 的服务端选型应围绕“可控的一致性”展开：用 Spring Boot 单体模块化服务承载控制面核心能力，用 PostgreSQL 和 Redis 解决状态与缓存，用 Flyway 和 validation SQL 把数据库准出自动化，用 Spring Security 统一认证鉴权，用 DB outbox 保证审计补偿。
+WP1 的服务端选型应围绕“可控的一致性”展开：用 Spring Boot 单体模块化服务承载控制面核心能力，用 PostgreSQL 和 Redis 解决状态与缓存，用 Flyway 和 validation SQL 把数据库准出自动化，用 Spring Security 统一认证鉴权，并在 `db,kafka` profile 下用 trace-aware 审计事件把写操作从主调用链剥离。
 
-首期不把复杂度前置到微服务、消息队列、策略引擎和企业级 KMS。等 P0 跑通权限、项目、环境、密钥和审计闭环后，再根据真实用户接入情况逐步替换或扩展。
+首期不把复杂度前置到微服务、策略引擎和企业级 KMS。等 P0 跑通权限、项目、环境、密钥和审计闭环后，再根据真实用户接入情况逐步替换或扩展。

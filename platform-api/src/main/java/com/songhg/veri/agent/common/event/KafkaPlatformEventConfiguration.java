@@ -19,4 +19,12 @@ public class KafkaPlatformEventConfiguration {
                 .replicas(properties.kafkaTopicReplicas())
                 .build();
     }
+
+    @Bean
+    NewTopic auditLogRecordedTopic(PlatformEventProperties properties) {
+        return TopicBuilder.name(properties.auditLogRecordedTopic())
+                .partitions(properties.kafkaTopicPartitions())
+                .replicas(properties.kafkaTopicReplicas())
+                .build();
+    }
 }

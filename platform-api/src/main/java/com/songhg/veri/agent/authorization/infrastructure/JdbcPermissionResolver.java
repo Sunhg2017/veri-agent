@@ -13,7 +13,7 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
-@Profile("db")
+@Profile("db & !redis")
 @Component
 public class JdbcPermissionResolver implements PermissionResolver {
 
