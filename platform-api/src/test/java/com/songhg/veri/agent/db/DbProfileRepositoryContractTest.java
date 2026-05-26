@@ -287,6 +287,7 @@ class DbProfileRepositoryContractTest {
         ));
         assertThat(modelInvocationJobRepository.markRunningJobsFailed(
                 now.plusSeconds(4),
+                now.plusSeconds(2),
                 "WORKER_RESTARTED",
                 "recovered"
         )).isEqualTo(1);

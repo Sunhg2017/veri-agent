@@ -138,10 +138,11 @@ public class InMemoryModelInvocationJobRepository implements ModelInvocationJobR
     }
 
     @Override
-    public int markRunningJobsFailed(Instant finishedAt, String errorCode, String errorMessage) {
+    public int markRunningJobsFailed(Instant finishedAt, Instant staleBefore, String errorCode, String errorMessage) {
         int updated = 0;
         for (ModelInvocationJobRecord job : jobs.values()) {
-            if (job.status() == ModelInvocationJobStatus.RUNNING) {
+            Instant lastTouchedAt = job.startedAt() == null ? job.createdAt() : job.startedAt();
+            if (job.status() == ModelInvocationJobStatus.RUNNING && lastTouchedAt.isBefore(staleBefore)) {
                 markFailed(job.jobId(), finishedAt, errorCode, errorMessage);
                 updated++;
             }

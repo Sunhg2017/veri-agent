@@ -30,6 +30,7 @@ AI 驱动的端到端企业级测试平台。WP1、WP2、WP3、WP4 是研发任�
 | `doc/mvp/final/engineering/WP1-当前可持续研发底座交付说明.md` | 当前 WP1 单平台实现、准出命令、验证结论和后续研发入口。 |
 | `doc/mvp/final/engineering/WP1-企业身份与审批预留方案.md` | WP1 M4 企业身份源、外部账号/部门同步、审批对象与角色绑定关系的预留方案。 |
 | `doc/mvp/final/engineering/WP2-模型接入层-交付说明.md` | 当前 WP2 模型接入实现、API 边界、数据库交付和验证入口。 |
+| `doc/mvp/final/engineering/WP2-Redisson-Kafka事件驱动架构设计与测试策略.md` | WP2 Redisson、Kafka 事件驱动异步调用、traceId 串联和测试策略。 |
 | `doc/mvp/final/engineering/WP3-测试资产管理-当前交付说明.md` | 当前 WP3 资产模型、API、权限、状态流、前端入口和验证命令。 |
 | `doc/mvp/final/engineering/WP4-需求与文档输入-研发拆解与里程碑计划.md` | 当前 WP4 需求输入、候选确认、发布、真实文档解析和 webhook 交付口径。 |
 | `doc/mvp/final/engineering/WP5-AI用例生成与评审-研发任务拆解.md` | WP5 AI 用例生成与评审的研发任务拆解、里程碑、范围边界、风险和回滚口径。 |
@@ -50,7 +51,7 @@ AI 驱动的端到端企业级测试平台。WP1、WP2、WP3、WP4 是研发任�
 | `doc/mvp/final/engineering/WP4-Webhook签名样例与联调说明.md` | WP4 webhook cURL/Node.js/Java 签名样例和联调排错说明。 |
 | `doc/mvp/final/engineering/WP4-外部连接器接入Runbook与Mock契约.md` | WP4 Confluence、飞书、钉钉、语雀真实连接器的 schema、mock 契约、安全和准出口径。 |
 | `doc/mvp/final/engineering/WP4-高保真解析专项评估.md` | WP4 表格结构、图片语义、页眉页脚、批注/修订和附件抽取的高保真解析专项评估。 |
-| `infra/docker-compose.yml` | 本地 PostgreSQL + platform-api 研发环境。 |
+| `infra/docker-compose.yml` | 本地 PostgreSQL + Redis + Kafka + platform-api + portal-web 集成研发环境。 |
 | `scripts/wp1_db_profile_smoke.sh` | 针对已启动 db profile 后端的 HTTP 烟测脚本。 |
 | `scripts/wp1_quality_gate.sh` | WP1 本地质量门禁入口，串联后端测试、前端测试、前端构建和数据库校验。 |
 | `scripts/wp1_migration_release_plan.sh` | WP1-WP4 统一 Flyway 迁移发布计划脚本，生成待发布 migration manifest 和回滚/前滚证据。 |
@@ -98,6 +99,26 @@ WP1_DATASOURCE_USERNAME=veri_agent \
 WP1_DATASOURCE_PASSWORD=veri_agent_dev \
 mvn -pl platform-api spring-boot:run -Dspring-boot.run.profiles=db
 ```
+
+## Redis + Kafka 事件驱动模式
+
+WP2 异步模型调用可启用 Redis/Redisson 与 Kafka 事件总线，本地联调用：
+
+```bash
+docker compose -f infra/docker-compose.yml up -d postgres redis kafka
+```
+
+```bash
+WP1_AUTH_TOKEN_SECRET=local-auth-secret-32-byte-minimum! \
+WP1_DATASOURCE_URL=jdbc:postgresql://localhost:5432/veri_agent \
+WP1_DATASOURCE_USERNAME=veri_agent \
+WP1_DATASOURCE_PASSWORD=veri_agent_dev \
+PLATFORM_REDIS_ADDRESS=redis://localhost:6379 \
+PLATFORM_KAFKA_BOOTSTRAP_SERVERS=localhost:9092 \
+mvn -pl platform-api spring-boot:run -Dspring-boot.run.profiles=db,redis,kafka
+```
+
+不启用 `redis,kafka` profile 时，服务仍使用本地事件总线和进程内 resilience state，便于单元测试和轻量开发。
 
 初始化首个管理员：
 

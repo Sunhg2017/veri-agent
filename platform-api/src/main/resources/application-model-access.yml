@@ -20,4 +20,5 @@ veri-agent:
     provider-max-concurrent-requests: ${WP2_PROVIDER_MAX_CONCURRENT_REQUESTS:0}
     async-job-worker-threads: ${WP2_ASYNC_JOB_WORKER_THREADS:2}
     async-job-dispatch-delay-ms: ${WP2_ASYNC_JOB_DISPATCH_DELAY_MS:0}
+    async-job-running-timeout-ms: ${WP2_ASYNC_JOB_RUNNING_TIMEOUT_MS:3600000}
     routing-rules: []

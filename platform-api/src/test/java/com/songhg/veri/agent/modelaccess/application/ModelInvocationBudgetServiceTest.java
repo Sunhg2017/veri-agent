@@ -99,6 +99,7 @@ class ModelInvocationBudgetServiceTest {
                 0,
                 1,
                 0,
+                3_600_000,
                 callerLimit,
                 "BLOCK",
                 List.of()

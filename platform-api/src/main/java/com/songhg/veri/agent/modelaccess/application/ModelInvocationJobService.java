@@ -2,10 +2,14 @@ package com.songhg.veri.agent.modelaccess.application;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.songhg.veri.agent.common.event.PlatformEventEnvelope;
+import com.songhg.veri.agent.common.event.PlatformEventProperties;
+import com.songhg.veri.agent.common.event.PlatformEventPublisher;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
 import com.songhg.veri.agent.common.trace.TraceContext;
 import com.songhg.veri.agent.modelaccess.application.command.ModelInvocationCommand;
+import com.songhg.veri.agent.modelaccess.application.event.ModelInvocationJobRequestedEvent;
 import com.songhg.veri.agent.modelaccess.application.port.ModelInvocationJobRepository;
 import com.songhg.veri.agent.modelaccess.application.view.ModelInvocationJobRecord;
 import com.songhg.veri.agent.modelaccess.application.view.ModelInvocationJobResult;
@@ -14,23 +18,10 @@ import com.songhg.veri.agent.modelaccess.application.view.ModelInvocationResult;
 import com.songhg.veri.agent.modelaccess.config.ModelAccessProperties;
 import com.songhg.veri.agent.modelaccess.security.ServicePrincipal;
 import jakarta.annotation.PostConstruct;
-import jakarta.annotation.PreDestroy;
+import java.time.Duration;
 import java.time.Instant;
-import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
-import java.util.concurrent.ThreadFactory;
-import java.util.concurrent.TimeUnit;
-import org.slf4j.MDC;
 import org.springframework.stereotype.Service;
-
-
-
-
-
-
 
 @Service
 public class ModelInvocationJobService {
@@ -39,42 +30,40 @@ public class ModelInvocationJobService {
     private static final String CANCEL_REQUESTED_CODE = "CANCEL_REQUESTED";
     private static final String WORKER_RESTARTED_CODE = "WORKER_RESTARTED";
 
-    private final ModelInvocationService invocationService;
     private final ModelAccessProperties properties;
     private final ModelInvocationJobRepository repository;
     private final ObjectMapper objectMapper;
-    private final ScheduledThreadPoolExecutor executor;
-    private final Map<UUID, ScheduledFuture<?>> futures = new ConcurrentHashMap<>();
+    private final PlatformEventPublisher eventPublisher;
+    private final PlatformEventProperties eventProperties;
 
     public ModelInvocationJobService(
-            ModelInvocationService invocationService,
             ModelAccessProperties properties,
             ModelInvocationJobRepository repository,
-            ObjectMapper objectMapper
+            ObjectMapper objectMapper,
+            PlatformEventPublisher eventPublisher,
+            PlatformEventProperties eventProperties
     ) {
-        this.invocationService = invocationService;
         this.properties = properties;
         this.repository = repository;
         this.objectMapper = objectMapper;
-        this.executor = new ScheduledThreadPoolExecutor(
-                properties.safeAsyncJobWorkerThreads(),
-                new ModelInvocationJobThreadFactory()
-        );
-        this.executor.setRemoveOnCancelPolicy(true);
+        this.eventPublisher = eventPublisher;
+        this.eventProperties = eventProperties;
     }
 
     @PostConstruct
     public void recoverPersistedJobs() {
+        Instant now = Instant.now();
         repository.markRunningJobsFailed(
-                Instant.now(),
+                now,
+                now.minusMillis(properties.safeAsyncJobRunningTimeoutMs()),
                 WORKER_RESTARTED_CODE,
-                "服务重启后运行中的异步模型调用已标记失败，可重新提交"
+                "超过恢复保护窗口的运行中异步模型调用已标记失败，可重新提交"
         );
-        repository.queuedJobs().forEach(this::schedule);
+        repository.queuedJobs().forEach(this::publishJobRequested);
     }
 
     /**
-     * Persists the invocation command before asynchronous dispatch so queued jobs survive restarts.
+     * Persists the command first, then emits an event so async execution can move between local and Kafka transports.
      */
     public ModelInvocationJobResult submit(ModelInvocationCommand request, ServicePrincipal principal) {
         UUID jobId = UUID.randomUUID();
@@ -84,7 +73,7 @@ public class ModelInvocationJobService {
                 json(request),
                 principal.callerService(),
                 principal.delegatedUserId(),
-                TraceContext.getTraceId(),
+                TraceContext.getOrCreateTraceId(),
                 Instant.now(),
                 null,
                 null,
@@ -94,7 +83,7 @@ public class ModelInvocationJobService {
                 null
         );
         repository.save(job);
-        schedule(job);
+        publishJobRequested(job);
         return toResult(job);
     }
 
@@ -108,11 +97,6 @@ public class ModelInvocationJobService {
             return toResult(current);
         }
 
-        ScheduledFuture<?> future = futures.get(jobId);
-        if (future != null) {
-            future.cancel(true);
-        }
-
         if (repository.cancelQueued(jobId, Instant.now(), CANCELLED_CODE, "异步模型调用已取消")) {
             return get(jobId);
         }
@@ -120,56 +104,23 @@ public class ModelInvocationJobService {
         return get(jobId);
     }
 
-    @PreDestroy
-    public void shutdown() {
-        executor.shutdownNow();
-    }
-
     private ModelInvocationJobRecord job(UUID jobId) {
         return repository.job(jobId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "异步模型调用任务不存在"));
     }
 
-    private void schedule(ModelInvocationJobRecord job) {
-        ScheduledFuture<?> future = executor.schedule(
-                () -> run(job.jobId()),
-                properties.safeAsyncJobDispatchDelayMs(),
-                TimeUnit.MILLISECONDS
+    private void publishJobRequested(ModelInvocationJobRecord job) {
+        PlatformEventEnvelope event = PlatformEventEnvelope.of(
+                ModelInvocationJobRequestedEvent.EVENT_TYPE,
+                job.jobId().toString(),
+                new ModelInvocationJobRequestedEvent(job.jobId()),
+                objectMapper
         );
-        futures.put(job.jobId(), future);
-    }
-
-    private void run(UUID jobId) {
-        if (!repository.markRunning(jobId, Instant.now())) {
-            futures.remove(jobId);
-            return;
-        }
-
-        ModelInvocationJobRecord job = job(jobId);
-        try {
-            TraceContext.setTraceId(job.traceId());
-            MDC.put(TraceContext.MDC_TRACE_ID, job.traceId());
-            ModelInvocationResult response = invocationService.invoke(request(job), principal(job));
-            repository.markSucceeded(jobId, Instant.now(), response, json(response));
-        } catch (RuntimeException exception) {
-            repository.markFailed(jobId, Instant.now(), errorCode(exception), exception.getMessage());
-        } finally {
-            futures.remove(jobId);
-            MDC.remove(TraceContext.MDC_TRACE_ID);
-            TraceContext.clear();
-        }
-    }
-
-    private ModelInvocationCommand request(ModelInvocationJobRecord job) {
-        try {
-            return objectMapper.readValue(job.requestJson(), ModelInvocationCommand.class);
-        } catch (JsonProcessingException exception) {
-            throw new BusinessException(ErrorCode.INVALID_STATE, "异步模型调用请求载荷无法解析");
-        }
-    }
-
-    private ServicePrincipal principal(ModelInvocationJobRecord job) {
-        return new ServicePrincipal(job.actorService(), job.delegatedUserId());
+        eventPublisher.publish(
+                eventProperties.modelInvocationJobRequestedTopic(),
+                event,
+                Duration.ofMillis(properties.safeAsyncJobDispatchDelayMs())
+        );
     }
 
     private ModelInvocationJobResult toResult(ModelInvocationJobRecord job) {
@@ -210,24 +161,5 @@ public class ModelInvocationJobService {
         return status == ModelInvocationJobStatus.SUCCEEDED
                 || status == ModelInvocationJobStatus.FAILED
                 || status == ModelInvocationJobStatus.CANCELLED;
-    }
-
-    private String errorCode(RuntimeException exception) {
-        if (exception instanceof BusinessException businessException) {
-            return businessException.getErrorCode().name();
-        }
-        return ErrorCode.INTERNAL_ERROR.name();
-    }
-
-    private static final class ModelInvocationJobThreadFactory implements ThreadFactory {
-
-        private int index = 0;
-
-        @Override
-        public synchronized Thread newThread(Runnable runnable) {
-            Thread thread = new Thread(runnable, "wp2-model-invocation-job-" + (++index));
-            thread.setDaemon(true);
-            return thread;
-        }
     }
 }

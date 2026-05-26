@@ -4,6 +4,7 @@ import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
 import com.songhg.veri.agent.modelaccess.application.command.ProviderCallRequest;
 import com.songhg.veri.agent.modelaccess.application.port.ModelProviderClient;
+import com.songhg.veri.agent.modelaccess.application.port.ProviderConcurrencyLimiter;
 import com.songhg.veri.agent.modelaccess.application.port.ProviderResilienceStateStore;
 import com.songhg.veri.agent.modelaccess.application.view.ProviderCallResult;
 import com.songhg.veri.agent.modelaccess.application.view.ProviderCheckResult;
@@ -14,7 +15,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Semaphore;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -28,17 +28,26 @@ public class ProviderResilienceManager {
 
     private final ModelAccessProperties properties;
     private final ProviderResilienceStateStore stateStore;
+    private final ProviderConcurrencyLimiter concurrencyLimiter;
     private final Map<UUID, ProviderCheckCacheEntry> providerCheckCache = new ConcurrentHashMap<>();
-    private final Map<UUID, Semaphore> providerConcurrencyLimits = new ConcurrentHashMap<>();
 
     public ProviderResilienceManager(ModelAccessProperties properties) {
-        this(properties, new ProcessLocalProviderResilienceStateStore());
+        this(properties, new ProcessLocalProviderResilienceStateStore(), new ProcessLocalProviderConcurrencyLimiter());
+    }
+
+    public ProviderResilienceManager(ModelAccessProperties properties, ProviderResilienceStateStore stateStore) {
+        this(properties, stateStore, new ProcessLocalProviderConcurrencyLimiter());
     }
 
     @Autowired
-    public ProviderResilienceManager(ModelAccessProperties properties, ProviderResilienceStateStore stateStore) {
+    public ProviderResilienceManager(
+            ModelAccessProperties properties,
+            ProviderResilienceStateStore stateStore,
+            ProviderConcurrencyLimiter concurrencyLimiter
+    ) {
         this.properties = properties;
         this.stateStore = stateStore;
+        this.concurrencyLimiter = concurrencyLimiter;
     }
 
     public Optional<ProviderCheckResult> cachedProviderCheck(ModelProviderConfig provider) {
@@ -110,9 +119,7 @@ public class ProviderResilienceManager {
         if (!concurrencyLimitEnabled()) {
             return -1;
         }
-        return providerConcurrencyLimits
-                .computeIfAbsent(provider.id(), ignored -> new Semaphore(maxConcurrentRequests(), true))
-                .availablePermits();
+        return concurrencyLimiter.availablePermits(provider.id(), maxConcurrentRequests());
     }
 
     public void recordProviderSuccess(ModelProviderConfig provider) {
@@ -138,7 +145,7 @@ public class ProviderResilienceManager {
             ProviderCallRequest request
     ) {
         enforceRateLimit(provider);
-        Semaphore permit = acquireConcurrencyPermit(provider);
+        ProviderConcurrencyLimiter.Permit permit = acquireConcurrencyPermit(provider);
         RuntimeException lastFailure = null;
         try {
             for (int attempt = 0; attempt <= properties.safeProviderMaxRetries(); attempt++) {
@@ -172,20 +179,18 @@ public class ProviderResilienceManager {
         }
     }
 
-    private Semaphore acquireConcurrencyPermit(ModelProviderConfig provider) {
+    private ProviderConcurrencyLimiter.Permit acquireConcurrencyPermit(ModelProviderConfig provider) {
         int maxConcurrentRequests = maxConcurrentRequests();
         if (maxConcurrentRequests <= 0) {
             return null;
         }
-        Semaphore semaphore = providerConcurrencyLimits.computeIfAbsent(
-                provider.id(),
-                ignored -> new Semaphore(maxConcurrentRequests, true)
-        );
-        if (!semaphore.tryAcquire()) {
+        Optional<ProviderConcurrencyLimiter.Permit> permit =
+                concurrencyLimiter.tryAcquire(provider.id(), maxConcurrentRequests);
+        if (permit.isEmpty()) {
             throw new BusinessException(ErrorCode.BUDGET_EXCEEDED,
                     "模型供应商并发处理已达到上限: " + maxConcurrentRequests);
         }
-        return semaphore;
+        return permit.get();
     }
 
     private ProviderCheckResult withCachedFlag(ProviderCheckResult response, boolean cached) {

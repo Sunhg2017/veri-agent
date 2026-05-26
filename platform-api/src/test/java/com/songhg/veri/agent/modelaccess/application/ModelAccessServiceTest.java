@@ -122,6 +122,7 @@ class ModelAccessServiceTest {
                 0,
                 1,
                 0,
+                3_600_000,
                 new BigDecimal("10.00"),
                 "BLOCK",
                 List.of()

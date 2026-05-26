@@ -388,5 +388,6 @@
             updated_at = now(),
             version = version + 1
         where status = 'RUNNING'
+          and updated_at &lt; #{staleBefore}
     </update>
 </mapper>

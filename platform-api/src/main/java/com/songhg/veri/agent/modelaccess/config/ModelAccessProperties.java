@@ -42,6 +42,8 @@ public record ModelAccessProperties(
         int asyncJobWorkerThreads,
         /** 异步任务派发延迟，单位毫秒 */
         long asyncJobDispatchDelayMs,
+        /** 运行中异步任务恢复保护窗口，超过该窗口才会在启动恢复时标记失败 */
+        long asyncJobRunningTimeoutMs,
         /** 调用方服务每日成本上限 */
         BigDecimal dailyCallerServiceCostLimit,
         /** 超预算处理策略，支持 BLOCK 或 FALLBACK */
@@ -106,6 +108,10 @@ public record ModelAccessProperties(
 
     public long safeAsyncJobDispatchDelayMs() {
         return Math.max(0, asyncJobDispatchDelayMs);
+    }
+
+    public long safeAsyncJobRunningTimeoutMs() {
+        return Math.max(60_000, asyncJobRunningTimeoutMs <= 0 ? 3_600_000 : asyncJobRunningTimeoutMs);
     }
 
     public boolean fallbackOnBudgetOverrun() {

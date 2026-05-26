@@ -130,6 +130,7 @@ class ServiceTokenAuthenticationFilterTest {
                 0,
                 0,
                 0,
+                3_600_000,
                 null,
                 null,
                 List.of()

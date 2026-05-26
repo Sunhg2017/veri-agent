@@ -6,7 +6,7 @@
 | 输出角色 | 子昂 / 服务端架构师 |
 | 面向阶段 | MVP Iteration 0、Iteration 1 工程落地 |
 | 选型原则 | 稳定优先、显式可控、便于测试、后续可拆 |
-| 日期 | 2026-05-17 |
+| 日期 | 2026-05-17；2026-05-27 补充 Redisson + Kafka 事件驱动基线 |
 
 ## 1. 总体结论
 
@@ -28,7 +28,7 @@ P0 不建议一开始拆成多个微服务。WP1 的核心风险不在服务数�
 | 分页 | MyBatis 分页插件或手写 limit/offset | Spring Data Pageable | P0 优先手写白名单分页 | 排序字段必须白名单，减少 SQL 注入和错误排序风险。 |
 | 连接池 | HikariCP | Druid | 采用 HikariCP | Spring Boot 默认集成，轻量稳定，指标接入简单。 |
 | 缓存 | Redis 7 + Caffeine | 仅 Redis | P0 采用 Redis，Caffeine 可选 | Redis 管会话、权限缓存和撤销；Caffeine 可做短生命周期本地缓存。 |
-| Redis 客户端 | Spring Data Redis + Lettuce | Redisson | P0 采用 Lettuce，锁场景再引 Redisson | 会话和缓存足够；P0 暂不引入复杂分布式锁。 |
+| Redis 客户端 | Redisson | Spring Data Redis + Lettuce | P0 采用 Redisson | Redis 不只承担缓存，还承担 provider 熔断/限流/分布式并发信号量等跨实例状态，统一使用 Redisson 客户端。 |
 | 认证鉴权 | Spring Security 6 | 自研过滤器 | 采用 Spring Security | 统一认证、鉴权、异常处理、方法级权限和测试支持。 |
 | Token | JWT access token + refresh token | 纯 session id | 采用 JWT + refresh token | 适合 Web 后台、同服务内模块调用和后续外部集成；服务端仍用 Redis/DB 支持撤销和 `auth_version` 失效。 |
 | 密码哈希 | BCrypt 或 Argon2id | PBKDF2 | P0 采用 BCrypt，P1 评估 Argon2id | BCrypt 落地简单、兼容好；Argon2id 可作为安全增强。 |
@@ -38,8 +38,8 @@ P0 不建议一开始拆成多个微服务。WP1 的核心风险不在服务数�
 | 统一响应 | 自研 `ApiResponse<T>` | Spring 默认错误结构 | 采用自研统一响应 | 匹配当前 API 契约中的 `code/message/traceId/data`。 |
 | 错误码 | 自研错误码枚举 | HTTP status only | 采用自研错误码枚举 | 便于前端提示、自动化断言和审计归因。 |
 | 审计写入 | 业务事务内写 `audit_log` + `audit_outbox` | 消息队列直接写 | P0 采用 DB outbox | 不引入 MQ 也能保证审计可补偿；后续可从 outbox 转 Kafka/RocketMQ。 |
-| 异步任务 | Spring Scheduler | Quartz、XXL-JOB | P0 采用 Spring Scheduler | 仅需 outbox 补偿和轻量巡检；复杂调度进入 WP9。 |
-| 消息队列 | 暂不强依赖 | Kafka、RocketMQ、RabbitMQ | P0 不引 MQ | 降低首期运维复杂度；outbox 表预留消息化演进。 |
+| 异步任务 | DB 任务账本 + Kafka/local event bus | Spring Scheduler、Quartz、XXL-JOB | P0 采用事件驱动异步 | 业务提交只持久化任务并发布事件，消费者按 traceId 恢复上下文执行，重复消费由状态机幂等。 |
+| 消息队列 | Kafka | RocketMQ、RabbitMQ | P0 引入 Kafka 承载异步领域事件 | WP2 模型异步调用先落地，后续审计 outbox、通知和集成事件可按吞吐与可靠性要求迁移。 |
 | 密钥管理 | 本地加密 SecretProvider | Vault、KMS | P0 采用 LocalEncryptedSecretProvider | 用户已确认不需要完全离线，但平台需自建模型和密钥封装；本地 provider 可先跑通，后续适配企业 KMS。 |
 | 加密库 | JCA/JCE AES-GCM | Tink | P0 采用 JCA/JCE | Java 标准库足够；减少额外依赖，密钥轮换通过 provider 层控制。 |
 | 日志 | Logback + JSON layout | Log4j2 | 采用 Logback | Spring Boot 默认，接入成本低；生产建议 JSON 日志。 |
@@ -70,7 +70,8 @@ P0 不建议一开始拆成多个微服务。WP1 的核心风险不在服务数�
 | PostgreSQL | 15+ | WP1 数据模型已按 PostgreSQL 验证。 |
 | Flyway | 跟随 Boot BOM或显式锁定 | 管理 `db/migration` 脚本版本。 |
 | MyBatis | 3.x | 显式 SQL、可控资源过滤、复杂权限查询。 |
-| Redis | 7.x | 会话撤销、权限缓存、登录失败计数。 |
+| Redis | 7.x + Redisson | 会话撤销、权限缓存、登录失败计数，以及 provider 熔断/限流/分布式并发控制。 |
+| Kafka | 3.x | 异步领域事件、跨实例任务派发和后续 outbox 消费演进。 |
 | Actuator + Micrometer | 跟随 Boot BOM | 健康检查、指标和运行态观测。 |
 | OpenAPI/springdoc | 与 Boot 3.5 兼容版本 | 契约评审、Mock、接口自动化输入。 |
 
@@ -101,7 +102,7 @@ P0 不建议一开始拆成多个微服务。WP1 的核心风险不在服务数�
 |---|---|---|---|
 | 服务拆分 | `platform-api` 模块化单体 | Spring Cloud Gateway、Nacos、OpenFeign | 多团队独立发布、服务容量或边界压力明显。 |
 | 策略引擎 | 自研 RBAC | Casbin、OPA | 权限规则变成客户可配置策略语言。 |
-| 消息队列 | DB outbox | Kafka、RocketMQ、RabbitMQ | 审计、通知、集成事件吞吐超过 DB outbox 能力。 |
+| 消息队列扩展 | WP2 异步事件先用 Kafka | Kafka 多 topic、RocketMQ、RabbitMQ | 审计 outbox、通知、集成事件吞吐超过 DB outbox 能力，或需要跨服务解耦。 |
 | 分布式调度 | Spring Scheduler | XXL-JOB、Quartz | WP9 需要复杂任务编排、失败重试、分片调度。 |
 | 配置中心 | Spring Profiles | Nacos、Apollo、Spring Cloud Config | 多环境、多集群配置变更需要集中治理。 |
 | 密钥服务 | LocalEncryptedSecretProvider | Vault、云 KMS、企业 KMS | 客户要求集中密钥、轮换、审计或 HSM 对接。 |
@@ -117,7 +118,7 @@ P0 不建议一开始拆成多个微服务。WP1 的核心风险不在服务数�
 | WebFlux 全响应式栈 | 管理后台 API 并发模型简单，收益小，团队排障成本高。 |
 | JPA 作为主数据访问层 | 权限范围过滤、部分索引、复杂审计查询需要 SQL 显式可控。 |
 | H2 作为集成测试数据库 | 无法真实覆盖 PostgreSQL 的部分索引、JSONB、约束和权限行为。 |
-| Kafka/RocketMQ 作为 P0 必选 | 审计 outbox 可先满足可靠性，MQ 会增加部署和运维复杂度。 |
+| 所有写路径一刀切直接发 MQ | 审计和强一致业务仍以事务内写库/outbox 为准；Kafka 先承载天然异步、可幂等重放的领域事件。 |
 | OPA/Casbin 作为 P0 权限核心 | 当前权限矩阵清晰，自研 RBAC 更便于产品、测试和后端共同验收。 |
 | Vault/KMS 作为 P0 强依赖 | 用户已确认不需要完全离线和强企业密钥依赖；本地加密 provider 更适合 MVP 启动。 |
 

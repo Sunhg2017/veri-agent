@@ -19,6 +19,7 @@ Implemented in this baseline:
 - Local profile keeps in-memory sample data; `db` profile persists departments, users, sessions, projects, applications, environments, settings, and audit logs in PostgreSQL, including audit before/after/diff fields.
 - OpenAPI metadata and Bearer security scheme are configured, and contract tests protect WP1/WP2/WP3 key paths.
 - WP2 model access APIs are available under `/api/v1/model-access`.
+- WP2 async model invocation jobs use a trace-aware event boundary: local event bus by default, Kafka under the `kafka` profile, and Redisson-backed Redis state under the `redis` profile.
 - WP3 asset APIs are available under `/api/v1/asset`, covering requirements, APIs, pages, business flows, test cases, steps, and trace links.
 - WP2/WP3 reuse WP1 context validation and audit writing through same-process Spring services, not HTTP callbacks to this service.
 - Example paged endpoint for API contract and test scaffolding.
@@ -57,6 +58,22 @@ WP2_SERVICE_TOKEN=local-model-access-token \
 WP3_SERVICE_TOKEN=local-asset-token \
 WP4_WEBHOOK_SECRET=local-document-input-webhook-secret \
 mvn -pl platform-api spring-boot:run -Dspring-boot.run.profiles=db
+```
+
+To run WP2 async events with Redis/Redisson and Kafka:
+
+```bash
+docker compose -f infra/docker-compose.yml up -d postgres redis kafka
+```
+
+```bash
+WP1_AUTH_TOKEN_SECRET=local-auth-secret-32-byte-minimum! \
+WP1_DATASOURCE_URL=jdbc:postgresql://localhost:5432/veri_agent \
+WP1_DATASOURCE_USERNAME=veri_agent \
+WP1_DATASOURCE_PASSWORD=veri_agent_dev \
+PLATFORM_REDIS_ADDRESS=redis://localhost:6379 \
+PLATFORM_KAFKA_BOOTSTRAP_SERVERS=localhost:9092 \
+mvn -pl platform-api spring-boot:run -Dspring-boot.run.profiles=db,redis,kafka
 ```
 
 `WP4_WEBHOOK_SECRET` is only a local example for webhook smoke tests. Production should resolve WP4 webhook signing secrets through SecretProvider and disable the local fallback with `WP4_LOCAL_WEBHOOK_SECRET_FALLBACK_ENABLED=false`.

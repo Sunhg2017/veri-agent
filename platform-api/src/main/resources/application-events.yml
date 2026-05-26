@@ -1,0 +1,29 @@
+veri-agent:
+  redis:
+    address: ${PLATFORM_REDIS_ADDRESS:redis://localhost:6379}
+    password: ${PLATFORM_REDIS_PASSWORD:}
+    database: ${PLATFORM_REDIS_DATABASE:0}
+  events:
+    local-worker-threads: ${PLATFORM_EVENT_LOCAL_WORKER_THREADS:2}
+    kafka:
+      consumer-group: ${PLATFORM_EVENT_KAFKA_CONSUMER_GROUP:platform-api}
+      topic-partitions: ${PLATFORM_EVENT_KAFKA_TOPIC_PARTITIONS:3}
+      topic-replicas: ${PLATFORM_EVENT_KAFKA_TOPIC_REPLICAS:1}
+      topics:
+        model-invocation-job-requested: ${WP2_MODEL_INVOCATION_JOB_TOPIC:veri-agent.model-invocation-job-requested}
+
+spring:
+  kafka:
+    bootstrap-servers: ${PLATFORM_KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      acks: all
+      properties:
+        enable.idempotence: true
+    consumer:
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      auto-offset-reset: earliest
+      properties:
+        isolation.level: read_committed

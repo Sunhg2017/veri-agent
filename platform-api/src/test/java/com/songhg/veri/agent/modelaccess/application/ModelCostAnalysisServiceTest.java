@@ -276,6 +276,7 @@ class ModelCostAnalysisServiceTest {
                 0,
                 1,
                 0,
+                3_600_000,
                 new BigDecimal("5.00000000"),
                 "BLOCK",
                 List.of()

@@ -80,6 +80,7 @@ public interface ModelAccessMapper {
 
     int markRunningInvocationJobsFailed(
             @Param("finishedAt") Instant finishedAt,
+            @Param("staleBefore") Instant staleBefore,
             @Param("errorCode") String errorCode,
             @Param("errorMessage") String errorMessage
     );

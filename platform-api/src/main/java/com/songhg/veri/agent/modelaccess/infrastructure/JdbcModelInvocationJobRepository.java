@@ -63,7 +63,7 @@ public class JdbcModelInvocationJobRepository implements ModelInvocationJobRepos
     }
 
     @Override
-    public int markRunningJobsFailed(Instant finishedAt, String errorCode, String errorMessage) {
-        return mapper.markRunningInvocationJobsFailed(finishedAt, errorCode, errorMessage);
+    public int markRunningJobsFailed(Instant finishedAt, Instant staleBefore, String errorCode, String errorMessage) {
+        return mapper.markRunningInvocationJobsFailed(finishedAt, staleBefore, errorCode, errorMessage);
     }
 }

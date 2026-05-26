@@ -30,6 +30,7 @@
         <mapstruct.version>1.6.3</mapstruct.version>
         <apache-poi.version>5.2.5</apache-poi.version>
         <pdfbox.version>3.0.2</pdfbox.version>
+        <redisson.version>3.52.0</redisson.version>
         <maven.compiler.release>${java.version}</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>

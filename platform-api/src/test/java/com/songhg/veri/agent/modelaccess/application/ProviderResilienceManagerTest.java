@@ -227,6 +227,7 @@ class ProviderResilienceManagerTest {
                 0,
                 2,
                 0,
+                3_600_000,
                 BigDecimal.ZERO,
                 "BLOCK",
                 java.util.List.of()
@@ -261,6 +262,7 @@ class ProviderResilienceManagerTest {
                 maxConcurrentRequests,
                 2,
                 0,
+                3_600_000,
                 BigDecimal.ZERO,
                 "BLOCK",
                 java.util.List.of()

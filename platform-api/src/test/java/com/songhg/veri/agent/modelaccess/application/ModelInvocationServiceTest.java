@@ -182,6 +182,7 @@ class ModelInvocationServiceTest {
                 0,
                 1,
                 0,
+                3_600_000,
                 null,
                 "BLOCK",
                 List.of()

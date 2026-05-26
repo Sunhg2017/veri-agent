@@ -27,5 +27,5 @@ public interface ModelInvocationJobRepository {
 
     void markCancelRequested(UUID jobId, String errorCode, String errorMessage);
 
-    int markRunningJobsFailed(Instant finishedAt, String errorCode, String errorMessage);
+    int markRunningJobsFailed(Instant finishedAt, Instant staleBefore, String errorCode, String errorMessage);
 }

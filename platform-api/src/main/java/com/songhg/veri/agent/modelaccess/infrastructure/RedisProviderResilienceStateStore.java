@@ -2,13 +2,16 @@ package com.songhg.veri.agent.modelaccess.infrastructure;
 
 import com.songhg.veri.agent.modelaccess.application.port.ProviderResilienceStateStore;
 import java.time.Instant;
-import java.util.List;
+import java.time.Duration;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import org.springframework.context.annotation.Profile;
-import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.data.redis.core.script.DefaultRedisScript;
+import org.redisson.api.RAtomicLong;
+import org.redisson.api.RLock;
+import org.redisson.api.RMapCache;
+import org.redisson.api.RSet;
+import org.redisson.api.RedissonClient;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -19,58 +22,22 @@ public class RedisProviderResilienceStateStore implements ProviderResilienceStat
     private static final String CIRCUIT_KEY_PREFIX = KEY_PREFIX + "circuit:";
     private static final String RATE_KEY_PREFIX = KEY_PREFIX + "rate:";
     private static final String OPEN_CIRCUIT_PROVIDERS_KEY = KEY_PREFIX + "open-circuit-providers";
+    private static final String CIRCUIT_LOCK_KEY_PREFIX = KEY_PREFIX + "circuit-lock:";
     private static final String FIELD_FAILURES = "failures";
     private static final String FIELD_OPEN_UNTIL = "openUntil";
+    private static final long DEFAULT_CIRCUIT_TTL_MS = 60_000L;
 
-    private static final DefaultRedisScript<List> RECORD_FAILURE_SCRIPT = new DefaultRedisScript<>("""
-            local key = KEYS[1]
-            local indexKey = KEYS[2]
-            local now = tonumber(ARGV[1])
-            local threshold = tonumber(ARGV[2])
-            local openMs = tonumber(ARGV[3])
-            local providerId = ARGV[4]
-            local failures = tonumber(redis.call('HGET', key, 'failures') or '0')
-            local openUntil = tonumber(redis.call('HGET', key, 'openUntil') or '0')
-            if openUntil > 0 and openUntil < now then
-              failures = 0
-              openUntil = 0
-            end
-            failures = failures + 1
-            if failures >= threshold then
-              openUntil = now + openMs
-              redis.call('SADD', indexKey, providerId)
-            else
-              openUntil = 0
-              redis.call('SREM', indexKey, providerId)
-            end
-            redis.call('HSET', key, 'failures', failures, 'openUntil', openUntil)
-            local ttl = openUntil > now and (openUntil - now) or openMs
-            if ttl <= 0 then
-              ttl = 60000
-            end
-            redis.call('PEXPIRE', key, ttl)
-            return {failures, openUntil}
-            """, List.class);
+    private final RedissonClient redissonClient;
 
-    private static final DefaultRedisScript<Long> INCREMENT_RATE_LIMIT_SCRIPT = new DefaultRedisScript<>("""
-            local count = redis.call('INCR', KEYS[1])
-            if count == 1 then
-              redis.call('EXPIRE', KEYS[1], tonumber(ARGV[1]) + 1)
-            end
-            return count
-            """, Long.class);
-
-    private final StringRedisTemplate redisTemplate;
-
-    public RedisProviderResilienceStateStore(StringRedisTemplate redisTemplate) {
-        this.redisTemplate = redisTemplate;
+    public RedisProviderResilienceStateStore(RedissonClient redissonClient) {
+        this.redissonClient = redissonClient;
     }
 
     @Override
     public Optional<CircuitSnapshot> circuitState(UUID providerId) {
-        String key = circuitKey(providerId);
-        Object failures = redisTemplate.opsForHash().get(key, FIELD_FAILURES);
-        Object openUntil = redisTemplate.opsForHash().get(key, FIELD_OPEN_UNTIL);
+        RMapCache<String, String> circuit = circuit(providerId);
+        Object failures = circuit.get(FIELD_FAILURES);
+        Object openUntil = circuit.get(FIELD_OPEN_UNTIL);
         if (failures == null && openUntil == null) {
             return Optional.empty();
         }
@@ -79,40 +46,51 @@ public class RedisProviderResilienceStateStore implements ProviderResilienceStat
                 instantFromEpochMillis(parseLong(openUntil))
         );
         if (snapshot.openUntil() != null && !snapshot.openUntil().isAfter(Instant.now())) {
-            redisTemplate.opsForSet().remove(OPEN_CIRCUIT_PROVIDERS_KEY, providerId.toString());
+            openCircuitProviders().remove(providerId.toString());
         }
         return Optional.of(snapshot);
     }
 
     @Override
     public void clearCircuit(UUID providerId) {
-        redisTemplate.delete(circuitKey(providerId));
-        redisTemplate.opsForSet().remove(OPEN_CIRCUIT_PROVIDERS_KEY, providerId.toString());
+        circuit(providerId).delete();
+        openCircuitProviders().remove(providerId.toString());
     }
 
     @Override
     public CircuitSnapshot recordFailure(UUID providerId, int threshold, long openMs, Instant now) {
-        List<?> result = redisTemplate.execute(
-                RECORD_FAILURE_SCRIPT,
-                List.of(circuitKey(providerId), OPEN_CIRCUIT_PROVIDERS_KEY),
-                Long.toString(now.toEpochMilli()),
-                Integer.toString(threshold),
-                Long.toString(openMs),
-                providerId.toString()
-        );
-        if (result == null || result.size() < 2) {
-            return new CircuitSnapshot(1, null);
+        RLock lock = redissonClient.getLock(CIRCUIT_LOCK_KEY_PREFIX + providerId);
+        lock.lock();
+        try {
+            RMapCache<String, String> circuit = circuit(providerId);
+            long nowMs = now.toEpochMilli();
+            int failures = parseInt(circuit.get(FIELD_FAILURES));
+            long openUntilMs = parseLong(circuit.get(FIELD_OPEN_UNTIL));
+            if (openUntilMs > 0 && openUntilMs < nowMs) {
+                failures = 0;
+                openUntilMs = 0;
+            }
+            failures++;
+            if (failures >= threshold) {
+                openUntilMs = nowMs + openMs;
+                openCircuitProviders().add(providerId.toString());
+            } else {
+                openUntilMs = 0;
+                openCircuitProviders().remove(providerId.toString());
+            }
+            long ttlMs = openUntilMs > nowMs ? openUntilMs - nowMs : Math.max(openMs, DEFAULT_CIRCUIT_TTL_MS);
+            circuit.fastPut(FIELD_FAILURES, Integer.toString(failures), ttlMs, java.util.concurrent.TimeUnit.MILLISECONDS);
+            circuit.fastPut(FIELD_OPEN_UNTIL, Long.toString(openUntilMs), ttlMs, java.util.concurrent.TimeUnit.MILLISECONDS);
+            return new CircuitSnapshot(failures, instantFromEpochMillis(openUntilMs));
+        } finally {
+            lock.unlock();
         }
-        return new CircuitSnapshot(
-                parseInt(result.get(0)),
-                instantFromEpochMillis(parseLong(result.get(1)))
-        );
     }
 
     @Override
     public int openCircuitCount(Instant now) {
-        Set<String> providerIds = redisTemplate.opsForSet().members(OPEN_CIRCUIT_PROVIDERS_KEY);
-        if (providerIds == null || providerIds.isEmpty()) {
+        Set<String> providerIds = openCircuitProviders().readAll();
+        if (providerIds.isEmpty()) {
             return 0;
         }
         int count = 0;
@@ -125,7 +103,7 @@ public class RedisProviderResilienceStateStore implements ProviderResilienceStat
                     count++;
                 }
             } catch (IllegalArgumentException ignored) {
-                redisTemplate.opsForSet().remove(OPEN_CIRCUIT_PROVIDERS_KEY, providerId);
+                openCircuitProviders().remove(providerId);
             }
         }
         return count;
@@ -134,12 +112,20 @@ public class RedisProviderResilienceStateStore implements ProviderResilienceStat
     @Override
     public RateLimitSnapshot incrementRateLimit(UUID providerId, long windowSeconds, Instant now) {
         long currentWindow = now.getEpochSecond() / windowSeconds;
-        Long count = redisTemplate.execute(
-                INCREMENT_RATE_LIMIT_SCRIPT,
-                List.of(rateKey(providerId, currentWindow)),
-                Long.toString(windowSeconds)
-        );
-        return new RateLimitSnapshot(currentWindow, count == null ? 1 : count);
+        RAtomicLong counter = redissonClient.getAtomicLong(rateKey(providerId, currentWindow));
+        long count = counter.incrementAndGet();
+        if (count == 1) {
+            counter.expire(Duration.ofSeconds(windowSeconds + 1));
+        }
+        return new RateLimitSnapshot(currentWindow, count);
+    }
+
+    private RMapCache<String, String> circuit(UUID providerId) {
+        return redissonClient.getMapCache(circuitKey(providerId));
+    }
+
+    private RSet<String> openCircuitProviders() {
+        return redissonClient.getSet(OPEN_CIRCUIT_PROVIDERS_KEY);
     }
 
     private String circuitKey(UUID providerId) {

@@ -2,14 +2,15 @@ package com.songhg.veri.agent.modelaccess.infrastructure;
 
 import com.songhg.veri.agent.modelaccess.application.port.ProviderResilienceStateStore.CircuitSnapshot;
 import com.songhg.veri.agent.modelaccess.application.port.ProviderResilienceStateStore.RateLimitSnapshot;
-import com.songhg.veri.agent.modelaccess.application.port.ProviderResilienceStateStore;
 import java.time.Instant;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
-import org.springframework.data.redis.core.StringRedisTemplate;
+import org.redisson.Redisson;
+import org.redisson.api.RedissonClient;
+import org.redisson.client.codec.StringCodec;
+import org.redisson.config.Config;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -24,24 +25,23 @@ class RedisProviderResilienceStateStoreTest {
     static final GenericContainer<?> REDIS = new GenericContainer<>("redis:7-alpine")
             .withExposedPorts(6379);
 
-    private LettuceConnectionFactory connectionFactory;
-    private StringRedisTemplate redisTemplate;
+    private RedissonClient redissonClient;
     private RedisProviderResilienceStateStore store;
 
     @BeforeEach
     void setUp() {
-        connectionFactory = new LettuceConnectionFactory(REDIS.getHost(), REDIS.getMappedPort(6379));
-        connectionFactory.afterPropertiesSet();
-        redisTemplate = new StringRedisTemplate(connectionFactory);
-        redisTemplate.afterPropertiesSet();
-        redisTemplate.getConnectionFactory().getConnection().serverCommands().flushDb();
-        store = new RedisProviderResilienceStateStore(redisTemplate);
+        Config config = new Config();
+        config.setCodec(StringCodec.INSTANCE);
+        config.useSingleServer().setAddress("redis://" + REDIS.getHost() + ":" + REDIS.getMappedPort(6379));
+        redissonClient = Redisson.create(config);
+        redissonClient.getKeys().flushdb();
+        store = new RedisProviderResilienceStateStore(redissonClient);
     }
 
     @AfterEach
     void tearDown() {
-        if (connectionFactory != null) {
-            connectionFactory.destroy();
+        if (redissonClient != null) {
+            redissonClient.shutdown();
         }
     }
 
@@ -70,7 +70,7 @@ class RedisProviderResilienceStateStoreTest {
     void incrementsRateLimitWindowInRedisAcrossStoreInstances() {
         UUID providerId = UUID.randomUUID();
         Instant now = Instant.now();
-        RedisProviderResilienceStateStore anotherStore = new RedisProviderResilienceStateStore(redisTemplate);
+        RedisProviderResilienceStateStore anotherStore = new RedisProviderResilienceStateStore(redissonClient);
 
         RateLimitSnapshot first = store.incrementRateLimit(providerId, 60, now);
         RateLimitSnapshot second = anotherStore.incrementRateLimit(providerId, 60, now.plusMillis(1));
@@ -78,5 +78,22 @@ class RedisProviderResilienceStateStoreTest {
         assertThat(first.count()).isEqualTo(1);
         assertThat(second.window()).isEqualTo(first.window());
         assertThat(second.count()).isEqualTo(2);
+    }
+
+    @Test
+    void limitsProviderConcurrencyAcrossRedissonLimiterInstances() {
+        UUID providerId = UUID.randomUUID();
+        RedissonProviderConcurrencyLimiter firstNode = new RedissonProviderConcurrencyLimiter(redissonClient);
+        RedissonProviderConcurrencyLimiter secondNode = new RedissonProviderConcurrencyLimiter(redissonClient);
+
+        var firstPermit = firstNode.tryAcquire(providerId, 1);
+        var secondPermit = secondNode.tryAcquire(providerId, 1);
+
+        assertThat(firstPermit).isPresent();
+        assertThat(secondPermit).isEmpty();
+
+        firstPermit.orElseThrow().release();
+
+        assertThat(secondNode.tryAcquire(providerId, 1)).isPresent();
     }
 }
