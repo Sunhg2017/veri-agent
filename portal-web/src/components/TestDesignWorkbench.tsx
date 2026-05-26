@@ -35,6 +35,10 @@ import {
   type TestDesignTaskView
 } from '../api/testDesign';
 import { canUseButton, hasPermission } from '../permissions';
+import {
+  validateTestDesignCandidateDraft,
+  type TestDesignCandidateDraftQualityIssue
+} from '../testDesignQuality';
 
 type WorkState = {
   loading: boolean;
@@ -150,6 +154,17 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
     () => publishResult?.records.filter(isPublishIssueRecord) ?? [],
     [publishResult]
   );
+  const candidateQualityIssues = useMemo(
+    () => candidateDraft && selectedCandidate
+      ? validateTestDesignCandidateDraft(candidateDraft, {
+        currentCandidateId: selectedCandidate.id,
+        currentRequirementId: selectedCandidate.requirementId,
+        peerCandidates: candidates
+      })
+      : [],
+    [candidateDraft, candidates, selectedCandidate]
+  );
+  const candidateSaveBlocked = candidateQualityIssues.length > 0;
   const selectedRequirementTitles = useMemo(() => {
     const lookup = new Map(requirements.map((requirement) => [requirement.id, requirement.title]));
     return selectedRequirementIds.map((id) => lookup.get(id) ?? id);
@@ -370,6 +385,10 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
     }
     if (!canReview) {
       setMutationState({ loading: false, error: '缺少 testDesign:review 权限' });
+      return;
+    }
+    if (candidateSaveBlocked) {
+      setMutationState({ loading: false, error: `候选质量门禁不通过：${candidateQualityIssues[0]?.message ?? '请检查字段提示'}` });
       return;
     }
 
@@ -641,16 +660,29 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
 
             {candidateDraft && selectedCandidate && (
               <div className="test-design-editor">
+                {candidateQualityIssues.length > 0 && (
+                  <div className="notice warning test-design-quality-summary">
+                    <strong>质量提示</strong>
+                    <span>保存前需处理 {candidateQualityIssues.length} 项候选质量问题。</span>
+                    <ul className="test-design-quality-list">
+                      {candidateQualityIssues.slice(0, 6).map((issue, index) => (
+                        <li key={`${issue.field}-${issue.message}-${index}`}>{issue.message}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
                 <div className="asset-form-grid">
                   <label className="field">
                     <span className="field-label">标题</span>
                     <input value={candidateDraft.title} onChange={(event) => setCandidateDraft({ ...candidateDraft, title: event.target.value })} disabled={!canReview || mutationState.loading} />
+                    <QualityFieldMessages field="title" issues={candidateQualityIssues} />
                   </label>
                   <label className="field">
                     <span className="field-label">覆盖类型</span>
                     <select value={candidateDraft.coverageType} onChange={(event) => setCandidateDraft({ ...candidateDraft, coverageType: event.target.value })} disabled={!canReview || mutationState.loading}>
                       {TEST_DESIGN_COVERAGE_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}
                     </select>
+                    <QualityFieldMessages field="coverageType" issues={candidateQualityIssues} />
                   </label>
                   <label className="field">
                     <span className="field-label">优先级</span>
@@ -660,6 +692,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
                       <option value="MEDIUM">MEDIUM</option>
                       <option value="LOW">LOW</option>
                     </select>
+                    <QualityFieldMessages field="priority" issues={candidateQualityIssues} />
                   </label>
                 </div>
                 <div className="asset-form-grid">
@@ -670,31 +703,36 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
                   <label className="field">
                     <span className="field-label">前置条件</span>
                     <input value={candidateDraft.preconditions} onChange={(event) => setCandidateDraft({ ...candidateDraft, preconditions: event.target.value })} disabled={!canReview || mutationState.loading} />
+                    <QualityFieldMessages field="preconditions" issues={candidateQualityIssues} />
                   </label>
                   <label className="field">
                     <span className="field-label">标签</span>
                     <input value={candidateDraft.tags} onChange={(event) => setCandidateDraft({ ...candidateDraft, tags: event.target.value })} disabled={!canReview || mutationState.loading} />
+                    <QualityFieldMessages field="tags" issues={candidateQualityIssues} />
                   </label>
                 </div>
                 <label className="field">
                   <span className="field-label">描述</span>
                   <textarea value={candidateDraft.description} onChange={(event) => setCandidateDraft({ ...candidateDraft, description: event.target.value })} disabled={!canReview || mutationState.loading} />
+                  <QualityFieldMessages field="description" issues={candidateQualityIssues} />
                 </label>
                 <label className="field">
                   <span className="field-label">步骤</span>
                   <textarea value={candidateDraft.steps} onChange={(event) => setCandidateDraft({ ...candidateDraft, steps: event.target.value })} disabled={!canReview || mutationState.loading} />
                   <span className="field-hint">每行一个步骤，可用“操作 =&gt; 期望”格式。</span>
+                  <QualityFieldMessages field="steps" issues={candidateQualityIssues} />
                 </label>
                 <label className="field">
                   <span className="field-label">预期结果</span>
                   <textarea value={candidateDraft.expectedResult} onChange={(event) => setCandidateDraft({ ...candidateDraft, expectedResult: event.target.value })} disabled={!canReview || mutationState.loading} />
+                  <QualityFieldMessages field="expectedResult" issues={candidateQualityIssues} />
                 </label>
                 <label className="field">
                   <span className="field-label">评审意见</span>
                   <input value={reviewComment} onChange={(event) => setReviewComment(event.target.value)} disabled={!canReview || mutationState.loading} />
                 </label>
                 <div className="toolbar-actions">
-                  <button className="btn btn-secondary btn-sm" type="button" disabled={!canReview || mutationState.loading || !candidateDraft.title.trim()} onClick={() => void saveCandidate()}>
+                  <button className="btn btn-secondary btn-sm" type="button" disabled={!canReview || mutationState.loading || !candidateDraft.title.trim() || candidateSaveBlocked} onClick={() => void saveCandidate()}>
                     <Save size={15} />
                     保存
                   </button>
@@ -965,6 +1003,23 @@ function StateLine(props: { state: WorkState }) {
     return <span className="document-state-line">Trace ID：{props.state.traceId}</span>;
   }
   return null;
+}
+
+function QualityFieldMessages(props: {
+  field: TestDesignCandidateDraftQualityIssue['field'];
+  issues: TestDesignCandidateDraftQualityIssue[];
+}) {
+  const fieldIssues = props.issues.filter((issue) => issue.field === props.field);
+  if (!fieldIssues.length) {
+    return null;
+  }
+  return (
+    <>
+      {fieldIssues.map((issue, index) => (
+        <span className="field-error" key={`${issue.field}-${issue.message}-${index}`}>{issue.message}</span>
+      ))}
+    </>
+  );
 }
 
 function filterRequirements(requirements: AssetRequirementView[], filters: RequirementFilters) {

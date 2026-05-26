@@ -1412,6 +1412,27 @@ tbody tr:hover td {
   margin-bottom: var(--space-sm);
 }
 
+.test-design-quality-summary {
+  display: grid;
+  gap: 6px;
+}
+
+.test-design-quality-summary strong {
+  color: var(--text-primary);
+}
+
+.test-design-quality-list {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: 1.5;
+}
+
+.test-design-quality-list li {
+  overflow-wrap: anywhere;
+}
+
 .test-design-scope {
   display: flex;
   flex-wrap: wrap;
