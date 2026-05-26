@@ -1407,6 +1407,34 @@ tbody tr:hover td {
   grid-template-columns: repeat(3, minmax(150px, 1fr)) auto;
 }
 
+.test-design-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  padding: var(--space-sm) 0;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.test-design-pagination > span {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.test-design-pagination label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.test-design-pagination select {
+  min-height: 32px;
+  padding: 0 28px 0 10px;
+}
+
 .test-design-side-filter {
   grid-template-columns: 1fr;
   margin-bottom: var(--space-sm);

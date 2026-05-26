@@ -1,5 +1,7 @@
 import {
   CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
   ClipboardCheck,
   Eye,
   FileText,
@@ -39,6 +41,11 @@ import {
   validateTestDesignCandidateDraft,
   type TestDesignCandidateDraftQualityIssue
 } from '../testDesignQuality';
+import {
+  DEFAULT_TEST_DESIGN_CANDIDATE_PAGE_SIZE,
+  TEST_DESIGN_CANDIDATE_PAGE_SIZES,
+  paginateItems
+} from '../testDesignPagination';
 
 type WorkState = {
   loading: boolean;
@@ -126,6 +133,8 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
   const [filters, setFilters] = useState<RequirementFilters>(initialFilters);
   const [taskFilters, setTaskFilters] = useState<TaskFilters>(initialTaskFilters);
   const [candidateFilters, setCandidateFilters] = useState<CandidateFilters>(initialCandidateFilters);
+  const [candidatePageIndex, setCandidatePageIndex] = useState(0);
+  const [candidatePageSize, setCandidatePageSize] = useState(DEFAULT_TEST_DESIGN_CANDIDATE_PAGE_SIZE);
   const [generationDraft, setGenerationDraft] = useState<GenerationDraft>(initialGenerationDraft);
   const [reviewComment, setReviewComment] = useState('');
   const [publishResult, setPublishResult] = useState<TestDesignPublishResult | null>(null);
@@ -140,6 +149,14 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
   const selectedCandidate = candidates.find((candidate) => candidate.id === selectedCandidateId) ?? null;
   const filteredRequirements = useMemo(() => filterRequirements(requirements, filters), [requirements, filters]);
   const visibleCandidates = useMemo(() => filterCandidates(candidates, candidateFilters), [candidateFilters, candidates]);
+  const candidatePage = useMemo(
+    () => paginateItems(visibleCandidates, candidatePageIndex, candidatePageSize),
+    [candidatePageIndex, candidatePageSize, visibleCandidates]
+  );
+  const currentPagePublishableCandidates = useMemo(
+    () => candidatePage.items.filter(canPublishCandidate),
+    [candidatePage.items]
+  );
   const publishableCandidates = useMemo(
     () => candidates.filter(canPublishCandidate),
     [candidates]
@@ -175,6 +192,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       setCandidates([]);
       setSelectedCandidateId('');
       setCandidateDraft(null);
+      setCandidatePageIndex(0);
       setTaskState({ loading: false });
       return;
     }
@@ -183,6 +201,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
     setCandidates([]);
     setSelectedCandidateId('');
     setSelectedPublishCandidateIds([]);
+    setCandidatePageIndex(0);
     setCandidateDraft(null);
     setPublishResult(null);
     try {
@@ -216,6 +235,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       setSelectedTaskId('');
       setSelectedCandidateId('');
       setSelectedPublishCandidateIds([]);
+      setCandidatePageIndex(0);
       setLoadState({ loading: false });
       setTaskState({ loading: false });
       return;
@@ -298,11 +318,21 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
   }, [filters.projectId, taskFilters.projectId]);
 
   useEffect(() => {
-    if (selectedCandidateId && visibleCandidates.some((candidate) => candidate.id === selectedCandidateId)) {
+    setCandidatePageIndex(0);
+  }, [candidateFilters.coverageType, candidateFilters.keyword, candidateFilters.status, candidatePageSize, selectedTaskId]);
+
+  useEffect(() => {
+    if (candidatePage.index !== candidatePageIndex) {
+      setCandidatePageIndex(candidatePage.index);
+    }
+  }, [candidatePage.index, candidatePageIndex]);
+
+  useEffect(() => {
+    if (selectedCandidateId && candidatePage.items.some((candidate) => candidate.id === selectedCandidateId)) {
       return;
     }
-    setSelectedCandidateId(visibleCandidates[0]?.id ?? '');
-  }, [selectedCandidateId, visibleCandidates]);
+    setSelectedCandidateId(candidatePage.items[0]?.id ?? '');
+  }, [candidatePage.items, selectedCandidateId]);
 
   function toggleRequirement(id: string) {
     setSelectedRequirementIds((current) => {
@@ -331,8 +361,12 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
     });
   }
 
-  function selectVisiblePublishableCandidates() {
-    setSelectedPublishCandidateIds(visibleCandidates.filter(canPublishCandidate).map((candidate) => candidate.id));
+  function selectCurrentPagePublishableCandidates() {
+    setSelectedPublishCandidateIds((current) => {
+      const next = new Set(current);
+      currentPagePublishableCandidates.forEach((candidate) => next.add(candidate.id));
+      return Array.from(next);
+    });
   }
 
   async function createTask(event: FormEvent<HTMLFormElement>) {
@@ -601,14 +635,51 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
                   <Search size={15} />
                   重置
                 </button>
-                <button className="btn btn-ghost btn-sm" type="button" disabled={!visibleCandidates.some(canPublishCandidate)} onClick={selectVisiblePublishableCandidates}>
-                  选中可发布
+                <button className="btn btn-ghost btn-sm" type="button" disabled={!currentPagePublishableCandidates.length} onClick={selectCurrentPagePublishableCandidates}>
+                  选中本页
                 </button>
                 <button className="btn btn-ghost btn-sm" type="button" disabled={!selectedPublishCandidateIds.length} onClick={() => setSelectedPublishCandidateIds([])}>
                   清空发布
                 </button>
               </div>
             </div>
+            {visibleCandidates.length > 0 && (
+              <div className="test-design-pagination" aria-label="候选分页">
+                <span>
+                  {candidatePage.start}-{candidatePage.end} / {candidatePage.total}
+                  {selectedPublishableCandidates.length ? ` · 已选 ${selectedPublishableCandidates.length}` : ''}
+                </span>
+                <label>
+                  <span>每页</span>
+                  <select value={candidatePageSize} onChange={(event) => setCandidatePageSize(Number(event.target.value))} disabled={taskState.loading}>
+                    {TEST_DESIGN_CANDIDATE_PAGE_SIZES.map((size) => <option key={size} value={size}>{size}</option>)}
+                  </select>
+                </label>
+                <div className="toolbar-actions">
+                  <button
+                    aria-label="上一页候选"
+                    className="btn btn-secondary btn-xs"
+                    disabled={!candidatePage.hasPrevious}
+                    title="上一页"
+                    type="button"
+                    onClick={() => setCandidatePageIndex((current) => Math.max(0, current - 1))}
+                  >
+                    <ChevronLeft size={14} />
+                  </button>
+                  <span className="field-hint">{candidatePage.index + 1} / {candidatePage.totalPages}</span>
+                  <button
+                    aria-label="下一页候选"
+                    className="btn btn-secondary btn-xs"
+                    disabled={!candidatePage.hasNext}
+                    title="下一页"
+                    type="button"
+                    onClick={() => setCandidatePageIndex((current) => current + 1)}
+                  >
+                    <ChevronRight size={14} />
+                  </button>
+                </div>
+              </div>
+            )}
             <div className="table-wrap">
               <table>
                 <thead>
@@ -622,8 +693,8 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
                   </tr>
                 </thead>
                 <tbody>
-                  {visibleCandidates.length ? (
-                    visibleCandidates.map((candidate) => (
+                  {candidatePage.items.length ? (
+                    candidatePage.items.map((candidate) => (
                       <tr className={candidate.id === selectedCandidateId ? 'selected-row' : ''} key={candidate.id}>
                         <td>
                           <input
