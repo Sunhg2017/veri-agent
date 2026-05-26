@@ -89,6 +89,25 @@ select
     coalesce(string_agg(item, ', ' order by item), 'WP5 status and enum constraints exist') as details
 from missing;
 
+with expected(index_name) as (
+    values
+        ('uk_asset_test_case_project_ai_source_ref')
+),
+missing as (
+    select e.index_name
+    from expected e
+    left join pg_indexes i
+        on i.schemaname = current_schema()
+       and i.tablename = 'asset_test_case'
+       and i.indexname = e.index_name
+    where i.indexname is null
+)
+select
+    'wp5.wp3_publish_idempotency_indexes_exist' as check_name,
+    case when count(*) = 0 then 'PASS' else 'FAIL' end as status,
+    coalesce(string_agg(index_name, ', ' order by index_name), 'WP5 publish sourceRef idempotency index exists') as details
+from missing;
+
 with found as (
     select table_name || '.tenant_id' as item
     from information_schema.columns

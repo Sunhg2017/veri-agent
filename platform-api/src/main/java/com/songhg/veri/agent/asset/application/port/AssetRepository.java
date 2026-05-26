@@ -96,6 +96,12 @@ public interface AssetRepository {
 
     Optional<TestCaseRecord> testCaseBySourceRef(String projectId, String source, String sourceRef);
 
+    /**
+     * Serializes sourceRef based test case creation when the backing store supports transactional locks.
+     */
+    default void lockTestCaseSourceRef(String projectId, String source, String sourceRef) {
+    }
+
     List<TestCaseRecord> testCasesByRequirement(String projectId, UUID requirementId);
 
     TestCaseRecord saveTestCase(TestCaseRecord testCase);

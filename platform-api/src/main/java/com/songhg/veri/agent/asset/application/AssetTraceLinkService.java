@@ -48,6 +48,9 @@ public class AssetTraceLinkService {
         return page(filtered, request.getIndex(), request.getSize());
     }
 
+    /**
+     * Creates a trace link idempotently so upstream publish retries can safely replay requirement-to-case links.
+     */
     public TraceLinkResponse createLink(CreateLinkRequest request) {
         AssetRequirement requirement = repository.requirement(request.requirementId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "需求不存在: " + request.requirementId()));
@@ -58,6 +61,16 @@ public class AssetTraceLinkService {
         validatePageBelongsToProject(request.pageId(), requirement.projectId());
         validateBusinessFlowBelongsToProject(request.flowId(), requirement.projectId());
         validateTestCaseBelongsToProject(request.caseId(), requirement.projectId());
+        List<TraceLink> existing = repository.traceLinks(
+                request.requirementId(),
+                request.apiId(),
+                request.pageId(),
+                request.flowId(),
+                request.caseId()
+        );
+        if (!existing.isEmpty()) {
+            return toTraceLinkResponse(existing.get(0));
+        }
         UUID id = UUID.randomUUID();
         TraceLink link = new TraceLink(
                 id,

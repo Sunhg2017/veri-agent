@@ -284,6 +284,7 @@ with expected(table_name, index_name) as (
         ('asset_business_flow','uk_asset_business_flow_project_code'),
         ('asset_business_flow','idx_asset_business_flow_project_lifecycle'),
         ('asset_test_case','uk_asset_test_case_project_code'),
+        ('asset_test_case','uk_asset_test_case_project_ai_source_ref'),
         ('asset_test_case','idx_asset_test_case_project_lifecycle'),
         ('asset_test_step','uk_asset_test_step_case_order'),
         ('asset_link','uk_asset_link_source_target_link'),

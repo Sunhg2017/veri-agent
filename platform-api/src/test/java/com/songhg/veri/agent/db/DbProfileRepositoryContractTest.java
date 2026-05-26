@@ -35,6 +35,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.ApplicationContext;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -343,6 +344,35 @@ class DbProfileRepositoryContractTest {
     }
 
     @Test
+    void assetRepositoryRejectsDuplicateAiGeneratedTestCaseSourceRefThroughJdbc() {
+        String projectId = "project-wp5-publish-idem-db-" + UUID.randomUUID();
+        String sourceRef = "wp5:" + UUID.randomUUID();
+        TestCaseRecord first = testCase(
+                projectId,
+                UUID.randomUUID(),
+                "TC-WP5-PUBLISH-IDEM-1",
+                "WP5 首次发布用例",
+                sourceRef
+        );
+        TestCaseRecord duplicate = testCase(
+                projectId,
+                UUID.randomUUID(),
+                "TC-WP5-PUBLISH-IDEM-2",
+                "WP5 重复发布用例",
+                sourceRef
+        );
+
+        assetRepository.saveTestCase(first);
+
+        assertThatThrownBy(() -> assetRepository.saveTestCase(duplicate))
+                .isInstanceOf(DataIntegrityViolationException.class);
+        assertThat(assetRepository.testCaseBySourceRef(projectId, "AI_GENERATED", sourceRef))
+                .get()
+                .extracting(TestCaseRecord::id)
+                .isEqualTo(first.id());
+    }
+
+    @Test
     void auditLogWriterCommitsInIndependentTransactionWhenBusinessTransactionRollsBack() {
         String action = "db-contract-independent-audit-" + UUID.randomUUID();
         String resourceId = "audit-resource-" + UUID.randomUUID();
@@ -449,6 +479,10 @@ class DbProfileRepositoryContractTest {
     }
 
     private TestCaseRecord testCase(String projectId, UUID caseId, String code, String title) {
+        return testCase(projectId, caseId, code, title, "wp5:" + caseId);
+    }
+
+    private TestCaseRecord testCase(String projectId, UUID caseId, String code, String title, String sourceRef) {
         Instant now = Instant.now();
         return new TestCaseRecord(
                 caseId,
@@ -459,7 +493,7 @@ class DbProfileRepositoryContractTest {
                 null,
                 null,
                 "AI_GENERATED",
-                "wp5:" + caseId,
+                sourceRef,
                 "DRAFT",
                 "HIGH",
                 "wp5,db-contract",

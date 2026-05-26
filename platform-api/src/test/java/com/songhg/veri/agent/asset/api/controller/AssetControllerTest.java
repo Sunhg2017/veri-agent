@@ -574,6 +574,55 @@ class AssetControllerTest {
     }
 
     @Test
+    void replaysAiGeneratedTestCaseWhenSourceRefAlreadyExists() throws Exception {
+        String reqId = createRequirement("WP5 sourceRef 幂等需求", "测试需求", "HIGH");
+        String sourceRef = "wp5:" + UUID.randomUUID();
+
+        MvcResult first = mockMvc.perform(post("/api/v1/asset/test-cases")
+                        .headers(authHeaders())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "title": "WP5 首次发布用例",
+                                  "requirementId": "%s",
+                                  "projectId": "project-wp3",
+                                  "source": "AI_GENERATED",
+                                  "sourceRef": "%s",
+                                  "steps": [
+                                    {"action": "执行主流程", "expectedResult": "主流程通过"}
+                                  ]
+                                }
+                                """.formatted(reqId, sourceRef)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.source").value("AI_GENERATED"))
+                .andExpect(jsonPath("$.data.sourceRef").value(sourceRef))
+                .andReturn();
+        String caseId = JsonPath.read(first.getResponse().getContentAsString(), "$.data.id");
+
+        mockMvc.perform(post("/api/v1/asset/test-cases")
+                        .headers(authHeaders())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "title": "WP5 重放发布用例",
+                                  "requirementId": "%s",
+                                  "projectId": "project-wp3",
+                                  "source": "AI_GENERATED",
+                                  "sourceRef": "%s"
+                                }
+                                """.formatted(reqId, sourceRef)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.id").value(caseId))
+                .andExpect(jsonPath("$.data.title").value("WP5 首次发布用例"));
+
+        mockMvc.perform(get("/api/v1/asset/test-cases/{id}/versions", caseId)
+                        .headers(authHeaders()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data", hasSize(1)))
+                .andExpect(jsonPath("$.data[0].changeType").value("CREATE"));
+    }
+
+    @Test
     void rollsBackTestCaseToHistoricalSnapshot() throws Exception {
         String reqId = createRequirement("回滚用例需求", "测试需求", "HIGH");
         String caseId = createTestCase("回滚用例V1", reqId);
@@ -615,6 +664,8 @@ class AssetControllerTest {
         String caseId = createTestCase("用例", reqId);
 
         String linkId = createTraceLink(reqId, apiId, pageId, flowId, caseId);
+        String replayedLinkId = createTraceLink(reqId, apiId, pageId, flowId, caseId);
+        MatcherAssert.assertThat(replayedLinkId, equalTo(linkId));
 
         mockMvc.perform(get("/api/v1/asset/links")
                         .headers(authHeaders())

@@ -307,6 +307,14 @@ public class JdbcAssetRepository implements AssetRepository {
     }
 
     @Override
+    public void lockTestCaseSourceRef(String projectId, String source, String sourceRef) {
+        if (projectId == null || source == null || sourceRef == null) {
+            return;
+        }
+        mapper.lockTestCaseSourceRef("wp3:test-case-source-ref:" + projectId + ":" + source + ":" + sourceRef);
+    }
+
+    @Override
     public List<TestCaseRecord> testCasesByRequirement(String projectId, UUID requirementId) {
         if (projectId == null || requirementId == null) {
             return List.of();

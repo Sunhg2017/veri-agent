@@ -143,11 +143,21 @@ public class AssetTestCaseService {
     }
 
     /**
-     * Creates a manual test case after confirming linked requirement/API assets belong to the same project.
+     * Creates a test case after confirming linked requirement/API assets belong to the same project.
+     *
+     * <p>AI-generated cases with a sourceRef are treated as upstream-owned identities. Replays return the existing
+     * case before audit and version-history writes, while the database unique index remains the final concurrency
+     * guard for WP5 publishes.
      */
     @Transactional
     public TestCaseResponse createTestCase(CreateTestCaseRequest request) {
         String scopeId = projectAuditService.projectContext(request.projectId()).projectId();
+        String source = valueIn(request.source(), "MANUAL", TEST_CASE_SOURCES, "source");
+        String sourceRef = trimToNull(request.sourceRef());
+        Optional<TestCaseResponse> existingBySourceRef = existingAiGeneratedSourceRef(request.projectId(), source, sourceRef);
+        if (existingBySourceRef.isPresent()) {
+            return existingBySourceRef.get();
+        }
         validateRequirementBelongsToProject(request.requirementId(), request.projectId());
         validateApiBelongsToProject(request.apiId(), request.projectId());
         UUID id = UUID.randomUUID();
@@ -161,8 +171,8 @@ public class AssetTestCaseService {
                 request.projectId(),
                 request.requirementId(),
                 request.apiId(),
-                valueIn(request.source(), "MANUAL", TEST_CASE_SOURCES, "source"),
-                trimToNull(request.sourceRef()),
+                source,
+                sourceRef,
                 initialStatus(request.status()),
                 valueIn(request.priority(), "MEDIUM", PRIORITIES, "priority"),
                 request.tags(),
@@ -179,6 +189,15 @@ public class AssetTestCaseService {
         versionHistoryService.recordTestCaseCreated(stored);
         log.info("Created test case id={}, title={}, trace_id={}", id, request.title(), TraceContext.getTraceId());
         return AssetResponseMapper.toTestCaseResponse(stored, steps);
+    }
+
+    private Optional<TestCaseResponse> existingAiGeneratedSourceRef(String projectId, String source, String sourceRef) {
+        if (!"AI_GENERATED".equals(source) || !StringUtils.hasText(sourceRef)) {
+            return Optional.empty();
+        }
+        repository.lockTestCaseSourceRef(projectId, source, sourceRef);
+        return repository.testCaseBySourceRef(projectId, source, sourceRef)
+                .map(testCase -> AssetResponseMapper.toTestCaseResponse(testCase, testCase.steps()));
     }
 
     /**

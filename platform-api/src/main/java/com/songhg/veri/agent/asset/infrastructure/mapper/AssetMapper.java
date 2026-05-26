@@ -164,6 +164,8 @@ public interface AssetMapper {
             @Param("sourceRef") String sourceRef
     );
 
+    int lockTestCaseSourceRef(@Param("lockKey") String lockKey);
+
     List<TestCaseRecord> listTestCasesByRequirement(
             @Param("projectId") String projectId,
             @Param("requirementId") UUID requirementId
