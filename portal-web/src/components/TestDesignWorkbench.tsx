@@ -57,7 +57,17 @@ import {
   selectedTestDesignReviewCandidates
 } from '../testDesignSelection';
 import {
+  buildTestDesignBatchEditPayload,
+  hasTestDesignBatchEditChanges,
+  initialTestDesignBatchEditDraft,
+  selectedTestDesignBatchEditableCandidates,
+  testDesignBatchEditFieldLabels,
+  validateTestDesignBatchEditDraft,
+  type TestDesignBatchEditDraft
+} from '../testDesignBatchEdit';
+import {
   buildTestDesignBatchReviewConfirmation,
+  buildTestDesignBatchEditConfirmation,
   buildTestDesignPublishConfirmation,
   testDesignBatchActionLabel,
   type TestDesignConfirmationSummary
@@ -107,8 +117,21 @@ type CandidateDraft = {
   tags: string;
 };
 
+type BatchEditResult = {
+  total: number;
+  succeededCount: number;
+  failedCount: number;
+  items: Array<{
+    candidateId: string;
+    result: 'SUCCEEDED' | 'FAILED';
+    candidate?: TestDesignCandidateView;
+    errorMessage?: string;
+  }>;
+};
+
 type PendingConfirmation =
   | { kind: 'batchReview'; action: TestDesignCandidateBatchActionType; summary: TestDesignConfirmationSummary }
+  | { kind: 'batchEdit'; summary: TestDesignConfirmationSummary }
   | { kind: 'publish'; dryRun: boolean; summary: TestDesignConfirmationSummary };
 
 const initialFilters: RequirementFilters = {
@@ -161,8 +184,10 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
   const [candidatePageSize, setCandidatePageSize] = useState(DEFAULT_TEST_DESIGN_CANDIDATE_PAGE_SIZE);
   const [generationDraft, setGenerationDraft] = useState<GenerationDraft>(initialGenerationDraft);
   const [reviewComment, setReviewComment] = useState('');
+  const [batchEditDraft, setBatchEditDraft] = useState<TestDesignBatchEditDraft>(initialTestDesignBatchEditDraft);
   const [publishResult, setPublishResult] = useState<TestDesignPublishResult | null>(null);
   const [batchActionResult, setBatchActionResult] = useState<TestDesignCandidateBatchActionResult | null>(null);
+  const [batchEditResult, setBatchEditResult] = useState<BatchEditResult | null>(null);
   const [selectedCandidateIds, setSelectedCandidateIds] = useState<string[]>([]);
   const [pendingConfirmation, setPendingConfirmation] = useState<PendingConfirmation | null>(null);
   const [loadState, setLoadState] = useState<WorkState>({ loading: false });
@@ -201,6 +226,20 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
     () => selectedTestDesignReviewCandidates(selectedCandidates, selectedCandidateIds),
     [selectedCandidates, selectedCandidateIds]
   );
+  const selectedBatchEditableCandidates = useMemo(
+    () => selectedTestDesignBatchEditableCandidates(selectedCandidates, selectedCandidateIds),
+    [selectedCandidates, selectedCandidateIds]
+  );
+  const batchEditIssues = useMemo(
+    () => validateTestDesignBatchEditDraft(batchEditDraft),
+    [batchEditDraft]
+  );
+  const batchEditFieldLabels = useMemo(
+    () => testDesignBatchEditFieldLabels(batchEditDraft),
+    [batchEditDraft]
+  );
+  const batchEditHasChanges = hasTestDesignBatchEditChanges(batchEditDraft);
+  const batchEditBlocked = !selectedBatchEditableCandidates.length || !batchEditHasChanges || batchEditIssues.length > 0;
   const estimatedPublishableCandidateCount = selectedCandidateIds.length
     ? selectedPublishableCandidates.length
     : Math.max(selectedTask?.confirmedCount ?? 0, currentPagePublishableCandidates.length);
@@ -241,6 +280,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       setSelectedCandidateId('');
       setCandidateDraft(null);
       setBatchActionResult(null);
+      setBatchEditResult(null);
       setPendingConfirmation(null);
       setTaskState({ loading: false });
       return;
@@ -317,6 +357,8 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       setSelectedCandidateCache({});
       setCandidatePageIndex(0);
       setBatchActionResult(null);
+      setBatchEditDraft(initialTestDesignBatchEditDraft);
+      setBatchEditResult(null);
       setPendingConfirmation(null);
       setLoadState({ loading: false });
       setTaskState({ loading: false });
@@ -387,6 +429,8 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
     setCandidatePageIndex(0);
     setPublishResult(null);
     setBatchActionResult(null);
+    setBatchEditDraft(initialTestDesignBatchEditDraft);
+    setBatchEditResult(null);
     setPendingConfirmation(null);
   }, [selectedTaskId]);
 
@@ -515,6 +559,8 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       setSelectedCandidateIds([]);
       setPublishResult(null);
       setBatchActionResult(null);
+      setBatchEditDraft(initialTestDesignBatchEditDraft);
+      setBatchEditResult(null);
       setPendingConfirmation(null);
       setMutationState({
         loading: false,
@@ -644,6 +690,97 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
     }
   }
 
+  function requestBatchEditCandidates() {
+    if (!canReview) {
+      setMutationState({ loading: false, error: '缺少 testDesign:review 权限' });
+      return;
+    }
+    if (!selectedBatchEditableCandidates.length) {
+      setMutationState({ loading: false, error: '请先选择可编辑候选' });
+      return;
+    }
+    if (!batchEditHasChanges) {
+      setMutationState({ loading: false, error: '请至少选择一个要批量修改的字段' });
+      return;
+    }
+    if (batchEditIssues.length) {
+      setMutationState({ loading: false, error: `批量字段编辑校验不通过：${batchEditIssues[0].message}` });
+      return;
+    }
+
+    setPendingConfirmation({
+      kind: 'batchEdit',
+      summary: buildTestDesignBatchEditConfirmation(selectedBatchEditableCandidates, batchEditFieldLabels)
+    });
+  }
+
+  async function executeBatchEditCandidates() {
+    if (!canReview) {
+      setMutationState({ loading: false, error: '缺少 testDesign:review 权限' });
+      return;
+    }
+    if (batchEditBlocked) {
+      setMutationState({
+        loading: false,
+        error: batchEditIssues[0]?.message ?? '请先选择可编辑候选并填写批量字段'
+      });
+      return;
+    }
+
+    setMutationState({ loading: true });
+    setBatchEditResult(null);
+    const items = await Promise.all(selectedBatchEditableCandidates.map(async (candidate) => {
+      try {
+        const response = await updateTestDesignCandidate(
+          candidate.id,
+          buildTestDesignBatchEditPayload(candidate, batchEditDraft)
+        );
+        return {
+          candidateId: candidate.id,
+          result: 'SUCCEEDED' as const,
+          candidate: response.data,
+          traceId: response.trace_id
+        };
+      } catch (error: unknown) {
+        return {
+          candidateId: candidate.id,
+          result: 'FAILED' as const,
+          errorMessage: testDesignErrorMessage(error, '候选批量字段编辑失败')
+        };
+      }
+    }));
+
+    const succeededCandidates = items
+      .map((item) => item.candidate)
+      .filter((candidate): candidate is TestDesignCandidateView => Boolean(candidate));
+    const succeededIds = new Set(succeededCandidates.map((candidate) => candidate.id));
+    const resultItems = items.map((item) => ({
+      candidateId: item.candidateId,
+      result: item.result,
+      candidate: item.candidate,
+      errorMessage: item.errorMessage
+    }));
+    const result: BatchEditResult = {
+      total: items.length,
+      succeededCount: succeededCandidates.length,
+      failedCount: items.length - succeededCandidates.length,
+      items: resultItems
+    };
+    setCandidates((current) => mergeUpdatedCandidates(current, succeededCandidates));
+    setSelectedCandidateCache((current) => mergeCandidateCache(current, succeededCandidates));
+    setSelectedCandidateIds((current) => current.filter((id) => !succeededIds.has(id)));
+    setBatchEditResult(result);
+    if (!result.failedCount) {
+      setBatchEditDraft(initialTestDesignBatchEditDraft);
+    }
+    setMutationState({
+      loading: false,
+      success: `批量字段编辑完成：成功 ${result.succeededCount}，失败 ${result.failedCount}`,
+      traceId: items.find((item) => item.result === 'SUCCEEDED')?.traceId
+    });
+    void refreshCandidatePage(selectedTaskId, { silent: true });
+  }
+
   function requestPublishTask(dryRun: boolean) {
     if (!selectedTaskId) {
       return;
@@ -710,11 +847,16 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       await executeBatchReviewCandidates(confirmation.action);
       return;
     }
+    if (confirmation.kind === 'batchEdit') {
+      await executeBatchEditCandidates();
+      return;
+    }
     await executePublishTask(confirmation.dryRun);
   }
 
   function updateCandidateInState(nextCandidate: TestDesignCandidateView) {
     setCandidates((current) => current.map((candidate) => (candidate.id === nextCandidate.id ? nextCandidate : candidate)));
+    setSelectedCandidateCache((current) => mergeCandidateCache(current, [nextCandidate]));
     setSelectedCandidateId(nextCandidate.id);
   }
 
@@ -902,6 +1044,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
               </div>
             )}
             {batchActionResult && <BatchActionSummary result={batchActionResult} />}
+            {batchEditResult && <BatchEditSummary result={batchEditResult} />}
             {selectedReviewCandidates.length > 0 && (
               <div className="test-design-batch-toolbar">
                 <span>批量评审 {selectedReviewCandidates.length} 个候选</span>
@@ -915,6 +1058,58 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
                   <button className="btn btn-ghost btn-sm" type="button" disabled={!canReview || mutationState.loading || !reviewComment.trim()} onClick={() => requestBatchReviewCandidates('IGNORE')}>
                     批量忽略
                   </button>
+                </div>
+              </div>
+            )}
+            {selectedCandidateIds.length > 0 && (
+              <div className="test-design-batch-editor">
+                <div className="test-design-batch-editor-heading">
+                  <span>批量字段编辑 {selectedBatchEditableCandidates.length} / {selectedCandidateIds.length} 个可编辑候选</span>
+                  <button className="btn btn-ghost btn-xs" type="button" disabled={mutationState.loading} onClick={() => setBatchEditDraft(initialTestDesignBatchEditDraft)}>
+                    重置
+                  </button>
+                </div>
+                <div className="test-design-batch-editor-grid">
+                  <label className="field">
+                    <span className="field-label">覆盖类型</span>
+                    <select value={batchEditDraft.coverageType} onChange={(event) => setBatchEditDraft((current) => ({ ...current, coverageType: event.target.value }))} disabled={!canReview || mutationState.loading}>
+                      <option value="">不修改</option>
+                      {TEST_DESIGN_COVERAGE_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}
+                    </select>
+                  </label>
+                  <label className="field">
+                    <span className="field-label">优先级</span>
+                    <select value={batchEditDraft.priority} onChange={(event) => setBatchEditDraft((current) => ({ ...current, priority: event.target.value }))} disabled={!canReview || mutationState.loading}>
+                      <option value="">不修改</option>
+                      <option value="CRITICAL">CRITICAL</option>
+                      <option value="HIGH">HIGH</option>
+                      <option value="MEDIUM">MEDIUM</option>
+                      <option value="LOW">LOW</option>
+                    </select>
+                  </label>
+                  <label className="field">
+                    <span className="field-label">标签策略</span>
+                    <select value={batchEditDraft.tagMode} onChange={(event) => setBatchEditDraft((current) => ({ ...current, tagMode: event.target.value === 'replace' ? 'replace' : 'append' }))} disabled={!canReview || mutationState.loading}>
+                      <option value="append">追加标签</option>
+                      <option value="replace">替换标签</option>
+                    </select>
+                  </label>
+                  <label className="field">
+                    <span className="field-label">标签</span>
+                    <input value={batchEditDraft.tags} onChange={(event) => setBatchEditDraft((current) => ({ ...current, tags: event.target.value }))} placeholder="regression, wp5" disabled={!canReview || mutationState.loading} />
+                  </label>
+                </div>
+                {batchEditIssues.length > 0 && (
+                  <div className="field-error-list">
+                    {batchEditIssues.map((issue, index) => <span key={`${issue.field}-${issue.message}-${index}`}>{issue.message}</span>)}
+                  </div>
+                )}
+                <div className="toolbar-actions">
+                  <button className="btn btn-secondary btn-sm" type="button" disabled={!canReview || mutationState.loading || batchEditBlocked} onClick={requestBatchEditCandidates}>
+                    <Save size={15} />
+                    批量应用字段
+                  </button>
+                  {batchEditFieldLabels.length > 0 && <span className="field-hint">{batchEditFieldLabels.join('；')}</span>}
                 </div>
               </div>
             )}
@@ -1319,6 +1514,25 @@ function BatchActionSummary(props: { result: TestDesignCandidateBatchActionResul
   );
 }
 
+function BatchEditSummary(props: { result: BatchEditResult }) {
+  const failedItems = props.result.items.filter((item) => item.result !== 'SUCCEEDED');
+  return (
+    <div className={failedItems.length ? 'notice warning test-design-batch-summary' : 'notice success test-design-batch-summary'}>
+      <strong>批量字段编辑结果</strong>
+      <span>成功 {props.result.succeededCount} / {props.result.total}，失败 {props.result.failedCount}</span>
+      {failedItems.length > 0 && (
+        <div className="test-design-batch-failures">
+          {failedItems.slice(0, 4).map((item) => (
+            <span key={`${item.candidateId}-${item.errorMessage ?? ''}`}>
+              {item.candidateId}：{item.errorMessage ?? item.result}
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ConfirmationDialog(props: {
   summary: TestDesignConfirmationSummary;
   onCancel: () => void;
@@ -1480,6 +1694,14 @@ function mergeBatchCandidates(current: TestDesignCandidateView[], result: TestDe
       .filter((candidate): candidate is TestDesignCandidateView => Boolean(candidate))
       .map((candidate) => [candidate.id, candidate])
   );
+  return current.map((candidate) => candidateById.get(candidate.id) ?? candidate);
+}
+
+function mergeUpdatedCandidates(current: TestDesignCandidateView[], updatedCandidates: readonly TestDesignCandidateView[]) {
+  if (!updatedCandidates.length) {
+    return current;
+  }
+  const candidateById = new Map(updatedCandidates.map((candidate) => [candidate.id, candidate]));
   return current.map((candidate) => candidateById.get(candidate.id) ?? candidate);
 }
 

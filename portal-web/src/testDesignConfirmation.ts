@@ -49,6 +49,25 @@ export function buildTestDesignBatchReviewConfirmation(
   };
 }
 
+export function buildTestDesignBatchEditConfirmation(
+  candidates: readonly ConfirmationCandidate[],
+  changedFields: readonly string[]
+): TestDesignConfirmationSummary {
+  return {
+    title: '确认批量编辑候选',
+    confirmLabel: '确认批量编辑',
+    tone: 'warning',
+    details: [
+      { label: '操作', value: '批量字段编辑' },
+      { label: '候选数', value: candidates.length },
+      { label: '变更字段', value: changedFields.join('；') || '-' },
+      { label: '版本', value: candidates.map((candidate) => `${candidate.id}@v${candidate.version}`).slice(0, 3).join(', ') || '-' }
+    ],
+    warnings: batchEditWarnings(candidates.length, changedFields.length),
+    candidateTitles: candidateTitles(candidates)
+  };
+}
+
 export function buildTestDesignPublishConfirmation(
   dryRun: boolean,
   candidates: readonly ConfirmationCandidate[],
@@ -87,6 +106,19 @@ function batchReviewWarnings(action: TestDesignCandidateBatchActionType, nonRevi
   }
   if (action === 'IGNORE') {
     warnings.push('忽略后候选不会进入发布池，但仍会保留在任务记录中。');
+  }
+  return warnings;
+}
+
+function batchEditWarnings(candidateCount: number, changedFieldCount: number) {
+  const warnings: string[] = [];
+  if (!candidateCount) {
+    warnings.push('当前没有可批量编辑候选。');
+  } else {
+    warnings.push('批量编辑会逐条保存候选，并将成功项置为 EDITED。');
+  }
+  if (!changedFieldCount) {
+    warnings.push('尚未选择需要变更的字段。');
   }
   return warnings;
 }

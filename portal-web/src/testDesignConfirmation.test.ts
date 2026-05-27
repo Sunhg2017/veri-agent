@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  buildTestDesignBatchEditConfirmation,
   buildTestDesignBatchReviewConfirmation,
   buildTestDesignPublishConfirmation,
   testDesignBatchActionLabel
@@ -37,6 +38,26 @@ describe('WP5 confirmation summaries', () => {
       '包含 1 个当前不可评审候选，提交前请刷新选择。',
       '确认后候选会进入发布池，请确认标题、步骤和预期结果已完成评审。'
     ]));
+  });
+
+  it('summarizes batch field edits with changed fields and optimistic versions', () => {
+    const summary = buildTestDesignBatchEditConfirmation([
+      { id: 'cand-1', title: '登录成功', status: 'GENERATED', version: 1 },
+      { id: 'cand-2', title: '登录失败', status: 'EDITED', version: 3 }
+    ], ['覆盖类型=BOUNDARY', '追加标签=regression']);
+
+    expect(summary).toMatchObject({
+      title: '确认批量编辑候选',
+      confirmLabel: '确认批量编辑',
+      tone: 'warning',
+      candidateTitles: ['登录成功', '登录失败']
+    });
+    expect(summary.details).toEqual(expect.arrayContaining([
+      { label: '候选数', value: 2 },
+      { label: '变更字段', value: '覆盖类型=BOUNDARY；追加标签=regression' },
+      { label: '版本', value: 'cand-1@v1, cand-2@v3' }
+    ]));
+    expect(summary.warnings).toContain('批量编辑会逐条保存候选，并将成功项置为 EDITED。');
   });
 
   it('summarizes publish scope and warns before writing to WP3', () => {

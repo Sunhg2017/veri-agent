@@ -512,6 +512,14 @@ a:hover {
   line-height: 1.4;
 }
 
+.field-error-list {
+  display: grid;
+  gap: 4px;
+  color: var(--danger);
+  font-size: var(--font-size-xs);
+  line-height: 1.4;
+}
+
 /* ============================================================
    按钮系统
    ============================================================ */
@@ -1494,6 +1502,32 @@ tbody tr:hover td {
 
 .test-design-batch-toolbar > span {
   font-weight: 600;
+}
+
+.test-design-batch-editor {
+  display: grid;
+  gap: var(--space-sm);
+  padding: var(--space-sm);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+
+.test-design-batch-editor-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+}
+
+.test-design-batch-editor-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(140px, 1fr));
+  gap: var(--space-sm);
 }
 
 .test-design-confirmation-modal {
