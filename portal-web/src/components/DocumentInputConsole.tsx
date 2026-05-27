@@ -156,6 +156,10 @@ const initialCandidateFilters: CandidateFilterState = {
   keyword: ''
 };
 
+const ASYNC_IMPORT_STATUSES = new Set(['MODEL_PARSE_QUEUED', 'MODEL_PARSE_RUNNING', 'PUBLISH_QUEUED', 'PUBLISHING']);
+const ASYNC_WEBHOOK_STATUSES = new Set(['ACCEPTED', 'PROCESSING']);
+const EVENT_POLL_INTERVAL_MS = 1500;
+
 export function DocumentInputConsole(props: { signedIn: boolean; currentUser: CurrentUser | null }) {
   const [health, setHealth] = useState<DocumentInputHealth | null>(null);
   const [sources, setSources] = useState<DocumentSourceView[]>([]);
@@ -367,6 +371,82 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
       active = false;
     };
   }, [props.signedIn, selectedEventId]);
+
+  useEffect(() => {
+    if (!selectedImportId || !props.signedIn || !isAsyncImportStatus(importDetail?.status)) {
+      return;
+    }
+
+    let active = true;
+    const interval = window.setInterval(() => {
+      Promise.allSettled([
+        fetchDocumentImport(selectedImportId),
+        fetchDocumentCandidates(selectedImportId, buildCandidateFilters(candidateFilters)),
+        fetchDocumentPublishRecords(selectedImportId),
+        fetchDocumentImports()
+      ])
+        .then(([detailResult, candidateResult, publishRecordResult, importResult]) => {
+          if (!active) return;
+          if (detailResult.status === 'fulfilled') {
+            setImportDetail(detailResult.value.data);
+            setLastImportResult((current) => current?.id === detailResult.value.data.id ? detailResult.value.data : current);
+            setDetailState((current) => ({ ...current, traceId: detailResult.value.trace_id }));
+          }
+          if (candidateResult.status === 'fulfilled') {
+            setCandidates(candidateResult.value.data.items);
+            setCandidateDrafts(candidateDraftMap(candidateResult.value.data.items));
+          }
+          if (publishRecordResult.status === 'fulfilled') {
+            setPublishRecords(publishRecordResult.value.data.items);
+            setPublishRecordState((current) => ({ ...current, traceId: publishRecordResult.value.trace_id }));
+          }
+          if (importResult.status === 'fulfilled') {
+            setImports(importResult.value.data.items);
+          }
+        })
+        .catch(() => {
+          // Keep the last visible state; manual refresh still reports detailed errors.
+        });
+    }, EVENT_POLL_INTERVAL_MS);
+
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
+  }, [candidateFilters, importDetail?.status, props.signedIn, selectedImportId]);
+
+  useEffect(() => {
+    if (!selectedEventId || !props.signedIn || !isAsyncWebhookStatus(selectedEvent?.status)) {
+      return;
+    }
+
+    let active = true;
+    const interval = window.setInterval(() => {
+      Promise.allSettled([
+        fetchWebhookEvent(selectedEventId),
+        fetchWebhookEvents(buildEventFilters(eventFilters))
+      ])
+        .then(([detailResult, listResult]) => {
+          if (!active) return;
+          if (detailResult.status === 'fulfilled') {
+            setSelectedEvent(detailResult.value.data);
+            setEventDetailState((current) => ({ ...current, traceId: detailResult.value.trace_id }));
+          }
+          if (listResult.status === 'fulfilled') {
+            setWebhookEvents(listResult.value.data.items);
+            setEventState((current) => ({ ...current, traceId: listResult.value.trace_id }));
+          }
+        })
+        .catch(() => {
+          // Polling is best-effort; the refresh button keeps explicit error reporting.
+        });
+    }, EVENT_POLL_INTERVAL_MS);
+
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
+  }, [eventFilters, props.signedIn, selectedEvent?.status, selectedEventId]);
 
   async function reloadSources() {
     const response = await fetchDocumentSources();
@@ -720,7 +800,7 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
       await reloadImports();
       const candidateTraceId = await reloadCandidates(selectedImportId);
       const recordTraceId = await reloadPublishRecords(selectedImportId);
-      setPublishingState({ loading: false, success: '导入候选已发布', traceId: recordTraceId || candidateTraceId || response.trace_id });
+      setPublishingState({ loading: false, success: '发布任务已提交，后台完成后刷新发布记录', traceId: recordTraceId || candidateTraceId || response.trace_id });
     } catch (error: unknown) {
       setPublishingState({ loading: false, error: errorMessage(error, '导入发布失败') });
     }
@@ -1846,6 +1926,14 @@ function buildCandidateFilters(filters: CandidateFilterState): DocumentCandidate
     sourceRef: filters.sourceRef.trim() || undefined,
     keyword: filters.keyword.trim() || undefined
   };
+}
+
+function isAsyncImportStatus(status?: string) {
+  return status ? ASYNC_IMPORT_STATUSES.has(status.toUpperCase()) : false;
+}
+
+function isAsyncWebhookStatus(status?: string) {
+  return status ? ASYNC_WEBHOOK_STATUSES.has(status.toUpperCase()) : false;
 }
 
 function importViewFromPublish(publish: DocumentPublishView): DocumentImportView {

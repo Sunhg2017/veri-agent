@@ -66,6 +66,109 @@ get_json() {
   curl -sS "$BASE_URL$path" "$@"
 }
 
+wait_for_wp4_import() {
+  local import_id="$1"
+  local expected_status="$2"
+  local expected_total_parsed="$3"
+  local expected_pending_count="$4"
+  local payload=""
+  for _ in $(seq 1 60); do
+    payload="$(get_json "/api/v1/document-input/imports/$import_id" "${wp4_headers[@]}")"
+    if printf '%s' "$payload" | jq -e \
+      --arg status "$expected_status" \
+      --argjson totalParsed "$expected_total_parsed" \
+      --argjson pendingCount "$expected_pending_count" \
+      '.data.status == $status and .data.totalParsed >= $totalParsed and .data.pendingCount >= $pendingCount' >/dev/null; then
+      printf '%s' "$payload"
+      return 0
+    fi
+    sleep 0.25
+  done
+  echo "Timed out waiting for WP4 import $import_id to reach $expected_status" >&2
+  printf '%s\n' "$payload" >&2
+  return 1
+}
+
+wait_for_wp4_candidates() {
+  local import_id="$1"
+  local expected_total="$2"
+  local payload=""
+  for _ in $(seq 1 60); do
+    payload="$(get_json "/api/v1/document-input/imports/$import_id/candidates" "${wp4_headers[@]}")"
+    if printf '%s' "$payload" | jq -e --argjson total "$expected_total" '.data.total >= $total' >/dev/null; then
+      printf '%s' "$payload"
+      return 0
+    fi
+    sleep 0.25
+  done
+  echo "Timed out waiting for WP4 candidates of import $import_id" >&2
+  printf '%s\n' "$payload" >&2
+  return 1
+}
+
+wait_for_wp4_publish_summary() {
+  local import_id="$1"
+  local expected_total_created="$2"
+  local expected_published_count="$3"
+  local payload=""
+  for _ in $(seq 1 60); do
+    payload="$(get_json "/api/v1/document-input/imports/$import_id" "${wp4_headers[@]}")"
+    if printf '%s' "$payload" | jq -e \
+      --argjson totalCreated "$expected_total_created" \
+      --argjson publishedCount "$expected_published_count" \
+      '.data.totalCreated >= $totalCreated and .data.publishedCount >= $publishedCount' >/dev/null; then
+      printf '%s' "$payload"
+      return 0
+    fi
+    sleep 0.25
+  done
+  echo "Timed out waiting for WP4 publish summary of import $import_id" >&2
+  printf '%s\n' "$payload" >&2
+  return 1
+}
+
+wait_for_wp4_publish_records() {
+  local import_id="$1"
+  local expected_total="$2"
+  local expected_status="$3"
+  local payload=""
+  for _ in $(seq 1 60); do
+    payload="$(get_json "/api/v1/document-input/imports/$import_id/publish-records" "${wp4_headers[@]}")"
+    if printf '%s' "$payload" | jq -e \
+      --argjson total "$expected_total" \
+      --arg status "$expected_status" \
+      '.data.total >= $total and (.data.items | all(.candidateStatus == $status))' >/dev/null; then
+      printf '%s' "$payload"
+      return 0
+    fi
+    sleep 0.25
+  done
+  echo "Timed out waiting for WP4 publish records of import $import_id" >&2
+  printf '%s\n' "$payload" >&2
+  return 1
+}
+
+wait_for_wp4_webhook_event() {
+  local source_code="$1"
+  local event_id="$2"
+  local expected_status="$3"
+  local payload=""
+  for _ in $(seq 1 60); do
+    payload="$(get_json "/api/v1/document-input/webhook-events?sourceCode=$(urlencode "$source_code")" "${wp4_headers[@]}")"
+    if printf '%s' "$payload" | jq -e \
+      --arg eventId "$event_id" \
+      --arg status "$expected_status" \
+      '.data.total >= 1 and (.data.items | any(.eventId == $eventId and .status == $status and .signatureStatus == "VALID"))' >/dev/null; then
+      printf '%s' "$payload"
+      return 0
+    fi
+    sleep 0.25
+  done
+  echo "Timed out waiting for WP4 webhook event $event_id to reach $expected_status" >&2
+  printf '%s\n' "$payload" >&2
+  return 1
+}
+
 login_admin() {
   local password="$1"
   post_json /api/v1/auth/login "$(jq -nc \
@@ -265,13 +368,12 @@ main() {
     --arg projectId "$PROJECT_CODE" \
     '{projectId:$projectId,sourceType:"MARKDOWN",sourceRef:"wp-all-md",content:"## WP4 联动需求\nPriority: HIGH\nTags: wp4, integration"}')" \
     "${wp4_headers[@]}")"
-  check "WP4 Markdown import" '.data.status == "SUCCEEDED" and .data.pendingCount == 1' "$wp4_import"
-  if [[ "$wp4_model_parse_enabled" == "true" ]]; then
-    check "WP4 AI model parse import" '.data.requirements | all(.parseSource == "MODEL" and (.modelInvocationId | type == "string") and .modelProviderName == "local-echo-primary")' "$wp4_import"
-  fi
+  check "WP4 Markdown import accepted" '.data.status == "MODEL_PARSE_QUEUED" and .data.totalParsed == 0 and .data.pendingCount == 0' "$wp4_import"
   wp4_import_id="$(printf '%s' "$wp4_import" | jq -r '.data.id // empty')"
+  wp4_import="$(wait_for_wp4_import "$wp4_import_id" "SUCCEEDED" 1 1)"
+  check "WP4 Markdown import processed" '.data.status == "SUCCEEDED" and .data.pendingCount == 1' "$wp4_import"
 
-  wp4_candidates="$(get_json "/api/v1/document-input/imports/$wp4_import_id/candidates" "${wp4_headers[@]}")"
+  wp4_candidates="$(wait_for_wp4_candidates "$wp4_import_id" 1)"
   wp4_candidate_ids="$(printf '%s' "$wp4_candidates" | jq -c '[.data.items[].id]')"
   wp4_candidate_targets="$(printf '%s' "$wp4_candidates" | jq -c '[.data.items[] | {id, version}]')"
   check "WP4 candidate list" '.data.total == 1 and .data.items[0].status == "PENDING"' "$wp4_candidates"
@@ -288,8 +390,11 @@ main() {
   check "WP4 publish dryRun" '.data.dryRun == true and .data.plannedCreateCount == 1 and .data.totalCreated == 0' "$wp4_dry_run"
 
   wp4_publish="$(post_json "/api/v1/document-input/imports/$wp4_import_id/publish" '{}' "${wp4_headers[@]}")"
+  check "WP4 publish accepted" '.data.dryRun == false and .data.status == "PUBLISH_QUEUED"' "$wp4_publish"
+  wp4_publish="$(wait_for_wp4_publish_summary "$wp4_import_id" 1 1)"
   wp4_requirement_id="$(printf '%s' "$wp4_publish" | jq -r '.data.createdRequirementIds[0] // empty')"
-  check "WP4 publish to WP3" '.data.dryRun == false and .data.totalCreated == 1 and .data.publishedCount == 1' "$wp4_publish"
+  check "WP4 publish to WP3" '.data.totalCreated == 1 and .data.publishedCount == 1' "$wp4_publish"
+  wait_for_wp4_publish_records "$wp4_import_id" 1 "PUBLISHED" >/dev/null
 
   wp4_asset="$(get_json "/api/v1/asset/requirements/$wp4_requirement_id" "${wp3_headers[@]}")"
   check_arg "WP4-created WP3 requirement" id "$wp4_requirement_id" '.data.id == $id and .data.source == "IMPORT" and .data.sourceRef == "wp-all-md#1" and (.data.tags | contains("document-input"))' "$wp4_asset"
@@ -310,8 +415,8 @@ main() {
   wp4_webhook="$(post_wp4_webhook "$WP4_SOURCE_CODE" "$wp4_webhook_payload" "$wp4_event_id" "$wp4_idem")"
   check_arg "WP4 signed webhook" sourceCode "$WP4_SOURCE_CODE" '.data.sourceCode == $sourceCode and .data.status == "ACCEPTED" and .data.signatureStatus == "VALID"' "$wp4_webhook"
 
-  wp4_events="$(get_json "/api/v1/document-input/webhook-events?sourceCode=$(urlencode "$WP4_SOURCE_CODE")" "${wp4_headers[@]}")"
-  check_arg "WP4 webhook event log" eventId "$wp4_event_id" '.data.items | any(.eventId == $eventId and .signatureStatus == "VALID")' "$wp4_events"
+  wp4_events="$(wait_for_wp4_webhook_event "$WP4_SOURCE_CODE" "$wp4_event_id" "PROCESSED")"
+  check_arg "WP4 webhook event processed" eventId "$wp4_event_id" '.data.items | any(.eventId == $eventId and .status == "PROCESSED" and .signatureStatus == "VALID" and (.importId | type == "string"))' "$wp4_events"
 
   local forbidden
   forbidden="$(curl -sS -o /tmp/wp-all-forbidden.json -w '%{http_code}' "$BASE_URL/api/v1/model-access/providers")"
