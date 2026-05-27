@@ -56,6 +56,11 @@ public interface TestDesignRepository {
     boolean markTaskStatus(UUID id, TestDesignTaskStatus expectedStatus, TestDesignTaskStatus nextStatus, Instant updatedAt);
 
     /**
+     * 将长时间未更新的运行中任务标记为失败，用于进程中断或事件消费者异常退出后的恢复扫描。
+     */
+    int markStaleRunningTasksFailed(Instant failedAt, Instant staleBefore, String errorMessage, int limit);
+
+    /**
      * 按任务、项目、需求、状态、覆盖类型、关键字和分页条件查询候选列表
      */
     List<TestDesignCandidate> candidates(TestDesignCandidateQuery query);

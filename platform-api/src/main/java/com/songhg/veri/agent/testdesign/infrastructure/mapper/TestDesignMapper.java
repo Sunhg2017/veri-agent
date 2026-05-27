@@ -39,6 +39,13 @@ public interface TestDesignMapper {
             @Param("updatedAt") Instant updatedAt
     );
 
+    int markStaleRunningTasksFailed(
+            @Param("failedAt") Instant failedAt,
+            @Param("staleBefore") Instant staleBefore,
+            @Param("errorMessage") String errorMessage,
+            @Param("limit") int limit
+    );
+
     List<TestDesignCandidate> candidates(@Param("query") TestDesignCandidateQuery query);
 
     long countCandidates(@Param("query") TestDesignCandidateQuery query);

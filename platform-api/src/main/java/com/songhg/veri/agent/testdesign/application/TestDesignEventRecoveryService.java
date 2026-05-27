@@ -6,6 +6,7 @@ import com.songhg.veri.agent.testdesign.application.query.TestDesignTaskQuery;
 import com.songhg.veri.agent.testdesign.config.TestDesignProperties;
 import com.songhg.veri.agent.testdesign.domain.TestDesignTask;
 import com.songhg.veri.agent.testdesign.domain.TestDesignTaskStatus;
+import java.time.Instant;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -53,8 +54,9 @@ public class TestDesignEventRecoveryService {
      */
     public RecoveryResult recoverQueuedEvents(String trigger) {
         if (!properties.eventRecoveryEnabled()) {
-            return new RecoveryResult(trigger, 0);
+            return new RecoveryResult(trigger, 0, 0);
         }
+        int timedOutRunningTasks = failTimedOutRunningTasks();
         List<TestDesignTask> queuedTasks = repository.tasks(new TestDesignTaskQuery(
                 null,
                 TestDesignTaskStatus.QUEUED.name(),
@@ -62,11 +64,16 @@ public class TestDesignEventRecoveryService {
                 PageQuery.of(0, recoveryBatchSize())
         ));
         queuedTasks.forEach(task -> eventPublisher.publishGenerationRequested(task.id()));
-        if (!queuedTasks.isEmpty()) {
-            log.info("WP5 test design generation recovery published queued tasks, trigger={}, tasks={}, cron={}",
-                    trigger, queuedTasks.size(), recoveryCron);
+        if (!queuedTasks.isEmpty() || timedOutRunningTasks > 0) {
+            log.info(
+                    "WP5 test design generation recovery completed, trigger={}, queuedTasks={}, timedOutRunningTasks={}, cron={}",
+                    trigger,
+                    queuedTasks.size(),
+                    timedOutRunningTasks,
+                    recoveryCron
+            );
         }
-        return new RecoveryResult(trigger, queuedTasks.size());
+        return new RecoveryResult(trigger, queuedTasks.size(), timedOutRunningTasks);
     }
 
     private void recoverSafely(String trigger) {
@@ -83,6 +90,22 @@ public class TestDesignEventRecoveryService {
         return Math.max(1, Math.min(MAX_RECOVERY_BATCH_SIZE, configured <= 0 ? MAX_RECOVERY_BATCH_SIZE : configured));
     }
 
-    public record RecoveryResult(String trigger, int tasks) {
+    private int failTimedOutRunningTasks() {
+        long timeoutSeconds = properties.eventRecoveryRunningTimeoutSeconds();
+        if (timeoutSeconds <= 0) {
+            return 0;
+        }
+        Instant failedAt = Instant.now();
+        Instant staleBefore = failedAt.minusSeconds(timeoutSeconds);
+        // Stale RUNNING tasks are failed instead of re-emitted so retries remain explicit and idempotent.
+        return repository.markStaleRunningTasksFailed(
+                failedAt,
+                staleBefore,
+                "生成任务运行超时，已由恢复扫描标记失败，可重试",
+                recoveryBatchSize()
+        );
+    }
+
+    public record RecoveryResult(String trigger, int queuedTasks, int timedOutRunningTasks) {
     }
 }

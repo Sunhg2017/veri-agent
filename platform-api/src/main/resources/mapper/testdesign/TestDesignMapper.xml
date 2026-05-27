@@ -212,6 +212,24 @@
           and status = #{expectedStatus}
     </update>
 
+    <update id="markStaleRunningTasksFailed">
+        with stale_tasks as (
+            select id
+            from test_design_task
+            where status = 'RUNNING'
+              and updated_at &lt; #{staleBefore}
+            order by updated_at asc
+            limit #{limit}
+        )
+        update test_design_task
+        set status = 'FAILED',
+            error_message = #{errorMessage},
+            updated_at = #{failedAt}
+        where id in (select id from stale_tasks)
+          and status = 'RUNNING'
+          and updated_at &lt; #{staleBefore}
+    </update>
+
     <select id="candidates" resultMap="candidateMap">
         select <include refid="candidateColumns"/>
         from test_design_candidate

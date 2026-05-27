@@ -11,4 +11,5 @@ veri-agent:
     async-generation-enabled: ${WP5_ASYNC_GENERATION_ENABLED:true}
     event-recovery-enabled: ${WP5_EVENT_RECOVERY_ENABLED:true}
     event-recovery-batch-size: ${WP5_EVENT_RECOVERY_BATCH_SIZE:100}
+    event-recovery-running-timeout-seconds: ${WP5_EVENT_RECOVERY_RUNNING_TIMEOUT_SECONDS:600}
     event-recovery-cron: "${WP5_EVENT_RECOVERY_CRON:0 */2 * * * *}"

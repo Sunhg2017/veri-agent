@@ -29,6 +29,8 @@ public record TestDesignProperties(
         /** 异步生成事件恢复扫描开关 */
         @DefaultValue("true") boolean eventRecoveryEnabled,
         /** 单次恢复扫描最多重新发布的排队任务数 */
-        @DefaultValue("100") int eventRecoveryBatchSize
+        @DefaultValue("100") int eventRecoveryBatchSize,
+        /** 运行中生成任务超过该秒数未更新则由恢复扫描标记失败，非正数表示关闭 */
+        @DefaultValue("600") long eventRecoveryRunningTimeoutSeconds
 ) {
 }

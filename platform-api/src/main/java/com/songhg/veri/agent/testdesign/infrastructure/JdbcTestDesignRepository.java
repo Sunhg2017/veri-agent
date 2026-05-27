@@ -72,6 +72,11 @@ public class JdbcTestDesignRepository implements TestDesignRepository {
     }
 
     @Override
+    public int markStaleRunningTasksFailed(Instant failedAt, Instant staleBefore, String errorMessage, int limit) {
+        return mapper.markStaleRunningTasksFailed(failedAt, staleBefore, errorMessage, limit);
+    }
+
+    @Override
     public List<TestDesignCandidate> candidates(TestDesignCandidateQuery query) {
         return mapper.candidates(query);
     }

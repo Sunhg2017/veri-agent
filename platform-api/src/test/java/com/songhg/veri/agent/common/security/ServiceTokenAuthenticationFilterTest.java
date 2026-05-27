@@ -118,7 +118,8 @@ class ServiceTokenAuthenticationFilterTest {
                 100,
                 true,
                 true,
-                100
+                100,
+                600
         );
     }
 

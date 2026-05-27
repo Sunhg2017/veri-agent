@@ -155,6 +155,58 @@ class DbProfileRepositoryContractTest {
                     assertThat(task.inputDigest()).isEqualTo(inputDigest);
                     assertThat(task.contextSummaryJson()).contains("wp5-context-v1");
                 });
+
+        UUID queuedTaskId = UUID.randomUUID();
+        UUID staleRunningTaskId = UUID.randomUUID();
+        UUID freshRunningTaskId = UUID.randomUUID();
+        Instant staleUpdatedAt = now.minusSeconds(120);
+        testDesignRepository.saveTask(testDesignTask(
+                queuedTaskId,
+                projectId,
+                TestDesignTaskStatus.QUEUED,
+                "DB 条件认领任务",
+                staleUpdatedAt
+        ));
+        testDesignRepository.saveTask(testDesignTask(
+                staleRunningTaskId,
+                projectId,
+                TestDesignTaskStatus.RUNNING,
+                "DB 超时运行任务",
+                staleUpdatedAt
+        ));
+        testDesignRepository.saveTask(testDesignTask(
+                freshRunningTaskId,
+                projectId,
+                TestDesignTaskStatus.RUNNING,
+                "DB 新鲜运行任务",
+                now
+        ));
+
+        assertThat(testDesignRepository.markTaskStatus(
+                queuedTaskId,
+                TestDesignTaskStatus.QUEUED,
+                TestDesignTaskStatus.RUNNING,
+                now.plusSeconds(1)
+        )).isTrue();
+        assertThat(testDesignRepository.markTaskStatus(
+                queuedTaskId,
+                TestDesignTaskStatus.QUEUED,
+                TestDesignTaskStatus.RUNNING,
+                now.plusSeconds(2)
+        )).isFalse();
+
+        assertThat(testDesignRepository.markStaleRunningTasksFailed(
+                now.plusSeconds(3),
+                now.minusSeconds(60),
+                "stale recovery",
+                1
+        )).isEqualTo(1);
+        assertThat(testDesignRepository.task(staleRunningTaskId)).get()
+                .extracting(TestDesignTask::status, TestDesignTask::errorMessage)
+                .containsExactly(TestDesignTaskStatus.FAILED.name(), "stale recovery");
+        assertThat(testDesignRepository.task(freshRunningTaskId)).get()
+                .extracting(TestDesignTask::status)
+                .isEqualTo(TestDesignTaskStatus.RUNNING.name());
     }
 
     @Test
@@ -447,6 +499,40 @@ class DbProfileRepositoryContractTest {
                 actorService,
                 "db-test-user",
                 createdAt
+        );
+    }
+
+    private TestDesignTask testDesignTask(
+            UUID id,
+            String projectId,
+            TestDesignTaskStatus status,
+            String title,
+            Instant updatedAt
+    ) {
+        return new TestDesignTask(
+                id,
+                projectId,
+                title,
+                status.name(),
+                UUID.randomUUID().toString(),
+                "SMOKE",
+                "wp5.case.generate",
+                "v1",
+                null,
+                null,
+                "RULE_TEMPLATE",
+                1,
+                0,
+                0,
+                0,
+                null,
+                "db-contract",
+                null,
+                null,
+                "c".repeat(64),
+                "{}",
+                updatedAt.minusSeconds(5),
+                updatedAt
         );
     }
 

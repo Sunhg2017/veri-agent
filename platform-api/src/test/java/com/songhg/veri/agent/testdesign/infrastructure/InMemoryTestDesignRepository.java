@@ -107,6 +107,60 @@ public class InMemoryTestDesignRepository implements TestDesignRepository {
     }
 
     @Override
+    public int markStaleRunningTasksFailed(Instant failedAt, Instant staleBefore, String errorMessage, int limit) {
+        if (limit <= 0) {
+            return 0;
+        }
+        synchronized (tasks) {
+            int affected = 0;
+            List<TestDesignTask> staleTasks = tasks.values().stream()
+                    .filter(current -> TestDesignTaskStatus.RUNNING.name().equals(current.status()))
+                    .filter(current -> {
+                        Instant lastTouchedAt = current.updatedAt() == null ? current.createdAt() : current.updatedAt();
+                        return lastTouchedAt.isBefore(staleBefore);
+                    })
+                    .sorted(Comparator.comparing(current -> current.updatedAt() == null
+                            ? current.createdAt()
+                            : current.updatedAt()))
+                    .limit(limit)
+                    .toList();
+            for (TestDesignTask current : staleTasks) {
+                Instant lastTouchedAt = current.updatedAt() == null ? current.createdAt() : current.updatedAt();
+                if (!TestDesignTaskStatus.RUNNING.name().equals(current.status()) || !lastTouchedAt.isBefore(staleBefore)) {
+                    continue;
+                }
+                tasks.put(current.id(), new TestDesignTask(
+                        current.id(),
+                        current.projectId(),
+                        current.title(),
+                        TestDesignTaskStatus.FAILED.name(),
+                        current.requirementIds(),
+                        current.coverageTypes(),
+                        current.promptKey(),
+                        current.promptVersion(),
+                        current.modelInvocationId(),
+                        current.modelProviderName(),
+                        current.modelName(),
+                        current.totalRequirements(),
+                        current.generatedCount(),
+                        current.confirmedCount(),
+                        current.publishedCount(),
+                        errorMessage,
+                        current.requestedBy(),
+                        current.idempotencyKey(),
+                        current.requestDigest(),
+                        current.inputDigest(),
+                        current.contextSummaryJson(),
+                        current.createdAt(),
+                        failedAt
+                ));
+                affected++;
+            }
+            return affected;
+        }
+    }
+
+    @Override
     public List<TestDesignCandidate> candidates(TestDesignCandidateQuery query) {
         return filteredCandidates(query)
                 .skip(query.offset())
