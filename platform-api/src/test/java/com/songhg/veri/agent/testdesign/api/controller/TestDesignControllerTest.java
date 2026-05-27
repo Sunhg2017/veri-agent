@@ -102,6 +102,26 @@ class TestDesignControllerTest {
         String candidateId = JsonPath.read(taskResult.getResponse().getContentAsString(), "$.data.candidates[0].id");
         Integer version = JsonPath.read(taskResult.getResponse().getContentAsString(), "$.data.candidates[0].version");
 
+        mockMvc.perform(get("/api/v1/test-design/tasks/{id}/summary", taskId)
+                        .header("Authorization", "Bearer " + userToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.id").value(taskId))
+                .andExpect(jsonPath("$.data.status").value("SUCCEEDED"))
+                .andExpect(jsonPath("$.data.generatedCount").value(2))
+                .andExpect(jsonPath("$.data.candidates").doesNotExist());
+
+        mockMvc.perform(get("/api/v1/test-design/tasks/{id}/candidates", taskId)
+                        .header("Authorization", "Bearer " + userToken)
+                        .param("index", "0")
+                        .param("size", "1")
+                        .param("status", "GENERATED"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.index").value(0))
+                .andExpect(jsonPath("$.data.size").value(1))
+                .andExpect(jsonPath("$.data.total").value(2))
+                .andExpect(jsonPath("$.data.items", hasSize(1)))
+                .andExpect(jsonPath("$.data.items[0].status").value("GENERATED"));
+
         MvcResult updated = mockMvc.perform(put("/api/v1/test-design/candidates/{id}", candidateId)
                         .header("Authorization", "Bearer " + userToken)
                         .contentType(MediaType.APPLICATION_JSON)

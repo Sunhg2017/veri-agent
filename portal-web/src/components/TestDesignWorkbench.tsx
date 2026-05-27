@@ -22,8 +22,9 @@ import {
   batchActionTestDesignCandidates,
   confirmTestDesignCandidate,
   createTestDesignTask,
+  fetchTaskTestDesignCandidates,
   fetchTestDesignHealth,
-  fetchTestDesignTask,
+  fetchTestDesignTaskSummary,
   fetchTestDesignTasks,
   ignoreTestDesignCandidate,
   publishTestDesignDryRun,
@@ -47,14 +48,13 @@ import {
 import {
   DEFAULT_TEST_DESIGN_CANDIDATE_PAGE_SIZE,
   TEST_DESIGN_CANDIDATE_PAGE_SIZES,
-  paginateItems
+  pageFromServerItems
 } from '../testDesignPagination';
 import {
   canPublishTestDesignCandidate,
   canSelectTestDesignCandidate,
   selectedTestDesignPublishCandidates,
-  selectedTestDesignReviewCandidates,
-  testDesignPublishTargets
+  selectedTestDesignReviewCandidates
 } from '../testDesignSelection';
 import {
   buildTestDesignBatchReviewConfirmation,
@@ -150,7 +150,9 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
   const [tasks, setTasks] = useState<TestDesignTaskView[]>([]);
   const [selectedTaskId, setSelectedTaskId] = useState('');
   const [candidates, setCandidates] = useState<TestDesignCandidateView[]>([]);
+  const [candidatePageTotal, setCandidatePageTotal] = useState(0);
   const [selectedCandidateId, setSelectedCandidateId] = useState('');
+  const [selectedCandidateCache, setSelectedCandidateCache] = useState<Record<string, TestDesignCandidateView>>({});
   const [candidateDraft, setCandidateDraft] = useState<CandidateDraft | null>(null);
   const [filters, setFilters] = useState<RequirementFilters>(initialFilters);
   const [taskFilters, setTaskFilters] = useState<TaskFilters>(initialTaskFilters);
@@ -173,36 +175,45 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
   const selectedTaskGenerating = selectedTask ? ASYNC_TASK_STATUSES.has(selectedTask.status) : false;
   const selectedCandidate = candidates.find((candidate) => candidate.id === selectedCandidateId) ?? null;
   const filteredRequirements = useMemo(() => filterRequirements(requirements, filters), [requirements, filters]);
-  const visibleCandidates = useMemo(() => filterCandidates(candidates, candidateFilters), [candidateFilters, candidates]);
   const candidatePage = useMemo(
-    () => paginateItems(visibleCandidates, candidatePageIndex, candidatePageSize),
-    [candidatePageIndex, candidatePageSize, visibleCandidates]
+    () => pageFromServerItems(candidates, candidatePageIndex, candidatePageSize, candidatePageTotal),
+    [candidatePageIndex, candidatePageSize, candidatePageTotal, candidates]
   );
   const currentPageSelectableCandidates = useMemo(
     () => candidatePage.items.filter(canSelectTestDesignCandidate),
     [candidatePage.items]
   );
-  const publishableCandidates = useMemo(
+  const currentPagePublishableCandidates = useMemo(
     () => candidates.filter(canPublishTestDesignCandidate),
     [candidates]
   );
   const selectedCandidates = useMemo(
-    () => candidates.filter((candidate) => selectedCandidateIds.includes(candidate.id)),
-    [candidates, selectedCandidateIds]
+    () => selectedCandidateIds
+      .map((candidateId) => selectedCandidateCache[candidateId])
+      .filter((candidate): candidate is TestDesignCandidateView => Boolean(candidate)),
+    [selectedCandidateCache, selectedCandidateIds]
   );
   const selectedPublishableCandidates = useMemo(
-    () => selectedTestDesignPublishCandidates(candidates, selectedCandidateIds),
-    [candidates, selectedCandidateIds]
+    () => selectedTestDesignPublishCandidates(selectedCandidates, selectedCandidateIds),
+    [selectedCandidates, selectedCandidateIds]
   );
   const selectedReviewCandidates = useMemo(
-    () => selectedTestDesignReviewCandidates(candidates, selectedCandidateIds),
-    [candidates, selectedCandidateIds]
+    () => selectedTestDesignReviewCandidates(selectedCandidates, selectedCandidateIds),
+    [selectedCandidates, selectedCandidateIds]
   );
-  const publishTargetCandidates = useMemo(
-    () => testDesignPublishTargets(candidates, selectedCandidateIds),
-    [candidates, selectedCandidateIds]
-  );
+  const estimatedPublishableCandidateCount = selectedCandidateIds.length
+    ? selectedPublishableCandidates.length
+    : Math.max(selectedTask?.confirmedCount ?? 0, currentPagePublishableCandidates.length);
+  const publishPreviewCandidates = selectedCandidateIds.length
+    ? selectedPublishableCandidates
+    : currentPagePublishableCandidates;
+  const canPublishCurrentScope = selectedCandidateIds.length
+    ? selectedPublishableCandidates.length > 0
+    : Boolean(selectedTaskId && estimatedPublishableCandidateCount > 0);
   const statusCounts = useMemo(() => countByStatus(candidates), [candidates]);
+  const publishScopeLabel = selectedCandidateIds.length
+    ? `${selectedPublishableCandidates.length} / ${selectedCandidateIds.length} 个已选候选`
+    : `全部可发布候选${estimatedPublishableCandidateCount ? ` · 约 ${estimatedPublishableCandidateCount} 个` : ''}`;
   const publishIssueRecords = useMemo(
     () => publishResult?.records.filter(isPublishIssueRecord) ?? [],
     [publishResult]
@@ -223,13 +234,12 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
     return selectedRequirementIds.map((id) => lookup.get(id) ?? id);
   }, [requirements, selectedRequirementIds]);
 
-  const refreshTaskDetail = useCallback(async (taskId: string, options?: { silent?: boolean }) => {
+  const refreshCandidatePage = useCallback(async (taskId: string, options?: { silent?: boolean }) => {
     if (!props.signedIn || !canRead || !taskId) {
       setCandidates([]);
+      setCandidatePageTotal(0);
       setSelectedCandidateId('');
-      setSelectedCandidateIds([]);
       setCandidateDraft(null);
-      setCandidatePageIndex(0);
       setBatchActionResult(null);
       setPendingConfirmation(null);
       setTaskState({ loading: false });
@@ -241,37 +251,57 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       setTaskState((current) => ({ ...current, error: undefined }));
     } else {
       setTaskState({ loading: true });
-      setCandidates([]);
-      setSelectedCandidateId('');
-      setSelectedCandidateIds([]);
-      setCandidatePageIndex(0);
-      setCandidateDraft(null);
-      setPublishResult(null);
-      setBatchActionResult(null);
-      setPendingConfirmation(null);
     }
     try {
-      const response = await fetchTestDesignTask(taskId);
-      const detail = response.data;
-      setTasks((current) => upsertTask(current, detail.task));
-      setCandidates(detail.candidates);
-      setSelectedCandidateIds((current) => current.filter((id) => detail.candidates.some((candidate) => candidate.id === id && canSelectTestDesignCandidate(candidate))));
+      const [taskResult, candidateResult] = await Promise.all([
+        fetchTestDesignTaskSummary(taskId),
+        fetchTaskTestDesignCandidates(taskId, {
+          index: candidatePageIndex,
+          size: candidatePageSize,
+          status: candidateFilters.status,
+          coverageType: candidateFilters.coverageType,
+          keyword: candidateFilters.keyword
+        })
+      ]);
+      const page = candidateResult.data;
+      const normalizedPage = pageFromServerItems(page.items, page.index ?? candidatePageIndex, page.size ?? candidatePageSize, page.total);
+      if (normalizedPage.index !== candidatePageIndex && page.total > 0 && !page.items.length) {
+        setCandidatePageIndex(normalizedPage.index);
+      }
+      const pageCandidateById = new Map(page.items.map((candidate) => [candidate.id, candidate]));
+      setTasks((current) => upsertTask(current, taskResult.data));
+      setCandidates(page.items);
+      setCandidatePageTotal(page.total);
+      setSelectedCandidateCache((current) => mergeCandidateCache(current, page.items));
+      setSelectedCandidateIds((current) => current.filter((id) => {
+        const pageCandidate = pageCandidateById.get(id);
+        return pageCandidate ? canSelectTestDesignCandidate(pageCandidate) : true;
+      }));
       setSelectedCandidateId((current) => {
-        if (current && detail.candidates.some((candidate) => candidate.id === current)) {
+        if (current && page.items.some((candidate) => candidate.id === current)) {
           return current;
         }
-        return detail.candidates[0]?.id ?? '';
+        return page.items[0]?.id ?? '';
       });
-      setTaskState({ loading: false, traceId: response.trace_id });
+      setTaskState({ loading: false, traceId: candidateResult.trace_id || taskResult.trace_id });
     } catch (error: unknown) {
       if (!silent) {
         setCandidates([]);
+        setCandidatePageTotal(0);
         setSelectedCandidateId('');
         setCandidateDraft(null);
       }
-      setTaskState({ loading: false, error: testDesignErrorMessage(error, '生成任务详情加载失败') });
+      setTaskState({ loading: false, error: testDesignErrorMessage(error, '候选用例列表加载失败') });
     }
-  }, [canRead, props.signedIn]);
+  }, [
+    canRead,
+    candidateFilters.coverageType,
+    candidateFilters.keyword,
+    candidateFilters.status,
+    candidatePageIndex,
+    candidatePageSize,
+    props.signedIn
+  ]);
 
   const refreshAll = useCallback(async () => {
     if (!props.signedIn || !canRead) {
@@ -279,10 +309,12 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       setRequirements([]);
       setTasks([]);
       setCandidates([]);
+      setCandidatePageTotal(0);
       setSelectedRequirementIds([]);
       setSelectedTaskId('');
       setSelectedCandidateId('');
       setSelectedCandidateIds([]);
+      setSelectedCandidateCache({});
       setCandidatePageIndex(0);
       setBatchActionResult(null);
       setPendingConfirmation(null);
@@ -346,18 +378,31 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
   }, [refreshAll]);
 
   useEffect(() => {
-    void refreshTaskDetail(selectedTaskId);
-  }, [refreshTaskDetail, selectedTaskId]);
+    setCandidates([]);
+    setCandidatePageTotal(0);
+    setSelectedCandidateId('');
+    setSelectedCandidateIds([]);
+    setSelectedCandidateCache({});
+    setCandidateDraft(null);
+    setCandidatePageIndex(0);
+    setPublishResult(null);
+    setBatchActionResult(null);
+    setPendingConfirmation(null);
+  }, [selectedTaskId]);
+
+  useEffect(() => {
+    void refreshCandidatePage(selectedTaskId);
+  }, [refreshCandidatePage, selectedTaskId]);
 
   useEffect(() => {
     if (!selectedTaskId || !selectedTaskGenerating) {
       return undefined;
     }
     const timer = window.setInterval(() => {
-      void refreshTaskDetail(selectedTaskId, { silent: true });
+      void refreshCandidatePage(selectedTaskId, { silent: true });
     }, 2000);
     return () => window.clearInterval(timer);
-  }, [refreshTaskDetail, selectedTaskGenerating, selectedTaskId]);
+  }, [refreshCandidatePage, selectedTaskGenerating, selectedTaskId]);
 
   useEffect(() => {
     const nextCandidate = candidates.find((candidate) => candidate.id === selectedCandidateId) ?? null;
@@ -463,6 +508,8 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       });
       setTasks((current) => upsertTask(current, response.data.task));
       setCandidates(response.data.candidates);
+      setCandidatePageTotal(response.data.candidates.length);
+      setSelectedCandidateCache(mergeCandidateCache({}, response.data.candidates));
       setSelectedTaskId(response.data.task.id);
       setSelectedCandidateId(response.data.candidates[0]?.id ?? '');
       setSelectedCandidateIds([]);
@@ -583,7 +630,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       const nextCandidates = mergeBatchCandidates(candidates, response.data);
       const failedIds = new Set(response.data.items.filter((item) => item.result !== 'SUCCEEDED').map((item) => item.candidateId));
       setCandidates(nextCandidates);
-      setTasks((current) => current.map((task) => (task.id === selectedTaskId ? withTaskCandidateCounts(task, nextCandidates) : task)));
+      setSelectedCandidateCache((current) => mergeCandidateCache(current, nextCandidates));
       setSelectedCandidateIds((current) => current.filter((id) => failedIds.has(id)));
       setBatchActionResult(response.data);
       setMutationState({
@@ -591,6 +638,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
         success: `批量${testDesignBatchActionLabel(action)}完成：成功 ${response.data.succeededCount}，失败 ${response.data.failedCount}`,
         traceId: response.trace_id
       });
+      void refreshCandidatePage(selectedTaskId, { silent: true });
     } catch (error: unknown) {
       setMutationState({ loading: false, error: testDesignErrorMessage(error, `批量${testDesignBatchActionLabel(action)}失败`) });
     }
@@ -604,7 +652,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       setPublishState({ loading: false, error: '缺少 testDesign:publish 权限' });
       return;
     }
-    if (!publishTargetCandidates.length) {
+    if (!canPublishCurrentScope) {
       setPublishState({ loading: false, error: '当前没有可发布候选' });
       return;
     }
@@ -614,8 +662,8 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       dryRun,
       summary: buildTestDesignPublishConfirmation(
         dryRun,
-        publishTargetCandidates,
-        publishableCandidates.length,
+        publishPreviewCandidates,
+        estimatedPublishableCandidateCount,
         selectedCandidateIds.length
       )
     });
@@ -632,7 +680,9 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
 
     setPublishState({ loading: true });
     try {
-      const candidateIds = publishTargetCandidates.map((candidate) => candidate.id);
+      const candidateIds = selectedCandidateIds.length
+        ? selectedPublishableCandidates.map((candidate) => candidate.id)
+        : undefined;
       const response = dryRun
         ? await publishTestDesignDryRun(selectedTaskId, { candidateIds })
         : await publishTestDesignTask(selectedTaskId, { candidateIds });
@@ -643,7 +693,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
         traceId: response.trace_id
       });
       if (!dryRun) {
-        await refreshTaskDetail(selectedTaskId);
+        await refreshCandidatePage(selectedTaskId);
       }
     } catch (error: unknown) {
       setPublishState({ loading: false, error: testDesignErrorMessage(error, dryRun ? '预发布检查失败' : '发布失败') });
@@ -785,24 +835,24 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
             <div className="asset-filter-bar test-design-candidate-filter">
               <label className="field">
                 <span className="field-label">候选状态</span>
-                <select value={candidateFilters.status} onChange={(event) => setCandidateFilters((current) => ({ ...current, status: event.target.value }))} disabled={taskState.loading || !candidates.length}>
+                <select value={candidateFilters.status} onChange={(event) => setCandidateFilters((current) => ({ ...current, status: event.target.value }))} disabled={taskState.loading || !selectedTaskId}>
                   <option value="">全部</option>
                   {TEST_DESIGN_CANDIDATE_STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}
                 </select>
               </label>
               <label className="field">
                 <span className="field-label">覆盖类型</span>
-                <select value={candidateFilters.coverageType} onChange={(event) => setCandidateFilters((current) => ({ ...current, coverageType: event.target.value }))} disabled={taskState.loading || !candidates.length}>
+                <select value={candidateFilters.coverageType} onChange={(event) => setCandidateFilters((current) => ({ ...current, coverageType: event.target.value }))} disabled={taskState.loading || !selectedTaskId}>
                   <option value="">全部</option>
                   {TEST_DESIGN_COVERAGE_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}
                 </select>
               </label>
               <label className="field">
                 <span className="field-label">关键词</span>
-                <input value={candidateFilters.keyword} onChange={(event) => setCandidateFilters((current) => ({ ...current, keyword: event.target.value }))} placeholder="标题 / 标签 / 错误" disabled={taskState.loading || !candidates.length} />
+                <input value={candidateFilters.keyword} onChange={(event) => setCandidateFilters((current) => ({ ...current, keyword: event.target.value }))} placeholder="标题 / 标签 / 错误" disabled={taskState.loading || !selectedTaskId} />
               </label>
               <div className="filter-actions">
-                <button className="btn btn-secondary btn-sm" type="button" disabled={!candidates.length} onClick={() => setCandidateFilters(initialCandidateFilters)}>
+                <button className="btn btn-secondary btn-sm" type="button" disabled={!selectedTaskId} onClick={() => setCandidateFilters(initialCandidateFilters)}>
                   <Search size={15} />
                   重置
                 </button>
@@ -814,7 +864,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
                 </button>
               </div>
             </div>
-            {visibleCandidates.length > 0 && (
+            {candidatePage.total > 0 && (
               <div className="test-design-pagination" aria-label="候选分页">
                 <span>
                   {candidatePage.start}-{candidatePage.end} / {candidatePage.total}
@@ -1112,7 +1162,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
           <div className="panel-header compact">
             <div>
               <h2 className="panel-title">发布</h2>
-              <p className="panel-desc">发布范围 {publishTargetCandidates.length} / {publishableCandidates.length} 个候选。</p>
+              <p className="panel-desc">发布范围 {publishScopeLabel}。</p>
             </div>
           </div>
           <div className="panel-body compact main-stack">
@@ -1121,11 +1171,11 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
             ) : (
               <div className="notice info">当前将覆盖全部可发布候选。</div>
             )}
-            <button className="btn btn-secondary" type="button" disabled={!canPublish || taskState.loading || publishState.loading || !selectedTaskId || !publishTargetCandidates.length} onClick={() => requestPublishTask(true)}>
+            <button className="btn btn-secondary" type="button" disabled={!canPublish || taskState.loading || publishState.loading || !canPublishCurrentScope} onClick={() => requestPublishTask(true)}>
               <Eye size={16} />
               预发布
             </button>
-            <button className="btn btn-primary" type="button" disabled={!canPublish || taskState.loading || publishState.loading || !selectedTaskId || !publishTargetCandidates.length} onClick={() => requestPublishTask(false)}>
+            <button className="btn btn-primary" type="button" disabled={!canPublish || taskState.loading || publishState.loading || !canPublishCurrentScope} onClick={() => requestPublishTask(false)}>
               <Send size={16} />
               发布到资产库
             </button>
@@ -1433,19 +1483,15 @@ function mergeBatchCandidates(current: TestDesignCandidateView[], result: TestDe
   return current.map((candidate) => candidateById.get(candidate.id) ?? candidate);
 }
 
-function withTaskCandidateCounts(task: TestDesignTaskView, nextCandidates: TestDesignCandidateView[]): TestDesignTaskView {
-  const taskCandidates = nextCandidates.filter((candidate) => !candidate.taskId || candidate.taskId === task.id);
-  if (taskCandidates.length !== nextCandidates.length) {
-    return task;
+function mergeCandidateCache(
+  current: Record<string, TestDesignCandidateView>,
+  nextCandidates: readonly TestDesignCandidateView[]
+) {
+  const next = { ...current };
+  for (const candidate of nextCandidates) {
+    next[candidate.id] = candidate;
   }
-  const confirmedCount = taskCandidates.filter((candidate) => candidate.status === 'CONFIRMED').length;
-  const publishedCount = taskCandidates.filter((candidate) => candidate.status === 'PUBLISHED').length;
-  return {
-    ...task,
-    generatedCount: taskCandidates.length,
-    confirmedCount,
-    publishedCount
-  };
+  return next;
 }
 
 function draftFromCandidate(candidate: TestDesignCandidateView): CandidateDraft {

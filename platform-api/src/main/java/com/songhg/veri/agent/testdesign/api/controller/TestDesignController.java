@@ -85,6 +85,15 @@ public class TestDesignController {
     }
 
     /**
+     * 查询单个 WP5 任务摘要，不加载候选明细，用于前端分页场景下的轻量状态刷新
+     */
+    @GetMapping("/tasks/{id}/summary")
+    @RequirePermission(value = PermissionCodes.TEST_DESIGN_READ, scope = TestDesignPermissionScopes.TASK)
+    public TestDesignTaskResponse taskSummary(@PathVariable UUID id) {
+        return service.taskSummary(id);
+    }
+
+    /**
      * 对失败或部分失败的任务发起重试
      */
     @PostMapping("/tasks/{id}/retry")

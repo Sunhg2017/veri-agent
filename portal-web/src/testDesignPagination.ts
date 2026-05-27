@@ -38,6 +38,32 @@ export function paginateItems<T>(
   };
 }
 
+export function pageFromServerItems<T>(
+  items: readonly T[],
+  pageIndex: number,
+  pageSize: number,
+  totalItems: number
+): PaginatedItems<T> {
+  const size = normalizePageSize(pageSize);
+  const total = normalizeTotal(totalItems);
+  const totalPages = Math.max(1, Math.ceil(total / size));
+  const index = clamp(normalizePageIndex(pageIndex), 0, totalPages - 1);
+  const pageItems = items.slice(0, size);
+  const startOffset = index * size;
+
+  return {
+    items: pageItems,
+    index,
+    size,
+    total,
+    totalPages,
+    start: total && pageItems.length ? startOffset + 1 : 0,
+    end: total && pageItems.length ? Math.min(startOffset + pageItems.length, total) : 0,
+    hasPrevious: index > 0,
+    hasNext: index < totalPages - 1
+  };
+}
+
 function normalizePageIndex(value: number) {
   return Number.isInteger(value) && value > 0 ? value : 0;
 }
@@ -50,4 +76,8 @@ function normalizePageSize(value: number) {
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
+}
+
+function normalizeTotal(value: number) {
+  return Number.isFinite(value) && value > 0 ? Math.trunc(value) : 0;
 }

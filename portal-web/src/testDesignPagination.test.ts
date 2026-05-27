@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_TEST_DESIGN_CANDIDATE_PAGE_SIZE, paginateItems } from './testDesignPagination';
+import {
+  DEFAULT_TEST_DESIGN_CANDIDATE_PAGE_SIZE,
+  pageFromServerItems,
+  paginateItems
+} from './testDesignPagination';
 
 describe('WP5 test design pagination', () => {
   it('returns the requested candidate page with stable range metadata', () => {
@@ -44,6 +48,36 @@ describe('WP5 test design pagination', () => {
       index: 0,
       total: 0,
       totalPages: 1,
+      start: 0,
+      end: 0,
+      hasPrevious: false,
+      hasNext: false
+    });
+  });
+
+  it('builds range metadata for server-side candidate pages without slicing by global offset', () => {
+    const page = pageFromServerItems(['candidate-21', 'candidate-22'], 1, 20, 42);
+
+    expect(page.items).toEqual(['candidate-21', 'candidate-22']);
+    expect(page).toMatchObject({
+      index: 1,
+      size: 20,
+      total: 42,
+      totalPages: 3,
+      start: 21,
+      end: 22,
+      hasPrevious: true,
+      hasNext: true
+    });
+  });
+
+  it('normalizes empty server-side pages to a stable empty range', () => {
+    const page = pageFromServerItems([], 4, 20, 0);
+
+    expect(page).toMatchObject({
+      items: [],
+      index: 0,
+      total: 0,
       start: 0,
       end: 0,
       hasPrevious: false,

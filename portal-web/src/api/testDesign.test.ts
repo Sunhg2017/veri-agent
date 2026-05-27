@@ -10,6 +10,7 @@ import {
   fetchTestDesignCandidates,
   fetchTestDesignHealth,
   fetchTestDesignTask,
+  fetchTestDesignTaskSummary,
   fetchTestDesignTasks,
   normalizeTestDesignCandidate,
   normalizeTestDesignCandidateBatchActionResult,
@@ -138,11 +139,14 @@ describe('WP5 test design API helpers', () => {
       '/api/v1/test-design/candidates?taskId=task+1&projectId=proj+pay&requirementId=req+1&status=CONFIRMED&coverageType=SMOKE'
     );
 
-    await fetchTaskTestDesignCandidates('task 1', { status: 'GENERATED' });
-    expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/test-design/tasks/task%201/candidates?status=GENERATED');
+    await fetchTaskTestDesignCandidates('task 1', { index: 2, size: 10, status: 'GENERATED', keyword: '边界' });
+    expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/test-design/tasks/task%201/candidates?index=2&size=10&status=GENERATED&keyword=%E8%BE%B9%E7%95%8C');
 
     await fetchTestDesignTask('task 1');
     expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/test-design/tasks/task%201');
+
+    await fetchTestDesignTaskSummary('task 1');
+    expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/test-design/tasks/task%201/summary');
   });
 
   it('compacts create and update payloads for the WP5 contract', async () => {

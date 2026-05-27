@@ -483,6 +483,11 @@ export async function fetchTestDesignTask(taskId: string): Promise<ApiResponse<T
   return { ...response, data: normalizeTestDesignTaskDetail(response.data) };
 }
 
+export async function fetchTestDesignTaskSummary(taskId: string): Promise<ApiResponse<TestDesignTaskView>> {
+  const response = await requestJson<unknown>(`/api/v1/test-design/tasks/${encodeURIComponent(taskId)}/summary`);
+  return { ...response, data: normalizeTestDesignTask(response.data) };
+}
+
 export async function fetchTestDesignCandidates(filters: TestDesignCandidateFilters = {}): Promise<ApiResponse<TestDesignCandidateList>> {
   const response = await requestJson<unknown>(`/api/v1/test-design/candidates${queryString(filters as Record<string, unknown>)}`);
   return { ...response, data: normalizeTestDesignCandidateList(response.data) };

@@ -154,6 +154,13 @@ public class TestDesignService {
     }
 
     /**
+     * Returns task metadata without loading candidate rows so paginated workbench refreshes stay bounded.
+     */
+    public TestDesignTaskResponse taskSummary(UUID id) {
+        return responseMapper.toTaskResponse(taskOrThrow(id));
+    }
+
+    /**
      * Creates a task and queues deterministic generation for the current WP5 slice.
      *
      * <p>The task still persists prompt/model metadata, so switching the event consumer to a WP2 model-backed
