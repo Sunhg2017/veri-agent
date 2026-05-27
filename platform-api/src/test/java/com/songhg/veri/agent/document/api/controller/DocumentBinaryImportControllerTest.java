@@ -1,5 +1,6 @@
 package com.songhg.veri.agent.document.api.controller;
 
+import com.jayway.jsonpath.JsonPath;
 import java.io.ByteArrayOutputStream;
 import java.util.Base64;
 import org.apache.pdfbox.pdmodel.PDDocument;
@@ -18,9 +19,11 @@ import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.startsWith;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -43,7 +46,7 @@ class DocumentBinaryImportControllerTest {
 
     @Test
     void importsRealDocxAsRequirementCandidate() throws Exception {
-        mockMvc.perform(post("/api/v1/document-input/imports")
+        MvcResult result = mockMvc.perform(post("/api/v1/document-input/imports")
                         .headers(documentInputHeaders())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -58,10 +61,12 @@ class DocumentBinaryImportControllerTest {
                                 docx("Word login requirement", "Priority: HIGH", "Acceptance Criteria:", "- login succeeds")
                         ))))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.data.status").value("SUCCEEDED"))
-                .andExpect(jsonPath("$.data.totalParsed").value(1))
-                .andExpect(jsonPath("$.data.requirements[0].title").value("Word login requirement"))
-                .andExpect(jsonPath("$.data.requirements[0].priority").value("HIGH"));
+                .andExpect(jsonPath("$.data.status").value("MODEL_PARSE_QUEUED"))
+                .andExpect(jsonPath("$.data.totalParsed").value(0))
+                .andReturn();
+
+        awaitCandidate(JsonPath.read(result.getResponse().getContentAsString(), "$.data.id"),
+                "Word login requirement", "HIGH");
     }
 
     @Test
@@ -88,7 +93,7 @@ class DocumentBinaryImportControllerTest {
 
     @Test
     void importsRealPdfAsRequirementCandidate() throws Exception {
-        mockMvc.perform(post("/api/v1/document-input/imports")
+        MvcResult result = mockMvc.perform(post("/api/v1/document-input/imports")
                         .headers(documentInputHeaders())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -102,10 +107,12 @@ class DocumentBinaryImportControllerTest {
                                 pdf("PDF refund requirement", "Priority: LOW", "Acceptance Criteria:", "refund succeeds")
                         ))))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.data.status").value("SUCCEEDED"))
-                .andExpect(jsonPath("$.data.totalParsed").value(1))
-                .andExpect(jsonPath("$.data.requirements[0].title").value("PDF refund requirement"))
-                .andExpect(jsonPath("$.data.requirements[0].priority").value("LOW"));
+                .andExpect(jsonPath("$.data.status").value("MODEL_PARSE_QUEUED"))
+                .andExpect(jsonPath("$.data.totalParsed").value(0))
+                .andReturn();
+
+        awaitCandidate(JsonPath.read(result.getResponse().getContentAsString(), "$.data.id"),
+                "PDF refund requirement", "LOW");
     }
 
     @Test
@@ -117,18 +124,39 @@ class DocumentBinaryImportControllerTest {
                 docx("Multipart upload requirement", "Priority: HIGH", "Acceptance Criteria:", "- uploaded file is parsed")
         );
 
-        mockMvc.perform(multipart("/api/v1/document-input/imports/multipart")
+        MvcResult result = mockMvc.perform(multipart("/api/v1/document-input/imports/multipart")
                         .file(file)
                         .headers(documentInputHeaders())
                         .param("projectId", "project-wp4")
                         .param("sourceType", "WORD")
                         .param("sourceRef", "UPLOAD-DOCX-1"))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.data.status").value("SUCCEEDED"))
+                .andExpect(jsonPath("$.data.status").value("MODEL_PARSE_QUEUED"))
                 .andExpect(jsonPath("$.data.title").value("upload-login.docx"))
-                .andExpect(jsonPath("$.data.totalParsed").value(1))
-                .andExpect(jsonPath("$.data.requirements[0].title").value("Multipart upload requirement"))
-                .andExpect(jsonPath("$.data.requirements[0].priority").value("HIGH"));
+                .andExpect(jsonPath("$.data.totalParsed").value(0))
+                .andReturn();
+
+        awaitCandidate(JsonPath.read(result.getResponse().getContentAsString(), "$.data.id"),
+                "Multipart upload requirement", "HIGH");
+    }
+
+    private void awaitCandidate(String importId, String title, String priority) throws Exception {
+        AssertionError lastError = null;
+        for (int attempt = 0; attempt < 40; attempt++) {
+            try {
+                mockMvc.perform(get("/api/v1/document-input/imports/{id}/candidates", importId)
+                                .headers(documentInputHeaders()))
+                        .andExpect(status().isOk())
+                        .andExpect(jsonPath("$.data.total").value(1))
+                        .andExpect(jsonPath("$.data.items[0].title").value(title))
+                        .andExpect(jsonPath("$.data.items[0].priority").value(priority));
+                return;
+            } catch (AssertionError error) {
+                lastError = error;
+                Thread.sleep(50);
+            }
+        }
+        throw lastError == null ? new AssertionError("候选需求未生成") : lastError;
     }
 
     private HttpHeaders documentInputHeaders() {

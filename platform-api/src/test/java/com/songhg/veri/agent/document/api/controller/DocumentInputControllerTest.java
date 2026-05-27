@@ -20,6 +20,7 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.startsWith;
@@ -252,25 +253,22 @@ class DocumentInputControllerTest {
                                   "sourceRef": "REQ-BATCH-1",
                                   "content": "{\\"items\\":[{\\"name\\":\\"登录需求\\",\\"detail\\":\\"支持账号密码登录\\",\\"level\\":\\"P1\\",\\"checks\\":[\\"登录成功\\",\\"失败提示\\"],\\"labels\\":[\\"auth\\",\\"login\\"]}]}"
                                 }
-                                """))
+                """))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.data.status").value("SUCCEEDED"))
-                .andExpect(jsonPath("$.data.totalParsed").value(1))
+                .andExpect(jsonPath("$.data.status").value("MODEL_PARSE_QUEUED"))
+                .andExpect(jsonPath("$.data.totalParsed").value(0))
                 .andExpect(jsonPath("$.data.totalCreated").value(0))
-                .andExpect(jsonPath("$.data.pendingCount").value(1))
-                .andExpect(jsonPath("$.data.requirements[0].title").value("登录需求"))
-                .andExpect(jsonPath("$.data.requirements[0].priority").value("HIGH"))
+                .andExpect(jsonPath("$.data.pendingCount").value(0))
                 .andReturn();
 
         String importId = JsonPath.read(result.getResponse().getContentAsString(), "$.data.id");
+        awaitImport(importId, "SUCCEEDED", 1, 1);
 
-        MvcResult candidates = mockMvc.perform(get("/api/v1/document-input/imports/{id}/candidates", importId)
-                        .headers(documentInputHeaders()))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.total").value(1))
-                .andExpect(jsonPath("$.data.items[0].status").value("PENDING"))
-                .andExpect(jsonPath("$.data.items[0].title").value("登录需求"))
-                .andReturn();
+        MvcResult candidates = awaitCandidates(importId, 1);
+        assertThat(JsonPath.<String>read(candidates.getResponse().getContentAsString(), "$.data.items[0].status"))
+                .isEqualTo("PENDING");
+        assertThat(JsonPath.<String>read(candidates.getResponse().getContentAsString(), "$.data.items[0].title"))
+                .isEqualTo("登录需求");
 
         String candidateId = JsonPath.read(candidates.getResponse().getContentAsString(), "$.data.items[0].id");
 
@@ -305,11 +303,10 @@ class DocumentInputControllerTest {
         MvcResult publish = mockMvc.perform(post("/api/v1/document-input/imports/{id}/publish", importId)
                         .headers(documentInputHeaders()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.totalCreated").value(1))
-                .andExpect(jsonPath("$.data.publishedCount").value(1))
-                .andExpect(jsonPath("$.data.createdRequirementIds", hasSize(1)))
+                .andExpect(jsonPath("$.data.status").value("PUBLISH_QUEUED"))
                 .andReturn();
 
+        publish = awaitPublishedImport(importId, 1, 1);
         String requirementId = JsonPath.read(publish.getResponse().getContentAsString(),
                 "$.data.createdRequirementIds[0]");
 
@@ -334,7 +331,7 @@ class DocumentInputControllerTest {
 
     @Test
     void importsMarkdownAndListsImportRecords() throws Exception {
-        mockMvc.perform(post("/api/v1/document-input/imports")
+        MvcResult imported = mockMvc.perform(post("/api/v1/document-input/imports")
                         .headers(documentInputHeaders())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -346,11 +343,13 @@ class DocumentInputControllerTest {
                                 }
                                 """))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.data.status").value("SUCCEEDED"))
-                .andExpect(jsonPath("$.data.totalParsed").value(2))
+                .andExpect(jsonPath("$.data.status").value("MODEL_PARSE_QUEUED"))
+                .andExpect(jsonPath("$.data.totalParsed").value(0))
                 .andExpect(jsonPath("$.data.totalCreated").value(0))
-                .andExpect(jsonPath("$.data.pendingCount").value(2))
-                .andExpect(jsonPath("$.data.requirements[0].priority").value("CRITICAL"));
+                .andReturn();
+
+        String importId = JsonPath.read(imported.getResponse().getContentAsString(), "$.data.id");
+        awaitImport(importId, "SUCCEEDED", 2, 2);
 
         mockMvc.perform(get("/api/v1/document-input/imports")
                         .headers(documentInputHeaders())
@@ -374,17 +373,14 @@ class DocumentInputControllerTest {
                                   "sourceRef": "md-batch-001",
                                   "content": "## 登录需求\\\\nPriority: HIGH\\\\n\\\\n## 退出需求\\\\nPriority: LOW"
                                 }
-                                """))
+                """))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.data.pendingCount").value(2))
+                .andExpect(jsonPath("$.data.status").value("MODEL_PARSE_QUEUED"))
                 .andReturn();
 
         String importId = JsonPath.read(imported.getResponse().getContentAsString(), "$.data.id");
-        MvcResult candidates = mockMvc.perform(get("/api/v1/document-input/imports/{id}/candidates", importId)
-                        .headers(documentInputHeaders()))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.total").value(2))
-                .andReturn();
+        awaitImport(importId, "SUCCEEDED", 2, 2);
+        MvcResult candidates = awaitCandidates(importId, 2);
         String firstCandidateId = JsonPath.read(candidates.getResponse().getContentAsString(), "$.data.items[0].id");
         String secondCandidateId = JsonPath.read(candidates.getResponse().getContentAsString(), "$.data.items[1].id");
 
@@ -451,10 +447,10 @@ class DocumentInputControllerTest {
                         .content("{}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.dryRun").value(false))
-                .andExpect(jsonPath("$.data.totalCreated").value(2))
-                .andExpect(jsonPath("$.data.publishedCount").value(2))
-                .andExpect(jsonPath("$.data.createdRequirementIds", hasSize(2)))
+                .andExpect(jsonPath("$.data.status").value("PUBLISH_QUEUED"))
                 .andExpect(jsonPath("$.data.records", hasSize(2)));
+
+        awaitPublishedImport(importId, 2, 2);
 
         mockMvc.perform(get("/api/v1/document-input/imports/{id}/publish-records", importId)
                         .headers(documentInputHeaders()))
@@ -481,22 +477,21 @@ class DocumentInputControllerTest {
                 .andExpect(status().isCreated())
                 .andReturn();
         String firstImportId = JsonPath.read(firstImport.getResponse().getContentAsString(), "$.data.id");
-        String firstCandidateId = JsonPath.read(mockMvc.perform(get("/api/v1/document-input/imports/{id}/candidates", firstImportId)
-                        .headers(documentInputHeaders()))
-                .andExpect(status().isOk())
-                .andReturn().getResponse().getContentAsString(), "$.data.items[0].id");
+        String firstCandidateId = JsonPath.read(awaitCandidates(firstImportId, 1)
+                .getResponse().getContentAsString(), "$.data.items[0].id");
 
         mockMvc.perform(post("/api/v1/document-input/candidates/{id}/confirm", firstCandidateId)
                         .headers(documentInputHeaders())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"version\":0}"))
                 .andExpect(status().isOk());
-        MvcResult firstPublish = mockMvc.perform(post("/api/v1/document-input/imports/{id}/publish", firstImportId)
+        mockMvc.perform(post("/api/v1/document-input/imports/{id}/publish", firstImportId)
                         .headers(documentInputHeaders())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
                 .andExpect(status().isOk())
-                .andReturn();
+                .andExpect(jsonPath("$.data.status").value("PUBLISH_QUEUED"));
+        MvcResult firstPublish = awaitPublishedImport(firstImportId, 1, 1);
         String requirementId = JsonPath.read(firstPublish.getResponse().getContentAsString(),
                 "$.data.createdRequirementIds[0]");
 
@@ -523,10 +518,8 @@ class DocumentInputControllerTest {
                 .andExpect(status().isCreated())
                 .andReturn();
         String secondImportId = JsonPath.read(secondImport.getResponse().getContentAsString(), "$.data.id");
-        String secondCandidateId = JsonPath.read(mockMvc.perform(get("/api/v1/document-input/imports/{id}/candidates", secondImportId)
-                        .headers(documentInputHeaders()))
-                .andExpect(status().isOk())
-                .andReturn().getResponse().getContentAsString(), "$.data.items[0].id");
+        String secondCandidateId = JsonPath.read(awaitCandidates(secondImportId, 1)
+                .getResponse().getContentAsString(), "$.data.items[0].id");
 
         mockMvc.perform(post("/api/v1/document-input/candidates/{id}/confirm", secondCandidateId)
                         .headers(documentInputHeaders())
@@ -558,9 +551,11 @@ class DocumentInputControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.totalCreated").value(1))
-                .andExpect(jsonPath("$.data.publishedCount").value(1))
-                .andExpect(jsonPath("$.data.createdRequirementIds[0]").value(requirementId));
+                .andExpect(jsonPath("$.data.status").value("PUBLISH_QUEUED"));
+        assertThat(JsonPath.<String>read(
+                awaitPublishedImport(secondImportId, 1, 1).getResponse().getContentAsString(),
+                "$.data.createdRequirementIds[0]"
+        )).isEqualTo(requirementId);
 
         mockMvc.perform(get("/api/v1/asset/requirements/{id}", requirementId)
                         .headers(assetHeaders()))
@@ -602,10 +597,8 @@ class DocumentInputControllerTest {
                 .andExpect(status().isCreated())
                 .andReturn();
         String thirdImportId = JsonPath.read(thirdImport.getResponse().getContentAsString(), "$.data.id");
-        String thirdCandidateId = JsonPath.read(mockMvc.perform(get("/api/v1/document-input/imports/{id}/candidates", thirdImportId)
-                        .headers(documentInputHeaders()))
-                .andExpect(status().isOk())
-                .andReturn().getResponse().getContentAsString(), "$.data.items[0].id");
+        String thirdCandidateId = JsonPath.read(awaitCandidates(thirdImportId, 1)
+                .getResponse().getContentAsString(), "$.data.items[0].id");
 
         mockMvc.perform(post("/api/v1/document-input/candidates/{id}/confirm", thirdCandidateId)
                         .headers(documentInputHeaders())
@@ -634,8 +627,11 @@ class DocumentInputControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.publishedCount").value(1))
-                .andExpect(jsonPath("$.data.createdRequirementIds[0]").value(requirementId));
+                .andExpect(jsonPath("$.data.status").value("PUBLISH_QUEUED"));
+        assertThat(JsonPath.<String>read(
+                awaitPublishedImport(thirdImportId, 1, 1).getResponse().getContentAsString(),
+                "$.data.createdRequirementIds[0]"
+        )).isEqualTo(requirementId);
 
         mockMvc.perform(get("/api/v1/asset/requirements/{id}/versions", requirementId)
                         .headers(assetHeaders()))
@@ -661,22 +657,21 @@ class DocumentInputControllerTest {
                 .andExpect(status().isCreated())
                 .andReturn();
         String firstImportId = JsonPath.read(firstImport.getResponse().getContentAsString(), "$.data.id");
-        String firstCandidateId = JsonPath.read(mockMvc.perform(get("/api/v1/document-input/imports/{id}/candidates", firstImportId)
-                        .headers(documentInputHeaders()))
-                .andExpect(status().isOk())
-                .andReturn().getResponse().getContentAsString(), "$.data.items[0].id");
+        String firstCandidateId = JsonPath.read(awaitCandidates(firstImportId, 1)
+                .getResponse().getContentAsString(), "$.data.items[0].id");
 
         mockMvc.perform(post("/api/v1/document-input/candidates/{id}/confirm", firstCandidateId)
                         .headers(documentInputHeaders())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"version\":0}"))
                 .andExpect(status().isOk());
-        MvcResult firstPublish = mockMvc.perform(post("/api/v1/document-input/imports/{id}/publish", firstImportId)
+        mockMvc.perform(post("/api/v1/document-input/imports/{id}/publish", firstImportId)
                         .headers(documentInputHeaders())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
                 .andExpect(status().isOk())
-                .andReturn();
+                .andExpect(jsonPath("$.data.status").value("PUBLISH_QUEUED"));
+        MvcResult firstPublish = awaitPublishedImport(firstImportId, 1, 1);
         String requirementId = JsonPath.read(firstPublish.getResponse().getContentAsString(),
                 "$.data.createdRequirementIds[0]");
 
@@ -709,10 +704,8 @@ class DocumentInputControllerTest {
                 .andExpect(status().isCreated())
                 .andReturn();
         String secondImportId = JsonPath.read(secondImport.getResponse().getContentAsString(), "$.data.id");
-        String secondCandidateId = JsonPath.read(mockMvc.perform(get("/api/v1/document-input/imports/{id}/candidates", secondImportId)
-                        .headers(documentInputHeaders()))
-                .andExpect(status().isOk())
-                .andReturn().getResponse().getContentAsString(), "$.data.items[0].id");
+        String secondCandidateId = JsonPath.read(awaitCandidates(secondImportId, 1)
+                .getResponse().getContentAsString(), "$.data.items[0].id");
 
         mockMvc.perform(post("/api/v1/document-input/candidates/{id}/confirm", secondCandidateId)
                         .headers(documentInputHeaders())
@@ -744,11 +737,8 @@ class DocumentInputControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.totalCreated").value(0))
-                .andExpect(jsonPath("$.data.publishFailedCount").value(1))
-                .andExpect(jsonPath("$.data.records[0].candidateStatus").value("PUBLISH_FAILED"))
-                .andExpect(jsonPath("$.data.records[0].result").value("FAILED"))
-                .andExpect(jsonPath("$.data.records[0].errorMessage", containsString("APPROVED")));
+                .andExpect(jsonPath("$.data.status").value("PUBLISH_QUEUED"));
+        awaitPublishRecordStatus(secondImportId, "PUBLISH_FAILED", "FAILED");
 
         mockMvc.perform(get("/api/v1/asset/requirements/{id}", requirementId)
                         .headers(assetHeaders()))
@@ -788,11 +778,13 @@ class DocumentInputControllerTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.data.sourceCode").value("custom-reqs"))
                 .andExpect(jsonPath("$.data.sourceRef").value("REQ-9"))
+                .andExpect(jsonPath("$.data.status").value("MODEL_PARSE_QUEUED"))
                 .andExpect(jsonPath("$.data.totalCreated").value(0))
-                .andExpect(jsonPath("$.data.pendingCount").value(1))
+                .andExpect(jsonPath("$.data.pendingCount").value(0))
                 .andReturn();
 
         String importId = JsonPath.read(webhook.getResponse().getContentAsString(), "$.data.id");
+        awaitImport(importId, "SUCCEEDED", 1, 1);
 
         mockMvc.perform(post("/api/v1/document-input/webhooks/{sourceCode}", "custom-reqs")
                         .headers(webhookHeaders)
@@ -820,14 +812,9 @@ class DocumentInputControllerTest {
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("FORBIDDEN"));
 
-        MvcResult events = mockMvc.perform(get("/api/v1/document-input/webhook-events")
-                        .headers(documentInputHeaders())
-                        .param("sourceCode", "custom-reqs"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.total").value(1))
-                .andExpect(jsonPath("$.data.items[0].status").value("PROCESSED"))
-                .andExpect(jsonPath("$.data.items[0].signatureStatus").value("VALID"))
-                .andReturn();
+        MvcResult events = awaitWebhookEvent("custom-reqs", "PROCESSED");
+        assertThat(JsonPath.<String>read(events.getResponse().getContentAsString(), "$.data.items[0].signatureStatus"))
+                .isEqualTo("VALID");
 
         String eventRecordId = JsonPath.read(events.getResponse().getContentAsString(), "$.data.items[0].id");
         String eventSourceId = JsonPath.read(events.getResponse().getContentAsString(), "$.data.items[0].sourceId");
@@ -909,16 +896,12 @@ class DocumentInputControllerTest {
                         .headers(unsupportedVersionHeaders)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(payload))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.status").value("MODEL_PARSE_QUEUED"));
 
-        mockMvc.perform(get("/api/v1/document-input/webhook-events")
-                        .headers(documentInputHeaders())
-                        .param("sourceCode", "custom-secure"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.total").value(1))
-                .andExpect(jsonPath("$.data.items[0].status").value("FAILED"))
-                .andExpect(jsonPath("$.data.items[0].eventVersion").value("2.0"));
+        MvcResult events = awaitWebhookEvent("custom-secure", "FAILED");
+        assertThat(JsonPath.<String>read(events.getResponse().getContentAsString(), "$.data.items[0].eventVersion"))
+                .isEqualTo("2.0");
     }
 
     @Test
@@ -994,31 +977,26 @@ class DocumentInputControllerTest {
                         .headers(webhookHeaders(payload, "evt-invalid-json", "idem-invalid-json"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(payload))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.status").value("MODEL_PARSE_QUEUED"));
 
-        MvcResult events = mockMvc.perform(get("/api/v1/document-input/webhook-events")
-                        .headers(documentInputHeaders())
-                        .param("sourceCode", "custom-invalid-json"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.total").value(1))
-                .andExpect(jsonPath("$.data.items[0].status").value("FAILED"))
-                .andExpect(jsonPath("$.data.items[0].signatureStatus").value("VALID"))
-                .andExpect(jsonPath("$.data.items[0].errorMessage").value("webhook payload 不是合法 JSON"))
-                .andReturn();
+        MvcResult events = awaitWebhookEvent("custom-invalid-json", "FAILED");
+        assertThat(JsonPath.<String>read(events.getResponse().getContentAsString(), "$.data.items[0].signatureStatus"))
+                .isEqualTo("VALID");
+        assertThat(JsonPath.<String>read(events.getResponse().getContentAsString(), "$.data.items[0].errorMessage"))
+                .isEqualTo("webhook payload 不是合法 JSON");
 
         String eventRecordId = JsonPath.read(events.getResponse().getContentAsString(), "$.data.items[0].id");
         mockMvc.perform(post("/api/v1/document-input/webhook-events/{id}/replay", eventRecordId)
                         .headers(documentInputHeaders()))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
-
-        mockMvc.perform(get("/api/v1/document-input/webhook-events/{id}", eventRecordId)
-                        .headers(documentInputHeaders()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.retryCount").value(1))
-                .andExpect(jsonPath("$.data.replayBy").value("user-001"))
-                .andExpect(jsonPath("$.data.replayTraceId", startsWith("trc_")));
+                .andExpect(jsonPath("$.data.status").value("ACCEPTED"));
+
+        MvcResult replayed = awaitWebhookEventById(eventRecordId, "FAILED", 1);
+        assertThat(JsonPath.<String>read(replayed.getResponse().getContentAsString(), "$.data.replayBy"))
+                .isEqualTo("user-001");
+        assertThat(JsonPath.<String>read(replayed.getResponse().getContentAsString(), "$.data.replayTraceId"))
+                .startsWith("trc_");
     }
 
     @Test
@@ -1030,26 +1008,23 @@ class DocumentInputControllerTest {
                         .headers(webhookHeaders(payload, "evt-auto-retry", "idem-auto-retry"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(payload))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.status").value("MODEL_PARSE_QUEUED"));
 
-        MvcResult events = mockMvc.perform(get("/api/v1/document-input/webhook-events")
-                        .headers(documentInputHeaders())
-                        .param("sourceCode", "custom-auto-retry"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.total").value(1))
-                .andExpect(jsonPath("$.data.items[0].status").value("FAILED"))
-                .andReturn();
+        MvcResult events = awaitWebhookEvent("custom-auto-retry", "FAILED");
 
         String eventRecordId = JsonPath.read(events.getResponse().getContentAsString(), "$.data.items[0].id");
         DocumentWebhookAutoRetryService.AutoRetryResult firstRetry = autoRetryService.retryNow();
+        awaitWebhookEventById(eventRecordId, "FAILED", 1);
         DocumentWebhookAutoRetryService.AutoRetryResult secondRetry = autoRetryService.retryNow();
+        awaitWebhookEventById(eventRecordId, "FAILED", 2);
         DocumentWebhookAutoRetryService.AutoRetryResult thirdRetry = autoRetryService.retryNow();
+        awaitWebhookEventById(eventRecordId, "DEAD_LETTER", 3);
         DocumentWebhookAutoRetryService.AutoRetryResult fourthRetry = autoRetryService.retryNow();
 
-        assertAutoRetryResult(firstRetry, 1, 0, 1);
-        assertAutoRetryResult(secondRetry, 1, 0, 1);
-        assertAutoRetryResult(thirdRetry, 1, 0, 1);
+        assertAutoRetryResult(firstRetry, 1, 1, 0);
+        assertAutoRetryResult(secondRetry, 1, 1, 0);
+        assertAutoRetryResult(thirdRetry, 1, 1, 0);
         assertAutoRetryResult(fourthRetry, 0, 0, 0);
 
         mockMvc.perform(get("/api/v1/document-input/webhook-events/{id}", eventRecordId)
@@ -1165,6 +1140,135 @@ class DocumentInputControllerTest {
                 1,
                 List.of("SuperAdmin")
         )).accessToken();
+    }
+
+    private MvcResult awaitImport(
+            String importId,
+            String expectedStatus,
+            int expectedTotalParsed,
+            long expectedPendingCount
+    ) throws Exception {
+        AssertionError lastError = null;
+        for (int attempt = 0; attempt < 40; attempt++) {
+            try {
+                return mockMvc.perform(get("/api/v1/document-input/imports/{id}", importId)
+                                .headers(documentInputHeaders()))
+                        .andExpect(status().isOk())
+                        .andExpect(jsonPath("$.data.status").value(expectedStatus))
+                        .andExpect(jsonPath("$.data.totalParsed").value(expectedTotalParsed))
+                        .andExpect(jsonPath("$.data.pendingCount").value(expectedPendingCount))
+                        .andReturn();
+            } catch (AssertionError error) {
+                lastError = error;
+                Thread.sleep(50);
+            }
+        }
+        throw lastError == null ? new AssertionError("导入任务未达到期望状态") : lastError;
+    }
+
+    private MvcResult awaitCandidates(String importId, int expectedTotal) throws Exception {
+        AssertionError lastError = null;
+        for (int attempt = 0; attempt < 40; attempt++) {
+            try {
+                return mockMvc.perform(get("/api/v1/document-input/imports/{id}/candidates", importId)
+                                .headers(documentInputHeaders()))
+                        .andExpect(status().isOk())
+                        .andExpect(jsonPath("$.data.total").value(expectedTotal))
+                        .andReturn();
+            } catch (AssertionError error) {
+                lastError = error;
+                Thread.sleep(50);
+            }
+        }
+        throw lastError == null ? new AssertionError("候选需求未生成") : lastError;
+    }
+
+    private MvcResult awaitPublishedImport(
+            String importId,
+            int expectedTotalCreated,
+            long expectedPublishedCount
+    ) throws Exception {
+        AssertionError lastError = null;
+        for (int attempt = 0; attempt < 40; attempt++) {
+            try {
+                return mockMvc.perform(get("/api/v1/document-input/imports/{id}", importId)
+                                .headers(documentInputHeaders()))
+                        .andExpect(status().isOk())
+                        .andExpect(jsonPath("$.data.totalCreated").value(expectedTotalCreated))
+                        .andExpect(jsonPath("$.data.publishedCount").value(expectedPublishedCount))
+                        .andReturn();
+            } catch (AssertionError error) {
+                lastError = error;
+                Thread.sleep(50);
+            }
+        }
+        throw lastError == null ? new AssertionError("发布任务未完成") : lastError;
+    }
+
+    private MvcResult awaitWebhookEvent(
+            String sourceCode,
+            String expectedStatus
+    ) throws Exception {
+        AssertionError lastError = null;
+        for (int attempt = 0; attempt < 40; attempt++) {
+            try {
+                return mockMvc.perform(get("/api/v1/document-input/webhook-events")
+                                .headers(documentInputHeaders())
+                                .param("sourceCode", sourceCode))
+                        .andExpect(status().isOk())
+                        .andExpect(jsonPath("$.data.total").value(1))
+                        .andExpect(jsonPath("$.data.items[0].status").value(expectedStatus))
+                        .andReturn();
+            } catch (AssertionError error) {
+                lastError = error;
+                Thread.sleep(50);
+            }
+        }
+        throw lastError == null ? new AssertionError("Webhook 事件未达到期望状态") : lastError;
+    }
+
+    private MvcResult awaitWebhookEventById(
+            String eventId,
+            String expectedStatus,
+            int expectedRetryCount
+    ) throws Exception {
+        AssertionError lastError = null;
+        for (int attempt = 0; attempt < 40; attempt++) {
+            try {
+                return mockMvc.perform(get("/api/v1/document-input/webhook-events/{id}", eventId)
+                                .headers(documentInputHeaders()))
+                        .andExpect(status().isOk())
+                        .andExpect(jsonPath("$.data.status").value(expectedStatus))
+                        .andExpect(jsonPath("$.data.retryCount").value(expectedRetryCount))
+                        .andReturn();
+            } catch (AssertionError error) {
+                lastError = error;
+                Thread.sleep(50);
+            }
+        }
+        throw lastError == null ? new AssertionError("Webhook 事件重试状态未达到期望值") : lastError;
+    }
+
+    private MvcResult awaitPublishRecordStatus(
+            String importId,
+            String candidateStatus,
+            String result
+    ) throws Exception {
+        AssertionError lastError = null;
+        for (int attempt = 0; attempt < 40; attempt++) {
+            try {
+                return mockMvc.perform(get("/api/v1/document-input/imports/{id}/publish-records", importId)
+                                .headers(documentInputHeaders()))
+                        .andExpect(status().isOk())
+                        .andExpect(jsonPath("$.data.items[0].candidateStatus").value(candidateStatus))
+                        .andExpect(jsonPath("$.data.items[0].result").value(result))
+                        .andReturn();
+            } catch (AssertionError error) {
+                lastError = error;
+                Thread.sleep(50);
+            }
+        }
+        throw lastError == null ? new AssertionError("发布记录未达到期望状态") : lastError;
     }
 
     private void assertAutoRetryResult(

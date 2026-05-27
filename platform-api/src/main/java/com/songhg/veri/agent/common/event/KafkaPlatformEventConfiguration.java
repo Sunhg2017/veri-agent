@@ -27,4 +27,28 @@ public class KafkaPlatformEventConfiguration {
                 .replicas(properties.kafkaTopicReplicas())
                 .build();
     }
+
+    @Bean
+    NewTopic documentInputImportRequestedTopic(PlatformEventProperties properties) {
+        return TopicBuilder.name(properties.documentInputImportRequestedTopic())
+                .partitions(properties.kafkaTopicPartitions())
+                .replicas(properties.kafkaTopicReplicas())
+                .build();
+    }
+
+    @Bean
+    NewTopic documentInputPublishRequestedTopic(PlatformEventProperties properties) {
+        return TopicBuilder.name(properties.documentInputPublishRequestedTopic())
+                .partitions(properties.kafkaTopicPartitions())
+                .replicas(properties.kafkaTopicReplicas())
+                .build();
+    }
+
+    @Bean
+    NewTopic documentInputWebhookAcceptedTopic(PlatformEventProperties properties) {
+        return TopicBuilder.name(properties.documentInputWebhookAcceptedTopic())
+                .partitions(properties.kafkaTopicPartitions())
+                .replicas(properties.kafkaTopicReplicas())
+                .build();
+    }
 }

@@ -15,6 +15,9 @@ public record PlatformEventProperties(
     private static final String DEFAULT_CONSUMER_GROUP = "platform-api";
     private static final String DEFAULT_MODEL_INVOCATION_JOB_TOPIC = "veri-agent.model-invocation-job-requested";
     private static final String DEFAULT_AUDIT_LOG_RECORDED_TOPIC = "veri-agent.audit-log-recorded";
+    private static final String DEFAULT_DOCUMENT_INPUT_IMPORT_REQUESTED_TOPIC = "veri-agent.document-input-import-requested";
+    private static final String DEFAULT_DOCUMENT_INPUT_PUBLISH_REQUESTED_TOPIC = "veri-agent.document-input-publish-requested";
+    private static final String DEFAULT_DOCUMENT_INPUT_WEBHOOK_ACCEPTED_TOPIC = "veri-agent.document-input-webhook-accepted";
 
     public int safeLocalWorkerThreads() {
         return Math.max(1, localWorkerThreads <= 0 ? DEFAULT_LOCAL_WORKER_THREADS : localWorkerThreads);
@@ -30,6 +33,18 @@ public record PlatformEventProperties(
 
     public String auditLogRecordedTopic() {
         return safeKafka().safeTopics().auditLogRecordedTopic();
+    }
+
+    public String documentInputImportRequestedTopic() {
+        return safeKafka().safeTopics().documentInputImportRequestedTopic();
+    }
+
+    public String documentInputPublishRequestedTopic() {
+        return safeKafka().safeTopics().documentInputPublishRequestedTopic();
+    }
+
+    public String documentInputWebhookAcceptedTopic() {
+        return safeKafka().safeTopics().documentInputWebhookAcceptedTopic();
     }
 
     public String kafkaConsumerGroup() {
@@ -56,7 +71,7 @@ public record PlatformEventProperties(
     ) {
 
         private Topics safeTopics() {
-            return topics == null ? new Topics(null, null) : topics;
+            return topics == null ? new Topics(null, null, null, null, null) : topics;
         }
 
         private String consumerGroupValue() {
@@ -68,7 +83,13 @@ public record PlatformEventProperties(
             /** WP2 async model invocation job request topic */
             String modelInvocationJobRequested,
             /** Platform audit log append topic */
-            String auditLogRecorded
+            String auditLogRecorded,
+            /** WP4 document import parse request topic */
+            String documentInputImportRequested,
+            /** WP4 confirmed candidate publish request topic */
+            String documentInputPublishRequested,
+            /** WP4 accepted webhook processing topic */
+            String documentInputWebhookAccepted
     ) {
 
         private String modelInvocationJobRequestedTopic() {
@@ -81,6 +102,24 @@ public record PlatformEventProperties(
             return StringUtils.hasText(auditLogRecorded)
                     ? auditLogRecorded
                     : DEFAULT_AUDIT_LOG_RECORDED_TOPIC;
+        }
+
+        private String documentInputImportRequestedTopic() {
+            return StringUtils.hasText(documentInputImportRequested)
+                    ? documentInputImportRequested
+                    : DEFAULT_DOCUMENT_INPUT_IMPORT_REQUESTED_TOPIC;
+        }
+
+        private String documentInputPublishRequestedTopic() {
+            return StringUtils.hasText(documentInputPublishRequested)
+                    ? documentInputPublishRequested
+                    : DEFAULT_DOCUMENT_INPUT_PUBLISH_REQUESTED_TOPIC;
+        }
+
+        private String documentInputWebhookAcceptedTopic() {
+            return StringUtils.hasText(documentInputWebhookAccepted)
+                    ? documentInputWebhookAccepted
+                    : DEFAULT_DOCUMENT_INPUT_WEBHOOK_ACCEPTED_TOPIC;
         }
     }
 }

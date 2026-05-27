@@ -34,6 +34,8 @@ import com.songhg.veri.agent.document.application.view.DocumentSourceResponse;
 import com.songhg.veri.agent.document.application.view.DocumentWebhookEventResponse;
 import com.songhg.veri.agent.document.application.view.FieldMappingResponse;
 import com.songhg.veri.agent.document.config.DocumentInputProperties;
+import com.songhg.veri.agent.document.domain.DocumentImportRecord;
+import com.songhg.veri.agent.document.domain.DocumentImportStatus;
 import com.songhg.veri.agent.document.domain.DocumentSourceConfig;
 import com.songhg.veri.agent.document.domain.DocumentSourceStatus;
 import com.songhg.veri.agent.document.domain.DocumentSourceType;
@@ -88,6 +90,7 @@ public class DocumentInputService {
     private final DocumentWebhookSecretResolver webhookSecretResolver;
     private final DocumentWebhookIngressGuard webhookIngressGuard;
     private final DocumentInputResponseMapper responseMapper;
+    private final DocumentInputEventPublisher eventPublisher;
 
     public DocumentInputService(
             DocumentInputRepository repository,
@@ -103,7 +106,8 @@ public class DocumentInputService {
             DocumentInputProperties properties,
             DocumentInputMetrics metrics,
             DocumentWebhookSecretResolver webhookSecretResolver,
-            DocumentWebhookIngressGuard webhookIngressGuard
+            DocumentWebhookIngressGuard webhookIngressGuard,
+            DocumentInputEventPublisher eventPublisher
     ) {
         this.repository = repository;
         this.sourceManagementService = sourceManagementService;
@@ -120,6 +124,7 @@ public class DocumentInputService {
         this.webhookSecretResolver = webhookSecretResolver;
         this.webhookIngressGuard = webhookIngressGuard;
         this.responseMapper = new DocumentInputResponseMapper(repository, objectMapper);
+        this.eventPublisher = eventPublisher;
     }
 
     public int supportedSourceTypeCount() {
@@ -348,8 +353,33 @@ public class DocumentInputService {
         if (event.status() != WebhookEventStatus.FAILED && event.status() != WebhookEventStatus.DEAD_LETTER) {
             throw new BusinessException(ErrorCode.INVALID_STATE, DocumentInputMessages.WEBHOOK_ONLY_FAILED_OR_DEAD);
         }
-        DocumentWebhookEvent replayed = processWebhookEvent(event, event.rawPayload(), true);
-        return responseMapper.toWebhookEventResponse(replayed);
+        DocumentImportRecord queuedImport = queueWebhookImport(sourceForWebhookEvent(event), event.rawPayload());
+        Instant replayAt = Instant.now();
+        DocumentWebhookEvent replayQueued = new DocumentWebhookEvent(
+                event.id(),
+                event.sourceId(),
+                queuedImport.id(),
+                event.sourceCode(),
+                event.eventId(),
+                event.idempotencyKey(),
+                event.eventType(),
+                event.eventVersion(),
+                event.signatureStatus(),
+                WebhookEventStatus.ACCEPTED,
+                event.payloadDigest(),
+                event.rawPayload(),
+                null,
+                event.retryCount() + 1,
+                actorResolver.currentActor(),
+                replayAt,
+                TraceContext.getTraceId(),
+                event.receivedAt(),
+                null
+        );
+        repository.saveWebhookEvent(replayQueued);
+        eventPublisher.publishWebhookAccepted(replayQueued.id());
+        metrics.recordWebhook(replayQueued.signatureStatus(), replayQueued.status(), replayQueued.eventType());
+        return responseMapper.toWebhookEventResponse(replayQueued);
     }
 
     public DocumentImportResponse handleWebhook(
@@ -519,9 +549,32 @@ public class DocumentInputService {
         if (!saved.id().equals(accepted.id())) {
             return respondToDuplicateWebhookEvent(saved, payloadDigest);
         }
-        DocumentWebhookEvent processed = processWebhookEvent(saved, rawPayload, false);
-        metrics.recordWebhook(processed.signatureStatus(), processed.status(), processed.eventType());
-        return importService.importRecord(processed.importId());
+        DocumentImportRecord queuedImport = queueWebhookImport(source, rawPayload);
+        DocumentWebhookEvent acceptedWithImport = new DocumentWebhookEvent(
+                saved.id(),
+                saved.sourceId(),
+                queuedImport.id(),
+                saved.sourceCode(),
+                saved.eventId(),
+                saved.idempotencyKey(),
+                webhookEventType(rawPayload),
+                saved.eventVersion(),
+                saved.signatureStatus(),
+                WebhookEventStatus.ACCEPTED,
+                saved.payloadDigest(),
+                saved.rawPayload(),
+                null,
+                saved.retryCount(),
+                saved.replayBy(),
+                saved.replayAt(),
+                saved.replayTraceId(),
+                saved.receivedAt(),
+                null
+        );
+        repository.saveWebhookEvent(acceptedWithImport);
+        eventPublisher.publishWebhookAccepted(acceptedWithImport.id());
+        metrics.recordWebhook(acceptedWithImport.signatureStatus(), acceptedWithImport.status(), acceptedWithImport.eventType());
+        return importService.importRecord(queuedImport.id());
     }
 
     private void rejectWebhookBeforeSignature(
@@ -582,17 +635,33 @@ public class DocumentInputService {
         throw new BusinessException(ErrorCode.CONFLICT, DocumentInputMessages.WEBHOOK_EVENT_PENDING);
     }
 
-    private DocumentWebhookEvent processWebhookEvent(DocumentWebhookEvent event, String rawPayload, boolean replay) {
-        DocumentSourceConfig source = repository.sourceByCode(normalizeSourceCode(event.sourceCode()))
+    /**
+     * Processes one accepted webhook event after the ingress response has already returned.
+     */
+    @Transactional
+    public DocumentWebhookEvent processWebhookEvent(UUID eventId) {
+        if (!repository.markWebhookEventStatus(
+                eventId,
+                WebhookEventStatus.ACCEPTED,
+                WebhookEventStatus.PROCESSING,
+                Instant.now()
+        )) {
+            return repository.webhookEvent(eventId)
+                    .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, DocumentInputMessages.WEBHOOK_EVENT_NOT_FOUND.formatted(eventId)));
+        }
+        DocumentWebhookEvent event = repository.webhookEvent(eventId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, DocumentInputMessages.WEBHOOK_EVENT_NOT_FOUND.formatted(eventId)));
+        String sourceCode = event.sourceCode();
+        DocumentSourceConfig source = repository.sourceByCode(normalizeSourceCode(sourceCode))
                 .orElseThrow(() -> new BusinessException(
                         ErrorCode.NOT_FOUND,
-                        DocumentInputMessages.SOURCE_NOT_FOUND.formatted(event.sourceCode())
+                        DocumentInputMessages.SOURCE_NOT_FOUND.formatted(sourceCode)
                 ));
         String eventType = null;
         String eventVersion = null;
         String projectId = source.defaultProjectId();
         try {
-            JsonNode payload = parsePayload(rawPayload);
+            JsonNode payload = parsePayload(event.rawPayload());
             eventType = firstText(textAt(payload, "eventType"), textAt(payload, "type"), "requirement.created");
             eventVersion = firstText(event.eventVersion(), textAt(payload, "eventVersion"), textAt(payload, "version"));
             ensureSupportedWebhookEventType(eventType);
@@ -602,20 +671,14 @@ public class DocumentInputService {
             if (!StringUtils.hasText(projectId)) {
                 throw new BusinessException(ErrorCode.VALIDATION_ERROR, DocumentInputMessages.WEBHOOK_PAYLOAD_MISSING_PROJECT_ID);
             }
-            String title = firstText(textAt(payload, "title"), textAt(payload, "name"), source.name());
-            String sourceRef = firstText(textAt(payload, "sourceRef"), textAt(payload, "id"), source.sourceCode());
-            String sourceUrl = firstText(textAt(payload, "sourceUrl"), textAt(payload, "url"));
-            DocumentImportResponse imported = importService.importContent(
-                    projectId,
-                    source.sourceType(),
-                    title,
-                    sourceRef,
-                    sourceUrl,
-                    payload.toString(),
-                    source.mappingId(),
-                    source.id(),
-                    source.sourceCode()
-            );
+            event = ensureWebhookImportQueued(event, source);
+            DocumentImportRecord imported = importService.processQueuedImport(event.importId());
+            if (imported.status() == DocumentImportStatus.FAILED) {
+                throw new BusinessException(
+                        ErrorCode.VALIDATION_ERROR,
+                        firstText(imported.errorMessage(), "webhook 导入解析失败")
+                );
+            }
             Instant processedAt = Instant.now();
             DocumentWebhookEvent processed = new DocumentWebhookEvent(
                     event.id(),
@@ -627,29 +690,32 @@ public class DocumentInputService {
                     eventType,
                     eventVersion,
                     event.signatureStatus(),
-                    replay ? WebhookEventStatus.REPLAYED : WebhookEventStatus.PROCESSED,
+                    event.replayAt() == null ? WebhookEventStatus.PROCESSED : WebhookEventStatus.REPLAYED,
                     event.payloadDigest(),
                     event.rawPayload(),
                     null,
-                    replay ? event.retryCount() + 1 : event.retryCount(),
-                    replay ? actorResolver.currentActor() : event.replayBy(),
-                    replay ? processedAt : event.replayAt(),
-                    replay ? TraceContext.getTraceId() : event.replayTraceId(),
+                    event.retryCount(),
+                    event.replayBy(),
+                    event.replayAt(),
+                    event.replayTraceId(),
                     event.receivedAt(),
                     processedAt
             );
             repository.saveWebhookEvent(processed);
             writeAudit(
-                    replay ? "WEBHOOK_REPLAY" : "WEBHOOK_PROCESSED",
+                    processed.status() == WebhookEventStatus.REPLAYED ? "WEBHOOK_REPLAY" : "WEBHOOK_PROCESSED",
                     "DOCUMENT_WEBHOOK_EVENT",
                     processed.id().toString(),
                     projectId,
                     responseMapper.sanitizeWebhookEvent(processed)
             );
+            metrics.recordWebhook(processed.signatureStatus(), processed.status(), processed.eventType());
             return processed;
         } catch (BusinessException exception) {
-            int retryCount = replay ? event.retryCount() + 1 : event.retryCount();
-            WebhookEventStatus failedStatus = retryCount >= maxReplayAttempts()
+            if (event.importId() != null) {
+                importService.failImport(event.importId(), exception.getMessage());
+            }
+            WebhookEventStatus failedStatus = event.retryCount() >= maxReplayAttempts()
                     ? WebhookEventStatus.DEAD_LETTER
                     : WebhookEventStatus.FAILED;
             Instant processedAt = Instant.now();
@@ -667,10 +733,10 @@ public class DocumentInputService {
                     event.payloadDigest(),
                     event.rawPayload(),
                     exception.getMessage(),
-                    retryCount,
-                    replay ? actorResolver.currentActor() : event.replayBy(),
-                    replay ? processedAt : event.replayAt(),
-                    replay ? TraceContext.getTraceId() : event.replayTraceId(),
+                    event.retryCount(),
+                    event.replayBy(),
+                    event.replayAt(),
+                    event.replayTraceId(),
                     event.receivedAt(),
                     processedAt
             );
@@ -685,7 +751,77 @@ public class DocumentInputService {
                     responseMapper.sanitizeWebhookEvent(failed)
             );
             metrics.recordWebhook(failed.signatureStatus(), failed.status(), failed.eventType());
-            throw exception;
+            return failed;
+        }
+    }
+
+    private DocumentSourceConfig sourceForWebhookEvent(DocumentWebhookEvent event) {
+        return repository.sourceByCode(normalizeSourceCode(event.sourceCode()))
+                .orElseThrow(() -> new BusinessException(
+                        ErrorCode.NOT_FOUND,
+                        DocumentInputMessages.SOURCE_NOT_FOUND.formatted(event.sourceCode())
+                ));
+    }
+
+    private DocumentWebhookEvent ensureWebhookImportQueued(DocumentWebhookEvent event, DocumentSourceConfig source) {
+        if (event.importId() != null) {
+            return event;
+        }
+        DocumentImportRecord queuedImport = queueWebhookImport(source, event.rawPayload());
+        DocumentWebhookEvent updated = new DocumentWebhookEvent(
+                event.id(),
+                event.sourceId(),
+                queuedImport.id(),
+                event.sourceCode(),
+                event.eventId(),
+                event.idempotencyKey(),
+                event.eventType(),
+                event.eventVersion(),
+                event.signatureStatus(),
+                event.status(),
+                event.payloadDigest(),
+                event.rawPayload(),
+                event.errorMessage(),
+                event.retryCount(),
+                event.replayBy(),
+                event.replayAt(),
+                event.replayTraceId(),
+                event.receivedAt(),
+                event.processedAt()
+        );
+        repository.saveWebhookEvent(updated);
+        return updated;
+    }
+
+    private DocumentImportRecord queueWebhookImport(DocumentSourceConfig source, String rawPayload) {
+        JsonNode payload = parsePayloadOrNull(rawPayload);
+        String projectId = firstText(textAt(payload, "projectId"), source.defaultProjectId());
+        if (!StringUtils.hasText(projectId)) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, DocumentInputMessages.WEBHOOK_PAYLOAD_MISSING_PROJECT_ID);
+        }
+        String title = firstText(textAt(payload, "title"), textAt(payload, "name"), source.name());
+        String sourceRef = firstText(textAt(payload, "sourceRef"), textAt(payload, "id"), source.sourceCode());
+        String sourceUrl = firstText(textAt(payload, "sourceUrl"), textAt(payload, "url"));
+        return importService.queueWebhookImport(
+                source,
+                projectId,
+                title,
+                sourceRef,
+                sourceUrl,
+                rawPayload
+        );
+    }
+
+    private String webhookEventType(String rawPayload) {
+        JsonNode payload = parsePayloadOrNull(rawPayload);
+        return firstText(textAt(payload, "eventType"), textAt(payload, "type"), "requirement.created");
+    }
+
+    private JsonNode parsePayloadOrNull(String rawPayload) {
+        try {
+            return objectMapper.readTree(rawPayload);
+        } catch (Exception exception) {
+            return null;
         }
     }
 

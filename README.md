@@ -118,7 +118,7 @@ PLATFORM_KAFKA_BOOTSTRAP_SERVERS=localhost:9092 \
 mvn -pl platform-api spring-boot:run -Dspring-boot.run.profiles=db,redis,kafka
 ```
 
-启用 `db,redis,kafka` 后，Redisson 承载会话短缓存、权限短缓存、provider 熔断/限流/并发状态；Kafka 承载模型调用任务和审计写入事件，事件 envelope 与日志继续使用同一 `traceId`。不启用 `redis,kafka` profile 时，服务仍使用本地事件总线、JDBC 会话/权限路径和进程内 resilience state，便于单元测试和轻量开发。
+启用 `db,redis,kafka` 后，Redisson 承载会话短缓存、权限短缓存、provider 熔断/限流/并发状态；Kafka 承载模型调用任务、审计写入事件，以及 WP4 导入解析、发布写入和 webhook accepted 三条事件链路，事件 envelope 与日志继续使用同一 `traceId`。不启用 `redis,kafka` profile 时，服务仍使用本地事件总线、JDBC 会话/权限路径和进程内 resilience state，便于单元测试和轻量开发。
 
 初始化首个管理员：
 
@@ -251,9 +251,11 @@ curl 'http://127.0.0.1:8080/api/v1/asset/requirements?projectId=project-001&stat
 
 WP4 管理、导入、候选确认、发布和事件查询使用同一个 `platform-api`，服务端调用默认令牌为 `local-document-input-token`。当前实现统一使用 `/api/v1/document-input/imports` 管理导入记录、候选和发布记录；早期文档中的 `/batches` 为历史建议路径，验收以当前实现和 OpenAPI/测试为准。受保护接口权限收敛为 `requirementInput:read`、`requirementInput:manage`、`requirementInput:import`、`requirementInput:candidate_review`、`requirementInput:publish`、`requirementInput:webhook_replay`。
 
+WP4 的三条耗时链路已改为事件驱动：文本/Markdown/Word/PDF/OCR/`CUSTOM_API` 导入先返回 `MODEL_PARSE_QUEUED`，由 `document-input.import.requested` 事件后台解析；非 dryRun 发布先返回 `PUBLISH_QUEUED`，由 `document-input.publish.requested` 事件写入 WP3；webhook 入口完成签名、幂等、限流和落库后发布 `document-input.webhook.accepted`。本地 profile 使用进程内事件总线，`db,kafka` profile 使用 Kafka topic；事件 envelope、Kafka header 和消费者日志均保留同一 `traceId`，前端通过导入、候选、发布记录和 webhook 事件查询轮询最终状态。
+
 候选查询支持 `status`、`sourceRef`、`keyword` 筛选；批量候选操作同时支持简单 `candidateIds` 和携带版本号的 versioned candidates，用于阻断并发脏写。`CUSTOM_API` webhook source 保存 `secretRef`、`eventVersion`、`mappingVersion` 和字段映射；事件查询支持 `sourceId`、`sourceCode`、`eventType`、`status`、`receivedFrom`、`receivedTo`。发布到 WP3 时保留 `source`、`sourceRef`、`sourceUrl` 和 `acceptanceCriteria` 追踪；同一 `externalRequirementId` 重复导入会在 dryRun 中返回 `UPDATE` 和 `diffSummary`，正式发布通过 WP3 应用服务更新既有 `IMPORT` 需求资产，不重复创建。若既有 WP3 需求已进入非 `DRAFT` 状态且存在差异，dryRun 返回 `CONFLICT_REVIEW_REQUIRED`，正式发布会失败并保留人工评审后的资产内容。
 
-AI 文档解析 MVP 通过 WP2 `ModelAccessService` 接入，受 `WP4_MODEL_PARSE_ENABLED` 控制，默认 Prompt key 为 `wp4-document-requirement-parse`。开启后文本、Markdown、Word、PDF、OCR 和 `CUSTOM_API` 导入会先经 WP2 模型解析生成 `parseSource=MODEL` 的候选项，并保存 `modelInvocationId`、`modelProviderName`、`modelName`；WP2 策略阻断、敏感内容阻断或模型失败时回退到规则解析，候选继续进入人工确认，不会绕过 WP2 或直接发布到 WP3。
+AI 文档解析 MVP 通过 WP2 `ModelAccessService` 接入，受 `WP4_MODEL_PARSE_ENABLED` 控制，默认 Prompt key 为 `wp4-document-requirement-parse`。开启后文本、Markdown、Word、PDF、OCR 和 `CUSTOM_API` 导入会先入队，再由事件消费者经 WP2 模型解析生成 `parseSource=MODEL` 的候选项，并保存 `modelInvocationId`、`modelProviderName`、`modelName`；WP2 策略阻断、敏感内容阻断或模型失败时回退到规则解析，候选继续进入人工确认，不会绕过 WP2 或直接发布到 WP3。
 
 WP4 真实文档解析支持 `WORD`、`PDF`、`OCR` sourceType：Word 使用 Apache POI 抽取 doc/docx 文本，PDF 使用 PDFBox 抽取文本型 PDF，OCR 通过 `WP4_OCR_COMMAND` 命令 provider 接收 `{input}` 临时文件并返回识别文本。`/imports` 接受纯文本、raw base64 或 `data:...;base64,...` 内容；`/imports/multipart` 接受 `multipart/form-data` 的 `projectId`、`sourceType`、可选来源字段和 `file`，用于真实文件上传。导入受 `WP4_IMPORT_MAX_CONTENT_BYTES`、`WP4_DOCUMENT_BINARY_MAX_BYTES` 限制；`WP4_BINARY_MIME_VALIDATION_ENABLED` 开启后会校验声明 MIME 与实际文件魔数/内容类型，`WP4_PDF_MAX_PAGES` 和 `WP4_PDF_MAX_PARSE_MILLIS` 会限制 PDF 页数和解析耗时；OCR 额外受 `WP4_OCR_TIMEOUT_SECONDS`、`WP4_OCR_MAX_OUTPUT_CHARS`、`WP4_OCR_MAX_CONCURRENT_PROCESSES` 限流。生产可通过 `WP4_MALWARE_SCAN_COMMAND` 接入命令式文件安全扫描，扫描命令同样接收 `{input}` 临时文件，受 `WP4_MALWARE_SCAN_TIMEOUT_SECONDS`、`WP4_MALWARE_SCAN_MAX_CONCURRENT_PROCESSES` 和 `WP4_MALWARE_SCAN_MAX_OUTPUT_CHARS` 控制；健康接口会返回当前二进制解析、PDF、OCR 和文件扫描配置。
 

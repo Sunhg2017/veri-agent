@@ -60,6 +60,17 @@
         </constructor>
     </resultMap>
 
+    <resultMap id="importPayloadMap" type="com.songhg.veri.agent.document.domain.DocumentImportPayload">
+        <constructor>
+            <arg column="import_id" javaType="java.util.UUID"/>
+            <arg column="mapping_id" javaType="java.util.UUID"/>
+            <arg column="parse_fallback_title" javaType="java.lang.String"/>
+            <arg column="content" javaType="java.lang.String"/>
+            <arg column="created_at" javaType="java.time.Instant"/>
+            <arg column="updated_at" javaType="java.time.Instant"/>
+        </constructor>
+    </resultMap>
+
     <resultMap id="candidateMap" type="com.songhg.veri.agent.document.domain.DocumentRequirementCandidate">
         <constructor>
             <arg column="id" javaType="java.util.UUID"/>
@@ -153,6 +164,10 @@
         id, project_id, source_id, source_code, source_type, source_ref, source_url, title,
         status, total_parsed, total_created, created_requirement_ids::text as created_requirement_ids,
         error_message, raw_digest, created_at, updated_at
+    </sql>
+
+    <sql id="importPayloadColumns">
+        import_id, mapping_id, parse_fallback_title, content, created_at, updated_at
     </sql>
 
     <sql id="candidateColumns">
@@ -358,13 +373,50 @@
             #{errorMessage}, #{rawDigest}, #{createdAt}, #{updatedAt}
         )
         on conflict (id) do update set
+            project_id = excluded.project_id,
+            source_id = excluded.source_id,
+            source_code = excluded.source_code,
+            source_type = excluded.source_type,
+            source_ref = excluded.source_ref,
+            source_url = excluded.source_url,
+            title = excluded.title,
             status = excluded.status,
             total_parsed = excluded.total_parsed,
             total_created = excluded.total_created,
             created_requirement_ids = excluded.created_requirement_ids,
             error_message = excluded.error_message,
+            raw_digest = excluded.raw_digest,
             updated_at = excluded.updated_at
     </insert>
+
+    <update id="markImportStatus">
+        update document_input_import
+        set status = #{nextStatus},
+            updated_at = #{updatedAt}
+        where id = #{id}
+          and status = #{expectedStatus}
+          and deleted_at is null
+    </update>
+
+    <insert id="upsertImportPayload">
+        insert into document_input_import_payload (
+            import_id, mapping_id, parse_fallback_title, content, created_at, updated_at
+        ) values (
+            #{importId}, #{mappingId}, #{parseFallbackTitle}, #{content}, #{createdAt}, #{updatedAt}
+        )
+        on conflict (import_id) do update set
+            mapping_id = excluded.mapping_id,
+            parse_fallback_title = excluded.parse_fallback_title,
+            content = excluded.content,
+            updated_at = excluded.updated_at
+    </insert>
+
+    <select id="importPayload" resultMap="importPayloadMap">
+        select <include refid="importPayloadColumns"/>
+        from document_input_import_payload
+        where import_id = #{importId}
+        limit 1
+    </select>
 
     <select id="candidates" resultMap="candidateMap">
         select <include refid="candidateColumns"/>
@@ -450,6 +502,16 @@
             version = excluded.version,
             updated_at = excluded.updated_at
     </insert>
+
+    <update id="markCandidateStatus">
+        update document_input_candidate
+        set status = #{nextStatus},
+            version = version + 1,
+            updated_at = #{updatedAt}
+        where id = #{id}
+          and status = #{expectedStatus}
+          and deleted_at is null
+    </update>
 
     <select id="parseFeedbackSamples" resultMap="parseFeedbackSampleMap">
         select <include refid="parseFeedbackSampleColumns"/>
@@ -552,6 +614,16 @@
             replay_trace_id = excluded.replay_trace_id,
             processed_at = excluded.processed_at
     </insert>
+
+    <update id="markWebhookEventStatus">
+        update document_input_webhook_event
+        set status = #{nextStatus},
+            processed_at = #{updatedAt},
+            updated_at = #{updatedAt}
+        where id = #{id}
+          and status = #{expectedStatus}
+          and deleted_at is null
+    </update>
 
     <insert id="archiveImportsBefore">
         insert into document_input_retention_archive (

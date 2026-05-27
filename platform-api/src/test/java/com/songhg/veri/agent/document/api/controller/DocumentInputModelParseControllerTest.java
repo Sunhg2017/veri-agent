@@ -45,23 +45,21 @@ class DocumentInputModelParseControllerTest {
                                 }
                                 """))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.data.status").value("SUCCEEDED"))
-                .andExpect(jsonPath("$.data.totalParsed").value(1))
-                .andExpect(jsonPath("$.data.requirements[0].parseSource").value("MODEL"))
-                .andExpect(jsonPath("$.data.requirements[0].modelInvocationId").exists())
-                .andExpect(jsonPath("$.data.requirements[0].modelProviderName").value("local-echo-primary"))
+                .andExpect(jsonPath("$.data.status").value("MODEL_PARSE_QUEUED"))
+                .andExpect(jsonPath("$.data.totalParsed").value(0))
+                .andExpect(jsonPath("$.data.totalCreated").value(0))
+                .andExpect(jsonPath("$.data.pendingCount").value(0))
                 .andReturn();
 
         String importId = JsonPath.read(imported.getResponse().getContentAsString(), "$.data.id");
-        MvcResult candidates = mockMvc.perform(get("/api/v1/document-input/imports/{id}/candidates", importId)
+        awaitImport(importId, "SUCCEEDED", 1, 1);
+        MvcResult candidates = awaitCandidates(importId, "MODEL");
+        mockMvc.perform(get("/api/v1/document-input/imports/{id}/candidates", importId)
                         .headers(documentInputHeaders()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.total").value(1))
-                .andExpect(jsonPath("$.data.items[0].parseSource").value("MODEL"))
                 .andExpect(jsonPath("$.data.items[0].modelInvocationId").exists())
                 .andExpect(jsonPath("$.data.items[0].modelProviderName").value("local-echo-primary"))
-                .andExpect(jsonPath("$.data.items[0].confidence").value(0.86))
-                .andReturn();
+                .andExpect(jsonPath("$.data.items[0].confidence").value(0.86));
 
         String candidateId = JsonPath.read(candidates.getResponse().getContentAsString(), "$.data.items[0].id");
         mockMvc.perform(put("/api/v1/document-input/candidates/{id}", candidateId)
@@ -120,16 +118,18 @@ class DocumentInputModelParseControllerTest {
                                 }
                                 """))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.data.status").value("SUCCEEDED"))
-                .andExpect(jsonPath("$.data.totalParsed").value(1))
+                .andExpect(jsonPath("$.data.status").value("MODEL_PARSE_QUEUED"))
+                .andExpect(jsonPath("$.data.totalParsed").value(0))
+                .andExpect(jsonPath("$.data.totalCreated").value(0))
+                .andExpect(jsonPath("$.data.pendingCount").value(0))
                 .andReturn();
 
         String importId = JsonPath.read(imported.getResponse().getContentAsString(), "$.data.id");
+        awaitImport(importId, "SUCCEEDED", 1, 1);
+        awaitCandidates(importId, "RULE");
         mockMvc.perform(get("/api/v1/document-input/imports/{id}/candidates", importId)
                         .headers(documentInputHeaders()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.total").value(1))
-                .andExpect(jsonPath("$.data.items[0].parseSource").value("RULE"))
                 .andExpect(jsonPath("$.data.items[0].modelInvocationId").doesNotExist());
 
         mockMvc.perform(get("/api/v1/model-access/invocations")
@@ -141,6 +141,48 @@ class DocumentInputModelParseControllerTest {
                 .andExpect(jsonPath("$.data.items[0].status").value("BLOCKED"))
                 .andExpect(jsonPath("$.data.items[0].errorCode").value("SENSITIVE_CONTENT_BLOCKED"))
                 .andExpect(jsonPath("$.data.items[0].requestPreview").exists());
+    }
+
+    private MvcResult awaitImport(
+            String importId,
+            String expectedStatus,
+            int expectedTotalParsed,
+            long expectedPendingCount
+    ) throws Exception {
+        AssertionError lastError = null;
+        for (int attempt = 0; attempt < 40; attempt++) {
+            try {
+                return mockMvc.perform(get("/api/v1/document-input/imports/{id}", importId)
+                                .headers(documentInputHeaders()))
+                        .andExpect(status().isOk())
+                        .andExpect(jsonPath("$.data.status").value(expectedStatus))
+                        .andExpect(jsonPath("$.data.totalParsed").value(expectedTotalParsed))
+                        .andExpect(jsonPath("$.data.pendingCount").value(expectedPendingCount))
+                        .andReturn();
+            } catch (AssertionError error) {
+                lastError = error;
+                Thread.sleep(50);
+            }
+        }
+        throw lastError == null ? new AssertionError("导入任务未达到期望状态") : lastError;
+    }
+
+    private MvcResult awaitCandidates(String importId, String expectedParseSource) throws Exception {
+        AssertionError lastError = null;
+        for (int attempt = 0; attempt < 40; attempt++) {
+            try {
+                return mockMvc.perform(get("/api/v1/document-input/imports/{id}/candidates", importId)
+                        .headers(documentInputHeaders()))
+                        .andExpect(status().isOk())
+                        .andExpect(jsonPath("$.data.total").value(1))
+                        .andExpect(jsonPath("$.data.items[0].parseSource").value(expectedParseSource))
+                        .andReturn();
+            } catch (AssertionError error) {
+                lastError = error;
+                Thread.sleep(50);
+            }
+        }
+        throw lastError == null ? new AssertionError("候选需求未生成") : lastError;
     }
 
     private HttpHeaders documentInputHeaders() {

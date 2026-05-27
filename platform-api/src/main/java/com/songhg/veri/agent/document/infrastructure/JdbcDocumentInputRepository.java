@@ -6,12 +6,16 @@ import com.songhg.veri.agent.document.application.port.DocumentInputRepository;
 import com.songhg.veri.agent.document.application.query.DocumentParseFeedbackQuery;
 import com.songhg.veri.agent.document.application.query.DocumentSourceQuery;
 import com.songhg.veri.agent.document.application.query.DocumentWebhookEventQuery;
+import com.songhg.veri.agent.document.domain.DocumentCandidateStatus;
 import com.songhg.veri.agent.document.domain.DocumentFieldMapping;
 import com.songhg.veri.agent.document.domain.DocumentImportRecord;
+import com.songhg.veri.agent.document.domain.DocumentImportPayload;
+import com.songhg.veri.agent.document.domain.DocumentImportStatus;
 import com.songhg.veri.agent.document.domain.DocumentParseFeedbackSample;
 import com.songhg.veri.agent.document.domain.DocumentRequirementCandidate;
 import com.songhg.veri.agent.document.domain.DocumentSourceConfig;
 import com.songhg.veri.agent.document.domain.DocumentWebhookEvent;
+import com.songhg.veri.agent.document.domain.WebhookEventStatus;
 import com.songhg.veri.agent.document.infrastructure.mapper.DocumentInputMapper;
 import java.time.Instant;
 import java.util.List;
@@ -95,6 +99,27 @@ public class JdbcDocumentInputRepository implements DocumentInputRepository {
     }
 
     @Override
+    public boolean markImportStatus(
+            UUID id,
+            DocumentImportStatus expectedStatus,
+            DocumentImportStatus nextStatus,
+            Instant updatedAt
+    ) {
+        return mapper.markImportStatus(id, expectedStatus, nextStatus, updatedAt) > 0;
+    }
+
+    @Override
+    public DocumentImportPayload saveImportPayload(DocumentImportPayload payload) {
+        mapper.upsertImportPayload(payload);
+        return payload;
+    }
+
+    @Override
+    public Optional<DocumentImportPayload> importPayload(UUID importId) {
+        return Optional.ofNullable(mapper.importPayload(importId));
+    }
+
+    @Override
     public List<DocumentRequirementCandidate> candidates(UUID importId, int offset, int size) {
         return mapper.candidates(importId, offset, size);
     }
@@ -123,6 +148,16 @@ public class JdbcDocumentInputRepository implements DocumentInputRepository {
     public DocumentRequirementCandidate saveCandidate(DocumentRequirementCandidate candidate) {
         mapper.upsertCandidate(candidate);
         return candidate;
+    }
+
+    @Override
+    public boolean markCandidateStatus(
+            UUID id,
+            DocumentCandidateStatus expectedStatus,
+            DocumentCandidateStatus nextStatus,
+            Instant updatedAt
+    ) {
+        return mapper.markCandidateStatus(id, expectedStatus, nextStatus, updatedAt) > 0;
     }
 
     @Override
@@ -180,6 +215,16 @@ public class JdbcDocumentInputRepository implements DocumentInputRepository {
             return webhookEventByIdentity(event.sourceCode(), event.eventId(), event.idempotencyKey())
                     .orElseThrow(() -> exception);
         }
+    }
+
+    @Override
+    public boolean markWebhookEventStatus(
+            UUID id,
+            WebhookEventStatus expectedStatus,
+            WebhookEventStatus nextStatus,
+            Instant updatedAt
+    ) {
+        return mapper.markWebhookEventStatus(id, expectedStatus, nextStatus, updatedAt) > 0;
     }
 
     @Override

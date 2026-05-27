@@ -6,8 +6,11 @@ import com.songhg.veri.agent.document.application.port.DocumentInputRepository;
 import com.songhg.veri.agent.document.application.query.DocumentParseFeedbackQuery;
 import com.songhg.veri.agent.document.application.query.DocumentSourceQuery;
 import com.songhg.veri.agent.document.application.query.DocumentWebhookEventQuery;
+import com.songhg.veri.agent.document.domain.DocumentCandidateStatus;
 import com.songhg.veri.agent.document.domain.DocumentFieldMapping;
 import com.songhg.veri.agent.document.domain.DocumentImportRecord;
+import com.songhg.veri.agent.document.domain.DocumentImportPayload;
+import com.songhg.veri.agent.document.domain.DocumentImportStatus;
 import com.songhg.veri.agent.document.domain.DocumentParseFeedbackSample;
 import com.songhg.veri.agent.document.domain.DocumentRequirementCandidate;
 import com.songhg.veri.agent.document.domain.DocumentSourceConfig;
@@ -36,6 +39,7 @@ public class InMemoryDocumentInputRepository implements DocumentInputRepository 
     private final ConcurrentHashMap<UUID, DocumentSourceConfig> sources = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<UUID, DocumentFieldMapping> mappings = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<UUID, DocumentImportRecord> imports = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<UUID, DocumentImportPayload> importPayloads = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<UUID, DocumentRequirementCandidate> candidates = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<UUID, DocumentParseFeedbackSample> parseFeedbackSamples = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<UUID, DocumentWebhookEvent> webhookEvents = new ConcurrentHashMap<>();
@@ -133,6 +137,50 @@ public class InMemoryDocumentInputRepository implements DocumentInputRepository 
     }
 
     @Override
+    public boolean markImportStatus(
+            UUID id,
+            DocumentImportStatus expectedStatus,
+            DocumentImportStatus nextStatus,
+            Instant updatedAt
+    ) {
+        DocumentImportRecord updated = imports.computeIfPresent(id, (ignored, existing) -> {
+            if (existing.status() != expectedStatus) {
+                return existing;
+            }
+            return new DocumentImportRecord(
+                    existing.id(),
+                    existing.projectId(),
+                    existing.sourceId(),
+                    existing.sourceCode(),
+                    existing.sourceType(),
+                    existing.sourceRef(),
+                    existing.sourceUrl(),
+                    existing.title(),
+                    nextStatus,
+                    existing.totalParsed(),
+                    existing.totalCreated(),
+                    existing.createdRequirementIds(),
+                    existing.errorMessage(),
+                    existing.rawDigest(),
+                    existing.createdAt(),
+                    updatedAt
+            );
+        });
+        return updated != null && updated.status() == nextStatus;
+    }
+
+    @Override
+    public DocumentImportPayload saveImportPayload(DocumentImportPayload payload) {
+        importPayloads.put(payload.importId(), payload);
+        return payload;
+    }
+
+    @Override
+    public Optional<DocumentImportPayload> importPayload(UUID importId) {
+        return Optional.ofNullable(importPayloads.get(importId));
+    }
+
+    @Override
     public List<DocumentRequirementCandidate> candidates(UUID importId, int offset, int size) {
         return filteredCandidates(importId)
                 .skip(offset)
@@ -167,6 +215,48 @@ public class InMemoryDocumentInputRepository implements DocumentInputRepository 
     public DocumentRequirementCandidate saveCandidate(DocumentRequirementCandidate candidate) {
         candidates.put(candidate.id(), candidate);
         return candidate;
+    }
+
+    @Override
+    public boolean markCandidateStatus(
+            UUID id,
+            DocumentCandidateStatus expectedStatus,
+            DocumentCandidateStatus nextStatus,
+            Instant updatedAt
+    ) {
+        DocumentRequirementCandidate updated = candidates.computeIfPresent(id, (ignored, existing) -> {
+            if (existing.status() != expectedStatus) {
+                return existing;
+            }
+            return new DocumentRequirementCandidate(
+                    existing.id(),
+                    existing.importId(),
+                    existing.projectId(),
+                    existing.title(),
+                    existing.description(),
+                    existing.priority(),
+                    existing.acceptanceCriteria(),
+                    existing.tags(),
+                    nextStatus,
+                    existing.sourceRef(),
+                    existing.sourceFragment(),
+                    existing.externalRequirementId(),
+                    existing.confidence(),
+                    existing.parseSource(),
+                    existing.modelInvocationId(),
+                    existing.modelProviderName(),
+                    existing.modelName(),
+                    existing.assetRequirementId(),
+                    existing.errorMessage(),
+                    existing.ignoredReason(),
+                    existing.confirmedBy(),
+                    existing.confirmedAt(),
+                    existing.version() + 1,
+                    existing.createdAt(),
+                    updatedAt
+            );
+        });
+        return updated != null && updated.status() == nextStatus;
     }
 
     @Override
@@ -243,6 +333,42 @@ public class InMemoryDocumentInputRepository implements DocumentInputRepository 
     public DocumentWebhookEvent saveWebhookEvent(DocumentWebhookEvent event) {
         webhookEvents.put(event.id(), event);
         return event;
+    }
+
+    @Override
+    public boolean markWebhookEventStatus(
+            UUID id,
+            WebhookEventStatus expectedStatus,
+            WebhookEventStatus nextStatus,
+            Instant updatedAt
+    ) {
+        DocumentWebhookEvent updated = webhookEvents.computeIfPresent(id, (ignored, existing) -> {
+            if (existing.status() != expectedStatus) {
+                return existing;
+            }
+            return new DocumentWebhookEvent(
+                    existing.id(),
+                    existing.sourceId(),
+                    existing.importId(),
+                    existing.sourceCode(),
+                    existing.eventId(),
+                    existing.idempotencyKey(),
+                    existing.eventType(),
+                    existing.eventVersion(),
+                    existing.signatureStatus(),
+                    nextStatus,
+                    existing.payloadDigest(),
+                    existing.rawPayload(),
+                    existing.errorMessage(),
+                    existing.retryCount(),
+                    existing.replayBy(),
+                    existing.replayAt(),
+                    existing.replayTraceId(),
+                    existing.receivedAt(),
+                    updatedAt
+            );
+        });
+        return updated != null && updated.status() == nextStatus;
     }
 
     @Override

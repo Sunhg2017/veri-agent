@@ -278,8 +278,10 @@ public class DocumentCandidateWorkflowService {
     }
 
     private void ensureCandidateEditable(DocumentRequirementCandidate candidate) {
-        if (candidate.status() == DocumentCandidateStatus.PUBLISHED) {
-            throw new BusinessException(ErrorCode.INVALID_STATE, "已发布候选项不可编辑");
+        if (candidate.status() == DocumentCandidateStatus.PUBLISHED
+                || candidate.status() == DocumentCandidateStatus.PUBLISH_QUEUED
+                || candidate.status() == DocumentCandidateStatus.PUBLISHING) {
+            throw new BusinessException(ErrorCode.INVALID_STATE, "候选项正在发布或已发布，不可编辑");
         }
     }
 

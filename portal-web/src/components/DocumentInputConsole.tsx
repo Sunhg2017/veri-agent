@@ -1424,6 +1424,8 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
                 <option value="PENDING">PENDING</option>
                 <option value="CONFIRMED">CONFIRMED</option>
                 <option value="IGNORED">IGNORED</option>
+                <option value="PUBLISH_QUEUED">PUBLISH_QUEUED</option>
+                <option value="PUBLISHING">PUBLISHING</option>
                 <option value="PUBLISHED">PUBLISHED</option>
                 <option value="PUBLISH_FAILED">PUBLISH_FAILED</option>
               </select>
@@ -1686,6 +1688,7 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
               >
                 <option value="">全部</option>
                 <option value="FAILED">FAILED</option>
+                <option value="PROCESSING">PROCESSING</option>
                 <option value="PROCESSED">PROCESSED</option>
                 <option value="ACCEPTED">ACCEPTED</option>
                 <option value="REJECTED">REJECTED</option>
@@ -1926,7 +1929,22 @@ function SourceTypeBadge(props: { type: DocumentSourceType }) {
 function DocumentStatusPill(props: { value: string }) {
   const normalized = props.value.toUpperCase();
   const positive = ['UP', 'ON', 'OK', 'SUCCESS', 'SUCCEEDED', 'COMPLETED', 'DONE', 'ENABLED', 'ACTIVE', 'CONFIRMED', 'PUBLISHED', 'VALID', '可用', '成功'];
-  const pending = ['PENDING', 'RUNNING', 'PROCESSING', 'QUEUED', 'DRAFT', 'RESERVED', 'REPLAYING', 'PLANNED', 'DEGRADED', '预留/未启用'];
+  const pending = [
+    'PENDING',
+    'RUNNING',
+    'PROCESSING',
+    'QUEUED',
+    'MODEL_PARSE_QUEUED',
+    'MODEL_PARSE_RUNNING',
+    'PUBLISH_QUEUED',
+    'PUBLISHING',
+    'DRAFT',
+    'RESERVED',
+    'REPLAYING',
+    'PLANNED',
+    'DEGRADED',
+    '预留/未启用'
+  ];
   const negative = ['DOWN', 'OFF', 'FAILED', 'ERROR', 'DISABLED', 'CANCELED', 'IGNORED', 'INVALID', 'CONFLICT', '异常', '失败'];
   const tone = positive.includes(normalized) || positive.includes(props.value)
     ? 'positive'

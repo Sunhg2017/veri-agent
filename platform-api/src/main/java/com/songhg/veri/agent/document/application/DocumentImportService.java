@@ -14,6 +14,7 @@ import com.songhg.veri.agent.document.config.DocumentInputProperties;
 import com.songhg.veri.agent.document.domain.DocumentCandidateStatus;
 import com.songhg.veri.agent.document.domain.DocumentFieldMapping;
 import com.songhg.veri.agent.document.domain.DocumentImportRecord;
+import com.songhg.veri.agent.document.domain.DocumentImportPayload;
 import com.songhg.veri.agent.document.domain.DocumentImportStatus;
 import com.songhg.veri.agent.document.domain.DocumentRequirementCandidate;
 import com.songhg.veri.agent.document.domain.DocumentSourceConfig;
@@ -33,19 +34,19 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
-
-
-
-
 
 /**
  * Owns document import orchestration, parsing fallback and candidate persistence.
  */
 @Service
 public class DocumentImportService {
+
+    private static final Logger log = LoggerFactory.getLogger(DocumentImportService.class);
 
     private static final Set<DocumentSourceType> SUPPORTED_SOURCE_TYPES = Set.of(
             DocumentSourceType.TEXT,
@@ -65,6 +66,7 @@ public class DocumentImportService {
     private final DocumentInputMetrics metrics;
     private final DocumentInputActorResolver actorResolver;
     private final DocumentInputResponseMapper responseMapper;
+    private final DocumentInputEventPublisher eventPublisher;
 
     public DocumentImportService(
             DocumentInputRepository repository,
@@ -75,7 +77,8 @@ public class DocumentImportService {
             ObjectMapper objectMapper,
             DocumentInputProperties properties,
             DocumentInputMetrics metrics,
-            DocumentInputActorResolver actorResolver
+            DocumentInputActorResolver actorResolver,
+            DocumentInputEventPublisher eventPublisher
     ) {
         this.repository = repository;
         this.parser = parser;
@@ -86,23 +89,26 @@ public class DocumentImportService {
         this.metrics = metrics;
         this.actorResolver = actorResolver;
         this.responseMapper = new DocumentInputResponseMapper(repository, objectMapper);
+        this.eventPublisher = eventPublisher;
     }
 
     /**
-     * Imports text-like document content and persists parsed requirement candidates.
+     * Accepts text-like document content and emits an async parse event.
      */
     @Transactional
     public DocumentImportResponse importDocument(CreateDocumentImportRequest request) {
-        return importContent(
+        return queueImportContent(
                 request.projectId(),
                 request.sourceType(),
+                request.title(),
                 request.title(),
                 request.sourceRef(),
                 request.sourceUrl(),
                 request.content(),
                 request.mappingId(),
                 request.sourceId(),
-                null
+                null,
+                true
         );
     }
 
@@ -130,7 +136,7 @@ public class DocumentImportService {
                 StringUtils.hasText(contentType) ? contentType.trim() : "application/octet-stream",
                 Base64.getEncoder().encodeToString(fileBytes)
         );
-        return importContent(
+        return queueImportContent(
                 projectId,
                 sourceType,
                 firstText(title, filename),
@@ -140,7 +146,8 @@ public class DocumentImportService {
                 dataUrl,
                 mappingId,
                 sourceId,
-                null
+                null,
+                true
         );
     }
 
@@ -162,24 +169,130 @@ public class DocumentImportService {
     }
 
     /**
-     * Runs the shared import pipeline used by manual imports and accepted webhook events.
+     * Creates a queued import for a validated webhook event. The webhook worker owns event validation
+     * and calls {@link #processQueuedImport(UUID)} so ingress does not block on parsing or WP2 calls.
      */
-    DocumentImportResponse importContent(
+    @Transactional
+    DocumentImportRecord queueWebhookImport(
+            DocumentSourceConfig source,
+            String projectId,
+            String title,
+            String sourceRef,
+            String sourceUrl,
+            String content
+    ) {
+        return queueImportRecord(
+                projectId,
+                source.sourceType(),
+                firstText(title, source.name()),
+                firstText(title, source.name()),
+                sourceRef,
+                sourceUrl,
+                content,
+                source.mappingId(),
+                source.id(),
+                source.sourceCode()
+        );
+    }
+
+    /**
+     * Executes an import event. The conditional status claim makes duplicate local/Kafka delivery idempotent.
+     */
+    @Transactional
+    public DocumentImportRecord processQueuedImport(UUID importId) {
+        Instant startedAt = Instant.now();
+        if (!repository.markImportStatus(
+                importId,
+                DocumentImportStatus.MODEL_PARSE_QUEUED,
+                DocumentImportStatus.MODEL_PARSE_RUNNING,
+                startedAt
+        )) {
+            return repository.importRecord(importId)
+                    .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "导入记录不存在: " + importId));
+        }
+        DocumentImportRecord running = repository.importRecord(importId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "导入记录不存在: " + importId));
+        DocumentImportPayload payload = repository.importPayload(importId).orElse(null);
+        if (payload == null) {
+            return failImport(running, "导入原始内容不存在，无法异步解析");
+        }
+        try {
+            ensureImportContentSize(payload.content());
+            DocumentFieldMapping mapping = mappingOrDefault(payload.mappingId());
+            DocumentContentExtractor.ExtractedDocumentContent extracted =
+                    contentExtractor.extract(running.sourceType(), payload.content());
+            List<ParsedRequirementDraft> parsed = parseRequirements(
+                    running.id(),
+                    running.projectId(),
+                    running.sourceType(),
+                    payload.parseFallbackTitle(),
+                    running.sourceRef(),
+                    running.sourceUrl(),
+                    extracted.text(),
+                    mapping
+            );
+            if (parsed.isEmpty()) {
+                throw new BusinessException(ErrorCode.VALIDATION_ERROR, "未解析到有效需求");
+            }
+            Instant now = Instant.now();
+            DocumentImportRecord succeeded = new DocumentImportRecord(
+                    running.id(),
+                    running.projectId(),
+                    running.sourceId(),
+                    running.sourceCode(),
+                    running.sourceType(),
+                    running.sourceRef(),
+                    running.sourceUrl(),
+                    running.title(),
+                    DocumentImportStatus.SUCCEEDED,
+                    parsed.size(),
+                    running.totalCreated(),
+                    running.createdRequirementIds(),
+                    null,
+                    running.rawDigest(),
+                    running.createdAt(),
+                    now
+            );
+            repository.saveImport(succeeded);
+            for (int index = 0; index < parsed.size(); index++) {
+                repository.saveCandidate(toCandidate(succeeded, parsed.get(index), succeeded.sourceRef(), index, now));
+            }
+            writeAudit("IMPORT", "DOCUMENT_IMPORT", succeeded.id().toString(), succeeded.projectId(), succeeded);
+            metrics.recordImport(succeeded.sourceType(), succeeded.status(), parsed.size());
+            log.info("Document import event processed, import_id={}, parsed_count={}", importId, parsed.size());
+            return succeeded;
+        } catch (BusinessException exception) {
+            return failImport(running, exception.getMessage());
+        } catch (RuntimeException exception) {
+            return failImport(running, firstText(exception.getMessage(), "文档异步解析失败"));
+        }
+    }
+
+    @Transactional
+    DocumentImportRecord failImport(UUID importId, String errorMessage) {
+        DocumentImportRecord record = repository.importRecord(importId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "导入记录不存在: " + importId));
+        return failImport(record, errorMessage);
+    }
+
+    private DocumentImportResponse queueImportContent(
             String projectId,
             DocumentSourceType sourceType,
-            String title,
+            String recordTitle,
+            String parseFallbackTitle,
             String sourceRef,
             String sourceUrl,
             String content,
             UUID mappingId,
             UUID sourceId,
-            String sourceCode
+            String sourceCode,
+            boolean publishEvent
     ) {
-        return importContent(
+        DocumentImportRecord record = queueImportRecord(
                 projectId,
                 sourceType,
-                title,
-                title,
+                recordTitle,
+                parseFallbackTitle,
                 sourceRef,
                 sourceUrl,
                 content,
@@ -187,9 +300,15 @@ public class DocumentImportService {
                 sourceId,
                 sourceCode
         );
+        if (publishEvent) {
+            eventPublisher.publishImportRequested(record.id());
+        }
+        writeAudit("IMPORT_QUEUED", "DOCUMENT_IMPORT", record.id().toString(), record.projectId(), record);
+        metrics.recordImport(sourceType, record.status(), 0);
+        return responseMapper.toImportResponse(record, List.of());
     }
 
-    private DocumentImportResponse importContent(
+    private DocumentImportRecord queueImportRecord(
             String projectId,
             DocumentSourceType sourceType,
             String recordTitle,
@@ -217,76 +336,68 @@ public class DocumentImportService {
         ));
         UUID importId = UUID.randomUUID();
         Instant now = Instant.now();
-        try {
-            ensureImportContentSize(content);
-            DocumentContentExtractor.ExtractedDocumentContent extracted = contentExtractor.extract(sourceType, content);
-            List<ParsedRequirementDraft> parsed = parseRequirements(
-                    context.resourceId(),
-                    sourceType,
-                    parseFallbackTitle,
-                    sourceRef,
-                    sourceUrl,
-                    extracted.text(),
-                    mapping
-            );
-            if (parsed.isEmpty()) {
-                throw new BusinessException(ErrorCode.VALIDATION_ERROR, "未解析到有效需求");
-            }
-            DocumentImportRecord record = new DocumentImportRecord(
-                    importId,
-                    context.resourceId(),
-                    sourceId,
-                    firstText(sourceCode, source == null ? null : source.sourceCode()),
-                    sourceType,
-                    trimToNull(sourceRef),
-                    trimToNull(sourceUrl),
-                    trimToNull(recordTitle),
-                    DocumentImportStatus.SUCCEEDED,
-                    parsed.size(),
-                    0,
-                    "[]",
-                    null,
-                    sha256(content),
-                    now,
-                    Instant.now()
-            );
-            repository.saveImport(record);
-            for (int index = 0; index < parsed.size(); index++) {
-                repository.saveCandidate(toCandidate(record, parsed.get(index), sourceRef, index, now));
-            }
-            writeAudit("IMPORT", "DOCUMENT_IMPORT", record.id().toString(), context.resourceId(), record);
-            metrics.recordImport(sourceType, record.status(), parsed.size());
-            return responseMapper.toImportResponse(record, parsed);
-        } catch (BusinessException exception) {
-            DocumentImportRecord failed = new DocumentImportRecord(
-                    importId,
-                    context.resourceId(),
-                    sourceId,
-                    firstText(sourceCode, source == null ? null : source.sourceCode()),
-                    sourceType,
-                    trimToNull(sourceRef),
-                    trimToNull(sourceUrl),
-                    trimToNull(recordTitle),
-                    DocumentImportStatus.FAILED,
-                    0,
-                    0,
-                    "[]",
-                    exception.getMessage(),
-                    sha256(content),
-                    now,
-                    Instant.now()
-            );
-            repository.saveImport(failed);
-            writeAudit("IMPORT_FAILED", "DOCUMENT_IMPORT", failed.id().toString(), context.resourceId(), failed);
-            metrics.recordImport(sourceType, failed.status(), 0);
-            throw exception;
-        }
+        ensureImportContentSize(content);
+        DocumentImportRecord record = new DocumentImportRecord(
+                importId,
+                context.resourceId(),
+                sourceId,
+                firstText(sourceCode, source == null ? null : source.sourceCode()),
+                sourceType,
+                trimToNull(sourceRef),
+                trimToNull(sourceUrl),
+                trimToNull(recordTitle),
+                DocumentImportStatus.MODEL_PARSE_QUEUED,
+                0,
+                0,
+                "[]",
+                null,
+                sha256(content),
+                now,
+                now
+        );
+        repository.saveImport(record);
+        repository.saveImportPayload(new DocumentImportPayload(
+                record.id(),
+                mapping.id(),
+                trimToNull(parseFallbackTitle),
+                content,
+                now,
+                now
+        ));
+        return record;
+    }
+
+    private DocumentImportRecord failImport(DocumentImportRecord record, String errorMessage) {
+        DocumentImportRecord failed = new DocumentImportRecord(
+                record.id(),
+                record.projectId(),
+                record.sourceId(),
+                record.sourceCode(),
+                record.sourceType(),
+                record.sourceRef(),
+                record.sourceUrl(),
+                record.title(),
+                DocumentImportStatus.FAILED,
+                record.totalParsed(),
+                record.totalCreated(),
+                record.createdRequirementIds(),
+                trimToNull(errorMessage),
+                record.rawDigest(),
+                record.createdAt(),
+                Instant.now()
+        );
+        repository.saveImport(failed);
+        writeAudit("IMPORT_FAILED", "DOCUMENT_IMPORT", failed.id().toString(), failed.projectId(), failed);
+        metrics.recordImport(failed.sourceType(), failed.status(), failed.totalParsed());
+        log.warn("Document import event failed, import_id={}, error={}", failed.id(), failed.errorMessage());
+        return failed;
     }
 
     /**
      * Tries rule parsing first, then merges AI parsing output or falls back with explicit audit.
      */
     private List<ParsedRequirementDraft> parseRequirements(
+            UUID importId,
             String projectId,
             DocumentSourceType sourceType,
             String title,
@@ -317,7 +428,7 @@ public class DocumentImportService {
                     ruleParsed.isEmpty() ? "MODEL_ONLY" : "MODEL_WITH_RULE_MERGE",
                     modelResult.drafts().size()
             );
-            writeAudit("MODEL_PARSE", "DOCUMENT_IMPORT", "pending", projectId, Map.of(
+            writeAudit("MODEL_PARSE", "DOCUMENT_IMPORT", importId.toString(), projectId, Map.of(
                     "result", "SUCCEEDED",
                     "invocationId", stringOrEmpty(modelResult.invocationId()),
                     "providerName", stringOrEmpty(modelResult.providerName()),
@@ -329,7 +440,7 @@ public class DocumentImportService {
 
         if (modelResult.attempted()) {
             metrics.recordModelParse(ruleParsed.isEmpty() ? "FAILED" : "FALLBACK_RULE", 0);
-            writeAudit("MODEL_PARSE", "DOCUMENT_IMPORT", "pending", projectId, Map.of(
+            writeAudit("MODEL_PARSE", "DOCUMENT_IMPORT", importId.toString(), projectId, Map.of(
                     "result", ruleParsed.isEmpty() ? "FAILED" : "FALLBACK_RULE",
                     "invocationId", stringOrEmpty(modelResult.invocationId()),
                     "providerName", stringOrEmpty(modelResult.providerName()),

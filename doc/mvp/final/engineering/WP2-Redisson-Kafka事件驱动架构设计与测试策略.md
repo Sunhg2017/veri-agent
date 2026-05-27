@@ -33,7 +33,7 @@
 
 1. 不把所有同步 API 改成 MQ；只有天然异步、可幂等重放的链路进入事件总线。
 2. 不把 `platform-api` 拆成多个服务；本次仍是模块化单体内的事件边界。
-3. 不在本次直接改造 WP4 导入、发布和 webhook API 返回语义；这些链路需要先扩展 `PROCESSING/PUBLISH_QUEUED` 等状态机，避免用户拿到“已完成”响应但后台仍在处理。
+3. 不把事件驱动等同于拆分服务；WP4 导入、发布和 webhook 本轮仍由 `platform-api` 内的本地/Kafka 事件消费者处理，后续如拆独立 worker 需复用同一事件契约。
 4. 不引入复杂延迟消息平台；本地/Kafka publisher 仅保留现有 WP2 dispatch delay 兼容能力，生产建议设置为 0。
 
 ### 1.4 风险与回滚
@@ -87,6 +87,14 @@ Kafka header：
 | `X-Trace-Id` | 与 envelope `traceId` 一致。 |
 | `X-Platform-Event-Type` | 与 envelope `eventType` 一致。 |
 
+WP4 文档输入本轮补充的事件：
+
+| 事件 | Topic | 触发点 | 消费动作 |
+|---|---|---|---|
+| `document-input.import.requested` | `veri-agent.document-input-import-requested` | 文本、Markdown、Word、PDF、OCR、`CUSTOM_API` 导入记录保存为 `MODEL_PARSE_QUEUED` 后 | 抽取原文、调用 WP2 模型解析或规则 fallback，生成候选并更新导入状态。 |
+| `document-input.publish.requested` | `veri-agent.document-input-publish-requested` | 非 dryRun 发布将导入和候选标记为 `PUBLISH_QUEUED` 后 | 调用 WP3 应用服务 upsert 需求资产，写发布记录和候选结果。 |
+| `document-input.webhook.accepted` | `veri-agent.document-input-webhook-accepted` | Webhook 通过来源、签名、幂等、限流和大小校验并落库后 | 解析 webhook payload，驱动导入解析，并把 webhook 事件更新为 `PROCESSED/FAILED/DEAD_LETTER`。 |
+
 ### 3.2 任务状态机
 
 ```text
@@ -124,10 +132,22 @@ terminal -> no-op
 | AuthSessionStore 无缓存抽象 | 已处理：新增 `RedisAuthSessionStore`，`db,redis` profile 自动切换。 |
 | Provider 限流器本地内存 | 已处理：上一轮已新增 `ProviderConcurrencyLimiter` 和 `RedissonProviderConcurrencyLimiter`，限流窗口也在 Redisson。 |
 | PermissionResolver 无缓存 | 已处理：新增 `RedisPermissionResolver`，角色权限和资源 scope 决策使用短 TTL Redis 缓存。 |
-| WP4 -> WP2 模型解析同步阻塞 | 需单独版本：当前 `DocumentImportStatus` 只有 `SUCCEEDED/FAILED`，直接异步化会破坏导入接口语义；建议新增 `PROCESSING/MODEL_PARSE_QUEUED/MODEL_PARSE_FAILED` 状态和 `ModelParseRequested/Completed` 事件后切换。 |
-| WP4 -> WP3 资产创建同步调用 | 需单独版本：候选状态缺少 `PUBLISH_QUEUED/PUBLISHING`，应先扩展发布状态机和查询契约，再用事件逐条消费。 |
+| WP4 -> WP2 模型解析同步阻塞 | 已处理：导入接口先保存 raw payload 和 `MODEL_PARSE_QUEUED` 状态，提交 `document-input.import.requested` 事件，消费者幂等认领后执行二进制抽取、WP2 模型解析和规则 fallback。 |
+| WP4 -> WP3 资产创建同步调用 | 已处理：发布接口将导入和候选置为 `PUBLISH_QUEUED`，提交 `document-input.publish.requested` 事件，消费者进入 `PUBLISHING` 后调用 WP3 应用服务并写发布结果。 |
 | 审计写入同步 `REQUIRES_NEW` | 已处理：`db,kafka` profile 下发布 `audit.log-recorded` 事件异步落库；非 Kafka profile 仍保留同步写库便于本地和测试。 |
-| Webhook 事件处理同步编排 | 需单独版本：当前 webhook API 返回 `DocumentImportResponse`，改成异步需新增 `ACCEPTED` 响应或查询轮询契约，并复用 import/model/publish 状态机。 |
+| Webhook 事件处理同步编排 | 已处理：webhook 入口只做安全校验、幂等落库和导入排队，随后发布 `document-input.webhook.accepted` 事件；重放和自动重试同样只提交事件并保留可查询状态。 |
+
+### 3.5 WP4 三条同步链路改造
+
+本轮将 WP4 三条原同步链路切到事件驱动，API ingress 不再把长耗时解析、模型调用或 WP3 写入放在 HTTP 请求线程内完成。
+
+| 链路 | API 返回语义 | 后台状态机 | 幂等与重放 |
+|---|---|---|---|
+| 导入解析 | `POST /api/v1/document-input/imports` 和 multipart 返回 `MODEL_PARSE_QUEUED`，`totalParsed=0`。 | `MODEL_PARSE_QUEUED -> MODEL_PARSE_RUNNING -> SUCCEEDED/FAILED`。 | `DocumentImportPayload` 保存 raw payload；消费者通过条件更新认领，重复事件只返回当前记录。 |
+| 发布写入 | 非 dryRun `POST /imports/{id}/publish` 返回 `PUBLISH_QUEUED`。 | import/candidate `PUBLISH_QUEUED -> PUBLISHING -> PUBLISHED/PUBLISH_FAILED`，import 完成后汇总数量。 | WP3 upsert 仍使用 `externalRequirementId/sourceRef`，重复事件不会重复创建资产。 |
+| Webhook 接收 | `POST /webhooks/{sourceCode}` 在安全校验后返回排队导入记录；失败解析在事件状态中查询。 | webhook `ACCEPTED -> PROCESSING -> PROCESSED/FAILED/DEAD_LETTER/REPLAYED`。 | 保留 eventId + idempotencyKey 去重；人工 replay 和自动 retry 只重新发布 accepted 事件。 |
+
+Trace 串联方式保持统一：HTTP 入口的 `TraceContext` 写入 `PlatformEventEnvelope.traceId`、审计日志和 webhook 重放记录，Kafka header 同步写 `X-Trace-Id`，消费者由 `PlatformEventDispatcher` 恢复 MDC 后再进入业务 handler。日志中可通过同一 `trace_id` 串起 ingress、事件发布、Kafka/local dispatch、模型解析、WP3 写入和失败重放。
 
 ## 4. 测试策略与用例
 
@@ -142,6 +162,7 @@ terminal -> no-op
 | Redis 权限聚合和 scope 决策缓存 | `RedisPermissionResolverTest`。 |
 | Kafka 审计事件发布保持 traceId | `KafkaAuditLogWriterTest`。 |
 | DB 任务恢复只处理 stale running | `DbProfileRepositoryContractTest`。 |
+| WP4 导入、发布、webhook 事件驱动状态机 | `DocumentInputControllerTest`、`DocumentInputModelParseControllerTest`、`DocumentBinaryImportControllerTest`、`DocumentWebhookAutoRetryServiceTest`。 |
 
 ## 5. 五角色结论
 

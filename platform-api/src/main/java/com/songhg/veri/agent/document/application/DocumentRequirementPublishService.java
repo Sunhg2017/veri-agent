@@ -14,6 +14,7 @@ import com.songhg.veri.agent.document.application.view.DocumentInputMetrics;
 import com.songhg.veri.agent.document.application.view.DocumentPublishRecordResponse;
 import com.songhg.veri.agent.document.application.view.DocumentPublishResponse;
 import com.songhg.veri.agent.document.domain.DocumentCandidateStatus;
+import com.songhg.veri.agent.document.domain.DocumentImportStatus;
 import com.songhg.veri.agent.document.domain.DocumentImportRecord;
 import com.songhg.veri.agent.document.domain.DocumentRequirementCandidate;
 import java.time.Instant;
@@ -24,9 +25,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
-
-
 
 @Service
 public class DocumentRequirementPublishService {
@@ -36,21 +36,25 @@ public class DocumentRequirementPublishService {
     private final DocumentInputPlatformContextClient contextClient;
     private final ObjectMapper objectMapper;
     private final DocumentInputMetrics metrics;
+    private final DocumentInputEventPublisher eventPublisher;
 
     public DocumentRequirementPublishService(
             DocumentInputRepository repository,
             AssetService assetService,
             DocumentInputPlatformContextClient contextClient,
             ObjectMapper objectMapper,
-            DocumentInputMetrics metrics
+            DocumentInputMetrics metrics,
+            DocumentInputEventPublisher eventPublisher
     ) {
         this.repository = repository;
         this.assetService = assetService;
         this.contextClient = contextClient;
         this.objectMapper = objectMapper;
         this.metrics = metrics;
+        this.eventPublisher = eventPublisher;
     }
 
+    @Transactional
     public DocumentPublishResponse publishImport(UUID importId, DocumentPublishRequest request) {
         DocumentImportRecord record = repository.importRecord(importId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "导入记录不存在: " + importId));
@@ -68,16 +72,92 @@ public class DocumentRequirementPublishService {
             writeAudit("PUBLISH_DRY_RUN", "DOCUMENT_IMPORT", record.id().toString(), record.projectId(), response);
             return response;
         }
+        List<UUID> queuedCandidateIds = new ArrayList<>();
         for (DocumentRequirementCandidate candidate : selected) {
             if (candidate.status() == DocumentCandidateStatus.PUBLISHED && candidate.assetRequirementId() != null) {
                 continue;
             }
             if (candidate.status() != DocumentCandidateStatus.CONFIRMED
-                    && candidate.status() != DocumentCandidateStatus.PUBLISHED) {
+                    && candidate.status() != DocumentCandidateStatus.PUBLISH_FAILED) {
                 continue;
             }
+            DocumentRequirementCandidate queued = withCandidatePublishResult(
+                    candidate,
+                    DocumentCandidateStatus.PUBLISH_QUEUED,
+                    candidate.assetRequirementId(),
+                    null
+            );
+            repository.saveCandidate(queued);
+            queuedCandidateIds.add(candidate.id());
+        }
+        DocumentImportRecord queuedRecord = new DocumentImportRecord(
+                record.id(),
+                record.projectId(),
+                record.sourceId(),
+                record.sourceCode(),
+                record.sourceType(),
+                record.sourceRef(),
+                record.sourceUrl(),
+                record.title(),
+                queuedCandidateIds.isEmpty() ? record.status() : DocumentImportStatus.PUBLISH_QUEUED,
+                record.totalParsed(),
+                record.totalCreated(),
+                record.createdRequirementIds(),
+                record.errorMessage(),
+                record.rawDigest(),
+                record.createdAt(),
+                Instant.now()
+        );
+        repository.saveImport(queuedRecord);
+        if (!queuedCandidateIds.isEmpty()) {
+            eventPublisher.publishDocumentPublishRequested(queuedRecord.id(), queuedCandidateIds);
+        }
+        List<DocumentPublishRecordResponse> records = selectPublishCandidates(queuedRecord, request == null ? null : request.candidateIds()).stream()
+                .map(candidate -> toPublishRecord(candidate, false))
+                .toList();
+        DocumentPublishResponse response = toPublishResponse(queuedRecord, false, records);
+        writeAudit("PUBLISH_QUEUED", "DOCUMENT_IMPORT", queuedRecord.id().toString(), queuedRecord.projectId(), response);
+        metrics.recordPublish(false, queuedCandidateIds.isEmpty() ? publishResult(response) : "QUEUED", records.size());
+        return response;
+    }
+
+    /**
+     * Handles the publish event after the API has returned. Import status is claimed first so
+     * repeated Kafka delivery cannot create duplicate WP3 assets.
+     */
+    @Transactional
+    public DocumentPublishResponse processQueuedPublish(UUID importId, List<UUID> candidateIds) {
+        Instant startedAt = Instant.now();
+        if (!repository.markImportStatus(
+                importId,
+                DocumentImportStatus.PUBLISH_QUEUED,
+                DocumentImportStatus.PUBLISHING,
+                startedAt
+        )) {
+            DocumentImportRecord current = repository.importRecord(importId)
+                    .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "导入记录不存在: " + importId));
+            List<DocumentPublishRecordResponse> currentRecords = selectPublishCandidates(current, candidateIds).stream()
+                    .map(candidate -> toPublishRecord(candidate, false))
+                    .toList();
+            return toPublishResponse(current, false, currentRecords);
+        }
+        DocumentImportRecord running = repository.importRecord(importId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "导入记录不存在: " + importId));
+        List<DocumentRequirementCandidate> selected = selectPublishCandidates(running, candidateIds);
+        for (DocumentRequirementCandidate candidate : selected) {
+            if (candidate.status() != DocumentCandidateStatus.PUBLISH_QUEUED
+                    && candidate.status() != DocumentCandidateStatus.PUBLISHING) {
+                continue;
+            }
+            DocumentRequirementCandidate publishing = withCandidatePublishResult(
+                    candidate,
+                    DocumentCandidateStatus.PUBLISHING,
+                    candidate.assetRequirementId(),
+                    null
+            );
+            repository.saveCandidate(publishing);
             try {
-                publishCandidate(candidate);
+                publishCandidate(publishing);
             } catch (BusinessException ignored) {
                 // Per-item failure is persisted on the candidate and returned in publish records.
             }
@@ -88,26 +168,29 @@ public class DocumentRequirementPublishService {
                 .map(DocumentRequirementCandidate::assetRequirementId)
                 .filter(Objects::nonNull)
                 .toList();
+        long failedCount = refreshed.stream()
+                .filter(candidate -> candidate.status() == DocumentCandidateStatus.PUBLISH_FAILED)
+                .count();
         DocumentImportRecord updated = new DocumentImportRecord(
-                record.id(),
-                record.projectId(),
-                record.sourceId(),
-                record.sourceCode(),
-                record.sourceType(),
-                record.sourceRef(),
-                record.sourceUrl(),
-                record.title(),
-                record.status(),
-                record.totalParsed(),
+                running.id(),
+                running.projectId(),
+                running.sourceId(),
+                running.sourceCode(),
+                running.sourceType(),
+                running.sourceRef(),
+                running.sourceUrl(),
+                running.title(),
+                DocumentImportStatus.SUCCEEDED,
+                running.totalParsed(),
                 requirementIds.size(),
                 requirementIdsJson(requirementIds),
-                record.errorMessage(),
-                record.rawDigest(),
-                record.createdAt(),
+                failedCount > 0 ? "部分候选项发布失败，请查看发布记录" : null,
+                running.rawDigest(),
+                running.createdAt(),
                 Instant.now()
         );
         repository.saveImport(updated);
-        List<DocumentPublishRecordResponse> records = selectPublishCandidates(updated, request == null ? null : request.candidateIds()).stream()
+        List<DocumentPublishRecordResponse> records = selectPublishCandidates(updated, candidateIds).stream()
                 .map(candidate -> toPublishRecord(candidate, false))
                 .toList();
         DocumentPublishResponse response = toPublishResponse(updated, false, records);
@@ -164,7 +247,9 @@ public class DocumentRequirementPublishService {
             return all.stream()
                     .filter(candidate -> candidate.status() == DocumentCandidateStatus.CONFIRMED
                             || candidate.status() == DocumentCandidateStatus.PUBLISHED
-                            || candidate.status() == DocumentCandidateStatus.PUBLISH_FAILED)
+                            || candidate.status() == DocumentCandidateStatus.PUBLISH_FAILED
+                            || candidate.status() == DocumentCandidateStatus.PUBLISH_QUEUED
+                            || candidate.status() == DocumentCandidateStatus.PUBLISHING)
                     .toList();
         }
         return candidateIds.stream()
@@ -185,6 +270,10 @@ public class DocumentRequirementPublishService {
         String errorMessage = candidate.errorMessage();
         if (candidate.status() == DocumentCandidateStatus.PUBLISH_FAILED) {
             result = "FAILED";
+        } else if (candidate.status() == DocumentCandidateStatus.PUBLISH_QUEUED) {
+            result = "QUEUED";
+        } else if (candidate.status() == DocumentCandidateStatus.PUBLISHING) {
+            result = "RUNNING";
         } else if ("CONFLICT_REVIEW_REQUIRED".equals(action)) {
             result = "CONFLICT";
             errorMessage = reviewConflictMessage(existingRequirement);
@@ -225,7 +314,10 @@ public class DocumentRequirementPublishService {
         if (candidate.status() == DocumentCandidateStatus.PUBLISHED && candidate.assetRequirementId() != null) {
             return "SKIP_PUBLISHED";
         }
-        if (candidate.status() != DocumentCandidateStatus.CONFIRMED && candidate.status() != DocumentCandidateStatus.PUBLISHED) {
+        if (candidate.status() != DocumentCandidateStatus.CONFIRMED
+                && candidate.status() != DocumentCandidateStatus.PUBLISHED
+                && candidate.status() != DocumentCandidateStatus.PUBLISH_QUEUED
+                && candidate.status() != DocumentCandidateStatus.PUBLISHING) {
             return "SKIP_UNCONFIRMED";
         }
         if (existingRequirement == null) {

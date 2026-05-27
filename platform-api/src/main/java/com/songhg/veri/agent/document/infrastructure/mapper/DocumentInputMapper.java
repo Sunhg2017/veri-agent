@@ -6,11 +6,15 @@ import com.songhg.veri.agent.document.application.query.DocumentParseFeedbackQue
 import com.songhg.veri.agent.document.application.query.DocumentSourceQuery;
 import com.songhg.veri.agent.document.application.query.DocumentWebhookEventQuery;
 import com.songhg.veri.agent.document.domain.DocumentFieldMapping;
+import com.songhg.veri.agent.document.domain.DocumentCandidateStatus;
 import com.songhg.veri.agent.document.domain.DocumentImportRecord;
+import com.songhg.veri.agent.document.domain.DocumentImportPayload;
+import com.songhg.veri.agent.document.domain.DocumentImportStatus;
 import com.songhg.veri.agent.document.domain.DocumentParseFeedbackSample;
 import com.songhg.veri.agent.document.domain.DocumentRequirementCandidate;
 import com.songhg.veri.agent.document.domain.DocumentSourceConfig;
 import com.songhg.veri.agent.document.domain.DocumentWebhookEvent;
+import com.songhg.veri.agent.document.domain.WebhookEventStatus;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -44,6 +48,17 @@ public interface DocumentInputMapper {
 
     void upsertImport(DocumentImportRecord record);
 
+    int markImportStatus(
+            @Param("id") UUID id,
+            @Param("expectedStatus") DocumentImportStatus expectedStatus,
+            @Param("nextStatus") DocumentImportStatus nextStatus,
+            @Param("updatedAt") Instant updatedAt
+    );
+
+    void upsertImportPayload(DocumentImportPayload payload);
+
+    DocumentImportPayload importPayload(@Param("importId") UUID importId);
+
     List<DocumentRequirementCandidate> candidates(
             @Param("importId") UUID importId,
             @Param("offset") int offset,
@@ -64,6 +79,13 @@ public interface DocumentInputMapper {
     );
 
     void upsertCandidate(DocumentRequirementCandidate candidate);
+
+    int markCandidateStatus(
+            @Param("id") UUID id,
+            @Param("expectedStatus") DocumentCandidateStatus expectedStatus,
+            @Param("nextStatus") DocumentCandidateStatus nextStatus,
+            @Param("updatedAt") Instant updatedAt
+    );
 
     List<DocumentParseFeedbackSample> parseFeedbackSamples(@Param("query") DocumentParseFeedbackQuery query);
 
@@ -89,6 +111,13 @@ public interface DocumentInputMapper {
     );
 
     void upsertWebhookEvent(DocumentWebhookEvent event);
+
+    int markWebhookEventStatus(
+            @Param("id") UUID id,
+            @Param("expectedStatus") WebhookEventStatus expectedStatus,
+            @Param("nextStatus") WebhookEventStatus nextStatus,
+            @Param("updatedAt") Instant updatedAt
+    );
 
     int archiveImportsBefore(@Param("before") Instant before);
 

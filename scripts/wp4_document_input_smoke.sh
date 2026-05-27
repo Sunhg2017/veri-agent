@@ -87,6 +87,110 @@ get_asset_json() {
   curl -fsS "$ASSET_API_BASE$path" "${asset_headers[@]}"
 }
 
+wait_for_import() {
+  local import_id="$1"
+  local expected_status="$2"
+  local expected_total_parsed="$3"
+  local expected_pending_count="$4"
+  local payload=""
+  for _ in $(seq 1 60); do
+    payload="$(get_document_json "/imports/$import_id")"
+    if printf '%s' "$payload" | jq -e \
+      --arg status "$expected_status" \
+      --argjson totalParsed "$expected_total_parsed" \
+      --argjson pendingCount "$expected_pending_count" \
+      '.data.status == $status and .data.totalParsed >= $totalParsed and .data.pendingCount >= $pendingCount' >/dev/null; then
+      printf '%s' "$payload"
+      return 0
+    fi
+    sleep 0.25
+  done
+  echo "Timed out waiting for import $import_id to reach $expected_status" >&2
+  printf '%s\n' "$payload" >&2
+  return 1
+}
+
+wait_for_publish_summary() {
+  local import_id="$1"
+  local expected_total_created="$2"
+  local expected_published_count="$3"
+  local payload=""
+  for _ in $(seq 1 60); do
+    payload="$(get_document_json "/imports/$import_id")"
+    if printf '%s' "$payload" | jq -e \
+      --argjson totalCreated "$expected_total_created" \
+      --argjson publishedCount "$expected_published_count" \
+      '.data.totalCreated >= $totalCreated and .data.publishedCount >= $publishedCount' >/dev/null; then
+      printf '%s' "$payload"
+      return 0
+    fi
+    sleep 0.25
+  done
+  echo "Timed out waiting for publish summary of import $import_id" >&2
+  printf '%s\n' "$payload" >&2
+  return 1
+}
+
+wait_for_candidates() {
+  local import_id="$1"
+  local expected_total="$2"
+  local query="${3:-}"
+  local payload=""
+  for _ in $(seq 1 60); do
+    payload="$(get_document_json "/imports/$import_id/candidates$query")"
+    if printf '%s' "$payload" | jq -e --argjson total "$expected_total" '.data.total >= $total' >/dev/null; then
+      printf '%s' "$payload"
+      return 0
+    fi
+    sleep 0.25
+  done
+  echo "Timed out waiting for candidates of import $import_id" >&2
+  printf '%s\n' "$payload" >&2
+  return 1
+}
+
+wait_for_publish_records() {
+  local import_id="$1"
+  local expected_total="$2"
+  local expected_status="$3"
+  local payload=""
+  for _ in $(seq 1 60); do
+    payload="$(get_document_json "/imports/$import_id/publish-records")"
+    if printf '%s' "$payload" | jq -e \
+      --argjson total "$expected_total" \
+      --arg status "$expected_status" \
+      '.data.total >= $total and (.data.items | all(.candidateStatus == $status))' >/dev/null; then
+      printf '%s' "$payload"
+      return 0
+    fi
+    sleep 0.25
+  done
+  echo "Timed out waiting for publish records of import $import_id" >&2
+  printf '%s\n' "$payload" >&2
+  return 1
+}
+
+wait_for_webhook_event() {
+  local source_code="$1"
+  local event_id="$2"
+  local expected_status="$3"
+  local payload=""
+  for _ in $(seq 1 60); do
+    payload="$(get_document_json "/webhook-events?sourceCode=$(urlencode "$source_code")")"
+    if printf '%s' "$payload" | jq -e \
+      --arg eventId "$event_id" \
+      --arg status "$expected_status" \
+      '.data.total >= 1 and (.data.items | any(.eventId == $eventId and .status == $status))' >/dev/null; then
+      printf '%s' "$payload"
+      return 0
+    fi
+    sleep 0.25
+  done
+  echo "Timed out waiting for webhook event $event_id to reach $expected_status" >&2
+  printf '%s\n' "$payload" >&2
+  return 1
+}
+
 webhook_signature() {
   local timestamp="$1"
   local event_id="$2"
@@ -153,18 +257,20 @@ main() {
   markdown_import="$(post_document_json /imports "$(jq -nc \
     --arg projectId "$PROJECT_ID" \
     '{projectId:$projectId,sourceType:"MARKDOWN",sourceRef:"wp4-smoke-md",title:"WP4 smoke Markdown import",content:"## 登录需求\nPriority: HIGH\nTags: auth, smoke\nAcceptance Criteria:\n- 登录成功\n\n## 退出需求\nPriority: LOW\nTags: auth, smoke"}')")"
+  check "Markdown import accepted" '.data.status == "MODEL_PARSE_QUEUED" and .data.totalParsed == 0 and .data.pendingCount == 0' "$markdown_import"
+  import_id="$(printf '%s' "$markdown_import" | jq -r '.data.id')"
+  markdown_import="$(wait_for_import "$import_id" "SUCCEEDED" 2 2)"
   check "Markdown import creates candidates" '.data.status == "SUCCEEDED" and .data.totalParsed == 2 and .data.pendingCount == 2' "$markdown_import"
   if [[ "$model_parse_enabled" == "true" ]]; then
     check "AI model parse requirements" '.data.requirements | all(.parseSource == "MODEL" and (.modelInvocationId | type == "string") and .modelProviderName == "local-echo-primary")' "$markdown_import"
   fi
-  import_id="$(printf '%s' "$markdown_import" | jq -r '.data.id')"
 
-  candidates="$(get_document_json "/imports/$import_id/candidates")"
+  candidates="$(wait_for_candidates "$import_id" 2)"
   check "Candidate page" '.data.total == 2 and (.data.items | all(.status == "PENDING"))' "$candidates"
   if [[ "$model_parse_enabled" == "true" ]]; then
     check "AI model parse candidates" '.data.items | all(.parseSource == "MODEL" and (.modelInvocationId | type == "string") and .modelProviderName == "local-echo-primary")' "$candidates"
   fi
-  filtered_candidates="$(get_document_json "/imports/$import_id/candidates?status=PENDING&sourceRef=wp4-smoke-md&keyword=$(urlencode "登录")")"
+  filtered_candidates="$(wait_for_candidates "$import_id" 1 "?status=PENDING&sourceRef=wp4-smoke-md&keyword=$(urlencode "登录")")"
   check "Candidate filters" '.data.total == 1 and .data.items[0].title == "登录需求"' "$filtered_candidates"
   candidate_ids="$(printf '%s' "$candidates" | jq -c '[.data.items[].id]')"
   candidate_targets="$(printf '%s' "$candidates" | jq -c '[.data.items[] | {id, version}]')"
@@ -176,11 +282,13 @@ main() {
   check "Publish dryRun has no WP3 write" '.data.dryRun == true and .data.totalCreated == 0 and .data.plannedCreateCount == 2 and (.data.records | length) == 2 and (.data.records | all(.result == "PLANNED"))' "$dry_run"
 
   publish="$(post_document_json "/imports/$import_id/publish" '{}')"
-  check "Publish confirmed candidates" '.data.dryRun == false and .data.totalCreated == 2 and .data.publishedCount == 2 and (.data.createdRequirementIds | length) == 2 and (.data.records | all(.candidateStatus == "PUBLISHED"))' "$publish"
-  requirement_id="$(printf '%s' "$publish" | jq -r '.data.records[] | select(.externalRequirementId == "wp4-smoke-md#1") | .assetRequirementId' | head -n 1)"
+  check "Publish accepted" '.data.dryRun == false and .data.status == "PUBLISH_QUEUED"' "$publish"
+  publish="$(wait_for_publish_summary "$import_id" 2 2)"
+  check "Publish confirmed candidates" '.data.totalCreated == 2 and .data.publishedCount == 2 and (.data.createdRequirementIds | length) == 2' "$publish"
 
-  records="$(get_document_json "/imports/$import_id/publish-records")"
+  records="$(wait_for_publish_records "$import_id" 2 "PUBLISHED")"
   check "Publish records" '.data.total == 2 and (.data.items | all(.candidateStatus == "PUBLISHED"))' "$records"
+  requirement_id="$(printf '%s' "$records" | jq -r '.data.items[] | select(.externalRequirementId == "wp4-smoke-md#1") | .assetRequirementId' | head -n 1)"
 
   asset="$(get_asset_json "/requirements/$requirement_id")"
   check_arg "WP3 requirement created from WP4" id "$requirement_id" '.data.id == $id and .data.status == "DRAFT" and .data.source == "IMPORT" and .data.sourceRef == "wp4-smoke-md#1" and (.data.acceptanceCriteria | contains("登录成功")) and (.data.tags | contains("document-input"))' "$asset"
@@ -189,16 +297,20 @@ main() {
   update_import="$(post_document_json /imports "$(jq -nc \
     --arg projectId "$PROJECT_ID" \
     '{projectId:$projectId,sourceType:"MARKDOWN",sourceRef:"wp4-smoke-md",sourceUrl:"https://example.test/wp4-smoke-md-v2",title:"WP4 smoke Markdown update",content:"## 登录需求\n登录流程增加二次确认\nPriority: CRITICAL\nTags: auth, smoke, update\nAcceptance Criteria:\n- 登录成功\n- 二次确认成功"}')")"
-  check "Repeated import creates update candidate" '.data.status == "SUCCEEDED" and .data.totalParsed >= 1 and .data.pendingCount >= 1' "$update_import"
+  check "Repeated import accepted" '.data.status == "MODEL_PARSE_QUEUED"' "$update_import"
   update_import_id="$(printf '%s' "$update_import" | jq -r '.data.id')"
-  update_candidates="$(get_document_json "/imports/$update_import_id/candidates?keyword=$(urlencode "登录")")"
+  update_import="$(wait_for_import "$update_import_id" "SUCCEEDED" 1 1)"
+  check "Repeated import creates update candidate" '.data.status == "SUCCEEDED" and .data.totalParsed >= 1 and .data.pendingCount >= 1' "$update_import"
+  update_candidates="$(wait_for_candidates "$update_import_id" 1 "?keyword=$(urlencode "登录")")"
   update_candidate_id="$(printf '%s' "$update_candidates" | jq -r '.data.items[0].id')"
   update_candidate_version="$(printf '%s' "$update_candidates" | jq -r '.data.items[0].version')"
   post_document_json "/candidates/$update_candidate_id/confirm" "$(jq -nc --argjson version "$update_candidate_version" '{version:$version}')" >/dev/null
   update_dry_run="$(post_document_json "/imports/$update_import_id/publish" "$(jq -nc --arg id "$update_candidate_id" '{dryRun:true,candidateIds:[$id]}')")"
   check_arg "Publish dryRun detects WP3 update" id "$requirement_id" '.data.dryRun == true and .data.plannedCreateCount == 0 and .data.plannedUpdateCount == 1 and .data.records[0].action == "UPDATE" and .data.records[0].assetRequirementId == $id and (.data.records[0].diffSummary | contains("acceptanceCriteria"))' "$update_dry_run"
   update_publish="$(post_document_json "/imports/$update_import_id/publish" '{}')"
-  check_arg "Publish updates existing WP3 requirement" id "$requirement_id" '.data.dryRun == false and .data.totalCreated == 1 and .data.createdRequirementIds[0] == $id and .data.publishedCount == 1' "$update_publish"
+  check "Update publish accepted" '.data.dryRun == false and .data.status == "PUBLISH_QUEUED"' "$update_publish"
+  update_publish="$(wait_for_publish_summary "$update_import_id" 1 1)"
+  check_arg "Publish updates existing WP3 requirement" id "$requirement_id" '.data.totalCreated == 1 and .data.createdRequirementIds[0] == $id and .data.publishedCount == 1' "$update_publish"
   updated_asset="$(get_asset_json "/requirements/$requirement_id")"
   check "WP3 requirement keeps sourceRef and receives update" '.data.sourceRef == "wp4-smoke-md#1" and .data.priority == "CRITICAL" and (.data.acceptanceCriteria | contains("二次确认成功")) and (.data.tags | contains("update"))' "$updated_asset"
 
@@ -220,11 +332,11 @@ main() {
     --arg projectId "$PROJECT_ID" \
     '{projectId:$projectId,eventType:"requirement.created",eventVersion:"1.0",id:"REQ-WP4-SMOKE",title:"WP4 smoke webhook import",requirements:[{title:"Webhook 需求",description:"来自自研需求平台",priority:"LOW",tags:["webhook","smoke"]}]}')"
   webhook="$(post_signed_webhook "$SOURCE_CODE" "$webhook_payload" "$event_id" "$idem")"
-  check_arg "Signed webhook creates import" sourceCode "$SOURCE_CODE" '.data.sourceCode == $sourceCode and .data.totalParsed == 1 and .data.pendingCount == 1' "$webhook"
+  check_arg "Signed webhook accepted" sourceCode "$SOURCE_CODE" '.data.sourceCode == $sourceCode and .data.status == "MODEL_PARSE_QUEUED"' "$webhook"
   duplicate="$(post_signed_webhook "$SOURCE_CODE" "$webhook_payload" "$event_id" "$idem")"
   check_arg "Webhook idempotent replay" importId "$(printf '%s' "$webhook" | jq -r '.data.id')" '.data.id == $importId' "$duplicate"
 
-  events="$(get_document_json "/webhook-events?sourceCode=$(urlencode "$SOURCE_CODE")&status=PROCESSED")"
+  events="$(wait_for_webhook_event "$SOURCE_CODE" "$event_id" "PROCESSED")"
   check_arg "Webhook event log" eventId "$event_id" '.data.total >= 1 and (.data.items | any(.eventId == $eventId and .signatureStatus == "VALID"))' "$events"
 
   invalid_payload="$(jq -nc --arg projectId "$PROJECT_ID" '{projectId:$projectId,eventType:"requirement.created",id:"REQ-WP4-BAD",requirements:[{title:"Bad signature"}]}')"

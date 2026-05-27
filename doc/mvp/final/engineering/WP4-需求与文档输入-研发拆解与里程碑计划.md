@@ -21,6 +21,7 @@
 | D 线：真实 Word/PDF/OCR 解析 | `WORD` 支持 doc/docx 文本抽取；`PDF` 支持文本 PDF 抽取；`OCR` 支持配置命令式 OCR provider；三者均进入现有规则解析、WP2 AI 解析、候选确认和 WP3 发布链路 | 后端、前端、测试、运维 | 真实 docx、真实 PDF、OCR 命令适配均有自动测试；`WORD/PDF/OCR` 不再作为预留类型；扫描 PDF 无 OCR provider 时明确失败 |
 | E 线：生产级 SecretProvider | WP4 webhook secret resolver 优先调用 WP1 `SecretProvider` 抽象，支持 `LOCAL_ENCRYPTED` 密文解密；本地配置 fallback 仅用于 dev/test 并可关闭 | 架构、WP1、安全、后端 | 解析 ACTIVE、未过期、用途匹配的密钥；密钥 provider 优先于配置；生产可禁用本地 fallback；响应和审计不泄露明文 |
 | F 线：AI 解析质量评测集 | 建立最小 golden corpus 和质量门禁脚本，度量标题召回、优先级准确率、验收标准覆盖率 | PM、WP2、测试、后端 | `scripts/wp4_ai_parse_quality_eval.sh` 可一键运行；低于阈值失败；评测集随 Prompt 和解析器迭代扩展 |
+| G 线：三条同步链路事件驱动 | 导入解析、发布写入、webhook accepted 从 HTTP 同步执行改为事件提交与后台消费 | PM、产品、架构、前端、测试 | 导入返回 `MODEL_PARSE_QUEUED`，发布返回 `PUBLISH_QUEUED`，webhook 通过 `ACCEPTED/PROCESSING/PROCESSED/FAILED/DEAD_LETTER` 查询；事件 envelope 和日志保留同一 traceId |
 
 ## 1. MVP 范围
 
@@ -64,6 +65,7 @@ MVP 范围如下：
 4. WP4 依赖 WP3 写入需求资产、来源追踪和后续资产关系，不直接读写 WP3 表。
 5. Webhook 属于外部系统进入平台的边界接口，必须支持签名校验、幂等、限流、事件版本兼容、失败可观测和审计；生产密钥解析优先走 WP1 SecretProvider。签名样例和外部联调排错以 `doc/mvp/final/engineering/WP4-Webhook签名样例与联调说明.md` 为准。
 6. Word/PDF/OCR 解析只负责文本抽取和 OCR 文本回传，不绕过候选确认；高保真解析的表格、图片、页眉页脚、批注/修订和附件路线以 `WP4-高保真解析专项评估.md` 为准；Confluence/飞书/钉钉/语雀连接器类型、配置 schema、mock 契约和准出口径以 `WP4-外部连接器接入Runbook与Mock契约.md` 为准，避免后续接入破坏数据模型和 UI 路由。
+7. 导入解析、发布写入和 webhook accepted 均以 `PlatformEventEnvelope` 为异步边界；本地 profile 走进程内事件总线，`db,kafka` profile 走 Kafka topic。HTTP 入口只完成鉴权、安全校验、事务内落库和事件提交，消费者通过条件更新认领任务并恢复同一 `traceId` 后执行业务。
 
 ## 4. Epic/Story 拆解
 
@@ -81,7 +83,7 @@ MVP 范围如下：
 
 | Story | 优先级 | 服务端任务 | 前端任务 | 测试任务 | 运维配置 |
 |---|---|---|---|---|---|
-| 2.1 文本粘贴导入 | P0 | 提供创建导入批次 API，接收标题、正文、来源备注、项目/应用上下文；生成原文快照和批次号 | 导入抽屉或页面，支持粘贴文本、选择项目/应用、提交后进入批次详情 | 空内容、超长内容、非法项目、重复提交测试 | 单次文本大小上限、批次保留天数、请求限流 |
+| 2.1 文本粘贴导入 | P0 | 提供创建导入批次 API，接收标题、正文、来源备注、项目/应用上下文；保存原文快照并发布 `document-input.import.requested` 事件 | 导入抽屉或页面，支持粘贴文本、选择项目/应用、提交后进入批次详情并展示排队/处理中状态 | 空内容、超长内容、非法项目、重复提交、事件消费幂等测试 | 单次文本大小上限、批次保留天数、请求限流 |
 | 2.2 Markdown 导入 | P0 | 解析 Markdown 标题层级、列表、表格、代码块和段落，保存结构化片段和原文引用 | 支持上传或粘贴 Markdown；预览章节树和片段列表 | Markdown 边界格式、表格、代码块、中文标题、异常格式测试 | Markdown 文件大小上限、允许扩展名和 MIME 校验 |
 | 2.3 导入批次管理 | P0 | 提供批次列表、详情、状态流、取消、重试、错误摘要 API | 批次列表、状态筛选、详情页、重试按钮、错误展示 | 状态流、重试幂等、分页、错误脱敏测试 | 批次清理任务、失败重试次数、异步队列开关 |
 
@@ -99,8 +101,8 @@ MVP 范围如下：
 | Story | 优先级 | 服务端任务 | 前端任务 | 测试任务 | 运维配置 |
 |---|---|---|---|---|---|
 | 3.1 Webhook 接入配置 | P0 | 为 `CUSTOM_API` 输入源生成 endpoint、secretRef、eventVersion、mappingVersion、字段映射配置 | 展示 webhook URL、签名算法说明、字段映射编辑、复制入口 | 配置保存、密钥脱敏、字段映射校验测试 | webhook baseUrl、签名算法、时钟偏移容忍、密钥轮换策略 |
-| 3.2 Webhook 事件接收 | P0 | 接收 `requirement.created`、`requirement.updated`、`requirement.statusChanged`、`requirement.archived`；校验签名、时间戳、事件版本和幂等键；签名失败按 `INVALID/EXPIRED/MISSING` 给出排错建议 | 事件列表、事件详情、原始 payload 脱敏查看；失败事件展示错误码、Trace ID 和下一步建议 | 签名失败、重放攻击、重复事件、未知版本、未知字段测试 | webhook 限流、payload 大小上限、允许 IP/CIDR 白名单 |
-| 3.3 Webhook 失败重放 | P0 | 保存失败事件、错误码、重试次数；支持人工重放和自动有限重试 | 失败事件筛选、重放按钮、重放结果反馈 | 重放幂等、重试上限、死信状态测试 | 重试间隔、最大重试次数、死信保留时间 |
+| 3.2 Webhook 事件接收 | P0 | 接收 `requirement.created`、`requirement.updated`、`requirement.statusChanged`、`requirement.archived`；校验签名、时间戳、事件版本和幂等键；通过后保存 webhook 事件并发布 `document-input.webhook.accepted` | 事件列表、事件详情、原始 payload 脱敏查看；失败事件展示错误码、Trace ID 和下一步建议 | 签名失败、重放攻击、重复事件、未知版本、未知字段、异步失败落库测试 | webhook 限流、payload 大小上限、允许 IP/CIDR 白名单 |
+| 3.3 Webhook 失败重放 | P0 | 保存失败事件、错误码、重试次数；人工重放和自动有限重试只重新提交 accepted 事件 | 失败事件筛选、重放按钮、重放结果反馈 | 重放幂等、重试上限、死信状态测试 | 重试间隔、最大重试次数、死信保留时间 |
 
 ### Epic 4：解析归一与模型辅助
 
@@ -116,7 +118,7 @@ MVP 范围如下：
 | Story | 优先级 | 服务端任务 | 前端任务 | 测试任务 | 运维配置 |
 |---|---|---|---|---|---|
 | 5.1 候选项编辑确认 | P0 | 提供候选项查询、编辑、忽略、确认 API；查询支持 status/sourceRef/keyword；维护确认人、确认时间和版本 | 候选项表格、详情编辑、批量确认、忽略原因 | 字段校验、批量操作、versioned candidates、权限、并发编辑测试 | 乐观锁、批量操作上限 |
-| 5.2 写入 WP3 需求资产 | P0 | 调用 WP3 应用服务创建/更新需求资产；建立 source/sourceRef/sourceUrl/acceptanceCriteria、sourceFragment、externalRequirementId 追踪关系 | 写入预览、写入结果、跳转 WP3 需求详情 | 幂等 upsert、重复导入、归档同步、失败回滚测试 | 写入批大小、失败补偿、WP3 调用超时 |
+| 5.2 写入 WP3 需求资产 | P0 | dryRun 同步返回差异；正式发布先标记 `PUBLISH_QUEUED` 并发布 `document-input.publish.requested`，消费者调用 WP3 应用服务创建/更新需求资产 | 写入预览、写入结果、跳转 WP3 需求详情，排队和发布中状态可见 | 幂等 upsert、重复导入、归档同步、失败回滚、重复发布事件测试 | 写入批大小、失败补偿、WP3 调用超时 |
 | 5.3 来源追踪与影响分析预留 | P1 | 保存来源版本、原文片段、外部 ID、字段映射版本，为后续变更影响分析预留 | 在资产详情显示来源链接和批次入口 | 来源链路完整性、版本查询测试 | 来源快照保留策略、归档策略 |
 
 ### Epic 6：前端工作台
@@ -141,7 +143,7 @@ MVP 范围如下：
 | Story | 优先级 | 服务端任务 | 前端任务 | 测试任务 | 运维配置 |
 |---|---|---|---|---|---|
 | 8.1 配置项与 feature flag | P0 | 支持按环境开启文本、Markdown、webhook、模型辅助、预留连接器展示 | 根据 feature flag 控制入口可见性 | 默认配置、关闭开关、灰度开关测试 | `WP4_INPUT_ENABLED`、`WP4_MODEL_PARSE_ENABLED`、`WP4_WEBHOOK_ENABLED` |
-| 8.2 指标与告警 | P0 | 当前输出导入、候选操作、发布、webhook、模型解析和外部 SecretProvider 健康 metrics；解析耗时、模型调用失败率在模型辅助解析启用后补齐 | 工作台展示最近失败和处理队列状态 | 指标存在性、标签维度、错误脱敏测试 | 告警阈值、仪表盘、日志采样 |
+| 8.2 指标与告警 | P0 | 当前输出导入、候选操作、发布、webhook、模型解析和外部 SecretProvider 健康 metrics；事件消费者日志恢复 traceId，解析耗时、模型调用失败率在模型辅助解析启用后补齐 | 工作台展示最近失败和处理队列状态 | 指标存在性、标签维度、错误脱敏、异步 traceId 串联测试 | 告警阈值、仪表盘、日志采样 |
 | 8.3 数据保留与清理 | P1 | 已提供导入记录/候选和 webhook 事件保留天数配置、定时清理入口、清理前归档表 `document_input_retention_archive`、清理指标和 `RETENTION_CLEANUP` 审计 | 当前仅在接口状态和运维材料展示保留配置；归档明细恢复由 DBA/运维受控处理，不开放前端明文查看入口 | 清理任务覆盖不会删除保留窗口内记录，过期 import/candidate/webhook event 先归档再移出在线查询；后续补资产来源链专项回归 | `WP4_RETENTION_CLEANUP_ENABLED`、`WP4_IMPORT_RETENTION_DAYS`、`WP4_WEBHOOK_EVENT_RETENTION_DAYS`、`veri-agent.document-input.retention-cleanup-cron` |
 | 8.4 SecretProvider | P0 | WP4 webhook resolver 优先走 WP1 `SecretProvider`，支持 `LOCAL_ENCRYPTED`；外部 Vault/KMS resolve 支持 timeout、短暂失败 retry、独立 health endpoint 和可选 HMAC-SHA256 请求签名；resolve 成功/失败写入 WP1 审计并记录 provider、用途、调用方、作用域、版本和 `secretRefDigest`；校验用途、状态、过期时间和 `CONFIG + document_input_source.id` 作用域；本地 fallback 仅用于 dev/test 且可关闭；SecretProvider 成功结果按短 TTL 缓存，source 创建/更新主动失效，轮换重叠窗口可配置 | 仅展示 secretRef 引用状态、脱敏 provider 健康摘要、缓存状态和审计 digest，不展示 endpoint、token、签名密钥、完整 secretRef 或明文 | provider 优先级、fallback 关闭、用途不匹配、作用域不匹配、过期/撤销密钥、外部 provider UP/DOWN/UNKNOWN、签名头、认证失败脱敏、缓存 TTL/失效和 resolve 审计脱敏测试 | `WP1_LOCAL_SECRET_MASTER_KEY`、`WP1_LOCAL_SECRET_MASTER_KEY_VERSION`、`WP1_EXTERNAL_SECRET_RESOLVE_URL`、`WP1_EXTERNAL_SECRET_HEALTH_URL`、`WP1_EXTERNAL_SECRET_TIMEOUT_SECONDS`、`WP1_EXTERNAL_SECRET_MAX_RETRIES`、`WP1_EXTERNAL_SECRET_SIGNING_KEY_ID`、`WP1_EXTERNAL_SECRET_SIGNING_SECRET`、`WP4_LOCAL_WEBHOOK_SECRET_FALLBACK_ENABLED`、`WP4_WEBHOOK_SECRET_CACHE_TTL_SECONDS`、`WP4_WEBHOOK_SECRET_ROTATION_OVERLAP_SECONDS` |
 
@@ -153,10 +155,10 @@ MVP 范围如下：
 |---|---|---|
 | 输入源 | `GET/POST /sources`、`PUT /sources/{id}` | 管理文本、Markdown、webhook 输入源；保存 `CUSTOM_API` 的 sourceCode、secretRef、eventVersion、mappingVersion 和字段映射；预留非 MVP 类型 |
 | 健康检查 | `GET /sources/{id}/health` | 返回连接器状态、签名算法、secretRef 配置状态、eventVersion、最近错误和预留类型不可用原因 |
-| 导入记录 | `POST /imports`、`GET /imports`、`GET /imports/{id}` | 创建文本、Markdown、Word、PDF、OCR 导入记录，查询状态和错误 |
+| 导入记录 | `POST /imports`、`GET /imports`、`GET /imports/{id}` | 创建文本、Markdown、Word、PDF、OCR 导入记录；创建成功先返回 `MODEL_PARSE_QUEUED`，查询接口返回 `MODEL_PARSE_RUNNING/SUCCEEDED/FAILED`、数量和错误 |
 | 解析结果 | `GET /imports/{id}/candidates?status=&sourceRef=&keyword=`、`PUT /candidates/{id}`、`POST /candidates/{id}/confirm`、`POST /candidates/{id}/ignore`、`POST /candidates/batch-action`、`GET /feedback-samples?candidateId=&importId=&projectId=&parseSource=&curationStatus=` | 人工编辑、确认、忽略候选项；批量操作支持 `candidateIds` 和携带版本号的 versioned candidates；模型候选人工编辑后生成脱敏纠错样本，供后续人工入 golden corpus |
-| 写入资产 | `POST /imports/{id}/publish`、`GET /imports/{id}/publish-records` | 将已确认候选项写入 WP3 需求资产，记录 source/sourceRef/sourceUrl/acceptanceCriteria 和发布结果 |
-| Webhook | `POST /webhooks/{sourceCode}` | 接收自研需求平台事件，执行签名、幂等和字段映射 |
+| 写入资产 | `POST /imports/{id}/publish`、`GET /imports/{id}/publish-records` | dryRun 返回差异预览；正式发布先返回 `PUBLISH_QUEUED`，后台写入 WP3 需求资产并记录 source/sourceRef/sourceUrl/acceptanceCriteria 和发布结果 |
+| Webhook | `POST /webhooks/{sourceCode}` | 接收自研需求平台事件，执行签名、幂等、字段映射和 accepted 事件提交 |
 | Webhook 事件 | `GET /webhook-events?sourceId=&sourceCode=&eventType=&status=&receivedFrom=&receivedTo=`、`GET /webhook-events/{id}`、`POST /webhook-events/{id}/replay` | 查询、排错、重放失败事件 |
 
 统一要求：
@@ -184,7 +186,7 @@ MVP 范围如下：
 |---|---|
 | 目标 | 支持用户在项目内提交文本/Markdown，并生成可追踪导入批次和结构化片段 |
 | 主要交付 | 输入源管理、文本导入、Markdown 导入、批次列表、批次详情、基础解析器 |
-| 验收标准 | 文本和 Markdown 可成功导入；Word/PDF/OCR 可经文本抽取进入同一导入链路；章节、段落、列表和表格可追踪到原文；失败批次可查看错误并重试；越权项目不可导入 |
+| 验收标准 | 文本和 Markdown 可成功入队并最终生成候选；Word/PDF/OCR 可经文本抽取进入同一导入事件链路；章节、段落、列表和表格可追踪到原文；失败批次可查看错误并重试；越权项目不可导入 |
 
 ### M2：解析确认与 WP3 写入
 
@@ -192,7 +194,7 @@ MVP 范围如下：
 |---|---|
 | 目标 | 将规则解析和 WP2 模型辅助解析结果变成可人工确认的需求候选项，并写入 WP3 |
 | 主要交付 | 候选项编辑确认、模型辅助解析、差异合并、发布到 WP3、来源追踪 |
-| 验收标准 | 至少一份文本和一份 Markdown 可生成需求候选项；开启 `WP4_MODEL_PARSE_ENABLED=true` 后候选可标记 `parseSource=MODEL` 并带 WP2 invocation 追踪；WP2 策略或敏感内容阻断时规则解析 fallback 可追踪；候选支持 status/sourceRef/keyword 筛选和携带版本号批量操作；人工确认后写入 WP3 需求资产并保留 source/sourceRef/sourceUrl/acceptanceCriteria；重复发布不产生重复资产；重复导入同一 externalRequirementId 时 dryRun 能识别 UPDATE 并给出 diffSummary，正式发布更新既有 DRAFT WP3 资产；既有资产非 DRAFT 且存在差异时返回 CONFLICT_REVIEW_REQUIRED 并阻断自动覆盖 |
+| 验收标准 | 至少一份文本和一份 Markdown 可异步生成需求候选项；开启 `WP4_MODEL_PARSE_ENABLED=true` 后候选可标记 `parseSource=MODEL` 并带 WP2 invocation 追踪；WP2 策略或敏感内容阻断时规则解析 fallback 可追踪；候选支持 status/sourceRef/keyword 筛选和携带版本号批量操作；人工确认后正式发布先进入 `PUBLISH_QUEUED/PUBLISHING`，最终写入 WP3 需求资产并保留 source/sourceRef/sourceUrl/acceptanceCriteria；重复发布不产生重复资产；重复导入同一 externalRequirementId 时 dryRun 能识别 UPDATE 并给出 diffSummary，正式发布更新既有 DRAFT WP3 资产；既有资产非 DRAFT 且存在差异时返回 CONFLICT_REVIEW_REQUIRED 并阻断自动覆盖 |
 
 ### M3：自研 Webhook 增量同步
 
@@ -200,7 +202,7 @@ MVP 范围如下：
 |---|---|
 | 目标 | 支持自研需求平台通过 webhook 推送增量事件并映射为需求候选项或 WP3 更新 |
 | 主要交付 | webhook 配置、签名校验、事件接收、字段映射、幂等处理、失败重放 |
-| 验收标准 | `created`、`updated`、`statusChanged`、`archived` 事件均可处理；source 配置保留 secretRef/eventVersion/mappingVersion；事件可按 sourceId/sourceCode/eventType/status/receivedFrom/receivedTo 查询；重复事件不重复写入；签名失败和过期事件被拒绝并审计；失败事件可人工重放 |
+| 验收标准 | `created`、`updated`、`statusChanged`、`archived` 事件均可接收并异步处理；source 配置保留 secretRef/eventVersion/mappingVersion；事件可按 sourceId/sourceCode/eventType/status/receivedFrom/receivedTo 查询；重复事件不重复写入；签名失败和过期事件被拒绝并审计；失败事件可人工重放，重放后通过事件状态观察最终结果 |
 
 ### M4：MVP 准出
 
@@ -208,7 +210,7 @@ MVP 范围如下：
 |---|---|
 | 目标 | 完成端到端联调、质量门禁、运维配置和验收材料 |
 | 主要交付 | 服务端测试、前端 smoke、webhook smoke、配置说明、指标和告警、验收报告 |
-| 验收标准 | `platform-api` 测试通过；文本、Markdown、自研 webhook 三条主链路通过 smoke；metrics 和 smoke 覆盖本轮候选筛选、发布、webhook、WP3 追踪字段；审计和指标可查；非 MVP 连接器仅作为预留类型展示；无直接读写 WP1/WP2/WP3 表的实现 |
+| 验收标准 | `platform-api` 测试通过；文本、Markdown、自研 webhook 三条主链路通过 smoke；导入解析、发布写入和 webhook accepted 三条异步链路均可用同一 traceId 排障；metrics 和 smoke 覆盖本轮候选筛选、发布、webhook、WP3 追踪字段；审计和指标可查；非 MVP 连接器仅作为预留类型展示；无直接读写 WP1/WP2/WP3 表的实现 |
 
 ## 7. 连接器类型策略
 
@@ -235,7 +237,7 @@ MVP 范围如下：
 | WP2 模型接入 | Prompt 版本、模型调用、敏感内容阻断、预算护栏、供应商 fallback、调用日志 | 模型策略阻断或预算超限会导致解析不可用；Prompt 不稳定会影响解析质量 | 规则解析器作为保底；模型辅助解析可配置关闭；Prompt key 和版本纳入验收 |
 | WP3 资产管理 | 需求资产创建/更新、外部来源追踪、状态同步、资产详情跳转、重复识别 | WP3 需求模型或 upsert 契约未稳定会阻塞 WP4 发布到资产库 | M0 与 WP3 冻结最小 upsert DTO；M2 前提供 WP3 应用服务或 mock；WP4 不直连 WP3 表 |
 | 前端平台框架 | 项目空间路由、菜单权限、统一表格、表单、错误态和权限态 | 其他角色并行改动前端路由可能造成入口冲突 | 仅新增 WP4 菜单和页面命名空间；遵循现有路由和权限约定 |
-| 运维/CI | `platform-api` 测试、配置注入、日志、指标、smoke 脚本 | 缺少队列、对象存储或外部连接器环境会放大实施复杂度 | MVP 使用数据库任务和本地解析；对象存储、外部连接器和 worker 仅预留 |
+| 运维/CI | `platform-api` 测试、配置注入、事件总线、日志、指标、smoke 脚本 | Kafka、对象存储或外部连接器环境缺失会放大实施复杂度 | 本地和单测使用进程内事件总线；`db,kafka` profile 使用 Kafka topic；对象存储、外部连接器和 worker 仅预留 |
 
 ## 9. 关键风险与应对
 
@@ -246,6 +248,7 @@ MVP 范围如下：
 | 自研 webhook 事件版本变化 | 增量同步失败或字段丢失 | 外部 payload 新增/重命名字段，事件语义不兼容 | 使用 eventVersion、mappingVersion 和兼容层；未知字段保留在 raw payload |
 | 模型解析结果不稳定 | 候选需求质量波动，用户信任下降 | 相同输入多次解析结果差异明显 | 规则解析保底；模型结果必须人工确认；保存 prompt 版本和置信度 |
 | WP3 upsert 语义不清 | 重复需求或错误覆盖 | 重复导入产生多条资产，或更新覆盖人工编辑内容 | 已使用 externalRequirementId/sourceRef 做 WP3 幂等，发布前 dryRun 提供 diffSummary；正式发布仅自动更新 DRAFT IMPORT 资产，非 DRAFT 且有差异时返回冲突并保留候选历史 |
+| 异步事件重复投递或处理延迟 | 用户短时间看到排队/处理中，重复消费可能污染数据 | Kafka 重平衡、消费者重启、事件重放、任务长时间停留在 queued/running | 导入、发布、webhook 消费均通过状态条件更新认领；重复事件返回当前记录；前端展示排队/处理中并通过 traceId 查日志；生产关注 topic lag 和失败事件 |
 | 敏感信息进入模型或日志 | 合规风险 | 原文包含密钥、token、客户隐私或生产数据 | 复用 WP2 敏感内容阻断；日志和错误摘要脱敏；高敏项目默认禁用公开模型 |
 | Webhook 被伪造或重放 | 数据污染和安全风险 | 签名失败、时间戳过期、事件 ID 重复 | 强制签名、时间窗口、幂等键、限流、白名单和审计；生产密钥优先通过 WP1 SecretProvider 解析，本地 fallback 可关闭 |
 | 与并行开发冲突 | 前后端路由、权限点或实体命名冲突 | 同名菜单、权限点、表名、DTO 发生变更 | WP4 使用独立命名空间；变更前对齐当前基线；只通过公开应用服务依赖 WP1/WP2/WP3 |
@@ -267,4 +270,5 @@ WP4 MVP 进入验收时需同时满足以下条件：
 11. 审计覆盖输入源配置、导入、解析、确认、发布、webhook 接收和失败重试。
 12. 当前指标覆盖导入批次、候选操作、发布、webhook、模型解析和外部 SecretProvider 健康；模型解析指标为 `veri.agent.document_input.model_parse` 与 `veri.agent.document_input.model_parse.candidates`，外部 SecretProvider 健康指标为 `veri.agent.document_input.secret_provider.health`。
 13. 数据保留清理默认关闭，可通过 `WP4_RETENTION_CLEANUP_ENABLED=true` 开启；导入/候选和 webhook 事件保留天数分别由 `WP4_IMPORT_RETENTION_DAYS`、`WP4_WEBHOOK_EVENT_RETENTION_DAYS` 控制；清理前写入 `document_input_retention_archive`，清理计数输出 `veri.agent.document_input.retention.cleanup{target,result}`，并写入 `RETENTION_CLEANUP` 审计。
-14. 服务端测试、前端 smoke、webhook smoke、二进制文档 smoke、AI 解析质量评测、metrics 覆盖和发布前端到端 smoke 均通过。
+14. 导入解析、发布写入和 webhook accepted 三条链路必须走事件驱动状态机；HTTP 入口、事件 envelope、Kafka header、本地/Kafka 消费者、WP2/WP3 调用和失败重放日志使用同一 traceId，可通过查询接口轮询最终状态。
+15. 服务端测试、前端 smoke、webhook smoke、二进制文档 smoke、AI 解析质量评测、metrics 覆盖和发布前端到端 smoke 均通过。

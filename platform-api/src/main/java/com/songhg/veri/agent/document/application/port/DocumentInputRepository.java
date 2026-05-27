@@ -6,11 +6,15 @@ import com.songhg.veri.agent.document.application.query.DocumentParseFeedbackQue
 import com.songhg.veri.agent.document.application.query.DocumentSourceQuery;
 import com.songhg.veri.agent.document.application.query.DocumentWebhookEventQuery;
 import com.songhg.veri.agent.document.domain.DocumentFieldMapping;
+import com.songhg.veri.agent.document.domain.DocumentCandidateStatus;
 import com.songhg.veri.agent.document.domain.DocumentImportRecord;
+import com.songhg.veri.agent.document.domain.DocumentImportPayload;
+import com.songhg.veri.agent.document.domain.DocumentImportStatus;
 import com.songhg.veri.agent.document.domain.DocumentParseFeedbackSample;
 import com.songhg.veri.agent.document.domain.DocumentRequirementCandidate;
 import com.songhg.veri.agent.document.domain.DocumentSourceConfig;
 import com.songhg.veri.agent.document.domain.DocumentWebhookEvent;
+import com.songhg.veri.agent.document.domain.WebhookEventStatus;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -47,6 +51,12 @@ public interface DocumentInputRepository {
 
     DocumentImportRecord saveImport(DocumentImportRecord record);
 
+    boolean markImportStatus(UUID id, DocumentImportStatus expectedStatus, DocumentImportStatus nextStatus, Instant updatedAt);
+
+    DocumentImportPayload saveImportPayload(DocumentImportPayload payload);
+
+    Optional<DocumentImportPayload> importPayload(UUID importId);
+
     List<DocumentRequirementCandidate> candidates(UUID importId, int offset, int size);
 
     long countCandidates(UUID importId);
@@ -58,6 +68,8 @@ public interface DocumentInputRepository {
     Optional<DocumentRequirementCandidate> candidate(UUID id);
 
     DocumentRequirementCandidate saveCandidate(DocumentRequirementCandidate candidate);
+
+    boolean markCandidateStatus(UUID id, DocumentCandidateStatus expectedStatus, DocumentCandidateStatus nextStatus, Instant updatedAt);
 
     Optional<DocumentRequirementCandidate> candidateByExternalId(String projectId, String externalRequirementId);
 
@@ -78,6 +90,8 @@ public interface DocumentInputRepository {
     List<DocumentWebhookEvent> retryableWebhookEvents(int maxAttempts, int limit);
 
     DocumentWebhookEvent saveWebhookEvent(DocumentWebhookEvent event);
+
+    boolean markWebhookEventStatus(UUID id, WebhookEventStatus expectedStatus, WebhookEventStatus nextStatus, Instant updatedAt);
 
     int archiveImportsBefore(Instant before);
 
