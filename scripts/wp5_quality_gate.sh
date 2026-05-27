@@ -18,7 +18,7 @@ main() {
       "$ROOT_DIR/scripts/wp5_managed_http_smoke.sh"
 
   run_step "wp5 backend and OpenAPI tests" \
-    mvn -B -pl platform-api -Dtest=TestDesignControllerTest,TestDesignOpenApiContractTest,PermissionCodeUsageTest,ServiceTokenAuthenticationFilterTest test
+    mvn -B -pl platform-api -Dtest=TestDesignControllerTest,TestDesignAsyncGenerationControllerTest,TestDesignOpenApiContractTest,PermissionCodeUsageTest,ServiceTokenAuthenticationFilterTest test
 
   run_step "portal-web WP5 tests" \
     bash -lc "cd '$ROOT_DIR/portal-web' && npm run test -- testDesign.test.ts testDesignQuality.test.ts testDesignPagination.test.ts testDesignSelection.test.ts testDesignConfirmation.test.ts permissions.test.ts"

@@ -11,6 +11,8 @@ import java.util.Set;
 public enum TestDesignTaskStatus {
     /** 任务已创建但尚未开始生成 */
     DRAFT,
+    /** 任务已持久化并等待异步生成事件消费 */
+    QUEUED,
     /** 候选生成中 */
     RUNNING,
     /** 候选生成全部成功 */
@@ -32,6 +34,7 @@ public enum TestDesignTaskStatus {
     public static Set<String> codes() {
         return Set.of(
                 DRAFT.name(),
+                QUEUED.name(),
                 RUNNING.name(),
                 SUCCEEDED.name(),
                 PARTIAL_SUCCESS.name(),

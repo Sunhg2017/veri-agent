@@ -136,6 +136,8 @@ const initialGenerationDraft: GenerationDraft = {
   coverageTypes: ['SMOKE', 'FUNCTIONAL', 'EXCEPTION']
 };
 
+const ASYNC_TASK_STATUSES = new Set(['QUEUED', 'RUNNING']);
+
 export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: CurrentUser | null }) {
   const canRead = hasPermission(props.currentUser, 'testDesign:read');
   const canGenerate = canUseButton(props.currentUser, 'testDesign:generate');
@@ -168,6 +170,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
 
   const disabled = !props.signedIn || !canRead;
   const selectedTask = tasks.find((task) => task.id === selectedTaskId) ?? null;
+  const selectedTaskGenerating = selectedTask ? ASYNC_TASK_STATUSES.has(selectedTask.status) : false;
   const selectedCandidate = candidates.find((candidate) => candidate.id === selectedCandidateId) ?? null;
   const filteredRequirements = useMemo(() => filterRequirements(requirements, filters), [requirements, filters]);
   const visibleCandidates = useMemo(() => filterCandidates(candidates, candidateFilters), [candidateFilters, candidates]);
@@ -220,7 +223,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
     return selectedRequirementIds.map((id) => lookup.get(id) ?? id);
   }, [requirements, selectedRequirementIds]);
 
-  const refreshTaskDetail = useCallback(async (taskId: string) => {
+  const refreshTaskDetail = useCallback(async (taskId: string, options?: { silent?: boolean }) => {
     if (!props.signedIn || !canRead || !taskId) {
       setCandidates([]);
       setSelectedCandidateId('');
@@ -233,15 +236,20 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       return;
     }
 
-    setTaskState({ loading: true });
-    setCandidates([]);
-    setSelectedCandidateId('');
-    setSelectedCandidateIds([]);
-    setCandidatePageIndex(0);
-    setCandidateDraft(null);
-    setPublishResult(null);
-    setBatchActionResult(null);
-    setPendingConfirmation(null);
+    const silent = options?.silent === true;
+    if (silent) {
+      setTaskState((current) => ({ ...current, error: undefined }));
+    } else {
+      setTaskState({ loading: true });
+      setCandidates([]);
+      setSelectedCandidateId('');
+      setSelectedCandidateIds([]);
+      setCandidatePageIndex(0);
+      setCandidateDraft(null);
+      setPublishResult(null);
+      setBatchActionResult(null);
+      setPendingConfirmation(null);
+    }
     try {
       const response = await fetchTestDesignTask(taskId);
       const detail = response.data;
@@ -256,9 +264,11 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       });
       setTaskState({ loading: false, traceId: response.trace_id });
     } catch (error: unknown) {
-      setCandidates([]);
-      setSelectedCandidateId('');
-      setCandidateDraft(null);
+      if (!silent) {
+        setCandidates([]);
+        setSelectedCandidateId('');
+        setCandidateDraft(null);
+      }
       setTaskState({ loading: false, error: testDesignErrorMessage(error, '生成任务详情加载失败') });
     }
   }, [canRead, props.signedIn]);
@@ -338,6 +348,16 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
   useEffect(() => {
     void refreshTaskDetail(selectedTaskId);
   }, [refreshTaskDetail, selectedTaskId]);
+
+  useEffect(() => {
+    if (!selectedTaskId || !selectedTaskGenerating) {
+      return undefined;
+    }
+    const timer = window.setInterval(() => {
+      void refreshTaskDetail(selectedTaskId, { silent: true });
+    }, 2000);
+    return () => window.clearInterval(timer);
+  }, [refreshTaskDetail, selectedTaskGenerating, selectedTaskId]);
 
   useEffect(() => {
     const nextCandidate = candidates.find((candidate) => candidate.id === selectedCandidateId) ?? null;
@@ -449,7 +469,11 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       setPublishResult(null);
       setBatchActionResult(null);
       setPendingConfirmation(null);
-      setMutationState({ loading: false, success: '候选用例已生成', traceId: response.trace_id });
+      setMutationState({
+        loading: false,
+        success: ASYNC_TASK_STATUSES.has(response.data.task.status) ? '生成任务已提交，候选生成中' : '候选用例已生成',
+        traceId: response.trace_id
+      });
     } catch (error: unknown) {
       setMutationState({ loading: false, error: testDesignErrorMessage(error, '候选用例生成失败') });
     }
@@ -1050,6 +1074,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
                 <select value={taskFilters.status} onChange={(event) => setTaskFilters((current) => ({ ...current, status: event.target.value }))} disabled={disabled || loadState.loading}>
                   <option value="">全部</option>
                   <option value="DRAFT">DRAFT</option>
+                  <option value="QUEUED">QUEUED</option>
                   <option value="RUNNING">RUNNING</option>
                   <option value="SUCCEEDED">SUCCEEDED</option>
                   <option value="PARTIAL_SUCCESS">PARTIAL_SUCCESS</option>

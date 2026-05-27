@@ -6,6 +6,8 @@ import com.songhg.veri.agent.testdesign.domain.TestDesignCandidate;
 import com.songhg.veri.agent.testdesign.domain.TestDesignPublishRecord;
 import com.songhg.veri.agent.testdesign.domain.TestDesignReviewRecord;
 import com.songhg.veri.agent.testdesign.domain.TestDesignTask;
+import com.songhg.veri.agent.testdesign.domain.TestDesignTaskStatus;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -47,6 +49,11 @@ public interface TestDesignRepository {
      * 新增或更新任务快照
      */
     TestDesignTask saveTask(TestDesignTask task);
+
+    /**
+     * 按期望状态条件推进任务状态，用于异步事件重复投递时只允许一个消费者认领任务。
+     */
+    boolean markTaskStatus(UUID id, TestDesignTaskStatus expectedStatus, TestDesignTaskStatus nextStatus, Instant updatedAt);
 
     /**
      * 按任务、项目、需求、状态、覆盖类型、关键字和分页条件查询候选列表

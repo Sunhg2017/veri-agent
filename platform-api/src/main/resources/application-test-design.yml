@@ -8,3 +8,7 @@ veri-agent:
     max-requirements-per-task: 20
     max-cases-per-requirement: 3
     batch-action-limit: 100
+    async-generation-enabled: ${WP5_ASYNC_GENERATION_ENABLED:true}
+    event-recovery-enabled: ${WP5_EVENT_RECOVERY_ENABLED:true}
+    event-recovery-batch-size: ${WP5_EVENT_RECOVERY_BATCH_SIZE:100}
+    event-recovery-cron: "${WP5_EVENT_RECOVERY_CRON:0 */2 * * * *}"

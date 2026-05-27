@@ -107,7 +107,19 @@ class ServiceTokenAuthenticationFilterTest {
     }
 
     private static TestDesignProperties testDesignProperties() {
-        return new TestDesignProperties("test-design-token", true, "RULE_TEMPLATE", "wp5", "1.0", 20, 3, 100);
+        return new TestDesignProperties(
+                "test-design-token",
+                true,
+                "RULE_TEMPLATE",
+                "wp5",
+                "1.0",
+                20,
+                3,
+                100,
+                true,
+                true,
+                100
+        );
     }
 
     private static ModelAccessProperties modelAccessProperties() {

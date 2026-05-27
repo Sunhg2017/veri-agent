@@ -7,7 +7,9 @@ import com.songhg.veri.agent.testdesign.domain.TestDesignCandidate;
 import com.songhg.veri.agent.testdesign.domain.TestDesignPublishRecord;
 import com.songhg.veri.agent.testdesign.domain.TestDesignReviewRecord;
 import com.songhg.veri.agent.testdesign.domain.TestDesignTask;
+import com.songhg.veri.agent.testdesign.domain.TestDesignTaskStatus;
 import com.songhg.veri.agent.testdesign.infrastructure.mapper.TestDesignMapper;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -57,6 +59,16 @@ public class JdbcTestDesignRepository implements TestDesignRepository {
             mapper.updateTask(task);
         }
         return task;
+    }
+
+    @Override
+    public boolean markTaskStatus(
+            UUID id,
+            TestDesignTaskStatus expectedStatus,
+            TestDesignTaskStatus nextStatus,
+            Instant updatedAt
+    ) {
+        return mapper.markTaskStatus(id, expectedStatus.name(), nextStatus.name(), updatedAt) > 0;
     }
 
     @Override

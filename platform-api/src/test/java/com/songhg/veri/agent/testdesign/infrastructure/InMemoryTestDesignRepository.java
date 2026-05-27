@@ -7,6 +7,8 @@ import com.songhg.veri.agent.testdesign.domain.TestDesignCandidate;
 import com.songhg.veri.agent.testdesign.domain.TestDesignPublishRecord;
 import com.songhg.veri.agent.testdesign.domain.TestDesignReviewRecord;
 import com.songhg.veri.agent.testdesign.domain.TestDesignTask;
+import com.songhg.veri.agent.testdesign.domain.TestDesignTaskStatus;
+import java.time.Instant;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
@@ -61,6 +63,47 @@ public class InMemoryTestDesignRepository implements TestDesignRepository {
     public TestDesignTask saveTask(TestDesignTask task) {
         tasks.put(task.id(), task);
         return task;
+    }
+
+    @Override
+    public boolean markTaskStatus(
+            UUID id,
+            TestDesignTaskStatus expectedStatus,
+            TestDesignTaskStatus nextStatus,
+            Instant updatedAt
+    ) {
+        synchronized (tasks) {
+            TestDesignTask current = tasks.get(id);
+            if (current == null || !expectedStatus.name().equals(current.status())) {
+                return false;
+            }
+            tasks.put(id, new TestDesignTask(
+                    current.id(),
+                    current.projectId(),
+                    current.title(),
+                    nextStatus.name(),
+                    current.requirementIds(),
+                    current.coverageTypes(),
+                    current.promptKey(),
+                    current.promptVersion(),
+                    current.modelInvocationId(),
+                    current.modelProviderName(),
+                    current.modelName(),
+                    current.totalRequirements(),
+                    current.generatedCount(),
+                    current.confirmedCount(),
+                    current.publishedCount(),
+                    null,
+                    current.requestedBy(),
+                    current.idempotencyKey(),
+                    current.requestDigest(),
+                    current.inputDigest(),
+                    current.contextSummaryJson(),
+                    current.createdAt(),
+                    updatedAt
+            ));
+            return true;
+        }
     }
 
     @Override

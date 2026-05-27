@@ -100,6 +100,26 @@ post_test_design_json() {
     -d "$body"
 }
 
+wait_for_task_candidates() {
+  local task_id="$1"
+  local expected_count="$2"
+  local attempts="${WP5_SMOKE_TASK_WAIT_ATTEMPTS:-60}"
+  local delay="${WP5_SMOKE_TASK_WAIT_DELAY_SECONDS:-1}"
+  local detail=""
+  for ((attempt = 1; attempt <= attempts; attempt++)); do
+    detail="$(curl -fsS "$TEST_DESIGN_API_BASE/tasks/$task_id" "${test_design_headers[@]}")"
+    if printf '%s' "$detail" | jq -e \
+      --argjson expected "$expected_count" \
+      '.data.task.status == "SUCCEEDED" and (.data.candidates | length) == $expected and (.data.candidates | all(.status == "GENERATED"))' >/dev/null; then
+      printf '%s' "$detail"
+      return 0
+    fi
+    sleep "$delay"
+  done
+  printf '%s' "$detail"
+  return 1
+}
+
 login_admin() {
   local password="$1"
   post_json "$AUTH_API_BASE/login" "$(jq -nc \
@@ -184,8 +204,13 @@ main() {
     --arg projectId "$PROJECT_ID" \
     --arg requirementId "$requirement_id" \
     '{projectId:$projectId,title:"WP5 smoke generation",requirementIds:[$requirementId],coverageTypes:["SMOKE","EXCEPTION"]}')")"
-  check "Create WP5 task with candidates" '.data.task.status == "SUCCEEDED" and (.data.candidates | length) == 2 and (.data.candidates | all(.status == "GENERATED"))' "$task"
+  check "Queue WP5 task" '(.data.task.status == "QUEUED" or .data.task.status == "RUNNING" or .data.task.status == "SUCCEEDED") and (.data.task.generatedCount | type == "number")' "$task"
   task_id="$(printf '%s' "$task" | jq -r '.data.task.id')"
+  if ! task="$(wait_for_task_candidates "$task_id" 2)"; then
+    check "Create WP5 task with candidates" '.data.task.status == "SUCCEEDED" and (.data.candidates | length) == 2 and (.data.candidates | all(.status == "GENERATED"))' "$task"
+  else
+    check "Create WP5 task with candidates" '.data.task.status == "SUCCEEDED" and (.data.candidates | length) == 2 and (.data.candidates | all(.status == "GENERATED"))' "$task"
+  fi
 
   candidates="$(curl -fsS "$TEST_DESIGN_API_BASE/tasks/$task_id/candidates" "${test_design_headers[@]}")"
   check "Candidate page" '.data.total == 2 and (.data.items | all(.steps | length >= 3))' "$candidates"

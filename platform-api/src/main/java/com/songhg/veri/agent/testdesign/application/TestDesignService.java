@@ -53,6 +53,8 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -60,6 +62,7 @@ import org.springframework.util.StringUtils;
 @Service
 public class TestDesignService {
 
+    private static final Logger log = LoggerFactory.getLogger(TestDesignService.class);
     private static final List<String> DEFAULT_COVERAGE_TYPES = List.of("SMOKE", "FUNCTIONAL", "EXCEPTION");
     private static final Set<String> CANDIDATE_PRIORITIES = Set.of("CRITICAL", "HIGH", "MEDIUM", "LOW");
     private static final String TEST_CASE_SOURCE_AI_GENERATED = "AI_GENERATED";
@@ -77,11 +80,13 @@ public class TestDesignService {
     );
     private static final Set<String> CANCELLABLE_TASK_STATUSES = Set.of(
             TestDesignTaskStatus.DRAFT.name(),
+            TestDesignTaskStatus.QUEUED.name(),
             TestDesignTaskStatus.RUNNING.name(),
             TestDesignTaskStatus.PARTIAL_SUCCESS.name(),
             TestDesignTaskStatus.FAILED.name()
     );
     private final TestDesignRepository repository;
+    private final TestDesignEventPublisher eventPublisher;
     private final AssetService assetService;
     private final TestDesignPlatformContextClient contextClient;
     private final TestDesignActorResolver actorResolver;
@@ -92,6 +97,7 @@ public class TestDesignService {
 
     public TestDesignService(
             TestDesignRepository repository,
+            TestDesignEventPublisher eventPublisher,
             AssetService assetService,
             TestDesignPlatformContextClient contextClient,
             TestDesignActorResolver actorResolver,
@@ -101,6 +107,7 @@ public class TestDesignService {
             ObjectMapper objectMapper
     ) {
         this.repository = repository;
+        this.eventPublisher = eventPublisher;
         this.assetService = assetService;
         this.contextClient = contextClient;
         this.actorResolver = actorResolver;
@@ -147,10 +154,10 @@ public class TestDesignService {
     }
 
     /**
-     * Creates a task and uses deterministic templates for the first WP5 slice.
+     * Creates a task and queues deterministic generation for the current WP5 slice.
      *
-     * <p>The task still persists prompt/model metadata, so switching to a WP2 model-backed generator later only needs
-     * to replace candidate production, not the review or publish contract.
+     * <p>The task still persists prompt/model metadata, so switching the event consumer to a WP2 model-backed
+     * generator later only needs to replace candidate production, not the review or publish contract.
      */
     @Transactional
     public TestDesignTaskDetailResponse createTask(CreateTestDesignTaskCommand command) {
@@ -182,6 +189,9 @@ public class TestDesignService {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "单次生成最多支持 " + maxRequirementsPerTask() + " 个需求");
         }
         List<String> coverageTypes = normalizedCoverageTypes(command.coverageTypes());
+        List<String> generationCoverageTypes = coverageTypes.stream()
+                .limit(normalizedCaseCount(command.caseCountPerRequirement()))
+                .toList();
         String requestDigest = taskRequestDigest(
                 projectId,
                 command.title(),
@@ -206,9 +216,9 @@ public class TestDesignService {
                 taskId,
                 projectId,
                 title,
-                TestDesignTaskStatus.SUCCEEDED.name(),
+                initialTaskStatus().name(),
                 idsText(requirementIds),
-                String.join(",", coverageTypes),
+                String.join(",", generationCoverageTypes),
                 properties.promptKey(),
                 properties.promptVersion(),
                 null,
@@ -228,22 +238,24 @@ public class TestDesignService {
                 now
         );
         repository.saveTask(task);
-        List<TestDesignCandidate> candidates = new ArrayList<>();
-        for (RequirementResponse requirement : requirements) {
-            candidates.addAll(generateCandidates(task, requirement, coverageTypes, command.caseCountPerRequirement(), now));
-        }
-        qualityGate.validateGeneratedBatch(candidates);
-        candidates.forEach(repository::saveCandidate);
-        TestDesignTask stored = withTaskCounts(task, candidates);
-        repository.saveTask(stored);
         writeAudit("CREATE", "TEST_DESIGN_TASK", taskId, projectId, taskAuditDetails(
                 taskId,
                 requirements.size(),
-                candidates.size(),
-                coverageTypes,
+                0,
+                generationCoverageTypes,
                 idempotencyKey,
                 generationContext.inputDigest()
         ));
+        if (properties.asyncGenerationEnabled()) {
+            eventPublisher.publishGenerationRequested(taskId);
+            writeAudit("GENERATION_QUEUED", "TEST_DESIGN_TASK", taskId, projectId, Map.of(
+                    "taskId", taskId,
+                    "status", task.status(),
+                    "requirementCount", requirements.size()
+            ));
+        } else {
+            generateQueuedTask(taskId, TestDesignTaskStatus.RUNNING);
+        }
         return task(taskId);
     }
 
@@ -304,6 +316,18 @@ public class TestDesignService {
                 "coverageTypes", coverageTypes
         ));
         return task(id);
+    }
+
+    /**
+     * Processes one queued generation task after the create transaction commits.
+     *
+     * <p>The task is claimed with a conditional status transition so duplicate local/Kafka delivery and recovery
+     * replays are harmless. Generation still uses deterministic templates in this slice; the event boundary is the
+     * future WP2 model invocation handoff.
+     */
+    @Transactional
+    public TestDesignTaskDetailResponse processQueuedTask(UUID id) {
+        return generateQueuedTask(id, TestDesignTaskStatus.QUEUED);
     }
 
     /**
@@ -566,6 +590,50 @@ public class TestDesignService {
 
     public String candidateProjectScopeId(UUID id) {
         return candidateOrThrow(id).projectId();
+    }
+
+    private TestDesignTaskDetailResponse generateQueuedTask(UUID id, TestDesignTaskStatus expectedStatus) {
+        Instant startedAt = Instant.now();
+        if (!repository.markTaskStatus(id, expectedStatus, TestDesignTaskStatus.RUNNING, startedAt)) {
+            log.info("Skip WP5 generation because task is no longer {}, task_id={}", expectedStatus.name(), id);
+            return task(id);
+        }
+        TestDesignTask running = taskOrThrow(id);
+        try {
+            List<RequirementResponse> requirements = requirementIdsFromText(running.requirementIds()).stream()
+                    .map(assetService::getRequirement)
+                    .peek(requirement -> ensureSameProject(requirement, running.projectId()))
+                    .toList();
+            List<String> coverageTypes = normalizedCoverageTypes(csvValues(running.coverageTypes()));
+            Instant now = Instant.now();
+            List<TestDesignCandidate> candidates = new ArrayList<>();
+            for (RequirementResponse requirement : requirements) {
+                candidates.addAll(generateCandidates(running, requirement, coverageTypes, null, now));
+            }
+            qualityGate.validateGeneratedBatch(candidates);
+            candidates.forEach(repository::saveCandidate);
+            TestDesignTask succeeded = withTaskCounts(
+                    withTaskStatus(running, TestDesignTaskStatus.SUCCEEDED, null),
+                    candidates
+            );
+            repository.saveTask(succeeded);
+            writeAudit("GENERATE", "TEST_DESIGN_TASK", id, running.projectId(), Map.of(
+                    "taskId", id,
+                    "candidateCount", candidates.size(),
+                    "coverageTypes", coverageTypes
+            ));
+            return task(id);
+        } catch (RuntimeException exception) {
+            TestDesignTask failed = withTaskStatus(running, TestDesignTaskStatus.FAILED, safeErrorMessage(exception));
+            repository.saveTask(failed);
+            writeAudit("GENERATE", "TEST_DESIGN_TASK", id, running.projectId(), Map.of(
+                    "taskId", id,
+                    "result", "FAILED",
+                    "message", safeErrorMessage(exception)
+            ));
+            log.warn("WP5 test design generation failed, task_id={}, message={}", id, safeErrorMessage(exception), exception);
+            return task(id);
+        }
     }
 
     private TestDesignGenerationContext generationContext(
@@ -1570,8 +1638,21 @@ public class TestDesignService {
         return properties.batchActionLimit() <= 0 ? 100 : properties.batchActionLimit();
     }
 
+    private TestDesignTaskStatus initialTaskStatus() {
+        return properties.asyncGenerationEnabled() ? TestDesignTaskStatus.QUEUED : TestDesignTaskStatus.RUNNING;
+    }
+
     private String trimToNull(String value) {
         return StringUtils.hasText(value) ? value.trim() : null;
+    }
+
+    private static String safeErrorMessage(RuntimeException exception) {
+        String message = exception.getMessage();
+        if (!StringUtils.hasText(message)) {
+            return exception.getClass().getSimpleName();
+        }
+        String redacted = redactSensitiveText(message).replaceAll("\\s+", " ").trim();
+        return redacted.length() <= 500 ? redacted : redacted.substring(0, 497) + "...";
     }
 
     private static String sha256(String value) {

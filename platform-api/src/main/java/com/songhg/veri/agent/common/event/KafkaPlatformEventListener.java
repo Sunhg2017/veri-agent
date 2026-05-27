@@ -32,7 +32,8 @@ public class KafkaPlatformEventListener {
                     "${veri-agent.events.kafka.topics.audit-log-recorded:veri-agent.audit-log-recorded}",
                     "${veri-agent.events.kafka.topics.document-input-import-requested:veri-agent.document-input-import-requested}",
                     "${veri-agent.events.kafka.topics.document-input-publish-requested:veri-agent.document-input-publish-requested}",
-                    "${veri-agent.events.kafka.topics.document-input-webhook-accepted:veri-agent.document-input-webhook-accepted}"
+                    "${veri-agent.events.kafka.topics.document-input-webhook-accepted:veri-agent.document-input-webhook-accepted}",
+                    "${veri-agent.events.kafka.topics.test-design-generation-requested:veri-agent.test-design-generation-requested}"
             },
             groupId = "${veri-agent.events.kafka.consumer-group:platform-api}"
     )

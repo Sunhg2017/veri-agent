@@ -6,6 +6,7 @@ import com.songhg.veri.agent.testdesign.domain.TestDesignCandidate;
 import com.songhg.veri.agent.testdesign.domain.TestDesignPublishRecord;
 import com.songhg.veri.agent.testdesign.domain.TestDesignReviewRecord;
 import com.songhg.veri.agent.testdesign.domain.TestDesignTask;
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import org.apache.ibatis.annotations.Mapper;
@@ -30,6 +31,13 @@ public interface TestDesignMapper {
     void insertTask(TestDesignTask task);
 
     void updateTask(TestDesignTask task);
+
+    int markTaskStatus(
+            @Param("id") UUID id,
+            @Param("expectedStatus") String expectedStatus,
+            @Param("nextStatus") String nextStatus,
+            @Param("updatedAt") Instant updatedAt
+    );
 
     List<TestDesignCandidate> candidates(@Param("query") TestDesignCandidateQuery query);
 

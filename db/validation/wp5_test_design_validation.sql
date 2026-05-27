@@ -89,6 +89,21 @@ select
     coalesce(string_agg(item, ', ' order by item), 'WP5 status and enum constraints exist') as details
 from missing;
 
+with task_status_constraint as (
+    select pg_get_constraintdef(c.oid) as definition
+    from pg_constraint c
+    where c.conname = 'ck_test_design_task_status'
+      and c.conrelid = (current_schema() || '.test_design_task')::regclass
+)
+select
+    'wp5.task_status_allows_queued' as check_name,
+    case when exists (
+        select 1
+        from task_status_constraint
+        where definition like '%QUEUED%'
+    ) then 'PASS' else 'FAIL' end as status,
+    coalesce((select definition from task_status_constraint limit 1), 'test_design_task status constraint missing') as details;
+
 with expected(index_name) as (
     values
         ('uk_asset_test_case_project_ai_source_ref')

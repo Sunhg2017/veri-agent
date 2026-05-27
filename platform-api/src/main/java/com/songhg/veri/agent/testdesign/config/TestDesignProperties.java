@@ -23,6 +23,12 @@ public record TestDesignProperties(
         /** 每个需求允许生成的最大候选数量 */
         @DefaultValue("3") int maxCasesPerRequirement,
         /** 单次批量评审允许处理的最大候选数量 */
-        @DefaultValue("100") int batchActionLimit
+        @DefaultValue("100") int batchActionLimit,
+        /** 创建任务后是否通过平台事件异步生成候选 */
+        @DefaultValue("true") boolean asyncGenerationEnabled,
+        /** 异步生成事件恢复扫描开关 */
+        @DefaultValue("true") boolean eventRecoveryEnabled,
+        /** 单次恢复扫描最多重新发布的排队任务数 */
+        @DefaultValue("100") int eventRecoveryBatchSize
 ) {
 }

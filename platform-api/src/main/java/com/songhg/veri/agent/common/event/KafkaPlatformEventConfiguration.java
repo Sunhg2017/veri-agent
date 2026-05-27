@@ -51,4 +51,12 @@ public class KafkaPlatformEventConfiguration {
                 .replicas(properties.kafkaTopicReplicas())
                 .build();
     }
+
+    @Bean
+    NewTopic testDesignGenerationRequestedTopic(PlatformEventProperties properties) {
+        return TopicBuilder.name(properties.testDesignGenerationRequestedTopic())
+                .partitions(properties.kafkaTopicPartitions())
+                .replicas(properties.kafkaTopicReplicas())
+                .build();
+    }
 }

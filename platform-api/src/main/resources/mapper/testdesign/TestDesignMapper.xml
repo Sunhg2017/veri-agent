@@ -203,6 +203,15 @@
         where id = cast(#{id} as uuid)
     </update>
 
+    <update id="markTaskStatus">
+        update test_design_task
+        set status = #{nextStatus},
+            error_message = null,
+            updated_at = #{updatedAt}
+        where id = cast(#{id} as uuid)
+          and status = #{expectedStatus}
+    </update>
+
     <select id="candidates" resultMap="candidateMap">
         select <include refid="candidateColumns"/>
         from test_design_candidate
