@@ -12,7 +12,11 @@ import com.songhg.veri.agent.testdesign.application.query.TestDesignCandidatePag
 import com.songhg.veri.agent.testdesign.application.view.TestDesignCandidateBatchActionResponse;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignCandidateResponse;
 import jakarta.validation.Valid;
+import java.nio.charset.StandardCharsets;
 import java.util.UUID;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -42,6 +46,20 @@ public class TestDesignCandidateController {
     @RequirePermission(value = PermissionCodes.TEST_DESIGN_READ, scope = TestDesignPermissionScopes.CANDIDATE_LIST)
     public PageResponse<TestDesignCandidateResponse> candidates(@Valid TestDesignCandidatePageRequest request) {
         return service.candidates(request.toQuery(null));
+    }
+
+    /**
+     * 按当前筛选条件导出候选摘要 CSV，不返回步骤、描述、Prompt 或原始模型输入。
+     */
+    @GetMapping(value = "/export", produces = "text/csv")
+    @RequirePermission(value = PermissionCodes.TEST_DESIGN_READ, scope = TestDesignPermissionScopes.CANDIDATE_LIST)
+    @RequirePermission(value = PermissionCodes.TEST_DESIGN_EXPORT, scope = TestDesignPermissionScopes.CANDIDATE_LIST)
+    public ResponseEntity<String> exportCandidates(@Valid TestDesignCandidatePageRequest request) {
+        String csv = service.exportCandidatesCsv(request.toQuery(null));
+        return ResponseEntity.ok()
+                .contentType(new MediaType("text", "csv", StandardCharsets.UTF_8))
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"wp5-candidates.csv\"")
+                .body(csv);
     }
 
     /**

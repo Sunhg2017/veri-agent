@@ -23,6 +23,7 @@ import {
   batchActionTestDesignCandidates,
   confirmTestDesignCandidate,
   createTestDesignTask,
+  exportTestDesignCandidatesCsv,
   fetchTaskTestDesignCandidates,
   fetchTestDesignHealth,
   fetchTestDesignTaskSummary,
@@ -862,21 +863,48 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
     await executePublishTask(confirmation.dryRun);
   }
 
-  function exportCandidateReview(scope: 'page' | 'selected') {
+  async function exportCandidateReview(scope: 'page' | 'selected') {
     if (!canExport) {
       setTaskState({ loading: false, error: '缺少 testDesign:export 权限' });
       return;
     }
-    const exportCandidates = scope === 'selected' ? selectedCandidates : candidatePage.items;
+    if (scope === 'page') {
+      if (!selectedTaskId) {
+        setTaskState({ loading: false, error: '请先选择任务后再导出' });
+        return;
+      }
+      if (!candidatePage.total) {
+        setTaskState({ loading: false, error: '当前筛选无可导出数据' });
+        return;
+      }
+      setTaskState({ loading: true });
+      try {
+        const response = await exportTestDesignCandidatesCsv({
+          taskId: selectedTaskId,
+          status: candidateFilters.status,
+          coverageType: candidateFilters.coverageType,
+          keyword: candidateFilters.keyword
+        });
+        downloadText(
+          response.text,
+          response.filename ?? buildTestDesignExportFilename('candidate-filters', selectedTaskId, new Date().toISOString()),
+          response.contentType || TEST_DESIGN_EXPORT_CONTENT_TYPE
+        );
+        setTaskState({ loading: false, success: '已导出当前筛选候选摘要', traceId: response.traceId });
+      } catch (error: unknown) {
+        setTaskState({ loading: false, error: testDesignErrorMessage(error, '候选筛选导出失败') });
+      }
+      return;
+    }
+
+    const exportCandidates = selectedCandidates;
     if (!exportCandidates.length) {
-      setTaskState({ loading: false, error: scope === 'selected' ? '请先选择候选后再导出' : '当前候选页无可导出数据' });
+      setTaskState({ loading: false, error: '请先选择候选后再导出' });
       return;
     }
 
     const generatedAt = new Date().toISOString();
-    const scopeLabel = scope === 'selected'
-      ? `已选候选 ${exportCandidates.length} 个`
-      : `当前候选页 ${candidatePage.start}-${candidatePage.end} / ${candidatePage.total}`;
+    const scopeLabel = `已选候选 ${exportCandidates.length} 个`;
     const csv = buildTestDesignCandidateReviewCsv({
       task: selectedTask,
       candidates: exportCandidates,
@@ -885,10 +913,10 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
     });
     downloadText(
       csv,
-      buildTestDesignExportFilename(scope === 'selected' ? 'selected-candidates' : 'candidate-page', selectedTaskId, generatedAt),
+      buildTestDesignExportFilename('selected-candidates', selectedTaskId, generatedAt),
       TEST_DESIGN_EXPORT_CONTENT_TYPE
     );
-    setTaskState({ loading: false, success: `已导出${scope === 'selected' ? '已选候选' : '当前候选页'}摘要` });
+    setTaskState({ loading: false, success: '已导出已选候选摘要' });
   }
 
   function exportPublishResult() {
@@ -1061,11 +1089,11 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
                 <button className="btn btn-ghost btn-sm" type="button" disabled={!selectedCandidateIds.length} onClick={() => setSelectedCandidateIds([])}>
                   清空选择
                 </button>
-                <button className="btn btn-secondary btn-sm" type="button" disabled={!canExport || !candidatePage.items.length} onClick={() => exportCandidateReview('page')}>
+                <button className="btn btn-secondary btn-sm" type="button" disabled={!canExport || !selectedTaskId || !candidatePage.total} onClick={() => void exportCandidateReview('page')}>
                   <Download size={15} />
-                  导出本页
+                  导出筛选
                 </button>
-                <button className="btn btn-secondary btn-sm" type="button" disabled={!canExport || !selectedCandidates.length} onClick={() => exportCandidateReview('selected')}>
+                <button className="btn btn-secondary btn-sm" type="button" disabled={!canExport || !selectedCandidates.length} onClick={() => void exportCandidateReview('selected')}>
                   <Download size={15} />
                   导出已选
                 </button>

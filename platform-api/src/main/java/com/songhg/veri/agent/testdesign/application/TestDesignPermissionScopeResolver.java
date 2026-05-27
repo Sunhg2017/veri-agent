@@ -36,11 +36,11 @@ public class TestDesignPermissionScopeResolver {
     }
 
     public ResourceScope candidateList(TestDesignCandidatePageRequest request) {
-        if (request != null && StringUtils.hasText(request.getProjectId())) {
-            return project(request.getProjectId());
-        }
         if (request != null && request.getTaskId() != null) {
             return task(request.getTaskId());
+        }
+        if (request != null && StringUtils.hasText(request.getProjectId())) {
+            return project(request.getProjectId());
         }
         return ResourceScope.platform();
     }

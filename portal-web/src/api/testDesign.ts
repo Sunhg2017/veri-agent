@@ -1,4 +1,4 @@
-import { requestJson, type ApiResponse } from './client';
+import { requestJson, requestText, type ApiResponse, type TextResponse } from './client';
 
 export const TEST_DESIGN_COVERAGE_TYPES = ['SMOKE', 'FUNCTIONAL', 'EXCEPTION', 'BOUNDARY', 'PERMISSION', 'REGRESSION'] as const;
 export const TEST_DESIGN_CANDIDATE_STATUSES = ['GENERATED', 'EDITED', 'CONFIRMED', 'REJECTED', 'IGNORED', 'PUBLISHED', 'FAILED'] as const;
@@ -491,6 +491,17 @@ export async function fetchTestDesignTaskSummary(taskId: string): Promise<ApiRes
 export async function fetchTestDesignCandidates(filters: TestDesignCandidateFilters = {}): Promise<ApiResponse<TestDesignCandidateList>> {
   const response = await requestJson<unknown>(`/api/v1/test-design/candidates${queryString(filters as Record<string, unknown>)}`);
   return { ...response, data: normalizeTestDesignCandidateList(response.data) };
+}
+
+export function testDesignCandidateExportPath(filters: TestDesignCandidateFilters = {}) {
+  const exportFilters: TestDesignCandidateFilters = { ...filters };
+  delete exportFilters.index;
+  delete exportFilters.size;
+  return `/api/v1/test-design/candidates/export${queryString(exportFilters as Record<string, unknown>)}`;
+}
+
+export async function exportTestDesignCandidatesCsv(filters: TestDesignCandidateFilters = {}): Promise<TextResponse> {
+  return requestText(testDesignCandidateExportPath(filters));
 }
 
 export async function fetchTaskTestDesignCandidates(

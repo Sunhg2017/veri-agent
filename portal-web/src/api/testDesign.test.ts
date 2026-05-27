@@ -1,11 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { requestJson } from './client';
+import { requestJson, requestText } from './client';
 import {
   TEST_DESIGN_CANDIDATE_STATUSES,
   TEST_DESIGN_COVERAGE_TYPES,
   batchActionTestDesignCandidates,
   confirmTestDesignCandidate,
   createTestDesignTask,
+  exportTestDesignCandidatesCsv,
   fetchTaskTestDesignCandidates,
   fetchTestDesignCandidates,
   fetchTestDesignHealth,
@@ -22,18 +23,22 @@ import {
   publishTestDesignDryRun,
   publishTestDesignTask,
   rejectTestDesignCandidate,
+  testDesignCandidateExportPath,
   updateTestDesignCandidate
 } from './testDesign';
 
 vi.mock('./client', () => ({
-  requestJson: vi.fn()
+  requestJson: vi.fn(),
+  requestText: vi.fn()
 }));
 
 const requestJsonMock = vi.mocked(requestJson);
+const requestTextMock = vi.mocked(requestText);
 
 describe('WP5 test design API helpers', () => {
   beforeEach(() => {
     requestJsonMock.mockReset();
+    requestTextMock.mockReset();
   });
 
   it('exposes test design enums used by the workbench', () => {
@@ -141,6 +146,14 @@ describe('WP5 test design API helpers', () => {
 
     await fetchTaskTestDesignCandidates('task 1', { index: 2, size: 10, status: 'GENERATED', keyword: '边界' });
     expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/test-design/tasks/task%201/candidates?index=2&size=10&status=GENERATED&keyword=%E8%BE%B9%E7%95%8C');
+
+    expect(testDesignCandidateExportPath({
+      index: 3,
+      size: 50,
+      taskId: 'task 1',
+      status: 'FAILED',
+      keyword: 'token secret'
+    })).toBe('/api/v1/test-design/candidates/export?taskId=task+1&status=FAILED&keyword=token+secret');
 
     await fetchTestDesignTask('task 1');
     expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/test-design/tasks/task%201');
@@ -291,6 +304,30 @@ describe('WP5 test design API helpers', () => {
     expect(response.data.items[0].candidate?.status).toBe('CONFIRMED');
     expect(response.data.items[1]).toMatchObject({ candidateId: 'cand-2', result: 'FAILED', errorCode: 'VERSION_CONFLICT' });
     expect(normalizeTestDesignCandidateBatchActionResult({ items: [{ candidate_id: 'cand-3', result: 'FAILED' }] }).items[0].candidateId).toBe('cand-3');
+  });
+
+  it('exports candidate CSV with server-side filters', async () => {
+    requestTextMock.mockResolvedValue({
+      text: 'recordType,metric,value\nsummary,totalMatched,1\n',
+      traceId: 'trace-export',
+      contentType: 'text/csv',
+      filename: 'wp5-candidates.csv'
+    });
+
+    const response = await exportTestDesignCandidatesCsv({
+      index: 1,
+      size: 20,
+      taskId: 'task 1',
+      projectId: 'project pay',
+      status: 'FAILED',
+      coverageType: 'SMOKE',
+      keyword: '登录'
+    });
+
+    expect(requestTextMock).toHaveBeenLastCalledWith(
+      '/api/v1/test-design/candidates/export?taskId=task+1&projectId=project+pay&status=FAILED&coverageType=SMOKE&keyword=%E7%99%BB%E5%BD%95'
+    );
+    expect(response.filename).toBe('wp5-candidates.csv');
   });
 
   it('loads health endpoint without auth-specific payload assumptions', async () => {

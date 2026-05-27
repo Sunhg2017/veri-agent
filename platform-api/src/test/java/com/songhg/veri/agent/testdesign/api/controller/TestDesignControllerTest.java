@@ -25,6 +25,8 @@ import static org.hamcrest.Matchers.startsWith;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.matchesPattern;
 import static org.hamcrest.Matchers.not;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -350,6 +352,77 @@ class TestDesignControllerTest {
         mockMvc.perform(get("/api/v1/test-design/tasks/{id}", taskId)
                         .header("Authorization", "Bearer " + deniedToken))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void exportsCandidateCsvByFiltersWithScopeAndRedaction() throws Exception {
+        String ownerToken = userAccessToken(List.of("ProjectOwner@PROJECT:project-wp5"));
+        String auditorToken = userAccessToken(List.of("Auditor@PROJECT:project-wp5"));
+        String deniedAuditorToken = userAccessToken(List.of("Auditor@PROJECT:project-other"));
+        String requirementId = createRequirement(
+                ownerToken,
+                "导出安全需求 token=secret-value",
+                "验收时不得暴露 apiKey=sk_live_12345678",
+                "project-wp5"
+        );
+        MvcResult taskResult = mockMvc.perform(post("/api/v1/test-design/tasks")
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"projectId":"project-wp5","requirementIds":["%s"],"coverageTypes":["SMOKE"]}
+                                """.formatted(requirementId)))
+                .andExpect(status().isCreated())
+                .andReturn();
+        String taskId = JsonPath.read(taskResult.getResponse().getContentAsString(), "$.data.task.id");
+        String candidateId = JsonPath.read(taskResult.getResponse().getContentAsString(), "$.data.candidates[0].id");
+        saveCandidateStatus(candidateId, "FAILED", null, "发布失败 token=secret-value rawPrompt promptPlaintext");
+
+        MvcResult export = mockMvc.perform(get("/api/v1/test-design/candidates/export")
+                        .header("Authorization", "Bearer " + auditorToken)
+                        .param("taskId", taskId)
+                        .param("status", "FAILED"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith("text/csv"))
+                .andExpect(header().string("Content-Disposition", containsString("wp5-candidates.csv")))
+                .andReturn();
+
+        String csv = export.getResponse().getContentAsString();
+        MatcherAssert.assertThat(csv, startsWith("recordType,metric,value,taskId,projectId,candidateId"));
+        MatcherAssert.assertThat(csv, containsString("summary,totalMatched,1,"));
+        MatcherAssert.assertThat(csv, containsString("candidate,,,"));
+        MatcherAssert.assertThat(csv, containsString(taskId));
+        MatcherAssert.assertThat(csv, containsString(candidateId));
+        MatcherAssert.assertThat(csv, containsString("project-wp5"));
+        MatcherAssert.assertThat(csv, containsString("[REDACTED]"));
+        MatcherAssert.assertThat(csv, not(containsString("secret-value")));
+        MatcherAssert.assertThat(csv, not(containsString("sk_live_12345678")));
+        MatcherAssert.assertThat(csv, not(containsString("rawPrompt")));
+        MatcherAssert.assertThat(csv, not(containsString("promptPlaintext")));
+        MatcherAssert.assertThat(csv, not(containsString("基于 WP3 需求生成")));
+        MatcherAssert.assertThat(csv, not(containsString("准备满足前置条件的基础测试数据")));
+        MatcherAssert.assertThat(csv, not(containsString("需求验收标准已明确")));
+
+        mockMvc.perform(get("/api/v1/test-design/candidates/export")
+                        .header("Authorization", "Bearer " + deniedAuditorToken)
+                        .param("taskId", taskId)
+                        .param("projectId", "project-other"))
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(get("/api/v1/test-design/candidates/export")
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .param("taskId", taskId))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void rejectsCandidateCsvExportWithoutExplicitScope() throws Exception {
+        String adminToken = userAccessToken(List.of("PlatformAdmin@PLATFORM:all"));
+
+        mockMvc.perform(get("/api/v1/test-design/candidates/export")
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.message", containsString("taskId 或 projectId")));
     }
 
     @Test

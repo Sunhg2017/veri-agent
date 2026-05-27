@@ -8,8 +8,10 @@ import com.songhg.veri.agent.asset.application.command.CreateTestCaseRequest;
 import com.songhg.veri.agent.asset.application.view.RequirementResponse;
 import com.songhg.veri.agent.asset.application.view.TestCaseResponse;
 import com.songhg.veri.agent.common.api.PageResponse;
+import com.songhg.veri.agent.common.api.PageQuery;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
+import com.songhg.veri.agent.common.util.CsvEncoder;
 import com.songhg.veri.agent.testdesign.application.command.CreateTestDesignTaskCommand;
 import com.songhg.veri.agent.testdesign.application.command.TestDesignCandidateActionCommand;
 import com.songhg.veri.agent.testdesign.application.command.TestDesignCandidateBatchActionCommand;
@@ -73,6 +75,8 @@ public class TestDesignService {
     private static final double HIGH_SIMILAR_TITLE_THRESHOLD = 0.86D;
     private static final double HIGH_SIMILAR_CONTENT_THRESHOLD = 0.90D;
     private static final int MAX_IDEMPOTENCY_KEY_LENGTH = 128;
+    private static final int CANDIDATE_EXPORT_LIMIT = 500;
+    private static final int CANDIDATE_EXPORT_PAGE_SIZE = 100;
     private static final Set<String> RETRYABLE_TASK_STATUSES = Set.of(
             TestDesignTaskStatus.FAILED.name(),
             TestDesignTaskStatus.PARTIAL_SUCCESS.name(),
@@ -368,6 +372,50 @@ public class TestDesignService {
                 .map(responseMapper::toCandidateResponse)
                 .toList();
         return PageResponse.of(items, query.index(), query.size(), repository.countCandidates(query));
+    }
+
+    /**
+     * Exports a bounded, project-scoped candidate summary for reviewer handoff.
+     *
+     * <p>The CSV intentionally uses a whitelist of operational fields. Free-form descriptions, preconditions, step
+     * bodies, expected-result text, prompt payloads and model input context stay out of the export because they may
+     * contain source-document secrets or unreleased product details.
+     */
+    @Transactional
+    public String exportCandidatesCsv(TestDesignCandidateQuery query) {
+        CandidateExportScope scope = candidateExportScope(query);
+        TestDesignCandidateQuery normalizedQuery = candidateExportQuery(query, scope, 0);
+        long totalMatched = repository.countCandidates(normalizedQuery);
+        List<TestDesignCandidate> exportedCandidates = new ArrayList<>();
+        int pageIndex = 0;
+        while (exportedCandidates.size() < CANDIDATE_EXPORT_LIMIT) {
+            TestDesignCandidateQuery pageQuery = candidateExportQuery(query, scope, pageIndex);
+            List<TestDesignCandidate> pageCandidates = repository.candidates(pageQuery);
+            if (pageCandidates.isEmpty()) {
+                break;
+            }
+            int remaining = CANDIDATE_EXPORT_LIMIT - exportedCandidates.size();
+            exportedCandidates.addAll(pageCandidates.stream().limit(remaining).toList());
+            if (pageCandidates.size() < CANDIDATE_EXPORT_PAGE_SIZE) {
+                break;
+            }
+            pageIndex++;
+        }
+
+        StringBuilder csv = new StringBuilder();
+        appendCandidateExportHeader(csv);
+        appendCandidateExportSummary(csv, "exportLimit", CANDIDATE_EXPORT_LIMIT, scope);
+        appendCandidateExportSummary(csv, "totalMatched", totalMatched, scope);
+        appendCandidateExportSummary(csv, "exportedCount", exportedCandidates.size(), scope);
+        appendCandidateExportSummary(csv, "truncated", totalMatched > exportedCandidates.size(), scope);
+        appendCandidateExportSummary(csv, "filters", candidateExportFilterSummary(query), scope);
+        appendCandidateExportSummary(csv, "statusCounts", candidateExportCounts(exportedCandidates, TestDesignCandidate::status), scope);
+        appendCandidateExportSummary(csv, "coverageCounts", candidateExportCounts(exportedCandidates, TestDesignCandidate::coverageType), scope);
+        exportedCandidates.forEach(candidate -> appendCandidateExportRow(csv, candidate));
+
+        writeAudit("EXPORT", "TEST_DESIGN_CANDIDATE", UUID.randomUUID(), scope.projectId(),
+                candidateExportAuditDetails(scope, totalMatched, exportedCandidates.size()));
+        return csv.toString();
     }
 
     @Transactional
@@ -1288,6 +1336,210 @@ public class TestDesignService {
         if (StringUtils.hasText(projectId)) {
             contextClient.projectContext(projectId);
         }
+    }
+
+    private CandidateExportScope candidateExportScope(TestDesignCandidateQuery query) {
+        if (query == null || (query.taskId() == null && !StringUtils.hasText(query.projectId()))) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "导出候选必须指定 taskId 或 projectId");
+        }
+        if (query.taskId() != null) {
+            TestDesignTask task = taskOrThrow(query.taskId());
+            if (StringUtils.hasText(query.projectId())) {
+                String requestedProjectId = contextClient.projectContext(query.projectId()).resourceId();
+                if (!Objects.equals(requestedProjectId, task.projectId())) {
+                    throw new BusinessException(ErrorCode.VALIDATION_ERROR, "taskId 与 projectId 不属于同一项目");
+                }
+            }
+            return new CandidateExportScope(task.id(), task.projectId());
+        }
+        return new CandidateExportScope(null, contextClient.projectContext(query.projectId()).resourceId());
+    }
+
+    private TestDesignCandidateQuery candidateExportQuery(
+            TestDesignCandidateQuery query,
+            CandidateExportScope scope,
+            int pageIndex
+    ) {
+        return new TestDesignCandidateQuery(
+                scope.taskId(),
+                scope.projectId(),
+                query.requirementId(),
+                trimToNull(query.status()),
+                trimToNull(query.coverageType()),
+                trimToNull(query.keyword()),
+                PageQuery.of(pageIndex, CANDIDATE_EXPORT_PAGE_SIZE)
+        );
+    }
+
+    private static void appendCandidateExportHeader(StringBuilder csv) {
+        CsvEncoder.appendLine(csv,
+                "recordType",
+                "metric",
+                "value",
+                "taskId",
+                "projectId",
+                "candidateId",
+                "requirementId",
+                "apiId",
+                "title",
+                "coverageType",
+                "priority",
+                "status",
+                "version",
+                "tags",
+                "stepsCount",
+                "hasExpectedResult",
+                "hasReviewNote",
+                "assetCaseId",
+                "qualityFlags",
+                "errorMessage",
+                "createdAt",
+                "updatedAt"
+        );
+    }
+
+    private static void appendCandidateExportSummary(
+            StringBuilder csv,
+            String metric,
+            Object value,
+            CandidateExportScope scope
+    ) {
+        CsvEncoder.appendLine(csv,
+                "summary",
+                metric,
+                value,
+                scope.taskId(),
+                scope.projectId(),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+        );
+    }
+
+    private void appendCandidateExportRow(StringBuilder csv, TestDesignCandidate candidate) {
+        CsvEncoder.appendLine(csv,
+                "candidate",
+                null,
+                null,
+                candidate.taskId(),
+                candidate.projectId(),
+                candidate.id(),
+                candidate.requirementId(),
+                candidate.apiId(),
+                candidateExportPreview(candidate.title(), 200),
+                candidate.coverageType(),
+                candidate.priority(),
+                candidate.status(),
+                candidate.version(),
+                String.join("|", summaryTags(candidate.tags())),
+                responseMapper.steps(candidate.stepsJson()).size(),
+                StringUtils.hasText(candidate.expectedResult()),
+                hasCandidateReviewNote(candidate),
+                candidate.assetCaseId(),
+                candidateExportQualityFlags(candidate),
+                candidateExportPreview(candidate.errorMessage(), 240),
+                candidate.createdAt(),
+                candidate.updatedAt()
+        );
+    }
+
+    private static boolean hasCandidateReviewNote(TestDesignCandidate candidate) {
+        return StringUtils.hasText(candidate.reviewComment())
+                || StringUtils.hasText(candidate.rejectedReason())
+                || StringUtils.hasText(candidate.ignoredReason());
+    }
+
+    private static String candidateExportQualityFlags(TestDesignCandidate candidate) {
+        List<String> flags = new ArrayList<>();
+        if (StringUtils.hasText(candidate.errorMessage())) {
+            flags.add("ERROR_PRESENT");
+        }
+        if (StringUtils.hasText(candidate.rejectedReason())) {
+            flags.add("REJECTED_REASON_PRESENT");
+        }
+        if (StringUtils.hasText(candidate.ignoredReason())) {
+            flags.add("IGNORED_REASON_PRESENT");
+        }
+        if (candidate.confidence() > 0D && candidate.confidence() < 0.8D) {
+            flags.add("LOW_CONFIDENCE");
+        }
+        return String.join("|", flags);
+    }
+
+    private static String candidateExportCounts(
+            List<TestDesignCandidate> candidates,
+            Function<TestDesignCandidate, String> classifier
+    ) {
+        Map<String, Long> counts = new LinkedHashMap<>();
+        for (TestDesignCandidate candidate : candidates) {
+            String key = classifier.apply(candidate);
+            if (StringUtils.hasText(key)) {
+                counts.merge(key, 1L, Long::sum);
+            }
+        }
+        return counts.entrySet().stream()
+                .map(entry -> entry.getKey() + "=" + entry.getValue())
+                .collect(Collectors.joining(";"));
+    }
+
+    private String candidateExportFilterSummary(TestDesignCandidateQuery query) {
+        Map<String, Object> filters = new LinkedHashMap<>();
+        filters.put("taskId", query.taskId());
+        filters.put("projectId", candidateExportPreview(query.projectId(), 120));
+        filters.put("requirementId", query.requirementId());
+        filters.put("status", candidateExportPreview(query.status(), 80));
+        filters.put("coverageType", candidateExportPreview(query.coverageType(), 80));
+        filters.put("keyword", candidateExportPreview(query.keyword(), 120));
+        return filters.entrySet().stream()
+                .filter(entry -> entry.getValue() != null)
+                .map(entry -> entry.getKey() + "=" + entry.getValue())
+                .collect(Collectors.joining(";"));
+    }
+
+    private static String candidateExportPreview(String value, int maxLength) {
+        String preview = redactedPreview(value, maxLength);
+        if (!StringUtils.hasText(preview)) {
+            return preview;
+        }
+        return preview
+                .replaceAll("(?i)raw\\s*prompt|rawPrompt", "[REDACTED]")
+                .replaceAll("(?i)prompt\\s*plaintext|promptPlaintext", "[REDACTED]")
+                .replaceAll("(?i)model\\s*input|modelInput", "[REDACTED]");
+    }
+
+    private static Map<String, Object> candidateExportAuditDetails(
+            CandidateExportScope scope,
+            long totalMatched,
+            int exportedCount
+    ) {
+        Map<String, Object> details = new LinkedHashMap<>();
+        details.put("scope", scope.taskId() == null ? "PROJECT" : "TASK");
+        if (scope.taskId() != null) {
+            details.put("taskId", scope.taskId());
+        }
+        details.put("projectId", scope.projectId());
+        details.put("totalMatched", totalMatched);
+        details.put("exportedCount", exportedCount);
+        details.put("limit", CANDIDATE_EXPORT_LIMIT);
+        details.put("truncated", totalMatched > exportedCount);
+        return details;
+    }
+
+    private record CandidateExportScope(UUID taskId, String projectId) {
     }
 
     private TestDesignTask taskOrThrow(UUID id) {
