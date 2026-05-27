@@ -3,6 +3,7 @@ import {
   ChevronLeft,
   ChevronRight,
   ClipboardCheck,
+  Download,
   Eye,
   FileText,
   Link2,
@@ -72,6 +73,12 @@ import {
   testDesignBatchActionLabel,
   type TestDesignConfirmationSummary
 } from '../testDesignConfirmation';
+import {
+  TEST_DESIGN_EXPORT_CONTENT_TYPE,
+  buildTestDesignCandidateReviewCsv,
+  buildTestDesignExportFilename,
+  buildTestDesignPublishResultCsv
+} from '../testDesignExport';
 
 type WorkState = {
   loading: boolean;
@@ -166,6 +173,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
   const canGenerate = canUseButton(props.currentUser, 'testDesign:generate');
   const canReview = canUseButton(props.currentUser, 'testDesign:review');
   const canPublish = canUseButton(props.currentUser, 'testDesign:publish');
+  const canExport = canUseButton(props.currentUser, 'testDesign:export');
 
   const [health, setHealth] = useState<TestDesignHealth | null>(null);
   const [requirements, setRequirements] = useState<AssetRequirementView[]>([]);
@@ -854,6 +862,55 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
     await executePublishTask(confirmation.dryRun);
   }
 
+  function exportCandidateReview(scope: 'page' | 'selected') {
+    if (!canExport) {
+      setTaskState({ loading: false, error: '缺少 testDesign:export 权限' });
+      return;
+    }
+    const exportCandidates = scope === 'selected' ? selectedCandidates : candidatePage.items;
+    if (!exportCandidates.length) {
+      setTaskState({ loading: false, error: scope === 'selected' ? '请先选择候选后再导出' : '当前候选页无可导出数据' });
+      return;
+    }
+
+    const generatedAt = new Date().toISOString();
+    const scopeLabel = scope === 'selected'
+      ? `已选候选 ${exportCandidates.length} 个`
+      : `当前候选页 ${candidatePage.start}-${candidatePage.end} / ${candidatePage.total}`;
+    const csv = buildTestDesignCandidateReviewCsv({
+      task: selectedTask,
+      candidates: exportCandidates,
+      scopeLabel,
+      generatedAt
+    });
+    downloadText(
+      csv,
+      buildTestDesignExportFilename(scope === 'selected' ? 'selected-candidates' : 'candidate-page', selectedTaskId, generatedAt),
+      TEST_DESIGN_EXPORT_CONTENT_TYPE
+    );
+    setTaskState({ loading: false, success: `已导出${scope === 'selected' ? '已选候选' : '当前候选页'}摘要` });
+  }
+
+  function exportPublishResult() {
+    if (!canExport) {
+      setPublishState({ loading: false, error: '缺少 testDesign:export 权限' });
+      return;
+    }
+    if (!publishResult) {
+      setPublishState({ loading: false, error: '暂无发布结果可导出' });
+      return;
+    }
+
+    const generatedAt = new Date().toISOString();
+    const csv = buildTestDesignPublishResultCsv({ task: selectedTask, publishResult, generatedAt });
+    downloadText(
+      csv,
+      buildTestDesignExportFilename(publishResult.dryRun ? 'publish-dry-run' : 'publish-result', publishResult.taskId, generatedAt),
+      TEST_DESIGN_EXPORT_CONTENT_TYPE
+    );
+    setPublishState({ loading: false, success: '已导出发布结果摘要' });
+  }
+
   function updateCandidateInState(nextCandidate: TestDesignCandidateView) {
     setCandidates((current) => current.map((candidate) => (candidate.id === nextCandidate.id ? nextCandidate : candidate)));
     setSelectedCandidateCache((current) => mergeCandidateCache(current, [nextCandidate]));
@@ -1003,6 +1060,14 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
                 </button>
                 <button className="btn btn-ghost btn-sm" type="button" disabled={!selectedCandidateIds.length} onClick={() => setSelectedCandidateIds([])}>
                   清空选择
+                </button>
+                <button className="btn btn-secondary btn-sm" type="button" disabled={!canExport || !candidatePage.items.length} onClick={() => exportCandidateReview('page')}>
+                  <Download size={15} />
+                  导出本页
+                </button>
+                <button className="btn btn-secondary btn-sm" type="button" disabled={!canExport || !selectedCandidates.length} onClick={() => exportCandidateReview('selected')}>
+                  <Download size={15} />
+                  导出已选
                 </button>
               </div>
             </div>
@@ -1377,6 +1442,12 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
             <StateLine state={publishState} />
             {publishResult && (
               <>
+                <div className="toolbar-actions test-design-export-actions">
+                  <button className="btn btn-secondary btn-sm" type="button" disabled={!canExport} onClick={exportPublishResult}>
+                    <Download size={15} />
+                    导出发布摘要
+                  </button>
+                </div>
                 <div className="detail-grid">
                   <Detail label="总数" value={publishResult.total} />
                   <Detail label="创建" value={publishResult.created} />
@@ -1749,6 +1820,16 @@ function tagsFromText(value: string) {
     .split(',')
     .map((item) => item.trim())
     .filter(Boolean);
+}
+
+function downloadText(text: string, filename: string, contentType: string) {
+  const blob = new Blob([text], { type: contentType });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
 }
 
 function reviewSuccessText(action: 'confirm' | 'reject' | 'ignore') {
