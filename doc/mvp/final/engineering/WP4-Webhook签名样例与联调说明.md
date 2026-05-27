@@ -162,7 +162,7 @@ class VeriAgentWebhookSample {
 
 外部系统联调完成的准出证据：
 
-1. 成功请求响应包含 `traceId`，候选或导入记录可查。
+1. 成功请求响应包含 `traceId`，`data.status=ACCEPTED` 且返回 webhook 事件 ID；后台处理后可通过 `/api/v1/document-input/webhook-events` 查询 `importId`、`PROCESSED/FAILED` 状态和候选或导入记录。
 2. 重复投递同一 `eventId` + `idempotencyKey` 不重复生成候选。
 3. 故意改错签名会被拒绝，且不进入业务解析。
 4. `/api/v1/document-input/webhook-events` 能按 `sourceCode` 查到事件、签名状态和处理状态。

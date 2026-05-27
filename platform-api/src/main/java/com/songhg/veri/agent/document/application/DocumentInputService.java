@@ -353,12 +353,11 @@ public class DocumentInputService {
         if (event.status() != WebhookEventStatus.FAILED && event.status() != WebhookEventStatus.DEAD_LETTER) {
             throw new BusinessException(ErrorCode.INVALID_STATE, DocumentInputMessages.WEBHOOK_ONLY_FAILED_OR_DEAD);
         }
-        DocumentImportRecord queuedImport = queueWebhookImport(sourceForWebhookEvent(event), event.rawPayload());
         Instant replayAt = Instant.now();
         DocumentWebhookEvent replayQueued = new DocumentWebhookEvent(
                 event.id(),
                 event.sourceId(),
-                queuedImport.id(),
+                null,
                 event.sourceCode(),
                 event.eventId(),
                 event.idempotencyKey(),
@@ -382,7 +381,7 @@ public class DocumentInputService {
         return responseMapper.toWebhookEventResponse(replayQueued);
     }
 
-    public DocumentImportResponse handleWebhook(
+    public DocumentWebhookEventResponse handleWebhook(
             String sourceCode,
             String rawPayload,
             String timestamp,
@@ -523,6 +522,7 @@ public class DocumentInputService {
         if (duplicate != null) {
             return respondToDuplicateWebhookEvent(duplicate, payloadDigest);
         }
+        String eventType = webhookEventType(rawPayload);
         Instant now = Instant.now();
         DocumentWebhookEvent accepted = new DocumentWebhookEvent(
                 UUID.randomUUID(),
@@ -531,7 +531,7 @@ public class DocumentInputService {
                 source.sourceCode(),
                 trimToNull(eventId),
                 trimToNull(idempotencyKey),
-                null,
+                eventType,
                 trimToNull(eventVersion),
                 signatureStatus,
                 WebhookEventStatus.ACCEPTED,
@@ -549,32 +549,9 @@ public class DocumentInputService {
         if (!saved.id().equals(accepted.id())) {
             return respondToDuplicateWebhookEvent(saved, payloadDigest);
         }
-        DocumentImportRecord queuedImport = queueWebhookImport(source, rawPayload);
-        DocumentWebhookEvent acceptedWithImport = new DocumentWebhookEvent(
-                saved.id(),
-                saved.sourceId(),
-                queuedImport.id(),
-                saved.sourceCode(),
-                saved.eventId(),
-                saved.idempotencyKey(),
-                webhookEventType(rawPayload),
-                saved.eventVersion(),
-                saved.signatureStatus(),
-                WebhookEventStatus.ACCEPTED,
-                saved.payloadDigest(),
-                saved.rawPayload(),
-                null,
-                saved.retryCount(),
-                saved.replayBy(),
-                saved.replayAt(),
-                saved.replayTraceId(),
-                saved.receivedAt(),
-                null
-        );
-        repository.saveWebhookEvent(acceptedWithImport);
-        eventPublisher.publishWebhookAccepted(acceptedWithImport.id());
-        metrics.recordWebhook(acceptedWithImport.signatureStatus(), acceptedWithImport.status(), acceptedWithImport.eventType());
-        return importService.importRecord(queuedImport.id());
+        eventPublisher.publishWebhookAccepted(saved.id());
+        metrics.recordWebhook(saved.signatureStatus(), saved.status(), saved.eventType());
+        return responseMapper.toWebhookEventResponse(saved);
     }
 
     private void rejectWebhookBeforeSignature(
@@ -622,21 +599,20 @@ public class DocumentInputService {
         throw new BusinessException(responseCode, responseMessage);
     }
 
-    private DocumentImportResponse respondToDuplicateWebhookEvent(
+    private DocumentWebhookEventResponse respondToDuplicateWebhookEvent(
             DocumentWebhookEvent duplicate,
             String payloadDigest
     ) {
         if (!payloadDigest.equals(duplicate.payloadDigest())) {
             throw new BusinessException(ErrorCode.CONFLICT, DocumentInputMessages.WEBHOOK_IDEMPOTENCY_KEY_CONFLICT);
         }
-        if (duplicate.importId() != null) {
-            return importService.importRecord(duplicate.importId());
-        }
-        throw new BusinessException(ErrorCode.CONFLICT, DocumentInputMessages.WEBHOOK_EVENT_PENDING);
+        return responseMapper.toWebhookEventResponse(duplicate);
     }
 
     /**
      * Processes one accepted webhook event after the ingress response has already returned.
+     * The import batch is created inside the worker so webhook ingress only verifies security,
+     * persists the event and publishes the accepted envelope.
      */
     @Transactional
     public DocumentWebhookEvent processWebhookEvent(UUID eventId) {
@@ -753,14 +729,6 @@ public class DocumentInputService {
             metrics.recordWebhook(failed.signatureStatus(), failed.status(), failed.eventType());
             return failed;
         }
-    }
-
-    private DocumentSourceConfig sourceForWebhookEvent(DocumentWebhookEvent event) {
-        return repository.sourceByCode(normalizeSourceCode(event.sourceCode()))
-                .orElseThrow(() -> new BusinessException(
-                        ErrorCode.NOT_FOUND,
-                        DocumentInputMessages.SOURCE_NOT_FOUND.formatted(event.sourceCode())
-                ));
     }
 
     private DocumentWebhookEvent ensureWebhookImportQueued(DocumentWebhookEvent event, DocumentSourceConfig source) {

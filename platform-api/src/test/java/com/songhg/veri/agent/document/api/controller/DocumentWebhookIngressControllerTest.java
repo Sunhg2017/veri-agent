@@ -78,8 +78,10 @@ class DocumentWebhookIngressControllerTest {
                         .headers(webhookHeaders(firstPayload, "evt-rate-1", "idem-rate-1"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(firstPayload))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.data.sourceCode").value("custom-rate-guard"));
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.data.sourceCode").value("custom-rate-guard"))
+                .andExpect(jsonPath("$.data.status").value("ACCEPTED"))
+                .andExpect(jsonPath("$.data.importId").doesNotExist());
 
         mockMvc.perform(post("/api/v1/document-input/webhooks/{sourceCode}", "custom-rate-guard")
                         .headers(webhookHeaders(secondPayload, "evt-rate-2", "idem-rate-2"))

@@ -17,7 +17,6 @@ final class DocumentInputMessages {
     static final String WEBHOOK_SIGNATURE_FAILED = "签名未通过的 webhook 事件不可重放";
     static final String WEBHOOK_ONLY_FAILED_OR_DEAD = "仅失败或死信 webhook 事件允许重放";
     static final String WEBHOOK_IDEMPOTENCY_KEY_CONFLICT = "webhook 幂等键已使用但 payload 不一致";
-    static final String WEBHOOK_EVENT_PENDING = "webhook 事件已接收但未成功处理";
 
     // Source & webhook status
     static final String SOURCE_NOT_FOUND = "文档源不存在: %s";

@@ -6,7 +6,6 @@ import com.songhg.veri.agent.common.api.PageResponse;
 import com.songhg.veri.agent.common.openapi.ApiVersion;
 import com.songhg.veri.agent.document.application.DocumentInputService;
 import com.songhg.veri.agent.document.application.query.WebhookEventPageRequest;
-import com.songhg.veri.agent.document.application.view.DocumentImportResponse;
 import com.songhg.veri.agent.document.application.view.DocumentWebhookEventResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -51,8 +50,8 @@ public class DocumentWebhookController {
     }
 
     @PostMapping("/webhooks/{sourceCode}")
-    @ResponseStatus(HttpStatus.CREATED)
-    public DocumentImportResponse webhook(
+    @ResponseStatus(HttpStatus.ACCEPTED)
+    public DocumentWebhookEventResponse webhook(
             @PathVariable String sourceCode,
             @RequestBody String payload,
             @RequestHeader(name = "X-VA-Timestamp", required = false) String timestamp,

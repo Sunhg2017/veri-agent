@@ -308,7 +308,7 @@ main() {
     --arg projectId "$PROJECT_CODE" \
     '{projectId:$projectId,eventType:"requirement.created",eventVersion:"1.0",id:"REQ-WP-ALL",requirements:[{title:"WP4 webhook 联动需求",priority:"LOW",tags:["wp4","webhook"]}]}')"
   wp4_webhook="$(post_wp4_webhook "$WP4_SOURCE_CODE" "$wp4_webhook_payload" "$wp4_event_id" "$wp4_idem")"
-  check_arg "WP4 signed webhook" sourceCode "$WP4_SOURCE_CODE" '.data.sourceCode == $sourceCode and .data.pendingCount == 1' "$wp4_webhook"
+  check_arg "WP4 signed webhook" sourceCode "$WP4_SOURCE_CODE" '.data.sourceCode == $sourceCode and .data.status == "ACCEPTED" and .data.signatureStatus == "VALID"' "$wp4_webhook"
 
   wp4_events="$(get_json "/api/v1/document-input/webhook-events?sourceCode=$(urlencode "$WP4_SOURCE_CODE")" "${wp4_headers[@]}")"
   check_arg "WP4 webhook event log" eventId "$wp4_event_id" '.data.items | any(.eventId == $eventId and .signatureStatus == "VALID")' "$wp4_events"

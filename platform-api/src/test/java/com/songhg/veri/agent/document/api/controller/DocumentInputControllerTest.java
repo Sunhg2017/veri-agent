@@ -3,6 +3,7 @@ package com.songhg.veri.agent.document.api.controller;
 import com.jayway.jsonpath.JsonPath;
 import com.songhg.veri.agent.auth.application.AuthTokenService;
 import com.songhg.veri.agent.auth.domain.AuthUserRecord;
+import com.songhg.veri.agent.common.trace.TraceContext;
 import com.songhg.veri.agent.document.application.DocumentWebhookAutoRetryService;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
@@ -775,23 +776,28 @@ class DocumentInputControllerTest {
                         .headers(webhookHeaders)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(payload))
-                .andExpect(status().isCreated())
+                .andExpect(status().isAccepted())
                 .andExpect(jsonPath("$.data.sourceCode").value("custom-reqs"))
-                .andExpect(jsonPath("$.data.sourceRef").value("REQ-9"))
-                .andExpect(jsonPath("$.data.status").value("MODEL_PARSE_QUEUED"))
-                .andExpect(jsonPath("$.data.totalCreated").value(0))
-                .andExpect(jsonPath("$.data.pendingCount").value(0))
+                .andExpect(jsonPath("$.data.eventId").value("evt-001"))
+                .andExpect(jsonPath("$.data.eventType").value("requirement.created"))
+                .andExpect(jsonPath("$.data.status").value("ACCEPTED"))
+                .andExpect(jsonPath("$.data.signatureStatus").value("VALID"))
+                .andExpect(jsonPath("$.data.importId").doesNotExist())
+                .andExpect(jsonPath("$.traceId").value("trc_wp4_webhook_ingress"))
                 .andReturn();
 
-        String importId = JsonPath.read(webhook.getResponse().getContentAsString(), "$.data.id");
+        String eventRecordId = JsonPath.read(webhook.getResponse().getContentAsString(), "$.data.id");
+        MvcResult events = awaitWebhookEvent("custom-reqs", "PROCESSED");
+        String importId = JsonPath.read(events.getResponse().getContentAsString(), "$.data.items[0].importId");
         awaitImport(importId, "SUCCEEDED", 1, 1);
 
         mockMvc.perform(post("/api/v1/document-input/webhooks/{sourceCode}", "custom-reqs")
                         .headers(webhookHeaders)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(payload))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.data.id").value(importId));
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.data.id").value(eventRecordId))
+                .andExpect(jsonPath("$.data.importId").value(importId));
 
         String changedPayload = payload.replace("Webhook 需求", "Webhook 需求 v2");
         mockMvc.perform(post("/api/v1/document-input/webhooks/{sourceCode}", "custom-reqs")
@@ -812,11 +818,9 @@ class DocumentInputControllerTest {
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("FORBIDDEN"));
 
-        MvcResult events = awaitWebhookEvent("custom-reqs", "PROCESSED");
         assertThat(JsonPath.<String>read(events.getResponse().getContentAsString(), "$.data.items[0].signatureStatus"))
                 .isEqualTo("VALID");
 
-        String eventRecordId = JsonPath.read(events.getResponse().getContentAsString(), "$.data.items[0].id");
         String eventSourceId = JsonPath.read(events.getResponse().getContentAsString(), "$.data.items[0].sourceId");
         mockMvc.perform(get("/api/v1/document-input/webhook-events")
                         .headers(documentInputHeaders())
@@ -896,8 +900,8 @@ class DocumentInputControllerTest {
                         .headers(unsupportedVersionHeaders)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(payload))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.data.status").value("MODEL_PARSE_QUEUED"));
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.data.status").value("ACCEPTED"));
 
         MvcResult events = awaitWebhookEvent("custom-secure", "FAILED");
         assertThat(JsonPath.<String>read(events.getResponse().getContentAsString(), "$.data.items[0].eventVersion"))
@@ -977,8 +981,8 @@ class DocumentInputControllerTest {
                         .headers(webhookHeaders(payload, "evt-invalid-json", "idem-invalid-json"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(payload))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.data.status").value("MODEL_PARSE_QUEUED"));
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.data.status").value("ACCEPTED"));
 
         MvcResult events = awaitWebhookEvent("custom-invalid-json", "FAILED");
         assertThat(JsonPath.<String>read(events.getResponse().getContentAsString(), "$.data.items[0].signatureStatus"))
@@ -1008,8 +1012,8 @@ class DocumentInputControllerTest {
                         .headers(webhookHeaders(payload, "evt-auto-retry", "idem-auto-retry"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(payload))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.data.status").value("MODEL_PARSE_QUEUED"));
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.data.status").value("ACCEPTED"));
 
         MvcResult events = awaitWebhookEvent("custom-auto-retry", "FAILED");
 
@@ -1115,6 +1119,7 @@ class DocumentInputControllerTest {
 
     private HttpHeaders webhookHeaders(String payload, String eventId, String idempotencyKey, String timestamp) throws Exception {
         HttpHeaders headers = new HttpHeaders();
+        headers.set(TraceContext.TRACE_ID_HEADER, "trc_wp4_webhook_ingress");
         headers.set("X-VA-Timestamp", timestamp);
         headers.set("X-VA-Signature", hmacSha256(String.join(".", timestamp, eventId, idempotencyKey, payload)));
         headers.set("X-VA-Event-Id", eventId);
@@ -1212,17 +1217,21 @@ class DocumentInputControllerTest {
         AssertionError lastError = null;
         for (int attempt = 0; attempt < 40; attempt++) {
             try {
-                return mockMvc.perform(get("/api/v1/document-input/webhook-events")
+                MvcResult result = mockMvc.perform(get("/api/v1/document-input/webhook-events")
                                 .headers(documentInputHeaders())
                                 .param("sourceCode", sourceCode))
                         .andExpect(status().isOk())
                         .andExpect(jsonPath("$.data.total").value(1))
-                        .andExpect(jsonPath("$.data.items[0].status").value(expectedStatus))
                         .andReturn();
+                List<String> statuses = JsonPath.read(result.getResponse().getContentAsString(), "$.data.items[*].status");
+                if (statuses.contains(expectedStatus)) {
+                    return result;
+                }
+                lastError = new AssertionError("Webhook 事件状态未达到期望值: " + statuses);
             } catch (AssertionError error) {
                 lastError = error;
-                Thread.sleep(50);
             }
+            Thread.sleep(50);
         }
         throw lastError == null ? new AssertionError("Webhook 事件未达到期望状态") : lastError;
     }

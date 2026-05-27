@@ -191,6 +191,25 @@ wait_for_webhook_event() {
   return 1
 }
 
+wait_for_webhook_import_id() {
+  local source_code="$1"
+  local event_id="$2"
+  local payload=""
+  for _ in $(seq 1 60); do
+    payload="$(get_document_json "/webhook-events?sourceCode=$(urlencode "$source_code")")"
+    local import_id
+    import_id="$(printf '%s' "$payload" | jq -r --arg eventId "$event_id" '.data.items[] | select(.eventId == $eventId and .importId != null) | .importId' | head -n 1)"
+    if [[ -n "$import_id" && "$import_id" != "null" ]]; then
+      printf '%s' "$import_id"
+      return 0
+    fi
+    sleep 0.25
+  done
+  echo "Timed out waiting for webhook event $event_id to expose importId" >&2
+  printf '%s\n' "$payload" >&2
+  return 1
+}
+
 webhook_signature() {
   local timestamp="$1"
   local event_id="$2"
@@ -325,19 +344,21 @@ main() {
   source_health="$(get_document_json "/sources/$source_id/health")"
   check_arg "Source health" sourceCode "$SOURCE_CODE" '.data.sourceCode == $sourceCode and .data.ready == true and .data.signatureAlgorithm != null and .data.secretRefConfigured == true and .data.eventVersion == "1.0"' "$source_health"
 
-  local webhook_payload event_id idem webhook duplicate events invalid_payload
+  local webhook_payload event_id idem webhook webhook_import_id duplicate events invalid_payload
   event_id="evt-wp4-smoke-$RANDOM"
   idem="idem-wp4-smoke-$RANDOM"
   webhook_payload="$(jq -nc \
     --arg projectId "$PROJECT_ID" \
     '{projectId:$projectId,eventType:"requirement.created",eventVersion:"1.0",id:"REQ-WP4-SMOKE",title:"WP4 smoke webhook import",requirements:[{title:"Webhook 需求",description:"来自自研需求平台",priority:"LOW",tags:["webhook","smoke"]}]}')"
   webhook="$(post_signed_webhook "$SOURCE_CODE" "$webhook_payload" "$event_id" "$idem")"
-  check_arg "Signed webhook accepted" sourceCode "$SOURCE_CODE" '.data.sourceCode == $sourceCode and .data.status == "MODEL_PARSE_QUEUED"' "$webhook"
+  check_arg "Signed webhook accepted" sourceCode "$SOURCE_CODE" '.data.sourceCode == $sourceCode and .data.status == "ACCEPTED" and .data.signatureStatus == "VALID" and (.data.importId == null)' "$webhook"
+  webhook_import_id="$(wait_for_webhook_import_id "$SOURCE_CODE" "$event_id")"
   duplicate="$(post_signed_webhook "$SOURCE_CODE" "$webhook_payload" "$event_id" "$idem")"
-  check_arg "Webhook idempotent replay" importId "$(printf '%s' "$webhook" | jq -r '.data.id')" '.data.id == $importId' "$duplicate"
+  check_arg "Webhook idempotent replay" eventId "$(printf '%s' "$webhook" | jq -r '.data.id')" '.data.id == $eventId and .data.status != "REJECTED"' "$duplicate"
 
   events="$(wait_for_webhook_event "$SOURCE_CODE" "$event_id" "PROCESSED")"
   check_arg "Webhook event log" eventId "$event_id" '.data.total >= 1 and (.data.items | any(.eventId == $eventId and .signatureStatus == "VALID"))' "$events"
+  wait_for_import "$webhook_import_id" "SUCCEEDED" 1 1 >/dev/null
 
   invalid_payload="$(jq -nc --arg projectId "$PROJECT_ID" '{projectId:$projectId,eventType:"requirement.created",id:"REQ-WP4-BAD",requirements:[{title:"Bad signature"}]}')"
   expect_http_error "Webhook invalid signature rejected" "403" "FORBIDDEN" \
