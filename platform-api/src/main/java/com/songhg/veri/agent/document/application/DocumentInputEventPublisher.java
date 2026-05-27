@@ -16,7 +16,7 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 @Component
-class DocumentInputEventPublisher {
+public class DocumentInputEventPublisher {
 
     private final PlatformEventPublisher eventPublisher;
     private final PlatformEventProperties eventProperties;
@@ -32,7 +32,7 @@ class DocumentInputEventPublisher {
         this.objectMapper = objectMapper;
     }
 
-    void publishImportRequested(UUID importId) {
+    public void publishImportRequested(UUID importId) {
         PlatformEventEnvelope event = PlatformEventEnvelope.of(
                 DocumentImportRequestedEvent.EVENT_TYPE,
                 importId.toString(),
@@ -42,7 +42,7 @@ class DocumentInputEventPublisher {
         publishAfterCommit(eventProperties.documentInputImportRequestedTopic(), event);
     }
 
-    void publishDocumentPublishRequested(UUID importId, List<UUID> candidateIds) {
+    public void publishDocumentPublishRequested(UUID importId, List<UUID> candidateIds) {
         PlatformEventEnvelope event = PlatformEventEnvelope.of(
                 DocumentPublishRequestedEvent.EVENT_TYPE,
                 importId.toString(),
@@ -52,7 +52,7 @@ class DocumentInputEventPublisher {
         publishAfterCommit(eventProperties.documentInputPublishRequestedTopic(), event);
     }
 
-    void publishWebhookAccepted(UUID webhookEventId) {
+    public void publishWebhookAccepted(UUID webhookEventId) {
         PlatformEventEnvelope event = PlatformEventEnvelope.of(
                 DocumentWebhookAcceptedEvent.EVENT_TYPE,
                 webhookEventId.toString(),

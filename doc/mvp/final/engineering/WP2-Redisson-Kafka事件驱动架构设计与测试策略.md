@@ -147,6 +147,8 @@ terminal -> no-op
 | 发布写入 | 非 dryRun `POST /imports/{id}/publish` 返回 `PUBLISH_QUEUED`。 | import/candidate `PUBLISH_QUEUED -> PUBLISHING -> PUBLISHED/PUBLISH_FAILED`，import 完成后汇总数量。 | WP3 upsert 仍使用 `externalRequirementId/sourceRef`，重复事件不会重复创建资产。 |
 | Webhook 接收 | `POST /webhooks/{sourceCode}` 在安全校验后返回 `ACCEPTED` webhook 事件回执；导入批次由后台消费者创建，失败解析在事件状态中查询。 | webhook `ACCEPTED -> PROCESSING -> PROCESSED/FAILED/DEAD_LETTER/REPLAYED`。 | 保留 eventId + idempotencyKey 去重；重复投递返回同一 webhook 事件，不重复创建候选；人工 replay 和自动 retry 只重新发布 accepted 事件。 |
 
+`DocumentInputEventRecoveryService` 会在服务启动和定时任务中扫描持久化队列态记录，并重新发布 `MODEL_PARSE_QUEUED` 导入解析事件、`PUBLISH_QUEUED` 发布事件和 `ACCEPTED` webhook 事件。恢复服务不直接改写状态，实际处理权仍由消费者的条件状态更新认领；这样即使本地事件总线或 Kafka 投递中断，重发也只补偿未被消费的队列态记录。运行中状态超时回滚暂不纳入本轮，避免长文档解析或 WP3 写入被误判为 stale。
+
 Trace 串联方式保持统一：HTTP 入口的 `TraceContext` 写入 `PlatformEventEnvelope.traceId`、审计日志和 webhook 重放记录，Kafka header 同步写 `X-Trace-Id`，消费者由 `PlatformEventDispatcher` 恢复 MDC 后再进入业务 handler。日志中可通过同一 `trace_id` 串起 ingress、事件发布、Kafka/local dispatch、模型解析、WP3 写入和失败重放。
 
 ## 4. 测试策略与用例
@@ -163,6 +165,7 @@ Trace 串联方式保持统一：HTTP 入口的 `TraceContext` 写入 `PlatformE
 | Kafka 审计事件发布保持 traceId | `KafkaAuditLogWriterTest`。 |
 | DB 任务恢复只处理 stale running | `DbProfileRepositoryContractTest`。 |
 | WP4 导入、发布、webhook 事件驱动状态机 | `DocumentInputControllerTest`、`DocumentInputModelParseControllerTest`、`DocumentBinaryImportControllerTest`、`DocumentWebhookAutoRetryServiceTest`。 |
+| WP4 队列态事件补偿发布 | `DocumentInputEventRecoveryServiceTest`。 |
 
 ## 5. 五角色结论
 
