@@ -7,9 +7,11 @@ import {
   confirmTestDesignCandidate,
   createTestDesignTask,
   exportTestDesignCandidatesCsv,
+  exportTestDesignReviewRecordsCsv,
   fetchTaskTestDesignCandidates,
   fetchTestDesignCandidates,
   fetchTestDesignHealth,
+  fetchTestDesignReviewRecords,
   fetchTestDesignTask,
   fetchTestDesignTaskSummary,
   fetchTestDesignTasks,
@@ -18,12 +20,15 @@ import {
   normalizeTestDesignCandidateList,
   normalizeTestDesignHealth,
   normalizeTestDesignPublishResult,
+  normalizeTestDesignReviewRecord,
+  normalizeTestDesignReviewRecordList,
   normalizeTestDesignTask,
   normalizeTestDesignTaskDetail,
   publishTestDesignDryRun,
   publishTestDesignTask,
   rejectTestDesignCandidate,
   testDesignCandidateExportPath,
+  testDesignReviewRecordExportPath,
   updateTestDesignCandidate
 } from './testDesign';
 
@@ -129,6 +134,37 @@ describe('WP5 test design API helpers', () => {
     expect(detail.candidates).toHaveLength(1);
     expect(detail.publishRecords[0]).toMatchObject({ candidateId: 'cand-1', dryRun: true });
     expect(normalizeTestDesignCandidateList({ content: [{ id: 'cand-2' }], total_elements: '8' }).total).toBe(8);
+
+    const reviewRecord = normalizeTestDesignReviewRecord({
+      id: 'review-1',
+      task_id: 'task-1',
+      candidate_id: 'cand-1',
+      action: 'UPDATE',
+      before_status: 'GENERATED',
+      after_status: 'EDITED',
+      has_comment: true,
+      comment_preview: 'token=[REDACTED]',
+      changed_fields: ['title', 'status'],
+      version_before: '1',
+      version_after: '2'
+    });
+    expect(reviewRecord).toMatchObject({
+      id: 'review-1',
+      taskId: 'task-1',
+      candidateId: 'cand-1',
+      action: 'UPDATE',
+      beforeStatus: 'GENERATED',
+      afterStatus: 'EDITED',
+      hasComment: true,
+      changedFields: ['title', 'status'],
+      versionBefore: 1,
+      versionAfter: 2
+    });
+    expect(normalizeTestDesignReviewRecordList({ items: [reviewRecord], total: '3', index: '0', size: '10' })).toMatchObject({
+      total: 3,
+      index: 0,
+      size: 10
+    });
   });
 
   it('calls task and candidate list endpoints with encoded filters', async () => {
@@ -147,6 +183,9 @@ describe('WP5 test design API helpers', () => {
     await fetchTaskTestDesignCandidates('task 1', { index: 2, size: 10, status: 'GENERATED', keyword: '边界' });
     expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/test-design/tasks/task%201/candidates?index=2&size=10&status=GENERATED&keyword=%E8%BE%B9%E7%95%8C');
 
+    await fetchTestDesignReviewRecords('task 1', { index: 1, size: 10 });
+    expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/test-design/tasks/task%201/review-records?index=1&size=10');
+
     expect(testDesignCandidateExportPath({
       index: 3,
       size: 50,
@@ -154,6 +193,8 @@ describe('WP5 test design API helpers', () => {
       status: 'FAILED',
       keyword: 'token secret'
     })).toBe('/api/v1/test-design/candidates/export?taskId=task+1&status=FAILED&keyword=token+secret');
+
+    expect(testDesignReviewRecordExportPath('task 1')).toBe('/api/v1/test-design/tasks/task%201/review-records/export');
 
     await fetchTestDesignTask('task 1');
     expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/test-design/tasks/task%201');
@@ -328,6 +369,20 @@ describe('WP5 test design API helpers', () => {
       '/api/v1/test-design/candidates/export?taskId=task+1&projectId=project+pay&status=FAILED&coverageType=SMOKE&keyword=%E7%99%BB%E5%BD%95'
     );
     expect(response.filename).toBe('wp5-candidates.csv');
+  });
+
+  it('exports review record CSV from the task-scoped server report', async () => {
+    requestTextMock.mockResolvedValue({
+      text: 'recordType,metric,value\nsummary,totalMatched,2\n',
+      traceId: 'trace-review-export',
+      contentType: 'text/csv',
+      filename: 'wp5-review-records.csv'
+    });
+
+    const response = await exportTestDesignReviewRecordsCsv('task 1');
+
+    expect(requestTextMock).toHaveBeenLastCalledWith('/api/v1/test-design/tasks/task%201/review-records/export');
+    expect(response.filename).toBe('wp5-review-records.csv');
   });
 
   it('loads health endpoint without auth-specific payload assumptions', async () => {

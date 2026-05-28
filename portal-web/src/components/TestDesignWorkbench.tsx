@@ -24,8 +24,10 @@ import {
   confirmTestDesignCandidate,
   createTestDesignTask,
   exportTestDesignCandidatesCsv,
+  exportTestDesignReviewRecordsCsv,
   fetchTaskTestDesignCandidates,
   fetchTestDesignHealth,
+  fetchTestDesignReviewRecords,
   fetchTestDesignTaskSummary,
   fetchTestDesignTasks,
   ignoreTestDesignCandidate,
@@ -40,6 +42,7 @@ import {
   type TestDesignHealth,
   type TestDesignPublishRecordView,
   type TestDesignPublishResult,
+  type TestDesignReviewRecordView,
   type TestDesignTaskView
 } from '../api/testDesign';
 import { canUseButton, hasPermission } from '../permissions';
@@ -195,6 +198,9 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
   const [reviewComment, setReviewComment] = useState('');
   const [batchEditDraft, setBatchEditDraft] = useState<TestDesignBatchEditDraft>(initialTestDesignBatchEditDraft);
   const [publishResult, setPublishResult] = useState<TestDesignPublishResult | null>(null);
+  const [reviewRecords, setReviewRecords] = useState<TestDesignReviewRecordView[]>([]);
+  const [reviewRecordPageTotal, setReviewRecordPageTotal] = useState(0);
+  const [reviewRecordPageIndex, setReviewRecordPageIndex] = useState(0);
   const [batchActionResult, setBatchActionResult] = useState<TestDesignCandidateBatchActionResult | null>(null);
   const [batchEditResult, setBatchEditResult] = useState<BatchEditResult | null>(null);
   const [selectedCandidateIds, setSelectedCandidateIds] = useState<string[]>([]);
@@ -203,6 +209,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
   const [taskState, setTaskState] = useState<WorkState>({ loading: false });
   const [mutationState, setMutationState] = useState<WorkState>({ loading: false });
   const [publishState, setPublishState] = useState<WorkState>({ loading: false });
+  const [reviewRecordState, setReviewRecordState] = useState<WorkState>({ loading: false });
 
   const disabled = !props.signedIn || !canRead;
   const selectedTask = tasks.find((task) => task.id === selectedTaskId) ?? null;
@@ -212,6 +219,10 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
   const candidatePage = useMemo(
     () => pageFromServerItems(candidates, candidatePageIndex, candidatePageSize, candidatePageTotal),
     [candidatePageIndex, candidatePageSize, candidatePageTotal, candidates]
+  );
+  const reviewRecordPage = useMemo(
+    () => pageFromServerItems(reviewRecords, reviewRecordPageIndex, 10, reviewRecordPageTotal),
+    [reviewRecordPageIndex, reviewRecordPageTotal, reviewRecords]
   );
   const currentPageSelectableCandidates = useMemo(
     () => candidatePage.items.filter(canSelectTestDesignCandidate),
@@ -286,6 +297,8 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
     if (!props.signedIn || !canRead || !taskId) {
       setCandidates([]);
       setCandidatePageTotal(0);
+      setReviewRecords([]);
+      setReviewRecordPageTotal(0);
       setSelectedCandidateId('');
       setCandidateDraft(null);
       setBatchActionResult(null);
@@ -352,6 +365,46 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
     props.signedIn
   ]);
 
+  const refreshReviewRecords = useCallback(async (taskId: string, options?: { silent?: boolean }) => {
+    if (!props.signedIn || !canRead || !taskId) {
+      setReviewRecords([]);
+      setReviewRecordPageTotal(0);
+      setReviewRecordState({ loading: false });
+      return;
+    }
+
+    const silent = options?.silent === true;
+    if (silent) {
+      setReviewRecordState((current) => ({ ...current, error: undefined }));
+    } else {
+      setReviewRecordState({ loading: true });
+    }
+    try {
+      const response = await fetchTestDesignReviewRecords(taskId, {
+        index: reviewRecordPageIndex,
+        size: 10
+      });
+      const page = response.data;
+      const normalizedPage = pageFromServerItems(page.items, page.index ?? reviewRecordPageIndex, page.size ?? 10, page.total);
+      if (normalizedPage.index !== reviewRecordPageIndex && page.total > 0 && !page.items.length) {
+        setReviewRecordPageIndex(normalizedPage.index);
+      }
+      setReviewRecords(page.items);
+      setReviewRecordPageTotal(page.total);
+      setReviewRecordState({ loading: false, traceId: response.trace_id });
+    } catch (error: unknown) {
+      if (!silent) {
+        setReviewRecords([]);
+        setReviewRecordPageTotal(0);
+      }
+      setReviewRecordState({ loading: false, error: testDesignErrorMessage(error, '评审历史加载失败') });
+    }
+  }, [
+    canRead,
+    props.signedIn,
+    reviewRecordPageIndex
+  ]);
+
   const refreshAll = useCallback(async () => {
     if (!props.signedIn || !canRead) {
       setHealth(null);
@@ -359,6 +412,8 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       setTasks([]);
       setCandidates([]);
       setCandidatePageTotal(0);
+      setReviewRecords([]);
+      setReviewRecordPageTotal(0);
       setSelectedRequirementIds([]);
       setSelectedTaskId('');
       setSelectedCandidateId('');
@@ -371,6 +426,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       setPendingConfirmation(null);
       setLoadState({ loading: false });
       setTaskState({ loading: false });
+      setReviewRecordState({ loading: false });
       return;
     }
 
@@ -436,6 +492,9 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
     setSelectedCandidateCache({});
     setCandidateDraft(null);
     setCandidatePageIndex(0);
+    setReviewRecords([]);
+    setReviewRecordPageTotal(0);
+    setReviewRecordPageIndex(0);
     setPublishResult(null);
     setBatchActionResult(null);
     setBatchEditDraft(initialTestDesignBatchEditDraft);
@@ -448,14 +507,19 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
   }, [refreshCandidatePage, selectedTaskId]);
 
   useEffect(() => {
+    void refreshReviewRecords(selectedTaskId);
+  }, [refreshReviewRecords, selectedTaskId]);
+
+  useEffect(() => {
     if (!selectedTaskId || !selectedTaskGenerating) {
       return undefined;
     }
     const timer = window.setInterval(() => {
       void refreshCandidatePage(selectedTaskId, { silent: true });
+      void refreshReviewRecords(selectedTaskId, { silent: true });
     }, 2000);
     return () => window.clearInterval(timer);
-  }, [refreshCandidatePage, selectedTaskGenerating, selectedTaskId]);
+  }, [refreshCandidatePage, refreshReviewRecords, selectedTaskGenerating, selectedTaskId]);
 
   useEffect(() => {
     const nextCandidate = candidates.find((candidate) => candidate.id === selectedCandidateId) ?? null;
@@ -484,6 +548,12 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       setCandidatePageIndex(candidatePage.index);
     }
   }, [candidatePage.index, candidatePageIndex]);
+
+  useEffect(() => {
+    if (reviewRecordPage.index !== reviewRecordPageIndex) {
+      setReviewRecordPageIndex(reviewRecordPage.index);
+    }
+  }, [reviewRecordPage.index, reviewRecordPageIndex]);
 
   useEffect(() => {
     if (selectedCandidateId && candidatePage.items.some((candidate) => candidate.id === selectedCandidateId)) {
@@ -570,6 +640,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       setBatchActionResult(null);
       setBatchEditDraft(initialTestDesignBatchEditDraft);
       setBatchEditResult(null);
+      void refreshReviewRecords(response.data.task.id, { silent: true });
       setPendingConfirmation(null);
       setMutationState({
         loading: false,
@@ -610,6 +681,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       });
       updateCandidateInState(response.data);
       setMutationState({ loading: false, success: '候选用例已保存', traceId: response.trace_id });
+      void refreshReviewRecords(selectedTaskId, { silent: true });
     } catch (error: unknown) {
       setMutationState({ loading: false, error: testDesignErrorMessage(error, '候选用例保存失败') });
     }
@@ -634,6 +706,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
           : await ignoreTestDesignCandidate(selectedCandidate.id, payload);
       updateCandidateInState(response.data);
       setMutationState({ loading: false, success: reviewSuccessText(action), traceId: response.trace_id });
+      void refreshReviewRecords(selectedTaskId, { silent: true });
     } catch (error: unknown) {
       setMutationState({ loading: false, error: testDesignErrorMessage(error, '候选用例状态更新失败') });
     }
@@ -694,6 +767,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
         traceId: response.trace_id
       });
       void refreshCandidatePage(selectedTaskId, { silent: true });
+      void refreshReviewRecords(selectedTaskId, { silent: true });
     } catch (error: unknown) {
       setMutationState({ loading: false, error: testDesignErrorMessage(error, `批量${testDesignBatchActionLabel(action)}失败`) });
     }
@@ -788,6 +862,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       traceId: items.find((item) => item.result === 'SUCCEEDED')?.traceId
     });
     void refreshCandidatePage(selectedTaskId, { silent: true });
+    void refreshReviewRecords(selectedTaskId, { silent: true });
   }
 
   function requestPublishTask(dryRun: boolean) {
@@ -939,6 +1014,34 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
     setPublishState({ loading: false, success: '已导出发布结果摘要' });
   }
 
+  async function exportReviewRecords() {
+    if (!canExport) {
+      setReviewRecordState({ loading: false, error: '缺少 testDesign:export 权限' });
+      return;
+    }
+    if (!selectedTaskId) {
+      setReviewRecordState({ loading: false, error: '请先选择任务后再导出评审历史' });
+      return;
+    }
+    if (!reviewRecordPageTotal) {
+      setReviewRecordState({ loading: false, error: '暂无评审历史可导出' });
+      return;
+    }
+
+    setReviewRecordState({ loading: true });
+    try {
+      const response = await exportTestDesignReviewRecordsCsv(selectedTaskId);
+      downloadText(
+        response.text,
+        response.filename ?? buildTestDesignExportFilename('review-records', selectedTaskId, new Date().toISOString()),
+        response.contentType || TEST_DESIGN_EXPORT_CONTENT_TYPE
+      );
+      setReviewRecordState({ loading: false, success: '已导出评审历史', traceId: response.traceId });
+    } catch (error: unknown) {
+      setReviewRecordState({ loading: false, error: testDesignErrorMessage(error, '评审历史导出失败') });
+    }
+  }
+
   function updateCandidateInState(nextCandidate: TestDesignCandidateView) {
     setCandidates((current) => current.map((candidate) => (candidate.id === nextCandidate.id ? nextCandidate : candidate)));
     setSelectedCandidateCache((current) => mergeCandidateCache(current, [nextCandidate]));
@@ -1047,6 +1150,59 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
               </table>
             </div>
             <StateLine state={loadState} />
+          </div>
+        </section>
+
+        <section className="panel">
+          <div className="panel-header compact">
+            <div>
+              <h2 className="panel-title">评审历史</h2>
+              <p className="panel-desc">{reviewRecordPageTotal ? `${reviewRecordPageTotal} 条候选编辑和评审记录` : '候选编辑和评审审计摘要。'}</p>
+            </div>
+            <button className="btn btn-secondary btn-sm" type="button" disabled={!canExport || reviewRecordState.loading || !reviewRecordPageTotal} onClick={() => void exportReviewRecords()}>
+              <Download size={15} />
+              导出
+            </button>
+          </div>
+          <div className="panel-body compact main-stack">
+            <StateLine state={reviewRecordState} />
+            {reviewRecordPage.total > 0 && (
+              <div className="test-design-pagination" aria-label="评审历史分页">
+                <span>{reviewRecordPage.start}-{reviewRecordPage.end} / {reviewRecordPage.total}</span>
+                <div className="toolbar-actions">
+                  <button
+                    aria-label="上一页评审历史"
+                    className="btn btn-secondary btn-xs"
+                    disabled={!reviewRecordPage.hasPrevious || reviewRecordState.loading}
+                    title="上一页"
+                    type="button"
+                    onClick={() => setReviewRecordPageIndex((current) => Math.max(0, current - 1))}
+                  >
+                    <ChevronLeft size={14} />
+                  </button>
+                  <span className="field-hint">{reviewRecordPage.index + 1} / {reviewRecordPage.totalPages}</span>
+                  <button
+                    aria-label="下一页评审历史"
+                    className="btn btn-secondary btn-xs"
+                    disabled={!reviewRecordPage.hasNext || reviewRecordState.loading}
+                    title="下一页"
+                    type="button"
+                    onClick={() => setReviewRecordPageIndex((current) => current + 1)}
+                  >
+                    <ChevronRight size={14} />
+                  </button>
+                </div>
+              </div>
+            )}
+            {reviewRecordPage.items.length ? (
+              <div className="test-design-review-records">
+                {reviewRecordPage.items.map((record) => (
+                  <ReviewRecordRow key={record.id} record={record} />
+                ))}
+              </div>
+            ) : (
+              <div className="notice info">{selectedTaskId ? '暂无评审历史' : '请先选择任务'}</div>
+            )}
           </div>
         </section>
 
@@ -1592,6 +1748,27 @@ function PublishResultBadge(props: { value: string }) {
         ? 'badge badge-neutral'
         : 'badge badge-warning';
   return <span className={className}>{value}</span>;
+}
+
+function ReviewRecordRow(props: { record: TestDesignReviewRecordView }) {
+  const statusChange = [props.record.beforeStatus, props.record.afterStatus].filter(Boolean).join(' -> ') || '-';
+  const versionChange = props.record.versionBefore !== undefined || props.record.versionAfter !== undefined
+    ? `${props.record.versionBefore ?? '-'} -> ${props.record.versionAfter ?? '-'}`
+    : '-';
+  return (
+    <div className="test-design-review-record">
+      <div>
+        <strong>{props.record.title ?? props.record.candidateId ?? '-'}</strong>
+        <em>{props.record.action} · {statusChange} · v{versionChange}</em>
+        <small>{props.record.changedFields.length ? props.record.changedFields.join(', ') : '无字段变更摘要'}</small>
+        {props.record.hasComment && <small>{props.record.commentPreview ?? '包含评审说明'}</small>}
+      </div>
+      <div className="test-design-review-record-meta">
+        <span>{props.record.reviewer ?? '-'}</span>
+        <time>{props.record.createdAt ?? '-'}</time>
+      </div>
+    </div>
+  );
 }
 
 function BatchActionSummary(props: { result: TestDesignCandidateBatchActionResult }) {

@@ -99,6 +99,24 @@ export interface TestDesignPublishRecordView {
   createdAt?: string;
 }
 
+export interface TestDesignReviewRecordView {
+  id: string;
+  taskId?: string;
+  candidateId?: string;
+  title?: string;
+  projectId?: string;
+  action: string;
+  beforeStatus?: string;
+  afterStatus?: string;
+  reviewer?: string;
+  hasComment: boolean;
+  commentPreview?: string;
+  changedFields: string[];
+  versionBefore?: number;
+  versionAfter?: number;
+  createdAt?: string;
+}
+
 export interface TestDesignTaskDetail {
   task: TestDesignTaskView;
   candidates: TestDesignCandidateView[];
@@ -114,6 +132,13 @@ export interface TestDesignTaskList {
 
 export interface TestDesignCandidateList {
   items: TestDesignCandidateView[];
+  total: number;
+  index?: number;
+  size?: number;
+}
+
+export interface TestDesignReviewRecordList {
+  items: TestDesignReviewRecordView[];
   total: number;
   index?: number;
   size?: number;
@@ -209,6 +234,11 @@ export interface TestDesignCandidateFilters {
   keyword?: string;
 }
 
+export interface TestDesignReviewRecordFilters {
+  index?: number;
+  size?: number;
+}
+
 type UnknownRecord = Record<string, unknown>;
 
 function isRecord(value: unknown): value is UnknownRecord {
@@ -230,6 +260,11 @@ function numberValue(value: unknown, fallback = 0) {
     return Number.isFinite(parsed) ? parsed : fallback;
   }
   return fallback;
+}
+
+function optionalNumber(value: unknown) {
+  if (value === undefined || value === null || value === '') return undefined;
+  return numberValue(value, 0);
 }
 
 function stringArrayValue(value: unknown): string[] {
@@ -394,6 +429,27 @@ export function normalizeTestDesignPublishRecord(raw: unknown): TestDesignPublis
   };
 }
 
+export function normalizeTestDesignReviewRecord(raw: unknown): TestDesignReviewRecordView {
+  const item = isRecord(raw) ? raw : {};
+  return {
+    id: stringValue(item.id),
+    taskId: optionalString(item.taskId) ?? optionalString(item.task_id),
+    candidateId: optionalString(item.candidateId) ?? optionalString(item.candidate_id),
+    title: optionalString(item.title),
+    projectId: optionalString(item.projectId) ?? optionalString(item.project_id),
+    action: stringValue(item.action, 'UNKNOWN'),
+    beforeStatus: optionalString(item.beforeStatus) ?? optionalString(item.before_status),
+    afterStatus: optionalString(item.afterStatus) ?? optionalString(item.after_status),
+    reviewer: optionalString(item.reviewer),
+    hasComment: Boolean(item.hasComment ?? item.has_comment),
+    commentPreview: optionalString(item.commentPreview) ?? optionalString(item.comment_preview),
+    changedFields: stringArrayValue(item.changedFields ?? item.changed_fields),
+    versionBefore: optionalNumber(item.versionBefore ?? item.version_before),
+    versionAfter: optionalNumber(item.versionAfter ?? item.version_after),
+    createdAt: optionalString(item.createdAt) ?? optionalString(item.created_at)
+  };
+}
+
 export function normalizeTestDesignCandidateBatchActionItem(raw: unknown): TestDesignCandidateBatchActionItem {
   const item = isRecord(raw) ? raw : {};
   return {
@@ -437,6 +493,16 @@ export function normalizeTestDesignTaskList(raw: unknown): TestDesignTaskList {
 
 export function normalizeTestDesignCandidateList(raw: unknown): TestDesignCandidateList {
   const items = listItems(raw).map(normalizeTestDesignCandidate);
+  return {
+    items,
+    total: pageTotal(raw, items.length),
+    index: isRecord(raw) ? numberValue(raw.index, 0) : undefined,
+    size: isRecord(raw) ? numberValue(raw.size, items.length) : undefined
+  };
+}
+
+export function normalizeTestDesignReviewRecordList(raw: unknown): TestDesignReviewRecordList {
+  const items = listItems(raw).map(normalizeTestDesignReviewRecord);
   return {
     items,
     total: pageTotal(raw, items.length),
@@ -593,6 +659,24 @@ export async function publishTestDesignTask(
 export async function fetchTestDesignPublishRecords(taskId: string): Promise<ApiResponse<TestDesignPublishRecordView[]>> {
   const response = await requestJson<unknown>(`/api/v1/test-design/tasks/${encodeURIComponent(taskId)}/publish-records`);
   return { ...response, data: listItems(response.data).map(normalizeTestDesignPublishRecord) };
+}
+
+export async function fetchTestDesignReviewRecords(
+  taskId: string,
+  filters: TestDesignReviewRecordFilters = {}
+): Promise<ApiResponse<TestDesignReviewRecordList>> {
+  const response = await requestJson<unknown>(
+    `/api/v1/test-design/tasks/${encodeURIComponent(taskId)}/review-records${queryString(filters as Record<string, unknown>)}`
+  );
+  return { ...response, data: normalizeTestDesignReviewRecordList(response.data) };
+}
+
+export function testDesignReviewRecordExportPath(taskId: string) {
+  return `/api/v1/test-design/tasks/${encodeURIComponent(taskId)}/review-records/export`;
+}
+
+export async function exportTestDesignReviewRecordsCsv(taskId: string): Promise<TextResponse> {
+  return requestText(testDesignReviewRecordExportPath(taskId));
 }
 
 export function testDesignErrorMessage(error: unknown, fallback: string) {

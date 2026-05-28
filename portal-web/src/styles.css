@@ -1624,6 +1624,53 @@ tbody tr:hover td {
   overflow-wrap: anywhere;
 }
 
+.test-design-review-records {
+  display: grid;
+  gap: 8px;
+}
+
+.test-design-review-record {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: start;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.test-design-review-record:last-child {
+  border-bottom: none;
+}
+
+.test-design-review-record > div:first-child,
+.test-design-review-record-meta {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.test-design-review-record strong,
+.test-design-review-record em,
+.test-design-review-record small,
+.test-design-review-record-meta span,
+.test-design-review-record-meta time {
+  overflow-wrap: anywhere;
+}
+
+.test-design-review-record em,
+.test-design-review-record small,
+.test-design-review-record-meta {
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+  font-style: normal;
+  line-height: 1.45;
+}
+
+.test-design-review-record-meta {
+  justify-items: end;
+  text-align: right;
+}
+
 /* ============================================================
    行操作按钮组
    ============================================================ */
