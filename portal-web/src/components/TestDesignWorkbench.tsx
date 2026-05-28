@@ -15,7 +15,7 @@ import {
   Sparkles,
   XCircle
 } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import type { CurrentUser } from '../api/auth';
 import { fetchAssetRequirements, type AssetRequirementView } from '../api/assets';
 import {
@@ -86,6 +86,11 @@ import {
   buildTestDesignExportFilename,
   buildTestDesignPublishResultCsv
 } from '../testDesignExport';
+import {
+  buildTestDesignTaskIdempotencySignature,
+  resolveTestDesignTaskIdempotency,
+  type TestDesignTaskIdempotencyState
+} from '../testDesignIdempotency';
 
 type WorkState = {
   loading: boolean;
@@ -200,6 +205,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
   const [candidatePageIndex, setCandidatePageIndex] = useState(0);
   const [candidatePageSize, setCandidatePageSize] = useState(DEFAULT_TEST_DESIGN_CANDIDATE_PAGE_SIZE);
   const [generationDraft, setGenerationDraft] = useState<GenerationDraft>(initialGenerationDraft);
+  const generationIdempotencyRef = useRef<TestDesignTaskIdempotencyState | null>(null);
   const [reviewComment, setReviewComment] = useState('');
   const [batchEditDraft, setBatchEditDraft] = useState<TestDesignBatchEditDraft>(initialTestDesignBatchEditDraft);
   const [publishResult, setPublishResult] = useState<TestDesignPublishResult | null>(null);
@@ -626,13 +632,22 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
     }
 
     setMutationState({ loading: true });
+    const createPayload = {
+      projectId: generationDraft.projectId,
+      title: generationDraft.title,
+      requirementIds: selectedRequirementIds,
+      coverageTypes: generationDraft.coverageTypes,
+      caseCountPerRequirement: Number(generationDraft.caseCountPerRequirement) || undefined
+    };
+    const idempotency = resolveTestDesignTaskIdempotency(
+      generationIdempotencyRef.current,
+      buildTestDesignTaskIdempotencySignature(createPayload)
+    );
+    generationIdempotencyRef.current = idempotency;
     try {
       const response = await createTestDesignTask({
-        projectId: generationDraft.projectId,
-        title: generationDraft.title,
-        requirementIds: selectedRequirementIds,
-        coverageTypes: generationDraft.coverageTypes,
-        caseCountPerRequirement: Number(generationDraft.caseCountPerRequirement) || undefined
+        ...createPayload,
+        idempotencyKey: idempotency.key
       });
       setTasks((current) => upsertTask(current, response.data.task));
       setCandidates(response.data.candidates);
@@ -647,6 +662,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       setBatchEditResult(null);
       void refreshReviewRecords(response.data.task.id, { silent: true });
       setPendingConfirmation(null);
+      generationIdempotencyRef.current = null;
       setMutationState({
         loading: false,
         success: ASYNC_TASK_STATUSES.has(response.data.task.status) ? '生成任务已提交，候选生成中' : '候选用例已生成',

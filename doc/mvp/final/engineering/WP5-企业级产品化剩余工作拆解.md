@@ -43,7 +43,7 @@
 | P0 | 企业级上下文装配 | 服务端架构师 | 已补 WP3 需求、WP4 来源摘要和历史用例摘要的脱敏 `contextSummary`/`inputDigest`；仍缺 API、页面、业务流显式输入和模型上下文裁剪策略运营化。 | 上下文有裁剪、脱敏、inputDigest 和来源引用。 |
 | P0 | 输出 Schema 和质量门禁 | 质量工程师 | 已补候选 JSON Schema、模型原始输出 JSON Schema/parser、生成/编辑落库前质量门禁、重复键和敏感泄露阻断；仍缺真实 WP2 响应接入联调和运营化阈值报表。 | 不合格输出不得静默落库；golden set 阈值可回归。 |
 | P0 | 重复和冲突治理 | 服务端架构师 | 已补 `LINK_EXISTING` 和同需求高相似 `DUPLICATE_REVIEW_REQUIRED`，仍缺可配置相似度策略和人工冲突处理台。 | 发布前能识别同 sourceRef、同需求高相似和已发布候选。 |
-| P0 | 任务编排与幂等 | 项目经理、服务端架构师 | 已补 retry/cancel 契约、状态保护、创建任务幂等键、requestDigest 冲突检测、DB 事务锁、`QUEUED -> RUNNING` 条件认领、事件恢复扫描和运行中超时失败回收；仍缺跨 WP 补偿后台和多实例压测。 | 重试不重复污染候选；取消可阻断排队/运行中任务；重复请求、重复事件和运行中卡死可识别。 |
+| P0 | 任务编排与幂等 | 项目经理、服务端架构师 | 已补 retry/cancel 契约、状态保护、创建任务幂等键、前端稳定幂等提交键、requestDigest 冲突检测、DB 事务锁、`QUEUED -> RUNNING` 条件认领、事件恢复扫描和运行中超时失败回收；仍缺跨 WP 补偿后台和多实例压测。 | 重试不重复污染候选；取消可阻断排队/运行中任务；重复请求、重复事件和运行中卡死可识别。 |
 | P0 | 权限和资源作用域加固 | 服务端架构师、质量工程师 | 已补批量候选操作和候选导出按候选/任务项目 scope 鉴权，仍需覆盖评测和未来异步回调。 | 项目角色不能操作其他项目候选；服务令牌调用可审计。 |
 | P0 | 发布幂等和补偿 | 服务端架构师 | 已补 AI 生成用例 `sourceRef` 服务层回放、事务级锁、数据库唯一约束和部分成功补链重试；仍缺补偿后台和异步跨 WP 事务编排。 | 重复发布不重复建用例；失败有记录和可重试策略。 |
 | P0 | HTTP smoke 常态化 | 质量工程师 | 已补 managed HTTP smoke runtime，显式开启时可自启动临时 PostgreSQL 和 `platform-api`；默认 gate 仍避免无意启动 Docker。 | 发布前执行 `WP5_RUN_HTTP_SMOKE=1 bash scripts/wp5_quality_gate.sh`，或对既有环境执行 `WP5_RUN_HTTP_SMOKE=external WP5_SMOKE_BASE_URL=... bash scripts/wp5_quality_gate.sh`。 |
@@ -78,6 +78,7 @@
 | 同需求高相似冲突治理 | WP5 发布 dryRun 和正式发布已能识别同需求下高相似 WP3 用例，并返回 `DUPLICATE_REVIEW_REQUIRED/CONFLICT`，阻断静默重复创建。 |
 | 候选质量门禁 | 新增 WP5 候选 JSON Schema 资源和服务端质量门禁，生成、重试和人工编辑均校验必填字段、步骤完整性、优先级/覆盖类型、重复键、置信度和明显敏感泄露。 |
 | 创建任务幂等 | `POST /api/v1/test-design/tasks` 支持 `Idempotency-Key` 请求头或请求体 `idempotencyKey`，按项目唯一回放相同请求，并用 `requestDigest` 阻断同 key 不同 payload；DB profile 对同项目同 key 使用事务级锁避免并发重复创建竞态。 |
+| 前端创建任务幂等 | WP5 工作台创建任务时会按项目、标题、需求、覆盖类型和用例数生成请求签名，同一签名下复用一次性 `idempotencyKey`，成功后轮换新键，失败后保留原键便于用户重试同一请求。 |
 | 上下文摘要与 inputDigest | 创建任务时从 WP3 应用服务读取需求和同需求历史用例，保留 WP4 来源字段摘要，写入脱敏截断后的 `contextSummary` 和 SHA-256 `inputDigest`；响应不暴露 `requestDigest` 或原始 Prompt。 |
 | 模型输出结构校验 | 新增 WP5 模型原始输出 JSON Schema 和 `TestDesignModelOutputParser`，在未来 WP2 响应进入候选生成前校验字段白名单、必填项、枚举、步骤数量、置信度和明显敏感泄露，不持久化原始模型输出。 |
 | 生成任务事件驱动 | `POST /api/v1/test-design/tasks` 默认返回 `QUEUED` 任务并发布 `test-design.generation.requested` 事件；消费者通过 `QUEUED -> RUNNING` 条件认领生成候选，重复事件只回放当前任务，不重复写候选。 |
@@ -116,7 +117,7 @@
 | 本地脱敏覆盖不足 | 本次只覆盖明显 secret/token 模式。 | 上下文 packer 接入统一敏感字段分类和 WP2 策略。 |
 | 候选质量门禁过严影响人工编辑 | 编辑器已在保存前给出字段级质量提示，覆盖步骤数量、预期结果、重复标题和敏感文本；后端仍是最终准入。 | 后续将阈值逐步配置化，并把批量编辑纳入同一提示体系。 |
 | 模型响应结构漂移 | 本次对模型原始 JSON 做字段白名单、必填、枚举、步骤数量和敏感文本校验，非法响应在落库前阻断。 | 接入真实 WP2 后把 parser 挂到模型调用结果，并将失败原因、prompt 版本和 invocationId 写入任务诊断。 |
-| 幂等键被误复用 | 本次对同项目同 key 存储 requestDigest，不同 payload 返回 `CONFLICT`，并用事务级锁降低并发重复提交竞态。 | 后续在前端任务创建表单生成稳定 requestId，并在任务列表展示回放来源。 |
+| 幂等键被误复用 | 已对同项目同 key 存储 requestDigest，不同 payload 返回 `CONFLICT`，并用事务级锁降低并发重复提交竞态；前端按创建 payload 签名生成一次性幂等键，同一失败请求重试复用，成功后轮换。 | 后续在任务列表展示回放来源，并补多实例压测证据。 |
 | 上下文摘要误含敏感信息 | 本次仅持久化脱敏截断摘要和 `inputDigest`，不保存原始 Prompt、完整文档正文或密钥字段。 | 后续接入 WP2 统一敏感分类和公开模型策略时扩大上下文红线测试。 |
 | 发布失败产生部分成功 | 已记录逐候选 publish record；若 WP3 用例已创建但 trace link 缺失，重试会按 sourceRef 找回用例并补建链接，候选保留失败原因和资产 ID。 | 增加补偿后台、重试调度和跨 WP 发布事务边界运行手册。 |
 | managed HTTP smoke 环境依赖 | `WP5_RUN_HTTP_SMOKE=1` 会启动 Docker PostgreSQL 和 Maven `platform-api`，日志保存在 `build/wp5-http-smoke/`。 | CI 或受限环境可改用 `WP5_RUN_HTTP_SMOKE=external` 指向已部署服务，失败时保留日志并阻断发布。 |
