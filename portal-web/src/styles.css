@@ -1523,6 +1523,50 @@ tbody tr:hover td {
   font-weight: 600;
 }
 
+.test-design-task-diagnostics {
+  display: grid;
+  gap: 8px;
+}
+
+.test-design-task-diagnostic {
+  display: grid;
+  grid-template-columns: minmax(72px, auto) minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.test-design-task-diagnostic:last-child {
+  border-bottom: none;
+}
+
+.test-design-task-diagnostic > span,
+.test-design-task-diagnostic > em {
+  overflow-wrap: anywhere;
+}
+
+.test-design-task-diagnostic > span {
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+}
+
+.test-design-task-diagnostic > em {
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+  font-style: normal;
+  line-height: 1.45;
+}
+
+.test-design-task-diagnostic.warning > em {
+  color: var(--warning);
+}
+
+.test-design-task-diagnostic.danger > em {
+  color: var(--danger);
+}
+
 .test-design-batch-editor {
   display: grid;
   gap: var(--space-sm);

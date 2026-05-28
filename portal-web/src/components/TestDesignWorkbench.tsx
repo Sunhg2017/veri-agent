@@ -91,6 +91,7 @@ import {
   resolveTestDesignTaskIdempotency,
   type TestDesignTaskIdempotencyState
 } from '../testDesignIdempotency';
+import { buildTestDesignTaskDiagnostics } from '../testDesignTaskDiagnostics';
 
 type WorkState = {
   loading: boolean;
@@ -303,6 +304,10 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
     const lookup = new Map(requirements.map((requirement) => [requirement.id, requirement.title]));
     return selectedRequirementIds.map((id) => lookup.get(id) ?? id);
   }, [requirements, selectedRequirementIds]);
+  const taskDiagnostics = useMemo(
+    () => buildTestDesignTaskDiagnostics(selectedTask),
+    [selectedTask]
+  );
 
   const refreshCandidatePage = useCallback(async (taskId: string, options?: { silent?: boolean }) => {
     if (!props.signedIn || !canRead || !taskId) {
@@ -1710,6 +1715,29 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
                 <div className="notice info">暂无生成任务</div>
               )}
             </div>
+          </div>
+        </section>
+
+        <section className="panel">
+          <div className="panel-header compact">
+            <div>
+              <h2 className="panel-title">任务诊断</h2>
+              <p className="panel-desc">{selectedTask ? `${selectedTask.status} · 诊断摘要已脱敏` : '定位模型调用、幂等回放和失败上下文摘要。'}</p>
+            </div>
+          </div>
+          <div className="panel-body compact">
+            {selectedTask ? (
+              <div className="test-design-task-diagnostics">
+                {taskDiagnostics.map((item) => (
+                  <div className={`test-design-task-diagnostic${item.tone ? ` ${item.tone}` : ''}`} key={item.label}>
+                    <span>{item.label}</span>
+                    <em>{item.value}</em>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="notice info">请先选择任务</div>
+            )}
           </div>
         </section>
 

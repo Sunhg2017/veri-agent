@@ -5,7 +5,7 @@
 | 工作包 | WP5 AI 用例生成与评审 |
 | 文档性质 | 企业级产品化缺口审查、工作拆解和推进记录 |
 | 当前状态 | WP5 已具备事件驱动规则模板生成、运行中超时回收、候选服务端分页评审、服务端筛选导出、批量字段编辑、候选/发布摘要导出、dryRun、发布到 WP3 的最小闭环；仍未达到企业级产品完成态 |
-| 版本 | v0.16 |
+| 版本 | v0.17 |
 | 日期 | 2026-05-28 |
 
 ## 1. 目标
@@ -49,7 +49,7 @@
 | P0 | HTTP smoke 常态化 | 质量工程师 | 已补 managed HTTP smoke runtime，显式开启时可自启动临时 PostgreSQL 和 `platform-api`；默认 gate 仍避免无意启动 Docker。 | 发布前执行 `WP5_RUN_HTTP_SMOKE=1 bash scripts/wp5_quality_gate.sh`，或对既有环境执行 `WP5_RUN_HTTP_SMOKE=external WP5_SMOKE_BASE_URL=... bash scripts/wp5_quality_gate.sh`。 |
 | P1 | 前端产品化 | 前端工程师 | 已补任务筛选、候选筛选、候选服务端分页联动、候选批量评审、批量字段编辑、批量/发布二次确认摘要、勾选候选发布、候选/发布摘要导出、冲突摘要、发布结果跳转 WP3 资产追踪、候选编辑字段级质量提示和排队/运行中任务自动刷新；仍需运营化体验补齐。 | 用户无需 curl 可完成主链路；移动/窄屏无重叠。 |
 | P1 | AI 质量运营 | 产品经理、质量工程师 | 缺运营阈值、样本集维护、Prompt 版本对比和人工反馈回流。 | 每次 Prompt 变更可比较覆盖率、重复率、泄露数和有效步骤率。 |
-| P1 | 审计与观测 | 服务端架构师 | 生成、评审、发布已有部分审计，缺成本、延迟、traceId 串联看板。 | 任务详情能定位模型调用、错误原因和审计链。 |
+| P1 | 审计与观测 | 服务端架构师 | 生成、评审、发布已有部分审计；前端已补任务诊断面板，可查看 prompt/model、`modelInvocationId`、`inputDigest`、`idempotencyKey`、错误摘要、创建/更新时间和上下文键摘要；仍缺成本、延迟、traceId 串联看板。 | 任务详情能定位模型调用、错误原因和审计链。 |
 | P1 | 导出和报告摘要 | 产品经理、前端工程师 | 已补服务端按筛选条件的候选 CSV 导出、导出审计、前端筛选导出、已选候选和发布结果摘要导出；仍缺评审历史归档和报告化导出。 | 导出不含原始 Prompt、密钥、token 或隐私字段。 |
 | P2 | 策略运营后台 | 产品经理 | 缺覆盖策略、模型开关、预算阈值的配置化运营。 | 非研发人员可按项目调整生成策略。 |
 
@@ -79,6 +79,7 @@
 | 候选质量门禁 | 新增 WP5 候选 JSON Schema 资源和服务端质量门禁，生成、重试和人工编辑均校验必填字段、步骤完整性、优先级/覆盖类型、重复键、置信度和明显敏感泄露。 |
 | 创建任务幂等 | `POST /api/v1/test-design/tasks` 支持 `Idempotency-Key` 请求头或请求体 `idempotencyKey`，按项目唯一回放相同请求，并用 `requestDigest` 阻断同 key 不同 payload；DB profile 对同项目同 key 使用事务级锁避免并发重复创建竞态。 |
 | 前端创建任务幂等 | WP5 工作台创建任务时会按项目、标题、需求、覆盖类型和用例数生成请求签名，同一签名下复用一次性 `idempotencyKey`，成功后轮换新键，失败后保留原键便于用户重试同一请求。 |
+| 前端任务诊断 | 工作台任务侧栏新增“任务诊断”面板，展示脱敏后的 prompt/version、模型、`modelInvocationId`、`inputDigest`、`idempotencyKey`、错误摘要、请求人、创建/更新时间和上下文键/数量摘要，帮助定位幂等回放、失败原因和模型调用链。 |
 | 上下文摘要与 inputDigest | 创建任务时从 WP3 应用服务读取需求和同需求历史用例，保留 WP4 来源字段摘要，写入脱敏截断后的 `contextSummary` 和 SHA-256 `inputDigest`；响应不暴露 `requestDigest` 或原始 Prompt。 |
 | 模型输出结构校验 | 新增 WP5 模型原始输出 JSON Schema 和 `TestDesignModelOutputParser`，在未来 WP2 响应进入候选生成前校验字段白名单、必填项、枚举、步骤数量、置信度和明显敏感泄露，不持久化原始模型输出。 |
 | 生成任务事件驱动 | `POST /api/v1/test-design/tasks` 默认返回 `QUEUED` 任务并发布 `test-design.generation.requested` 事件；消费者通过 `QUEUED -> RUNNING` 条件认领生成候选，重复事件只回放当前任务，不重复写候选。 |
@@ -116,8 +117,9 @@
 | 发布重复创建 WP3 用例 | 本次已按 `sourceRef=wp5:{candidateId}` 识别已存在用例并链接，新增 AI `sourceRef` 部分唯一索引、迁移前重复数据预检、服务层事务级锁和失败重试补链，并补同需求高相似用例检测。 | 继续补可配置相似度策略、人工冲突处理和异步补偿后台。 |
 | 本地脱敏覆盖不足 | 本次只覆盖明显 secret/token 模式。 | 上下文 packer 接入统一敏感字段分类和 WP2 策略。 |
 | 候选质量门禁过严影响人工编辑 | 编辑器已在保存前给出字段级质量提示，覆盖步骤数量、预期结果、重复标题和敏感文本；后端仍是最终准入。 | 后续将阈值逐步配置化，并把批量编辑纳入同一提示体系。 |
-| 模型响应结构漂移 | 本次对模型原始 JSON 做字段白名单、必填、枚举、步骤数量和敏感文本校验，非法响应在落库前阻断。 | 接入真实 WP2 后把 parser 挂到模型调用结果，并将失败原因、prompt 版本和 invocationId 写入任务诊断。 |
+| 模型响应结构漂移 | 本次对模型原始 JSON 做字段白名单、必填、枚举、步骤数量和敏感文本校验，非法响应在落库前阻断；前端任务诊断已预留 prompt/version、`modelInvocationId`、错误摘要和上下文键摘要展示位。 | 接入真实 WP2 后把 parser 挂到模型调用结果，并继续补成本、延迟和 traceId 串联看板。 |
 | 幂等键被误复用 | 已对同项目同 key 存储 requestDigest，不同 payload 返回 `CONFLICT`，并用事务级锁降低并发重复提交竞态；前端按创建 payload 签名生成一次性幂等键，同一失败请求重试复用，成功后轮换。 | 后续在任务列表展示回放来源，并补多实例压测证据。 |
+| 失败原因难定位 | 前端任务诊断面板已展示脱敏后的错误摘要、模型调用 ID、`inputDigest`、`idempotencyKey` 和上下文键摘要，便于人工定位回放或失败链路。 | 后续接入 traceId、模型成本和延迟指标，形成端到端观测看板。 |
 | 上下文摘要误含敏感信息 | 本次仅持久化脱敏截断摘要和 `inputDigest`，不保存原始 Prompt、完整文档正文或密钥字段。 | 后续接入 WP2 统一敏感分类和公开模型策略时扩大上下文红线测试。 |
 | 发布失败产生部分成功 | 已记录逐候选 publish record；若 WP3 用例已创建但 trace link 缺失，重试会按 sourceRef 找回用例并补建链接，候选保留失败原因和资产 ID。 | 增加补偿后台、重试调度和跨 WP 发布事务边界运行手册。 |
 | managed HTTP smoke 环境依赖 | `WP5_RUN_HTTP_SMOKE=1` 会启动 Docker PostgreSQL 和 Maven `platform-api`，日志保存在 `build/wp5-http-smoke/`。 | CI 或受限环境可改用 `WP5_RUN_HTTP_SMOKE=external` 指向已部署服务，失败时保留日志并阻断发布。 |
