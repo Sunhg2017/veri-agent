@@ -13,3 +13,10 @@ veri-agent:
     event-recovery-batch-size: ${WP5_EVENT_RECOVERY_BATCH_SIZE:100}
     event-recovery-running-timeout-seconds: ${WP5_EVENT_RECOVERY_RUNNING_TIMEOUT_SECONDS:600}
     event-recovery-cron: "${WP5_EVENT_RECOVERY_CRON:0 */2 * * * *}"
+    readiness-min-step-complete-percent: ${WP5_READINESS_MIN_STEP_COMPLETE_PERCENT:100}
+    readiness-min-expected-complete-percent: ${WP5_READINESS_MIN_EXPECTED_COMPLETE_PERCENT:100}
+    readiness-max-low-confidence-percent: ${WP5_READINESS_MAX_LOW_CONFIDENCE_PERCENT:20}
+    readiness-max-error-percent: ${WP5_READINESS_MAX_ERROR_PERCENT:0}
+    readiness-max-duplicate-key-collisions: ${WP5_READINESS_MAX_DUPLICATE_KEY_COLLISIONS:0}
+    readiness-max-missing-requirement-count: ${WP5_READINESS_MAX_MISSING_REQUIREMENT_COUNT:0}
+    readiness-max-missing-title-count: ${WP5_READINESS_MAX_MISSING_TITLE_COUNT:0}

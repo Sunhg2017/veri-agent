@@ -31,6 +31,20 @@ public record TestDesignProperties(
         /** 单次恢复扫描最多重新发布的排队任务数 */
         @DefaultValue("100") int eventRecoveryBatchSize,
         /** 运行中生成任务超过该秒数未更新则由恢复扫描标记失败，非正数表示关闭 */
-        @DefaultValue("600") long eventRecoveryRunningTimeoutSeconds
+        @DefaultValue("600") long eventRecoveryRunningTimeoutSeconds,
+        /** 任务质量准出：最低步骤完整率百分比 */
+        @DefaultValue("100") double readinessMinStepCompletePercent,
+        /** 任务质量准出：最低最终预期完整率百分比 */
+        @DefaultValue("100") double readinessMinExpectedCompletePercent,
+        /** 任务质量准出：最高低置信度占比百分比 */
+        @DefaultValue("20") double readinessMaxLowConfidencePercent,
+        /** 任务质量准出：最高错误候选占比百分比 */
+        @DefaultValue("0") double readinessMaxErrorPercent,
+        /** 任务质量准出：最高重复键碰撞数量 */
+        @DefaultValue("0") long readinessMaxDuplicateKeyCollisions,
+        /** 任务质量准出：最高缺需求关联数量 */
+        @DefaultValue("0") long readinessMaxMissingRequirementCount,
+        /** 任务质量准出：最高缺标题数量 */
+        @DefaultValue("0") long readinessMaxMissingTitleCount
 ) {
 }

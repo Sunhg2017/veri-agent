@@ -27,6 +27,7 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.startsWith;
@@ -833,6 +834,12 @@ class TestDesignControllerTest {
                 .andExpect(jsonPath("$.data.expectedCompleteCount").value(2))
                 .andExpect(jsonPath("$.data.lowConfidenceCount").value(1))
                 .andExpect(jsonPath("$.data.errorCount").value(0))
+                .andExpect(jsonPath("$.data.readiness.status").value("WARNING"))
+                .andExpect(jsonPath("$.data.readiness.blockingCount").value(0))
+                .andExpect(jsonPath("$.data.readiness.warningCount").value(1))
+                .andExpect(jsonPath("$.data.readiness.checks[?(@.code == 'lowConfidence')].status").value(contains("FAILED")))
+                .andExpect(jsonPath("$.data.readiness.checks[?(@.code == 'lowConfidence')].severity").value(contains("WARNING")))
+                .andExpect(jsonPath("$.data.readiness.checks[?(@.code == 'stepComplete')].thresholdValue").value(contains(100.0)))
                 .andExpect(jsonPath("$.data.metrics[?(@.code == 'publishable')].count").value(hasSize(1)))
                 .andExpect(jsonPath("$.data.distributions.status[?(@.label == 'CONFIRMED')].count").value(hasSize(1)))
                 .andExpect(jsonPath("$.data.distributions.status[?(@.label == 'REJECTED')].count").value(hasSize(1)))

@@ -125,6 +125,41 @@ describe('WP5 test design quality summary', () => {
       missingRequirementCount: 1,
       missingTitleCount: 0,
       duplicateKeyCollisionCount: 1,
+      readiness: {
+        status: 'BLOCKED',
+        blockingCount: 2,
+        warningCount: 1,
+        checks: [
+          {
+            code: 'stepComplete',
+            label: '步骤完整率',
+            status: 'FAILED',
+            severity: 'BLOCKING',
+            currentValue: 75,
+            thresholdValue: 100,
+            unit: 'PERCENT',
+            description: '步骤动作和步骤预期均完整的候选占比不得低于阈值'
+          },
+          {
+            code: 'lowConfidence',
+            label: '低置信度占比',
+            status: 'FAILED',
+            severity: 'WARNING',
+            currentValue: 25,
+            thresholdValue: 20,
+            unit: 'PERCENT'
+          },
+          {
+            code: 'duplicateKeyCollision',
+            label: '重复键碰撞',
+            status: 'FAILED',
+            severity: 'BLOCKING',
+            currentValue: 1,
+            thresholdValue: 0,
+            unit: 'COUNT'
+          }
+        ]
+      },
       metrics: [{ code: 'publishable', count: 2, percent: 50 }],
       distributions: {
         status: [
@@ -138,6 +173,18 @@ describe('WP5 test design quality summary', () => {
 
     expect(summary.total).toBe(4);
     expect(summary.pageTotal).toBe(4);
+    expect(summary.readiness).toMatchObject({
+      status: 'BLOCKED',
+      label: '准出阻断',
+      tone: 'danger',
+      blockingCount: 2,
+      warningCount: 1
+    });
+    expect(summary.readiness?.checks).toEqual(expect.arrayContaining([
+      expect.objectContaining({ label: '步骤完整率', desc: '75% / 100%', tone: 'danger' }),
+      expect.objectContaining({ label: '低置信度占比', desc: '25% / 20%', tone: 'warning' }),
+      expect.objectContaining({ label: '重复键碰撞', desc: '1 / 0', tone: 'danger' })
+    ]));
     expect(summary.metrics).toEqual(expect.arrayContaining([
       expect.objectContaining({ label: '可发布', value: 2, desc: '任务全量 2/4' }),
       expect.objectContaining({ label: '步骤完整', value: 3, desc: '任务全量 3/4' })

@@ -189,6 +189,23 @@ describe('WP5 test design API helpers', () => {
       missing_requirement_count: '0',
       missing_title_count: '0',
       duplicate_key_collision_count: '0',
+      readiness: {
+        status: 'WARNING',
+        blocking_count: '0',
+        warning_count: '1',
+        checks: [
+          {
+            code: 'lowConfidence',
+            label: '低置信度占比',
+            status: 'FAILED',
+            severity: 'WARNING',
+            current_value: '25.00',
+            threshold_value: '20.00',
+            unit: 'PERCENT',
+            description: '低置信度候选占比不得高于阈值'
+          }
+        ]
+      },
       metrics: [{ code: 'publishable', count: '2', percent: '50.00' }],
       distributions: {
         status: [{ label: 'CONFIRMED', count: '1', percent: '25.00' }]
@@ -199,6 +216,19 @@ describe('WP5 test design API helpers', () => {
       projectId: 'project-1',
       total: 4,
       publishableCount: 2,
+      readiness: {
+        status: 'WARNING',
+        blockingCount: 0,
+        warningCount: 1,
+        checks: [
+          expect.objectContaining({
+            code: 'lowConfidence',
+            currentValue: 25,
+            thresholdValue: 20,
+            unit: 'PERCENT'
+          })
+        ]
+      },
       metrics: [{ code: 'publishable', count: 2, percent: 50 }]
     });
     expect(qualitySummary.distributions.status[0]).toMatchObject({ label: 'CONFIRMED', count: 1, percent: 25 });

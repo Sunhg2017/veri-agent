@@ -152,6 +152,24 @@ export interface TestDesignQualityDistributionItemView {
   percent: number;
 }
 
+export interface TestDesignQualityReadinessCheckView {
+  code: string;
+  label: string;
+  status: string;
+  severity: string;
+  currentValue: number;
+  thresholdValue: number;
+  unit: string;
+  description?: string;
+}
+
+export interface TestDesignQualityReadinessView {
+  status: string;
+  blockingCount: number;
+  warningCount: number;
+  checks: TestDesignQualityReadinessCheckView[];
+}
+
 export interface TestDesignQualitySummaryView {
   taskId: string;
   projectId?: string;
@@ -171,6 +189,7 @@ export interface TestDesignQualitySummaryView {
   missingRequirementCount: number;
   missingTitleCount: number;
   duplicateKeyCollisionCount: number;
+  readiness?: TestDesignQualityReadinessView;
   metrics: TestDesignQualityMetricView[];
   distributions: Record<string, TestDesignQualityDistributionItemView[]>;
   generatedAt?: string;
@@ -566,6 +585,32 @@ export function normalizeTestDesignQualityDistributionItem(raw: unknown): TestDe
   };
 }
 
+export function normalizeTestDesignQualityReadinessCheck(raw: unknown): TestDesignQualityReadinessCheckView {
+  const item = isRecord(raw) ? raw : {};
+  return {
+    code: stringValue(item.code),
+    label: stringValue(item.label, stringValue(item.code, 'UNKNOWN')),
+    status: stringValue(item.status, 'UNKNOWN'),
+    severity: stringValue(item.severity, 'WARNING'),
+    currentValue: numberValue(item.currentValue ?? item.current_value, 0),
+    thresholdValue: numberValue(item.thresholdValue ?? item.threshold_value, 0),
+    unit: stringValue(item.unit, 'COUNT'),
+    description: optionalString(item.description)
+  };
+}
+
+export function normalizeTestDesignQualityReadiness(raw: unknown): TestDesignQualityReadinessView | undefined {
+  if (!isRecord(raw)) {
+    return undefined;
+  }
+  return {
+    status: stringValue(raw.status, 'UNKNOWN'),
+    blockingCount: numberValue(raw.blockingCount ?? raw.blocking_count, 0),
+    warningCount: numberValue(raw.warningCount ?? raw.warning_count, 0),
+    checks: listItems(raw.checks).map(normalizeTestDesignQualityReadinessCheck)
+  };
+}
+
 export function normalizeTestDesignQualitySummary(raw: unknown): TestDesignQualitySummaryView {
   const item = isRecord(raw) ? raw : {};
   const distributionsRaw = recordValue(item.distributions);
@@ -594,6 +639,7 @@ export function normalizeTestDesignQualitySummary(raw: unknown): TestDesignQuali
     missingRequirementCount: numberValue(item.missingRequirementCount ?? item.missing_requirement_count, 0),
     missingTitleCount: numberValue(item.missingTitleCount ?? item.missing_title_count, 0),
     duplicateKeyCollisionCount: numberValue(item.duplicateKeyCollisionCount ?? item.duplicate_key_collision_count, 0),
+    readiness: normalizeTestDesignQualityReadiness(item.readiness),
     metrics: listItems(item.metrics).map(normalizeTestDesignQualityMetric),
     distributions,
     generatedAt: optionalString(item.generatedAt) ?? optionalString(item.generated_at)

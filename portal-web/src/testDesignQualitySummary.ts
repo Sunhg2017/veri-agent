@@ -28,6 +28,27 @@ export type TestDesignQualityWarning = {
   tone: TestDesignQualitySummaryTone;
 };
 
+export type TestDesignQualityReadinessCheck = {
+  code: string;
+  label: string;
+  status: string;
+  severity: string;
+  currentValue: number;
+  thresholdValue: number;
+  unit: string;
+  desc: string;
+  tone: TestDesignQualitySummaryTone;
+};
+
+export type TestDesignQualityReadiness = {
+  status: string;
+  label: string;
+  tone: TestDesignQualitySummaryTone;
+  blockingCount: number;
+  warningCount: number;
+  checks: TestDesignQualityReadinessCheck[];
+};
+
 export type TestDesignQualitySummary = {
   total: number;
   pageTotal: number;
@@ -43,6 +64,7 @@ export type TestDesignQualitySummary = {
   metrics: TestDesignQualitySummaryMetric[];
   distributions: TestDesignQualityDistribution[];
   warnings: TestDesignQualityWarning[];
+  readiness?: TestDesignQualityReadiness;
 };
 
 const LOW_CONFIDENCE_THRESHOLD = 0.6;
@@ -126,7 +148,8 @@ export function buildTestDesignQualitySummary(
       missingExpectedCount,
       lowConfidenceCount,
       errorCount
-    })
+    }),
+    readiness: undefined
   };
 }
 
@@ -206,7 +229,8 @@ export function qualitySummaryFromServer(summary: TestDesignQualitySummaryView |
         items: mapServerDistribution(summary.distributions.priority, priorityTone)
       }
     ],
-    warnings
+    warnings,
+    readiness: mapServerReadiness(summary.readiness)
   };
 }
 
@@ -326,4 +350,63 @@ function buildWarnings(counts: {
     { label: '错误摘要', count: counts.errorCount, tone: 'danger' }
   ];
   return warnings.filter((warning) => warning.count > 0);
+}
+
+function mapServerReadiness(readiness: TestDesignQualitySummaryView['readiness']): TestDesignQualityReadiness | undefined {
+  if (!readiness) {
+    return undefined;
+  }
+  return {
+    status: readiness.status,
+    label: readinessStatusLabel(readiness.status),
+    tone: readinessTone(readiness.status),
+    blockingCount: readiness.blockingCount,
+    warningCount: readiness.warningCount,
+    checks: readiness.checks.map((check) => ({
+      code: check.code,
+      label: check.label,
+      status: check.status,
+      severity: check.severity,
+      currentValue: check.currentValue,
+      thresholdValue: check.thresholdValue,
+      unit: check.unit,
+      desc: readinessCheckDesc(check.currentValue, check.thresholdValue, check.unit),
+      tone: check.status === 'PASSED' ? 'success' : check.severity === 'BLOCKING' ? 'danger' : 'warning'
+    }))
+  };
+}
+
+function readinessStatusLabel(status: string) {
+  if (status === 'PASSED') {
+    return '准出通过';
+  }
+  if (status === 'BLOCKED') {
+    return '准出阻断';
+  }
+  if (status === 'WARNING') {
+    return '准出风险';
+  }
+  return '准出未知';
+}
+
+function readinessTone(status: string): TestDesignQualitySummaryTone {
+  if (status === 'PASSED') {
+    return 'success';
+  }
+  if (status === 'BLOCKED') {
+    return 'danger';
+  }
+  if (status === 'WARNING') {
+    return 'warning';
+  }
+  return 'neutral';
+}
+
+function readinessCheckDesc(currentValue: number, thresholdValue: number, unit: string) {
+  const suffix = unit === 'PERCENT' ? '%' : '';
+  return `${formatReadinessValue(currentValue)}${suffix} / ${formatReadinessValue(thresholdValue)}${suffix}`;
+}
+
+function formatReadinessValue(value: number) {
+  return Number.isInteger(value) ? String(value) : value.toFixed(2).replace(/\.?0+$/, '');
 }

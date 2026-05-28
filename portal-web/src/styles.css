@@ -1506,6 +1506,23 @@ tbody tr:hover td {
   font-size: var(--font-size-xs);
 }
 
+.test-design-readiness {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-xs);
+  margin-bottom: var(--space-md);
+  padding: 10px 12px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+}
+
+.test-design-readiness strong,
+.test-design-readiness span {
+  overflow-wrap: anywhere;
+}
+
 .test-design-quality-distributions {
   display: grid;
   gap: var(--space-sm);

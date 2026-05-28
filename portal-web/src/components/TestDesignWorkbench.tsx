@@ -1960,13 +1960,23 @@ function QualitySummaryPanel(props: {
           <h2 className="panel-title">质量摘要</h2>
           <p className="panel-desc">{props.scopeLabel}</p>
         </div>
-        {props.summary.warnings.length > 0 && (
+        {props.summary.readiness ? (
+          <span className={`badge badge-${badgeTone(props.summary.readiness.tone)}`}>
+            {props.summary.readiness.label}
+          </span>
+        ) : props.summary.warnings.length > 0 && (
           <span className="badge badge-warning">待处理 {props.summary.warnings.length}</span>
         )}
       </div>
       <div className="panel-body compact">
         {props.selectedTaskId ? (
           <>
+            {props.summary.readiness && (
+              <div className={`test-design-readiness tone-${props.summary.readiness.tone}`}>
+                <strong>{props.summary.readiness.label}</strong>
+                <span>阻断 {props.summary.readiness.blockingCount} · 风险 {props.summary.readiness.warningCount}</span>
+              </div>
+            )}
             <div className="test-design-quality-metrics">
               {props.summary.metrics.map((metric) => (
                 <div className={`test-design-quality-metric tone-${metric.tone}`} key={metric.label}>
@@ -1976,6 +1986,18 @@ function QualitySummaryPanel(props: {
                 </div>
               ))}
             </div>
+            {props.summary.readiness && (
+              <div className="test-design-quality-distribution">
+                <span className="test-design-quality-distribution-label">准出</span>
+                <div className="test-design-quality-distribution-items">
+                  {props.summary.readiness.checks.map((check) => (
+                    <span className={`test-design-quality-chip tone-${check.tone}`} key={check.code} title={check.desc}>
+                      {check.label} {check.desc}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
             <div className="test-design-quality-distributions">
               {props.summary.distributions.map((group) => (
                 <div className="test-design-quality-distribution" key={group.label}>
@@ -2010,6 +2032,13 @@ function QualitySummaryPanel(props: {
       </div>
     </section>
   );
+}
+
+function badgeTone(tone: string) {
+  if (tone === 'success' || tone === 'warning' || tone === 'danger' || tone === 'info') {
+    return tone;
+  }
+  return 'neutral';
 }
 
 function ReviewSummaryPanel(props: {

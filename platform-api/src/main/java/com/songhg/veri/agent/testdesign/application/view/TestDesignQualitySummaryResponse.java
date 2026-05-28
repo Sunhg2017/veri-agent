@@ -46,6 +46,8 @@ public record TestDesignQualitySummaryResponse(
         long missingTitleCount,
         @Schema(description = "重复键碰撞候选数量")
         long duplicateKeyCollisionCount,
+        @Schema(description = "任务质量准出摘要")
+        TestDesignQualityReadinessResponse readiness,
         @Schema(description = "指标列表")
         List<TestDesignQualityMetricResponse> metrics,
         @Schema(description = "状态分布")

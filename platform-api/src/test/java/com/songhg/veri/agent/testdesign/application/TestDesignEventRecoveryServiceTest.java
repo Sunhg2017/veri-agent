@@ -114,7 +114,14 @@ class TestDesignEventRecoveryServiceTest {
                 true,
                 recoveryEnabled,
                 20,
-                runningTimeoutSeconds
+                runningTimeoutSeconds,
+                100D,
+                100D,
+                20D,
+                0D,
+                0,
+                0,
+                0
         );
     }
 }
