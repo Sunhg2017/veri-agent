@@ -54,6 +54,10 @@ import {
   type TestDesignCandidateDraftQualityIssue
 } from '../testDesignQuality';
 import {
+  buildTestDesignQualitySummary,
+  type TestDesignQualitySummary
+} from '../testDesignQualitySummary';
+import {
   DEFAULT_TEST_DESIGN_CANDIDATE_PAGE_SIZE,
   TEST_DESIGN_CANDIDATE_PAGE_SIZES,
   pageFromServerItems
@@ -282,6 +286,15 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
     ? selectedPublishableCandidates.length > 0
     : Boolean(selectedTaskId && estimatedPublishableCandidateCount > 0);
   const statusCounts = useMemo(() => countByStatus(candidates), [candidates]);
+  const qualitySummary = useMemo(
+    () => buildTestDesignQualitySummary(candidatePage.items, candidatePage.total),
+    [candidatePage.items, candidatePage.total]
+  );
+  const qualitySummaryScope = selectedTaskId
+    ? candidatePage.items.length
+      ? `当前候选页 ${candidatePage.start}-${candidatePage.end} / ${candidatePage.total}`
+      : `当前候选页 0 / ${candidatePage.total}`
+    : '请先选择任务';
   const publishScopeLabel = selectedCandidateIds.length
     ? `${selectedPublishableCandidates.length} / ${selectedCandidateIds.length} 个已选候选`
     : `全部可发布候选${estimatedPublishableCandidateCount ? ` · 约 ${estimatedPublishableCandidateCount} 个` : ''}`;
@@ -1153,6 +1166,12 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
           <Metric icon={<ClipboardCheck size={20} />} label="已发布" value={String(selectedTask?.publishedCount ?? 0)} desc={selectedTask?.status ?? '-'} />
         </div>
 
+        <QualitySummaryPanel
+          scopeLabel={qualitySummaryScope}
+          selectedTaskId={selectedTaskId}
+          summary={qualitySummary}
+        />
+
         <section className="panel">
           <div className="panel-header">
             <div>
@@ -1832,6 +1851,70 @@ function Metric(props: { icon: ReactNode; label: string; value: string; desc: st
         <span className="metric-desc">{props.desc}</span>
       </div>
     </div>
+  );
+}
+
+function QualitySummaryPanel(props: {
+  scopeLabel: string;
+  selectedTaskId: string;
+  summary: TestDesignQualitySummary;
+}) {
+  return (
+    <section className="panel test-design-quality-dashboard">
+      <div className="panel-header compact">
+        <div>
+          <h2 className="panel-title">质量摘要</h2>
+          <p className="panel-desc">{props.scopeLabel}</p>
+        </div>
+        {props.summary.warnings.length > 0 && (
+          <span className="badge badge-warning">待处理 {props.summary.warnings.length}</span>
+        )}
+      </div>
+      <div className="panel-body compact">
+        {props.selectedTaskId ? (
+          <>
+            <div className="test-design-quality-metrics">
+              {props.summary.metrics.map((metric) => (
+                <div className={`test-design-quality-metric tone-${metric.tone}`} key={metric.label}>
+                  <span>{metric.label}</span>
+                  <strong>{metric.value}</strong>
+                  <small>{metric.desc}</small>
+                </div>
+              ))}
+            </div>
+            <div className="test-design-quality-distributions">
+              {props.summary.distributions.map((group) => (
+                <div className="test-design-quality-distribution" key={group.label}>
+                  <span className="test-design-quality-distribution-label">{group.label}</span>
+                  <div className="test-design-quality-distribution-items">
+                    {group.items.length ? (
+                      group.items.map((item) => (
+                        <span className={`test-design-quality-chip tone-${item.tone}`} key={item.label}>
+                          {item.label} {item.count} · {item.percent}%
+                        </span>
+                      ))
+                    ) : (
+                      <span className="field-hint">暂无</span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+            {props.summary.warnings.length > 0 && (
+              <div className="test-design-quality-warnings">
+                {props.summary.warnings.map((warning) => (
+                  <span className={`test-design-quality-chip tone-${warning.tone}`} key={warning.label}>
+                    {warning.label} {warning.count}
+                  </span>
+                ))}
+              </div>
+            )}
+          </>
+        ) : (
+          <div className="notice info">请先选择任务</div>
+        )}
+      </div>
+    </section>
   );
 }
 
