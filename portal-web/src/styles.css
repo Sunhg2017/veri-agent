@@ -1587,6 +1587,31 @@ tbody tr:hover td {
   color: var(--text-primary);
 }
 
+.test-design-review-summary {
+  display: grid;
+  gap: var(--space-md);
+  padding: var(--space-sm);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  background: var(--surface-hover);
+}
+
+.test-design-review-summary-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+
+.test-design-review-summary-metrics {
+  margin-bottom: 0;
+}
+
 .test-design-quality-list {
   margin: 0;
   padding-left: 18px;

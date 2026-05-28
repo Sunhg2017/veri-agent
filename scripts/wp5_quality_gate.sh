@@ -21,7 +21,7 @@ main() {
     mvn -B -pl platform-api -Dtest=TestDesignControllerTest,TestDesignAsyncGenerationControllerTest,TestDesignEventRecoveryServiceTest,TestDesignOpenApiContractTest,PermissionCodeUsageTest,ServiceTokenAuthenticationFilterTest test
 
   run_step "portal-web WP5 tests" \
-    bash -lc "cd '$ROOT_DIR/portal-web' && npm run test -- api/testDesign.test.ts testDesign.test.ts testDesignQuality.test.ts testDesignQualitySummary.test.ts testDesignPagination.test.ts testDesignSelection.test.ts testDesignBatchEdit.test.ts testDesignConfirmation.test.ts testDesignExport.test.ts testDesignIdempotency.test.ts testDesignTaskDiagnostics.test.ts permissions.test.ts"
+    bash -lc "cd '$ROOT_DIR/portal-web' && npm run test -- api/testDesign.test.ts testDesign.test.ts testDesignQuality.test.ts testDesignQualitySummary.test.ts testDesignReviewSummary.test.ts testDesignPagination.test.ts testDesignSelection.test.ts testDesignBatchEdit.test.ts testDesignConfirmation.test.ts testDesignExport.test.ts testDesignIdempotency.test.ts testDesignTaskDiagnostics.test.ts permissions.test.ts"
 
   run_step "portal-web build" \
     bash -lc "cd '$ROOT_DIR/portal-web' && npm run build"

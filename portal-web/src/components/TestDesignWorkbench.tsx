@@ -58,6 +58,10 @@ import {
   type TestDesignQualitySummary
 } from '../testDesignQualitySummary';
 import {
+  buildTestDesignReviewSummary,
+  type TestDesignReviewSummary
+} from '../testDesignReviewSummary';
+import {
   DEFAULT_TEST_DESIGN_CANDIDATE_PAGE_SIZE,
   TEST_DESIGN_CANDIDATE_PAGE_SIZES,
   pageFromServerItems
@@ -240,6 +244,15 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
     () => pageFromServerItems(reviewRecords, reviewRecordPageIndex, 10, reviewRecordPageTotal),
     [reviewRecordPageIndex, reviewRecordPageTotal, reviewRecords]
   );
+  const reviewSummary = useMemo(
+    () => buildTestDesignReviewSummary(reviewRecordPage.items, reviewRecordPage.total),
+    [reviewRecordPage.items, reviewRecordPage.total]
+  );
+  const reviewSummaryScope = selectedTaskId
+    ? reviewRecordPage.items.length
+      ? `当前评审页 ${reviewRecordPage.start}-${reviewRecordPage.end} / ${reviewRecordPage.total}`
+      : `当前评审页 0 / ${reviewRecordPage.total}`
+    : '请先选择任务';
   const currentPageSelectableCandidates = useMemo(
     () => candidatePage.items.filter(canSelectTestDesignCandidate),
     [candidatePage.items]
@@ -1273,6 +1286,11 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
           </div>
           <div className="panel-body compact main-stack">
             <StateLine state={reviewRecordState} />
+            <ReviewSummaryPanel
+              scopeLabel={reviewSummaryScope}
+              selectedTaskId={selectedTaskId}
+              summary={reviewSummary}
+            />
             {reviewRecordPage.total > 0 && (
               <div className="test-design-pagination" aria-label="评审历史分页">
                 <span>{reviewRecordPage.start}-{reviewRecordPage.end} / {reviewRecordPage.total}</span>
@@ -1915,6 +1933,65 @@ function QualitySummaryPanel(props: {
         )}
       </div>
     </section>
+  );
+}
+
+function ReviewSummaryPanel(props: {
+  scopeLabel: string;
+  selectedTaskId: string;
+  summary: TestDesignReviewSummary;
+}) {
+  return (
+    <div className="test-design-review-summary">
+      <div className="test-design-review-summary-heading">
+        <span>{props.scopeLabel}</span>
+        {props.summary.warnings.length > 0 && (
+          <span className="badge badge-warning">提示 {props.summary.warnings.length}</span>
+        )}
+      </div>
+      {props.selectedTaskId ? (
+        <>
+          <div className="test-design-quality-metrics test-design-review-summary-metrics">
+            {props.summary.metrics.map((metric) => (
+              <div className={`test-design-quality-metric tone-${metric.tone}`} key={metric.label}>
+                <span>{metric.label}</span>
+                <strong>{metric.value}</strong>
+                <small>{metric.desc}</small>
+              </div>
+            ))}
+          </div>
+          <div className="test-design-quality-distributions">
+            {props.summary.groups.map((group) => (
+              <div className="test-design-quality-distribution" key={group.label}>
+                <span className="test-design-quality-distribution-label">{group.label}</span>
+                <div className="test-design-quality-distribution-items">
+                  {group.items.length ? (
+                    group.items.map((item) => (
+                      <span className={`test-design-quality-chip tone-${item.tone}`} key={item.label}>
+                        {item.label} {item.count} · {item.percent}%
+                      </span>
+                    ))
+                  ) : (
+                    <span className="field-hint">暂无</span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+          {props.summary.warnings.length > 0 && (
+            <div className="test-design-quality-warnings">
+              {props.summary.warnings.map((warning) => (
+                <span className={`test-design-quality-chip tone-${warning.tone}`} key={warning.label}>
+                  {warning.label} {warning.count}
+                </span>
+              ))}
+            </div>
+          )}
+        </>
+      ) : (
+        <div className="notice info">请先选择任务</div>
+      )}
+    </div>
   );
 }
 
