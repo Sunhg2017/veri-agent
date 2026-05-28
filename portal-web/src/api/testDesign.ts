@@ -140,6 +140,42 @@ export interface TestDesignReviewRecordView {
   createdAt?: string;
 }
 
+export interface TestDesignQualityMetricView {
+  code: string;
+  count: number;
+  percent: number;
+}
+
+export interface TestDesignQualityDistributionItemView {
+  label: string;
+  count: number;
+  percent: number;
+}
+
+export interface TestDesignQualitySummaryView {
+  taskId: string;
+  projectId?: string;
+  taskTitle?: string;
+  taskStatus?: string;
+  scope: string;
+  total: number;
+  reviewableCount: number;
+  publishableCount: number;
+  failedCount: number;
+  confirmedCount: number;
+  publishedCount: number;
+  stepCompleteCount: number;
+  expectedCompleteCount: number;
+  lowConfidenceCount: number;
+  errorCount: number;
+  missingRequirementCount: number;
+  missingTitleCount: number;
+  duplicateKeyCollisionCount: number;
+  metrics: TestDesignQualityMetricView[];
+  distributions: Record<string, TestDesignQualityDistributionItemView[]>;
+  generatedAt?: string;
+}
+
 export interface TestDesignTaskDetail {
   task: TestDesignTaskView;
   candidates: TestDesignCandidateView[];
@@ -512,6 +548,58 @@ export function normalizeTestDesignReviewRecord(raw: unknown): TestDesignReviewR
   };
 }
 
+export function normalizeTestDesignQualityMetric(raw: unknown): TestDesignQualityMetricView {
+  const item = isRecord(raw) ? raw : {};
+  return {
+    code: stringValue(item.code),
+    count: numberValue(item.count, 0),
+    percent: numberValue(item.percent, 0)
+  };
+}
+
+export function normalizeTestDesignQualityDistributionItem(raw: unknown): TestDesignQualityDistributionItemView {
+  const item = isRecord(raw) ? raw : {};
+  return {
+    label: stringValue(item.label, 'UNKNOWN'),
+    count: numberValue(item.count, 0),
+    percent: numberValue(item.percent, 0)
+  };
+}
+
+export function normalizeTestDesignQualitySummary(raw: unknown): TestDesignQualitySummaryView {
+  const item = isRecord(raw) ? raw : {};
+  const distributionsRaw = recordValue(item.distributions);
+  const distributions = Object.fromEntries(
+    Object.entries(distributionsRaw).map(([key, value]) => [
+      key,
+      listItems(value).map(normalizeTestDesignQualityDistributionItem)
+    ])
+  );
+  return {
+    taskId: stringValue(item.taskId ?? item.task_id),
+    projectId: optionalString(item.projectId) ?? optionalString(item.project_id),
+    taskTitle: optionalString(item.taskTitle) ?? optionalString(item.task_title),
+    taskStatus: optionalString(item.taskStatus) ?? optionalString(item.task_status),
+    scope: stringValue(item.scope, 'fullTask'),
+    total: numberValue(item.total, 0),
+    reviewableCount: numberValue(item.reviewableCount ?? item.reviewable_count, 0),
+    publishableCount: numberValue(item.publishableCount ?? item.publishable_count, 0),
+    failedCount: numberValue(item.failedCount ?? item.failed_count, 0),
+    confirmedCount: numberValue(item.confirmedCount ?? item.confirmed_count, 0),
+    publishedCount: numberValue(item.publishedCount ?? item.published_count, 0),
+    stepCompleteCount: numberValue(item.stepCompleteCount ?? item.step_complete_count, 0),
+    expectedCompleteCount: numberValue(item.expectedCompleteCount ?? item.expected_complete_count, 0),
+    lowConfidenceCount: numberValue(item.lowConfidenceCount ?? item.low_confidence_count, 0),
+    errorCount: numberValue(item.errorCount ?? item.error_count, 0),
+    missingRequirementCount: numberValue(item.missingRequirementCount ?? item.missing_requirement_count, 0),
+    missingTitleCount: numberValue(item.missingTitleCount ?? item.missing_title_count, 0),
+    duplicateKeyCollisionCount: numberValue(item.duplicateKeyCollisionCount ?? item.duplicate_key_collision_count, 0),
+    metrics: listItems(item.metrics).map(normalizeTestDesignQualityMetric),
+    distributions,
+    generatedAt: optionalString(item.generatedAt) ?? optionalString(item.generated_at)
+  };
+}
+
 export function normalizeTestDesignCandidateBatchActionItem(raw: unknown): TestDesignCandidateBatchActionItem {
   const item = isRecord(raw) ? raw : {};
   return {
@@ -614,6 +702,11 @@ export async function fetchTestDesignTask(taskId: string): Promise<ApiResponse<T
 export async function fetchTestDesignTaskSummary(taskId: string): Promise<ApiResponse<TestDesignTaskView>> {
   const response = await requestJson<unknown>(`/api/v1/test-design/tasks/${encodeURIComponent(taskId)}/summary`);
   return { ...response, data: normalizeTestDesignTask(response.data) };
+}
+
+export async function fetchTestDesignTaskQualitySummary(taskId: string): Promise<ApiResponse<TestDesignQualitySummaryView>> {
+  const response = await requestJson<unknown>(`/api/v1/test-design/tasks/${encodeURIComponent(taskId)}/quality/summary`);
+  return { ...response, data: normalizeTestDesignQualitySummary(response.data) };
 }
 
 export async function retryTestDesignTask(taskId: string): Promise<ApiResponse<TestDesignTaskDetail>> {

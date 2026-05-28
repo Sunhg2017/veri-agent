@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { TestDesignCandidateView } from './api/testDesign';
-import { buildTestDesignQualitySummary } from './testDesignQualitySummary';
+import { buildTestDesignQualitySummary, qualitySummaryFromServer } from './testDesignQualitySummary';
 
 const baseCandidate: TestDesignCandidateView = {
   id: 'candidate-1',
@@ -103,5 +103,54 @@ describe('WP5 test design quality summary', () => {
     expect(summary.metrics.map((metric) => metric.desc)).toEqual(['当前页 0', '当前页 0', '当前页 0', '当前页 0']);
     expect(summary.distributions.every((group) => group.items.length === 0)).toBe(true);
     expect(summary.warnings).toEqual([]);
+  });
+
+  it('maps full-task server quality summary into dashboard metrics without raw text', () => {
+    const summary = qualitySummaryFromServer({
+      taskId: 'task-1',
+      projectId: 'project-1',
+      taskTitle: '任务质量摘要 token=secret-value',
+      taskStatus: 'SUCCEEDED',
+      scope: 'fullTask',
+      total: 4,
+      reviewableCount: 1,
+      publishableCount: 2,
+      failedCount: 1,
+      confirmedCount: 1,
+      publishedCount: 1,
+      stepCompleteCount: 3,
+      expectedCompleteCount: 3,
+      lowConfidenceCount: 1,
+      errorCount: 1,
+      missingRequirementCount: 1,
+      missingTitleCount: 0,
+      duplicateKeyCollisionCount: 1,
+      metrics: [{ code: 'publishable', count: 2, percent: 50 }],
+      distributions: {
+        status: [
+          { label: 'CONFIRMED', count: 1, percent: 25 },
+          { label: 'FAILED', count: 1, percent: 25 }
+        ],
+        coverageType: [{ label: 'SMOKE', count: 2, percent: 50 }],
+        priority: [{ label: 'HIGH', count: 2, percent: 50 }]
+      }
+    });
+
+    expect(summary.total).toBe(4);
+    expect(summary.pageTotal).toBe(4);
+    expect(summary.metrics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ label: '可发布', value: 2, desc: '任务全量 2/4' }),
+      expect.objectContaining({ label: '步骤完整', value: 3, desc: '任务全量 3/4' })
+    ]));
+    expect(summary.distributions.find((group) => group.label === '状态')?.items).toEqual([
+      expect.objectContaining({ label: 'CONFIRMED', count: 1, percent: 25 }),
+      expect.objectContaining({ label: 'FAILED', count: 1, percent: 25 })
+    ]);
+    expect(summary.warnings).toEqual(expect.arrayContaining([
+      { label: '失败候选', count: 1, tone: 'danger' },
+      { label: '缺少需求关联', count: 1, tone: 'warning' },
+      { label: '重复键冲突', count: 1, tone: 'danger' }
+    ]));
+    expect(JSON.stringify(summary)).not.toContain('secret-value');
   });
 });

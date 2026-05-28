@@ -31,6 +31,7 @@ import {
   fetchTaskTestDesignCandidates,
   fetchTestDesignHealth,
   fetchTestDesignReviewRecords,
+  fetchTestDesignTaskQualitySummary,
   fetchTestDesignTaskSummary,
   fetchTestDesignTasks,
   ignoreTestDesignCandidate,
@@ -46,6 +47,7 @@ import {
   type TestDesignHealth,
   type TestDesignPublishRecordView,
   type TestDesignPublishResult,
+  type TestDesignQualitySummaryView,
   type TestDesignReviewRecordView,
   type TestDesignTaskView
 } from '../api/testDesign';
@@ -56,6 +58,7 @@ import {
 } from '../testDesignQuality';
 import {
   buildTestDesignQualitySummary,
+  qualitySummaryFromServer,
   type TestDesignQualitySummary
 } from '../testDesignQualitySummary';
 import {
@@ -222,6 +225,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
   const [reviewRecords, setReviewRecords] = useState<TestDesignReviewRecordView[]>([]);
   const [reviewRecordPageTotal, setReviewRecordPageTotal] = useState(0);
   const [reviewRecordPageIndex, setReviewRecordPageIndex] = useState(0);
+  const [taskQualitySummary, setTaskQualitySummary] = useState<TestDesignQualitySummaryView | null>(null);
   const [batchActionResult, setBatchActionResult] = useState<TestDesignCandidateBatchActionResult | null>(null);
   const [batchEditResult, setBatchEditResult] = useState<BatchEditResult | null>(null);
   const [selectedCandidateIds, setSelectedCandidateIds] = useState<string[]>([]);
@@ -300,14 +304,20 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
     ? selectedPublishableCandidates.length > 0
     : Boolean(selectedTaskId && estimatedPublishableCandidateCount > 0);
   const statusCounts = useMemo(() => countByStatus(candidates), [candidates]);
-  const qualitySummary = useMemo(
+  const pageQualitySummary = useMemo(
     () => buildTestDesignQualitySummary(candidatePage.items, candidatePage.total),
     [candidatePage.items, candidatePage.total]
   );
+  const qualitySummary = useMemo(
+    () => taskQualitySummary ? qualitySummaryFromServer(taskQualitySummary) : pageQualitySummary,
+    [pageQualitySummary, taskQualitySummary]
+  );
   const qualitySummaryScope = selectedTaskId
-    ? candidatePage.items.length
-      ? `当前候选页 ${candidatePage.start}-${candidatePage.end} / ${candidatePage.total}`
-      : `当前候选页 0 / ${candidatePage.total}`
+    ? taskQualitySummary
+      ? `任务全量 ${taskQualitySummary.total} 个候选`
+      : candidatePage.items.length
+        ? `当前候选页 ${candidatePage.start}-${candidatePage.end} / ${candidatePage.total}`
+        : `当前候选页 0 / ${candidatePage.total}`
     : '请先选择任务';
   const publishScopeLabel = selectedCandidateIds.length
     ? `${selectedPublishableCandidates.length} / ${selectedCandidateIds.length} 个已选候选`
@@ -342,6 +352,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       setCandidatePageTotal(0);
       setReviewRecords([]);
       setReviewRecordPageTotal(0);
+      setTaskQualitySummary(null);
       setSelectedCandidateId('');
       setCandidateDraft(null);
       setBatchActionResult(null);
@@ -408,10 +419,31 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
     props.signedIn
   ]);
 
+  const refreshTaskQualitySummary = useCallback(async (taskId: string, options?: { silent?: boolean }) => {
+    if (!props.signedIn || !canRead || !taskId) {
+      setTaskQualitySummary(null);
+      return;
+    }
+
+    try {
+      const response = await fetchTestDesignTaskQualitySummary(taskId);
+      setTaskQualitySummary(response.data);
+      if (!options?.silent) {
+        setTaskState((current) => ({ ...current, traceId: response.trace_id }));
+      }
+    } catch (error: unknown) {
+      setTaskQualitySummary(null);
+      if (!options?.silent) {
+        setTaskState({ loading: false, error: testDesignErrorMessage(error, '任务质量摘要加载失败') });
+      }
+    }
+  }, [canRead, props.signedIn]);
+
   const refreshReviewRecords = useCallback(async (taskId: string, options?: { silent?: boolean }) => {
     if (!props.signedIn || !canRead || !taskId) {
       setReviewRecords([]);
       setReviewRecordPageTotal(0);
+      setTaskQualitySummary(null);
       setReviewRecordState({ loading: false });
       return;
     }
@@ -467,6 +499,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       setBatchEditDraft(initialTestDesignBatchEditDraft);
       setBatchEditResult(null);
       setPendingConfirmation(null);
+      setTaskQualitySummary(null);
       setLoadState({ loading: false });
       setTaskState({ loading: false });
       setReviewRecordState({ loading: false });
@@ -538,6 +571,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
     setReviewRecords([]);
     setReviewRecordPageTotal(0);
     setReviewRecordPageIndex(0);
+    setTaskQualitySummary(null);
     setPublishResult(null);
     setBatchActionResult(null);
     setBatchEditDraft(initialTestDesignBatchEditDraft);
@@ -554,15 +588,20 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
   }, [refreshReviewRecords, selectedTaskId]);
 
   useEffect(() => {
+    void refreshTaskQualitySummary(selectedTaskId);
+  }, [refreshTaskQualitySummary, selectedTaskId]);
+
+  useEffect(() => {
     if (!selectedTaskId || !selectedTaskGenerating) {
       return undefined;
     }
     const timer = window.setInterval(() => {
       void refreshCandidatePage(selectedTaskId, { silent: true });
       void refreshReviewRecords(selectedTaskId, { silent: true });
+      void refreshTaskQualitySummary(selectedTaskId, { silent: true });
     }, 2000);
     return () => window.clearInterval(timer);
-  }, [refreshCandidatePage, refreshReviewRecords, selectedTaskGenerating, selectedTaskId]);
+  }, [refreshCandidatePage, refreshReviewRecords, refreshTaskQualitySummary, selectedTaskGenerating, selectedTaskId]);
 
   useEffect(() => {
     const nextCandidate = candidates.find((candidate) => candidate.id === selectedCandidateId) ?? null;
@@ -693,6 +732,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       setBatchEditDraft(initialTestDesignBatchEditDraft);
       setBatchEditResult(null);
       void refreshReviewRecords(response.data.task.id, { silent: true });
+      void refreshTaskQualitySummary(response.data.task.id, { silent: true });
       setPendingConfirmation(null);
       generationIdempotencyRef.current = null;
       setMutationState({
@@ -731,6 +771,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       setBatchEditResult(null);
       setTaskState({ loading: false, success: '生成任务已重试', traceId: response.trace_id });
       void refreshReviewRecords(task.id, { silent: true });
+      void refreshTaskQualitySummary(task.id, { silent: true });
     } catch (error: unknown) {
       setTaskState({ loading: false, error: testDesignErrorMessage(error, '生成任务重试失败') });
     }
@@ -762,6 +803,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       setPublishResult(null);
       setTaskState({ loading: false, success: '生成任务已取消', traceId: response.trace_id });
       void refreshReviewRecords(task.id, { silent: true });
+      void refreshTaskQualitySummary(task.id, { silent: true });
     } catch (error: unknown) {
       setTaskState({ loading: false, error: testDesignErrorMessage(error, '生成任务取消失败') });
     }
@@ -797,6 +839,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       updateCandidateInState(response.data);
       setMutationState({ loading: false, success: '候选用例已保存', traceId: response.trace_id });
       void refreshReviewRecords(selectedTaskId, { silent: true });
+      void refreshTaskQualitySummary(selectedTaskId, { silent: true });
     } catch (error: unknown) {
       setMutationState({ loading: false, error: testDesignErrorMessage(error, '候选用例保存失败') });
     }
@@ -822,6 +865,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       updateCandidateInState(response.data);
       setMutationState({ loading: false, success: reviewSuccessText(action), traceId: response.trace_id });
       void refreshReviewRecords(selectedTaskId, { silent: true });
+      void refreshTaskQualitySummary(selectedTaskId, { silent: true });
     } catch (error: unknown) {
       setMutationState({ loading: false, error: testDesignErrorMessage(error, '候选用例状态更新失败') });
     }
@@ -883,6 +927,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       });
       void refreshCandidatePage(selectedTaskId, { silent: true });
       void refreshReviewRecords(selectedTaskId, { silent: true });
+      void refreshTaskQualitySummary(selectedTaskId, { silent: true });
     } catch (error: unknown) {
       setMutationState({ loading: false, error: testDesignErrorMessage(error, `批量${testDesignBatchActionLabel(action)}失败`) });
     }
@@ -978,6 +1023,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
     });
     void refreshCandidatePage(selectedTaskId, { silent: true });
     void refreshReviewRecords(selectedTaskId, { silent: true });
+    void refreshTaskQualitySummary(selectedTaskId, { silent: true });
   }
 
   function requestPublishTask(dryRun: boolean) {
@@ -1030,6 +1076,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       });
       if (!dryRun) {
         await refreshCandidatePage(selectedTaskId);
+        void refreshTaskQualitySummary(selectedTaskId, { silent: true });
       }
     } catch (error: unknown) {
       setPublishState({ loading: false, error: testDesignErrorMessage(error, dryRun ? '预发布检查失败' : '发布失败') });

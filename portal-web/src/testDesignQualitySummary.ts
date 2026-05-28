@@ -1,4 +1,4 @@
-import type { TestDesignCandidateView } from './api/testDesign';
+import type { TestDesignCandidateView, TestDesignQualitySummaryView } from './api/testDesign';
 import { canPublishTestDesignCandidate, canReviewTestDesignCandidate } from './testDesignSelection';
 
 export type TestDesignQualitySummaryTone = 'success' | 'warning' | 'danger' | 'info' | 'neutral';
@@ -130,6 +130,86 @@ export function buildTestDesignQualitySummary(
   };
 }
 
+export function qualitySummaryFromServer(summary: TestDesignQualitySummaryView | null): TestDesignQualitySummary {
+  if (!summary) {
+    return buildTestDesignQualitySummary([], 0);
+  }
+  const total = normalizeCount(summary.total);
+  const stepIncompleteCount = Math.max(total - summary.stepCompleteCount, 0);
+  const missingExpectedCount = Math.max(total - summary.expectedCompleteCount, 0);
+  const warnings = buildWarnings({
+    failedCount: summary.failedCount,
+    stepIncompleteCount,
+    missingExpectedCount,
+    lowConfidenceCount: summary.lowConfidenceCount,
+    errorCount: summary.errorCount
+  });
+  if (summary.missingRequirementCount > 0) {
+    warnings.push({ label: '缺少需求关联', count: summary.missingRequirementCount, tone: 'warning' });
+  }
+  if (summary.missingTitleCount > 0) {
+    warnings.push({ label: '缺少标题', count: summary.missingTitleCount, tone: 'warning' });
+  }
+  if (summary.duplicateKeyCollisionCount > 0) {
+    warnings.push({ label: '重复键冲突', count: summary.duplicateKeyCollisionCount, tone: 'danger' });
+  }
+
+  return {
+    total,
+    pageTotal: total,
+    reviewableCount: summary.reviewableCount,
+    publishableCount: summary.publishableCount,
+    failedCount: summary.failedCount,
+    confirmedCount: summary.confirmedCount,
+    publishedCount: summary.publishedCount,
+    stepCompleteCount: summary.stepCompleteCount,
+    expectedCompleteCount: summary.expectedCompleteCount,
+    lowConfidenceCount: summary.lowConfidenceCount,
+    errorCount: summary.errorCount,
+    metrics: [
+      {
+        label: '可评审',
+        value: summary.reviewableCount,
+        desc: formatFullTaskRatio(summary.reviewableCount, total),
+        tone: summary.reviewableCount > 0 ? 'info' : 'neutral'
+      },
+      {
+        label: '可发布',
+        value: summary.publishableCount,
+        desc: formatFullTaskRatio(summary.publishableCount, total),
+        tone: summary.publishableCount > 0 ? 'success' : 'neutral'
+      },
+      {
+        label: '步骤完整',
+        value: summary.stepCompleteCount,
+        desc: formatFullTaskRatio(summary.stepCompleteCount, total),
+        tone: stepIncompleteCount > 0 ? 'warning' : 'success'
+      },
+      {
+        label: '预期完整',
+        value: summary.expectedCompleteCount,
+        desc: formatFullTaskRatio(summary.expectedCompleteCount, total),
+        tone: missingExpectedCount > 0 ? 'warning' : 'success'
+      }
+    ],
+    distributions: [
+      {
+        label: '状态',
+        items: mapServerDistribution(summary.distributions.status, statusTone)
+      },
+      {
+        label: '覆盖',
+        items: mapServerDistribution(summary.distributions.coverageType)
+      },
+      {
+        label: '优先级',
+        items: mapServerDistribution(summary.distributions.priority, priorityTone)
+      }
+    ],
+    warnings
+  };
+}
+
 function hasCompleteSteps(candidate: TestDesignCandidateView) {
   return candidate.steps.length > 0 && candidate.steps.every((step) => hasText(step.action) && hasText(step.expectedResult));
 }
@@ -153,6 +233,25 @@ function formatRatio(count: number, total: number) {
     return '当前页 0';
   }
   return `当前页 ${count}/${total}`;
+}
+
+function formatFullTaskRatio(count: number, total: number) {
+  if (!total) {
+    return '任务全量 0';
+  }
+  return `任务全量 ${count}/${total}`;
+}
+
+function mapServerDistribution(
+  items: readonly { label: string; count: number; percent: number }[] | undefined,
+  toneOf: (label: string) => TestDesignQualitySummaryTone = () => 'neutral'
+): TestDesignQualityDistributionItem[] {
+  return (items ?? []).map((item) => ({
+    label: item.label,
+    count: item.count,
+    percent: Math.round(item.percent),
+    tone: toneOf(item.label)
+  }));
 }
 
 function buildDistribution(

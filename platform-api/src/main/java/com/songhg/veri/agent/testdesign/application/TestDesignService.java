@@ -28,6 +28,9 @@ import com.songhg.veri.agent.testdesign.application.view.TestDesignHealthRespons
 import com.songhg.veri.agent.testdesign.application.view.TestDesignModelObservationResponse;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignPublishRecordResponse;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignPublishResponse;
+import com.songhg.veri.agent.testdesign.application.view.TestDesignQualityDistributionItemResponse;
+import com.songhg.veri.agent.testdesign.application.view.TestDesignQualityMetricResponse;
+import com.songhg.veri.agent.testdesign.application.view.TestDesignQualitySummaryResponse;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignReviewRecordResponse;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignStepResponse;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignTaskDetailResponse;
@@ -167,6 +170,17 @@ public class TestDesignService {
      */
     public TestDesignTaskResponse taskSummary(UUID id) {
         return responseMapper.toTaskResponse(taskOrThrow(id));
+    }
+
+    /**
+     * Builds a full-task quality summary for operations dashboards and release readiness checks.
+     *
+     * <p>The response is aggregate-only. Candidate descriptions, steps, expected result text, review comments and raw
+     * model payloads stay out of the contract so the dashboard can be exposed to auditors without leaking source text.
+     */
+    public TestDesignQualitySummaryResponse qualitySummary(UUID id) {
+        TestDesignTask task = taskOrThrow(id);
+        return qualitySummary(task, repository.candidatesByTask(task.id()), Instant.now());
     }
 
     /**
@@ -1778,57 +1792,35 @@ public class TestDesignService {
             List<TestDesignCandidate> candidates,
             Instant generatedAt
     ) {
-        long total = candidates.size();
-        long missingRequirementCount = candidates.stream().filter(candidate -> candidate.requirementId() == null).count();
-        long missingTitleCount = candidates.stream().filter(candidate -> !StringUtils.hasText(candidate.title())).count();
+        TestDesignQualitySummaryResponse summary = qualitySummary(task, candidates, generatedAt);
+        long total = summary.total();
         long noStepsCount = candidates.stream().filter(candidate -> responseMapper.steps(candidate.stepsJson()).isEmpty()).count();
-        long stepExpectedCompleteCount = candidates.stream()
-                .filter(candidate -> {
-                    List<TestDesignStepResponse> steps = responseMapper.steps(candidate.stepsJson());
-                    return !steps.isEmpty()
-                            && steps.stream().allMatch(step -> StringUtils.hasText(step.expectedResult()));
-                })
-                .count();
-        long expectedResultPresentCount = candidates.stream()
-                .filter(candidate -> StringUtils.hasText(candidate.expectedResult()))
-                .count();
-        long lowConfidenceCount = candidates.stream()
-                .filter(candidate -> candidate.confidence() > 0D && candidate.confidence() < 0.8D)
-                .count();
-        long errorPresentCount = candidates.stream()
-                .filter(candidate -> StringUtils.hasText(candidate.errorMessage()))
-                .count();
         long reviewNotePresentCount = candidates.stream().filter(TestDesignService::hasCandidateReviewNote).count();
-        long publishableCount = candidates.stream()
-                .filter(candidate -> TestDesignCandidateStatus.CONFIRMED.name().equals(candidate.status())
-                        || TestDesignCandidateStatus.FAILED.name().equals(candidate.status()))
-                .count();
-        long duplicateKeyCollisionCount = duplicateKeyCollisionCount(candidates);
 
         appendTaskReportRow(csv, task, generatedAt, "metadata", "candidateQuality", "scope", null,
                 "fullTask", null, null, "fullTask", null);
         appendTaskReportRow(csv, task, generatedAt, "metadata", "candidateQuality", "total", null,
                 total, null, null, "fullTask", null);
         appendTaskReportRow(csv, task, generatedAt, "summary", "candidateQuality", "metric", "expectedResultPresent",
-                expectedResultPresentCount, percent(expectedResultPresentCount, total), null, "fullTask", null);
+                summary.expectedCompleteCount(), percent(summary.expectedCompleteCount(), total), null, "fullTask", null);
         appendTaskReportRow(csv, task, generatedAt, "summary", "candidateQuality", "metric", "stepExpectedComplete",
-                stepExpectedCompleteCount, percent(stepExpectedCompleteCount, total), null, "fullTask", null);
+                summary.stepCompleteCount(), percent(summary.stepCompleteCount(), total), null, "fullTask", null);
         appendTaskReportRow(csv, task, generatedAt, "summary", "candidateQuality", "metric", "publishable",
-                publishableCount, percent(publishableCount, total), null, "fullTask", null);
+                summary.publishableCount(), percent(summary.publishableCount(), total), null, "fullTask", null);
         appendTaskReportWarning(csv, task, generatedAt, "candidateQuality", "missingRequirement",
-                missingRequirementCount, total);
+                summary.missingRequirementCount(), total);
         appendTaskReportWarning(csv, task, generatedAt, "candidateQuality", "missingTitle",
-                missingTitleCount, total);
+                summary.missingTitleCount(), total);
         appendTaskReportWarning(csv, task, generatedAt, "candidateQuality", "noSteps",
                 noStepsCount, total);
         appendTaskReportWarning(csv, task, generatedAt, "candidateQuality", "lowConfidence",
-                lowConfidenceCount, total);
+                summary.lowConfidenceCount(), total);
         appendTaskReportWarning(csv, task, generatedAt, "candidateQuality", "errorPresent",
-                errorPresentCount, total);
+                summary.errorCount(), total);
         appendTaskReportWarning(csv, task, generatedAt, "candidateQuality", "reviewNotePresent",
                 reviewNotePresentCount, total);
         appendTaskReportWarning(csv, task, generatedAt, "candidateQuality", "duplicateKeyCollision",
-                duplicateKeyCollisionCount, total);
+                summary.duplicateKeyCollisionCount(), total);
         appendTaskReportDistributionRows(csv, task, generatedAt, "candidateQuality", "status",
                 countsBy(candidates, TestDesignCandidate::status), total);
         appendTaskReportDistributionRows(csv, task, generatedAt, "candidateQuality", "coverageType",
@@ -1989,6 +1981,103 @@ public class TestDesignService {
                 .filter(candidate -> StringUtils.hasText(candidate.duplicateKey()))
                 .filter(candidate -> counts.getOrDefault(candidate.duplicateKey(), 0L) > 1L)
                 .count();
+    }
+
+    private TestDesignQualitySummaryResponse qualitySummary(
+            TestDesignTaskResponse task,
+            List<TestDesignCandidate> candidates,
+            Instant generatedAt
+    ) {
+        long total = candidates.size();
+        long reviewableCount = candidates.stream().filter(TestDesignService::isReviewableCandidate).count();
+        long publishableCount = candidates.stream().filter(TestDesignService::isPublishableCandidate).count();
+        long failedCount = candidates.stream().filter(candidate -> TestDesignCandidateStatus.FAILED.name().equals(candidate.status())).count();
+        long confirmedCount = candidates.stream().filter(candidate -> TestDesignCandidateStatus.CONFIRMED.name().equals(candidate.status())).count();
+        long publishedCount = candidates.stream().filter(candidate -> TestDesignCandidateStatus.PUBLISHED.name().equals(candidate.status())).count();
+        long stepCompleteCount = candidates.stream().filter(this::hasCompleteSteps).count();
+        long expectedCompleteCount = candidates.stream().filter(candidate -> StringUtils.hasText(candidate.expectedResult())).count();
+        long lowConfidenceCount = candidates.stream().filter(TestDesignService::isLowConfidence).count();
+        long errorCount = candidates.stream().filter(candidate -> StringUtils.hasText(candidate.errorMessage())).count();
+        long missingRequirementCount = candidates.stream().filter(candidate -> candidate.requirementId() == null).count();
+        long missingTitleCount = candidates.stream().filter(candidate -> !StringUtils.hasText(candidate.title())).count();
+        long duplicateKeyCollisionCount = duplicateKeyCollisionCount(candidates);
+        Map<String, List<TestDesignQualityDistributionItemResponse>> distributions = new LinkedHashMap<>();
+        distributions.put("status", qualityDistribution(countsBy(candidates, TestDesignCandidate::status), total));
+        distributions.put("coverageType", qualityDistribution(countsBy(candidates, TestDesignCandidate::coverageType), total));
+        distributions.put("priority", qualityDistribution(countsBy(candidates, TestDesignCandidate::priority), total));
+        return new TestDesignQualitySummaryResponse(
+                task.id(),
+                task.projectId(),
+                candidateExportPreview(task.title(), 200),
+                task.status(),
+                "fullTask",
+                total,
+                reviewableCount,
+                publishableCount,
+                failedCount,
+                confirmedCount,
+                publishedCount,
+                stepCompleteCount,
+                expectedCompleteCount,
+                lowConfidenceCount,
+                errorCount,
+                missingRequirementCount,
+                missingTitleCount,
+                duplicateKeyCollisionCount,
+                List.of(
+                        qualityMetric("reviewable", reviewableCount, total),
+                        qualityMetric("publishable", publishableCount, total),
+                        qualityMetric("stepComplete", stepCompleteCount, total),
+                        qualityMetric("expectedComplete", expectedCompleteCount, total),
+                        qualityMetric("lowConfidence", lowConfidenceCount, total),
+                        qualityMetric("errorPresent", errorCount, total)
+                ),
+                distributions,
+                generatedAt
+        );
+    }
+
+    private TestDesignQualitySummaryResponse qualitySummary(
+            TestDesignTask task,
+            List<TestDesignCandidate> candidates,
+            Instant generatedAt
+    ) {
+        return qualitySummary(responseMapper.toTaskResponse(task), candidates, generatedAt);
+    }
+
+    private boolean hasCompleteSteps(TestDesignCandidate candidate) {
+        List<TestDesignStepResponse> steps = responseMapper.steps(candidate.stepsJson());
+        return !steps.isEmpty()
+                && steps.stream().allMatch(step -> StringUtils.hasText(step.action())
+                        && StringUtils.hasText(step.expectedResult()));
+    }
+
+    private static TestDesignQualityMetricResponse qualityMetric(String code, long count, long total) {
+        return new TestDesignQualityMetricResponse(code, count, percentValue(count, total));
+    }
+
+    private static List<TestDesignQualityDistributionItemResponse> qualityDistribution(Map<String, Long> counts, long total) {
+        return counts.entrySet().stream()
+                .sorted(Map.Entry.comparingByKey())
+                .map(entry -> new TestDesignQualityDistributionItemResponse(
+                        entry.getKey(),
+                        entry.getValue(),
+                        percentValue(entry.getValue(), total)
+                ))
+                .toList();
+    }
+
+    private static double percentValue(long value, long total) {
+        return total <= 0 ? 0D : Math.round(value * 10_000D / total) / 100D;
+    }
+
+    private static boolean isReviewableCandidate(TestDesignCandidate candidate) {
+        return TestDesignCandidateStatus.GENERATED.name().equals(candidate.status())
+                || TestDesignCandidateStatus.EDITED.name().equals(candidate.status());
+    }
+
+    private static boolean isLowConfidence(TestDesignCandidate candidate) {
+        return candidate.confidence() > 0D && candidate.confidence() < 0.8D;
     }
 
     private TestDesignReviewRecordResponse toReviewRecordResponse(

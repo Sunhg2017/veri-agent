@@ -15,6 +15,7 @@ import {
   fetchTestDesignHealth,
   fetchTestDesignReviewRecords,
   fetchTestDesignTask,
+  fetchTestDesignTaskQualitySummary,
   fetchTestDesignTaskSummary,
   fetchTestDesignTasks,
   normalizeTestDesignCandidate,
@@ -22,6 +23,7 @@ import {
   normalizeTestDesignCandidateList,
   normalizeTestDesignHealth,
   normalizeTestDesignPublishResult,
+  normalizeTestDesignQualitySummary,
   normalizeTestDesignReviewRecord,
   normalizeTestDesignReviewRecordList,
   normalizeTestDesignTask,
@@ -169,6 +171,37 @@ describe('WP5 test design API helpers', () => {
       index: 0,
       size: 10
     });
+
+    const qualitySummary = normalizeTestDesignQualitySummary({
+      task_id: 'task-1',
+      project_id: 'project-1',
+      scope: 'fullTask',
+      total: '4',
+      reviewable_count: '1',
+      publishable_count: '2',
+      failed_count: '1',
+      confirmed_count: '1',
+      published_count: '1',
+      step_complete_count: '3',
+      expected_complete_count: '3',
+      low_confidence_count: '1',
+      error_count: '1',
+      missing_requirement_count: '0',
+      missing_title_count: '0',
+      duplicate_key_collision_count: '0',
+      metrics: [{ code: 'publishable', count: '2', percent: '50.00' }],
+      distributions: {
+        status: [{ label: 'CONFIRMED', count: '1', percent: '25.00' }]
+      }
+    });
+    expect(qualitySummary).toMatchObject({
+      taskId: 'task-1',
+      projectId: 'project-1',
+      total: 4,
+      publishableCount: 2,
+      metrics: [{ code: 'publishable', count: 2, percent: 50 }]
+    });
+    expect(qualitySummary.distributions.status[0]).toMatchObject({ label: 'CONFIRMED', count: 1, percent: 25 });
   });
 
   it('calls task and candidate list endpoints with encoded filters', async () => {
@@ -206,6 +239,9 @@ describe('WP5 test design API helpers', () => {
 
     await fetchTestDesignTaskSummary('task 1');
     expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/test-design/tasks/task%201/summary');
+
+    await fetchTestDesignTaskQualitySummary('task 1');
+    expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/test-design/tasks/task%201/quality/summary');
   });
 
   it('calls task lifecycle action endpoints with encoded task ids', async () => {

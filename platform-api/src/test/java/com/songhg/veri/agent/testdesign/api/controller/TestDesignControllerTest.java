@@ -776,6 +776,85 @@ class TestDesignControllerTest {
     }
 
     @Test
+    void exposesFullTaskQualitySummaryWithScopeAndAggregateRedaction() throws Exception {
+        String ownerToken = userAccessToken(List.of("ProjectOwner@PROJECT:project-wp5"));
+        String auditorToken = userAccessToken(List.of("Auditor@PROJECT:project-wp5"));
+        String deniedAuditorToken = userAccessToken(List.of("Auditor@PROJECT:project-other"));
+        String requirementId = createRequirement(
+                ownerToken,
+                "质量摘要需求 token=secret-value",
+                "质量摘要验收 apiKey=sk_live_12345678",
+                "project-wp5"
+        );
+        MvcResult taskResult = mockMvc.perform(post("/api/v1/test-design/tasks")
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"projectId":"project-wp5","requirementIds":["%s"],"coverageTypes":["SMOKE","BOUNDARY"]}
+                                """.formatted(requirementId)))
+                .andExpect(status().isCreated())
+                .andReturn();
+        String taskId = JsonPath.read(taskResult.getResponse().getContentAsString(), "$.data.task.id");
+        String firstCandidateId = JsonPath.read(taskResult.getResponse().getContentAsString(), "$.data.candidates[0].id");
+        Integer firstVersion = JsonPath.read(taskResult.getResponse().getContentAsString(), "$.data.candidates[0].version");
+        String secondCandidateId = JsonPath.read(taskResult.getResponse().getContentAsString(), "$.data.candidates[1].id");
+        Integer secondVersion = JsonPath.read(taskResult.getResponse().getContentAsString(), "$.data.candidates[1].version");
+
+        mockMvc.perform(post("/api/v1/test-design/candidates/{id}/confirm", firstCandidateId)
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"version": %d, "comment": "确认评论 token=secret-value rawPrompt promptPlaintext"}
+                                """.formatted(firstVersion)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("CONFIRMED"));
+
+        mockMvc.perform(post("/api/v1/test-design/candidates/{id}/reject", secondCandidateId)
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"version": %d, "reason": "驳回原因 token=secret-value", "comment": "驳回评论 rawPrompt"}
+                                """.formatted(secondVersion)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("REJECTED"));
+
+        MvcResult result = mockMvc.perform(get("/api/v1/test-design/tasks/{id}/quality/summary", taskId)
+                        .header("Authorization", "Bearer " + auditorToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.taskId").value(taskId))
+                .andExpect(jsonPath("$.data.projectId").value("project-wp5"))
+                .andExpect(jsonPath("$.data.scope").value("fullTask"))
+                .andExpect(jsonPath("$.data.total").value(2))
+                .andExpect(jsonPath("$.data.publishableCount").value(1))
+                .andExpect(jsonPath("$.data.confirmedCount").value(1))
+                .andExpect(jsonPath("$.data.publishedCount").value(0))
+                .andExpect(jsonPath("$.data.failedCount").value(0))
+                .andExpect(jsonPath("$.data.stepCompleteCount").value(2))
+                .andExpect(jsonPath("$.data.expectedCompleteCount").value(2))
+                .andExpect(jsonPath("$.data.lowConfidenceCount").value(1))
+                .andExpect(jsonPath("$.data.errorCount").value(0))
+                .andExpect(jsonPath("$.data.metrics[?(@.code == 'publishable')].count").value(hasSize(1)))
+                .andExpect(jsonPath("$.data.distributions.status[?(@.label == 'CONFIRMED')].count").value(hasSize(1)))
+                .andExpect(jsonPath("$.data.distributions.status[?(@.label == 'REJECTED')].count").value(hasSize(1)))
+                .andExpect(jsonPath("$.data.distributions.coverageType[?(@.label == 'SMOKE')].percent").value(hasSize(1)))
+                .andReturn();
+
+        String json = result.getResponse().getContentAsString();
+        MatcherAssert.assertThat(json, not(containsString("secret-value")));
+        MatcherAssert.assertThat(json, not(containsString("sk_live_12345678")));
+        MatcherAssert.assertThat(json, not(containsString("rawPrompt")));
+        MatcherAssert.assertThat(json, not(containsString("promptPlaintext")));
+        MatcherAssert.assertThat(json, not(containsString("确认评论")));
+        MatcherAssert.assertThat(json, not(containsString("驳回原因")));
+        MatcherAssert.assertThat(json, not(containsString("基于 WP3 需求生成")));
+        MatcherAssert.assertThat(json, not(containsString("准备满足前置条件的基础测试数据")));
+
+        mockMvc.perform(get("/api/v1/test-design/tasks/{id}/quality/summary", taskId)
+                        .header("Authorization", "Bearer " + deniedAuditorToken))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
     void linksExistingWp3CaseBySourceRefDuringPublish() throws Exception {
         String ownerToken = userAccessToken(List.of("ProjectOwner@PROJECT:project-wp5"));
         String requirementId = createRequirement(ownerToken, "幂等发布需求", "发布幂等验收", "project-wp5");
