@@ -8,6 +8,7 @@ import {
   FileText,
   Link2,
   RefreshCw,
+  RotateCcw,
   Save,
   Search,
   Send,
@@ -21,6 +22,7 @@ import {
   TEST_DESIGN_CANDIDATE_STATUSES,
   TEST_DESIGN_COVERAGE_TYPES,
   batchActionTestDesignCandidates,
+  cancelTestDesignTask,
   confirmTestDesignCandidate,
   createTestDesignTask,
   exportTestDesignCandidatesCsv,
@@ -34,6 +36,7 @@ import {
   publishTestDesignDryRun,
   publishTestDesignTask,
   rejectTestDesignCandidate,
+  retryTestDesignTask,
   testDesignErrorMessage,
   updateTestDesignCandidate,
   type TestDesignCandidateBatchActionResult,
@@ -171,6 +174,8 @@ const initialGenerationDraft: GenerationDraft = {
 };
 
 const ASYNC_TASK_STATUSES = new Set(['QUEUED', 'RUNNING']);
+const RETRYABLE_TASK_STATUSES = new Set(['FAILED', 'PARTIAL_SUCCESS', 'CANCELLED']);
+const CANCELLABLE_TASK_STATUSES = new Set(['DRAFT', 'QUEUED', 'RUNNING', 'PARTIAL_SUCCESS', 'FAILED']);
 
 export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: CurrentUser | null }) {
   const canRead = hasPermission(props.currentUser, 'testDesign:read');
@@ -649,6 +654,68 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       });
     } catch (error: unknown) {
       setMutationState({ loading: false, error: testDesignErrorMessage(error, '候选用例生成失败') });
+    }
+  }
+
+  async function retryTask(task: TestDesignTaskView) {
+    if (!canGenerate) {
+      setTaskState({ loading: false, error: '缺少 testDesign:generate 权限' });
+      return;
+    }
+    if (!RETRYABLE_TASK_STATUSES.has(task.status)) {
+      setTaskState({ loading: false, error: `当前任务状态不可重试：${task.status}` });
+      return;
+    }
+
+    setSelectedTaskId(task.id);
+    setTaskState({ loading: true });
+    setPublishResult(null);
+    try {
+      const response = await retryTestDesignTask(task.id);
+      setTasks((current) => upsertTask(current, response.data.task));
+      setCandidates(response.data.candidates);
+      setCandidatePageTotal(response.data.candidates.length);
+      setSelectedCandidateCache(mergeCandidateCache({}, response.data.candidates));
+      setSelectedCandidateId(response.data.candidates[0]?.id ?? '');
+      setSelectedCandidateIds([]);
+      setBatchActionResult(null);
+      setBatchEditDraft(initialTestDesignBatchEditDraft);
+      setBatchEditResult(null);
+      setTaskState({ loading: false, success: '生成任务已重试', traceId: response.trace_id });
+      void refreshReviewRecords(task.id, { silent: true });
+    } catch (error: unknown) {
+      setTaskState({ loading: false, error: testDesignErrorMessage(error, '生成任务重试失败') });
+    }
+  }
+
+  async function cancelTask(task: TestDesignTaskView) {
+    if (!canGenerate) {
+      setTaskState({ loading: false, error: '缺少 testDesign:generate 权限' });
+      return;
+    }
+    if (!CANCELLABLE_TASK_STATUSES.has(task.status)) {
+      setTaskState({ loading: false, error: `当前任务状态不可取消：${task.status}` });
+      return;
+    }
+
+    setSelectedTaskId(task.id);
+    setTaskState({ loading: true });
+    try {
+      const response = await cancelTestDesignTask(task.id);
+      setTasks((current) => upsertTask(current, response.data.task));
+      setCandidates(response.data.candidates);
+      setCandidatePageTotal(response.data.candidates.length);
+      setSelectedCandidateCache(mergeCandidateCache({}, response.data.candidates));
+      setSelectedCandidateId(response.data.candidates[0]?.id ?? '');
+      setSelectedCandidateIds([]);
+      setBatchActionResult(null);
+      setBatchEditDraft(initialTestDesignBatchEditDraft);
+      setBatchEditResult(null);
+      setPublishResult(null);
+      setTaskState({ loading: false, success: '生成任务已取消', traceId: response.trace_id });
+      void refreshReviewRecords(task.id, { silent: true });
+    } catch (error: unknown) {
+      setTaskState({ loading: false, error: testDesignErrorMessage(error, '生成任务取消失败') });
     }
   }
 
@@ -1589,12 +1656,40 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
             </div>
             <div className="quick-actions">
               {tasks.length ? tasks.map((task) => (
-                <button key={task.id} type="button" className={task.id === selectedTaskId ? 'active' : ''} onClick={() => setSelectedTaskId(task.id)}>
-                  <span>
-                    <strong>{task.title}</strong>
-                    <em>{task.status} · {task.generatedCount} / {task.confirmedCount}</em>
-                  </span>
-                </button>
+                <div className={task.id === selectedTaskId ? 'quick-action-row active' : 'quick-action-row'} key={task.id}>
+                  <button type="button" className="quick-action-main" onClick={() => setSelectedTaskId(task.id)}>
+                    <span>
+                      <strong>{task.title}</strong>
+                      <em>{task.status} · {task.generatedCount} / {task.confirmedCount}</em>
+                    </span>
+                  </button>
+                  <div className="quick-action-controls">
+                    {RETRYABLE_TASK_STATUSES.has(task.status) && (
+                      <button
+                        aria-label={`重试任务 ${task.title}`}
+                        className="btn btn-secondary btn-xs"
+                        disabled={!canGenerate || taskState.loading}
+                        title="重试任务"
+                        type="button"
+                        onClick={() => void retryTask(task)}
+                      >
+                        <RotateCcw size={14} />
+                      </button>
+                    )}
+                    {CANCELLABLE_TASK_STATUSES.has(task.status) && (
+                      <button
+                        aria-label={`取消任务 ${task.title}`}
+                        className="btn btn-secondary btn-xs"
+                        disabled={!canGenerate || taskState.loading}
+                        title="取消任务"
+                        type="button"
+                        onClick={() => void cancelTask(task)}
+                      >
+                        <XCircle size={14} />
+                      </button>
+                    )}
+                  </div>
+                </div>
               )) : (
                 <div className="notice info">暂无生成任务</div>
               )}

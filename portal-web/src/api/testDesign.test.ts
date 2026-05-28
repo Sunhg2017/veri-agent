@@ -4,6 +4,7 @@ import {
   TEST_DESIGN_CANDIDATE_STATUSES,
   TEST_DESIGN_COVERAGE_TYPES,
   batchActionTestDesignCandidates,
+  cancelTestDesignTask,
   confirmTestDesignCandidate,
   createTestDesignTask,
   exportTestDesignCandidatesCsv,
@@ -27,6 +28,7 @@ import {
   publishTestDesignDryRun,
   publishTestDesignTask,
   rejectTestDesignCandidate,
+  retryTestDesignTask,
   testDesignCandidateExportPath,
   testDesignReviewRecordExportPath,
   updateTestDesignCandidate
@@ -201,6 +203,25 @@ describe('WP5 test design API helpers', () => {
 
     await fetchTestDesignTaskSummary('task 1');
     expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/test-design/tasks/task%201/summary');
+  });
+
+  it('calls task lifecycle action endpoints with encoded task ids', async () => {
+    requestJsonMock.mockResolvedValue({
+      code: 'OK',
+      message: 'ok',
+      trace_id: 'trace-task-action',
+      data: { task: { id: 'task-1', status: 'SUCCEEDED' }, candidates: [] }
+    });
+
+    await retryTestDesignTask('task 1');
+    expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/test-design/tasks/task%201/retry', {
+      method: 'POST'
+    });
+
+    await cancelTestDesignTask('task 1');
+    expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/test-design/tasks/task%201/cancel', {
+      method: 'POST'
+    });
   });
 
   it('compacts create and update payloads for the WP5 contract', async () => {

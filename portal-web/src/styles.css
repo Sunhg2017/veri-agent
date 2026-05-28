@@ -1099,54 +1099,73 @@ tbody tr:hover td {
   margin-top: var(--space-sm);
 }
 
-.quick-actions button {
+.quick-action-row {
   width: 100%;
   min-height: 38px;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 0 14px;
+  gap: var(--space-sm);
+  padding: 0 8px 0 14px;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--surface);
   color: var(--text-secondary);
-  font-size: var(--font-size-base);
-  text-align: left;
-  cursor: pointer;
   transition: all var(--transition-fast);
 }
 
-.quick-actions button:hover {
+.quick-action-row:hover {
   background: var(--surface-hover);
   border-color: #d1d5db;
   color: var(--text-primary);
 }
 
-.quick-actions button.active {
+.quick-action-row.active {
   border-color: var(--primary);
   background: var(--primary-bg);
   color: var(--primary);
 }
 
-.quick-actions button span {
+.quick-action-main {
+  flex: 1;
+  min-width: 0;
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-size: var(--font-size-base);
+  text-align: left;
+  cursor: pointer;
+}
+
+.quick-action-controls {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.quick-action-main span {
   display: grid;
   gap: 2px;
   min-width: 0;
 }
 
-.quick-actions button strong,
-.quick-actions button em {
+.quick-action-main strong,
+.quick-action-main em {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.quick-actions button strong {
+.quick-action-main strong {
   color: var(--text-primary);
   font-style: normal;
 }
 
-.quick-actions button em {
+.quick-action-main em {
   color: var(--text-tertiary);
   font-size: var(--font-size-xs);
   font-style: normal;

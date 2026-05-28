@@ -554,6 +554,20 @@ export async function fetchTestDesignTaskSummary(taskId: string): Promise<ApiRes
   return { ...response, data: normalizeTestDesignTask(response.data) };
 }
 
+export async function retryTestDesignTask(taskId: string): Promise<ApiResponse<TestDesignTaskDetail>> {
+  const response = await requestJson<unknown>(`/api/v1/test-design/tasks/${encodeURIComponent(taskId)}/retry`, {
+    method: 'POST'
+  });
+  return { ...response, data: normalizeTestDesignTaskDetail(response.data) };
+}
+
+export async function cancelTestDesignTask(taskId: string): Promise<ApiResponse<TestDesignTaskDetail>> {
+  const response = await requestJson<unknown>(`/api/v1/test-design/tasks/${encodeURIComponent(taskId)}/cancel`, {
+    method: 'POST'
+  });
+  return { ...response, data: normalizeTestDesignTaskDetail(response.data) };
+}
+
 export async function fetchTestDesignCandidates(filters: TestDesignCandidateFilters = {}): Promise<ApiResponse<TestDesignCandidateList>> {
   const response = await requestJson<unknown>(`/api/v1/test-design/candidates${queryString(filters as Record<string, unknown>)}`);
   return { ...response, data: normalizeTestDesignCandidateList(response.data) };
