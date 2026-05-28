@@ -73,6 +73,11 @@ public class JdbcModelAccessRepository implements ModelAccessRepository {
     }
 
     @Override
+    public Optional<InvocationRecord> invocation(UUID id) {
+        return Optional.ofNullable(mapper.invocation(id));
+    }
+
+    @Override
     public List<InvocationRecord> invocations(InvocationQuery query) {
         return mapper.invocations(query);
     }

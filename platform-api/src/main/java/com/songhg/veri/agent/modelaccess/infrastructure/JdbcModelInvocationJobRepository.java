@@ -33,6 +33,11 @@ public class JdbcModelInvocationJobRepository implements ModelInvocationJobRepos
     }
 
     @Override
+    public Optional<ModelInvocationJobRecord> jobByInvocationId(UUID invocationId) {
+        return Optional.ofNullable(mapper.invocationJobByInvocationId(invocationId));
+    }
+
+    @Override
     public List<ModelInvocationJobRecord> queuedJobs() {
         return mapper.queuedInvocationJobs();
     }

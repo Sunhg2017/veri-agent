@@ -171,6 +171,13 @@ public class InMemoryModelAccessRepository implements ModelAccessRepository {
     }
 
     @Override
+    public synchronized Optional<InvocationRecord> invocation(UUID id) {
+        return invocations.stream()
+                .filter(record -> record.id().equals(id))
+                .findFirst();
+    }
+
+    @Override
     public synchronized List<InvocationRecord> invocations(InvocationQuery query) {
         return filteredInvocations(query)
                 .skip(query.offset())

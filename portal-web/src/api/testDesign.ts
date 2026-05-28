@@ -38,9 +38,32 @@ export interface TestDesignTaskView {
   requestedBy?: string;
   idempotencyKey?: string;
   inputDigest?: string;
+  modelObservation?: TestDesignModelObservationView;
   contextSummary: Record<string, unknown>;
   createdAt?: string;
   updatedAt?: string;
+}
+
+export interface TestDesignModelObservationView {
+  invocationId?: string;
+  jobId?: string;
+  traceId?: string;
+  available: boolean;
+  status?: string;
+  providerName?: string;
+  modelName?: string;
+  routingRuleName?: string;
+  routingGroup?: string;
+  modelCapability?: string;
+  fallbackUsed?: boolean;
+  inputTokens?: number;
+  outputTokens?: number;
+  totalCost?: number;
+  latencyMs?: number;
+  errorCode?: string;
+  errorMessage?: string;
+  actorService?: string;
+  createdAt?: string;
 }
 
 export interface TestDesignStepView {
@@ -267,6 +290,17 @@ function optionalNumber(value: unknown) {
   return numberValue(value, 0);
 }
 
+function optionalBoolean(value: unknown) {
+  if (value === undefined || value === null) return undefined;
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    if (normalized === 'true') return true;
+    if (normalized === 'false') return false;
+  }
+  return Boolean(value);
+}
+
 function stringArrayValue(value: unknown): string[] {
   if (Array.isArray(value)) {
     return value.map((item) => String(item).trim()).filter(Boolean);
@@ -357,9 +391,37 @@ export function normalizeTestDesignTask(raw: unknown): TestDesignTaskView {
     requestedBy: optionalString(item.requestedBy) ?? optionalString(item.requested_by),
     idempotencyKey: optionalString(item.idempotencyKey) ?? optionalString(item.idempotency_key),
     inputDigest: optionalString(item.inputDigest) ?? optionalString(item.input_digest),
+    modelObservation: normalizeTestDesignModelObservation(item.modelObservation ?? item.model_observation),
     contextSummary: recordValue(item.contextSummary ?? item.context_summary),
     createdAt: optionalString(item.createdAt) ?? optionalString(item.created_at),
     updatedAt: optionalString(item.updatedAt) ?? optionalString(item.updated_at)
+  };
+}
+
+export function normalizeTestDesignModelObservation(raw: unknown): TestDesignModelObservationView | undefined {
+  if (!isRecord(raw)) {
+    return undefined;
+  }
+  return {
+    invocationId: optionalString(raw.invocationId) ?? optionalString(raw.invocation_id),
+    jobId: optionalString(raw.jobId) ?? optionalString(raw.job_id),
+    traceId: optionalString(raw.traceId) ?? optionalString(raw.trace_id),
+    available: optionalBoolean(raw.available ?? raw.isAvailable ?? raw.is_available) ?? false,
+    status: optionalString(raw.status),
+    providerName: optionalString(raw.providerName) ?? optionalString(raw.provider_name),
+    modelName: optionalString(raw.modelName) ?? optionalString(raw.model_name),
+    routingRuleName: optionalString(raw.routingRuleName) ?? optionalString(raw.routing_rule_name),
+    routingGroup: optionalString(raw.routingGroup) ?? optionalString(raw.routing_group),
+    modelCapability: optionalString(raw.modelCapability) ?? optionalString(raw.model_capability),
+    fallbackUsed: optionalBoolean(raw.fallbackUsed ?? raw.fallback_used),
+    inputTokens: optionalNumber(raw.inputTokens ?? raw.input_tokens),
+    outputTokens: optionalNumber(raw.outputTokens ?? raw.output_tokens),
+    totalCost: optionalNumber(raw.totalCost ?? raw.total_cost),
+    latencyMs: optionalNumber(raw.latencyMs ?? raw.latency_ms),
+    errorCode: optionalString(raw.errorCode) ?? optionalString(raw.error_code),
+    errorMessage: optionalString(raw.errorMessage) ?? optionalString(raw.error_message),
+    actorService: optionalString(raw.actorService) ?? optionalString(raw.actor_service),
+    createdAt: optionalString(raw.createdAt) ?? optionalString(raw.created_at)
   };
 }
 

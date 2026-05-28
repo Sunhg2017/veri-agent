@@ -34,6 +34,13 @@ public class InMemoryModelInvocationJobRepository implements ModelInvocationJobR
     }
 
     @Override
+    public Optional<ModelInvocationJobRecord> jobByInvocationId(UUID invocationId) {
+        return jobs.values().stream()
+                .filter(job -> invocationId.equals(job.invocationId()))
+                .findFirst();
+    }
+
+    @Override
     public List<ModelInvocationJobRecord> queuedJobs() {
         return jobs.values()
                 .stream()

@@ -48,6 +48,8 @@ public record TestDesignTaskResponse(
         String idempotencyKey,
         @Schema(description = "脱敏输入摘要")
         String inputDigest,
+        @Schema(description = "脱敏模型观测摘要")
+        TestDesignModelObservationResponse modelObservation,
         @Schema(description = "脱敏上下文摘要")
         Map<String, Object> contextSummary,
         @Schema(description = "创建时间")

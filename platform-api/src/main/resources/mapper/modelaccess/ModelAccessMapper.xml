@@ -253,6 +253,12 @@
         limit #{query.size} offset #{query.offset}
     </select>
 
+    <select id="invocation" resultMap="invocationMap">
+        select <include refid="invocationColumns"/>
+        from ma_invocation_log
+        where id = #{id}
+    </select>
+
     <select id="countInvocations" resultType="long">
         select count(*)
         from ma_invocation_log
@@ -310,6 +316,14 @@
         select <include refid="invocationJobColumns"/>
         from ma_invocation_job
         where job_id = #{jobId}
+    </select>
+
+    <select id="invocationJobByInvocationId" resultMap="invocationJobMap">
+        select <include refid="invocationJobColumns"/>
+        from ma_invocation_job
+        where invocation_id = #{invocationId}
+        order by created_at desc
+        limit 1
     </select>
 
     <select id="queuedInvocationJobs" resultMap="invocationJobMap">

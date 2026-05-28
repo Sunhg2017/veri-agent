@@ -170,6 +170,20 @@ describe('WP5 test design exports', () => {
       task: {
         ...task,
         modelInvocationId: 'invoke-1',
+        modelObservation: {
+          invocationId: 'invoke-1',
+          jobId: 'job-1',
+          traceId: 'trc_1',
+          available: true,
+          status: 'FAILED',
+          fallbackUsed: true,
+          inputTokens: 123,
+          outputTokens: 45,
+          totalCost: 0.00012345,
+          latencyMs: 875,
+          errorCode: 'MODEL_TIMEOUT',
+          errorMessage: 'apiKey=observation-secret should not be exported'
+        },
         inputDigest: 'sha256:input',
         contextSummary: { requirementCount: 1, sourceRefs: ['REQ-1'] }
       },
@@ -219,6 +233,12 @@ describe('WP5 test design exports', () => {
     expect(csv).toContain('metadata,task,modelInvocationTracked,,true');
     expect(csv).toContain('metadata,task,inputDigestTracked,,true');
     expect(csv).toContain('metadata,task,contextSummaryKeyCount,,2');
+    expect(csv).toContain('metadata,modelObservation,available,,true');
+    expect(csv).toContain('metadata,modelObservation,traceIdTracked,,true');
+    expect(csv).toContain('metadata,modelObservation,status,,FAILED');
+    expect(csv).toContain('metadata,modelObservation,inputTokens,,123');
+    expect(csv).toContain('metadata,modelObservation,totalCost,,0.00012345');
+    expect(csv).toContain('metadata,modelObservation,errorCode,,MODEL_TIMEOUT');
     expect(csv).toContain('metadata,candidateQuality,scope,,当前候选页 1-2 / 8');
     expect(csv).toContain('summary,candidateQuality,metric,可发布,2,,success');
     expect(csv).toContain('summary,candidateQuality,distribution:状态,FAILED,1,50,danger');
@@ -229,6 +249,9 @@ describe('WP5 test design exports', () => {
     expect(csv).not.toContain('body-secret');
     expect(csv).not.toContain('review-secret');
     expect(csv).not.toContain('publish-secret');
+    expect(csv).not.toContain('observation-secret');
+    expect(csv).not.toContain('trc_1');
+    expect(csv).not.toContain('job-1');
     expect(csv).not.toContain('输入账号密码');
   });
 

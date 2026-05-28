@@ -27,6 +27,13 @@ export function buildTestDesignTaskDiagnostics(task: TestDesignTaskView | null |
     { label: 'Prompt', value: formatPrompt(task) },
     { label: '模型', value: formatModel(task) },
     { label: '模型调用', value: compactTestDesignDigest(task.modelInvocationId, 12, 8) },
+    {
+      label: '调用观测',
+      value: formatModelObservation(task),
+      tone: modelObservationTone(task)
+    },
+    { label: '调用链路', value: compactTestDesignDigest(task.modelObservation?.traceId, 12, 8) },
+    { label: '调用任务', value: compactTestDesignDigest(task.modelObservation?.jobId, 12, 8) },
     { label: '输入摘要', value: compactTestDesignDigest(task.inputDigest, 12, 8) },
     { label: '幂等键', value: compactTestDesignDigest(task.idempotencyKey, 14, 8) },
     { label: '上下文', value: summarizeTestDesignTaskContext(task.contextSummary) },
@@ -168,9 +175,54 @@ function formatModel(task: TestDesignTaskView) {
   return `${provider} / ${model}`;
 }
 
+function formatModelObservation(task: TestDesignTaskView) {
+  const observation = task.modelObservation;
+  if (!observation) {
+    return task.modelInvocationId ? '仅记录调用 ID' : '-';
+  }
+  const parts: string[] = [];
+  parts.push(displayDiagnosticText(observation.status, 24));
+  parts.push(`${formatNumber(observation.inputTokens)}/${formatNumber(observation.outputTokens)} tokens`);
+  parts.push(`${formatNumber(observation.latencyMs)}ms`);
+  parts.push(`cost:${formatCost(observation.totalCost)}`);
+  if (observation.fallbackUsed) {
+    parts.push('fallback');
+  }
+  if (!observation.available) {
+    parts.push('日志暂不可用');
+  }
+  const error = displayDiagnosticText(observation.errorCode || observation.errorMessage, 48);
+  if (error !== '-') {
+    parts.push(error);
+  }
+  return parts.filter((part) => part && part !== '-').join(' · ') || '-';
+}
+
+function modelObservationTone(task: TestDesignTaskView): TestDesignTaskDiagnosticTone {
+  const observation = task.modelObservation;
+  if (!observation) {
+    return task.modelInvocationId ? 'warning' : 'neutral';
+  }
+  if (!observation.available) {
+    return 'warning';
+  }
+  return observation.status === 'FAILED' || observation.status === 'BLOCKED' ? 'danger' : 'neutral';
+}
+
 function formatList(values: string[]) {
   const safeValues = values.map((value) => displayDiagnosticText(value, 24)).filter((value) => value !== '-');
   return safeValues.length ? safeValues.join(', ') : '-';
+}
+
+function formatNumber(value?: number) {
+  return typeof value === 'number' && Number.isFinite(value) ? String(value) : '-';
+}
+
+function formatCost(value?: number) {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    return '-';
+  }
+  return value === 0 ? '0' : value.toFixed(8).replace(/0+$/, '').replace(/\.$/, '');
 }
 
 function formatDateTime(value?: string) {

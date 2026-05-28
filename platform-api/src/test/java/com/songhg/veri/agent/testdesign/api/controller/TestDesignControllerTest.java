@@ -3,10 +3,17 @@ package com.songhg.veri.agent.testdesign.api.controller;
 import com.jayway.jsonpath.JsonPath;
 import com.songhg.veri.agent.auth.application.AuthTokenService;
 import com.songhg.veri.agent.auth.domain.AuthUserRecord;
+import com.songhg.veri.agent.modelaccess.application.port.ModelAccessRepository;
+import com.songhg.veri.agent.modelaccess.application.port.ModelInvocationJobRepository;
+import com.songhg.veri.agent.modelaccess.application.view.ModelInvocationJobRecord;
+import com.songhg.veri.agent.modelaccess.application.view.ModelInvocationJobStatus;
+import com.songhg.veri.agent.modelaccess.domain.InvocationRecord;
+import com.songhg.veri.agent.modelaccess.domain.InvocationStatus;
 import com.songhg.veri.agent.testdesign.application.port.TestDesignRepository;
 import com.songhg.veri.agent.testdesign.domain.TestDesignCandidate;
 import com.songhg.veri.agent.testdesign.domain.TestDesignTask;
 import com.songhg.veri.agent.testdesign.domain.TestDesignTaskStatus;
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -52,6 +59,12 @@ class TestDesignControllerTest {
 
     @Autowired
     private TestDesignRepository testDesignRepository;
+
+    @Autowired
+    private ModelAccessRepository modelAccessRepository;
+
+    @Autowired
+    private ModelInvocationJobRepository modelInvocationJobRepository;
 
     @Test
     void exposesHealthWithoutToken() throws Exception {
@@ -269,6 +282,115 @@ class TestDesignControllerTest {
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("CONFLICT"))
                 .andExpect(jsonPath("$.message", containsString("幂等键")));
+    }
+
+    @Test
+    void taskSummaryIncludesSanitizedModelObservation() throws Exception {
+        String ownerToken = userAccessToken(List.of("ProjectOwner@PROJECT:project-wp5"));
+        UUID taskId = UUID.randomUUID();
+        UUID invocationId = UUID.randomUUID();
+        UUID providerId = UUID.randomUUID();
+        UUID jobId = UUID.randomUUID();
+        Instant now = Instant.parse("2026-05-29T08:00:00Z");
+
+        modelAccessRepository.saveInvocation(new InvocationRecord(
+                invocationId,
+                "project-wp5",
+                null,
+                null,
+                "INTERNAL",
+                "wp5-test-design-v1",
+                1,
+                providerId,
+                "local-echo-primary",
+                "local-echo",
+                "wp5-cost-aware",
+                "default",
+                "JSON",
+                InvocationStatus.FAILED,
+                true,
+                "sha256:prompt",
+                "apiKey=preview-secret should never leave WP2",
+                "Bearer abc.def.ghi should never leave WP2",
+                123,
+                45,
+                new BigDecimal("0.00012345"),
+                "MODEL_TIMEOUT",
+                "provider token=secret-value timed out",
+                875,
+                "wp5-test-design",
+                "qa.lead",
+                now
+        ));
+        modelInvocationJobRepository.save(new ModelInvocationJobRecord(
+                jobId,
+                ModelInvocationJobStatus.SUCCEEDED,
+                "{}",
+                "wp5-test-design",
+                "qa.lead",
+                "trc_wp5_model_observation",
+                now.minusSeconds(2),
+                now.minusSeconds(1),
+                now,
+                invocationId,
+                null,
+                null,
+                "{\"invocationId\":\"%s\"}".formatted(invocationId)
+        ));
+        testDesignRepository.saveTask(new TestDesignTask(
+                taskId,
+                "project-wp5",
+                "模型观测摘要任务",
+                TestDesignTaskStatus.FAILED.name(),
+                UUID.randomUUID().toString(),
+                "SMOKE",
+                "wp5-test-design-v1",
+                "1.0.0",
+                invocationId,
+                "local-echo-primary",
+                "local-echo",
+                1,
+                0,
+                0,
+                0,
+                "生成失败",
+                "qa.lead",
+                null,
+                null,
+                "input-digest",
+                "{\"contextVersion\":\"wp5-context-v1\"}",
+                now.minusSeconds(10),
+                now
+        ));
+
+        MvcResult result = mockMvc.perform(get("/api/v1/test-design/tasks/{id}/summary", taskId)
+                        .header("Authorization", "Bearer " + ownerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.modelObservation.available").value(true))
+                .andExpect(jsonPath("$.data.modelObservation.invocationId").value(invocationId.toString()))
+                .andExpect(jsonPath("$.data.modelObservation.jobId").value(jobId.toString()))
+                .andExpect(jsonPath("$.data.modelObservation.traceId").value("trc_wp5_model_observation"))
+                .andExpect(jsonPath("$.data.modelObservation.status").value("FAILED"))
+                .andExpect(jsonPath("$.data.modelObservation.providerName").value("local-echo-primary"))
+                .andExpect(jsonPath("$.data.modelObservation.modelName").value("local-echo"))
+                .andExpect(jsonPath("$.data.modelObservation.routingRuleName").value("wp5-cost-aware"))
+                .andExpect(jsonPath("$.data.modelObservation.routingGroup").value("default"))
+                .andExpect(jsonPath("$.data.modelObservation.modelCapability").value("JSON"))
+                .andExpect(jsonPath("$.data.modelObservation.fallbackUsed").value(true))
+                .andExpect(jsonPath("$.data.modelObservation.inputTokens").value(123))
+                .andExpect(jsonPath("$.data.modelObservation.outputTokens").value(45))
+                .andExpect(jsonPath("$.data.modelObservation.totalCost").value(0.00012345))
+                .andExpect(jsonPath("$.data.modelObservation.latencyMs").value(875))
+                .andExpect(jsonPath("$.data.modelObservation.errorCode").value("MODEL_TIMEOUT"))
+                .andExpect(jsonPath("$.data.modelObservation.errorMessage").value("provider [REDACTED] timed out"))
+                .andReturn();
+
+        String json = result.getResponse().getContentAsString();
+        MatcherAssert.assertThat(json, not(containsString("preview-secret")));
+        MatcherAssert.assertThat(json, not(containsString("abc.def.ghi")));
+        MatcherAssert.assertThat(json, not(containsString("secret-value")));
+        MatcherAssert.assertThat(json, not(containsString("requestPreview")));
+        MatcherAssert.assertThat(json, not(containsString("responsePreview")));
     }
 
     @Test

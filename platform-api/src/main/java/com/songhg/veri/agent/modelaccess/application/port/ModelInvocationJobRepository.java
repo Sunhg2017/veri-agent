@@ -15,6 +15,8 @@ public interface ModelInvocationJobRepository {
 
     Optional<ModelInvocationJobRecord> job(UUID jobId);
 
+    Optional<ModelInvocationJobRecord> jobByInvocationId(UUID invocationId);
+
     List<ModelInvocationJobRecord> queuedJobs();
 
     boolean markRunning(UUID jobId, Instant startedAt);

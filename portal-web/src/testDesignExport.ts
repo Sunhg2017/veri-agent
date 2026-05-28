@@ -226,6 +226,16 @@ export function buildTestDesignTaskReportCsv(input: TestDesignTaskReportExportIn
   rows.push(taskReportRow(task, generatedAt, 'metadata', 'task', 'modelInvocationTracked', '', Boolean(task.modelInvocationId)));
   rows.push(taskReportRow(task, generatedAt, 'metadata', 'task', 'inputDigestTracked', '', Boolean(task.inputDigest)));
   rows.push(taskReportRow(task, generatedAt, 'metadata', 'task', 'contextSummaryKeyCount', '', Object.keys(task.contextSummary).length));
+  rows.push(taskReportRow(task, generatedAt, 'metadata', 'modelObservation', 'available', '', task.modelObservation?.available ?? false));
+  rows.push(taskReportRow(task, generatedAt, 'metadata', 'modelObservation', 'traceIdTracked', '', Boolean(task.modelObservation?.traceId)));
+  rows.push(taskReportRow(task, generatedAt, 'metadata', 'modelObservation', 'jobIdTracked', '', Boolean(task.modelObservation?.jobId)));
+  rows.push(taskReportRow(task, generatedAt, 'metadata', 'modelObservation', 'status', '', task.modelObservation?.status ?? ''));
+  rows.push(taskReportRow(task, generatedAt, 'metadata', 'modelObservation', 'fallbackUsed', '', task.modelObservation?.fallbackUsed ?? ''));
+  rows.push(taskReportRow(task, generatedAt, 'metadata', 'modelObservation', 'inputTokens', '', task.modelObservation?.inputTokens ?? ''));
+  rows.push(taskReportRow(task, generatedAt, 'metadata', 'modelObservation', 'outputTokens', '', task.modelObservation?.outputTokens ?? ''));
+  rows.push(taskReportRow(task, generatedAt, 'metadata', 'modelObservation', 'totalCost', '', task.modelObservation?.totalCost ?? ''));
+  rows.push(taskReportRow(task, generatedAt, 'metadata', 'modelObservation', 'latencyMs', '', task.modelObservation?.latencyMs ?? ''));
+  rows.push(taskReportRow(task, generatedAt, 'metadata', 'modelObservation', 'errorCode', '', task.modelObservation?.errorCode ?? ''));
 
   rows.push(taskReportRow(task, generatedAt, 'metadata', 'candidateQuality', 'scope', '', input.qualityScopeLabel, undefined, undefined, input.qualityScopeLabel));
   rows.push(taskReportRow(task, generatedAt, 'metadata', 'candidateQuality', 'pageTotal', '', input.qualitySummary.pageTotal, undefined, undefined, input.qualityScopeLabel));

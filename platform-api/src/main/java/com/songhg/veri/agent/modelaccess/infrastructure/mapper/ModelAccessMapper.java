@@ -33,6 +33,8 @@ public interface ModelAccessMapper {
 
     void insertInvocation(InvocationRecord record);
 
+    InvocationRecord invocation(@Param("id") UUID id);
+
     List<InvocationRecord> invocations(@Param("query") InvocationQuery query);
 
     long countInvocations(@Param("query") InvocationQuery query);
@@ -46,6 +48,8 @@ public interface ModelAccessMapper {
     void insertInvocationJob(ModelInvocationJobRecord job);
 
     ModelInvocationJobRecord invocationJob(@Param("jobId") UUID jobId);
+
+    ModelInvocationJobRecord invocationJobByInvocationId(@Param("invocationId") UUID invocationId);
 
     List<ModelInvocationJobRecord> queuedInvocationJobs();
 

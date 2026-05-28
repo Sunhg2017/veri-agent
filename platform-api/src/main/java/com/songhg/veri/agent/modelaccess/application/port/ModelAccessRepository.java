@@ -32,6 +32,8 @@ public interface ModelAccessRepository {
 
     InvocationRecord saveInvocation(InvocationRecord record);
 
+    Optional<InvocationRecord> invocation(UUID id);
+
     List<InvocationRecord> invocations(InvocationQuery query);
 
     long countInvocations(InvocationQuery query);
