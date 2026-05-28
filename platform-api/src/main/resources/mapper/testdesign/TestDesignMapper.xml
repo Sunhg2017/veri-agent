@@ -340,6 +340,14 @@
         limit #{pageQuery.size} offset #{pageQuery.offset}
     </select>
 
+    <select id="reviewRecordsByTask" resultMap="reviewRecordMap">
+        select id, candidate_id, task_id, project_id, action, before_status, after_status, reviewer,
+               comment, diff_json::text as diff_json, created_at
+        from test_design_review_record
+        where task_id = cast(#{taskId} as uuid)
+        order by created_at desc
+    </select>
+
     <select id="countReviewRecords" resultType="long">
         select count(*)
         from test_design_review_record

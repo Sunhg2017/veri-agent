@@ -664,6 +664,118 @@ class TestDesignControllerTest {
     }
 
     @Test
+    void exportsFullTaskReportWithScopeAndAggregateRedaction() throws Exception {
+        String ownerToken = userAccessToken(List.of("ProjectOwner@PROJECT:project-wp5"));
+        String auditorToken = userAccessToken(List.of("Auditor@PROJECT:project-wp5"));
+        String deniedAuditorToken = userAccessToken(List.of("Auditor@PROJECT:project-other"));
+        String requirementId = createRequirement(
+                ownerToken,
+                "任务报告需求 token=secret-value",
+                "任务报告验收 apiKey=sk_live_12345678",
+                "project-wp5"
+        );
+        MvcResult taskResult = mockMvc.perform(post("/api/v1/test-design/tasks")
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"projectId":"project-wp5","requirementIds":["%s"],"coverageTypes":["SMOKE","EXCEPTION"]}
+                                """.formatted(requirementId)))
+                .andExpect(status().isCreated())
+                .andReturn();
+        String taskId = JsonPath.read(taskResult.getResponse().getContentAsString(), "$.data.task.id");
+        String firstCandidateId = JsonPath.read(taskResult.getResponse().getContentAsString(), "$.data.candidates[0].id");
+        Integer firstVersion = JsonPath.read(taskResult.getResponse().getContentAsString(), "$.data.candidates[0].version");
+        String secondCandidateId = JsonPath.read(taskResult.getResponse().getContentAsString(), "$.data.candidates[1].id");
+        Integer secondVersion = JsonPath.read(taskResult.getResponse().getContentAsString(), "$.data.candidates[1].version");
+
+        MvcResult updated = mockMvc.perform(put("/api/v1/test-design/candidates/{id}", firstCandidateId)
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "title": "任务报告聚合用例",
+                                  "description": "报告不应导出候选正文",
+                                  "coverageType": "SMOKE",
+                                  "priority": "HIGH",
+                                  "preconditions": "任务报告前置条件不应导出",
+                                  "expectedResult": "任务报告结果不应导出",
+                                  "tags": ["wp5", "task-report"],
+                                  "version": %d,
+                                  "steps": [
+                                    {"action": "任务报告步骤不应导出", "expectedResult": "步骤结果不应导出"},
+                                    {"action": "提交任务报告表单", "expectedResult": "表单提交成功"}
+                                  ]
+                                }
+                                """.formatted(firstVersion)))
+                .andExpect(status().isOk())
+                .andReturn();
+        Integer updatedVersion = JsonPath.read(updated.getResponse().getContentAsString(), "$.data.version");
+
+        mockMvc.perform(post("/api/v1/test-design/candidates/{id}/confirm", firstCandidateId)
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"version": %d, "comment": "确认意见 token=secret-value rawPrompt promptPlaintext"}
+                                """.formatted(updatedVersion)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("CONFIRMED"));
+
+        mockMvc.perform(post("/api/v1/test-design/candidates/{id}/reject", secondCandidateId)
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"version": %d, "reason": "驳回原因 token=secret-value", "comment": "驳回评论 rawPrompt"}
+                                """.formatted(secondVersion)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("REJECTED"));
+
+        mockMvc.perform(post("/api/v1/test-design/tasks/{id}/publish", taskId)
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(1));
+
+        MvcResult export = mockMvc.perform(get("/api/v1/test-design/tasks/{id}/report/export", taskId)
+                        .header("Authorization", "Bearer " + auditorToken))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith("text/csv"))
+                .andExpect(header().string("Content-Disposition", containsString("wp5-task-report.csv")))
+                .andReturn();
+
+        String csv = export.getResponse().getContentAsString();
+        MatcherAssert.assertThat(csv, startsWith("recordType,section,metric,label,value,percent,tone,taskId"));
+        MatcherAssert.assertThat(csv, containsString("WP5_TASK_REPORT_FULL"));
+        MatcherAssert.assertThat(csv, containsString("fullTask"));
+        MatcherAssert.assertThat(csv, containsString("candidateQuality,distribution:status,PUBLISHED"));
+        MatcherAssert.assertThat(csv, containsString("candidateQuality,distribution:status,REJECTED"));
+        MatcherAssert.assertThat(csv, containsString("reviewHistory,distribution:action,UPDATE"));
+        MatcherAssert.assertThat(csv, containsString("reviewHistory,distribution:action,CONFIRMED"));
+        MatcherAssert.assertThat(csv, containsString("publish,distribution:result,SUCCEEDED"));
+        MatcherAssert.assertThat(csv, containsString("modelObservation,traceIdTracked,,false"));
+        MatcherAssert.assertThat(csv, containsString(taskId));
+        MatcherAssert.assertThat(csv, containsString("project-wp5"));
+        MatcherAssert.assertThat(csv, not(containsString("secret-value")));
+        MatcherAssert.assertThat(csv, not(containsString("sk_live_12345678")));
+        MatcherAssert.assertThat(csv, not(containsString("rawPrompt")));
+        MatcherAssert.assertThat(csv, not(containsString("promptPlaintext")));
+        MatcherAssert.assertThat(csv, not(containsString("任务报告步骤不应导出")));
+        MatcherAssert.assertThat(csv, not(containsString("步骤结果不应导出")));
+        MatcherAssert.assertThat(csv, not(containsString("任务报告前置条件不应导出")));
+        MatcherAssert.assertThat(csv, not(containsString("任务报告结果不应导出")));
+        MatcherAssert.assertThat(csv, not(containsString("确认意见")));
+        MatcherAssert.assertThat(csv, not(containsString("驳回原因")));
+
+        mockMvc.perform(get("/api/v1/test-design/tasks/{id}/report/export", taskId)
+                        .header("Authorization", "Bearer " + deniedAuditorToken))
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(get("/api/v1/test-design/tasks/{id}/report/export", taskId)
+                        .header("Authorization", "Bearer " + ownerToken))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
     void linksExistingWp3CaseBySourceRefDuringPublish() throws Exception {
         String ownerToken = userAccessToken(List.of("ProjectOwner@PROJECT:project-wp5"));
         String requirementId = createRequirement(ownerToken, "幂等发布需求", "发布幂等验收", "project-wp5");

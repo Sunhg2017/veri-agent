@@ -39,6 +39,8 @@ class TestDesignOpenApiContractTest {
                 .andExpect(jsonPath("$.paths['/api/v1/test-design/tasks/{id}/review-records'].get").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/test-design/tasks/{id}/review-records/export'].get").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/test-design/tasks/{id}/review-records/export'].get.responses['200'].content['text/csv']").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/test-design/tasks/{id}/report/export'].get").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/test-design/tasks/{id}/report/export'].get.responses['200'].content['text/csv']").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/test-design/candidates'].get").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/test-design/candidates/export'].get").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/test-design/candidates/export'].get.responses['200'].content['text/csv']").exists())

@@ -27,6 +27,7 @@ import {
   createTestDesignTask,
   exportTestDesignCandidatesCsv,
   exportTestDesignReviewRecordsCsv,
+  exportTestDesignTaskReportCsv,
   fetchTaskTestDesignCandidates,
   fetchTestDesignHealth,
   fetchTestDesignReviewRecords,
@@ -92,8 +93,7 @@ import {
   TEST_DESIGN_EXPORT_CONTENT_TYPE,
   buildTestDesignCandidateReviewCsv,
   buildTestDesignExportFilename,
-  buildTestDesignPublishResultCsv,
-  buildTestDesignTaskReportCsv
+  buildTestDesignPublishResultCsv
 } from '../testDesignExport';
 import {
   buildTestDesignTaskIdempotencySignature,
@@ -1129,7 +1129,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
     setPublishState({ loading: false, success: '已导出发布结果摘要' });
   }
 
-  function exportTaskReport() {
+  async function exportTaskReport() {
     if (!canExport) {
       setTaskState({ loading: false, error: '缺少 testDesign:export 权限' });
       return;
@@ -1139,22 +1139,18 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       return;
     }
 
-    const generatedAt = new Date().toISOString();
-    const csv = buildTestDesignTaskReportCsv({
-      task: selectedTask,
-      qualitySummary,
-      qualityScopeLabel: qualitySummaryScope,
-      reviewSummary,
-      reviewScopeLabel: reviewSummaryScope,
-      publishResult,
-      generatedAt
-    });
-    downloadText(
-      csv,
-      buildTestDesignExportFilename('task-report', selectedTask.id, generatedAt),
-      TEST_DESIGN_EXPORT_CONTENT_TYPE
-    );
-    setTaskState({ loading: false, success: '已导出任务报告摘要' });
+    setTaskState({ loading: true });
+    try {
+      const response = await exportTestDesignTaskReportCsv(selectedTask.id);
+      downloadText(
+        response.text,
+        response.filename ?? buildTestDesignExportFilename('task-report', selectedTask.id, new Date().toISOString()),
+        response.contentType || TEST_DESIGN_EXPORT_CONTENT_TYPE
+      );
+      setTaskState({ loading: false, success: '已导出任务全量报告', traceId: response.traceId });
+    } catch (error: unknown) {
+      setTaskState({ loading: false, error: testDesignErrorMessage(error, '任务报告导出失败') });
+    }
   }
 
   async function exportReviewRecords() {
@@ -1407,7 +1403,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
                   <Download size={15} />
                   导出已选
                 </button>
-                <button className="btn btn-secondary btn-sm" type="button" disabled={!canExport || !selectedTask} onClick={exportTaskReport}>
+                <button className="btn btn-secondary btn-sm" type="button" disabled={!canExport || !selectedTask || taskState.loading} onClick={() => void exportTaskReport()}>
                   <Download size={15} />
                   导出报告
                 </button>

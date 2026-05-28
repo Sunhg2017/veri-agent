@@ -208,6 +208,11 @@ public class InMemoryTestDesignRepository implements TestDesignRepository {
     }
 
     @Override
+    public List<TestDesignReviewRecord> reviewRecordsByTask(UUID taskId) {
+        return filteredReviewRecords(taskId).toList();
+    }
+
+    @Override
     public long countReviewRecords(UUID taskId) {
         return filteredReviewRecords(taskId).count();
     }

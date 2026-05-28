@@ -97,6 +97,11 @@ public interface TestDesignRepository {
     List<TestDesignReviewRecord> reviewRecords(UUID taskId, PageQuery pageQuery);
 
     /**
+     * 查询任务下的全部候选编辑和评审记录，用于任务级报告汇总。
+     */
+    List<TestDesignReviewRecord> reviewRecordsByTask(UUID taskId);
+
+    /**
      * 统计任务下的候选编辑和评审记录总数
      */
     long countReviewRecords(UUID taskId);

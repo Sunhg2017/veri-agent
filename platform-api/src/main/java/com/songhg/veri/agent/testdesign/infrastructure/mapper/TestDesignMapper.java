@@ -66,6 +66,8 @@ public interface TestDesignMapper {
             @Param("pageQuery") PageQuery pageQuery
     );
 
+    List<TestDesignReviewRecord> reviewRecordsByTask(@Param("taskId") UUID taskId);
+
     long countReviewRecords(@Param("taskId") UUID taskId);
 
     void insertPublishRecord(TestDesignPublishRecord record);

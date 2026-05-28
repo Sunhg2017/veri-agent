@@ -9,6 +9,7 @@ import {
   createTestDesignTask,
   exportTestDesignCandidatesCsv,
   exportTestDesignReviewRecordsCsv,
+  exportTestDesignTaskReportCsv,
   fetchTaskTestDesignCandidates,
   fetchTestDesignCandidates,
   fetchTestDesignHealth,
@@ -31,6 +32,7 @@ import {
   retryTestDesignTask,
   testDesignCandidateExportPath,
   testDesignReviewRecordExportPath,
+  testDesignTaskReportExportPath,
   updateTestDesignCandidate
 } from './testDesign';
 
@@ -197,6 +199,7 @@ describe('WP5 test design API helpers', () => {
     })).toBe('/api/v1/test-design/candidates/export?taskId=task+1&status=FAILED&keyword=token+secret');
 
     expect(testDesignReviewRecordExportPath('task 1')).toBe('/api/v1/test-design/tasks/task%201/review-records/export');
+    expect(testDesignTaskReportExportPath('task 1')).toBe('/api/v1/test-design/tasks/task%201/report/export');
 
     await fetchTestDesignTask('task 1');
     expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/test-design/tasks/task%201');
@@ -404,6 +407,20 @@ describe('WP5 test design API helpers', () => {
 
     expect(requestTextMock).toHaveBeenLastCalledWith('/api/v1/test-design/tasks/task%201/review-records/export');
     expect(response.filename).toBe('wp5-review-records.csv');
+  });
+
+  it('exports full task report CSV from the task-scoped server report', async () => {
+    requestTextMock.mockResolvedValue({
+      text: 'recordType,section,metric\nmetadata,task,reportType\n',
+      traceId: 'trace-task-report-export',
+      contentType: 'text/csv',
+      filename: 'wp5-task-report.csv'
+    });
+
+    const response = await exportTestDesignTaskReportCsv('task 1');
+
+    expect(requestTextMock).toHaveBeenLastCalledWith('/api/v1/test-design/tasks/task%201/report/export');
+    expect(response.filename).toBe('wp5-task-report.csv');
   });
 
   it('loads health endpoint without auth-specific payload assumptions', async () => {

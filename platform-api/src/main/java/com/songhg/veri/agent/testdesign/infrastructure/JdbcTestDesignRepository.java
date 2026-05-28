@@ -119,6 +119,11 @@ public class JdbcTestDesignRepository implements TestDesignRepository {
     }
 
     @Override
+    public List<TestDesignReviewRecord> reviewRecordsByTask(UUID taskId) {
+        return mapper.reviewRecordsByTask(taskId);
+    }
+
+    @Override
     public long countReviewRecords(UUID taskId) {
         return mapper.countReviewRecords(taskId);
     }

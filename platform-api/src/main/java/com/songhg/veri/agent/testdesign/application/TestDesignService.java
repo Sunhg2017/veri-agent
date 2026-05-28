@@ -25,6 +25,7 @@ import com.songhg.veri.agent.testdesign.application.view.TestDesignCandidateBatc
 import com.songhg.veri.agent.testdesign.application.view.TestDesignCandidateBatchActionResponse;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignCandidateResponse;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignHealthResponse;
+import com.songhg.veri.agent.testdesign.application.view.TestDesignModelObservationResponse;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignPublishRecordResponse;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignPublishResponse;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignReviewRecordResponse;
@@ -701,6 +702,40 @@ public class TestDesignService {
                 "exportedCount", exportedRecords.size(),
                 "limit", REVIEW_RECORD_EXPORT_LIMIT,
                 "truncated", totalMatched > exportedRecords.size()
+        ));
+        return csv.toString();
+    }
+
+    /**
+     * Exports a task-level report using full task scope instead of the frontend's currently loaded pages.
+     *
+     * <p>The report is intentionally aggregate-only: it contains task metadata, model observation counters, candidate
+     * quality counts, review counts and publish counts, but excludes candidate descriptions, step bodies, review
+     * comments, trace/job identifiers and raw prompt or model payloads.
+     */
+    @Transactional
+    public String exportTaskReportCsv(UUID taskId) {
+        TestDesignTask task = taskOrThrow(taskId);
+        TestDesignTaskResponse taskResponse = responseMapper.toTaskResponse(task);
+        List<TestDesignCandidate> candidates = repository.candidatesByTask(task.id());
+        List<TestDesignReviewRecord> reviewRecords = repository.reviewRecordsByTask(task.id());
+        List<TestDesignPublishRecord> publishRecords = repository.publishRecords(task.id());
+        Instant generatedAt = Instant.now();
+
+        StringBuilder csv = new StringBuilder();
+        appendTaskReportHeader(csv);
+        appendTaskReportTaskRows(csv, taskResponse, generatedAt);
+        appendTaskReportModelObservationRows(csv, taskResponse, generatedAt);
+        appendTaskReportCandidateRows(csv, taskResponse, candidates, generatedAt);
+        appendTaskReportReviewRows(csv, taskResponse, reviewRecords, generatedAt);
+        appendTaskReportPublishRows(csv, taskResponse, publishRecords, generatedAt);
+
+        writeAudit("EXPORT", "TEST_DESIGN_TASK_REPORT", UUID.randomUUID(), task.projectId(), Map.of(
+                "taskId", task.id(),
+                "projectId", task.projectId(),
+                "candidateCount", candidates.size(),
+                "reviewRecordCount", reviewRecords.size(),
+                "publishRecordCount", publishRecords.size()
         ));
         return csv.toString();
     }
@@ -1641,6 +1676,319 @@ public class TestDesignService {
         details.put("limit", CANDIDATE_EXPORT_LIMIT);
         details.put("truncated", totalMatched > exportedCount);
         return details;
+    }
+
+    private static void appendTaskReportHeader(StringBuilder csv) {
+        CsvEncoder.appendLine(csv,
+                "recordType",
+                "section",
+                "metric",
+                "label",
+                "value",
+                "percent",
+                "tone",
+                "taskId",
+                "taskTitle",
+                "taskStatus",
+                "projectId",
+                "scope",
+                "generatedAt",
+                "dryRun"
+        );
+    }
+
+    private static void appendTaskReportTaskRows(
+            StringBuilder csv,
+            TestDesignTaskResponse task,
+            Instant generatedAt
+    ) {
+        appendTaskReportRow(csv, task, generatedAt, "metadata", "task", "reportType", null,
+                "WP5_TASK_REPORT_FULL", null, null, "fullTask", null);
+        appendTaskReportRow(csv, task, generatedAt, "metadata", "task", "generatedAt", null,
+                generatedAt, null, null, "fullTask", null);
+        appendTaskReportRow(csv, task, generatedAt, "metadata", "task", "generatedCount", null,
+                task.generatedCount(), null, null, "fullTask", null);
+        appendTaskReportRow(csv, task, generatedAt, "metadata", "task", "confirmedCount", null,
+                task.confirmedCount(), null, null, "fullTask", null);
+        appendTaskReportRow(csv, task, generatedAt, "metadata", "task", "publishedCount", null,
+                task.publishedCount(), null, null, "fullTask", null);
+        appendTaskReportRow(csv, task, generatedAt, "metadata", "task", "totalRequirements", null,
+                task.totalRequirements(), null, null, "fullTask", null);
+        appendTaskReportRow(csv, task, generatedAt, "metadata", "task", "requirementCount", null,
+                task.requirementIds().size(), null, null, "fullTask", null);
+        appendTaskReportRow(csv, task, generatedAt, "metadata", "task", "coverageTypeCount", null,
+                task.coverageTypes().size(), null, null, "fullTask", null);
+        appendTaskReportRow(csv, task, generatedAt, "metadata", "task", "promptKey", null,
+                task.promptKey(), null, null, "fullTask", null);
+        appendTaskReportRow(csv, task, generatedAt, "metadata", "task", "promptVersion", null,
+                task.promptVersion(), null, null, "fullTask", null);
+        appendTaskReportRow(csv, task, generatedAt, "metadata", "task", "modelProviderName", null,
+                task.modelProviderName(), null, null, "fullTask", null);
+        appendTaskReportRow(csv, task, generatedAt, "metadata", "task", "modelName", null,
+                task.modelName(), null, null, "fullTask", null);
+        appendTaskReportRow(csv, task, generatedAt, "metadata", "task", "modelInvocationTracked", null,
+                task.modelInvocationId() != null, null, null, "fullTask", null);
+        appendTaskReportRow(csv, task, generatedAt, "metadata", "task", "inputDigestTracked", null,
+                StringUtils.hasText(task.inputDigest()), null, null, "fullTask", null);
+        appendTaskReportRow(csv, task, generatedAt, "metadata", "task", "contextSummaryKeyCount", null,
+                task.contextSummary().size(), null, null, "fullTask", null);
+    }
+
+    private static void appendTaskReportModelObservationRows(
+            StringBuilder csv,
+            TestDesignTaskResponse task,
+            Instant generatedAt
+    ) {
+        TestDesignModelObservationResponse observation = task.modelObservation();
+        appendTaskReportRow(csv, task, generatedAt, "metadata", "modelObservation", "available", null,
+                observation != null && Boolean.TRUE.equals(observation.available()), null, null, "fullTask", null);
+        appendTaskReportRow(csv, task, generatedAt, "metadata", "modelObservation", "traceIdTracked", null,
+                observation != null && StringUtils.hasText(observation.traceId()), null, null, "fullTask", null);
+        appendTaskReportRow(csv, task, generatedAt, "metadata", "modelObservation", "jobIdTracked", null,
+                observation != null && observation.jobId() != null, null, null, "fullTask", null);
+        appendTaskReportRow(csv, task, generatedAt, "metadata", "modelObservation", "status", null,
+                observation == null ? null : observation.status(), null, null, "fullTask", null);
+        appendTaskReportRow(csv, task, generatedAt, "metadata", "modelObservation", "providerName", null,
+                observation == null ? null : observation.providerName(), null, null, "fullTask", null);
+        appendTaskReportRow(csv, task, generatedAt, "metadata", "modelObservation", "modelName", null,
+                observation == null ? null : observation.modelName(), null, null, "fullTask", null);
+        appendTaskReportRow(csv, task, generatedAt, "metadata", "modelObservation", "routingRuleName", null,
+                observation == null ? null : observation.routingRuleName(), null, null, "fullTask", null);
+        appendTaskReportRow(csv, task, generatedAt, "metadata", "modelObservation", "routingGroup", null,
+                observation == null ? null : observation.routingGroup(), null, null, "fullTask", null);
+        appendTaskReportRow(csv, task, generatedAt, "metadata", "modelObservation", "modelCapability", null,
+                observation == null ? null : observation.modelCapability(), null, null, "fullTask", null);
+        appendTaskReportRow(csv, task, generatedAt, "metadata", "modelObservation", "fallbackUsed", null,
+                observation == null ? null : observation.fallbackUsed(), null, null, "fullTask", null);
+        appendTaskReportRow(csv, task, generatedAt, "metadata", "modelObservation", "inputTokens", null,
+                observation == null ? null : observation.inputTokens(), null, null, "fullTask", null);
+        appendTaskReportRow(csv, task, generatedAt, "metadata", "modelObservation", "outputTokens", null,
+                observation == null ? null : observation.outputTokens(), null, null, "fullTask", null);
+        appendTaskReportRow(csv, task, generatedAt, "metadata", "modelObservation", "totalCost", null,
+                observation == null ? null : observation.totalCost(), null, null, "fullTask", null);
+        appendTaskReportRow(csv, task, generatedAt, "metadata", "modelObservation", "latencyMs", null,
+                observation == null ? null : observation.latencyMs(), null, null, "fullTask", null);
+        appendTaskReportRow(csv, task, generatedAt, "metadata", "modelObservation", "errorCode", null,
+                observation == null ? null : observation.errorCode(), null, null, "fullTask", null);
+    }
+
+    private void appendTaskReportCandidateRows(
+            StringBuilder csv,
+            TestDesignTaskResponse task,
+            List<TestDesignCandidate> candidates,
+            Instant generatedAt
+    ) {
+        long total = candidates.size();
+        long missingRequirementCount = candidates.stream().filter(candidate -> candidate.requirementId() == null).count();
+        long missingTitleCount = candidates.stream().filter(candidate -> !StringUtils.hasText(candidate.title())).count();
+        long noStepsCount = candidates.stream().filter(candidate -> responseMapper.steps(candidate.stepsJson()).isEmpty()).count();
+        long stepExpectedCompleteCount = candidates.stream()
+                .filter(candidate -> {
+                    List<TestDesignStepResponse> steps = responseMapper.steps(candidate.stepsJson());
+                    return !steps.isEmpty()
+                            && steps.stream().allMatch(step -> StringUtils.hasText(step.expectedResult()));
+                })
+                .count();
+        long expectedResultPresentCount = candidates.stream()
+                .filter(candidate -> StringUtils.hasText(candidate.expectedResult()))
+                .count();
+        long lowConfidenceCount = candidates.stream()
+                .filter(candidate -> candidate.confidence() > 0D && candidate.confidence() < 0.8D)
+                .count();
+        long errorPresentCount = candidates.stream()
+                .filter(candidate -> StringUtils.hasText(candidate.errorMessage()))
+                .count();
+        long reviewNotePresentCount = candidates.stream().filter(TestDesignService::hasCandidateReviewNote).count();
+        long publishableCount = candidates.stream()
+                .filter(candidate -> TestDesignCandidateStatus.CONFIRMED.name().equals(candidate.status())
+                        || TestDesignCandidateStatus.FAILED.name().equals(candidate.status()))
+                .count();
+        long duplicateKeyCollisionCount = duplicateKeyCollisionCount(candidates);
+
+        appendTaskReportRow(csv, task, generatedAt, "metadata", "candidateQuality", "scope", null,
+                "fullTask", null, null, "fullTask", null);
+        appendTaskReportRow(csv, task, generatedAt, "metadata", "candidateQuality", "total", null,
+                total, null, null, "fullTask", null);
+        appendTaskReportRow(csv, task, generatedAt, "summary", "candidateQuality", "metric", "expectedResultPresent",
+                expectedResultPresentCount, percent(expectedResultPresentCount, total), null, "fullTask", null);
+        appendTaskReportRow(csv, task, generatedAt, "summary", "candidateQuality", "metric", "stepExpectedComplete",
+                stepExpectedCompleteCount, percent(stepExpectedCompleteCount, total), null, "fullTask", null);
+        appendTaskReportRow(csv, task, generatedAt, "summary", "candidateQuality", "metric", "publishable",
+                publishableCount, percent(publishableCount, total), null, "fullTask", null);
+        appendTaskReportWarning(csv, task, generatedAt, "candidateQuality", "missingRequirement",
+                missingRequirementCount, total);
+        appendTaskReportWarning(csv, task, generatedAt, "candidateQuality", "missingTitle",
+                missingTitleCount, total);
+        appendTaskReportWarning(csv, task, generatedAt, "candidateQuality", "noSteps",
+                noStepsCount, total);
+        appendTaskReportWarning(csv, task, generatedAt, "candidateQuality", "lowConfidence",
+                lowConfidenceCount, total);
+        appendTaskReportWarning(csv, task, generatedAt, "candidateQuality", "errorPresent",
+                errorPresentCount, total);
+        appendTaskReportWarning(csv, task, generatedAt, "candidateQuality", "reviewNotePresent",
+                reviewNotePresentCount, total);
+        appendTaskReportWarning(csv, task, generatedAt, "candidateQuality", "duplicateKeyCollision",
+                duplicateKeyCollisionCount, total);
+        appendTaskReportDistributionRows(csv, task, generatedAt, "candidateQuality", "status",
+                countsBy(candidates, TestDesignCandidate::status), total);
+        appendTaskReportDistributionRows(csv, task, generatedAt, "candidateQuality", "coverageType",
+                countsBy(candidates, TestDesignCandidate::coverageType), total);
+        appendTaskReportDistributionRows(csv, task, generatedAt, "candidateQuality", "priority",
+                countsBy(candidates, TestDesignCandidate::priority), total);
+    }
+
+    private void appendTaskReportReviewRows(
+            StringBuilder csv,
+            TestDesignTaskResponse task,
+            List<TestDesignReviewRecord> records,
+            Instant generatedAt
+    ) {
+        long total = records.size();
+        long commentsPresentCount = records.stream()
+                .filter(record -> StringUtils.hasText(record.comment()))
+                .count();
+        long distinctReviewerCount = records.stream()
+                .map(TestDesignReviewRecord::reviewer)
+                .filter(StringUtils::hasText)
+                .distinct()
+                .count();
+        Map<String, Long> changedFieldCounts = new LinkedHashMap<>();
+        for (TestDesignReviewRecord record : records) {
+            reviewDiffSummary(record.diffJson()).changedFields()
+                    .forEach(field -> changedFieldCounts.merge(field, 1L, Long::sum));
+        }
+
+        appendTaskReportRow(csv, task, generatedAt, "metadata", "reviewHistory", "scope", null,
+                "fullTask", null, null, "fullTask", null);
+        appendTaskReportRow(csv, task, generatedAt, "metadata", "reviewHistory", "total", null,
+                total, null, null, "fullTask", null);
+        appendTaskReportRow(csv, task, generatedAt, "summary", "reviewHistory", "metric", "commentsPresent",
+                commentsPresentCount, percent(commentsPresentCount, total), null, "fullTask", null);
+        appendTaskReportRow(csv, task, generatedAt, "summary", "reviewHistory", "metric", "distinctReviewers",
+                distinctReviewerCount, null, null, "fullTask", null);
+        appendTaskReportDistributionRows(csv, task, generatedAt, "reviewHistory", "action",
+                countsBy(records, TestDesignReviewRecord::action), total);
+        appendTaskReportDistributionRows(csv, task, generatedAt, "reviewHistory", "afterStatus",
+                countsBy(records, TestDesignReviewRecord::afterStatus), total);
+        appendTaskReportDistributionRows(csv, task, generatedAt, "reviewHistory", "changedField",
+                changedFieldCounts, total);
+    }
+
+    private void appendTaskReportPublishRows(
+            StringBuilder csv,
+            TestDesignTaskResponse task,
+            List<TestDesignPublishRecord> records,
+            Instant generatedAt
+    ) {
+        long total = records.size();
+        long dryRunCount = records.stream().filter(TestDesignPublishRecord::dryRun).count();
+        long formalCount = total - dryRunCount;
+        long failedCount = records.stream().filter(record -> "FAILED".equals(record.result())).count();
+        long assetCaseLinkedCount = records.stream().filter(record -> record.assetCaseId() != null).count();
+        long errorPresentCount = records.stream().filter(record -> StringUtils.hasText(record.errorMessage())).count();
+
+        appendTaskReportRow(csv, task, generatedAt, "metadata", "publish", "scope", null,
+                "fullTask", null, null, "fullTask", null);
+        appendTaskReportRow(csv, task, generatedAt, "metadata", "publish", "total", null,
+                total, null, null, "fullTask", null);
+        appendTaskReportRow(csv, task, generatedAt, "summary", "publish", "metric", "dryRun",
+                dryRunCount, percent(dryRunCount, total), null, "fullTask", null);
+        appendTaskReportRow(csv, task, generatedAt, "summary", "publish", "metric", "formal",
+                formalCount, percent(formalCount, total), null, "fullTask", null);
+        appendTaskReportRow(csv, task, generatedAt, "summary", "publish", "metric", "assetCaseLinked",
+                assetCaseLinkedCount, percent(assetCaseLinkedCount, total), null, "fullTask", null);
+        appendTaskReportWarning(csv, task, generatedAt, "publish", "failed", failedCount, total);
+        appendTaskReportWarning(csv, task, generatedAt, "publish", "errorPresent", errorPresentCount, total);
+        appendTaskReportDistributionRows(csv, task, generatedAt, "publish", "action",
+                countsBy(records, TestDesignPublishRecord::action), total);
+        appendTaskReportDistributionRows(csv, task, generatedAt, "publish", "result",
+                countsBy(records, TestDesignPublishRecord::result), total);
+    }
+
+    private static void appendTaskReportWarning(
+            StringBuilder csv,
+            TestDesignTaskResponse task,
+            Instant generatedAt,
+            String section,
+            String label,
+            long count,
+            long total
+    ) {
+        appendTaskReportRow(csv, task, generatedAt, "summary", section, "warning", label, count,
+                percent(count, total), count > 0 ? "warning" : "neutral", "fullTask", null);
+    }
+
+    private static void appendTaskReportDistributionRows(
+            StringBuilder csv,
+            TestDesignTaskResponse task,
+            Instant generatedAt,
+            String section,
+            String label,
+            Map<String, Long> counts,
+            long total
+    ) {
+        counts.entrySet().stream()
+                .sorted(Map.Entry.comparingByKey())
+                .forEach(entry -> appendTaskReportRow(csv, task, generatedAt, "summary", section,
+                        "distribution:" + label, entry.getKey(), entry.getValue(), percent(entry.getValue(), total),
+                        null, "fullTask", null));
+    }
+
+    private static void appendTaskReportRow(
+            StringBuilder csv,
+            TestDesignTaskResponse task,
+            Instant generatedAt,
+            String recordType,
+            String section,
+            String metric,
+            String label,
+            Object value,
+            String percent,
+            String tone,
+            String scope,
+            Boolean dryRun
+    ) {
+        CsvEncoder.appendLine(csv,
+                recordType,
+                section,
+                metric,
+                label,
+                taskReportValue(value),
+                percent,
+                tone,
+                task.id(),
+                candidateExportPreview(task.title(), 200),
+                task.status(),
+                task.projectId(),
+                scope,
+                generatedAt,
+                dryRun
+        );
+    }
+
+    private static Object taskReportValue(Object value) {
+        return value instanceof String text ? candidateExportPreview(text, 240) : value;
+    }
+
+    private static <T> Map<String, Long> countsBy(List<T> items, Function<T, String> classifier) {
+        Map<String, Long> counts = new LinkedHashMap<>();
+        for (T item : items) {
+            String key = classifier.apply(item);
+            counts.merge(StringUtils.hasText(key) ? key : "UNKNOWN", 1L, Long::sum);
+        }
+        return counts;
+    }
+
+    private static String percent(long value, long total) {
+        return total <= 0 ? null : String.format(Locale.ROOT, "%.2f", value * 100D / total);
+    }
+
+    private static long duplicateKeyCollisionCount(List<TestDesignCandidate> candidates) {
+        Map<String, Long> counts = countsBy(candidates, TestDesignCandidate::duplicateKey);
+        return candidates.stream()
+                .filter(candidate -> StringUtils.hasText(candidate.duplicateKey()))
+                .filter(candidate -> counts.getOrDefault(candidate.duplicateKey(), 0L) > 1L)
+                .count();
     }
 
     private TestDesignReviewRecordResponse toReviewRecordResponse(

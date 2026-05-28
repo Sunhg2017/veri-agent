@@ -755,6 +755,14 @@ export async function exportTestDesignReviewRecordsCsv(taskId: string): Promise<
   return requestText(testDesignReviewRecordExportPath(taskId));
 }
 
+export function testDesignTaskReportExportPath(taskId: string) {
+  return `/api/v1/test-design/tasks/${encodeURIComponent(taskId)}/report/export`;
+}
+
+export async function exportTestDesignTaskReportCsv(taskId: string): Promise<TextResponse> {
+  return requestText(testDesignTaskReportExportPath(taskId));
+}
+
 export function testDesignErrorMessage(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback;
 }
