@@ -1,5 +1,6 @@
 package com.songhg.veri.agent.testdesign.infrastructure.mapper;
 
+import com.songhg.veri.agent.common.api.PageQuery;
 import com.songhg.veri.agent.testdesign.application.query.TestDesignCandidateQuery;
 import com.songhg.veri.agent.testdesign.application.query.TestDesignTaskQuery;
 import com.songhg.veri.agent.testdesign.domain.TestDesignCandidate;
@@ -59,6 +60,13 @@ public interface TestDesignMapper {
     void updateCandidate(TestDesignCandidate candidate);
 
     void insertReviewRecord(TestDesignReviewRecord record);
+
+    List<TestDesignReviewRecord> reviewRecords(
+            @Param("taskId") UUID taskId,
+            @Param("pageQuery") PageQuery pageQuery
+    );
+
+    long countReviewRecords(@Param("taskId") UUID taskId);
 
     void insertPublishRecord(TestDesignPublishRecord record);
 

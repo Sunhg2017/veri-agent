@@ -84,6 +84,22 @@
         </constructor>
     </resultMap>
 
+    <resultMap id="reviewRecordMap" type="com.songhg.veri.agent.testdesign.domain.TestDesignReviewRecord">
+        <constructor>
+            <arg column="id" javaType="java.util.UUID"/>
+            <arg column="candidate_id" javaType="java.util.UUID"/>
+            <arg column="task_id" javaType="java.util.UUID"/>
+            <arg column="project_id" javaType="java.lang.String"/>
+            <arg column="action" javaType="java.lang.String"/>
+            <arg column="before_status" javaType="java.lang.String"/>
+            <arg column="after_status" javaType="java.lang.String"/>
+            <arg column="reviewer" javaType="java.lang.String"/>
+            <arg column="comment" javaType="java.lang.String"/>
+            <arg column="diff_json" javaType="java.lang.String"/>
+            <arg column="created_at" javaType="java.time.Instant"/>
+        </constructor>
+    </resultMap>
+
     <sql id="taskColumns">
         id, project_id, title, status, requirement_ids, coverage_types, prompt_key, prompt_version,
         model_invocation_id, model_provider_name, model_name, total_requirements, generated_count,
@@ -314,6 +330,21 @@
             #{createdAt}
         )
     </insert>
+
+    <select id="reviewRecords" resultMap="reviewRecordMap">
+        select id, candidate_id, task_id, project_id, action, before_status, after_status, reviewer,
+               comment, diff_json::text as diff_json, created_at
+        from test_design_review_record
+        where task_id = cast(#{taskId} as uuid)
+        order by created_at desc
+        limit #{pageQuery.size} offset #{pageQuery.offset}
+    </select>
+
+    <select id="countReviewRecords" resultType="long">
+        select count(*)
+        from test_design_review_record
+        where task_id = cast(#{taskId} as uuid)
+    </select>
 
     <insert id="insertPublishRecord">
         insert into test_design_publish_record (

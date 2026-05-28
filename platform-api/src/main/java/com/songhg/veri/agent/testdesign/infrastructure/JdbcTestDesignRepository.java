@@ -1,5 +1,6 @@
 package com.songhg.veri.agent.testdesign.infrastructure;
 
+import com.songhg.veri.agent.common.api.PageQuery;
 import com.songhg.veri.agent.testdesign.application.port.TestDesignRepository;
 import com.songhg.veri.agent.testdesign.application.query.TestDesignCandidateQuery;
 import com.songhg.veri.agent.testdesign.application.query.TestDesignTaskQuery;
@@ -110,6 +111,16 @@ public class JdbcTestDesignRepository implements TestDesignRepository {
     public TestDesignReviewRecord saveReviewRecord(TestDesignReviewRecord record) {
         mapper.insertReviewRecord(record);
         return record;
+    }
+
+    @Override
+    public List<TestDesignReviewRecord> reviewRecords(UUID taskId, PageQuery pageQuery) {
+        return mapper.reviewRecords(taskId, pageQuery);
+    }
+
+    @Override
+    public long countReviewRecords(UUID taskId) {
+        return mapper.countReviewRecords(taskId);
     }
 
     @Override

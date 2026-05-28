@@ -25,6 +25,8 @@ import com.songhg.veri.agent.modelaccess.domain.InvocationStatus;
 import com.songhg.veri.agent.modelaccess.infrastructure.JdbcModelInvocationJobRepository;
 import com.songhg.veri.agent.modelaccess.infrastructure.JdbcModelAccessRepository;
 import com.songhg.veri.agent.testdesign.application.port.TestDesignRepository;
+import com.songhg.veri.agent.testdesign.domain.TestDesignCandidate;
+import com.songhg.veri.agent.testdesign.domain.TestDesignReviewRecord;
 import com.songhg.veri.agent.testdesign.domain.TestDesignTask;
 import com.songhg.veri.agent.testdesign.domain.TestDesignTaskStatus;
 import java.math.BigDecimal;
@@ -117,6 +119,14 @@ class DbProfileRepositoryContractTest {
         String contextSummaryJson = "{\"contextVersion\":\"wp5-context-v1\"}";
         UUID taskId = UUID.randomUUID();
         Instant now = Instant.now();
+        AssetRequirement requirement = requirement(
+                projectId,
+                "REQ-WP5-REVIEW-DB",
+                "WP5 评审记录 DB 合同需求",
+                "SRC-WP5-REVIEW-DB",
+                now.minusSeconds(1)
+        );
+        assetRepository.saveRequirement(requirement);
 
         transactionTemplate.executeWithoutResult(status -> {
             testDesignRepository.lockTaskIdempotencyKey(projectId, idempotencyKey);
@@ -125,7 +135,7 @@ class DbProfileRepositoryContractTest {
                     projectId,
                     "DB 幂等创建任务",
                     TestDesignTaskStatus.SUCCEEDED.name(),
-                    UUID.randomUUID().toString(),
+                    requirement.id().toString(),
                     "SMOKE",
                     "wp5.case.generate",
                     "v1",
@@ -155,6 +165,81 @@ class DbProfileRepositoryContractTest {
                     assertThat(task.inputDigest()).isEqualTo(inputDigest);
                     assertThat(task.contextSummaryJson()).contains("wp5-context-v1");
                 });
+
+        UUID candidateId = UUID.randomUUID();
+        testDesignRepository.saveCandidate(new TestDesignCandidate(
+                candidateId,
+                taskId,
+                projectId,
+                requirement.id(),
+                null,
+                "DB 候选评审记录",
+                "DB contract candidate",
+                "SMOKE",
+                "HIGH",
+                "EDITED",
+                null,
+                "[{\"action\":\"open\",\"expectedResult\":\"shown\"}]",
+                "shown",
+                "db,contract",
+                "db-contract-duplicate",
+                0.95D,
+                "wp5.case.generate",
+                "v1",
+                null,
+                null,
+                "RULE_TEMPLATE",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                2L,
+                now.plusSeconds(1),
+                now.plusSeconds(1)
+        ));
+        UUID olderReviewId = UUID.randomUUID();
+        UUID newerReviewId = UUID.randomUUID();
+        testDesignRepository.saveReviewRecord(new TestDesignReviewRecord(
+                olderReviewId,
+                candidateId,
+                taskId,
+                projectId,
+                "UPDATE",
+                "GENERATED",
+                "EDITED",
+                "db-reviewer",
+                "db contract update",
+                "{\"changedFields\":[\"title\"],\"version\":{\"before\":0,\"after\":1}}",
+                now.plusSeconds(2)
+        ));
+        testDesignRepository.saveReviewRecord(new TestDesignReviewRecord(
+                newerReviewId,
+                candidateId,
+                taskId,
+                projectId,
+                "CONFIRMED",
+                "EDITED",
+                "CONFIRMED",
+                "db-reviewer",
+                "db contract confirm",
+                "{\"changedFields\":[\"status\"],\"version\":{\"before\":1,\"after\":2}}",
+                now.plusSeconds(3)
+        ));
+
+        assertThat(testDesignRepository.countReviewRecords(taskId)).isEqualTo(2);
+        assertThat(testDesignRepository.reviewRecords(taskId, PageQuery.of(0, 1)))
+                .singleElement()
+                .satisfies(record -> {
+                    assertThat(record.id()).isEqualTo(newerReviewId);
+                    assertThat(record.diffJson()).contains("changedFields", "status");
+                });
+        assertThat(testDesignRepository.reviewRecords(taskId, PageQuery.of(1, 1)))
+                .singleElement()
+                .extracting(TestDesignReviewRecord::id)
+                .isEqualTo(olderReviewId);
 
         UUID queuedTaskId = UUID.randomUUID();
         UUID staleRunningTaskId = UUID.randomUUID();

@@ -1,5 +1,6 @@
 package com.songhg.veri.agent.testdesign.application.port;
 
+import com.songhg.veri.agent.common.api.PageQuery;
 import com.songhg.veri.agent.testdesign.application.query.TestDesignCandidateQuery;
 import com.songhg.veri.agent.testdesign.application.query.TestDesignTaskQuery;
 import com.songhg.veri.agent.testdesign.domain.TestDesignCandidate;
@@ -89,6 +90,16 @@ public interface TestDesignRepository {
      * 追加一条候选编辑或评审审计记录
      */
     TestDesignReviewRecord saveReviewRecord(TestDesignReviewRecord record);
+
+    /**
+     * 查询任务下的候选编辑和评审记录
+     */
+    List<TestDesignReviewRecord> reviewRecords(UUID taskId, PageQuery pageQuery);
+
+    /**
+     * 统计任务下的候选编辑和评审记录总数
+     */
+    long countReviewRecords(UUID taskId);
 
     /**
      * 追加一条候选发布或预发布记录

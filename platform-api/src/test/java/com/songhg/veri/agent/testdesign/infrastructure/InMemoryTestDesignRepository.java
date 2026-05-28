@@ -1,5 +1,6 @@
 package com.songhg.veri.agent.testdesign.infrastructure;
 
+import com.songhg.veri.agent.common.api.PageQuery;
 import com.songhg.veri.agent.testdesign.application.port.TestDesignRepository;
 import com.songhg.veri.agent.testdesign.application.query.TestDesignCandidateQuery;
 import com.songhg.veri.agent.testdesign.application.query.TestDesignTaskQuery;
@@ -199,6 +200,19 @@ public class InMemoryTestDesignRepository implements TestDesignRepository {
     }
 
     @Override
+    public List<TestDesignReviewRecord> reviewRecords(UUID taskId, PageQuery pageQuery) {
+        return filteredReviewRecords(taskId)
+                .skip(pageQuery.offset())
+                .limit(pageQuery.size())
+                .toList();
+    }
+
+    @Override
+    public long countReviewRecords(UUID taskId) {
+        return filteredReviewRecords(taskId).count();
+    }
+
+    @Override
     public TestDesignPublishRecord savePublishRecord(TestDesignPublishRecord record) {
         publishRecords.put(record.id(), record);
         return record;
@@ -229,6 +243,12 @@ public class InMemoryTestDesignRepository implements TestDesignRepository {
                 .filter(candidate -> matches(query.coverageType(), candidate.coverageType()))
                 .filter(candidate -> contains(query.keyword(), candidate.title(), candidate.description(), candidate.tags()))
                 .sorted(Comparator.comparing(TestDesignCandidate::createdAt).reversed());
+    }
+
+    private Stream<TestDesignReviewRecord> filteredReviewRecords(UUID taskId) {
+        return reviewRecords.values().stream()
+                .filter(record -> taskId.equals(record.taskId()))
+                .sorted(Comparator.comparing(TestDesignReviewRecord::createdAt).reversed());
     }
 
     private static boolean matches(String expected, String actual) {

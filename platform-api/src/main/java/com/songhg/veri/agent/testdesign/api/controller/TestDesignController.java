@@ -2,6 +2,7 @@ package com.songhg.veri.agent.testdesign.api.controller;
 
 import com.songhg.veri.agent.authorization.application.PermissionCodes;
 import com.songhg.veri.agent.authorization.application.RequirePermission;
+import com.songhg.veri.agent.common.api.BasePageRequest;
 import com.songhg.veri.agent.common.api.PageResponse;
 import com.songhg.veri.agent.common.openapi.ApiVersion;
 import com.songhg.veri.agent.testdesign.application.TestDesignService;
@@ -13,11 +14,16 @@ import com.songhg.veri.agent.testdesign.application.view.TestDesignCandidateResp
 import com.songhg.veri.agent.testdesign.application.view.TestDesignHealthResponse;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignPublishRecordResponse;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignPublishResponse;
+import com.songhg.veri.agent.testdesign.application.view.TestDesignReviewRecordResponse;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignTaskDetailResponse;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignTaskResponse;
 import jakarta.validation.Valid;
+import java.nio.charset.StandardCharsets;
 import java.util.UUID;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -154,5 +160,31 @@ public class TestDesignController {
     @RequirePermission(value = PermissionCodes.TEST_DESIGN_READ, scope = TestDesignPermissionScopes.TASK)
     public PageResponse<TestDesignPublishRecordResponse> publishRecords(@PathVariable UUID id) {
         return service.publishRecords(id);
+    }
+
+    /**
+     * 分页查询某个任务下的候选编辑和评审历史，只返回脱敏摘要字段
+     */
+    @GetMapping("/tasks/{id}/review-records")
+    @RequirePermission(value = PermissionCodes.TEST_DESIGN_READ, scope = TestDesignPermissionScopes.TASK)
+    public PageResponse<TestDesignReviewRecordResponse> reviewRecords(
+            @PathVariable UUID id,
+            @Valid BasePageRequest request
+    ) {
+        return service.reviewRecords(id, request.toPageQuery());
+    }
+
+    /**
+     * 导出某个任务下的候选评审历史 CSV，报告内容限定为审计白名单字段
+     */
+    @GetMapping(value = "/tasks/{id}/review-records/export", produces = "text/csv")
+    @RequirePermission(value = PermissionCodes.TEST_DESIGN_READ, scope = TestDesignPermissionScopes.TASK)
+    @RequirePermission(value = PermissionCodes.TEST_DESIGN_EXPORT, scope = TestDesignPermissionScopes.TASK)
+    public ResponseEntity<String> exportReviewRecords(@PathVariable UUID id) {
+        String csv = service.exportReviewRecordsCsv(id);
+        return ResponseEntity.ok()
+                .contentType(new MediaType("text", "csv", StandardCharsets.UTF_8))
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"wp5-review-records.csv\"")
+                .body(csv);
     }
 }

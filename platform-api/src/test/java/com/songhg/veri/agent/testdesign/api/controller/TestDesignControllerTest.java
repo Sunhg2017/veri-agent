@@ -21,6 +21,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.startsWith;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.matchesPattern;
@@ -423,6 +424,121 @@ class TestDesignControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
                 .andExpect(jsonPath("$.message", containsString("taskId 或 projectId")));
+    }
+
+    @Test
+    void exposesAndExportsReviewRecordsWithScopeAndRedaction() throws Exception {
+        String ownerToken = userAccessToken(List.of("ProjectOwner@PROJECT:project-wp5"));
+        String auditorToken = userAccessToken(List.of("Auditor@PROJECT:project-wp5"));
+        String deniedAuditorToken = userAccessToken(List.of("Auditor@PROJECT:project-other"));
+        String requirementId = createRequirement(ownerToken, "评审历史需求", "评审历史验收", "project-wp5");
+        MvcResult taskResult = mockMvc.perform(post("/api/v1/test-design/tasks")
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"projectId":"project-wp5","requirementIds":["%s"],"coverageTypes":["SMOKE"]}
+                                """.formatted(requirementId)))
+                .andExpect(status().isCreated())
+                .andReturn();
+        String taskId = JsonPath.read(taskResult.getResponse().getContentAsString(), "$.data.task.id");
+        String candidateId = JsonPath.read(taskResult.getResponse().getContentAsString(), "$.data.candidates[0].id");
+        Integer version = JsonPath.read(taskResult.getResponse().getContentAsString(), "$.data.candidates[0].version");
+
+        MvcResult updated = mockMvc.perform(put("/api/v1/test-design/candidates/{id}", candidateId)
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "title": "编辑后的评审历史冒烟用例",
+                                  "description": "人工补充候选用例，不应进入评审历史导出",
+                                  "coverageType": "SMOKE",
+                                  "priority": "HIGH",
+                                  "preconditions": "评审历史前置条件不应导出",
+                                  "expectedResult": "评审历史结果不应导出",
+                                  "tags": ["wp5", "review-record"],
+                                  "version": %d,
+                                  "steps": [
+                                    {"action": "输入评审历史账号", "expectedResult": "账号通过校验"},
+                                    {"action": "提交评审历史表单", "expectedResult": "评审历史结果不应导出"}
+                                  ]
+                                }
+                                """.formatted(version)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("EDITED"))
+                .andReturn();
+        Integer updatedVersion = JsonPath.read(updated.getResponse().getContentAsString(), "$.data.version");
+
+        mockMvc.perform(post("/api/v1/test-design/candidates/{id}/confirm", candidateId)
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"version": %d, "comment": "可以发布 token=secret-value rawPrompt promptPlaintext"}
+                                """.formatted(updatedVersion)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("CONFIRMED"));
+
+        MvcResult query = mockMvc.perform(get("/api/v1/test-design/tasks/{id}/review-records", taskId)
+                        .header("Authorization", "Bearer " + auditorToken)
+                        .param("index", "0")
+                        .param("size", "10"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(2))
+                .andExpect(jsonPath("$.data.items", hasSize(2)))
+                .andReturn();
+
+        String reviewRecordsJson = query.getResponse().getContentAsString();
+        List<String> actions = JsonPath.read(reviewRecordsJson, "$.data.items[*].action");
+        MatcherAssert.assertThat(actions, containsInAnyOrder("UPDATE", "CONFIRMED"));
+        MatcherAssert.assertThat(reviewRecordsJson, containsString("\"hasComment\":true"));
+        MatcherAssert.assertThat(reviewRecordsJson, containsString("[REDACTED]"));
+        MatcherAssert.assertThat(reviewRecordsJson, containsString("\"versionBefore\":0"));
+        MatcherAssert.assertThat(reviewRecordsJson, containsString("\"versionAfter\":1"));
+        MatcherAssert.assertThat(reviewRecordsJson, containsString("\"versionBefore\":1"));
+        MatcherAssert.assertThat(reviewRecordsJson, containsString("\"versionAfter\":2"));
+        MatcherAssert.assertThat(reviewRecordsJson, containsString("title"));
+        MatcherAssert.assertThat(reviewRecordsJson, containsString("status"));
+        MatcherAssert.assertThat(reviewRecordsJson, not(containsString("diffJson")));
+        MatcherAssert.assertThat(reviewRecordsJson, not(containsString("secret-value")));
+        MatcherAssert.assertThat(reviewRecordsJson, not(containsString("rawPrompt")));
+        MatcherAssert.assertThat(reviewRecordsJson, not(containsString("promptPlaintext")));
+        MatcherAssert.assertThat(reviewRecordsJson, not(containsString("人工补充候选用例")));
+        MatcherAssert.assertThat(reviewRecordsJson, not(containsString("输入评审历史账号")));
+
+        MvcResult export = mockMvc.perform(get("/api/v1/test-design/tasks/{id}/review-records/export", taskId)
+                        .header("Authorization", "Bearer " + auditorToken))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith("text/csv"))
+                .andExpect(header().string("Content-Disposition", containsString("wp5-review-records.csv")))
+                .andReturn();
+
+        String csv = export.getResponse().getContentAsString();
+        MatcherAssert.assertThat(csv, startsWith("recordType,metric,value,taskId,projectId,reviewRecordId"));
+        MatcherAssert.assertThat(csv, containsString("summary,totalMatched,2,"));
+        MatcherAssert.assertThat(csv, containsString("reviewRecord,,,"));
+        MatcherAssert.assertThat(csv, containsString(taskId));
+        MatcherAssert.assertThat(csv, containsString(candidateId));
+        MatcherAssert.assertThat(csv, containsString("project-wp5"));
+        MatcherAssert.assertThat(csv, containsString("UPDATE"));
+        MatcherAssert.assertThat(csv, containsString("CONFIRMED"));
+        MatcherAssert.assertThat(csv, containsString("title|description|preconditions|steps|expectedResult|tags|status|version"));
+        MatcherAssert.assertThat(csv, containsString("status|version"));
+        MatcherAssert.assertThat(csv, not(containsString("secret-value")));
+        MatcherAssert.assertThat(csv, not(containsString("rawPrompt")));
+        MatcherAssert.assertThat(csv, not(containsString("promptPlaintext")));
+        MatcherAssert.assertThat(csv, not(containsString("diffJson")));
+        MatcherAssert.assertThat(csv, not(containsString("可以发布")));
+        MatcherAssert.assertThat(csv, not(containsString("人工补充候选用例")));
+        MatcherAssert.assertThat(csv, not(containsString("评审历史前置条件")));
+        MatcherAssert.assertThat(csv, not(containsString("输入评审历史账号")));
+        MatcherAssert.assertThat(csv, not(containsString("评审历史结果不应导出")));
+
+        mockMvc.perform(get("/api/v1/test-design/tasks/{id}/review-records", taskId)
+                        .header("Authorization", "Bearer " + deniedAuditorToken))
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(get("/api/v1/test-design/tasks/{id}/review-records/export", taskId)
+                        .header("Authorization", "Bearer " + ownerToken))
+                .andExpect(status().isForbidden());
     }
 
     @Test

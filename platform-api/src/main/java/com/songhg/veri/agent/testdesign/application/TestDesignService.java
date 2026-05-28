@@ -1,6 +1,7 @@
 package com.songhg.veri.agent.testdesign.application;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.songhg.veri.agent.asset.application.AssetService;
 import com.songhg.veri.agent.asset.application.command.CreateLinkRequest;
@@ -26,6 +27,7 @@ import com.songhg.veri.agent.testdesign.application.view.TestDesignCandidateResp
 import com.songhg.veri.agent.testdesign.application.view.TestDesignHealthResponse;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignPublishRecordResponse;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignPublishResponse;
+import com.songhg.veri.agent.testdesign.application.view.TestDesignReviewRecordResponse;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignStepResponse;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignTaskDetailResponse;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignTaskResponse;
@@ -77,6 +79,8 @@ public class TestDesignService {
     private static final int MAX_IDEMPOTENCY_KEY_LENGTH = 128;
     private static final int CANDIDATE_EXPORT_LIMIT = 500;
     private static final int CANDIDATE_EXPORT_PAGE_SIZE = 100;
+    private static final int REVIEW_RECORD_EXPORT_LIMIT = 500;
+    private static final int REVIEW_RECORD_EXPORT_PAGE_SIZE = 100;
     private static final Set<String> RETRYABLE_TASK_STATUSES = Set.of(
             TestDesignTaskStatus.FAILED.name(),
             TestDesignTaskStatus.PARTIAL_SUCCESS.name(),
@@ -639,6 +643,68 @@ public class TestDesignService {
         return PageResponse.of(records, 0, Math.max(1, records.size()), records.size());
     }
 
+    /**
+     * Returns a paginated review trail for a task without exposing raw diff JSON or full free-form comments.
+     */
+    public PageResponse<TestDesignReviewRecordResponse> reviewRecords(UUID taskId, PageQuery pageQuery) {
+        TestDesignTask task = taskOrThrow(taskId);
+        Map<UUID, TestDesignCandidate> candidates = candidateById(repository.candidatesByTask(taskId));
+        List<TestDesignReviewRecordResponse> records = repository.reviewRecords(task.id(), pageQuery).stream()
+                .map(record -> toReviewRecordResponse(record, candidates.get(record.candidateId())))
+                .toList();
+        return PageResponse.of(records, pageQuery.index(), pageQuery.size(), repository.countReviewRecords(task.id()));
+    }
+
+    /**
+     * Exports a bounded review history CSV for audit handoff.
+     *
+     * <p>The export keeps only operational metadata and a field-level diff summary. It deliberately excludes raw
+     * comments, candidate descriptions, steps, expected results and diff JSON values because reviewers may paste source
+     * document details or secrets into those fields.
+     */
+    @Transactional
+    public String exportReviewRecordsCsv(UUID taskId) {
+        TestDesignTask task = taskOrThrow(taskId);
+        long totalMatched = repository.countReviewRecords(task.id());
+        List<TestDesignReviewRecord> exportedRecords = new ArrayList<>();
+        int pageIndex = 0;
+        while (exportedRecords.size() < REVIEW_RECORD_EXPORT_LIMIT) {
+            List<TestDesignReviewRecord> pageRecords = repository.reviewRecords(
+                    task.id(),
+                    PageQuery.of(pageIndex, REVIEW_RECORD_EXPORT_PAGE_SIZE)
+            );
+            if (pageRecords.isEmpty()) {
+                break;
+            }
+            int remaining = REVIEW_RECORD_EXPORT_LIMIT - exportedRecords.size();
+            exportedRecords.addAll(pageRecords.stream().limit(remaining).toList());
+            if (pageRecords.size() < REVIEW_RECORD_EXPORT_PAGE_SIZE) {
+                break;
+            }
+            pageIndex++;
+        }
+
+        Map<UUID, TestDesignCandidate> candidates = candidateById(repository.candidatesByTask(task.id()));
+        StringBuilder csv = new StringBuilder();
+        appendReviewRecordExportHeader(csv);
+        appendReviewRecordExportSummary(csv, "exportLimit", REVIEW_RECORD_EXPORT_LIMIT, task);
+        appendReviewRecordExportSummary(csv, "totalMatched", totalMatched, task);
+        appendReviewRecordExportSummary(csv, "exportedCount", exportedRecords.size(), task);
+        appendReviewRecordExportSummary(csv, "truncated", totalMatched > exportedRecords.size(), task);
+        appendReviewRecordExportSummary(csv, "actionCounts", reviewRecordActionCounts(exportedRecords), task);
+        exportedRecords.forEach(record -> appendReviewRecordExportRow(csv, record, candidates.get(record.candidateId())));
+
+        writeAudit("EXPORT", "TEST_DESIGN_REVIEW_RECORD", UUID.randomUUID(), task.projectId(), Map.of(
+                "taskId", task.id(),
+                "projectId", task.projectId(),
+                "totalMatched", totalMatched,
+                "exportedCount", exportedRecords.size(),
+                "limit", REVIEW_RECORD_EXPORT_LIMIT,
+                "truncated", totalMatched > exportedRecords.size()
+        ));
+        return csv.toString();
+    }
+
     public String taskProjectScopeId(UUID id) {
         return taskOrThrow(id).projectId();
     }
@@ -1186,13 +1252,51 @@ public class TestDesignService {
     private String reviewDiff(TestDesignCandidate before, TestDesignCandidate after) {
         try {
             return objectMapper.writeValueAsString(Map.of(
-                    "titleChanged", !Objects.equals(before.title(), after.title()),
+                    "changedFields", reviewChangedFields(before, after),
                     "status", Map.of("before", before.status(), "after", after.status()),
                     "version", Map.of("before", before.version(), "after", after.version())
             ));
         } catch (JsonProcessingException exception) {
             return "{}";
         }
+    }
+
+    private static List<String> reviewChangedFields(TestDesignCandidate before, TestDesignCandidate after) {
+        List<String> fields = new ArrayList<>();
+        if (!Objects.equals(before.title(), after.title())) {
+            fields.add("title");
+        }
+        if (!Objects.equals(before.apiId(), after.apiId())) {
+            fields.add("apiId");
+        }
+        if (!Objects.equals(before.coverageType(), after.coverageType())) {
+            fields.add("coverageType");
+        }
+        if (!Objects.equals(before.priority(), after.priority())) {
+            fields.add("priority");
+        }
+        if (!Objects.equals(before.description(), after.description())) {
+            fields.add("description");
+        }
+        if (!Objects.equals(before.preconditions(), after.preconditions())) {
+            fields.add("preconditions");
+        }
+        if (!Objects.equals(before.stepsJson(), after.stepsJson())) {
+            fields.add("steps");
+        }
+        if (!Objects.equals(before.expectedResult(), after.expectedResult())) {
+            fields.add("expectedResult");
+        }
+        if (!Objects.equals(before.tags(), after.tags())) {
+            fields.add("tags");
+        }
+        if (!Objects.equals(before.status(), after.status())) {
+            fields.add("status");
+        }
+        if (before.version() != after.version()) {
+            fields.add("version");
+        }
+        return fields;
     }
 
     private TestDesignCandidate withPublishedCandidate(TestDesignCandidate candidate, UUID assetCaseId, String errorMessage) {
@@ -1537,6 +1641,186 @@ public class TestDesignService {
         details.put("limit", CANDIDATE_EXPORT_LIMIT);
         details.put("truncated", totalMatched > exportedCount);
         return details;
+    }
+
+    private TestDesignReviewRecordResponse toReviewRecordResponse(
+            TestDesignReviewRecord record,
+            TestDesignCandidate candidate
+    ) {
+        ReviewDiffSummary diffSummary = reviewDiffSummary(record.diffJson());
+        return new TestDesignReviewRecordResponse(
+                record.id(),
+                record.taskId(),
+                record.candidateId(),
+                candidate == null ? null : candidateExportPreview(candidate.title(), 200),
+                record.projectId(),
+                record.action(),
+                record.beforeStatus(),
+                record.afterStatus(),
+                record.reviewer(),
+                StringUtils.hasText(record.comment()),
+                candidateExportPreview(record.comment(), 160),
+                diffSummary.changedFields(),
+                diffSummary.versionBefore(),
+                diffSummary.versionAfter(),
+                record.createdAt()
+        );
+    }
+
+    private static void appendReviewRecordExportHeader(StringBuilder csv) {
+        CsvEncoder.appendLine(csv,
+                "recordType",
+                "metric",
+                "value",
+                "taskId",
+                "projectId",
+                "reviewRecordId",
+                "candidateId",
+                "title",
+                "action",
+                "beforeStatus",
+                "afterStatus",
+                "reviewer",
+                "hasComment",
+                "changedFields",
+                "versionBefore",
+                "versionAfter",
+                "createdAt"
+        );
+    }
+
+    private static void appendReviewRecordExportSummary(
+            StringBuilder csv,
+            String metric,
+            Object value,
+            TestDesignTask task
+    ) {
+        CsvEncoder.appendLine(csv,
+                "summary",
+                metric,
+                value,
+                task.id(),
+                task.projectId(),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+        );
+    }
+
+    private void appendReviewRecordExportRow(
+            StringBuilder csv,
+            TestDesignReviewRecord record,
+            TestDesignCandidate candidate
+    ) {
+        TestDesignReviewRecordResponse response = toReviewRecordResponse(record, candidate);
+        CsvEncoder.appendLine(csv,
+                "reviewRecord",
+                null,
+                null,
+                record.taskId(),
+                record.projectId(),
+                record.id(),
+                record.candidateId(),
+                response.title(),
+                record.action(),
+                record.beforeStatus(),
+                record.afterStatus(),
+                record.reviewer(),
+                response.hasComment(),
+                String.join("|", response.changedFields()),
+                response.versionBefore(),
+                response.versionAfter(),
+                record.createdAt()
+        );
+    }
+
+    private static String reviewRecordActionCounts(List<TestDesignReviewRecord> records) {
+        Map<String, Long> counts = new LinkedHashMap<>();
+        for (TestDesignReviewRecord record : records) {
+            if (StringUtils.hasText(record.action())) {
+                counts.merge(record.action(), 1L, Long::sum);
+            }
+        }
+        return counts.entrySet().stream()
+                .map(entry -> entry.getKey() + "=" + entry.getValue())
+                .collect(Collectors.joining(";"));
+    }
+
+    private ReviewDiffSummary reviewDiffSummary(String diffJson) {
+        if (!StringUtils.hasText(diffJson)) {
+            return new ReviewDiffSummary(List.of(), null, null);
+        }
+        try {
+            JsonNode root = objectMapper.readTree(diffJson);
+            List<String> changedFields = new ArrayList<>();
+            JsonNode changedFieldsNode = root.path("changedFields");
+            if (changedFieldsNode.isArray()) {
+                changedFieldsNode.forEach(field -> {
+                    String fieldName = reviewFieldName(field.asText());
+                    if (StringUtils.hasText(fieldName)) {
+                        changedFields.add(fieldName);
+                    }
+                });
+            }
+            if (changedFields.isEmpty() && root.path("titleChanged").asBoolean(false)) {
+                changedFields.add("title");
+            }
+            JsonNode statusNode = root.path("status");
+            if (!statusNode.isMissingNode()
+                    && !Objects.equals(textOrNull(statusNode.path("before")), textOrNull(statusNode.path("after")))) {
+                changedFields.add("status");
+            }
+            JsonNode versionNode = root.path("version");
+            Long versionBefore = longOrNull(versionNode.path("before"));
+            Long versionAfter = longOrNull(versionNode.path("after"));
+            if (!Objects.equals(versionBefore, versionAfter)) {
+                changedFields.add("version");
+            }
+            return new ReviewDiffSummary(changedFields.stream().distinct().toList(), versionBefore, versionAfter);
+        } catch (JsonProcessingException exception) {
+            return new ReviewDiffSummary(List.of(), null, null);
+        }
+    }
+
+    private static String reviewFieldName(String value) {
+        if (!StringUtils.hasText(value)) {
+            return null;
+        }
+        String normalized = value.trim().replaceAll("[^A-Za-z0-9_.-]", "");
+        return normalized.length() <= 64 ? normalized : normalized.substring(0, 64);
+    }
+
+    private static String textOrNull(JsonNode node) {
+        return node == null || node.isMissingNode() || node.isNull() ? null : node.asText();
+    }
+
+    private static Long longOrNull(JsonNode node) {
+        if (node == null || node.isMissingNode() || node.isNull()) {
+            return null;
+        }
+        if (node.canConvertToLong()) {
+            return node.longValue();
+        }
+        if (node.isTextual()) {
+            try {
+                return Long.parseLong(node.asText());
+            } catch (NumberFormatException exception) {
+                return null;
+            }
+        }
+        return null;
+    }
+
+    private record ReviewDiffSummary(List<String> changedFields, Long versionBefore, Long versionAfter) {
     }
 
     private record CandidateExportScope(UUID taskId, String projectId) {
