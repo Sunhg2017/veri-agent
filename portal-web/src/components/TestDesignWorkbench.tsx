@@ -92,7 +92,8 @@ import {
   TEST_DESIGN_EXPORT_CONTENT_TYPE,
   buildTestDesignCandidateReviewCsv,
   buildTestDesignExportFilename,
-  buildTestDesignPublishResultCsv
+  buildTestDesignPublishResultCsv,
+  buildTestDesignTaskReportCsv
 } from '../testDesignExport';
 import {
   buildTestDesignTaskIdempotencySignature,
@@ -1128,6 +1129,34 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
     setPublishState({ loading: false, success: '已导出发布结果摘要' });
   }
 
+  function exportTaskReport() {
+    if (!canExport) {
+      setTaskState({ loading: false, error: '缺少 testDesign:export 权限' });
+      return;
+    }
+    if (!selectedTask) {
+      setTaskState({ loading: false, error: '请先选择任务后再导出报告摘要' });
+      return;
+    }
+
+    const generatedAt = new Date().toISOString();
+    const csv = buildTestDesignTaskReportCsv({
+      task: selectedTask,
+      qualitySummary,
+      qualityScopeLabel: qualitySummaryScope,
+      reviewSummary,
+      reviewScopeLabel: reviewSummaryScope,
+      publishResult,
+      generatedAt
+    });
+    downloadText(
+      csv,
+      buildTestDesignExportFilename('task-report', selectedTask.id, generatedAt),
+      TEST_DESIGN_EXPORT_CONTENT_TYPE
+    );
+    setTaskState({ loading: false, success: '已导出任务报告摘要' });
+  }
+
   async function exportReviewRecords() {
     if (!canExport) {
       setReviewRecordState({ loading: false, error: '缺少 testDesign:export 权限' });
@@ -1377,6 +1406,10 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
                 <button className="btn btn-secondary btn-sm" type="button" disabled={!canExport || !selectedCandidates.length} onClick={() => void exportCandidateReview('selected')}>
                   <Download size={15} />
                   导出已选
+                </button>
+                <button className="btn btn-secondary btn-sm" type="button" disabled={!canExport || !selectedTask} onClick={exportTaskReport}>
+                  <Download size={15} />
+                  导出报告
                 </button>
               </div>
             </div>

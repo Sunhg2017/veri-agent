@@ -3,6 +3,8 @@ import type {
   TestDesignPublishResult,
   TestDesignTaskView
 } from './api/testDesign';
+import type { TestDesignQualitySummary } from './testDesignQualitySummary';
+import type { TestDesignReviewSummary } from './testDesignReviewSummary';
 
 export const TEST_DESIGN_EXPORT_CONTENT_TYPE = 'text/csv;charset=UTF-8';
 
@@ -23,6 +25,16 @@ export type TestDesignCandidateReviewExportInput = {
 export type TestDesignPublishResultExportInput = {
   task?: TaskExportSummary | null;
   publishResult: TestDesignPublishResult;
+  generatedAt?: string;
+};
+
+export type TestDesignTaskReportExportInput = {
+  task: TestDesignTaskView;
+  qualitySummary: TestDesignQualitySummary;
+  qualityScopeLabel: string;
+  reviewSummary: TestDesignReviewSummary;
+  reviewScopeLabel: string;
+  publishResult?: TestDesignPublishResult | null;
   generatedAt?: string;
 };
 
@@ -71,6 +83,23 @@ const PUBLISH_EXPORT_HEADER = [
   'result',
   'errorMessage',
   'createdAt'
+] as const;
+
+const TASK_REPORT_EXPORT_HEADER = [
+  'recordType',
+  'section',
+  'metric',
+  'label',
+  'value',
+  'percent',
+  'tone',
+  'taskId',
+  'taskTitle',
+  'taskStatus',
+  'projectId',
+  'scope',
+  'generatedAt',
+  'dryRun'
 ] as const;
 
 const SENSITIVE_ASSIGNMENT_PATTERN =
@@ -178,6 +207,73 @@ export function buildTestDesignPublishResultCsv(input: TestDesignPublishResultEx
   return toCsv(rows);
 }
 
+export function buildTestDesignTaskReportCsv(input: TestDesignTaskReportExportInput) {
+  const generatedAt = input.generatedAt ?? new Date().toISOString();
+  const rows: CsvValue[][] = [TASK_REPORT_EXPORT_HEADER as unknown as string[]];
+  const task = input.task;
+  const publishResult = input.publishResult ?? null;
+
+  rows.push(taskReportRow(task, generatedAt, 'metadata', 'task', 'reportType', '', 'WP5_TASK_REPORT'));
+  rows.push(taskReportRow(task, generatedAt, 'metadata', 'task', 'generatedAt', '', generatedAt));
+  rows.push(taskReportRow(task, generatedAt, 'metadata', 'task', 'generatedCount', '', task.generatedCount));
+  rows.push(taskReportRow(task, generatedAt, 'metadata', 'task', 'confirmedCount', '', task.confirmedCount));
+  rows.push(taskReportRow(task, generatedAt, 'metadata', 'task', 'publishedCount', '', task.publishedCount));
+  rows.push(taskReportRow(task, generatedAt, 'metadata', 'task', 'totalRequirements', '', task.totalRequirements));
+  rows.push(taskReportRow(task, generatedAt, 'metadata', 'task', 'promptKey', '', task.promptKey ?? ''));
+  rows.push(taskReportRow(task, generatedAt, 'metadata', 'task', 'promptVersion', '', task.promptVersion ?? ''));
+  rows.push(taskReportRow(task, generatedAt, 'metadata', 'task', 'modelProviderName', '', task.modelProviderName ?? ''));
+  rows.push(taskReportRow(task, generatedAt, 'metadata', 'task', 'modelName', '', task.modelName ?? ''));
+  rows.push(taskReportRow(task, generatedAt, 'metadata', 'task', 'modelInvocationTracked', '', Boolean(task.modelInvocationId)));
+  rows.push(taskReportRow(task, generatedAt, 'metadata', 'task', 'inputDigestTracked', '', Boolean(task.inputDigest)));
+  rows.push(taskReportRow(task, generatedAt, 'metadata', 'task', 'contextSummaryKeyCount', '', Object.keys(task.contextSummary).length));
+
+  rows.push(taskReportRow(task, generatedAt, 'metadata', 'candidateQuality', 'scope', '', input.qualityScopeLabel, undefined, undefined, input.qualityScopeLabel));
+  rows.push(taskReportRow(task, generatedAt, 'metadata', 'candidateQuality', 'pageTotal', '', input.qualitySummary.pageTotal, undefined, undefined, input.qualityScopeLabel));
+  rows.push(taskReportRow(task, generatedAt, 'metadata', 'candidateQuality', 'total', '', input.qualitySummary.total, undefined, undefined, input.qualityScopeLabel));
+  for (const metric of input.qualitySummary.metrics) {
+    rows.push(taskReportRow(task, generatedAt, 'summary', 'candidateQuality', 'metric', metric.label, metric.value, undefined, metric.tone, input.qualityScopeLabel));
+  }
+  for (const group of input.qualitySummary.distributions) {
+    for (const item of group.items) {
+      rows.push(taskReportRow(task, generatedAt, 'summary', 'candidateQuality', `distribution:${group.label}`, item.label, item.count, item.percent, item.tone, input.qualityScopeLabel));
+    }
+  }
+  for (const warning of input.qualitySummary.warnings) {
+    rows.push(taskReportRow(task, generatedAt, 'summary', 'candidateQuality', 'warning', warning.label, warning.count, undefined, warning.tone, input.qualityScopeLabel));
+  }
+
+  rows.push(taskReportRow(task, generatedAt, 'metadata', 'reviewHistory', 'scope', '', input.reviewScopeLabel, undefined, undefined, input.reviewScopeLabel));
+  rows.push(taskReportRow(task, generatedAt, 'metadata', 'reviewHistory', 'pageTotal', '', input.reviewSummary.pageTotal, undefined, undefined, input.reviewScopeLabel));
+  rows.push(taskReportRow(task, generatedAt, 'metadata', 'reviewHistory', 'total', '', input.reviewSummary.total, undefined, undefined, input.reviewScopeLabel));
+  for (const metric of input.reviewSummary.metrics) {
+    rows.push(taskReportRow(task, generatedAt, 'summary', 'reviewHistory', 'metric', metric.label, metric.value, undefined, metric.tone, input.reviewScopeLabel));
+  }
+  for (const group of input.reviewSummary.groups) {
+    for (const item of group.items) {
+      rows.push(taskReportRow(task, generatedAt, 'summary', 'reviewHistory', `distribution:${group.label}`, item.label, item.count, item.percent, item.tone, input.reviewScopeLabel));
+    }
+  }
+  for (const warning of input.reviewSummary.warnings) {
+    rows.push(taskReportRow(task, generatedAt, 'summary', 'reviewHistory', 'warning', warning.label, warning.count, undefined, warning.tone, input.reviewScopeLabel));
+  }
+
+  rows.push(taskReportRow(task, generatedAt, 'metadata', 'publish', 'attached', '', Boolean(publishResult), undefined, undefined, '', publishResult?.dryRun));
+  if (publishResult) {
+    rows.push(taskReportRow(task, generatedAt, 'metadata', 'publish', 'total', '', publishResult.total, undefined, undefined, '', publishResult.dryRun));
+    rows.push(taskReportRow(task, generatedAt, 'metadata', 'publish', 'created', '', publishResult.created, undefined, undefined, '', publishResult.dryRun));
+    rows.push(taskReportRow(task, generatedAt, 'metadata', 'publish', 'skipped', '', publishResult.skipped, undefined, undefined, '', publishResult.dryRun));
+    rows.push(taskReportRow(task, generatedAt, 'metadata', 'publish', 'failed', '', publishResult.failed, undefined, undefined, '', publishResult.dryRun));
+    for (const [recordResult, count] of countBy(publishResult.records, (record) => record.result)) {
+      rows.push(taskReportRow(task, generatedAt, 'summary', 'publish', `result:${recordResult}`, '', count, undefined, undefined, '', publishResult.dryRun));
+    }
+    for (const [action, count] of countBy(publishResult.records, (record) => record.action)) {
+      rows.push(taskReportRow(task, generatedAt, 'summary', 'publish', `action:${action}`, '', count, undefined, undefined, '', publishResult.dryRun));
+    }
+  }
+
+  return toCsv(rows);
+}
+
 export function buildTestDesignExportFilename(kind: string, taskId?: string, generatedAt = new Date().toISOString()) {
   const safeKind = sanitizeFilePart(kind) || 'report';
   const safeTask = sanitizeFilePart(taskId || 'task');
@@ -217,6 +313,37 @@ function publishSummaryRow(
   value: CsvValue
 ): CsvValue[] {
   return ['summary', metric, value, result.taskId, task?.title ?? '', result.projectId ?? task?.projectId ?? '', result.dryRun];
+}
+
+function taskReportRow(
+  task: TestDesignTaskView,
+  generatedAt: string,
+  recordType: CsvValue,
+  section: CsvValue,
+  metric: CsvValue,
+  label: CsvValue,
+  value: CsvValue,
+  percent?: CsvValue,
+  tone?: CsvValue,
+  scope = '',
+  dryRun?: CsvValue
+): CsvValue[] {
+  return [
+    recordType,
+    section,
+    metric,
+    label,
+    value,
+    percent ?? '',
+    tone ?? '',
+    task.id,
+    task.title,
+    task.status,
+    task.projectId ?? '',
+    scope,
+    generatedAt,
+    dryRun ?? ''
+  ];
 }
 
 function countBy<T>(items: readonly T[], getKey: (item: T) => string | undefined) {
