@@ -108,6 +108,12 @@ import {
   buildTestDesignPublishResultCsv
 } from '../testDesignExport';
 import {
+  candidateGenerationSource,
+  generationSourceText,
+  taskGenerationSource,
+  type TestDesignGenerationSource
+} from '../testDesignGenerationSource';
+import {
   buildTestDesignTaskIdempotencySignature,
   resolveTestDesignTaskIdempotency,
   type TestDesignTaskIdempotencyState
@@ -401,6 +407,11 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
   const taskDiagnostics = useMemo(
     () => buildTestDesignTaskDiagnostics(selectedTask),
     [selectedTask]
+  );
+  const selectedTaskSource = useMemo(() => taskGenerationSource(selectedTask), [selectedTask]);
+  const selectedCandidateSource = useMemo(
+    () => candidateGenerationSource(selectedCandidate, selectedTask),
+    [selectedCandidate, selectedTask]
   );
 
   const refreshCandidatePage = useCallback(async (taskId: string, options?: { silent?: boolean }) => {
@@ -1525,7 +1536,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       <div className="module-layout">
       <div className="main-stack">
         <div className="metrics-grid">
-          <Metric icon={<Sparkles size={20} />} label="服务状态" value={health?.status ?? '-'} desc={health?.generationMode ?? '未加载'} />
+          <Metric icon={<Sparkles size={20} />} label="服务状态" value={health?.status ?? '-'} desc={selectedTask ? generationSourceText(selectedTaskSource) : health?.generationMode ?? '未加载'} />
           <Metric icon={<FileText size={20} />} label="候选用例" value={String(candidates.length)} desc={`确认 ${statusCounts.CONFIRMED ?? 0} · 待重试 ${statusCounts.FAILED ?? 0}`} />
           <Metric icon={<ClipboardCheck size={20} />} label="已发布" value={String(selectedTask?.publishedCount ?? 0)} desc={selectedTask?.status ?? '-'} />
         </div>
@@ -1851,6 +1862,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
                     <th>覆盖</th>
                     <th>优先级</th>
                     <th>状态</th>
+                    <th>来源</th>
                     <th>操作</th>
                   </tr>
                 </thead>
@@ -1874,6 +1886,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
                         <td>{candidate.coverageType}</td>
                         <td>{candidate.priority}</td>
                         <td><CandidateStatus value={candidate.status} /></td>
+                        <td><GenerationSourceBadge source={candidateGenerationSource(candidate, selectedTask)} compact /></td>
                         <td>
                           <button className="btn btn-secondary btn-xs" type="button" onClick={() => setSelectedCandidateId(candidate.id)}>
                             <Eye size={14} />
@@ -1884,7 +1897,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
                     ))
                   ) : (
                     <tr>
-                      <td className="table-empty" colSpan={6}>{selectedTaskId ? '暂无匹配候选用例' : '请先生成或选择任务'}</td>
+                      <td className="table-empty" colSpan={7}>{selectedTaskId ? '暂无匹配候选用例' : '请先生成或选择任务'}</td>
                     </tr>
                   )}
                 </tbody>
@@ -1893,6 +1906,11 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
 
             {candidateDraft && selectedCandidate && (
               <div className="test-design-editor">
+                <div className="test-design-source-summary">
+                  <span>候选来源</span>
+                  <GenerationSourceBadge source={selectedCandidateSource} />
+                  <em>{generationSourceText(selectedCandidateSource)}</em>
+                </div>
                 {candidateQualityIssues.length > 0 && (
                   <div className="notice warning test-design-quality-summary">
                     <strong>质量提示</strong>
@@ -2074,6 +2092,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
                     <span>
                       <strong>{task.title}</strong>
                       <em>{task.status} · {task.generatedCount} / {task.confirmedCount}</em>
+                      <GenerationSourceBadge source={taskGenerationSource(task)} compact />
                     </span>
                   </button>
                   <div className="quick-action-controls">
@@ -2509,6 +2528,22 @@ function CandidateStatus(props: { value: string }) {
         ? 'badge badge-neutral'
         : 'badge badge-warning';
   return <span className={className}>{value}</span>;
+}
+
+function GenerationSourceBadge(props: { source: TestDesignGenerationSource; compact?: boolean }) {
+  const toneClass = props.source.tone === 'success'
+    ? 'badge-success'
+    : props.source.tone === 'warning'
+      ? 'badge-warning'
+      : 'badge-neutral';
+  return (
+    <span
+      className={`badge test-design-source-badge ${toneClass}${props.compact ? ' compact' : ''}`}
+      title={generationSourceText(props.source)}
+    >
+      {props.source.label}
+    </span>
+  );
 }
 
 function PublishRecordRow(props: { record: TestDesignPublishRecordView }) {

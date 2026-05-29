@@ -1,5 +1,6 @@
 import type { TestDesignTaskView } from './api/testDesign';
 import { sanitizeTestDesignExportText } from './testDesignExport';
+import { generationSourceText, taskGenerationSource } from './testDesignGenerationSource';
 
 export type TestDesignTaskDiagnosticTone = 'neutral' | 'warning' | 'danger';
 
@@ -16,6 +17,7 @@ export function buildTestDesignTaskDiagnostics(task: TestDesignTaskView | null |
   if (!task) {
     return [];
   }
+  const generationSource = taskGenerationSource(task);
 
   return [
     { label: '任务 ID', value: compactTestDesignDigest(task.id, 10, 6) },
@@ -24,6 +26,11 @@ export function buildTestDesignTaskDiagnostics(task: TestDesignTaskView | null |
     { label: '需求数', value: String(task.totalRequirements ?? task.requirementIds.length) },
     { label: '覆盖', value: formatList(task.coverageTypes) },
     { label: '产出', value: `${task.generatedCount} 生成 / ${task.confirmedCount} 确认 / ${task.publishedCount} 发布` },
+    {
+      label: '生成来源',
+      value: generationSourceText(generationSource),
+      tone: generationSource.tone === 'warning' ? 'warning' : 'neutral'
+    },
     { label: 'Prompt', value: formatPrompt(task) },
     { label: '模型', value: formatModel(task) },
     { label: '模型调用', value: compactTestDesignDigest(task.modelInvocationId, 12, 8) },

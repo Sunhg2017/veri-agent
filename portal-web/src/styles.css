@@ -1153,6 +1153,10 @@ tbody tr:hover td {
   min-width: 0;
 }
 
+.quick-action-main > span {
+  align-items: start;
+}
+
 .quick-action-main strong,
 .quick-action-main em {
   overflow: hidden;
@@ -1639,6 +1643,42 @@ tbody tr:hover td {
 
 .test-design-quality-list li {
   overflow-wrap: anywhere;
+}
+
+.test-design-source-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: 10px 12px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  background: var(--surface-hover);
+}
+
+.test-design-source-summary span:first-child {
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: 650;
+}
+
+.test-design-source-summary em {
+  min-width: 0;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+  font-style: normal;
+  overflow-wrap: anywhere;
+}
+
+.test-design-source-badge {
+  width: max-content;
+  max-width: 100%;
+  border: 1px solid transparent;
+}
+
+.test-design-source-badge.compact {
+  padding-inline: 6px;
+  font-size: 10px;
 }
 
 .test-design-batch-summary {
