@@ -4,6 +4,7 @@ import {
   TEST_DESIGN_CANDIDATE_STATUSES,
   TEST_DESIGN_COVERAGE_TYPES,
   batchActionTestDesignCandidates,
+  batchResolveTestDesignConflicts,
   cancelTestDesignTask,
   confirmTestDesignCandidate,
   createTestDesignTask,
@@ -21,6 +22,7 @@ import {
   normalizeTestDesignCandidate,
   normalizeTestDesignCandidateBatchActionResult,
   normalizeTestDesignCandidateList,
+  normalizeTestDesignConflictBatchResolveResult,
   normalizeTestDesignHealth,
   normalizeTestDesignPublishResult,
   normalizeTestDesignQualitySummary,
@@ -449,6 +451,60 @@ describe('WP5 test design API helpers', () => {
       result: 'SUCCEEDED',
       dryRun: false
     });
+  });
+
+  it('calls batch conflict resolution endpoint and normalizes partial results', async () => {
+    requestJsonMock.mockResolvedValue({
+      code: 'OK',
+      message: 'ok',
+      trace_id: 'trace-batch-conflict',
+      data: {
+        action: 'MANUAL_LINK_EXISTING',
+        total: '2',
+        succeeded_count: '1',
+        failed_count: '1',
+        items: [
+          {
+            candidate_id: 'cand-1',
+            result: 'SUCCEEDED',
+            record: {
+              candidate_id: 'cand-1',
+              candidate_status: 'PUBLISHED',
+              candidate_version: '5',
+              asset_case_id: 'case-1',
+              action: 'MANUAL_LINK_EXISTING',
+              result: 'SUCCEEDED',
+              dry_run: false
+            }
+          },
+          { candidate_id: 'cand-2', result: 'FAILED', error_code: 'VERSION_CONFLICT', error_message: '候选版本已变更' }
+        ]
+      }
+    });
+
+    const response = await batchResolveTestDesignConflicts({
+      items: [
+        { candidateId: 'cand-1', version: 4, caseId: 'case-1' },
+        { candidateId: 'cand-2', version: 8, caseId: 'case-2' }
+      ],
+      reason: ' 批量复用 ',
+      comment: ''
+    });
+
+    expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/test-design/candidates/batch-resolve-conflicts', {
+      method: 'POST',
+      body: JSON.stringify({
+        items: [
+          { candidateId: 'cand-1', version: 4, caseId: 'case-1' },
+          { candidateId: 'cand-2', version: 8, caseId: 'case-2' }
+        ],
+        reason: '批量复用'
+      })
+    });
+    expect(response.data).toMatchObject({ action: 'MANUAL_LINK_EXISTING', total: 2, succeededCount: 1, failedCount: 1 });
+    expect(response.data.items[0].record).toMatchObject({ candidateId: 'cand-1', candidateStatus: 'PUBLISHED', candidateVersion: 5 });
+    expect(response.data.items[1]).toMatchObject({ candidateId: 'cand-2', result: 'FAILED', errorCode: 'VERSION_CONFLICT' });
+    expect(normalizeTestDesignConflictBatchResolveResult({ items: [{ candidate_id: 'cand-3', result: 'FAILED' }] }).items[0].candidateId).toBe('cand-3');
   });
 
   it('calls batch review endpoint and normalizes partial results', async () => {

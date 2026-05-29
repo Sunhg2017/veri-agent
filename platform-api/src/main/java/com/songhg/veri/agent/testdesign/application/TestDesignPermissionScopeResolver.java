@@ -1,6 +1,7 @@
 package com.songhg.veri.agent.testdesign.application;
 
 import com.songhg.veri.agent.authorization.application.ResourceScope;
+import com.songhg.veri.agent.testdesign.application.command.ResolveTestDesignConflictBatchCommand;
 import com.songhg.veri.agent.testdesign.application.command.TestDesignCandidateBatchActionCommand;
 import com.songhg.veri.agent.testdesign.application.query.TestDesignCandidatePageRequest;
 import com.songhg.veri.agent.testdesign.application.query.TestDesignTaskPageRequest;
@@ -66,6 +67,19 @@ public class TestDesignPermissionScopeResolver {
                 .toList();
     }
 
+    public List<ResourceScope> candidateBatch(ResolveTestDesignConflictBatchCommand command) {
+        LinkedHashSet<String> projectIds = new LinkedHashSet<>();
+        for (UUID candidateId : batchCandidateIds(command)) {
+            projectIds.add(service.candidateProjectScopeId(candidateId));
+        }
+        if (projectIds.isEmpty()) {
+            return List.of(ResourceScope.platform());
+        }
+        return projectIds.stream()
+                .map(ResourceScope::project)
+                .toList();
+    }
+
     private static List<UUID> batchCandidateIds(TestDesignCandidateBatchActionCommand command) {
         if (command == null) {
             return List.of();
@@ -82,6 +96,17 @@ public class TestDesignPermissionScopeResolver {
         }
         return command.candidateIds().stream()
                 .filter(candidateId -> candidateId != null)
+                .distinct()
+                .toList();
+    }
+
+    private static List<UUID> batchCandidateIds(ResolveTestDesignConflictBatchCommand command) {
+        if (command == null || command.items() == null) {
+            return List.of();
+        }
+        return command.items().stream()
+                .filter(item -> item != null && item.candidateId() != null)
+                .map(ResolveTestDesignConflictBatchCommand.Item::candidateId)
                 .distinct()
                 .toList();
     }

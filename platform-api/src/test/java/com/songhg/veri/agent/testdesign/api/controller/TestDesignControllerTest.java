@@ -1282,6 +1282,116 @@ class TestDesignControllerTest {
     }
 
     @Test
+    void batchResolvesConflictsWithItemResultsAndProjectScope() throws Exception {
+        String ownerToken = userAccessToken(List.of("ProjectOwner@PROJECT:project-wp5"));
+        String deniedToken = userAccessToken(List.of("ProjectOwner@PROJECT:project-other"));
+        String requirementId = createRequirement(ownerToken, "批量冲突需求A", "批量冲突验收A", "project-wp5");
+        String otherRequirementId = createRequirement(ownerToken, "批量冲突需求B", "批量冲突验收B", "project-wp5");
+        MvcResult taskResult = mockMvc.perform(post("/api/v1/test-design/tasks")
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"projectId":"project-wp5","requirementIds":["%s","%s"],"coverageTypes":["SMOKE"]}
+                                """.formatted(requirementId, otherRequirementId)))
+                .andExpect(status().isCreated())
+                .andReturn();
+        String firstCandidateId = JsonPath.read(taskResult.getResponse().getContentAsString(), "$.data.candidates[0].id");
+        String secondCandidateId = JsonPath.read(taskResult.getResponse().getContentAsString(), "$.data.candidates[1].id");
+        Integer firstVersion = JsonPath.read(taskResult.getResponse().getContentAsString(), "$.data.candidates[0].version");
+        Integer secondVersion = JsonPath.read(taskResult.getResponse().getContentAsString(), "$.data.candidates[1].version");
+        String firstRequirementId = JsonPath.read(
+                taskResult.getResponse().getContentAsString(),
+                "$.data.candidates[0].requirementId"
+        );
+        String secondRequirementId = JsonPath.read(
+                taskResult.getResponse().getContentAsString(),
+                "$.data.candidates[1].requirementId"
+        );
+
+        String linkedCandidateId;
+        String unlinkedCandidateId;
+        Integer linkedVersion;
+        Integer unlinkedVersion;
+        if (requirementId.equals(firstRequirementId)) {
+            linkedCandidateId = firstCandidateId;
+            linkedVersion = firstVersion;
+            unlinkedCandidateId = secondCandidateId;
+            unlinkedVersion = secondVersion;
+        } else {
+            linkedCandidateId = secondCandidateId;
+            linkedVersion = secondVersion;
+            unlinkedCandidateId = firstCandidateId;
+            unlinkedVersion = firstVersion;
+        }
+        MatcherAssert.assertThat(
+                List.of(firstRequirementId, secondRequirementId),
+                containsInAnyOrder(requirementId, otherRequirementId)
+        );
+
+        MvcResult firstConfirmed = mockMvc.perform(post("/api/v1/test-design/candidates/{id}/confirm", linkedCandidateId)
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"version\": %d}".formatted(linkedVersion)))
+                .andExpect(status().isOk())
+                .andReturn();
+        MvcResult secondConfirmed = mockMvc.perform(post("/api/v1/test-design/candidates/{id}/confirm", unlinkedCandidateId)
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"version\": %d}".formatted(unlinkedVersion)))
+                .andExpect(status().isOk())
+                .andReturn();
+        Integer firstConfirmedVersion = JsonPath.read(firstConfirmed.getResponse().getContentAsString(), "$.data.version");
+        Integer secondConfirmedVersion = JsonPath.read(secondConfirmed.getResponse().getContentAsString(), "$.data.version");
+
+        String existingCaseId = createManualTestCase(ownerToken, "project-wp5", "批量冲突既有用例A");
+        linkRequirementToCase(ownerToken, requirementId, existingCaseId);
+
+        mockMvc.perform(post("/api/v1/test-design/candidates/batch-resolve-conflicts")
+                        .header("Authorization", "Bearer " + deniedToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "items": [
+                                    {"candidateId":"%s","version":%d,"caseId":"%s"}
+                                  ],
+                                  "reason": "批量复用既有覆盖"
+                                }
+                                """.formatted(linkedCandidateId, firstConfirmedVersion, existingCaseId)))
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(post("/api/v1/test-design/candidates/batch-resolve-conflicts")
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "items": [
+                                    {"candidateId":"%s","version":%d,"caseId":"%s"},
+                                    {"candidateId":"%s","version":%d,"caseId":"%s"}
+                                  ],
+                                  "reason": "批量复用既有覆盖",
+                                  "comment": "已人工比对"
+                                }
+                                """.formatted(
+                                        linkedCandidateId, firstConfirmedVersion, existingCaseId,
+                                        unlinkedCandidateId, secondConfirmedVersion, existingCaseId
+                                )))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.action").value("MANUAL_LINK_EXISTING"))
+                .andExpect(jsonPath("$.data.total").value(2))
+                .andExpect(jsonPath("$.data.succeededCount").value(1))
+                .andExpect(jsonPath("$.data.failedCount").value(1))
+                .andExpect(jsonPath("$.data.items[0].candidateId").value(linkedCandidateId))
+                .andExpect(jsonPath("$.data.items[0].result").value("SUCCEEDED"))
+                .andExpect(jsonPath("$.data.items[0].record.action").value("MANUAL_LINK_EXISTING"))
+                .andExpect(jsonPath("$.data.items[0].record.candidateStatus").value("PUBLISHED"))
+                .andExpect(jsonPath("$.data.items[0].record.assetCaseId").value(existingCaseId))
+                .andExpect(jsonPath("$.data.items[1].candidateId").value(unlinkedCandidateId))
+                .andExpect(jsonPath("$.data.items[1].result").value("FAILED"))
+                .andExpect(jsonPath("$.data.items[1].errorCode").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.data.items[1].errorMessage", containsString("未关联候选需求")));
+    }
+
+    @Test
     void allowsNearSimilarRequirementCaseWhenConflictThresholdIsStrict() throws Exception {
         String ownerToken = userAccessToken(List.of("ProjectOwner@PROJECT:project-wp5"));
         String requirementId = createRequirement(ownerToken, "严格阈值需求", "严格阈值验收", "project-wp5");
@@ -1453,6 +1563,38 @@ class TestDesignControllerTest {
                 .andExpect(status().isCreated())
                 .andReturn();
         return JsonPath.read(result.getResponse().getContentAsString(), "$.data.id");
+    }
+
+    private String createManualTestCase(String userToken, String projectId, String title) throws Exception {
+        MvcResult result = mockMvc.perform(post("/api/v1/asset/test-cases")
+                        .header("Authorization", "Bearer " + userToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "projectId": "%s",
+                                  "title": "%s",
+                                  "description": "人工确认可复用的同需求测试用例",
+                                  "source": "MANUAL",
+                                  "status": "DRAFT",
+                                  "priority": "HIGH",
+                                  "steps": [
+                                    {"action": "执行核心流程", "expectedResult": "核心流程通过"}
+                                  ]
+                                }
+                                """.formatted(projectId, title)))
+                .andExpect(status().isCreated())
+                .andReturn();
+        return JsonPath.read(result.getResponse().getContentAsString(), "$.data.id");
+    }
+
+    private void linkRequirementToCase(String userToken, String requirementId, String caseId) throws Exception {
+        mockMvc.perform(post("/api/v1/asset/links")
+                        .header("Authorization", "Bearer " + userToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"requirementId":"%s","caseId":"%s"}
+                                """.formatted(requirementId, caseId)))
+                .andExpect(status().isCreated());
     }
 
     private String createApi(

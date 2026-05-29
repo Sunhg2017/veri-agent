@@ -290,6 +290,28 @@ export interface ResolveTestDesignConflictPayload {
   comment?: string;
 }
 
+export interface ResolveTestDesignConflictBatchPayload {
+  items: Array<{ candidateId: string; version: number; caseId: string }>;
+  reason?: string;
+  comment?: string;
+}
+
+export interface TestDesignConflictBatchResolveItem {
+  candidateId: string;
+  result: string;
+  record?: TestDesignPublishRecordView;
+  errorCode?: string;
+  errorMessage?: string;
+}
+
+export interface TestDesignConflictBatchResolveResult {
+  action: string;
+  total: number;
+  succeededCount: number;
+  failedCount: number;
+  items: TestDesignConflictBatchResolveItem[];
+}
+
 export interface TestDesignPublishResult {
   taskId: string;
   projectId?: string;
@@ -679,6 +701,28 @@ export function normalizeTestDesignCandidateBatchActionResult(raw: unknown): Tes
   };
 }
 
+export function normalizeTestDesignConflictBatchResolveItem(raw: unknown): TestDesignConflictBatchResolveItem {
+  const item = isRecord(raw) ? raw : {};
+  return {
+    candidateId: stringValue(item.candidateId ?? item.candidate_id),
+    result: stringValue(item.result, 'UNKNOWN'),
+    record: item.record ? normalizeTestDesignPublishRecord(item.record) : undefined,
+    errorCode: optionalString(item.errorCode) ?? optionalString(item.error_code),
+    errorMessage: optionalString(item.errorMessage) ?? optionalString(item.error_message)
+  };
+}
+
+export function normalizeTestDesignConflictBatchResolveResult(raw: unknown): TestDesignConflictBatchResolveResult {
+  const item = isRecord(raw) ? raw : {};
+  return {
+    action: stringValue(item.action, 'UNKNOWN'),
+    total: numberValue(item.total, 0),
+    succeededCount: numberValue(item.succeededCount ?? item.succeeded_count, 0),
+    failedCount: numberValue(item.failedCount ?? item.failed_count, 0),
+    items: listItems(item.items).map(normalizeTestDesignConflictBatchResolveItem)
+  };
+}
+
 export function normalizeTestDesignTaskDetail(raw: unknown): TestDesignTaskDetail {
   const item = isRecord(raw) ? raw : {};
   return {
@@ -891,6 +935,16 @@ export async function resolveTestDesignConflict(
     body: JSON.stringify(compactPayload(payload))
   });
   return { ...response, data: normalizeTestDesignPublishRecord(response.data) };
+}
+
+export async function batchResolveTestDesignConflicts(
+  payload: ResolveTestDesignConflictBatchPayload
+): Promise<ApiResponse<TestDesignConflictBatchResolveResult>> {
+  const response = await requestJson<unknown>('/api/v1/test-design/candidates/batch-resolve-conflicts', {
+    method: 'POST',
+    body: JSON.stringify(compactPayload(payload))
+  });
+  return { ...response, data: normalizeTestDesignConflictBatchResolveResult(response.data) };
 }
 
 export async function fetchTestDesignPublishRecords(taskId: string): Promise<ApiResponse<TestDesignPublishRecordView[]>> {

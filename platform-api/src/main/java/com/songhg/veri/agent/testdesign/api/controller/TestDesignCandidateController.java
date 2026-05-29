@@ -5,6 +5,7 @@ import com.songhg.veri.agent.authorization.application.RequirePermission;
 import com.songhg.veri.agent.common.api.PageResponse;
 import com.songhg.veri.agent.common.openapi.ApiVersion;
 import com.songhg.veri.agent.testdesign.application.TestDesignService;
+import com.songhg.veri.agent.testdesign.application.command.ResolveTestDesignConflictBatchCommand;
 import com.songhg.veri.agent.testdesign.application.command.ResolveTestDesignConflictCommand;
 import com.songhg.veri.agent.testdesign.application.command.TestDesignCandidateActionCommand;
 import com.songhg.veri.agent.testdesign.application.command.TestDesignCandidateBatchActionCommand;
@@ -12,6 +13,7 @@ import com.songhg.veri.agent.testdesign.application.command.UpdateTestDesignCand
 import com.songhg.veri.agent.testdesign.application.query.TestDesignCandidatePageRequest;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignCandidateBatchActionResponse;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignCandidateResponse;
+import com.songhg.veri.agent.testdesign.application.view.TestDesignConflictBatchResolveResponse;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignPublishRecordResponse;
 import jakarta.validation.Valid;
 import java.nio.charset.StandardCharsets;
@@ -122,6 +124,17 @@ public class TestDesignCandidateController {
             @Valid @RequestBody ResolveTestDesignConflictCommand command
     ) {
         return service.resolveConflict(id, command);
+    }
+
+    /**
+     * 批量人工确认发布冲突并将候选链接到既有 WP3 测试用例
+     */
+    @PostMapping("/batch-resolve-conflicts")
+    @RequirePermission(value = PermissionCodes.TEST_DESIGN_PUBLISH, scope = TestDesignPermissionScopes.CANDIDATE_BATCH)
+    public TestDesignConflictBatchResolveResponse batchResolveConflicts(
+            @Valid @RequestBody ResolveTestDesignConflictBatchCommand command
+    ) {
+        return service.batchResolveConflicts(command);
     }
 
     /**

@@ -86,6 +86,7 @@ WP5 前端页面负责让用户在浏览器内完成用例生成主流程：
 | `rejectTestDesignCandidate(id, payload)` | 驳回候选。 |
 | `ignoreTestDesignCandidate(id, payload)` | 忽略候选。 |
 | `batchActionTestDesignCandidates(payload)` | 批量操作。 |
+| `batchResolveTestDesignConflicts(payload)` | 批量处理发布冲突。 |
 | `previewTestDesignPublish(taskId, payload)` | 发布 dryRun。 |
 | `publishTestDesignCandidates(taskId, payload)` | 正式发布。 |
 

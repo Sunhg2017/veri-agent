@@ -23,6 +23,7 @@ import com.songhg.veri.agent.modelaccess.application.view.ModelInvocationResult;
 import com.songhg.veri.agent.modelaccess.domain.ChatMessage;
 import com.songhg.veri.agent.modelaccess.security.ServicePrincipal;
 import com.songhg.veri.agent.testdesign.application.command.CreateTestDesignTaskCommand;
+import com.songhg.veri.agent.testdesign.application.command.ResolveTestDesignConflictBatchCommand;
 import com.songhg.veri.agent.testdesign.application.command.ResolveTestDesignConflictCommand;
 import com.songhg.veri.agent.testdesign.application.command.TestDesignCandidateActionCommand;
 import com.songhg.veri.agent.testdesign.application.command.TestDesignCandidateBatchActionCommand;
@@ -34,6 +35,8 @@ import com.songhg.veri.agent.testdesign.application.query.TestDesignTaskQuery;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignCandidateBatchActionItemResponse;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignCandidateBatchActionResponse;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignCandidateResponse;
+import com.songhg.veri.agent.testdesign.application.view.TestDesignConflictBatchResolveItemResponse;
+import com.songhg.veri.agent.testdesign.application.view.TestDesignConflictBatchResolveResponse;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignHealthResponse;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignModelObservationResponse;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignPublishRecordResponse;
@@ -710,6 +713,74 @@ public class TestDesignService {
      */
     @Transactional
     public TestDesignPublishRecordResponse resolveConflict(UUID candidateId, ResolveTestDesignConflictCommand command) {
+        return resolveConflictInternal(candidateId, command);
+    }
+
+    /**
+     * Resolves multiple publish conflicts with the same per-candidate validation as the single-item endpoint.
+     *
+     * <p>The method intentionally returns item-level outcomes instead of failing the whole batch on the first stale
+     * version or invalid target. Operators can then retry only failed candidates while successful links keep their
+     * audit records and WP3 trace links.
+     */
+    @Transactional
+    public TestDesignConflictBatchResolveResponse batchResolveConflicts(ResolveTestDesignConflictBatchCommand command) {
+        if (command == null || command.items() == null || command.items().isEmpty()) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "批量冲突处理项不能为空");
+        }
+        if (command.items().size() > batchActionLimit()) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "批量冲突处理最多支持 " + batchActionLimit() + " 项");
+        }
+
+        List<TestDesignConflictBatchResolveItemResponse> items = new ArrayList<>();
+        for (ResolveTestDesignConflictBatchCommand.Item item : command.items()) {
+            if (item == null || item.candidateId() == null || item.version() == null || item.caseId() == null) {
+                items.add(new TestDesignConflictBatchResolveItemResponse(
+                        item == null ? null : item.candidateId(),
+                        "FAILED",
+                        null,
+                        ErrorCode.VALIDATION_ERROR.name(),
+                        "批量冲突处理项必须包含 candidateId、version 和 caseId"
+                ));
+                continue;
+            }
+            try {
+                ResolveTestDesignConflictCommand itemCommand = new ResolveTestDesignConflictCommand(
+                        item.version(),
+                        item.caseId(),
+                        command.reason(),
+                        command.comment()
+                );
+                TestDesignPublishRecordResponse record = resolveConflictInternal(item.candidateId(), itemCommand);
+                String result = "SUCCEEDED".equals(record.result()) ? "SUCCEEDED" : "FAILED";
+                items.add(new TestDesignConflictBatchResolveItemResponse(
+                        item.candidateId(),
+                        result,
+                        record,
+                        null,
+                        record.errorMessage()
+                ));
+            } catch (BusinessException exception) {
+                items.add(new TestDesignConflictBatchResolveItemResponse(
+                        item == null ? null : item.candidateId(),
+                        "FAILED",
+                        null,
+                        exception.getErrorCode().name(),
+                        exception.getMessage()
+                ));
+            }
+        }
+        long succeeded = items.stream().filter(item -> "SUCCEEDED".equals(item.result())).count();
+        return new TestDesignConflictBatchResolveResponse(
+                ACTION_MANUAL_LINK_EXISTING,
+                items.size(),
+                Math.toIntExact(succeeded),
+                items.size() - Math.toIntExact(succeeded),
+                items
+        );
+    }
+
+    private TestDesignPublishRecordResponse resolveConflictInternal(UUID candidateId, ResolveTestDesignConflictCommand command) {
         if (command == null) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "冲突处理请求不能为空");
         }

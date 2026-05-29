@@ -341,7 +341,9 @@ CONFIRMED -> IGNORED
 | `POST` | `/candidates/{id}/confirm` | `testDesign:review` | 确认候选。 |
 | `POST` | `/candidates/{id}/reject` | `testDesign:review` | 驳回候选。 |
 | `POST` | `/candidates/{id}/ignore` | `testDesign:review` | 忽略候选。 |
+| `POST` | `/candidates/{id}/resolve-conflict` | `testDesign:publish` | 人工确认发布冲突并链接既有 WP3 测试用例。 |
 | `POST` | `/candidates/batch-action` | `testDesign:review` | 批量确认、驳回、忽略。 |
+| `POST` | `/candidates/batch-resolve-conflicts` | `testDesign:publish` | 批量人工处理发布冲突并返回逐项结果。 |
 
 候选查询参数：
 
@@ -367,6 +369,24 @@ CONFIRMED -> IGNORED
   "comment": "本批候选通过评审"
 }
 ```
+
+批量冲突处理请求：
+
+```json
+{
+  "items": [
+    {
+      "candidateId": "40c21d62-0000-4000-8000-000000000001",
+      "version": 3,
+      "caseId": "8b8eb5b4-0000-4000-8000-000000000901"
+    }
+  ],
+  "reason": "人工确认复用既有覆盖",
+  "comment": "已比对需求追踪和步骤"
+}
+```
+
+批量冲突处理响应需要返回 `total/succeededCount/failedCount/items`，每个 item 包含候选 ID、`SUCCEEDED/FAILED`、发布记录或错误摘要。
 
 ### 6.3 发布 API
 

@@ -27,6 +27,7 @@ import {
   TEST_DESIGN_CANDIDATE_STATUSES,
   TEST_DESIGN_COVERAGE_TYPES,
   batchActionTestDesignCandidates,
+  batchResolveTestDesignConflicts,
   cancelTestDesignTask,
   confirmTestDesignCandidate,
   createTestDesignTask,
@@ -1288,72 +1289,69 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
     }
 
     setPublishState({ loading: true });
-    const results = await Promise.all(items.map(async (item) => {
-      if (!item.record.assetCaseId) {
-        return {
-          candidateId: item.candidate.id,
-          result: 'FAILED' as const,
-          errorMessage: '冲突记录缺少目标用例 ID'
-        };
-      }
-      try {
-        const response = await resolveTestDesignConflict(item.candidate.id, {
-          version: item.candidate.version,
-          caseId: item.record.assetCaseId,
-          reason: conflictResolutionDraft.reason,
-          comment: conflictResolutionDraft.comment
-        });
-        return {
-          candidateId: item.candidate.id,
-          result: response.data.result === 'SUCCEEDED' ? 'SUCCEEDED' as const : 'FAILED' as const,
-          record: response.data,
-          traceId: response.trace_id,
-          errorMessage: response.data.result === 'SUCCEEDED' ? undefined : response.data.errorMessage ?? '冲突链接失败'
-        };
-      } catch (error: unknown) {
-        return {
-          candidateId: item.candidate.id,
-          result: 'FAILED' as const,
-          errorMessage: testDesignErrorMessage(error, '冲突链接失败')
-        };
-      }
-    }));
-
-    const succeededIds = new Set(results.filter((item) => item.result === 'SUCCEEDED').map((item) => item.candidateId));
-    const failedItems = results.filter((item) => item.result !== 'SUCCEEDED');
-    setPublishResult((current) => current
-      ? {
-        ...current,
-        records: results.reduce(
-          (records, item) => item.record ? applyConflictResolutionRecord(records, item.record) : records,
-          current.records
-        )
-      }
-      : current);
-    setSelectedConflictCaseIds((current) => {
-      const next = { ...current };
-      succeededIds.forEach((candidateId) => delete next[candidateId]);
-      return next;
-    });
-    if (selectedTaskId) {
-      await refreshCandidatePage(selectedTaskId, { silent: true });
-      void refreshTaskQualitySummary(selectedTaskId, { silent: true });
-      void refreshReviewRecords(selectedTaskId, { silent: true });
-    }
-
-    if (!failedItems.length) {
-      setConflictResolutionDraft(initialConflictResolutionDraft);
-      setPublishState({
-        loading: false,
-        success: `批量冲突处理完成：成功 ${succeededIds.size} / ${items.length}`,
-        traceId: results.find((item) => item.traceId)?.traceId
-      });
+    const requestItems = items.flatMap((item) => item.record.assetCaseId
+      ? [{
+        candidateId: item.candidate.id,
+        version: item.candidate.version,
+        caseId: item.record.assetCaseId
+      }]
+      : []);
+    if (requestItems.length !== items.length) {
+      setPublishState({ loading: false, error: '冲突记录缺少目标用例 ID' });
       return;
     }
-    setPublishState({
-      loading: false,
-      error: `批量冲突处理完成：成功 ${succeededIds.size}，失败 ${failedItems.length}；${failedItems[0]?.errorMessage ?? '请检查失败项'}`
-    });
+
+    try {
+      const response = await batchResolveTestDesignConflicts({
+        items: requestItems,
+        reason: conflictResolutionDraft.reason,
+        comment: conflictResolutionDraft.comment
+      });
+      const results = response.data.items.map((item) => ({
+        candidateId: item.candidateId,
+        result: item.result === 'SUCCEEDED' && item.record?.result === 'SUCCEEDED' ? 'SUCCEEDED' as const : 'FAILED' as const,
+        record: item.record,
+        errorMessage: item.errorMessage ?? item.record?.errorMessage ?? (item.result === 'SUCCEEDED' ? undefined : '冲突链接失败')
+      }));
+
+      const succeededIds = new Set(results.filter((item) => item.result === 'SUCCEEDED').map((item) => item.candidateId));
+      const failedItems = results.filter((item) => item.result !== 'SUCCEEDED');
+      setPublishResult((current) => current
+        ? {
+          ...current,
+          records: results.reduce(
+            (records, item) => item.record ? applyConflictResolutionRecord(records, item.record) : records,
+            current.records
+          )
+        }
+        : current);
+      setSelectedConflictCaseIds((current) => {
+        const next = { ...current };
+        succeededIds.forEach((candidateId) => delete next[candidateId]);
+        return next;
+      });
+      if (selectedTaskId) {
+        await refreshCandidatePage(selectedTaskId, { silent: true });
+        void refreshTaskQualitySummary(selectedTaskId, { silent: true });
+        void refreshReviewRecords(selectedTaskId, { silent: true });
+      }
+
+      if (!failedItems.length) {
+        setConflictResolutionDraft(initialConflictResolutionDraft);
+        setPublishState({
+          loading: false,
+          success: `批量冲突处理完成：成功 ${succeededIds.size} / ${items.length}`,
+          traceId: response.trace_id
+        });
+        return;
+      }
+      setPublishState({
+        loading: false,
+        error: `批量冲突处理完成：成功 ${succeededIds.size}，失败 ${failedItems.length}；${failedItems[0]?.errorMessage ?? '请检查失败项'}`
+      });
+    } catch (error: unknown) {
+      setPublishState({ loading: false, error: testDesignErrorMessage(error, '批量冲突链接失败') });
+    }
   }
 
   async function confirmPendingAction() {

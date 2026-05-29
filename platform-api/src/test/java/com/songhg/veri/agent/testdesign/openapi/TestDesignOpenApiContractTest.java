@@ -50,6 +50,7 @@ class TestDesignOpenApiContractTest {
                 .andExpect(jsonPath("$.paths['/api/v1/test-design/candidates/{id}/reject'].post").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/test-design/candidates/{id}/ignore'].post").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/test-design/candidates/{id}/resolve-conflict'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/test-design/candidates/batch-resolve-conflicts'].post").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/test-design/candidates/batch-action'].post").exists());
     }
 
