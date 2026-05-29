@@ -13,6 +13,10 @@ export interface TestDesignConfirmationSummary {
 
 type ConfirmationCandidate = Pick<TestDesignCandidateView, 'id' | 'title' | 'status' | 'version'>;
 type ConflictCandidate = Pick<TestDesignCandidateView, 'id' | 'title' | 'status' | 'version'>;
+type ConflictResolutionConfirmationItem = {
+  candidate: ConflictCandidate;
+  record: Pick<TestDesignPublishRecordView, 'assetCaseId' | 'errorMessage'>;
+};
 
 export function testDesignBatchActionLabel(action: string) {
   if (action === 'CONFIRM') {
@@ -116,6 +120,28 @@ export function buildTestDesignConflictResolutionConfirmation(
   };
 }
 
+export function buildTestDesignBatchConflictResolutionConfirmation(
+  items: readonly ConflictResolutionConfirmationItem[],
+  reason: string,
+  comment: string
+): TestDesignConfirmationSummary {
+  const targetCaseIds = Array.from(new Set(items.map((item) => item.record.assetCaseId).filter(Boolean)));
+  return {
+    title: '确认批量处理发布冲突',
+    confirmLabel: '确认批量复用',
+    tone: 'warning',
+    details: [
+      { label: '操作', value: '批量人工链接既有用例' },
+      { label: '冲突数', value: items.length },
+      { label: '目标用例', value: targetCaseIds.slice(0, 3).join(', ') || '-' },
+      { label: '处理原因', value: reason.trim() || '人工确认复用既有用例' },
+      { label: '补充说明', value: comment.trim() || '无' }
+    ],
+    warnings: batchConflictResolutionWarnings(items),
+    candidateTitles: candidateTitles(items.map((item) => item.candidate))
+  };
+}
+
 function batchReviewWarnings(action: TestDesignCandidateBatchActionType, nonReviewableCount: number) {
   const warnings: string[] = [];
   if (nonReviewableCount > 0) {
@@ -157,6 +183,19 @@ function publishWarnings(dryRun: boolean, candidateCount: number, failedCount: n
   }
   if (failedCount > 0) {
     warnings.push(`包含 ${failedCount} 个 FAILED 候选，将作为失败重试范围重新发布。`);
+  }
+  return warnings;
+}
+
+function batchConflictResolutionWarnings(items: readonly ConflictResolutionConfirmationItem[]) {
+  const warnings = [
+    '确认后将逐条调用冲突处理接口，成功项会标记为 PUBLISHED，并补建 WP3 需求-用例追踪关系。'
+  ];
+  const conflictSummaryCount = items.filter((item) => Boolean(item.record.errorMessage)).length;
+  if (conflictSummaryCount > 0) {
+    warnings.push(`包含 ${conflictSummaryCount} 条冲突摘要，请确认目标用例均覆盖候选需求。`);
+  } else {
+    warnings.push('请确认所有目标用例均覆盖对应候选需求。');
   }
   return warnings;
 }

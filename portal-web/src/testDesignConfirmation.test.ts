@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildTestDesignBatchEditConfirmation,
+  buildTestDesignBatchConflictResolutionConfirmation,
   buildTestDesignBatchReviewConfirmation,
   buildTestDesignConflictResolutionConfirmation,
   buildTestDesignPublishConfirmation,
@@ -124,6 +125,37 @@ describe('WP5 confirmation summaries', () => {
     expect(summary.warnings).toEqual(expect.arrayContaining([
       '确认后候选会标记为 PUBLISHED，并补建 WP3 需求-用例追踪关系。',
       '冲突摘要：同需求存在高相似测试用例'
+    ]));
+  });
+
+  it('summarizes batch conflict resolution with selected target cases', () => {
+    const summary = buildTestDesignBatchConflictResolutionConfirmation([
+      {
+        candidate: { id: 'cand-1', title: '登录成功', status: 'CONFIRMED', version: 2 },
+        record: { assetCaseId: 'case-1', errorMessage: '同需求存在高相似测试用例' }
+      },
+      {
+        candidate: { id: 'cand-2', title: '登录失败', status: 'FAILED', version: 5 },
+        record: { assetCaseId: 'case-2' }
+      }
+    ], '批量复用既有覆盖', '已人工比对');
+
+    expect(summary).toMatchObject({
+      title: '确认批量处理发布冲突',
+      confirmLabel: '确认批量复用',
+      tone: 'warning',
+      candidateTitles: ['登录成功', '登录失败']
+    });
+    expect(summary.details).toEqual(expect.arrayContaining([
+      { label: '操作', value: '批量人工链接既有用例' },
+      { label: '冲突数', value: 2 },
+      { label: '目标用例', value: 'case-1, case-2' },
+      { label: '处理原因', value: '批量复用既有覆盖' },
+      { label: '补充说明', value: '已人工比对' }
+    ]));
+    expect(summary.warnings).toEqual(expect.arrayContaining([
+      '确认后将逐条调用冲突处理接口，成功项会标记为 PUBLISHED，并补建 WP3 需求-用例追踪关系。',
+      '包含 1 条冲突摘要，请确认目标用例均覆盖候选需求。'
     ]));
   });
 });
