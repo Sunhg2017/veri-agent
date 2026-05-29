@@ -8,6 +8,7 @@ import com.songhg.veri.agent.modelaccess.application.view.ProviderCallResult;
 import com.songhg.veri.agent.modelaccess.domain.ModelProviderConfig;
 import com.songhg.veri.agent.modelaccess.domain.ProviderType;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -20,6 +21,7 @@ import org.springframework.util.StringUtils;
 public class LocalEchoModelProviderClient implements ModelProviderClient {
 
     private static final String WP4_PARSE_MARKER = "WP4_REQUIREMENT_EXTRACTION_V1";
+    private static final String WP5_TEST_DESIGN_MARKER = "WP5_TEST_DESIGN_GENERATION_V1";
     private static final Pattern MARKDOWN_HEADING = Pattern.compile("^#{1,6}\\s+(.+)$");
     private static final Pattern PRIORITY_LINE = Pattern.compile("(?i)^(priority|优先级)\\s*[:：]\\s*(.+)$");
     private static final Pattern ACCEPTANCE_START = Pattern.compile("(?i)^(acceptance\\s*criteria|验收标准)\\s*[:：]?\\s*(.*)$");
@@ -43,6 +45,12 @@ public class LocalEchoModelProviderClient implements ModelProviderClient {
             int outputTokens = estimateTokens(content);
             return new ProviderCallResult(content, inputTokens, outputTokens);
         }
+        if (containsWp5TestDesignMarker(request)) {
+            String content = wp5TestDesignResponse(request.messageText());
+            int inputTokens = estimateTokens(request.prompt()) + estimateTokens(request.messageText());
+            int outputTokens = estimateTokens(content);
+            return new ProviderCallResult(content, inputTokens, outputTokens);
+        }
         String content = "local model response: " + firstNonBlank(request.messageText(), request.prompt());
         int inputTokens = estimateTokens(request.prompt()) + estimateTokens(request.messageText());
         int outputTokens = estimateTokens(content);
@@ -51,6 +59,11 @@ public class LocalEchoModelProviderClient implements ModelProviderClient {
 
     private boolean containsWp4ParseMarker(ProviderCallRequest request) {
         return contains(request.prompt(), WP4_PARSE_MARKER) || contains(request.messageText(), WP4_PARSE_MARKER);
+    }
+
+    private boolean containsWp5TestDesignMarker(ProviderCallRequest request) {
+        return contains(request.prompt(), WP5_TEST_DESIGN_MARKER)
+                || contains(request.messageText(), WP5_TEST_DESIGN_MARKER);
     }
 
     private String wp4RequirementParseResponse(String messageText) {
@@ -75,6 +88,86 @@ public class LocalEchoModelProviderClient implements ModelProviderClient {
         }
         String trimmed = messageText.trim();
         return trimmed.startsWith("user: ") ? trimmed.substring("user: ".length()).trim() : trimmed;
+    }
+
+    private String wp5TestDesignResponse(String messageText) {
+        try {
+            JsonNode payload = objectMapper.readTree(stripRolePrefix(messageText));
+            List<String> coverageTypes = stringList(payload.path("coverageTypes"));
+            if (coverageTypes.isEmpty()) {
+                coverageTypes = List.of("SMOKE", "FUNCTIONAL", "EXCEPTION");
+            }
+            List<Map<String, Object>> cases = new ArrayList<>();
+            JsonNode requirements = payload.path("requirements");
+            if (requirements.isArray()) {
+                for (JsonNode requirement : requirements) {
+                    for (String coverageType : coverageTypes) {
+                        cases.add(wp5GeneratedCase(requirement, coverageType));
+                    }
+                }
+            }
+            return objectMapper.writeValueAsString(Map.of(
+                    "schemaVersion", "wp5-local-echo-v1",
+                    "cases", cases
+            ));
+        } catch (Exception exception) {
+            try {
+                return objectMapper.writeValueAsString(Map.of("schemaVersion", "wp5-local-echo-v1", "cases", List.of()));
+            } catch (Exception ignored) {
+                return "{\"schemaVersion\":\"wp5-local-echo-v1\",\"cases\":[]}";
+            }
+        }
+    }
+
+    private Map<String, Object> wp5GeneratedCase(JsonNode requirement, String coverageType) {
+        String requirementRef = firstText(text(requirement, "id"), text(requirement, "code"), text(requirement, "title"));
+        String title = firstText(text(requirement, "title"), "未命名需求");
+        String priority = normalizePriority(text(requirement, "priority"));
+        String expected = firstText(text(requirement, "acceptanceCriteria"), "需求验收标准被满足");
+        Map<String, Object> item = new LinkedHashMap<>();
+        item.put("title", wp5CaseTitle(title, coverageType));
+        item.put("description", "由 WP2 本地模型根据 WP5 上下文生成的候选用例");
+        item.put("coverageType", normalizeCoverageType(coverageType));
+        item.put("priority", priority);
+        item.put("preconditions", "需求已确认，测试账号和数据已准备");
+        item.put("steps", wp5Steps(title, coverageType, expected));
+        item.put("expectedResult", expected);
+        item.put("requirementRef", requirementRef);
+        item.put("tags", List.of("wp5", "ai-generated", normalizeCoverageType(coverageType).toLowerCase(Locale.ROOT)));
+        item.put("rationale", "覆盖 " + title + " 的 " + normalizeCoverageType(coverageType) + " 场景");
+        item.put("riskNotes", "需按项目环境补齐真实测试数据");
+        item.put("confidence", 0.88D);
+        return item;
+    }
+
+    private String wp5CaseTitle(String title, String coverageType) {
+        String generatedTitle = switch (normalizeCoverageType(coverageType)) {
+            case "SMOKE" -> "模型验证" + title + "核心冒烟流程";
+            case "EXCEPTION" -> "模型验证" + title + "异常提示与阻断";
+            case "BOUNDARY" -> "模型验证" + title + "边界条件";
+            case "PERMISSION" -> "模型验证" + title + "权限控制";
+            case "REGRESSION" -> "模型回归验证" + title;
+            default -> "模型验证" + title + "主流程";
+        };
+        return generatedTitle.length() <= 160 ? generatedTitle : generatedTitle.substring(0, 157) + "...";
+    }
+
+    private List<Map<String, Object>> wp5Steps(String title, String coverageType, String expected) {
+        String normalizedCoverage = normalizeCoverageType(coverageType);
+        return List.of(
+                Map.of(
+                        "action", "准备「" + title + "」所需账号、权限和测试数据",
+                        "expectedResult", "前置数据满足 " + normalizedCoverage + " 场景执行条件"
+                ),
+                Map.of(
+                        "action", "执行「" + title + "」的" + normalizedCoverage + "路径",
+                        "expectedResult", "系统完成对应业务处理并返回可核验反馈"
+                ),
+                Map.of(
+                        "action", "核对结果、状态变化和审计记录",
+                        "expectedResult", expected
+                )
+        );
     }
 
     private List<Map<String, Object>> parseContent(String content, String fallbackTitle) {
@@ -305,6 +398,39 @@ public class LocalEchoModelProviderClient implements ModelProviderClient {
             case "P3", "MINOR", "LOW" -> "LOW";
             default -> "MEDIUM";
         };
+    }
+
+    private String normalizeCoverageType(String rawValue) {
+        if (!StringUtils.hasText(rawValue)) {
+            return "FUNCTIONAL";
+        }
+        String normalized = rawValue.trim().toUpperCase(Locale.ROOT);
+        return switch (normalized) {
+            case "SMOKE", "FUNCTIONAL", "EXCEPTION", "BOUNDARY", "PERMISSION", "REGRESSION" -> normalized;
+            default -> "FUNCTIONAL";
+        };
+    }
+
+    private List<String> stringList(JsonNode node) {
+        if (node == null || node.isMissingNode() || node.isNull()) {
+            return List.of();
+        }
+        if (node.isArray()) {
+            List<String> values = new ArrayList<>();
+            node.forEach(item -> {
+                if (StringUtils.hasText(item.asText())) {
+                    values.add(item.asText().trim());
+                }
+            });
+            return values;
+        }
+        if (node.isTextual()) {
+            return List.of(node.asText().replace('，', ',').split(",")).stream()
+                    .map(String::trim)
+                    .filter(StringUtils::hasText)
+                    .toList();
+        }
+        return List.of();
     }
 
     private String cleanListPrefix(String line) {

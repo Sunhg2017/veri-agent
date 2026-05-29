@@ -222,3 +222,13 @@ select
     case when count(*) = 0 then 'PASS' else 'FAIL' end as status,
     coalesce(string_agg(code, ', ' order by code), 'WP5 permissions are seeded') as details
 from missing;
+
+select
+    'wp5.model_prompt_seeded' as check_name,
+    case when count(*) = 1 then 'PASS' else 'FAIL' end as status,
+    coalesce(max(prompt_key || ':v' || version || ':' || status), 'WP5 model prompt missing') as details
+from ma_prompt_template
+where prompt_key = 'wp5-test-design-v1'
+  and version = 1
+  and status = 'ACTIVE'
+  and approval_status = 'NOT_REQUIRED';

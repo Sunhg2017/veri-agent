@@ -18,6 +18,8 @@ public record TestDesignProperties(
         @DefaultValue("wp5-test-design-v1") String promptKey,
         /** 默认 Prompt 模板版本 */
         @DefaultValue("1.0.0") String promptVersion,
+        /** generationMode=MODEL 时是否在模型失败后等价切换为 MODEL_WITH_FALLBACK */
+        @DefaultValue("false") boolean modelFallbackEnabled,
         /** 单个任务允许覆盖的最大需求数 */
         @DefaultValue("20") int maxRequirementsPerTask,
         /** 每个需求允许生成的最大候选数量 */

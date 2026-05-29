@@ -108,6 +108,7 @@ class TestDesignEventRecoveryServiceTest {
                 "RULE_TEMPLATE",
                 "wp5-test-design-v1",
                 "1.0.0",
+                false,
                 20,
                 3,
                 100,

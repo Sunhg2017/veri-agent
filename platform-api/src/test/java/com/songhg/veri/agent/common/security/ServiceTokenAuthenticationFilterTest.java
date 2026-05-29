@@ -113,6 +113,7 @@ class ServiceTokenAuthenticationFilterTest {
                 "RULE_TEMPLATE",
                 "wp5",
                 "1.0",
+                false,
                 20,
                 3,
                 100,

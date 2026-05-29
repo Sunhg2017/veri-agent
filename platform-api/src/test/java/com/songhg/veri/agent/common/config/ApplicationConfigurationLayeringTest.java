@@ -7,6 +7,7 @@ import com.songhg.veri.agent.auth.application.AuthProperties;
 import com.songhg.veri.agent.common.secret.SecretProviderProperties;
 import com.songhg.veri.agent.document.config.DocumentInputProperties;
 import com.songhg.veri.agent.modelaccess.config.ModelAccessProperties;
+import com.songhg.veri.agent.testdesign.config.TestDesignProperties;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -29,6 +30,9 @@ class ApplicationConfigurationLayeringTest {
     @Autowired
     private DocumentInputProperties documentInputProperties;
 
+    @Autowired
+    private TestDesignProperties testDesignProperties;
+
     @Test
     void moduleConfigurationImportsBindDefaultProperties() {
         assertThat(authProperties.accessTokenTtlMinutes()).isEqualTo(30);
@@ -43,5 +47,8 @@ class ApplicationConfigurationLayeringTest {
         assertThat(documentInputProperties.serviceToken()).isEqualTo("local-document-input-token");
         assertThat(documentInputProperties.webhookSecrets()).isEmpty();
         assertThat(documentInputProperties.webhookMaxPayloadBytes()).isEqualTo(262144);
+
+        assertThat(testDesignProperties.generationMode()).isEqualTo("RULE_TEMPLATE");
+        assertThat(testDesignProperties.modelFallbackEnabled()).isFalse();
     }
 }

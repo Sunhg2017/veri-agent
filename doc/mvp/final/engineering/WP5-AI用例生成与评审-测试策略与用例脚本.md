@@ -60,6 +60,8 @@
 | WP5-FUNC-004 | P0 | 模型输出合法 JSON | 候选落库，包含标题、步骤、预期、优先级和来源依据。 |
 | WP5-FUNC-005 | P0 | 模型输出非法 JSON | 任务失败或 fallback，错误码为模型输出非法，不产生脏候选。 |
 | WP5-FUNC-006 | P0 | WP2 敏感内容阻断 | 任务展示阻断摘要，保存 traceId，不绕过 WP2。 |
+| WP5-FUNC-006A | P0 | `generationMode=MODEL` 调用 WP2 本地模型 | 任务和候选带 `modelInvocationId/provider/model`，任务诊断只展示白名单观测字段。 |
+| WP5-FUNC-006B | P0 | `generationMode=MODEL_WITH_FALLBACK` 且 Prompt 不可用 | 任务成功降级模板，保留脱敏降级提示，不写入原始模型响应。 |
 | WP5-FUNC-007 | P0 | 编辑候选标题、步骤和预期 | 候选版本递增，评审记录保存 before/after/diff。 |
 | WP5-FUNC-008 | P0 | 确认候选 | 状态变为 `CONFIRMED`，确认人和时间可查。 |
 | WP5-FUNC-009 | P0 | 驳回候选未填原因 | 返回字段校验错误。 |

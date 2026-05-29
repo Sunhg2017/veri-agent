@@ -13,6 +13,11 @@ import com.songhg.veri.agent.common.api.PageQuery;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
 import com.songhg.veri.agent.common.util.CsvEncoder;
+import com.songhg.veri.agent.modelaccess.application.ModelInvocationService;
+import com.songhg.veri.agent.modelaccess.application.command.ModelInvocationCommand;
+import com.songhg.veri.agent.modelaccess.application.view.ModelInvocationResult;
+import com.songhg.veri.agent.modelaccess.domain.ChatMessage;
+import com.songhg.veri.agent.modelaccess.security.ServicePrincipal;
 import com.songhg.veri.agent.testdesign.application.command.CreateTestDesignTaskCommand;
 import com.songhg.veri.agent.testdesign.application.command.ResolveTestDesignConflictCommand;
 import com.songhg.veri.agent.testdesign.application.command.TestDesignCandidateActionCommand;
@@ -76,6 +81,13 @@ public class TestDesignService {
     private static final Logger log = LoggerFactory.getLogger(TestDesignService.class);
     private static final List<String> DEFAULT_COVERAGE_TYPES = List.of("SMOKE", "FUNCTIONAL", "EXCEPTION");
     private static final Set<String> CANDIDATE_PRIORITIES = Set.of("CRITICAL", "HIGH", "MEDIUM", "LOW");
+    private static final String GENERATION_MODE_RULE_TEMPLATE = "RULE_TEMPLATE";
+    private static final String GENERATION_MODE_MODEL = "MODEL";
+    private static final String GENERATION_MODE_MODEL_WITH_FALLBACK = "MODEL_WITH_FALLBACK";
+    private static final String WP5_MODEL_SCHEMA_MARKER = "WP5_TEST_DESIGN_GENERATION_V1";
+    private static final String MODEL_CALLER_SERVICE = "wp5-test-design";
+    private static final String MODEL_CAPABILITY_JSON = "JSON";
+    private static final String DEFAULT_MODEL_SENSITIVITY_LEVEL = "INTERNAL";
     private static final String TEST_CASE_SOURCE_AI_GENERATED = "AI_GENERATED";
     private static final String TEST_CASE_SOURCE_REF_PREFIX = "wp5:";
     private static final String ACTION_RETRY_LINK_EXISTING = "RETRY_LINK_EXISTING";
@@ -114,6 +126,8 @@ public class TestDesignService {
     private final TestDesignActorResolver actorResolver;
     private final TestDesignResponseMapper responseMapper;
     private final TestDesignCandidateQualityGate qualityGate;
+    private final ModelInvocationService modelInvocationService;
+    private final TestDesignModelOutputParser modelOutputParser;
     private final TestDesignProperties properties;
     private final ObjectMapper objectMapper;
 
@@ -125,6 +139,8 @@ public class TestDesignService {
             TestDesignActorResolver actorResolver,
             TestDesignResponseMapper responseMapper,
             TestDesignCandidateQualityGate qualityGate,
+            ModelInvocationService modelInvocationService,
+            TestDesignModelOutputParser modelOutputParser,
             TestDesignProperties properties,
             ObjectMapper objectMapper
     ) {
@@ -135,6 +151,8 @@ public class TestDesignService {
         this.actorResolver = actorResolver;
         this.responseMapper = responseMapper;
         this.qualityGate = qualityGate;
+        this.modelInvocationService = modelInvocationService;
+        this.modelOutputParser = modelOutputParser;
         this.properties = properties;
         this.objectMapper = objectMapper;
     }
@@ -302,9 +320,8 @@ public class TestDesignService {
     /**
      * Retries a failed generation task without deleting reviewed candidates.
      *
-     * <p>The current WP5 slice is synchronous and template-backed, so retry fills only missing candidate duplicate keys.
-     * This keeps the contract compatible with the later WP2 async generator while protecting manual review work from
-     * being overwritten.
+     * <p>Retry reuses the configured generation backend and fills only missing candidate duplicate keys. This keeps
+     * replay safe for async/model-backed generation while protecting manual review work from being overwritten.
      */
     @Transactional
     public TestDesignTaskDetailResponse retryTask(UUID id) {
@@ -332,30 +349,41 @@ public class TestDesignService {
                 .map(assetService::getRequirement)
                 .peek(requirement -> ensureSameProject(requirement, task.projectId()))
                 .toList();
-        Instant now = Instant.now();
-        List<TestDesignCandidate> createdCandidates = new ArrayList<>();
-        for (RequirementResponse requirement : requirements) {
-            List<TestDesignCandidate> generatedCandidates = generateCandidates(running, requirement, coverageTypes, null, now);
-            qualityGate.validateGeneratedBatch(generatedCandidates);
-            for (TestDesignCandidate candidate : generatedCandidates) {
+        try {
+            GenerationAttempt attempt = generateCandidatesUsingConfiguredMode(running, requirements, coverageTypes, Instant.now());
+            List<TestDesignCandidate> createdCandidates = new ArrayList<>();
+            qualityGate.validateGeneratedBatch(attempt.candidates());
+            for (TestDesignCandidate candidate : attempt.candidates()) {
                 if (existingDuplicateKeys.add(candidate.duplicateKey())) {
                     repository.saveCandidate(candidate);
                     createdCandidates.add(candidate);
                 }
             }
-        }
 
-        List<TestDesignCandidate> mergedCandidates = new ArrayList<>(existingCandidates);
-        mergedCandidates.addAll(createdCandidates);
-        TestDesignTask finished = withTaskCounts(withTaskStatus(running, TestDesignTaskStatus.SUCCEEDED, null), mergedCandidates);
-        repository.saveTask(finished);
-        writeAudit("RETRY", "TEST_DESIGN_TASK", id, task.projectId(), Map.of(
-                "taskId", id,
-                "createdCandidateCount", createdCandidates.size(),
-                "totalCandidateCount", mergedCandidates.size(),
-                "coverageTypes", coverageTypes
-        ));
-        return task(id);
+            List<TestDesignCandidate> mergedCandidates = new ArrayList<>(existingCandidates);
+            mergedCandidates.addAll(createdCandidates);
+            TestDesignTask finished = withTaskCounts(
+                    withTaskStatus(attempt.task(), TestDesignTaskStatus.SUCCEEDED, attempt.warningMessage()),
+                    mergedCandidates
+            );
+            repository.saveTask(finished);
+            writeAudit("RETRY", "TEST_DESIGN_TASK", id, task.projectId(), Map.of(
+                    "taskId", id,
+                    "createdCandidateCount", createdCandidates.size(),
+                    "totalCandidateCount", mergedCandidates.size(),
+                    "coverageTypes", coverageTypes
+            ));
+            return task(id);
+        } catch (RuntimeException exception) {
+            TestDesignTask failed = withTaskStatus(running, TestDesignTaskStatus.FAILED, safeErrorMessage(exception));
+            repository.saveTask(failed);
+            writeAudit("RETRY", "TEST_DESIGN_TASK", id, task.projectId(), Map.of(
+                    "taskId", id,
+                    "result", "FAILED",
+                    "message", safeErrorMessage(exception)
+            ));
+            return task(id);
+        }
     }
 
     /**
@@ -843,21 +871,17 @@ public class TestDesignService {
                     .peek(requirement -> ensureSameProject(requirement, running.projectId()))
                     .toList();
             List<String> coverageTypes = normalizedCoverageTypes(csvValues(running.coverageTypes()));
-            Instant now = Instant.now();
-            List<TestDesignCandidate> candidates = new ArrayList<>();
-            for (RequirementResponse requirement : requirements) {
-                candidates.addAll(generateCandidates(running, requirement, coverageTypes, null, now));
-            }
-            qualityGate.validateGeneratedBatch(candidates);
-            candidates.forEach(repository::saveCandidate);
+            GenerationAttempt attempt = generateCandidatesUsingConfiguredMode(running, requirements, coverageTypes, Instant.now());
+            qualityGate.validateGeneratedBatch(attempt.candidates());
+            attempt.candidates().forEach(repository::saveCandidate);
             TestDesignTask succeeded = withTaskCounts(
-                    withTaskStatus(running, TestDesignTaskStatus.SUCCEEDED, null),
-                    candidates
+                    withTaskStatus(attempt.task(), TestDesignTaskStatus.SUCCEEDED, attempt.warningMessage()),
+                    attempt.candidates()
             );
             repository.saveTask(succeeded);
             writeAudit("GENERATE", "TEST_DESIGN_TASK", id, running.projectId(), Map.of(
                     "taskId", id,
-                    "candidateCount", candidates.size(),
+                    "candidateCount", attempt.candidates().size(),
                     "coverageTypes", coverageTypes
             ));
             return task(id);
@@ -958,6 +982,299 @@ public class TestDesignService {
     }
 
     private record TestDesignGenerationContext(String inputDigest, String contextSummaryJson) {
+    }
+
+    /**
+     * Selects the generation backend from configuration while keeping the review and publish contracts unchanged.
+     *
+     * <p>`MODEL` is strict and fails the task when WP2 rejects or returns invalid output. `MODEL_WITH_FALLBACK` records
+     * the model failure as a task warning and then uses the deterministic rule template so reviewers still get
+     * auditable candidates without mistaking them for pure model output.
+     */
+    private GenerationAttempt generateCandidatesUsingConfiguredMode(
+            TestDesignTask task,
+            List<RequirementResponse> requirements,
+            List<String> coverageTypes,
+            Instant now
+    ) {
+        String generationMode = normalizedGenerationMode();
+        if (GENERATION_MODE_RULE_TEMPLATE.equals(generationMode)) {
+            return templateGenerationAttempt(task, requirements, coverageTypes, now, null);
+        }
+        if (!GENERATION_MODE_MODEL.equals(generationMode) && !GENERATION_MODE_MODEL_WITH_FALLBACK.equals(generationMode)) {
+            throw new BusinessException(ErrorCode.INVALID_STATE, "不支持的 WP5 生成模式: " + properties.generationMode());
+        }
+        try {
+            return modelGenerationAttempt(task, requirements, coverageTypes, now);
+        } catch (TestDesignModelGenerationException exception) {
+            if (!GENERATION_MODE_MODEL_WITH_FALLBACK.equals(generationMode)) {
+                throw exception;
+            }
+            TestDesignTask taskWithObservation = exception.response() == null
+                    ? task
+                    : withModelInvocation(task, exception.response());
+            return templateGenerationAttempt(taskWithObservation, requirements, coverageTypes, now,
+                    modelFallbackWarning(exception));
+        } catch (RuntimeException exception) {
+            if (!GENERATION_MODE_MODEL_WITH_FALLBACK.equals(generationMode)) {
+                throw exception;
+            }
+            return templateGenerationAttempt(task, requirements, coverageTypes, now, modelFallbackWarning(exception));
+        }
+    }
+
+    private GenerationAttempt templateGenerationAttempt(
+            TestDesignTask task,
+            List<RequirementResponse> requirements,
+            List<String> coverageTypes,
+            Instant now,
+            String warningMessage
+    ) {
+        List<TestDesignCandidate> candidates = new ArrayList<>();
+        for (RequirementResponse requirement : requirements) {
+            candidates.addAll(generateCandidates(task, requirement, coverageTypes, null, now));
+        }
+        return new GenerationAttempt(task, candidates, warningMessage);
+    }
+
+    private GenerationAttempt modelGenerationAttempt(
+            TestDesignTask task,
+            List<RequirementResponse> requirements,
+            List<String> coverageTypes,
+            Instant now
+    ) {
+        ModelInvocationResult response = null;
+        try {
+            response = modelInvocationService.invoke(new ModelInvocationCommand(
+                    task.projectId(),
+                    null,
+                    null,
+                    task.promptKey(),
+                    Map.of("schemaMarker", WP5_MODEL_SCHEMA_MARKER),
+                    List.of(new ChatMessage("user", modelGenerationPayload(task, requirements, coverageTypes))),
+                    null,
+                    null,
+                    false,
+                    DEFAULT_MODEL_SENSITIVITY_LEVEL,
+                    MODEL_CAPABILITY_JSON
+            ), new ServicePrincipal(MODEL_CALLER_SERVICE, task.requestedBy()));
+            TestDesignTask taskWithInvocation = withModelInvocation(task, response);
+            List<TestDesignModelOutputParser.ModelGeneratedCase> generatedCases =
+                    modelOutputParser.parse(response.content());
+            List<TestDesignCandidate> candidates = candidatesFromModelOutput(
+                    taskWithInvocation,
+                    requirements,
+                    coverageTypes,
+                    generatedCases,
+                    now
+            );
+            return new GenerationAttempt(taskWithInvocation, candidates, null);
+        } catch (RuntimeException exception) {
+            throw new TestDesignModelGenerationException(response, exception);
+        }
+    }
+
+    private String modelGenerationPayload(
+            TestDesignTask task,
+            List<RequirementResponse> requirements,
+            List<String> coverageTypes
+    ) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("schemaMarker", WP5_MODEL_SCHEMA_MARKER);
+        payload.put("taskId", task.id().toString());
+        payload.put("projectId", task.projectId());
+        payload.put("coverageTypes", coverageTypes);
+        payload.put("caseCountPerRequirement", Math.min(coverageTypes.size(), maxCasesPerRequirement()));
+        payload.put("requirements", requirements.stream().map(this::requirementModelPayload).toList());
+        payload.put("contextSummary", contextSummaryPayload(task.contextSummaryJson()));
+        try {
+            return objectMapper.writeValueAsString(payload);
+        } catch (JsonProcessingException exception) {
+            throw new IllegalStateException("WP5 model generation payload serialization failed", exception);
+        }
+    }
+
+    private Map<String, Object> requirementModelPayload(RequirementResponse requirement) {
+        Map<String, Object> item = new LinkedHashMap<>();
+        item.put("id", requirement.id().toString());
+        item.put("code", redactedPreview(requirement.code(), 80));
+        item.put("title", redactedPreview(requirement.title(), 160));
+        item.put("priority", requirement.priority());
+        item.put("description", redactedPreview(requirement.description(), 500));
+        item.put("acceptanceCriteria", redactedPreview(requirement.acceptanceCriteria(), 500));
+        item.put("tags", summaryTags(requirement.tags()));
+        return item;
+    }
+
+    private Object contextSummaryPayload(String contextSummaryJson) {
+        if (!StringUtils.hasText(contextSummaryJson)) {
+            return Map.of();
+        }
+        try {
+            return objectMapper.readTree(contextSummaryJson);
+        } catch (JsonProcessingException exception) {
+            return Map.of("unavailable", true);
+        }
+    }
+
+    private List<TestDesignCandidate> candidatesFromModelOutput(
+            TestDesignTask task,
+            List<RequirementResponse> requirements,
+            List<String> coverageTypes,
+            List<TestDesignModelOutputParser.ModelGeneratedCase> generatedCases,
+            Instant now
+    ) {
+        Map<String, RequirementResponse> requirementIndex = requirementReferenceIndex(requirements);
+        Map<UUID, Integer> countsByRequirement = new LinkedHashMap<>();
+        List<TestDesignCandidate> candidates = new ArrayList<>();
+        for (TestDesignModelOutputParser.ModelGeneratedCase generatedCase : generatedCases) {
+            if (!coverageTypes.contains(generatedCase.coverageType())) {
+                continue;
+            }
+            RequirementResponse requirement = resolveGeneratedRequirement(generatedCase, requirements, requirementIndex);
+            int existingCount = countsByRequirement.getOrDefault(requirement.id(), 0);
+            if (existingCount >= maxCasesPerRequirement()) {
+                continue;
+            }
+            candidates.add(candidateFromModelCase(task, requirement, generatedCase, now));
+            countsByRequirement.put(requirement.id(), existingCount + 1);
+        }
+        if (candidates.isEmpty()) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "模型输出未匹配当前任务需求和覆盖类型");
+        }
+        return candidates;
+    }
+
+    private Map<String, RequirementResponse> requirementReferenceIndex(List<RequirementResponse> requirements) {
+        Map<String, RequirementResponse> index = new LinkedHashMap<>();
+        for (RequirementResponse requirement : requirements) {
+            putRequirementReference(index, requirement.id().toString(), requirement);
+            putRequirementReference(index, requirement.code(), requirement);
+            putRequirementReference(index, requirement.title(), requirement);
+        }
+        return index;
+    }
+
+    private static void putRequirementReference(
+            Map<String, RequirementResponse> index,
+            String reference,
+            RequirementResponse requirement
+    ) {
+        if (StringUtils.hasText(reference)) {
+            index.put(reference.trim().toLowerCase(Locale.ROOT), requirement);
+        }
+    }
+
+    private RequirementResponse resolveGeneratedRequirement(
+            TestDesignModelOutputParser.ModelGeneratedCase generatedCase,
+            List<RequirementResponse> requirements,
+            Map<String, RequirementResponse> requirementIndex
+    ) {
+        if (StringUtils.hasText(generatedCase.requirementRef())) {
+            RequirementResponse matched = requirementIndex.get(generatedCase.requirementRef().trim().toLowerCase(Locale.ROOT));
+            if (matched != null) {
+                return matched;
+            }
+        }
+        if (requirements.size() == 1) {
+            return requirements.getFirst();
+        }
+        throw new BusinessException(ErrorCode.VALIDATION_ERROR, "模型输出缺少可解析的 requirementRef: " + generatedCase.title());
+    }
+
+    private TestDesignCandidate candidateFromModelCase(
+            TestDesignTask task,
+            RequirementResponse requirement,
+            TestDesignModelOutputParser.ModelGeneratedCase generatedCase,
+            Instant now
+    ) {
+        String title = redactSensitiveText(generatedCase.title());
+        String coverageType = normalizeCoverageType(generatedCase.coverageType(), null);
+        List<TestDesignStepResponse> steps = generatedCase.steps().stream()
+                .map(step -> step(step.stepOrder(), redactSensitiveText(step.action()),
+                        redactSensitiveText(step.expectedResult())))
+                .toList();
+        return new TestDesignCandidate(
+                UUID.randomUUID(),
+                task.id(),
+                task.projectId(),
+                requirement.id(),
+                firstUuid(generatedCase.apiRefs()),
+                title,
+                modelCaseDescription(generatedCase),
+                coverageType,
+                normalizePriority(generatedCase.priority(), priorityFor(requirement.priority(), coverageType)),
+                TestDesignCandidateStatus.GENERATED.name(),
+                redactSensitiveText(generatedCase.preconditions()),
+                stepsJson(steps),
+                redactSensitiveText(generatedCase.expectedResult()),
+                tagsText(modelCaseTags(generatedCase)),
+                duplicateKey(requirement.id(), coverageType, title),
+                generatedCase.confidence(),
+                task.promptKey(),
+                task.promptVersion(),
+                task.modelInvocationId(),
+                task.modelProviderName(),
+                task.modelName(),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                now,
+                now
+        );
+    }
+
+    private static UUID firstUuid(List<String> refs) {
+        if (refs == null) {
+            return null;
+        }
+        for (String ref : refs) {
+            if (!StringUtils.hasText(ref)) {
+                continue;
+            }
+            try {
+                return UUID.fromString(ref.trim());
+            } catch (IllegalArgumentException ignored) {
+                // Model references may be external API codes; WP5 only stores UUID-backed API links in this slice.
+            }
+        }
+        return null;
+    }
+
+    private static String modelCaseDescription(TestDesignModelOutputParser.ModelGeneratedCase generatedCase) {
+        List<String> parts = new ArrayList<>();
+        addDescriptionPart(parts, generatedCase.description());
+        addDescriptionPart(parts, generatedCase.rationale() == null ? null : "依据: " + generatedCase.rationale());
+        addDescriptionPart(parts, generatedCase.riskNotes() == null ? null : "风险: " + generatedCase.riskNotes());
+        String description = String.join("\n", parts);
+        if (!StringUtils.hasText(description)) {
+            return null;
+        }
+        String redacted = redactSensitiveText(description);
+        return redacted.length() <= 2000 ? redacted : redacted.substring(0, 1997) + "...";
+    }
+
+    private static void addDescriptionPart(List<String> parts, String value) {
+        if (StringUtils.hasText(value)) {
+            parts.add(value.trim());
+        }
+    }
+
+    private static List<String> modelCaseTags(TestDesignModelOutputParser.ModelGeneratedCase generatedCase) {
+        List<String> tags = new ArrayList<>();
+        if (generatedCase.tags() != null) {
+            tags.addAll(generatedCase.tags());
+        }
+        tags.add("wp5");
+        tags.add("ai-generated");
+        tags.add("model");
+        tags.add(generatedCase.coverageType().toLowerCase(Locale.ROOT));
+        return tags;
     }
 
     private List<TestDesignCandidate> generateCandidates(
@@ -1490,6 +1807,16 @@ public class TestDesignService {
         );
     }
 
+    private static TestDesignTask withModelInvocation(TestDesignTask task, ModelInvocationResult response) {
+        return new TestDesignTask(
+                task.id(), task.projectId(), task.title(), task.status(), task.requirementIds(), task.coverageTypes(),
+                task.promptKey(), task.promptVersion(), response.invocationId(), response.providerName(),
+                response.modelName(), task.totalRequirements(), task.generatedCount(), task.confirmedCount(),
+                task.publishedCount(), task.errorMessage(), task.requestedBy(), task.idempotencyKey(),
+                task.requestDigest(), task.inputDigest(), task.contextSummaryJson(), task.createdAt(), Instant.now()
+        );
+    }
+
     private List<TestDesignCandidate> selectPublishCandidates(TestDesignTask task, List<UUID> candidateIds) {
         List<TestDesignCandidate> candidates = repository.candidatesByTask(task.id());
         if (candidateIds == null || candidateIds.isEmpty()) {
@@ -1521,6 +1848,13 @@ public class TestDesignService {
 
     private Map<UUID, TestDesignCandidate> candidateById(List<TestDesignCandidate> candidates) {
         return candidates.stream().collect(Collectors.toMap(TestDesignCandidate::id, Function.identity()));
+    }
+
+    private record GenerationAttempt(
+            TestDesignTask task,
+            List<TestDesignCandidate> candidates,
+            String warningMessage
+    ) {
     }
 
     private record TestDesignCandidateBatchTarget(UUID id, Long version) {
@@ -2856,8 +3190,27 @@ public class TestDesignService {
         return properties.asyncGenerationEnabled() ? TestDesignTaskStatus.QUEUED : TestDesignTaskStatus.RUNNING;
     }
 
+    private String normalizedGenerationMode() {
+        if (!StringUtils.hasText(properties.generationMode())) {
+            return GENERATION_MODE_RULE_TEMPLATE;
+        }
+        String normalized = properties.generationMode().trim().toUpperCase(Locale.ROOT).replace('-', '_');
+        if ("MODEL_FALLBACK".equals(normalized)) {
+            return GENERATION_MODE_MODEL_WITH_FALLBACK;
+        }
+        if (GENERATION_MODE_MODEL.equals(normalized) && properties.modelFallbackEnabled()) {
+            return GENERATION_MODE_MODEL_WITH_FALLBACK;
+        }
+        return normalized;
+    }
+
     private static String trimToNull(String value) {
         return StringUtils.hasText(value) ? value.trim() : null;
+    }
+
+    private static String modelFallbackWarning(RuntimeException exception) {
+        String message = "模型生成失败，已降级规则模板: " + safeErrorMessage(exception);
+        return message.length() <= 500 ? message : message.substring(0, 497) + "...";
     }
 
     private static String safeErrorMessage(RuntimeException exception) {
@@ -2901,5 +3254,19 @@ public class TestDesignService {
 
     private void writeAudit(String action, String resourceType, UUID resourceId, String projectId, Map<String, Object> after) {
         contextClient.writeAuditEvent(action, resourceType, resourceId.toString(), projectId, "SUCCEEDED", after);
+    }
+
+    private static final class TestDesignModelGenerationException extends RuntimeException {
+
+        private final ModelInvocationResult response;
+
+        private TestDesignModelGenerationException(ModelInvocationResult response, RuntimeException cause) {
+            super(cause.getMessage(), cause);
+            this.response = response;
+        }
+
+        private ModelInvocationResult response() {
+            return response;
+        }
     }
 }

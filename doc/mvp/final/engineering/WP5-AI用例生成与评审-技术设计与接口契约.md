@@ -413,12 +413,13 @@ CONFIRMED -> IGNORED
 
 | 配置 | 默认 | 说明 |
 |---|---|---|
-| `WP5_TEST_DESIGN_ENABLED` | `true` | WP5 总开关 |
-| `WP5_MODEL_GENERATION_ENABLED` | `true` | 模型生成开关 |
-| `WP5_PROMPT_KEY` | `wp5-test-case-design` | 默认 Prompt key |
-| `WP5_CASE_COUNT_PER_REQUIREMENT_MAX` | `20` | 单需求最大生成数 |
-| `WP5_CONTEXT_MAX_CHARS` | `12000` | 模型上下文最大字符数 |
-| `WP5_RULE_FALLBACK_ENABLED` | `true` | 模型失败后是否使用规则模板 fallback |
+| `WP5_SERVICE_TOKEN` | `local-test-design-token` | WP5 服务间调用令牌 |
+| `WP5_GENERATION_MODE` | `RULE_TEMPLATE` | 生成模式；支持 `RULE_TEMPLATE`、`MODEL`、`MODEL_WITH_FALLBACK` |
+| `WP5_MODEL_FALLBACK_ENABLED` | `false` | `generation-mode=MODEL` 时是否等价为 `MODEL_WITH_FALLBACK` |
+| `WP5_PROMPT_KEY` | `wp5-test-design-v1` | 默认 WP2 Prompt key |
+| `WP5_PROMPT_VERSION` | `1.0.0` | WP5 任务记录中的 Prompt 版本口径 |
+| `WP5_CASE_COUNT_PER_REQUIREMENT_MAX` | `3` | 单需求最大生成数 |
+| `WP2_MAX_PROMPT_CHARS` | `12000` | WP2 模型输入最大字符数 |
 | `WP5_DUPLICATE_SIMILARITY_THRESHOLD` | `0.86` | 重复风险阈值 |
 | `WP5_BATCH_ACTION_MAX_SIZE` | `100` | 批量操作上限 |
 | `WP5_QUALITY_MIN_EXPECTED_STEP_RATIO` | `0.95` | 有预期结果步骤比例阈值 |
