@@ -80,8 +80,6 @@ public class TestDesignService {
     private static final String ACTION_RETRY_LINK_EXISTING = "RETRY_LINK_EXISTING";
     private static final String ACTION_DUPLICATE_REVIEW_REQUIRED = "DUPLICATE_REVIEW_REQUIRED";
     private static final String RESULT_CONFLICT = "CONFLICT";
-    private static final double HIGH_SIMILAR_TITLE_THRESHOLD = 0.86D;
-    private static final double HIGH_SIMILAR_CONTENT_THRESHOLD = 0.90D;
     private static final int MAX_IDEMPOTENCY_KEY_LENGTH = 128;
     private static final int CANDIDATE_EXPORT_LIMIT = 500;
     private static final int CANDIDATE_EXPORT_PAGE_SIZE = 100;
@@ -1182,8 +1180,10 @@ public class TestDesignService {
     }
 
     /**
-     * Compares normalized titles first, then the title/expected/step body, to catch near-duplicate WP3 cases before
-     * WP5 publishes another asset under the same requirement.
+     * Compares normalized titles first, then the title/expected/step body, to catch near-duplicate WP3 cases.
+     *
+     * <p>Exact title matches are always blocked. Fuzzy matches use configurable thresholds so release teams can tune
+     * strictness by environment without changing publish code or historical WP3 assets.
      */
     private boolean isHighSimilarTestCase(TestDesignCandidate candidate, TestCaseResponse testCase) {
         String candidateTitle = normalizeSimilarityText(candidate.title());
@@ -1191,12 +1191,12 @@ public class TestDesignService {
         if (candidateTitle.equals(testCaseTitle)) {
             return true;
         }
-        if (similarity(candidateTitle, testCaseTitle) >= HIGH_SIMILAR_TITLE_THRESHOLD) {
+        if (similarity(candidateTitle, testCaseTitle) >= normalizedSimilarityThreshold(properties.conflictTitleSimilarityThreshold())) {
             return true;
         }
         String candidateBody = normalizeSimilarityText(candidateSimilarityText(candidate));
         String testCaseBody = normalizeSimilarityText(testCaseSimilarityText(testCase));
-        return similarity(candidateBody, testCaseBody) >= HIGH_SIMILAR_CONTENT_THRESHOLD;
+        return similarity(candidateBody, testCaseBody) >= normalizedSimilarityThreshold(properties.conflictContentSimilarityThreshold());
     }
 
     private String candidateSimilarityText(TestDesignCandidate candidate) {
@@ -2716,6 +2716,13 @@ public class TestDesignService {
         }
         int union = leftGrams.size() + rightGrams.size() - intersection;
         return union == 0 ? 0D : (double) intersection / union;
+    }
+
+    private static double normalizedSimilarityThreshold(double configuredThreshold) {
+        if (!Double.isFinite(configuredThreshold)) {
+            return 1D;
+        }
+        return Math.max(0D, Math.min(1D, configuredThreshold));
     }
 
     private static Set<String> grams(String value) {

@@ -46,7 +46,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "veri-agent.auth.token-secret=test-auth-secret-32-byte-minimum!",
         "veri-agent.asset.service-token=test-asset-token",
         "veri-agent.test-design.service-token=test-design-token",
-        "veri-agent.test-design.async-generation-enabled=false"
+        "veri-agent.test-design.async-generation-enabled=false",
+        "veri-agent.test-design.conflict-title-similarity-threshold=1.0",
+        "veri-agent.test-design.conflict-content-similarity-threshold=1.0"
 })
 @AutoConfigureMockMvc
 @DirtiesContext(classMode = DirtiesContext.ClassMode.BEFORE_EACH_TEST_METHOD)
@@ -1100,6 +1102,76 @@ class TestDesignControllerTest {
                         .param("source", "AI_GENERATED"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.total").value(0));
+    }
+
+    @Test
+    void allowsNearSimilarRequirementCaseWhenConflictThresholdIsStrict() throws Exception {
+        String ownerToken = userAccessToken(List.of("ProjectOwner@PROJECT:project-wp5"));
+        String requirementId = createRequirement(ownerToken, "严格阈值需求", "严格阈值验收", "project-wp5");
+        MvcResult taskResult = mockMvc.perform(post("/api/v1/test-design/tasks")
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"projectId":"project-wp5","requirementIds":["%s"],"coverageTypes":["SMOKE"]}
+                                """.formatted(requirementId)))
+                .andExpect(status().isCreated())
+                .andReturn();
+        String taskId = JsonPath.read(taskResult.getResponse().getContentAsString(), "$.data.task.id");
+        String candidateId = JsonPath.read(taskResult.getResponse().getContentAsString(), "$.data.candidates[0].id");
+        String candidateTitle = JsonPath.read(taskResult.getResponse().getContentAsString(), "$.data.candidates[0].title");
+        Integer version = JsonPath.read(taskResult.getResponse().getContentAsString(), "$.data.candidates[0].version");
+
+        mockMvc.perform(post("/api/v1/test-design/candidates/{id}/confirm", candidateId)
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"version\": %d}".formatted(version)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("CONFIRMED"));
+
+        MvcResult existingCase = mockMvc.perform(post("/api/v1/asset/test-cases")
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "projectId": "project-wp5",
+                                  "title": "%s 扩展",
+                                  "description": "人工已维护的同需求近似用例",
+                                  "source": "MANUAL",
+                                  "status": "DRAFT",
+                                  "priority": "HIGH",
+                                  "steps": [
+                                    {"action": "执行严格阈值需求扩展流程", "expectedResult": "扩展流程通过"}
+                                  ]
+                                }
+                                """.formatted(candidateTitle)))
+                .andExpect(status().isCreated())
+                .andReturn();
+        String existingCaseId = JsonPath.read(existingCase.getResponse().getContentAsString(), "$.data.id");
+        mockMvc.perform(post("/api/v1/asset/links")
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"requirementId":"%s","caseId":"%s"}
+                                """.formatted(requirementId, existingCaseId)))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(post("/api/v1/test-design/tasks/{id}/publish-dry-run", taskId)
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                .content("{}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.created").value(1))
+                .andExpect(jsonPath("$.data.records[0].action").value("CREATE"))
+                .andExpect(jsonPath("$.data.records[0].result").value("PLANNED"));
+
+        mockMvc.perform(post("/api/v1/test-design/tasks/{id}/publish", taskId)
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.created").value(1))
+                .andExpect(jsonPath("$.data.records[0].action").value("CREATE"))
+                .andExpect(jsonPath("$.data.records[0].result").value("SUCCEEDED"));
     }
 
     @Test

@@ -45,6 +45,10 @@ public record TestDesignProperties(
         /** 任务质量准出：最高缺需求关联数量 */
         @DefaultValue("0") long readinessMaxMissingRequirementCount,
         /** 任务质量准出：最高缺标题数量 */
-        @DefaultValue("0") long readinessMaxMissingTitleCount
+        @DefaultValue("0") long readinessMaxMissingTitleCount,
+        /** 发布冲突治理：同需求标题高相似阈值，范围 0-1 */
+        @DefaultValue("0.86") double conflictTitleSimilarityThreshold,
+        /** 发布冲突治理：同需求正文高相似阈值，范围 0-1 */
+        @DefaultValue("0.90") double conflictContentSimilarityThreshold
 ) {
 }

@@ -121,7 +121,9 @@ class TestDesignEventRecoveryServiceTest {
                 0D,
                 0,
                 0,
-                0
+                0,
+                0.86D,
+                0.90D
         );
     }
 }
