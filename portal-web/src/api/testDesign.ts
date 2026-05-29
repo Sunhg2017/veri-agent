@@ -281,6 +281,13 @@ export interface TestDesignPublishPayload {
   dryRun?: boolean;
 }
 
+export interface ResolveTestDesignConflictPayload {
+  version: number;
+  caseId: string;
+  reason?: string;
+  comment?: string;
+}
+
 export interface TestDesignPublishResult {
   taskId: string;
   projectId?: string;
@@ -869,6 +876,17 @@ export async function publishTestDesignTask(
     body: JSON.stringify(compactPayload(payload))
   });
   return { ...response, data: normalizeTestDesignPublishResult(response.data) };
+}
+
+export async function resolveTestDesignConflict(
+  candidateId: string,
+  payload: ResolveTestDesignConflictPayload
+): Promise<ApiResponse<TestDesignPublishRecordView>> {
+  const response = await requestJson<unknown>(`/api/v1/test-design/candidates/${encodeURIComponent(candidateId)}/resolve-conflict`, {
+    method: 'POST',
+    body: JSON.stringify(compactPayload(payload))
+  });
+  return { ...response, data: normalizeTestDesignPublishRecord(response.data) };
 }
 
 export async function fetchTestDesignPublishRecords(taskId: string): Promise<ApiResponse<TestDesignPublishRecordView[]>> {

@@ -38,6 +38,7 @@ import {
   publishTestDesignDryRun,
   publishTestDesignTask,
   rejectTestDesignCandidate,
+  resolveTestDesignConflict,
   retryTestDesignTask,
   testDesignErrorMessage,
   updateTestDesignCandidate,
@@ -88,6 +89,7 @@ import {
 import {
   buildTestDesignBatchReviewConfirmation,
   buildTestDesignBatchEditConfirmation,
+  buildTestDesignConflictResolutionConfirmation,
   buildTestDesignPublishConfirmation,
   testDesignBatchActionLabel,
   type TestDesignConfirmationSummary
@@ -161,9 +163,15 @@ type BatchEditResult = {
   }>;
 };
 
+type ConflictResolutionDraft = {
+  reason: string;
+  comment: string;
+};
+
 type PendingConfirmation =
   | { kind: 'batchReview'; action: TestDesignCandidateBatchActionType; summary: TestDesignConfirmationSummary }
   | { kind: 'batchEdit'; summary: TestDesignConfirmationSummary }
+  | { kind: 'resolveConflict'; candidate: TestDesignCandidateView; record: TestDesignPublishRecordView; summary: TestDesignConfirmationSummary }
   | { kind: 'publish'; dryRun: boolean; summary: TestDesignConfirmationSummary };
 
 const initialFilters: RequirementFilters = {
@@ -189,6 +197,11 @@ const initialGenerationDraft: GenerationDraft = {
   title: '',
   caseCountPerRequirement: '2',
   coverageTypes: ['SMOKE', 'FUNCTIONAL', 'EXCEPTION']
+};
+
+const initialConflictResolutionDraft: ConflictResolutionDraft = {
+  reason: '人工确认复用既有用例',
+  comment: ''
 };
 
 const ASYNC_TASK_STATUSES = new Set(['QUEUED', 'RUNNING']);
@@ -229,6 +242,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
   const [batchActionResult, setBatchActionResult] = useState<TestDesignCandidateBatchActionResult | null>(null);
   const [batchEditResult, setBatchEditResult] = useState<BatchEditResult | null>(null);
   const [selectedCandidateIds, setSelectedCandidateIds] = useState<string[]>([]);
+  const [conflictResolutionDraft, setConflictResolutionDraft] = useState<ConflictResolutionDraft>(initialConflictResolutionDraft);
   const [pendingConfirmation, setPendingConfirmation] = useState<PendingConfirmation | null>(null);
   const [loadState, setLoadState] = useState<WorkState>({ loading: false });
   const [taskState, setTaskState] = useState<WorkState>({ loading: false });
@@ -326,6 +340,16 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
     () => publishResult?.records.filter(isPublishIssueRecord) ?? [],
     [publishResult]
   );
+  const resolvableConflictRecords = useMemo(
+    () => publishResult?.records.filter(isResolvableConflictRecord) ?? [],
+    [publishResult]
+  );
+  const conflictCandidateById = useMemo(() => {
+    const lookup = new Map<string, TestDesignCandidateView>();
+    Object.values(selectedCandidateCache).forEach((candidate) => lookup.set(candidate.id, candidate));
+    candidates.forEach((candidate) => lookup.set(candidate.id, candidate));
+    return lookup;
+  }, [candidates, selectedCandidateCache]);
   const candidateQualityIssues = useMemo(
     () => candidateDraft && selectedCandidate
       ? validateTestDesignCandidateDraft(candidateDraft, {
@@ -498,6 +522,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       setBatchActionResult(null);
       setBatchEditDraft(initialTestDesignBatchEditDraft);
       setBatchEditResult(null);
+      setConflictResolutionDraft(initialConflictResolutionDraft);
       setPendingConfirmation(null);
       setTaskQualitySummary(null);
       setLoadState({ loading: false });
@@ -576,6 +601,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
     setBatchActionResult(null);
     setBatchEditDraft(initialTestDesignBatchEditDraft);
     setBatchEditResult(null);
+    setConflictResolutionDraft(initialConflictResolutionDraft);
     setPendingConfirmation(null);
   }, [selectedTaskId]);
 
@@ -1083,6 +1109,74 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
     }
   }
 
+  function requestResolveConflict(record: TestDesignPublishRecordView) {
+    if (!canPublish) {
+      setPublishState({ loading: false, error: '缺少 testDesign:publish 权限' });
+      return;
+    }
+    if (!record.candidateId || !record.assetCaseId) {
+      setPublishState({ loading: false, error: '冲突记录缺少候选或目标用例 ID' });
+      return;
+    }
+    const candidate = conflictCandidateById.get(record.candidateId);
+    if (!candidate) {
+      setPublishState({ loading: false, error: '当前页未加载该冲突候选，请刷新或切换到候选所在页后处理' });
+      return;
+    }
+
+    setPendingConfirmation({
+      kind: 'resolveConflict',
+      candidate,
+      record,
+      summary: buildTestDesignConflictResolutionConfirmation(
+        candidate,
+        record,
+        conflictResolutionDraft.reason,
+        conflictResolutionDraft.comment
+      )
+    });
+  }
+
+  async function executeResolveConflict(candidate: TestDesignCandidateView, record: TestDesignPublishRecordView) {
+    if (!canPublish) {
+      setPublishState({ loading: false, error: '缺少 testDesign:publish 权限' });
+      return;
+    }
+    if (!record.assetCaseId) {
+      setPublishState({ loading: false, error: '冲突记录缺少目标用例 ID' });
+      return;
+    }
+
+    setPublishState({ loading: true });
+    try {
+      const response = await resolveTestDesignConflict(candidate.id, {
+        version: candidate.version,
+        caseId: record.assetCaseId,
+        reason: conflictResolutionDraft.reason,
+        comment: conflictResolutionDraft.comment
+      });
+      setPublishResult((current) => current
+        ? { ...current, records: applyConflictResolutionRecord(current.records, response.data) }
+        : current);
+      if (selectedTaskId) {
+        await refreshCandidatePage(selectedTaskId, { silent: true });
+        void refreshTaskQualitySummary(selectedTaskId, { silent: true });
+        void refreshReviewRecords(selectedTaskId, { silent: true });
+      }
+      if (response.data.result === 'SUCCEEDED') {
+        setConflictResolutionDraft(initialConflictResolutionDraft);
+        setPublishState({ loading: false, success: '冲突已链接既有用例', traceId: response.trace_id });
+        return;
+      }
+      setPublishState({
+        loading: false,
+        error: response.data.errorMessage ?? '冲突链接失败，请检查目标用例和需求追踪关系'
+      });
+    } catch (error: unknown) {
+      setPublishState({ loading: false, error: testDesignErrorMessage(error, '冲突链接失败') });
+    }
+  }
+
   async function confirmPendingAction() {
     const confirmation = pendingConfirmation;
     if (!confirmation) {
@@ -1095,6 +1189,10 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
     }
     if (confirmation.kind === 'batchEdit') {
       await executeBatchEditCandidates();
+      return;
+    }
+    if (confirmation.kind === 'resolveConflict') {
+      await executeResolveConflict(confirmation.candidate, confirmation.record);
       return;
     }
     await executePublishTask(confirmation.dryRun);
@@ -1900,10 +1998,61 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
                     ))}
                   </div>
                 )}
+                {resolvableConflictRecords.length > 0 && (
+                  <div className="test-design-conflict-panel">
+                    <div className="test-design-conflict-heading">
+                      <span>冲突处理 {resolvableConflictRecords.length} 条</span>
+                      <span className="badge badge-warning">需人工确认</span>
+                    </div>
+                    <div className="test-design-conflict-form">
+                      <label className="field">
+                        <span className="field-label">处理原因</span>
+                        <input
+                          value={conflictResolutionDraft.reason}
+                          onChange={(event) => setConflictResolutionDraft((current) => ({ ...current, reason: event.target.value }))}
+                          disabled={!canPublish || publishState.loading}
+                        />
+                      </label>
+                      <label className="field">
+                        <span className="field-label">补充说明</span>
+                        <input
+                          value={conflictResolutionDraft.comment}
+                          onChange={(event) => setConflictResolutionDraft((current) => ({ ...current, comment: event.target.value }))}
+                          placeholder="比对说明"
+                          disabled={!canPublish || publishState.loading}
+                        />
+                      </label>
+                    </div>
+                    <div className="test-design-conflict-list">
+                      {resolvableConflictRecords.slice(0, 4).map((record) => {
+                        const candidate = record.candidateId ? conflictCandidateById.get(record.candidateId) : undefined;
+                        return (
+                          <div className="test-design-conflict-row" key={publishRecordKey(record)}>
+                            <span>
+                              <strong>{record.title ?? record.candidateId ?? '-'}</strong>
+                              <em>{record.assetCaseId ? `目标用例 ${record.assetCaseId}` : '目标用例 -'}</em>
+                              {record.errorMessage && <small>{record.errorMessage}</small>}
+                              {!candidate && <small>当前页未加载候选版本，刷新或切换候选页后可处理。</small>}
+                            </span>
+                            <button
+                              className="btn btn-secondary btn-xs"
+                              type="button"
+                              disabled={!canPublish || publishState.loading || !candidate || !record.assetCaseId}
+                              onClick={() => requestResolveConflict(record)}
+                            >
+                              <Link2 size={14} />
+                              复用
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
                 {publishResult.records.length > 0 && (
                   <div className="test-design-publish-records">
                     {publishResult.records.slice(0, 6).map((record) => (
-                      <PublishRecordRow key={`${record.candidateId}-${record.action}-${record.result}-${record.assetCaseId ?? ''}`} record={record} />
+                      <PublishRecordRow key={publishRecordKey(record)} record={record} />
                     ))}
                   </div>
                 )}
@@ -2346,6 +2495,48 @@ function filterCandidates(candidates: TestDesignCandidateView[], filters: Candid
 
 function isPublishIssueRecord(record: TestDesignPublishRecordView) {
   return ['CONFLICT', 'FAILED', 'DUPLICATE_REVIEW_REQUIRED'].includes(record.result) || Boolean(record.errorMessage);
+}
+
+function isResolvableConflictRecord(record: TestDesignPublishRecordView) {
+  const conflictSignal = record.action === 'DUPLICATE_REVIEW_REQUIRED'
+    || record.result === 'CONFLICT'
+    || record.result === 'DUPLICATE_REVIEW_REQUIRED';
+  return Boolean(conflictSignal && record.candidateId && record.assetCaseId);
+}
+
+function applyConflictResolutionRecord(
+  records: TestDesignPublishRecordView[],
+  resolution: TestDesignPublishRecordView
+) {
+  if (resolution.result !== 'SUCCEEDED') {
+    return [resolution, ...records];
+  }
+
+  let replaced = false;
+  const nextRecords = records.map((record) => {
+    if (
+      !replaced
+      && isResolvableConflictRecord(record)
+      && record.candidateId === resolution.candidateId
+      && record.assetCaseId === resolution.assetCaseId
+    ) {
+      replaced = true;
+      return resolution;
+    }
+    return record;
+  });
+  return replaced ? nextRecords : [resolution, ...records];
+}
+
+function publishRecordKey(record: TestDesignPublishRecordView) {
+  return [
+    record.id,
+    record.candidateId,
+    record.action,
+    record.result,
+    record.assetCaseId,
+    record.createdAt
+  ].filter(Boolean).join('-') || `${record.action}-${record.result}`;
 }
 
 function assetCaseTraceHref(assetCaseId: string) {

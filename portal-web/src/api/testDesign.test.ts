@@ -31,6 +31,7 @@ import {
   publishTestDesignDryRun,
   publishTestDesignTask,
   rejectTestDesignCandidate,
+  resolveTestDesignConflict,
   retryTestDesignTask,
   testDesignCandidateExportPath,
   testDesignReviewRecordExportPath,
@@ -398,6 +399,44 @@ describe('WP5 test design API helpers', () => {
     });
 
     expect(normalizeTestDesignPublishResult({ records: [{ result: 'READY' }] }).records[0].result).toBe('READY');
+  });
+
+  it('calls conflict resolution endpoint with candidate version and target case', async () => {
+    requestJsonMock.mockResolvedValue({
+      code: 'OK',
+      message: 'ok',
+      trace_id: 'trace-conflict',
+      data: {
+        candidate_id: 'cand-1',
+        asset_case_id: 'case-1',
+        action: 'MANUAL_LINK_EXISTING',
+        result: 'SUCCEEDED',
+        dry_run: false
+      }
+    });
+
+    const response = await resolveTestDesignConflict('cand 1', {
+      version: 3,
+      caseId: 'case-1',
+      reason: ' 人工确认复用 ',
+      comment: ''
+    });
+
+    expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/test-design/candidates/cand%201/resolve-conflict', {
+      method: 'POST',
+      body: JSON.stringify({
+        version: 3,
+        caseId: 'case-1',
+        reason: '人工确认复用'
+      })
+    });
+    expect(response.data).toMatchObject({
+      candidateId: 'cand-1',
+      assetCaseId: 'case-1',
+      action: 'MANUAL_LINK_EXISTING',
+      result: 'SUCCEEDED',
+      dryRun: false
+    });
   });
 
   it('calls batch review endpoint and normalizes partial results', async () => {

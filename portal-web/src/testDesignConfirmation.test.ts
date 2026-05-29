@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   buildTestDesignBatchEditConfirmation,
   buildTestDesignBatchReviewConfirmation,
+  buildTestDesignConflictResolutionConfirmation,
   buildTestDesignPublishConfirmation,
   testDesignBatchActionLabel
 } from './testDesignConfirmation';
@@ -91,5 +92,38 @@ describe('WP5 confirmation summaries', () => {
     expect(summary.tone).toBe('info');
     expect(summary.details).toContainEqual({ label: '发布范围', value: '全部可发布候选' });
     expect(summary.warnings).toContain('预发布只做 dryRun 检查，不会写入 WP3 资产库。');
+  });
+
+  it('summarizes manual conflict resolution before linking existing cases', () => {
+    const summary = buildTestDesignConflictResolutionConfirmation(
+      { id: 'cand-1', title: '确认候选', status: 'CONFIRMED', version: 4 },
+      {
+        candidateId: 'cand-1',
+        assetCaseId: 'case-1',
+        action: 'DUPLICATE_REVIEW_REQUIRED',
+        result: 'CONFLICT',
+        dryRun: true,
+        errorMessage: '同需求存在高相似测试用例'
+      },
+      '人工确认复用',
+      ''
+    );
+
+    expect(summary).toMatchObject({
+      title: '确认处理发布冲突',
+      confirmLabel: '确认复用既有用例',
+      tone: 'warning',
+      candidateTitles: ['确认候选']
+    });
+    expect(summary.details).toEqual(expect.arrayContaining([
+      { label: '操作', value: '人工链接既有用例' },
+      { label: '候选', value: '确认候选@v4' },
+      { label: '目标用例', value: 'case-1' },
+      { label: '处理原因', value: '人工确认复用' }
+    ]));
+    expect(summary.warnings).toEqual(expect.arrayContaining([
+      '确认后候选会标记为 PUBLISHED，并补建 WP3 需求-用例追踪关系。',
+      '冲突摘要：同需求存在高相似测试用例'
+    ]));
   });
 });

@@ -42,7 +42,7 @@
 | P0 | 接入 WP2 模型生成 | 服务端架构师 | 已补 `MODEL` / `MODEL_WITH_FALLBACK` 生成模式，通过 `ModelInvocationService` 调 WP2、解析 WP5 JSON 输出并回写 `modelInvocationId/provider/model`；仍需真实 provider 与 Prompt 质量联调。 | 成功、失败、预算阻断、fallback 全部可追踪；不直连厂商。 |
 | P0 | 企业级上下文装配 | 服务端架构师 | 已补 WP3 需求、WP4 来源摘要和历史用例摘要的脱敏 `contextSummary`/`inputDigest`；仍缺 API、页面、业务流显式输入和模型上下文裁剪策略运营化。 | 上下文有裁剪、脱敏、inputDigest 和来源引用。 |
 | P0 | 输出 Schema 和质量门禁 | 质量工程师 | 已补候选 JSON Schema、模型原始输出 JSON Schema/parser、生成/编辑落库前质量门禁、重复键和敏感泄露阻断；仍缺真实 WP2 响应接入联调和运营化阈值报表。 | 不合格输出不得静默落库；golden set 阈值可回归。 |
-| P0 | 重复和冲突治理 | 服务端架构师 | 已补 `LINK_EXISTING`、同需求高相似 `DUPLICATE_REVIEW_REQUIRED`、可配置相似度阈值策略和人工链接既有用例服务端入口，仍缺完整前端冲突运营台。 | 发布前能识别同 sourceRef、同需求高相似和已发布候选；人工确认后可审计地链接既有用例。 |
+| P0 | 重复和冲突治理 | 服务端架构师 | 已补 `LINK_EXISTING`、同需求高相似 `DUPLICATE_REVIEW_REQUIRED`、可配置相似度阈值策略、人工链接既有用例服务端入口和前端发布冲突处理入口；仍缺跨页批量处理和资产搜索化运营台。 | 发布前能识别同 sourceRef、同需求高相似和已发布候选；人工确认后可审计地链接既有用例。 |
 | P0 | 任务编排与幂等 | 项目经理、服务端架构师 | 已补 retry/cancel 契约、状态保护、创建任务幂等键、前端稳定幂等提交键、requestDigest 冲突检测、DB 事务锁、`QUEUED -> RUNNING` 条件认领、事件恢复扫描和运行中超时失败回收；仍缺跨 WP 补偿后台和多实例压测。 | 重试不重复污染候选；取消可阻断排队/运行中任务；重复请求、重复事件和运行中卡死可识别。 |
 | P0 | 权限和资源作用域加固 | 服务端架构师、质量工程师 | 已补批量候选操作和候选导出按候选/任务项目 scope 鉴权，仍需覆盖评测和未来异步回调。 | 项目角色不能操作其他项目候选；服务令牌调用可审计。 |
 | P0 | 发布幂等和补偿 | 服务端架构师 | 已补 AI 生成用例 `sourceRef` 服务层回放、事务级锁、数据库唯一约束和部分成功补链重试；仍缺补偿后台和异步跨 WP 事务编排。 | 重复发布不重复建用例；失败有记录和可重试策略。 |
@@ -67,6 +67,7 @@
 | 发布部分成功补偿 | 正式发布发现既有 WP3 用例时会幂等补建 requirement-case trace link；发布失败候选保留 `assetCaseId/errorMessage` 并可重试，前端发布按钮纳入失败候选的重试入口。 |
 | HTTP smoke 自启动准出 | `scripts/wp5_quality_gate.sh` 已支持 `WP5_RUN_HTTP_SMOKE=1` 自启动临时 PostgreSQL 和 db profile `platform-api`，完成 SuperAdmin seed、项目创建/激活、WP3 需求准备后执行 WP5 HTTP smoke；保留 `external` 模式复用已运行环境。 |
 | 前端发布工作台增强 | WP5 工作台已支持任务状态/项目/关键词筛选、候选状态/覆盖/关键词筛选、按勾选候选收敛发布范围、冲突/失败摘要，以及发布记录中的 WP3 用例追踪跳转。 |
+| 前端发布冲突处理入口 | 工作台发布面板已对 `DUPLICATE_REVIEW_REQUIRED/CONFLICT` 且带候选和目标用例的记录展示“冲突处理”区，支持填写处理原因/说明、二次确认后调用 `POST /api/v1/test-design/candidates/{id}/resolve-conflict`，成功后刷新候选、质量摘要和评审历史。 |
 | 前端候选质量提示 | 候选编辑器已在保存前提示标题、覆盖类型、优先级、步骤数量、逐步预期、最终预期、敏感文本和同需求同覆盖标题重复问题，并用单测锁定规则。 |
 | 前端候选分页效率 | 候选列表已支持 10/20/50 每页切换、上一页/下一页、页内可发布候选选择和跨页发布选择保留，并用分页单测纳入 WP5 quality gate。 |
 | 前端服务端分页联动 | 工作台候选列表改为调用 `GET /api/v1/test-design/tasks/{id}/candidates?index=&size=&status=&coverageType=&keyword=`，任务轮询使用轻量 `GET /tasks/{id}/summary`，未勾选发布仍由后端按任务全量可发布候选处理。 |

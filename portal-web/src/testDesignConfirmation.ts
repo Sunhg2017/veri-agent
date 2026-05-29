@@ -1,4 +1,4 @@
-import type { TestDesignCandidateBatchActionType, TestDesignCandidateView } from './api/testDesign';
+import type { TestDesignCandidateBatchActionType, TestDesignCandidateView, TestDesignPublishRecordView } from './api/testDesign';
 
 export type TestDesignConfirmationTone = 'info' | 'warning';
 
@@ -12,6 +12,7 @@ export interface TestDesignConfirmationSummary {
 }
 
 type ConfirmationCandidate = Pick<TestDesignCandidateView, 'id' | 'title' | 'status' | 'version'>;
+type ConflictCandidate = Pick<TestDesignCandidateView, 'id' | 'title' | 'status' | 'version'>;
 
 export function testDesignBatchActionLabel(action: string) {
   if (action === 'CONFIRM') {
@@ -93,6 +94,28 @@ export function buildTestDesignPublishConfirmation(
   };
 }
 
+export function buildTestDesignConflictResolutionConfirmation(
+  candidate: ConflictCandidate,
+  record: TestDesignPublishRecordView,
+  reason: string,
+  comment: string
+): TestDesignConfirmationSummary {
+  return {
+    title: '确认处理发布冲突',
+    confirmLabel: '确认复用既有用例',
+    tone: 'warning',
+    details: [
+      { label: '操作', value: '人工链接既有用例' },
+      { label: '候选', value: `${candidate.title || candidate.id}@v${candidate.version}` },
+      { label: '目标用例', value: record.assetCaseId ?? '-' },
+      { label: '处理原因', value: reason.trim() || '人工确认复用既有用例' },
+      { label: '补充说明', value: comment.trim() || '无' }
+    ],
+    warnings: conflictResolutionWarnings(record),
+    candidateTitles: candidateTitles([candidate])
+  };
+}
+
 function batchReviewWarnings(action: TestDesignCandidateBatchActionType, nonReviewableCount: number) {
   const warnings: string[] = [];
   if (nonReviewableCount > 0) {
@@ -134,6 +157,18 @@ function publishWarnings(dryRun: boolean, candidateCount: number, failedCount: n
   }
   if (failedCount > 0) {
     warnings.push(`包含 ${failedCount} 个 FAILED 候选，将作为失败重试范围重新发布。`);
+  }
+  return warnings;
+}
+
+function conflictResolutionWarnings(record: TestDesignPublishRecordView) {
+  const warnings = [
+    '确认后候选会标记为 PUBLISHED，并补建 WP3 需求-用例追踪关系。'
+  ];
+  if (record.errorMessage) {
+    warnings.push(`冲突摘要：${record.errorMessage}`);
+  } else {
+    warnings.push('请确认目标用例已覆盖候选需求。');
   }
   return warnings;
 }
