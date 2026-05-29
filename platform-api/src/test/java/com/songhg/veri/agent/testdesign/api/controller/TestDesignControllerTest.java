@@ -1105,6 +1105,158 @@ class TestDesignControllerTest {
     }
 
     @Test
+    void resolvesHighSimilarConflictByLinkingExistingRequirementCase() throws Exception {
+        String ownerToken = userAccessToken(List.of("ProjectOwner@PROJECT:project-wp5"));
+        String requirementId = createRequirement(ownerToken, "人工冲突处理需求", "人工冲突处理验收", "project-wp5");
+        MvcResult taskResult = mockMvc.perform(post("/api/v1/test-design/tasks")
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"projectId":"project-wp5","requirementIds":["%s"],"coverageTypes":["SMOKE"]}
+                                """.formatted(requirementId)))
+                .andExpect(status().isCreated())
+                .andReturn();
+        String taskId = JsonPath.read(taskResult.getResponse().getContentAsString(), "$.data.task.id");
+        String candidateId = JsonPath.read(taskResult.getResponse().getContentAsString(), "$.data.candidates[0].id");
+        String candidateTitle = JsonPath.read(taskResult.getResponse().getContentAsString(), "$.data.candidates[0].title");
+        Integer version = JsonPath.read(taskResult.getResponse().getContentAsString(), "$.data.candidates[0].version");
+
+        MvcResult confirmed = mockMvc.perform(post("/api/v1/test-design/candidates/{id}/confirm", candidateId)
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"version\": %d}".formatted(version)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("CONFIRMED"))
+                .andReturn();
+        Integer confirmedVersion = JsonPath.read(confirmed.getResponse().getContentAsString(), "$.data.version");
+
+        MvcResult existingCase = mockMvc.perform(post("/api/v1/asset/test-cases")
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "projectId": "project-wp5",
+                                  "title": "%s",
+                                  "description": "人工确认可复用的同需求测试用例",
+                                  "source": "MANUAL",
+                                  "status": "DRAFT",
+                                  "priority": "HIGH",
+                                  "steps": [
+                                    {"action": "执行人工冲突处理需求核心流程", "expectedResult": "核心流程通过"}
+                                  ]
+                                }
+                                """.formatted(candidateTitle)))
+                .andExpect(status().isCreated())
+                .andReturn();
+        String existingCaseId = JsonPath.read(existingCase.getResponse().getContentAsString(), "$.data.id");
+        mockMvc.perform(post("/api/v1/asset/links")
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"requirementId":"%s","caseId":"%s"}
+                                """.formatted(requirementId, existingCaseId)))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(post("/api/v1/test-design/tasks/{id}/publish-dry-run", taskId)
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.records[0].action").value("DUPLICATE_REVIEW_REQUIRED"))
+                .andExpect(jsonPath("$.data.records[0].result").value("CONFLICT"))
+                .andExpect(jsonPath("$.data.records[0].assetCaseId").value(existingCaseId));
+
+        mockMvc.perform(post("/api/v1/test-design/candidates/{id}/resolve-conflict", candidateId)
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"version":%d,"caseId":"%s","reason":"人工确认复用","comment":"已比对步骤"}
+                                """.formatted(confirmedVersion, existingCaseId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.candidateId").value(candidateId))
+                .andExpect(jsonPath("$.data.action").value("MANUAL_LINK_EXISTING"))
+                .andExpect(jsonPath("$.data.result").value("SUCCEEDED"))
+                .andExpect(jsonPath("$.data.assetCaseId").value(existingCaseId))
+                .andExpect(jsonPath("$.data.errorMessage").doesNotExist());
+
+        mockMvc.perform(get("/api/v1/test-design/tasks/{id}", taskId)
+                        .header("Authorization", "Bearer " + ownerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.task.status").value("PUBLISHED"))
+                .andExpect(jsonPath("$.data.candidates[0].status").value("PUBLISHED"))
+                .andExpect(jsonPath("$.data.candidates[0].assetCaseId").value(existingCaseId))
+                .andExpect(jsonPath("$.data.publishRecords[0].action").value("MANUAL_LINK_EXISTING"));
+
+        mockMvc.perform(get("/api/v1/asset/links")
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .param("requirementId", requirementId)
+                        .param("caseId", existingCaseId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(1));
+    }
+
+    @Test
+    void rejectsConflictResolutionWhenCaseIsNotLinkedToCandidateRequirement() throws Exception {
+        String ownerToken = userAccessToken(List.of("ProjectOwner@PROJECT:project-wp5"));
+        String requirementId = createRequirement(ownerToken, "冲突拒绝需求", "冲突拒绝验收", "project-wp5");
+        String otherRequirementId = createRequirement(ownerToken, "其他需求", "其他验收", "project-wp5");
+        MvcResult taskResult = mockMvc.perform(post("/api/v1/test-design/tasks")
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"projectId":"project-wp5","requirementIds":["%s"],"coverageTypes":["SMOKE"]}
+                                """.formatted(requirementId)))
+                .andExpect(status().isCreated())
+                .andReturn();
+        String candidateId = JsonPath.read(taskResult.getResponse().getContentAsString(), "$.data.candidates[0].id");
+        Integer version = JsonPath.read(taskResult.getResponse().getContentAsString(), "$.data.candidates[0].version");
+
+        MvcResult confirmed = mockMvc.perform(post("/api/v1/test-design/candidates/{id}/confirm", candidateId)
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"version\": %d}".formatted(version)))
+                .andExpect(status().isOk())
+                .andReturn();
+        Integer confirmedVersion = JsonPath.read(confirmed.getResponse().getContentAsString(), "$.data.version");
+
+        MvcResult otherCase = mockMvc.perform(post("/api/v1/asset/test-cases")
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "projectId": "project-wp5",
+                                  "title": "其他需求下的测试用例",
+                                  "description": "不应被链接到当前候选",
+                                  "source": "MANUAL",
+                                  "status": "DRAFT",
+                                  "priority": "HIGH",
+                                  "steps": [
+                                    {"action": "执行其他需求", "expectedResult": "其他需求通过"}
+                                  ]
+                                }
+                                """))
+                .andExpect(status().isCreated())
+                .andReturn();
+        String otherCaseId = JsonPath.read(otherCase.getResponse().getContentAsString(), "$.data.id");
+        mockMvc.perform(post("/api/v1/asset/links")
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"requirementId":"%s","caseId":"%s"}
+                                """.formatted(otherRequirementId, otherCaseId)))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(post("/api/v1/test-design/candidates/{id}/resolve-conflict", candidateId)
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"version":%d,"caseId":"%s","reason":"误选用例"}
+                                """.formatted(confirmedVersion, otherCaseId)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message", containsString("未关联候选需求")));
+    }
+
+    @Test
     void allowsNearSimilarRequirementCaseWhenConflictThresholdIsStrict() throws Exception {
         String ownerToken = userAccessToken(List.of("ProjectOwner@PROJECT:project-wp5"));
         String requirementId = createRequirement(ownerToken, "严格阈值需求", "严格阈值验收", "project-wp5");

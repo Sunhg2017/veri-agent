@@ -5,12 +5,14 @@ import com.songhg.veri.agent.authorization.application.RequirePermission;
 import com.songhg.veri.agent.common.api.PageResponse;
 import com.songhg.veri.agent.common.openapi.ApiVersion;
 import com.songhg.veri.agent.testdesign.application.TestDesignService;
+import com.songhg.veri.agent.testdesign.application.command.ResolveTestDesignConflictCommand;
 import com.songhg.veri.agent.testdesign.application.command.TestDesignCandidateActionCommand;
 import com.songhg.veri.agent.testdesign.application.command.TestDesignCandidateBatchActionCommand;
 import com.songhg.veri.agent.testdesign.application.command.UpdateTestDesignCandidateCommand;
 import com.songhg.veri.agent.testdesign.application.query.TestDesignCandidatePageRequest;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignCandidateBatchActionResponse;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignCandidateResponse;
+import com.songhg.veri.agent.testdesign.application.view.TestDesignPublishRecordResponse;
 import jakarta.validation.Valid;
 import java.nio.charset.StandardCharsets;
 import java.util.UUID;
@@ -108,6 +110,18 @@ public class TestDesignCandidateController {
             @Valid @RequestBody TestDesignCandidateActionCommand command
     ) {
         return service.ignoreCandidate(id, command);
+    }
+
+    /**
+     * 人工确认发布冲突并将候选链接到既有 WP3 测试用例
+     */
+    @PostMapping("/{id}/resolve-conflict")
+    @RequirePermission(value = PermissionCodes.TEST_DESIGN_PUBLISH, scope = TestDesignPermissionScopes.CANDIDATE)
+    public TestDesignPublishRecordResponse resolveConflict(
+            @PathVariable UUID id,
+            @Valid @RequestBody ResolveTestDesignConflictCommand command
+    ) {
+        return service.resolveConflict(id, command);
     }
 
     /**

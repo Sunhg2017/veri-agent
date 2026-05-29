@@ -14,6 +14,7 @@ import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
 import com.songhg.veri.agent.common.util.CsvEncoder;
 import com.songhg.veri.agent.testdesign.application.command.CreateTestDesignTaskCommand;
+import com.songhg.veri.agent.testdesign.application.command.ResolveTestDesignConflictCommand;
 import com.songhg.veri.agent.testdesign.application.command.TestDesignCandidateActionCommand;
 import com.songhg.veri.agent.testdesign.application.command.TestDesignCandidateBatchActionCommand;
 import com.songhg.veri.agent.testdesign.application.command.TestDesignPublishCommand;
@@ -79,6 +80,7 @@ public class TestDesignService {
     private static final String TEST_CASE_SOURCE_REF_PREFIX = "wp5:";
     private static final String ACTION_RETRY_LINK_EXISTING = "RETRY_LINK_EXISTING";
     private static final String ACTION_DUPLICATE_REVIEW_REQUIRED = "DUPLICATE_REVIEW_REQUIRED";
+    private static final String ACTION_MANUAL_LINK_EXISTING = "MANUAL_LINK_EXISTING";
     private static final String RESULT_CONFLICT = "CONFLICT";
     private static final int MAX_IDEMPOTENCY_KEY_LENGTH = 128;
     private static final int CANDIDATE_EXPORT_LIMIT = 500;
@@ -667,6 +669,64 @@ public class TestDesignService {
     }
 
     /**
+     * Resolves a publish conflict by explicitly linking one reviewed candidate to an existing WP3 test case.
+     *
+     * <p>The action is intentionally separate from normal publish. High-similarity conflicts stay blocked until a
+     * reviewer with publish permission selects the target case, and the service still validates project scope,
+     * requirement traceability and candidate version before mutating WP5 state.
+     */
+    @Transactional
+    public TestDesignPublishRecordResponse resolveConflict(UUID candidateId, ResolveTestDesignConflictCommand command) {
+        if (command == null) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "冲突处理请求不能为空");
+        }
+        TestDesignCandidate candidate = candidateOrThrow(candidateId);
+        TestDesignTask task = taskOrThrow(candidate.taskId());
+        assertVersion(candidate, command.version(), true);
+        if (!isPublishableCandidate(candidate)) {
+            throw new BusinessException(ErrorCode.INVALID_STATE, "只有已确认或发布失败的候选用例可处理发布冲突");
+        }
+        TestCaseResponse testCase = assetService.getTestCase(command.caseId());
+        ensureResolvableConflictTarget(candidate, testCase);
+        try {
+            ensureTraceLink(candidate, testCase);
+            TestDesignCandidate linked = withPublishedCandidate(candidate, testCase.id(), null);
+            repository.saveCandidate(linked);
+            String resolutionComment = manualConflictResolutionMessage(command);
+            saveReviewRecord(candidate, linked, "RESOLVE_CONFLICT", resolutionComment);
+            TestDesignPublishRecord record = publishRecord(
+                    task,
+                    linked,
+                    false,
+                    ACTION_MANUAL_LINK_EXISTING,
+                    "SUCCEEDED",
+                    testCase.id(),
+                    null,
+                    actorResolver.currentActor()
+            );
+            repository.savePublishRecord(record);
+            refreshTaskCountsAfterPublish(task.id(), task.status());
+            return responseMapper.toPublishRecordResponse(record, linked);
+        } catch (BusinessException exception) {
+            TestDesignCandidate failed = withFailedCandidate(candidate, testCase.id(), exception.getMessage());
+            repository.saveCandidate(failed);
+            TestDesignPublishRecord record = publishRecord(
+                    task,
+                    failed,
+                    false,
+                    ACTION_MANUAL_LINK_EXISTING,
+                    "FAILED",
+                    testCase.id(),
+                    exception.getMessage(),
+                    actorResolver.currentActor()
+            );
+            repository.savePublishRecord(record);
+            refreshTaskCountsAfterPublish(task.id(), task.status());
+            return responseMapper.toPublishRecordResponse(record, failed);
+        }
+    }
+
+    /**
      * Returns a paginated review trail for a task without exposing raw diff JSON or full free-form comments.
      */
     public PageResponse<TestDesignReviewRecordResponse> reviewRecords(UUID taskId, PageQuery pageQuery) {
@@ -1179,6 +1239,23 @@ public class TestDesignService {
                 .findFirst();
     }
 
+    private void ensureResolvableConflictTarget(TestDesignCandidate candidate, TestCaseResponse testCase) {
+        if (testCase == null || testCase.id() == null) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "测试用例不存在");
+        }
+        if (!Objects.equals(candidate.projectId(), testCase.projectId())) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "测试用例不属于候选项目: " + testCase.id());
+        }
+        boolean linkedToCandidateRequirement = assetService.findActiveTestCasesByRequirement(
+                        candidate.projectId(),
+                        candidate.requirementId()
+                ).stream()
+                .anyMatch(existing -> Objects.equals(existing.id(), testCase.id()));
+        if (!linkedToCandidateRequirement) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "测试用例未关联候选需求: " + testCase.id());
+        }
+    }
+
     /**
      * Compares normalized titles first, then the title/expected/step body, to catch near-duplicate WP3 cases.
      *
@@ -1215,6 +1292,21 @@ public class TestDesignService {
 
     private static String duplicateReviewMessage(TestCaseResponse testCase) {
         return "同一需求下已存在高相似测试用例，需人工确认后再发布: " + testCase.code();
+    }
+
+    private static String manualConflictResolutionMessage(ResolveTestDesignConflictCommand command) {
+        String reason = trimToNull(command.reason());
+        String comment = trimToNull(command.comment());
+        if (reason == null && comment == null) {
+            return "人工确认链接既有测试用例";
+        }
+        if (reason == null) {
+            return "人工确认链接既有测试用例: " + comment;
+        }
+        if (comment == null) {
+            return "人工确认链接既有测试用例: " + reason;
+        }
+        return "人工确认链接既有测试用例: " + reason + "；" + comment;
     }
 
     private static String candidateSourceRef(TestDesignCandidate candidate) {
@@ -2764,7 +2856,7 @@ public class TestDesignService {
         return properties.asyncGenerationEnabled() ? TestDesignTaskStatus.QUEUED : TestDesignTaskStatus.RUNNING;
     }
 
-    private String trimToNull(String value) {
+    private static String trimToNull(String value) {
         return StringUtils.hasText(value) ? value.trim() : null;
     }
 
