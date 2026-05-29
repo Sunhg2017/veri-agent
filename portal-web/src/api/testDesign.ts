@@ -111,6 +111,8 @@ export interface TestDesignPublishRecordView {
   taskId?: string;
   candidateId?: string;
   title?: string;
+  candidateStatus?: string;
+  candidateVersion?: number;
   projectId?: string;
   requirementId?: string;
   assetCaseId?: string;
@@ -541,6 +543,8 @@ export function normalizeTestDesignPublishRecord(raw: unknown): TestDesignPublis
     taskId: optionalString(item.taskId) ?? optionalString(item.task_id),
     candidateId: optionalString(item.candidateId) ?? optionalString(item.candidate_id),
     title: optionalString(item.title),
+    candidateStatus: optionalString(item.candidateStatus) ?? optionalString(item.candidate_status),
+    candidateVersion: optionalNumber(item.candidateVersion ?? item.candidate_version),
     projectId: optionalString(item.projectId) ?? optionalString(item.project_id),
     requirementId: optionalString(item.requirementId) ?? optionalString(item.requirement_id),
     assetCaseId: optionalString(item.assetCaseId) ?? optionalString(item.asset_case_id),

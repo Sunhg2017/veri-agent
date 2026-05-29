@@ -114,6 +114,8 @@ public class TestDesignResponseMapper {
                 record.taskId(),
                 record.candidateId(),
                 candidate == null ? null : candidate.title(),
+                candidate == null ? null : candidate.status(),
+                candidate == null ? null : candidate.version(),
                 record.projectId(),
                 record.requirementId(),
                 record.assetCaseId(),

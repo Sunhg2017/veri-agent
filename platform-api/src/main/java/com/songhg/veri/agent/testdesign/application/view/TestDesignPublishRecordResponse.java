@@ -16,6 +16,10 @@ public record TestDesignPublishRecordResponse(
         UUID candidateId,
         @Schema(description = "标题，用于页面展示和关键字检索")
         String title,
+        @Schema(description = "候选当前状态，用于前端跨页处理冲突时展示候选上下文")
+        String candidateStatus,
+        @Schema(description = "候选当前版本号，用于前端跨页处理冲突时提交乐观锁版本")
+        Long candidateVersion,
         @Schema(description = "所属项目 ID，用于权限 scope、筛选和数据隔离")
         String projectId,
         @Schema(description = "关联需求 ID")

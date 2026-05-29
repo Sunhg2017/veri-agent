@@ -168,10 +168,12 @@ type ConflictResolutionDraft = {
   comment: string;
 };
 
+type ConflictResolutionCandidate = Pick<TestDesignCandidateView, 'id' | 'title' | 'status' | 'version'>;
+
 type PendingConfirmation =
   | { kind: 'batchReview'; action: TestDesignCandidateBatchActionType; summary: TestDesignConfirmationSummary }
   | { kind: 'batchEdit'; summary: TestDesignConfirmationSummary }
-  | { kind: 'resolveConflict'; candidate: TestDesignCandidateView; record: TestDesignPublishRecordView; summary: TestDesignConfirmationSummary }
+  | { kind: 'resolveConflict'; candidate: ConflictResolutionCandidate; record: TestDesignPublishRecordView; summary: TestDesignConfirmationSummary }
   | { kind: 'publish'; dryRun: boolean; summary: TestDesignConfirmationSummary };
 
 const initialFilters: RequirementFilters = {
@@ -1118,9 +1120,9 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       setPublishState({ loading: false, error: '冲突记录缺少候选或目标用例 ID' });
       return;
     }
-    const candidate = conflictCandidateById.get(record.candidateId);
+    const candidate = conflictResolutionCandidate(record, conflictCandidateById);
     if (!candidate) {
-      setPublishState({ loading: false, error: '当前页未加载该冲突候选，请刷新或切换到候选所在页后处理' });
+      setPublishState({ loading: false, error: '冲突记录缺少候选版本，请重新预发布后处理' });
       return;
     }
 
@@ -1137,7 +1139,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
     });
   }
 
-  async function executeResolveConflict(candidate: TestDesignCandidateView, record: TestDesignPublishRecordView) {
+  async function executeResolveConflict(candidate: ConflictResolutionCandidate, record: TestDesignPublishRecordView) {
     if (!canPublish) {
       setPublishState({ loading: false, error: '缺少 testDesign:publish 权限' });
       return;
@@ -2025,14 +2027,15 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
                     </div>
                     <div className="test-design-conflict-list">
                       {resolvableConflictRecords.slice(0, 4).map((record) => {
-                        const candidate = record.candidateId ? conflictCandidateById.get(record.candidateId) : undefined;
+                        const candidate = conflictResolutionCandidate(record, conflictCandidateById);
                         return (
                           <div className="test-design-conflict-row" key={publishRecordKey(record)}>
                             <span>
                               <strong>{record.title ?? record.candidateId ?? '-'}</strong>
                               <em>{record.assetCaseId ? `目标用例 ${record.assetCaseId}` : '目标用例 -'}</em>
+                              {candidate && <em>候选 {candidate.status}@v{candidate.version}</em>}
                               {record.errorMessage && <small>{record.errorMessage}</small>}
-                              {!candidate && <small>当前页未加载候选版本，刷新或切换候选页后可处理。</small>}
+                              {!candidate && <small>发布记录缺少候选版本，重新预发布后可处理。</small>}
                             </span>
                             <button
                               className="btn btn-secondary btn-xs"
@@ -2495,6 +2498,28 @@ function filterCandidates(candidates: TestDesignCandidateView[], filters: Candid
 
 function isPublishIssueRecord(record: TestDesignPublishRecordView) {
   return ['CONFLICT', 'FAILED', 'DUPLICATE_REVIEW_REQUIRED'].includes(record.result) || Boolean(record.errorMessage);
+}
+
+function conflictResolutionCandidate(
+  record: TestDesignPublishRecordView,
+  candidateById: Map<string, TestDesignCandidateView>
+): ConflictResolutionCandidate | undefined {
+  if (!record.candidateId) {
+    return undefined;
+  }
+  const cached = candidateById.get(record.candidateId);
+  if (cached) {
+    return cached;
+  }
+  if (record.candidateVersion === undefined) {
+    return undefined;
+  }
+  return {
+    id: record.candidateId,
+    title: record.title ?? record.candidateId,
+    status: record.candidateStatus ?? 'CONFIRMED',
+    version: record.candidateVersion
+  };
 }
 
 function isResolvableConflictRecord(record: TestDesignPublishRecordView) {

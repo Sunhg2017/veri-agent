@@ -380,7 +380,14 @@ describe('WP5 test design API helpers', () => {
         skipped: '2',
         failed: '0',
         created_case_ids: 'case-1, case-2',
-        records: [{ candidate_id: 'cand-1', dry_run: true, action: 'CREATE', result: 'READY' }]
+        records: [{
+          candidate_id: 'cand-1',
+          candidate_status: 'CONFIRMED',
+          candidate_version: '3',
+          dry_run: true,
+          action: 'CREATE',
+          result: 'READY'
+        }]
       }
     });
 
@@ -391,6 +398,7 @@ describe('WP5 test design API helpers', () => {
     });
     expect(dryRun.data).toMatchObject({ taskId: 'task-1', dryRun: true, total: 2, skipped: 2 });
     expect(dryRun.data.createdCaseIds).toEqual(['case-1', 'case-2']);
+    expect(dryRun.data.records[0]).toMatchObject({ candidateStatus: 'CONFIRMED', candidateVersion: 3 });
 
     await publishTestDesignTask('task 1', { candidateIds: ['cand-1'] });
     expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/test-design/tasks/task%201/publish', {
@@ -408,6 +416,8 @@ describe('WP5 test design API helpers', () => {
       trace_id: 'trace-conflict',
       data: {
         candidate_id: 'cand-1',
+        candidate_status: 'PUBLISHED',
+        candidate_version: '4',
         asset_case_id: 'case-1',
         action: 'MANUAL_LINK_EXISTING',
         result: 'SUCCEEDED',
@@ -432,6 +442,8 @@ describe('WP5 test design API helpers', () => {
     });
     expect(response.data).toMatchObject({
       candidateId: 'cand-1',
+      candidateStatus: 'PUBLISHED',
+      candidateVersion: 4,
       assetCaseId: 'case-1',
       action: 'MANUAL_LINK_EXISTING',
       result: 'SUCCEEDED',

@@ -1185,6 +1185,8 @@ class TestDesignControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.records[0].action").value("DUPLICATE_REVIEW_REQUIRED"))
                 .andExpect(jsonPath("$.data.records[0].result").value("CONFLICT"))
+                .andExpect(jsonPath("$.data.records[0].candidateStatus").value("CONFIRMED"))
+                .andExpect(jsonPath("$.data.records[0].candidateVersion").value(confirmedVersion))
                 .andExpect(jsonPath("$.data.records[0].assetCaseId").value(existingCaseId));
 
         mockMvc.perform(post("/api/v1/test-design/candidates/{id}/resolve-conflict", candidateId)
@@ -1197,6 +1199,8 @@ class TestDesignControllerTest {
                 .andExpect(jsonPath("$.data.candidateId").value(candidateId))
                 .andExpect(jsonPath("$.data.action").value("MANUAL_LINK_EXISTING"))
                 .andExpect(jsonPath("$.data.result").value("SUCCEEDED"))
+                .andExpect(jsonPath("$.data.candidateStatus").value("PUBLISHED"))
+                .andExpect(jsonPath("$.data.candidateVersion").value(confirmedVersion + 1))
                 .andExpect(jsonPath("$.data.assetCaseId").value(existingCaseId))
                 .andExpect(jsonPath("$.data.errorMessage").doesNotExist());
 
