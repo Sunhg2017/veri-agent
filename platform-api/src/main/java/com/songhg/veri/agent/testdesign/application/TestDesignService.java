@@ -6,8 +6,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.songhg.veri.agent.asset.application.AssetService;
 import com.songhg.veri.agent.asset.application.command.CreateLinkRequest;
 import com.songhg.veri.agent.asset.application.command.CreateTestCaseRequest;
+import com.songhg.veri.agent.asset.application.query.TraceLinkListRequest;
+import com.songhg.veri.agent.asset.application.view.ApiResponseDTO;
+import com.songhg.veri.agent.asset.application.view.BusinessFlowResponse;
 import com.songhg.veri.agent.asset.application.view.RequirementResponse;
 import com.songhg.veri.agent.asset.application.view.TestCaseResponse;
+import com.songhg.veri.agent.asset.application.view.TraceLinkResponse;
 import com.songhg.veri.agent.common.api.PageResponse;
 import com.songhg.veri.agent.common.api.PageQuery;
 import com.songhg.veri.agent.common.error.BusinessException;
@@ -99,6 +103,7 @@ public class TestDesignService {
     private static final int CANDIDATE_EXPORT_PAGE_SIZE = 100;
     private static final int REVIEW_RECORD_EXPORT_LIMIT = 500;
     private static final int REVIEW_RECORD_EXPORT_PAGE_SIZE = 100;
+    private static final int LINKED_ASSET_CONTEXT_LIMIT = 5;
     private static final String READINESS_PASSED = "PASSED";
     private static final String READINESS_WARNING = "WARNING";
     private static final String READINESS_BLOCKED = "BLOCKED";
@@ -912,6 +917,10 @@ public class TestDesignService {
                 .sorted(Comparator.comparing(RequirementResponse::id))
                 .map(this::requirementContextSummary)
                 .toList());
+        summary.put("linkedAssetsByRequirement", requirements.stream()
+                .sorted(Comparator.comparing(RequirementResponse::id))
+                .map(requirement -> linkedAssetContextSummary(projectId, requirement))
+                .toList());
         summary.put("existingCasesByRequirement", requirements.stream()
                 .sorted(Comparator.comparing(RequirementResponse::id))
                 .map(requirement -> existingCaseContextSummary(projectId, requirement.id()))
@@ -947,6 +956,148 @@ public class TestDesignService {
         return item;
     }
 
+    /**
+     * Reads linked API/page/flow summaries only through WP3 application services.
+     *
+     * <p>Trace links may outlive archived or deleted assets, so stale targets are omitted from the model context
+     * instead of failing generation for an otherwise valid requirement.
+     */
+    private Map<String, Object> linkedAssetContextSummary(String projectId, RequirementResponse requirement) {
+        List<TraceLinkResponse> links = linksByRequirement(requirement.id());
+        List<ApiResponseDTO> apis = links.stream()
+                .map(TraceLinkResponse::apiId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .map(apiId -> activeApi(apiId, projectId))
+                .flatMap(Optional::stream)
+                .sorted(Comparator.comparing(ApiResponseDTO::code, Comparator.nullsLast(String::compareTo))
+                        .thenComparing(ApiResponseDTO::id))
+                .toList();
+        List<com.songhg.veri.agent.asset.application.view.PageResponse> pages = links.stream()
+                .map(TraceLinkResponse::pageId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .map(pageId -> activePage(pageId, projectId))
+                .flatMap(Optional::stream)
+                .sorted(Comparator.comparing(
+                                com.songhg.veri.agent.asset.application.view.PageResponse::code,
+                                Comparator.nullsLast(String::compareTo)
+                        )
+                        .thenComparing(com.songhg.veri.agent.asset.application.view.PageResponse::id))
+                .toList();
+        List<BusinessFlowResponse> flows = links.stream()
+                .map(TraceLinkResponse::flowId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .map(flowId -> activeBusinessFlow(flowId, projectId))
+                .flatMap(Optional::stream)
+                .sorted(Comparator.comparing(BusinessFlowResponse::code, Comparator.nullsLast(String::compareTo))
+                        .thenComparing(BusinessFlowResponse::id))
+                .toList();
+
+        Map<String, Object> item = new LinkedHashMap<>();
+        item.put("requirementId", requirement.id().toString());
+        item.put("apiCount", apis.size());
+        item.put("pageCount", pages.size());
+        item.put("flowCount", flows.size());
+        item.put("apis", apis.stream().limit(LINKED_ASSET_CONTEXT_LIMIT).map(this::apiContextSummary).toList());
+        item.put("pages", pages.stream().limit(LINKED_ASSET_CONTEXT_LIMIT).map(this::pageContextSummary).toList());
+        item.put("flows", flows.stream().limit(LINKED_ASSET_CONTEXT_LIMIT).map(this::businessFlowContextSummary).toList());
+        return item;
+    }
+
+    private List<TraceLinkResponse> linksByRequirement(UUID requirementId) {
+        TraceLinkListRequest request = new TraceLinkListRequest();
+        request.setRequirementId(requirementId);
+        request.setSize(100);
+        return assetService.listLinks(request).items();
+    }
+
+    private Optional<ApiResponseDTO> activeApi(UUID apiId, String projectId) {
+        try {
+            ApiResponseDTO api = assetService.getApi(apiId);
+            return sameProject(api.projectId(), projectId) ? Optional.of(api) : Optional.empty();
+        } catch (BusinessException exception) {
+            if (ErrorCode.NOT_FOUND == exception.getErrorCode()) {
+                return Optional.empty();
+            }
+            throw exception;
+        }
+    }
+
+    private Optional<com.songhg.veri.agent.asset.application.view.PageResponse> activePage(
+            UUID pageId,
+            String projectId
+    ) {
+        try {
+            com.songhg.veri.agent.asset.application.view.PageResponse page = assetService.getPage(pageId);
+            return sameProject(page.projectId(), projectId) ? Optional.of(page) : Optional.empty();
+        } catch (BusinessException exception) {
+            if (ErrorCode.NOT_FOUND == exception.getErrorCode()) {
+                return Optional.empty();
+            }
+            throw exception;
+        }
+    }
+
+    private Optional<BusinessFlowResponse> activeBusinessFlow(UUID flowId, String projectId) {
+        try {
+            BusinessFlowResponse flow = assetService.getBusinessFlow(flowId);
+            return sameProject(flow.projectId(), projectId) ? Optional.of(flow) : Optional.empty();
+        } catch (BusinessException exception) {
+            if (ErrorCode.NOT_FOUND == exception.getErrorCode()) {
+                return Optional.empty();
+            }
+            throw exception;
+        }
+    }
+
+    private Map<String, Object> apiContextSummary(ApiResponseDTO api) {
+        Map<String, Object> item = new LinkedHashMap<>();
+        item.put("id", api.id().toString());
+        item.put("code", redactedPreview(api.code(), 80));
+        item.put("summary", redactedPreview(api.summary(), 160));
+        item.put("method", api.httpMethod());
+        item.put("path", redactedPreview(api.path(), 160));
+        item.put("status", api.status());
+        item.put("source", redactedPreview(api.source(), 80));
+        item.put("sourceRef", redactedPreview(api.sourceRef(), 160));
+        item.put("version", redactedPreview(api.version(), 80));
+        item.put("descriptionPreview", redactedPreview(api.description(), 200));
+        item.put("requestSchemaPreview", redactedPreview(api.requestSchema(), 240));
+        item.put("responseSchemaPreview", redactedPreview(api.responseSchema(), 240));
+        return item;
+    }
+
+    private Map<String, Object> pageContextSummary(
+            com.songhg.veri.agent.asset.application.view.PageResponse page
+    ) {
+        Map<String, Object> item = new LinkedHashMap<>();
+        item.put("id", page.id().toString());
+        item.put("code", redactedPreview(page.code(), 80));
+        item.put("name", redactedPreview(page.name(), 160));
+        item.put("urlPattern", redactedPreview(page.urlPattern(), 160));
+        item.put("status", page.status());
+        item.put("source", redactedPreview(page.source(), 80));
+        item.put("sourceRef", redactedPreview(page.sourceRef(), 160));
+        item.put("sourceVersion", redactedPreview(page.sourceVersion(), 80));
+        item.put("componentTreePreview", redactedPreview(page.componentTree(), 240));
+        item.put("screenshotUrl", redactedPreview(page.screenshotUrl(), 160));
+        return item;
+    }
+
+    private Map<String, Object> businessFlowContextSummary(BusinessFlowResponse flow) {
+        Map<String, Object> item = new LinkedHashMap<>();
+        item.put("id", flow.id().toString());
+        item.put("code", redactedPreview(flow.code(), 80));
+        item.put("name", redactedPreview(flow.name(), 160));
+        item.put("priority", flow.priority());
+        item.put("status", flow.status());
+        item.put("descriptionPreview", redactedPreview(flow.description(), 200));
+        item.put("flowJsonPreview", redactedPreview(flow.flowJson(), 240));
+        return item;
+    }
+
     private Map<String, Object> existingCaseContextSummary(String projectId, UUID requirementId) {
         List<TestCaseResponse> cases = assetService.findActiveTestCasesByRequirement(projectId, requirementId).stream()
                 .sorted(Comparator.comparing(TestCaseResponse::title, Comparator.nullsLast(String::compareTo))
@@ -976,6 +1127,8 @@ public class TestDesignService {
         Map<String, Object> limits = new LinkedHashMap<>();
         limits.put("requirementDescriptionChars", 240);
         limits.put("acceptanceCriteriaChars", 240);
+        limits.put("linkedAssetsPerRequirement", LINKED_ASSET_CONTEXT_LIMIT);
+        limits.put("linkedAssetSchemaChars", 240);
         limits.put("existingCasesPerRequirement", 5);
         limits.put("rawPromptStored", false);
         return limits;
@@ -3097,6 +3250,10 @@ public class TestDesignService {
             }
         }
         return result.isEmpty() ? null : String.join(",", result);
+    }
+
+    private static boolean sameProject(String actualProjectId, String expectedProjectId) {
+        return StringUtils.hasText(actualProjectId) && actualProjectId.equals(expectedProjectId);
     }
 
     private static String mergeTags(String existingTags, String requiredTag) {

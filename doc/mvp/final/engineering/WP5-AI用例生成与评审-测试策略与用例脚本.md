@@ -57,6 +57,7 @@
 | WP5-FUNC-001 | P0 | 有权限用户选择单条需求创建生成任务 | 返回任务 ID，状态进入 `RUNNING/SUCCEEDED`，写审计。 |
 | WP5-FUNC-002 | P0 | 批量选择多条同项目需求创建任务 | 生成候选按 requirementId 归属，任务摘要统计正确。 |
 | WP5-FUNC-003 | P0 | 选择跨项目需求创建任务 | 返回校验失败或越权，任务不创建。 |
+| WP5-FUNC-003A | P0 | 需求已关联 API、页面和业务流 | `contextSummary.linkedAssetsByRequirement` 包含三类资产脱敏摘要，且只通过 WP3 应用服务读取。 |
 | WP5-FUNC-004 | P0 | 模型输出合法 JSON | 候选落库，包含标题、步骤、预期、优先级和来源依据。 |
 | WP5-FUNC-005 | P0 | 模型输出非法 JSON | 任务失败或 fallback，错误码为模型输出非法，不产生脏候选。 |
 | WP5-FUNC-006 | P0 | WP2 敏感内容阻断 | 任务展示阻断摘要，保存 traceId，不绕过 WP2。 |

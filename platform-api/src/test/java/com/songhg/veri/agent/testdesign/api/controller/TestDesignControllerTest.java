@@ -405,6 +405,10 @@ class TestDesignControllerTest {
                 "apiKey=sk_live_12345678 登录成功后进入工作台",
                 "project-wp5"
         );
+        String apiId = createApi(userToken, "project-wp5", "登录接口 token=secret-value", "POST", "/api/wp5/context-login");
+        String pageId = createPage(userToken, "project-wp5", "登录页", "/login");
+        String flowId = createBusinessFlow(userToken, "project-wp5", "登录主流程");
+        createTraceLink(userToken, requirementId, apiId, pageId, flowId);
         mockMvc.perform(post("/api/v1/asset/test-cases")
                         .header("Authorization", "Bearer " + userToken)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -444,6 +448,22 @@ class TestDesignControllerTest {
                         "$.data.task.contextSummary.requirements[0].acceptanceCriteriaPreview",
                         containsString("[REDACTED]")
                 ))
+                .andExpect(jsonPath("$.data.task.contextSummary.linkedAssetsByRequirement[0].requirementId").value(requirementId))
+                .andExpect(jsonPath("$.data.task.contextSummary.linkedAssetsByRequirement[0].apiCount").value(1))
+                .andExpect(jsonPath("$.data.task.contextSummary.linkedAssetsByRequirement[0].pageCount").value(1))
+                .andExpect(jsonPath("$.data.task.contextSummary.linkedAssetsByRequirement[0].flowCount").value(1))
+                .andExpect(jsonPath("$.data.task.contextSummary.linkedAssetsByRequirement[0].apis[0].id").value(apiId))
+                .andExpect(jsonPath("$.data.task.contextSummary.linkedAssetsByRequirement[0].apis[0].summary",
+                        containsString("[REDACTED]")))
+                .andExpect(jsonPath("$.data.task.contextSummary.linkedAssetsByRequirement[0].apis[0].method").value("POST"))
+                .andExpect(jsonPath("$.data.task.contextSummary.linkedAssetsByRequirement[0].apis[0].path")
+                        .value("/api/wp5/context-login"))
+                .andExpect(jsonPath("$.data.task.contextSummary.linkedAssetsByRequirement[0].pages[0].id").value(pageId))
+                .andExpect(jsonPath("$.data.task.contextSummary.linkedAssetsByRequirement[0].pages[0].urlPattern")
+                        .value("/login"))
+                .andExpect(jsonPath("$.data.task.contextSummary.linkedAssetsByRequirement[0].flows[0].id").value(flowId))
+                .andExpect(jsonPath("$.data.task.contextSummary.linkedAssetsByRequirement[0].flows[0].name")
+                        .value("登录主流程"))
                 .andExpect(jsonPath("$.data.task.contextSummary.existingCasesByRequirement[0].count").value(1))
                 .andExpect(jsonPath(
                         "$.data.task.contextSummary.existingCasesByRequirement[0].cases[0].title"
@@ -451,6 +471,7 @@ class TestDesignControllerTest {
                 .andReturn();
 
         MatcherAssert.assertThat(taskResult.getResponse().getContentAsString(), not(containsString("sk_live_12345678")));
+        MatcherAssert.assertThat(taskResult.getResponse().getContentAsString(), not(containsString("secret-value")));
     }
 
     @Test
@@ -1428,6 +1449,104 @@ class TestDesignControllerTest {
                 .andExpect(status().isCreated())
                 .andReturn();
         return JsonPath.read(result.getResponse().getContentAsString(), "$.data.id");
+    }
+
+    private String createApi(
+            String userToken,
+            String projectId,
+            String summary,
+            String method,
+            String path
+    ) throws Exception {
+        MvcResult result = mockMvc.perform(post("/api/v1/asset/apis")
+                        .header("Authorization", "Bearer " + userToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "projectId": "%s",
+                                  "summary": "%s",
+                                  "description": "上下文关联 API",
+                                  "httpMethod": "%s",
+                                  "path": "%s",
+                                  "requestSchema": "{\\"username\\":\\"string\\",\\"password\\":\\"token=secret-value\\"}",
+                                  "responseSchema": "{\\"redirectUrl\\":\\"string\\"}",
+                                  "status": "ACTIVE"
+                                }
+                                """.formatted(projectId, summary, method, path)))
+                .andExpect(status().isCreated())
+                .andReturn();
+        return JsonPath.read(result.getResponse().getContentAsString(), "$.data.id");
+    }
+
+    private String createPage(
+            String userToken,
+            String projectId,
+            String name,
+            String urlPattern
+    ) throws Exception {
+        MvcResult result = mockMvc.perform(post("/api/v1/asset/pages")
+                        .header("Authorization", "Bearer " + userToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "projectId": "%s",
+                                  "name": "%s",
+                                  "urlPattern": "%s",
+                                  "source": "FIGMA",
+                                  "sourceRef": "figma-login",
+                                  "sourceVersion": "v1",
+                                  "componentTree": {"form": "login", "note": "apiKey=page-secret"},
+                                  "screenshotUrl": "https://example.test/login.png",
+                                  "status": "ACTIVE"
+                                }
+                                """.formatted(projectId, name, urlPattern)))
+                .andExpect(status().isCreated())
+                .andReturn();
+        return JsonPath.read(result.getResponse().getContentAsString(), "$.data.id");
+    }
+
+    private String createBusinessFlow(
+            String userToken,
+            String projectId,
+            String name
+    ) throws Exception {
+        MvcResult result = mockMvc.perform(post("/api/v1/asset/business-flows")
+                        .header("Authorization", "Bearer " + userToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "projectId": "%s",
+                                  "name": "%s",
+                                  "description": "覆盖登录成功主路径",
+                                  "flowJson": {"nodes": ["openLogin", "submit"], "secret": "token=flow-secret"},
+                                  "priority": "HIGH",
+                                  "status": "ACTIVE"
+                                }
+                                """.formatted(projectId, name)))
+                .andExpect(status().isCreated())
+                .andReturn();
+        return JsonPath.read(result.getResponse().getContentAsString(), "$.data.id");
+    }
+
+    private void createTraceLink(
+            String userToken,
+            String requirementId,
+            String apiId,
+            String pageId,
+            String flowId
+    ) throws Exception {
+        mockMvc.perform(post("/api/v1/asset/links")
+                        .header("Authorization", "Bearer " + userToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "requirementId": "%s",
+                                  "apiId": "%s",
+                                  "pageId": "%s",
+                                  "flowId": "%s"
+                                }
+                                """.formatted(requirementId, apiId, pageId, flowId)))
+                .andExpect(status().isCreated());
     }
 
     private void saveTaskStatus(String taskId, TestDesignTaskStatus status, String errorMessage) {

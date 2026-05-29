@@ -224,6 +224,48 @@ CONFIRMED -> IGNORED
 
 服务端必须对 JSON 做结构校验和业务校验，不能把模型原始字符串直接入库为候选。
 
+### 5.1 上下文摘要契约
+
+当前实现的 `context_summary_json` 只保存脱敏摘要，不保存完整 Prompt 或原始文档正文。任务创建时通过 WP3 应用服务读取需求、追踪链接、关联 API、页面、业务流和历史用例摘要；WP5 不直连 WP3 表。
+
+```json
+{
+  "contextVersion": "wp5-context-v1",
+  "requirements": [
+    {
+      "id": "4d76b2c1-0000-4000-8000-000000000001",
+      "code": "REQ-001",
+      "title": "账号密码登录",
+      "acceptanceCriteriaPreview": "登录成功后进入工作台"
+    }
+  ],
+  "linkedAssetsByRequirement": [
+    {
+      "requirementId": "4d76b2c1-0000-4000-8000-000000000001",
+      "apiCount": 1,
+      "pageCount": 1,
+      "flowCount": 1,
+      "apis": [{"id": "a111...", "method": "POST", "path": "/api/login", "summary": "登录接口"}],
+      "pages": [{"id": "p111...", "name": "登录页", "urlPattern": "/login"}],
+      "flows": [{"id": "f111...", "name": "登录主流程", "priority": "HIGH"}]
+    }
+  ],
+  "existingCasesByRequirement": [
+    {
+      "requirementId": "4d76b2c1-0000-4000-8000-000000000001",
+      "count": 1,
+      "cases": [{"id": "c111...", "title": "历史登录主流程用例", "stepCount": 3}]
+    }
+  ],
+  "limits": {
+    "linkedAssetsPerRequirement": 5,
+    "linkedAssetSchemaChars": 240,
+    "existingCasesPerRequirement": 5,
+    "rawPromptStored": false
+  }
+}
+```
+
 ## 6. API 契约
 
 基础路径：`/api/v1/test-design`
