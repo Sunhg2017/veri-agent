@@ -3,7 +3,7 @@ package com.songhg.veri.agent.testdesign.api.controller;
 import com.jayway.jsonpath.JsonPath;
 import com.songhg.veri.agent.auth.application.AuthTokenService;
 import com.songhg.veri.agent.auth.domain.AuthUserRecord;
-import com.songhg.veri.agent.testdesign.application.TestDesignService;
+import com.songhg.veri.agent.testdesign.application.TestDesignTaskService;
 import com.songhg.veri.agent.testdesign.application.port.TestDesignRepository;
 import java.util.List;
 import java.util.UUID;
@@ -43,7 +43,7 @@ class TestDesignAsyncGenerationControllerTest {
     private TestDesignRepository testDesignRepository;
 
     @Autowired
-    private TestDesignService testDesignService;
+    private TestDesignTaskService testDesignTaskService;
 
     @Test
     void createsQueuedTaskAndConsumesGenerationEventIdempotently() throws Exception {
@@ -73,7 +73,7 @@ class TestDesignAsyncGenerationControllerTest {
         UUID taskUuid = UUID.fromString(taskId);
         assertThat(testDesignRepository.candidatesByTask(taskUuid)).hasSize(2);
 
-        testDesignService.processQueuedTask(taskUuid);
+        testDesignTaskService.processQueuedTask(taskUuid);
         assertThat(testDesignRepository.candidatesByTask(taskUuid)).hasSize(2);
     }
 

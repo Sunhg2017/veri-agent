@@ -3,7 +3,7 @@ package com.songhg.veri.agent.testdesign.api.controller;
 import com.songhg.veri.agent.authorization.application.PermissionCodes;
 import com.songhg.veri.agent.authorization.application.RequirePermission;
 import com.songhg.veri.agent.common.openapi.ApiVersion;
-import com.songhg.veri.agent.testdesign.application.TestDesignService;
+import com.songhg.veri.agent.testdesign.application.TestDesignQualityService;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignQualitySummaryResponse;
 import java.util.UUID;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -19,9 +19,9 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/v1/test-design/tasks/{id}/quality")
 public class TestDesignTaskQualityController {
 
-    private final TestDesignService service;
+    private final TestDesignQualityService service;
 
-    public TestDesignTaskQualityController(TestDesignService service) {
+    public TestDesignTaskQualityController(TestDesignQualityService service) {
         this.service = service;
     }
 

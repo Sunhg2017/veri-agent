@@ -5,13 +5,13 @@
 | 工作包 | WP5 AI 用例生成与评审 |
 | 角色产出 | 资深服务端架构师 |
 | 文档性质 | 技术设计、数据模型、接口契约和服务端质量约束 |
-| 当前口径 | WP5 在 `platform-api` 内实现为独立领域模块，不新增独立服务 |
-| 版本 | v0.1 |
-| 日期 | 2026-05-25 |
+| 当前口径 | WP5 在 `platform-api` 内实现为独立领域模块，不新增独立部署服务；模块内应用服务按任务、生成、评审、质量、发布、冲突和报告拆分 |
+| 版本 | v0.2 |
+| 日期 | 2026-05-30 |
 
 ## 1. 架构原则
 
-1. WP5 是任务/领域拆分，不是服务拆分，包路径建议为 `com.songhg.veri.agent.testdesign`。
+1. WP5 是任务/领域拆分，不是独立部署服务拆分，包路径建议为 `com.songhg.veri.agent.testdesign`；模块内部不得用单一 God Object 承载任务、生成、质量、发布、冲突和报告职责。
 2. API 使用统一 envelope，JSON 字段使用 camelCase，分页使用 `index`、`size`。
 3. SQL 放在 MyBatis Mapper XML，不在 Java 代码拼接 SQL。
 4. 不恢复多租户，不在 WP5 表中增加 `tenant_id`。
@@ -25,28 +25,46 @@
 ```mermaid
 flowchart LR
     UI["portal-web 用例生成工作台"] --> API["WP5 Controller"]
-    API --> APP["TestDesignApplicationService"]
-    APP --> CTX["GenerationContextAssembler"]
-    APP --> GEN["CaseGenerationService"]
-    APP --> REV["CandidateReviewService"]
-    APP --> PUB["CandidatePublishService"]
+    API --> TASK["TestDesignTaskService"]
+    API --> REV["TestDesignCandidateReviewService"]
+    API --> QUAL["TestDesignQualityService"]
+    API --> PUB["TestDesignPublishService"]
+    API --> CONFLICT["TestDesignConflictService"]
+    API --> REPORT["TestDesignTaskReportService"]
+    TASK --> GEN["TestDesignGenerationService"]
+    GEN --> CTX["WP5 generation context assembly"]
     CTX --> WP3R["WP3 Asset Services"]
     GEN --> WP2["WP2 ModelAccessService"]
     PUB --> WP3W["WP3 TestCase/TraceLink Services"]
-    APP --> REPO["WP5 Repository"]
-    APP --> AUDIT["WP1 Audit/Authorization"]
+    CONFLICT --> WP3W
+    TASK --> REPO["WP5 Repository"]
+    REV --> REPO
+    QUAL --> REPO
+    PUB --> REPO
+    CONFLICT --> REPO
+    REPORT --> REPO
+    TASK --> AUDIT["WP1 Audit/Authorization"]
+    REV --> AUDIT
+    PUB --> AUDIT
+    CONFLICT --> AUDIT
 ```
 
 | 组件 | 职责 |
 |---|---|
 | `TestDesignTaskController` | 任务创建、列表、详情、取消、重试。 |
 | `TestDesignCandidateController` | 候选查询、详情、编辑、确认、驳回、忽略、批量操作。 |
-| `TestDesignPublishController` | 发布 dryRun、正式发布、发布记录查询。 |
-| `GenerationContextAssembler` | 从 WP3 装配需求、API、页面、业务流和历史用例摘要，并做裁剪脱敏。 |
-| `CaseGenerationService` | 组装 Prompt 变量、调用 WP2、解析输出、执行 JSON Schema 和业务校验。 |
-| `CandidateQualityService` | 判断空步骤、缺断言、重复风险、覆盖缺口和敏感信息风险。 |
-| `CandidatePublishService` | 将已确认候选写入 WP3 测试用例并建立追踪关系。 |
+| `TestDesignTaskPublishController` | 发布 dryRun、正式发布、发布记录查询和任务评审历史导出。 |
+| `TestDesignTaskService` | 任务查询、任务摘要、服务健康、创建、重试、取消、异步消费认领、状态落库、幂等和任务审计。 |
+| `TestDesignGenerationService` | 装配脱敏上下文、选择规则模板或 WP2 模型生成、解析模型输出、生成候选批次并执行生成质量校验；不创建任务、不做状态流转、不写审计。 |
+| `TestDesignCandidateReviewService` | 候选查询、编辑、确认、驳回、忽略、批量评审和评审记录导出。 |
+| `TestDesignQualityService` | 判断空步骤、缺断言、重复风险、覆盖缺口、敏感信息风险和发布就绪。 |
+| `TestDesignPublishService` | 发布 dryRun、正式发布、发布记录查询，将已确认候选写入 WP3 测试用例并建立追踪关系。 |
+| `TestDesignConflictService` | 发布冲突人工链接和批量冲突处理，复用 WP3 用例需求追踪校验和审计记录。 |
+| `TestDesignTaskReportService` | 导出任务级聚合报告，避免报告拼装逻辑回流到任务服务。 |
+| `TestDesignScopeService` | 为权限解析提供任务/候选项目作用域，不承载业务流。 |
 | `TestDesignRepository` | 维护生成任务、候选、评审记录和发布记录。 |
+
+服务拆分准入：`ModuleLayerDependencyTest` 禁止重新引入 `TestDesignService` 或 `Facade` 命名服务，禁止 `TestDesignGenerationService` 持有创建/重试/异步消费入口，并将 WP5 单个应用服务上限收紧为 1200 行。
 
 ## 3. 状态机
 

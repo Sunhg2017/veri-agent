@@ -4,7 +4,8 @@ import com.songhg.veri.agent.authorization.application.PermissionCodes;
 import com.songhg.veri.agent.authorization.application.RequirePermission;
 import com.songhg.veri.agent.common.api.PageResponse;
 import com.songhg.veri.agent.common.openapi.ApiVersion;
-import com.songhg.veri.agent.testdesign.application.TestDesignService;
+import com.songhg.veri.agent.testdesign.application.TestDesignCandidateReviewService;
+import com.songhg.veri.agent.testdesign.application.TestDesignConflictService;
 import com.songhg.veri.agent.testdesign.application.command.ResolveTestDesignConflictBatchCommand;
 import com.songhg.veri.agent.testdesign.application.command.ResolveTestDesignConflictCommand;
 import com.songhg.veri.agent.testdesign.application.command.TestDesignCandidateActionCommand;
@@ -37,10 +38,15 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/v1/test-design/candidates")
 public class TestDesignCandidateController {
 
-    private final TestDesignService service;
+    private final TestDesignCandidateReviewService candidateReviewService;
+    private final TestDesignConflictService conflictService;
 
-    public TestDesignCandidateController(TestDesignService service) {
-        this.service = service;
+    public TestDesignCandidateController(
+            TestDesignCandidateReviewService candidateReviewService,
+            TestDesignConflictService conflictService
+    ) {
+        this.candidateReviewService = candidateReviewService;
+        this.conflictService = conflictService;
     }
 
     /**
@@ -49,7 +55,7 @@ public class TestDesignCandidateController {
     @GetMapping
     @RequirePermission(value = PermissionCodes.TEST_DESIGN_READ, scope = TestDesignPermissionScopes.CANDIDATE_LIST)
     public PageResponse<TestDesignCandidateResponse> candidates(@Valid TestDesignCandidatePageRequest request) {
-        return service.candidates(request.toQuery(null));
+        return candidateReviewService.candidates(request.toQuery(null));
     }
 
     /**
@@ -59,7 +65,7 @@ public class TestDesignCandidateController {
     @RequirePermission(value = PermissionCodes.TEST_DESIGN_READ, scope = TestDesignPermissionScopes.CANDIDATE_LIST)
     @RequirePermission(value = PermissionCodes.TEST_DESIGN_EXPORT, scope = TestDesignPermissionScopes.CANDIDATE_LIST)
     public ResponseEntity<String> exportCandidates(@Valid TestDesignCandidatePageRequest request) {
-        String csv = service.exportCandidatesCsv(request.toQuery(null));
+        String csv = candidateReviewService.exportCandidatesCsv(request.toQuery(null));
         return ResponseEntity.ok()
                 .contentType(new MediaType("text", "csv", StandardCharsets.UTF_8))
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"wp5-candidates.csv\"")
@@ -75,7 +81,7 @@ public class TestDesignCandidateController {
             @PathVariable UUID id,
             @Valid @RequestBody UpdateTestDesignCandidateCommand command
     ) {
-        return service.updateCandidate(id, command);
+        return candidateReviewService.updateCandidate(id, command);
     }
 
     /**
@@ -87,7 +93,7 @@ public class TestDesignCandidateController {
             @PathVariable UUID id,
             @RequestBody(required = false) TestDesignCandidateActionCommand command
     ) {
-        return service.confirmCandidate(id, command);
+        return candidateReviewService.confirmCandidate(id, command);
     }
 
     /**
@@ -99,7 +105,7 @@ public class TestDesignCandidateController {
             @PathVariable UUID id,
             @Valid @RequestBody TestDesignCandidateActionCommand command
     ) {
-        return service.rejectCandidate(id, command);
+        return candidateReviewService.rejectCandidate(id, command);
     }
 
     /**
@@ -111,7 +117,7 @@ public class TestDesignCandidateController {
             @PathVariable UUID id,
             @Valid @RequestBody TestDesignCandidateActionCommand command
     ) {
-        return service.ignoreCandidate(id, command);
+        return candidateReviewService.ignoreCandidate(id, command);
     }
 
     /**
@@ -123,7 +129,7 @@ public class TestDesignCandidateController {
             @PathVariable UUID id,
             @Valid @RequestBody ResolveTestDesignConflictCommand command
     ) {
-        return service.resolveConflict(id, command);
+        return conflictService.resolveConflict(id, command);
     }
 
     /**
@@ -134,7 +140,7 @@ public class TestDesignCandidateController {
     public TestDesignConflictBatchResolveResponse batchResolveConflicts(
             @Valid @RequestBody ResolveTestDesignConflictBatchCommand command
     ) {
-        return service.batchResolveConflicts(command);
+        return conflictService.batchResolveConflicts(command);
     }
 
     /**
@@ -145,6 +151,6 @@ public class TestDesignCandidateController {
     public TestDesignCandidateBatchActionResponse batchAction(
             @Valid @RequestBody TestDesignCandidateBatchActionCommand command
     ) {
-        return service.batchCandidateAction(command);
+        return candidateReviewService.batchCandidateAction(command);
     }
 }

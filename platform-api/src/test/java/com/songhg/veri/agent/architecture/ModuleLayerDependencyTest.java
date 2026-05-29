@@ -12,6 +12,7 @@ class ModuleLayerDependencyTest {
 
     private static final int MAX_CONTROLLER_LINES = 200;
     private static final int MAX_ASSET_MAPPER_XML_LINES = 300;
+    private static final int MAX_WP5_APPLICATION_SERVICE_LINES = 1200;
 
     private static final Pattern FORBIDDEN_API_DTO_IMPORT = Pattern.compile(
             "^import com\\.songhg\\.veri\\.agent\\.[^.]+\\.api\\.(request|response)\\.",
@@ -52,6 +53,77 @@ class ModuleLayerDependencyTest {
 
         assertThat(violatedFiles)
                 .as("management controllers must inject capability-specific operation ports")
+                .isEmpty();
+    }
+
+    @Test
+    void testDesignAggregateServiceIsNotReintroduced() {
+        Path aggregateService = Path.of(
+                "src/main/java/com/songhg/veri/agent/testdesign/application/TestDesignService.java"
+        );
+
+        assertThat(Files.exists(aggregateService))
+                .as("WP5 must stay split by task/generation/review/quality/publish/conflict/report services")
+                .isFalse();
+    }
+
+    @Test
+    void testDesignControllersDoNotDependOnAggregateService() throws Exception {
+        Path controllerRoot = Path.of("src/main/java/com/songhg/veri/agent/testdesign/api/controller");
+        List<Path> violatedFiles;
+        try (var files = Files.walk(controllerRoot)) {
+            violatedFiles = files
+                    .filter(path -> path.toString().endsWith("Controller.java"))
+                    .filter(path -> containsText(path, "TestDesignService"))
+                    .toList();
+        }
+
+        assertThat(violatedFiles)
+                .as("WP5 controllers must inject capability-specific application services")
+                .isEmpty();
+    }
+
+    @Test
+    void testDesignApplicationDoesNotIntroduceFacadeServices() throws Exception {
+        Path applicationRoot = Path.of("src/main/java/com/songhg/veri/agent/testdesign/application");
+        List<Path> facadeFiles;
+        try (var files = Files.list(applicationRoot)) {
+            facadeFiles = files
+                    .filter(path -> path.getFileName().toString().contains("Facade"))
+                    .toList();
+        }
+
+        assertThat(facadeFiles)
+                .as("WP5 services must be split by capability; do not hide TestDesignService behind a facade")
+                .isEmpty();
+    }
+
+    @Test
+    void testDesignGenerationServiceDoesNotOwnTaskLifecycle() throws Exception {
+        Path generationService = Path.of(
+                "src/main/java/com/songhg/veri/agent/testdesign/application/TestDesignGenerationService.java"
+        );
+        String content = Files.readString(generationService);
+
+        assertThat(content)
+                .as("generation service must only build context and generated candidates, not task lifecycle")
+                .doesNotContain("createTask(", "retryTask(", "processQueuedTask(", "TestDesignEventPublisher");
+    }
+
+    @Test
+    void testDesignApplicationServicesStayBelowGodObjectLimit() throws Exception {
+        Path applicationRoot = Path.of("src/main/java/com/songhg/veri/agent/testdesign/application");
+        List<Path> oversizedServices;
+        try (var files = Files.list(applicationRoot)) {
+            oversizedServices = files
+                    .filter(path -> path.getFileName().toString().endsWith("Service.java"))
+                    .filter(path -> lineCount(path) > MAX_WP5_APPLICATION_SERVICE_LINES)
+                    .toList();
+        }
+
+        assertThat(oversizedServices)
+                .as("WP5 application services above " + MAX_WP5_APPLICATION_SERVICE_LINES
+                        + " lines must be split before adding behavior")
                 .isEmpty();
     }
 
@@ -302,6 +374,14 @@ class ModuleLayerDependencyTest {
         try {
             // The old aggregate facade made management controllers grow in every direction at once.
             return Files.readString(path).contains("ManagementConsoleService");
+        } catch (Exception exception) {
+            throw new IllegalStateException("Cannot inspect " + path, exception);
+        }
+    }
+
+    private boolean containsText(Path path, String text) {
+        try {
+            return Files.readString(path).contains(text);
         } catch (Exception exception) {
             throw new IllegalStateException("Cannot inspect " + path, exception);
         }

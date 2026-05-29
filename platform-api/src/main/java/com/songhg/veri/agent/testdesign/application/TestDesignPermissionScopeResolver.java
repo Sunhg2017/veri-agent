@@ -15,14 +15,14 @@ import org.springframework.util.StringUtils;
 public class TestDesignPermissionScopeResolver {
 
     private final TestDesignPlatformContextClient contextClient;
-    private final TestDesignService service;
+    private final TestDesignScopeService scopeService;
 
     public TestDesignPermissionScopeResolver(
             TestDesignPlatformContextClient contextClient,
-            TestDesignService service
+            TestDesignScopeService scopeService
     ) {
         this.contextClient = contextClient;
-        this.service = service;
+        this.scopeService = scopeService;
     }
 
     public ResourceScope project(String projectId) {
@@ -47,17 +47,17 @@ public class TestDesignPermissionScopeResolver {
     }
 
     public ResourceScope task(UUID id) {
-        return ResourceScope.project(service.taskProjectScopeId(id));
+        return ResourceScope.project(scopeService.taskProjectScopeId(id));
     }
 
     public ResourceScope candidate(UUID id) {
-        return ResourceScope.project(service.candidateProjectScopeId(id));
+        return ResourceScope.project(scopeService.candidateProjectScopeId(id));
     }
 
     public List<ResourceScope> candidateBatch(TestDesignCandidateBatchActionCommand command) {
         LinkedHashSet<String> projectIds = new LinkedHashSet<>();
         for (UUID candidateId : batchCandidateIds(command)) {
-            projectIds.add(service.candidateProjectScopeId(candidateId));
+            projectIds.add(scopeService.candidateProjectScopeId(candidateId));
         }
         if (projectIds.isEmpty()) {
             return List.of(ResourceScope.platform());
@@ -70,7 +70,7 @@ public class TestDesignPermissionScopeResolver {
     public List<ResourceScope> candidateBatch(ResolveTestDesignConflictBatchCommand command) {
         LinkedHashSet<String> projectIds = new LinkedHashSet<>();
         for (UUID candidateId : batchCandidateIds(command)) {
-            projectIds.add(service.candidateProjectScopeId(candidateId));
+            projectIds.add(scopeService.candidateProjectScopeId(candidateId));
         }
         if (projectIds.isEmpty()) {
             return List.of(ResourceScope.platform());

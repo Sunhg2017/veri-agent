@@ -10,11 +10,11 @@ import org.springframework.stereotype.Component;
 public class TestDesignGenerationRequestedEventHandler implements PlatformEventHandler {
 
     private final ObjectMapper objectMapper;
-    private final TestDesignService service;
+    private final TestDesignTaskService taskService;
 
-    public TestDesignGenerationRequestedEventHandler(ObjectMapper objectMapper, TestDesignService service) {
+    public TestDesignGenerationRequestedEventHandler(ObjectMapper objectMapper, TestDesignTaskService taskService) {
         this.objectMapper = objectMapper;
-        this.service = service;
+        this.taskService = taskService;
     }
 
     @Override
@@ -28,6 +28,6 @@ public class TestDesignGenerationRequestedEventHandler implements PlatformEventH
                 objectMapper,
                 TestDesignGenerationRequestedEvent.class
         );
-        service.processQueuedTask(payload.taskId());
+        taskService.processQueuedTask(payload.taskId());
     }
 }

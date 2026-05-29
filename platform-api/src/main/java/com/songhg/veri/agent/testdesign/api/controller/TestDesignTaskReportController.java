@@ -3,7 +3,7 @@ package com.songhg.veri.agent.testdesign.api.controller;
 import com.songhg.veri.agent.authorization.application.PermissionCodes;
 import com.songhg.veri.agent.authorization.application.RequirePermission;
 import com.songhg.veri.agent.common.openapi.ApiVersion;
-import com.songhg.veri.agent.testdesign.application.TestDesignService;
+import com.songhg.veri.agent.testdesign.application.TestDesignTaskReportService;
 import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 import org.springframework.http.HttpHeaders;
@@ -22,9 +22,9 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/v1/test-design/tasks/{id}/report")
 public class TestDesignTaskReportController {
 
-    private final TestDesignService service;
+    private final TestDesignTaskReportService service;
 
-    public TestDesignTaskReportController(TestDesignService service) {
+    public TestDesignTaskReportController(TestDesignTaskReportService service) {
         this.service = service;
     }
 
