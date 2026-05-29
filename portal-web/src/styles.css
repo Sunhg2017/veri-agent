@@ -1810,6 +1810,14 @@ tbody tr:hover td {
   gap: var(--space-sm);
 }
 
+.test-design-conflict-search-action {
+  align-self: end;
+}
+
+.test-design-conflict-search-action .btn {
+  width: fit-content;
+}
+
 .test-design-conflict-list {
   display: grid;
   gap: 8px;
@@ -1842,6 +1850,19 @@ tbody tr:hover td {
   font-size: var(--font-size-xs);
   font-style: normal;
   line-height: 1.45;
+}
+
+.test-design-conflict-controls {
+  display: grid;
+  justify-items: end;
+  gap: 6px;
+  min-width: 180px;
+}
+
+.test-design-conflict-controls select {
+  width: min(240px, 100%);
+  min-height: 30px;
+  font-size: var(--font-size-xs);
 }
 
 .test-design-publish-records {

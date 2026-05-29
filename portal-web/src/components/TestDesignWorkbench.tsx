@@ -17,7 +17,12 @@ import {
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import type { CurrentUser } from '../api/auth';
-import { fetchAssetRequirements, type AssetRequirementView } from '../api/assets';
+import {
+  fetchAssetRequirements,
+  fetchAssetTestCases,
+  type AssetRequirementView,
+  type AssetTestCaseView
+} from '../api/assets';
 import {
   TEST_DESIGN_CANDIDATE_STATUSES,
   TEST_DESIGN_COVERAGE_TYPES,
@@ -245,6 +250,9 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
   const [batchEditResult, setBatchEditResult] = useState<BatchEditResult | null>(null);
   const [selectedCandidateIds, setSelectedCandidateIds] = useState<string[]>([]);
   const [conflictResolutionDraft, setConflictResolutionDraft] = useState<ConflictResolutionDraft>(initialConflictResolutionDraft);
+  const [conflictCaseKeyword, setConflictCaseKeyword] = useState('');
+  const [conflictCaseResults, setConflictCaseResults] = useState<AssetTestCaseView[]>([]);
+  const [selectedConflictCaseIds, setSelectedConflictCaseIds] = useState<Record<string, string>>({});
   const [pendingConfirmation, setPendingConfirmation] = useState<PendingConfirmation | null>(null);
   const [loadState, setLoadState] = useState<WorkState>({ loading: false });
   const [taskState, setTaskState] = useState<WorkState>({ loading: false });
@@ -352,6 +360,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
     candidates.forEach((candidate) => lookup.set(candidate.id, candidate));
     return lookup;
   }, [candidates, selectedCandidateCache]);
+  const conflictCaseSearchProjectId = publishResult?.projectId ?? selectedTask?.projectId ?? '';
   const candidateQualityIssues = useMemo(
     () => candidateDraft && selectedCandidate
       ? validateTestDesignCandidateDraft(candidateDraft, {
@@ -525,6 +534,9 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       setBatchEditDraft(initialTestDesignBatchEditDraft);
       setBatchEditResult(null);
       setConflictResolutionDraft(initialConflictResolutionDraft);
+      setConflictCaseKeyword('');
+      setConflictCaseResults([]);
+      setSelectedConflictCaseIds({});
       setPendingConfirmation(null);
       setTaskQualitySummary(null);
       setLoadState({ loading: false });
@@ -604,6 +616,9 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
     setBatchEditDraft(initialTestDesignBatchEditDraft);
     setBatchEditResult(null);
     setConflictResolutionDraft(initialConflictResolutionDraft);
+    setConflictCaseKeyword('');
+    setConflictCaseResults([]);
+    setSelectedConflictCaseIds({});
     setPendingConfirmation(null);
   }, [selectedTaskId]);
 
@@ -1097,6 +1112,8 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
         ? await publishTestDesignDryRun(selectedTaskId, { candidateIds })
         : await publishTestDesignTask(selectedTaskId, { candidateIds });
       setPublishResult(response.data);
+      setSelectedConflictCaseIds({});
+      setConflictCaseResults([]);
       setPublishState({
         loading: false,
         success: dryRun ? '预发布检查已完成' : '已发布到资产库测试用例',
@@ -1111,13 +1128,46 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
     }
   }
 
+  async function searchConflictCases() {
+    if (!canRead) {
+      setPublishState({ loading: false, error: '缺少 testDesign:read 权限' });
+      return;
+    }
+    if (!conflictCaseSearchProjectId) {
+      setPublishState({ loading: false, error: '缺少项目 ID，无法搜索既有用例' });
+      return;
+    }
+
+    setPublishState({ loading: true });
+    try {
+      const response = await fetchAssetTestCases({
+        projectId: conflictCaseSearchProjectId,
+        keyword: conflictCaseKeyword,
+        size: 8
+      });
+      setConflictCaseResults(response.data.items);
+      setPublishState({
+        loading: false,
+        success: `已加载既有用例 ${response.data.items.length} / ${response.data.total}`,
+        traceId: response.trace_id
+      });
+    } catch (error: unknown) {
+      setPublishState({ loading: false, error: testDesignErrorMessage(error, '既有用例搜索失败') });
+    }
+  }
+
   function requestResolveConflict(record: TestDesignPublishRecordView) {
     if (!canPublish) {
       setPublishState({ loading: false, error: '缺少 testDesign:publish 权限' });
       return;
     }
-    if (!record.candidateId || !record.assetCaseId) {
-      setPublishState({ loading: false, error: '冲突记录缺少候选或目标用例 ID' });
+    if (!record.candidateId) {
+      setPublishState({ loading: false, error: '冲突记录缺少候选 ID' });
+      return;
+    }
+    const targetCaseId = conflictResolutionTargetCaseId(record, selectedConflictCaseIds);
+    if (!targetCaseId) {
+      setPublishState({ loading: false, error: '请选择目标用例后再处理冲突' });
       return;
     }
     const candidate = conflictResolutionCandidate(record, conflictCandidateById);
@@ -1126,13 +1176,14 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       return;
     }
 
+    const resolutionRecord = { ...record, assetCaseId: targetCaseId };
     setPendingConfirmation({
       kind: 'resolveConflict',
       candidate,
-      record,
+      record: resolutionRecord,
       summary: buildTestDesignConflictResolutionConfirmation(
         candidate,
-        record,
+        resolutionRecord,
         conflictResolutionDraft.reason,
         conflictResolutionDraft.comment
       )
@@ -1167,6 +1218,11 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       }
       if (response.data.result === 'SUCCEEDED') {
         setConflictResolutionDraft(initialConflictResolutionDraft);
+        setSelectedConflictCaseIds((current) => {
+          const next = { ...current };
+          delete next[candidate.id];
+          return next;
+        });
         setPublishState({ loading: false, success: '冲突已链接既有用例', traceId: response.trace_id });
         return;
       }
@@ -2016,6 +2072,15 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
                         />
                       </label>
                       <label className="field">
+                        <span className="field-label">用例关键词</span>
+                        <input
+                          value={conflictCaseKeyword}
+                          onChange={(event) => setConflictCaseKeyword(event.target.value)}
+                          placeholder="标题 / 标签 / 编号"
+                          disabled={!canRead || publishState.loading || !conflictCaseSearchProjectId}
+                        />
+                      </label>
+                      <label className="field">
                         <span className="field-label">补充说明</span>
                         <input
                           value={conflictResolutionDraft.comment}
@@ -2024,28 +2089,67 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
                           disabled={!canPublish || publishState.loading}
                         />
                       </label>
+                      <div className="field test-design-conflict-search-action">
+                        <span className="field-label">既有用例</span>
+                        <button
+                          className="btn btn-secondary btn-sm"
+                          type="button"
+                          disabled={!canRead || publishState.loading || !conflictCaseSearchProjectId}
+                          onClick={() => void searchConflictCases()}
+                        >
+                          <Search size={15} />
+                          搜索
+                        </button>
+                      </div>
                     </div>
                     <div className="test-design-conflict-list">
                       {resolvableConflictRecords.slice(0, 4).map((record) => {
                         const candidate = conflictResolutionCandidate(record, conflictCandidateById);
+                        const targetCaseId = conflictResolutionTargetCaseId(record, selectedConflictCaseIds);
                         return (
                           <div className="test-design-conflict-row" key={publishRecordKey(record)}>
                             <span>
                               <strong>{record.title ?? record.candidateId ?? '-'}</strong>
-                              <em>{record.assetCaseId ? `目标用例 ${record.assetCaseId}` : '目标用例 -'}</em>
+                              <em>{targetCaseId ? `目标用例 ${targetCaseId}` : '目标用例 -'}</em>
                               {candidate && <em>候选 {candidate.status}@v{candidate.version}</em>}
                               {record.errorMessage && <small>{record.errorMessage}</small>}
                               {!candidate && <small>发布记录缺少候选版本，重新预发布后可处理。</small>}
                             </span>
-                            <button
-                              className="btn btn-secondary btn-xs"
-                              type="button"
-                              disabled={!canPublish || publishState.loading || !candidate || !record.assetCaseId}
-                              onClick={() => requestResolveConflict(record)}
-                            >
-                              <Link2 size={14} />
-                              复用
-                            </button>
+                            <div className="test-design-conflict-controls">
+                              <select
+                                value={targetCaseId}
+                                onChange={(event) => {
+                                  const nextCaseId = event.target.value;
+                                  const candidateId = record.candidateId;
+                                  if (candidateId) {
+                                    setSelectedConflictCaseIds((current) => ({
+                                      ...current,
+                                      [candidateId]: nextCaseId
+                                    }));
+                                  }
+                                }}
+                                disabled={!canPublish || publishState.loading}
+                              >
+                                <option value="">{record.assetCaseId ? '清空目标' : '选择目标用例'}</option>
+                                {record.assetCaseId && (
+                                  <option value={record.assetCaseId}>推荐 {shortIdentifier(record.assetCaseId)}</option>
+                                )}
+                                {conflictCaseResults.filter((testCase) => testCase.id !== record.assetCaseId).map((testCase) => (
+                                  <option value={testCase.id} key={`${record.candidateId}-${testCase.id}`}>
+                                    {testCase.title || shortIdentifier(testCase.id)}
+                                  </option>
+                                ))}
+                              </select>
+                              <button
+                                className="btn btn-secondary btn-xs"
+                                type="button"
+                                disabled={!canPublish || publishState.loading || !candidate || !targetCaseId}
+                                onClick={() => requestResolveConflict(record)}
+                              >
+                                <Link2 size={14} />
+                                复用
+                              </button>
+                            </div>
                           </div>
                         );
                       })}
@@ -2526,7 +2630,18 @@ function isResolvableConflictRecord(record: TestDesignPublishRecordView) {
   const conflictSignal = record.action === 'DUPLICATE_REVIEW_REQUIRED'
     || record.result === 'CONFLICT'
     || record.result === 'DUPLICATE_REVIEW_REQUIRED';
-  return Boolean(conflictSignal && record.candidateId && record.assetCaseId);
+  return Boolean(conflictSignal && record.candidateId);
+}
+
+function conflictResolutionTargetCaseId(
+  record: TestDesignPublishRecordView,
+  selectedCaseIds: Record<string, string>
+) {
+  if (!record.candidateId) {
+    return record.assetCaseId ?? '';
+  }
+  const selectedCaseId = selectedCaseIds[record.candidateId];
+  return selectedCaseId === undefined ? record.assetCaseId ?? '' : selectedCaseId;
 }
 
 function applyConflictResolutionRecord(
@@ -2543,7 +2658,6 @@ function applyConflictResolutionRecord(
       !replaced
       && isResolvableConflictRecord(record)
       && record.candidateId === resolution.candidateId
-      && record.assetCaseId === resolution.assetCaseId
     ) {
       replaced = true;
       return resolution;
@@ -2566,6 +2680,13 @@ function publishRecordKey(record: TestDesignPublishRecordView) {
 
 function assetCaseTraceHref(assetCaseId: string) {
   return `#asset-library/trace/case/${encodeURIComponent(assetCaseId)}`;
+}
+
+function shortIdentifier(value: string) {
+  if (value.length <= 14) {
+    return value;
+  }
+  return `${value.slice(0, 8)}...${value.slice(-4)}`;
 }
 
 function countByStatus(candidates: TestDesignCandidateView[]) {
