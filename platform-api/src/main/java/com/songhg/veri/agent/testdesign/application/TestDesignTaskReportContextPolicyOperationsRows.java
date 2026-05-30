@@ -2,11 +2,9 @@ package com.songhg.veri.agent.testdesign.application;
 
 import com.songhg.veri.agent.testdesign.application.view.TestDesignTaskResponse;
 import java.time.Instant;
+import java.util.Map;
 
 final class TestDesignTaskReportContextPolicyOperationsRows {
-
-    private static final String POLICY_VERSION = "wp5-context-policy-operations-v1";
-    private static final String OPERATION_MODE = "PLATFORM_DEFAULT_ONLY";
 
     private TestDesignTaskReportContextPolicyOperationsRows() {
     }
@@ -19,41 +17,51 @@ final class TestDesignTaskReportContextPolicyOperationsRows {
      * visible in archived reports without exporting policy bodies, override rules, approval notes or ticket URLs.
      */
     static void appendRows(StringBuilder csv, TestDesignTaskResponse task, Instant generatedAt) {
+        Map<String, Object> snapshot = TestDesignContextPolicyOperations.snapshot();
         TestDesignTaskReportService.appendTaskReportRow(csv, task, generatedAt,
                 "metadata", "contextPolicyOperations", "policyVersion", null,
-                POLICY_VERSION, null, null, "fullTask", null);
+                snapshot.get("policyVersion"), null, null, "fullTask", null);
         TestDesignTaskReportService.appendTaskReportRow(csv, task, generatedAt,
                 "metadata", "contextPolicyOperations", "operationMode", null,
-                OPERATION_MODE, null, "warning", "fullTask", null);
+                snapshot.get("operationMode"), null, "warning", "fullTask", null);
+        TestDesignTaskReportService.appendTaskReportRow(csv, task, generatedAt,
+                "metadata", "contextPolicyOperations", "policyResolutionOrder", null,
+                snapshot.get("policyResolutionOrder"), null, "warning", "fullTask", null);
+        TestDesignTaskReportService.appendTaskReportRow(csv, task, generatedAt,
+                "metadata", "contextPolicyOperations", "policyFallbackBehavior", null,
+                snapshot.get("policyFallbackBehavior"), null, "warning", "fullTask", null);
+        TestDesignTaskReportService.appendTaskReportRow(csv, task, generatedAt,
+                "metadata", "contextPolicyOperations", "approvalStatus", null,
+                snapshot.get("approvalStatus"), null, "warning", "fullTask", null);
         TestDesignTaskReportService.appendTaskReportRow(csv, task, generatedAt,
                 "metadata", "contextPolicyOperations", "projectOverrideStoreReady", null,
-                false, null, "warning", "fullTask", null);
+                snapshot.get("projectOverrideStoreReady"), null, "warning", "fullTask", null);
         TestDesignTaskReportService.appendTaskReportRow(csv, task, generatedAt,
                 "metadata", "contextPolicyOperations", "environmentOverrideStoreReady", null,
-                false, null, "warning", "fullTask", null);
+                snapshot.get("environmentOverrideStoreReady"), null, "warning", "fullTask", null);
         TestDesignTaskReportService.appendTaskReportRow(csv, task, generatedAt,
                 "metadata", "contextPolicyOperations", "changeApprovalWorkflowReady", null,
-                false, null, "warning", "fullTask", null);
+                snapshot.get("changeApprovalWorkflowReady"), null, "warning", "fullTask", null);
         TestDesignTaskReportService.appendTaskReportRow(csv, task, generatedAt,
                 "metadata", "contextPolicyOperations", "effectivePolicySnapshotMaterialized", null,
-                true, null, "success", "fullTask", null);
+                snapshot.get("effectivePolicySnapshotMaterialized"), null, "success", "fullTask", null);
         TestDesignTaskReportService.appendTaskReportRow(csv, task, generatedAt,
                 "metadata", "contextPolicyOperations", "policyDiffPreviewExported", null,
-                false, null, null, "fullTask", null);
+                snapshot.get("policyDiffPreviewExported"), null, null, "fullTask", null);
         TestDesignTaskReportService.appendTaskReportRow(csv, task, generatedAt,
                 "metadata", "contextPolicyOperations", "approvalNotesExported", null,
-                false, null, null, "fullTask", null);
+                snapshot.get("approvalNotesExported"), null, null, "fullTask", null);
         TestDesignTaskReportService.appendTaskReportRow(csv, task, generatedAt,
                 "metadata", "contextPolicyOperations", "ticketUrlExported", null,
-                false, null, null, "fullTask", null);
+                snapshot.get("ticketUrlExported"), null, null, "fullTask", null);
         TestDesignTaskReportService.appendTaskReportRow(csv, task, generatedAt,
                 "metadata", "contextPolicyOperations", "projectOverrideRulesExported", null,
-                false, null, null, "fullTask", null);
+                snapshot.get("projectOverrideRulesExported"), null, null, "fullTask", null);
         TestDesignTaskReportService.appendTaskReportRow(csv, task, generatedAt,
                 "metadata", "contextPolicyOperations", "environmentOverrideRulesExported", null,
-                false, null, null, "fullTask", null);
+                snapshot.get("environmentOverrideRulesExported"), null, null, "fullTask", null);
         TestDesignTaskReportService.appendTaskReportRow(csv, task, generatedAt,
                 "metadata", "contextPolicyOperations", "aggregateOnly", null,
-                true, null, "success", "fullTask", null);
+                snapshot.get("aggregateOnly"), null, "success", "fullTask", null);
     }
 }

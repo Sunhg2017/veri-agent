@@ -61,6 +61,7 @@ class TestDesignTaskReportServiceTest {
                 "digest",
                 null,
                 TestDesignContextPolicyGovernance.response(),
+                TestDesignContextPolicyOperations.response(),
                 Map.of(),
                 Instant.parse("2026-05-30T00:00:00Z"),
                 Instant.parse("2026-05-30T00:00:00Z")
@@ -110,6 +111,7 @@ class TestDesignTaskReportServiceTest {
                 "digest",
                 null,
                 TestDesignContextPolicyGovernance.response(),
+                TestDesignContextPolicyOperations.response(),
                 Map.of(),
                 Instant.parse("2026-05-30T00:00:00Z"),
                 Instant.parse("2026-05-30T00:00:00Z")
@@ -166,6 +168,7 @@ class TestDesignTaskReportServiceTest {
                 "digest",
                 null,
                 TestDesignContextPolicyGovernance.response(),
+                TestDesignContextPolicyOperations.response(),
                 Map.of(),
                 Instant.parse("2026-05-30T00:00:00Z"),
                 Instant.parse("2026-05-30T00:00:00Z")
@@ -221,6 +224,7 @@ class TestDesignTaskReportServiceTest {
                 "digest",
                 null,
                 TestDesignContextPolicyGovernance.response(),
+                TestDesignContextPolicyOperations.response(),
                 Map.of(),
                 Instant.parse("2026-05-30T00:00:00Z"),
                 Instant.parse("2026-05-30T00:00:00Z")
@@ -302,6 +306,7 @@ class TestDesignTaskReportServiceTest {
                 digest,
                 null,
                 TestDesignContextPolicyGovernance.response(),
+                TestDesignContextPolicyOperations.response(),
                 Map.of(
                         "contextVersion", "wp5-context-v1",
                         "requirements", List.of(Map.of(
@@ -403,6 +408,7 @@ class TestDesignTaskReportServiceTest {
                 "digest",
                 null,
                 TestDesignContextPolicyGovernance.response(),
+                TestDesignContextPolicyOperations.response(),
                 Map.of(),
                 Instant.parse("2026-05-30T00:00:00Z"),
                 Instant.parse("2026-05-30T00:00:00Z")
@@ -414,8 +420,11 @@ class TestDesignTaskReportServiceTest {
         String report = csv.toString();
         assertDoesNotThrow(() -> TestDesignTaskReportExportGovernance.validateExportSafety(report));
         org.assertj.core.api.Assertions.assertThat(report)
-                .contains("contextPolicyOperations,policyVersion,,wp5-context-policy-operations-v1")
+                .contains("contextPolicyOperations,policyVersion,,wp5-context-policy-operations-v2")
                 .contains("contextPolicyOperations,operationMode,,PLATFORM_DEFAULT_ONLY,,warning")
+                .contains("contextPolicyOperations,policyResolutionOrder,,PLATFORM_DEFAULT_ONLY,,warning")
+                .contains("contextPolicyOperations,policyFallbackBehavior,,DEPLOY_CONFIG_CHANGE_REQUIRED,,warning")
+                .contains("contextPolicyOperations,approvalStatus,,WORKFLOW_NOT_READY,,warning")
                 .contains("contextPolicyOperations,projectOverrideStoreReady,,false,,warning")
                 .contains("contextPolicyOperations,environmentOverrideStoreReady,,false,,warning")
                 .contains("contextPolicyOperations,changeApprovalWorkflowReady,,false,,warning")
@@ -481,6 +490,7 @@ class TestDesignTaskReportServiceTest {
                         Instant.parse("2026-05-30T00:00:00Z")
                 ),
                 TestDesignContextPolicyGovernance.response(),
+                TestDesignContextPolicyOperations.response(),
                 Map.of(),
                 Instant.parse("2026-05-30T00:00:00Z"),
                 Instant.parse("2026-05-30T00:00:00Z")
@@ -549,6 +559,7 @@ class TestDesignTaskReportServiceTest {
                 "digest",
                 null,
                 TestDesignContextPolicyGovernance.response(),
+                TestDesignContextPolicyOperations.response(),
                 Map.of(),
                 Instant.parse("2026-05-30T00:00:00Z"),
                 Instant.parse("2026-05-30T00:00:00Z")
@@ -617,6 +628,7 @@ class TestDesignTaskReportServiceTest {
                 "digest",
                 null,
                 TestDesignContextPolicyGovernance.response(),
+                TestDesignContextPolicyOperations.response(),
                 Map.of(),
                 Instant.parse("2026-05-30T00:00:00Z"),
                 Instant.parse("2026-05-30T00:00:00Z")

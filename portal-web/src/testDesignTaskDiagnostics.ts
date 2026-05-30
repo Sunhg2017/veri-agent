@@ -50,6 +50,11 @@ export function buildTestDesignTaskDiagnostics(task: TestDesignTaskView | null |
       value: summarizeTestDesignContextPolicyGovernance(task),
       tone: contextPolicyGovernanceTone(task)
     },
+    {
+      label: '策略运营',
+      value: summarizeTestDesignContextPolicyOperations(task),
+      tone: contextPolicyOperationsTone(task)
+    },
     { label: '请求人', value: displayDiagnosticText(task.requestedBy) },
     { label: '创建', value: formatDateTime(task.createdAt) },
     { label: '更新', value: formatDateTime(task.updatedAt) },
@@ -143,9 +148,42 @@ export function summarizeTestDesignContextPolicyGovernance(
     .join(' · ') || '-';
 }
 
+export function summarizeTestDesignContextPolicyOperations(
+  task: TestDesignTaskView | null | undefined
+): string {
+  const operations = task?.contextPolicyOperations ?? operationsFromContextSummary(task?.contextSummary);
+  if (!operations) {
+    return '-';
+  }
+
+  const mode = displayDiagnosticText(operations.operationMode, 32);
+  const resolution = displayDiagnosticText(operations.policyResolutionOrder, 40);
+  const fallback = displayDiagnosticText(operations.policyFallbackBehavior, 40);
+  const approvalStatus = displayDiagnosticText(operations.approvalStatus, 32);
+  const projectStore = operations.projectOverrideStoreReady === true ? '项目覆盖存储:ready' : '项目覆盖存储:pending';
+  const envStore = operations.environmentOverrideStoreReady === true ? '环境覆盖存储:ready' : '环境覆盖存储:pending';
+  const approval = operations.changeApprovalWorkflowReady === true ? '审批流:ready' : '审批流:pending';
+  return [mode, resolution, fallback, approvalStatus, projectStore, envStore, approval]
+    .filter((part) => part !== '-')
+    .join(' · ') || '-';
+}
+
 function contextPolicyGovernanceTone(task: TestDesignTaskView): TestDesignTaskDiagnosticTone {
   const governance = task.contextPolicyGovernance ?? governanceFromContextSummary(task.contextSummary);
   if (governance?.changeApprovalWorkflowReady === false || governance?.projectOverrideSupported === false) {
+    return 'warning';
+  }
+  return 'neutral';
+}
+
+function contextPolicyOperationsTone(task: TestDesignTaskView): TestDesignTaskDiagnosticTone {
+  const operations = task.contextPolicyOperations ?? operationsFromContextSummary(task.contextSummary);
+  if (
+    operations?.projectOverrideStoreReady === false ||
+    operations?.environmentOverrideStoreReady === false ||
+    operations?.changeApprovalWorkflowReady === false ||
+    operations?.approvalStatus === 'WORKFLOW_NOT_READY'
+  ) {
     return 'warning';
   }
   return 'neutral';
@@ -168,6 +206,29 @@ function governanceFromContextSummary(contextSummary: Record<string, unknown> | 
     projectOverrideSupported: safeOptionalBoolean(record.projectOverrideSupported),
     environmentOverrideSupported: safeOptionalBoolean(record.environmentOverrideSupported),
     changeApprovalWorkflowReady: safeOptionalBoolean(record.changeApprovalWorkflowReady)
+  };
+}
+
+function operationsFromContextSummary(contextSummary: Record<string, unknown> | null | undefined) {
+  if (!contextSummary || typeof contextSummary !== 'object') {
+    return undefined;
+  }
+  const raw = contextSummary.policyOperations;
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    return undefined;
+  }
+  const record = raw as Record<string, unknown>;
+  return {
+    policyVersion: safeOptionalString(record.policyVersion),
+    operationMode: safeOptionalString(record.operationMode),
+    policyResolutionOrder: safeOptionalString(record.policyResolutionOrder),
+    policyFallbackBehavior: safeOptionalString(record.policyFallbackBehavior),
+    approvalStatus: safeOptionalString(record.approvalStatus),
+    projectOverrideStoreReady: safeOptionalBoolean(record.projectOverrideStoreReady),
+    environmentOverrideStoreReady: safeOptionalBoolean(record.environmentOverrideStoreReady),
+    changeApprovalWorkflowReady: safeOptionalBoolean(record.changeApprovalWorkflowReady),
+    effectivePolicySnapshotMaterialized: safeOptionalBoolean(record.effectivePolicySnapshotMaterialized),
+    aggregateOnly: safeOptionalBoolean(record.aggregateOnly)
   };
 }
 

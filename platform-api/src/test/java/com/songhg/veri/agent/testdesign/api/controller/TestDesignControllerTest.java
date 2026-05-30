@@ -96,6 +96,19 @@ class TestDesignControllerTest {
                 .andExpect(jsonPath("$.data.contextPolicyGovernance.changeApprovalRequired").value(true))
                 .andExpect(jsonPath("$.data.contextPolicyGovernance.changeApprovalWorkflowReady").value(false))
                 .andExpect(jsonPath("$.data.contextPolicyGovernance.aggregateOnly").value(true))
+                .andExpect(jsonPath("$.data.contextPolicyOperations.policyVersion")
+                        .value("wp5-context-policy-operations-v2"))
+                .andExpect(jsonPath("$.data.contextPolicyOperations.operationMode").value("PLATFORM_DEFAULT_ONLY"))
+                .andExpect(jsonPath("$.data.contextPolicyOperations.policyResolutionOrder")
+                        .value("PLATFORM_DEFAULT_ONLY"))
+                .andExpect(jsonPath("$.data.contextPolicyOperations.policyFallbackBehavior")
+                        .value("DEPLOY_CONFIG_CHANGE_REQUIRED"))
+                .andExpect(jsonPath("$.data.contextPolicyOperations.approvalStatus").value("WORKFLOW_NOT_READY"))
+                .andExpect(jsonPath("$.data.contextPolicyOperations.projectOverrideStoreReady").value(false))
+                .andExpect(jsonPath("$.data.contextPolicyOperations.environmentOverrideStoreReady").value(false))
+                .andExpect(jsonPath("$.data.contextPolicyOperations.changeApprovalWorkflowReady").value(false))
+                .andExpect(jsonPath("$.data.contextPolicyOperations.effectivePolicySnapshotMaterialized").value(true))
+                .andExpect(jsonPath("$.data.contextPolicyOperations.aggregateOnly").value(true))
                 .andExpect(jsonPath("$.data.supportedCoverageTypes", hasSize(6)));
     }
 
@@ -510,9 +523,29 @@ class TestDesignControllerTest {
                 .andExpect(jsonPath("$.data.task.contextSummary.limits.linkedAssetSchemaChars").value(120))
                 .andExpect(jsonPath("$.data.task.contextPolicyGovernance.policySource").value("PLATFORM_DEFAULT"))
                 .andExpect(jsonPath("$.data.task.contextPolicyGovernance.changeApprovalWorkflowReady").value(false))
+                .andExpect(jsonPath("$.data.task.contextPolicyOperations.policyVersion")
+                        .value("wp5-context-policy-operations-v2"))
+                .andExpect(jsonPath("$.data.task.contextPolicyOperations.policyResolutionOrder")
+                        .value("PLATFORM_DEFAULT_ONLY"))
+                .andExpect(jsonPath("$.data.task.contextPolicyOperations.policyFallbackBehavior")
+                        .value("DEPLOY_CONFIG_CHANGE_REQUIRED"))
+                .andExpect(jsonPath("$.data.task.contextPolicyOperations.approvalStatus")
+                        .value("WORKFLOW_NOT_READY"))
+                .andExpect(jsonPath("$.data.task.contextPolicyOperations.projectOverrideStoreReady").value(false))
+                .andExpect(jsonPath("$.data.task.contextPolicyOperations.aggregateOnly").value(true))
                 .andExpect(jsonPath("$.data.task.contextSummary.policyGovernance.policyVersion")
                         .value("wp5-context-policy-v1"))
                 .andExpect(jsonPath("$.data.task.contextSummary.policyGovernance.projectOverrideSupported").value(false))
+                .andExpect(jsonPath("$.data.task.contextSummary.policyOperations.policyVersion")
+                        .value("wp5-context-policy-operations-v2"))
+                .andExpect(jsonPath("$.data.task.contextSummary.policyOperations.policyResolutionOrder")
+                        .value("PLATFORM_DEFAULT_ONLY"))
+                .andExpect(jsonPath("$.data.task.contextSummary.policyOperations.policyFallbackBehavior")
+                        .value("DEPLOY_CONFIG_CHANGE_REQUIRED"))
+                .andExpect(jsonPath("$.data.task.contextSummary.policyOperations.approvalStatus")
+                        .value("WORKFLOW_NOT_READY"))
+                .andExpect(jsonPath("$.data.task.contextSummary.policyOperations.projectOverrideStoreReady").value(false))
+                .andExpect(jsonPath("$.data.task.contextSummary.policyOperations.aggregateOnly").value(true))
                 .andReturn();
 
         MatcherAssert.assertThat(taskResult.getResponse().getContentAsString(), not(containsString("sk_live_12345678")));
@@ -1082,8 +1115,11 @@ class TestDesignControllerTest {
         MatcherAssert.assertThat(csv, containsString("contextPolicyGovernance,changeApprovalRequired,,true"));
         MatcherAssert.assertThat(csv, containsString("contextPolicyGovernance,changeApprovalWorkflowReady,,false"));
         MatcherAssert.assertThat(csv, containsString("contextPolicyGovernance,aggregateOnly,,true"));
-        MatcherAssert.assertThat(csv, containsString("contextPolicyOperations,policyVersion,,wp5-context-policy-operations-v1"));
+        MatcherAssert.assertThat(csv, containsString("contextPolicyOperations,policyVersion,,wp5-context-policy-operations-v2"));
         MatcherAssert.assertThat(csv, containsString("contextPolicyOperations,operationMode,,PLATFORM_DEFAULT_ONLY"));
+        MatcherAssert.assertThat(csv, containsString("contextPolicyOperations,policyResolutionOrder,,PLATFORM_DEFAULT_ONLY"));
+        MatcherAssert.assertThat(csv, containsString("contextPolicyOperations,policyFallbackBehavior,,DEPLOY_CONFIG_CHANGE_REQUIRED"));
+        MatcherAssert.assertThat(csv, containsString("contextPolicyOperations,approvalStatus,,WORKFLOW_NOT_READY"));
         MatcherAssert.assertThat(csv, containsString("contextPolicyOperations,projectOverrideStoreReady,,false"));
         MatcherAssert.assertThat(csv, containsString("contextPolicyOperations,environmentOverrideStoreReady,,false"));
         MatcherAssert.assertThat(csv, containsString("contextPolicyOperations,changeApprovalWorkflowReady,,false"));

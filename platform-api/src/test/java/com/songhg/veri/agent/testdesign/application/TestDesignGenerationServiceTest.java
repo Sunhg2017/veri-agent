@@ -93,6 +93,20 @@ class TestDesignGenerationServiceTest {
         assertThat(summary.path("policyGovernance").path("environmentOverrideSupported").asBoolean()).isFalse();
         assertThat(summary.path("policyGovernance").path("changeApprovalWorkflowReady").asBoolean()).isFalse();
         assertThat(summary.path("policyGovernance").path("aggregateOnly").asBoolean()).isTrue();
+        assertThat(summary.path("policyOperations").path("policyVersion").asText())
+                .isEqualTo("wp5-context-policy-operations-v2");
+        assertThat(summary.path("policyOperations").path("operationMode").asText())
+                .isEqualTo("PLATFORM_DEFAULT_ONLY");
+        assertThat(summary.path("policyOperations").path("policyResolutionOrder").asText())
+                .isEqualTo("PLATFORM_DEFAULT_ONLY");
+        assertThat(summary.path("policyOperations").path("policyFallbackBehavior").asText())
+                .isEqualTo("DEPLOY_CONFIG_CHANGE_REQUIRED");
+        assertThat(summary.path("policyOperations").path("approvalStatus").asText())
+                .isEqualTo("WORKFLOW_NOT_READY");
+        assertThat(summary.path("policyOperations").path("projectOverrideStoreReady").asBoolean()).isFalse();
+        assertThat(summary.path("policyOperations").path("environmentOverrideStoreReady").asBoolean()).isFalse();
+        assertThat(summary.path("policyOperations").path("changeApprovalWorkflowReady").asBoolean()).isFalse();
+        assertThat(summary.path("policyOperations").path("aggregateOnly").asBoolean()).isTrue();
         assertThat(summary.path("linkedAssetsByRequirement").get(0).path("apiCount").asInt()).isEqualTo(2);
         assertThat(summary.path("linkedAssetsByRequirement").get(0).path("apis")).hasSize(1);
         assertThat(summary.path("linkedAssetsByRequirement").get(0).path("pages")).hasSize(1);
@@ -170,6 +184,18 @@ class TestDesignGenerationServiceTest {
                 .isFalse();
         assertThat(payload.path("contextPacking").path("policyGovernance").path("changeApprovalWorkflowReady").asBoolean())
                 .isFalse();
+        assertThat(payload.path("contextPacking").path("policyOperations").path("policyVersion").asText())
+                .isEqualTo("wp5-context-policy-operations-v2");
+        assertThat(payload.path("contextPacking").path("policyOperations").path("policyResolutionOrder").asText())
+                .isEqualTo("PLATFORM_DEFAULT_ONLY");
+        assertThat(payload.path("contextPacking").path("policyOperations").path("policyFallbackBehavior").asText())
+                .isEqualTo("DEPLOY_CONFIG_CHANGE_REQUIRED");
+        assertThat(payload.path("contextPacking").path("policyOperations").path("approvalStatus").asText())
+                .isEqualTo("WORKFLOW_NOT_READY");
+        assertThat(payload.path("contextPacking").path("policyOperations").path("projectOverrideStoreReady").asBoolean())
+                .isFalse();
+        assertThat(payload.path("contextPacking").path("policyOperations").path("aggregateOnly").asBoolean())
+                .isTrue();
         assertThat(commandCaptor.getValue().promptKey()).isEqualTo("wp5-test-design-v1");
         assertThat(commandCaptor.getValue().messages()).hasSize(1);
     }

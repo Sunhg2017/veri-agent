@@ -64,6 +64,7 @@ public class TestDesignResponseMapper {
                 task.inputDigest(),
                 modelObservation(task),
                 TestDesignContextPolicyGovernance.response(),
+                TestDesignContextPolicyOperations.response(),
                 jsonMap(task.contextSummaryJson()),
                 task.createdAt(),
                 task.updatedAt()

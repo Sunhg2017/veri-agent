@@ -60,6 +60,18 @@ const baseTask: TestDesignTaskView = {
     effectiveAtTaskCreation: true,
     aggregateOnly: true
   },
+  contextPolicyOperations: {
+    policyVersion: 'wp5-context-policy-operations-v2',
+    operationMode: 'PLATFORM_DEFAULT_ONLY',
+    policyResolutionOrder: 'PLATFORM_DEFAULT_ONLY',
+    policyFallbackBehavior: 'DEPLOY_CONFIG_CHANGE_REQUIRED',
+    approvalStatus: 'WORKFLOW_NOT_READY',
+    projectOverrideStoreReady: false,
+    environmentOverrideStoreReady: false,
+    changeApprovalWorkflowReady: false,
+    effectivePolicySnapshotMaterialized: true,
+    aggregateOnly: true
+  },
   contextSummary: {
     contextVersion: 'ctx-v3',
     requirements: [{ id: 'req-1' }, { id: 'req-2' }],
@@ -115,6 +127,11 @@ describe('WP5 task diagnostics helpers', () => {
           value: 'PLATFORM_DEFAULT · PLATFORM_DEFAULT_ONLY · DEPLOY_CONFIG_CHANGE · 项目覆盖:off · 环境覆盖:off · 审批流:pending'
         }),
         expect.objectContaining({
+          label: '策略运营',
+          tone: 'warning',
+          value: 'PLATFORM_DEFAULT_ONLY · PLATFORM_DEFAULT_ONLY · DEPLOY_CONFIG_CHANGE_REQUIRED · WORKFLOW_NOT_READY · 项目覆盖存储:pending · 环境覆盖存储:pending · 审批流:pending'
+        }),
+        expect.objectContaining({
           label: '错误',
           tone: 'danger',
           value: 'provider token=[REDACTED] Bearer [REDACTED] timeout after 30s'
@@ -124,6 +141,7 @@ describe('WP5 task diagnostics helpers', () => {
     expect(JSON.stringify(diagnostics)).not.toContain('secret-value');
     expect(JSON.stringify(diagnostics)).not.toContain('abc.def.ghi');
     expect(JSON.stringify(diagnostics)).not.toContain('should-not-appear');
+    expect(JSON.stringify(diagnostics)).not.toContain('https://ticket.example');
   });
 
   it('marks missing model observation as warning when an invocation id exists', () => {
@@ -193,6 +211,40 @@ describe('WP5 task diagnostics helpers', () => {
         })
       ])
     );
+  });
+
+  it('falls back to aggregate context policy operations from the task summary', () => {
+    const diagnostics = buildTestDesignTaskDiagnostics({
+      ...baseTask,
+      contextPolicyOperations: undefined,
+      contextSummary: {
+        policyOperations: {
+          operationMode: 'PLATFORM_DEFAULT_ONLY',
+          policyResolutionOrder: 'PLATFORM_DEFAULT_ONLY',
+          policyFallbackBehavior: 'DEPLOY_CONFIG_CHANGE_REQUIRED',
+          approvalStatus: 'WORKFLOW_NOT_READY',
+          projectOverrideStoreReady: false,
+          environmentOverrideStoreReady: false,
+          changeApprovalWorkflowReady: false,
+          ticketUrl: 'https://ticket.example/secret-change',
+          approvalNotes: 'approval-note-text',
+          projectOverrideRuleBody: 'secret policy body'
+        }
+      }
+    });
+
+    expect(diagnostics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          label: '策略运营',
+          tone: 'warning',
+          value: expect.stringContaining('WORKFLOW_NOT_READY')
+        })
+      ])
+    );
+    expect(JSON.stringify(diagnostics)).not.toContain('https://ticket.example');
+    expect(JSON.stringify(diagnostics)).not.toContain('approval-note-text');
+    expect(JSON.stringify(diagnostics)).not.toContain('secret policy body');
   });
 
   it('compacts digests and handles empty tasks safely', () => {

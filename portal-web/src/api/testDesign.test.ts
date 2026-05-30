@@ -86,6 +86,18 @@ describe('WP5 test design API helpers', () => {
         change_approval_workflow_ready: false,
         aggregate_only: true
       },
+      context_policy_operations: {
+        policy_version: 'wp5-context-policy-operations-v2',
+        operation_mode: 'PLATFORM_DEFAULT_ONLY',
+        policy_resolution_order: 'PLATFORM_DEFAULT_ONLY',
+        policy_fallback_behavior: 'DEPLOY_CONFIG_CHANGE_REQUIRED',
+        approval_status: 'WORKFLOW_NOT_READY',
+        project_override_store_ready: false,
+        environment_override_store_ready: false,
+        change_approval_workflow_ready: false,
+        effective_policy_snapshot_materialized: true,
+        aggregate_only: true
+      },
       supported_coverage_types: 'SMOKE,FUNCTIONAL'
     })).toMatchObject({
       service: 'test-design',
@@ -107,6 +119,18 @@ describe('WP5 test design API helpers', () => {
         changeApprovalWorkflowReady: false,
         aggregateOnly: true
       },
+      contextPolicyOperations: {
+        policyVersion: 'wp5-context-policy-operations-v2',
+        operationMode: 'PLATFORM_DEFAULT_ONLY',
+        policyResolutionOrder: 'PLATFORM_DEFAULT_ONLY',
+        policyFallbackBehavior: 'DEPLOY_CONFIG_CHANGE_REQUIRED',
+        approvalStatus: 'WORKFLOW_NOT_READY',
+        projectOverrideStoreReady: false,
+        environmentOverrideStoreReady: false,
+        changeApprovalWorkflowReady: false,
+        effectivePolicySnapshotMaterialized: true,
+        aggregateOnly: true
+      },
       supportedCoverageTypes: ['SMOKE', 'FUNCTIONAL']
     });
 
@@ -125,6 +149,15 @@ describe('WP5 test design API helpers', () => {
         policy_source: 'PLATFORM_DEFAULT',
         governance_status: 'PLATFORM_DEFAULT_ONLY',
         change_approval_workflow_ready: false
+      },
+      context_policy_operations: {
+        policy_version: 'wp5-context-policy-operations-v2',
+        operation_mode: 'PLATFORM_DEFAULT_ONLY',
+        policy_resolution_order: 'PLATFORM_DEFAULT_ONLY',
+        policy_fallback_behavior: 'DEPLOY_CONFIG_CHANGE_REQUIRED',
+        approval_status: 'WORKFLOW_NOT_READY',
+        project_override_store_ready: false,
+        aggregate_only: true
       },
       context_summary: {
         contextVersion: 'wp5-context-v1',
@@ -146,6 +179,15 @@ describe('WP5 test design API helpers', () => {
         policySource: 'PLATFORM_DEFAULT',
         governanceStatus: 'PLATFORM_DEFAULT_ONLY',
         changeApprovalWorkflowReady: false
+      },
+      contextPolicyOperations: {
+        policyVersion: 'wp5-context-policy-operations-v2',
+        operationMode: 'PLATFORM_DEFAULT_ONLY',
+        policyResolutionOrder: 'PLATFORM_DEFAULT_ONLY',
+        policyFallbackBehavior: 'DEPLOY_CONFIG_CHANGE_REQUIRED',
+        approvalStatus: 'WORKFLOW_NOT_READY',
+        projectOverrideStoreReady: false,
+        aggregateOnly: true
       }
     });
     expect(task.contextSummary.contextVersion).toBe('wp5-context-v1');

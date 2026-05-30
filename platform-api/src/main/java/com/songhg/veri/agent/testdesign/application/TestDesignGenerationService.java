@@ -104,6 +104,7 @@ public class TestDesignGenerationService {
         summary.put("explicitAssets", explicitAssetContextSummary(projectId, explicitContext));
         summary.put("limits", contextSummaryLimits());
         summary.put("policyGovernance", TestDesignContextPolicyGovernance.snapshot());
+        summary.put("policyOperations", TestDesignContextPolicyOperations.snapshot());
         try {
             String contextSummaryJson = objectMapper.writeValueAsString(summary);
             return new TestDesignGenerationContext(sha256(contextSummaryJson), contextSummaryJson);
@@ -509,6 +510,7 @@ public class TestDesignGenerationService {
         policy.put("rawPromptStored", false);
         policy.put("persistedContextSummaryOnly", true);
         policy.put("policyGovernance", TestDesignContextPolicyGovernance.snapshot());
+        policy.put("policyOperations", TestDesignContextPolicyOperations.snapshot());
         return policy;
     }
 

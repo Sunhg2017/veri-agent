@@ -17,6 +17,7 @@ export interface TestDesignHealth {
   maxCasesPerRequirement?: number;
   contextLimits?: Record<string, number>;
   contextPolicyGovernance?: TestDesignContextPolicyGovernanceView;
+  contextPolicyOperations?: TestDesignContextPolicyOperationsView;
   supportedCoverageTypes: string[];
 }
 
@@ -42,6 +43,7 @@ export interface TestDesignTaskView {
   inputDigest?: string;
   modelObservation?: TestDesignModelObservationView;
   contextPolicyGovernance?: TestDesignContextPolicyGovernanceView;
+  contextPolicyOperations?: TestDesignContextPolicyOperationsView;
   contextSummary: Record<string, unknown>;
   createdAt?: string;
   updatedAt?: string;
@@ -57,6 +59,19 @@ export interface TestDesignContextPolicyGovernanceView {
   changeApprovalRequired?: boolean;
   changeApprovalWorkflowReady?: boolean;
   effectiveAtTaskCreation?: boolean;
+  aggregateOnly?: boolean;
+}
+
+export interface TestDesignContextPolicyOperationsView {
+  policyVersion?: string;
+  operationMode?: string;
+  policyResolutionOrder?: string;
+  policyFallbackBehavior?: string;
+  approvalStatus?: string;
+  projectOverrideStoreReady?: boolean;
+  environmentOverrideStoreReady?: boolean;
+  changeApprovalWorkflowReady?: boolean;
+  effectivePolicySnapshotMaterialized?: boolean;
   aggregateOnly?: boolean;
 }
 
@@ -563,6 +578,9 @@ export function normalizeTestDesignHealth(raw: unknown): TestDesignHealth {
     contextPolicyGovernance: normalizeTestDesignContextPolicyGovernance(
       item.contextPolicyGovernance ?? item.context_policy_governance
     ),
+    contextPolicyOperations: normalizeTestDesignContextPolicyOperations(
+      item.contextPolicyOperations ?? item.context_policy_operations
+    ),
     supportedCoverageTypes: stringArrayValue(item.supportedCoverageTypes ?? item.supported_coverage_types)
   };
 }
@@ -594,6 +612,9 @@ export function normalizeTestDesignTask(raw: unknown): TestDesignTaskView {
     contextPolicyGovernance: normalizeTestDesignContextPolicyGovernance(
       item.contextPolicyGovernance ?? item.context_policy_governance
     ),
+    contextPolicyOperations: normalizeTestDesignContextPolicyOperations(
+      item.contextPolicyOperations ?? item.context_policy_operations
+    ),
     contextSummary: recordValue(item.contextSummary ?? item.context_summary),
     createdAt: optionalString(item.createdAt) ?? optionalString(item.created_at),
     updatedAt: optionalString(item.updatedAt) ?? optionalString(item.updated_at)
@@ -622,6 +643,34 @@ export function normalizeTestDesignContextPolicyGovernance(
       raw.changeApprovalWorkflowReady ?? raw.change_approval_workflow_ready
     ),
     effectiveAtTaskCreation: optionalBoolean(raw.effectiveAtTaskCreation ?? raw.effective_at_task_creation),
+    aggregateOnly: optionalBoolean(raw.aggregateOnly ?? raw.aggregate_only)
+  };
+}
+
+export function normalizeTestDesignContextPolicyOperations(
+  raw: unknown
+): TestDesignContextPolicyOperationsView | undefined {
+  if (!isRecord(raw)) {
+    return undefined;
+  }
+  return {
+    policyVersion: optionalString(raw.policyVersion) ?? optionalString(raw.policy_version),
+    operationMode: optionalString(raw.operationMode) ?? optionalString(raw.operation_mode),
+    policyResolutionOrder: optionalString(raw.policyResolutionOrder) ?? optionalString(raw.policy_resolution_order),
+    policyFallbackBehavior: optionalString(raw.policyFallbackBehavior) ?? optionalString(raw.policy_fallback_behavior),
+    approvalStatus: optionalString(raw.approvalStatus) ?? optionalString(raw.approval_status),
+    projectOverrideStoreReady: optionalBoolean(
+      raw.projectOverrideStoreReady ?? raw.project_override_store_ready
+    ),
+    environmentOverrideStoreReady: optionalBoolean(
+      raw.environmentOverrideStoreReady ?? raw.environment_override_store_ready
+    ),
+    changeApprovalWorkflowReady: optionalBoolean(
+      raw.changeApprovalWorkflowReady ?? raw.change_approval_workflow_ready
+    ),
+    effectivePolicySnapshotMaterialized: optionalBoolean(
+      raw.effectivePolicySnapshotMaterialized ?? raw.effective_policy_snapshot_materialized
+    ),
     aggregateOnly: optionalBoolean(raw.aggregateOnly ?? raw.aggregate_only)
   };
 }
