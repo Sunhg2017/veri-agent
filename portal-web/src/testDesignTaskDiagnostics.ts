@@ -45,6 +45,11 @@ export function buildTestDesignTaskDiagnostics(task: TestDesignTaskView | null |
     { label: '幂等键', value: compactTestDesignDigest(task.idempotencyKey, 14, 8) },
     { label: '上下文', value: summarizeTestDesignTaskContext(task.contextSummary) },
     { label: '上下文策略', value: summarizeTestDesignContextPolicy(task.contextSummary) },
+    {
+      label: '策略治理',
+      value: summarizeTestDesignContextPolicyGovernance(task),
+      tone: contextPolicyGovernanceTone(task)
+    },
     { label: '请求人', value: displayDiagnosticText(task.requestedBy) },
     { label: '创建', value: formatDateTime(task.createdAt) },
     { label: '更新', value: formatDateTime(task.updatedAt) },
@@ -117,6 +122,53 @@ export function summarizeTestDesignContextPolicy(contextSummary: Record<string, 
   ].filter(Boolean);
 
   return parts.length ? parts.join(' · ') : '-';
+}
+
+export function summarizeTestDesignContextPolicyGovernance(
+  task: TestDesignTaskView | null | undefined
+): string {
+  const governance = task?.contextPolicyGovernance ?? governanceFromContextSummary(task?.contextSummary);
+  if (!governance) {
+    return '-';
+  }
+
+  const source = displayDiagnosticText(governance.policySource, 32);
+  const status = displayDiagnosticText(governance.governanceStatus, 40);
+  const mode = displayDiagnosticText(governance.changeMode, 32);
+  const projectOverride = governance.projectOverrideSupported === true ? '项目覆盖:on' : '项目覆盖:off';
+  const envOverride = governance.environmentOverrideSupported === true ? '环境覆盖:on' : '环境覆盖:off';
+  const approval = governance.changeApprovalWorkflowReady === true ? '审批流:ready' : '审批流:pending';
+  return [source, status, mode, projectOverride, envOverride, approval]
+    .filter((part) => part !== '-')
+    .join(' · ') || '-';
+}
+
+function contextPolicyGovernanceTone(task: TestDesignTaskView): TestDesignTaskDiagnosticTone {
+  const governance = task.contextPolicyGovernance ?? governanceFromContextSummary(task.contextSummary);
+  if (governance?.changeApprovalWorkflowReady === false || governance?.projectOverrideSupported === false) {
+    return 'warning';
+  }
+  return 'neutral';
+}
+
+function governanceFromContextSummary(contextSummary: Record<string, unknown> | null | undefined) {
+  if (!contextSummary || typeof contextSummary !== 'object') {
+    return undefined;
+  }
+  const raw = contextSummary.policyGovernance;
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    return undefined;
+  }
+  const record = raw as Record<string, unknown>;
+  return {
+    policyVersion: safeOptionalString(record.policyVersion),
+    policySource: safeOptionalString(record.policySource),
+    governanceStatus: safeOptionalString(record.governanceStatus),
+    changeMode: safeOptionalString(record.changeMode),
+    projectOverrideSupported: safeOptionalBoolean(record.projectOverrideSupported),
+    environmentOverrideSupported: safeOptionalBoolean(record.environmentOverrideSupported),
+    changeApprovalWorkflowReady: safeOptionalBoolean(record.changeApprovalWorkflowReady)
+  };
 }
 
 function contextPolicyPart(record: Record<string, unknown>, key: string, label: string) {
@@ -202,6 +254,21 @@ function firstSafeScalar(contextSummary: Record<string, unknown>, keys: string[]
     }
   }
   return '';
+}
+
+function safeOptionalString(value: unknown) {
+  if (typeof value !== 'string' && typeof value !== 'number' && typeof value !== 'boolean') {
+    return undefined;
+  }
+  const text = String(value);
+  return SENSITIVE_KEY_PATTERN.test(text) ? undefined : sanitizeDiagnosticText(text);
+}
+
+function safeOptionalBoolean(value: unknown) {
+  if (typeof value === 'boolean') {
+    return value;
+  }
+  return undefined;
 }
 
 function formatPrompt(task: TestDesignTaskView) {

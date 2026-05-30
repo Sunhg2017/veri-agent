@@ -83,6 +83,16 @@ class TestDesignGenerationServiceTest {
         assertThat(summary.path("limits").path("requirementDescriptionChars").asInt()).isEqualTo(24);
         assertThat(summary.path("limits").path("acceptanceCriteriaChars").asInt()).isEqualTo(26);
         assertThat(summary.path("limits").path("linkedAssetSchemaChars").asInt()).isEqualTo(32);
+        assertThat(summary.path("policyGovernance").path("policyVersion").asText())
+                .isEqualTo("wp5-context-policy-v1");
+        assertThat(summary.path("policyGovernance").path("policySource").asText())
+                .isEqualTo("PLATFORM_DEFAULT");
+        assertThat(summary.path("policyGovernance").path("governanceStatus").asText())
+                .isEqualTo("PLATFORM_DEFAULT_ONLY");
+        assertThat(summary.path("policyGovernance").path("projectOverrideSupported").asBoolean()).isFalse();
+        assertThat(summary.path("policyGovernance").path("environmentOverrideSupported").asBoolean()).isFalse();
+        assertThat(summary.path("policyGovernance").path("changeApprovalWorkflowReady").asBoolean()).isFalse();
+        assertThat(summary.path("policyGovernance").path("aggregateOnly").asBoolean()).isTrue();
         assertThat(summary.path("linkedAssetsByRequirement").get(0).path("apiCount").asInt()).isEqualTo(2);
         assertThat(summary.path("linkedAssetsByRequirement").get(0).path("apis")).hasSize(1);
         assertThat(summary.path("linkedAssetsByRequirement").get(0).path("pages")).hasSize(1);
@@ -154,6 +164,12 @@ class TestDesignGenerationServiceTest {
         assertThat(payload.path("contextPacking").path("linkedAssetSchemaChars").asInt()).isEqualTo(140);
         assertThat(payload.path("contextPacking").path("rawPromptStored").asBoolean()).isFalse();
         assertThat(payload.path("contextPacking").path("persistedContextSummaryOnly").asBoolean()).isTrue();
+        assertThat(payload.path("contextPacking").path("policyGovernance").path("policySource").asText())
+                .isEqualTo("PLATFORM_DEFAULT");
+        assertThat(payload.path("contextPacking").path("policyGovernance").path("projectOverrideSupported").asBoolean())
+                .isFalse();
+        assertThat(payload.path("contextPacking").path("policyGovernance").path("changeApprovalWorkflowReady").asBoolean())
+                .isFalse();
         assertThat(commandCaptor.getValue().promptKey()).isEqualTo("wp5-test-design-v1");
         assertThat(commandCaptor.getValue().messages()).hasSize(1);
     }

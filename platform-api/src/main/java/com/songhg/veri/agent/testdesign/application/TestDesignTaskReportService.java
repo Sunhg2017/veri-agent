@@ -316,6 +316,7 @@ public class TestDesignTaskReportService {
                 "acceptanceCriteriaChars", "acceptanceCriteriaChars");
         appendTaskReportContextLimit(csv, task, generatedAt, limits,
                 "linkedAssetSchemaChars", "linkedAssetSchemaChars");
+        TestDesignTaskReportContextPolicyGovernanceRows.appendRows(csv, task, generatedAt);
     }
 
     private static void appendTaskReportContextLimit(
@@ -614,7 +615,7 @@ public class TestDesignTaskReportService {
                         null, "fullTask", null));
     }
 
-    private static void appendTaskReportRow(
+    static void appendTaskReportRow(
             StringBuilder csv,
             TestDesignTaskResponse task,
             Instant generatedAt,

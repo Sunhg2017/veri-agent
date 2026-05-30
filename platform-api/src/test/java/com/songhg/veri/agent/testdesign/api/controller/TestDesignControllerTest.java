@@ -88,6 +88,14 @@ class TestDesignControllerTest {
                 .andExpect(jsonPath("$.data.contextLimits.linkedAssetsPerRequirement").value(2))
                 .andExpect(jsonPath("$.data.contextLimits.explicitAssetsPerType").value(2))
                 .andExpect(jsonPath("$.data.contextLimits.existingCasesPerRequirement").value(2))
+                .andExpect(jsonPath("$.data.contextPolicyGovernance.policyVersion").value("wp5-context-policy-v1"))
+                .andExpect(jsonPath("$.data.contextPolicyGovernance.policySource").value("PLATFORM_DEFAULT"))
+                .andExpect(jsonPath("$.data.contextPolicyGovernance.governanceStatus").value("PLATFORM_DEFAULT_ONLY"))
+                .andExpect(jsonPath("$.data.contextPolicyGovernance.projectOverrideSupported").value(false))
+                .andExpect(jsonPath("$.data.contextPolicyGovernance.environmentOverrideSupported").value(false))
+                .andExpect(jsonPath("$.data.contextPolicyGovernance.changeApprovalRequired").value(true))
+                .andExpect(jsonPath("$.data.contextPolicyGovernance.changeApprovalWorkflowReady").value(false))
+                .andExpect(jsonPath("$.data.contextPolicyGovernance.aggregateOnly").value(true))
                 .andExpect(jsonPath("$.data.supportedCoverageTypes", hasSize(6)));
     }
 
@@ -500,6 +508,11 @@ class TestDesignControllerTest {
                 .andExpect(jsonPath("$.data.task.contextSummary.limits.explicitAssetsPerType").value(2))
                 .andExpect(jsonPath("$.data.task.contextSummary.limits.existingCasesPerRequirement").value(2))
                 .andExpect(jsonPath("$.data.task.contextSummary.limits.linkedAssetSchemaChars").value(120))
+                .andExpect(jsonPath("$.data.task.contextPolicyGovernance.policySource").value("PLATFORM_DEFAULT"))
+                .andExpect(jsonPath("$.data.task.contextPolicyGovernance.changeApprovalWorkflowReady").value(false))
+                .andExpect(jsonPath("$.data.task.contextSummary.policyGovernance.policyVersion")
+                        .value("wp5-context-policy-v1"))
+                .andExpect(jsonPath("$.data.task.contextSummary.policyGovernance.projectOverrideSupported").value(false))
                 .andReturn();
 
         MatcherAssert.assertThat(taskResult.getResponse().getContentAsString(), not(containsString("sk_live_12345678")));
@@ -848,6 +861,14 @@ class TestDesignControllerTest {
         MatcherAssert.assertThat(csv, containsString("contextPolicy,explicitAssetsPerType,,2"));
         MatcherAssert.assertThat(csv, containsString("contextPolicy,requirementDescriptionChars,,180"));
         MatcherAssert.assertThat(csv, containsString("contextPolicy,linkedAssetSchemaChars,,120"));
+        MatcherAssert.assertThat(csv, containsString("contextPolicyGovernance,policyVersion,,wp5-context-policy-v1"));
+        MatcherAssert.assertThat(csv, containsString("contextPolicyGovernance,policySource,,PLATFORM_DEFAULT"));
+        MatcherAssert.assertThat(csv, containsString("contextPolicyGovernance,governanceStatus,,PLATFORM_DEFAULT_ONLY"));
+        MatcherAssert.assertThat(csv, containsString("contextPolicyGovernance,projectOverrideSupported,,false"));
+        MatcherAssert.assertThat(csv, containsString("contextPolicyGovernance,environmentOverrideSupported,,false"));
+        MatcherAssert.assertThat(csv, containsString("contextPolicyGovernance,changeApprovalRequired,,true"));
+        MatcherAssert.assertThat(csv, containsString("contextPolicyGovernance,changeApprovalWorkflowReady,,false"));
+        MatcherAssert.assertThat(csv, containsString("contextPolicyGovernance,aggregateOnly,,true"));
         MatcherAssert.assertThat(csv, containsString("exportGovernance,fieldPolicy,,aggregateOnly"));
         MatcherAssert.assertThat(csv, containsString("exportGovernance,candidateBodyAllowed,,false"));
         MatcherAssert.assertThat(csv, containsString("exportGovernance,reviewCommentAllowed,,false"));

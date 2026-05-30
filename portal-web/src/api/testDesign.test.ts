@@ -78,6 +78,14 @@ describe('WP5 test design API helpers', () => {
         linked_assets_per_requirement: '3',
         explicit_assets_per_type: 4
       },
+      context_policy_governance: {
+        policy_source: 'PLATFORM_DEFAULT',
+        governance_status: 'PLATFORM_DEFAULT_ONLY',
+        project_override_supported: false,
+        environment_override_supported: false,
+        change_approval_workflow_ready: false,
+        aggregate_only: true
+      },
       supported_coverage_types: 'SMOKE,FUNCTIONAL'
     })).toMatchObject({
       service: 'test-design',
@@ -90,6 +98,14 @@ describe('WP5 test design API helpers', () => {
       contextLimits: {
         linked_assets_per_requirement: 3,
         explicit_assets_per_type: 4
+      },
+      contextPolicyGovernance: {
+        policySource: 'PLATFORM_DEFAULT',
+        governanceStatus: 'PLATFORM_DEFAULT_ONLY',
+        projectOverrideSupported: false,
+        environmentOverrideSupported: false,
+        changeApprovalWorkflowReady: false,
+        aggregateOnly: true
       },
       supportedCoverageTypes: ['SMOKE', 'FUNCTIONAL']
     });
@@ -105,6 +121,11 @@ describe('WP5 test design API helpers', () => {
       published_count: '0',
       idempotency_key: 'wp5-create-001',
       input_digest: 'a'.repeat(64),
+      context_policy_governance: {
+        policy_source: 'PLATFORM_DEFAULT',
+        governance_status: 'PLATFORM_DEFAULT_ONLY',
+        change_approval_workflow_ready: false
+      },
       context_summary: {
         contextVersion: 'wp5-context-v1',
         requirements: [{ id: 'req-1', title: '登录需求' }]
@@ -120,7 +141,12 @@ describe('WP5 test design API helpers', () => {
       confirmedCount: 1,
       publishedCount: 0,
       idempotencyKey: 'wp5-create-001',
-      inputDigest: 'a'.repeat(64)
+      inputDigest: 'a'.repeat(64),
+      contextPolicyGovernance: {
+        policySource: 'PLATFORM_DEFAULT',
+        governanceStatus: 'PLATFORM_DEFAULT_ONLY',
+        changeApprovalWorkflowReady: false
+      }
     });
     expect(task.contextSummary.contextVersion).toBe('wp5-context-v1');
 

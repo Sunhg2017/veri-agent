@@ -26,6 +26,8 @@ public record TestDesignHealthResponse(
         int maxCasesPerRequirement,
         @Schema(description = "上下文裁剪策略的生效上限")
         Map<String, Integer> contextLimits,
+        @Schema(description = "上下文策略治理状态快照")
+        TestDesignContextPolicyGovernanceResponse contextPolicyGovernance,
         @Schema(description = "支持的覆盖类型列表")
         List<String> supportedCoverageTypes
 ) {

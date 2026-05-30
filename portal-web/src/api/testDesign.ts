@@ -16,6 +16,7 @@ export interface TestDesignHealth {
   maxRequirementsPerTask?: number;
   maxCasesPerRequirement?: number;
   contextLimits?: Record<string, number>;
+  contextPolicyGovernance?: TestDesignContextPolicyGovernanceView;
   supportedCoverageTypes: string[];
 }
 
@@ -40,9 +41,23 @@ export interface TestDesignTaskView {
   idempotencyKey?: string;
   inputDigest?: string;
   modelObservation?: TestDesignModelObservationView;
+  contextPolicyGovernance?: TestDesignContextPolicyGovernanceView;
   contextSummary: Record<string, unknown>;
   createdAt?: string;
   updatedAt?: string;
+}
+
+export interface TestDesignContextPolicyGovernanceView {
+  policyVersion?: string;
+  policySource?: string;
+  governanceStatus?: string;
+  changeMode?: string;
+  projectOverrideSupported?: boolean;
+  environmentOverrideSupported?: boolean;
+  changeApprovalRequired?: boolean;
+  changeApprovalWorkflowReady?: boolean;
+  effectiveAtTaskCreation?: boolean;
+  aggregateOnly?: boolean;
 }
 
 export interface TestDesignModelObservationView {
@@ -545,6 +560,9 @@ export function normalizeTestDesignHealth(raw: unknown): TestDesignHealth {
     maxRequirementsPerTask: numberValue(item.maxRequirementsPerTask ?? item.max_requirements_per_task, 0),
     maxCasesPerRequirement: numberValue(item.maxCasesPerRequirement ?? item.max_cases_per_requirement, 0),
     contextLimits: numberRecordValue(item.contextLimits ?? item.context_limits),
+    contextPolicyGovernance: normalizeTestDesignContextPolicyGovernance(
+      item.contextPolicyGovernance ?? item.context_policy_governance
+    ),
     supportedCoverageTypes: stringArrayValue(item.supportedCoverageTypes ?? item.supported_coverage_types)
   };
 }
@@ -573,9 +591,38 @@ export function normalizeTestDesignTask(raw: unknown): TestDesignTaskView {
     idempotencyKey: optionalString(item.idempotencyKey) ?? optionalString(item.idempotency_key),
     inputDigest: optionalString(item.inputDigest) ?? optionalString(item.input_digest),
     modelObservation: normalizeTestDesignModelObservation(item.modelObservation ?? item.model_observation),
+    contextPolicyGovernance: normalizeTestDesignContextPolicyGovernance(
+      item.contextPolicyGovernance ?? item.context_policy_governance
+    ),
     contextSummary: recordValue(item.contextSummary ?? item.context_summary),
     createdAt: optionalString(item.createdAt) ?? optionalString(item.created_at),
     updatedAt: optionalString(item.updatedAt) ?? optionalString(item.updated_at)
+  };
+}
+
+export function normalizeTestDesignContextPolicyGovernance(
+  raw: unknown
+): TestDesignContextPolicyGovernanceView | undefined {
+  if (!isRecord(raw)) {
+    return undefined;
+  }
+  return {
+    policyVersion: optionalString(raw.policyVersion) ?? optionalString(raw.policy_version),
+    policySource: optionalString(raw.policySource) ?? optionalString(raw.policy_source),
+    governanceStatus: optionalString(raw.governanceStatus) ?? optionalString(raw.governance_status),
+    changeMode: optionalString(raw.changeMode) ?? optionalString(raw.change_mode),
+    projectOverrideSupported: optionalBoolean(
+      raw.projectOverrideSupported ?? raw.project_override_supported
+    ),
+    environmentOverrideSupported: optionalBoolean(
+      raw.environmentOverrideSupported ?? raw.environment_override_supported
+    ),
+    changeApprovalRequired: optionalBoolean(raw.changeApprovalRequired ?? raw.change_approval_required),
+    changeApprovalWorkflowReady: optionalBoolean(
+      raw.changeApprovalWorkflowReady ?? raw.change_approval_workflow_ready
+    ),
+    effectiveAtTaskCreation: optionalBoolean(raw.effectiveAtTaskCreation ?? raw.effective_at_task_creation),
+    aggregateOnly: optionalBoolean(raw.aggregateOnly ?? raw.aggregate_only)
   };
 }
 

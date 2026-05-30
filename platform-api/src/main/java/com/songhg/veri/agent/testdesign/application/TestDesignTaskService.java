@@ -104,6 +104,7 @@ public class TestDesignTaskService {
                 maxRequirementsPerTask(),
                 maxCasesPerRequirement(),
                 properties.effectiveContextLimits(),
+                TestDesignContextPolicyGovernance.response(),
                 CoverageType.codes().stream().sorted().toList()
         );
     }
@@ -570,6 +571,7 @@ public class TestDesignTaskService {
         payload.put("promptVersion", properties.promptVersion());
         payload.put("generationMode", properties.generationMode());
         payload.put("contextLimits", properties.effectiveContextLimits());
+        payload.put("contextPolicyGovernance", TestDesignContextPolicyGovernance.snapshot());
         try {
             return sha256(objectMapper.writeValueAsString(payload));
         } catch (JsonProcessingException exception) {

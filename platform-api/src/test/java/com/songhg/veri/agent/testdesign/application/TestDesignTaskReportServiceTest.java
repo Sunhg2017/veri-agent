@@ -55,6 +55,7 @@ class TestDesignTaskReportServiceTest {
                 null,
                 "digest",
                 null,
+                TestDesignContextPolicyGovernance.response(),
                 Map.of(),
                 Instant.parse("2026-05-30T00:00:00Z"),
                 Instant.parse("2026-05-30T00:00:00Z")
@@ -103,6 +104,7 @@ class TestDesignTaskReportServiceTest {
                 null,
                 "digest",
                 null,
+                TestDesignContextPolicyGovernance.response(),
                 Map.of(),
                 Instant.parse("2026-05-30T00:00:00Z"),
                 Instant.parse("2026-05-30T00:00:00Z")

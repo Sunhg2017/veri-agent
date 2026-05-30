@@ -48,6 +48,18 @@ const baseTask: TestDesignTaskView = {
   requestedBy: 'qa.lead',
   idempotencyKey: 'wp5:create:ops:diagnostics-abcdefghijklmnopqrstuvwxyz',
   inputDigest: '9c6f4c3ef8d1b6a2b90a4e11f9cd8e72bb4f9cb6e0b7a2f3',
+  contextPolicyGovernance: {
+    policyVersion: 'wp5-context-policy-v1',
+    policySource: 'PLATFORM_DEFAULT',
+    governanceStatus: 'PLATFORM_DEFAULT_ONLY',
+    changeMode: 'DEPLOY_CONFIG_CHANGE',
+    projectOverrideSupported: false,
+    environmentOverrideSupported: false,
+    changeApprovalRequired: true,
+    changeApprovalWorkflowReady: false,
+    effectiveAtTaskCreation: true,
+    aggregateOnly: true
+  },
   contextSummary: {
     contextVersion: 'ctx-v3',
     requirements: [{ id: 'req-1' }, { id: 'req-2' }],
@@ -96,6 +108,11 @@ describe('WP5 task diagnostics helpers', () => {
         expect.objectContaining({
           label: '上下文策略',
           value: '关联资产:2 · 显式资产:3 · 历史用例:4 · 需求描述:180 · 验收标准:160 · 资产摘要:120'
+        }),
+        expect.objectContaining({
+          label: '策略治理',
+          tone: 'warning',
+          value: 'PLATFORM_DEFAULT · PLATFORM_DEFAULT_ONLY · DEPLOY_CONFIG_CHANGE · 项目覆盖:off · 环境覆盖:off · 审批流:pending'
         }),
         expect.objectContaining({
           label: '错误',
@@ -149,6 +166,33 @@ describe('WP5 task diagnostics helpers', () => {
     );
     expect(summarizeTestDesignContextPolicy({ limits: { secretToken: 10 } })).toBe('-');
     expect(summarizeTestDesignContextPolicy({})).toBe('-');
+  });
+
+  it('falls back to aggregate context policy governance from the task summary', () => {
+    const diagnostics = buildTestDesignTaskDiagnostics({
+      ...baseTask,
+      contextPolicyGovernance: undefined,
+      contextSummary: {
+        policyGovernance: {
+          policySource: 'PLATFORM_DEFAULT',
+          governanceStatus: 'PLATFORM_DEFAULT_ONLY',
+          changeMode: 'DEPLOY_CONFIG_CHANGE',
+          projectOverrideSupported: false,
+          environmentOverrideSupported: false,
+          changeApprovalWorkflowReady: false
+        }
+      }
+    });
+
+    expect(diagnostics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          label: '策略治理',
+          tone: 'warning',
+          value: expect.stringContaining('审批流:pending')
+        })
+      ])
+    );
   });
 
   it('compacts digests and handles empty tasks safely', () => {

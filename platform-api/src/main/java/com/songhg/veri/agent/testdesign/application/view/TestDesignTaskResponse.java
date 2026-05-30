@@ -50,6 +50,8 @@ public record TestDesignTaskResponse(
         String inputDigest,
         @Schema(description = "脱敏模型观测摘要")
         TestDesignModelObservationResponse modelObservation,
+        @Schema(description = "上下文策略治理状态快照")
+        TestDesignContextPolicyGovernanceResponse contextPolicyGovernance,
         @Schema(description = "脱敏上下文摘要")
         Map<String, Object> contextSummary,
         @Schema(description = "创建时间")

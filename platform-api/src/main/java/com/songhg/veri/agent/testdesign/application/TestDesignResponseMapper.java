@@ -63,6 +63,7 @@ public class TestDesignResponseMapper {
                 task.idempotencyKey(),
                 task.inputDigest(),
                 modelObservation(task),
+                TestDesignContextPolicyGovernance.response(),
                 jsonMap(task.contextSummaryJson()),
                 task.createdAt(),
                 task.updatedAt()
