@@ -38,6 +38,8 @@ public record TestDesignHealthResponse(
         TestDesignEvaluationCorpusPolicyResponse evaluationCorpusPolicy,
         @Schema(description = "发布准出审批与阻断策略聚合快照")
         TestDesignReleaseReadinessPolicyResponse releaseReadinessPolicy,
+        @Schema(description = "跨 WP 审计链可观测策略聚合快照")
+        TestDesignAuditChainPolicyResponse auditChainPolicy,
         @Schema(description = "支持的覆盖类型列表")
         List<String> supportedCoverageTypes
 ) {

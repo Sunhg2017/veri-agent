@@ -75,6 +75,11 @@ export function buildTestDesignTaskDiagnostics(task: TestDesignTaskView | null |
       value: summarizeTestDesignReleaseReadinessPolicy(task),
       tone: releaseReadinessPolicyTone(task)
     },
+    {
+      label: '审计链',
+      value: summarizeTestDesignAuditChainPolicy(task),
+      tone: auditChainPolicyTone(task)
+    },
     { label: '请求人', value: displayDiagnosticText(task.requestedBy) },
     { label: '创建', value: formatDateTime(task.createdAt) },
     { label: '更新', value: formatDateTime(task.updatedAt) },
@@ -269,6 +274,27 @@ export function summarizeTestDesignReleaseReadinessPolicy(task: TestDesignTaskVi
     .join(' · ') || '-';
 }
 
+export function summarizeTestDesignAuditChainPolicy(task: TestDesignTaskView | null | undefined): string {
+  const policy = task?.auditChainPolicy ?? auditChainPolicyFromContextSummary(task?.contextSummary);
+  if (!policy) {
+    return '-';
+  }
+
+  const mode = displayDiagnosticText(policy.chainMode, 44);
+  const source = displayDiagnosticText(policy.eventSource, 44);
+  const wp1 = policy.wp1AuditEventWritten === true ? 'WP1审计:written' : 'WP1审计:missing';
+  const wp2 = policy.wp2InvocationReferenceTracked === true ? 'WP2调用:tracked' : 'WP2调用:missing';
+  const wp3 = policy.wp3PublishReferenceTracked === true ? 'WP3发布:tracked' : 'WP3发布:missing';
+  const wp5 = policy.wp5DomainEventsTracked === true ? 'WP5本域:tracked' : 'WP5本域:missing';
+  const scope = policy.projectScopeRequired === true ? '项目作用域:required' : '项目作用域:optional';
+  const trace = policy.traceSignalTracked === true ? 'trace信号:tracked' : 'trace信号:missing';
+  const dashboard = policy.crossWpAuditDashboardReady === true ? '跨WP看板:ready' : '跨WP看板:pending';
+  const outbox = policy.auditOutboxReplayDashboardReady === true ? 'outbox看板:ready' : 'outbox看板:pending';
+  return [mode, source, wp1, wp2, wp3, wp5, scope, trace, dashboard, outbox]
+    .filter((part) => part !== '-')
+    .join(' · ') || '-';
+}
+
 function contextAssemblyPolicyTone(task: TestDesignTaskView): TestDesignTaskDiagnosticTone {
   const policy = task.contextAssemblyPolicy ?? assemblyPolicyFromContextSummary(task.contextSummary);
   if (
@@ -372,6 +398,30 @@ function releaseReadinessPolicyTone(task: TestDesignTaskView): TestDesignTaskDia
     policy?.approvalWorkflowReady === false ||
     policy?.qualityGateOverrideSupported === true
   ) {
+    return 'warning';
+  }
+  return 'neutral';
+}
+
+function auditChainPolicyTone(task: TestDesignTaskView): TestDesignTaskDiagnosticTone {
+  const policy = task.auditChainPolicy ?? auditChainPolicyFromContextSummary(task.contextSummary);
+  if (
+    policy?.wp1AuditEventWritten === false ||
+    policy?.wp2InvocationReferenceTracked === false ||
+    policy?.wp3PublishReferenceTracked === false ||
+    policy?.wp5DomainEventsTracked === false ||
+    policy?.projectScopeRequired === false ||
+    policy?.traceSignalTracked === false ||
+    policy?.auditEventDetailExported === true ||
+    policy?.candidateIdentifierListExported === true ||
+    policy?.platformAuditIdentifierExported === true ||
+    policy?.traceIdValueExported === true ||
+    policy?.modelInvocationIdValueExported === true ||
+    policy?.publishIdentifierValueExported === true
+  ) {
+    return 'danger';
+  }
+  if (policy?.crossWpAuditDashboardReady === false || policy?.auditOutboxReplayDashboardReady === false) {
     return 'warning';
   }
   return 'neutral';
@@ -491,6 +541,37 @@ function releaseReadinessPolicyFromContextSummary(contextSummary: Record<string,
     candidateEvidenceExported: safeOptionalBoolean(record.candidateEvidenceExported),
     approvalNotesExported: safeOptionalBoolean(record.approvalNotesExported),
     thresholdRuleDetailExported: safeOptionalBoolean(record.thresholdRuleDetailExported),
+    aggregateOnly: safeOptionalBoolean(record.aggregateOnly)
+  };
+}
+
+function auditChainPolicyFromContextSummary(contextSummary: Record<string, unknown> | null | undefined) {
+  if (!contextSummary || typeof contextSummary !== 'object') {
+    return undefined;
+  }
+  const raw = contextSummary.auditChainPolicy;
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    return undefined;
+  }
+  const record = raw as Record<string, unknown>;
+  return {
+    policyVersion: safeOptionalString(record.policyVersion),
+    chainMode: safeOptionalString(record.chainMode),
+    eventSource: safeOptionalString(record.eventSource),
+    wp1AuditEventWritten: safeOptionalBoolean(record.wp1AuditEventWritten),
+    wp2InvocationReferenceTracked: safeOptionalBoolean(record.wp2InvocationReferenceTracked),
+    wp3PublishReferenceTracked: safeOptionalBoolean(record.wp3PublishReferenceTracked),
+    wp5DomainEventsTracked: safeOptionalBoolean(record.wp5DomainEventsTracked),
+    projectScopeRequired: safeOptionalBoolean(record.projectScopeRequired),
+    traceSignalTracked: safeOptionalBoolean(record.traceSignalTracked),
+    auditEventDetailExported: safeOptionalBoolean(record.auditEventDetailExported),
+    candidateIdentifierListExported: safeOptionalBoolean(record.candidateIdentifierListExported),
+    platformAuditIdentifierExported: safeOptionalBoolean(record.platformAuditIdentifierExported),
+    traceIdValueExported: safeOptionalBoolean(record.traceIdValueExported),
+    modelInvocationIdValueExported: safeOptionalBoolean(record.modelInvocationIdValueExported),
+    publishIdentifierValueExported: safeOptionalBoolean(record.publishIdentifierValueExported),
+    crossWpAuditDashboardReady: safeOptionalBoolean(record.crossWpAuditDashboardReady),
+    auditOutboxReplayDashboardReady: safeOptionalBoolean(record.auditOutboxReplayDashboardReady),
     aggregateOnly: safeOptionalBoolean(record.aggregateOnly)
   };
 }

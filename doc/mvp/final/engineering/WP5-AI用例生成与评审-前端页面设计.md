@@ -5,8 +5,8 @@
 | 工作包 | WP5 AI 用例生成与评审 |
 | 角色产出 | 资深前端工程师 |
 | 文档性质 | 前端页面、路由、权限、状态和可测性设计 |
-| 当前口径 | 基于 `portal-web` React + TypeScript + Vite 管理台扩展，已纳入任务质量、Prompt 趋势、Prompt 版本准出分布、任务诊断、本域审计链摘要面板、显式上下文资产输入、服务端下发的上下文裁剪口径、上下文策略诊断摘要、权限/资源作用域策略摘要、评测语料运营策略摘要和发布准出审批策略摘要 |
-| 版本 | v0.10 |
+| 当前口径 | 基于 `portal-web` React + TypeScript + Vite 管理台扩展，已纳入任务质量、Prompt 趋势、Prompt 版本准出分布、任务诊断、本域审计链摘要面板、跨 WP 审计链策略摘要、显式上下文资产输入、服务端下发的上下文裁剪口径、上下文策略诊断摘要、权限/资源作用域策略摘要、评测语料运营策略摘要和发布准出审批策略摘要 |
+| 版本 | v0.11 |
 | 日期 | 2026-05-30 |
 
 ## 1. 页面目标
@@ -133,7 +133,7 @@ API client 需复用现有 `requestJson` 和 `ApiError` 处理，保留响应中
 | 生成数量 | 1 到 20 的整数。 |
 | 覆盖类型 | 至少 1 个。 |
 | 任务名称 | 必填，最长 160 字符。 |
-| 上下文选项 | 至少保留需求上下文；API/页面/流程/历史用例可通过追踪关系自动带入，也可在生成配置中显式输入 API/页面/业务流 ID。前端占位文案、任务诊断的上下文规模、上下文策略摘要、作用域策略摘要、评测语料摘要和发布准出摘要优先读取健康接口返回的 `contextLimits`、`scopePolicy`、`evaluationCorpusPolicy`、`releaseReadinessPolicy` 与任务 `contextSummary.limits/contextSummary.scopePolicy/contextSummary.evaluationCorpusPolicy/contextSummary.releaseReadinessPolicy`。 |
+| 上下文选项 | 至少保留需求上下文；API/页面/流程/历史用例可通过追踪关系自动带入，也可在生成配置中显式输入 API/页面/业务流 ID。前端占位文案、任务诊断的上下文规模、上下文策略摘要、作用域策略摘要、评测语料摘要、发布准出摘要和审计链摘要优先读取健康接口返回的 `contextLimits`、`scopePolicy`、`evaluationCorpusPolicy`、`releaseReadinessPolicy`、`auditChainPolicy` 与任务 `contextSummary.limits/contextSummary.scopePolicy/contextSummary.evaluationCorpusPolicy/contextSummary.releaseReadinessPolicy/contextSummary.auditChainPolicy`。 |
 
 ### 7.2 候选编辑
 
@@ -164,6 +164,7 @@ API client 需复用现有 `requestJson` 和 `ApiError` 处理，保留响应中
 | prompt readiness | Prompt 趋势中展示 `PASSED/WARNING/BLOCKED` 准出状态分布；每个版本展示准出状态、阻断数和风险数；该状态仅用于运营比较，不禁用发布按钮。 |
 | evaluation corpus | 任务诊断展示 `evaluationCorpusPolicy` 的 golden set 基线、手动可选 AI 评测、部署配置阈值、项目作用域、质量门禁接入、准出分布/Prompt 版本跟踪和运营后台 pending；该状态只说明当前评测语料边界，不代表真实样本维护或长期校准后台已就绪。 |
 | release readiness | 任务诊断展示 `releaseReadinessPolicy` 的 advisory-only、发布阻断关闭、审批流 pending、人工准出、自动发布关闭和候选确认要求；该状态只说明当前准出边界，不代表真实审批流已就绪。 |
+| audit chain | 任务诊断展示 `auditChainPolicy` 的 WP1 审计写入、WP2 调用引用、WP3 发布引用、WP5 本域事件、项目作用域、trace 信号、跨 WP 看板 pending 和 outbox 看板 pending；该状态只说明当前审计链观测边界，不代表真实跨 WP 审计看板或 outbox 重放看板已就绪。 |
 
 ## 9. 候选评审交互
 
@@ -195,5 +196,5 @@ API client 需复用现有 `requestJson` 和 `ApiError` 处理，保留响应中
 7. dryRun 结果能区分创建、重复、跳过和失败。
 8. 发布成功后可跳转 WP3 测试用例详情或列表筛选结果。
 9. loading/empty/error/partial success/version conflict/model blocked 状态均有可读展示。
-10. 任务诊断只展示上下文计数、裁剪策略、作用域策略、评测语料策略和发布准出审批策略聚合标记，不展示显式资产 ID、schema、页面树、流程 JSON、需求正文、候选 ID、角色规则、服务令牌原值、评测语料行、候选正文、评审评论、候选级准出证据、审批备注、阈值规则明细或原始 Prompt。
+10. 任务诊断只展示上下文计数、裁剪策略、作用域策略、评测语料策略、发布准出审批策略和审计链策略聚合标记，不展示显式资产 ID、schema、页面树、流程 JSON、需求正文、候选 ID、角色规则、服务令牌原值、评测语料行、候选正文、评审评论、候选级准出证据、审批备注、阈值规则明细、平台审计标识原值、traceId 原值、模型调用 ID 原值、发布 sourceRef、资产 ID 或原始 Prompt。
 11. `cd portal-web && npm test`、`cd portal-web && npm run build`、WP5 前端 smoke 均通过。

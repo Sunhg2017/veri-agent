@@ -7,6 +7,7 @@ import com.songhg.veri.agent.testdesign.application.view.TestDesignQualityReadin
 import com.songhg.veri.agent.testdesign.application.view.TestDesignTaskResponse;
 import com.songhg.veri.agent.testdesign.config.TestDesignProperties;
 import com.songhg.veri.agent.testdesign.domain.TestDesignPublishRecord;
+import com.songhg.veri.agent.testdesign.domain.TestDesignReviewRecord;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
@@ -66,6 +67,7 @@ class TestDesignTaskReportServiceTest {
                 TestDesignScopePolicy.response(),
                 TestDesignEvaluationCorpusPolicy.response(),
                 TestDesignReleaseReadinessPolicy.response(),
+                TestDesignAuditChainPolicy.response(),
                 Map.of(),
                 Instant.parse("2026-05-30T00:00:00Z"),
                 Instant.parse("2026-05-30T00:00:00Z")
@@ -120,6 +122,7 @@ class TestDesignTaskReportServiceTest {
                 TestDesignScopePolicy.response(),
                 TestDesignEvaluationCorpusPolicy.response(),
                 TestDesignReleaseReadinessPolicy.response(),
+                TestDesignAuditChainPolicy.response(),
                 Map.of(),
                 Instant.parse("2026-05-30T00:00:00Z"),
                 Instant.parse("2026-05-30T00:00:00Z")
@@ -181,6 +184,7 @@ class TestDesignTaskReportServiceTest {
                 TestDesignScopePolicy.response(),
                 TestDesignEvaluationCorpusPolicy.response(),
                 TestDesignReleaseReadinessPolicy.response(),
+                TestDesignAuditChainPolicy.response(),
                 Map.of(),
                 Instant.parse("2026-05-30T00:00:00Z"),
                 Instant.parse("2026-05-30T00:00:00Z")
@@ -241,6 +245,7 @@ class TestDesignTaskReportServiceTest {
                 TestDesignScopePolicy.response(),
                 TestDesignEvaluationCorpusPolicy.response(),
                 TestDesignReleaseReadinessPolicy.response(),
+                TestDesignAuditChainPolicy.response(),
                 Map.of(),
                 Instant.parse("2026-05-30T00:00:00Z"),
                 Instant.parse("2026-05-30T00:00:00Z")
@@ -327,6 +332,7 @@ class TestDesignTaskReportServiceTest {
                 TestDesignScopePolicy.response(),
                 TestDesignEvaluationCorpusPolicy.response(),
                 TestDesignReleaseReadinessPolicy.response(),
+                TestDesignAuditChainPolicy.response(),
                 Map.of(
                         "contextVersion", "wp5-context-v1",
                         "requirements", List.of(Map.of(
@@ -435,6 +441,7 @@ class TestDesignTaskReportServiceTest {
                 TestDesignScopePolicy.response(),
                 TestDesignEvaluationCorpusPolicy.response(),
                 TestDesignReleaseReadinessPolicy.response(),
+                TestDesignAuditChainPolicy.response(),
                 Map.of(),
                 Instant.parse("2026-05-30T00:00:00Z"),
                 Instant.parse("2026-05-30T00:00:00Z")
@@ -499,6 +506,7 @@ class TestDesignTaskReportServiceTest {
                 TestDesignScopePolicy.response(),
                 TestDesignEvaluationCorpusPolicy.response(),
                 TestDesignReleaseReadinessPolicy.response(),
+                TestDesignAuditChainPolicy.response(),
                 Map.of("scopePolicy", Map.of(
                         "candidateIds", List.of("candidate-secret-id"),
                         "roleRuleDetails", "role matrix should not appear",
@@ -566,6 +574,7 @@ class TestDesignTaskReportServiceTest {
                 TestDesignScopePolicy.response(),
                 TestDesignEvaluationCorpusPolicy.response(),
                 TestDesignReleaseReadinessPolicy.response(),
+                TestDesignAuditChainPolicy.response(),
                 Map.of("evaluationCorpusPolicy", Map.of(
                         "corpusRows", List.of("sample-row-secret"),
                         "candidateBody", "候选正文不应导出",
@@ -662,6 +671,7 @@ class TestDesignTaskReportServiceTest {
                 TestDesignScopePolicy.response(),
                 TestDesignEvaluationCorpusPolicy.response(),
                 TestDesignReleaseReadinessPolicy.response(),
+                TestDesignAuditChainPolicy.response(),
                 Map.of(),
                 Instant.parse("2026-05-30T00:00:00Z"),
                 Instant.parse("2026-05-30T00:00:00Z")
@@ -735,6 +745,7 @@ class TestDesignTaskReportServiceTest {
                 TestDesignScopePolicy.response(),
                 TestDesignEvaluationCorpusPolicy.response(),
                 TestDesignReleaseReadinessPolicy.response(),
+                TestDesignAuditChainPolicy.response(),
                 Map.of(),
                 Instant.parse("2026-05-30T00:00:00Z"),
                 Instant.parse("2026-05-30T00:00:00Z")
@@ -808,6 +819,7 @@ class TestDesignTaskReportServiceTest {
                 TestDesignScopePolicy.response(),
                 TestDesignEvaluationCorpusPolicy.response(),
                 TestDesignReleaseReadinessPolicy.response(),
+                TestDesignAuditChainPolicy.response(),
                 Map.of(),
                 Instant.parse("2026-05-30T00:00:00Z"),
                 Instant.parse("2026-05-30T00:00:00Z")
@@ -884,6 +896,7 @@ class TestDesignTaskReportServiceTest {
                 TestDesignScopePolicy.response(),
                 TestDesignEvaluationCorpusPolicy.response(),
                 TestDesignReleaseReadinessPolicy.response(),
+                TestDesignAuditChainPolicy.response(),
                 Map.of("releaseReadinessPolicy", Map.of(
                         "candidateEvidence", "candidate-secret-id",
                         "approvalNotes", "approval note should not appear",
@@ -927,6 +940,126 @@ class TestDesignTaskReportServiceTest {
                 .doesNotContain("candidate-secret-id")
                 .doesNotContain("approval note should not appear")
                 .doesNotContain("threshold rule should not appear");
+    }
+
+    @Test
+    void appendsAuditChainPolicyRowsWithoutAuditOrTraceDetails() {
+        StringBuilder csv = new StringBuilder();
+        TestDesignTaskResponse task = new TestDesignTaskResponse(
+                UUID.fromString("11111111-1111-1111-1111-111111111111"),
+                "project-wp5",
+                "审计链报告 token=secret-value",
+                "SUCCEEDED",
+                List.of(),
+                List.of("SMOKE"),
+                "wp5-test-design-v1",
+                "1.0.0",
+                UUID.fromString("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"),
+                "local-echo-primary",
+                "local-echo",
+                0,
+                0,
+                0,
+                0,
+                null,
+                "auditor",
+                null,
+                "digest",
+                new TestDesignModelObservationResponse(
+                        UUID.fromString("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"),
+                        UUID.fromString("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"),
+                        "trc_audit_chain_secret",
+                        true,
+                        "SUCCEEDED",
+                        "local-echo-primary",
+                        "local-echo",
+                        "wp5-route",
+                        "default",
+                        "JSON",
+                        false,
+                        10,
+                        5,
+                        new BigDecimal("0.0001"),
+                        50L,
+                        null,
+                        null,
+                        "wp5-test-design",
+                        Instant.parse("2026-05-30T00:00:00Z")
+                ),
+                TestDesignContextAssemblyPolicy.response(),
+                TestDesignContextPolicyGovernance.response(),
+                TestDesignContextPolicyOperations.response(),
+                TestDesignScopePolicy.response(),
+                TestDesignEvaluationCorpusPolicy.response(),
+                TestDesignReleaseReadinessPolicy.response(),
+                TestDesignAuditChainPolicy.response(),
+                Map.of("auditChainPolicy", Map.of(
+                        "auditLogIds", List.of("audit-log-secret"),
+                        "candidateIds", List.of("candidate-secret-id"),
+                        "traceIds", List.of("trc_secret"),
+                        "sourceRef", "wp5:secret-source-ref",
+                        "assetCaseId", "asset-secret-id"
+                )),
+                Instant.parse("2026-05-30T00:00:00Z"),
+                Instant.parse("2026-05-30T00:00:00Z")
+        );
+        UUID candidateId = UUID.fromString("22222222-2222-4222-8222-222222222222");
+        List<TestDesignReviewRecord> reviewRecords = List.of(new TestDesignReviewRecord(
+                UUID.fromString("33333333-3333-4333-8333-333333333333"),
+                candidateId,
+                task.id(),
+                "project-wp5",
+                "UPDATE",
+                "GENERATED",
+                "EDITED",
+                "reviewer",
+                "review comment token=secret-value",
+                "{}",
+                Instant.parse("2026-05-30T00:00:00Z")
+        ));
+        List<TestDesignPublishRecord> publishRecords = List.of(
+                publishRecord(task.id(), candidateId, UUID.fromString("44444444-4444-4444-8444-444444444444"),
+                        "CREATE", "SUCCEEDED", null),
+                publishRecord(task.id(), UUID.fromString("55555555-5555-4555-8555-555555555555"), null,
+                        "CREATE", "FAILED", "trace trc_secret sourceRef wp5-secret should stay internal")
+        );
+
+        TestDesignTaskReportAuditChainPolicyRows.appendRows(
+                csv, task, Instant.parse("2026-05-30T00:00:00Z"), reviewRecords, publishRecords);
+
+        String report = csv.toString();
+        assertDoesNotThrow(() -> TestDesignTaskReportExportGovernance.validateExportSafety(report));
+        org.assertj.core.api.Assertions.assertThat(report)
+                .contains("auditChainPolicy,policyVersion,,wp5-audit-chain-policy-v1")
+                .contains("auditChainPolicy,chainMode,,WP5_DOMAIN_AGGREGATE_WITH_WP1_AUDIT,,warning")
+                .contains("auditChainPolicy,eventSource,,TASK_REVIEW_PUBLISH_MODEL_REFERENCES")
+                .contains("auditChainPolicy,wp1AuditEventWritten,,true,,success")
+                .contains("auditChainPolicy,wp2InvocationReferenceTracked,,true,,success")
+                .contains("auditChainPolicy,wp3PublishReferenceTracked,,true,,success")
+                .contains("auditChainPolicy,wp5DomainEventsTracked,,true,,success")
+                .contains("auditChainPolicy,projectScopeRequired,,true,,success")
+                .contains("auditChainPolicy,traceSignalTracked,,true,,success")
+                .contains("auditChainPolicy,crossWpAuditDashboardReady,,false,,warning")
+                .contains("auditChainPolicy,auditOutboxReplayDashboardReady,,false,,warning")
+                .contains("auditChainPolicy,auditEventDetailExported,,false")
+                .contains("auditChainPolicy,candidateIdentifierListExported,,false")
+                .contains("auditChainPolicy,platformAuditIdentifierExported,,false")
+                .contains("auditChainPolicy,traceIdValueExported,,false")
+                .contains("auditChainPolicy,modelInvocationIdValueExported,,false")
+                .contains("auditChainPolicy,publishIdentifierValueExported,,false")
+                .contains("auditChainPolicy,metric,taskEventCount,1,,info")
+                .contains("auditChainPolicy,metric,reviewEventCount,1,,info")
+                .contains("auditChainPolicy,metric,publishEventCount,2,,info")
+                .contains("auditChainPolicy,metric,noteCoverageCount,2,,info")
+                .contains("auditChainPolicy,aggregateOnly,,true,,success")
+                .doesNotContain("secret-value")
+                .doesNotContain("audit-log-secret")
+                .doesNotContain("candidate-secret-id")
+                .doesNotContain("trc_secret")
+                .doesNotContain("wp5-secret")
+                .doesNotContain("secret-source-ref")
+                .doesNotContain("asset-secret-id")
+                .doesNotContain(candidateId.toString());
     }
 
     @Test

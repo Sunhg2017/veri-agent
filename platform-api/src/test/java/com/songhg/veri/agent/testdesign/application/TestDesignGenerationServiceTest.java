@@ -177,6 +177,27 @@ class TestDesignGenerationServiceTest {
         assertThat(summary.path("releaseReadinessPolicy").path("approvalNotesExported").asBoolean()).isFalse();
         assertThat(summary.path("releaseReadinessPolicy").path("thresholdRuleDetailExported").asBoolean()).isFalse();
         assertThat(summary.path("releaseReadinessPolicy").path("aggregateOnly").asBoolean()).isTrue();
+        assertThat(summary.path("auditChainPolicy").path("policyVersion").asText())
+                .isEqualTo("wp5-audit-chain-policy-v1");
+        assertThat(summary.path("auditChainPolicy").path("chainMode").asText())
+                .isEqualTo("WP5_DOMAIN_AGGREGATE_WITH_WP1_AUDIT");
+        assertThat(summary.path("auditChainPolicy").path("eventSource").asText())
+                .isEqualTo("TASK_REVIEW_PUBLISH_MODEL_REFERENCES");
+        assertThat(summary.path("auditChainPolicy").path("wp1AuditEventWritten").asBoolean()).isTrue();
+        assertThat(summary.path("auditChainPolicy").path("wp2InvocationReferenceTracked").asBoolean()).isTrue();
+        assertThat(summary.path("auditChainPolicy").path("wp3PublishReferenceTracked").asBoolean()).isTrue();
+        assertThat(summary.path("auditChainPolicy").path("wp5DomainEventsTracked").asBoolean()).isTrue();
+        assertThat(summary.path("auditChainPolicy").path("projectScopeRequired").asBoolean()).isTrue();
+        assertThat(summary.path("auditChainPolicy").path("traceSignalTracked").asBoolean()).isTrue();
+        assertThat(summary.path("auditChainPolicy").path("crossWpAuditDashboardReady").asBoolean()).isFalse();
+        assertThat(summary.path("auditChainPolicy").path("auditOutboxReplayDashboardReady").asBoolean()).isFalse();
+        assertThat(summary.path("auditChainPolicy").path("auditEventDetailExported").asBoolean()).isFalse();
+        assertThat(summary.path("auditChainPolicy").path("candidateIdentifierListExported").asBoolean()).isFalse();
+        assertThat(summary.path("auditChainPolicy").path("platformAuditIdentifierExported").asBoolean()).isFalse();
+        assertThat(summary.path("auditChainPolicy").path("traceIdValueExported").asBoolean()).isFalse();
+        assertThat(summary.path("auditChainPolicy").path("modelInvocationIdValueExported").asBoolean()).isFalse();
+        assertThat(summary.path("auditChainPolicy").path("publishIdentifierValueExported").asBoolean()).isFalse();
+        assertThat(summary.path("auditChainPolicy").path("aggregateOnly").asBoolean()).isTrue();
         assertThat(summary.path("linkedAssetsByRequirement").get(0).path("apiCount").asInt()).isEqualTo(2);
         assertThat(summary.path("linkedAssetsByRequirement").get(0).path("apis")).hasSize(1);
         assertThat(summary.path("linkedAssetsByRequirement").get(0).path("pages")).hasSize(1);
@@ -319,6 +340,20 @@ class TestDesignGenerationServiceTest {
         assertThat(payload.path("contextPacking").path("releaseReadinessPolicy").path("candidateEvidenceExported").asBoolean())
                 .isFalse();
         assertThat(payload.path("contextPacking").path("releaseReadinessPolicy").path("aggregateOnly").asBoolean())
+                .isTrue();
+        assertThat(payload.path("contextPacking").path("auditChainPolicy").path("policyVersion").asText())
+                .isEqualTo("wp5-audit-chain-policy-v1");
+        assertThat(payload.path("contextPacking").path("auditChainPolicy").path("chainMode").asText())
+                .isEqualTo("WP5_DOMAIN_AGGREGATE_WITH_WP1_AUDIT");
+        assertThat(payload.path("contextPacking").path("auditChainPolicy").path("wp1AuditEventWritten").asBoolean())
+                .isTrue();
+        assertThat(payload.path("contextPacking").path("auditChainPolicy").path("crossWpAuditDashboardReady").asBoolean())
+                .isFalse();
+        assertThat(payload.path("contextPacking").path("auditChainPolicy").path("auditEventDetailExported").asBoolean())
+                .isFalse();
+        assertThat(payload.path("contextPacking").path("auditChainPolicy").path("traceIdValueExported").asBoolean())
+                .isFalse();
+        assertThat(payload.path("contextPacking").path("auditChainPolicy").path("aggregateOnly").asBoolean())
                 .isTrue();
         assertThat(commandCaptor.getValue().promptKey()).isEqualTo("wp5-test-design-v1");
         assertThat(commandCaptor.getValue().messages()).hasSize(1);

@@ -22,6 +22,7 @@ export interface TestDesignHealth {
   scopePolicy?: TestDesignScopePolicyView;
   evaluationCorpusPolicy?: TestDesignEvaluationCorpusPolicyView;
   releaseReadinessPolicy?: TestDesignReleaseReadinessPolicyView;
+  auditChainPolicy?: TestDesignAuditChainPolicyView;
   supportedCoverageTypes: string[];
 }
 
@@ -52,6 +53,7 @@ export interface TestDesignTaskView {
   scopePolicy?: TestDesignScopePolicyView;
   evaluationCorpusPolicy?: TestDesignEvaluationCorpusPolicyView;
   releaseReadinessPolicy?: TestDesignReleaseReadinessPolicyView;
+  auditChainPolicy?: TestDesignAuditChainPolicyView;
   contextSummary: Record<string, unknown>;
   createdAt?: string;
   updatedAt?: string;
@@ -158,6 +160,27 @@ export interface TestDesignReleaseReadinessPolicyView {
   candidateEvidenceExported?: boolean;
   approvalNotesExported?: boolean;
   thresholdRuleDetailExported?: boolean;
+  aggregateOnly?: boolean;
+}
+
+export interface TestDesignAuditChainPolicyView {
+  policyVersion?: string;
+  chainMode?: string;
+  eventSource?: string;
+  wp1AuditEventWritten?: boolean;
+  wp2InvocationReferenceTracked?: boolean;
+  wp3PublishReferenceTracked?: boolean;
+  wp5DomainEventsTracked?: boolean;
+  projectScopeRequired?: boolean;
+  traceSignalTracked?: boolean;
+  auditEventDetailExported?: boolean;
+  candidateIdentifierListExported?: boolean;
+  platformAuditIdentifierExported?: boolean;
+  traceIdValueExported?: boolean;
+  modelInvocationIdValueExported?: boolean;
+  publishIdentifierValueExported?: boolean;
+  crossWpAuditDashboardReady?: boolean;
+  auditOutboxReplayDashboardReady?: boolean;
   aggregateOnly?: boolean;
 }
 
@@ -677,6 +700,7 @@ export function normalizeTestDesignHealth(raw: unknown): TestDesignHealth {
     releaseReadinessPolicy: normalizeTestDesignReleaseReadinessPolicy(
       item.releaseReadinessPolicy ?? item.release_readiness_policy
     ),
+    auditChainPolicy: normalizeTestDesignAuditChainPolicy(item.auditChainPolicy ?? item.audit_chain_policy),
     supportedCoverageTypes: stringArrayValue(item.supportedCoverageTypes ?? item.supported_coverage_types)
   };
 }
@@ -721,6 +745,7 @@ export function normalizeTestDesignTask(raw: unknown): TestDesignTaskView {
     releaseReadinessPolicy: normalizeTestDesignReleaseReadinessPolicy(
       item.releaseReadinessPolicy ?? item.release_readiness_policy
     ),
+    auditChainPolicy: normalizeTestDesignAuditChainPolicy(item.auditChainPolicy ?? item.audit_chain_policy),
     contextSummary: recordValue(item.contextSummary ?? item.context_summary),
     createdAt: optionalString(item.createdAt) ?? optionalString(item.created_at),
     updatedAt: optionalString(item.updatedAt) ?? optionalString(item.updated_at)
@@ -928,6 +953,50 @@ export function normalizeTestDesignReleaseReadinessPolicy(
     approvalNotesExported: optionalBoolean(raw.approvalNotesExported ?? raw.approval_notes_exported),
     thresholdRuleDetailExported: optionalBoolean(
       raw.thresholdRuleDetailExported ?? raw.threshold_rule_detail_exported
+    ),
+    aggregateOnly: optionalBoolean(raw.aggregateOnly ?? raw.aggregate_only)
+  };
+}
+
+export function normalizeTestDesignAuditChainPolicy(
+  raw: unknown
+): TestDesignAuditChainPolicyView | undefined {
+  if (!isRecord(raw)) {
+    return undefined;
+  }
+  return {
+    policyVersion: optionalString(raw.policyVersion) ?? optionalString(raw.policy_version),
+    chainMode: optionalString(raw.chainMode) ?? optionalString(raw.chain_mode),
+    eventSource: optionalString(raw.eventSource) ?? optionalString(raw.event_source),
+    wp1AuditEventWritten: optionalBoolean(raw.wp1AuditEventWritten ?? raw.wp1_audit_event_written),
+    wp2InvocationReferenceTracked: optionalBoolean(
+      raw.wp2InvocationReferenceTracked ?? raw.wp2_invocation_reference_tracked
+    ),
+    wp3PublishReferenceTracked: optionalBoolean(
+      raw.wp3PublishReferenceTracked ?? raw.wp3_publish_reference_tracked
+    ),
+    wp5DomainEventsTracked: optionalBoolean(raw.wp5DomainEventsTracked ?? raw.wp5_domain_events_tracked),
+    projectScopeRequired: optionalBoolean(raw.projectScopeRequired ?? raw.project_scope_required),
+    traceSignalTracked: optionalBoolean(raw.traceSignalTracked ?? raw.trace_signal_tracked),
+    auditEventDetailExported: optionalBoolean(raw.auditEventDetailExported ?? raw.audit_event_detail_exported),
+    candidateIdentifierListExported: optionalBoolean(
+      raw.candidateIdentifierListExported ?? raw.candidate_identifier_list_exported
+    ),
+    platformAuditIdentifierExported: optionalBoolean(
+      raw.platformAuditIdentifierExported ?? raw.platform_audit_identifier_exported
+    ),
+    traceIdValueExported: optionalBoolean(raw.traceIdValueExported ?? raw.trace_id_value_exported),
+    modelInvocationIdValueExported: optionalBoolean(
+      raw.modelInvocationIdValueExported ?? raw.model_invocation_id_value_exported
+    ),
+    publishIdentifierValueExported: optionalBoolean(
+      raw.publishIdentifierValueExported ?? raw.publish_identifier_value_exported
+    ),
+    crossWpAuditDashboardReady: optionalBoolean(
+      raw.crossWpAuditDashboardReady ?? raw.cross_wp_audit_dashboard_ready
+    ),
+    auditOutboxReplayDashboardReady: optionalBoolean(
+      raw.auditOutboxReplayDashboardReady ?? raw.audit_outbox_replay_dashboard_ready
     ),
     aggregateOnly: optionalBoolean(raw.aggregateOnly ?? raw.aggregate_only)
   };

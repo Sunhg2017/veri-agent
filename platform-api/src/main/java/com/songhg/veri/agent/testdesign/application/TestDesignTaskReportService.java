@@ -137,6 +137,8 @@ public class TestDesignTaskReportService {
         appendTaskReportCandidateRows(csv, taskResponse, candidates, generatedAt);
         appendTaskReportReviewRows(csv, taskResponse, reviewRecords, generatedAt);
         appendTaskReportPublishRows(csv, taskResponse, publishRecords, generatedAt);
+        TestDesignTaskReportAuditChainPolicyRows.appendRows(csv, taskResponse, generatedAt,
+                reviewRecords, publishRecords);
         TestDesignTaskReportExportGovernance.appendRows(csv, taskResponse, generatedAt, properties);
         appendTaskReportManifestRows(csv, taskResponse, generatedAt);
         TestDesignTaskReportExportGovernance.validateExportSafety(csv.toString());

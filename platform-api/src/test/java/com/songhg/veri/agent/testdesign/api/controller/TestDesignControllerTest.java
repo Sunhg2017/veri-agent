@@ -177,6 +177,27 @@ class TestDesignControllerTest {
                 .andExpect(jsonPath("$.data.releaseReadinessPolicy.approvalNotesExported").value(false))
                 .andExpect(jsonPath("$.data.releaseReadinessPolicy.thresholdRuleDetailExported").value(false))
                 .andExpect(jsonPath("$.data.releaseReadinessPolicy.aggregateOnly").value(true))
+                .andExpect(jsonPath("$.data.auditChainPolicy.policyVersion")
+                        .value("wp5-audit-chain-policy-v1"))
+                .andExpect(jsonPath("$.data.auditChainPolicy.chainMode")
+                        .value("WP5_DOMAIN_AGGREGATE_WITH_WP1_AUDIT"))
+                .andExpect(jsonPath("$.data.auditChainPolicy.eventSource")
+                        .value("TASK_REVIEW_PUBLISH_MODEL_REFERENCES"))
+                .andExpect(jsonPath("$.data.auditChainPolicy.wp1AuditEventWritten").value(true))
+                .andExpect(jsonPath("$.data.auditChainPolicy.wp2InvocationReferenceTracked").value(true))
+                .andExpect(jsonPath("$.data.auditChainPolicy.wp3PublishReferenceTracked").value(true))
+                .andExpect(jsonPath("$.data.auditChainPolicy.wp5DomainEventsTracked").value(true))
+                .andExpect(jsonPath("$.data.auditChainPolicy.projectScopeRequired").value(true))
+                .andExpect(jsonPath("$.data.auditChainPolicy.traceSignalTracked").value(true))
+                .andExpect(jsonPath("$.data.auditChainPolicy.crossWpAuditDashboardReady").value(false))
+                .andExpect(jsonPath("$.data.auditChainPolicy.auditOutboxReplayDashboardReady").value(false))
+                .andExpect(jsonPath("$.data.auditChainPolicy.auditEventDetailExported").value(false))
+                .andExpect(jsonPath("$.data.auditChainPolicy.candidateIdentifierListExported").value(false))
+                .andExpect(jsonPath("$.data.auditChainPolicy.platformAuditIdentifierExported").value(false))
+                .andExpect(jsonPath("$.data.auditChainPolicy.traceIdValueExported").value(false))
+                .andExpect(jsonPath("$.data.auditChainPolicy.modelInvocationIdValueExported").value(false))
+                .andExpect(jsonPath("$.data.auditChainPolicy.publishIdentifierValueExported").value(false))
+                .andExpect(jsonPath("$.data.auditChainPolicy.aggregateOnly").value(true))
                 .andExpect(jsonPath("$.data.supportedCoverageTypes", hasSize(6)));
     }
 
@@ -627,6 +648,14 @@ class TestDesignControllerTest {
                 .andExpect(jsonPath("$.data.task.releaseReadinessPolicy.advisoryOnly").value(true))
                 .andExpect(jsonPath("$.data.task.releaseReadinessPolicy.publishBlockingEnabled").value(false))
                 .andExpect(jsonPath("$.data.task.releaseReadinessPolicy.approvalWorkflowReady").value(false))
+                .andExpect(jsonPath("$.data.task.auditChainPolicy.policyVersion")
+                        .value("wp5-audit-chain-policy-v1"))
+                .andExpect(jsonPath("$.data.task.auditChainPolicy.chainMode")
+                        .value("WP5_DOMAIN_AGGREGATE_WITH_WP1_AUDIT"))
+                .andExpect(jsonPath("$.data.task.auditChainPolicy.wp1AuditEventWritten").value(true))
+                .andExpect(jsonPath("$.data.task.auditChainPolicy.crossWpAuditDashboardReady").value(false))
+                .andExpect(jsonPath("$.data.task.auditChainPolicy.auditEventDetailExported").value(false))
+                .andExpect(jsonPath("$.data.task.auditChainPolicy.traceIdValueExported").value(false))
                 .andExpect(jsonPath("$.data.task.contextSummary.policyGovernance.policyVersion")
                         .value("wp5-context-policy-v1"))
                 .andExpect(jsonPath("$.data.task.contextSummary.policyGovernance.projectOverrideSupported").value(false))
@@ -663,6 +692,14 @@ class TestDesignControllerTest {
                 .andExpect(jsonPath("$.data.task.contextSummary.releaseReadinessPolicy.publishBlockingEnabled")
                         .value(false))
                 .andExpect(jsonPath("$.data.task.contextSummary.releaseReadinessPolicy.candidateEvidenceExported")
+                        .value(false))
+                .andExpect(jsonPath("$.data.task.contextSummary.auditChainPolicy.policyVersion")
+                        .value("wp5-audit-chain-policy-v1"))
+                .andExpect(jsonPath("$.data.task.contextSummary.auditChainPolicy.eventSource")
+                        .value("TASK_REVIEW_PUBLISH_MODEL_REFERENCES"))
+                .andExpect(jsonPath("$.data.task.contextSummary.auditChainPolicy.auditEventDetailExported")
+                        .value(false))
+                .andExpect(jsonPath("$.data.task.contextSummary.auditChainPolicy.publishIdentifierValueExported")
                         .value(false))
                 .andReturn();
 
@@ -1303,6 +1340,29 @@ class TestDesignControllerTest {
         MatcherAssert.assertThat(csv, containsString("evaluationCorpusPolicy,reviewCommentExported,,false"));
         MatcherAssert.assertThat(csv, containsString("evaluationCorpusPolicy,promptBodyExported,,false"));
         MatcherAssert.assertThat(csv, containsString("evaluationCorpusPolicy,aggregateOnly,,true"));
+        MatcherAssert.assertThat(csv, containsString("auditChainPolicy,policyVersion,,wp5-audit-chain-policy-v1"));
+        MatcherAssert.assertThat(csv, containsString(
+                "auditChainPolicy,chainMode,,WP5_DOMAIN_AGGREGATE_WITH_WP1_AUDIT"));
+        MatcherAssert.assertThat(csv, containsString(
+                "auditChainPolicy,eventSource,,TASK_REVIEW_PUBLISH_MODEL_REFERENCES"));
+        MatcherAssert.assertThat(csv, containsString("auditChainPolicy,wp1AuditEventWritten,,true"));
+        MatcherAssert.assertThat(csv, containsString("auditChainPolicy,wp2InvocationReferenceTracked,,true"));
+        MatcherAssert.assertThat(csv, containsString("auditChainPolicy,wp3PublishReferenceTracked,,true"));
+        MatcherAssert.assertThat(csv, containsString("auditChainPolicy,wp5DomainEventsTracked,,true"));
+        MatcherAssert.assertThat(csv, containsString("auditChainPolicy,projectScopeRequired,,true"));
+        MatcherAssert.assertThat(csv, containsString("auditChainPolicy,crossWpAuditDashboardReady,,false"));
+        MatcherAssert.assertThat(csv, containsString("auditChainPolicy,auditOutboxReplayDashboardReady,,false"));
+        MatcherAssert.assertThat(csv, containsString("auditChainPolicy,auditEventDetailExported,,false"));
+        MatcherAssert.assertThat(csv, containsString("auditChainPolicy,candidateIdentifierListExported,,false"));
+        MatcherAssert.assertThat(csv, containsString("auditChainPolicy,platformAuditIdentifierExported,,false"));
+        MatcherAssert.assertThat(csv, containsString("auditChainPolicy,traceIdValueExported,,false"));
+        MatcherAssert.assertThat(csv, containsString("auditChainPolicy,modelInvocationIdValueExported,,false"));
+        MatcherAssert.assertThat(csv, containsString("auditChainPolicy,publishIdentifierValueExported,,false"));
+        MatcherAssert.assertThat(csv, containsString("auditChainPolicy,metric,taskEventCount,1"));
+        MatcherAssert.assertThat(csv, containsString("auditChainPolicy,metric,reviewEventCount,3"));
+        MatcherAssert.assertThat(csv, containsString("auditChainPolicy,metric,publishEventCount,1"));
+        MatcherAssert.assertThat(csv, containsString("auditChainPolicy,metric,noteCoverageCount,2"));
+        MatcherAssert.assertThat(csv, containsString("auditChainPolicy,aggregateOnly,,true"));
         MatcherAssert.assertThat(csv, containsString("exportGovernance,fieldPolicy,,aggregateOnly"));
         MatcherAssert.assertThat(csv, containsString("exportGovernance,candidateBodyAllowed,,false"));
         MatcherAssert.assertThat(csv, containsString("exportGovernance,reviewCommentAllowed,,false"));

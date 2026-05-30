@@ -167,6 +167,26 @@ describe('WP5 test design API helpers', () => {
         threshold_rule_detail_exported: false,
         aggregate_only: true
       },
+      audit_chain_policy: {
+        policy_version: 'wp5-audit-chain-policy-v1',
+        chain_mode: 'WP5_DOMAIN_AGGREGATE_WITH_WP1_AUDIT',
+        event_source: 'TASK_REVIEW_PUBLISH_MODEL_REFERENCES',
+        wp1_audit_event_written: true,
+        wp2_invocation_reference_tracked: true,
+        wp3_publish_reference_tracked: true,
+        wp5_domain_events_tracked: true,
+        project_scope_required: true,
+        trace_signal_tracked: true,
+        audit_event_detail_exported: false,
+        candidate_identifier_list_exported: false,
+        platform_audit_identifier_exported: false,
+        trace_id_value_exported: false,
+        model_invocation_id_value_exported: false,
+        publish_identifier_value_exported: false,
+        cross_wp_audit_dashboard_ready: false,
+        audit_outbox_replay_dashboard_ready: false,
+        aggregate_only: true
+      },
       supported_coverage_types: 'SMOKE,FUNCTIONAL'
     })).toMatchObject({
       service: 'test-design',
@@ -269,6 +289,26 @@ describe('WP5 test design API helpers', () => {
         thresholdRuleDetailExported: false,
         aggregateOnly: true
       },
+      auditChainPolicy: {
+        policyVersion: 'wp5-audit-chain-policy-v1',
+        chainMode: 'WP5_DOMAIN_AGGREGATE_WITH_WP1_AUDIT',
+        eventSource: 'TASK_REVIEW_PUBLISH_MODEL_REFERENCES',
+        wp1AuditEventWritten: true,
+        wp2InvocationReferenceTracked: true,
+        wp3PublishReferenceTracked: true,
+        wp5DomainEventsTracked: true,
+        projectScopeRequired: true,
+        traceSignalTracked: true,
+        auditEventDetailExported: false,
+        candidateIdentifierListExported: false,
+        platformAuditIdentifierExported: false,
+        traceIdValueExported: false,
+        modelInvocationIdValueExported: false,
+        publishIdentifierValueExported: false,
+        crossWpAuditDashboardReady: false,
+        auditOutboxReplayDashboardReady: false,
+        aggregateOnly: true
+      },
       supportedCoverageTypes: ['SMOKE', 'FUNCTIONAL']
     });
 
@@ -357,6 +397,26 @@ describe('WP5 test design API helpers', () => {
         candidate_evidence_exported: false,
         approval_notes_exported: false,
         threshold_rule_detail_exported: false,
+        aggregate_only: true
+      },
+      audit_chain_policy: {
+        policy_version: 'wp5-audit-chain-policy-v1',
+        chain_mode: 'WP5_DOMAIN_AGGREGATE_WITH_WP1_AUDIT',
+        event_source: 'TASK_REVIEW_PUBLISH_MODEL_REFERENCES',
+        wp1_audit_event_written: true,
+        wp2_invocation_reference_tracked: true,
+        wp3_publish_reference_tracked: true,
+        wp5_domain_events_tracked: true,
+        project_scope_required: true,
+        trace_signal_tracked: true,
+        audit_event_detail_exported: false,
+        candidate_identifier_list_exported: false,
+        platform_audit_identifier_exported: false,
+        trace_id_value_exported: false,
+        model_invocation_id_value_exported: false,
+        publish_identifier_value_exported: false,
+        cross_wp_audit_dashboard_ready: false,
+        audit_outbox_replay_dashboard_ready: false,
         aggregate_only: true
       },
       context_summary: {
@@ -449,6 +509,26 @@ describe('WP5 test design API helpers', () => {
         candidateEvidenceExported: false,
         approvalNotesExported: false,
         thresholdRuleDetailExported: false,
+        aggregateOnly: true
+      },
+      auditChainPolicy: {
+        policyVersion: 'wp5-audit-chain-policy-v1',
+        chainMode: 'WP5_DOMAIN_AGGREGATE_WITH_WP1_AUDIT',
+        eventSource: 'TASK_REVIEW_PUBLISH_MODEL_REFERENCES',
+        wp1AuditEventWritten: true,
+        wp2InvocationReferenceTracked: true,
+        wp3PublishReferenceTracked: true,
+        wp5DomainEventsTracked: true,
+        projectScopeRequired: true,
+        traceSignalTracked: true,
+        auditEventDetailExported: false,
+        candidateIdentifierListExported: false,
+        platformAuditIdentifierExported: false,
+        traceIdValueExported: false,
+        modelInvocationIdValueExported: false,
+        publishIdentifierValueExported: false,
+        crossWpAuditDashboardReady: false,
+        auditOutboxReplayDashboardReady: false,
         aggregateOnly: true
       }
     });

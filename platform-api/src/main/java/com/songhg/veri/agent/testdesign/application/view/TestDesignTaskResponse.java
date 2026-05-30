@@ -62,6 +62,8 @@ public record TestDesignTaskResponse(
         TestDesignEvaluationCorpusPolicyResponse evaluationCorpusPolicy,
         @Schema(description = "发布准出审批与阻断策略聚合快照")
         TestDesignReleaseReadinessPolicyResponse releaseReadinessPolicy,
+        @Schema(description = "跨 WP 审计链可观测策略聚合快照")
+        TestDesignAuditChainPolicyResponse auditChainPolicy,
         @Schema(description = "脱敏上下文摘要")
         Map<String, Object> contextSummary,
         @Schema(description = "创建时间")

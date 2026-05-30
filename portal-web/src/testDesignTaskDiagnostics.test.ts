@@ -146,6 +146,26 @@ const baseTask: TestDesignTaskView = {
     thresholdRuleDetailExported: false,
     aggregateOnly: true
   },
+  auditChainPolicy: {
+    policyVersion: 'wp5-audit-chain-policy-v1',
+    chainMode: 'WP5_DOMAIN_AGGREGATE_WITH_WP1_AUDIT',
+    eventSource: 'TASK_REVIEW_PUBLISH_MODEL_REFERENCES',
+    wp1AuditEventWritten: true,
+    wp2InvocationReferenceTracked: true,
+    wp3PublishReferenceTracked: true,
+    wp5DomainEventsTracked: true,
+    projectScopeRequired: true,
+    traceSignalTracked: true,
+    auditEventDetailExported: false,
+    candidateIdentifierListExported: false,
+    platformAuditIdentifierExported: false,
+    traceIdValueExported: false,
+    modelInvocationIdValueExported: false,
+    publishIdentifierValueExported: false,
+    crossWpAuditDashboardReady: false,
+    auditOutboxReplayDashboardReady: false,
+    aggregateOnly: true
+  },
   contextSummary: {
     contextVersion: 'ctx-v3',
     requirements: [{ id: 'req-1' }, { id: 'req-2' }],
@@ -224,6 +244,11 @@ describe('WP5 task diagnostics helpers', () => {
           label: '发布准出',
           tone: 'warning',
           value: 'ADVISORY_QUALITY_GATE · DEPLOY_CONFIG · 质量阈值:checked · 建议模式:on · 发布阻断:off · 审批流:pending · 人工准出:required · 自动发布:off · 候选确认:required'
+        }),
+        expect.objectContaining({
+          label: '审计链',
+          tone: 'warning',
+          value: 'WP5_DOMAIN_AGGREGATE_WITH_WP1_AUDIT · TASK_REVIEW_PUBLISH_MODEL_REFERENCES · WP1审计:written · WP2调用:tracked · WP3发布:tracked · WP5本域:tracked · 项目作用域:required · trace信号:tracked · 跨WP看板:pending · outbox看板:pending'
         }),
         expect.objectContaining({
           label: '错误',
@@ -573,6 +598,69 @@ describe('WP5 task diagnostics helpers', () => {
           label: '发布准出',
           tone: 'danger',
           value: expect.stringContaining('自动发布:on')
+        })
+      ])
+    );
+  });
+
+  it('falls back to aggregate audit chain policy from the task summary', () => {
+    const diagnostics = buildTestDesignTaskDiagnostics({
+      ...baseTask,
+      auditChainPolicy: undefined,
+      contextSummary: {
+        auditChainPolicy: {
+          chainMode: 'WP5_DOMAIN_AGGREGATE_WITH_WP1_AUDIT',
+          eventSource: 'TASK_REVIEW_PUBLISH_MODEL_REFERENCES',
+          wp1AuditEventWritten: true,
+          wp2InvocationReferenceTracked: true,
+          wp3PublishReferenceTracked: true,
+          wp5DomainEventsTracked: true,
+          projectScopeRequired: true,
+          traceSignalTracked: true,
+          crossWpAuditDashboardReady: false,
+          auditOutboxReplayDashboardReady: false,
+          auditLogIds: ['audit-log-secret'],
+          candidateIds: ['candidate-secret-id'],
+          traceIds: ['trc_secret'],
+          sourceRef: 'wp5:secret-source-ref',
+          assetCaseId: 'asset-secret-id'
+        }
+      }
+    });
+
+    expect(diagnostics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          label: '审计链',
+          tone: 'warning',
+          value: expect.stringContaining('跨WP看板:pending')
+        })
+      ])
+    );
+    expect(JSON.stringify(diagnostics)).not.toContain('audit-log-secret');
+    expect(JSON.stringify(diagnostics)).not.toContain('candidate-secret-id');
+    expect(JSON.stringify(diagnostics)).not.toContain('trc_secret');
+    expect(JSON.stringify(diagnostics)).not.toContain('secret-source-ref');
+    expect(JSON.stringify(diagnostics)).not.toContain('asset-secret-id');
+  });
+
+  it('marks unsafe audit chain policy as danger', () => {
+    const diagnostics = buildTestDesignTaskDiagnostics({
+      ...baseTask,
+      auditChainPolicy: {
+        ...baseTask.auditChainPolicy,
+        wp1AuditEventWritten: false,
+        traceIdValueExported: true,
+        publishIdentifierValueExported: true
+      }
+    });
+
+    expect(diagnostics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          label: '审计链',
+          tone: 'danger',
+          value: expect.stringContaining('WP1审计:missing')
         })
       ])
     );
