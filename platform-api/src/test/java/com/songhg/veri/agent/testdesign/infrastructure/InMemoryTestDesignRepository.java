@@ -4,6 +4,7 @@ import com.songhg.veri.agent.common.api.PageQuery;
 import com.songhg.veri.agent.testdesign.application.port.TestDesignRepository;
 import com.songhg.veri.agent.testdesign.application.query.TestDesignCandidateQuery;
 import com.songhg.veri.agent.testdesign.application.query.TestDesignTaskQuery;
+import com.songhg.veri.agent.testdesign.domain.TestDesignAuditChainAggregate;
 import com.songhg.veri.agent.testdesign.domain.TestDesignCandidate;
 import com.songhg.veri.agent.testdesign.domain.TestDesignPublishRecord;
 import com.songhg.veri.agent.testdesign.domain.TestDesignReportManifest;
@@ -313,6 +314,53 @@ public class InMemoryTestDesignRepository implements TestDesignRepository {
                 .toList();
     }
 
+    @Override
+    public TestDesignAuditChainAggregate auditChainAggregate(UUID taskId) {
+        TestDesignTask task = tasks.get(taskId);
+        if (task == null) {
+            return emptyAuditChainAggregate();
+        }
+        List<TestDesignCandidate> taskCandidates = candidatesByTask(taskId);
+        List<TestDesignPublishRecord> taskPublishRecords = publishRecords(taskId);
+        long domainWriteCount = 1L + reviewRecordsByTask(taskId).size();
+        long reportExportCount = reportManifestsByTask(taskId).size();
+        long publishedCaseCount = taskCandidates.stream()
+                .filter(candidate -> candidate.assetCaseId() != null)
+                .count();
+        long traceLinkCount = taskPublishRecords.stream()
+                .filter(record -> !record.dryRun())
+                .filter(record -> "SUCCEEDED".equals(record.result()))
+                .filter(record -> record.assetCaseId() != null)
+                .count();
+        long modelInvocationCount = task.modelInvocationId() == null ? 0L : 1L;
+        return new TestDesignAuditChainAggregate(
+                domainWriteCount + reportExportCount,
+                domainWriteCount + reportExportCount,
+                0,
+                0,
+                domainWriteCount,
+                0,
+                0,
+                reportExportCount,
+                modelInvocationCount,
+                modelInvocationCount,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                "0",
+                modelInvocationCount,
+                modelInvocationCount,
+                publishedCaseCount,
+                traceLinkCount,
+                0,
+                0,
+                0
+        );
+    }
+
     private Stream<TestDesignTask> filteredTasks(TestDesignTaskQuery query) {
         return tasks.values().stream()
                 .filter(task -> matches(query.projectId(), task.projectId()))
@@ -358,5 +406,12 @@ public class InMemoryTestDesignRepository implements TestDesignRepository {
             }
         }
         return false;
+    }
+
+    private static TestDesignAuditChainAggregate emptyAuditChainAggregate() {
+        return new TestDesignAuditChainAggregate(
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                "0", 0, 0, 0, 0, 0, 0, 0
+        );
     }
 }

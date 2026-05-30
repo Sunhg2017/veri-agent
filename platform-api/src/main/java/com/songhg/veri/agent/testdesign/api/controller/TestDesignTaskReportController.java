@@ -3,7 +3,9 @@ package com.songhg.veri.agent.testdesign.api.controller;
 import com.songhg.veri.agent.authorization.application.PermissionCodes;
 import com.songhg.veri.agent.authorization.application.RequirePermission;
 import com.songhg.veri.agent.common.openapi.ApiVersion;
+import com.songhg.veri.agent.testdesign.application.TestDesignAuditChainService;
 import com.songhg.veri.agent.testdesign.application.TestDesignTaskReportService;
+import com.songhg.veri.agent.testdesign.application.view.TestDesignAuditChainResponse;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignAuditSummaryResponse;
 import java.nio.charset.StandardCharsets;
 import java.util.UUID;
@@ -24,9 +26,14 @@ import org.springframework.web.bind.annotation.RestController;
 public class TestDesignTaskReportController {
 
     private final TestDesignTaskReportService service;
+    private final TestDesignAuditChainService auditChainService;
 
-    public TestDesignTaskReportController(TestDesignTaskReportService service) {
+    public TestDesignTaskReportController(
+            TestDesignTaskReportService service,
+            TestDesignAuditChainService auditChainService
+    ) {
         this.service = service;
+        this.auditChainService = auditChainService;
     }
 
     /**
@@ -50,5 +57,14 @@ public class TestDesignTaskReportController {
     @RequirePermission(value = PermissionCodes.TEST_DESIGN_READ, scope = TestDesignPermissionScopes.TASK)
     public TestDesignAuditSummaryResponse auditSummary(@PathVariable UUID id) {
         return service.auditSummary(id);
+    }
+
+    /**
+     * 查询跨 WP 审计链只读聚合骨架，不返回审计事件或跨域明细标识。
+     */
+    @GetMapping("/audit-chain")
+    @RequirePermission(value = PermissionCodes.TEST_DESIGN_READ, scope = TestDesignPermissionScopes.TASK)
+    public TestDesignAuditChainResponse auditChain(@PathVariable UUID id) {
+        return auditChainService.auditChain(id);
     }
 }

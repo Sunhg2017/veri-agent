@@ -3,6 +3,7 @@ package com.songhg.veri.agent.testdesign.application.port;
 import com.songhg.veri.agent.common.api.PageQuery;
 import com.songhg.veri.agent.testdesign.application.query.TestDesignCandidateQuery;
 import com.songhg.veri.agent.testdesign.application.query.TestDesignTaskQuery;
+import com.songhg.veri.agent.testdesign.domain.TestDesignAuditChainAggregate;
 import com.songhg.veri.agent.testdesign.domain.TestDesignCandidate;
 import com.songhg.veri.agent.testdesign.domain.TestDesignPublishRecord;
 import com.songhg.veri.agent.testdesign.domain.TestDesignReportManifest;
@@ -154,4 +155,9 @@ public interface TestDesignRepository {
      * 查询任务下已保存的报告 manifest 聚合记录，按创建时间倒序返回。
      */
     List<TestDesignReportManifest> reportManifestsByTask(UUID taskId);
+
+    /**
+     * 查询任务级跨 WP 审计链聚合计数，不返回审计事件、trace、模型调用、候选或资产明细标识。
+     */
+    TestDesignAuditChainAggregate auditChainAggregate(UUID taskId);
 }

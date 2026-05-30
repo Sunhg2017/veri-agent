@@ -25,6 +25,7 @@ import com.songhg.veri.agent.modelaccess.domain.InvocationStatus;
 import com.songhg.veri.agent.modelaccess.infrastructure.JdbcModelInvocationJobRepository;
 import com.songhg.veri.agent.modelaccess.infrastructure.JdbcModelAccessRepository;
 import com.songhg.veri.agent.testdesign.application.port.TestDesignRepository;
+import com.songhg.veri.agent.testdesign.domain.TestDesignAuditChainAggregate;
 import com.songhg.veri.agent.testdesign.domain.TestDesignCandidate;
 import com.songhg.veri.agent.testdesign.domain.TestDesignCandidateStatus;
 import com.songhg.veri.agent.testdesign.domain.TestDesignPublishRecord;
@@ -615,6 +616,169 @@ class DbProfileRepositoryContractTest {
                 "FAILED",
                 now.plusSeconds(1)
         ))).isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    void testDesignRepositoryAggregatesCrossWpAuditChainThroughJdbc() {
+        String projectId = "project-wp5-audit-chain-db-" + UUID.randomUUID();
+        Instant now = Instant.now();
+        AssetRequirement requirement = requirement(
+                projectId,
+                "REQ-WP5-AUDIT-CHAIN",
+                "WP5 跨 WP 审计链 DB 需求",
+                "SRC-WP5-AUDIT-CHAIN",
+                now
+        );
+        assetRepository.saveRequirement(requirement);
+        UUID invocationId = UUID.randomUUID();
+        modelAccessRepository.saveInvocation(invocation(projectId, "wp5-test-design", now.minusSeconds(8), invocationId));
+        modelInvocationJobRepository.save(new ModelInvocationJobRecord(
+                UUID.randomUUID(),
+                ModelInvocationJobStatus.SUCCEEDED,
+                "{\"projectId\":\"" + projectId + "\"}",
+                "wp5-test-design",
+                "db-user",
+                "trc_wp5_audit_chain_db",
+                now.minusSeconds(9),
+                now.minusSeconds(8),
+                now.minusSeconds(7),
+                invocationId,
+                null,
+                null,
+                "{}"
+        ));
+        UUID taskId = UUID.randomUUID();
+        testDesignRepository.saveTask(new TestDesignTask(
+                taskId,
+                projectId,
+                "DB 跨 WP 审计链任务",
+                TestDesignTaskStatus.PUBLISHED.name(),
+                requirement.id().toString(),
+                "SMOKE",
+                "wp5.case.generate",
+                "v1",
+                invocationId,
+                "local-echo-primary",
+                "test-local-model",
+                1,
+                1,
+                1,
+                1,
+                null,
+                "db-contract",
+                null,
+                null,
+                "d".repeat(64),
+                "{}",
+                now.minusSeconds(10),
+                now
+        ));
+        TestCaseRecord testCase = testCase(
+                projectId,
+                UUID.randomUUID(),
+                "TC-WP5-AUDIT-CHAIN",
+                "WP5 跨 WP 审计链发布用例",
+                "wp5:" + UUID.randomUUID()
+        );
+        assetRepository.saveTestCase(testCase);
+        UUID candidateId = UUID.randomUUID();
+        testDesignRepository.saveCandidate(new TestDesignCandidate(
+                candidateId,
+                taskId,
+                projectId,
+                requirement.id(),
+                null,
+                "DB 跨 WP 审计链候选",
+                "candidate body must not be aggregated",
+                "SMOKE",
+                "HIGH",
+                TestDesignCandidateStatus.PUBLISHED.name(),
+                "precondition",
+                "[{\"action\":\"open\",\"expectedResult\":\"shown\"}]",
+                "shown",
+                "db,audit-chain",
+                candidateId + ":SMOKE:db",
+                0.95D,
+                "wp5.case.generate",
+                "v1",
+                invocationId,
+                "local-echo-primary",
+                "test-local-model",
+                testCase.id(),
+                null,
+                null,
+                null,
+                null,
+                "db-reviewer",
+                now.minusSeconds(6),
+                1L,
+                now.minusSeconds(7),
+                now.minusSeconds(6)
+        ));
+        testDesignRepository.saveReviewRecord(new TestDesignReviewRecord(
+                UUID.randomUUID(),
+                candidateId,
+                taskId,
+                projectId,
+                "CONFIRMED",
+                "GENERATED",
+                "CONFIRMED",
+                "db-reviewer",
+                "contains token=secret-value",
+                "{}",
+                now.minusSeconds(5)
+        ));
+        testDesignRepository.savePublishRecord(publishRecord(
+                taskId,
+                candidateId,
+                projectId,
+                requirement.id(),
+                testCase.id(),
+                "CREATE",
+                "SUCCEEDED",
+                now.minusSeconds(4)
+        ));
+        assetRepository.saveTraceLink(new TraceLink(
+                UUID.randomUUID(),
+                requirement.id(),
+                null,
+                null,
+                null,
+                testCase.id(),
+                now.minusSeconds(3)
+        ));
+        jdbcTemplate.update("""
+                insert into audit_log (actor_type, actor_service, action, resource_type, resource_id,
+                    scope_type, scope_id, result, after_json)
+                values ('SERVICE', 'test-design', 'CREATE', 'TEST_DESIGN_TASK', ?, 'PROJECT', null, 'SUCCESS',
+                    cast(? as jsonb))
+                """, taskId.toString(), "{\"taskId\":\"" + taskId + "\"}");
+        jdbcTemplate.update("""
+                insert into audit_log (actor_type, actor_service, action, resource_type, resource_id,
+                    scope_type, scope_id, result, after_json)
+                values ('SERVICE', 'test-design', 'EXPORT', 'TEST_DESIGN_TASK_REPORT', ?, 'PROJECT', null, 'SUCCESS',
+                    cast(? as jsonb))
+                """, UUID.randomUUID().toString(), "{\"taskId\":\"" + taskId + "\"}");
+        jdbcTemplate.update("""
+                insert into audit_outbox (event_payload_json, status)
+                values (cast(? as jsonb), 'FAILED')
+                """, "{\"record\":{\"resourceId\":\"" + taskId + "\"}}");
+        jdbcTemplate.update("""
+                insert into audit_outbox (event_payload_json, status)
+                values (cast(? as jsonb), 'FAILED')
+                """, "{\"record\":{\"resourceId\":\"" + UUID.randomUUID() + "\"}}");
+
+        TestDesignAuditChainAggregate aggregate = testDesignRepository.auditChainAggregate(taskId);
+
+        assertThat(aggregate.wp1AuditEventCount()).isEqualTo(2L);
+        assertThat(aggregate.wp1TaskAuditEventCount()).isEqualTo(1L);
+        assertThat(aggregate.wp1ReportExportAuditEventCount()).isEqualTo(1L);
+        assertThat(aggregate.wp2InvocationCount()).isEqualTo(1L);
+        assertThat(aggregate.wp2InvocationSucceededCount()).isEqualTo(1L);
+        assertThat(aggregate.wp2TraceSignalCount()).isEqualTo(1L);
+        assertThat(aggregate.wp3PublishedCaseCount()).isEqualTo(1L);
+        assertThat(aggregate.wp3TraceLinkCount()).isEqualTo(1L);
+        assertThat(aggregate.auditOutboxFailedCount()).isEqualTo(1L);
     }
 
     @Test

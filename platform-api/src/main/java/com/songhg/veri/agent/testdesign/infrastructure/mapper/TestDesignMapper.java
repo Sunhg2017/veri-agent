@@ -3,6 +3,7 @@ package com.songhg.veri.agent.testdesign.infrastructure.mapper;
 import com.songhg.veri.agent.common.api.PageQuery;
 import com.songhg.veri.agent.testdesign.application.query.TestDesignCandidateQuery;
 import com.songhg.veri.agent.testdesign.application.query.TestDesignTaskQuery;
+import com.songhg.veri.agent.testdesign.domain.TestDesignAuditChainAggregate;
 import com.songhg.veri.agent.testdesign.domain.TestDesignCandidate;
 import com.songhg.veri.agent.testdesign.domain.TestDesignPublishRecord;
 import com.songhg.veri.agent.testdesign.domain.TestDesignReportManifest;
@@ -88,4 +89,6 @@ public interface TestDesignMapper {
     void insertReportManifest(TestDesignReportManifest manifest);
 
     List<TestDesignReportManifest> reportManifestsByTask(@Param("taskId") UUID taskId);
+
+    TestDesignAuditChainAggregate auditChainAggregate(@Param("taskId") UUID taskId);
 }

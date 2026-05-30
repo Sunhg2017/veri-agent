@@ -5,9 +5,9 @@
 | 工作包 | WP5 AI 用例生成与评审 |
 | 角色产出 | 资深产品经理 |
 | 文档性质 | 需求文档与产品 PRD |
-| 当前口径 | 基于 WP4 已发布需求资产、WP3 资产库和 WP2 模型接入生成可评审测试用例；任务诊断和任务报告仅以聚合方式披露生成编排策略、权限与资源作用域策略、评测语料运营策略、发布准出审批策略、跨 WP 审计链策略、归档治理策略、报告清单策略、上下文装配策略 v2、上下文策略治理、上下文策略运营 v2 状态、模型观测策略和质量/导出治理状态 |
-| 版本 | v0.12 |
-| 日期 | 2026-05-30 |
+| 当前口径 | 基于 WP4 已发布需求资产、WP3 资产库和 WP2 模型接入生成可评审测试用例；任务诊断和任务报告仅以聚合方式披露生成编排策略、权限与资源作用域策略、评测语料运营策略、发布准出审批策略、跨 WP 审计链策略、跨 WP 审计链只读聚合骨架、归档治理策略、报告清单策略、上下文装配策略 v2、上下文策略治理、上下文策略运营 v2 状态、模型观测策略和质量/导出治理状态 |
+| 版本 | v0.13 |
+| 日期 | 2026-05-31 |
 
 ## 1. 背景
 
@@ -58,7 +58,7 @@ WP5 是“需求到测试用例”的智能生产环节，不负责脚本生成�
 | 完全自动评审 | AI 可给出评审建议，但不能替代人工最终确认。 |
 | 评测语料运营后台 | 当前只暴露评测语料运营策略聚合快照，不提供样本维护、长期校准或语料后台。 |
 | 发布准出审批后台 | 当前只暴露发布准出审批策略聚合快照，不提供可配置审批流或自动阻断发布的运营后台。 |
-| 跨 WP 审计链看板 | 当前只暴露 `auditChainPolicy` 聚合快照，不提供跨 WP1 audit_log、WP2 调用和 WP3 发布记录的统一审计看板或 audit outbox 重放看板。 |
+| 跨 WP 审计链看板 | 当前只暴露 `auditChainPolicy` 聚合快照和 `/report/audit-chain` 任务级只读聚合骨架；不提供跨 WP1 audit_log、WP2 调用和 WP3 发布记录的明细级统一审计看板或 audit outbox 重放操作台。 |
 | 真实报告归档存储与审批流 | 当前只暴露 `archivePolicy` 聚合快照，不提供真实归档存储、归档审批流、外发流程或归档工单流转。 |
 | 报告清单明细索引 | 当前只暴露 `reportManifestPolicy` 和 `reportManifest` 聚合快照，不提供行级完整性值、行内容摘要、候选/trace/审计 ID 清单或可反查项目结构的明细索引。 |
 | 模型观测明细导出和真实调用看板 | 当前只暴露 `modelObservationPolicy` 聚合快照和脱敏 `modelObservation` 摘要，不提供 traceId/jobId/invocationId 原值导出、provider 错误正文导出、actor service 导出、模型载荷预览或真实跨 WP 模型调用明细看板。 |
@@ -175,7 +175,7 @@ flowchart LR
 | A8 | 无权限用户不能查看、创建、评审或发布 WP5 任务。 |
 | A9 | 前端覆盖 loading、empty、error、权限不足、冲突和部分成功状态。 |
 | A10 | 后端、前端、smoke 和 AI 质量评测达到 WP5 准出要求。 |
-| A11 | 任务诊断和任务报告可查看生成编排策略、权限与资源作用域策略、评测语料运营策略、发布准出审批策略、跨 WP 审计链策略、上下文装配策略 v2、上下文策略治理、上下文策略运营 v2 状态、模型观测策略和质量/导出治理状态；生成编排策略只展示条件认领、幂等回放、重复事件安全、恢复扫描、超时回收、人工重发、多 worker 重复事件认领证据、队列 lag 指标、超时告警、恢复批次上限和排队/运行/最旧排队年龄/超时运行聚合计数，作用域策略只展示项目资源作用域、列表 fallback、任务/候选/批量/发布/异步/HTTP smoke/评测项目隔离和运营缺口，评测语料策略只展示 golden set 基线、手动可选 AI 评测、部署配置阈值、项目隔离、质量门禁接入、准出分布/Prompt 版本跟踪和样本维护/长期校准/运营后台缺口，发布准出策略只展示质量阈值已评估、advisory-only、发布阻断关闭、审批流未就绪、禁止自动发布和候选确认要求，审计链策略只展示 WP1/WP2/WP3/WP5 引用状态、项目作用域、trace 信号、跨 WP 看板和 audit outbox 重放看板就绪状态，归档治理策略只展示保留天数、存储策略、审批要求、审批流和真实归档存储 pending、外发开关、保留策略跟踪和导出红线，模型观测策略只展示聚合观测模式、WP2 调用引用、trace/job/routing/token/latency/cost/fallback 跟踪能力、Prompt 载荷不存储和细节导出关闭，装配策略 v2 只展示装配模式、digest 策略、inputDigest 要求、摘要持久化、WP3 应用服务边界和导出红线，策略运营 v2 只展示平台默认模式、解析顺序、部署配置回退行为、审批状态和就绪布尔值，不得泄露事件 ID、队列消息、恢复明细、幂等键、超时错误正文、候选 ID、角色规则、服务令牌原值、评测语料行、候选级准出证据、阈值规则明细、项目/环境覆盖规则、策略 diff、审批备注、工单 URL、策略正文、候选正文、评审评论、原始 Prompt、上下文正文、digest 值、显式资产 ID、schema、页面树、流程 JSON、历史用例步骤、模型调用 ID 原值、trace/job 原值、平台审计标识原值、发布 sourceRef、资产 ID、载荷预览、provider 错误正文或 actor service。 |
+| A11 | 任务诊断和任务报告可查看生成编排策略、权限与资源作用域策略、评测语料运营策略、发布准出审批策略、跨 WP 审计链策略、上下文装配策略 v2、上下文策略治理、上下文策略运营 v2 状态、模型观测策略和质量/导出治理状态；`/report/audit-chain` 可查看任务级跨 WP 只读聚合骨架，聚合 WP1 审计、WP2 调用/job、WP3 发布引用、WP5 本域事件和 audit outbox 状态计数，且完整跨 WP 明细看板和 audit outbox 重放操作台仍未就绪；生成编排策略只展示条件认领、幂等回放、重复事件安全、恢复扫描、超时回收、人工重发、多 worker 重复事件认领证据、队列 lag 指标、超时告警、恢复批次上限和排队/运行/最旧排队年龄/超时运行聚合计数，作用域策略只展示项目资源作用域、列表 fallback、任务/候选/批量/发布/异步/HTTP smoke/评测项目隔离和运营缺口，评测语料策略只展示 golden set 基线、手动可选 AI 评测、部署配置阈值、项目隔离、质量门禁接入、准出分布/Prompt 版本跟踪和样本维护/长期校准/运营后台缺口，发布准出策略只展示质量阈值已评估、advisory-only、发布阻断关闭、审批流未就绪、禁止自动发布和候选确认要求，审计链策略只展示 WP1/WP2/WP3/WP5 引用状态、项目作用域、trace 信号、跨 WP 看板和 audit outbox 重放看板就绪状态，归档治理策略只展示保留天数、存储策略、审批要求、审批流和真实归档存储 pending、外发开关、保留策略跟踪和导出红线，模型观测策略只展示聚合观测模式、WP2 调用引用、trace/job/routing/token/latency/cost/fallback 跟踪能力、Prompt 载荷不存储和细节导出关闭，装配策略 v2 只展示装配模式、digest 策略、inputDigest 要求、摘要持久化、WP3 应用服务边界和导出红线，策略运营 v2 只展示平台默认模式、解析顺序、部署配置回退行为、审批状态和就绪布尔值，不得泄露事件 ID、队列消息、恢复明细、幂等键、超时错误正文、候选 ID、角色规则、服务令牌原值、评测语料行、候选级准出证据、阈值规则明细、项目/环境覆盖规则、策略 diff、审批备注、工单 URL、策略正文、候选正文、评审评论、原始 Prompt、上下文正文、digest 值、显式资产 ID、schema、页面树、流程 JSON、历史用例步骤、模型调用 ID 原值、trace/job 原值、平台审计标识原值、发布 sourceRef、资产 ID、载荷预览、provider 错误正文或 actor service。 |
 | A12 | `reportManifestPolicy` 在 health、任务响应、任务诊断、`contextSummary.reportManifestPolicy`、模型 `contextPacking.reportManifestPolicy` 和任务报告中保持一致，只展示 schema/字段集版本、行数跟踪、完成状态跟踪、归档核验 ready、明细导出关闭和 aggregate-only，不导出行级完整性值、行内容摘要、候选 ID 清单、trace ID 清单或审计 ID 清单。 |
 | A13 | `modelObservationPolicy` 在 health、任务响应、任务诊断、`contextSummary.modelObservationPolicy`、模型 `contextPacking.modelObservationPolicy` 和任务报告中保持一致，只展示 `wp5-model-observation-policy-v1`、聚合观测模式、WP2 调用引用、trace/job/routing/token/latency/cost/fallback 跟踪能力、Prompt 载荷不存储、细节导出关闭和 aggregate-only，不导出 traceId/jobId/invocationId 原值、载荷预览、provider 错误正文或 actor service。 |
 

@@ -119,6 +119,35 @@
         </constructor>
     </resultMap>
 
+    <resultMap id="auditChainAggregateMap" type="com.songhg.veri.agent.testdesign.domain.TestDesignAuditChainAggregate">
+        <constructor>
+            <arg column="wp1_audit_event_count" javaType="_long"/>
+            <arg column="wp1_audit_success_count" javaType="_long"/>
+            <arg column="wp1_audit_failure_count" javaType="_long"/>
+            <arg column="wp1_audit_denied_count" javaType="_long"/>
+            <arg column="wp1_task_audit_event_count" javaType="_long"/>
+            <arg column="wp1_candidate_export_audit_event_count" javaType="_long"/>
+            <arg column="wp1_review_export_audit_event_count" javaType="_long"/>
+            <arg column="wp1_report_export_audit_event_count" javaType="_long"/>
+            <arg column="wp2_invocation_count" javaType="_long"/>
+            <arg column="wp2_invocation_succeeded_count" javaType="_long"/>
+            <arg column="wp2_invocation_failed_count" javaType="_long"/>
+            <arg column="wp2_invocation_blocked_count" javaType="_long"/>
+            <arg column="wp2_fallback_count" javaType="_long"/>
+            <arg column="wp2_input_token_total" javaType="_long"/>
+            <arg column="wp2_output_token_total" javaType="_long"/>
+            <arg column="wp2_latency_ms_total" javaType="_long"/>
+            <arg column="wp2_total_cost_text" javaType="java.lang.String"/>
+            <arg column="wp2_job_count" javaType="_long"/>
+            <arg column="wp2_trace_signal_count" javaType="_long"/>
+            <arg column="wp3_published_case_count" javaType="_long"/>
+            <arg column="wp3_trace_link_count" javaType="_long"/>
+            <arg column="audit_outbox_pending_count" javaType="_long"/>
+            <arg column="audit_outbox_failed_count" javaType="_long"/>
+            <arg column="audit_outbox_dead_count" javaType="_long"/>
+        </constructor>
+    </resultMap>
+
     <sql id="taskColumns">
         id, project_id, title, status, requirement_ids, coverage_types, prompt_key, prompt_version,
         model_invocation_id, model_provider_name, model_name, total_requirements, generated_count,
@@ -463,5 +492,141 @@
         from test_design_report_manifest
         where task_id = cast(#{taskId} as uuid)
         order by created_at desc
+    </select>
+
+    <select id="auditChainAggregate" resultMap="auditChainAggregateMap">
+        with task_scope as (
+            select id, project_id, model_invocation_id
+            from test_design_task
+            where id = cast(#{taskId} as uuid)
+        ),
+        candidates as (
+            select id, requirement_id, model_invocation_id, asset_case_id
+            from test_design_candidate
+            where task_id = cast(#{taskId} as uuid)
+        ),
+        publish_records as (
+            select asset_case_id
+            from test_design_publish_record
+            where task_id = cast(#{taskId} as uuid)
+              and dry_run = false
+              and asset_case_id is not null
+        ),
+        invocation_ids as (
+            select model_invocation_id
+            from task_scope
+            where model_invocation_id is not null
+            union
+            select model_invocation_id
+            from candidates
+            where model_invocation_id is not null
+        ),
+        audit_events as (
+            select action, resource_type, result
+            from audit_log
+            where (
+                resource_type = 'TEST_DESIGN_TASK'
+                and resource_id = cast(#{taskId} as text)
+            ) or (
+                resource_type in ('TEST_DESIGN_CANDIDATE', 'TEST_DESIGN_REVIEW_RECORD', 'TEST_DESIGN_TASK_REPORT')
+                and after_json -&gt;&gt; 'taskId' = cast(#{taskId} as text)
+            )
+        ),
+        wp2_invocations as (
+            select status, fallback_used, input_tokens, output_tokens, latency_ms, total_cost
+            from ma_invocation_log
+            where id in (select model_invocation_id from invocation_ids)
+        ),
+        wp2_jobs as (
+            select job_id, trace_id
+            from ma_invocation_job
+            where invocation_id in (select model_invocation_id from invocation_ids)
+        ),
+        published_cases as (
+            select distinct atc.id
+            from asset_test_case atc
+            join publish_records pr on pr.asset_case_id = atc.id
+            join task_scope ts on ts.project_id = atc.project_id
+            where atc.deleted_at is null
+              and atc.source = 'AI_GENERATED'
+        ),
+        trace_links as (
+            select distinct l.source_id, l.target_id
+            from asset_link l
+            join candidates c on c.requirement_id = l.source_id
+            join published_cases pc on pc.id = l.target_id
+            where l.deleted_at is null
+              and l.source_type = 'REQUIREMENT'
+              and l.target_type = 'CASE'
+        ),
+        task_related_resource_ids as (
+            select cast(id as text) as resource_id
+            from task_scope
+            union
+            select cast(id as text) as resource_id
+            from candidates
+            union
+            select cast(asset_case_id as text) as resource_id
+            from publish_records
+            where asset_case_id is not null
+        ),
+        outbox_events as (
+            select status
+            from audit_outbox o
+            where coalesce(
+                o.event_payload_json -&gt;&gt; 'resourceId',
+                o.event_payload_json -&gt;&gt; 'resource_id',
+                o.event_payload_json -&gt;&gt; 'aggregateId',
+                o.event_payload_json #&gt;&gt; '{record,resourceId}',
+                o.event_payload_json #&gt;&gt; '{record,resource_id}',
+                o.event_payload_json #&gt;&gt; '{payload,resourceId}',
+                o.event_payload_json #&gt;&gt; '{payload,resource_id}',
+                ''
+            ) in (select resource_id from task_related_resource_ids)
+               or coalesce(
+                o.event_payload_json -&gt;&gt; 'taskId',
+                o.event_payload_json -&gt;&gt; 'task_id',
+                o.event_payload_json #&gt;&gt; '{record,taskId}',
+                o.event_payload_json #&gt;&gt; '{record,task_id}',
+                o.event_payload_json #&gt;&gt; '{metadata,taskId}',
+                o.event_payload_json #&gt;&gt; '{metadata,task_id}',
+                o.event_payload_json #&gt;&gt; '{payload,taskId}',
+                o.event_payload_json #&gt;&gt; '{payload,task_id}',
+                ''
+            ) = cast(#{taskId} as text)
+        )
+        select
+            coalesce((select count(*) from audit_events), 0) as wp1_audit_event_count,
+            coalesce((select count(*) from audit_events where result = 'SUCCESS'), 0) as wp1_audit_success_count,
+            coalesce((select count(*) from audit_events where result = 'FAILED'), 0) as wp1_audit_failure_count,
+            coalesce((select count(*) from audit_events where result = 'DENIED'), 0) as wp1_audit_denied_count,
+            coalesce((select count(*) from audit_events where resource_type = 'TEST_DESIGN_TASK'), 0)
+                as wp1_task_audit_event_count,
+            coalesce((select count(*) from audit_events where resource_type = 'TEST_DESIGN_CANDIDATE'), 0)
+                as wp1_candidate_export_audit_event_count,
+            coalesce((select count(*) from audit_events where resource_type = 'TEST_DESIGN_REVIEW_RECORD'), 0)
+                as wp1_review_export_audit_event_count,
+            coalesce((select count(*) from audit_events where resource_type = 'TEST_DESIGN_TASK_REPORT'), 0)
+                as wp1_report_export_audit_event_count,
+            coalesce((select count(*) from wp2_invocations), 0) as wp2_invocation_count,
+            coalesce((select count(*) from wp2_invocations where status = 'SUCCEEDED'), 0)
+                as wp2_invocation_succeeded_count,
+            coalesce((select count(*) from wp2_invocations where status = 'FAILED'), 0)
+                as wp2_invocation_failed_count,
+            coalesce((select count(*) from wp2_invocations where status = 'BLOCKED'), 0)
+                as wp2_invocation_blocked_count,
+            coalesce((select count(*) from wp2_invocations where fallback_used = true), 0) as wp2_fallback_count,
+            coalesce((select sum(input_tokens) from wp2_invocations), 0) as wp2_input_token_total,
+            coalesce((select sum(output_tokens) from wp2_invocations), 0) as wp2_output_token_total,
+            coalesce((select sum(latency_ms) from wp2_invocations), 0) as wp2_latency_ms_total,
+            coalesce((select sum(total_cost)::text from wp2_invocations), '0') as wp2_total_cost_text,
+            coalesce((select count(*) from wp2_jobs), 0) as wp2_job_count,
+            coalesce((select count(*) from wp2_jobs where trace_id is not null and trace_id &lt;&gt; ''), 0)
+                as wp2_trace_signal_count,
+            coalesce((select count(*) from published_cases), 0) as wp3_published_case_count,
+            coalesce((select count(*) from trace_links), 0) as wp3_trace_link_count,
+            coalesce((select count(*) from outbox_events where status = 'PENDING'), 0) as audit_outbox_pending_count,
+            coalesce((select count(*) from outbox_events where status = 'FAILED'), 0) as audit_outbox_failed_count,
+            coalesce((select count(*) from outbox_events where status = 'DEAD'), 0) as audit_outbox_dead_count
     </select>
 </mapper>

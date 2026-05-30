@@ -1844,6 +1844,88 @@ class TestDesignControllerTest {
     }
 
     @Test
+    void exposesCrossWpAuditChainAggregateWithoutIdentifiers() throws Exception {
+        String ownerToken = userAccessToken(List.of("ProjectOwner@PROJECT:project-wp5"));
+        String auditorToken = userAccessToken(List.of("Auditor@PROJECT:project-wp5"));
+        String deniedAuditorToken = userAccessToken(List.of("Auditor@PROJECT:project-other"));
+        String requirementId = createRequirement(
+                ownerToken,
+                "跨 WP 审计需求 token=secret-value",
+                "跨 WP 审计验收 rawPrompt",
+                "project-wp5"
+        );
+
+        MvcResult taskResult = mockMvc.perform(post("/api/v1/test-design/tasks")
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"projectId":"project-wp5","requirementIds":["%s"],"coverageTypes":["SMOKE"]}
+                                """.formatted(requirementId)))
+                .andExpect(status().isCreated())
+                .andReturn();
+        String taskId = JsonPath.read(taskResult.getResponse().getContentAsString(), "$.data.task.id");
+        String candidateId = JsonPath.read(taskResult.getResponse().getContentAsString(), "$.data.candidates[0].id");
+        Integer version = JsonPath.read(taskResult.getResponse().getContentAsString(), "$.data.candidates[0].version");
+
+        mockMvc.perform(post("/api/v1/test-design/candidates/{id}/confirm", candidateId)
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"version": %d, "comment": "跨 WP 审计确认说明 sourceRef=wp5:%s"}
+                                """.formatted(version, candidateId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("CONFIRMED"));
+
+        MvcResult publish = mockMvc.perform(post("/api/v1/test-design/tasks/{id}/publish", taskId)
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.created").value(1))
+                .andExpect(jsonPath("$.data.records[0].result").value("SUCCEEDED"))
+                .andReturn();
+        String assetCaseId = JsonPath.read(publish.getResponse().getContentAsString(), "$.data.records[0].assetCaseId");
+
+        MvcResult aggregate = mockMvc.perform(get("/api/v1/test-design/tasks/{id}/report/audit-chain", taskId)
+                        .header("Authorization", "Bearer " + auditorToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.taskId").value(taskId))
+                .andExpect(jsonPath("$.data.projectId").value("project-wp5"))
+                .andExpect(jsonPath("$.data.policyVersion").value("wp5-audit-chain-policy-v1"))
+                .andExpect(jsonPath("$.data.readOnlyAggregateDashboardReady").value(true))
+                .andExpect(jsonPath("$.data.crossWpAuditDashboardReady").value(false))
+                .andExpect(jsonPath("$.data.auditOutboxReplayDashboardReady").value(false))
+                .andExpect(jsonPath("$.data.aggregateOnly").value(true))
+                .andExpect(jsonPath("$.data.auditEventDetailExported").value(false))
+                .andExpect(jsonPath("$.data.candidateIdentifierListExported").value(false))
+                .andExpect(jsonPath("$.data.traceIdValueExported").value(false))
+                .andExpect(jsonPath("$.data.modelInvocationIdValueExported").value(false))
+                .andExpect(jsonPath("$.data.publishIdentifierValueExported").value(false))
+                .andExpect(jsonPath("$.data.wp1AuditEventWritten").value(true))
+                .andExpect(jsonPath("$.data.wp3PublishReferenceTracked").value(true))
+                .andExpect(jsonPath("$.data.metrics[?(@.code == 'wp5DomainEvents')].count").value(hasSize(1)))
+                .andExpect(jsonPath("$.data.metrics[?(@.code == 'wp1AuditEvents')].count").value(hasSize(1)))
+                .andExpect(jsonPath("$.data.metrics[?(@.code == 'wp3PublishedCases')].count").value(hasSize(1)))
+                .andExpect(jsonPath("$.data.metrics[?(@.code == 'wp3TraceLinks')].count").value(hasSize(1)))
+                .andExpect(jsonPath("$.data.readiness[?(@.code == 'detailIdentifiersRedacted')].ready").value(hasSize(1)))
+                .andReturn();
+
+        String json = aggregate.getResponse().getContentAsString();
+        MatcherAssert.assertThat(json, containsString("WP5_DOMAIN_AGGREGATE_WITH_WP1_AUDIT"));
+        MatcherAssert.assertThat(json, containsString("WP3 发布用例"));
+        MatcherAssert.assertThat(json, not(containsString(candidateId)));
+        MatcherAssert.assertThat(json, not(containsString(assetCaseId)));
+        MatcherAssert.assertThat(json, not(containsString("wp5:" + candidateId)));
+        MatcherAssert.assertThat(json, not(containsString("secret-value")));
+        MatcherAssert.assertThat(json, not(containsString("rawPrompt")));
+        MatcherAssert.assertThat(json, not(containsString("跨 WP 审计确认说明")));
+
+        mockMvc.perform(get("/api/v1/test-design/tasks/{id}/report/audit-chain", taskId)
+                        .header("Authorization", "Bearer " + deniedAuditorToken))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
     void exposesFullTaskQualitySummaryWithScopeAndAggregateRedaction() throws Exception {
         String ownerToken = userAccessToken(List.of("ProjectOwner@PROJECT:project-wp5"));
         String auditorToken = userAccessToken(List.of("Auditor@PROJECT:project-wp5"));

@@ -4,6 +4,7 @@ import com.songhg.veri.agent.common.api.PageQuery;
 import com.songhg.veri.agent.testdesign.application.port.TestDesignRepository;
 import com.songhg.veri.agent.testdesign.application.query.TestDesignCandidateQuery;
 import com.songhg.veri.agent.testdesign.application.query.TestDesignTaskQuery;
+import com.songhg.veri.agent.testdesign.domain.TestDesignAuditChainAggregate;
 import com.songhg.veri.agent.testdesign.domain.TestDesignCandidate;
 import com.songhg.veri.agent.testdesign.domain.TestDesignPublishRecord;
 import com.songhg.veri.agent.testdesign.domain.TestDesignReportManifest;
@@ -179,5 +180,18 @@ public class JdbcTestDesignRepository implements TestDesignRepository {
     @Override
     public List<TestDesignReportManifest> reportManifestsByTask(UUID taskId) {
         return mapper.reportManifestsByTask(taskId);
+    }
+
+    @Override
+    public TestDesignAuditChainAggregate auditChainAggregate(UUID taskId) {
+        TestDesignAuditChainAggregate aggregate = mapper.auditChainAggregate(taskId);
+        return aggregate == null ? emptyAuditChainAggregate() : aggregate;
+    }
+
+    private static TestDesignAuditChainAggregate emptyAuditChainAggregate() {
+        return new TestDesignAuditChainAggregate(
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                "0", 0, 0, 0, 0, 0, 0, 0
+        );
     }
 }
