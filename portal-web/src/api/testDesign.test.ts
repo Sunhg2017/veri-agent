@@ -129,6 +129,23 @@ describe('WP5 test design API helpers', () => {
         service_token_value_exported: false,
         aggregate_only: true
       },
+      release_readiness_policy: {
+        policy_version: 'wp5-release-readiness-policy-v1',
+        decision_mode: 'ADVISORY_QUALITY_GATE',
+        threshold_source: 'DEPLOY_CONFIG',
+        quality_threshold_evaluated: true,
+        advisory_only: true,
+        publish_blocking_enabled: false,
+        manual_approval_required: true,
+        approval_workflow_ready: false,
+        auto_publish_allowed: false,
+        confirmed_candidate_required: true,
+        quality_gate_override_supported: false,
+        candidate_evidence_exported: false,
+        approval_notes_exported: false,
+        threshold_rule_detail_exported: false,
+        aggregate_only: true
+      },
       supported_coverage_types: 'SMOKE,FUNCTIONAL'
     })).toMatchObject({
       service: 'test-design',
@@ -193,6 +210,23 @@ describe('WP5 test design API helpers', () => {
         serviceTokenValueExported: false,
         aggregateOnly: true
       },
+      releaseReadinessPolicy: {
+        policyVersion: 'wp5-release-readiness-policy-v1',
+        decisionMode: 'ADVISORY_QUALITY_GATE',
+        thresholdSource: 'DEPLOY_CONFIG',
+        qualityThresholdEvaluated: true,
+        advisoryOnly: true,
+        publishBlockingEnabled: false,
+        manualApprovalRequired: true,
+        approvalWorkflowReady: false,
+        autoPublishAllowed: false,
+        confirmedCandidateRequired: true,
+        qualityGateOverrideSupported: false,
+        candidateEvidenceExported: false,
+        approvalNotesExported: false,
+        thresholdRuleDetailExported: false,
+        aggregateOnly: true
+      },
       supportedCoverageTypes: ['SMOKE', 'FUNCTIONAL']
     });
 
@@ -243,6 +277,23 @@ describe('WP5 test design API helpers', () => {
         async_task_project_scope_recovered: true,
         evaluation_corpus_project_isolated: true,
         evaluation_corpus_operations_ready: false,
+        aggregate_only: true
+      },
+      release_readiness_policy: {
+        policy_version: 'wp5-release-readiness-policy-v1',
+        decision_mode: 'ADVISORY_QUALITY_GATE',
+        threshold_source: 'DEPLOY_CONFIG',
+        quality_threshold_evaluated: true,
+        advisory_only: true,
+        publish_blocking_enabled: false,
+        manual_approval_required: true,
+        approval_workflow_ready: false,
+        auto_publish_allowed: false,
+        confirmed_candidate_required: true,
+        quality_gate_override_supported: false,
+        candidate_evidence_exported: false,
+        approval_notes_exported: false,
+        threshold_rule_detail_exported: false,
         aggregate_only: true
       },
       context_summary: {
@@ -297,6 +348,23 @@ describe('WP5 test design API helpers', () => {
         asyncTaskProjectScopeRecovered: true,
         evaluationCorpusProjectIsolated: true,
         evaluationCorpusOperationsReady: false,
+        aggregateOnly: true
+      },
+      releaseReadinessPolicy: {
+        policyVersion: 'wp5-release-readiness-policy-v1',
+        decisionMode: 'ADVISORY_QUALITY_GATE',
+        thresholdSource: 'DEPLOY_CONFIG',
+        qualityThresholdEvaluated: true,
+        advisoryOnly: true,
+        publishBlockingEnabled: false,
+        manualApprovalRequired: true,
+        approvalWorkflowReady: false,
+        autoPublishAllowed: false,
+        confirmedCandidateRequired: true,
+        qualityGateOverrideSupported: false,
+        candidateEvidenceExported: false,
+        approvalNotesExported: false,
+        thresholdRuleDetailExported: false,
         aggregateOnly: true
       }
     });

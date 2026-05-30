@@ -58,6 +58,8 @@ public record TestDesignTaskResponse(
         TestDesignContextPolicyOperationsResponse contextPolicyOperations,
         @Schema(description = "权限与资源作用域策略聚合快照")
         TestDesignScopePolicyResponse scopePolicy,
+        @Schema(description = "发布准出审批与阻断策略聚合快照")
+        TestDesignReleaseReadinessPolicyResponse releaseReadinessPolicy,
         @Schema(description = "脱敏上下文摘要")
         Map<String, Object> contextSummary,
         @Schema(description = "创建时间")

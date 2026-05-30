@@ -108,6 +108,23 @@ const baseTask: TestDesignTaskView = {
     serviceTokenValueExported: false,
     aggregateOnly: true
   },
+  releaseReadinessPolicy: {
+    policyVersion: 'wp5-release-readiness-policy-v1',
+    decisionMode: 'ADVISORY_QUALITY_GATE',
+    thresholdSource: 'DEPLOY_CONFIG',
+    qualityThresholdEvaluated: true,
+    advisoryOnly: true,
+    publishBlockingEnabled: false,
+    manualApprovalRequired: true,
+    approvalWorkflowReady: false,
+    autoPublishAllowed: false,
+    confirmedCandidateRequired: true,
+    qualityGateOverrideSupported: false,
+    candidateEvidenceExported: false,
+    approvalNotesExported: false,
+    thresholdRuleDetailExported: false,
+    aggregateOnly: true
+  },
   contextSummary: {
     contextVersion: 'ctx-v3',
     requirements: [{ id: 'req-1' }, { id: 'req-2' }],
@@ -176,6 +193,11 @@ describe('WP5 task diagnostics helpers', () => {
           label: '作用域策略',
           tone: 'warning',
           value: 'PROJECT_RESOURCE_SCOPE · PLATFORM_WHEN_PROJECT_FILTER_ABSENT · 任务:project · 候选:project · 批量:project-set · 发布:project · 异步:task-project · 评测语料:project'
+        }),
+        expect.objectContaining({
+          label: '发布准出',
+          tone: 'warning',
+          value: 'ADVISORY_QUALITY_GATE · DEPLOY_CONFIG · 质量阈值:checked · 建议模式:on · 发布阻断:off · 审批流:pending · 人工准出:required · 自动发布:off · 候选确认:required'
         }),
         expect.objectContaining({
           label: '错误',
@@ -403,6 +425,64 @@ describe('WP5 task diagnostics helpers', () => {
           label: '作用域策略',
           tone: 'danger',
           value: expect.stringContaining('发布:platform')
+        })
+      ])
+    );
+  });
+
+  it('falls back to aggregate release readiness policy from the task summary', () => {
+    const diagnostics = buildTestDesignTaskDiagnostics({
+      ...baseTask,
+      releaseReadinessPolicy: undefined,
+      contextSummary: {
+        releaseReadinessPolicy: {
+          decisionMode: 'ADVISORY_QUALITY_GATE',
+          thresholdSource: 'DEPLOY_CONFIG',
+          qualityThresholdEvaluated: true,
+          advisoryOnly: true,
+          publishBlockingEnabled: false,
+          manualApprovalRequired: true,
+          approvalWorkflowReady: false,
+          autoPublishAllowed: false,
+          confirmedCandidateRequired: true,
+          candidateEvidence: ['candidate-secret-id'],
+          approvalNotes: 'approval note should not appear',
+          thresholdRuleDetails: 'threshold rule should not appear'
+        }
+      }
+    });
+
+    expect(diagnostics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          label: '发布准出',
+          tone: 'warning',
+          value: expect.stringContaining('发布阻断:off')
+        })
+      ])
+    );
+    expect(JSON.stringify(diagnostics)).not.toContain('candidate-secret-id');
+    expect(JSON.stringify(diagnostics)).not.toContain('approval note should not appear');
+    expect(JSON.stringify(diagnostics)).not.toContain('threshold rule should not appear');
+  });
+
+  it('marks unsafe release readiness policy as danger', () => {
+    const diagnostics = buildTestDesignTaskDiagnostics({
+      ...baseTask,
+      releaseReadinessPolicy: {
+        ...baseTask.releaseReadinessPolicy,
+        autoPublishAllowed: true,
+        confirmedCandidateRequired: false,
+        approvalNotesExported: true
+      }
+    });
+
+    expect(diagnostics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          label: '发布准出',
+          tone: 'danger',
+          value: expect.stringContaining('自动发布:on')
         })
       ])
     );

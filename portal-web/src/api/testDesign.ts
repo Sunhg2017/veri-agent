@@ -20,6 +20,7 @@ export interface TestDesignHealth {
   contextPolicyGovernance?: TestDesignContextPolicyGovernanceView;
   contextPolicyOperations?: TestDesignContextPolicyOperationsView;
   scopePolicy?: TestDesignScopePolicyView;
+  releaseReadinessPolicy?: TestDesignReleaseReadinessPolicyView;
   supportedCoverageTypes: string[];
 }
 
@@ -48,6 +49,7 @@ export interface TestDesignTaskView {
   contextPolicyGovernance?: TestDesignContextPolicyGovernanceView;
   contextPolicyOperations?: TestDesignContextPolicyOperationsView;
   scopePolicy?: TestDesignScopePolicyView;
+  releaseReadinessPolicy?: TestDesignReleaseReadinessPolicyView;
   contextSummary: Record<string, unknown>;
   createdAt?: string;
   updatedAt?: string;
@@ -114,6 +116,24 @@ export interface TestDesignScopePolicyView {
   candidateIdentifierListExported?: boolean;
   roleRuleDetailExported?: boolean;
   serviceTokenValueExported?: boolean;
+  aggregateOnly?: boolean;
+}
+
+export interface TestDesignReleaseReadinessPolicyView {
+  policyVersion?: string;
+  decisionMode?: string;
+  thresholdSource?: string;
+  qualityThresholdEvaluated?: boolean;
+  advisoryOnly?: boolean;
+  publishBlockingEnabled?: boolean;
+  manualApprovalRequired?: boolean;
+  approvalWorkflowReady?: boolean;
+  autoPublishAllowed?: boolean;
+  confirmedCandidateRequired?: boolean;
+  qualityGateOverrideSupported?: boolean;
+  candidateEvidenceExported?: boolean;
+  approvalNotesExported?: boolean;
+  thresholdRuleDetailExported?: boolean;
   aggregateOnly?: boolean;
 }
 
@@ -627,6 +647,9 @@ export function normalizeTestDesignHealth(raw: unknown): TestDesignHealth {
       item.contextPolicyOperations ?? item.context_policy_operations
     ),
     scopePolicy: normalizeTestDesignScopePolicy(item.scopePolicy ?? item.scope_policy),
+    releaseReadinessPolicy: normalizeTestDesignReleaseReadinessPolicy(
+      item.releaseReadinessPolicy ?? item.release_readiness_policy
+    ),
     supportedCoverageTypes: stringArrayValue(item.supportedCoverageTypes ?? item.supported_coverage_types)
   };
 }
@@ -665,6 +688,9 @@ export function normalizeTestDesignTask(raw: unknown): TestDesignTaskView {
       item.contextPolicyOperations ?? item.context_policy_operations
     ),
     scopePolicy: normalizeTestDesignScopePolicy(item.scopePolicy ?? item.scope_policy),
+    releaseReadinessPolicy: normalizeTestDesignReleaseReadinessPolicy(
+      item.releaseReadinessPolicy ?? item.release_readiness_policy
+    ),
     contextSummary: recordValue(item.contextSummary ?? item.context_summary),
     createdAt: optionalString(item.createdAt) ?? optionalString(item.created_at),
     updatedAt: optionalString(item.updatedAt) ?? optionalString(item.updated_at)
@@ -800,6 +826,41 @@ export function normalizeTestDesignScopePolicy(raw: unknown): TestDesignScopePol
     roleRuleDetailExported: optionalBoolean(raw.roleRuleDetailExported ?? raw.role_rule_detail_exported),
     serviceTokenValueExported: optionalBoolean(
       raw.serviceTokenValueExported ?? raw.service_token_value_exported
+    ),
+    aggregateOnly: optionalBoolean(raw.aggregateOnly ?? raw.aggregate_only)
+  };
+}
+
+export function normalizeTestDesignReleaseReadinessPolicy(
+  raw: unknown
+): TestDesignReleaseReadinessPolicyView | undefined {
+  if (!isRecord(raw)) {
+    return undefined;
+  }
+  return {
+    policyVersion: optionalString(raw.policyVersion) ?? optionalString(raw.policy_version),
+    decisionMode: optionalString(raw.decisionMode) ?? optionalString(raw.decision_mode),
+    thresholdSource: optionalString(raw.thresholdSource) ?? optionalString(raw.threshold_source),
+    qualityThresholdEvaluated: optionalBoolean(
+      raw.qualityThresholdEvaluated ?? raw.quality_threshold_evaluated
+    ),
+    advisoryOnly: optionalBoolean(raw.advisoryOnly ?? raw.advisory_only),
+    publishBlockingEnabled: optionalBoolean(raw.publishBlockingEnabled ?? raw.publish_blocking_enabled),
+    manualApprovalRequired: optionalBoolean(raw.manualApprovalRequired ?? raw.manual_approval_required),
+    approvalWorkflowReady: optionalBoolean(raw.approvalWorkflowReady ?? raw.approval_workflow_ready),
+    autoPublishAllowed: optionalBoolean(raw.autoPublishAllowed ?? raw.auto_publish_allowed),
+    confirmedCandidateRequired: optionalBoolean(
+      raw.confirmedCandidateRequired ?? raw.confirmed_candidate_required
+    ),
+    qualityGateOverrideSupported: optionalBoolean(
+      raw.qualityGateOverrideSupported ?? raw.quality_gate_override_supported
+    ),
+    candidateEvidenceExported: optionalBoolean(
+      raw.candidateEvidenceExported ?? raw.candidate_evidence_exported
+    ),
+    approvalNotesExported: optionalBoolean(raw.approvalNotesExported ?? raw.approval_notes_exported),
+    thresholdRuleDetailExported: optionalBoolean(
+      raw.thresholdRuleDetailExported ?? raw.threshold_rule_detail_exported
     ),
     aggregateOnly: optionalBoolean(raw.aggregateOnly ?? raw.aggregate_only)
   };

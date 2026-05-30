@@ -137,6 +137,23 @@ class TestDesignGenerationServiceTest {
         assertThat(summary.path("scopePolicy").path("roleRuleDetailExported").asBoolean()).isFalse();
         assertThat(summary.path("scopePolicy").path("serviceTokenValueExported").asBoolean()).isFalse();
         assertThat(summary.path("scopePolicy").path("aggregateOnly").asBoolean()).isTrue();
+        assertThat(summary.path("releaseReadinessPolicy").path("policyVersion").asText())
+                .isEqualTo("wp5-release-readiness-policy-v1");
+        assertThat(summary.path("releaseReadinessPolicy").path("decisionMode").asText())
+                .isEqualTo("ADVISORY_QUALITY_GATE");
+        assertThat(summary.path("releaseReadinessPolicy").path("thresholdSource").asText())
+                .isEqualTo("DEPLOY_CONFIG");
+        assertThat(summary.path("releaseReadinessPolicy").path("qualityThresholdEvaluated").asBoolean()).isTrue();
+        assertThat(summary.path("releaseReadinessPolicy").path("advisoryOnly").asBoolean()).isTrue();
+        assertThat(summary.path("releaseReadinessPolicy").path("publishBlockingEnabled").asBoolean()).isFalse();
+        assertThat(summary.path("releaseReadinessPolicy").path("manualApprovalRequired").asBoolean()).isTrue();
+        assertThat(summary.path("releaseReadinessPolicy").path("approvalWorkflowReady").asBoolean()).isFalse();
+        assertThat(summary.path("releaseReadinessPolicy").path("autoPublishAllowed").asBoolean()).isFalse();
+        assertThat(summary.path("releaseReadinessPolicy").path("confirmedCandidateRequired").asBoolean()).isTrue();
+        assertThat(summary.path("releaseReadinessPolicy").path("candidateEvidenceExported").asBoolean()).isFalse();
+        assertThat(summary.path("releaseReadinessPolicy").path("approvalNotesExported").asBoolean()).isFalse();
+        assertThat(summary.path("releaseReadinessPolicy").path("thresholdRuleDetailExported").asBoolean()).isFalse();
+        assertThat(summary.path("releaseReadinessPolicy").path("aggregateOnly").asBoolean()).isTrue();
         assertThat(summary.path("linkedAssetsByRequirement").get(0).path("apiCount").asInt()).isEqualTo(2);
         assertThat(summary.path("linkedAssetsByRequirement").get(0).path("apis")).hasSize(1);
         assertThat(summary.path("linkedAssetsByRequirement").get(0).path("pages")).hasSize(1);
@@ -251,6 +268,20 @@ class TestDesignGenerationServiceTest {
         assertThat(payload.path("contextPacking").path("scopePolicy").path("candidateIdentifierListExported").asBoolean())
                 .isFalse();
         assertThat(payload.path("contextPacking").path("scopePolicy").path("aggregateOnly").asBoolean())
+                .isTrue();
+        assertThat(payload.path("contextPacking").path("releaseReadinessPolicy").path("policyVersion").asText())
+                .isEqualTo("wp5-release-readiness-policy-v1");
+        assertThat(payload.path("contextPacking").path("releaseReadinessPolicy").path("decisionMode").asText())
+                .isEqualTo("ADVISORY_QUALITY_GATE");
+        assertThat(payload.path("contextPacking").path("releaseReadinessPolicy").path("advisoryOnly").asBoolean())
+                .isTrue();
+        assertThat(payload.path("contextPacking").path("releaseReadinessPolicy").path("publishBlockingEnabled").asBoolean())
+                .isFalse();
+        assertThat(payload.path("contextPacking").path("releaseReadinessPolicy").path("approvalWorkflowReady").asBoolean())
+                .isFalse();
+        assertThat(payload.path("contextPacking").path("releaseReadinessPolicy").path("candidateEvidenceExported").asBoolean())
+                .isFalse();
+        assertThat(payload.path("contextPacking").path("releaseReadinessPolicy").path("aggregateOnly").asBoolean())
                 .isTrue();
         assertThat(commandCaptor.getValue().promptKey()).isEqualTo("wp5-test-design-v1");
         assertThat(commandCaptor.getValue().messages()).hasSize(1);

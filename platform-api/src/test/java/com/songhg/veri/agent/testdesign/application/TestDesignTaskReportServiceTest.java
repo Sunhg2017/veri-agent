@@ -64,6 +64,7 @@ class TestDesignTaskReportServiceTest {
                 TestDesignContextPolicyGovernance.response(),
                 TestDesignContextPolicyOperations.response(),
                 TestDesignScopePolicy.response(),
+                TestDesignReleaseReadinessPolicy.response(),
                 Map.of(),
                 Instant.parse("2026-05-30T00:00:00Z"),
                 Instant.parse("2026-05-30T00:00:00Z")
@@ -116,6 +117,7 @@ class TestDesignTaskReportServiceTest {
                 TestDesignContextPolicyGovernance.response(),
                 TestDesignContextPolicyOperations.response(),
                 TestDesignScopePolicy.response(),
+                TestDesignReleaseReadinessPolicy.response(),
                 Map.of(),
                 Instant.parse("2026-05-30T00:00:00Z"),
                 Instant.parse("2026-05-30T00:00:00Z")
@@ -175,6 +177,7 @@ class TestDesignTaskReportServiceTest {
                 TestDesignContextPolicyGovernance.response(),
                 TestDesignContextPolicyOperations.response(),
                 TestDesignScopePolicy.response(),
+                TestDesignReleaseReadinessPolicy.response(),
                 Map.of(),
                 Instant.parse("2026-05-30T00:00:00Z"),
                 Instant.parse("2026-05-30T00:00:00Z")
@@ -233,6 +236,7 @@ class TestDesignTaskReportServiceTest {
                 TestDesignContextPolicyGovernance.response(),
                 TestDesignContextPolicyOperations.response(),
                 TestDesignScopePolicy.response(),
+                TestDesignReleaseReadinessPolicy.response(),
                 Map.of(),
                 Instant.parse("2026-05-30T00:00:00Z"),
                 Instant.parse("2026-05-30T00:00:00Z")
@@ -317,6 +321,7 @@ class TestDesignTaskReportServiceTest {
                 TestDesignContextPolicyGovernance.response(),
                 TestDesignContextPolicyOperations.response(),
                 TestDesignScopePolicy.response(),
+                TestDesignReleaseReadinessPolicy.response(),
                 Map.of(
                         "contextVersion", "wp5-context-v1",
                         "requirements", List.of(Map.of(
@@ -423,6 +428,7 @@ class TestDesignTaskReportServiceTest {
                 TestDesignContextPolicyGovernance.response(),
                 TestDesignContextPolicyOperations.response(),
                 TestDesignScopePolicy.response(),
+                TestDesignReleaseReadinessPolicy.response(),
                 Map.of(),
                 Instant.parse("2026-05-30T00:00:00Z"),
                 Instant.parse("2026-05-30T00:00:00Z")
@@ -485,6 +491,7 @@ class TestDesignTaskReportServiceTest {
                 TestDesignContextPolicyGovernance.response(),
                 TestDesignContextPolicyOperations.response(),
                 TestDesignScopePolicy.response(),
+                TestDesignReleaseReadinessPolicy.response(),
                 Map.of("scopePolicy", Map.of(
                         "candidateIds", List.of("candidate-secret-id"),
                         "roleRuleDetails", "role matrix should not appear",
@@ -572,6 +579,7 @@ class TestDesignTaskReportServiceTest {
                 TestDesignContextPolicyGovernance.response(),
                 TestDesignContextPolicyOperations.response(),
                 TestDesignScopePolicy.response(),
+                TestDesignReleaseReadinessPolicy.response(),
                 Map.of(),
                 Instant.parse("2026-05-30T00:00:00Z"),
                 Instant.parse("2026-05-30T00:00:00Z")
@@ -643,6 +651,7 @@ class TestDesignTaskReportServiceTest {
                 TestDesignContextPolicyGovernance.response(),
                 TestDesignContextPolicyOperations.response(),
                 TestDesignScopePolicy.response(),
+                TestDesignReleaseReadinessPolicy.response(),
                 Map.of(),
                 Instant.parse("2026-05-30T00:00:00Z"),
                 Instant.parse("2026-05-30T00:00:00Z")
@@ -714,6 +723,7 @@ class TestDesignTaskReportServiceTest {
                 TestDesignContextPolicyGovernance.response(),
                 TestDesignContextPolicyOperations.response(),
                 TestDesignScopePolicy.response(),
+                TestDesignReleaseReadinessPolicy.response(),
                 Map.of(),
                 Instant.parse("2026-05-30T00:00:00Z"),
                 Instant.parse("2026-05-30T00:00:00Z")
@@ -758,6 +768,80 @@ class TestDesignTaskReportServiceTest {
                 .doesNotContain("reviewComments")
                 .doesNotContain("promptPlaintext")
                 .doesNotContain("步骤动作和步骤预期");
+    }
+
+    @Test
+    void appendsReleaseReadinessPolicyRowsWithoutApprovalOrCandidateEvidence() {
+        StringBuilder csv = new StringBuilder();
+        TestDesignTaskResponse task = new TestDesignTaskResponse(
+                UUID.fromString("11111111-1111-1111-1111-111111111111"),
+                "project-wp5",
+                "发布准出报告 token=secret-value",
+                "SUCCEEDED",
+                List.of(),
+                List.of("SMOKE"),
+                "wp5-test-design-v1",
+                "1.0.0",
+                null,
+                null,
+                null,
+                0,
+                0,
+                0,
+                0,
+                null,
+                "auditor",
+                null,
+                "digest",
+                null,
+                TestDesignContextAssemblyPolicy.response(),
+                TestDesignContextPolicyGovernance.response(),
+                TestDesignContextPolicyOperations.response(),
+                TestDesignScopePolicy.response(),
+                TestDesignReleaseReadinessPolicy.response(),
+                Map.of("releaseReadinessPolicy", Map.of(
+                        "candidateEvidence", "candidate-secret-id",
+                        "approvalNotes", "approval note should not appear",
+                        "thresholdRuleDetails", "threshold rule should not appear"
+                )),
+                Instant.parse("2026-05-30T00:00:00Z"),
+                Instant.parse("2026-05-30T00:00:00Z")
+        );
+        TestDesignQualityReadinessResponse readiness = new TestDesignQualityReadinessResponse(
+                "BLOCKED",
+                2L,
+                1L,
+                List.of()
+        );
+
+        TestDesignTaskReportReleaseReadinessPolicyRows.appendRows(
+                csv, task, Instant.parse("2026-05-30T00:00:00Z"), readiness);
+
+        String report = csv.toString();
+        assertDoesNotThrow(() -> TestDesignTaskReportExportGovernance.validateExportSafety(report));
+        org.assertj.core.api.Assertions.assertThat(report)
+                .contains("releaseReadinessPolicy,policyVersion,,wp5-release-readiness-policy-v1")
+                .contains("releaseReadinessPolicy,decisionMode,,ADVISORY_QUALITY_GATE,,warning")
+                .contains("releaseReadinessPolicy,thresholdSource,,DEPLOY_CONFIG")
+                .contains("releaseReadinessPolicy,qualityThresholdEvaluated,,true,,success")
+                .contains("releaseReadinessPolicy,advisoryOnly,,true,,warning")
+                .contains("releaseReadinessPolicy,publishBlockingEnabled,,false,,warning")
+                .contains("releaseReadinessPolicy,manualApprovalRequired,,true")
+                .contains("releaseReadinessPolicy,approvalWorkflowReady,,false,,warning")
+                .contains("releaseReadinessPolicy,autoPublishAllowed,,false,,success")
+                .contains("releaseReadinessPolicy,confirmedCandidateRequired,,true,,success")
+                .contains("releaseReadinessPolicy,qualityGateOverrideSupported,,false")
+                .contains("releaseReadinessPolicy,candidateEvidenceExported,,false")
+                .contains("releaseReadinessPolicy,approvalNotesExported,,false")
+                .contains("releaseReadinessPolicy,thresholdRuleDetailExported,,false")
+                .contains("releaseReadinessPolicy,metric,readinessStatus,BLOCKED,,warning")
+                .contains("releaseReadinessPolicy,metric,blockingCount,2,,warning")
+                .contains("releaseReadinessPolicy,metric,warningCount,1,,warning")
+                .contains("releaseReadinessPolicy,aggregateOnly,,true,,success")
+                .doesNotContain("secret-value")
+                .doesNotContain("candidate-secret-id")
+                .doesNotContain("approval note should not appear")
+                .doesNotContain("threshold rule should not appear");
     }
 
     @Test

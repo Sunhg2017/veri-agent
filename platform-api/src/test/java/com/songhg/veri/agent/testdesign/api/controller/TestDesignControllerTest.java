@@ -138,6 +138,23 @@ class TestDesignControllerTest {
                 .andExpect(jsonPath("$.data.scopePolicy.roleRuleDetailExported").value(false))
                 .andExpect(jsonPath("$.data.scopePolicy.serviceTokenValueExported").value(false))
                 .andExpect(jsonPath("$.data.scopePolicy.aggregateOnly").value(true))
+                .andExpect(jsonPath("$.data.releaseReadinessPolicy.policyVersion")
+                        .value("wp5-release-readiness-policy-v1"))
+                .andExpect(jsonPath("$.data.releaseReadinessPolicy.decisionMode")
+                        .value("ADVISORY_QUALITY_GATE"))
+                .andExpect(jsonPath("$.data.releaseReadinessPolicy.thresholdSource").value("DEPLOY_CONFIG"))
+                .andExpect(jsonPath("$.data.releaseReadinessPolicy.qualityThresholdEvaluated").value(true))
+                .andExpect(jsonPath("$.data.releaseReadinessPolicy.advisoryOnly").value(true))
+                .andExpect(jsonPath("$.data.releaseReadinessPolicy.publishBlockingEnabled").value(false))
+                .andExpect(jsonPath("$.data.releaseReadinessPolicy.manualApprovalRequired").value(true))
+                .andExpect(jsonPath("$.data.releaseReadinessPolicy.approvalWorkflowReady").value(false))
+                .andExpect(jsonPath("$.data.releaseReadinessPolicy.autoPublishAllowed").value(false))
+                .andExpect(jsonPath("$.data.releaseReadinessPolicy.confirmedCandidateRequired").value(true))
+                .andExpect(jsonPath("$.data.releaseReadinessPolicy.qualityGateOverrideSupported").value(false))
+                .andExpect(jsonPath("$.data.releaseReadinessPolicy.candidateEvidenceExported").value(false))
+                .andExpect(jsonPath("$.data.releaseReadinessPolicy.approvalNotesExported").value(false))
+                .andExpect(jsonPath("$.data.releaseReadinessPolicy.thresholdRuleDetailExported").value(false))
+                .andExpect(jsonPath("$.data.releaseReadinessPolicy.aggregateOnly").value(true))
                 .andExpect(jsonPath("$.data.supportedCoverageTypes", hasSize(6)));
     }
 
@@ -572,6 +589,13 @@ class TestDesignControllerTest {
                         .value("WORKFLOW_NOT_READY"))
                 .andExpect(jsonPath("$.data.task.contextPolicyOperations.projectOverrideStoreReady").value(false))
                 .andExpect(jsonPath("$.data.task.contextPolicyOperations.aggregateOnly").value(true))
+                .andExpect(jsonPath("$.data.task.releaseReadinessPolicy.policyVersion")
+                        .value("wp5-release-readiness-policy-v1"))
+                .andExpect(jsonPath("$.data.task.releaseReadinessPolicy.decisionMode")
+                        .value("ADVISORY_QUALITY_GATE"))
+                .andExpect(jsonPath("$.data.task.releaseReadinessPolicy.advisoryOnly").value(true))
+                .andExpect(jsonPath("$.data.task.releaseReadinessPolicy.publishBlockingEnabled").value(false))
+                .andExpect(jsonPath("$.data.task.releaseReadinessPolicy.approvalWorkflowReady").value(false))
                 .andExpect(jsonPath("$.data.task.contextSummary.policyGovernance.policyVersion")
                         .value("wp5-context-policy-v1"))
                 .andExpect(jsonPath("$.data.task.contextSummary.policyGovernance.projectOverrideSupported").value(false))
@@ -595,6 +619,14 @@ class TestDesignControllerTest {
                         .value("WORKFLOW_NOT_READY"))
                 .andExpect(jsonPath("$.data.task.contextSummary.policyOperations.projectOverrideStoreReady").value(false))
                 .andExpect(jsonPath("$.data.task.contextSummary.policyOperations.aggregateOnly").value(true))
+                .andExpect(jsonPath("$.data.task.contextSummary.releaseReadinessPolicy.policyVersion")
+                        .value("wp5-release-readiness-policy-v1"))
+                .andExpect(jsonPath("$.data.task.contextSummary.releaseReadinessPolicy.decisionMode")
+                        .value("ADVISORY_QUALITY_GATE"))
+                .andExpect(jsonPath("$.data.task.contextSummary.releaseReadinessPolicy.publishBlockingEnabled")
+                        .value(false))
+                .andExpect(jsonPath("$.data.task.contextSummary.releaseReadinessPolicy.candidateEvidenceExported")
+                        .value(false))
                 .andReturn();
 
         MatcherAssert.assertThat(taskResult.getResponse().getContentAsString(), not(containsString("sk_live_12345678")));
@@ -1058,6 +1090,22 @@ class TestDesignControllerTest {
         MatcherAssert.assertThat(csv, containsString("readinessPolicy,thresholdValue,lowConfidence,20.0"));
         MatcherAssert.assertThat(csv, containsString("readinessPolicy,thresholdValue,duplicateKeyCollision,0.0"));
         MatcherAssert.assertThat(csv, containsString("readinessPolicy,aggregateOnly,,true"));
+        MatcherAssert.assertThat(csv, containsString(
+                "releaseReadinessPolicy,policyVersion,,wp5-release-readiness-policy-v1"));
+        MatcherAssert.assertThat(csv, containsString("releaseReadinessPolicy,decisionMode,,ADVISORY_QUALITY_GATE"));
+        MatcherAssert.assertThat(csv, containsString("releaseReadinessPolicy,thresholdSource,,DEPLOY_CONFIG"));
+        MatcherAssert.assertThat(csv, containsString("releaseReadinessPolicy,qualityThresholdEvaluated,,true"));
+        MatcherAssert.assertThat(csv, containsString("releaseReadinessPolicy,advisoryOnly,,true"));
+        MatcherAssert.assertThat(csv, containsString("releaseReadinessPolicy,publishBlockingEnabled,,false"));
+        MatcherAssert.assertThat(csv, containsString("releaseReadinessPolicy,approvalWorkflowReady,,false"));
+        MatcherAssert.assertThat(csv, containsString("releaseReadinessPolicy,autoPublishAllowed,,false"));
+        MatcherAssert.assertThat(csv, containsString("releaseReadinessPolicy,confirmedCandidateRequired,,true"));
+        MatcherAssert.assertThat(csv, containsString("releaseReadinessPolicy,candidateEvidenceExported,,false"));
+        MatcherAssert.assertThat(csv, containsString("releaseReadinessPolicy,approvalNotesExported,,false"));
+        MatcherAssert.assertThat(csv, containsString("releaseReadinessPolicy,thresholdRuleDetailExported,,false"));
+        MatcherAssert.assertThat(csv, containsString("releaseReadinessPolicy,metric,readinessStatus,PASSED"));
+        MatcherAssert.assertThat(csv, containsString("releaseReadinessPolicy,metric,blockingCount,0"));
+        MatcherAssert.assertThat(csv, containsString("releaseReadinessPolicy,aggregateOnly,,true"));
         MatcherAssert.assertThat(csv, containsString("reviewHistory,distribution:action,UPDATE"));
         MatcherAssert.assertThat(csv, containsString("reviewHistory,distribution:action,CONFIRMED"));
         MatcherAssert.assertThat(csv, containsString("feedbackLoop,metric,promptTuningSignals,2,66.67,info"));

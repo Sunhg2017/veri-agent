@@ -65,6 +65,11 @@ export function buildTestDesignTaskDiagnostics(task: TestDesignTaskView | null |
       value: summarizeTestDesignScopePolicy(task),
       tone: scopePolicyTone(task)
     },
+    {
+      label: '发布准出',
+      value: summarizeTestDesignReleaseReadinessPolicy(task),
+      tone: releaseReadinessPolicyTone(task)
+    },
     { label: '请求人', value: displayDiagnosticText(task.requestedBy) },
     { label: '创建', value: formatDateTime(task.createdAt) },
     { label: '更新', value: formatDateTime(task.updatedAt) },
@@ -218,6 +223,26 @@ export function summarizeTestDesignScopePolicy(task: TestDesignTaskView | null |
     .join(' · ') || '-';
 }
 
+export function summarizeTestDesignReleaseReadinessPolicy(task: TestDesignTaskView | null | undefined): string {
+  const policy = task?.releaseReadinessPolicy ?? releaseReadinessPolicyFromContextSummary(task?.contextSummary);
+  if (!policy) {
+    return '-';
+  }
+
+  const decision = displayDiagnosticText(policy.decisionMode, 40);
+  const threshold = displayDiagnosticText(policy.thresholdSource, 32);
+  const quality = policy.qualityThresholdEvaluated === true ? '质量阈值:checked' : '质量阈值:pending';
+  const advisory = policy.advisoryOnly === true ? '建议模式:on' : '建议模式:off';
+  const blocking = policy.publishBlockingEnabled === true ? '发布阻断:on' : '发布阻断:off';
+  const approval = policy.approvalWorkflowReady === true ? '审批流:ready' : '审批流:pending';
+  const manual = policy.manualApprovalRequired === true ? '人工准出:required' : '人工准出:optional';
+  const autoPublish = policy.autoPublishAllowed === true ? '自动发布:on' : '自动发布:off';
+  const confirmed = policy.confirmedCandidateRequired === true ? '候选确认:required' : '候选确认:optional';
+  return [decision, threshold, quality, advisory, blocking, approval, manual, autoPublish, confirmed]
+    .filter((part) => part !== '-')
+    .join(' · ') || '-';
+}
+
 function contextAssemblyPolicyTone(task: TestDesignTaskView): TestDesignTaskDiagnosticTone {
   const policy = task.contextAssemblyPolicy ?? assemblyPolicyFromContextSummary(task.contextSummary);
   if (
@@ -271,6 +296,28 @@ function scopePolicyTone(task: TestDesignTaskView): TestDesignTaskDiagnosticTone
     return 'danger';
   }
   if (policy?.evaluationCorpusOperationsReady === false || policy?.crossWpScopeDashboardReady === false) {
+    return 'warning';
+  }
+  return 'neutral';
+}
+
+function releaseReadinessPolicyTone(task: TestDesignTaskView): TestDesignTaskDiagnosticTone {
+  const policy = task.releaseReadinessPolicy ?? releaseReadinessPolicyFromContextSummary(task.contextSummary);
+  if (
+    policy?.autoPublishAllowed === true ||
+    policy?.confirmedCandidateRequired === false ||
+    policy?.candidateEvidenceExported === true ||
+    policy?.approvalNotesExported === true ||
+    policy?.thresholdRuleDetailExported === true
+  ) {
+    return 'danger';
+  }
+  if (
+    policy?.advisoryOnly === true ||
+    policy?.publishBlockingEnabled === false ||
+    policy?.approvalWorkflowReady === false ||
+    policy?.qualityGateOverrideSupported === true
+  ) {
     return 'warning';
   }
   return 'neutral';
@@ -330,6 +377,34 @@ function scopePolicyFromContextSummary(contextSummary: Record<string, unknown> |
     candidateIdentifierListExported: safeOptionalBoolean(record.candidateIdentifierListExported),
     roleRuleDetailExported: safeOptionalBoolean(record.roleRuleDetailExported),
     serviceTokenValueExported: safeOptionalBoolean(record.serviceTokenValueExported),
+    aggregateOnly: safeOptionalBoolean(record.aggregateOnly)
+  };
+}
+
+function releaseReadinessPolicyFromContextSummary(contextSummary: Record<string, unknown> | null | undefined) {
+  if (!contextSummary || typeof contextSummary !== 'object') {
+    return undefined;
+  }
+  const raw = contextSummary.releaseReadinessPolicy;
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    return undefined;
+  }
+  const record = raw as Record<string, unknown>;
+  return {
+    policyVersion: safeOptionalString(record.policyVersion),
+    decisionMode: safeOptionalString(record.decisionMode),
+    thresholdSource: safeOptionalString(record.thresholdSource),
+    qualityThresholdEvaluated: safeOptionalBoolean(record.qualityThresholdEvaluated),
+    advisoryOnly: safeOptionalBoolean(record.advisoryOnly),
+    publishBlockingEnabled: safeOptionalBoolean(record.publishBlockingEnabled),
+    manualApprovalRequired: safeOptionalBoolean(record.manualApprovalRequired),
+    approvalWorkflowReady: safeOptionalBoolean(record.approvalWorkflowReady),
+    autoPublishAllowed: safeOptionalBoolean(record.autoPublishAllowed),
+    confirmedCandidateRequired: safeOptionalBoolean(record.confirmedCandidateRequired),
+    qualityGateOverrideSupported: safeOptionalBoolean(record.qualityGateOverrideSupported),
+    candidateEvidenceExported: safeOptionalBoolean(record.candidateEvidenceExported),
+    approvalNotesExported: safeOptionalBoolean(record.approvalNotesExported),
+    thresholdRuleDetailExported: safeOptionalBoolean(record.thresholdRuleDetailExported),
     aggregateOnly: safeOptionalBoolean(record.aggregateOnly)
   };
 }

@@ -107,6 +107,7 @@ public class TestDesignGenerationService {
         summary.put("policyGovernance", TestDesignContextPolicyGovernance.snapshot());
         summary.put("policyOperations", TestDesignContextPolicyOperations.snapshot());
         summary.put("scopePolicy", TestDesignScopePolicy.snapshot());
+        summary.put("releaseReadinessPolicy", TestDesignReleaseReadinessPolicy.snapshot());
         try {
             String contextSummaryJson = objectMapper.writeValueAsString(summary);
             return new TestDesignGenerationContext(sha256(contextSummaryJson), contextSummaryJson);
@@ -515,6 +516,7 @@ public class TestDesignGenerationService {
         policy.put("policyGovernance", TestDesignContextPolicyGovernance.snapshot());
         policy.put("policyOperations", TestDesignContextPolicyOperations.snapshot());
         policy.put("scopePolicy", TestDesignScopePolicy.snapshot());
+        policy.put("releaseReadinessPolicy", TestDesignReleaseReadinessPolicy.snapshot());
         return policy;
     }
 

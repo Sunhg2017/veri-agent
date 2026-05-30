@@ -67,6 +67,7 @@ public class TestDesignResponseMapper {
                 TestDesignContextPolicyGovernance.response(),
                 TestDesignContextPolicyOperations.response(),
                 TestDesignScopePolicy.response(),
+                TestDesignReleaseReadinessPolicy.response(),
                 jsonMap(task.contextSummaryJson()),
                 task.createdAt(),
                 task.updatedAt()

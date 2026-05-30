@@ -34,6 +34,8 @@ public record TestDesignHealthResponse(
         TestDesignContextPolicyOperationsResponse contextPolicyOperations,
         @Schema(description = "权限与资源作用域策略聚合快照")
         TestDesignScopePolicyResponse scopePolicy,
+        @Schema(description = "发布准出审批与阻断策略聚合快照")
+        TestDesignReleaseReadinessPolicyResponse releaseReadinessPolicy,
         @Schema(description = "支持的覆盖类型列表")
         List<String> supportedCoverageTypes
 ) {
