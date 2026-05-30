@@ -842,6 +842,12 @@ class TestDesignControllerTest {
         MatcherAssert.assertThat(csv, containsString("feedbackLoop,distribution:signal,rejected,1,33.33,warning"));
         MatcherAssert.assertThat(csv, containsString("publish,distribution:result,SUCCEEDED"));
         MatcherAssert.assertThat(csv, containsString("modelObservation,traceIdTracked,,false"));
+        MatcherAssert.assertThat(csv, containsString("context,contextVersion,,wp5-context-v1"));
+        MatcherAssert.assertThat(csv, containsString("context,requirementCount,,1"));
+        MatcherAssert.assertThat(csv, containsString("contextPolicy,linkedAssetsPerRequirement,,2"));
+        MatcherAssert.assertThat(csv, containsString("contextPolicy,explicitAssetsPerType,,2"));
+        MatcherAssert.assertThat(csv, containsString("contextPolicy,requirementDescriptionChars,,180"));
+        MatcherAssert.assertThat(csv, containsString("contextPolicy,linkedAssetSchemaChars,,120"));
         MatcherAssert.assertThat(csv, containsString(taskId));
         MatcherAssert.assertThat(csv, containsString("project-wp5"));
         MatcherAssert.assertThat(csv, not(containsString("secret-value")));

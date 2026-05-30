@@ -44,6 +44,7 @@ export function buildTestDesignTaskDiagnostics(task: TestDesignTaskView | null |
     { label: '输入摘要', value: compactTestDesignDigest(task.inputDigest, 12, 8) },
     { label: '幂等键', value: compactTestDesignDigest(task.idempotencyKey, 14, 8) },
     { label: '上下文', value: summarizeTestDesignTaskContext(task.contextSummary) },
+    { label: '上下文策略', value: summarizeTestDesignContextPolicy(task.contextSummary) },
     { label: '请求人', value: displayDiagnosticText(task.requestedBy) },
     { label: '创建', value: formatDateTime(task.createdAt) },
     { label: '更新', value: formatDateTime(task.updatedAt) },
@@ -94,6 +95,36 @@ export function summarizeTestDesignTaskContext(contextSummary: Record<string, un
   parts.push(`keys:${keyPreview}${safeKeys.length > 5 ? ` +${safeKeys.length - 5}` : ''}`);
 
   return parts.join(' · ');
+}
+
+export function summarizeTestDesignContextPolicy(contextSummary: Record<string, unknown> | null | undefined): string {
+  if (!contextSummary || typeof contextSummary !== 'object') {
+    return '-';
+  }
+  const limits = contextSummary.limits;
+  if (!limits || typeof limits !== 'object' || Array.isArray(limits)) {
+    return '-';
+  }
+
+  const record = limits as Record<string, unknown>;
+  const parts = [
+    contextPolicyPart(record, 'linkedAssetsPerRequirement', '关联资产'),
+    contextPolicyPart(record, 'explicitAssetsPerType', '显式资产'),
+    contextPolicyPart(record, 'existingCasesPerRequirement', '历史用例'),
+    contextPolicyPart(record, 'requirementDescriptionChars', '需求描述'),
+    contextPolicyPart(record, 'acceptanceCriteriaChars', '验收标准'),
+    contextPolicyPart(record, 'linkedAssetSchemaChars', '资产摘要')
+  ].filter(Boolean);
+
+  return parts.length ? parts.join(' · ') : '-';
+}
+
+function contextPolicyPart(record: Record<string, unknown>, key: string, label: string) {
+  if (SENSITIVE_KEY_PATTERN.test(key)) {
+    return '';
+  }
+  const count = countContextValue(record[key]);
+  return count === null ? '' : `${label}:${count}`;
 }
 
 function appendExplicitAssetCounts(parts: string[], contextSummary: Record<string, unknown>) {

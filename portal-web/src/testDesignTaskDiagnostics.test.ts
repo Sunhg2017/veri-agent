@@ -3,6 +3,7 @@ import type { TestDesignTaskView } from './api/testDesign';
 import {
   buildTestDesignTaskDiagnostics,
   compactTestDesignDigest,
+  summarizeTestDesignContextPolicy,
   summarizeTestDesignTaskContext
 } from './testDesignTaskDiagnostics';
 
@@ -59,6 +60,15 @@ const baseTask: TestDesignTaskView = {
       pageCount: 2,
       flowCount: 3
     },
+    limits: {
+      linkedAssetsPerRequirement: 2,
+      explicitAssetsPerType: 3,
+      existingCasesPerRequirement: 4,
+      requirementDescriptionChars: 180,
+      acceptanceCriteriaChars: 160,
+      linkedAssetSchemaChars: 120,
+      rawPromptStored: false
+    },
     secretToken: 'should-not-appear'
   },
   createdAt: '2026-05-28T10:00:00Z',
@@ -83,6 +93,10 @@ describe('WP5 task diagnostics helpers', () => {
         expect.objectContaining({ label: '调用任务', value: expect.stringContaining('job-abcdef1') }),
         expect.objectContaining({ label: '输入摘要', value: expect.stringContaining('9c6f4c3ef8d1') }),
         expect.objectContaining({ label: '幂等键', value: expect.stringContaining('wp5:create:ops') }),
+        expect.objectContaining({
+          label: '上下文策略',
+          value: '关联资产:2 · 显式资产:3 · 历史用例:4 · 需求描述:180 · 验收标准:160 · 资产摘要:120'
+        }),
         expect.objectContaining({
           label: '错误',
           tone: 'danger',
@@ -124,9 +138,17 @@ describe('WP5 task diagnostics helpers', () => {
     expect(summary).toContain('explicitApis:1');
     expect(summary).toContain('explicitPages:2');
     expect(summary).toContain('explicitFlows:3');
-    expect(summary).toContain('keys:contextVersion, requirements, documentSources, historicalCases, apis +2');
+    expect(summary).toContain('keys:contextVersion, requirements, documentSources, historicalCases, apis +3');
     expect(summary).not.toContain('secretToken');
     expect(summary).not.toContain('should-not-appear');
+  });
+
+  it('summarizes context packing policy without exposing raw context values', () => {
+    expect(summarizeTestDesignContextPolicy(baseTask.contextSummary)).toBe(
+      '关联资产:2 · 显式资产:3 · 历史用例:4 · 需求描述:180 · 验收标准:160 · 资产摘要:120'
+    );
+    expect(summarizeTestDesignContextPolicy({ limits: { secretToken: 10 } })).toBe('-');
+    expect(summarizeTestDesignContextPolicy({})).toBe('-');
   });
 
   it('compacts digests and handles empty tasks safely', () => {

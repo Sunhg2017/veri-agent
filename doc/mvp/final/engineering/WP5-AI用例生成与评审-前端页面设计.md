@@ -5,8 +5,8 @@
 | 工作包 | WP5 AI 用例生成与评审 |
 | 角色产出 | 资深前端工程师 |
 | 文档性质 | 前端页面、路由、权限、状态和可测性设计 |
-| 当前口径 | 基于 `portal-web` React + TypeScript + Vite 管理台扩展，已纳入任务质量、Prompt 趋势、Prompt 版本准出分布、任务诊断、本域审计链摘要面板、显式上下文资产输入和服务端下发的上下文裁剪口径 |
-| 版本 | v0.6 |
+| 当前口径 | 基于 `portal-web` React + TypeScript + Vite 管理台扩展，已纳入任务质量、Prompt 趋势、Prompt 版本准出分布、任务诊断、本域审计链摘要面板、显式上下文资产输入、服务端下发的上下文裁剪口径和上下文策略诊断摘要 |
+| 版本 | v0.7 |
 | 日期 | 2026-05-30 |
 
 ## 1. 页面目标
@@ -133,7 +133,7 @@ API client 需复用现有 `requestJson` 和 `ApiError` 处理，保留响应中
 | 生成数量 | 1 到 20 的整数。 |
 | 覆盖类型 | 至少 1 个。 |
 | 任务名称 | 必填，最长 160 字符。 |
-| 上下文选项 | 至少保留需求上下文；API/页面/流程/历史用例可通过追踪关系自动带入，也可在生成配置中显式输入 API/页面/业务流 ID。前端占位文案和诊断说明优先读取健康接口返回的 `contextLimits`。 |
+| 上下文选项 | 至少保留需求上下文；API/页面/流程/历史用例可通过追踪关系自动带入，也可在生成配置中显式输入 API/页面/业务流 ID。前端占位文案、任务诊断的上下文规模和上下文策略摘要优先读取健康接口返回的 `contextLimits` 与任务 `contextSummary.limits`。 |
 
 ### 7.2 候选编辑
 
@@ -193,4 +193,5 @@ API client 需复用现有 `requestJson` 和 `ApiError` 处理，保留响应中
 7. dryRun 结果能区分创建、重复、跳过和失败。
 8. 发布成功后可跳转 WP3 测试用例详情或列表筛选结果。
 9. loading/empty/error/partial success/version conflict/model blocked 状态均有可读展示。
-10. `cd portal-web && npm test`、`cd portal-web && npm run build`、WP5 前端 smoke 均通过。
+10. 任务诊断只展示上下文计数和裁剪策略，不展示显式资产 ID、schema、页面树、流程 JSON、需求正文或原始 Prompt。
+11. `cd portal-web && npm test`、`cd portal-web && npm run build`、WP5 前端 smoke 均通过。

@@ -128,6 +128,7 @@ public class TestDesignTaskReportService {
         StringBuilder csv = new StringBuilder();
         appendTaskReportHeader(csv);
         appendTaskReportTaskRows(csv, taskResponse, generatedAt);
+        appendTaskReportContextRows(csv, taskResponse, generatedAt);
         appendTaskReportModelObservationRows(csv, taskResponse, generatedAt);
         appendTaskReportCandidateRows(csv, taskResponse, candidates, generatedAt);
         appendTaskReportReviewRows(csv, taskResponse, reviewRecords, generatedAt);
@@ -264,6 +265,65 @@ public class TestDesignTaskReportService {
                 StringUtils.hasText(task.inputDigest()), null, null, "fullTask", null);
         appendTaskReportRow(csv, task, generatedAt, "metadata", "task", "contextSummaryKeyCount", null,
                 task.contextSummary().size(), null, null, "fullTask", null);
+    }
+
+    /**
+     * Adds replay diagnostics for the persisted context snapshot without exporting any raw context bodies.
+     *
+     * <p>Only counts and clipping-policy numbers are exported. Requirement titles, API schemas, page trees, flow JSON,
+     * explicit asset IDs and model prompt text remain confined to the redacted task context summary.
+     */
+    private static void appendTaskReportContextRows(
+            StringBuilder csv,
+            TestDesignTaskResponse task,
+            Instant generatedAt
+    ) {
+        Map<String, Object> context = task.contextSummary();
+        appendTaskReportRow(csv, task, generatedAt, "metadata", "context", "contextVersion", null,
+                safeContextScalar(context.get("contextVersion")), null, null, "fullTask", null);
+        appendTaskReportRow(csv, task, generatedAt, "metadata", "context", "requirementCount", null,
+                contextCount(context.get("requirements")), null, null, "fullTask", null);
+        appendTaskReportRow(csv, task, generatedAt, "metadata", "context", "linkedApiCount", null,
+                nestedContextCount(context.get("linkedAssetsByRequirement"), "apiCount"), null, null, "fullTask", null);
+        appendTaskReportRow(csv, task, generatedAt, "metadata", "context", "linkedPageCount", null,
+                nestedContextCount(context.get("linkedAssetsByRequirement"), "pageCount"), null, null, "fullTask", null);
+        appendTaskReportRow(csv, task, generatedAt, "metadata", "context", "linkedFlowCount", null,
+                nestedContextCount(context.get("linkedAssetsByRequirement"), "flowCount"), null, null, "fullTask", null);
+        appendTaskReportRow(csv, task, generatedAt, "metadata", "context", "existingCaseCount", null,
+                nestedContextCount(context.get("existingCasesByRequirement"), "count"), null, null, "fullTask", null);
+        Object explicitAssets = context.get("explicitAssets");
+        appendTaskReportRow(csv, task, generatedAt, "metadata", "context", "explicitApiCount", null,
+                objectFieldCount(explicitAssets, "apiCount"), null, null, "fullTask", null);
+        appendTaskReportRow(csv, task, generatedAt, "metadata", "context", "explicitPageCount", null,
+                objectFieldCount(explicitAssets, "pageCount"), null, null, "fullTask", null);
+        appendTaskReportRow(csv, task, generatedAt, "metadata", "context", "explicitFlowCount", null,
+                objectFieldCount(explicitAssets, "flowCount"), null, null, "fullTask", null);
+
+        Object limits = context.get("limits");
+        appendTaskReportContextLimit(csv, task, generatedAt, limits,
+                "linkedAssetsPerRequirement", "linkedAssetsPerRequirement");
+        appendTaskReportContextLimit(csv, task, generatedAt, limits,
+                "explicitAssetsPerType", "explicitAssetsPerType");
+        appendTaskReportContextLimit(csv, task, generatedAt, limits,
+                "existingCasesPerRequirement", "existingCasesPerRequirement");
+        appendTaskReportContextLimit(csv, task, generatedAt, limits,
+                "requirementDescriptionChars", "requirementDescriptionChars");
+        appendTaskReportContextLimit(csv, task, generatedAt, limits,
+                "acceptanceCriteriaChars", "acceptanceCriteriaChars");
+        appendTaskReportContextLimit(csv, task, generatedAt, limits,
+                "linkedAssetSchemaChars", "linkedAssetSchemaChars");
+    }
+
+    private static void appendTaskReportContextLimit(
+            StringBuilder csv,
+            TestDesignTaskResponse task,
+            Instant generatedAt,
+            Object limits,
+            String metric,
+            String fieldName
+    ) {
+        appendTaskReportRow(csv, task, generatedAt, "metadata", "contextPolicy", metric, null,
+                objectFieldCount(limits, fieldName), null, null, "fullTask", null);
     }
 
     private static void appendTaskReportModelObservationRows(
@@ -549,6 +609,77 @@ public class TestDesignTaskReportService {
 
     private static Object taskReportValue(Object value) {
         return value instanceof String text ? candidateExportPreview(text, 240) : value;
+    }
+
+    private static Object safeContextScalar(Object value) {
+        if (value instanceof String text) {
+            String safeText = text.replaceAll("[^A-Za-z0-9_.:-]", "");
+            return safeText.length() <= 80 ? safeText : safeText.substring(0, 80);
+        }
+        if (value instanceof Number || value instanceof Boolean) {
+            return value;
+        }
+        return null;
+    }
+
+    private static Long contextCount(Object value) {
+        if (value instanceof List<?> items) {
+            return (long) items.size();
+        }
+        if (value instanceof Number number) {
+            long count = number.longValue();
+            return count >= 0 ? count : null;
+        }
+        if (value instanceof Map<?, ?> map) {
+            return firstMapCount(map, List.of("count", "total", "size"));
+        }
+        return null;
+    }
+
+    private static Long nestedContextCount(Object value, String fieldName) {
+        if (!(value instanceof List<?> items)) {
+            return null;
+        }
+        long total = 0L;
+        boolean found = false;
+        for (Object item : items) {
+            Long count = objectFieldCount(item, fieldName);
+            if (count != null) {
+                total += count;
+                found = true;
+            }
+        }
+        return found ? total : null;
+    }
+
+    private static Long objectFieldCount(Object value, String fieldName) {
+        if (!(value instanceof Map<?, ?> map)) {
+            return null;
+        }
+        Object fieldValue = map.get(fieldName);
+        if (fieldValue instanceof Number number) {
+            long count = number.longValue();
+            return count >= 0 ? count : null;
+        }
+        if (fieldValue instanceof String text) {
+            try {
+                long count = Long.parseLong(text);
+                return count >= 0 ? count : null;
+            } catch (NumberFormatException exception) {
+                return null;
+            }
+        }
+        return null;
+    }
+
+    private static Long firstMapCount(Map<?, ?> map, List<String> fieldNames) {
+        for (String fieldName : fieldNames) {
+            Long count = objectFieldCount(map, fieldName);
+            if (count != null) {
+                return count;
+            }
+        }
+        return null;
     }
 
     private static <T> Map<String, Long> countsBy(List<T> items, Function<T, String> classifier) {

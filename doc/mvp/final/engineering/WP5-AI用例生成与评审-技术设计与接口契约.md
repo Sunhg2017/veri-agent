@@ -5,8 +5,8 @@
 | 工作包 | WP5 AI 用例生成与评审 |
 | 角色产出 | 资深服务端架构师 |
 | 文档性质 | 技术设计、数据模型、接口契约和服务端质量约束 |
-| 当前口径 | WP5 在 `platform-api` 内实现为独立领域模块，不新增独立部署服务；模块内应用服务按任务、生成、评审、质量、发布、冲突和报告拆分；任务本域审计链摘要由报告服务聚合 WP5 任务、评审和发布记录；Prompt 趋势按版本输出聚合准出摘要和准出状态分布；任务创建支持显式 API/页面/业务流上下文资产，并将上下文裁剪策略配置化暴露 |
-| 版本 | v0.7 |
+| 当前口径 | WP5 在 `platform-api` 内实现为独立领域模块，不新增独立部署服务；模块内应用服务按任务、生成、评审、质量、发布、冲突和报告拆分；任务本域审计链摘要由报告服务聚合 WP5 任务、评审和发布记录；Prompt 趋势按版本输出聚合准出摘要和准出状态分布；任务创建支持显式 API/页面/业务流上下文资产，并将上下文裁剪策略配置化暴露到 health、任务诊断和任务全量报告 |
+| 版本 | v0.8 |
 | 日期 | 2026-05-30 |
 
 ## 1. 架构原则
@@ -244,7 +244,7 @@ CONFIRMED -> IGNORED
 
 ### 5.1 上下文摘要契约
 
-当前实现的 `context_summary_json` 只保存脱敏摘要，不保存完整 Prompt 或原始文档正文。任务创建时通过 WP3 应用服务读取需求、追踪链接、关联 API、页面、业务流和历史用例摘要；请求可额外传入 `contextApiIds/contextPageIds/contextFlowIds`，用于显式纳入未建立需求追踪关系但本次生成需要参考的上下文资产。上下文裁剪上限由 `veri-agent.test-design.context-*` 配置驱动，并写入 `contextSummary.limits` 与 `requestDigest`，确保重放和问题定位基于同一策略快照。WP5 不直连 WP3 表。
+当前实现的 `context_summary_json` 只保存脱敏摘要，不保存完整 Prompt 或原始文档正文。任务创建时通过 WP3 应用服务读取需求、追踪链接、关联 API、页面、业务流和历史用例摘要；请求可额外传入 `contextApiIds/contextPageIds/contextFlowIds`，用于显式纳入未建立需求追踪关系但本次生成需要参考的上下文资产。上下文裁剪上限由 `veri-agent.test-design.context-*` 配置驱动，并写入 `contextSummary.limits`、`requestDigest`、模型请求 `contextPacking`、前端任务诊断和后端任务报告的聚合行，确保重放和问题定位基于同一策略快照。WP5 不直连 WP3 表。
 
 ```json
 {
@@ -304,6 +304,8 @@ CONFIRMED -> IGNORED
 - `context-requirement-description-chars`
 - `context-acceptance-criteria-chars`
 - `context-asset-schema-chars`
+
+任务报告只导出上下文规模和策略数字，例如 requirement/linked asset/explicit asset/existing case 计数与 `contextPolicy` 上限；不得导出显式资产 ID、API schema、页面树、流程 JSON、需求正文、历史用例步骤或原始 Prompt。
 
 ## 6. API 契约
 
