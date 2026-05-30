@@ -1899,6 +1899,71 @@ tbody tr:hover td {
   color: var(--danger);
 }
 
+.test-design-context-policy-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-sm);
+}
+
+.test-design-context-policy-submit {
+  align-self: end;
+}
+
+.test-design-context-policy-summary {
+  display: grid;
+  gap: 2px;
+  padding: var(--space-sm);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  background: var(--bg-alt);
+}
+
+.test-design-context-policy-overrides {
+  display: grid;
+  gap: var(--space-sm);
+}
+
+.test-design-context-policy-override {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-sm);
+  align-items: start;
+  padding: var(--space-sm);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+
+.test-design-context-policy-override > div:first-child {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.test-design-context-policy-override strong,
+.test-design-context-policy-override em,
+.test-design-context-policy-override small {
+  overflow-wrap: anywhere;
+}
+
+.test-design-context-policy-override strong {
+  font-size: var(--font-size-sm);
+}
+
+.test-design-context-policy-override em,
+.test-design-context-policy-override small {
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+  font-style: normal;
+}
+
+.test-design-context-policy-override-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
 .test-design-batch-editor {
   display: grid;
   gap: var(--space-sm);
@@ -2274,6 +2339,8 @@ tbody tr:hover td {
   .document-form-grid,
   .filter-bar,
   .test-design-candidate-filter,
+  .test-design-context-policy-form,
+  .test-design-context-policy-override,
   .test-design-conflict-form,
   .test-design-conflict-row { grid-template-columns: 1fr; }
 

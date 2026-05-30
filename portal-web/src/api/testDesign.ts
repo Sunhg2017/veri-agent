@@ -112,6 +112,38 @@ export interface TestDesignContextPolicyOperationsView {
   aggregateOnly?: boolean;
 }
 
+export interface TestDesignContextPolicyOverrideView {
+  id: string;
+  scopeType: string;
+  projectId?: string;
+  environmentKey?: string;
+  status: string;
+  overrideLimits: Record<string, number>;
+  changeReasonCodeCaptured: boolean;
+  approvalReasonCodeCaptured: boolean;
+  requestedBy?: string;
+  approvedBy?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface TestDesignContextPolicyEffectiveView {
+  projectId?: string;
+  environmentKey?: string;
+  contextLimits: Record<string, number>;
+  appliedOverrideScopes: string[];
+  overrideStatusCounts: Record<string, number>;
+  contextAssemblyPolicy?: TestDesignContextAssemblyPolicyView;
+  contextPolicyGovernance?: TestDesignContextPolicyGovernanceView;
+  contextPolicyOperations?: TestDesignContextPolicyOperationsView;
+  policyBodyExported?: boolean;
+  policyDiffPreviewExported?: boolean;
+  approvalNotesExported?: boolean;
+  ticketUrlExported?: boolean;
+  aggregateOnly?: boolean;
+  generatedAt?: string;
+}
+
 export interface TestDesignScopePolicyView {
   policyVersion?: string;
   scopeModel?: string;
@@ -664,6 +696,24 @@ export interface TestDesignCandidateFilters {
 export interface TestDesignReviewRecordFilters {
   index?: number;
   size?: number;
+}
+
+export interface TestDesignContextPolicyFilters {
+  environmentKey?: string;
+}
+
+export interface RequestTestDesignContextPolicyOverridePayload {
+  contextLinkedAssetsPerRequirement?: number;
+  contextExplicitAssetsPerType?: number;
+  contextExistingCasesPerRequirement?: number;
+  contextRequirementDescriptionChars?: number;
+  contextAcceptanceCriteriaChars?: number;
+  contextAssetSchemaChars?: number;
+  changeReasonCode?: string;
+}
+
+export interface ReviewTestDesignContextPolicyOverridePayload {
+  approvalReasonCode?: string;
 }
 
 type UnknownRecord = Record<string, unknown>;
@@ -1659,6 +1709,52 @@ export function normalizeTestDesignPublishResult(raw: unknown): TestDesignPublis
   };
 }
 
+export function normalizeTestDesignContextPolicyOverride(raw: unknown): TestDesignContextPolicyOverrideView {
+  const item = isRecord(raw) ? raw : {};
+  return {
+    id: stringValue(item.id),
+    scopeType: stringValue(item.scopeType ?? item.scope_type, 'UNKNOWN'),
+    projectId: optionalString(item.projectId) ?? optionalString(item.project_id),
+    environmentKey: optionalString(item.environmentKey) ?? optionalString(item.environment_key),
+    status: stringValue(item.status, 'UNKNOWN'),
+    overrideLimits: numberRecordValue(item.overrideLimits ?? item.override_limits),
+    changeReasonCodeCaptured: Boolean(item.changeReasonCodeCaptured ?? item.change_reason_code_captured),
+    approvalReasonCodeCaptured: Boolean(item.approvalReasonCodeCaptured ?? item.approval_reason_code_captured),
+    requestedBy: optionalString(item.requestedBy) ?? optionalString(item.requested_by),
+    approvedBy: optionalString(item.approvedBy) ?? optionalString(item.approved_by),
+    createdAt: optionalString(item.createdAt) ?? optionalString(item.created_at),
+    updatedAt: optionalString(item.updatedAt) ?? optionalString(item.updated_at)
+  };
+}
+
+export function normalizeTestDesignContextPolicyEffective(raw: unknown): TestDesignContextPolicyEffectiveView {
+  const item = isRecord(raw) ? raw : {};
+  return {
+    projectId: optionalString(item.projectId) ?? optionalString(item.project_id),
+    environmentKey: optionalString(item.environmentKey) ?? optionalString(item.environment_key),
+    contextLimits: numberRecordValue(item.contextLimits ?? item.context_limits),
+    appliedOverrideScopes: stringArrayValue(item.appliedOverrideScopes ?? item.applied_override_scopes),
+    overrideStatusCounts: numberRecordValue(item.overrideStatusCounts ?? item.override_status_counts),
+    contextAssemblyPolicy: normalizeTestDesignContextAssemblyPolicy(
+      item.contextAssemblyPolicy ?? item.context_assembly_policy
+    ),
+    contextPolicyGovernance: normalizeTestDesignContextPolicyGovernance(
+      item.contextPolicyGovernance ?? item.context_policy_governance
+    ),
+    contextPolicyOperations: normalizeTestDesignContextPolicyOperations(
+      item.contextPolicyOperations ?? item.context_policy_operations
+    ),
+    policyBodyExported: optionalBoolean(item.policyBodyExported ?? item.policy_body_exported),
+    policyDiffPreviewExported: optionalBoolean(
+      item.policyDiffPreviewExported ?? item.policy_diff_preview_exported
+    ),
+    approvalNotesExported: optionalBoolean(item.approvalNotesExported ?? item.approval_notes_exported),
+    ticketUrlExported: optionalBoolean(item.ticketUrlExported ?? item.ticket_url_exported),
+    aggregateOnly: optionalBoolean(item.aggregateOnly ?? item.aggregate_only),
+    generatedAt: optionalString(item.generatedAt) ?? optionalString(item.generated_at)
+  };
+}
+
 export async function fetchTestDesignHealth(): Promise<ApiResponse<TestDesignHealth>> {
   const response = await requestJson<unknown>('/api/v1/test-design/health');
   return { ...response, data: normalizeTestDesignHealth(response.data) };
@@ -1877,6 +1973,83 @@ export function testDesignTaskReportExportPath(taskId: string) {
 
 export async function exportTestDesignTaskReportCsv(taskId: string): Promise<TextResponse> {
   return requestText(testDesignTaskReportExportPath(taskId));
+}
+
+export async function fetchTestDesignContextPolicyOverrides(
+  projectId: string,
+  filters: TestDesignContextPolicyFilters = {}
+): Promise<ApiResponse<TestDesignContextPolicyOverrideView[]>> {
+  const response = await requestJson<unknown>(
+    `/api/v1/test-design/context-policies/projects/${encodeURIComponent(projectId)}/overrides${queryString(filters as Record<string, unknown>)}`
+  );
+  return { ...response, data: listItems(response.data).map(normalizeTestDesignContextPolicyOverride) };
+}
+
+export async function fetchTestDesignContextPolicyEffective(
+  projectId: string,
+  filters: TestDesignContextPolicyFilters = {}
+): Promise<ApiResponse<TestDesignContextPolicyEffectiveView>> {
+  const response = await requestJson<unknown>(
+    `/api/v1/test-design/context-policies/projects/${encodeURIComponent(projectId)}/effective${queryString(filters as Record<string, unknown>)}`
+  );
+  return { ...response, data: normalizeTestDesignContextPolicyEffective(response.data) };
+}
+
+export async function requestTestDesignProjectContextPolicyOverride(
+  projectId: string,
+  payload: RequestTestDesignContextPolicyOverridePayload
+): Promise<ApiResponse<TestDesignContextPolicyOverrideView>> {
+  const response = await requestJson<unknown>(
+    `/api/v1/test-design/context-policies/projects/${encodeURIComponent(projectId)}/overrides`,
+    {
+      method: 'POST',
+      body: JSON.stringify(compactPayload(payload))
+    }
+  );
+  return { ...response, data: normalizeTestDesignContextPolicyOverride(response.data) };
+}
+
+export async function requestTestDesignEnvironmentContextPolicyOverride(
+  projectId: string,
+  environmentKey: string,
+  payload: RequestTestDesignContextPolicyOverridePayload
+): Promise<ApiResponse<TestDesignContextPolicyOverrideView>> {
+  const response = await requestJson<unknown>(
+    `/api/v1/test-design/context-policies/projects/${encodeURIComponent(projectId)}/environments/${encodeURIComponent(environmentKey)}/overrides`,
+    {
+      method: 'POST',
+      body: JSON.stringify(compactPayload(payload))
+    }
+  );
+  return { ...response, data: normalizeTestDesignContextPolicyOverride(response.data) };
+}
+
+export async function approveTestDesignContextPolicyOverride(
+  overrideId: string,
+  payload: ReviewTestDesignContextPolicyOverridePayload = {}
+): Promise<ApiResponse<TestDesignContextPolicyOverrideView>> {
+  const response = await requestJson<unknown>(
+    `/api/v1/test-design/context-policies/overrides/${encodeURIComponent(overrideId)}/approve`,
+    {
+      method: 'POST',
+      body: JSON.stringify(compactPayload(payload))
+    }
+  );
+  return { ...response, data: normalizeTestDesignContextPolicyOverride(response.data) };
+}
+
+export async function rejectTestDesignContextPolicyOverride(
+  overrideId: string,
+  payload: ReviewTestDesignContextPolicyOverridePayload = {}
+): Promise<ApiResponse<TestDesignContextPolicyOverrideView>> {
+  const response = await requestJson<unknown>(
+    `/api/v1/test-design/context-policies/overrides/${encodeURIComponent(overrideId)}/reject`,
+    {
+      method: 'POST',
+      body: JSON.stringify(compactPayload(payload))
+    }
+  );
+  return { ...response, data: normalizeTestDesignContextPolicyOverride(response.data) };
 }
 
 export function testDesignErrorMessage(error: unknown, fallback: string) {

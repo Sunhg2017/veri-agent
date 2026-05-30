@@ -3,6 +3,7 @@ import { requestJson, requestText } from './client';
 import {
   TEST_DESIGN_CANDIDATE_STATUSES,
   TEST_DESIGN_COVERAGE_TYPES,
+  approveTestDesignContextPolicyOverride,
   batchActionTestDesignCandidates,
   batchResolveTestDesignConflicts,
   cancelTestDesignTask,
@@ -12,6 +13,8 @@ import {
   exportTestDesignReviewRecordsCsv,
   exportTestDesignTaskReportCsv,
   fetchTaskTestDesignCandidates,
+  fetchTestDesignContextPolicyEffective,
+  fetchTestDesignContextPolicyOverrides,
   fetchTestDesignCandidates,
   fetchTestDesignHealth,
   fetchTestDesignPromptTrend,
@@ -25,6 +28,8 @@ import {
   normalizeTestDesignCandidateBatchActionResult,
   normalizeTestDesignCandidateList,
   normalizeTestDesignConflictBatchResolveResult,
+  normalizeTestDesignContextPolicyEffective,
+  normalizeTestDesignContextPolicyOverride,
   normalizeTestDesignHealth,
   normalizeTestDesignAuditSummary,
   normalizeTestDesignAuditTimelineItem,
@@ -39,7 +44,10 @@ import {
   publishTestDesignDryRun,
   publishTestDesignTask,
   rejectTestDesignCandidate,
+  rejectTestDesignContextPolicyOverride,
   replayQueuedTestDesignTaskEvent,
+  requestTestDesignEnvironmentContextPolicyOverride,
+  requestTestDesignProjectContextPolicyOverride,
   resolveTestDesignConflict,
   retryTestDesignTask,
   testDesignCandidateExportPath,
@@ -1227,6 +1235,168 @@ describe('WP5 test design API helpers', () => {
 
     await fetchTestDesignPromptTrend({ index: 0, size: 10, projectId: 'proj pay', promptKey: 'wp5-test-design-v1' });
     expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/test-design/quality/prompt-trend?index=0&size=10&projectId=proj+pay&promptKey=wp5-test-design-v1');
+  });
+
+  it('calls context policy operations endpoints and normalizes sanitized metadata', async () => {
+    requestJsonMock.mockResolvedValue({
+      code: 'OK',
+      message: 'ok',
+      trace_id: 'trace-policy-list',
+      data: [
+        {
+          id: 'override-1',
+          scope_type: 'ENVIRONMENT',
+          project_id: 'proj pay',
+          environment_key: 'qa env',
+          status: 'PENDING',
+          override_limits: {
+            linked_assets_per_requirement: '99',
+            linkedAssetsPerRequirement: '4',
+            explicitAssetsPerType: 2
+          },
+          change_reason_code_captured: true,
+          approval_reason_code_captured: false,
+          requested_by: 'owner',
+          created_at: '2026-05-31T10:00:00Z'
+        }
+      ]
+    });
+
+    const overrides = await fetchTestDesignContextPolicyOverrides('proj pay', { environmentKey: 'qa env' });
+    expect(requestJsonMock).toHaveBeenLastCalledWith(
+      '/api/v1/test-design/context-policies/projects/proj%20pay/overrides?environmentKey=qa+env'
+    );
+    expect(overrides.data[0]).toMatchObject({
+      id: 'override-1',
+      scopeType: 'ENVIRONMENT',
+      projectId: 'proj pay',
+      environmentKey: 'qa env',
+      status: 'PENDING',
+      overrideLimits: {
+        linkedAssetsPerRequirement: 4,
+        explicitAssetsPerType: 2
+      },
+      changeReasonCodeCaptured: true,
+      approvalReasonCodeCaptured: false
+    });
+
+    requestJsonMock.mockResolvedValue({
+      code: 'OK',
+      message: 'ok',
+      trace_id: 'trace-policy-effective',
+      data: {
+        project_id: 'proj pay',
+        environment_key: 'qa env',
+        context_limits: {
+          linkedAssetsPerRequirement: '4',
+          explicitAssetsPerType: 2
+        },
+        applied_override_scopes: ['PLATFORM_DEFAULT', 'PROJECT', 'ENVIRONMENT'],
+        override_status_counts: { PENDING: '1', APPROVED: 2 },
+        policy_body_exported: false,
+        policy_diff_preview_exported: false,
+        approval_notes_exported: false,
+        ticket_url_exported: false,
+        aggregate_only: true
+      }
+    });
+
+    const effective = await fetchTestDesignContextPolicyEffective('proj pay', { environmentKey: 'qa env' });
+    expect(requestJsonMock).toHaveBeenLastCalledWith(
+      '/api/v1/test-design/context-policies/projects/proj%20pay/effective?environmentKey=qa+env'
+    );
+    expect(effective.data).toMatchObject({
+      projectId: 'proj pay',
+      environmentKey: 'qa env',
+      contextLimits: {
+        linkedAssetsPerRequirement: 4,
+        explicitAssetsPerType: 2
+      },
+      appliedOverrideScopes: ['PLATFORM_DEFAULT', 'PROJECT', 'ENVIRONMENT'],
+      overrideStatusCounts: { PENDING: 1, APPROVED: 2 },
+      policyBodyExported: false,
+      policyDiffPreviewExported: false,
+      approvalNotesExported: false,
+      ticketUrlExported: false,
+      aggregateOnly: true
+    });
+
+    expect(normalizeTestDesignContextPolicyOverride({
+      id: 'override-2',
+      override_limits: { linkedAssetSchemaChars: '180' },
+      change_reason_code_captured: true
+    })).toMatchObject({
+      id: 'override-2',
+      overrideLimits: { linkedAssetSchemaChars: 180 },
+      changeReasonCodeCaptured: true
+    });
+    expect(normalizeTestDesignContextPolicyEffective({
+      context_limits: { linkedAssetsPerRequirement: '3' },
+      applied_override_scopes: 'PLATFORM_DEFAULT,PROJECT'
+    })).toMatchObject({
+      contextLimits: { linkedAssetsPerRequirement: 3 },
+      appliedOverrideScopes: ['PLATFORM_DEFAULT', 'PROJECT']
+    });
+  });
+
+  it('calls context policy mutation endpoints with compact sanitized payloads', async () => {
+    requestJsonMock.mockResolvedValue({
+      code: 'OK',
+      message: 'ok',
+      trace_id: 'trace-policy-mutation',
+      data: { id: 'override-1', status: 'PENDING' }
+    });
+
+    await requestTestDesignProjectContextPolicyOverride('proj pay', {
+      contextLinkedAssetsPerRequirement: 4,
+      contextExplicitAssetsPerType: undefined,
+      contextRequirementDescriptionChars: 180,
+      changeReasonCode: ' QUALITY_BASELINE '
+    });
+    expect(requestJsonMock).toHaveBeenLastCalledWith(
+      '/api/v1/test-design/context-policies/projects/proj%20pay/overrides',
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          contextLinkedAssetsPerRequirement: 4,
+          contextRequirementDescriptionChars: 180,
+          changeReasonCode: 'QUALITY_BASELINE'
+        })
+      }
+    );
+
+    await requestTestDesignEnvironmentContextPolicyOverride('proj pay', 'qa env', {
+      contextExplicitAssetsPerType: 2,
+      changeReasonCode: 'SMOKE_VALIDATION'
+    });
+    expect(requestJsonMock).toHaveBeenLastCalledWith(
+      '/api/v1/test-design/context-policies/projects/proj%20pay/environments/qa%20env/overrides',
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          contextExplicitAssetsPerType: 2,
+          changeReasonCode: 'SMOKE_VALIDATION'
+        })
+      }
+    );
+
+    await approveTestDesignContextPolicyOverride('override 1', { approvalReasonCode: ' SMOKE_VALIDATION ' });
+    expect(requestJsonMock).toHaveBeenLastCalledWith(
+      '/api/v1/test-design/context-policies/overrides/override%201/approve',
+      {
+        method: 'POST',
+        body: JSON.stringify({ approvalReasonCode: 'SMOKE_VALIDATION' })
+      }
+    );
+
+    await rejectTestDesignContextPolicyOverride('override 1', { approvalReasonCode: 'PROJECT_COMPLEXITY' });
+    expect(requestJsonMock).toHaveBeenLastCalledWith(
+      '/api/v1/test-design/context-policies/overrides/override%201/reject',
+      {
+        method: 'POST',
+        body: JSON.stringify({ approvalReasonCode: 'PROJECT_COMPLEXITY' })
+      }
+    );
   });
 
   it('calls task lifecycle action endpoints with encoded task ids', async () => {

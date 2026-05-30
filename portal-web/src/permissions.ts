@@ -77,6 +77,7 @@ export type Permission =
   | 'testDesign:review'
   | 'testDesign:publish'
   | 'testDesign:export'
+  | 'testDesign:policy_manage'
   | 'modelAccess:read'
   | 'modelAccess:manage'
   | 'modelAccess:export';
@@ -123,6 +124,7 @@ export type ButtonKey =
   | 'testDesign:review'
   | 'testDesign:publish'
   | 'testDesign:export'
+  | 'testDesign:policy_manage'
   | 'modelAccess:provider_manage'
   | 'modelAccess:prompt_manage'
   | 'modelAccess:export';
@@ -210,6 +212,7 @@ const buttonPermissionGroups: Record<ButtonKey, Permission[][]> = {
   'testDesign:review': [['testDesign:review']],
   'testDesign:publish': [['testDesign:publish']],
   'testDesign:export': [['testDesign:export']],
+  'testDesign:policy_manage': [['testDesign:policy_manage']],
   'modelAccess:provider_manage': [['modelAccess:manage']],
   'modelAccess:prompt_manage': [['modelAccess:manage']],
   'modelAccess:export': [['modelAccess:export']],

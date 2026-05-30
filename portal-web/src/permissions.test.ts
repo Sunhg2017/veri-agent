@@ -171,6 +171,8 @@ describe('WP1 permission helpers', () => {
     expect(canUseButton(user(['testDesign:review']), 'testDesign:review')).toBe(true);
     expect(canUseButton(user(['testDesign:publish']), 'testDesign:publish')).toBe(true);
     expect(canUseButton(user(['testDesign:export']), 'testDesign:export')).toBe(true);
+    expect(canUseButton(user(['testDesign:policy_manage']), 'testDesign:policy_manage')).toBe(true);
+    expect(canUseButton(user(['testDesign:read']), 'testDesign:policy_manage')).toBe(false);
     expect(canUseButton(user(['modelAccess:manage']), 'modelAccess:provider_manage')).toBe(true);
     expect(canUseButton(user(['modelAccess:manage']), 'modelAccess:prompt_manage')).toBe(true);
     expect(canUseButton(user(['modelAccess:read']), 'modelAccess:provider_manage')).toBe(false);

@@ -5,8 +5,8 @@
 | 工作包 | WP5 AI 用例生成与评审 |
 | 角色产出 | 资深服务端架构师 |
 | 文档性质 | 技术设计、数据模型、接口契约和服务端质量约束 |
-| 当前口径 | WP5 在 `platform-api` 内实现为独立领域模块，不新增独立部署服务；模块内应用服务按任务、生成、评审、质量、发布、发布补偿、冲突、报告、上下文策略和跨 WP 审计链聚合拆分；任务本域审计链摘要由报告服务聚合 WP5 任务、评审和发布记录；任务级跨 WP 审计链只读聚合由 `TestDesignAuditChainService` 输出 aggregate-only 看板骨架，聚合任务相关 WP1 audit_log、WP2 invocation/job、WP3 发布引用、WP5 本域事件和 audit outbox 状态计数，不导出审计事件明细或跨域标识；Prompt 趋势按版本输出聚合准出摘要和准出状态分布；任务创建支持显式 API/页面/业务流上下文资产和 `environmentKey`，并将上下文裁剪策略、项目/环境 effective context policy、`generationOrchestrationPolicy` 生成编排策略、`scopePolicy` 权限与资源作用域策略、`evaluationCorpusPolicy` 评测语料运营策略、`releaseReadinessPolicy` 发布准出审批策略、`auditChainPolicy` 跨 WP 审计链策略、`modelObservationPolicy` 模型观测策略、`archivePolicy` 归档治理策略、`reportManifestPolicy` 报告清单策略、`contextAssemblyPolicy` v2 装配策略安全边界、治理状态快照和 `contextPolicyOperations` v2 运营聚合快照暴露到 health、任务诊断、模型上下文打包、任务上下文摘要和任务全量报告；任务报告导出增加治理聚合行、生成编排策略聚合行、作用域策略聚合行、评测语料策略聚合行、发布准出审批策略聚合行、跨 WP 审计链策略聚合行、上下文装配策略 v2 聚合行、上下文策略治理聚合行、上下文策略运营 v2 聚合行、模型观测策略聚合行、质量准出阈值策略聚合行、导出审计策略聚合行、安全扫描策略聚合行、归档策略聚合行、报告清单策略聚合行、Prompt 校准策略聚合行、发布补偿策略聚合行、报告 manifest 聚合行、最终安全扫描和安全扫描通过后的 aggregate-only manifest 持久化；发布补偿后台仅自动处理已持有 WP3 用例引用的失败候选，不自动首次创建用例或解决高相似冲突 |
-| 版本 | v0.34 |
+| 当前口径 | WP5 在 `platform-api` 内实现为独立领域模块，不新增独立部署服务；模块内应用服务按任务、生成、评审、质量、发布、发布补偿、冲突、报告、上下文策略和跨 WP 审计链聚合拆分；任务本域审计链摘要由报告服务聚合 WP5 任务、评审和发布记录；任务级跨 WP 审计链只读聚合由 `TestDesignAuditChainService` 输出 aggregate-only 看板骨架，聚合任务相关 WP1 audit_log、WP2 invocation/job、WP3 发布引用、WP5 本域事件和 audit outbox 状态计数，不导出审计事件明细或跨域标识；Prompt 趋势按版本输出聚合准出摘要和准出状态分布；任务创建支持显式 API/页面/业务流上下文资产和 `environmentKey`，并将上下文裁剪策略、项目/环境 effective context policy、`generationOrchestrationPolicy` 生成编排策略、`scopePolicy` 权限与资源作用域策略、`evaluationCorpusPolicy` 评测语料运营策略、`releaseReadinessPolicy` 发布准出审批策略、`auditChainPolicy` 跨 WP 审计链策略、`modelObservationPolicy` 模型观测策略、`archivePolicy` 归档治理策略、`reportManifestPolicy` 报告清单策略、`contextAssemblyPolicy` v2 装配策略安全边界、治理状态快照和 `contextPolicyOperations` v2 运营聚合快照暴露到 health、任务诊断、模型上下文打包、任务上下文摘要和任务全量报告；portal-web 工作台已提供最小上下文策略运营面板，复用策略 API 查询 effective policy/覆盖记录、提交项目或环境级 bounded 覆盖并审批/驳回 PENDING 记录；任务报告导出增加治理聚合行、生成编排策略聚合行、作用域策略聚合行、评测语料策略聚合行、发布准出审批策略聚合行、跨 WP 审计链策略聚合行、上下文装配策略 v2 聚合行、上下文策略治理聚合行、上下文策略运营 v2 聚合行、模型观测策略聚合行、质量准出阈值策略聚合行、导出审计策略聚合行、安全扫描策略聚合行、归档策略聚合行、报告清单策略聚合行、Prompt 校准策略聚合行、发布补偿策略聚合行、报告 manifest 聚合行、最终安全扫描和安全扫描通过后的 aggregate-only manifest 持久化；发布补偿后台仅自动处理已持有 WP3 用例引用的失败候选，不自动首次创建用例或解决高相似冲突 |
+| 版本 | v0.35 |
 | 日期 | 2026-05-31 |
 
 ## 1. 架构原则
@@ -659,6 +659,15 @@ CONFIRMED -> IGNORED
 ```
 
 允许的原因编码：`QUALITY_BASELINE`、`PROJECT_COMPLEXITY`、`REGULATED_CONTEXT`、`PROMPT_BUDGET`、`SMOKE_VALIDATION`。item 上限约束为 `1..50`，字符上限约束为 `1..2000`。Developer 等无 `testDesign:policy_manage` 权限的用户创建覆盖返回 403；其他项目负责人审批非本项目覆盖返回 403。
+
+### 6.6 前端上下文策略运营面板
+
+portal-web 的 WP5 工作台在侧栏提供最小策略运营面板：
+
+- `testDesign:read` 用户可输入项目 ID 和可选环境键，调用 `/context-policies/projects/{projectId}/overrides` 与 `/effective` 查看覆盖记录、生效限制、解析顺序、状态分布和导出红线。
+- `testDesign:policy_manage` 用户可选择 PROJECT/ENVIRONMENT 范围、固定原因编码和 bounded 数字上限，提交项目级或环境级 PENDING 覆盖。
+- `testDesign:policy_manage` 用户可对 PENDING 覆盖执行 approve/reject，审批请求仅发送固定 `approvalReasonCode`。
+- 面板、API helper 和测试只处理数字、状态、时间、申请/审批人和 captured 布尔语义；不得展示或构造策略正文、策略 diff、审批备注、工单 URL、上下文正文、原因编码自由文本或可反查上下文明细。
 
 ## 7. 错误码建议
 
