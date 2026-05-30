@@ -60,6 +60,24 @@ const baseTask: TestDesignTaskView = {
     effectiveAtTaskCreation: true,
     aggregateOnly: true
   },
+  contextAssemblyPolicy: {
+    policyVersion: 'wp5-context-assembly-policy-v2',
+    assemblyMode: 'SNAPSHOT_DIGEST_ONLY',
+    digestStrategy: 'SHA256_CONTEXT_SUMMARY',
+    inputDigestRequired: true,
+    persistedContextSummaryOnly: true,
+    wp3ApplicationServiceOnly: true,
+    rawContextBodyStored: false,
+    modelPayloadStored: false,
+    digestValueExported: false,
+    requirementBodyExported: false,
+    assetSchemaExported: false,
+    pageTreeExported: false,
+    flowJsonExported: false,
+    explicitAssetIdentifierListExported: false,
+    historicalCaseStepExported: false,
+    aggregateOnly: true
+  },
   contextPolicyOperations: {
     policyVersion: 'wp5-context-policy-operations-v2',
     operationMode: 'PLATFORM_DEFAULT_ONLY',
@@ -120,6 +138,11 @@ describe('WP5 task diagnostics helpers', () => {
         expect.objectContaining({
           label: '上下文策略',
           value: '关联资产:2 · 显式资产:3 · 历史用例:4 · 需求描述:180 · 验收标准:160 · 资产摘要:120'
+        }),
+        expect.objectContaining({
+          label: '装配策略',
+          tone: 'neutral',
+          value: 'SNAPSHOT_DIGEST_ONLY · SHA256_CONTEXT_SUMMARY · 摘要:required · 仅摘要:yes · WP3应用服务:yes · 原文持久化:off · 模型载荷持久化:off · 细节导出:off'
         }),
         expect.objectContaining({
           label: '策略治理',
@@ -208,6 +231,62 @@ describe('WP5 task diagnostics helpers', () => {
           label: '策略治理',
           tone: 'warning',
           value: expect.stringContaining('审批流:pending')
+        })
+      ])
+    );
+  });
+
+  it('falls back to aggregate context assembly policy from the task summary', () => {
+    const diagnostics = buildTestDesignTaskDiagnostics({
+      ...baseTask,
+      contextAssemblyPolicy: undefined,
+      contextSummary: {
+        assemblyPolicy: {
+          assemblyMode: 'SNAPSHOT_DIGEST_ONLY',
+          digestStrategy: 'SHA256_CONTEXT_SUMMARY',
+          inputDigestRequired: true,
+          persistedContextSummaryOnly: true,
+          wp3ApplicationServiceOnly: true,
+          rawContextBodyStored: false,
+          modelPayloadStored: false,
+          digestValueExported: false,
+          explicitAssetIdentifierListExported: false,
+          digestValue: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+          explicitAssetIds: ['asset-secret-id'],
+          requestSchemaPreview: 'schema should not appear'
+        }
+      }
+    });
+
+    expect(diagnostics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          label: '装配策略',
+          tone: 'neutral',
+          value: expect.stringContaining('SHA256_CONTEXT_SUMMARY')
+        })
+      ])
+    );
+    expect(JSON.stringify(diagnostics)).not.toContain('asset-secret-id');
+    expect(JSON.stringify(diagnostics)).not.toContain('schema should not appear');
+  });
+
+  it('marks unsafe context assembly policy as danger', () => {
+    const diagnostics = buildTestDesignTaskDiagnostics({
+      ...baseTask,
+      contextAssemblyPolicy: {
+        ...baseTask.contextAssemblyPolicy,
+        rawContextBodyStored: true,
+        digestValueExported: true
+      }
+    });
+
+    expect(diagnostics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          label: '装配策略',
+          tone: 'danger',
+          value: expect.stringContaining('细节导出:on')
         })
       ])
     );

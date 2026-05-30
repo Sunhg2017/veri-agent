@@ -83,6 +83,19 @@ class TestDesignGenerationServiceTest {
         assertThat(summary.path("limits").path("requirementDescriptionChars").asInt()).isEqualTo(24);
         assertThat(summary.path("limits").path("acceptanceCriteriaChars").asInt()).isEqualTo(26);
         assertThat(summary.path("limits").path("linkedAssetSchemaChars").asInt()).isEqualTo(32);
+        assertThat(summary.path("assemblyPolicy").path("policyVersion").asText())
+                .isEqualTo("wp5-context-assembly-policy-v2");
+        assertThat(summary.path("assemblyPolicy").path("assemblyMode").asText())
+                .isEqualTo("SNAPSHOT_DIGEST_ONLY");
+        assertThat(summary.path("assemblyPolicy").path("digestStrategy").asText())
+                .isEqualTo("SHA256_CONTEXT_SUMMARY");
+        assertThat(summary.path("assemblyPolicy").path("inputDigestRequired").asBoolean()).isTrue();
+        assertThat(summary.path("assemblyPolicy").path("persistedContextSummaryOnly").asBoolean()).isTrue();
+        assertThat(summary.path("assemblyPolicy").path("wp3ApplicationServiceOnly").asBoolean()).isTrue();
+        assertThat(summary.path("assemblyPolicy").path("rawContextBodyStored").asBoolean()).isFalse();
+        assertThat(summary.path("assemblyPolicy").path("modelPayloadStored").asBoolean()).isFalse();
+        assertThat(summary.path("assemblyPolicy").path("digestValueExported").asBoolean()).isFalse();
+        assertThat(summary.path("assemblyPolicy").path("aggregateOnly").asBoolean()).isTrue();
         assertThat(summary.path("policyGovernance").path("policyVersion").asText())
                 .isEqualTo("wp5-context-policy-v1");
         assertThat(summary.path("policyGovernance").path("policySource").asText())
@@ -178,6 +191,20 @@ class TestDesignGenerationServiceTest {
         assertThat(payload.path("contextPacking").path("linkedAssetSchemaChars").asInt()).isEqualTo(140);
         assertThat(payload.path("contextPacking").path("rawPromptStored").asBoolean()).isFalse();
         assertThat(payload.path("contextPacking").path("persistedContextSummaryOnly").asBoolean()).isTrue();
+        assertThat(payload.path("contextPacking").path("assemblyPolicy").path("policyVersion").asText())
+                .isEqualTo("wp5-context-assembly-policy-v2");
+        assertThat(payload.path("contextPacking").path("assemblyPolicy").path("assemblyMode").asText())
+                .isEqualTo("SNAPSHOT_DIGEST_ONLY");
+        assertThat(payload.path("contextPacking").path("assemblyPolicy").path("digestStrategy").asText())
+                .isEqualTo("SHA256_CONTEXT_SUMMARY");
+        assertThat(payload.path("contextPacking").path("assemblyPolicy").path("inputDigestRequired").asBoolean())
+                .isTrue();
+        assertThat(payload.path("contextPacking").path("assemblyPolicy").path("rawContextBodyStored").asBoolean())
+                .isFalse();
+        assertThat(payload.path("contextPacking").path("assemblyPolicy").path("modelPayloadStored").asBoolean())
+                .isFalse();
+        assertThat(payload.path("contextPacking").path("assemblyPolicy").path("aggregateOnly").asBoolean())
+                .isTrue();
         assertThat(payload.path("contextPacking").path("policyGovernance").path("policySource").asText())
                 .isEqualTo("PLATFORM_DEFAULT");
         assertThat(payload.path("contextPacking").path("policyGovernance").path("projectOverrideSupported").asBoolean())

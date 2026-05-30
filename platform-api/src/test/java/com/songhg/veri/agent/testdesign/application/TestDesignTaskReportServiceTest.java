@@ -60,6 +60,7 @@ class TestDesignTaskReportServiceTest {
                 null,
                 "digest",
                 null,
+                TestDesignContextAssemblyPolicy.response(),
                 TestDesignContextPolicyGovernance.response(),
                 TestDesignContextPolicyOperations.response(),
                 Map.of(),
@@ -110,6 +111,7 @@ class TestDesignTaskReportServiceTest {
                 null,
                 "digest",
                 null,
+                TestDesignContextAssemblyPolicy.response(),
                 TestDesignContextPolicyGovernance.response(),
                 TestDesignContextPolicyOperations.response(),
                 Map.of(),
@@ -167,6 +169,7 @@ class TestDesignTaskReportServiceTest {
                 null,
                 "digest",
                 null,
+                TestDesignContextAssemblyPolicy.response(),
                 TestDesignContextPolicyGovernance.response(),
                 TestDesignContextPolicyOperations.response(),
                 Map.of(),
@@ -223,6 +226,7 @@ class TestDesignTaskReportServiceTest {
                 null,
                 "digest",
                 null,
+                TestDesignContextAssemblyPolicy.response(),
                 TestDesignContextPolicyGovernance.response(),
                 TestDesignContextPolicyOperations.response(),
                 Map.of(),
@@ -305,6 +309,7 @@ class TestDesignTaskReportServiceTest {
                 null,
                 digest,
                 null,
+                TestDesignContextAssemblyPolicy.response(),
                 TestDesignContextPolicyGovernance.response(),
                 TestDesignContextPolicyOperations.response(),
                 Map.of(
@@ -350,8 +355,10 @@ class TestDesignTaskReportServiceTest {
         String report = csv.toString();
         assertDoesNotThrow(() -> TestDesignTaskReportExportGovernance.validateExportSafety(report));
         org.assertj.core.api.Assertions.assertThat(report)
-                .contains("contextAssemblyPolicy,policyVersion,,wp5-context-assembly-policy-v1")
+                .contains("contextAssemblyPolicy,policyVersion,,wp5-context-assembly-policy-v2")
                 .contains("contextAssemblyPolicy,assemblyMode,,SNAPSHOT_DIGEST_ONLY")
+                .contains("contextAssemblyPolicy,digestStrategy,,SHA256_CONTEXT_SUMMARY")
+                .contains("contextAssemblyPolicy,inputDigestRequired,,true,,success")
                 .contains("contextAssemblyPolicy,inputDigestTracked,,true,,success")
                 .contains("contextAssemblyPolicy,persistedContextSummaryOnly,,true,,success")
                 .contains("contextAssemblyPolicy,wp3ApplicationServiceOnly,,true,,success")
@@ -407,6 +414,7 @@ class TestDesignTaskReportServiceTest {
                 null,
                 "digest",
                 null,
+                TestDesignContextAssemblyPolicy.response(),
                 TestDesignContextPolicyGovernance.response(),
                 TestDesignContextPolicyOperations.response(),
                 Map.of(),
@@ -489,6 +497,7 @@ class TestDesignTaskReportServiceTest {
                         "wp5-test-design",
                         Instant.parse("2026-05-30T00:00:00Z")
                 ),
+                TestDesignContextAssemblyPolicy.response(),
                 TestDesignContextPolicyGovernance.response(),
                 TestDesignContextPolicyOperations.response(),
                 Map.of(),
@@ -558,6 +567,7 @@ class TestDesignTaskReportServiceTest {
                 "idempotency-key-secret",
                 "digest",
                 null,
+                TestDesignContextAssemblyPolicy.response(),
                 TestDesignContextPolicyGovernance.response(),
                 TestDesignContextPolicyOperations.response(),
                 Map.of(),
@@ -627,6 +637,7 @@ class TestDesignTaskReportServiceTest {
                 null,
                 "digest",
                 null,
+                TestDesignContextAssemblyPolicy.response(),
                 TestDesignContextPolicyGovernance.response(),
                 TestDesignContextPolicyOperations.response(),
                 Map.of(),

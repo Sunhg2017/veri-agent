@@ -86,6 +86,19 @@ describe('WP5 test design API helpers', () => {
         change_approval_workflow_ready: false,
         aggregate_only: true
       },
+      context_assembly_policy: {
+        policy_version: 'wp5-context-assembly-policy-v2',
+        assembly_mode: 'SNAPSHOT_DIGEST_ONLY',
+        digest_strategy: 'SHA256_CONTEXT_SUMMARY',
+        input_digest_required: true,
+        persisted_context_summary_only: true,
+        wp3_application_service_only: true,
+        raw_context_body_stored: false,
+        model_payload_stored: false,
+        digest_value_exported: false,
+        explicit_asset_identifier_list_exported: false,
+        aggregate_only: true
+      },
       context_policy_operations: {
         policy_version: 'wp5-context-policy-operations-v2',
         operation_mode: 'PLATFORM_DEFAULT_ONLY',
@@ -119,6 +132,19 @@ describe('WP5 test design API helpers', () => {
         changeApprovalWorkflowReady: false,
         aggregateOnly: true
       },
+      contextAssemblyPolicy: {
+        policyVersion: 'wp5-context-assembly-policy-v2',
+        assemblyMode: 'SNAPSHOT_DIGEST_ONLY',
+        digestStrategy: 'SHA256_CONTEXT_SUMMARY',
+        inputDigestRequired: true,
+        persistedContextSummaryOnly: true,
+        wp3ApplicationServiceOnly: true,
+        rawContextBodyStored: false,
+        modelPayloadStored: false,
+        digestValueExported: false,
+        explicitAssetIdentifierListExported: false,
+        aggregateOnly: true
+      },
       contextPolicyOperations: {
         policyVersion: 'wp5-context-policy-operations-v2',
         operationMode: 'PLATFORM_DEFAULT_ONLY',
@@ -150,6 +176,17 @@ describe('WP5 test design API helpers', () => {
         governance_status: 'PLATFORM_DEFAULT_ONLY',
         change_approval_workflow_ready: false
       },
+      context_assembly_policy: {
+        policy_version: 'wp5-context-assembly-policy-v2',
+        assembly_mode: 'SNAPSHOT_DIGEST_ONLY',
+        digest_strategy: 'SHA256_CONTEXT_SUMMARY',
+        input_digest_required: true,
+        persisted_context_summary_only: true,
+        wp3_application_service_only: true,
+        raw_context_body_stored: false,
+        model_payload_stored: false,
+        aggregate_only: true
+      },
       context_policy_operations: {
         policy_version: 'wp5-context-policy-operations-v2',
         operation_mode: 'PLATFORM_DEFAULT_ONLY',
@@ -179,6 +216,17 @@ describe('WP5 test design API helpers', () => {
         policySource: 'PLATFORM_DEFAULT',
         governanceStatus: 'PLATFORM_DEFAULT_ONLY',
         changeApprovalWorkflowReady: false
+      },
+      contextAssemblyPolicy: {
+        policyVersion: 'wp5-context-assembly-policy-v2',
+        assemblyMode: 'SNAPSHOT_DIGEST_ONLY',
+        digestStrategy: 'SHA256_CONTEXT_SUMMARY',
+        inputDigestRequired: true,
+        persistedContextSummaryOnly: true,
+        wp3ApplicationServiceOnly: true,
+        rawContextBodyStored: false,
+        modelPayloadStored: false,
+        aggregateOnly: true
       },
       contextPolicyOperations: {
         policyVersion: 'wp5-context-policy-operations-v2',

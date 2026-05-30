@@ -103,6 +103,7 @@ public class TestDesignGenerationService {
                 .toList());
         summary.put("explicitAssets", explicitAssetContextSummary(projectId, explicitContext));
         summary.put("limits", contextSummaryLimits());
+        summary.put("assemblyPolicy", TestDesignContextAssemblyPolicy.snapshot());
         summary.put("policyGovernance", TestDesignContextPolicyGovernance.snapshot());
         summary.put("policyOperations", TestDesignContextPolicyOperations.snapshot());
         try {
@@ -509,6 +510,7 @@ public class TestDesignGenerationService {
         policy.putAll(properties.effectiveContextLimits());
         policy.put("rawPromptStored", false);
         policy.put("persistedContextSummaryOnly", true);
+        policy.put("assemblyPolicy", TestDesignContextAssemblyPolicy.snapshot());
         policy.put("policyGovernance", TestDesignContextPolicyGovernance.snapshot());
         policy.put("policyOperations", TestDesignContextPolicyOperations.snapshot());
         return policy;

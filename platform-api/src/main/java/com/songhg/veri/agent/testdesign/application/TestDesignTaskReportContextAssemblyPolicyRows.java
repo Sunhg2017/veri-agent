@@ -8,8 +8,6 @@ import org.springframework.util.StringUtils;
 
 final class TestDesignTaskReportContextAssemblyPolicyRows {
 
-    private static final String POLICY_VERSION = "wp5-context-assembly-policy-v1";
-
     private TestDesignTaskReportContextAssemblyPolicyRows() {
     }
 
@@ -22,21 +20,30 @@ final class TestDesignTaskReportContextAssemblyPolicyRows {
      */
     static void appendRows(StringBuilder csv, TestDesignTaskResponse task, Instant generatedAt) {
         Map<String, Object> context = task.contextSummary() == null ? Map.of() : task.contextSummary();
-        appendMetadataRow(csv, task, generatedAt, "policyVersion", POLICY_VERSION, null);
-        appendMetadataRow(csv, task, generatedAt, "assemblyMode", "SNAPSHOT_DIGEST_ONLY", null);
+        Map<String, Object> snapshot = TestDesignContextAssemblyPolicy.snapshot();
+        appendMetadataRow(csv, task, generatedAt, "policyVersion", snapshot.get("policyVersion"), null);
+        appendMetadataRow(csv, task, generatedAt, "assemblyMode", snapshot.get("assemblyMode"), null);
+        appendMetadataRow(csv, task, generatedAt, "digestStrategy", snapshot.get("digestStrategy"), null);
+        appendMetadataRow(csv, task, generatedAt, "inputDigestRequired",
+                snapshot.get("inputDigestRequired"), "success");
         appendMetadataRow(csv, task, generatedAt, "inputDigestTracked",
                 StringUtils.hasText(task.inputDigest()), StringUtils.hasText(task.inputDigest()) ? "success" : "warning");
-        appendMetadataRow(csv, task, generatedAt, "persistedContextSummaryOnly", true, "success");
-        appendMetadataRow(csv, task, generatedAt, "wp3ApplicationServiceOnly", true, "success");
-        appendMetadataRow(csv, task, generatedAt, "rawContextBodyStored", false, null);
-        appendMetadataRow(csv, task, generatedAt, "modelPayloadStored", false, null);
-        appendMetadataRow(csv, task, generatedAt, "digestValueExported", false, null);
-        appendMetadataRow(csv, task, generatedAt, "requirementBodyExported", false, null);
-        appendMetadataRow(csv, task, generatedAt, "assetSchemaExported", false, null);
-        appendMetadataRow(csv, task, generatedAt, "pageTreeExported", false, null);
-        appendMetadataRow(csv, task, generatedAt, "flowJsonExported", false, null);
-        appendMetadataRow(csv, task, generatedAt, "explicitAssetIdentifierListExported", false, null);
-        appendMetadataRow(csv, task, generatedAt, "historicalCaseStepExported", false, null);
+        appendMetadataRow(csv, task, generatedAt, "persistedContextSummaryOnly",
+                snapshot.get("persistedContextSummaryOnly"), "success");
+        appendMetadataRow(csv, task, generatedAt, "wp3ApplicationServiceOnly",
+                snapshot.get("wp3ApplicationServiceOnly"), "success");
+        appendMetadataRow(csv, task, generatedAt, "rawContextBodyStored", snapshot.get("rawContextBodyStored"), null);
+        appendMetadataRow(csv, task, generatedAt, "modelPayloadStored", snapshot.get("modelPayloadStored"), null);
+        appendMetadataRow(csv, task, generatedAt, "digestValueExported", snapshot.get("digestValueExported"), null);
+        appendMetadataRow(csv, task, generatedAt, "requirementBodyExported",
+                snapshot.get("requirementBodyExported"), null);
+        appendMetadataRow(csv, task, generatedAt, "assetSchemaExported", snapshot.get("assetSchemaExported"), null);
+        appendMetadataRow(csv, task, generatedAt, "pageTreeExported", snapshot.get("pageTreeExported"), null);
+        appendMetadataRow(csv, task, generatedAt, "flowJsonExported", snapshot.get("flowJsonExported"), null);
+        appendMetadataRow(csv, task, generatedAt, "explicitAssetIdentifierListExported",
+                snapshot.get("explicitAssetIdentifierListExported"), null);
+        appendMetadataRow(csv, task, generatedAt, "historicalCaseStepExported",
+                snapshot.get("historicalCaseStepExported"), null);
         appendMetricRow(csv, task, generatedAt, "requirementSnapshotCount", listSize(context.get("requirements")));
         appendMetricRow(csv, task, generatedAt, "linkedAssetSnapshotGroupCount",
                 listSize(context.get("linkedAssetsByRequirement")));
@@ -45,7 +52,7 @@ final class TestDesignTaskReportContextAssemblyPolicyRows {
         appendMetricRow(csv, task, generatedAt, "explicitAssetTypeCount",
                 explicitAssetTypeCount(context.get("explicitAssets")));
         appendMetricRow(csv, task, generatedAt, "clippingLimitCount", clippingLimitCount(context.get("limits")));
-        appendMetadataRow(csv, task, generatedAt, "aggregateOnly", true, "success");
+        appendMetadataRow(csv, task, generatedAt, "aggregateOnly", snapshot.get("aggregateOnly"), "success");
     }
 
     private static long listSize(Object value) {

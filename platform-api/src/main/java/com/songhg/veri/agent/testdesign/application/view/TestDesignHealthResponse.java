@@ -26,6 +26,8 @@ public record TestDesignHealthResponse(
         int maxCasesPerRequirement,
         @Schema(description = "上下文裁剪策略的生效上限")
         Map<String, Integer> contextLimits,
+        @Schema(description = "上下文装配策略安全边界快照")
+        TestDesignContextAssemblyPolicyResponse contextAssemblyPolicy,
         @Schema(description = "上下文策略治理状态快照")
         TestDesignContextPolicyGovernanceResponse contextPolicyGovernance,
         @Schema(description = "上下文策略运营 v2 聚合快照")

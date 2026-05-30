@@ -16,6 +16,7 @@ export interface TestDesignHealth {
   maxRequirementsPerTask?: number;
   maxCasesPerRequirement?: number;
   contextLimits?: Record<string, number>;
+  contextAssemblyPolicy?: TestDesignContextAssemblyPolicyView;
   contextPolicyGovernance?: TestDesignContextPolicyGovernanceView;
   contextPolicyOperations?: TestDesignContextPolicyOperationsView;
   supportedCoverageTypes: string[];
@@ -42,6 +43,7 @@ export interface TestDesignTaskView {
   idempotencyKey?: string;
   inputDigest?: string;
   modelObservation?: TestDesignModelObservationView;
+  contextAssemblyPolicy?: TestDesignContextAssemblyPolicyView;
   contextPolicyGovernance?: TestDesignContextPolicyGovernanceView;
   contextPolicyOperations?: TestDesignContextPolicyOperationsView;
   contextSummary: Record<string, unknown>;
@@ -59,6 +61,25 @@ export interface TestDesignContextPolicyGovernanceView {
   changeApprovalRequired?: boolean;
   changeApprovalWorkflowReady?: boolean;
   effectiveAtTaskCreation?: boolean;
+  aggregateOnly?: boolean;
+}
+
+export interface TestDesignContextAssemblyPolicyView {
+  policyVersion?: string;
+  assemblyMode?: string;
+  digestStrategy?: string;
+  inputDigestRequired?: boolean;
+  persistedContextSummaryOnly?: boolean;
+  wp3ApplicationServiceOnly?: boolean;
+  rawContextBodyStored?: boolean;
+  modelPayloadStored?: boolean;
+  digestValueExported?: boolean;
+  requirementBodyExported?: boolean;
+  assetSchemaExported?: boolean;
+  pageTreeExported?: boolean;
+  flowJsonExported?: boolean;
+  explicitAssetIdentifierListExported?: boolean;
+  historicalCaseStepExported?: boolean;
   aggregateOnly?: boolean;
 }
 
@@ -575,6 +596,9 @@ export function normalizeTestDesignHealth(raw: unknown): TestDesignHealth {
     maxRequirementsPerTask: numberValue(item.maxRequirementsPerTask ?? item.max_requirements_per_task, 0),
     maxCasesPerRequirement: numberValue(item.maxCasesPerRequirement ?? item.max_cases_per_requirement, 0),
     contextLimits: numberRecordValue(item.contextLimits ?? item.context_limits),
+    contextAssemblyPolicy: normalizeTestDesignContextAssemblyPolicy(
+      item.contextAssemblyPolicy ?? item.context_assembly_policy
+    ),
     contextPolicyGovernance: normalizeTestDesignContextPolicyGovernance(
       item.contextPolicyGovernance ?? item.context_policy_governance
     ),
@@ -609,6 +633,9 @@ export function normalizeTestDesignTask(raw: unknown): TestDesignTaskView {
     idempotencyKey: optionalString(item.idempotencyKey) ?? optionalString(item.idempotency_key),
     inputDigest: optionalString(item.inputDigest) ?? optionalString(item.input_digest),
     modelObservation: normalizeTestDesignModelObservation(item.modelObservation ?? item.model_observation),
+    contextAssemblyPolicy: normalizeTestDesignContextAssemblyPolicy(
+      item.contextAssemblyPolicy ?? item.context_assembly_policy
+    ),
     contextPolicyGovernance: normalizeTestDesignContextPolicyGovernance(
       item.contextPolicyGovernance ?? item.context_policy_governance
     ),
@@ -618,6 +645,40 @@ export function normalizeTestDesignTask(raw: unknown): TestDesignTaskView {
     contextSummary: recordValue(item.contextSummary ?? item.context_summary),
     createdAt: optionalString(item.createdAt) ?? optionalString(item.created_at),
     updatedAt: optionalString(item.updatedAt) ?? optionalString(item.updated_at)
+  };
+}
+
+export function normalizeTestDesignContextAssemblyPolicy(
+  raw: unknown
+): TestDesignContextAssemblyPolicyView | undefined {
+  if (!isRecord(raw)) {
+    return undefined;
+  }
+  return {
+    policyVersion: optionalString(raw.policyVersion) ?? optionalString(raw.policy_version),
+    assemblyMode: optionalString(raw.assemblyMode) ?? optionalString(raw.assembly_mode),
+    digestStrategy: optionalString(raw.digestStrategy) ?? optionalString(raw.digest_strategy),
+    inputDigestRequired: optionalBoolean(raw.inputDigestRequired ?? raw.input_digest_required),
+    persistedContextSummaryOnly: optionalBoolean(
+      raw.persistedContextSummaryOnly ?? raw.persisted_context_summary_only
+    ),
+    wp3ApplicationServiceOnly: optionalBoolean(
+      raw.wp3ApplicationServiceOnly ?? raw.wp3_application_service_only
+    ),
+    rawContextBodyStored: optionalBoolean(raw.rawContextBodyStored ?? raw.raw_context_body_stored),
+    modelPayloadStored: optionalBoolean(raw.modelPayloadStored ?? raw.model_payload_stored),
+    digestValueExported: optionalBoolean(raw.digestValueExported ?? raw.digest_value_exported),
+    requirementBodyExported: optionalBoolean(raw.requirementBodyExported ?? raw.requirement_body_exported),
+    assetSchemaExported: optionalBoolean(raw.assetSchemaExported ?? raw.asset_schema_exported),
+    pageTreeExported: optionalBoolean(raw.pageTreeExported ?? raw.page_tree_exported),
+    flowJsonExported: optionalBoolean(raw.flowJsonExported ?? raw.flow_json_exported),
+    explicitAssetIdentifierListExported: optionalBoolean(
+      raw.explicitAssetIdentifierListExported ?? raw.explicit_asset_identifier_list_exported
+    ),
+    historicalCaseStepExported: optionalBoolean(
+      raw.historicalCaseStepExported ?? raw.historical_case_step_exported
+    ),
+    aggregateOnly: optionalBoolean(raw.aggregateOnly ?? raw.aggregate_only)
   };
 }
 

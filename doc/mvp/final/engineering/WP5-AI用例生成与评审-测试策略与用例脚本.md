@@ -5,8 +5,8 @@
 | 工作包 | WP5 AI 用例生成与评审 |
 | 角色产出 | 资深质量工程师 |
 | 文档性质 | 测试策略、功能用例、安全和可测试性建议、脚本设计 |
-| 当前口径 | 已纳入 WP5 后端、前端、DB validation、Prompt 趋势、准出运营摘要、显式上下文装配、上下文裁剪策略配置、上下文策略治理状态快照、上下文策略运营 v2 聚合快照、任务诊断上下文策略与策略运营摘要、任务报告生成编排策略聚合行、任务报告上下文聚合行、任务报告上下文装配策略聚合行、任务报告上下文策略治理聚合行、任务报告上下文策略运营 v2 聚合行、任务报告模型观测策略聚合行、任务报告质量准出阈值策略聚合行、任务报告导出审计策略聚合行、任务报告安全扫描策略聚合行、任务报告归档策略聚合行、Prompt 校准策略聚合行、发布补偿策略聚合行、任务报告 manifest 聚合行和任务报告导出安全扫描的自动化验证入口 |
-| 版本 | v2.5 |
+| 当前口径 | 已纳入 WP5 后端、前端、DB validation、Prompt 趋势、准出运营摘要、显式上下文装配、上下文裁剪策略配置、上下文装配策略 v2 共享快照、上下文策略治理状态快照、上下文策略运营 v2 聚合快照、任务诊断上下文策略、装配策略与策略运营摘要、任务报告生成编排策略聚合行、任务报告上下文聚合行、上下文装配策略 v2 共享快照行、任务报告上下文策略治理聚合行、任务报告上下文策略运营 v2 聚合行、任务报告模型观测策略聚合行、任务报告质量准出阈值策略聚合行、任务报告导出审计策略聚合行、任务报告安全扫描策略聚合行、任务报告归档策略聚合行、Prompt 校准策略聚合行、发布补偿策略聚合行、任务报告 manifest 聚合行和任务报告导出安全扫描的自动化验证入口 |
+| 版本 | v2.6 |
 | 日期 | 2026-05-30 |
 
 ## 1. 测试目标
@@ -60,12 +60,13 @@
 | WP5-FUNC-003A | P0 | 需求已关联 API、页面和业务流 | `contextSummary.linkedAssetsByRequirement` 包含三类资产脱敏摘要，且只通过 WP3 应用服务读取。 |
 | WP5-FUNC-003B | P0 | 创建任务时显式传入 API、页面和业务流 ID | `contextSummary.explicitAssets` 包含三类资产计数、ID 和脱敏摘要；`inputDigest` 与幂等 request digest 覆盖这些显式上下文 ID。 |
 | WP5-FUNC-003C | P0 | 配置 `veri-agent.test-design.context-*` 裁剪策略 | 健康接口返回生效限制；`contextSummary.limits` 和模型请求 `contextPacking` 使用同一套生效值。 |
+| WP5-FUNC-003C-0 | P0 | 查看上下文装配策略 v2 状态 | 健康接口、任务响应、任务诊断、`contextSummary.assemblyPolicy` 和模型请求 `contextPacking.assemblyPolicy` 返回同一 v2 安全边界快照，包含装配模式、digest 策略、inputDigest 要求、摘要持久化、WP3 应用服务边界、原文/模型载荷持久化和明细导出红线。 |
 | WP5-FUNC-003C-1 | P0 | 查看上下文策略治理状态 | 健康接口、任务响应、任务诊断、`contextSummary.policyGovernance` 和模型请求 `contextPacking.policyGovernance` 返回同一平台默认治理快照，明确项目/环境覆盖关闭且审批流未就绪。 |
 | WP5-FUNC-003C-2 | P0 | 查看上下文策略运营 v2 状态 | 健康接口、任务响应、任务诊断、`contextSummary.policyOperations` 和模型请求 `contextPacking.policyOperations` 返回同一 v2 聚合快照，包含策略解析顺序、部署配置回退行为、审批状态、项目/环境覆盖存储和审批流就绪状态。 |
 | WP5-FUNC-003D | P0 | 导出任务全量报告 | CSV 只输出 `context/contextPolicy` 聚合计数和裁剪上限，不输出显式资产 ID、schema、页面树、流程 JSON、需求正文、历史用例步骤或原始 Prompt。 |
 | WP5-FUNC-003D-1 | P0 | 导出任务全量报告上下文策略治理信息 | CSV 包含 `contextPolicyGovernance` 聚合行，只输出策略版本、来源、治理状态、变更模式、覆盖开关、审批流就绪状态和 aggregate-only 标记，不输出审批备注、工单 URL、项目/环境覆盖规则或策略正文。 |
 | WP5-FUNC-003D-2 | P0 | 导出任务全量报告上下文策略运营 v2 信息 | CSV 包含 `contextPolicyOperations` 聚合行，只输出策略版本、平台默认运营模式、策略解析顺序、部署配置回退行为、审批状态、项目/环境覆盖存储就绪状态、审批流就绪状态、策略快照固化状态和禁止导出标记，不输出策略 diff、审批备注、工单 URL、项目/环境覆盖规则或策略正文。 |
-| WP5-FUNC-003D-3 | P0 | 导出任务全量报告上下文装配策略信息 | CSV 包含 `contextAssemblyPolicy` 聚合行，只输出装配策略版本、`SNAPSHOT_DIGEST_ONLY` 模式、inputDigest 跟踪、摘要持久化、WP3 应用服务边界、禁止导出标记和上下文组计数，不输出需求正文、schema、页面树、流程 JSON、显式资产 ID、digest 值、历史用例步骤或模型载荷。 |
+| WP5-FUNC-003D-3 | P0 | 导出任务全量报告上下文装配策略信息 | CSV 包含 `contextAssemblyPolicy` v2 聚合行，只输出装配策略版本、`SNAPSHOT_DIGEST_ONLY` 模式、`SHA256_CONTEXT_SUMMARY` digest 策略、inputDigest 要求/跟踪、摘要持久化、WP3 应用服务边界、禁止导出标记和上下文组计数，不输出需求正文、schema、页面树、流程 JSON、显式资产 ID、digest 值、历史用例步骤或模型载荷。 |
 | WP5-FUNC-003E | P0 | 导出任务全量报告治理信息 | CSV 包含 `exportGovernance` 聚合行，声明 aggregate-only、候选正文/评审评论/模型载荷/上下文正文/trace 明细不导出，且安全扫描状态为 `PASSED`。 |
 | WP5-FUNC-003F | P1 | 导出任务全量报告归档策略 | CSV 包含 `archivePolicy` 聚合行，只输出保留天数、固定存储策略、审批要求、外发开关和策略跟踪状态，不输出归档路径或审批备注。 |
 | WP5-FUNC-003G | P1 | 导出任务全量报告安全扫描策略 | CSV 包含 `safetyScanPolicy` 聚合行，只输出 fail-closed 模式和扫描策略开关，不输出扫描命中内容或违规字段原文。 |

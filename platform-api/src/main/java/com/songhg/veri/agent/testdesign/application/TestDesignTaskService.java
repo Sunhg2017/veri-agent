@@ -104,6 +104,7 @@ public class TestDesignTaskService {
                 maxRequirementsPerTask(),
                 maxCasesPerRequirement(),
                 properties.effectiveContextLimits(),
+                TestDesignContextAssemblyPolicy.response(),
                 TestDesignContextPolicyGovernance.response(),
                 TestDesignContextPolicyOperations.response(),
                 CoverageType.codes().stream().sorted().toList()

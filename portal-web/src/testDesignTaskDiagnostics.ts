@@ -46,6 +46,11 @@ export function buildTestDesignTaskDiagnostics(task: TestDesignTaskView | null |
     { label: '上下文', value: summarizeTestDesignTaskContext(task.contextSummary) },
     { label: '上下文策略', value: summarizeTestDesignContextPolicy(task.contextSummary) },
     {
+      label: '装配策略',
+      value: summarizeTestDesignContextAssemblyPolicy(task),
+      tone: contextAssemblyPolicyTone(task)
+    },
+    {
       label: '策略治理',
       value: summarizeTestDesignContextPolicyGovernance(task),
       tone: contextPolicyGovernanceTone(task)
@@ -129,6 +134,27 @@ export function summarizeTestDesignContextPolicy(contextSummary: Record<string, 
   return parts.length ? parts.join(' · ') : '-';
 }
 
+export function summarizeTestDesignContextAssemblyPolicy(
+  task: TestDesignTaskView | null | undefined
+): string {
+  const policy = task?.contextAssemblyPolicy ?? assemblyPolicyFromContextSummary(task?.contextSummary);
+  if (!policy) {
+    return '-';
+  }
+
+  const mode = displayDiagnosticText(policy.assemblyMode, 40);
+  const digest = displayDiagnosticText(policy.digestStrategy, 40);
+  const digestRequired = policy.inputDigestRequired === true ? '摘要:required' : '摘要:optional';
+  const summaryOnly = policy.persistedContextSummaryOnly === true ? '仅摘要:yes' : '仅摘要:no';
+  const wp3Boundary = policy.wp3ApplicationServiceOnly === true ? 'WP3应用服务:yes' : 'WP3应用服务:no';
+  const rawStored = policy.rawContextBodyStored === true ? '原文持久化:on' : '原文持久化:off';
+  const modelPayload = policy.modelPayloadStored === true ? '模型载荷持久化:on' : '模型载荷持久化:off';
+  const detailExport = anyAssemblyDetailExported(policy) ? '细节导出:on' : '细节导出:off';
+  return [mode, digest, digestRequired, summaryOnly, wp3Boundary, rawStored, modelPayload, detailExport]
+    .filter((part) => part !== '-')
+    .join(' · ') || '-';
+}
+
 export function summarizeTestDesignContextPolicyGovernance(
   task: TestDesignTaskView | null | undefined
 ): string {
@@ -168,6 +194,21 @@ export function summarizeTestDesignContextPolicyOperations(
     .join(' · ') || '-';
 }
 
+function contextAssemblyPolicyTone(task: TestDesignTaskView): TestDesignTaskDiagnosticTone {
+  const policy = task.contextAssemblyPolicy ?? assemblyPolicyFromContextSummary(task.contextSummary);
+  if (
+    policy?.inputDigestRequired === false ||
+    policy?.persistedContextSummaryOnly === false ||
+    policy?.wp3ApplicationServiceOnly === false ||
+    policy?.rawContextBodyStored === true ||
+    policy?.modelPayloadStored === true ||
+    anyAssemblyDetailExported(policy)
+  ) {
+    return 'danger';
+  }
+  return 'neutral';
+}
+
 function contextPolicyGovernanceTone(task: TestDesignTaskView): TestDesignTaskDiagnosticTone {
   const governance = task.contextPolicyGovernance ?? governanceFromContextSummary(task.contextSummary);
   if (governance?.changeApprovalWorkflowReady === false || governance?.projectOverrideSupported === false) {
@@ -187,6 +228,35 @@ function contextPolicyOperationsTone(task: TestDesignTaskView): TestDesignTaskDi
     return 'warning';
   }
   return 'neutral';
+}
+
+function assemblyPolicyFromContextSummary(contextSummary: Record<string, unknown> | null | undefined) {
+  if (!contextSummary || typeof contextSummary !== 'object') {
+    return undefined;
+  }
+  const raw = contextSummary.assemblyPolicy;
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    return undefined;
+  }
+  const record = raw as Record<string, unknown>;
+  return {
+    policyVersion: safeOptionalString(record.policyVersion),
+    assemblyMode: safeOptionalString(record.assemblyMode),
+    digestStrategy: safeOptionalString(record.digestStrategy),
+    inputDigestRequired: safeOptionalBoolean(record.inputDigestRequired),
+    persistedContextSummaryOnly: safeOptionalBoolean(record.persistedContextSummaryOnly),
+    wp3ApplicationServiceOnly: safeOptionalBoolean(record.wp3ApplicationServiceOnly),
+    rawContextBodyStored: safeOptionalBoolean(record.rawContextBodyStored),
+    modelPayloadStored: safeOptionalBoolean(record.modelPayloadStored),
+    digestValueExported: safeOptionalBoolean(record.digestValueExported),
+    requirementBodyExported: safeOptionalBoolean(record.requirementBodyExported),
+    assetSchemaExported: safeOptionalBoolean(record.assetSchemaExported),
+    pageTreeExported: safeOptionalBoolean(record.pageTreeExported),
+    flowJsonExported: safeOptionalBoolean(record.flowJsonExported),
+    explicitAssetIdentifierListExported: safeOptionalBoolean(record.explicitAssetIdentifierListExported),
+    historicalCaseStepExported: safeOptionalBoolean(record.historicalCaseStepExported),
+    aggregateOnly: safeOptionalBoolean(record.aggregateOnly)
+  };
 }
 
 function governanceFromContextSummary(contextSummary: Record<string, unknown> | null | undefined) {
@@ -230,6 +300,27 @@ function operationsFromContextSummary(contextSummary: Record<string, unknown> | 
     effectivePolicySnapshotMaterialized: safeOptionalBoolean(record.effectivePolicySnapshotMaterialized),
     aggregateOnly: safeOptionalBoolean(record.aggregateOnly)
   };
+}
+
+function anyAssemblyDetailExported(policy: {
+  digestValueExported?: boolean;
+  requirementBodyExported?: boolean;
+  assetSchemaExported?: boolean;
+  pageTreeExported?: boolean;
+  flowJsonExported?: boolean;
+  explicitAssetIdentifierListExported?: boolean;
+  historicalCaseStepExported?: boolean;
+} | null | undefined) {
+  if (!policy) {
+    return false;
+  }
+  return policy.digestValueExported === true ||
+    policy.requirementBodyExported === true ||
+    policy.assetSchemaExported === true ||
+    policy.pageTreeExported === true ||
+    policy.flowJsonExported === true ||
+    policy.explicitAssetIdentifierListExported === true ||
+    policy.historicalCaseStepExported === true;
 }
 
 function contextPolicyPart(record: Record<string, unknown>, key: string, label: string) {

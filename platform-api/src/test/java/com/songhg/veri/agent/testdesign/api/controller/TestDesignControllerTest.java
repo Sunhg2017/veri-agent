@@ -88,6 +88,18 @@ class TestDesignControllerTest {
                 .andExpect(jsonPath("$.data.contextLimits.linkedAssetsPerRequirement").value(2))
                 .andExpect(jsonPath("$.data.contextLimits.explicitAssetsPerType").value(2))
                 .andExpect(jsonPath("$.data.contextLimits.existingCasesPerRequirement").value(2))
+                .andExpect(jsonPath("$.data.contextAssemblyPolicy.policyVersion")
+                        .value("wp5-context-assembly-policy-v2"))
+                .andExpect(jsonPath("$.data.contextAssemblyPolicy.assemblyMode").value("SNAPSHOT_DIGEST_ONLY"))
+                .andExpect(jsonPath("$.data.contextAssemblyPolicy.digestStrategy").value("SHA256_CONTEXT_SUMMARY"))
+                .andExpect(jsonPath("$.data.contextAssemblyPolicy.inputDigestRequired").value(true))
+                .andExpect(jsonPath("$.data.contextAssemblyPolicy.persistedContextSummaryOnly").value(true))
+                .andExpect(jsonPath("$.data.contextAssemblyPolicy.wp3ApplicationServiceOnly").value(true))
+                .andExpect(jsonPath("$.data.contextAssemblyPolicy.rawContextBodyStored").value(false))
+                .andExpect(jsonPath("$.data.contextAssemblyPolicy.modelPayloadStored").value(false))
+                .andExpect(jsonPath("$.data.contextAssemblyPolicy.digestValueExported").value(false))
+                .andExpect(jsonPath("$.data.contextAssemblyPolicy.explicitAssetIdentifierListExported").value(false))
+                .andExpect(jsonPath("$.data.contextAssemblyPolicy.aggregateOnly").value(true))
                 .andExpect(jsonPath("$.data.contextPolicyGovernance.policyVersion").value("wp5-context-policy-v1"))
                 .andExpect(jsonPath("$.data.contextPolicyGovernance.policySource").value("PLATFORM_DEFAULT"))
                 .andExpect(jsonPath("$.data.contextPolicyGovernance.governanceStatus").value("PLATFORM_DEFAULT_ONLY"))
@@ -521,6 +533,16 @@ class TestDesignControllerTest {
                 .andExpect(jsonPath("$.data.task.contextSummary.limits.explicitAssetsPerType").value(2))
                 .andExpect(jsonPath("$.data.task.contextSummary.limits.existingCasesPerRequirement").value(2))
                 .andExpect(jsonPath("$.data.task.contextSummary.limits.linkedAssetSchemaChars").value(120))
+                .andExpect(jsonPath("$.data.task.contextAssemblyPolicy.policyVersion")
+                        .value("wp5-context-assembly-policy-v2"))
+                .andExpect(jsonPath("$.data.task.contextAssemblyPolicy.assemblyMode")
+                        .value("SNAPSHOT_DIGEST_ONLY"))
+                .andExpect(jsonPath("$.data.task.contextAssemblyPolicy.digestStrategy")
+                        .value("SHA256_CONTEXT_SUMMARY"))
+                .andExpect(jsonPath("$.data.task.contextAssemblyPolicy.inputDigestRequired").value(true))
+                .andExpect(jsonPath("$.data.task.contextAssemblyPolicy.rawContextBodyStored").value(false))
+                .andExpect(jsonPath("$.data.task.contextAssemblyPolicy.modelPayloadStored").value(false))
+                .andExpect(jsonPath("$.data.task.contextAssemblyPolicy.aggregateOnly").value(true))
                 .andExpect(jsonPath("$.data.task.contextPolicyGovernance.policySource").value("PLATFORM_DEFAULT"))
                 .andExpect(jsonPath("$.data.task.contextPolicyGovernance.changeApprovalWorkflowReady").value(false))
                 .andExpect(jsonPath("$.data.task.contextPolicyOperations.policyVersion")
@@ -536,6 +558,16 @@ class TestDesignControllerTest {
                 .andExpect(jsonPath("$.data.task.contextSummary.policyGovernance.policyVersion")
                         .value("wp5-context-policy-v1"))
                 .andExpect(jsonPath("$.data.task.contextSummary.policyGovernance.projectOverrideSupported").value(false))
+                .andExpect(jsonPath("$.data.task.contextSummary.assemblyPolicy.policyVersion")
+                        .value("wp5-context-assembly-policy-v2"))
+                .andExpect(jsonPath("$.data.task.contextSummary.assemblyPolicy.assemblyMode")
+                        .value("SNAPSHOT_DIGEST_ONLY"))
+                .andExpect(jsonPath("$.data.task.contextSummary.assemblyPolicy.digestStrategy")
+                        .value("SHA256_CONTEXT_SUMMARY"))
+                .andExpect(jsonPath("$.data.task.contextSummary.assemblyPolicy.inputDigestRequired").value(true))
+                .andExpect(jsonPath("$.data.task.contextSummary.assemblyPolicy.rawContextBodyStored").value(false))
+                .andExpect(jsonPath("$.data.task.contextSummary.assemblyPolicy.modelPayloadStored").value(false))
+                .andExpect(jsonPath("$.data.task.contextSummary.assemblyPolicy.aggregateOnly").value(true))
                 .andExpect(jsonPath("$.data.task.contextSummary.policyOperations.policyVersion")
                         .value("wp5-context-policy-operations-v2"))
                 .andExpect(jsonPath("$.data.task.contextSummary.policyOperations.policyResolutionOrder")
@@ -1087,8 +1119,10 @@ class TestDesignControllerTest {
         MatcherAssert.assertThat(csv, containsString("contextPolicy,explicitAssetsPerType,,2"));
         MatcherAssert.assertThat(csv, containsString("contextPolicy,requirementDescriptionChars,,180"));
         MatcherAssert.assertThat(csv, containsString("contextPolicy,linkedAssetSchemaChars,,120"));
-        MatcherAssert.assertThat(csv, containsString("contextAssemblyPolicy,policyVersion,,wp5-context-assembly-policy-v1"));
+        MatcherAssert.assertThat(csv, containsString("contextAssemblyPolicy,policyVersion,,wp5-context-assembly-policy-v2"));
         MatcherAssert.assertThat(csv, containsString("contextAssemblyPolicy,assemblyMode,,SNAPSHOT_DIGEST_ONLY"));
+        MatcherAssert.assertThat(csv, containsString("contextAssemblyPolicy,digestStrategy,,SHA256_CONTEXT_SUMMARY"));
+        MatcherAssert.assertThat(csv, containsString("contextAssemblyPolicy,inputDigestRequired,,true"));
         MatcherAssert.assertThat(csv, containsString("contextAssemblyPolicy,inputDigestTracked,,true"));
         MatcherAssert.assertThat(csv, containsString("contextAssemblyPolicy,persistedContextSummaryOnly,,true"));
         MatcherAssert.assertThat(csv, containsString("contextAssemblyPolicy,wp3ApplicationServiceOnly,,true"));
