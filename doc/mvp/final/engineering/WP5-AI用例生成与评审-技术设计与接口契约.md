@@ -5,8 +5,8 @@
 | 工作包 | WP5 AI 用例生成与评审 |
 | 角色产出 | 资深服务端架构师 |
 | 文档性质 | 技术设计、数据模型、接口契约和服务端质量约束 |
-| 当前口径 | WP5 在 `platform-api` 内实现为独立领域模块，不新增独立部署服务；模块内应用服务按任务、生成、评审、质量、发布、冲突和报告拆分；任务本域审计链摘要由报告服务聚合 WP5 任务、评审和发布记录；Prompt 趋势按版本输出聚合准出摘要和准出状态分布；任务创建支持显式 API/页面/业务流上下文资产，并将上下文裁剪策略配置化暴露到 health、任务诊断和任务全量报告 |
-| 版本 | v0.8 |
+| 当前口径 | WP5 在 `platform-api` 内实现为独立领域模块，不新增独立部署服务；模块内应用服务按任务、生成、评审、质量、发布、冲突和报告拆分；任务本域审计链摘要由报告服务聚合 WP5 任务、评审和发布记录；Prompt 趋势按版本输出聚合准出摘要和准出状态分布；任务创建支持显式 API/页面/业务流上下文资产，并将上下文裁剪策略配置化暴露到 health、任务诊断和任务全量报告；任务报告导出增加治理聚合行和最终安全扫描 |
+| 版本 | v0.9 |
 | 日期 | 2026-05-30 |
 
 ## 1. 架构原则
@@ -305,7 +305,7 @@ CONFIRMED -> IGNORED
 - `context-acceptance-criteria-chars`
 - `context-asset-schema-chars`
 
-任务报告只导出上下文规模和策略数字，例如 requirement/linked asset/explicit asset/existing case 计数与 `contextPolicy` 上限；不得导出显式资产 ID、API schema、页面树、流程 JSON、需求正文、历史用例步骤或原始 Prompt。
+任务报告只导出上下文规模和策略数字，例如 requirement/linked asset/explicit asset/existing case 计数与 `contextPolicy` 上限；不得导出显式资产 ID、API schema、页面树、流程 JSON、需求正文、历史用例步骤或原始 Prompt。报告导出会追加 `exportGovernance` 聚合行，声明 `aggregateOnly`、候选正文/评审评论/模型载荷/上下文正文/trace 明细均不允许导出；CSV 返回前还会执行最终安全扫描，命中未脱敏 secret/token/Bearer、原始 Prompt 标记或 request/response preview 标记时阻断导出。
 
 ## 6. API 契约
 
@@ -536,4 +536,5 @@ Spring 配置命名建议同步提供 `veri-agent.test-design.*` 形式，环境
 5. 模型调用不得在数据库事务内执行。
 6. 发布到 WP3 失败时记录发布失败记录，不把候选误标为已发布。
 7. 日志只记录 ID、状态、traceId 和脱敏摘要，不记录完整 prompt、需求原文、密钥或用户隐私。
-8. 单元测试覆盖状态机、校验、重复检测、模型输出解析和发布失败补偿。
+8. 导出类接口必须使用白名单字段和最终安全扫描；新增报告字段时必须证明不会输出候选正文、评审评论、模型请求/响应 preview、上下文正文、trace/job 明细或未脱敏密钥。
+9. 单元测试覆盖状态机、校验、重复检测、模型输出解析和发布失败补偿。

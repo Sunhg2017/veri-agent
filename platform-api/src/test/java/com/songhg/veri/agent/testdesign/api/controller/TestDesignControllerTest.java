@@ -848,6 +848,10 @@ class TestDesignControllerTest {
         MatcherAssert.assertThat(csv, containsString("contextPolicy,explicitAssetsPerType,,2"));
         MatcherAssert.assertThat(csv, containsString("contextPolicy,requirementDescriptionChars,,180"));
         MatcherAssert.assertThat(csv, containsString("contextPolicy,linkedAssetSchemaChars,,120"));
+        MatcherAssert.assertThat(csv, containsString("exportGovernance,fieldPolicy,,aggregateOnly"));
+        MatcherAssert.assertThat(csv, containsString("exportGovernance,candidateBodyAllowed,,false"));
+        MatcherAssert.assertThat(csv, containsString("exportGovernance,reviewCommentAllowed,,false"));
+        MatcherAssert.assertThat(csv, containsString("exportGovernance,safetyScan,,PASSED"));
         MatcherAssert.assertThat(csv, containsString(taskId));
         MatcherAssert.assertThat(csv, containsString("project-wp5"));
         MatcherAssert.assertThat(csv, not(containsString("secret-value")));

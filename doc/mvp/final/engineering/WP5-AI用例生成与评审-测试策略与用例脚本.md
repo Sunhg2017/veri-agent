@@ -5,8 +5,8 @@
 | 工作包 | WP5 AI 用例生成与评审 |
 | 角色产出 | 资深质量工程师 |
 | 文档性质 | 测试策略、功能用例、安全和可测试性建议、脚本设计 |
-| 当前口径 | 已纳入 WP5 后端、前端、DB validation、Prompt 趋势、准出运营摘要、显式上下文装配、上下文裁剪策略配置、任务诊断上下文策略摘要和任务报告上下文聚合行的自动化验证入口 |
-| 版本 | v1.1 |
+| 当前口径 | 已纳入 WP5 后端、前端、DB validation、Prompt 趋势、准出运营摘要、显式上下文装配、上下文裁剪策略配置、任务诊断上下文策略摘要、任务报告上下文聚合行和任务报告导出安全扫描的自动化验证入口 |
+| 版本 | v1.2 |
 | 日期 | 2026-05-30 |
 
 ## 1. 测试目标
@@ -61,6 +61,7 @@
 | WP5-FUNC-003B | P0 | 创建任务时显式传入 API、页面和业务流 ID | `contextSummary.explicitAssets` 包含三类资产计数、ID 和脱敏摘要；`inputDigest` 与幂等 request digest 覆盖这些显式上下文 ID。 |
 | WP5-FUNC-003C | P0 | 配置 `veri-agent.test-design.context-*` 裁剪策略 | 健康接口返回生效限制；`contextSummary.limits` 和模型请求 `contextPacking` 使用同一套生效值。 |
 | WP5-FUNC-003D | P0 | 导出任务全量报告 | CSV 只输出 `context/contextPolicy` 聚合计数和裁剪上限，不输出显式资产 ID、schema、页面树、流程 JSON、需求正文、历史用例步骤或原始 Prompt。 |
+| WP5-FUNC-003E | P0 | 导出任务全量报告治理信息 | CSV 包含 `exportGovernance` 聚合行，声明 aggregate-only、候选正文/评审评论/模型载荷/上下文正文/trace 明细不导出，且安全扫描状态为 `PASSED`。 |
 | WP5-FUNC-004 | P0 | 模型输出合法 JSON | 候选落库，包含标题、步骤、预期、优先级和来源依据。 |
 | WP5-FUNC-005 | P0 | 模型输出非法 JSON | 任务失败或 fallback，错误码为模型输出非法，不产生脏候选。 |
 | WP5-FUNC-006 | P0 | WP2 敏感内容阻断 | 任务展示阻断摘要，保存 traceId，不绕过 WP2。 |
@@ -93,6 +94,7 @@
 | WP5-SEC-007 | P0 | 模型错误返回包含原文 | 页面和日志只展示脱敏摘要。 |
 | WP5-SEC-008 | P1 | 导出候选和评审记录 | 不含完整模型输入、密钥、token 或隐私字段。 |
 | WP5-SEC-009 | P1 | 导出任务报告和查看任务诊断 | 只展示上下文计数、键摘要和裁剪策略数字，不展示原始上下文正文或资产内部结构。 |
+| WP5-SEC-010 | P1 | 任务报告导出出现未脱敏 secret/token/Bearer 或原始 Prompt 标记 | 服务端最终安全扫描阻断导出，返回敏感内容阻断错误，不写出不合规 CSV。 |
 
 ## 7. 前端测试用例
 
