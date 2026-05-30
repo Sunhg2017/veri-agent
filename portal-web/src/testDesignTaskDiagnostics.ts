@@ -66,6 +66,11 @@ export function buildTestDesignTaskDiagnostics(task: TestDesignTaskView | null |
       tone: scopePolicyTone(task)
     },
     {
+      label: '评测语料',
+      value: summarizeTestDesignEvaluationCorpusPolicy(task),
+      tone: evaluationCorpusPolicyTone(task)
+    },
+    {
       label: '发布准出',
       value: summarizeTestDesignReleaseReadinessPolicy(task),
       tone: releaseReadinessPolicyTone(task)
@@ -223,6 +228,27 @@ export function summarizeTestDesignScopePolicy(task: TestDesignTaskView | null |
     .join(' · ') || '-';
 }
 
+export function summarizeTestDesignEvaluationCorpusPolicy(task: TestDesignTaskView | null | undefined): string {
+  const policy = task?.evaluationCorpusPolicy ?? evaluationCorpusPolicyFromContextSummary(task?.contextSummary);
+  if (!policy) {
+    return '-';
+  }
+
+  const corpusMode = displayDiagnosticText(policy.corpusMode, 40);
+  const gateMode = displayDiagnosticText(policy.qualityGateMode, 40);
+  const threshold = displayDiagnosticText(policy.thresholdSource, 32);
+  const projectScope = policy.projectScopeRequired === true ? '项目作用域:required' : '项目作用域:optional';
+  const goldenSet = policy.goldenSetBaselineRequired === true ? 'golden set:required' : 'golden set:optional';
+  const aiEval = policy.qualityEvalScriptReady === true ? 'AI评测脚本:ready' : 'AI评测脚本:pending';
+  const gate = policy.qualityGateIntegrated === true ? '质量门禁:integrated' : '质量门禁:manual';
+  const readiness = policy.readinessDistributionTracked === true ? '准出分布:tracked' : '准出分布:missing';
+  const promptVersion = policy.promptVersionTracked === true ? 'Prompt版本:tracked' : 'Prompt版本:missing';
+  const operations = policy.operationsConsoleReady === true ? '运营后台:ready' : '运营后台:pending';
+  return [corpusMode, gateMode, threshold, projectScope, goldenSet, aiEval, gate, readiness, promptVersion, operations]
+    .filter((part) => part !== '-')
+    .join(' · ') || '-';
+}
+
 export function summarizeTestDesignReleaseReadinessPolicy(task: TestDesignTaskView | null | undefined): string {
   const policy = task?.releaseReadinessPolicy ?? releaseReadinessPolicyFromContextSummary(task?.contextSummary);
   if (!policy) {
@@ -296,6 +322,34 @@ function scopePolicyTone(task: TestDesignTaskView): TestDesignTaskDiagnosticTone
     return 'danger';
   }
   if (policy?.evaluationCorpusOperationsReady === false || policy?.crossWpScopeDashboardReady === false) {
+    return 'warning';
+  }
+  return 'neutral';
+}
+
+function evaluationCorpusPolicyTone(task: TestDesignTaskView): TestDesignTaskDiagnosticTone {
+  const policy = task.evaluationCorpusPolicy ?? evaluationCorpusPolicyFromContextSummary(task.contextSummary);
+  if (
+    policy?.projectScopeRequired === false ||
+    policy?.goldenSetBaselineRequired === false ||
+    policy?.qualityEvalScriptReady === false ||
+    policy?.qualityGateIntegrated === false ||
+    policy?.readinessDistributionTracked === false ||
+    policy?.promptVersionTracked === false ||
+    policy?.evaluationCorpusProjectIsolated === false ||
+    policy?.corpusRowExported === true ||
+    policy?.candidateBodyExported === true ||
+    policy?.reviewCommentExported === true ||
+    policy?.promptBodyExported === true
+  ) {
+    return 'danger';
+  }
+  if (
+    policy?.sampleMaintenanceReady === false ||
+    policy?.longTermCalibrationReady === false ||
+    policy?.operationsConsoleReady === false ||
+    policy?.qualityGateMode === 'MANUAL_OPT_IN_AI_EVAL'
+  ) {
     return 'warning';
   }
   return 'neutral';
@@ -377,6 +431,38 @@ function scopePolicyFromContextSummary(contextSummary: Record<string, unknown> |
     candidateIdentifierListExported: safeOptionalBoolean(record.candidateIdentifierListExported),
     roleRuleDetailExported: safeOptionalBoolean(record.roleRuleDetailExported),
     serviceTokenValueExported: safeOptionalBoolean(record.serviceTokenValueExported),
+    aggregateOnly: safeOptionalBoolean(record.aggregateOnly)
+  };
+}
+
+function evaluationCorpusPolicyFromContextSummary(contextSummary: Record<string, unknown> | null | undefined) {
+  if (!contextSummary || typeof contextSummary !== 'object') {
+    return undefined;
+  }
+  const raw = contextSummary.evaluationCorpusPolicy;
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    return undefined;
+  }
+  const record = raw as Record<string, unknown>;
+  return {
+    policyVersion: safeOptionalString(record.policyVersion),
+    corpusMode: safeOptionalString(record.corpusMode),
+    qualityGateMode: safeOptionalString(record.qualityGateMode),
+    thresholdSource: safeOptionalString(record.thresholdSource),
+    projectScopeRequired: safeOptionalBoolean(record.projectScopeRequired),
+    goldenSetBaselineRequired: safeOptionalBoolean(record.goldenSetBaselineRequired),
+    qualityEvalScriptReady: safeOptionalBoolean(record.qualityEvalScriptReady),
+    qualityGateIntegrated: safeOptionalBoolean(record.qualityGateIntegrated),
+    readinessDistributionTracked: safeOptionalBoolean(record.readinessDistributionTracked),
+    promptVersionTracked: safeOptionalBoolean(record.promptVersionTracked),
+    evaluationCorpusProjectIsolated: safeOptionalBoolean(record.evaluationCorpusProjectIsolated),
+    sampleMaintenanceReady: safeOptionalBoolean(record.sampleMaintenanceReady),
+    longTermCalibrationReady: safeOptionalBoolean(record.longTermCalibrationReady),
+    operationsConsoleReady: safeOptionalBoolean(record.operationsConsoleReady),
+    corpusRowExported: safeOptionalBoolean(record.corpusRowExported),
+    candidateBodyExported: safeOptionalBoolean(record.candidateBodyExported),
+    reviewCommentExported: safeOptionalBoolean(record.reviewCommentExported),
+    promptBodyExported: safeOptionalBoolean(record.promptBodyExported),
     aggregateOnly: safeOptionalBoolean(record.aggregateOnly)
   };
 }

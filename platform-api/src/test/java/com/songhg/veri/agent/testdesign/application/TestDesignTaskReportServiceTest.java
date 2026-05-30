@@ -64,6 +64,7 @@ class TestDesignTaskReportServiceTest {
                 TestDesignContextPolicyGovernance.response(),
                 TestDesignContextPolicyOperations.response(),
                 TestDesignScopePolicy.response(),
+                TestDesignEvaluationCorpusPolicy.response(),
                 TestDesignReleaseReadinessPolicy.response(),
                 Map.of(),
                 Instant.parse("2026-05-30T00:00:00Z"),
@@ -117,6 +118,7 @@ class TestDesignTaskReportServiceTest {
                 TestDesignContextPolicyGovernance.response(),
                 TestDesignContextPolicyOperations.response(),
                 TestDesignScopePolicy.response(),
+                TestDesignEvaluationCorpusPolicy.response(),
                 TestDesignReleaseReadinessPolicy.response(),
                 Map.of(),
                 Instant.parse("2026-05-30T00:00:00Z"),
@@ -177,6 +179,7 @@ class TestDesignTaskReportServiceTest {
                 TestDesignContextPolicyGovernance.response(),
                 TestDesignContextPolicyOperations.response(),
                 TestDesignScopePolicy.response(),
+                TestDesignEvaluationCorpusPolicy.response(),
                 TestDesignReleaseReadinessPolicy.response(),
                 Map.of(),
                 Instant.parse("2026-05-30T00:00:00Z"),
@@ -236,6 +239,7 @@ class TestDesignTaskReportServiceTest {
                 TestDesignContextPolicyGovernance.response(),
                 TestDesignContextPolicyOperations.response(),
                 TestDesignScopePolicy.response(),
+                TestDesignEvaluationCorpusPolicy.response(),
                 TestDesignReleaseReadinessPolicy.response(),
                 Map.of(),
                 Instant.parse("2026-05-30T00:00:00Z"),
@@ -321,6 +325,7 @@ class TestDesignTaskReportServiceTest {
                 TestDesignContextPolicyGovernance.response(),
                 TestDesignContextPolicyOperations.response(),
                 TestDesignScopePolicy.response(),
+                TestDesignEvaluationCorpusPolicy.response(),
                 TestDesignReleaseReadinessPolicy.response(),
                 Map.of(
                         "contextVersion", "wp5-context-v1",
@@ -428,6 +433,7 @@ class TestDesignTaskReportServiceTest {
                 TestDesignContextPolicyGovernance.response(),
                 TestDesignContextPolicyOperations.response(),
                 TestDesignScopePolicy.response(),
+                TestDesignEvaluationCorpusPolicy.response(),
                 TestDesignReleaseReadinessPolicy.response(),
                 Map.of(),
                 Instant.parse("2026-05-30T00:00:00Z"),
@@ -491,6 +497,7 @@ class TestDesignTaskReportServiceTest {
                 TestDesignContextPolicyGovernance.response(),
                 TestDesignContextPolicyOperations.response(),
                 TestDesignScopePolicy.response(),
+                TestDesignEvaluationCorpusPolicy.response(),
                 TestDesignReleaseReadinessPolicy.response(),
                 Map.of("scopePolicy", Map.of(
                         "candidateIds", List.of("candidate-secret-id"),
@@ -527,6 +534,80 @@ class TestDesignTaskReportServiceTest {
                 .doesNotContain("role matrix should not appear")
                 .doesNotContain("candidateIds")
                 .doesNotContain("roleRuleDetails");
+    }
+
+    @Test
+    void appendsEvaluationCorpusPolicyRowsWithoutSampleOrPromptDetails() {
+        StringBuilder csv = new StringBuilder();
+        TestDesignTaskResponse task = new TestDesignTaskResponse(
+                UUID.fromString("11111111-1111-1111-1111-111111111111"),
+                "project-wp5",
+                "评测语料策略报告 token=secret-value",
+                "SUCCEEDED",
+                List.of(),
+                List.of("SMOKE"),
+                "wp5-test-design-v1",
+                "1.0.0",
+                null,
+                null,
+                null,
+                0,
+                0,
+                0,
+                0,
+                null,
+                "auditor",
+                null,
+                "digest",
+                null,
+                TestDesignContextAssemblyPolicy.response(),
+                TestDesignContextPolicyGovernance.response(),
+                TestDesignContextPolicyOperations.response(),
+                TestDesignScopePolicy.response(),
+                TestDesignEvaluationCorpusPolicy.response(),
+                TestDesignReleaseReadinessPolicy.response(),
+                Map.of("evaluationCorpusPolicy", Map.of(
+                        "corpusRows", List.of("sample-row-secret"),
+                        "candidateBody", "候选正文不应导出",
+                        "reviewComment", "review comment should not appear",
+                        "promptPlaintext", "prompt body should not appear"
+                )),
+                Instant.parse("2026-05-30T00:00:00Z"),
+                Instant.parse("2026-05-30T00:00:00Z")
+        );
+
+        TestDesignTaskReportEvaluationCorpusPolicyRows.appendRows(
+                csv, task, Instant.parse("2026-05-30T00:00:00Z"));
+
+        String report = csv.toString();
+        assertDoesNotThrow(() -> TestDesignTaskReportExportGovernance.validateExportSafety(report));
+        org.assertj.core.api.Assertions.assertThat(report)
+                .contains("evaluationCorpusPolicy,policyVersion,,wp5-evaluation-corpus-policy-v1")
+                .contains("evaluationCorpusPolicy,corpusMode,,GOLDEN_SET_BASELINE,,success")
+                .contains("evaluationCorpusPolicy,qualityGateMode,,MANUAL_OPT_IN_AI_EVAL,,warning")
+                .contains("evaluationCorpusPolicy,thresholdSource,,DEPLOY_CONFIG")
+                .contains("evaluationCorpusPolicy,projectScopeRequired,,true,,success")
+                .contains("evaluationCorpusPolicy,goldenSetBaselineRequired,,true,,success")
+                .contains("evaluationCorpusPolicy,qualityEvalScriptReady,,true,,success")
+                .contains("evaluationCorpusPolicy,qualityGateIntegrated,,true,,success")
+                .contains("evaluationCorpusPolicy,readinessDistributionTracked,,true,,success")
+                .contains("evaluationCorpusPolicy,promptVersionTracked,,true,,success")
+                .contains("evaluationCorpusPolicy,evaluationCorpusProjectIsolated,,true,,success")
+                .contains("evaluationCorpusPolicy,sampleMaintenanceReady,,false,,warning")
+                .contains("evaluationCorpusPolicy,longTermCalibrationReady,,false,,warning")
+                .contains("evaluationCorpusPolicy,operationsConsoleReady,,false,,warning")
+                .contains("evaluationCorpusPolicy,corpusRowExported,,false")
+                .contains("evaluationCorpusPolicy,candidateBodyExported,,false")
+                .contains("evaluationCorpusPolicy,reviewCommentExported,,false")
+                .contains("evaluationCorpusPolicy,promptBodyExported,,false")
+                .contains("evaluationCorpusPolicy,aggregateOnly,,true,,success")
+                .doesNotContain("secret-value")
+                .doesNotContain("sample-row-secret")
+                .doesNotContain("候选正文不应导出")
+                .doesNotContain("review comment should not appear")
+                .doesNotContain("prompt body should not appear")
+                .doesNotContain("corpusRows")
+                .doesNotContain("promptPlaintext");
     }
 
     @Test
@@ -579,6 +660,7 @@ class TestDesignTaskReportServiceTest {
                 TestDesignContextPolicyGovernance.response(),
                 TestDesignContextPolicyOperations.response(),
                 TestDesignScopePolicy.response(),
+                TestDesignEvaluationCorpusPolicy.response(),
                 TestDesignReleaseReadinessPolicy.response(),
                 Map.of(),
                 Instant.parse("2026-05-30T00:00:00Z"),
@@ -651,6 +733,7 @@ class TestDesignTaskReportServiceTest {
                 TestDesignContextPolicyGovernance.response(),
                 TestDesignContextPolicyOperations.response(),
                 TestDesignScopePolicy.response(),
+                TestDesignEvaluationCorpusPolicy.response(),
                 TestDesignReleaseReadinessPolicy.response(),
                 Map.of(),
                 Instant.parse("2026-05-30T00:00:00Z"),
@@ -723,6 +806,7 @@ class TestDesignTaskReportServiceTest {
                 TestDesignContextPolicyGovernance.response(),
                 TestDesignContextPolicyOperations.response(),
                 TestDesignScopePolicy.response(),
+                TestDesignEvaluationCorpusPolicy.response(),
                 TestDesignReleaseReadinessPolicy.response(),
                 Map.of(),
                 Instant.parse("2026-05-30T00:00:00Z"),
@@ -798,6 +882,7 @@ class TestDesignTaskReportServiceTest {
                 TestDesignContextPolicyGovernance.response(),
                 TestDesignContextPolicyOperations.response(),
                 TestDesignScopePolicy.response(),
+                TestDesignEvaluationCorpusPolicy.response(),
                 TestDesignReleaseReadinessPolicy.response(),
                 Map.of("releaseReadinessPolicy", Map.of(
                         "candidateEvidence", "candidate-secret-id",

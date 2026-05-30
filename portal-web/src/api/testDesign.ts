@@ -20,6 +20,7 @@ export interface TestDesignHealth {
   contextPolicyGovernance?: TestDesignContextPolicyGovernanceView;
   contextPolicyOperations?: TestDesignContextPolicyOperationsView;
   scopePolicy?: TestDesignScopePolicyView;
+  evaluationCorpusPolicy?: TestDesignEvaluationCorpusPolicyView;
   releaseReadinessPolicy?: TestDesignReleaseReadinessPolicyView;
   supportedCoverageTypes: string[];
 }
@@ -49,6 +50,7 @@ export interface TestDesignTaskView {
   contextPolicyGovernance?: TestDesignContextPolicyGovernanceView;
   contextPolicyOperations?: TestDesignContextPolicyOperationsView;
   scopePolicy?: TestDesignScopePolicyView;
+  evaluationCorpusPolicy?: TestDesignEvaluationCorpusPolicyView;
   releaseReadinessPolicy?: TestDesignReleaseReadinessPolicyView;
   contextSummary: Record<string, unknown>;
   createdAt?: string;
@@ -116,6 +118,28 @@ export interface TestDesignScopePolicyView {
   candidateIdentifierListExported?: boolean;
   roleRuleDetailExported?: boolean;
   serviceTokenValueExported?: boolean;
+  aggregateOnly?: boolean;
+}
+
+export interface TestDesignEvaluationCorpusPolicyView {
+  policyVersion?: string;
+  corpusMode?: string;
+  qualityGateMode?: string;
+  thresholdSource?: string;
+  projectScopeRequired?: boolean;
+  goldenSetBaselineRequired?: boolean;
+  qualityEvalScriptReady?: boolean;
+  qualityGateIntegrated?: boolean;
+  readinessDistributionTracked?: boolean;
+  promptVersionTracked?: boolean;
+  evaluationCorpusProjectIsolated?: boolean;
+  sampleMaintenanceReady?: boolean;
+  longTermCalibrationReady?: boolean;
+  operationsConsoleReady?: boolean;
+  corpusRowExported?: boolean;
+  candidateBodyExported?: boolean;
+  reviewCommentExported?: boolean;
+  promptBodyExported?: boolean;
   aggregateOnly?: boolean;
 }
 
@@ -647,6 +671,9 @@ export function normalizeTestDesignHealth(raw: unknown): TestDesignHealth {
       item.contextPolicyOperations ?? item.context_policy_operations
     ),
     scopePolicy: normalizeTestDesignScopePolicy(item.scopePolicy ?? item.scope_policy),
+    evaluationCorpusPolicy: normalizeTestDesignEvaluationCorpusPolicy(
+      item.evaluationCorpusPolicy ?? item.evaluation_corpus_policy
+    ),
     releaseReadinessPolicy: normalizeTestDesignReleaseReadinessPolicy(
       item.releaseReadinessPolicy ?? item.release_readiness_policy
     ),
@@ -688,6 +715,9 @@ export function normalizeTestDesignTask(raw: unknown): TestDesignTaskView {
       item.contextPolicyOperations ?? item.context_policy_operations
     ),
     scopePolicy: normalizeTestDesignScopePolicy(item.scopePolicy ?? item.scope_policy),
+    evaluationCorpusPolicy: normalizeTestDesignEvaluationCorpusPolicy(
+      item.evaluationCorpusPolicy ?? item.evaluation_corpus_policy
+    ),
     releaseReadinessPolicy: normalizeTestDesignReleaseReadinessPolicy(
       item.releaseReadinessPolicy ?? item.release_readiness_policy
     ),
@@ -827,6 +857,43 @@ export function normalizeTestDesignScopePolicy(raw: unknown): TestDesignScopePol
     serviceTokenValueExported: optionalBoolean(
       raw.serviceTokenValueExported ?? raw.service_token_value_exported
     ),
+    aggregateOnly: optionalBoolean(raw.aggregateOnly ?? raw.aggregate_only)
+  };
+}
+
+export function normalizeTestDesignEvaluationCorpusPolicy(
+  raw: unknown
+): TestDesignEvaluationCorpusPolicyView | undefined {
+  if (!isRecord(raw)) {
+    return undefined;
+  }
+  return {
+    policyVersion: optionalString(raw.policyVersion) ?? optionalString(raw.policy_version),
+    corpusMode: optionalString(raw.corpusMode) ?? optionalString(raw.corpus_mode),
+    qualityGateMode: optionalString(raw.qualityGateMode) ?? optionalString(raw.quality_gate_mode),
+    thresholdSource: optionalString(raw.thresholdSource) ?? optionalString(raw.threshold_source),
+    projectScopeRequired: optionalBoolean(raw.projectScopeRequired ?? raw.project_scope_required),
+    goldenSetBaselineRequired: optionalBoolean(
+      raw.goldenSetBaselineRequired ?? raw.golden_set_baseline_required
+    ),
+    qualityEvalScriptReady: optionalBoolean(raw.qualityEvalScriptReady ?? raw.quality_eval_script_ready),
+    qualityGateIntegrated: optionalBoolean(raw.qualityGateIntegrated ?? raw.quality_gate_integrated),
+    readinessDistributionTracked: optionalBoolean(
+      raw.readinessDistributionTracked ?? raw.readiness_distribution_tracked
+    ),
+    promptVersionTracked: optionalBoolean(raw.promptVersionTracked ?? raw.prompt_version_tracked),
+    evaluationCorpusProjectIsolated: optionalBoolean(
+      raw.evaluationCorpusProjectIsolated ?? raw.evaluation_corpus_project_isolated
+    ),
+    sampleMaintenanceReady: optionalBoolean(raw.sampleMaintenanceReady ?? raw.sample_maintenance_ready),
+    longTermCalibrationReady: optionalBoolean(
+      raw.longTermCalibrationReady ?? raw.long_term_calibration_ready
+    ),
+    operationsConsoleReady: optionalBoolean(raw.operationsConsoleReady ?? raw.operations_console_ready),
+    corpusRowExported: optionalBoolean(raw.corpusRowExported ?? raw.corpus_row_exported),
+    candidateBodyExported: optionalBoolean(raw.candidateBodyExported ?? raw.candidate_body_exported),
+    reviewCommentExported: optionalBoolean(raw.reviewCommentExported ?? raw.review_comment_exported),
+    promptBodyExported: optionalBoolean(raw.promptBodyExported ?? raw.prompt_body_exported),
     aggregateOnly: optionalBoolean(raw.aggregateOnly ?? raw.aggregate_only)
   };
 }

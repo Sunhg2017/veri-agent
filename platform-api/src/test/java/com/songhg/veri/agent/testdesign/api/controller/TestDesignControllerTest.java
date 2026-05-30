@@ -138,6 +138,28 @@ class TestDesignControllerTest {
                 .andExpect(jsonPath("$.data.scopePolicy.roleRuleDetailExported").value(false))
                 .andExpect(jsonPath("$.data.scopePolicy.serviceTokenValueExported").value(false))
                 .andExpect(jsonPath("$.data.scopePolicy.aggregateOnly").value(true))
+                .andExpect(jsonPath("$.data.evaluationCorpusPolicy.policyVersion")
+                        .value("wp5-evaluation-corpus-policy-v1"))
+                .andExpect(jsonPath("$.data.evaluationCorpusPolicy.corpusMode")
+                        .value("GOLDEN_SET_BASELINE"))
+                .andExpect(jsonPath("$.data.evaluationCorpusPolicy.qualityGateMode")
+                        .value("MANUAL_OPT_IN_AI_EVAL"))
+                .andExpect(jsonPath("$.data.evaluationCorpusPolicy.thresholdSource").value("DEPLOY_CONFIG"))
+                .andExpect(jsonPath("$.data.evaluationCorpusPolicy.projectScopeRequired").value(true))
+                .andExpect(jsonPath("$.data.evaluationCorpusPolicy.goldenSetBaselineRequired").value(true))
+                .andExpect(jsonPath("$.data.evaluationCorpusPolicy.qualityEvalScriptReady").value(true))
+                .andExpect(jsonPath("$.data.evaluationCorpusPolicy.qualityGateIntegrated").value(true))
+                .andExpect(jsonPath("$.data.evaluationCorpusPolicy.readinessDistributionTracked").value(true))
+                .andExpect(jsonPath("$.data.evaluationCorpusPolicy.promptVersionTracked").value(true))
+                .andExpect(jsonPath("$.data.evaluationCorpusPolicy.evaluationCorpusProjectIsolated").value(true))
+                .andExpect(jsonPath("$.data.evaluationCorpusPolicy.sampleMaintenanceReady").value(false))
+                .andExpect(jsonPath("$.data.evaluationCorpusPolicy.longTermCalibrationReady").value(false))
+                .andExpect(jsonPath("$.data.evaluationCorpusPolicy.operationsConsoleReady").value(false))
+                .andExpect(jsonPath("$.data.evaluationCorpusPolicy.corpusRowExported").value(false))
+                .andExpect(jsonPath("$.data.evaluationCorpusPolicy.candidateBodyExported").value(false))
+                .andExpect(jsonPath("$.data.evaluationCorpusPolicy.reviewCommentExported").value(false))
+                .andExpect(jsonPath("$.data.evaluationCorpusPolicy.promptBodyExported").value(false))
+                .andExpect(jsonPath("$.data.evaluationCorpusPolicy.aggregateOnly").value(true))
                 .andExpect(jsonPath("$.data.releaseReadinessPolicy.policyVersion")
                         .value("wp5-release-readiness-policy-v1"))
                 .andExpect(jsonPath("$.data.releaseReadinessPolicy.decisionMode")
@@ -589,6 +611,15 @@ class TestDesignControllerTest {
                         .value("WORKFLOW_NOT_READY"))
                 .andExpect(jsonPath("$.data.task.contextPolicyOperations.projectOverrideStoreReady").value(false))
                 .andExpect(jsonPath("$.data.task.contextPolicyOperations.aggregateOnly").value(true))
+                .andExpect(jsonPath("$.data.task.evaluationCorpusPolicy.policyVersion")
+                        .value("wp5-evaluation-corpus-policy-v1"))
+                .andExpect(jsonPath("$.data.task.evaluationCorpusPolicy.corpusMode")
+                        .value("GOLDEN_SET_BASELINE"))
+                .andExpect(jsonPath("$.data.task.evaluationCorpusPolicy.qualityGateMode")
+                        .value("MANUAL_OPT_IN_AI_EVAL"))
+                .andExpect(jsonPath("$.data.task.evaluationCorpusPolicy.qualityEvalScriptReady").value(true))
+                .andExpect(jsonPath("$.data.task.evaluationCorpusPolicy.operationsConsoleReady").value(false))
+                .andExpect(jsonPath("$.data.task.evaluationCorpusPolicy.corpusRowExported").value(false))
                 .andExpect(jsonPath("$.data.task.releaseReadinessPolicy.policyVersion")
                         .value("wp5-release-readiness-policy-v1"))
                 .andExpect(jsonPath("$.data.task.releaseReadinessPolicy.decisionMode")
@@ -619,6 +650,12 @@ class TestDesignControllerTest {
                         .value("WORKFLOW_NOT_READY"))
                 .andExpect(jsonPath("$.data.task.contextSummary.policyOperations.projectOverrideStoreReady").value(false))
                 .andExpect(jsonPath("$.data.task.contextSummary.policyOperations.aggregateOnly").value(true))
+                .andExpect(jsonPath("$.data.task.contextSummary.evaluationCorpusPolicy.policyVersion")
+                        .value("wp5-evaluation-corpus-policy-v1"))
+                .andExpect(jsonPath("$.data.task.contextSummary.evaluationCorpusPolicy.qualityGateMode")
+                        .value("MANUAL_OPT_IN_AI_EVAL"))
+                .andExpect(jsonPath("$.data.task.contextSummary.evaluationCorpusPolicy.candidateBodyExported")
+                        .value(false))
                 .andExpect(jsonPath("$.data.task.contextSummary.releaseReadinessPolicy.policyVersion")
                         .value("wp5-release-readiness-policy-v1"))
                 .andExpect(jsonPath("$.data.task.contextSummary.releaseReadinessPolicy.decisionMode")
@@ -1245,6 +1282,27 @@ class TestDesignControllerTest {
         MatcherAssert.assertThat(csv, containsString("scopePolicy,roleRuleDetailExported,,false"));
         MatcherAssert.assertThat(csv, containsString("scopePolicy,serviceTokenValueExported,,false"));
         MatcherAssert.assertThat(csv, containsString("scopePolicy,aggregateOnly,,true"));
+        MatcherAssert.assertThat(csv, containsString(
+                "evaluationCorpusPolicy,policyVersion,,wp5-evaluation-corpus-policy-v1"));
+        MatcherAssert.assertThat(csv, containsString("evaluationCorpusPolicy,corpusMode,,GOLDEN_SET_BASELINE"));
+        MatcherAssert.assertThat(csv, containsString(
+                "evaluationCorpusPolicy,qualityGateMode,,MANUAL_OPT_IN_AI_EVAL"));
+        MatcherAssert.assertThat(csv, containsString("evaluationCorpusPolicy,thresholdSource,,DEPLOY_CONFIG"));
+        MatcherAssert.assertThat(csv, containsString("evaluationCorpusPolicy,projectScopeRequired,,true"));
+        MatcherAssert.assertThat(csv, containsString("evaluationCorpusPolicy,goldenSetBaselineRequired,,true"));
+        MatcherAssert.assertThat(csv, containsString("evaluationCorpusPolicy,qualityEvalScriptReady,,true"));
+        MatcherAssert.assertThat(csv, containsString("evaluationCorpusPolicy,qualityGateIntegrated,,true"));
+        MatcherAssert.assertThat(csv, containsString("evaluationCorpusPolicy,readinessDistributionTracked,,true"));
+        MatcherAssert.assertThat(csv, containsString("evaluationCorpusPolicy,promptVersionTracked,,true"));
+        MatcherAssert.assertThat(csv, containsString("evaluationCorpusPolicy,evaluationCorpusProjectIsolated,,true"));
+        MatcherAssert.assertThat(csv, containsString("evaluationCorpusPolicy,sampleMaintenanceReady,,false"));
+        MatcherAssert.assertThat(csv, containsString("evaluationCorpusPolicy,longTermCalibrationReady,,false"));
+        MatcherAssert.assertThat(csv, containsString("evaluationCorpusPolicy,operationsConsoleReady,,false"));
+        MatcherAssert.assertThat(csv, containsString("evaluationCorpusPolicy,corpusRowExported,,false"));
+        MatcherAssert.assertThat(csv, containsString("evaluationCorpusPolicy,candidateBodyExported,,false"));
+        MatcherAssert.assertThat(csv, containsString("evaluationCorpusPolicy,reviewCommentExported,,false"));
+        MatcherAssert.assertThat(csv, containsString("evaluationCorpusPolicy,promptBodyExported,,false"));
+        MatcherAssert.assertThat(csv, containsString("evaluationCorpusPolicy,aggregateOnly,,true"));
         MatcherAssert.assertThat(csv, containsString("exportGovernance,fieldPolicy,,aggregateOnly"));
         MatcherAssert.assertThat(csv, containsString("exportGovernance,candidateBodyAllowed,,false"));
         MatcherAssert.assertThat(csv, containsString("exportGovernance,reviewCommentAllowed,,false"));

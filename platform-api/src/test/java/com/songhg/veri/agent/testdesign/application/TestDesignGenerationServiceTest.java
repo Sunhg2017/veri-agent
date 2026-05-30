@@ -137,6 +137,29 @@ class TestDesignGenerationServiceTest {
         assertThat(summary.path("scopePolicy").path("roleRuleDetailExported").asBoolean()).isFalse();
         assertThat(summary.path("scopePolicy").path("serviceTokenValueExported").asBoolean()).isFalse();
         assertThat(summary.path("scopePolicy").path("aggregateOnly").asBoolean()).isTrue();
+        assertThat(summary.path("evaluationCorpusPolicy").path("policyVersion").asText())
+                .isEqualTo("wp5-evaluation-corpus-policy-v1");
+        assertThat(summary.path("evaluationCorpusPolicy").path("corpusMode").asText())
+                .isEqualTo("GOLDEN_SET_BASELINE");
+        assertThat(summary.path("evaluationCorpusPolicy").path("qualityGateMode").asText())
+                .isEqualTo("MANUAL_OPT_IN_AI_EVAL");
+        assertThat(summary.path("evaluationCorpusPolicy").path("thresholdSource").asText())
+                .isEqualTo("DEPLOY_CONFIG");
+        assertThat(summary.path("evaluationCorpusPolicy").path("projectScopeRequired").asBoolean()).isTrue();
+        assertThat(summary.path("evaluationCorpusPolicy").path("goldenSetBaselineRequired").asBoolean()).isTrue();
+        assertThat(summary.path("evaluationCorpusPolicy").path("qualityEvalScriptReady").asBoolean()).isTrue();
+        assertThat(summary.path("evaluationCorpusPolicy").path("qualityGateIntegrated").asBoolean()).isTrue();
+        assertThat(summary.path("evaluationCorpusPolicy").path("readinessDistributionTracked").asBoolean()).isTrue();
+        assertThat(summary.path("evaluationCorpusPolicy").path("promptVersionTracked").asBoolean()).isTrue();
+        assertThat(summary.path("evaluationCorpusPolicy").path("evaluationCorpusProjectIsolated").asBoolean()).isTrue();
+        assertThat(summary.path("evaluationCorpusPolicy").path("sampleMaintenanceReady").asBoolean()).isFalse();
+        assertThat(summary.path("evaluationCorpusPolicy").path("longTermCalibrationReady").asBoolean()).isFalse();
+        assertThat(summary.path("evaluationCorpusPolicy").path("operationsConsoleReady").asBoolean()).isFalse();
+        assertThat(summary.path("evaluationCorpusPolicy").path("corpusRowExported").asBoolean()).isFalse();
+        assertThat(summary.path("evaluationCorpusPolicy").path("candidateBodyExported").asBoolean()).isFalse();
+        assertThat(summary.path("evaluationCorpusPolicy").path("reviewCommentExported").asBoolean()).isFalse();
+        assertThat(summary.path("evaluationCorpusPolicy").path("promptBodyExported").asBoolean()).isFalse();
+        assertThat(summary.path("evaluationCorpusPolicy").path("aggregateOnly").asBoolean()).isTrue();
         assertThat(summary.path("releaseReadinessPolicy").path("policyVersion").asText())
                 .isEqualTo("wp5-release-readiness-policy-v1");
         assertThat(summary.path("releaseReadinessPolicy").path("decisionMode").asText())
@@ -268,6 +291,20 @@ class TestDesignGenerationServiceTest {
         assertThat(payload.path("contextPacking").path("scopePolicy").path("candidateIdentifierListExported").asBoolean())
                 .isFalse();
         assertThat(payload.path("contextPacking").path("scopePolicy").path("aggregateOnly").asBoolean())
+                .isTrue();
+        assertThat(payload.path("contextPacking").path("evaluationCorpusPolicy").path("policyVersion").asText())
+                .isEqualTo("wp5-evaluation-corpus-policy-v1");
+        assertThat(payload.path("contextPacking").path("evaluationCorpusPolicy").path("corpusMode").asText())
+                .isEqualTo("GOLDEN_SET_BASELINE");
+        assertThat(payload.path("contextPacking").path("evaluationCorpusPolicy").path("qualityGateMode").asText())
+                .isEqualTo("MANUAL_OPT_IN_AI_EVAL");
+        assertThat(payload.path("contextPacking").path("evaluationCorpusPolicy").path("qualityEvalScriptReady")
+                .asBoolean()).isTrue();
+        assertThat(payload.path("contextPacking").path("evaluationCorpusPolicy").path("operationsConsoleReady")
+                .asBoolean()).isFalse();
+        assertThat(payload.path("contextPacking").path("evaluationCorpusPolicy").path("corpusRowExported")
+                .asBoolean()).isFalse();
+        assertThat(payload.path("contextPacking").path("evaluationCorpusPolicy").path("aggregateOnly").asBoolean())
                 .isTrue();
         assertThat(payload.path("contextPacking").path("releaseReadinessPolicy").path("policyVersion").asText())
                 .isEqualTo("wp5-release-readiness-policy-v1");

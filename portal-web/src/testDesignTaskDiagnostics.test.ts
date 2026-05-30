@@ -108,6 +108,27 @@ const baseTask: TestDesignTaskView = {
     serviceTokenValueExported: false,
     aggregateOnly: true
   },
+  evaluationCorpusPolicy: {
+    policyVersion: 'wp5-evaluation-corpus-policy-v1',
+    corpusMode: 'GOLDEN_SET_BASELINE',
+    qualityGateMode: 'MANUAL_OPT_IN_AI_EVAL',
+    thresholdSource: 'DEPLOY_CONFIG',
+    projectScopeRequired: true,
+    goldenSetBaselineRequired: true,
+    qualityEvalScriptReady: true,
+    qualityGateIntegrated: true,
+    readinessDistributionTracked: true,
+    promptVersionTracked: true,
+    evaluationCorpusProjectIsolated: true,
+    sampleMaintenanceReady: false,
+    longTermCalibrationReady: false,
+    operationsConsoleReady: false,
+    corpusRowExported: false,
+    candidateBodyExported: false,
+    reviewCommentExported: false,
+    promptBodyExported: false,
+    aggregateOnly: true
+  },
   releaseReadinessPolicy: {
     policyVersion: 'wp5-release-readiness-policy-v1',
     decisionMode: 'ADVISORY_QUALITY_GATE',
@@ -193,6 +214,11 @@ describe('WP5 task diagnostics helpers', () => {
           label: '作用域策略',
           tone: 'warning',
           value: 'PROJECT_RESOURCE_SCOPE · PLATFORM_WHEN_PROJECT_FILTER_ABSENT · 任务:project · 候选:project · 批量:project-set · 发布:project · 异步:task-project · 评测语料:project'
+        }),
+        expect.objectContaining({
+          label: '评测语料',
+          tone: 'warning',
+          value: 'GOLDEN_SET_BASELINE · MANUAL_OPT_IN_AI_EVAL · DEPLOY_CONFIG · 项目作用域:required · golden set:required · AI评测脚本:ready · 质量门禁:integrated · 准出分布:tracked · Prompt版本:tracked · 运营后台:pending'
         }),
         expect.objectContaining({
           label: '发布准出',
@@ -425,6 +451,70 @@ describe('WP5 task diagnostics helpers', () => {
           label: '作用域策略',
           tone: 'danger',
           value: expect.stringContaining('发布:platform')
+        })
+      ])
+    );
+  });
+
+  it('falls back to aggregate evaluation corpus policy from the task summary', () => {
+    const diagnostics = buildTestDesignTaskDiagnostics({
+      ...baseTask,
+      evaluationCorpusPolicy: undefined,
+      contextSummary: {
+        evaluationCorpusPolicy: {
+          corpusMode: 'GOLDEN_SET_BASELINE',
+          qualityGateMode: 'MANUAL_OPT_IN_AI_EVAL',
+          thresholdSource: 'DEPLOY_CONFIG',
+          projectScopeRequired: true,
+          goldenSetBaselineRequired: true,
+          qualityEvalScriptReady: true,
+          qualityGateIntegrated: true,
+          readinessDistributionTracked: true,
+          promptVersionTracked: true,
+          evaluationCorpusProjectIsolated: true,
+          sampleMaintenanceReady: false,
+          longTermCalibrationReady: false,
+          operationsConsoleReady: false,
+          corpusRows: ['sample-row-secret'],
+          candidateBody: '候选正文不应展示',
+          reviewComment: 'review comment should not appear',
+          promptPlaintext: 'prompt body should not appear'
+        }
+      }
+    });
+
+    expect(diagnostics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          label: '评测语料',
+          tone: 'warning',
+          value: expect.stringContaining('MANUAL_OPT_IN_AI_EVAL')
+        })
+      ])
+    );
+    expect(JSON.stringify(diagnostics)).not.toContain('sample-row-secret');
+    expect(JSON.stringify(diagnostics)).not.toContain('候选正文不应展示');
+    expect(JSON.stringify(diagnostics)).not.toContain('review comment should not appear');
+    expect(JSON.stringify(diagnostics)).not.toContain('prompt body should not appear');
+  });
+
+  it('marks unsafe evaluation corpus policy as danger', () => {
+    const diagnostics = buildTestDesignTaskDiagnostics({
+      ...baseTask,
+      evaluationCorpusPolicy: {
+        ...baseTask.evaluationCorpusPolicy,
+        projectScopeRequired: false,
+        corpusRowExported: true,
+        promptBodyExported: true
+      }
+    });
+
+    expect(diagnostics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          label: '评测语料',
+          tone: 'danger',
+          value: expect.stringContaining('项目作用域:optional')
         })
       ])
     );
