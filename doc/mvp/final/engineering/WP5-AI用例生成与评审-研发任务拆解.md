@@ -117,7 +117,7 @@ WP5 目标是跑通“已确认需求资产 -> AI 生成测试场景和用例草
 |---|---|---|---|
 | WP5-6.1 | P0 | 后端单元、契约和集成测试 | `mvn -B -pl platform-api test` 覆盖主要状态、权限、模型 fallback 和 WP3 发布。 |
 | WP5-6.2 | P0 | 前端测试和构建 | `cd portal-web && npm test`、`npm run build` 通过。 |
-| WP5-6.3 | P0 | `scripts/wp5_quality_gate.sh` | 串联后端测试、前端测试、构建、DB validation 和 HTTP smoke；日常开发默认可跳过 smoke，`WP5_GATE_MODE=release` 或 `WP5_RELEASE_GATE=1` 发布准出模式必须显式启用 managed/external HTTP smoke。 |
+| WP5-6.3 | P0 | `scripts/wp5_quality_gate.sh` | 串联后端测试、前端测试、构建、DB validation、HTTP smoke 和 AI 质量评测；日常开发默认可跳过 smoke/AI 评测，`WP5_GATE_MODE=release` 或 `WP5_RELEASE_GATE=1` 发布准出模式必须显式启用 managed/external HTTP smoke，并设置 `WP5_RUN_AI_EVAL=1` 跑 golden set 基线。 |
 | WP5-6.4 | P0 | `scripts/wp5_test_design_smoke.sh` | 已启动后端时可完成生成任务、候选评审、dryRun 和发布到 WP3 的主链路。 |
 | WP5-6.5 | P1 | `scripts/wp5_case_generation_quality_eval.sh` | 用 golden set 度量覆盖率、断言完整性、重复率和有效步骤比例。 |
 
@@ -129,7 +129,7 @@ WP5 目标是跑通“已确认需求资产 -> AI 生成测试场景和用例草
 | M1 生成任务闭环 | 用户能创建任务并获得候选 | 任务 API、上下文装配、模型调用、候选落库 | 模型成功/失败/fallback 均可追踪。 |
 | M2 评审入库闭环 | 候选可人工确认并写入 WP3 | 候选评审 API、发布 dryRun、WP3 入库和追踪关系 | 不重复入库，不越权，不绕过 WP3 状态流。 |
 | M3 前端可用 | 管理台可完成主流程 | 用例生成工作台、候选评审、发布预览、错误态 | 主要用户路径可被测试脚本覆盖。 |
-| M4 MVP 准出 | 文档、代码、脚本和验收材料齐备 | quality gate、smoke、AI 质量评测、发布准出记录 | 默认验证和 WP5 专项验证全部通过；发布准出必须执行 `WP5_GATE_MODE=release` 且 HTTP smoke 通过，除非有明确风险豁免和替代环境证据。 |
+| M4 MVP 准出 | 文档、代码、脚本和验收材料齐备 | quality gate、smoke、AI 质量评测、发布准出记录 | 默认验证和 WP5 专项验证全部通过；发布准出必须执行 `WP5_GATE_MODE=release`，且 HTTP smoke 与 `WP5_RUN_AI_EVAL=1` golden set 基线均通过，除非有明确风险豁免和替代环境证据。 |
 
 ## 8. 风险与应对
 

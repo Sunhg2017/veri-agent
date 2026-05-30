@@ -54,17 +54,22 @@ assert_fails_with \
 assert_fails_with \
   "release external smoke requires base url" \
   "WP5 release gate external HTTP smoke requires WP5_SMOKE_BASE_URL" \
-  env -u WP5_RELEASE_GATE -u WP5_SMOKE_BASE_URL WP5_GATE_MODE=release WP5_RUN_HTTP_SMOKE=external bash "$QUALITY_GATE"
+  env -u WP5_RELEASE_GATE -u WP5_SMOKE_BASE_URL WP5_GATE_MODE=release WP5_RUN_HTTP_SMOKE=external WP5_RUN_AI_EVAL=1 bash "$QUALITY_GATE"
+
+assert_fails_with \
+  "release managed smoke requires AI eval" \
+  "WP5 release gate requires AI quality evaluation" \
+  env -u WP5_RELEASE_GATE -u WP5_SMOKE_BASE_URL WP5_GATE_MODE=release WP5_RUN_HTTP_SMOKE=1 WP5_RUN_AI_EVAL=0 bash "$QUALITY_GATE"
 
 assert_succeeds_with \
-  "release managed smoke accepted" \
-  "wp5 release gate mode: HTTP smoke required and enabled (1)" \
-  env -u WP5_RELEASE_GATE -u WP5_SMOKE_BASE_URL WP5_GATE_MODE=release WP5_RUN_HTTP_SMOKE=1 bash "$QUALITY_GATE"
+  "release managed smoke and AI eval accepted" \
+  "wp5 release gate mode: HTTP smoke (1) and AI quality evaluation required" \
+  env -u WP5_RELEASE_GATE -u WP5_SMOKE_BASE_URL WP5_GATE_MODE=release WP5_RUN_HTTP_SMOKE=1 WP5_RUN_AI_EVAL=1 bash "$QUALITY_GATE"
 
 assert_succeeds_with \
-  "release external smoke accepted" \
-  "wp5 release gate mode: HTTP smoke required and enabled (external)" \
-  env -u WP5_GATE_MODE WP5_RELEASE_GATE=1 WP5_RUN_HTTP_SMOKE=external WP5_SMOKE_BASE_URL=http://127.0.0.1:8080 bash "$QUALITY_GATE"
+  "release external smoke and AI eval accepted" \
+  "wp5 release gate mode: HTTP smoke (external) and AI quality evaluation required" \
+  env -u WP5_GATE_MODE WP5_RELEASE_GATE=1 WP5_RUN_HTTP_SMOKE=external WP5_RUN_AI_EVAL=1 WP5_SMOKE_BASE_URL=http://127.0.0.1:8080 bash "$QUALITY_GATE"
 
 assert_succeeds_with \
   "development gate can skip HTTP smoke" \

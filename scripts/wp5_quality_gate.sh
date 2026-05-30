@@ -43,6 +43,10 @@ http_smoke_requested() {
   esac
 }
 
+ai_eval_requested() {
+  is_truthy "${WP5_RUN_AI_EVAL:-0}"
+}
+
 validate_release_gate() {
   if ! is_release_gate; then
     return
@@ -55,7 +59,11 @@ validate_release_gate() {
     echo "WP5 release gate external HTTP smoke requires WP5_SMOKE_BASE_URL." >&2
     exit 2
   fi
-  echo "== wp5 release gate mode: HTTP smoke required and enabled (${WP5_RUN_HTTP_SMOKE}) =="
+  if ! ai_eval_requested; then
+    echo "WP5 release gate requires AI quality evaluation. Set WP5_RUN_AI_EVAL=1 to run the WP5 golden set baseline." >&2
+    exit 2
+  fi
+  echo "== wp5 release gate mode: HTTP smoke (${WP5_RUN_HTTP_SMOKE}) and AI quality evaluation required =="
 }
 
 run_step() {
