@@ -852,6 +852,11 @@ class TestDesignControllerTest {
         MatcherAssert.assertThat(csv, containsString("exportGovernance,candidateBodyAllowed,,false"));
         MatcherAssert.assertThat(csv, containsString("exportGovernance,reviewCommentAllowed,,false"));
         MatcherAssert.assertThat(csv, containsString("exportGovernance,safetyScan,,PASSED"));
+        MatcherAssert.assertThat(csv, containsString("auditPolicy,exportAction,,EXPORT"));
+        MatcherAssert.assertThat(csv, containsString("auditPolicy,resourceType,,TEST_DESIGN_TASK_REPORT"));
+        MatcherAssert.assertThat(csv, containsString("auditPolicy,scopeType,,PROJECT"));
+        MatcherAssert.assertThat(csv, containsString("auditPolicy,auditEventWritten,,true"));
+        MatcherAssert.assertThat(csv, containsString("auditPolicy,auditDetailsExported,,false"));
         MatcherAssert.assertThat(csv, containsString("safetyScanPolicy,mode,,failClosed"));
         MatcherAssert.assertThat(csv, containsString("safetyScanPolicy,sensitiveTextPatternScan,,true"));
         MatcherAssert.assertThat(csv, containsString("safetyScanPolicy,rawPayloadMarkerScan,,true"));
@@ -867,6 +872,8 @@ class TestDesignControllerTest {
         MatcherAssert.assertThat(csv, not(containsString("sk_live_12345678")));
         MatcherAssert.assertThat(csv, not(containsString("rawPrompt")));
         MatcherAssert.assertThat(csv, not(containsString("promptPlaintext")));
+        MatcherAssert.assertThat(csv, not(containsString("auditLogId")));
+        MatcherAssert.assertThat(csv, not(containsString("afterJson")));
         MatcherAssert.assertThat(csv, not(containsString("任务报告步骤不应导出")));
         MatcherAssert.assertThat(csv, not(containsString("步骤结果不应导出")));
         MatcherAssert.assertThat(csv, not(containsString("任务报告前置条件不应导出")));

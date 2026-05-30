@@ -19,6 +19,7 @@ class TestDesignTaskReportServiceTest {
         assertDoesNotThrow(() -> TestDesignTaskReportExportGovernance.validateExportSafety("""
                 recordType,section,metric,label,value
                 metadata,exportGovernance,fieldPolicy,,aggregateOnly
+                metadata,auditPolicy,auditEventWritten,,true
                 metadata,safetyScanPolicy,mode,,failClosed
                 metadata,archivePolicy,retentionDays,,180
                 metadata,task,promptKey,,wp5-test-design-v1
@@ -61,6 +62,11 @@ class TestDesignTaskReportServiceTest {
         String report = csv.toString();
         assertDoesNotThrow(() -> TestDesignTaskReportExportGovernance.validateExportSafety(report));
         org.assertj.core.api.Assertions.assertThat(report)
+                .contains("auditPolicy,exportAction,,EXPORT")
+                .contains("auditPolicy,resourceType,,TEST_DESIGN_TASK_REPORT")
+                .contains("auditPolicy,scopeType,,PROJECT")
+                .contains("auditPolicy,auditEventWritten,,true,,success")
+                .contains("auditPolicy,auditDetailsExported,,false")
                 .contains("safetyScanPolicy,mode,,failClosed,,success")
                 .contains("safetyScanPolicy,sensitiveTextPatternScan,,true")
                 .contains("safetyScanPolicy,rawPayloadMarkerScan,,true")
@@ -71,6 +77,8 @@ class TestDesignTaskReportServiceTest {
                 .contains("archivePolicy,approvalRequired,,false")
                 .contains("archivePolicy,externalSharingAllowed,,true")
                 .contains("archivePolicy,retentionPolicyTracked,,true,,success")
+                .doesNotContain("auditLogId")
+                .doesNotContain("afterJson")
                 .doesNotContain("secret-value");
     }
 

@@ -51,8 +51,32 @@ final class TestDesignTaskReportExportGovernance {
                 false, null, null, "fullTask", null);
         appendRow(csv, task, generatedAt, "metadata", "exportGovernance", "safetyScan", null,
                 "PASSED", null, "success", "fullTask", null);
+        appendAuditPolicyRows(csv, task, generatedAt);
         appendSafetyScanPolicyRows(csv, task, generatedAt);
         appendArchivePolicyRows(csv, task, generatedAt, properties);
+    }
+
+    /**
+     * Publishes audit write policy as fixed aggregate flags without copying platform audit-log records.
+     *
+     * <p>Task report exports already write a WP1 audit event. These rows expose that operating contract while keeping
+     * audit event IDs, trace IDs and after-json details out of the CSV body.
+     */
+    private static void appendAuditPolicyRows(
+            StringBuilder csv,
+            TestDesignTaskResponse task,
+            Instant generatedAt
+    ) {
+        appendRow(csv, task, generatedAt, "metadata", "auditPolicy", "exportAction", null,
+                "EXPORT", null, null, "fullTask", null);
+        appendRow(csv, task, generatedAt, "metadata", "auditPolicy", "resourceType", null,
+                "TEST_DESIGN_TASK_REPORT", null, null, "fullTask", null);
+        appendRow(csv, task, generatedAt, "metadata", "auditPolicy", "scopeType", null,
+                "PROJECT", null, null, "fullTask", null);
+        appendRow(csv, task, generatedAt, "metadata", "auditPolicy", "auditEventWritten", null,
+                true, null, "success", "fullTask", null);
+        appendRow(csv, task, generatedAt, "metadata", "auditPolicy", "auditDetailsExported", null,
+                false, null, null, "fullTask", null);
     }
 
     /**
