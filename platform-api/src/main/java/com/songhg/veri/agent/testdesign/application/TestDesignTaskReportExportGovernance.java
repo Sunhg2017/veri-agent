@@ -51,7 +51,31 @@ final class TestDesignTaskReportExportGovernance {
                 false, null, null, "fullTask", null);
         appendRow(csv, task, generatedAt, "metadata", "exportGovernance", "safetyScan", null,
                 "PASSED", null, "success", "fullTask", null);
+        appendSafetyScanPolicyRows(csv, task, generatedAt);
         appendArchivePolicyRows(csv, task, generatedAt, properties);
+    }
+
+    /**
+     * Exposes the final scan policy as fixed aggregate flags without exporting matched text or scan findings.
+     *
+     * <p>The exported rows are safe for operations reports because they only describe which policy families are
+     * enforced. Violation values remain fail-closed exceptions and must not be written to the CSV body.
+     */
+    private static void appendSafetyScanPolicyRows(
+            StringBuilder csv,
+            TestDesignTaskResponse task,
+            Instant generatedAt
+    ) {
+        appendRow(csv, task, generatedAt, "metadata", "safetyScanPolicy", "mode", null,
+                "failClosed", null, "success", "fullTask", null);
+        appendRow(csv, task, generatedAt, "metadata", "safetyScanPolicy", "sensitiveTextPatternScan", null,
+                true, null, null, "fullTask", null);
+        appendRow(csv, task, generatedAt, "metadata", "safetyScanPolicy", "rawPayloadMarkerScan", null,
+                true, null, null, "fullTask", null);
+        appendRow(csv, task, generatedAt, "metadata", "safetyScanPolicy", "requestResponsePreviewScan", null,
+                true, null, null, "fullTask", null);
+        appendRow(csv, task, generatedAt, "metadata", "safetyScanPolicy", "findingDetailsExported", null,
+                false, null, null, "fullTask", null);
     }
 
     /**

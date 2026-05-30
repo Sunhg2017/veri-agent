@@ -19,6 +19,7 @@ class TestDesignTaskReportServiceTest {
         assertDoesNotThrow(() -> TestDesignTaskReportExportGovernance.validateExportSafety("""
                 recordType,section,metric,label,value
                 metadata,exportGovernance,fieldPolicy,,aggregateOnly
+                metadata,safetyScanPolicy,mode,,failClosed
                 metadata,archivePolicy,retentionDays,,180
                 metadata,task,promptKey,,wp5-test-design-v1
                 summary,candidateQuality,metric,publishable,2
@@ -60,6 +61,11 @@ class TestDesignTaskReportServiceTest {
         String report = csv.toString();
         assertDoesNotThrow(() -> TestDesignTaskReportExportGovernance.validateExportSafety(report));
         org.assertj.core.api.Assertions.assertThat(report)
+                .contains("safetyScanPolicy,mode,,failClosed,,success")
+                .contains("safetyScanPolicy,sensitiveTextPatternScan,,true")
+                .contains("safetyScanPolicy,rawPayloadMarkerScan,,true")
+                .contains("safetyScanPolicy,requestResponsePreviewScan,,true")
+                .contains("safetyScanPolicy,findingDetailsExported,,false")
                 .contains("archivePolicy,retentionDays,,3650")
                 .contains("archivePolicy,storagePolicy,,platformManaged")
                 .contains("archivePolicy,approvalRequired,,false")

@@ -852,6 +852,11 @@ class TestDesignControllerTest {
         MatcherAssert.assertThat(csv, containsString("exportGovernance,candidateBodyAllowed,,false"));
         MatcherAssert.assertThat(csv, containsString("exportGovernance,reviewCommentAllowed,,false"));
         MatcherAssert.assertThat(csv, containsString("exportGovernance,safetyScan,,PASSED"));
+        MatcherAssert.assertThat(csv, containsString("safetyScanPolicy,mode,,failClosed"));
+        MatcherAssert.assertThat(csv, containsString("safetyScanPolicy,sensitiveTextPatternScan,,true"));
+        MatcherAssert.assertThat(csv, containsString("safetyScanPolicy,rawPayloadMarkerScan,,true"));
+        MatcherAssert.assertThat(csv, containsString("safetyScanPolicy,requestResponsePreviewScan,,true"));
+        MatcherAssert.assertThat(csv, containsString("safetyScanPolicy,findingDetailsExported,,false"));
         MatcherAssert.assertThat(csv, containsString("archivePolicy,retentionDays,,180"));
         MatcherAssert.assertThat(csv, containsString("archivePolicy,storagePolicy,,platformManaged"));
         MatcherAssert.assertThat(csv, containsString("archivePolicy,approvalRequired,,true"));
