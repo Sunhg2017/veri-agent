@@ -100,6 +100,11 @@ post_test_design_json() {
     -d "$body"
 }
 
+get_test_design_json() {
+  local path="$1"
+  curl -fsS "$TEST_DESIGN_API_BASE$path" "${test_design_headers[@]}"
+}
+
 wait_for_task_candidates() {
   local task_id="$1"
   local expected_count="$2"
@@ -189,10 +194,45 @@ main() {
   echo "== WP5 test-design smoke =="
   echo "baseUrl=$BASE_URL project=$PROJECT_ID"
 
-  local health requirement requirement_id task task_id candidates candidate_targets confirm dry_run asset_before publish case_id case_asset links
+  local health project_policy env_policy pending_effective approved_project approved_env effective_policy overrides requirement requirement_id task task_id candidates candidate_targets confirm dry_run asset_before publish case_id case_asset links
   health="$(curl -fsS "$TEST_DESIGN_API_BASE/health")"
   check "WP5 health" '.data.service == "test-design" and .data.status == "UP" and .data.generationEnabled == true' "$health"
   prepare_project
+
+  project_policy="$(post_test_design_json "/context-policies/projects/$(urlencode "$PROJECT_ID")/overrides" "$(jq -nc \
+    '{contextExistingCasesPerRequirement:3,contextRequirementDescriptionChars:321,changeReasonCode:"SMOKE_VALIDATION"}')")"
+  check "Request project context policy override" \
+    '.data.status == "PENDING" and .data.overrideLimits.existingCasesPerRequirement == 3 and .data.overrideLimits.requirementDescriptionChars == 321 and .data.changeReasonCodeCaptured == true and (.data.changeReasonCode | not)' \
+    "$project_policy"
+
+  pending_effective="$(get_test_design_json "/context-policies/projects/$(urlencode "$PROJECT_ID")/effective?environmentKey=qa")"
+  check "Pending context policy override is not effective" \
+    '(.data.appliedOverrideScopes | index("PROJECT") | not) and (.data.appliedOverrideScopes | index("ENVIRONMENT") | not) and .data.overrideStatusCounts.PENDING == 1 and .data.contextPolicyGovernance.policySource == "PLATFORM_DEFAULT" and .data.contextPolicyGovernance.governanceStatus == "OVERRIDE_STORE_READY" and .data.contextPolicyOperations.projectOverrideStoreReady == true and .data.aggregateOnly == true and .data.policyBodyExported == false and .data.policyDiffPreviewExported == false and .data.approvalNotesExported == false and .data.ticketUrlExported == false' \
+    "$pending_effective"
+
+  approved_project="$(post_test_design_json "/context-policies/overrides/$(printf '%s' "$project_policy" | jq -r '.data.id')/approve" "$(jq -nc \
+    '{approvalReasonCode:"QUALITY_BASELINE"}')")"
+  check "Approve project context policy override" \
+    '.data.status == "APPROVED" and .data.approvalReasonCodeCaptured == true and (.data.approvalReasonCode | not)' \
+    "$approved_project"
+
+  env_policy="$(post_test_design_json "/context-policies/projects/$(urlencode "$PROJECT_ID")/environments/qa/overrides" "$(jq -nc \
+    '{contextExistingCasesPerRequirement:1,contextAssetSchemaChars:111,changeReasonCode:"SMOKE_VALIDATION"}')")"
+  approved_env="$(post_test_design_json "/context-policies/overrides/$(printf '%s' "$env_policy" | jq -r '.data.id')/approve" "$(jq -nc \
+    '{approvalReasonCode:"PROJECT_COMPLEXITY"}')")"
+  check "Approve environment context policy override" \
+    '.data.status == "APPROVED" and .data.overrideLimits.existingCasesPerRequirement == 1 and .data.overrideLimits.linkedAssetSchemaChars == 111' \
+    "$approved_env"
+
+  effective_policy="$(get_test_design_json "/context-policies/projects/$(urlencode "$PROJECT_ID")/effective?environmentKey=qa")"
+  check "Effective context policy applies project then environment" \
+    '.data.contextLimits.existingCasesPerRequirement == 1 and .data.contextLimits.requirementDescriptionChars == 321 and .data.contextLimits.linkedAssetSchemaChars == 111 and .data.appliedOverrideScopes == ["PLATFORM_DEFAULT","PROJECT","ENVIRONMENT"] and .data.contextPolicyGovernance.policySource == "PROJECT_ENVIRONMENT_OVERRIDE" and .data.contextPolicyGovernance.governanceStatus == "OVERRIDE_APPROVED" and .data.contextPolicyOperations.operationMode == "PROJECT_ENVIRONMENT_OVERRIDE" and .data.contextPolicyOperations.policyResolutionOrder == "PLATFORM_DEFAULT_PROJECT_ENVIRONMENT" and .data.contextPolicyOperations.projectOverrideStoreReady == true and .data.contextPolicyOperations.environmentOverrideStoreReady == true and .data.policyBodyExported == false and .data.policyDiffPreviewExported == false' \
+    "$effective_policy"
+
+  overrides="$(get_test_design_json "/context-policies/projects/$(urlencode "$PROJECT_ID")/overrides?environmentKey=qa")"
+  check "Context policy overrides are sanitized" \
+    '.data | length == 2 and all(.[]; (.status == "APPROVED") and (.changeReasonCodeCaptured == true) and (.approvalReasonCodeCaptured == true) and (.changeReasonCode | not) and (.approvalReasonCode | not) and (.policyBody | not) and (.policyDiff | not) and (.approvalNotes | not) and (.ticketUrl | not))' \
+    "$overrides"
 
   requirement="$(post_asset_json /requirements "$(jq -nc \
     --arg projectId "$PROJECT_ID" \
@@ -203,8 +243,8 @@ main() {
   task="$(post_test_design_json /tasks "$(jq -nc \
     --arg projectId "$PROJECT_ID" \
     --arg requirementId "$requirement_id" \
-    '{projectId:$projectId,title:"WP5 smoke generation",requirementIds:[$requirementId],coverageTypes:["SMOKE","EXCEPTION"]}')")"
-  check "Queue WP5 task" '(.data.task.status == "QUEUED" or .data.task.status == "RUNNING" or .data.task.status == "SUCCEEDED") and (.data.task.generatedCount | type == "number")' "$task"
+    '{projectId:$projectId,environmentKey:"qa",title:"WP5 smoke generation",requirementIds:[$requirementId],coverageTypes:["SMOKE","EXCEPTION"]}')")"
+  check "Queue WP5 task" '(.data.task.status == "QUEUED" or .data.task.status == "RUNNING" or .data.task.status == "SUCCEEDED") and (.data.task.generatedCount | type == "number") and .data.task.contextSummary.limits.existingCasesPerRequirement == 1 and .data.task.contextSummary.limits.requirementDescriptionChars == 321 and .data.task.contextSummary.limits.linkedAssetSchemaChars == 111 and .data.task.contextSummary.policyOperations.approvedOverrideApplied == true' "$task"
   task_id="$(printf '%s' "$task" | jq -r '.data.task.id')"
   if ! task="$(wait_for_task_candidates "$task_id" 2)"; then
     check "Create WP5 task with candidates" '.data.task.status == "SUCCEEDED" and (.data.candidates | length) == 2 and (.data.candidates | all(.status == "GENERATED"))' "$task"

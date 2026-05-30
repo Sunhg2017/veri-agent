@@ -54,7 +54,8 @@ with expected(table_name) as (
         ('test_design_candidate'),
         ('test_design_review_record'),
         ('test_design_publish_record'),
-        ('test_design_report_manifest')
+        ('test_design_report_manifest'),
+        ('test_design_context_policy_override')
 ),
 missing as (
     select e.table_name
@@ -285,7 +286,20 @@ with expected(table_name, column_name) as (
         ('test_design_report_manifest','report_row_count'), ('test_design_report_manifest','aggregate_only'),
         ('test_design_report_manifest','detail_rows_exported'), ('test_design_report_manifest','manifest_status'),
         ('test_design_report_manifest','content_digest'), ('test_design_report_manifest','generated_at'),
-        ('test_design_report_manifest','created_at')
+        ('test_design_report_manifest','created_at'),
+        ('test_design_context_policy_override','id'), ('test_design_context_policy_override','scope_type'),
+        ('test_design_context_policy_override','project_id'), ('test_design_context_policy_override','environment_key'),
+        ('test_design_context_policy_override','status'),
+        ('test_design_context_policy_override','context_linked_assets_per_requirement'),
+        ('test_design_context_policy_override','context_explicit_assets_per_type'),
+        ('test_design_context_policy_override','context_existing_cases_per_requirement'),
+        ('test_design_context_policy_override','context_requirement_description_chars'),
+        ('test_design_context_policy_override','context_acceptance_criteria_chars'),
+        ('test_design_context_policy_override','context_asset_schema_chars'),
+        ('test_design_context_policy_override','change_reason_code'),
+        ('test_design_context_policy_override','approval_reason_code'),
+        ('test_design_context_policy_override','requested_by'), ('test_design_context_policy_override','approved_by'),
+        ('test_design_context_policy_override','created_at'), ('test_design_context_policy_override','updated_at')
 ),
 missing as (
     select e.table_name || '.' || e.column_name as item
@@ -373,7 +387,10 @@ with expected(table_name, index_name) as (
         ('test_design_publish_record','idx_test_design_publish_task_created'),
         ('test_design_report_manifest','uk_test_design_report_manifest_content_digest'),
         ('test_design_report_manifest','idx_test_design_report_manifest_task_created'),
-        ('test_design_report_manifest','idx_test_design_report_manifest_project_created')
+        ('test_design_report_manifest','idx_test_design_report_manifest_project_created'),
+        ('test_design_context_policy_override','idx_test_design_context_policy_override_project_created'),
+        ('test_design_context_policy_override','idx_test_design_context_policy_override_project_status'),
+        ('test_design_context_policy_override','idx_test_design_context_policy_override_environment_status')
 ),
 missing as (
     select e.table_name || '.' || e.index_name as item

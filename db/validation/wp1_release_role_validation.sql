@@ -215,6 +215,21 @@ checks as (
         'runtime role may read/write encrypted local secret material through WP1 service code but must not DELETE/TRUNCATE it' as details
     union all
     select
+        'release.wp5_context_policy_override.runtime_access' as check_name,
+        case
+            when not exists (select 1 from app_role_exists) then 'FAIL'
+            when to_regclass(format('%I.%I', (select schema_name from settings), 'test_design_context_policy_override')) is null then 'FAIL'
+            when coalesce(has_table_privilege((select app_role from settings), to_regclass(format('%I.%I', (select schema_name from settings), 'test_design_context_policy_override')), 'SELECT'), false)
+             and coalesce(has_table_privilege((select app_role from settings), to_regclass(format('%I.%I', (select schema_name from settings), 'test_design_context_policy_override')), 'INSERT'), false)
+             and coalesce(has_table_privilege((select app_role from settings), to_regclass(format('%I.%I', (select schema_name from settings), 'test_design_context_policy_override')), 'UPDATE'), false)
+             and not coalesce(has_table_privilege((select app_role from settings), to_regclass(format('%I.%I', (select schema_name from settings), 'test_design_context_policy_override')), 'DELETE'), false)
+             and not coalesce(has_table_privilege((select app_role from settings), to_regclass(format('%I.%I', (select schema_name from settings), 'test_design_context_policy_override')), 'TRUNCATE'), false)
+            then 'PASS'
+            else 'FAIL'
+        end as status,
+        'runtime role may create, approve and read WP5 context policy metadata but must not DELETE/TRUNCATE override records' as details
+    union all
+    select
         'release.readonly_role.no_table_dml' as check_name,
         case
             when not exists (select 1 from readonly_role_exists) then 'FAIL'

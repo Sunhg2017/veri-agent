@@ -7,7 +7,8 @@ with expected(table_name) as (
         ('test_design_candidate'),
         ('test_design_review_record'),
         ('test_design_publish_record'),
-        ('test_design_report_manifest')
+        ('test_design_report_manifest'),
+        ('test_design_context_policy_override')
 ),
 missing as (
     select e.table_name
@@ -79,7 +80,13 @@ with expected(table_name, constraint_name) as (
         ('test_design_report_manifest','ck_test_design_report_manifest_mode'),
         ('test_design_report_manifest','ck_test_design_report_manifest_status'),
         ('test_design_report_manifest','ck_test_design_report_manifest_aggregate_only'),
-        ('test_design_report_manifest','ck_test_design_report_manifest_digest')
+        ('test_design_report_manifest','ck_test_design_report_manifest_digest'),
+        ('test_design_context_policy_override','ck_test_design_context_policy_override_scope'),
+        ('test_design_context_policy_override','ck_test_design_context_policy_override_status'),
+        ('test_design_context_policy_override','ck_test_design_context_policy_override_environment'),
+        ('test_design_context_policy_override','ck_test_design_context_policy_override_any_limit'),
+        ('test_design_context_policy_override','ck_test_design_context_policy_override_item_limits'),
+        ('test_design_context_policy_override','ck_test_design_context_policy_override_char_limits')
 ),
 missing as (
     select e.table_name || '.' || e.constraint_name as item
@@ -116,7 +123,10 @@ with expected(table_name, index_name) as (
         ('test_design_publish_record', 'uk_test_design_publish_auto_comp_candidate'),
         ('test_design_report_manifest', 'uk_test_design_report_manifest_content_digest'),
         ('test_design_report_manifest', 'idx_test_design_report_manifest_task_created'),
-        ('test_design_report_manifest', 'idx_test_design_report_manifest_project_created')
+        ('test_design_report_manifest', 'idx_test_design_report_manifest_project_created'),
+        ('test_design_context_policy_override', 'idx_test_design_context_policy_override_project_created'),
+        ('test_design_context_policy_override', 'idx_test_design_context_policy_override_project_status'),
+        ('test_design_context_policy_override', 'idx_test_design_context_policy_override_environment_status')
 ),
 missing as (
     select e.table_name || '.' || e.index_name as item
@@ -131,6 +141,77 @@ select
     case when count(*) = 0 then 'PASS' else 'FAIL' end as status,
     coalesce(string_agg(item, ', ' order by item), 'WP5 publish and report manifest idempotency indexes exist') as details
 from missing;
+
+with expected(column_name) as (
+    values
+        ('id'),
+        ('scope_type'),
+        ('project_id'),
+        ('environment_key'),
+        ('status'),
+        ('context_linked_assets_per_requirement'),
+        ('context_explicit_assets_per_type'),
+        ('context_existing_cases_per_requirement'),
+        ('context_requirement_description_chars'),
+        ('context_acceptance_criteria_chars'),
+        ('context_asset_schema_chars'),
+        ('change_reason_code'),
+        ('approval_reason_code'),
+        ('requested_by'),
+        ('approved_by'),
+        ('created_at'),
+        ('updated_at')
+),
+missing as (
+    select e.column_name
+    from expected e
+    left join information_schema.columns c
+        on c.table_schema = current_schema()
+       and c.table_name = 'test_design_context_policy_override'
+       and c.column_name = e.column_name
+    where c.column_name is null
+)
+select
+    'wp5.context_policy_override_columns_exist' as check_name,
+    case when count(*) = 0 then 'PASS' else 'FAIL' end as status,
+    coalesce(string_agg(column_name, ', ' order by column_name), 'WP5 context policy override stores bounded metadata columns only') as details
+from missing;
+
+with forbidden(column_name) as (
+    values
+        ('policy_body'),
+        ('policy_text'),
+        ('policy_json'),
+        ('policy_document'),
+        ('policy_diff'),
+        ('diff_json'),
+        ('diff_preview'),
+        ('approval_note'),
+        ('approval_notes'),
+        ('ticket_url'),
+        ('work_order_url'),
+        ('context_body'),
+        ('context_json'),
+        ('context_summary_json'),
+        ('raw_context'),
+        ('raw_prompt'),
+        ('prompt_text'),
+        ('prompt_payload'),
+        ('request_body'),
+        ('response_body')
+),
+found as (
+    select column_name
+    from information_schema.columns c
+    join forbidden f using (column_name)
+    where c.table_schema = current_schema()
+      and c.table_name = 'test_design_context_policy_override'
+)
+select
+    'wp5.context_policy_override_no_body_or_detail_columns' as check_name,
+    case when count(*) = 0 then 'PASS' else 'FAIL' end as status,
+    coalesce(string_agg(column_name, ', ' order by column_name), 'WP5 context policy override stores no policy body, diff, notes, ticket URL, context body or prompt payload columns') as details
+from found;
 
 with expected(column_name) as (
     values
@@ -245,7 +326,8 @@ with wp5_tables(table_name) as (
         ('test_design_candidate'),
         ('test_design_review_record'),
         ('test_design_publish_record'),
-        ('test_design_report_manifest')
+        ('test_design_report_manifest'),
+        ('test_design_context_policy_override')
 ),
 missing as (
     select t.table_name
@@ -278,7 +360,8 @@ with missing as (
           'test_design_candidate',
           'test_design_review_record',
           'test_design_publish_record',
-          'test_design_report_manifest'
+          'test_design_report_manifest',
+          'test_design_context_policy_override'
       )
       and (
           col_description(pc.oid, pa.attnum) is null
@@ -297,7 +380,8 @@ with expected(code) as (
         ('testDesign:generate'),
         ('testDesign:review'),
         ('testDesign:publish'),
-        ('testDesign:export')
+        ('testDesign:export'),
+        ('testDesign:policy_manage')
 ),
 missing as (
     select e.code

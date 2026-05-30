@@ -169,6 +169,7 @@ grant select, insert, update on
     test_design_review_record,
     test_design_publish_record,
     test_design_report_manifest,
+    test_design_context_policy_override,
     audit_outbox
 to wp1_app;
 
