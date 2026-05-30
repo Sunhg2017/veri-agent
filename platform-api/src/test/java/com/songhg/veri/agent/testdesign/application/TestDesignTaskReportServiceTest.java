@@ -71,6 +71,7 @@ class TestDesignTaskReportServiceTest {
                 TestDesignEvaluationCorpusPolicy.response(),
                 TestDesignReleaseReadinessPolicy.response(),
                 TestDesignAuditChainPolicy.response(),
+                TestDesignModelObservationPolicy.response(),
                 archivePolicy(),
                 TestDesignReportManifestPolicy.response(),
                 Map.of(),
@@ -128,6 +129,7 @@ class TestDesignTaskReportServiceTest {
                 TestDesignEvaluationCorpusPolicy.response(),
                 TestDesignReleaseReadinessPolicy.response(),
                 TestDesignAuditChainPolicy.response(),
+                TestDesignModelObservationPolicy.response(),
                 archivePolicy(),
                 reportManifestPolicy(),
                 Map.of("reportManifestPolicy", Map.of(
@@ -203,6 +205,7 @@ class TestDesignTaskReportServiceTest {
                 TestDesignEvaluationCorpusPolicy.response(),
                 TestDesignReleaseReadinessPolicy.response(),
                 TestDesignAuditChainPolicy.response(),
+                TestDesignModelObservationPolicy.response(),
                 archivePolicy(),
                 TestDesignReportManifestPolicy.response(),
                 Map.of(),
@@ -279,6 +282,7 @@ class TestDesignTaskReportServiceTest {
                 TestDesignEvaluationCorpusPolicy.response(),
                 TestDesignReleaseReadinessPolicy.response(),
                 TestDesignAuditChainPolicy.response(),
+                TestDesignModelObservationPolicy.response(),
                 archivePolicy(),
                 TestDesignReportManifestPolicy.response(),
                 Map.of(),
@@ -342,6 +346,7 @@ class TestDesignTaskReportServiceTest {
                 TestDesignEvaluationCorpusPolicy.response(),
                 TestDesignReleaseReadinessPolicy.response(),
                 TestDesignAuditChainPolicy.response(),
+                TestDesignModelObservationPolicy.response(),
                 archivePolicy(),
                 TestDesignReportManifestPolicy.response(),
                 Map.of(),
@@ -431,6 +436,7 @@ class TestDesignTaskReportServiceTest {
                 TestDesignEvaluationCorpusPolicy.response(),
                 TestDesignReleaseReadinessPolicy.response(),
                 TestDesignAuditChainPolicy.response(),
+                TestDesignModelObservationPolicy.response(),
                 archivePolicy(),
                 TestDesignReportManifestPolicy.response(),
                 Map.of(
@@ -542,6 +548,7 @@ class TestDesignTaskReportServiceTest {
                 TestDesignEvaluationCorpusPolicy.response(),
                 TestDesignReleaseReadinessPolicy.response(),
                 TestDesignAuditChainPolicy.response(),
+                TestDesignModelObservationPolicy.response(),
                 archivePolicy(),
                 TestDesignReportManifestPolicy.response(),
                 Map.of(),
@@ -609,6 +616,7 @@ class TestDesignTaskReportServiceTest {
                 TestDesignEvaluationCorpusPolicy.response(),
                 TestDesignReleaseReadinessPolicy.response(),
                 TestDesignAuditChainPolicy.response(),
+                TestDesignModelObservationPolicy.response(),
                 archivePolicy(),
                 TestDesignReportManifestPolicy.response(),
                 Map.of("scopePolicy", Map.of(
@@ -679,6 +687,7 @@ class TestDesignTaskReportServiceTest {
                 TestDesignEvaluationCorpusPolicy.response(),
                 TestDesignReleaseReadinessPolicy.response(),
                 TestDesignAuditChainPolicy.response(),
+                TestDesignModelObservationPolicy.response(),
                 archivePolicy(),
                 TestDesignReportManifestPolicy.response(),
                 Map.of("evaluationCorpusPolicy", Map.of(
@@ -778,6 +787,7 @@ class TestDesignTaskReportServiceTest {
                 TestDesignEvaluationCorpusPolicy.response(),
                 TestDesignReleaseReadinessPolicy.response(),
                 TestDesignAuditChainPolicy.response(),
+                TestDesignModelObservationPolicy.response(),
                 archivePolicy(),
                 TestDesignReportManifestPolicy.response(),
                 Map.of(),
@@ -807,6 +817,7 @@ class TestDesignTaskReportServiceTest {
                 .contains("modelObservationPolicy,jobIdValueExported,,false")
                 .contains("modelObservationPolicy,invocationIdValueExported,,false")
                 .contains("modelObservationPolicy,providerErrorTextExported,,false")
+                .contains("modelObservationPolicy,actorServiceExported,,false")
                 .contains("modelObservationPolicy,metric,routingMetadataFieldCount,5,,info")
                 .contains("modelObservationPolicy,metric,tokenUsageMetricCount,2,,info")
                 .contains("modelObservationPolicy,metric,costMetricCount,1,,info")
@@ -854,6 +865,7 @@ class TestDesignTaskReportServiceTest {
                 TestDesignEvaluationCorpusPolicy.response(),
                 TestDesignReleaseReadinessPolicy.response(),
                 TestDesignAuditChainPolicy.response(),
+                TestDesignModelObservationPolicy.response(),
                 archivePolicy(),
                 TestDesignReportManifestPolicy.response(),
                 Map.of(),
@@ -930,6 +942,7 @@ class TestDesignTaskReportServiceTest {
                 TestDesignEvaluationCorpusPolicy.response(),
                 TestDesignReleaseReadinessPolicy.response(),
                 TestDesignAuditChainPolicy.response(),
+                TestDesignModelObservationPolicy.response(),
                 archivePolicy(),
                 TestDesignReportManifestPolicy.response(),
                 Map.of(),
@@ -1009,6 +1022,7 @@ class TestDesignTaskReportServiceTest {
                 TestDesignEvaluationCorpusPolicy.response(),
                 TestDesignReleaseReadinessPolicy.response(),
                 TestDesignAuditChainPolicy.response(),
+                TestDesignModelObservationPolicy.response(),
                 archivePolicy(),
                 TestDesignReportManifestPolicy.response(),
                 Map.of("releaseReadinessPolicy", Map.of(
@@ -1107,6 +1121,7 @@ class TestDesignTaskReportServiceTest {
                 TestDesignEvaluationCorpusPolicy.response(),
                 TestDesignReleaseReadinessPolicy.response(),
                 TestDesignAuditChainPolicy.response(),
+                TestDesignModelObservationPolicy.response(),
                 archivePolicy(),
                 TestDesignReportManifestPolicy.response(),
                 Map.of("auditChainPolicy", Map.of(

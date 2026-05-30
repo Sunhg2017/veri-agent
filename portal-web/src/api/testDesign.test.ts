@@ -187,6 +187,26 @@ describe('WP5 test design API helpers', () => {
         audit_outbox_replay_dashboard_ready: false,
         aggregate_only: true
       },
+      model_observation_policy: {
+        policy_version: 'wp5-model-observation-policy-v1',
+        observation_mode: 'ROUTING_COST_LATENCY_AGGREGATE',
+        wp2_invocation_reference_tracked: true,
+        trace_id_tracked: true,
+        job_id_tracked: true,
+        routing_metadata_tracked: true,
+        token_usage_tracked: true,
+        latency_tracked: true,
+        cost_tracked: true,
+        fallback_tracked: true,
+        prompt_payload_stored: false,
+        payload_preview_exported: false,
+        trace_id_value_exported: false,
+        job_id_value_exported: false,
+        invocation_id_value_exported: false,
+        provider_error_text_exported: false,
+        actor_service_exported: false,
+        aggregate_only: true
+      },
       archive_policy: {
         policy_version: 'wp5-archive-policy-v1',
         retention_days: 180,
@@ -341,6 +361,26 @@ describe('WP5 test design API helpers', () => {
         auditOutboxReplayDashboardReady: false,
         aggregateOnly: true
       },
+      modelObservationPolicy: {
+        policyVersion: 'wp5-model-observation-policy-v1',
+        observationMode: 'ROUTING_COST_LATENCY_AGGREGATE',
+        wp2InvocationReferenceTracked: true,
+        traceIdTracked: true,
+        jobIdTracked: true,
+        routingMetadataTracked: true,
+        tokenUsageTracked: true,
+        latencyTracked: true,
+        costTracked: true,
+        fallbackTracked: true,
+        promptPayloadStored: false,
+        payloadPreviewExported: false,
+        traceIdValueExported: false,
+        jobIdValueExported: false,
+        invocationIdValueExported: false,
+        providerErrorTextExported: false,
+        actorServiceExported: false,
+        aggregateOnly: true
+      },
       archivePolicy: {
         policyVersion: 'wp5-archive-policy-v1',
         retentionDays: 180,
@@ -480,6 +520,26 @@ describe('WP5 test design API helpers', () => {
         publish_identifier_value_exported: false,
         cross_wp_audit_dashboard_ready: false,
         audit_outbox_replay_dashboard_ready: false,
+        aggregate_only: true
+      },
+      model_observation_policy: {
+        policy_version: 'wp5-model-observation-policy-v1',
+        observation_mode: 'ROUTING_COST_LATENCY_AGGREGATE',
+        wp2_invocation_reference_tracked: true,
+        trace_id_tracked: true,
+        job_id_tracked: true,
+        routing_metadata_tracked: true,
+        token_usage_tracked: true,
+        latency_tracked: true,
+        cost_tracked: true,
+        fallback_tracked: true,
+        prompt_payload_stored: false,
+        payload_preview_exported: false,
+        trace_id_value_exported: false,
+        job_id_value_exported: false,
+        invocation_id_value_exported: false,
+        provider_error_text_exported: false,
+        actor_service_exported: false,
         aggregate_only: true
       },
       archive_policy: {
@@ -625,6 +685,26 @@ describe('WP5 test design API helpers', () => {
         auditOutboxReplayDashboardReady: false,
         aggregateOnly: true
       },
+      modelObservationPolicy: {
+        policyVersion: 'wp5-model-observation-policy-v1',
+        observationMode: 'ROUTING_COST_LATENCY_AGGREGATE',
+        wp2InvocationReferenceTracked: true,
+        traceIdTracked: true,
+        jobIdTracked: true,
+        routingMetadataTracked: true,
+        tokenUsageTracked: true,
+        latencyTracked: true,
+        costTracked: true,
+        fallbackTracked: true,
+        promptPayloadStored: false,
+        payloadPreviewExported: false,
+        traceIdValueExported: false,
+        jobIdValueExported: false,
+        invocationIdValueExported: false,
+        providerErrorTextExported: false,
+        actorServiceExported: false,
+        aggregateOnly: true
+      },
       archivePolicy: {
         policyVersion: 'wp5-archive-policy-v1',
         retentionDays: 365,
@@ -671,6 +751,19 @@ describe('WP5 test design API helpers', () => {
       manifestMode: 'AGGREGATE_RECONCILIATION',
       aggregateOnly: true
     });
+    expect(health.modelObservationPolicy).toMatchObject({
+      policyVersion: 'wp5-model-observation-policy-v1',
+      observationMode: 'ROUTING_COST_LATENCY_AGGREGATE',
+      wp2InvocationReferenceTracked: true,
+      promptPayloadStored: false,
+      payloadPreviewExported: false,
+      traceIdValueExported: false,
+      jobIdValueExported: false,
+      invocationIdValueExported: false,
+      providerErrorTextExported: false,
+      actorServiceExported: false,
+      aggregateOnly: true
+    });
     expect(task.archivePolicy).toMatchObject({
       policyVersion: 'wp5-archive-policy-v1',
       retentionDays: 365,
@@ -689,6 +782,26 @@ describe('WP5 test design API helpers', () => {
       candidateIdentifierListExported: false,
       traceIdentifierListExported: false,
       auditIdentifierListExported: false,
+      aggregateOnly: true
+    });
+    expect(task.modelObservationPolicy).toMatchObject({
+      policyVersion: 'wp5-model-observation-policy-v1',
+      observationMode: 'ROUTING_COST_LATENCY_AGGREGATE',
+      wp2InvocationReferenceTracked: true,
+      traceIdTracked: true,
+      jobIdTracked: true,
+      routingMetadataTracked: true,
+      tokenUsageTracked: true,
+      latencyTracked: true,
+      costTracked: true,
+      fallbackTracked: true,
+      promptPayloadStored: false,
+      payloadPreviewExported: false,
+      traceIdValueExported: false,
+      jobIdValueExported: false,
+      invocationIdValueExported: false,
+      providerErrorTextExported: false,
+      actorServiceExported: false,
       aggregateOnly: true
     });
 

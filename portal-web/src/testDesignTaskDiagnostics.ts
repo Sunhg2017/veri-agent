@@ -39,6 +39,11 @@ export function buildTestDesignTaskDiagnostics(task: TestDesignTaskView | null |
       value: formatModelObservation(task),
       tone: modelObservationTone(task)
     },
+    {
+      label: '观测策略',
+      value: summarizeTestDesignModelObservationPolicy(task),
+      tone: modelObservationPolicyTone(task)
+    },
     { label: '调用链路', value: compactTestDesignDigest(task.modelObservation?.traceId, 12, 8) },
     { label: '调用任务', value: compactTestDesignDigest(task.modelObservation?.jobId, 12, 8) },
     { label: '输入摘要', value: compactTestDesignDigest(task.inputDigest, 12, 8) },
@@ -346,6 +351,30 @@ export function summarizeTestDesignReportManifestPolicy(task: TestDesignTaskView
     .join(' · ') || '-';
 }
 
+export function summarizeTestDesignModelObservationPolicy(task: TestDesignTaskView | null | undefined): string {
+  const policy = task?.modelObservationPolicy ?? modelObservationPolicyFromContextSummary(task?.contextSummary);
+  if (!policy) {
+    return '-';
+  }
+
+  const version = displayDiagnosticText(policy.policyVersion, 36);
+  const mode = displayDiagnosticText(policy.observationMode, 40);
+  const wp2 = policy.wp2InvocationReferenceTracked === true ? 'WP2调用:tracked' : 'WP2调用:missing';
+  const trace = policy.traceIdTracked === true ? 'trace信号:tracked' : 'trace信号:missing';
+  const job = policy.jobIdTracked === true ? 'job信号:tracked' : 'job信号:missing';
+  const routing = policy.routingMetadataTracked === true ? '路由:tracked' : '路由:missing';
+  const token = policy.tokenUsageTracked === true ? 'token:tracked' : 'token:missing';
+  const costLatency = policy.costTracked === true && policy.latencyTracked === true
+    ? '成本耗时:tracked'
+    : '成本耗时:missing';
+  const fallback = policy.fallbackTracked === true ? 'fallback:tracked' : 'fallback:missing';
+  const payload = policy.promptPayloadStored === true ? 'Prompt载荷:on' : 'Prompt载荷:off';
+  const detailExport = anyModelObservationDetailExported(policy) ? '细节导出:on' : '细节导出:off';
+  return [version, mode, wp2, trace, job, routing, token, costLatency, fallback, payload, detailExport]
+    .filter((part) => part !== '-')
+    .join(' · ') || '-';
+}
+
 function contextAssemblyPolicyTone(task: TestDesignTaskView): TestDesignTaskDiagnosticTone {
   const policy = task.contextAssemblyPolicy ?? assemblyPolicyFromContextSummary(task.contextSummary);
   if (
@@ -517,6 +546,27 @@ function reportManifestPolicyTone(task: TestDesignTaskView): TestDesignTaskDiagn
     return 'danger';
   }
   if (policy?.archiveReconciliationReady === false) {
+    return 'warning';
+  }
+  return 'neutral';
+}
+
+function modelObservationPolicyTone(task: TestDesignTaskView): TestDesignTaskDiagnosticTone {
+  const policy = task.modelObservationPolicy ?? modelObservationPolicyFromContextSummary(task.contextSummary);
+  if (
+    policy?.wp2InvocationReferenceTracked === false ||
+    policy?.routingMetadataTracked === false ||
+    policy?.tokenUsageTracked === false ||
+    policy?.latencyTracked === false ||
+    policy?.costTracked === false ||
+    policy?.fallbackTracked === false ||
+    policy?.promptPayloadStored === true ||
+    anyModelObservationDetailExported(policy) ||
+    policy?.aggregateOnly === false
+  ) {
+    return 'danger';
+  }
+  if (policy?.traceIdTracked === false || policy?.jobIdTracked === false) {
     return 'warning';
   }
   return 'neutral';
@@ -724,6 +774,37 @@ function reportManifestPolicyFromContextSummary(contextSummary: Record<string, u
   };
 }
 
+function modelObservationPolicyFromContextSummary(contextSummary: Record<string, unknown> | null | undefined) {
+  if (!contextSummary || typeof contextSummary !== 'object') {
+    return undefined;
+  }
+  const raw = contextSummary.modelObservationPolicy;
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    return undefined;
+  }
+  const record = raw as Record<string, unknown>;
+  return {
+    policyVersion: safeOptionalString(record.policyVersion),
+    observationMode: safeOptionalString(record.observationMode),
+    wp2InvocationReferenceTracked: safeOptionalBoolean(record.wp2InvocationReferenceTracked),
+    traceIdTracked: safeOptionalBoolean(record.traceIdTracked),
+    jobIdTracked: safeOptionalBoolean(record.jobIdTracked),
+    routingMetadataTracked: safeOptionalBoolean(record.routingMetadataTracked),
+    tokenUsageTracked: safeOptionalBoolean(record.tokenUsageTracked),
+    latencyTracked: safeOptionalBoolean(record.latencyTracked),
+    costTracked: safeOptionalBoolean(record.costTracked),
+    fallbackTracked: safeOptionalBoolean(record.fallbackTracked),
+    promptPayloadStored: safeOptionalBoolean(record.promptPayloadStored),
+    payloadPreviewExported: safeOptionalBoolean(record.payloadPreviewExported),
+    traceIdValueExported: safeOptionalBoolean(record.traceIdValueExported),
+    jobIdValueExported: safeOptionalBoolean(record.jobIdValueExported),
+    invocationIdValueExported: safeOptionalBoolean(record.invocationIdValueExported),
+    providerErrorTextExported: safeOptionalBoolean(record.providerErrorTextExported),
+    actorServiceExported: safeOptionalBoolean(record.actorServiceExported),
+    aggregateOnly: safeOptionalBoolean(record.aggregateOnly)
+  };
+}
+
 function governanceFromContextSummary(contextSummary: Record<string, unknown> | null | undefined) {
   if (!contextSummary || typeof contextSummary !== 'object') {
     return undefined;
@@ -820,6 +901,25 @@ function anyReportManifestDetailExported(policy: {
     policy.candidateIdentifierListExported === true ||
     policy.traceIdentifierListExported === true ||
     policy.auditIdentifierListExported === true;
+}
+
+function anyModelObservationDetailExported(policy: {
+  payloadPreviewExported?: boolean;
+  traceIdValueExported?: boolean;
+  jobIdValueExported?: boolean;
+  invocationIdValueExported?: boolean;
+  providerErrorTextExported?: boolean;
+  actorServiceExported?: boolean;
+} | null | undefined) {
+  if (!policy) {
+    return false;
+  }
+  return policy.payloadPreviewExported === true ||
+    policy.traceIdValueExported === true ||
+    policy.jobIdValueExported === true ||
+    policy.invocationIdValueExported === true ||
+    policy.providerErrorTextExported === true ||
+    policy.actorServiceExported === true;
 }
 
 function contextPolicyPart(record: Record<string, unknown>, key: string, label: string) {

@@ -1,7 +1,9 @@
 package com.songhg.veri.agent.testdesign.application;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.songhg.veri.agent.asset.application.AssetService;
 import com.songhg.veri.agent.asset.application.query.TraceLinkListRequest;
 import com.songhg.veri.agent.asset.application.view.ApiResponseDTO;
@@ -52,6 +54,18 @@ public class TestDesignGenerationService {
     private static final String MODEL_CALLER_SERVICE = "wp5-test-design";
     private static final String MODEL_CAPABILITY_JSON = "JSON";
     private static final String DEFAULT_MODEL_SENSITIVITY_LEVEL = "INTERNAL";
+    private static final Set<String> MODEL_CONTEXT_SUMMARY_POLICY_KEYS = Set.of(
+            "assemblyPolicy",
+            "policyGovernance",
+            "policyOperations",
+            "scopePolicy",
+            "evaluationCorpusPolicy",
+            "releaseReadinessPolicy",
+            "auditChainPolicy",
+            "modelObservationPolicy",
+            "archivePolicy",
+            "reportManifestPolicy"
+    );
     private final AssetService assetService;
     private final TestDesignResponseMapper responseMapper;
     private final TestDesignCandidateQualityGate qualityGate;
@@ -110,6 +124,7 @@ public class TestDesignGenerationService {
         summary.put("evaluationCorpusPolicy", TestDesignEvaluationCorpusPolicy.snapshot());
         summary.put("releaseReadinessPolicy", TestDesignReleaseReadinessPolicy.snapshot());
         summary.put("auditChainPolicy", TestDesignAuditChainPolicy.snapshot());
+        summary.put("modelObservationPolicy", TestDesignModelObservationPolicy.snapshot());
         summary.put("archivePolicy", TestDesignArchivePolicy.snapshot(properties));
         summary.put("reportManifestPolicy", TestDesignReportManifestPolicy.snapshot());
         try {
@@ -523,6 +538,7 @@ public class TestDesignGenerationService {
         policy.put("evaluationCorpusPolicy", TestDesignEvaluationCorpusPolicy.snapshot());
         policy.put("releaseReadinessPolicy", TestDesignReleaseReadinessPolicy.snapshot());
         policy.put("auditChainPolicy", TestDesignAuditChainPolicy.snapshot());
+        policy.put("modelObservationPolicy", TestDesignModelObservationPolicy.snapshot());
         policy.put("archivePolicy", TestDesignArchivePolicy.snapshot(properties));
         policy.put("reportManifestPolicy", TestDesignReportManifestPolicy.snapshot());
         return policy;
@@ -545,7 +561,18 @@ public class TestDesignGenerationService {
             return Map.of();
         }
         try {
-            return objectMapper.readTree(contextSummaryJson);
+            JsonNode summary = objectMapper.readTree(contextSummaryJson);
+            if (!summary.isObject()) {
+                return summary;
+            }
+            ObjectNode modelSummary = ((ObjectNode) summary).deepCopy();
+            /*
+             * The persisted context summary is the audit/diagnostic snapshot. The model payload carries the same
+             * governance boundaries through contextPacking, so stripping duplicate top-level policy blocks here keeps
+             * WP2 prompt budget focused on source context without weakening health/task/report observability.
+             */
+            MODEL_CONTEXT_SUMMARY_POLICY_KEYS.forEach(modelSummary::remove);
+            return modelSummary;
         } catch (JsonProcessingException exception) {
             return Map.of("unavailable", true);
         }

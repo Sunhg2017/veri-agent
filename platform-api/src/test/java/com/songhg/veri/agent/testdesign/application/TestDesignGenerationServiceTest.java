@@ -199,6 +199,27 @@ class TestDesignGenerationServiceTest {
         assertThat(summary.path("auditChainPolicy").path("modelInvocationIdValueExported").asBoolean()).isFalse();
         assertThat(summary.path("auditChainPolicy").path("publishIdentifierValueExported").asBoolean()).isFalse();
         assertThat(summary.path("auditChainPolicy").path("aggregateOnly").asBoolean()).isTrue();
+        assertThat(summary.path("modelObservationPolicy").path("policyVersion").asText())
+                .isEqualTo("wp5-model-observation-policy-v1");
+        assertThat(summary.path("modelObservationPolicy").path("observationMode").asText())
+                .isEqualTo("ROUTING_COST_LATENCY_AGGREGATE");
+        assertThat(summary.path("modelObservationPolicy").path("wp2InvocationReferenceTracked").asBoolean())
+                .isTrue();
+        assertThat(summary.path("modelObservationPolicy").path("traceIdTracked").asBoolean()).isTrue();
+        assertThat(summary.path("modelObservationPolicy").path("jobIdTracked").asBoolean()).isTrue();
+        assertThat(summary.path("modelObservationPolicy").path("routingMetadataTracked").asBoolean()).isTrue();
+        assertThat(summary.path("modelObservationPolicy").path("tokenUsageTracked").asBoolean()).isTrue();
+        assertThat(summary.path("modelObservationPolicy").path("latencyTracked").asBoolean()).isTrue();
+        assertThat(summary.path("modelObservationPolicy").path("costTracked").asBoolean()).isTrue();
+        assertThat(summary.path("modelObservationPolicy").path("fallbackTracked").asBoolean()).isTrue();
+        assertThat(summary.path("modelObservationPolicy").path("promptPayloadStored").asBoolean()).isFalse();
+        assertThat(summary.path("modelObservationPolicy").path("payloadPreviewExported").asBoolean()).isFalse();
+        assertThat(summary.path("modelObservationPolicy").path("traceIdValueExported").asBoolean()).isFalse();
+        assertThat(summary.path("modelObservationPolicy").path("jobIdValueExported").asBoolean()).isFalse();
+        assertThat(summary.path("modelObservationPolicy").path("invocationIdValueExported").asBoolean()).isFalse();
+        assertThat(summary.path("modelObservationPolicy").path("providerErrorTextExported").asBoolean()).isFalse();
+        assertThat(summary.path("modelObservationPolicy").path("actorServiceExported").asBoolean()).isFalse();
+        assertThat(summary.path("modelObservationPolicy").path("aggregateOnly").asBoolean()).isTrue();
         assertThat(summary.path("archivePolicy").path("policyVersion").asText())
                 .isEqualTo("wp5-archive-policy-v1");
         assertThat(summary.path("archivePolicy").path("retentionDays").asInt()).isEqualTo(180);
@@ -295,6 +316,10 @@ class TestDesignGenerationServiceTest {
         service.generateCandidates(task, List.of(requirement()), List.of("SMOKE"), Instant.now());
 
         JsonNode payload = objectMapper.readTree(commandCaptor.getValue().messages().getFirst().content());
+        assertThat(payload.path("contextSummary").path("contextVersion").asText()).isEqualTo("wp5-context-v1");
+        assertThat(payload.path("contextSummary").has("modelObservationPolicy")).isFalse();
+        assertThat(payload.path("contextSummary").has("reportManifestPolicy")).isFalse();
+        assertThat(payload.path("contextSummary").has("auditChainPolicy")).isFalse();
         assertThat(payload.path("contextPacking").path("linkedAssetsPerRequirement").asInt()).isEqualTo(3);
         assertThat(payload.path("contextPacking").path("explicitAssetsPerType").asInt()).isEqualTo(4);
         assertThat(payload.path("contextPacking").path("existingCasesPerRequirement").asInt()).isEqualTo(2);
@@ -389,6 +414,36 @@ class TestDesignGenerationServiceTest {
                 .isFalse();
         assertThat(payload.path("contextPacking").path("auditChainPolicy").path("aggregateOnly").asBoolean())
                 .isTrue();
+        assertThat(payload.path("contextPacking").path("modelObservationPolicy").path("policyVersion").asText())
+                .isEqualTo("wp5-model-observation-policy-v1");
+        assertThat(payload.path("contextPacking").path("modelObservationPolicy").path("observationMode").asText())
+                .isEqualTo("ROUTING_COST_LATENCY_AGGREGATE");
+        assertThat(payload.path("contextPacking").path("modelObservationPolicy")
+                .path("wp2InvocationReferenceTracked").asBoolean()).isTrue();
+        assertThat(payload.path("contextPacking").path("modelObservationPolicy").path("traceIdTracked")
+                .asBoolean()).isTrue();
+        assertThat(payload.path("contextPacking").path("modelObservationPolicy").path("jobIdTracked")
+                .asBoolean()).isTrue();
+        assertThat(payload.path("contextPacking").path("modelObservationPolicy").path("routingMetadataTracked")
+                .asBoolean()).isTrue();
+        assertThat(payload.path("contextPacking").path("modelObservationPolicy").path("tokenUsageTracked")
+                .asBoolean()).isTrue();
+        assertThat(payload.path("contextPacking").path("modelObservationPolicy").path("promptPayloadStored")
+                .asBoolean()).isFalse();
+        assertThat(payload.path("contextPacking").path("modelObservationPolicy").path("payloadPreviewExported")
+                .asBoolean()).isFalse();
+        assertThat(payload.path("contextPacking").path("modelObservationPolicy").path("traceIdValueExported")
+                .asBoolean()).isFalse();
+        assertThat(payload.path("contextPacking").path("modelObservationPolicy").path("jobIdValueExported")
+                .asBoolean()).isFalse();
+        assertThat(payload.path("contextPacking").path("modelObservationPolicy").path("invocationIdValueExported")
+                .asBoolean()).isFalse();
+        assertThat(payload.path("contextPacking").path("modelObservationPolicy").path("providerErrorTextExported")
+                .asBoolean()).isFalse();
+        assertThat(payload.path("contextPacking").path("modelObservationPolicy").path("actorServiceExported")
+                .asBoolean()).isFalse();
+        assertThat(payload.path("contextPacking").path("modelObservationPolicy").path("aggregateOnly")
+                .asBoolean()).isTrue();
         assertThat(payload.path("contextPacking").path("archivePolicy").path("policyVersion").asText())
                 .isEqualTo("wp5-archive-policy-v1");
         assertThat(payload.path("contextPacking").path("archivePolicy").path("retentionDays").asInt()).isEqualTo(180);
@@ -664,7 +719,21 @@ class TestDesignGenerationServiceTest {
                 null,
                 null,
                 "input-digest",
-                "{\"contextVersion\":\"wp5-context-v1\"}",
+                """
+                        {
+                          "contextVersion": "wp5-context-v1",
+                          "requirements": [],
+                          "modelObservationPolicy": {
+                            "policyVersion": "wp5-model-observation-policy-v1"
+                          },
+                          "reportManifestPolicy": {
+                            "policyVersion": "wp5-report-manifest-policy-v1"
+                          },
+                          "auditChainPolicy": {
+                            "policyVersion": "wp5-audit-chain-policy-v1"
+                          }
+                        }
+                        """,
                 now,
                 now
         );

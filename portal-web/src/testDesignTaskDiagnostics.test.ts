@@ -166,6 +166,26 @@ const baseTask: TestDesignTaskView = {
     auditOutboxReplayDashboardReady: false,
     aggregateOnly: true
   },
+  modelObservationPolicy: {
+    policyVersion: 'wp5-model-observation-policy-v1',
+    observationMode: 'ROUTING_COST_LATENCY_AGGREGATE',
+    wp2InvocationReferenceTracked: true,
+    traceIdTracked: true,
+    jobIdTracked: true,
+    routingMetadataTracked: true,
+    tokenUsageTracked: true,
+    latencyTracked: true,
+    costTracked: true,
+    fallbackTracked: true,
+    promptPayloadStored: false,
+    payloadPreviewExported: false,
+    traceIdValueExported: false,
+    jobIdValueExported: false,
+    invocationIdValueExported: false,
+    providerErrorTextExported: false,
+    actorServiceExported: false,
+    aggregateOnly: true
+  },
   archivePolicy: {
     policyVersion: 'wp5-archive-policy-v1',
     retentionDays: 180,
@@ -238,6 +258,11 @@ describe('WP5 task diagnostics helpers', () => {
           tone: 'danger',
           value: 'FAILED · 123/45 tokens · 875ms · cost:0.00012345 · fallback · MODEL_TIMEOUT'
         }),
+        expect.objectContaining({
+          label: '观测策略',
+          tone: 'neutral',
+          value: 'wp5-model-observation-policy-v1 · ROUTING_COST_LATENCY_AGGREGATE · WP2调用:tracked · trace信号:tracked · job信号:tracked · 路由:tracked · token:tracked · 成本耗时:tracked · fallback:tracked · Prompt载荷:off · 细节导出:off'
+        }),
         expect.objectContaining({ label: '调用链路', value: expect.stringContaining('trc_wp5_mod') }),
         expect.objectContaining({ label: '调用任务', value: expect.stringContaining('job-abcdef1') }),
         expect.objectContaining({ label: '输入摘要', value: expect.stringContaining('9c6f4c3ef8d1') }),
@@ -303,6 +328,79 @@ describe('WP5 task diagnostics helpers', () => {
     expect(JSON.stringify(diagnostics)).not.toContain('should-not-appear');
     expect(JSON.stringify(diagnostics)).not.toContain('https://ticket.example');
     expect(JSON.stringify(diagnostics)).not.toContain('row-hash-secret');
+  });
+
+  it('falls back to aggregate model observation policy from the task summary', () => {
+    const diagnostics = buildTestDesignTaskDiagnostics({
+      ...baseTask,
+      modelObservationPolicy: undefined,
+      contextSummary: {
+        modelObservationPolicy: {
+          policyVersion: 'wp5-model-observation-policy-v1',
+          observationMode: 'ROUTING_COST_LATENCY_AGGREGATE',
+          wp2InvocationReferenceTracked: true,
+          traceIdTracked: true,
+          jobIdTracked: true,
+          routingMetadataTracked: true,
+          tokenUsageTracked: true,
+          latencyTracked: true,
+          costTracked: true,
+          fallbackTracked: true,
+          promptPayloadStored: false,
+          payloadPreviewExported: false,
+          traceIdValueExported: false,
+          jobIdValueExported: false,
+          invocationIdValueExported: false,
+          providerErrorTextExported: false,
+          actorServiceExported: false,
+          aggregateOnly: true,
+          invocationIds: ['invoke-secret-id'],
+          jobIds: ['job-secret-id'],
+          traceIds: ['trc_secret'],
+          requestPreview: 'request preview should not appear',
+          responsePreview: 'response preview should not appear',
+          providerErrorBody: 'provider token=secret-value'
+        }
+      }
+    });
+
+    expect(diagnostics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          label: '观测策略',
+          tone: 'neutral',
+          value: expect.stringContaining('成本耗时:tracked')
+        })
+      ])
+    );
+    expect(JSON.stringify(diagnostics)).not.toContain('invoke-secret-id');
+    expect(JSON.stringify(diagnostics)).not.toContain('job-secret-id');
+    expect(JSON.stringify(diagnostics)).not.toContain('trc_secret');
+    expect(JSON.stringify(diagnostics)).not.toContain('request preview should not appear');
+    expect(JSON.stringify(diagnostics)).not.toContain('response preview should not appear');
+    expect(JSON.stringify(diagnostics)).not.toContain('secret-value');
+  });
+
+  it('marks unsafe model observation policy as danger', () => {
+    const diagnostics = buildTestDesignTaskDiagnostics({
+      ...baseTask,
+      modelObservationPolicy: {
+        ...baseTask.modelObservationPolicy,
+        promptPayloadStored: true,
+        traceIdValueExported: true,
+        actorServiceExported: true
+      }
+    });
+
+    expect(diagnostics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          label: '观测策略',
+          tone: 'danger',
+          value: expect.stringContaining('Prompt载荷:on')
+        })
+      ])
+    );
   });
 
   it('marks missing model observation as warning when an invocation id exists', () => {

@@ -23,6 +23,7 @@ export interface TestDesignHealth {
   evaluationCorpusPolicy?: TestDesignEvaluationCorpusPolicyView;
   releaseReadinessPolicy?: TestDesignReleaseReadinessPolicyView;
   auditChainPolicy?: TestDesignAuditChainPolicyView;
+  modelObservationPolicy?: TestDesignModelObservationPolicyView;
   archivePolicy?: TestDesignArchivePolicyView;
   reportManifestPolicy?: TestDesignReportManifestPolicyView;
   supportedCoverageTypes: string[];
@@ -56,6 +57,7 @@ export interface TestDesignTaskView {
   evaluationCorpusPolicy?: TestDesignEvaluationCorpusPolicyView;
   releaseReadinessPolicy?: TestDesignReleaseReadinessPolicyView;
   auditChainPolicy?: TestDesignAuditChainPolicyView;
+  modelObservationPolicy?: TestDesignModelObservationPolicyView;
   archivePolicy?: TestDesignArchivePolicyView;
   reportManifestPolicy?: TestDesignReportManifestPolicyView;
   contextSummary: Record<string, unknown>;
@@ -218,6 +220,27 @@ export interface TestDesignReportManifestPolicyView {
   candidateIdentifierListExported?: boolean;
   traceIdentifierListExported?: boolean;
   auditIdentifierListExported?: boolean;
+  aggregateOnly?: boolean;
+}
+
+export interface TestDesignModelObservationPolicyView {
+  policyVersion?: string;
+  observationMode?: string;
+  wp2InvocationReferenceTracked?: boolean;
+  traceIdTracked?: boolean;
+  jobIdTracked?: boolean;
+  routingMetadataTracked?: boolean;
+  tokenUsageTracked?: boolean;
+  latencyTracked?: boolean;
+  costTracked?: boolean;
+  fallbackTracked?: boolean;
+  promptPayloadStored?: boolean;
+  payloadPreviewExported?: boolean;
+  traceIdValueExported?: boolean;
+  jobIdValueExported?: boolean;
+  invocationIdValueExported?: boolean;
+  providerErrorTextExported?: boolean;
+  actorServiceExported?: boolean;
   aggregateOnly?: boolean;
 }
 
@@ -738,6 +761,9 @@ export function normalizeTestDesignHealth(raw: unknown): TestDesignHealth {
       item.releaseReadinessPolicy ?? item.release_readiness_policy
     ),
     auditChainPolicy: normalizeTestDesignAuditChainPolicy(item.auditChainPolicy ?? item.audit_chain_policy),
+    modelObservationPolicy: normalizeTestDesignModelObservationPolicy(
+      item.modelObservationPolicy ?? item.model_observation_policy
+    ),
     archivePolicy: normalizeTestDesignArchivePolicy(item.archivePolicy ?? item.archive_policy),
     reportManifestPolicy: normalizeTestDesignReportManifestPolicy(
       item.reportManifestPolicy ?? item.report_manifest_policy
@@ -787,6 +813,9 @@ export function normalizeTestDesignTask(raw: unknown): TestDesignTaskView {
       item.releaseReadinessPolicy ?? item.release_readiness_policy
     ),
     auditChainPolicy: normalizeTestDesignAuditChainPolicy(item.auditChainPolicy ?? item.audit_chain_policy),
+    modelObservationPolicy: normalizeTestDesignModelObservationPolicy(
+      item.modelObservationPolicy ?? item.model_observation_policy
+    ),
     archivePolicy: normalizeTestDesignArchivePolicy(item.archivePolicy ?? item.archive_policy),
     reportManifestPolicy: normalizeTestDesignReportManifestPolicy(
       item.reportManifestPolicy ?? item.report_manifest_policy
@@ -1104,6 +1133,42 @@ export function normalizeTestDesignReportManifestPolicy(
     auditIdentifierListExported: optionalBoolean(
       raw.auditIdentifierListExported ?? raw.audit_identifier_list_exported
     ),
+    aggregateOnly: optionalBoolean(raw.aggregateOnly ?? raw.aggregate_only)
+  };
+}
+
+export function normalizeTestDesignModelObservationPolicy(
+  raw: unknown
+): TestDesignModelObservationPolicyView | undefined {
+  if (!isRecord(raw)) {
+    return undefined;
+  }
+  return {
+    policyVersion: optionalString(raw.policyVersion) ?? optionalString(raw.policy_version),
+    observationMode: optionalString(raw.observationMode) ?? optionalString(raw.observation_mode),
+    wp2InvocationReferenceTracked: optionalBoolean(
+      raw.wp2InvocationReferenceTracked ?? raw.wp2_invocation_reference_tracked
+    ),
+    traceIdTracked: optionalBoolean(raw.traceIdTracked ?? raw.trace_id_tracked),
+    jobIdTracked: optionalBoolean(raw.jobIdTracked ?? raw.job_id_tracked),
+    routingMetadataTracked: optionalBoolean(
+      raw.routingMetadataTracked ?? raw.routing_metadata_tracked
+    ),
+    tokenUsageTracked: optionalBoolean(raw.tokenUsageTracked ?? raw.token_usage_tracked),
+    latencyTracked: optionalBoolean(raw.latencyTracked ?? raw.latency_tracked),
+    costTracked: optionalBoolean(raw.costTracked ?? raw.cost_tracked),
+    fallbackTracked: optionalBoolean(raw.fallbackTracked ?? raw.fallback_tracked),
+    promptPayloadStored: optionalBoolean(raw.promptPayloadStored ?? raw.prompt_payload_stored),
+    payloadPreviewExported: optionalBoolean(raw.payloadPreviewExported ?? raw.payload_preview_exported),
+    traceIdValueExported: optionalBoolean(raw.traceIdValueExported ?? raw.trace_id_value_exported),
+    jobIdValueExported: optionalBoolean(raw.jobIdValueExported ?? raw.job_id_value_exported),
+    invocationIdValueExported: optionalBoolean(
+      raw.invocationIdValueExported ?? raw.invocation_id_value_exported
+    ),
+    providerErrorTextExported: optionalBoolean(
+      raw.providerErrorTextExported ?? raw.provider_error_text_exported
+    ),
+    actorServiceExported: optionalBoolean(raw.actorServiceExported ?? raw.actor_service_exported),
     aggregateOnly: optionalBoolean(raw.aggregateOnly ?? raw.aggregate_only)
   };
 }

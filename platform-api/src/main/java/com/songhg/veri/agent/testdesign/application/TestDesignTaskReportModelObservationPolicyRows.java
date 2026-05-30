@@ -1,14 +1,12 @@
 package com.songhg.veri.agent.testdesign.application;
 
+import com.songhg.veri.agent.testdesign.application.view.TestDesignModelObservationPolicyResponse;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignModelObservationResponse;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignTaskResponse;
 import java.time.Instant;
 import org.springframework.util.StringUtils;
 
 final class TestDesignTaskReportModelObservationPolicyRows {
-
-    private static final String POLICY_VERSION = "wp5-model-observation-policy-v1";
-    private static final String OBSERVATION_MODE = "ROUTING_COST_LATENCY_AGGREGATE";
 
     private TestDesignTaskReportModelObservationPolicyRows() {
     }
@@ -22,8 +20,11 @@ final class TestDesignTaskReportModelObservationPolicyRows {
      */
     static void appendRows(StringBuilder csv, TestDesignTaskResponse task, Instant generatedAt) {
         TestDesignModelObservationResponse observation = task.modelObservation();
-        appendMetadataRow(csv, task, generatedAt, "policyVersion", POLICY_VERSION, null);
-        appendMetadataRow(csv, task, generatedAt, "observationMode", OBSERVATION_MODE, null);
+        TestDesignModelObservationPolicyResponse policy = task.modelObservationPolicy() == null
+                ? TestDesignModelObservationPolicy.response()
+                : task.modelObservationPolicy();
+        appendMetadataRow(csv, task, generatedAt, "policyVersion", policy.policyVersion(), null);
+        appendMetadataRow(csv, task, generatedAt, "observationMode", policy.observationMode(), null);
         appendMetadataRow(csv, task, generatedAt, "wp2InvocationReferenceTracked",
                 task.modelInvocationId() != null || observation != null,
                 task.modelInvocationId() != null || observation != null ? "success" : "warning");
@@ -39,19 +40,22 @@ final class TestDesignTaskReportModelObservationPolicyRows {
                 observation != null && observation.totalCost() != null, null);
         appendMetadataRow(csv, task, generatedAt, "fallbackTracked",
                 observation != null && observation.fallbackUsed() != null, null);
-        appendMetadataRow(csv, task, generatedAt, "promptPayloadStored", false, null);
-        appendMetadataRow(csv, task, generatedAt, "payloadPreviewExported", false, null);
-        appendMetadataRow(csv, task, generatedAt, "traceIdValueExported", false, null);
-        appendMetadataRow(csv, task, generatedAt, "jobIdValueExported", false, null);
-        appendMetadataRow(csv, task, generatedAt, "invocationIdValueExported", false, null);
-        appendMetadataRow(csv, task, generatedAt, "providerErrorTextExported", false, null);
+        appendMetadataRow(csv, task, generatedAt, "promptPayloadStored", policy.promptPayloadStored(), null);
+        appendMetadataRow(csv, task, generatedAt, "payloadPreviewExported", policy.payloadPreviewExported(), null);
+        appendMetadataRow(csv, task, generatedAt, "traceIdValueExported", policy.traceIdValueExported(), null);
+        appendMetadataRow(csv, task, generatedAt, "jobIdValueExported", policy.jobIdValueExported(), null);
+        appendMetadataRow(csv, task, generatedAt, "invocationIdValueExported",
+                policy.invocationIdValueExported(), null);
+        appendMetadataRow(csv, task, generatedAt, "providerErrorTextExported",
+                policy.providerErrorTextExported(), null);
+        appendMetadataRow(csv, task, generatedAt, "actorServiceExported", policy.actorServiceExported(), null);
         appendMetricRow(csv, task, generatedAt, "routingMetadataFieldCount", routingMetadataCount(observation));
         appendMetricRow(csv, task, generatedAt, "tokenUsageMetricCount", tokenUsageMetricCount(observation));
         appendMetricRow(csv, task, generatedAt, "costMetricCount",
                 observation != null && observation.totalCost() != null ? 1L : 0L);
         appendMetricRow(csv, task, generatedAt, "latencyMetricCount",
                 observation != null && observation.latencyMs() != null ? 1L : 0L);
-        appendMetadataRow(csv, task, generatedAt, "aggregateOnly", true, "success");
+        appendMetadataRow(csv, task, generatedAt, "aggregateOnly", policy.aggregateOnly(), "success");
     }
 
     private static long routingMetadataCount(TestDesignModelObservationResponse observation) {
