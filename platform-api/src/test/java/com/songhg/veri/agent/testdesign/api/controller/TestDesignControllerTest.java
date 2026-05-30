@@ -866,6 +866,12 @@ class TestDesignControllerTest {
         MatcherAssert.assertThat(csv, containsString("archivePolicy,storagePolicy,,platformManaged"));
         MatcherAssert.assertThat(csv, containsString("archivePolicy,approvalRequired,,true"));
         MatcherAssert.assertThat(csv, containsString("archivePolicy,externalSharingAllowed,,false"));
+        MatcherAssert.assertThat(csv, containsString("reportManifest,schemaVersion,,wp5-task-report-v1"));
+        MatcherAssert.assertThat(csv, containsString("reportManifest,fieldSetVersion,,aggregate-only-v1"));
+        MatcherAssert.assertThat(csv, containsString("reportManifest,rowCountBeforeManifest,,"));
+        MatcherAssert.assertThat(csv, containsString("reportManifest,aggregateOnly,,true"));
+        MatcherAssert.assertThat(csv, containsString("reportManifest,detailRowsExported,,false"));
+        MatcherAssert.assertThat(csv, containsString("reportManifest,manifestStatus,,COMPLETE"));
         MatcherAssert.assertThat(csv, containsString(taskId));
         MatcherAssert.assertThat(csv, containsString("project-wp5"));
         MatcherAssert.assertThat(csv, not(containsString("secret-value")));
@@ -874,6 +880,9 @@ class TestDesignControllerTest {
         MatcherAssert.assertThat(csv, not(containsString("promptPlaintext")));
         MatcherAssert.assertThat(csv, not(containsString("auditLogId")));
         MatcherAssert.assertThat(csv, not(containsString("afterJson")));
+        MatcherAssert.assertThat(csv, not(containsString("candidateIds")));
+        MatcherAssert.assertThat(csv, not(containsString("traceIds")));
+        MatcherAssert.assertThat(csv, not(containsString("rowDigest")));
         MatcherAssert.assertThat(csv, not(containsString("任务报告步骤不应导出")));
         MatcherAssert.assertThat(csv, not(containsString("步骤结果不应导出")));
         MatcherAssert.assertThat(csv, not(containsString("任务报告前置条件不应导出")));

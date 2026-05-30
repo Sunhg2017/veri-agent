@@ -134,6 +134,7 @@ public class TestDesignTaskReportService {
         appendTaskReportReviewRows(csv, taskResponse, reviewRecords, generatedAt);
         appendTaskReportPublishRows(csv, taskResponse, publishRecords, generatedAt);
         TestDesignTaskReportExportGovernance.appendRows(csv, taskResponse, generatedAt, properties);
+        appendTaskReportManifestRows(csv, taskResponse, generatedAt);
         TestDesignTaskReportExportGovernance.validateExportSafety(csv.toString());
 
         writeAudit("EXPORT", "TEST_DESIGN_TASK_REPORT", UUID.randomUUID(), task.projectId(), Map.of(
@@ -327,6 +328,41 @@ public class TestDesignTaskReportService {
     ) {
         appendTaskReportRow(csv, task, generatedAt, "metadata", "contextPolicy", metric, null,
                 objectFieldCount(limits, fieldName), null, null, "fullTask", null);
+    }
+
+    /**
+     * Adds a bounded report manifest for archive reconciliation without listing row contents or identifiers.
+     *
+     * <p>The row count is captured immediately before the manifest is appended, so archive tooling can detect truncated
+     * exports while the report still avoids candidate bodies, audit records, trace IDs and other detail payloads.
+     */
+    static void appendTaskReportManifestRows(
+            StringBuilder csv,
+            TestDesignTaskResponse task,
+            Instant generatedAt
+    ) {
+        long rowCountBeforeManifest = reportDataRowCount(csv);
+        appendTaskReportRow(csv, task, generatedAt, "metadata", "reportManifest", "schemaVersion", null,
+                "wp5-task-report-v1", null, null, "fullTask", null);
+        appendTaskReportRow(csv, task, generatedAt, "metadata", "reportManifest", "fieldSetVersion", null,
+                "aggregate-only-v1", null, null, "fullTask", null);
+        appendTaskReportRow(csv, task, generatedAt, "metadata", "reportManifest", "rowCountBeforeManifest", null,
+                rowCountBeforeManifest, null, null, "fullTask", null);
+        appendTaskReportRow(csv, task, generatedAt, "metadata", "reportManifest", "aggregateOnly", null,
+                true, null, "success", "fullTask", null);
+        appendTaskReportRow(csv, task, generatedAt, "metadata", "reportManifest", "detailRowsExported", null,
+                false, null, null, "fullTask", null);
+        appendTaskReportRow(csv, task, generatedAt, "metadata", "reportManifest", "manifestStatus", null,
+                "COMPLETE", null, "success", "fullTask", null);
+    }
+
+    private static long reportDataRowCount(StringBuilder csv) {
+        String content = csv.toString();
+        long nonBlankRows = content.lines().filter(StringUtils::hasText).count();
+        if (nonBlankRows == 0L) {
+            return 0L;
+        }
+        return content.startsWith("recordType,") ? nonBlankRows - 1L : nonBlankRows;
     }
 
     private static void appendTaskReportModelObservationRows(

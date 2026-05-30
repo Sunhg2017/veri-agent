@@ -28,6 +28,58 @@ class TestDesignTaskReportServiceTest {
     }
 
     @Test
+    void appendsReportManifestRowsWithoutDetailFields() {
+        StringBuilder csv = new StringBuilder("""
+                recordType,section,metric,label,value,percent,tone,taskId,taskTitle,taskStatus,projectId,scope,generatedAt,dryRun
+                metadata,task,reportType,,WP5_TASK_REPORT_FULL,,,11111111-1111-1111-1111-111111111111,报告任务,SUCCEEDED,project-wp5,fullTask,2026-05-30T00:00:00Z,
+                summary,candidateQuality,metric,publishable,1,100.00,,11111111-1111-1111-1111-111111111111,报告任务,SUCCEEDED,project-wp5,fullTask,2026-05-30T00:00:00Z,
+                """);
+        TestDesignTaskResponse task = new TestDesignTaskResponse(
+                UUID.fromString("11111111-1111-1111-1111-111111111111"),
+                "project-wp5",
+                "报告 manifest token=secret-value",
+                "SUCCEEDED",
+                List.of(),
+                List.of("SMOKE"),
+                "wp5-test-design-v1",
+                "1.0.0",
+                null,
+                null,
+                null,
+                0,
+                0,
+                0,
+                0,
+                null,
+                "auditor",
+                null,
+                "digest",
+                null,
+                Map.of(),
+                Instant.parse("2026-05-30T00:00:00Z"),
+                Instant.parse("2026-05-30T00:00:00Z")
+        );
+
+        TestDesignTaskReportService.appendTaskReportManifestRows(
+                csv, task, Instant.parse("2026-05-30T00:00:00Z"));
+
+        String report = csv.toString();
+        assertDoesNotThrow(() -> TestDesignTaskReportExportGovernance.validateExportSafety(report));
+        org.assertj.core.api.Assertions.assertThat(report)
+                .contains("reportManifest,schemaVersion,,wp5-task-report-v1")
+                .contains("reportManifest,fieldSetVersion,,aggregate-only-v1")
+                .contains("reportManifest,rowCountBeforeManifest,,2")
+                .contains("reportManifest,aggregateOnly,,true,,success")
+                .contains("reportManifest,detailRowsExported,,false")
+                .contains("reportManifest,manifestStatus,,COMPLETE,,success")
+                .doesNotContain("secret-value")
+                .doesNotContain("candidateIds")
+                .doesNotContain("auditLogIds")
+                .doesNotContain("traceIds")
+                .doesNotContain("rowDigest");
+    }
+
+    @Test
     void appendsBoundedArchivePolicyRowsWithoutFreeText() {
         StringBuilder csv = new StringBuilder();
         TestDesignTaskResponse task = new TestDesignTaskResponse(
