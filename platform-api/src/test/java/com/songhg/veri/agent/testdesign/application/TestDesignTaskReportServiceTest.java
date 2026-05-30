@@ -1,11 +1,13 @@
 package com.songhg.veri.agent.testdesign.application;
 
 import com.songhg.veri.agent.common.error.BusinessException;
+import com.songhg.veri.agent.testdesign.application.view.TestDesignModelObservationResponse;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignQualityReadinessCheckResponse;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignQualityReadinessResponse;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignTaskResponse;
 import com.songhg.veri.agent.testdesign.config.TestDesignProperties;
 import com.songhg.veri.agent.testdesign.domain.TestDesignPublishRecord;
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -430,6 +432,96 @@ class TestDesignTaskReportServiceTest {
                 .doesNotContain("approval-note-text")
                 .doesNotContain("https://ticket.example")
                 .doesNotContain("policyDocument");
+    }
+
+    @Test
+    void appendsModelObservationPolicyRowsWithoutObservationDetails() {
+        StringBuilder csv = new StringBuilder();
+        UUID invocationId = UUID.fromString("22222222-2222-2222-2222-222222222222");
+        UUID jobId = UUID.fromString("33333333-3333-3333-3333-333333333333");
+        TestDesignTaskResponse task = new TestDesignTaskResponse(
+                UUID.fromString("11111111-1111-1111-1111-111111111111"),
+                "project-wp5",
+                "模型观测策略报告 token=secret-value",
+                "FAILED",
+                List.of(),
+                List.of("SMOKE"),
+                "wp5-test-design-v1",
+                "1.0.0",
+                invocationId,
+                "local-echo-primary",
+                "local-echo",
+                0,
+                0,
+                0,
+                0,
+                null,
+                "auditor",
+                null,
+                "digest",
+                new TestDesignModelObservationResponse(
+                        invocationId,
+                        jobId,
+                        "trace-secret-value",
+                        true,
+                        "FAILED",
+                        "local-echo-primary",
+                        "local-echo",
+                        "wp5-cost-aware",
+                        "default",
+                        "JSON",
+                        true,
+                        123,
+                        45,
+                        new BigDecimal("0.00012345"),
+                        875L,
+                        "MODEL_TIMEOUT",
+                        "provider token=secret-value rawPrompt timed out",
+                        "wp5-test-design",
+                        Instant.parse("2026-05-30T00:00:00Z")
+                ),
+                TestDesignContextPolicyGovernance.response(),
+                Map.of(),
+                Instant.parse("2026-05-30T00:00:00Z"),
+                Instant.parse("2026-05-30T00:00:00Z")
+        );
+
+        TestDesignTaskReportModelObservationPolicyRows.appendRows(
+                csv, task, Instant.parse("2026-05-30T00:00:00Z"));
+
+        String report = csv.toString();
+        assertDoesNotThrow(() -> TestDesignTaskReportExportGovernance.validateExportSafety(report));
+        org.assertj.core.api.Assertions.assertThat(report)
+                .contains("modelObservationPolicy,policyVersion,,wp5-model-observation-policy-v1")
+                .contains("modelObservationPolicy,observationMode,,ROUTING_COST_LATENCY_AGGREGATE")
+                .contains("modelObservationPolicy,wp2InvocationReferenceTracked,,true,,success")
+                .contains("modelObservationPolicy,traceIdTracked,,true")
+                .contains("modelObservationPolicy,jobIdTracked,,true")
+                .contains("modelObservationPolicy,routingMetadataTracked,,true")
+                .contains("modelObservationPolicy,tokenUsageTracked,,true")
+                .contains("modelObservationPolicy,latencyTracked,,true")
+                .contains("modelObservationPolicy,costTracked,,true")
+                .contains("modelObservationPolicy,fallbackTracked,,true")
+                .contains("modelObservationPolicy,promptPayloadStored,,false")
+                .contains("modelObservationPolicy,payloadPreviewExported,,false")
+                .contains("modelObservationPolicy,traceIdValueExported,,false")
+                .contains("modelObservationPolicy,jobIdValueExported,,false")
+                .contains("modelObservationPolicy,invocationIdValueExported,,false")
+                .contains("modelObservationPolicy,providerErrorTextExported,,false")
+                .contains("modelObservationPolicy,metric,routingMetadataFieldCount,5,,info")
+                .contains("modelObservationPolicy,metric,tokenUsageMetricCount,2,,info")
+                .contains("modelObservationPolicy,metric,costMetricCount,1,,info")
+                .contains("modelObservationPolicy,metric,latencyMetricCount,1,,info")
+                .contains("modelObservationPolicy,aggregateOnly,,true,,success")
+                .doesNotContain("secret-value")
+                .doesNotContain(invocationId.toString())
+                .doesNotContain(jobId.toString())
+                .doesNotContain("trace-secret-value")
+                .doesNotContain("rawPrompt")
+                .doesNotContain("requestPreview")
+                .doesNotContain("responsePreview")
+                .doesNotContain("provider token")
+                .doesNotContain("wp5-test-design");
     }
 
     @Test

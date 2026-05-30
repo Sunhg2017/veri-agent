@@ -766,6 +766,10 @@ class TestDesignControllerTest {
         String ownerToken = userAccessToken(List.of("ProjectOwner@PROJECT:project-wp5"));
         String auditorToken = userAccessToken(List.of("Auditor@PROJECT:project-wp5"));
         String deniedAuditorToken = userAccessToken(List.of("Auditor@PROJECT:project-other"));
+        UUID invocationId = UUID.randomUUID();
+        UUID providerId = UUID.randomUUID();
+        UUID jobId = UUID.randomUUID();
+        Instant modelObservedAt = Instant.parse("2026-05-29T09:00:00Z");
         String requirementId = createRequirement(
                 ownerToken,
                 "任务报告需求 token=secret-value",
@@ -781,6 +785,76 @@ class TestDesignControllerTest {
                 .andExpect(status().isCreated())
                 .andReturn();
         String taskId = JsonPath.read(taskResult.getResponse().getContentAsString(), "$.data.task.id");
+        modelAccessRepository.saveInvocation(new InvocationRecord(
+                invocationId,
+                "project-wp5",
+                null,
+                null,
+                "INTERNAL",
+                "wp5-test-design-v1",
+                1,
+                providerId,
+                "local-echo-primary",
+                "local-echo",
+                "wp5-cost-aware",
+                "default",
+                "JSON",
+                InvocationStatus.FAILED,
+                true,
+                "sha256:prompt",
+                "apiKey=preview-secret should never leave WP2",
+                "Bearer abc.def.ghi should never leave WP2",
+                123,
+                45,
+                new BigDecimal("0.00012345"),
+                "MODEL_TIMEOUT",
+                "provider token=secret-value rawPrompt timed out",
+                875,
+                "wp5-test-design",
+                "qa.lead",
+                modelObservedAt
+        ));
+        modelInvocationJobRepository.save(new ModelInvocationJobRecord(
+                jobId,
+                ModelInvocationJobStatus.FAILED,
+                "{}",
+                "wp5-test-design",
+                "qa.lead",
+                "trc_wp5_task_report",
+                modelObservedAt.minusSeconds(2),
+                modelObservedAt.minusSeconds(1),
+                modelObservedAt,
+                invocationId,
+                "MODEL_TIMEOUT",
+                "job token=secret-value should stay inside WP2",
+                "{\"invocationId\":\"%s\"}".formatted(invocationId)
+        ));
+        TestDesignTask currentTask = testDesignRepository.task(UUID.fromString(taskId)).orElseThrow();
+        testDesignRepository.saveTask(new TestDesignTask(
+                currentTask.id(),
+                currentTask.projectId(),
+                currentTask.title(),
+                currentTask.status(),
+                currentTask.requirementIds(),
+                currentTask.coverageTypes(),
+                currentTask.promptKey(),
+                currentTask.promptVersion(),
+                invocationId,
+                "local-echo-primary",
+                "local-echo",
+                currentTask.totalRequirements(),
+                currentTask.generatedCount(),
+                currentTask.confirmedCount(),
+                currentTask.publishedCount(),
+                currentTask.errorMessage(),
+                currentTask.requestedBy(),
+                currentTask.idempotencyKey(),
+                currentTask.requestDigest(),
+                currentTask.inputDigest(),
+                currentTask.contextSummaryJson(),
+                currentTask.createdAt(),
+                currentTask.updatedAt()
+        ));
         String firstCandidateId = JsonPath.read(taskResult.getResponse().getContentAsString(), "$.data.candidates[0].id");
         Integer firstVersion = JsonPath.read(taskResult.getResponse().getContentAsString(), "$.data.candidates[0].version");
         String secondCandidateId = JsonPath.read(taskResult.getResponse().getContentAsString(), "$.data.candidates[1].id");
@@ -900,7 +974,41 @@ class TestDesignControllerTest {
         MatcherAssert.assertThat(csv, containsString("publishCompensationPolicy,metric,conflictCount,0,,neutral"));
         MatcherAssert.assertThat(csv, containsString("publishCompensationPolicy,metric,failedCount,0,,neutral"));
         MatcherAssert.assertThat(csv, containsString("publishCompensationPolicy,aggregateOnly,,true"));
-        MatcherAssert.assertThat(csv, containsString("modelObservation,traceIdTracked,,false"));
+        MatcherAssert.assertThat(csv, containsString("modelObservation,traceIdTracked,,true"));
+        MatcherAssert.assertThat(csv, containsString("modelObservation,jobIdTracked,,true"));
+        MatcherAssert.assertThat(csv, containsString("modelObservation,status,,FAILED"));
+        MatcherAssert.assertThat(csv, containsString("modelObservation,providerName,,local-echo-primary"));
+        MatcherAssert.assertThat(csv, containsString("modelObservation,modelName,,local-echo"));
+        MatcherAssert.assertThat(csv, containsString("modelObservation,routingRuleName,,wp5-cost-aware"));
+        MatcherAssert.assertThat(csv, containsString("modelObservation,routingGroup,,default"));
+        MatcherAssert.assertThat(csv, containsString("modelObservation,modelCapability,,JSON"));
+        MatcherAssert.assertThat(csv, containsString("modelObservation,fallbackUsed,,true"));
+        MatcherAssert.assertThat(csv, containsString("modelObservation,inputTokens,,123"));
+        MatcherAssert.assertThat(csv, containsString("modelObservation,outputTokens,,45"));
+        MatcherAssert.assertThat(csv, containsString("modelObservation,totalCost,,0.00012345"));
+        MatcherAssert.assertThat(csv, containsString("modelObservation,latencyMs,,875"));
+        MatcherAssert.assertThat(csv, containsString("modelObservation,errorCode,,MODEL_TIMEOUT"));
+        MatcherAssert.assertThat(csv, containsString("modelObservationPolicy,policyVersion,,wp5-model-observation-policy-v1"));
+        MatcherAssert.assertThat(csv, containsString("modelObservationPolicy,observationMode,,ROUTING_COST_LATENCY_AGGREGATE"));
+        MatcherAssert.assertThat(csv, containsString("modelObservationPolicy,wp2InvocationReferenceTracked,,true"));
+        MatcherAssert.assertThat(csv, containsString("modelObservationPolicy,traceIdTracked,,true"));
+        MatcherAssert.assertThat(csv, containsString("modelObservationPolicy,jobIdTracked,,true"));
+        MatcherAssert.assertThat(csv, containsString("modelObservationPolicy,routingMetadataTracked,,true"));
+        MatcherAssert.assertThat(csv, containsString("modelObservationPolicy,tokenUsageTracked,,true"));
+        MatcherAssert.assertThat(csv, containsString("modelObservationPolicy,latencyTracked,,true"));
+        MatcherAssert.assertThat(csv, containsString("modelObservationPolicy,costTracked,,true"));
+        MatcherAssert.assertThat(csv, containsString("modelObservationPolicy,fallbackTracked,,true"));
+        MatcherAssert.assertThat(csv, containsString("modelObservationPolicy,promptPayloadStored,,false"));
+        MatcherAssert.assertThat(csv, containsString("modelObservationPolicy,payloadPreviewExported,,false"));
+        MatcherAssert.assertThat(csv, containsString("modelObservationPolicy,traceIdValueExported,,false"));
+        MatcherAssert.assertThat(csv, containsString("modelObservationPolicy,jobIdValueExported,,false"));
+        MatcherAssert.assertThat(csv, containsString("modelObservationPolicy,invocationIdValueExported,,false"));
+        MatcherAssert.assertThat(csv, containsString("modelObservationPolicy,providerErrorTextExported,,false"));
+        MatcherAssert.assertThat(csv, containsString("modelObservationPolicy,metric,routingMetadataFieldCount,5,,info"));
+        MatcherAssert.assertThat(csv, containsString("modelObservationPolicy,metric,tokenUsageMetricCount,2,,info"));
+        MatcherAssert.assertThat(csv, containsString("modelObservationPolicy,metric,costMetricCount,1,,info"));
+        MatcherAssert.assertThat(csv, containsString("modelObservationPolicy,metric,latencyMetricCount,1,,info"));
+        MatcherAssert.assertThat(csv, containsString("modelObservationPolicy,aggregateOnly,,true"));
         MatcherAssert.assertThat(csv, containsString("context,contextVersion,,wp5-context-v1"));
         MatcherAssert.assertThat(csv, containsString("context,requirementCount,,1"));
         MatcherAssert.assertThat(csv, containsString("contextPolicy,linkedAssetsPerRequirement,,2"));
@@ -977,6 +1085,13 @@ class TestDesignControllerTest {
         MatcherAssert.assertThat(csv, not(containsString("sk_live_12345678")));
         MatcherAssert.assertThat(csv, not(containsString("rawPrompt")));
         MatcherAssert.assertThat(csv, not(containsString("promptPlaintext")));
+        MatcherAssert.assertThat(csv, not(containsString(invocationId.toString())));
+        MatcherAssert.assertThat(csv, not(containsString(jobId.toString())));
+        MatcherAssert.assertThat(csv, not(containsString("trc_wp5_task_report")));
+        MatcherAssert.assertThat(csv, not(containsString("preview-secret")));
+        MatcherAssert.assertThat(csv, not(containsString("abc.def.ghi")));
+        MatcherAssert.assertThat(csv, not(containsString("provider token")));
+        MatcherAssert.assertThat(csv, not(containsString("job token")));
         MatcherAssert.assertThat(csv, not(containsString("auditLogId")));
         MatcherAssert.assertThat(csv, not(containsString("afterJson")));
         MatcherAssert.assertThat(csv, not(containsString("candidateIds")));

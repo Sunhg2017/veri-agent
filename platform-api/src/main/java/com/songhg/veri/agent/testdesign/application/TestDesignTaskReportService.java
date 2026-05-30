@@ -130,6 +130,7 @@ public class TestDesignTaskReportService {
         appendTaskReportTaskRows(csv, taskResponse, generatedAt);
         appendTaskReportContextRows(csv, taskResponse, generatedAt);
         appendTaskReportModelObservationRows(csv, taskResponse, generatedAt);
+        TestDesignTaskReportModelObservationPolicyRows.appendRows(csv, taskResponse, generatedAt);
         appendTaskReportCandidateRows(csv, taskResponse, candidates, generatedAt);
         appendTaskReportReviewRows(csv, taskResponse, reviewRecords, generatedAt);
         appendTaskReportPublishRows(csv, taskResponse, publishRecords, generatedAt);
