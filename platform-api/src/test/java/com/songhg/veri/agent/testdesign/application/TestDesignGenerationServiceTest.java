@@ -213,6 +213,25 @@ class TestDesignGenerationServiceTest {
         assertThat(summary.path("archivePolicy").path("approvalNotesExported").asBoolean()).isFalse();
         assertThat(summary.path("archivePolicy").path("ticketUrlExported").asBoolean()).isFalse();
         assertThat(summary.path("archivePolicy").path("aggregateOnly").asBoolean()).isTrue();
+        assertThat(summary.path("reportManifestPolicy").path("policyVersion").asText())
+                .isEqualTo("wp5-report-manifest-policy-v1");
+        assertThat(summary.path("reportManifestPolicy").path("schemaVersion").asText())
+                .isEqualTo("wp5-task-report-v1");
+        assertThat(summary.path("reportManifestPolicy").path("fieldSetVersion").asText())
+                .isEqualTo("aggregate-only-v1");
+        assertThat(summary.path("reportManifestPolicy").path("manifestMode").asText())
+                .isEqualTo("AGGREGATE_RECONCILIATION");
+        assertThat(summary.path("reportManifestPolicy").path("rowCountTracked").asBoolean()).isTrue();
+        assertThat(summary.path("reportManifestPolicy").path("completionStatusTracked").asBoolean()).isTrue();
+        assertThat(summary.path("reportManifestPolicy").path("archiveReconciliationReady").asBoolean()).isTrue();
+        assertThat(summary.path("reportManifestPolicy").path("detailRowsExported").asBoolean()).isFalse();
+        assertThat(summary.path("reportManifestPolicy").path("rowIntegrityValueExported").asBoolean()).isFalse();
+        assertThat(summary.path("reportManifestPolicy").path("rowContentSummaryExported").asBoolean()).isFalse();
+        assertThat(summary.path("reportManifestPolicy").path("candidateIdentifierListExported").asBoolean())
+                .isFalse();
+        assertThat(summary.path("reportManifestPolicy").path("traceIdentifierListExported").asBoolean()).isFalse();
+        assertThat(summary.path("reportManifestPolicy").path("auditIdentifierListExported").asBoolean()).isFalse();
+        assertThat(summary.path("reportManifestPolicy").path("aggregateOnly").asBoolean()).isTrue();
         assertThat(summary.path("linkedAssetsByRequirement").get(0).path("apiCount").asInt()).isEqualTo(2);
         assertThat(summary.path("linkedAssetsByRequirement").get(0).path("apis")).hasSize(1);
         assertThat(summary.path("linkedAssetsByRequirement").get(0).path("pages")).hasSize(1);
@@ -388,6 +407,26 @@ class TestDesignGenerationServiceTest {
         assertThat(payload.path("contextPacking").path("archivePolicy").path("ticketUrlExported").asBoolean())
                 .isFalse();
         assertThat(payload.path("contextPacking").path("archivePolicy").path("aggregateOnly").asBoolean())
+                .isTrue();
+        assertThat(payload.path("contextPacking").path("reportManifestPolicy").path("policyVersion").asText())
+                .isEqualTo("wp5-report-manifest-policy-v1");
+        assertThat(payload.path("contextPacking").path("reportManifestPolicy").path("manifestMode").asText())
+                .isEqualTo("AGGREGATE_RECONCILIATION");
+        assertThat(payload.path("contextPacking").path("reportManifestPolicy").path("rowCountTracked")
+                .asBoolean()).isTrue();
+        assertThat(payload.path("contextPacking").path("reportManifestPolicy").path("completionStatusTracked")
+                .asBoolean()).isTrue();
+        assertThat(payload.path("contextPacking").path("reportManifestPolicy").path("detailRowsExported")
+                .asBoolean()).isFalse();
+        assertThat(payload.path("contextPacking").path("reportManifestPolicy").path("rowIntegrityValueExported")
+                .asBoolean()).isFalse();
+        assertThat(payload.path("contextPacking").path("reportManifestPolicy").path("candidateIdentifierListExported")
+                .asBoolean()).isFalse();
+        assertThat(payload.path("contextPacking").path("reportManifestPolicy").path("traceIdentifierListExported")
+                .asBoolean()).isFalse();
+        assertThat(payload.path("contextPacking").path("reportManifestPolicy").path("auditIdentifierListExported")
+                .asBoolean()).isFalse();
+        assertThat(payload.path("contextPacking").path("reportManifestPolicy").path("aggregateOnly").asBoolean())
                 .isTrue();
         assertThat(commandCaptor.getValue().promptKey()).isEqualTo("wp5-test-design-v1");
         assertThat(commandCaptor.getValue().messages()).hasSize(1);

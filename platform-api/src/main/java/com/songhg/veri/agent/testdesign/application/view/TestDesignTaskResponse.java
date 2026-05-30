@@ -66,6 +66,8 @@ public record TestDesignTaskResponse(
         TestDesignAuditChainPolicyResponse auditChainPolicy,
         @Schema(description = "任务报告归档治理策略聚合快照")
         TestDesignArchivePolicyResponse archivePolicy,
+        @Schema(description = "任务报告 manifest 治理策略聚合快照")
+        TestDesignReportManifestPolicyResponse reportManifestPolicy,
         @Schema(description = "脱敏上下文摘要")
         Map<String, Object> contextSummary,
         @Schema(description = "创建时间")

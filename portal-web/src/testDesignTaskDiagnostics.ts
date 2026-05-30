@@ -85,6 +85,11 @@ export function buildTestDesignTaskDiagnostics(task: TestDesignTaskView | null |
       value: summarizeTestDesignArchivePolicy(task),
       tone: archivePolicyTone(task)
     },
+    {
+      label: '报告清单',
+      value: summarizeTestDesignReportManifestPolicy(task),
+      tone: reportManifestPolicyTone(task)
+    },
     { label: '请求人', value: displayDiagnosticText(task.requestedBy) },
     { label: '创建', value: formatDateTime(task.createdAt) },
     { label: '更新', value: formatDateTime(task.updatedAt) },
@@ -322,6 +327,25 @@ export function summarizeTestDesignArchivePolicy(task: TestDesignTaskView | null
     .join(' · ') || '-';
 }
 
+export function summarizeTestDesignReportManifestPolicy(task: TestDesignTaskView | null | undefined): string {
+  const policy = task?.reportManifestPolicy ?? reportManifestPolicyFromContextSummary(task?.contextSummary);
+  if (!policy) {
+    return '-';
+  }
+
+  const version = displayDiagnosticText(policy.policyVersion, 36);
+  const schema = displayDiagnosticText(policy.schemaVersion, 32);
+  const fieldSet = displayDiagnosticText(policy.fieldSetVersion, 32);
+  const mode = displayDiagnosticText(policy.manifestMode, 36);
+  const rowCount = policy.rowCountTracked === true ? '行数:tracked' : '行数:missing';
+  const completion = policy.completionStatusTracked === true ? '完成状态:tracked' : '完成状态:missing';
+  const reconciliation = policy.archiveReconciliationReady === true ? '归档核验:ready' : '归档核验:pending';
+  const detailExport = anyReportManifestDetailExported(policy) ? '细节导出:on' : '细节导出:off';
+  return [version, schema, fieldSet, mode, rowCount, completion, reconciliation, detailExport]
+    .filter((part) => part !== '-')
+    .join(' · ') || '-';
+}
+
 function contextAssemblyPolicyTone(task: TestDesignTaskView): TestDesignTaskDiagnosticTone {
   const policy = task.contextAssemblyPolicy ?? assemblyPolicyFromContextSummary(task.contextSummary);
   if (
@@ -472,6 +496,27 @@ function archivePolicyTone(task: TestDesignTaskView): TestDesignTaskDiagnosticTo
     policy?.archiveApprovalWorkflowReady === false ||
     policy?.externalSharingAllowed === true
   ) {
+    return 'warning';
+  }
+  return 'neutral';
+}
+
+function reportManifestPolicyTone(task: TestDesignTaskView): TestDesignTaskDiagnosticTone {
+  const policy = task.reportManifestPolicy ?? reportManifestPolicyFromContextSummary(task.contextSummary);
+  if (
+    policy?.rowCountTracked === false ||
+    policy?.completionStatusTracked === false ||
+    policy?.detailRowsExported === true ||
+    policy?.rowIntegrityValueExported === true ||
+    policy?.rowContentSummaryExported === true ||
+    policy?.candidateIdentifierListExported === true ||
+    policy?.traceIdentifierListExported === true ||
+    policy?.auditIdentifierListExported === true ||
+    policy?.aggregateOnly === false
+  ) {
+    return 'danger';
+  }
+  if (policy?.archiveReconciliationReady === false) {
     return 'warning';
   }
   return 'neutral';
@@ -652,6 +697,33 @@ function archivePolicyFromContextSummary(contextSummary: Record<string, unknown>
   };
 }
 
+function reportManifestPolicyFromContextSummary(contextSummary: Record<string, unknown> | null | undefined) {
+  if (!contextSummary || typeof contextSummary !== 'object') {
+    return undefined;
+  }
+  const raw = contextSummary.reportManifestPolicy;
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    return undefined;
+  }
+  const record = raw as Record<string, unknown>;
+  return {
+    policyVersion: safeOptionalString(record.policyVersion),
+    schemaVersion: safeOptionalString(record.schemaVersion),
+    fieldSetVersion: safeOptionalString(record.fieldSetVersion),
+    manifestMode: safeOptionalString(record.manifestMode),
+    rowCountTracked: safeOptionalBoolean(record.rowCountTracked),
+    completionStatusTracked: safeOptionalBoolean(record.completionStatusTracked),
+    archiveReconciliationReady: safeOptionalBoolean(record.archiveReconciliationReady),
+    detailRowsExported: safeOptionalBoolean(record.detailRowsExported),
+    rowIntegrityValueExported: safeOptionalBoolean(record.rowIntegrityValueExported),
+    rowContentSummaryExported: safeOptionalBoolean(record.rowContentSummaryExported),
+    candidateIdentifierListExported: safeOptionalBoolean(record.candidateIdentifierListExported),
+    traceIdentifierListExported: safeOptionalBoolean(record.traceIdentifierListExported),
+    auditIdentifierListExported: safeOptionalBoolean(record.auditIdentifierListExported),
+    aggregateOnly: safeOptionalBoolean(record.aggregateOnly)
+  };
+}
+
 function governanceFromContextSummary(contextSummary: Record<string, unknown> | null | undefined) {
   if (!contextSummary || typeof contextSummary !== 'object') {
     return undefined;
@@ -729,6 +801,25 @@ function anyArchiveDetailExported(policy: {
     policy.archiveNotesExported === true ||
     policy.approvalNotesExported === true ||
     policy.ticketUrlExported === true;
+}
+
+function anyReportManifestDetailExported(policy: {
+  detailRowsExported?: boolean;
+  rowIntegrityValueExported?: boolean;
+  rowContentSummaryExported?: boolean;
+  candidateIdentifierListExported?: boolean;
+  traceIdentifierListExported?: boolean;
+  auditIdentifierListExported?: boolean;
+} | null | undefined) {
+  if (!policy) {
+    return false;
+  }
+  return policy.detailRowsExported === true ||
+    policy.rowIntegrityValueExported === true ||
+    policy.rowContentSummaryExported === true ||
+    policy.candidateIdentifierListExported === true ||
+    policy.traceIdentifierListExported === true ||
+    policy.auditIdentifierListExported === true;
 }
 
 function contextPolicyPart(record: Record<string, unknown>, key: string, label: string) {

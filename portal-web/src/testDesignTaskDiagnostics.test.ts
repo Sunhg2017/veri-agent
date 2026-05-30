@@ -181,6 +181,22 @@ const baseTask: TestDesignTaskView = {
     ticketUrlExported: false,
     aggregateOnly: true
   },
+  reportManifestPolicy: {
+    policyVersion: 'wp5-report-manifest-policy-v1',
+    schemaVersion: 'wp5-task-report-v1',
+    fieldSetVersion: 'aggregate-only-v1',
+    manifestMode: 'AGGREGATE_RECONCILIATION',
+    rowCountTracked: true,
+    completionStatusTracked: true,
+    archiveReconciliationReady: true,
+    detailRowsExported: false,
+    rowIntegrityValueExported: false,
+    rowContentSummaryExported: false,
+    candidateIdentifierListExported: false,
+    traceIdentifierListExported: false,
+    auditIdentifierListExported: false,
+    aggregateOnly: true
+  },
   contextSummary: {
     contextVersion: 'ctx-v3',
     requirements: [{ id: 'req-1' }, { id: 'req-2' }],
@@ -271,6 +287,11 @@ describe('WP5 task diagnostics helpers', () => {
           value: 'wp5-archive-policy-v1 · platformManaged · 保留:180天 · 审批:required · 审批流:pending · 归档存储:pending · 外发:off · 保留策略:tracked · 细节导出:off'
         }),
         expect.objectContaining({
+          label: '报告清单',
+          tone: 'neutral',
+          value: 'wp5-report-manifest-policy-v1 · wp5-task-report-v1 · aggregate-only-v1 · AGGREGATE_RECONCILIATION · 行数:tracked · 完成状态:tracked · 归档核验:ready · 细节导出:off'
+        }),
+        expect.objectContaining({
           label: '错误',
           tone: 'danger',
           value: 'provider token=[REDACTED] Bearer [REDACTED] timeout after 30s'
@@ -281,6 +302,7 @@ describe('WP5 task diagnostics helpers', () => {
     expect(JSON.stringify(diagnostics)).not.toContain('abc.def.ghi');
     expect(JSON.stringify(diagnostics)).not.toContain('should-not-appear');
     expect(JSON.stringify(diagnostics)).not.toContain('https://ticket.example');
+    expect(JSON.stringify(diagnostics)).not.toContain('row-hash-secret');
   });
 
   it('marks missing model observation as warning when an invocation id exists', () => {
@@ -743,6 +765,73 @@ describe('WP5 task diagnostics helpers', () => {
       expect.arrayContaining([
         expect.objectContaining({
           label: '归档策略',
+          tone: 'danger',
+          value: expect.stringContaining('细节导出:on')
+        })
+      ])
+    );
+  });
+
+  it('falls back to aggregate report manifest policy from the task summary', () => {
+    const diagnostics = buildTestDesignTaskDiagnostics({
+      ...baseTask,
+      reportManifestPolicy: undefined,
+      contextSummary: {
+        reportManifestPolicy: {
+          policyVersion: 'wp5-report-manifest-policy-v1',
+          schemaVersion: 'wp5-task-report-v1',
+          fieldSetVersion: 'aggregate-only-v1',
+          manifestMode: 'AGGREGATE_RECONCILIATION',
+          rowCountTracked: true,
+          completionStatusTracked: true,
+          archiveReconciliationReady: true,
+          detailRowsExported: false,
+          rowIntegrityValueExported: false,
+          rowContentSummaryExported: false,
+          candidateIdentifierListExported: false,
+          traceIdentifierListExported: false,
+          auditIdentifierListExported: false,
+          aggregateOnly: true,
+          rowHashes: ['row-hash-secret'],
+          rowSummaries: ['row summary should not appear'],
+          candidateIds: ['candidate-secret-id'],
+          traceIds: ['trc_secret'],
+          auditLogIds: ['audit-secret-id']
+        }
+      }
+    });
+
+    expect(diagnostics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          label: '报告清单',
+          tone: 'neutral',
+          value: expect.stringContaining('归档核验:ready')
+        })
+      ])
+    );
+    expect(JSON.stringify(diagnostics)).not.toContain('row-hash-secret');
+    expect(JSON.stringify(diagnostics)).not.toContain('row summary should not appear');
+    expect(JSON.stringify(diagnostics)).not.toContain('candidate-secret-id');
+    expect(JSON.stringify(diagnostics)).not.toContain('trc_secret');
+    expect(JSON.stringify(diagnostics)).not.toContain('audit-secret-id');
+  });
+
+  it('marks unsafe report manifest policy as danger', () => {
+    const diagnostics = buildTestDesignTaskDiagnostics({
+      ...baseTask,
+      reportManifestPolicy: {
+        ...baseTask.reportManifestPolicy,
+        rowCountTracked: false,
+        rowIntegrityValueExported: true,
+        candidateIdentifierListExported: true
+      }
+    });
+
+    expect(diagnostics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          label: '报告清单',
           tone: 'danger',
           value: expect.stringContaining('细节导出:on')
         })

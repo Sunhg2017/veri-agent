@@ -202,6 +202,22 @@ describe('WP5 test design API helpers', () => {
         ticket_url_exported: false,
         aggregate_only: true
       },
+      report_manifest_policy: {
+        policy_version: 'wp5-report-manifest-policy-v1',
+        schema_version: 'wp5-task-report-v1',
+        field_set_version: 'aggregate-only-v1',
+        manifest_mode: 'AGGREGATE_RECONCILIATION',
+        row_count_tracked: true,
+        completion_status_tracked: true,
+        archive_reconciliation_ready: true,
+        detail_rows_exported: false,
+        row_integrity_value_exported: false,
+        row_content_summary_exported: false,
+        candidate_identifier_list_exported: false,
+        trace_identifier_list_exported: false,
+        audit_identifier_list_exported: false,
+        aggregate_only: true
+      },
       supported_coverage_types: 'SMOKE,FUNCTIONAL'
     });
     expect(health).toMatchObject({
@@ -340,6 +356,22 @@ describe('WP5 test design API helpers', () => {
         ticketUrlExported: false,
         aggregateOnly: true
       },
+      reportManifestPolicy: {
+        policyVersion: 'wp5-report-manifest-policy-v1',
+        schemaVersion: 'wp5-task-report-v1',
+        fieldSetVersion: 'aggregate-only-v1',
+        manifestMode: 'AGGREGATE_RECONCILIATION',
+        rowCountTracked: true,
+        completionStatusTracked: true,
+        archiveReconciliationReady: true,
+        detailRowsExported: false,
+        rowIntegrityValueExported: false,
+        rowContentSummaryExported: false,
+        candidateIdentifierListExported: false,
+        traceIdentifierListExported: false,
+        auditIdentifierListExported: false,
+        aggregateOnly: true
+      },
       supportedCoverageTypes: ['SMOKE', 'FUNCTIONAL']
     });
 
@@ -463,6 +495,22 @@ describe('WP5 test design API helpers', () => {
         archive_notes_exported: false,
         approval_notes_exported: false,
         ticket_url_exported: false,
+        aggregate_only: true
+      },
+      report_manifest_policy: {
+        policy_version: 'wp5-report-manifest-policy-v1',
+        schema_version: 'wp5-task-report-v1',
+        field_set_version: 'aggregate-only-v1',
+        manifest_mode: 'AGGREGATE_RECONCILIATION',
+        row_count_tracked: true,
+        completion_status_tracked: true,
+        archive_reconciliation_ready: true,
+        detail_rows_exported: false,
+        row_integrity_value_exported: false,
+        row_content_summary_exported: false,
+        candidate_identifier_list_exported: false,
+        trace_identifier_list_exported: false,
+        audit_identifier_list_exported: false,
         aggregate_only: true
       },
       context_summary: {
@@ -591,6 +639,22 @@ describe('WP5 test design API helpers', () => {
         approvalNotesExported: false,
         ticketUrlExported: false,
         aggregateOnly: true
+      },
+      reportManifestPolicy: {
+        policyVersion: 'wp5-report-manifest-policy-v1',
+        schemaVersion: 'wp5-task-report-v1',
+        fieldSetVersion: 'aggregate-only-v1',
+        manifestMode: 'AGGREGATE_RECONCILIATION',
+        rowCountTracked: true,
+        completionStatusTracked: true,
+        archiveReconciliationReady: true,
+        detailRowsExported: false,
+        rowIntegrityValueExported: false,
+        rowContentSummaryExported: false,
+        candidateIdentifierListExported: false,
+        traceIdentifierListExported: false,
+        auditIdentifierListExported: false,
+        aggregateOnly: true
       }
     });
     expect(task.contextSummary.contextVersion).toBe('wp5-context-v1');
@@ -600,6 +664,13 @@ describe('WP5 test design API helpers', () => {
       storagePolicy: 'platformManaged',
       aggregateOnly: true
     });
+    expect(health.reportManifestPolicy).toMatchObject({
+      policyVersion: 'wp5-report-manifest-policy-v1',
+      schemaVersion: 'wp5-task-report-v1',
+      fieldSetVersion: 'aggregate-only-v1',
+      manifestMode: 'AGGREGATE_RECONCILIATION',
+      aggregateOnly: true
+    });
     expect(task.archivePolicy).toMatchObject({
       policyVersion: 'wp5-archive-policy-v1',
       retentionDays: 365,
@@ -607,6 +678,17 @@ describe('WP5 test design API helpers', () => {
       approvalRequired: true,
       archiveApprovalWorkflowReady: false,
       archiveStorageReady: false,
+      aggregateOnly: true
+    });
+    expect(task.reportManifestPolicy).toMatchObject({
+      policyVersion: 'wp5-report-manifest-policy-v1',
+      rowCountTracked: true,
+      completionStatusTracked: true,
+      detailRowsExported: false,
+      rowIntegrityValueExported: false,
+      candidateIdentifierListExported: false,
+      traceIdentifierListExported: false,
+      auditIdentifierListExported: false,
       aggregateOnly: true
     });
 

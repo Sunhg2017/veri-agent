@@ -24,6 +24,7 @@ export interface TestDesignHealth {
   releaseReadinessPolicy?: TestDesignReleaseReadinessPolicyView;
   auditChainPolicy?: TestDesignAuditChainPolicyView;
   archivePolicy?: TestDesignArchivePolicyView;
+  reportManifestPolicy?: TestDesignReportManifestPolicyView;
   supportedCoverageTypes: string[];
 }
 
@@ -56,6 +57,7 @@ export interface TestDesignTaskView {
   releaseReadinessPolicy?: TestDesignReleaseReadinessPolicyView;
   auditChainPolicy?: TestDesignAuditChainPolicyView;
   archivePolicy?: TestDesignArchivePolicyView;
+  reportManifestPolicy?: TestDesignReportManifestPolicyView;
   contextSummary: Record<string, unknown>;
   createdAt?: string;
   updatedAt?: string;
@@ -199,6 +201,23 @@ export interface TestDesignArchivePolicyView {
   archiveNotesExported?: boolean;
   approvalNotesExported?: boolean;
   ticketUrlExported?: boolean;
+  aggregateOnly?: boolean;
+}
+
+export interface TestDesignReportManifestPolicyView {
+  policyVersion?: string;
+  schemaVersion?: string;
+  fieldSetVersion?: string;
+  manifestMode?: string;
+  rowCountTracked?: boolean;
+  completionStatusTracked?: boolean;
+  archiveReconciliationReady?: boolean;
+  detailRowsExported?: boolean;
+  rowIntegrityValueExported?: boolean;
+  rowContentSummaryExported?: boolean;
+  candidateIdentifierListExported?: boolean;
+  traceIdentifierListExported?: boolean;
+  auditIdentifierListExported?: boolean;
   aggregateOnly?: boolean;
 }
 
@@ -720,6 +739,9 @@ export function normalizeTestDesignHealth(raw: unknown): TestDesignHealth {
     ),
     auditChainPolicy: normalizeTestDesignAuditChainPolicy(item.auditChainPolicy ?? item.audit_chain_policy),
     archivePolicy: normalizeTestDesignArchivePolicy(item.archivePolicy ?? item.archive_policy),
+    reportManifestPolicy: normalizeTestDesignReportManifestPolicy(
+      item.reportManifestPolicy ?? item.report_manifest_policy
+    ),
     supportedCoverageTypes: stringArrayValue(item.supportedCoverageTypes ?? item.supported_coverage_types)
   };
 }
@@ -766,6 +788,9 @@ export function normalizeTestDesignTask(raw: unknown): TestDesignTaskView {
     ),
     auditChainPolicy: normalizeTestDesignAuditChainPolicy(item.auditChainPolicy ?? item.audit_chain_policy),
     archivePolicy: normalizeTestDesignArchivePolicy(item.archivePolicy ?? item.archive_policy),
+    reportManifestPolicy: normalizeTestDesignReportManifestPolicy(
+      item.reportManifestPolicy ?? item.report_manifest_policy
+    ),
     contextSummary: recordValue(item.contextSummary ?? item.context_summary),
     createdAt: optionalString(item.createdAt) ?? optionalString(item.created_at),
     updatedAt: optionalString(item.updatedAt) ?? optionalString(item.updated_at)
@@ -1041,6 +1066,44 @@ export function normalizeTestDesignArchivePolicy(raw: unknown): TestDesignArchiv
     archiveNotesExported: optionalBoolean(raw.archiveNotesExported ?? raw.archive_notes_exported),
     approvalNotesExported: optionalBoolean(raw.approvalNotesExported ?? raw.approval_notes_exported),
     ticketUrlExported: optionalBoolean(raw.ticketUrlExported ?? raw.ticket_url_exported),
+    aggregateOnly: optionalBoolean(raw.aggregateOnly ?? raw.aggregate_only)
+  };
+}
+
+export function normalizeTestDesignReportManifestPolicy(
+  raw: unknown
+): TestDesignReportManifestPolicyView | undefined {
+  if (!isRecord(raw)) {
+    return undefined;
+  }
+  return {
+    policyVersion: optionalString(raw.policyVersion) ?? optionalString(raw.policy_version),
+    schemaVersion: optionalString(raw.schemaVersion) ?? optionalString(raw.schema_version),
+    fieldSetVersion: optionalString(raw.fieldSetVersion) ?? optionalString(raw.field_set_version),
+    manifestMode: optionalString(raw.manifestMode) ?? optionalString(raw.manifest_mode),
+    rowCountTracked: optionalBoolean(raw.rowCountTracked ?? raw.row_count_tracked),
+    completionStatusTracked: optionalBoolean(
+      raw.completionStatusTracked ?? raw.completion_status_tracked
+    ),
+    archiveReconciliationReady: optionalBoolean(
+      raw.archiveReconciliationReady ?? raw.archive_reconciliation_ready
+    ),
+    detailRowsExported: optionalBoolean(raw.detailRowsExported ?? raw.detail_rows_exported),
+    rowIntegrityValueExported: optionalBoolean(
+      raw.rowIntegrityValueExported ?? raw.row_integrity_value_exported
+    ),
+    rowContentSummaryExported: optionalBoolean(
+      raw.rowContentSummaryExported ?? raw.row_content_summary_exported
+    ),
+    candidateIdentifierListExported: optionalBoolean(
+      raw.candidateIdentifierListExported ?? raw.candidate_identifier_list_exported
+    ),
+    traceIdentifierListExported: optionalBoolean(
+      raw.traceIdentifierListExported ?? raw.trace_identifier_list_exported
+    ),
+    auditIdentifierListExported: optionalBoolean(
+      raw.auditIdentifierListExported ?? raw.audit_identifier_list_exported
+    ),
     aggregateOnly: optionalBoolean(raw.aggregateOnly ?? raw.aggregate_only)
   };
 }

@@ -5,8 +5,8 @@
 | 工作包 | WP5 AI 用例生成与评审 |
 | 角色产出 | 资深前端工程师 |
 | 文档性质 | 前端页面、路由、权限、状态和可测性设计 |
-| 当前口径 | 基于 `portal-web` React + TypeScript + Vite 管理台扩展，已纳入任务质量、Prompt 趋势、Prompt 版本准出分布、任务诊断、本域审计链摘要面板、跨 WP 审计链策略摘要、显式上下文资产输入、服务端下发的上下文裁剪口径、上下文策略诊断摘要、权限/资源作用域策略摘要、评测语料运营策略摘要和发布准出审批策略摘要 |
-| 版本 | v0.11 |
+| 当前口径 | 基于 `portal-web` React + TypeScript + Vite 管理台扩展，已纳入任务质量、Prompt 趋势、Prompt 版本准出分布、任务诊断、本域审计链摘要面板、跨 WP 审计链策略摘要、显式上下文资产输入、服务端下发的上下文裁剪口径、上下文策略诊断摘要、权限/资源作用域策略摘要、评测语料运营策略摘要、发布准出审批策略摘要、归档策略摘要和报告清单策略摘要 |
+| 版本 | v0.12 |
 | 日期 | 2026-05-30 |
 
 ## 1. 页面目标
@@ -133,7 +133,7 @@ API client 需复用现有 `requestJson` 和 `ApiError` 处理，保留响应中
 | 生成数量 | 1 到 20 的整数。 |
 | 覆盖类型 | 至少 1 个。 |
 | 任务名称 | 必填，最长 160 字符。 |
-| 上下文选项 | 至少保留需求上下文；API/页面/流程/历史用例可通过追踪关系自动带入，也可在生成配置中显式输入 API/页面/业务流 ID。前端占位文案、任务诊断的上下文规模、上下文策略摘要、作用域策略摘要、评测语料摘要、发布准出摘要和审计链摘要优先读取健康接口返回的 `contextLimits`、`scopePolicy`、`evaluationCorpusPolicy`、`releaseReadinessPolicy`、`auditChainPolicy`、`archivePolicy` 与任务 `contextSummary.limits/contextSummary.scopePolicy/contextSummary.evaluationCorpusPolicy/contextSummary.releaseReadinessPolicy/contextSummary.auditChainPolicy/contextSummary.archivePolicy`。 |
+| 上下文选项 | 至少保留需求上下文；API/页面/流程/历史用例可通过追踪关系自动带入，也可在生成配置中显式输入 API/页面/业务流 ID。前端占位文案、任务诊断的上下文规模、上下文策略摘要、作用域策略摘要、评测语料摘要、发布准出摘要、审计链摘要、归档策略摘要和报告清单摘要优先读取健康接口返回的 `contextLimits`、`scopePolicy`、`evaluationCorpusPolicy`、`releaseReadinessPolicy`、`auditChainPolicy`、`archivePolicy`、`reportManifestPolicy` 与任务 `contextSummary.limits/contextSummary.scopePolicy/contextSummary.evaluationCorpusPolicy/contextSummary.releaseReadinessPolicy/contextSummary.auditChainPolicy/contextSummary.archivePolicy/contextSummary.reportManifestPolicy`。 |
 
 ### 7.2 候选编辑
 
@@ -166,6 +166,7 @@ API client 需复用现有 `requestJson` 和 `ApiError` 处理，保留响应中
 | release readiness | 任务诊断展示 `releaseReadinessPolicy` 的 advisory-only、发布阻断关闭、审批流 pending、人工准出、自动发布关闭和候选确认要求；该状态只说明当前准出边界，不代表真实审批流已就绪。 |
 | audit chain | 任务诊断展示 `auditChainPolicy` 的 WP1 审计写入、WP2 调用引用、WP3 发布引用、WP5 本域事件、项目作用域、trace 信号、跨 WP 看板 pending 和 outbox 看板 pending；该状态只说明当前审计链观测边界，不代表真实跨 WP 审计看板或 outbox 重放看板已就绪。 |
 | archive policy | 任务诊断展示 `archivePolicy` 的策略版本、保留天数、`platformManaged` 存储策略、审批要求、审批流 pending、真实归档存储 pending、外发开关、保留策略跟踪和细节导出关闭；该状态只说明当前归档治理边界，不代表真实归档存储、审批流、外发流程或工单流转已就绪。 |
+| report manifest policy | 任务诊断展示 `reportManifestPolicy` 的策略版本、报告 schema/字段集版本、清单模式、行数/完成状态跟踪、归档核验和细节导出关闭；该状态只说明当前报告清单聚合核验边界，不代表行级完整性值、候选 ID、trace ID 或审计 ID 明细索引已开放。 |
 
 ## 9. 候选评审交互
 

@@ -112,6 +112,7 @@ public class TestDesignTaskService {
                 TestDesignReleaseReadinessPolicy.response(),
                 TestDesignAuditChainPolicy.response(),
                 TestDesignArchivePolicy.response(properties),
+                TestDesignReportManifestPolicy.response(),
                 CoverageType.codes().stream().sorted().toList()
         );
     }
@@ -585,6 +586,7 @@ public class TestDesignTaskService {
         payload.put("releaseReadinessPolicy", TestDesignReleaseReadinessPolicy.snapshot());
         payload.put("auditChainPolicy", TestDesignAuditChainPolicy.snapshot());
         payload.put("archivePolicy", TestDesignArchivePolicy.snapshot(properties));
+        payload.put("reportManifestPolicy", TestDesignReportManifestPolicy.snapshot());
         try {
             return sha256(objectMapper.writeValueAsString(payload));
         } catch (JsonProcessingException exception) {

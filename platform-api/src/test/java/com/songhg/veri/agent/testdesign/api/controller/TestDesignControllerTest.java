@@ -212,6 +212,24 @@ class TestDesignControllerTest {
                 .andExpect(jsonPath("$.data.archivePolicy.approvalNotesExported").value(false))
                 .andExpect(jsonPath("$.data.archivePolicy.ticketUrlExported").value(false))
                 .andExpect(jsonPath("$.data.archivePolicy.aggregateOnly").value(true))
+                .andExpect(jsonPath("$.data.reportManifestPolicy.policyVersion")
+                        .value("wp5-report-manifest-policy-v1"))
+                .andExpect(jsonPath("$.data.reportManifestPolicy.schemaVersion")
+                        .value("wp5-task-report-v1"))
+                .andExpect(jsonPath("$.data.reportManifestPolicy.fieldSetVersion")
+                        .value("aggregate-only-v1"))
+                .andExpect(jsonPath("$.data.reportManifestPolicy.manifestMode")
+                        .value("AGGREGATE_RECONCILIATION"))
+                .andExpect(jsonPath("$.data.reportManifestPolicy.rowCountTracked").value(true))
+                .andExpect(jsonPath("$.data.reportManifestPolicy.completionStatusTracked").value(true))
+                .andExpect(jsonPath("$.data.reportManifestPolicy.archiveReconciliationReady").value(true))
+                .andExpect(jsonPath("$.data.reportManifestPolicy.detailRowsExported").value(false))
+                .andExpect(jsonPath("$.data.reportManifestPolicy.rowIntegrityValueExported").value(false))
+                .andExpect(jsonPath("$.data.reportManifestPolicy.rowContentSummaryExported").value(false))
+                .andExpect(jsonPath("$.data.reportManifestPolicy.candidateIdentifierListExported").value(false))
+                .andExpect(jsonPath("$.data.reportManifestPolicy.traceIdentifierListExported").value(false))
+                .andExpect(jsonPath("$.data.reportManifestPolicy.auditIdentifierListExported").value(false))
+                .andExpect(jsonPath("$.data.reportManifestPolicy.aggregateOnly").value(true))
                 .andExpect(jsonPath("$.data.supportedCoverageTypes", hasSize(6)));
     }
 
@@ -683,6 +701,21 @@ class TestDesignControllerTest {
                 .andExpect(jsonPath("$.data.task.archivePolicy.approvalNotesExported").value(false))
                 .andExpect(jsonPath("$.data.task.archivePolicy.ticketUrlExported").value(false))
                 .andExpect(jsonPath("$.data.task.archivePolicy.aggregateOnly").value(true))
+                .andExpect(jsonPath("$.data.task.reportManifestPolicy.policyVersion")
+                        .value("wp5-report-manifest-policy-v1"))
+                .andExpect(jsonPath("$.data.task.reportManifestPolicy.manifestMode")
+                        .value("AGGREGATE_RECONCILIATION"))
+                .andExpect(jsonPath("$.data.task.reportManifestPolicy.rowCountTracked").value(true))
+                .andExpect(jsonPath("$.data.task.reportManifestPolicy.completionStatusTracked").value(true))
+                .andExpect(jsonPath("$.data.task.reportManifestPolicy.archiveReconciliationReady").value(true))
+                .andExpect(jsonPath("$.data.task.reportManifestPolicy.detailRowsExported").value(false))
+                .andExpect(jsonPath("$.data.task.reportManifestPolicy.rowIntegrityValueExported").value(false))
+                .andExpect(jsonPath("$.data.task.reportManifestPolicy.rowContentSummaryExported").value(false))
+                .andExpect(jsonPath("$.data.task.reportManifestPolicy.candidateIdentifierListExported")
+                        .value(false))
+                .andExpect(jsonPath("$.data.task.reportManifestPolicy.traceIdentifierListExported").value(false))
+                .andExpect(jsonPath("$.data.task.reportManifestPolicy.auditIdentifierListExported").value(false))
+                .andExpect(jsonPath("$.data.task.reportManifestPolicy.aggregateOnly").value(true))
                 .andExpect(jsonPath("$.data.task.contextSummary.policyGovernance.policyVersion")
                         .value("wp5-context-policy-v1"))
                 .andExpect(jsonPath("$.data.task.contextSummary.policyGovernance.projectOverrideSupported").value(false))
@@ -744,6 +777,24 @@ class TestDesignControllerTest {
                 .andExpect(jsonPath("$.data.task.contextSummary.archivePolicy.ticketUrlExported")
                         .value(false))
                 .andExpect(jsonPath("$.data.task.contextSummary.archivePolicy.aggregateOnly").value(true))
+                .andExpect(jsonPath("$.data.task.contextSummary.reportManifestPolicy.policyVersion")
+                        .value("wp5-report-manifest-policy-v1"))
+                .andExpect(jsonPath("$.data.task.contextSummary.reportManifestPolicy.schemaVersion")
+                        .value("wp5-task-report-v1"))
+                .andExpect(jsonPath("$.data.task.contextSummary.reportManifestPolicy.fieldSetVersion")
+                        .value("aggregate-only-v1"))
+                .andExpect(jsonPath("$.data.task.contextSummary.reportManifestPolicy.manifestMode")
+                        .value("AGGREGATE_RECONCILIATION"))
+                .andExpect(jsonPath("$.data.task.contextSummary.reportManifestPolicy.rowCountTracked")
+                        .value(true))
+                .andExpect(jsonPath("$.data.task.contextSummary.reportManifestPolicy.detailRowsExported")
+                        .value(false))
+                .andExpect(jsonPath("$.data.task.contextSummary.reportManifestPolicy.rowIntegrityValueExported")
+                        .value(false))
+                .andExpect(jsonPath(
+                        "$.data.task.contextSummary.reportManifestPolicy.candidateIdentifierListExported"
+                ).value(false))
+                .andExpect(jsonPath("$.data.task.contextSummary.reportManifestPolicy.aggregateOnly").value(true))
                 .andReturn();
 
         MatcherAssert.assertThat(taskResult.getResponse().getContentAsString(), not(containsString("sk_live_12345678")));
@@ -1432,6 +1483,22 @@ class TestDesignControllerTest {
         MatcherAssert.assertThat(csv, containsString("archivePolicy,approvalNotesExported,,false"));
         MatcherAssert.assertThat(csv, containsString("archivePolicy,ticketUrlExported,,false"));
         MatcherAssert.assertThat(csv, containsString("archivePolicy,aggregateOnly,,true"));
+        MatcherAssert.assertThat(csv, containsString(
+                "reportManifestPolicy,policyVersion,,wp5-report-manifest-policy-v1"));
+        MatcherAssert.assertThat(csv, containsString("reportManifestPolicy,schemaVersion,,wp5-task-report-v1"));
+        MatcherAssert.assertThat(csv, containsString("reportManifestPolicy,fieldSetVersion,,aggregate-only-v1"));
+        MatcherAssert.assertThat(csv, containsString(
+                "reportManifestPolicy,manifestMode,,AGGREGATE_RECONCILIATION"));
+        MatcherAssert.assertThat(csv, containsString("reportManifestPolicy,rowCountTracked,,true"));
+        MatcherAssert.assertThat(csv, containsString("reportManifestPolicy,completionStatusTracked,,true"));
+        MatcherAssert.assertThat(csv, containsString("reportManifestPolicy,archiveReconciliationReady,,true"));
+        MatcherAssert.assertThat(csv, containsString("reportManifestPolicy,detailRowsExported,,false"));
+        MatcherAssert.assertThat(csv, containsString("reportManifestPolicy,rowIntegrityValueExported,,false"));
+        MatcherAssert.assertThat(csv, containsString("reportManifestPolicy,rowContentSummaryExported,,false"));
+        MatcherAssert.assertThat(csv, containsString("reportManifestPolicy,candidateIdentifierListExported,,false"));
+        MatcherAssert.assertThat(csv, containsString("reportManifestPolicy,traceIdentifierListExported,,false"));
+        MatcherAssert.assertThat(csv, containsString("reportManifestPolicy,auditIdentifierListExported,,false"));
+        MatcherAssert.assertThat(csv, containsString("reportManifestPolicy,aggregateOnly,,true"));
         MatcherAssert.assertThat(csv, containsString("reportManifest,schemaVersion,,wp5-task-report-v1"));
         MatcherAssert.assertThat(csv, containsString("reportManifest,fieldSetVersion,,aggregate-only-v1"));
         MatcherAssert.assertThat(csv, containsString("reportManifest,rowCountBeforeManifest,,"));

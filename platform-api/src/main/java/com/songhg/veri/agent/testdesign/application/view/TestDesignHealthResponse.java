@@ -42,6 +42,8 @@ public record TestDesignHealthResponse(
         TestDesignAuditChainPolicyResponse auditChainPolicy,
         @Schema(description = "任务报告归档治理策略聚合快照")
         TestDesignArchivePolicyResponse archivePolicy,
+        @Schema(description = "任务报告 manifest 治理策略聚合快照")
+        TestDesignReportManifestPolicyResponse reportManifestPolicy,
         @Schema(description = "支持的覆盖类型列表")
         List<String> supportedCoverageTypes
 ) {
