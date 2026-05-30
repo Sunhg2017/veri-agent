@@ -163,6 +163,22 @@ describe('WP5 test design exports', () => {
         changedFields: ['title', 'status', 'version'],
         versionBefore: 1,
         versionAfter: 2
+      },
+      {
+        id: 'review-2',
+        taskId: 'task-1',
+        candidateId: 'candidate-2',
+        title: '异常登录',
+        projectId: 'project-1',
+        action: 'REJECTED',
+        beforeStatus: 'GENERATED',
+        afterStatus: 'REJECTED',
+        reviewer: 'qa.lead',
+        hasComment: false,
+        commentPreview: 'apiKey=review-secret should not be exported',
+        changedFields: [],
+        versionBefore: 1,
+        versionAfter: 2
       }
     ], 4);
 
@@ -190,7 +206,7 @@ describe('WP5 test design exports', () => {
       qualitySummary,
       qualityScopeLabel: '当前候选页 1-2 / 8',
       reviewSummary,
-      reviewScopeLabel: '当前评审页 1-1 / 4',
+      reviewScopeLabel: '当前评审页 1-2 / 4',
       publishResult: {
         taskId: 'task-1',
         projectId: 'project-1',
@@ -242,8 +258,16 @@ describe('WP5 test design exports', () => {
     expect(csv).toContain('metadata,candidateQuality,scope,,当前候选页 1-2 / 8');
     expect(csv).toContain('summary,candidateQuality,metric,可发布,2,,success');
     expect(csv).toContain('summary,candidateQuality,distribution:状态,FAILED,1,50,danger');
-    expect(csv).toContain('metadata,reviewHistory,scope,,当前评审页 1-1 / 4');
-    expect(csv).toContain('summary,reviewHistory,distribution:动作,UPDATE,1,100,info');
+    expect(csv).toContain('metadata,reviewHistory,scope,,当前评审页 1-2 / 4');
+    expect(csv).toContain('summary,reviewHistory,distribution:动作,UPDATE,1,50,info');
+    expect(csv).toContain('metadata,feedbackLoop,scope,,当前评审页 1-2 / 4');
+    expect(csv).toContain('summary,feedbackLoop,metric,promptTuningSignals,2,100,info');
+    expect(csv).toContain('summary,feedbackLoop,metric,sampleCandidates,2,100,info');
+    expect(csv).toContain('summary,feedbackLoop,metric,commentCoverage,1,50,warning');
+    expect(csv).toContain('summary,feedbackLoop,distribution:signal,correction,1,50,info');
+    expect(csv).toContain('summary,feedbackLoop,distribution:signal,rejected,1,50,warning');
+    expect(csv).toContain('summary,feedbackLoop,distribution:signal,ignored,0,0,neutral');
+    expect(csv).toContain('summary,feedbackLoop,warning,调优样本缺说明,1,,warning');
     expect(csv).toContain('metadata,publish,total,,2');
     expect(csv).toContain('summary,publish,result:FAILED,,1');
     expect(csv).not.toContain('body-secret');

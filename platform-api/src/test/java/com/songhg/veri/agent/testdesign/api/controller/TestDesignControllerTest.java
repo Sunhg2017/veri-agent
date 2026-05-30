@@ -775,6 +775,10 @@ class TestDesignControllerTest {
         MatcherAssert.assertThat(csv, containsString("candidateQuality,distribution:status,REJECTED"));
         MatcherAssert.assertThat(csv, containsString("reviewHistory,distribution:action,UPDATE"));
         MatcherAssert.assertThat(csv, containsString("reviewHistory,distribution:action,CONFIRMED"));
+        MatcherAssert.assertThat(csv, containsString("feedbackLoop,metric,promptTuningSignals,2,66.67,info"));
+        MatcherAssert.assertThat(csv, containsString("feedbackLoop,metric,sampleCandidates,2,66.67"));
+        MatcherAssert.assertThat(csv, containsString("feedbackLoop,distribution:signal,correction,1,33.33,info"));
+        MatcherAssert.assertThat(csv, containsString("feedbackLoop,distribution:signal,rejected,1,33.33,warning"));
         MatcherAssert.assertThat(csv, containsString("publish,distribution:result,SUCCEEDED"));
         MatcherAssert.assertThat(csv, containsString("modelObservation,traceIdTracked,,false"));
         MatcherAssert.assertThat(csv, containsString(taskId));

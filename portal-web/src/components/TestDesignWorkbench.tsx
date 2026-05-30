@@ -2455,12 +2455,13 @@ function ReviewSummaryPanel(props: {
   selectedTaskId: string;
   summary: TestDesignReviewSummary;
 }) {
+  const warningCount = props.summary.warnings.length + props.summary.feedbackLoop.warnings.length;
   return (
     <div className="test-design-review-summary">
       <div className="test-design-review-summary-heading">
         <span>{props.scopeLabel}</span>
-        {props.summary.warnings.length > 0 && (
-          <span className="badge badge-warning">提示 {props.summary.warnings.length}</span>
+        {warningCount > 0 && (
+          <span className="badge badge-warning">提示 {warningCount}</span>
         )}
       </div>
       {props.selectedTaskId ? (
@@ -2491,6 +2492,30 @@ function ReviewSummaryPanel(props: {
                 </div>
               </div>
             ))}
+          </div>
+          <div className="test-design-feedback-loop">
+            <div className="test-design-feedback-loop-heading">
+              <strong>反馈回流</strong>
+              <span className={`badge badge-${badgeTone(props.summary.feedbackLoop.tone)}`}>
+                {props.summary.feedbackLoop.promptTuningSignalCount ? '可回流' : '暂无信号'}
+              </span>
+            </div>
+            <div className="test-design-quality-distribution-items">
+              {props.summary.feedbackLoop.items.map((item) => (
+                <span className={`test-design-quality-chip tone-${item.tone}`} key={item.label}>
+                  {item.label} {item.count} · {item.percent}%
+                </span>
+              ))}
+            </div>
+            {props.summary.feedbackLoop.warnings.length > 0 && (
+              <div className="test-design-quality-warnings test-design-feedback-loop-warnings">
+                {props.summary.feedbackLoop.warnings.map((warning) => (
+                  <span className={`test-design-quality-chip tone-${warning.tone}`} key={warning.label}>
+                    {warning.label} {warning.count}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
           {props.summary.warnings.length > 0 && (
             <div className="test-design-quality-warnings">

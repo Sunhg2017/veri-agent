@@ -266,6 +266,17 @@ export function buildTestDesignTaskReportCsv(input: TestDesignTaskReportExportIn
   for (const warning of input.reviewSummary.warnings) {
     rows.push(taskReportRow(task, generatedAt, 'summary', 'reviewHistory', 'warning', warning.label, warning.count, undefined, warning.tone, input.reviewScopeLabel));
   }
+  const feedbackLoopItems = new Map(input.reviewSummary.feedbackLoop.items.map((item) => [item.label, item]));
+  rows.push(taskReportRow(task, generatedAt, 'metadata', 'feedbackLoop', 'scope', '', input.reviewScopeLabel, undefined, undefined, input.reviewScopeLabel));
+  rows.push(taskReportRow(task, generatedAt, 'summary', 'feedbackLoop', 'metric', 'promptTuningSignals', input.reviewSummary.feedbackLoop.promptTuningSignalCount, feedbackLoopItems.get('反馈信号')?.percent, input.reviewSummary.feedbackLoop.tone, input.reviewScopeLabel));
+  rows.push(taskReportRow(task, generatedAt, 'summary', 'feedbackLoop', 'metric', 'sampleCandidates', input.reviewSummary.feedbackLoop.sampleCandidateCount, feedbackLoopItems.get('涉及候选')?.percent, feedbackLoopItems.get('涉及候选')?.tone, input.reviewScopeLabel));
+  rows.push(taskReportRow(task, generatedAt, 'summary', 'feedbackLoop', 'metric', 'commentCoverage', input.reviewSummary.feedbackLoop.commentCoverageCount, input.reviewSummary.feedbackLoop.commentCoveragePercent, feedbackLoopItems.get('说明覆盖')?.tone, input.reviewScopeLabel));
+  rows.push(taskReportRow(task, generatedAt, 'summary', 'feedbackLoop', 'distribution:signal', 'correction', input.reviewSummary.feedbackLoop.correctionCount, feedbackLoopItems.get('人工修正')?.percent, feedbackLoopItems.get('人工修正')?.tone, input.reviewScopeLabel));
+  rows.push(taskReportRow(task, generatedAt, 'summary', 'feedbackLoop', 'distribution:signal', 'rejected', input.reviewSummary.feedbackLoop.rejectedCount, feedbackLoopItems.get('驳回')?.percent, feedbackLoopItems.get('驳回')?.tone, input.reviewScopeLabel));
+  rows.push(taskReportRow(task, generatedAt, 'summary', 'feedbackLoop', 'distribution:signal', 'ignored', input.reviewSummary.feedbackLoop.ignoredCount, feedbackLoopItems.get('忽略')?.percent, feedbackLoopItems.get('忽略')?.tone, input.reviewScopeLabel));
+  for (const warning of input.reviewSummary.feedbackLoop.warnings) {
+    rows.push(taskReportRow(task, generatedAt, 'summary', 'feedbackLoop', 'warning', warning.label, warning.count, undefined, warning.tone, input.reviewScopeLabel));
+  }
 
   rows.push(taskReportRow(task, generatedAt, 'metadata', 'publish', 'attached', '', Boolean(publishResult), undefined, undefined, '', publishResult?.dryRun));
   if (publishResult) {

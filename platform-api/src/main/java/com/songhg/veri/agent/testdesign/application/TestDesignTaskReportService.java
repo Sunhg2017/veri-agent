@@ -27,10 +27,12 @@ import com.songhg.veri.agent.testdesign.domain.TestDesignTask;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -320,10 +322,36 @@ public class TestDesignTaskReportService {
                 .distinct()
                 .count();
         Map<String, Long> changedFieldCounts = new LinkedHashMap<>();
+        Set<UUID> promptTuningCandidateIds = new LinkedHashSet<>();
+        long correctionCount = 0L;
+        long rejectedCount = 0L;
+        long ignoredCount = 0L;
+        long promptTuningCommentCount = 0L;
         for (TestDesignReviewRecord record : records) {
-            reviewDiffSummary(record.diffJson()).changedFields()
-                    .forEach(field -> changedFieldCounts.merge(field, 1L, Long::sum));
+            ReviewDiffSummary diffSummary = reviewDiffSummary(record.diffJson());
+            diffSummary.changedFields().forEach(field -> changedFieldCounts.merge(field, 1L, Long::sum));
+            boolean correction = isPromptTuningCorrection(record, diffSummary);
+            boolean rejected = TestDesignCandidateStatus.REJECTED.name().equals(record.action());
+            boolean ignored = TestDesignCandidateStatus.IGNORED.name().equals(record.action());
+            if (correction) {
+                correctionCount++;
+            }
+            if (rejected) {
+                rejectedCount++;
+            }
+            if (ignored) {
+                ignoredCount++;
+            }
+            if (correction || rejected || ignored) {
+                if (record.candidateId() != null) {
+                    promptTuningCandidateIds.add(record.candidateId());
+                }
+                if (StringUtils.hasText(record.comment())) {
+                    promptTuningCommentCount++;
+                }
+            }
         }
+        long promptTuningSignalCount = correctionCount + rejectedCount + ignoredCount;
 
         appendTaskReportRow(csv, task, generatedAt, "metadata", "reviewHistory", "scope", null,
                 "fullTask", null, null, "fullTask", null);
@@ -339,6 +367,51 @@ public class TestDesignTaskReportService {
                 countsBy(records, TestDesignReviewRecord::afterStatus), total);
         appendTaskReportDistributionRows(csv, task, generatedAt, "reviewHistory", "changedField",
                 changedFieldCounts, total);
+        appendTaskReportFeedbackLoopRows(csv, task, generatedAt, total, promptTuningSignalCount,
+                promptTuningCandidateIds.size(), correctionCount, rejectedCount, ignoredCount, promptTuningCommentCount);
+    }
+
+    /**
+     * Appends aggregate-only human feedback loop counters for prompt/sample operations.
+     *
+     * <p>Prompt tuning needs to know where humans corrected, rejected or ignored AI candidates, but the report must not
+     * copy review comments. The rows below expose only counts and percentages so they can be archived with the task
+     * report without leaking reviewer text or source requirement content.
+     */
+    private static void appendTaskReportFeedbackLoopRows(
+            StringBuilder csv,
+            TestDesignTaskResponse task,
+            Instant generatedAt,
+            long totalReviewRecords,
+            long promptTuningSignalCount,
+            long promptTuningCandidateCount,
+            long correctionCount,
+            long rejectedCount,
+            long ignoredCount,
+            long promptTuningCommentCount
+    ) {
+        appendTaskReportRow(csv, task, generatedAt, "metadata", "feedbackLoop", "scope", null,
+                "fullTask", null, null, "fullTask", null);
+        appendTaskReportRow(csv, task, generatedAt, "summary", "feedbackLoop", "metric", "promptTuningSignals",
+                promptTuningSignalCount, percent(promptTuningSignalCount, totalReviewRecords), feedbackTone(
+                        promptTuningSignalCount, rejectedCount, ignoredCount, promptTuningCommentCount), "fullTask", null);
+        appendTaskReportRow(csv, task, generatedAt, "summary", "feedbackLoop", "metric", "sampleCandidates",
+                promptTuningCandidateCount, percent(promptTuningCandidateCount, totalReviewRecords), null, "fullTask", null);
+        appendTaskReportRow(csv, task, generatedAt, "summary", "feedbackLoop", "metric", "commentCoverage",
+                promptTuningCommentCount, percent(promptTuningCommentCount, promptTuningSignalCount),
+                promptTuningSignalCount == 0L || promptTuningCommentCount * 100D / promptTuningSignalCount >= 80D
+                        ? "success" : "warning", "fullTask", null);
+        appendTaskReportRow(csv, task, generatedAt, "summary", "feedbackLoop", "distribution:signal", "correction",
+                correctionCount, percent(correctionCount, totalReviewRecords), correctionCount > 0 ? "info" : "neutral",
+                "fullTask", null);
+        appendTaskReportRow(csv, task, generatedAt, "summary", "feedbackLoop", "distribution:signal", "rejected",
+                rejectedCount, percent(rejectedCount, totalReviewRecords), rejectedCount > 0 ? "warning" : "neutral",
+                "fullTask", null);
+        appendTaskReportRow(csv, task, generatedAt, "summary", "feedbackLoop", "distribution:signal", "ignored",
+                ignoredCount, percent(ignoredCount, totalReviewRecords), ignoredCount > 0 ? "warning" : "neutral",
+                "fullTask", null);
+        appendTaskReportWarning(csv, task, generatedAt, "feedbackLoop", "promptTuningMissingComment",
+                Math.max(promptTuningSignalCount - promptTuningCommentCount, 0L), promptTuningSignalCount);
     }
 
     private void appendTaskReportPublishRows(
@@ -678,6 +751,30 @@ public class TestDesignTaskReportService {
 
     private static boolean isLowConfidence(TestDesignCandidate candidate) {
         return candidate.confidence() > 0D && candidate.confidence() < 0.8D;
+    }
+
+    private static boolean isPromptTuningCorrection(TestDesignReviewRecord record, ReviewDiffSummary diffSummary) {
+        return "UPDATE".equals(record.action())
+                && diffSummary.changedFields().stream()
+                .anyMatch(field -> !"status".equals(field) && !"version".equals(field));
+    }
+
+    private static String feedbackTone(
+            long promptTuningSignalCount,
+            long rejectedCount,
+            long ignoredCount,
+            long promptTuningCommentCount
+    ) {
+        if (promptTuningSignalCount == 0L) {
+            return "neutral";
+        }
+        if (promptTuningCommentCount * 100D / promptTuningSignalCount < 50D) {
+            return "warning";
+        }
+        if (rejectedCount + ignoredCount > 0L) {
+            return "info";
+        }
+        return "success";
     }
 
     private ReviewDiffSummary reviewDiffSummary(String diffJson) {

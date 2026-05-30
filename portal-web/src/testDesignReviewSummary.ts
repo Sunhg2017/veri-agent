@@ -26,6 +26,19 @@ export type TestDesignReviewSummaryWarning = {
   tone: TestDesignQualitySummaryTone;
 };
 
+export type TestDesignReviewFeedbackLoop = {
+  sampleCandidateCount: number;
+  promptTuningSignalCount: number;
+  correctionCount: number;
+  rejectedCount: number;
+  ignoredCount: number;
+  commentCoverageCount: number;
+  commentCoveragePercent: number;
+  tone: TestDesignQualitySummaryTone;
+  items: TestDesignReviewSummaryItem[];
+  warnings: TestDesignReviewSummaryWarning[];
+};
+
 export type TestDesignReviewSummary = {
   total: number;
   pageTotal: number;
@@ -37,6 +50,7 @@ export type TestDesignReviewSummary = {
   metrics: TestDesignReviewSummaryMetric[];
   groups: TestDesignReviewSummaryGroup[];
   warnings: TestDesignReviewSummaryWarning[];
+  feedbackLoop: TestDesignReviewFeedbackLoop;
 };
 
 const ACTION_ORDER = ['UPDATE', 'CONFIRMED', 'REJECTED', 'IGNORED'];
@@ -50,9 +64,10 @@ export function buildTestDesignReviewSummary(
   const total = Math.max(normalizeCount(totalRecords), pageTotal);
   const commentCount = records.filter((record) => record.hasComment).length;
   const statusChangeCount = records.filter(hasStatusChange).length;
-  const fieldChangeCount = records.filter((record) => record.changedFields.length > 0).length;
+  const fieldChangeCount = records.filter(hasChangedField).length;
   const versionChangeCount = records.filter(hasVersionChange).length;
   const reviewerCount = countDistinct(records, (record) => normalizeLabel(record.reviewer));
+  const feedbackLoop = buildFeedbackLoop(records, pageTotal);
 
   return {
     total,
@@ -107,7 +122,8 @@ export function buildTestDesignReviewSummary(
       commentCount,
       fieldChangeCount,
       versionChangeCount
-    })
+    }),
+    feedbackLoop
   };
 }
 
@@ -161,7 +177,7 @@ function buildDistribution(
 
 function buildFieldDistribution(records: readonly TestDesignReviewRecordView[], pageTotal: number) {
   const counts = records.reduce<Record<string, number>>((current, record) => {
-    const fields = Array.from(new Set(record.changedFields.map(normalizeLabel)));
+    const fields = Array.from(new Set(record.changedFields.map((field) => field.trim()).filter(Boolean)));
     fields.forEach((field) => {
       current[field] = (current[field] ?? 0) + 1;
     });
@@ -220,6 +236,10 @@ function fieldTone(field: string): TestDesignQualitySummaryTone {
   return 'warning';
 }
 
+function hasChangedField(record: TestDesignReviewRecordView) {
+  return record.changedFields.some((field) => field.trim());
+}
+
 function buildWarnings(counts: {
   pageTotal: number;
   commentCount: number;
@@ -245,6 +265,132 @@ function buildWarnings(counts: {
       label: '版本流转',
       count: counts.versionChangeCount,
       tone: 'info'
+    }
+  ];
+  return warnings.filter((warning) => warning.count > 0);
+}
+
+function buildFeedbackLoop(
+  records: readonly TestDesignReviewRecordView[],
+  pageTotal: number
+): TestDesignReviewFeedbackLoop {
+  const correctionRecords = records.filter(isCorrectionRecord);
+  const rejectedRecords = records.filter((record) => normalizeLabel(record.action) === 'REJECTED');
+  const ignoredRecords = records.filter((record) => normalizeLabel(record.action) === 'IGNORED');
+  const promptSignalRecords = [
+    ...correctionRecords,
+    ...rejectedRecords,
+    ...ignoredRecords
+  ];
+  const sampleCandidateCount = countDistinctPresent(promptSignalRecords, (record) => record.candidateId);
+  const commentCoverageCount = promptSignalRecords.filter((record) => record.hasComment).length;
+  const promptTuningSignalCount = promptSignalRecords.length;
+  const commentCoveragePercent = promptTuningSignalCount
+    ? Math.round((commentCoverageCount / promptTuningSignalCount) * 100)
+    : 0;
+  const tone = feedbackTone(promptTuningSignalCount, rejectedRecords.length, ignoredRecords.length, commentCoveragePercent);
+
+  return {
+    sampleCandidateCount,
+    promptTuningSignalCount,
+    correctionCount: correctionRecords.length,
+    rejectedCount: rejectedRecords.length,
+    ignoredCount: ignoredRecords.length,
+    commentCoverageCount,
+    commentCoveragePercent,
+    tone,
+    items: [
+      {
+        label: '反馈信号',
+        count: promptTuningSignalCount,
+        percent: formatPercent(promptTuningSignalCount, pageTotal),
+        tone
+      },
+      {
+        label: '涉及候选',
+        count: sampleCandidateCount,
+        percent: formatPercent(sampleCandidateCount, pageTotal),
+        tone
+      },
+      {
+        label: '人工修正',
+        count: correctionRecords.length,
+        percent: formatPercent(correctionRecords.length, pageTotal),
+        tone: correctionRecords.length > 0 ? 'info' : 'neutral'
+      },
+      {
+        label: '驳回',
+        count: rejectedRecords.length,
+        percent: formatPercent(rejectedRecords.length, pageTotal),
+        tone: rejectedRecords.length > 0 ? 'warning' : 'neutral'
+      },
+      {
+        label: '忽略',
+        count: ignoredRecords.length,
+        percent: formatPercent(ignoredRecords.length, pageTotal),
+        tone: ignoredRecords.length > 0 ? 'warning' : 'neutral'
+      },
+      {
+        label: '说明覆盖',
+        count: commentCoverageCount,
+        percent: commentCoveragePercent,
+        tone: commentCoveragePercent >= 80 || promptTuningSignalCount === 0 ? 'success' : 'warning'
+      }
+    ],
+    warnings: buildFeedbackWarnings(promptTuningSignalCount, commentCoverageCount)
+  };
+}
+
+function isCorrectionRecord(record: TestDesignReviewRecordView) {
+  return normalizeLabel(record.action) === 'UPDATE'
+    && record.changedFields.some((field) => {
+      const normalizedField = field.trim();
+      return Boolean(normalizedField) && normalizedField !== 'status' && normalizedField !== 'version';
+    });
+}
+
+function formatPercent(count: number, total: number) {
+  return total ? Math.round((count / total) * 100) : 0;
+}
+
+function countDistinctPresent(
+  records: readonly TestDesignReviewRecordView[],
+  valueOf: (record: TestDesignReviewRecordView) => string | undefined
+) {
+  return new Set(records.map((record) => valueOf(record)?.trim()).filter(Boolean)).size;
+}
+
+function feedbackTone(
+  promptTuningSignalCount: number,
+  rejectedCount: number,
+  ignoredCount: number,
+  commentCoveragePercent: number
+): TestDesignQualitySummaryTone {
+  if (!promptTuningSignalCount) {
+    return 'neutral';
+  }
+  if (commentCoveragePercent < 50) {
+    return 'warning';
+  }
+  if (rejectedCount + ignoredCount > 0) {
+    return 'info';
+  }
+  return 'success';
+}
+
+function buildFeedbackWarnings(
+  promptTuningSignalCount: number,
+  commentCoverageCount: number
+): TestDesignReviewSummaryWarning[] {
+  if (!promptTuningSignalCount) {
+    return [];
+  }
+
+  const warnings: TestDesignReviewSummaryWarning[] = [
+    {
+      label: '调优样本缺说明',
+      count: Math.max(promptTuningSignalCount - commentCoverageCount, 0),
+      tone: 'warning'
     }
   ];
   return warnings.filter((warning) => warning.count > 0);

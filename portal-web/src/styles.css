@@ -1633,6 +1633,33 @@ tbody tr:hover td {
   margin-bottom: 0;
 }
 
+.test-design-feedback-loop {
+  display: grid;
+  gap: var(--space-sm);
+  padding-top: var(--space-md);
+  border-top: 1px solid var(--border-light);
+}
+
+.test-design-feedback-loop-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+}
+
+.test-design-feedback-loop-heading strong {
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+  line-height: 1.5;
+}
+
+.test-design-feedback-loop-warnings {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+
 .test-design-quality-list {
   margin: 0;
   padding-left: 18px;
