@@ -68,6 +68,15 @@ post_asset_json() {
     -d "$body"
 }
 
+patch_asset_json() {
+  local path="$1"
+  local body="$2"
+  curl -fsS -X PATCH "$ASSET_API_BASE$path" \
+    "${asset_headers[@]}" \
+    -H 'Content-Type: application/json' \
+    -d "$body"
+}
+
 get_asset_json() {
   local path="$1"
   curl -fsS "$ASSET_API_BASE$path" "${asset_headers[@]}"
@@ -100,9 +109,44 @@ post_test_design_json() {
     -d "$body"
 }
 
+put_test_design_json() {
+  local path="$1"
+  local body="$2"
+  curl -fsS -X PUT "$TEST_DESIGN_API_BASE$path" \
+    "${test_design_headers[@]}" \
+    -H 'Content-Type: application/json' \
+    -d "$body"
+}
+
 get_test_design_json() {
   local path="$1"
   curl -fsS "$TEST_DESIGN_API_BASE$path" "${test_design_headers[@]}"
+}
+
+expect_test_design_http_error() {
+  local path="$1"
+  local body="$2"
+  local expected_status="$3"
+  local expected_code="$4"
+  local body_file status payload
+  body_file="$(mktemp)"
+  status="$(curl -sS -o "$body_file" -w '%{http_code}' -X POST "$TEST_DESIGN_API_BASE$path" \
+    "${test_design_headers[@]}" \
+    -H 'Content-Type: application/json' \
+    -d "$body")"
+  payload="$(cat "$body_file")"
+  rm -f "$body_file"
+  jq -nc \
+    --argjson httpStatus "$status" \
+    --arg expectedStatus "$expected_status" \
+    --arg expectedCode "$expected_code" \
+    --argjson body "$payload" \
+    '{
+      httpStatus: $httpStatus,
+      expectedStatus: ($expectedStatus | tonumber),
+      expectedCode: $expectedCode,
+      body: $body
+    }'
 }
 
 wait_for_task_candidates() {
@@ -187,6 +231,117 @@ prepare_project() {
   PROJECT_ID="$project_resource_id"
 }
 
+validate_release_readiness_policy() {
+  local health_payload="$1"
+  if printf '%s' "$health_payload" | jq -e '.data.releaseReadinessPolicy.publishBlockingEnabled == true' >/dev/null; then
+    check "Release readiness policy is blocking" \
+      '.data.releaseReadinessPolicy.decisionMode == "BLOCKING_QUALITY_GATE" and .data.releaseReadinessPolicy.advisoryOnly == false and .data.releaseReadinessPolicy.publishBlockingEnabled == true and .data.releaseReadinessPolicy.aggregateOnly == true' \
+      "$health_payload"
+  else
+    check "Release readiness policy is advisory by default" \
+      '.data.releaseReadinessPolicy.decisionMode == "ADVISORY_QUALITY_GATE" and .data.releaseReadinessPolicy.advisoryOnly == true and .data.releaseReadinessPolicy.publishBlockingEnabled == false and .data.releaseReadinessPolicy.aggregateOnly == true' \
+      "$health_payload"
+  fi
+}
+
+release_readiness_publish_blocking_enabled() {
+  local health_payload="$1"
+  printf '%s' "$health_payload" | jq -e '.data.releaseReadinessPolicy.publishBlockingEnabled == true' >/dev/null
+}
+
+validate_release_readiness_blocking() {
+  local requirement api task candidates candidate_id candidate update_body updated confirm deleted first_publish restored quality dry_run records_before blocked_retry records_after case_lookup
+  local requirement_id api_id task_id source_ref
+  requirement="$(post_asset_json /requirements "$(jq -nc \
+    --arg projectId "$PROJECT_ID" \
+    '{projectId:$projectId,title:"WP5 smoke 发布准出阻断需求",description:"正式发布前必须通过聚合质量准出",priority:"HIGH",acceptanceCriteria:"质量阻断时不得写入 WP3 用例",tags:"wp5,release-gate"}')")"
+  check "Create release-readiness seed requirement" '.data.id != null and .data.projectId != null' "$requirement"
+  requirement_id="$(printf '%s' "$requirement" | jq -r '.data.id')"
+
+  api="$(post_asset_json /apis "$(jq -nc \
+    --arg projectId "$PROJECT_ID" \
+    --arg path "/wp5-smoke/release-gate/$RANDOM" \
+    '{projectId:$projectId,summary:"WP5 release gate smoke API",description:"publish failure seed",httpMethod:"POST",path:$path,version:"1.0.0",requestSchema:"{}",responseSchema:"{}",status:"ACTIVE"}')")"
+  check "Create release-readiness seed API" '.data.id != null and .data.lifecycleStatus == "ACTIVE"' "$api"
+  api_id="$(printf '%s' "$api" | jq -r '.data.id')"
+
+  task="$(post_test_design_json /tasks "$(jq -nc \
+    --arg projectId "$PROJECT_ID" \
+    --arg requirementId "$requirement_id" \
+    '{projectId:$projectId,environmentKey:"qa",title:"WP5 release gate smoke generation",requirementIds:[$requirementId],coverageTypes:["SMOKE"]}')")"
+  check "Queue release-readiness seed task" '.data.task.id != null and (.data.task.status == "QUEUED" or .data.task.status == "RUNNING" or .data.task.status == "SUCCEEDED")' "$task"
+  task_id="$(printf '%s' "$task" | jq -r '.data.task.id')"
+  if ! task="$(wait_for_task_candidates "$task_id" 1)"; then
+    check "Create release-readiness candidate" '.data.task.status == "SUCCEEDED" and (.data.candidates | length) == 1 and .data.candidates[0].status == "GENERATED"' "$task"
+  else
+    check "Create release-readiness candidate" '.data.task.status == "SUCCEEDED" and (.data.candidates | length) == 1 and .data.candidates[0].status == "GENERATED"' "$task"
+  fi
+
+  candidates="$(get_test_design_json "/tasks/$task_id/candidates")"
+  check "Release-readiness candidate page" '.data.total == 1 and (.data.items[0].steps | length) >= 2' "$candidates"
+  candidate="$(printf '%s' "$candidates" | jq -c '.data.items[0]')"
+  candidate_id="$(printf '%s' "$candidate" | jq -r '.id')"
+  source_ref="wp5:$candidate_id"
+
+  update_body="$(jq -nc \
+    --argjson candidate "$candidate" \
+    --arg apiId "$api_id" \
+    '{
+      title: $candidate.title,
+      description: $candidate.description,
+      apiId: $apiId,
+      coverageType: $candidate.coverageType,
+      priority: $candidate.priority,
+      preconditions: $candidate.preconditions,
+      steps: ($candidate.steps | map({action, expectedResult})),
+      expectedResult: $candidate.expectedResult,
+      tags: $candidate.tags,
+      version: $candidate.version
+    }')"
+  updated="$(put_test_design_json "/candidates/$candidate_id" "$update_body")"
+  check "Attach API to release-readiness candidate" '.data.apiId != null and .data.status == "EDITED"' "$updated"
+
+  confirm="$(post_test_design_json "/candidates/$candidate_id/confirm" "$(jq -nc \
+    --argjson version "$(printf '%s' "$updated" | jq '.data.version')" \
+    '{version:$version,comment:"WP5 release gate smoke confirm"}')")"
+  check "Confirm release-readiness candidate" '.data.status == "CONFIRMED" and .data.apiId != null' "$confirm"
+
+  deleted="$(patch_asset_json "/apis/$api_id/lifecycle" '{"lifecycleStatus":"DELETED","reason":"WP5 release gate smoke failure seed"}')"
+  check "Delete release-readiness seed API" '.data.lifecycleStatus == "DELETED" and .data.deletedAt != null' "$deleted"
+
+  first_publish="$(post_test_design_json "/tasks/$task_id/publish" '{}')"
+  check "Seed publish records API failure" \
+    '.data.dryRun == false and .data.total == 1 and .data.failed == 1 and (.data.createdCaseIds | length) == 0 and .data.records[0].result == "FAILED" and .data.records[0].action == "CREATE" and (.data.records[0].errorMessage | contains("API不存在"))' \
+    "$first_publish"
+
+  restored="$(patch_asset_json "/apis/$api_id/lifecycle" '{"lifecycleStatus":"ACTIVE","reason":"WP5 release gate smoke restore before retry"}')"
+  check "Restore release-readiness seed API" '.data.lifecycleStatus == "ACTIVE" and .data.deletedAt == null' "$restored"
+
+  quality="$(get_test_design_json "/tasks/$task_id/quality/summary")"
+  check "Release-readiness quality is blocked after failed publish" \
+    '.data.readiness.status == "BLOCKED" and .data.readiness.blockingCount >= 1 and (.data.readiness.checks | any(.code == "errorPresent" and .status == "FAILED" and .severity == "BLOCKING"))' \
+    "$quality"
+
+  dry_run="$(post_test_design_json "/tasks/$task_id/publish-dry-run" '{}')"
+  check "Blocked task dryRun remains diagnostic" \
+    '.data.dryRun == true and .data.total == 1 and (.data.records | length) == 1 and (.data.records[0].result == "PLANNED" or .data.records[0].result == "CONFLICT")' \
+    "$dry_run"
+
+  records_before="$(get_test_design_json "/tasks/$task_id/publish-records")"
+  check "Publish records before blocked retry" '.data.total == 1 and .data.items[0].result == "FAILED"' "$records_before"
+
+  blocked_retry="$(expect_test_design_http_error "/tasks/$task_id/publish" '{}' 409 INVALID_STATE)"
+  check "Blocked formal publish returns INVALID_STATE" \
+    '.httpStatus == .expectedStatus and .body.code == .expectedCode and (.body.message | contains("WP5 发布准出质量门禁不通过")) and (.body.message | contains("readiness=BLOCKED"))' \
+    "$blocked_retry"
+
+  records_after="$(get_test_design_json "/tasks/$task_id/publish-records")"
+  check "Blocked retry does not append publish record" '.data.total == 1 and .data.items[0].result == "FAILED"' "$records_after"
+
+  case_lookup="$(get_asset_json "/test-cases?projectId=$PROJECT_ID&source=AI_GENERATED&keyword=$(urlencode "$source_ref")")"
+  check "Blocked retry does not create WP3 case" '.data.total == 0' "$case_lookup"
+}
+
 main() {
   require_tool curl
   require_tool jq
@@ -197,7 +352,11 @@ main() {
   local health project_policy env_policy pending_effective approved_project approved_env effective_policy overrides requirement requirement_id task task_id candidates candidate_targets confirm dry_run asset_before publish case_id case_asset links
   health="$(curl -fsS "$TEST_DESIGN_API_BASE/health")"
   check "WP5 health" '.data.service == "test-design" and .data.status == "UP" and .data.generationEnabled == true' "$health"
+  validate_release_readiness_policy "$health"
   prepare_project
+  if release_readiness_publish_blocking_enabled "$health"; then
+    validate_release_readiness_blocking
+  fi
 
   project_policy="$(post_test_design_json "/context-policies/projects/$(urlencode "$PROJECT_ID")/overrides" "$(jq -nc \
     '{contextExistingCasesPerRequirement:3,contextRequirementDescriptionChars:321,changeReasonCode:"SMOKE_VALIDATION"}')")"

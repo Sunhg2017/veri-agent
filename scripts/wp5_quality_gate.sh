@@ -79,11 +79,18 @@ run_step() {
   "$@"
 }
 
+check_script_syntax() {
+  local script
+  for script in "$@"; do
+    bash -n "$script"
+  done
+}
+
 main() {
   validate_release_gate
 
   run_step "wp5 script syntax" \
-    bash -n \
+    check_script_syntax \
       "$ROOT_DIR/scripts/wp5_quality_gate.sh" \
       "$ROOT_DIR/scripts/wp5_test_design_smoke.sh" \
       "$ROOT_DIR/scripts/wp5_managed_http_smoke.sh" \

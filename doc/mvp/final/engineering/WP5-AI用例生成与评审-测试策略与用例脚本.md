@@ -5,8 +5,8 @@
 | 工作包 | WP5 AI 用例生成与评审 |
 | 角色产出 | 资深质量工程师 |
 | 文档性质 | 测试策略、功能用例、安全和可测试性建议、脚本设计 |
-| 当前口径 | 已纳入 WP5 后端、前端、DB validation、Prompt 趋势、准出运营摘要、人工排队事件重发入口、显式上下文装配、上下文裁剪策略配置、项目/环境上下文策略覆盖 API、前端上下文策略运营面板、审批元数据、effective snapshot、context policy override DB contract、release role validation、HTTP smoke 策略覆盖端到端准出、发布准出模式 HTTP smoke 和 AI 质量评测强制执行、可配置发布准出质量阻断、上下文装配策略 v2 共享快照、上下文策略治理状态快照、上下文策略运营 v2 聚合快照、权限与资源作用域策略聚合快照、评测语料运营策略聚合快照、发布准出审批策略聚合快照、跨 WP 审计链策略聚合快照、跨 WP 审计链只读聚合骨架、模型观测策略共享快照、归档治理策略共享快照、报告清单策略共享快照、任务诊断上下文策略、装配策略、策略运营、作用域策略、评测语料、发布准出、审计链、模型观测、归档与报告清单策略摘要、任务报告生成编排策略聚合行、任务报告作用域策略聚合行、任务报告评测语料策略聚合行、任务报告发布准出审批策略聚合行、任务报告审计链策略聚合行、任务级 audit-chain 聚合接口、任务报告上下文聚合行、上下文装配策略 v2 共享快照行、任务报告上下文策略治理聚合行、任务报告上下文策略运营 v2 聚合行、任务报告模型观测策略聚合行、任务报告质量准出阈值策略聚合行、任务报告导出审计策略聚合行、任务报告安全扫描策略聚合行、任务报告归档策略聚合行、任务报告清单策略聚合行、Prompt 校准策略聚合行、受限发布补偿后台、发布补偿策略聚合行、任务报告 manifest 聚合行、任务报告导出安全扫描、aggregate-only manifest 持久化和 manifest DB validation 的自动化验证入口 |
-| 版本 | v4.1 |
+| 当前口径 | 已纳入 WP5 后端、前端、DB validation、Prompt 趋势、准出运营摘要、人工排队事件重发入口、显式上下文装配、上下文裁剪策略配置、项目/环境上下文策略覆盖 API、前端上下文策略运营面板、审批元数据、effective snapshot、context policy override DB contract、release role validation、HTTP smoke 策略覆盖端到端准出、发布准出模式 HTTP smoke 和 AI 质量评测强制执行、release managed HTTP smoke 默认发布阻断验证、可配置发布准出质量阻断、上下文装配策略 v2 共享快照、上下文策略治理状态快照、上下文策略运营 v2 聚合快照、权限与资源作用域策略聚合快照、评测语料运营策略聚合快照、发布准出审批策略聚合快照、跨 WP 审计链策略聚合快照、跨 WP 审计链只读聚合骨架、模型观测策略共享快照、归档治理策略共享快照、报告清单策略共享快照、任务诊断上下文策略、装配策略、策略运营、作用域策略、评测语料、发布准出、审计链、模型观测、归档与报告清单策略摘要、任务报告生成编排策略聚合行、任务报告作用域策略聚合行、任务报告评测语料策略聚合行、任务报告发布准出审批策略聚合行、任务报告审计链策略聚合行、任务级 audit-chain 聚合接口、任务报告上下文聚合行、上下文装配策略 v2 共享快照行、任务报告上下文策略治理聚合行、任务报告上下文策略运营 v2 聚合行、任务报告模型观测策略聚合行、任务报告质量准出阈值策略聚合行、任务报告导出审计策略聚合行、任务报告安全扫描策略聚合行、任务报告归档策略聚合行、任务报告清单策略聚合行、Prompt 校准策略聚合行、受限发布补偿后台、发布补偿策略聚合行、任务报告 manifest 聚合行、任务报告导出安全扫描、aggregate-only manifest 持久化和 manifest DB validation 的自动化验证入口 |
+| 版本 | v4.2 |
 | 日期 | 2026-05-31 |
 
 ## 1. 测试目标
@@ -115,7 +115,7 @@
 | WP5-FUNC-016B | P0 | 受限发布补偿后台修复部分成功候选 | 扫描 `FAILED` 且已持有 WP3 用例引用的候选；存在同一 `sourceRef` 用例时自动补建 trace link、候选改为 `PUBLISHED`、发布记录写 `AUTO_COMPENSATE_LINK_EXISTING/SUCCEEDED`，并刷新任务计数。 |
 | WP5-FUNC-016C | P0 | 受限发布补偿后台不越界创建或解冲突 | 无 `assetCaseId`、已有成功发布记录、已执行自动补偿记录或仅存在高相似冲突的候选不被后台自动首次创建或自动链接冲突用例，保留人工发布/人工冲突处理路径。 |
 | WP5-FUNC-016D | P0 | 受限发布补偿后台多实例幂等 | 同一候选被重复扫描或并发补偿时，通过候选级事务锁、锁内重读和自动补偿记录唯一约束确保最多写入一条 `AUTO_COMPENSATE_LINK_EXISTING` 发布记录。 |
-| WP5-FUNC-016E | P0 | 配置化发布准出质量阻断 | 开启 `veri-agent.test-design.release-readiness-publish-blocking-enabled=true` 后，任务聚合 readiness=`BLOCKED` 时正式发布返回 `INVALID_STATE`，不创建 WP3 用例、不写 publish record、不变更候选状态；dryRun 仍返回发布计划，便于诊断。 |
+| WP5-FUNC-016E | P0 | 配置化发布准出质量阻断 | 开启 `veri-agent.test-design.release-readiness-publish-blocking-enabled=true` 后，任务聚合 readiness=`BLOCKED` 时正式发布返回 `INVALID_STATE`，不创建 WP3 用例、不写 publish record、不变更候选状态；dryRun 仍返回发布计划，便于诊断。`scripts/wp5_test_design_smoke.sh` 在阻断开关开启时会通过公开 HTTP API 形成失败候选并验证 readiness=`BLOCKED`、dryRun 诊断、正式重试 409、不追加 publish record 且不写 WP3 用例；`scripts/wp5_managed_http_smoke.sh` 在 release gate 下默认启用该阻断开关。 |
 | WP5-FUNC-017 | P1 | 任务重试 | 失败任务可重试，保留历史错误和新 traceId。 |
 | WP5-FUNC-017A | P0 | 人工重发排队生成事件 | 仅 `QUEUED` 任务可调用，任务状态保持 `QUEUED`，重新发布生成请求事件并写审计；非 `QUEUED` 任务或同步生成模式返回非法状态，响应和报告不暴露事件 ID、payload 或队列消息体。 |
 | WP5-FUNC-018 | P1 | 取消运行中任务 | 任务进入 `CANCELLED`，不继续生成候选。 |
@@ -247,7 +247,7 @@ if [[ "${WP5_RUN_AI_EVAL:-0}" == "1" ]]; then
 fi
 ```
 
-发布准出模式使用 `WP5_GATE_MODE=release` 或 `WP5_RELEASE_GATE=1` 标记。该模式会在脚本入口强制要求 HTTP smoke 和 `WP5_RUN_AI_EVAL=1` golden set 基线，`external` 模式还必须提供 `WP5_SMOKE_BASE_URL`；日常开发模式仍允许默认跳过 Docker 启动和 AI 评测，但脚本会输出跳过原因。`scripts/wp5_quality_gate_mode_test.sh` 用 plan-only 模式锁定上述契约，避免发布门禁被误改为静默跳过。
+发布准出模式使用 `WP5_GATE_MODE=release` 或 `WP5_RELEASE_GATE=1` 标记。该模式会在脚本入口强制要求 HTTP smoke 和 `WP5_RUN_AI_EVAL=1` golden set 基线，`external` 模式还必须提供 `WP5_SMOKE_BASE_URL`；managed HTTP smoke 在 release gate 下默认设置 `WP5_RELEASE_READINESS_PUBLISH_BLOCKING_ENABLED=true`，用于覆盖真实发布阻断链路。日常开发模式仍允许默认跳过 Docker 启动和 AI 评测，但脚本会输出跳过原因。`scripts/wp5_quality_gate_mode_test.sh` 用 plan-only 模式锁定上述契约，避免发布门禁被误改为静默跳过。
 
 ### 9.2 `scripts/wp5_test_design_smoke.sh`
 
@@ -259,14 +259,15 @@ BASE_URL="${WP5_SMOKE_BASE_URL:-http://127.0.0.1:8080}"
 TOKEN="${WP5_SERVICE_TOKEN:-local-test-design-token}"
 PROJECT_ID="${WP5_SMOKE_PROJECT_ID:-project-001}"
 
-# 1. 查询 WP5 健康。
+# 1. 查询 WP5 健康并校验 releaseReadinessPolicy advisory/blocking 口径。
 # 2. 通过 WP1 管理接口准备并激活项目，解析真实 project resourceId。
-# 3. 准备 WP3 需求资产。
-# 4. 创建生成任务。
-# 5. 查询候选并批量确认。
-# 6. 调用 publish-dry-run。
-# 7. 正式 publish。
-# 8. 查询 WP3 test-cases 和 trace link 确认资产写入。
+# 3. 若发布阻断开启，形成失败候选并验证 BLOCKED 重试不写 publish record/WP3。
+# 4. 准备 WP3 需求资产。
+# 5. 创建生成任务。
+# 6. 查询候选并批量确认。
+# 7. 调用 publish-dry-run。
+# 8. 正式 publish。
+# 9. 查询 WP3 test-cases 和 trace link 确认资产写入。
 ```
 
 ### 9.3 `scripts/wp5_case_generation_quality_eval.sh`

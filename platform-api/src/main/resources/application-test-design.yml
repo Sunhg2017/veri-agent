@@ -27,6 +27,7 @@ veri-agent:
     readiness-max-duplicate-key-collisions: ${WP5_READINESS_MAX_DUPLICATE_KEY_COLLISIONS:0}
     readiness-max-missing-requirement-count: ${WP5_READINESS_MAX_MISSING_REQUIREMENT_COUNT:0}
     readiness-max-missing-title-count: ${WP5_READINESS_MAX_MISSING_TITLE_COUNT:0}
+    release-readiness-publish-blocking-enabled: ${WP5_RELEASE_READINESS_PUBLISH_BLOCKING_ENABLED:false}
     conflict-title-similarity-threshold: ${WP5_CONFLICT_TITLE_SIMILARITY_THRESHOLD:0.86}
     conflict-content-similarity-threshold: ${WP5_CONFLICT_CONTENT_SIMILARITY_THRESHOLD:0.90}
     publish-compensation-enabled: ${WP5_PUBLISH_COMPENSATION_ENABLED:true}

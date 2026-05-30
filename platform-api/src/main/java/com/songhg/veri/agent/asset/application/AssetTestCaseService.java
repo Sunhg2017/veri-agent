@@ -147,9 +147,10 @@ public class AssetTestCaseService {
      *
      * <p>AI-generated cases with a sourceRef are treated as upstream-owned identities. Replays return the existing
      * case before audit and version-history writes, while the database unique index remains the final concurrency
-     * guard for WP5 publishes.
+     * guard for WP5 publishes. Business validation failures remain catchable by upstream batch publishers so they can
+     * record per-item failures without poisoning an existing outer transaction.
      */
-    @Transactional
+    @Transactional(noRollbackFor = BusinessException.class)
     public TestCaseResponse createTestCase(CreateTestCaseRequest request) {
         String scopeId = projectAuditService.projectContext(request.projectId()).projectId();
         String source = valueIn(request.source(), "MANUAL", TEST_CASE_SOURCES, "source");

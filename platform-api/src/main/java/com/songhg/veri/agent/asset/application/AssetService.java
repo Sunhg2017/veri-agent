@@ -34,6 +34,7 @@ import com.songhg.veri.agent.asset.application.view.RequirementResponse;
 import com.songhg.veri.agent.asset.application.view.TestCaseResponse;
 import com.songhg.veri.agent.asset.application.view.TestCaseStepResponse;
 import com.songhg.veri.agent.asset.application.view.TraceLinkResponse;
+import com.songhg.veri.agent.common.error.BusinessException;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -330,7 +331,7 @@ public class AssetService {
         return testCaseService.findActiveTestCasesByRequirement(projectId, requirementId);
     }
 
-    @Transactional
+    @Transactional(noRollbackFor = BusinessException.class)
     public TestCaseResponse createTestCase(CreateTestCaseRequest request) {
         return testCaseService.createTestCase(request);
     }

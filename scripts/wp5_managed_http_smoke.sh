@@ -31,6 +31,47 @@ APP_LOG="$OUT_DIR/platform-api-$RUN_ID.log"
 DB_LOG="$OUT_DIR/postgres-$RUN_ID.log"
 SUPER_ADMIN_SEED_SQL="$ROOT_DIR/db/seed/wp1_super_admin.sql"
 
+is_truthy() {
+  case "${1:-}" in
+    1|true|TRUE|yes|YES|on|ON)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+is_release_gate() {
+  if is_truthy "${WP5_RELEASE_GATE:-0}"; then
+    return 0
+  fi
+  case "${WP5_GATE_MODE:-development}" in
+    release|RELEASE|preprod|PREPROD|prod|PROD|production|PRODUCTION)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+release_readiness_publish_blocking_enabled() {
+  if [[ -n "${WP5_RELEASE_READINESS_PUBLISH_BLOCKING_ENABLED:-}" ]]; then
+    if is_truthy "$WP5_RELEASE_READINESS_PUBLISH_BLOCKING_ENABLED"; then
+      echo true
+    else
+      echo false
+    fi
+    return
+  fi
+  if is_release_gate; then
+    echo true
+  else
+    echo false
+  fi
+}
+
 require_tool() {
   local tool="$1"
   if ! command -v "$tool" >/dev/null 2>&1; then
@@ -114,6 +155,7 @@ seed_super_admin() {
 start_platform_api() {
   local api_port="$1"
   local db_port="$2"
+  local release_blocking_enabled="$3"
   : > "$APP_LOG"
   (
     cd "$ROOT_DIR"
@@ -128,6 +170,7 @@ start_platform_api() {
     WP3_SERVICE_TOKEN="$WP3_SERVICE_TOKEN_VALUE" \
     WP4_SERVICE_TOKEN="$WP4_SERVICE_TOKEN_VALUE" \
     WP5_SERVICE_TOKEN="$WP5_SERVICE_TOKEN_VALUE" \
+    WP5_RELEASE_READINESS_PUBLISH_BLOCKING_ENABLED="$release_blocking_enabled" \
     WP3_TRUSTED_CALLER_SERVICES="$ASSET_TRUSTED_SERVICES" \
     WP5_TRUSTED_CALLER_SERVICES="$TEST_DESIGN_TRUSTED_SERVICES" \
       mvn -B -pl platform-api spring-boot:run \
@@ -165,15 +208,17 @@ main() {
   mkdir -p "$OUT_DIR"
   trap cleanup EXIT INT TERM
 
-  local api_port base_url db_port
+  local api_port base_url db_port release_blocking_enabled
   api_port="$(choose_api_port)"
   base_url="http://127.0.0.1:$api_port"
+  release_blocking_enabled="$(release_readiness_publish_blocking_enabled)"
 
   echo "== WP5 managed HTTP smoke runtime =="
   echo "platformApi=$base_url logs=$OUT_DIR"
+  echo "releaseReadinessPublishBlockingEnabled=$release_blocking_enabled"
   start_postgres
   db_port="$(host_postgres_port)"
-  start_platform_api "$api_port" "$db_port"
+  start_platform_api "$api_port" "$db_port" "$release_blocking_enabled"
   wait_for_platform_api "$base_url"
   seed_super_admin
 
