@@ -194,6 +194,62 @@ class TestDesignTaskReportServiceTest {
     }
 
     @Test
+    void appendsContextPolicyOperationsRowsWithoutPolicyDetails() {
+        StringBuilder csv = new StringBuilder();
+        TestDesignTaskResponse task = new TestDesignTaskResponse(
+                UUID.fromString("11111111-1111-1111-1111-111111111111"),
+                "project-wp5",
+                "上下文策略运营报告 token=secret-value",
+                "SUCCEEDED",
+                List.of(),
+                List.of("SMOKE"),
+                "wp5-test-design-v1",
+                "1.0.0",
+                null,
+                null,
+                null,
+                0,
+                0,
+                0,
+                0,
+                null,
+                "auditor",
+                null,
+                "digest",
+                null,
+                TestDesignContextPolicyGovernance.response(),
+                Map.of(),
+                Instant.parse("2026-05-30T00:00:00Z"),
+                Instant.parse("2026-05-30T00:00:00Z")
+        );
+
+        TestDesignTaskReportContextPolicyOperationsRows.appendRows(
+                csv, task, Instant.parse("2026-05-30T00:00:00Z"));
+
+        String report = csv.toString();
+        assertDoesNotThrow(() -> TestDesignTaskReportExportGovernance.validateExportSafety(report));
+        org.assertj.core.api.Assertions.assertThat(report)
+                .contains("contextPolicyOperations,policyVersion,,wp5-context-policy-operations-v1")
+                .contains("contextPolicyOperations,operationMode,,PLATFORM_DEFAULT_ONLY,,warning")
+                .contains("contextPolicyOperations,projectOverrideStoreReady,,false,,warning")
+                .contains("contextPolicyOperations,environmentOverrideStoreReady,,false,,warning")
+                .contains("contextPolicyOperations,changeApprovalWorkflowReady,,false,,warning")
+                .contains("contextPolicyOperations,effectivePolicySnapshotMaterialized,,true,,success")
+                .contains("contextPolicyOperations,policyDiffPreviewExported,,false")
+                .contains("contextPolicyOperations,approvalNotesExported,,false")
+                .contains("contextPolicyOperations,ticketUrlExported,,false")
+                .contains("contextPolicyOperations,projectOverrideRulesExported,,false")
+                .contains("contextPolicyOperations,environmentOverrideRulesExported,,false")
+                .contains("contextPolicyOperations,aggregateOnly,,true,,success")
+                .doesNotContain("secret-value")
+                .doesNotContain("projectOverrideRuleBody")
+                .doesNotContain("environmentOverrideRuleBody")
+                .doesNotContain("approval-note-text")
+                .doesNotContain("https://ticket.example")
+                .doesNotContain("policyDocument");
+    }
+
+    @Test
     void appendsReadinessPolicyRowsWithoutCandidateEvidence() {
         StringBuilder csv = new StringBuilder();
         TestDesignTaskResponse task = new TestDesignTaskResponse(

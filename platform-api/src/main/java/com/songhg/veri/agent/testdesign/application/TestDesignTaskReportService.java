@@ -317,6 +317,7 @@ public class TestDesignTaskReportService {
         appendTaskReportContextLimit(csv, task, generatedAt, limits,
                 "linkedAssetSchemaChars", "linkedAssetSchemaChars");
         TestDesignTaskReportContextPolicyGovernanceRows.appendRows(csv, task, generatedAt);
+        TestDesignTaskReportContextPolicyOperationsRows.appendRows(csv, task, generatedAt);
     }
 
     private static void appendTaskReportContextLimit(
