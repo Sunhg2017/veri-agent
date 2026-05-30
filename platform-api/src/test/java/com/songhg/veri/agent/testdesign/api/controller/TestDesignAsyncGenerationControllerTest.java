@@ -3,8 +3,14 @@ package com.songhg.veri.agent.testdesign.api.controller;
 import com.jayway.jsonpath.JsonPath;
 import com.songhg.veri.agent.auth.application.AuthTokenService;
 import com.songhg.veri.agent.auth.domain.AuthUserRecord;
+import com.songhg.veri.agent.common.event.PlatformEventEnvelope;
+import com.songhg.veri.agent.common.event.PlatformEventPublisher;
 import com.songhg.veri.agent.testdesign.application.TestDesignTaskService;
 import com.songhg.veri.agent.testdesign.application.port.TestDesignRepository;
+import com.songhg.veri.agent.testdesign.domain.TestDesignTask;
+import com.songhg.veri.agent.testdesign.domain.TestDesignTaskStatus;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -13,11 +19,16 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.hasSize;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -45,6 +56,9 @@ class TestDesignAsyncGenerationControllerTest {
     @Autowired
     private TestDesignTaskService testDesignTaskService;
 
+    @MockitoBean
+    private PlatformEventPublisher platformEventPublisher;
+
     @Test
     void createsQueuedTaskAndConsumesGenerationEventIdempotently() throws Exception {
         String userToken = userAccessToken(List.of("ProjectOwner@PROJECT:project-wp5"));
@@ -68,32 +82,66 @@ class TestDesignAsyncGenerationControllerTest {
                 .andReturn();
 
         String taskId = JsonPath.read(accepted.getResponse().getContentAsString(), "$.data.task.id");
-        waitForGeneratedTask(userToken, taskId, 2);
-
         UUID taskUuid = UUID.fromString(taskId);
+
+        testDesignTaskService.processQueuedTask(taskUuid);
+        mockMvc.perform(get("/api/v1/test-design/tasks/{id}", taskId)
+                        .header("Authorization", "Bearer " + userToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.task.status").value("SUCCEEDED"))
+                .andExpect(jsonPath("$.data.task.generatedCount").value(2))
+                .andExpect(jsonPath("$.data.candidates", hasSize(2)));
         assertThat(testDesignRepository.candidatesByTask(taskUuid)).hasSize(2);
 
         testDesignTaskService.processQueuedTask(taskUuid);
         assertThat(testDesignRepository.candidatesByTask(taskUuid)).hasSize(2);
     }
 
-    private void waitForGeneratedTask(String userToken, String taskId, int expectedCandidates) throws Exception {
-        AssertionError lastFailure = null;
-        for (int attempt = 0; attempt < 60; attempt++) {
-            try {
-                mockMvc.perform(get("/api/v1/test-design/tasks/{id}", taskId)
-                                .header("Authorization", "Bearer " + userToken))
-                        .andExpect(status().isOk())
-                        .andExpect(jsonPath("$.data.task.status").value("SUCCEEDED"))
-                        .andExpect(jsonPath("$.data.task.generatedCount").value(expectedCandidates))
-                        .andExpect(jsonPath("$.data.candidates", hasSize(expectedCandidates)));
-                return;
-            } catch (AssertionError failure) {
-                lastFailure = failure;
-                Thread.sleep(100L);
-            }
-        }
-        throw lastFailure == null ? new AssertionError("WP5 async generation did not finish") : lastFailure;
+    @Test
+    void manuallyReplaysQueuedGenerationEventWithoutChangingTaskState() throws Exception {
+        String userToken = userAccessToken(List.of("ProjectOwner@PROJECT:project-wp5"));
+        String requirementId = createRequirement(userToken);
+        String taskId = UUID.randomUUID().toString();
+        saveQueuedTask(taskId, requirementId);
+
+        mockMvc.perform(post("/api/v1/test-design/tasks/{id}/replay-queued-event", taskId)
+                        .header("Authorization", "Bearer " + userToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.task.id").value(taskId))
+                .andExpect(jsonPath("$.data.task.status").value("QUEUED"))
+                .andExpect(jsonPath("$.data.task.generationOrchestrationPolicy.manualQueuedEventReplayReady")
+                        .value(true))
+                .andExpect(jsonPath("$.data.task.generationOrchestrationPolicy.queueMessageBodyExported")
+                        .value(false));
+
+        assertThat(testDesignRepository.task(UUID.fromString(taskId))).get()
+                .extracting(TestDesignTask::status)
+                .isEqualTo(TestDesignTaskStatus.QUEUED.name());
+        verify(platformEventPublisher).publish(
+                eq("veri-agent.test-design-generation-requested"),
+                any(PlatformEventEnvelope.class),
+                eq(Duration.ZERO)
+        );
+    }
+
+    @Test
+    void rejectsManualReplayForNonQueuedTasks() throws Exception {
+        String userToken = userAccessToken(List.of("ProjectOwner@PROJECT:project-wp5"));
+        String requirementId = createRequirement(userToken);
+        String taskId = UUID.randomUUID().toString();
+        saveQueuedTask(taskId, requirementId);
+        testDesignTaskService.processQueuedTask(UUID.fromString(taskId));
+
+        mockMvc.perform(post("/api/v1/test-design/tasks/{id}/replay-queued-event", taskId)
+                        .header("Authorization", "Bearer " + userToken))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("INVALID_STATE"));
+
+        verify(platformEventPublisher, never()).publish(
+                eq("veri-agent.test-design-generation-requested"),
+                any(PlatformEventEnvelope.class),
+                eq(Duration.ZERO)
+        );
     }
 
     private String createRequirement(String userToken) throws Exception {
@@ -112,6 +160,36 @@ class TestDesignAsyncGenerationControllerTest {
                 .andExpect(status().isCreated())
                 .andReturn();
         return JsonPath.read(result.getResponse().getContentAsString(), "$.data.id");
+    }
+
+    private void saveQueuedTask(String taskId, String requirementId) {
+        UUID id = UUID.fromString(taskId);
+        Instant now = Instant.now();
+        testDesignRepository.saveTask(new TestDesignTask(
+                id,
+                "project-wp5",
+                "人工重发排队事件任务",
+                TestDesignTaskStatus.QUEUED.name(),
+                requirementId,
+                "SMOKE",
+                "wp5-test-design-v1",
+                "1.0.0",
+                null,
+                null,
+                null,
+                1,
+                0,
+                0,
+                0,
+                null,
+                "wp5_async_user",
+                null,
+                null,
+                "digest-" + id,
+                "{}",
+                now,
+                now
+        ));
     }
 
     private String userAccessToken(List<String> roles) {

@@ -39,6 +39,7 @@ import {
   publishTestDesignDryRun,
   publishTestDesignTask,
   rejectTestDesignCandidate,
+  replayQueuedTestDesignTaskEvent,
   resolveTestDesignConflict,
   retryTestDesignTask,
   testDesignCandidateExportPath,
@@ -219,7 +220,7 @@ describe('WP5 test design API helpers', () => {
         running_timeout_recovery_enabled: true,
         explicit_retry_required_after_timeout: true,
         manual_task_retry_supported: true,
-        manual_queued_event_replay_ready: false,
+        manual_queued_event_replay_ready: true,
         queue_lag_metric_ready: true,
         timeout_alert_ready: true,
         multi_instance_load_test_evidence_ready: false,
@@ -422,7 +423,7 @@ describe('WP5 test design API helpers', () => {
         eventRecoveryEnabled: true,
         queuedEventReplaySupported: true,
         runningTimeoutRecoveryEnabled: true,
-        manualQueuedEventReplayReady: false,
+        manualQueuedEventReplayReady: true,
         queueLagMetricReady: true,
         timeoutAlertReady: true,
         multiInstanceLoadTestEvidenceReady: false,
@@ -1238,6 +1239,11 @@ describe('WP5 test design API helpers', () => {
 
     await retryTestDesignTask('task 1');
     expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/test-design/tasks/task%201/retry', {
+      method: 'POST'
+    });
+
+    await replayQueuedTestDesignTaskEvent('task 1');
+    expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/test-design/tasks/task%201/replay-queued-event', {
       method: 'POST'
     });
 

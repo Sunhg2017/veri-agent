@@ -8,6 +8,7 @@ import {
   FileText,
   Link2,
   RefreshCw,
+  Repeat2,
   RotateCcw,
   Save,
   Search,
@@ -46,6 +47,7 @@ import {
   publishTestDesignDryRun,
   publishTestDesignTask,
   rejectTestDesignCandidate,
+  replayQueuedTestDesignTaskEvent,
   resolveTestDesignConflict,
   retryTestDesignTask,
   testDesignErrorMessage,
@@ -982,6 +984,40 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       void refreshPromptTrend({ silent: true });
     } catch (error: unknown) {
       setTaskState({ loading: false, error: testDesignErrorMessage(error, '生成任务重试失败') });
+    }
+  }
+
+  async function replayQueuedTaskEvent(task: TestDesignTaskView) {
+    if (!canGenerate) {
+      setTaskState({ loading: false, error: '缺少 testDesign:generate 权限' });
+      return;
+    }
+    if (task.status !== 'QUEUED') {
+      setTaskState({ loading: false, error: `仅 QUEUED 任务支持排队事件重发：${task.status}` });
+      return;
+    }
+
+    setSelectedTaskId(task.id);
+    setTaskState({ loading: true });
+    setPublishResult(null);
+    try {
+      const response = await replayQueuedTestDesignTaskEvent(task.id);
+      setTasks((current) => upsertTask(current, response.data.task));
+      setCandidates(response.data.candidates);
+      setCandidatePageTotal(response.data.candidates.length);
+      setSelectedCandidateCache(mergeCandidateCache({}, response.data.candidates));
+      setSelectedCandidateId(response.data.candidates[0]?.id ?? '');
+      setSelectedCandidateIds([]);
+      setBatchActionResult(null);
+      setBatchEditDraft(initialTestDesignBatchEditDraft);
+      setBatchEditResult(null);
+      setTaskState({ loading: false, success: '排队生成事件已重发', traceId: response.trace_id });
+      void refreshReviewRecords(task.id, { silent: true });
+      void refreshTaskQualitySummary(task.id, { silent: true });
+      void refreshTaskAuditSummary(task.id, { silent: true });
+      void refreshPromptTrend({ silent: true });
+    } catch (error: unknown) {
+      setTaskState({ loading: false, error: testDesignErrorMessage(error, '排队生成事件重发失败') });
     }
   }
 
@@ -2279,6 +2315,18 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
                         onClick={() => void retryTask(task)}
                       >
                         <RotateCcw size={14} />
+                      </button>
+                    )}
+                    {task.status === 'QUEUED' && (
+                      <button
+                        aria-label={`重发排队事件 ${task.title}`}
+                        className="btn btn-secondary btn-xs"
+                        disabled={!canGenerate || taskState.loading}
+                        title="重发排队事件"
+                        type="button"
+                        onClick={() => void replayQueuedTaskEvent(task)}
+                      >
+                        <Repeat2 size={14} />
                       </button>
                     )}
                     {CANCELLABLE_TASK_STATUSES.has(task.status) && (

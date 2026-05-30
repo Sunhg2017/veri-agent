@@ -166,7 +166,7 @@ API client 需复用现有 `requestJson` 和 `ApiError` 处理，保留响应中
 | release readiness | 任务诊断展示 `releaseReadinessPolicy` 的 advisory-only、发布阻断关闭、审批流 pending、人工准出、自动发布关闭和候选确认要求；该状态只说明当前准出边界，不代表真实审批流已就绪。 |
 | audit chain | 任务诊断展示 `auditChainPolicy` 的 WP1 审计写入、WP2 调用引用、WP3 发布引用、WP5 本域事件、项目作用域、trace 信号、跨 WP 看板 pending 和 outbox 看板 pending；该状态只说明当前审计链观测边界，不代表真实跨 WP 审计看板或 outbox 重放看板已就绪。 |
 | model observation policy | 任务诊断展示 `modelObservationPolicy` 的策略版本、聚合观测模式、WP2 调用引用、trace/job/routing/token/latency/cost/fallback 跟踪能力、Prompt 载荷不存储和细节导出关闭；该状态只说明当前模型观测治理边界，不代表真实跨 WP 模型调用明细看板已就绪，也不展示 traceId/jobId/invocationId 原值、载荷预览、provider 错误正文或 actor service。 |
-| generation orchestration policy | 任务诊断展示 `generationOrchestrationPolicy` 的策略版本、编排模式、条件认领、幂等回放、重复事件安全、恢复扫描、运行中超时回收、人工重试、队列 lag 指标、超时告警、恢复批次上限、排队/运行/最旧排队年龄/超时运行聚合计数和告警布尔值；该状态只说明当前生成编排边界，不代表人工队列事件重发、多实例压测证据或跨 WP 补偿后台已就绪，也不展示事件 ID、事件 payload、队列消息体、恢复明细、幂等键原值或超时错误正文。 |
+| generation orchestration policy | 任务诊断展示 `generationOrchestrationPolicy` 的策略版本、编排模式、条件认领、幂等回放、重复事件安全、恢复扫描、运行中超时回收、人工重试、人工排队事件重发、队列 lag 指标、超时告警、恢复批次上限、排队/运行/最旧排队年龄/超时运行聚合计数和告警布尔值；该状态只说明当前生成编排边界，人工排队事件重发仅支持 `QUEUED` 任务，不代表多实例压测证据或跨 WP 补偿后台已就绪，也不展示事件 ID、事件 payload、队列消息体、恢复明细、幂等键原值或超时错误正文。 |
 | archive policy | 任务诊断展示 `archivePolicy` 的策略版本、保留天数、`platformManaged` 存储策略、审批要求、审批流 pending、真实归档存储 pending、外发开关、保留策略跟踪和细节导出关闭；该状态只说明当前归档治理边界，不代表真实归档存储、审批流、外发流程或工单流转已就绪。 |
 | report manifest policy | 任务诊断展示 `reportManifestPolicy` 的策略版本、报告 schema/字段集版本、清单模式、行数/完成状态跟踪、归档核验和细节导出关闭；该状态只说明当前报告清单聚合核验边界，不代表行级完整性值、候选 ID、trace ID 或审计 ID 明细索引已开放。 |
 

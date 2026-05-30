@@ -901,7 +901,7 @@ class TestDesignTaskReportServiceTest {
                 .contains("generationOrchestrationPolicy,runningTimeoutRecoveryEnabled,,true,,success")
                 .contains("generationOrchestrationPolicy,explicitRetryRequiredAfterTimeout,,true,,success")
                 .contains("generationOrchestrationPolicy,manualTaskRetrySupported,,true,,success")
-                .contains("generationOrchestrationPolicy,manualQueuedEventReplayReady,,false,,warning")
+                .contains("generationOrchestrationPolicy,manualQueuedEventReplayReady,,true,,success")
                 .contains("generationOrchestrationPolicy,queueLagMetricReady,,true,,success")
                 .contains("generationOrchestrationPolicy,timeoutAlertReady,,true,,success")
                 .contains("generationOrchestrationPolicy,multiInstanceLoadTestEvidenceReady,,false,,warning")

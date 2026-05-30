@@ -335,6 +335,33 @@ public class TestDesignTaskService {
     }
 
     /**
+     * Manually re-emits the generation event for a queued task without mutating task state.
+     *
+     * <p>The actual generation consumer still performs a conditional QUEUED -> RUNNING claim, so repeated manual
+     * replays, delayed broker delivery and automated recovery scans remain idempotent and cannot duplicate candidates.
+     */
+    @Transactional
+    public TestDesignTaskDetailResponse replayQueuedTaskEvent(UUID id) {
+        if (!properties.generationEnabled()) {
+            throw new BusinessException(ErrorCode.INVALID_STATE, "WP5 用例生成未启用");
+        }
+        if (!properties.asyncGenerationEnabled()) {
+            throw new BusinessException(ErrorCode.INVALID_STATE, "当前未启用异步生成，不支持排队事件重发");
+        }
+        TestDesignTask task = taskOrThrow(id);
+        if (!TestDesignTaskStatus.QUEUED.name().equals(task.status())) {
+            throw new BusinessException(ErrorCode.INVALID_STATE, "仅 QUEUED 任务支持排队事件重发: " + task.status());
+        }
+        eventPublisher.publishGenerationRequested(id);
+        writeAudit("GENERATION_EVENT_REPLAY", "TEST_DESIGN_TASK", id, task.projectId(), Map.of(
+                "taskId", id,
+                "status", task.status(),
+                "manualQueuedEventReplay", true
+        ));
+        return task(id);
+    }
+
+    /**
      * Processes one queued generation task after the create transaction commits.
      *
      * <p>The task is claimed with a conditional status transition so duplicate local/Kafka delivery and recovery

@@ -106,6 +106,15 @@ public class TestDesignController {
     }
 
     /**
+     * 人工重发仍停留在 QUEUED 状态的生成事件
+     */
+    @PostMapping("/tasks/{id}/replay-queued-event")
+    @RequirePermission(value = PermissionCodes.TEST_DESIGN_GENERATE, scope = TestDesignPermissionScopes.TASK)
+    public TestDesignTaskDetailResponse replayQueuedTaskEvent(@PathVariable UUID id) {
+        return taskService.replayQueuedTaskEvent(id);
+    }
+
+    /**
      * 取消尚未完成的 WP5 生成任务
      */
     @PostMapping("/tasks/{id}/cancel")

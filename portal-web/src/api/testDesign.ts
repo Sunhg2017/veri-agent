@@ -1711,6 +1711,13 @@ export async function retryTestDesignTask(taskId: string): Promise<ApiResponse<T
   return { ...response, data: normalizeTestDesignTaskDetail(response.data) };
 }
 
+export async function replayQueuedTestDesignTaskEvent(taskId: string): Promise<ApiResponse<TestDesignTaskDetail>> {
+  const response = await requestJson<unknown>(`/api/v1/test-design/tasks/${encodeURIComponent(taskId)}/replay-queued-event`, {
+    method: 'POST'
+  });
+  return { ...response, data: normalizeTestDesignTaskDetail(response.data) };
+}
+
 export async function cancelTestDesignTask(taskId: string): Promise<ApiResponse<TestDesignTaskDetail>> {
   const response = await requestJson<unknown>(`/api/v1/test-design/tasks/${encodeURIComponent(taskId)}/cancel`, {
     method: 'POST'

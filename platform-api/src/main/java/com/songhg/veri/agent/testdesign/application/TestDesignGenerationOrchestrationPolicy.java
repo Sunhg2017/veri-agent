@@ -132,7 +132,7 @@ public final class TestDesignGenerationOrchestrationPolicy {
                 timeoutRecoveryEnabled,
                 true,
                 true,
-                false,
+                asyncEnabled,
                 true,
                 true,
                 false,
