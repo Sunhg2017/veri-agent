@@ -26,6 +26,8 @@ import com.songhg.veri.agent.modelaccess.infrastructure.JdbcModelInvocationJobRe
 import com.songhg.veri.agent.modelaccess.infrastructure.JdbcModelAccessRepository;
 import com.songhg.veri.agent.testdesign.application.port.TestDesignRepository;
 import com.songhg.veri.agent.testdesign.domain.TestDesignCandidate;
+import com.songhg.veri.agent.testdesign.domain.TestDesignCandidateStatus;
+import com.songhg.veri.agent.testdesign.domain.TestDesignPublishRecord;
 import com.songhg.veri.agent.testdesign.domain.TestDesignReviewRecord;
 import com.songhg.veri.agent.testdesign.domain.TestDesignTask;
 import com.songhg.veri.agent.testdesign.domain.TestDesignTaskStatus;
@@ -511,6 +513,111 @@ class DbProfileRepositoryContractTest {
     }
 
     @Test
+    void testDesignRepositoryFindsPublishCompensationCandidatesThroughJdbc() {
+        String projectId = "project-wp5-publish-comp-db-" + UUID.randomUUID();
+        Instant now = Instant.now();
+        AssetRequirement requirement = requirement(
+                projectId,
+                "REQ-WP5-PUB-COMP",
+                "WP5 发布补偿 DB 需求",
+                "SRC-WP5-PUB-COMP",
+                now
+        );
+        assetRepository.saveRequirement(requirement);
+        UUID taskId = UUID.randomUUID();
+        testDesignRepository.saveTask(testDesignTask(
+                taskId,
+                projectId,
+                TestDesignTaskStatus.SUCCEEDED,
+                "DB 发布补偿任务",
+                now
+        ));
+        TestCaseRecord testCase = testCase(
+                projectId,
+                UUID.randomUUID(),
+                "TC-WP5-PUB-COMP",
+                "WP5 发布补偿遗留用例",
+                "wp5:" + UUID.randomUUID()
+        );
+        assetRepository.saveTestCase(testCase);
+        UUID repairableCandidateId = UUID.randomUUID();
+        TestDesignCandidate repairable = testDesignCandidate(
+                repairableCandidateId,
+                taskId,
+                projectId,
+                requirement.id(),
+                TestDesignCandidateStatus.FAILED.name(),
+                testCase.id(),
+                now.minusSeconds(10)
+        );
+        TestDesignCandidate noAssetReference = testDesignCandidate(
+                UUID.randomUUID(),
+                taskId,
+                projectId,
+                requirement.id(),
+                TestDesignCandidateStatus.FAILED.name(),
+                null,
+                now.minusSeconds(9)
+        );
+        TestDesignCandidate alreadySucceeded = testDesignCandidate(
+                UUID.randomUUID(),
+                taskId,
+                projectId,
+                requirement.id(),
+                TestDesignCandidateStatus.FAILED.name(),
+                testCase.id(),
+                now.minusSeconds(8)
+        );
+        TestDesignCandidate alreadyAttempted = testDesignCandidate(
+                UUID.randomUUID(),
+                taskId,
+                projectId,
+                requirement.id(),
+                TestDesignCandidateStatus.FAILED.name(),
+                testCase.id(),
+                now.minusSeconds(7)
+        );
+        testDesignRepository.saveCandidate(repairable);
+        testDesignRepository.saveCandidate(noAssetReference);
+        testDesignRepository.saveCandidate(alreadySucceeded);
+        testDesignRepository.saveCandidate(alreadyAttempted);
+        testDesignRepository.savePublishRecord(publishRecord(
+                taskId,
+                alreadySucceeded.id(),
+                projectId,
+                requirement.id(),
+                testCase.id(),
+                "RETRY_LINK_EXISTING",
+                "SUCCEEDED",
+                now
+        ));
+        testDesignRepository.savePublishRecord(publishRecord(
+                taskId,
+                alreadyAttempted.id(),
+                projectId,
+                requirement.id(),
+                testCase.id(),
+                "AUTO_COMPENSATE_LINK_EXISTING",
+                "FAILED",
+                now
+        ));
+
+        assertThat(testDesignRepository.publishCompensationCandidates(10))
+                .extracting(TestDesignCandidate::id)
+                .containsExactly(repairableCandidateId);
+        assertThatThrownBy(() -> testDesignRepository.savePublishRecord(publishRecord(
+                taskId,
+                alreadyAttempted.id(),
+                projectId,
+                requirement.id(),
+                testCase.id(),
+                "AUTO_COMPENSATE_LINK_EXISTING",
+                "FAILED",
+                now.plusSeconds(1)
+        ))).isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
     void auditLogWriterCommitsInIndependentTransactionWhenBusinessTransactionRollsBack() {
         String action = "db-contract-independent-audit-" + UUID.randomUUID();
         String resourceId = "audit-resource-" + UUID.randomUUID();
@@ -618,6 +725,76 @@ class DbProfileRepositoryContractTest {
                 "{}",
                 updatedAt.minusSeconds(5),
                 updatedAt
+        );
+    }
+
+    private static TestDesignCandidate testDesignCandidate(
+            UUID id,
+            UUID taskId,
+            String projectId,
+            UUID requirementId,
+            String status,
+            UUID assetCaseId,
+            Instant updatedAt
+    ) {
+        return new TestDesignCandidate(
+                id,
+                taskId,
+                projectId,
+                requirementId,
+                null,
+                "DB 发布补偿候选",
+                "DB publish compensation candidate",
+                "SMOKE",
+                "HIGH",
+                status,
+                "precondition",
+                "[{\"action\":\"open\",\"expectedResult\":\"shown\"}]",
+                "shown",
+                "db,compensation",
+                id + ":SMOKE:db",
+                0.95D,
+                "wp5.case.generate",
+                "v1",
+                null,
+                null,
+                "RULE_TEMPLATE",
+                assetCaseId,
+                null,
+                null,
+                null,
+                status.equals(TestDesignCandidateStatus.FAILED.name()) ? "publish failed" : null,
+                "db-reviewer",
+                updatedAt.minusSeconds(5),
+                2L,
+                updatedAt.minusSeconds(6),
+                updatedAt
+        );
+    }
+
+    private static TestDesignPublishRecord publishRecord(
+            UUID taskId,
+            UUID candidateId,
+            String projectId,
+            UUID requirementId,
+            UUID assetCaseId,
+            String action,
+            String result,
+            Instant createdAt
+    ) {
+        return new TestDesignPublishRecord(
+                UUID.randomUUID(),
+                taskId,
+                candidateId,
+                projectId,
+                requirementId,
+                assetCaseId,
+                false,
+                action,
+                result,
+                null,
+                "db-publisher",
+                createdAt
         );
     }
 

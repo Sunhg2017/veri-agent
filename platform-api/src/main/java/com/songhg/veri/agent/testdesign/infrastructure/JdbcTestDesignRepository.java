@@ -108,6 +108,16 @@ public class JdbcTestDesignRepository implements TestDesignRepository {
     }
 
     @Override
+    public List<TestDesignCandidate> publishCompensationCandidates(int limit) {
+        return mapper.publishCompensationCandidates(limit);
+    }
+
+    @Override
+    public void lockPublishCompensationCandidate(UUID candidateId) {
+        mapper.lockPublishCompensationCandidate("wp5:publish-compensation:" + candidateId);
+    }
+
+    @Override
     public Optional<TestDesignCandidate> candidate(UUID id) {
         return Optional.ofNullable(mapper.candidate(id));
     }

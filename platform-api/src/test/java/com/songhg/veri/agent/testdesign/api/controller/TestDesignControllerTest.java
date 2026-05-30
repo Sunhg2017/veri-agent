@@ -9,6 +9,7 @@ import com.songhg.veri.agent.modelaccess.application.view.ModelInvocationJobReco
 import com.songhg.veri.agent.modelaccess.application.view.ModelInvocationJobStatus;
 import com.songhg.veri.agent.modelaccess.domain.InvocationRecord;
 import com.songhg.veri.agent.modelaccess.domain.InvocationStatus;
+import com.songhg.veri.agent.testdesign.application.TestDesignPublishCompensationService;
 import com.songhg.veri.agent.testdesign.application.port.TestDesignRepository;
 import com.songhg.veri.agent.testdesign.domain.TestDesignCandidate;
 import com.songhg.veri.agent.testdesign.domain.TestDesignTask;
@@ -74,6 +75,9 @@ class TestDesignControllerTest {
 
     @Autowired
     private ModelInvocationJobRepository modelInvocationJobRepository;
+
+    @Autowired
+    private TestDesignPublishCompensationService publishCompensationService;
 
     @Test
     void exposesHealthWithoutToken() throws Exception {
@@ -1444,12 +1448,17 @@ class TestDesignControllerTest {
         MatcherAssert.assertThat(csv, containsString("publishCompensationPolicy,partialTraceLinkRepairSupported,,true"));
         MatcherAssert.assertThat(csv, containsString("publishCompensationPolicy,failedCandidateRetrySupported,,true"));
         MatcherAssert.assertThat(csv, containsString("publishCompensationPolicy,manualConflictLinkSupported,,true"));
-        MatcherAssert.assertThat(csv, containsString("publishCompensationPolicy,asyncCompensationBackendReady,,false"));
+        MatcherAssert.assertThat(csv, containsString("publishCompensationPolicy,asyncCompensationBackendReady,,true"));
+        MatcherAssert.assertThat(csv, containsString(
+                "publishCompensationPolicy,compensationCandidateScope,,FAILED_WITH_EXISTING_WP3_CASE_REFERENCE"));
+        MatcherAssert.assertThat(csv, containsString("publishCompensationPolicy,autoConflictResolutionEnabled,,false"));
+        MatcherAssert.assertThat(csv, containsString("publishCompensationPolicy,autoFirstTimeCreateEnabled,,false"));
         MatcherAssert.assertThat(csv, containsString("publishCompensationPolicy,crossWpTransactionOrchestrationReady,,false"));
         MatcherAssert.assertThat(csv, containsString("publishCompensationPolicy,candidateEvidenceExported,,false"));
         MatcherAssert.assertThat(csv, containsString("publishCompensationPolicy,errorTextExported,,false"));
         MatcherAssert.assertThat(csv, containsString("publishCompensationPolicy,caseIdentifierListExported,,false"));
         MatcherAssert.assertThat(csv, containsString("publishCompensationPolicy,traceDetailListExported,,false"));
+        MatcherAssert.assertThat(csv, containsString("publishCompensationPolicy,metric,autoCompensateLinkExistingCount,0,,neutral"));
         MatcherAssert.assertThat(csv, containsString("publishCompensationPolicy,metric,retryLinkExistingCount,0,,neutral"));
         MatcherAssert.assertThat(csv, containsString("publishCompensationPolicy,metric,linkExistingCount,0,,neutral"));
         MatcherAssert.assertThat(csv, containsString("publishCompensationPolicy,metric,manualLinkExistingCount,0,,neutral"));
@@ -2131,6 +2140,68 @@ class TestDesignControllerTest {
                 .andExpect(jsonPath("$.data.candidates[0].status").value("PUBLISHED"))
                 .andExpect(jsonPath("$.data.candidates[0].assetCaseId").value(existingCaseId))
                 .andExpect(jsonPath("$.data.candidates[0].errorMessage").doesNotExist());
+    }
+
+    @Test
+    void backgroundCompensationRepairsPartialPublishWithoutManualRetry() throws Exception {
+        String ownerToken = userAccessToken(List.of("ProjectOwner@PROJECT:project-wp5"));
+        String requirementId = createRequirement(ownerToken, "后台补偿需求", "后台补偿验收", "project-wp5");
+        MvcResult taskResult = mockMvc.perform(post("/api/v1/test-design/tasks")
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"projectId":"project-wp5","requirementIds":["%s"],"coverageTypes":["SMOKE"]}
+                                """.formatted(requirementId)))
+                .andExpect(status().isCreated())
+                .andReturn();
+        String taskId = JsonPath.read(taskResult.getResponse().getContentAsString(), "$.data.task.id");
+        String candidateId = JsonPath.read(taskResult.getResponse().getContentAsString(), "$.data.candidates[0].id");
+
+        MvcResult existingCase = mockMvc.perform(post("/api/v1/asset/test-cases")
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "projectId": "project-wp5",
+                                  "requirementId": "%s",
+                                  "title": "后台补偿遗留 WP5 用例",
+                                  "description": "模拟发布已创建用例但未补链",
+                                  "source": "AI_GENERATED",
+                                  "sourceRef": "wp5:%s",
+                                  "status": "DRAFT",
+                                  "priority": "HIGH",
+                                  "steps": [
+                                    {"action": "执行后台补偿用例", "expectedResult": "后台补偿用例可复用"}
+                                  ]
+                                }
+                                """.formatted(requirementId, candidateId)))
+                .andExpect(status().isCreated())
+                .andReturn();
+        String existingCaseId = JsonPath.read(existingCase.getResponse().getContentAsString(), "$.data.id");
+        saveCandidateStatus(candidateId, "FAILED", existingCaseId, "追踪链接创建失败");
+
+        TestDesignPublishCompensationService.CompensationResult compensation =
+                publishCompensationService.compensateFailedLinkedCandidates("controller-test");
+
+        org.assertj.core.api.Assertions.assertThat(compensation.scannedCandidates()).isEqualTo(1);
+        org.assertj.core.api.Assertions.assertThat(compensation.succeededCandidates()).isEqualTo(1);
+        org.assertj.core.api.Assertions.assertThat(compensation.failedCandidates()).isZero();
+
+        mockMvc.perform(get("/api/v1/asset/links")
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .param("requirementId", requirementId)
+                        .param("caseId", existingCaseId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(1));
+
+        mockMvc.perform(get("/api/v1/test-design/tasks/{id}", taskId)
+                        .header("Authorization", "Bearer " + ownerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.task.status").value("PUBLISHED"))
+                .andExpect(jsonPath("$.data.candidates[0].status").value("PUBLISHED"))
+                .andExpect(jsonPath("$.data.candidates[0].assetCaseId").value(existingCaseId))
+                .andExpect(jsonPath("$.data.publishRecords[0].action").value("AUTO_COMPENSATE_LINK_EXISTING"))
+                .andExpect(jsonPath("$.data.publishRecords[0].result").value("SUCCEEDED"));
     }
 
     @Test

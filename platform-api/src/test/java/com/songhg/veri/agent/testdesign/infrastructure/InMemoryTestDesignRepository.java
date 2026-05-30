@@ -26,6 +26,8 @@ import org.springframework.util.StringUtils;
 @Repository
 public class InMemoryTestDesignRepository implements TestDesignRepository {
 
+    private static final String ACTION_AUTO_COMPENSATE_LINK_EXISTING = "AUTO_COMPENSATE_LINK_EXISTING";
+
     private final ConcurrentHashMap<UUID, TestDesignTask> tasks = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<UUID, TestDesignCandidate> candidates = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<UUID, TestDesignReviewRecord> reviewRecords = new ConcurrentHashMap<>();
@@ -212,6 +214,25 @@ public class InMemoryTestDesignRepository implements TestDesignRepository {
     }
 
     @Override
+    public List<TestDesignCandidate> publishCompensationCandidates(int limit) {
+        if (limit <= 0) {
+            return List.of();
+        }
+        return candidates.values().stream()
+                .filter(candidate -> "FAILED".equals(candidate.status()))
+                .filter(candidate -> candidate.assetCaseId() != null)
+                .filter(candidate -> publishRecords.values().stream()
+                        .noneMatch(record -> candidate.id().equals(record.candidateId())
+                                && "SUCCEEDED".equals(record.result())))
+                .filter(candidate -> publishRecords.values().stream()
+                        .noneMatch(record -> candidate.id().equals(record.candidateId())
+                                && "AUTO_COMPENSATE_LINK_EXISTING".equals(record.action())))
+                .sorted(Comparator.comparing(TestDesignCandidate::updatedAt, Comparator.nullsLast(Comparator.naturalOrder())))
+                .limit(limit)
+                .toList();
+    }
+
+    @Override
     public Optional<TestDesignCandidate> candidate(UUID id) {
         return Optional.ofNullable(candidates.get(id));
     }
@@ -248,6 +269,13 @@ public class InMemoryTestDesignRepository implements TestDesignRepository {
 
     @Override
     public TestDesignPublishRecord savePublishRecord(TestDesignPublishRecord record) {
+        if (ACTION_AUTO_COMPENSATE_LINK_EXISTING.equals(record.action())
+                && publishRecords.values().stream()
+                        .anyMatch(existing -> record.candidateId().equals(existing.candidateId())
+                                && ACTION_AUTO_COMPENSATE_LINK_EXISTING.equals(existing.action()))) {
+            throw new IllegalStateException("Duplicate automatic publish compensation record for candidate: "
+                    + record.candidateId());
+        }
         publishRecords.put(record.id(), record);
         return record;
     }

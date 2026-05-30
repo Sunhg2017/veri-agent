@@ -604,6 +604,8 @@ class TestDesignGenerationServiceTest {
                 0,
                 0.86D,
                 0.90D,
+                true,
+                50,
                 180,
                 false,
                 true

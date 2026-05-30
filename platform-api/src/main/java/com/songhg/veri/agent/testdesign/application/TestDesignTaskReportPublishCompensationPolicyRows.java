@@ -15,9 +15,10 @@ final class TestDesignTaskReportPublishCompensationPolicyRows {
     /**
      * Appends publish replay and compensation readiness using aggregate counters only.
      *
-     * <p>WP5 already supports source-key replay, partial trace-link repair and manual conflict linking. The real
-     * compensation backend and cross-WP orchestration are still pending, so these rows make the gap auditable without
-     * exporting candidate IDs, asset case IDs, source keys, trace details or publish error text.
+     * <p>WP5 already supports source-key replay, partial trace-link repair, manual conflict linking and a restricted
+     * background compensation scan for failed candidates that already reference a WP3 case. Cross-WP orchestration is
+     * still pending, so these rows make the remaining gap auditable without exporting candidate IDs, asset case IDs,
+     * source keys, trace details or publish error text.
      */
     static void appendRows(
             StringBuilder csv,
@@ -32,12 +33,18 @@ final class TestDesignTaskReportPublishCompensationPolicyRows {
         appendMetadataRow(csv, task, generatedAt, "partialTraceLinkRepairSupported", true, "success");
         appendMetadataRow(csv, task, generatedAt, "failedCandidateRetrySupported", true, "success");
         appendMetadataRow(csv, task, generatedAt, "manualConflictLinkSupported", true, "success");
-        appendMetadataRow(csv, task, generatedAt, "asyncCompensationBackendReady", false, "warning");
+        appendMetadataRow(csv, task, generatedAt, "asyncCompensationBackendReady", true, "success");
+        appendMetadataRow(csv, task, generatedAt, "compensationCandidateScope",
+                "FAILED_WITH_EXISTING_WP3_CASE_REFERENCE", null);
+        appendMetadataRow(csv, task, generatedAt, "autoConflictResolutionEnabled", false, "success");
+        appendMetadataRow(csv, task, generatedAt, "autoFirstTimeCreateEnabled", false, "success");
         appendMetadataRow(csv, task, generatedAt, "crossWpTransactionOrchestrationReady", false, "warning");
         appendMetadataRow(csv, task, generatedAt, "candidateEvidenceExported", false, null);
         appendMetadataRow(csv, task, generatedAt, "errorTextExported", false, null);
         appendMetadataRow(csv, task, generatedAt, "caseIdentifierListExported", false, null);
         appendMetadataRow(csv, task, generatedAt, "traceDetailListExported", false, null);
+        appendMetricRow(csv, task, generatedAt, "autoCompensateLinkExistingCount",
+                countAction(safeRecords, "AUTO_COMPENSATE_LINK_EXISTING"), "info");
         appendMetricRow(csv, task, generatedAt, "retryLinkExistingCount",
                 countAction(safeRecords, "RETRY_LINK_EXISTING"), "info");
         appendMetricRow(csv, task, generatedAt, "linkExistingCount",

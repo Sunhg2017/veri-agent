@@ -68,6 +68,10 @@ public record TestDesignProperties(
         @DefaultValue("0.86") double conflictTitleSimilarityThreshold,
         /** 发布冲突治理：同需求正文高相似阈值，范围 0-1 */
         @DefaultValue("0.90") double conflictContentSimilarityThreshold,
+        /** 发布补偿后台开关，仅自动修复已存在 WP3 用例引用的部分成功候选 */
+        @DefaultValue("true") boolean publishCompensationEnabled,
+        /** 单次发布补偿扫描最多处理的候选数量 */
+        @DefaultValue("50") int publishCompensationBatchSize,
         /** 报告归档治理：任务报告保留天数，非正数表示使用默认值 */
         @DefaultValue("180") int reportArchiveRetentionDays,
         /** 报告归档治理：是否允许归档外发，当前仅作为报告治理口径输出 */
@@ -85,6 +89,8 @@ public record TestDesignProperties(
     private static final int MAX_CONTEXT_PREVIEW_CHARS = 2000;
     private static final int DEFAULT_REPORT_ARCHIVE_RETENTION_DAYS = 180;
     private static final int MAX_REPORT_ARCHIVE_RETENTION_DAYS = 3650;
+    private static final int DEFAULT_PUBLISH_COMPENSATION_BATCH_SIZE = 50;
+    private static final int MAX_PUBLISH_COMPENSATION_BATCH_SIZE = 500;
 
     public int effectiveContextLinkedAssetsPerRequirement() {
         return boundedPositive(contextLinkedAssetsPerRequirement, DEFAULT_LINKED_ASSETS_PER_REQUIREMENT, MAX_CONTEXT_ITEMS);
@@ -124,6 +130,11 @@ public record TestDesignProperties(
     public int effectiveReportArchiveRetentionDays() {
         return boundedPositive(reportArchiveRetentionDays, DEFAULT_REPORT_ARCHIVE_RETENTION_DAYS,
                 MAX_REPORT_ARCHIVE_RETENTION_DAYS);
+    }
+
+    public int effectivePublishCompensationBatchSize() {
+        return boundedPositive(publishCompensationBatchSize, DEFAULT_PUBLISH_COMPENSATION_BATCH_SIZE,
+                MAX_PUBLISH_COMPENSATION_BATCH_SIZE);
     }
 
     private static int boundedPositive(int value, int defaultValue, int maxValue) {

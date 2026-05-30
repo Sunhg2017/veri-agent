@@ -43,6 +43,7 @@ public class TestDesignPublishService {
     private static final String TEST_CASE_SOURCE_AI_GENERATED = "AI_GENERATED";
     private static final String TEST_CASE_SOURCE_REF_PREFIX = "wp5:";
     private static final String ACTION_RETRY_LINK_EXISTING = "RETRY_LINK_EXISTING";
+    static final String ACTION_AUTO_COMPENSATE_LINK_EXISTING = "AUTO_COMPENSATE_LINK_EXISTING";
     private static final String ACTION_DUPLICATE_REVIEW_REQUIRED = "DUPLICATE_REVIEW_REQUIRED";
     private static final String RESULT_CONFLICT = "CONFLICT";
     private final TestDesignRepository repository;
@@ -158,6 +159,70 @@ public class TestDesignPublishService {
                 .map(record -> responseMapper.toPublishRecordResponse(record, candidates.get(record.candidateId())))
                 .toList();
         return PageResponse.of(records, 0, Math.max(1, records.size()), records.size());
+    }
+
+    /**
+     * Repairs a partial publish where WP3 already has the AI-generated case but WP5 still marks the candidate failed.
+     *
+     * <p>The compensation backend deliberately avoids high-similarity conflicts and first-time creates. It only replays
+     * the idempotent sourceRef lookup and trace-link repair path so automated recovery cannot publish new assets beyond
+     * what a prior publish attempt already created.
+     */
+    @Transactional
+    public TestDesignPublishRecord compensateFailedLinkedCandidate(TestDesignCandidate candidate, String actor) {
+        repository.lockPublishCompensationCandidate(candidate.id());
+        TestDesignCandidate current = repository.candidate(candidate.id()).orElse(candidate);
+        TestDesignTask task = taskOrThrow(current.taskId());
+        List<TestDesignPublishRecord> records = repository.publishRecords(task.id());
+        if (hasSucceededRecord(records, current.id())) {
+            return publishRecord(task, current, false, ACTION_AUTO_COMPENSATE_LINK_EXISTING, "SKIPPED",
+                    current.assetCaseId(), "候选已有成功发布记录", actor);
+        }
+        if (hasAutoCompensationRecord(records, current.id())) {
+            return publishRecord(task, current, false, ACTION_AUTO_COMPENSATE_LINK_EXISTING, "SKIPPED",
+                    current.assetCaseId(), "候选已执行自动补偿尝试", actor);
+        }
+        if (!TestDesignCandidateStatus.FAILED.name().equals(current.status()) || current.assetCaseId() == null) {
+            return publishRecord(task, current, false, ACTION_AUTO_COMPENSATE_LINK_EXISTING, "SKIPPED",
+                    current.assetCaseId(), "候选不满足发布补偿条件", actor);
+        }
+        Optional<TestCaseResponse> existingTestCase = existingWp5TestCase(current)
+                .filter(testCase -> Objects.equals(current.assetCaseId(), testCase.id()));
+        if (existingTestCase.isEmpty()) {
+            TestDesignPublishRecord record = publishRecord(task, current, false, ACTION_AUTO_COMPENSATE_LINK_EXISTING,
+                    "FAILED", current.assetCaseId(), "未找到匹配的 WP5 发布源用例，需人工重试", actor);
+            repository.savePublishRecord(record);
+            return record;
+        }
+        try {
+            TestCaseResponse testCase = existingTestCase.get();
+            ensureTraceLink(current, testCase);
+            TestDesignCandidate linked = withPublishedCandidate(current, testCase.id(), null);
+            repository.saveCandidate(linked);
+            TestDesignPublishRecord record = publishRecord(task, linked, false, ACTION_AUTO_COMPENSATE_LINK_EXISTING,
+                    "SUCCEEDED", testCase.id(), null, actor);
+            repository.savePublishRecord(record);
+            refreshTaskCountsAfterPublish(task.id(), task.status());
+            return record;
+        } catch (BusinessException exception) {
+            TestDesignCandidate failed = withFailedCandidate(current, current.assetCaseId(), exception.getMessage());
+            repository.saveCandidate(failed);
+            TestDesignPublishRecord record = publishRecord(task, failed, false, ACTION_AUTO_COMPENSATE_LINK_EXISTING,
+                    "FAILED", current.assetCaseId(), exception.getMessage(), actor);
+            repository.savePublishRecord(record);
+            return record;
+        }
+    }
+
+    private boolean hasSucceededRecord(List<TestDesignPublishRecord> records, UUID candidateId) {
+        return records.stream()
+                .anyMatch(record -> candidateId.equals(record.candidateId()) && "SUCCEEDED".equals(record.result()));
+    }
+
+    private boolean hasAutoCompensationRecord(List<TestDesignPublishRecord> records, UUID candidateId) {
+        return records.stream()
+                .anyMatch(record -> candidateId.equals(record.candidateId())
+                        && ACTION_AUTO_COMPENSATE_LINK_EXISTING.equals(record.action()));
     }
 
     private TestDesignPublishRecord publishCandidate(TestDesignTask task, TestDesignCandidate candidate, String actor) {

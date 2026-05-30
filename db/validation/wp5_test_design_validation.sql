@@ -104,23 +104,23 @@ select
     ) then 'PASS' else 'FAIL' end as status,
     coalesce((select definition from task_status_constraint limit 1), 'test_design_task status constraint missing') as details;
 
-with expected(index_name) as (
+with expected(table_name, index_name) as (
     values
-        ('uk_asset_test_case_project_ai_source_ref')
+        ('asset_test_case', 'uk_asset_test_case_project_ai_source_ref'),
+        ('test_design_publish_record', 'uk_test_design_publish_auto_comp_candidate')
 ),
 missing as (
-    select e.index_name
+    select e.table_name || '.' || e.index_name as item
     from expected e
-    left join pg_indexes i
-        on i.schemaname = current_schema()
-       and i.tablename = 'asset_test_case'
+    left join pg_indexes i on i.schemaname = current_schema()
+       and i.tablename = e.table_name
        and i.indexname = e.index_name
     where i.indexname is null
 )
 select
-    'wp5.wp3_publish_idempotency_indexes_exist' as check_name,
+    'wp5.publish_idempotency_indexes_exist' as check_name,
     case when count(*) = 0 then 'PASS' else 'FAIL' end as status,
-    coalesce(string_agg(index_name, ', ' order by index_name), 'WP5 publish sourceRef idempotency index exists') as details
+    coalesce(string_agg(item, ', ' order by item), 'WP5 publish sourceRef and compensation idempotency indexes exist') as details
 from missing;
 
 with found as (

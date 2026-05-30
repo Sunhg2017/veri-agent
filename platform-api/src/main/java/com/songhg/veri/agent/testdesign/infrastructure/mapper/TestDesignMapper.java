@@ -59,6 +59,10 @@ public interface TestDesignMapper {
 
     List<TestDesignCandidate> candidatesByTask(@Param("taskId") UUID taskId);
 
+    List<TestDesignCandidate> publishCompensationCandidates(@Param("limit") int limit);
+
+    int lockPublishCompensationCandidate(@Param("lockKey") String lockKey);
+
     TestDesignCandidate candidate(@Param("id") UUID id);
 
     void insertCandidate(TestDesignCandidate candidate);

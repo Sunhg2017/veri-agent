@@ -92,6 +92,19 @@ public interface TestDesignRepository {
     List<TestDesignCandidate> candidatesByTask(UUID taskId);
 
     /**
+     * 查询具备 WP3 用例引用但仍处于 FAILED 的候选，用于受限发布补偿后台。
+     *
+     * <p>只返回存在资产引用且尚无成功发布记录、尚未执行自动补偿记录的候选，避免后台反复重试同一失败项。
+     */
+    List<TestDesignCandidate> publishCompensationCandidates(int limit);
+
+    /**
+     * 当底层存储支持事务级锁时，串行化同一候选的自动发布补偿，避免多实例调度重复修复或重复记账。
+     */
+    default void lockPublishCompensationCandidate(UUID candidateId) {
+    }
+
+    /**
      * 查询单个候选
      */
     Optional<TestDesignCandidate> candidate(UUID id);

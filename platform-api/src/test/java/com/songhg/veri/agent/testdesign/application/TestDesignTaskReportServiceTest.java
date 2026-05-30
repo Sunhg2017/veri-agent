@@ -384,12 +384,16 @@ class TestDesignTaskReportServiceTest {
                 .contains("publishCompensationPolicy,partialTraceLinkRepairSupported,,true,,success")
                 .contains("publishCompensationPolicy,failedCandidateRetrySupported,,true,,success")
                 .contains("publishCompensationPolicy,manualConflictLinkSupported,,true,,success")
-                .contains("publishCompensationPolicy,asyncCompensationBackendReady,,false,,warning")
+                .contains("publishCompensationPolicy,asyncCompensationBackendReady,,true,,success")
+                .contains("publishCompensationPolicy,compensationCandidateScope,,FAILED_WITH_EXISTING_WP3_CASE_REFERENCE")
+                .contains("publishCompensationPolicy,autoConflictResolutionEnabled,,false,,success")
+                .contains("publishCompensationPolicy,autoFirstTimeCreateEnabled,,false,,success")
                 .contains("publishCompensationPolicy,crossWpTransactionOrchestrationReady,,false,,warning")
                 .contains("publishCompensationPolicy,candidateEvidenceExported,,false")
                 .contains("publishCompensationPolicy,errorTextExported,,false")
                 .contains("publishCompensationPolicy,caseIdentifierListExported,,false")
                 .contains("publishCompensationPolicy,traceDetailListExported,,false")
+                .contains("publishCompensationPolicy,metric,autoCompensateLinkExistingCount,0,,neutral")
                 .contains("publishCompensationPolicy,metric,retryLinkExistingCount,1,,info")
                 .contains("publishCompensationPolicy,metric,linkExistingCount,0,,neutral")
                 .contains("publishCompensationPolicy,metric,manualLinkExistingCount,1,,info")
@@ -1261,6 +1265,8 @@ class TestDesignTaskReportServiceTest {
                 0,
                 0.86D,
                 0.90D,
+                true,
+                50,
                 reportArchiveRetentionDays,
                 externalSharingAllowed,
                 approvalRequired
