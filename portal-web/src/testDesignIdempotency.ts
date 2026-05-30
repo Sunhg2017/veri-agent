@@ -7,7 +7,14 @@ export type TestDesignTaskIdempotencyState = {
 
 type IdempotencyPayloadInput = Pick<
   CreateTestDesignTaskPayload,
-  'projectId' | 'title' | 'requirementIds' | 'coverageTypes' | 'caseCountPerRequirement'
+  | 'projectId'
+  | 'title'
+  | 'requirementIds'
+  | 'contextApiIds'
+  | 'contextPageIds'
+  | 'contextFlowIds'
+  | 'coverageTypes'
+  | 'caseCountPerRequirement'
 >;
 
 export function buildTestDesignTaskIdempotencySignature(input: IdempotencyPayloadInput) {
@@ -15,6 +22,9 @@ export function buildTestDesignTaskIdempotencySignature(input: IdempotencyPayloa
     projectId: normalizedText(input.projectId),
     title: normalizedOptionalText(input.title),
     requirementIds: input.requirementIds.map(normalizedText).filter(Boolean),
+    contextApiIds: normalizedIdList(input.contextApiIds),
+    contextPageIds: normalizedIdList(input.contextPageIds),
+    contextFlowIds: normalizedIdList(input.contextFlowIds),
     coverageTypes: (input.coverageTypes ?? []).map((type) => normalizedText(type).toUpperCase()).filter(Boolean),
     caseCountPerRequirement: normalizedCaseCount(input.caseCountPerRequirement)
   });
@@ -54,6 +64,10 @@ function normalizedCaseCount(value: unknown) {
     return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
   }
   return null;
+}
+
+function normalizedIdList(value: unknown) {
+  return Array.isArray(value) ? value.map(normalizedText).filter(Boolean) : [];
 }
 
 function defaultRandomSource() {

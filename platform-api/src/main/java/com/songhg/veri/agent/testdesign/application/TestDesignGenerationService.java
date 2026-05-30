@@ -81,7 +81,8 @@ public class TestDesignGenerationService {
 
     TestDesignGenerationContext generationContext(
             String projectId,
-            List<RequirementResponse> requirements
+            List<RequirementResponse> requirements,
+            ExplicitContextAssetIds explicitContext
     ) {
         Map<String, Object> summary = new LinkedHashMap<>();
         summary.put("contextVersion", "wp5-context-v1");
@@ -101,6 +102,7 @@ public class TestDesignGenerationService {
                 .sorted(Comparator.comparing(RequirementResponse::id))
                 .map(requirement -> existingCaseContextSummary(projectId, requirement.id()))
                 .toList());
+        summary.put("explicitAssets", explicitAssetContextSummary(projectId, explicitContext));
         summary.put("limits", contextSummaryLimits());
         try {
             String contextSummaryJson = objectMapper.writeValueAsString(summary);
@@ -176,6 +178,52 @@ public class TestDesignGenerationService {
         item.put("apiCount", apis.size());
         item.put("pageCount", pages.size());
         item.put("flowCount", flows.size());
+        item.put("apis", apis.stream().limit(LINKED_ASSET_CONTEXT_LIMIT).map(this::apiContextSummary).toList());
+        item.put("pages", pages.stream().limit(LINKED_ASSET_CONTEXT_LIMIT).map(this::pageContextSummary).toList());
+        item.put("flows", flows.stream().limit(LINKED_ASSET_CONTEXT_LIMIT).map(this::businessFlowContextSummary).toList());
+        return item;
+    }
+
+    /**
+     * Summarizes assets that the requester explicitly adds to the generation context.
+     *
+     * <p>These assets do not need a WP3 trace link to every selected requirement, but they still must belong to the
+     * task project and are persisted only as redacted previews so task replay can explain the input without storing raw
+     * API schemas, page trees, flow JSON or prompt text.
+     */
+    private Map<String, Object> explicitAssetContextSummary(String projectId, ExplicitContextAssetIds explicitContext) {
+        List<ApiResponseDTO> apis = explicitContext.apiIds().stream()
+                .map(apiId -> activeApi(apiId, projectId))
+                .map(optional -> optional.orElseThrow(() ->
+                        new BusinessException(ErrorCode.VALIDATION_ERROR, "显式上下文 API 不存在或不属于当前项目")))
+                .sorted(Comparator.comparing(ApiResponseDTO::code, Comparator.nullsLast(String::compareTo))
+                        .thenComparing(ApiResponseDTO::id))
+                .toList();
+        List<com.songhg.veri.agent.asset.application.view.PageResponse> pages = explicitContext.pageIds().stream()
+                .map(pageId -> activePage(pageId, projectId))
+                .map(optional -> optional.orElseThrow(() ->
+                        new BusinessException(ErrorCode.VALIDATION_ERROR, "显式上下文页面不存在或不属于当前项目")))
+                .sorted(Comparator.comparing(
+                                com.songhg.veri.agent.asset.application.view.PageResponse::code,
+                                Comparator.nullsLast(String::compareTo)
+                        )
+                        .thenComparing(com.songhg.veri.agent.asset.application.view.PageResponse::id))
+                .toList();
+        List<BusinessFlowResponse> flows = explicitContext.flowIds().stream()
+                .map(flowId -> activeBusinessFlow(flowId, projectId))
+                .map(optional -> optional.orElseThrow(() ->
+                        new BusinessException(ErrorCode.VALIDATION_ERROR, "显式上下文业务流不存在或不属于当前项目")))
+                .sorted(Comparator.comparing(BusinessFlowResponse::code, Comparator.nullsLast(String::compareTo))
+                        .thenComparing(BusinessFlowResponse::id))
+                .toList();
+
+        Map<String, Object> item = new LinkedHashMap<>();
+        item.put("apiCount", apis.size());
+        item.put("pageCount", pages.size());
+        item.put("flowCount", flows.size());
+        item.put("apiIds", apis.stream().map(api -> api.id().toString()).toList());
+        item.put("pageIds", pages.stream().map(page -> page.id().toString()).toList());
+        item.put("flowIds", flows.stream().map(flow -> flow.id().toString()).toList());
         item.put("apis", apis.stream().limit(LINKED_ASSET_CONTEXT_LIMIT).map(this::apiContextSummary).toList());
         item.put("pages", pages.stream().limit(LINKED_ASSET_CONTEXT_LIMIT).map(this::pageContextSummary).toList());
         item.put("flows", flows.stream().limit(LINKED_ASSET_CONTEXT_LIMIT).map(this::businessFlowContextSummary).toList());
@@ -304,6 +352,7 @@ public class TestDesignGenerationService {
         limits.put("requirementDescriptionChars", 240);
         limits.put("acceptanceCriteriaChars", 240);
         limits.put("linkedAssetsPerRequirement", LINKED_ASSET_CONTEXT_LIMIT);
+        limits.put("explicitAssetsPerType", LINKED_ASSET_CONTEXT_LIMIT);
         limits.put("linkedAssetSchemaChars", 240);
         limits.put("existingCasesPerRequirement", 5);
         limits.put("rawPromptStored", false);
@@ -311,6 +360,14 @@ public class TestDesignGenerationService {
     }
 
     record TestDesignGenerationContext(String inputDigest, String contextSummaryJson) {
+    }
+
+    record ExplicitContextAssetIds(List<UUID> apiIds, List<UUID> pageIds, List<UUID> flowIds) {
+        ExplicitContextAssetIds {
+            apiIds = List.copyOf(apiIds == null ? List.of() : apiIds);
+            pageIds = List.copyOf(pageIds == null ? List.of() : pageIds);
+            flowIds = List.copyOf(flowIds == null ? List.of() : flowIds);
+        }
     }
 
     /**

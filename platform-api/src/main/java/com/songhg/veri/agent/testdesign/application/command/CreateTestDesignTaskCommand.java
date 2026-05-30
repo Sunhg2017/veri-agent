@@ -16,6 +16,12 @@ public record CreateTestDesignTaskCommand(
         String title,
         @Schema(description = "需求 ID 列表")
         @NotEmpty List<UUID> requirementIds,
+        @Schema(description = "显式纳入上下文的 API 资产 ID 列表；用于补充未建立需求追踪关系但本次生成需要参考的接口")
+        List<UUID> contextApiIds,
+        @Schema(description = "显式纳入上下文的页面资产 ID 列表；用于补充未建立需求追踪关系但本次生成需要参考的页面")
+        List<UUID> contextPageIds,
+        @Schema(description = "显式纳入上下文的业务流资产 ID 列表；用于补充未建立需求追踪关系但本次生成需要参考的流程")
+        List<UUID> contextFlowIds,
         @Schema(description = "覆盖类型列表")
         List<String> coverageTypes,
         @Schema(description = "每个需求生成的候选数量")

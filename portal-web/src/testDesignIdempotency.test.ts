@@ -15,6 +15,9 @@ describe('WP5 task idempotency helpers', () => {
       projectId: ' project-1 ',
       title: ' 登录生成 ',
       requirementIds: [' req-1 ', 'req-2'],
+      contextApiIds: [' api-1 '],
+      contextPageIds: ['page-1'],
+      contextFlowIds: ['flow-1'],
       coverageTypes: [' smoke ', 'functional'],
       caseCountPerRequirement: 2
     });
@@ -23,6 +26,9 @@ describe('WP5 task idempotency helpers', () => {
       projectId: 'project-1',
       title: '登录生成',
       requirementIds: ['req-1', 'req-2'],
+      contextApiIds: ['api-1'],
+      contextPageIds: ['page-1'],
+      contextFlowIds: ['flow-1'],
       coverageTypes: ['SMOKE', 'FUNCTIONAL'],
       caseCountPerRequirement: 2
     }));

@@ -298,6 +298,9 @@ export interface CreateTestDesignTaskPayload {
   projectId: string;
   title?: string;
   requirementIds: string[];
+  contextApiIds?: string[];
+  contextPageIds?: string[];
+  contextFlowIds?: string[];
   coverageTypes?: string[];
   caseCountPerRequirement?: number;
   idempotencyKey?: string;

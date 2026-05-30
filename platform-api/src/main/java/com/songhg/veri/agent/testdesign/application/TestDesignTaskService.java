@@ -49,6 +49,7 @@ public class TestDesignTaskService {
     private static final Logger log = LoggerFactory.getLogger(TestDesignTaskService.class);
     private static final List<String> DEFAULT_COVERAGE_TYPES = List.of("SMOKE", "FUNCTIONAL", "EXCEPTION");
     private static final int MAX_IDEMPOTENCY_KEY_LENGTH = 128;
+    private static final int MAX_EXPLICIT_CONTEXT_ASSETS_PER_TYPE = 5;
     private static final Set<String> RETRYABLE_TASK_STATUSES = Set.of(
             TestDesignTaskStatus.FAILED.name(),
             TestDesignTaskStatus.PARTIAL_SUCCESS.name(),
@@ -172,6 +173,12 @@ public class TestDesignTaskService {
         if (requirementIds.size() > maxRequirementsPerTask()) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "单次生成最多支持 " + maxRequirementsPerTask() + " 个需求");
         }
+        TestDesignGenerationService.ExplicitContextAssetIds explicitContext = new TestDesignGenerationService.ExplicitContextAssetIds(
+                distinctIds(command.contextApiIds()),
+                distinctIds(command.contextPageIds()),
+                distinctIds(command.contextFlowIds())
+        );
+        validateExplicitContextLimit(explicitContext);
         List<String> coverageTypes = normalizedCoverageTypes(command.coverageTypes());
         List<String> generationCoverageTypes = coverageTypes.stream()
                 .limit(normalizedCaseCount(command.caseCountPerRequirement()))
@@ -180,6 +187,7 @@ public class TestDesignTaskService {
                 projectId,
                 command.title(),
                 requirementIds,
+                explicitContext,
                 coverageTypes,
                 command.caseCountPerRequirement()
         );
@@ -192,7 +200,7 @@ public class TestDesignTaskService {
                 .peek(requirement -> ensureSameProject(requirement, projectId))
                 .toList();
         TestDesignGenerationService.TestDesignGenerationContext generationContext =
-                generationService.generationContext(projectId, requirements);
+                generationService.generationContext(projectId, requirements, explicitContext);
         Instant now = Instant.now();
         String title = taskTitle(command.title(), requirements);
         UUID taskId = UUID.randomUUID();
@@ -229,7 +237,8 @@ public class TestDesignTaskService {
                 0,
                 generationCoverageTypes,
                 idempotencyKey,
-                generationContext.inputDigest()
+                generationContext.inputDigest(),
+                explicitContext
         ));
         if (properties.asyncGenerationEnabled()) {
             eventPublisher.publishGenerationRequested(taskId);
@@ -448,13 +457,32 @@ public class TestDesignTaskService {
     }
 
     private static List<UUID> distinctRequirementIds(List<UUID> requirementIds) {
-        if (requirementIds == null) {
+        return distinctIds(requirementIds);
+    }
+
+    private static List<UUID> distinctIds(List<UUID> ids) {
+        if (ids == null) {
             return List.of();
         }
-        return requirementIds.stream()
+        return ids.stream()
                 .filter(Objects::nonNull)
                 .distinct()
                 .toList();
+    }
+
+    private static void validateExplicitContextLimit(TestDesignGenerationService.ExplicitContextAssetIds explicitContext) {
+        validateExplicitContextLimit("contextApiIds", explicitContext.apiIds().size());
+        validateExplicitContextLimit("contextPageIds", explicitContext.pageIds().size());
+        validateExplicitContextLimit("contextFlowIds", explicitContext.flowIds().size());
+    }
+
+    private static void validateExplicitContextLimit(String fieldName, int size) {
+        if (size > MAX_EXPLICIT_CONTEXT_ASSETS_PER_TYPE) {
+            throw new BusinessException(
+                    ErrorCode.VALIDATION_ERROR,
+                    fieldName + " 单次最多支持 " + MAX_EXPLICIT_CONTEXT_ASSETS_PER_TYPE + " 个"
+            );
+        }
     }
 
     private static List<UUID> requirementIdsFromText(String rawValue) {
@@ -523,6 +551,7 @@ public class TestDesignTaskService {
             String projectId,
             String requestedTitle,
             List<UUID> requirementIds,
+            TestDesignGenerationService.ExplicitContextAssetIds explicitContext,
             List<String> coverageTypes,
             Integer caseCountPerRequirement
     ) {
@@ -531,6 +560,9 @@ public class TestDesignTaskService {
         payload.put("projectId", projectId);
         payload.put("title", trimToNull(requestedTitle));
         payload.put("requirementIds", requirementIds.stream().map(UUID::toString).toList());
+        payload.put("contextApiIds", explicitContext.apiIds().stream().map(UUID::toString).toList());
+        payload.put("contextPageIds", explicitContext.pageIds().stream().map(UUID::toString).toList());
+        payload.put("contextFlowIds", explicitContext.flowIds().stream().map(UUID::toString).toList());
         payload.put("coverageTypes", coverageTypes);
         payload.put("caseCountPerRequirement", normalizedCaseCount(caseCountPerRequirement));
         payload.put("promptKey", properties.promptKey());
@@ -634,13 +666,17 @@ public class TestDesignTaskService {
             int candidateCount,
             List<String> coverageTypes,
             String idempotencyKey,
-            String inputDigest
+            String inputDigest,
+            TestDesignGenerationService.ExplicitContextAssetIds explicitContext
     ) {
         Map<String, Object> details = new LinkedHashMap<>();
         details.put("taskId", taskId);
         details.put("requirementCount", requirementCount);
         details.put("candidateCount", candidateCount);
         details.put("coverageTypes", coverageTypes);
+        details.put("explicitContextApiCount", explicitContext.apiIds().size());
+        details.put("explicitContextPageCount", explicitContext.pageIds().size());
+        details.put("explicitContextFlowCount", explicitContext.flowIds().size());
         details.put("idempotencyKeyPresent", StringUtils.hasText(idempotencyKey));
         details.put("inputDigest", inputDigest);
         if (StringUtils.hasText(idempotencyKey)) {

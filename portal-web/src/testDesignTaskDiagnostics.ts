@@ -88,11 +88,32 @@ export function summarizeTestDesignTaskContext(contextSummary: Record<string, un
   appendContextCount(parts, contextSummary, 'apis', ['apis', 'apiSummaries', 'interfaces']);
   appendContextCount(parts, contextSummary, 'pages', ['pages', 'pageSummaries']);
   appendContextCount(parts, contextSummary, 'flows', ['flows', 'businessFlows']);
+  appendExplicitAssetCounts(parts, contextSummary);
 
   const keyPreview = safeKeys.slice(0, 5).join(', ');
   parts.push(`keys:${keyPreview}${safeKeys.length > 5 ? ` +${safeKeys.length - 5}` : ''}`);
 
   return parts.join(' · ');
+}
+
+function appendExplicitAssetCounts(parts: string[], contextSummary: Record<string, unknown>) {
+  if (!('explicitAssets' in contextSummary) || SENSITIVE_KEY_PATTERN.test('explicitAssets')) {
+    return;
+  }
+  const explicitAssets = contextSummary.explicitAssets;
+  if (!explicitAssets || typeof explicitAssets !== 'object' || Array.isArray(explicitAssets)) {
+    return;
+  }
+  const record = explicitAssets as Record<string, unknown>;
+  appendNumericCount(parts, 'explicitApis', record.apiCount);
+  appendNumericCount(parts, 'explicitPages', record.pageCount);
+  appendNumericCount(parts, 'explicitFlows', record.flowCount);
+}
+
+function appendNumericCount(parts: string[], label: string, value: unknown) {
+  if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
+    parts.push(`${label}:${Math.floor(value)}`);
+  }
 }
 
 function appendContextCount(

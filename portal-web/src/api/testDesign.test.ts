@@ -440,6 +440,9 @@ describe('WP5 test design API helpers', () => {
       projectId: ' project-1 ',
       title: '',
       requirementIds: ['req-1'],
+      contextApiIds: ['api-1'],
+      contextPageIds: ['page-1'],
+      contextFlowIds: ['flow-1'],
       coverageTypes: ['SMOKE'],
       caseCountPerRequirement: 2,
       idempotencyKey: ' wp5-create-001 '
@@ -449,6 +452,9 @@ describe('WP5 test design API helpers', () => {
       body: JSON.stringify({
         projectId: 'project-1',
         requirementIds: ['req-1'],
+        contextApiIds: ['api-1'],
+        contextPageIds: ['page-1'],
+        contextFlowIds: ['flow-1'],
         coverageTypes: ['SMOKE'],
         caseCountPerRequirement: 2,
         idempotencyKey: 'wp5-create-001'

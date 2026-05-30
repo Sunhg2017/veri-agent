@@ -54,6 +54,11 @@ const baseTask: TestDesignTaskView = {
     historicalCases: { total: 4 },
     apis: 2,
     pages: [{ id: 'page-1' }],
+    explicitAssets: {
+      apiCount: 1,
+      pageCount: 2,
+      flowCount: 3
+    },
     secretToken: 'should-not-appear'
   },
   createdAt: '2026-05-28T10:00:00Z',
@@ -116,7 +121,10 @@ describe('WP5 task diagnostics helpers', () => {
     expect(summary).toContain('history:4');
     expect(summary).toContain('apis:2');
     expect(summary).toContain('pages:1');
-    expect(summary).toContain('keys:contextVersion, requirements, documentSources, historicalCases, apis +1');
+    expect(summary).toContain('explicitApis:1');
+    expect(summary).toContain('explicitPages:2');
+    expect(summary).toContain('explicitFlows:3');
+    expect(summary).toContain('keys:contextVersion, requirements, documentSources, historicalCases, apis +2');
     expect(summary).not.toContain('secretToken');
     expect(summary).not.toContain('should-not-appear');
   });

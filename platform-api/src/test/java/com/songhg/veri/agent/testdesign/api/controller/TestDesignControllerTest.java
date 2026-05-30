@@ -408,6 +408,10 @@ class TestDesignControllerTest {
         String apiId = createApi(userToken, "project-wp5", "登录接口 token=secret-value", "POST", "/api/wp5/context-login");
         String pageId = createPage(userToken, "project-wp5", "登录页", "/login");
         String flowId = createBusinessFlow(userToken, "project-wp5", "登录主流程");
+        String explicitApiId = createApi(userToken, "project-wp5", "密码重置接口 token=explicit-secret", "POST",
+                "/api/wp5/context-reset");
+        String explicitPageId = createPage(userToken, "project-wp5", "密码重置页", "/reset-password");
+        String explicitFlowId = createBusinessFlow(userToken, "project-wp5", "密码重置流程");
         createTraceLink(userToken, requirementId, apiId, pageId, flowId);
         mockMvc.perform(post("/api/v1/asset/test-cases")
                         .header("Authorization", "Bearer " + userToken)
@@ -436,9 +440,12 @@ class TestDesignControllerTest {
                                   "projectId": "project-wp5",
                                   "title": "上下文摘要任务",
                                   "requirementIds": ["%s"],
+                                  "contextApiIds": ["%s"],
+                                  "contextPageIds": ["%s"],
+                                  "contextFlowIds": ["%s"],
                                   "coverageTypes": ["SMOKE"]
                                 }
-                                """.formatted(requirementId)))
+                                """.formatted(requirementId, explicitApiId, explicitPageId, explicitFlowId)))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.data.task.inputDigest", matchesPattern("[a-f0-9]{64}")))
                 .andExpect(jsonPath("$.data.task.requestDigest").doesNotExist())
@@ -468,10 +475,51 @@ class TestDesignControllerTest {
                 .andExpect(jsonPath(
                         "$.data.task.contextSummary.existingCasesByRequirement[0].cases[0].title"
                 ).value("历史登录主流程用例"))
+                .andExpect(jsonPath("$.data.task.contextSummary.explicitAssets.apiCount").value(1))
+                .andExpect(jsonPath("$.data.task.contextSummary.explicitAssets.pageCount").value(1))
+                .andExpect(jsonPath("$.data.task.contextSummary.explicitAssets.flowCount").value(1))
+                .andExpect(jsonPath("$.data.task.contextSummary.explicitAssets.apiIds[0]").value(explicitApiId))
+                .andExpect(jsonPath("$.data.task.contextSummary.explicitAssets.pageIds[0]").value(explicitPageId))
+                .andExpect(jsonPath("$.data.task.contextSummary.explicitAssets.flowIds[0]").value(explicitFlowId))
+                .andExpect(jsonPath("$.data.task.contextSummary.explicitAssets.apis[0].summary",
+                        containsString("[REDACTED]")))
+                .andExpect(jsonPath("$.data.task.contextSummary.explicitAssets.pages[0].urlPattern")
+                        .value("/reset-password"))
+                .andExpect(jsonPath("$.data.task.contextSummary.explicitAssets.flows[0].name")
+                        .value("密码重置流程"))
                 .andReturn();
 
         MatcherAssert.assertThat(taskResult.getResponse().getContentAsString(), not(containsString("sk_live_12345678")));
         MatcherAssert.assertThat(taskResult.getResponse().getContentAsString(), not(containsString("secret-value")));
+        MatcherAssert.assertThat(taskResult.getResponse().getContentAsString(), not(containsString("explicit-secret")));
+    }
+
+    @Test
+    void rejectsTooManyExplicitContextAssets() throws Exception {
+        String userToken = userAccessToken(List.of("ProjectOwner@PROJECT:project-wp5"));
+        String requirementId = createRequirement(userToken, "显式上下文上限需求", "显式上下文上限验收", "project-wp5");
+
+        mockMvc.perform(post("/api/v1/test-design/tasks")
+                        .header("Authorization", "Bearer " + userToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "projectId": "project-wp5",
+                                  "requirementIds": ["%s"],
+                                  "contextApiIds": [
+                                    "00000000-0000-4000-8000-000000000001",
+                                    "00000000-0000-4000-8000-000000000002",
+                                    "00000000-0000-4000-8000-000000000003",
+                                    "00000000-0000-4000-8000-000000000004",
+                                    "00000000-0000-4000-8000-000000000005",
+                                    "00000000-0000-4000-8000-000000000006"
+                                  ],
+                                  "coverageTypes": ["SMOKE"]
+                                }
+                                """.formatted(requirementId)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.message", containsString("contextApiIds 单次最多支持 5 个")));
     }
 
     @Test

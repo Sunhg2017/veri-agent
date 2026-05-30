@@ -162,6 +162,9 @@ type GenerationDraft = {
   title: string;
   caseCountPerRequirement: string;
   coverageTypes: string[];
+  contextApiIds: string;
+  contextPageIds: string;
+  contextFlowIds: string;
 };
 
 type CandidateDraft = {
@@ -228,7 +231,10 @@ const initialGenerationDraft: GenerationDraft = {
   projectId: '',
   title: '',
   caseCountPerRequirement: '2',
-  coverageTypes: ['SMOKE', 'FUNCTIONAL', 'EXCEPTION']
+  coverageTypes: ['SMOKE', 'FUNCTIONAL', 'EXCEPTION'],
+  contextApiIds: '',
+  contextPageIds: '',
+  contextFlowIds: ''
 };
 
 const initialConflictResolutionDraft: ConflictResolutionDraft = {
@@ -898,6 +904,9 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       projectId: generationDraft.projectId,
       title: generationDraft.title,
       requirementIds: selectedRequirementIds,
+      contextApiIds: parseContextAssetIds(generationDraft.contextApiIds),
+      contextPageIds: parseContextAssetIds(generationDraft.contextPageIds),
+      contextFlowIds: parseContextAssetIds(generationDraft.contextFlowIds),
       coverageTypes: generationDraft.coverageTypes,
       caseCountPerRequirement: Number(generationDraft.caseCountPerRequirement) || undefined
     };
@@ -2176,6 +2185,18 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
                 <span className="field-label">每需求用例数</span>
                 <input value={generationDraft.caseCountPerRequirement} type="number" min="1" max="6" onChange={(event) => setGenerationDraft((current) => ({ ...current, caseCountPerRequirement: event.target.value }))} disabled={!canGenerate || mutationState.loading} />
               </label>
+              <label className="field">
+                <span className="field-label">上下文 API ID</span>
+                <input value={generationDraft.contextApiIds} onChange={(event) => setGenerationDraft((current) => ({ ...current, contextApiIds: event.target.value }))} placeholder="最多 5 个，逗号或换行分隔" disabled={!canGenerate || mutationState.loading} />
+              </label>
+              <label className="field">
+                <span className="field-label">上下文页面 ID</span>
+                <input value={generationDraft.contextPageIds} onChange={(event) => setGenerationDraft((current) => ({ ...current, contextPageIds: event.target.value }))} placeholder="最多 5 个，逗号或换行分隔" disabled={!canGenerate || mutationState.loading} />
+              </label>
+              <label className="field">
+                <span className="field-label">上下文业务流 ID</span>
+                <input value={generationDraft.contextFlowIds} onChange={(event) => setGenerationDraft((current) => ({ ...current, contextFlowIds: event.target.value }))} placeholder="最多 5 个，逗号或换行分隔" disabled={!canGenerate || mutationState.loading} />
+              </label>
               <div className="field">
                 <span className="field-label">覆盖类型</span>
                 <div className="test-design-checks">
@@ -3243,6 +3264,13 @@ function stepsFromText(value: string) {
 function tagsFromText(value: string) {
   return value
     .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function parseContextAssetIds(value: string) {
+  return value
+    .split(/[\n,，\s]+/)
     .map((item) => item.trim())
     .filter(Boolean);
 }
