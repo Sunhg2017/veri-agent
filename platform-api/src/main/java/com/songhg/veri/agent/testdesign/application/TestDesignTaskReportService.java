@@ -510,6 +510,8 @@ public class TestDesignTaskReportService {
                 changedFieldCounts, total);
         appendTaskReportFeedbackLoopRows(csv, task, generatedAt, total, promptTuningSignalCount,
                 promptTuningCandidateIds.size(), correctionCount, rejectedCount, ignoredCount, promptTuningCommentCount);
+        TestDesignTaskReportPromptCalibrationPolicyRows.appendRows(csv, task, generatedAt, promptTuningSignalCount,
+                promptTuningCandidateIds.size(), promptTuningCommentCount);
     }
 
     /**

@@ -5,8 +5,8 @@
 | 工作包 | WP5 AI 用例生成与评审 |
 | 角色产出 | 资深服务端架构师 |
 | 文档性质 | 技术设计、数据模型、接口契约和服务端质量约束 |
-| 当前口径 | WP5 在 `platform-api` 内实现为独立领域模块，不新增独立部署服务；模块内应用服务按任务、生成、评审、质量、发布、冲突和报告拆分；任务本域审计链摘要由报告服务聚合 WP5 任务、评审和发布记录；Prompt 趋势按版本输出聚合准出摘要和准出状态分布；任务创建支持显式 API/页面/业务流上下文资产，并将上下文裁剪策略和平台默认治理状态快照暴露到 health、任务诊断、模型上下文打包和任务全量报告；任务报告导出增加治理聚合行、上下文策略治理聚合行、导出审计策略聚合行、安全扫描策略聚合行、归档策略聚合行、报告 manifest 聚合行和最终安全扫描 |
-| 版本 | v0.14 |
+| 当前口径 | WP5 在 `platform-api` 内实现为独立领域模块，不新增独立部署服务；模块内应用服务按任务、生成、评审、质量、发布、冲突和报告拆分；任务本域审计链摘要由报告服务聚合 WP5 任务、评审和发布记录；Prompt 趋势按版本输出聚合准出摘要和准出状态分布；任务创建支持显式 API/页面/业务流上下文资产，并将上下文裁剪策略和平台默认治理状态快照暴露到 health、任务诊断、模型上下文打包和任务全量报告；任务报告导出增加治理聚合行、上下文策略治理聚合行、导出审计策略聚合行、安全扫描策略聚合行、归档策略聚合行、Prompt 校准策略聚合行、报告 manifest 聚合行和最终安全扫描 |
+| 版本 | v0.15 |
 | 日期 | 2026-05-30 |
 
 ## 1. 架构原则
@@ -317,7 +317,7 @@ CONFIRMED -> IGNORED
 - `context-acceptance-criteria-chars`
 - `context-asset-schema-chars`
 
-任务报告只导出上下文规模和策略数字，例如 requirement/linked asset/explicit asset/existing case 计数、`contextPolicy` 上限和 `contextPolicyGovernance` 固定治理状态；不得导出显式资产 ID、API schema、页面树、流程 JSON、需求正文、历史用例步骤、策略审批说明、策略工单、项目/环境覆盖规则或原始 Prompt。报告导出会追加 `exportGovernance` 聚合行，声明 `aggregateOnly`、候选正文/评审评论/模型载荷/上下文正文/trace 明细均不允许导出；还会追加 `auditPolicy` 聚合行，只声明导出动作、资源类型、项目作用域、是否写审计事件和审计明细不导出，不复制 WP1 audit_log 明细、审计事件 ID、trace 明细或 after-json；还会追加 `safetyScanPolicy` 聚合行，只声明 fail-closed 模式、敏感文本扫描、原始载荷标记扫描、request/response preview 标记扫描和命中详情不导出；还会追加 `archivePolicy` 聚合行，只输出有界保留天数、固定 `platformManaged` 存储策略、是否需要审批、是否允许外发和策略跟踪状态，不输出归档路径、归档备注、审批说明、工单 URL 或其他自由文本；最后追加 `reportManifest` 聚合行，只输出报告 schema 版本、字段集版本、manifest 追加前行数、aggregate-only 标记、明细行不导出和完成状态，不输出候选 ID 清单、trace 清单、审计 ID 清单或行级摘要；CSV 返回前还会执行最终安全扫描，命中未脱敏 secret/token/Bearer、原始 Prompt 标记或 request/response preview 标记时阻断导出。
+任务报告只导出上下文规模和策略数字，例如 requirement/linked asset/explicit asset/existing case 计数、`contextPolicy` 上限和 `contextPolicyGovernance` 固定治理状态；不得导出显式资产 ID、API schema、页面树、流程 JSON、需求正文、历史用例步骤、策略审批说明、策略工单、项目/环境覆盖规则或原始 Prompt。报告导出会追加 `exportGovernance` 聚合行，声明 `aggregateOnly`、候选正文/评审评论/模型载荷/上下文正文/trace 明细均不允许导出；还会追加 `auditPolicy` 聚合行，只声明导出动作、资源类型、项目作用域、是否写审计事件和审计明细不导出，不复制 WP1 audit_log 明细、审计事件 ID、trace 明细或 after-json；还会追加 `safetyScanPolicy` 聚合行，只声明 fail-closed 模式、敏感文本扫描、原始载荷标记扫描、request/response preview 标记扫描和命中详情不导出；还会追加 `archivePolicy` 聚合行，只输出有界保留天数、固定 `platformManaged` 存储策略、是否需要审批、是否允许外发和策略跟踪状态，不输出归档路径、归档备注、审批说明、工单 URL 或其他自由文本；还会追加 `promptCalibrationPolicy` 聚合行，只输出策略版本、样本来源、校准状态、反馈信号计数、样本候选计数、说明覆盖计数、样本维护/长期校准就绪状态和 aggregate-only 标记，不输出样本行、候选 ID、候选正文、评审评论或 Prompt 正文；最后追加 `reportManifest` 聚合行，只输出报告 schema 版本、字段集版本、manifest 追加前行数、aggregate-only 标记、明细行不导出和完成状态，不输出候选 ID 清单、trace 清单、审计 ID 清单或行级摘要；CSV 返回前还会执行最终安全扫描，命中未脱敏 secret/token/Bearer、原始 Prompt 标记或 request/response preview 标记时阻断导出。
 
 ## 6. API 契约
 

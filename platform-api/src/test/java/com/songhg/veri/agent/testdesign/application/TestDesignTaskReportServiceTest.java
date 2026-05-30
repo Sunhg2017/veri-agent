@@ -137,6 +137,61 @@ class TestDesignTaskReportServiceTest {
     }
 
     @Test
+    void appendsPromptCalibrationPolicyRowsWithoutSampleDetails() {
+        StringBuilder csv = new StringBuilder();
+        TestDesignTaskResponse task = new TestDesignTaskResponse(
+                UUID.fromString("11111111-1111-1111-1111-111111111111"),
+                "project-wp5",
+                "Prompt 校准报告 token=secret-value",
+                "SUCCEEDED",
+                List.of(),
+                List.of("SMOKE"),
+                "wp5-test-design-v1",
+                "1.0.0",
+                null,
+                null,
+                null,
+                0,
+                0,
+                0,
+                0,
+                null,
+                "auditor",
+                null,
+                "digest",
+                null,
+                TestDesignContextPolicyGovernance.response(),
+                Map.of(),
+                Instant.parse("2026-05-30T00:00:00Z"),
+                Instant.parse("2026-05-30T00:00:00Z")
+        );
+
+        TestDesignTaskReportPromptCalibrationPolicyRows.appendRows(
+                csv, task, Instant.parse("2026-05-30T00:00:00Z"), 3L, 2L, 1L);
+
+        String report = csv.toString();
+        assertDoesNotThrow(() -> TestDesignTaskReportExportGovernance.validateExportSafety(report));
+        org.assertj.core.api.Assertions.assertThat(report)
+                .contains("promptCalibrationPolicy,policyVersion,,wp5-prompt-calibration-policy-v1")
+                .contains("promptCalibrationPolicy,sampleSource,,HUMAN_FEEDBACK_AGGREGATE")
+                .contains("promptCalibrationPolicy,calibrationStatus,,AGGREGATE_SIGNALS_ONLY")
+                .contains("promptCalibrationPolicy,metric,feedbackSignalsTracked,3,,info")
+                .contains("promptCalibrationPolicy,metric,sampleCandidatesTracked,2,,info")
+                .contains("promptCalibrationPolicy,metric,sampleExplanationCount,1,,info")
+                .contains("promptCalibrationPolicy,sampleSetMaintenanceWorkflowReady,,false,,warning")
+                .contains("promptCalibrationPolicy,longTermCalibrationBaselineReady,,false,,warning")
+                .contains("promptCalibrationPolicy,sampleDetailRowsExported,,false")
+                .contains("promptCalibrationPolicy,candidateBodyExported,,false")
+                .contains("promptCalibrationPolicy,reviewTextExported,,false")
+                .contains("promptCalibrationPolicy,aggregateOnly,,true,,success")
+                .doesNotContain("secret-value")
+                .doesNotContain("sampleCandidateIds")
+                .doesNotContain("candidateIds")
+                .doesNotContain("reviewComments")
+                .doesNotContain("promptPlaintext");
+    }
+
+    @Test
     void blocksRawPromptMarkersAndUnredactedSecrets() {
         assertThrows(BusinessException.class,
                 () -> TestDesignTaskReportExportGovernance.validateExportSafety("metadata,task,rawPrompt,,secret"));

@@ -853,6 +853,18 @@ class TestDesignControllerTest {
         MatcherAssert.assertThat(csv, containsString("feedbackLoop,metric,sampleCandidates,2,66.67"));
         MatcherAssert.assertThat(csv, containsString("feedbackLoop,distribution:signal,correction,1,33.33,info"));
         MatcherAssert.assertThat(csv, containsString("feedbackLoop,distribution:signal,rejected,1,33.33,warning"));
+        MatcherAssert.assertThat(csv, containsString("promptCalibrationPolicy,policyVersion,,wp5-prompt-calibration-policy-v1"));
+        MatcherAssert.assertThat(csv, containsString("promptCalibrationPolicy,sampleSource,,HUMAN_FEEDBACK_AGGREGATE"));
+        MatcherAssert.assertThat(csv, containsString("promptCalibrationPolicy,calibrationStatus,,AGGREGATE_SIGNALS_ONLY"));
+        MatcherAssert.assertThat(csv, containsString("promptCalibrationPolicy,metric,feedbackSignalsTracked,2,,info"));
+        MatcherAssert.assertThat(csv, containsString("promptCalibrationPolicy,metric,sampleCandidatesTracked,2,,info"));
+        MatcherAssert.assertThat(csv, containsString("promptCalibrationPolicy,metric,sampleExplanationCount,1,,info"));
+        MatcherAssert.assertThat(csv, containsString("promptCalibrationPolicy,sampleSetMaintenanceWorkflowReady,,false"));
+        MatcherAssert.assertThat(csv, containsString("promptCalibrationPolicy,longTermCalibrationBaselineReady,,false"));
+        MatcherAssert.assertThat(csv, containsString("promptCalibrationPolicy,sampleDetailRowsExported,,false"));
+        MatcherAssert.assertThat(csv, containsString("promptCalibrationPolicy,candidateBodyExported,,false"));
+        MatcherAssert.assertThat(csv, containsString("promptCalibrationPolicy,reviewTextExported,,false"));
+        MatcherAssert.assertThat(csv, containsString("promptCalibrationPolicy,aggregateOnly,,true"));
         MatcherAssert.assertThat(csv, containsString("publish,distribution:result,SUCCEEDED"));
         MatcherAssert.assertThat(csv, containsString("modelObservation,traceIdTracked,,false"));
         MatcherAssert.assertThat(csv, containsString("context,contextVersion,,wp5-context-v1"));
@@ -902,6 +914,8 @@ class TestDesignControllerTest {
         MatcherAssert.assertThat(csv, not(containsString("auditLogId")));
         MatcherAssert.assertThat(csv, not(containsString("afterJson")));
         MatcherAssert.assertThat(csv, not(containsString("candidateIds")));
+        MatcherAssert.assertThat(csv, not(containsString("sampleCandidateIds")));
+        MatcherAssert.assertThat(csv, not(containsString("reviewComments")));
         MatcherAssert.assertThat(csv, not(containsString("traceIds")));
         MatcherAssert.assertThat(csv, not(containsString("rowDigest")));
         MatcherAssert.assertThat(csv, not(containsString("任务报告步骤不应导出")));
