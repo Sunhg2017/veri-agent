@@ -121,6 +121,23 @@ class TestDesignControllerTest {
                 .andExpect(jsonPath("$.data.contextPolicyOperations.changeApprovalWorkflowReady").value(false))
                 .andExpect(jsonPath("$.data.contextPolicyOperations.effectivePolicySnapshotMaterialized").value(true))
                 .andExpect(jsonPath("$.data.contextPolicyOperations.aggregateOnly").value(true))
+                .andExpect(jsonPath("$.data.scopePolicy.policyVersion").value("wp5-scope-policy-v1"))
+                .andExpect(jsonPath("$.data.scopePolicy.scopeModel").value("PROJECT_RESOURCE_SCOPE"))
+                .andExpect(jsonPath("$.data.scopePolicy.listFallbackScope")
+                        .value("PLATFORM_WHEN_PROJECT_FILTER_ABSENT"))
+                .andExpect(jsonPath("$.data.scopePolicy.taskProjectScopeRequired").value(true))
+                .andExpect(jsonPath("$.data.scopePolicy.candidateProjectScopeRequired").value(true))
+                .andExpect(jsonPath("$.data.scopePolicy.batchCandidateProjectScopeRequired").value(true))
+                .andExpect(jsonPath("$.data.scopePolicy.publishProjectScopeRequired").value(true))
+                .andExpect(jsonPath("$.data.scopePolicy.asyncTaskProjectScopeRecovered").value(true))
+                .andExpect(jsonPath("$.data.scopePolicy.smokeProjectScopeRequired").value(true))
+                .andExpect(jsonPath("$.data.scopePolicy.evaluationCorpusProjectIsolated").value(true))
+                .andExpect(jsonPath("$.data.scopePolicy.evaluationCorpusOperationsReady").value(false))
+                .andExpect(jsonPath("$.data.scopePolicy.crossWpScopeDashboardReady").value(false))
+                .andExpect(jsonPath("$.data.scopePolicy.candidateIdentifierListExported").value(false))
+                .andExpect(jsonPath("$.data.scopePolicy.roleRuleDetailExported").value(false))
+                .andExpect(jsonPath("$.data.scopePolicy.serviceTokenValueExported").value(false))
+                .andExpect(jsonPath("$.data.scopePolicy.aggregateOnly").value(true))
                 .andExpect(jsonPath("$.data.supportedCoverageTypes", hasSize(6)));
     }
 
@@ -1164,6 +1181,22 @@ class TestDesignControllerTest {
         MatcherAssert.assertThat(csv, containsString("contextPolicyOperations,projectOverrideRulesExported,,false"));
         MatcherAssert.assertThat(csv, containsString("contextPolicyOperations,environmentOverrideRulesExported,,false"));
         MatcherAssert.assertThat(csv, containsString("contextPolicyOperations,aggregateOnly,,true"));
+        MatcherAssert.assertThat(csv, containsString("scopePolicy,policyVersion,,wp5-scope-policy-v1"));
+        MatcherAssert.assertThat(csv, containsString("scopePolicy,scopeModel,,PROJECT_RESOURCE_SCOPE"));
+        MatcherAssert.assertThat(csv, containsString("scopePolicy,listFallbackScope,,PLATFORM_WHEN_PROJECT_FILTER_ABSENT"));
+        MatcherAssert.assertThat(csv, containsString("scopePolicy,taskProjectScopeRequired,,true"));
+        MatcherAssert.assertThat(csv, containsString("scopePolicy,candidateProjectScopeRequired,,true"));
+        MatcherAssert.assertThat(csv, containsString("scopePolicy,batchCandidateProjectScopeRequired,,true"));
+        MatcherAssert.assertThat(csv, containsString("scopePolicy,publishProjectScopeRequired,,true"));
+        MatcherAssert.assertThat(csv, containsString("scopePolicy,asyncTaskProjectScopeRecovered,,true"));
+        MatcherAssert.assertThat(csv, containsString("scopePolicy,smokeProjectScopeRequired,,true"));
+        MatcherAssert.assertThat(csv, containsString("scopePolicy,evaluationCorpusProjectIsolated,,true"));
+        MatcherAssert.assertThat(csv, containsString("scopePolicy,evaluationCorpusOperationsReady,,false"));
+        MatcherAssert.assertThat(csv, containsString("scopePolicy,crossWpScopeDashboardReady,,false"));
+        MatcherAssert.assertThat(csv, containsString("scopePolicy,candidateIdentifierListExported,,false"));
+        MatcherAssert.assertThat(csv, containsString("scopePolicy,roleRuleDetailExported,,false"));
+        MatcherAssert.assertThat(csv, containsString("scopePolicy,serviceTokenValueExported,,false"));
+        MatcherAssert.assertThat(csv, containsString("scopePolicy,aggregateOnly,,true"));
         MatcherAssert.assertThat(csv, containsString("exportGovernance,fieldPolicy,,aggregateOnly"));
         MatcherAssert.assertThat(csv, containsString("exportGovernance,candidateBodyAllowed,,false"));
         MatcherAssert.assertThat(csv, containsString("exportGovernance,reviewCommentAllowed,,false"));

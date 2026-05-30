@@ -56,6 +56,8 @@ public record TestDesignTaskResponse(
         TestDesignContextPolicyGovernanceResponse contextPolicyGovernance,
         @Schema(description = "上下文策略运营 v2 聚合快照")
         TestDesignContextPolicyOperationsResponse contextPolicyOperations,
+        @Schema(description = "权限与资源作用域策略聚合快照")
+        TestDesignScopePolicyResponse scopePolicy,
         @Schema(description = "脱敏上下文摘要")
         Map<String, Object> contextSummary,
         @Schema(description = "创建时间")

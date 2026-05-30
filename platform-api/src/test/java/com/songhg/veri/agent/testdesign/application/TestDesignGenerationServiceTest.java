@@ -120,6 +120,23 @@ class TestDesignGenerationServiceTest {
         assertThat(summary.path("policyOperations").path("environmentOverrideStoreReady").asBoolean()).isFalse();
         assertThat(summary.path("policyOperations").path("changeApprovalWorkflowReady").asBoolean()).isFalse();
         assertThat(summary.path("policyOperations").path("aggregateOnly").asBoolean()).isTrue();
+        assertThat(summary.path("scopePolicy").path("policyVersion").asText()).isEqualTo("wp5-scope-policy-v1");
+        assertThat(summary.path("scopePolicy").path("scopeModel").asText()).isEqualTo("PROJECT_RESOURCE_SCOPE");
+        assertThat(summary.path("scopePolicy").path("listFallbackScope").asText())
+                .isEqualTo("PLATFORM_WHEN_PROJECT_FILTER_ABSENT");
+        assertThat(summary.path("scopePolicy").path("taskProjectScopeRequired").asBoolean()).isTrue();
+        assertThat(summary.path("scopePolicy").path("candidateProjectScopeRequired").asBoolean()).isTrue();
+        assertThat(summary.path("scopePolicy").path("batchCandidateProjectScopeRequired").asBoolean()).isTrue();
+        assertThat(summary.path("scopePolicy").path("publishProjectScopeRequired").asBoolean()).isTrue();
+        assertThat(summary.path("scopePolicy").path("asyncTaskProjectScopeRecovered").asBoolean()).isTrue();
+        assertThat(summary.path("scopePolicy").path("smokeProjectScopeRequired").asBoolean()).isTrue();
+        assertThat(summary.path("scopePolicy").path("evaluationCorpusProjectIsolated").asBoolean()).isTrue();
+        assertThat(summary.path("scopePolicy").path("evaluationCorpusOperationsReady").asBoolean()).isFalse();
+        assertThat(summary.path("scopePolicy").path("crossWpScopeDashboardReady").asBoolean()).isFalse();
+        assertThat(summary.path("scopePolicy").path("candidateIdentifierListExported").asBoolean()).isFalse();
+        assertThat(summary.path("scopePolicy").path("roleRuleDetailExported").asBoolean()).isFalse();
+        assertThat(summary.path("scopePolicy").path("serviceTokenValueExported").asBoolean()).isFalse();
+        assertThat(summary.path("scopePolicy").path("aggregateOnly").asBoolean()).isTrue();
         assertThat(summary.path("linkedAssetsByRequirement").get(0).path("apiCount").asInt()).isEqualTo(2);
         assertThat(summary.path("linkedAssetsByRequirement").get(0).path("apis")).hasSize(1);
         assertThat(summary.path("linkedAssetsByRequirement").get(0).path("pages")).hasSize(1);
@@ -222,6 +239,18 @@ class TestDesignGenerationServiceTest {
         assertThat(payload.path("contextPacking").path("policyOperations").path("projectOverrideStoreReady").asBoolean())
                 .isFalse();
         assertThat(payload.path("contextPacking").path("policyOperations").path("aggregateOnly").asBoolean())
+                .isTrue();
+        assertThat(payload.path("contextPacking").path("scopePolicy").path("policyVersion").asText())
+                .isEqualTo("wp5-scope-policy-v1");
+        assertThat(payload.path("contextPacking").path("scopePolicy").path("scopeModel").asText())
+                .isEqualTo("PROJECT_RESOURCE_SCOPE");
+        assertThat(payload.path("contextPacking").path("scopePolicy").path("taskProjectScopeRequired").asBoolean())
+                .isTrue();
+        assertThat(payload.path("contextPacking").path("scopePolicy").path("publishProjectScopeRequired").asBoolean())
+                .isTrue();
+        assertThat(payload.path("contextPacking").path("scopePolicy").path("candidateIdentifierListExported").asBoolean())
+                .isFalse();
+        assertThat(payload.path("contextPacking").path("scopePolicy").path("aggregateOnly").asBoolean())
                 .isTrue();
         assertThat(commandCaptor.getValue().promptKey()).isEqualTo("wp5-test-design-v1");
         assertThat(commandCaptor.getValue().messages()).hasSize(1);

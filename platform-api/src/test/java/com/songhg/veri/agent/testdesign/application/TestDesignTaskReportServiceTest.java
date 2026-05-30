@@ -63,6 +63,7 @@ class TestDesignTaskReportServiceTest {
                 TestDesignContextAssemblyPolicy.response(),
                 TestDesignContextPolicyGovernance.response(),
                 TestDesignContextPolicyOperations.response(),
+                TestDesignScopePolicy.response(),
                 Map.of(),
                 Instant.parse("2026-05-30T00:00:00Z"),
                 Instant.parse("2026-05-30T00:00:00Z")
@@ -114,6 +115,7 @@ class TestDesignTaskReportServiceTest {
                 TestDesignContextAssemblyPolicy.response(),
                 TestDesignContextPolicyGovernance.response(),
                 TestDesignContextPolicyOperations.response(),
+                TestDesignScopePolicy.response(),
                 Map.of(),
                 Instant.parse("2026-05-30T00:00:00Z"),
                 Instant.parse("2026-05-30T00:00:00Z")
@@ -172,6 +174,7 @@ class TestDesignTaskReportServiceTest {
                 TestDesignContextAssemblyPolicy.response(),
                 TestDesignContextPolicyGovernance.response(),
                 TestDesignContextPolicyOperations.response(),
+                TestDesignScopePolicy.response(),
                 Map.of(),
                 Instant.parse("2026-05-30T00:00:00Z"),
                 Instant.parse("2026-05-30T00:00:00Z")
@@ -229,6 +232,7 @@ class TestDesignTaskReportServiceTest {
                 TestDesignContextAssemblyPolicy.response(),
                 TestDesignContextPolicyGovernance.response(),
                 TestDesignContextPolicyOperations.response(),
+                TestDesignScopePolicy.response(),
                 Map.of(),
                 Instant.parse("2026-05-30T00:00:00Z"),
                 Instant.parse("2026-05-30T00:00:00Z")
@@ -312,6 +316,7 @@ class TestDesignTaskReportServiceTest {
                 TestDesignContextAssemblyPolicy.response(),
                 TestDesignContextPolicyGovernance.response(),
                 TestDesignContextPolicyOperations.response(),
+                TestDesignScopePolicy.response(),
                 Map.of(
                         "contextVersion", "wp5-context-v1",
                         "requirements", List.of(Map.of(
@@ -417,6 +422,7 @@ class TestDesignTaskReportServiceTest {
                 TestDesignContextAssemblyPolicy.response(),
                 TestDesignContextPolicyGovernance.response(),
                 TestDesignContextPolicyOperations.response(),
+                TestDesignScopePolicy.response(),
                 Map.of(),
                 Instant.parse("2026-05-30T00:00:00Z"),
                 Instant.parse("2026-05-30T00:00:00Z")
@@ -449,6 +455,71 @@ class TestDesignTaskReportServiceTest {
                 .doesNotContain("approval-note-text")
                 .doesNotContain("https://ticket.example")
                 .doesNotContain("policyDocument");
+    }
+
+    @Test
+    void appendsScopePolicyRowsWithoutRoleOrTokenDetails() {
+        StringBuilder csv = new StringBuilder();
+        TestDesignTaskResponse task = new TestDesignTaskResponse(
+                UUID.fromString("11111111-1111-1111-1111-111111111111"),
+                "project-wp5",
+                "作用域策略报告 token=secret-value",
+                "SUCCEEDED",
+                List.of(),
+                List.of("SMOKE"),
+                "wp5-test-design-v1",
+                "1.0.0",
+                null,
+                null,
+                null,
+                0,
+                0,
+                0,
+                0,
+                null,
+                "auditor",
+                null,
+                "digest",
+                null,
+                TestDesignContextAssemblyPolicy.response(),
+                TestDesignContextPolicyGovernance.response(),
+                TestDesignContextPolicyOperations.response(),
+                TestDesignScopePolicy.response(),
+                Map.of("scopePolicy", Map.of(
+                        "candidateIds", List.of("candidate-secret-id"),
+                        "roleRuleDetails", "role matrix should not appear",
+                        "serviceTokenValue", "token=secret-value"
+                )),
+                Instant.parse("2026-05-30T00:00:00Z"),
+                Instant.parse("2026-05-30T00:00:00Z")
+        );
+
+        TestDesignTaskReportScopePolicyRows.appendRows(csv, task, Instant.parse("2026-05-30T00:00:00Z"));
+
+        String report = csv.toString();
+        assertDoesNotThrow(() -> TestDesignTaskReportExportGovernance.validateExportSafety(report));
+        org.assertj.core.api.Assertions.assertThat(report)
+                .contains("scopePolicy,policyVersion,,wp5-scope-policy-v1")
+                .contains("scopePolicy,scopeModel,,PROJECT_RESOURCE_SCOPE,,success")
+                .contains("scopePolicy,listFallbackScope,,PLATFORM_WHEN_PROJECT_FILTER_ABSENT,,warning")
+                .contains("scopePolicy,taskProjectScopeRequired,,true,,success")
+                .contains("scopePolicy,candidateProjectScopeRequired,,true,,success")
+                .contains("scopePolicy,batchCandidateProjectScopeRequired,,true,,success")
+                .contains("scopePolicy,publishProjectScopeRequired,,true,,success")
+                .contains("scopePolicy,asyncTaskProjectScopeRecovered,,true,,success")
+                .contains("scopePolicy,smokeProjectScopeRequired,,true,,success")
+                .contains("scopePolicy,evaluationCorpusProjectIsolated,,true,,success")
+                .contains("scopePolicy,evaluationCorpusOperationsReady,,false,,warning")
+                .contains("scopePolicy,crossWpScopeDashboardReady,,false,,warning")
+                .contains("scopePolicy,candidateIdentifierListExported,,false")
+                .contains("scopePolicy,roleRuleDetailExported,,false")
+                .contains("scopePolicy,serviceTokenValueExported,,false")
+                .contains("scopePolicy,aggregateOnly,,true,,success")
+                .doesNotContain("secret-value")
+                .doesNotContain("candidate-secret-id")
+                .doesNotContain("role matrix should not appear")
+                .doesNotContain("candidateIds")
+                .doesNotContain("roleRuleDetails");
     }
 
     @Test
@@ -500,6 +571,7 @@ class TestDesignTaskReportServiceTest {
                 TestDesignContextAssemblyPolicy.response(),
                 TestDesignContextPolicyGovernance.response(),
                 TestDesignContextPolicyOperations.response(),
+                TestDesignScopePolicy.response(),
                 Map.of(),
                 Instant.parse("2026-05-30T00:00:00Z"),
                 Instant.parse("2026-05-30T00:00:00Z")
@@ -570,6 +642,7 @@ class TestDesignTaskReportServiceTest {
                 TestDesignContextAssemblyPolicy.response(),
                 TestDesignContextPolicyGovernance.response(),
                 TestDesignContextPolicyOperations.response(),
+                TestDesignScopePolicy.response(),
                 Map.of(),
                 Instant.parse("2026-05-30T00:00:00Z"),
                 Instant.parse("2026-05-30T00:00:00Z")
@@ -640,6 +713,7 @@ class TestDesignTaskReportServiceTest {
                 TestDesignContextAssemblyPolicy.response(),
                 TestDesignContextPolicyGovernance.response(),
                 TestDesignContextPolicyOperations.response(),
+                TestDesignScopePolicy.response(),
                 Map.of(),
                 Instant.parse("2026-05-30T00:00:00Z"),
                 Instant.parse("2026-05-30T00:00:00Z")

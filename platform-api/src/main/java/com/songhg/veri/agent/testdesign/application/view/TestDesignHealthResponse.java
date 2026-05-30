@@ -32,6 +32,8 @@ public record TestDesignHealthResponse(
         TestDesignContextPolicyGovernanceResponse contextPolicyGovernance,
         @Schema(description = "上下文策略运营 v2 聚合快照")
         TestDesignContextPolicyOperationsResponse contextPolicyOperations,
+        @Schema(description = "权限与资源作用域策略聚合快照")
+        TestDesignScopePolicyResponse scopePolicy,
         @Schema(description = "支持的覆盖类型列表")
         List<String> supportedCoverageTypes
 ) {

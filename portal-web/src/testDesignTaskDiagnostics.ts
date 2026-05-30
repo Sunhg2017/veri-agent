@@ -60,6 +60,11 @@ export function buildTestDesignTaskDiagnostics(task: TestDesignTaskView | null |
       value: summarizeTestDesignContextPolicyOperations(task),
       tone: contextPolicyOperationsTone(task)
     },
+    {
+      label: '作用域策略',
+      value: summarizeTestDesignScopePolicy(task),
+      tone: scopePolicyTone(task)
+    },
     { label: '请求人', value: displayDiagnosticText(task.requestedBy) },
     { label: '创建', value: formatDateTime(task.createdAt) },
     { label: '更新', value: formatDateTime(task.updatedAt) },
@@ -194,6 +199,25 @@ export function summarizeTestDesignContextPolicyOperations(
     .join(' · ') || '-';
 }
 
+export function summarizeTestDesignScopePolicy(task: TestDesignTaskView | null | undefined): string {
+  const policy = task?.scopePolicy ?? scopePolicyFromContextSummary(task?.contextSummary);
+  if (!policy) {
+    return '-';
+  }
+
+  const model = displayDiagnosticText(policy.scopeModel, 40);
+  const listScope = displayDiagnosticText(policy.listFallbackScope, 44);
+  const taskScope = policy.taskProjectScopeRequired === true ? '任务:project' : '任务:platform';
+  const candidateScope = policy.candidateProjectScopeRequired === true ? '候选:project' : '候选:platform';
+  const batchScope = policy.batchCandidateProjectScopeRequired === true ? '批量:project-set' : '批量:platform';
+  const publishScope = policy.publishProjectScopeRequired === true ? '发布:project' : '发布:platform';
+  const asyncScope = policy.asyncTaskProjectScopeRecovered === true ? '异步:task-project' : '异步:unknown';
+  const evalScope = policy.evaluationCorpusProjectIsolated === true ? '评测语料:project' : '评测语料:shared';
+  return [model, listScope, taskScope, candidateScope, batchScope, publishScope, asyncScope, evalScope]
+    .filter((part) => part !== '-')
+    .join(' · ') || '-';
+}
+
 function contextAssemblyPolicyTone(task: TestDesignTaskView): TestDesignTaskDiagnosticTone {
   const policy = task.contextAssemblyPolicy ?? assemblyPolicyFromContextSummary(task.contextSummary);
   if (
@@ -230,6 +254,28 @@ function contextPolicyOperationsTone(task: TestDesignTaskView): TestDesignTaskDi
   return 'neutral';
 }
 
+function scopePolicyTone(task: TestDesignTaskView): TestDesignTaskDiagnosticTone {
+  const policy = task.scopePolicy ?? scopePolicyFromContextSummary(task.contextSummary);
+  if (
+    policy?.taskProjectScopeRequired === false ||
+    policy?.candidateProjectScopeRequired === false ||
+    policy?.batchCandidateProjectScopeRequired === false ||
+    policy?.publishProjectScopeRequired === false ||
+    policy?.asyncTaskProjectScopeRecovered === false ||
+    policy?.smokeProjectScopeRequired === false ||
+    policy?.evaluationCorpusProjectIsolated === false ||
+    policy?.candidateIdentifierListExported === true ||
+    policy?.roleRuleDetailExported === true ||
+    policy?.serviceTokenValueExported === true
+  ) {
+    return 'danger';
+  }
+  if (policy?.evaluationCorpusOperationsReady === false || policy?.crossWpScopeDashboardReady === false) {
+    return 'warning';
+  }
+  return 'neutral';
+}
+
 function assemblyPolicyFromContextSummary(contextSummary: Record<string, unknown> | null | undefined) {
   if (!contextSummary || typeof contextSummary !== 'object') {
     return undefined;
@@ -255,6 +301,35 @@ function assemblyPolicyFromContextSummary(contextSummary: Record<string, unknown
     flowJsonExported: safeOptionalBoolean(record.flowJsonExported),
     explicitAssetIdentifierListExported: safeOptionalBoolean(record.explicitAssetIdentifierListExported),
     historicalCaseStepExported: safeOptionalBoolean(record.historicalCaseStepExported),
+    aggregateOnly: safeOptionalBoolean(record.aggregateOnly)
+  };
+}
+
+function scopePolicyFromContextSummary(contextSummary: Record<string, unknown> | null | undefined) {
+  if (!contextSummary || typeof contextSummary !== 'object') {
+    return undefined;
+  }
+  const raw = contextSummary.scopePolicy;
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    return undefined;
+  }
+  const record = raw as Record<string, unknown>;
+  return {
+    policyVersion: safeOptionalString(record.policyVersion),
+    scopeModel: safeOptionalString(record.scopeModel),
+    listFallbackScope: safeOptionalString(record.listFallbackScope),
+    taskProjectScopeRequired: safeOptionalBoolean(record.taskProjectScopeRequired),
+    candidateProjectScopeRequired: safeOptionalBoolean(record.candidateProjectScopeRequired),
+    batchCandidateProjectScopeRequired: safeOptionalBoolean(record.batchCandidateProjectScopeRequired),
+    publishProjectScopeRequired: safeOptionalBoolean(record.publishProjectScopeRequired),
+    asyncTaskProjectScopeRecovered: safeOptionalBoolean(record.asyncTaskProjectScopeRecovered),
+    smokeProjectScopeRequired: safeOptionalBoolean(record.smokeProjectScopeRequired),
+    evaluationCorpusProjectIsolated: safeOptionalBoolean(record.evaluationCorpusProjectIsolated),
+    evaluationCorpusOperationsReady: safeOptionalBoolean(record.evaluationCorpusOperationsReady),
+    crossWpScopeDashboardReady: safeOptionalBoolean(record.crossWpScopeDashboardReady),
+    candidateIdentifierListExported: safeOptionalBoolean(record.candidateIdentifierListExported),
+    roleRuleDetailExported: safeOptionalBoolean(record.roleRuleDetailExported),
+    serviceTokenValueExported: safeOptionalBoolean(record.serviceTokenValueExported),
     aggregateOnly: safeOptionalBoolean(record.aggregateOnly)
   };
 }

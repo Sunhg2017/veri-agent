@@ -90,6 +90,24 @@ const baseTask: TestDesignTaskView = {
     effectivePolicySnapshotMaterialized: true,
     aggregateOnly: true
   },
+  scopePolicy: {
+    policyVersion: 'wp5-scope-policy-v1',
+    scopeModel: 'PROJECT_RESOURCE_SCOPE',
+    listFallbackScope: 'PLATFORM_WHEN_PROJECT_FILTER_ABSENT',
+    taskProjectScopeRequired: true,
+    candidateProjectScopeRequired: true,
+    batchCandidateProjectScopeRequired: true,
+    publishProjectScopeRequired: true,
+    asyncTaskProjectScopeRecovered: true,
+    smokeProjectScopeRequired: true,
+    evaluationCorpusProjectIsolated: true,
+    evaluationCorpusOperationsReady: false,
+    crossWpScopeDashboardReady: false,
+    candidateIdentifierListExported: false,
+    roleRuleDetailExported: false,
+    serviceTokenValueExported: false,
+    aggregateOnly: true
+  },
   contextSummary: {
     contextVersion: 'ctx-v3',
     requirements: [{ id: 'req-1' }, { id: 'req-2' }],
@@ -153,6 +171,11 @@ describe('WP5 task diagnostics helpers', () => {
           label: '策略运营',
           tone: 'warning',
           value: 'PLATFORM_DEFAULT_ONLY · PLATFORM_DEFAULT_ONLY · DEPLOY_CONFIG_CHANGE_REQUIRED · WORKFLOW_NOT_READY · 项目覆盖存储:pending · 环境覆盖存储:pending · 审批流:pending'
+        }),
+        expect.objectContaining({
+          label: '作用域策略',
+          tone: 'warning',
+          value: 'PROJECT_RESOURCE_SCOPE · PLATFORM_WHEN_PROJECT_FILTER_ABSENT · 任务:project · 候选:project · 批量:project-set · 发布:project · 异步:task-project · 评测语料:project'
         }),
         expect.objectContaining({
           label: '错误',
@@ -324,6 +347,65 @@ describe('WP5 task diagnostics helpers', () => {
     expect(JSON.stringify(diagnostics)).not.toContain('https://ticket.example');
     expect(JSON.stringify(diagnostics)).not.toContain('approval-note-text');
     expect(JSON.stringify(diagnostics)).not.toContain('secret policy body');
+  });
+
+  it('falls back to aggregate scope policy from the task summary', () => {
+    const diagnostics = buildTestDesignTaskDiagnostics({
+      ...baseTask,
+      scopePolicy: undefined,
+      contextSummary: {
+        scopePolicy: {
+          scopeModel: 'PROJECT_RESOURCE_SCOPE',
+          listFallbackScope: 'PLATFORM_WHEN_PROJECT_FILTER_ABSENT',
+          taskProjectScopeRequired: true,
+          candidateProjectScopeRequired: true,
+          batchCandidateProjectScopeRequired: true,
+          publishProjectScopeRequired: true,
+          asyncTaskProjectScopeRecovered: true,
+          smokeProjectScopeRequired: true,
+          evaluationCorpusProjectIsolated: true,
+          evaluationCorpusOperationsReady: false,
+          crossWpScopeDashboardReady: false,
+          candidateIds: ['candidate-secret-id'],
+          roleRuleDetails: 'role matrix should not appear',
+          serviceTokenValue: 'token=secret-value'
+        }
+      }
+    });
+
+    expect(diagnostics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          label: '作用域策略',
+          tone: 'warning',
+          value: expect.stringContaining('批量:project-set')
+        })
+      ])
+    );
+    expect(JSON.stringify(diagnostics)).not.toContain('candidate-secret-id');
+    expect(JSON.stringify(diagnostics)).not.toContain('role matrix should not appear');
+    expect(JSON.stringify(diagnostics)).not.toContain('secret-value');
+  });
+
+  it('marks unsafe scope policy as danger', () => {
+    const diagnostics = buildTestDesignTaskDiagnostics({
+      ...baseTask,
+      scopePolicy: {
+        ...baseTask.scopePolicy,
+        publishProjectScopeRequired: false,
+        candidateIdentifierListExported: true
+      }
+    });
+
+    expect(diagnostics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          label: '作用域策略',
+          tone: 'danger',
+          value: expect.stringContaining('发布:platform')
+        })
+      ])
+    );
   });
 
   it('compacts digests and handles empty tasks safely', () => {

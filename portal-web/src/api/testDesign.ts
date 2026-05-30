@@ -19,6 +19,7 @@ export interface TestDesignHealth {
   contextAssemblyPolicy?: TestDesignContextAssemblyPolicyView;
   contextPolicyGovernance?: TestDesignContextPolicyGovernanceView;
   contextPolicyOperations?: TestDesignContextPolicyOperationsView;
+  scopePolicy?: TestDesignScopePolicyView;
   supportedCoverageTypes: string[];
 }
 
@@ -46,6 +47,7 @@ export interface TestDesignTaskView {
   contextAssemblyPolicy?: TestDesignContextAssemblyPolicyView;
   contextPolicyGovernance?: TestDesignContextPolicyGovernanceView;
   contextPolicyOperations?: TestDesignContextPolicyOperationsView;
+  scopePolicy?: TestDesignScopePolicyView;
   contextSummary: Record<string, unknown>;
   createdAt?: string;
   updatedAt?: string;
@@ -93,6 +95,25 @@ export interface TestDesignContextPolicyOperationsView {
   environmentOverrideStoreReady?: boolean;
   changeApprovalWorkflowReady?: boolean;
   effectivePolicySnapshotMaterialized?: boolean;
+  aggregateOnly?: boolean;
+}
+
+export interface TestDesignScopePolicyView {
+  policyVersion?: string;
+  scopeModel?: string;
+  listFallbackScope?: string;
+  taskProjectScopeRequired?: boolean;
+  candidateProjectScopeRequired?: boolean;
+  batchCandidateProjectScopeRequired?: boolean;
+  publishProjectScopeRequired?: boolean;
+  asyncTaskProjectScopeRecovered?: boolean;
+  smokeProjectScopeRequired?: boolean;
+  evaluationCorpusProjectIsolated?: boolean;
+  evaluationCorpusOperationsReady?: boolean;
+  crossWpScopeDashboardReady?: boolean;
+  candidateIdentifierListExported?: boolean;
+  roleRuleDetailExported?: boolean;
+  serviceTokenValueExported?: boolean;
   aggregateOnly?: boolean;
 }
 
@@ -605,6 +626,7 @@ export function normalizeTestDesignHealth(raw: unknown): TestDesignHealth {
     contextPolicyOperations: normalizeTestDesignContextPolicyOperations(
       item.contextPolicyOperations ?? item.context_policy_operations
     ),
+    scopePolicy: normalizeTestDesignScopePolicy(item.scopePolicy ?? item.scope_policy),
     supportedCoverageTypes: stringArrayValue(item.supportedCoverageTypes ?? item.supported_coverage_types)
   };
 }
@@ -642,6 +664,7 @@ export function normalizeTestDesignTask(raw: unknown): TestDesignTaskView {
     contextPolicyOperations: normalizeTestDesignContextPolicyOperations(
       item.contextPolicyOperations ?? item.context_policy_operations
     ),
+    scopePolicy: normalizeTestDesignScopePolicy(item.scopePolicy ?? item.scope_policy),
     contextSummary: recordValue(item.contextSummary ?? item.context_summary),
     createdAt: optionalString(item.createdAt) ?? optionalString(item.created_at),
     updatedAt: optionalString(item.updatedAt) ?? optionalString(item.updated_at)
@@ -731,6 +754,52 @@ export function normalizeTestDesignContextPolicyOperations(
     ),
     effectivePolicySnapshotMaterialized: optionalBoolean(
       raw.effectivePolicySnapshotMaterialized ?? raw.effective_policy_snapshot_materialized
+    ),
+    aggregateOnly: optionalBoolean(raw.aggregateOnly ?? raw.aggregate_only)
+  };
+}
+
+export function normalizeTestDesignScopePolicy(raw: unknown): TestDesignScopePolicyView | undefined {
+  if (!isRecord(raw)) {
+    return undefined;
+  }
+  return {
+    policyVersion: optionalString(raw.policyVersion) ?? optionalString(raw.policy_version),
+    scopeModel: optionalString(raw.scopeModel) ?? optionalString(raw.scope_model),
+    listFallbackScope: optionalString(raw.listFallbackScope) ?? optionalString(raw.list_fallback_scope),
+    taskProjectScopeRequired: optionalBoolean(
+      raw.taskProjectScopeRequired ?? raw.task_project_scope_required
+    ),
+    candidateProjectScopeRequired: optionalBoolean(
+      raw.candidateProjectScopeRequired ?? raw.candidate_project_scope_required
+    ),
+    batchCandidateProjectScopeRequired: optionalBoolean(
+      raw.batchCandidateProjectScopeRequired ?? raw.batch_candidate_project_scope_required
+    ),
+    publishProjectScopeRequired: optionalBoolean(
+      raw.publishProjectScopeRequired ?? raw.publish_project_scope_required
+    ),
+    asyncTaskProjectScopeRecovered: optionalBoolean(
+      raw.asyncTaskProjectScopeRecovered ?? raw.async_task_project_scope_recovered
+    ),
+    smokeProjectScopeRequired: optionalBoolean(
+      raw.smokeProjectScopeRequired ?? raw.smoke_project_scope_required
+    ),
+    evaluationCorpusProjectIsolated: optionalBoolean(
+      raw.evaluationCorpusProjectIsolated ?? raw.evaluation_corpus_project_isolated
+    ),
+    evaluationCorpusOperationsReady: optionalBoolean(
+      raw.evaluationCorpusOperationsReady ?? raw.evaluation_corpus_operations_ready
+    ),
+    crossWpScopeDashboardReady: optionalBoolean(
+      raw.crossWpScopeDashboardReady ?? raw.cross_wp_scope_dashboard_ready
+    ),
+    candidateIdentifierListExported: optionalBoolean(
+      raw.candidateIdentifierListExported ?? raw.candidate_identifier_list_exported
+    ),
+    roleRuleDetailExported: optionalBoolean(raw.roleRuleDetailExported ?? raw.role_rule_detail_exported),
+    serviceTokenValueExported: optionalBoolean(
+      raw.serviceTokenValueExported ?? raw.service_token_value_exported
     ),
     aggregateOnly: optionalBoolean(raw.aggregateOnly ?? raw.aggregate_only)
   };

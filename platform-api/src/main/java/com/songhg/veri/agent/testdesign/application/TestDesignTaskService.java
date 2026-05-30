@@ -107,6 +107,7 @@ public class TestDesignTaskService {
                 TestDesignContextAssemblyPolicy.response(),
                 TestDesignContextPolicyGovernance.response(),
                 TestDesignContextPolicyOperations.response(),
+                TestDesignScopePolicy.response(),
                 CoverageType.codes().stream().sorted().toList()
         );
     }
@@ -575,6 +576,7 @@ public class TestDesignTaskService {
         payload.put("contextLimits", properties.effectiveContextLimits());
         payload.put("contextPolicyGovernance", TestDesignContextPolicyGovernance.snapshot());
         payload.put("contextPolicyOperations", TestDesignContextPolicyOperations.snapshot());
+        payload.put("scopePolicy", TestDesignScopePolicy.snapshot());
         try {
             return sha256(objectMapper.writeValueAsString(payload));
         } catch (JsonProcessingException exception) {

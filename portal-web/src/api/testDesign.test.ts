@@ -111,6 +111,24 @@ describe('WP5 test design API helpers', () => {
         effective_policy_snapshot_materialized: true,
         aggregate_only: true
       },
+      scope_policy: {
+        policy_version: 'wp5-scope-policy-v1',
+        scope_model: 'PROJECT_RESOURCE_SCOPE',
+        list_fallback_scope: 'PLATFORM_WHEN_PROJECT_FILTER_ABSENT',
+        task_project_scope_required: true,
+        candidate_project_scope_required: true,
+        batch_candidate_project_scope_required: true,
+        publish_project_scope_required: true,
+        async_task_project_scope_recovered: true,
+        smoke_project_scope_required: true,
+        evaluation_corpus_project_isolated: true,
+        evaluation_corpus_operations_ready: false,
+        cross_wp_scope_dashboard_ready: false,
+        candidate_identifier_list_exported: false,
+        role_rule_detail_exported: false,
+        service_token_value_exported: false,
+        aggregate_only: true
+      },
       supported_coverage_types: 'SMOKE,FUNCTIONAL'
     })).toMatchObject({
       service: 'test-design',
@@ -157,6 +175,24 @@ describe('WP5 test design API helpers', () => {
         effectivePolicySnapshotMaterialized: true,
         aggregateOnly: true
       },
+      scopePolicy: {
+        policyVersion: 'wp5-scope-policy-v1',
+        scopeModel: 'PROJECT_RESOURCE_SCOPE',
+        listFallbackScope: 'PLATFORM_WHEN_PROJECT_FILTER_ABSENT',
+        taskProjectScopeRequired: true,
+        candidateProjectScopeRequired: true,
+        batchCandidateProjectScopeRequired: true,
+        publishProjectScopeRequired: true,
+        asyncTaskProjectScopeRecovered: true,
+        smokeProjectScopeRequired: true,
+        evaluationCorpusProjectIsolated: true,
+        evaluationCorpusOperationsReady: false,
+        crossWpScopeDashboardReady: false,
+        candidateIdentifierListExported: false,
+        roleRuleDetailExported: false,
+        serviceTokenValueExported: false,
+        aggregateOnly: true
+      },
       supportedCoverageTypes: ['SMOKE', 'FUNCTIONAL']
     });
 
@@ -194,6 +230,19 @@ describe('WP5 test design API helpers', () => {
         policy_fallback_behavior: 'DEPLOY_CONFIG_CHANGE_REQUIRED',
         approval_status: 'WORKFLOW_NOT_READY',
         project_override_store_ready: false,
+        aggregate_only: true
+      },
+      scope_policy: {
+        policy_version: 'wp5-scope-policy-v1',
+        scope_model: 'PROJECT_RESOURCE_SCOPE',
+        list_fallback_scope: 'PLATFORM_WHEN_PROJECT_FILTER_ABSENT',
+        task_project_scope_required: true,
+        candidate_project_scope_required: true,
+        batch_candidate_project_scope_required: true,
+        publish_project_scope_required: true,
+        async_task_project_scope_recovered: true,
+        evaluation_corpus_project_isolated: true,
+        evaluation_corpus_operations_ready: false,
         aggregate_only: true
       },
       context_summary: {
@@ -235,6 +284,19 @@ describe('WP5 test design API helpers', () => {
         policyFallbackBehavior: 'DEPLOY_CONFIG_CHANGE_REQUIRED',
         approvalStatus: 'WORKFLOW_NOT_READY',
         projectOverrideStoreReady: false,
+        aggregateOnly: true
+      },
+      scopePolicy: {
+        policyVersion: 'wp5-scope-policy-v1',
+        scopeModel: 'PROJECT_RESOURCE_SCOPE',
+        listFallbackScope: 'PLATFORM_WHEN_PROJECT_FILTER_ABSENT',
+        taskProjectScopeRequired: true,
+        candidateProjectScopeRequired: true,
+        batchCandidateProjectScopeRequired: true,
+        publishProjectScopeRequired: true,
+        asyncTaskProjectScopeRecovered: true,
+        evaluationCorpusProjectIsolated: true,
+        evaluationCorpusOperationsReady: false,
         aggregateOnly: true
       }
     });
