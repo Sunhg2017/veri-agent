@@ -4,6 +4,7 @@ import com.songhg.veri.agent.authorization.application.ResourceScope;
 import com.songhg.veri.agent.testdesign.application.command.ResolveTestDesignConflictBatchCommand;
 import com.songhg.veri.agent.testdesign.application.command.TestDesignCandidateBatchActionCommand;
 import com.songhg.veri.agent.testdesign.application.query.TestDesignCandidatePageRequest;
+import com.songhg.veri.agent.testdesign.application.query.TestDesignPromptTrendRequest;
 import com.songhg.veri.agent.testdesign.application.query.TestDesignTaskPageRequest;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -30,6 +31,13 @@ public class TestDesignPermissionScopeResolver {
     }
 
     public ResourceScope taskList(TestDesignTaskPageRequest request) {
+        if (request != null && StringUtils.hasText(request.getProjectId())) {
+            return project(request.getProjectId());
+        }
+        return ResourceScope.platform();
+    }
+
+    public ResourceScope promptTrend(TestDesignPromptTrendRequest request) {
         if (request != null && StringUtils.hasText(request.getProjectId())) {
             return project(request.getProjectId());
         }

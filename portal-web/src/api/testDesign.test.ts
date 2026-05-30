@@ -14,6 +14,7 @@ import {
   fetchTaskTestDesignCandidates,
   fetchTestDesignCandidates,
   fetchTestDesignHealth,
+  fetchTestDesignPromptTrend,
   fetchTestDesignReviewRecords,
   fetchTestDesignTask,
   fetchTestDesignTaskQualitySummary,
@@ -24,6 +25,8 @@ import {
   normalizeTestDesignCandidateList,
   normalizeTestDesignConflictBatchResolveResult,
   normalizeTestDesignHealth,
+  normalizeTestDesignPromptTrend,
+  normalizeTestDesignPromptTrendBucket,
   normalizeTestDesignPublishResult,
   normalizeTestDesignQualitySummary,
   normalizeTestDesignReviewRecord,
@@ -235,6 +238,57 @@ describe('WP5 test design API helpers', () => {
       metrics: [{ code: 'publishable', count: 2, percent: 50 }]
     });
     expect(qualitySummary.distributions.status[0]).toMatchObject({ label: 'CONFIRMED', count: 1, percent: 25 });
+
+    const promptTrend = normalizeTestDesignPromptTrend({
+      project_id: 'project-1',
+      prompt_key: 'wp5-test-design-v1',
+      task_count: '2',
+      candidate_count: '6',
+      buckets: [
+        {
+          prompt_key: 'wp5-test-design-v1',
+          prompt_version: '1.0.0',
+          task_count: '2',
+          candidate_count: '6',
+          confirmed_count: '3',
+          published_count: '1',
+          step_complete_count: '5',
+          expected_complete_count: '4',
+          low_confidence_count: '1',
+          error_count: '1',
+          duplicate_key_collision_count: '0',
+          correction_count: '2',
+          rejected_count: '1',
+          ignored_count: '0',
+          step_complete_percent: '83.33',
+          expected_complete_percent: '66.67',
+          low_confidence_percent: '16.67',
+          error_percent: '16.67',
+          feedback_signal_percent: '50.00',
+          latest_task_created_at: '2026-05-30T10:00:00Z'
+        }
+      ],
+      generated_at: '2026-05-30T10:01:00Z'
+    });
+    expect(promptTrend).toMatchObject({
+      projectId: 'project-1',
+      promptKey: 'wp5-test-design-v1',
+      taskCount: 2,
+      candidateCount: 6,
+      buckets: [
+        expect.objectContaining({
+          promptVersion: '1.0.0',
+          candidateCount: 6,
+          stepCompletePercent: 83.33,
+          feedbackSignalPercent: 50
+        })
+      ]
+    });
+    expect(normalizeTestDesignPromptTrendBucket({ prompt_version: 'v2' })).toMatchObject({
+      promptKey: 'UNKNOWN',
+      promptVersion: 'v2',
+      candidateCount: 0
+    });
   });
 
   it('calls task and candidate list endpoints with encoded filters', async () => {
@@ -275,6 +329,9 @@ describe('WP5 test design API helpers', () => {
 
     await fetchTestDesignTaskQualitySummary('task 1');
     expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/test-design/tasks/task%201/quality/summary');
+
+    await fetchTestDesignPromptTrend({ index: 0, size: 10, projectId: 'proj pay', promptKey: 'wp5-test-design-v1' });
+    expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/test-design/quality/prompt-trend?index=0&size=10&projectId=proj+pay&promptKey=wp5-test-design-v1');
   });
 
   it('calls task lifecycle action endpoints with encoded task ids', async () => {

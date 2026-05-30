@@ -61,6 +61,7 @@ public class TestDesignEventRecoveryService {
                 null,
                 TestDesignTaskStatus.QUEUED.name(),
                 null,
+                null,
                 PageQuery.of(0, recoveryBatchSize())
         ));
         queuedTasks.forEach(task -> eventPublisher.publishGenerationRequested(task.id()));

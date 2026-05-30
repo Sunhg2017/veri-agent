@@ -235,6 +235,7 @@ public class InMemoryTestDesignRepository implements TestDesignRepository {
         return tasks.values().stream()
                 .filter(task -> matches(query.projectId(), task.projectId()))
                 .filter(task -> matches(query.status(), task.status()))
+                .filter(task -> matches(query.promptKey(), task.promptKey()))
                 .filter(task -> contains(query.keyword(), task.title(), task.requirementIds()))
                 .sorted(Comparator.comparing(TestDesignTask::createdAt).reversed());
     }

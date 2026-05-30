@@ -36,6 +36,7 @@ import {
   exportTestDesignTaskReportCsv,
   fetchTaskTestDesignCandidates,
   fetchTestDesignHealth,
+  fetchTestDesignPromptTrend,
   fetchTestDesignReviewRecords,
   fetchTestDesignTaskQualitySummary,
   fetchTestDesignTaskSummary,
@@ -52,6 +53,7 @@ import {
   type TestDesignCandidateBatchActionType,
   type TestDesignCandidateView,
   type TestDesignHealth,
+  type TestDesignPromptTrendView,
   type TestDesignPublishRecordView,
   type TestDesignPublishResult,
   type TestDesignQualitySummaryView,
@@ -68,6 +70,10 @@ import {
   qualitySummaryFromServer,
   type TestDesignQualitySummary
 } from '../testDesignQualitySummary';
+import {
+  buildTestDesignPromptTrendSummary,
+  type TestDesignPromptTrendSummary
+} from '../testDesignPromptTrend';
 import {
   buildTestDesignReviewSummary,
   type TestDesignReviewSummary
@@ -259,6 +265,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
   const [reviewRecordPageTotal, setReviewRecordPageTotal] = useState(0);
   const [reviewRecordPageIndex, setReviewRecordPageIndex] = useState(0);
   const [taskQualitySummary, setTaskQualitySummary] = useState<TestDesignQualitySummaryView | null>(null);
+  const [promptTrend, setPromptTrend] = useState<TestDesignPromptTrendView | null>(null);
   const [batchActionResult, setBatchActionResult] = useState<TestDesignCandidateBatchActionResult | null>(null);
   const [batchEditResult, setBatchEditResult] = useState<BatchEditResult | null>(null);
   const [selectedCandidateIds, setSelectedCandidateIds] = useState<string[]>([]);
@@ -272,6 +279,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
   const [mutationState, setMutationState] = useState<WorkState>({ loading: false });
   const [publishState, setPublishState] = useState<WorkState>({ loading: false });
   const [reviewRecordState, setReviewRecordState] = useState<WorkState>({ loading: false });
+  const [promptTrendState, setPromptTrendState] = useState<WorkState>({ loading: false });
 
   const disabled = !props.signedIn || !canRead;
   const selectedTask = tasks.find((task) => task.id === selectedTaskId) ?? null;
@@ -349,6 +357,10 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
     () => taskQualitySummary ? qualitySummaryFromServer(taskQualitySummary) : pageQualitySummary,
     [pageQualitySummary, taskQualitySummary]
   );
+  const promptTrendSummary = useMemo(
+    () => buildTestDesignPromptTrendSummary(promptTrend),
+    [promptTrend]
+  );
   const qualitySummaryScope = selectedTaskId
     ? taskQualitySummary
       ? `任务全量 ${taskQualitySummary.total} 个候选`
@@ -421,6 +433,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       setReviewRecords([]);
       setReviewRecordPageTotal(0);
       setTaskQualitySummary(null);
+      setPromptTrend(null);
       setSelectedCandidateId('');
       setCandidateDraft(null);
       setBatchActionResult(null);
@@ -485,6 +498,48 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
     candidatePageIndex,
     candidatePageSize,
     props.signedIn
+  ]);
+
+  const refreshPromptTrend = useCallback(async (options?: { silent?: boolean }) => {
+    if (!props.signedIn || !canRead) {
+      setPromptTrend(null);
+      setPromptTrendState({ loading: false });
+      return;
+    }
+    const projectId = taskFilters.projectId || filters.projectId || selectedTask?.projectId || '';
+    if (!projectId) {
+      setPromptTrend(null);
+      setPromptTrendState({ loading: false });
+      return;
+    }
+
+    const silent = options?.silent === true;
+    if (silent) {
+      setPromptTrendState((current) => ({ ...current, error: undefined }));
+    } else {
+      setPromptTrendState({ loading: true });
+    }
+    try {
+      const response = await fetchTestDesignPromptTrend({
+        size: 20,
+        projectId,
+        promptKey: health?.promptKey
+      });
+      setPromptTrend(response.data);
+      setPromptTrendState({ loading: false, traceId: response.trace_id });
+    } catch (error: unknown) {
+      setPromptTrend(null);
+      if (!silent) {
+        setPromptTrendState({ loading: false, error: testDesignErrorMessage(error, 'Prompt 版本趋势加载失败') });
+      }
+    }
+  }, [
+    canRead,
+    filters.projectId,
+    health?.promptKey,
+    props.signedIn,
+    selectedTask?.projectId,
+    taskFilters.projectId
   ]);
 
   const refreshTaskQualitySummary = useCallback(async (taskId: string, options?: { silent?: boolean }) => {
@@ -572,9 +627,11 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       setSelectedConflictCaseIds({});
       setPendingConfirmation(null);
       setTaskQualitySummary(null);
+      setPromptTrend(null);
       setLoadState({ loading: false });
       setTaskState({ loading: false });
       setReviewRecordState({ loading: false });
+      setPromptTrendState({ loading: false });
       return;
     }
 
@@ -633,6 +690,10 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
   }, [refreshAll]);
 
   useEffect(() => {
+    void refreshPromptTrend();
+  }, [refreshPromptTrend]);
+
+  useEffect(() => {
     setCandidates([]);
     setCandidatePageTotal(0);
     setSelectedCandidateId('');
@@ -675,9 +736,17 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       void refreshCandidatePage(selectedTaskId, { silent: true });
       void refreshReviewRecords(selectedTaskId, { silent: true });
       void refreshTaskQualitySummary(selectedTaskId, { silent: true });
+      void refreshPromptTrend({ silent: true });
     }, 2000);
     return () => window.clearInterval(timer);
-  }, [refreshCandidatePage, refreshReviewRecords, refreshTaskQualitySummary, selectedTaskGenerating, selectedTaskId]);
+  }, [
+    refreshCandidatePage,
+    refreshPromptTrend,
+    refreshReviewRecords,
+    refreshTaskQualitySummary,
+    selectedTaskGenerating,
+    selectedTaskId
+  ]);
 
   useEffect(() => {
     const nextCandidate = candidates.find((candidate) => candidate.id === selectedCandidateId) ?? null;
@@ -809,6 +878,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       setBatchEditResult(null);
       void refreshReviewRecords(response.data.task.id, { silent: true });
       void refreshTaskQualitySummary(response.data.task.id, { silent: true });
+      void refreshPromptTrend({ silent: true });
       setPendingConfirmation(null);
       generationIdempotencyRef.current = null;
       setMutationState({
@@ -848,6 +918,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       setTaskState({ loading: false, success: '生成任务已重试', traceId: response.trace_id });
       void refreshReviewRecords(task.id, { silent: true });
       void refreshTaskQualitySummary(task.id, { silent: true });
+      void refreshPromptTrend({ silent: true });
     } catch (error: unknown) {
       setTaskState({ loading: false, error: testDesignErrorMessage(error, '生成任务重试失败') });
     }
@@ -880,6 +951,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       setTaskState({ loading: false, success: '生成任务已取消', traceId: response.trace_id });
       void refreshReviewRecords(task.id, { silent: true });
       void refreshTaskQualitySummary(task.id, { silent: true });
+      void refreshPromptTrend({ silent: true });
     } catch (error: unknown) {
       setTaskState({ loading: false, error: testDesignErrorMessage(error, '生成任务取消失败') });
     }
@@ -916,6 +988,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       setMutationState({ loading: false, success: '候选用例已保存', traceId: response.trace_id });
       void refreshReviewRecords(selectedTaskId, { silent: true });
       void refreshTaskQualitySummary(selectedTaskId, { silent: true });
+      void refreshPromptTrend({ silent: true });
     } catch (error: unknown) {
       setMutationState({ loading: false, error: testDesignErrorMessage(error, '候选用例保存失败') });
     }
@@ -942,6 +1015,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       setMutationState({ loading: false, success: reviewSuccessText(action), traceId: response.trace_id });
       void refreshReviewRecords(selectedTaskId, { silent: true });
       void refreshTaskQualitySummary(selectedTaskId, { silent: true });
+      void refreshPromptTrend({ silent: true });
     } catch (error: unknown) {
       setMutationState({ loading: false, error: testDesignErrorMessage(error, '候选用例状态更新失败') });
     }
@@ -1004,6 +1078,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       void refreshCandidatePage(selectedTaskId, { silent: true });
       void refreshReviewRecords(selectedTaskId, { silent: true });
       void refreshTaskQualitySummary(selectedTaskId, { silent: true });
+      void refreshPromptTrend({ silent: true });
     } catch (error: unknown) {
       setMutationState({ loading: false, error: testDesignErrorMessage(error, `批量${testDesignBatchActionLabel(action)}失败`) });
     }
@@ -1100,6 +1175,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
     void refreshCandidatePage(selectedTaskId, { silent: true });
     void refreshReviewRecords(selectedTaskId, { silent: true });
     void refreshTaskQualitySummary(selectedTaskId, { silent: true });
+    void refreshPromptTrend({ silent: true });
   }
 
   function requestPublishTask(dryRun: boolean) {
@@ -1155,6 +1231,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       if (!dryRun) {
         await refreshCandidatePage(selectedTaskId);
         void refreshTaskQualitySummary(selectedTaskId, { silent: true });
+        void refreshPromptTrend({ silent: true });
       }
     } catch (error: unknown) {
       setPublishState({ loading: false, error: testDesignErrorMessage(error, dryRun ? '预发布检查失败' : '发布失败') });
@@ -1269,6 +1346,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
         await refreshCandidatePage(selectedTaskId, { silent: true });
         void refreshTaskQualitySummary(selectedTaskId, { silent: true });
         void refreshReviewRecords(selectedTaskId, { silent: true });
+        void refreshPromptTrend({ silent: true });
       }
       if (response.data.result === 'SUCCEEDED') {
         setConflictResolutionDraft(initialConflictResolutionDraft);
@@ -1345,6 +1423,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
         await refreshCandidatePage(selectedTaskId, { silent: true });
         void refreshTaskQualitySummary(selectedTaskId, { silent: true });
         void refreshReviewRecords(selectedTaskId, { silent: true });
+        void refreshPromptTrend({ silent: true });
       }
 
       if (!failedItems.length) {
@@ -1545,6 +1624,12 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
           scopeLabel={qualitySummaryScope}
           selectedTaskId={selectedTaskId}
           summary={qualitySummary}
+        />
+
+        <PromptTrendPanel
+          state={promptTrendState}
+          summary={promptTrendSummary}
+          onRefresh={() => void refreshPromptTrend()}
         />
 
         <section className="panel">
@@ -2437,6 +2522,69 @@ function QualitySummaryPanel(props: {
           </>
         ) : (
           <div className="notice info">请先选择任务</div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function PromptTrendPanel(props: {
+  state: WorkState;
+  summary: TestDesignPromptTrendSummary;
+  onRefresh: () => void;
+}) {
+  return (
+    <section className="panel test-design-prompt-trend">
+      <div className="panel-header compact">
+        <div>
+          <h2 className="panel-title">Prompt 趋势</h2>
+          <p className="panel-desc">{props.summary.scopeLabel}</p>
+        </div>
+        <button className="btn btn-secondary btn-sm" type="button" disabled={props.state.loading} onClick={props.onRefresh}>
+          <RefreshCw size={15} />
+          刷新
+        </button>
+      </div>
+      <div className="panel-body compact">
+        <StateLine state={props.state} />
+        {props.summary.buckets.length ? (
+          <>
+            <div className="test-design-quality-metrics">
+              {props.summary.metrics.map((metric) => (
+                <div className={`test-design-quality-metric tone-${metric.tone}`} key={metric.label}>
+                  <span>{metric.label}</span>
+                  <strong>{metric.value}</strong>
+                  <small>{metric.desc}</small>
+                </div>
+              ))}
+            </div>
+            <div className="test-design-prompt-trend-list">
+              {props.summary.buckets.map((bucket) => (
+                <div className={`test-design-prompt-trend-row tone-${bucket.tone}`} key={bucket.label}>
+                  <div>
+                    <strong>{bucket.label}</strong>
+                    <span>{bucket.taskCount} 任务 · {bucket.candidateCount} 候选</span>
+                  </div>
+                  <div className="test-design-prompt-trend-row-metrics">
+                    <span>{bucket.qualityText}</span>
+                    <span>{bucket.feedbackText}</span>
+                    <span>{bucket.riskText}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+            {props.summary.warnings.length > 0 && (
+              <div className="test-design-quality-warnings">
+                {props.summary.warnings.map((warning) => (
+                  <span className={`test-design-quality-chip tone-${warning.tone}`} key={warning.label}>
+                    {warning.label} {warning.count}
+                  </span>
+                ))}
+              </div>
+            )}
+          </>
+        ) : (
+          <div className="notice info">暂无 Prompt 趋势数据</div>
         )}
       </div>
     </section>

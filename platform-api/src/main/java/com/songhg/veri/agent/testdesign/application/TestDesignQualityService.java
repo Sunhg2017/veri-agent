@@ -4,6 +4,9 @@ import com.songhg.veri.agent.common.api.PageResponse;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
 import com.songhg.veri.agent.testdesign.application.port.TestDesignRepository;
+import com.songhg.veri.agent.testdesign.application.query.TestDesignPromptTrendRequest;
+import com.songhg.veri.agent.testdesign.application.view.TestDesignPromptTrendBucketResponse;
+import com.songhg.veri.agent.testdesign.application.view.TestDesignPromptTrendResponse;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignPublishRecordResponse;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignQualityDistributionItemResponse;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignQualityMetricResponse;
@@ -16,7 +19,9 @@ import com.songhg.veri.agent.testdesign.application.view.TestDesignTaskResponse;
 import com.songhg.veri.agent.testdesign.config.TestDesignProperties;
 import com.songhg.veri.agent.testdesign.domain.TestDesignCandidate;
 import com.songhg.veri.agent.testdesign.domain.TestDesignCandidateStatus;
+import com.songhg.veri.agent.testdesign.domain.TestDesignReviewRecord;
 import com.songhg.veri.agent.testdesign.domain.TestDesignTask;
+import com.songhg.veri.agent.testdesign.domain.TestDesignTaskStatus;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -76,6 +81,40 @@ public class TestDesignQualityService {
     public TestDesignQualitySummaryResponse qualitySummary(UUID id) {
         TestDesignTask task = taskOrThrow(id);
         return qualitySummary(task, repository.candidatesByTask(task.id()), Instant.now());
+    }
+
+    /**
+     * Aggregates recent task quality by Prompt version for WP5 prompt operations.
+     *
+     * <p>The trend is calculated from task/candidate/review metadata only. It deliberately excludes candidate bodies,
+     * review comments, raw prompts and model payloads so operators can compare versions without exposing source text.
+     */
+    public TestDesignPromptTrendResponse promptTrend(TestDesignPromptTrendRequest request) {
+        TestDesignPromptTrendRequest safeRequest = request == null ? new TestDesignPromptTrendRequest() : request;
+        List<TestDesignTask> tasks = repository.tasks(safeRequest.toTaskQuery()).stream()
+                .filter(task -> !TestDesignTaskStatus.QUEUED.name().equals(task.status()))
+                .filter(task -> !TestDesignTaskStatus.RUNNING.name().equals(task.status()))
+                .toList();
+        Map<PromptVersionKey, PromptTrendAccumulator> bucketByVersion = new LinkedHashMap<>();
+        for (TestDesignTask task : tasks) {
+            PromptTrendAccumulator bucket = bucketByVersion.computeIfAbsent(PromptVersionKey.of(task),
+                    key -> new PromptTrendAccumulator(key.promptKey(), key.promptVersion()));
+            bucket.acceptTask(task, repository.candidatesByTask(task.id()), repository.reviewRecordsByTask(task.id()));
+        }
+        long candidateCount = bucketByVersion.values().stream()
+                .mapToLong(PromptTrendAccumulator::candidateCount)
+                .sum();
+        List<TestDesignPromptTrendBucketResponse> buckets = bucketByVersion.values().stream()
+                .map(PromptTrendAccumulator::toResponse)
+                .toList();
+        return new TestDesignPromptTrendResponse(
+                trimToNull(safeRequest.getProjectId()),
+                trimToNull(safeRequest.getPromptKey()),
+                tasks.size(),
+                candidateCount,
+                buckets,
+                Instant.now()
+        );
     }
 
     private PageResponse<TestDesignPublishRecordResponse> publishRecords(UUID taskId) {
@@ -350,6 +389,10 @@ public class TestDesignQualityService {
         return candidate.confidence() > 0D && candidate.confidence() < 0.8D;
     }
 
+    private static boolean isPromptTuningCorrection(TestDesignReviewRecord record) {
+        return "UPDATE".equals(record.action());
+    }
+
     private TestDesignTask taskOrThrow(UUID id) {
         return repository.task(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "用例生成任务不存在: " + id));
@@ -373,6 +416,119 @@ public class TestDesignQualityService {
 
     private static String duplicateKey(UUID requirementId, String coverageType, String title) {
         return requirementId + ":" + coverageType + ":" + (title == null ? "" : title.trim().toLowerCase(Locale.ROOT));
+    }
+
+    private static String trimToNull(String value) {
+        return StringUtils.hasText(value) ? value.trim() : null;
+    }
+
+    private record PromptVersionKey(String promptKey, String promptVersion) {
+
+        private static PromptVersionKey of(TestDesignTask task) {
+            return new PromptVersionKey(
+                    StringUtils.hasText(task.promptKey()) ? task.promptKey() : "UNKNOWN",
+                    StringUtils.hasText(task.promptVersion()) ? task.promptVersion() : "UNKNOWN"
+            );
+        }
+    }
+
+    private final class PromptTrendAccumulator {
+
+        private final String promptKey;
+        private final String promptVersion;
+        private long taskCount;
+        private long candidateCount;
+        private long confirmedCount;
+        private long publishedCount;
+        private long stepCompleteCount;
+        private long expectedCompleteCount;
+        private long lowConfidenceCount;
+        private long errorCount;
+        private long duplicateKeyCollisionCount;
+        private long correctionCount;
+        private long rejectedCount;
+        private long ignoredCount;
+        private Instant latestTaskCreatedAt;
+
+        private PromptTrendAccumulator(String promptKey, String promptVersion) {
+            this.promptKey = promptKey;
+            this.promptVersion = promptVersion;
+        }
+
+        private void acceptTask(
+                TestDesignTask task,
+                List<TestDesignCandidate> candidates,
+                List<TestDesignReviewRecord> reviewRecords
+        ) {
+            taskCount++;
+            if (task.createdAt() != null
+                    && (latestTaskCreatedAt == null || task.createdAt().isAfter(latestTaskCreatedAt))) {
+                latestTaskCreatedAt = task.createdAt();
+            }
+            candidateCount += candidates.size();
+            confirmedCount += candidates.stream()
+                    .filter(candidate -> TestDesignCandidateStatus.CONFIRMED.name().equals(candidate.status()))
+                    .count();
+            publishedCount += candidates.stream()
+                    .filter(candidate -> TestDesignCandidateStatus.PUBLISHED.name().equals(candidate.status()))
+                    .count();
+            stepCompleteCount += candidates.stream().filter(TestDesignQualityService.this::hasCompleteSteps).count();
+            expectedCompleteCount += candidates.stream()
+                    .filter(candidate -> StringUtils.hasText(candidate.expectedResult()))
+                    .count();
+            lowConfidenceCount += candidates.stream()
+                    .filter(TestDesignQualityService::isLowConfidence)
+                    .count();
+            errorCount += candidates.stream()
+                    .filter(candidate -> StringUtils.hasText(candidate.errorMessage()))
+                    .count();
+            duplicateKeyCollisionCount += TestDesignQualityService.duplicateKeyCollisionCount(candidates);
+            correctionCount += reviewRecords.stream()
+                    .filter(TestDesignQualityService::isPromptTuningCorrection)
+                    .map(TestDesignReviewRecord::candidateId)
+                    .distinct()
+                    .count();
+            rejectedCount += reviewRecords.stream()
+                    .filter(record -> TestDesignCandidateStatus.REJECTED.name().equals(record.action()))
+                    .map(TestDesignReviewRecord::candidateId)
+                    .distinct()
+                    .count();
+            ignoredCount += reviewRecords.stream()
+                    .filter(record -> TestDesignCandidateStatus.IGNORED.name().equals(record.action()))
+                    .map(TestDesignReviewRecord::candidateId)
+                    .distinct()
+                    .count();
+        }
+
+        private long candidateCount() {
+            return candidateCount;
+        }
+
+        private TestDesignPromptTrendBucketResponse toResponse() {
+            long feedbackSignalCount = correctionCount + rejectedCount + ignoredCount;
+            return new TestDesignPromptTrendBucketResponse(
+                    promptKey,
+                    promptVersion,
+                    taskCount,
+                    candidateCount,
+                    confirmedCount,
+                    publishedCount,
+                    stepCompleteCount,
+                    expectedCompleteCount,
+                    lowConfidenceCount,
+                    errorCount,
+                    duplicateKeyCollisionCount,
+                    correctionCount,
+                    rejectedCount,
+                    ignoredCount,
+                    percentValue(stepCompleteCount, candidateCount),
+                    percentValue(expectedCompleteCount, candidateCount),
+                    percentValue(lowConfidenceCount, candidateCount),
+                    percentValue(errorCount, candidateCount),
+                    percentValue(feedbackSignalCount, candidateCount),
+                    latestTaskCreatedAt
+            );
+        }
     }
 
 }

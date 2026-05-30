@@ -197,6 +197,38 @@ export interface TestDesignQualitySummaryView {
   generatedAt?: string;
 }
 
+export interface TestDesignPromptTrendBucketView {
+  promptKey: string;
+  promptVersion: string;
+  taskCount: number;
+  candidateCount: number;
+  confirmedCount: number;
+  publishedCount: number;
+  stepCompleteCount: number;
+  expectedCompleteCount: number;
+  lowConfidenceCount: number;
+  errorCount: number;
+  duplicateKeyCollisionCount: number;
+  correctionCount: number;
+  rejectedCount: number;
+  ignoredCount: number;
+  stepCompletePercent: number;
+  expectedCompletePercent: number;
+  lowConfidencePercent: number;
+  errorPercent: number;
+  feedbackSignalPercent: number;
+  latestTaskCreatedAt?: string;
+}
+
+export interface TestDesignPromptTrendView {
+  projectId?: string;
+  promptKey?: string;
+  taskCount: number;
+  candidateCount: number;
+  buckets: TestDesignPromptTrendBucketView[];
+  generatedAt?: string;
+}
+
 export interface TestDesignTaskDetail {
   task: TestDesignTaskView;
   candidates: TestDesignCandidateView[];
@@ -330,6 +362,14 @@ export interface TestDesignTaskFilters {
   projectId?: string;
   status?: string;
   keyword?: string;
+  promptKey?: string;
+}
+
+export interface TestDesignPromptTrendFilters {
+  index?: number;
+  size?: number;
+  projectId?: string;
+  promptKey?: string;
 }
 
 export interface TestDesignCandidateFilters {
@@ -679,6 +719,44 @@ export function normalizeTestDesignQualitySummary(raw: unknown): TestDesignQuali
   };
 }
 
+export function normalizeTestDesignPromptTrendBucket(raw: unknown): TestDesignPromptTrendBucketView {
+  const item = isRecord(raw) ? raw : {};
+  return {
+    promptKey: stringValue(item.promptKey ?? item.prompt_key, 'UNKNOWN'),
+    promptVersion: stringValue(item.promptVersion ?? item.prompt_version, 'UNKNOWN'),
+    taskCount: numberValue(item.taskCount ?? item.task_count, 0),
+    candidateCount: numberValue(item.candidateCount ?? item.candidate_count, 0),
+    confirmedCount: numberValue(item.confirmedCount ?? item.confirmed_count, 0),
+    publishedCount: numberValue(item.publishedCount ?? item.published_count, 0),
+    stepCompleteCount: numberValue(item.stepCompleteCount ?? item.step_complete_count, 0),
+    expectedCompleteCount: numberValue(item.expectedCompleteCount ?? item.expected_complete_count, 0),
+    lowConfidenceCount: numberValue(item.lowConfidenceCount ?? item.low_confidence_count, 0),
+    errorCount: numberValue(item.errorCount ?? item.error_count, 0),
+    duplicateKeyCollisionCount: numberValue(item.duplicateKeyCollisionCount ?? item.duplicate_key_collision_count, 0),
+    correctionCount: numberValue(item.correctionCount ?? item.correction_count, 0),
+    rejectedCount: numberValue(item.rejectedCount ?? item.rejected_count, 0),
+    ignoredCount: numberValue(item.ignoredCount ?? item.ignored_count, 0),
+    stepCompletePercent: numberValue(item.stepCompletePercent ?? item.step_complete_percent, 0),
+    expectedCompletePercent: numberValue(item.expectedCompletePercent ?? item.expected_complete_percent, 0),
+    lowConfidencePercent: numberValue(item.lowConfidencePercent ?? item.low_confidence_percent, 0),
+    errorPercent: numberValue(item.errorPercent ?? item.error_percent, 0),
+    feedbackSignalPercent: numberValue(item.feedbackSignalPercent ?? item.feedback_signal_percent, 0),
+    latestTaskCreatedAt: optionalString(item.latestTaskCreatedAt) ?? optionalString(item.latest_task_created_at)
+  };
+}
+
+export function normalizeTestDesignPromptTrend(raw: unknown): TestDesignPromptTrendView {
+  const item = isRecord(raw) ? raw : {};
+  return {
+    projectId: optionalString(item.projectId) ?? optionalString(item.project_id),
+    promptKey: optionalString(item.promptKey) ?? optionalString(item.prompt_key),
+    taskCount: numberValue(item.taskCount ?? item.task_count, 0),
+    candidateCount: numberValue(item.candidateCount ?? item.candidate_count, 0),
+    buckets: listItems(item.buckets).map(normalizeTestDesignPromptTrendBucket),
+    generatedAt: optionalString(item.generatedAt) ?? optionalString(item.generated_at)
+  };
+}
+
 export function normalizeTestDesignCandidateBatchActionItem(raw: unknown): TestDesignCandidateBatchActionItem {
   const item = isRecord(raw) ? raw : {};
   return {
@@ -808,6 +886,13 @@ export async function fetchTestDesignTaskSummary(taskId: string): Promise<ApiRes
 export async function fetchTestDesignTaskQualitySummary(taskId: string): Promise<ApiResponse<TestDesignQualitySummaryView>> {
   const response = await requestJson<unknown>(`/api/v1/test-design/tasks/${encodeURIComponent(taskId)}/quality/summary`);
   return { ...response, data: normalizeTestDesignQualitySummary(response.data) };
+}
+
+export async function fetchTestDesignPromptTrend(
+  filters: TestDesignPromptTrendFilters = {}
+): Promise<ApiResponse<TestDesignPromptTrendView>> {
+  const response = await requestJson<unknown>(`/api/v1/test-design/quality/prompt-trend${queryString(filters as Record<string, unknown>)}`);
+  return { ...response, data: normalizeTestDesignPromptTrend(response.data) };
 }
 
 export async function retryTestDesignTask(taskId: string): Promise<ApiResponse<TestDesignTaskDetail>> {

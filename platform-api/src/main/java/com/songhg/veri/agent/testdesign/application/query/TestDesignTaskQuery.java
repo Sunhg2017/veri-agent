@@ -12,6 +12,8 @@ public record TestDesignTaskQuery(
         String status,
         /** 任务名称或说明搜索关键字 */
         String keyword,
+        /** Prompt 模板标识过滤条件 */
+        String promptKey,
         /** 分页参数 */
         PageQuery page
 ) {

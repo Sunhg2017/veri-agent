@@ -125,6 +125,7 @@
                     or position(lower(#{query.keyword}) in lower(coalesce(requirement_ids, ''))) > 0
                 )
             </if>
+            <if test="query.promptKey != null and query.promptKey != ''">and prompt_key = #{query.promptKey}</if>
         </where>
     </sql>
 
