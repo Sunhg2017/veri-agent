@@ -23,6 +23,7 @@ export interface TestDesignHealth {
   evaluationCorpusPolicy?: TestDesignEvaluationCorpusPolicyView;
   releaseReadinessPolicy?: TestDesignReleaseReadinessPolicyView;
   auditChainPolicy?: TestDesignAuditChainPolicyView;
+  archivePolicy?: TestDesignArchivePolicyView;
   supportedCoverageTypes: string[];
 }
 
@@ -54,6 +55,7 @@ export interface TestDesignTaskView {
   evaluationCorpusPolicy?: TestDesignEvaluationCorpusPolicyView;
   releaseReadinessPolicy?: TestDesignReleaseReadinessPolicyView;
   auditChainPolicy?: TestDesignAuditChainPolicyView;
+  archivePolicy?: TestDesignArchivePolicyView;
   contextSummary: Record<string, unknown>;
   createdAt?: string;
   updatedAt?: string;
@@ -181,6 +183,22 @@ export interface TestDesignAuditChainPolicyView {
   publishIdentifierValueExported?: boolean;
   crossWpAuditDashboardReady?: boolean;
   auditOutboxReplayDashboardReady?: boolean;
+  aggregateOnly?: boolean;
+}
+
+export interface TestDesignArchivePolicyView {
+  policyVersion?: string;
+  retentionDays?: number;
+  storagePolicy?: string;
+  approvalRequired?: boolean;
+  archiveApprovalWorkflowReady?: boolean;
+  externalSharingAllowed?: boolean;
+  retentionPolicyTracked?: boolean;
+  archiveStorageReady?: boolean;
+  archivePathExported?: boolean;
+  archiveNotesExported?: boolean;
+  approvalNotesExported?: boolean;
+  ticketUrlExported?: boolean;
   aggregateOnly?: boolean;
 }
 
@@ -701,6 +719,7 @@ export function normalizeTestDesignHealth(raw: unknown): TestDesignHealth {
       item.releaseReadinessPolicy ?? item.release_readiness_policy
     ),
     auditChainPolicy: normalizeTestDesignAuditChainPolicy(item.auditChainPolicy ?? item.audit_chain_policy),
+    archivePolicy: normalizeTestDesignArchivePolicy(item.archivePolicy ?? item.archive_policy),
     supportedCoverageTypes: stringArrayValue(item.supportedCoverageTypes ?? item.supported_coverage_types)
   };
 }
@@ -746,6 +765,7 @@ export function normalizeTestDesignTask(raw: unknown): TestDesignTaskView {
       item.releaseReadinessPolicy ?? item.release_readiness_policy
     ),
     auditChainPolicy: normalizeTestDesignAuditChainPolicy(item.auditChainPolicy ?? item.audit_chain_policy),
+    archivePolicy: normalizeTestDesignArchivePolicy(item.archivePolicy ?? item.archive_policy),
     contextSummary: recordValue(item.contextSummary ?? item.context_summary),
     createdAt: optionalString(item.createdAt) ?? optionalString(item.created_at),
     updatedAt: optionalString(item.updatedAt) ?? optionalString(item.updated_at)
@@ -998,6 +1018,29 @@ export function normalizeTestDesignAuditChainPolicy(
     auditOutboxReplayDashboardReady: optionalBoolean(
       raw.auditOutboxReplayDashboardReady ?? raw.audit_outbox_replay_dashboard_ready
     ),
+    aggregateOnly: optionalBoolean(raw.aggregateOnly ?? raw.aggregate_only)
+  };
+}
+
+export function normalizeTestDesignArchivePolicy(raw: unknown): TestDesignArchivePolicyView | undefined {
+  if (!isRecord(raw)) {
+    return undefined;
+  }
+  return {
+    policyVersion: optionalString(raw.policyVersion) ?? optionalString(raw.policy_version),
+    retentionDays: optionalNumber(raw.retentionDays ?? raw.retention_days),
+    storagePolicy: optionalString(raw.storagePolicy) ?? optionalString(raw.storage_policy),
+    approvalRequired: optionalBoolean(raw.approvalRequired ?? raw.approval_required),
+    archiveApprovalWorkflowReady: optionalBoolean(
+      raw.archiveApprovalWorkflowReady ?? raw.archive_approval_workflow_ready
+    ),
+    externalSharingAllowed: optionalBoolean(raw.externalSharingAllowed ?? raw.external_sharing_allowed),
+    retentionPolicyTracked: optionalBoolean(raw.retentionPolicyTracked ?? raw.retention_policy_tracked),
+    archiveStorageReady: optionalBoolean(raw.archiveStorageReady ?? raw.archive_storage_ready),
+    archivePathExported: optionalBoolean(raw.archivePathExported ?? raw.archive_path_exported),
+    archiveNotesExported: optionalBoolean(raw.archiveNotesExported ?? raw.archive_notes_exported),
+    approvalNotesExported: optionalBoolean(raw.approvalNotesExported ?? raw.approval_notes_exported),
+    ticketUrlExported: optionalBoolean(raw.ticketUrlExported ?? raw.ticket_url_exported),
     aggregateOnly: optionalBoolean(raw.aggregateOnly ?? raw.aggregate_only)
   };
 }

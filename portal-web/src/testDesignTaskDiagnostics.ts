@@ -80,6 +80,11 @@ export function buildTestDesignTaskDiagnostics(task: TestDesignTaskView | null |
       value: summarizeTestDesignAuditChainPolicy(task),
       tone: auditChainPolicyTone(task)
     },
+    {
+      label: '归档策略',
+      value: summarizeTestDesignArchivePolicy(task),
+      tone: archivePolicyTone(task)
+    },
     { label: '请求人', value: displayDiagnosticText(task.requestedBy) },
     { label: '创建', value: formatDateTime(task.createdAt) },
     { label: '更新', value: formatDateTime(task.updatedAt) },
@@ -295,6 +300,28 @@ export function summarizeTestDesignAuditChainPolicy(task: TestDesignTaskView | n
     .join(' · ') || '-';
 }
 
+export function summarizeTestDesignArchivePolicy(task: TestDesignTaskView | null | undefined): string {
+  const policy = task?.archivePolicy ?? archivePolicyFromContextSummary(task?.contextSummary);
+  if (!policy) {
+    return '-';
+  }
+
+  const version = displayDiagnosticText(policy.policyVersion, 32);
+  const storage = displayDiagnosticText(policy.storagePolicy, 32);
+  const retention = typeof policy.retentionDays === 'number' && Number.isFinite(policy.retentionDays)
+    ? `保留:${Math.floor(policy.retentionDays)}天`
+    : '保留:-';
+  const approval = policy.approvalRequired === true ? '审批:required' : '审批:optional';
+  const workflow = policy.archiveApprovalWorkflowReady === true ? '审批流:ready' : '审批流:pending';
+  const storageReady = policy.archiveStorageReady === true ? '归档存储:ready' : '归档存储:pending';
+  const sharing = policy.externalSharingAllowed === true ? '外发:on' : '外发:off';
+  const retentionTracked = policy.retentionPolicyTracked === true ? '保留策略:tracked' : '保留策略:missing';
+  const detailExport = anyArchiveDetailExported(policy) ? '细节导出:on' : '细节导出:off';
+  return [version, storage, retention, approval, workflow, storageReady, sharing, retentionTracked, detailExport]
+    .filter((part) => part !== '-')
+    .join(' · ') || '-';
+}
+
 function contextAssemblyPolicyTone(task: TestDesignTaskView): TestDesignTaskDiagnosticTone {
   const policy = task.contextAssemblyPolicy ?? assemblyPolicyFromContextSummary(task.contextSummary);
   if (
@@ -422,6 +449,29 @@ function auditChainPolicyTone(task: TestDesignTaskView): TestDesignTaskDiagnosti
     return 'danger';
   }
   if (policy?.crossWpAuditDashboardReady === false || policy?.auditOutboxReplayDashboardReady === false) {
+    return 'warning';
+  }
+  return 'neutral';
+}
+
+function archivePolicyTone(task: TestDesignTaskView): TestDesignTaskDiagnosticTone {
+  const policy = task.archivePolicy ?? archivePolicyFromContextSummary(task.contextSummary);
+  if (
+    typeof policy?.retentionDays === 'number' && policy.retentionDays <= 0 ||
+    policy?.retentionPolicyTracked === false ||
+    policy?.archivePathExported === true ||
+    policy?.archiveNotesExported === true ||
+    policy?.approvalNotesExported === true ||
+    policy?.ticketUrlExported === true ||
+    policy?.aggregateOnly === false
+  ) {
+    return 'danger';
+  }
+  if (
+    policy?.archiveStorageReady === false ||
+    policy?.archiveApprovalWorkflowReady === false ||
+    policy?.externalSharingAllowed === true
+  ) {
     return 'warning';
   }
   return 'neutral';
@@ -576,6 +626,32 @@ function auditChainPolicyFromContextSummary(contextSummary: Record<string, unkno
   };
 }
 
+function archivePolicyFromContextSummary(contextSummary: Record<string, unknown> | null | undefined) {
+  if (!contextSummary || typeof contextSummary !== 'object') {
+    return undefined;
+  }
+  const raw = contextSummary.archivePolicy;
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    return undefined;
+  }
+  const record = raw as Record<string, unknown>;
+  return {
+    policyVersion: safeOptionalString(record.policyVersion),
+    retentionDays: safeOptionalNumber(record.retentionDays),
+    storagePolicy: safeOptionalString(record.storagePolicy),
+    approvalRequired: safeOptionalBoolean(record.approvalRequired),
+    archiveApprovalWorkflowReady: safeOptionalBoolean(record.archiveApprovalWorkflowReady),
+    externalSharingAllowed: safeOptionalBoolean(record.externalSharingAllowed),
+    retentionPolicyTracked: safeOptionalBoolean(record.retentionPolicyTracked),
+    archiveStorageReady: safeOptionalBoolean(record.archiveStorageReady),
+    archivePathExported: safeOptionalBoolean(record.archivePathExported),
+    archiveNotesExported: safeOptionalBoolean(record.archiveNotesExported),
+    approvalNotesExported: safeOptionalBoolean(record.approvalNotesExported),
+    ticketUrlExported: safeOptionalBoolean(record.ticketUrlExported),
+    aggregateOnly: safeOptionalBoolean(record.aggregateOnly)
+  };
+}
+
 function governanceFromContextSummary(contextSummary: Record<string, unknown> | null | undefined) {
   if (!contextSummary || typeof contextSummary !== 'object') {
     return undefined;
@@ -638,6 +714,21 @@ function anyAssemblyDetailExported(policy: {
     policy.flowJsonExported === true ||
     policy.explicitAssetIdentifierListExported === true ||
     policy.historicalCaseStepExported === true;
+}
+
+function anyArchiveDetailExported(policy: {
+  archivePathExported?: boolean;
+  archiveNotesExported?: boolean;
+  approvalNotesExported?: boolean;
+  ticketUrlExported?: boolean;
+} | null | undefined) {
+  if (!policy) {
+    return false;
+  }
+  return policy.archivePathExported === true ||
+    policy.archiveNotesExported === true ||
+    policy.approvalNotesExported === true ||
+    policy.ticketUrlExported === true;
 }
 
 function contextPolicyPart(record: Record<string, unknown>, key: string, label: string) {
@@ -735,6 +826,13 @@ function safeOptionalString(value: unknown) {
 
 function safeOptionalBoolean(value: unknown) {
   if (typeof value === 'boolean') {
+    return value;
+  }
+  return undefined;
+}
+
+function safeOptionalNumber(value: unknown) {
+  if (typeof value === 'number' && Number.isFinite(value)) {
     return value;
   }
   return undefined;

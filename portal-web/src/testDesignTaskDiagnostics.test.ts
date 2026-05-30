@@ -166,6 +166,21 @@ const baseTask: TestDesignTaskView = {
     auditOutboxReplayDashboardReady: false,
     aggregateOnly: true
   },
+  archivePolicy: {
+    policyVersion: 'wp5-archive-policy-v1',
+    retentionDays: 180,
+    storagePolicy: 'platformManaged',
+    approvalRequired: true,
+    archiveApprovalWorkflowReady: false,
+    externalSharingAllowed: false,
+    retentionPolicyTracked: true,
+    archiveStorageReady: false,
+    archivePathExported: false,
+    archiveNotesExported: false,
+    approvalNotesExported: false,
+    ticketUrlExported: false,
+    aggregateOnly: true
+  },
   contextSummary: {
     contextVersion: 'ctx-v3',
     requirements: [{ id: 'req-1' }, { id: 'req-2' }],
@@ -249,6 +264,11 @@ describe('WP5 task diagnostics helpers', () => {
           label: '审计链',
           tone: 'warning',
           value: 'WP5_DOMAIN_AGGREGATE_WITH_WP1_AUDIT · TASK_REVIEW_PUBLISH_MODEL_REFERENCES · WP1审计:written · WP2调用:tracked · WP3发布:tracked · WP5本域:tracked · 项目作用域:required · trace信号:tracked · 跨WP看板:pending · outbox看板:pending'
+        }),
+        expect.objectContaining({
+          label: '归档策略',
+          tone: 'warning',
+          value: 'wp5-archive-policy-v1 · platformManaged · 保留:180天 · 审批:required · 审批流:pending · 归档存储:pending · 外发:off · 保留策略:tracked · 细节导出:off'
         }),
         expect.objectContaining({
           label: '错误',
@@ -661,6 +681,70 @@ describe('WP5 task diagnostics helpers', () => {
           label: '审计链',
           tone: 'danger',
           value: expect.stringContaining('WP1审计:missing')
+        })
+      ])
+    );
+  });
+
+  it('falls back to aggregate archive policy from the task summary', () => {
+    const diagnostics = buildTestDesignTaskDiagnostics({
+      ...baseTask,
+      archivePolicy: undefined,
+      contextSummary: {
+        archivePolicy: {
+          policyVersion: 'wp5-archive-policy-v1',
+          retentionDays: 365,
+          storagePolicy: 'platformManaged',
+          approvalRequired: true,
+          archiveApprovalWorkflowReady: false,
+          externalSharingAllowed: false,
+          retentionPolicyTracked: true,
+          archiveStorageReady: false,
+          archivePathExported: false,
+          archiveNotesExported: false,
+          approvalNotesExported: false,
+          ticketUrlExported: false,
+          aggregateOnly: true,
+          archivePath: 's3://tenant-secret/archive.csv',
+          archiveNotes: 'archive-note-text',
+          approvalNotes: 'approval note should not appear',
+          ticketUrl: 'https://ticket.example/archive-secret'
+        }
+      }
+    });
+
+    expect(diagnostics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          label: '归档策略',
+          tone: 'warning',
+          value: expect.stringContaining('保留:365天')
+        })
+      ])
+    );
+    expect(JSON.stringify(diagnostics)).not.toContain('tenant-secret');
+    expect(JSON.stringify(diagnostics)).not.toContain('archive-note-text');
+    expect(JSON.stringify(diagnostics)).not.toContain('approval note should not appear');
+    expect(JSON.stringify(diagnostics)).not.toContain('https://ticket.example');
+  });
+
+  it('marks unsafe archive policy as danger', () => {
+    const diagnostics = buildTestDesignTaskDiagnostics({
+      ...baseTask,
+      archivePolicy: {
+        ...baseTask.archivePolicy,
+        retentionDays: 0,
+        archivePathExported: true,
+        approvalNotesExported: true
+      }
+    });
+
+    expect(diagnostics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          label: '归档策略',
+          tone: 'danger',
+          value: expect.stringContaining('细节导出:on')
         })
       ])
     );

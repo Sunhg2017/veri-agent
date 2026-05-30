@@ -47,9 +47,10 @@ class TestDesignGenerationServiceTest {
 
     @Test
     void appliesConfiguredContextClippingToPersistedSummary() throws Exception {
-        TestDesignGenerationService service = service(properties(1, 2, 1, 24, 26, 32), mock(AssetService.class));
+        TestDesignProperties properties = properties(1, 2, 1, 24, 26, 32);
+        TestDesignGenerationService service = service(properties, mock(AssetService.class));
         AssetService assetService = mock(AssetService.class);
-        service = service(properties(1, 2, 1, 24, 26, 32), assetService);
+        service = service(properties, assetService);
         when(assetService.listLinks(any(TraceLinkListRequest.class))).thenReturn(com.songhg.veri.agent.common.api.PageResponse.of(
                 List.of(
                         traceLink(API_ID_1, PAGE_ID_1, FLOW_ID_1),
@@ -198,6 +199,20 @@ class TestDesignGenerationServiceTest {
         assertThat(summary.path("auditChainPolicy").path("modelInvocationIdValueExported").asBoolean()).isFalse();
         assertThat(summary.path("auditChainPolicy").path("publishIdentifierValueExported").asBoolean()).isFalse();
         assertThat(summary.path("auditChainPolicy").path("aggregateOnly").asBoolean()).isTrue();
+        assertThat(summary.path("archivePolicy").path("policyVersion").asText())
+                .isEqualTo("wp5-archive-policy-v1");
+        assertThat(summary.path("archivePolicy").path("retentionDays").asInt()).isEqualTo(180);
+        assertThat(summary.path("archivePolicy").path("storagePolicy").asText()).isEqualTo("platformManaged");
+        assertThat(summary.path("archivePolicy").path("approvalRequired").asBoolean()).isTrue();
+        assertThat(summary.path("archivePolicy").path("archiveApprovalWorkflowReady").asBoolean()).isFalse();
+        assertThat(summary.path("archivePolicy").path("externalSharingAllowed").asBoolean()).isFalse();
+        assertThat(summary.path("archivePolicy").path("retentionPolicyTracked").asBoolean()).isTrue();
+        assertThat(summary.path("archivePolicy").path("archiveStorageReady").asBoolean()).isFalse();
+        assertThat(summary.path("archivePolicy").path("archivePathExported").asBoolean()).isFalse();
+        assertThat(summary.path("archivePolicy").path("archiveNotesExported").asBoolean()).isFalse();
+        assertThat(summary.path("archivePolicy").path("approvalNotesExported").asBoolean()).isFalse();
+        assertThat(summary.path("archivePolicy").path("ticketUrlExported").asBoolean()).isFalse();
+        assertThat(summary.path("archivePolicy").path("aggregateOnly").asBoolean()).isTrue();
         assertThat(summary.path("linkedAssetsByRequirement").get(0).path("apiCount").asInt()).isEqualTo(2);
         assertThat(summary.path("linkedAssetsByRequirement").get(0).path("apis")).hasSize(1);
         assertThat(summary.path("linkedAssetsByRequirement").get(0).path("pages")).hasSize(1);
@@ -213,7 +228,7 @@ class TestDesignGenerationServiceTest {
     void sendsContextPackingPolicyToWp2ModelPayload() throws Exception {
         InMemoryModelAccessRepository repository = new InMemoryModelAccessRepository();
         TestDesignProperties properties = properties(3, 4, 2, 120, 130, 140);
-        TestDesignResponseMapper mapper = responseMapper(repository);
+        TestDesignResponseMapper mapper = responseMapper(repository, properties);
         ModelInvocationService invocationService = mock(ModelInvocationService.class);
         ArgumentCaptor<ModelInvocationCommand> commandCaptor = ArgumentCaptor.forClass(ModelInvocationCommand.class);
         when(invocationService.invoke(commandCaptor.capture(), any(ServicePrincipal.class))).thenReturn(new ModelInvocationResult(
@@ -355,13 +370,32 @@ class TestDesignGenerationServiceTest {
                 .isFalse();
         assertThat(payload.path("contextPacking").path("auditChainPolicy").path("aggregateOnly").asBoolean())
                 .isTrue();
+        assertThat(payload.path("contextPacking").path("archivePolicy").path("policyVersion").asText())
+                .isEqualTo("wp5-archive-policy-v1");
+        assertThat(payload.path("contextPacking").path("archivePolicy").path("retentionDays").asInt()).isEqualTo(180);
+        assertThat(payload.path("contextPacking").path("archivePolicy").path("storagePolicy").asText())
+                .isEqualTo("platformManaged");
+        assertThat(payload.path("contextPacking").path("archivePolicy").path("approvalRequired").asBoolean())
+                .isTrue();
+        assertThat(payload.path("contextPacking").path("archivePolicy").path("archiveApprovalWorkflowReady").asBoolean())
+                .isFalse();
+        assertThat(payload.path("contextPacking").path("archivePolicy").path("archiveStorageReady").asBoolean())
+                .isFalse();
+        assertThat(payload.path("contextPacking").path("archivePolicy").path("archivePathExported").asBoolean())
+                .isFalse();
+        assertThat(payload.path("contextPacking").path("archivePolicy").path("approvalNotesExported").asBoolean())
+                .isFalse();
+        assertThat(payload.path("contextPacking").path("archivePolicy").path("ticketUrlExported").asBoolean())
+                .isFalse();
+        assertThat(payload.path("contextPacking").path("archivePolicy").path("aggregateOnly").asBoolean())
+                .isTrue();
         assertThat(commandCaptor.getValue().promptKey()).isEqualTo("wp5-test-design-v1");
         assertThat(commandCaptor.getValue().messages()).hasSize(1);
     }
 
     private TestDesignGenerationService service(TestDesignProperties properties, AssetService assetService) {
         InMemoryModelAccessRepository repository = new InMemoryModelAccessRepository();
-        TestDesignResponseMapper mapper = responseMapper(repository);
+        TestDesignResponseMapper mapper = responseMapper(repository, properties);
         return new TestDesignGenerationService(
                 assetService,
                 mapper,
@@ -373,9 +407,12 @@ class TestDesignGenerationServiceTest {
         );
     }
 
-    private TestDesignResponseMapper responseMapper(InMemoryModelAccessRepository repository) {
+    private TestDesignResponseMapper responseMapper(
+            InMemoryModelAccessRepository repository,
+            TestDesignProperties properties
+    ) {
         ModelInvocationJobRepository jobRepository = new InMemoryModelInvocationJobRepository();
-        return new TestDesignResponseMapper(objectMapper, repository, jobRepository);
+        return new TestDesignResponseMapper(objectMapper, repository, jobRepository, properties);
     }
 
     private ModelInvocationService modelInvocationService(

@@ -3,6 +3,7 @@ package com.songhg.veri.agent.testdesign.application;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
 import com.songhg.veri.agent.common.util.CsvEncoder;
+import com.songhg.veri.agent.testdesign.application.view.TestDesignArchivePolicyResponse;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignTaskResponse;
 import com.songhg.veri.agent.testdesign.config.TestDesignProperties;
 import java.time.Instant;
@@ -114,16 +115,33 @@ final class TestDesignTaskReportExportGovernance {
             Instant generatedAt,
             TestDesignProperties properties
     ) {
+        TestDesignArchivePolicyResponse policy = TestDesignArchivePolicy.response(properties);
+        appendRow(csv, task, generatedAt, "metadata", "archivePolicy", "policyVersion", null,
+                policy.policyVersion(), null, null, "fullTask", null);
         appendRow(csv, task, generatedAt, "metadata", "archivePolicy", "retentionDays", null,
-                properties.effectiveReportArchiveRetentionDays(), null, null, "fullTask", null);
+                policy.retentionDays(), null, null, "fullTask", null);
         appendRow(csv, task, generatedAt, "metadata", "archivePolicy", "storagePolicy", null,
-                "platformManaged", null, null, "fullTask", null);
+                policy.storagePolicy(), null, null, "fullTask", null);
         appendRow(csv, task, generatedAt, "metadata", "archivePolicy", "approvalRequired", null,
-                properties.reportArchiveApprovalRequired(), null, null, "fullTask", null);
+                policy.approvalRequired(), null, null, "fullTask", null);
+        appendRow(csv, task, generatedAt, "metadata", "archivePolicy", "archiveApprovalWorkflowReady", null,
+                policy.archiveApprovalWorkflowReady(), null, "warning", "fullTask", null);
         appendRow(csv, task, generatedAt, "metadata", "archivePolicy", "externalSharingAllowed", null,
-                properties.reportArchiveExternalSharingAllowed(), null, null, "fullTask", null);
+                policy.externalSharingAllowed(), null, null, "fullTask", null);
         appendRow(csv, task, generatedAt, "metadata", "archivePolicy", "retentionPolicyTracked", null,
-                true, null, "success", "fullTask", null);
+                policy.retentionPolicyTracked(), null, "success", "fullTask", null);
+        appendRow(csv, task, generatedAt, "metadata", "archivePolicy", "archiveStorageReady", null,
+                policy.archiveStorageReady(), null, "warning", "fullTask", null);
+        appendRow(csv, task, generatedAt, "metadata", "archivePolicy", "archivePathExported", null,
+                policy.archivePathExported(), null, null, "fullTask", null);
+        appendRow(csv, task, generatedAt, "metadata", "archivePolicy", "archiveNotesExported", null,
+                policy.archiveNotesExported(), null, null, "fullTask", null);
+        appendRow(csv, task, generatedAt, "metadata", "archivePolicy", "approvalNotesExported", null,
+                policy.approvalNotesExported(), null, null, "fullTask", null);
+        appendRow(csv, task, generatedAt, "metadata", "archivePolicy", "ticketUrlExported", null,
+                policy.ticketUrlExported(), null, null, "fullTask", null);
+        appendRow(csv, task, generatedAt, "metadata", "archivePolicy", "aggregateOnly", null,
+                policy.aggregateOnly(), null, "success", "fullTask", null);
     }
 
     /**

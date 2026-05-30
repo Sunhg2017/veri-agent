@@ -1,6 +1,7 @@
 package com.songhg.veri.agent.testdesign.application;
 
 import com.songhg.veri.agent.common.error.BusinessException;
+import com.songhg.veri.agent.testdesign.application.view.TestDesignArchivePolicyResponse;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignModelObservationResponse;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignQualityReadinessCheckResponse;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignQualityReadinessResponse;
@@ -68,6 +69,7 @@ class TestDesignTaskReportServiceTest {
                 TestDesignEvaluationCorpusPolicy.response(),
                 TestDesignReleaseReadinessPolicy.response(),
                 TestDesignAuditChainPolicy.response(),
+                archivePolicy(),
                 Map.of(),
                 Instant.parse("2026-05-30T00:00:00Z"),
                 Instant.parse("2026-05-30T00:00:00Z")
@@ -123,6 +125,7 @@ class TestDesignTaskReportServiceTest {
                 TestDesignEvaluationCorpusPolicy.response(),
                 TestDesignReleaseReadinessPolicy.response(),
                 TestDesignAuditChainPolicy.response(),
+                archivePolicy(),
                 Map.of(),
                 Instant.parse("2026-05-30T00:00:00Z"),
                 Instant.parse("2026-05-30T00:00:00Z")
@@ -144,13 +147,25 @@ class TestDesignTaskReportServiceTest {
                 .contains("safetyScanPolicy,rawPayloadMarkerScan,,true")
                 .contains("safetyScanPolicy,requestResponsePreviewScan,,true")
                 .contains("safetyScanPolicy,findingDetailsExported,,false")
+                .contains("archivePolicy,policyVersion,,wp5-archive-policy-v1")
                 .contains("archivePolicy,retentionDays,,3650")
                 .contains("archivePolicy,storagePolicy,,platformManaged")
                 .contains("archivePolicy,approvalRequired,,false")
+                .contains("archivePolicy,archiveApprovalWorkflowReady,,false,,warning")
                 .contains("archivePolicy,externalSharingAllowed,,true")
                 .contains("archivePolicy,retentionPolicyTracked,,true,,success")
+                .contains("archivePolicy,archiveStorageReady,,false,,warning")
+                .contains("archivePolicy,archivePathExported,,false")
+                .contains("archivePolicy,archiveNotesExported,,false")
+                .contains("archivePolicy,approvalNotesExported,,false")
+                .contains("archivePolicy,ticketUrlExported,,false")
+                .contains("archivePolicy,aggregateOnly,,true,,success")
                 .doesNotContain("auditLogId")
                 .doesNotContain("afterJson")
+                .doesNotContain("s3://")
+                .doesNotContain("archive-note-text")
+                .doesNotContain("approval-note-text")
+                .doesNotContain("https://ticket.example")
                 .doesNotContain("secret-value");
     }
 
@@ -185,6 +200,7 @@ class TestDesignTaskReportServiceTest {
                 TestDesignEvaluationCorpusPolicy.response(),
                 TestDesignReleaseReadinessPolicy.response(),
                 TestDesignAuditChainPolicy.response(),
+                archivePolicy(),
                 Map.of(),
                 Instant.parse("2026-05-30T00:00:00Z"),
                 Instant.parse("2026-05-30T00:00:00Z")
@@ -246,6 +262,7 @@ class TestDesignTaskReportServiceTest {
                 TestDesignEvaluationCorpusPolicy.response(),
                 TestDesignReleaseReadinessPolicy.response(),
                 TestDesignAuditChainPolicy.response(),
+                archivePolicy(),
                 Map.of(),
                 Instant.parse("2026-05-30T00:00:00Z"),
                 Instant.parse("2026-05-30T00:00:00Z")
@@ -333,6 +350,7 @@ class TestDesignTaskReportServiceTest {
                 TestDesignEvaluationCorpusPolicy.response(),
                 TestDesignReleaseReadinessPolicy.response(),
                 TestDesignAuditChainPolicy.response(),
+                archivePolicy(),
                 Map.of(
                         "contextVersion", "wp5-context-v1",
                         "requirements", List.of(Map.of(
@@ -442,6 +460,7 @@ class TestDesignTaskReportServiceTest {
                 TestDesignEvaluationCorpusPolicy.response(),
                 TestDesignReleaseReadinessPolicy.response(),
                 TestDesignAuditChainPolicy.response(),
+                archivePolicy(),
                 Map.of(),
                 Instant.parse("2026-05-30T00:00:00Z"),
                 Instant.parse("2026-05-30T00:00:00Z")
@@ -507,6 +526,7 @@ class TestDesignTaskReportServiceTest {
                 TestDesignEvaluationCorpusPolicy.response(),
                 TestDesignReleaseReadinessPolicy.response(),
                 TestDesignAuditChainPolicy.response(),
+                archivePolicy(),
                 Map.of("scopePolicy", Map.of(
                         "candidateIds", List.of("candidate-secret-id"),
                         "roleRuleDetails", "role matrix should not appear",
@@ -575,6 +595,7 @@ class TestDesignTaskReportServiceTest {
                 TestDesignEvaluationCorpusPolicy.response(),
                 TestDesignReleaseReadinessPolicy.response(),
                 TestDesignAuditChainPolicy.response(),
+                archivePolicy(),
                 Map.of("evaluationCorpusPolicy", Map.of(
                         "corpusRows", List.of("sample-row-secret"),
                         "candidateBody", "候选正文不应导出",
@@ -672,6 +693,7 @@ class TestDesignTaskReportServiceTest {
                 TestDesignEvaluationCorpusPolicy.response(),
                 TestDesignReleaseReadinessPolicy.response(),
                 TestDesignAuditChainPolicy.response(),
+                archivePolicy(),
                 Map.of(),
                 Instant.parse("2026-05-30T00:00:00Z"),
                 Instant.parse("2026-05-30T00:00:00Z")
@@ -746,6 +768,7 @@ class TestDesignTaskReportServiceTest {
                 TestDesignEvaluationCorpusPolicy.response(),
                 TestDesignReleaseReadinessPolicy.response(),
                 TestDesignAuditChainPolicy.response(),
+                archivePolicy(),
                 Map.of(),
                 Instant.parse("2026-05-30T00:00:00Z"),
                 Instant.parse("2026-05-30T00:00:00Z")
@@ -820,6 +843,7 @@ class TestDesignTaskReportServiceTest {
                 TestDesignEvaluationCorpusPolicy.response(),
                 TestDesignReleaseReadinessPolicy.response(),
                 TestDesignAuditChainPolicy.response(),
+                archivePolicy(),
                 Map.of(),
                 Instant.parse("2026-05-30T00:00:00Z"),
                 Instant.parse("2026-05-30T00:00:00Z")
@@ -897,6 +921,7 @@ class TestDesignTaskReportServiceTest {
                 TestDesignEvaluationCorpusPolicy.response(),
                 TestDesignReleaseReadinessPolicy.response(),
                 TestDesignAuditChainPolicy.response(),
+                archivePolicy(),
                 Map.of("releaseReadinessPolicy", Map.of(
                         "candidateEvidence", "candidate-secret-id",
                         "approvalNotes", "approval note should not appear",
@@ -993,6 +1018,7 @@ class TestDesignTaskReportServiceTest {
                 TestDesignEvaluationCorpusPolicy.response(),
                 TestDesignReleaseReadinessPolicy.response(),
                 TestDesignAuditChainPolicy.response(),
+                archivePolicy(),
                 Map.of("auditChainPolicy", Map.of(
                         "auditLogIds", List.of("audit-log-secret"),
                         "candidateIds", List.of("candidate-secret-id"),
@@ -1112,6 +1138,10 @@ class TestDesignTaskReportServiceTest {
                 externalSharingAllowed,
                 approvalRequired
         );
+    }
+
+    private static TestDesignArchivePolicyResponse archivePolicy() {
+        return TestDesignArchivePolicy.response(properties(180, false, true));
     }
 
     private static TestDesignPublishRecord publishRecord(

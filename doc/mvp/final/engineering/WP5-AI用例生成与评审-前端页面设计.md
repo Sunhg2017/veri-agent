@@ -133,7 +133,7 @@ API client 需复用现有 `requestJson` 和 `ApiError` 处理，保留响应中
 | 生成数量 | 1 到 20 的整数。 |
 | 覆盖类型 | 至少 1 个。 |
 | 任务名称 | 必填，最长 160 字符。 |
-| 上下文选项 | 至少保留需求上下文；API/页面/流程/历史用例可通过追踪关系自动带入，也可在生成配置中显式输入 API/页面/业务流 ID。前端占位文案、任务诊断的上下文规模、上下文策略摘要、作用域策略摘要、评测语料摘要、发布准出摘要和审计链摘要优先读取健康接口返回的 `contextLimits`、`scopePolicy`、`evaluationCorpusPolicy`、`releaseReadinessPolicy`、`auditChainPolicy` 与任务 `contextSummary.limits/contextSummary.scopePolicy/contextSummary.evaluationCorpusPolicy/contextSummary.releaseReadinessPolicy/contextSummary.auditChainPolicy`。 |
+| 上下文选项 | 至少保留需求上下文；API/页面/流程/历史用例可通过追踪关系自动带入，也可在生成配置中显式输入 API/页面/业务流 ID。前端占位文案、任务诊断的上下文规模、上下文策略摘要、作用域策略摘要、评测语料摘要、发布准出摘要和审计链摘要优先读取健康接口返回的 `contextLimits`、`scopePolicy`、`evaluationCorpusPolicy`、`releaseReadinessPolicy`、`auditChainPolicy`、`archivePolicy` 与任务 `contextSummary.limits/contextSummary.scopePolicy/contextSummary.evaluationCorpusPolicy/contextSummary.releaseReadinessPolicy/contextSummary.auditChainPolicy/contextSummary.archivePolicy`。 |
 
 ### 7.2 候选编辑
 
@@ -165,6 +165,7 @@ API client 需复用现有 `requestJson` 和 `ApiError` 处理，保留响应中
 | evaluation corpus | 任务诊断展示 `evaluationCorpusPolicy` 的 golden set 基线、手动可选 AI 评测、部署配置阈值、项目作用域、质量门禁接入、准出分布/Prompt 版本跟踪和运营后台 pending；该状态只说明当前评测语料边界，不代表真实样本维护或长期校准后台已就绪。 |
 | release readiness | 任务诊断展示 `releaseReadinessPolicy` 的 advisory-only、发布阻断关闭、审批流 pending、人工准出、自动发布关闭和候选确认要求；该状态只说明当前准出边界，不代表真实审批流已就绪。 |
 | audit chain | 任务诊断展示 `auditChainPolicy` 的 WP1 审计写入、WP2 调用引用、WP3 发布引用、WP5 本域事件、项目作用域、trace 信号、跨 WP 看板 pending 和 outbox 看板 pending；该状态只说明当前审计链观测边界，不代表真实跨 WP 审计看板或 outbox 重放看板已就绪。 |
+| archive policy | 任务诊断展示 `archivePolicy` 的策略版本、保留天数、`platformManaged` 存储策略、审批要求、审批流 pending、真实归档存储 pending、外发开关、保留策略跟踪和细节导出关闭；该状态只说明当前归档治理边界，不代表真实归档存储、审批流、外发流程或工单流转已就绪。 |
 
 ## 9. 候选评审交互
 
@@ -196,5 +197,5 @@ API client 需复用现有 `requestJson` 和 `ApiError` 处理，保留响应中
 7. dryRun 结果能区分创建、重复、跳过和失败。
 8. 发布成功后可跳转 WP3 测试用例详情或列表筛选结果。
 9. loading/empty/error/partial success/version conflict/model blocked 状态均有可读展示。
-10. 任务诊断只展示上下文计数、裁剪策略、作用域策略、评测语料策略、发布准出审批策略和审计链策略聚合标记，不展示显式资产 ID、schema、页面树、流程 JSON、需求正文、候选 ID、角色规则、服务令牌原值、评测语料行、候选正文、评审评论、候选级准出证据、审批备注、阈值规则明细、平台审计标识原值、traceId 原值、模型调用 ID 原值、发布 sourceRef、资产 ID 或原始 Prompt。
+10. 任务诊断只展示上下文计数、裁剪策略、作用域策略、评测语料策略、发布准出审批策略、审计链策略和归档治理策略聚合标记，不展示显式资产 ID、schema、页面树、流程 JSON、需求正文、候选 ID、角色规则、服务令牌原值、评测语料行、候选正文、评审评论、候选级准出证据、审批备注、阈值规则明细、平台审计标识原值、traceId 原值、模型调用 ID 原值、发布 sourceRef、资产 ID、归档路径、归档备注、审批说明、工单 URL 或原始 Prompt。
 11. `cd portal-web && npm test`、`cd portal-web && npm run build`、WP5 前端 smoke 均通过。

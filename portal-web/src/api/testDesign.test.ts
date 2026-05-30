@@ -67,7 +67,7 @@ describe('WP5 test design API helpers', () => {
   });
 
   it('normalizes health, tasks, candidates and task detail responses', () => {
-    expect(normalizeTestDesignHealth({
+    const health = normalizeTestDesignHealth({
       status: 'UP',
       generation_mode: 'RULE_BASED',
       prompt_key: 'wp5.case.generate',
@@ -187,8 +187,24 @@ describe('WP5 test design API helpers', () => {
         audit_outbox_replay_dashboard_ready: false,
         aggregate_only: true
       },
+      archive_policy: {
+        policy_version: 'wp5-archive-policy-v1',
+        retention_days: 180,
+        storage_policy: 'platformManaged',
+        approval_required: true,
+        archive_approval_workflow_ready: false,
+        external_sharing_allowed: false,
+        retention_policy_tracked: true,
+        archive_storage_ready: false,
+        archive_path_exported: false,
+        archive_notes_exported: false,
+        approval_notes_exported: false,
+        ticket_url_exported: false,
+        aggregate_only: true
+      },
       supported_coverage_types: 'SMOKE,FUNCTIONAL'
-    })).toMatchObject({
+    });
+    expect(health).toMatchObject({
       service: 'test-design',
       status: 'UP',
       generationMode: 'RULE_BASED',
@@ -309,6 +325,21 @@ describe('WP5 test design API helpers', () => {
         auditOutboxReplayDashboardReady: false,
         aggregateOnly: true
       },
+      archivePolicy: {
+        policyVersion: 'wp5-archive-policy-v1',
+        retentionDays: 180,
+        storagePolicy: 'platformManaged',
+        approvalRequired: true,
+        archiveApprovalWorkflowReady: false,
+        externalSharingAllowed: false,
+        retentionPolicyTracked: true,
+        archiveStorageReady: false,
+        archivePathExported: false,
+        archiveNotesExported: false,
+        approvalNotesExported: false,
+        ticketUrlExported: false,
+        aggregateOnly: true
+      },
       supportedCoverageTypes: ['SMOKE', 'FUNCTIONAL']
     });
 
@@ -417,6 +448,21 @@ describe('WP5 test design API helpers', () => {
         publish_identifier_value_exported: false,
         cross_wp_audit_dashboard_ready: false,
         audit_outbox_replay_dashboard_ready: false,
+        aggregate_only: true
+      },
+      archive_policy: {
+        policy_version: 'wp5-archive-policy-v1',
+        retention_days: '365',
+        storage_policy: 'platformManaged',
+        approval_required: true,
+        archive_approval_workflow_ready: false,
+        external_sharing_allowed: false,
+        retention_policy_tracked: true,
+        archive_storage_ready: false,
+        archive_path_exported: false,
+        archive_notes_exported: false,
+        approval_notes_exported: false,
+        ticket_url_exported: false,
         aggregate_only: true
       },
       context_summary: {
@@ -530,9 +576,39 @@ describe('WP5 test design API helpers', () => {
         crossWpAuditDashboardReady: false,
         auditOutboxReplayDashboardReady: false,
         aggregateOnly: true
+      },
+      archivePolicy: {
+        policyVersion: 'wp5-archive-policy-v1',
+        retentionDays: 365,
+        storagePolicy: 'platformManaged',
+        approvalRequired: true,
+        archiveApprovalWorkflowReady: false,
+        externalSharingAllowed: false,
+        retentionPolicyTracked: true,
+        archiveStorageReady: false,
+        archivePathExported: false,
+        archiveNotesExported: false,
+        approvalNotesExported: false,
+        ticketUrlExported: false,
+        aggregateOnly: true
       }
     });
     expect(task.contextSummary.contextVersion).toBe('wp5-context-v1');
+    expect(health.archivePolicy).toMatchObject({
+      policyVersion: 'wp5-archive-policy-v1',
+      retentionDays: 180,
+      storagePolicy: 'platformManaged',
+      aggregateOnly: true
+    });
+    expect(task.archivePolicy).toMatchObject({
+      policyVersion: 'wp5-archive-policy-v1',
+      retentionDays: 365,
+      storagePolicy: 'platformManaged',
+      approvalRequired: true,
+      archiveApprovalWorkflowReady: false,
+      archiveStorageReady: false,
+      aggregateOnly: true
+    });
 
     const candidate = normalizeTestDesignCandidate({
       candidate_id: 'cand-1',

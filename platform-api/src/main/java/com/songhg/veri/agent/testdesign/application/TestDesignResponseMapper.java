@@ -13,6 +13,7 @@ import com.songhg.veri.agent.testdesign.application.view.TestDesignModelObservat
 import com.songhg.veri.agent.testdesign.application.view.TestDesignPublishRecordResponse;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignStepResponse;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignTaskResponse;
+import com.songhg.veri.agent.testdesign.config.TestDesignProperties;
 import com.songhg.veri.agent.testdesign.domain.TestDesignCandidate;
 import com.songhg.veri.agent.testdesign.domain.TestDesignPublishRecord;
 import com.songhg.veri.agent.testdesign.domain.TestDesignTask;
@@ -30,15 +31,18 @@ public class TestDesignResponseMapper {
     private final ObjectMapper objectMapper;
     private final ModelAccessRepository modelAccessRepository;
     private final ModelInvocationJobRepository modelInvocationJobRepository;
+    private final TestDesignProperties properties;
 
     public TestDesignResponseMapper(
             ObjectMapper objectMapper,
             ModelAccessRepository modelAccessRepository,
-            ModelInvocationJobRepository modelInvocationJobRepository
+            ModelInvocationJobRepository modelInvocationJobRepository,
+            TestDesignProperties properties
     ) {
         this.objectMapper = objectMapper;
         this.modelAccessRepository = modelAccessRepository;
         this.modelInvocationJobRepository = modelInvocationJobRepository;
+        this.properties = properties;
     }
 
     public TestDesignTaskResponse toTaskResponse(TestDesignTask task) {
@@ -70,6 +74,7 @@ public class TestDesignResponseMapper {
                 TestDesignEvaluationCorpusPolicy.response(),
                 TestDesignReleaseReadinessPolicy.response(),
                 TestDesignAuditChainPolicy.response(),
+                TestDesignArchivePolicy.response(properties),
                 jsonMap(task.contextSummaryJson()),
                 task.createdAt(),
                 task.updatedAt()

@@ -198,6 +198,20 @@ class TestDesignControllerTest {
                 .andExpect(jsonPath("$.data.auditChainPolicy.modelInvocationIdValueExported").value(false))
                 .andExpect(jsonPath("$.data.auditChainPolicy.publishIdentifierValueExported").value(false))
                 .andExpect(jsonPath("$.data.auditChainPolicy.aggregateOnly").value(true))
+                .andExpect(jsonPath("$.data.archivePolicy.policyVersion")
+                        .value("wp5-archive-policy-v1"))
+                .andExpect(jsonPath("$.data.archivePolicy.retentionDays").value(180))
+                .andExpect(jsonPath("$.data.archivePolicy.storagePolicy").value("platformManaged"))
+                .andExpect(jsonPath("$.data.archivePolicy.approvalRequired").value(true))
+                .andExpect(jsonPath("$.data.archivePolicy.archiveApprovalWorkflowReady").value(false))
+                .andExpect(jsonPath("$.data.archivePolicy.externalSharingAllowed").value(false))
+                .andExpect(jsonPath("$.data.archivePolicy.retentionPolicyTracked").value(true))
+                .andExpect(jsonPath("$.data.archivePolicy.archiveStorageReady").value(false))
+                .andExpect(jsonPath("$.data.archivePolicy.archivePathExported").value(false))
+                .andExpect(jsonPath("$.data.archivePolicy.archiveNotesExported").value(false))
+                .andExpect(jsonPath("$.data.archivePolicy.approvalNotesExported").value(false))
+                .andExpect(jsonPath("$.data.archivePolicy.ticketUrlExported").value(false))
+                .andExpect(jsonPath("$.data.archivePolicy.aggregateOnly").value(true))
                 .andExpect(jsonPath("$.data.supportedCoverageTypes", hasSize(6)));
     }
 
@@ -656,6 +670,19 @@ class TestDesignControllerTest {
                 .andExpect(jsonPath("$.data.task.auditChainPolicy.crossWpAuditDashboardReady").value(false))
                 .andExpect(jsonPath("$.data.task.auditChainPolicy.auditEventDetailExported").value(false))
                 .andExpect(jsonPath("$.data.task.auditChainPolicy.traceIdValueExported").value(false))
+                .andExpect(jsonPath("$.data.task.archivePolicy.policyVersion")
+                        .value("wp5-archive-policy-v1"))
+                .andExpect(jsonPath("$.data.task.archivePolicy.retentionDays").value(180))
+                .andExpect(jsonPath("$.data.task.archivePolicy.storagePolicy").value("platformManaged"))
+                .andExpect(jsonPath("$.data.task.archivePolicy.approvalRequired").value(true))
+                .andExpect(jsonPath("$.data.task.archivePolicy.archiveApprovalWorkflowReady").value(false))
+                .andExpect(jsonPath("$.data.task.archivePolicy.externalSharingAllowed").value(false))
+                .andExpect(jsonPath("$.data.task.archivePolicy.retentionPolicyTracked").value(true))
+                .andExpect(jsonPath("$.data.task.archivePolicy.archiveStorageReady").value(false))
+                .andExpect(jsonPath("$.data.task.archivePolicy.archivePathExported").value(false))
+                .andExpect(jsonPath("$.data.task.archivePolicy.approvalNotesExported").value(false))
+                .andExpect(jsonPath("$.data.task.archivePolicy.ticketUrlExported").value(false))
+                .andExpect(jsonPath("$.data.task.archivePolicy.aggregateOnly").value(true))
                 .andExpect(jsonPath("$.data.task.contextSummary.policyGovernance.policyVersion")
                         .value("wp5-context-policy-v1"))
                 .andExpect(jsonPath("$.data.task.contextSummary.policyGovernance.projectOverrideSupported").value(false))
@@ -701,6 +728,22 @@ class TestDesignControllerTest {
                         .value(false))
                 .andExpect(jsonPath("$.data.task.contextSummary.auditChainPolicy.publishIdentifierValueExported")
                         .value(false))
+                .andExpect(jsonPath("$.data.task.contextSummary.archivePolicy.policyVersion")
+                        .value("wp5-archive-policy-v1"))
+                .andExpect(jsonPath("$.data.task.contextSummary.archivePolicy.retentionDays").value(180))
+                .andExpect(jsonPath("$.data.task.contextSummary.archivePolicy.storagePolicy")
+                        .value("platformManaged"))
+                .andExpect(jsonPath("$.data.task.contextSummary.archivePolicy.archiveApprovalWorkflowReady")
+                        .value(false))
+                .andExpect(jsonPath("$.data.task.contextSummary.archivePolicy.archiveStorageReady")
+                        .value(false))
+                .andExpect(jsonPath("$.data.task.contextSummary.archivePolicy.archivePathExported")
+                        .value(false))
+                .andExpect(jsonPath("$.data.task.contextSummary.archivePolicy.approvalNotesExported")
+                        .value(false))
+                .andExpect(jsonPath("$.data.task.contextSummary.archivePolicy.ticketUrlExported")
+                        .value(false))
+                .andExpect(jsonPath("$.data.task.contextSummary.archivePolicy.aggregateOnly").value(true))
                 .andReturn();
 
         MatcherAssert.assertThat(taskResult.getResponse().getContentAsString(), not(containsString("sk_live_12345678")));
@@ -1380,7 +1423,15 @@ class TestDesignControllerTest {
         MatcherAssert.assertThat(csv, containsString("archivePolicy,retentionDays,,180"));
         MatcherAssert.assertThat(csv, containsString("archivePolicy,storagePolicy,,platformManaged"));
         MatcherAssert.assertThat(csv, containsString("archivePolicy,approvalRequired,,true"));
+        MatcherAssert.assertThat(csv, containsString("archivePolicy,archiveApprovalWorkflowReady,,false"));
         MatcherAssert.assertThat(csv, containsString("archivePolicy,externalSharingAllowed,,false"));
+        MatcherAssert.assertThat(csv, containsString("archivePolicy,retentionPolicyTracked,,true"));
+        MatcherAssert.assertThat(csv, containsString("archivePolicy,archiveStorageReady,,false"));
+        MatcherAssert.assertThat(csv, containsString("archivePolicy,archivePathExported,,false"));
+        MatcherAssert.assertThat(csv, containsString("archivePolicy,archiveNotesExported,,false"));
+        MatcherAssert.assertThat(csv, containsString("archivePolicy,approvalNotesExported,,false"));
+        MatcherAssert.assertThat(csv, containsString("archivePolicy,ticketUrlExported,,false"));
+        MatcherAssert.assertThat(csv, containsString("archivePolicy,aggregateOnly,,true"));
         MatcherAssert.assertThat(csv, containsString("reportManifest,schemaVersion,,wp5-task-report-v1"));
         MatcherAssert.assertThat(csv, containsString("reportManifest,fieldSetVersion,,aggregate-only-v1"));
         MatcherAssert.assertThat(csv, containsString("reportManifest,rowCountBeforeManifest,,"));
