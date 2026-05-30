@@ -4,6 +4,7 @@ import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
 import com.songhg.veri.agent.common.util.CsvEncoder;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignTaskResponse;
+import com.songhg.veri.agent.testdesign.config.TestDesignProperties;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -28,7 +29,12 @@ final class TestDesignTaskReportExportGovernance {
      * <p>These rows make the archive policy visible to operators without copying any raw candidate, review, model or
      * context bodies into the CSV.
      */
-    static void appendRows(StringBuilder csv, TestDesignTaskResponse task, Instant generatedAt) {
+    static void appendRows(
+            StringBuilder csv,
+            TestDesignTaskResponse task,
+            Instant generatedAt,
+            TestDesignProperties properties
+    ) {
         appendRow(csv, task, generatedAt, "metadata", "exportGovernance", "reportScope", null,
                 "fullTask", null, null, "fullTask", null);
         appendRow(csv, task, generatedAt, "metadata", "exportGovernance", "fieldPolicy", null,
@@ -45,6 +51,31 @@ final class TestDesignTaskReportExportGovernance {
                 false, null, null, "fullTask", null);
         appendRow(csv, task, generatedAt, "metadata", "exportGovernance", "safetyScan", null,
                 "PASSED", null, "success", "fullTask", null);
+        appendArchivePolicyRows(csv, task, generatedAt, properties);
+    }
+
+    /**
+     * Publishes retention and sharing policy as fixed aggregate flags for archive operators.
+     *
+     * <p>The policy rows are intentionally limited to enums, booleans and bounded day counts. Free-form archive notes
+     * or storage locations must not be exported because they can contain tenant names, ticket IDs or secret-bearing URLs.
+     */
+    private static void appendArchivePolicyRows(
+            StringBuilder csv,
+            TestDesignTaskResponse task,
+            Instant generatedAt,
+            TestDesignProperties properties
+    ) {
+        appendRow(csv, task, generatedAt, "metadata", "archivePolicy", "retentionDays", null,
+                properties.effectiveReportArchiveRetentionDays(), null, null, "fullTask", null);
+        appendRow(csv, task, generatedAt, "metadata", "archivePolicy", "storagePolicy", null,
+                "platformManaged", null, null, "fullTask", null);
+        appendRow(csv, task, generatedAt, "metadata", "archivePolicy", "approvalRequired", null,
+                properties.reportArchiveApprovalRequired(), null, null, "fullTask", null);
+        appendRow(csv, task, generatedAt, "metadata", "archivePolicy", "externalSharingAllowed", null,
+                properties.reportArchiveExternalSharingAllowed(), null, null, "fullTask", null);
+        appendRow(csv, task, generatedAt, "metadata", "archivePolicy", "retentionPolicyTracked", null,
+                true, null, "success", "fullTask", null);
     }
 
     /**

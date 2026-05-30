@@ -65,7 +65,13 @@ public record TestDesignProperties(
         /** 发布冲突治理：同需求标题高相似阈值，范围 0-1 */
         @DefaultValue("0.86") double conflictTitleSimilarityThreshold,
         /** 发布冲突治理：同需求正文高相似阈值，范围 0-1 */
-        @DefaultValue("0.90") double conflictContentSimilarityThreshold
+        @DefaultValue("0.90") double conflictContentSimilarityThreshold,
+        /** 报告归档治理：任务报告保留天数，非正数表示使用默认值 */
+        @DefaultValue("180") int reportArchiveRetentionDays,
+        /** 报告归档治理：是否允许归档外发，当前仅作为报告治理口径输出 */
+        @DefaultValue("false") boolean reportArchiveExternalSharingAllowed,
+        /** 报告归档治理：是否需要人工审批后才能进入正式归档 */
+        @DefaultValue("true") boolean reportArchiveApprovalRequired
 ) {
     private static final int DEFAULT_LINKED_ASSETS_PER_REQUIREMENT = 5;
     private static final int DEFAULT_EXPLICIT_ASSETS_PER_TYPE = 5;
@@ -75,6 +81,8 @@ public record TestDesignProperties(
     private static final int DEFAULT_ASSET_SCHEMA_CHARS = 240;
     private static final int MAX_CONTEXT_ITEMS = 50;
     private static final int MAX_CONTEXT_PREVIEW_CHARS = 2000;
+    private static final int DEFAULT_REPORT_ARCHIVE_RETENTION_DAYS = 180;
+    private static final int MAX_REPORT_ARCHIVE_RETENTION_DAYS = 3650;
 
     public int effectiveContextLinkedAssetsPerRequirement() {
         return boundedPositive(contextLinkedAssetsPerRequirement, DEFAULT_LINKED_ASSETS_PER_REQUIREMENT, MAX_CONTEXT_ITEMS);
@@ -109,6 +117,11 @@ public record TestDesignProperties(
         limits.put("linkedAssetSchemaChars", effectiveContextAssetSchemaChars());
         limits.put("existingCasesPerRequirement", effectiveContextExistingCasesPerRequirement());
         return limits;
+    }
+
+    public int effectiveReportArchiveRetentionDays() {
+        return boundedPositive(reportArchiveRetentionDays, DEFAULT_REPORT_ARCHIVE_RETENTION_DAYS,
+                MAX_REPORT_ARCHIVE_RETENTION_DAYS);
     }
 
     private static int boundedPositive(int value, int defaultValue, int maxValue) {

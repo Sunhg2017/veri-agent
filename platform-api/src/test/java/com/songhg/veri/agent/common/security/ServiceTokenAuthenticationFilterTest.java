@@ -135,7 +135,10 @@ class ServiceTokenAuthenticationFilterTest {
                 0,
                 0,
                 0.86D,
-                0.90D
+                0.90D,
+                180,
+                false,
+                true
         );
     }
 

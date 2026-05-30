@@ -133,7 +133,7 @@ public class TestDesignTaskReportService {
         appendTaskReportCandidateRows(csv, taskResponse, candidates, generatedAt);
         appendTaskReportReviewRows(csv, taskResponse, reviewRecords, generatedAt);
         appendTaskReportPublishRows(csv, taskResponse, publishRecords, generatedAt);
-        TestDesignTaskReportExportGovernance.appendRows(csv, taskResponse, generatedAt);
+        TestDesignTaskReportExportGovernance.appendRows(csv, taskResponse, generatedAt, properties);
         TestDesignTaskReportExportGovernance.validateExportSafety(csv.toString());
 
         writeAudit("EXPORT", "TEST_DESIGN_TASK_REPORT", UUID.randomUUID(), task.projectId(), Map.of(
