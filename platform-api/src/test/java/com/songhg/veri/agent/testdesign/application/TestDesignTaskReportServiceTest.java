@@ -1,6 +1,8 @@
 package com.songhg.veri.agent.testdesign.application;
 
 import com.songhg.veri.agent.common.error.BusinessException;
+import com.songhg.veri.agent.testdesign.application.view.TestDesignQualityReadinessCheckResponse;
+import com.songhg.veri.agent.testdesign.application.view.TestDesignQualityReadinessResponse;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignTaskResponse;
 import com.songhg.veri.agent.testdesign.config.TestDesignProperties;
 import java.time.Instant;
@@ -189,6 +191,77 @@ class TestDesignTaskReportServiceTest {
                 .doesNotContain("candidateIds")
                 .doesNotContain("reviewComments")
                 .doesNotContain("promptPlaintext");
+    }
+
+    @Test
+    void appendsReadinessPolicyRowsWithoutCandidateEvidence() {
+        StringBuilder csv = new StringBuilder();
+        TestDesignTaskResponse task = new TestDesignTaskResponse(
+                UUID.fromString("11111111-1111-1111-1111-111111111111"),
+                "project-wp5",
+                "质量准出报告 token=secret-value",
+                "SUCCEEDED",
+                List.of(),
+                List.of("SMOKE"),
+                "wp5-test-design-v1",
+                "1.0.0",
+                null,
+                null,
+                null,
+                0,
+                0,
+                0,
+                0,
+                null,
+                "auditor",
+                null,
+                "digest",
+                null,
+                TestDesignContextPolicyGovernance.response(),
+                Map.of(),
+                Instant.parse("2026-05-30T00:00:00Z"),
+                Instant.parse("2026-05-30T00:00:00Z")
+        );
+        TestDesignQualityReadinessResponse readiness = new TestDesignQualityReadinessResponse(
+                "BLOCKED",
+                1L,
+                1L,
+                List.of(
+                        new TestDesignQualityReadinessCheckResponse(
+                                "stepComplete", "步骤完整率", "FAILED", "BLOCKING", 50D, 100D, "PERCENT",
+                                "步骤动作和步骤预期均完整的候选占比不得低于阈值"),
+                        new TestDesignQualityReadinessCheckResponse(
+                                "lowConfidence", "低置信度占比", "FAILED", "WARNING", 25D, 20D, "PERCENT",
+                                "低置信度候选占比不得高于阈值")
+                )
+        );
+
+        TestDesignTaskReportReadinessPolicyRows.appendRows(
+                csv, task, Instant.parse("2026-05-30T00:00:00Z"), readiness);
+
+        String report = csv.toString();
+        assertDoesNotThrow(() -> TestDesignTaskReportExportGovernance.validateExportSafety(report));
+        org.assertj.core.api.Assertions.assertThat(report)
+                .contains("readinessPolicy,policyVersion,,wp5-quality-readiness-policy-v1")
+                .contains("readinessPolicy,thresholdSource,,DEPLOY_CONFIG")
+                .contains("readinessPolicy,advisoryOnly,,true,,warning")
+                .contains("readinessPolicy,publishBlockingEnabled,,false,,warning")
+                .contains("readinessPolicy,readinessStatus,,BLOCKED,,warning")
+                .contains("readinessPolicy,metric,blockingCount,1,,warning")
+                .contains("readinessPolicy,metric,warningCount,1,,warning")
+                .contains("readinessPolicy,checkStatus,stepComplete,FAILED,,warning")
+                .contains("readinessPolicy,currentValue,stepComplete,50.0")
+                .contains("readinessPolicy,thresholdValue,stepComplete,100.0")
+                .contains("readinessPolicy,unit,stepComplete,PERCENT")
+                .contains("readinessPolicy,severity,stepComplete,BLOCKING")
+                .contains("readinessPolicy,checkStatus,lowConfidence,FAILED,,warning")
+                .contains("readinessPolicy,aggregateOnly,,true,,success")
+                .doesNotContain("secret-value")
+                .doesNotContain("candidateIds")
+                .doesNotContain("candidateBody")
+                .doesNotContain("reviewComments")
+                .doesNotContain("promptPlaintext")
+                .doesNotContain("步骤动作和步骤预期");
     }
 
     @Test

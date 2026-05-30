@@ -445,6 +445,7 @@ public class TestDesignTaskReportService {
                 countsBy(candidates, TestDesignCandidate::coverageType), total);
         appendTaskReportDistributionRows(csv, task, generatedAt, "candidateQuality", "priority",
                 countsBy(candidates, TestDesignCandidate::priority), total);
+        TestDesignTaskReportReadinessPolicyRows.appendRows(csv, task, generatedAt, summary.readiness());
     }
 
     private void appendTaskReportReviewRows(
