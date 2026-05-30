@@ -45,6 +45,8 @@ public record TestDesignPromptTrendBucketResponse(
         double errorPercent,
         @Schema(description = "人工反馈率，百分比")
         double feedbackSignalPercent,
+        @Schema(description = "该 Prompt 版本按当前 WP5 准出阈值计算的聚合准出摘要")
+        TestDesignQualityReadinessResponse readiness,
         @Schema(description = "该版本最近任务创建时间")
         Instant latestTaskCreatedAt
 ) {

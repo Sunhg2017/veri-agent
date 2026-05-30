@@ -1648,6 +1648,16 @@ tbody tr:hover td {
   font-size: var(--font-size-xs);
 }
 
+.test-design-prompt-readiness {
+  width: fit-content;
+  min-height: 24px;
+  padding: 2px 8px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  font-weight: 700;
+}
+
 .test-design-prompt-trend-row-metrics {
   display: flex;
   flex-wrap: wrap;

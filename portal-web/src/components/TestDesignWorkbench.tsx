@@ -2627,6 +2627,9 @@ function PromptTrendPanel(props: {
                   <div>
                     <strong>{bucket.label}</strong>
                     <span>{bucket.taskCount} 任务 · {bucket.candidateCount} 候选</span>
+                    <span className={`test-design-prompt-readiness tone-${bucket.readinessTone}`}>
+                      {bucket.readinessLabel} · {bucket.readinessText}
+                    </span>
                   </div>
                   <div className="test-design-prompt-trend-row-metrics">
                     <span>{bucket.qualityText}</span>

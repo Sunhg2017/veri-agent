@@ -376,7 +376,7 @@ function mapServerReadiness(readiness: TestDesignQualitySummaryView['readiness']
   };
 }
 
-function readinessStatusLabel(status: string) {
+export function readinessStatusLabel(status: string) {
   if (status === 'PASSED') {
     return '准出通过';
   }
@@ -389,7 +389,7 @@ function readinessStatusLabel(status: string) {
   return '准出未知';
 }
 
-function readinessTone(status: string): TestDesignQualitySummaryTone {
+export function readinessTone(status: string): TestDesignQualitySummaryTone {
   if (status === 'PASSED') {
     return 'success';
   }

@@ -31,6 +31,12 @@ describe('WP5 prompt trend summary', () => {
           lowConfidencePercent: 0,
           errorPercent: 0,
           feedbackSignalPercent: 16.67,
+          readiness: {
+            status: 'PASSED',
+            blockingCount: 0,
+            warningCount: 0,
+            checks: []
+          },
           latestTaskCreatedAt: '2026-05-30T09:00:00Z'
         },
         {
@@ -53,6 +59,23 @@ describe('WP5 prompt trend summary', () => {
           lowConfidencePercent: 25,
           errorPercent: 25,
           feedbackSignalPercent: 25,
+          readiness: {
+            status: 'BLOCKED',
+            blockingCount: 2,
+            warningCount: 1,
+            checks: [
+              {
+                code: 'stepComplete',
+                label: '步骤完整率',
+                status: 'FAILED',
+                severity: 'BLOCKING',
+                currentValue: 75,
+                thresholdValue: 100,
+                unit: 'PERCENT',
+                description: '步骤动作和步骤预期均完整的候选占比不得低于阈值'
+              }
+            ]
+          },
           latestTaskCreatedAt: '2026-05-30T08:00:00Z'
         }
       ]
@@ -73,9 +96,16 @@ describe('WP5 prompt trend summary', () => {
       tone: 'success',
       qualityText: '步骤 100% · 预期 100%',
       feedbackText: '反馈 16.67% · 修正 1 · 驳回 0 · 忽略 0',
-      riskText: '低置信 0% · 错误 0% · 重复 0'
+      riskText: '低置信 0% · 错误 0% · 重复 0',
+      readinessLabel: '准出通过',
+      readinessText: '阻断 0 · 风险 0'
     });
     expect(summary.buckets[1].label).toBe('wp5-test-design-v1@1.1.0 token=[REDACTED]');
+    expect(summary.buckets[1]).toMatchObject({
+      tone: 'danger',
+      readinessLabel: '准出阻断',
+      readinessText: '阻断 2 · 风险 1'
+    });
     expect(summary.warnings).toEqual([
       { label: '错误版本', count: 1, tone: 'danger' },
       { label: '重复冲突版本', count: 1, tone: 'danger' },

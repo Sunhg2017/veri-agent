@@ -1,6 +1,10 @@
 import type { TestDesignPromptTrendBucketView, TestDesignPromptTrendView } from './api/testDesign';
 import { sanitizeTestDesignExportText } from './testDesignExport';
-import type { TestDesignQualitySummaryTone } from './testDesignQualitySummary';
+import {
+  readinessStatusLabel,
+  readinessTone,
+  type TestDesignQualitySummaryTone
+} from './testDesignQualitySummary';
 
 export type TestDesignPromptTrendMetric = {
   label: string;
@@ -15,6 +19,9 @@ export type TestDesignPromptTrendBucket = TestDesignPromptTrendBucketView & {
   qualityText: string;
   feedbackText: string;
   riskText: string;
+  readinessLabel: string;
+  readinessText: string;
+  readinessTone: TestDesignQualitySummaryTone;
 };
 
 export type TestDesignPromptTrendSummary = {
@@ -76,15 +83,25 @@ function toBucket(bucket: TestDesignPromptTrendBucketView): TestDesignPromptTren
   const promptKey = sanitize(bucket.promptKey || 'UNKNOWN', 48);
   const promptVersion = sanitize(bucket.promptVersion || 'UNKNOWN', 32);
   const riskCount = bucket.errorCount + bucket.duplicateKeyCollisionCount;
+  const bucketReadinessTone = readinessTone(bucket.readiness?.status ?? '');
   return {
     ...bucket,
     promptKey,
     promptVersion,
     label: `${promptKey}@${promptVersion}`,
-    tone: riskCount > 0 ? 'warning' : bucket.stepCompletePercent >= 100 && bucket.expectedCompletePercent >= 100 ? 'success' : 'info',
+    tone: bucketReadinessTone !== 'neutral'
+      ? bucketReadinessTone
+      : riskCount > 0
+        ? 'warning'
+        : bucket.stepCompletePercent >= 100 && bucket.expectedCompletePercent >= 100 ? 'success' : 'info',
     qualityText: `步骤 ${formatPercent(bucket.stepCompletePercent)} · 预期 ${formatPercent(bucket.expectedCompletePercent)}`,
     feedbackText: `反馈 ${formatPercent(bucket.feedbackSignalPercent)} · 修正 ${bucket.correctionCount} · 驳回 ${bucket.rejectedCount} · 忽略 ${bucket.ignoredCount}`,
-    riskText: `低置信 ${formatPercent(bucket.lowConfidencePercent)} · 错误 ${formatPercent(bucket.errorPercent)} · 重复 ${bucket.duplicateKeyCollisionCount}`
+    riskText: `低置信 ${formatPercent(bucket.lowConfidencePercent)} · 错误 ${formatPercent(bucket.errorPercent)} · 重复 ${bucket.duplicateKeyCollisionCount}`,
+    readinessLabel: readinessStatusLabel(bucket.readiness?.status ?? ''),
+    readinessText: bucket.readiness
+      ? `阻断 ${bucket.readiness.blockingCount} · 风险 ${bucket.readiness.warningCount}`
+      : '准出未计算',
+    readinessTone: bucketReadinessTone
   };
 }
 

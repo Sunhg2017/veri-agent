@@ -217,6 +217,7 @@ export interface TestDesignPromptTrendBucketView {
   lowConfidencePercent: number;
   errorPercent: number;
   feedbackSignalPercent: number;
+  readiness?: TestDesignQualityReadinessView;
   latestTaskCreatedAt?: string;
 }
 
@@ -777,6 +778,7 @@ export function normalizeTestDesignPromptTrendBucket(raw: unknown): TestDesignPr
     lowConfidencePercent: numberValue(item.lowConfidencePercent ?? item.low_confidence_percent, 0),
     errorPercent: numberValue(item.errorPercent ?? item.error_percent, 0),
     feedbackSignalPercent: numberValue(item.feedbackSignalPercent ?? item.feedback_signal_percent, 0),
+    readiness: normalizeTestDesignQualityReadiness(item.readiness),
     latestTaskCreatedAt: optionalString(item.latestTaskCreatedAt) ?? optionalString(item.latest_task_created_at)
   };
 }

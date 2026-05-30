@@ -268,6 +268,22 @@ describe('WP5 test design API helpers', () => {
           low_confidence_percent: '16.67',
           error_percent: '16.67',
           feedback_signal_percent: '50.00',
+          readiness: {
+            status: 'WARNING',
+            blocking_count: '0',
+            warning_count: '1',
+            checks: [
+              {
+                code: 'lowConfidence',
+                label: '低置信度占比',
+                status: 'FAILED',
+                severity: 'WARNING',
+                current_value: '16.67',
+                threshold_value: '20.00',
+                unit: 'PERCENT'
+              }
+            ]
+          },
           latest_task_created_at: '2026-05-30T10:00:00Z'
         }
       ],
@@ -283,7 +299,12 @@ describe('WP5 test design API helpers', () => {
           promptVersion: '1.0.0',
           candidateCount: 6,
           stepCompletePercent: 83.33,
-          feedbackSignalPercent: 50
+          feedbackSignalPercent: 50,
+          readiness: expect.objectContaining({
+            status: 'WARNING',
+            warningCount: 1,
+            checks: [expect.objectContaining({ code: 'lowConfidence', status: 'FAILED' })]
+          })
         })
       ]
     });

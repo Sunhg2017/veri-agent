@@ -88,6 +88,8 @@ public class TestDesignQualityService {
      *
      * <p>The trend is calculated from task/candidate/review metadata only. It deliberately excludes candidate bodies,
      * review comments, raw prompts and model payloads so operators can compare versions without exposing source text.
+     * Each version bucket also reuses the current task readiness thresholds to produce an advisory release signal; this
+     * does not alter publish authorization or candidate state.
      */
     public TestDesignPromptTrendResponse promptTrend(TestDesignPromptTrendRequest request) {
         TestDesignPromptTrendRequest safeRequest = request == null ? new TestDesignPromptTrendRequest() : request;
@@ -444,6 +446,8 @@ public class TestDesignQualityService {
         private long expectedCompleteCount;
         private long lowConfidenceCount;
         private long errorCount;
+        private long missingRequirementCount;
+        private long missingTitleCount;
         private long duplicateKeyCollisionCount;
         private long correctionCount;
         private long rejectedCount;
@@ -481,6 +485,12 @@ public class TestDesignQualityService {
                     .count();
             errorCount += candidates.stream()
                     .filter(candidate -> StringUtils.hasText(candidate.errorMessage()))
+                    .count();
+            missingRequirementCount += candidates.stream()
+                    .filter(candidate -> candidate.requirementId() == null)
+                    .count();
+            missingTitleCount += candidates.stream()
+                    .filter(candidate -> !StringUtils.hasText(candidate.title()))
                     .count();
             duplicateKeyCollisionCount += TestDesignQualityService.duplicateKeyCollisionCount(candidates);
             correctionCount += reviewRecords.stream()
@@ -526,6 +536,16 @@ public class TestDesignQualityService {
                     percentValue(lowConfidenceCount, candidateCount),
                     percentValue(errorCount, candidateCount),
                     percentValue(feedbackSignalCount, candidateCount),
+                    qualityReadiness(
+                            candidateCount,
+                            stepCompleteCount,
+                            expectedCompleteCount,
+                            lowConfidenceCount,
+                            errorCount,
+                            missingRequirementCount,
+                            missingTitleCount,
+                            duplicateKeyCollisionCount
+                    ),
                     latestTaskCreatedAt
             );
         }

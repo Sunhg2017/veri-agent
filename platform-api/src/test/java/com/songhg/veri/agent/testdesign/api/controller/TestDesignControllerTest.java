@@ -1060,6 +1060,11 @@ class TestDesignControllerTest {
                 .andExpect(jsonPath("$.data.buckets[0].lowConfidenceCount").value(1))
                 .andExpect(jsonPath("$.data.buckets[0].correctionCount").value(1))
                 .andExpect(jsonPath("$.data.buckets[0].rejectedCount").value(1))
+                .andExpect(jsonPath("$.data.buckets[0].readiness.status").value("WARNING"))
+                .andExpect(jsonPath("$.data.buckets[0].readiness.blockingCount").value(0))
+                .andExpect(jsonPath("$.data.buckets[0].readiness.warningCount").value(1))
+                .andExpect(jsonPath("$.data.buckets[0].readiness.checks[?(@.code == 'lowConfidence')].status").value(contains("FAILED")))
+                .andExpect(jsonPath("$.data.buckets[0].readiness.checks[?(@.code == 'errorPresent')].status").value(contains("PASSED")))
                 .andReturn();
 
         String json = trend.getResponse().getContentAsString();
