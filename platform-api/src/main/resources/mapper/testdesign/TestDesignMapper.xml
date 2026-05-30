@@ -160,6 +160,27 @@
         <include refid="taskWhere"/>
     </select>
 
+    <select id="countTasksByStatus" resultType="long">
+        select count(*)
+        from test_design_task
+        where status = #{status}
+    </select>
+
+    <select id="oldestTaskUpdatedAtByStatus" resultType="java.time.Instant">
+        select updated_at
+        from test_design_task
+        where status = #{status}
+        order by updated_at asc
+        limit 1
+    </select>
+
+    <select id="countStaleRunningTasks" resultType="long">
+        select count(*)
+        from test_design_task
+        where status = 'RUNNING'
+          and updated_at &lt; #{staleBefore}
+    </select>
+
     <select id="task" resultMap="taskMap">
         select <include refid="taskColumns"/>
         from test_design_task

@@ -48,6 +48,8 @@ public record TestDesignProperties(
         @DefaultValue("100") int eventRecoveryBatchSize,
         /** 运行中生成任务超过该秒数未更新则由恢复扫描标记失败，非正数表示关闭 */
         @DefaultValue("600") long eventRecoveryRunningTimeoutSeconds,
+        /** 排队生成任务超过该秒数未更新则触发聚合队列滞留告警，非正数表示关闭 */
+        @DefaultValue("120") long eventRecoveryQueueLagWarningSeconds,
         /** 任务质量准出：最低步骤完整率百分比 */
         @DefaultValue("100") double readinessMinStepCompletePercent,
         /** 任务质量准出：最低最终预期完整率百分比 */

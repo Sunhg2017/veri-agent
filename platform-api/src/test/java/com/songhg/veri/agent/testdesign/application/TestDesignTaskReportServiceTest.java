@@ -67,6 +67,7 @@ class TestDesignTaskReportServiceTest {
                 TestDesignContextAssemblyPolicy.response(),
                 TestDesignContextPolicyGovernance.response(),
                 TestDesignContextPolicyOperations.response(),
+                null,
                 TestDesignScopePolicy.response(),
                 TestDesignEvaluationCorpusPolicy.response(),
                 TestDesignReleaseReadinessPolicy.response(),
@@ -125,6 +126,7 @@ class TestDesignTaskReportServiceTest {
                 TestDesignContextAssemblyPolicy.response(),
                 TestDesignContextPolicyGovernance.response(),
                 TestDesignContextPolicyOperations.response(),
+                null,
                 TestDesignScopePolicy.response(),
                 TestDesignEvaluationCorpusPolicy.response(),
                 TestDesignReleaseReadinessPolicy.response(),
@@ -201,6 +203,7 @@ class TestDesignTaskReportServiceTest {
                 TestDesignContextAssemblyPolicy.response(),
                 TestDesignContextPolicyGovernance.response(),
                 TestDesignContextPolicyOperations.response(),
+                null,
                 TestDesignScopePolicy.response(),
                 TestDesignEvaluationCorpusPolicy.response(),
                 TestDesignReleaseReadinessPolicy.response(),
@@ -278,6 +281,7 @@ class TestDesignTaskReportServiceTest {
                 TestDesignContextAssemblyPolicy.response(),
                 TestDesignContextPolicyGovernance.response(),
                 TestDesignContextPolicyOperations.response(),
+                null,
                 TestDesignScopePolicy.response(),
                 TestDesignEvaluationCorpusPolicy.response(),
                 TestDesignReleaseReadinessPolicy.response(),
@@ -342,6 +346,7 @@ class TestDesignTaskReportServiceTest {
                 TestDesignContextAssemblyPolicy.response(),
                 TestDesignContextPolicyGovernance.response(),
                 TestDesignContextPolicyOperations.response(),
+                null,
                 TestDesignScopePolicy.response(),
                 TestDesignEvaluationCorpusPolicy.response(),
                 TestDesignReleaseReadinessPolicy.response(),
@@ -432,6 +437,7 @@ class TestDesignTaskReportServiceTest {
                 TestDesignContextAssemblyPolicy.response(),
                 TestDesignContextPolicyGovernance.response(),
                 TestDesignContextPolicyOperations.response(),
+                null,
                 TestDesignScopePolicy.response(),
                 TestDesignEvaluationCorpusPolicy.response(),
                 TestDesignReleaseReadinessPolicy.response(),
@@ -544,6 +550,7 @@ class TestDesignTaskReportServiceTest {
                 TestDesignContextAssemblyPolicy.response(),
                 TestDesignContextPolicyGovernance.response(),
                 TestDesignContextPolicyOperations.response(),
+                null,
                 TestDesignScopePolicy.response(),
                 TestDesignEvaluationCorpusPolicy.response(),
                 TestDesignReleaseReadinessPolicy.response(),
@@ -612,6 +619,7 @@ class TestDesignTaskReportServiceTest {
                 TestDesignContextAssemblyPolicy.response(),
                 TestDesignContextPolicyGovernance.response(),
                 TestDesignContextPolicyOperations.response(),
+                null,
                 TestDesignScopePolicy.response(),
                 TestDesignEvaluationCorpusPolicy.response(),
                 TestDesignReleaseReadinessPolicy.response(),
@@ -683,6 +691,7 @@ class TestDesignTaskReportServiceTest {
                 TestDesignContextAssemblyPolicy.response(),
                 TestDesignContextPolicyGovernance.response(),
                 TestDesignContextPolicyOperations.response(),
+                null,
                 TestDesignScopePolicy.response(),
                 TestDesignEvaluationCorpusPolicy.response(),
                 TestDesignReleaseReadinessPolicy.response(),
@@ -783,6 +792,7 @@ class TestDesignTaskReportServiceTest {
                 TestDesignContextAssemblyPolicy.response(),
                 TestDesignContextPolicyGovernance.response(),
                 TestDesignContextPolicyOperations.response(),
+                null,
                 TestDesignScopePolicy.response(),
                 TestDesignEvaluationCorpusPolicy.response(),
                 TestDesignReleaseReadinessPolicy.response(),
@@ -861,6 +871,7 @@ class TestDesignTaskReportServiceTest {
                 TestDesignContextAssemblyPolicy.response(),
                 TestDesignContextPolicyGovernance.response(),
                 TestDesignContextPolicyOperations.response(),
+                null,
                 TestDesignScopePolicy.response(),
                 TestDesignEvaluationCorpusPolicy.response(),
                 TestDesignReleaseReadinessPolicy.response(),
@@ -891,8 +902,8 @@ class TestDesignTaskReportServiceTest {
                 .contains("generationOrchestrationPolicy,explicitRetryRequiredAfterTimeout,,true,,success")
                 .contains("generationOrchestrationPolicy,manualTaskRetrySupported,,true,,success")
                 .contains("generationOrchestrationPolicy,manualQueuedEventReplayReady,,false,,warning")
-                .contains("generationOrchestrationPolicy,queueLagMetricReady,,false,,warning")
-                .contains("generationOrchestrationPolicy,timeoutAlertReady,,false,,warning")
+                .contains("generationOrchestrationPolicy,queueLagMetricReady,,true,,success")
+                .contains("generationOrchestrationPolicy,timeoutAlertReady,,true,,success")
                 .contains("generationOrchestrationPolicy,multiInstanceLoadTestEvidenceReady,,false,,warning")
                 .contains("generationOrchestrationPolicy,eventPayloadExported,,false")
                 .contains("generationOrchestrationPolicy,eventIdentifierListExported,,false")
@@ -900,9 +911,16 @@ class TestDesignTaskReportServiceTest {
                 .contains("generationOrchestrationPolicy,recoveryDetailRowsExported,,false")
                 .contains("generationOrchestrationPolicy,metric,effectiveRecoveryBatchSize,100,,info")
                 .contains("generationOrchestrationPolicy,metric,runningTimeoutSeconds,600,,info")
+                .contains("generationOrchestrationPolicy,metric,queueLagWarningSeconds,120,,info")
+                .contains("generationOrchestrationPolicy,metric,queuedTaskCount,0,,neutral")
+                .contains("generationOrchestrationPolicy,metric,runningTaskCount,0,,neutral")
+                .contains("generationOrchestrationPolicy,metric,oldestQueuedAgeSeconds,0,,neutral")
+                .contains("generationOrchestrationPolicy,metric,staleRunningTaskCount,0,,neutral")
                 .contains("generationOrchestrationPolicy,metric,queuedStatusSignal,0,,neutral")
                 .contains("generationOrchestrationPolicy,metric,runningStatusSignal,0,,neutral")
                 .contains("generationOrchestrationPolicy,metric,timeoutFailureSignal,1,,warning")
+                .contains("generationOrchestrationPolicy,queueLagWarning,,false,,success")
+                .contains("generationOrchestrationPolicy,timeoutWarning,,false,,success")
                 .contains("generationOrchestrationPolicy,aggregateOnly,,true,,success")
                 .doesNotContain("secret-value")
                 .doesNotContain("evt-secret")
@@ -938,6 +956,7 @@ class TestDesignTaskReportServiceTest {
                 TestDesignContextAssemblyPolicy.response(),
                 TestDesignContextPolicyGovernance.response(),
                 TestDesignContextPolicyOperations.response(),
+                null,
                 TestDesignScopePolicy.response(),
                 TestDesignEvaluationCorpusPolicy.response(),
                 TestDesignReleaseReadinessPolicy.response(),
@@ -1018,6 +1037,7 @@ class TestDesignTaskReportServiceTest {
                 TestDesignContextAssemblyPolicy.response(),
                 TestDesignContextPolicyGovernance.response(),
                 TestDesignContextPolicyOperations.response(),
+                null,
                 TestDesignScopePolicy.response(),
                 TestDesignEvaluationCorpusPolicy.response(),
                 TestDesignReleaseReadinessPolicy.response(),
@@ -1117,6 +1137,7 @@ class TestDesignTaskReportServiceTest {
                 TestDesignContextAssemblyPolicy.response(),
                 TestDesignContextPolicyGovernance.response(),
                 TestDesignContextPolicyOperations.response(),
+                null,
                 TestDesignScopePolicy.response(),
                 TestDesignEvaluationCorpusPolicy.response(),
                 TestDesignReleaseReadinessPolicy.response(),
@@ -1230,6 +1251,7 @@ class TestDesignTaskReportServiceTest {
                 true,
                 100,
                 600,
+                120,
                 100D,
                 100D,
                 20D,

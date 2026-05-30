@@ -44,6 +44,11 @@ export function buildTestDesignTaskDiagnostics(task: TestDesignTaskView | null |
       value: summarizeTestDesignModelObservationPolicy(task),
       tone: modelObservationPolicyTone(task)
     },
+    {
+      label: '编排策略',
+      value: summarizeTestDesignGenerationOrchestrationPolicy(task),
+      tone: generationOrchestrationPolicyTone(task)
+    },
     { label: '调用链路', value: compactTestDesignDigest(task.modelObservation?.traceId, 12, 8) },
     { label: '调用任务', value: compactTestDesignDigest(task.modelObservation?.jobId, 12, 8) },
     { label: '输入摘要', value: compactTestDesignDigest(task.inputDigest, 12, 8) },
@@ -375,6 +380,29 @@ export function summarizeTestDesignModelObservationPolicy(task: TestDesignTaskVi
     .join(' · ') || '-';
 }
 
+export function summarizeTestDesignGenerationOrchestrationPolicy(task: TestDesignTaskView | null | undefined): string {
+  const policy = task?.generationOrchestrationPolicy ?? generationOrchestrationPolicyFromContextSummary(task?.contextSummary);
+  if (!policy) {
+    return '-';
+  }
+
+  const version = displayDiagnosticText(policy.policyVersion, 40);
+  const mode = displayDiagnosticText(policy.orchestrationMode, 40);
+  const claim = policy.conditionalRunClaimSupported === true ? '条件认领:ready' : '条件认领:missing';
+  const idempotent = policy.idempotentCreateReplaySupported === true ? '幂等回放:ready' : '幂等回放:missing';
+  const replay = policy.duplicateEventReplaySafe === true ? '重复事件:safe' : '重复事件:risky';
+  const recovery = policy.eventRecoveryEnabled === true ? '恢复扫描:on' : '恢复扫描:off';
+  const queueLag = policy.queueLagMetricReady === true ? '队列lag:ready' : '队列lag:pending';
+  const timeout = policy.timeoutAlertReady === true ? '超时告警:ready' : '超时告警:pending';
+  const manual = policy.manualQueuedEventReplayReady === true ? '人工重发:ready' : '人工重发:pending';
+  const multi = policy.multiInstanceLoadTestEvidenceReady === true ? '多实例证据:ready' : '多实例证据:pending';
+  const detailExport = anyGenerationOrchestrationDetailExported(policy) ? '细节导出:on' : '细节导出:off';
+  const runtime = generationOrchestrationRuntimeSummary(policy);
+  return [version, mode, claim, idempotent, replay, recovery, queueLag, timeout, manual, multi, detailExport, runtime]
+    .filter((part) => part !== '-')
+    .join(' · ') || '-';
+}
+
 function contextAssemblyPolicyTone(task: TestDesignTaskView): TestDesignTaskDiagnosticTone {
   const policy = task.contextAssemblyPolicy ?? assemblyPolicyFromContextSummary(task.contextSummary);
   if (
@@ -567,6 +595,35 @@ function modelObservationPolicyTone(task: TestDesignTaskView): TestDesignTaskDia
     return 'danger';
   }
   if (policy?.traceIdTracked === false || policy?.jobIdTracked === false) {
+    return 'warning';
+  }
+  return 'neutral';
+}
+
+function generationOrchestrationPolicyTone(task: TestDesignTaskView): TestDesignTaskDiagnosticTone {
+  const policy = task.generationOrchestrationPolicy ??
+    generationOrchestrationPolicyFromContextSummary(task.contextSummary);
+  if (
+    policy?.conditionalRunClaimSupported === false ||
+    policy?.idempotentCreateReplaySupported === false ||
+    policy?.duplicateEventReplaySafe === false ||
+    policy?.explicitRetryRequiredAfterTimeout === false ||
+    policy?.manualTaskRetrySupported === false ||
+    policy?.queueLagMetricReady === false ||
+    policy?.timeoutAlertReady === false ||
+    anyGenerationOrchestrationDetailExported(policy) ||
+    policy?.aggregateOnly === false
+  ) {
+    return 'danger';
+  }
+  if (
+    policy?.queueLagWarning === true ||
+    policy?.timeoutWarning === true ||
+    policy?.manualQueuedEventReplayReady === false ||
+    policy?.multiInstanceLoadTestEvidenceReady === false ||
+    policy?.eventRecoveryEnabled === false ||
+    policy?.queuedEventReplaySupported === false
+  ) {
     return 'warning';
   }
   return 'neutral';
@@ -805,6 +862,51 @@ function modelObservationPolicyFromContextSummary(contextSummary: Record<string,
   };
 }
 
+function generationOrchestrationPolicyFromContextSummary(contextSummary: Record<string, unknown> | null | undefined) {
+  if (!contextSummary || typeof contextSummary !== 'object') {
+    return undefined;
+  }
+  const raw = contextSummary.generationOrchestrationPolicy;
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    return undefined;
+  }
+  const record = raw as Record<string, unknown>;
+  return {
+    policyVersion: safeOptionalString(record.policyVersion),
+    orchestrationMode: safeOptionalString(record.orchestrationMode),
+    asyncGenerationEnabled: safeOptionalBoolean(record.asyncGenerationEnabled),
+    conditionalRunClaimSupported: safeOptionalBoolean(record.conditionalRunClaimSupported),
+    idempotentCreateReplaySupported: safeOptionalBoolean(record.idempotentCreateReplaySupported),
+    duplicateEventReplaySafe: safeOptionalBoolean(record.duplicateEventReplaySafe),
+    eventRecoveryEnabled: safeOptionalBoolean(record.eventRecoveryEnabled),
+    queuedEventReplaySupported: safeOptionalBoolean(record.queuedEventReplaySupported),
+    runningTimeoutRecoveryEnabled: safeOptionalBoolean(record.runningTimeoutRecoveryEnabled),
+    explicitRetryRequiredAfterTimeout: safeOptionalBoolean(record.explicitRetryRequiredAfterTimeout),
+    manualTaskRetrySupported: safeOptionalBoolean(record.manualTaskRetrySupported),
+    manualQueuedEventReplayReady: safeOptionalBoolean(record.manualQueuedEventReplayReady),
+    queueLagMetricReady: safeOptionalBoolean(record.queueLagMetricReady),
+    timeoutAlertReady: safeOptionalBoolean(record.timeoutAlertReady),
+    multiInstanceLoadTestEvidenceReady: safeOptionalBoolean(record.multiInstanceLoadTestEvidenceReady),
+    eventPayloadExported: safeOptionalBoolean(record.eventPayloadExported),
+    eventIdentifierListExported: safeOptionalBoolean(record.eventIdentifierListExported),
+    queueMessageBodyExported: safeOptionalBoolean(record.queueMessageBodyExported),
+    recoveryDetailRowsExported: safeOptionalBoolean(record.recoveryDetailRowsExported),
+    effectiveRecoveryBatchSize: safeOptionalNumber(record.effectiveRecoveryBatchSize),
+    runningTimeoutSeconds: safeOptionalNumber(record.runningTimeoutSeconds),
+    queueLagWarningSeconds: safeOptionalNumber(record.queueLagWarningSeconds),
+    queuedTaskCount: safeOptionalNumber(record.queuedTaskCount),
+    runningTaskCount: safeOptionalNumber(record.runningTaskCount),
+    oldestQueuedAgeSeconds: safeOptionalNumber(record.oldestQueuedAgeSeconds),
+    staleRunningTaskCount: safeOptionalNumber(record.staleRunningTaskCount),
+    queueLagWarning: safeOptionalBoolean(record.queueLagWarning),
+    timeoutWarning: safeOptionalBoolean(record.timeoutWarning),
+    queuedStatusSignal: safeOptionalNumber(record.queuedStatusSignal),
+    runningStatusSignal: safeOptionalNumber(record.runningStatusSignal),
+    timeoutFailureSignal: safeOptionalNumber(record.timeoutFailureSignal),
+    aggregateOnly: safeOptionalBoolean(record.aggregateOnly)
+  };
+}
+
 function governanceFromContextSummary(contextSummary: Record<string, unknown> | null | undefined) {
   if (!contextSummary || typeof contextSummary !== 'object') {
     return undefined;
@@ -920,6 +1022,59 @@ function anyModelObservationDetailExported(policy: {
     policy.invocationIdValueExported === true ||
     policy.providerErrorTextExported === true ||
     policy.actorServiceExported === true;
+}
+
+function anyGenerationOrchestrationDetailExported(policy: {
+  eventPayloadExported?: boolean;
+  eventIdentifierListExported?: boolean;
+  queueMessageBodyExported?: boolean;
+  recoveryDetailRowsExported?: boolean;
+} | null | undefined) {
+  if (!policy) {
+    return false;
+  }
+  return policy.eventPayloadExported === true ||
+    policy.eventIdentifierListExported === true ||
+    policy.queueMessageBodyExported === true ||
+    policy.recoveryDetailRowsExported === true;
+}
+
+function generationOrchestrationRuntimeSummary(policy: {
+  queueLagWarningSeconds?: number;
+  runningTimeoutSeconds?: number;
+  queuedTaskCount?: number;
+  runningTaskCount?: number;
+  oldestQueuedAgeSeconds?: number;
+  staleRunningTaskCount?: number;
+  queueLagWarning?: boolean;
+  timeoutWarning?: boolean;
+}) {
+  const parts: string[] = [];
+  if (typeof policy.queueLagWarningSeconds === 'number') {
+    parts.push(`lag阈值:${Math.floor(policy.queueLagWarningSeconds)}s`);
+  }
+  if (typeof policy.runningTimeoutSeconds === 'number') {
+    parts.push(`超时阈值:${Math.floor(policy.runningTimeoutSeconds)}s`);
+  }
+  if (typeof policy.queuedTaskCount === 'number') {
+    parts.push(`排队:${Math.floor(policy.queuedTaskCount)}`);
+  }
+  if (typeof policy.runningTaskCount === 'number') {
+    parts.push(`运行:${Math.floor(policy.runningTaskCount)}`);
+  }
+  if (typeof policy.oldestQueuedAgeSeconds === 'number') {
+    parts.push(`最旧排队:${Math.floor(policy.oldestQueuedAgeSeconds)}s`);
+  }
+  if (typeof policy.staleRunningTaskCount === 'number') {
+    parts.push(`超时运行:${Math.floor(policy.staleRunningTaskCount)}`);
+  }
+  if (policy.queueLagWarning === true) {
+    parts.push('lag告警:on');
+  }
+  if (policy.timeoutWarning === true) {
+    parts.push('超时告警:on');
+  }
+  return parts.length ? parts.join(' / ') : '-';
 }
 
 function contextPolicyPart(record: Record<string, unknown>, key: string, label: string) {

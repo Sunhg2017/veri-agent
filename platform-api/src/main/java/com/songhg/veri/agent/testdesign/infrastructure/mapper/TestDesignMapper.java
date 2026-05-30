@@ -20,6 +20,12 @@ public interface TestDesignMapper {
 
     long countTasks(@Param("query") TestDesignTaskQuery query);
 
+    long countTasksByStatus(@Param("status") String status);
+
+    Instant oldestTaskUpdatedAtByStatus(@Param("status") String status);
+
+    long countStaleRunningTasks(@Param("staleBefore") Instant staleBefore);
+
     TestDesignTask task(@Param("id") UUID id);
 
     TestDesignTask taskByIdempotencyKey(

@@ -39,6 +39,12 @@ class TestDesignEventRecoveryServiceTest {
         assertThat(result.trigger()).isEqualTo("test");
         assertThat(result.queuedTasks()).isEqualTo(1);
         assertThat(result.timedOutRunningTasks()).isEqualTo(1);
+        assertThat(result.queuedTaskCount()).isEqualTo(1);
+        assertThat(result.runningTaskCount()).isEqualTo(2);
+        assertThat(result.oldestQueuedAgeSeconds()).isGreaterThanOrEqualTo(100);
+        assertThat(result.staleRunningTaskCount()).isEqualTo(1);
+        assertThat(result.queueLagWarning()).isTrue();
+        assertThat(result.timeoutWarning()).isTrue();
         assertThat(repository.task(queuedTaskId)).get().extracting(TestDesignTask::status)
                 .isEqualTo(TestDesignTaskStatus.QUEUED.name());
         assertThat(repository.task(staleRunningTaskId)).get()
@@ -66,6 +72,12 @@ class TestDesignEventRecoveryServiceTest {
 
         assertThat(result.queuedTasks()).isZero();
         assertThat(result.timedOutRunningTasks()).isZero();
+        assertThat(result.queuedTaskCount()).isZero();
+        assertThat(result.runningTaskCount()).isZero();
+        assertThat(result.oldestQueuedAgeSeconds()).isZero();
+        assertThat(result.staleRunningTaskCount()).isZero();
+        assertThat(result.queueLagWarning()).isFalse();
+        assertThat(result.timeoutWarning()).isFalse();
         assertThat(repository.task(queuedTaskId)).get().extracting(TestDesignTask::status)
                 .isEqualTo(TestDesignTaskStatus.QUEUED.name());
         assertThat(repository.task(staleRunningTaskId)).get().extracting(TestDesignTask::status)
@@ -122,6 +134,7 @@ class TestDesignEventRecoveryServiceTest {
                 recoveryEnabled,
                 20,
                 runningTimeoutSeconds,
+                60,
                 100D,
                 100D,
                 20D,

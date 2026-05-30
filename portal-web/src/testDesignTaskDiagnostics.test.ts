@@ -186,6 +186,37 @@ const baseTask: TestDesignTaskView = {
     actorServiceExported: false,
     aggregateOnly: true
   },
+  generationOrchestrationPolicy: {
+    policyVersion: 'wp5-generation-orchestration-policy-v1',
+    orchestrationMode: 'ASYNC_EVENT_CONDITIONAL_CLAIM',
+    asyncGenerationEnabled: true,
+    conditionalRunClaimSupported: true,
+    idempotentCreateReplaySupported: true,
+    duplicateEventReplaySafe: true,
+    eventRecoveryEnabled: true,
+    queuedEventReplaySupported: true,
+    runningTimeoutRecoveryEnabled: true,
+    explicitRetryRequiredAfterTimeout: true,
+    manualTaskRetrySupported: true,
+    manualQueuedEventReplayReady: false,
+    queueLagMetricReady: true,
+    timeoutAlertReady: true,
+    multiInstanceLoadTestEvidenceReady: false,
+    eventPayloadExported: false,
+    eventIdentifierListExported: false,
+    queueMessageBodyExported: false,
+    recoveryDetailRowsExported: false,
+    effectiveRecoveryBatchSize: 100,
+    runningTimeoutSeconds: 600,
+    queueLagWarningSeconds: 120,
+    queuedTaskCount: 2,
+    runningTaskCount: 1,
+    oldestQueuedAgeSeconds: 95,
+    staleRunningTaskCount: 0,
+    queueLagWarning: false,
+    timeoutWarning: false,
+    aggregateOnly: true
+  },
   archivePolicy: {
     policyVersion: 'wp5-archive-policy-v1',
     retentionDays: 180,
@@ -262,6 +293,11 @@ describe('WP5 task diagnostics helpers', () => {
           label: '观测策略',
           tone: 'neutral',
           value: 'wp5-model-observation-policy-v1 · ROUTING_COST_LATENCY_AGGREGATE · WP2调用:tracked · trace信号:tracked · job信号:tracked · 路由:tracked · token:tracked · 成本耗时:tracked · fallback:tracked · Prompt载荷:off · 细节导出:off'
+        }),
+        expect.objectContaining({
+          label: '编排策略',
+          tone: 'warning',
+          value: 'wp5-generation-orchestration-policy-v1 · ASYNC_EVENT_CONDITIONAL_CLAIM · 条件认领:ready · 幂等回放:ready · 重复事件:safe · 恢复扫描:on · 队列lag:ready · 超时告警:ready · 人工重发:pending · 多实例证据:pending · 细节导出:off · lag阈值:120s / 超时阈值:600s / 排队:2 / 运行:1 / 最旧排队:95s / 超时运行:0'
         }),
         expect.objectContaining({ label: '调用链路', value: expect.stringContaining('trc_wp5_mod') }),
         expect.objectContaining({ label: '调用任务', value: expect.stringContaining('job-abcdef1') }),
@@ -379,6 +415,83 @@ describe('WP5 task diagnostics helpers', () => {
     expect(JSON.stringify(diagnostics)).not.toContain('request preview should not appear');
     expect(JSON.stringify(diagnostics)).not.toContain('response preview should not appear');
     expect(JSON.stringify(diagnostics)).not.toContain('secret-value');
+  });
+
+  it('falls back to aggregate generation orchestration policy from the task summary', () => {
+    const diagnostics = buildTestDesignTaskDiagnostics({
+      ...baseTask,
+      generationOrchestrationPolicy: undefined,
+      contextSummary: {
+        generationOrchestrationPolicy: {
+          policyVersion: 'wp5-generation-orchestration-policy-v1',
+          orchestrationMode: 'ASYNC_EVENT_CONDITIONAL_CLAIM',
+          asyncGenerationEnabled: true,
+          conditionalRunClaimSupported: true,
+          idempotentCreateReplaySupported: true,
+          duplicateEventReplaySafe: true,
+          eventRecoveryEnabled: true,
+          queuedEventReplaySupported: true,
+          runningTimeoutRecoveryEnabled: true,
+          explicitRetryRequiredAfterTimeout: true,
+          manualTaskRetrySupported: true,
+          manualQueuedEventReplayReady: false,
+          queueLagMetricReady: true,
+          timeoutAlertReady: true,
+          multiInstanceLoadTestEvidenceReady: false,
+          eventPayloadExported: false,
+          eventIdentifierListExported: false,
+          queueMessageBodyExported: false,
+          recoveryDetailRowsExported: false,
+          queueLagWarningSeconds: 120,
+          runningTimeoutSeconds: 600,
+          queuedTaskCount: 3,
+          runningTaskCount: 1,
+          oldestQueuedAgeSeconds: 180,
+          staleRunningTaskCount: 1,
+          queueLagWarning: true,
+          timeoutWarning: true,
+          aggregateOnly: true,
+          eventIds: ['evt-secret-id'],
+          queuePayload: 'queue token=secret-value',
+          idempotencyKeys: ['idempotency-secret']
+        }
+      }
+    });
+
+    expect(diagnostics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          label: '编排策略',
+          tone: 'warning',
+          value: expect.stringContaining('lag告警:on')
+        })
+      ])
+    );
+    expect(JSON.stringify(diagnostics)).not.toContain('evt-secret-id');
+    expect(JSON.stringify(diagnostics)).not.toContain('queue token=secret-value');
+    expect(JSON.stringify(diagnostics)).not.toContain('idempotency-secret');
+  });
+
+  it('marks unsafe generation orchestration policy as danger', () => {
+    const diagnostics = buildTestDesignTaskDiagnostics({
+      ...baseTask,
+      generationOrchestrationPolicy: {
+        ...baseTask.generationOrchestrationPolicy,
+        queueLagMetricReady: false,
+        eventPayloadExported: true,
+        queueMessageBodyExported: true
+      }
+    });
+
+    expect(diagnostics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          label: '编排策略',
+          tone: 'danger',
+          value: expect.stringContaining('队列lag:pending')
+        })
+      ])
+    );
   });
 
   it('marks unsafe model observation policy as danger', () => {

@@ -63,6 +63,7 @@ public class TestDesignGenerationService {
             "releaseReadinessPolicy",
             "auditChainPolicy",
             "modelObservationPolicy",
+            "generationOrchestrationPolicy",
             "archivePolicy",
             "reportManifestPolicy"
     );
@@ -125,6 +126,7 @@ public class TestDesignGenerationService {
         summary.put("releaseReadinessPolicy", TestDesignReleaseReadinessPolicy.snapshot());
         summary.put("auditChainPolicy", TestDesignAuditChainPolicy.snapshot());
         summary.put("modelObservationPolicy", TestDesignModelObservationPolicy.snapshot());
+        summary.put("generationOrchestrationPolicy", TestDesignGenerationOrchestrationPolicy.snapshot(properties));
         summary.put("archivePolicy", TestDesignArchivePolicy.snapshot(properties));
         summary.put("reportManifestPolicy", TestDesignReportManifestPolicy.snapshot());
         try {
@@ -539,6 +541,7 @@ public class TestDesignGenerationService {
         policy.put("releaseReadinessPolicy", TestDesignReleaseReadinessPolicy.snapshot());
         policy.put("auditChainPolicy", TestDesignAuditChainPolicy.snapshot());
         policy.put("modelObservationPolicy", TestDesignModelObservationPolicy.snapshot());
+        policy.put("generationOrchestrationPolicy", TestDesignGenerationOrchestrationPolicy.snapshot(properties));
         policy.put("archivePolicy", TestDesignArchivePolicy.snapshot(properties));
         policy.put("reportManifestPolicy", TestDesignReportManifestPolicy.snapshot());
         return policy;

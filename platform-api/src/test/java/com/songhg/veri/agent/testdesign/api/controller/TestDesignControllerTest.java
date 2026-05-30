@@ -121,6 +121,37 @@ class TestDesignControllerTest {
                 .andExpect(jsonPath("$.data.contextPolicyOperations.changeApprovalWorkflowReady").value(false))
                 .andExpect(jsonPath("$.data.contextPolicyOperations.effectivePolicySnapshotMaterialized").value(true))
                 .andExpect(jsonPath("$.data.contextPolicyOperations.aggregateOnly").value(true))
+                .andExpect(jsonPath("$.data.generationOrchestrationPolicy.policyVersion")
+                        .value("wp5-generation-orchestration-policy-v1"))
+                .andExpect(jsonPath("$.data.generationOrchestrationPolicy.orchestrationMode")
+                        .value("SYNC_INLINE_GENERATION"))
+                .andExpect(jsonPath("$.data.generationOrchestrationPolicy.asyncGenerationEnabled").value(false))
+                .andExpect(jsonPath("$.data.generationOrchestrationPolicy.conditionalRunClaimSupported").value(true))
+                .andExpect(jsonPath("$.data.generationOrchestrationPolicy.idempotentCreateReplaySupported")
+                        .value(true))
+                .andExpect(jsonPath("$.data.generationOrchestrationPolicy.duplicateEventReplaySafe").value(true))
+                .andExpect(jsonPath("$.data.generationOrchestrationPolicy.eventRecoveryEnabled").value(true))
+                .andExpect(jsonPath("$.data.generationOrchestrationPolicy.queuedEventReplaySupported").value(false))
+                .andExpect(jsonPath("$.data.generationOrchestrationPolicy.runningTimeoutRecoveryEnabled").value(true))
+                .andExpect(jsonPath("$.data.generationOrchestrationPolicy.manualQueuedEventReplayReady").value(false))
+                .andExpect(jsonPath("$.data.generationOrchestrationPolicy.queueLagMetricReady").value(true))
+                .andExpect(jsonPath("$.data.generationOrchestrationPolicy.timeoutAlertReady").value(true))
+                .andExpect(jsonPath("$.data.generationOrchestrationPolicy.multiInstanceLoadTestEvidenceReady")
+                        .value(false))
+                .andExpect(jsonPath("$.data.generationOrchestrationPolicy.eventPayloadExported").value(false))
+                .andExpect(jsonPath("$.data.generationOrchestrationPolicy.eventIdentifierListExported").value(false))
+                .andExpect(jsonPath("$.data.generationOrchestrationPolicy.queueMessageBodyExported").value(false))
+                .andExpect(jsonPath("$.data.generationOrchestrationPolicy.recoveryDetailRowsExported").value(false))
+                .andExpect(jsonPath("$.data.generationOrchestrationPolicy.effectiveRecoveryBatchSize").value(100))
+                .andExpect(jsonPath("$.data.generationOrchestrationPolicy.runningTimeoutSeconds").value(600))
+                .andExpect(jsonPath("$.data.generationOrchestrationPolicy.queueLagWarningSeconds").value(120))
+                .andExpect(jsonPath("$.data.generationOrchestrationPolicy.queuedTaskCount").value(0))
+                .andExpect(jsonPath("$.data.generationOrchestrationPolicy.runningTaskCount").value(0))
+                .andExpect(jsonPath("$.data.generationOrchestrationPolicy.oldestQueuedAgeSeconds").value(0))
+                .andExpect(jsonPath("$.data.generationOrchestrationPolicy.staleRunningTaskCount").value(0))
+                .andExpect(jsonPath("$.data.generationOrchestrationPolicy.queueLagWarning").value(false))
+                .andExpect(jsonPath("$.data.generationOrchestrationPolicy.timeoutWarning").value(false))
+                .andExpect(jsonPath("$.data.generationOrchestrationPolicy.aggregateOnly").value(true))
                 .andExpect(jsonPath("$.data.scopePolicy.policyVersion").value("wp5-scope-policy-v1"))
                 .andExpect(jsonPath("$.data.scopePolicy.scopeModel").value("PROJECT_RESOURCE_SCOPE"))
                 .andExpect(jsonPath("$.data.scopePolicy.listFallbackScope")
@@ -684,6 +715,33 @@ class TestDesignControllerTest {
                         .value("WORKFLOW_NOT_READY"))
                 .andExpect(jsonPath("$.data.task.contextPolicyOperations.projectOverrideStoreReady").value(false))
                 .andExpect(jsonPath("$.data.task.contextPolicyOperations.aggregateOnly").value(true))
+                .andExpect(jsonPath("$.data.task.generationOrchestrationPolicy.policyVersion")
+                        .value("wp5-generation-orchestration-policy-v1"))
+                .andExpect(jsonPath("$.data.task.generationOrchestrationPolicy.orchestrationMode")
+                        .value("SYNC_INLINE_GENERATION"))
+                .andExpect(jsonPath("$.data.task.generationOrchestrationPolicy.asyncGenerationEnabled").value(false))
+                .andExpect(jsonPath("$.data.task.generationOrchestrationPolicy.conditionalRunClaimSupported")
+                        .value(true))
+                .andExpect(jsonPath("$.data.task.generationOrchestrationPolicy.idempotentCreateReplaySupported")
+                        .value(true))
+                .andExpect(jsonPath("$.data.task.generationOrchestrationPolicy.eventRecoveryEnabled").value(true))
+                .andExpect(jsonPath("$.data.task.generationOrchestrationPolicy.queuedEventReplaySupported")
+                        .value(false))
+                .andExpect(jsonPath("$.data.task.generationOrchestrationPolicy.runningTimeoutRecoveryEnabled")
+                        .value(true))
+                .andExpect(jsonPath("$.data.task.generationOrchestrationPolicy.queueLagMetricReady").value(true))
+                .andExpect(jsonPath("$.data.task.generationOrchestrationPolicy.timeoutAlertReady").value(true))
+                .andExpect(jsonPath("$.data.task.generationOrchestrationPolicy.multiInstanceLoadTestEvidenceReady")
+                        .value(false))
+                .andExpect(jsonPath("$.data.task.generationOrchestrationPolicy.eventIdentifierListExported")
+                        .value(false))
+                .andExpect(jsonPath("$.data.task.generationOrchestrationPolicy.queueMessageBodyExported")
+                        .value(false))
+                .andExpect(jsonPath("$.data.task.generationOrchestrationPolicy.queueLagWarningSeconds").value(120))
+                .andExpect(jsonPath("$.data.task.generationOrchestrationPolicy.queuedStatusSignal").value(0))
+                .andExpect(jsonPath("$.data.task.generationOrchestrationPolicy.runningStatusSignal").value(0))
+                .andExpect(jsonPath("$.data.task.generationOrchestrationPolicy.timeoutFailureSignal").value(0))
+                .andExpect(jsonPath("$.data.task.generationOrchestrationPolicy.aggregateOnly").value(true))
                 .andExpect(jsonPath("$.data.task.evaluationCorpusPolicy.policyVersion")
                         .value("wp5-evaluation-corpus-policy-v1"))
                 .andExpect(jsonPath("$.data.task.evaluationCorpusPolicy.corpusMode")
@@ -780,6 +838,19 @@ class TestDesignControllerTest {
                         .value("WORKFLOW_NOT_READY"))
                 .andExpect(jsonPath("$.data.task.contextSummary.policyOperations.projectOverrideStoreReady").value(false))
                 .andExpect(jsonPath("$.data.task.contextSummary.policyOperations.aggregateOnly").value(true))
+                .andExpect(jsonPath("$.data.task.contextSummary.generationOrchestrationPolicy.policyVersion")
+                        .value("wp5-generation-orchestration-policy-v1"))
+                .andExpect(jsonPath("$.data.task.contextSummary.generationOrchestrationPolicy.queueLagMetricReady")
+                        .value(true))
+                .andExpect(jsonPath("$.data.task.contextSummary.generationOrchestrationPolicy.timeoutAlertReady")
+                        .value(true))
+                .andExpect(jsonPath(
+                        "$.data.task.contextSummary.generationOrchestrationPolicy.eventIdentifierListExported"
+                ).value(false))
+                .andExpect(jsonPath("$.data.task.contextSummary.generationOrchestrationPolicy.queueMessageBodyExported")
+                        .value(false))
+                .andExpect(jsonPath("$.data.task.contextSummary.generationOrchestrationPolicy.aggregateOnly")
+                        .value(true))
                 .andExpect(jsonPath("$.data.task.contextSummary.evaluationCorpusPolicy.policyVersion")
                         .value("wp5-evaluation-corpus-policy-v1"))
                 .andExpect(jsonPath("$.data.task.contextSummary.evaluationCorpusPolicy.qualityGateMode")
@@ -1281,8 +1352,8 @@ class TestDesignControllerTest {
                 "generationOrchestrationPolicy,explicitRetryRequiredAfterTimeout,,true"));
         MatcherAssert.assertThat(csv, containsString("generationOrchestrationPolicy,manualTaskRetrySupported,,true"));
         MatcherAssert.assertThat(csv, containsString("generationOrchestrationPolicy,manualQueuedEventReplayReady,,false"));
-        MatcherAssert.assertThat(csv, containsString("generationOrchestrationPolicy,queueLagMetricReady,,false"));
-        MatcherAssert.assertThat(csv, containsString("generationOrchestrationPolicy,timeoutAlertReady,,false"));
+        MatcherAssert.assertThat(csv, containsString("generationOrchestrationPolicy,queueLagMetricReady,,true"));
+        MatcherAssert.assertThat(csv, containsString("generationOrchestrationPolicy,timeoutAlertReady,,true"));
         MatcherAssert.assertThat(csv, containsString(
                 "generationOrchestrationPolicy,multiInstanceLoadTestEvidenceReady,,false"));
         MatcherAssert.assertThat(csv, containsString("generationOrchestrationPolicy,eventPayloadExported,,false"));
@@ -1296,11 +1367,23 @@ class TestDesignControllerTest {
         MatcherAssert.assertThat(csv, containsString(
                 "generationOrchestrationPolicy,metric,runningTimeoutSeconds,600,,info"));
         MatcherAssert.assertThat(csv, containsString(
+                "generationOrchestrationPolicy,metric,queueLagWarningSeconds,120,,info"));
+        MatcherAssert.assertThat(csv, containsString(
+                "generationOrchestrationPolicy,metric,queuedTaskCount,0,,neutral"));
+        MatcherAssert.assertThat(csv, containsString(
+                "generationOrchestrationPolicy,metric,runningTaskCount,0,,neutral"));
+        MatcherAssert.assertThat(csv, containsString(
+                "generationOrchestrationPolicy,metric,oldestQueuedAgeSeconds,0,,neutral"));
+        MatcherAssert.assertThat(csv, containsString(
+                "generationOrchestrationPolicy,metric,staleRunningTaskCount,0,,neutral"));
+        MatcherAssert.assertThat(csv, containsString(
                 "generationOrchestrationPolicy,metric,queuedStatusSignal,0,,neutral"));
         MatcherAssert.assertThat(csv, containsString(
                 "generationOrchestrationPolicy,metric,runningStatusSignal,0,,neutral"));
         MatcherAssert.assertThat(csv, containsString(
                 "generationOrchestrationPolicy,metric,timeoutFailureSignal,0,,neutral"));
+        MatcherAssert.assertThat(csv, containsString("generationOrchestrationPolicy,queueLagWarning,,false"));
+        MatcherAssert.assertThat(csv, containsString("generationOrchestrationPolicy,timeoutWarning,,false"));
         MatcherAssert.assertThat(csv, containsString("generationOrchestrationPolicy,aggregateOnly,,true"));
         MatcherAssert.assertThat(csv, containsString("candidateQuality,distribution:status,PUBLISHED"));
         MatcherAssert.assertThat(csv, containsString("candidateQuality,distribution:status,REJECTED"));

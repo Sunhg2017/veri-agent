@@ -220,6 +220,20 @@ class TestDesignGenerationServiceTest {
         assertThat(summary.path("modelObservationPolicy").path("providerErrorTextExported").asBoolean()).isFalse();
         assertThat(summary.path("modelObservationPolicy").path("actorServiceExported").asBoolean()).isFalse();
         assertThat(summary.path("modelObservationPolicy").path("aggregateOnly").asBoolean()).isTrue();
+        assertThat(summary.path("generationOrchestrationPolicy").path("policyVersion").asText())
+                .isEqualTo("wp5-generation-orchestration-policy-v1");
+        assertThat(summary.path("generationOrchestrationPolicy").path("orchestrationMode").asText())
+                .isEqualTo("ASYNC_EVENT_CONDITIONAL_CLAIM");
+        assertThat(summary.path("generationOrchestrationPolicy").path("conditionalRunClaimSupported").asBoolean())
+                .isTrue();
+        assertThat(summary.path("generationOrchestrationPolicy").path("queueLagMetricReady").asBoolean()).isTrue();
+        assertThat(summary.path("generationOrchestrationPolicy").path("timeoutAlertReady").asBoolean()).isTrue();
+        assertThat(summary.path("generationOrchestrationPolicy").path("eventIdentifierListExported").asBoolean())
+                .isFalse();
+        assertThat(summary.path("generationOrchestrationPolicy").path("queueMessageBodyExported").asBoolean())
+                .isFalse();
+        assertThat(summary.path("generationOrchestrationPolicy").path("queueLagWarningSeconds").asInt()).isEqualTo(120);
+        assertThat(summary.path("generationOrchestrationPolicy").path("aggregateOnly").asBoolean()).isTrue();
         assertThat(summary.path("archivePolicy").path("policyVersion").asText())
                 .isEqualTo("wp5-archive-policy-v1");
         assertThat(summary.path("archivePolicy").path("retentionDays").asInt()).isEqualTo(180);
@@ -320,6 +334,7 @@ class TestDesignGenerationServiceTest {
         assertThat(payload.path("contextSummary").has("modelObservationPolicy")).isFalse();
         assertThat(payload.path("contextSummary").has("reportManifestPolicy")).isFalse();
         assertThat(payload.path("contextSummary").has("auditChainPolicy")).isFalse();
+        assertThat(payload.path("contextSummary").has("generationOrchestrationPolicy")).isFalse();
         assertThat(payload.path("contextPacking").path("linkedAssetsPerRequirement").asInt()).isEqualTo(3);
         assertThat(payload.path("contextPacking").path("explicitAssetsPerType").asInt()).isEqualTo(4);
         assertThat(payload.path("contextPacking").path("existingCasesPerRequirement").asInt()).isEqualTo(2);
@@ -444,6 +459,24 @@ class TestDesignGenerationServiceTest {
                 .asBoolean()).isFalse();
         assertThat(payload.path("contextPacking").path("modelObservationPolicy").path("aggregateOnly")
                 .asBoolean()).isTrue();
+        assertThat(payload.path("contextPacking").path("generationOrchestrationPolicy").path("policyVersion").asText())
+                .isEqualTo("wp5-generation-orchestration-policy-v1");
+        assertThat(payload.path("contextPacking").path("generationOrchestrationPolicy").path("orchestrationMode")
+                .asText()).isEqualTo("ASYNC_EVENT_CONDITIONAL_CLAIM");
+        assertThat(payload.path("contextPacking").path("generationOrchestrationPolicy")
+                .path("conditionalRunClaimSupported").asBoolean()).isTrue();
+        assertThat(payload.path("contextPacking").path("generationOrchestrationPolicy")
+                .path("queueLagMetricReady").asBoolean()).isTrue();
+        assertThat(payload.path("contextPacking").path("generationOrchestrationPolicy")
+                .path("timeoutAlertReady").asBoolean()).isTrue();
+        assertThat(payload.path("contextPacking").path("generationOrchestrationPolicy")
+                .path("eventIdentifierListExported").asBoolean()).isFalse();
+        assertThat(payload.path("contextPacking").path("generationOrchestrationPolicy")
+                .path("queueMessageBodyExported").asBoolean()).isFalse();
+        assertThat(payload.path("contextPacking").path("generationOrchestrationPolicy")
+                .path("queueLagWarningSeconds").asInt()).isEqualTo(120);
+        assertThat(payload.path("contextPacking").path("generationOrchestrationPolicy").path("aggregateOnly")
+                .asBoolean()).isTrue();
         assertThat(payload.path("contextPacking").path("archivePolicy").path("policyVersion").asText())
                 .isEqualTo("wp5-archive-policy-v1");
         assertThat(payload.path("contextPacking").path("archivePolicy").path("retentionDays").asInt()).isEqualTo(180);
@@ -561,6 +594,7 @@ class TestDesignGenerationServiceTest {
                 true,
                 100,
                 600,
+                120,
                 100D,
                 100D,
                 20D,

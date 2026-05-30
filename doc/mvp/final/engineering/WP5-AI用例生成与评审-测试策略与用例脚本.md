@@ -83,7 +83,7 @@
 | WP5-FUNC-003K | P1 | 导出任务全量报告质量准出阈值策略 | CSV 包含 `readinessPolicy` 聚合行，只输出策略版本、阈值来源、准出状态、阻断/风险计数、逐项检查状态、当前值、阈值、单位、严重级别和 advisory-only/publish-blocking 标记，不输出候选证据、候选 ID、候选正文、检查说明正文或 Prompt 正文。 |
 | WP5-FUNC-003L | P1 | 导出任务全量报告发布补偿策略 | CSV 包含 `publishCompensationPolicy` 聚合行，只输出补偿策略版本、回放键族、幂等回放、部分 trace link 修复、失败候选重试、人工冲突链接、异步补偿后台和跨 WP 编排就绪状态，以及 retry/link/manual/conflict/failed 聚合计数，不输出候选 ID、资产用例 ID、sourceRef、trace 明细、发布错误正文或评审说明。 |
 | WP5-FUNC-003M | P1 | 导出任务全量报告模型观测策略 | CSV 包含 `modelObservationPolicy` 聚合行，复用共享策略快照只输出策略版本、聚合观测模式、WP2 调用引用、trace/job/routing/token/latency/cost/fallback 跟踪能力、Prompt 载荷不存储、载荷预览/traceId/jobId/invocationId 原值/provider 错误正文/actor service 不导出、aggregate-only 和路由/token/成本/延迟聚合计数，不输出模型调用 ID、异步 job ID、traceId 原值、载荷预览、原始 Prompt、provider 错误正文或 actor 服务。 |
-| WP5-FUNC-003N | P1 | 导出任务全量报告生成编排策略 | CSV 包含 `generationOrchestrationPolicy` 聚合行，只输出策略版本、编排模式、条件认领、幂等回放、事件恢复、超时回收、人工重试、运营缺口和状态/超时信号计数，不输出事件 ID、事件 payload、队列消息体、恢复明细、幂等键或超时错误正文。 |
+| WP5-FUNC-003N | P1 | 导出任务全量报告生成编排策略 | CSV 包含 `generationOrchestrationPolicy` 聚合行，只输出策略版本、编排模式、条件认领、幂等回放、事件恢复、超时回收、人工重试、队列 lag 指标、超时告警、运营缺口、恢复批次上限、排队/运行/最旧排队年龄/超时运行聚合计数和状态/超时信号计数，不输出事件 ID、事件 payload、队列消息体、恢复明细、幂等键或超时错误正文。 |
 | WP5-FUNC-003O | P1 | 导出任务全量报告作用域策略 | CSV 包含 `scopePolicy` 聚合行，只输出策略版本、项目资源作用域、列表 fallback、任务/候选/批量/发布/异步生成/HTTP smoke/质量评测项目隔离和运营缺口，不输出候选 ID 列表、角色规则明细或服务令牌原值。 |
 | WP5-FUNC-003O-1 | P1 | 导出任务全量报告评测语料策略 | CSV 包含 `evaluationCorpusPolicy` 聚合行，只输出策略版本、golden set 基线、手动可选 AI 评测、阈值来源、项目作用域、质量门禁接入、准出分布、Prompt 版本跟踪和运营缺口，不输出评测语料行、候选正文、评审评论或 Prompt 正文。 |
 | WP5-FUNC-003P | P1 | 导出任务全量报告发布准出审批策略 | CSV 包含 `releaseReadinessPolicy` 聚合行，只输出策略版本、决策模式、阈值来源、质量阈值评估、advisory-only、发布阻断关闭、人工准出要求、审批流未就绪、自动发布关闭、候选确认要求和当前 readiness 聚合计数，不输出候选级准出证据、审批备注或阈值规则明细。 |

@@ -107,6 +107,7 @@ public class TestDesignTaskService {
                 TestDesignContextAssemblyPolicy.response(),
                 TestDesignContextPolicyGovernance.response(),
                 TestDesignContextPolicyOperations.response(),
+                TestDesignGenerationOrchestrationPolicy.response(properties, orchestrationRuntimeSnapshot(Instant.now())),
                 TestDesignScopePolicy.response(),
                 TestDesignEvaluationCorpusPolicy.response(),
                 TestDesignReleaseReadinessPolicy.response(),
@@ -582,6 +583,7 @@ public class TestDesignTaskService {
         payload.put("contextLimits", properties.effectiveContextLimits());
         payload.put("contextPolicyGovernance", TestDesignContextPolicyGovernance.snapshot());
         payload.put("contextPolicyOperations", TestDesignContextPolicyOperations.snapshot());
+        payload.put("generationOrchestrationPolicy", TestDesignGenerationOrchestrationPolicy.snapshot(properties));
         payload.put("scopePolicy", TestDesignScopePolicy.snapshot());
         payload.put("evaluationCorpusPolicy", TestDesignEvaluationCorpusPolicy.snapshot());
         payload.put("releaseReadinessPolicy", TestDesignReleaseReadinessPolicy.snapshot());
@@ -599,6 +601,22 @@ public class TestDesignTaskService {
     private int normalizedCaseCount(Integer requestedCount) {
         return requestedCount == null || requestedCount <= 0 ? maxCasesPerRequirement()
                 : Math.min(requestedCount, maxCasesPerRequirement());
+    }
+
+    private TestDesignGenerationOrchestrationPolicy.RuntimeSnapshot orchestrationRuntimeSnapshot(Instant now) {
+        long timeoutSeconds = TestDesignGenerationOrchestrationPolicy.runningTimeoutSeconds(properties);
+        long staleRunningTaskCount = timeoutSeconds <= 0L
+                ? 0L
+                : repository.countStaleRunningTasks(now.minusSeconds(timeoutSeconds));
+        long oldestQueuedAgeSeconds = repository.oldestTaskUpdatedAtByStatus(TestDesignTaskStatus.QUEUED)
+                .map(updatedAt -> TestDesignGenerationOrchestrationPolicy.ageSeconds(now, updatedAt))
+                .orElse(0L);
+        return new TestDesignGenerationOrchestrationPolicy.RuntimeSnapshot(
+                repository.countTasksByStatus(TestDesignTaskStatus.QUEUED),
+                repository.countTasksByStatus(TestDesignTaskStatus.RUNNING),
+                oldestQueuedAgeSeconds,
+                staleRunningTaskCount
+        );
     }
 
     private static String resolveIdempotencyKey(String bodyKey, String headerKey) {

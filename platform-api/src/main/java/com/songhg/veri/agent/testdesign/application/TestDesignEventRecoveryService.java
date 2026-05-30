@@ -19,7 +19,6 @@ import org.springframework.stereotype.Service;
 @Service
 public class TestDesignEventRecoveryService {
 
-    private static final int MAX_RECOVERY_BATCH_SIZE = 100;
     private static final Logger log = LoggerFactory.getLogger(TestDesignEventRecoveryService.class);
 
     private final TestDesignRepository repository;
@@ -54,8 +53,10 @@ public class TestDesignEventRecoveryService {
      */
     public RecoveryResult recoverQueuedEvents(String trigger) {
         if (!properties.eventRecoveryEnabled()) {
-            return new RecoveryResult(trigger, 0, 0);
+            return new RecoveryResult(trigger, 0, 0, 0, 0, 0, 0, false, false);
         }
+        Instant checkedAt = Instant.now();
+        RuntimeSignals runtimeSignals = runtimeSignals(checkedAt);
         int timedOutRunningTasks = failTimedOutRunningTasks();
         List<TestDesignTask> queuedTasks = repository.tasks(new TestDesignTaskQuery(
                 null,
@@ -65,16 +66,34 @@ public class TestDesignEventRecoveryService {
                 PageQuery.of(0, recoveryBatchSize())
         ));
         queuedTasks.forEach(task -> eventPublisher.publishGenerationRequested(task.id()));
-        if (!queuedTasks.isEmpty() || timedOutRunningTasks > 0) {
+        if (!queuedTasks.isEmpty() || timedOutRunningTasks > 0 || runtimeSignals.hasWarning()) {
             log.info(
-                    "WP5 test design generation recovery completed, trigger={}, queuedTasks={}, timedOutRunningTasks={}, cron={}",
+                    "WP5 test design generation recovery completed, trigger={}, queuedTasks={}, timedOutRunningTasks={}, "
+                            + "queuedTaskCount={}, runningTaskCount={}, oldestQueuedAgeSeconds={}, "
+                            + "staleRunningTaskCount={}, queueLagWarning={}, timeoutWarning={}, cron={}",
                     trigger,
                     queuedTasks.size(),
                     timedOutRunningTasks,
+                    runtimeSignals.queuedTaskCount(),
+                    runtimeSignals.runningTaskCount(),
+                    runtimeSignals.oldestQueuedAgeSeconds(),
+                    runtimeSignals.staleRunningTaskCount(),
+                    runtimeSignals.queueLagWarning(),
+                    runtimeSignals.timeoutWarning(),
                     recoveryCron
             );
         }
-        return new RecoveryResult(trigger, queuedTasks.size(), timedOutRunningTasks);
+        return new RecoveryResult(
+                trigger,
+                queuedTasks.size(),
+                timedOutRunningTasks,
+                runtimeSignals.queuedTaskCount(),
+                runtimeSignals.runningTaskCount(),
+                runtimeSignals.oldestQueuedAgeSeconds(),
+                runtimeSignals.staleRunningTaskCount(),
+                runtimeSignals.queueLagWarning(),
+                runtimeSignals.timeoutWarning()
+        );
     }
 
     private void recoverSafely(String trigger) {
@@ -87,12 +106,11 @@ public class TestDesignEventRecoveryService {
     }
 
     private int recoveryBatchSize() {
-        int configured = properties.eventRecoveryBatchSize();
-        return Math.max(1, Math.min(MAX_RECOVERY_BATCH_SIZE, configured <= 0 ? MAX_RECOVERY_BATCH_SIZE : configured));
+        return TestDesignGenerationOrchestrationPolicy.recoveryBatchSize(properties);
     }
 
     private int failTimedOutRunningTasks() {
-        long timeoutSeconds = properties.eventRecoveryRunningTimeoutSeconds();
+        long timeoutSeconds = TestDesignGenerationOrchestrationPolicy.runningTimeoutSeconds(properties);
         if (timeoutSeconds <= 0) {
             return 0;
         }
@@ -107,6 +125,50 @@ public class TestDesignEventRecoveryService {
         );
     }
 
-    public record RecoveryResult(String trigger, int queuedTasks, int timedOutRunningTasks) {
+    private RuntimeSignals runtimeSignals(Instant checkedAt) {
+        long queueLagWarningSeconds = TestDesignGenerationOrchestrationPolicy.queueLagWarningSeconds(properties);
+        long runningTimeoutSeconds = TestDesignGenerationOrchestrationPolicy.runningTimeoutSeconds(properties);
+        long queuedTaskCount = repository.countTasksByStatus(TestDesignTaskStatus.QUEUED);
+        long runningTaskCount = repository.countTasksByStatus(TestDesignTaskStatus.RUNNING);
+        long oldestQueuedAgeSeconds = repository.oldestTaskUpdatedAtByStatus(TestDesignTaskStatus.QUEUED)
+                .map(updatedAt -> TestDesignGenerationOrchestrationPolicy.ageSeconds(checkedAt, updatedAt))
+                .orElse(0L);
+        long staleRunningTaskCount = runningTimeoutSeconds <= 0L
+                ? 0L
+                : repository.countStaleRunningTasks(checkedAt.minusSeconds(runningTimeoutSeconds));
+        return new RuntimeSignals(
+                queuedTaskCount,
+                runningTaskCount,
+                oldestQueuedAgeSeconds,
+                staleRunningTaskCount,
+                queueLagWarningSeconds > 0L && oldestQueuedAgeSeconds >= queueLagWarningSeconds,
+                runningTimeoutSeconds > 0L && staleRunningTaskCount > 0L
+        );
+    }
+
+    public record RecoveryResult(
+            String trigger,
+            int queuedTasks,
+            int timedOutRunningTasks,
+            long queuedTaskCount,
+            long runningTaskCount,
+            long oldestQueuedAgeSeconds,
+            long staleRunningTaskCount,
+            boolean queueLagWarning,
+            boolean timeoutWarning
+    ) {
+    }
+
+    private record RuntimeSignals(
+            long queuedTaskCount,
+            long runningTaskCount,
+            long oldestQueuedAgeSeconds,
+            long staleRunningTaskCount,
+            boolean queueLagWarning,
+            boolean timeoutWarning
+    ) {
+        boolean hasWarning() {
+            return queueLagWarning || timeoutWarning;
+        }
     }
 }

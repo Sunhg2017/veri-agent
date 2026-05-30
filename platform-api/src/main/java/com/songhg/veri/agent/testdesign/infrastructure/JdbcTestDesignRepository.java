@@ -38,6 +38,21 @@ public class JdbcTestDesignRepository implements TestDesignRepository {
     }
 
     @Override
+    public long countTasksByStatus(TestDesignTaskStatus status) {
+        return status == null ? 0L : mapper.countTasksByStatus(status.name());
+    }
+
+    @Override
+    public Optional<Instant> oldestTaskUpdatedAtByStatus(TestDesignTaskStatus status) {
+        return status == null ? Optional.empty() : Optional.ofNullable(mapper.oldestTaskUpdatedAtByStatus(status.name()));
+    }
+
+    @Override
+    public long countStaleRunningTasks(Instant staleBefore) {
+        return staleBefore == null ? 0L : mapper.countStaleRunningTasks(staleBefore);
+    }
+
+    @Override
     public Optional<TestDesignTask> task(UUID id) {
         return Optional.ofNullable(mapper.task(id));
     }

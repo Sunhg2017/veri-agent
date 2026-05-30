@@ -70,6 +70,7 @@ public class TestDesignResponseMapper {
                 TestDesignContextAssemblyPolicy.response(),
                 TestDesignContextPolicyGovernance.response(),
                 TestDesignContextPolicyOperations.response(),
+                TestDesignGenerationOrchestrationPolicy.taskResponse(properties, task),
                 TestDesignScopePolicy.response(),
                 TestDesignEvaluationCorpusPolicy.response(),
                 TestDesignReleaseReadinessPolicy.response(),

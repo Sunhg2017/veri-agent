@@ -31,6 +31,21 @@ public interface TestDesignRepository {
     long countTasks(TestDesignTaskQuery query);
 
     /**
+     * 按任务状态统计聚合数量，用于编排健康检查，不返回任务明细。
+     */
+    long countTasksByStatus(TestDesignTaskStatus status);
+
+    /**
+     * 查询某状态下最早更新时间，用于队列滞留聚合指标，不返回任务标识或 payload。
+     */
+    Optional<Instant> oldestTaskUpdatedAtByStatus(TestDesignTaskStatus status);
+
+    /**
+     * 统计达到运行超时阈值的 RUNNING 任务数量，用于超时告警聚合指标。
+     */
+    long countStaleRunningTasks(Instant staleBefore);
+
+    /**
      * 查询单个任务
      */
     Optional<TestDesignTask> task(UUID id);

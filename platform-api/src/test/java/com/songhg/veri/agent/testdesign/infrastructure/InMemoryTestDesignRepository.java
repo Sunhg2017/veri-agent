@@ -45,6 +45,38 @@ public class InMemoryTestDesignRepository implements TestDesignRepository {
     }
 
     @Override
+    public long countTasksByStatus(TestDesignTaskStatus status) {
+        if (status == null) {
+            return 0L;
+        }
+        return tasks.values().stream()
+                .filter(task -> status.name().equals(task.status()))
+                .count();
+    }
+
+    @Override
+    public Optional<Instant> oldestTaskUpdatedAtByStatus(TestDesignTaskStatus status) {
+        if (status == null) {
+            return Optional.empty();
+        }
+        return tasks.values().stream()
+                .filter(task -> status.name().equals(task.status()))
+                .map(InMemoryTestDesignRepository::lastTouchedAt)
+                .min(Comparator.naturalOrder());
+    }
+
+    @Override
+    public long countStaleRunningTasks(Instant staleBefore) {
+        if (staleBefore == null) {
+            return 0L;
+        }
+        return tasks.values().stream()
+                .filter(task -> TestDesignTaskStatus.RUNNING.name().equals(task.status()))
+                .filter(task -> lastTouchedAt(task).isBefore(staleBefore))
+                .count();
+    }
+
+    @Override
     public Optional<TestDesignTask> task(UUID id) {
         return Optional.ofNullable(tasks.get(id));
     }
@@ -117,17 +149,14 @@ public class InMemoryTestDesignRepository implements TestDesignRepository {
             List<TestDesignTask> staleTasks = tasks.values().stream()
                     .filter(current -> TestDesignTaskStatus.RUNNING.name().equals(current.status()))
                     .filter(current -> {
-                        Instant lastTouchedAt = current.updatedAt() == null ? current.createdAt() : current.updatedAt();
-                        return lastTouchedAt.isBefore(staleBefore);
+                        return lastTouchedAt(current).isBefore(staleBefore);
                     })
-                    .sorted(Comparator.comparing(current -> current.updatedAt() == null
-                            ? current.createdAt()
-                            : current.updatedAt()))
+                    .sorted(Comparator.comparing(InMemoryTestDesignRepository::lastTouchedAt))
                     .limit(limit)
                     .toList();
             for (TestDesignTask current : staleTasks) {
-                Instant lastTouchedAt = current.updatedAt() == null ? current.createdAt() : current.updatedAt();
-                if (!TestDesignTaskStatus.RUNNING.name().equals(current.status()) || !lastTouchedAt.isBefore(staleBefore)) {
+                if (!TestDesignTaskStatus.RUNNING.name().equals(current.status())
+                        || !lastTouchedAt(current).isBefore(staleBefore)) {
                     continue;
                 }
                 tasks.put(current.id(), new TestDesignTask(
@@ -259,6 +288,10 @@ public class InMemoryTestDesignRepository implements TestDesignRepository {
 
     private static boolean matches(String expected, String actual) {
         return !StringUtils.hasText(expected) || expected.equalsIgnoreCase(actual);
+    }
+
+    private static Instant lastTouchedAt(TestDesignTask task) {
+        return task.updatedAt() == null ? task.createdAt() : task.updatedAt();
     }
 
     private static boolean contains(String keyword, String... values) {

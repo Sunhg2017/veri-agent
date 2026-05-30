@@ -207,6 +207,37 @@ describe('WP5 test design API helpers', () => {
         actor_service_exported: false,
         aggregate_only: true
       },
+      generation_orchestration_policy: {
+        policy_version: 'wp5-generation-orchestration-policy-v1',
+        orchestration_mode: 'ASYNC_EVENT_CONDITIONAL_CLAIM',
+        async_generation_enabled: true,
+        conditional_run_claim_supported: true,
+        idempotent_create_replay_supported: true,
+        duplicate_event_replay_safe: true,
+        event_recovery_enabled: true,
+        queued_event_replay_supported: true,
+        running_timeout_recovery_enabled: true,
+        explicit_retry_required_after_timeout: true,
+        manual_task_retry_supported: true,
+        manual_queued_event_replay_ready: false,
+        queue_lag_metric_ready: true,
+        timeout_alert_ready: true,
+        multi_instance_load_test_evidence_ready: false,
+        event_payload_exported: false,
+        event_identifier_list_exported: false,
+        queue_message_body_exported: false,
+        recovery_detail_rows_exported: false,
+        effective_recovery_batch_size: '100',
+        running_timeout_seconds: '600',
+        queue_lag_warning_seconds: '120',
+        queued_task_count: '2',
+        running_task_count: 1,
+        oldest_queued_age_seconds: 180,
+        stale_running_task_count: '1',
+        queue_lag_warning: true,
+        timeout_warning: true,
+        aggregate_only: true
+      },
       archive_policy: {
         policy_version: 'wp5-archive-policy-v1',
         retention_days: 180,
@@ -381,6 +412,34 @@ describe('WP5 test design API helpers', () => {
         actorServiceExported: false,
         aggregateOnly: true
       },
+      generationOrchestrationPolicy: {
+        policyVersion: 'wp5-generation-orchestration-policy-v1',
+        orchestrationMode: 'ASYNC_EVENT_CONDITIONAL_CLAIM',
+        asyncGenerationEnabled: true,
+        conditionalRunClaimSupported: true,
+        idempotentCreateReplaySupported: true,
+        duplicateEventReplaySafe: true,
+        eventRecoveryEnabled: true,
+        queuedEventReplaySupported: true,
+        runningTimeoutRecoveryEnabled: true,
+        manualQueuedEventReplayReady: false,
+        queueLagMetricReady: true,
+        timeoutAlertReady: true,
+        multiInstanceLoadTestEvidenceReady: false,
+        eventPayloadExported: false,
+        eventIdentifierListExported: false,
+        queueMessageBodyExported: false,
+        effectiveRecoveryBatchSize: 100,
+        runningTimeoutSeconds: 600,
+        queueLagWarningSeconds: 120,
+        queuedTaskCount: 2,
+        runningTaskCount: 1,
+        oldestQueuedAgeSeconds: 180,
+        staleRunningTaskCount: 1,
+        queueLagWarning: true,
+        timeoutWarning: true,
+        aggregateOnly: true
+      },
       archivePolicy: {
         policyVersion: 'wp5-archive-policy-v1',
         retentionDays: 180,
@@ -540,6 +599,34 @@ describe('WP5 test design API helpers', () => {
         invocation_id_value_exported: false,
         provider_error_text_exported: false,
         actor_service_exported: false,
+        aggregate_only: true
+      },
+      generation_orchestration_policy: {
+        policy_version: 'wp5-generation-orchestration-policy-v1',
+        orchestration_mode: 'SYNC_INLINE_GENERATION',
+        async_generation_enabled: false,
+        conditional_run_claim_supported: true,
+        idempotent_create_replay_supported: true,
+        duplicate_event_replay_safe: true,
+        event_recovery_enabled: true,
+        queued_event_replay_supported: false,
+        running_timeout_recovery_enabled: true,
+        explicit_retry_required_after_timeout: true,
+        manual_task_retry_supported: true,
+        manual_queued_event_replay_ready: false,
+        queue_lag_metric_ready: true,
+        timeout_alert_ready: true,
+        multi_instance_load_test_evidence_ready: false,
+        event_payload_exported: false,
+        event_identifier_list_exported: false,
+        queue_message_body_exported: false,
+        recovery_detail_rows_exported: false,
+        effective_recovery_batch_size: 100,
+        running_timeout_seconds: 600,
+        queue_lag_warning_seconds: 120,
+        queued_status_signal: '0',
+        running_status_signal: 0,
+        timeout_failure_signal: 0,
         aggregate_only: true
       },
       archive_policy: {
@@ -705,6 +792,28 @@ describe('WP5 test design API helpers', () => {
         actorServiceExported: false,
         aggregateOnly: true
       },
+      generationOrchestrationPolicy: {
+        policyVersion: 'wp5-generation-orchestration-policy-v1',
+        orchestrationMode: 'SYNC_INLINE_GENERATION',
+        asyncGenerationEnabled: false,
+        conditionalRunClaimSupported: true,
+        idempotentCreateReplaySupported: true,
+        duplicateEventReplaySafe: true,
+        eventRecoveryEnabled: true,
+        queuedEventReplaySupported: false,
+        runningTimeoutRecoveryEnabled: true,
+        manualQueuedEventReplayReady: false,
+        queueLagMetricReady: true,
+        timeoutAlertReady: true,
+        multiInstanceLoadTestEvidenceReady: false,
+        eventIdentifierListExported: false,
+        queueMessageBodyExported: false,
+        queueLagWarningSeconds: 120,
+        queuedStatusSignal: 0,
+        runningStatusSignal: 0,
+        timeoutFailureSignal: 0,
+        aggregateOnly: true
+      },
       archivePolicy: {
         policyVersion: 'wp5-archive-policy-v1',
         retentionDays: 365,
@@ -764,6 +873,17 @@ describe('WP5 test design API helpers', () => {
       actorServiceExported: false,
       aggregateOnly: true
     });
+    expect(health.generationOrchestrationPolicy).toMatchObject({
+      policyVersion: 'wp5-generation-orchestration-policy-v1',
+      queueLagMetricReady: true,
+      timeoutAlertReady: true,
+      queuedTaskCount: 2,
+      queueLagWarning: true,
+      timeoutWarning: true,
+      eventIdentifierListExported: false,
+      queueMessageBodyExported: false,
+      aggregateOnly: true
+    });
     expect(task.archivePolicy).toMatchObject({
       policyVersion: 'wp5-archive-policy-v1',
       retentionDays: 365,
@@ -802,6 +922,16 @@ describe('WP5 test design API helpers', () => {
       invocationIdValueExported: false,
       providerErrorTextExported: false,
       actorServiceExported: false,
+      aggregateOnly: true
+    });
+    expect(task.generationOrchestrationPolicy).toMatchObject({
+      policyVersion: 'wp5-generation-orchestration-policy-v1',
+      orchestrationMode: 'SYNC_INLINE_GENERATION',
+      queuedEventReplaySupported: false,
+      queueLagMetricReady: true,
+      timeoutAlertReady: true,
+      queuedStatusSignal: 0,
+      timeoutFailureSignal: 0,
       aggregateOnly: true
     });
 

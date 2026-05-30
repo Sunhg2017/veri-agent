@@ -5,8 +5,8 @@
 | 工作包 | WP5 AI 用例生成与评审 |
 | 角色产出 | 资深前端工程师 |
 | 文档性质 | 前端页面、路由、权限、状态和可测性设计 |
-| 当前口径 | 基于 `portal-web` React + TypeScript + Vite 管理台扩展，已纳入任务质量、Prompt 趋势、Prompt 版本准出分布、任务诊断、本域审计链摘要面板、跨 WP 审计链策略摘要、模型观测策略摘要、显式上下文资产输入、服务端下发的上下文裁剪口径、上下文策略诊断摘要、权限/资源作用域策略摘要、评测语料运营策略摘要、发布准出审批策略摘要、归档策略摘要和报告清单策略摘要 |
-| 版本 | v0.12 |
+| 当前口径 | 基于 `portal-web` React + TypeScript + Vite 管理台扩展，已纳入任务质量、Prompt 趋势、Prompt 版本准出分布、任务诊断、本域审计链摘要面板、跨 WP 审计链策略摘要、模型观测策略摘要、生成编排策略摘要、显式上下文资产输入、服务端下发的上下文裁剪口径、上下文策略诊断摘要、权限/资源作用域策略摘要、评测语料运营策略摘要、发布准出审批策略摘要、归档策略摘要和报告清单策略摘要 |
+| 版本 | v0.13 |
 | 日期 | 2026-05-30 |
 
 ## 1. 页面目标
@@ -133,7 +133,7 @@ API client 需复用现有 `requestJson` 和 `ApiError` 处理，保留响应中
 | 生成数量 | 1 到 20 的整数。 |
 | 覆盖类型 | 至少 1 个。 |
 | 任务名称 | 必填，最长 160 字符。 |
-| 上下文选项 | 至少保留需求上下文；API/页面/流程/历史用例可通过追踪关系自动带入，也可在生成配置中显式输入 API/页面/业务流 ID。前端占位文案、任务诊断的上下文规模、上下文策略摘要、作用域策略摘要、评测语料摘要、发布准出摘要、审计链摘要、模型观测摘要、归档策略摘要和报告清单摘要优先读取健康接口返回的 `contextLimits`、`scopePolicy`、`evaluationCorpusPolicy`、`releaseReadinessPolicy`、`auditChainPolicy`、`modelObservationPolicy`、`archivePolicy`、`reportManifestPolicy` 与任务 `contextSummary.limits/contextSummary.scopePolicy/contextSummary.evaluationCorpusPolicy/contextSummary.releaseReadinessPolicy/contextSummary.auditChainPolicy/contextSummary.modelObservationPolicy/contextSummary.archivePolicy/contextSummary.reportManifestPolicy`。 |
+| 上下文选项 | 至少保留需求上下文；API/页面/流程/历史用例可通过追踪关系自动带入，也可在生成配置中显式输入 API/页面/业务流 ID。前端占位文案、任务诊断的上下文规模、上下文策略摘要、生成编排策略摘要、作用域策略摘要、评测语料摘要、发布准出摘要、审计链摘要、模型观测摘要、归档策略摘要和报告清单摘要优先读取健康接口返回的 `contextLimits`、`generationOrchestrationPolicy`、`scopePolicy`、`evaluationCorpusPolicy`、`releaseReadinessPolicy`、`auditChainPolicy`、`modelObservationPolicy`、`archivePolicy`、`reportManifestPolicy` 与任务 `generationOrchestrationPolicy/contextSummary.limits/contextSummary.generationOrchestrationPolicy/contextSummary.scopePolicy/contextSummary.evaluationCorpusPolicy/contextSummary.releaseReadinessPolicy/contextSummary.auditChainPolicy/contextSummary.modelObservationPolicy/contextSummary.archivePolicy/contextSummary.reportManifestPolicy`。 |
 
 ### 7.2 候选编辑
 
@@ -166,6 +166,7 @@ API client 需复用现有 `requestJson` 和 `ApiError` 处理，保留响应中
 | release readiness | 任务诊断展示 `releaseReadinessPolicy` 的 advisory-only、发布阻断关闭、审批流 pending、人工准出、自动发布关闭和候选确认要求；该状态只说明当前准出边界，不代表真实审批流已就绪。 |
 | audit chain | 任务诊断展示 `auditChainPolicy` 的 WP1 审计写入、WP2 调用引用、WP3 发布引用、WP5 本域事件、项目作用域、trace 信号、跨 WP 看板 pending 和 outbox 看板 pending；该状态只说明当前审计链观测边界，不代表真实跨 WP 审计看板或 outbox 重放看板已就绪。 |
 | model observation policy | 任务诊断展示 `modelObservationPolicy` 的策略版本、聚合观测模式、WP2 调用引用、trace/job/routing/token/latency/cost/fallback 跟踪能力、Prompt 载荷不存储和细节导出关闭；该状态只说明当前模型观测治理边界，不代表真实跨 WP 模型调用明细看板已就绪，也不展示 traceId/jobId/invocationId 原值、载荷预览、provider 错误正文或 actor service。 |
+| generation orchestration policy | 任务诊断展示 `generationOrchestrationPolicy` 的策略版本、编排模式、条件认领、幂等回放、重复事件安全、恢复扫描、运行中超时回收、人工重试、队列 lag 指标、超时告警、恢复批次上限、排队/运行/最旧排队年龄/超时运行聚合计数和告警布尔值；该状态只说明当前生成编排边界，不代表人工队列事件重发、多实例压测证据或跨 WP 补偿后台已就绪，也不展示事件 ID、事件 payload、队列消息体、恢复明细、幂等键原值或超时错误正文。 |
 | archive policy | 任务诊断展示 `archivePolicy` 的策略版本、保留天数、`platformManaged` 存储策略、审批要求、审批流 pending、真实归档存储 pending、外发开关、保留策略跟踪和细节导出关闭；该状态只说明当前归档治理边界，不代表真实归档存储、审批流、外发流程或工单流转已就绪。 |
 | report manifest policy | 任务诊断展示 `reportManifestPolicy` 的策略版本、报告 schema/字段集版本、清单模式、行数/完成状态跟踪、归档核验和细节导出关闭；该状态只说明当前报告清单聚合核验边界，不代表行级完整性值、候选 ID、trace ID 或审计 ID 明细索引已开放。 |
 
@@ -199,5 +200,5 @@ API client 需复用现有 `requestJson` 和 `ApiError` 处理，保留响应中
 7. dryRun 结果能区分创建、重复、跳过和失败。
 8. 发布成功后可跳转 WP3 测试用例详情或列表筛选结果。
 9. loading/empty/error/partial success/version conflict/model blocked 状态均有可读展示。
-10. 任务诊断只展示上下文计数、裁剪策略、作用域策略、评测语料策略、发布准出审批策略、审计链策略、模型观测策略、归档治理策略和报告清单策略聚合标记，不展示显式资产 ID、schema、页面树、流程 JSON、需求正文、候选 ID、角色规则、服务令牌原值、评测语料行、候选正文、评审评论、候选级准出证据、审批备注、阈值规则明细、平台审计标识原值、traceId/jobId/invocationId 原值、模型调用 ID 原值、provider 错误正文、actor service、发布 sourceRef、资产 ID、归档路径、归档备注、审批说明、工单 URL 或原始 Prompt。
+10. 任务诊断只展示上下文计数、裁剪策略、生成编排策略、作用域策略、评测语料策略、发布准出审批策略、审计链策略、模型观测策略、归档治理策略和报告清单策略聚合标记，不展示显式资产 ID、schema、页面树、流程 JSON、需求正文、事件 ID、事件 payload、队列消息体、恢复明细、幂等键原值、超时错误正文、候选 ID、角色规则、服务令牌原值、评测语料行、候选正文、评审评论、候选级准出证据、审批备注、阈值规则明细、平台审计标识原值、traceId/jobId/invocationId 原值、模型调用 ID 原值、provider 错误正文、actor service、发布 sourceRef、资产 ID、归档路径、归档备注、审批说明、工单 URL 或原始 Prompt。
 11. `cd portal-web && npm test`、`cd portal-web && npm run build`、WP5 前端 smoke 均通过。

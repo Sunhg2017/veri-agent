@@ -24,6 +24,7 @@ export interface TestDesignHealth {
   releaseReadinessPolicy?: TestDesignReleaseReadinessPolicyView;
   auditChainPolicy?: TestDesignAuditChainPolicyView;
   modelObservationPolicy?: TestDesignModelObservationPolicyView;
+  generationOrchestrationPolicy?: TestDesignGenerationOrchestrationPolicyView;
   archivePolicy?: TestDesignArchivePolicyView;
   reportManifestPolicy?: TestDesignReportManifestPolicyView;
   supportedCoverageTypes: string[];
@@ -58,6 +59,7 @@ export interface TestDesignTaskView {
   releaseReadinessPolicy?: TestDesignReleaseReadinessPolicyView;
   auditChainPolicy?: TestDesignAuditChainPolicyView;
   modelObservationPolicy?: TestDesignModelObservationPolicyView;
+  generationOrchestrationPolicy?: TestDesignGenerationOrchestrationPolicyView;
   archivePolicy?: TestDesignArchivePolicyView;
   reportManifestPolicy?: TestDesignReportManifestPolicyView;
   contextSummary: Record<string, unknown>;
@@ -241,6 +243,41 @@ export interface TestDesignModelObservationPolicyView {
   invocationIdValueExported?: boolean;
   providerErrorTextExported?: boolean;
   actorServiceExported?: boolean;
+  aggregateOnly?: boolean;
+}
+
+export interface TestDesignGenerationOrchestrationPolicyView {
+  policyVersion?: string;
+  orchestrationMode?: string;
+  asyncGenerationEnabled?: boolean;
+  conditionalRunClaimSupported?: boolean;
+  idempotentCreateReplaySupported?: boolean;
+  duplicateEventReplaySafe?: boolean;
+  eventRecoveryEnabled?: boolean;
+  queuedEventReplaySupported?: boolean;
+  runningTimeoutRecoveryEnabled?: boolean;
+  explicitRetryRequiredAfterTimeout?: boolean;
+  manualTaskRetrySupported?: boolean;
+  manualQueuedEventReplayReady?: boolean;
+  queueLagMetricReady?: boolean;
+  timeoutAlertReady?: boolean;
+  multiInstanceLoadTestEvidenceReady?: boolean;
+  eventPayloadExported?: boolean;
+  eventIdentifierListExported?: boolean;
+  queueMessageBodyExported?: boolean;
+  recoveryDetailRowsExported?: boolean;
+  effectiveRecoveryBatchSize?: number;
+  runningTimeoutSeconds?: number;
+  queueLagWarningSeconds?: number;
+  queuedTaskCount?: number;
+  runningTaskCount?: number;
+  oldestQueuedAgeSeconds?: number;
+  staleRunningTaskCount?: number;
+  queueLagWarning?: boolean;
+  timeoutWarning?: boolean;
+  queuedStatusSignal?: number;
+  runningStatusSignal?: number;
+  timeoutFailureSignal?: number;
   aggregateOnly?: boolean;
 }
 
@@ -764,6 +801,9 @@ export function normalizeTestDesignHealth(raw: unknown): TestDesignHealth {
     modelObservationPolicy: normalizeTestDesignModelObservationPolicy(
       item.modelObservationPolicy ?? item.model_observation_policy
     ),
+    generationOrchestrationPolicy: normalizeTestDesignGenerationOrchestrationPolicy(
+      item.generationOrchestrationPolicy ?? item.generation_orchestration_policy
+    ),
     archivePolicy: normalizeTestDesignArchivePolicy(item.archivePolicy ?? item.archive_policy),
     reportManifestPolicy: normalizeTestDesignReportManifestPolicy(
       item.reportManifestPolicy ?? item.report_manifest_policy
@@ -815,6 +855,9 @@ export function normalizeTestDesignTask(raw: unknown): TestDesignTaskView {
     auditChainPolicy: normalizeTestDesignAuditChainPolicy(item.auditChainPolicy ?? item.audit_chain_policy),
     modelObservationPolicy: normalizeTestDesignModelObservationPolicy(
       item.modelObservationPolicy ?? item.model_observation_policy
+    ),
+    generationOrchestrationPolicy: normalizeTestDesignGenerationOrchestrationPolicy(
+      item.generationOrchestrationPolicy ?? item.generation_orchestration_policy
     ),
     archivePolicy: normalizeTestDesignArchivePolicy(item.archivePolicy ?? item.archive_policy),
     reportManifestPolicy: normalizeTestDesignReportManifestPolicy(
@@ -1169,6 +1212,70 @@ export function normalizeTestDesignModelObservationPolicy(
       raw.providerErrorTextExported ?? raw.provider_error_text_exported
     ),
     actorServiceExported: optionalBoolean(raw.actorServiceExported ?? raw.actor_service_exported),
+    aggregateOnly: optionalBoolean(raw.aggregateOnly ?? raw.aggregate_only)
+  };
+}
+
+export function normalizeTestDesignGenerationOrchestrationPolicy(
+  raw: unknown
+): TestDesignGenerationOrchestrationPolicyView | undefined {
+  if (!isRecord(raw)) {
+    return undefined;
+  }
+  return {
+    policyVersion: optionalString(raw.policyVersion) ?? optionalString(raw.policy_version),
+    orchestrationMode: optionalString(raw.orchestrationMode) ?? optionalString(raw.orchestration_mode),
+    asyncGenerationEnabled: optionalBoolean(raw.asyncGenerationEnabled ?? raw.async_generation_enabled),
+    conditionalRunClaimSupported: optionalBoolean(
+      raw.conditionalRunClaimSupported ?? raw.conditional_run_claim_supported
+    ),
+    idempotentCreateReplaySupported: optionalBoolean(
+      raw.idempotentCreateReplaySupported ?? raw.idempotent_create_replay_supported
+    ),
+    duplicateEventReplaySafe: optionalBoolean(
+      raw.duplicateEventReplaySafe ?? raw.duplicate_event_replay_safe
+    ),
+    eventRecoveryEnabled: optionalBoolean(raw.eventRecoveryEnabled ?? raw.event_recovery_enabled),
+    queuedEventReplaySupported: optionalBoolean(
+      raw.queuedEventReplaySupported ?? raw.queued_event_replay_supported
+    ),
+    runningTimeoutRecoveryEnabled: optionalBoolean(
+      raw.runningTimeoutRecoveryEnabled ?? raw.running_timeout_recovery_enabled
+    ),
+    explicitRetryRequiredAfterTimeout: optionalBoolean(
+      raw.explicitRetryRequiredAfterTimeout ?? raw.explicit_retry_required_after_timeout
+    ),
+    manualTaskRetrySupported: optionalBoolean(raw.manualTaskRetrySupported ?? raw.manual_task_retry_supported),
+    manualQueuedEventReplayReady: optionalBoolean(
+      raw.manualQueuedEventReplayReady ?? raw.manual_queued_event_replay_ready
+    ),
+    queueLagMetricReady: optionalBoolean(raw.queueLagMetricReady ?? raw.queue_lag_metric_ready),
+    timeoutAlertReady: optionalBoolean(raw.timeoutAlertReady ?? raw.timeout_alert_ready),
+    multiInstanceLoadTestEvidenceReady: optionalBoolean(
+      raw.multiInstanceLoadTestEvidenceReady ?? raw.multi_instance_load_test_evidence_ready
+    ),
+    eventPayloadExported: optionalBoolean(raw.eventPayloadExported ?? raw.event_payload_exported),
+    eventIdentifierListExported: optionalBoolean(
+      raw.eventIdentifierListExported ?? raw.event_identifier_list_exported
+    ),
+    queueMessageBodyExported: optionalBoolean(raw.queueMessageBodyExported ?? raw.queue_message_body_exported),
+    recoveryDetailRowsExported: optionalBoolean(
+      raw.recoveryDetailRowsExported ?? raw.recovery_detail_rows_exported
+    ),
+    effectiveRecoveryBatchSize: optionalNumber(
+      raw.effectiveRecoveryBatchSize ?? raw.effective_recovery_batch_size
+    ),
+    runningTimeoutSeconds: optionalNumber(raw.runningTimeoutSeconds ?? raw.running_timeout_seconds),
+    queueLagWarningSeconds: optionalNumber(raw.queueLagWarningSeconds ?? raw.queue_lag_warning_seconds),
+    queuedTaskCount: optionalNumber(raw.queuedTaskCount ?? raw.queued_task_count),
+    runningTaskCount: optionalNumber(raw.runningTaskCount ?? raw.running_task_count),
+    oldestQueuedAgeSeconds: optionalNumber(raw.oldestQueuedAgeSeconds ?? raw.oldest_queued_age_seconds),
+    staleRunningTaskCount: optionalNumber(raw.staleRunningTaskCount ?? raw.stale_running_task_count),
+    queueLagWarning: optionalBoolean(raw.queueLagWarning ?? raw.queue_lag_warning),
+    timeoutWarning: optionalBoolean(raw.timeoutWarning ?? raw.timeout_warning),
+    queuedStatusSignal: optionalNumber(raw.queuedStatusSignal ?? raw.queued_status_signal),
+    runningStatusSignal: optionalNumber(raw.runningStatusSignal ?? raw.running_status_signal),
+    timeoutFailureSignal: optionalNumber(raw.timeoutFailureSignal ?? raw.timeout_failure_signal),
     aggregateOnly: optionalBoolean(raw.aggregateOnly ?? raw.aggregate_only)
   };
 }
