@@ -804,6 +804,108 @@ class TestDesignControllerTest {
     }
 
     @Test
+    void summarizesTaskAuditChainWithoutRawText() throws Exception {
+        String ownerToken = userAccessToken(List.of("ProjectOwner@PROJECT:project-wp5"));
+        String auditorToken = userAccessToken(List.of("Auditor@PROJECT:project-wp5"));
+        String deniedAuditorToken = userAccessToken(List.of("Auditor@PROJECT:project-other"));
+        String requirementId = createRequirement(
+                ownerToken,
+                "审计链需求 token=secret-value",
+                "审计链验收 rawPrompt",
+                "project-wp5"
+        );
+        MvcResult taskResult = mockMvc.perform(post("/api/v1/test-design/tasks")
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"projectId":"project-wp5","requirementIds":["%s"],"coverageTypes":["SMOKE","EXCEPTION"]}
+                                """.formatted(requirementId)))
+                .andExpect(status().isCreated())
+                .andReturn();
+        String taskId = JsonPath.read(taskResult.getResponse().getContentAsString(), "$.data.task.id");
+        String firstCandidateId = JsonPath.read(taskResult.getResponse().getContentAsString(), "$.data.candidates[0].id");
+        Integer firstVersion = JsonPath.read(taskResult.getResponse().getContentAsString(), "$.data.candidates[0].version");
+        String secondCandidateId = JsonPath.read(taskResult.getResponse().getContentAsString(), "$.data.candidates[1].id");
+        Integer secondVersion = JsonPath.read(taskResult.getResponse().getContentAsString(), "$.data.candidates[1].version");
+
+        MvcResult updated = mockMvc.perform(put("/api/v1/test-design/candidates/{id}", firstCandidateId)
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "title": "审计链人工修正用例",
+                                  "description": "候选正文不应出现在审计链摘要",
+                                  "coverageType": "SMOKE",
+                                  "priority": "HIGH",
+                                  "expectedResult": "审计链结果不应导出",
+                                  "tags": ["wp5", "audit-summary"],
+                                  "version": %d,
+                                  "steps": [
+                                    {"action": "审计链步骤不应导出", "expectedResult": "步骤结果不应导出"},
+                                    {"action": "提交审计链表单", "expectedResult": "审计链提交成功"}
+                                  ]
+                                }
+                                """.formatted(firstVersion)))
+                .andExpect(status().isOk())
+                .andReturn();
+        Integer updatedVersion = JsonPath.read(updated.getResponse().getContentAsString(), "$.data.version");
+
+        mockMvc.perform(post("/api/v1/test-design/candidates/{id}/confirm", firstCandidateId)
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"version": %d, "comment": "审计链确认说明 token=secret-value rawPrompt"}
+                                """.formatted(updatedVersion)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("CONFIRMED"));
+        mockMvc.perform(post("/api/v1/test-design/candidates/{id}/reject", secondCandidateId)
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"version": %d, "reason": "审计链驳回原因 secret-value", "comment": "审计链驳回说明 promptPlaintext"}
+                                """.formatted(secondVersion)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("REJECTED"));
+
+        mockMvc.perform(post("/api/v1/test-design/tasks/{id}/publish-dry-run", taskId)
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.records[0].result").value("PLANNED"));
+
+        MvcResult summary = mockMvc.perform(get("/api/v1/test-design/tasks/{id}/report/audit-summary", taskId)
+                        .header("Authorization", "Bearer " + auditorToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.taskId").value(taskId))
+                .andExpect(jsonPath("$.data.projectId").value("project-wp5"))
+                .andExpect(jsonPath("$.data.reviewRecordCount").value(3))
+                .andExpect(jsonPath("$.data.publishRecordCount").value(0))
+                .andExpect(jsonPath("$.data.eventCount").value(4))
+                .andExpect(jsonPath("$.data.noteCoverageCount").value(2))
+                .andExpect(jsonPath("$.data.metrics[0].code").value("eventCount"))
+                .andExpect(jsonPath("$.data.recentEvents[0].source").value("REVIEW"))
+                .andReturn();
+
+        String json = summary.getResponse().getContentAsString();
+        MatcherAssert.assertThat(json, containsString("UPDATE"));
+        MatcherAssert.assertThat(json, containsString("CONFIRMED"));
+        MatcherAssert.assertThat(json, containsString("REJECTED"));
+        MatcherAssert.assertThat(json, containsString(firstCandidateId));
+        MatcherAssert.assertThat(json, not(containsString("secret-value")));
+        MatcherAssert.assertThat(json, not(containsString("rawPrompt")));
+        MatcherAssert.assertThat(json, not(containsString("promptPlaintext")));
+        MatcherAssert.assertThat(json, not(containsString("审计链确认说明")));
+        MatcherAssert.assertThat(json, not(containsString("审计链驳回原因")));
+        MatcherAssert.assertThat(json, not(containsString("候选正文不应出现在审计链摘要")));
+        MatcherAssert.assertThat(json, not(containsString("审计链步骤不应导出")));
+
+        mockMvc.perform(get("/api/v1/test-design/tasks/{id}/report/audit-summary", taskId)
+                        .header("Authorization", "Bearer " + deniedAuditorToken))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
     void exposesFullTaskQualitySummaryWithScopeAndAggregateRedaction() throws Exception {
         String ownerToken = userAccessToken(List.of("ProjectOwner@PROJECT:project-wp5"));
         String auditorToken = userAccessToken(List.of("Auditor@PROJECT:project-wp5"));

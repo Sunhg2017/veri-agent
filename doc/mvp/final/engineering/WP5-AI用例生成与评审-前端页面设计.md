@@ -5,9 +5,9 @@
 | 工作包 | WP5 AI 用例生成与评审 |
 | 角色产出 | 资深前端工程师 |
 | 文档性质 | 前端页面、路由、权限、状态和可测性设计 |
-| 当前口径 | 基于 `portal-web` React + TypeScript + Vite 管理台扩展 |
-| 版本 | v0.1 |
-| 日期 | 2026-05-25 |
+| 当前口径 | 基于 `portal-web` React + TypeScript + Vite 管理台扩展，已纳入任务质量、Prompt 趋势、任务诊断和本域审计链摘要面板 |
+| 版本 | v0.2 |
+| 日期 | 2026-05-30 |
 
 ## 1. 页面目标
 
@@ -60,7 +60,7 @@ WP5 前端页面负责让用户在浏览器内完成用例生成主流程：
 | `TestDesignWorkbench` | 页面容器，维护筛选、选中任务、刷新和权限状态。 |
 | `TestDesignTaskList` | 任务列表、状态 badge、错误摘要、traceId、分页。 |
 | `TestDesignTaskCreateDialog` | 创建任务表单，选择项目、需求、策略和上下文选项。 |
-| `TestDesignTaskSummary` | 任务详情摘要、模型调用信息、质量提示、成本和耗时。 |
+| `TestDesignTaskSummary` | 任务详情摘要、模型调用信息、质量提示、成本、耗时和本域审计链摘要。 |
 | `TestDesignCandidateReviewPanel` | 候选列表、筛选、批量操作和候选详情。 |
 | `TestDesignCandidateEditor` | 候选编辑表单，维护标题、步骤、预期、优先级和标签。 |
 | `TestDesignPublishPreviewPanel` | dryRun 结果、重复风险、失败明细和发布按钮。 |
@@ -89,6 +89,7 @@ WP5 前端页面负责让用户在浏览器内完成用例生成主流程：
 | `batchResolveTestDesignConflicts(payload)` | 批量处理发布冲突。 |
 | `previewTestDesignPublish(taskId, payload)` | 发布 dryRun。 |
 | `publishTestDesignCandidates(taskId, payload)` | 正式发布。 |
+| `fetchTestDesignTaskAuditSummary(taskId)` | 查询任务本域审计链摘要。 |
 
 API client 需复用现有 `requestJson` 和 `ApiError` 处理，保留响应中的 `trace_id` 或统一 traceId 字段，供页面展示。
 

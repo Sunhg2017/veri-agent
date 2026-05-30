@@ -8,6 +8,9 @@ import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
 import com.songhg.veri.agent.common.util.CsvEncoder;
 import com.songhg.veri.agent.testdesign.application.port.TestDesignRepository;
+import com.songhg.veri.agent.testdesign.application.view.TestDesignAuditSummaryMetricResponse;
+import com.songhg.veri.agent.testdesign.application.view.TestDesignAuditSummaryResponse;
+import com.songhg.veri.agent.testdesign.application.view.TestDesignAuditTimelineItemResponse;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignModelObservationResponse;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignPublishRecordResponse;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignQualityDistributionItemResponse;
@@ -26,6 +29,7 @@ import com.songhg.veri.agent.testdesign.domain.TestDesignReviewRecord;
 import com.songhg.veri.agent.testdesign.domain.TestDesignTask;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -137,6 +141,43 @@ public class TestDesignTaskReportService {
                 "publishRecordCount", publishRecords.size()
         ));
         return csv.toString();
+    }
+
+    /**
+     * Builds a task-local audit chain from WP5 domain records.
+     *
+     * <p>This endpoint intentionally does not query the platform-wide audit log. It gives reviewers a bounded,
+     * project-scoped operational summary from task metadata, review records and publish records, while free-form
+     * comments, candidate bodies, publish error text, prompt payloads and model payloads remain outside the response.
+     */
+    public TestDesignAuditSummaryResponse auditSummary(UUID taskId) {
+        TestDesignTask task = taskOrThrow(taskId);
+        List<TestDesignReviewRecord> reviewRecords = repository.reviewRecordsByTask(task.id());
+        List<TestDesignPublishRecord> publishRecords = repository.publishRecords(task.id());
+        long dryRunRecordCount = publishRecords.stream().filter(TestDesignPublishRecord::dryRun).count();
+        long issueCount = publishRecords.stream()
+                .filter(record -> isIssueResult(record.result()))
+                .count();
+        long noteCoverageCount = reviewRecords.stream().filter(record -> StringUtils.hasText(record.comment())).count()
+                + publishRecords.stream().filter(record -> StringUtils.hasText(record.errorMessage())).count();
+        long eventCount = 1L + reviewRecords.size() + publishRecords.size();
+        return new TestDesignAuditSummaryResponse(
+                task.id(),
+                task.projectId(),
+                task.status(),
+                task.requestedBy(),
+                task.createdAt(),
+                task.updatedAt(),
+                eventCount,
+                reviewRecords.size(),
+                publishRecords.size(),
+                dryRunRecordCount,
+                issueCount,
+                noteCoverageCount,
+                recentAuditEvents(task, reviewRecords, publishRecords),
+                auditMetrics(reviewRecords, publishRecords, eventCount, noteCoverageCount, issueCount),
+                Instant.now()
+        );
     }
 
     private static boolean isPublishableCandidate(TestDesignCandidate candidate) {
@@ -775,6 +816,101 @@ public class TestDesignTaskReportService {
             return "info";
         }
         return "success";
+    }
+
+    private static List<TestDesignAuditSummaryMetricResponse> auditMetrics(
+            List<TestDesignReviewRecord> reviewRecords,
+            List<TestDesignPublishRecord> publishRecords,
+            long eventCount,
+            long noteCoverageCount,
+            long issueCount
+    ) {
+        long dryRunRecordCount = publishRecords.stream().filter(TestDesignPublishRecord::dryRun).count();
+        long publishSuccessCount = publishRecords.stream()
+                .filter(record -> !record.dryRun())
+                .filter(record -> "SUCCEEDED".equals(record.result()))
+                .count();
+        return List.of(
+                auditMetric("eventCount", "本域事件", eventCount, eventCount > 1 ? "info" : "neutral"),
+                auditMetric("reviewRecords", "评审记录", reviewRecords.size(), reviewRecords.isEmpty() ? "neutral" : "success"),
+                auditMetric("publishRecords", "发布记录", publishRecords.size(), publishRecords.isEmpty() ? "neutral" : "info"),
+                auditMetric("dryRunRecords", "预演记录", dryRunRecordCount, dryRunRecordCount > 0 ? "info" : "neutral"),
+                auditMetric("publishSuccess", "发布成功", publishSuccessCount, publishSuccessCount > 0 ? "success" : "neutral"),
+                auditMetric("issues", "失败冲突", issueCount, issueCount > 0 ? "warning" : "success"),
+                auditMetric("notes", "说明覆盖", noteCoverageCount, noteCoverageCount > 0 ? "info" : "neutral")
+        );
+    }
+
+    private static TestDesignAuditSummaryMetricResponse auditMetric(
+            String code,
+            String label,
+            long count,
+            String tone
+    ) {
+        return new TestDesignAuditSummaryMetricResponse(code, label, count, tone);
+    }
+
+    private static List<TestDesignAuditTimelineItemResponse> recentAuditEvents(
+            TestDesignTask task,
+            List<TestDesignReviewRecord> reviewRecords,
+            List<TestDesignPublishRecord> publishRecords
+    ) {
+        List<TestDesignAuditTimelineItemResponse> events = new ArrayList<>();
+        events.add(new TestDesignAuditTimelineItemResponse(
+                "TASK",
+                "CREATE",
+                task.status(),
+                null,
+                null,
+                task.requestedBy(),
+                StringUtils.hasText(task.errorMessage()),
+                task.createdAt()
+        ));
+        reviewRecords.forEach(record -> events.add(new TestDesignAuditTimelineItemResponse(
+                "REVIEW",
+                record.action(),
+                statusTransition(record.beforeStatus(), record.afterStatus()),
+                record.candidateId(),
+                null,
+                record.reviewer(),
+                StringUtils.hasText(record.comment()),
+                record.createdAt()
+        )));
+        publishRecords.forEach(record -> events.add(new TestDesignAuditTimelineItemResponse(
+                record.dryRun() ? "PUBLISH_DRY_RUN" : "PUBLISH",
+                record.action(),
+                record.result(),
+                record.candidateId(),
+                record.assetCaseId(),
+                record.publishedBy(),
+                StringUtils.hasText(record.errorMessage()),
+                record.createdAt()
+        )));
+        return events.stream()
+                .sorted(Comparator.comparing(TestDesignAuditTimelineItemResponse::createdAt,
+                        Comparator.nullsLast(Comparator.reverseOrder())))
+                .limit(8)
+                .toList();
+    }
+
+    private static String statusTransition(String beforeStatus, String afterStatus) {
+        if (!StringUtils.hasText(beforeStatus) && !StringUtils.hasText(afterStatus)) {
+            return "UNKNOWN";
+        }
+        if (!StringUtils.hasText(beforeStatus)) {
+            return afterStatus;
+        }
+        if (!StringUtils.hasText(afterStatus)) {
+            return beforeStatus;
+        }
+        if (beforeStatus.equals(afterStatus)) {
+            return afterStatus;
+        }
+        return beforeStatus + "->" + afterStatus;
+    }
+
+    private static boolean isIssueResult(String result) {
+        return "FAILED".equals(result) || "CONFLICT".equals(result);
     }
 
     private ReviewDiffSummary reviewDiffSummary(String diffJson) {

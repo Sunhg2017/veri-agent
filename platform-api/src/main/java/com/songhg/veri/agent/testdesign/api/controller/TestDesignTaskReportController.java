@@ -4,6 +4,7 @@ import com.songhg.veri.agent.authorization.application.PermissionCodes;
 import com.songhg.veri.agent.authorization.application.RequirePermission;
 import com.songhg.veri.agent.common.openapi.ApiVersion;
 import com.songhg.veri.agent.testdesign.application.TestDesignTaskReportService;
+import com.songhg.veri.agent.testdesign.application.view.TestDesignAuditSummaryResponse;
 import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 import org.springframework.http.HttpHeaders;
@@ -40,5 +41,14 @@ public class TestDesignTaskReportController {
                 .contentType(new MediaType("text", "csv", StandardCharsets.UTF_8))
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"wp5-task-report.csv\"")
                 .body(csv);
+    }
+
+    /**
+     * 查询任务本域审计链摘要，只聚合 WP5 任务、评审和发布记录。
+     */
+    @GetMapping("/audit-summary")
+    @RequirePermission(value = PermissionCodes.TEST_DESIGN_READ, scope = TestDesignPermissionScopes.TASK)
+    public TestDesignAuditSummaryResponse auditSummary(@PathVariable UUID id) {
+        return service.auditSummary(id);
     }
 }

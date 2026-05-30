@@ -229,6 +229,42 @@ export interface TestDesignPromptTrendView {
   generatedAt?: string;
 }
 
+export interface TestDesignAuditSummaryMetricView {
+  code: string;
+  label: string;
+  count: number;
+  tone: string;
+}
+
+export interface TestDesignAuditTimelineItemView {
+  source: string;
+  action: string;
+  result: string;
+  candidateId?: string;
+  assetCaseId?: string;
+  actor?: string;
+  hasNote: boolean;
+  createdAt?: string;
+}
+
+export interface TestDesignAuditSummaryView {
+  taskId: string;
+  projectId?: string;
+  taskStatus?: string;
+  requestedBy?: string;
+  taskCreatedAt?: string;
+  taskUpdatedAt?: string;
+  eventCount: number;
+  reviewRecordCount: number;
+  publishRecordCount: number;
+  dryRunRecordCount: number;
+  issueCount: number;
+  noteCoverageCount: number;
+  recentEvents: TestDesignAuditTimelineItemView[];
+  metrics: TestDesignAuditSummaryMetricView[];
+  generatedAt?: string;
+}
+
 export interface TestDesignTaskDetail {
   task: TestDesignTaskView;
   candidates: TestDesignCandidateView[];
@@ -757,6 +793,51 @@ export function normalizeTestDesignPromptTrend(raw: unknown): TestDesignPromptTr
   };
 }
 
+export function normalizeTestDesignAuditSummaryMetric(raw: unknown): TestDesignAuditSummaryMetricView {
+  const item = isRecord(raw) ? raw : {};
+  return {
+    code: stringValue(item.code),
+    label: stringValue(item.label, stringValue(item.code, 'UNKNOWN')),
+    count: numberValue(item.count, 0),
+    tone: stringValue(item.tone, 'neutral')
+  };
+}
+
+export function normalizeTestDesignAuditTimelineItem(raw: unknown): TestDesignAuditTimelineItemView {
+  const item = isRecord(raw) ? raw : {};
+  return {
+    source: stringValue(item.source, 'UNKNOWN'),
+    action: stringValue(item.action, 'UNKNOWN'),
+    result: stringValue(item.result, 'UNKNOWN'),
+    candidateId: optionalString(item.candidateId) ?? optionalString(item.candidate_id),
+    assetCaseId: optionalString(item.assetCaseId) ?? optionalString(item.asset_case_id),
+    actor: optionalString(item.actor),
+    hasNote: Boolean(item.hasNote ?? item.has_note),
+    createdAt: optionalString(item.createdAt) ?? optionalString(item.created_at)
+  };
+}
+
+export function normalizeTestDesignAuditSummary(raw: unknown): TestDesignAuditSummaryView {
+  const item = isRecord(raw) ? raw : {};
+  return {
+    taskId: stringValue(item.taskId ?? item.task_id),
+    projectId: optionalString(item.projectId) ?? optionalString(item.project_id),
+    taskStatus: optionalString(item.taskStatus) ?? optionalString(item.task_status),
+    requestedBy: optionalString(item.requestedBy) ?? optionalString(item.requested_by),
+    taskCreatedAt: optionalString(item.taskCreatedAt) ?? optionalString(item.task_created_at),
+    taskUpdatedAt: optionalString(item.taskUpdatedAt) ?? optionalString(item.task_updated_at),
+    eventCount: numberValue(item.eventCount ?? item.event_count, 0),
+    reviewRecordCount: numberValue(item.reviewRecordCount ?? item.review_record_count, 0),
+    publishRecordCount: numberValue(item.publishRecordCount ?? item.publish_record_count, 0),
+    dryRunRecordCount: numberValue(item.dryRunRecordCount ?? item.dry_run_record_count, 0),
+    issueCount: numberValue(item.issueCount ?? item.issue_count, 0),
+    noteCoverageCount: numberValue(item.noteCoverageCount ?? item.note_coverage_count, 0),
+    recentEvents: listItems(item.recentEvents ?? item.recent_events).map(normalizeTestDesignAuditTimelineItem),
+    metrics: listItems(item.metrics).map(normalizeTestDesignAuditSummaryMetric),
+    generatedAt: optionalString(item.generatedAt) ?? optionalString(item.generated_at)
+  };
+}
+
 export function normalizeTestDesignCandidateBatchActionItem(raw: unknown): TestDesignCandidateBatchActionItem {
   const item = isRecord(raw) ? raw : {};
   return {
@@ -893,6 +974,11 @@ export async function fetchTestDesignPromptTrend(
 ): Promise<ApiResponse<TestDesignPromptTrendView>> {
   const response = await requestJson<unknown>(`/api/v1/test-design/quality/prompt-trend${queryString(filters as Record<string, unknown>)}`);
   return { ...response, data: normalizeTestDesignPromptTrend(response.data) };
+}
+
+export async function fetchTestDesignTaskAuditSummary(taskId: string): Promise<ApiResponse<TestDesignAuditSummaryView>> {
+  const response = await requestJson<unknown>(`/api/v1/test-design/tasks/${encodeURIComponent(taskId)}/report/audit-summary`);
+  return { ...response, data: normalizeTestDesignAuditSummary(response.data) };
 }
 
 export async function retryTestDesignTask(taskId: string): Promise<ApiResponse<TestDesignTaskDetail>> {

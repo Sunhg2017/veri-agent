@@ -5,8 +5,8 @@
 | 工作包 | WP5 AI 用例生成与评审 |
 | 角色产出 | 资深服务端架构师 |
 | 文档性质 | 技术设计、数据模型、接口契约和服务端质量约束 |
-| 当前口径 | WP5 在 `platform-api` 内实现为独立领域模块，不新增独立部署服务；模块内应用服务按任务、生成、评审、质量、发布、冲突和报告拆分 |
-| 版本 | v0.2 |
+| 当前口径 | WP5 在 `platform-api` 内实现为独立领域模块，不新增独立部署服务；模块内应用服务按任务、生成、评审、质量、发布、冲突和报告拆分；任务本域审计链摘要由报告服务聚合 WP5 任务、评审和发布记录 |
+| 版本 | v0.3 |
 | 日期 | 2026-05-30 |
 
 ## 1. 架构原则
@@ -60,7 +60,7 @@ flowchart LR
 | `TestDesignQualityService` | 判断空步骤、缺断言、重复风险、覆盖缺口、敏感信息风险和发布就绪。 |
 | `TestDesignPublishService` | 发布 dryRun、正式发布、发布记录查询，将已确认候选写入 WP3 测试用例并建立追踪关系。 |
 | `TestDesignConflictService` | 发布冲突人工链接和批量冲突处理，复用 WP3 用例需求追踪校验和审计记录。 |
-| `TestDesignTaskReportService` | 导出任务级聚合报告，避免报告拼装逻辑回流到任务服务。 |
+| `TestDesignTaskReportService` | 导出任务级聚合报告，并提供任务本域审计链摘要，避免报告拼装逻辑回流到任务服务。 |
 | `TestDesignScopeService` | 为权限解析提供任务/候选项目作用域，不承载业务流。 |
 | `TestDesignRepository` | 维护生成任务、候选、评审记录和发布记录。 |
 
@@ -451,6 +451,7 @@ CONFIRMED -> IGNORED
 | 方法 | 路径 | 权限 | 说明 |
 |---|---|---|---|
 | `GET` | `/health` | `testDesign:read` | 返回 WP5 开关、Prompt、fallback 和质量阈值摘要。 |
+| `GET` | `/tasks/{id}/report/audit-summary` | `testDesign:read` | 返回任务本域审计链摘要，聚合 WP5 任务、评审记录和发布记录，不查询全局 `audit_log`。 |
 
 健康响应不得暴露模型密钥、provider token、完整 prompt 内容或敏感上下文。
 

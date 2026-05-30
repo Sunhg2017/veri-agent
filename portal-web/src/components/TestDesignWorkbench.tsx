@@ -38,6 +38,7 @@ import {
   fetchTestDesignHealth,
   fetchTestDesignPromptTrend,
   fetchTestDesignReviewRecords,
+  fetchTestDesignTaskAuditSummary,
   fetchTestDesignTaskQualitySummary,
   fetchTestDesignTaskSummary,
   fetchTestDesignTasks,
@@ -52,6 +53,7 @@ import {
   type TestDesignCandidateBatchActionResult,
   type TestDesignCandidateBatchActionType,
   type TestDesignCandidateView,
+  type TestDesignAuditSummaryView,
   type TestDesignHealth,
   type TestDesignPromptTrendView,
   type TestDesignPublishRecordView,
@@ -124,6 +126,10 @@ import {
   resolveTestDesignTaskIdempotency,
   type TestDesignTaskIdempotencyState
 } from '../testDesignIdempotency';
+import {
+  buildTestDesignAuditSummary,
+  type TestDesignAuditSummary
+} from '../testDesignAuditSummary';
 import { buildTestDesignTaskDiagnostics } from '../testDesignTaskDiagnostics';
 
 type WorkState = {
@@ -265,6 +271,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
   const [reviewRecordPageTotal, setReviewRecordPageTotal] = useState(0);
   const [reviewRecordPageIndex, setReviewRecordPageIndex] = useState(0);
   const [taskQualitySummary, setTaskQualitySummary] = useState<TestDesignQualitySummaryView | null>(null);
+  const [taskAuditSummary, setTaskAuditSummary] = useState<TestDesignAuditSummaryView | null>(null);
   const [promptTrend, setPromptTrend] = useState<TestDesignPromptTrendView | null>(null);
   const [batchActionResult, setBatchActionResult] = useState<TestDesignCandidateBatchActionResult | null>(null);
   const [batchEditResult, setBatchEditResult] = useState<BatchEditResult | null>(null);
@@ -279,6 +286,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
   const [mutationState, setMutationState] = useState<WorkState>({ loading: false });
   const [publishState, setPublishState] = useState<WorkState>({ loading: false });
   const [reviewRecordState, setReviewRecordState] = useState<WorkState>({ loading: false });
+  const [taskAuditState, setTaskAuditState] = useState<WorkState>({ loading: false });
   const [promptTrendState, setPromptTrendState] = useState<WorkState>({ loading: false });
 
   const disabled = !props.signedIn || !canRead;
@@ -420,6 +428,10 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
     () => buildTestDesignTaskDiagnostics(selectedTask),
     [selectedTask]
   );
+  const auditSummary = useMemo(
+    () => buildTestDesignAuditSummary(taskAuditSummary),
+    [taskAuditSummary]
+  );
   const selectedTaskSource = useMemo(() => taskGenerationSource(selectedTask), [selectedTask]);
   const selectedCandidateSource = useMemo(
     () => candidateGenerationSource(selectedCandidate, selectedTask),
@@ -433,6 +445,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       setReviewRecords([]);
       setReviewRecordPageTotal(0);
       setTaskQualitySummary(null);
+      setTaskAuditSummary(null);
       setPromptTrend(null);
       setSelectedCandidateId('');
       setCandidateDraft(null);
@@ -562,6 +575,31 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
     }
   }, [canRead, props.signedIn]);
 
+  const refreshTaskAuditSummary = useCallback(async (taskId: string, options?: { silent?: boolean }) => {
+    if (!props.signedIn || !canRead || !taskId) {
+      setTaskAuditSummary(null);
+      setTaskAuditState({ loading: false });
+      return;
+    }
+
+    const silent = options?.silent === true;
+    if (silent) {
+      setTaskAuditState((current) => ({ ...current, error: undefined }));
+    } else {
+      setTaskAuditState({ loading: true });
+    }
+    try {
+      const response = await fetchTestDesignTaskAuditSummary(taskId);
+      setTaskAuditSummary(response.data);
+      setTaskAuditState({ loading: false, traceId: response.trace_id });
+    } catch (error: unknown) {
+      setTaskAuditSummary(null);
+      if (!silent) {
+        setTaskAuditState({ loading: false, error: testDesignErrorMessage(error, '审计链摘要加载失败') });
+      }
+    }
+  }, [canRead, props.signedIn]);
+
   const refreshReviewRecords = useCallback(async (taskId: string, options?: { silent?: boolean }) => {
     if (!props.signedIn || !canRead || !taskId) {
       setReviewRecords([]);
@@ -627,10 +665,12 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       setSelectedConflictCaseIds({});
       setPendingConfirmation(null);
       setTaskQualitySummary(null);
+      setTaskAuditSummary(null);
       setPromptTrend(null);
       setLoadState({ loading: false });
       setTaskState({ loading: false });
       setReviewRecordState({ loading: false });
+      setTaskAuditState({ loading: false });
       setPromptTrendState({ loading: false });
       return;
     }
@@ -729,6 +769,10 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
   }, [refreshTaskQualitySummary, selectedTaskId]);
 
   useEffect(() => {
+    void refreshTaskAuditSummary(selectedTaskId);
+  }, [refreshTaskAuditSummary, selectedTaskId]);
+
+  useEffect(() => {
     if (!selectedTaskId || !selectedTaskGenerating) {
       return undefined;
     }
@@ -736,6 +780,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       void refreshCandidatePage(selectedTaskId, { silent: true });
       void refreshReviewRecords(selectedTaskId, { silent: true });
       void refreshTaskQualitySummary(selectedTaskId, { silent: true });
+      void refreshTaskAuditSummary(selectedTaskId, { silent: true });
       void refreshPromptTrend({ silent: true });
     }, 2000);
     return () => window.clearInterval(timer);
@@ -743,6 +788,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
     refreshCandidatePage,
     refreshPromptTrend,
     refreshReviewRecords,
+    refreshTaskAuditSummary,
     refreshTaskQualitySummary,
     selectedTaskGenerating,
     selectedTaskId
@@ -878,6 +924,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       setBatchEditResult(null);
       void refreshReviewRecords(response.data.task.id, { silent: true });
       void refreshTaskQualitySummary(response.data.task.id, { silent: true });
+      void refreshTaskAuditSummary(response.data.task.id, { silent: true });
       void refreshPromptTrend({ silent: true });
       setPendingConfirmation(null);
       generationIdempotencyRef.current = null;
@@ -918,6 +965,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       setTaskState({ loading: false, success: '生成任务已重试', traceId: response.trace_id });
       void refreshReviewRecords(task.id, { silent: true });
       void refreshTaskQualitySummary(task.id, { silent: true });
+      void refreshTaskAuditSummary(task.id, { silent: true });
       void refreshPromptTrend({ silent: true });
     } catch (error: unknown) {
       setTaskState({ loading: false, error: testDesignErrorMessage(error, '生成任务重试失败') });
@@ -951,6 +999,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       setTaskState({ loading: false, success: '生成任务已取消', traceId: response.trace_id });
       void refreshReviewRecords(task.id, { silent: true });
       void refreshTaskQualitySummary(task.id, { silent: true });
+      void refreshTaskAuditSummary(task.id, { silent: true });
       void refreshPromptTrend({ silent: true });
     } catch (error: unknown) {
       setTaskState({ loading: false, error: testDesignErrorMessage(error, '生成任务取消失败') });
@@ -988,6 +1037,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       setMutationState({ loading: false, success: '候选用例已保存', traceId: response.trace_id });
       void refreshReviewRecords(selectedTaskId, { silent: true });
       void refreshTaskQualitySummary(selectedTaskId, { silent: true });
+      void refreshTaskAuditSummary(selectedTaskId, { silent: true });
       void refreshPromptTrend({ silent: true });
     } catch (error: unknown) {
       setMutationState({ loading: false, error: testDesignErrorMessage(error, '候选用例保存失败') });
@@ -1015,6 +1065,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       setMutationState({ loading: false, success: reviewSuccessText(action), traceId: response.trace_id });
       void refreshReviewRecords(selectedTaskId, { silent: true });
       void refreshTaskQualitySummary(selectedTaskId, { silent: true });
+      void refreshTaskAuditSummary(selectedTaskId, { silent: true });
       void refreshPromptTrend({ silent: true });
     } catch (error: unknown) {
       setMutationState({ loading: false, error: testDesignErrorMessage(error, '候选用例状态更新失败') });
@@ -1078,6 +1129,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       void refreshCandidatePage(selectedTaskId, { silent: true });
       void refreshReviewRecords(selectedTaskId, { silent: true });
       void refreshTaskQualitySummary(selectedTaskId, { silent: true });
+      void refreshTaskAuditSummary(selectedTaskId, { silent: true });
       void refreshPromptTrend({ silent: true });
     } catch (error: unknown) {
       setMutationState({ loading: false, error: testDesignErrorMessage(error, `批量${testDesignBatchActionLabel(action)}失败`) });
@@ -1175,6 +1227,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
     void refreshCandidatePage(selectedTaskId, { silent: true });
     void refreshReviewRecords(selectedTaskId, { silent: true });
     void refreshTaskQualitySummary(selectedTaskId, { silent: true });
+    void refreshTaskAuditSummary(selectedTaskId, { silent: true });
     void refreshPromptTrend({ silent: true });
   }
 
@@ -1231,6 +1284,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       if (!dryRun) {
         await refreshCandidatePage(selectedTaskId);
         void refreshTaskQualitySummary(selectedTaskId, { silent: true });
+        void refreshTaskAuditSummary(selectedTaskId, { silent: true });
         void refreshPromptTrend({ silent: true });
       }
     } catch (error: unknown) {
@@ -1346,6 +1400,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
         await refreshCandidatePage(selectedTaskId, { silent: true });
         void refreshTaskQualitySummary(selectedTaskId, { silent: true });
         void refreshReviewRecords(selectedTaskId, { silent: true });
+        void refreshTaskAuditSummary(selectedTaskId, { silent: true });
         void refreshPromptTrend({ silent: true });
       }
       if (response.data.result === 'SUCCEEDED') {
@@ -1423,6 +1478,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
         await refreshCandidatePage(selectedTaskId, { silent: true });
         void refreshTaskQualitySummary(selectedTaskId, { silent: true });
         void refreshReviewRecords(selectedTaskId, { silent: true });
+        void refreshTaskAuditSummary(selectedTaskId, { silent: true });
         void refreshPromptTrend({ silent: true });
       }
 
@@ -1630,6 +1686,13 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
           state={promptTrendState}
           summary={promptTrendSummary}
           onRefresh={() => void refreshPromptTrend()}
+        />
+
+        <AuditSummaryPanel
+          state={taskAuditState}
+          summary={auditSummary}
+          selectedTaskId={selectedTaskId}
+          onRefresh={() => void refreshTaskAuditSummary(selectedTaskId)}
         />
 
         <section className="panel">
@@ -2585,6 +2648,68 @@ function PromptTrendPanel(props: {
           </>
         ) : (
           <div className="notice info">暂无 Prompt 趋势数据</div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function AuditSummaryPanel(props: {
+  state: WorkState;
+  summary: TestDesignAuditSummary;
+  selectedTaskId: string;
+  onRefresh: () => void;
+}) {
+  return (
+    <section className="panel test-design-audit-summary">
+      <div className="panel-header compact">
+        <div>
+          <h2 className="panel-title">审计链</h2>
+          <p className="panel-desc">{props.selectedTaskId ? props.summary.scopeLabel : '请先选择任务'}</p>
+        </div>
+        <button className="btn btn-secondary btn-sm" type="button" disabled={!props.selectedTaskId || props.state.loading} onClick={props.onRefresh}>
+          <RefreshCw size={15} />
+          刷新
+        </button>
+      </div>
+      <div className="panel-body compact">
+        <StateLine state={props.state} />
+        {props.selectedTaskId ? (
+          <>
+            <div className="test-design-quality-metrics test-design-audit-metrics">
+              {props.summary.metrics.map((metric) => (
+                <div className={`test-design-quality-metric tone-${metric.tone}`} key={metric.label}>
+                  <span>{metric.label}</span>
+                  <strong>{metric.value}</strong>
+                  <small>{metric.desc}</small>
+                </div>
+              ))}
+            </div>
+            {props.summary.timeline.length ? (
+              <div className="test-design-audit-timeline">
+                {props.summary.timeline.map((item, index) => (
+                  <div className={`test-design-audit-event tone-${item.tone}`} key={`${item.source}-${item.action}-${item.createdAt ?? index}`}>
+                    <strong>{item.label}</strong>
+                    <span>{item.metaText}</span>
+                    <em>{item.createdAt ?? '-'}</em>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="notice info">暂无审计链事件</div>
+            )}
+            {props.summary.warnings.length > 0 && (
+              <div className="test-design-quality-warnings">
+                {props.summary.warnings.map((warning) => (
+                  <span className={`test-design-quality-chip tone-${warning.tone}`} key={warning.label}>
+                    {warning.label} {warning.count}
+                  </span>
+                ))}
+              </div>
+            )}
+          </>
+        ) : (
+          <div className="notice info">请先选择任务</div>
         )}
       </div>
     </section>

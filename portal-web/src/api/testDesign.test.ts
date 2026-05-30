@@ -16,6 +16,7 @@ import {
   fetchTestDesignHealth,
   fetchTestDesignPromptTrend,
   fetchTestDesignReviewRecords,
+  fetchTestDesignTaskAuditSummary,
   fetchTestDesignTask,
   fetchTestDesignTaskQualitySummary,
   fetchTestDesignTaskSummary,
@@ -25,6 +26,8 @@ import {
   normalizeTestDesignCandidateList,
   normalizeTestDesignConflictBatchResolveResult,
   normalizeTestDesignHealth,
+  normalizeTestDesignAuditSummary,
+  normalizeTestDesignAuditTimelineItem,
   normalizeTestDesignPromptTrend,
   normalizeTestDesignPromptTrendBucket,
   normalizeTestDesignPublishResult,
@@ -289,6 +292,48 @@ describe('WP5 test design API helpers', () => {
       promptVersion: 'v2',
       candidateCount: 0
     });
+
+    const auditSummary = normalizeTestDesignAuditSummary({
+      task_id: 'task-1',
+      project_id: 'project-1',
+      task_status: 'SUCCEEDED',
+      event_count: '5',
+      review_record_count: '2',
+      publish_record_count: '1',
+      dry_run_record_count: '1',
+      issue_count: '1',
+      note_coverage_count: '2',
+      metrics: [{ code: 'issues', label: '失败冲突', count: '1', tone: 'warning' }],
+      recent_events: [
+        {
+          source: 'REVIEW',
+          action: 'UPDATE',
+          result: 'GENERATED->EDITED',
+          candidate_id: 'cand-1',
+          actor: 'reviewer',
+          has_note: true,
+          created_at: '2026-05-30T10:02:00Z'
+        }
+      ],
+      generated_at: '2026-05-30T10:03:00Z'
+    });
+    expect(auditSummary).toMatchObject({
+      taskId: 'task-1',
+      projectId: 'project-1',
+      eventCount: 5,
+      reviewRecordCount: 2,
+      publishRecordCount: 1,
+      issueCount: 1,
+      noteCoverageCount: 2,
+      metrics: [expect.objectContaining({ code: 'issues', count: 1, tone: 'warning' })],
+      recentEvents: [expect.objectContaining({ source: 'REVIEW', candidateId: 'cand-1', hasNote: true })]
+    });
+    expect(normalizeTestDesignAuditTimelineItem({ action: 'CREATE' })).toMatchObject({
+      source: 'UNKNOWN',
+      action: 'CREATE',
+      result: 'UNKNOWN',
+      hasNote: false
+    });
   });
 
   it('calls task and candidate list endpoints with encoded filters', async () => {
@@ -329,6 +374,9 @@ describe('WP5 test design API helpers', () => {
 
     await fetchTestDesignTaskQualitySummary('task 1');
     expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/test-design/tasks/task%201/quality/summary');
+
+    await fetchTestDesignTaskAuditSummary('task 1');
+    expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/test-design/tasks/task%201/report/audit-summary');
 
     await fetchTestDesignPromptTrend({ index: 0, size: 10, projectId: 'proj pay', promptKey: 'wp5-test-design-v1' });
     expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/test-design/quality/prompt-trend?index=0&size=10&projectId=proj+pay&promptKey=wp5-test-design-v1');

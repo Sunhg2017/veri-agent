@@ -1479,6 +1479,10 @@ tbody tr:hover td {
   margin-bottom: var(--space-lg);
 }
 
+.test-design-audit-summary {
+  margin-bottom: var(--space-lg);
+}
+
 .test-design-quality-metrics {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -1657,6 +1661,47 @@ tbody tr:hover td {
   border-radius: var(--radius-sm);
   background: var(--surface);
   font-weight: 650;
+}
+
+.test-design-audit-metrics {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.test-design-audit-timeline {
+  display: grid;
+  gap: var(--space-sm);
+}
+
+.test-design-audit-event {
+  display: grid;
+  grid-template-columns: minmax(150px, 0.7fr) minmax(0, 1.5fr) minmax(160px, 0.8fr);
+  gap: var(--space-sm);
+  align-items: center;
+  padding: 10px 12px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  background: var(--surface-hover);
+  overflow-wrap: anywhere;
+}
+
+.test-design-audit-event strong {
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+}
+
+.test-design-audit-event span,
+.test-design-audit-event em {
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+  font-style: normal;
+}
+
+.test-design-audit-event.tone-warning {
+  border-color: rgba(217, 119, 6, 0.35);
+}
+
+.test-design-audit-event.tone-success {
+  border-color: rgba(22, 163, 74, 0.32);
 }
 
 .test-design-review-summary {
@@ -2201,6 +2246,8 @@ tbody tr:hover td {
   .test-design-quality-metrics { grid-template-columns: 1fr; }
   .test-design-quality-distribution { grid-template-columns: 1fr; }
   .test-design-prompt-trend-row { grid-template-columns: 1fr; }
+  .test-design-audit-metrics { grid-template-columns: 1fr; }
+  .test-design-audit-event { grid-template-columns: 1fr; }
   .model-summary-grid { grid-template-columns: repeat(2, 1fr); }
   .model-provider-grid { grid-template-columns: 1fr; }
 
