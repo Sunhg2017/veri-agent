@@ -47,6 +47,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "veri-agent.asset.service-token=test-asset-token",
         "veri-agent.test-design.service-token=test-design-token",
         "veri-agent.test-design.async-generation-enabled=false",
+        "veri-agent.test-design.context-linked-assets-per-requirement=2",
+        "veri-agent.test-design.context-explicit-assets-per-type=2",
+        "veri-agent.test-design.context-existing-cases-per-requirement=2",
+        "veri-agent.test-design.context-requirement-description-chars=180",
+        "veri-agent.test-design.context-acceptance-criteria-chars=180",
+        "veri-agent.test-design.context-asset-schema-chars=120",
         "veri-agent.test-design.conflict-title-similarity-threshold=1.0",
         "veri-agent.test-design.conflict-content-similarity-threshold=1.0"
 })
@@ -79,6 +85,9 @@ class TestDesignControllerTest {
                 .andExpect(jsonPath("$.data.status").value("UP"))
                 .andExpect(jsonPath("$.data.generationEnabled").value(true))
                 .andExpect(jsonPath("$.data.generationMode").value("RULE_TEMPLATE"))
+                .andExpect(jsonPath("$.data.contextLimits.linkedAssetsPerRequirement").value(2))
+                .andExpect(jsonPath("$.data.contextLimits.explicitAssetsPerType").value(2))
+                .andExpect(jsonPath("$.data.contextLimits.existingCasesPerRequirement").value(2))
                 .andExpect(jsonPath("$.data.supportedCoverageTypes", hasSize(6)));
     }
 
@@ -487,6 +496,10 @@ class TestDesignControllerTest {
                         .value("/reset-password"))
                 .andExpect(jsonPath("$.data.task.contextSummary.explicitAssets.flows[0].name")
                         .value("密码重置流程"))
+                .andExpect(jsonPath("$.data.task.contextSummary.limits.linkedAssetsPerRequirement").value(2))
+                .andExpect(jsonPath("$.data.task.contextSummary.limits.explicitAssetsPerType").value(2))
+                .andExpect(jsonPath("$.data.task.contextSummary.limits.existingCasesPerRequirement").value(2))
+                .andExpect(jsonPath("$.data.task.contextSummary.limits.linkedAssetSchemaChars").value(120))
                 .andReturn();
 
         MatcherAssert.assertThat(taskResult.getResponse().getContentAsString(), not(containsString("sk_live_12345678")));
@@ -519,7 +532,7 @@ class TestDesignControllerTest {
                                 """.formatted(requirementId)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
-                .andExpect(jsonPath("$.message", containsString("contextApiIds 单次最多支持 5 个")));
+                .andExpect(jsonPath("$.message", containsString("contextApiIds 单次最多支持 2 个")));
     }
 
     @Test

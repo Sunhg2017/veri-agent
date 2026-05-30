@@ -15,6 +15,7 @@ export interface TestDesignHealth {
   promptVersion?: string;
   maxRequirementsPerTask?: number;
   maxCasesPerRequirement?: number;
+  contextLimits?: Record<string, number>;
   supportedCoverageTypes: string[];
 }
 
@@ -482,6 +483,18 @@ function recordValue(value: unknown): Record<string, unknown> {
   return isRecord(value) ? value : {};
 }
 
+function numberRecordValue(value: unknown): Record<string, number> {
+  if (!isRecord(value)) {
+    return {};
+  }
+  return Object.fromEntries(
+    Object.entries(value).flatMap(([key, item]) => {
+      const normalized = numberValue(item, Number.NaN);
+      return Number.isFinite(normalized) ? [[key, normalized]] : [];
+    })
+  );
+}
+
 function listItems(value: unknown): unknown[] {
   if (Array.isArray(value)) return value;
   if (!isRecord(value)) return [];
@@ -531,6 +544,7 @@ export function normalizeTestDesignHealth(raw: unknown): TestDesignHealth {
     promptVersion: optionalString(item.promptVersion) ?? optionalString(item.prompt_version),
     maxRequirementsPerTask: numberValue(item.maxRequirementsPerTask ?? item.max_requirements_per_task, 0),
     maxCasesPerRequirement: numberValue(item.maxCasesPerRequirement ?? item.max_cases_per_requirement, 0),
+    contextLimits: numberRecordValue(item.contextLimits ?? item.context_limits),
     supportedCoverageTypes: stringArrayValue(item.supportedCoverageTypes ?? item.supported_coverage_types)
   };
 }

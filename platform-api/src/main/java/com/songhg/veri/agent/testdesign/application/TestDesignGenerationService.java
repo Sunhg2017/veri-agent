@@ -52,7 +52,6 @@ public class TestDesignGenerationService {
     private static final String MODEL_CALLER_SERVICE = "wp5-test-design";
     private static final String MODEL_CAPABILITY_JSON = "JSON";
     private static final String DEFAULT_MODEL_SENSITIVITY_LEVEL = "INTERNAL";
-    private static final int LINKED_ASSET_CONTEXT_LIMIT = 5;
     private final AssetService assetService;
     private final TestDesignResponseMapper responseMapper;
     private final TestDesignCandidateQualityGate qualityGate;
@@ -128,8 +127,11 @@ public class TestDesignGenerationService {
         item.put("source", redactedPreview(requirement.source(), 80));
         item.put("sourceRef", redactedPreview(requirement.sourceRef(), 160));
         item.put("version", requirement.version());
-        item.put("descriptionPreview", redactedPreview(requirement.description(), 240));
-        item.put("acceptanceCriteriaPreview", redactedPreview(requirement.acceptanceCriteria(), 240));
+        item.put("descriptionPreview", redactedPreview(requirement.description(), contextRequirementDescriptionChars()));
+        item.put("acceptanceCriteriaPreview", redactedPreview(
+                requirement.acceptanceCriteria(),
+                contextAcceptanceCriteriaChars()
+        ));
         item.put("tags", summaryTags(requirement.tags()));
         return item;
     }
@@ -178,9 +180,9 @@ public class TestDesignGenerationService {
         item.put("apiCount", apis.size());
         item.put("pageCount", pages.size());
         item.put("flowCount", flows.size());
-        item.put("apis", apis.stream().limit(LINKED_ASSET_CONTEXT_LIMIT).map(this::apiContextSummary).toList());
-        item.put("pages", pages.stream().limit(LINKED_ASSET_CONTEXT_LIMIT).map(this::pageContextSummary).toList());
-        item.put("flows", flows.stream().limit(LINKED_ASSET_CONTEXT_LIMIT).map(this::businessFlowContextSummary).toList());
+        item.put("apis", apis.stream().limit(contextLinkedAssetsPerRequirement()).map(this::apiContextSummary).toList());
+        item.put("pages", pages.stream().limit(contextLinkedAssetsPerRequirement()).map(this::pageContextSummary).toList());
+        item.put("flows", flows.stream().limit(contextLinkedAssetsPerRequirement()).map(this::businessFlowContextSummary).toList());
         return item;
     }
 
@@ -224,9 +226,9 @@ public class TestDesignGenerationService {
         item.put("apiIds", apis.stream().map(api -> api.id().toString()).toList());
         item.put("pageIds", pages.stream().map(page -> page.id().toString()).toList());
         item.put("flowIds", flows.stream().map(flow -> flow.id().toString()).toList());
-        item.put("apis", apis.stream().limit(LINKED_ASSET_CONTEXT_LIMIT).map(this::apiContextSummary).toList());
-        item.put("pages", pages.stream().limit(LINKED_ASSET_CONTEXT_LIMIT).map(this::pageContextSummary).toList());
-        item.put("flows", flows.stream().limit(LINKED_ASSET_CONTEXT_LIMIT).map(this::businessFlowContextSummary).toList());
+        item.put("apis", apis.stream().limit(contextExplicitAssetsPerType()).map(this::apiContextSummary).toList());
+        item.put("pages", pages.stream().limit(contextExplicitAssetsPerType()).map(this::pageContextSummary).toList());
+        item.put("flows", flows.stream().limit(contextExplicitAssetsPerType()).map(this::businessFlowContextSummary).toList());
         return item;
     }
 
@@ -288,8 +290,8 @@ public class TestDesignGenerationService {
         item.put("sourceRef", redactedPreview(api.sourceRef(), 160));
         item.put("version", redactedPreview(api.version(), 80));
         item.put("descriptionPreview", redactedPreview(api.description(), 200));
-        item.put("requestSchemaPreview", redactedPreview(api.requestSchema(), 240));
-        item.put("responseSchemaPreview", redactedPreview(api.responseSchema(), 240));
+        item.put("requestSchemaPreview", redactedPreview(api.requestSchema(), contextAssetSchemaChars()));
+        item.put("responseSchemaPreview", redactedPreview(api.responseSchema(), contextAssetSchemaChars()));
         return item;
     }
 
@@ -305,7 +307,7 @@ public class TestDesignGenerationService {
         item.put("source", redactedPreview(page.source(), 80));
         item.put("sourceRef", redactedPreview(page.sourceRef(), 160));
         item.put("sourceVersion", redactedPreview(page.sourceVersion(), 80));
-        item.put("componentTreePreview", redactedPreview(page.componentTree(), 240));
+        item.put("componentTreePreview", redactedPreview(page.componentTree(), contextAssetSchemaChars()));
         item.put("screenshotUrl", redactedPreview(page.screenshotUrl(), 160));
         return item;
     }
@@ -318,7 +320,7 @@ public class TestDesignGenerationService {
         item.put("priority", flow.priority());
         item.put("status", flow.status());
         item.put("descriptionPreview", redactedPreview(flow.description(), 200));
-        item.put("flowJsonPreview", redactedPreview(flow.flowJson(), 240));
+        item.put("flowJsonPreview", redactedPreview(flow.flowJson(), contextAssetSchemaChars()));
         return item;
     }
 
@@ -330,7 +332,7 @@ public class TestDesignGenerationService {
         Map<String, Object> item = new LinkedHashMap<>();
         item.put("requirementId", requirementId.toString());
         item.put("count", cases.size());
-        item.put("cases", cases.stream().limit(5).map(this::testCaseContextSummary).toList());
+        item.put("cases", cases.stream().limit(contextExistingCasesPerRequirement()).map(this::testCaseContextSummary).toList());
         return item;
     }
 
@@ -347,14 +349,15 @@ public class TestDesignGenerationService {
         return item;
     }
 
-    private static Map<String, Object> contextSummaryLimits() {
+    /**
+     * Publishes the effective clipping policy with every persisted context summary.
+     *
+     * <p>The digest is computed after these values are applied, so changing an operations limit intentionally creates a
+     * different generation input snapshot and prevents replaying candidates created from a wider or narrower context.
+     */
+    private Map<String, Object> contextSummaryLimits() {
         Map<String, Object> limits = new LinkedHashMap<>();
-        limits.put("requirementDescriptionChars", 240);
-        limits.put("acceptanceCriteriaChars", 240);
-        limits.put("linkedAssetsPerRequirement", LINKED_ASSET_CONTEXT_LIMIT);
-        limits.put("explicitAssetsPerType", LINKED_ASSET_CONTEXT_LIMIT);
-        limits.put("linkedAssetSchemaChars", 240);
-        limits.put("existingCasesPerRequirement", 5);
+        limits.putAll(properties.effectiveContextLimits());
         limits.put("rawPromptStored", false);
         return limits;
     }
@@ -491,11 +494,20 @@ public class TestDesignGenerationService {
         payload.put("caseCountPerRequirement", Math.min(coverageTypes.size(), maxCasesPerRequirement()));
         payload.put("requirements", requirements.stream().map(this::requirementModelPayload).toList());
         payload.put("contextSummary", contextSummaryPayload(task.contextSummaryJson()));
+        payload.put("contextPacking", contextPackingPolicy());
         try {
             return objectMapper.writeValueAsString(payload);
         } catch (JsonProcessingException exception) {
             throw new IllegalStateException("WP5 model generation payload serialization failed", exception);
         }
+    }
+
+    private Map<String, Object> contextPackingPolicy() {
+        Map<String, Object> policy = new LinkedHashMap<>();
+        policy.putAll(properties.effectiveContextLimits());
+        policy.put("rawPromptStored", false);
+        policy.put("persistedContextSummaryOnly", true);
+        return policy;
     }
 
     private Map<String, Object> requirementModelPayload(RequirementResponse requirement) {
@@ -910,6 +922,30 @@ public class TestDesignGenerationService {
 
     private int maxCasesPerRequirement() {
         return properties.maxCasesPerRequirement() <= 0 ? 3 : properties.maxCasesPerRequirement();
+    }
+
+    private int contextLinkedAssetsPerRequirement() {
+        return properties.effectiveContextLinkedAssetsPerRequirement();
+    }
+
+    private int contextExplicitAssetsPerType() {
+        return properties.effectiveContextExplicitAssetsPerType();
+    }
+
+    private int contextExistingCasesPerRequirement() {
+        return properties.effectiveContextExistingCasesPerRequirement();
+    }
+
+    private int contextRequirementDescriptionChars() {
+        return properties.effectiveContextRequirementDescriptionChars();
+    }
+
+    private int contextAcceptanceCriteriaChars() {
+        return properties.effectiveContextAcceptanceCriteriaChars();
+    }
+
+    private int contextAssetSchemaChars() {
+        return properties.effectiveContextAssetSchemaChars();
     }
 
     private String normalizedGenerationMode() {

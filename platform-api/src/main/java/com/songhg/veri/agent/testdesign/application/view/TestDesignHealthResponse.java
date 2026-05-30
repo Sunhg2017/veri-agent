@@ -2,6 +2,7 @@ package com.songhg.veri.agent.testdesign.application.view;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.util.List;
+import java.util.Map;
 
 /**
  * WP5 服务健康和生成能力接口出参
@@ -23,6 +24,8 @@ public record TestDesignHealthResponse(
         int maxRequirementsPerTask,
         @Schema(description = "每个需求最大候选数")
         int maxCasesPerRequirement,
+        @Schema(description = "上下文裁剪策略的生效上限")
+        Map<String, Integer> contextLimits,
         @Schema(description = "支持的覆盖类型列表")
         List<String> supportedCoverageTypes
 ) {

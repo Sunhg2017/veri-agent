@@ -49,7 +49,6 @@ public class TestDesignTaskService {
     private static final Logger log = LoggerFactory.getLogger(TestDesignTaskService.class);
     private static final List<String> DEFAULT_COVERAGE_TYPES = List.of("SMOKE", "FUNCTIONAL", "EXCEPTION");
     private static final int MAX_IDEMPOTENCY_KEY_LENGTH = 128;
-    private static final int MAX_EXPLICIT_CONTEXT_ASSETS_PER_TYPE = 5;
     private static final Set<String> RETRYABLE_TASK_STATUSES = Set.of(
             TestDesignTaskStatus.FAILED.name(),
             TestDesignTaskStatus.PARTIAL_SUCCESS.name(),
@@ -104,6 +103,7 @@ public class TestDesignTaskService {
                 properties.promptVersion(),
                 maxRequirementsPerTask(),
                 maxCasesPerRequirement(),
+                properties.effectiveContextLimits(),
                 CoverageType.codes().stream().sorted().toList()
         );
     }
@@ -470,17 +470,18 @@ public class TestDesignTaskService {
                 .toList();
     }
 
-    private static void validateExplicitContextLimit(TestDesignGenerationService.ExplicitContextAssetIds explicitContext) {
-        validateExplicitContextLimit("contextApiIds", explicitContext.apiIds().size());
-        validateExplicitContextLimit("contextPageIds", explicitContext.pageIds().size());
-        validateExplicitContextLimit("contextFlowIds", explicitContext.flowIds().size());
+    private void validateExplicitContextLimit(TestDesignGenerationService.ExplicitContextAssetIds explicitContext) {
+        int limit = properties.effectiveContextExplicitAssetsPerType();
+        validateExplicitContextLimit("contextApiIds", explicitContext.apiIds().size(), limit);
+        validateExplicitContextLimit("contextPageIds", explicitContext.pageIds().size(), limit);
+        validateExplicitContextLimit("contextFlowIds", explicitContext.flowIds().size(), limit);
     }
 
-    private static void validateExplicitContextLimit(String fieldName, int size) {
-        if (size > MAX_EXPLICIT_CONTEXT_ASSETS_PER_TYPE) {
+    private static void validateExplicitContextLimit(String fieldName, int size, int limit) {
+        if (size > limit) {
             throw new BusinessException(
                     ErrorCode.VALIDATION_ERROR,
-                    fieldName + " 单次最多支持 " + MAX_EXPLICIT_CONTEXT_ASSETS_PER_TYPE + " 个"
+                    fieldName + " 单次最多支持 " + limit + " 个"
             );
         }
     }
@@ -568,6 +569,7 @@ public class TestDesignTaskService {
         payload.put("promptKey", properties.promptKey());
         payload.put("promptVersion", properties.promptVersion());
         payload.put("generationMode", properties.generationMode());
+        payload.put("contextLimits", properties.effectiveContextLimits());
         try {
             return sha256(objectMapper.writeValueAsString(payload));
         } catch (JsonProcessingException exception) {

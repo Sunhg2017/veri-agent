@@ -74,6 +74,10 @@ describe('WP5 test design API helpers', () => {
       prompt_version: 'v1',
       max_requirements_per_task: '20',
       max_cases_per_requirement: '4',
+      context_limits: {
+        linked_assets_per_requirement: '3',
+        explicit_assets_per_type: 4
+      },
       supported_coverage_types: 'SMOKE,FUNCTIONAL'
     })).toMatchObject({
       service: 'test-design',
@@ -83,6 +87,10 @@ describe('WP5 test design API helpers', () => {
       promptVersion: 'v1',
       maxRequirementsPerTask: 20,
       maxCasesPerRequirement: 4,
+      contextLimits: {
+        linked_assets_per_requirement: 3,
+        explicit_assets_per_type: 4
+      },
       supportedCoverageTypes: ['SMOKE', 'FUNCTIONAL']
     });
 

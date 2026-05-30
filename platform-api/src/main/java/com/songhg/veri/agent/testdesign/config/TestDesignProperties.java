@@ -1,5 +1,7 @@
 package com.songhg.veri.agent.testdesign.config;
 
+import java.util.LinkedHashMap;
+import java.util.Map;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.bind.DefaultValue;
 
@@ -24,6 +26,18 @@ public record TestDesignProperties(
         @DefaultValue("20") int maxRequirementsPerTask,
         /** 每个需求允许生成的最大候选数量 */
         @DefaultValue("3") int maxCasesPerRequirement,
+        /** 上下文裁剪：每个需求最多纳入的追踪关联 API、页面和业务流摘要数量 */
+        @DefaultValue("5") int contextLinkedAssetsPerRequirement,
+        /** 上下文裁剪：创建任务时每类显式 API、页面或业务流资产最多允许纳入的数量 */
+        @DefaultValue("5") int contextExplicitAssetsPerType,
+        /** 上下文裁剪：每个需求最多纳入的历史用例摘要数量 */
+        @DefaultValue("5") int contextExistingCasesPerRequirement,
+        /** 上下文裁剪：需求描述摘要最大字符数 */
+        @DefaultValue("240") int contextRequirementDescriptionChars,
+        /** 上下文裁剪：需求验收标准摘要最大字符数 */
+        @DefaultValue("240") int contextAcceptanceCriteriaChars,
+        /** 上下文裁剪：接口 schema、页面树和流程 JSON 摘要最大字符数 */
+        @DefaultValue("240") int contextAssetSchemaChars,
         /** 单次批量评审允许处理的最大候选数量 */
         @DefaultValue("100") int batchActionLimit,
         /** 创建任务后是否通过平台事件异步生成候选 */
@@ -53,4 +67,54 @@ public record TestDesignProperties(
         /** 发布冲突治理：同需求正文高相似阈值，范围 0-1 */
         @DefaultValue("0.90") double conflictContentSimilarityThreshold
 ) {
+    private static final int DEFAULT_LINKED_ASSETS_PER_REQUIREMENT = 5;
+    private static final int DEFAULT_EXPLICIT_ASSETS_PER_TYPE = 5;
+    private static final int DEFAULT_EXISTING_CASES_PER_REQUIREMENT = 5;
+    private static final int DEFAULT_REQUIREMENT_DESCRIPTION_CHARS = 240;
+    private static final int DEFAULT_ACCEPTANCE_CRITERIA_CHARS = 240;
+    private static final int DEFAULT_ASSET_SCHEMA_CHARS = 240;
+    private static final int MAX_CONTEXT_ITEMS = 50;
+    private static final int MAX_CONTEXT_PREVIEW_CHARS = 2000;
+
+    public int effectiveContextLinkedAssetsPerRequirement() {
+        return boundedPositive(contextLinkedAssetsPerRequirement, DEFAULT_LINKED_ASSETS_PER_REQUIREMENT, MAX_CONTEXT_ITEMS);
+    }
+
+    public int effectiveContextExplicitAssetsPerType() {
+        return boundedPositive(contextExplicitAssetsPerType, DEFAULT_EXPLICIT_ASSETS_PER_TYPE, MAX_CONTEXT_ITEMS);
+    }
+
+    public int effectiveContextExistingCasesPerRequirement() {
+        return boundedPositive(contextExistingCasesPerRequirement, DEFAULT_EXISTING_CASES_PER_REQUIREMENT, MAX_CONTEXT_ITEMS);
+    }
+
+    public int effectiveContextRequirementDescriptionChars() {
+        return boundedPositive(contextRequirementDescriptionChars, DEFAULT_REQUIREMENT_DESCRIPTION_CHARS, MAX_CONTEXT_PREVIEW_CHARS);
+    }
+
+    public int effectiveContextAcceptanceCriteriaChars() {
+        return boundedPositive(contextAcceptanceCriteriaChars, DEFAULT_ACCEPTANCE_CRITERIA_CHARS, MAX_CONTEXT_PREVIEW_CHARS);
+    }
+
+    public int effectiveContextAssetSchemaChars() {
+        return boundedPositive(contextAssetSchemaChars, DEFAULT_ASSET_SCHEMA_CHARS, MAX_CONTEXT_PREVIEW_CHARS);
+    }
+
+    public Map<String, Integer> effectiveContextLimits() {
+        Map<String, Integer> limits = new LinkedHashMap<>();
+        limits.put("requirementDescriptionChars", effectiveContextRequirementDescriptionChars());
+        limits.put("acceptanceCriteriaChars", effectiveContextAcceptanceCriteriaChars());
+        limits.put("linkedAssetsPerRequirement", effectiveContextLinkedAssetsPerRequirement());
+        limits.put("explicitAssetsPerType", effectiveContextExplicitAssetsPerType());
+        limits.put("linkedAssetSchemaChars", effectiveContextAssetSchemaChars());
+        limits.put("existingCasesPerRequirement", effectiveContextExistingCasesPerRequirement());
+        return limits;
+    }
+
+    private static int boundedPositive(int value, int defaultValue, int maxValue) {
+        if (value <= 0) {
+            return defaultValue;
+        }
+        return Math.min(value, maxValue);
+    }
 }

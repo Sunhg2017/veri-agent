@@ -430,6 +430,10 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
     const lookup = new Map(requirements.map((requirement) => [requirement.id, requirement.title]));
     return selectedRequirementIds.map((id) => lookup.get(id) ?? id);
   }, [requirements, selectedRequirementIds]);
+  const explicitContextAssetLimit = useMemo(() => {
+    const configured = health?.contextLimits?.explicitAssetsPerType ?? health?.contextLimits?.explicit_assets_per_type;
+    return typeof configured === 'number' && Number.isFinite(configured) && configured > 0 ? Math.floor(configured) : 5;
+  }, [health?.contextLimits]);
   const taskDiagnostics = useMemo(
     () => buildTestDesignTaskDiagnostics(selectedTask),
     [selectedTask]
@@ -2187,15 +2191,15 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
               </label>
               <label className="field">
                 <span className="field-label">上下文 API ID</span>
-                <input value={generationDraft.contextApiIds} onChange={(event) => setGenerationDraft((current) => ({ ...current, contextApiIds: event.target.value }))} placeholder="最多 5 个，逗号或换行分隔" disabled={!canGenerate || mutationState.loading} />
+                <input value={generationDraft.contextApiIds} onChange={(event) => setGenerationDraft((current) => ({ ...current, contextApiIds: event.target.value }))} placeholder={`最多 ${explicitContextAssetLimit} 个，逗号或换行分隔`} disabled={!canGenerate || mutationState.loading} />
               </label>
               <label className="field">
                 <span className="field-label">上下文页面 ID</span>
-                <input value={generationDraft.contextPageIds} onChange={(event) => setGenerationDraft((current) => ({ ...current, contextPageIds: event.target.value }))} placeholder="最多 5 个，逗号或换行分隔" disabled={!canGenerate || mutationState.loading} />
+                <input value={generationDraft.contextPageIds} onChange={(event) => setGenerationDraft((current) => ({ ...current, contextPageIds: event.target.value }))} placeholder={`最多 ${explicitContextAssetLimit} 个，逗号或换行分隔`} disabled={!canGenerate || mutationState.loading} />
               </label>
               <label className="field">
                 <span className="field-label">上下文业务流 ID</span>
-                <input value={generationDraft.contextFlowIds} onChange={(event) => setGenerationDraft((current) => ({ ...current, contextFlowIds: event.target.value }))} placeholder="最多 5 个，逗号或换行分隔" disabled={!canGenerate || mutationState.loading} />
+                <input value={generationDraft.contextFlowIds} onChange={(event) => setGenerationDraft((current) => ({ ...current, contextFlowIds: event.target.value }))} placeholder={`最多 ${explicitContextAssetLimit} 个，逗号或换行分隔`} disabled={!canGenerate || mutationState.loading} />
               </label>
               <div className="field">
                 <span className="field-label">覆盖类型</span>

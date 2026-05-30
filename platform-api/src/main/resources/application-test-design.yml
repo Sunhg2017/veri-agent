@@ -8,6 +8,12 @@ veri-agent:
     model-fallback-enabled: ${WP5_MODEL_FALLBACK_ENABLED:false}
     max-requirements-per-task: ${WP5_MAX_REQUIREMENTS_PER_TASK:20}
     max-cases-per-requirement: ${WP5_CASE_COUNT_PER_REQUIREMENT_MAX:3}
+    context-linked-assets-per-requirement: ${WP5_CONTEXT_LINKED_ASSETS_PER_REQUIREMENT:5}
+    context-explicit-assets-per-type: ${WP5_CONTEXT_EXPLICIT_ASSETS_PER_TYPE:5}
+    context-existing-cases-per-requirement: ${WP5_CONTEXT_EXISTING_CASES_PER_REQUIREMENT:5}
+    context-requirement-description-chars: ${WP5_CONTEXT_REQUIREMENT_DESCRIPTION_CHARS:240}
+    context-acceptance-criteria-chars: ${WP5_CONTEXT_ACCEPTANCE_CRITERIA_CHARS:240}
+    context-asset-schema-chars: ${WP5_CONTEXT_ASSET_SCHEMA_CHARS:240}
     batch-action-limit: ${WP5_BATCH_ACTION_MAX_SIZE:100}
     async-generation-enabled: ${WP5_ASYNC_GENERATION_ENABLED:true}
     event-recovery-enabled: ${WP5_EVENT_RECOVERY_ENABLED:true}

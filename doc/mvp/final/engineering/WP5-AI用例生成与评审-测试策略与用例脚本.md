@@ -5,8 +5,8 @@
 | 工作包 | WP5 AI 用例生成与评审 |
 | 角色产出 | 资深质量工程师 |
 | 文档性质 | 测试策略、功能用例、安全和可测试性建议、脚本设计 |
-| 当前口径 | 已纳入 WP5 后端、前端、DB validation、Prompt 趋势、准出运营摘要和显式上下文装配的自动化验证入口 |
-| 版本 | v0.9 |
+| 当前口径 | 已纳入 WP5 后端、前端、DB validation、Prompt 趋势、准出运营摘要、显式上下文装配和上下文裁剪策略配置的自动化验证入口 |
+| 版本 | v1.0 |
 | 日期 | 2026-05-30 |
 
 ## 1. 测试目标
@@ -59,6 +59,7 @@
 | WP5-FUNC-003 | P0 | 选择跨项目需求创建任务 | 返回校验失败或越权，任务不创建。 |
 | WP5-FUNC-003A | P0 | 需求已关联 API、页面和业务流 | `contextSummary.linkedAssetsByRequirement` 包含三类资产脱敏摘要，且只通过 WP3 应用服务读取。 |
 | WP5-FUNC-003B | P0 | 创建任务时显式传入 API、页面和业务流 ID | `contextSummary.explicitAssets` 包含三类资产计数、ID 和脱敏摘要；`inputDigest` 与幂等 request digest 覆盖这些显式上下文 ID。 |
+| WP5-FUNC-003C | P0 | 配置 `veri-agent.test-design.context-*` 裁剪策略 | 健康接口返回生效限制；`contextSummary.limits` 和模型请求 `contextPacking` 使用同一套生效值。 |
 | WP5-FUNC-004 | P0 | 模型输出合法 JSON | 候选落库，包含标题、步骤、预期、优先级和来源依据。 |
 | WP5-FUNC-005 | P0 | 模型输出非法 JSON | 任务失败或 fallback，错误码为模型输出非法，不产生脏候选。 |
 | WP5-FUNC-006 | P0 | WP2 敏感内容阻断 | 任务展示阻断摘要，保存 traceId，不绕过 WP2。 |
