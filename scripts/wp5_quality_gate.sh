@@ -3,19 +3,86 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
+is_truthy() {
+  case "${1:-}" in
+    1|true|TRUE|yes|YES|on|ON)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+is_release_gate() {
+  if is_truthy "${WP5_RELEASE_GATE:-0}"; then
+    return 0
+  fi
+  case "${WP5_GATE_MODE:-development}" in
+    release|RELEASE|preprod|PREPROD|prod|PROD|production|PRODUCTION)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+is_plan_only() {
+  is_truthy "${WP5_QUALITY_GATE_PLAN_ONLY:-0}"
+}
+
+http_smoke_requested() {
+  case "${WP5_RUN_HTTP_SMOKE:-0}" in
+    1|true|TRUE|managed|auto|external)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+validate_release_gate() {
+  if ! is_release_gate; then
+    return
+  fi
+  if ! http_smoke_requested; then
+    echo "WP5 release gate requires HTTP smoke. Set WP5_RUN_HTTP_SMOKE=1 for managed smoke, or WP5_RUN_HTTP_SMOKE=external with WP5_SMOKE_BASE_URL for an existing platform-api." >&2
+    exit 2
+  fi
+  if [[ "${WP5_RUN_HTTP_SMOKE:-0}" == "external" && -z "${WP5_SMOKE_BASE_URL:-}" ]]; then
+    echo "WP5 release gate external HTTP smoke requires WP5_SMOKE_BASE_URL." >&2
+    exit 2
+  fi
+  echo "== wp5 release gate mode: HTTP smoke required and enabled (${WP5_RUN_HTTP_SMOKE}) =="
+}
+
 run_step() {
   local name="$1"
   shift
   echo "== $name =="
+  if is_plan_only; then
+    printf 'PLAN'
+    printf ' %q' "$@"
+    printf '\n'
+    return
+  fi
   "$@"
 }
 
 main() {
+  validate_release_gate
+
   run_step "wp5 script syntax" \
     bash -n \
       "$ROOT_DIR/scripts/wp5_quality_gate.sh" \
       "$ROOT_DIR/scripts/wp5_test_design_smoke.sh" \
-      "$ROOT_DIR/scripts/wp5_managed_http_smoke.sh"
+      "$ROOT_DIR/scripts/wp5_managed_http_smoke.sh" \
+      "$ROOT_DIR/scripts/wp5_quality_gate_mode_test.sh"
+
+  run_step "wp5 quality gate mode contract" \
+    bash "$ROOT_DIR/scripts/wp5_quality_gate_mode_test.sh"
 
   run_step "wp5 backend and OpenAPI tests" \
     mvn -B -pl platform-api -Dtest=TestDesignControllerTest,TestDesignTaskReportServiceTest,TestDesignGenerationServiceTest,TestDesignAsyncGenerationControllerTest,TestDesignModelGenerationControllerTest,TestDesignModelFallbackControllerTest,TestDesignEventRecoveryServiceTest,TestDesignPublishCompensationServiceTest,TestDesignOpenApiContractTest,PermissionCodeUsageTest,ServiceTokenAuthenticationFilterTest test
@@ -62,7 +129,11 @@ main() {
       ;;
   esac
 
-  echo "WP5 quality gate passed."
+  if is_plan_only; then
+    echo "WP5 quality gate plan completed; no validation commands executed."
+  else
+    echo "WP5 quality gate passed."
+  fi
 }
 
 main "$@"

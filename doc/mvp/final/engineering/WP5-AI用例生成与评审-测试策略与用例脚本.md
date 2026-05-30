@@ -5,8 +5,8 @@
 | 工作包 | WP5 AI 用例生成与评审 |
 | 角色产出 | 资深质量工程师 |
 | 文档性质 | 测试策略、功能用例、安全和可测试性建议、脚本设计 |
-| 当前口径 | 已纳入 WP5 后端、前端、DB validation、Prompt 趋势、准出运营摘要、人工排队事件重发入口、显式上下文装配、上下文裁剪策略配置、项目/环境上下文策略覆盖 API、前端上下文策略运营面板、审批元数据、effective snapshot、context policy override DB contract、release role validation、HTTP smoke 策略覆盖端到端准出、上下文装配策略 v2 共享快照、上下文策略治理状态快照、上下文策略运营 v2 聚合快照、权限与资源作用域策略聚合快照、评测语料运营策略聚合快照、发布准出审批策略聚合快照、跨 WP 审计链策略聚合快照、跨 WP 审计链只读聚合骨架、模型观测策略共享快照、归档治理策略共享快照、报告清单策略共享快照、任务诊断上下文策略、装配策略、策略运营、作用域策略、评测语料、发布准出、审计链、模型观测、归档与报告清单策略摘要、任务报告生成编排策略聚合行、任务报告作用域策略聚合行、任务报告评测语料策略聚合行、任务报告发布准出审批策略聚合行、任务报告审计链策略聚合行、任务级 audit-chain 聚合接口、任务报告上下文聚合行、上下文装配策略 v2 共享快照行、任务报告上下文策略治理聚合行、任务报告上下文策略运营 v2 聚合行、任务报告模型观测策略聚合行、任务报告质量准出阈值策略聚合行、任务报告导出审计策略聚合行、任务报告安全扫描策略聚合行、任务报告归档策略聚合行、任务报告清单策略聚合行、Prompt 校准策略聚合行、受限发布补偿后台、发布补偿策略聚合行、任务报告 manifest 聚合行、任务报告导出安全扫描、aggregate-only manifest 持久化和 manifest DB validation 的自动化验证入口 |
-| 版本 | v3.8 |
+| 当前口径 | 已纳入 WP5 后端、前端、DB validation、Prompt 趋势、准出运营摘要、人工排队事件重发入口、显式上下文装配、上下文裁剪策略配置、项目/环境上下文策略覆盖 API、前端上下文策略运营面板、审批元数据、effective snapshot、context policy override DB contract、release role validation、HTTP smoke 策略覆盖端到端准出、发布准出模式 HTTP smoke 强制执行、上下文装配策略 v2 共享快照、上下文策略治理状态快照、上下文策略运营 v2 聚合快照、权限与资源作用域策略聚合快照、评测语料运营策略聚合快照、发布准出审批策略聚合快照、跨 WP 审计链策略聚合快照、跨 WP 审计链只读聚合骨架、模型观测策略共享快照、归档治理策略共享快照、报告清单策略共享快照、任务诊断上下文策略、装配策略、策略运营、作用域策略、评测语料、发布准出、审计链、模型观测、归档与报告清单策略摘要、任务报告生成编排策略聚合行、任务报告作用域策略聚合行、任务报告评测语料策略聚合行、任务报告发布准出审批策略聚合行、任务报告审计链策略聚合行、任务级 audit-chain 聚合接口、任务报告上下文聚合行、上下文装配策略 v2 共享快照行、任务报告上下文策略治理聚合行、任务报告上下文策略运营 v2 聚合行、任务报告模型观测策略聚合行、任务报告质量准出阈值策略聚合行、任务报告导出审计策略聚合行、任务报告安全扫描策略聚合行、任务报告归档策略聚合行、任务报告清单策略聚合行、Prompt 校准策略聚合行、受限发布补偿后台、发布补偿策略聚合行、任务报告 manifest 聚合行、任务报告导出安全扫描、aggregate-only manifest 持久化和 manifest DB validation 的自动化验证入口 |
+| 版本 | v3.9 |
 | 日期 | 2026-05-31 |
 
 ## 1. 测试目标
@@ -67,7 +67,7 @@
 | WP5-FUNC-003C-2B | P0 | 审批项目级上下文策略覆盖 | `ProjectOwner` 审批后 effective policy 应用项目级覆盖，并返回 `PLATFORM_DEFAULT, PROJECT` 解析顺序；Developer 创建覆盖返回 403，其他项目负责人审批返回 403。 |
 | WP5-FUNC-003C-2C | P0 | 环境级上下文策略覆盖优先级 | 同项目环境级覆盖审批后，`effective?environmentKey=qa` 应按平台默认 -> 项目 -> 环境解析，环境级数字覆盖项目级数字。 |
 | WP5-FUNC-003C-2D | P0 | 创建任务固化上下文策略快照 | 创建任务传入 `environmentKey=qa` 后，`contextSummary.limits`、`inputDigest`、`requestDigest` 和模型 `contextPacking` 使用同一 effective policy；后续策略变化不影响旧任务重试快照。 |
-| WP5-FUNC-003C-2E | P0 | HTTP smoke 验证上下文策略覆盖准出 | `scripts/wp5_test_design_smoke.sh` 创建项目/环境覆盖，验证 PENDING 不生效、审批后按平台默认 -> 项目 -> 环境解析、响应不泄露原因编码原文/正文类字段，随后创建带 `environmentKey=qa` 的任务并校验 `contextSummary.limits` 固化环境级 effective policy。 |
+| WP5-FUNC-003C-2E | P0 | HTTP smoke 验证上下文策略覆盖准出 | `scripts/wp5_test_design_smoke.sh` 创建项目/环境覆盖，验证 PENDING 不生效、审批后按平台默认 -> 项目 -> 环境解析、响应不泄露原因编码原文/正文类字段，随后创建带 `environmentKey=qa` 的任务并校验 `contextSummary.limits` 固化环境级 effective policy。发布准出必须通过 `WP5_GATE_MODE=release WP5_RUN_HTTP_SMOKE=1 bash scripts/wp5_quality_gate.sh` 或 `WP5_GATE_MODE=release WP5_RUN_HTTP_SMOKE=external WP5_SMOKE_BASE_URL=... bash scripts/wp5_quality_gate.sh` 执行该链路。 |
 | WP5-FUNC-003C-2F | P0 | 前端上下文策略运营面板 | `testDesign:read` 用户可查询项目/环境 effective policy 和覆盖记录；`testDesign:policy_manage` 用户可提交项目级/环境级 bounded 数字覆盖并审批或驳回 PENDING 记录；前端 helper 和 API 测试确认 payload 仅包含数字和固定原因编码，展示只包含状态、数字、captured 布尔语义和导出红线，不含策略正文、diff、审批备注、工单 URL、上下文正文或自由文本原因。 |
 | WP5-FUNC-003C-3 | P0 | 查看权限与资源作用域策略状态 | 健康接口、任务响应、任务诊断、`contextSummary.scopePolicy` 和模型请求 `contextPacking.scopePolicy` 返回同一聚合快照，包含项目资源作用域、列表 fallback、任务/候选/批量/发布/异步生成/HTTP smoke/质量评测项目隔离和未就绪运营能力。 |
 | WP5-FUNC-003C-3A | P0 | 查看评测语料运营策略状态 | 健康接口、任务响应、任务诊断、`contextSummary.evaluationCorpusPolicy` 和模型请求 `contextPacking.evaluationCorpusPolicy` 返回同一聚合快照，包含 golden set 基线、手动可选 AI 评测、部署配置阈值、项目作用域、质量门禁接入、准出分布、Prompt 版本跟踪和样本维护/长期校准/运营后台未就绪状态。 |
@@ -221,6 +221,13 @@ cd -
 
 bash db/validation/run_wp1_db_validation.sh
 
+if [[ "${WP5_GATE_MODE:-development}" == "release" || "${WP5_RELEASE_GATE:-0}" == "1" ]]; then
+  if [[ "${WP5_RUN_HTTP_SMOKE:-0}" != "1" && "${WP5_RUN_HTTP_SMOKE:-0}" != "external" && "${WP5_RUN_HTTP_SMOKE:-0}" != "managed" && "${WP5_RUN_HTTP_SMOKE:-0}" != "auto" ]]; then
+    echo "WP5 release gate requires HTTP smoke." >&2
+    exit 2
+  fi
+fi
+
 if [[ "${WP5_RUN_HTTP_SMOKE:-0}" == "1" ]]; then
   # 未设置 WP5_SMOKE_BASE_URL 时，quality gate 会自启动临时 PostgreSQL 和 db profile platform-api。
   bash scripts/wp5_managed_http_smoke.sh
@@ -234,6 +241,8 @@ if [[ "${WP5_RUN_AI_EVAL:-0}" == "1" ]]; then
   bash scripts/wp5_case_generation_quality_eval.sh
 fi
 ```
+
+发布准出模式使用 `WP5_GATE_MODE=release` 或 `WP5_RELEASE_GATE=1` 标记。该模式会在脚本入口强制要求 HTTP smoke，`external` 模式还必须提供 `WP5_SMOKE_BASE_URL`；日常开发模式仍允许默认跳过 Docker 启动，但脚本会输出跳过原因。`scripts/wp5_quality_gate_mode_test.sh` 用 plan-only 模式锁定上述契约，避免发布门禁被误改为静默跳过。
 
 ### 9.2 `scripts/wp5_test_design_smoke.sh`
 
@@ -299,11 +308,16 @@ bash db/validation/run_wp1_db_validation.sh
 bash scripts/wp5_quality_gate.sh
 ```
 
+发布准出必须执行：
+
+```bash
+WP5_GATE_MODE=release WP5_RUN_HTTP_SMOKE=1 bash scripts/wp5_quality_gate.sh
+WP5_GATE_MODE=release WP5_RUN_HTTP_SMOKE=external WP5_SMOKE_BASE_URL=http://127.0.0.1:8080 bash scripts/wp5_quality_gate.sh
+```
+
 按影响面追加：
 
 ```bash
-WP5_RUN_HTTP_SMOKE=1 bash scripts/wp5_quality_gate.sh
-WP5_RUN_HTTP_SMOKE=external WP5_SMOKE_BASE_URL=http://127.0.0.1:8080 bash scripts/wp5_quality_gate.sh
 WP5_RUN_AI_EVAL=1 bash scripts/wp5_quality_gate.sh
 ```
 
