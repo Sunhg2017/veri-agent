@@ -274,6 +274,109 @@ class TestDesignTaskReportServiceTest {
     }
 
     @Test
+    void appendsContextAssemblyPolicyRowsWithoutContextDetails() {
+        StringBuilder csv = new StringBuilder();
+        String digest = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+        UUID explicitApiId = UUID.fromString("22222222-2222-2222-2222-222222222222");
+        TestDesignTaskResponse task = new TestDesignTaskResponse(
+                UUID.fromString("11111111-1111-1111-1111-111111111111"),
+                "project-wp5",
+                "上下文装配报告 token=secret-value",
+                "SUCCEEDED",
+                List.of(),
+                List.of("SMOKE"),
+                "wp5-test-design-v1",
+                "1.0.0",
+                null,
+                null,
+                null,
+                0,
+                0,
+                0,
+                0,
+                null,
+                "auditor",
+                null,
+                digest,
+                null,
+                TestDesignContextPolicyGovernance.response(),
+                Map.of(
+                        "contextVersion", "wp5-context-v1",
+                        "requirements", List.of(Map.of(
+                                "descriptionPreview", "需求正文不应导出 token=secret-value",
+                                "acceptanceCriteriaPreview", "验收标准不应导出 rawPrompt"
+                        )),
+                        "linkedAssetsByRequirement", List.of(Map.of(
+                                "apiCount", 1,
+                                "pageCount", 1,
+                                "flowCount", 1,
+                                "apis", List.of(Map.of("requestSchemaPreview", "{\"password\":\"secret\"}")),
+                                "pages", List.of(Map.of("componentTreePreview", "page-tree-secret")),
+                                "flows", List.of(Map.of("flowJsonPreview", "flow-json-secret"))
+                        )),
+                        "existingCasesByRequirement", List.of(Map.of(
+                                "count", 1,
+                                "cases", List.of(Map.of("steps", "历史用例步骤不应导出"))
+                        )),
+                        "explicitAssets", Map.of(
+                                "apiCount", 1,
+                                "pageCount", 0,
+                                "flowCount", 1,
+                                "apiIds", List.of(explicitApiId.toString())
+                        ),
+                        "limits", Map.of(
+                                "linkedAssetsPerRequirement", 2,
+                                "explicitAssetsPerType", 2,
+                                "existingCasesPerRequirement", 2,
+                                "requirementDescriptionChars", 180,
+                                "acceptanceCriteriaChars", 180,
+                                "linkedAssetSchemaChars", 120
+                        )
+                ),
+                Instant.parse("2026-05-30T00:00:00Z"),
+                Instant.parse("2026-05-30T00:00:00Z")
+        );
+
+        TestDesignTaskReportContextAssemblyPolicyRows.appendRows(
+                csv, task, Instant.parse("2026-05-30T00:00:00Z"));
+
+        String report = csv.toString();
+        assertDoesNotThrow(() -> TestDesignTaskReportExportGovernance.validateExportSafety(report));
+        org.assertj.core.api.Assertions.assertThat(report)
+                .contains("contextAssemblyPolicy,policyVersion,,wp5-context-assembly-policy-v1")
+                .contains("contextAssemblyPolicy,assemblyMode,,SNAPSHOT_DIGEST_ONLY")
+                .contains("contextAssemblyPolicy,inputDigestTracked,,true,,success")
+                .contains("contextAssemblyPolicy,persistedContextSummaryOnly,,true,,success")
+                .contains("contextAssemblyPolicy,wp3ApplicationServiceOnly,,true,,success")
+                .contains("contextAssemblyPolicy,rawContextBodyStored,,false")
+                .contains("contextAssemblyPolicy,modelPayloadStored,,false")
+                .contains("contextAssemblyPolicy,digestValueExported,,false")
+                .contains("contextAssemblyPolicy,requirementBodyExported,,false")
+                .contains("contextAssemblyPolicy,assetSchemaExported,,false")
+                .contains("contextAssemblyPolicy,pageTreeExported,,false")
+                .contains("contextAssemblyPolicy,flowJsonExported,,false")
+                .contains("contextAssemblyPolicy,explicitAssetIdentifierListExported,,false")
+                .contains("contextAssemblyPolicy,historicalCaseStepExported,,false")
+                .contains("contextAssemblyPolicy,metric,requirementSnapshotCount,1,,info")
+                .contains("contextAssemblyPolicy,metric,linkedAssetSnapshotGroupCount,1,,info")
+                .contains("contextAssemblyPolicy,metric,existingCaseSnapshotGroupCount,1,,info")
+                .contains("contextAssemblyPolicy,metric,explicitAssetTypeCount,2,,info")
+                .contains("contextAssemblyPolicy,metric,clippingLimitCount,6,,info")
+                .contains("contextAssemblyPolicy,aggregateOnly,,true,,success")
+                .doesNotContain("secret-value")
+                .doesNotContain(digest)
+                .doesNotContain(explicitApiId.toString())
+                .doesNotContain("rawPrompt")
+                .doesNotContain("需求正文不应导出")
+                .doesNotContain("验收标准不应导出")
+                .doesNotContain("page-tree-secret")
+                .doesNotContain("flow-json-secret")
+                .doesNotContain("历史用例步骤不应导出")
+                .doesNotContain("requestSchemaPreview")
+                .doesNotContain("apiIds");
+    }
+
+    @Test
     void appendsContextPolicyOperationsRowsWithoutPolicyDetails() {
         StringBuilder csv = new StringBuilder();
         TestDesignTaskResponse task = new TestDesignTaskResponse(

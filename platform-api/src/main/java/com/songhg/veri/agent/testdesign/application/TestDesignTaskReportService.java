@@ -316,6 +316,7 @@ public class TestDesignTaskReportService {
                 "acceptanceCriteriaChars", "acceptanceCriteriaChars");
         appendTaskReportContextLimit(csv, task, generatedAt, limits,
                 "linkedAssetSchemaChars", "linkedAssetSchemaChars");
+        TestDesignTaskReportContextAssemblyPolicyRows.appendRows(csv, task, generatedAt);
         TestDesignTaskReportContextPolicyGovernanceRows.appendRows(csv, task, generatedAt);
         TestDesignTaskReportContextPolicyOperationsRows.appendRows(csv, task, generatedAt);
     }
