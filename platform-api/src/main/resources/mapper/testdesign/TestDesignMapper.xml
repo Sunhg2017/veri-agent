@@ -148,6 +148,28 @@
         </constructor>
     </resultMap>
 
+    <resultMap id="contextPolicyOverrideMap" type="com.songhg.veri.agent.testdesign.domain.TestDesignContextPolicyOverride">
+        <constructor>
+            <arg column="id" javaType="java.util.UUID"/>
+            <arg column="scope_type" javaType="java.lang.String"/>
+            <arg column="project_id" javaType="java.lang.String"/>
+            <arg column="environment_key" javaType="java.lang.String"/>
+            <arg column="status" javaType="java.lang.String"/>
+            <arg column="context_linked_assets_per_requirement" javaType="java.lang.Integer"/>
+            <arg column="context_explicit_assets_per_type" javaType="java.lang.Integer"/>
+            <arg column="context_existing_cases_per_requirement" javaType="java.lang.Integer"/>
+            <arg column="context_requirement_description_chars" javaType="java.lang.Integer"/>
+            <arg column="context_acceptance_criteria_chars" javaType="java.lang.Integer"/>
+            <arg column="context_asset_schema_chars" javaType="java.lang.Integer"/>
+            <arg column="change_reason_code" javaType="java.lang.String"/>
+            <arg column="approval_reason_code" javaType="java.lang.String"/>
+            <arg column="requested_by" javaType="java.lang.String"/>
+            <arg column="approved_by" javaType="java.lang.String"/>
+            <arg column="created_at" javaType="java.time.Instant"/>
+            <arg column="updated_at" javaType="java.time.Instant"/>
+        </constructor>
+    </resultMap>
+
     <sql id="taskColumns">
         id, project_id, title, status, requirement_ids, coverage_types, prompt_key, prompt_version,
         model_invocation_id, model_provider_name, model_name, total_requirements, generated_count,
@@ -161,6 +183,14 @@
         confidence, prompt_key, prompt_version, model_invocation_id, model_provider_name, model_name,
         asset_case_id, review_comment, rejected_reason, ignored_reason, error_message, confirmed_by,
         confirmed_at, version, created_at, updated_at
+    </sql>
+
+    <sql id="contextPolicyOverrideColumns">
+        id, scope_type, project_id, environment_key, status,
+        context_linked_assets_per_requirement, context_explicit_assets_per_type,
+        context_existing_cases_per_requirement, context_requirement_description_chars,
+        context_acceptance_criteria_chars, context_asset_schema_chars,
+        change_reason_code, approval_reason_code, requested_by, approved_by, created_at, updated_at
     </sql>
 
     <sql id="taskWhere">
@@ -628,5 +658,73 @@
             coalesce((select count(*) from outbox_events where status = 'PENDING'), 0) as audit_outbox_pending_count,
             coalesce((select count(*) from outbox_events where status = 'FAILED'), 0) as audit_outbox_failed_count,
             coalesce((select count(*) from outbox_events where status = 'DEAD'), 0) as audit_outbox_dead_count
+    </select>
+
+    <insert id="insertContextPolicyOverride">
+        insert into test_design_context_policy_override (
+            id, scope_type, project_id, environment_key, status,
+            context_linked_assets_per_requirement, context_explicit_assets_per_type,
+            context_existing_cases_per_requirement, context_requirement_description_chars,
+            context_acceptance_criteria_chars, context_asset_schema_chars,
+            change_reason_code, approval_reason_code, requested_by, approved_by, created_at, updated_at
+        ) values (
+            cast(#{id} as uuid), #{scopeType}, #{projectId}, #{environmentKey}, #{status},
+            #{contextLinkedAssetsPerRequirement}, #{contextExplicitAssetsPerType},
+            #{contextExistingCasesPerRequirement}, #{contextRequirementDescriptionChars},
+            #{contextAcceptanceCriteriaChars}, #{contextAssetSchemaChars},
+            #{changeReasonCode}, #{approvalReasonCode}, #{requestedBy}, #{approvedBy}, #{createdAt}, #{updatedAt}
+        )
+    </insert>
+
+    <update id="updateContextPolicyOverride">
+        update test_design_context_policy_override
+        set status = #{status},
+            approval_reason_code = #{approvalReasonCode},
+            approved_by = #{approvedBy},
+            updated_at = #{updatedAt}
+        where id = cast(#{id} as uuid)
+    </update>
+
+    <select id="contextPolicyOverride" resultMap="contextPolicyOverrideMap">
+        select <include refid="contextPolicyOverrideColumns"/>
+        from test_design_context_policy_override
+        where id = cast(#{id} as uuid)
+    </select>
+
+    <select id="contextPolicyOverrides" resultMap="contextPolicyOverrideMap">
+        select <include refid="contextPolicyOverrideColumns"/>
+        from test_design_context_policy_override
+        where project_id = #{projectId}
+          <choose>
+              <when test="environmentKey != null and environmentKey != ''">
+                  and (environment_key is null or environment_key = #{environmentKey})
+              </when>
+              <otherwise>
+                  and environment_key is null
+              </otherwise>
+          </choose>
+        order by created_at desc
+    </select>
+
+    <select id="latestApprovedProjectContextPolicyOverride" resultMap="contextPolicyOverrideMap">
+        select <include refid="contextPolicyOverrideColumns"/>
+        from test_design_context_policy_override
+        where project_id = #{projectId}
+          and scope_type = 'PROJECT'
+          and environment_key is null
+          and status = 'APPROVED'
+        order by updated_at desc
+        limit 1
+    </select>
+
+    <select id="latestApprovedEnvironmentContextPolicyOverride" resultMap="contextPolicyOverrideMap">
+        select <include refid="contextPolicyOverrideColumns"/>
+        from test_design_context_policy_override
+        where project_id = #{projectId}
+          and scope_type = 'ENVIRONMENT'
+          and environment_key = #{environmentKey}
+          and status = 'APPROVED'
+        order by updated_at desc
+        limit 1
     </select>
 </mapper>

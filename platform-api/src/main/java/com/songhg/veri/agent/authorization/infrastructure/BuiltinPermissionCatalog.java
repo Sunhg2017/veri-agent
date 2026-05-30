@@ -31,7 +31,8 @@ final class BuiltinPermissionCatalog {
                     PermissionCodes.REQUIREMENT_INPUT_READ, PermissionCodes.REQUIREMENT_INPUT_MANAGE, PermissionCodes.REQUIREMENT_INPUT_IMPORT,
                     PermissionCodes.REQUIREMENT_INPUT_CANDIDATE_REVIEW, PermissionCodes.REQUIREMENT_INPUT_PUBLISH, PermissionCodes.REQUIREMENT_INPUT_WEBHOOK_REPLAY,
                     PermissionCodes.TEST_DESIGN_READ, PermissionCodes.TEST_DESIGN_GENERATE, PermissionCodes.TEST_DESIGN_REVIEW,
-                    PermissionCodes.TEST_DESIGN_PUBLISH, PermissionCodes.TEST_DESIGN_EXPORT
+                    PermissionCodes.TEST_DESIGN_PUBLISH, PermissionCodes.TEST_DESIGN_EXPORT,
+                    PermissionCodes.TEST_DESIGN_POLICY_MANAGE
             ),
             "DepartmentManager", Set.of(
                     PermissionCodes.DEPARTMENT_READ, PermissionCodes.DEPARTMENT_EDIT, PermissionCodes.DEPARTMENT_ENABLE, PermissionCodes.DEPARTMENT_DISABLE,
@@ -54,7 +55,7 @@ final class BuiltinPermissionCatalog {
                     PermissionCodes.REQUIREMENT_INPUT_READ, PermissionCodes.REQUIREMENT_INPUT_IMPORT,
                     PermissionCodes.REQUIREMENT_INPUT_CANDIDATE_REVIEW, PermissionCodes.REQUIREMENT_INPUT_PUBLISH,
                     PermissionCodes.TEST_DESIGN_READ, PermissionCodes.TEST_DESIGN_GENERATE, PermissionCodes.TEST_DESIGN_REVIEW,
-                    PermissionCodes.TEST_DESIGN_PUBLISH
+                    PermissionCodes.TEST_DESIGN_PUBLISH, PermissionCodes.TEST_DESIGN_POLICY_MANAGE
             ),
             "AppOwner", Set.of(
                     PermissionCodes.PROJECT_READ, PermissionCodes.APPLICATION_READ, PermissionCodes.APPLICATION_EDIT, PermissionCodes.APPLICATION_DISABLE,

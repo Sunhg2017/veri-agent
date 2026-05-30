@@ -62,6 +62,10 @@ public class TestDesignPermissionScopeResolver {
         return ResourceScope.project(scopeService.candidateProjectScopeId(id));
     }
 
+    public ResourceScope contextPolicyOverride(UUID id) {
+        return ResourceScope.project(scopeService.contextPolicyOverrideProjectScopeId(id));
+    }
+
     public List<ResourceScope> candidateBatch(TestDesignCandidateBatchActionCommand command) {
         LinkedHashSet<String> projectIds = new LinkedHashSet<>();
         for (UUID candidateId : batchCandidateIds(command)) {

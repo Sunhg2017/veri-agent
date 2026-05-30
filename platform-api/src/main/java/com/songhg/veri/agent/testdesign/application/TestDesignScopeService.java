@@ -29,4 +29,10 @@ public class TestDesignScopeService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "候选用例不存在: " + id))
                 .projectId();
     }
+
+    public String contextPolicyOverrideProjectScopeId(UUID id) {
+        return repository.contextPolicyOverride(id)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "上下文策略覆盖不存在: " + id))
+                .projectId();
+    }
 }

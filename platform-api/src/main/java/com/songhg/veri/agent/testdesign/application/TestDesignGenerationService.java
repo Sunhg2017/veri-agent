@@ -96,31 +96,41 @@ public class TestDesignGenerationService {
     TestDesignGenerationContext generationContext(
             String projectId,
             List<RequirementResponse> requirements,
-            ExplicitContextAssetIds explicitContext
+            ExplicitContextAssetIds explicitContext,
+            String environmentKey,
+            TestDesignContextPolicyService.EffectiveContextPolicySnapshot effectivePolicy
     ) {
+        TestDesignContextPolicyService.EffectiveContextPolicySnapshot limitPolicy =
+                effectivePolicy == null ? platformDefaultContextPolicy() : effectivePolicy;
         Map<String, Object> summary = new LinkedHashMap<>();
         summary.put("contextVersion", "wp5-context-v1");
         summary.put("projectId", projectId);
+        if (StringUtils.hasText(environmentKey)) {
+            summary.put("environmentKey", environmentKey.trim());
+        }
         summary.put("promptKey", properties.promptKey());
         summary.put("promptVersion", properties.promptVersion());
         summary.put("generationMode", properties.generationMode());
         summary.put("requirements", requirements.stream()
                 .sorted(Comparator.comparing(RequirementResponse::id))
-                .map(this::requirementContextSummary)
+                .map(requirement -> requirementContextSummary(requirement, limitPolicy.contextLimits()))
                 .toList());
         summary.put("linkedAssetsByRequirement", requirements.stream()
                 .sorted(Comparator.comparing(RequirementResponse::id))
-                .map(requirement -> linkedAssetContextSummary(projectId, requirement))
+                .map(requirement -> linkedAssetContextSummary(projectId, requirement,
+                        limitPolicy.contextLimits()))
                 .toList());
         summary.put("existingCasesByRequirement", requirements.stream()
                 .sorted(Comparator.comparing(RequirementResponse::id))
-                .map(requirement -> existingCaseContextSummary(projectId, requirement.id()))
+                .map(requirement -> existingCaseContextSummary(projectId, requirement.id(),
+                        limitPolicy.contextLimits()))
                 .toList());
-        summary.put("explicitAssets", explicitAssetContextSummary(projectId, explicitContext));
-        summary.put("limits", contextSummaryLimits());
+        summary.put("explicitAssets", explicitAssetContextSummary(projectId, explicitContext,
+                limitPolicy.contextLimits()));
+        summary.put("limits", contextSummaryLimits(limitPolicy));
         summary.put("assemblyPolicy", TestDesignContextAssemblyPolicy.snapshot());
-        summary.put("policyGovernance", TestDesignContextPolicyGovernance.snapshot());
-        summary.put("policyOperations", TestDesignContextPolicyOperations.snapshot());
+        summary.put("policyGovernance", TestDesignContextPolicyGovernance.snapshot(effectivePolicy));
+        summary.put("policyOperations", TestDesignContextPolicyOperations.snapshot(effectivePolicy));
         summary.put("scopePolicy", TestDesignScopePolicy.snapshot());
         summary.put("evaluationCorpusPolicy", TestDesignEvaluationCorpusPolicy.snapshot());
         summary.put("releaseReadinessPolicy", TestDesignReleaseReadinessPolicy.snapshot());
@@ -137,13 +147,33 @@ public class TestDesignGenerationService {
         }
     }
 
+    TestDesignGenerationContext generationContext(
+            String projectId,
+            List<RequirementResponse> requirements,
+            ExplicitContextAssetIds explicitContext
+    ) {
+        return generationContext(projectId, requirements, explicitContext, null, null);
+    }
+
+    private TestDesignContextPolicyService.EffectiveContextPolicySnapshot platformDefaultContextPolicy() {
+        return new TestDesignContextPolicyService.EffectiveContextPolicySnapshot(
+                properties.effectiveContextLimits(),
+                List.of("PLATFORM_DEFAULT"),
+                Map.of(),
+                false,
+                false,
+                false,
+                false
+        );
+    }
+
     /**
      * Builds the model-ready requirement summary from WP3/WP4-facing fields only.
      *
      * <p>The summary is deliberately redacted and truncated before it is persisted; future WP2 prompt assembly can
      * reuse the same digest to explain exactly which source snapshot produced a task without storing raw prompt text.
      */
-    private Map<String, Object> requirementContextSummary(RequirementResponse requirement) {
+    private Map<String, Object> requirementContextSummary(RequirementResponse requirement, Map<String, Integer> limits) {
         Map<String, Object> item = new LinkedHashMap<>();
         item.put("id", requirement.id().toString());
         item.put("code", redactedPreview(requirement.code(), 80));
@@ -153,10 +183,10 @@ public class TestDesignGenerationService {
         item.put("source", redactedPreview(requirement.source(), 80));
         item.put("sourceRef", redactedPreview(requirement.sourceRef(), 160));
         item.put("version", requirement.version());
-        item.put("descriptionPreview", redactedPreview(requirement.description(), contextRequirementDescriptionChars()));
+        item.put("descriptionPreview", redactedPreview(requirement.description(), contextRequirementDescriptionChars(limits)));
         item.put("acceptanceCriteriaPreview", redactedPreview(
                 requirement.acceptanceCriteria(),
-                contextAcceptanceCriteriaChars()
+                contextAcceptanceCriteriaChars(limits)
         ));
         item.put("tags", summaryTags(requirement.tags()));
         return item;
@@ -168,7 +198,11 @@ public class TestDesignGenerationService {
      * <p>Trace links may outlive archived or deleted assets, so stale targets are omitted from the model context
      * instead of failing generation for an otherwise valid requirement.
      */
-    private Map<String, Object> linkedAssetContextSummary(String projectId, RequirementResponse requirement) {
+    private Map<String, Object> linkedAssetContextSummary(
+            String projectId,
+            RequirementResponse requirement,
+            Map<String, Integer> limits
+    ) {
         List<TraceLinkResponse> links = linksByRequirement(requirement.id());
         List<ApiResponseDTO> apis = links.stream()
                 .map(TraceLinkResponse::apiId)
@@ -206,9 +240,11 @@ public class TestDesignGenerationService {
         item.put("apiCount", apis.size());
         item.put("pageCount", pages.size());
         item.put("flowCount", flows.size());
-        item.put("apis", apis.stream().limit(contextLinkedAssetsPerRequirement()).map(this::apiContextSummary).toList());
-        item.put("pages", pages.stream().limit(contextLinkedAssetsPerRequirement()).map(this::pageContextSummary).toList());
-        item.put("flows", flows.stream().limit(contextLinkedAssetsPerRequirement()).map(this::businessFlowContextSummary).toList());
+        int linkedAssetLimit = contextLinkedAssetsPerRequirement(limits);
+        item.put("apis", apis.stream().limit(linkedAssetLimit).map(api -> apiContextSummary(api, limits)).toList());
+        item.put("pages", pages.stream().limit(linkedAssetLimit).map(page -> pageContextSummary(page, limits)).toList());
+        item.put("flows", flows.stream().limit(linkedAssetLimit)
+                .map(flow -> businessFlowContextSummary(flow, limits)).toList());
         return item;
     }
 
@@ -219,7 +255,11 @@ public class TestDesignGenerationService {
      * task project and are persisted only as redacted previews so task replay can explain the input without storing raw
      * API schemas, page trees, flow JSON or prompt text.
      */
-    private Map<String, Object> explicitAssetContextSummary(String projectId, ExplicitContextAssetIds explicitContext) {
+    private Map<String, Object> explicitAssetContextSummary(
+            String projectId,
+            ExplicitContextAssetIds explicitContext,
+            Map<String, Integer> limits
+    ) {
         List<ApiResponseDTO> apis = explicitContext.apiIds().stream()
                 .map(apiId -> activeApi(apiId, projectId))
                 .map(optional -> optional.orElseThrow(() ->
@@ -252,9 +292,11 @@ public class TestDesignGenerationService {
         item.put("apiIds", apis.stream().map(api -> api.id().toString()).toList());
         item.put("pageIds", pages.stream().map(page -> page.id().toString()).toList());
         item.put("flowIds", flows.stream().map(flow -> flow.id().toString()).toList());
-        item.put("apis", apis.stream().limit(contextExplicitAssetsPerType()).map(this::apiContextSummary).toList());
-        item.put("pages", pages.stream().limit(contextExplicitAssetsPerType()).map(this::pageContextSummary).toList());
-        item.put("flows", flows.stream().limit(contextExplicitAssetsPerType()).map(this::businessFlowContextSummary).toList());
+        int explicitAssetLimit = contextExplicitAssetsPerType(limits);
+        item.put("apis", apis.stream().limit(explicitAssetLimit).map(api -> apiContextSummary(api, limits)).toList());
+        item.put("pages", pages.stream().limit(explicitAssetLimit).map(page -> pageContextSummary(page, limits)).toList());
+        item.put("flows", flows.stream().limit(explicitAssetLimit)
+                .map(flow -> businessFlowContextSummary(flow, limits)).toList());
         return item;
     }
 
@@ -304,7 +346,7 @@ public class TestDesignGenerationService {
         }
     }
 
-    private Map<String, Object> apiContextSummary(ApiResponseDTO api) {
+    private Map<String, Object> apiContextSummary(ApiResponseDTO api, Map<String, Integer> limits) {
         Map<String, Object> item = new LinkedHashMap<>();
         item.put("id", api.id().toString());
         item.put("code", redactedPreview(api.code(), 80));
@@ -316,13 +358,14 @@ public class TestDesignGenerationService {
         item.put("sourceRef", redactedPreview(api.sourceRef(), 160));
         item.put("version", redactedPreview(api.version(), 80));
         item.put("descriptionPreview", redactedPreview(api.description(), 200));
-        item.put("requestSchemaPreview", redactedPreview(api.requestSchema(), contextAssetSchemaChars()));
-        item.put("responseSchemaPreview", redactedPreview(api.responseSchema(), contextAssetSchemaChars()));
+        item.put("requestSchemaPreview", redactedPreview(api.requestSchema(), contextAssetSchemaChars(limits)));
+        item.put("responseSchemaPreview", redactedPreview(api.responseSchema(), contextAssetSchemaChars(limits)));
         return item;
     }
 
     private Map<String, Object> pageContextSummary(
-            com.songhg.veri.agent.asset.application.view.PageResponse page
+            com.songhg.veri.agent.asset.application.view.PageResponse page,
+            Map<String, Integer> limits
     ) {
         Map<String, Object> item = new LinkedHashMap<>();
         item.put("id", page.id().toString());
@@ -333,12 +376,12 @@ public class TestDesignGenerationService {
         item.put("source", redactedPreview(page.source(), 80));
         item.put("sourceRef", redactedPreview(page.sourceRef(), 160));
         item.put("sourceVersion", redactedPreview(page.sourceVersion(), 80));
-        item.put("componentTreePreview", redactedPreview(page.componentTree(), contextAssetSchemaChars()));
+        item.put("componentTreePreview", redactedPreview(page.componentTree(), contextAssetSchemaChars(limits)));
         item.put("screenshotUrl", redactedPreview(page.screenshotUrl(), 160));
         return item;
     }
 
-    private Map<String, Object> businessFlowContextSummary(BusinessFlowResponse flow) {
+    private Map<String, Object> businessFlowContextSummary(BusinessFlowResponse flow, Map<String, Integer> limits) {
         Map<String, Object> item = new LinkedHashMap<>();
         item.put("id", flow.id().toString());
         item.put("code", redactedPreview(flow.code(), 80));
@@ -346,11 +389,15 @@ public class TestDesignGenerationService {
         item.put("priority", flow.priority());
         item.put("status", flow.status());
         item.put("descriptionPreview", redactedPreview(flow.description(), 200));
-        item.put("flowJsonPreview", redactedPreview(flow.flowJson(), contextAssetSchemaChars()));
+        item.put("flowJsonPreview", redactedPreview(flow.flowJson(), contextAssetSchemaChars(limits)));
         return item;
     }
 
-    private Map<String, Object> existingCaseContextSummary(String projectId, UUID requirementId) {
+    private Map<String, Object> existingCaseContextSummary(
+            String projectId,
+            UUID requirementId,
+            Map<String, Integer> limits
+    ) {
         List<TestCaseResponse> cases = assetService.findActiveTestCasesByRequirement(projectId, requirementId).stream()
                 .sorted(Comparator.comparing(TestCaseResponse::title, Comparator.nullsLast(String::compareTo))
                         .thenComparing(TestCaseResponse::id))
@@ -358,7 +405,8 @@ public class TestDesignGenerationService {
         Map<String, Object> item = new LinkedHashMap<>();
         item.put("requirementId", requirementId.toString());
         item.put("count", cases.size());
-        item.put("cases", cases.stream().limit(contextExistingCasesPerRequirement()).map(this::testCaseContextSummary).toList());
+        item.put("cases", cases.stream().limit(contextExistingCasesPerRequirement(limits))
+                .map(this::testCaseContextSummary).toList());
         return item;
     }
 
@@ -382,8 +430,14 @@ public class TestDesignGenerationService {
      * different generation input snapshot and prevents replaying candidates created from a wider or narrower context.
      */
     private Map<String, Object> contextSummaryLimits() {
+        return contextSummaryLimits(null);
+    }
+
+    private Map<String, Object> contextSummaryLimits(
+            TestDesignContextPolicyService.EffectiveContextPolicySnapshot effectivePolicy
+    ) {
         Map<String, Object> limits = new LinkedHashMap<>();
-        limits.putAll(properties.effectiveContextLimits());
+        limits.putAll(effectivePolicy == null ? properties.effectiveContextLimits() : effectivePolicy.contextLimits());
         limits.put("rawPromptStored", false);
         return limits;
     }
@@ -520,7 +574,7 @@ public class TestDesignGenerationService {
         payload.put("caseCountPerRequirement", Math.min(coverageTypes.size(), maxCasesPerRequirement()));
         payload.put("requirements", requirements.stream().map(this::requirementModelPayload).toList());
         payload.put("contextSummary", contextSummaryPayload(task.contextSummaryJson()));
-        payload.put("contextPacking", contextPackingPolicy());
+        payload.put("contextPacking", contextPackingPolicy(task));
         try {
             return objectMapper.writeValueAsString(payload);
         } catch (JsonProcessingException exception) {
@@ -529,13 +583,19 @@ public class TestDesignGenerationService {
     }
 
     private Map<String, Object> contextPackingPolicy() {
+        return contextPackingPolicy(null);
+    }
+
+    private Map<String, Object> contextPackingPolicy(TestDesignTask task) {
         Map<String, Object> policy = new LinkedHashMap<>();
-        policy.putAll(properties.effectiveContextLimits());
+        policy.putAll(effectiveContextLimits(task));
         policy.put("rawPromptStored", false);
         policy.put("persistedContextSummaryOnly", true);
         policy.put("assemblyPolicy", TestDesignContextAssemblyPolicy.snapshot());
-        policy.put("policyGovernance", TestDesignContextPolicyGovernance.snapshot());
-        policy.put("policyOperations", TestDesignContextPolicyOperations.snapshot());
+        policy.put("policyGovernance", policyMapFromContextSummary(task, "policyGovernance",
+                TestDesignContextPolicyGovernance.snapshot()));
+        policy.put("policyOperations", policyMapFromContextSummary(task, "policyOperations",
+                TestDesignContextPolicyOperations.snapshot()));
         policy.put("scopePolicy", TestDesignScopePolicy.snapshot());
         policy.put("evaluationCorpusPolicy", TestDesignEvaluationCorpusPolicy.snapshot());
         policy.put("releaseReadinessPolicy", TestDesignReleaseReadinessPolicy.snapshot());
@@ -545,6 +605,15 @@ public class TestDesignGenerationService {
         policy.put("archivePolicy", TestDesignArchivePolicy.snapshot(properties));
         policy.put("reportManifestPolicy", TestDesignReportManifestPolicy.snapshot());
         return policy;
+    }
+
+    private Map<String, Object> policyMapFromContextSummary(
+            TestDesignTask task,
+            String key,
+            Map<String, Object> fallback
+    ) {
+        Map<String, Object> value = contextSummaryMap(task, key);
+        return value.isEmpty() ? fallback : value;
     }
 
     private Map<String, Object> requirementModelPayload(RequirementResponse requirement) {
@@ -972,28 +1041,73 @@ public class TestDesignGenerationService {
         return properties.maxCasesPerRequirement() <= 0 ? 3 : properties.maxCasesPerRequirement();
     }
 
-    private int contextLinkedAssetsPerRequirement() {
-        return properties.effectiveContextLinkedAssetsPerRequirement();
+    private int contextLinkedAssetsPerRequirement(Map<String, Integer> limits) {
+        return limits.getOrDefault("linkedAssetsPerRequirement", properties.effectiveContextLinkedAssetsPerRequirement());
     }
 
-    private int contextExplicitAssetsPerType() {
-        return properties.effectiveContextExplicitAssetsPerType();
+    private int contextExplicitAssetsPerType(Map<String, Integer> limits) {
+        return limits.getOrDefault("explicitAssetsPerType", properties.effectiveContextExplicitAssetsPerType());
     }
 
-    private int contextExistingCasesPerRequirement() {
-        return properties.effectiveContextExistingCasesPerRequirement();
+    private int contextExistingCasesPerRequirement(Map<String, Integer> limits) {
+        return limits.getOrDefault("existingCasesPerRequirement", properties.effectiveContextExistingCasesPerRequirement());
     }
 
-    private int contextRequirementDescriptionChars() {
-        return properties.effectiveContextRequirementDescriptionChars();
+    private int contextRequirementDescriptionChars(Map<String, Integer> limits) {
+        return limits.getOrDefault("requirementDescriptionChars", properties.effectiveContextRequirementDescriptionChars());
     }
 
-    private int contextAcceptanceCriteriaChars() {
-        return properties.effectiveContextAcceptanceCriteriaChars();
+    private int contextAcceptanceCriteriaChars(Map<String, Integer> limits) {
+        return limits.getOrDefault("acceptanceCriteriaChars", properties.effectiveContextAcceptanceCriteriaChars());
     }
 
-    private int contextAssetSchemaChars() {
-        return properties.effectiveContextAssetSchemaChars();
+    private int contextAssetSchemaChars(Map<String, Integer> limits) {
+        return limits.getOrDefault("linkedAssetSchemaChars", properties.effectiveContextAssetSchemaChars());
+    }
+
+    private Map<String, Integer> effectiveContextLimits(TestDesignTask task) {
+        Map<String, Integer> limits = new LinkedHashMap<>();
+        limits.put("requirementDescriptionChars", effectiveContextLimit(task, "requirementDescriptionChars",
+                properties.effectiveContextRequirementDescriptionChars()));
+        limits.put("acceptanceCriteriaChars", effectiveContextLimit(task, "acceptanceCriteriaChars",
+                properties.effectiveContextAcceptanceCriteriaChars()));
+        limits.put("linkedAssetsPerRequirement", effectiveContextLimit(task, "linkedAssetsPerRequirement",
+                properties.effectiveContextLinkedAssetsPerRequirement()));
+        limits.put("explicitAssetsPerType", effectiveContextLimit(task, "explicitAssetsPerType",
+                properties.effectiveContextExplicitAssetsPerType()));
+        limits.put("linkedAssetSchemaChars", effectiveContextLimit(task, "linkedAssetSchemaChars",
+                properties.effectiveContextAssetSchemaChars()));
+        limits.put("existingCasesPerRequirement", effectiveContextLimit(task, "existingCasesPerRequirement",
+                properties.effectiveContextExistingCasesPerRequirement()));
+        return limits;
+    }
+
+    private int effectiveContextLimit(TestDesignTask task, String key, int fallback) {
+        if (task == null || !StringUtils.hasText(task.contextSummaryJson())) {
+            return fallback;
+        }
+        try {
+            JsonNode limit = objectMapper.readTree(task.contextSummaryJson()).path("limits").path(key);
+            return limit.canConvertToInt() && limit.asInt() > 0 ? limit.asInt() : fallback;
+        } catch (JsonProcessingException exception) {
+            return fallback;
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> contextSummaryMap(TestDesignTask task, String key) {
+        if (task == null || !StringUtils.hasText(task.contextSummaryJson())) {
+            return Map.of();
+        }
+        try {
+            JsonNode node = objectMapper.readTree(task.contextSummaryJson()).path(key);
+            if (!node.isObject()) {
+                return Map.of();
+            }
+            return objectMapper.convertValue(node, Map.class);
+        } catch (Exception exception) {
+            return Map.of();
+        }
     }
 
     private String normalizedGenerationMode() {

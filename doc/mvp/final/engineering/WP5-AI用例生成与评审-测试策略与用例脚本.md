@@ -5,8 +5,8 @@
 | 工作包 | WP5 AI 用例生成与评审 |
 | 角色产出 | 资深质量工程师 |
 | 文档性质 | 测试策略、功能用例、安全和可测试性建议、脚本设计 |
-| 当前口径 | 已纳入 WP5 后端、前端、DB validation、Prompt 趋势、准出运营摘要、人工排队事件重发入口、显式上下文装配、上下文裁剪策略配置、上下文装配策略 v2 共享快照、上下文策略治理状态快照、上下文策略运营 v2 聚合快照、权限与资源作用域策略聚合快照、评测语料运营策略聚合快照、发布准出审批策略聚合快照、跨 WP 审计链策略聚合快照、跨 WP 审计链只读聚合骨架、模型观测策略共享快照、归档治理策略共享快照、报告清单策略共享快照、任务诊断上下文策略、装配策略、策略运营、作用域策略、评测语料、发布准出、审计链、模型观测、归档与报告清单策略摘要、任务报告生成编排策略聚合行、任务报告作用域策略聚合行、任务报告评测语料策略聚合行、任务报告发布准出审批策略聚合行、任务报告审计链策略聚合行、任务级 audit-chain 聚合接口、任务报告上下文聚合行、上下文装配策略 v2 共享快照行、任务报告上下文策略治理聚合行、任务报告上下文策略运营 v2 聚合行、任务报告模型观测策略聚合行、任务报告质量准出阈值策略聚合行、任务报告导出审计策略聚合行、任务报告安全扫描策略聚合行、任务报告归档策略聚合行、任务报告清单策略聚合行、Prompt 校准策略聚合行、受限发布补偿后台、发布补偿策略聚合行、任务报告 manifest 聚合行、任务报告导出安全扫描、aggregate-only manifest 持久化和 manifest DB validation 的自动化验证入口 |
-| 版本 | v3.5 |
+| 当前口径 | 已纳入 WP5 后端、前端、DB validation、Prompt 趋势、准出运营摘要、人工排队事件重发入口、显式上下文装配、上下文裁剪策略配置、项目/环境上下文策略覆盖 API、审批元数据、effective snapshot、上下文装配策略 v2 共享快照、上下文策略治理状态快照、上下文策略运营 v2 聚合快照、权限与资源作用域策略聚合快照、评测语料运营策略聚合快照、发布准出审批策略聚合快照、跨 WP 审计链策略聚合快照、跨 WP 审计链只读聚合骨架、模型观测策略共享快照、归档治理策略共享快照、报告清单策略共享快照、任务诊断上下文策略、装配策略、策略运营、作用域策略、评测语料、发布准出、审计链、模型观测、归档与报告清单策略摘要、任务报告生成编排策略聚合行、任务报告作用域策略聚合行、任务报告评测语料策略聚合行、任务报告发布准出审批策略聚合行、任务报告审计链策略聚合行、任务级 audit-chain 聚合接口、任务报告上下文聚合行、上下文装配策略 v2 共享快照行、任务报告上下文策略治理聚合行、任务报告上下文策略运营 v2 聚合行、任务报告模型观测策略聚合行、任务报告质量准出阈值策略聚合行、任务报告导出审计策略聚合行、任务报告安全扫描策略聚合行、任务报告归档策略聚合行、任务报告清单策略聚合行、Prompt 校准策略聚合行、受限发布补偿后台、发布补偿策略聚合行、任务报告 manifest 聚合行、任务报告导出安全扫描、aggregate-only manifest 持久化、context policy override DB contract 和 manifest DB validation 的自动化验证入口 |
+| 版本 | v3.6 |
 | 日期 | 2026-05-31 |
 
 ## 1. 测试目标
@@ -61,8 +61,12 @@
 | WP5-FUNC-003B | P0 | 创建任务时显式传入 API、页面和业务流 ID | `contextSummary.explicitAssets` 包含三类资产计数、ID 和脱敏摘要；`inputDigest` 与幂等 request digest 覆盖这些显式上下文 ID。 |
 | WP5-FUNC-003C | P0 | 配置 `veri-agent.test-design.context-*` 裁剪策略 | 健康接口返回生效限制；`contextSummary.limits` 和模型请求 `contextPacking` 使用同一套生效值。 |
 | WP5-FUNC-003C-0 | P0 | 查看上下文装配策略 v2 状态 | 健康接口、任务响应、任务诊断、`contextSummary.assemblyPolicy` 和模型请求 `contextPacking.assemblyPolicy` 返回同一 v2 安全边界快照，包含装配模式、digest 策略、inputDigest 要求、摘要持久化、WP3 应用服务边界、原文/模型载荷持久化和明细导出红线。 |
-| WP5-FUNC-003C-1 | P0 | 查看上下文策略治理状态 | 健康接口、任务响应、任务诊断、`contextSummary.policyGovernance` 和模型请求 `contextPacking.policyGovernance` 返回同一平台默认治理快照，明确项目/环境覆盖关闭且审批流未就绪。 |
-| WP5-FUNC-003C-2 | P0 | 查看上下文策略运营 v2 状态 | 健康接口、任务响应、任务诊断、`contextSummary.policyOperations` 和模型请求 `contextPacking.policyOperations` 返回同一 v2 聚合快照，包含策略解析顺序、部署配置回退行为、审批状态、项目/环境覆盖存储和审批流就绪状态。 |
+| WP5-FUNC-003C-1 | P0 | 查看上下文策略治理状态 | 健康接口无项目场景返回平台默认治理快照；项目/任务 effective snapshot 返回项目/环境 metadata 覆盖能力、审批要求和任务创建时固化状态。 |
+| WP5-FUNC-003C-2 | P0 | 查看上下文策略运营 v2 状态 | 健康接口无项目场景返回平台默认-only 聚合快照；项目/任务 effective snapshot 返回 `PROJECT_ENVIRONMENT_OVERRIDE`、`PLATFORM_DEFAULT_PROJECT_ENVIRONMENT`、回退到平台默认、metadata 审批状态、项目/环境覆盖存储和审批流就绪状态。 |
+| WP5-FUNC-003C-2A | P0 | 创建项目级上下文策略覆盖 | `ProjectOwner` 调用项目覆盖 API 创建 PENDING 记录；effective policy 在审批前仍使用平台默认；响应只返回 bounded 数字、状态和原因编码 captured 布尔值。 |
+| WP5-FUNC-003C-2B | P0 | 审批项目级上下文策略覆盖 | `ProjectOwner` 审批后 effective policy 应用项目级覆盖，并返回 `PLATFORM_DEFAULT, PROJECT` 解析顺序；Developer 创建覆盖返回 403，其他项目负责人审批返回 403。 |
+| WP5-FUNC-003C-2C | P0 | 环境级上下文策略覆盖优先级 | 同项目环境级覆盖审批后，`effective?environmentKey=qa` 应按平台默认 -> 项目 -> 环境解析，环境级数字覆盖项目级数字。 |
+| WP5-FUNC-003C-2D | P0 | 创建任务固化上下文策略快照 | 创建任务传入 `environmentKey=qa` 后，`contextSummary.limits`、`inputDigest`、`requestDigest` 和模型 `contextPacking` 使用同一 effective policy；后续策略变化不影响旧任务重试快照。 |
 | WP5-FUNC-003C-3 | P0 | 查看权限与资源作用域策略状态 | 健康接口、任务响应、任务诊断、`contextSummary.scopePolicy` 和模型请求 `contextPacking.scopePolicy` 返回同一聚合快照，包含项目资源作用域、列表 fallback、任务/候选/批量/发布/异步生成/HTTP smoke/质量评测项目隔离和未就绪运营能力。 |
 | WP5-FUNC-003C-3A | P0 | 查看评测语料运营策略状态 | 健康接口、任务响应、任务诊断、`contextSummary.evaluationCorpusPolicy` 和模型请求 `contextPacking.evaluationCorpusPolicy` 返回同一聚合快照，包含 golden set 基线、手动可选 AI 评测、部署配置阈值、项目作用域、质量门禁接入、准出分布、Prompt 版本跟踪和样本维护/长期校准/运营后台未就绪状态。 |
 | WP5-FUNC-003C-4 | P0 | 查看发布准出审批策略状态 | 健康接口、任务响应、任务诊断、`contextSummary.releaseReadinessPolicy` 和模型请求 `contextPacking.releaseReadinessPolicy` 返回同一聚合快照，包含 `ADVISORY_QUALITY_GATE`、阈值来源、质量阈值已评估、advisory-only、发布阻断关闭、审批流未就绪、禁止自动发布和候选确认要求。 |
@@ -132,7 +136,8 @@
 | WP5-SEC-013 | P1 | 导出审计策略携带 audit_log 明细、审计事件 ID、trace 明细或 after-json | 不允许进入任务报告导出；审计策略只允许导出固定动作、资源、项目作用域和布尔开关。 |
 | WP5-SEC-014 | P1 | 报告 manifest 携带候选 ID 清单、trace 清单、审计 ID 清单、行级完整性值或行级摘要 | 不允许进入任务报告导出；`reportManifestPolicy` 和 `reportManifest` 只允许导出策略版本、schema/字段集版本、行数跟踪、完成状态跟踪、归档核验、aggregate-only 和完成状态等固定聚合字段；`test_design_report_manifest` 只允许保存聚合行数、状态和 digest，不允许存在候选 ID、trace ID、审计 ID、行摘要、报告正文或 CSV 正文字段。 |
 | WP5-SEC-014A | P1 | 报告 manifest 持久化绕过 aggregate-only 约束 | DB validation 必须验证 `aggregate_only=true`、`detail_rows_exported=false`、digest 为 64 位小写 hex，并检查 `test_design_report_manifest` 不存在 detail/id/raw report 禁止列。 |
-| WP5-SEC-015 | P1 | 上下文策略治理或运营 v2 导出携带项目/环境覆盖规则、策略 diff、审批备注、工单 URL 或策略正文 | 不允许进入任务报告导出；治理和运营信息只允许导出固定版本、来源、状态、策略解析顺序、回退行为、开关、就绪布尔值和 aggregate-only 标记。 |
+| WP5-SEC-015 | P1 | 上下文策略治理或运营 v2 导出携带项目/环境覆盖规则、策略 diff、审批备注、工单 URL、原因编码原文或策略正文 | 不允许进入任务报告导出；治理和运营信息只允许导出固定版本、来源、状态、策略解析顺序、回退行为、开关、就绪布尔值和 aggregate-only 标记。 |
+| WP5-SEC-015A | P0 | 上下文策略覆盖 API 响应泄露原因编码原文、策略正文、策略 diff、审批备注、工单 URL、覆盖规则或上下文正文 | 不允许进入响应；覆盖 API 只允许返回状态、bounded 数字、操作人摘要、时间戳和原因编码 captured 布尔值，DB 表不允许存在正文/diff/备注/URL/上下文字段。 |
 | WP5-SEC-016 | P1 | 上下文装配策略导出携带需求正文、schema、页面树、流程 JSON、显式资产 ID 清单、digest 值、历史用例步骤或模型载荷 | 不允许进入任务报告导出；装配策略只允许导出固定版本、模式、布尔安全标记和有界聚合计数。 |
 | WP5-SEC-017 | P1 | Prompt 校准策略导出携带样本行、候选 ID、评审评论、候选正文或 Prompt 正文 | 不允许进入任务报告导出；校准策略只允许导出固定版本、来源、状态、计数和布尔开关。 |
 | WP5-SEC-018 | P1 | 发布补偿策略导出携带候选 ID、资产用例 ID、sourceRef、trace 明细、发布错误正文或评审说明 | 不允许进入任务报告导出；发布补偿策略只允许导出固定版本、受限补偿范围、能力开关和聚合计数。 |
@@ -283,6 +288,7 @@ CORPUS="${WP5_MODEL_EVAL_CORPUS:-wp5-case-generation-v1}"
 WP5 实现阶段默认准出入口：
 
 ```bash
+mvn -B -pl platform-api -Dtest=TestDesignControllerTest,TestDesignOpenApiContractTest,DbProfileRepositoryContractTest test
 mvn -B -pl platform-api test
 cd portal-web && npm test
 cd portal-web && npm run build

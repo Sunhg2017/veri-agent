@@ -28,6 +28,7 @@ import com.songhg.veri.agent.testdesign.application.port.TestDesignRepository;
 import com.songhg.veri.agent.testdesign.domain.TestDesignAuditChainAggregate;
 import com.songhg.veri.agent.testdesign.domain.TestDesignCandidate;
 import com.songhg.veri.agent.testdesign.domain.TestDesignCandidateStatus;
+import com.songhg.veri.agent.testdesign.domain.TestDesignContextPolicyOverride;
 import com.songhg.veri.agent.testdesign.domain.TestDesignPublishRecord;
 import com.songhg.veri.agent.testdesign.domain.TestDesignReviewRecord;
 import com.songhg.veri.agent.testdesign.domain.TestDesignTask;
@@ -806,6 +807,109 @@ class DbProfileRepositoryContractTest {
                   and result = 'SUCCESS'
                 """, Long.class, action, resourceId);
         assertThat(count).isEqualTo(1L);
+    }
+
+    @Test
+    void testDesignRepositoryPersistsContextPolicyOverridesThroughJdbc() {
+        String projectId = "project-wp5-policy-db-" + UUID.randomUUID();
+        Instant now = Instant.now();
+        UUID projectOverrideId = UUID.randomUUID();
+        TestDesignContextPolicyOverride pendingProjectOverride = new TestDesignContextPolicyOverride(
+                projectOverrideId,
+                "PROJECT",
+                projectId,
+                null,
+                "PENDING",
+                7,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "QUALITY_BASELINE",
+                null,
+                "db-requester",
+                null,
+                now.minusSeconds(5),
+                now.minusSeconds(5)
+        );
+
+        testDesignRepository.saveContextPolicyOverride(pendingProjectOverride);
+
+        assertThat(testDesignRepository.contextPolicyOverride(projectOverrideId))
+                .get()
+                .satisfies(override -> {
+                    assertThat(override.status()).isEqualTo("PENDING");
+                    assertThat(override.contextLinkedAssetsPerRequirement()).isEqualTo(7);
+                    assertThat(override.changeReasonCode()).isEqualTo("QUALITY_BASELINE");
+                    assertThat(override.approvalReasonCode()).isNull();
+                });
+        assertThat(testDesignRepository.contextPolicyOverrides(projectId, null))
+                .singleElement()
+                .extracting(TestDesignContextPolicyOverride::id)
+                .isEqualTo(projectOverrideId);
+
+        TestDesignContextPolicyOverride approvedProjectOverride = new TestDesignContextPolicyOverride(
+                projectOverrideId,
+                "PROJECT",
+                projectId,
+                null,
+                "APPROVED",
+                7,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "QUALITY_BASELINE",
+                "QUALITY_BASELINE",
+                "db-requester",
+                "db-approver",
+                now.minusSeconds(5),
+                now
+        );
+        testDesignRepository.saveContextPolicyOverride(approvedProjectOverride);
+
+        assertThat(testDesignRepository.latestApprovedProjectContextPolicyOverride(projectId))
+                .get()
+                .satisfies(override -> {
+                    assertThat(override.id()).isEqualTo(projectOverrideId);
+                    assertThat(override.status()).isEqualTo("APPROVED");
+                    assertThat(override.approvalReasonCode()).isEqualTo("QUALITY_BASELINE");
+                });
+
+        UUID environmentOverrideId = UUID.randomUUID();
+        TestDesignContextPolicyOverride approvedEnvironmentOverride = new TestDesignContextPolicyOverride(
+                environmentOverrideId,
+                "ENVIRONMENT",
+                projectId,
+                "qa",
+                "APPROVED",
+                null,
+                null,
+                null,
+                null,
+                null,
+                90,
+                "PROJECT_COMPLEXITY",
+                "PROJECT_COMPLEXITY",
+                "db-requester",
+                "db-approver",
+                now.plusSeconds(1),
+                now.plusSeconds(1)
+        );
+        testDesignRepository.saveContextPolicyOverride(approvedEnvironmentOverride);
+
+        assertThat(testDesignRepository.contextPolicyOverrides(projectId, "qa"))
+                .extracting(TestDesignContextPolicyOverride::id)
+                .containsExactly(environmentOverrideId, projectOverrideId);
+        assertThat(testDesignRepository.latestApprovedEnvironmentContextPolicyOverride(projectId, "qa"))
+                .get()
+                .satisfies(override -> {
+                    assertThat(override.id()).isEqualTo(environmentOverrideId);
+                    assertThat(override.contextAssetSchemaChars()).isEqualTo(90);
+                    assertThat(override.changeReasonCode()).isEqualTo("PROJECT_COMPLEXITY");
+                });
     }
 
     private UUID createEnabledUser(String namePrefix) {

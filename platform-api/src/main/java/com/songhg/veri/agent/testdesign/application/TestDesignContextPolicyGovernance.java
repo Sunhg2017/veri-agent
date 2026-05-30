@@ -22,22 +22,46 @@ public final class TestDesignContextPolicyGovernance {
     }
 
     public static TestDesignContextPolicyGovernanceResponse response() {
+        return response(null);
+    }
+
+    public static TestDesignContextPolicyGovernanceResponse response(
+            TestDesignContextPolicyService.EffectiveContextPolicySnapshot effectivePolicy
+    ) {
+        if (effectivePolicy == null) {
+            return new TestDesignContextPolicyGovernanceResponse(
+                    POLICY_VERSION,
+                    POLICY_SOURCE,
+                    GOVERNANCE_STATUS,
+                    CHANGE_MODE,
+                    false,
+                    false,
+                    true,
+                    false,
+                    true,
+                    true
+            );
+        }
         return new TestDesignContextPolicyGovernanceResponse(
                 POLICY_VERSION,
-                POLICY_SOURCE,
-                GOVERNANCE_STATUS,
-                CHANGE_MODE,
-                false,
-                false,
+                effectivePolicy.approvedOverrideApplied() ? "PROJECT_ENVIRONMENT_OVERRIDE" : POLICY_SOURCE,
+                effectivePolicy.approvedOverrideApplied() ? "OVERRIDE_APPROVED" : "OVERRIDE_STORE_READY",
+                "METADATA_APPROVAL",
+                effectivePolicy.projectOverrideStoreReady(),
+                effectivePolicy.environmentOverrideStoreReady(),
                 true,
-                false,
+                effectivePolicy.changeApprovalWorkflowReady(),
                 true,
                 true
         );
     }
 
     public static Map<String, Object> snapshot() {
-        TestDesignContextPolicyGovernanceResponse response = response();
+        return snapshot(null);
+    }
+
+    public static Map<String, Object> snapshot(TestDesignContextPolicyService.EffectiveContextPolicySnapshot effectivePolicy) {
+        TestDesignContextPolicyGovernanceResponse response = response(effectivePolicy);
         Map<String, Object> snapshot = new LinkedHashMap<>();
         snapshot.put("policyVersion", response.policyVersion());
         snapshot.put("policySource", response.policySource());
@@ -48,6 +72,10 @@ public final class TestDesignContextPolicyGovernance {
         snapshot.put("changeApprovalRequired", response.changeApprovalRequired());
         snapshot.put("changeApprovalWorkflowReady", response.changeApprovalWorkflowReady());
         snapshot.put("effectiveAtTaskCreation", response.effectiveAtTaskCreation());
+        snapshot.put("approvedOverrideApplied", effectivePolicy != null && effectivePolicy.approvedOverrideApplied());
+        snapshot.put("appliedOverrideScopes", effectivePolicy == null
+                ? java.util.List.of("PLATFORM_DEFAULT")
+                : effectivePolicy.appliedOverrideScopes());
         snapshot.put("aggregateOnly", response.aggregateOnly());
         return snapshot;
     }

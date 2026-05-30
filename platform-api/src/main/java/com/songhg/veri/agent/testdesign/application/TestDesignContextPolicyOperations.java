@@ -23,22 +23,46 @@ public final class TestDesignContextPolicyOperations {
     }
 
     public static TestDesignContextPolicyOperationsResponse response() {
+        return response(null);
+    }
+
+    public static TestDesignContextPolicyOperationsResponse response(
+            TestDesignContextPolicyService.EffectiveContextPolicySnapshot effectivePolicy
+    ) {
+        if (effectivePolicy == null) {
+            return new TestDesignContextPolicyOperationsResponse(
+                    POLICY_VERSION,
+                    OPERATION_MODE,
+                    POLICY_RESOLUTION_ORDER,
+                    POLICY_FALLBACK_BEHAVIOR,
+                    APPROVAL_STATUS,
+                    false,
+                    false,
+                    false,
+                    true,
+                    true
+            );
+        }
         return new TestDesignContextPolicyOperationsResponse(
                 POLICY_VERSION,
-                OPERATION_MODE,
-                POLICY_RESOLUTION_ORDER,
-                POLICY_FALLBACK_BEHAVIOR,
-                APPROVAL_STATUS,
-                false,
-                false,
-                false,
+                TestDesignContextPolicyService.OPERATION_MODE,
+                TestDesignContextPolicyService.POLICY_RESOLUTION_ORDER,
+                TestDesignContextPolicyService.POLICY_FALLBACK_BEHAVIOR,
+                TestDesignContextPolicyService.APPROVAL_STATUS,
+                effectivePolicy.projectOverrideStoreReady(),
+                effectivePolicy.environmentOverrideStoreReady(),
+                effectivePolicy.changeApprovalWorkflowReady(),
                 true,
                 true
         );
     }
 
     public static Map<String, Object> snapshot() {
-        TestDesignContextPolicyOperationsResponse response = response();
+        return snapshot(null);
+    }
+
+    public static Map<String, Object> snapshot(TestDesignContextPolicyService.EffectiveContextPolicySnapshot effectivePolicy) {
+        TestDesignContextPolicyOperationsResponse response = response(effectivePolicy);
         Map<String, Object> snapshot = new LinkedHashMap<>();
         snapshot.put("policyVersion", response.policyVersion());
         snapshot.put("operationMode", response.operationMode());
@@ -54,6 +78,11 @@ public final class TestDesignContextPolicyOperations {
         snapshot.put("ticketUrlExported", false);
         snapshot.put("projectOverrideRulesExported", false);
         snapshot.put("environmentOverrideRulesExported", false);
+        snapshot.put("approvedOverrideApplied", effectivePolicy != null && effectivePolicy.approvedOverrideApplied());
+        snapshot.put("appliedOverrideScopes", effectivePolicy == null
+                ? java.util.List.of("PLATFORM_DEFAULT")
+                : effectivePolicy.appliedOverrideScopes());
+        snapshot.put("overrideStatusCounts", effectivePolicy == null ? Map.of() : effectivePolicy.overrideStatusCounts());
         snapshot.put("aggregateOnly", response.aggregateOnly());
         return snapshot;
     }

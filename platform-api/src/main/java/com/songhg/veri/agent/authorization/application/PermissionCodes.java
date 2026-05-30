@@ -88,6 +88,7 @@ public final class PermissionCodes {
     public static final String TEST_DESIGN_REVIEW = "testDesign:review";
     public static final String TEST_DESIGN_PUBLISH = "testDesign:publish";
     public static final String TEST_DESIGN_EXPORT = "testDesign:export";
+    public static final String TEST_DESIGN_POLICY_MANAGE = "testDesign:policy_manage";
 
     public static final List<String> ALL = List.of(
             ROLE_READ, ROLE_CREATE, ROLE_EDIT, ROLE_BIND, ROLE_UNBIND,
@@ -108,7 +109,7 @@ public final class PermissionCodes {
             REQUIREMENT_INPUT_READ, REQUIREMENT_INPUT_MANAGE, REQUIREMENT_INPUT_IMPORT,
             REQUIREMENT_INPUT_CANDIDATE_REVIEW, REQUIREMENT_INPUT_PUBLISH, REQUIREMENT_INPUT_WEBHOOK_REPLAY,
             TEST_DESIGN_READ, TEST_DESIGN_GENERATE, TEST_DESIGN_REVIEW, TEST_DESIGN_PUBLISH,
-            TEST_DESIGN_EXPORT
+            TEST_DESIGN_EXPORT, TEST_DESIGN_POLICY_MANAGE
     );
 
     private static final String ARCHIVED_STATUS = "ARCHIVED";

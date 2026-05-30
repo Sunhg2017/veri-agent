@@ -5,6 +5,7 @@ import com.songhg.veri.agent.testdesign.application.query.TestDesignCandidateQue
 import com.songhg.veri.agent.testdesign.application.query.TestDesignTaskQuery;
 import com.songhg.veri.agent.testdesign.domain.TestDesignAuditChainAggregate;
 import com.songhg.veri.agent.testdesign.domain.TestDesignCandidate;
+import com.songhg.veri.agent.testdesign.domain.TestDesignContextPolicyOverride;
 import com.songhg.veri.agent.testdesign.domain.TestDesignPublishRecord;
 import com.songhg.veri.agent.testdesign.domain.TestDesignReportManifest;
 import com.songhg.veri.agent.testdesign.domain.TestDesignReviewRecord;
@@ -91,4 +92,22 @@ public interface TestDesignMapper {
     List<TestDesignReportManifest> reportManifestsByTask(@Param("taskId") UUID taskId);
 
     TestDesignAuditChainAggregate auditChainAggregate(@Param("taskId") UUID taskId);
+
+    void insertContextPolicyOverride(TestDesignContextPolicyOverride override);
+
+    void updateContextPolicyOverride(TestDesignContextPolicyOverride override);
+
+    TestDesignContextPolicyOverride contextPolicyOverride(@Param("id") UUID id);
+
+    List<TestDesignContextPolicyOverride> contextPolicyOverrides(
+            @Param("projectId") String projectId,
+            @Param("environmentKey") String environmentKey
+    );
+
+    TestDesignContextPolicyOverride latestApprovedProjectContextPolicyOverride(@Param("projectId") String projectId);
+
+    TestDesignContextPolicyOverride latestApprovedEnvironmentContextPolicyOverride(
+            @Param("projectId") String projectId,
+            @Param("environmentKey") String environmentKey
+    );
 }

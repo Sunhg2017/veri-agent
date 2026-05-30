@@ -1,7 +1,9 @@
 package com.songhg.veri.agent.testdesign.application;
 
+import com.songhg.veri.agent.testdesign.application.view.TestDesignContextPolicyOperationsResponse;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignTaskResponse;
 import java.time.Instant;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 final class TestDesignTaskReportContextPolicyOperationsRows {
@@ -10,14 +12,10 @@ final class TestDesignTaskReportContextPolicyOperationsRows {
     }
 
     /**
-     * Appends context-policy operations readiness using fixed flags only.
-     *
-     * <p>WP5 currently materializes the effective platform default policy at task creation time, but the delegated
-     * project/environment policy stores and approval workflow are not available. These rows keep that operational gap
-     * visible in archived reports without exporting policy bodies, override rules, approval notes or ticket URLs.
+     * Appends the task-time context-policy operations snapshot without exporting override rules or approval notes.
      */
     static void appendRows(StringBuilder csv, TestDesignTaskResponse task, Instant generatedAt) {
-        Map<String, Object> snapshot = TestDesignContextPolicyOperations.snapshot();
+        Map<String, Object> snapshot = taskPolicyOperations(task);
         TestDesignTaskReportService.appendTaskReportRow(csv, task, generatedAt,
                 "metadata", "contextPolicyOperations", "policyVersion", null,
                 snapshot.get("policyVersion"), null, null, "fullTask", null);
@@ -63,5 +61,30 @@ final class TestDesignTaskReportContextPolicyOperationsRows {
         TestDesignTaskReportService.appendTaskReportRow(csv, task, generatedAt,
                 "metadata", "contextPolicyOperations", "aggregateOnly", null,
                 snapshot.get("aggregateOnly"), null, "success", "fullTask", null);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> taskPolicyOperations(TestDesignTaskResponse task) {
+        Map<String, Object> snapshot = new LinkedHashMap<>(TestDesignContextPolicyOperations.snapshot());
+        if (task != null && task.contextSummary() != null) {
+            Object value = task.contextSummary().get("policyOperations");
+            if (value instanceof Map<?, ?> map) {
+                snapshot.putAll((Map<String, Object>) map);
+            }
+        }
+        TestDesignContextPolicyOperationsResponse operations = task == null ? null : task.contextPolicyOperations();
+        if (operations != null) {
+            snapshot.put("policyVersion", operations.policyVersion());
+            snapshot.put("operationMode", operations.operationMode());
+            snapshot.put("policyResolutionOrder", operations.policyResolutionOrder());
+            snapshot.put("policyFallbackBehavior", operations.policyFallbackBehavior());
+            snapshot.put("approvalStatus", operations.approvalStatus());
+            snapshot.put("projectOverrideStoreReady", operations.projectOverrideStoreReady());
+            snapshot.put("environmentOverrideStoreReady", operations.environmentOverrideStoreReady());
+            snapshot.put("changeApprovalWorkflowReady", operations.changeApprovalWorkflowReady());
+            snapshot.put("effectivePolicySnapshotMaterialized", operations.effectivePolicySnapshotMaterialized());
+            snapshot.put("aggregateOnly", operations.aggregateOnly());
+        }
+        return snapshot;
     }
 }

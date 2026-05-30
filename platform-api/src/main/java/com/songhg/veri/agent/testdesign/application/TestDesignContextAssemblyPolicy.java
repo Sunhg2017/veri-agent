@@ -41,6 +41,12 @@ public final class TestDesignContextAssemblyPolicy {
         );
     }
 
+    public static TestDesignContextAssemblyPolicyResponse response(
+            TestDesignContextPolicyService.EffectiveContextPolicySnapshot effectivePolicy
+    ) {
+        return response();
+    }
+
     public static Map<String, Object> snapshot() {
         TestDesignContextAssemblyPolicyResponse response = response();
         Map<String, Object> snapshot = new LinkedHashMap<>();

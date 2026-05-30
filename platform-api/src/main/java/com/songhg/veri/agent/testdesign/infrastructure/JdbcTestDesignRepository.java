@@ -6,6 +6,7 @@ import com.songhg.veri.agent.testdesign.application.query.TestDesignCandidateQue
 import com.songhg.veri.agent.testdesign.application.query.TestDesignTaskQuery;
 import com.songhg.veri.agent.testdesign.domain.TestDesignAuditChainAggregate;
 import com.songhg.veri.agent.testdesign.domain.TestDesignCandidate;
+import com.songhg.veri.agent.testdesign.domain.TestDesignContextPolicyOverride;
 import com.songhg.veri.agent.testdesign.domain.TestDesignPublishRecord;
 import com.songhg.veri.agent.testdesign.domain.TestDesignReportManifest;
 import com.songhg.veri.agent.testdesign.domain.TestDesignReviewRecord;
@@ -186,6 +187,39 @@ public class JdbcTestDesignRepository implements TestDesignRepository {
     public TestDesignAuditChainAggregate auditChainAggregate(UUID taskId) {
         TestDesignAuditChainAggregate aggregate = mapper.auditChainAggregate(taskId);
         return aggregate == null ? emptyAuditChainAggregate() : aggregate;
+    }
+
+    @Override
+    public TestDesignContextPolicyOverride saveContextPolicyOverride(TestDesignContextPolicyOverride override) {
+        if (mapper.contextPolicyOverride(override.id()) == null) {
+            mapper.insertContextPolicyOverride(override);
+        } else {
+            mapper.updateContextPolicyOverride(override);
+        }
+        return mapper.contextPolicyOverride(override.id());
+    }
+
+    @Override
+    public Optional<TestDesignContextPolicyOverride> contextPolicyOverride(UUID id) {
+        return Optional.ofNullable(mapper.contextPolicyOverride(id));
+    }
+
+    @Override
+    public List<TestDesignContextPolicyOverride> contextPolicyOverrides(String projectId, String environmentKey) {
+        return mapper.contextPolicyOverrides(projectId, environmentKey);
+    }
+
+    @Override
+    public Optional<TestDesignContextPolicyOverride> latestApprovedProjectContextPolicyOverride(String projectId) {
+        return Optional.ofNullable(mapper.latestApprovedProjectContextPolicyOverride(projectId));
+    }
+
+    @Override
+    public Optional<TestDesignContextPolicyOverride> latestApprovedEnvironmentContextPolicyOverride(
+            String projectId,
+            String environmentKey
+    ) {
+        return Optional.ofNullable(mapper.latestApprovedEnvironmentContextPolicyOverride(projectId, environmentKey));
     }
 
     private static TestDesignAuditChainAggregate emptyAuditChainAggregate() {

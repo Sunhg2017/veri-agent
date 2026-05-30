@@ -68,6 +68,7 @@ public class TestDesignTaskService {
     private final TestDesignActorResolver actorResolver;
     private final TestDesignResponseMapper responseMapper;
     private final TestDesignGenerationService generationService;
+    private final TestDesignContextPolicyService contextPolicyService;
     private final TestDesignProperties properties;
     private final ObjectMapper objectMapper;
 
@@ -79,6 +80,7 @@ public class TestDesignTaskService {
             TestDesignActorResolver actorResolver,
             TestDesignResponseMapper responseMapper,
             TestDesignGenerationService generationService,
+            TestDesignContextPolicyService contextPolicyService,
             TestDesignProperties properties,
             ObjectMapper objectMapper
     ) {
@@ -89,6 +91,7 @@ public class TestDesignTaskService {
         this.actorResolver = actorResolver;
         this.responseMapper = responseMapper;
         this.generationService = generationService;
+        this.contextPolicyService = contextPolicyService;
         this.properties = properties;
         this.objectMapper = objectMapper;
     }
@@ -189,7 +192,9 @@ public class TestDesignTaskService {
                 distinctIds(command.contextPageIds()),
                 distinctIds(command.contextFlowIds())
         );
-        validateExplicitContextLimit(explicitContext);
+        TestDesignContextPolicyService.EffectiveContextPolicySnapshot effectivePolicy =
+                contextPolicyService.effectiveSnapshotForTask(projectId, command.environmentKey());
+        validateExplicitContextLimit(explicitContext, effectivePolicy);
         List<String> coverageTypes = normalizedCoverageTypes(command.coverageTypes());
         List<String> generationCoverageTypes = coverageTypes.stream()
                 .limit(normalizedCaseCount(command.caseCountPerRequirement()))
@@ -199,6 +204,8 @@ public class TestDesignTaskService {
                 command.title(),
                 requirementIds,
                 explicitContext,
+                command.environmentKey(),
+                effectivePolicy,
                 coverageTypes,
                 command.caseCountPerRequirement()
         );
@@ -211,7 +218,8 @@ public class TestDesignTaskService {
                 .peek(requirement -> ensureSameProject(requirement, projectId))
                 .toList();
         TestDesignGenerationService.TestDesignGenerationContext generationContext =
-                generationService.generationContext(projectId, requirements, explicitContext);
+                generationService.generationContext(projectId, requirements, explicitContext, command.environmentKey(),
+                        effectivePolicy);
         Instant now = Instant.now();
         String title = taskTitle(command.title(), requirements);
         UUID taskId = UUID.randomUUID();
@@ -508,8 +516,14 @@ public class TestDesignTaskService {
                 .toList();
     }
 
-    private void validateExplicitContextLimit(TestDesignGenerationService.ExplicitContextAssetIds explicitContext) {
-        int limit = properties.effectiveContextExplicitAssetsPerType();
+    private void validateExplicitContextLimit(
+            TestDesignGenerationService.ExplicitContextAssetIds explicitContext,
+            TestDesignContextPolicyService.EffectiveContextPolicySnapshot effectivePolicy
+    ) {
+        int limit = effectivePolicy.contextLimits().getOrDefault(
+                "explicitAssetsPerType",
+                properties.effectiveContextExplicitAssetsPerType()
+        );
         validateExplicitContextLimit("contextApiIds", explicitContext.apiIds().size(), limit);
         validateExplicitContextLimit("contextPageIds", explicitContext.pageIds().size(), limit);
         validateExplicitContextLimit("contextFlowIds", explicitContext.flowIds().size(), limit);
@@ -591,6 +605,8 @@ public class TestDesignTaskService {
             String requestedTitle,
             List<UUID> requirementIds,
             TestDesignGenerationService.ExplicitContextAssetIds explicitContext,
+            String environmentKey,
+            TestDesignContextPolicyService.EffectiveContextPolicySnapshot effectivePolicy,
             List<String> coverageTypes,
             Integer caseCountPerRequirement
     ) {
@@ -602,14 +618,15 @@ public class TestDesignTaskService {
         payload.put("contextApiIds", explicitContext.apiIds().stream().map(UUID::toString).toList());
         payload.put("contextPageIds", explicitContext.pageIds().stream().map(UUID::toString).toList());
         payload.put("contextFlowIds", explicitContext.flowIds().stream().map(UUID::toString).toList());
+        payload.put("environmentKey", trimToNull(environmentKey));
         payload.put("coverageTypes", coverageTypes);
         payload.put("caseCountPerRequirement", normalizedCaseCount(caseCountPerRequirement));
         payload.put("promptKey", properties.promptKey());
         payload.put("promptVersion", properties.promptVersion());
         payload.put("generationMode", properties.generationMode());
-        payload.put("contextLimits", properties.effectiveContextLimits());
-        payload.put("contextPolicyGovernance", TestDesignContextPolicyGovernance.snapshot());
-        payload.put("contextPolicyOperations", TestDesignContextPolicyOperations.snapshot());
+        payload.put("contextLimits", effectivePolicy.contextLimits());
+        payload.put("contextPolicyGovernance", TestDesignContextPolicyGovernance.snapshot(effectivePolicy));
+        payload.put("contextPolicyOperations", TestDesignContextPolicyOperations.snapshot(effectivePolicy));
         payload.put("generationOrchestrationPolicy", TestDesignGenerationOrchestrationPolicy.snapshot(properties));
         payload.put("scopePolicy", TestDesignScopePolicy.snapshot());
         payload.put("evaluationCorpusPolicy", TestDesignEvaluationCorpusPolicy.snapshot());

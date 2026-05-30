@@ -9,6 +9,8 @@ import com.songhg.veri.agent.modelaccess.application.port.ModelInvocationJobRepo
 import com.songhg.veri.agent.modelaccess.application.view.ModelInvocationJobRecord;
 import com.songhg.veri.agent.modelaccess.domain.InvocationRecord;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignCandidateResponse;
+import com.songhg.veri.agent.testdesign.application.view.TestDesignContextPolicyGovernanceResponse;
+import com.songhg.veri.agent.testdesign.application.view.TestDesignContextPolicyOperationsResponse;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignModelObservationResponse;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignPublishRecordResponse;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignStepResponse;
@@ -68,8 +70,8 @@ public class TestDesignResponseMapper {
                 task.inputDigest(),
                 modelObservation(task),
                 TestDesignContextAssemblyPolicy.response(),
-                TestDesignContextPolicyGovernance.response(),
-                TestDesignContextPolicyOperations.response(),
+                contextPolicyGovernance(task),
+                contextPolicyOperations(task),
                 TestDesignGenerationOrchestrationPolicy.taskResponse(properties, task),
                 TestDesignScopePolicy.response(),
                 TestDesignEvaluationCorpusPolicy.response(),
@@ -183,6 +185,31 @@ public class TestDesignResponseMapper {
                 .filter(StringUtils::hasText)
                 .distinct()
                 .toList();
+    }
+
+    private TestDesignContextPolicyGovernanceResponse contextPolicyGovernance(TestDesignTask task) {
+        return contextSummaryObject(task, "policyGovernance", TestDesignContextPolicyGovernanceResponse.class)
+                .orElseGet(TestDesignContextPolicyGovernance::response);
+    }
+
+    private TestDesignContextPolicyOperationsResponse contextPolicyOperations(TestDesignTask task) {
+        return contextSummaryObject(task, "policyOperations", TestDesignContextPolicyOperationsResponse.class)
+                .orElseGet(TestDesignContextPolicyOperations::response);
+    }
+
+    private <T> Optional<T> contextSummaryObject(TestDesignTask task, String key, Class<T> valueType) {
+        if (task == null || !StringUtils.hasText(task.contextSummaryJson())) {
+            return Optional.empty();
+        }
+        try {
+            JsonNode node = objectMapper.readTree(task.contextSummaryJson()).path(key);
+            if (!node.isObject()) {
+                return Optional.empty();
+            }
+            return Optional.of(objectMapper.convertValue(node, valueType));
+        } catch (Exception exception) {
+            return Optional.empty();
+        }
     }
 
     private static List<UUID> uuidList(String value) {

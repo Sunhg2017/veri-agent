@@ -22,6 +22,8 @@ public record CreateTestDesignTaskCommand(
         List<UUID> contextPageIds,
         @Schema(description = "显式纳入上下文的业务流资产 ID 列表；用于补充未建立需求追踪关系但本次生成需要参考的流程")
         List<UUID> contextFlowIds,
+        @Schema(description = "可选环境键；用于解析环境级上下文策略覆盖，不参与资源归属")
+        String environmentKey,
         @Schema(description = "覆盖类型列表")
         List<String> coverageTypes,
         @Schema(description = "每个需求生成的候选数量")

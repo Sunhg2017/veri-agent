@@ -6,6 +6,7 @@ import com.songhg.veri.agent.testdesign.application.query.TestDesignCandidateQue
 import com.songhg.veri.agent.testdesign.application.query.TestDesignTaskQuery;
 import com.songhg.veri.agent.testdesign.domain.TestDesignAuditChainAggregate;
 import com.songhg.veri.agent.testdesign.domain.TestDesignCandidate;
+import com.songhg.veri.agent.testdesign.domain.TestDesignContextPolicyOverride;
 import com.songhg.veri.agent.testdesign.domain.TestDesignPublishRecord;
 import com.songhg.veri.agent.testdesign.domain.TestDesignReportManifest;
 import com.songhg.veri.agent.testdesign.domain.TestDesignReviewRecord;
@@ -35,6 +36,7 @@ public class InMemoryTestDesignRepository implements TestDesignRepository {
     private final ConcurrentHashMap<UUID, TestDesignReviewRecord> reviewRecords = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<UUID, TestDesignPublishRecord> publishRecords = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<UUID, TestDesignReportManifest> reportManifests = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<UUID, TestDesignContextPolicyOverride> contextPolicyOverrides = new ConcurrentHashMap<>();
 
     @Override
     public List<TestDesignTask> tasks(TestDesignTaskQuery query) {
@@ -359,6 +361,61 @@ public class InMemoryTestDesignRepository implements TestDesignRepository {
                 0,
                 0
         );
+    }
+
+    @Override
+    public TestDesignContextPolicyOverride saveContextPolicyOverride(TestDesignContextPolicyOverride override) {
+        contextPolicyOverrides.put(override.id(), override);
+        return override;
+    }
+
+    @Override
+    public Optional<TestDesignContextPolicyOverride> contextPolicyOverride(UUID id) {
+        return Optional.ofNullable(contextPolicyOverrides.get(id));
+    }
+
+    @Override
+    public List<TestDesignContextPolicyOverride> contextPolicyOverrides(String projectId, String environmentKey) {
+        return contextPolicyOverrides.values().stream()
+                .filter(override -> projectId.equals(override.projectId()))
+                .filter(override -> {
+                    if (StringUtils.hasText(environmentKey)) {
+                        return !StringUtils.hasText(override.environmentKey())
+                                || environmentKey.equals(override.environmentKey());
+                    }
+                    return !StringUtils.hasText(override.environmentKey());
+                })
+                .sorted(Comparator.comparing(TestDesignContextPolicyOverride::createdAt).reversed())
+                .toList();
+    }
+
+    @Override
+    public Optional<TestDesignContextPolicyOverride> latestApprovedProjectContextPolicyOverride(String projectId) {
+        return latestApprovedContextPolicyOverride(projectId, null);
+    }
+
+    @Override
+    public Optional<TestDesignContextPolicyOverride> latestApprovedEnvironmentContextPolicyOverride(
+            String projectId,
+            String environmentKey
+    ) {
+        return latestApprovedContextPolicyOverride(projectId, environmentKey);
+    }
+
+    private Optional<TestDesignContextPolicyOverride> latestApprovedContextPolicyOverride(
+            String projectId,
+            String environmentKey
+    ) {
+        return contextPolicyOverrides.values().stream()
+                .filter(override -> "APPROVED".equals(override.status()))
+                .filter(override -> projectId.equals(override.projectId()))
+                .filter(override -> {
+                    if (StringUtils.hasText(environmentKey)) {
+                        return environmentKey.equals(override.environmentKey());
+                    }
+                    return !StringUtils.hasText(override.environmentKey());
+                })
+                .max(Comparator.comparing(TestDesignContextPolicyOverride::updatedAt));
     }
 
     private Stream<TestDesignTask> filteredTasks(TestDesignTaskQuery query) {

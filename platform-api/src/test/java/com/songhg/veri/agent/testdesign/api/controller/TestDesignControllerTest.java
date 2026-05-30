@@ -709,16 +709,19 @@ class TestDesignControllerTest {
                 .andExpect(jsonPath("$.data.task.contextAssemblyPolicy.modelPayloadStored").value(false))
                 .andExpect(jsonPath("$.data.task.contextAssemblyPolicy.aggregateOnly").value(true))
                 .andExpect(jsonPath("$.data.task.contextPolicyGovernance.policySource").value("PLATFORM_DEFAULT"))
-                .andExpect(jsonPath("$.data.task.contextPolicyGovernance.changeApprovalWorkflowReady").value(false))
+                .andExpect(jsonPath("$.data.task.contextPolicyGovernance.governanceStatus")
+                        .value("OVERRIDE_STORE_READY"))
+                .andExpect(jsonPath("$.data.task.contextPolicyGovernance.changeApprovalWorkflowReady").value(true))
                 .andExpect(jsonPath("$.data.task.contextPolicyOperations.policyVersion")
                         .value("wp5-context-policy-operations-v2"))
                 .andExpect(jsonPath("$.data.task.contextPolicyOperations.policyResolutionOrder")
-                        .value("PLATFORM_DEFAULT_ONLY"))
+                        .value("PLATFORM_DEFAULT_PROJECT_ENVIRONMENT"))
                 .andExpect(jsonPath("$.data.task.contextPolicyOperations.policyFallbackBehavior")
-                        .value("DEPLOY_CONFIG_CHANGE_REQUIRED"))
+                        .value("FALLBACK_TO_PLATFORM_DEFAULT"))
                 .andExpect(jsonPath("$.data.task.contextPolicyOperations.approvalStatus")
-                        .value("WORKFLOW_NOT_READY"))
+                        .value("METADATA_APPROVAL_READY"))
                 .andExpect(jsonPath("$.data.task.contextPolicyOperations.projectOverrideStoreReady").value(false))
+                .andExpect(jsonPath("$.data.task.contextPolicyOperations.changeApprovalWorkflowReady").value(true))
                 .andExpect(jsonPath("$.data.task.contextPolicyOperations.aggregateOnly").value(true))
                 .andExpect(jsonPath("$.data.task.generationOrchestrationPolicy.policyVersion")
                         .value("wp5-generation-orchestration-policy-v1"))
@@ -836,12 +839,14 @@ class TestDesignControllerTest {
                 .andExpect(jsonPath("$.data.task.contextSummary.policyOperations.policyVersion")
                         .value("wp5-context-policy-operations-v2"))
                 .andExpect(jsonPath("$.data.task.contextSummary.policyOperations.policyResolutionOrder")
-                        .value("PLATFORM_DEFAULT_ONLY"))
+                        .value("PLATFORM_DEFAULT_PROJECT_ENVIRONMENT"))
                 .andExpect(jsonPath("$.data.task.contextSummary.policyOperations.policyFallbackBehavior")
-                        .value("DEPLOY_CONFIG_CHANGE_REQUIRED"))
+                        .value("FALLBACK_TO_PLATFORM_DEFAULT"))
                 .andExpect(jsonPath("$.data.task.contextSummary.policyOperations.approvalStatus")
-                        .value("WORKFLOW_NOT_READY"))
+                        .value("METADATA_APPROVAL_READY"))
                 .andExpect(jsonPath("$.data.task.contextSummary.policyOperations.projectOverrideStoreReady").value(false))
+                .andExpect(jsonPath("$.data.task.contextSummary.policyOperations.changeApprovalWorkflowReady")
+                        .value(true))
                 .andExpect(jsonPath("$.data.task.contextSummary.policyOperations.aggregateOnly").value(true))
                 .andExpect(jsonPath("$.data.task.contextSummary.generationOrchestrationPolicy.policyVersion")
                         .value("wp5-generation-orchestration-policy-v1"))
@@ -966,6 +971,200 @@ class TestDesignControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
                 .andExpect(jsonPath("$.message", containsString("contextApiIds 单次最多支持 2 个")));
+    }
+
+    @Test
+    void managesContextPolicyOverridesAndMaterializesEffectiveTaskSnapshot() throws Exception {
+        String ownerToken = userAccessToken(List.of("ProjectOwner@PROJECT:project-wp5"));
+        String developerToken = userAccessToken(List.of("Developer@PROJECT:project-wp5"));
+        String deniedOwnerToken = userAccessToken(List.of("ProjectOwner@PROJECT:project-other"));
+
+        mockMvc.perform(post("/api/v1/test-design/context-policies/projects/project-wp5/overrides")
+                        .header("Authorization", "Bearer " + developerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "contextLinkedAssetsPerRequirement": 4,
+                                  "changeReasonCode": "QUALITY_BASELINE"
+                                }
+                                """))
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(post("/api/v1/test-design/context-policies/projects/project-wp5/overrides")
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "contextLinkedAssetsPerRequirement": 51,
+                                  "changeReasonCode": "QUALITY_BASELINE"
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.message", containsString("contextLinkedAssetsPerRequirement 不能大于 50")));
+
+        mockMvc.perform(post("/api/v1/test-design/context-policies/projects/project-wp5/overrides")
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "contextAssetSchemaChars": 2001,
+                                  "changeReasonCode": "QUALITY_BASELINE"
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.message", containsString("contextAssetSchemaChars 不能大于 2000")));
+
+        MvcResult projectOverrideResult = mockMvc.perform(post(
+                                "/api/v1/test-design/context-policies/projects/project-wp5/overrides")
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "contextLinkedAssetsPerRequirement": 4,
+                                  "contextExplicitAssetsPerType": 3,
+                                  "changeReasonCode": "QUALITY_BASELINE"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.scopeType").value("PROJECT"))
+                .andExpect(jsonPath("$.data.projectId").value("project-wp5"))
+                .andExpect(jsonPath("$.data.status").value("PENDING"))
+                .andExpect(jsonPath("$.data.overrideLimits.linkedAssetsPerRequirement").value(4))
+                .andExpect(jsonPath("$.data.changeReasonCodeCaptured").value(true))
+                .andExpect(jsonPath("$.data.approvalReasonCodeCaptured").value(false))
+                .andExpect(jsonPath("$.data.changeReasonCode").doesNotExist())
+                .andExpect(jsonPath("$.data.approvalReasonCode").doesNotExist())
+                .andReturn();
+        String projectOverrideId = JsonPath.read(projectOverrideResult.getResponse().getContentAsString(), "$.data.id");
+
+        mockMvc.perform(get("/api/v1/test-design/context-policies/projects/project-wp5/effective")
+                        .header("Authorization", "Bearer " + ownerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.contextLimits.linkedAssetsPerRequirement").value(2))
+                .andExpect(jsonPath("$.data.appliedOverrideScopes", contains("PLATFORM_DEFAULT")))
+                .andExpect(jsonPath("$.data.overrideStatusCounts.PENDING").value(1))
+                .andExpect(jsonPath("$.data.contextPolicyGovernance.projectOverrideSupported").value(true))
+                .andExpect(jsonPath("$.data.contextPolicyGovernance.approvedOverrideApplied").doesNotExist())
+                .andExpect(jsonPath("$.data.contextPolicyOperations.projectOverrideStoreReady").value(true))
+                .andExpect(jsonPath("$.data.contextPolicyOperations.policyResolutionOrder")
+                        .value("PLATFORM_DEFAULT_PROJECT_ENVIRONMENT"))
+                .andExpect(jsonPath("$.data.policyDiffPreviewExported").value(false))
+                .andExpect(jsonPath("$.data.approvalNotesExported").value(false));
+
+        mockMvc.perform(post("/api/v1/test-design/context-policies/overrides/{id}/approve", projectOverrideId)
+                        .header("Authorization", "Bearer " + deniedOwnerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"approvalReasonCode": "QUALITY_BASELINE"}
+                                """))
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(post("/api/v1/test-design/context-policies/overrides/{id}/approve", projectOverrideId)
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"approvalReasonCode": "QUALITY_BASELINE"}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("APPROVED"))
+                .andExpect(jsonPath("$.data.approvalReasonCodeCaptured").value(true))
+                .andExpect(jsonPath("$.data.approvalReasonCode").doesNotExist());
+
+        MvcResult environmentOverrideResult = mockMvc.perform(post(
+                                "/api/v1/test-design/context-policies/projects/project-wp5/environments/qa/overrides")
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "contextAssetSchemaChars": 80,
+                                  "changeReasonCode": "PROJECT_COMPLEXITY"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.scopeType").value("ENVIRONMENT"))
+                .andExpect(jsonPath("$.data.environmentKey").value("qa"))
+                .andReturn();
+        String environmentOverrideId = JsonPath.read(
+                environmentOverrideResult.getResponse().getContentAsString(),
+                "$.data.id"
+        );
+        mockMvc.perform(post("/api/v1/test-design/context-policies/overrides/{id}/approve", environmentOverrideId)
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"approvalReasonCode": "PROJECT_COMPLEXITY"}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("APPROVED"));
+
+        mockMvc.perform(get("/api/v1/test-design/context-policies/projects/project-wp5/overrides")
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .param("environmentKey", "qa"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data", hasSize(2)))
+                .andExpect(jsonPath("$.data[0].changeReasonCode").doesNotExist())
+                .andExpect(jsonPath("$.data[0].approvalReasonCode").doesNotExist());
+
+        mockMvc.perform(get("/api/v1/test-design/context-policies/projects/project-wp5/effective")
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .param("environmentKey", "qa"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.environmentKey").value("qa"))
+                .andExpect(jsonPath("$.data.contextLimits.linkedAssetsPerRequirement").value(4))
+                .andExpect(jsonPath("$.data.contextLimits.linkedAssetSchemaChars").value(80))
+                .andExpect(jsonPath("$.data.appliedOverrideScopes",
+                        contains("PLATFORM_DEFAULT", "PROJECT", "ENVIRONMENT")))
+                .andExpect(jsonPath("$.data.overrideStatusCounts.APPROVED").value(2))
+                .andExpect(jsonPath("$.data.contextPolicyGovernance.policySource")
+                        .value("PROJECT_ENVIRONMENT_OVERRIDE"))
+                .andExpect(jsonPath("$.data.contextPolicyGovernance.governanceStatus")
+                        .value("OVERRIDE_APPROVED"))
+                .andExpect(jsonPath("$.data.contextPolicyOperations.operationMode")
+                        .value("PROJECT_ENVIRONMENT_OVERRIDE"))
+                .andExpect(jsonPath("$.data.contextPolicyOperations.approvalStatus")
+                        .value("METADATA_APPROVAL_READY"));
+
+        String requirementId = createRequirement(ownerToken, "环境策略需求", "环境策略验收", "project-wp5");
+
+        MvcResult taskResult = mockMvc.perform(post("/api/v1/test-design/tasks")
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "projectId": "project-wp5",
+                                  "environmentKey": "qa",
+                                  "requirementIds": ["%s"],
+                                  "coverageTypes": ["SMOKE"]
+                                }
+                                """.formatted(requirementId)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.task.contextSummary.environmentKey").value("qa"))
+                .andExpect(jsonPath("$.data.task.contextSummary.limits.linkedAssetsPerRequirement").value(4))
+                .andExpect(jsonPath("$.data.task.contextSummary.limits.linkedAssetSchemaChars").value(80))
+                .andExpect(jsonPath("$.data.task.contextSummary.policyGovernance.approvedOverrideApplied").value(true))
+                .andExpect(jsonPath("$.data.task.contextSummary.policyGovernance.appliedOverrideScopes",
+                        contains("PLATFORM_DEFAULT", "PROJECT", "ENVIRONMENT")))
+                .andExpect(jsonPath("$.data.task.contextSummary.policyOperations.policyResolutionOrder")
+                        .value("PLATFORM_DEFAULT_PROJECT_ENVIRONMENT"))
+                .andExpect(jsonPath("$.data.task.contextSummary.policyOperations.approvalStatus")
+                        .value("METADATA_APPROVAL_READY"))
+                .andExpect(jsonPath("$.data.task.contextSummary.policyOperations.policyDiffPreviewExported")
+                        .value(false))
+                .andExpect(jsonPath("$.data.task.contextSummary.policyOperations.approvalNotesExported")
+                        .value(false))
+                .andExpect(jsonPath("$.data.task.contextPolicyGovernance.policySource")
+                        .value("PROJECT_ENVIRONMENT_OVERRIDE"))
+                .andExpect(jsonPath("$.data.task.contextPolicyOperations.operationMode")
+                        .value("PROJECT_ENVIRONMENT_OVERRIDE"))
+                .andReturn();
+
+        String taskJson = taskResult.getResponse().getContentAsString();
+        MatcherAssert.assertThat(taskJson, not(containsString("QUALITY_BASELINE")));
+        MatcherAssert.assertThat(taskJson, not(containsString("PROJECT_COMPLEXITY")));
+        MatcherAssert.assertThat(taskJson, not(containsString("changeReasonCode")));
+        MatcherAssert.assertThat(taskJson, not(containsString("approvalReasonCode")));
     }
 
     @Test
@@ -1532,20 +1731,20 @@ class TestDesignControllerTest {
         MatcherAssert.assertThat(csv, containsString("contextAssemblyPolicy,aggregateOnly,,true"));
         MatcherAssert.assertThat(csv, containsString("contextPolicyGovernance,policyVersion,,wp5-context-policy-v1"));
         MatcherAssert.assertThat(csv, containsString("contextPolicyGovernance,policySource,,PLATFORM_DEFAULT"));
-        MatcherAssert.assertThat(csv, containsString("contextPolicyGovernance,governanceStatus,,PLATFORM_DEFAULT_ONLY"));
+        MatcherAssert.assertThat(csv, containsString("contextPolicyGovernance,governanceStatus,,OVERRIDE_STORE_READY"));
         MatcherAssert.assertThat(csv, containsString("contextPolicyGovernance,projectOverrideSupported,,false"));
         MatcherAssert.assertThat(csv, containsString("contextPolicyGovernance,environmentOverrideSupported,,false"));
         MatcherAssert.assertThat(csv, containsString("contextPolicyGovernance,changeApprovalRequired,,true"));
-        MatcherAssert.assertThat(csv, containsString("contextPolicyGovernance,changeApprovalWorkflowReady,,false"));
+        MatcherAssert.assertThat(csv, containsString("contextPolicyGovernance,changeApprovalWorkflowReady,,true"));
         MatcherAssert.assertThat(csv, containsString("contextPolicyGovernance,aggregateOnly,,true"));
         MatcherAssert.assertThat(csv, containsString("contextPolicyOperations,policyVersion,,wp5-context-policy-operations-v2"));
-        MatcherAssert.assertThat(csv, containsString("contextPolicyOperations,operationMode,,PLATFORM_DEFAULT_ONLY"));
-        MatcherAssert.assertThat(csv, containsString("contextPolicyOperations,policyResolutionOrder,,PLATFORM_DEFAULT_ONLY"));
-        MatcherAssert.assertThat(csv, containsString("contextPolicyOperations,policyFallbackBehavior,,DEPLOY_CONFIG_CHANGE_REQUIRED"));
-        MatcherAssert.assertThat(csv, containsString("contextPolicyOperations,approvalStatus,,WORKFLOW_NOT_READY"));
+        MatcherAssert.assertThat(csv, containsString("contextPolicyOperations,operationMode,,PROJECT_ENVIRONMENT_OVERRIDE"));
+        MatcherAssert.assertThat(csv, containsString("contextPolicyOperations,policyResolutionOrder,,PLATFORM_DEFAULT_PROJECT_ENVIRONMENT"));
+        MatcherAssert.assertThat(csv, containsString("contextPolicyOperations,policyFallbackBehavior,,FALLBACK_TO_PLATFORM_DEFAULT"));
+        MatcherAssert.assertThat(csv, containsString("contextPolicyOperations,approvalStatus,,METADATA_APPROVAL_READY"));
         MatcherAssert.assertThat(csv, containsString("contextPolicyOperations,projectOverrideStoreReady,,false"));
         MatcherAssert.assertThat(csv, containsString("contextPolicyOperations,environmentOverrideStoreReady,,false"));
-        MatcherAssert.assertThat(csv, containsString("contextPolicyOperations,changeApprovalWorkflowReady,,false"));
+        MatcherAssert.assertThat(csv, containsString("contextPolicyOperations,changeApprovalWorkflowReady,,true"));
         MatcherAssert.assertThat(csv, containsString("contextPolicyOperations,effectivePolicySnapshotMaterialized,,true"));
         MatcherAssert.assertThat(csv, containsString("contextPolicyOperations,policyDiffPreviewExported,,false"));
         MatcherAssert.assertThat(csv, containsString("contextPolicyOperations,approvalNotesExported,,false"));
