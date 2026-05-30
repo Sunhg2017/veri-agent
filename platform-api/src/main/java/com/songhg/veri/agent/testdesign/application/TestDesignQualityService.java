@@ -114,6 +114,7 @@ public class TestDesignQualityService {
                 trimToNull(safeRequest.getPromptKey()),
                 tasks.size(),
                 candidateCount,
+                promptReadinessDistribution(buckets),
                 buckets,
                 Instant.now()
         );
@@ -262,6 +263,23 @@ public class TestDesignQualityService {
                         percentValue(entry.getValue(), total)
                 ))
                 .toList();
+    }
+
+    /**
+     * Summarizes bucket-level readiness for prompt operations without exposing any candidate or review text.
+     */
+    private static List<TestDesignQualityDistributionItemResponse> promptReadinessDistribution(
+            List<TestDesignPromptTrendBucketResponse> buckets
+    ) {
+        Map<String, Long> counts = new LinkedHashMap<>();
+        for (TestDesignPromptTrendBucketResponse bucket : buckets) {
+            TestDesignQualityReadinessResponse readiness = bucket.readiness();
+            String status = readiness == null || !StringUtils.hasText(readiness.status())
+                    ? "UNKNOWN"
+                    : readiness.status();
+            counts.merge(status, 1L, Long::sum);
+        }
+        return qualityDistribution(counts, buckets.size());
     }
 
     private static double percentValue(long value, long total) {

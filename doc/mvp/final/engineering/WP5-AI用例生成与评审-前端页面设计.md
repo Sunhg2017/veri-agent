@@ -5,8 +5,8 @@
 | 工作包 | WP5 AI 用例生成与评审 |
 | 角色产出 | 资深前端工程师 |
 | 文档性质 | 前端页面、路由、权限、状态和可测性设计 |
-| 当前口径 | 基于 `portal-web` React + TypeScript + Vite 管理台扩展，已纳入任务质量、Prompt 趋势、Prompt 版本准出、任务诊断和本域审计链摘要面板 |
-| 版本 | v0.3 |
+| 当前口径 | 基于 `portal-web` React + TypeScript + Vite 管理台扩展，已纳入任务质量、Prompt 趋势、Prompt 版本准出分布、任务诊断和本域审计链摘要面板 |
+| 版本 | v0.4 |
 | 日期 | 2026-05-30 |
 
 ## 1. 页面目标
@@ -90,7 +90,7 @@ WP5 前端页面负责让用户在浏览器内完成用例生成主流程：
 | `previewTestDesignPublish(taskId, payload)` | 发布 dryRun。 |
 | `publishTestDesignCandidates(taskId, payload)` | 正式发布。 |
 | `fetchTestDesignTaskQualitySummary(taskId)` | 查询任务全量质量摘要和任务准出状态。 |
-| `fetchTestDesignPromptTrend(filters)` | 查询 Prompt 版本趋势和版本级准出摘要。 |
+| `fetchTestDesignPromptTrend(filters)` | 查询 Prompt 版本趋势、版本级准出摘要和准出状态分布。 |
 | `fetchTestDesignTaskAuditSummary(taskId)` | 查询任务本域审计链摘要。 |
 
 API client 需复用现有 `requestJson` 和 `ApiError` 处理，保留响应中的 `trace_id` 或统一 traceId 字段，供页面展示。
@@ -161,7 +161,7 @@ API client 需复用现有 `requestJson` 和 `ApiError` 处理，保留响应中
 | partial success | 候选生成或发布部分成功时展示成功数、失败数和明细。 |
 | version conflict | 提示刷新候选后再操作，保留用户正在编辑内容。 |
 | model blocked | 展示 WP2 阻断原因摘要，不展示敏感内容。 |
-| prompt readiness | Prompt 趋势中每个版本展示 `PASSED/WARNING/BLOCKED` 准出状态、阻断数和风险数；该状态仅用于运营比较，不禁用发布按钮。 |
+| prompt readiness | Prompt 趋势中展示 `PASSED/WARNING/BLOCKED` 准出状态分布；每个版本展示准出状态、阻断数和风险数；该状态仅用于运营比较，不禁用发布按钮。 |
 
 ## 9. 候选评审交互
 

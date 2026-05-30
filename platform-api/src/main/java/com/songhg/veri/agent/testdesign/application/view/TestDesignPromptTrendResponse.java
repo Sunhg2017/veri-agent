@@ -16,6 +16,8 @@ public record TestDesignPromptTrendResponse(
         long taskCount,
         @Schema(description = "纳入聚合的候选总数")
         long candidateCount,
+        @Schema(description = "Prompt 版本准出状态分布，按版本桶数量聚合")
+        List<TestDesignQualityDistributionItemResponse> readinessDistribution,
         @Schema(description = "版本聚合桶")
         List<TestDesignPromptTrendBucketResponse> buckets,
         @Schema(description = "生成时间")

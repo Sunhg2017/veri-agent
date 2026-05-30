@@ -5,8 +5,8 @@
 | 工作包 | WP5 AI 用例生成与评审 |
 | 角色产出 | 资深服务端架构师 |
 | 文档性质 | 技术设计、数据模型、接口契约和服务端质量约束 |
-| 当前口径 | WP5 在 `platform-api` 内实现为独立领域模块，不新增独立部署服务；模块内应用服务按任务、生成、评审、质量、发布、冲突和报告拆分；任务本域审计链摘要由报告服务聚合 WP5 任务、评审和发布记录；Prompt 趋势按版本输出聚合准出摘要 |
-| 版本 | v0.4 |
+| 当前口径 | WP5 在 `platform-api` 内实现为独立领域模块，不新增独立部署服务；模块内应用服务按任务、生成、评审、质量、发布、冲突和报告拆分；任务本域审计链摘要由报告服务聚合 WP5 任务、评审和发布记录；Prompt 趋势按版本输出聚合准出摘要和准出状态分布 |
+| 版本 | v0.5 |
 | 日期 | 2026-05-30 |
 
 ## 1. 架构原则
@@ -452,10 +452,10 @@ CONFIRMED -> IGNORED
 |---|---|---|---|
 | `GET` | `/health` | `testDesign:read` | 返回 WP5 开关、Prompt、fallback 和质量阈值摘要。 |
 | `GET` | `/tasks/{id}/quality/summary` | `testDesign:read` | 返回任务全量质量摘要和按当前阈值计算的任务准出状态。 |
-| `GET` | `/quality/prompt-trend` | `testDesign:read` | 返回最近任务按 Prompt key/version 聚合的质量趋势，每个版本桶包含聚合准出摘要。 |
+| `GET` | `/quality/prompt-trend` | `testDesign:read` | 返回最近任务按 Prompt key/version 聚合的质量趋势，每个版本桶包含聚合准出摘要，并返回顶层准出状态分布。 |
 | `GET` | `/tasks/{id}/report/audit-summary` | `testDesign:read` | 返回任务本域审计链摘要，聚合 WP5 任务、评审记录和发布记录，不查询全局 `audit_log`。 |
 
-质量与趋势响应不得暴露模型密钥、provider token、完整 prompt 内容、候选正文、评审评论或敏感上下文。`prompt-trend.buckets[].readiness` 复用任务质量阈值，只作为 Prompt 运营提示，不改变发布权限或候选状态。
+质量与趋势响应不得暴露模型密钥、provider token、完整 prompt 内容、候选正文、评审评论或敏感上下文。`prompt-trend.buckets[].readiness` 复用任务质量阈值，只作为 Prompt 运营提示，不改变发布权限或候选状态。`prompt-trend.readinessDistribution` 仅按版本桶聚合 `PASSED/WARNING/BLOCKED/UNKNOWN` 数量和比例，用于运营看板快速识别阻断或风险版本。
 
 ## 7. 错误码建议
 

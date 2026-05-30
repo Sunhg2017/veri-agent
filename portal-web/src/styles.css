@@ -1658,6 +1658,12 @@ tbody tr:hover td {
   font-weight: 700;
 }
 
+.test-design-prompt-readiness-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
 .test-design-prompt-trend-row-metrics {
   display: flex;
   flex-wrap: wrap;

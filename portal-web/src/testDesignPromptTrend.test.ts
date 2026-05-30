@@ -10,6 +10,10 @@ describe('WP5 prompt trend summary', () => {
       taskCount: 3,
       candidateCount: 10,
       generatedAt: '2026-05-30T10:00:00Z',
+      readinessDistribution: [
+        { label: 'PASSED', count: 1, percent: 50 },
+        { label: 'BLOCKED', count: 1, percent: 50 }
+      ],
       buckets: [
         {
           promptKey: 'wp5-test-design-v1',
@@ -89,8 +93,13 @@ describe('WP5 prompt trend summary', () => {
       expect.objectContaining({ label: '版本数', value: 2, desc: '3 个任务' }),
       expect.objectContaining({ label: '候选数', value: 10, desc: '10 个候选' }),
       expect.objectContaining({ label: '有反馈版本', value: 2, desc: '2/2' }),
-      expect.objectContaining({ label: '有风险版本', value: 1, desc: '1/2', tone: 'warning' })
+      expect.objectContaining({ label: '阻断版本', value: 1, desc: '1/2', tone: 'danger' }),
+      expect.objectContaining({ label: '风险版本', value: 0, desc: '0/2', tone: 'success' })
     ]));
+    expect(summary.readinessDistribution).toEqual([
+      { label: '准出阻断', count: 1, percent: 50, tone: 'danger' },
+      { label: '准出通过', count: 1, percent: 50, tone: 'success' }
+    ]);
     expect(summary.buckets[0]).toMatchObject({
       label: 'wp5-test-design-v1@1.0.0',
       tone: 'success',
@@ -107,6 +116,7 @@ describe('WP5 prompt trend summary', () => {
       readinessText: '阻断 2 · 风险 1'
     });
     expect(summary.warnings).toEqual([
+      { label: '准出阻断版本', count: 1, tone: 'danger' },
       { label: '错误版本', count: 1, tone: 'danger' },
       { label: '重复冲突版本', count: 1, tone: 'danger' },
       { label: '步骤未满版本', count: 1, tone: 'warning' }
@@ -118,7 +128,8 @@ describe('WP5 prompt trend summary', () => {
     const summary = buildTestDesignPromptTrendSummary(null);
 
     expect(summary.scopeLabel).toBe('Prompt 版本趋势未加载');
-    expect(summary.metrics.map((metric) => metric.value)).toEqual([0, 0, 0, 0]);
+    expect(summary.metrics.map((metric) => metric.value)).toEqual([0, 0, 0, 0, 0]);
+    expect(summary.readinessDistribution).toEqual([]);
     expect(summary.buckets).toEqual([]);
     expect(summary.warnings).toEqual([]);
   });

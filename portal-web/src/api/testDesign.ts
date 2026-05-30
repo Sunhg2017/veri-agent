@@ -226,6 +226,7 @@ export interface TestDesignPromptTrendView {
   promptKey?: string;
   taskCount: number;
   candidateCount: number;
+  readinessDistribution: TestDesignQualityDistributionItemView[];
   buckets: TestDesignPromptTrendBucketView[];
   generatedAt?: string;
 }
@@ -790,6 +791,8 @@ export function normalizeTestDesignPromptTrend(raw: unknown): TestDesignPromptTr
     promptKey: optionalString(item.promptKey) ?? optionalString(item.prompt_key),
     taskCount: numberValue(item.taskCount ?? item.task_count, 0),
     candidateCount: numberValue(item.candidateCount ?? item.candidate_count, 0),
+    readinessDistribution: listItems(item.readinessDistribution ?? item.readiness_distribution)
+      .map(normalizeTestDesignQualityDistributionItem),
     buckets: listItems(item.buckets).map(normalizeTestDesignPromptTrendBucket),
     generatedAt: optionalString(item.generatedAt) ?? optionalString(item.generated_at)
   };

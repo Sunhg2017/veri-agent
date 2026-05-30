@@ -2621,6 +2621,15 @@ function PromptTrendPanel(props: {
                 </div>
               ))}
             </div>
+            {props.summary.readinessDistribution.length > 0 && (
+              <div className="test-design-prompt-readiness-summary">
+                {props.summary.readinessDistribution.map((item) => (
+                  <span className={`test-design-quality-chip tone-${item.tone}`} key={item.label}>
+                    {item.label} {item.count} · {item.percent}%
+                  </span>
+                ))}
+              </div>
+            )}
             <div className="test-design-prompt-trend-list">
               {props.summary.buckets.map((bucket) => (
                 <div className={`test-design-prompt-trend-row tone-${bucket.tone}`} key={bucket.label}>

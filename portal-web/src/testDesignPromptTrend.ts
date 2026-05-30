@@ -30,6 +30,7 @@ export type TestDesignPromptTrendSummary = {
   totalCandidates: number;
   latestVersion?: string;
   metrics: TestDesignPromptTrendMetric[];
+  readinessDistribution: Array<{ label: string; count: number; percent: number; tone: TestDesignQualitySummaryTone }>;
   buckets: TestDesignPromptTrendBucket[];
   warnings: Array<{ label: string; count: number; tone: TestDesignQualitySummaryTone }>;
 };
@@ -41,8 +42,10 @@ export function buildTestDesignPromptTrendSummary(
   const totalTasks = normalizeCount(trend?.taskCount);
   const totalCandidates = normalizeCount(trend?.candidateCount);
   const latestBucket = buckets.find((bucket) => bucket.latestTaskCreatedAt) ?? buckets[0];
-  const riskBucketCount = buckets.filter((bucket) => bucket.errorCount > 0 || bucket.duplicateKeyCollisionCount > 0).length;
   const feedbackBucketCount = buckets.filter((bucket) => bucket.correctionCount + bucket.rejectedCount + bucket.ignoredCount > 0).length;
+  const readinessDistribution = promptReadinessDistribution(trend, buckets);
+  const blockedVersionCount = readinessDistribution.find((item) => item.label === '准出阻断')?.count ?? 0;
+  const warningVersionCount = readinessDistribution.find((item) => item.label === '准出风险')?.count ?? 0;
   return {
     scopeLabel: scopeLabel(trend),
     totalTasks,
@@ -68,12 +71,19 @@ export function buildTestDesignPromptTrendSummary(
         tone: feedbackBucketCount > 0 ? 'info' : 'neutral'
       },
       {
-        label: '有风险版本',
-        value: riskBucketCount,
-        desc: buckets.length ? `${riskBucketCount}/${buckets.length}` : '暂无版本',
-        tone: riskBucketCount > 0 ? 'warning' : 'success'
+        label: '阻断版本',
+        value: blockedVersionCount,
+        desc: buckets.length ? `${blockedVersionCount}/${buckets.length}` : '暂无版本',
+        tone: blockedVersionCount > 0 ? 'danger' : 'success'
+      },
+      {
+        label: '风险版本',
+        value: warningVersionCount,
+        desc: buckets.length ? `${warningVersionCount}/${buckets.length}` : '暂无版本',
+        tone: warningVersionCount > 0 ? 'warning' : 'success'
       }
     ],
+    readinessDistribution,
     buckets,
     warnings: buildWarnings(buckets)
   };
@@ -107,9 +117,17 @@ function toBucket(bucket: TestDesignPromptTrendBucketView): TestDesignPromptTren
 
 function buildWarnings(buckets: TestDesignPromptTrendBucket[]) {
   const warnings: TestDesignPromptTrendSummary['warnings'] = [];
+  const blockedBuckets = buckets.filter((bucket) => bucket.readiness?.status === 'BLOCKED').length;
+  const warningBuckets = buckets.filter((bucket) => bucket.readiness?.status === 'WARNING').length;
   const errorBuckets = buckets.filter((bucket) => bucket.errorCount > 0).length;
   const duplicateBuckets = buckets.filter((bucket) => bucket.duplicateKeyCollisionCount > 0).length;
   const lowStepBuckets = buckets.filter((bucket) => bucket.candidateCount > 0 && bucket.stepCompletePercent < 100).length;
+  if (blockedBuckets > 0) {
+    warnings.push({ label: '准出阻断版本', count: blockedBuckets, tone: 'danger' });
+  }
+  if (warningBuckets > 0) {
+    warnings.push({ label: '准出风险版本', count: warningBuckets, tone: 'warning' });
+  }
   if (errorBuckets > 0) {
     warnings.push({ label: '错误版本', count: errorBuckets, tone: 'danger' });
   }
@@ -120,6 +138,51 @@ function buildWarnings(buckets: TestDesignPromptTrendBucket[]) {
     warnings.push({ label: '步骤未满版本', count: lowStepBuckets, tone: 'warning' });
   }
   return warnings;
+}
+
+function promptReadinessDistribution(
+  trend: TestDesignPromptTrendView | null | undefined,
+  buckets: TestDesignPromptTrendBucket[]
+): TestDesignPromptTrendSummary['readinessDistribution'] {
+  const source = trend?.readinessDistribution?.length
+    ? trend.readinessDistribution.map((item) => ({
+      label: readinessStatusLabel(item.label),
+      count: normalizeCount(item.count),
+      percent: Number.isFinite(item.percent) ? item.percent : 0,
+      tone: readinessTone(item.label)
+    }))
+    : fallbackReadinessDistribution(buckets);
+  return source.sort((left, right) => readinessOrder(left.label) - readinessOrder(right.label));
+}
+
+function fallbackReadinessDistribution(
+  buckets: TestDesignPromptTrendBucket[]
+): TestDesignPromptTrendSummary['readinessDistribution'] {
+  const total = buckets.length;
+  const counts = new Map<string, number>();
+  buckets.forEach((bucket) => {
+    const status = bucket.readiness?.status || 'UNKNOWN';
+    counts.set(status, (counts.get(status) ?? 0) + 1);
+  });
+  return Array.from(counts.entries()).map(([status, count]) => ({
+    label: readinessStatusLabel(status),
+    count,
+    percent: total ? Math.round(count * 10_000 / total) / 100 : 0,
+    tone: readinessTone(status)
+  }));
+}
+
+function readinessOrder(label: string) {
+  if (label === '准出阻断') {
+    return 0;
+  }
+  if (label === '准出风险') {
+    return 1;
+  }
+  if (label === '准出通过') {
+    return 2;
+  }
+  return 3;
 }
 
 function scopeLabel(trend: TestDesignPromptTrendView | null | undefined) {

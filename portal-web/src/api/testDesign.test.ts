@@ -247,6 +247,9 @@ describe('WP5 test design API helpers', () => {
       prompt_key: 'wp5-test-design-v1',
       task_count: '2',
       candidate_count: '6',
+      readiness_distribution: [
+        { label: 'WARNING', count: '1', percent: '100.00' }
+      ],
       buckets: [
         {
           prompt_key: 'wp5-test-design-v1',
@@ -294,6 +297,9 @@ describe('WP5 test design API helpers', () => {
       promptKey: 'wp5-test-design-v1',
       taskCount: 2,
       candidateCount: 6,
+      readinessDistribution: [
+        { label: 'WARNING', count: 1, percent: 100 }
+      ],
       buckets: [
         expect.objectContaining({
           promptVersion: '1.0.0',
