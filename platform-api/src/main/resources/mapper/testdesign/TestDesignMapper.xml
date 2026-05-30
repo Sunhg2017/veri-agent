@@ -100,6 +100,25 @@
         </constructor>
     </resultMap>
 
+    <resultMap id="reportManifestMap" type="com.songhg.veri.agent.testdesign.domain.TestDesignReportManifest">
+        <constructor>
+            <arg column="id" javaType="java.util.UUID"/>
+            <arg column="task_id" javaType="java.util.UUID"/>
+            <arg column="project_id" javaType="java.lang.String"/>
+            <arg column="schema_version" javaType="java.lang.String"/>
+            <arg column="field_set_version" javaType="java.lang.String"/>
+            <arg column="manifest_mode" javaType="java.lang.String"/>
+            <arg column="row_count_before_manifest" javaType="_long"/>
+            <arg column="report_row_count" javaType="_long"/>
+            <arg column="aggregate_only" javaType="_boolean"/>
+            <arg column="detail_rows_exported" javaType="_boolean"/>
+            <arg column="manifest_status" javaType="java.lang.String"/>
+            <arg column="content_digest" javaType="java.lang.String"/>
+            <arg column="generated_at" javaType="java.time.Instant"/>
+            <arg column="created_at" javaType="java.time.Instant"/>
+        </constructor>
+    </resultMap>
+
     <sql id="taskColumns">
         id, project_id, title, status, requirement_ids, coverage_types, prompt_key, prompt_version,
         model_invocation_id, model_provider_name, model_name, total_requirements, generated_count,
@@ -419,6 +438,29 @@
         select id, task_id, candidate_id, project_id, requirement_id, asset_case_id, dry_run, action, result,
                error_message, published_by, created_at
         from test_design_publish_record
+        where task_id = cast(#{taskId} as uuid)
+        order by created_at desc
+    </select>
+
+    <insert id="insertReportManifest">
+        insert into test_design_report_manifest (
+            id, task_id, project_id, schema_version, field_set_version, manifest_mode,
+            row_count_before_manifest, report_row_count, aggregate_only, detail_rows_exported,
+            manifest_status, content_digest, generated_at, created_at
+        ) values (
+            cast(#{id} as uuid), cast(#{taskId} as uuid), #{projectId}, #{schemaVersion},
+            #{fieldSetVersion}, #{manifestMode}, #{rowCountBeforeManifest}, #{reportRowCount},
+            #{aggregateOnly}, #{detailRowsExported}, #{manifestStatus}, #{contentDigest},
+            #{generatedAt}, #{createdAt}
+        )
+        on conflict (task_id, schema_version, field_set_version, content_digest) do nothing
+    </insert>
+
+    <select id="reportManifestsByTask" resultMap="reportManifestMap">
+        select id, task_id, project_id, schema_version, field_set_version, manifest_mode,
+               row_count_before_manifest, report_row_count, aggregate_only, detail_rows_exported,
+               manifest_status, content_digest, generated_at, created_at
+        from test_design_report_manifest
         where task_id = cast(#{taskId} as uuid)
         order by created_at desc
     </select>

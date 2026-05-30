@@ -5,6 +5,7 @@ import com.songhg.veri.agent.testdesign.application.query.TestDesignCandidateQue
 import com.songhg.veri.agent.testdesign.application.query.TestDesignTaskQuery;
 import com.songhg.veri.agent.testdesign.domain.TestDesignCandidate;
 import com.songhg.veri.agent.testdesign.domain.TestDesignPublishRecord;
+import com.songhg.veri.agent.testdesign.domain.TestDesignReportManifest;
 import com.songhg.veri.agent.testdesign.domain.TestDesignReviewRecord;
 import com.songhg.veri.agent.testdesign.domain.TestDesignTask;
 import java.time.Instant;
@@ -83,4 +84,8 @@ public interface TestDesignMapper {
     void insertPublishRecord(TestDesignPublishRecord record);
 
     List<TestDesignPublishRecord> publishRecords(@Param("taskId") UUID taskId);
+
+    void insertReportManifest(TestDesignReportManifest manifest);
+
+    List<TestDesignReportManifest> reportManifestsByTask(@Param("taskId") UUID taskId);
 }

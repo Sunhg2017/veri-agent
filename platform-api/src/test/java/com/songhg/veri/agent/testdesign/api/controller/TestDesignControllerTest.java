@@ -12,6 +12,7 @@ import com.songhg.veri.agent.modelaccess.domain.InvocationStatus;
 import com.songhg.veri.agent.testdesign.application.TestDesignPublishCompensationService;
 import com.songhg.veri.agent.testdesign.application.port.TestDesignRepository;
 import com.songhg.veri.agent.testdesign.domain.TestDesignCandidate;
+import com.songhg.veri.agent.testdesign.domain.TestDesignReportManifest;
 import com.songhg.veri.agent.testdesign.domain.TestDesignTask;
 import com.songhg.veri.agent.testdesign.domain.TestDesignTaskStatus;
 import java.math.BigDecimal;
@@ -1662,6 +1663,39 @@ class TestDesignControllerTest {
         MatcherAssert.assertThat(csv, containsString("reportManifest,manifestStatus,,COMPLETE"));
         MatcherAssert.assertThat(csv, containsString(taskId));
         MatcherAssert.assertThat(csv, containsString("project-wp5"));
+        List<TestDesignReportManifest> manifests =
+                testDesignRepository.reportManifestsByTask(UUID.fromString(taskId));
+        org.assertj.core.api.Assertions.assertThat(manifests).hasSize(1);
+        TestDesignReportManifest manifest = manifests.getFirst();
+        org.assertj.core.api.Assertions.assertThat(manifest.projectId()).isEqualTo("project-wp5");
+        org.assertj.core.api.Assertions.assertThat(manifest.schemaVersion()).isEqualTo("wp5-task-report-v1");
+        org.assertj.core.api.Assertions.assertThat(manifest.fieldSetVersion()).isEqualTo("aggregate-only-v1");
+        org.assertj.core.api.Assertions.assertThat(manifest.manifestMode()).isEqualTo("AGGREGATE_RECONCILIATION");
+        org.assertj.core.api.Assertions.assertThat(manifest.rowCountBeforeManifest()).isPositive();
+        org.assertj.core.api.Assertions.assertThat(manifest.reportRowCount())
+                .isGreaterThanOrEqualTo(manifest.rowCountBeforeManifest());
+        org.assertj.core.api.Assertions.assertThat(manifest.aggregateOnly()).isTrue();
+        org.assertj.core.api.Assertions.assertThat(manifest.detailRowsExported()).isFalse();
+        org.assertj.core.api.Assertions.assertThat(manifest.manifestStatus()).isEqualTo("COMPLETE");
+        org.assertj.core.api.Assertions.assertThat(manifest.contentDigest()).matches("[0-9a-f]{64}");
+        org.assertj.core.api.Assertions.assertThat(manifest.contentDigest())
+                .doesNotContain(taskId)
+                .doesNotContain(firstCandidateId)
+                .doesNotContain(secondCandidateId)
+                .doesNotContain("trc_wp5_task_report")
+                .doesNotContain("secret-value");
+        MvcResult secondExport = mockMvc.perform(get("/api/v1/test-design/tasks/{id}/report/export", taskId)
+                        .header("Authorization", "Bearer " + auditorToken))
+                .andExpect(status().isOk())
+                .andReturn();
+        MatcherAssert.assertThat(secondExport.getResponse().getContentAsString(), containsString(
+                "reportManifest,manifestStatus,,COMPLETE"));
+        List<TestDesignReportManifest> secondManifests =
+                testDesignRepository.reportManifestsByTask(UUID.fromString(taskId));
+        org.assertj.core.api.Assertions.assertThat(secondManifests).hasSize(2);
+        org.assertj.core.api.Assertions.assertThat(secondManifests)
+                .extracting(TestDesignReportManifest::contentDigest)
+                .doesNotHaveDuplicates();
         MatcherAssert.assertThat(csv, not(containsString("secret-value")));
         MatcherAssert.assertThat(csv, not(containsString("sk_live_12345678")));
         MatcherAssert.assertThat(csv, not(containsString("rawPrompt")));

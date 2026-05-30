@@ -6,6 +6,7 @@ import com.songhg.veri.agent.testdesign.application.query.TestDesignCandidateQue
 import com.songhg.veri.agent.testdesign.application.query.TestDesignTaskQuery;
 import com.songhg.veri.agent.testdesign.domain.TestDesignCandidate;
 import com.songhg.veri.agent.testdesign.domain.TestDesignPublishRecord;
+import com.songhg.veri.agent.testdesign.domain.TestDesignReportManifest;
 import com.songhg.veri.agent.testdesign.domain.TestDesignReviewRecord;
 import com.songhg.veri.agent.testdesign.domain.TestDesignTask;
 import com.songhg.veri.agent.testdesign.domain.TestDesignTaskStatus;
@@ -32,6 +33,7 @@ public class InMemoryTestDesignRepository implements TestDesignRepository {
     private final ConcurrentHashMap<UUID, TestDesignCandidate> candidates = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<UUID, TestDesignReviewRecord> reviewRecords = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<UUID, TestDesignPublishRecord> publishRecords = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<UUID, TestDesignReportManifest> reportManifests = new ConcurrentHashMap<>();
 
     @Override
     public List<TestDesignTask> tasks(TestDesignTaskQuery query) {
@@ -285,6 +287,29 @@ public class InMemoryTestDesignRepository implements TestDesignRepository {
         return publishRecords.values().stream()
                 .filter(record -> taskId.equals(record.taskId()))
                 .sorted(Comparator.comparing(TestDesignPublishRecord::createdAt).reversed())
+                .toList();
+    }
+
+    @Override
+    public TestDesignReportManifest saveReportManifest(TestDesignReportManifest manifest) {
+        Optional<TestDesignReportManifest> existing = reportManifests.values().stream()
+                .filter(current -> manifest.taskId().equals(current.taskId()))
+                .filter(current -> manifest.schemaVersion().equals(current.schemaVersion()))
+                .filter(current -> manifest.fieldSetVersion().equals(current.fieldSetVersion()))
+                .filter(current -> manifest.contentDigest().equals(current.contentDigest()))
+                .findFirst();
+        if (existing.isPresent()) {
+            return existing.get();
+        }
+        reportManifests.put(manifest.id(), manifest);
+        return manifest;
+    }
+
+    @Override
+    public List<TestDesignReportManifest> reportManifestsByTask(UUID taskId) {
+        return reportManifests.values().stream()
+                .filter(manifest -> taskId.equals(manifest.taskId()))
+                .sorted(Comparator.comparing(TestDesignReportManifest::createdAt).reversed())
                 .toList();
     }
 

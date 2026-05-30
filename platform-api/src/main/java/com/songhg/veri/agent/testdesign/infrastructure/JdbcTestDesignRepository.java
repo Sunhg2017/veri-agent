@@ -6,6 +6,7 @@ import com.songhg.veri.agent.testdesign.application.query.TestDesignCandidateQue
 import com.songhg.veri.agent.testdesign.application.query.TestDesignTaskQuery;
 import com.songhg.veri.agent.testdesign.domain.TestDesignCandidate;
 import com.songhg.veri.agent.testdesign.domain.TestDesignPublishRecord;
+import com.songhg.veri.agent.testdesign.domain.TestDesignReportManifest;
 import com.songhg.veri.agent.testdesign.domain.TestDesignReviewRecord;
 import com.songhg.veri.agent.testdesign.domain.TestDesignTask;
 import com.songhg.veri.agent.testdesign.domain.TestDesignTaskStatus;
@@ -162,5 +163,21 @@ public class JdbcTestDesignRepository implements TestDesignRepository {
     @Override
     public List<TestDesignPublishRecord> publishRecords(UUID taskId) {
         return mapper.publishRecords(taskId);
+    }
+
+    @Override
+    public TestDesignReportManifest saveReportManifest(TestDesignReportManifest manifest) {
+        mapper.insertReportManifest(manifest);
+        return mapper.reportManifestsByTask(manifest.taskId()).stream()
+                .filter(current -> manifest.schemaVersion().equals(current.schemaVersion()))
+                .filter(current -> manifest.fieldSetVersion().equals(current.fieldSetVersion()))
+                .filter(current -> manifest.contentDigest().equals(current.contentDigest()))
+                .findFirst()
+                .orElse(manifest);
+    }
+
+    @Override
+    public List<TestDesignReportManifest> reportManifestsByTask(UUID taskId) {
+        return mapper.reportManifestsByTask(taskId);
     }
 }

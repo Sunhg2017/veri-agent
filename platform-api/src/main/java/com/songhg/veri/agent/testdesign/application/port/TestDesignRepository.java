@@ -5,6 +5,7 @@ import com.songhg.veri.agent.testdesign.application.query.TestDesignCandidateQue
 import com.songhg.veri.agent.testdesign.application.query.TestDesignTaskQuery;
 import com.songhg.veri.agent.testdesign.domain.TestDesignCandidate;
 import com.songhg.veri.agent.testdesign.domain.TestDesignPublishRecord;
+import com.songhg.veri.agent.testdesign.domain.TestDesignReportManifest;
 import com.songhg.veri.agent.testdesign.domain.TestDesignReviewRecord;
 import com.songhg.veri.agent.testdesign.domain.TestDesignTask;
 import com.songhg.veri.agent.testdesign.domain.TestDesignTaskStatus;
@@ -143,4 +144,14 @@ public interface TestDesignRepository {
      * 查询任务下的发布和预发布记录
      */
     List<TestDesignPublishRecord> publishRecords(UUID taskId);
+
+    /**
+     * 保存任务报告 manifest 聚合记录，用于归档核验，不包含报告行内容或候选/trace/audit 标识。
+     */
+    TestDesignReportManifest saveReportManifest(TestDesignReportManifest manifest);
+
+    /**
+     * 查询任务下已保存的报告 manifest 聚合记录，按创建时间倒序返回。
+     */
+    List<TestDesignReportManifest> reportManifestsByTask(UUID taskId);
 }

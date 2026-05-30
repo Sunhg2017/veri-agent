@@ -168,6 +168,7 @@ grant select, insert, update on
     test_design_candidate,
     test_design_review_record,
     test_design_publish_record,
+    test_design_report_manifest,
     audit_outbox
 to wp1_app;
 

@@ -16,7 +16,7 @@ final class TestDesignTaskReportManifestRows {
      * <p>The row count is captured immediately before the manifest is appended, so archive tooling can detect truncated
      * exports while the report still avoids candidate bodies, audit records, trace IDs and other detail payloads.
      */
-    static void appendRows(StringBuilder csv, TestDesignTaskResponse task, Instant generatedAt) {
+    static ManifestSnapshot appendRows(StringBuilder csv, TestDesignTaskResponse task, Instant generatedAt) {
         long rowCountBeforeManifest = reportDataRowCount(csv);
         TestDesignReportManifestPolicyResponse policy = task.reportManifestPolicy() == null
                 ? TestDesignReportManifestPolicy.response()
@@ -27,6 +27,16 @@ final class TestDesignTaskReportManifestRows {
         appendMetadataRow(csv, task, generatedAt, "aggregateOnly", policy.aggregateOnly(), "success");
         appendMetadataRow(csv, task, generatedAt, "detailRowsExported", policy.detailRowsExported(), null);
         appendMetadataRow(csv, task, generatedAt, "manifestStatus", "COMPLETE", "success");
+        return new ManifestSnapshot(
+                policy.schemaVersion(),
+                policy.fieldSetVersion(),
+                policy.manifestMode(),
+                rowCountBeforeManifest,
+                reportDataRowCount(csv),
+                policy.aggregateOnly(),
+                policy.detailRowsExported(),
+                "COMPLETE"
+        );
     }
 
     private static long reportDataRowCount(StringBuilder csv) {
@@ -48,5 +58,17 @@ final class TestDesignTaskReportManifestRows {
     ) {
         TestDesignTaskReportService.appendTaskReportRow(csv, task, generatedAt,
                 "metadata", "reportManifest", metric, null, value, null, tone, "fullTask", null);
+    }
+
+    record ManifestSnapshot(
+            String schemaVersion,
+            String fieldSetVersion,
+            String manifestMode,
+            long rowCountBeforeManifest,
+            long reportRowCount,
+            boolean aggregateOnly,
+            boolean detailRowsExported,
+            String manifestStatus
+    ) {
     }
 }

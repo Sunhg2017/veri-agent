@@ -6,7 +6,8 @@ with expected(table_name) as (
         ('test_design_task'),
         ('test_design_candidate'),
         ('test_design_review_record'),
-        ('test_design_publish_record')
+        ('test_design_publish_record'),
+        ('test_design_report_manifest')
 ),
 missing as (
     select e.table_name
@@ -73,7 +74,12 @@ with expected(table_name, constraint_name) as (
         ('test_design_candidate','ck_test_design_candidate_priority'),
         ('test_design_review_record','ck_test_design_review_action'),
         ('test_design_publish_record','ck_test_design_publish_action'),
-        ('test_design_publish_record','ck_test_design_publish_result')
+        ('test_design_publish_record','ck_test_design_publish_result'),
+        ('test_design_report_manifest','ck_test_design_report_manifest_row_counts'),
+        ('test_design_report_manifest','ck_test_design_report_manifest_mode'),
+        ('test_design_report_manifest','ck_test_design_report_manifest_status'),
+        ('test_design_report_manifest','ck_test_design_report_manifest_aggregate_only'),
+        ('test_design_report_manifest','ck_test_design_report_manifest_digest')
 ),
 missing as (
     select e.table_name || '.' || e.constraint_name as item
@@ -107,7 +113,10 @@ select
 with expected(table_name, index_name) as (
     values
         ('asset_test_case', 'uk_asset_test_case_project_ai_source_ref'),
-        ('test_design_publish_record', 'uk_test_design_publish_auto_comp_candidate')
+        ('test_design_publish_record', 'uk_test_design_publish_auto_comp_candidate'),
+        ('test_design_report_manifest', 'uk_test_design_report_manifest_content_digest'),
+        ('test_design_report_manifest', 'idx_test_design_report_manifest_task_created'),
+        ('test_design_report_manifest', 'idx_test_design_report_manifest_project_created')
 ),
 missing as (
     select e.table_name || '.' || e.index_name as item
@@ -120,8 +129,86 @@ missing as (
 select
     'wp5.publish_idempotency_indexes_exist' as check_name,
     case when count(*) = 0 then 'PASS' else 'FAIL' end as status,
-    coalesce(string_agg(item, ', ' order by item), 'WP5 publish sourceRef and compensation idempotency indexes exist') as details
+    coalesce(string_agg(item, ', ' order by item), 'WP5 publish and report manifest idempotency indexes exist') as details
 from missing;
+
+with expected(column_name) as (
+    values
+        ('id'),
+        ('task_id'),
+        ('project_id'),
+        ('schema_version'),
+        ('field_set_version'),
+        ('manifest_mode'),
+        ('row_count_before_manifest'),
+        ('report_row_count'),
+        ('aggregate_only'),
+        ('detail_rows_exported'),
+        ('manifest_status'),
+        ('content_digest'),
+        ('generated_at'),
+        ('created_at')
+),
+missing as (
+    select e.column_name
+    from expected e
+    left join information_schema.columns c
+        on c.table_schema = current_schema()
+       and c.table_name = 'test_design_report_manifest'
+       and c.column_name = e.column_name
+    where c.column_name is null
+)
+select
+    'wp5.report_manifest_columns_exist' as check_name,
+    case when count(*) = 0 then 'PASS' else 'FAIL' end as status,
+    coalesce(string_agg(column_name, ', ' order by column_name), 'WP5 report manifest aggregate-only columns exist') as details
+from missing;
+
+with forbidden(column_name) as (
+    values
+        ('row_digest'),
+        ('row_summary'),
+        ('row_content_summary'),
+        ('candidate_id'),
+        ('candidate_ids'),
+        ('trace_id'),
+        ('trace_ids'),
+        ('audit_id'),
+        ('audit_ids'),
+        ('audit_log_id'),
+        ('audit_log_ids'),
+        ('report_content'),
+        ('csv_content'),
+        ('raw_report')
+),
+found as (
+    select column_name
+    from information_schema.columns c
+    join forbidden f using (column_name)
+    where c.table_schema = current_schema()
+      and c.table_name = 'test_design_report_manifest'
+)
+select
+    'wp5.report_manifest_no_detail_identifier_columns' as check_name,
+    case when count(*) = 0 then 'PASS' else 'FAIL' end as status,
+    coalesce(string_agg(column_name, ', ' order by column_name), 'WP5 report manifest stores no row/candidate/trace/audit detail columns') as details
+from found;
+
+with aggregate_only_constraint as (
+    select pg_get_constraintdef(c.oid) as definition
+    from pg_constraint c
+    where c.conname = 'ck_test_design_report_manifest_aggregate_only'
+      and c.conrelid = (current_schema() || '.test_design_report_manifest')::regclass
+)
+select
+    'wp5.report_manifest_aggregate_only_enforced' as check_name,
+    case when exists (
+        select 1
+        from aggregate_only_constraint
+        where definition like '%aggregate_only%'
+          and definition like '%detail_rows_exported%'
+    ) then 'PASS' else 'FAIL' end as status,
+    coalesce((select definition from aggregate_only_constraint limit 1), 'report manifest aggregate-only constraint missing') as details;
 
 with found as (
     select table_name || '.tenant_id' as item
@@ -157,7 +244,8 @@ with wp5_tables(table_name) as (
         ('test_design_task'),
         ('test_design_candidate'),
         ('test_design_review_record'),
-        ('test_design_publish_record')
+        ('test_design_publish_record'),
+        ('test_design_report_manifest')
 ),
 missing as (
     select t.table_name
@@ -189,7 +277,8 @@ with missing as (
           'test_design_task',
           'test_design_candidate',
           'test_design_review_record',
-          'test_design_publish_record'
+          'test_design_publish_record',
+          'test_design_report_manifest'
       )
       and (
           col_description(pc.oid, pa.attnum) is null

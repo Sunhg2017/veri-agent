@@ -100,6 +100,63 @@ class TestDesignTaskReportServiceTest {
     }
 
     @Test
+    void returnsAggregateManifestSnapshotForPersistence() {
+        StringBuilder csv = new StringBuilder("""
+                recordType,section,metric,label,value,percent,tone,taskId,taskTitle,taskStatus,projectId,scope,generatedAt,dryRun
+                metadata,task,reportType,,WP5_TASK_REPORT_FULL,,,11111111-1111-1111-1111-111111111111,报告任务,SUCCEEDED,project-wp5,fullTask,2026-05-30T00:00:00Z,
+                summary,candidateQuality,metric,publishable,1,100.00,,11111111-1111-1111-1111-111111111111,报告任务,SUCCEEDED,project-wp5,fullTask,2026-05-30T00:00:00Z,
+                """);
+        TestDesignTaskResponse task = new TestDesignTaskResponse(
+                UUID.fromString("11111111-1111-1111-1111-111111111111"),
+                "project-wp5",
+                "报告 manifest token=secret-value",
+                "SUCCEEDED",
+                List.of(),
+                List.of("SMOKE"),
+                "wp5-test-design-v1",
+                "1.0.0",
+                null,
+                null,
+                null,
+                0,
+                0,
+                0,
+                0,
+                null,
+                "auditor",
+                null,
+                "digest",
+                null,
+                TestDesignContextAssemblyPolicy.response(),
+                TestDesignContextPolicyGovernance.response(),
+                TestDesignContextPolicyOperations.response(),
+                null,
+                TestDesignScopePolicy.response(),
+                TestDesignEvaluationCorpusPolicy.response(),
+                TestDesignReleaseReadinessPolicy.response(),
+                TestDesignAuditChainPolicy.response(),
+                TestDesignModelObservationPolicy.response(),
+                archivePolicy(),
+                TestDesignReportManifestPolicy.response(),
+                Map.of(),
+                Instant.parse("2026-05-30T00:00:00Z"),
+                Instant.parse("2026-05-30T00:00:00Z")
+        );
+
+        TestDesignTaskReportManifestRows.ManifestSnapshot snapshot = TestDesignTaskReportManifestRows.appendRows(
+                csv, task, Instant.parse("2026-05-30T00:00:00Z"));
+
+        org.assertj.core.api.Assertions.assertThat(snapshot.schemaVersion()).isEqualTo("wp5-task-report-v1");
+        org.assertj.core.api.Assertions.assertThat(snapshot.fieldSetVersion()).isEqualTo("aggregate-only-v1");
+        org.assertj.core.api.Assertions.assertThat(snapshot.manifestMode()).isEqualTo("AGGREGATE_RECONCILIATION");
+        org.assertj.core.api.Assertions.assertThat(snapshot.rowCountBeforeManifest()).isEqualTo(2L);
+        org.assertj.core.api.Assertions.assertThat(snapshot.reportRowCount()).isEqualTo(8L);
+        org.assertj.core.api.Assertions.assertThat(snapshot.aggregateOnly()).isTrue();
+        org.assertj.core.api.Assertions.assertThat(snapshot.detailRowsExported()).isFalse();
+        org.assertj.core.api.Assertions.assertThat(snapshot.manifestStatus()).isEqualTo("COMPLETE");
+    }
+
+    @Test
     void appendsReportManifestPolicyRowsWithoutRowOrIdentifierDetails() {
         StringBuilder csv = new StringBuilder();
         TestDesignTaskResponse task = new TestDesignTaskResponse(

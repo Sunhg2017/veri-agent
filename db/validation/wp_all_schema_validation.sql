@@ -53,7 +53,8 @@ with expected(table_name) as (
         ('test_design_task'),
         ('test_design_candidate'),
         ('test_design_review_record'),
-        ('test_design_publish_record')
+        ('test_design_publish_record'),
+        ('test_design_report_manifest')
 ),
 missing as (
     select e.table_name
@@ -277,7 +278,14 @@ with expected(table_name, column_name) as (
         ('test_design_review_record','project_id'), ('test_design_review_record','action'), ('test_design_review_record','diff_json'),
         ('test_design_publish_record','id'), ('test_design_publish_record','task_id'), ('test_design_publish_record','candidate_id'),
         ('test_design_publish_record','project_id'), ('test_design_publish_record','requirement_id'), ('test_design_publish_record','asset_case_id'),
-        ('test_design_publish_record','dry_run'), ('test_design_publish_record','action'), ('test_design_publish_record','result')
+        ('test_design_publish_record','dry_run'), ('test_design_publish_record','action'), ('test_design_publish_record','result'),
+        ('test_design_report_manifest','id'), ('test_design_report_manifest','task_id'), ('test_design_report_manifest','project_id'),
+        ('test_design_report_manifest','schema_version'), ('test_design_report_manifest','field_set_version'),
+        ('test_design_report_manifest','manifest_mode'), ('test_design_report_manifest','row_count_before_manifest'),
+        ('test_design_report_manifest','report_row_count'), ('test_design_report_manifest','aggregate_only'),
+        ('test_design_report_manifest','detail_rows_exported'), ('test_design_report_manifest','manifest_status'),
+        ('test_design_report_manifest','content_digest'), ('test_design_report_manifest','generated_at'),
+        ('test_design_report_manifest','created_at')
 ),
 missing as (
     select e.table_name || '.' || e.column_name as item
@@ -362,7 +370,10 @@ with expected(table_name, index_name) as (
         ('test_design_candidate','idx_test_design_candidate_project_status'),
         ('test_design_candidate','idx_test_design_candidate_requirement'),
         ('test_design_review_record','idx_test_design_review_candidate_created'),
-        ('test_design_publish_record','idx_test_design_publish_task_created')
+        ('test_design_publish_record','idx_test_design_publish_task_created'),
+        ('test_design_report_manifest','uk_test_design_report_manifest_content_digest'),
+        ('test_design_report_manifest','idx_test_design_report_manifest_task_created'),
+        ('test_design_report_manifest','idx_test_design_report_manifest_project_created')
 ),
 missing as (
     select e.table_name || '.' || e.index_name as item

@@ -25,6 +25,7 @@ import com.songhg.veri.agent.testdesign.config.TestDesignProperties;
 import com.songhg.veri.agent.testdesign.domain.TestDesignCandidate;
 import com.songhg.veri.agent.testdesign.domain.TestDesignCandidateStatus;
 import com.songhg.veri.agent.testdesign.domain.TestDesignPublishRecord;
+import com.songhg.veri.agent.testdesign.domain.TestDesignReportManifest;
 import com.songhg.veri.agent.testdesign.domain.TestDesignReviewRecord;
 import com.songhg.veri.agent.testdesign.domain.TestDesignTask;
 import java.time.Instant;
@@ -58,6 +59,7 @@ public class TestDesignTaskReportService {
     private final TestDesignRepository repository;
     private final TestDesignPlatformContextClient contextClient;
     private final TestDesignResponseMapper responseMapper;
+    private final TestDesignReportManifestPersistenceService manifestPersistenceService;
     private final TestDesignProperties properties;
     private final ObjectMapper objectMapper;
 
@@ -65,12 +67,14 @@ public class TestDesignTaskReportService {
             TestDesignRepository repository,
             TestDesignPlatformContextClient contextClient,
             TestDesignResponseMapper responseMapper,
+            TestDesignReportManifestPersistenceService manifestPersistenceService,
             TestDesignProperties properties,
             ObjectMapper objectMapper
     ) {
         this.repository = repository;
         this.contextClient = contextClient;
         this.responseMapper = responseMapper;
+        this.manifestPersistenceService = manifestPersistenceService;
         this.properties = properties;
         this.objectMapper = objectMapper;
     }
@@ -141,8 +145,12 @@ public class TestDesignTaskReportService {
                 reviewRecords, publishRecords);
         TestDesignTaskReportExportGovernance.appendRows(csv, taskResponse, generatedAt, properties);
         TestDesignTaskReportManifestPolicyRows.appendRows(csv, taskResponse, generatedAt);
-        TestDesignTaskReportManifestRows.appendRows(csv, taskResponse, generatedAt);
-        TestDesignTaskReportExportGovernance.validateExportSafety(csv.toString());
+        TestDesignTaskReportManifestRows.ManifestSnapshot manifestSnapshot =
+                TestDesignTaskReportManifestRows.appendRows(csv, taskResponse, generatedAt);
+        String reportCsv = csv.toString();
+        TestDesignTaskReportExportGovernance.validateExportSafety(reportCsv);
+        TestDesignReportManifest reportManifest =
+                manifestPersistenceService.save(task, manifestSnapshot, reportCsv, generatedAt);
 
         writeAudit("EXPORT", "TEST_DESIGN_TASK_REPORT", UUID.randomUUID(), task.projectId(), Map.of(
                 "taskId", task.id(),
@@ -150,9 +158,13 @@ public class TestDesignTaskReportService {
                 "candidateCount", candidates.size(),
                 "reviewRecordCount", reviewRecords.size(),
                 "publishRecordCount", publishRecords.size(),
+                "reportManifestStored", true,
+                "reportManifestRowCount", reportManifest.rowCountBeforeManifest(),
+                "reportManifestStatus", reportManifest.manifestStatus(),
+                "reportContentDigestTracked", true,
                 "exportPolicy", "aggregateOnly"
         ));
-        return csv.toString();
+        return reportCsv;
     }
 
     /**
