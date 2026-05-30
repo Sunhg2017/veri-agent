@@ -34,7 +34,7 @@ public record TestDesignGenerationOrchestrationPolicyResponse(
         boolean queueLagMetricReady,
         @Schema(description = "是否输出超时聚合告警")
         boolean timeoutAlertReady,
-        @Schema(description = "多实例压测证据是否就绪")
+        @Schema(description = "多 worker 重复事件认领证据是否就绪")
         boolean multiInstanceLoadTestEvidenceReady,
         @Schema(description = "是否导出事件 payload")
         boolean eventPayloadExported,

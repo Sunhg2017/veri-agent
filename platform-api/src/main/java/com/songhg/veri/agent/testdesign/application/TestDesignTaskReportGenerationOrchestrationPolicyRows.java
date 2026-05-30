@@ -16,8 +16,8 @@ final class TestDesignTaskReportGenerationOrchestrationPolicyRows {
      *
      * <p>The rows document the current WP5 task orchestration contract: async events are consumed through a conditional
      * RUNNING claim, queued events can be re-emitted by recovery scanning, and stale RUNNING tasks are failed for
-     * explicit retry. Operational gaps such as manual event replay and multi-instance evidence remain
-     * visible as fixed flags, while event IDs, queue payloads, task lists and timeout error text stay out of the CSV.
+     * explicit retry. Multi-worker duplicate delivery evidence is exposed as an aggregate readiness flag, while event
+     * IDs, queue payloads, task lists and timeout error text stay out of the CSV.
      */
     static void appendRows(
             StringBuilder csv,

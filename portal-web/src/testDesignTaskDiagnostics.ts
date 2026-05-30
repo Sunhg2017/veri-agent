@@ -397,7 +397,9 @@ export function summarizeTestDesignGenerationOrchestrationPolicy(task: TestDesig
   const manual = policy.asyncGenerationEnabled === false
     ? '人工重发:n/a'
     : policy.manualQueuedEventReplayReady === true ? '人工重发:ready' : '人工重发:pending';
-  const multi = policy.multiInstanceLoadTestEvidenceReady === true ? '多实例证据:ready' : '多实例证据:pending';
+  const multi = policy.asyncGenerationEnabled === false
+    ? '多实例证据:n/a'
+    : policy.multiInstanceLoadTestEvidenceReady === true ? '多实例证据:ready' : '多实例证据:pending';
   const detailExport = anyGenerationOrchestrationDetailExported(policy) ? '细节导出:on' : '细节导出:off';
   const runtime = generationOrchestrationRuntimeSummary(policy);
   return [version, mode, claim, idempotent, replay, recovery, queueLag, timeout, manual, multi, detailExport, runtime]
@@ -622,7 +624,7 @@ function generationOrchestrationPolicyTone(task: TestDesignTaskView): TestDesign
     policy?.queueLagWarning === true ||
     policy?.timeoutWarning === true ||
     (policy?.asyncGenerationEnabled !== false && policy?.manualQueuedEventReplayReady === false) ||
-    policy?.multiInstanceLoadTestEvidenceReady === false ||
+    (policy?.asyncGenerationEnabled !== false && policy?.multiInstanceLoadTestEvidenceReady === false) ||
     policy?.eventRecoveryEnabled === false ||
     policy?.queuedEventReplaySupported === false
   ) {

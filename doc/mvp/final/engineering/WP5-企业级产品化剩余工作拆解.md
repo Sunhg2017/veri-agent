@@ -43,7 +43,7 @@
 | P0 | 企业级上下文装配 | 服务端架构师 | 已补 WP3 需求、WP4 来源摘要、追踪关联资产、历史用例摘要、显式 API/页面/业务流输入、`veri-agent.test-design.context-*` 驱动的裁剪策略快照，以及 health、任务响应、模型上下文打包、任务诊断、任务报告平台默认治理状态快照、`contextPolicyOperations` v2 运营聚合快照和 `contextAssemblyPolicy` v2 装配策略/安全边界共享快照；`contextAssemblyPolicy` v2 已统一输出装配模式、digest 策略、摘要持久化、WP3 应用服务边界、原文/模型载荷持久化和明细导出红线；`contextPolicyOperations` v2 已统一输出策略解析顺序、回退行为、审批状态、项目/环境覆盖存储与审批流就绪状态；仍缺按项目/环境的运营后台和策略变更审批。 | 上下文有裁剪、脱敏、inputDigest、来源引用和不泄露原文的策略可观测性。 |
 | P0 | 输出 Schema 和质量门禁 | 质量工程师 | 已补候选 JSON Schema、模型原始输出 JSON Schema/parser、生成/编辑落库前质量门禁、重复键和敏感泄露阻断、任务报告 `readinessPolicy` 准出阈值运营聚合，`evaluationCorpusPolicy` 评测语料运营策略在 health、任务响应、`contextSummary`、模型 `contextPacking`、任务报告和前端诊断中的聚合快照，以及 `releaseReadinessPolicy` 发布准出审批策略聚合快照；仍缺真实 WP2 provider 联调、评测语料运营后台、长期校准后台和可阻断发布流的真实审批工作流。 | 不合格输出不得静默落库；golden set 阈值可回归；运营报表能看到当前评测语料、准出阈值、advisory-only 发布准出边界与风险项。 |
 | P0 | 重复和冲突治理 | 服务端架构师 | 已补 `LINK_EXISTING`、同需求高相似 `DUPLICATE_REVIEW_REQUIRED`、可配置相似度阈值策略、人工链接既有用例服务端入口、后端批量冲突处理接口、前端发布冲突搜索、批量复用入口和跨页候选版本快照；仍缺补偿后台和完整资产冲突运营台。 | 发布前能识别同 sourceRef、同需求高相似和已发布候选；人工确认后可审计地链接既有用例。 |
-| P0 | 任务编排与幂等 | 项目经理、服务端架构师 | 已补 retry/cancel 契约、状态保护、创建任务幂等键、前端稳定幂等提交键、requestDigest 冲突检测、DB 事务锁、`QUEUED -> RUNNING` 条件认领、事件恢复扫描、运行中超时失败回收、人工排队事件重发入口、队列 lag 聚合指标、超时聚合告警，以及 health/任务响应/contextSummary/模型 contextPacking/任务诊断/任务报告共用的 `generationOrchestrationPolicy` 编排策略快照；仍缺跨 WP 补偿后台和多实例压测证据。 | 重试不重复污染候选；取消可阻断排队/运行中任务；重复请求、重复事件、排队滞留和运行中卡死可识别，运营报表能看到当前编排能力边界和缺口。 |
+| P0 | 任务编排与幂等 | 项目经理、服务端架构师 | 已补 retry/cancel 契约、状态保护、创建任务幂等键、前端稳定幂等提交键、requestDigest 冲突检测、DB 事务锁、`QUEUED -> RUNNING` 条件认领、事件恢复扫描、运行中超时失败回收、人工排队事件重发入口、队列 lag 聚合指标、超时聚合告警、多 worker 并发重复事件认领证据，以及 health/任务响应/contextSummary/模型 contextPacking/任务诊断/任务报告共用的 `generationOrchestrationPolicy` 编排策略快照；仍缺跨 WP 补偿后台。 | 重试不重复污染候选；取消可阻断排队/运行中任务；重复请求、重复事件、排队滞留和运行中卡死可识别，运营报表能看到当前编排能力边界和缺口。 |
 | P0 | 权限和资源作用域加固 | 服务端架构师、质量工程师 | 已补批量候选操作和候选导出按候选/任务项目 scope 鉴权；新增 `scopePolicy` 聚合快照并同步到 health、任务响应、`contextSummary.scopePolicy`、模型 `contextPacking.scopePolicy`、前端任务诊断和任务报告，固定声明任务/候选/批量/发布/异步生成按项目 scope、HTTP smoke 和质量评测项目隔离，以及候选 ID/角色规则/服务令牌原值不导出；`evaluationCorpusPolicy` 已单独声明评测语料项目作用域、golden set 基线和导出红线；仍缺跨 WP 统一作用域看板和评测语料运营后台。 | 项目角色不能操作其他项目候选；服务令牌调用可审计，运营报表能看到当前 scope、评测语料边界和缺口。 |
 | P0 | 发布幂等和补偿 | 服务端架构师 | 已补 AI 生成用例 `sourceRef` 服务层回放、事务级锁、数据库唯一约束、部分成功补链重试和任务报告 `publishCompensationPolicy` 补偿策略聚合快照；仍缺补偿后台和异步跨 WP 事务编排。 | 重复发布不重复建用例；失败有记录和可重试策略，运营报表能看到当前补偿能力边界。 |
 | P0 | HTTP smoke 常态化 | 质量工程师 | 已补 managed HTTP smoke runtime，显式开启时可自启动临时 PostgreSQL 和 `platform-api`；默认 gate 仍避免无意启动 Docker。 | 发布前执行 `WP5_RUN_HTTP_SMOKE=1 bash scripts/wp5_quality_gate.sh`，或对既有环境执行 `WP5_RUN_HTTP_SMOKE=external WP5_SMOKE_BASE_URL=... bash scripts/wp5_quality_gate.sh`。 |
@@ -162,13 +162,13 @@
 | 风险 | 当前处置 | 后续动作 |
 |---|---|---|
 | 规则模板被误认为真实 AI | 默认仍为 `generationMode=RULE_TEMPLATE`；模型模式成功会带 `modelInvocationId/provider/model`，降级模式会保留任务级降级提示；前端已在任务、候选和诊断区展示“模型输出/模型降级模板/规则模板/模型待生成”来源标签。 | 后续继续接入真实 provider 后校准 Prompt 质量、趋势对比和人工反馈回流。 |
-| 重试或重复事件导致候选重复 | 重试按 duplicateKey 跳过已有候选；异步事件消费通过 `QUEUED -> RUNNING` 条件认领，重复事件只返回当前任务；运行中超时只标记失败，不自动重放生成。 | 继续补补偿后台和多实例压测。 |
-| 任务停留排队或运行态 | 任务先持久化为 `QUEUED`，提交事件后后台消费；恢复扫描会重发排队事件，并将超时 `RUNNING` 标记为可重试失败；人工入口可对仍处于 `QUEUED` 的任务重发生成事件；`generationOrchestrationPolicy` 输出编排能力、队列 lag 指标、超时告警和排队/运行/超时聚合信号；HTTP smoke 和前端均按异步状态轮询。 | 后续补多实例压测证据和跨 WP 补偿后台。 |
+| 重试或重复事件导致候选重复 | 重试按 duplicateKey 跳过已有候选；异步事件消费通过 `QUEUED -> RUNNING` 条件认领，重复事件只返回当前任务；运行中超时只标记失败，不自动重放生成。 | 继续补跨 WP 补偿后台。 |
+| 任务停留排队或运行态 | 任务先持久化为 `QUEUED`，提交事件后后台消费；恢复扫描会重发排队事件，并将超时 `RUNNING` 标记为可重试失败；人工入口可对仍处于 `QUEUED` 的任务重发生成事件；`generationOrchestrationPolicy` 输出编排能力、队列 lag 指标、超时告警和排队/运行/超时聚合信号；HTTP smoke 和前端均按异步状态轮询。 | 后续补跨 WP 补偿后台。 |
 | 发布重复创建 WP3 用例 | 本次已按 `sourceRef=wp5:{candidateId}` 识别已存在用例并链接，新增 AI `sourceRef` 部分唯一索引、迁移前重复数据预检、服务层事务级锁和失败重试补链，并补同需求高相似用例检测、可配置相似度阈值和人工冲突链接入口。 | 继续补完整前端冲突运营台和异步补偿后台。 |
 | 本地脱敏覆盖不足 | 本次只覆盖明显 secret/token 模式。 | 上下文 packer 接入统一敏感字段分类和 WP2 策略。 |
 | 候选质量门禁过严影响人工编辑 | 编辑器已在保存前给出字段级质量提示，覆盖步骤数量、预期结果、重复标题和敏感文本；后端仍是最终准入。 | 后续将阈值逐步配置化，并把批量编辑纳入同一提示体系。 |
 | 模型响应结构漂移 | 模型原始 JSON 已通过 parser 做字段白名单、必填、枚举、步骤数量和敏感文本校验，非法响应在严格模型模式下阻断落库，在 fallback 模式下回退模板并留任务提示；前端任务诊断已展示 prompt/version、`modelInvocationId`、模型观测摘要、错误摘要和上下文键摘要。 | 接入真实 provider 后继续补端到端审计链看板、Prompt 趋势对比和人工反馈回流。 |
-| 幂等键被误复用 | 已对同项目同 key 存储 requestDigest，不同 payload 返回 `CONFLICT`，并用事务级锁降低并发重复提交竞态；前端按创建 payload 签名生成一次性幂等键，同一失败请求重试复用，成功后轮换。 | 后续在任务列表展示回放来源，并补多实例压测证据。 |
+| 幂等键被误复用 | 已对同项目同 key 存储 requestDigest，不同 payload 返回 `CONFLICT`，并用事务级锁降低并发重复提交竞态；前端按创建 payload 签名生成一次性幂等键，同一失败请求重试复用，成功后轮换。 | 后续在任务列表展示回放来源，并补跨 WP 补偿后台。 |
 | 失败原因难定位 | 任务响应已从 WP2 调用日志和异步 job 读取脱敏模型观测摘要；前端任务诊断面板展示调用 ID、traceId、成本、延迟、token、fallback、错误码、脱敏错误摘要、`inputDigest`、`idempotencyKey` 和上下文键摘要；任务本域审计链摘要展示 WP5 任务、评审和发布记录的最近事件、失败冲突和说明覆盖，便于人工定位回放或失败链路。 | 后续串联 WP1 审计、WP2 调用、WP5 任务和 WP3 发布记录，形成端到端观测看板。 |
 | 前端质量摘要被误解为任务全量指标 | 工作台已优先使用后端 `quality/summary` 展示任务全量质量指标和准出阈值摘要；接口只返回聚合计数、分布、比例和阈值检查，不暴露候选正文、步骤正文、错误原文或评审评论。 | 后续补 golden set 趋势、真实样本集维护和真实 Prompt 版本长期校准。 |
 | 评审历史摘要被误解为任务全量审计 | 面板明确标注“当前评审页 x-y / total”，摘要 helper 只聚合当前页动作、字段和评审人计数，不暴露评论预览正文。 | 后续由后端提供任务全量审计汇总、归档状态和导出留痕，前端再区分页级与任务级审计看板。 |

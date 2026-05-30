@@ -135,7 +135,7 @@ public final class TestDesignGenerationOrchestrationPolicy {
                 asyncEnabled,
                 true,
                 true,
-                false,
+                asyncEnabled,
                 false,
                 false,
                 false,

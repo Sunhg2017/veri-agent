@@ -11,8 +11,13 @@ import com.songhg.veri.agent.testdesign.domain.TestDesignTask;
 import com.songhg.veri.agent.testdesign.domain.TestDesignTaskStatus;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -24,6 +29,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatNoException;
 import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -95,6 +101,44 @@ class TestDesignAsyncGenerationControllerTest {
 
         testDesignTaskService.processQueuedTask(taskUuid);
         assertThat(testDesignRepository.candidatesByTask(taskUuid)).hasSize(2);
+    }
+
+    @Test
+    void concurrentDuplicateGenerationEventsAreClaimedByOnlyOneWorker() throws Exception {
+        String userToken = userAccessToken(List.of("ProjectOwner@PROJECT:project-wp5"));
+        String requirementId = createRequirement(userToken);
+        String taskId = UUID.randomUUID().toString();
+        UUID taskUuid = UUID.fromString(taskId);
+        saveQueuedTask(taskId, requirementId);
+
+        int workerCount = 8;
+        CountDownLatch start = new CountDownLatch(1);
+        ExecutorService workers = Executors.newFixedThreadPool(workerCount);
+        List<java.util.concurrent.Future<?>> futures = new ArrayList<>();
+        for (int index = 0; index < workerCount; index++) {
+            futures.add(workers.submit(() -> {
+                start.await();
+                testDesignTaskService.processQueuedTask(taskUuid);
+                return null;
+            }));
+        }
+
+        start.countDown();
+        for (var future : futures) {
+            assertThatNoException().isThrownBy(() -> future.get(10, TimeUnit.SECONDS));
+        }
+        workers.shutdown();
+        assertThat(workers.awaitTermination(10, TimeUnit.SECONDS)).isTrue();
+
+        mockMvc.perform(get("/api/v1/test-design/tasks/{id}", taskId)
+                        .header("Authorization", "Bearer " + userToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.task.status").value("SUCCEEDED"))
+                .andExpect(jsonPath("$.data.task.generatedCount").value(1))
+                .andExpect(jsonPath("$.data.task.generationOrchestrationPolicy.multiInstanceLoadTestEvidenceReady")
+                        .value(true))
+                .andExpect(jsonPath("$.data.candidates", hasSize(1)));
+        assertThat(testDesignRepository.candidatesByTask(taskUuid)).hasSize(1);
     }
 
     @Test

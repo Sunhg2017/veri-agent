@@ -201,7 +201,7 @@ const baseTask: TestDesignTaskView = {
     manualQueuedEventReplayReady: true,
     queueLagMetricReady: true,
     timeoutAlertReady: true,
-    multiInstanceLoadTestEvidenceReady: false,
+    multiInstanceLoadTestEvidenceReady: true,
     eventPayloadExported: false,
     eventIdentifierListExported: false,
     queueMessageBodyExported: false,
@@ -296,8 +296,8 @@ describe('WP5 task diagnostics helpers', () => {
         }),
         expect.objectContaining({
           label: '编排策略',
-          tone: 'warning',
-          value: 'wp5-generation-orchestration-policy-v1 · ASYNC_EVENT_CONDITIONAL_CLAIM · 条件认领:ready · 幂等回放:ready · 重复事件:safe · 恢复扫描:on · 队列lag:ready · 超时告警:ready · 人工重发:ready · 多实例证据:pending · 细节导出:off · lag阈值:120s / 超时阈值:600s / 排队:2 / 运行:1 / 最旧排队:95s / 超时运行:0'
+          tone: 'neutral',
+          value: 'wp5-generation-orchestration-policy-v1 · ASYNC_EVENT_CONDITIONAL_CLAIM · 条件认领:ready · 幂等回放:ready · 重复事件:safe · 恢复扫描:on · 队列lag:ready · 超时告警:ready · 人工重发:ready · 多实例证据:ready · 细节导出:off · lag阈值:120s / 超时阈值:600s / 排队:2 / 运行:1 / 最旧排队:95s / 超时运行:0'
         }),
         expect.objectContaining({ label: '调用链路', value: expect.stringContaining('trc_wp5_mod') }),
         expect.objectContaining({ label: '调用任务', value: expect.stringContaining('job-abcdef1') }),
@@ -437,7 +437,7 @@ describe('WP5 task diagnostics helpers', () => {
           manualQueuedEventReplayReady: true,
           queueLagMetricReady: true,
           timeoutAlertReady: true,
-          multiInstanceLoadTestEvidenceReady: false,
+          multiInstanceLoadTestEvidenceReady: true,
           eventPayloadExported: false,
           eventIdentifierListExported: false,
           queueMessageBodyExported: false,

@@ -904,7 +904,7 @@ class TestDesignTaskReportServiceTest {
                 .contains("generationOrchestrationPolicy,manualQueuedEventReplayReady,,true,,success")
                 .contains("generationOrchestrationPolicy,queueLagMetricReady,,true,,success")
                 .contains("generationOrchestrationPolicy,timeoutAlertReady,,true,,success")
-                .contains("generationOrchestrationPolicy,multiInstanceLoadTestEvidenceReady,,false,,warning")
+                .contains("generationOrchestrationPolicy,multiInstanceLoadTestEvidenceReady,,true,,success")
                 .contains("generationOrchestrationPolicy,eventPayloadExported,,false")
                 .contains("generationOrchestrationPolicy,eventIdentifierListExported,,false")
                 .contains("generationOrchestrationPolicy,queueMessageBodyExported,,false")
