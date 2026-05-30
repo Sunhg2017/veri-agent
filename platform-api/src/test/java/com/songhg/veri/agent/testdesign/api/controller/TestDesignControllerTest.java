@@ -919,6 +919,45 @@ class TestDesignControllerTest {
         MatcherAssert.assertThat(csv, startsWith("recordType,section,metric,label,value,percent,tone,taskId"));
         MatcherAssert.assertThat(csv, containsString("WP5_TASK_REPORT_FULL"));
         MatcherAssert.assertThat(csv, containsString("fullTask"));
+        MatcherAssert.assertThat(csv, containsString(
+                "generationOrchestrationPolicy,policyVersion,,wp5-generation-orchestration-policy-v1"));
+        MatcherAssert.assertThat(csv, containsString(
+                "generationOrchestrationPolicy,orchestrationMode,,SYNC_INLINE_GENERATION"));
+        MatcherAssert.assertThat(csv, containsString("generationOrchestrationPolicy,asyncGenerationEnabled,,false"));
+        MatcherAssert.assertThat(csv, containsString(
+                "generationOrchestrationPolicy,conditionalRunClaimSupported,,true"));
+        MatcherAssert.assertThat(csv, containsString(
+                "generationOrchestrationPolicy,idempotentCreateReplaySupported,,true"));
+        MatcherAssert.assertThat(csv, containsString("generationOrchestrationPolicy,duplicateEventReplaySafe,,true"));
+        MatcherAssert.assertThat(csv, containsString("generationOrchestrationPolicy,eventRecoveryEnabled,,true"));
+        MatcherAssert.assertThat(csv, containsString("generationOrchestrationPolicy,queuedEventReplaySupported,,false"));
+        MatcherAssert.assertThat(csv, containsString(
+                "generationOrchestrationPolicy,runningTimeoutRecoveryEnabled,,true"));
+        MatcherAssert.assertThat(csv, containsString(
+                "generationOrchestrationPolicy,explicitRetryRequiredAfterTimeout,,true"));
+        MatcherAssert.assertThat(csv, containsString("generationOrchestrationPolicy,manualTaskRetrySupported,,true"));
+        MatcherAssert.assertThat(csv, containsString("generationOrchestrationPolicy,manualQueuedEventReplayReady,,false"));
+        MatcherAssert.assertThat(csv, containsString("generationOrchestrationPolicy,queueLagMetricReady,,false"));
+        MatcherAssert.assertThat(csv, containsString("generationOrchestrationPolicy,timeoutAlertReady,,false"));
+        MatcherAssert.assertThat(csv, containsString(
+                "generationOrchestrationPolicy,multiInstanceLoadTestEvidenceReady,,false"));
+        MatcherAssert.assertThat(csv, containsString("generationOrchestrationPolicy,eventPayloadExported,,false"));
+        MatcherAssert.assertThat(csv, containsString(
+                "generationOrchestrationPolicy,eventIdentifierListExported,,false"));
+        MatcherAssert.assertThat(csv, containsString("generationOrchestrationPolicy,queueMessageBodyExported,,false"));
+        MatcherAssert.assertThat(csv, containsString(
+                "generationOrchestrationPolicy,recoveryDetailRowsExported,,false"));
+        MatcherAssert.assertThat(csv, containsString(
+                "generationOrchestrationPolicy,metric,effectiveRecoveryBatchSize,100,,info"));
+        MatcherAssert.assertThat(csv, containsString(
+                "generationOrchestrationPolicy,metric,runningTimeoutSeconds,600,,info"));
+        MatcherAssert.assertThat(csv, containsString(
+                "generationOrchestrationPolicy,metric,queuedStatusSignal,0,,neutral"));
+        MatcherAssert.assertThat(csv, containsString(
+                "generationOrchestrationPolicy,metric,runningStatusSignal,0,,neutral"));
+        MatcherAssert.assertThat(csv, containsString(
+                "generationOrchestrationPolicy,metric,timeoutFailureSignal,0,,neutral"));
+        MatcherAssert.assertThat(csv, containsString("generationOrchestrationPolicy,aggregateOnly,,true"));
         MatcherAssert.assertThat(csv, containsString("candidateQuality,distribution:status,PUBLISHED"));
         MatcherAssert.assertThat(csv, containsString("candidateQuality,distribution:status,REJECTED"));
         MatcherAssert.assertThat(csv, containsString("readinessPolicy,policyVersion,,wp5-quality-readiness-policy-v1"));

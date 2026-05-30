@@ -128,6 +128,7 @@ public class TestDesignTaskReportService {
         StringBuilder csv = new StringBuilder();
         appendTaskReportHeader(csv);
         appendTaskReportTaskRows(csv, taskResponse, generatedAt);
+        TestDesignTaskReportGenerationOrchestrationPolicyRows.appendRows(csv, taskResponse, generatedAt, properties);
         appendTaskReportContextRows(csv, taskResponse, generatedAt);
         appendTaskReportModelObservationRows(csv, taskResponse, generatedAt);
         TestDesignTaskReportModelObservationPolicyRows.appendRows(csv, taskResponse, generatedAt);

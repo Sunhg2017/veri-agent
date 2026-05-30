@@ -525,6 +525,74 @@ class TestDesignTaskReportServiceTest {
     }
 
     @Test
+    void appendsGenerationOrchestrationPolicyRowsWithoutEventDetails() {
+        StringBuilder csv = new StringBuilder();
+        TestDesignTaskResponse task = new TestDesignTaskResponse(
+                UUID.fromString("11111111-1111-1111-1111-111111111111"),
+                "project-wp5",
+                "生成编排策略报告 token=secret-value",
+                "FAILED",
+                List.of(),
+                List.of("SMOKE"),
+                "wp5-test-design-v1",
+                "1.0.0",
+                null,
+                null,
+                null,
+                0,
+                0,
+                0,
+                0,
+                "eventId=evt-secret queueMessageBody token=secret-value 运行超时",
+                "auditor",
+                "idempotency-key-secret",
+                "digest",
+                null,
+                TestDesignContextPolicyGovernance.response(),
+                Map.of(),
+                Instant.parse("2026-05-30T00:00:00Z"),
+                Instant.parse("2026-05-30T00:00:00Z")
+        );
+
+        TestDesignTaskReportGenerationOrchestrationPolicyRows.appendRows(
+                csv, task, Instant.parse("2026-05-30T00:00:00Z"), properties(180, false, true));
+
+        String report = csv.toString();
+        assertDoesNotThrow(() -> TestDesignTaskReportExportGovernance.validateExportSafety(report));
+        org.assertj.core.api.Assertions.assertThat(report)
+                .contains("generationOrchestrationPolicy,policyVersion,,wp5-generation-orchestration-policy-v1")
+                .contains("generationOrchestrationPolicy,orchestrationMode,,ASYNC_EVENT_CONDITIONAL_CLAIM,,success")
+                .contains("generationOrchestrationPolicy,asyncGenerationEnabled,,true,,success")
+                .contains("generationOrchestrationPolicy,conditionalRunClaimSupported,,true,,success")
+                .contains("generationOrchestrationPolicy,idempotentCreateReplaySupported,,true,,success")
+                .contains("generationOrchestrationPolicy,duplicateEventReplaySafe,,true,,success")
+                .contains("generationOrchestrationPolicy,eventRecoveryEnabled,,true,,success")
+                .contains("generationOrchestrationPolicy,queuedEventReplaySupported,,true,,success")
+                .contains("generationOrchestrationPolicy,runningTimeoutRecoveryEnabled,,true,,success")
+                .contains("generationOrchestrationPolicy,explicitRetryRequiredAfterTimeout,,true,,success")
+                .contains("generationOrchestrationPolicy,manualTaskRetrySupported,,true,,success")
+                .contains("generationOrchestrationPolicy,manualQueuedEventReplayReady,,false,,warning")
+                .contains("generationOrchestrationPolicy,queueLagMetricReady,,false,,warning")
+                .contains("generationOrchestrationPolicy,timeoutAlertReady,,false,,warning")
+                .contains("generationOrchestrationPolicy,multiInstanceLoadTestEvidenceReady,,false,,warning")
+                .contains("generationOrchestrationPolicy,eventPayloadExported,,false")
+                .contains("generationOrchestrationPolicy,eventIdentifierListExported,,false")
+                .contains("generationOrchestrationPolicy,queueMessageBodyExported,,false")
+                .contains("generationOrchestrationPolicy,recoveryDetailRowsExported,,false")
+                .contains("generationOrchestrationPolicy,metric,effectiveRecoveryBatchSize,100,,info")
+                .contains("generationOrchestrationPolicy,metric,runningTimeoutSeconds,600,,info")
+                .contains("generationOrchestrationPolicy,metric,queuedStatusSignal,0,,neutral")
+                .contains("generationOrchestrationPolicy,metric,runningStatusSignal,0,,neutral")
+                .contains("generationOrchestrationPolicy,metric,timeoutFailureSignal,1,,warning")
+                .contains("generationOrchestrationPolicy,aggregateOnly,,true,,success")
+                .doesNotContain("secret-value")
+                .doesNotContain("evt-secret")
+                .doesNotContain("queueMessageBody token")
+                .doesNotContain("idempotency-key-secret")
+                .doesNotContain("运行超时");
+    }
+
+    @Test
     void appendsReadinessPolicyRowsWithoutCandidateEvidence() {
         StringBuilder csv = new StringBuilder();
         TestDesignTaskResponse task = new TestDesignTaskResponse(
