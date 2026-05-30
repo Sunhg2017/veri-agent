@@ -588,6 +588,7 @@ public class TestDesignTaskReportService {
                 countsBy(records, TestDesignPublishRecord::action), total);
         appendTaskReportDistributionRows(csv, task, generatedAt, "publish", "result",
                 countsBy(records, TestDesignPublishRecord::result), total);
+        TestDesignTaskReportPublishCompensationPolicyRows.appendRows(csv, task, generatedAt, records);
     }
 
     private static void appendTaskReportWarning(

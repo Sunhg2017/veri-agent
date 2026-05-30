@@ -5,6 +5,7 @@ import com.songhg.veri.agent.testdesign.application.view.TestDesignQualityReadin
 import com.songhg.veri.agent.testdesign.application.view.TestDesignQualityReadinessResponse;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignTaskResponse;
 import com.songhg.veri.agent.testdesign.config.TestDesignProperties;
+import com.songhg.veri.agent.testdesign.domain.TestDesignPublishRecord;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -194,6 +195,85 @@ class TestDesignTaskReportServiceTest {
     }
 
     @Test
+    void appendsPublishCompensationPolicyRowsWithoutPublishDetails() {
+        StringBuilder csv = new StringBuilder();
+        TestDesignTaskResponse task = new TestDesignTaskResponse(
+                UUID.fromString("11111111-1111-1111-1111-111111111111"),
+                "project-wp5",
+                "发布补偿报告 token=secret-value",
+                "SUCCEEDED",
+                List.of(),
+                List.of("SMOKE"),
+                "wp5-test-design-v1",
+                "1.0.0",
+                null,
+                null,
+                null,
+                0,
+                0,
+                0,
+                0,
+                null,
+                "auditor",
+                null,
+                "digest",
+                null,
+                TestDesignContextPolicyGovernance.response(),
+                Map.of(),
+                Instant.parse("2026-05-30T00:00:00Z"),
+                Instant.parse("2026-05-30T00:00:00Z")
+        );
+        UUID retryCandidateId = UUID.fromString("22222222-2222-2222-2222-222222222222");
+        UUID assetCaseId = UUID.fromString("33333333-3333-3333-3333-333333333333");
+        List<TestDesignPublishRecord> records = List.of(
+                publishRecord(task.id(), retryCandidateId, assetCaseId, "RETRY_LINK_EXISTING", "SUCCEEDED", null),
+                publishRecord(task.id(), UUID.fromString("44444444-4444-4444-4444-444444444444"),
+                        UUID.fromString("55555555-5555-5555-5555-555555555555"),
+                        "MANUAL_LINK_EXISTING", "SUCCEEDED", null),
+                publishRecord(task.id(), UUID.fromString("66666666-6666-6666-6666-666666666666"),
+                        UUID.fromString("77777777-7777-7777-7777-777777777777"),
+                        "DUPLICATE_REVIEW_REQUIRED", "CONFLICT", "WP3-CASE-001 high similar sourceRef=wp5:secret"),
+                publishRecord(task.id(), UUID.fromString("88888888-8888-8888-8888-888888888888"),
+                        null, "CREATE", "FAILED", "traceId=trace-secret token=secret-value")
+        );
+
+        TestDesignTaskReportPublishCompensationPolicyRows.appendRows(
+                csv, task, Instant.parse("2026-05-30T00:00:00Z"), records);
+
+        String report = csv.toString();
+        assertDoesNotThrow(() -> TestDesignTaskReportExportGovernance.validateExportSafety(report));
+        org.assertj.core.api.Assertions.assertThat(report)
+                .contains("publishCompensationPolicy,policyVersion,,wp5-publish-compensation-policy-v1")
+                .contains("publishCompensationPolicy,replayKeyFamily,,AI_GENERATED_CASE_KEY")
+                .contains("publishCompensationPolicy,idempotentReplaySupported,,true,,success")
+                .contains("publishCompensationPolicy,partialTraceLinkRepairSupported,,true,,success")
+                .contains("publishCompensationPolicy,failedCandidateRetrySupported,,true,,success")
+                .contains("publishCompensationPolicy,manualConflictLinkSupported,,true,,success")
+                .contains("publishCompensationPolicy,asyncCompensationBackendReady,,false,,warning")
+                .contains("publishCompensationPolicy,crossWpTransactionOrchestrationReady,,false,,warning")
+                .contains("publishCompensationPolicy,candidateEvidenceExported,,false")
+                .contains("publishCompensationPolicy,errorTextExported,,false")
+                .contains("publishCompensationPolicy,caseIdentifierListExported,,false")
+                .contains("publishCompensationPolicy,traceDetailListExported,,false")
+                .contains("publishCompensationPolicy,metric,retryLinkExistingCount,1,,info")
+                .contains("publishCompensationPolicy,metric,linkExistingCount,0,,neutral")
+                .contains("publishCompensationPolicy,metric,manualLinkExistingCount,1,,info")
+                .contains("publishCompensationPolicy,metric,conflictCount,1,,warning")
+                .contains("publishCompensationPolicy,metric,failedCount,1,,warning")
+                .contains("publishCompensationPolicy,aggregateOnly,,true,,success")
+                .doesNotContain("secret-value")
+                .doesNotContain(retryCandidateId.toString())
+                .doesNotContain(assetCaseId.toString())
+                .doesNotContain("sourceRef")
+                .doesNotContain("WP3-CASE-001")
+                .doesNotContain("trace-secret")
+                .doesNotContain("candidateIds")
+                .doesNotContain("assetCaseIds")
+                .doesNotContain("traceIds")
+                .doesNotContain("reviewComments");
+    }
+
+    @Test
     void appendsContextPolicyOperationsRowsWithoutPolicyDetails() {
         StringBuilder csv = new StringBuilder();
         TestDesignTaskResponse task = new TestDesignTaskResponse(
@@ -369,6 +449,30 @@ class TestDesignTaskReportServiceTest {
                 reportArchiveRetentionDays,
                 externalSharingAllowed,
                 approvalRequired
+        );
+    }
+
+    private static TestDesignPublishRecord publishRecord(
+            UUID taskId,
+            UUID candidateId,
+            UUID assetCaseId,
+            String action,
+            String result,
+            String errorMessage
+    ) {
+        return new TestDesignPublishRecord(
+                UUID.randomUUID(),
+                taskId,
+                candidateId,
+                "project-wp5",
+                UUID.fromString("99999999-9999-9999-9999-999999999999"),
+                assetCaseId,
+                false,
+                action,
+                result,
+                errorMessage,
+                "auditor",
+                Instant.parse("2026-05-30T00:00:00Z")
         );
     }
 }
