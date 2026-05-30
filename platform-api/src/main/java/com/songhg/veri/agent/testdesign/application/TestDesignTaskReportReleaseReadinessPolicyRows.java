@@ -11,11 +11,11 @@ final class TestDesignTaskReportReleaseReadinessPolicyRows {
     }
 
     /**
-     * Appends release-readiness approval boundaries without changing publish authorization semantics.
+     * Appends release-readiness approval boundaries without exporting candidate-level evidence.
      *
-     * <p>Quality readiness remains advisory in WP5. These rows make the missing publish-blocking approval workflow
-     * visible to release reviewers while keeping candidate evidence, threshold rule details and approval notes out of
-     * the exported report.
+     * <p>Quality readiness can block official publish when deployment config enables it. Manual approval and override
+     * workflow fields remain explicit capability gaps, and threshold rule details and approval notes stay out of the
+     * exported report.
      */
     static void appendRows(
             StringBuilder csv,

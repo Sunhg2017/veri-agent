@@ -2,6 +2,7 @@ package com.songhg.veri.agent.testdesign.application;
 
 import com.songhg.veri.agent.testdesign.application.view.TestDesignQualityReadinessCheckResponse;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignQualityReadinessResponse;
+import com.songhg.veri.agent.testdesign.application.view.TestDesignReleaseReadinessPolicyResponse;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignTaskResponse;
 import java.time.Instant;
 
@@ -16,9 +17,8 @@ final class TestDesignTaskReportReadinessPolicyRows {
     /**
      * Appends aggregate readiness thresholds for release review without exporting candidate-level evidence.
      *
-     * <p>The rows expose only fixed policy metadata, status counters and bounded numeric threshold values. They are
-     * intentionally advisory in WP5's current slice and must not be treated as a candidate publishing authorization
-     * change until the release workflow explicitly enables blocking semantics.
+     * <p>The rows expose only fixed policy metadata, status counters, the configured publish-blocking boundary and
+     * bounded numeric threshold values. They must not be treated as a manual approval record or override workflow.
      */
     static void appendRows(
             StringBuilder csv,
@@ -26,6 +26,9 @@ final class TestDesignTaskReportReadinessPolicyRows {
             Instant generatedAt,
             TestDesignQualityReadinessResponse readiness
     ) {
+        TestDesignReleaseReadinessPolicyResponse releasePolicy = task.releaseReadinessPolicy() == null
+                ? TestDesignReleaseReadinessPolicy.response()
+                : task.releaseReadinessPolicy();
         TestDesignTaskReportService.appendTaskReportRow(csv, task, generatedAt,
                 "metadata", "readinessPolicy", "policyVersion", null,
                 POLICY_VERSION, null, null, "fullTask", null);
@@ -34,10 +37,12 @@ final class TestDesignTaskReportReadinessPolicyRows {
                 THRESHOLD_SOURCE, null, null, "fullTask", null);
         TestDesignTaskReportService.appendTaskReportRow(csv, task, generatedAt,
                 "metadata", "readinessPolicy", "advisoryOnly", null,
-                true, null, "warning", "fullTask", null);
+                releasePolicy.advisoryOnly(), null, releasePolicy.advisoryOnly() ? "warning" : "success",
+                "fullTask", null);
         TestDesignTaskReportService.appendTaskReportRow(csv, task, generatedAt,
                 "metadata", "readinessPolicy", "publishBlockingEnabled", null,
-                false, null, "warning", "fullTask", null);
+                releasePolicy.publishBlockingEnabled(), null,
+                releasePolicy.publishBlockingEnabled() ? "success" : "warning", "fullTask", null);
         TestDesignTaskReportService.appendTaskReportRow(csv, task, generatedAt,
                 "summary", "readinessPolicy", "readinessStatus", null,
                 readiness.status(), null, readinessTone(readiness.status()), "fullTask", null);

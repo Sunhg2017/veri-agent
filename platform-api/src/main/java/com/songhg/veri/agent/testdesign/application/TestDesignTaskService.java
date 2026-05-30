@@ -113,7 +113,7 @@ public class TestDesignTaskService {
                 TestDesignGenerationOrchestrationPolicy.response(properties, orchestrationRuntimeSnapshot(Instant.now())),
                 TestDesignScopePolicy.response(),
                 TestDesignEvaluationCorpusPolicy.response(),
-                TestDesignReleaseReadinessPolicy.response(),
+                TestDesignReleaseReadinessPolicy.response(properties),
                 TestDesignAuditChainPolicy.response(),
                 TestDesignModelObservationPolicy.response(),
                 TestDesignArchivePolicy.response(properties),
@@ -630,7 +630,7 @@ public class TestDesignTaskService {
         payload.put("generationOrchestrationPolicy", TestDesignGenerationOrchestrationPolicy.snapshot(properties));
         payload.put("scopePolicy", TestDesignScopePolicy.snapshot());
         payload.put("evaluationCorpusPolicy", TestDesignEvaluationCorpusPolicy.snapshot());
-        payload.put("releaseReadinessPolicy", TestDesignReleaseReadinessPolicy.snapshot());
+        payload.put("releaseReadinessPolicy", TestDesignReleaseReadinessPolicy.snapshot(properties));
         payload.put("auditChainPolicy", TestDesignAuditChainPolicy.snapshot());
         payload.put("modelObservationPolicy", TestDesignModelObservationPolicy.snapshot());
         payload.put("archivePolicy", TestDesignArchivePolicy.snapshot(properties));

@@ -40,10 +40,16 @@ class TestDesignPublishCompensationServiceTest {
             new InMemoryModelInvocationJobRepository(),
             properties(true, 50)
     );
+    private final TestDesignQualityService qualityService = new TestDesignQualityService(
+            repository,
+            responseMapper,
+            properties(true, 50)
+    );
     private final TestDesignPublishService publishService = new TestDesignPublishService(
             repository,
             assetService,
             new TestDesignActorResolver(mock(AuthorizationService.class)),
+            qualityService,
             responseMapper,
             properties(true, 50)
     );
@@ -328,6 +334,7 @@ class TestDesignPublishCompensationServiceTest {
                 0,
                 0,
                 0,
+                false,
                 0.86D,
                 0.90D,
                 compensationEnabled,

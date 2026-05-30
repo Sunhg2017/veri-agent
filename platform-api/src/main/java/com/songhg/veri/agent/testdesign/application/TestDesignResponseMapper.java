@@ -75,7 +75,7 @@ public class TestDesignResponseMapper {
                 TestDesignGenerationOrchestrationPolicy.taskResponse(properties, task),
                 TestDesignScopePolicy.response(),
                 TestDesignEvaluationCorpusPolicy.response(),
-                TestDesignReleaseReadinessPolicy.response(),
+                TestDesignReleaseReadinessPolicy.response(properties),
                 TestDesignAuditChainPolicy.response(),
                 TestDesignModelObservationPolicy.response(),
                 TestDesignArchivePolicy.response(properties),

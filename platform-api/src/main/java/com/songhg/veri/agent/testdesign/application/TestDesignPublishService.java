@@ -12,6 +12,7 @@ import com.songhg.veri.agent.testdesign.application.command.TestDesignPublishCom
 import com.songhg.veri.agent.testdesign.application.port.TestDesignRepository;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignPublishRecordResponse;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignPublishResponse;
+import com.songhg.veri.agent.testdesign.application.view.TestDesignQualityReadinessResponse;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignStepResponse;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignTaskDetailResponse;
 import com.songhg.veri.agent.testdesign.config.TestDesignProperties;
@@ -46,9 +47,11 @@ public class TestDesignPublishService {
     static final String ACTION_AUTO_COMPENSATE_LINK_EXISTING = "AUTO_COMPENSATE_LINK_EXISTING";
     private static final String ACTION_DUPLICATE_REVIEW_REQUIRED = "DUPLICATE_REVIEW_REQUIRED";
     private static final String RESULT_CONFLICT = "CONFLICT";
+    private static final String READINESS_BLOCKED = "BLOCKED";
     private final TestDesignRepository repository;
     private final AssetService assetService;
     private final TestDesignActorResolver actorResolver;
+    private final TestDesignQualityService qualityService;
     private final TestDesignResponseMapper responseMapper;
     private final TestDesignProperties properties;
 
@@ -56,12 +59,14 @@ public class TestDesignPublishService {
             TestDesignRepository repository,
             AssetService assetService,
             TestDesignActorResolver actorResolver,
+            TestDesignQualityService qualityService,
             TestDesignResponseMapper responseMapper,
             TestDesignProperties properties
     ) {
         this.repository = repository;
         this.assetService = assetService;
         this.actorResolver = actorResolver;
+        this.qualityService = qualityService;
         this.responseMapper = responseMapper;
         this.properties = properties;
     }
@@ -108,6 +113,7 @@ public class TestDesignPublishService {
             throw new BusinessException(ErrorCode.INVALID_STATE, "没有已确认候选用例可发布");
         }
         if (!dryRun) {
+            validateReleaseReadiness(task.id());
             repository.saveTask(new TestDesignTask(
                     task.id(), task.projectId(), task.title(), TestDesignTaskStatus.PUBLISHING.name(),
                     task.requirementIds(), task.coverageTypes(), task.promptKey(), task.promptVersion(),
@@ -150,6 +156,23 @@ public class TestDesignPublishService {
                 createdCaseIds,
                 responses
         );
+    }
+
+    /**
+     * Fails closed before any WP3 write when release-readiness blocking is enabled.
+     *
+     * <p>The check deliberately consumes aggregate readiness only. Dry-run remains available for reviewers to inspect
+     * planned publish actions without persisting publish records or leaking candidate-level quality evidence.
+     */
+    private void validateReleaseReadiness(UUID taskId) {
+        if (!properties.releaseReadinessPublishBlockingEnabled()) {
+            return;
+        }
+        TestDesignQualityReadinessResponse readiness = qualityService.qualitySummary(taskId).readiness();
+        if (readiness != null && READINESS_BLOCKED.equals(readiness.status())) {
+            throw new BusinessException(ErrorCode.INVALID_STATE,
+                    "WP5 发布准出质量门禁不通过: readiness=BLOCKED, blockingCount=" + readiness.blockingCount());
+        }
     }
 
     public PageResponse<TestDesignPublishRecordResponse> publishRecords(UUID taskId) {

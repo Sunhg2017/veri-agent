@@ -5,8 +5,8 @@
 | 工作包 | WP5 AI 用例生成与评审 |
 | 角色产出 | 资深质量工程师 |
 | 文档性质 | 测试策略、功能用例、安全和可测试性建议、脚本设计 |
-| 当前口径 | 已纳入 WP5 后端、前端、DB validation、Prompt 趋势、准出运营摘要、人工排队事件重发入口、显式上下文装配、上下文裁剪策略配置、项目/环境上下文策略覆盖 API、前端上下文策略运营面板、审批元数据、effective snapshot、context policy override DB contract、release role validation、HTTP smoke 策略覆盖端到端准出、发布准出模式 HTTP smoke 和 AI 质量评测强制执行、上下文装配策略 v2 共享快照、上下文策略治理状态快照、上下文策略运营 v2 聚合快照、权限与资源作用域策略聚合快照、评测语料运营策略聚合快照、发布准出审批策略聚合快照、跨 WP 审计链策略聚合快照、跨 WP 审计链只读聚合骨架、模型观测策略共享快照、归档治理策略共享快照、报告清单策略共享快照、任务诊断上下文策略、装配策略、策略运营、作用域策略、评测语料、发布准出、审计链、模型观测、归档与报告清单策略摘要、任务报告生成编排策略聚合行、任务报告作用域策略聚合行、任务报告评测语料策略聚合行、任务报告发布准出审批策略聚合行、任务报告审计链策略聚合行、任务级 audit-chain 聚合接口、任务报告上下文聚合行、上下文装配策略 v2 共享快照行、任务报告上下文策略治理聚合行、任务报告上下文策略运营 v2 聚合行、任务报告模型观测策略聚合行、任务报告质量准出阈值策略聚合行、任务报告导出审计策略聚合行、任务报告安全扫描策略聚合行、任务报告归档策略聚合行、任务报告清单策略聚合行、Prompt 校准策略聚合行、受限发布补偿后台、发布补偿策略聚合行、任务报告 manifest 聚合行、任务报告导出安全扫描、aggregate-only manifest 持久化和 manifest DB validation 的自动化验证入口 |
-| 版本 | v4.0 |
+| 当前口径 | 已纳入 WP5 后端、前端、DB validation、Prompt 趋势、准出运营摘要、人工排队事件重发入口、显式上下文装配、上下文裁剪策略配置、项目/环境上下文策略覆盖 API、前端上下文策略运营面板、审批元数据、effective snapshot、context policy override DB contract、release role validation、HTTP smoke 策略覆盖端到端准出、发布准出模式 HTTP smoke 和 AI 质量评测强制执行、可配置发布准出质量阻断、上下文装配策略 v2 共享快照、上下文策略治理状态快照、上下文策略运营 v2 聚合快照、权限与资源作用域策略聚合快照、评测语料运营策略聚合快照、发布准出审批策略聚合快照、跨 WP 审计链策略聚合快照、跨 WP 审计链只读聚合骨架、模型观测策略共享快照、归档治理策略共享快照、报告清单策略共享快照、任务诊断上下文策略、装配策略、策略运营、作用域策略、评测语料、发布准出、审计链、模型观测、归档与报告清单策略摘要、任务报告生成编排策略聚合行、任务报告作用域策略聚合行、任务报告评测语料策略聚合行、任务报告发布准出审批策略聚合行、任务报告审计链策略聚合行、任务级 audit-chain 聚合接口、任务报告上下文聚合行、上下文装配策略 v2 共享快照行、任务报告上下文策略治理聚合行、任务报告上下文策略运营 v2 聚合行、任务报告模型观测策略聚合行、任务报告质量准出阈值策略聚合行、任务报告导出审计策略聚合行、任务报告安全扫描策略聚合行、任务报告归档策略聚合行、任务报告清单策略聚合行、Prompt 校准策略聚合行、受限发布补偿后台、发布补偿策略聚合行、任务报告 manifest 聚合行、任务报告导出安全扫描、aggregate-only manifest 持久化和 manifest DB validation 的自动化验证入口 |
+| 版本 | v4.1 |
 | 日期 | 2026-05-31 |
 
 ## 1. 测试目标
@@ -71,7 +71,7 @@
 | WP5-FUNC-003C-2F | P0 | 前端上下文策略运营面板 | `testDesign:read` 用户可查询项目/环境 effective policy 和覆盖记录；`testDesign:policy_manage` 用户可提交项目级/环境级 bounded 数字覆盖并审批或驳回 PENDING 记录；前端 helper 和 API 测试确认 payload 仅包含数字和固定原因编码，展示只包含状态、数字、captured 布尔语义和导出红线，不含策略正文、diff、审批备注、工单 URL、上下文正文或自由文本原因。 |
 | WP5-FUNC-003C-3 | P0 | 查看权限与资源作用域策略状态 | 健康接口、任务响应、任务诊断、`contextSummary.scopePolicy` 和模型请求 `contextPacking.scopePolicy` 返回同一聚合快照，包含项目资源作用域、列表 fallback、任务/候选/批量/发布/异步生成/HTTP smoke/质量评测项目隔离和未就绪运营能力。 |
 | WP5-FUNC-003C-3A | P0 | 查看评测语料运营策略状态 | 健康接口、任务响应、任务诊断、`contextSummary.evaluationCorpusPolicy` 和模型请求 `contextPacking.evaluationCorpusPolicy` 返回同一聚合快照，包含 golden set 基线、手动可选 AI 评测、部署配置阈值、项目作用域、质量门禁接入、准出分布、Prompt 版本跟踪和样本维护/长期校准/运营后台未就绪状态。 |
-| WP5-FUNC-003C-4 | P0 | 查看发布准出审批策略状态 | 健康接口、任务响应、任务诊断、`contextSummary.releaseReadinessPolicy` 和模型请求 `contextPacking.releaseReadinessPolicy` 返回同一聚合快照，包含 `ADVISORY_QUALITY_GATE`、阈值来源、质量阈值已评估、advisory-only、发布阻断关闭、审批流未就绪、禁止自动发布和候选确认要求。 |
+| WP5-FUNC-003C-4 | P0 | 查看发布准出审批策略状态 | 健康接口、任务响应、任务诊断、`contextSummary.releaseReadinessPolicy` 和模型请求 `contextPacking.releaseReadinessPolicy` 返回同一聚合快照；默认包含 `ADVISORY_QUALITY_GATE`、advisory-only 和发布阻断关闭，开启 `veri-agent.test-design.release-readiness-publish-blocking-enabled=true` 后包含 `BLOCKING_QUALITY_GATE` 和发布阻断开启；两种模式均声明审批流未就绪、禁止自动发布、候选确认要求和 aggregate-only 导出边界。 |
 | WP5-FUNC-003C-5 | P0 | 查看跨 WP 审计链策略状态 | 健康接口、任务响应、任务诊断、`contextSummary.auditChainPolicy` 和模型请求 `contextPacking.auditChainPolicy` 返回同一聚合快照，包含 `WP5_DOMAIN_AGGREGATE_WITH_WP1_AUDIT`、WP1 审计写入、WP2 调用引用、WP3 发布引用、WP5 本域事件、项目作用域、trace 信号、跨 WP 审计看板 pending、audit outbox 重放看板 pending 和 aggregate-only。 |
 | WP5-FUNC-003C-5A | P0 | 查看模型观测策略状态 | 健康接口、任务响应、任务诊断、`contextSummary.modelObservationPolicy` 和模型请求 `contextPacking.modelObservationPolicy` 返回同一聚合快照，包含 `ROUTING_COST_LATENCY_AGGREGATE`、WP2 调用引用、trace/job/routing/token/latency/cost/fallback 跟踪能力、Prompt 载荷不存储、载荷预览/traceId/jobId/invocationId 原值/provider 错误正文/actor service 不导出和 aggregate-only。 |
 | WP5-FUNC-003C-6 | P0 | 查看任务报告归档治理策略状态 | 健康接口、任务响应、任务诊断、`contextSummary.archivePolicy` 和模型请求 `contextPacking.archivePolicy` 返回同一聚合快照，包含 `wp5-archive-policy-v1`、有界保留天数、`platformManaged` 存储策略、审批要求、审批流 pending、真实归档存储 pending、外发开关、保留策略跟踪、归档路径/备注/审批说明/工单 URL 不导出和 aggregate-only。 |
@@ -93,7 +93,7 @@
 | WP5-FUNC-003N | P1 | 导出任务全量报告生成编排策略 | CSV 包含 `generationOrchestrationPolicy` 聚合行，只输出策略版本、编排模式、条件认领、幂等回放、事件恢复、超时回收、人工重试、人工队列事件重发、多 worker 重复事件认领证据、队列 lag 指标、超时告警、恢复批次上限、排队/运行/最旧排队年龄/超时运行聚合计数和状态/超时信号计数，不输出事件 ID、事件 payload、队列消息体、恢复明细、幂等键或超时错误正文。 |
 | WP5-FUNC-003O | P1 | 导出任务全量报告作用域策略 | CSV 包含 `scopePolicy` 聚合行，只输出策略版本、项目资源作用域、列表 fallback、任务/候选/批量/发布/异步生成/HTTP smoke/质量评测项目隔离和运营缺口，不输出候选 ID 列表、角色规则明细或服务令牌原值。 |
 | WP5-FUNC-003O-1 | P1 | 导出任务全量报告评测语料策略 | CSV 包含 `evaluationCorpusPolicy` 聚合行，只输出策略版本、golden set 基线、手动可选 AI 评测、阈值来源、项目作用域、质量门禁接入、准出分布、Prompt 版本跟踪和运营缺口，不输出评测语料行、候选正文、评审评论或 Prompt 正文。 |
-| WP5-FUNC-003P | P1 | 导出任务全量报告发布准出审批策略 | CSV 包含 `releaseReadinessPolicy` 聚合行，只输出策略版本、决策模式、阈值来源、质量阈值评估、advisory-only、发布阻断关闭、人工准出要求、审批流未就绪、自动发布关闭、候选确认要求和当前 readiness 聚合计数，不输出候选级准出证据、审批备注或阈值规则明细。 |
+| WP5-FUNC-003P | P1 | 导出任务全量报告发布准出审批策略 | CSV 包含 `releaseReadinessPolicy` 聚合行，只输出策略版本、决策模式、阈值来源、质量阈值评估、advisory-only/发布阻断开关、人工准出要求、审批流未就绪、自动发布关闭、候选确认要求和当前 readiness 聚合计数，不输出候选级准出证据、审批备注或阈值规则明细。 |
 | WP5-FUNC-003Q | P1 | 导出任务全量报告跨 WP 审计链策略 | CSV 包含 `auditChainPolicy` 聚合行，只输出策略版本、链路模式、事件来源、WP1/WP2/WP3/WP5 引用状态、项目作用域、trace 信号、跨 WP 看板/outbox 重放看板未就绪状态、任务/评审/发布事件计数、说明覆盖计数和 aggregate-only，不输出审计事件明细、候选 ID 清单、平台审计标识原值、traceId 原值、模型调用 ID 原值、发布 sourceRef 或资产 ID 原值。 |
 | WP5-FUNC-003R | P1 | 查看任务级跨 WP 审计链只读聚合骨架 | `GET /api/v1/test-design/tasks/{id}/report/audit-chain` 按任务项目 scope 返回 aggregate-only 响应，包含 `readOnlyAggregateDashboardReady=true`、完整跨 WP 看板/outbox 重放操作台未就绪、WP1/WP2/WP3/WP5/outbox 任务相关计数和 readiness；无权限项目返回 403。 |
 | WP5-FUNC-004 | P0 | 模型输出合法 JSON | 候选落库，包含标题、步骤、预期、优先级和来源依据。 |
@@ -115,6 +115,7 @@
 | WP5-FUNC-016B | P0 | 受限发布补偿后台修复部分成功候选 | 扫描 `FAILED` 且已持有 WP3 用例引用的候选；存在同一 `sourceRef` 用例时自动补建 trace link、候选改为 `PUBLISHED`、发布记录写 `AUTO_COMPENSATE_LINK_EXISTING/SUCCEEDED`，并刷新任务计数。 |
 | WP5-FUNC-016C | P0 | 受限发布补偿后台不越界创建或解冲突 | 无 `assetCaseId`、已有成功发布记录、已执行自动补偿记录或仅存在高相似冲突的候选不被后台自动首次创建或自动链接冲突用例，保留人工发布/人工冲突处理路径。 |
 | WP5-FUNC-016D | P0 | 受限发布补偿后台多实例幂等 | 同一候选被重复扫描或并发补偿时，通过候选级事务锁、锁内重读和自动补偿记录唯一约束确保最多写入一条 `AUTO_COMPENSATE_LINK_EXISTING` 发布记录。 |
+| WP5-FUNC-016E | P0 | 配置化发布准出质量阻断 | 开启 `veri-agent.test-design.release-readiness-publish-blocking-enabled=true` 后，任务聚合 readiness=`BLOCKED` 时正式发布返回 `INVALID_STATE`，不创建 WP3 用例、不写 publish record、不变更候选状态；dryRun 仍返回发布计划，便于诊断。 |
 | WP5-FUNC-017 | P1 | 任务重试 | 失败任务可重试，保留历史错误和新 traceId。 |
 | WP5-FUNC-017A | P0 | 人工重发排队生成事件 | 仅 `QUEUED` 任务可调用，任务状态保持 `QUEUED`，重新发布生成请求事件并写审计；非 `QUEUED` 任务或同步生成模式返回非法状态，响应和报告不暴露事件 ID、payload 或队列消息体。 |
 | WP5-FUNC-018 | P1 | 取消运行中任务 | 任务进入 `CANCELLED`，不继续生成候选。 |
@@ -173,7 +174,7 @@
 | WP5-FE-015 | P1 | 任务诊断策略运营摘要 | 展示策略运营 v2 的平台默认模式、解析顺序、回退行为、审批状态和覆盖存储/审批流 pending 状态；不展示策略 diff、审批备注、工单 URL 或覆盖规则正文。 |
 | WP5-FE-016 | P1 | 任务诊断作用域策略摘要 | 展示项目资源作用域、列表 fallback、任务/候选/批量/发布/异步/评测项目隔离和运营缺口；不展示候选 ID、角色矩阵或服务令牌原值。 |
 | WP5-FE-017 | P1 | 任务诊断评测语料摘要 | 展示 golden set 基线、手动可选 AI 评测、阈值来源、项目作用域、AI 评测脚本、质量门禁接入、准出分布、Prompt 版本跟踪和运营后台 pending；不展示语料行、候选正文、评审评论或 Prompt 正文。 |
-| WP5-FE-018 | P1 | 任务诊断发布准出摘要 | 展示 advisory-only、发布阻断、审批流、人工准出、自动发布和候选确认要求；不展示候选级准出证据、审批备注或阈值规则明细。 |
+| WP5-FE-018 | P1 | 任务诊断发布准出摘要 | 展示决策模式、advisory-only/发布阻断、审批流、人工准出、自动发布和候选确认要求；开启阻断时应明确正式发布会按 `BLOCKED` 失败关闭；不展示候选级准出证据、审批备注或阈值规则明细。 |
 | WP5-FE-019 | P1 | 任务诊断审计链摘要 | 展示 WP1 审计写入、WP2 调用引用、WP3 发布引用、WP5 本域事件、项目作用域、trace 信号、跨 WP 看板 pending 和 outbox 看板 pending；不展示审计记录、候选 ID、traceId 原值、模型调用 ID 原值、发布 sourceRef 或资产 ID。 |
 | WP5-FE-019-1 | P1 | 任务级跨 WP 审计链聚合接口结果展示 | 若前端接入 `/report/audit-chain`，只展示 WP1/WP2/WP3/WP5/outbox 聚合计数、readiness 和未就绪状态；不展示审计行、候选 ID、traceId、模型调用 ID、sourceRef 或资产 ID。 |
 | WP5-FE-019A | P1 | 任务诊断模型观测策略摘要 | 展示模型观测策略版本、聚合观测模式、WP2 调用引用、trace/job/routing/token/latency/cost/fallback 跟踪能力、Prompt 载荷不存储和细节导出关闭；不展示 traceId/jobId/invocationId 原值、载荷预览、provider 错误正文或 actor service。 |

@@ -64,6 +64,8 @@ public record TestDesignProperties(
         @DefaultValue("0") long readinessMaxMissingRequirementCount,
         /** 任务质量准出：最高缺标题数量 */
         @DefaultValue("0") long readinessMaxMissingTitleCount,
+        /** 发布准出：是否按任务质量 BLOCKED 状态阻断正式发布 */
+        @DefaultValue("false") boolean releaseReadinessPublishBlockingEnabled,
         /** 发布冲突治理：同需求标题高相似阈值，范围 0-1 */
         @DefaultValue("0.86") double conflictTitleSimilarityThreshold,
         /** 发布冲突治理：同需求正文高相似阈值，范围 0-1 */
