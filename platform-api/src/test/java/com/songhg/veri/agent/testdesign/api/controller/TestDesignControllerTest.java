@@ -2919,6 +2919,62 @@ class TestDesignControllerTest {
     }
 
     @Test
+    void rejectsExplicitUnconfirmedCandidatePublishBeforeWp3Write() throws Exception {
+        String ownerToken = userAccessToken(List.of("ProjectOwner@PROJECT:project-wp5"));
+        String requirementId = createRequirement(ownerToken, "未确认发布需求", "未确认候选不得正式发布", "project-wp5");
+        MvcResult taskResult = mockMvc.perform(post("/api/v1/test-design/tasks")
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"projectId":"project-wp5","requirementIds":["%s"],"coverageTypes":["SMOKE"]}
+                                """.formatted(requirementId)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.candidates[0].status").value("GENERATED"))
+                .andReturn();
+        String taskId = JsonPath.read(taskResult.getResponse().getContentAsString(), "$.data.task.id");
+        String candidateId = JsonPath.read(taskResult.getResponse().getContentAsString(), "$.data.candidates[0].id");
+        Integer version = JsonPath.read(taskResult.getResponse().getContentAsString(), "$.data.candidates[0].version");
+
+        mockMvc.perform(post("/api/v1/test-design/tasks/{id}/publish-dry-run", taskId)
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"candidateIds":["%s"]}
+                                """.formatted(candidateId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.dryRun").value(true))
+                .andExpect(jsonPath("$.data.records[0].action").value("SKIP_UNCONFIRMED"))
+                .andExpect(jsonPath("$.data.records[0].result").value("SKIPPED"))
+                .andExpect(jsonPath("$.data.records[0].errorMessage", containsString("候选用例未确认")));
+
+        mockMvc.perform(post("/api/v1/test-design/tasks/{id}/publish", taskId)
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"candidateIds":["%s"]}
+                                """.formatted(candidateId)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("INVALID_STATE"))
+                .andExpect(jsonPath("$.message", containsString("候选用例未确认")));
+
+        mockMvc.perform(get("/api/v1/test-design/tasks/{id}", taskId)
+                        .header("Authorization", "Bearer " + ownerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.task.status").value("SUCCEEDED"))
+                .andExpect(jsonPath("$.data.candidates[0].status").value("GENERATED"))
+                .andExpect(jsonPath("$.data.candidates[0].version").value(version))
+                .andExpect(jsonPath("$.data.candidates[0].assetCaseId").doesNotExist())
+                .andExpect(jsonPath("$.data.publishRecords", hasSize(0)));
+
+        mockMvc.perform(get("/api/v1/asset/test-cases")
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .param("projectId", "project-wp5")
+                        .param("source", "AI_GENERATED"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(0));
+    }
+
+    @Test
     void resolvesHighSimilarConflictByLinkingExistingRequirementCase() throws Exception {
         String ownerToken = userAccessToken(List.of("ProjectOwner@PROJECT:project-wp5"));
         String requirementId = createRequirement(ownerToken, "人工冲突处理需求", "人工冲突处理验收", "project-wp5");

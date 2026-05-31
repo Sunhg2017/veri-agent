@@ -112,7 +112,7 @@
 | WP5-FUNC-012 | P0 | 批量确认携带旧版本 | 返回版本冲突，前端提示刷新。 |
 | WP5-FUNC-013 | P0 | 发布 dryRun | 返回 CREATE/LINK_EXISTING/DUPLICATE_REVIEW_REQUIRED/SKIPPED 明细。 |
 | WP5-FUNC-014 | P0 | 发布已确认候选 | WP3 新增测试用例，步骤完整，候选状态为 `PUBLISHED`。 |
-| WP5-FUNC-015 | P0 | 发布未确认候选 | 返回非法状态，候选不写入 WP3。 |
+| WP5-FUNC-015 | P0 | 显式发布未确认候选 | dryRun 返回 `SKIP_UNCONFIRMED/SKIPPED`；正式发布在任务进入 `PUBLISHING`、写 WP3 用例或保存发布记录前返回 `INVALID_STATE`，候选不写入 WP3。 |
 | WP5-FUNC-016 | P0 | WP3 写入失败或部分成功 | 发布记录失败，候选保留 `assetCaseId/errorMessage`；重试能按 `sourceRef` 找回既有用例并补建 trace link。 |
 | WP5-FUNC-016A | P0 | 批量处理发布冲突 | 按候选项目 scope 校验 `testDesign:publish`，逐项校验版本和目标用例需求追踪，返回成功/失败明细。 |
 | WP5-FUNC-016B | P0 | 受限发布补偿后台修复部分成功候选 | 扫描 `FAILED` 且已持有 WP3 用例引用的候选；存在同一 `sourceRef` 用例时自动补建 trace link、候选改为 `PUBLISHED`、发布记录写 `AUTO_COMPENSATE_LINK_EXISTING/SUCCEEDED`，并刷新任务计数。 |

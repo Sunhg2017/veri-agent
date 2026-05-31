@@ -112,6 +112,7 @@ public class TestDesignPublishService {
         if (selected.isEmpty()) {
             throw new BusinessException(ErrorCode.INVALID_STATE, "没有已确认候选用例可发布");
         }
+        assertOfficialPublishCandidatesReady(dryRun, command == null ? null : command.candidateIds(), selected);
         if (!dryRun) {
             validateReleaseReadiness(task.id());
             repository.saveTask(new TestDesignTask(
@@ -156,6 +157,22 @@ public class TestDesignPublishService {
                 createdCaseIds,
                 responses
         );
+    }
+
+    private void assertOfficialPublishCandidatesReady(boolean dryRun, List<UUID> requestedCandidateIds, List<TestDesignCandidate> selected) {
+        if (dryRun || requestedCandidateIds == null || requestedCandidateIds.isEmpty()) {
+            return;
+        }
+        selected.stream()
+                .filter(candidate -> !isOfficialPublishReady(candidate))
+                .findFirst()
+                .ifPresent(candidate -> {
+                    /*
+                     * A formal publish is an irreversible WP3 write command. When reviewers explicitly select a
+                     * candidate, fail before any asset write if that candidate is not in the reviewed publish pool.
+                     */
+                    throw new BusinessException(ErrorCode.INVALID_STATE, "候选用例未确认，不能发布: " + candidate.id());
+                });
     }
 
     /**
@@ -349,6 +366,12 @@ public class TestDesignPublishService {
     private static boolean isPublishableCandidate(TestDesignCandidate candidate) {
         return TestDesignCandidateStatus.CONFIRMED.name().equals(candidate.status())
                 || TestDesignCandidateStatus.FAILED.name().equals(candidate.status());
+    }
+
+    private static boolean isOfficialPublishReady(TestDesignCandidate candidate) {
+        return isPublishableCandidate(candidate)
+                || (TestDesignCandidateStatus.PUBLISHED.name().equals(candidate.status())
+                && candidate.assetCaseId() != null);
     }
 
     /**

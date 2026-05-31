@@ -561,6 +561,8 @@ WP5 任务项目时，才允许写入候选 `apiId`；非 UUID、缺失 API 或�
 | `POST` | `/tasks/{id}/publish` | `testDesign:publish` | 发布确认候选到 WP3。 |
 | `GET` | `/tasks/{id}/publish-records` | `testDesign:read` | 查询发布记录。 |
 
+正式发布请求如显式传入 `candidateIds`，所有候选必须处于 `CONFIRMED`、可重试的 `FAILED`，或已持有 `assetCaseId` 的 `PUBLISHED` 状态；存在未确认候选时必须在任务进入 `PUBLISHING`、写 WP3 用例、创建 trace link 或保存发布记录前返回 `INVALID_STATE`。`publish-dry-run` 可返回 `SKIP_UNCONFIRMED/SKIPPED` 供前端预览。
+
 发布请求：
 
 ```json
