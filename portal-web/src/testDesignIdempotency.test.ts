@@ -13,22 +13,30 @@ describe('WP5 task idempotency helpers', () => {
   it('builds a stable signature from normalized create task inputs', () => {
     const signature = buildTestDesignTaskIdempotencySignature({
       projectId: ' project-1 ',
+      templateId: ' tpl-1 ',
       title: ' 登录生成 ',
       requirementIds: [' req-1 ', 'req-2'],
       contextApiIds: [' api-1 '],
       contextPageIds: ['page-1'],
       contextFlowIds: ['flow-1'],
+      environmentKey: ' qa ',
+      promptKey: ' wp5-template-login ',
+      promptVersion: ' 2026.05 ',
       coverageTypes: [' smoke ', 'functional'],
       caseCountPerRequirement: 2
     });
 
     expect(signature).toBe(JSON.stringify({
       projectId: 'project-1',
+      templateId: 'tpl-1',
       title: '登录生成',
       requirementIds: ['req-1', 'req-2'],
       contextApiIds: ['api-1'],
       contextPageIds: ['page-1'],
       contextFlowIds: ['flow-1'],
+      environmentKey: 'qa',
+      promptKey: 'wp5-template-login',
+      promptVersion: '2026.05',
       coverageTypes: ['SMOKE', 'FUNCTIONAL'],
       caseCountPerRequirement: 2
     }));

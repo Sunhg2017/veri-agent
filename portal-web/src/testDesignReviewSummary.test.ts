@@ -17,6 +17,7 @@ const baseRecord: TestDesignReviewRecordView = {
   changedFields: ['title', 'status', 'version'],
   versionBefore: 1,
   versionAfter: 2,
+  diffItems: [],
   createdAt: '2026-05-28T10:00:00Z'
 };
 

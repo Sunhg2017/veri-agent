@@ -36,6 +36,7 @@ import static org.hamcrest.Matchers.startsWith;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.matchesPattern;
 import static org.hamcrest.Matchers.not;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -1283,6 +1284,152 @@ class TestDesignControllerTest {
     }
 
     @Test
+    void managesGenerationTemplatesAndAppliesDefaultsToTaskCreation() throws Exception {
+        String ownerToken = userAccessToken(List.of("ProjectOwner@PROJECT:project-wp5"));
+        String developerToken = userAccessToken(List.of("Developer@PROJECT:project-wp5"));
+        String deniedOwnerToken = userAccessToken(List.of("ProjectOwner@PROJECT:project-other"));
+        String apiId = createApi(ownerToken, "project-wp5", "模板上下文 API", "POST", "/api/wp5/template-login");
+        String pageId = createPage(ownerToken, "project-wp5", "模板上下文页面", "/template-login");
+        String flowId = createBusinessFlow(ownerToken, "project-wp5", "模板上下文业务流");
+        String requirementId = createRequirement(ownerToken, "模板生成需求", "模板生成验收", "project-wp5");
+
+        mockMvc.perform(post("/api/v1/test-design/templates")
+                        .header("Authorization", "Bearer " + developerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "projectId": "project-wp5",
+                                  "name": "登录主链路模板",
+                                  "promptKey": "wp5-template-login",
+                                  "promptVersion": "2026.05",
+                                  "coverageTypes": ["BOUNDARY", "PERMISSION"],
+                                  "caseCountPerRequirement": 2,
+                                  "contextDefaults": {
+                                    "environmentKey": "qa",
+                                    "contextApiIds": ["%s"]
+                                  }
+                                }
+                                """.formatted(apiId)))
+                .andExpect(status().isForbidden());
+
+        MvcResult created = mockMvc.perform(post("/api/v1/test-design/templates")
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "projectId": "project-wp5",
+                                  "name": "登录主链路模板",
+                                  "description": "按登录链路生成边界和权限用例",
+                                  "promptKey": "wp5-template-login",
+                                  "promptVersion": "2026.05",
+                                  "coverageTypes": ["BOUNDARY", "PERMISSION"],
+                                  "caseCountPerRequirement": 2,
+                                  "contextDefaults": {
+                                    "environmentKey": "qa",
+                                    "contextApiIds": ["%s"],
+                                    "contextPageIds": ["%s"],
+                                    "contextFlowIds": ["%s"]
+                                  },
+                                  "enabled": true
+                                }
+                                """.formatted(apiId, pageId, flowId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.projectId").value("project-wp5"))
+                .andExpect(jsonPath("$.data.promptKey").value("wp5-template-login"))
+                .andExpect(jsonPath("$.data.promptVersion").value("2026.05"))
+                .andExpect(jsonPath("$.data.coverageTypes", contains("BOUNDARY", "PERMISSION")))
+                .andExpect(jsonPath("$.data.contextDefaults.environmentKey").value("qa"))
+                .andExpect(jsonPath("$.data.contextDefaults.contextApiIds", contains(apiId)))
+                .andExpect(jsonPath("$.data.enabled").value(true))
+                .andReturn();
+        String templateId = JsonPath.read(created.getResponse().getContentAsString(), "$.data.id");
+
+        mockMvc.perform(get("/api/v1/test-design/templates")
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .param("projectId", "project-wp5")
+                        .param("includeGlobal", "true")
+                        .param("enabled", "true")
+                        .param("keyword", "登录主链路"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(1))
+                .andExpect(jsonPath("$.data.items[0].id").value(templateId));
+
+        mockMvc.perform(get("/api/v1/test-design/templates/{id}", templateId)
+                        .header("Authorization", "Bearer " + deniedOwnerToken))
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(put("/api/v1/test-design/templates/{id}", templateId)
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "name": "登录主链路模板 v2",
+                                  "description": "提高回归覆盖",
+                                  "promptKey": "wp5-template-login",
+                                  "promptVersion": "2026.06",
+                                  "coverageTypes": ["REGRESSION", "SMOKE"],
+                                  "caseCountPerRequirement": 2,
+                                  "contextDefaults": {
+                                    "environmentKey": "qa",
+                                    "contextApiIds": ["%s"],
+                                    "contextPageIds": ["%s"],
+                                    "contextFlowIds": ["%s"]
+                                  },
+                                  "enabled": true
+                                }
+                                """.formatted(apiId, pageId, flowId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.name").value("登录主链路模板 v2"))
+                .andExpect(jsonPath("$.data.promptVersion").value("2026.06"))
+                .andExpect(jsonPath("$.data.coverageTypes", contains("REGRESSION", "SMOKE")));
+
+        MvcResult taskResult = mockMvc.perform(post("/api/v1/test-design/tasks")
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "projectId": "project-wp5",
+                                  "templateId": "%s",
+                                  "requirementIds": ["%s"]
+                                }
+                                """.formatted(templateId, requirementId)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.task.promptKey").value("wp5-template-login"))
+                .andExpect(jsonPath("$.data.task.promptVersion").value("2026.06"))
+                .andExpect(jsonPath("$.data.task.coverageTypes", contains("REGRESSION", "SMOKE")))
+                .andExpect(jsonPath("$.data.task.generatedCount").value(2))
+                .andExpect(jsonPath("$.data.task.contextSummary.environmentKey").value("qa"))
+                .andExpect(jsonPath("$.data.task.contextSummary.template.templateId").value(templateId))
+                .andExpect(jsonPath("$.data.task.contextSummary.template.name").value("登录主链路模板 v2"))
+                .andExpect(jsonPath("$.data.task.contextSummary.explicitAssets.apiCount").value(1))
+                .andExpect(jsonPath("$.data.task.contextSummary.explicitAssets.pageCount").value(1))
+                .andExpect(jsonPath("$.data.task.contextSummary.explicitAssets.flowCount").value(1))
+                .andReturn();
+        String taskJson = taskResult.getResponse().getContentAsString();
+        MatcherAssert.assertThat(taskJson, not(containsString("token=secret-value")));
+        MatcherAssert.assertThat(taskJson, not(containsString("apiKey=page-secret")));
+        MatcherAssert.assertThat(taskJson, not(containsString("token=flow-secret")));
+
+        mockMvc.perform(delete("/api/v1/test-design/templates/{id}", templateId)
+                        .header("Authorization", "Bearer " + ownerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.enabled").value(false));
+
+        mockMvc.perform(post("/api/v1/test-design/tasks")
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "projectId": "project-wp5",
+                                  "templateId": "%s",
+                                  "requirementIds": ["%s"]
+                                }
+                                """.formatted(templateId, requirementId)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.message", containsString("生成模板已禁用")));
+    }
+
+    @Test
     void enforcesPublishPermissionAndProjectScope() throws Exception {
         String ownerToken = userAccessToken(List.of("ProjectOwner@PROJECT:project-wp5"));
         String developerToken = userAccessToken(List.of("Developer@PROJECT:project-wp5"));
@@ -1451,12 +1598,13 @@ class TestDesignControllerTest {
         MatcherAssert.assertThat(reviewRecordsJson, containsString("\"versionAfter\":2"));
         MatcherAssert.assertThat(reviewRecordsJson, containsString("title"));
         MatcherAssert.assertThat(reviewRecordsJson, containsString("status"));
+        MatcherAssert.assertThat(reviewRecordsJson, containsString("\"diffItems\""));
+        MatcherAssert.assertThat(reviewRecordsJson, containsString("\"before\""));
+        MatcherAssert.assertThat(reviewRecordsJson, containsString("\"after\""));
         MatcherAssert.assertThat(reviewRecordsJson, not(containsString("diffJson")));
         MatcherAssert.assertThat(reviewRecordsJson, not(containsString("secret-value")));
         MatcherAssert.assertThat(reviewRecordsJson, not(containsString("rawPrompt")));
         MatcherAssert.assertThat(reviewRecordsJson, not(containsString("promptPlaintext")));
-        MatcherAssert.assertThat(reviewRecordsJson, not(containsString("人工补充候选用例")));
-        MatcherAssert.assertThat(reviewRecordsJson, not(containsString("输入评审历史账号")));
 
         MvcResult export = mockMvc.perform(get("/api/v1/test-design/tasks/{id}/review-records/export", taskId)
                         .header("Authorization", "Bearer " + auditorToken))

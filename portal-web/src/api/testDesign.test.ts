@@ -8,7 +8,9 @@ import {
   batchResolveTestDesignConflicts,
   cancelTestDesignTask,
   confirmTestDesignCandidate,
+  createTestDesignTemplate,
   createTestDesignTask,
+  deleteTestDesignTemplate,
   exportTestDesignCandidatesCsv,
   exportTestDesignReviewRecordsCsv,
   exportTestDesignTaskReportCsv,
@@ -21,6 +23,7 @@ import {
   fetchTestDesignPromptTrend,
   fetchTestDesignReviewRecords,
   fetchTestDesignScopeSummary,
+  fetchTestDesignTemplates,
   fetchTestDesignTaskAuditSummary,
   fetchTestDesignTask,
   fetchTestDesignTaskQualitySummary,
@@ -43,6 +46,8 @@ import {
   normalizeTestDesignReviewRecord,
   normalizeTestDesignReviewRecordList,
   normalizeTestDesignScopeSummary,
+  normalizeTestDesignTemplate,
+  normalizeTestDesignTemplateList,
   normalizeTestDesignTask,
   normalizeTestDesignTaskDetail,
   publishTestDesignDryRun,
@@ -57,6 +62,7 @@ import {
   testDesignCandidateExportPath,
   testDesignReviewRecordExportPath,
   testDesignTaskReportExportPath,
+  updateTestDesignTemplate,
   updateTestDesignCandidate
 } from './testDesign';
 
@@ -1003,7 +1009,11 @@ describe('WP5 test design API helpers', () => {
       comment_preview: 'token=[REDACTED]',
       changed_fields: ['title', 'status'],
       version_before: '1',
-      version_after: '2'
+      version_after: '2',
+      diff_items: [
+        { field: 'title', before: '旧标题', after: '新标题' },
+        { field: 'status', before: 'GENERATED', after: 'EDITED' }
+      ]
     });
     expect(reviewRecord).toMatchObject({
       id: 'review-1',
@@ -1015,12 +1025,50 @@ describe('WP5 test design API helpers', () => {
       hasComment: true,
       changedFields: ['title', 'status'],
       versionBefore: 1,
-      versionAfter: 2
+      versionAfter: 2,
+      diffItems: [
+        { field: 'title', before: '旧标题', after: '新标题' },
+        { field: 'status', before: 'GENERATED', after: 'EDITED' }
+      ]
     });
     expect(normalizeTestDesignReviewRecordList({ items: [reviewRecord], total: '3', index: '0', size: '10' })).toMatchObject({
       total: 3,
       index: 0,
       size: 10
+    });
+
+    const template = normalizeTestDesignTemplate({
+      id: 'tpl-1',
+      project_id: 'project-1',
+      name: '登录模板',
+      prompt_key: 'wp5-template-login',
+      prompt_version: '2026.05',
+      coverage_types: 'SMOKE,BOUNDARY',
+      case_count_per_requirement: '2',
+      context_defaults: {
+        environmentKey: 'qa',
+        contextApiIds: ['api-1']
+      },
+      enabled: 'true',
+      updated_at: '2026-05-31T08:00:00Z'
+    });
+    expect(template).toMatchObject({
+      id: 'tpl-1',
+      projectId: 'project-1',
+      promptKey: 'wp5-template-login',
+      promptVersion: '2026.05',
+      coverageTypes: ['SMOKE', 'BOUNDARY'],
+      caseCountPerRequirement: 2,
+      contextDefaults: {
+        environmentKey: 'qa',
+        contextApiIds: ['api-1']
+      },
+      enabled: true
+    });
+    expect(normalizeTestDesignTemplateList({ items: [template], total: '4', index: '0', size: '30' })).toMatchObject({
+      total: 4,
+      index: 0,
+      size: 30
     });
 
     const qualitySummary = normalizeTestDesignQualitySummary({
@@ -1337,6 +1385,9 @@ describe('WP5 test design API helpers', () => {
     await fetchTestDesignReviewRecords('task 1', { index: 1, size: 10 });
     expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/test-design/tasks/task%201/review-records?index=1&size=10');
 
+    await fetchTestDesignTemplates({ index: 0, size: 30, projectId: 'proj pay', enabled: true, includeGlobal: true, keyword: '冒烟' });
+    expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/test-design/templates?index=0&size=30&projectId=proj+pay&enabled=true&includeGlobal=true&keyword=%E5%86%92%E7%83%9F');
+
     expect(testDesignCandidateExportPath({
       index: 3,
       size: 50,
@@ -1566,11 +1617,15 @@ describe('WP5 test design API helpers', () => {
 
     await createTestDesignTask({
       projectId: ' project-1 ',
+      templateId: ' tpl-1 ',
       title: '',
       requirementIds: ['req-1'],
       contextApiIds: ['api-1'],
       contextPageIds: ['page-1'],
       contextFlowIds: ['flow-1'],
+      environmentKey: ' qa ',
+      promptKey: ' wp5-template-login ',
+      promptVersion: ' 2026.05 ',
       coverageTypes: ['SMOKE'],
       caseCountPerRequirement: 2,
       idempotencyKey: ' wp5-create-001 '
@@ -1579,14 +1634,83 @@ describe('WP5 test design API helpers', () => {
       method: 'POST',
       body: JSON.stringify({
         projectId: 'project-1',
+        templateId: 'tpl-1',
         requirementIds: ['req-1'],
         contextApiIds: ['api-1'],
         contextPageIds: ['page-1'],
         contextFlowIds: ['flow-1'],
+        environmentKey: 'qa',
+        promptKey: 'wp5-template-login',
+        promptVersion: '2026.05',
         coverageTypes: ['SMOKE'],
         caseCountPerRequirement: 2,
         idempotencyKey: 'wp5-create-001'
       })
+    });
+
+    requestJsonMock.mockResolvedValue({
+      code: 'OK',
+      message: 'ok',
+      trace_id: 'trace-template',
+      data: { id: 'tpl-1', name: '登录模板', prompt_key: 'wp5-template-login', prompt_version: '2026.05' }
+    });
+
+    await createTestDesignTemplate({
+      projectId: ' project-1 ',
+      name: ' 登录模板 ',
+      description: '',
+      promptKey: ' wp5-template-login ',
+      promptVersion: ' 2026.05 ',
+      coverageTypes: ['SMOKE', 'BOUNDARY'],
+      caseCountPerRequirement: 2,
+      contextDefaults: {
+        environmentKey: 'qa',
+        contextApiIds: ['api-1']
+      },
+      enabled: true
+    });
+    expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/test-design/templates', {
+      method: 'POST',
+      body: JSON.stringify({
+        projectId: 'project-1',
+        name: '登录模板',
+        promptKey: 'wp5-template-login',
+        promptVersion: '2026.05',
+        coverageTypes: ['SMOKE', 'BOUNDARY'],
+        caseCountPerRequirement: 2,
+        contextDefaults: {
+          environmentKey: 'qa',
+          contextApiIds: ['api-1']
+        },
+        enabled: true
+      })
+    });
+
+    await updateTestDesignTemplate('tpl 1', {
+      name: ' 登录模板 v2 ',
+      promptKey: ' wp5-template-login ',
+      promptVersion: ' 2026.06 ',
+      coverageTypes: ['REGRESSION'],
+      caseCountPerRequirement: 1,
+      contextDefaults: {},
+      enabled: false
+    });
+    expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/test-design/templates/tpl%201', {
+      method: 'PUT',
+      body: JSON.stringify({
+        name: '登录模板 v2',
+        promptKey: 'wp5-template-login',
+        promptVersion: '2026.06',
+        coverageTypes: ['REGRESSION'],
+        caseCountPerRequirement: 1,
+        contextDefaults: {},
+        enabled: false
+      })
+    });
+
+    await deleteTestDesignTemplate('tpl 1');
+    expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/test-design/templates/tpl%201', {
+      method: 'DELETE'
     });
 
     requestJsonMock.mockResolvedValue({

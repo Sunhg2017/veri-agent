@@ -4,6 +4,7 @@ import com.songhg.veri.agent.common.api.PageQuery;
 import com.songhg.veri.agent.testdesign.application.port.TestDesignRepository;
 import com.songhg.veri.agent.testdesign.application.query.TestDesignCandidateQuery;
 import com.songhg.veri.agent.testdesign.application.query.TestDesignTaskQuery;
+import com.songhg.veri.agent.testdesign.application.query.TestDesignTemplateQuery;
 import com.songhg.veri.agent.testdesign.domain.TestDesignAuditChainAggregate;
 import com.songhg.veri.agent.testdesign.domain.TestDesignCandidate;
 import com.songhg.veri.agent.testdesign.domain.TestDesignCandidateStatus;
@@ -13,6 +14,7 @@ import com.songhg.veri.agent.testdesign.domain.TestDesignReportManifest;
 import com.songhg.veri.agent.testdesign.domain.TestDesignReviewRecord;
 import com.songhg.veri.agent.testdesign.domain.TestDesignTask;
 import com.songhg.veri.agent.testdesign.domain.TestDesignTaskStatus;
+import com.songhg.veri.agent.testdesign.domain.TestDesignTemplate;
 import java.time.Instant;
 import java.util.Comparator;
 import java.util.List;
@@ -38,6 +40,42 @@ public class InMemoryTestDesignRepository implements TestDesignRepository {
     private final ConcurrentHashMap<UUID, TestDesignPublishRecord> publishRecords = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<UUID, TestDesignReportManifest> reportManifests = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<UUID, TestDesignContextPolicyOverride> contextPolicyOverrides = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<UUID, TestDesignTemplate> templates = new ConcurrentHashMap<>();
+
+    @Override
+    public List<TestDesignTemplate> templates(TestDesignTemplateQuery query) {
+        return filteredTemplates(query)
+                .skip(query.offset())
+                .limit(query.size())
+                .toList();
+    }
+
+    @Override
+    public long countTemplates(TestDesignTemplateQuery query) {
+        return filteredTemplates(query).count();
+    }
+
+    @Override
+    public Optional<TestDesignTemplate> template(UUID id) {
+        return Optional.ofNullable(templates.get(id));
+    }
+
+    @Override
+    public Optional<TestDesignTemplate> templateByScopeAndName(String projectId, String name) {
+        if (!StringUtils.hasText(name)) {
+            return Optional.empty();
+        }
+        return templates.values().stream()
+                .filter(template -> sameNullableProject(projectId, template.projectId()))
+                .filter(template -> name.trim().equalsIgnoreCase(template.name()))
+                .findFirst();
+    }
+
+    @Override
+    public TestDesignTemplate saveTemplate(TestDesignTemplate template) {
+        templates.put(template.id(), template);
+        return template;
+    }
 
     @Override
     public List<TestDesignTask> tasks(TestDesignTaskQuery query) {
@@ -577,6 +615,25 @@ public class InMemoryTestDesignRepository implements TestDesignRepository {
                 .sorted(Comparator.comparing(TestDesignTask::createdAt).reversed());
     }
 
+    private Stream<TestDesignTemplate> filteredTemplates(TestDesignTemplateQuery query) {
+        return templates.values().stream()
+                .filter(template -> {
+                    if (!StringUtils.hasText(query.projectId())) {
+                        return true;
+                    }
+                    if (query.includeGlobal() && !StringUtils.hasText(template.projectId())) {
+                        return true;
+                    }
+                    return query.projectId().equals(template.projectId());
+                })
+                .filter(template -> query.enabled() == null || query.enabled() == template.enabled())
+                .filter(template -> contains(query.keyword(), template.name(), template.description(), template.promptKey()))
+                .sorted(Comparator
+                        .comparing((TestDesignTemplate template) -> StringUtils.hasText(template.projectId()) ? 0 : 1)
+                        .thenComparing(TestDesignTemplate::updatedAt, Comparator.nullsLast(Comparator.reverseOrder()))
+                        .thenComparing(TestDesignTemplate::createdAt, Comparator.nullsLast(Comparator.reverseOrder())));
+    }
+
     private Stream<TestDesignCandidate> filteredCandidates(TestDesignCandidateQuery query) {
         return candidates.values().stream()
                 .filter(candidate -> query.taskId() == null || query.taskId().equals(candidate.taskId()))
@@ -596,6 +653,13 @@ public class InMemoryTestDesignRepository implements TestDesignRepository {
 
     private static boolean matches(String expected, String actual) {
         return !StringUtils.hasText(expected) || expected.equalsIgnoreCase(actual);
+    }
+
+    private static boolean sameNullableProject(String expected, String actual) {
+        if (!StringUtils.hasText(expected) && !StringUtils.hasText(actual)) {
+            return true;
+        }
+        return StringUtils.hasText(expected) && expected.equals(actual);
     }
 
     private static Instant lastTouchedAt(TestDesignTask task) {

@@ -1,12 +1,18 @@
 import {
+  ArrowDown,
+  ArrowUp,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
   ClipboardCheck,
   Download,
   Eye,
+  FileDiff,
   FileText,
+  GripVertical,
+  Layers3,
   Link2,
+  Plus,
   RefreshCw,
   Repeat2,
   RotateCcw,
@@ -14,6 +20,7 @@ import {
   Search,
   Send,
   Sparkles,
+  Trash2,
   XCircle
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
@@ -32,7 +39,9 @@ import {
   batchResolveTestDesignConflicts,
   cancelTestDesignTask,
   confirmTestDesignCandidate,
+  createTestDesignTemplate,
   createTestDesignTask,
+  deleteTestDesignTemplate,
   exportTestDesignCandidatesCsv,
   exportTestDesignReviewRecordsCsv,
   exportTestDesignTaskReportCsv,
@@ -42,6 +51,7 @@ import {
   fetchTestDesignHealth,
   fetchTestDesignPromptTrend,
   fetchTestDesignReviewRecords,
+  fetchTestDesignTemplates,
   fetchTestDesignTaskAuditSummary,
   fetchTestDesignTaskQualitySummary,
   fetchTestDesignTaskSummary,
@@ -57,6 +67,7 @@ import {
   resolveTestDesignConflict,
   retryTestDesignTask,
   testDesignErrorMessage,
+  updateTestDesignTemplate,
   updateTestDesignCandidate,
   type TestDesignCandidateBatchActionResult,
   type TestDesignCandidateBatchActionType,
@@ -70,6 +81,8 @@ import {
   type TestDesignPublishResult,
   type TestDesignQualitySummaryView,
   type TestDesignReviewRecordView,
+  type TestDesignStepView,
+  type TestDesignTemplateView,
   type TestDesignTaskView
 } from '../api/testDesign';
 import { canUseButton, hasPermission } from '../permissions';
@@ -177,12 +190,23 @@ type CandidateFilters = {
 
 type GenerationDraft = {
   projectId: string;
+  templateId: string;
   title: string;
+  environmentKey: string;
+  promptKey: string;
+  promptVersion: string;
   caseCountPerRequirement: string;
   coverageTypes: string[];
   contextApiIds: string;
   contextPageIds: string;
   contextFlowIds: string;
+};
+
+type TestDesignStepDraft = {
+  id: string;
+  action: string;
+  expectedResult: string;
+  selected: boolean;
 };
 
 type CandidateDraft = {
@@ -192,9 +216,24 @@ type CandidateDraft = {
   coverageType: string;
   priority: string;
   preconditions: string;
-  steps: string;
+  steps: TestDesignStepDraft[];
   expectedResult: string;
   tags: string;
+};
+
+type TemplateDraft = {
+  projectId: string;
+  name: string;
+  description: string;
+  promptKey: string;
+  promptVersion: string;
+  caseCountPerRequirement: string;
+  coverageTypes: string[];
+  environmentKey: string;
+  contextApiIds: string;
+  contextPageIds: string;
+  contextFlowIds: string;
+  enabled: boolean;
 };
 
 type BatchEditResult = {
@@ -247,12 +286,31 @@ const initialCandidateFilters: CandidateFilters = {
 
 const initialGenerationDraft: GenerationDraft = {
   projectId: '',
+  templateId: '',
   title: '',
+  environmentKey: '',
+  promptKey: '',
+  promptVersion: '',
   caseCountPerRequirement: '2',
   coverageTypes: ['SMOKE', 'FUNCTIONAL', 'EXCEPTION'],
   contextApiIds: '',
   contextPageIds: '',
   contextFlowIds: ''
+};
+
+const initialTemplateDraft: TemplateDraft = {
+  projectId: '',
+  name: '',
+  description: '',
+  promptKey: '',
+  promptVersion: '',
+  caseCountPerRequirement: '2',
+  coverageTypes: ['SMOKE', 'FUNCTIONAL', 'EXCEPTION'],
+  environmentKey: '',
+  contextApiIds: '',
+  contextPageIds: '',
+  contextFlowIds: '',
+  enabled: true
 };
 
 const initialConflictResolutionDraft: ConflictResolutionDraft = {
@@ -288,6 +346,10 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
   const [candidatePageIndex, setCandidatePageIndex] = useState(0);
   const [candidatePageSize, setCandidatePageSize] = useState(DEFAULT_TEST_DESIGN_CANDIDATE_PAGE_SIZE);
   const [generationDraft, setGenerationDraft] = useState<GenerationDraft>(initialGenerationDraft);
+  const [templates, setTemplates] = useState<TestDesignTemplateView[]>([]);
+  const [templatePageTotal, setTemplatePageTotal] = useState(0);
+  const [selectedTemplateManageId, setSelectedTemplateManageId] = useState('');
+  const [templateDraft, setTemplateDraft] = useState<TemplateDraft>(initialTemplateDraft);
   const generationIdempotencyRef = useRef<TestDesignTaskIdempotencyState | null>(null);
   const [reviewComment, setReviewComment] = useState('');
   const [batchEditDraft, setBatchEditDraft] = useState<TestDesignBatchEditDraft>(initialTestDesignBatchEditDraft);
@@ -317,11 +379,16 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
   const [taskAuditState, setTaskAuditState] = useState<WorkState>({ loading: false });
   const [promptTrendState, setPromptTrendState] = useState<WorkState>({ loading: false });
   const [contextPolicyState, setContextPolicyState] = useState<WorkState>({ loading: false });
+  const [templateState, setTemplateState] = useState<WorkState>({ loading: false });
+  const [draggingStepId, setDraggingStepId] = useState('');
 
   const disabled = !props.signedIn || !canRead;
   const selectedTask = tasks.find((task) => task.id === selectedTaskId) ?? null;
   const selectedTaskAsyncInFlight = selectedTask ? ASYNC_TASK_STATUSES.has(selectedTask.status) : false;
   const selectedCandidate = candidates.find((candidate) => candidate.id === selectedCandidateId) ?? null;
+  const selectedGenerationTemplate = templates.find((template) => template.id === generationDraft.templateId) ?? null;
+  const selectedManagedTemplate = templates.find((template) => template.id === selectedTemplateManageId) ?? null;
+  const templateProjectId = generationDraft.projectId || filters.projectId || taskFilters.projectId || selectedTask?.projectId || '';
   const filteredRequirements = useMemo(() => filterRequirements(requirements, filters), [requirements, filters]);
   const candidatePage = useMemo(
     () => pageFromServerItems(candidates, candidatePageIndex, candidatePageSize, candidatePageTotal),
@@ -440,7 +507,10 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
   );
   const candidateQualityIssues = useMemo(
     () => candidateDraft && selectedCandidate
-      ? validateTestDesignCandidateDraft(candidateDraft, {
+      ? validateTestDesignCandidateDraft({
+        ...candidateDraft,
+        steps: stepsToQualityText(candidateDraft.steps)
+      }, {
         currentCandidateId: selectedCandidate.id,
         currentRequirementId: selectedCandidate.requirementId,
         peerCandidates: candidates
@@ -692,6 +762,46 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
     taskFilters.projectId
   ]);
 
+  const refreshTemplates = useCallback(async (options?: { silent?: boolean }) => {
+    if (!props.signedIn || !canRead) {
+      setTemplates([]);
+      setTemplatePageTotal(0);
+      setSelectedTemplateManageId('');
+      setTemplateState({ loading: false });
+      return;
+    }
+
+    const silent = options?.silent === true;
+    if (silent) {
+      setTemplateState((current) => ({ ...current, error: undefined }));
+    } else {
+      setTemplateState({ loading: true });
+    }
+    try {
+      const response = await fetchTestDesignTemplates({
+        size: 30,
+        projectId: templateProjectId,
+        includeGlobal: true
+      });
+      setTemplates(response.data.items);
+      setTemplatePageTotal(response.data.total);
+      setSelectedTemplateManageId((current) => (
+        current && response.data.items.some((template) => template.id === current) ? current : response.data.items[0]?.id ?? ''
+      ));
+      setTemplateState({ loading: false, traceId: response.trace_id });
+    } catch (error: unknown) {
+      setTemplates([]);
+      setTemplatePageTotal(0);
+      if (!silent) {
+        setTemplateState({ loading: false, error: testDesignErrorMessage(error, '生成模板加载失败') });
+      }
+    }
+  }, [
+    canRead,
+    props.signedIn,
+    templateProjectId
+  ]);
+
   const refreshReviewRecords = useCallback(async (taskId: string, options?: { silent?: boolean }) => {
     if (!props.signedIn || !canRead || !taskId) {
       setReviewRecords([]);
@@ -740,6 +850,10 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       setTasks([]);
       setCandidates([]);
       setCandidatePageTotal(0);
+      setTemplates([]);
+      setTemplatePageTotal(0);
+      setSelectedTemplateManageId('');
+      setTemplateDraft(initialTemplateDraft);
       setReviewRecords([]);
       setReviewRecordPageTotal(0);
       setSelectedRequirementIds([]);
@@ -768,6 +882,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       setTaskAuditState({ loading: false });
       setPromptTrendState({ loading: false });
       setContextPolicyState({ loading: false });
+      setTemplateState({ loading: false });
       return;
     }
 
@@ -828,6 +943,10 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
   useEffect(() => {
     void refreshPromptTrend();
   }, [refreshPromptTrend]);
+
+  useEffect(() => {
+    void refreshTemplates();
+  }, [refreshTemplates]);
 
   useEffect(() => {
     setCandidates([]);
@@ -897,10 +1016,23 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
   }, [candidates, selectedCandidateId]);
 
   useEffect(() => {
+    setTemplateDraft(selectedManagedTemplate ? templateDraftFromView(selectedManagedTemplate) : {
+      ...initialTemplateDraft,
+      projectId: templateProjectId
+    });
+  }, [selectedManagedTemplate, templateProjectId]);
+
+  useEffect(() => {
     if (!generationDraft.projectId && filters.projectId) {
       setGenerationDraft((current) => ({ ...current, projectId: filters.projectId }));
     }
   }, [filters.projectId, generationDraft.projectId]);
+
+  useEffect(() => {
+    if (generationDraft.templateId && !templates.some((template) => template.id === generationDraft.templateId)) {
+      setGenerationDraft((current) => ({ ...current, templateId: '' }));
+    }
+  }, [generationDraft.templateId, templates]);
 
   useEffect(() => {
     if (!taskFilters.projectId && filters.projectId) {
@@ -958,6 +1090,128 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
     });
   }
 
+  function toggleTemplateCoverage(type: string) {
+    setTemplateDraft((current) => {
+      const coverageTypes = current.coverageTypes.includes(type)
+        ? current.coverageTypes.filter((item) => item !== type)
+        : [...current.coverageTypes, type];
+      return { ...current, coverageTypes };
+    });
+  }
+
+  function selectGenerationTemplate(templateId: string) {
+    const template = templates.find((item) => item.id === templateId);
+    setGenerationDraft((current) => {
+      if (!template) {
+        return { ...current, templateId: '' };
+      }
+      const contextDefaults = template.contextDefaults;
+      return {
+        ...current,
+        templateId: template.id,
+        projectId: current.projectId || template.projectId || filters.projectId || '',
+        promptKey: template.promptKey,
+        promptVersion: template.promptVersion,
+        environmentKey: stringDefault(contextDefaults.environmentKey),
+        caseCountPerRequirement: String(template.caseCountPerRequirement || current.caseCountPerRequirement || 1),
+        coverageTypes: template.coverageTypes.length ? template.coverageTypes : current.coverageTypes,
+        contextApiIds: templateContextIds(contextDefaults.contextApiIds),
+        contextPageIds: templateContextIds(contextDefaults.contextPageIds),
+        contextFlowIds: templateContextIds(contextDefaults.contextFlowIds)
+      };
+    });
+  }
+
+  function updateStepDraft(stepId: string, patch: Partial<TestDesignStepDraft>) {
+    setCandidateDraft((current) => current ? {
+      ...current,
+      steps: current.steps.map((step) => step.id === stepId ? { ...step, ...patch } : step)
+    } : current);
+  }
+
+  function addStepDraft() {
+    setCandidateDraft((current) => current ? {
+      ...current,
+      steps: [...current.steps, emptyStepDraft()]
+    } : current);
+  }
+
+  function insertStepDraftAfter(stepId: string) {
+    setCandidateDraft((current) => {
+      if (!current) {
+        return current;
+      }
+      const index = current.steps.findIndex((step) => step.id === stepId);
+      const steps = [...current.steps];
+      steps.splice(index >= 0 ? index + 1 : steps.length, 0, emptyStepDraft());
+      return { ...current, steps };
+    });
+  }
+
+  function removeStepDraft(stepId: string) {
+    setCandidateDraft((current) => current ? {
+      ...current,
+      steps: current.steps.filter((step) => step.id !== stepId)
+    } : current);
+  }
+
+  function moveStepDraft(stepId: string, direction: -1 | 1) {
+    setCandidateDraft((current) => {
+      if (!current) {
+        return current;
+      }
+      const index = current.steps.findIndex((step) => step.id === stepId);
+      const targetIndex = index + direction;
+      if (index < 0 || targetIndex < 0 || targetIndex >= current.steps.length) {
+        return current;
+      }
+      const steps = [...current.steps];
+      const [step] = steps.splice(index, 1);
+      steps.splice(targetIndex, 0, step);
+      return { ...current, steps };
+    });
+  }
+
+  function dropStepDraft(targetStepId: string) {
+    if (!draggingStepId || draggingStepId === targetStepId) {
+      return;
+    }
+    setCandidateDraft((current) => {
+      if (!current) {
+        return current;
+      }
+      const fromIndex = current.steps.findIndex((step) => step.id === draggingStepId);
+      const toIndex = current.steps.findIndex((step) => step.id === targetStepId);
+      if (fromIndex < 0 || toIndex < 0) {
+        return current;
+      }
+      const steps = [...current.steps];
+      const [step] = steps.splice(fromIndex, 1);
+      steps.splice(toIndex, 0, step);
+      return { ...current, steps };
+    });
+    setDraggingStepId('');
+  }
+
+  function deleteSelectedSteps() {
+    setCandidateDraft((current) => current ? {
+      ...current,
+      steps: current.steps.filter((step) => !step.selected)
+    } : current);
+  }
+
+  function insertPresetSteps() {
+    setCandidateDraft((current) => current ? {
+      ...current,
+      steps: [
+        ...current.steps,
+        emptyStepDraft('准备测试数据', '测试数据满足前置条件'),
+        emptyStepDraft('执行核心操作', '系统返回成功状态'),
+        emptyStepDraft('核对结果状态', '页面、接口和数据状态一致')
+      ]
+    } : current);
+  }
+
   function toggleCandidateSelection(candidateId: string) {
     setSelectedCandidateIds((current) => {
       if (current.includes(candidateId)) {
@@ -1001,11 +1255,15 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
     setMutationState({ loading: true });
     const createPayload = {
       projectId: generationDraft.projectId,
+      templateId: generationDraft.templateId,
       title: generationDraft.title,
       requirementIds: selectedRequirementIds,
       contextApiIds: parseContextAssetIds(generationDraft.contextApiIds),
       contextPageIds: parseContextAssetIds(generationDraft.contextPageIds),
       contextFlowIds: parseContextAssetIds(generationDraft.contextFlowIds),
+      environmentKey: generationDraft.environmentKey,
+      promptKey: generationDraft.promptKey,
+      promptVersion: generationDraft.promptVersion,
       coverageTypes: generationDraft.coverageTypes,
       caseCountPerRequirement: Number(generationDraft.caseCountPerRequirement) || undefined
     };
@@ -1043,6 +1301,65 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       });
     } catch (error: unknown) {
       setMutationState({ loading: false, error: testDesignErrorMessage(error, '候选用例生成失败') });
+    }
+  }
+
+  async function saveTemplate(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!canPolicyManage) {
+      setTemplateState({ loading: false, error: '缺少 testDesign:policy_manage 权限' });
+      return;
+    }
+    if (!templateDraft.name.trim()) {
+      setTemplateState({ loading: false, error: '请输入模板名称' });
+      return;
+    }
+    if (!templateDraft.coverageTypes.length) {
+      setTemplateState({ loading: false, error: '请至少选择一种模板覆盖类型' });
+      return;
+    }
+
+    setTemplateState({ loading: true });
+    try {
+      const payload = templatePayload(templateDraft, !selectedManagedTemplate);
+      const response = selectedManagedTemplate
+        ? await updateTestDesignTemplate(selectedManagedTemplate.id, payload)
+        : await createTestDesignTemplate(payload);
+      setTemplates((current) => upsertTemplate(current, response.data));
+      setSelectedTemplateManageId(response.data.id);
+      if (generationDraft.templateId === response.data.id) {
+        selectGenerationTemplate(response.data.id);
+      }
+      setTemplateState({
+        loading: false,
+        success: selectedManagedTemplate ? '生成模板已更新' : '生成模板已创建',
+        traceId: response.trace_id
+      });
+      void refreshTemplates({ silent: true });
+    } catch (error: unknown) {
+      setTemplateState({ loading: false, error: testDesignErrorMessage(error, selectedManagedTemplate ? '生成模板更新失败' : '生成模板创建失败') });
+    }
+  }
+
+  async function disableTemplate() {
+    if (!selectedManagedTemplate) {
+      setTemplateState({ loading: false, error: '请先选择模板' });
+      return;
+    }
+    if (!canPolicyManage) {
+      setTemplateState({ loading: false, error: '缺少 testDesign:policy_manage 权限' });
+      return;
+    }
+
+    setTemplateState({ loading: true });
+    try {
+      const response = await deleteTestDesignTemplate(selectedManagedTemplate.id);
+      setTemplates((current) => upsertTemplate(current, response.data));
+      setGenerationDraft((current) => current.templateId === response.data.id ? { ...current, templateId: '' } : current);
+      setTemplateState({ loading: false, success: '生成模板已禁用', traceId: response.trace_id });
+      void refreshTemplates({ silent: true });
+    } catch (error: unknown) {
+      setTemplateState({ loading: false, error: testDesignErrorMessage(error, '生成模板禁用失败') });
     }
   }
 
@@ -1228,7 +1545,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
         coverageType: candidateDraft.coverageType,
         priority: candidateDraft.priority,
         preconditions: candidateDraft.preconditions,
-        steps: stepsFromText(candidateDraft.steps),
+        steps: stepsFromDraft(candidateDraft.steps),
         expectedResult: candidateDraft.expectedResult,
         tags: tagsFromText(candidateDraft.tags),
         version: selectedCandidate.version
@@ -2171,6 +2488,117 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
         <section className="panel">
           <div className="panel-header compact">
             <div>
+              <h2 className="panel-title">模板管理</h2>
+              <p className="panel-desc">{templatePageTotal ? `${templatePageTotal} 个可用模板` : '生成参数预配置。'}</p>
+            </div>
+            <button className="btn btn-secondary btn-xs" type="button" disabled={!canRead || templateState.loading} title="刷新模板" onClick={() => void refreshTemplates()}>
+              <RefreshCw size={14} />
+            </button>
+          </div>
+          <div className="panel-body compact">
+            <form className="main-stack" onSubmit={saveTemplate}>
+              <div className="test-design-template-toolbar">
+                <label className="field">
+                  <span className="field-label">当前模板</span>
+                  <select value={selectedTemplateManageId} onChange={(event) => setSelectedTemplateManageId(event.target.value)} disabled={templateState.loading}>
+                    <option value="">新建模板</option>
+                    {templates.map((template) => (
+                      <option key={template.id} value={template.id}>
+                        {template.enabled ? '' : '禁用 · '}{template.projectId ? '项目' : '全局'} · {template.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <button
+                  className="btn btn-secondary btn-icon btn-sm"
+                  type="button"
+                  title="新建模板"
+                  disabled={templateState.loading}
+                  onClick={() => {
+                    setSelectedTemplateManageId('');
+                    setTemplateDraft({ ...initialTemplateDraft, projectId: templateProjectId });
+                  }}
+                >
+                  <Plus size={15} />
+                </button>
+              </div>
+              <label className="field">
+                <span className="field-label">名称</span>
+                <input value={templateDraft.name} onChange={(event) => setTemplateDraft((current) => ({ ...current, name: event.target.value }))} disabled={!canPolicyManage || templateState.loading} />
+              </label>
+              <label className="field">
+                <span className="field-label">作用域项目 ID</span>
+                <input value={templateDraft.projectId} onChange={(event) => setTemplateDraft((current) => ({ ...current, projectId: event.target.value }))} placeholder="留空为全局模板" disabled={!canPolicyManage || templateState.loading || Boolean(selectedManagedTemplate)} />
+              </label>
+              <label className="field">
+                <span className="field-label">说明</span>
+                <input value={templateDraft.description} onChange={(event) => setTemplateDraft((current) => ({ ...current, description: event.target.value }))} disabled={!canPolicyManage || templateState.loading} />
+              </label>
+              <div className="test-design-template-inline-grid">
+                <label className="field">
+                  <span className="field-label">Prompt Key</span>
+                  <input value={templateDraft.promptKey} onChange={(event) => setTemplateDraft((current) => ({ ...current, promptKey: event.target.value }))} placeholder={health?.promptKey ?? '默认'} disabled={!canPolicyManage || templateState.loading} />
+                </label>
+                <label className="field">
+                  <span className="field-label">版本</span>
+                  <input value={templateDraft.promptVersion} onChange={(event) => setTemplateDraft((current) => ({ ...current, promptVersion: event.target.value }))} placeholder={health?.promptVersion ?? '默认'} disabled={!canPolicyManage || templateState.loading} />
+                </label>
+              </div>
+              <div className="test-design-template-inline-grid">
+                <label className="field">
+                  <span className="field-label">每需求数</span>
+                  <input value={templateDraft.caseCountPerRequirement} type="number" min="1" max="6" onChange={(event) => setTemplateDraft((current) => ({ ...current, caseCountPerRequirement: event.target.value }))} disabled={!canPolicyManage || templateState.loading} />
+                </label>
+                <label className="field">
+                  <span className="field-label">环境 Key</span>
+                  <input value={templateDraft.environmentKey} onChange={(event) => setTemplateDraft((current) => ({ ...current, environmentKey: event.target.value }))} disabled={!canPolicyManage || templateState.loading} />
+                </label>
+              </div>
+              <label className="field">
+                <span className="field-label">上下文 API ID</span>
+                <input value={templateDraft.contextApiIds} onChange={(event) => setTemplateDraft((current) => ({ ...current, contextApiIds: event.target.value }))} disabled={!canPolicyManage || templateState.loading} />
+              </label>
+              <label className="field">
+                <span className="field-label">上下文页面 ID</span>
+                <input value={templateDraft.contextPageIds} onChange={(event) => setTemplateDraft((current) => ({ ...current, contextPageIds: event.target.value }))} disabled={!canPolicyManage || templateState.loading} />
+              </label>
+              <label className="field">
+                <span className="field-label">上下文业务流 ID</span>
+                <input value={templateDraft.contextFlowIds} onChange={(event) => setTemplateDraft((current) => ({ ...current, contextFlowIds: event.target.value }))} disabled={!canPolicyManage || templateState.loading} />
+              </label>
+              <div className="field">
+                <span className="field-label">覆盖类型</span>
+                <div className="test-design-checks">
+                  {TEST_DESIGN_COVERAGE_TYPES.map((type) => (
+                    <label key={type}>
+                      <input type="checkbox" checked={templateDraft.coverageTypes.includes(type)} onChange={() => toggleTemplateCoverage(type)} disabled={!canPolicyManage || templateState.loading} />
+                      <span>{type}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <label className="test-design-template-enabled">
+                <input type="checkbox" checked={templateDraft.enabled} onChange={(event) => setTemplateDraft((current) => ({ ...current, enabled: event.target.checked }))} disabled={!canPolicyManage || templateState.loading} />
+                <span>启用</span>
+              </label>
+              <div className="toolbar-actions">
+                <button className="btn btn-secondary btn-sm" type="submit" disabled={!canPolicyManage || templateState.loading || !templateDraft.name.trim()}>
+                  <Layers3 size={15} />
+                  {selectedManagedTemplate ? '更新' : '创建'}
+                </button>
+                <button className="btn btn-ghost btn-sm" type="button" disabled={!canPolicyManage || templateState.loading || !selectedManagedTemplate || !selectedManagedTemplate.enabled} onClick={() => void disableTemplate()}>
+                  <Trash2 size={15} />
+                  禁用
+                </button>
+              </div>
+              <StateLine state={templateState} />
+            </form>
+          </div>
+        </section>
+
+        <section className="panel">
+          <div className="panel-header compact">
+            <div>
               <h2 className="panel-title">评审历史</h2>
               <p className="panel-desc">{reviewRecordPageTotal ? `${reviewRecordPageTotal} 条候选编辑和评审记录` : '候选编辑和评审审计摘要。'}</p>
             </div>
@@ -2500,12 +2928,68 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
                   <textarea value={candidateDraft.description} onChange={(event) => setCandidateDraft({ ...candidateDraft, description: event.target.value })} disabled={!canReview || mutationState.loading} />
                   <QualityFieldMessages field="description" issues={candidateQualityIssues} />
                 </label>
-                <label className="field">
-                  <span className="field-label">步骤</span>
-                  <textarea value={candidateDraft.steps} onChange={(event) => setCandidateDraft({ ...candidateDraft, steps: event.target.value })} disabled={!canReview || mutationState.loading} />
-                  <span className="field-hint">每行一个步骤，可用“操作 =&gt; 期望”格式。</span>
+                <div className="field test-design-steps-editor">
+                  <div className="test-design-steps-heading">
+                    <span className="field-label">步骤</span>
+                    <div className="toolbar-actions">
+                      <button className="btn btn-secondary btn-xs" type="button" title="批量插入" disabled={!canReview || mutationState.loading} onClick={insertPresetSteps}>
+                        <Plus size={14} />
+                        批量
+                      </button>
+                      <button className="btn btn-secondary btn-icon btn-xs" type="button" title="添加步骤" disabled={!canReview || mutationState.loading} onClick={addStepDraft}>
+                        <Plus size={14} />
+                      </button>
+                      <button className="btn btn-ghost btn-icon btn-xs" type="button" title="删除已选步骤" disabled={!canReview || mutationState.loading || !candidateDraft.steps.some((step) => step.selected)} onClick={deleteSelectedSteps}>
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </div>
+                  <div className="test-design-step-list">
+                    {candidateDraft.steps.map((step, index) => (
+                      <div
+                        key={step.id}
+                        className={draggingStepId === step.id ? 'test-design-step-row dragging' : 'test-design-step-row'}
+                        draggable={canReview && !mutationState.loading}
+                        onDragStart={() => setDraggingStepId(step.id)}
+                        onDragEnd={() => setDraggingStepId('')}
+                        onDragOver={(event) => event.preventDefault()}
+                        onDrop={() => dropStepDraft(step.id)}
+                      >
+                        <label className="test-design-step-select" title="选择步骤">
+                          <input type="checkbox" checked={step.selected} onChange={(event) => updateStepDraft(step.id, { selected: event.target.checked })} disabled={!canReview || mutationState.loading} />
+                        </label>
+                        <button className="btn btn-ghost btn-icon btn-xs test-design-step-drag" type="button" title="拖拽排序" disabled={!canReview || mutationState.loading}>
+                          <GripVertical size={14} />
+                        </button>
+                        <span className="asset-step-index">{index + 1}</span>
+                        <label className="field">
+                          <span className="field-label">操作</span>
+                          <textarea value={step.action} onChange={(event) => updateStepDraft(step.id, { action: event.target.value })} disabled={!canReview || mutationState.loading} />
+                        </label>
+                        <label className="field">
+                          <span className="field-label">预期</span>
+                          <textarea value={step.expectedResult} onChange={(event) => updateStepDraft(step.id, { expectedResult: event.target.value })} disabled={!canReview || mutationState.loading} />
+                        </label>
+                        <div className="test-design-step-actions">
+                          <button className="btn btn-secondary btn-icon btn-xs" type="button" title="上移" disabled={!canReview || mutationState.loading || index === 0} onClick={() => moveStepDraft(step.id, -1)}>
+                            <ArrowUp size={14} />
+                          </button>
+                          <button className="btn btn-secondary btn-icon btn-xs" type="button" title="下移" disabled={!canReview || mutationState.loading || index === candidateDraft.steps.length - 1} onClick={() => moveStepDraft(step.id, 1)}>
+                            <ArrowDown size={14} />
+                          </button>
+                          <button className="btn btn-secondary btn-icon btn-xs" type="button" title="插入下一步" disabled={!canReview || mutationState.loading} onClick={() => insertStepDraftAfter(step.id)}>
+                            <Plus size={14} />
+                          </button>
+                          <button className="btn btn-ghost btn-icon btn-xs" type="button" title="删除步骤" disabled={!canReview || mutationState.loading} onClick={() => removeStepDraft(step.id)}>
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <span className="field-hint">{candidateDraft.steps.length} 个步骤，已选 {candidateDraft.steps.filter((step) => step.selected).length} 个。</span>
                   <QualityFieldMessages field="steps" issues={candidateQualityIssues} />
-                </label>
+                </div>
                 <label className="field">
                   <span className="field-label">预期结果</span>
                   <textarea value={candidateDraft.expectedResult} onChange={(event) => setCandidateDraft({ ...candidateDraft, expectedResult: event.target.value })} disabled={!canReview || mutationState.loading} />
@@ -2550,6 +3034,18 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
           <div className="panel-body compact">
             <form className="main-stack" onSubmit={createTask}>
               <label className="field">
+                <span className="field-label">生成模板</span>
+                <select value={generationDraft.templateId} onChange={(event) => selectGenerationTemplate(event.target.value)} disabled={!canGenerate || mutationState.loading || templateState.loading}>
+                  <option value="">手动配置</option>
+                  {templates.filter((template) => template.enabled).map((template) => (
+                    <option key={template.id} value={template.id}>
+                      {template.projectId ? '项目' : '全局'} · {template.name}
+                    </option>
+                  ))}
+                </select>
+                <span className="field-hint">{selectedGenerationTemplate ? `${selectedGenerationTemplate.promptKey}@${selectedGenerationTemplate.promptVersion}` : '不选择模板时使用手动参数或平台默认值。'}</span>
+              </label>
+              <label className="field">
                 <span className="field-label">项目 ID</span>
                 <input value={generationDraft.projectId} onChange={(event) => setGenerationDraft((current) => ({ ...current, projectId: event.target.value }))} placeholder="project UUID" disabled={!canGenerate || mutationState.loading} />
               </label>
@@ -2557,9 +3053,23 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
                 <span className="field-label">任务标题</span>
                 <input value={generationDraft.title} onChange={(event) => setGenerationDraft((current) => ({ ...current, title: event.target.value }))} placeholder="登录模块用例生成" disabled={!canGenerate || mutationState.loading} />
               </label>
+              <div className="test-design-template-inline-grid">
+                <label className="field">
+                  <span className="field-label">Prompt Key</span>
+                  <input value={generationDraft.promptKey} onChange={(event) => setGenerationDraft((current) => ({ ...current, promptKey: event.target.value }))} placeholder={health?.promptKey ?? '平台默认'} disabled={!canGenerate || mutationState.loading} />
+                </label>
+                <label className="field">
+                  <span className="field-label">Prompt Version</span>
+                  <input value={generationDraft.promptVersion} onChange={(event) => setGenerationDraft((current) => ({ ...current, promptVersion: event.target.value }))} placeholder={health?.promptVersion ?? '平台默认'} disabled={!canGenerate || mutationState.loading} />
+                </label>
+              </div>
               <label className="field">
                 <span className="field-label">每需求用例数</span>
                 <input value={generationDraft.caseCountPerRequirement} type="number" min="1" max="6" onChange={(event) => setGenerationDraft((current) => ({ ...current, caseCountPerRequirement: event.target.value }))} disabled={!canGenerate || mutationState.loading} />
+              </label>
+              <label className="field">
+                <span className="field-label">环境 Key</span>
+                <input value={generationDraft.environmentKey} onChange={(event) => setGenerationDraft((current) => ({ ...current, environmentKey: event.target.value }))} placeholder="qa / staging" disabled={!canGenerate || mutationState.loading} />
               </label>
               <label className="field">
                 <span className="field-label">上下文 API ID</span>
@@ -3335,6 +3845,20 @@ function ReviewRecordRow(props: { record: TestDesignReviewRecordView }) {
         <em>{props.record.action} · {statusChange} · v{versionChange}</em>
         <small>{props.record.changedFields.length ? props.record.changedFields.join(', ') : '无字段变更摘要'}</small>
         {props.record.hasComment && <small>{props.record.commentPreview ?? '包含评审说明'}</small>}
+        {props.record.diffItems.length > 0 && (
+          <div className="test-design-diff-items">
+            {props.record.diffItems.slice(0, 8).map((item) => (
+              <div className="test-design-diff-item" key={`${props.record.id}-${item.field}`}>
+                <span>
+                  <FileDiff size={13} />
+                  {item.field}
+                </span>
+                <del>{item.before || '-'}</del>
+                <ins>{item.after || '-'}</ins>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
       <div className="test-design-review-record-meta">
         <span>{props.record.reviewer ?? '-'}</span>
@@ -3617,6 +4141,14 @@ function upsertTask(current: TestDesignTaskView[], task: TestDesignTaskView) {
   return current.map((item) => (item.id === task.id ? task : item));
 }
 
+function upsertTemplate(current: TestDesignTemplateView[], template: TestDesignTemplateView) {
+  const exists = current.some((item) => item.id === template.id);
+  if (!exists) {
+    return [template, ...current];
+  }
+  return current.map((item) => (item.id === template.id ? template : item));
+}
+
 function mergeBatchCandidates(current: TestDesignCandidateView[], result: TestDesignCandidateBatchActionResult) {
   const candidateById = new Map(
     result.items
@@ -3654,24 +4186,111 @@ function draftFromCandidate(candidate: TestDesignCandidateView): CandidateDraft 
     coverageType: candidate.coverageType,
     priority: candidate.priority,
     preconditions: candidate.preconditions ?? '',
-    steps: candidate.steps.map((step) => `${step.action ?? ''} => ${step.expectedResult ?? ''}`.trim()).join('\n'),
+    steps: candidate.steps.length ? candidate.steps.map(stepDraftFromView) : [emptyStepDraft(), emptyStepDraft()],
     expectedResult: candidate.expectedResult ?? '',
     tags: candidate.tags.join(', ')
   };
 }
 
-function stepsFromText(value: string) {
-  return value
-    .split('\n')
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map((line) => {
-      const [action, expectedResult] = line.split(/\s*=>\s*/, 2);
-      return {
-        action: action?.trim(),
-        expectedResult: expectedResult?.trim()
-      };
-    });
+function stepDraftFromView(step: TestDesignStepView): TestDesignStepDraft {
+  return {
+    id: `step-${step.stepOrder}-${Math.random().toString(36).slice(2)}`,
+    action: step.action ?? '',
+    expectedResult: step.expectedResult ?? '',
+    selected: false
+  };
+}
+
+function emptyStepDraft(action = '', expectedResult = ''): TestDesignStepDraft {
+  return {
+    id: `step-new-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    action,
+    expectedResult,
+    selected: false
+  };
+}
+
+function stepsToQualityText(steps: TestDesignStepDraft[]) {
+  return steps
+    .map((step) => `${step.action.trim()} => ${step.expectedResult.trim()}`.trim())
+    .filter((line) => line !== '=>')
+    .join('\n');
+}
+
+function stepsFromDraft(steps: TestDesignStepDraft[]) {
+  return steps
+    .map((step) => ({
+      action: step.action.trim(),
+      expectedResult: step.expectedResult.trim()
+    }))
+    .filter((step) => step.action || step.expectedResult);
+}
+
+function templateDraftFromView(template: TestDesignTemplateView): TemplateDraft {
+  const defaults = template.contextDefaults;
+  return {
+    projectId: template.projectId ?? '',
+    name: template.name,
+    description: template.description ?? '',
+    promptKey: template.promptKey,
+    promptVersion: template.promptVersion,
+    caseCountPerRequirement: String(template.caseCountPerRequirement || 1),
+    coverageTypes: template.coverageTypes,
+    environmentKey: stringDefault(defaults.environmentKey),
+    contextApiIds: templateContextIds(defaults.contextApiIds),
+    contextPageIds: templateContextIds(defaults.contextPageIds),
+    contextFlowIds: templateContextIds(defaults.contextFlowIds),
+    enabled: template.enabled
+  };
+}
+
+function templatePayload(draft: TemplateDraft, includeProjectId: boolean) {
+  const contextDefaults = {
+    environmentKey: draft.environmentKey,
+    contextApiIds: parseContextAssetIds(draft.contextApiIds),
+    contextPageIds: parseContextAssetIds(draft.contextPageIds),
+    contextFlowIds: parseContextAssetIds(draft.contextFlowIds)
+  };
+  return {
+    ...(includeProjectId ? { projectId: draft.projectId } : {}),
+    name: draft.name,
+    description: draft.description,
+    promptKey: draft.promptKey,
+    promptVersion: draft.promptVersion,
+    coverageTypes: draft.coverageTypes,
+    caseCountPerRequirement: Number(draft.caseCountPerRequirement) || undefined,
+    contextDefaults: compactContextDefaults(contextDefaults),
+    enabled: draft.enabled
+  };
+}
+
+function compactContextDefaults(defaults: Record<string, unknown>) {
+  return Object.fromEntries(
+    Object.entries(defaults).flatMap(([key, value]) => {
+      if (Array.isArray(value)) {
+        return value.length ? [[key, value]] : [];
+      }
+      if (typeof value === 'string') {
+        const normalized = value.trim();
+        return normalized ? [[key, normalized]] : [];
+      }
+      return value === undefined || value === null ? [] : [[key, value]];
+    })
+  );
+}
+
+function templateContextIds(value: unknown) {
+  if (Array.isArray(value)) {
+    return value.map((item) => String(item).trim()).filter(Boolean).join(', ');
+  }
+  if (typeof value === 'string') {
+    return value.trim();
+  }
+  return '';
+}
+
+function stringDefault(value: unknown) {
+  return typeof value === 'string' ? value.trim() : '';
 }
 
 function tagsFromText(value: string) {

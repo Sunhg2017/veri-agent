@@ -20,6 +20,7 @@ import com.songhg.veri.agent.testdesign.application.view.TestDesignCandidateBatc
 import com.songhg.veri.agent.testdesign.application.view.TestDesignCandidateBatchActionResponse;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignCandidateResponse;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignPublishRecordResponse;
+import com.songhg.veri.agent.testdesign.application.view.TestDesignReviewDiffItemResponse;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignReviewRecordResponse;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignStepResponse;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignTaskDetailResponse;
@@ -459,11 +460,12 @@ public class TestDesignCandidateReviewService {
 
     private String reviewDiff(TestDesignCandidate before, TestDesignCandidate after) {
         try {
-            return objectMapper.writeValueAsString(Map.of(
-                    "changedFields", reviewChangedFields(before, after),
-                    "status", Map.of("before", before.status(), "after", after.status()),
-                    "version", Map.of("before", before.version(), "after", after.version())
-            ));
+            Map<String, Object> diff = new LinkedHashMap<>();
+            diff.put("changedFields", reviewChangedFields(before, after));
+            diff.put("fieldDiffs", reviewFieldDiffs(before, after));
+            diff.put("status", Map.of("before", before.status(), "after", after.status()));
+            diff.put("version", Map.of("before", before.version(), "after", after.version()));
+            return objectMapper.writeValueAsString(diff);
         } catch (JsonProcessingException exception) {
             return "{}";
         }
@@ -505,6 +507,48 @@ public class TestDesignCandidateReviewService {
             fields.add("version");
         }
         return fields;
+    }
+
+    private List<Map<String, Object>> reviewFieldDiffs(TestDesignCandidate before, TestDesignCandidate after) {
+        List<Map<String, Object>> items = new ArrayList<>();
+        appendReviewFieldDiff(items, "title", before.title(), after.title());
+        appendReviewFieldDiff(items, "apiId", before.apiId(), after.apiId());
+        appendReviewFieldDiff(items, "coverageType", before.coverageType(), after.coverageType());
+        appendReviewFieldDiff(items, "priority", before.priority(), after.priority());
+        appendReviewFieldDiff(items, "description", before.description(), after.description());
+        appendReviewFieldDiff(items, "preconditions", before.preconditions(), after.preconditions());
+        appendReviewFieldDiff(items, "steps", stepsPreview(before.stepsJson()), stepsPreview(after.stepsJson()));
+        appendReviewFieldDiff(items, "expectedResult", before.expectedResult(), after.expectedResult());
+        appendReviewFieldDiff(items, "tags", before.tags(), after.tags());
+        appendReviewFieldDiff(items, "status", before.status(), after.status());
+        appendReviewFieldDiff(items, "version", String.valueOf(before.version()), String.valueOf(after.version()));
+        return items;
+    }
+
+    private void appendReviewFieldDiff(List<Map<String, Object>> items, String field, Object before, Object after) {
+        String beforePreview = candidateExportPreview(stringValue(before), 180);
+        String afterPreview = candidateExportPreview(stringValue(after), 180);
+        if (Objects.equals(beforePreview, afterPreview)) {
+            return;
+        }
+        Map<String, Object> item = new LinkedHashMap<>();
+        item.put("field", field);
+        item.put("before", beforePreview);
+        item.put("after", afterPreview);
+        items.add(item);
+    }
+
+    private String stepsPreview(String stepsJson) {
+        return responseMapper.steps(stepsJson).stream()
+                .map(step -> (step.stepOrder() + 1) + ". "
+                        + safePreviewPart(step.action())
+                        + " => "
+                        + safePreviewPart(step.expectedResult()))
+                .collect(Collectors.joining(" | "));
+    }
+
+    private static String safePreviewPart(String value) {
+        return StringUtils.hasText(value) ? value.trim() : "-";
     }
 
     private Map<UUID, TestDesignCandidate> candidateById(List<TestDesignCandidate> candidates) {
@@ -802,6 +846,7 @@ public class TestDesignCandidateReviewService {
                 diffSummary.changedFields(),
                 diffSummary.versionBefore(),
                 diffSummary.versionAfter(),
+                diffSummary.diffItems(),
                 record.createdAt()
         );
     }
@@ -896,7 +941,7 @@ public class TestDesignCandidateReviewService {
 
     private ReviewDiffSummary reviewDiffSummary(String diffJson) {
         if (!StringUtils.hasText(diffJson)) {
-            return new ReviewDiffSummary(List.of(), null, null);
+            return new ReviewDiffSummary(List.of(), null, null, List.of());
         }
         try {
             JsonNode root = objectMapper.readTree(diffJson);
@@ -924,10 +969,37 @@ public class TestDesignCandidateReviewService {
             if (!Objects.equals(versionBefore, versionAfter)) {
                 changedFields.add("version");
             }
-            return new ReviewDiffSummary(changedFields.stream().distinct().toList(), versionBefore, versionAfter);
+            return new ReviewDiffSummary(
+                    changedFields.stream().distinct().toList(),
+                    versionBefore,
+                    versionAfter,
+                    reviewDiffItems(root.path("fieldDiffs"))
+            );
         } catch (JsonProcessingException exception) {
-            return new ReviewDiffSummary(List.of(), null, null);
+            return new ReviewDiffSummary(List.of(), null, null, List.of());
         }
+    }
+
+    private static List<TestDesignReviewDiffItemResponse> reviewDiffItems(JsonNode node) {
+        if (node == null || !node.isArray()) {
+            return List.of();
+        }
+        List<TestDesignReviewDiffItemResponse> items = new ArrayList<>();
+        for (JsonNode item : node) {
+            String field = reviewFieldName(textOrNull(item.path("field")));
+            if (!StringUtils.hasText(field)) {
+                continue;
+            }
+            items.add(new TestDesignReviewDiffItemResponse(
+                    field,
+                    candidateExportPreview(textOrNull(item.path("before")), 180),
+                    candidateExportPreview(textOrNull(item.path("after")), 180)
+            ));
+            if (items.size() >= 20) {
+                break;
+            }
+        }
+        return List.copyOf(items);
     }
 
     private static String reviewFieldName(String value) {
@@ -959,7 +1031,16 @@ public class TestDesignCandidateReviewService {
         return null;
     }
 
-    private record ReviewDiffSummary(List<String> changedFields, Long versionBefore, Long versionAfter) {
+    private static String stringValue(Object value) {
+        return value == null ? null : String.valueOf(value);
+    }
+
+    private record ReviewDiffSummary(
+            List<String> changedFields,
+            Long versionBefore,
+            Long versionAfter,
+            List<TestDesignReviewDiffItemResponse> diffItems
+    ) {
     }
 
     private record CandidateExportScope(UUID taskId, String projectId) {

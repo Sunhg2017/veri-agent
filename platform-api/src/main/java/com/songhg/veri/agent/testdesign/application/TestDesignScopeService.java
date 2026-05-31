@@ -35,4 +35,10 @@ public class TestDesignScopeService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "上下文策略覆盖不存在: " + id))
                 .projectId();
     }
+
+    public String templateProjectScopeId(UUID id) {
+        return repository.template(id)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "生成模板不存在: " + id))
+                .projectId();
+    }
 }

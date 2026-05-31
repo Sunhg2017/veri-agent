@@ -418,7 +418,31 @@ export interface TestDesignReviewRecordView {
   changedFields: string[];
   versionBefore?: number;
   versionAfter?: number;
+  diffItems: TestDesignReviewDiffItemView[];
   createdAt?: string;
+}
+
+export interface TestDesignReviewDiffItemView {
+  field: string;
+  before?: string;
+  after?: string;
+}
+
+export interface TestDesignTemplateView {
+  id: string;
+  projectId?: string;
+  name: string;
+  description?: string;
+  promptKey: string;
+  promptVersion: string;
+  coverageTypes: string[];
+  caseCountPerRequirement: number;
+  contextDefaults: Record<string, unknown>;
+  enabled: boolean;
+  createdBy?: string;
+  updatedBy?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface TestDesignQualityMetricView {
@@ -631,16 +655,48 @@ export interface TestDesignReviewRecordList {
   size?: number;
 }
 
+export interface TestDesignTemplateList {
+  items: TestDesignTemplateView[];
+  total: number;
+  index?: number;
+  size?: number;
+}
+
 export interface CreateTestDesignTaskPayload {
   projectId: string;
+  templateId?: string;
   title?: string;
   requirementIds: string[];
   contextApiIds?: string[];
   contextPageIds?: string[];
   contextFlowIds?: string[];
+  environmentKey?: string;
+  promptKey?: string;
+  promptVersion?: string;
   coverageTypes?: string[];
   caseCountPerRequirement?: number;
   idempotencyKey?: string;
+}
+
+export interface TestDesignTemplateFilters {
+  index?: number;
+  size?: number;
+  projectId?: string;
+  enabled?: boolean;
+  keyword?: string;
+  includeGlobal?: boolean;
+}
+
+export interface SaveTestDesignTemplatePayload {
+  projectId?: string;
+  name: string;
+  description?: string;
+  promptKey?: string;
+  promptVersion?: string;
+  coverageTypes?: string[];
+  caseCountPerRequirement?: number;
+  contextDefaults?: Record<string, unknown>;
+  enabled?: boolean;
 }
 
 export interface UpdateTestDesignCandidatePayload {
@@ -896,6 +952,7 @@ function queryString(filters: Record<string, unknown>) {
   for (const [key, value] of Object.entries(filters)) {
     if (typeof value === 'number') params.set(key, String(value));
     if (typeof value === 'string' && value.trim()) params.set(key, value.trim());
+    if (typeof value === 'boolean') params.set(key, String(value));
   }
   const query = params.toString();
   return query ? `?${query}` : '';
@@ -1507,6 +1564,15 @@ export function normalizeTestDesignPublishRecord(raw: unknown): TestDesignPublis
   };
 }
 
+export function normalizeTestDesignReviewDiffItem(raw: unknown): TestDesignReviewDiffItemView {
+  const item = isRecord(raw) ? raw : {};
+  return {
+    field: stringValue(item.field),
+    before: optionalString(item.before),
+    after: optionalString(item.after)
+  };
+}
+
 export function normalizeTestDesignReviewRecord(raw: unknown): TestDesignReviewRecordView {
   const item = isRecord(raw) ? raw : {};
   return {
@@ -1524,7 +1590,28 @@ export function normalizeTestDesignReviewRecord(raw: unknown): TestDesignReviewR
     changedFields: stringArrayValue(item.changedFields ?? item.changed_fields),
     versionBefore: optionalNumber(item.versionBefore ?? item.version_before),
     versionAfter: optionalNumber(item.versionAfter ?? item.version_after),
+    diffItems: listItems(item.diffItems ?? item.diff_items).map(normalizeTestDesignReviewDiffItem),
     createdAt: optionalString(item.createdAt) ?? optionalString(item.created_at)
+  };
+}
+
+export function normalizeTestDesignTemplate(raw: unknown): TestDesignTemplateView {
+  const item = isRecord(raw) ? raw : {};
+  return {
+    id: stringValue(item.id),
+    projectId: optionalString(item.projectId) ?? optionalString(item.project_id),
+    name: stringValue(item.name, '未命名模板'),
+    description: optionalString(item.description),
+    promptKey: stringValue(item.promptKey ?? item.prompt_key),
+    promptVersion: stringValue(item.promptVersion ?? item.prompt_version),
+    coverageTypes: stringArrayValue(item.coverageTypes ?? item.coverage_types),
+    caseCountPerRequirement: numberValue(item.caseCountPerRequirement ?? item.case_count_per_requirement, 1),
+    contextDefaults: recordValue(item.contextDefaults ?? item.context_defaults ?? item.context_defaults_json),
+    enabled: optionalBoolean(item.enabled) ?? true,
+    createdBy: optionalString(item.createdBy) ?? optionalString(item.created_by),
+    updatedBy: optionalString(item.updatedBy) ?? optionalString(item.updated_by),
+    createdAt: optionalString(item.createdAt) ?? optionalString(item.created_at),
+    updatedAt: optionalString(item.updatedAt) ?? optionalString(item.updated_at)
   };
 }
 
@@ -1872,6 +1959,16 @@ export function normalizeTestDesignReviewRecordList(raw: unknown): TestDesignRev
   };
 }
 
+export function normalizeTestDesignTemplateList(raw: unknown): TestDesignTemplateList {
+  const items = listItems(raw).map(normalizeTestDesignTemplate);
+  return {
+    items,
+    total: pageTotal(raw, items.length),
+    index: isRecord(raw) ? numberValue(raw.index, 0) : undefined,
+    size: isRecord(raw) ? numberValue(raw.size, items.length) : undefined
+  };
+}
+
 export function normalizeTestDesignPublishResult(raw: unknown): TestDesignPublishResult {
   const item = isRecord(raw) ? raw : {};
   return {
@@ -1949,6 +2046,41 @@ export async function createTestDesignTask(payload: CreateTestDesignTaskPayload)
     body: JSON.stringify(compactPayload(payload))
   });
   return { ...response, data: normalizeTestDesignTaskDetail(response.data) };
+}
+
+export async function fetchTestDesignTemplates(
+  filters: TestDesignTemplateFilters = {}
+): Promise<ApiResponse<TestDesignTemplateList>> {
+  const response = await requestJson<unknown>(`/api/v1/test-design/templates${queryString(filters as Record<string, unknown>)}`);
+  return { ...response, data: normalizeTestDesignTemplateList(response.data) };
+}
+
+export async function createTestDesignTemplate(
+  payload: SaveTestDesignTemplatePayload
+): Promise<ApiResponse<TestDesignTemplateView>> {
+  const response = await requestJson<unknown>('/api/v1/test-design/templates', {
+    method: 'POST',
+    body: JSON.stringify(compactPayload(payload))
+  });
+  return { ...response, data: normalizeTestDesignTemplate(response.data) };
+}
+
+export async function updateTestDesignTemplate(
+  templateId: string,
+  payload: SaveTestDesignTemplatePayload
+): Promise<ApiResponse<TestDesignTemplateView>> {
+  const response = await requestJson<unknown>(`/api/v1/test-design/templates/${encodeURIComponent(templateId)}`, {
+    method: 'PUT',
+    body: JSON.stringify(compactPayload(payload))
+  });
+  return { ...response, data: normalizeTestDesignTemplate(response.data) };
+}
+
+export async function deleteTestDesignTemplate(templateId: string): Promise<ApiResponse<TestDesignTemplateView>> {
+  const response = await requestJson<unknown>(`/api/v1/test-design/templates/${encodeURIComponent(templateId)}`, {
+    method: 'DELETE'
+  });
+  return { ...response, data: normalizeTestDesignTemplate(response.data) };
 }
 
 export async function fetchTestDesignTask(taskId: string): Promise<ApiResponse<TestDesignTaskDetail>> {

@@ -3,6 +3,7 @@ package com.songhg.veri.agent.testdesign.infrastructure.mapper;
 import com.songhg.veri.agent.common.api.PageQuery;
 import com.songhg.veri.agent.testdesign.application.query.TestDesignCandidateQuery;
 import com.songhg.veri.agent.testdesign.application.query.TestDesignTaskQuery;
+import com.songhg.veri.agent.testdesign.application.query.TestDesignTemplateQuery;
 import com.songhg.veri.agent.testdesign.domain.TestDesignAuditChainAggregate;
 import com.songhg.veri.agent.testdesign.domain.TestDesignCandidate;
 import com.songhg.veri.agent.testdesign.domain.TestDesignContextPolicyOverride;
@@ -10,6 +11,7 @@ import com.songhg.veri.agent.testdesign.domain.TestDesignPublishRecord;
 import com.songhg.veri.agent.testdesign.domain.TestDesignReportManifest;
 import com.songhg.veri.agent.testdesign.domain.TestDesignReviewRecord;
 import com.songhg.veri.agent.testdesign.domain.TestDesignTask;
+import com.songhg.veri.agent.testdesign.domain.TestDesignTemplate;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -18,6 +20,21 @@ import org.apache.ibatis.annotations.Param;
 
 @Mapper
 public interface TestDesignMapper {
+
+    List<TestDesignTemplate> templates(@Param("query") TestDesignTemplateQuery query);
+
+    long countTemplates(@Param("query") TestDesignTemplateQuery query);
+
+    TestDesignTemplate template(@Param("id") UUID id);
+
+    TestDesignTemplate templateByScopeAndName(
+            @Param("projectId") String projectId,
+            @Param("name") String name
+    );
+
+    void insertTemplate(TestDesignTemplate template);
+
+    void updateTemplate(TestDesignTemplate template);
 
     List<TestDesignTask> tasks(@Param("query") TestDesignTaskQuery query);
 

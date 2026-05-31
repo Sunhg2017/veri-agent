@@ -4,6 +4,7 @@ import com.songhg.veri.agent.common.api.PageQuery;
 import com.songhg.veri.agent.testdesign.application.port.TestDesignRepository;
 import com.songhg.veri.agent.testdesign.application.query.TestDesignCandidateQuery;
 import com.songhg.veri.agent.testdesign.application.query.TestDesignTaskQuery;
+import com.songhg.veri.agent.testdesign.application.query.TestDesignTemplateQuery;
 import com.songhg.veri.agent.testdesign.domain.TestDesignAuditChainAggregate;
 import com.songhg.veri.agent.testdesign.domain.TestDesignCandidate;
 import com.songhg.veri.agent.testdesign.domain.TestDesignCandidateStatus;
@@ -13,6 +14,7 @@ import com.songhg.veri.agent.testdesign.domain.TestDesignReportManifest;
 import com.songhg.veri.agent.testdesign.domain.TestDesignReviewRecord;
 import com.songhg.veri.agent.testdesign.domain.TestDesignTask;
 import com.songhg.veri.agent.testdesign.domain.TestDesignTaskStatus;
+import com.songhg.veri.agent.testdesign.domain.TestDesignTemplate;
 import com.songhg.veri.agent.testdesign.infrastructure.mapper.TestDesignMapper;
 import java.time.Instant;
 import java.util.List;
@@ -29,6 +31,36 @@ public class JdbcTestDesignRepository implements TestDesignRepository {
 
     public JdbcTestDesignRepository(TestDesignMapper mapper) {
         this.mapper = mapper;
+    }
+
+    @Override
+    public List<TestDesignTemplate> templates(TestDesignTemplateQuery query) {
+        return mapper.templates(query);
+    }
+
+    @Override
+    public long countTemplates(TestDesignTemplateQuery query) {
+        return mapper.countTemplates(query);
+    }
+
+    @Override
+    public Optional<TestDesignTemplate> template(UUID id) {
+        return Optional.ofNullable(mapper.template(id));
+    }
+
+    @Override
+    public Optional<TestDesignTemplate> templateByScopeAndName(String projectId, String name) {
+        return Optional.ofNullable(mapper.templateByScopeAndName(projectId, name));
+    }
+
+    @Override
+    public TestDesignTemplate saveTemplate(TestDesignTemplate template) {
+        if (mapper.template(template.id()) == null) {
+            mapper.insertTemplate(template);
+        } else {
+            mapper.updateTemplate(template);
+        }
+        return template;
     }
 
     @Override

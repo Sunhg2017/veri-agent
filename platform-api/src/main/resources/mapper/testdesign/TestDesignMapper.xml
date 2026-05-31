@@ -3,6 +3,25 @@
         PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.songhg.veri.agent.testdesign.infrastructure.mapper.TestDesignMapper">
+    <resultMap id="templateMap" type="com.songhg.veri.agent.testdesign.domain.TestDesignTemplate">
+        <constructor>
+            <arg column="id" javaType="java.util.UUID"/>
+            <arg column="project_id" javaType="java.lang.String"/>
+            <arg column="name" javaType="java.lang.String"/>
+            <arg column="description" javaType="java.lang.String"/>
+            <arg column="prompt_key" javaType="java.lang.String"/>
+            <arg column="prompt_version" javaType="java.lang.String"/>
+            <arg column="coverage_types" javaType="java.lang.String"/>
+            <arg column="case_count_per_requirement" javaType="_int"/>
+            <arg column="context_defaults_json" javaType="java.lang.String"/>
+            <arg column="enabled" javaType="_boolean"/>
+            <arg column="created_by" javaType="java.lang.String"/>
+            <arg column="updated_by" javaType="java.lang.String"/>
+            <arg column="created_at" javaType="java.time.Instant"/>
+            <arg column="updated_at" javaType="java.time.Instant"/>
+        </constructor>
+    </resultMap>
+
     <resultMap id="taskMap" type="com.songhg.veri.agent.testdesign.domain.TestDesignTask">
         <constructor>
             <arg column="id" javaType="java.util.UUID"/>
@@ -177,6 +196,12 @@
         input_digest, context_summary_json::text as context_summary_json, created_at, updated_at
     </sql>
 
+    <sql id="templateColumns">
+        id, project_id, name, description, prompt_key, prompt_version, coverage_types,
+        case_count_per_requirement, context_defaults_json::text as context_defaults_json,
+        enabled, created_by, updated_by, created_at, updated_at
+    </sql>
+
     <sql id="candidateColumns">
         id, task_id, project_id, requirement_id, api_id, title, description, coverage_type, priority,
         status, preconditions, steps_json::text as steps_json, expected_result, tags, duplicate_key,
@@ -223,6 +248,88 @@
             </if>
         </where>
     </sql>
+
+    <sql id="templateWhere">
+        <where>
+            <if test="query.projectId != null and query.projectId != ''">
+                <choose>
+                    <when test="query.includeGlobal">
+                        (project_id = #{query.projectId} or project_id is null)
+                    </when>
+                    <otherwise>
+                        project_id = #{query.projectId}
+                    </otherwise>
+                </choose>
+            </if>
+            <if test="query.enabled != null">and enabled = #{query.enabled}</if>
+            <if test="query.keyword != null and query.keyword != ''">
+                and (
+                    position(lower(#{query.keyword}) in lower(coalesce(name, ''))) > 0
+                    or position(lower(#{query.keyword}) in lower(coalesce(description, ''))) > 0
+                    or position(lower(#{query.keyword}) in lower(coalesce(prompt_key, ''))) > 0
+                )
+            </if>
+        </where>
+    </sql>
+
+    <select id="templates" resultMap="templateMap">
+        select <include refid="templateColumns"/>
+        from test_design_template
+        <include refid="templateWhere"/>
+        order by
+            case when project_id is null then 1 else 0 end,
+            updated_at desc,
+            created_at desc
+        limit #{query.size} offset #{query.offset}
+    </select>
+
+    <select id="countTemplates" resultType="long">
+        select count(*)
+        from test_design_template
+        <include refid="templateWhere"/>
+    </select>
+
+    <select id="template" resultMap="templateMap">
+        select <include refid="templateColumns"/>
+        from test_design_template
+        where id = cast(#{id} as uuid)
+    </select>
+
+    <select id="templateByScopeAndName" resultMap="templateMap">
+        select <include refid="templateColumns"/>
+        from test_design_template
+        where lower(name) = lower(#{name})
+          and coalesce(project_id, '') = coalesce(cast(#{projectId} as varchar), '')
+        limit 1
+    </select>
+
+    <insert id="insertTemplate">
+        insert into test_design_template (
+            id, project_id, name, description, prompt_key, prompt_version, coverage_types,
+            case_count_per_requirement, context_defaults_json, enabled, created_by, updated_by,
+            created_at, updated_at
+        ) values (
+            cast(#{id} as uuid), #{projectId}, #{name}, #{description}, #{promptKey}, #{promptVersion},
+            #{coverageTypes}, #{caseCountPerRequirement},
+            coalesce(cast(#{contextDefaultsJson} as jsonb), '{}'::jsonb),
+            #{enabled}, #{createdBy}, #{updatedBy}, #{createdAt}, #{updatedAt}
+        )
+    </insert>
+
+    <update id="updateTemplate">
+        update test_design_template set
+            name = #{name},
+            description = #{description},
+            prompt_key = #{promptKey},
+            prompt_version = #{promptVersion},
+            coverage_types = #{coverageTypes},
+            case_count_per_requirement = #{caseCountPerRequirement},
+            context_defaults_json = coalesce(cast(#{contextDefaultsJson} as jsonb), '{}'::jsonb),
+            enabled = #{enabled},
+            updated_by = #{updatedBy},
+            updated_at = #{updatedAt}
+        where id = cast(#{id} as uuid)
+    </update>
 
     <select id="tasks" resultMap="taskMap">
         select <include refid="taskColumns"/>

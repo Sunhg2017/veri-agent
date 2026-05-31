@@ -162,7 +162,8 @@ describe('WP5 test design exports', () => {
         commentPreview: 'token=review-secret should not be exported',
         changedFields: ['title', 'status', 'version'],
         versionBefore: 1,
-        versionAfter: 2
+        versionAfter: 2,
+        diffItems: []
       },
       {
         id: 'review-2',
@@ -178,7 +179,8 @@ describe('WP5 test design exports', () => {
         commentPreview: 'apiKey=review-secret should not be exported',
         changedFields: [],
         versionBefore: 1,
-        versionAfter: 2
+        versionAfter: 2,
+        diffItems: []
       }
     ], 4);
 

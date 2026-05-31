@@ -12,6 +12,8 @@ import java.util.UUID;
 public record CreateTestDesignTaskCommand(
         @Schema(description = "所属项目 ID，用于权限 scope、筛选和数据隔离")
         @NotBlank String projectId,
+        @Schema(description = "生成模板 ID；显式请求字段会覆盖模板默认值")
+        UUID templateId,
         @Schema(description = "标题，用于页面展示和关键字检索")
         String title,
         @Schema(description = "需求 ID 列表")
@@ -24,6 +26,10 @@ public record CreateTestDesignTaskCommand(
         List<UUID> contextFlowIds,
         @Schema(description = "可选环境键；用于解析环境级上下文策略覆盖，不参与资源归属")
         String environmentKey,
+        @Schema(description = "Prompt 模板标识；为空时使用生成模板或平台默认值")
+        String promptKey,
+        @Schema(description = "Prompt 模板版本；为空时使用生成模板或平台默认值")
+        String promptVersion,
         @Schema(description = "覆盖类型列表")
         List<String> coverageTypes,
         @Schema(description = "每个需求生成的候选数量")

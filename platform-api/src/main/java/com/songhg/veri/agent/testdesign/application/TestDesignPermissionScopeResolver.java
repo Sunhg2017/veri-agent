@@ -3,11 +3,13 @@ package com.songhg.veri.agent.testdesign.application;
 import com.songhg.veri.agent.authorization.application.ResourceScope;
 import com.songhg.veri.agent.testdesign.application.command.ResolveTestDesignConflictBatchCommand;
 import com.songhg.veri.agent.testdesign.application.command.TestDesignCandidateBatchActionCommand;
+import com.songhg.veri.agent.testdesign.application.command.CreateTestDesignTemplateCommand;
 import com.songhg.veri.agent.testdesign.application.query.TestDesignCandidatePageRequest;
 import com.songhg.veri.agent.testdesign.application.query.TestDesignEvaluationCorpusSummaryRequest;
 import com.songhg.veri.agent.testdesign.application.query.TestDesignPromptTrendRequest;
 import com.songhg.veri.agent.testdesign.application.query.TestDesignScopeSummaryRequest;
 import com.songhg.veri.agent.testdesign.application.query.TestDesignTaskPageRequest;
+import com.songhg.veri.agent.testdesign.application.query.TestDesignTemplatePageRequest;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.UUID;
@@ -78,6 +80,25 @@ public class TestDesignPermissionScopeResolver {
 
     public ResourceScope candidate(UUID id) {
         return ResourceScope.project(scopeService.candidateProjectScopeId(id));
+    }
+
+    public ResourceScope templateList(TestDesignTemplatePageRequest request) {
+        if (request != null && StringUtils.hasText(request.getProjectId())) {
+            return project(request.getProjectId());
+        }
+        return ResourceScope.platform();
+    }
+
+    public ResourceScope templateRequest(CreateTestDesignTemplateCommand command) {
+        if (command != null && StringUtils.hasText(command.projectId())) {
+            return project(command.projectId());
+        }
+        return ResourceScope.platform();
+    }
+
+    public ResourceScope template(UUID id) {
+        String projectId = scopeService.templateProjectScopeId(id);
+        return StringUtils.hasText(projectId) ? ResourceScope.project(projectId) : ResourceScope.platform();
     }
 
     public ResourceScope contextPolicyOverride(UUID id) {

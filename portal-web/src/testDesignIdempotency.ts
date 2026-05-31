@@ -8,11 +8,15 @@ export type TestDesignTaskIdempotencyState = {
 type IdempotencyPayloadInput = Pick<
   CreateTestDesignTaskPayload,
   | 'projectId'
+  | 'templateId'
   | 'title'
   | 'requirementIds'
   | 'contextApiIds'
   | 'contextPageIds'
   | 'contextFlowIds'
+  | 'environmentKey'
+  | 'promptKey'
+  | 'promptVersion'
   | 'coverageTypes'
   | 'caseCountPerRequirement'
 >;
@@ -20,11 +24,15 @@ type IdempotencyPayloadInput = Pick<
 export function buildTestDesignTaskIdempotencySignature(input: IdempotencyPayloadInput) {
   return JSON.stringify({
     projectId: normalizedText(input.projectId),
+    templateId: normalizedOptionalText(input.templateId),
     title: normalizedOptionalText(input.title),
     requirementIds: input.requirementIds.map(normalizedText).filter(Boolean),
     contextApiIds: normalizedIdList(input.contextApiIds),
     contextPageIds: normalizedIdList(input.contextPageIds),
     contextFlowIds: normalizedIdList(input.contextFlowIds),
+    environmentKey: normalizedOptionalText(input.environmentKey),
+    promptKey: normalizedOptionalText(input.promptKey),
+    promptVersion: normalizedOptionalText(input.promptVersion),
     coverageTypes: (input.coverageTypes ?? []).map((type) => normalizedText(type).toUpperCase()).filter(Boolean),
     caseCountPerRequirement: normalizedCaseCount(input.caseCountPerRequirement)
   });

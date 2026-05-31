@@ -37,6 +37,8 @@ public record TestDesignReviewRecordResponse(
         Long versionBefore,
         @Schema(description = "操作后候选版本")
         Long versionAfter,
+        @Schema(description = "脱敏字段级差异预览")
+        List<TestDesignReviewDiffItemResponse> diffItems,
         @Schema(description = "创建时间")
         Instant createdAt
 ) {

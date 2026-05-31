@@ -36,6 +36,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -48,6 +49,7 @@ public class TestDesignTaskService {
 
     private static final Logger log = LoggerFactory.getLogger(TestDesignTaskService.class);
     private static final List<String> DEFAULT_COVERAGE_TYPES = List.of("SMOKE", "FUNCTIONAL", "EXCEPTION");
+    private static final Pattern PROMPT_REF_PATTERN = Pattern.compile("[A-Za-z0-9_.:-]+");
     private static final int MAX_IDEMPOTENCY_KEY_LENGTH = 128;
     private static final Set<String> RETRYABLE_TASK_STATUSES = Set.of(
             TestDesignTaskStatus.FAILED.name(),
@@ -69,6 +71,7 @@ public class TestDesignTaskService {
     private final TestDesignResponseMapper responseMapper;
     private final TestDesignGenerationService generationService;
     private final TestDesignContextPolicyService contextPolicyService;
+    private final TestDesignTemplateService templateService;
     private final TestDesignProperties properties;
     private final ObjectMapper objectMapper;
 
@@ -81,6 +84,7 @@ public class TestDesignTaskService {
             TestDesignResponseMapper responseMapper,
             TestDesignGenerationService generationService,
             TestDesignContextPolicyService contextPolicyService,
+            TestDesignTemplateService templateService,
             TestDesignProperties properties,
             ObjectMapper objectMapper
     ) {
@@ -92,6 +96,7 @@ public class TestDesignTaskService {
         this.responseMapper = responseMapper;
         this.generationService = generationService;
         this.contextPolicyService = contextPolicyService;
+        this.templateService = templateService;
         this.properties = properties;
         this.objectMapper = objectMapper;
     }
@@ -187,27 +192,27 @@ public class TestDesignTaskService {
         if (requirementIds.size() > maxRequirementsPerTask()) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "单次生成最多支持 " + maxRequirementsPerTask() + " 个需求");
         }
-        TestDesignGenerationService.ExplicitContextAssetIds explicitContext = new TestDesignGenerationService.ExplicitContextAssetIds(
-                distinctIds(command.contextApiIds()),
-                distinctIds(command.contextPageIds()),
-                distinctIds(command.contextFlowIds())
-        );
+        EffectiveTaskGenerationConfig generationConfig = effectiveGenerationConfig(command, projectId);
+        TestDesignGenerationService.ExplicitContextAssetIds explicitContext = generationConfig.explicitContext();
         TestDesignContextPolicyService.EffectiveContextPolicySnapshot effectivePolicy =
-                contextPolicyService.effectiveSnapshotForTask(projectId, command.environmentKey());
+                contextPolicyService.effectiveSnapshotForTask(projectId, generationConfig.environmentKey());
         validateExplicitContextLimit(explicitContext, effectivePolicy);
-        List<String> coverageTypes = normalizedCoverageTypes(command.coverageTypes());
-        List<String> generationCoverageTypes = coverageTypes.stream()
-                .limit(normalizedCaseCount(command.caseCountPerRequirement()))
+        List<String> generationCoverageTypes = generationConfig.coverageTypes().stream()
+                .limit(generationConfig.caseCountPerRequirement())
                 .toList();
         String requestDigest = taskRequestDigest(
                 projectId,
                 command.title(),
                 requirementIds,
                 explicitContext,
-                command.environmentKey(),
+                generationConfig.environmentKey(),
                 effectivePolicy,
-                coverageTypes,
-                command.caseCountPerRequirement()
+                generationConfig.coverageTypes(),
+                generationConfig.caseCountPerRequirement(),
+                generationConfig.promptKey(),
+                generationConfig.promptVersion(),
+                generationConfig.templateId(),
+                generationConfig.templateName()
         );
         Optional<TestDesignTask> replayedTask = replayIdempotentTaskIfPresent(projectId, idempotencyKey, requestDigest);
         if (replayedTask.isPresent()) {
@@ -218,8 +223,9 @@ public class TestDesignTaskService {
                 .peek(requirement -> ensureSameProject(requirement, projectId))
                 .toList();
         TestDesignGenerationService.TestDesignGenerationContext generationContext =
-                generationService.generationContext(projectId, requirements, explicitContext, command.environmentKey(),
-                        effectivePolicy);
+                generationService.generationContext(projectId, requirements, explicitContext,
+                        generationConfig.environmentKey(), effectivePolicy, generationConfig.promptKey(),
+                        generationConfig.promptVersion(), templateSummary(generationConfig));
         Instant now = Instant.now();
         String title = taskTitle(command.title(), requirements);
         UUID taskId = UUID.randomUUID();
@@ -231,8 +237,8 @@ public class TestDesignTaskService {
                 initialTaskStatus().name(),
                 idsText(requirementIds),
                 String.join(",", generationCoverageTypes),
-                properties.promptKey(),
-                properties.promptVersion(),
+                generationConfig.promptKey(),
+                generationConfig.promptVersion(),
                 null,
                 null,
                 properties.generationMode(),
@@ -257,7 +263,8 @@ public class TestDesignTaskService {
                 generationCoverageTypes,
                 idempotencyKey,
                 generationContext.inputDigest(),
-                explicitContext
+                explicitContext,
+                generationConfig
         ));
         if (properties.asyncGenerationEnabled()) {
             eventPublisher.publishGenerationRequested(taskId);
@@ -294,7 +301,7 @@ public class TestDesignTaskService {
         TestDesignTask running = withTaskStatus(task, TestDesignTaskStatus.RUNNING, null);
         repository.saveTask(running);
 
-        List<String> coverageTypes = normalizedCoverageTypes(csvValues(task.coverageTypes()));
+            List<String> coverageTypes = normalizedCoverageTypes(csvValues(task.coverageTypes()));
         List<TestDesignCandidate> existingCandidates = repository.candidatesByTask(id);
         Set<String> existingDuplicateKeys = existingCandidates.stream()
                 .map(TestDesignCandidate::duplicateKey)
@@ -608,7 +615,11 @@ public class TestDesignTaskService {
             String environmentKey,
             TestDesignContextPolicyService.EffectiveContextPolicySnapshot effectivePolicy,
             List<String> coverageTypes,
-            Integer caseCountPerRequirement
+            int caseCountPerRequirement,
+            String promptKey,
+            String promptVersion,
+            UUID templateId,
+            String templateName
     ) {
         // Hash only immutable request inputs and generation config; mutable requirement titles/content are excluded.
         Map<String, Object> payload = new LinkedHashMap<>();
@@ -620,9 +631,11 @@ public class TestDesignTaskService {
         payload.put("contextFlowIds", explicitContext.flowIds().stream().map(UUID::toString).toList());
         payload.put("environmentKey", trimToNull(environmentKey));
         payload.put("coverageTypes", coverageTypes);
-        payload.put("caseCountPerRequirement", normalizedCaseCount(caseCountPerRequirement));
-        payload.put("promptKey", properties.promptKey());
-        payload.put("promptVersion", properties.promptVersion());
+        payload.put("caseCountPerRequirement", caseCountPerRequirement);
+        payload.put("promptKey", promptKey);
+        payload.put("promptVersion", promptVersion);
+        payload.put("templateId", templateId == null ? null : templateId.toString());
+        payload.put("templateName", trimToNull(templateName));
         payload.put("generationMode", properties.generationMode());
         payload.put("contextLimits", effectivePolicy.contextLimits());
         payload.put("contextPolicyGovernance", TestDesignContextPolicyGovernance.snapshot(effectivePolicy));
@@ -645,6 +658,87 @@ public class TestDesignTaskService {
     private int normalizedCaseCount(Integer requestedCount) {
         return requestedCount == null || requestedCount <= 0 ? maxCasesPerRequirement()
                 : Math.min(requestedCount, maxCasesPerRequirement());
+    }
+
+    /**
+     * Resolves the effective generation config once at task creation time.
+     *
+     * <p>The resulting values are copied into task columns, request digest and context summary so retries and reports
+     * remain stable even if the template is later edited or disabled.</p>
+     */
+    private EffectiveTaskGenerationConfig effectiveGenerationConfig(
+            CreateTestDesignTaskCommand command,
+            String projectId
+    ) {
+        Optional<TestDesignTemplateService.TaskTemplateDefaults> templateDefaults =
+                templateService.taskDefaults(command.templateId(), projectId);
+        TestDesignTemplateService.TaskTemplateDefaults defaults = templateDefaults.orElse(null);
+        String environmentKey = firstText(command.environmentKey(), defaults == null ? null : defaults.environmentKey());
+        TestDesignGenerationService.ExplicitContextAssetIds explicitContext =
+                new TestDesignGenerationService.ExplicitContextAssetIds(
+                        explicitIds(command.contextApiIds(), defaults == null ? List.of() : defaults.contextApiIds()),
+                        explicitIds(command.contextPageIds(), defaults == null ? List.of() : defaults.contextPageIds()),
+                        explicitIds(command.contextFlowIds(), defaults == null ? List.of() : defaults.contextFlowIds())
+                );
+        List<String> coverageTypes = normalizedCoverageTypes(
+                command.coverageTypes() == null || command.coverageTypes().isEmpty()
+                        ? defaults == null ? List.of() : defaults.coverageTypes()
+                        : command.coverageTypes()
+        );
+        Integer requestedCaseCount = command.caseCountPerRequirement();
+        int caseCount = requestedCaseCount == null || requestedCaseCount <= 0
+                ? defaults == null ? maxCasesPerRequirement() : defaults.caseCountPerRequirement()
+                : normalizedCaseCount(requestedCaseCount);
+        String promptKey = normalizedPromptRef(firstText(command.promptKey(),
+                defaults == null ? properties.promptKey() : defaults.promptKey()), "promptKey", 128);
+        String promptVersion = normalizedPromptRef(firstText(command.promptVersion(),
+                defaults == null ? properties.promptVersion() : defaults.promptVersion()), "promptVersion", 64);
+        return new EffectiveTaskGenerationConfig(
+                defaults == null ? null : defaults.templateId(),
+                defaults == null ? null : defaults.templateName(),
+                environmentKey,
+                explicitContext,
+                coverageTypes,
+                caseCount,
+                promptKey,
+                promptVersion
+        );
+    }
+
+    private static List<UUID> explicitIds(List<UUID> requestedIds, List<UUID> templateDefaultIds) {
+        List<UUID> requested = distinctIds(requestedIds);
+        return requested.isEmpty() ? distinctIds(templateDefaultIds) : requested;
+    }
+
+    private static String normalizedPromptRef(String value, String fieldName, int maxLength) {
+        String normalized = trimToNull(value);
+        if (!StringUtils.hasText(normalized)) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, fieldName + " 不能为空");
+        }
+        if (normalized.length() > maxLength) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, fieldName + " 长度不能超过 " + maxLength);
+        }
+        if (TestDesignSensitiveText.containsSensitiveText(normalized)) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, fieldName + " 不能包含疑似敏感信息");
+        }
+        if (!PROMPT_REF_PATTERN.matcher(normalized).matches()) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, fieldName + " 仅支持字母、数字、点、冒号、下划线和连字符");
+        }
+        return normalized;
+    }
+
+    private static String firstText(String requested, String fallback) {
+        return StringUtils.hasText(requested) ? requested.trim() : trimToNull(fallback);
+    }
+
+    private static Map<String, Object> templateSummary(EffectiveTaskGenerationConfig config) {
+        if (config.templateId() == null) {
+            return Map.of();
+        }
+        Map<String, Object> summary = new LinkedHashMap<>();
+        summary.put("templateId", config.templateId().toString());
+        summary.put("name", config.templateName());
+        return summary;
     }
 
     private TestDesignGenerationOrchestrationPolicy.RuntimeSnapshot orchestrationRuntimeSnapshot(Instant now) {
@@ -750,13 +844,17 @@ public class TestDesignTaskService {
             List<String> coverageTypes,
             String idempotencyKey,
             String inputDigest,
-            TestDesignGenerationService.ExplicitContextAssetIds explicitContext
+            TestDesignGenerationService.ExplicitContextAssetIds explicitContext,
+            EffectiveTaskGenerationConfig generationConfig
     ) {
         Map<String, Object> details = new LinkedHashMap<>();
         details.put("taskId", taskId);
         details.put("requirementCount", requirementCount);
         details.put("candidateCount", candidateCount);
         details.put("coverageTypes", coverageTypes);
+        details.put("promptKey", generationConfig.promptKey());
+        details.put("promptVersion", generationConfig.promptVersion());
+        details.put("templateId", generationConfig.templateId() == null ? null : generationConfig.templateId().toString());
         details.put("explicitContextApiCount", explicitContext.apiIds().size());
         details.put("explicitContextPageCount", explicitContext.pageIds().size());
         details.put("explicitContextFlowCount", explicitContext.flowIds().size());
@@ -784,4 +882,15 @@ public class TestDesignTaskService {
         contextClient.writeAuditEvent(action, resourceType, resourceId.toString(), projectId, "SUCCEEDED", after);
     }
 
+    private record EffectiveTaskGenerationConfig(
+            UUID templateId,
+            String templateName,
+            String environmentKey,
+            TestDesignGenerationService.ExplicitContextAssetIds explicitContext,
+            List<String> coverageTypes,
+            int caseCountPerRequirement,
+            String promptKey,
+            String promptVersion
+    ) {
+    }
 }

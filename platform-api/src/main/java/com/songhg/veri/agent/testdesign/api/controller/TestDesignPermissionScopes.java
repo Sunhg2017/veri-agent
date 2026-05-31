@@ -11,6 +11,9 @@ final class TestDesignPermissionScopes {
     static final String TASK = "@testDesignPermissionScopeResolver.task(#id)";
     static final String CANDIDATE = "@testDesignPermissionScopeResolver.candidate(#id)";
     static final String CANDIDATE_BATCH = "@testDesignPermissionScopeResolver.candidateBatch(#command)";
+    static final String TEMPLATE_LIST = "@testDesignPermissionScopeResolver.templateList(#request)";
+    static final String TEMPLATE_REQUEST = "@testDesignPermissionScopeResolver.templateRequest(#command)";
+    static final String TEMPLATE = "@testDesignPermissionScopeResolver.template(#id)";
     static final String POLICY_PROJECT = "@testDesignPermissionScopeResolver.project(#projectId)";
     static final String POLICY_OVERRIDE = "@testDesignPermissionScopeResolver.contextPolicyOverride(#id)";
 

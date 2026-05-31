@@ -100,6 +100,20 @@ public class TestDesignGenerationService {
             String environmentKey,
             TestDesignContextPolicyService.EffectiveContextPolicySnapshot effectivePolicy
     ) {
+        return generationContext(projectId, requirements, explicitContext, environmentKey, effectivePolicy,
+                properties.promptKey(), properties.promptVersion(), Map.of());
+    }
+
+    TestDesignGenerationContext generationContext(
+            String projectId,
+            List<RequirementResponse> requirements,
+            ExplicitContextAssetIds explicitContext,
+            String environmentKey,
+            TestDesignContextPolicyService.EffectiveContextPolicySnapshot effectivePolicy,
+            String promptKey,
+            String promptVersion,
+            Map<String, Object> templateSummary
+    ) {
         TestDesignContextPolicyService.EffectiveContextPolicySnapshot limitPolicy =
                 effectivePolicy == null ? platformDefaultContextPolicy() : effectivePolicy;
         Map<String, Object> summary = new LinkedHashMap<>();
@@ -108,8 +122,11 @@ public class TestDesignGenerationService {
         if (StringUtils.hasText(environmentKey)) {
             summary.put("environmentKey", environmentKey.trim());
         }
-        summary.put("promptKey", properties.promptKey());
-        summary.put("promptVersion", properties.promptVersion());
+        summary.put("promptKey", StringUtils.hasText(promptKey) ? promptKey : properties.promptKey());
+        summary.put("promptVersion", StringUtils.hasText(promptVersion) ? promptVersion : properties.promptVersion());
+        if (templateSummary != null && !templateSummary.isEmpty()) {
+            summary.put("template", templateSummary);
+        }
         summary.put("generationMode", properties.generationMode());
         summary.put("requirements", requirements.stream()
                 .sorted(Comparator.comparing(RequirementResponse::id))

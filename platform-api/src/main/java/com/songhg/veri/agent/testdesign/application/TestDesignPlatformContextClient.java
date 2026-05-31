@@ -41,4 +41,25 @@ public class TestDesignPlatformContextClient {
                 afterJson
         ));
     }
+
+    public void writePlatformAuditEvent(
+            String action,
+            String resourceType,
+            String resourceId,
+            String result,
+            Map<String, Object> afterJson
+    ) {
+        platformIntegrationService.writeAuditEvent(new InternalAuditEvent(
+                TraceContext.getTraceId(),
+                "test-design",
+                action,
+                resourceType,
+                resourceId,
+                "PLATFORM",
+                null,
+                result,
+                "WP5 test design operation",
+                afterJson
+        ));
+    }
 }

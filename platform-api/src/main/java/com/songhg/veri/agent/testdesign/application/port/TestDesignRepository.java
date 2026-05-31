@@ -3,6 +3,7 @@ package com.songhg.veri.agent.testdesign.application.port;
 import com.songhg.veri.agent.common.api.PageQuery;
 import com.songhg.veri.agent.testdesign.application.query.TestDesignCandidateQuery;
 import com.songhg.veri.agent.testdesign.application.query.TestDesignTaskQuery;
+import com.songhg.veri.agent.testdesign.application.query.TestDesignTemplateQuery;
 import com.songhg.veri.agent.testdesign.domain.TestDesignAuditChainAggregate;
 import com.songhg.veri.agent.testdesign.domain.TestDesignCandidate;
 import com.songhg.veri.agent.testdesign.domain.TestDesignCandidateStatus;
@@ -12,6 +13,7 @@ import com.songhg.veri.agent.testdesign.domain.TestDesignReportManifest;
 import com.songhg.veri.agent.testdesign.domain.TestDesignReviewRecord;
 import com.songhg.veri.agent.testdesign.domain.TestDesignTask;
 import com.songhg.veri.agent.testdesign.domain.TestDesignTaskStatus;
+import com.songhg.veri.agent.testdesign.domain.TestDesignTemplate;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -23,6 +25,31 @@ import java.util.UUID;
  * <p>服务层通过该端口屏蔽内存仓储和数据库仓储差异；所有返回对象都是当前时刻的领域快照。</p>
  */
 public interface TestDesignRepository {
+
+    /**
+     * 按项目、启用状态、关键字和分页条件查询生成模板；项目过滤可包含平台全局模板。
+     */
+    List<TestDesignTemplate> templates(TestDesignTemplateQuery query);
+
+    /**
+     * 统计满足查询条件的生成模板数量。
+     */
+    long countTemplates(TestDesignTemplateQuery query);
+
+    /**
+     * 查询单个生成模板。
+     */
+    Optional<TestDesignTemplate> template(UUID id);
+
+    /**
+     * 按同一作用域下的模板名称查询，用于在写入前给出稳定冲突错误。
+     */
+    Optional<TestDesignTemplate> templateByScopeAndName(String projectId, String name);
+
+    /**
+     * 新增或更新生成模板快照。
+     */
+    TestDesignTemplate saveTemplate(TestDesignTemplate template);
 
     /**
      * 按项目、状态、关键字和分页条件查询任务列表
