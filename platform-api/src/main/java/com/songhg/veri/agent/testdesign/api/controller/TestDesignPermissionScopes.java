@@ -5,6 +5,7 @@ final class TestDesignPermissionScopes {
     static final String PROJECT_REQUEST = "@testDesignPermissionScopeResolver.project(#command.projectId())";
     static final String TASK_LIST = "@testDesignPermissionScopeResolver.taskList(#request)";
     static final String PROMPT_TREND = "@testDesignPermissionScopeResolver.promptTrend(#request)";
+    static final String EVALUATION_CORPUS_SUMMARY = "@testDesignPermissionScopeResolver.evaluationCorpusSummary(#request)";
     static final String CANDIDATE_LIST = "@testDesignPermissionScopeResolver.candidateList(#request)";
     static final String TASK = "@testDesignPermissionScopeResolver.task(#id)";
     static final String CANDIDATE = "@testDesignPermissionScopeResolver.candidate(#id)";

@@ -4,7 +4,9 @@ import com.songhg.veri.agent.authorization.application.PermissionCodes;
 import com.songhg.veri.agent.authorization.application.RequirePermission;
 import com.songhg.veri.agent.common.openapi.ApiVersion;
 import com.songhg.veri.agent.testdesign.application.TestDesignQualityService;
+import com.songhg.veri.agent.testdesign.application.query.TestDesignEvaluationCorpusSummaryRequest;
 import com.songhg.veri.agent.testdesign.application.query.TestDesignPromptTrendRequest;
+import com.songhg.veri.agent.testdesign.application.view.TestDesignEvaluationCorpusSummaryResponse;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignPromptTrendResponse;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignQualitySummaryResponse;
 import jakarta.validation.Valid;
@@ -45,5 +47,17 @@ public class TestDesignTaskQualityController {
     @RequirePermission(value = PermissionCodes.TEST_DESIGN_READ, scope = TestDesignPermissionScopes.PROMPT_TREND)
     public TestDesignPromptTrendResponse promptTrend(@Valid @ModelAttribute TestDesignPromptTrendRequest request) {
         return service.promptTrend(request);
+    }
+
+    /**
+     * 查询评测语料运营摘要，只返回策略边界、版本准出分布和人工反馈聚合信号。
+     */
+    @GetMapping("/quality/evaluation-corpus-summary")
+    @RequirePermission(value = PermissionCodes.TEST_DESIGN_READ,
+            scope = TestDesignPermissionScopes.EVALUATION_CORPUS_SUMMARY)
+    public TestDesignEvaluationCorpusSummaryResponse evaluationCorpusSummary(
+            @Valid @ModelAttribute TestDesignEvaluationCorpusSummaryRequest request
+    ) {
+        return service.evaluationCorpusSummary(request);
     }
 }

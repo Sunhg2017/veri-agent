@@ -349,7 +349,7 @@ main() {
   echo "== WP5 test-design smoke =="
   echo "baseUrl=$BASE_URL project=$PROJECT_ID"
 
-  local health project_policy env_policy pending_effective approved_project approved_env effective_policy overrides requirement requirement_id task task_id candidates candidate_targets confirm dry_run asset_before publish case_id case_asset links
+  local health project_policy env_policy pending_effective approved_project approved_env effective_policy overrides requirement requirement_id task task_id candidates candidate_targets confirm calibration_task calibration_task_id calibration_candidates calibration_targets calibration_reject calibration_ignore corpus_summary dry_run asset_before publish case_id case_asset links
   health="$(curl -fsS "$TEST_DESIGN_API_BASE/health")"
   check "WP5 health" '.data.service == "test-design" and .data.status == "UP" and .data.generationEnabled == true' "$health"
   validate_release_readiness_policy "$health"
@@ -417,6 +417,39 @@ main() {
 
   confirm="$(post_test_design_json /candidates/batch-action "$(jq -nc --argjson candidates "$candidate_targets" '{action:"CONFIRM",candidates:$candidates}')")"
   check "Batch confirm candidates" '.data.succeededCount == 2 and .data.failedCount == 0 and (.data.items | all(.candidate.status == "CONFIRMED"))' "$confirm"
+
+  calibration_task="$(post_test_design_json /tasks "$(jq -nc \
+    --arg projectId "$PROJECT_ID" \
+    --arg requirementId "$requirement_id" \
+    '{projectId:$projectId,environmentKey:"qa",title:"WP5 evaluation corpus calibration",requirementIds:[$requirementId],coverageTypes:["BOUNDARY","EXCEPTION"]}')")"
+  check "Queue evaluation corpus calibration task" '(.data.task.status == "QUEUED" or .data.task.status == "RUNNING" or .data.task.status == "SUCCEEDED")' "$calibration_task"
+  calibration_task_id="$(printf '%s' "$calibration_task" | jq -r '.data.task.id')"
+  if ! calibration_task="$(wait_for_task_candidates "$calibration_task_id" 2)"; then
+    check "Create evaluation corpus calibration candidates" '.data.task.status == "SUCCEEDED" and (.data.candidates | length) == 2 and (.data.candidates | all(.status == "GENERATED"))' "$calibration_task"
+  else
+    check "Create evaluation corpus calibration candidates" '.data.task.status == "SUCCEEDED" and (.data.candidates | length) == 2 and (.data.candidates | all(.status == "GENERATED"))' "$calibration_task"
+  fi
+  calibration_candidates="$(get_test_design_json "/tasks/$calibration_task_id/candidates")"
+  calibration_targets="$(printf '%s' "$calibration_candidates" | jq -c '[.data.items[] | {id, version}]')"
+  calibration_reject="$(post_test_design_json "/candidates/$(printf '%s' "$calibration_targets" | jq -r '.[0].id')/reject" "$(jq -nc \
+    --argjson version "$(printf '%s' "$calibration_targets" | jq '.[0].version')" \
+    '{version:$version,reason:"WP5_EVALUATION_CORPUS_REJECT",comment:"WP5 evaluation corpus reject explanation"}')")"
+  check "Reject evaluation corpus calibration candidate" '.data.status == "REJECTED"' "$calibration_reject"
+  calibration_ignore="$(post_test_design_json "/candidates/$(printf '%s' "$calibration_targets" | jq -r '.[1].id')/ignore" "$(jq -nc \
+    --argjson version "$(printf '%s' "$calibration_targets" | jq '.[1].version')" \
+    '{version:$version,reason:"WP5_EVALUATION_CORPUS_IGNORE",comment:"WP5 evaluation corpus ignore explanation"}')")"
+  check "Ignore evaluation corpus calibration candidate" '.data.status == "IGNORED"' "$calibration_ignore"
+
+  corpus_summary="$(get_test_design_json "/quality/evaluation-corpus-summary?projectId=$(urlencode "$PROJECT_ID")&promptKey=wp5-test-design-v1")"
+  if printf '%s' "$corpus_summary" | jq -e --arg projectId "$PROJECT_ID" \
+    '.data.projectId == $projectId and .data.promptKey == "wp5-test-design-v1" and .data.policy.policyVersion == "wp5-evaluation-corpus-policy-v1" and .data.policy.corpusMode == "GOLDEN_SET_BASELINE" and .data.policy.qualityGateMode == "MANUAL_OPT_IN_AI_EVAL" and .data.taskCount >= 1 and .data.candidateCount >= 2 and .data.promptVersionCount >= 1 and (.data.readinessDistribution | length) >= 1 and .data.feedbackSignalCount >= 2 and .data.sampleCandidateCount >= 2 and .data.sampleExplanationCount >= 2 and .data.aggregateOnly == true and .data.corpusRowExported == false and .data.candidateBodyExported == false and .data.reviewCommentExported == false and .data.promptBodyExported == false' >/dev/null; then
+    echo "   PASS Evaluation corpus operations summary is aggregate-only"
+    PASS=$((PASS + 1))
+  else
+    echo "   FAIL Evaluation corpus operations summary is aggregate-only"
+    echo "$corpus_summary"
+    FAIL=$((FAIL + 1))
+  fi
 
   dry_run="$(post_test_design_json "/tasks/$task_id/publish-dry-run" '{}')"
   check "Publish dryRun does not create cases" '.data.dryRun == true and .data.created == 2 and (.data.createdCaseIds | length) == 0 and (.data.records | all(.result == "PLANNED"))' "$dry_run"

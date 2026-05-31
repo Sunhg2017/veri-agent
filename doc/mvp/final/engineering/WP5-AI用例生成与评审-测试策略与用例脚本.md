@@ -5,8 +5,8 @@
 | 工作包 | WP5 AI 用例生成与评审 |
 | 角色产出 | 资深质量工程师 |
 | 文档性质 | 测试策略、功能用例、安全和可测试性建议、脚本设计 |
-| 当前口径 | 已纳入 WP5 后端、前端、DB validation、Prompt 趋势、准出运营摘要、人工排队事件重发入口、显式上下文装配、上下文裁剪策略配置、项目/环境上下文策略覆盖 API、前端上下文策略运营面板、审批元数据、effective snapshot、context policy override DB contract、release role validation、HTTP smoke 策略覆盖端到端准出、发布准出模式 HTTP smoke 和 AI 质量评测强制执行、release managed HTTP smoke 默认发布阻断验证、可配置发布准出质量阻断、上下文装配策略 v2 共享快照、上下文策略治理状态快照、上下文策略运营 v2 聚合快照、权限与资源作用域策略聚合快照、评测语料运营策略聚合快照、发布准出审批策略聚合快照、跨 WP 审计链策略聚合快照、跨 WP 审计链只读聚合骨架、模型观测策略共享快照、归档治理策略共享快照、报告清单策略共享快照、任务诊断上下文策略、装配策略、策略运营、作用域策略、评测语料、发布准出、审计链、模型观测、归档与报告清单策略摘要、任务报告生成编排策略聚合行、任务报告作用域策略聚合行、任务报告评测语料策略聚合行、任务报告发布准出审批策略聚合行、任务报告审计链策略聚合行、任务级 audit-chain 聚合接口、任务报告上下文聚合行、上下文装配策略 v2 共享快照行、任务报告上下文策略治理聚合行、任务报告上下文策略运营 v2 聚合行、任务报告模型观测策略聚合行、任务报告质量准出阈值策略聚合行、任务报告导出审计策略聚合行、任务报告安全扫描策略聚合行、任务报告归档策略聚合行、任务报告清单策略聚合行、Prompt 校准策略聚合行、受限发布补偿后台、发布补偿策略聚合行、任务报告 manifest 聚合行、任务报告导出安全扫描、aggregate-only manifest 持久化和 manifest DB validation 的自动化验证入口 |
-| 版本 | v4.2 |
+| 当前口径 | 已纳入 WP5 后端、前端、DB validation、Prompt 趋势、准出运营摘要、评测语料运营只读摘要、人工排队事件重发入口、显式上下文装配、上下文裁剪策略配置、项目/环境上下文策略覆盖 API、前端上下文策略运营面板、审批元数据、effective snapshot、context policy override DB contract、release role validation、HTTP smoke 策略覆盖端到端准出、发布准出模式 HTTP smoke 和 AI 质量评测强制执行、release managed HTTP smoke 默认发布阻断验证、可配置发布准出质量阻断、上下文装配策略 v2 共享快照、上下文策略治理状态快照、上下文策略运营 v2 聚合快照、权限与资源作用域策略聚合快照、评测语料运营策略聚合快照、发布准出审批策略聚合快照、跨 WP 审计链策略聚合快照、跨 WP 审计链只读聚合骨架、模型观测策略共享快照、归档治理策略共享快照、报告清单策略共享快照、任务诊断上下文策略、装配策略、策略运营、作用域策略、评测语料、发布准出、审计链、模型观测、归档与报告清单策略摘要、任务报告生成编排策略聚合行、任务报告作用域策略聚合行、任务报告评测语料策略聚合行、任务报告发布准出审批策略聚合行、任务报告审计链策略聚合行、任务级 audit-chain 聚合接口、任务报告上下文聚合行、上下文装配策略 v2 共享快照行、任务报告上下文策略治理聚合行、任务报告上下文策略运营 v2 聚合行、任务报告模型观测策略聚合行、任务报告质量准出阈值策略聚合行、任务报告导出审计策略聚合行、任务报告安全扫描策略聚合行、任务报告归档策略聚合行、任务报告清单策略聚合行、Prompt 校准策略聚合行、受限发布补偿后台、发布补偿策略聚合行、任务报告 manifest 聚合行、任务报告导出安全扫描、aggregate-only manifest 持久化和 manifest DB validation 的自动化验证入口 |
+| 版本 | v4.3 |
 | 日期 | 2026-05-31 |
 
 ## 1. 测试目标
@@ -70,7 +70,7 @@
 | WP5-FUNC-003C-2E | P0 | HTTP smoke 验证上下文策略覆盖准出 | `scripts/wp5_test_design_smoke.sh` 创建项目/环境覆盖，验证 PENDING 不生效、审批后按平台默认 -> 项目 -> 环境解析、响应不泄露原因编码原文/正文类字段，随后创建带 `environmentKey=qa` 的任务并校验 `contextSummary.limits` 固化环境级 effective policy。发布准出必须通过 `WP5_GATE_MODE=release WP5_RUN_HTTP_SMOKE=1 WP5_RUN_AI_EVAL=1 bash scripts/wp5_quality_gate.sh` 或 `WP5_GATE_MODE=release WP5_RUN_HTTP_SMOKE=external WP5_SMOKE_BASE_URL=... WP5_RUN_AI_EVAL=1 bash scripts/wp5_quality_gate.sh` 执行该链路和 golden set 基线。 |
 | WP5-FUNC-003C-2F | P0 | 前端上下文策略运营面板 | `testDesign:read` 用户可查询项目/环境 effective policy 和覆盖记录；`testDesign:policy_manage` 用户可提交项目级/环境级 bounded 数字覆盖并审批或驳回 PENDING 记录；前端 helper 和 API 测试确认 payload 仅包含数字和固定原因编码，展示只包含状态、数字、captured 布尔语义和导出红线，不含策略正文、diff、审批备注、工单 URL、上下文正文或自由文本原因。 |
 | WP5-FUNC-003C-3 | P0 | 查看权限与资源作用域策略状态 | 健康接口、任务响应、任务诊断、`contextSummary.scopePolicy` 和模型请求 `contextPacking.scopePolicy` 返回同一聚合快照，包含项目资源作用域、列表 fallback、任务/候选/批量/发布/异步生成/HTTP smoke/质量评测项目隔离和未就绪运营能力。 |
-| WP5-FUNC-003C-3A | P0 | 查看评测语料运营策略状态 | 健康接口、任务响应、任务诊断、`contextSummary.evaluationCorpusPolicy` 和模型请求 `contextPacking.evaluationCorpusPolicy` 返回同一聚合快照，包含 golden set 基线、手动可选 AI 评测、部署配置阈值、项目作用域、质量门禁接入、准出分布、Prompt 版本跟踪和样本维护/长期校准/运营后台未就绪状态。 |
+| WP5-FUNC-003C-3A | P0 | 查看评测语料运营策略状态 | 健康接口、任务响应、任务诊断、`contextSummary.evaluationCorpusPolicy`、模型请求 `contextPacking.evaluationCorpusPolicy` 和 `GET /api/v1/test-design/quality/evaluation-corpus-summary` 返回同一 aggregate-only 边界。只读摘要按项目 scope 聚合策略边界、Prompt 版本准出分布、人工反馈信号、样本候选数和说明覆盖率；不导出评测语料行、候选 ID、候选正文、评审评论、Prompt 正文、密钥或 token。 |
 | WP5-FUNC-003C-4 | P0 | 查看发布准出审批策略状态 | 健康接口、任务响应、任务诊断、`contextSummary.releaseReadinessPolicy` 和模型请求 `contextPacking.releaseReadinessPolicy` 返回同一聚合快照；默认包含 `ADVISORY_QUALITY_GATE`、advisory-only 和发布阻断关闭，开启 `veri-agent.test-design.release-readiness-publish-blocking-enabled=true` 后包含 `BLOCKING_QUALITY_GATE` 和发布阻断开启；两种模式均声明审批流未就绪、禁止自动发布、候选确认要求和 aggregate-only 导出边界。 |
 | WP5-FUNC-003C-5 | P0 | 查看跨 WP 审计链策略状态 | 健康接口、任务响应、任务诊断、`contextSummary.auditChainPolicy` 和模型请求 `contextPacking.auditChainPolicy` 返回同一聚合快照，包含 `WP5_DOMAIN_AGGREGATE_WITH_WP1_AUDIT`、WP1 审计写入、WP2 调用引用、WP3 发布引用、WP5 本域事件、项目作用域、trace 信号、跨 WP 审计看板 pending、audit outbox 重放看板 pending 和 aggregate-only。 |
 | WP5-FUNC-003C-5A | P0 | 查看模型观测策略状态 | 健康接口、任务响应、任务诊断、`contextSummary.modelObservationPolicy` 和模型请求 `contextPacking.modelObservationPolicy` 返回同一聚合快照，包含 `ROUTING_COST_LATENCY_AGGREGATE`、WP2 调用引用、trace/job/routing/token/latency/cost/fallback 跟踪能力、Prompt 载荷不存储、载荷预览/traceId/jobId/invocationId 原值/provider 错误正文/actor service 不导出和 aggregate-only。 |
@@ -265,9 +265,10 @@ PROJECT_ID="${WP5_SMOKE_PROJECT_ID:-project-001}"
 # 4. 准备 WP3 需求资产。
 # 5. 创建生成任务。
 # 6. 查询候选并批量确认。
-# 7. 调用 publish-dry-run。
-# 8. 正式 publish。
-# 9. 查询 WP3 test-cases 和 trace link 确认资产写入。
+# 7. 验证评测语料运营只读摘要为 aggregate-only。
+# 8. 调用 publish-dry-run。
+# 9. 正式 publish。
+# 10. 查询 WP3 test-cases 和 trace link 确认资产写入。
 ```
 
 ### 9.3 `scripts/wp5_case_generation_quality_eval.sh`

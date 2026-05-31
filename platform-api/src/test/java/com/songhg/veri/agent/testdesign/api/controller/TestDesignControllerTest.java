@@ -2305,6 +2305,104 @@ class TestDesignControllerTest {
     }
 
     @Test
+    void summarizesEvaluationCorpusOperationsWithoutSampleDetails() throws Exception {
+        String ownerToken = userAccessToken(List.of("ProjectOwner@PROJECT:project-wp5"));
+        String auditorToken = userAccessToken(List.of("Auditor@PROJECT:project-wp5"));
+        String deniedAuditorToken = userAccessToken(List.of("Auditor@PROJECT:project-other"));
+        String requirementId = createRequirement(
+                ownerToken,
+                "评测语料运营需求 token=secret-value",
+                "语料运营验收 apiKey=sk_live_12345678",
+                "project-wp5"
+        );
+        MvcResult taskResult = mockMvc.perform(post("/api/v1/test-design/tasks")
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"projectId":"project-wp5","requirementIds":["%s"],"coverageTypes":["SMOKE","BOUNDARY"]}
+                                """.formatted(requirementId)))
+                .andExpect(status().isCreated())
+                .andReturn();
+        String taskId = JsonPath.read(taskResult.getResponse().getContentAsString(), "$.data.task.id");
+        String firstCandidateId = JsonPath.read(taskResult.getResponse().getContentAsString(), "$.data.candidates[0].id");
+        Integer firstVersion = JsonPath.read(taskResult.getResponse().getContentAsString(), "$.data.candidates[0].version");
+        String secondCandidateId = JsonPath.read(taskResult.getResponse().getContentAsString(), "$.data.candidates[1].id");
+        Integer secondVersion = JsonPath.read(taskResult.getResponse().getContentAsString(), "$.data.candidates[1].version");
+
+        mockMvc.perform(put("/api/v1/test-design/candidates/{id}", firstCandidateId)
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "title": "评测语料人工修正",
+                                  "description": "候选正文不应出现在语料摘要",
+                                  "coverageType": "SMOKE",
+                                  "priority": "HIGH",
+                                  "expectedResult": "语料运营结果可比较",
+                                  "version": %d,
+                                  "steps": [
+                                    {"action": "执行语料运营", "expectedResult": "候选质量可计算"},
+                                    {"action": "核对语料摘要", "expectedResult": "版本指标可比较"}
+                                  ]
+                                }
+                                """.formatted(firstVersion)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("EDITED"));
+        mockMvc.perform(post("/api/v1/test-design/candidates/{id}/reject", secondCandidateId)
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"version": %d, "reason": "语料样本拒绝 token=secret-value", "comment": "语料拒绝说明 rawPrompt"}
+                                """.formatted(secondVersion)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("REJECTED"));
+
+        MvcResult summary = mockMvc.perform(get("/api/v1/test-design/quality/evaluation-corpus-summary")
+                        .header("Authorization", "Bearer " + auditorToken)
+                        .param("projectId", "project-wp5")
+                        .param("promptKey", "wp5-test-design-v1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.projectId").value("project-wp5"))
+                .andExpect(jsonPath("$.data.promptKey").value("wp5-test-design-v1"))
+                .andExpect(jsonPath("$.data.policy.policyVersion").value("wp5-evaluation-corpus-policy-v1"))
+                .andExpect(jsonPath("$.data.policy.corpusMode").value("GOLDEN_SET_BASELINE"))
+                .andExpect(jsonPath("$.data.policy.qualityGateMode").value("MANUAL_OPT_IN_AI_EVAL"))
+                .andExpect(jsonPath("$.data.policy.sampleMaintenanceReady").value(false))
+                .andExpect(jsonPath("$.data.taskCount").value(1))
+                .andExpect(jsonPath("$.data.candidateCount").value(2))
+                .andExpect(jsonPath("$.data.promptVersionCount").value(1))
+                .andExpect(jsonPath("$.data.readinessDistribution[0].label").value("WARNING"))
+                .andExpect(jsonPath("$.data.readinessDistribution[0].count").value(1))
+                .andExpect(jsonPath("$.data.feedbackSignalCount").value(2))
+                .andExpect(jsonPath("$.data.sampleCandidateCount").value(2))
+                .andExpect(jsonPath("$.data.sampleExplanationCount").value(1))
+                .andExpect(jsonPath("$.data.sampleExplanationCoveragePercent").value(50.0))
+                .andExpect(jsonPath("$.data.aggregateOnly").value(true))
+                .andExpect(jsonPath("$.data.corpusRowExported").value(false))
+                .andExpect(jsonPath("$.data.candidateBodyExported").value(false))
+                .andExpect(jsonPath("$.data.reviewCommentExported").value(false))
+                .andExpect(jsonPath("$.data.promptBodyExported").value(false))
+                .andReturn();
+
+        String json = summary.getResponse().getContentAsString();
+        MatcherAssert.assertThat(json, not(containsString(taskId)));
+        MatcherAssert.assertThat(json, not(containsString(firstCandidateId)));
+        MatcherAssert.assertThat(json, not(containsString(secondCandidateId)));
+        MatcherAssert.assertThat(json, not(containsString("secret-value")));
+        MatcherAssert.assertThat(json, not(containsString("sk_live_12345678")));
+        MatcherAssert.assertThat(json, not(containsString("rawPrompt")));
+        MatcherAssert.assertThat(json, not(containsString("评测语料人工修正")));
+        MatcherAssert.assertThat(json, not(containsString("候选正文不应出现在语料摘要")));
+        MatcherAssert.assertThat(json, not(containsString("语料样本拒绝")));
+        MatcherAssert.assertThat(json, not(containsString("语料拒绝说明")));
+
+        mockMvc.perform(get("/api/v1/test-design/quality/evaluation-corpus-summary")
+                        .header("Authorization", "Bearer " + deniedAuditorToken)
+                        .param("projectId", "project-wp5"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
     void linksExistingWp3CaseBySourceRefDuringPublish() throws Exception {
         String ownerToken = userAccessToken(List.of("ProjectOwner@PROJECT:project-wp5"));
         String requirementId = createRequirement(ownerToken, "幂等发布需求", "发布幂等验收", "project-wp5");

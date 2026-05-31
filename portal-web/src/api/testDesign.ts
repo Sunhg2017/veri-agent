@@ -500,6 +500,26 @@ export interface TestDesignPromptTrendView {
   generatedAt?: string;
 }
 
+export interface TestDesignEvaluationCorpusSummaryView {
+  projectId?: string;
+  promptKey?: string;
+  policy?: TestDesignEvaluationCorpusPolicyView;
+  taskCount: number;
+  candidateCount: number;
+  promptVersionCount: number;
+  readinessDistribution: TestDesignQualityDistributionItemView[];
+  feedbackSignalCount: number;
+  sampleCandidateCount: number;
+  sampleExplanationCount: number;
+  sampleExplanationCoveragePercent: number;
+  aggregateOnly?: boolean;
+  corpusRowExported?: boolean;
+  candidateBodyExported?: boolean;
+  reviewCommentExported?: boolean;
+  promptBodyExported?: boolean;
+  generatedAt?: string;
+}
+
 export interface TestDesignAuditSummaryMetricView {
   code: string;
   label: string;
@@ -676,6 +696,13 @@ export interface TestDesignTaskFilters {
 }
 
 export interface TestDesignPromptTrendFilters {
+  index?: number;
+  size?: number;
+  projectId?: string;
+  promptKey?: string;
+}
+
+export interface TestDesignEvaluationCorpusSummaryFilters {
   index?: number;
   size?: number;
   projectId?: string;
@@ -1566,6 +1593,33 @@ export function normalizeTestDesignPromptTrend(raw: unknown): TestDesignPromptTr
   };
 }
 
+export function normalizeTestDesignEvaluationCorpusSummary(raw: unknown): TestDesignEvaluationCorpusSummaryView {
+  const item = isRecord(raw) ? raw : {};
+  return {
+    projectId: optionalString(item.projectId) ?? optionalString(item.project_id),
+    promptKey: optionalString(item.promptKey) ?? optionalString(item.prompt_key),
+    policy: normalizeTestDesignEvaluationCorpusPolicy(item.policy),
+    taskCount: numberValue(item.taskCount ?? item.task_count, 0),
+    candidateCount: numberValue(item.candidateCount ?? item.candidate_count, 0),
+    promptVersionCount: numberValue(item.promptVersionCount ?? item.prompt_version_count, 0),
+    readinessDistribution: listItems(item.readinessDistribution ?? item.readiness_distribution)
+      .map(normalizeTestDesignQualityDistributionItem),
+    feedbackSignalCount: numberValue(item.feedbackSignalCount ?? item.feedback_signal_count, 0),
+    sampleCandidateCount: numberValue(item.sampleCandidateCount ?? item.sample_candidate_count, 0),
+    sampleExplanationCount: numberValue(item.sampleExplanationCount ?? item.sample_explanation_count, 0),
+    sampleExplanationCoveragePercent: numberValue(
+      item.sampleExplanationCoveragePercent ?? item.sample_explanation_coverage_percent,
+      0
+    ),
+    aggregateOnly: optionalBoolean(item.aggregateOnly ?? item.aggregate_only),
+    corpusRowExported: optionalBoolean(item.corpusRowExported ?? item.corpus_row_exported),
+    candidateBodyExported: optionalBoolean(item.candidateBodyExported ?? item.candidate_body_exported),
+    reviewCommentExported: optionalBoolean(item.reviewCommentExported ?? item.review_comment_exported),
+    promptBodyExported: optionalBoolean(item.promptBodyExported ?? item.prompt_body_exported),
+    generatedAt: optionalString(item.generatedAt) ?? optionalString(item.generated_at)
+  };
+}
+
 export function normalizeTestDesignAuditSummaryMetric(raw: unknown): TestDesignAuditSummaryMetricView {
   const item = isRecord(raw) ? raw : {};
   return {
@@ -1793,6 +1847,15 @@ export async function fetchTestDesignPromptTrend(
 ): Promise<ApiResponse<TestDesignPromptTrendView>> {
   const response = await requestJson<unknown>(`/api/v1/test-design/quality/prompt-trend${queryString(filters as Record<string, unknown>)}`);
   return { ...response, data: normalizeTestDesignPromptTrend(response.data) };
+}
+
+export async function fetchTestDesignEvaluationCorpusSummary(
+  filters: TestDesignEvaluationCorpusSummaryFilters = {}
+): Promise<ApiResponse<TestDesignEvaluationCorpusSummaryView>> {
+  const response = await requestJson<unknown>(
+    `/api/v1/test-design/quality/evaluation-corpus-summary${queryString(filters as Record<string, unknown>)}`
+  );
+  return { ...response, data: normalizeTestDesignEvaluationCorpusSummary(response.data) };
 }
 
 export async function fetchTestDesignTaskAuditSummary(taskId: string): Promise<ApiResponse<TestDesignAuditSummaryView>> {

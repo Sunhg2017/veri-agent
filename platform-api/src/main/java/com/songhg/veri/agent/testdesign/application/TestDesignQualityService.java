@@ -4,7 +4,11 @@ import com.songhg.veri.agent.common.api.PageResponse;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
 import com.songhg.veri.agent.testdesign.application.port.TestDesignRepository;
+import com.songhg.veri.agent.testdesign.application.query.TestDesignEvaluationCorpusSummaryRequest;
 import com.songhg.veri.agent.testdesign.application.query.TestDesignPromptTrendRequest;
+import com.songhg.veri.agent.testdesign.application.query.TestDesignTaskQuery;
+import com.songhg.veri.agent.testdesign.application.view.TestDesignEvaluationCorpusPolicyResponse;
+import com.songhg.veri.agent.testdesign.application.view.TestDesignEvaluationCorpusSummaryResponse;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignPromptTrendBucketResponse;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignPromptTrendResponse;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignPublishRecordResponse;
@@ -24,9 +28,11 @@ import com.songhg.veri.agent.testdesign.domain.TestDesignTask;
 import com.songhg.veri.agent.testdesign.domain.TestDesignTaskStatus;
 import java.time.Instant;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -93,10 +99,7 @@ public class TestDesignQualityService {
      */
     public TestDesignPromptTrendResponse promptTrend(TestDesignPromptTrendRequest request) {
         TestDesignPromptTrendRequest safeRequest = request == null ? new TestDesignPromptTrendRequest() : request;
-        List<TestDesignTask> tasks = repository.tasks(safeRequest.toTaskQuery()).stream()
-                .filter(task -> !TestDesignTaskStatus.QUEUED.name().equals(task.status()))
-                .filter(task -> !TestDesignTaskStatus.RUNNING.name().equals(task.status()))
-                .toList();
+        List<TestDesignTask> tasks = completedTasks(safeRequest.toTaskQuery());
         Map<PromptVersionKey, PromptTrendAccumulator> bucketByVersion = new LinkedHashMap<>();
         for (TestDesignTask task : tasks) {
             PromptTrendAccumulator bucket = bucketByVersion.computeIfAbsent(PromptVersionKey.of(task),
@@ -118,6 +121,65 @@ public class TestDesignQualityService {
                 buckets,
                 Instant.now()
         );
+    }
+
+    /**
+     * Aggregates the evaluation-corpus operating state for release reviewers.
+     *
+     * <p>The summary intentionally reuses the Prompt trend task window and only inspects task/candidate/review
+     * metadata. It proves that the current golden-set baseline, readiness distribution and human feedback signals are
+     * visible under project scope, while sample rows, candidate bodies, review comments and Prompt text remain outside
+     * the HTTP contract.
+     */
+    public TestDesignEvaluationCorpusSummaryResponse evaluationCorpusSummary(
+            TestDesignEvaluationCorpusSummaryRequest request
+    ) {
+        TestDesignEvaluationCorpusSummaryRequest safeRequest =
+                request == null ? new TestDesignEvaluationCorpusSummaryRequest() : request;
+        List<TestDesignTask> tasks = completedTasks(safeRequest.toTaskQuery());
+        Map<PromptVersionKey, PromptTrendAccumulator> bucketByVersion = new LinkedHashMap<>();
+        EvaluationCorpusFeedbackAccumulator feedback = new EvaluationCorpusFeedbackAccumulator();
+        for (TestDesignTask task : tasks) {
+            List<TestDesignCandidate> candidates = repository.candidatesByTask(task.id());
+            List<TestDesignReviewRecord> reviewRecords = repository.reviewRecordsByTask(task.id());
+            PromptTrendAccumulator bucket = bucketByVersion.computeIfAbsent(PromptVersionKey.of(task),
+                    key -> new PromptTrendAccumulator(key.promptKey(), key.promptVersion()));
+            bucket.acceptTask(task, candidates, reviewRecords);
+            feedback.accept(reviewRecords);
+        }
+        long candidateCount = bucketByVersion.values().stream()
+                .mapToLong(PromptTrendAccumulator::candidateCount)
+                .sum();
+        List<TestDesignPromptTrendBucketResponse> buckets = bucketByVersion.values().stream()
+                .map(PromptTrendAccumulator::toResponse)
+                .toList();
+        TestDesignEvaluationCorpusPolicyResponse policy = TestDesignEvaluationCorpusPolicy.response();
+        return new TestDesignEvaluationCorpusSummaryResponse(
+                trimToNull(safeRequest.getProjectId()),
+                trimToNull(safeRequest.getPromptKey()),
+                policy,
+                tasks.size(),
+                candidateCount,
+                buckets.size(),
+                promptReadinessDistribution(buckets),
+                feedback.feedbackSignalCount(),
+                feedback.sampleCandidateCount(),
+                feedback.sampleExplanationCount(),
+                percentValue(feedback.sampleExplanationCount(), feedback.feedbackSignalCount()),
+                policy.aggregateOnly(),
+                policy.corpusRowExported(),
+                policy.candidateBodyExported(),
+                policy.reviewCommentExported(),
+                policy.promptBodyExported(),
+                Instant.now()
+        );
+    }
+
+    private List<TestDesignTask> completedTasks(TestDesignTaskQuery query) {
+        return repository.tasks(query).stream()
+                .filter(task -> !TestDesignTaskStatus.QUEUED.name().equals(task.status()))
+                .filter(task -> !TestDesignTaskStatus.RUNNING.name().equals(task.status()))
+                .toList();
     }
 
     private PageResponse<TestDesignPublishRecordResponse> publishRecords(UUID taskId) {
@@ -413,6 +475,12 @@ public class TestDesignQualityService {
         return "UPDATE".equals(record.action());
     }
 
+    private static boolean isPromptTuningSignal(TestDesignReviewRecord record) {
+        return isPromptTuningCorrection(record)
+                || TestDesignCandidateStatus.REJECTED.name().equals(record.action())
+                || TestDesignCandidateStatus.IGNORED.name().equals(record.action());
+    }
+
     private TestDesignTask taskOrThrow(UUID id) {
         return repository.task(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "用例生成任务不存在: " + id));
@@ -566,6 +634,40 @@ public class TestDesignQualityService {
                     ),
                     latestTaskCreatedAt
             );
+        }
+    }
+
+    private static final class EvaluationCorpusFeedbackAccumulator {
+
+        private final Set<UUID> sampleCandidateIds = new LinkedHashSet<>();
+        private long feedbackSignalCount;
+        private long sampleExplanationCount;
+
+        private void accept(List<TestDesignReviewRecord> reviewRecords) {
+            for (TestDesignReviewRecord record : reviewRecords) {
+                if (!isPromptTuningSignal(record)) {
+                    continue;
+                }
+                feedbackSignalCount++;
+                if (record.candidateId() != null) {
+                    sampleCandidateIds.add(record.candidateId());
+                }
+                if (StringUtils.hasText(record.comment())) {
+                    sampleExplanationCount++;
+                }
+            }
+        }
+
+        private long feedbackSignalCount() {
+            return feedbackSignalCount;
+        }
+
+        private long sampleCandidateCount() {
+            return sampleCandidateIds.size();
+        }
+
+        private long sampleExplanationCount() {
+            return sampleExplanationCount;
         }
     }
 

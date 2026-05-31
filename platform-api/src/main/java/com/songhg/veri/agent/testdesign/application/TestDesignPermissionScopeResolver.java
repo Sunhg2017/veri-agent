@@ -4,6 +4,7 @@ import com.songhg.veri.agent.authorization.application.ResourceScope;
 import com.songhg.veri.agent.testdesign.application.command.ResolveTestDesignConflictBatchCommand;
 import com.songhg.veri.agent.testdesign.application.command.TestDesignCandidateBatchActionCommand;
 import com.songhg.veri.agent.testdesign.application.query.TestDesignCandidatePageRequest;
+import com.songhg.veri.agent.testdesign.application.query.TestDesignEvaluationCorpusSummaryRequest;
 import com.songhg.veri.agent.testdesign.application.query.TestDesignPromptTrendRequest;
 import com.songhg.veri.agent.testdesign.application.query.TestDesignTaskPageRequest;
 import java.util.LinkedHashSet;
@@ -41,6 +42,14 @@ public class TestDesignPermissionScopeResolver {
         if (request != null && StringUtils.hasText(request.getProjectId())) {
             return project(request.getProjectId());
         }
+        return ResourceScope.platform();
+    }
+
+    public ResourceScope evaluationCorpusSummary(TestDesignEvaluationCorpusSummaryRequest request) {
+        if (request != null && StringUtils.hasText(request.getProjectId())) {
+            return project(request.getProjectId());
+        }
+        // Without a project filter the endpoint returns only platform-level aggregate readiness signals.
         return ResourceScope.platform();
     }
 

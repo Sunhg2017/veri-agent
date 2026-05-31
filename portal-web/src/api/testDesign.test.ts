@@ -16,6 +16,7 @@ import {
   fetchTestDesignContextPolicyEffective,
   fetchTestDesignContextPolicyOverrides,
   fetchTestDesignCandidates,
+  fetchTestDesignEvaluationCorpusSummary,
   fetchTestDesignHealth,
   fetchTestDesignPromptTrend,
   fetchTestDesignReviewRecords,
@@ -30,6 +31,7 @@ import {
   normalizeTestDesignConflictBatchResolveResult,
   normalizeTestDesignContextPolicyEffective,
   normalizeTestDesignContextPolicyOverride,
+  normalizeTestDesignEvaluationCorpusSummary,
   normalizeTestDesignHealth,
   normalizeTestDesignAuditSummary,
   normalizeTestDesignAuditTimelineItem,
@@ -1148,6 +1150,58 @@ describe('WP5 test design API helpers', () => {
       candidateCount: 0
     });
 
+    const evaluationCorpusSummary = normalizeTestDesignEvaluationCorpusSummary({
+      project_id: 'project-1',
+      prompt_key: 'wp5-test-design-v1',
+      policy: {
+        policy_version: 'wp5-evaluation-corpus-policy-v1',
+        corpus_mode: 'GOLDEN_SET_BASELINE',
+        quality_gate_mode: 'MANUAL_OPT_IN_AI_EVAL',
+        sample_maintenance_ready: false,
+        corpus_row_exported: false
+      },
+      task_count: '2',
+      candidate_count: '6',
+      prompt_version_count: '1',
+      readiness_distribution: [
+        { label: 'WARNING', count: '1', percent: '100.00' }
+      ],
+      feedback_signal_count: '3',
+      sample_candidate_count: '2',
+      sample_explanation_count: '1',
+      sample_explanation_coverage_percent: '33.33',
+      aggregate_only: true,
+      corpus_row_exported: false,
+      candidate_body_exported: false,
+      review_comment_exported: false,
+      prompt_body_exported: false,
+      generated_at: '2026-05-30T10:02:00Z'
+    });
+    expect(evaluationCorpusSummary).toMatchObject({
+      projectId: 'project-1',
+      promptKey: 'wp5-test-design-v1',
+      taskCount: 2,
+      candidateCount: 6,
+      promptVersionCount: 1,
+      readinessDistribution: [
+        { label: 'WARNING', count: 1, percent: 100 }
+      ],
+      feedbackSignalCount: 3,
+      sampleCandidateCount: 2,
+      sampleExplanationCount: 1,
+      sampleExplanationCoveragePercent: 33.33,
+      aggregateOnly: true,
+      corpusRowExported: false,
+      candidateBodyExported: false,
+      reviewCommentExported: false,
+      promptBodyExported: false,
+      policy: expect.objectContaining({
+        policyVersion: 'wp5-evaluation-corpus-policy-v1',
+        corpusMode: 'GOLDEN_SET_BASELINE',
+        sampleMaintenanceReady: false
+      })
+    });
+
     const auditSummary = normalizeTestDesignAuditSummary({
       task_id: 'task-1',
       project_id: 'project-1',
@@ -1235,6 +1289,9 @@ describe('WP5 test design API helpers', () => {
 
     await fetchTestDesignPromptTrend({ index: 0, size: 10, projectId: 'proj pay', promptKey: 'wp5-test-design-v1' });
     expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/test-design/quality/prompt-trend?index=0&size=10&projectId=proj+pay&promptKey=wp5-test-design-v1');
+
+    await fetchTestDesignEvaluationCorpusSummary({ index: 0, size: 10, projectId: 'proj pay', promptKey: 'wp5-test-design-v1' });
+    expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/test-design/quality/evaluation-corpus-summary?index=0&size=10&projectId=proj+pay&promptKey=wp5-test-design-v1');
   });
 
   it('calls context policy operations endpoints and normalizes sanitized metadata', async () => {
