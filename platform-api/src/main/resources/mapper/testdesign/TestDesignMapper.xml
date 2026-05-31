@@ -259,6 +259,20 @@
           and updated_at &lt; #{staleBefore}
     </select>
 
+    <select id="countCandidatesByStatus" resultType="long">
+        select count(*)
+        from test_design_candidate
+        where status = #{status}
+    </select>
+
+    <select id="oldestCandidateUpdatedAtByStatus" resultType="java.time.Instant">
+        select updated_at
+        from test_design_candidate
+        where status = #{status}
+        order by updated_at asc
+        limit 1
+    </select>
+
     <select id="task" resultMap="taskMap">
         select <include refid="taskColumns"/>
         from test_design_task
@@ -328,6 +342,16 @@
           and status = #{expectedStatus}
     </update>
 
+    <update id="markCandidateStatus">
+        update test_design_candidate
+        set status = #{nextStatus},
+            error_message = null,
+            version = version + 1,
+            updated_at = #{updatedAt}
+        where id = cast(#{id} as uuid)
+          and status = #{expectedStatus}
+    </update>
+
     <update id="markStaleRunningTasksFailed">
         with stale_tasks as (
             select id
@@ -365,6 +389,40 @@
         from test_design_candidate
         where task_id = cast(#{taskId} as uuid)
         order by created_at asc
+    </select>
+
+    <select id="publishQueuedCandidates" resultMap="candidateMap">
+        select <include refid="candidateColumns"/>
+        from test_design_candidate
+        where status = 'PUBLISH_QUEUED'
+        order by updated_at asc
+        limit #{limit}
+    </select>
+
+    <update id="markStalePublishingCandidatesFailed">
+        with stale_candidates as (
+            select id
+            from test_design_candidate
+            where status = 'PUBLISHING'
+              and updated_at &lt; #{staleBefore}
+            order by updated_at asc
+            limit #{limit}
+        )
+        update test_design_candidate
+        set status = 'FAILED',
+            error_message = #{errorMessage},
+            version = version + 1,
+            updated_at = #{failedAt}
+        where id in (select id from stale_candidates)
+          and status = 'PUBLISHING'
+          and updated_at &lt; #{staleBefore}
+    </update>
+
+    <select id="countStalePublishingCandidates" resultType="long">
+        select count(*)
+        from test_design_candidate
+        where status = 'PUBLISHING'
+          and updated_at &lt; #{staleBefore}
     </select>
 
     <select id="publishCompensationCandidates" resultMap="candidateMap">

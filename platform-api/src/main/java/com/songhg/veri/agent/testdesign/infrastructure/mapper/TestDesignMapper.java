@@ -29,6 +29,10 @@ public interface TestDesignMapper {
 
     long countStaleRunningTasks(@Param("staleBefore") Instant staleBefore);
 
+    long countCandidatesByStatus(@Param("status") String status);
+
+    Instant oldestCandidateUpdatedAtByStatus(@Param("status") String status);
+
     TestDesignTask task(@Param("id") UUID id);
 
     TestDesignTask taskByIdempotencyKey(
@@ -49,6 +53,13 @@ public interface TestDesignMapper {
             @Param("updatedAt") Instant updatedAt
     );
 
+    int markCandidateStatus(
+            @Param("id") UUID id,
+            @Param("expectedStatus") String expectedStatus,
+            @Param("nextStatus") String nextStatus,
+            @Param("updatedAt") Instant updatedAt
+    );
+
     int markStaleRunningTasksFailed(
             @Param("failedAt") Instant failedAt,
             @Param("staleBefore") Instant staleBefore,
@@ -61,6 +72,17 @@ public interface TestDesignMapper {
     long countCandidates(@Param("query") TestDesignCandidateQuery query);
 
     List<TestDesignCandidate> candidatesByTask(@Param("taskId") UUID taskId);
+
+    List<TestDesignCandidate> publishQueuedCandidates(@Param("limit") int limit);
+
+    int markStalePublishingCandidatesFailed(
+            @Param("failedAt") Instant failedAt,
+            @Param("staleBefore") Instant staleBefore,
+            @Param("errorMessage") String errorMessage,
+            @Param("limit") int limit
+    );
+
+    long countStalePublishingCandidates(@Param("staleBefore") Instant staleBefore);
 
     List<TestDesignCandidate> publishCompensationCandidates(@Param("limit") int limit);
 

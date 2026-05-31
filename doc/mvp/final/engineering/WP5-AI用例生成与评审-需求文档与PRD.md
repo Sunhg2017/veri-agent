@@ -78,8 +78,9 @@ flowchart LR
     F --> G["生成候选用例"]
     G --> H["人工评审与编辑"]
     H --> I["发布 dryRun"]
-    I --> J["写入 WP3 测试用例"]
-    J --> K["建立追踪关系和审计"]
+    I --> J["正式发布排队"]
+    J --> K["后台写入 WP3 测试用例"]
+    K --> L["建立追踪关系和审计"]
 ```
 
 ## 7. 页面与交互需求
@@ -91,7 +92,7 @@ flowchart LR
 | 筛选 | projectId、status、strategy、createdBy、createdFrom、createdTo、keyword。 |
 | 列表字段 | 任务名称、项目、需求数、候选数、确认数、发布数、状态、创建人、耗时、最近错误、traceId。 |
 | 操作 | 查看详情、重试、取消、导出摘要。 |
-| 状态 | `DRAFT`、`RUNNING`、`PARTIAL_SUCCESS`、`SUCCEEDED`、`FAILED`、`CANCELLED`、`PUBLISHING`、`PUBLISHED`。 |
+| 状态 | `DRAFT`、`QUEUED`、`RUNNING`、`PARTIAL_SUCCESS`、`SUCCEEDED`、`FAILED`、`CANCELLED`、`PUBLISH_QUEUED`、`PUBLISHING`、`PUBLISHED`。 |
 
 ### 7.2 创建任务
 
@@ -122,7 +123,7 @@ flowchart LR
 | 功能 | 规则 |
 |---|---|
 | dryRun | 返回 `CREATE`、`LINK_EXISTING`、`DUPLICATE_REVIEW_REQUIRED`、`SKIPPED`、`FAILED`。 |
-| 发布 | 只发布已确认候选；写入 WP3 失败时保留候选状态和失败原因。 |
+| 发布 | 只发布已确认候选；正式发布先进入 `PUBLISH_QUEUED` 并发布 `test-design.publish.requested`，后台消费者认领为 `PUBLISHING` 后写入 WP3；写入失败时保留候选状态和失败原因。 |
 | 入库状态 | 成功后展示 WP3 用例编码、标题、状态和跳转入口。 |
 | 重复风险 | 高相似候选不得静默创建，需要用户确认处理。 |
 

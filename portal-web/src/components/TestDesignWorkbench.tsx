@@ -260,7 +260,7 @@ const initialConflictResolutionDraft: ConflictResolutionDraft = {
   comment: ''
 };
 
-const ASYNC_TASK_STATUSES = new Set(['QUEUED', 'RUNNING']);
+const ASYNC_TASK_STATUSES = new Set(['QUEUED', 'RUNNING', 'PUBLISH_QUEUED', 'PUBLISHING']);
 const RETRYABLE_TASK_STATUSES = new Set(['FAILED', 'PARTIAL_SUCCESS', 'CANCELLED']);
 const CANCELLABLE_TASK_STATUSES = new Set(['DRAFT', 'QUEUED', 'RUNNING', 'PARTIAL_SUCCESS', 'FAILED']);
 
@@ -320,7 +320,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
 
   const disabled = !props.signedIn || !canRead;
   const selectedTask = tasks.find((task) => task.id === selectedTaskId) ?? null;
-  const selectedTaskGenerating = selectedTask ? ASYNC_TASK_STATUSES.has(selectedTask.status) : false;
+  const selectedTaskAsyncInFlight = selectedTask ? ASYNC_TASK_STATUSES.has(selectedTask.status) : false;
   const selectedCandidate = candidates.find((candidate) => candidate.id === selectedCandidateId) ?? null;
   const filteredRequirements = useMemo(() => filterRequirements(requirements, filters), [requirements, filters]);
   const candidatePage = useMemo(
@@ -869,7 +869,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
   }, [refreshTaskAuditSummary, selectedTaskId]);
 
   useEffect(() => {
-    if (!selectedTaskId || !selectedTaskGenerating) {
+    if (!selectedTaskId || !selectedTaskAsyncInFlight) {
       return undefined;
     }
     const timer = window.setInterval(() => {
@@ -886,7 +886,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
     refreshReviewRecords,
     refreshTaskAuditSummary,
     refreshTaskQualitySummary,
-    selectedTaskGenerating,
+    selectedTaskAsyncInFlight,
     selectedTaskId
   ]);
 
@@ -1474,11 +1474,12 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
         ? await publishTestDesignDryRun(selectedTaskId, { candidateIds })
         : await publishTestDesignTask(selectedTaskId, { candidateIds });
       setPublishResult(response.data);
+      const queued = !dryRun && response.data.records.some((record) => record.result === 'QUEUED' || record.candidateStatus === 'PUBLISH_QUEUED');
       setSelectedConflictCaseIds({});
       setConflictCaseResults([]);
       setPublishState({
         loading: false,
-        success: dryRun ? '预发布检查已完成' : '已发布到资产库测试用例',
+        success: dryRun ? '预发布检查已完成' : queued ? '发布请求已排队，后台写入资产库' : '已发布到资产库测试用例',
         traceId: response.trace_id
       });
       if (!dryRun) {
@@ -2616,6 +2617,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
                   <option value="PARTIAL_SUCCESS">PARTIAL_SUCCESS</option>
                   <option value="FAILED">FAILED</option>
                   <option value="CANCELLED">CANCELLED</option>
+                  <option value="PUBLISH_QUEUED">PUBLISH_QUEUED</option>
                   <option value="PUBLISHING">PUBLISHING</option>
                   <option value="PUBLISHED">PUBLISHED</option>
                 </select>
@@ -3244,7 +3246,9 @@ function CandidateStatus(props: { value: string }) {
       ? 'badge badge-danger'
       : value === 'IGNORED'
         ? 'badge badge-neutral'
-        : 'badge badge-warning';
+        : value === 'PUBLISH_QUEUED' || value === 'PUBLISHING'
+          ? 'badge badge-warning'
+          : 'badge badge-warning';
   return <span className={className}>{value}</span>;
 }
 
@@ -3313,6 +3317,8 @@ function PublishResultBadge(props: { value: string }) {
       ? 'badge badge-danger'
       : value === 'SKIPPED' || value === 'LINK_EXISTING'
         ? 'badge badge-neutral'
+        : value === 'QUEUED' || value === 'RUNNING'
+          ? 'badge badge-warning'
         : 'badge badge-warning';
   return <span className={className}>{value}</span>;
 }

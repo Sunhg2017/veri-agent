@@ -16,9 +16,9 @@ final class TestDesignTaskReportPublishCompensationPolicyRows {
      * Appends publish replay and compensation readiness using aggregate counters only.
      *
      * <p>WP5 already supports source-key replay, partial trace-link repair, manual conflict linking and a restricted
-     * background compensation scan for failed candidates that already reference a WP3 case. Cross-WP orchestration is
-     * still pending, so these rows make the remaining gap auditable without exporting candidate IDs, asset case IDs,
-     * source keys, trace details or publish error text.
+     * background compensation scan for failed candidates that already reference a WP3 case. Formal publish now also
+     * persists a queue state before WP3 writes, so these rows document that cross-WP orchestration is ready without
+     * exporting candidate IDs, asset case IDs, source keys, trace details or publish error text.
      */
     static void appendRows(
             StringBuilder csv,
@@ -38,7 +38,7 @@ final class TestDesignTaskReportPublishCompensationPolicyRows {
                 "FAILED_WITH_EXISTING_WP3_CASE_REFERENCE", null);
         appendMetadataRow(csv, task, generatedAt, "autoConflictResolutionEnabled", false, "success");
         appendMetadataRow(csv, task, generatedAt, "autoFirstTimeCreateEnabled", false, "success");
-        appendMetadataRow(csv, task, generatedAt, "crossWpTransactionOrchestrationReady", false, "warning");
+        appendMetadataRow(csv, task, generatedAt, "crossWpTransactionOrchestrationReady", true, "success");
         appendMetadataRow(csv, task, generatedAt, "candidateEvidenceExported", false, null);
         appendMetadataRow(csv, task, generatedAt, "errorTextExported", false, null);
         appendMetadataRow(csv, task, generatedAt, "caseIdentifierListExported", false, null);

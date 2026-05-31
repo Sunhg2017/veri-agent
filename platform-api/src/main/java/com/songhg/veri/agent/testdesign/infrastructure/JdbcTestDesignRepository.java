@@ -6,6 +6,7 @@ import com.songhg.veri.agent.testdesign.application.query.TestDesignCandidateQue
 import com.songhg.veri.agent.testdesign.application.query.TestDesignTaskQuery;
 import com.songhg.veri.agent.testdesign.domain.TestDesignAuditChainAggregate;
 import com.songhg.veri.agent.testdesign.domain.TestDesignCandidate;
+import com.songhg.veri.agent.testdesign.domain.TestDesignCandidateStatus;
 import com.songhg.veri.agent.testdesign.domain.TestDesignContextPolicyOverride;
 import com.songhg.veri.agent.testdesign.domain.TestDesignPublishRecord;
 import com.songhg.veri.agent.testdesign.domain.TestDesignReportManifest;
@@ -56,6 +57,17 @@ public class JdbcTestDesignRepository implements TestDesignRepository {
     }
 
     @Override
+    public long countCandidatesByStatus(TestDesignCandidateStatus status) {
+        return status == null ? 0L : mapper.countCandidatesByStatus(status.name());
+    }
+
+    @Override
+    public Optional<Instant> oldestCandidateUpdatedAtByStatus(TestDesignCandidateStatus status) {
+        return status == null ? Optional.empty()
+                : Optional.ofNullable(mapper.oldestCandidateUpdatedAtByStatus(status.name()));
+    }
+
+    @Override
     public Optional<TestDesignTask> task(UUID id) {
         return Optional.ofNullable(mapper.task(id));
     }
@@ -91,6 +103,16 @@ public class JdbcTestDesignRepository implements TestDesignRepository {
     }
 
     @Override
+    public boolean markCandidateStatus(
+            UUID id,
+            TestDesignCandidateStatus expectedStatus,
+            TestDesignCandidateStatus nextStatus,
+            Instant updatedAt
+    ) {
+        return mapper.markCandidateStatus(id, expectedStatus.name(), nextStatus.name(), updatedAt) > 0;
+    }
+
+    @Override
     public int markStaleRunningTasksFailed(Instant failedAt, Instant staleBefore, String errorMessage, int limit) {
         return mapper.markStaleRunningTasksFailed(failedAt, staleBefore, errorMessage, limit);
     }
@@ -108,6 +130,26 @@ public class JdbcTestDesignRepository implements TestDesignRepository {
     @Override
     public List<TestDesignCandidate> candidatesByTask(UUID taskId) {
         return mapper.candidatesByTask(taskId);
+    }
+
+    @Override
+    public List<TestDesignCandidate> publishQueuedCandidates(int limit) {
+        return mapper.publishQueuedCandidates(limit);
+    }
+
+    @Override
+    public int markStalePublishingCandidatesFailed(
+            Instant failedAt,
+            Instant staleBefore,
+            String errorMessage,
+            int limit
+    ) {
+        return mapper.markStalePublishingCandidatesFailed(failedAt, staleBefore, errorMessage, limit);
+    }
+
+    @Override
+    public long countStalePublishingCandidates(Instant staleBefore) {
+        return staleBefore == null ? 0L : mapper.countStalePublishingCandidates(staleBefore);
     }
 
     @Override

@@ -445,7 +445,7 @@ class TestDesignTaskReportServiceTest {
                 .contains("publishCompensationPolicy,compensationCandidateScope,,FAILED_WITH_EXISTING_WP3_CASE_REFERENCE")
                 .contains("publishCompensationPolicy,autoConflictResolutionEnabled,,false,,success")
                 .contains("publishCompensationPolicy,autoFirstTimeCreateEnabled,,false,,success")
-                .contains("publishCompensationPolicy,crossWpTransactionOrchestrationReady,,false,,warning")
+                .contains("publishCompensationPolicy,crossWpTransactionOrchestrationReady,,true,,success")
                 .contains("publishCompensationPolicy,candidateEvidenceExported,,false")
                 .contains("publishCompensationPolicy,errorTextExported,,false")
                 .contains("publishCompensationPolicy,caseIdentifierListExported,,false")
@@ -1309,6 +1309,11 @@ class TestDesignTaskReportServiceTest {
                 240,
                 100,
                 true,
+                true,
+                true,
+                100,
+                600,
+                120,
                 true,
                 100,
                 600,

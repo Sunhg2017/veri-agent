@@ -65,7 +65,8 @@ flowchart LR
 | `TestDesignContextPolicyService` | 管理 WP5 项目/环境上下文策略覆盖元数据、审批状态和 effective policy 解析；只保存有界数字、固定状态和原因枚举捕获状态，不保存策略正文、策略 diff、审批备注、工单 URL 或上下文正文。 |
 | `TestDesignCandidateReviewService` | 候选查询、编辑、确认、驳回、忽略、批量评审和评审记录导出。 |
 | `TestDesignQualityService` | 判断空步骤、缺断言、重复风险、覆盖缺口、敏感信息风险和发布就绪。 |
-| `TestDesignPublishService` | 发布 dryRun、正式发布、发布记录查询，将已确认候选写入 WP3 测试用例并建立追踪关系。 |
+| `TestDesignPublishService` | 发布 dryRun、正式发布排队、发布事件消费、发布记录查询；正式发布先持久化 `PUBLISH_QUEUED` 本地状态并投递 `test-design.publish.requested`，消费者按候选条件认领后写入 WP3 测试用例并建立追踪关系。 |
+| `TestDesignPublishEventRecoveryService` | 扫描仍处于 `PUBLISH_QUEUED` 的候选并按任务重发发布事件；对超时 `PUBLISHING` 候选标记失败，并在候选均不处于发布中时收敛任务瞬态状态，避免跨 WP 写入中断后任务卡死。 |
 | `TestDesignPublishCompensationService` | 定时扫描已持有 WP3 用例引用的失败候选，复用发布服务的 sourceRef 回放与 trace link 修复路径；执行时通过候选级事务锁、锁内重读和自动补偿记录唯一约束避免重复补偿记账；不自动首次创建用例，也不自动处理高相似冲突。 |
 | `TestDesignConflictService` | 发布冲突人工链接和批量冲突处理，复用 WP3 用例需求追踪校验和审计记录。 |
 | `TestDesignTaskReportService` | 导出任务级聚合报告，提供任务本域审计链摘要，并在最终安全扫描通过后保存 aggregate-only manifest 归档核验记录，避免报告拼装逻辑回流到任务服务。 |
@@ -80,14 +81,15 @@ flowchart LR
 ### 3.1 生成任务状态
 
 ```text
+DRAFT -> QUEUED -> RUNNING -> SUCCEEDED
+DRAFT -> QUEUED -> RUNNING -> PARTIAL_SUCCESS
+DRAFT -> QUEUED -> RUNNING -> FAILED
 DRAFT -> RUNNING -> SUCCEEDED
-DRAFT -> RUNNING -> PARTIAL_SUCCESS
-DRAFT -> RUNNING -> FAILED
 RUNNING -> CANCELLED
 FAILED -> RUNNING
 PARTIAL_SUCCESS -> RUNNING
-SUCCEEDED -> PUBLISHING -> PUBLISHED
-SUCCEEDED -> PUBLISHING -> PARTIAL_SUCCESS
+SUCCEEDED -> PUBLISH_QUEUED -> PUBLISHING -> PUBLISHED
+SUCCEEDED -> PUBLISH_QUEUED -> PUBLISHING -> SUCCEEDED
 ```
 
 非法状态流必须返回 `INVALID_STATE` 并写入拒绝审计。
@@ -95,14 +97,16 @@ SUCCEEDED -> PUBLISHING -> PARTIAL_SUCCESS
 ### 3.2 候选状态
 
 ```text
-GENERATED -> EDITED -> CONFIRMED -> PUBLISHED
-GENERATED -> CONFIRMED -> PUBLISHED
+GENERATED -> EDITED -> CONFIRMED -> PUBLISH_QUEUED -> PUBLISHING -> PUBLISHED
+GENERATED -> CONFIRMED -> PUBLISH_QUEUED -> PUBLISHING -> PUBLISHED
 GENERATED -> REJECTED
 GENERATED -> IGNORED
 EDITED -> REJECTED
 EDITED -> IGNORED
 CONFIRMED -> EDITED
 CONFIRMED -> IGNORED
+FAILED -> PUBLISH_QUEUED -> PUBLISHING -> PUBLISHED
+PUBLISHING -> FAILED
 ```
 
 已 `PUBLISHED` 候选不可再次编辑，只能查看和跳转 WP3 用例。
@@ -561,7 +565,9 @@ WP5 任务项目时，才允许写入候选 `apiId`；非 UUID、缺失 API 或�
 | `POST` | `/tasks/{id}/publish` | `testDesign:publish` | 发布确认候选到 WP3。 |
 | `GET` | `/tasks/{id}/publish-records` | `testDesign:read` | 查询发布记录。 |
 
-正式发布请求如显式传入 `candidateIds`，所有候选必须处于 `CONFIRMED`、可重试的 `FAILED`，或已持有 `assetCaseId` 的 `PUBLISHED` 状态；存在未确认候选时必须在任务进入 `PUBLISHING`、写 WP3 用例、创建 trace link 或保存发布记录前返回 `INVALID_STATE`。`publish-dry-run` 可返回 `SKIP_UNCONFIRMED/SKIPPED` 供前端预览。
+正式发布请求如显式传入 `candidateIds`，所有候选必须处于 `CONFIRMED`、可重试的 `FAILED`，或已持有 `assetCaseId` 的 `PUBLISHED` 状态；存在未确认候选时必须在任务进入 `PUBLISH_QUEUED/PUBLISHING`、写 WP3 用例、创建 trace link 或保存发布记录前返回 `INVALID_STATE`。`publish-dry-run` 可返回 `SKIP_UNCONFIRMED/SKIPPED` 供前端预览。
+
+正式发布默认异步执行。API 事务内只做候选合法性和发布准出校验，然后将任务置为 `PUBLISH_QUEUED`、候选置为 `PUBLISH_QUEUED`，响应记录返回 `QUEUED`，但不追加最终 publish record、不创建 WP3 用例。事务提交后投递 `test-design.publish.requested` 到 `veri-agent.test-design-publish-requested`；事件 payload 只携带 `taskId` 和本次已排队的 `candidateIds`。消费者通过候选级 `PUBLISH_QUEUED -> PUBLISHING` 条件更新认领单个候选，调用 WP3 应用服务创建/回放 AI 用例和 trace link，随后保存最终 publish record 并刷新任务计数。重复事件、Kafka 重放和恢复扫描只会重新选择仍处于 `PUBLISH_QUEUED` 的候选，绝不会把同一任务上后续新确认的 `CONFIRMED` 候选纳入原发布范围。若消费者在 `PUBLISHING` 中断，恢复服务按超时阈值将候选标记 `FAILED`，并收敛任务瞬态状态，后续必须由人工再次正式发布触发重试。可通过 `veri-agent.test-design.async-publish-enabled=false` 回退到同步发布路径。
 
 发布请求：
 

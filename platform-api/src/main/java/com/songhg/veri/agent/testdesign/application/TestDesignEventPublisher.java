@@ -5,7 +5,9 @@ import com.songhg.veri.agent.common.event.PlatformEventEnvelope;
 import com.songhg.veri.agent.common.event.PlatformEventProperties;
 import com.songhg.veri.agent.common.event.PlatformEventPublisher;
 import com.songhg.veri.agent.testdesign.application.event.TestDesignGenerationRequestedEvent;
+import com.songhg.veri.agent.testdesign.application.event.TestDesignPublishRequestedEvent;
 import java.time.Duration;
+import java.util.List;
 import java.util.UUID;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
@@ -37,6 +39,16 @@ public class TestDesignEventPublisher {
                 objectMapper
         );
         publishAfterCommit(eventProperties.testDesignGenerationRequestedTopic(), event);
+    }
+
+    public void publishPublishRequested(UUID taskId, List<UUID> candidateIds) {
+        PlatformEventEnvelope event = PlatformEventEnvelope.of(
+                TestDesignPublishRequestedEvent.EVENT_TYPE,
+                taskId.toString(),
+                new TestDesignPublishRequestedEvent(taskId, candidateIds == null ? List.of() : candidateIds),
+                objectMapper
+        );
+        publishAfterCommit(eventProperties.testDesignPublishRequestedTopic(), event);
     }
 
     private void publishAfterCommit(String topic, PlatformEventEnvelope event) {

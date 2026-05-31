@@ -13,7 +13,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest(properties = {
-        "veri-agent.test-design.service-token=test-design-token"
+        "veri-agent.test-design.service-token=test-design-token",
+        "veri-agent.test-design.event-recovery-enabled=false",
+        "veri-agent.test-design.publish-event-recovery-enabled=false"
 })
 @AutoConfigureMockMvc
 class TestDesignOpenApiContractTest {

@@ -19,6 +19,10 @@ public enum TestDesignCandidateStatus {
     REJECTED,
     /** 已忽略，不进入发布池但保留在任务记录中 */
     IGNORED,
+    /** 正式发布请求已持久化，等待异步写入 WP3 */
+    PUBLISH_QUEUED,
+    /** 正在执行发布到 WP3 的动作 */
+    PUBLISHING,
     /** 已成功发布到 WP3 测试用例资产 */
     PUBLISHED,
     /** 发布或重试失败，需要保留错误原因以便后续处理 */
@@ -34,6 +38,8 @@ public enum TestDesignCandidateStatus {
                 CONFIRMED.name(),
                 REJECTED.name(),
                 IGNORED.name(),
+                PUBLISH_QUEUED.name(),
+                PUBLISHING.name(),
                 PUBLISHED.name(),
                 FAILED.name()
         );

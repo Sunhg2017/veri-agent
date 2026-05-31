@@ -6,6 +6,7 @@ import com.songhg.veri.agent.testdesign.application.query.TestDesignCandidateQue
 import com.songhg.veri.agent.testdesign.application.query.TestDesignTaskQuery;
 import com.songhg.veri.agent.testdesign.domain.TestDesignAuditChainAggregate;
 import com.songhg.veri.agent.testdesign.domain.TestDesignCandidate;
+import com.songhg.veri.agent.testdesign.domain.TestDesignCandidateStatus;
 import com.songhg.veri.agent.testdesign.domain.TestDesignContextPolicyOverride;
 import com.songhg.veri.agent.testdesign.domain.TestDesignPublishRecord;
 import com.songhg.veri.agent.testdesign.domain.TestDesignReportManifest;
@@ -84,6 +85,27 @@ public class InMemoryTestDesignRepository implements TestDesignRepository {
     }
 
     @Override
+    public long countCandidatesByStatus(TestDesignCandidateStatus status) {
+        if (status == null) {
+            return 0L;
+        }
+        return candidates.values().stream()
+                .filter(candidate -> status.name().equals(candidate.status()))
+                .count();
+    }
+
+    @Override
+    public Optional<Instant> oldestCandidateUpdatedAtByStatus(TestDesignCandidateStatus status) {
+        if (status == null) {
+            return Optional.empty();
+        }
+        return candidates.values().stream()
+                .filter(candidate -> status.name().equals(candidate.status()))
+                .map(TestDesignCandidate::updatedAt)
+                .min(Comparator.naturalOrder());
+    }
+
+    @Override
     public Optional<TestDesignTask> task(UUID id) {
         return Optional.ofNullable(tasks.get(id));
     }
@@ -139,6 +161,55 @@ public class InMemoryTestDesignRepository implements TestDesignRepository {
                     current.requestDigest(),
                     current.inputDigest(),
                     current.contextSummaryJson(),
+                    current.createdAt(),
+                    updatedAt
+            ));
+            return true;
+        }
+    }
+
+    @Override
+    public boolean markCandidateStatus(
+            UUID id,
+            TestDesignCandidateStatus expectedStatus,
+            TestDesignCandidateStatus nextStatus,
+            Instant updatedAt
+    ) {
+        synchronized (candidates) {
+            TestDesignCandidate current = candidates.get(id);
+            if (current == null || !expectedStatus.name().equals(current.status())) {
+                return false;
+            }
+            candidates.put(id, new TestDesignCandidate(
+                    current.id(),
+                    current.taskId(),
+                    current.projectId(),
+                    current.requirementId(),
+                    current.apiId(),
+                    current.title(),
+                    current.description(),
+                    current.coverageType(),
+                    current.priority(),
+                    nextStatus.name(),
+                    current.preconditions(),
+                    current.stepsJson(),
+                    current.expectedResult(),
+                    current.tags(),
+                    current.duplicateKey(),
+                    current.confidence(),
+                    current.promptKey(),
+                    current.promptVersion(),
+                    current.modelInvocationId(),
+                    current.modelProviderName(),
+                    current.modelName(),
+                    current.assetCaseId(),
+                    current.reviewComment(),
+                    current.rejectedReason(),
+                    current.ignoredReason(),
+                    null,
+                    current.confirmedBy(),
+                    current.confirmedAt(),
+                    current.version() + 1,
                     current.createdAt(),
                     updatedAt
             ));
@@ -216,6 +287,85 @@ public class InMemoryTestDesignRepository implements TestDesignRepository {
                 .filter(candidate -> taskId.equals(candidate.taskId()))
                 .sorted(Comparator.comparing(TestDesignCandidate::createdAt))
                 .toList();
+    }
+
+    @Override
+    public List<TestDesignCandidate> publishQueuedCandidates(int limit) {
+        if (limit <= 0) {
+            return List.of();
+        }
+        return candidates.values().stream()
+                .filter(candidate -> TestDesignCandidateStatus.PUBLISH_QUEUED.name().equals(candidate.status()))
+                .sorted(Comparator.comparing(TestDesignCandidate::updatedAt, Comparator.nullsLast(Comparator.naturalOrder())))
+                .limit(limit)
+                .toList();
+    }
+
+    @Override
+    public int markStalePublishingCandidatesFailed(
+            Instant failedAt,
+            Instant staleBefore,
+            String errorMessage,
+            int limit
+    ) {
+        if (limit <= 0 || staleBefore == null) {
+            return 0;
+        }
+        synchronized (candidates) {
+            List<TestDesignCandidate> staleCandidates = candidates.values().stream()
+                    .filter(candidate -> TestDesignCandidateStatus.PUBLISHING.name().equals(candidate.status()))
+                    .filter(candidate -> candidate.updatedAt() != null && candidate.updatedAt().isBefore(staleBefore))
+                    .sorted(Comparator.comparing(TestDesignCandidate::updatedAt))
+                    .limit(limit)
+                    .toList();
+            for (TestDesignCandidate current : staleCandidates) {
+                candidates.put(current.id(), new TestDesignCandidate(
+                        current.id(),
+                        current.taskId(),
+                        current.projectId(),
+                        current.requirementId(),
+                        current.apiId(),
+                        current.title(),
+                        current.description(),
+                        current.coverageType(),
+                        current.priority(),
+                        TestDesignCandidateStatus.FAILED.name(),
+                        current.preconditions(),
+                        current.stepsJson(),
+                        current.expectedResult(),
+                        current.tags(),
+                        current.duplicateKey(),
+                        current.confidence(),
+                        current.promptKey(),
+                        current.promptVersion(),
+                        current.modelInvocationId(),
+                        current.modelProviderName(),
+                        current.modelName(),
+                        current.assetCaseId(),
+                        current.reviewComment(),
+                        current.rejectedReason(),
+                        current.ignoredReason(),
+                        errorMessage,
+                        current.confirmedBy(),
+                        current.confirmedAt(),
+                        current.version() + 1,
+                        current.createdAt(),
+                        failedAt
+                ));
+            }
+            return staleCandidates.size();
+        }
+    }
+
+    @Override
+    public long countStalePublishingCandidates(Instant staleBefore) {
+        if (staleBefore == null) {
+            return 0L;
+        }
+        return candidates.values().stream()
+                .filter(candidate -> TestDesignCandidateStatus.PUBLISHING.name().equals(candidate.status()))
+                .filter(candidate -> candidate.updatedAt() != null && candidate.updatedAt().isBefore(staleBefore))
+                .count();
     }
 
     @Override

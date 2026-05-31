@@ -111,14 +111,16 @@
 | WP5-FUNC-011 | P0 | 批量确认携带正确版本 | 所选候选全部确认，返回逐条结果。 |
 | WP5-FUNC-012 | P0 | 批量确认携带旧版本 | 返回版本冲突，前端提示刷新。 |
 | WP5-FUNC-013 | P0 | 发布 dryRun | 返回 CREATE/LINK_EXISTING/DUPLICATE_REVIEW_REQUIRED/SKIPPED 明细。 |
-| WP5-FUNC-014 | P0 | 发布已确认候选 | WP3 新增测试用例，步骤完整，候选状态为 `PUBLISHED`。 |
-| WP5-FUNC-015 | P0 | 显式发布未确认候选 | dryRun 返回 `SKIP_UNCONFIRMED/SKIPPED`；正式发布在任务进入 `PUBLISHING`、写 WP3 用例或保存发布记录前返回 `INVALID_STATE`，候选不写入 WP3。 |
+| WP5-FUNC-014 | P0 | 发布已确认候选 | 正式发布响应先返回 `QUEUED`，候选状态为 `PUBLISH_QUEUED` 且不立即创建 WP3 用例；消费 `test-design.publish.requested` 后 WP3 新增测试用例、步骤完整、候选状态为 `PUBLISHED`，重复事件不追加发布记录或重复创建用例。 |
+| WP5-FUNC-014A | P0 | 发布事件恢复不扩大范围 | 恢复扫描只按仍处于 `PUBLISH_QUEUED` 的候选重发事件；同任务后续新增或新确认的 `CONFIRMED` 候选不会被原发布事件或恢复扫描发布。 |
+| WP5-FUNC-014B | P0 | 发布中超时恢复 | `PUBLISHING` 候选超过发布恢复超时后被标记为 `FAILED` 并保留错误摘要；任务不继续停留在 `PUBLISHING/PUBLISH_QUEUED`，人工可显式重试。 |
+| WP5-FUNC-015 | P0 | 显式发布未确认候选 | dryRun 返回 `SKIP_UNCONFIRMED/SKIPPED`；正式发布在任务进入 `PUBLISH_QUEUED/PUBLISHING`、写 WP3 用例或保存发布记录前返回 `INVALID_STATE`，候选不写入 WP3。 |
 | WP5-FUNC-016 | P0 | WP3 写入失败或部分成功 | 发布记录失败，候选保留 `assetCaseId/errorMessage`；重试能按 `sourceRef` 找回既有用例并补建 trace link。 |
 | WP5-FUNC-016A | P0 | 批量处理发布冲突 | 按候选项目 scope 校验 `testDesign:publish`，逐项校验版本和目标用例需求追踪，返回成功/失败明细。 |
 | WP5-FUNC-016B | P0 | 受限发布补偿后台修复部分成功候选 | 扫描 `FAILED` 且已持有 WP3 用例引用的候选；存在同一 `sourceRef` 用例时自动补建 trace link、候选改为 `PUBLISHED`、发布记录写 `AUTO_COMPENSATE_LINK_EXISTING/SUCCEEDED`，并刷新任务计数。 |
 | WP5-FUNC-016C | P0 | 受限发布补偿后台不越界创建或解冲突 | 无 `assetCaseId`、已有成功发布记录、已执行自动补偿记录或仅存在高相似冲突的候选不被后台自动首次创建或自动链接冲突用例，保留人工发布/人工冲突处理路径。 |
 | WP5-FUNC-016D | P0 | 受限发布补偿后台多实例幂等 | 同一候选被重复扫描或并发补偿时，通过候选级事务锁、锁内重读和自动补偿记录唯一约束确保最多写入一条 `AUTO_COMPENSATE_LINK_EXISTING` 发布记录。 |
-| WP5-FUNC-016E | P0 | 配置化发布准出质量阻断 | 开启 `veri-agent.test-design.release-readiness-publish-blocking-enabled=true` 后，任务聚合 readiness=`BLOCKED` 时正式发布返回 `INVALID_STATE`，不创建 WP3 用例、不写 publish record、不变更候选状态；dryRun 仍返回发布计划，便于诊断。`scripts/wp5_test_design_smoke.sh` 在阻断开关开启时会通过公开 HTTP API 形成失败候选并验证 readiness=`BLOCKED`、dryRun 诊断、正式重试 409、不追加 publish record 且不写 WP3 用例；`scripts/wp5_managed_http_smoke.sh` 在 release gate 下默认启用该阻断开关。 |
+| WP5-FUNC-016E | P0 | 配置化发布准出质量阻断 | 开启 `veri-agent.test-design.release-readiness-publish-blocking-enabled=true` 后，任务聚合 readiness=`BLOCKED` 时正式发布返回 `INVALID_STATE`，不创建 WP3 用例、不写 publish record、不变更候选状态；dryRun 仍返回发布计划，便于诊断。`scripts/wp5_test_design_smoke.sh` 在阻断开关开启时会通过公开 HTTP API 形成异步发布失败候选并验证 readiness=`BLOCKED`、dryRun 诊断、正式重试 409、不追加 publish record 且不写 WP3 用例；`scripts/wp5_managed_http_smoke.sh` 在 release gate 下默认启用该阻断开关。 |
 | WP5-FUNC-017 | P1 | 任务重试 | 失败任务可重试，保留历史错误和新 traceId。 |
 | WP5-FUNC-017A | P0 | 人工重发排队生成事件 | 仅 `QUEUED` 任务可调用，任务状态保持 `QUEUED`，重新发布生成请求事件并写审计；非 `QUEUED` 任务或同步生成模式返回非法状态，响应和报告不暴露事件 ID、payload 或队列消息体。 |
 | WP5-FUNC-018 | P1 | 取消运行中任务 | 任务进入 `CANCELLED`，不继续生成候选。 |

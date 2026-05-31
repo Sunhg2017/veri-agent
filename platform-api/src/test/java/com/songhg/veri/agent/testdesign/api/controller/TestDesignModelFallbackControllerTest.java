@@ -26,6 +26,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "veri-agent.asset.service-token=test-asset-token",
         "veri-agent.test-design.service-token=test-design-token",
         "veri-agent.test-design.async-generation-enabled=false",
+        "veri-agent.test-design.async-publish-enabled=false",
+        "veri-agent.test-design.publish-event-recovery-enabled=false",
         "veri-agent.test-design.generation-mode=MODEL_WITH_FALLBACK",
         "veri-agent.test-design.prompt-key=missing-wp5-prompt"
 })

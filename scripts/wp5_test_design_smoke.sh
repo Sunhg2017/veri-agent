@@ -169,6 +169,48 @@ wait_for_task_candidates() {
   return 1
 }
 
+wait_for_task_publish_records() {
+  local task_id="$1"
+  local expected_total="$2"
+  local expected_result="$3"
+  local attempts="${WP5_SMOKE_PUBLISH_WAIT_ATTEMPTS:-60}"
+  local delay="${WP5_SMOKE_PUBLISH_WAIT_DELAY_SECONDS:-1}"
+  local records=""
+  for ((attempt = 1; attempt <= attempts; attempt++)); do
+    records="$(curl -fsS "$TEST_DESIGN_API_BASE/tasks/$task_id/publish-records" "${test_design_headers[@]}")"
+    if printf '%s' "$records" | jq -e \
+      --argjson expected "$expected_total" \
+      --arg result "$expected_result" \
+      '.data.total >= $expected and (.data.items | length) >= $expected and ([.data.items[] | select(.result == $result)] | length) >= $expected' >/dev/null; then
+      printf '%s' "$records"
+      return 0
+    fi
+    sleep "$delay"
+  done
+  printf '%s' "$records"
+  return 1
+}
+
+wait_for_task_published() {
+  local task_id="$1"
+  local expected_published="$2"
+  local attempts="${WP5_SMOKE_PUBLISH_WAIT_ATTEMPTS:-60}"
+  local delay="${WP5_SMOKE_PUBLISH_WAIT_DELAY_SECONDS:-1}"
+  local detail=""
+  for ((attempt = 1; attempt <= attempts; attempt++)); do
+    detail="$(curl -fsS "$TEST_DESIGN_API_BASE/tasks/$task_id" "${test_design_headers[@]}")"
+    if printf '%s' "$detail" | jq -e \
+      --argjson expected "$expected_published" \
+      '.data.task.status == "PUBLISHED" and .data.task.publishedCount >= $expected and (.data.candidates | map(select(.status == "PUBLISHED")) | length) >= $expected and (.data.publishRecords | length) >= $expected' >/dev/null; then
+      printf '%s' "$detail"
+      return 0
+    fi
+    sleep "$delay"
+  done
+  printf '%s' "$detail"
+  return 1
+}
+
 login_admin() {
   local password="$1"
   post_json "$AUTH_API_BASE/login" "$(jq -nc \
@@ -310,8 +352,12 @@ validate_release_readiness_blocking() {
   check "Delete release-readiness seed API" '.data.lifecycleStatus == "DELETED" and .data.deletedAt != null' "$deleted"
 
   first_publish="$(post_test_design_json "/tasks/$task_id/publish" '{}')"
+  check "Seed publish accepted for async API failure" \
+    '.data.dryRun == false and .data.total == 1 and .data.created == 0 and (.data.createdCaseIds | length) == 0 and .data.records[0].result == "QUEUED" and .data.records[0].candidateStatus == "PUBLISH_QUEUED"' \
+    "$first_publish"
+  first_publish="$(wait_for_task_publish_records "$task_id" 1 "FAILED")"
   check "Seed publish records API failure" \
-    '.data.dryRun == false and .data.total == 1 and .data.failed == 1 and (.data.createdCaseIds | length) == 0 and .data.records[0].result == "FAILED" and .data.records[0].action == "CREATE" and (.data.records[0].errorMessage | contains("API不存在"))' \
+    '.data.total >= 1 and (.data.items | any(.result == "FAILED" and .action == "CREATE" and (.errorMessage | contains("API不存在"))))' \
     "$first_publish"
 
   restored="$(patch_asset_json "/apis/$api_id/lifecycle" '{"lifecycleStatus":"ACTIVE","reason":"WP5 release gate smoke restore before retry"}')"
@@ -457,7 +503,9 @@ main() {
   check "No WP3 write after dryRun" '.data.total == 0' "$asset_before"
 
   publish="$(post_test_design_json "/tasks/$task_id/publish" '{}')"
-  check "Publish creates WP3 cases" '.data.dryRun == false and .data.created == 2 and (.data.createdCaseIds | length) == 2 and (.data.records | all(.result == "SUCCEEDED"))' "$publish"
+  check "Publish accepted for async WP3 write" '.data.dryRun == false and .data.created == 0 and (.data.createdCaseIds | length) == 0 and (.data.records | length) == 2 and (.data.records | all(.result == "QUEUED" and .candidateStatus == "PUBLISH_QUEUED"))' "$publish"
+  publish="$(wait_for_task_published "$task_id" 2)"
+  check "Publish creates WP3 cases" '.data.task.status == "PUBLISHED" and .data.task.publishedCount == 2 and ([.data.publishRecords[] | select(.result == "SUCCEEDED")] | length) >= 2' "$publish"
 
   scope_summary="$(get_test_design_json "/quality/scope-summary?projectId=$(urlencode "$PROJECT_ID")&promptKey=wp5-test-design-v1")"
   if printf '%s' "$scope_summary" | jq -e --arg projectId "$PROJECT_ID" \
@@ -470,7 +518,7 @@ main() {
     FAIL=$((FAIL + 1))
   fi
 
-  case_id="$(printf '%s' "$publish" | jq -r '.data.createdCaseIds[0]')"
+  case_id="$(printf '%s' "$publish" | jq -r '.data.publishRecords[] | select(.result == "SUCCEEDED" and .assetCaseId != null) | .assetCaseId' | head -n 1)"
 
   case_asset="$(get_asset_json "/test-cases/$case_id")"
   check "WP3 test case is AI generated" '.data.source == "AI_GENERATED" and (.data.sourceRef | startswith("wp5:")) and (.data.steps | length) >= 3' "$case_asset"

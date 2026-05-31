@@ -34,7 +34,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "veri-agent.auth.token-secret=test-auth-secret-32-byte-minimum!",
         "veri-agent.asset.service-token=test-asset-token",
         "veri-agent.test-design.service-token=test-design-token",
-        "veri-agent.test-design.async-generation-enabled=false"
+        "veri-agent.test-design.async-generation-enabled=false",
+        "veri-agent.test-design.async-publish-enabled=false",
+        "veri-agent.test-design.publish-event-recovery-enabled=false"
 })
 @AutoConfigureMockMvc
 @DirtiesContext(classMode = DirtiesContext.ClassMode.BEFORE_EACH_TEST_METHOD)

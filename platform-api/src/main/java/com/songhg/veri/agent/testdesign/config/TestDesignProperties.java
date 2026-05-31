@@ -42,6 +42,8 @@ public record TestDesignProperties(
         @DefaultValue("100") int batchActionLimit,
         /** 创建任务后是否通过平台事件异步生成候选 */
         @DefaultValue("true") boolean asyncGenerationEnabled,
+        /** 正式发布后是否先排队并通过平台事件异步写入 WP3 */
+        @DefaultValue("true") boolean asyncPublishEnabled,
         /** 异步生成事件恢复扫描开关 */
         @DefaultValue("true") boolean eventRecoveryEnabled,
         /** 单次恢复扫描最多重新发布的排队任务数 */
@@ -50,6 +52,14 @@ public record TestDesignProperties(
         @DefaultValue("600") long eventRecoveryRunningTimeoutSeconds,
         /** 排队生成任务超过该秒数未更新则触发聚合队列滞留告警，非正数表示关闭 */
         @DefaultValue("120") long eventRecoveryQueueLagWarningSeconds,
+        /** 异步发布事件恢复扫描开关 */
+        @DefaultValue("true") boolean publishEventRecoveryEnabled,
+        /** 单次发布恢复扫描最多重新发布的排队候选数 */
+        @DefaultValue("100") int publishEventRecoveryBatchSize,
+        /** 发布中候选超过该秒数未更新则标记失败，非正数表示关闭 */
+        @DefaultValue("600") long publishEventRecoveryRunningTimeoutSeconds,
+        /** 排队发布候选超过该秒数未更新则触发聚合队列滞留告警，非正数表示关闭 */
+        @DefaultValue("120") long publishEventRecoveryQueueLagWarningSeconds,
         /** 任务质量准出：最低步骤完整率百分比 */
         @DefaultValue("100") double readinessMinStepCompletePercent,
         /** 任务质量准出：最低最终预期完整率百分比 */
@@ -93,6 +103,8 @@ public record TestDesignProperties(
     private static final int MAX_REPORT_ARCHIVE_RETENTION_DAYS = 3650;
     private static final int DEFAULT_PUBLISH_COMPENSATION_BATCH_SIZE = 50;
     private static final int MAX_PUBLISH_COMPENSATION_BATCH_SIZE = 500;
+    private static final int DEFAULT_PUBLISH_EVENT_RECOVERY_BATCH_SIZE = 100;
+    private static final int MAX_PUBLISH_EVENT_RECOVERY_BATCH_SIZE = 500;
 
     public int effectiveContextLinkedAssetsPerRequirement() {
         return boundedPositive(contextLinkedAssetsPerRequirement, DEFAULT_LINKED_ASSETS_PER_REQUIREMENT, MAX_CONTEXT_ITEMS);
@@ -137,6 +149,11 @@ public record TestDesignProperties(
     public int effectivePublishCompensationBatchSize() {
         return boundedPositive(publishCompensationBatchSize, DEFAULT_PUBLISH_COMPENSATION_BATCH_SIZE,
                 MAX_PUBLISH_COMPENSATION_BATCH_SIZE);
+    }
+
+    public int effectivePublishEventRecoveryBatchSize() {
+        return boundedPositive(publishEventRecoveryBatchSize, DEFAULT_PUBLISH_EVENT_RECOVERY_BATCH_SIZE,
+                MAX_PUBLISH_EVENT_RECOVERY_BATCH_SIZE);
     }
 
     private static int boundedPositive(int value, int defaultValue, int maxValue) {

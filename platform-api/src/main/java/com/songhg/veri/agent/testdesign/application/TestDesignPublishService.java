@@ -47,6 +47,7 @@ public class TestDesignPublishService {
     static final String ACTION_AUTO_COMPENSATE_LINK_EXISTING = "AUTO_COMPENSATE_LINK_EXISTING";
     private static final String ACTION_DUPLICATE_REVIEW_REQUIRED = "DUPLICATE_REVIEW_REQUIRED";
     private static final String RESULT_CONFLICT = "CONFLICT";
+    private static final String RESULT_QUEUED = "QUEUED";
     private static final String READINESS_BLOCKED = "BLOCKED";
     private final TestDesignRepository repository;
     private final AssetService assetService;
@@ -54,6 +55,7 @@ public class TestDesignPublishService {
     private final TestDesignQualityService qualityService;
     private final TestDesignResponseMapper responseMapper;
     private final TestDesignProperties properties;
+    private final TestDesignEventPublisher eventPublisher;
 
     public TestDesignPublishService(
             TestDesignRepository repository,
@@ -61,7 +63,8 @@ public class TestDesignPublishService {
             TestDesignActorResolver actorResolver,
             TestDesignQualityService qualityService,
             TestDesignResponseMapper responseMapper,
-            TestDesignProperties properties
+            TestDesignProperties properties,
+            TestDesignEventPublisher eventPublisher
     ) {
         this.repository = repository;
         this.assetService = assetService;
@@ -69,6 +72,7 @@ public class TestDesignPublishService {
         this.qualityService = qualityService;
         this.responseMapper = responseMapper;
         this.properties = properties;
+        this.eventPublisher = eventPublisher;
     }
 
     private TestDesignTaskDetailResponse task(UUID id) {
@@ -100,9 +104,8 @@ public class TestDesignPublishService {
     /**
      * Publishes confirmed candidates into WP3 through the asset application service.
      *
-     * <p>The method avoids direct table writes so WP3 versioning, trace links, audit and validation rules remain the
-     * single source of truth. A failed candidate is recorded locally while successful publishes become immutable
-     * published candidates.
+     * <p>Formal publish defaults to a local durable queue plus platform event. This keeps the reviewer-facing API from
+     * holding a cross-WP transaction open while preserving a synchronous fallback for rollback or test compatibility.
      */
     @Transactional
     public TestDesignPublishResponse publish(UUID taskId, TestDesignPublishCommand command) {
@@ -113,50 +116,107 @@ public class TestDesignPublishService {
             throw new BusinessException(ErrorCode.INVALID_STATE, "没有已确认候选用例可发布");
         }
         assertOfficialPublishCandidatesReady(dryRun, command == null ? null : command.candidateIds(), selected);
-        if (!dryRun) {
-            validateReleaseReadiness(task.id());
-            repository.saveTask(new TestDesignTask(
-                    task.id(), task.projectId(), task.title(), TestDesignTaskStatus.PUBLISHING.name(),
-                    task.requirementIds(), task.coverageTypes(), task.promptKey(), task.promptVersion(),
-                    task.modelInvocationId(), task.modelProviderName(), task.modelName(), task.totalRequirements(),
-                    task.generatedCount(), task.confirmedCount(), task.publishedCount(), task.errorMessage(),
-                    task.requestedBy(), task.idempotencyKey(), task.requestDigest(), task.inputDigest(),
-                    task.contextSummaryJson(), task.createdAt(), Instant.now()
-            ));
+        if (dryRun) {
+            return previewPublish(task, selected);
         }
+        validateReleaseReadiness(task.id());
+        if (properties.asyncPublishEnabled()) {
+            return queuePublish(task, selected);
+        }
+        return publishSynchronously(task, selected);
+    }
+
+    /**
+     * Processes one queued publish event after the API transaction commits.
+     *
+     * <p>The event payload carries the exact candidate IDs that were selected by the reviewer. Recovery re-emits only
+     * candidates that remain in PUBLISH_QUEUED, so a retry cannot accidentally expand an explicit publish request to
+     * newly confirmed candidates on the same task.
+     */
+    @Transactional
+    public TestDesignPublishResponse processQueuedPublish(UUID taskId, List<UUID> candidateIds) {
+        TestDesignTask task = taskOrThrow(taskId);
+        List<TestDesignCandidate> selected = selectQueuedPublishCandidates(task, candidateIds);
+        if (selected.isEmpty()) {
+            return publishResponse(task, false, List.of());
+        }
+        if (TestDesignTaskStatus.PUBLISH_QUEUED.name().equals(task.status())) {
+            repository.markTaskStatus(
+                    task.id(),
+                    TestDesignTaskStatus.PUBLISH_QUEUED,
+                    TestDesignTaskStatus.PUBLISHING,
+                    Instant.now()
+            );
+        }
+        TestDesignTask runningTask = taskOrThrow(task.id());
         List<TestDesignPublishRecord> records = new ArrayList<>();
-        List<UUID> createdCaseIds = new ArrayList<>();
         String actor = actorResolver.currentActor();
         for (TestDesignCandidate candidate : selected) {
-            TestDesignPublishRecord record = dryRun
-                    ? plannedPublishRecord(task, candidate, actor)
-                    : publishCandidate(task, candidate, actor);
-            records.add(record);
-            if (!dryRun
-                    && "CREATE".equals(record.action())
-                    && "SUCCEEDED".equals(record.result())
-                    && record.assetCaseId() != null) {
-                createdCaseIds.add(record.assetCaseId());
+            Optional<TestDesignCandidate> claimed = claimQueuedPublishCandidate(candidate);
+            if (claimed.isEmpty()) {
+                continue;
             }
+            records.add(publishQueuedCandidate(runningTask, claimed.get(), actor));
         }
-        if (!dryRun) {
-            records.forEach(repository::savePublishRecord);
-            refreshTaskCountsAfterPublish(task.id(), task.status());
+        records.forEach(repository::savePublishRecord);
+        refreshTaskCountsAfterPublish(task.id(), task.status());
+        return publishResponse(taskOrThrow(task.id()), false, records);
+    }
+
+    private TestDesignPublishResponse previewPublish(TestDesignTask task, List<TestDesignCandidate> selected) {
+        List<TestDesignPublishRecord> records = new ArrayList<>();
+        String actor = actorResolver.currentActor();
+        for (TestDesignCandidate candidate : selected) {
+            records.add(plannedPublishRecord(task, candidate, actor));
         }
-        List<TestDesignPublishRecordResponse> responses = records.stream()
-                .map(record -> responseMapper.toPublishRecordResponse(record, candidateById(selected).get(record.candidateId())))
-                .toList();
-        return new TestDesignPublishResponse(
-                task.id(),
-                task.projectId(),
-                dryRun,
-                records.size(),
-                Math.toIntExact(records.stream().filter(record -> "CREATE".equals(record.action())).count()),
-                Math.toIntExact(records.stream().filter(record -> "SKIPPED".equals(record.result())).count()),
-                Math.toIntExact(records.stream().filter(record -> "FAILED".equals(record.result())).count()),
-                createdCaseIds,
-                responses
-        );
+        return publishResponse(task, true, records);
+    }
+
+    private TestDesignPublishResponse queuePublish(TestDesignTask task, List<TestDesignCandidate> selected) {
+        List<TestDesignPublishRecord> records = new ArrayList<>();
+        List<UUID> queuedCandidateIds = new ArrayList<>();
+        String actor = actorResolver.currentActor();
+        for (TestDesignCandidate candidate : selected) {
+            if (candidate.status().equals(TestDesignCandidateStatus.PUBLISHED.name()) && candidate.assetCaseId() != null) {
+                records.add(publishRecord(task, candidate, false, "SKIP_PUBLISHED", "SKIPPED",
+                        candidate.assetCaseId(), null, actor));
+                continue;
+            }
+            if (!isPublishableCandidate(candidate)) {
+                records.add(publishRecord(task, candidate, false, "SKIP_UNCONFIRMED", "SKIPPED",
+                        null, "候选用例未确认", actor));
+                continue;
+            }
+            TestDesignCandidate queued = withCandidateStatus(
+                    candidate,
+                    TestDesignCandidateStatus.PUBLISH_QUEUED,
+                    candidate.assetCaseId(),
+                    null
+            );
+            repository.saveCandidate(queued);
+            queuedCandidateIds.add(queued.id());
+            records.add(publishRecord(task, queued, false, queuedPublishAction(candidate), RESULT_QUEUED,
+                    queued.assetCaseId(), null, actor));
+        }
+        TestDesignTask queuedTask = task;
+        if (!queuedCandidateIds.isEmpty()) {
+            queuedTask = withTaskStatus(task, TestDesignTaskStatus.PUBLISH_QUEUED, null);
+            repository.saveTask(queuedTask);
+            eventPublisher.publishPublishRequested(task.id(), queuedCandidateIds);
+        }
+        return publishResponse(queuedTask, false, records);
+    }
+
+    private TestDesignPublishResponse publishSynchronously(TestDesignTask task, List<TestDesignCandidate> selected) {
+        repository.saveTask(withTaskStatus(task, TestDesignTaskStatus.PUBLISHING, null));
+        List<TestDesignPublishRecord> records = new ArrayList<>();
+        String actor = actorResolver.currentActor();
+        for (TestDesignCandidate candidate : selected) {
+            records.add(publishCandidate(task, candidate, actor, null));
+        }
+        records.forEach(repository::savePublishRecord);
+        refreshTaskCountsAfterPublish(task.id(), task.status());
+        return publishResponse(taskOrThrow(task.id()), false, records);
     }
 
     private void assertOfficialPublishCandidatesReady(boolean dryRun, List<UUID> requestedCandidateIds, List<TestDesignCandidate> selected) {
@@ -189,6 +249,55 @@ public class TestDesignPublishService {
         if (readiness != null && READINESS_BLOCKED.equals(readiness.status())) {
             throw new BusinessException(ErrorCode.INVALID_STATE,
                     "WP5 发布准出质量门禁不通过: readiness=BLOCKED, blockingCount=" + readiness.blockingCount());
+        }
+    }
+
+    private Optional<TestDesignCandidate> claimQueuedPublishCandidate(TestDesignCandidate candidate) {
+        if (!TestDesignCandidateStatus.PUBLISH_QUEUED.name().equals(candidate.status())) {
+            return Optional.empty();
+        }
+        /*
+         * The candidate-level claim is the real idempotency guard. Task status is only an aggregate progress signal,
+         * while each selected candidate must be claimed once before WP3 writes can start.
+         */
+        boolean claimed = repository.markCandidateStatus(
+                candidate.id(),
+                TestDesignCandidateStatus.PUBLISH_QUEUED,
+                TestDesignCandidateStatus.PUBLISHING,
+                Instant.now()
+        );
+        if (!claimed) {
+            return Optional.empty();
+        }
+        return repository.candidate(candidate.id())
+                .filter(current -> TestDesignCandidateStatus.PUBLISHING.name().equals(current.status()));
+    }
+
+    private TestDesignPublishRecord publishQueuedCandidate(
+            TestDesignTask task,
+            TestDesignCandidate candidate,
+            String actor
+    ) {
+        String action = queuedPublishAction(candidate);
+        try {
+            TestDesignPublishRecord record = publishCandidate(task, candidate, actor, action);
+            if (RESULT_CONFLICT.equals(record.result())) {
+                TestDesignCandidate failed = withFailedCandidate(candidate, record.assetCaseId(), record.errorMessage());
+                repository.saveCandidate(failed);
+                /*
+                 * A duplicate-review conflict is a terminal publish attempt, not an in-flight state. Mark it failed so
+                 * operators can resolve it explicitly and recovery scans will not keep replaying the same conflict.
+                 */
+                return publishRecord(task, failed, false, record.action(), record.result(),
+                        record.assetCaseId(), record.errorMessage(), actor);
+            }
+            return record;
+        } catch (RuntimeException exception) {
+            String message = TestDesignGenerationService.safeErrorMessage(exception);
+            TestDesignCandidate failed = withFailedCandidate(candidate, candidate.assetCaseId(), message);
+            repository.saveCandidate(failed);
+            return publishRecord(task, failed, false, action, "FAILED",
+                    candidate.assetCaseId(), message, actor);
         }
     }
 
@@ -265,19 +374,24 @@ public class TestDesignPublishService {
                         && ACTION_AUTO_COMPENSATE_LINK_EXISTING.equals(record.action()));
     }
 
-    private TestDesignPublishRecord publishCandidate(TestDesignTask task, TestDesignCandidate candidate, String actor) {
+    private TestDesignPublishRecord publishCandidate(
+            TestDesignTask task,
+            TestDesignCandidate candidate,
+            String actor,
+            String requestedAction
+    ) {
         if (candidate.status().equals(TestDesignCandidateStatus.PUBLISHED.name()) && candidate.assetCaseId() != null) {
             return publishRecord(task, candidate, false, "SKIP_PUBLISHED", "SKIPPED", candidate.assetCaseId(), null, actor);
         }
-        if (!isPublishableCandidate(candidate)) {
+        if (!isExecutablePublishCandidate(candidate)) {
             return publishRecord(task, candidate, false, "SKIP_UNCONFIRMED", "SKIPPED", null, "候选用例未确认", actor);
         }
         Optional<TestCaseResponse> existingTestCase = existingWp5TestCase(candidate);
         if (existingTestCase.isPresent()) {
             TestCaseResponse testCase = existingTestCase.get();
-            String action = TestDesignCandidateStatus.FAILED.name().equals(candidate.status())
-                    ? ACTION_RETRY_LINK_EXISTING
-                    : "LINK_EXISTING";
+            String action = StringUtils.hasText(requestedAction) ? requestedAction
+                    : TestDesignCandidateStatus.FAILED.name().equals(candidate.status())
+                    ? ACTION_RETRY_LINK_EXISTING : "LINK_EXISTING";
             try {
                 ensureTraceLink(candidate, testCase);
                 TestDesignCandidate linked = withPublishedCandidate(candidate, testCase.id(), null);
@@ -368,6 +482,11 @@ public class TestDesignPublishService {
                 || TestDesignCandidateStatus.FAILED.name().equals(candidate.status());
     }
 
+    private static boolean isExecutablePublishCandidate(TestDesignCandidate candidate) {
+        return isPublishableCandidate(candidate)
+                || TestDesignCandidateStatus.PUBLISHING.name().equals(candidate.status());
+    }
+
     private static boolean isOfficialPublishReady(TestDesignCandidate candidate) {
         return isPublishableCandidate(candidate)
                 || (TestDesignCandidateStatus.PUBLISHED.name().equals(candidate.status())
@@ -444,6 +563,15 @@ public class TestDesignPublishService {
         return "同一需求下已存在高相似测试用例，需人工确认后再发布: " + testCase.code();
     }
 
+    private static String queuedPublishAction(TestDesignCandidate candidate) {
+        if ((TestDesignCandidateStatus.FAILED.name().equals(candidate.status())
+                || TestDesignCandidateStatus.PUBLISHING.name().equals(candidate.status()))
+                && candidate.assetCaseId() != null) {
+            return ACTION_RETRY_LINK_EXISTING;
+        }
+        return "CREATE";
+    }
+
     private static String candidateSourceRef(TestDesignCandidate candidate) {
         return TEST_CASE_SOURCE_REF_PREFIX + candidate.id();
     }
@@ -482,9 +610,17 @@ public class TestDesignPublishService {
         int publishedCount = Math.toIntExact(candidates.stream()
                 .filter(candidate -> TestDesignCandidateStatus.PUBLISHED.name().equals(candidate.status()))
                 .count());
-        String status = publishedCount > 0 && publishedCount == generatedCount
-                ? TestDesignTaskStatus.PUBLISHED.name()
-                : task.status();
+        boolean hasQueuedPublish = candidates.stream()
+                .anyMatch(candidate -> TestDesignCandidateStatus.PUBLISH_QUEUED.name().equals(candidate.status())
+                        || TestDesignCandidateStatus.PUBLISHING.name().equals(candidate.status()));
+        String status;
+        if (hasQueuedPublish) {
+            status = task.status();
+        } else if (publishedCount > 0 && publishedCount == generatedCount) {
+            status = TestDesignTaskStatus.PUBLISHED.name();
+        } else {
+            status = task.status();
+        }
         return new TestDesignTask(
                 task.id(), task.projectId(), task.title(), status, task.requirementIds(), task.coverageTypes(),
                 task.promptKey(), task.promptVersion(), task.modelInvocationId(), task.modelProviderName(),
@@ -495,23 +631,47 @@ public class TestDesignPublishService {
     }
 
     /**
-     * Publish conflicts or partial publish results must not leave the task stuck in the transient PUBLISHING state.
+     * Publish conflicts or partial publish results must not leave the task stuck in transient queue states.
      */
     private void refreshTaskCountsAfterPublish(UUID taskId, String fallbackStatus) {
         TestDesignTask task = taskOrThrow(taskId);
-        TestDesignTask counted = withTaskCounts(task, repository.candidatesByTask(taskId));
-        if (!TestDesignTaskStatus.PUBLISHING.name().equals(counted.status())) {
+        List<TestDesignCandidate> candidates = repository.candidatesByTask(taskId);
+        TestDesignTask counted = withTaskCounts(task, candidates);
+        if (hasInFlightPublishCandidate(candidates)) {
             repository.saveTask(counted);
             return;
         }
+        if (!isTransientPublishTaskStatus(counted.status())) {
+            repository.saveTask(counted);
+            return;
+        }
+        TestDesignTaskStatus completedStatus = completedPublishFallbackStatus(fallbackStatus);
         repository.saveTask(new TestDesignTask(
-                counted.id(), counted.projectId(), counted.title(), fallbackStatus, counted.requirementIds(),
+                counted.id(), counted.projectId(), counted.title(), completedStatus.name(), counted.requirementIds(),
                 counted.coverageTypes(), counted.promptKey(), counted.promptVersion(), counted.modelInvocationId(),
                 counted.modelProviderName(), counted.modelName(), counted.totalRequirements(), counted.generatedCount(),
                 counted.confirmedCount(), counted.publishedCount(), counted.errorMessage(), counted.requestedBy(),
                 counted.idempotencyKey(), counted.requestDigest(), counted.inputDigest(), counted.contextSummaryJson(),
                 counted.createdAt(), Instant.now()
         ));
+    }
+
+    private static boolean isTransientPublishTaskStatus(String status) {
+        return TestDesignTaskStatus.PUBLISH_QUEUED.name().equals(status)
+                || TestDesignTaskStatus.PUBLISHING.name().equals(status);
+    }
+
+    private static TestDesignTaskStatus completedPublishFallbackStatus(String fallbackStatus) {
+        if (TestDesignTaskStatus.PARTIAL_SUCCESS.name().equals(fallbackStatus)) {
+            return TestDesignTaskStatus.PARTIAL_SUCCESS;
+        }
+        return TestDesignTaskStatus.SUCCEEDED;
+    }
+
+    private static boolean hasInFlightPublishCandidate(List<TestDesignCandidate> candidates) {
+        return candidates.stream()
+                .anyMatch(candidate -> TestDesignCandidateStatus.PUBLISH_QUEUED.name().equals(candidate.status())
+                        || TestDesignCandidateStatus.PUBLISHING.name().equals(candidate.status()));
     }
 
     private TestDesignCandidate withPublishedCandidate(TestDesignCandidate candidate, UUID assetCaseId, String errorMessage) {
@@ -540,6 +700,66 @@ public class TestDesignPublishService {
         );
     }
 
+    private TestDesignCandidate withCandidateStatus(
+            TestDesignCandidate candidate,
+            TestDesignCandidateStatus status,
+            UUID assetCaseId,
+            String errorMessage
+    ) {
+        return new TestDesignCandidate(
+                candidate.id(), candidate.taskId(), candidate.projectId(), candidate.requirementId(), candidate.apiId(),
+                candidate.title(), candidate.description(), candidate.coverageType(), candidate.priority(),
+                status.name(), candidate.preconditions(), candidate.stepsJson(), candidate.expectedResult(),
+                candidate.tags(), candidate.duplicateKey(), candidate.confidence(), candidate.promptKey(),
+                candidate.promptVersion(), candidate.modelInvocationId(), candidate.modelProviderName(),
+                candidate.modelName(), assetCaseId, candidate.reviewComment(), candidate.rejectedReason(),
+                candidate.ignoredReason(), errorMessage, candidate.confirmedBy(), candidate.confirmedAt(),
+                candidate.version() + 1, candidate.createdAt(), Instant.now()
+        );
+    }
+
+    private TestDesignTask withTaskStatus(TestDesignTask task, TestDesignTaskStatus status, String errorMessage) {
+        return new TestDesignTask(
+                task.id(), task.projectId(), task.title(), status.name(), task.requirementIds(), task.coverageTypes(),
+                task.promptKey(), task.promptVersion(), task.modelInvocationId(), task.modelProviderName(),
+                task.modelName(), task.totalRequirements(), task.generatedCount(), task.confirmedCount(),
+                task.publishedCount(), errorMessage, task.requestedBy(), task.idempotencyKey(), task.requestDigest(),
+                task.inputDigest(), task.contextSummaryJson(), task.createdAt(), Instant.now()
+        );
+    }
+
+    private TestDesignPublishResponse publishResponse(
+            TestDesignTask task,
+            boolean dryRun,
+            List<TestDesignPublishRecord> records
+    ) {
+        List<TestDesignPublishRecord> safeRecords = records == null ? List.of() : records;
+        Map<UUID, TestDesignCandidate> candidates = candidateById(repository.candidatesByTask(task.id()));
+        List<UUID> createdCaseIds = safeRecords.stream()
+                .filter(record -> "CREATE".equals(record.action()))
+                .filter(record -> "SUCCEEDED".equals(record.result()))
+                .map(TestDesignPublishRecord::assetCaseId)
+                .filter(Objects::nonNull)
+                .toList();
+        List<TestDesignPublishRecordResponse> responses = safeRecords.stream()
+                .map(record -> responseMapper.toPublishRecordResponse(record, candidates.get(record.candidateId())))
+                .toList();
+        return new TestDesignPublishResponse(
+                task.id(),
+                task.projectId(),
+                dryRun,
+                safeRecords.size(),
+                Math.toIntExact(safeRecords.stream()
+                        .filter(record -> "CREATE".equals(record.action()))
+                        .filter(record -> dryRun || "SUCCEEDED".equals(record.result()) || "PLANNED".equals(record.result()))
+                        .count()),
+                Math.toIntExact(safeRecords.stream().filter(record -> "SKIPPED".equals(record.result())).count()),
+                Math.toIntExact(safeRecords.stream().filter(record -> "FAILED".equals(record.result())).count()),
+                createdCaseIds,
+                responses
+        );
+    }
+
     private List<TestDesignCandidate> selectPublishCandidates(TestDesignTask task, List<UUID> candidateIds) {
         List<TestDesignCandidate> candidates = repository.candidatesByTask(task.id());
         if (candidateIds == null || candidateIds.isEmpty()) {
@@ -561,6 +781,35 @@ public class TestDesignPublishService {
                     return candidate;
                 })
                 .toList();
+    }
+
+    private List<TestDesignCandidate> selectQueuedPublishCandidates(TestDesignTask task, List<UUID> candidateIds) {
+        List<TestDesignCandidate> candidates = repository.candidatesByTask(task.id());
+        Map<UUID, TestDesignCandidate> candidateById = candidateById(candidates);
+        List<TestDesignCandidate> selected;
+        if (candidateIds == null || candidateIds.isEmpty()) {
+            selected = candidates.stream()
+                    .filter(candidate -> TestDesignCandidateStatus.PUBLISH_QUEUED.name().equals(candidate.status()))
+                    .sorted(Comparator.comparing(TestDesignCandidate::updatedAt))
+                    .toList();
+        } else {
+            selected = candidateIds.stream()
+                    .distinct()
+                    .map(id -> {
+                        TestDesignCandidate candidate = candidateById.get(id);
+                        if (candidate == null) {
+                            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "候选用例不属于当前任务: " + id);
+                        }
+                        return candidate;
+                    })
+                    .filter(candidate -> TestDesignCandidateStatus.PUBLISH_QUEUED.name().equals(candidate.status()))
+                    .toList();
+        }
+        /*
+         * Only PUBLISH_QUEUED candidates are selected. CONFIRMED candidates are deliberately ignored here so recovery
+         * and duplicate broker delivery can never publish candidates that were not in the original durable queue.
+         */
+        return selected;
     }
 
     private List<CreateTestCaseRequest.StepDto> toAssetSteps(TestDesignCandidate candidate) {

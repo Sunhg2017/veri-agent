@@ -68,7 +68,17 @@ export type TestDesignQualitySummary = {
 };
 
 const LOW_CONFIDENCE_THRESHOLD = 0.6;
-const STATUS_ORDER = ['GENERATED', 'EDITED', 'CONFIRMED', 'FAILED', 'REJECTED', 'IGNORED', 'PUBLISHED'];
+const STATUS_ORDER = [
+  'GENERATED',
+  'EDITED',
+  'CONFIRMED',
+  'PUBLISH_QUEUED',
+  'PUBLISHING',
+  'FAILED',
+  'REJECTED',
+  'IGNORED',
+  'PUBLISHED'
+];
 const COVERAGE_ORDER = ['SMOKE', 'FUNCTIONAL', 'EXCEPTION', 'BOUNDARY', 'PERMISSION', 'REGRESSION'];
 const PRIORITY_ORDER = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'];
 
@@ -318,6 +328,9 @@ function statusTone(status: string): TestDesignQualitySummaryTone {
   }
   if (status === 'FAILED' || status === 'REJECTED') {
     return 'danger';
+  }
+  if (status === 'PUBLISH_QUEUED' || status === 'PUBLISHING') {
+    return 'warning';
   }
   if (status === 'GENERATED' || status === 'EDITED') {
     return 'warning';

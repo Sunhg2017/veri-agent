@@ -11,6 +11,8 @@ const candidates = [
   { id: 'edited-1', status: 'EDITED' },
   { id: 'confirmed-1', status: 'CONFIRMED' },
   { id: 'failed-1', status: 'FAILED' },
+  { id: 'publish-queued-1', status: 'PUBLISH_QUEUED' },
+  { id: 'publishing-1', status: 'PUBLISHING' },
   { id: 'published-1', status: 'PUBLISHED' },
   { id: 'ignored-1', status: 'IGNORED' }
 ];

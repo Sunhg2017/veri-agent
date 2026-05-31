@@ -49,6 +49,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "veri-agent.asset.service-token=test-asset-token",
         "veri-agent.test-design.service-token=test-design-token",
         "veri-agent.test-design.async-generation-enabled=false",
+        "veri-agent.test-design.async-publish-enabled=false",
+        "veri-agent.test-design.publish-event-recovery-enabled=false",
         "veri-agent.test-design.context-linked-assets-per-requirement=2",
         "veri-agent.test-design.context-explicit-assets-per-type=2",
         "veri-agent.test-design.context-existing-cases-per-requirement=2",
@@ -1766,7 +1768,7 @@ class TestDesignControllerTest {
                 "publishCompensationPolicy,compensationCandidateScope,,FAILED_WITH_EXISTING_WP3_CASE_REFERENCE"));
         MatcherAssert.assertThat(csv, containsString("publishCompensationPolicy,autoConflictResolutionEnabled,,false"));
         MatcherAssert.assertThat(csv, containsString("publishCompensationPolicy,autoFirstTimeCreateEnabled,,false"));
-        MatcherAssert.assertThat(csv, containsString("publishCompensationPolicy,crossWpTransactionOrchestrationReady,,false"));
+        MatcherAssert.assertThat(csv, containsString("publishCompensationPolicy,crossWpTransactionOrchestrationReady,,true"));
         MatcherAssert.assertThat(csv, containsString("publishCompensationPolicy,candidateEvidenceExported,,false"));
         MatcherAssert.assertThat(csv, containsString("publishCompensationPolicy,errorTextExported,,false"));
         MatcherAssert.assertThat(csv, containsString("publishCompensationPolicy,caseIdentifierListExported,,false"));

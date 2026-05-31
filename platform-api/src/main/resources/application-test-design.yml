@@ -16,10 +16,17 @@ veri-agent:
     context-asset-schema-chars: ${WP5_CONTEXT_ASSET_SCHEMA_CHARS:240}
     batch-action-limit: ${WP5_BATCH_ACTION_MAX_SIZE:100}
     async-generation-enabled: ${WP5_ASYNC_GENERATION_ENABLED:true}
+    async-publish-enabled: ${WP5_ASYNC_PUBLISH_ENABLED:true}
     event-recovery-enabled: ${WP5_EVENT_RECOVERY_ENABLED:true}
     event-recovery-batch-size: ${WP5_EVENT_RECOVERY_BATCH_SIZE:100}
     event-recovery-running-timeout-seconds: ${WP5_EVENT_RECOVERY_RUNNING_TIMEOUT_SECONDS:600}
+    event-recovery-queue-lag-warning-seconds: ${WP5_EVENT_RECOVERY_QUEUE_LAG_WARNING_SECONDS:120}
     event-recovery-cron: "${WP5_EVENT_RECOVERY_CRON:0 */2 * * * *}"
+    publish-event-recovery-enabled: ${WP5_PUBLISH_EVENT_RECOVERY_ENABLED:true}
+    publish-event-recovery-batch-size: ${WP5_PUBLISH_EVENT_RECOVERY_BATCH_SIZE:100}
+    publish-event-recovery-running-timeout-seconds: ${WP5_PUBLISH_EVENT_RECOVERY_RUNNING_TIMEOUT_SECONDS:600}
+    publish-event-recovery-queue-lag-warning-seconds: ${WP5_PUBLISH_EVENT_RECOVERY_QUEUE_LAG_WARNING_SECONDS:120}
+    publish-event-recovery-cron: "${WP5_PUBLISH_EVENT_RECOVERY_CRON:30 */2 * * * *}"
     readiness-min-step-complete-percent: ${WP5_READINESS_MIN_STEP_COMPLETE_PERCENT:100}
     readiness-min-expected-complete-percent: ${WP5_READINESS_MIN_EXPECTED_COMPLETE_PERCENT:100}
     readiness-max-low-confidence-percent: ${WP5_READINESS_MAX_LOW_CONFIDENCE_PERCENT:20}

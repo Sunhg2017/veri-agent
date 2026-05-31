@@ -1,7 +1,17 @@
 import { requestJson, requestText, type ApiResponse, type TextResponse } from './client';
 
 export const TEST_DESIGN_COVERAGE_TYPES = ['SMOKE', 'FUNCTIONAL', 'EXCEPTION', 'BOUNDARY', 'PERMISSION', 'REGRESSION'] as const;
-export const TEST_DESIGN_CANDIDATE_STATUSES = ['GENERATED', 'EDITED', 'CONFIRMED', 'REJECTED', 'IGNORED', 'PUBLISHED', 'FAILED'] as const;
+export const TEST_DESIGN_CANDIDATE_STATUSES = [
+  'GENERATED',
+  'EDITED',
+  'CONFIRMED',
+  'REJECTED',
+  'IGNORED',
+  'PUBLISH_QUEUED',
+  'PUBLISHING',
+  'PUBLISHED',
+  'FAILED'
+] as const;
 
 export type TestDesignCoverageType = (typeof TEST_DESIGN_COVERAGE_TYPES)[number];
 export type TestDesignCandidateStatus = (typeof TEST_DESIGN_CANDIDATE_STATUSES)[number];

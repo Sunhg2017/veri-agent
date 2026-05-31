@@ -23,6 +23,8 @@ public enum TestDesignTaskStatus {
     FAILED,
     /** 用户取消生成任务 */
     CANCELLED,
+    /** 已确认候选发布请求已持久化，等待异步写入 WP3 */
+    PUBLISH_QUEUED,
     /** 正在执行发布到 WP3 的动作 */
     PUBLISHING,
     /** 任务内可发布候选已经完成发布 */
@@ -40,6 +42,7 @@ public enum TestDesignTaskStatus {
                 PARTIAL_SUCCESS.name(),
                 FAILED.name(),
                 CANCELLED.name(),
+                PUBLISH_QUEUED.name(),
                 PUBLISHING.name(),
                 PUBLISHED.name()
         );

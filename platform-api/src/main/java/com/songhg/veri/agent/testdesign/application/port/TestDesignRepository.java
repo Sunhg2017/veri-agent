@@ -5,6 +5,7 @@ import com.songhg.veri.agent.testdesign.application.query.TestDesignCandidateQue
 import com.songhg.veri.agent.testdesign.application.query.TestDesignTaskQuery;
 import com.songhg.veri.agent.testdesign.domain.TestDesignAuditChainAggregate;
 import com.songhg.veri.agent.testdesign.domain.TestDesignCandidate;
+import com.songhg.veri.agent.testdesign.domain.TestDesignCandidateStatus;
 import com.songhg.veri.agent.testdesign.domain.TestDesignContextPolicyOverride;
 import com.songhg.veri.agent.testdesign.domain.TestDesignPublishRecord;
 import com.songhg.veri.agent.testdesign.domain.TestDesignReportManifest;
@@ -49,6 +50,16 @@ public interface TestDesignRepository {
     long countStaleRunningTasks(Instant staleBefore);
 
     /**
+     * 按候选状态统计聚合数量，用于异步发布编排健康和恢复扫描，不返回候选明细。
+     */
+    long countCandidatesByStatus(TestDesignCandidateStatus status);
+
+    /**
+     * 查询某候选状态下最早更新时间，用于发布队列滞留聚合指标，不返回候选标识或 payload。
+     */
+    Optional<Instant> oldestCandidateUpdatedAtByStatus(TestDesignCandidateStatus status);
+
+    /**
      * 查询单个任务
      */
     Optional<TestDesignTask> task(UUID id);
@@ -75,6 +86,16 @@ public interface TestDesignRepository {
     boolean markTaskStatus(UUID id, TestDesignTaskStatus expectedStatus, TestDesignTaskStatus nextStatus, Instant updatedAt);
 
     /**
+     * 按期望状态条件推进候选状态，用于异步发布重复投递时只允许一个消费者认领单个候选。
+     */
+    boolean markCandidateStatus(
+            UUID id,
+            TestDesignCandidateStatus expectedStatus,
+            TestDesignCandidateStatus nextStatus,
+            Instant updatedAt
+    );
+
+    /**
      * 将长时间未更新的运行中任务标记为失败，用于进程中断或事件消费者异常退出后的恢复扫描。
      */
     int markStaleRunningTasksFailed(Instant failedAt, Instant staleBefore, String errorMessage, int limit);
@@ -93,6 +114,21 @@ public interface TestDesignRepository {
      * 查询任务下的全部候选，用于任务详情、发布计划和统计重算
      */
     List<TestDesignCandidate> candidatesByTask(UUID taskId);
+
+    /**
+     * 查询已排队发布候选，恢复扫描按任务聚合后重发事件，不能扩大发布候选范围。
+     */
+    List<TestDesignCandidate> publishQueuedCandidates(int limit);
+
+    /**
+     * 将长时间未更新的发布中候选标记为失败，用于进程中断或事件消费者异常退出后的恢复扫描。
+     */
+    int markStalePublishingCandidatesFailed(Instant failedAt, Instant staleBefore, String errorMessage, int limit);
+
+    /**
+     * 统计达到发布运行超时阈值的候选数量，用于超时告警聚合指标。
+     */
+    long countStalePublishingCandidates(Instant staleBefore);
 
     /**
      * 查询具备 WP3 用例引用但仍处于 FAILED 的候选，用于受限发布补偿后台。

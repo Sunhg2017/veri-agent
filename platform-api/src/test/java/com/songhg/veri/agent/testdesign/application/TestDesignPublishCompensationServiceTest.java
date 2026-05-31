@@ -51,7 +51,8 @@ class TestDesignPublishCompensationServiceTest {
             new TestDesignActorResolver(mock(AuthorizationService.class)),
             qualityService,
             responseMapper,
-            properties(true, 50)
+            properties(true, 50),
+            mock(TestDesignEventPublisher.class)
     );
 
     @Test
@@ -323,6 +324,11 @@ class TestDesignPublishCompensationServiceTest {
                 240,
                 100,
                 true,
+                true,
+                true,
+                100,
+                600,
+                120,
                 true,
                 100,
                 600,

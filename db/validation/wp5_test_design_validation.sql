@@ -114,12 +114,49 @@ select
         select 1
         from task_status_constraint
         where definition like '%QUEUED%'
+          and definition like '%PUBLISH_QUEUED%'
+          and definition like '%PUBLISHING%'
     ) then 'PASS' else 'FAIL' end as status,
-    coalesce((select definition from task_status_constraint limit 1), 'test_design_task status constraint missing') as details;
+    coalesce((select definition from task_status_constraint limit 1), 'test_design_task status constraint must allow QUEUED, PUBLISH_QUEUED and PUBLISHING') as details;
+
+with candidate_status_constraint as (
+    select pg_get_constraintdef(c.oid) as definition
+    from pg_constraint c
+    where c.conname = 'ck_test_design_candidate_status'
+      and c.conrelid = (current_schema() || '.test_design_candidate')::regclass
+)
+select
+    'wp5.candidate_status_allows_async_publish' as check_name,
+    case when exists (
+        select 1
+        from candidate_status_constraint
+        where definition like '%PUBLISH_QUEUED%'
+          and definition like '%PUBLISHING%'
+    ) then 'PASS' else 'FAIL' end as status,
+    coalesce((select definition from candidate_status_constraint limit 1), 'test_design_candidate status constraint must allow PUBLISH_QUEUED and PUBLISHING') as details;
+
+with publish_result_constraint as (
+    select pg_get_constraintdef(c.oid) as definition
+    from pg_constraint c
+    where c.conname = 'ck_test_design_publish_result'
+      and c.conrelid = (current_schema() || '.test_design_publish_record')::regclass
+)
+select
+    'wp5.publish_result_allows_async_queue' as check_name,
+    case when exists (
+        select 1
+        from publish_result_constraint
+        where definition like '%QUEUED%'
+          and definition like '%RUNNING%'
+          and definition like '%CONFLICT%'
+    ) then 'PASS' else 'FAIL' end as status,
+    coalesce((select definition from publish_result_constraint limit 1), 'test_design_publish_record result constraint must allow QUEUED/RUNNING/CONFLICT') as details;
 
 with expected(table_name, index_name) as (
     values
         ('asset_test_case', 'uk_asset_test_case_project_ai_source_ref'),
+        ('test_design_candidate', 'idx_test_design_candidate_publish_queue'),
+        ('test_design_candidate', 'idx_test_design_candidate_publish_running'),
         ('test_design_publish_record', 'uk_test_design_publish_auto_comp_candidate'),
         ('test_design_report_manifest', 'uk_test_design_report_manifest_content_digest'),
         ('test_design_report_manifest', 'idx_test_design_report_manifest_task_created'),

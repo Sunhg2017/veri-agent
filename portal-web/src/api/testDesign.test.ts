@@ -76,7 +76,17 @@ describe('WP5 test design API helpers', () => {
 
   it('exposes test design enums used by the workbench', () => {
     expect(TEST_DESIGN_COVERAGE_TYPES).toEqual(['SMOKE', 'FUNCTIONAL', 'EXCEPTION', 'BOUNDARY', 'PERMISSION', 'REGRESSION']);
-    expect(TEST_DESIGN_CANDIDATE_STATUSES).toEqual(['GENERATED', 'EDITED', 'CONFIRMED', 'REJECTED', 'IGNORED', 'PUBLISHED', 'FAILED']);
+    expect(TEST_DESIGN_CANDIDATE_STATUSES).toEqual([
+      'GENERATED',
+      'EDITED',
+      'CONFIRMED',
+      'REJECTED',
+      'IGNORED',
+      'PUBLISH_QUEUED',
+      'PUBLISHING',
+      'PUBLISHED',
+      'FAILED'
+    ]);
   });
 
   it('normalizes health, tasks, candidates and task detail responses', () => {

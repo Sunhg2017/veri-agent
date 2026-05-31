@@ -19,6 +19,7 @@ public record PlatformEventProperties(
     private static final String DEFAULT_DOCUMENT_INPUT_PUBLISH_REQUESTED_TOPIC = "veri-agent.document-input-publish-requested";
     private static final String DEFAULT_DOCUMENT_INPUT_WEBHOOK_ACCEPTED_TOPIC = "veri-agent.document-input-webhook-accepted";
     private static final String DEFAULT_TEST_DESIGN_GENERATION_REQUESTED_TOPIC = "veri-agent.test-design-generation-requested";
+    private static final String DEFAULT_TEST_DESIGN_PUBLISH_REQUESTED_TOPIC = "veri-agent.test-design-publish-requested";
 
     public int safeLocalWorkerThreads() {
         return Math.max(1, localWorkerThreads <= 0 ? DEFAULT_LOCAL_WORKER_THREADS : localWorkerThreads);
@@ -52,6 +53,10 @@ public record PlatformEventProperties(
         return safeKafka().safeTopics().testDesignGenerationRequestedTopic();
     }
 
+    public String testDesignPublishRequestedTopic() {
+        return safeKafka().safeTopics().testDesignPublishRequestedTopic();
+    }
+
     public String kafkaConsumerGroup() {
         return safeKafka().consumerGroupValue();
     }
@@ -76,7 +81,7 @@ public record PlatformEventProperties(
     ) {
 
         private Topics safeTopics() {
-            return topics == null ? new Topics(null, null, null, null, null, null) : topics;
+            return topics == null ? new Topics(null, null, null, null, null, null, null) : topics;
         }
 
         private String consumerGroupValue() {
@@ -96,7 +101,9 @@ public record PlatformEventProperties(
             /** WP4 accepted webhook processing topic */
             String documentInputWebhookAccepted,
             /** WP5 queued test design generation request topic */
-            String testDesignGenerationRequested
+            String testDesignGenerationRequested,
+            /** WP5 confirmed candidate publish request topic */
+            String testDesignPublishRequested
     ) {
 
         private String modelInvocationJobRequestedTopic() {
@@ -133,6 +140,12 @@ public record PlatformEventProperties(
             return StringUtils.hasText(testDesignGenerationRequested)
                     ? testDesignGenerationRequested
                     : DEFAULT_TEST_DESIGN_GENERATION_REQUESTED_TOPIC;
+        }
+
+        private String testDesignPublishRequestedTopic() {
+            return StringUtils.hasText(testDesignPublishRequested)
+                    ? testDesignPublishRequested
+                    : DEFAULT_TEST_DESIGN_PUBLISH_REQUESTED_TOPIC;
         }
     }
 }
