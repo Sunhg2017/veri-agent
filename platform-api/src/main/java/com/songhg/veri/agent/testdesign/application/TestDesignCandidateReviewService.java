@@ -3,6 +3,8 @@ package com.songhg.veri.agent.testdesign.application;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.songhg.veri.agent.asset.application.AssetService;
+import com.songhg.veri.agent.asset.application.view.ApiResponseDTO;
 import com.songhg.veri.agent.asset.application.view.RequirementResponse;
 import com.songhg.veri.agent.common.api.PageResponse;
 import com.songhg.veri.agent.common.api.PageQuery;
@@ -53,6 +55,7 @@ public class TestDesignCandidateReviewService {
     private static final int REVIEW_RECORD_EXPORT_LIMIT = 500;
     private static final int REVIEW_RECORD_EXPORT_PAGE_SIZE = 100;
     private final TestDesignRepository repository;
+    private final AssetService assetService;
     private final TestDesignPlatformContextClient contextClient;
     private final TestDesignActorResolver actorResolver;
     private final TestDesignResponseMapper responseMapper;
@@ -62,6 +65,7 @@ public class TestDesignCandidateReviewService {
 
     public TestDesignCandidateReviewService(
             TestDesignRepository repository,
+            AssetService assetService,
             TestDesignPlatformContextClient contextClient,
             TestDesignActorResolver actorResolver,
             TestDesignResponseMapper responseMapper,
@@ -70,6 +74,7 @@ public class TestDesignCandidateReviewService {
             ObjectMapper objectMapper
     ) {
         this.repository = repository;
+        this.assetService = assetService;
         this.contextClient = contextClient;
         this.actorResolver = actorResolver;
         this.responseMapper = responseMapper;
@@ -149,6 +154,7 @@ public class TestDesignCandidateReviewService {
         TestDesignCandidate existing = candidateOrThrow(id);
         ensureEditable(existing);
         assertVersion(existing, command.version(), true);
+        validateEditableApiId(command.apiId(), existing.projectId());
         List<TestDesignStepResponse> steps = normalizeSteps(command.steps(), responseMapper.steps(existing.stepsJson()));
         String expectedResult = expectedResultForUpdate(command.expectedResult(), steps, existing.expectedResult());
         Instant now = Instant.now();
@@ -190,6 +196,27 @@ public class TestDesignCandidateReviewService {
         saveReviewRecord(existing, updated, "UPDATE", null);
         refreshTaskCounts(updated.taskId());
         return responseMapper.toCandidateResponse(updated);
+    }
+
+    private void validateEditableApiId(UUID apiId, String projectId) {
+        if (apiId == null) {
+            return;
+        }
+        try {
+            ApiResponseDTO api = assetService.getApi(apiId);
+            /*
+             * Reviewer edits can feed directly into WP3 publish requests. Validate the API link at edit time so a
+             * cross-project or stale asset reference cannot sit on a confirmed candidate until publish fails.
+             */
+            if (!Objects.equals(api.projectId(), projectId)) {
+                throw new BusinessException(ErrorCode.VALIDATION_ERROR, "候选关联 API 不属于当前项目");
+            }
+        } catch (BusinessException exception) {
+            if (ErrorCode.NOT_FOUND == exception.getErrorCode()) {
+                throw new BusinessException(ErrorCode.VALIDATION_ERROR, "候选关联 API 不存在");
+            }
+            throw exception;
+        }
     }
 
     @Transactional

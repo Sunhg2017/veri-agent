@@ -104,6 +104,7 @@
 | WP5-FUNC-006A | P0 | `generationMode=MODEL` 调用 WP2 本地模型 | 任务和候选带 `modelInvocationId/provider/model`，任务诊断只展示白名单观测字段。 |
 | WP5-FUNC-006B | P0 | `generationMode=MODEL_WITH_FALLBACK` 且 Prompt 不可用 | 任务成功降级模板，保留脱敏降级提示，不写入原始模型响应。 |
 | WP5-FUNC-007 | P0 | 编辑候选标题、步骤和预期 | 候选版本递增，评审记录保存 before/after/diff。 |
+| WP5-FUNC-007A | P0 | 编辑候选 `apiId` | 同项目 API 可保存并递增版本；缺失 API 或跨项目 API 返回 `VALIDATION_ERROR`，候选保持原 `apiId` 和版本，不进入后续发布请求。 |
 | WP5-FUNC-008 | P0 | 确认候选 | 状态变为 `CONFIRMED`，确认人和时间可查。 |
 | WP5-FUNC-009 | P0 | 驳回候选未填原因 | 返回字段校验错误。 |
 | WP5-FUNC-010 | P0 | 忽略重复候选 | 状态变为 `IGNORED`，不进入发布池。 |

@@ -495,6 +495,119 @@ class TestDesignControllerTest {
     }
 
     @Test
+    void rejectsCandidateApiEditOutsideCurrentProject() throws Exception {
+        String ownerToken = userAccessToken(List.of(
+                "ProjectOwner@PROJECT:project-wp5",
+                "ProjectOwner@PROJECT:project-other"
+        ));
+        String requirementId = createRequirement(ownerToken, "候选 API 作用域需求", "评审编辑 API 必须属于当前项目", "project-wp5");
+        MvcResult taskResult = mockMvc.perform(post("/api/v1/test-design/tasks")
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "projectId": "project-wp5",
+                                  "title": "候选 API 作用域任务",
+                                  "requirementIds": ["%s"],
+                                  "coverageTypes": ["SMOKE"]
+                                }
+                                """.formatted(requirementId)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.candidates", hasSize(1)))
+                .andReturn();
+        String taskId = JsonPath.read(taskResult.getResponse().getContentAsString(), "$.data.task.id");
+        String candidateId = JsonPath.read(taskResult.getResponse().getContentAsString(), "$.data.candidates[0].id");
+        Integer version = JsonPath.read(taskResult.getResponse().getContentAsString(), "$.data.candidates[0].version");
+        String validApiId = createApi(ownerToken, "project-wp5", "候选当前项目 API", "POST", "/api/wp5/candidate-scope");
+        String crossProjectApiId = createApi(
+                ownerToken,
+                "project-other",
+                "候选跨项目 API",
+                "POST",
+                "/api/other/candidate-scope"
+        );
+
+        MvcResult updated = mockMvc.perform(put("/api/v1/test-design/candidates/{id}", candidateId)
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "title": "关联当前项目 API 的冒烟用例",
+                                  "description": "候选 API 作用域合法编辑",
+                                  "apiId": "%s",
+                                  "coverageType": "SMOKE",
+                                  "priority": "HIGH",
+                                  "expectedResult": "当前项目 API 关联成功",
+                                  "tags": ["wp5", "api-scope"],
+                                  "version": %d,
+                                  "steps": [
+                                    {"action": "准备当前项目 API 测试数据", "expectedResult": "测试数据可用"},
+                                    {"action": "执行当前项目 API", "expectedResult": "返回业务成功"}
+                                  ]
+                                }
+                                """.formatted(validApiId, version)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("EDITED"))
+                .andExpect(jsonPath("$.data.apiId").value(validApiId))
+                .andReturn();
+        Integer updatedVersion = JsonPath.read(updated.getResponse().getContentAsString(), "$.data.version");
+
+        mockMvc.perform(put("/api/v1/test-design/candidates/{id}", candidateId)
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "title": "错误关联跨项目 API 的冒烟用例",
+                                  "description": "候选 API 作用域非法编辑",
+                                  "apiId": "%s",
+                                  "coverageType": "SMOKE",
+                                  "priority": "HIGH",
+                                  "expectedResult": "跨项目 API 不应保存",
+                                  "tags": ["wp5", "api-scope"],
+                                  "version": %d,
+                                  "steps": [
+                                    {"action": "准备跨项目 API 测试数据", "expectedResult": "测试数据可用"},
+                                    {"action": "执行跨项目 API", "expectedResult": "不应进入保存流程"}
+                                  ]
+                                }
+                                """.formatted(crossProjectApiId, updatedVersion)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.message", containsString("候选关联 API 不属于当前项目")));
+
+        mockMvc.perform(put("/api/v1/test-design/candidates/{id}", candidateId)
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "title": "错误关联缺失 API 的冒烟用例",
+                                  "description": "候选 API 缺失非法编辑",
+                                  "apiId": "00000000-0000-4000-8000-000000009999",
+                                  "coverageType": "SMOKE",
+                                  "priority": "HIGH",
+                                  "expectedResult": "缺失 API 不应保存",
+                                  "tags": ["wp5", "api-scope"],
+                                  "version": %d,
+                                  "steps": [
+                                    {"action": "准备缺失 API 测试数据", "expectedResult": "测试数据可用"},
+                                    {"action": "执行缺失 API", "expectedResult": "不应进入保存流程"}
+                                  ]
+                                }
+                                """.formatted(updatedVersion)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.message", containsString("候选关联 API 不存在")));
+
+        mockMvc.perform(get("/api/v1/test-design/tasks/{id}/candidates", taskId)
+                        .header("Authorization", "Bearer " + ownerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items", hasSize(1)))
+                .andExpect(jsonPath("$.data.items[0].id").value(candidateId))
+                .andExpect(jsonPath("$.data.items[0].apiId").value(validApiId))
+                .andExpect(jsonPath("$.data.items[0].version").value(updatedVersion));
+    }
+
+    @Test
     void taskSummaryIncludesSanitizedModelObservation() throws Exception {
         String ownerToken = userAccessToken(List.of("ProjectOwner@PROJECT:project-wp5"));
         UUID taskId = UUID.randomUUID();

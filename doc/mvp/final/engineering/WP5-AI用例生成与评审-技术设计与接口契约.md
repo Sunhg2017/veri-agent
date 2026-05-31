@@ -508,6 +508,8 @@ WP5 任务项目时，才允许写入候选 `apiId`；非 UUID、缺失 API 或�
 | `POST` | `/candidates/batch-action` | `testDesign:review` | 批量确认、驳回、忽略。 |
 | `POST` | `/candidates/batch-resolve-conflicts` | `testDesign:publish` | 批量人工处理发布冲突并返回逐项结果。 |
 
+人工编辑候选时如提交 `apiId`，服务端必须通过 WP3 `AssetService` 解析该 API，并确认 API `projectId` 与候选所属任务项目一致；API 不存在或跨项目时返回 `VALIDATION_ERROR`，不得持久化候选变更、递增版本或写入后续发布请求。
+
 候选查询参数：
 
 | 参数 | 说明 |
