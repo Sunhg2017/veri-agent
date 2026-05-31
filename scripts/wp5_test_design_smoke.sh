@@ -349,7 +349,7 @@ main() {
   echo "== WP5 test-design smoke =="
   echo "baseUrl=$BASE_URL project=$PROJECT_ID"
 
-  local health project_policy env_policy pending_effective approved_project approved_env effective_policy overrides requirement requirement_id task task_id candidates candidate_targets confirm calibration_task calibration_task_id calibration_candidates calibration_targets calibration_reject calibration_ignore corpus_summary dry_run asset_before publish case_id case_asset links
+  local health project_policy env_policy pending_effective approved_project approved_env effective_policy overrides requirement requirement_id task task_id candidates candidate_targets confirm calibration_task calibration_task_id calibration_candidates calibration_targets calibration_reject calibration_ignore corpus_summary dry_run asset_before publish scope_summary case_id case_asset links
   health="$(curl -fsS "$TEST_DESIGN_API_BASE/health")"
   check "WP5 health" '.data.service == "test-design" and .data.status == "UP" and .data.generationEnabled == true' "$health"
   validate_release_readiness_policy "$health"
@@ -458,6 +458,18 @@ main() {
 
   publish="$(post_test_design_json "/tasks/$task_id/publish" '{}')"
   check "Publish creates WP3 cases" '.data.dryRun == false and .data.created == 2 and (.data.createdCaseIds | length) == 2 and (.data.records | all(.result == "SUCCEEDED"))' "$publish"
+
+  scope_summary="$(get_test_design_json "/quality/scope-summary?projectId=$(urlencode "$PROJECT_ID")&promptKey=wp5-test-design-v1")"
+  if printf '%s' "$scope_summary" | jq -e --arg projectId "$PROJECT_ID" \
+    '.data.projectId == $projectId and .data.promptKey == "wp5-test-design-v1" and .data.policy.policyVersion == "wp5-scope-policy-v1" and .data.policy.scopeModel == "PROJECT_RESOURCE_SCOPE" and .data.taskCount >= 1 and .data.candidateCount >= 2 and .data.publishRecordCount >= 2 and .data.projectBucketCount >= 1 and .data.candidateScopeMismatchCount == 0 and .data.publishScopeMismatchCount == 0 and .data.candidateScopeCoveragePercent == 100 and .data.publishScopeCoveragePercent == 100 and (.data.metrics | any(.code == "scopeMismatches" and .count == 0)) and (.data.readiness | any(.code == "detailIdentifiersRedacted" and .ready == true)) and .data.aggregateOnly == true and .data.candidateIdentifierListExported == false and .data.roleRuleDetailExported == false and .data.serviceTokenValueExported == false' >/dev/null; then
+    echo "   PASS Scope operations summary is aggregate-only"
+    PASS=$((PASS + 1))
+  else
+    echo "   FAIL Scope operations summary is aggregate-only"
+    echo "$scope_summary"
+    FAIL=$((FAIL + 1))
+  fi
+
   case_id="$(printf '%s' "$publish" | jq -r '.data.createdCaseIds[0]')"
 
   case_asset="$(get_asset_json "/test-cases/$case_id")"

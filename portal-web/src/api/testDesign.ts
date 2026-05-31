@@ -520,6 +520,44 @@ export interface TestDesignEvaluationCorpusSummaryView {
   generatedAt?: string;
 }
 
+export interface TestDesignScopeSummaryMetricView {
+  code: string;
+  label: string;
+  count: number;
+  tone: string;
+}
+
+export interface TestDesignScopeSummaryReadinessView {
+  code: string;
+  label: string;
+  ready: boolean;
+  tone: string;
+  description?: string;
+}
+
+export interface TestDesignScopeSummaryView {
+  projectId?: string;
+  promptKey?: string;
+  policy?: TestDesignScopePolicyView;
+  taskCount: number;
+  candidateCount: number;
+  publishRecordCount: number;
+  projectBucketCount: number;
+  candidateScopeMismatchCount: number;
+  publishScopeMismatchCount: number;
+  modelInvocationReferenceCount: number;
+  publishProjectScopeRecordCount: number;
+  candidateScopeCoveragePercent: number;
+  publishScopeCoveragePercent: number;
+  metrics: TestDesignScopeSummaryMetricView[];
+  readiness: TestDesignScopeSummaryReadinessView[];
+  aggregateOnly?: boolean;
+  candidateIdentifierListExported?: boolean;
+  roleRuleDetailExported?: boolean;
+  serviceTokenValueExported?: boolean;
+  generatedAt?: string;
+}
+
 export interface TestDesignAuditSummaryMetricView {
   code: string;
   label: string;
@@ -703,6 +741,13 @@ export interface TestDesignPromptTrendFilters {
 }
 
 export interface TestDesignEvaluationCorpusSummaryFilters {
+  index?: number;
+  size?: number;
+  projectId?: string;
+  promptKey?: string;
+}
+
+export interface TestDesignScopeSummaryFilters {
   index?: number;
   size?: number;
   projectId?: string;
@@ -1620,6 +1665,75 @@ export function normalizeTestDesignEvaluationCorpusSummary(raw: unknown): TestDe
   };
 }
 
+export function normalizeTestDesignScopeSummaryMetric(raw: unknown): TestDesignScopeSummaryMetricView {
+  const item = isRecord(raw) ? raw : {};
+  return {
+    code: stringValue(item.code),
+    label: stringValue(item.label, stringValue(item.code, 'UNKNOWN')),
+    count: numberValue(item.count, 0),
+    tone: stringValue(item.tone, 'neutral')
+  };
+}
+
+export function normalizeTestDesignScopeSummaryReadiness(raw: unknown): TestDesignScopeSummaryReadinessView {
+  const item = isRecord(raw) ? raw : {};
+  return {
+    code: stringValue(item.code),
+    label: stringValue(item.label, stringValue(item.code, 'UNKNOWN')),
+    ready: Boolean(item.ready),
+    tone: stringValue(item.tone, 'neutral'),
+    description: optionalString(item.description)
+  };
+}
+
+export function normalizeTestDesignScopeSummary(raw: unknown): TestDesignScopeSummaryView {
+  const item = isRecord(raw) ? raw : {};
+  return {
+    projectId: optionalString(item.projectId) ?? optionalString(item.project_id),
+    promptKey: optionalString(item.promptKey) ?? optionalString(item.prompt_key),
+    policy: normalizeTestDesignScopePolicy(item.policy),
+    taskCount: numberValue(item.taskCount ?? item.task_count, 0),
+    candidateCount: numberValue(item.candidateCount ?? item.candidate_count, 0),
+    publishRecordCount: numberValue(item.publishRecordCount ?? item.publish_record_count, 0),
+    projectBucketCount: numberValue(item.projectBucketCount ?? item.project_bucket_count, 0),
+    candidateScopeMismatchCount: numberValue(
+      item.candidateScopeMismatchCount ?? item.candidate_scope_mismatch_count,
+      0
+    ),
+    publishScopeMismatchCount: numberValue(
+      item.publishScopeMismatchCount ?? item.publish_scope_mismatch_count,
+      0
+    ),
+    modelInvocationReferenceCount: numberValue(
+      item.modelInvocationReferenceCount ?? item.model_invocation_reference_count,
+      0
+    ),
+    publishProjectScopeRecordCount: numberValue(
+      item.publishProjectScopeRecordCount ?? item.publish_project_scope_record_count,
+      0
+    ),
+    candidateScopeCoveragePercent: numberValue(
+      item.candidateScopeCoveragePercent ?? item.candidate_scope_coverage_percent,
+      0
+    ),
+    publishScopeCoveragePercent: numberValue(
+      item.publishScopeCoveragePercent ?? item.publish_scope_coverage_percent,
+      0
+    ),
+    metrics: listItems(item.metrics).map(normalizeTestDesignScopeSummaryMetric),
+    readiness: listItems(item.readiness).map(normalizeTestDesignScopeSummaryReadiness),
+    aggregateOnly: optionalBoolean(item.aggregateOnly ?? item.aggregate_only),
+    candidateIdentifierListExported: optionalBoolean(
+      item.candidateIdentifierListExported ?? item.candidate_identifier_list_exported
+    ),
+    roleRuleDetailExported: optionalBoolean(item.roleRuleDetailExported ?? item.role_rule_detail_exported),
+    serviceTokenValueExported: optionalBoolean(
+      item.serviceTokenValueExported ?? item.service_token_value_exported
+    ),
+    generatedAt: optionalString(item.generatedAt) ?? optionalString(item.generated_at)
+  };
+}
+
 export function normalizeTestDesignAuditSummaryMetric(raw: unknown): TestDesignAuditSummaryMetricView {
   const item = isRecord(raw) ? raw : {};
   return {
@@ -1856,6 +1970,15 @@ export async function fetchTestDesignEvaluationCorpusSummary(
     `/api/v1/test-design/quality/evaluation-corpus-summary${queryString(filters as Record<string, unknown>)}`
   );
   return { ...response, data: normalizeTestDesignEvaluationCorpusSummary(response.data) };
+}
+
+export async function fetchTestDesignScopeSummary(
+  filters: TestDesignScopeSummaryFilters = {}
+): Promise<ApiResponse<TestDesignScopeSummaryView>> {
+  const response = await requestJson<unknown>(
+    `/api/v1/test-design/quality/scope-summary${queryString(filters as Record<string, unknown>)}`
+  );
+  return { ...response, data: normalizeTestDesignScopeSummary(response.data) };
 }
 
 export async function fetchTestDesignTaskAuditSummary(taskId: string): Promise<ApiResponse<TestDesignAuditSummaryView>> {

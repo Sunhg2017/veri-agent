@@ -6,9 +6,11 @@ import com.songhg.veri.agent.common.openapi.ApiVersion;
 import com.songhg.veri.agent.testdesign.application.TestDesignQualityService;
 import com.songhg.veri.agent.testdesign.application.query.TestDesignEvaluationCorpusSummaryRequest;
 import com.songhg.veri.agent.testdesign.application.query.TestDesignPromptTrendRequest;
+import com.songhg.veri.agent.testdesign.application.query.TestDesignScopeSummaryRequest;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignEvaluationCorpusSummaryResponse;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignPromptTrendResponse;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignQualitySummaryResponse;
+import com.songhg.veri.agent.testdesign.application.view.TestDesignScopeSummaryResponse;
 import jakarta.validation.Valid;
 import java.util.UUID;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -59,5 +61,17 @@ public class TestDesignTaskQualityController {
             @Valid @ModelAttribute TestDesignEvaluationCorpusSummaryRequest request
     ) {
         return service.evaluationCorpusSummary(request);
+    }
+
+    /**
+     * 查询权限与资源作用域运营摘要，只返回项目 scope 聚合计数和导出红线。
+     */
+    @GetMapping("/quality/scope-summary")
+    @RequirePermission(value = PermissionCodes.TEST_DESIGN_READ,
+            scope = TestDesignPermissionScopes.SCOPE_SUMMARY)
+    public TestDesignScopeSummaryResponse scopeSummary(
+            @Valid @ModelAttribute TestDesignScopeSummaryRequest request
+    ) {
+        return service.scopeSummary(request);
     }
 }

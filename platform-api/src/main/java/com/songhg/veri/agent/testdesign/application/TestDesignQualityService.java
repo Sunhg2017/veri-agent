@@ -6,9 +6,12 @@ import com.songhg.veri.agent.common.error.ErrorCode;
 import com.songhg.veri.agent.testdesign.application.port.TestDesignRepository;
 import com.songhg.veri.agent.testdesign.application.query.TestDesignEvaluationCorpusSummaryRequest;
 import com.songhg.veri.agent.testdesign.application.query.TestDesignPromptTrendRequest;
+import com.songhg.veri.agent.testdesign.application.query.TestDesignScopeSummaryRequest;
 import com.songhg.veri.agent.testdesign.application.query.TestDesignTaskQuery;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignEvaluationCorpusPolicyResponse;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignEvaluationCorpusSummaryResponse;
+import com.songhg.veri.agent.testdesign.application.view.TestDesignAuditChainMetricResponse;
+import com.songhg.veri.agent.testdesign.application.view.TestDesignAuditChainReadinessResponse;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignPromptTrendBucketResponse;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignPromptTrendResponse;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignPublishRecordResponse;
@@ -17,12 +20,15 @@ import com.songhg.veri.agent.testdesign.application.view.TestDesignQualityMetric
 import com.songhg.veri.agent.testdesign.application.view.TestDesignQualityReadinessCheckResponse;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignQualityReadinessResponse;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignQualitySummaryResponse;
+import com.songhg.veri.agent.testdesign.application.view.TestDesignScopePolicyResponse;
+import com.songhg.veri.agent.testdesign.application.view.TestDesignScopeSummaryResponse;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignStepResponse;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignTaskDetailResponse;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignTaskResponse;
 import com.songhg.veri.agent.testdesign.config.TestDesignProperties;
 import com.songhg.veri.agent.testdesign.domain.TestDesignCandidate;
 import com.songhg.veri.agent.testdesign.domain.TestDesignCandidateStatus;
+import com.songhg.veri.agent.testdesign.domain.TestDesignPublishRecord;
 import com.songhg.veri.agent.testdesign.domain.TestDesignReviewRecord;
 import com.songhg.veri.agent.testdesign.domain.TestDesignTask;
 import com.songhg.veri.agent.testdesign.domain.TestDesignTaskStatus;
@@ -32,6 +38,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
@@ -50,6 +57,9 @@ public class TestDesignQualityService {
     private static final String READINESS_SEVERITY_WARNING = "WARNING";
     private static final String READINESS_UNIT_COUNT = "COUNT";
     private static final String READINESS_UNIT_PERCENT = "PERCENT";
+    private static final String TONE_SUCCESS = "success";
+    private static final String TONE_INFO = "info";
+    private static final String TONE_WARNING = "warning";
     private final TestDesignRepository repository;
     private final TestDesignResponseMapper responseMapper;
     private final TestDesignProperties properties;
@@ -173,6 +183,27 @@ public class TestDesignQualityService {
                 policy.promptBodyExported(),
                 Instant.now()
         );
+    }
+
+    /**
+     * Aggregates WP5 permission and resource-scope signals for platform and project operators.
+     *
+     * <p>The summary is a read-only operations view. It deliberately counts task/candidate/publish-record project
+     * consistency and policy readiness without returning task IDs, candidate IDs, role matrices, sourceRef values,
+     * service tokens or authorization rule details.
+     */
+    public TestDesignScopeSummaryResponse scopeSummary(TestDesignScopeSummaryRequest request) {
+        TestDesignScopeSummaryRequest safeRequest =
+                request == null ? new TestDesignScopeSummaryRequest() : request;
+        ScopeSummaryAccumulator accumulator = new ScopeSummaryAccumulator();
+        for (TestDesignTask task : completedTasks(safeRequest.toTaskQuery())) {
+            accumulator.accept(
+                    task,
+                    repository.candidatesByTask(task.id()),
+                    repository.publishRecords(task.id())
+            );
+        }
+        return accumulator.toResponse(trimToNull(safeRequest.getProjectId()), trimToNull(safeRequest.getPromptKey()));
     }
 
     private List<TestDesignTask> completedTasks(TestDesignTaskQuery query) {
@@ -346,6 +377,30 @@ public class TestDesignQualityService {
 
     private static double percentValue(long value, long total) {
         return total <= 0 ? 0D : Math.round(value * 10_000D / total) / 100D;
+    }
+
+    private static TestDesignAuditChainMetricResponse scopeMetric(
+            String code,
+            String label,
+            long count,
+            String tone
+    ) {
+        return new TestDesignAuditChainMetricResponse(code, label, count, tone);
+    }
+
+    private static TestDesignAuditChainReadinessResponse scopeReadiness(
+            String code,
+            String label,
+            boolean ready,
+            String description
+    ) {
+        return new TestDesignAuditChainReadinessResponse(
+                code,
+                label,
+                ready,
+                ready ? TONE_SUCCESS : TONE_WARNING,
+                description
+        );
     }
 
     /**
@@ -633,6 +688,121 @@ public class TestDesignQualityService {
                             duplicateKeyCollisionCount
                     ),
                     latestTaskCreatedAt
+            );
+        }
+    }
+
+    private static final class ScopeSummaryAccumulator {
+
+        private final Set<String> projectBuckets = new LinkedHashSet<>();
+        private long taskCount;
+        private long candidateCount;
+        private long publishRecordCount;
+        private long candidateScopeMismatchCount;
+        private long publishScopeMismatchCount;
+        private long modelInvocationReferenceCount;
+        private long publishProjectScopeRecordCount;
+
+        private void accept(
+                TestDesignTask task,
+                List<TestDesignCandidate> candidates,
+                List<TestDesignPublishRecord> publishRecords
+        ) {
+            taskCount++;
+            if (StringUtils.hasText(task.projectId())) {
+                projectBuckets.add(task.projectId());
+            }
+            if (task.modelInvocationId() != null) {
+                modelInvocationReferenceCount++;
+            }
+            candidateCount += candidates.size();
+            for (TestDesignCandidate candidate : candidates) {
+                if (!Objects.equals(task.projectId(), candidate.projectId())) {
+                    candidateScopeMismatchCount++;
+                }
+                if (candidate.modelInvocationId() != null) {
+                    modelInvocationReferenceCount++;
+                }
+            }
+            publishRecordCount += publishRecords.size();
+            for (TestDesignPublishRecord record : publishRecords) {
+                if (StringUtils.hasText(record.projectId())) {
+                    publishProjectScopeRecordCount++;
+                }
+                if (!Objects.equals(task.projectId(), record.projectId())) {
+                    publishScopeMismatchCount++;
+                }
+            }
+        }
+
+        private TestDesignScopeSummaryResponse toResponse(String projectId, String promptKey) {
+            TestDesignScopePolicyResponse policy = TestDesignScopePolicy.response();
+            return new TestDesignScopeSummaryResponse(
+                    projectId,
+                    promptKey,
+                    policy,
+                    taskCount,
+                    candidateCount,
+                    publishRecordCount,
+                    projectBuckets.size(),
+                    candidateScopeMismatchCount,
+                    publishScopeMismatchCount,
+                    modelInvocationReferenceCount,
+                    publishProjectScopeRecordCount,
+                    percentValue(candidateCount - candidateScopeMismatchCount, candidateCount),
+                    percentValue(publishRecordCount - publishScopeMismatchCount, publishRecordCount),
+                    metrics(),
+                    readiness(policy),
+                    policy.aggregateOnly(),
+                    policy.candidateIdentifierListExported(),
+                    policy.roleRuleDetailExported(),
+                    policy.serviceTokenValueExported(),
+                    Instant.now()
+            );
+        }
+
+        private List<TestDesignAuditChainMetricResponse> metrics() {
+            return List.of(
+                    scopeMetric("taskProjectScopes", "任务项目作用域", taskCount,
+                            taskCount > 0 ? TONE_SUCCESS : TONE_INFO),
+                    scopeMetric("candidateProjectScopes", "候选项目作用域", candidateCount,
+                            candidateScopeMismatchCount == 0 ? TONE_SUCCESS : TONE_WARNING),
+                    scopeMetric("publishProjectScopes", "发布项目作用域", publishRecordCount,
+                            publishScopeMismatchCount == 0 ? TONE_SUCCESS : TONE_WARNING),
+                    scopeMetric("projectBuckets", "项目作用域桶", projectBuckets.size(),
+                            projectBuckets.isEmpty() ? TONE_INFO : TONE_SUCCESS),
+                    scopeMetric("scopeMismatches", "作用域不一致", candidateScopeMismatchCount
+                            + publishScopeMismatchCount, candidateScopeMismatchCount + publishScopeMismatchCount == 0
+                            ? TONE_SUCCESS : TONE_WARNING),
+                    scopeMetric("modelInvocationReferences", "模型调用引用", modelInvocationReferenceCount,
+                            modelInvocationReferenceCount > 0 ? TONE_INFO : TONE_INFO),
+                    scopeMetric("publishScopeRecords", "发布作用域记录", publishProjectScopeRecordCount,
+                            publishProjectScopeRecordCount > 0 ? TONE_SUCCESS : TONE_INFO)
+            );
+        }
+
+        private List<TestDesignAuditChainReadinessResponse> readiness(TestDesignScopePolicyResponse policy) {
+            return List.of(
+                    scopeReadiness("taskProjectScopeRequired", "任务项目作用域", policy.taskProjectScopeRequired(),
+                            "任务级查询、重试、取消、质量和报告接口按任务归属项目校验"),
+                    scopeReadiness("candidateProjectScopeRequired", "候选项目作用域",
+                            policy.candidateProjectScopeRequired() && candidateScopeMismatchCount == 0,
+                            "候选级和批量候选操作按候选归属项目集合校验"),
+                    scopeReadiness("publishProjectScopeRequired", "发布项目作用域",
+                            policy.publishProjectScopeRequired() && publishScopeMismatchCount == 0,
+                            "发布和 dryRun 按任务项目校验，发布记录项目归属必须与任务一致"),
+                    scopeReadiness("evaluationCorpusProjectIsolated", "评测语料项目隔离",
+                            policy.evaluationCorpusProjectIsolated(),
+                            "评测语料摘要和 AI 评测基线按固定项目作用域隔离"),
+                    scopeReadiness("crossWpScopeDashboardReady", "跨 WP 统一作用域看板",
+                            policy.crossWpScopeDashboardReady(),
+                            "当前只提供 WP5 只读聚合骨架，完整跨 WP scope 看板仍未就绪"),
+                    scopeReadiness("detailIdentifiersRedacted", "明细标识不导出",
+                            policy.aggregateOnly()
+                                    && !policy.candidateIdentifierListExported()
+                                    && !policy.roleRuleDetailExported()
+                                    && !policy.serviceTokenValueExported(),
+                            "候选 ID、角色规则明细和服务令牌原值不进入作用域摘要")
             );
         }
     }

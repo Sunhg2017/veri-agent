@@ -6,6 +6,7 @@ import com.songhg.veri.agent.testdesign.application.command.TestDesignCandidateB
 import com.songhg.veri.agent.testdesign.application.query.TestDesignCandidatePageRequest;
 import com.songhg.veri.agent.testdesign.application.query.TestDesignEvaluationCorpusSummaryRequest;
 import com.songhg.veri.agent.testdesign.application.query.TestDesignPromptTrendRequest;
+import com.songhg.veri.agent.testdesign.application.query.TestDesignScopeSummaryRequest;
 import com.songhg.veri.agent.testdesign.application.query.TestDesignTaskPageRequest;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -50,6 +51,14 @@ public class TestDesignPermissionScopeResolver {
             return project(request.getProjectId());
         }
         // Without a project filter the endpoint returns only platform-level aggregate readiness signals.
+        return ResourceScope.platform();
+    }
+
+    public ResourceScope scopeSummary(TestDesignScopeSummaryRequest request) {
+        if (request != null && StringUtils.hasText(request.getProjectId())) {
+            return project(request.getProjectId());
+        }
+        // Platform fallback is aggregate-only and never returns task, candidate or role identifiers.
         return ResourceScope.platform();
     }
 

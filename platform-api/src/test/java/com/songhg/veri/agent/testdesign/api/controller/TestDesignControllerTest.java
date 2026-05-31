@@ -2403,6 +2403,106 @@ class TestDesignControllerTest {
     }
 
     @Test
+    void summarizesScopeOperationsWithoutIdentifiers() throws Exception {
+        String ownerToken = userAccessToken(List.of("ProjectOwner@PROJECT:project-wp5"));
+        String auditorToken = userAccessToken(List.of("Auditor@PROJECT:project-wp5"));
+        String deniedAuditorToken = userAccessToken(List.of("Auditor@PROJECT:project-other"));
+        String requirementId = createRequirement(
+                ownerToken,
+                "作用域摘要需求 token=secret-value",
+                "作用域摘要验收 rawPrompt",
+                "project-wp5"
+        );
+        MvcResult taskResult = mockMvc.perform(post("/api/v1/test-design/tasks")
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"projectId":"project-wp5","requirementIds":["%s"],"coverageTypes":["SMOKE","BOUNDARY"]}
+                                """.formatted(requirementId)))
+                .andExpect(status().isCreated())
+                .andReturn();
+        String taskId = JsonPath.read(taskResult.getResponse().getContentAsString(), "$.data.task.id");
+        String firstCandidateId = JsonPath.read(taskResult.getResponse().getContentAsString(), "$.data.candidates[0].id");
+        Integer firstVersion = JsonPath.read(taskResult.getResponse().getContentAsString(), "$.data.candidates[0].version");
+        String secondCandidateId = JsonPath.read(taskResult.getResponse().getContentAsString(), "$.data.candidates[1].id");
+        Integer secondVersion = JsonPath.read(taskResult.getResponse().getContentAsString(), "$.data.candidates[1].version");
+
+        mockMvc.perform(post("/api/v1/test-design/candidates/{id}/confirm", firstCandidateId)
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"version": %d, "comment": "作用域确认说明 serviceToken=local-test-design-token"}
+                                """.formatted(firstVersion)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("CONFIRMED"));
+        mockMvc.perform(post("/api/v1/test-design/candidates/{id}/reject", secondCandidateId)
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"version": %d, "reason": "作用域拒绝 token=secret-value", "comment": "role rule rawPrompt"}
+                                """.formatted(secondVersion)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("REJECTED"));
+
+        MvcResult publish = mockMvc.perform(post("/api/v1/test-design/tasks/{id}/publish", taskId)
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.dryRun").value(false))
+                .andExpect(jsonPath("$.data.records[0].result").value("SUCCEEDED"))
+                .andReturn();
+        String assetCaseId = JsonPath.read(publish.getResponse().getContentAsString(), "$.data.records[0].assetCaseId");
+
+        MvcResult summary = mockMvc.perform(get("/api/v1/test-design/quality/scope-summary")
+                        .header("Authorization", "Bearer " + auditorToken)
+                        .param("projectId", "project-wp5")
+                        .param("promptKey", "wp5-test-design-v1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.projectId").value("project-wp5"))
+                .andExpect(jsonPath("$.data.promptKey").value("wp5-test-design-v1"))
+                .andExpect(jsonPath("$.data.policy.policyVersion").value("wp5-scope-policy-v1"))
+                .andExpect(jsonPath("$.data.policy.scopeModel").value("PROJECT_RESOURCE_SCOPE"))
+                .andExpect(jsonPath("$.data.policy.candidateIdentifierListExported").value(false))
+                .andExpect(jsonPath("$.data.policy.roleRuleDetailExported").value(false))
+                .andExpect(jsonPath("$.data.policy.serviceTokenValueExported").value(false))
+                .andExpect(jsonPath("$.data.taskCount").value(1))
+                .andExpect(jsonPath("$.data.candidateCount").value(2))
+                .andExpect(jsonPath("$.data.publishRecordCount").value(1))
+                .andExpect(jsonPath("$.data.projectBucketCount").value(1))
+                .andExpect(jsonPath("$.data.candidateScopeMismatchCount").value(0))
+                .andExpect(jsonPath("$.data.publishScopeMismatchCount").value(0))
+                .andExpect(jsonPath("$.data.publishProjectScopeRecordCount").value(1))
+                .andExpect(jsonPath("$.data.candidateScopeCoveragePercent").value(100.0))
+                .andExpect(jsonPath("$.data.publishScopeCoveragePercent").value(100.0))
+                .andExpect(jsonPath("$.data.metrics[?(@.code == 'scopeMismatches')].count").value(contains(0)))
+                .andExpect(jsonPath("$.data.readiness[?(@.code == 'detailIdentifiersRedacted')].ready")
+                        .value(contains(true)))
+                .andExpect(jsonPath("$.data.aggregateOnly").value(true))
+                .andExpect(jsonPath("$.data.candidateIdentifierListExported").value(false))
+                .andExpect(jsonPath("$.data.roleRuleDetailExported").value(false))
+                .andExpect(jsonPath("$.data.serviceTokenValueExported").value(false))
+                .andReturn();
+
+        String json = summary.getResponse().getContentAsString();
+        MatcherAssert.assertThat(json, not(containsString(taskId)));
+        MatcherAssert.assertThat(json, not(containsString(firstCandidateId)));
+        MatcherAssert.assertThat(json, not(containsString(secondCandidateId)));
+        MatcherAssert.assertThat(json, not(containsString(assetCaseId)));
+        MatcherAssert.assertThat(json, not(containsString("secret-value")));
+        MatcherAssert.assertThat(json, not(containsString("rawPrompt")));
+        MatcherAssert.assertThat(json, not(containsString("local-test-design-token")));
+        MatcherAssert.assertThat(json, not(containsString("作用域确认说明")));
+        MatcherAssert.assertThat(json, not(containsString("作用域拒绝")));
+        MatcherAssert.assertThat(json, not(containsString("role rule")));
+
+        mockMvc.perform(get("/api/v1/test-design/quality/scope-summary")
+                        .header("Authorization", "Bearer " + deniedAuditorToken)
+                        .param("projectId", "project-wp5"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
     void linksExistingWp3CaseBySourceRefDuringPublish() throws Exception {
         String ownerToken = userAccessToken(List.of("ProjectOwner@PROJECT:project-wp5"));
         String requirementId = createRequirement(ownerToken, "幂等发布需求", "发布幂等验收", "project-wp5");

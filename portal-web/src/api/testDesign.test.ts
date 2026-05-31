@@ -20,6 +20,7 @@ import {
   fetchTestDesignHealth,
   fetchTestDesignPromptTrend,
   fetchTestDesignReviewRecords,
+  fetchTestDesignScopeSummary,
   fetchTestDesignTaskAuditSummary,
   fetchTestDesignTask,
   fetchTestDesignTaskQualitySummary,
@@ -41,6 +42,7 @@ import {
   normalizeTestDesignQualitySummary,
   normalizeTestDesignReviewRecord,
   normalizeTestDesignReviewRecordList,
+  normalizeTestDesignScopeSummary,
   normalizeTestDesignTask,
   normalizeTestDesignTaskDetail,
   publishTestDesignDryRun,
@@ -1202,6 +1204,67 @@ describe('WP5 test design API helpers', () => {
       })
     });
 
+    const scopeSummary = normalizeTestDesignScopeSummary({
+      project_id: 'project-1',
+      prompt_key: 'wp5-test-design-v1',
+      policy: {
+        policy_version: 'wp5-scope-policy-v1',
+        scope_model: 'PROJECT_RESOURCE_SCOPE',
+        candidate_identifier_list_exported: false,
+        role_rule_detail_exported: false,
+        service_token_value_exported: false
+      },
+      task_count: '2',
+      candidate_count: '4',
+      publish_record_count: '2',
+      project_bucket_count: '1',
+      candidate_scope_mismatch_count: '0',
+      publish_scope_mismatch_count: '0',
+      model_invocation_reference_count: '1',
+      publish_project_scope_record_count: '1',
+      candidate_scope_coverage_percent: '100.00',
+      publish_scope_coverage_percent: '100.00',
+      metrics: [{ code: 'scopeMismatches', label: '作用域不一致', count: '0', tone: 'success' }],
+      readiness: [
+        {
+          code: 'detailIdentifiersRedacted',
+          label: '明细标识不导出',
+          ready: true,
+          tone: 'success',
+          description: 'aggregate-only'
+        }
+      ],
+      aggregate_only: true,
+      candidate_identifier_list_exported: false,
+      role_rule_detail_exported: false,
+      service_token_value_exported: false,
+      generated_at: '2026-05-30T10:03:00Z'
+    });
+    expect(scopeSummary).toMatchObject({
+      projectId: 'project-1',
+      promptKey: 'wp5-test-design-v1',
+      taskCount: 2,
+      candidateCount: 4,
+      publishRecordCount: 2,
+      projectBucketCount: 1,
+      candidateScopeMismatchCount: 0,
+      publishScopeMismatchCount: 0,
+      modelInvocationReferenceCount: 1,
+      publishProjectScopeRecordCount: 1,
+      candidateScopeCoveragePercent: 100,
+      publishScopeCoveragePercent: 100,
+      metrics: [expect.objectContaining({ code: 'scopeMismatches', count: 0, tone: 'success' })],
+      readiness: [expect.objectContaining({ code: 'detailIdentifiersRedacted', ready: true })],
+      aggregateOnly: true,
+      candidateIdentifierListExported: false,
+      roleRuleDetailExported: false,
+      serviceTokenValueExported: false,
+      policy: expect.objectContaining({
+        policyVersion: 'wp5-scope-policy-v1',
+        scopeModel: 'PROJECT_RESOURCE_SCOPE'
+      })
+    });
+
     const auditSummary = normalizeTestDesignAuditSummary({
       task_id: 'task-1',
       project_id: 'project-1',
@@ -1292,6 +1355,9 @@ describe('WP5 test design API helpers', () => {
 
     await fetchTestDesignEvaluationCorpusSummary({ index: 0, size: 10, projectId: 'proj pay', promptKey: 'wp5-test-design-v1' });
     expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/test-design/quality/evaluation-corpus-summary?index=0&size=10&projectId=proj+pay&promptKey=wp5-test-design-v1');
+
+    await fetchTestDesignScopeSummary({ index: 0, size: 10, projectId: 'proj pay', promptKey: 'wp5-test-design-v1' });
+    expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/test-design/quality/scope-summary?index=0&size=10&projectId=proj+pay&promptKey=wp5-test-design-v1');
   });
 
   it('calls context policy operations endpoints and normalizes sanitized metadata', async () => {
