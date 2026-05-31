@@ -19,6 +19,8 @@ import com.songhg.veri.agent.modelaccess.config.ModelAccessProperties;
 import com.songhg.veri.agent.modelaccess.infrastructure.InMemoryModelAccessRepository;
 import com.songhg.veri.agent.modelaccess.infrastructure.InMemoryModelInvocationJobRepository;
 import com.songhg.veri.agent.modelaccess.security.ServicePrincipal;
+import com.songhg.veri.agent.common.error.BusinessException;
+import com.songhg.veri.agent.common.error.ErrorCode;
 import com.songhg.veri.agent.testdesign.config.TestDesignProperties;
 import com.songhg.veri.agent.testdesign.domain.TestDesignTask;
 import com.songhg.veri.agent.testdesign.domain.TestDesignTaskStatus;
@@ -520,6 +522,99 @@ class TestDesignGenerationServiceTest {
         assertThat(commandCaptor.getValue().messages()).hasSize(1);
     }
 
+    @Test
+    void storesOnlyCurrentProjectApiReferenceFromModelOutput() {
+        UUID missingApiId = UUID.fromString("00000000-0000-4000-8000-000000000203");
+        AssetService assetService = mock(AssetService.class);
+        when(assetService.getApi(missingApiId))
+                .thenThrow(new BusinessException(ErrorCode.NOT_FOUND, "API不存在: " + missingApiId));
+        when(assetService.getApi(API_ID_1)).thenReturn(api(API_ID_1, "API-1", "project-other"));
+        when(assetService.getApi(API_ID_2)).thenReturn(api(API_ID_2, "API-2", "project-wp5"));
+        TestDesignGenerationService service = service(
+                properties(3, 4, 2, 120, 130, 140),
+                assetService,
+                """
+                        {
+                          "schemaVersion": "wp5-test",
+                          "cases": [
+                            {
+                              "title": "模型 API 引用项目边界验证",
+                              "description": "只允许当前项目 API 进入候选关联",
+                              "coverageType": "SMOKE",
+                              "priority": "HIGH",
+                              "preconditions": "需求和 API 资产已准备",
+                              "apiRefs": [
+                                "API-CODE-LOGIN",
+                                "00000000-0000-4000-8000-000000000203",
+                                "00000000-0000-4000-8000-000000000201",
+                                "00000000-0000-4000-8000-000000000202"
+                              ],
+                              "steps": [
+                                {"action": "执行模型生成候选", "expectedResult": "候选生成成功"},
+                                {"action": "检查候选 API 关联", "expectedResult": "只保留当前项目 API"}
+                              ],
+                              "expectedResult": "候选 apiId 指向当前项目 API",
+                              "requirementRef": "REQ-WP5",
+                              "confidence": 0.88
+                            }
+                          ]
+                        }
+                        """
+        );
+
+        TestDesignGenerationService.GenerationAttempt attempt =
+                service.generateCandidates(task(), List.of(requirement()), List.of("SMOKE"), Instant.now());
+
+        assertThat(attempt.candidates()).hasSize(1);
+        assertThat(attempt.candidates().getFirst().apiId()).isEqualTo(API_ID_2);
+    }
+
+    @Test
+    void ignoresUnresolvedModelApiReferencesWithoutBlockingCandidateGeneration() {
+        UUID missingApiId = UUID.fromString("00000000-0000-4000-8000-000000000203");
+        AssetService assetService = mock(AssetService.class);
+        when(assetService.getApi(missingApiId))
+                .thenThrow(new BusinessException(ErrorCode.NOT_FOUND, "API不存在: " + missingApiId));
+        when(assetService.getApi(API_ID_1)).thenReturn(api(API_ID_1, "API-1", "project-other"));
+        TestDesignGenerationService service = service(
+                properties(3, 4, 2, 120, 130, 140),
+                assetService,
+                """
+                        {
+                          "schemaVersion": "wp5-test",
+                          "cases": [
+                            {
+                              "title": "模型无效 API 引用降级验证",
+                              "description": "无有效 API 引用时仍保留可评审候选",
+                              "coverageType": "SMOKE",
+                              "priority": "HIGH",
+                              "preconditions": "需求已确认",
+                              "apiRefs": [
+                                "00000000-0000-4000-8000-000000000203",
+                                "00000000-0000-4000-8000-000000000201",
+                                "API-CODE-LOGIN"
+                              ],
+                              "steps": [
+                                {"action": "执行模型生成候选", "expectedResult": "候选生成成功"},
+                                {"action": "检查候选 API 关联", "expectedResult": "无效引用不落库"}
+                              ],
+                              "expectedResult": "候选 apiId 为空且可继续评审",
+                              "requirementRef": "REQ-WP5",
+                              "confidence": 0.82
+                            }
+                          ]
+                        }
+                        """
+        );
+
+        TestDesignGenerationService.GenerationAttempt attempt =
+                service.generateCandidates(task(), List.of(requirement()), List.of("SMOKE"), Instant.now());
+
+        assertThat(attempt.candidates()).hasSize(1);
+        assertThat(attempt.candidates().getFirst().apiId()).isNull();
+        assertThat(attempt.candidates().getFirst().title()).isEqualTo("模型无效 API 引用降级验证");
+    }
+
     private TestDesignGenerationService service(TestDesignProperties properties, AssetService assetService) {
         InMemoryModelAccessRepository repository = new InMemoryModelAccessRepository();
         TestDesignResponseMapper mapper = responseMapper(repository, properties);
@@ -531,6 +626,41 @@ class TestDesignGenerationServiceTest {
                 new TestDesignModelOutputParser(objectMapper),
                 properties,
                 objectMapper
+        );
+    }
+
+    private TestDesignGenerationService service(
+            TestDesignProperties properties,
+            AssetService assetService,
+            String modelOutput
+    ) {
+        InMemoryModelAccessRepository repository = new InMemoryModelAccessRepository();
+        TestDesignResponseMapper mapper = responseMapper(repository, properties);
+        ModelInvocationService invocationService = mock(ModelInvocationService.class);
+        when(invocationService.invoke(any(ModelInvocationCommand.class), any(ServicePrincipal.class)))
+                .thenReturn(modelResult(modelOutput));
+        return new TestDesignGenerationService(
+                assetService,
+                mapper,
+                new TestDesignCandidateQualityGate(mapper),
+                invocationService,
+                new TestDesignModelOutputParser(objectMapper),
+                properties,
+                objectMapper
+        );
+    }
+
+    private ModelInvocationResult modelResult(String content) {
+        return new ModelInvocationResult(
+                UUID.fromString("00000000-0000-4000-8000-000000000601"),
+                UUID.fromString("00000000-0000-4000-8000-000000000701"),
+                "local-echo-primary",
+                "test-local-model",
+                false,
+                content,
+                20,
+                10,
+                new BigDecimal("0.0003")
         );
     }
 
@@ -665,6 +795,10 @@ class TestDesignGenerationServiceTest {
     }
 
     private ApiResponseDTO api(UUID id, String code) {
+        return api(id, code, "project-wp5");
+    }
+
+    private ApiResponseDTO api(UUID id, String code, String projectId) {
         Instant now = Instant.now();
         return new ApiResponseDTO(
                 id,
@@ -678,7 +812,7 @@ class TestDesignGenerationServiceTest {
                 "v1",
                 "{\"request\":\"abcdefghijklmnopqrstuvwxyz0123456789\"}",
                 "{\"response\":\"abcdefghijklmnopqrstuvwxyz0123456789\"}",
-                "project-wp5",
+                projectId,
                 "ACTIVE",
                 "ACTIVE",
                 null,

@@ -98,6 +98,7 @@
 | WP5-FUNC-003Q | P1 | 导出任务全量报告跨 WP 审计链策略 | CSV 包含 `auditChainPolicy` 聚合行，只输出策略版本、链路模式、事件来源、WP1/WP2/WP3/WP5 引用状态、项目作用域、trace 信号、跨 WP 看板/outbox 重放看板未就绪状态、任务/评审/发布事件计数、说明覆盖计数和 aggregate-only，不输出审计事件明细、候选 ID 清单、平台审计标识原值、traceId 原值、模型调用 ID 原值、发布 sourceRef 或资产 ID 原值。 |
 | WP5-FUNC-003R | P1 | 查看任务级跨 WP 审计链只读聚合骨架 | `GET /api/v1/test-design/tasks/{id}/report/audit-chain` 按任务项目 scope 返回 aggregate-only 响应，包含 `readOnlyAggregateDashboardReady=true`、完整跨 WP 看板/outbox 重放操作台未就绪、WP1/WP2/WP3/WP5/outbox 任务相关计数和 readiness；无权限项目返回 403。 |
 | WP5-FUNC-004 | P0 | 模型输出合法 JSON | 候选落库，包含标题、步骤、预期、优先级和来源依据。 |
+| WP5-FUNC-004A | P0 | 模型输出 `apiRefs` 混入非 UUID、缺失 API 或跨项目 API | 候选仍可生成；只有能通过 WP3 应用服务解析且属于当前任务项目的 API UUID 可写入候选 `apiId`，其余引用不落库、不进入后续发布请求。 |
 | WP5-FUNC-005 | P0 | 模型输出非法 JSON | 任务失败或 fallback，错误码为模型输出非法，不产生脏候选。 |
 | WP5-FUNC-006 | P0 | WP2 敏感内容阻断 | 任务展示阻断摘要，保存 traceId，不绕过 WP2。 |
 | WP5-FUNC-006A | P0 | `generationMode=MODEL` 调用 WP2 本地模型 | 任务和候选带 `modelInvocationId/provider/model`，任务诊断只展示白名单观测字段。 |

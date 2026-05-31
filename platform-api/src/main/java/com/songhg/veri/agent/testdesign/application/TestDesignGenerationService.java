@@ -732,7 +732,7 @@ public class TestDesignGenerationService {
                 task.id(),
                 task.projectId(),
                 requirement.id(),
-                firstUuid(generatedCase.apiRefs()),
+                firstProjectApiId(generatedCase.apiRefs(), task.projectId()),
                 title,
                 modelCaseDescription(generatedCase),
                 coverageType,
@@ -762,7 +762,7 @@ public class TestDesignGenerationService {
         );
     }
 
-    private static UUID firstUuid(List<String> refs) {
+    private UUID firstProjectApiId(List<String> refs, String projectId) {
         if (refs == null) {
             return null;
         }
@@ -770,10 +770,18 @@ public class TestDesignGenerationService {
             if (!StringUtils.hasText(ref)) {
                 continue;
             }
+            UUID apiId = null;
             try {
-                return UUID.fromString(ref.trim());
+                apiId = UUID.fromString(ref.trim());
             } catch (IllegalArgumentException ignored) {
                 // Model references may be external API codes; WP5 only stores UUID-backed API links in this slice.
+            }
+            /*
+             * Model apiRefs are untrusted output. Only persist links that WP3 can resolve under the current task
+             * project; invalid or cross-project references must not poison the later WP3 publish request.
+             */
+            if (apiId != null && activeApi(apiId, projectId).isPresent()) {
+                return apiId;
             }
         }
         return null;
