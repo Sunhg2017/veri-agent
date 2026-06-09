@@ -208,10 +208,10 @@ class TestDesignControllerTest {
                 .andExpect(jsonPath("$.data.releaseReadinessPolicy.advisoryOnly").value(true))
                 .andExpect(jsonPath("$.data.releaseReadinessPolicy.publishBlockingEnabled").value(false))
                 .andExpect(jsonPath("$.data.releaseReadinessPolicy.manualApprovalRequired").value(true))
-                .andExpect(jsonPath("$.data.releaseReadinessPolicy.approvalWorkflowReady").value(false))
+                .andExpect(jsonPath("$.data.releaseReadinessPolicy.approvalWorkflowReady").value(true))
                 .andExpect(jsonPath("$.data.releaseReadinessPolicy.autoPublishAllowed").value(false))
                 .andExpect(jsonPath("$.data.releaseReadinessPolicy.confirmedCandidateRequired").value(true))
-                .andExpect(jsonPath("$.data.releaseReadinessPolicy.qualityGateOverrideSupported").value(false))
+                .andExpect(jsonPath("$.data.releaseReadinessPolicy.qualityGateOverrideSupported").value(true))
                 .andExpect(jsonPath("$.data.releaseReadinessPolicy.candidateEvidenceExported").value(false))
                 .andExpect(jsonPath("$.data.releaseReadinessPolicy.approvalNotesExported").value(false))
                 .andExpect(jsonPath("$.data.releaseReadinessPolicy.thresholdRuleDetailExported").value(false))
@@ -881,7 +881,7 @@ class TestDesignControllerTest {
                         .value("ADVISORY_QUALITY_GATE"))
                 .andExpect(jsonPath("$.data.task.releaseReadinessPolicy.advisoryOnly").value(true))
                 .andExpect(jsonPath("$.data.task.releaseReadinessPolicy.publishBlockingEnabled").value(false))
-                .andExpect(jsonPath("$.data.task.releaseReadinessPolicy.approvalWorkflowReady").value(false))
+                .andExpect(jsonPath("$.data.task.releaseReadinessPolicy.approvalWorkflowReady").value(true))
                 .andExpect(jsonPath("$.data.task.auditChainPolicy.policyVersion")
                         .value("wp5-audit-chain-policy-v1"))
                 .andExpect(jsonPath("$.data.task.auditChainPolicy.chainMode")
@@ -1340,6 +1340,115 @@ class TestDesignControllerTest {
         MatcherAssert.assertThat(taskJson, not(containsString("PROJECT_COMPLEXITY")));
         MatcherAssert.assertThat(taskJson, not(containsString("changeReasonCode")));
         MatcherAssert.assertThat(taskJson, not(containsString("approvalReasonCode")));
+    }
+
+    @Test
+    void managesReleaseReadinessApprovalExceptionsAndNotes() throws Exception {
+        String ownerToken = userAccessToken(List.of("ProjectOwner@PROJECT:project-wp5"));
+        String deniedOwnerToken = userAccessToken(List.of("ProjectOwner@PROJECT:project-other"));
+        String requirementId = createRequirement(
+                ownerToken,
+                "发布准出例外需求",
+                "阻断质量门禁后必须走审批例外",
+                "project-wp5"
+        );
+        MvcResult taskResult = mockMvc.perform(post("/api/v1/test-design/tasks")
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "projectId": "project-wp5",
+                                  "title": "发布准出审批任务",
+                                  "requirementIds": ["%s"],
+                                  "coverageTypes": ["SMOKE"]
+                                }
+                                """.formatted(requirementId)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.candidates", hasSize(1)))
+                .andReturn();
+        String taskId = JsonPath.read(taskResult.getResponse().getContentAsString(), "$.data.task.id");
+        String candidateId = JsonPath.read(taskResult.getResponse().getContentAsString(), "$.data.candidates[0].id");
+        saveCandidateAsBlockedConfirmed(candidateId);
+
+        MvcResult approvalResult = mockMvc.perform(post(
+                                "/api/v1/test-design/tasks/{id}/release-readiness/approvals",
+                                taskId
+                        )
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "exceptionReasonCode": "SMOKE_VALIDATION",
+                                  "exceptionSummary": "本次 smoke 阻断样本接受限时例外。",
+                                  "riskMitigation": "发布后补齐步骤预期并复跑 smoke。",
+                                  "workOrderKey": "WP5-RR-CTRL-1",
+                                  "workOrderTitle": "Release readiness approval",
+                                  "workOrderUrl": "https://ticket.example/wp5/rr-ctrl-1",
+                                  "requestNote": "申请准出例外"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("PENDING"))
+                .andExpect(jsonPath("$.data.qualityGateStatus").value("BLOCKED"))
+                .andExpect(jsonPath("$.data.blockingCount").value(2))
+                .andExpect(jsonPath("$.data.readinessDigest", matchesPattern("[0-9a-f]{64}")))
+                .andExpect(jsonPath("$.data.exceptionReasonCodeCaptured").value(true))
+                .andExpect(jsonPath("$.data.approvalReasonCodeCaptured").value(false))
+                .andExpect(jsonPath("$.data.workOrderKey").value("WP5-RR-CTRL-1"))
+                .andExpect(jsonPath("$.data.exceptionSummary").value("本次 smoke 阻断样本接受限时例外。"))
+                .andExpect(jsonPath("$.data.noteCount").value(1))
+                .andReturn();
+        String approvalId = JsonPath.read(approvalResult.getResponse().getContentAsString(), "$.data.id");
+
+        mockMvc.perform(get("/api/v1/test-design/tasks/{id}/release-readiness/approvals", taskId)
+                        .header("Authorization", "Bearer " + ownerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data", hasSize(1)))
+                .andExpect(jsonPath("$.data[0].id").value(approvalId))
+                .andExpect(jsonPath("$.data[0].latestNotePreview").value("申请准出例外"));
+
+        mockMvc.perform(post("/api/v1/test-design/release-readiness/approvals/{id}/notes", approvalId)
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"noteType": "COMMENT", "noteText": "已确认风险接受窗口"}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.noteType").value("COMMENT"))
+                .andExpect(jsonPath("$.data.noteText").value("已确认风险接受窗口"));
+
+        mockMvc.perform(post("/api/v1/test-design/release-readiness/approvals/{id}/approve", approvalId)
+                        .header("Authorization", "Bearer " + deniedOwnerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"approvalReasonCode": "SMOKE_VALIDATION"}
+                                """))
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(post("/api/v1/test-design/release-readiness/approvals/{id}/approve", approvalId)
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "approvalReasonCode": "SMOKE_VALIDATION",
+                                  "reviewNote": "同意本次准出例外。",
+                                  "workOrderStatus": "APPROVED"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("APPROVED"))
+                .andExpect(jsonPath("$.data.approvalReasonCodeCaptured").value(true))
+                .andExpect(jsonPath("$.data.workOrderStatus").value("APPROVED"))
+                .andExpect(jsonPath("$.data.noteCount").value(3))
+                .andExpect(jsonPath("$.data.approvalNotesExported").doesNotExist());
+
+        mockMvc.perform(get("/api/v1/test-design/release-readiness/approvals/{id}/notes", approvalId)
+                        .header("Authorization", "Bearer " + ownerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data", hasSize(3)))
+                .andExpect(jsonPath("$.data[0].noteType").value("REQUEST"))
+                .andExpect(jsonPath("$.data[1].noteType").value("COMMENT"))
+                .andExpect(jsonPath("$.data[2].noteType").value("REVIEW"));
     }
 
     @Test
@@ -1936,7 +2045,7 @@ class TestDesignControllerTest {
         MatcherAssert.assertThat(csv, containsString("releaseReadinessPolicy,qualityThresholdEvaluated,,true"));
         MatcherAssert.assertThat(csv, containsString("releaseReadinessPolicy,advisoryOnly,,true"));
         MatcherAssert.assertThat(csv, containsString("releaseReadinessPolicy,publishBlockingEnabled,,false"));
-        MatcherAssert.assertThat(csv, containsString("releaseReadinessPolicy,approvalWorkflowReady,,false"));
+        MatcherAssert.assertThat(csv, containsString("releaseReadinessPolicy,approvalWorkflowReady,,true"));
         MatcherAssert.assertThat(csv, containsString("releaseReadinessPolicy,autoPublishAllowed,,false"));
         MatcherAssert.assertThat(csv, containsString("releaseReadinessPolicy,confirmedCandidateRequired,,true"));
         MatcherAssert.assertThat(csv, containsString("releaseReadinessPolicy,candidateEvidenceExported,,false"));
@@ -3778,6 +3887,43 @@ class TestDesignControllerTest {
                 task.inputDigest(),
                 task.contextSummaryJson(),
                 task.createdAt(),
+                Instant.now()
+        ));
+    }
+
+    private void saveCandidateAsBlockedConfirmed(String candidateId) {
+        TestDesignCandidate candidate = testDesignRepository.candidate(UUID.fromString(candidateId)).orElseThrow();
+        testDesignRepository.saveCandidate(new TestDesignCandidate(
+                candidate.id(),
+                candidate.taskId(),
+                candidate.projectId(),
+                candidate.requirementId(),
+                candidate.apiId(),
+                candidate.title(),
+                candidate.description(),
+                candidate.coverageType(),
+                candidate.priority(),
+                "CONFIRMED",
+                candidate.preconditions(),
+                "[{\"action\":\"执行准出检查\",\"expectedResult\":\"\"}]",
+                "",
+                candidate.tags(),
+                candidate.duplicateKey(),
+                candidate.confidence(),
+                candidate.promptKey(),
+                candidate.promptVersion(),
+                candidate.modelInvocationId(),
+                candidate.modelProviderName(),
+                candidate.modelName(),
+                candidate.assetCaseId(),
+                candidate.reviewComment(),
+                candidate.rejectedReason(),
+                candidate.ignoredReason(),
+                null,
+                "wp5-reviewer",
+                Instant.now(),
+                candidate.version() + 1,
+                candidate.createdAt(),
                 Instant.now()
         ));
     }

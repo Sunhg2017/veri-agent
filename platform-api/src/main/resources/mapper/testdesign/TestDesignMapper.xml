@@ -211,6 +211,46 @@
         </constructor>
     </resultMap>
 
+    <resultMap id="releaseReadinessApprovalMap" type="com.songhg.veri.agent.testdesign.domain.TestDesignReleaseReadinessApproval">
+        <constructor>
+            <arg column="id" javaType="java.util.UUID"/>
+            <arg column="task_id" javaType="java.util.UUID"/>
+            <arg column="project_id" javaType="java.lang.String"/>
+            <arg column="status" javaType="java.lang.String"/>
+            <arg column="quality_gate_status" javaType="java.lang.String"/>
+            <arg column="blocking_count" javaType="_long"/>
+            <arg column="warning_count" javaType="_long"/>
+            <arg column="readiness_digest" javaType="java.lang.String"/>
+            <arg column="exception_reason_code" javaType="java.lang.String"/>
+            <arg column="approval_reason_code" javaType="java.lang.String"/>
+            <arg column="work_order_key" javaType="java.lang.String"/>
+            <arg column="work_order_title" javaType="java.lang.String"/>
+            <arg column="work_order_url" javaType="java.lang.String"/>
+            <arg column="work_order_status" javaType="java.lang.String"/>
+            <arg column="exception_summary" javaType="java.lang.String"/>
+            <arg column="exception_summary_digest" javaType="java.lang.String"/>
+            <arg column="risk_mitigation" javaType="java.lang.String"/>
+            <arg column="request_note" javaType="java.lang.String"/>
+            <arg column="review_note" javaType="java.lang.String"/>
+            <arg column="requested_by" javaType="java.lang.String"/>
+            <arg column="approved_by" javaType="java.lang.String"/>
+            <arg column="reviewed_at" javaType="java.time.Instant"/>
+            <arg column="created_at" javaType="java.time.Instant"/>
+            <arg column="updated_at" javaType="java.time.Instant"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="releaseReadinessNoteMap" type="com.songhg.veri.agent.testdesign.domain.TestDesignReleaseReadinessNote">
+        <constructor>
+            <arg column="id" javaType="java.util.UUID"/>
+            <arg column="approval_id" javaType="java.util.UUID"/>
+            <arg column="note_type" javaType="java.lang.String"/>
+            <arg column="note_text" javaType="java.lang.String"/>
+            <arg column="created_by" javaType="java.lang.String"/>
+            <arg column="created_at" javaType="java.time.Instant"/>
+        </constructor>
+    </resultMap>
+
     <sql id="taskColumns">
         id, project_id, title, status, requirement_ids, coverage_types, prompt_key, prompt_version,
         model_invocation_id, model_provider_name, model_name, total_requirements, generated_count,
@@ -240,6 +280,14 @@
         change_reason_code, approval_reason_code, work_order_key, work_order_title, work_order_url,
         work_order_status, policy_body, policy_body_digest, policy_body_version, policy_diff_summary,
         request_note, review_note, requested_by, approved_by, reviewed_at, created_at, updated_at
+    </sql>
+
+    <sql id="releaseReadinessApprovalColumns">
+        id, task_id, project_id, status, quality_gate_status, blocking_count, warning_count,
+        readiness_digest, exception_reason_code, approval_reason_code, work_order_key,
+        work_order_title, work_order_url, work_order_status, exception_summary,
+        exception_summary_digest, risk_mitigation, request_note, review_note, requested_by,
+        approved_by, reviewed_at, created_at, updated_at
     </sql>
 
     <sql id="taskWhere">
@@ -949,6 +997,83 @@
         where project_id = #{projectId}
           and scope_type = 'ENVIRONMENT'
           and environment_key = #{environmentKey}
+          and status = 'APPROVED'
+        order by updated_at desc
+        limit 1
+    </select>
+
+    <insert id="insertReleaseReadinessApproval">
+        insert into test_design_release_readiness_approval (
+            id, task_id, project_id, status, quality_gate_status, blocking_count, warning_count,
+            readiness_digest, exception_reason_code, approval_reason_code, work_order_key,
+            work_order_title, work_order_url, work_order_status, exception_summary,
+            exception_summary_digest, risk_mitigation, request_note, review_note, requested_by,
+            approved_by, reviewed_at, created_at, updated_at
+        ) values (
+            cast(#{id} as uuid), cast(#{taskId} as uuid), #{projectId}, #{status}, #{qualityGateStatus},
+            #{blockingCount}, #{warningCount}, #{readinessDigest}, #{exceptionReasonCode}, #{approvalReasonCode},
+            #{workOrderKey}, #{workOrderTitle}, #{workOrderUrl}, #{workOrderStatus}, #{exceptionSummary},
+            #{exceptionSummaryDigest}, #{riskMitigation}, #{requestNote}, #{reviewNote}, #{requestedBy},
+            #{approvedBy}, #{reviewedAt}, #{createdAt}, #{updatedAt}
+        )
+    </insert>
+
+    <update id="updateReleaseReadinessApproval">
+        update test_design_release_readiness_approval
+        set status = #{status},
+            quality_gate_status = #{qualityGateStatus},
+            blocking_count = #{blockingCount},
+            warning_count = #{warningCount},
+            readiness_digest = #{readinessDigest},
+            exception_reason_code = #{exceptionReasonCode},
+            approval_reason_code = #{approvalReasonCode},
+            work_order_key = #{workOrderKey},
+            work_order_title = #{workOrderTitle},
+            work_order_url = #{workOrderUrl},
+            work_order_status = #{workOrderStatus},
+            exception_summary = #{exceptionSummary},
+            exception_summary_digest = #{exceptionSummaryDigest},
+            risk_mitigation = #{riskMitigation},
+            request_note = #{requestNote},
+            review_note = #{reviewNote},
+            approved_by = #{approvedBy},
+            reviewed_at = #{reviewedAt},
+            updated_at = #{updatedAt}
+        where id = cast(#{id} as uuid)
+    </update>
+
+    <insert id="insertReleaseReadinessNote">
+        insert into test_design_release_readiness_note (
+            id, approval_id, note_type, note_text, created_by, created_at
+        ) values (
+            cast(#{id} as uuid), cast(#{approvalId} as uuid), #{noteType}, #{noteText}, #{createdBy}, #{createdAt}
+        )
+    </insert>
+
+    <select id="releaseReadinessApproval" resultMap="releaseReadinessApprovalMap">
+        select <include refid="releaseReadinessApprovalColumns"/>
+        from test_design_release_readiness_approval
+        where id = cast(#{id} as uuid)
+    </select>
+
+    <select id="releaseReadinessApprovals" resultMap="releaseReadinessApprovalMap">
+        select <include refid="releaseReadinessApprovalColumns"/>
+        from test_design_release_readiness_approval
+        where task_id = cast(#{taskId} as uuid)
+        order by created_at desc
+    </select>
+
+    <select id="releaseReadinessNotes" resultMap="releaseReadinessNoteMap">
+        select id, approval_id, note_type, note_text, created_by, created_at
+        from test_design_release_readiness_note
+        where approval_id = cast(#{approvalId} as uuid)
+        order by created_at asc
+    </select>
+
+    <select id="latestApprovedReleaseReadinessApproval" resultMap="releaseReadinessApprovalMap">
+        select <include refid="releaseReadinessApprovalColumns"/>
+        from test_design_release_readiness_approval
+        where task_id = cast(#{taskId} as uuid)
           and status = 'APPROVED'
         order by updated_at desc
         limit 1

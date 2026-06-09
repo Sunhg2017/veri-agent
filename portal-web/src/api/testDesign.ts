@@ -159,6 +159,46 @@ export interface TestDesignContextPolicyNoteView {
   createdAt?: string;
 }
 
+export interface TestDesignReleaseReadinessApprovalView {
+  id: string;
+  taskId: string;
+  projectId?: string;
+  status: string;
+  qualityGateStatus: string;
+  blockingCount: number;
+  warningCount: number;
+  readinessDigest?: string;
+  exceptionReasonCodeCaptured: boolean;
+  exceptionReasonCode?: string;
+  approvalReasonCodeCaptured: boolean;
+  approvalReasonCode?: string;
+  workOrderKey?: string;
+  workOrderTitle?: string;
+  workOrderUrl?: string;
+  workOrderStatus?: string;
+  exceptionSummary?: string;
+  exceptionSummaryDigest?: string;
+  riskMitigation?: string;
+  requestNote?: string;
+  reviewNote?: string;
+  noteCount?: number;
+  latestNotePreview?: string;
+  requestedBy?: string;
+  approvedBy?: string;
+  reviewedAt?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface TestDesignReleaseReadinessNoteView {
+  id: string;
+  approvalId: string;
+  noteType: string;
+  noteText: string;
+  createdBy?: string;
+  createdAt?: string;
+}
+
 export interface TestDesignContextPolicyEffectiveView {
   projectId?: string;
   environmentKey?: string;
@@ -885,6 +925,27 @@ export interface ReviewTestDesignContextPolicyOverridePayload {
 }
 
 export interface AddTestDesignContextPolicyNotePayload {
+  noteType?: string;
+  noteText?: string;
+}
+
+export interface RequestTestDesignReleaseReadinessApprovalPayload {
+  exceptionReasonCode?: string;
+  exceptionSummary?: string;
+  riskMitigation?: string;
+  workOrderKey?: string;
+  workOrderTitle?: string;
+  workOrderUrl?: string;
+  requestNote?: string;
+}
+
+export interface ReviewTestDesignReleaseReadinessApprovalPayload {
+  approvalReasonCode?: string;
+  reviewNote?: string;
+  workOrderStatus?: string;
+}
+
+export interface AddTestDesignReleaseReadinessNotePayload {
   noteType?: string;
   noteText?: string;
 }
@@ -2062,6 +2123,61 @@ export function normalizeTestDesignContextPolicyNote(raw: unknown): TestDesignCo
   };
 }
 
+export function normalizeTestDesignReleaseReadinessApproval(
+  raw: unknown
+): TestDesignReleaseReadinessApprovalView {
+  const item = isRecord(raw) ? raw : {};
+  return {
+    id: stringValue(item.id),
+    taskId: stringValue(item.taskId ?? item.task_id),
+    projectId: optionalString(item.projectId) ?? optionalString(item.project_id),
+    status: stringValue(item.status, 'UNKNOWN'),
+    qualityGateStatus: stringValue(item.qualityGateStatus ?? item.quality_gate_status, 'UNKNOWN'),
+    blockingCount: numberValue(item.blockingCount ?? item.blocking_count, 0),
+    warningCount: numberValue(item.warningCount ?? item.warning_count, 0),
+    readinessDigest: optionalString(item.readinessDigest) ?? optionalString(item.readiness_digest),
+    exceptionReasonCodeCaptured: Boolean(
+      item.exceptionReasonCodeCaptured ?? item.exception_reason_code_captured
+    ),
+    exceptionReasonCode: optionalString(item.exceptionReasonCode)
+      ?? optionalString(item.exception_reason_code),
+    approvalReasonCodeCaptured: Boolean(
+      item.approvalReasonCodeCaptured ?? item.approval_reason_code_captured
+    ),
+    approvalReasonCode: optionalString(item.approvalReasonCode)
+      ?? optionalString(item.approval_reason_code),
+    workOrderKey: optionalString(item.workOrderKey) ?? optionalString(item.work_order_key),
+    workOrderTitle: optionalString(item.workOrderTitle) ?? optionalString(item.work_order_title),
+    workOrderUrl: optionalString(item.workOrderUrl) ?? optionalString(item.work_order_url),
+    workOrderStatus: optionalString(item.workOrderStatus) ?? optionalString(item.work_order_status),
+    exceptionSummary: optionalString(item.exceptionSummary) ?? optionalString(item.exception_summary),
+    exceptionSummaryDigest: optionalString(item.exceptionSummaryDigest)
+      ?? optionalString(item.exception_summary_digest),
+    riskMitigation: optionalString(item.riskMitigation) ?? optionalString(item.risk_mitigation),
+    requestNote: optionalString(item.requestNote) ?? optionalString(item.request_note),
+    reviewNote: optionalString(item.reviewNote) ?? optionalString(item.review_note),
+    noteCount: optionalNumber(item.noteCount ?? item.note_count),
+    latestNotePreview: optionalString(item.latestNotePreview) ?? optionalString(item.latest_note_preview),
+    requestedBy: optionalString(item.requestedBy) ?? optionalString(item.requested_by),
+    approvedBy: optionalString(item.approvedBy) ?? optionalString(item.approved_by),
+    reviewedAt: optionalString(item.reviewedAt) ?? optionalString(item.reviewed_at),
+    createdAt: optionalString(item.createdAt) ?? optionalString(item.created_at),
+    updatedAt: optionalString(item.updatedAt) ?? optionalString(item.updated_at)
+  };
+}
+
+export function normalizeTestDesignReleaseReadinessNote(raw: unknown): TestDesignReleaseReadinessNoteView {
+  const item = isRecord(raw) ? raw : {};
+  return {
+    id: stringValue(item.id),
+    approvalId: stringValue(item.approvalId ?? item.approval_id),
+    noteType: stringValue(item.noteType ?? item.note_type, 'COMMENT'),
+    noteText: stringValue(item.noteText ?? item.note_text),
+    createdBy: optionalString(item.createdBy) ?? optionalString(item.created_by),
+    createdAt: optionalString(item.createdAt) ?? optionalString(item.created_at)
+  };
+}
+
 export function normalizeTestDesignContextPolicyEffective(raw: unknown): TestDesignContextPolicyEffectiveView {
   const item = isRecord(raw) ? raw : {};
   return {
@@ -2335,6 +2451,94 @@ export async function batchResolveTestDesignConflicts(
 export async function fetchTestDesignPublishRecords(taskId: string): Promise<ApiResponse<TestDesignPublishRecordView[]>> {
   const response = await requestJson<unknown>(`/api/v1/test-design/tasks/${encodeURIComponent(taskId)}/publish-records`);
   return { ...response, data: listItems(response.data).map(normalizeTestDesignPublishRecord) };
+}
+
+export async function fetchTestDesignReleaseReadinessApprovals(
+  taskId: string
+): Promise<ApiResponse<TestDesignReleaseReadinessApprovalView[]>> {
+  const response = await requestJson<unknown>(
+    `/api/v1/test-design/tasks/${encodeURIComponent(taskId)}/release-readiness/approvals`
+  );
+  return { ...response, data: listItems(response.data).map(normalizeTestDesignReleaseReadinessApproval) };
+}
+
+export async function requestTestDesignReleaseReadinessApproval(
+  taskId: string,
+  payload: RequestTestDesignReleaseReadinessApprovalPayload
+): Promise<ApiResponse<TestDesignReleaseReadinessApprovalView>> {
+  const response = await requestJson<unknown>(
+    `/api/v1/test-design/tasks/${encodeURIComponent(taskId)}/release-readiness/approvals`,
+    {
+      method: 'POST',
+      body: JSON.stringify(compactPayload(payload))
+    }
+  );
+  return { ...response, data: normalizeTestDesignReleaseReadinessApproval(response.data) };
+}
+
+export async function updateTestDesignReleaseReadinessApproval(
+  approvalId: string,
+  payload: RequestTestDesignReleaseReadinessApprovalPayload
+): Promise<ApiResponse<TestDesignReleaseReadinessApprovalView>> {
+  const response = await requestJson<unknown>(
+    `/api/v1/test-design/release-readiness/approvals/${encodeURIComponent(approvalId)}`,
+    {
+      method: 'PUT',
+      body: JSON.stringify(compactPayload(payload))
+    }
+  );
+  return { ...response, data: normalizeTestDesignReleaseReadinessApproval(response.data) };
+}
+
+export async function approveTestDesignReleaseReadinessApproval(
+  approvalId: string,
+  payload: ReviewTestDesignReleaseReadinessApprovalPayload = {}
+): Promise<ApiResponse<TestDesignReleaseReadinessApprovalView>> {
+  const response = await requestJson<unknown>(
+    `/api/v1/test-design/release-readiness/approvals/${encodeURIComponent(approvalId)}/approve`,
+    {
+      method: 'POST',
+      body: JSON.stringify(compactPayload(payload))
+    }
+  );
+  return { ...response, data: normalizeTestDesignReleaseReadinessApproval(response.data) };
+}
+
+export async function rejectTestDesignReleaseReadinessApproval(
+  approvalId: string,
+  payload: ReviewTestDesignReleaseReadinessApprovalPayload = {}
+): Promise<ApiResponse<TestDesignReleaseReadinessApprovalView>> {
+  const response = await requestJson<unknown>(
+    `/api/v1/test-design/release-readiness/approvals/${encodeURIComponent(approvalId)}/reject`,
+    {
+      method: 'POST',
+      body: JSON.stringify(compactPayload(payload))
+    }
+  );
+  return { ...response, data: normalizeTestDesignReleaseReadinessApproval(response.data) };
+}
+
+export async function fetchTestDesignReleaseReadinessNotes(
+  approvalId: string
+): Promise<ApiResponse<TestDesignReleaseReadinessNoteView[]>> {
+  const response = await requestJson<unknown>(
+    `/api/v1/test-design/release-readiness/approvals/${encodeURIComponent(approvalId)}/notes`
+  );
+  return { ...response, data: listItems(response.data).map(normalizeTestDesignReleaseReadinessNote) };
+}
+
+export async function addTestDesignReleaseReadinessNote(
+  approvalId: string,
+  payload: AddTestDesignReleaseReadinessNotePayload
+): Promise<ApiResponse<TestDesignReleaseReadinessNoteView>> {
+  const response = await requestJson<unknown>(
+    `/api/v1/test-design/release-readiness/approvals/${encodeURIComponent(approvalId)}/notes`,
+    {
+      method: 'POST',
+      body: JSON.stringify(compactPayload(payload))
+    }
+  );
+  return { ...response, data: normalizeTestDesignReleaseReadinessNote(response.data) };
 }
 
 export async function fetchTestDesignReviewRecords(

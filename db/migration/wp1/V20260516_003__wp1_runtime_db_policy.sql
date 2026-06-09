@@ -49,11 +49,22 @@ grant select, insert, update on
     document_input_candidate,
     document_input_parse_feedback_sample,
     document_input_webhook_event,
+    test_design_context_policy_override,
+    test_design_release_readiness_approval,
     audit_outbox
 to :WP1_APP_ROLE;
 
 grant select, insert on asset_version_history to :WP1_APP_ROLE;
 revoke update, delete, truncate on asset_version_history from :WP1_APP_ROLE;
+
+grant select, insert on
+    test_design_context_policy_note,
+    test_design_release_readiness_note
+to :WP1_APP_ROLE;
+revoke update, delete, truncate on
+    test_design_context_policy_note,
+    test_design_release_readiness_note
+from :WP1_APP_ROLE;
 
 grant select on rbac_permission to :WP1_APP_ROLE;
 

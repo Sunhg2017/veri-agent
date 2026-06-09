@@ -277,11 +277,11 @@ validate_release_readiness_policy() {
   local health_payload="$1"
   if printf '%s' "$health_payload" | jq -e '.data.releaseReadinessPolicy.publishBlockingEnabled == true' >/dev/null; then
     check "Release readiness policy is blocking" \
-      '.data.releaseReadinessPolicy.decisionMode == "BLOCKING_QUALITY_GATE" and .data.releaseReadinessPolicy.advisoryOnly == false and .data.releaseReadinessPolicy.publishBlockingEnabled == true and .data.releaseReadinessPolicy.aggregateOnly == true' \
+      '.data.releaseReadinessPolicy.decisionMode == "BLOCKING_QUALITY_GATE" and .data.releaseReadinessPolicy.advisoryOnly == false and .data.releaseReadinessPolicy.publishBlockingEnabled == true and .data.releaseReadinessPolicy.approvalWorkflowReady == true and .data.releaseReadinessPolicy.qualityGateOverrideSupported == true and .data.releaseReadinessPolicy.aggregateOnly == true and .data.releaseReadinessPolicy.candidateEvidenceExported == false and .data.releaseReadinessPolicy.approvalNotesExported == false and .data.releaseReadinessPolicy.thresholdRuleDetailExported == false' \
       "$health_payload"
   else
     check "Release readiness policy is advisory by default" \
-      '.data.releaseReadinessPolicy.decisionMode == "ADVISORY_QUALITY_GATE" and .data.releaseReadinessPolicy.advisoryOnly == true and .data.releaseReadinessPolicy.publishBlockingEnabled == false and .data.releaseReadinessPolicy.aggregateOnly == true' \
+      '.data.releaseReadinessPolicy.decisionMode == "ADVISORY_QUALITY_GATE" and .data.releaseReadinessPolicy.advisoryOnly == true and .data.releaseReadinessPolicy.publishBlockingEnabled == false and .data.releaseReadinessPolicy.approvalWorkflowReady == true and .data.releaseReadinessPolicy.qualityGateOverrideSupported == true and .data.releaseReadinessPolicy.aggregateOnly == true and .data.releaseReadinessPolicy.candidateEvidenceExported == false and .data.releaseReadinessPolicy.approvalNotesExported == false and .data.releaseReadinessPolicy.thresholdRuleDetailExported == false' \
       "$health_payload"
   fi
 }
@@ -293,6 +293,7 @@ release_readiness_publish_blocking_enabled() {
 
 validate_release_readiness_blocking() {
   local requirement api task candidates candidate_id candidate update_body updated confirm deleted first_publish restored quality dry_run records_before blocked_retry records_after case_lookup
+  local approval approval_id approvals note approved_publish approved_exception published_after_exception notes_after_exception
   local requirement_id api_id task_id source_ref
   requirement="$(post_asset_json /requirements "$(jq -nc \
     --arg projectId "$PROJECT_ID" \
@@ -386,6 +387,45 @@ validate_release_readiness_blocking() {
 
   case_lookup="$(get_asset_json "/test-cases?projectId=$PROJECT_ID&source=AI_GENERATED&keyword=$(urlencode "$source_ref")")"
   check "Blocked retry does not create WP3 case" '.data.total == 0' "$case_lookup"
+
+  approval="$(post_test_design_json "/tasks/$task_id/release-readiness/approvals" "$(jq -nc \
+    '{exceptionReasonCode:"SMOKE_VALIDATION",exceptionSummary:"WP5 smoke verified the blocking condition and restored the deleted API before retry.",riskMitigation:"Only the seeded smoke candidate is retried after approval; the exception is bound to the current readiness digest.",workOrderKey:"WP5-RR-SMOKE",workOrderTitle:"WP5 release readiness smoke exception",requestNote:"release readiness smoke request"}')")"
+  check "Request release-readiness exception approval" \
+    '.data.status == "PENDING" and .data.qualityGateStatus == "BLOCKED" and .data.blockingCount >= 1 and .data.exceptionReasonCodeCaptured == true and .data.exceptionReasonCode == "SMOKE_VALIDATION" and (.data.readinessDigest | type == "string") and .data.noteCount >= 1' \
+    "$approval"
+  approval_id="$(printf '%s' "$approval" | jq -r '.data.id')"
+
+  note="$(post_test_design_json "/release-readiness/approvals/$approval_id/notes" "$(jq -nc \
+    '{noteType:"WORK_ORDER",noteText:"WP5 smoke work-order note before approval"}')")"
+  check "Append release-readiness exception note" '.data.noteType == "WORK_ORDER" and (.data.noteText | contains("work-order note"))' "$note"
+
+  approved_exception="$(post_test_design_json "/release-readiness/approvals/$approval_id/approve" "$(jq -nc \
+    '{approvalReasonCode:"SMOKE_VALIDATION",reviewNote:"Approved by WP5 smoke after API restore.",workOrderStatus:"APPROVED"}')")"
+  check "Approve release-readiness exception" \
+    '.data.status == "APPROVED" and .data.qualityGateStatus == "BLOCKED" and .data.approvalReasonCodeCaptured == true and .data.approvalReasonCode == "SMOKE_VALIDATION" and .data.workOrderStatus == "APPROVED" and .data.noteCount >= 3' \
+    "$approved_exception"
+
+  approvals="$(get_test_design_json "/tasks/$task_id/release-readiness/approvals")"
+  check "List release-readiness approvals" \
+    '(.data | length) >= 1 and .data[0].status == "APPROVED" and .data[0].qualityGateStatus == "BLOCKED" and .data[0].approvalNotesExported == null' \
+    "$approvals"
+
+  notes_after_exception="$(get_test_design_json "/release-readiness/approvals/$approval_id/notes")"
+  check "List release-readiness notes" \
+    '(.data | length) >= 3 and (.data | any(.noteType == "REQUEST")) and (.data | any(.noteType == "WORK_ORDER")) and (.data | any(.noteType == "REVIEW"))' \
+    "$notes_after_exception"
+
+  approved_publish="$(post_test_design_json "/tasks/$task_id/publish" '{}')"
+  check "Approved exception allows blocked formal publish" \
+    '.data.dryRun == false and .data.total == 1 and .data.records[0].result == "QUEUED" and .data.records[0].candidateStatus == "PUBLISH_QUEUED"' \
+    "$approved_publish"
+  published_after_exception="$(wait_for_task_published "$task_id" 1)"
+  check "Approved exception creates WP3 case" \
+    '.data.task.status == "PUBLISHED" and .data.task.publishedCount >= 1 and ([.data.publishRecords[] | select(.result == "SUCCEEDED")] | length) >= 1' \
+    "$published_after_exception"
+
+  case_lookup="$(get_asset_json "/test-cases?projectId=$PROJECT_ID&source=AI_GENERATED&keyword=$(urlencode "$source_ref")")"
+  check "Approved exception writes retried WP3 case" '.data.total >= 1 and (.data.items | any(.sourceRef == "'"$source_ref"'"))' "$case_lookup"
 }
 
 main() {

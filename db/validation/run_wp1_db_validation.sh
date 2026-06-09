@@ -170,6 +170,7 @@ grant select, insert, update on
     test_design_publish_record,
     test_design_report_manifest,
     test_design_context_policy_override,
+    test_design_release_readiness_approval,
     audit_outbox
 to wp1_app;
 
@@ -179,8 +180,14 @@ revoke update, delete, truncate on audit_log from wp1_app;
 grant execute on function wp1_cleanup_audit_log_before(timestamptz, integer) to wp1_app;
 grant select, insert on asset_version_history to wp1_app;
 revoke update, delete, truncate on asset_version_history from wp1_app;
-grant select, insert on test_design_context_policy_note to wp1_app;
-revoke update, delete, truncate on test_design_context_policy_note from wp1_app;
+grant select, insert on
+    test_design_context_policy_note,
+    test_design_release_readiness_note
+to wp1_app;
+revoke update, delete, truncate on
+    test_design_context_policy_note,
+    test_design_release_readiness_note
+from wp1_app;
 
 revoke all on secret_local_store from public;
 

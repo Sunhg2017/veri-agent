@@ -45,11 +45,20 @@ class TestDesignPublishCompensationServiceTest {
             responseMapper,
             properties(true, 50)
     );
+    private final TestDesignActorResolver actorResolver = new TestDesignActorResolver(mock(AuthorizationService.class));
+    private final TestDesignReleaseReadinessApprovalService releaseReadinessApprovalService =
+            new TestDesignReleaseReadinessApprovalService(
+                    repository,
+                    qualityService,
+                    actorResolver,
+                    mock(TestDesignPlatformContextClient.class)
+            );
     private final TestDesignPublishService publishService = new TestDesignPublishService(
             repository,
             assetService,
-            new TestDesignActorResolver(mock(AuthorizationService.class)),
+            actorResolver,
             qualityService,
+            releaseReadinessApprovalService,
             responseMapper,
             properties(true, 50),
             mock(TestDesignEventPublisher.class)

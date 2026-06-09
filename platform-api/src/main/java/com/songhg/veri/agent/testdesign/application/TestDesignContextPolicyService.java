@@ -12,13 +12,9 @@ import com.songhg.veri.agent.testdesign.application.view.TestDesignContextPolicy
 import com.songhg.veri.agent.testdesign.config.TestDesignProperties;
 import com.songhg.veri.agent.testdesign.domain.TestDesignContextPolicyNote;
 import com.songhg.veri.agent.testdesign.domain.TestDesignContextPolicyOverride;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
 import java.time.Instant;
-import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -40,9 +36,9 @@ public class TestDesignContextPolicyService {
 
     public static final String SCOPE_PROJECT = "PROJECT";
     public static final String SCOPE_ENVIRONMENT = "ENVIRONMENT";
-    public static final String STATUS_PENDING = "PENDING";
-    public static final String STATUS_APPROVED = "APPROVED";
-    public static final String STATUS_REJECTED = "REJECTED";
+    public static final String STATUS_PENDING = TestDesignApprovalWorkflowSupport.STATUS_PENDING;
+    public static final String STATUS_APPROVED = TestDesignApprovalWorkflowSupport.STATUS_APPROVED;
+    public static final String STATUS_REJECTED = TestDesignApprovalWorkflowSupport.STATUS_REJECTED;
     public static final String OPERATION_MODE = "PROJECT_ENVIRONMENT_OVERRIDE";
     public static final String POLICY_RESOLUTION_ORDER = "PLATFORM_DEFAULT_PROJECT_ENVIRONMENT";
     public static final String POLICY_FALLBACK_BEHAVIOR = "FALLBACK_TO_PLATFORM_DEFAULT";
@@ -51,10 +47,7 @@ public class TestDesignContextPolicyService {
     private static final int MAX_CONTEXT_ITEMS = 50;
     private static final int MAX_CONTEXT_PREVIEW_CHARS = 2000;
     private static final int MAX_POLICY_BODY_CHARS = 4000;
-    private static final int MAX_POLICY_NOTE_CHARS = 1000;
-    private static final int MAX_WORK_ORDER_KEY_CHARS = 128;
-    private static final int MAX_WORK_ORDER_TITLE_CHARS = 256;
-    private static final int MAX_WORK_ORDER_URL_CHARS = 512;
+    private static final int MAX_POLICY_NOTE_CHARS = TestDesignApprovalWorkflowSupport.MAX_NOTE_CHARS;
     private static final List<String> ALLOWED_REASON_CODES = List.of(
             "QUALITY_BASELINE",
             "PROJECT_COMPLEXITY",
@@ -62,18 +55,6 @@ public class TestDesignContextPolicyService {
             "PROMPT_BUDGET",
             "SMOKE_VALIDATION"
     );
-    private static final List<String> ALLOWED_WORK_ORDER_STATUSES = List.of(
-            "OPEN",
-            "IN_REVIEW",
-            "APPROVED",
-            "REJECTED",
-            "CANCELLED"
-    );
-    private static final List<String> ALLOWED_NOTE_TYPES = List.of(
-            "COMMENT",
-            "WORK_ORDER"
-    );
-
     private final TestDesignRepository repository;
     private final TestDesignPlatformContextClient contextClient;
     private final TestDesignActorResolver actorResolver;
@@ -113,7 +94,7 @@ public class TestDesignContextPolicyService {
             RequestTestDesignContextPolicyOverrideCommand command
     ) {
         String scopedProjectId = scopedProjectId(projectId);
-        String normalizedEnvironmentKey = requiredCode(environmentKey, "environmentKey");
+        String normalizedEnvironmentKey = TestDesignApprovalWorkflowSupport.requiredCode(environmentKey, "environmentKey");
         return requestOverride(SCOPE_ENVIRONMENT, scopedProjectId, normalizedEnvironmentKey, command);
     }
 
@@ -150,8 +131,10 @@ public class TestDesignContextPolicyService {
         AddTestDesignContextPolicyNoteCommand safeCommand = command == null
                 ? new AddTestDesignContextPolicyNoteCommand(null, null)
                 : command;
-        String noteType = noteType(safeCommand.noteType());
-        String noteText = boundedSafeText(safeCommand.noteText(), "noteText", MAX_POLICY_NOTE_CHARS, true, true);
+        String noteType = TestDesignApprovalWorkflowSupport.noteType(safeCommand.noteType());
+        String noteText = TestDesignApprovalWorkflowSupport.boundedSafeText(
+                safeCommand.noteText(), "noteText", MAX_POLICY_NOTE_CHARS, true, true
+        );
         TestDesignContextPolicyNote saved = appendNote(override.id(), noteType, noteText, actorResolver.currentActor(), Instant.now());
         writeAudit("CONTEXT_POLICY_NOTE_ADD", override, Map.of(
                 "scopeType", override.scopeType(),
@@ -179,26 +162,29 @@ public class TestDesignContextPolicyService {
                 )
                 : command;
         Map<String, Integer> requestedLimits = validatedOverrideLimits(safeCommand);
-        String nextPolicyBody = replacementText(
+        String nextPolicyBody = TestDesignApprovalWorkflowSupport.replacementText(
                 safeCommand.policyBody(), current.policyBody(), "policyBody", MAX_POLICY_BODY_CHARS, true
         );
-        String nextPolicyDiffSummary = replacementText(
+        String nextPolicyDiffSummary = TestDesignApprovalWorkflowSupport.replacementText(
                 safeCommand.policyDiffSummary(), current.policyDiffSummary(), "policyDiffSummary", MAX_POLICY_NOTE_CHARS, true
         );
-        String nextRequestNote = replacementText(
+        String nextRequestNote = TestDesignApprovalWorkflowSupport.replacementText(
                 safeCommand.requestNote(), current.requestNote(), "requestNote", MAX_POLICY_NOTE_CHARS, true
         );
-        String nextWorkOrderTitle = replacementText(
-                safeCommand.workOrderTitle(), current.workOrderTitle(), "workOrderTitle", MAX_WORK_ORDER_TITLE_CHARS, false
+        String nextWorkOrderTitle = TestDesignApprovalWorkflowSupport.replacementText(
+                safeCommand.workOrderTitle(), current.workOrderTitle(), "workOrderTitle",
+                TestDesignApprovalWorkflowSupport.MAX_WORK_ORDER_TITLE_CHARS, false
         );
         String nextWorkOrderUrl = StringUtils.hasText(safeCommand.workOrderUrl())
-                ? workOrderUrl(safeCommand.workOrderUrl())
+                ? TestDesignApprovalWorkflowSupport.workOrderUrl(safeCommand.workOrderUrl())
                 : current.workOrderUrl();
         String nextWorkOrderKey = StringUtils.hasText(safeCommand.workOrderKey())
-                ? workOrderKey(safeCommand.workOrderKey(), current.id())
+                ? TestDesignApprovalWorkflowSupport.workOrderKey(safeCommand.workOrderKey(), current.id(), "WP5-CTX")
                 : current.workOrderKey();
         String nextChangeReasonCode = StringUtils.hasText(safeCommand.changeReasonCode())
-                ? reasonCode(safeCommand.changeReasonCode(), "changeReasonCode")
+                ? TestDesignApprovalWorkflowSupport.reasonCode(
+                        safeCommand.changeReasonCode(), "changeReasonCode", ALLOWED_REASON_CODES
+                )
                 : current.changeReasonCode();
         boolean policyBodyChanged = !Objects.equals(current.policyBody(), nextPolicyBody);
         Integer nextPolicyBodyVersion = policyBodyChanged
@@ -225,7 +211,7 @@ public class TestDesignContextPolicyService {
                 nextWorkOrderUrl,
                 current.workOrderStatus(),
                 nextPolicyBody,
-                sha256OrNull(nextPolicyBody),
+                TestDesignApprovalWorkflowSupport.sha256OrNull(nextPolicyBody),
                 nextPolicyBodyVersion,
                 nextPolicyDiffSummary,
                 nextRequestNote,
@@ -343,11 +329,15 @@ public class TestDesignContextPolicyService {
         Instant now = Instant.now();
         UUID overrideId = UUID.randomUUID();
         String actor = actorResolver.currentActor();
-        String policyBody = boundedSafeText(safeCommand.policyBody(), "policyBody", MAX_POLICY_BODY_CHARS, true, false);
-        String policyDiffSummary = boundedSafeText(
+        String policyBody = TestDesignApprovalWorkflowSupport.boundedSafeText(
+                safeCommand.policyBody(), "policyBody", MAX_POLICY_BODY_CHARS, true, false
+        );
+        String policyDiffSummary = TestDesignApprovalWorkflowSupport.boundedSafeText(
                 safeCommand.policyDiffSummary(), "policyDiffSummary", MAX_POLICY_NOTE_CHARS, true, false
         );
-        String requestNote = boundedSafeText(safeCommand.requestNote(), "requestNote", MAX_POLICY_NOTE_CHARS, true, false);
+        String requestNote = TestDesignApprovalWorkflowSupport.boundedSafeText(
+                safeCommand.requestNote(), "requestNote", MAX_POLICY_NOTE_CHARS, true, false
+        );
         TestDesignContextPolicyOverride override = new TestDesignContextPolicyOverride(
                 overrideId,
                 scopeType,
@@ -360,14 +350,22 @@ public class TestDesignContextPolicyService {
                 limits.get("requirementDescriptionChars"),
                 limits.get("acceptanceCriteriaChars"),
                 limits.get("linkedAssetSchemaChars"),
-                reasonCode(safeCommand.changeReasonCode(), "changeReasonCode"),
+                TestDesignApprovalWorkflowSupport.reasonCode(
+                        safeCommand.changeReasonCode(), "changeReasonCode", ALLOWED_REASON_CODES
+                ),
                 null,
-                workOrderKey(safeCommand.workOrderKey(), overrideId),
-                boundedSafeText(safeCommand.workOrderTitle(), "workOrderTitle", MAX_WORK_ORDER_TITLE_CHARS, false, false),
-                workOrderUrl(safeCommand.workOrderUrl()),
+                TestDesignApprovalWorkflowSupport.workOrderKey(safeCommand.workOrderKey(), overrideId, "WP5-CTX"),
+                TestDesignApprovalWorkflowSupport.boundedSafeText(
+                        safeCommand.workOrderTitle(),
+                        "workOrderTitle",
+                        TestDesignApprovalWorkflowSupport.MAX_WORK_ORDER_TITLE_CHARS,
+                        false,
+                        false
+                ),
+                TestDesignApprovalWorkflowSupport.workOrderUrl(safeCommand.workOrderUrl()),
                 "OPEN",
                 policyBody,
-                sha256OrNull(policyBody),
+                TestDesignApprovalWorkflowSupport.sha256OrNull(policyBody),
                 1,
                 policyDiffSummary,
                 requestNote,
@@ -410,8 +408,12 @@ public class TestDesignContextPolicyService {
         ReviewTestDesignContextPolicyOverrideCommand safeCommand = command == null
                 ? new ReviewTestDesignContextPolicyOverrideCommand(null, null, null)
                 : command;
-        String approvalReasonCode = reasonCode(safeCommand.approvalReasonCode(), "approvalReasonCode");
-        String reviewNote = boundedSafeText(safeCommand.reviewNote(), "reviewNote", MAX_POLICY_NOTE_CHARS, true, false);
+        String approvalReasonCode = TestDesignApprovalWorkflowSupport.reasonCode(
+                safeCommand.approvalReasonCode(), "approvalReasonCode", ALLOWED_REASON_CODES
+        );
+        String reviewNote = TestDesignApprovalWorkflowSupport.boundedSafeText(
+                safeCommand.reviewNote(), "reviewNote", MAX_POLICY_NOTE_CHARS, true, false
+        );
         String actor = actorResolver.currentActor();
         Instant now = Instant.now();
         TestDesignContextPolicyOverride reviewed = new TestDesignContextPolicyOverride(
@@ -431,7 +433,7 @@ public class TestDesignContextPolicyService {
                 current.workOrderKey(),
                 current.workOrderTitle(),
                 current.workOrderUrl(),
-                workOrderStatus(safeCommand.workOrderStatus(), nextStatus),
+                TestDesignApprovalWorkflowSupport.workOrderStatus(safeCommand.workOrderStatus(), nextStatus),
                 current.policyBody(),
                 current.policyBodyDigest(),
                 current.policyBodyVersion(),
@@ -521,17 +523,29 @@ public class TestDesignContextPolicyService {
     private Map<String, Integer> validatedOverrideLimits(RequestTestDesignContextPolicyOverrideCommand command) {
         Map<String, Integer> limits = new LinkedHashMap<>();
         putIfPresent(limits, "linkedAssetsPerRequirement", command.contextLinkedAssetsPerRequirement(),
-                value -> bounded("contextLinkedAssetsPerRequirement", value, MAX_CONTEXT_ITEMS));
+                value -> TestDesignApprovalWorkflowSupport.bounded(
+                        "contextLinkedAssetsPerRequirement", value, MAX_CONTEXT_ITEMS
+                ));
         putIfPresent(limits, "explicitAssetsPerType", command.contextExplicitAssetsPerType(),
-                value -> bounded("contextExplicitAssetsPerType", value, MAX_CONTEXT_ITEMS));
+                value -> TestDesignApprovalWorkflowSupport.bounded(
+                        "contextExplicitAssetsPerType", value, MAX_CONTEXT_ITEMS
+                ));
         putIfPresent(limits, "existingCasesPerRequirement", command.contextExistingCasesPerRequirement(),
-                value -> bounded("contextExistingCasesPerRequirement", value, MAX_CONTEXT_ITEMS));
+                value -> TestDesignApprovalWorkflowSupport.bounded(
+                        "contextExistingCasesPerRequirement", value, MAX_CONTEXT_ITEMS
+                ));
         putIfPresent(limits, "requirementDescriptionChars", command.contextRequirementDescriptionChars(),
-                value -> bounded("contextRequirementDescriptionChars", value, MAX_CONTEXT_PREVIEW_CHARS));
+                value -> TestDesignApprovalWorkflowSupport.bounded(
+                        "contextRequirementDescriptionChars", value, MAX_CONTEXT_PREVIEW_CHARS
+                ));
         putIfPresent(limits, "acceptanceCriteriaChars", command.contextAcceptanceCriteriaChars(),
-                value -> bounded("contextAcceptanceCriteriaChars", value, MAX_CONTEXT_PREVIEW_CHARS));
+                value -> TestDesignApprovalWorkflowSupport.bounded(
+                        "contextAcceptanceCriteriaChars", value, MAX_CONTEXT_PREVIEW_CHARS
+                ));
         putIfPresent(limits, "linkedAssetSchemaChars", command.contextAssetSchemaChars(),
-                value -> bounded("contextAssetSchemaChars", value, MAX_CONTEXT_PREVIEW_CHARS));
+                value -> TestDesignApprovalWorkflowSupport.bounded(
+                        "contextAssetSchemaChars", value, MAX_CONTEXT_PREVIEW_CHARS
+                ));
         return limits;
     }
 
@@ -544,103 +558,6 @@ public class TestDesignContextPolicyService {
         if (value != null) {
             limits.put(key, normalizer.apply(value));
         }
-    }
-
-    private static int bounded(String fieldName, int value, int maxValue) {
-        if (value <= 0) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, fieldName + " 必须大于 0");
-        }
-        if (value > maxValue) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, fieldName + " 不能大于 " + maxValue);
-        }
-        return value;
-    }
-
-    private static String reasonCode(String value, String fieldName) {
-        String normalized = requiredCode(value, fieldName).toUpperCase(Locale.ROOT);
-        if (!ALLOWED_REASON_CODES.contains(normalized)) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, fieldName + " 不在允许范围内");
-        }
-        return normalized;
-    }
-
-    private static String noteType(String value) {
-        String normalized = requiredCode(value, "noteType").toUpperCase(Locale.ROOT);
-        if (!ALLOWED_NOTE_TYPES.contains(normalized)) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "noteType 不在允许范围内");
-        }
-        return normalized;
-    }
-
-    private static String workOrderStatus(String value, String nextApprovalStatus) {
-        if (!StringUtils.hasText(value)) {
-            return STATUS_APPROVED.equals(nextApprovalStatus) ? "APPROVED" : "REJECTED";
-        }
-        String normalized = requiredCode(value, "workOrderStatus").toUpperCase(Locale.ROOT);
-        if (!ALLOWED_WORK_ORDER_STATUSES.contains(normalized)) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "workOrderStatus 不在允许范围内");
-        }
-        return normalized;
-    }
-
-    private static String workOrderKey(String value, UUID overrideId) {
-        String normalized = StringUtils.hasText(value) ? value.trim() : "WP5-CTX-" + overrideId.toString().substring(0, 8);
-        if (normalized.length() > MAX_WORK_ORDER_KEY_CHARS) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "workOrderKey 不能大于 " + MAX_WORK_ORDER_KEY_CHARS);
-        }
-        if (!normalized.matches("[A-Za-z0-9_.:-]{1,128}")) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "workOrderKey 只能包含字母、数字、点、冒号、下划线或短横线");
-        }
-        return normalized;
-    }
-
-    private static String workOrderUrl(String value) {
-        String normalized = boundedSafeText(value, "workOrderUrl", MAX_WORK_ORDER_URL_CHARS, false, false);
-        if (normalized == null) {
-            return null;
-        }
-        if (!normalized.matches("https?://[^\\s]+")) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "workOrderUrl 仅支持 http 或 https URL");
-        }
-        return normalized;
-    }
-
-    private static String replacementText(
-            String nextValue,
-            String currentValue,
-            String fieldName,
-            int maxLength,
-            boolean allowNewline
-    ) {
-        return StringUtils.hasText(nextValue)
-                ? boundedSafeText(nextValue, fieldName, maxLength, allowNewline, false)
-                : currentValue;
-    }
-
-    private static String boundedSafeText(
-            String value,
-            String fieldName,
-            int maxLength,
-            boolean allowNewline,
-            boolean required
-    ) {
-        if (!StringUtils.hasText(value)) {
-            if (required) {
-                throw new BusinessException(ErrorCode.VALIDATION_ERROR, fieldName + " 不能为空");
-            }
-            return null;
-        }
-        String normalized = value.trim();
-        if (!allowNewline && (normalized.contains("\n") || normalized.contains("\r"))) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, fieldName + " 不能包含换行");
-        }
-        if (normalized.length() > maxLength) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, fieldName + " 不能大于 " + maxLength);
-        }
-        if (TestDesignSensitiveText.containsSensitiveText(normalized)) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, fieldName + " 不能包含密钥、token 或授权信息");
-        }
-        return normalized;
     }
 
     private TestDesignContextPolicyNote appendNote(
@@ -659,17 +576,6 @@ public class TestDesignContextPolicyService {
                 createdAt
         );
         return repository.saveContextPolicyNote(note);
-    }
-
-    private static String requiredCode(String value, String fieldName) {
-        if (!StringUtils.hasText(value)) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, fieldName + " 不能为空");
-        }
-        String normalized = value.trim();
-        if (!normalized.matches("[A-Za-z0-9_.:-]{1,64}")) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, fieldName + " 只能包含字母、数字、点、冒号、下划线或短横线");
-        }
-        return normalized;
     }
 
     private String scopedProjectId(String projectId) {
@@ -743,18 +649,6 @@ public class TestDesignContextPolicyService {
 
     private static String trimToNull(String value) {
         return StringUtils.hasText(value) ? value.trim() : null;
-    }
-
-    private static String sha256OrNull(String value) {
-        if (!StringUtils.hasText(value)) {
-            return null;
-        }
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            return HexFormat.of().formatHex(digest.digest(value.getBytes(StandardCharsets.UTF_8)));
-        } catch (Exception exception) {
-            throw new IllegalStateException("SHA-256 is required", exception);
-        }
     }
 
     public record EffectiveContextPolicySnapshot(

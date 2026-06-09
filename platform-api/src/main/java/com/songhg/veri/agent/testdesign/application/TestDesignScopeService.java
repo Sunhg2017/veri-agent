@@ -36,6 +36,12 @@ public class TestDesignScopeService {
                 .projectId();
     }
 
+    public String releaseReadinessApprovalProjectScopeId(UUID id) {
+        return repository.releaseReadinessApproval(id)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "发布准出审批不存在: " + id))
+                .projectId();
+    }
+
     public String templateProjectScopeId(UUID id) {
         return repository.template(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "生成模板不存在: " + id))

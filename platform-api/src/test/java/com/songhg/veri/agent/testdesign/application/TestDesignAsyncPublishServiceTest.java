@@ -43,11 +43,25 @@ class TestDesignAsyncPublishServiceTest {
             new InMemoryModelInvocationJobRepository(),
             properties
     );
+    private final TestDesignQualityService qualityService = new TestDesignQualityService(
+            repository,
+            responseMapper,
+            properties
+    );
+    private final TestDesignActorResolver actorResolver = new TestDesignActorResolver(mock(AuthorizationService.class));
+    private final TestDesignReleaseReadinessApprovalService releaseReadinessApprovalService =
+            new TestDesignReleaseReadinessApprovalService(
+                    repository,
+                    qualityService,
+                    actorResolver,
+                    mock(TestDesignPlatformContextClient.class)
+            );
     private final TestDesignPublishService publishService = new TestDesignPublishService(
             repository,
             assetService,
-            new TestDesignActorResolver(mock(AuthorizationService.class)),
-            new TestDesignQualityService(repository, responseMapper, properties),
+            actorResolver,
+            qualityService,
+            releaseReadinessApprovalService,
             responseMapper,
             properties,
             eventPublisher

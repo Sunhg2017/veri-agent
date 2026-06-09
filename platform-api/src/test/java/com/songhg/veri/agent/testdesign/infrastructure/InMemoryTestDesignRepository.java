@@ -11,6 +11,8 @@ import com.songhg.veri.agent.testdesign.domain.TestDesignCandidateStatus;
 import com.songhg.veri.agent.testdesign.domain.TestDesignContextPolicyNote;
 import com.songhg.veri.agent.testdesign.domain.TestDesignContextPolicyOverride;
 import com.songhg.veri.agent.testdesign.domain.TestDesignPublishRecord;
+import com.songhg.veri.agent.testdesign.domain.TestDesignReleaseReadinessApproval;
+import com.songhg.veri.agent.testdesign.domain.TestDesignReleaseReadinessNote;
 import com.songhg.veri.agent.testdesign.domain.TestDesignReportManifest;
 import com.songhg.veri.agent.testdesign.domain.TestDesignReviewRecord;
 import com.songhg.veri.agent.testdesign.domain.TestDesignTask;
@@ -42,6 +44,8 @@ public class InMemoryTestDesignRepository implements TestDesignRepository {
     private final ConcurrentHashMap<UUID, TestDesignReportManifest> reportManifests = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<UUID, TestDesignContextPolicyOverride> contextPolicyOverrides = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<UUID, TestDesignContextPolicyNote> contextPolicyNotes = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<UUID, TestDesignReleaseReadinessApproval> releaseReadinessApprovals = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<UUID, TestDesignReleaseReadinessNote> releaseReadinessNotes = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<UUID, TestDesignTemplate> templates = new ConcurrentHashMap<>();
 
     @Override
@@ -620,6 +624,47 @@ public class InMemoryTestDesignRepository implements TestDesignRepository {
                     return !StringUtils.hasText(override.environmentKey());
                 })
                 .max(Comparator.comparing(TestDesignContextPolicyOverride::updatedAt));
+    }
+
+    @Override
+    public TestDesignReleaseReadinessApproval saveReleaseReadinessApproval(TestDesignReleaseReadinessApproval approval) {
+        releaseReadinessApprovals.put(approval.id(), approval);
+        return approval;
+    }
+
+    @Override
+    public TestDesignReleaseReadinessNote saveReleaseReadinessNote(TestDesignReleaseReadinessNote note) {
+        releaseReadinessNotes.put(note.id(), note);
+        return note;
+    }
+
+    @Override
+    public Optional<TestDesignReleaseReadinessApproval> releaseReadinessApproval(UUID id) {
+        return Optional.ofNullable(releaseReadinessApprovals.get(id));
+    }
+
+    @Override
+    public List<TestDesignReleaseReadinessApproval> releaseReadinessApprovals(UUID taskId) {
+        return releaseReadinessApprovals.values().stream()
+                .filter(approval -> taskId.equals(approval.taskId()))
+                .sorted(Comparator.comparing(TestDesignReleaseReadinessApproval::createdAt).reversed())
+                .toList();
+    }
+
+    @Override
+    public List<TestDesignReleaseReadinessNote> releaseReadinessNotes(UUID approvalId) {
+        return releaseReadinessNotes.values().stream()
+                .filter(note -> approvalId.equals(note.approvalId()))
+                .sorted(Comparator.comparing(TestDesignReleaseReadinessNote::createdAt))
+                .toList();
+    }
+
+    @Override
+    public Optional<TestDesignReleaseReadinessApproval> latestApprovedReleaseReadinessApproval(UUID taskId) {
+        return releaseReadinessApprovals.values().stream()
+                .filter(approval -> taskId.equals(approval.taskId()))
+                .filter(approval -> "APPROVED".equals(approval.status()))
+                .max(Comparator.comparing(TestDesignReleaseReadinessApproval::updatedAt));
     }
 
     private Stream<TestDesignTask> filteredTasks(TestDesignTaskQuery query) {

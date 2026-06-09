@@ -137,10 +137,10 @@ const baseTask: TestDesignTaskView = {
     advisoryOnly: true,
     publishBlockingEnabled: false,
     manualApprovalRequired: true,
-    approvalWorkflowReady: false,
+    approvalWorkflowReady: true,
     autoPublishAllowed: false,
     confirmedCandidateRequired: true,
-    qualityGateOverrideSupported: false,
+    qualityGateOverrideSupported: true,
     candidateEvidenceExported: false,
     approvalNotesExported: false,
     thresholdRuleDetailExported: false,
@@ -335,7 +335,7 @@ describe('WP5 task diagnostics helpers', () => {
         expect.objectContaining({
           label: '发布准出',
           tone: 'warning',
-          value: 'ADVISORY_QUALITY_GATE · DEPLOY_CONFIG · 质量阈值:checked · 建议模式:on · 发布阻断:off · 审批流:pending · 人工准出:required · 自动发布:off · 候选确认:required'
+          value: 'ADVISORY_QUALITY_GATE · DEPLOY_CONFIG · 质量阈值:checked · 建议模式:on · 发布阻断:off · 审批流:ready · 人工准出:required · 自动发布:off · 候选确认:required'
         }),
         expect.objectContaining({
           label: '审计链',
@@ -810,7 +810,7 @@ describe('WP5 task diagnostics helpers', () => {
           advisoryOnly: true,
           publishBlockingEnabled: false,
           manualApprovalRequired: true,
-          approvalWorkflowReady: false,
+          approvalWorkflowReady: true,
           autoPublishAllowed: false,
           confirmedCandidateRequired: true,
           candidateEvidence: ['candidate-secret-id'],

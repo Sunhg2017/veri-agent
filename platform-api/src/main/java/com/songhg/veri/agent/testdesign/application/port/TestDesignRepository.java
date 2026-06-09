@@ -10,6 +10,8 @@ import com.songhg.veri.agent.testdesign.domain.TestDesignCandidateStatus;
 import com.songhg.veri.agent.testdesign.domain.TestDesignContextPolicyNote;
 import com.songhg.veri.agent.testdesign.domain.TestDesignContextPolicyOverride;
 import com.songhg.veri.agent.testdesign.domain.TestDesignPublishRecord;
+import com.songhg.veri.agent.testdesign.domain.TestDesignReleaseReadinessApproval;
+import com.songhg.veri.agent.testdesign.domain.TestDesignReleaseReadinessNote;
 import com.songhg.veri.agent.testdesign.domain.TestDesignReportManifest;
 import com.songhg.veri.agent.testdesign.domain.TestDesignReviewRecord;
 import com.songhg.veri.agent.testdesign.domain.TestDesignTask;
@@ -263,4 +265,34 @@ public interface TestDesignRepository {
             String projectId,
             String environmentKey
     );
+
+    /**
+     * 保存任务级发布准出审批和质量门禁例外。
+     */
+    TestDesignReleaseReadinessApproval saveReleaseReadinessApproval(TestDesignReleaseReadinessApproval approval);
+
+    /**
+     * 追加发布准出审批工单备注。
+     */
+    TestDesignReleaseReadinessNote saveReleaseReadinessNote(TestDesignReleaseReadinessNote note);
+
+    /**
+     * 查询单个发布准出审批记录，用于审批状态流和权限范围解析。
+     */
+    Optional<TestDesignReleaseReadinessApproval> releaseReadinessApproval(UUID id);
+
+    /**
+     * 查询任务下的发布准出审批记录，按创建时间倒序返回。
+     */
+    List<TestDesignReleaseReadinessApproval> releaseReadinessApprovals(UUID taskId);
+
+    /**
+     * 查询发布准出审批工单备注时间线。
+     */
+    List<TestDesignReleaseReadinessNote> releaseReadinessNotes(UUID approvalId);
+
+    /**
+     * 查询任务下最新已批准的发布准出质量门禁例外。
+     */
+    Optional<TestDesignReleaseReadinessApproval> latestApprovedReleaseReadinessApproval(UUID taskId);
 }

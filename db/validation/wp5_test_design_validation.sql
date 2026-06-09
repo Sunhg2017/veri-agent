@@ -9,7 +9,9 @@ with expected(table_name) as (
         ('test_design_publish_record'),
         ('test_design_report_manifest'),
         ('test_design_context_policy_override'),
-        ('test_design_context_policy_note')
+        ('test_design_context_policy_note'),
+        ('test_design_release_readiness_approval'),
+        ('test_design_release_readiness_note')
 ),
 missing as (
     select e.table_name
@@ -94,7 +96,17 @@ with expected(table_name, constraint_name) as (
         ('test_design_context_policy_override','ck_test_design_context_policy_override_work_order_lengths'),
         ('test_design_context_policy_override','ck_test_design_context_policy_override_text_lengths'),
         ('test_design_context_policy_note','ck_test_design_context_policy_note_type'),
-        ('test_design_context_policy_note','ck_test_design_context_policy_note_text')
+        ('test_design_context_policy_note','ck_test_design_context_policy_note_text'),
+        ('test_design_release_readiness_approval','ck_test_design_rr_approval_status'),
+        ('test_design_release_readiness_approval','ck_test_design_rr_approval_quality_status'),
+        ('test_design_release_readiness_approval','ck_test_design_rr_approval_counts'),
+        ('test_design_release_readiness_approval','ck_test_design_rr_approval_digest'),
+        ('test_design_release_readiness_approval','ck_test_design_rr_approval_reason'),
+        ('test_design_release_readiness_approval','ck_test_design_rr_approval_work_status'),
+        ('test_design_release_readiness_approval','ck_test_design_rr_approval_work_lengths'),
+        ('test_design_release_readiness_approval','ck_test_design_rr_approval_text_lengths'),
+        ('test_design_release_readiness_note','ck_test_design_rr_note_type'),
+        ('test_design_release_readiness_note','ck_test_design_rr_note_text')
 ),
 missing as (
     select e.table_name || '.' || e.constraint_name as item
@@ -173,7 +185,12 @@ with expected(table_name, index_name) as (
         ('test_design_context_policy_override', 'idx_test_design_context_policy_override_project_status'),
         ('test_design_context_policy_override', 'idx_test_design_context_policy_override_environment_status'),
         ('test_design_context_policy_override', 'idx_test_design_context_policy_override_work_order'),
-        ('test_design_context_policy_note', 'idx_test_design_context_policy_note_override_created')
+        ('test_design_context_policy_note', 'idx_test_design_context_policy_note_override_created'),
+        ('test_design_release_readiness_approval', 'idx_test_design_rr_approval_task_created'),
+        ('test_design_release_readiness_approval', 'idx_test_design_rr_approval_task_status_digest'),
+        ('test_design_release_readiness_approval', 'idx_test_design_rr_approval_project_created'),
+        ('test_design_release_readiness_approval', 'idx_test_design_rr_approval_work_order'),
+        ('test_design_release_readiness_note', 'idx_test_design_rr_note_approval_created')
 ),
 missing as (
     select e.table_name || '.' || e.index_name as item
@@ -187,6 +204,72 @@ select
     'wp5.publish_idempotency_indexes_exist' as check_name,
     case when count(*) = 0 then 'PASS' else 'FAIL' end as status,
     coalesce(string_agg(item, ', ' order by item), 'WP5 publish and report manifest idempotency indexes exist') as details
+from missing;
+
+with expected(column_name) as (
+    values
+        ('id'),
+        ('task_id'),
+        ('project_id'),
+        ('status'),
+        ('quality_gate_status'),
+        ('blocking_count'),
+        ('warning_count'),
+        ('readiness_digest'),
+        ('exception_reason_code'),
+        ('approval_reason_code'),
+        ('work_order_key'),
+        ('work_order_title'),
+        ('work_order_url'),
+        ('work_order_status'),
+        ('exception_summary'),
+        ('exception_summary_digest'),
+        ('risk_mitigation'),
+        ('request_note'),
+        ('review_note'),
+        ('requested_by'),
+        ('approved_by'),
+        ('reviewed_at'),
+        ('created_at'),
+        ('updated_at')
+),
+missing as (
+    select e.column_name
+    from expected e
+    left join information_schema.columns c
+        on c.table_schema = current_schema()
+       and c.table_name = 'test_design_release_readiness_approval'
+       and c.column_name = e.column_name
+    where c.column_name is null
+)
+select
+    'wp5.release_readiness_approval_columns_exist' as check_name,
+    case when count(*) = 0 then 'PASS' else 'FAIL' end as status,
+    coalesce(string_agg(column_name, ', ' order by column_name), 'WP5 release readiness approval stores bounded exception, work order and metadata columns') as details
+from missing;
+
+with expected(column_name) as (
+    values
+        ('id'),
+        ('approval_id'),
+        ('note_type'),
+        ('note_text'),
+        ('created_by'),
+        ('created_at')
+),
+missing as (
+    select e.column_name
+    from expected e
+    left join information_schema.columns c
+        on c.table_schema = current_schema()
+       and c.table_name = 'test_design_release_readiness_note'
+       and c.column_name = e.column_name
+    where c.column_name is null
+)
+select
+    'wp5.release_readiness_note_columns_exist' as check_name,
+    case when count(*) = 0 then 'PASS' else 'FAIL' end as status,
+    coalesce(string_agg(column_name, ', ' order by column_name), 'WP5 release readiness approval note timeline columns exist') as details
 from missing;
 
 with expected(column_name) as (
@@ -405,7 +488,10 @@ with wp5_tables(table_name) as (
         ('test_design_review_record'),
         ('test_design_publish_record'),
         ('test_design_report_manifest'),
-        ('test_design_context_policy_override')
+        ('test_design_context_policy_override'),
+        ('test_design_context_policy_note'),
+        ('test_design_release_readiness_approval'),
+        ('test_design_release_readiness_note')
 ),
 missing as (
     select t.table_name
@@ -439,7 +525,10 @@ with missing as (
           'test_design_review_record',
           'test_design_publish_record',
           'test_design_report_manifest',
-          'test_design_context_policy_override'
+          'test_design_context_policy_override',
+          'test_design_context_policy_note',
+          'test_design_release_readiness_approval',
+          'test_design_release_readiness_note'
       )
       and (
           col_description(pc.oid, pa.attnum) is null

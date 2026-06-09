@@ -53,6 +53,7 @@ public class TestDesignPublishService {
     private final AssetService assetService;
     private final TestDesignActorResolver actorResolver;
     private final TestDesignQualityService qualityService;
+    private final TestDesignReleaseReadinessApprovalService releaseReadinessApprovalService;
     private final TestDesignResponseMapper responseMapper;
     private final TestDesignProperties properties;
     private final TestDesignEventPublisher eventPublisher;
@@ -62,6 +63,7 @@ public class TestDesignPublishService {
             AssetService assetService,
             TestDesignActorResolver actorResolver,
             TestDesignQualityService qualityService,
+            TestDesignReleaseReadinessApprovalService releaseReadinessApprovalService,
             TestDesignResponseMapper responseMapper,
             TestDesignProperties properties,
             TestDesignEventPublisher eventPublisher
@@ -70,6 +72,7 @@ public class TestDesignPublishService {
         this.assetService = assetService;
         this.actorResolver = actorResolver;
         this.qualityService = qualityService;
+        this.releaseReadinessApprovalService = releaseReadinessApprovalService;
         this.responseMapper = responseMapper;
         this.properties = properties;
         this.eventPublisher = eventPublisher;
@@ -247,6 +250,9 @@ public class TestDesignPublishService {
         }
         TestDesignQualityReadinessResponse readiness = qualityService.qualitySummary(taskId).readiness();
         if (readiness != null && READINESS_BLOCKED.equals(readiness.status())) {
+            if (releaseReadinessApprovalService.hasApprovedExceptionForCurrentReadiness(taskId, readiness)) {
+                return;
+            }
             throw new BusinessException(ErrorCode.INVALID_STATE,
                     "WP5 发布准出质量门禁不通过: readiness=BLOCKED, blockingCount=" + readiness.blockingCount());
         }

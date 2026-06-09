@@ -11,6 +11,8 @@ import com.songhg.veri.agent.testdesign.domain.TestDesignCandidateStatus;
 import com.songhg.veri.agent.testdesign.domain.TestDesignContextPolicyNote;
 import com.songhg.veri.agent.testdesign.domain.TestDesignContextPolicyOverride;
 import com.songhg.veri.agent.testdesign.domain.TestDesignPublishRecord;
+import com.songhg.veri.agent.testdesign.domain.TestDesignReleaseReadinessApproval;
+import com.songhg.veri.agent.testdesign.domain.TestDesignReleaseReadinessNote;
 import com.songhg.veri.agent.testdesign.domain.TestDesignReportManifest;
 import com.songhg.veri.agent.testdesign.domain.TestDesignReviewRecord;
 import com.songhg.veri.agent.testdesign.domain.TestDesignTask;
@@ -306,6 +308,42 @@ public class JdbcTestDesignRepository implements TestDesignRepository {
             String environmentKey
     ) {
         return Optional.ofNullable(mapper.latestApprovedEnvironmentContextPolicyOverride(projectId, environmentKey));
+    }
+
+    @Override
+    public TestDesignReleaseReadinessApproval saveReleaseReadinessApproval(TestDesignReleaseReadinessApproval approval) {
+        if (mapper.releaseReadinessApproval(approval.id()) == null) {
+            mapper.insertReleaseReadinessApproval(approval);
+        } else {
+            mapper.updateReleaseReadinessApproval(approval);
+        }
+        return mapper.releaseReadinessApproval(approval.id());
+    }
+
+    @Override
+    public TestDesignReleaseReadinessNote saveReleaseReadinessNote(TestDesignReleaseReadinessNote note) {
+        mapper.insertReleaseReadinessNote(note);
+        return note;
+    }
+
+    @Override
+    public Optional<TestDesignReleaseReadinessApproval> releaseReadinessApproval(UUID id) {
+        return Optional.ofNullable(mapper.releaseReadinessApproval(id));
+    }
+
+    @Override
+    public List<TestDesignReleaseReadinessApproval> releaseReadinessApprovals(UUID taskId) {
+        return mapper.releaseReadinessApprovals(taskId);
+    }
+
+    @Override
+    public List<TestDesignReleaseReadinessNote> releaseReadinessNotes(UUID approvalId) {
+        return mapper.releaseReadinessNotes(approvalId);
+    }
+
+    @Override
+    public Optional<TestDesignReleaseReadinessApproval> latestApprovedReleaseReadinessApproval(UUID taskId) {
+        return Optional.ofNullable(mapper.latestApprovedReleaseReadinessApproval(taskId));
     }
 
     private static TestDesignAuditChainAggregate emptyAuditChainAggregate() {

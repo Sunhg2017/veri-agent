@@ -56,7 +56,9 @@ with expected(table_name) as (
         ('test_design_publish_record'),
         ('test_design_report_manifest'),
         ('test_design_context_policy_override'),
-        ('test_design_context_policy_note')
+        ('test_design_context_policy_note'),
+        ('test_design_release_readiness_approval'),
+        ('test_design_release_readiness_note')
 ),
 missing as (
     select e.table_name
@@ -314,7 +316,32 @@ with expected(table_name, column_name) as (
         ('test_design_context_policy_override','created_at'), ('test_design_context_policy_override','updated_at'),
         ('test_design_context_policy_note','id'), ('test_design_context_policy_note','override_id'),
         ('test_design_context_policy_note','note_type'), ('test_design_context_policy_note','note_text'),
-        ('test_design_context_policy_note','created_by'), ('test_design_context_policy_note','created_at')
+        ('test_design_context_policy_note','created_by'), ('test_design_context_policy_note','created_at'),
+        ('test_design_release_readiness_approval','id'), ('test_design_release_readiness_approval','task_id'),
+        ('test_design_release_readiness_approval','project_id'), ('test_design_release_readiness_approval','status'),
+        ('test_design_release_readiness_approval','quality_gate_status'),
+        ('test_design_release_readiness_approval','blocking_count'),
+        ('test_design_release_readiness_approval','warning_count'),
+        ('test_design_release_readiness_approval','readiness_digest'),
+        ('test_design_release_readiness_approval','exception_reason_code'),
+        ('test_design_release_readiness_approval','approval_reason_code'),
+        ('test_design_release_readiness_approval','work_order_key'),
+        ('test_design_release_readiness_approval','work_order_title'),
+        ('test_design_release_readiness_approval','work_order_url'),
+        ('test_design_release_readiness_approval','work_order_status'),
+        ('test_design_release_readiness_approval','exception_summary'),
+        ('test_design_release_readiness_approval','exception_summary_digest'),
+        ('test_design_release_readiness_approval','risk_mitigation'),
+        ('test_design_release_readiness_approval','request_note'),
+        ('test_design_release_readiness_approval','review_note'),
+        ('test_design_release_readiness_approval','requested_by'),
+        ('test_design_release_readiness_approval','approved_by'),
+        ('test_design_release_readiness_approval','reviewed_at'),
+        ('test_design_release_readiness_approval','created_at'),
+        ('test_design_release_readiness_approval','updated_at'),
+        ('test_design_release_readiness_note','id'), ('test_design_release_readiness_note','approval_id'),
+        ('test_design_release_readiness_note','note_type'), ('test_design_release_readiness_note','note_text'),
+        ('test_design_release_readiness_note','created_by'), ('test_design_release_readiness_note','created_at')
 ),
 missing as (
     select e.table_name || '.' || e.column_name as item
@@ -407,7 +434,12 @@ with expected(table_name, index_name) as (
         ('test_design_context_policy_override','idx_test_design_context_policy_override_project_status'),
         ('test_design_context_policy_override','idx_test_design_context_policy_override_environment_status'),
         ('test_design_context_policy_override','idx_test_design_context_policy_override_work_order'),
-        ('test_design_context_policy_note','idx_test_design_context_policy_note_override_created')
+        ('test_design_context_policy_note','idx_test_design_context_policy_note_override_created'),
+        ('test_design_release_readiness_approval','idx_test_design_rr_approval_task_created'),
+        ('test_design_release_readiness_approval','idx_test_design_rr_approval_task_status_digest'),
+        ('test_design_release_readiness_approval','idx_test_design_rr_approval_project_created'),
+        ('test_design_release_readiness_approval','idx_test_design_rr_approval_work_order'),
+        ('test_design_release_readiness_note','idx_test_design_rr_note_approval_created')
 ),
 missing as (
     select e.table_name || '.' || e.index_name as item

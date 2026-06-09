@@ -9,9 +9,9 @@ import java.util.Map;
  * Centralizes the WP5 release-readiness decision boundary used by diagnostics and model context.
  *
  * <p>The default slice stays advisory-only for compatibility. Deployments can enable aggregate quality blocking for
- * official publish while the approval workflow and override flow remain explicitly unavailable. The snapshot is reused
- * across API responses, task context, model payloads and reports without exporting candidate evidence, approval notes or
- * threshold rule details.
+ * official publish; blocked tasks require a task-scoped approved exception whose aggregate readiness digest still
+ * matches the current quality summary. The snapshot is reused across API responses, task context, model payloads and
+ * reports without exporting candidate evidence, approval notes or threshold rule details.
  */
 public final class TestDesignReleaseReadinessPolicy {
 
@@ -34,10 +34,10 @@ public final class TestDesignReleaseReadinessPolicy {
                 !publishBlockingEnabled,
                 publishBlockingEnabled,
                 true,
-                false,
-                false,
                 true,
                 false,
+                true,
+                true,
                 false,
                 false,
                 false,

@@ -9,6 +9,8 @@ import com.songhg.veri.agent.testdesign.domain.TestDesignCandidate;
 import com.songhg.veri.agent.testdesign.domain.TestDesignContextPolicyNote;
 import com.songhg.veri.agent.testdesign.domain.TestDesignContextPolicyOverride;
 import com.songhg.veri.agent.testdesign.domain.TestDesignPublishRecord;
+import com.songhg.veri.agent.testdesign.domain.TestDesignReleaseReadinessApproval;
+import com.songhg.veri.agent.testdesign.domain.TestDesignReleaseReadinessNote;
 import com.songhg.veri.agent.testdesign.domain.TestDesignReportManifest;
 import com.songhg.veri.agent.testdesign.domain.TestDesignReviewRecord;
 import com.songhg.veri.agent.testdesign.domain.TestDesignTask;
@@ -154,4 +156,18 @@ public interface TestDesignMapper {
             @Param("projectId") String projectId,
             @Param("environmentKey") String environmentKey
     );
+
+    void insertReleaseReadinessApproval(TestDesignReleaseReadinessApproval approval);
+
+    void updateReleaseReadinessApproval(TestDesignReleaseReadinessApproval approval);
+
+    void insertReleaseReadinessNote(TestDesignReleaseReadinessNote note);
+
+    TestDesignReleaseReadinessApproval releaseReadinessApproval(@Param("id") UUID id);
+
+    List<TestDesignReleaseReadinessApproval> releaseReadinessApprovals(@Param("taskId") UUID taskId);
+
+    List<TestDesignReleaseReadinessNote> releaseReadinessNotes(@Param("approvalId") UUID approvalId);
+
+    TestDesignReleaseReadinessApproval latestApprovedReleaseReadinessApproval(@Param("taskId") UUID taskId);
 }

@@ -245,6 +245,36 @@ checks as (
         'runtime role may append and read WP5 context policy approval notes but must not UPDATE/DELETE/TRUNCATE note records' as details
     union all
     select
+        'release.wp5_release_readiness_approval.runtime_access' as check_name,
+        case
+            when not exists (select 1 from app_role_exists) then 'FAIL'
+            when to_regclass(format('%I.%I', (select schema_name from settings), 'test_design_release_readiness_approval')) is null then 'FAIL'
+            when coalesce(has_table_privilege((select app_role from settings), to_regclass(format('%I.%I', (select schema_name from settings), 'test_design_release_readiness_approval')), 'SELECT'), false)
+             and coalesce(has_table_privilege((select app_role from settings), to_regclass(format('%I.%I', (select schema_name from settings), 'test_design_release_readiness_approval')), 'INSERT'), false)
+             and coalesce(has_table_privilege((select app_role from settings), to_regclass(format('%I.%I', (select schema_name from settings), 'test_design_release_readiness_approval')), 'UPDATE'), false)
+             and not coalesce(has_table_privilege((select app_role from settings), to_regclass(format('%I.%I', (select schema_name from settings), 'test_design_release_readiness_approval')), 'DELETE'), false)
+             and not coalesce(has_table_privilege((select app_role from settings), to_regclass(format('%I.%I', (select schema_name from settings), 'test_design_release_readiness_approval')), 'TRUNCATE'), false)
+            then 'PASS'
+            else 'FAIL'
+        end as status,
+        'runtime role may create, approve and read WP5 release readiness approval metadata but must not DELETE/TRUNCATE approval records' as details
+    union all
+    select
+        'release.wp5_release_readiness_note.runtime_access' as check_name,
+        case
+            when not exists (select 1 from app_role_exists) then 'FAIL'
+            when to_regclass(format('%I.%I', (select schema_name from settings), 'test_design_release_readiness_note')) is null then 'FAIL'
+            when coalesce(has_table_privilege((select app_role from settings), to_regclass(format('%I.%I', (select schema_name from settings), 'test_design_release_readiness_note')), 'SELECT'), false)
+             and coalesce(has_table_privilege((select app_role from settings), to_regclass(format('%I.%I', (select schema_name from settings), 'test_design_release_readiness_note')), 'INSERT'), false)
+             and not coalesce(has_table_privilege((select app_role from settings), to_regclass(format('%I.%I', (select schema_name from settings), 'test_design_release_readiness_note')), 'UPDATE'), false)
+             and not coalesce(has_table_privilege((select app_role from settings), to_regclass(format('%I.%I', (select schema_name from settings), 'test_design_release_readiness_note')), 'DELETE'), false)
+             and not coalesce(has_table_privilege((select app_role from settings), to_regclass(format('%I.%I', (select schema_name from settings), 'test_design_release_readiness_note')), 'TRUNCATE'), false)
+            then 'PASS'
+            else 'FAIL'
+        end as status,
+        'runtime role may append and read WP5 release readiness approval notes but must not UPDATE/DELETE/TRUNCATE note records' as details
+    union all
+    select
         'release.readonly_role.no_table_dml' as check_name,
         case
             when not exists (select 1 from readonly_role_exists) then 'FAIL'

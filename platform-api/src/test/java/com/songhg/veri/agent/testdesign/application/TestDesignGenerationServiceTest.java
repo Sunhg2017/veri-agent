@@ -173,7 +173,7 @@ class TestDesignGenerationServiceTest {
         assertThat(summary.path("releaseReadinessPolicy").path("advisoryOnly").asBoolean()).isTrue();
         assertThat(summary.path("releaseReadinessPolicy").path("publishBlockingEnabled").asBoolean()).isFalse();
         assertThat(summary.path("releaseReadinessPolicy").path("manualApprovalRequired").asBoolean()).isTrue();
-        assertThat(summary.path("releaseReadinessPolicy").path("approvalWorkflowReady").asBoolean()).isFalse();
+        assertThat(summary.path("releaseReadinessPolicy").path("approvalWorkflowReady").asBoolean()).isTrue();
         assertThat(summary.path("releaseReadinessPolicy").path("autoPublishAllowed").asBoolean()).isFalse();
         assertThat(summary.path("releaseReadinessPolicy").path("confirmedCandidateRequired").asBoolean()).isTrue();
         assertThat(summary.path("releaseReadinessPolicy").path("candidateEvidenceExported").asBoolean()).isFalse();
@@ -412,7 +412,7 @@ class TestDesignGenerationServiceTest {
         assertThat(payload.path("contextPacking").path("releaseReadinessPolicy").path("publishBlockingEnabled").asBoolean())
                 .isFalse();
         assertThat(payload.path("contextPacking").path("releaseReadinessPolicy").path("approvalWorkflowReady").asBoolean())
-                .isFalse();
+                .isTrue();
         assertThat(payload.path("contextPacking").path("releaseReadinessPolicy").path("candidateEvidenceExported").asBoolean())
                 .isFalse();
         assertThat(payload.path("contextPacking").path("releaseReadinessPolicy").path("aggregateOnly").asBoolean())

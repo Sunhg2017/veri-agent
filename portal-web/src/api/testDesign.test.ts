@@ -3,7 +3,9 @@ import { requestJson, requestText } from './client';
 import {
   TEST_DESIGN_CANDIDATE_STATUSES,
   TEST_DESIGN_COVERAGE_TYPES,
+  addTestDesignReleaseReadinessNote,
   addTestDesignContextPolicyNote,
+  approveTestDesignReleaseReadinessApproval,
   approveTestDesignContextPolicyOverride,
   batchActionTestDesignCandidates,
   batchResolveTestDesignConflicts,
@@ -23,6 +25,8 @@ import {
   fetchTestDesignEvaluationCorpusSummary,
   fetchTestDesignHealth,
   fetchTestDesignPromptTrend,
+  fetchTestDesignReleaseReadinessApprovals,
+  fetchTestDesignReleaseReadinessNotes,
   fetchTestDesignReviewRecords,
   fetchTestDesignScopeSummary,
   fetchTestDesignTemplates,
@@ -46,6 +50,8 @@ import {
   normalizeTestDesignPromptTrendBucket,
   normalizeTestDesignPublishResult,
   normalizeTestDesignQualitySummary,
+  normalizeTestDesignReleaseReadinessApproval,
+  normalizeTestDesignReleaseReadinessNote,
   normalizeTestDesignReviewRecord,
   normalizeTestDesignReviewRecordList,
   normalizeTestDesignScopeSummary,
@@ -55,11 +61,13 @@ import {
   normalizeTestDesignTaskDetail,
   publishTestDesignDryRun,
   publishTestDesignTask,
+  rejectTestDesignReleaseReadinessApproval,
   rejectTestDesignCandidate,
   rejectTestDesignContextPolicyOverride,
   replayQueuedTestDesignTaskEvent,
   requestTestDesignEnvironmentContextPolicyOverride,
   requestTestDesignProjectContextPolicyOverride,
+  requestTestDesignReleaseReadinessApproval,
   resolveTestDesignConflict,
   retryTestDesignTask,
   testDesignCandidateExportPath,
@@ -67,7 +75,8 @@ import {
   testDesignTaskReportExportPath,
   updateTestDesignTemplate,
   updateTestDesignCandidate,
-  updateTestDesignContextPolicyOverride
+  updateTestDesignContextPolicyOverride,
+  updateTestDesignReleaseReadinessApproval
 } from './testDesign';
 
 vi.mock('./client', () => ({
@@ -191,10 +200,10 @@ describe('WP5 test design API helpers', () => {
         advisory_only: true,
         publish_blocking_enabled: false,
         manual_approval_required: true,
-        approval_workflow_ready: false,
+        approval_workflow_ready: true,
         auto_publish_allowed: false,
         confirmed_candidate_required: true,
-        quality_gate_override_supported: false,
+        quality_gate_override_supported: true,
         candidate_evidence_exported: false,
         approval_notes_exported: false,
         threshold_rule_detail_exported: false,
@@ -396,10 +405,10 @@ describe('WP5 test design API helpers', () => {
         advisoryOnly: true,
         publishBlockingEnabled: false,
         manualApprovalRequired: true,
-        approvalWorkflowReady: false,
+        approvalWorkflowReady: true,
         autoPublishAllowed: false,
         confirmedCandidateRequired: true,
-        qualityGateOverrideSupported: false,
+        qualityGateOverrideSupported: true,
         candidateEvidenceExported: false,
         approvalNotesExported: false,
         thresholdRuleDetailExported: false,
@@ -585,10 +594,10 @@ describe('WP5 test design API helpers', () => {
         advisory_only: true,
         publish_blocking_enabled: false,
         manual_approval_required: true,
-        approval_workflow_ready: false,
+        approval_workflow_ready: true,
         auto_publish_allowed: false,
         confirmed_candidate_required: true,
-        quality_gate_override_supported: false,
+        quality_gate_override_supported: true,
         candidate_evidence_exported: false,
         approval_notes_exported: false,
         threshold_rule_detail_exported: false,
@@ -776,10 +785,10 @@ describe('WP5 test design API helpers', () => {
         advisoryOnly: true,
         publishBlockingEnabled: false,
         manualApprovalRequired: true,
-        approvalWorkflowReady: false,
+        approvalWorkflowReady: true,
         autoPublishAllowed: false,
         confirmedCandidateRequired: true,
-        qualityGateOverrideSupported: false,
+        qualityGateOverrideSupported: true,
         candidateEvidenceExported: false,
         approvalNotesExported: false,
         thresholdRuleDetailExported: false,
@@ -1689,6 +1698,199 @@ describe('WP5 test design API helpers', () => {
         body: JSON.stringify({
           noteType: 'WORK_ORDER',
           noteText: 'ticket moved to review'
+        })
+      }
+    );
+  });
+
+  it('calls release readiness approval endpoints and normalizes work orders', async () => {
+    requestJsonMock.mockResolvedValueOnce({
+      code: 'OK',
+      message: 'ok',
+      trace_id: 'trace-rr-list',
+      data: [
+        {
+          id: 'approval-1',
+          task_id: 'task-1',
+          project_id: 'project-1',
+          status: 'PENDING',
+          quality_gate_status: 'BLOCKED',
+          blocking_count: '2',
+          warning_count: 1,
+          readiness_digest: 'a'.repeat(64),
+          exception_reason_code_captured: true,
+          approval_reason_code_captured: false,
+          work_order_key: 'WP5-RR-1',
+          work_order_status: 'OPEN',
+          exception_summary: 'blocked smoke exception',
+          exception_summary_digest: 'b'.repeat(64),
+          risk_mitigation: 'rerun smoke',
+          note_count: '2',
+          latest_note_preview: 'ticket linked'
+        }
+      ]
+    });
+
+    const approvals = await fetchTestDesignReleaseReadinessApprovals('task 1');
+    expect(requestJsonMock).toHaveBeenLastCalledWith(
+      '/api/v1/test-design/tasks/task%201/release-readiness/approvals'
+    );
+    expect(approvals.data[0]).toMatchObject({
+      id: 'approval-1',
+      taskId: 'task-1',
+      projectId: 'project-1',
+      status: 'PENDING',
+      qualityGateStatus: 'BLOCKED',
+      blockingCount: 2,
+      warningCount: 1,
+      readinessDigest: 'a'.repeat(64),
+      exceptionReasonCodeCaptured: true,
+      approvalReasonCodeCaptured: false,
+      workOrderKey: 'WP5-RR-1',
+      workOrderStatus: 'OPEN',
+      exceptionSummary: 'blocked smoke exception',
+      exceptionSummaryDigest: 'b'.repeat(64),
+      riskMitigation: 'rerun smoke',
+      noteCount: 2,
+      latestNotePreview: 'ticket linked'
+    });
+
+    expect(normalizeTestDesignReleaseReadinessApproval({
+      id: 'approval-2',
+      task_id: 'task-2',
+      quality_gate_status: 'BLOCKED',
+      blocking_count: '3',
+      warning_count: '1',
+      exception_reason_code_captured: true,
+      work_order_status: 'APPROVED'
+    })).toMatchObject({
+      id: 'approval-2',
+      taskId: 'task-2',
+      qualityGateStatus: 'BLOCKED',
+      blockingCount: 3,
+      warningCount: 1,
+      exceptionReasonCodeCaptured: true,
+      workOrderStatus: 'APPROVED'
+    });
+
+    expect(normalizeTestDesignReleaseReadinessNote({
+      id: 'note-1',
+      approval_id: 'approval-1',
+      note_type: 'WORK_ORDER',
+      note_text: 'ticket linked',
+      created_by: 'owner'
+    })).toMatchObject({
+      id: 'note-1',
+      approvalId: 'approval-1',
+      noteType: 'WORK_ORDER',
+      noteText: 'ticket linked',
+      createdBy: 'owner'
+    });
+  });
+
+  it('calls release readiness approval mutation endpoints with compact payloads', async () => {
+    requestJsonMock.mockResolvedValue({
+      code: 'OK',
+      message: 'ok',
+      trace_id: 'trace-rr-mutation',
+      data: { id: 'approval-1', task_id: 'task-1', status: 'PENDING', quality_gate_status: 'BLOCKED' }
+    });
+
+    await requestTestDesignReleaseReadinessApproval('task 1', {
+      exceptionReasonCode: ' SMOKE_VALIDATION ',
+      exceptionSummary: ' blocked smoke exception ',
+      riskMitigation: ' rerun smoke ',
+      workOrderKey: ' WP5-RR-1 ',
+      workOrderTitle: ' Release readiness approval ',
+      workOrderUrl: ' https://ticket.example/wp5/rr-1 ',
+      requestNote: ' please review '
+    });
+    expect(requestJsonMock).toHaveBeenLastCalledWith(
+      '/api/v1/test-design/tasks/task%201/release-readiness/approvals',
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          exceptionReasonCode: 'SMOKE_VALIDATION',
+          exceptionSummary: 'blocked smoke exception',
+          riskMitigation: 'rerun smoke',
+          workOrderKey: 'WP5-RR-1',
+          workOrderTitle: 'Release readiness approval',
+          workOrderUrl: 'https://ticket.example/wp5/rr-1',
+          requestNote: 'please review'
+        })
+      }
+    );
+
+    await updateTestDesignReleaseReadinessApproval('approval 1', {
+      exceptionSummary: 'updated exception',
+      riskMitigation: 'updated mitigation'
+    });
+    expect(requestJsonMock).toHaveBeenLastCalledWith(
+      '/api/v1/test-design/release-readiness/approvals/approval%201',
+      {
+        method: 'PUT',
+        body: JSON.stringify({
+          exceptionSummary: 'updated exception',
+          riskMitigation: 'updated mitigation'
+        })
+      }
+    );
+
+    await approveTestDesignReleaseReadinessApproval('approval 1', {
+      approvalReasonCode: 'SMOKE_VALIDATION',
+      reviewNote: 'approved',
+      workOrderStatus: 'APPROVED'
+    });
+    expect(requestJsonMock).toHaveBeenLastCalledWith(
+      '/api/v1/test-design/release-readiness/approvals/approval%201/approve',
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          approvalReasonCode: 'SMOKE_VALIDATION',
+          reviewNote: 'approved',
+          workOrderStatus: 'APPROVED'
+        })
+      }
+    );
+
+    await rejectTestDesignReleaseReadinessApproval('approval 1', {
+      approvalReasonCode: 'LOW_RISK_ACCEPTANCE',
+      reviewNote: 'rejected'
+    });
+    expect(requestJsonMock).toHaveBeenLastCalledWith(
+      '/api/v1/test-design/release-readiness/approvals/approval%201/reject',
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          approvalReasonCode: 'LOW_RISK_ACCEPTANCE',
+          reviewNote: 'rejected'
+        })
+      }
+    );
+
+    requestJsonMock.mockResolvedValueOnce({
+      code: 'OK',
+      message: 'ok',
+      trace_id: 'trace-rr-notes',
+      data: [{ id: 'note-1', approval_id: 'approval-1', note_type: 'COMMENT', note_text: 'checked' }]
+    });
+    const notes = await fetchTestDesignReleaseReadinessNotes('approval 1');
+    expect(requestJsonMock).toHaveBeenLastCalledWith(
+      '/api/v1/test-design/release-readiness/approvals/approval%201/notes'
+    );
+    expect(notes.data[0]).toMatchObject({ id: 'note-1', approvalId: 'approval-1', noteText: 'checked' });
+
+    await addTestDesignReleaseReadinessNote('approval 1', {
+      noteType: ' WORK_ORDER ',
+      noteText: ' ticket moved '
+    });
+    expect(requestJsonMock).toHaveBeenLastCalledWith(
+      '/api/v1/test-design/release-readiness/approvals/approval%201/notes',
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          noteType: 'WORK_ORDER',
+          noteText: 'ticket moved'
         })
       }
     );

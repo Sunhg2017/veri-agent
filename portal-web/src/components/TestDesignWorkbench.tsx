@@ -35,6 +35,8 @@ import {
   TEST_DESIGN_CANDIDATE_STATUSES,
   TEST_DESIGN_COVERAGE_TYPES,
   addTestDesignContextPolicyNote,
+  addTestDesignReleaseReadinessNote,
+  approveTestDesignReleaseReadinessApproval,
   approveTestDesignContextPolicyOverride,
   batchActionTestDesignCandidates,
   batchResolveTestDesignConflicts,
@@ -52,6 +54,8 @@ import {
   fetchTestDesignContextPolicyOverrides,
   fetchTestDesignHealth,
   fetchTestDesignPromptTrend,
+  fetchTestDesignReleaseReadinessApprovals,
+  fetchTestDesignReleaseReadinessNotes,
   fetchTestDesignReviewRecords,
   fetchTestDesignTemplates,
   fetchTestDesignTaskAuditSummary,
@@ -63,15 +67,18 @@ import {
   publishTestDesignTask,
   rejectTestDesignCandidate,
   rejectTestDesignContextPolicyOverride,
+  rejectTestDesignReleaseReadinessApproval,
   replayQueuedTestDesignTaskEvent,
   requestTestDesignEnvironmentContextPolicyOverride,
   requestTestDesignProjectContextPolicyOverride,
+  requestTestDesignReleaseReadinessApproval,
   resolveTestDesignConflict,
   retryTestDesignTask,
   testDesignErrorMessage,
   updateTestDesignTemplate,
   updateTestDesignCandidate,
   updateTestDesignContextPolicyOverride,
+  updateTestDesignReleaseReadinessApproval,
   type TestDesignCandidateBatchActionResult,
   type TestDesignCandidateBatchActionType,
   type TestDesignCandidateView,
@@ -84,6 +91,8 @@ import {
   type TestDesignPublishRecordView,
   type TestDesignPublishResult,
   type TestDesignQualitySummaryView,
+  type TestDesignReleaseReadinessApprovalView,
+  type TestDesignReleaseReadinessNoteView,
   type TestDesignReviewRecordView,
   type TestDesignStepView,
   type TestDesignTemplateView,
@@ -194,6 +203,21 @@ type CandidateFilters = {
   keyword: string;
 };
 
+type ReleaseReadinessApprovalDraft = {
+  exceptionReasonCode: string;
+  approvalReasonCode: string;
+  exceptionSummary: string;
+  riskMitigation: string;
+  workOrderKey: string;
+  workOrderTitle: string;
+  workOrderUrl: string;
+  workOrderStatus: string;
+  requestNote: string;
+  reviewNote: string;
+  noteType: 'COMMENT' | 'WORK_ORDER';
+  noteText: string;
+};
+
 type GenerationDraft = {
   projectId: string;
   templateId: string;
@@ -290,6 +314,31 @@ const initialCandidateFilters: CandidateFilters = {
   keyword: ''
 };
 
+const releaseReadinessReasonCodes = [
+  'BUSINESS_CRITICAL_RELEASE',
+  'FALSE_POSITIVE_QUALITY_GATE',
+  'LOW_RISK_ACCEPTANCE',
+  'TIME_BOXED_EXCEPTION',
+  'SMOKE_VALIDATION'
+] as const;
+
+const releaseReadinessWorkOrderStatuses = ['OPEN', 'IN_REVIEW', 'APPROVED', 'REJECTED', 'CANCELLED'] as const;
+
+const initialReleaseReadinessDraft: ReleaseReadinessApprovalDraft = {
+  exceptionReasonCode: 'SMOKE_VALIDATION',
+  approvalReasonCode: 'SMOKE_VALIDATION',
+  exceptionSummary: '',
+  riskMitigation: '',
+  workOrderKey: '',
+  workOrderTitle: '',
+  workOrderUrl: '',
+  workOrderStatus: '',
+  requestNote: '',
+  reviewNote: '',
+  noteType: 'COMMENT',
+  noteText: ''
+};
+
 const initialGenerationDraft: GenerationDraft = {
   projectId: '',
   templateId: '',
@@ -371,6 +420,10 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
   const [contextPolicyEffective, setContextPolicyEffective] = useState<TestDesignContextPolicyEffectiveView | null>(null);
   const [selectedContextPolicyOverrideId, setSelectedContextPolicyOverrideId] = useState('');
   const [contextPolicyNotes, setContextPolicyNotes] = useState<TestDesignContextPolicyNoteView[]>([]);
+  const [releaseReadinessDraft, setReleaseReadinessDraft] = useState<ReleaseReadinessApprovalDraft>(initialReleaseReadinessDraft);
+  const [releaseReadinessApprovals, setReleaseReadinessApprovals] = useState<TestDesignReleaseReadinessApprovalView[]>([]);
+  const [selectedReleaseReadinessApprovalId, setSelectedReleaseReadinessApprovalId] = useState('');
+  const [releaseReadinessNotes, setReleaseReadinessNotes] = useState<TestDesignReleaseReadinessNoteView[]>([]);
   const [batchActionResult, setBatchActionResult] = useState<TestDesignCandidateBatchActionResult | null>(null);
   const [batchEditResult, setBatchEditResult] = useState<BatchEditResult | null>(null);
   const [selectedCandidateIds, setSelectedCandidateIds] = useState<string[]>([]);
@@ -387,6 +440,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
   const [taskAuditState, setTaskAuditState] = useState<WorkState>({ loading: false });
   const [promptTrendState, setPromptTrendState] = useState<WorkState>({ loading: false });
   const [contextPolicyState, setContextPolicyState] = useState<WorkState>({ loading: false });
+  const [releaseReadinessState, setReleaseReadinessState] = useState<WorkState>({ loading: false });
   const [templateState, setTemplateState] = useState<WorkState>({ loading: false });
   const [draggingStepId, setDraggingStepId] = useState('');
 
@@ -560,6 +614,18 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
     () => contextPolicyOverrides.find((override) => override.id === selectedContextPolicyOverrideId) ?? null,
     [contextPolicyOverrides, selectedContextPolicyOverrideId]
   );
+  const selectedReleaseReadinessApproval = useMemo(
+    () => releaseReadinessApprovals.find((approval) => approval.id === selectedReleaseReadinessApprovalId) ?? null,
+    [releaseReadinessApprovals, selectedReleaseReadinessApprovalId]
+  );
+  const selectedPendingReleaseReadinessApproval = selectedReleaseReadinessApproval?.status === 'PENDING'
+    ? selectedReleaseReadinessApproval
+    : null;
+  const currentReleaseReadiness = taskQualitySummary?.readiness ?? null;
+  const releaseReadinessSubmitBlocked = !selectedTaskId
+    || releaseReadinessState.loading
+    || !releaseReadinessDraft.exceptionSummary.trim()
+    || !releaseReadinessDraft.riskMitigation.trim();
   const selectedPendingContextPolicyOverride = selectedContextPolicyOverride?.status === 'PENDING'
     ? selectedContextPolicyOverride
     : null;
@@ -791,6 +857,59 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
     taskFilters.projectId
   ]);
 
+  const refreshReleaseReadinessApprovals = useCallback(async (
+    taskId: string = selectedTaskId,
+    options?: { silent?: boolean }
+  ) => {
+    if (!props.signedIn || !canRead || !taskId) {
+      setReleaseReadinessApprovals([]);
+      setSelectedReleaseReadinessApprovalId('');
+      setReleaseReadinessNotes([]);
+      setReleaseReadinessState({ loading: false });
+      return;
+    }
+    const silent = options?.silent === true;
+    if (!silent) {
+      setReleaseReadinessState({ loading: true });
+    }
+    try {
+      const response = await fetchTestDesignReleaseReadinessApprovals(taskId);
+      const approvals = response.data;
+      setReleaseReadinessApprovals(approvals);
+      setSelectedReleaseReadinessApprovalId((current) => (
+        current && approvals.some((approval) => approval.id === current) ? current : approvals[0]?.id ?? ''
+      ));
+      if (!silent) {
+        setReleaseReadinessState({
+          loading: false,
+          success: `发布准出审批已加载：${approvals.length} 条`,
+          traceId: response.trace_id
+        });
+      }
+    } catch (error: unknown) {
+      setReleaseReadinessApprovals([]);
+      setSelectedReleaseReadinessApprovalId('');
+      setReleaseReadinessNotes([]);
+      if (!silent) {
+        setReleaseReadinessState({ loading: false, error: testDesignErrorMessage(error, '发布准出审批加载失败') });
+      }
+    }
+  }, [canRead, props.signedIn, selectedTaskId]);
+
+  const refreshReleaseReadinessNotes = useCallback(async (approvalId: string = selectedReleaseReadinessApprovalId) => {
+    if (!props.signedIn || !canRead || !approvalId) {
+      setReleaseReadinessNotes([]);
+      return;
+    }
+    try {
+      const response = await fetchTestDesignReleaseReadinessNotes(approvalId);
+      setReleaseReadinessNotes(response.data);
+    } catch (error: unknown) {
+      setReleaseReadinessNotes([]);
+      setReleaseReadinessState({ loading: false, error: testDesignErrorMessage(error, '发布准出备注加载失败') });
+    }
+  }, [canRead, props.signedIn, selectedReleaseReadinessApprovalId]);
+
   const refreshTemplates = useCallback(async (options?: { silent?: boolean }) => {
     if (!props.signedIn || !canRead) {
       setTemplates([]);
@@ -907,6 +1026,10 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       setContextPolicyEffective(null);
       setSelectedContextPolicyOverrideId('');
       setContextPolicyNotes([]);
+      setReleaseReadinessDraft(initialReleaseReadinessDraft);
+      setReleaseReadinessApprovals([]);
+      setSelectedReleaseReadinessApprovalId('');
+      setReleaseReadinessNotes([]);
       setLoadState({ loading: false });
       setTaskState({ loading: false });
       setReviewRecordState({ loading: false });
@@ -1000,6 +1123,10 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
     setConflictCaseResults([]);
     setSelectedConflictCaseIds({});
     setPendingConfirmation(null);
+    setReleaseReadinessDraft(initialReleaseReadinessDraft);
+    setReleaseReadinessApprovals([]);
+    setSelectedReleaseReadinessApprovalId('');
+    setReleaseReadinessNotes([]);
   }, [selectedTaskId]);
 
   useEffect(() => {
@@ -1079,6 +1206,14 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       }));
     }
   }, [contextPolicyDraft.projectId, filters.projectId, selectedTask?.projectId, taskFilters.projectId]);
+
+  useEffect(() => {
+    void refreshReleaseReadinessApprovals(selectedTaskId, { silent: true });
+  }, [refreshReleaseReadinessApprovals, selectedTaskId]);
+
+  useEffect(() => {
+    void refreshReleaseReadinessNotes(selectedReleaseReadinessApprovalId);
+  }, [refreshReleaseReadinessNotes, selectedReleaseReadinessApprovalId]);
 
   useEffect(() => {
     setCandidatePageIndex(0);
@@ -1654,6 +1789,142 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       void refreshContextPolicy({ silent: true });
     } catch (error: unknown) {
       setContextPolicyState({ loading: false, error: testDesignErrorMessage(error, '上下文策略备注追加失败') });
+    }
+  }
+
+  async function requestReleaseReadinessApproval(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedTaskId) {
+      setReleaseReadinessState({ loading: false, error: '请先选择任务' });
+      return;
+    }
+    if (!canPublish) {
+      setReleaseReadinessState({ loading: false, error: '缺少 testDesign:publish 权限' });
+      return;
+    }
+    if (!releaseReadinessDraft.exceptionSummary.trim() || !releaseReadinessDraft.riskMitigation.trim()) {
+      setReleaseReadinessState({ loading: false, error: '请输入例外摘要和风险缓释说明' });
+      return;
+    }
+
+    setReleaseReadinessState({ loading: true });
+    try {
+      const payload = {
+        exceptionReasonCode: releaseReadinessDraft.exceptionReasonCode,
+        exceptionSummary: releaseReadinessDraft.exceptionSummary,
+        riskMitigation: releaseReadinessDraft.riskMitigation,
+        workOrderKey: releaseReadinessDraft.workOrderKey,
+        workOrderTitle: releaseReadinessDraft.workOrderTitle,
+        workOrderUrl: releaseReadinessDraft.workOrderUrl,
+        requestNote: releaseReadinessDraft.requestNote
+      };
+      const response = selectedReleaseReadinessApproval?.status === 'PENDING'
+        ? await updateTestDesignReleaseReadinessApproval(selectedReleaseReadinessApproval.id, payload)
+        : await requestTestDesignReleaseReadinessApproval(selectedTaskId, payload);
+      setReleaseReadinessApprovals((current) => [response.data, ...current.filter((item) => item.id !== response.data.id)]);
+      setSelectedReleaseReadinessApprovalId(response.data.id);
+      setReleaseReadinessState({
+        loading: false,
+        success: selectedReleaseReadinessApproval?.status === 'PENDING' ? '发布准出审批草稿已更新' : '发布准出例外已提交审批',
+        traceId: response.trace_id
+      });
+      void refreshReleaseReadinessApprovals(selectedTaskId, { silent: true });
+      void refreshReleaseReadinessNotes(response.data.id);
+    } catch (error: unknown) {
+      setReleaseReadinessState({ loading: false, error: testDesignErrorMessage(error, '发布准出例外提交失败') });
+    }
+  }
+
+  async function reviewReleaseReadinessApproval(approvalId: string, action: 'approve' | 'reject') {
+    if (!canPublish) {
+      setReleaseReadinessState({ loading: false, error: '缺少 testDesign:publish 权限' });
+      return;
+    }
+    if (!releaseReadinessDraft.approvalReasonCode) {
+      setReleaseReadinessState({ loading: false, error: '请选择审批原因编码' });
+      return;
+    }
+    setReleaseReadinessState({ loading: true });
+    try {
+      const payload = {
+        approvalReasonCode: releaseReadinessDraft.approvalReasonCode,
+        reviewNote: releaseReadinessDraft.reviewNote,
+        workOrderStatus: releaseReadinessDraft.workOrderStatus || undefined
+      };
+      const response = action === 'approve'
+        ? await approveTestDesignReleaseReadinessApproval(approvalId, payload)
+        : await rejectTestDesignReleaseReadinessApproval(approvalId, payload);
+      setReleaseReadinessApprovals((current) => current.map((item) => item.id === response.data.id ? response.data : item));
+      setSelectedReleaseReadinessApprovalId(response.data.id);
+      setReleaseReadinessDraft((current) => ({
+        ...current,
+        reviewNote: '',
+        noteText: ''
+      }));
+      setReleaseReadinessState({
+        loading: false,
+        success: action === 'approve' ? '发布准出例外已审批' : '发布准出例外已驳回',
+        traceId: response.trace_id
+      });
+      void refreshReleaseReadinessNotes(response.data.id);
+    } catch (error: unknown) {
+      setReleaseReadinessState({
+        loading: false,
+        error: testDesignErrorMessage(error, action === 'approve' ? '发布准出审批失败' : '发布准出驳回失败')
+      });
+    }
+  }
+
+  function selectReleaseReadinessApproval(approval: TestDesignReleaseReadinessApprovalView) {
+    setSelectedReleaseReadinessApprovalId(approval.id);
+    setReleaseReadinessDraft((current) => ({
+      ...current,
+      exceptionReasonCode: releaseReadinessReasonCodeValue(approval.exceptionReasonCode, current.exceptionReasonCode),
+      approvalReasonCode: releaseReadinessReasonCodeValue(approval.approvalReasonCode, current.approvalReasonCode),
+      exceptionSummary: approval.exceptionSummary ?? '',
+      riskMitigation: approval.riskMitigation ?? '',
+      workOrderKey: approval.workOrderKey ?? '',
+      workOrderTitle: approval.workOrderTitle ?? '',
+      workOrderUrl: approval.workOrderUrl ?? '',
+      workOrderStatus: approval.status === 'PENDING' ? '' : approval.workOrderStatus ?? '',
+      requestNote: approval.requestNote ?? '',
+      reviewNote: approval.reviewNote ?? '',
+      noteText: ''
+    }));
+    void refreshReleaseReadinessNotes(approval.id);
+  }
+
+  async function addReleaseReadinessNote() {
+    if (!selectedReleaseReadinessApprovalId) {
+      setReleaseReadinessState({ loading: false, error: '请选择发布准出审批记录' });
+      return;
+    }
+    if (!canPublish) {
+      setReleaseReadinessState({ loading: false, error: '缺少 testDesign:publish 权限' });
+      return;
+    }
+    if (!releaseReadinessDraft.noteText.trim()) {
+      setReleaseReadinessState({ loading: false, error: '请输入流转备注' });
+      return;
+    }
+    setReleaseReadinessState({ loading: true });
+    try {
+      const response = await addTestDesignReleaseReadinessNote(selectedReleaseReadinessApprovalId, {
+        noteType: releaseReadinessDraft.noteType,
+        noteText: releaseReadinessDraft.noteText
+      });
+      setReleaseReadinessNotes((current) => [...current, response.data]);
+      setReleaseReadinessApprovals((current) => current.map((approval) => approval.id === selectedReleaseReadinessApprovalId
+        ? {
+          ...approval,
+          noteCount: (approval.noteCount ?? 0) + 1,
+          latestNotePreview: response.data.noteText
+        }
+        : approval));
+      setReleaseReadinessDraft((current) => ({ ...current, noteText: '' }));
+      setReleaseReadinessState({ loading: false, success: '发布准出备注已追加', traceId: response.trace_id });
+    } catch (error: unknown) {
+      setReleaseReadinessState({ loading: false, error: testDesignErrorMessage(error, '发布准出备注追加失败') });
     }
   }
 
@@ -3523,6 +3794,244 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
               发布到资产库
             </button>
             <StateLine state={publishState} />
+            <div className="test-design-release-readiness-panel">
+              <div className="test-design-release-readiness-heading">
+                <span>发布准出审批</span>
+                <div className="toolbar-actions">
+                  {currentReleaseReadiness && (
+                    <span className={`badge badge-${releaseReadinessStatusTone(currentReleaseReadiness.status)}`}>
+                      {currentReleaseReadiness.status}
+                    </span>
+                  )}
+                  <button
+                    className="btn btn-secondary btn-xs"
+                    type="button"
+                    disabled={!canRead || releaseReadinessState.loading || !selectedTaskId}
+                    onClick={() => void refreshReleaseReadinessApprovals(selectedTaskId)}
+                  >
+                    <RefreshCw size={14} />
+                    刷新
+                  </button>
+                </div>
+              </div>
+              <div className="detail-grid">
+                <Detail label="当前阻断" value={currentReleaseReadiness?.blockingCount ?? '-'} />
+                <Detail label="当前风险" value={currentReleaseReadiness?.warningCount ?? '-'} />
+                <Detail label="审批记录" value={releaseReadinessApprovals.length} />
+                <Detail label="当前摘要" value={releaseReadinessDigestText(selectedReleaseReadinessApproval?.readinessDigest)} />
+              </div>
+              <form className="test-design-release-readiness-form" onSubmit={requestReleaseReadinessApproval}>
+                <label className="field">
+                  <span className="field-label">例外原因</span>
+                  <select
+                    value={releaseReadinessDraft.exceptionReasonCode}
+                    onChange={(event) => setReleaseReadinessDraft((current) => ({ ...current, exceptionReasonCode: event.target.value }))}
+                    disabled={!canPublish || releaseReadinessState.loading}
+                  >
+                    {releaseReadinessReasonCodes.map((code) => (
+                      <option key={code} value={code}>{code}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="field">
+                  <span className="field-label">工单编号</span>
+                  <input
+                    value={releaseReadinessDraft.workOrderKey}
+                    onChange={(event) => setReleaseReadinessDraft((current) => ({ ...current, workOrderKey: event.target.value }))}
+                    placeholder="WP5-RR-..."
+                    disabled={!canPublish || releaseReadinessState.loading}
+                  />
+                </label>
+                <label className="field">
+                  <span className="field-label">工单标题</span>
+                  <input
+                    value={releaseReadinessDraft.workOrderTitle}
+                    onChange={(event) => setReleaseReadinessDraft((current) => ({ ...current, workOrderTitle: event.target.value }))}
+                    disabled={!canPublish || releaseReadinessState.loading}
+                  />
+                </label>
+                <label className="field">
+                  <span className="field-label">工单 URL</span>
+                  <input
+                    value={releaseReadinessDraft.workOrderUrl}
+                    onChange={(event) => setReleaseReadinessDraft((current) => ({ ...current, workOrderUrl: event.target.value }))}
+                    placeholder="https://..."
+                    disabled={!canPublish || releaseReadinessState.loading}
+                  />
+                </label>
+                <label className="field test-design-release-readiness-wide">
+                  <span className="field-label">例外摘要</span>
+                  <textarea
+                    value={releaseReadinessDraft.exceptionSummary}
+                    maxLength={1000}
+                    rows={3}
+                    onChange={(event) => setReleaseReadinessDraft((current) => ({ ...current, exceptionSummary: event.target.value }))}
+                    disabled={!canPublish || releaseReadinessState.loading}
+                  />
+                </label>
+                <label className="field test-design-release-readiness-wide">
+                  <span className="field-label">风险缓释</span>
+                  <textarea
+                    value={releaseReadinessDraft.riskMitigation}
+                    maxLength={1000}
+                    rows={3}
+                    onChange={(event) => setReleaseReadinessDraft((current) => ({ ...current, riskMitigation: event.target.value }))}
+                    disabled={!canPublish || releaseReadinessState.loading}
+                  />
+                </label>
+                <label className="field test-design-release-readiness-wide">
+                  <span className="field-label">申请备注</span>
+                  <textarea
+                    value={releaseReadinessDraft.requestNote}
+                    maxLength={1000}
+                    rows={2}
+                    onChange={(event) => setReleaseReadinessDraft((current) => ({ ...current, requestNote: event.target.value }))}
+                    disabled={!canPublish || releaseReadinessState.loading}
+                  />
+                </label>
+                <button
+                  className="btn btn-secondary btn-sm test-design-release-readiness-submit"
+                  type="submit"
+                  disabled={!canPublish || releaseReadinessSubmitBlocked}
+                >
+                  <Save size={15} />
+                  {selectedPendingReleaseReadinessApproval ? '更新例外' : '提交例外'}
+                </button>
+              </form>
+              <div className="test-design-release-readiness-review-grid">
+                <label className="field">
+                  <span className="field-label">审批原因</span>
+                  <select
+                    value={releaseReadinessDraft.approvalReasonCode}
+                    onChange={(event) => setReleaseReadinessDraft((current) => ({ ...current, approvalReasonCode: event.target.value }))}
+                    disabled={!canPublish || releaseReadinessState.loading || !selectedPendingReleaseReadinessApproval}
+                  >
+                    {releaseReadinessReasonCodes.map((code) => (
+                      <option key={code} value={code}>{code}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="field">
+                  <span className="field-label">工单状态</span>
+                  <select
+                    value={releaseReadinessDraft.workOrderStatus}
+                    onChange={(event) => setReleaseReadinessDraft((current) => ({ ...current, workOrderStatus: event.target.value }))}
+                    disabled={!canPublish || releaseReadinessState.loading || !selectedPendingReleaseReadinessApproval}
+                  >
+                    <option value="">跟随审批</option>
+                    {releaseReadinessWorkOrderStatuses.map((status) => (
+                      <option key={status} value={status}>{status}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="field test-design-release-readiness-wide">
+                  <span className="field-label">审批备注</span>
+                  <textarea
+                    value={releaseReadinessDraft.reviewNote}
+                    maxLength={1000}
+                    rows={2}
+                    onChange={(event) => setReleaseReadinessDraft((current) => ({ ...current, reviewNote: event.target.value }))}
+                    disabled={!canPublish || releaseReadinessState.loading || !selectedPendingReleaseReadinessApproval}
+                  />
+                </label>
+                <div className="toolbar-actions test-design-release-readiness-submit">
+                  <button
+                    className="btn btn-secondary btn-sm"
+                    type="button"
+                    disabled={!canPublish || releaseReadinessState.loading || !selectedPendingReleaseReadinessApproval}
+                    onClick={() => selectedPendingReleaseReadinessApproval && void reviewReleaseReadinessApproval(selectedPendingReleaseReadinessApproval.id, 'approve')}
+                  >
+                    <CheckCircle2 size={15} />
+                    通过
+                  </button>
+                  <button
+                    className="btn btn-ghost btn-sm"
+                    type="button"
+                    disabled={!canPublish || releaseReadinessState.loading || !selectedPendingReleaseReadinessApproval}
+                    onClick={() => selectedPendingReleaseReadinessApproval && void reviewReleaseReadinessApproval(selectedPendingReleaseReadinessApproval.id, 'reject')}
+                  >
+                    <XCircle size={15} />
+                    驳回
+                  </button>
+                </div>
+              </div>
+              <div className="test-design-release-readiness-approvals">
+                {releaseReadinessApprovals.length ? releaseReadinessApprovals.slice(0, 6).map((approval) => (
+                  <div className={`test-design-release-readiness-approval${selectedReleaseReadinessApprovalId === approval.id ? ' selected' : ''}`} key={approval.id}>
+                    <div>
+                      <strong>{approval.workOrderKey ?? approval.id}</strong>
+                      <em>{approval.qualityGateStatus} · 阻断 {approval.blockingCount} · 风险 {approval.warningCount}</em>
+                      <small>{releaseReadinessDigestText(approval.readinessDigest)} · 备注 {approval.noteCount ?? 0}</small>
+                      <small>{approval.requestedBy ?? '-'} · {approval.createdAt ?? '-'}</small>
+                      {approval.latestNotePreview ? <small>最新备注：{approval.latestNotePreview}</small> : null}
+                    </div>
+                    <div className="test-design-release-readiness-approval-actions">
+                      <span className={`badge badge-${releaseReadinessStatusTone(approval.status)}`}>{approval.status}</span>
+                      <button
+                        className="btn btn-secondary btn-xs"
+                        type="button"
+                        disabled={!canRead || releaseReadinessState.loading}
+                        onClick={() => selectReleaseReadinessApproval(approval)}
+                      >
+                        <FileText size={14} />
+                        {approval.status === 'PENDING' ? '编辑' : '流转'}
+                      </button>
+                    </div>
+                  </div>
+                )) : (
+                  <div className="notice info">暂无发布准出审批记录</div>
+                )}
+              </div>
+              <div className="test-design-release-readiness-note-form">
+                <label className="field">
+                  <span className="field-label">备注类型</span>
+                  <select
+                    value={releaseReadinessDraft.noteType}
+                    onChange={(event) => setReleaseReadinessDraft((current) => ({ ...current, noteType: event.target.value === 'WORK_ORDER' ? 'WORK_ORDER' : 'COMMENT' }))}
+                    disabled={!canPublish || releaseReadinessState.loading || !selectedReleaseReadinessApprovalId}
+                  >
+                    <option value="COMMENT">COMMENT</option>
+                    <option value="WORK_ORDER">WORK_ORDER</option>
+                  </select>
+                </label>
+                <label className="field test-design-release-readiness-wide">
+                  <span className="field-label">流转备注</span>
+                  <textarea
+                    value={releaseReadinessDraft.noteText}
+                    maxLength={1000}
+                    rows={2}
+                    onChange={(event) => setReleaseReadinessDraft((current) => ({ ...current, noteText: event.target.value }))}
+                    disabled={!canPublish || releaseReadinessState.loading || !selectedReleaseReadinessApprovalId}
+                  />
+                </label>
+                <button
+                  className="btn btn-secondary btn-sm test-design-release-readiness-submit"
+                  type="button"
+                  disabled={!canPublish || releaseReadinessState.loading || !selectedReleaseReadinessApprovalId || !releaseReadinessDraft.noteText.trim()}
+                  onClick={() => void addReleaseReadinessNote()}
+                >
+                  <Plus size={15} />
+                  追加备注
+                </button>
+              </div>
+              <div className="test-design-release-readiness-notes">
+                <strong>备注流转 · {selectedReleaseReadinessApproval?.workOrderKey ?? (selectedReleaseReadinessApprovalId || '-')}</strong>
+                {selectedReleaseReadinessApprovalId ? (
+                  releaseReadinessNotes.length ? releaseReadinessNotes.slice(-6).map((note) => (
+                    <div className="test-design-release-readiness-note" key={note.id}>
+                      <span className="badge badge-neutral">{note.noteType}</span>
+                      <em>{note.noteText}</em>
+                      <small>{note.createdBy ?? '-'} · {note.createdAt ?? '-'}</small>
+                    </div>
+                  )) : (
+                    <div className="notice info">暂无备注流转记录</div>
+                  )
+                ) : (
+                  <div className="notice info">未选择发布准出审批记录</div>
+                )}
+              </div>
+              <StateLine state={releaseReadinessState} />
+            </div>
             {publishResult && (
               <>
                 <div className="toolbar-actions test-design-export-actions">
@@ -4081,6 +4590,23 @@ function contextPolicyStatusTone(status: string) {
 
 function contextPolicyDigestText(digest?: string) {
   return digest ? `sha256:${digest.slice(0, 12)}` : '无正文 digest';
+}
+
+function releaseReadinessReasonCodeValue(value: string | undefined, fallback: string) {
+  return releaseReadinessReasonCodes.includes(value as (typeof releaseReadinessReasonCodes)[number])
+    ? value ?? fallback
+    : fallback;
+}
+
+function releaseReadinessStatusTone(status?: string) {
+  if (status === 'APPROVED' || status === 'READY') return 'success';
+  if (status === 'REJECTED' || status === 'BLOCKED') return 'danger';
+  if (status === 'PENDING' || status === 'WARNING') return 'warning';
+  return 'neutral';
+}
+
+function releaseReadinessDigestText(digest?: string) {
+  return digest ? `sha256:${digest.slice(0, 12)}` : '-';
 }
 
 function PublishRecordRow(props: { record: TestDesignPublishRecordView }) {
