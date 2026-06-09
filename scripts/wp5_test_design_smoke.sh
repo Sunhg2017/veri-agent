@@ -435,7 +435,7 @@ main() {
   echo "== WP5 test-design smoke =="
   echo "baseUrl=$BASE_URL project=$PROJECT_ID"
 
-  local health project_policy env_policy pending_effective approved_project approved_env effective_policy overrides requirement requirement_id task task_id candidates candidate_targets confirm calibration_task calibration_task_id calibration_candidates calibration_targets calibration_reject calibration_ignore corpus_summary dry_run asset_before publish scope_summary case_id case_asset links
+  local health project_policy env_policy pending_effective approved_project approved_env effective_policy overrides requirement requirement_id task task_id candidates candidate_targets candidate_source_refs confirm calibration_task calibration_task_id calibration_candidates calibration_targets calibration_reject calibration_ignore corpus_summary dry_run asset_before asset_before_for_task publish scope_summary case_id case_asset links
   health="$(curl -fsS "$TEST_DESIGN_API_BASE/health")"
   check "WP5 health" '.data.service == "test-design" and .data.status == "UP" and .data.generationEnabled == true' "$health"
   validate_release_readiness_policy "$health"
@@ -500,6 +500,7 @@ main() {
   candidates="$(curl -fsS "$TEST_DESIGN_API_BASE/tasks/$task_id/candidates" "${test_design_headers[@]}")"
   check "Candidate page" '.data.total == 2 and (.data.items | all(.steps | length >= 3))' "$candidates"
   candidate_targets="$(printf '%s' "$candidates" | jq -c '[.data.items[] | {id, version}]')"
+  candidate_source_refs="$(printf '%s' "$candidates" | jq -c '[.data.items[] | "wp5:" + .id]')"
 
   confirm="$(post_test_design_json /candidates/batch-action "$(jq -nc --argjson candidates "$candidate_targets" '{action:"CONFIRM",candidates:$candidates}')")"
   check "Batch confirm candidates" '.data.succeededCount == 2 and .data.failedCount == 0 and (.data.items | all(.candidate.status == "CONFIRMED"))' "$confirm"
@@ -540,7 +541,13 @@ main() {
   dry_run="$(post_test_design_json "/tasks/$task_id/publish-dry-run" '{}')"
   check "Publish dryRun does not create cases" '.data.dryRun == true and .data.created == 2 and (.data.createdCaseIds | length) == 0 and (.data.records | all(.result == "PLANNED"))' "$dry_run"
   asset_before="$(get_asset_json "/test-cases?projectId=$PROJECT_ID&source=AI_GENERATED")"
-  check "No WP3 write after dryRun" '.data.total == 0' "$asset_before"
+  asset_before_for_task="$(jq -nc \
+    --argjson response "$asset_before" \
+    --argjson candidateSourceRefs "$candidate_source_refs" \
+    '$response + {candidateSourceRefs:$candidateSourceRefs}')"
+  check "No WP3 write after dryRun" \
+    '.candidateSourceRefs as $expectedRefs | (.data.items | map(.sourceRef)) as $actualRefs | all($expectedRefs[]; . as $ref | ($actualRefs | index($ref) | not))' \
+    "$asset_before_for_task"
 
   publish="$(post_test_design_json "/tasks/$task_id/publish" '{}')"
   check "Publish accepted for async WP3 write" '.data.dryRun == false and .data.created == 0 and (.data.createdCaseIds | length) == 0 and (.data.records | length) == 2 and (.data.records | all(.result == "QUEUED" and .candidateStatus == "PUBLISH_QUEUED"))' "$publish"
