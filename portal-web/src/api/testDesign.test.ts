@@ -3,6 +3,7 @@ import { requestJson, requestText } from './client';
 import {
   TEST_DESIGN_CANDIDATE_STATUSES,
   TEST_DESIGN_COVERAGE_TYPES,
+  addTestDesignContextPolicyNote,
   approveTestDesignContextPolicyOverride,
   batchActionTestDesignCandidates,
   batchResolveTestDesignConflicts,
@@ -16,6 +17,7 @@ import {
   exportTestDesignTaskReportCsv,
   fetchTaskTestDesignCandidates,
   fetchTestDesignContextPolicyEffective,
+  fetchTestDesignContextPolicyNotes,
   fetchTestDesignContextPolicyOverrides,
   fetchTestDesignCandidates,
   fetchTestDesignEvaluationCorpusSummary,
@@ -34,6 +36,7 @@ import {
   normalizeTestDesignCandidateList,
   normalizeTestDesignConflictBatchResolveResult,
   normalizeTestDesignContextPolicyEffective,
+  normalizeTestDesignContextPolicyNote,
   normalizeTestDesignContextPolicyOverride,
   normalizeTestDesignEvaluationCorpusSummary,
   normalizeTestDesignHealth,
@@ -63,7 +66,8 @@ import {
   testDesignReviewRecordExportPath,
   testDesignTaskReportExportPath,
   updateTestDesignTemplate,
-  updateTestDesignCandidate
+  updateTestDesignCandidate,
+  updateTestDesignContextPolicyOverride
 } from './testDesign';
 
 vi.mock('./client', () => ({
@@ -1440,6 +1444,17 @@ describe('WP5 test design API helpers', () => {
           },
           change_reason_code_captured: true,
           approval_reason_code_captured: false,
+          work_order_key: 'WP5-CTX-1',
+          work_order_title: 'QA policy approval',
+          work_order_url: 'https://ticket.example/wp5/ctx-1',
+          work_order_status: 'OPEN',
+          policy_body: 'qa policy body',
+          policy_body_digest: 'abcdef1234567890',
+          policy_body_version: '2',
+          policy_diff_summary: 'raise baseline',
+          request_note: 'please review',
+          note_count: '3',
+          latest_note_preview: 'work order moved to review',
           requested_by: 'owner',
           created_at: '2026-05-31T10:00:00Z'
         }
@@ -1461,7 +1476,16 @@ describe('WP5 test design API helpers', () => {
         explicitAssetsPerType: 2
       },
       changeReasonCodeCaptured: true,
-      approvalReasonCodeCaptured: false
+      approvalReasonCodeCaptured: false,
+      workOrderKey: 'WP5-CTX-1',
+      workOrderStatus: 'OPEN',
+      policyBody: 'qa policy body',
+      policyBodyDigest: 'abcdef1234567890',
+      policyBodyVersion: 2,
+      policyDiffSummary: 'raise baseline',
+      requestNote: 'please review',
+      noteCount: 3,
+      latestNotePreview: 'work order moved to review'
     });
 
     requestJsonMock.mockResolvedValue({
@@ -1508,11 +1532,28 @@ describe('WP5 test design API helpers', () => {
     expect(normalizeTestDesignContextPolicyOverride({
       id: 'override-2',
       override_limits: { linkedAssetSchemaChars: '180' },
-      change_reason_code_captured: true
+      change_reason_code_captured: true,
+      work_order_status: 'IN_REVIEW',
+      note_count: '5'
     })).toMatchObject({
       id: 'override-2',
       overrideLimits: { linkedAssetSchemaChars: 180 },
-      changeReasonCodeCaptured: true
+      changeReasonCodeCaptured: true,
+      workOrderStatus: 'IN_REVIEW',
+      noteCount: 5
+    });
+    expect(normalizeTestDesignContextPolicyNote({
+      id: 'note-1',
+      override_id: 'override-2',
+      note_type: 'WORK_ORDER',
+      note_text: 'ticket linked',
+      created_by: 'owner'
+    })).toMatchObject({
+      id: 'note-1',
+      overrideId: 'override-2',
+      noteType: 'WORK_ORDER',
+      noteText: 'ticket linked',
+      createdBy: 'owner'
     });
     expect(normalizeTestDesignContextPolicyEffective({
       context_limits: { linkedAssetsPerRequirement: '3' },
@@ -1535,7 +1576,13 @@ describe('WP5 test design API helpers', () => {
       contextLinkedAssetsPerRequirement: 4,
       contextExplicitAssetsPerType: undefined,
       contextRequirementDescriptionChars: 180,
-      changeReasonCode: ' QUALITY_BASELINE '
+      changeReasonCode: ' QUALITY_BASELINE ',
+      policyBody: ' qa policy body ',
+      policyDiffSummary: ' raise baseline ',
+      workOrderKey: ' WP5-CTX-1 ',
+      workOrderTitle: ' QA policy approval ',
+      workOrderUrl: ' https://ticket.example/wp5/ctx-1 ',
+      requestNote: ' please review '
     });
     expect(requestJsonMock).toHaveBeenLastCalledWith(
       '/api/v1/test-design/context-policies/projects/proj%20pay/overrides',
@@ -1544,7 +1591,13 @@ describe('WP5 test design API helpers', () => {
         body: JSON.stringify({
           contextLinkedAssetsPerRequirement: 4,
           contextRequirementDescriptionChars: 180,
-          changeReasonCode: 'QUALITY_BASELINE'
+          changeReasonCode: 'QUALITY_BASELINE',
+          policyBody: 'qa policy body',
+          policyDiffSummary: 'raise baseline',
+          workOrderKey: 'WP5-CTX-1',
+          workOrderTitle: 'QA policy approval',
+          workOrderUrl: 'https://ticket.example/wp5/ctx-1',
+          requestNote: 'please review'
         })
       }
     );
@@ -1564,21 +1617,79 @@ describe('WP5 test design API helpers', () => {
       }
     );
 
-    await approveTestDesignContextPolicyOverride('override 1', { approvalReasonCode: ' SMOKE_VALIDATION ' });
+    await updateTestDesignContextPolicyOverride('override 1', {
+      contextLinkedAssetsPerRequirement: 5,
+      policyBody: 'qa policy body v2',
+      requestNote: 'body updated'
+    });
+    expect(requestJsonMock).toHaveBeenLastCalledWith(
+      '/api/v1/test-design/context-policies/overrides/override%201',
+      {
+        method: 'PUT',
+        body: JSON.stringify({
+          contextLinkedAssetsPerRequirement: 5,
+          policyBody: 'qa policy body v2',
+          requestNote: 'body updated'
+        })
+      }
+    );
+
+    await approveTestDesignContextPolicyOverride('override 1', {
+      approvalReasonCode: ' SMOKE_VALIDATION ',
+      reviewNote: ' approved by owner ',
+      workOrderStatus: ' APPROVED '
+    });
     expect(requestJsonMock).toHaveBeenLastCalledWith(
       '/api/v1/test-design/context-policies/overrides/override%201/approve',
       {
         method: 'POST',
-        body: JSON.stringify({ approvalReasonCode: 'SMOKE_VALIDATION' })
+        body: JSON.stringify({
+          approvalReasonCode: 'SMOKE_VALIDATION',
+          reviewNote: 'approved by owner',
+          workOrderStatus: 'APPROVED'
+        })
       }
     );
 
-    await rejectTestDesignContextPolicyOverride('override 1', { approvalReasonCode: 'PROJECT_COMPLEXITY' });
+    await rejectTestDesignContextPolicyOverride('override 1', {
+      approvalReasonCode: 'PROJECT_COMPLEXITY',
+      reviewNote: 'needs changes',
+      workOrderStatus: 'REJECTED'
+    });
     expect(requestJsonMock).toHaveBeenLastCalledWith(
       '/api/v1/test-design/context-policies/overrides/override%201/reject',
       {
         method: 'POST',
-        body: JSON.stringify({ approvalReasonCode: 'PROJECT_COMPLEXITY' })
+        body: JSON.stringify({
+          approvalReasonCode: 'PROJECT_COMPLEXITY',
+          reviewNote: 'needs changes',
+          workOrderStatus: 'REJECTED'
+        })
+      }
+    );
+
+    requestJsonMock.mockResolvedValueOnce({
+      code: 'OK',
+      message: 'ok',
+      trace_id: 'trace-policy-notes',
+      data: [{ id: 'note-1', override_id: 'override-1', note_type: 'COMMENT', note_text: 'body checked' }]
+    });
+    const notes = await fetchTestDesignContextPolicyNotes('override 1');
+    expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/test-design/context-policies/overrides/override%201/notes');
+    expect(notes.data[0]).toMatchObject({ id: 'note-1', overrideId: 'override-1', noteText: 'body checked' });
+
+    await addTestDesignContextPolicyNote('override 1', {
+      noteType: ' WORK_ORDER ',
+      noteText: ' ticket moved to review '
+    });
+    expect(requestJsonMock).toHaveBeenLastCalledWith(
+      '/api/v1/test-design/context-policies/overrides/override%201/notes',
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          noteType: 'WORK_ORDER',
+          noteText: 'ticket moved to review'
+        })
       }
     );
   });

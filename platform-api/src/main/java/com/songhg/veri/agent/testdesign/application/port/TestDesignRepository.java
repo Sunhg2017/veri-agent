@@ -7,6 +7,7 @@ import com.songhg.veri.agent.testdesign.application.query.TestDesignTemplateQuer
 import com.songhg.veri.agent.testdesign.domain.TestDesignAuditChainAggregate;
 import com.songhg.veri.agent.testdesign.domain.TestDesignCandidate;
 import com.songhg.veri.agent.testdesign.domain.TestDesignCandidateStatus;
+import com.songhg.veri.agent.testdesign.domain.TestDesignContextPolicyNote;
 import com.songhg.veri.agent.testdesign.domain.TestDesignContextPolicyOverride;
 import com.songhg.veri.agent.testdesign.domain.TestDesignPublishRecord;
 import com.songhg.veri.agent.testdesign.domain.TestDesignReportManifest;
@@ -226,9 +227,14 @@ public interface TestDesignRepository {
     TestDesignAuditChainAggregate auditChainAggregate(UUID taskId);
 
     /**
-     * 保存项目或环境级上下文策略覆盖请求，仅存储有界裁剪数字和审批状态。
+     * 保存项目或环境级上下文策略覆盖请求，包含有界裁剪数字、审批工单和策略正文版本。
      */
     TestDesignContextPolicyOverride saveContextPolicyOverride(TestDesignContextPolicyOverride override);
+
+    /**
+     * 追加上下文策略审批工单备注。
+     */
+    TestDesignContextPolicyNote saveContextPolicyNote(TestDesignContextPolicyNote note);
 
     /**
      * 查询上下文策略覆盖记录，用于审批状态流和脱敏运营查询。
@@ -239,6 +245,11 @@ public interface TestDesignRepository {
      * 查询项目下的上下文策略覆盖记录，包含项目级记录和可选环境级记录。
      */
     List<TestDesignContextPolicyOverride> contextPolicyOverrides(String projectId, String environmentKey);
+
+    /**
+     * 查询上下文策略审批工单备注时间线。
+     */
+    List<TestDesignContextPolicyNote> contextPolicyNotes(UUID overrideId);
 
     /**
      * 查询一个项目下最新已批准的项目级上下文策略覆盖。

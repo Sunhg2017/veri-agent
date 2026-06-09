@@ -6,9 +6,9 @@ import java.util.UUID;
 /**
  * Project/environment scoped WP5 context assembly policy override.
  *
- * <p>The record stores bounded clipping limits and approval state only. It intentionally does not store policy
- * documents, diff previews, ticket URLs, approval notes or any source context body so task snapshots can reference the
- * effective policy without leaking operations details into diagnostics, model payloads or reports.
+ * <p>The record stores bounded clipping limits, approval work order metadata and the approved policy document body used
+ * by policy operators. Source context bodies, raw prompts and model payloads must stay outside this aggregate; task
+ * diagnostics and reports only consume aggregate readiness flags and numeric limits.
  */
 public record TestDesignContextPolicyOverride(
         UUID id,
@@ -24,8 +24,19 @@ public record TestDesignContextPolicyOverride(
         Integer contextAssetSchemaChars,
         String changeReasonCode,
         String approvalReasonCode,
+        String workOrderKey,
+        String workOrderTitle,
+        String workOrderUrl,
+        String workOrderStatus,
+        String policyBody,
+        String policyBodyDigest,
+        Integer policyBodyVersion,
+        String policyDiffSummary,
+        String requestNote,
+        String reviewNote,
         String requestedBy,
         String approvedBy,
+        Instant reviewedAt,
         Instant createdAt,
         Instant updatedAt
 ) {

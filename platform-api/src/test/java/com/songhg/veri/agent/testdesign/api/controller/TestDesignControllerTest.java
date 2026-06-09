@@ -835,7 +835,7 @@ class TestDesignControllerTest {
                 .andExpect(jsonPath("$.data.task.contextPolicyOperations.policyFallbackBehavior")
                         .value("FALLBACK_TO_PLATFORM_DEFAULT"))
                 .andExpect(jsonPath("$.data.task.contextPolicyOperations.approvalStatus")
-                        .value("METADATA_APPROVAL_READY"))
+                        .value("WORK_ORDER_APPROVAL_READY"))
                 .andExpect(jsonPath("$.data.task.contextPolicyOperations.projectOverrideStoreReady").value(false))
                 .andExpect(jsonPath("$.data.task.contextPolicyOperations.changeApprovalWorkflowReady").value(true))
                 .andExpect(jsonPath("$.data.task.contextPolicyOperations.aggregateOnly").value(true))
@@ -959,7 +959,7 @@ class TestDesignControllerTest {
                 .andExpect(jsonPath("$.data.task.contextSummary.policyOperations.policyFallbackBehavior")
                         .value("FALLBACK_TO_PLATFORM_DEFAULT"))
                 .andExpect(jsonPath("$.data.task.contextSummary.policyOperations.approvalStatus")
-                        .value("METADATA_APPROVAL_READY"))
+                        .value("WORK_ORDER_APPROVAL_READY"))
                 .andExpect(jsonPath("$.data.task.contextSummary.policyOperations.projectOverrideStoreReady").value(false))
                 .andExpect(jsonPath("$.data.task.contextSummary.policyOperations.changeApprovalWorkflowReady")
                         .value(true))
@@ -1140,7 +1140,13 @@ class TestDesignControllerTest {
                                 {
                                   "contextLinkedAssetsPerRequirement": 4,
                                   "contextExplicitAssetsPerType": 3,
-                                  "changeReasonCode": "QUALITY_BASELINE"
+                                  "changeReasonCode": "QUALITY_BASELINE",
+                                  "policyBody": "qa policy: linkedAssetsPerRequirement=4; explicitAssetsPerType=3",
+                                  "policyDiffSummary": "raise project context limits for QA baseline",
+                                  "workOrderKey": "WP5-CTX-PROJECT-1",
+                                  "workOrderTitle": "Project context policy approval",
+                                  "workOrderUrl": "https://ticket.example/wp5/context/project-1",
+                                  "requestNote": "requesting broader QA context"
                                 }
                                 """))
                 .andExpect(status().isOk())
@@ -1150,10 +1156,37 @@ class TestDesignControllerTest {
                 .andExpect(jsonPath("$.data.overrideLimits.linkedAssetsPerRequirement").value(4))
                 .andExpect(jsonPath("$.data.changeReasonCodeCaptured").value(true))
                 .andExpect(jsonPath("$.data.approvalReasonCodeCaptured").value(false))
+                .andExpect(jsonPath("$.data.workOrderKey").value("WP5-CTX-PROJECT-1"))
+                .andExpect(jsonPath("$.data.workOrderStatus").value("OPEN"))
+                .andExpect(jsonPath("$.data.policyBody").value("qa policy: linkedAssetsPerRequirement=4; explicitAssetsPerType=3"))
+                .andExpect(jsonPath("$.data.policyBodyDigest").isString())
+                .andExpect(jsonPath("$.data.policyBodyVersion").value(1))
+                .andExpect(jsonPath("$.data.policyDiffSummary").value("raise project context limits for QA baseline"))
+                .andExpect(jsonPath("$.data.requestNote").value("requesting broader QA context"))
+                .andExpect(jsonPath("$.data.noteCount").value(1))
                 .andExpect(jsonPath("$.data.changeReasonCode").doesNotExist())
                 .andExpect(jsonPath("$.data.approvalReasonCode").doesNotExist())
                 .andReturn();
         String projectOverrideId = JsonPath.read(projectOverrideResult.getResponse().getContentAsString(), "$.data.id");
+
+        mockMvc.perform(put("/api/v1/test-design/context-policies/overrides/{id}", projectOverrideId)
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "contextLinkedAssetsPerRequirement": 5,
+                                  "changeReasonCode": "PROJECT_COMPLEXITY",
+                                  "policyBody": "qa policy v2: linkedAssetsPerRequirement=5; explicitAssetsPerType=3",
+                                  "policyDiffSummary": "clarify QA baseline wording",
+                                  "requestNote": "updated policy body before review"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("PENDING"))
+                .andExpect(jsonPath("$.data.overrideLimits.linkedAssetsPerRequirement").value(5))
+                .andExpect(jsonPath("$.data.policyBody").value("qa policy v2: linkedAssetsPerRequirement=5; explicitAssetsPerType=3"))
+                .andExpect(jsonPath("$.data.policyBodyVersion").value(2))
+                .andExpect(jsonPath("$.data.latestNotePreview").value("updated policy body before review"));
 
         mockMvc.perform(get("/api/v1/test-design/context-policies/projects/project-wp5/effective")
                         .header("Authorization", "Bearer " + ownerToken))
@@ -1169,6 +1202,16 @@ class TestDesignControllerTest {
                 .andExpect(jsonPath("$.data.policyDiffPreviewExported").value(false))
                 .andExpect(jsonPath("$.data.approvalNotesExported").value(false));
 
+        mockMvc.perform(post("/api/v1/test-design/context-policies/overrides/{id}/notes", projectOverrideId)
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"noteType": "COMMENT", "noteText": "ready for policy approval review"}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.noteType").value("COMMENT"))
+                .andExpect(jsonPath("$.data.noteText").value("ready for policy approval review"));
+
         mockMvc.perform(post("/api/v1/test-design/context-policies/overrides/{id}/approve", projectOverrideId)
                         .header("Authorization", "Bearer " + deniedOwnerToken)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -1181,12 +1224,28 @@ class TestDesignControllerTest {
                         .header("Authorization", "Bearer " + ownerToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"approvalReasonCode": "QUALITY_BASELINE"}
+                                {
+                                  "approvalReasonCode": "QUALITY_BASELINE",
+                                  "reviewNote": "approved for QA project baseline",
+                                  "workOrderStatus": "APPROVED"
+                                }
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("APPROVED"))
+                .andExpect(jsonPath("$.data.workOrderStatus").value("APPROVED"))
+                .andExpect(jsonPath("$.data.reviewNote").value("approved for QA project baseline"))
+                .andExpect(jsonPath("$.data.noteCount").value(4))
                 .andExpect(jsonPath("$.data.approvalReasonCodeCaptured").value(true))
                 .andExpect(jsonPath("$.data.approvalReasonCode").doesNotExist());
+
+        mockMvc.perform(get("/api/v1/test-design/context-policies/overrides/{id}/notes", projectOverrideId)
+                        .header("Authorization", "Bearer " + ownerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data", hasSize(4)))
+                .andExpect(jsonPath("$.data[0].noteType").value("REQUEST"))
+                .andExpect(jsonPath("$.data[1].noteType").value("COMMENT"))
+                .andExpect(jsonPath("$.data[2].noteType").value("COMMENT"))
+                .andExpect(jsonPath("$.data[3].noteType").value("REVIEW"));
 
         MvcResult environmentOverrideResult = mockMvc.perform(post(
                                 "/api/v1/test-design/context-policies/projects/project-wp5/environments/qa/overrides")
@@ -1228,7 +1287,7 @@ class TestDesignControllerTest {
                         .param("environmentKey", "qa"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.environmentKey").value("qa"))
-                .andExpect(jsonPath("$.data.contextLimits.linkedAssetsPerRequirement").value(4))
+                .andExpect(jsonPath("$.data.contextLimits.linkedAssetsPerRequirement").value(5))
                 .andExpect(jsonPath("$.data.contextLimits.linkedAssetSchemaChars").value(80))
                 .andExpect(jsonPath("$.data.appliedOverrideScopes",
                         contains("PLATFORM_DEFAULT", "PROJECT", "ENVIRONMENT")))
@@ -1240,7 +1299,7 @@ class TestDesignControllerTest {
                 .andExpect(jsonPath("$.data.contextPolicyOperations.operationMode")
                         .value("PROJECT_ENVIRONMENT_OVERRIDE"))
                 .andExpect(jsonPath("$.data.contextPolicyOperations.approvalStatus")
-                        .value("METADATA_APPROVAL_READY"));
+                        .value("WORK_ORDER_APPROVAL_READY"));
 
         String requirementId = createRequirement(ownerToken, "环境策略需求", "环境策略验收", "project-wp5");
 
@@ -1257,7 +1316,7 @@ class TestDesignControllerTest {
                                 """.formatted(requirementId)))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.data.task.contextSummary.environmentKey").value("qa"))
-                .andExpect(jsonPath("$.data.task.contextSummary.limits.linkedAssetsPerRequirement").value(4))
+                .andExpect(jsonPath("$.data.task.contextSummary.limits.linkedAssetsPerRequirement").value(5))
                 .andExpect(jsonPath("$.data.task.contextSummary.limits.linkedAssetSchemaChars").value(80))
                 .andExpect(jsonPath("$.data.task.contextSummary.policyGovernance.approvedOverrideApplied").value(true))
                 .andExpect(jsonPath("$.data.task.contextSummary.policyGovernance.appliedOverrideScopes",
@@ -1265,7 +1324,7 @@ class TestDesignControllerTest {
                 .andExpect(jsonPath("$.data.task.contextSummary.policyOperations.policyResolutionOrder")
                         .value("PLATFORM_DEFAULT_PROJECT_ENVIRONMENT"))
                 .andExpect(jsonPath("$.data.task.contextSummary.policyOperations.approvalStatus")
-                        .value("METADATA_APPROVAL_READY"))
+                        .value("WORK_ORDER_APPROVAL_READY"))
                 .andExpect(jsonPath("$.data.task.contextSummary.policyOperations.policyDiffPreviewExported")
                         .value(false))
                 .andExpect(jsonPath("$.data.task.contextSummary.policyOperations.approvalNotesExported")
@@ -2004,7 +2063,7 @@ class TestDesignControllerTest {
         MatcherAssert.assertThat(csv, containsString("contextPolicyOperations,operationMode,,PROJECT_ENVIRONMENT_OVERRIDE"));
         MatcherAssert.assertThat(csv, containsString("contextPolicyOperations,policyResolutionOrder,,PLATFORM_DEFAULT_PROJECT_ENVIRONMENT"));
         MatcherAssert.assertThat(csv, containsString("contextPolicyOperations,policyFallbackBehavior,,FALLBACK_TO_PLATFORM_DEFAULT"));
-        MatcherAssert.assertThat(csv, containsString("contextPolicyOperations,approvalStatus,,METADATA_APPROVAL_READY"));
+        MatcherAssert.assertThat(csv, containsString("contextPolicyOperations,approvalStatus,,WORK_ORDER_APPROVAL_READY"));
         MatcherAssert.assertThat(csv, containsString("contextPolicyOperations,projectOverrideStoreReady,,false"));
         MatcherAssert.assertThat(csv, containsString("contextPolicyOperations,environmentOverrideStoreReady,,false"));
         MatcherAssert.assertThat(csv, containsString("contextPolicyOperations,changeApprovalWorkflowReady,,true"));

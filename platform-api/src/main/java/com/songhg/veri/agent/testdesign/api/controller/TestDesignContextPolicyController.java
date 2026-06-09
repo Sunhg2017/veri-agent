@@ -4,15 +4,18 @@ import com.songhg.veri.agent.authorization.application.PermissionCodes;
 import com.songhg.veri.agent.authorization.application.RequirePermission;
 import com.songhg.veri.agent.common.openapi.ApiVersion;
 import com.songhg.veri.agent.testdesign.application.TestDesignContextPolicyService;
+import com.songhg.veri.agent.testdesign.application.command.AddTestDesignContextPolicyNoteCommand;
 import com.songhg.veri.agent.testdesign.application.command.RequestTestDesignContextPolicyOverrideCommand;
 import com.songhg.veri.agent.testdesign.application.command.ReviewTestDesignContextPolicyOverrideCommand;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignContextPolicyEffectiveResponse;
+import com.songhg.veri.agent.testdesign.application.view.TestDesignContextPolicyNoteResponse;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignContextPolicyOverrideResponse;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -103,5 +106,38 @@ public class TestDesignContextPolicyController {
             @RequestBody(required = false) ReviewTestDesignContextPolicyOverrideCommand command
     ) {
         return service.rejectOverride(id, command);
+    }
+
+    /**
+     * Updates a pending context policy override draft before approval.
+     */
+    @PutMapping("/overrides/{id}")
+    @RequirePermission(value = PermissionCodes.TEST_DESIGN_POLICY_MANAGE, scope = TestDesignPermissionScopes.POLICY_OVERRIDE)
+    public TestDesignContextPolicyOverrideResponse updateOverride(
+            @PathVariable UUID id,
+            @RequestBody(required = false) RequestTestDesignContextPolicyOverrideCommand command
+    ) {
+        return service.updateOverride(id, command);
+    }
+
+    /**
+     * Lists the approval work order note timeline for a context policy override.
+     */
+    @GetMapping("/overrides/{id}/notes")
+    @RequirePermission(value = PermissionCodes.TEST_DESIGN_POLICY_MANAGE, scope = TestDesignPermissionScopes.POLICY_OVERRIDE)
+    public List<TestDesignContextPolicyNoteResponse> notes(@PathVariable UUID id) {
+        return service.notes(id);
+    }
+
+    /**
+     * Appends an operator note to the approval work order timeline.
+     */
+    @PostMapping("/overrides/{id}/notes")
+    @RequirePermission(value = PermissionCodes.TEST_DESIGN_POLICY_MANAGE, scope = TestDesignPermissionScopes.POLICY_OVERRIDE)
+    public TestDesignContextPolicyNoteResponse addNote(
+            @PathVariable UUID id,
+            @RequestBody(required = false) AddTestDesignContextPolicyNoteCommand command
+    ) {
+        return service.addNote(id, command);
     }
 }

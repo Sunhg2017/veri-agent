@@ -230,6 +230,21 @@ checks as (
         'runtime role may create, approve and read WP5 context policy metadata but must not DELETE/TRUNCATE override records' as details
     union all
     select
+        'release.wp5_context_policy_note.runtime_access' as check_name,
+        case
+            when not exists (select 1 from app_role_exists) then 'FAIL'
+            when to_regclass(format('%I.%I', (select schema_name from settings), 'test_design_context_policy_note')) is null then 'FAIL'
+            when coalesce(has_table_privilege((select app_role from settings), to_regclass(format('%I.%I', (select schema_name from settings), 'test_design_context_policy_note')), 'SELECT'), false)
+             and coalesce(has_table_privilege((select app_role from settings), to_regclass(format('%I.%I', (select schema_name from settings), 'test_design_context_policy_note')), 'INSERT'), false)
+             and not coalesce(has_table_privilege((select app_role from settings), to_regclass(format('%I.%I', (select schema_name from settings), 'test_design_context_policy_note')), 'UPDATE'), false)
+             and not coalesce(has_table_privilege((select app_role from settings), to_regclass(format('%I.%I', (select schema_name from settings), 'test_design_context_policy_note')), 'DELETE'), false)
+             and not coalesce(has_table_privilege((select app_role from settings), to_regclass(format('%I.%I', (select schema_name from settings), 'test_design_context_policy_note')), 'TRUNCATE'), false)
+            then 'PASS'
+            else 'FAIL'
+        end as status,
+        'runtime role may append and read WP5 context policy approval notes but must not UPDATE/DELETE/TRUNCATE note records' as details
+    union all
+    select
         'release.readonly_role.no_table_dml' as check_name,
         case
             when not exists (select 1 from readonly_role_exists) then 'FAIL'

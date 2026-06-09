@@ -55,7 +55,8 @@ with expected(table_name) as (
         ('test_design_review_record'),
         ('test_design_publish_record'),
         ('test_design_report_manifest'),
-        ('test_design_context_policy_override')
+        ('test_design_context_policy_override'),
+        ('test_design_context_policy_note')
 ),
 missing as (
     select e.table_name
@@ -298,8 +299,22 @@ with expected(table_name, column_name) as (
         ('test_design_context_policy_override','context_asset_schema_chars'),
         ('test_design_context_policy_override','change_reason_code'),
         ('test_design_context_policy_override','approval_reason_code'),
+        ('test_design_context_policy_override','work_order_key'),
+        ('test_design_context_policy_override','work_order_title'),
+        ('test_design_context_policy_override','work_order_url'),
+        ('test_design_context_policy_override','work_order_status'),
+        ('test_design_context_policy_override','policy_body'),
+        ('test_design_context_policy_override','policy_body_digest'),
+        ('test_design_context_policy_override','policy_body_version'),
+        ('test_design_context_policy_override','policy_diff_summary'),
+        ('test_design_context_policy_override','request_note'),
+        ('test_design_context_policy_override','review_note'),
         ('test_design_context_policy_override','requested_by'), ('test_design_context_policy_override','approved_by'),
-        ('test_design_context_policy_override','created_at'), ('test_design_context_policy_override','updated_at')
+        ('test_design_context_policy_override','reviewed_at'),
+        ('test_design_context_policy_override','created_at'), ('test_design_context_policy_override','updated_at'),
+        ('test_design_context_policy_note','id'), ('test_design_context_policy_note','override_id'),
+        ('test_design_context_policy_note','note_type'), ('test_design_context_policy_note','note_text'),
+        ('test_design_context_policy_note','created_by'), ('test_design_context_policy_note','created_at')
 ),
 missing as (
     select e.table_name || '.' || e.column_name as item
@@ -390,7 +405,9 @@ with expected(table_name, index_name) as (
         ('test_design_report_manifest','idx_test_design_report_manifest_project_created'),
         ('test_design_context_policy_override','idx_test_design_context_policy_override_project_created'),
         ('test_design_context_policy_override','idx_test_design_context_policy_override_project_status'),
-        ('test_design_context_policy_override','idx_test_design_context_policy_override_environment_status')
+        ('test_design_context_policy_override','idx_test_design_context_policy_override_environment_status'),
+        ('test_design_context_policy_override','idx_test_design_context_policy_override_work_order'),
+        ('test_design_context_policy_note','idx_test_design_context_policy_note_override_created')
 ),
 missing as (
     select e.table_name || '.' || e.index_name as item

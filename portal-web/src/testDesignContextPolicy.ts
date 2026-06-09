@@ -14,6 +14,16 @@ export const TEST_DESIGN_CONTEXT_POLICY_REASON_CODES = [
 
 export type TestDesignContextPolicyReasonCode = (typeof TEST_DESIGN_CONTEXT_POLICY_REASON_CODES)[number];
 
+export const TEST_DESIGN_CONTEXT_POLICY_WORK_ORDER_STATUSES = [
+  'OPEN',
+  'IN_REVIEW',
+  'APPROVED',
+  'REJECTED',
+  'CANCELLED'
+] as const;
+
+export type TestDesignContextPolicyWorkOrderStatus = (typeof TEST_DESIGN_CONTEXT_POLICY_WORK_ORDER_STATUSES)[number];
+
 export type TestDesignContextPolicyDraft = {
   projectId: string;
   environmentKey: string;
@@ -26,6 +36,16 @@ export type TestDesignContextPolicyDraft = {
   assetSchemaChars: string;
   changeReasonCode: TestDesignContextPolicyReasonCode;
   approvalReasonCode: TestDesignContextPolicyReasonCode;
+  policyBody: string;
+  policyDiffSummary: string;
+  workOrderKey: string;
+  workOrderTitle: string;
+  workOrderUrl: string;
+  workOrderStatus: '' | TestDesignContextPolicyWorkOrderStatus;
+  requestNote: string;
+  reviewNote: string;
+  noteType: 'COMMENT' | 'WORK_ORDER';
+  noteText: string;
 };
 
 export type TestDesignContextPolicyIssue = {
@@ -42,7 +62,7 @@ export type TestDesignContextPolicySummary = {
 
 type TestDesignContextPolicyNumericPayloadKey = Exclude<
   keyof RequestTestDesignContextPolicyOverridePayload,
-  'changeReasonCode'
+  'changeReasonCode' | 'policyBody' | 'policyDiffSummary' | 'workOrderKey' | 'workOrderTitle' | 'workOrderUrl' | 'requestNote'
 >;
 
 export const initialTestDesignContextPolicyDraft: TestDesignContextPolicyDraft = {
@@ -56,7 +76,17 @@ export const initialTestDesignContextPolicyDraft: TestDesignContextPolicyDraft =
   acceptanceCriteriaChars: '',
   assetSchemaChars: '',
   changeReasonCode: 'QUALITY_BASELINE',
-  approvalReasonCode: 'SMOKE_VALIDATION'
+  approvalReasonCode: 'SMOKE_VALIDATION',
+  policyBody: '',
+  policyDiffSummary: '',
+  workOrderKey: '',
+  workOrderTitle: '',
+  workOrderUrl: '',
+  workOrderStatus: '',
+  requestNote: '',
+  reviewNote: '',
+  noteType: 'COMMENT',
+  noteText: ''
 };
 
 const itemFields = new Set<keyof TestDesignContextPolicyDraft>([
@@ -143,7 +173,46 @@ export function validateTestDesignContextPolicyDraft(
   if (!TEST_DESIGN_CONTEXT_POLICY_REASON_CODES.includes(draft.approvalReasonCode)) {
     issues.push({ field: 'approvalReasonCode', message: '请选择允许的审批原因编码' });
   }
+  validateTextField(issues, draft.policyBody, 'policyBody', '策略正文', 4000);
+  validateTextField(issues, draft.policyDiffSummary, 'policyDiffSummary', '策略 diff', 1000);
+  validateTextField(issues, draft.workOrderKey, 'workOrderKey', '工单编号', 128, /^[A-Za-z0-9_.:-]+$/);
+  validateTextField(issues, draft.workOrderTitle, 'workOrderTitle', '工单标题', 256);
+  validateTextField(issues, draft.workOrderUrl, 'workOrderUrl', '工单 URL', 512, /^https?:\/\/\S+$/);
+  if (draft.workOrderStatus && !TEST_DESIGN_CONTEXT_POLICY_WORK_ORDER_STATUSES.includes(draft.workOrderStatus as TestDesignContextPolicyWorkOrderStatus)) {
+    issues.push({ field: 'workOrderStatus', message: '工单状态不在允许范围内' });
+  }
+  validateTextField(issues, draft.requestNote, 'requestNote', '申请备注', 1000);
+  validateTextField(issues, draft.reviewNote, 'reviewNote', '审批备注', 1000);
+  validateTextField(issues, draft.noteText, 'noteText', '流转备注', 1000);
   return issues;
+}
+
+export function contextPolicyDraftFromOverride(
+  override: TestDesignContextPolicyOverrideView,
+  current: TestDesignContextPolicyDraft = initialTestDesignContextPolicyDraft
+): TestDesignContextPolicyDraft {
+  const limits = override.overrideLimits ?? {};
+  return {
+    ...current,
+    projectId: override.projectId ?? current.projectId,
+    environmentKey: override.environmentKey ?? '',
+    scopeType: override.scopeType === 'ENVIRONMENT' ? 'ENVIRONMENT' : 'PROJECT',
+    linkedAssetsPerRequirement: valueText(limits.linkedAssetsPerRequirement),
+    explicitAssetsPerType: valueText(limits.explicitAssetsPerType),
+    existingCasesPerRequirement: valueText(limits.existingCasesPerRequirement),
+    requirementDescriptionChars: valueText(limits.requirementDescriptionChars),
+    acceptanceCriteriaChars: valueText(limits.acceptanceCriteriaChars),
+    assetSchemaChars: valueText(limits.linkedAssetSchemaChars ?? limits.assetSchemaChars),
+    policyBody: override.policyBody ?? '',
+    policyDiffSummary: override.policyDiffSummary ?? '',
+    workOrderKey: override.workOrderKey ?? '',
+    workOrderTitle: override.workOrderTitle ?? '',
+    workOrderUrl: override.workOrderUrl ?? '',
+    workOrderStatus: override.status === 'PENDING' ? '' : normalizeWorkOrderStatus(override.workOrderStatus),
+    requestNote: override.requestNote ?? '',
+    reviewNote: override.reviewNote ?? '',
+    noteText: ''
+  };
 }
 
 export function buildTestDesignContextPolicyPayload(
@@ -162,6 +231,12 @@ export function buildTestDesignContextPolicyPayload(
       payload[config.payloadKey] = value;
     }
   }
+  assignText(payload, 'policyBody', draft.policyBody);
+  assignText(payload, 'policyDiffSummary', draft.policyDiffSummary);
+  assignText(payload, 'workOrderKey', draft.workOrderKey);
+  assignText(payload, 'workOrderTitle', draft.workOrderTitle);
+  assignText(payload, 'workOrderUrl', draft.workOrderUrl);
+  assignText(payload, 'requestNote', draft.requestNote);
   return payload;
 }
 
@@ -189,6 +264,47 @@ export function buildTestDesignContextPolicySummary(
     statusSummary,
     redLineSummary
   };
+}
+
+function validateTextField(
+  issues: TestDesignContextPolicyIssue[],
+  value: string,
+  field: keyof TestDesignContextPolicyDraft,
+  label: string,
+  maxLength: number,
+  pattern?: RegExp
+) {
+  const text = value.trim();
+  if (!text) {
+    return;
+  }
+  if (text.length > maxLength) {
+    issues.push({ field, message: `${label}不能超过 ${maxLength} 字符` });
+  }
+  if (pattern && !pattern.test(text)) {
+    issues.push({ field, message: `${label}格式不正确` });
+  }
+}
+
+function assignText(
+  payload: RequestTestDesignContextPolicyOverridePayload,
+  key: keyof RequestTestDesignContextPolicyOverridePayload,
+  value: string
+) {
+  const text = value.trim();
+  if (text) {
+    payload[key] = text as never;
+  }
+}
+
+function valueText(value: unknown) {
+  return typeof value === 'number' && Number.isFinite(value) ? String(value) : '';
+}
+
+function normalizeWorkOrderStatus(value: unknown): TestDesignContextPolicyDraft['workOrderStatus'] {
+  return typeof value === 'string' && TEST_DESIGN_CONTEXT_POLICY_WORK_ORDER_STATUSES.includes(value as TestDesignContextPolicyWorkOrderStatus)
+    ? value as TestDesignContextPolicyWorkOrderStatus
+    : '';
 }
 
 function countOverrideStatuses(overrides: readonly TestDesignContextPolicyOverrideView[]) {

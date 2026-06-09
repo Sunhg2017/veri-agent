@@ -1985,6 +1985,10 @@ tbody tr:hover td {
   gap: var(--space-sm);
 }
 
+.test-design-context-policy-wide {
+  grid-column: 1 / -1;
+}
+
 .test-design-context-policy-submit {
   align-self: end;
 }
@@ -2003,6 +2007,13 @@ tbody tr:hover td {
   gap: var(--space-sm);
 }
 
+.test-design-context-policy-review-grid,
+.test-design-context-policy-note-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-sm);
+}
+
 .test-design-context-policy-override {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -2012,6 +2023,11 @@ tbody tr:hover td {
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--surface);
+}
+
+.test-design-context-policy-override.selected {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--primary) 30%, transparent);
 }
 
 .test-design-context-policy-override > div:first-child {
@@ -2042,6 +2058,44 @@ tbody tr:hover td {
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: 6px;
+}
+
+.test-design-context-policy-notes {
+  display: grid;
+  gap: var(--space-xs);
+}
+
+.test-design-context-policy-notes > strong {
+  color: var(--text);
+  font-size: var(--font-size-sm);
+}
+
+.test-design-context-policy-note {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 4px var(--space-xs);
+  align-items: start;
+  padding: var(--space-xs);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  background: var(--bg-alt);
+}
+
+.test-design-context-policy-note em,
+.test-design-context-policy-note small {
+  overflow-wrap: anywhere;
+}
+
+.test-design-context-policy-note em {
+  color: var(--text);
+  font-size: var(--font-size-sm);
+  font-style: normal;
+}
+
+.test-design-context-policy-note small {
+  grid-column: 2;
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
 }
 
 .test-design-batch-editor {
@@ -2475,6 +2529,8 @@ tbody tr:hover td {
   .filter-bar,
   .test-design-candidate-filter,
   .test-design-context-policy-form,
+  .test-design-context-policy-review-grid,
+  .test-design-context-policy-note-form,
   .test-design-context-policy-override,
   .test-design-conflict-form,
   .test-design-conflict-row,

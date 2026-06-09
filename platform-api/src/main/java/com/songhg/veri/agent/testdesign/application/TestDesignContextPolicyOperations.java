@@ -7,9 +7,9 @@ import java.util.Map;
 /**
  * Centralizes the WP5 context policy operations snapshot used by task context, model payloads and reports.
  *
- * <p>The current enterprise stage keeps project/environment override rules and approval workflows explicit but not yet
- * operational. Persisting these fixed aggregate flags at task creation time lets diagnostics explain the effective
- * policy source without exporting override rules, approval notes, ticket URLs or policy bodies.
+ * <p>The platform default remains explicit for health checks; project/environment snapshots expose the bounded override
+ * store and work-order approval readiness. Persisting these aggregate flags at task creation time lets diagnostics
+ * explain the effective policy source without exporting override rules, approval notes, ticket URLs or policy bodies.
  */
 public final class TestDesignContextPolicyOperations {
 

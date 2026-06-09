@@ -34,6 +34,7 @@ import {
 import {
   TEST_DESIGN_CANDIDATE_STATUSES,
   TEST_DESIGN_COVERAGE_TYPES,
+  addTestDesignContextPolicyNote,
   approveTestDesignContextPolicyOverride,
   batchActionTestDesignCandidates,
   batchResolveTestDesignConflicts,
@@ -47,6 +48,7 @@ import {
   exportTestDesignTaskReportCsv,
   fetchTaskTestDesignCandidates,
   fetchTestDesignContextPolicyEffective,
+  fetchTestDesignContextPolicyNotes,
   fetchTestDesignContextPolicyOverrides,
   fetchTestDesignHealth,
   fetchTestDesignPromptTrend,
@@ -69,10 +71,12 @@ import {
   testDesignErrorMessage,
   updateTestDesignTemplate,
   updateTestDesignCandidate,
+  updateTestDesignContextPolicyOverride,
   type TestDesignCandidateBatchActionResult,
   type TestDesignCandidateBatchActionType,
   type TestDesignCandidateView,
   type TestDesignContextPolicyEffectiveView,
+  type TestDesignContextPolicyNoteView,
   type TestDesignContextPolicyOverrideView,
   type TestDesignAuditSummaryView,
   type TestDesignHealth,
@@ -156,8 +160,10 @@ import {
 import { buildTestDesignTaskDiagnostics } from '../testDesignTaskDiagnostics';
 import {
   TEST_DESIGN_CONTEXT_POLICY_REASON_CODES,
+  TEST_DESIGN_CONTEXT_POLICY_WORK_ORDER_STATUSES,
   buildTestDesignContextPolicyPayload,
   buildTestDesignContextPolicySummary,
+  contextPolicyDraftFromOverride,
   initialTestDesignContextPolicyDraft,
   validateTestDesignContextPolicyDraft,
   type TestDesignContextPolicyDraft
@@ -363,6 +369,8 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
   const [contextPolicyDraft, setContextPolicyDraft] = useState<TestDesignContextPolicyDraft>(initialTestDesignContextPolicyDraft);
   const [contextPolicyOverrides, setContextPolicyOverrides] = useState<TestDesignContextPolicyOverrideView[]>([]);
   const [contextPolicyEffective, setContextPolicyEffective] = useState<TestDesignContextPolicyEffectiveView | null>(null);
+  const [selectedContextPolicyOverrideId, setSelectedContextPolicyOverrideId] = useState('');
+  const [contextPolicyNotes, setContextPolicyNotes] = useState<TestDesignContextPolicyNoteView[]>([]);
   const [batchActionResult, setBatchActionResult] = useState<TestDesignCandidateBatchActionResult | null>(null);
   const [batchEditResult, setBatchEditResult] = useState<BatchEditResult | null>(null);
   const [selectedCandidateIds, setSelectedCandidateIds] = useState<string[]>([]);
@@ -539,11 +547,22 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
     () => validateTestDesignContextPolicyDraft(contextPolicyDraft),
     [contextPolicyDraft]
   );
+  const contextPolicySubmitIssues = useMemo(
+    () => contextPolicyIssues.filter((issue) => !['approvalReasonCode', 'reviewNote', 'workOrderStatus', 'noteText'].includes(issue.field)),
+    [contextPolicyIssues]
+  );
   const contextPolicySummary = useMemo(
     () => buildTestDesignContextPolicySummary(contextPolicyEffective, contextPolicyOverrides),
     [contextPolicyEffective, contextPolicyOverrides]
   );
-  const contextPolicySubmitBlocked = contextPolicyIssues.length > 0;
+  const contextPolicySubmitBlocked = contextPolicySubmitIssues.length > 0;
+  const selectedContextPolicyOverride = useMemo(
+    () => contextPolicyOverrides.find((override) => override.id === selectedContextPolicyOverrideId) ?? null,
+    [contextPolicyOverrides, selectedContextPolicyOverrideId]
+  );
+  const selectedPendingContextPolicyOverride = selectedContextPolicyOverride?.status === 'PENDING'
+    ? selectedContextPolicyOverride
+    : null;
   const selectedTaskSource = useMemo(() => taskGenerationSource(selectedTask), [selectedTask]);
   const selectedCandidateSource = useMemo(
     () => candidateGenerationSource(selectedCandidate, selectedTask),
@@ -716,12 +735,16 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
     if (!props.signedIn || !canRead) {
       setContextPolicyOverrides([]);
       setContextPolicyEffective(null);
+      setSelectedContextPolicyOverrideId('');
+      setContextPolicyNotes([]);
       return;
     }
     const projectId = contextPolicyDraft.projectId.trim() || selectedTask?.projectId || taskFilters.projectId || filters.projectId || '';
     if (!projectId) {
       setContextPolicyOverrides([]);
       setContextPolicyEffective(null);
+      setSelectedContextPolicyOverrideId('');
+      setContextPolicyNotes([]);
       return;
     }
 
@@ -736,7 +759,12 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
         fetchTestDesignContextPolicyOverrides(projectId, requestFilters),
         fetchTestDesignContextPolicyEffective(projectId, requestFilters)
       ]);
-      setContextPolicyOverrides(overridesResponse.data);
+      const refreshedOverrides = overridesResponse.data;
+      setContextPolicyOverrides(refreshedOverrides);
+      if (selectedContextPolicyOverrideId && !refreshedOverrides.some((override) => override.id === selectedContextPolicyOverrideId)) {
+        setSelectedContextPolicyOverrideId('');
+        setContextPolicyNotes([]);
+      }
       setContextPolicyEffective(effectiveResponse.data);
       if (!silent) {
         setContextPolicyState({
@@ -758,6 +786,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
     contextPolicyDraft.projectId,
     filters.projectId,
     props.signedIn,
+    selectedContextPolicyOverrideId,
     selectedTask?.projectId,
     taskFilters.projectId
   ]);
@@ -876,6 +905,8 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       setContextPolicyDraft(initialTestDesignContextPolicyDraft);
       setContextPolicyOverrides([]);
       setContextPolicyEffective(null);
+      setSelectedContextPolicyOverrideId('');
+      setContextPolicyNotes([]);
       setLoadState({ loading: false });
       setTaskState({ loading: false });
       setReviewRecordState({ loading: false });
@@ -1472,7 +1503,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       return;
     }
     if (contextPolicySubmitBlocked) {
-      setContextPolicyState({ loading: false, error: `上下文策略校验不通过：${contextPolicyIssues[0]?.message ?? '请检查字段'}` });
+      setContextPolicyState({ loading: false, error: `上下文策略校验不通过：${contextPolicySubmitIssues[0]?.message ?? '请检查字段'}` });
       return;
     }
 
@@ -1481,11 +1512,22 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
     const payload = buildTestDesignContextPolicyPayload(contextPolicyDraft);
     setContextPolicyState({ loading: true });
     try {
-      const response = contextPolicyDraft.scopeType === 'ENVIRONMENT'
-        ? await requestTestDesignEnvironmentContextPolicyOverride(projectId, environmentKey, payload)
-        : await requestTestDesignProjectContextPolicyOverride(projectId, payload);
+      let response: Awaited<ReturnType<typeof updateTestDesignContextPolicyOverride>>;
+      if (selectedPendingContextPolicyOverride) {
+        response = await updateTestDesignContextPolicyOverride(selectedPendingContextPolicyOverride.id, payload);
+      } else if (contextPolicyDraft.scopeType === 'ENVIRONMENT') {
+        response = await requestTestDesignEnvironmentContextPolicyOverride(projectId, environmentKey, payload);
+      } else {
+        response = await requestTestDesignProjectContextPolicyOverride(projectId, payload);
+      }
       setContextPolicyOverrides((current) => [response.data, ...current.filter((item) => item.id !== response.data.id)]);
-      setContextPolicyState({ loading: false, success: '上下文策略覆盖已提交审批', traceId: response.trace_id });
+      setSelectedContextPolicyOverrideId(response.data.id);
+      setContextPolicyState({
+        loading: false,
+        success: selectedPendingContextPolicyOverride ? '上下文策略草稿已更新' : '上下文策略覆盖已提交审批',
+        traceId: response.trace_id
+      });
+      void loadContextPolicyNotes(response.data.id, { silent: true });
       void refreshContextPolicy({ silent: true });
     } catch (error: unknown) {
       setContextPolicyState({ loading: false, error: testDesignErrorMessage(error, '上下文策略覆盖提交失败') });
@@ -1501,25 +1543,117 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       setContextPolicyState({ loading: false, error: '请选择审批原因编码' });
       return;
     }
+    const reviewIssue = contextPolicyIssues.find((issue) => ['approvalReasonCode', 'reviewNote', 'workOrderStatus'].includes(issue.field));
+    if (reviewIssue) {
+      setContextPolicyState({ loading: false, error: `上下文策略审批校验不通过：${reviewIssue.message}` });
+      return;
+    }
 
     setContextPolicyState({ loading: true });
     try {
       const response = action === 'approve'
         ? await approveTestDesignContextPolicyOverride(overrideId, {
-          approvalReasonCode: contextPolicyDraft.approvalReasonCode
+          approvalReasonCode: contextPolicyDraft.approvalReasonCode,
+          reviewNote: contextPolicyDraft.reviewNote,
+          workOrderStatus: contextPolicyDraft.workOrderStatus || undefined
         })
         : await rejectTestDesignContextPolicyOverride(overrideId, {
-          approvalReasonCode: contextPolicyDraft.approvalReasonCode
+          approvalReasonCode: contextPolicyDraft.approvalReasonCode,
+          reviewNote: contextPolicyDraft.reviewNote,
+          workOrderStatus: contextPolicyDraft.workOrderStatus || undefined
         });
       setContextPolicyOverrides((current) => current.map((item) => item.id === response.data.id ? response.data : item));
+      setSelectedContextPolicyOverrideId(response.data.id);
+      setContextPolicyDraft((current) => contextPolicyDraftFromOverride(response.data, {
+        ...current,
+        reviewNote: '',
+        noteText: ''
+      }));
       setContextPolicyState({
         loading: false,
         success: action === 'approve' ? '上下文策略覆盖已审批' : '上下文策略覆盖已驳回',
         traceId: response.trace_id
       });
+      void loadContextPolicyNotes(response.data.id, { silent: true });
       void refreshContextPolicy({ silent: true });
     } catch (error: unknown) {
       setContextPolicyState({ loading: false, error: testDesignErrorMessage(error, action === 'approve' ? '上下文策略审批失败' : '上下文策略驳回失败') });
+    }
+  }
+
+  async function selectContextPolicyOverride(override: TestDesignContextPolicyOverrideView) {
+    setSelectedContextPolicyOverrideId(override.id);
+    setContextPolicyDraft((current) => contextPolicyDraftFromOverride(override, current));
+    await loadContextPolicyNotes(override.id);
+  }
+
+  function newContextPolicyOverrideDraft() {
+    setSelectedContextPolicyOverrideId('');
+    setContextPolicyNotes([]);
+    setContextPolicyDraft((current) => ({
+      ...initialTestDesignContextPolicyDraft,
+      projectId: current.projectId || selectedTask?.projectId || taskFilters.projectId || filters.projectId || '',
+      environmentKey: current.environmentKey
+    }));
+    setContextPolicyState({ loading: false });
+  }
+
+  async function loadContextPolicyNotes(overrideId: string, options?: { silent?: boolean }) {
+    if (!overrideId || !canPolicyManage) {
+      setContextPolicyNotes([]);
+      return;
+    }
+    const silent = options?.silent === true;
+    if (!silent) {
+      setContextPolicyState({ loading: true });
+    }
+    try {
+      const response = await fetchTestDesignContextPolicyNotes(overrideId);
+      setContextPolicyNotes(response.data);
+      if (!silent) {
+        setContextPolicyState({ loading: false, success: `备注流转已加载：${response.data.length} 条`, traceId: response.trace_id });
+      }
+    } catch (error: unknown) {
+      setContextPolicyNotes([]);
+      if (!silent) {
+        setContextPolicyState({ loading: false, error: testDesignErrorMessage(error, '上下文策略备注加载失败') });
+      }
+    }
+  }
+
+  async function addContextPolicyNote() {
+    if (!canPolicyManage) {
+      setContextPolicyState({ loading: false, error: '缺少 testDesign:policy_manage 权限' });
+      return;
+    }
+    if (!selectedContextPolicyOverrideId) {
+      setContextPolicyState({ loading: false, error: '请选择上下文策略覆盖记录' });
+      return;
+    }
+    const noteIssue = contextPolicyIssues.find((issue) => issue.field === 'noteText');
+    if (noteIssue || !contextPolicyDraft.noteText.trim()) {
+      setContextPolicyState({ loading: false, error: noteIssue?.message ?? '请输入流转备注' });
+      return;
+    }
+    setContextPolicyState({ loading: true });
+    try {
+      const response = await addTestDesignContextPolicyNote(selectedContextPolicyOverrideId, {
+        noteType: contextPolicyDraft.noteType,
+        noteText: contextPolicyDraft.noteText
+      });
+      setContextPolicyNotes((current) => [...current, response.data]);
+      setContextPolicyOverrides((current) => current.map((override) => override.id === selectedContextPolicyOverrideId
+        ? {
+          ...override,
+          noteCount: (override.noteCount ?? 0) + 1,
+          latestNotePreview: response.data.noteText
+        }
+        : override));
+      setContextPolicyDraft((current) => ({ ...current, noteText: '' }));
+      setContextPolicyState({ loading: false, success: '上下文策略备注已追加', traceId: response.trace_id });
+      void refreshContextPolicy({ silent: true });
+    } catch (error: unknown) {
+      setContextPolicyState({ loading: false, error: testDesignErrorMessage(error, '上下文策略备注追加失败') });
     }
   }
 
@@ -2307,10 +2441,16 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
               <h2 className="panel-title">上下文策略</h2>
               <p className="panel-desc">{contextPolicySummary.scopeLabel}</p>
             </div>
-            <button className="btn btn-secondary btn-sm" type="button" disabled={disabled || contextPolicyState.loading} onClick={() => void refreshContextPolicy()}>
-              <RefreshCw size={15} />
-              查询
-            </button>
+            <div className="toolbar-actions">
+              <button className="btn btn-secondary btn-sm" type="button" disabled={disabled || contextPolicyState.loading} onClick={() => void refreshContextPolicy()}>
+                <RefreshCw size={15} />
+                查询
+              </button>
+              <button className="btn btn-ghost btn-sm" type="button" disabled={!canPolicyManage || contextPolicyState.loading} onClick={newContextPolicyOverrideDraft}>
+                <Plus size={15} />
+                新建
+              </button>
+            </div>
           </div>
           <div className="panel-body compact main-stack">
             <form className="test-design-context-policy-form" onSubmit={requestContextPolicyOverride}>
@@ -2421,9 +2561,65 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
                   disabled={!canPolicyManage || contextPolicyState.loading}
                 />
               </label>
+              <label className="field">
+                <span className="field-label">工单编号</span>
+                <input
+                  value={contextPolicyDraft.workOrderKey}
+                  onChange={(event) => setContextPolicyDraft((current) => ({ ...current, workOrderKey: event.target.value }))}
+                  placeholder="WP5-CTX-..."
+                  disabled={!canPolicyManage || contextPolicyState.loading}
+                />
+              </label>
+              <label className="field">
+                <span className="field-label">工单标题</span>
+                <input
+                  value={contextPolicyDraft.workOrderTitle}
+                  onChange={(event) => setContextPolicyDraft((current) => ({ ...current, workOrderTitle: event.target.value }))}
+                  disabled={!canPolicyManage || contextPolicyState.loading}
+                />
+              </label>
+              <label className="field test-design-context-policy-wide">
+                <span className="field-label">工单 URL</span>
+                <input
+                  value={contextPolicyDraft.workOrderUrl}
+                  onChange={(event) => setContextPolicyDraft((current) => ({ ...current, workOrderUrl: event.target.value }))}
+                  placeholder="https://..."
+                  disabled={!canPolicyManage || contextPolicyState.loading}
+                />
+              </label>
+              <label className="field test-design-context-policy-wide">
+                <span className="field-label">策略正文</span>
+                <textarea
+                  value={contextPolicyDraft.policyBody}
+                  maxLength={4000}
+                  rows={4}
+                  onChange={(event) => setContextPolicyDraft((current) => ({ ...current, policyBody: event.target.value }))}
+                  disabled={!canPolicyManage || contextPolicyState.loading}
+                />
+              </label>
+              <label className="field test-design-context-policy-wide">
+                <span className="field-label">策略 diff</span>
+                <textarea
+                  value={contextPolicyDraft.policyDiffSummary}
+                  maxLength={1000}
+                  rows={3}
+                  onChange={(event) => setContextPolicyDraft((current) => ({ ...current, policyDiffSummary: event.target.value }))}
+                  disabled={!canPolicyManage || contextPolicyState.loading}
+                />
+              </label>
+              <label className="field test-design-context-policy-wide">
+                <span className="field-label">申请备注</span>
+                <textarea
+                  value={contextPolicyDraft.requestNote}
+                  maxLength={1000}
+                  rows={3}
+                  onChange={(event) => setContextPolicyDraft((current) => ({ ...current, requestNote: event.target.value }))}
+                  disabled={!canPolicyManage || contextPolicyState.loading}
+                />
+              </label>
               <button className="btn btn-primary btn-sm test-design-context-policy-submit" type="submit" disabled={!canPolicyManage || contextPolicyState.loading || contextPolicySubmitBlocked}>
                 <Save size={15} />
-                提交覆盖
+                {selectedPendingContextPolicyOverride ? '更新草稿' : '提交覆盖'}
               </button>
             </form>
             <div className="test-design-context-policy-summary">
@@ -2431,28 +2627,97 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
               <Detail label="状态分布" value={contextPolicySummary.statusSummary} />
               <Detail label="导出红线" value={contextPolicySummary.redLineSummary} />
             </div>
-            <div className="field">
-              <span className="field-label">审批原因</span>
-              <select
-                value={contextPolicyDraft.approvalReasonCode}
-                onChange={(event) => setContextPolicyDraft((current) => ({ ...current, approvalReasonCode: event.target.value as TestDesignContextPolicyDraft['approvalReasonCode'] }))}
-                disabled={!canPolicyManage || contextPolicyState.loading}
+            <div className="test-design-context-policy-review-grid">
+              <label className="field">
+                <span className="field-label">审批原因</span>
+                <select
+                  value={contextPolicyDraft.approvalReasonCode}
+                  onChange={(event) => setContextPolicyDraft((current) => ({ ...current, approvalReasonCode: event.target.value as TestDesignContextPolicyDraft['approvalReasonCode'] }))}
+                  disabled={!canPolicyManage || contextPolicyState.loading}
+                >
+                  {TEST_DESIGN_CONTEXT_POLICY_REASON_CODES.map((code) => (
+                    <option key={code} value={code}>{code}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="field">
+                <span className="field-label">工单状态</span>
+                <select
+                  value={contextPolicyDraft.workOrderStatus}
+                  onChange={(event) => setContextPolicyDraft((current) => ({ ...current, workOrderStatus: event.target.value as TestDesignContextPolicyDraft['workOrderStatus'] }))}
+                  disabled={!canPolicyManage || contextPolicyState.loading}
+                >
+                  <option value="">跟随审批</option>
+                  {TEST_DESIGN_CONTEXT_POLICY_WORK_ORDER_STATUSES.map((status) => (
+                    <option key={status} value={status}>{status}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="field test-design-context-policy-wide">
+                <span className="field-label">审批备注</span>
+                <textarea
+                  value={contextPolicyDraft.reviewNote}
+                  maxLength={1000}
+                  rows={3}
+                  onChange={(event) => setContextPolicyDraft((current) => ({ ...current, reviewNote: event.target.value }))}
+                  disabled={!canPolicyManage || contextPolicyState.loading}
+                />
+              </label>
+            </div>
+            <div className="test-design-context-policy-note-form">
+              <label className="field">
+                <span className="field-label">备注类型</span>
+                <select
+                  value={contextPolicyDraft.noteType}
+                  onChange={(event) => setContextPolicyDraft((current) => ({ ...current, noteType: event.target.value === 'WORK_ORDER' ? 'WORK_ORDER' : 'COMMENT' }))}
+                  disabled={!canPolicyManage || contextPolicyState.loading || !selectedContextPolicyOverrideId}
+                >
+                  <option value="COMMENT">COMMENT</option>
+                  <option value="WORK_ORDER">WORK_ORDER</option>
+                </select>
+              </label>
+              <label className="field test-design-context-policy-wide">
+                <span className="field-label">流转备注</span>
+                <textarea
+                  value={contextPolicyDraft.noteText}
+                  maxLength={1000}
+                  rows={3}
+                  onChange={(event) => setContextPolicyDraft((current) => ({ ...current, noteText: event.target.value }))}
+                  disabled={!canPolicyManage || contextPolicyState.loading || !selectedContextPolicyOverrideId}
+                />
+              </label>
+              <button
+                className="btn btn-secondary btn-sm test-design-context-policy-submit"
+                type="button"
+                disabled={!canPolicyManage || contextPolicyState.loading || !selectedContextPolicyOverrideId || !contextPolicyDraft.noteText.trim()}
+                onClick={() => void addContextPolicyNote()}
               >
-                {TEST_DESIGN_CONTEXT_POLICY_REASON_CODES.map((code) => (
-                  <option key={code} value={code}>{code}</option>
-                ))}
-              </select>
+                <Plus size={15} />
+                追加备注
+              </button>
             </div>
             <div className="test-design-context-policy-overrides">
               {contextPolicyOverrides.length ? contextPolicyOverrides.slice(0, 6).map((override) => (
-                <div className="test-design-context-policy-override" key={override.id}>
+                <div className={`test-design-context-policy-override${selectedContextPolicyOverrideId === override.id ? ' selected' : ''}`} key={override.id}>
                   <div>
                     <strong>{override.scopeType}{override.environmentKey ? ` · ${override.environmentKey}` : ''}</strong>
                     <em>{contextPolicyOverrideLimitText(override.overrideLimits)}</em>
+                    <small>{override.workOrderKey ?? '-'} · {override.workOrderStatus ?? '-'}</small>
+                    <small>正文 v{override.policyBodyVersion ?? '-'} · {contextPolicyDigestText(override.policyBodyDigest)} · 备注 {override.noteCount ?? 0}</small>
                     <small>{override.requestedBy ?? '-'} · {override.createdAt ?? '-'}</small>
+                    {override.latestNotePreview ? <small>最新备注：{override.latestNotePreview}</small> : null}
                   </div>
                   <div className="test-design-context-policy-override-actions">
                     <span className={`badge badge-${contextPolicyStatusTone(override.status)}`}>{override.status}</span>
+                    <button
+                      className="btn btn-secondary btn-xs"
+                      type="button"
+                      disabled={!canPolicyManage || contextPolicyState.loading}
+                      onClick={() => void selectContextPolicyOverride(override)}
+                    >
+                      <FileText size={14} />
+                      {override.status === 'PENDING' ? '编辑' : '流转'}
+                    </button>
                     {override.status === 'PENDING' && (
                       <>
                         <button
@@ -2479,6 +2744,22 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
                 </div>
               )) : (
                 <div className="notice info">暂无策略覆盖记录</div>
+              )}
+            </div>
+            <div className="test-design-context-policy-notes">
+              <strong>备注流转 · {selectedContextPolicyOverride?.workOrderKey ?? (selectedContextPolicyOverrideId || '-')}</strong>
+              {selectedContextPolicyOverrideId ? (
+                contextPolicyNotes.length ? contextPolicyNotes.slice(-6).map((note) => (
+                  <div className="test-design-context-policy-note" key={note.id}>
+                    <span className="badge badge-neutral">{note.noteType}</span>
+                    <em>{note.noteText}</em>
+                    <small>{note.createdBy ?? '-'} · {note.createdAt ?? '-'}</small>
+                  </div>
+                )) : (
+                  <div className="notice info">暂无备注流转记录</div>
+                )
+              ) : (
+                <div className="notice info">未选择策略覆盖记录</div>
               )}
             </div>
             <StateLine state={contextPolicyState} />
@@ -3796,6 +4077,10 @@ function contextPolicyStatusTone(status: string) {
   if (status === 'REJECTED') return 'danger';
   if (status === 'PENDING') return 'warning';
   return 'neutral';
+}
+
+function contextPolicyDigestText(digest?: string) {
+  return digest ? `sha256:${digest.slice(0, 12)}` : '无正文 digest';
 }
 
 function PublishRecordRow(props: { record: TestDesignPublishRecordView }) {

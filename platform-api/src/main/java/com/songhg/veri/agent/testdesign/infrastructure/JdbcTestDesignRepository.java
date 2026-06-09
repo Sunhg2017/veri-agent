@@ -8,6 +8,7 @@ import com.songhg.veri.agent.testdesign.application.query.TestDesignTemplateQuer
 import com.songhg.veri.agent.testdesign.domain.TestDesignAuditChainAggregate;
 import com.songhg.veri.agent.testdesign.domain.TestDesignCandidate;
 import com.songhg.veri.agent.testdesign.domain.TestDesignCandidateStatus;
+import com.songhg.veri.agent.testdesign.domain.TestDesignContextPolicyNote;
 import com.songhg.veri.agent.testdesign.domain.TestDesignContextPolicyOverride;
 import com.songhg.veri.agent.testdesign.domain.TestDesignPublishRecord;
 import com.songhg.veri.agent.testdesign.domain.TestDesignReportManifest;
@@ -274,6 +275,12 @@ public class JdbcTestDesignRepository implements TestDesignRepository {
     }
 
     @Override
+    public TestDesignContextPolicyNote saveContextPolicyNote(TestDesignContextPolicyNote note) {
+        mapper.insertContextPolicyNote(note);
+        return note;
+    }
+
+    @Override
     public Optional<TestDesignContextPolicyOverride> contextPolicyOverride(UUID id) {
         return Optional.ofNullable(mapper.contextPolicyOverride(id));
     }
@@ -281,6 +288,11 @@ public class JdbcTestDesignRepository implements TestDesignRepository {
     @Override
     public List<TestDesignContextPolicyOverride> contextPolicyOverrides(String projectId, String environmentKey) {
         return mapper.contextPolicyOverrides(projectId, environmentKey);
+    }
+
+    @Override
+    public List<TestDesignContextPolicyNote> contextPolicyNotes(UUID overrideId) {
+        return mapper.contextPolicyNotes(overrideId);
     }
 
     @Override

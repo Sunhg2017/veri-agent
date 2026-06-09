@@ -828,7 +828,18 @@ class DbProfileRepositoryContractTest {
                 null,
                 "QUALITY_BASELINE",
                 null,
+                "WP5-CTX-DB-1",
+                "DB project policy",
+                "https://ticket.example/wp5/db-1",
+                "OPEN",
+                "linkedAssetsPerRequirement=7",
+                "a524bf67490dce4fa9c8443af24ba5c39e7d24cc934c9133f126d88a7d6720aa",
+                1,
+                "raise linked assets",
+                "request db note",
+                null,
                 "db-requester",
+                null,
                 null,
                 now.minusSeconds(5),
                 now.minusSeconds(5)
@@ -843,6 +854,8 @@ class DbProfileRepositoryContractTest {
                     assertThat(override.contextLinkedAssetsPerRequirement()).isEqualTo(7);
                     assertThat(override.changeReasonCode()).isEqualTo("QUALITY_BASELINE");
                     assertThat(override.approvalReasonCode()).isNull();
+                    assertThat(override.workOrderKey()).isEqualTo("WP5-CTX-DB-1");
+                    assertThat(override.policyBodyVersion()).isEqualTo(1);
                 });
         assertThat(testDesignRepository.contextPolicyOverrides(projectId, null))
                 .singleElement()
@@ -863,8 +876,19 @@ class DbProfileRepositoryContractTest {
                 null,
                 "QUALITY_BASELINE",
                 "QUALITY_BASELINE",
+                "WP5-CTX-DB-1",
+                "DB project policy",
+                "https://ticket.example/wp5/db-1",
+                "APPROVED",
+                "linkedAssetsPerRequirement=7",
+                "a524bf67490dce4fa9c8443af24ba5c39e7d24cc934c9133f126d88a7d6720aa",
+                1,
+                "raise linked assets",
+                "request db note",
+                "approved db note",
                 "db-requester",
                 "db-approver",
+                now,
                 now.minusSeconds(5),
                 now
         );
@@ -876,6 +900,7 @@ class DbProfileRepositoryContractTest {
                     assertThat(override.id()).isEqualTo(projectOverrideId);
                     assertThat(override.status()).isEqualTo("APPROVED");
                     assertThat(override.approvalReasonCode()).isEqualTo("QUALITY_BASELINE");
+                    assertThat(override.reviewNote()).isEqualTo("approved db note");
                 });
 
         UUID environmentOverrideId = UUID.randomUUID();
@@ -893,8 +918,19 @@ class DbProfileRepositoryContractTest {
                 90,
                 "PROJECT_COMPLEXITY",
                 "PROJECT_COMPLEXITY",
+                "WP5-CTX-DB-2",
+                "DB environment policy",
+                null,
+                "APPROVED",
+                "linkedAssetSchemaChars=90",
+                "45f09b4fe039f01c46d236875558bfda635821fbd4eadc3bd59417f2d64bf0d3",
+                1,
+                "lower schema chars",
+                null,
+                "approved qa note",
                 "db-requester",
                 "db-approver",
+                now.plusSeconds(1),
                 now.plusSeconds(1),
                 now.plusSeconds(1)
         );

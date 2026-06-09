@@ -8,6 +8,7 @@ import com.songhg.veri.agent.testdesign.application.query.TestDesignTemplateQuer
 import com.songhg.veri.agent.testdesign.domain.TestDesignAuditChainAggregate;
 import com.songhg.veri.agent.testdesign.domain.TestDesignCandidate;
 import com.songhg.veri.agent.testdesign.domain.TestDesignCandidateStatus;
+import com.songhg.veri.agent.testdesign.domain.TestDesignContextPolicyNote;
 import com.songhg.veri.agent.testdesign.domain.TestDesignContextPolicyOverride;
 import com.songhg.veri.agent.testdesign.domain.TestDesignPublishRecord;
 import com.songhg.veri.agent.testdesign.domain.TestDesignReportManifest;
@@ -40,6 +41,7 @@ public class InMemoryTestDesignRepository implements TestDesignRepository {
     private final ConcurrentHashMap<UUID, TestDesignPublishRecord> publishRecords = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<UUID, TestDesignReportManifest> reportManifests = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<UUID, TestDesignContextPolicyOverride> contextPolicyOverrides = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<UUID, TestDesignContextPolicyNote> contextPolicyNotes = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<UUID, TestDesignTemplate> templates = new ConcurrentHashMap<>();
 
     @Override
@@ -558,6 +560,12 @@ public class InMemoryTestDesignRepository implements TestDesignRepository {
     }
 
     @Override
+    public TestDesignContextPolicyNote saveContextPolicyNote(TestDesignContextPolicyNote note) {
+        contextPolicyNotes.put(note.id(), note);
+        return note;
+    }
+
+    @Override
     public Optional<TestDesignContextPolicyOverride> contextPolicyOverride(UUID id) {
         return Optional.ofNullable(contextPolicyOverrides.get(id));
     }
@@ -574,6 +582,14 @@ public class InMemoryTestDesignRepository implements TestDesignRepository {
                     return !StringUtils.hasText(override.environmentKey());
                 })
                 .sorted(Comparator.comparing(TestDesignContextPolicyOverride::createdAt).reversed())
+                .toList();
+    }
+
+    @Override
+    public List<TestDesignContextPolicyNote> contextPolicyNotes(UUID overrideId) {
+        return contextPolicyNotes.values().stream()
+                .filter(note -> overrideId.equals(note.overrideId()))
+                .sorted(Comparator.comparing(TestDesignContextPolicyNote::createdAt))
                 .toList();
     }
 

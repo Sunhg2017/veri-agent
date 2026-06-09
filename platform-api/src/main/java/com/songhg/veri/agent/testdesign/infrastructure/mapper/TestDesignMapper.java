@@ -6,6 +6,7 @@ import com.songhg.veri.agent.testdesign.application.query.TestDesignTaskQuery;
 import com.songhg.veri.agent.testdesign.application.query.TestDesignTemplateQuery;
 import com.songhg.veri.agent.testdesign.domain.TestDesignAuditChainAggregate;
 import com.songhg.veri.agent.testdesign.domain.TestDesignCandidate;
+import com.songhg.veri.agent.testdesign.domain.TestDesignContextPolicyNote;
 import com.songhg.veri.agent.testdesign.domain.TestDesignContextPolicyOverride;
 import com.songhg.veri.agent.testdesign.domain.TestDesignPublishRecord;
 import com.songhg.veri.agent.testdesign.domain.TestDesignReportManifest;
@@ -136,12 +137,16 @@ public interface TestDesignMapper {
 
     void updateContextPolicyOverride(TestDesignContextPolicyOverride override);
 
+    void insertContextPolicyNote(TestDesignContextPolicyNote note);
+
     TestDesignContextPolicyOverride contextPolicyOverride(@Param("id") UUID id);
 
     List<TestDesignContextPolicyOverride> contextPolicyOverrides(
             @Param("projectId") String projectId,
             @Param("environmentKey") String environmentKey
     );
+
+    List<TestDesignContextPolicyNote> contextPolicyNotes(@Param("overrideId") UUID overrideId);
 
     TestDesignContextPolicyOverride latestApprovedProjectContextPolicyOverride(@Param("projectId") String projectId);
 

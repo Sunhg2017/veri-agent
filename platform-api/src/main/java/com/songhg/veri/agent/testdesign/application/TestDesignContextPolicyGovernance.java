@@ -7,9 +7,9 @@ import java.util.Map;
 /**
  * Centralizes the WP5 context policy governance snapshot used by health checks, tasks and reports.
  *
- * <p>The current enterprise increment is intentionally honest about scope: context clipping is enforced by platform
- * defaults, while project/environment overrides and approval workflow are not ready yet. Keeping this as a shared
- * snapshot prevents the report, model payload and API diagnostics from drifting into different operating narratives.
+ * <p>Health checks keep the platform-default fallback honest, while project/environment snapshots report the bounded
+ * override store and work-order approval workflow. Sharing this snapshot prevents reports, model payloads and API
+ * diagnostics from drifting into different operating narratives.
  */
 public final class TestDesignContextPolicyGovernance {
 
@@ -46,7 +46,7 @@ public final class TestDesignContextPolicyGovernance {
                 POLICY_VERSION,
                 effectivePolicy.approvedOverrideApplied() ? "PROJECT_ENVIRONMENT_OVERRIDE" : POLICY_SOURCE,
                 effectivePolicy.approvedOverrideApplied() ? "OVERRIDE_APPROVED" : "OVERRIDE_STORE_READY",
-                "METADATA_APPROVAL",
+                "WORK_ORDER_APPROVAL",
                 effectivePolicy.projectOverrideStoreReady(),
                 effectivePolicy.environmentOverrideStoreReady(),
                 true,

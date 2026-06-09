@@ -131,10 +131,32 @@ export interface TestDesignContextPolicyOverrideView {
   overrideLimits: Record<string, number>;
   changeReasonCodeCaptured: boolean;
   approvalReasonCodeCaptured: boolean;
+  workOrderKey?: string;
+  workOrderTitle?: string;
+  workOrderUrl?: string;
+  workOrderStatus?: string;
+  policyBody?: string;
+  policyBodyDigest?: string;
+  policyBodyVersion?: number;
+  policyDiffSummary?: string;
+  requestNote?: string;
+  reviewNote?: string;
+  noteCount?: number;
+  latestNotePreview?: string;
   requestedBy?: string;
   approvedBy?: string;
+  reviewedAt?: string;
   createdAt?: string;
   updatedAt?: string;
+}
+
+export interface TestDesignContextPolicyNoteView {
+  id: string;
+  overrideId: string;
+  noteType: string;
+  noteText: string;
+  createdBy?: string;
+  createdAt?: string;
 }
 
 export interface TestDesignContextPolicyEffectiveView {
@@ -848,10 +870,23 @@ export interface RequestTestDesignContextPolicyOverridePayload {
   contextAcceptanceCriteriaChars?: number;
   contextAssetSchemaChars?: number;
   changeReasonCode?: string;
+  policyBody?: string;
+  policyDiffSummary?: string;
+  workOrderKey?: string;
+  workOrderTitle?: string;
+  workOrderUrl?: string;
+  requestNote?: string;
 }
 
 export interface ReviewTestDesignContextPolicyOverridePayload {
   approvalReasonCode?: string;
+  reviewNote?: string;
+  workOrderStatus?: string;
+}
+
+export interface AddTestDesignContextPolicyNotePayload {
+  noteType?: string;
+  noteText?: string;
 }
 
 type UnknownRecord = Record<string, unknown>;
@@ -1995,10 +2030,35 @@ export function normalizeTestDesignContextPolicyOverride(raw: unknown): TestDesi
     overrideLimits: numberRecordValue(item.overrideLimits ?? item.override_limits),
     changeReasonCodeCaptured: Boolean(item.changeReasonCodeCaptured ?? item.change_reason_code_captured),
     approvalReasonCodeCaptured: Boolean(item.approvalReasonCodeCaptured ?? item.approval_reason_code_captured),
+    workOrderKey: optionalString(item.workOrderKey) ?? optionalString(item.work_order_key),
+    workOrderTitle: optionalString(item.workOrderTitle) ?? optionalString(item.work_order_title),
+    workOrderUrl: optionalString(item.workOrderUrl) ?? optionalString(item.work_order_url),
+    workOrderStatus: optionalString(item.workOrderStatus) ?? optionalString(item.work_order_status),
+    policyBody: optionalString(item.policyBody) ?? optionalString(item.policy_body),
+    policyBodyDigest: optionalString(item.policyBodyDigest) ?? optionalString(item.policy_body_digest),
+    policyBodyVersion: optionalNumber(item.policyBodyVersion ?? item.policy_body_version),
+    policyDiffSummary: optionalString(item.policyDiffSummary) ?? optionalString(item.policy_diff_summary),
+    requestNote: optionalString(item.requestNote) ?? optionalString(item.request_note),
+    reviewNote: optionalString(item.reviewNote) ?? optionalString(item.review_note),
+    noteCount: optionalNumber(item.noteCount ?? item.note_count),
+    latestNotePreview: optionalString(item.latestNotePreview) ?? optionalString(item.latest_note_preview),
     requestedBy: optionalString(item.requestedBy) ?? optionalString(item.requested_by),
     approvedBy: optionalString(item.approvedBy) ?? optionalString(item.approved_by),
+    reviewedAt: optionalString(item.reviewedAt) ?? optionalString(item.reviewed_at),
     createdAt: optionalString(item.createdAt) ?? optionalString(item.created_at),
     updatedAt: optionalString(item.updatedAt) ?? optionalString(item.updated_at)
+  };
+}
+
+export function normalizeTestDesignContextPolicyNote(raw: unknown): TestDesignContextPolicyNoteView {
+  const item = isRecord(raw) ? raw : {};
+  return {
+    id: stringValue(item.id),
+    overrideId: stringValue(item.overrideId ?? item.override_id),
+    noteType: stringValue(item.noteType ?? item.note_type, 'COMMENT'),
+    noteText: stringValue(item.noteText ?? item.note_text),
+    createdBy: optionalString(item.createdBy) ?? optionalString(item.created_by),
+    createdAt: optionalString(item.createdAt) ?? optionalString(item.created_at)
   };
 }
 
@@ -2352,6 +2412,20 @@ export async function requestTestDesignEnvironmentContextPolicyOverride(
   return { ...response, data: normalizeTestDesignContextPolicyOverride(response.data) };
 }
 
+export async function updateTestDesignContextPolicyOverride(
+  overrideId: string,
+  payload: RequestTestDesignContextPolicyOverridePayload
+): Promise<ApiResponse<TestDesignContextPolicyOverrideView>> {
+  const response = await requestJson<unknown>(
+    `/api/v1/test-design/context-policies/overrides/${encodeURIComponent(overrideId)}`,
+    {
+      method: 'PUT',
+      body: JSON.stringify(compactPayload(payload))
+    }
+  );
+  return { ...response, data: normalizeTestDesignContextPolicyOverride(response.data) };
+}
+
 export async function approveTestDesignContextPolicyOverride(
   overrideId: string,
   payload: ReviewTestDesignContextPolicyOverridePayload = {}
@@ -2378,6 +2452,29 @@ export async function rejectTestDesignContextPolicyOverride(
     }
   );
   return { ...response, data: normalizeTestDesignContextPolicyOverride(response.data) };
+}
+
+export async function fetchTestDesignContextPolicyNotes(
+  overrideId: string
+): Promise<ApiResponse<TestDesignContextPolicyNoteView[]>> {
+  const response = await requestJson<unknown>(
+    `/api/v1/test-design/context-policies/overrides/${encodeURIComponent(overrideId)}/notes`
+  );
+  return { ...response, data: listItems(response.data).map(normalizeTestDesignContextPolicyNote) };
+}
+
+export async function addTestDesignContextPolicyNote(
+  overrideId: string,
+  payload: AddTestDesignContextPolicyNotePayload
+): Promise<ApiResponse<TestDesignContextPolicyNoteView>> {
+  const response = await requestJson<unknown>(
+    `/api/v1/test-design/context-policies/overrides/${encodeURIComponent(overrideId)}/notes`,
+    {
+      method: 'POST',
+      body: JSON.stringify(compactPayload(payload))
+    }
+  );
+  return { ...response, data: normalizeTestDesignContextPolicyNote(response.data) };
 }
 
 export function testDesignErrorMessage(error: unknown, fallback: string) {
