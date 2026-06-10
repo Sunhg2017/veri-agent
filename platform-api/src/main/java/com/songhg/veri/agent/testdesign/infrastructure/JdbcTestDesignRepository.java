@@ -3,13 +3,22 @@ package com.songhg.veri.agent.testdesign.infrastructure;
 import com.songhg.veri.agent.common.api.PageQuery;
 import com.songhg.veri.agent.testdesign.application.port.TestDesignRepository;
 import com.songhg.veri.agent.testdesign.application.query.TestDesignCandidateQuery;
+import com.songhg.veri.agent.testdesign.application.query.TestDesignCalibrationRunQuery;
+import com.songhg.veri.agent.testdesign.application.query.TestDesignConflictOperationQuery;
+import com.songhg.veri.agent.testdesign.application.query.TestDesignEvaluationSampleQuery;
 import com.songhg.veri.agent.testdesign.application.query.TestDesignTaskQuery;
 import com.songhg.veri.agent.testdesign.application.query.TestDesignTemplateQuery;
 import com.songhg.veri.agent.testdesign.domain.TestDesignAuditChainAggregate;
+import com.songhg.veri.agent.testdesign.domain.TestDesignCalibrationRun;
+import com.songhg.veri.agent.testdesign.domain.TestDesignCalibrationSummary;
 import com.songhg.veri.agent.testdesign.domain.TestDesignCandidate;
 import com.songhg.veri.agent.testdesign.domain.TestDesignCandidateStatus;
+import com.songhg.veri.agent.testdesign.domain.TestDesignConflictOperationRecord;
+import com.songhg.veri.agent.testdesign.domain.TestDesignConflictOperationSummary;
 import com.songhg.veri.agent.testdesign.domain.TestDesignContextPolicyNote;
 import com.songhg.veri.agent.testdesign.domain.TestDesignContextPolicyOverride;
+import com.songhg.veri.agent.testdesign.domain.TestDesignEvaluationSample;
+import com.songhg.veri.agent.testdesign.domain.TestDesignEvaluationSampleSummary;
 import com.songhg.veri.agent.testdesign.domain.TestDesignPublishRecord;
 import com.songhg.veri.agent.testdesign.domain.TestDesignReleaseReadinessApproval;
 import com.songhg.veri.agent.testdesign.domain.TestDesignReleaseReadinessNote;
@@ -245,6 +254,22 @@ public class JdbcTestDesignRepository implements TestDesignRepository {
     }
 
     @Override
+    public List<TestDesignConflictOperationRecord> conflictOperations(TestDesignConflictOperationQuery query) {
+        return mapper.conflictOperations(query);
+    }
+
+    @Override
+    public long countConflictOperations(TestDesignConflictOperationQuery query) {
+        return mapper.countConflictOperations(query);
+    }
+
+    @Override
+    public TestDesignConflictOperationSummary conflictOperationSummary(TestDesignConflictOperationQuery query) {
+        TestDesignConflictOperationSummary summary = mapper.conflictOperationSummary(query);
+        return summary == null ? emptyConflictOperationSummary() : summary;
+    }
+
+    @Override
     public TestDesignReportManifest saveReportManifest(TestDesignReportManifest manifest) {
         mapper.insertReportManifest(manifest);
         return mapper.reportManifestsByTask(manifest.taskId()).stream()
@@ -346,10 +371,89 @@ public class JdbcTestDesignRepository implements TestDesignRepository {
         return Optional.ofNullable(mapper.latestApprovedReleaseReadinessApproval(taskId));
     }
 
+    @Override
+    public List<TestDesignEvaluationSample> evaluationSamples(TestDesignEvaluationSampleQuery query) {
+        return mapper.evaluationSamples(query);
+    }
+
+    @Override
+    public long countEvaluationSamples(TestDesignEvaluationSampleQuery query) {
+        return mapper.countEvaluationSamples(query);
+    }
+
+    @Override
+    public Optional<TestDesignEvaluationSample> evaluationSample(UUID id) {
+        return Optional.ofNullable(mapper.evaluationSample(id));
+    }
+
+    @Override
+    public Optional<TestDesignEvaluationSample> evaluationSampleByProjectAndKey(String projectId, String sampleKey) {
+        return Optional.ofNullable(mapper.evaluationSampleByProjectAndKey(projectId, sampleKey));
+    }
+
+    @Override
+    public TestDesignEvaluationSample saveEvaluationSample(TestDesignEvaluationSample sample) {
+        if (mapper.evaluationSample(sample.id()) == null) {
+            mapper.insertEvaluationSample(sample);
+        } else {
+            mapper.updateEvaluationSample(sample);
+        }
+        return mapper.evaluationSample(sample.id());
+    }
+
+    @Override
+    public TestDesignEvaluationSampleSummary evaluationSampleSummary(String projectId, String promptKey) {
+        TestDesignEvaluationSampleSummary summary = mapper.evaluationSampleSummary(projectId, promptKey);
+        return summary == null ? emptyEvaluationSampleSummary() : summary;
+    }
+
+    @Override
+    public List<TestDesignCalibrationRun> calibrationRuns(TestDesignCalibrationRunQuery query) {
+        return mapper.calibrationRuns(query);
+    }
+
+    @Override
+    public long countCalibrationRuns(TestDesignCalibrationRunQuery query) {
+        return mapper.countCalibrationRuns(query);
+    }
+
+    @Override
+    public TestDesignCalibrationRun saveCalibrationRun(TestDesignCalibrationRun run) {
+        mapper.insertCalibrationRun(run);
+        return run;
+    }
+
+    @Override
+    public TestDesignCalibrationSummary calibrationSummary(String projectId, String promptKey) {
+        TestDesignCalibrationSummary summary = mapper.calibrationSummary(projectId, promptKey);
+        return summary == null ? emptyCalibrationSummary() : summary;
+    }
+
+    @Override
+    public Optional<TestDesignCalibrationRun> latestCalibrationRun(
+            String projectId,
+            String promptKey,
+            String promptVersion
+    ) {
+        return Optional.ofNullable(mapper.latestCalibrationRun(projectId, promptKey, promptVersion));
+    }
+
     private static TestDesignAuditChainAggregate emptyAuditChainAggregate() {
         return new TestDesignAuditChainAggregate(
                 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
                 "0", 0, 0, 0, 0, 0, 0, 0
         );
+    }
+
+    private static TestDesignConflictOperationSummary emptyConflictOperationSummary() {
+        return new TestDesignConflictOperationSummary(0, 0, 0, 0, null);
+    }
+
+    private static TestDesignEvaluationSampleSummary emptyEvaluationSampleSummary() {
+        return new TestDesignEvaluationSampleSummary(0, 0, 0, 0, 0, 0, null);
+    }
+
+    private static TestDesignCalibrationSummary emptyCalibrationSummary() {
+        return new TestDesignCalibrationSummary(0, 0, 0, 0, null, null);
     }
 }

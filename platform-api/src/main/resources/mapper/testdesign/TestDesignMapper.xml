@@ -103,6 +103,40 @@
         </constructor>
     </resultMap>
 
+    <resultMap id="conflictOperationMap" type="com.songhg.veri.agent.testdesign.domain.TestDesignConflictOperationRecord">
+        <constructor>
+            <arg column="publish_record_id" javaType="java.util.UUID"/>
+            <arg column="task_id" javaType="java.util.UUID"/>
+            <arg column="candidate_id" javaType="java.util.UUID"/>
+            <arg column="project_id" javaType="java.lang.String"/>
+            <arg column="requirement_id" javaType="java.util.UUID"/>
+            <arg column="asset_case_id" javaType="java.util.UUID"/>
+            <arg column="dry_run" javaType="_boolean"/>
+            <arg column="action" javaType="java.lang.String"/>
+            <arg column="result" javaType="java.lang.String"/>
+            <arg column="error_message" javaType="java.lang.String"/>
+            <arg column="published_by" javaType="java.lang.String"/>
+            <arg column="record_created_at" javaType="java.time.Instant"/>
+            <arg column="task_title" javaType="java.lang.String"/>
+            <arg column="task_status" javaType="java.lang.String"/>
+            <arg column="candidate_title" javaType="java.lang.String"/>
+            <arg column="candidate_status" javaType="java.lang.String"/>
+            <arg column="candidate_version" javaType="_long"/>
+            <arg column="candidate_asset_case_id" javaType="java.util.UUID"/>
+            <arg column="resolved" javaType="_boolean"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="conflictOperationSummaryMap" type="com.songhg.veri.agent.testdesign.domain.TestDesignConflictOperationSummary">
+        <constructor>
+            <arg column="total_count" javaType="_long"/>
+            <arg column="open_count" javaType="_long"/>
+            <arg column="resolved_count" javaType="_long"/>
+            <arg column="duplicate_review_count" javaType="_long"/>
+            <arg column="latest_conflict_at" javaType="java.time.Instant"/>
+        </constructor>
+    </resultMap>
+
     <resultMap id="reviewRecordMap" type="com.songhg.veri.agent.testdesign.domain.TestDesignReviewRecord">
         <constructor>
             <arg column="id" javaType="java.util.UUID"/>
@@ -251,6 +285,89 @@
         </constructor>
     </resultMap>
 
+    <resultMap id="evaluationSampleMap" type="com.songhg.veri.agent.testdesign.domain.TestDesignEvaluationSample">
+        <constructor>
+            <arg column="id" javaType="java.util.UUID"/>
+            <arg column="project_id" javaType="java.lang.String"/>
+            <arg column="sample_key" javaType="java.lang.String"/>
+            <arg column="title" javaType="java.lang.String"/>
+            <arg column="source_type" javaType="java.lang.String"/>
+            <arg column="source_task_id" javaType="java.util.UUID"/>
+            <arg column="source_candidate_id" javaType="java.util.UUID"/>
+            <arg column="prompt_key" javaType="java.lang.String"/>
+            <arg column="prompt_version" javaType="java.lang.String"/>
+            <arg column="coverage_type" javaType="java.lang.String"/>
+            <arg column="priority" javaType="java.lang.String"/>
+            <arg column="status" javaType="java.lang.String"/>
+            <arg column="baseline_version" javaType="java.lang.String"/>
+            <arg column="requirement_summary" javaType="java.lang.String"/>
+            <arg column="expected_case_outline" javaType="java.lang.String"/>
+            <arg column="assertion_notes" javaType="java.lang.String"/>
+            <arg column="tags" javaType="java.lang.String"/>
+            <arg column="maintenance_note" javaType="java.lang.String"/>
+            <arg column="sample_digest" javaType="java.lang.String"/>
+            <arg column="sensitive_scan_status" javaType="java.lang.String"/>
+            <arg column="created_by" javaType="java.lang.String"/>
+            <arg column="updated_by" javaType="java.lang.String"/>
+            <arg column="created_at" javaType="java.time.Instant"/>
+            <arg column="updated_at" javaType="java.time.Instant"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="evaluationSampleSummaryMap" type="com.songhg.veri.agent.testdesign.domain.TestDesignEvaluationSampleSummary">
+        <constructor>
+            <arg column="total_count" javaType="_long"/>
+            <arg column="candidate_count" javaType="_long"/>
+            <arg column="golden_count" javaType="_long"/>
+            <arg column="frozen_count" javaType="_long"/>
+            <arg column="deprecated_count" javaType="_long"/>
+            <arg column="baseline_version_count" javaType="_long"/>
+            <arg column="latest_updated_at" javaType="java.time.Instant"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="calibrationRunMap" type="com.songhg.veri.agent.testdesign.domain.TestDesignCalibrationRun">
+        <constructor>
+            <arg column="id" javaType="java.util.UUID"/>
+            <arg column="project_id" javaType="java.lang.String"/>
+            <arg column="prompt_key" javaType="java.lang.String"/>
+            <arg column="prompt_version" javaType="java.lang.String"/>
+            <arg column="baseline_version" javaType="java.lang.String"/>
+            <arg column="run_mode" javaType="java.lang.String"/>
+            <arg column="status" javaType="java.lang.String"/>
+            <arg column="sample_count" javaType="_long"/>
+            <arg column="golden_sample_count" javaType="_long"/>
+            <arg column="task_count" javaType="_long"/>
+            <arg column="candidate_count" javaType="_long"/>
+            <arg column="step_complete_percent" javaType="_double"/>
+            <arg column="expected_complete_percent" javaType="_double"/>
+            <arg column="low_confidence_percent" javaType="_double"/>
+            <arg column="error_percent" javaType="_double"/>
+            <arg column="duplicate_key_collision_count" javaType="_long"/>
+            <arg column="feedback_signal_count" javaType="_long"/>
+            <arg column="readiness_status" javaType="java.lang.String"/>
+            <arg column="readiness_blocking_count" javaType="_long"/>
+            <arg column="readiness_warning_count" javaType="_long"/>
+            <arg column="regression_count" javaType="_long"/>
+            <arg column="baseline_digest" javaType="java.lang.String"/>
+            <arg column="result_digest" javaType="java.lang.String"/>
+            <arg column="notes" javaType="java.lang.String"/>
+            <arg column="run_by" javaType="java.lang.String"/>
+            <arg column="created_at" javaType="java.time.Instant"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="calibrationSummaryMap" type="com.songhg.veri.agent.testdesign.domain.TestDesignCalibrationSummary">
+        <constructor>
+            <arg column="total_run_count" javaType="_long"/>
+            <arg column="passed_run_count" javaType="_long"/>
+            <arg column="warning_run_count" javaType="_long"/>
+            <arg column="blocked_run_count" javaType="_long"/>
+            <arg column="latest_status" javaType="java.lang.String"/>
+            <arg column="latest_run_at" javaType="java.time.Instant"/>
+        </constructor>
+    </resultMap>
+
     <sql id="taskColumns">
         id, project_id, title, status, requirement_ids, coverage_types, prompt_key, prompt_version,
         model_invocation_id, model_provider_name, model_name, total_requirements, generated_count,
@@ -290,6 +407,22 @@
         approved_by, reviewed_at, created_at, updated_at
     </sql>
 
+    <sql id="evaluationSampleColumns">
+        id, project_id, sample_key, title, source_type, source_task_id, source_candidate_id,
+        prompt_key, prompt_version, coverage_type, priority, status, baseline_version,
+        requirement_summary, expected_case_outline, assertion_notes, tags, maintenance_note,
+        sample_digest, sensitive_scan_status, created_by, updated_by, created_at, updated_at
+    </sql>
+
+    <sql id="calibrationRunColumns">
+        id, project_id, prompt_key, prompt_version, baseline_version, run_mode, status,
+        sample_count, golden_sample_count, task_count, candidate_count, step_complete_percent,
+        expected_complete_percent, low_confidence_percent, error_percent,
+        duplicate_key_collision_count, feedback_signal_count, readiness_status,
+        readiness_blocking_count, readiness_warning_count, regression_count, baseline_digest,
+        result_digest, notes, run_by, created_at
+    </sql>
+
     <sql id="taskWhere">
         <where>
             <if test="query.projectId != null">project_id = #{query.projectId}</if>
@@ -321,6 +454,52 @@
         </where>
     </sql>
 
+    <sql id="conflictOperationResolvedExpression">
+        (c.status = 'PUBLISHED'
+            or exists (
+                select 1
+                from test_design_publish_record r
+                where r.candidate_id = pr.candidate_id
+                  and r.dry_run = false
+                  and r.result = 'SUCCEEDED'
+                  and r.created_at > pr.created_at
+            ))
+    </sql>
+
+    <sql id="conflictOperationWhere">
+        <where>
+            pr.dry_run = false
+            and pr.project_id = #{query.projectId}
+            and (
+                pr.action = 'DUPLICATE_REVIEW_REQUIRED'
+                or pr.result in ('CONFLICT', 'DUPLICATE_REVIEW_REQUIRED')
+            )
+            <if test="query.taskId != null">and pr.task_id = cast(#{query.taskId} as uuid)</if>
+            <if test="query.action != null and query.action != ''">and lower(pr.action) = lower(#{query.action})</if>
+            <if test="query.result != null and query.result != ''">and lower(pr.result) = lower(#{query.result})</if>
+            <if test="query.candidateStatus != null and query.candidateStatus != ''">
+                and lower(c.status) = lower(#{query.candidateStatus})
+            </if>
+            <if test="query.keyword != null and query.keyword != ''">
+                and (
+                    position(lower(#{query.keyword}) in lower(coalesce(c.title, ''))) > 0
+                    or position(lower(#{query.keyword}) in lower(coalesce(t.title, ''))) > 0
+                    or position(lower(#{query.keyword}) in lower(coalesce(pr.error_message, ''))) > 0
+                    or position(lower(#{query.keyword}) in lower(coalesce(pr.action, ''))) > 0
+                    or position(lower(#{query.keyword}) in lower(coalesce(pr.result, ''))) > 0
+                    or position(lower(#{query.keyword}) in lower(cast(pr.candidate_id as varchar))) > 0
+                    or position(lower(#{query.keyword}) in lower(coalesce(cast(pr.asset_case_id as varchar), ''))) > 0
+                )
+            </if>
+            <if test="query.resolutionStatus == 'OPEN'">
+                and not <include refid="conflictOperationResolvedExpression"/>
+            </if>
+            <if test="query.resolutionStatus == 'RESOLVED'">
+                and <include refid="conflictOperationResolvedExpression"/>
+            </if>
+        </where>
+    </sql>
+
     <sql id="templateWhere">
         <where>
             <if test="query.projectId != null and query.projectId != ''">
@@ -341,6 +520,45 @@
                     or position(lower(#{query.keyword}) in lower(coalesce(prompt_key, ''))) > 0
                 )
             </if>
+        </where>
+    </sql>
+
+    <sql id="evaluationSampleWhere">
+        <where>
+            <if test="query.projectId != null and query.projectId != ''">project_id = #{query.projectId}</if>
+            <if test="query.promptKey != null and query.promptKey != ''">and prompt_key = #{query.promptKey}</if>
+            <if test="query.promptVersion != null and query.promptVersion != ''">
+                and prompt_version = #{query.promptVersion}
+            </if>
+            <if test="query.status != null and query.status != ''">and lower(status) = lower(#{query.status})</if>
+            <if test="query.coverageType != null and query.coverageType != ''">
+                and lower(coverage_type) = lower(#{query.coverageType})
+            </if>
+            <if test="query.baselineVersion != null and query.baselineVersion != ''">
+                and baseline_version = #{query.baselineVersion}
+            </if>
+            <if test="query.keyword != null and query.keyword != ''">
+                and (
+                    position(lower(#{query.keyword}) in lower(coalesce(sample_key, ''))) > 0
+                    or position(lower(#{query.keyword}) in lower(coalesce(title, ''))) > 0
+                    or position(lower(#{query.keyword}) in lower(coalesce(tags, ''))) > 0
+                    or position(lower(#{query.keyword}) in lower(coalesce(maintenance_note, ''))) > 0
+                )
+            </if>
+        </where>
+    </sql>
+
+    <sql id="calibrationRunWhere">
+        <where>
+            <if test="query.projectId != null and query.projectId != ''">project_id = #{query.projectId}</if>
+            <if test="query.promptKey != null and query.promptKey != ''">and prompt_key = #{query.promptKey}</if>
+            <if test="query.promptVersion != null and query.promptVersion != ''">
+                and prompt_version = #{query.promptVersion}
+            </if>
+            <if test="query.baselineVersion != null and query.baselineVersion != ''">
+                and baseline_version = #{query.baselineVersion}
+            </if>
+            <if test="query.status != null and query.status != ''">and lower(status) = lower(#{query.status})</if>
         </where>
     </sql>
 
@@ -738,6 +956,62 @@
         order by created_at desc
     </select>
 
+    <select id="conflictOperations" resultMap="conflictOperationMap">
+        select
+            pr.id as publish_record_id,
+            pr.task_id,
+            pr.candidate_id,
+            pr.project_id,
+            pr.requirement_id,
+            pr.asset_case_id,
+            pr.dry_run,
+            pr.action,
+            pr.result,
+            pr.error_message,
+            pr.published_by,
+            pr.created_at as record_created_at,
+            t.title as task_title,
+            t.status as task_status,
+            c.title as candidate_title,
+            c.status as candidate_status,
+            c.version as candidate_version,
+            c.asset_case_id as candidate_asset_case_id,
+            case when <include refid="conflictOperationResolvedExpression"/> then true else false end as resolved
+        from test_design_publish_record pr
+        join test_design_candidate c on c.id = pr.candidate_id
+        join test_design_task t on t.id = pr.task_id
+        <include refid="conflictOperationWhere"/>
+        order by pr.created_at desc, pr.id desc
+        limit #{query.size} offset #{query.offset}
+    </select>
+
+    <select id="countConflictOperations" resultType="long">
+        select count(*)
+        from test_design_publish_record pr
+        join test_design_candidate c on c.id = pr.candidate_id
+        join test_design_task t on t.id = pr.task_id
+        <include refid="conflictOperationWhere"/>
+    </select>
+
+    <select id="conflictOperationSummary" resultMap="conflictOperationSummaryMap">
+        select
+            count(*) as total_count,
+            coalesce(sum(case when not resolved then 1 else 0 end), 0) as open_count,
+            coalesce(sum(case when resolved then 1 else 0 end), 0) as resolved_count,
+            coalesce(sum(case when action = 'DUPLICATE_REVIEW_REQUIRED' then 1 else 0 end), 0) as duplicate_review_count,
+            max(record_created_at) as latest_conflict_at
+        from (
+            select
+                pr.action,
+                pr.created_at as record_created_at,
+                case when <include refid="conflictOperationResolvedExpression"/> then true else false end as resolved
+            from test_design_publish_record pr
+            join test_design_candidate c on c.id = pr.candidate_id
+            join test_design_task t on t.id = pr.task_id
+            <include refid="conflictOperationWhere"/>
+        ) scoped_conflicts
+    </select>
+
     <insert id="insertReportManifest">
         insert into test_design_report_manifest (
             id, task_id, project_id, schema_version, field_set_version, manifest_mode,
@@ -1076,6 +1350,153 @@
         where task_id = cast(#{taskId} as uuid)
           and status = 'APPROVED'
         order by updated_at desc
+        limit 1
+    </select>
+
+    <select id="evaluationSamples" resultMap="evaluationSampleMap">
+        select <include refid="evaluationSampleColumns"/>
+        from test_design_evaluation_sample
+        <include refid="evaluationSampleWhere"/>
+        order by updated_at desc, id desc
+        limit #{query.size} offset #{query.offset}
+    </select>
+
+    <select id="countEvaluationSamples" resultType="long">
+        select count(*)
+        from test_design_evaluation_sample
+        <include refid="evaluationSampleWhere"/>
+    </select>
+
+    <select id="evaluationSample" resultMap="evaluationSampleMap">
+        select <include refid="evaluationSampleColumns"/>
+        from test_design_evaluation_sample
+        where id = cast(#{id} as uuid)
+    </select>
+
+    <select id="evaluationSampleByProjectAndKey" resultMap="evaluationSampleMap">
+        select <include refid="evaluationSampleColumns"/>
+        from test_design_evaluation_sample
+        where project_id = #{projectId}
+          and lower(sample_key) = lower(#{sampleKey})
+        limit 1
+    </select>
+
+    <insert id="insertEvaluationSample">
+        insert into test_design_evaluation_sample (
+            id, project_id, sample_key, title, source_type, source_task_id, source_candidate_id,
+            prompt_key, prompt_version, coverage_type, priority, status, baseline_version,
+            requirement_summary, expected_case_outline, assertion_notes, tags, maintenance_note,
+            sample_digest, sensitive_scan_status, created_by, updated_by, created_at, updated_at
+        ) values (
+            cast(#{id} as uuid), #{projectId}, #{sampleKey}, #{title}, #{sourceType},
+            cast(#{sourceTaskId} as uuid), cast(#{sourceCandidateId} as uuid), #{promptKey}, #{promptVersion},
+            #{coverageType}, #{priority}, #{status}, #{baselineVersion}, #{requirementSummary},
+            #{expectedCaseOutline}, #{assertionNotes}, #{tags}, #{maintenanceNote}, #{sampleDigest},
+            #{sensitiveScanStatus}, #{createdBy}, #{updatedBy}, #{createdAt}, #{updatedAt}
+        )
+    </insert>
+
+    <update id="updateEvaluationSample">
+        update test_design_evaluation_sample set
+            sample_key = #{sampleKey},
+            title = #{title},
+            source_type = #{sourceType},
+            source_task_id = cast(#{sourceTaskId} as uuid),
+            source_candidate_id = cast(#{sourceCandidateId} as uuid),
+            prompt_key = #{promptKey},
+            prompt_version = #{promptVersion},
+            coverage_type = #{coverageType},
+            priority = #{priority},
+            status = #{status},
+            baseline_version = #{baselineVersion},
+            requirement_summary = #{requirementSummary},
+            expected_case_outline = #{expectedCaseOutline},
+            assertion_notes = #{assertionNotes},
+            tags = #{tags},
+            maintenance_note = #{maintenanceNote},
+            sample_digest = #{sampleDigest},
+            sensitive_scan_status = #{sensitiveScanStatus},
+            updated_by = #{updatedBy},
+            updated_at = #{updatedAt}
+        where id = cast(#{id} as uuid)
+    </update>
+
+    <select id="evaluationSampleSummary" resultMap="evaluationSampleSummaryMap">
+        select
+            count(*) as total_count,
+            coalesce(sum(case when status = 'CANDIDATE' then 1 else 0 end), 0) as candidate_count,
+            coalesce(sum(case when status = 'GOLDEN' then 1 else 0 end), 0) as golden_count,
+            coalesce(sum(case when status = 'FROZEN' then 1 else 0 end), 0) as frozen_count,
+            coalesce(sum(case when status = 'DEPRECATED' then 1 else 0 end), 0) as deprecated_count,
+            count(distinct nullif(baseline_version, '')) as baseline_version_count,
+            max(updated_at) as latest_updated_at
+        from test_design_evaluation_sample
+        where (#{projectId} is null or #{projectId} = '' or project_id = #{projectId})
+          and (#{promptKey} is null or #{promptKey} = '' or prompt_key = #{promptKey})
+    </select>
+
+    <select id="calibrationRuns" resultMap="calibrationRunMap">
+        select <include refid="calibrationRunColumns"/>
+        from test_design_calibration_run
+        <include refid="calibrationRunWhere"/>
+        order by created_at desc, id desc
+        limit #{query.size} offset #{query.offset}
+    </select>
+
+    <select id="countCalibrationRuns" resultType="long">
+        select count(*)
+        from test_design_calibration_run
+        <include refid="calibrationRunWhere"/>
+    </select>
+
+    <insert id="insertCalibrationRun">
+        insert into test_design_calibration_run (
+            id, project_id, prompt_key, prompt_version, baseline_version, run_mode, status,
+            sample_count, golden_sample_count, task_count, candidate_count, step_complete_percent,
+            expected_complete_percent, low_confidence_percent, error_percent,
+            duplicate_key_collision_count, feedback_signal_count, readiness_status,
+            readiness_blocking_count, readiness_warning_count, regression_count, baseline_digest,
+            result_digest, notes, run_by, created_at
+        ) values (
+            cast(#{id} as uuid), #{projectId}, #{promptKey}, #{promptVersion}, #{baselineVersion},
+            #{runMode}, #{status}, #{sampleCount}, #{goldenSampleCount}, #{taskCount}, #{candidateCount},
+            #{stepCompletePercent}, #{expectedCompletePercent}, #{lowConfidencePercent}, #{errorPercent},
+            #{duplicateKeyCollisionCount}, #{feedbackSignalCount}, #{readinessStatus},
+            #{readinessBlockingCount}, #{readinessWarningCount}, #{regressionCount}, #{baselineDigest},
+            #{resultDigest}, #{notes}, #{runBy}, #{createdAt}
+        )
+    </insert>
+
+    <select id="calibrationSummary" resultMap="calibrationSummaryMap">
+        with scoped_runs as (
+            select *
+            from test_design_calibration_run
+            where (#{projectId} is null or #{projectId} = '' or project_id = #{projectId})
+              and (#{promptKey} is null or #{promptKey} = '' or prompt_key = #{promptKey})
+        ),
+        latest_run as (
+            select status, created_at
+            from scoped_runs
+            order by created_at desc
+            limit 1
+        )
+        select
+            count(*) as total_run_count,
+            coalesce(sum(case when status = 'PASSED' then 1 else 0 end), 0) as passed_run_count,
+            coalesce(sum(case when status = 'WARNING' then 1 else 0 end), 0) as warning_run_count,
+            coalesce(sum(case when status = 'BLOCKED' then 1 else 0 end), 0) as blocked_run_count,
+            (select status from latest_run) as latest_status,
+            (select created_at from latest_run) as latest_run_at
+        from scoped_runs
+    </select>
+
+    <select id="latestCalibrationRun" resultMap="calibrationRunMap">
+        select <include refid="calibrationRunColumns"/>
+        from test_design_calibration_run
+        where project_id = #{projectId}
+          <if test="promptKey != null and promptKey != ''">and prompt_key = #{promptKey}</if>
+          <if test="promptVersion != null and promptVersion != ''">and prompt_version = #{promptVersion}</if>
+        order by created_at desc
         limit 1
     </select>
 </mapper>

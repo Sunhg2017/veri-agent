@@ -134,7 +134,7 @@ class TestDesignGenerationServiceTest {
         assertThat(summary.path("scopePolicy").path("asyncTaskProjectScopeRecovered").asBoolean()).isTrue();
         assertThat(summary.path("scopePolicy").path("smokeProjectScopeRequired").asBoolean()).isTrue();
         assertThat(summary.path("scopePolicy").path("evaluationCorpusProjectIsolated").asBoolean()).isTrue();
-        assertThat(summary.path("scopePolicy").path("evaluationCorpusOperationsReady").asBoolean()).isFalse();
+        assertThat(summary.path("scopePolicy").path("evaluationCorpusOperationsReady").asBoolean()).isTrue();
         assertThat(summary.path("scopePolicy").path("crossWpScopeDashboardReady").asBoolean()).isFalse();
         assertThat(summary.path("scopePolicy").path("candidateIdentifierListExported").asBoolean()).isFalse();
         assertThat(summary.path("scopePolicy").path("roleRuleDetailExported").asBoolean()).isFalse();
@@ -155,9 +155,9 @@ class TestDesignGenerationServiceTest {
         assertThat(summary.path("evaluationCorpusPolicy").path("readinessDistributionTracked").asBoolean()).isTrue();
         assertThat(summary.path("evaluationCorpusPolicy").path("promptVersionTracked").asBoolean()).isTrue();
         assertThat(summary.path("evaluationCorpusPolicy").path("evaluationCorpusProjectIsolated").asBoolean()).isTrue();
-        assertThat(summary.path("evaluationCorpusPolicy").path("sampleMaintenanceReady").asBoolean()).isFalse();
-        assertThat(summary.path("evaluationCorpusPolicy").path("longTermCalibrationReady").asBoolean()).isFalse();
-        assertThat(summary.path("evaluationCorpusPolicy").path("operationsConsoleReady").asBoolean()).isFalse();
+        assertThat(summary.path("evaluationCorpusPolicy").path("sampleMaintenanceReady").asBoolean()).isTrue();
+        assertThat(summary.path("evaluationCorpusPolicy").path("longTermCalibrationReady").asBoolean()).isTrue();
+        assertThat(summary.path("evaluationCorpusPolicy").path("operationsConsoleReady").asBoolean()).isTrue();
         assertThat(summary.path("evaluationCorpusPolicy").path("corpusRowExported").asBoolean()).isFalse();
         assertThat(summary.path("evaluationCorpusPolicy").path("candidateBodyExported").asBoolean()).isFalse();
         assertThat(summary.path("evaluationCorpusPolicy").path("reviewCommentExported").asBoolean()).isFalse();
@@ -398,7 +398,7 @@ class TestDesignGenerationServiceTest {
         assertThat(payload.path("contextPacking").path("evaluationCorpusPolicy").path("qualityEvalScriptReady")
                 .asBoolean()).isTrue();
         assertThat(payload.path("contextPacking").path("evaluationCorpusPolicy").path("operationsConsoleReady")
-                .asBoolean()).isFalse();
+                .asBoolean()).isTrue();
         assertThat(payload.path("contextPacking").path("evaluationCorpusPolicy").path("corpusRowExported")
                 .asBoolean()).isFalse();
         assertThat(payload.path("contextPacking").path("evaluationCorpusPolicy").path("aggregateOnly").asBoolean())

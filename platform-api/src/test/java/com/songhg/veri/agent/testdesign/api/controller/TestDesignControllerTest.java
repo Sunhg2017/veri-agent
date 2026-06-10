@@ -40,6 +40,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -171,7 +172,7 @@ class TestDesignControllerTest {
                 .andExpect(jsonPath("$.data.scopePolicy.asyncTaskProjectScopeRecovered").value(true))
                 .andExpect(jsonPath("$.data.scopePolicy.smokeProjectScopeRequired").value(true))
                 .andExpect(jsonPath("$.data.scopePolicy.evaluationCorpusProjectIsolated").value(true))
-                .andExpect(jsonPath("$.data.scopePolicy.evaluationCorpusOperationsReady").value(false))
+                .andExpect(jsonPath("$.data.scopePolicy.evaluationCorpusOperationsReady").value(true))
                 .andExpect(jsonPath("$.data.scopePolicy.crossWpScopeDashboardReady").value(false))
                 .andExpect(jsonPath("$.data.scopePolicy.candidateIdentifierListExported").value(false))
                 .andExpect(jsonPath("$.data.scopePolicy.roleRuleDetailExported").value(false))
@@ -191,9 +192,9 @@ class TestDesignControllerTest {
                 .andExpect(jsonPath("$.data.evaluationCorpusPolicy.readinessDistributionTracked").value(true))
                 .andExpect(jsonPath("$.data.evaluationCorpusPolicy.promptVersionTracked").value(true))
                 .andExpect(jsonPath("$.data.evaluationCorpusPolicy.evaluationCorpusProjectIsolated").value(true))
-                .andExpect(jsonPath("$.data.evaluationCorpusPolicy.sampleMaintenanceReady").value(false))
-                .andExpect(jsonPath("$.data.evaluationCorpusPolicy.longTermCalibrationReady").value(false))
-                .andExpect(jsonPath("$.data.evaluationCorpusPolicy.operationsConsoleReady").value(false))
+                .andExpect(jsonPath("$.data.evaluationCorpusPolicy.sampleMaintenanceReady").value(true))
+                .andExpect(jsonPath("$.data.evaluationCorpusPolicy.longTermCalibrationReady").value(true))
+                .andExpect(jsonPath("$.data.evaluationCorpusPolicy.operationsConsoleReady").value(true))
                 .andExpect(jsonPath("$.data.evaluationCorpusPolicy.corpusRowExported").value(false))
                 .andExpect(jsonPath("$.data.evaluationCorpusPolicy.candidateBodyExported").value(false))
                 .andExpect(jsonPath("$.data.evaluationCorpusPolicy.reviewCommentExported").value(false))
@@ -873,7 +874,7 @@ class TestDesignControllerTest {
                 .andExpect(jsonPath("$.data.task.evaluationCorpusPolicy.qualityGateMode")
                         .value("MANUAL_OPT_IN_AI_EVAL"))
                 .andExpect(jsonPath("$.data.task.evaluationCorpusPolicy.qualityEvalScriptReady").value(true))
-                .andExpect(jsonPath("$.data.task.evaluationCorpusPolicy.operationsConsoleReady").value(false))
+                .andExpect(jsonPath("$.data.task.evaluationCorpusPolicy.operationsConsoleReady").value(true))
                 .andExpect(jsonPath("$.data.task.evaluationCorpusPolicy.corpusRowExported").value(false))
                 .andExpect(jsonPath("$.data.task.releaseReadinessPolicy.policyVersion")
                         .value("wp5-release-readiness-policy-v1"))
@@ -2061,13 +2062,13 @@ class TestDesignControllerTest {
         MatcherAssert.assertThat(csv, containsString("feedbackLoop,distribution:signal,correction,1,33.33,info"));
         MatcherAssert.assertThat(csv, containsString("feedbackLoop,distribution:signal,rejected,1,33.33,warning"));
         MatcherAssert.assertThat(csv, containsString("promptCalibrationPolicy,policyVersion,,wp5-prompt-calibration-policy-v1"));
-        MatcherAssert.assertThat(csv, containsString("promptCalibrationPolicy,sampleSource,,HUMAN_FEEDBACK_AGGREGATE"));
-        MatcherAssert.assertThat(csv, containsString("promptCalibrationPolicy,calibrationStatus,,AGGREGATE_SIGNALS_ONLY"));
+        MatcherAssert.assertThat(csv, containsString("promptCalibrationPolicy,sampleSource,,MAINTAINED_GOLDEN_SET_WITH_HUMAN_FEEDBACK"));
+        MatcherAssert.assertThat(csv, containsString("promptCalibrationPolicy,calibrationStatus,,BASELINE_RUN_HISTORY_READY"));
         MatcherAssert.assertThat(csv, containsString("promptCalibrationPolicy,metric,feedbackSignalsTracked,2,,info"));
         MatcherAssert.assertThat(csv, containsString("promptCalibrationPolicy,metric,sampleCandidatesTracked,2,,info"));
         MatcherAssert.assertThat(csv, containsString("promptCalibrationPolicy,metric,sampleExplanationCount,1,,info"));
-        MatcherAssert.assertThat(csv, containsString("promptCalibrationPolicy,sampleSetMaintenanceWorkflowReady,,false"));
-        MatcherAssert.assertThat(csv, containsString("promptCalibrationPolicy,longTermCalibrationBaselineReady,,false"));
+        MatcherAssert.assertThat(csv, containsString("promptCalibrationPolicy,sampleSetMaintenanceWorkflowReady,,true"));
+        MatcherAssert.assertThat(csv, containsString("promptCalibrationPolicy,longTermCalibrationBaselineReady,,true"));
         MatcherAssert.assertThat(csv, containsString("promptCalibrationPolicy,sampleDetailRowsExported,,false"));
         MatcherAssert.assertThat(csv, containsString("promptCalibrationPolicy,candidateBodyExported,,false"));
         MatcherAssert.assertThat(csv, containsString("promptCalibrationPolicy,reviewTextExported,,false"));
@@ -2193,7 +2194,7 @@ class TestDesignControllerTest {
         MatcherAssert.assertThat(csv, containsString("scopePolicy,asyncTaskProjectScopeRecovered,,true"));
         MatcherAssert.assertThat(csv, containsString("scopePolicy,smokeProjectScopeRequired,,true"));
         MatcherAssert.assertThat(csv, containsString("scopePolicy,evaluationCorpusProjectIsolated,,true"));
-        MatcherAssert.assertThat(csv, containsString("scopePolicy,evaluationCorpusOperationsReady,,false"));
+        MatcherAssert.assertThat(csv, containsString("scopePolicy,evaluationCorpusOperationsReady,,true"));
         MatcherAssert.assertThat(csv, containsString("scopePolicy,crossWpScopeDashboardReady,,false"));
         MatcherAssert.assertThat(csv, containsString("scopePolicy,candidateIdentifierListExported,,false"));
         MatcherAssert.assertThat(csv, containsString("scopePolicy,roleRuleDetailExported,,false"));
@@ -2212,9 +2213,9 @@ class TestDesignControllerTest {
         MatcherAssert.assertThat(csv, containsString("evaluationCorpusPolicy,readinessDistributionTracked,,true"));
         MatcherAssert.assertThat(csv, containsString("evaluationCorpusPolicy,promptVersionTracked,,true"));
         MatcherAssert.assertThat(csv, containsString("evaluationCorpusPolicy,evaluationCorpusProjectIsolated,,true"));
-        MatcherAssert.assertThat(csv, containsString("evaluationCorpusPolicy,sampleMaintenanceReady,,false"));
-        MatcherAssert.assertThat(csv, containsString("evaluationCorpusPolicy,longTermCalibrationReady,,false"));
-        MatcherAssert.assertThat(csv, containsString("evaluationCorpusPolicy,operationsConsoleReady,,false"));
+        MatcherAssert.assertThat(csv, containsString("evaluationCorpusPolicy,sampleMaintenanceReady,,true"));
+        MatcherAssert.assertThat(csv, containsString("evaluationCorpusPolicy,longTermCalibrationReady,,true"));
+        MatcherAssert.assertThat(csv, containsString("evaluationCorpusPolicy,operationsConsoleReady,,true"));
         MatcherAssert.assertThat(csv, containsString("evaluationCorpusPolicy,corpusRowExported,,false"));
         MatcherAssert.assertThat(csv, containsString("evaluationCorpusPolicy,candidateBodyExported,,false"));
         MatcherAssert.assertThat(csv, containsString("evaluationCorpusPolicy,reviewCommentExported,,false"));
@@ -2798,7 +2799,7 @@ class TestDesignControllerTest {
                 .andExpect(jsonPath("$.data.policy.policyVersion").value("wp5-evaluation-corpus-policy-v1"))
                 .andExpect(jsonPath("$.data.policy.corpusMode").value("GOLDEN_SET_BASELINE"))
                 .andExpect(jsonPath("$.data.policy.qualityGateMode").value("MANUAL_OPT_IN_AI_EVAL"))
-                .andExpect(jsonPath("$.data.policy.sampleMaintenanceReady").value(false))
+                .andExpect(jsonPath("$.data.policy.sampleMaintenanceReady").value(true))
                 .andExpect(jsonPath("$.data.taskCount").value(1))
                 .andExpect(jsonPath("$.data.candidateCount").value(2))
                 .andExpect(jsonPath("$.data.promptVersionCount").value(1))
@@ -2828,6 +2829,195 @@ class TestDesignControllerTest {
         MatcherAssert.assertThat(json, not(containsString("语料拒绝说明")));
 
         mockMvc.perform(get("/api/v1/test-design/quality/evaluation-corpus-summary")
+                        .header("Authorization", "Bearer " + deniedAuditorToken)
+                        .param("projectId", "project-wp5"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void maintainsRealEvaluationSamplesAndRunsLongTermCalibration() throws Exception {
+        String ownerToken = userAccessToken(List.of("ProjectOwner@PROJECT:project-wp5"));
+        String auditorToken = userAccessToken(List.of("Auditor@PROJECT:project-wp5"));
+        String deniedAuditorToken = userAccessToken(List.of("Auditor@PROJECT:project-other"));
+        String requirementId = createRequirement(
+                ownerToken,
+                "真实样本维护需求",
+                "长期校准验收需要绑定 baseline",
+                "project-wp5"
+        );
+        MvcResult taskResult = mockMvc.perform(post("/api/v1/test-design/tasks")
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"projectId":"project-wp5","requirementIds":["%s"],"coverageTypes":["SMOKE","BOUNDARY"]}
+                                """.formatted(requirementId)))
+                .andExpect(status().isCreated())
+                .andReturn();
+        String candidateId = JsonPath.read(taskResult.getResponse().getContentAsString(), "$.data.candidates[0].id");
+
+        MvcResult createdSample = mockMvc.perform(post("/api/v1/test-design/quality/evaluation-samples")
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "projectId": "project-wp5",
+                                  "sampleKey": "LOGIN-SMOKE-GOLDEN",
+                                  "title": "登录冒烟真实样本",
+                                  "sourceType": "MANUAL",
+                                  "promptKey": "wp5-test-design-v1",
+                                  "promptVersion": "1.0.0",
+                                  "coverageType": "SMOKE",
+                                  "priority": "HIGH",
+                                  "status": "CANDIDATE",
+                                  "requirementSummary": "使用 token=secret-value 登录后进入工作台",
+                                  "expectedCaseOutline": "输入账号密码并断言首页加载",
+                                  "assertionNotes": "校验 trace 和页面状态",
+                                  "tags": "login,smoke",
+                                  "maintenanceNote": "人工录入"
+                                }
+                                """))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.sampleKey").value("LOGIN-SMOKE-GOLDEN"))
+                .andExpect(jsonPath("$.data.status").value("CANDIDATE"))
+                .andExpect(jsonPath("$.data.sensitiveScanStatus").value("PASSED"))
+                .andExpect(jsonPath("$.data.sampleDigest").isString())
+                .andReturn();
+        String sampleId = JsonPath.read(createdSample.getResponse().getContentAsString(), "$.data.id");
+        MatcherAssert.assertThat(createdSample.getResponse().getContentAsString(), not(containsString("secret-value")));
+
+        mockMvc.perform(put("/api/v1/test-design/quality/evaluation-samples/{id}", sampleId)
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "projectId": "project-wp5",
+                                  "sampleKey": "LOGIN-SMOKE-GOLDEN",
+                                  "title": "登录冒烟真实样本 v2",
+                                  "sourceType": "MANUAL",
+                                  "promptKey": "wp5-test-design-v1",
+                                  "promptVersion": "1.0.0",
+                                  "coverageType": "SMOKE",
+                                  "priority": "HIGH",
+                                  "status": "CANDIDATE",
+                                  "requirementSummary": "登录后进入工作台",
+                                  "expectedCaseOutline": "输入账号密码并断言首页加载和审计事件",
+                                  "assertionNotes": "校验 trace 和页面状态",
+                                  "tags": "login,smoke,golden",
+                                  "maintenanceNote": "补充审计断言"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.title").value("登录冒烟真实样本 v2"))
+                .andExpect(jsonPath("$.data.tags").value("login,smoke,golden"));
+
+        mockMvc.perform(patch("/api/v1/test-design/quality/evaluation-samples/{id}/status", sampleId)
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "status": "GOLDEN",
+                                  "baselineVersion": "baseline-2026-06",
+                                  "maintenanceNote": "纳入首个长期校准基线"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("GOLDEN"))
+                .andExpect(jsonPath("$.data.baselineVersion").value("baseline-2026-06"));
+
+        mockMvc.perform(post("/api/v1/test-design/quality/evaluation-samples/from-candidate")
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "candidateId": "%s",
+                                  "sampleKey": "LOGIN-CANDIDATE-FROZEN",
+                                  "status": "FROZEN",
+                                  "baselineVersion": "baseline-2026-06",
+                                  "maintenanceNote": "从候选回流冻结样本"
+                                }
+                                """.formatted(candidateId)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.sourceType").value("REVIEW_FEEDBACK"))
+                .andExpect(jsonPath("$.data.sourceCandidateId").value(candidateId))
+                .andExpect(jsonPath("$.data.status").value("FROZEN"))
+                .andExpect(jsonPath("$.data.baselineVersion").value("baseline-2026-06"));
+
+        mockMvc.perform(get("/api/v1/test-design/quality/evaluation-samples")
+                        .header("Authorization", "Bearer " + auditorToken)
+                        .param("projectId", "project-wp5")
+                        .param("promptKey", "wp5-test-design-v1")
+                        .param("baselineVersion", "baseline-2026-06"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(2))
+                .andExpect(jsonPath("$.data.items", hasSize(2)))
+                .andExpect(jsonPath("$.data.items[*].status", containsInAnyOrder("GOLDEN", "FROZEN")));
+
+        mockMvc.perform(get("/api/v1/test-design/quality/evaluation-samples/summary")
+                        .header("Authorization", "Bearer " + auditorToken)
+                        .param("projectId", "project-wp5")
+                        .param("promptKey", "wp5-test-design-v1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalCount").value(2))
+                .andExpect(jsonPath("$.data.goldenCount").value(1))
+                .andExpect(jsonPath("$.data.frozenCount").value(1))
+                .andExpect(jsonPath("$.data.baselineVersionCount").value(1))
+                .andExpect(jsonPath("$.data.sampleMaintenanceReady").value(true))
+                .andExpect(jsonPath("$.data.baselineReady").value(true));
+
+        MvcResult calibration = mockMvc.perform(post("/api/v1/test-design/quality/calibration-runs")
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "projectId": "project-wp5",
+                                  "promptKey": "wp5-test-design-v1",
+                                  "promptVersion": "1.0.0",
+                                  "baselineVersion": "baseline-2026-06",
+                                  "runMode": "MANUAL",
+                                  "notes": "首轮长期校准"
+                                }
+                                """))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.projectId").value("project-wp5"))
+                .andExpect(jsonPath("$.data.promptKey").value("wp5-test-design-v1"))
+                .andExpect(jsonPath("$.data.sampleCount").value(2))
+                .andExpect(jsonPath("$.data.goldenSampleCount").value(2))
+                .andExpect(jsonPath("$.data.candidateCount").value(2))
+                .andExpect(jsonPath("$.data.baselineDigest").isString())
+                .andExpect(jsonPath("$.data.resultDigest").isString())
+                .andExpect(jsonPath("$.data.status").isString())
+                .andReturn();
+        String calibrationStatus = JsonPath.read(calibration.getResponse().getContentAsString(), "$.data.status");
+
+        mockMvc.perform(get("/api/v1/test-design/quality/calibration-runs")
+                        .header("Authorization", "Bearer " + auditorToken)
+                        .param("projectId", "project-wp5")
+                        .param("promptKey", "wp5-test-design-v1")
+                        .param("baselineVersion", "baseline-2026-06"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(1))
+                .andExpect(jsonPath("$.data.items[0].status").value(calibrationStatus))
+                .andExpect(jsonPath("$.data.summary.totalRunCount").value(1))
+                .andExpect(jsonPath("$.data.summary.latestStatus").value(calibrationStatus))
+                .andExpect(jsonPath("$.data.summary.longTermCalibrationReady").value(true))
+                .andExpect(jsonPath("$.data.summary.baselineReady").value(true));
+
+        mockMvc.perform(get("/api/v1/test-design/quality/evaluation-corpus-summary")
+                        .header("Authorization", "Bearer " + auditorToken)
+                        .param("projectId", "project-wp5")
+                        .param("promptKey", "wp5-test-design-v1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.maintainedSampleCount").value(2))
+                .andExpect(jsonPath("$.data.goldenSampleCount").value(1))
+                .andExpect(jsonPath("$.data.frozenSampleCount").value(1))
+                .andExpect(jsonPath("$.data.baselineVersionCount").value(1))
+                .andExpect(jsonPath("$.data.calibrationRunCount").value(1))
+                .andExpect(jsonPath("$.data.latestCalibrationStatus").value(calibrationStatus))
+                .andExpect(jsonPath("$.data.sampleMaintenanceReady").value(true))
+                .andExpect(jsonPath("$.data.longTermCalibrationReady").value(true))
+                .andExpect(jsonPath("$.data.operationsConsoleReady").value(true));
+
+        mockMvc.perform(get("/api/v1/test-design/quality/evaluation-samples")
                         .header("Authorization", "Bearer " + deniedAuditorToken)
                         .param("projectId", "project-wp5"))
                 .andExpect(status().isForbidden());
@@ -3295,6 +3485,7 @@ class TestDesignControllerTest {
     @Test
     void resolvesHighSimilarConflictByLinkingExistingRequirementCase() throws Exception {
         String ownerToken = userAccessToken(List.of("ProjectOwner@PROJECT:project-wp5"));
+        String deniedToken = userAccessToken(List.of("ProjectOwner@PROJECT:project-other"));
         String requirementId = createRequirement(ownerToken, "人工冲突处理需求", "人工冲突处理验收", "project-wp5");
         MvcResult taskResult = mockMvc.perform(post("/api/v1/test-design/tasks")
                         .header("Authorization", "Bearer " + ownerToken)
@@ -3356,6 +3547,41 @@ class TestDesignControllerTest {
                 .andExpect(jsonPath("$.data.records[0].candidateVersion").value(confirmedVersion))
                 .andExpect(jsonPath("$.data.records[0].assetCaseId").value(existingCaseId));
 
+        mockMvc.perform(post("/api/v1/test-design/tasks/{id}/publish", taskId)
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.records[0].action").value("DUPLICATE_REVIEW_REQUIRED"))
+                .andExpect(jsonPath("$.data.records[0].result").value("CONFLICT"))
+                .andExpect(jsonPath("$.data.records[0].candidateStatus").value("CONFIRMED"))
+                .andExpect(jsonPath("$.data.records[0].candidateVersion").value(confirmedVersion))
+                .andExpect(jsonPath("$.data.records[0].assetCaseId").value(existingCaseId));
+
+        mockMvc.perform(get("/api/v1/test-design/conflicts")
+                        .header("Authorization", "Bearer " + deniedToken)
+                        .param("projectId", "project-wp5"))
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(get("/api/v1/test-design/conflicts")
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .param("projectId", "project-wp5"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(1))
+                .andExpect(jsonPath("$.data.summary.totalCount").value(1))
+                .andExpect(jsonPath("$.data.summary.openCount").value(1))
+                .andExpect(jsonPath("$.data.summary.resolvedCount").value(0))
+                .andExpect(jsonPath("$.data.summary.duplicateReviewCount").value(1))
+                .andExpect(jsonPath("$.data.items[0].taskId").value(taskId))
+                .andExpect(jsonPath("$.data.items[0].candidateId").value(candidateId))
+                .andExpect(jsonPath("$.data.items[0].candidateStatus").value("CONFIRMED"))
+                .andExpect(jsonPath("$.data.items[0].candidateVersion").value(confirmedVersion))
+                .andExpect(jsonPath("$.data.items[0].recommendedCaseId").value(existingCaseId))
+                .andExpect(jsonPath("$.data.items[0].resolved").value(false))
+                .andExpect(jsonPath("$.data.items[0].resolvable").value(true))
+                .andExpect(jsonPath("$.data.items[0].record.action").value("DUPLICATE_REVIEW_REQUIRED"))
+                .andExpect(jsonPath("$.data.items[0].record.result").value("CONFLICT"));
+
         mockMvc.perform(post("/api/v1/test-design/candidates/{id}/resolve-conflict", candidateId)
                         .header("Authorization", "Bearer " + ownerToken)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -3370,6 +3596,25 @@ class TestDesignControllerTest {
                 .andExpect(jsonPath("$.data.candidateVersion").value(confirmedVersion + 1))
                 .andExpect(jsonPath("$.data.assetCaseId").value(existingCaseId))
                 .andExpect(jsonPath("$.data.errorMessage").doesNotExist());
+
+        mockMvc.perform(get("/api/v1/test-design/conflicts")
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .param("projectId", "project-wp5"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(0))
+                .andExpect(jsonPath("$.data.summary.totalCount").value(1))
+                .andExpect(jsonPath("$.data.summary.openCount").value(0))
+                .andExpect(jsonPath("$.data.summary.resolvedCount").value(1));
+
+        mockMvc.perform(get("/api/v1/test-design/conflicts")
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .param("projectId", "project-wp5")
+                        .param("resolutionStatus", "RESOLVED"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(1))
+                .andExpect(jsonPath("$.data.items[0].candidateStatus").value("PUBLISHED"))
+                .andExpect(jsonPath("$.data.items[0].resolved").value(true))
+                .andExpect(jsonPath("$.data.items[0].resolvable").value(false));
 
         mockMvc.perform(get("/api/v1/test-design/tasks/{id}", taskId)
                         .header("Authorization", "Bearer " + ownerToken))

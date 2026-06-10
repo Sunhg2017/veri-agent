@@ -11,7 +11,9 @@ with expected(table_name) as (
         ('test_design_context_policy_override'),
         ('test_design_context_policy_note'),
         ('test_design_release_readiness_approval'),
-        ('test_design_release_readiness_note')
+        ('test_design_release_readiness_note'),
+        ('test_design_evaluation_sample'),
+        ('test_design_calibration_run')
 ),
 missing as (
     select e.table_name
@@ -106,7 +108,22 @@ with expected(table_name, constraint_name) as (
         ('test_design_release_readiness_approval','ck_test_design_rr_approval_work_lengths'),
         ('test_design_release_readiness_approval','ck_test_design_rr_approval_text_lengths'),
         ('test_design_release_readiness_note','ck_test_design_rr_note_type'),
-        ('test_design_release_readiness_note','ck_test_design_rr_note_text')
+        ('test_design_release_readiness_note','ck_test_design_rr_note_text'),
+        ('test_design_evaluation_sample','ck_test_design_eval_sample_key'),
+        ('test_design_evaluation_sample','ck_test_design_eval_sample_source'),
+        ('test_design_evaluation_sample','ck_test_design_eval_sample_status'),
+        ('test_design_evaluation_sample','ck_test_design_eval_sample_coverage'),
+        ('test_design_evaluation_sample','ck_test_design_eval_sample_priority'),
+        ('test_design_evaluation_sample','ck_test_design_eval_sample_baseline'),
+        ('test_design_evaluation_sample','ck_test_design_eval_sample_digest'),
+        ('test_design_evaluation_sample','ck_test_design_eval_sample_scan_status'),
+        ('test_design_evaluation_sample','ck_test_design_eval_sample_text_lengths'),
+        ('test_design_calibration_run','ck_test_design_calibration_run_mode'),
+        ('test_design_calibration_run','ck_test_design_calibration_run_status'),
+        ('test_design_calibration_run','ck_test_design_calibration_run_counts'),
+        ('test_design_calibration_run','ck_test_design_calibration_run_percents'),
+        ('test_design_calibration_run','ck_test_design_calibration_run_digest'),
+        ('test_design_calibration_run','ck_test_design_calibration_run_notes')
 ),
 missing as (
     select e.table_name || '.' || e.constraint_name as item
@@ -190,7 +207,14 @@ with expected(table_name, index_name) as (
         ('test_design_release_readiness_approval', 'idx_test_design_rr_approval_task_status_digest'),
         ('test_design_release_readiness_approval', 'idx_test_design_rr_approval_project_created'),
         ('test_design_release_readiness_approval', 'idx_test_design_rr_approval_work_order'),
-        ('test_design_release_readiness_note', 'idx_test_design_rr_note_approval_created')
+        ('test_design_release_readiness_note', 'idx_test_design_rr_note_approval_created'),
+        ('test_design_evaluation_sample', 'uk_test_design_eval_sample_project_key'),
+        ('test_design_evaluation_sample', 'idx_test_design_eval_sample_project_status'),
+        ('test_design_evaluation_sample', 'idx_test_design_eval_sample_prompt_baseline'),
+        ('test_design_evaluation_sample', 'idx_test_design_eval_sample_source_candidate'),
+        ('test_design_calibration_run', 'idx_test_design_calibration_run_project_prompt_created'),
+        ('test_design_calibration_run', 'idx_test_design_calibration_run_baseline_created'),
+        ('test_design_calibration_run', 'idx_test_design_calibration_run_status_created')
 ),
 missing as (
     select e.table_name || '.' || e.index_name as item
@@ -270,6 +294,92 @@ select
     'wp5.release_readiness_note_columns_exist' as check_name,
     case when count(*) = 0 then 'PASS' else 'FAIL' end as status,
     coalesce(string_agg(column_name, ', ' order by column_name), 'WP5 release readiness approval note timeline columns exist') as details
+from missing;
+
+with expected(column_name) as (
+    values
+        ('id'),
+        ('project_id'),
+        ('sample_key'),
+        ('title'),
+        ('source_type'),
+        ('source_task_id'),
+        ('source_candidate_id'),
+        ('prompt_key'),
+        ('prompt_version'),
+        ('coverage_type'),
+        ('priority'),
+        ('status'),
+        ('baseline_version'),
+        ('requirement_summary'),
+        ('expected_case_outline'),
+        ('assertion_notes'),
+        ('tags'),
+        ('maintenance_note'),
+        ('sample_digest'),
+        ('sensitive_scan_status'),
+        ('created_by'),
+        ('updated_by'),
+        ('created_at'),
+        ('updated_at')
+),
+missing as (
+    select e.column_name
+    from expected e
+    left join information_schema.columns c
+        on c.table_schema = current_schema()
+       and c.table_name = 'test_design_evaluation_sample'
+       and c.column_name = e.column_name
+    where c.column_name is null
+)
+select
+    'wp5.evaluation_sample_columns_exist' as check_name,
+    case when count(*) = 0 then 'PASS' else 'FAIL' end as status,
+    coalesce(string_agg(column_name, ', ' order by column_name), 'WP5 evaluation sample maintenance columns exist') as details
+from missing;
+
+with expected(column_name) as (
+    values
+        ('id'),
+        ('project_id'),
+        ('prompt_key'),
+        ('prompt_version'),
+        ('baseline_version'),
+        ('run_mode'),
+        ('status'),
+        ('sample_count'),
+        ('golden_sample_count'),
+        ('task_count'),
+        ('candidate_count'),
+        ('step_complete_percent'),
+        ('expected_complete_percent'),
+        ('low_confidence_percent'),
+        ('error_percent'),
+        ('duplicate_key_collision_count'),
+        ('feedback_signal_count'),
+        ('readiness_status'),
+        ('readiness_blocking_count'),
+        ('readiness_warning_count'),
+        ('regression_count'),
+        ('baseline_digest'),
+        ('result_digest'),
+        ('notes'),
+        ('run_by'),
+        ('created_at')
+),
+missing as (
+    select e.column_name
+    from expected e
+    left join information_schema.columns c
+        on c.table_schema = current_schema()
+       and c.table_name = 'test_design_calibration_run'
+       and c.column_name = e.column_name
+    where c.column_name is null
+)
+select
+    'wp5.calibration_run_columns_exist' as check_name,
+    case when count(*) = 0 then 'PASS' else 'FAIL' end as status,
+    coalesce(string_agg(column_name, ', ' order by column_name), 'WP5 long-term calibration run columns exist') as details
 from missing;
 
 with expected(column_name) as (
@@ -491,7 +601,9 @@ with wp5_tables(table_name) as (
         ('test_design_context_policy_override'),
         ('test_design_context_policy_note'),
         ('test_design_release_readiness_approval'),
-        ('test_design_release_readiness_note')
+        ('test_design_release_readiness_note'),
+        ('test_design_evaluation_sample'),
+        ('test_design_calibration_run')
 ),
 missing as (
     select t.table_name
@@ -528,7 +640,9 @@ with missing as (
           'test_design_context_policy_override',
           'test_design_context_policy_note',
           'test_design_release_readiness_approval',
-          'test_design_release_readiness_note'
+          'test_design_release_readiness_note',
+          'test_design_evaluation_sample',
+          'test_design_calibration_run'
       )
       and (
           col_description(pc.oid, pa.attnum) is null

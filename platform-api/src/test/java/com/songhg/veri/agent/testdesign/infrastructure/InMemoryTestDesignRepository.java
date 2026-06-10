@@ -3,13 +3,22 @@ package com.songhg.veri.agent.testdesign.infrastructure;
 import com.songhg.veri.agent.common.api.PageQuery;
 import com.songhg.veri.agent.testdesign.application.port.TestDesignRepository;
 import com.songhg.veri.agent.testdesign.application.query.TestDesignCandidateQuery;
+import com.songhg.veri.agent.testdesign.application.query.TestDesignCalibrationRunQuery;
+import com.songhg.veri.agent.testdesign.application.query.TestDesignConflictOperationQuery;
+import com.songhg.veri.agent.testdesign.application.query.TestDesignEvaluationSampleQuery;
 import com.songhg.veri.agent.testdesign.application.query.TestDesignTaskQuery;
 import com.songhg.veri.agent.testdesign.application.query.TestDesignTemplateQuery;
 import com.songhg.veri.agent.testdesign.domain.TestDesignAuditChainAggregate;
+import com.songhg.veri.agent.testdesign.domain.TestDesignCalibrationRun;
+import com.songhg.veri.agent.testdesign.domain.TestDesignCalibrationSummary;
 import com.songhg.veri.agent.testdesign.domain.TestDesignCandidate;
 import com.songhg.veri.agent.testdesign.domain.TestDesignCandidateStatus;
+import com.songhg.veri.agent.testdesign.domain.TestDesignConflictOperationRecord;
+import com.songhg.veri.agent.testdesign.domain.TestDesignConflictOperationSummary;
 import com.songhg.veri.agent.testdesign.domain.TestDesignContextPolicyNote;
 import com.songhg.veri.agent.testdesign.domain.TestDesignContextPolicyOverride;
+import com.songhg.veri.agent.testdesign.domain.TestDesignEvaluationSample;
+import com.songhg.veri.agent.testdesign.domain.TestDesignEvaluationSampleSummary;
 import com.songhg.veri.agent.testdesign.domain.TestDesignPublishRecord;
 import com.songhg.veri.agent.testdesign.domain.TestDesignReleaseReadinessApproval;
 import com.songhg.veri.agent.testdesign.domain.TestDesignReleaseReadinessNote;
@@ -36,6 +45,7 @@ import org.springframework.util.StringUtils;
 public class InMemoryTestDesignRepository implements TestDesignRepository {
 
     private static final String ACTION_AUTO_COMPENSATE_LINK_EXISTING = "AUTO_COMPENSATE_LINK_EXISTING";
+    private static final String ACTION_DUPLICATE_REVIEW_REQUIRED = "DUPLICATE_REVIEW_REQUIRED";
 
     private final ConcurrentHashMap<UUID, TestDesignTask> tasks = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<UUID, TestDesignCandidate> candidates = new ConcurrentHashMap<>();
@@ -47,6 +57,8 @@ public class InMemoryTestDesignRepository implements TestDesignRepository {
     private final ConcurrentHashMap<UUID, TestDesignReleaseReadinessApproval> releaseReadinessApprovals = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<UUID, TestDesignReleaseReadinessNote> releaseReadinessNotes = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<UUID, TestDesignTemplate> templates = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<UUID, TestDesignEvaluationSample> evaluationSamples = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<UUID, TestDesignCalibrationRun> calibrationRuns = new ConcurrentHashMap<>();
 
     @Override
     public List<TestDesignTemplate> templates(TestDesignTemplateQuery query) {
@@ -488,6 +500,39 @@ public class InMemoryTestDesignRepository implements TestDesignRepository {
     }
 
     @Override
+    public List<TestDesignConflictOperationRecord> conflictOperations(TestDesignConflictOperationQuery query) {
+        return filteredConflictOperations(query)
+                .skip(query.offset())
+                .limit(query.size())
+                .toList();
+    }
+
+    @Override
+    public long countConflictOperations(TestDesignConflictOperationQuery query) {
+        return filteredConflictOperations(query).count();
+    }
+
+    @Override
+    public TestDesignConflictOperationSummary conflictOperationSummary(TestDesignConflictOperationQuery query) {
+        List<TestDesignConflictOperationRecord> records = filteredConflictOperations(query).toList();
+        long openCount = records.stream().filter(record -> !record.resolved()).count();
+        long duplicateReviewCount = records.stream()
+                .filter(record -> ACTION_DUPLICATE_REVIEW_REQUIRED.equals(record.action()))
+                .count();
+        Instant latestConflictAt = records.stream()
+                .map(TestDesignConflictOperationRecord::recordCreatedAt)
+                .max(Comparator.naturalOrder())
+                .orElse(null);
+        return new TestDesignConflictOperationSummary(
+                records.size(),
+                openCount,
+                records.size() - openCount,
+                duplicateReviewCount,
+                latestConflictAt
+        );
+    }
+
+    @Override
     public TestDesignReportManifest saveReportManifest(TestDesignReportManifest manifest) {
         Optional<TestDesignReportManifest> existing = reportManifests.values().stream()
                 .filter(current -> manifest.taskId().equals(current.taskId()))
@@ -667,6 +712,91 @@ public class InMemoryTestDesignRepository implements TestDesignRepository {
                 .max(Comparator.comparing(TestDesignReleaseReadinessApproval::updatedAt));
     }
 
+    @Override
+    public List<TestDesignEvaluationSample> evaluationSamples(TestDesignEvaluationSampleQuery query) {
+        return filteredEvaluationSamples(query)
+                .skip(query.offset())
+                .limit(query.size())
+                .toList();
+    }
+
+    @Override
+    public long countEvaluationSamples(TestDesignEvaluationSampleQuery query) {
+        return filteredEvaluationSamples(query).count();
+    }
+
+    @Override
+    public Optional<TestDesignEvaluationSample> evaluationSample(UUID id) {
+        return Optional.ofNullable(evaluationSamples.get(id));
+    }
+
+    @Override
+    public Optional<TestDesignEvaluationSample> evaluationSampleByProjectAndKey(String projectId, String sampleKey) {
+        if (!StringUtils.hasText(projectId) || !StringUtils.hasText(sampleKey)) {
+            return Optional.empty();
+        }
+        return evaluationSamples.values().stream()
+                .filter(sample -> projectId.equals(sample.projectId()))
+                .filter(sample -> sampleKey.equalsIgnoreCase(sample.sampleKey()))
+                .findFirst();
+    }
+
+    @Override
+    public TestDesignEvaluationSample saveEvaluationSample(TestDesignEvaluationSample sample) {
+        evaluationSamples.put(sample.id(), sample);
+        return sample;
+    }
+
+    @Override
+    public TestDesignEvaluationSampleSummary evaluationSampleSummary(String projectId, String promptKey) {
+        List<TestDesignEvaluationSample> samples = evaluationSamples.values().stream()
+                .filter(sample -> matches(projectId, sample.projectId()))
+                .filter(sample -> matches(promptKey, sample.promptKey()))
+                .toList();
+        return sampleSummary(samples);
+    }
+
+    @Override
+    public List<TestDesignCalibrationRun> calibrationRuns(TestDesignCalibrationRunQuery query) {
+        return filteredCalibrationRuns(query)
+                .skip(query.offset())
+                .limit(query.size())
+                .toList();
+    }
+
+    @Override
+    public long countCalibrationRuns(TestDesignCalibrationRunQuery query) {
+        return filteredCalibrationRuns(query).count();
+    }
+
+    @Override
+    public TestDesignCalibrationRun saveCalibrationRun(TestDesignCalibrationRun run) {
+        calibrationRuns.put(run.id(), run);
+        return run;
+    }
+
+    @Override
+    public TestDesignCalibrationSummary calibrationSummary(String projectId, String promptKey) {
+        List<TestDesignCalibrationRun> runs = calibrationRuns.values().stream()
+                .filter(run -> matches(projectId, run.projectId()))
+                .filter(run -> matches(promptKey, run.promptKey()))
+                .toList();
+        return calibrationSummary(runs);
+    }
+
+    @Override
+    public Optional<TestDesignCalibrationRun> latestCalibrationRun(
+            String projectId,
+            String promptKey,
+            String promptVersion
+    ) {
+        return calibrationRuns.values().stream()
+                .filter(run -> matches(projectId, run.projectId()))
+                .filter(run -> matches(promptKey, run.promptKey()))
+                .filter(run -> matches(promptVersion, run.promptVersion()))
+                .max(Comparator.comparing(TestDesignCalibrationRun::createdAt));
+    }
+
     private Stream<TestDesignTask> filteredTasks(TestDesignTaskQuery query) {
         return tasks.values().stream()
                 .filter(task -> matches(query.projectId(), task.projectId()))
@@ -712,6 +842,116 @@ public class InMemoryTestDesignRepository implements TestDesignRepository {
                 .sorted(Comparator.comparing(TestDesignReviewRecord::createdAt).reversed());
     }
 
+    private Stream<TestDesignConflictOperationRecord> filteredConflictOperations(TestDesignConflictOperationQuery query) {
+        return publishRecords.values().stream()
+                .filter(record -> !record.dryRun())
+                .filter(InMemoryTestDesignRepository::isConflictOperationSignal)
+                .filter(record -> matches(query.projectId(), record.projectId()))
+                .filter(record -> query.taskId() == null || query.taskId().equals(record.taskId()))
+                .map(this::toConflictOperationRecord)
+                .flatMap(Optional::stream)
+                .filter(record -> matches(query.action(), record.action()))
+                .filter(record -> matches(query.result(), record.result()))
+                .filter(record -> matches(query.candidateStatus(), record.candidateStatus()))
+                .filter(record -> contains(
+                        query.keyword(),
+                        record.candidateTitle(),
+                        record.taskTitle(),
+                        record.errorMessage(),
+                        record.action(),
+                        record.result(),
+                        record.candidateId().toString(),
+                        record.assetCaseId() == null ? null : record.assetCaseId().toString()
+                ))
+                .filter(record -> matchesResolutionStatus(query.resolutionStatus(), record.resolved()))
+                .sorted(Comparator.comparing(TestDesignConflictOperationRecord::recordCreatedAt).reversed()
+                        .thenComparing(record -> record.publishRecordId().toString(), Comparator.reverseOrder()));
+    }
+
+    private Stream<TestDesignEvaluationSample> filteredEvaluationSamples(TestDesignEvaluationSampleQuery query) {
+        return evaluationSamples.values().stream()
+                .filter(sample -> matches(query.projectId(), sample.projectId()))
+                .filter(sample -> matches(query.promptKey(), sample.promptKey()))
+                .filter(sample -> matches(query.promptVersion(), sample.promptVersion()))
+                .filter(sample -> matches(query.status(), sample.status()))
+                .filter(sample -> matches(query.coverageType(), sample.coverageType()))
+                .filter(sample -> matches(query.baselineVersion(), sample.baselineVersion()))
+                .filter(sample -> contains(
+                        query.keyword(),
+                        sample.sampleKey(),
+                        sample.title(),
+                        sample.tags(),
+                        sample.maintenanceNote()
+                ))
+                .sorted(Comparator.comparing(TestDesignEvaluationSample::updatedAt).reversed()
+                        .thenComparing(sample -> sample.id().toString(), Comparator.reverseOrder()));
+    }
+
+    private Stream<TestDesignCalibrationRun> filteredCalibrationRuns(TestDesignCalibrationRunQuery query) {
+        return calibrationRuns.values().stream()
+                .filter(run -> matches(query.projectId(), run.projectId()))
+                .filter(run -> matches(query.promptKey(), run.promptKey()))
+                .filter(run -> matches(query.promptVersion(), run.promptVersion()))
+                .filter(run -> matches(query.baselineVersion(), run.baselineVersion()))
+                .filter(run -> matches(query.status(), run.status()))
+                .sorted(Comparator.comparing(TestDesignCalibrationRun::createdAt).reversed()
+                        .thenComparing(run -> run.id().toString(), Comparator.reverseOrder()));
+    }
+
+    private Optional<TestDesignConflictOperationRecord> toConflictOperationRecord(TestDesignPublishRecord record) {
+        TestDesignCandidate candidate = candidates.get(record.candidateId());
+        TestDesignTask task = tasks.get(record.taskId());
+        if (candidate == null || task == null) {
+            return Optional.empty();
+        }
+        boolean resolved = TestDesignCandidateStatus.PUBLISHED.name().equals(candidate.status())
+                || publishRecords.values().stream()
+                        .filter(existing -> record.candidateId().equals(existing.candidateId()))
+                        .filter(existing -> !existing.dryRun())
+                        .filter(existing -> "SUCCEEDED".equals(existing.result()))
+                        .anyMatch(existing -> existing.createdAt().isAfter(record.createdAt()));
+        return Optional.of(new TestDesignConflictOperationRecord(
+                record.id(),
+                record.taskId(),
+                record.candidateId(),
+                record.projectId(),
+                record.requirementId(),
+                record.assetCaseId(),
+                record.dryRun(),
+                record.action(),
+                record.result(),
+                record.errorMessage(),
+                record.publishedBy(),
+                record.createdAt(),
+                task.title(),
+                task.status(),
+                candidate.title(),
+                candidate.status(),
+                candidate.version(),
+                candidate.assetCaseId(),
+                resolved
+        ));
+    }
+
+    private static boolean isConflictOperationSignal(TestDesignPublishRecord record) {
+        return ACTION_DUPLICATE_REVIEW_REQUIRED.equals(record.action())
+                || "CONFLICT".equals(record.result())
+                || ACTION_DUPLICATE_REVIEW_REQUIRED.equals(record.result());
+    }
+
+    private static boolean matchesResolutionStatus(String expected, boolean resolved) {
+        if (!StringUtils.hasText(expected) || "ALL".equalsIgnoreCase(expected)) {
+            return true;
+        }
+        if ("OPEN".equalsIgnoreCase(expected)) {
+            return !resolved;
+        }
+        if ("RESOLVED".equalsIgnoreCase(expected)) {
+            return resolved;
+        }
+        return true;
+    }
+
     private static boolean matches(String expected, String actual) {
         return !StringUtils.hasText(expected) || expected.equalsIgnoreCase(actual);
     }
@@ -738,6 +978,49 @@ public class InMemoryTestDesignRepository implements TestDesignRepository {
             }
         }
         return false;
+    }
+
+    private static TestDesignEvaluationSampleSummary sampleSummary(List<TestDesignEvaluationSample> samples) {
+        long candidateCount = samples.stream().filter(sample -> "CANDIDATE".equals(sample.status())).count();
+        long goldenCount = samples.stream().filter(sample -> "GOLDEN".equals(sample.status())).count();
+        long frozenCount = samples.stream().filter(sample -> "FROZEN".equals(sample.status())).count();
+        long deprecatedCount = samples.stream().filter(sample -> "DEPRECATED".equals(sample.status())).count();
+        long baselineVersionCount = samples.stream()
+                .map(TestDesignEvaluationSample::baselineVersion)
+                .filter(StringUtils::hasText)
+                .distinct()
+                .count();
+        Instant latestUpdatedAt = samples.stream()
+                .map(TestDesignEvaluationSample::updatedAt)
+                .filter(updatedAt -> updatedAt != null)
+                .max(Comparator.naturalOrder())
+                .orElse(null);
+        return new TestDesignEvaluationSampleSummary(
+                samples.size(),
+                candidateCount,
+                goldenCount,
+                frozenCount,
+                deprecatedCount,
+                baselineVersionCount,
+                latestUpdatedAt
+        );
+    }
+
+    private static TestDesignCalibrationSummary calibrationSummary(List<TestDesignCalibrationRun> runs) {
+        long passedCount = runs.stream().filter(run -> "PASSED".equals(run.status())).count();
+        long warningCount = runs.stream().filter(run -> "WARNING".equals(run.status())).count();
+        long blockedCount = runs.stream().filter(run -> "BLOCKED".equals(run.status())).count();
+        TestDesignCalibrationRun latest = runs.stream()
+                .max(Comparator.comparing(TestDesignCalibrationRun::createdAt))
+                .orElse(null);
+        return new TestDesignCalibrationSummary(
+                runs.size(),
+                passedCount,
+                warningCount,
+                blockedCount,
+                latest == null ? null : latest.status(),
+                latest == null ? null : latest.createdAt()
+        );
     }
 
     private static TestDesignAuditChainAggregate emptyAuditChainAggregate() {

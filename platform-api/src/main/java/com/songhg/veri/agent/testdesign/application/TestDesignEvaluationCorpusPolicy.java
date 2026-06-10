@@ -7,8 +7,8 @@ import java.util.Map;
 /**
  * Centralizes the WP5 evaluation-corpus operating boundary.
  *
- * <p>The current slice has a reproducible golden-set baseline and an opt-in AI evaluation script, but it does not yet
- * expose a sample-maintenance backend or long-term calibration workflow. This aggregate snapshot keeps diagnostics,
+ * <p>The current slice has a project-scoped sample maintenance console, reproducible golden-set baseline metadata,
+ * long-term calibration run history and an opt-in AI evaluation script. This aggregate snapshot keeps diagnostics,
  * model payloads and reports aligned on that boundary while avoiding corpus rows, candidate bodies, review comments or
  * prompt text in exported artifacts.
  */
@@ -35,9 +35,9 @@ public final class TestDesignEvaluationCorpusPolicy {
                 true,
                 true,
                 true,
-                false,
-                false,
-                false,
+                true,
+                true,
+                true,
                 false,
                 false,
                 false,

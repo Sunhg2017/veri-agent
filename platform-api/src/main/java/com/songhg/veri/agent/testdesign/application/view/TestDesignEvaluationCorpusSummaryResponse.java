@@ -30,6 +30,28 @@ public record TestDesignEvaluationCorpusSummaryResponse(
         long sampleExplanationCount,
         @Schema(description = "样本说明覆盖率，百分比")
         double sampleExplanationCoveragePercent,
+        @Schema(description = "维护样本总数")
+        long maintainedSampleCount,
+        @Schema(description = "golden 样本数量")
+        long goldenSampleCount,
+        @Schema(description = "冻结基线样本数量")
+        long frozenSampleCount,
+        @Schema(description = "废弃样本数量")
+        long deprecatedSampleCount,
+        @Schema(description = "维护样本基线版本数量")
+        long baselineVersionCount,
+        @Schema(description = "校准运行总数")
+        long calibrationRunCount,
+        @Schema(description = "最近校准状态")
+        String latestCalibrationStatus,
+        @Schema(description = "最近校准时间")
+        Instant latestCalibrationAt,
+        @Schema(description = "样本维护流程是否就绪")
+        boolean sampleMaintenanceReady,
+        @Schema(description = "长期校准基线是否就绪")
+        boolean longTermCalibrationReady,
+        @Schema(description = "评测语料运营后台是否就绪")
+        boolean operationsConsoleReady,
         @Schema(description = "是否只暴露聚合状态")
         boolean aggregateOnly,
         @Schema(description = "是否导出评测语料行")

@@ -35,9 +35,9 @@ final class TestDesignTaskReportScopePolicyRows {
         appendMetadataRow(csv, task, generatedAt, "evaluationCorpusProjectIsolated",
                 snapshot.get("evaluationCorpusProjectIsolated"), "success");
         appendMetadataRow(csv, task, generatedAt, "evaluationCorpusOperationsReady",
-                snapshot.get("evaluationCorpusOperationsReady"), "warning");
+                snapshot.get("evaluationCorpusOperationsReady"), readyTone(snapshot.get("evaluationCorpusOperationsReady")));
         appendMetadataRow(csv, task, generatedAt, "crossWpScopeDashboardReady",
-                snapshot.get("crossWpScopeDashboardReady"), "warning");
+                snapshot.get("crossWpScopeDashboardReady"), readyTone(snapshot.get("crossWpScopeDashboardReady")));
         appendMetadataRow(csv, task, generatedAt, "candidateIdentifierListExported",
                 snapshot.get("candidateIdentifierListExported"), null);
         appendMetadataRow(csv, task, generatedAt, "roleRuleDetailExported",
@@ -57,5 +57,9 @@ final class TestDesignTaskReportScopePolicyRows {
     ) {
         TestDesignTaskReportService.appendTaskReportRow(csv, task, generatedAt,
                 "metadata", "scopePolicy", metric, null, value, null, tone, "fullTask", null);
+    }
+
+    private static String readyTone(Object value) {
+        return Boolean.TRUE.equals(value) ? "success" : "warning";
     }
 }

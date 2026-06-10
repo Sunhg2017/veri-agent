@@ -28,6 +28,8 @@ import com.songhg.veri.agent.testdesign.application.view.TestDesignTaskResponse;
 import com.songhg.veri.agent.testdesign.config.TestDesignProperties;
 import com.songhg.veri.agent.testdesign.domain.TestDesignCandidate;
 import com.songhg.veri.agent.testdesign.domain.TestDesignCandidateStatus;
+import com.songhg.veri.agent.testdesign.domain.TestDesignCalibrationSummary;
+import com.songhg.veri.agent.testdesign.domain.TestDesignEvaluationSampleSummary;
 import com.songhg.veri.agent.testdesign.domain.TestDesignPublishRecord;
 import com.songhg.veri.agent.testdesign.domain.TestDesignReviewRecord;
 import com.songhg.veri.agent.testdesign.domain.TestDesignTask;
@@ -164,6 +166,15 @@ public class TestDesignQualityService {
                 .map(PromptTrendAccumulator::toResponse)
                 .toList();
         TestDesignEvaluationCorpusPolicyResponse policy = TestDesignEvaluationCorpusPolicy.response();
+        TestDesignEvaluationSampleSummary sampleSummary = repository.evaluationSampleSummary(
+                trimToNull(safeRequest.getProjectId()),
+                trimToNull(safeRequest.getPromptKey())
+        );
+        TestDesignCalibrationSummary calibrationSummary = repository.calibrationSummary(
+                trimToNull(safeRequest.getProjectId()),
+                trimToNull(safeRequest.getPromptKey())
+        );
+        boolean baselineReady = sampleSummary.goldenCount() + sampleSummary.frozenCount() > 0L;
         return new TestDesignEvaluationCorpusSummaryResponse(
                 trimToNull(safeRequest.getProjectId()),
                 trimToNull(safeRequest.getPromptKey()),
@@ -176,6 +187,17 @@ public class TestDesignQualityService {
                 feedback.sampleCandidateCount(),
                 feedback.sampleExplanationCount(),
                 percentValue(feedback.sampleExplanationCount(), feedback.feedbackSignalCount()),
+                sampleSummary.totalCount(),
+                sampleSummary.goldenCount(),
+                sampleSummary.frozenCount(),
+                sampleSummary.deprecatedCount(),
+                sampleSummary.baselineVersionCount(),
+                calibrationSummary.totalRunCount(),
+                calibrationSummary.latestStatus(),
+                calibrationSummary.latestRunAt(),
+                policy.sampleMaintenanceReady(),
+                policy.longTermCalibrationReady() && baselineReady && calibrationSummary.totalRunCount() > 0L,
+                policy.operationsConsoleReady(),
                 policy.aggregateOnly(),
                 policy.corpusRowExported(),
                 policy.candidateBodyExported(),

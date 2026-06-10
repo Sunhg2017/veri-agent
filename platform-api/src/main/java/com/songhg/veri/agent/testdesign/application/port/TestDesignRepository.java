@@ -2,13 +2,22 @@ package com.songhg.veri.agent.testdesign.application.port;
 
 import com.songhg.veri.agent.common.api.PageQuery;
 import com.songhg.veri.agent.testdesign.application.query.TestDesignCandidateQuery;
+import com.songhg.veri.agent.testdesign.application.query.TestDesignCalibrationRunQuery;
+import com.songhg.veri.agent.testdesign.application.query.TestDesignConflictOperationQuery;
+import com.songhg.veri.agent.testdesign.application.query.TestDesignEvaluationSampleQuery;
 import com.songhg.veri.agent.testdesign.application.query.TestDesignTaskQuery;
 import com.songhg.veri.agent.testdesign.application.query.TestDesignTemplateQuery;
 import com.songhg.veri.agent.testdesign.domain.TestDesignAuditChainAggregate;
+import com.songhg.veri.agent.testdesign.domain.TestDesignCalibrationRun;
+import com.songhg.veri.agent.testdesign.domain.TestDesignCalibrationSummary;
 import com.songhg.veri.agent.testdesign.domain.TestDesignCandidate;
 import com.songhg.veri.agent.testdesign.domain.TestDesignCandidateStatus;
+import com.songhg.veri.agent.testdesign.domain.TestDesignConflictOperationRecord;
+import com.songhg.veri.agent.testdesign.domain.TestDesignConflictOperationSummary;
 import com.songhg.veri.agent.testdesign.domain.TestDesignContextPolicyNote;
 import com.songhg.veri.agent.testdesign.domain.TestDesignContextPolicyOverride;
+import com.songhg.veri.agent.testdesign.domain.TestDesignEvaluationSample;
+import com.songhg.veri.agent.testdesign.domain.TestDesignEvaluationSampleSummary;
 import com.songhg.veri.agent.testdesign.domain.TestDesignPublishRecord;
 import com.songhg.veri.agent.testdesign.domain.TestDesignReleaseReadinessApproval;
 import com.songhg.veri.agent.testdesign.domain.TestDesignReleaseReadinessNote;
@@ -214,6 +223,21 @@ public interface TestDesignRepository {
     List<TestDesignPublishRecord> publishRecords(UUID taskId);
 
     /**
+     * 查询正式发布产生的可运营资产冲突，聚合候选当前状态和任务摘要。
+     */
+    List<TestDesignConflictOperationRecord> conflictOperations(TestDesignConflictOperationQuery query);
+
+    /**
+     * 统计当前处理状态筛选下的资产冲突数量。
+     */
+    long countConflictOperations(TestDesignConflictOperationQuery query);
+
+    /**
+     * 统计当前筛选条件下的资产冲突状态分布；该聚合通常不应用处理状态筛选。
+     */
+    TestDesignConflictOperationSummary conflictOperationSummary(TestDesignConflictOperationQuery query);
+
+    /**
      * 保存任务报告 manifest 聚合记录，用于归档核验，不包含报告行内容或候选/trace/audit 标识。
      */
     TestDesignReportManifest saveReportManifest(TestDesignReportManifest manifest);
@@ -295,4 +319,59 @@ public interface TestDesignRepository {
      * 查询任务下最新已批准的发布准出质量门禁例外。
      */
     Optional<TestDesignReleaseReadinessApproval> latestApprovedReleaseReadinessApproval(UUID taskId);
+
+    /**
+     * Query maintained evaluation samples for the WP5 sample operations console.
+     */
+    List<TestDesignEvaluationSample> evaluationSamples(TestDesignEvaluationSampleQuery query);
+
+    /**
+     * Count maintained samples that match the current operations filter.
+     */
+    long countEvaluationSamples(TestDesignEvaluationSampleQuery query);
+
+    /**
+     * Query a single maintained evaluation sample.
+     */
+    Optional<TestDesignEvaluationSample> evaluationSample(UUID id);
+
+    /**
+     * Query by project and sample key to enforce stable sample identities.
+     */
+    Optional<TestDesignEvaluationSample> evaluationSampleByProjectAndKey(String projectId, String sampleKey);
+
+    /**
+     * Save a maintained evaluation sample snapshot.
+     */
+    TestDesignEvaluationSample saveEvaluationSample(TestDesignEvaluationSample sample);
+
+    /**
+     * Aggregate maintained sample counters for policy and calibration readiness.
+     */
+    TestDesignEvaluationSampleSummary evaluationSampleSummary(String projectId, String promptKey);
+
+    /**
+     * Query long-term calibration runs.
+     */
+    List<TestDesignCalibrationRun> calibrationRuns(TestDesignCalibrationRunQuery query);
+
+    /**
+     * Count long-term calibration runs matching the current filter.
+     */
+    long countCalibrationRuns(TestDesignCalibrationRunQuery query);
+
+    /**
+     * Persist a prompt calibration run snapshot.
+     */
+    TestDesignCalibrationRun saveCalibrationRun(TestDesignCalibrationRun run);
+
+    /**
+     * Aggregate long-term calibration counters for the current project/prompt scope.
+     */
+    TestDesignCalibrationSummary calibrationSummary(String projectId, String promptKey);
+
+    /**
+     * Latest calibration run for prompt-version comparisons.
+     */
+    Optional<TestDesignCalibrationRun> latestCalibrationRun(String projectId, String promptKey, String promptVersion);
 }

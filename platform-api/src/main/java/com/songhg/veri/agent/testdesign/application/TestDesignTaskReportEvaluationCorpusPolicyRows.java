@@ -12,8 +12,8 @@ final class TestDesignTaskReportEvaluationCorpusPolicyRows {
     /**
      * Appends evaluation-corpus operations boundaries without exporting sample rows or prompt text.
      *
-     * <p>The report only proves that WP5 has a project-isolated golden-set baseline and an opt-in AI evaluation hook.
-     * Real sample maintenance, long-term calibration and operations console support remain explicit pending states.
+     * <p>The report only proves that WP5 has a project-isolated sample-maintenance workflow, golden-set baseline and
+     * calibration run history. Sample rows, prompt text and candidate bodies remain outside report exports.
      */
     static void appendRows(StringBuilder csv, TestDesignTaskResponse task, Instant generatedAt) {
         TestDesignEvaluationCorpusPolicyResponse policy = task.evaluationCorpusPolicy() == null

@@ -58,7 +58,9 @@ with expected(table_name) as (
         ('test_design_context_policy_override'),
         ('test_design_context_policy_note'),
         ('test_design_release_readiness_approval'),
-        ('test_design_release_readiness_note')
+        ('test_design_release_readiness_note'),
+        ('test_design_evaluation_sample'),
+        ('test_design_calibration_run')
 ),
 missing as (
     select e.table_name
@@ -341,7 +343,32 @@ with expected(table_name, column_name) as (
         ('test_design_release_readiness_approval','updated_at'),
         ('test_design_release_readiness_note','id'), ('test_design_release_readiness_note','approval_id'),
         ('test_design_release_readiness_note','note_type'), ('test_design_release_readiness_note','note_text'),
-        ('test_design_release_readiness_note','created_by'), ('test_design_release_readiness_note','created_at')
+        ('test_design_release_readiness_note','created_by'), ('test_design_release_readiness_note','created_at'),
+        ('test_design_evaluation_sample','id'), ('test_design_evaluation_sample','project_id'),
+        ('test_design_evaluation_sample','sample_key'), ('test_design_evaluation_sample','title'),
+        ('test_design_evaluation_sample','source_type'), ('test_design_evaluation_sample','source_task_id'),
+        ('test_design_evaluation_sample','source_candidate_id'), ('test_design_evaluation_sample','prompt_key'),
+        ('test_design_evaluation_sample','prompt_version'), ('test_design_evaluation_sample','coverage_type'),
+        ('test_design_evaluation_sample','priority'), ('test_design_evaluation_sample','status'),
+        ('test_design_evaluation_sample','baseline_version'), ('test_design_evaluation_sample','requirement_summary'),
+        ('test_design_evaluation_sample','expected_case_outline'), ('test_design_evaluation_sample','assertion_notes'),
+        ('test_design_evaluation_sample','tags'), ('test_design_evaluation_sample','maintenance_note'),
+        ('test_design_evaluation_sample','sample_digest'), ('test_design_evaluation_sample','sensitive_scan_status'),
+        ('test_design_evaluation_sample','created_by'), ('test_design_evaluation_sample','updated_by'),
+        ('test_design_evaluation_sample','created_at'), ('test_design_evaluation_sample','updated_at'),
+        ('test_design_calibration_run','id'), ('test_design_calibration_run','project_id'),
+        ('test_design_calibration_run','prompt_key'), ('test_design_calibration_run','prompt_version'),
+        ('test_design_calibration_run','baseline_version'), ('test_design_calibration_run','run_mode'),
+        ('test_design_calibration_run','status'), ('test_design_calibration_run','sample_count'),
+        ('test_design_calibration_run','golden_sample_count'), ('test_design_calibration_run','task_count'),
+        ('test_design_calibration_run','candidate_count'), ('test_design_calibration_run','step_complete_percent'),
+        ('test_design_calibration_run','expected_complete_percent'), ('test_design_calibration_run','low_confidence_percent'),
+        ('test_design_calibration_run','error_percent'), ('test_design_calibration_run','duplicate_key_collision_count'),
+        ('test_design_calibration_run','feedback_signal_count'), ('test_design_calibration_run','readiness_status'),
+        ('test_design_calibration_run','readiness_blocking_count'), ('test_design_calibration_run','readiness_warning_count'),
+        ('test_design_calibration_run','regression_count'), ('test_design_calibration_run','baseline_digest'),
+        ('test_design_calibration_run','result_digest'), ('test_design_calibration_run','notes'),
+        ('test_design_calibration_run','run_by'), ('test_design_calibration_run','created_at')
 ),
 missing as (
     select e.table_name || '.' || e.column_name as item
@@ -439,7 +466,14 @@ with expected(table_name, index_name) as (
         ('test_design_release_readiness_approval','idx_test_design_rr_approval_task_status_digest'),
         ('test_design_release_readiness_approval','idx_test_design_rr_approval_project_created'),
         ('test_design_release_readiness_approval','idx_test_design_rr_approval_work_order'),
-        ('test_design_release_readiness_note','idx_test_design_rr_note_approval_created')
+        ('test_design_release_readiness_note','idx_test_design_rr_note_approval_created'),
+        ('test_design_evaluation_sample','uk_test_design_eval_sample_project_key'),
+        ('test_design_evaluation_sample','idx_test_design_eval_sample_project_status'),
+        ('test_design_evaluation_sample','idx_test_design_eval_sample_prompt_baseline'),
+        ('test_design_evaluation_sample','idx_test_design_eval_sample_source_candidate'),
+        ('test_design_calibration_run','idx_test_design_calibration_run_project_prompt_created'),
+        ('test_design_calibration_run','idx_test_design_calibration_run_baseline_created'),
+        ('test_design_calibration_run','idx_test_design_calibration_run_status_created')
 ),
 missing as (
     select e.table_name || '.' || e.index_name as item

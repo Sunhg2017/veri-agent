@@ -1,10 +1,16 @@
 package com.songhg.veri.agent.testdesign.application;
 
 import com.songhg.veri.agent.authorization.application.ResourceScope;
+import com.songhg.veri.agent.testdesign.application.command.CreateTestDesignEvaluationSampleFromCandidateCommand;
 import com.songhg.veri.agent.testdesign.application.command.ResolveTestDesignConflictBatchCommand;
+import com.songhg.veri.agent.testdesign.application.command.RequestTestDesignCalibrationRunCommand;
+import com.songhg.veri.agent.testdesign.application.command.SaveTestDesignEvaluationSampleCommand;
 import com.songhg.veri.agent.testdesign.application.command.TestDesignCandidateBatchActionCommand;
 import com.songhg.veri.agent.testdesign.application.command.CreateTestDesignTemplateCommand;
 import com.songhg.veri.agent.testdesign.application.query.TestDesignCandidatePageRequest;
+import com.songhg.veri.agent.testdesign.application.query.TestDesignCalibrationRunPageRequest;
+import com.songhg.veri.agent.testdesign.application.query.TestDesignConflictOperationPageRequest;
+import com.songhg.veri.agent.testdesign.application.query.TestDesignEvaluationSamplePageRequest;
 import com.songhg.veri.agent.testdesign.application.query.TestDesignEvaluationCorpusSummaryRequest;
 import com.songhg.veri.agent.testdesign.application.query.TestDesignPromptTrendRequest;
 import com.songhg.veri.agent.testdesign.application.query.TestDesignScopeSummaryRequest;
@@ -74,6 +80,13 @@ public class TestDesignPermissionScopeResolver {
         return ResourceScope.platform();
     }
 
+    public ResourceScope conflictOperations(TestDesignConflictOperationPageRequest request) {
+        if (request != null && StringUtils.hasText(request.getProjectId())) {
+            return project(request.getProjectId());
+        }
+        return ResourceScope.platform();
+    }
+
     public ResourceScope task(UUID id) {
         return ResourceScope.project(scopeService.taskProjectScopeId(id));
     }
@@ -99,6 +112,45 @@ public class TestDesignPermissionScopeResolver {
     public ResourceScope template(UUID id) {
         String projectId = scopeService.templateProjectScopeId(id);
         return StringUtils.hasText(projectId) ? ResourceScope.project(projectId) : ResourceScope.platform();
+    }
+
+    public ResourceScope evaluationSampleList(TestDesignEvaluationSamplePageRequest request) {
+        if (request != null && StringUtils.hasText(request.getProjectId())) {
+            return project(request.getProjectId());
+        }
+        return ResourceScope.platform();
+    }
+
+    public ResourceScope evaluationSampleRequest(SaveTestDesignEvaluationSampleCommand command) {
+        if (command != null && StringUtils.hasText(command.projectId())) {
+            return project(command.projectId());
+        }
+        return ResourceScope.platform();
+    }
+
+    public ResourceScope evaluationSampleFromCandidate(CreateTestDesignEvaluationSampleFromCandidateCommand command) {
+        if (command != null && command.candidateId() != null) {
+            return candidate(command.candidateId());
+        }
+        return ResourceScope.platform();
+    }
+
+    public ResourceScope evaluationSample(UUID id) {
+        return ResourceScope.project(scopeService.evaluationSampleProjectScopeId(id));
+    }
+
+    public ResourceScope calibrationRunList(TestDesignCalibrationRunPageRequest request) {
+        if (request != null && StringUtils.hasText(request.getProjectId())) {
+            return project(request.getProjectId());
+        }
+        return ResourceScope.platform();
+    }
+
+    public ResourceScope calibrationRunRequest(RequestTestDesignCalibrationRunCommand command) {
+        if (command != null && StringUtils.hasText(command.projectId())) {
+            return project(command.projectId());
+        }
+        return ResourceScope.platform();
     }
 
     public ResourceScope contextPolicyOverride(UUID id) {

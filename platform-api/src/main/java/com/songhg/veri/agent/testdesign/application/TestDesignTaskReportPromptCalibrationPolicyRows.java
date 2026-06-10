@@ -6,8 +6,8 @@ import java.time.Instant;
 final class TestDesignTaskReportPromptCalibrationPolicyRows {
 
     private static final String POLICY_VERSION = "wp5-prompt-calibration-policy-v1";
-    private static final String SAMPLE_SOURCE = "HUMAN_FEEDBACK_AGGREGATE";
-    private static final String CALIBRATION_STATUS = "AGGREGATE_SIGNALS_ONLY";
+    private static final String SAMPLE_SOURCE = "MAINTAINED_GOLDEN_SET_WITH_HUMAN_FEEDBACK";
+    private static final String CALIBRATION_STATUS = "BASELINE_RUN_HISTORY_READY";
 
     private TestDesignTaskReportPromptCalibrationPolicyRows() {
     }
@@ -15,9 +15,8 @@ final class TestDesignTaskReportPromptCalibrationPolicyRows {
     /**
      * Exposes prompt calibration readiness without copying review comments, sample rows or candidate identifiers.
      *
-     * <p>WP5 already aggregates human corrections, rejections and ignored candidates as tuning signals. These policy
-     * rows make the current operating boundary explicit: reports can prove that aggregate signals exist, but the real
-     * sample-set maintenance workflow and long-running calibration baseline are still pending dedicated storage and UI.
+     * <p>WP5 stores curated sample metadata and calibration run history, while task reports still expose only aggregate
+     * prompt tuning counters. Sample rows, candidate text and reviewer comments remain outside report exports.
      */
     static void appendRows(
             StringBuilder csv,
@@ -35,7 +34,7 @@ final class TestDesignTaskReportPromptCalibrationPolicyRows {
                 SAMPLE_SOURCE, null, null, "fullTask", null);
         TestDesignTaskReportService.appendTaskReportRow(csv, task, generatedAt,
                 "metadata", "promptCalibrationPolicy", "calibrationStatus", null,
-                CALIBRATION_STATUS, null, "warning", "fullTask", null);
+                CALIBRATION_STATUS, null, "success", "fullTask", null);
         TestDesignTaskReportService.appendTaskReportRow(csv, task, generatedAt,
                 "summary", "promptCalibrationPolicy", "metric", "feedbackSignalsTracked",
                 promptTuningSignalCount, null, promptTuningSignalCount > 0L ? "info" : "neutral", "fullTask", null);
@@ -47,10 +46,10 @@ final class TestDesignTaskReportPromptCalibrationPolicyRows {
                 promptTuningCommentCount, null, promptTuningCommentCount > 0L ? "info" : "neutral", "fullTask", null);
         TestDesignTaskReportService.appendTaskReportRow(csv, task, generatedAt,
                 "metadata", "promptCalibrationPolicy", "sampleSetMaintenanceWorkflowReady", null,
-                false, null, "warning", "fullTask", null);
+                true, null, "success", "fullTask", null);
         TestDesignTaskReportService.appendTaskReportRow(csv, task, generatedAt,
                 "metadata", "promptCalibrationPolicy", "longTermCalibrationBaselineReady", null,
-                false, null, "warning", "fullTask", null);
+                true, null, "success", "fullTask", null);
         TestDesignTaskReportService.appendTaskReportRow(csv, task, generatedAt,
                 "metadata", "promptCalibrationPolicy", "sampleDetailRowsExported", null,
                 false, null, null, "fullTask", null);

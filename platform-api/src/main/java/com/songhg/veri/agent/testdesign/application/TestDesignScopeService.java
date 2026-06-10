@@ -47,4 +47,10 @@ public class TestDesignScopeService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "生成模板不存在: " + id))
                 .projectId();
     }
+
+    public String evaluationSampleProjectScopeId(UUID id) {
+        return repository.evaluationSample(id)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "评测样本不存在: " + id))
+                .projectId();
+    }
 }

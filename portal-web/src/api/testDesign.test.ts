@@ -22,7 +22,11 @@ import {
   fetchTestDesignContextPolicyNotes,
   fetchTestDesignContextPolicyOverrides,
   fetchTestDesignCandidates,
+  fetchTestDesignConflictOperations,
+  fetchTestDesignCalibrationRuns,
   fetchTestDesignEvaluationCorpusSummary,
+  fetchTestDesignEvaluationSamples,
+  fetchTestDesignEvaluationSampleSummary,
   fetchTestDesignHealth,
   fetchTestDesignPromptTrend,
   fetchTestDesignReleaseReadinessApprovals,
@@ -39,10 +43,17 @@ import {
   normalizeTestDesignCandidateBatchActionResult,
   normalizeTestDesignCandidateList,
   normalizeTestDesignConflictBatchResolveResult,
+  normalizeTestDesignConflictOperationsResult,
   normalizeTestDesignContextPolicyEffective,
   normalizeTestDesignContextPolicyNote,
   normalizeTestDesignContextPolicyOverride,
+  normalizeTestDesignCalibrationRun,
+  normalizeTestDesignCalibrationRunList,
+  normalizeTestDesignCalibrationSummary,
   normalizeTestDesignEvaluationCorpusSummary,
+  normalizeTestDesignEvaluationSample,
+  normalizeTestDesignEvaluationSampleList,
+  normalizeTestDesignEvaluationSampleSummary,
   normalizeTestDesignHealth,
   normalizeTestDesignAuditSummary,
   normalizeTestDesignAuditTimelineItem,
@@ -61,6 +72,7 @@ import {
   normalizeTestDesignTaskDetail,
   publishTestDesignDryRun,
   publishTestDesignTask,
+  requestTestDesignCalibrationRun,
   rejectTestDesignReleaseReadinessApproval,
   rejectTestDesignCandidate,
   rejectTestDesignContextPolicyOverride,
@@ -68,6 +80,8 @@ import {
   requestTestDesignEnvironmentContextPolicyOverride,
   requestTestDesignProjectContextPolicyOverride,
   requestTestDesignReleaseReadinessApproval,
+  createTestDesignEvaluationSample,
+  createTestDesignEvaluationSampleFromCandidate,
   resolveTestDesignConflict,
   retryTestDesignTask,
   testDesignCandidateExportPath,
@@ -76,6 +90,8 @@ import {
   updateTestDesignTemplate,
   updateTestDesignCandidate,
   updateTestDesignContextPolicyOverride,
+  transitionTestDesignEvaluationSample,
+  updateTestDesignEvaluationSample,
   updateTestDesignReleaseReadinessApproval
 } from './testDesign';
 
@@ -164,7 +180,7 @@ describe('WP5 test design API helpers', () => {
         async_task_project_scope_recovered: true,
         smoke_project_scope_required: true,
         evaluation_corpus_project_isolated: true,
-        evaluation_corpus_operations_ready: false,
+        evaluation_corpus_operations_ready: true,
         cross_wp_scope_dashboard_ready: false,
         candidate_identifier_list_exported: false,
         role_rule_detail_exported: false,
@@ -183,9 +199,9 @@ describe('WP5 test design API helpers', () => {
         readiness_distribution_tracked: true,
         prompt_version_tracked: true,
         evaluation_corpus_project_isolated: true,
-        sample_maintenance_ready: false,
-        long_term_calibration_ready: false,
-        operations_console_ready: false,
+        sample_maintenance_ready: true,
+        long_term_calibration_ready: true,
+        operations_console_ready: true,
         corpus_row_exported: false,
         candidate_body_exported: false,
         review_comment_exported: false,
@@ -369,7 +385,7 @@ describe('WP5 test design API helpers', () => {
         asyncTaskProjectScopeRecovered: true,
         smokeProjectScopeRequired: true,
         evaluationCorpusProjectIsolated: true,
-        evaluationCorpusOperationsReady: false,
+        evaluationCorpusOperationsReady: true,
         crossWpScopeDashboardReady: false,
         candidateIdentifierListExported: false,
         roleRuleDetailExported: false,
@@ -388,9 +404,9 @@ describe('WP5 test design API helpers', () => {
         readinessDistributionTracked: true,
         promptVersionTracked: true,
         evaluationCorpusProjectIsolated: true,
-        sampleMaintenanceReady: false,
-        longTermCalibrationReady: false,
-        operationsConsoleReady: false,
+        sampleMaintenanceReady: true,
+        longTermCalibrationReady: true,
+        operationsConsoleReady: true,
         corpusRowExported: false,
         candidateBodyExported: false,
         reviewCommentExported: false,
@@ -562,7 +578,7 @@ describe('WP5 test design API helpers', () => {
         publish_project_scope_required: true,
         async_task_project_scope_recovered: true,
         evaluation_corpus_project_isolated: true,
-        evaluation_corpus_operations_ready: false,
+        evaluation_corpus_operations_ready: true,
         aggregate_only: true
       },
       evaluation_corpus_policy: {
@@ -577,9 +593,9 @@ describe('WP5 test design API helpers', () => {
         readiness_distribution_tracked: true,
         prompt_version_tracked: true,
         evaluation_corpus_project_isolated: true,
-        sample_maintenance_ready: false,
-        long_term_calibration_ready: false,
-        operations_console_ready: false,
+        sample_maintenance_ready: true,
+        long_term_calibration_ready: true,
+        operations_console_ready: true,
         corpus_row_exported: false,
         candidate_body_exported: false,
         review_comment_exported: false,
@@ -753,7 +769,7 @@ describe('WP5 test design API helpers', () => {
         publishProjectScopeRequired: true,
         asyncTaskProjectScopeRecovered: true,
         evaluationCorpusProjectIsolated: true,
-        evaluationCorpusOperationsReady: false,
+        evaluationCorpusOperationsReady: true,
         aggregateOnly: true
       },
       evaluationCorpusPolicy: {
@@ -768,9 +784,9 @@ describe('WP5 test design API helpers', () => {
         readinessDistributionTracked: true,
         promptVersionTracked: true,
         evaluationCorpusProjectIsolated: true,
-        sampleMaintenanceReady: false,
-        longTermCalibrationReady: false,
-        operationsConsoleReady: false,
+        sampleMaintenanceReady: true,
+        longTermCalibrationReady: true,
+        operationsConsoleReady: true,
         corpusRowExported: false,
         candidateBodyExported: false,
         reviewCommentExported: false,
@@ -1230,7 +1246,7 @@ describe('WP5 test design API helpers', () => {
         policy_version: 'wp5-evaluation-corpus-policy-v1',
         corpus_mode: 'GOLDEN_SET_BASELINE',
         quality_gate_mode: 'MANUAL_OPT_IN_AI_EVAL',
-        sample_maintenance_ready: false,
+        sample_maintenance_ready: true,
         corpus_row_exported: false
       },
       task_count: '2',
@@ -1243,6 +1259,17 @@ describe('WP5 test design API helpers', () => {
       sample_candidate_count: '2',
       sample_explanation_count: '1',
       sample_explanation_coverage_percent: '33.33',
+      maintained_sample_count: '4',
+      golden_sample_count: '2',
+      frozen_sample_count: '1',
+      deprecated_sample_count: '1',
+      baseline_version_count: '2',
+      calibration_run_count: '3',
+      latest_calibration_status: 'WARNING',
+      latest_calibration_at: '2026-05-30T10:02:30Z',
+      sample_maintenance_ready: true,
+      long_term_calibration_ready: true,
+      operations_console_ready: true,
       aggregate_only: true,
       corpus_row_exported: false,
       candidate_body_exported: false,
@@ -1263,6 +1290,16 @@ describe('WP5 test design API helpers', () => {
       sampleCandidateCount: 2,
       sampleExplanationCount: 1,
       sampleExplanationCoveragePercent: 33.33,
+      maintainedSampleCount: 4,
+      goldenSampleCount: 2,
+      frozenSampleCount: 1,
+      deprecatedSampleCount: 1,
+      baselineVersionCount: 2,
+      calibrationRunCount: 3,
+      latestCalibrationStatus: 'WARNING',
+      sampleMaintenanceReady: true,
+      longTermCalibrationReady: true,
+      operationsConsoleReady: true,
       aggregateOnly: true,
       corpusRowExported: false,
       candidateBodyExported: false,
@@ -1271,8 +1308,143 @@ describe('WP5 test design API helpers', () => {
       policy: expect.objectContaining({
         policyVersion: 'wp5-evaluation-corpus-policy-v1',
         corpusMode: 'GOLDEN_SET_BASELINE',
-        sampleMaintenanceReady: false
+        sampleMaintenanceReady: true
       })
+    });
+
+    const evaluationSample = normalizeTestDesignEvaluationSample({
+      id: 'sample-1',
+      project_id: 'project-1',
+      sample_key: 'LOGIN-SMOKE',
+      title: '登录冒烟样本',
+      source_type: 'REVIEW_FEEDBACK',
+      source_task_id: 'task-1',
+      source_candidate_id: 'cand-1',
+      prompt_key: 'wp5-test-design-v1',
+      prompt_version: '1.0.0',
+      coverage_type: 'SMOKE',
+      priority: 'HIGH',
+      status: 'GOLDEN',
+      baseline_version: 'baseline-2026-06',
+      requirement_summary: '登录后进入工作台',
+      expected_case_outline: '输入账号密码并断言首页加载',
+      assertion_notes: '校验 trace',
+      tags: 'login,smoke',
+      maintenance_note: '纳入基线',
+      sample_digest: 'abcdef1234567890',
+      sensitive_scan_status: 'PASSED',
+      created_by: 'owner',
+      updated_by: 'maintainer',
+      created_at: '2026-05-30T10:02:00Z',
+      updated_at: '2026-05-30T10:03:00Z'
+    });
+    expect(evaluationSample).toMatchObject({
+      id: 'sample-1',
+      projectId: 'project-1',
+      sampleKey: 'LOGIN-SMOKE',
+      sourceType: 'REVIEW_FEEDBACK',
+      sourceTaskId: 'task-1',
+      sourceCandidateId: 'cand-1',
+      promptKey: 'wp5-test-design-v1',
+      promptVersion: '1.0.0',
+      coverageType: 'SMOKE',
+      priority: 'HIGH',
+      status: 'GOLDEN',
+      baselineVersion: 'baseline-2026-06',
+      sampleDigest: 'abcdef1234567890',
+      sensitiveScanStatus: 'PASSED'
+    });
+    expect(normalizeTestDesignEvaluationSampleList({
+      items: [evaluationSample],
+      index: '1',
+      size: '8',
+      total: '12'
+    })).toMatchObject({ index: 1, size: 8, total: 12, items: [expect.objectContaining({ id: 'sample-1' })] });
+    expect(normalizeTestDesignEvaluationSampleSummary({
+      total_count: '4',
+      candidate_count: '1',
+      golden_count: '2',
+      frozen_count: '1',
+      deprecated_count: '0',
+      baseline_version_count: '2',
+      latest_updated_at: '2026-05-30T10:03:00Z',
+      sample_maintenance_ready: true,
+      baseline_ready: true
+    })).toMatchObject({
+      totalCount: 4,
+      candidateCount: 1,
+      goldenCount: 2,
+      frozenCount: 1,
+      baselineVersionCount: 2,
+      sampleMaintenanceReady: true,
+      baselineReady: true
+    });
+
+    const calibrationRun = normalizeTestDesignCalibrationRun({
+      id: 'run-1',
+      project_id: 'project-1',
+      prompt_key: 'wp5-test-design-v1',
+      prompt_version: '1.0.0',
+      baseline_version: 'baseline-2026-06',
+      run_mode: 'MANUAL',
+      status: 'WARNING',
+      sample_count: '4',
+      golden_sample_count: '3',
+      task_count: '2',
+      candidate_count: '6',
+      step_complete_percent: '83.33',
+      expected_complete_percent: '66.67',
+      low_confidence_percent: '16.67',
+      error_percent: '0',
+      duplicate_key_collision_count: '1',
+      feedback_signal_count: '2',
+      readiness_status: 'WARNING',
+      readiness_blocking_count: '0',
+      readiness_warning_count: '1',
+      regression_count: '1',
+      baseline_digest: 'base-digest',
+      result_digest: 'result-digest',
+      notes: '首轮校准',
+      run_by: 'owner',
+      created_at: '2026-05-30T10:04:00Z'
+    });
+    expect(calibrationRun).toMatchObject({
+      id: 'run-1',
+      projectId: 'project-1',
+      status: 'WARNING',
+      sampleCount: 4,
+      goldenSampleCount: 3,
+      candidateCount: 6,
+      regressionCount: 1,
+      baselineDigest: 'base-digest',
+      resultDigest: 'result-digest'
+    });
+    expect(normalizeTestDesignCalibrationSummary({
+      total_run_count: '3',
+      passed_run_count: '1',
+      warning_run_count: '2',
+      blocked_run_count: '0',
+      latest_status: 'WARNING',
+      latest_run_at: '2026-05-30T10:04:00Z',
+      long_term_calibration_ready: true,
+      baseline_ready: true
+    })).toMatchObject({
+      totalRunCount: 3,
+      warningRunCount: 2,
+      latestStatus: 'WARNING',
+      longTermCalibrationReady: true,
+      baselineReady: true
+    });
+    expect(normalizeTestDesignCalibrationRunList({
+      items: [calibrationRun],
+      index: '0',
+      size: '6',
+      total: '1',
+      summary: { total_run_count: '1', long_term_calibration_ready: true }
+    })).toMatchObject({
+      total: 1,
+      items: [expect.objectContaining({ id: 'run-1' })],
+      summary: expect.objectContaining({ totalRunCount: 1, longTermCalibrationReady: true })
     });
 
     const scopeSummary = normalizeTestDesignScopeSummary({
@@ -1432,6 +1604,155 @@ describe('WP5 test design API helpers', () => {
 
     await fetchTestDesignScopeSummary({ index: 0, size: 10, projectId: 'proj pay', promptKey: 'wp5-test-design-v1' });
     expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/test-design/quality/scope-summary?index=0&size=10&projectId=proj+pay&promptKey=wp5-test-design-v1');
+  });
+
+  it('calls evaluation sample maintenance and calibration endpoints', async () => {
+    requestJsonMock.mockResolvedValue({
+      code: 'OK',
+      message: 'ok',
+      trace_id: 'trace-corpus',
+      data: {
+        id: 'sample-1',
+        sample_key: 'LOGIN-SMOKE',
+        title: '登录样本',
+        items: [],
+        summary: {}
+      }
+    });
+
+    await fetchTestDesignEvaluationSamples({
+      index: 0,
+      size: 8,
+      projectId: 'proj pay',
+      promptKey: 'wp5-test-design-v1',
+      promptVersion: '1.0.0',
+      status: 'GOLDEN',
+      coverageType: 'SMOKE',
+      baselineVersion: 'baseline 1',
+      keyword: '登录'
+    });
+    expect(requestJsonMock).toHaveBeenLastCalledWith(
+      '/api/v1/test-design/quality/evaluation-samples?index=0&size=8&projectId=proj+pay&promptKey=wp5-test-design-v1&promptVersion=1.0.0&status=GOLDEN&coverageType=SMOKE&baselineVersion=baseline+1&keyword=%E7%99%BB%E5%BD%95'
+    );
+
+    await fetchTestDesignEvaluationSampleSummary({ projectId: 'proj pay', promptKey: 'wp5-test-design-v1' });
+    expect(requestJsonMock).toHaveBeenLastCalledWith(
+      '/api/v1/test-design/quality/evaluation-samples/summary?projectId=proj+pay&promptKey=wp5-test-design-v1'
+    );
+
+    await createTestDesignEvaluationSample({
+      projectId: 'proj pay',
+      sampleKey: 'LOGIN-SMOKE',
+      title: '登录样本',
+      sourceType: 'MANUAL',
+      promptKey: 'wp5-test-design-v1',
+      promptVersion: '1.0.0',
+      coverageType: 'SMOKE',
+      priority: 'HIGH',
+      status: 'CANDIDATE',
+      baselineVersion: '',
+      requirementSummary: '登录后进入工作台',
+      expectedCaseOutline: '输入账号密码',
+      assertionNotes: '',
+      tags: 'login,smoke',
+      maintenanceNote: ''
+    });
+    expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/test-design/quality/evaluation-samples', {
+      method: 'POST',
+      body: JSON.stringify({
+        projectId: 'proj pay',
+        sampleKey: 'LOGIN-SMOKE',
+        title: '登录样本',
+        sourceType: 'MANUAL',
+        promptKey: 'wp5-test-design-v1',
+        promptVersion: '1.0.0',
+        coverageType: 'SMOKE',
+        priority: 'HIGH',
+        status: 'CANDIDATE',
+        requirementSummary: '登录后进入工作台',
+        expectedCaseOutline: '输入账号密码',
+        tags: 'login,smoke'
+      })
+    });
+
+    await updateTestDesignEvaluationSample('sample 1', {
+      projectId: 'proj pay',
+      sampleKey: 'LOGIN-SMOKE',
+      title: '登录样本 v2',
+      status: 'CANDIDATE'
+    });
+    expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/test-design/quality/evaluation-samples/sample%201', {
+      method: 'PUT',
+      body: JSON.stringify({
+        projectId: 'proj pay',
+        sampleKey: 'LOGIN-SMOKE',
+        title: '登录样本 v2',
+        status: 'CANDIDATE'
+      })
+    });
+
+    await transitionTestDesignEvaluationSample('sample 1', {
+      status: 'GOLDEN',
+      baselineVersion: 'baseline 1',
+      maintenanceNote: '纳入基线'
+    });
+    expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/test-design/quality/evaluation-samples/sample%201/status', {
+      method: 'PATCH',
+      body: JSON.stringify({
+        status: 'GOLDEN',
+        baselineVersion: 'baseline 1',
+        maintenanceNote: '纳入基线'
+      })
+    });
+
+    await createTestDesignEvaluationSampleFromCandidate({
+      candidateId: 'cand 1',
+      sampleKey: 'LOGIN-CAND',
+      status: 'FROZEN',
+      baselineVersion: 'baseline 1',
+      maintenanceNote: ''
+    });
+    expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/test-design/quality/evaluation-samples/from-candidate', {
+      method: 'POST',
+      body: JSON.stringify({
+        candidateId: 'cand 1',
+        sampleKey: 'LOGIN-CAND',
+        status: 'FROZEN',
+        baselineVersion: 'baseline 1'
+      })
+    });
+
+    await fetchTestDesignCalibrationRuns({
+      index: 0,
+      size: 6,
+      projectId: 'proj pay',
+      promptKey: 'wp5-test-design-v1',
+      promptVersion: '1.0.0',
+      baselineVersion: 'baseline 1'
+    });
+    expect(requestJsonMock).toHaveBeenLastCalledWith(
+      '/api/v1/test-design/quality/calibration-runs?index=0&size=6&projectId=proj+pay&promptKey=wp5-test-design-v1&promptVersion=1.0.0&baselineVersion=baseline+1'
+    );
+
+    await requestTestDesignCalibrationRun({
+      projectId: 'proj pay',
+      promptKey: 'wp5-test-design-v1',
+      promptVersion: '1.0.0',
+      baselineVersion: 'baseline 1',
+      runMode: 'MANUAL',
+      notes: '首轮校准'
+    });
+    expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/test-design/quality/calibration-runs', {
+      method: 'POST',
+      body: JSON.stringify({
+        projectId: 'proj pay',
+        promptKey: 'wp5-test-design-v1',
+        promptVersion: '1.0.0',
+        baselineVersion: 'baseline 1',
+        runMode: 'MANUAL',
+        notes: '首轮校准'
+      })
+    });
   });
 
   it('calls context policy operations endpoints and normalizes sanitized metadata', async () => {
@@ -2208,6 +2529,85 @@ describe('WP5 test design API helpers', () => {
     expect(response.data.items[0].record).toMatchObject({ candidateId: 'cand-1', candidateStatus: 'PUBLISHED', candidateVersion: 5 });
     expect(response.data.items[1]).toMatchObject({ candidateId: 'cand-2', result: 'FAILED', errorCode: 'VERSION_CONFLICT' });
     expect(normalizeTestDesignConflictBatchResolveResult({ items: [{ candidate_id: 'cand-3', result: 'FAILED' }] }).items[0].candidateId).toBe('cand-3');
+  });
+
+  it('fetches conflict operations with project scope and normalizes summary', async () => {
+    requestJsonMock.mockResolvedValue({
+      code: 'OK',
+      message: 'ok',
+      trace_id: 'trace-conflict-ops',
+      data: {
+        total: '1',
+        index: '0',
+        size: '20',
+        summary: {
+          total_count: '2',
+          open_count: '1',
+          resolved_count: '1',
+          duplicate_review_count: '2',
+          latest_conflict_at: '2026-06-10T10:00:00Z'
+        },
+        items: [
+          {
+            task_id: 'task-1',
+            task_title: '冲突任务',
+            task_status: 'SUCCEEDED',
+            candidate_id: 'cand-1',
+            candidate_title: '候选用例',
+            candidate_status: 'FAILED',
+            candidate_version: '3',
+            project_id: 'project-wp5',
+            requirement_id: 'req-1',
+            recommended_case_id: 'case-1',
+            resolved: false,
+            resolvable: true,
+            conflict_at: '2026-06-10T10:00:00Z',
+            record: {
+              id: 'record-1',
+              candidate_id: 'cand-1',
+              candidate_status: 'FAILED',
+              candidate_version: '3',
+              action: 'DUPLICATE_REVIEW_REQUIRED',
+              result: 'CONFLICT',
+              asset_case_id: 'case-1',
+              dry_run: false
+            }
+          }
+        ]
+      }
+    });
+
+    const response = await fetchTestDesignConflictOperations({
+      projectId: ' project-wp5 ',
+      resolutionStatus: 'OPEN',
+      keyword: ' 候选 ',
+      index: 0,
+      size: 20
+    });
+
+    expect(requestJsonMock).toHaveBeenLastCalledWith(
+      '/api/v1/test-design/conflicts?projectId=project-wp5&resolutionStatus=OPEN&keyword=%E5%80%99%E9%80%89&index=0&size=20'
+    );
+    expect(response.data.summary).toMatchObject({
+      totalCount: 2,
+      openCount: 1,
+      resolvedCount: 1,
+      duplicateReviewCount: 2
+    });
+    expect(response.data.items[0]).toMatchObject({
+      candidateId: 'cand-1',
+      candidateVersion: 3,
+      recommendedCaseId: 'case-1',
+      resolvable: true
+    });
+    expect(response.data.items[0].record).toMatchObject({
+      action: 'DUPLICATE_REVIEW_REQUIRED',
+      result: 'CONFLICT',
+      assetCaseId: 'case-1'
+    });
+    expect(normalizeTestDesignConflictOperationsResult({
+      items: [{ candidate_id: 'cand-2', record: { action: 'DUPLICATE_REVIEW_REQUIRED', result: 'CONFLICT' } }]
+    }).items[0].candidateId).toBe('cand-2');
   });
 
   it('calls batch review endpoint and normalizes partial results', async () => {

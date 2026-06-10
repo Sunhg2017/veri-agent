@@ -608,12 +608,117 @@ export interface TestDesignEvaluationCorpusSummaryView {
   sampleCandidateCount: number;
   sampleExplanationCount: number;
   sampleExplanationCoveragePercent: number;
+  maintainedSampleCount: number;
+  goldenSampleCount: number;
+  frozenSampleCount: number;
+  deprecatedSampleCount: number;
+  baselineVersionCount: number;
+  calibrationRunCount: number;
+  latestCalibrationStatus?: string;
+  latestCalibrationAt?: string;
+  sampleMaintenanceReady?: boolean;
+  longTermCalibrationReady?: boolean;
+  operationsConsoleReady?: boolean;
   aggregateOnly?: boolean;
   corpusRowExported?: boolean;
   candidateBodyExported?: boolean;
   reviewCommentExported?: boolean;
   promptBodyExported?: boolean;
   generatedAt?: string;
+}
+
+export interface TestDesignEvaluationSampleView {
+  id: string;
+  projectId?: string;
+  sampleKey: string;
+  title: string;
+  sourceType: string;
+  sourceTaskId?: string;
+  sourceCandidateId?: string;
+  promptKey?: string;
+  promptVersion?: string;
+  coverageType: string;
+  priority: string;
+  status: string;
+  baselineVersion?: string;
+  requirementSummary?: string;
+  expectedCaseOutline?: string;
+  assertionNotes?: string;
+  tags?: string;
+  maintenanceNote?: string;
+  sampleDigest?: string;
+  sensitiveScanStatus?: string;
+  createdBy?: string;
+  updatedBy?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface TestDesignEvaluationSampleList {
+  items: TestDesignEvaluationSampleView[];
+  index: number;
+  size: number;
+  total: number;
+}
+
+export interface TestDesignEvaluationSampleSummaryView {
+  totalCount: number;
+  candidateCount: number;
+  goldenCount: number;
+  frozenCount: number;
+  deprecatedCount: number;
+  baselineVersionCount: number;
+  latestUpdatedAt?: string;
+  sampleMaintenanceReady?: boolean;
+  baselineReady?: boolean;
+}
+
+export interface TestDesignCalibrationRunView {
+  id: string;
+  projectId?: string;
+  promptKey?: string;
+  promptVersion?: string;
+  baselineVersion?: string;
+  runMode: string;
+  status: string;
+  sampleCount: number;
+  goldenSampleCount: number;
+  taskCount: number;
+  candidateCount: number;
+  stepCompletePercent: number;
+  expectedCompletePercent: number;
+  lowConfidencePercent: number;
+  errorPercent: number;
+  duplicateKeyCollisionCount: number;
+  feedbackSignalCount: number;
+  readinessStatus?: string;
+  readinessBlockingCount: number;
+  readinessWarningCount: number;
+  regressionCount: number;
+  baselineDigest?: string;
+  resultDigest?: string;
+  notes?: string;
+  runBy?: string;
+  createdAt?: string;
+}
+
+export interface TestDesignCalibrationSummaryView {
+  totalRunCount: number;
+  passedRunCount: number;
+  warningRunCount: number;
+  blockedRunCount: number;
+  latestStatus?: string;
+  latestRunAt?: string;
+  longTermCalibrationReady?: boolean;
+  baselineReady?: boolean;
+}
+
+export interface TestDesignCalibrationRunList {
+  items: TestDesignCalibrationRunView[];
+  index: number;
+  size: number;
+  total: number;
+  summary?: TestDesignCalibrationSummaryView;
 }
 
 export interface TestDesignScopeSummaryMetricView {
@@ -840,6 +945,51 @@ export interface TestDesignConflictBatchResolveResult {
   items: TestDesignConflictBatchResolveItem[];
 }
 
+export interface TestDesignConflictOperationFilters {
+  index?: number;
+  size?: number;
+  projectId: string;
+  taskId?: string;
+  action?: string;
+  result?: string;
+  candidateStatus?: string;
+  resolutionStatus?: 'OPEN' | 'RESOLVED' | 'ALL';
+  keyword?: string;
+}
+
+export interface TestDesignConflictOperationsSummary {
+  totalCount: number;
+  openCount: number;
+  resolvedCount: number;
+  duplicateReviewCount: number;
+  latestConflictAt?: string;
+}
+
+export interface TestDesignConflictOperationItem {
+  taskId?: string;
+  taskTitle?: string;
+  taskStatus?: string;
+  candidateId?: string;
+  candidateTitle?: string;
+  candidateStatus?: string;
+  candidateVersion: number;
+  projectId?: string;
+  requirementId?: string;
+  recommendedCaseId?: string;
+  record: TestDesignPublishRecordView;
+  resolved: boolean;
+  resolvable: boolean;
+  conflictAt?: string;
+}
+
+export interface TestDesignConflictOperationsResult {
+  items: TestDesignConflictOperationItem[];
+  total: number;
+  index: number;
+  size: number;
+  summary: TestDesignConflictOperationsSummary;
+}
+
 export interface TestDesignPublishResult {
   taskId: string;
   projectId?: string;
@@ -873,6 +1023,71 @@ export interface TestDesignEvaluationCorpusSummaryFilters {
   size?: number;
   projectId?: string;
   promptKey?: string;
+}
+
+export interface TestDesignEvaluationSampleFilters {
+  index?: number;
+  size?: number;
+  projectId?: string;
+  promptKey?: string;
+  promptVersion?: string;
+  status?: string;
+  coverageType?: string;
+  baselineVersion?: string;
+  keyword?: string;
+}
+
+export interface SaveTestDesignEvaluationSamplePayload {
+  projectId: string;
+  sampleKey?: string;
+  title: string;
+  sourceType?: string;
+  sourceTaskId?: string;
+  sourceCandidateId?: string;
+  promptKey?: string;
+  promptVersion?: string;
+  coverageType?: string;
+  priority?: string;
+  status?: string;
+  baselineVersion?: string;
+  requirementSummary?: string;
+  expectedCaseOutline?: string;
+  assertionNotes?: string;
+  tags?: string;
+  maintenanceNote?: string;
+}
+
+export interface TransitionTestDesignEvaluationSamplePayload {
+  status: string;
+  baselineVersion?: string;
+  maintenanceNote?: string;
+}
+
+export interface CreateTestDesignEvaluationSampleFromCandidatePayload {
+  candidateId: string;
+  sampleKey?: string;
+  status?: string;
+  baselineVersion?: string;
+  maintenanceNote?: string;
+}
+
+export interface TestDesignCalibrationRunFilters {
+  index?: number;
+  size?: number;
+  projectId?: string;
+  promptKey?: string;
+  promptVersion?: string;
+  baselineVersion?: string;
+  status?: string;
+}
+
+export interface RequestTestDesignCalibrationRunPayload {
+  projectId: string;
+  promptKey?: string;
+  promptVersion?: string;
+  baselineVersion?: string;
+  runMode?: string;
+  notes?: string;
 }
 
 export interface TestDesignScopeSummaryFilters {
@@ -1849,12 +2064,143 @@ export function normalizeTestDesignEvaluationCorpusSummary(raw: unknown): TestDe
       item.sampleExplanationCoveragePercent ?? item.sample_explanation_coverage_percent,
       0
     ),
+    maintainedSampleCount: numberValue(item.maintainedSampleCount ?? item.maintained_sample_count, 0),
+    goldenSampleCount: numberValue(item.goldenSampleCount ?? item.golden_sample_count, 0),
+    frozenSampleCount: numberValue(item.frozenSampleCount ?? item.frozen_sample_count, 0),
+    deprecatedSampleCount: numberValue(item.deprecatedSampleCount ?? item.deprecated_sample_count, 0),
+    baselineVersionCount: numberValue(item.baselineVersionCount ?? item.baseline_version_count, 0),
+    calibrationRunCount: numberValue(item.calibrationRunCount ?? item.calibration_run_count, 0),
+    latestCalibrationStatus: optionalString(item.latestCalibrationStatus)
+      ?? optionalString(item.latest_calibration_status),
+    latestCalibrationAt: optionalString(item.latestCalibrationAt) ?? optionalString(item.latest_calibration_at),
+    sampleMaintenanceReady: optionalBoolean(item.sampleMaintenanceReady ?? item.sample_maintenance_ready),
+    longTermCalibrationReady: optionalBoolean(
+      item.longTermCalibrationReady ?? item.long_term_calibration_ready
+    ),
+    operationsConsoleReady: optionalBoolean(item.operationsConsoleReady ?? item.operations_console_ready),
     aggregateOnly: optionalBoolean(item.aggregateOnly ?? item.aggregate_only),
     corpusRowExported: optionalBoolean(item.corpusRowExported ?? item.corpus_row_exported),
     candidateBodyExported: optionalBoolean(item.candidateBodyExported ?? item.candidate_body_exported),
     reviewCommentExported: optionalBoolean(item.reviewCommentExported ?? item.review_comment_exported),
     promptBodyExported: optionalBoolean(item.promptBodyExported ?? item.prompt_body_exported),
     generatedAt: optionalString(item.generatedAt) ?? optionalString(item.generated_at)
+  };
+}
+
+export function normalizeTestDesignEvaluationSample(raw: unknown): TestDesignEvaluationSampleView {
+  const item = isRecord(raw) ? raw : {};
+  return {
+    id: stringValue(item.id),
+    projectId: optionalString(item.projectId) ?? optionalString(item.project_id),
+    sampleKey: stringValue(item.sampleKey ?? item.sample_key),
+    title: stringValue(item.title),
+    sourceType: stringValue(item.sourceType ?? item.source_type, 'MANUAL'),
+    sourceTaskId: optionalString(item.sourceTaskId) ?? optionalString(item.source_task_id),
+    sourceCandidateId: optionalString(item.sourceCandidateId) ?? optionalString(item.source_candidate_id),
+    promptKey: optionalString(item.promptKey) ?? optionalString(item.prompt_key),
+    promptVersion: optionalString(item.promptVersion) ?? optionalString(item.prompt_version),
+    coverageType: stringValue(item.coverageType ?? item.coverage_type, 'FUNCTIONAL'),
+    priority: stringValue(item.priority, 'MEDIUM'),
+    status: stringValue(item.status, 'CANDIDATE'),
+    baselineVersion: optionalString(item.baselineVersion) ?? optionalString(item.baseline_version),
+    requirementSummary: optionalString(item.requirementSummary) ?? optionalString(item.requirement_summary),
+    expectedCaseOutline: optionalString(item.expectedCaseOutline) ?? optionalString(item.expected_case_outline),
+    assertionNotes: optionalString(item.assertionNotes) ?? optionalString(item.assertion_notes),
+    tags: optionalString(item.tags),
+    maintenanceNote: optionalString(item.maintenanceNote) ?? optionalString(item.maintenance_note),
+    sampleDigest: optionalString(item.sampleDigest) ?? optionalString(item.sample_digest),
+    sensitiveScanStatus: optionalString(item.sensitiveScanStatus) ?? optionalString(item.sensitive_scan_status),
+    createdBy: optionalString(item.createdBy) ?? optionalString(item.created_by),
+    updatedBy: optionalString(item.updatedBy) ?? optionalString(item.updated_by),
+    createdAt: optionalString(item.createdAt) ?? optionalString(item.created_at),
+    updatedAt: optionalString(item.updatedAt) ?? optionalString(item.updated_at)
+  };
+}
+
+export function normalizeTestDesignEvaluationSampleList(raw: unknown): TestDesignEvaluationSampleList {
+  const item = isRecord(raw) ? raw : {};
+  return {
+    items: listItems(item.items).map(normalizeTestDesignEvaluationSample),
+    index: numberValue(item.index, 0),
+    size: numberValue(item.size, 20),
+    total: numberValue(item.total, listItems(item.items).length)
+  };
+}
+
+export function normalizeTestDesignEvaluationSampleSummary(raw: unknown): TestDesignEvaluationSampleSummaryView {
+  const item = isRecord(raw) ? raw : {};
+  return {
+    totalCount: numberValue(item.totalCount ?? item.total_count, 0),
+    candidateCount: numberValue(item.candidateCount ?? item.candidate_count, 0),
+    goldenCount: numberValue(item.goldenCount ?? item.golden_count, 0),
+    frozenCount: numberValue(item.frozenCount ?? item.frozen_count, 0),
+    deprecatedCount: numberValue(item.deprecatedCount ?? item.deprecated_count, 0),
+    baselineVersionCount: numberValue(item.baselineVersionCount ?? item.baseline_version_count, 0),
+    latestUpdatedAt: optionalString(item.latestUpdatedAt) ?? optionalString(item.latest_updated_at),
+    sampleMaintenanceReady: optionalBoolean(item.sampleMaintenanceReady ?? item.sample_maintenance_ready),
+    baselineReady: optionalBoolean(item.baselineReady ?? item.baseline_ready)
+  };
+}
+
+export function normalizeTestDesignCalibrationRun(raw: unknown): TestDesignCalibrationRunView {
+  const item = isRecord(raw) ? raw : {};
+  return {
+    id: stringValue(item.id),
+    projectId: optionalString(item.projectId) ?? optionalString(item.project_id),
+    promptKey: optionalString(item.promptKey) ?? optionalString(item.prompt_key),
+    promptVersion: optionalString(item.promptVersion) ?? optionalString(item.prompt_version),
+    baselineVersion: optionalString(item.baselineVersion) ?? optionalString(item.baseline_version),
+    runMode: stringValue(item.runMode ?? item.run_mode, 'MANUAL'),
+    status: stringValue(item.status, 'UNKNOWN'),
+    sampleCount: numberValue(item.sampleCount ?? item.sample_count, 0),
+    goldenSampleCount: numberValue(item.goldenSampleCount ?? item.golden_sample_count, 0),
+    taskCount: numberValue(item.taskCount ?? item.task_count, 0),
+    candidateCount: numberValue(item.candidateCount ?? item.candidate_count, 0),
+    stepCompletePercent: numberValue(item.stepCompletePercent ?? item.step_complete_percent, 0),
+    expectedCompletePercent: numberValue(item.expectedCompletePercent ?? item.expected_complete_percent, 0),
+    lowConfidencePercent: numberValue(item.lowConfidencePercent ?? item.low_confidence_percent, 0),
+    errorPercent: numberValue(item.errorPercent ?? item.error_percent, 0),
+    duplicateKeyCollisionCount: numberValue(
+      item.duplicateKeyCollisionCount ?? item.duplicate_key_collision_count,
+      0
+    ),
+    feedbackSignalCount: numberValue(item.feedbackSignalCount ?? item.feedback_signal_count, 0),
+    readinessStatus: optionalString(item.readinessStatus) ?? optionalString(item.readiness_status),
+    readinessBlockingCount: numberValue(item.readinessBlockingCount ?? item.readiness_blocking_count, 0),
+    readinessWarningCount: numberValue(item.readinessWarningCount ?? item.readiness_warning_count, 0),
+    regressionCount: numberValue(item.regressionCount ?? item.regression_count, 0),
+    baselineDigest: optionalString(item.baselineDigest) ?? optionalString(item.baseline_digest),
+    resultDigest: optionalString(item.resultDigest) ?? optionalString(item.result_digest),
+    notes: optionalString(item.notes),
+    runBy: optionalString(item.runBy) ?? optionalString(item.run_by),
+    createdAt: optionalString(item.createdAt) ?? optionalString(item.created_at)
+  };
+}
+
+export function normalizeTestDesignCalibrationSummary(raw: unknown): TestDesignCalibrationSummaryView {
+  const item = isRecord(raw) ? raw : {};
+  return {
+    totalRunCount: numberValue(item.totalRunCount ?? item.total_run_count, 0),
+    passedRunCount: numberValue(item.passedRunCount ?? item.passed_run_count, 0),
+    warningRunCount: numberValue(item.warningRunCount ?? item.warning_run_count, 0),
+    blockedRunCount: numberValue(item.blockedRunCount ?? item.blocked_run_count, 0),
+    latestStatus: optionalString(item.latestStatus) ?? optionalString(item.latest_status),
+    latestRunAt: optionalString(item.latestRunAt) ?? optionalString(item.latest_run_at),
+    longTermCalibrationReady: optionalBoolean(
+      item.longTermCalibrationReady ?? item.long_term_calibration_ready
+    ),
+    baselineReady: optionalBoolean(item.baselineReady ?? item.baseline_ready)
+  };
+}
+
+export function normalizeTestDesignCalibrationRunList(raw: unknown): TestDesignCalibrationRunList {
+  const item = isRecord(raw) ? raw : {};
+  return {
+    items: listItems(item.items).map(normalizeTestDesignCalibrationRun),
+    index: numberValue(item.index, 0),
+    size: numberValue(item.size, 20),
+    total: numberValue(item.total, listItems(item.items).length),
+    summary: normalizeTestDesignCalibrationSummary(item.summary)
   };
 }
 
@@ -2013,6 +2359,49 @@ export function normalizeTestDesignConflictBatchResolveResult(raw: unknown): Tes
     succeededCount: numberValue(item.succeededCount ?? item.succeeded_count, 0),
     failedCount: numberValue(item.failedCount ?? item.failed_count, 0),
     items: listItems(item.items).map(normalizeTestDesignConflictBatchResolveItem)
+  };
+}
+
+export function normalizeTestDesignConflictOperationsSummary(raw: unknown): TestDesignConflictOperationsSummary {
+  const item = isRecord(raw) ? raw : {};
+  return {
+    totalCount: numberValue(item.totalCount ?? item.total_count, 0),
+    openCount: numberValue(item.openCount ?? item.open_count, 0),
+    resolvedCount: numberValue(item.resolvedCount ?? item.resolved_count, 0),
+    duplicateReviewCount: numberValue(item.duplicateReviewCount ?? item.duplicate_review_count, 0),
+    latestConflictAt: optionalString(item.latestConflictAt) ?? optionalString(item.latest_conflict_at)
+  };
+}
+
+export function normalizeTestDesignConflictOperationItem(raw: unknown): TestDesignConflictOperationItem {
+  const item = isRecord(raw) ? raw : {};
+  return {
+    taskId: optionalString(item.taskId) ?? optionalString(item.task_id),
+    taskTitle: optionalString(item.taskTitle) ?? optionalString(item.task_title),
+    taskStatus: optionalString(item.taskStatus) ?? optionalString(item.task_status),
+    candidateId: optionalString(item.candidateId) ?? optionalString(item.candidate_id),
+    candidateTitle: optionalString(item.candidateTitle) ?? optionalString(item.candidate_title),
+    candidateStatus: optionalString(item.candidateStatus) ?? optionalString(item.candidate_status),
+    candidateVersion: numberValue(item.candidateVersion ?? item.candidate_version, 0),
+    projectId: optionalString(item.projectId) ?? optionalString(item.project_id),
+    requirementId: optionalString(item.requirementId) ?? optionalString(item.requirement_id),
+    recommendedCaseId: optionalString(item.recommendedCaseId) ?? optionalString(item.recommended_case_id),
+    record: normalizeTestDesignPublishRecord(item.record),
+    resolved: Boolean(item.resolved),
+    resolvable: Boolean(item.resolvable),
+    conflictAt: optionalString(item.conflictAt) ?? optionalString(item.conflict_at)
+  };
+}
+
+export function normalizeTestDesignConflictOperationsResult(raw: unknown): TestDesignConflictOperationsResult {
+  const item = isRecord(raw) ? raw : {};
+  const items = listItems(item.items).map(normalizeTestDesignConflictOperationItem);
+  return {
+    items,
+    total: pageTotal(raw, items.length),
+    index: numberValue(item.index, 0),
+    size: numberValue(item.size, items.length || 20),
+    summary: normalizeTestDesignConflictOperationsSummary(item.summary)
   };
 }
 
@@ -2290,6 +2679,91 @@ export async function fetchTestDesignEvaluationCorpusSummary(
   return { ...response, data: normalizeTestDesignEvaluationCorpusSummary(response.data) };
 }
 
+export async function fetchTestDesignEvaluationSamples(
+  filters: TestDesignEvaluationSampleFilters = {}
+): Promise<ApiResponse<TestDesignEvaluationSampleList>> {
+  const response = await requestJson<unknown>(
+    `/api/v1/test-design/quality/evaluation-samples${queryString(filters as Record<string, unknown>)}`
+  );
+  return { ...response, data: normalizeTestDesignEvaluationSampleList(response.data) };
+}
+
+export async function fetchTestDesignEvaluationSampleSummary(
+  filters: TestDesignEvaluationSampleFilters = {}
+): Promise<ApiResponse<TestDesignEvaluationSampleSummaryView>> {
+  const response = await requestJson<unknown>(
+    `/api/v1/test-design/quality/evaluation-samples/summary${queryString(filters as Record<string, unknown>)}`
+  );
+  return { ...response, data: normalizeTestDesignEvaluationSampleSummary(response.data) };
+}
+
+export async function createTestDesignEvaluationSample(
+  payload: SaveTestDesignEvaluationSamplePayload
+): Promise<ApiResponse<TestDesignEvaluationSampleView>> {
+  const response = await requestJson<unknown>('/api/v1/test-design/quality/evaluation-samples', {
+    method: 'POST',
+    body: JSON.stringify(compactPayload(payload))
+  });
+  return { ...response, data: normalizeTestDesignEvaluationSample(response.data) };
+}
+
+export async function updateTestDesignEvaluationSample(
+  sampleId: string,
+  payload: SaveTestDesignEvaluationSamplePayload
+): Promise<ApiResponse<TestDesignEvaluationSampleView>> {
+  const response = await requestJson<unknown>(
+    `/api/v1/test-design/quality/evaluation-samples/${encodeURIComponent(sampleId)}`,
+    {
+      method: 'PUT',
+      body: JSON.stringify(compactPayload(payload))
+    }
+  );
+  return { ...response, data: normalizeTestDesignEvaluationSample(response.data) };
+}
+
+export async function transitionTestDesignEvaluationSample(
+  sampleId: string,
+  payload: TransitionTestDesignEvaluationSamplePayload
+): Promise<ApiResponse<TestDesignEvaluationSampleView>> {
+  const response = await requestJson<unknown>(
+    `/api/v1/test-design/quality/evaluation-samples/${encodeURIComponent(sampleId)}/status`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify(compactPayload(payload))
+    }
+  );
+  return { ...response, data: normalizeTestDesignEvaluationSample(response.data) };
+}
+
+export async function createTestDesignEvaluationSampleFromCandidate(
+  payload: CreateTestDesignEvaluationSampleFromCandidatePayload
+): Promise<ApiResponse<TestDesignEvaluationSampleView>> {
+  const response = await requestJson<unknown>('/api/v1/test-design/quality/evaluation-samples/from-candidate', {
+    method: 'POST',
+    body: JSON.stringify(compactPayload(payload))
+  });
+  return { ...response, data: normalizeTestDesignEvaluationSample(response.data) };
+}
+
+export async function fetchTestDesignCalibrationRuns(
+  filters: TestDesignCalibrationRunFilters = {}
+): Promise<ApiResponse<TestDesignCalibrationRunList>> {
+  const response = await requestJson<unknown>(
+    `/api/v1/test-design/quality/calibration-runs${queryString(filters as Record<string, unknown>)}`
+  );
+  return { ...response, data: normalizeTestDesignCalibrationRunList(response.data) };
+}
+
+export async function requestTestDesignCalibrationRun(
+  payload: RequestTestDesignCalibrationRunPayload
+): Promise<ApiResponse<TestDesignCalibrationRunView>> {
+  const response = await requestJson<unknown>('/api/v1/test-design/quality/calibration-runs', {
+    method: 'POST',
+    body: JSON.stringify(compactPayload(payload))
+  });
+  return { ...response, data: normalizeTestDesignCalibrationRun(response.data) };
+}
+
 export async function fetchTestDesignScopeSummary(
   filters: TestDesignScopeSummaryFilters = {}
 ): Promise<ApiResponse<TestDesignScopeSummaryView>> {
@@ -2446,6 +2920,15 @@ export async function batchResolveTestDesignConflicts(
     body: JSON.stringify(compactPayload(payload))
   });
   return { ...response, data: normalizeTestDesignConflictBatchResolveResult(response.data) };
+}
+
+export async function fetchTestDesignConflictOperations(
+  filters: TestDesignConflictOperationFilters
+): Promise<ApiResponse<TestDesignConflictOperationsResult>> {
+  const response = await requestJson<unknown>(
+    `/api/v1/test-design/conflicts${queryString(filters as unknown as Record<string, unknown>)}`
+  );
+  return { ...response, data: normalizeTestDesignConflictOperationsResult(response.data) };
 }
 
 export async function fetchTestDesignPublishRecords(taskId: string): Promise<ApiResponse<TestDesignPublishRecordView[]>> {

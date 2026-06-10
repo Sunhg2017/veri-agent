@@ -32,7 +32,7 @@ public final class TestDesignScopePolicy {
                 true,
                 true,
                 true,
-                false,
+                true,
                 false,
                 false,
                 false,

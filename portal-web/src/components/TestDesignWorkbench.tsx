@@ -23,7 +23,17 @@ import {
   Trash2,
   XCircle
 } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type Dispatch,
+  type FormEvent,
+  type ReactNode,
+  type SetStateAction
+} from 'react';
 import type { CurrentUser } from '../api/auth';
 import {
   fetchAssetRequirements,
@@ -42,6 +52,8 @@ import {
   batchResolveTestDesignConflicts,
   cancelTestDesignTask,
   confirmTestDesignCandidate,
+  createTestDesignEvaluationSample,
+  createTestDesignEvaluationSampleFromCandidate,
   createTestDesignTemplate,
   createTestDesignTask,
   deleteTestDesignTemplate,
@@ -49,9 +61,14 @@ import {
   exportTestDesignReviewRecordsCsv,
   exportTestDesignTaskReportCsv,
   fetchTaskTestDesignCandidates,
+  fetchTestDesignConflictOperations,
   fetchTestDesignContextPolicyEffective,
   fetchTestDesignContextPolicyNotes,
   fetchTestDesignContextPolicyOverrides,
+  fetchTestDesignCalibrationRuns,
+  fetchTestDesignEvaluationCorpusSummary,
+  fetchTestDesignEvaluationSamples,
+  fetchTestDesignEvaluationSampleSummary,
   fetchTestDesignHealth,
   fetchTestDesignPromptTrend,
   fetchTestDesignReleaseReadinessApprovals,
@@ -70,23 +87,34 @@ import {
   rejectTestDesignReleaseReadinessApproval,
   replayQueuedTestDesignTaskEvent,
   requestTestDesignEnvironmentContextPolicyOverride,
+  requestTestDesignCalibrationRun,
   requestTestDesignProjectContextPolicyOverride,
   requestTestDesignReleaseReadinessApproval,
   resolveTestDesignConflict,
   retryTestDesignTask,
   testDesignErrorMessage,
+  transitionTestDesignEvaluationSample,
   updateTestDesignTemplate,
   updateTestDesignCandidate,
   updateTestDesignContextPolicyOverride,
+  updateTestDesignEvaluationSample,
   updateTestDesignReleaseReadinessApproval,
   type TestDesignCandidateBatchActionResult,
   type TestDesignCandidateBatchActionType,
   type TestDesignCandidateView,
+  type TestDesignConflictOperationItem,
+  type TestDesignConflictOperationsSummary,
+  type TestDesignCalibrationRunView,
+  type TestDesignCalibrationSummaryView,
   type TestDesignContextPolicyEffectiveView,
   type TestDesignContextPolicyNoteView,
   type TestDesignContextPolicyOverrideView,
   type TestDesignAuditSummaryView,
   type TestDesignHealth,
+  type TestDesignEvaluationCorpusSummaryView,
+  type TestDesignEvaluationSampleSummaryView,
+  type TestDesignEvaluationSampleView,
+  type SaveTestDesignEvaluationSamplePayload,
   type TestDesignPromptTrendView,
   type TestDesignPublishRecordView,
   type TestDesignPublishResult,
@@ -283,6 +311,53 @@ type ConflictResolutionDraft = {
   comment: string;
 };
 
+type ConflictOperationFilters = {
+  projectId: string;
+  taskId: string;
+  resolutionStatus: 'OPEN' | 'RESOLVED' | 'ALL';
+  candidateStatus: string;
+  action: string;
+  result: string;
+  keyword: string;
+};
+
+type EvaluationSampleFilters = {
+  projectId: string;
+  promptKey: string;
+  promptVersion: string;
+  status: string;
+  coverageType: string;
+  baselineVersion: string;
+  keyword: string;
+};
+
+type EvaluationSampleDraft = {
+  projectId: string;
+  sampleKey: string;
+  title: string;
+  sourceType: string;
+  promptKey: string;
+  promptVersion: string;
+  coverageType: string;
+  priority: string;
+  status: string;
+  baselineVersion: string;
+  requirementSummary: string;
+  expectedCaseOutline: string;
+  assertionNotes: string;
+  tags: string;
+  maintenanceNote: string;
+};
+
+type CalibrationRunDraft = {
+  projectId: string;
+  promptKey: string;
+  promptVersion: string;
+  baselineVersion: string;
+  runMode: string;
+  notes: string;
+};
+
 type ConflictResolutionCandidate = Pick<TestDesignCandidateView, 'id' | 'title' | 'status' | 'version'>;
 type ConflictResolutionItem = {
   candidate: ConflictResolutionCandidate;
@@ -323,6 +398,9 @@ const releaseReadinessReasonCodes = [
 ] as const;
 
 const releaseReadinessWorkOrderStatuses = ['OPEN', 'IN_REVIEW', 'APPROVED', 'REJECTED', 'CANCELLED'] as const;
+const evaluationSampleStatuses = ['CANDIDATE', 'GOLDEN', 'FROZEN', 'DEPRECATED'] as const;
+const evaluationSampleSourceTypes = ['MANUAL', 'REVIEW_FEEDBACK', 'PUBLISHED_CASE', 'IMPORTED'] as const;
+const calibrationRunModes = ['MANUAL', 'PROMPT_CHANGE', 'SCHEDULED', 'BASELINE_FREEZE'] as const;
 
 const initialReleaseReadinessDraft: ReleaseReadinessApprovalDraft = {
   exceptionReasonCode: 'SMOKE_VALIDATION',
@@ -373,9 +451,57 @@ const initialConflictResolutionDraft: ConflictResolutionDraft = {
   comment: ''
 };
 
+const initialConflictOperationFilters: ConflictOperationFilters = {
+  projectId: '',
+  taskId: '',
+  resolutionStatus: 'OPEN',
+  candidateStatus: '',
+  action: '',
+  result: '',
+  keyword: ''
+};
+
+const initialEvaluationSampleFilters: EvaluationSampleFilters = {
+  projectId: '',
+  promptKey: '',
+  promptVersion: '',
+  status: '',
+  coverageType: '',
+  baselineVersion: '',
+  keyword: ''
+};
+
+const initialEvaluationSampleDraft: EvaluationSampleDraft = {
+  projectId: '',
+  sampleKey: '',
+  title: '',
+  sourceType: 'MANUAL',
+  promptKey: '',
+  promptVersion: '',
+  coverageType: 'FUNCTIONAL',
+  priority: 'MEDIUM',
+  status: 'CANDIDATE',
+  baselineVersion: '',
+  requirementSummary: '',
+  expectedCaseOutline: '',
+  assertionNotes: '',
+  tags: '',
+  maintenanceNote: ''
+};
+
+const initialCalibrationRunDraft: CalibrationRunDraft = {
+  projectId: '',
+  promptKey: '',
+  promptVersion: '',
+  baselineVersion: '',
+  runMode: 'MANUAL',
+  notes: ''
+};
+
 const ASYNC_TASK_STATUSES = new Set(['QUEUED', 'RUNNING', 'PUBLISH_QUEUED', 'PUBLISHING']);
 const RETRYABLE_TASK_STATUSES = new Set(['FAILED', 'PARTIAL_SUCCESS', 'CANCELLED']);
 const CANCELLABLE_TASK_STATUSES = new Set(['DRAFT', 'QUEUED', 'RUNNING', 'PARTIAL_SUCCESS', 'FAILED']);
+const TEST_DESIGN_CONFLICT_OPERATION_PAGE_SIZE = 8;
 
 export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: CurrentUser | null }) {
   const canRead = hasPermission(props.currentUser, 'testDesign:read');
@@ -415,6 +541,16 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
   const [taskQualitySummary, setTaskQualitySummary] = useState<TestDesignQualitySummaryView | null>(null);
   const [taskAuditSummary, setTaskAuditSummary] = useState<TestDesignAuditSummaryView | null>(null);
   const [promptTrend, setPromptTrend] = useState<TestDesignPromptTrendView | null>(null);
+  const [evaluationCorpusSummary, setEvaluationCorpusSummary] = useState<TestDesignEvaluationCorpusSummaryView | null>(null);
+  const [evaluationSamples, setEvaluationSamples] = useState<TestDesignEvaluationSampleView[]>([]);
+  const [evaluationSampleSummary, setEvaluationSampleSummary] = useState<TestDesignEvaluationSampleSummaryView | null>(null);
+  const [evaluationSamplePageTotal, setEvaluationSamplePageTotal] = useState(0);
+  const [selectedEvaluationSampleId, setSelectedEvaluationSampleId] = useState('');
+  const [evaluationSampleFilters, setEvaluationSampleFilters] = useState<EvaluationSampleFilters>(initialEvaluationSampleFilters);
+  const [evaluationSampleDraft, setEvaluationSampleDraft] = useState<EvaluationSampleDraft>(initialEvaluationSampleDraft);
+  const [calibrationRuns, setCalibrationRuns] = useState<TestDesignCalibrationRunView[]>([]);
+  const [calibrationSummary, setCalibrationSummary] = useState<TestDesignCalibrationSummaryView | null>(null);
+  const [calibrationRunDraft, setCalibrationRunDraft] = useState<CalibrationRunDraft>(initialCalibrationRunDraft);
   const [contextPolicyDraft, setContextPolicyDraft] = useState<TestDesignContextPolicyDraft>(initialTestDesignContextPolicyDraft);
   const [contextPolicyOverrides, setContextPolicyOverrides] = useState<TestDesignContextPolicyOverrideView[]>([]);
   const [contextPolicyEffective, setContextPolicyEffective] = useState<TestDesignContextPolicyEffectiveView | null>(null);
@@ -428,6 +564,11 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
   const [batchEditResult, setBatchEditResult] = useState<BatchEditResult | null>(null);
   const [selectedCandidateIds, setSelectedCandidateIds] = useState<string[]>([]);
   const [conflictResolutionDraft, setConflictResolutionDraft] = useState<ConflictResolutionDraft>(initialConflictResolutionDraft);
+  const [conflictOperationFilters, setConflictOperationFilters] = useState<ConflictOperationFilters>(initialConflictOperationFilters);
+  const [conflictOperations, setConflictOperations] = useState<TestDesignConflictOperationItem[]>([]);
+  const [conflictOperationSummary, setConflictOperationSummary] = useState<TestDesignConflictOperationsSummary | null>(null);
+  const [conflictOperationPageTotal, setConflictOperationPageTotal] = useState(0);
+  const [conflictOperationPageIndex, setConflictOperationPageIndex] = useState(0);
   const [conflictCaseKeyword, setConflictCaseKeyword] = useState('');
   const [conflictCaseResults, setConflictCaseResults] = useState<AssetTestCaseView[]>([]);
   const [selectedConflictCaseIds, setSelectedConflictCaseIds] = useState<Record<string, string>>({});
@@ -439,8 +580,10 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
   const [reviewRecordState, setReviewRecordState] = useState<WorkState>({ loading: false });
   const [taskAuditState, setTaskAuditState] = useState<WorkState>({ loading: false });
   const [promptTrendState, setPromptTrendState] = useState<WorkState>({ loading: false });
+  const [evaluationCorpusState, setEvaluationCorpusState] = useState<WorkState>({ loading: false });
   const [contextPolicyState, setContextPolicyState] = useState<WorkState>({ loading: false });
   const [releaseReadinessState, setReleaseReadinessState] = useState<WorkState>({ loading: false });
+  const [conflictOperationState, setConflictOperationState] = useState<WorkState>({ loading: false });
   const [templateState, setTemplateState] = useState<WorkState>({ loading: false });
   const [draggingStepId, setDraggingStepId] = useState('');
 
@@ -527,6 +670,21 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
     () => buildTestDesignPromptTrendSummary(promptTrend),
     [promptTrend]
   );
+  const selectedEvaluationSample = useMemo(
+    () => evaluationSamples.find((sample) => sample.id === selectedEvaluationSampleId) ?? null,
+    [evaluationSamples, selectedEvaluationSampleId]
+  );
+  const evaluationCorpusProjectId = evaluationSampleFilters.projectId
+    || selectedTask?.projectId
+    || taskFilters.projectId
+    || filters.projectId
+    || generationDraft.projectId
+    || '';
+  const evaluationCorpusPromptKey = evaluationSampleFilters.promptKey
+    || health?.promptKey
+    || selectedTask?.promptKey
+    || generationDraft.promptKey
+    || '';
   const qualitySummaryScope = selectedTaskId
     ? taskQualitySummary
       ? `任务全量 ${taskQualitySummary.total} 个候选`
@@ -551,7 +709,22 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
     candidates.forEach((candidate) => lookup.set(candidate.id, candidate));
     return lookup;
   }, [candidates, selectedCandidateCache]);
-  const conflictCaseSearchProjectId = publishResult?.projectId ?? selectedTask?.projectId ?? '';
+  const conflictOperationProjectId = conflictOperationFilters.projectId
+    || selectedTask?.projectId
+    || taskFilters.projectId
+    || filters.projectId
+    || generationDraft.projectId
+    || '';
+  const conflictCaseSearchProjectId = publishResult?.projectId ?? conflictOperationProjectId;
+  const conflictOperationPage = useMemo(
+    () => pageFromServerItems(
+      conflictOperations,
+      conflictOperationPageIndex,
+      TEST_DESIGN_CONFLICT_OPERATION_PAGE_SIZE,
+      conflictOperationPageTotal
+    ),
+    [conflictOperationPageIndex, conflictOperationPageTotal, conflictOperations]
+  );
   const batchResolvableConflictItems = useMemo(
     () => {
       const items: ConflictResolutionItem[] = [];
@@ -566,6 +739,25 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       return items;
     },
     [conflictCandidateById, resolvableConflictRecords, selectedConflictCaseIds]
+  );
+  const batchResolvableConflictOperationItems = useMemo(
+    () => {
+      const items: ConflictResolutionItem[] = [];
+      conflictOperations.forEach((item) => {
+        if (!item.resolvable) {
+          return;
+        }
+        const record = item.record;
+        const candidate = conflictResolutionCandidate(record, conflictCandidateById);
+        const targetCaseId = conflictResolutionTargetCaseId(record, selectedConflictCaseIds);
+        if (!candidate || !targetCaseId) {
+          return;
+        }
+        items.push({ candidate, record: { ...record, assetCaseId: targetCaseId } });
+      });
+      return items;
+    },
+    [conflictCandidateById, conflictOperations, selectedConflictCaseIds]
   );
   const candidateQualityIssues = useMemo(
     () => candidateDraft && selectedCandidate
@@ -750,6 +942,167 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
     props.signedIn,
     selectedTask?.projectId,
     taskFilters.projectId
+  ]);
+
+  const refreshEvaluationCorpusOperations = useCallback(async (options?: { silent?: boolean }) => {
+    if (!props.signedIn || !canRead) {
+      setEvaluationCorpusSummary(null);
+      setEvaluationSamples([]);
+      setEvaluationSampleSummary(null);
+      setEvaluationSamplePageTotal(0);
+      setCalibrationRuns([]);
+      setCalibrationSummary(null);
+      setEvaluationCorpusState({ loading: false });
+      return;
+    }
+    const projectId = evaluationCorpusProjectId.trim();
+    if (!projectId) {
+      setEvaluationCorpusSummary(null);
+      setEvaluationSamples([]);
+      setEvaluationSampleSummary(null);
+      setEvaluationSamplePageTotal(0);
+      setCalibrationRuns([]);
+      setCalibrationSummary(null);
+      setEvaluationCorpusState({ loading: false });
+      return;
+    }
+    const promptKey = evaluationCorpusPromptKey.trim();
+    const silent = options?.silent === true;
+    if (silent) {
+      setEvaluationCorpusState((current) => ({ ...current, error: undefined }));
+    } else {
+      setEvaluationCorpusState({ loading: true });
+    }
+    try {
+      const [summaryResponse, sampleResponse, sampleSummaryResponse, calibrationResponse] = await Promise.all([
+        fetchTestDesignEvaluationCorpusSummary({ projectId, promptKey, size: 20 }),
+        fetchTestDesignEvaluationSamples({
+          projectId,
+          promptKey,
+          promptVersion: evaluationSampleFilters.promptVersion,
+          status: evaluationSampleFilters.status,
+          coverageType: evaluationSampleFilters.coverageType,
+          baselineVersion: evaluationSampleFilters.baselineVersion,
+          keyword: evaluationSampleFilters.keyword,
+          index: 0,
+          size: 8
+        }),
+        fetchTestDesignEvaluationSampleSummary({ projectId, promptKey }),
+        fetchTestDesignCalibrationRuns({
+          projectId,
+          promptKey,
+          promptVersion: calibrationRunDraft.promptVersion,
+          baselineVersion: calibrationRunDraft.baselineVersion,
+          index: 0,
+          size: 6
+        })
+      ]);
+      setEvaluationCorpusSummary(summaryResponse.data);
+      setEvaluationSamples(sampleResponse.data.items);
+      setEvaluationSamplePageTotal(sampleResponse.data.total);
+      setEvaluationSampleSummary(sampleSummaryResponse.data);
+      setSelectedEvaluationSampleId((current) => (
+        current && sampleResponse.data.items.some((sample) => sample.id === current)
+          ? current
+          : sampleResponse.data.items[0]?.id ?? ''
+      ));
+      setCalibrationRuns(calibrationResponse.data.items);
+      setCalibrationSummary(calibrationResponse.data.summary ?? null);
+      setEvaluationCorpusState({
+        loading: false,
+        success: `样本 ${sampleResponse.data.items.length} / ${sampleResponse.data.total} · 校准 ${calibrationResponse.data.total}`,
+        traceId: sampleResponse.trace_id || calibrationResponse.trace_id || summaryResponse.trace_id
+      });
+    } catch (error: unknown) {
+      if (!silent) {
+        setEvaluationCorpusSummary(null);
+        setEvaluationSamples([]);
+        setEvaluationSampleSummary(null);
+        setEvaluationSamplePageTotal(0);
+        setCalibrationRuns([]);
+        setCalibrationSummary(null);
+        setEvaluationCorpusState({ loading: false, error: testDesignErrorMessage(error, '评测语料运营加载失败') });
+      }
+    }
+  }, [
+    calibrationRunDraft.baselineVersion,
+    calibrationRunDraft.promptVersion,
+    canRead,
+    evaluationCorpusProjectId,
+    evaluationCorpusPromptKey,
+    evaluationSampleFilters.baselineVersion,
+    evaluationSampleFilters.coverageType,
+    evaluationSampleFilters.keyword,
+    evaluationSampleFilters.promptVersion,
+    evaluationSampleFilters.status,
+    props.signedIn
+  ]);
+
+  const refreshConflictOperations = useCallback(async (pageIndex = conflictOperationPageIndex, options?: { silent?: boolean }) => {
+    const silent = options?.silent === true;
+    if (!props.signedIn || !canRead) {
+      setConflictOperations([]);
+      setConflictOperationSummary(null);
+      setConflictOperationPageTotal(0);
+      setConflictOperationState({ loading: false });
+      return;
+    }
+    const projectId = conflictOperationProjectId.trim();
+    if (!projectId) {
+      setConflictOperations([]);
+      setConflictOperationSummary(null);
+      setConflictOperationPageTotal(0);
+      if (!silent) {
+        setConflictOperationState({ loading: false, error: '请先填写项目 ID' });
+      }
+      return;
+    }
+
+    setConflictOperationPageIndex(pageIndex);
+    if (silent) {
+      setConflictOperationState((current) => ({ ...current, error: undefined }));
+    } else {
+      setConflictOperationState({ loading: true });
+    }
+    try {
+      const response = await fetchTestDesignConflictOperations({
+        projectId,
+        taskId: conflictOperationFilters.taskId,
+        resolutionStatus: conflictOperationFilters.resolutionStatus,
+        candidateStatus: conflictOperationFilters.candidateStatus,
+        action: conflictOperationFilters.action,
+        result: conflictOperationFilters.result,
+        keyword: conflictOperationFilters.keyword,
+        index: pageIndex,
+        size: TEST_DESIGN_CONFLICT_OPERATION_PAGE_SIZE
+      });
+      setConflictOperations(response.data.items);
+      setConflictOperationSummary(response.data.summary);
+      setConflictOperationPageTotal(response.data.total);
+      setConflictOperationState({
+        loading: false,
+        success: `已加载资产冲突 ${response.data.items.length} / ${response.data.total}`,
+        traceId: response.trace_id
+      });
+    } catch (error: unknown) {
+      if (!silent) {
+        setConflictOperations([]);
+        setConflictOperationPageTotal(0);
+        setConflictOperationSummary(null);
+        setConflictOperationState({ loading: false, error: testDesignErrorMessage(error, '资产冲突加载失败') });
+      }
+    }
+  }, [
+    canRead,
+    conflictOperationFilters.action,
+    conflictOperationFilters.candidateStatus,
+    conflictOperationFilters.keyword,
+    conflictOperationFilters.resolutionStatus,
+    conflictOperationFilters.result,
+    conflictOperationFilters.taskId,
+    conflictOperationPageIndex,
+    conflictOperationProjectId,
+    props.signedIn
   ]);
 
   const refreshTaskQualitySummary = useCallback(async (taskId: string, options?: { silent?: boolean }) => {
@@ -1021,6 +1374,16 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       setTaskQualitySummary(null);
       setTaskAuditSummary(null);
       setPromptTrend(null);
+      setEvaluationCorpusSummary(null);
+      setEvaluationSamples([]);
+      setEvaluationSampleSummary(null);
+      setEvaluationSamplePageTotal(0);
+      setSelectedEvaluationSampleId('');
+      setEvaluationSampleFilters(initialEvaluationSampleFilters);
+      setEvaluationSampleDraft(initialEvaluationSampleDraft);
+      setCalibrationRuns([]);
+      setCalibrationSummary(null);
+      setCalibrationRunDraft(initialCalibrationRunDraft);
       setContextPolicyDraft(initialTestDesignContextPolicyDraft);
       setContextPolicyOverrides([]);
       setContextPolicyEffective(null);
@@ -1035,6 +1398,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       setReviewRecordState({ loading: false });
       setTaskAuditState({ loading: false });
       setPromptTrendState({ loading: false });
+      setEvaluationCorpusState({ loading: false });
       setContextPolicyState({ loading: false });
       setTemplateState({ loading: false });
       return;
@@ -1099,6 +1463,10 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
   }, [refreshPromptTrend]);
 
   useEffect(() => {
+    void refreshEvaluationCorpusOperations();
+  }, [refreshEvaluationCorpusOperations]);
+
+  useEffect(() => {
     void refreshTemplates();
   }, [refreshTemplates]);
 
@@ -1130,6 +1498,22 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
   }, [selectedTaskId]);
 
   useEffect(() => {
+    setEvaluationSampleDraft(selectedEvaluationSample ? evaluationSampleDraftFromView(selectedEvaluationSample) : {
+      ...initialEvaluationSampleDraft,
+      projectId: evaluationCorpusProjectId,
+      promptKey: evaluationCorpusPromptKey,
+      promptVersion: selectedTask?.promptVersion || '',
+      baselineVersion: evaluationSampleFilters.baselineVersion
+    });
+  }, [
+    evaluationCorpusProjectId,
+    evaluationCorpusPromptKey,
+    evaluationSampleFilters.baselineVersion,
+    selectedEvaluationSample,
+    selectedTask?.promptVersion
+  ]);
+
+  useEffect(() => {
     void refreshCandidatePage(selectedTaskId);
   }, [refreshCandidatePage, selectedTaskId]);
 
@@ -1155,10 +1539,12 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       void refreshTaskQualitySummary(selectedTaskId, { silent: true });
       void refreshTaskAuditSummary(selectedTaskId, { silent: true });
       void refreshPromptTrend({ silent: true });
+      void refreshEvaluationCorpusOperations({ silent: true });
     }, 2000);
     return () => window.clearInterval(timer);
   }, [
     refreshCandidatePage,
+    refreshEvaluationCorpusOperations,
     refreshPromptTrend,
     refreshReviewRecords,
     refreshTaskAuditSummary,
@@ -1206,6 +1592,37 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       }));
     }
   }, [contextPolicyDraft.projectId, filters.projectId, selectedTask?.projectId, taskFilters.projectId]);
+
+  useEffect(() => {
+    const projectId = selectedTask?.projectId || taskFilters.projectId || filters.projectId || generationDraft.projectId || '';
+    const promptKey = health?.promptKey || selectedTask?.promptKey || generationDraft.promptKey || '';
+    setEvaluationSampleFilters((current) => ({
+      ...current,
+      projectId: current.projectId || projectId,
+      promptKey: current.promptKey || promptKey
+    }));
+    setEvaluationSampleDraft((current) => ({
+      ...current,
+      projectId: current.projectId || projectId,
+      promptKey: current.promptKey || promptKey,
+      promptVersion: current.promptVersion || selectedTask?.promptVersion || ''
+    }));
+    setCalibrationRunDraft((current) => ({
+      ...current,
+      projectId: current.projectId || projectId,
+      promptKey: current.promptKey || promptKey,
+      promptVersion: current.promptVersion || selectedTask?.promptVersion || ''
+    }));
+  }, [
+    filters.projectId,
+    generationDraft.projectId,
+    generationDraft.promptKey,
+    health?.promptKey,
+    selectedTask?.projectId,
+    selectedTask?.promptKey,
+    selectedTask?.promptVersion,
+    taskFilters.projectId
+  ]);
 
   useEffect(() => {
     void refreshReleaseReadinessApprovals(selectedTaskId, { silent: true });
@@ -1526,6 +1943,119 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       void refreshTemplates({ silent: true });
     } catch (error: unknown) {
       setTemplateState({ loading: false, error: testDesignErrorMessage(error, '生成模板禁用失败') });
+    }
+  }
+
+  async function saveEvaluationSample(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!canPolicyManage) {
+      setEvaluationCorpusState({ loading: false, error: '缺少 testDesign:policy_manage 权限' });
+      return;
+    }
+    if (!evaluationSampleDraft.projectId.trim()) {
+      setEvaluationCorpusState({ loading: false, error: '请输入样本项目 ID' });
+      return;
+    }
+    if (!evaluationSampleDraft.title.trim() || !evaluationSampleDraft.requirementSummary.trim()
+        || !evaluationSampleDraft.expectedCaseOutline.trim()) {
+      setEvaluationCorpusState({ loading: false, error: '请填写样本标题、需求摘要和期望轮廓' });
+      return;
+    }
+    setEvaluationCorpusState({ loading: true });
+    try {
+      const payload = evaluationSamplePayload(evaluationSampleDraft);
+      const response = selectedEvaluationSample
+        ? await updateTestDesignEvaluationSample(selectedEvaluationSample.id, payload)
+        : await createTestDesignEvaluationSample(payload);
+      setSelectedEvaluationSampleId(response.data.id);
+      setEvaluationSamples((current) => upsertEvaluationSample(current, response.data));
+      setEvaluationCorpusState({
+        loading: false,
+        success: selectedEvaluationSample ? '评测样本已更新' : '评测样本已创建',
+        traceId: response.trace_id
+      });
+      void refreshEvaluationCorpusOperations({ silent: true });
+    } catch (error: unknown) {
+      setEvaluationCorpusState({ loading: false, error: testDesignErrorMessage(error, '评测样本保存失败') });
+    }
+  }
+
+  async function transitionEvaluationSample(status: string) {
+    if (!canPolicyManage) {
+      setEvaluationCorpusState({ loading: false, error: '缺少 testDesign:policy_manage 权限' });
+      return;
+    }
+    if (!selectedEvaluationSample) {
+      setEvaluationCorpusState({ loading: false, error: '请先选择评测样本' });
+      return;
+    }
+    setEvaluationCorpusState({ loading: true });
+    try {
+      const response = await transitionTestDesignEvaluationSample(selectedEvaluationSample.id, {
+        status,
+        baselineVersion: evaluationSampleDraft.baselineVersion,
+        maintenanceNote: evaluationSampleDraft.maintenanceNote
+      });
+      setEvaluationSamples((current) => upsertEvaluationSample(current, response.data));
+      setEvaluationCorpusState({ loading: false, success: `样本已流转为 ${status}`, traceId: response.trace_id });
+      void refreshEvaluationCorpusOperations({ silent: true });
+    } catch (error: unknown) {
+      setEvaluationCorpusState({ loading: false, error: testDesignErrorMessage(error, '样本状态流转失败') });
+    }
+  }
+
+  async function extractEvaluationSampleFromCandidate() {
+    if (!canPolicyManage) {
+      setEvaluationCorpusState({ loading: false, error: '缺少 testDesign:policy_manage 权限' });
+      return;
+    }
+    if (!selectedCandidateId) {
+      setEvaluationCorpusState({ loading: false, error: '请先选择候选用例' });
+      return;
+    }
+    setEvaluationCorpusState({ loading: true });
+    try {
+      const response = await createTestDesignEvaluationSampleFromCandidate({
+        candidateId: selectedCandidateId,
+        sampleKey: evaluationSampleDraft.sampleKey,
+        status: evaluationSampleDraft.status,
+        baselineVersion: evaluationSampleDraft.baselineVersion,
+        maintenanceNote: evaluationSampleDraft.maintenanceNote
+      });
+      setSelectedEvaluationSampleId(response.data.id);
+      setEvaluationSamples((current) => upsertEvaluationSample(current, response.data));
+      setEvaluationCorpusState({ loading: false, success: '已从候选提取评测样本', traceId: response.trace_id });
+      void refreshEvaluationCorpusOperations({ silent: true });
+    } catch (error: unknown) {
+      setEvaluationCorpusState({ loading: false, error: testDesignErrorMessage(error, '候选样本提取失败') });
+    }
+  }
+
+  async function runCalibration() {
+    if (!canPolicyManage) {
+      setEvaluationCorpusState({ loading: false, error: '缺少 testDesign:policy_manage 权限' });
+      return;
+    }
+    if (!calibrationRunDraft.projectId.trim()) {
+      setEvaluationCorpusState({ loading: false, error: '请输入校准项目 ID' });
+      return;
+    }
+    setEvaluationCorpusState({ loading: true });
+    try {
+      const response = await requestTestDesignCalibrationRun({
+        projectId: calibrationRunDraft.projectId,
+        promptKey: calibrationRunDraft.promptKey,
+        promptVersion: calibrationRunDraft.promptVersion,
+        baselineVersion: calibrationRunDraft.baselineVersion,
+        runMode: calibrationRunDraft.runMode,
+        notes: calibrationRunDraft.notes
+      });
+      setCalibrationRuns((current) => [response.data, ...current.filter((run) => run.id !== response.data.id)].slice(0, 6));
+      setEvaluationCorpusState({ loading: false, success: `校准运行完成：${response.data.status}`, traceId: response.trace_id });
+      void refreshEvaluationCorpusOperations({ silent: true });
+      void refreshPromptTrend({ silent: true });
+    } catch (error: unknown) {
+      setEvaluationCorpusState({ loading: false, error: testDesignErrorMessage(error, '校准运行失败') });
     }
   }
 
@@ -2209,6 +2739,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
         void refreshTaskQualitySummary(selectedTaskId, { silent: true });
         void refreshTaskAuditSummary(selectedTaskId, { silent: true });
         void refreshPromptTrend({ silent: true });
+        void refreshConflictOperations(0, { silent: true });
       }
     } catch (error: unknown) {
       setPublishState({ loading: false, error: testDesignErrorMessage(error, dryRun ? '预发布检查失败' : '发布失败') });
@@ -2298,6 +2829,27 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
     });
   }
 
+  function requestBatchResolveConflictOperations() {
+    if (!canPublish) {
+      setPublishState({ loading: false, error: '缺少 testDesign:publish 权限' });
+      return;
+    }
+    if (!batchResolvableConflictOperationItems.length) {
+      setPublishState({ loading: false, error: '请先为至少一条运营台冲突选择目标用例' });
+      return;
+    }
+
+    setPendingConfirmation({
+      kind: 'batchResolveConflict',
+      items: batchResolvableConflictOperationItems,
+      summary: buildTestDesignBatchConflictResolutionConfirmation(
+        batchResolvableConflictOperationItems,
+        conflictResolutionDraft.reason,
+        conflictResolutionDraft.comment
+      )
+    });
+  }
+
   async function executeResolveConflict(candidate: ConflictResolutionCandidate, record: TestDesignPublishRecordView) {
     if (!canPublish) {
       setPublishState({ loading: false, error: '缺少 testDesign:publish 权限' });
@@ -2326,6 +2878,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
         void refreshTaskAuditSummary(selectedTaskId, { silent: true });
         void refreshPromptTrend({ silent: true });
       }
+      void refreshConflictOperations(conflictOperationPageIndex, { silent: true });
       if (response.data.result === 'SUCCEEDED') {
         setConflictResolutionDraft(initialConflictResolutionDraft);
         setSelectedConflictCaseIds((current) => {
@@ -2404,6 +2957,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
         void refreshTaskAuditSummary(selectedTaskId, { silent: true });
         void refreshPromptTrend({ silent: true });
       }
+      void refreshConflictOperations(conflictOperationPageIndex, { silent: true });
 
       if (!failedItems.length) {
         setConflictResolutionDraft(initialConflictResolutionDraft);
@@ -2609,6 +3163,32 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
           state={promptTrendState}
           summary={promptTrendSummary}
           onRefresh={() => void refreshPromptTrend()}
+        />
+
+        <EvaluationCorpusOperationsPanel
+          state={evaluationCorpusState}
+          canPolicyManage={canPolicyManage}
+          samples={evaluationSamples}
+          sampleSummary={evaluationSampleSummary}
+          evaluationSummary={evaluationCorpusSummary}
+          sampleTotal={evaluationSamplePageTotal}
+          selectedSampleId={selectedEvaluationSampleId}
+          sampleDraft={evaluationSampleDraft}
+          calibrationDraft={calibrationRunDraft}
+          calibrationRuns={calibrationRuns}
+          calibrationSummary={calibrationSummary}
+          filters={evaluationSampleFilters}
+          selectedCandidateId={selectedCandidateId}
+          onRefresh={() => void refreshEvaluationCorpusOperations()}
+          onSelectSample={setSelectedEvaluationSampleId}
+          onNewSample={() => setSelectedEvaluationSampleId('')}
+          onSampleDraftChange={setEvaluationSampleDraft}
+          onCalibrationDraftChange={setCalibrationRunDraft}
+          onFiltersChange={setEvaluationSampleFilters}
+          onSaveSample={saveEvaluationSample}
+          onTransitionSample={(status) => void transitionEvaluationSample(status)}
+          onExtractFromCandidate={() => void extractEvaluationSampleFromCandidate()}
+          onRunCalibration={() => void runCalibration()}
         />
 
         <AuditSummaryPanel
@@ -3034,6 +3614,250 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
               )}
             </div>
             <StateLine state={contextPolicyState} />
+          </div>
+        </section>
+
+        <section className="panel test-design-conflict-operations-panel">
+          <div className="panel-header compact">
+            <div>
+              <h2 className="panel-title">资产冲突运营台</h2>
+              <p className="panel-desc">
+                {conflictOperationSummary
+                  ? `未处理 ${conflictOperationSummary.openCount} · 已处理 ${conflictOperationSummary.resolvedCount}`
+                  : '正式发布冲突集中处理。'}
+              </p>
+            </div>
+            <div className="toolbar-actions">
+              <button
+                className="btn btn-secondary btn-xs"
+                type="button"
+                disabled={!canPublish || publishState.loading || !batchResolvableConflictOperationItems.length}
+                onClick={requestBatchResolveConflictOperations}
+              >
+                <Link2 size={14} />
+                批量复用 {batchResolvableConflictOperationItems.length}
+              </button>
+              <button
+                className="btn btn-secondary btn-xs"
+                type="button"
+                disabled={!canRead || conflictOperationState.loading}
+                onClick={() => void refreshConflictOperations(0)}
+              >
+                <RefreshCw size={14} />
+                刷新
+              </button>
+            </div>
+          </div>
+          <div className="panel-body compact main-stack">
+            <div className="asset-filter-bar test-design-conflict-operations-filter">
+              <label className="field">
+                <span className="field-label">项目</span>
+                <input
+                  value={conflictOperationProjectId}
+                  onChange={(event) => setConflictOperationFilters((current) => ({ ...current, projectId: event.target.value }))}
+                  placeholder="project UUID"
+                  disabled={!canRead || conflictOperationState.loading}
+                />
+              </label>
+              <label className="field">
+                <span className="field-label">任务 ID</span>
+                <input
+                  value={conflictOperationFilters.taskId}
+                  onChange={(event) => setConflictOperationFilters((current) => ({ ...current, taskId: event.target.value }))}
+                  placeholder={selectedTaskId || '全部任务'}
+                  disabled={!canRead || conflictOperationState.loading}
+                />
+              </label>
+              <label className="field">
+                <span className="field-label">处理状态</span>
+                <select
+                  value={conflictOperationFilters.resolutionStatus}
+                  onChange={(event) => setConflictOperationFilters((current) => ({
+                    ...current,
+                    resolutionStatus: event.target.value as ConflictOperationFilters['resolutionStatus']
+                  }))}
+                  disabled={!canRead || conflictOperationState.loading}
+                >
+                  <option value="OPEN">OPEN</option>
+                  <option value="RESOLVED">RESOLVED</option>
+                  <option value="ALL">ALL</option>
+                </select>
+              </label>
+              <label className="field">
+                <span className="field-label">候选状态</span>
+                <select
+                  value={conflictOperationFilters.candidateStatus}
+                  onChange={(event) => setConflictOperationFilters((current) => ({ ...current, candidateStatus: event.target.value }))}
+                  disabled={!canRead || conflictOperationState.loading}
+                >
+                  <option value="">全部</option>
+                  {TEST_DESIGN_CANDIDATE_STATUSES.map((status) => (
+                    <option value={status} key={status}>{status}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="field">
+                <span className="field-label">关键词</span>
+                <input
+                  value={conflictOperationFilters.keyword}
+                  onChange={(event) => setConflictOperationFilters((current) => ({ ...current, keyword: event.target.value }))}
+                  placeholder="候选 / 任务 / 用例"
+                  disabled={!canRead || conflictOperationState.loading}
+                />
+              </label>
+              <div className="toolbar-actions test-design-conflict-operations-actions">
+                <button
+                  className="btn btn-secondary btn-sm"
+                  type="button"
+                  disabled={!canRead || conflictOperationState.loading || !selectedTaskId}
+                  onClick={() => setConflictOperationFilters((current) => ({ ...current, taskId: selectedTaskId }))}
+                >
+                  <ClipboardCheck size={15} />
+                  当前任务
+                </button>
+                <button
+                  className="btn btn-ghost btn-sm"
+                  type="button"
+                  disabled={!canRead || conflictOperationState.loading}
+                  onClick={() => setConflictOperationFilters(initialConflictOperationFilters)}
+                >
+                  <Search size={15} />
+                  重置
+                </button>
+              </div>
+            </div>
+            <div className="test-design-conflict-form">
+              <label className="field">
+                <span className="field-label">处理原因</span>
+                <input
+                  value={conflictResolutionDraft.reason}
+                  onChange={(event) => setConflictResolutionDraft((current) => ({ ...current, reason: event.target.value }))}
+                  disabled={!canPublish || publishState.loading}
+                />
+              </label>
+              <label className="field">
+                <span className="field-label">用例关键词</span>
+                <input
+                  value={conflictCaseKeyword}
+                  onChange={(event) => setConflictCaseKeyword(event.target.value)}
+                  placeholder="标题 / 标签 / 编号"
+                  disabled={!canRead || publishState.loading || !conflictCaseSearchProjectId}
+                />
+              </label>
+              <label className="field">
+                <span className="field-label">补充说明</span>
+                <input
+                  value={conflictResolutionDraft.comment}
+                  onChange={(event) => setConflictResolutionDraft((current) => ({ ...current, comment: event.target.value }))}
+                  placeholder="比对说明"
+                  disabled={!canPublish || publishState.loading}
+                />
+              </label>
+              <div className="field test-design-conflict-search-action">
+                <span className="field-label">既有用例</span>
+                <button
+                  className="btn btn-secondary btn-sm"
+                  type="button"
+                  disabled={!canRead || publishState.loading || !conflictCaseSearchProjectId}
+                  onClick={() => void searchConflictCases()}
+                >
+                  <Search size={15} />
+                  搜索
+                </button>
+              </div>
+            </div>
+            {conflictOperationSummary && (
+              <div className="detail-grid">
+                <Detail label="冲突总数" value={conflictOperationSummary.totalCount} />
+                <Detail label="未处理" value={conflictOperationSummary.openCount} />
+                <Detail label="已处理" value={conflictOperationSummary.resolvedCount} />
+                <Detail label="人工复核" value={conflictOperationSummary.duplicateReviewCount} />
+                <Detail label="最近冲突" value={conflictOperationSummary.latestConflictAt ?? '-'} />
+              </div>
+            )}
+            <div className="test-design-conflict-operations-list">
+              {conflictOperations.length ? conflictOperations.map((item) => {
+                const record = item.record;
+                const candidate = conflictResolutionCandidate(record, conflictCandidateById);
+                const targetCaseId = conflictResolutionTargetCaseId(record, selectedConflictCaseIds);
+                return (
+                  <div className={item.resolved ? 'test-design-conflict-operation-row resolved' : 'test-design-conflict-operation-row'} key={publishRecordKey(record)}>
+                    <span>
+                      <strong>{item.candidateTitle ?? record.title ?? item.candidateId ?? '-'}</strong>
+                      <em>{item.taskTitle ?? item.taskId ?? '-'} · {item.candidateStatus ?? '-'}@v{item.candidateVersion}</em>
+                      <em>{targetCaseId ? `目标用例 ${targetCaseId}` : `推荐用例 ${item.recommendedCaseId ?? '-'}`}</em>
+                      {record.errorMessage && <small>{record.errorMessage}</small>}
+                    </span>
+                    <div className="test-design-conflict-controls">
+                      <PublishResultBadge value={item.resolved ? 'RESOLVED' : record.result} />
+                      <select
+                        value={targetCaseId}
+                        onChange={(event) => {
+                          const nextCaseId = event.target.value;
+                          const candidateId = record.candidateId;
+                          if (candidateId) {
+                            setSelectedConflictCaseIds((current) => ({
+                              ...current,
+                              [candidateId]: nextCaseId
+                            }));
+                          }
+                        }}
+                        disabled={!canPublish || publishState.loading || !item.resolvable}
+                      >
+                        <option value="">{record.assetCaseId ? '清空目标' : '选择目标用例'}</option>
+                        {record.assetCaseId && (
+                          <option value={record.assetCaseId}>推荐 {shortIdentifier(record.assetCaseId)}</option>
+                        )}
+                        {conflictCaseResults.filter((testCase) => testCase.id !== record.assetCaseId).map((testCase) => (
+                          <option value={testCase.id} key={`${record.candidateId}-${testCase.id}`}>
+                            {testCase.title || shortIdentifier(testCase.id)}
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        className="btn btn-secondary btn-xs"
+                        type="button"
+                        disabled={!canPublish || publishState.loading || !item.resolvable || !candidate || !targetCaseId}
+                        onClick={() => requestResolveConflict(record)}
+                      >
+                        <Link2 size={14} />
+                        复用
+                      </button>
+                    </div>
+                  </div>
+                );
+              }) : (
+                <div className="notice info">{conflictOperationProjectId ? '暂无匹配冲突' : '请先填写项目 ID'}</div>
+              )}
+            </div>
+            {conflictOperationPage.total > TEST_DESIGN_CONFLICT_OPERATION_PAGE_SIZE && (
+              <div className="test-design-pagination" aria-label="资产冲突分页">
+                <span>
+                  {conflictOperationPage.items.length
+                    ? `${conflictOperationPage.start}-${conflictOperationPage.end} / ${conflictOperationPage.total}`
+                    : `0 / ${conflictOperationPage.total}`}
+                </span>
+                <button
+                  className="btn btn-secondary btn-xs"
+                  type="button"
+                  disabled={conflictOperationPage.index <= 0 || conflictOperationState.loading}
+                  onClick={() => void refreshConflictOperations(Math.max(0, conflictOperationPage.index - 1))}
+                >
+                  <ChevronLeft size={14} />
+                  上一页
+                </button>
+                <button
+                  className="btn btn-secondary btn-xs"
+                  type="button"
+                  disabled={(conflictOperationPage.index + 1) * TEST_DESIGN_CONFLICT_OPERATION_PAGE_SIZE >= conflictOperationPage.total || conflictOperationState.loading}
+                  onClick={() => void refreshConflictOperations(conflictOperationPage.index + 1)}
+                >
+                  下一页
+                  <ChevronRight size={14} />
+                </button>
+              </div>
+            )}
+            <StateLine state={conflictOperationState} />
           </div>
         </section>
 
@@ -4376,6 +5200,447 @@ function PromptTrendPanel(props: {
   );
 }
 
+function EvaluationCorpusOperationsPanel(props: {
+  state: WorkState;
+  canPolicyManage: boolean;
+  samples: TestDesignEvaluationSampleView[];
+  sampleSummary: TestDesignEvaluationSampleSummaryView | null;
+  evaluationSummary: TestDesignEvaluationCorpusSummaryView | null;
+  sampleTotal: number;
+  selectedSampleId: string;
+  sampleDraft: EvaluationSampleDraft;
+  calibrationDraft: CalibrationRunDraft;
+  calibrationRuns: TestDesignCalibrationRunView[];
+  calibrationSummary: TestDesignCalibrationSummaryView | null;
+  filters: EvaluationSampleFilters;
+  selectedCandidateId: string;
+  onRefresh: () => void;
+  onSelectSample: (sampleId: string) => void;
+  onNewSample: () => void;
+  onSampleDraftChange: Dispatch<SetStateAction<EvaluationSampleDraft>>;
+  onCalibrationDraftChange: Dispatch<SetStateAction<CalibrationRunDraft>>;
+  onFiltersChange: Dispatch<SetStateAction<EvaluationSampleFilters>>;
+  onSaveSample: (event: FormEvent<HTMLFormElement>) => void;
+  onTransitionSample: (status: string) => void;
+  onExtractFromCandidate: () => void;
+  onRunCalibration: () => void;
+}) {
+  const selectedSample = props.samples.find((sample) => sample.id === props.selectedSampleId) ?? null;
+  const latestCalibrationStatus = props.calibrationSummary?.latestStatus
+    ?? props.evaluationSummary?.latestCalibrationStatus
+    ?? '-';
+  const canMutate = props.canPolicyManage && !props.state.loading;
+
+  return (
+    <section className="panel test-design-evaluation-corpus">
+      <div className="panel-header compact">
+        <div>
+          <h2 className="panel-title">真实样本维护</h2>
+          <p className="panel-desc">
+            {props.evaluationSummary?.projectId || props.filters.projectId || '未选择项目'}
+            {' · '}
+            {props.evaluationSummary?.promptKey || props.filters.promptKey || '未选择 Prompt'}
+          </p>
+        </div>
+        <div className="toolbar-actions">
+          <button className="btn btn-secondary btn-sm" type="button" disabled={props.state.loading} onClick={props.onRefresh}>
+            <RefreshCw size={15} />
+            刷新
+          </button>
+          <button className="btn btn-secondary btn-sm" type="button" disabled={!props.canPolicyManage} onClick={props.onNewSample}>
+            <Plus size={15} />
+            新建样本
+          </button>
+        </div>
+      </div>
+      <div className="panel-body compact main-stack">
+        <StateLine state={props.state} />
+        <div className="test-design-quality-metrics test-design-evaluation-metrics">
+          <div className="test-design-quality-metric tone-info">
+            <span>维护样本</span>
+            <strong>{props.sampleSummary?.totalCount ?? props.evaluationSummary?.maintainedSampleCount ?? 0}</strong>
+            <small>当前筛选 {props.sampleTotal}</small>
+          </div>
+          <div className="test-design-quality-metric tone-success">
+            <span>Golden</span>
+            <strong>{props.sampleSummary?.goldenCount ?? props.evaluationSummary?.goldenSampleCount ?? 0}</strong>
+            <small>基线 {props.sampleSummary?.baselineVersionCount ?? props.evaluationSummary?.baselineVersionCount ?? 0}</small>
+          </div>
+          <div className="test-design-quality-metric tone-warning">
+            <span>冻结/废弃</span>
+            <strong>{(props.sampleSummary?.frozenCount ?? props.evaluationSummary?.frozenSampleCount ?? 0)
+              + (props.sampleSummary?.deprecatedCount ?? props.evaluationSummary?.deprecatedSampleCount ?? 0)}</strong>
+            <small>冻结 {props.sampleSummary?.frozenCount ?? props.evaluationSummary?.frozenSampleCount ?? 0}</small>
+          </div>
+          <div className={`test-design-quality-metric tone-${calibrationStatusTone(latestCalibrationStatus)}`}>
+            <span>长期校准</span>
+            <strong>{props.calibrationSummary?.totalRunCount ?? props.evaluationSummary?.calibrationRunCount ?? 0}</strong>
+            <small>{latestCalibrationStatus}</small>
+          </div>
+        </div>
+
+        <div className="form-grid test-design-evaluation-filter">
+          <label className="field">
+            <span className="field-label">项目 ID</span>
+            <input
+              value={props.filters.projectId}
+              onChange={(event) => props.onFiltersChange((current) => ({ ...current, projectId: event.target.value }))}
+              placeholder="project UUID"
+            />
+          </label>
+          <label className="field">
+            <span className="field-label">Prompt</span>
+            <input
+              value={props.filters.promptKey}
+              onChange={(event) => props.onFiltersChange((current) => ({ ...current, promptKey: event.target.value }))}
+              placeholder="prompt key"
+            />
+          </label>
+          <label className="field">
+            <span className="field-label">版本</span>
+            <input
+              value={props.filters.promptVersion}
+              onChange={(event) => props.onFiltersChange((current) => ({ ...current, promptVersion: event.target.value }))}
+              placeholder="prompt version"
+            />
+          </label>
+          <label className="field">
+            <span className="field-label">状态</span>
+            <select
+              value={props.filters.status}
+              onChange={(event) => props.onFiltersChange((current) => ({ ...current, status: event.target.value }))}
+            >
+              <option value="">全部</option>
+              {evaluationSampleStatuses.map((status) => (
+                <option key={status} value={status}>{status}</option>
+              ))}
+            </select>
+          </label>
+          <label className="field">
+            <span className="field-label">覆盖类型</span>
+            <select
+              value={props.filters.coverageType}
+              onChange={(event) => props.onFiltersChange((current) => ({ ...current, coverageType: event.target.value }))}
+            >
+              <option value="">全部</option>
+              {TEST_DESIGN_COVERAGE_TYPES.map((coverageType) => (
+                <option key={coverageType} value={coverageType}>{coverageType}</option>
+              ))}
+            </select>
+          </label>
+          <label className="field">
+            <span className="field-label">基线</span>
+            <input
+              value={props.filters.baselineVersion}
+              onChange={(event) => props.onFiltersChange((current) => ({ ...current, baselineVersion: event.target.value }))}
+              placeholder="baseline"
+            />
+          </label>
+          <label className="field">
+            <span className="field-label">关键词</span>
+            <input
+              value={props.filters.keyword}
+              onChange={(event) => props.onFiltersChange((current) => ({ ...current, keyword: event.target.value }))}
+              placeholder="样本标题 / 标签"
+            />
+          </label>
+        </div>
+
+        <div className="test-design-evaluation-grid">
+          <form className="test-design-evaluation-form" onSubmit={props.onSaveSample}>
+            <div className="test-design-evaluation-form-heading">
+              <strong>{selectedSample ? '编辑样本' : '新建样本'}</strong>
+              {selectedSample && (
+                <span className={`badge badge-${sampleStatusTone(selectedSample.status)}`}>{selectedSample.status}</span>
+              )}
+            </div>
+            <div className="form-grid">
+              <label className="field">
+                <span className="field-label">样本 Key</span>
+                <input
+                  value={props.sampleDraft.sampleKey}
+                  onChange={(event) => props.onSampleDraftChange((current) => ({ ...current, sampleKey: event.target.value }))}
+                  placeholder="留空自动生成"
+                  disabled={!props.canPolicyManage}
+                />
+              </label>
+              <label className="field">
+                <span className="field-label">标题</span>
+                <input
+                  value={props.sampleDraft.title}
+                  onChange={(event) => props.onSampleDraftChange((current) => ({ ...current, title: event.target.value }))}
+                  disabled={!props.canPolicyManage}
+                />
+              </label>
+              <label className="field">
+                <span className="field-label">来源</span>
+                <select
+                  value={props.sampleDraft.sourceType}
+                  onChange={(event) => props.onSampleDraftChange((current) => ({ ...current, sourceType: event.target.value }))}
+                  disabled={!props.canPolicyManage}
+                >
+                  {evaluationSampleSourceTypes.map((sourceType) => (
+                    <option key={sourceType} value={sourceType}>{sourceType}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="field">
+                <span className="field-label">覆盖类型</span>
+                <select
+                  value={props.sampleDraft.coverageType}
+                  onChange={(event) => props.onSampleDraftChange((current) => ({ ...current, coverageType: event.target.value }))}
+                  disabled={!props.canPolicyManage}
+                >
+                  {TEST_DESIGN_COVERAGE_TYPES.map((coverageType) => (
+                    <option key={coverageType} value={coverageType}>{coverageType}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="field">
+                <span className="field-label">优先级</span>
+                <select
+                  value={props.sampleDraft.priority}
+                  onChange={(event) => props.onSampleDraftChange((current) => ({ ...current, priority: event.target.value }))}
+                  disabled={!props.canPolicyManage}
+                >
+                  <option value="HIGH">HIGH</option>
+                  <option value="MEDIUM">MEDIUM</option>
+                  <option value="LOW">LOW</option>
+                </select>
+              </label>
+              <label className="field">
+                <span className="field-label">状态</span>
+                <select
+                  value={props.sampleDraft.status}
+                  onChange={(event) => props.onSampleDraftChange((current) => ({ ...current, status: event.target.value }))}
+                  disabled={!props.canPolicyManage}
+                >
+                  {evaluationSampleStatuses.map((status) => (
+                    <option key={status} value={status}>{status}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="field">
+                <span className="field-label">Prompt</span>
+                <input
+                  value={props.sampleDraft.promptKey}
+                  onChange={(event) => props.onSampleDraftChange((current) => ({ ...current, promptKey: event.target.value }))}
+                  disabled={!props.canPolicyManage}
+                />
+              </label>
+              <label className="field">
+                <span className="field-label">Prompt 版本</span>
+                <input
+                  value={props.sampleDraft.promptVersion}
+                  onChange={(event) => props.onSampleDraftChange((current) => ({ ...current, promptVersion: event.target.value }))}
+                  disabled={!props.canPolicyManage}
+                />
+              </label>
+              <label className="field">
+                <span className="field-label">基线版本</span>
+                <input
+                  value={props.sampleDraft.baselineVersion}
+                  onChange={(event) => props.onSampleDraftChange((current) => ({ ...current, baselineVersion: event.target.value }))}
+                  placeholder="baseline-v1"
+                  disabled={!props.canPolicyManage}
+                />
+              </label>
+              <label className="field">
+                <span className="field-label">标签</span>
+                <input
+                  value={props.sampleDraft.tags}
+                  onChange={(event) => props.onSampleDraftChange((current) => ({ ...current, tags: event.target.value }))}
+                  placeholder="逗号分隔"
+                  disabled={!props.canPolicyManage}
+                />
+              </label>
+            </div>
+            <label className="field">
+              <span className="field-label">需求摘要</span>
+              <textarea
+                value={props.sampleDraft.requirementSummary}
+                onChange={(event) => props.onSampleDraftChange((current) => ({ ...current, requirementSummary: event.target.value }))}
+                rows={3}
+                disabled={!props.canPolicyManage}
+              />
+            </label>
+            <label className="field">
+              <span className="field-label">期望用例轮廓</span>
+              <textarea
+                value={props.sampleDraft.expectedCaseOutline}
+                onChange={(event) => props.onSampleDraftChange((current) => ({ ...current, expectedCaseOutline: event.target.value }))}
+                rows={4}
+                disabled={!props.canPolicyManage}
+              />
+            </label>
+            <label className="field">
+              <span className="field-label">断言说明</span>
+              <textarea
+                value={props.sampleDraft.assertionNotes}
+                onChange={(event) => props.onSampleDraftChange((current) => ({ ...current, assertionNotes: event.target.value }))}
+                rows={2}
+                disabled={!props.canPolicyManage}
+              />
+            </label>
+            <label className="field">
+              <span className="field-label">维护备注</span>
+              <textarea
+                value={props.sampleDraft.maintenanceNote}
+                onChange={(event) => props.onSampleDraftChange((current) => ({ ...current, maintenanceNote: event.target.value }))}
+                rows={2}
+                disabled={!props.canPolicyManage}
+              />
+            </label>
+            <div className="toolbar-actions test-design-evaluation-actions">
+              <button className="btn btn-primary btn-sm" type="submit" disabled={!canMutate}>
+                <Save size={15} />
+                保存样本
+              </button>
+              <button className="btn btn-secondary btn-sm" type="button" disabled={!canMutate || !props.selectedCandidateId} onClick={props.onExtractFromCandidate}>
+                <ClipboardCheck size={15} />
+                从候选提取
+              </button>
+              <button className="btn btn-secondary btn-sm" type="button" disabled={!canMutate || !selectedSample} onClick={() => props.onTransitionSample('GOLDEN')}>
+                <CheckCircle2 size={15} />
+                纳入 GOLDEN
+              </button>
+              <button className="btn btn-secondary btn-sm" type="button" disabled={!canMutate || !selectedSample} onClick={() => props.onTransitionSample('FROZEN')}>
+                <Repeat2 size={15} />
+                冻结
+              </button>
+              <button className="btn btn-secondary btn-sm" type="button" disabled={!canMutate || !selectedSample} onClick={() => props.onTransitionSample('DEPRECATED')}>
+                <XCircle size={15} />
+                废弃
+              </button>
+            </div>
+          </form>
+
+          <div className="test-design-evaluation-side">
+            <div className="test-design-evaluation-list-heading">
+              <strong>样本列表</strong>
+              <span>{props.samples.length} / {props.sampleTotal}</span>
+            </div>
+            <div className="test-design-evaluation-list">
+              {props.samples.length ? (
+                props.samples.map((sample) => (
+                  <button
+                    className={`test-design-evaluation-row${sample.id === props.selectedSampleId ? ' selected' : ''}`}
+                    key={sample.id}
+                    type="button"
+                    onClick={() => props.onSelectSample(sample.id)}
+                  >
+                    <span>
+                      <strong>{sample.title || sample.sampleKey}</strong>
+                      <em>{sample.sampleKey} · {sample.coverageType} · {sample.promptVersion || '-'}</em>
+                      <small>
+                        {sample.baselineVersion || '无基线'}
+                        {sample.sampleDigest ? ` · ${shortIdentifier(sample.sampleDigest)}` : ''}
+                      </small>
+                    </span>
+                    <span className={`badge badge-${sampleStatusTone(sample.status)}`}>{sample.status}</span>
+                  </button>
+                ))
+              ) : (
+                <div className="notice info">暂无真实样本</div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="test-design-calibration-grid">
+          <div className="test-design-calibration-form">
+            <div className="test-design-evaluation-form-heading">
+              <strong>长期校准</strong>
+              <span className={`badge badge-${calibrationStatusTone(latestCalibrationStatus)}`}>{latestCalibrationStatus}</span>
+            </div>
+            <div className="form-grid">
+              <label className="field">
+                <span className="field-label">项目 ID</span>
+                <input
+                  value={props.calibrationDraft.projectId}
+                  onChange={(event) => props.onCalibrationDraftChange((current) => ({ ...current, projectId: event.target.value }))}
+                  disabled={!props.canPolicyManage}
+                />
+              </label>
+              <label className="field">
+                <span className="field-label">Prompt</span>
+                <input
+                  value={props.calibrationDraft.promptKey}
+                  onChange={(event) => props.onCalibrationDraftChange((current) => ({ ...current, promptKey: event.target.value }))}
+                  disabled={!props.canPolicyManage}
+                />
+              </label>
+              <label className="field">
+                <span className="field-label">Prompt 版本</span>
+                <input
+                  value={props.calibrationDraft.promptVersion}
+                  onChange={(event) => props.onCalibrationDraftChange((current) => ({ ...current, promptVersion: event.target.value }))}
+                  disabled={!props.canPolicyManage}
+                />
+              </label>
+              <label className="field">
+                <span className="field-label">基线版本</span>
+                <input
+                  value={props.calibrationDraft.baselineVersion}
+                  onChange={(event) => props.onCalibrationDraftChange((current) => ({ ...current, baselineVersion: event.target.value }))}
+                  disabled={!props.canPolicyManage}
+                />
+              </label>
+              <label className="field">
+                <span className="field-label">运行模式</span>
+                <select
+                  value={props.calibrationDraft.runMode}
+                  onChange={(event) => props.onCalibrationDraftChange((current) => ({ ...current, runMode: event.target.value }))}
+                  disabled={!props.canPolicyManage}
+                >
+                  {calibrationRunModes.map((mode) => (
+                    <option key={mode} value={mode}>{mode}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <label className="field">
+              <span className="field-label">校准备注</span>
+              <textarea
+                value={props.calibrationDraft.notes}
+                onChange={(event) => props.onCalibrationDraftChange((current) => ({ ...current, notes: event.target.value }))}
+                rows={2}
+                disabled={!props.canPolicyManage}
+              />
+            </label>
+            <div className="toolbar-actions">
+              <button className="btn btn-primary btn-sm" type="button" disabled={!canMutate} onClick={props.onRunCalibration}>
+                <Sparkles size={15} />
+                触发校准
+              </button>
+            </div>
+          </div>
+          <div className="test-design-calibration-list">
+            <div className="test-design-evaluation-list-heading">
+              <strong>校准记录</strong>
+              <span>{props.calibrationRuns.length}</span>
+            </div>
+            {props.calibrationRuns.length ? (
+              props.calibrationRuns.map((run) => (
+                <div className="test-design-calibration-row" key={run.id}>
+                  <span>
+                    <strong>{run.promptVersion || '-'} · {run.baselineVersion || '无基线'}</strong>
+                    <em>{run.runMode} · 样本 {run.sampleCount} · 候选 {run.candidateCount}</em>
+                    <small>回归 {run.regressionCount} · {run.createdAt ?? '-'}</small>
+                  </span>
+                  <span className={`badge badge-${calibrationStatusTone(run.status)}`}>{run.status}</span>
+                </div>
+              ))
+            ) : (
+              <div className="notice info">暂无校准运行</div>
+            )}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function AuditSummaryPanel(props: {
   state: WorkState;
   summary: TestDesignAuditSummary;
@@ -4602,6 +5867,22 @@ function releaseReadinessStatusTone(status?: string) {
   if (status === 'APPROVED' || status === 'READY') return 'success';
   if (status === 'REJECTED' || status === 'BLOCKED') return 'danger';
   if (status === 'PENDING' || status === 'WARNING') return 'warning';
+  return 'neutral';
+}
+
+function sampleStatusTone(status?: string) {
+  if (status === 'GOLDEN') return 'success';
+  if (status === 'FROZEN') return 'warning';
+  if (status === 'DEPRECATED') return 'danger';
+  if (status === 'CANDIDATE') return 'info';
+  return 'neutral';
+}
+
+function calibrationStatusTone(status?: string) {
+  if (status === 'PASSED' || status === 'READY') return 'success';
+  if (status === 'BLOCKED' || status === 'FAILED') return 'danger';
+  if (status === 'WARNING' || status === 'RUNNING') return 'warning';
+  if (status === 'PENDING') return 'info';
   return 'neutral';
 }
 
@@ -4960,6 +6241,17 @@ function upsertTemplate(current: TestDesignTemplateView[], template: TestDesignT
   return current.map((item) => (item.id === template.id ? template : item));
 }
 
+function upsertEvaluationSample(
+  current: TestDesignEvaluationSampleView[],
+  sample: TestDesignEvaluationSampleView
+) {
+  const exists = current.some((item) => item.id === sample.id);
+  if (!exists) {
+    return [sample, ...current];
+  }
+  return current.map((item) => (item.id === sample.id ? sample : item));
+}
+
 function mergeBatchCandidates(current: TestDesignCandidateView[], result: TestDesignCandidateBatchActionResult) {
   const candidateById = new Map(
     result.items
@@ -5000,6 +6292,46 @@ function draftFromCandidate(candidate: TestDesignCandidateView): CandidateDraft 
     steps: candidate.steps.length ? candidate.steps.map(stepDraftFromView) : [emptyStepDraft(), emptyStepDraft()],
     expectedResult: candidate.expectedResult ?? '',
     tags: candidate.tags.join(', ')
+  };
+}
+
+function evaluationSampleDraftFromView(sample: TestDesignEvaluationSampleView): EvaluationSampleDraft {
+  return {
+    projectId: sample.projectId ?? '',
+    sampleKey: sample.sampleKey,
+    title: sample.title,
+    sourceType: sample.sourceType || 'MANUAL',
+    promptKey: sample.promptKey ?? '',
+    promptVersion: sample.promptVersion ?? '',
+    coverageType: sample.coverageType || 'FUNCTIONAL',
+    priority: sample.priority || 'MEDIUM',
+    status: sample.status || 'CANDIDATE',
+    baselineVersion: sample.baselineVersion ?? '',
+    requirementSummary: sample.requirementSummary ?? '',
+    expectedCaseOutline: sample.expectedCaseOutline ?? '',
+    assertionNotes: sample.assertionNotes ?? '',
+    tags: sample.tags ?? '',
+    maintenanceNote: sample.maintenanceNote ?? ''
+  };
+}
+
+function evaluationSamplePayload(draft: EvaluationSampleDraft): SaveTestDesignEvaluationSamplePayload {
+  return {
+    projectId: draft.projectId.trim(),
+    sampleKey: draft.sampleKey.trim(),
+    title: draft.title.trim(),
+    sourceType: draft.sourceType,
+    promptKey: draft.promptKey.trim(),
+    promptVersion: draft.promptVersion.trim(),
+    coverageType: draft.coverageType,
+    priority: draft.priority,
+    status: draft.status,
+    baselineVersion: draft.baselineVersion.trim(),
+    requirementSummary: draft.requirementSummary.trim(),
+    expectedCaseOutline: draft.expectedCaseOutline.trim(),
+    assertionNotes: draft.assertionNotes.trim(),
+    tags: draft.tags.trim(),
+    maintenanceNote: draft.maintenanceNote.trim()
   };
 }
 

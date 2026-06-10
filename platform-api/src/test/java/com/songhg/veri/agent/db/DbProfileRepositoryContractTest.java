@@ -25,6 +25,7 @@ import com.songhg.veri.agent.modelaccess.domain.InvocationStatus;
 import com.songhg.veri.agent.modelaccess.infrastructure.JdbcModelInvocationJobRepository;
 import com.songhg.veri.agent.modelaccess.infrastructure.JdbcModelAccessRepository;
 import com.songhg.veri.agent.testdesign.application.port.TestDesignRepository;
+import com.songhg.veri.agent.testdesign.application.query.TestDesignConflictOperationQuery;
 import com.songhg.veri.agent.testdesign.domain.TestDesignAuditChainAggregate;
 import com.songhg.veri.agent.testdesign.domain.TestDesignCandidate;
 import com.songhg.veri.agent.testdesign.domain.TestDesignCandidateStatus;
@@ -617,6 +618,129 @@ class DbProfileRepositoryContractTest {
                 "FAILED",
                 now.plusSeconds(1)
         ))).isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    void testDesignRepositoryQueriesConflictOperationsThroughJdbc() {
+        String projectId = "project-wp5-conflict-ops-db-" + UUID.randomUUID();
+        Instant now = Instant.now();
+        AssetRequirement requirement = requirement(
+                projectId,
+                "REQ-WP5-CONFLICT-OPS",
+                "WP5 冲突运营 DB 需求",
+                "SRC-WP5-CONFLICT-OPS",
+                now
+        );
+        assetRepository.saveRequirement(requirement);
+        UUID taskId = UUID.randomUUID();
+        testDesignRepository.saveTask(testDesignTask(
+                taskId,
+                projectId,
+                TestDesignTaskStatus.SUCCEEDED,
+                "DB 冲突运营任务",
+                now
+        ));
+        TestCaseRecord testCase = testCase(
+                projectId,
+                UUID.randomUUID(),
+                "TC-WP5-CONFLICT-OPS",
+                "DB 冲突推荐用例",
+                "manual:" + UUID.randomUUID()
+        );
+        assetRepository.saveTestCase(testCase);
+        UUID candidateId = UUID.randomUUID();
+        testDesignRepository.saveCandidate(testDesignCandidate(
+                candidateId,
+                taskId,
+                projectId,
+                requirement.id(),
+                TestDesignCandidateStatus.CONFIRMED.name(),
+                null,
+                now.minusSeconds(10)
+        ));
+        testDesignRepository.savePublishRecord(publishRecord(
+                taskId,
+                candidateId,
+                projectId,
+                requirement.id(),
+                testCase.id(),
+                "DUPLICATE_REVIEW_REQUIRED",
+                "CONFLICT",
+                now.minusSeconds(8)
+        ));
+
+        TestDesignConflictOperationQuery openQuery = new TestDesignConflictOperationQuery(
+                projectId,
+                null,
+                null,
+                null,
+                null,
+                "OPEN",
+                "冲突",
+                PageQuery.of(0, 20)
+        );
+
+        assertThat(testDesignRepository.countConflictOperations(openQuery)).isEqualTo(1L);
+        assertThat(testDesignRepository.conflictOperations(openQuery))
+                .singleElement()
+                .satisfies(record -> {
+                    assertThat(record.candidateId()).isEqualTo(candidateId);
+                    assertThat(record.taskTitle()).isEqualTo("DB 冲突运营任务");
+                    assertThat(record.assetCaseId()).isEqualTo(testCase.id());
+                    assertThat(record.resolved()).isFalse();
+                });
+        assertThat(testDesignRepository.conflictOperationSummary(openQuery.withoutResolutionStatus()))
+                .satisfies(summary -> {
+                    assertThat(summary.totalCount()).isEqualTo(1L);
+                    assertThat(summary.openCount()).isEqualTo(1L);
+                    assertThat(summary.resolvedCount()).isZero();
+                    assertThat(summary.duplicateReviewCount()).isEqualTo(1L);
+                });
+
+        testDesignRepository.saveCandidate(testDesignCandidate(
+                candidateId,
+                taskId,
+                projectId,
+                requirement.id(),
+                TestDesignCandidateStatus.PUBLISHED.name(),
+                testCase.id(),
+                now.minusSeconds(2)
+        ));
+        testDesignRepository.savePublishRecord(publishRecord(
+                taskId,
+                candidateId,
+                projectId,
+                requirement.id(),
+                testCase.id(),
+                "MANUAL_LINK_EXISTING",
+                "SUCCEEDED",
+                now.minusSeconds(1)
+        ));
+        TestDesignConflictOperationQuery resolvedQuery = new TestDesignConflictOperationQuery(
+                projectId,
+                null,
+                null,
+                null,
+                null,
+                "RESOLVED",
+                null,
+                PageQuery.of(0, 20)
+        );
+
+        assertThat(testDesignRepository.countConflictOperations(openQuery)).isZero();
+        assertThat(testDesignRepository.conflictOperations(resolvedQuery))
+                .singleElement()
+                .satisfies(record -> {
+                    assertThat(record.candidateId()).isEqualTo(candidateId);
+                    assertThat(record.candidateStatus()).isEqualTo(TestDesignCandidateStatus.PUBLISHED.name());
+                    assertThat(record.resolved()).isTrue();
+                });
+        assertThat(testDesignRepository.conflictOperationSummary(resolvedQuery.withoutResolutionStatus()))
+                .satisfies(summary -> {
+                    assertThat(summary.totalCount()).isEqualTo(1L);
+                    assertThat(summary.openCount()).isZero();
+                    assertThat(summary.resolvedCount()).isEqualTo(1L);
+                });
     }
 
     @Test

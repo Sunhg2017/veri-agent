@@ -2,12 +2,21 @@ package com.songhg.veri.agent.testdesign.infrastructure.mapper;
 
 import com.songhg.veri.agent.common.api.PageQuery;
 import com.songhg.veri.agent.testdesign.application.query.TestDesignCandidateQuery;
+import com.songhg.veri.agent.testdesign.application.query.TestDesignCalibrationRunQuery;
+import com.songhg.veri.agent.testdesign.application.query.TestDesignConflictOperationQuery;
+import com.songhg.veri.agent.testdesign.application.query.TestDesignEvaluationSampleQuery;
 import com.songhg.veri.agent.testdesign.application.query.TestDesignTaskQuery;
 import com.songhg.veri.agent.testdesign.application.query.TestDesignTemplateQuery;
 import com.songhg.veri.agent.testdesign.domain.TestDesignAuditChainAggregate;
+import com.songhg.veri.agent.testdesign.domain.TestDesignCalibrationRun;
+import com.songhg.veri.agent.testdesign.domain.TestDesignCalibrationSummary;
 import com.songhg.veri.agent.testdesign.domain.TestDesignCandidate;
+import com.songhg.veri.agent.testdesign.domain.TestDesignConflictOperationRecord;
+import com.songhg.veri.agent.testdesign.domain.TestDesignConflictOperationSummary;
 import com.songhg.veri.agent.testdesign.domain.TestDesignContextPolicyNote;
 import com.songhg.veri.agent.testdesign.domain.TestDesignContextPolicyOverride;
+import com.songhg.veri.agent.testdesign.domain.TestDesignEvaluationSample;
+import com.songhg.veri.agent.testdesign.domain.TestDesignEvaluationSampleSummary;
 import com.songhg.veri.agent.testdesign.domain.TestDesignPublishRecord;
 import com.songhg.veri.agent.testdesign.domain.TestDesignReleaseReadinessApproval;
 import com.songhg.veri.agent.testdesign.domain.TestDesignReleaseReadinessNote;
@@ -129,6 +138,16 @@ public interface TestDesignMapper {
 
     List<TestDesignPublishRecord> publishRecords(@Param("taskId") UUID taskId);
 
+    List<TestDesignConflictOperationRecord> conflictOperations(
+            @Param("query") TestDesignConflictOperationQuery query
+    );
+
+    long countConflictOperations(@Param("query") TestDesignConflictOperationQuery query);
+
+    TestDesignConflictOperationSummary conflictOperationSummary(
+            @Param("query") TestDesignConflictOperationQuery query
+    );
+
     void insertReportManifest(TestDesignReportManifest manifest);
 
     List<TestDesignReportManifest> reportManifestsByTask(@Param("taskId") UUID taskId);
@@ -170,4 +189,41 @@ public interface TestDesignMapper {
     List<TestDesignReleaseReadinessNote> releaseReadinessNotes(@Param("approvalId") UUID approvalId);
 
     TestDesignReleaseReadinessApproval latestApprovedReleaseReadinessApproval(@Param("taskId") UUID taskId);
+
+    List<TestDesignEvaluationSample> evaluationSamples(@Param("query") TestDesignEvaluationSampleQuery query);
+
+    long countEvaluationSamples(@Param("query") TestDesignEvaluationSampleQuery query);
+
+    TestDesignEvaluationSample evaluationSample(@Param("id") UUID id);
+
+    TestDesignEvaluationSample evaluationSampleByProjectAndKey(
+            @Param("projectId") String projectId,
+            @Param("sampleKey") String sampleKey
+    );
+
+    void insertEvaluationSample(TestDesignEvaluationSample sample);
+
+    void updateEvaluationSample(TestDesignEvaluationSample sample);
+
+    TestDesignEvaluationSampleSummary evaluationSampleSummary(
+            @Param("projectId") String projectId,
+            @Param("promptKey") String promptKey
+    );
+
+    List<TestDesignCalibrationRun> calibrationRuns(@Param("query") TestDesignCalibrationRunQuery query);
+
+    long countCalibrationRuns(@Param("query") TestDesignCalibrationRunQuery query);
+
+    void insertCalibrationRun(TestDesignCalibrationRun run);
+
+    TestDesignCalibrationSummary calibrationSummary(
+            @Param("projectId") String projectId,
+            @Param("promptKey") String promptKey
+    );
+
+    TestDesignCalibrationRun latestCalibrationRun(
+            @Param("projectId") String projectId,
+            @Param("promptKey") String promptKey,
+            @Param("promptVersion") String promptVersion
+    );
 }
