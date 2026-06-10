@@ -212,7 +212,9 @@ public class TestDesignTaskService {
                 generationConfig.promptKey(),
                 generationConfig.promptVersion(),
                 generationConfig.templateId(),
-                generationConfig.templateName()
+                generationConfig.templateName(),
+                generationConfig.generationStrategy(),
+                generationConfig.coverageStrategy()
         );
         Optional<TestDesignTask> replayedTask = replayIdempotentTaskIfPresent(projectId, idempotencyKey, requestDigest);
         if (replayedTask.isPresent()) {
@@ -619,7 +621,9 @@ public class TestDesignTaskService {
             String promptKey,
             String promptVersion,
             UUID templateId,
-            String templateName
+            String templateName,
+            String generationStrategy,
+            String coverageStrategy
     ) {
         // Hash only immutable request inputs and generation config; mutable requirement titles/content are excluded.
         Map<String, Object> payload = new LinkedHashMap<>();
@@ -636,6 +640,8 @@ public class TestDesignTaskService {
         payload.put("promptVersion", promptVersion);
         payload.put("templateId", templateId == null ? null : templateId.toString());
         payload.put("templateName", trimToNull(templateName));
+        payload.put("generationStrategy", trimToNull(generationStrategy));
+        payload.put("coverageStrategy", trimToNull(coverageStrategy));
         payload.put("generationMode", properties.generationMode());
         payload.put("contextLimits", effectivePolicy.contextLimits());
         payload.put("contextPolicyGovernance", TestDesignContextPolicyGovernance.snapshot(effectivePolicy));
@@ -696,6 +702,8 @@ public class TestDesignTaskService {
         return new EffectiveTaskGenerationConfig(
                 defaults == null ? null : defaults.templateId(),
                 defaults == null ? null : defaults.templateName(),
+                defaults == null ? null : defaults.generationStrategy(),
+                defaults == null ? null : defaults.coverageStrategy(),
                 environmentKey,
                 explicitContext,
                 coverageTypes,
@@ -738,6 +746,8 @@ public class TestDesignTaskService {
         Map<String, Object> summary = new LinkedHashMap<>();
         summary.put("templateId", config.templateId().toString());
         summary.put("name", config.templateName());
+        summary.put("generationStrategy", config.generationStrategy());
+        summary.put("coverageStrategy", config.coverageStrategy());
         return summary;
     }
 
@@ -855,6 +865,8 @@ public class TestDesignTaskService {
         details.put("promptKey", generationConfig.promptKey());
         details.put("promptVersion", generationConfig.promptVersion());
         details.put("templateId", generationConfig.templateId() == null ? null : generationConfig.templateId().toString());
+        details.put("generationStrategy", generationConfig.generationStrategy());
+        details.put("coverageStrategy", generationConfig.coverageStrategy());
         details.put("explicitContextApiCount", explicitContext.apiIds().size());
         details.put("explicitContextPageCount", explicitContext.pageIds().size());
         details.put("explicitContextFlowCount", explicitContext.flowIds().size());
@@ -885,6 +897,8 @@ public class TestDesignTaskService {
     private record EffectiveTaskGenerationConfig(
             UUID templateId,
             String templateName,
+            String generationStrategy,
+            String coverageStrategy,
             String environmentKey,
             TestDesignGenerationService.ExplicitContextAssetIds explicitContext,
             List<String> coverageTypes,

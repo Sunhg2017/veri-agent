@@ -50,6 +50,7 @@ with expected(table_name) as (
         ('document_input_webhook_event'),
         ('document_input_retention_archive'),
         -- WP5 AI test design tables
+        ('test_design_template'),
         ('test_design_task'),
         ('test_design_candidate'),
         ('test_design_review_record'),
@@ -273,6 +274,11 @@ with expected(table_name, column_name) as (
         ('document_input_retention_archive','id'), ('document_input_retention_archive','record_type'), ('document_input_retention_archive','record_id'),
         ('document_input_retention_archive','snapshot_json'), ('document_input_retention_archive','archived_at'),
         -- WP5 key columns
+        ('test_design_template','id'), ('test_design_template','project_id'), ('test_design_template','name'),
+        ('test_design_template','prompt_key'), ('test_design_template','prompt_version'),
+        ('test_design_template','coverage_types'), ('test_design_template','generation_strategy'),
+        ('test_design_template','coverage_strategy'), ('test_design_template','case_count_per_requirement'),
+        ('test_design_template','context_defaults_json'), ('test_design_template','enabled'),
         ('test_design_task','id'), ('test_design_task','project_id'), ('test_design_task','title'), ('test_design_task','status'),
         ('test_design_task','requirement_ids'), ('test_design_task','coverage_types'), ('test_design_task','prompt_key'),
         ('test_design_task','prompt_version'), ('test_design_task','model_invocation_id'), ('test_design_task','model_provider_name'),
@@ -488,6 +494,11 @@ with expected(table_name, index_name) as (
         ('document_input_retention_archive','uk_document_input_retention_archive_record'),
         ('document_input_retention_archive','idx_document_input_retention_archive_type_time'),
         -- WP5 key indexes
+        ('test_design_template','uk_test_design_template_global_name'),
+        ('test_design_template','uk_test_design_template_project_name'),
+        ('test_design_template','idx_test_design_template_project_enabled'),
+        ('test_design_template','idx_test_design_template_enabled_updated'),
+        ('test_design_template','idx_test_design_template_strategy'),
         ('test_design_task','idx_test_design_task_project_status'),
         ('test_design_task','uk_test_design_task_project_idempotency'),
         ('test_design_task','idx_test_design_task_input_digest'),

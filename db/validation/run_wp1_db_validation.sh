@@ -164,6 +164,7 @@ grant select, insert, update on
     document_input_candidate,
     document_input_parse_feedback_sample,
     document_input_webhook_event,
+    test_design_template,
     test_design_task,
     test_design_candidate,
     test_design_review_record,

@@ -12,6 +12,8 @@
             <arg column="prompt_key" javaType="java.lang.String"/>
             <arg column="prompt_version" javaType="java.lang.String"/>
             <arg column="coverage_types" javaType="java.lang.String"/>
+            <arg column="generation_strategy" javaType="java.lang.String"/>
+            <arg column="coverage_strategy" javaType="java.lang.String"/>
             <arg column="case_count_per_requirement" javaType="_int"/>
             <arg column="context_defaults_json" javaType="java.lang.String"/>
             <arg column="enabled" javaType="_boolean"/>
@@ -533,7 +535,7 @@
 
     <sql id="templateColumns">
         id, project_id, name, description, prompt_key, prompt_version, coverage_types,
-        case_count_per_requirement, context_defaults_json::text as context_defaults_json,
+        generation_strategy, coverage_strategy, case_count_per_requirement, context_defaults_json::text as context_defaults_json,
         enabled, created_by, updated_by, created_at, updated_at
     </sql>
 
@@ -757,11 +759,12 @@
     <insert id="insertTemplate">
         insert into test_design_template (
             id, project_id, name, description, prompt_key, prompt_version, coverage_types,
-            case_count_per_requirement, context_defaults_json, enabled, created_by, updated_by,
+            generation_strategy, coverage_strategy, case_count_per_requirement, context_defaults_json,
+            enabled, created_by, updated_by,
             created_at, updated_at
         ) values (
             cast(#{id} as uuid), #{projectId}, #{name}, #{description}, #{promptKey}, #{promptVersion},
-            #{coverageTypes}, #{caseCountPerRequirement},
+            #{coverageTypes}, #{generationStrategy}, #{coverageStrategy}, #{caseCountPerRequirement},
             coalesce(cast(#{contextDefaultsJson} as jsonb), '{}'::jsonb),
             #{enabled}, #{createdBy}, #{updatedBy}, #{createdAt}, #{updatedAt}
         )
@@ -774,6 +777,8 @@
             prompt_key = #{promptKey},
             prompt_version = #{promptVersion},
             coverage_types = #{coverageTypes},
+            generation_strategy = #{generationStrategy},
+            coverage_strategy = #{coverageStrategy},
             case_count_per_requirement = #{caseCountPerRequirement},
             context_defaults_json = coalesce(cast(#{contextDefaultsJson} as jsonb), '{}'::jsonb),
             enabled = #{enabled},

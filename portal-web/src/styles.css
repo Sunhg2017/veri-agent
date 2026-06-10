@@ -1408,6 +1408,39 @@ tbody tr:hover td {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.model-access-policy-entry {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  margin-bottom: var(--space-md);
+  padding: var(--space-md);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  background: var(--bg-alt);
+}
+
+.model-access-policy-entry > div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.model-access-policy-entry strong,
+.model-access-policy-entry span {
+  overflow-wrap: anywhere;
+}
+
+.model-access-policy-entry strong {
+  color: var(--text-primary);
+}
+
+.model-access-policy-entry span {
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: 1.5;
+}
+
 .model-access-policy-reason {
   grid-column: span 2;
 }
@@ -1439,6 +1472,11 @@ tbody tr:hover td {
 
   .model-access-log-filter {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .model-access-policy-entry {
+    align-items: flex-start;
+    flex-direction: column;
   }
 }
 

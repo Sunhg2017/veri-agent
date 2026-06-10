@@ -24,6 +24,10 @@ public record TestDesignTemplateResponse(
         String promptVersion,
         @Schema(description = "默认覆盖类型列表")
         List<String> coverageTypes,
+        @Schema(description = "生成策略")
+        String generationStrategy,
+        @Schema(description = "覆盖策略")
+        String coverageStrategy,
         @Schema(description = "每个需求生成的候选数量")
         int caseCountPerRequirement,
         @Schema(description = "上下文默认值，仅包含安全引用和环境键")

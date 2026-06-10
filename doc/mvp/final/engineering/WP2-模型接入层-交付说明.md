@@ -5,7 +5,7 @@
 | 工作包 | WP2 模型接入层 |
 | 依赖 | WP1 平台基础底座 API 契约 |
 | 服务模块 | `platform-api` 内聚合模块 `/api/v1/model-access` |
-| 当前状态 | P0 可交付实现已落地；WP2-C1 高级路由策略、WP2-C2 预算策略产品化、WP2-C4 Prompt 评审与审批、WP2-D2 流式响应和 P2 策略运营后台已补齐 |
+| 当前状态 | P0 可交付实现已落地；WP2-C1 高级路由策略、WP2-C2 预算策略产品化、WP2-C4 Prompt 评审与审批、WP2-D2 流式响应和 P2 策略运营后台已补齐；生成/覆盖策略由 WP5 生成模板管理，WP2 策略页提供入口和职责说明 |
 
 ## 1. 交付范围
 
@@ -18,7 +18,7 @@ WP2 P0 交付以下能力：
 5. 高级路由策略：支持按项目、敏感级别、调用服务、模型能力和供应商组匹配路由规则；规则可选择 `LOWEST_COST` 在候选组内按预估成本优先。
 6. 脱敏与安全校验：调用前阻断明显密钥、Bearer token、身份证号；日志仅保存 masked preview 和 prompt SHA-256 digest。
 7. 预算护栏：支持平台、项目、调用服务日预算配置，供应商调用前按当前日已发生成本和预估成本执行阻断或低成本 provider 降级。
-8. 运行时策略运营后台：支持运营人员通过 UI/API 自助配置平台、角色、项目、环境级模型调用开关、公开模型许可、日预算阈值、预警比例、超预算动作和路由组，不需要改部署配置即可影响真实 invocation 链路。
+8. 运行时策略运营后台：支持运营人员通过 UI/API 自助配置平台、角色、项目、环境级模型调用开关、公开模型许可、日预算阈值、预警比例、超预算动作和路由组，不需要改部署配置即可影响真实 invocation 链路；用例生成/覆盖策略不写入 WP2 策略表，由 WP5 模板管理维护。
 9. 失败降级：供应商调用失败后按优先级尝试下一个可用供应商，并记录 `fallbackUsed`。
 10. 成本记录：按输入/输出 token 和供应商单价计算 `totalCost`。
 11. 调用审计日志：记录 WP1 资源逻辑归属、敏感级别、调用服务、委托用户、角色策略作用域、模型、供应商、路由规则、路由组、模型能力、状态、延迟、成本和错误摘要。
@@ -81,6 +81,8 @@ Prompt 版本创建可设置 `highRisk=true`。高风险版本默认 `approvalSt
 预算护栏默认关闭。设置 `WP2_DAILY_PLATFORM_COST_LIMIT`、`WP2_DAILY_PROJECT_COST_LIMIT` 或 `WP2_DAILY_CALLER_SERVICE_COST_LIMIT` 为大于 0 的金额后，WP2 使用 `WP2_BUDGET_ZONE_ID` 对齐日窗口，并用 `WP2_BUDGET_ESTIMATED_OUTPUT_TOKENS` 作为调用前输出 token 预估保留量。`WP2_COST_ALERT_WARNING_RATIO` 控制告警阈值，成本告警接口会返回平台、项目和调用服务维度的 `OK`、`WARNING` 或 `EXCEEDED`。`WP2_BUDGET_OVERRUN_ACTION=BLOCK` 时超额请求返回 `BUDGET_EXCEEDED`，并记录 `BLOCKED` 调用日志，实际成本为 0；设置为 `FALLBACK` 时，WP2 会跳过当前预估超预算 provider，继续尝试后续低成本候选，全部候选仍超预算时再阻断。
 
 P2 运行时策略覆盖保存在 `ma_model_policy_override`，作用域固定为 `PLATFORM/GLOBAL`、`ROLE/<roleCode>`、`PROJECT/<projectId>`、`ENVIRONMENT/<environmentId>`。有效策略按 `environment > project > role > platform > deployment defaults` 解析，真实 invocation、流式 invocation 和异步 job worker 共用同一解析结果。策略可覆盖模型调用开关、公开模型许可、日预算阈值、成本告警比例、超预算动作和路由组；其中策略日预算会优先于部署配置预算执行，`ROLE` 预算通过调用日志的 `roleScope` 聚合。用户 Bearer token 调用会携带登录态角色；服务令牌调用不接受 header 伪造角色，只适用平台/项目/环境策略。异步 job 会保存提交时的角色编码快照，worker 执行时恢复角色策略上下文。
+
+WP2 策略后台不承载 WP5 用例生成/覆盖策略。`generationStrategy`、`coverageStrategy`、覆盖类型和每需求数量由 WP5 `test_design_template` 管理，并在 WP5 任务创建时固化到任务快照、审计和模型聚合载荷。portal-web 的 WP2 策略页仅展示职责边界和跳转 WP5 模板管理的入口。
 
 Provider 级生产保护默认关闭。设置 `WP2_PROVIDER_RATE_LIMIT_MAX_REQUESTS`、`WP2_PROVIDER_RATE_LIMIT_WINDOW_SECONDS` 可开启单 provider 时间窗口限流；设置 `WP2_PROVIDER_MAX_CONCURRENT_REQUESTS` 可开启单 provider 并发保护。触发限流或并发上限时返回 `BUDGET_EXCEEDED`，并记录 `BLOCKED` 调用日志。连续失败熔断仍由 `WP2_PROVIDER_CIRCUIT_FAILURE_THRESHOLD` 和 `WP2_PROVIDER_CIRCUIT_OPEN_MS` 控制，可通过 resilience API 查询和 reset。
 
@@ -213,6 +215,7 @@ bash scripts/wp_all_integration_test.sh
 9. 已新增 WP2-D2 流式响应支持，提供 `/invocations/stream` SSE 入口和 portal-web 解析/调用 helper，保持同步 invocation 契约、策略、预算和调用日志链路不变。
 10. 已新增 WP2-D3 异步长任务调用，提供 `/invocations/jobs` 提交、查询和取消 API 及 portal-web helper；任务状态已通过 `ma_invocation_job` 持久化，成功/失败复用既有 invocation 审计链路。
 11. 已新增 P2 策略运营后台，提供 `/policies` CRUD、`/policies/effective` 预览和 portal-web 策略页签；平台/角色/项目/环境级模型开关、预算阈值、超预算动作和路由组覆盖会进入真实 invocation 策略、预算、路由和日志链路。
+12. 已在 portal-web WP2 策略页补充 WP5 生成/覆盖策略入口，明确 WP2 只管理模型调用、预算和路由，WP5 生成模板管理 `generationStrategy`、`coverageStrategy`、覆盖类型和任务默认生成参数。
 
 ## 7. Provider 生产接入与密钥轮换
 

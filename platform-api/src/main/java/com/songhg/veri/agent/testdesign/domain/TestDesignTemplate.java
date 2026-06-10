@@ -7,7 +7,7 @@ import java.util.UUID;
  * WP5 用例生成模板的领域快照。
  *
  * <p>模板只保存生成配置引用和值，不保存 Prompt 正文、上下文正文或模型输入，任务创建时会把模板解析成任务
- * 自身的 prompt、覆盖类型和上下文默认值快照。</p>
+ * 自身的 prompt、生成/覆盖策略、覆盖类型和上下文默认值快照。</p>
  */
 public record TestDesignTemplate(
         /** 主键 ID */
@@ -24,6 +24,10 @@ public record TestDesignTemplate(
         String promptVersion,
         /** 覆盖类型列表 */
         String coverageTypes,
+        /** 生成策略模式 */
+        String generationStrategy,
+        /** 覆盖策略模式 */
+        String coverageStrategy,
         /** 每个需求生成的候选数量上限 */
         int caseCountPerRequirement,
         /** 上下文默认值 JSON，仅允许保存环境键和显式资产 ID 列表等引用 */

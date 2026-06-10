@@ -40,6 +40,21 @@ import org.springframework.util.StringUtils;
 public class TestDesignTemplateService {
 
     private static final List<String> DEFAULT_COVERAGE_TYPES = List.of("SMOKE", "FUNCTIONAL", "EXCEPTION");
+    private static final String GENERATION_STRATEGY_BALANCED = "BALANCED";
+    private static final String COVERAGE_STRATEGY_DEFAULT_ORDER = "DEFAULT_ORDER";
+    private static final List<String> ALLOWED_GENERATION_STRATEGIES = List.of(
+            GENERATION_STRATEGY_BALANCED,
+            "RISK_FIRST",
+            "COMPLIANCE",
+            "EXPLORATORY"
+    );
+    private static final List<String> ALLOWED_COVERAGE_STRATEGIES = List.of(
+            COVERAGE_STRATEGY_DEFAULT_ORDER,
+            "SMOKE_FIRST",
+            "RISK_FIRST",
+            "REGRESSION_HEAVY",
+            "SECURITY_PERMISSION"
+    );
     private static final Pattern CODE_PATTERN = Pattern.compile("[A-Za-z0-9_.:-]+");
     private static final int MAX_NAME_LENGTH = 128;
     private static final int MAX_DESCRIPTION_LENGTH = 512;
@@ -103,6 +118,8 @@ public class TestDesignTemplateService {
                 payload.promptKey(),
                 payload.promptVersion(),
                 String.join(",", payload.coverageTypes()),
+                payload.generationStrategy(),
+                payload.coverageStrategy(),
                 payload.caseCountPerRequirement(),
                 contextDefaultsJson(payload.contextDefaults()),
                 payload.enabled(),
@@ -129,6 +146,8 @@ public class TestDesignTemplateService {
                 payload.promptKey(),
                 payload.promptVersion(),
                 String.join(",", payload.coverageTypes()),
+                payload.generationStrategy(),
+                payload.coverageStrategy(),
                 payload.caseCountPerRequirement(),
                 contextDefaultsJson(payload.contextDefaults()),
                 payload.enabled(),
@@ -156,6 +175,8 @@ public class TestDesignTemplateService {
                 existing.promptKey(),
                 existing.promptVersion(),
                 existing.coverageTypes(),
+                existing.generationStrategy(),
+                existing.coverageStrategy(),
                 existing.caseCountPerRequirement(),
                 existing.contextDefaultsJson(),
                 false,
@@ -190,7 +211,10 @@ public class TestDesignTemplateService {
                 template.name(),
                 template.promptKey(),
                 template.promptVersion(),
-                normalizedCoverageTypes(csvValues(template.coverageTypes())),
+                normalizedCoverageTypes(csvValues(template.coverageTypes()),
+                        template.generationStrategy(), template.coverageStrategy()),
+                template.generationStrategy(),
+                template.coverageStrategy(),
                 template.caseCountPerRequirement(),
                 stringValue(defaults.get("environmentKey")),
                 uuidList(defaults.get("contextApiIds"), "contextApiIds"),
@@ -217,13 +241,17 @@ public class TestDesignTemplateService {
     }
 
     private TemplatePayload templatePayload(CreateTestDesignTemplateCommand command) {
+        String generationStrategy = normalizedGenerationStrategy(command.generationStrategy());
+        String coverageStrategy = normalizedCoverageStrategy(command.coverageStrategy());
         return new TemplatePayload(
                 normalizedName(command.name()),
                 normalizedDescription(command.description()),
                 normalizedCode(command.promptKey(), properties.promptKey(), "promptKey", MAX_PROMPT_KEY_LENGTH),
                 normalizedCode(command.promptVersion(), properties.promptVersion(), "promptVersion",
                         MAX_PROMPT_VERSION_LENGTH),
-                normalizedCoverageTypes(command.coverageTypes()),
+                normalizedCoverageTypes(command.coverageTypes(), generationStrategy, coverageStrategy),
+                generationStrategy,
+                coverageStrategy,
                 normalizedCaseCount(command.caseCountPerRequirement()),
                 normalizedContextDefaults(command.contextDefaults()),
                 command.enabled() == null || command.enabled()
@@ -231,13 +259,17 @@ public class TestDesignTemplateService {
     }
 
     private TemplatePayload templatePayload(UpdateTestDesignTemplateCommand command) {
+        String generationStrategy = normalizedGenerationStrategy(command.generationStrategy());
+        String coverageStrategy = normalizedCoverageStrategy(command.coverageStrategy());
         return new TemplatePayload(
                 normalizedName(command.name()),
                 normalizedDescription(command.description()),
                 normalizedCode(command.promptKey(), properties.promptKey(), "promptKey", MAX_PROMPT_KEY_LENGTH),
                 normalizedCode(command.promptVersion(), properties.promptVersion(), "promptVersion",
                         MAX_PROMPT_VERSION_LENGTH),
-                normalizedCoverageTypes(command.coverageTypes()),
+                normalizedCoverageTypes(command.coverageTypes(), generationStrategy, coverageStrategy),
+                generationStrategy,
+                coverageStrategy,
                 normalizedCaseCount(command.caseCountPerRequirement()),
                 normalizedContextDefaults(command.contextDefaults()),
                 command.enabled() == null || command.enabled()
@@ -296,8 +328,46 @@ public class TestDesignTemplateService {
         return value;
     }
 
-    private List<String> normalizedCoverageTypes(List<String> requestedTypes) {
-        List<String> source = requestedTypes == null || requestedTypes.isEmpty() ? DEFAULT_COVERAGE_TYPES : requestedTypes;
+    private String normalizedGenerationStrategy(String value) {
+        return normalizedStrategy(
+                value,
+                GENERATION_STRATEGY_BALANCED,
+                "generationStrategy",
+                ALLOWED_GENERATION_STRATEGIES
+        );
+    }
+
+    private String normalizedCoverageStrategy(String value) {
+        return normalizedStrategy(
+                value,
+                COVERAGE_STRATEGY_DEFAULT_ORDER,
+                "coverageStrategy",
+                ALLOWED_COVERAGE_STRATEGIES
+        );
+    }
+
+    private String normalizedStrategy(String value, String fallback, String fieldName, List<String> allowedValues) {
+        String normalized = trimToNull(value);
+        if (normalized == null) {
+            normalized = fallback;
+        }
+        normalized = normalized.toUpperCase(Locale.ROOT);
+        rejectSensitive(normalized, fieldName);
+        if (!allowedValues.contains(normalized)) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR,
+                    fieldName + " 不支持: " + value + "，可选值: " + String.join(",", allowedValues));
+        }
+        return normalized;
+    }
+
+    private List<String> normalizedCoverageTypes(
+            List<String> requestedTypes,
+            String generationStrategy,
+            String coverageStrategy
+    ) {
+        List<String> source = requestedTypes == null || requestedTypes.isEmpty()
+                ? defaultCoverageTypes(generationStrategy)
+                : requestedTypes;
         LinkedHashSet<String> result = new LinkedHashSet<>();
         for (String requestedType : source) {
             String normalized = trimToNull(requestedType);
@@ -311,9 +381,43 @@ public class TestDesignTemplateService {
             result.add(normalized);
         }
         if (result.isEmpty()) {
-            return DEFAULT_COVERAGE_TYPES;
+            return orderedCoverageTypes(defaultCoverageTypes(generationStrategy), coverageStrategy);
         }
-        return List.copyOf(result);
+        return orderedCoverageTypes(List.copyOf(result), coverageStrategy);
+    }
+
+    private List<String> defaultCoverageTypes(String generationStrategy) {
+        return switch (generationStrategy) {
+            case "RISK_FIRST" -> List.of("EXCEPTION", "BOUNDARY", "PERMISSION", "FUNCTIONAL");
+            case "COMPLIANCE" -> List.of("PERMISSION", "EXCEPTION", "FUNCTIONAL", "REGRESSION");
+            case "EXPLORATORY" -> List.of("BOUNDARY", "EXCEPTION", "FUNCTIONAL", "SMOKE");
+            default -> DEFAULT_COVERAGE_TYPES;
+        };
+    }
+
+    private List<String> orderedCoverageTypes(List<String> coverageTypes, String coverageStrategy) {
+        if (COVERAGE_STRATEGY_DEFAULT_ORDER.equals(coverageStrategy)) {
+            return coverageTypes;
+        }
+        List<String> preference = switch (coverageStrategy) {
+            case "SMOKE_FIRST" -> List.of("SMOKE", "FUNCTIONAL", "EXCEPTION", "BOUNDARY", "PERMISSION", "REGRESSION");
+            case "RISK_FIRST" -> List.of("EXCEPTION", "BOUNDARY", "PERMISSION", "FUNCTIONAL", "SMOKE", "REGRESSION");
+            case "REGRESSION_HEAVY" -> List.of("REGRESSION", "FUNCTIONAL", "SMOKE", "EXCEPTION", "BOUNDARY", "PERMISSION");
+            case "SECURITY_PERMISSION" -> List.of("PERMISSION", "EXCEPTION", "BOUNDARY", "FUNCTIONAL", "SMOKE", "REGRESSION");
+            default -> List.of();
+        };
+        List<String> ordered = new ArrayList<>();
+        for (String preferred : preference) {
+            if (coverageTypes.contains(preferred)) {
+                ordered.add(preferred);
+            }
+        }
+        for (String coverageType : coverageTypes) {
+            if (!ordered.contains(coverageType)) {
+                ordered.add(coverageType);
+            }
+        }
+        return List.copyOf(ordered);
     }
 
     private Map<String, Object> normalizedContextDefaults(Map<String, Object> rawDefaults) {
@@ -385,6 +489,8 @@ public class TestDesignTemplateService {
                 template.promptKey(),
                 template.promptVersion(),
                 csvValues(template.coverageTypes()),
+                template.generationStrategy(),
+                template.coverageStrategy(),
                 template.caseCountPerRequirement(),
                 contextDefaults(template.contextDefaultsJson()),
                 template.enabled(),
@@ -472,6 +578,8 @@ public class TestDesignTemplateService {
         after.put("promptKey", template.promptKey());
         after.put("promptVersion", template.promptVersion());
         after.put("coverageTypes", csvValues(template.coverageTypes()));
+        after.put("generationStrategy", template.generationStrategy());
+        after.put("coverageStrategy", template.coverageStrategy());
         after.put("caseCountPerRequirement", template.caseCountPerRequirement());
         after.put("enabled", template.enabled());
         if (StringUtils.hasText(template.projectId())) {
@@ -489,6 +597,8 @@ public class TestDesignTemplateService {
             String promptKey,
             String promptVersion,
             List<String> coverageTypes,
+            String generationStrategy,
+            String coverageStrategy,
             int caseCountPerRequirement,
             Map<String, Object> contextDefaults,
             boolean enabled
@@ -501,6 +611,8 @@ public class TestDesignTemplateService {
             String promptKey,
             String promptVersion,
             List<String> coverageTypes,
+            String generationStrategy,
+            String coverageStrategy,
             int caseCountPerRequirement,
             String environmentKey,
             List<UUID> contextApiIds,

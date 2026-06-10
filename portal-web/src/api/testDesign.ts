@@ -1,6 +1,8 @@
 import { requestJson, requestText, type ApiResponse, type TextResponse } from './client';
 
 export const TEST_DESIGN_COVERAGE_TYPES = ['SMOKE', 'FUNCTIONAL', 'EXCEPTION', 'BOUNDARY', 'PERMISSION', 'REGRESSION'] as const;
+export const TEST_DESIGN_GENERATION_STRATEGIES = ['BALANCED', 'RISK_FIRST', 'COMPLIANCE', 'EXPLORATORY'] as const;
+export const TEST_DESIGN_COVERAGE_STRATEGIES = ['DEFAULT_ORDER', 'SMOKE_FIRST', 'RISK_FIRST', 'REGRESSION_HEAVY', 'SECURITY_PERMISSION'] as const;
 export const TEST_DESIGN_CANDIDATE_STATUSES = [
   'GENERATED',
   'EDITED',
@@ -14,6 +16,8 @@ export const TEST_DESIGN_CANDIDATE_STATUSES = [
 ] as const;
 
 export type TestDesignCoverageType = (typeof TEST_DESIGN_COVERAGE_TYPES)[number];
+export type TestDesignGenerationStrategy = (typeof TEST_DESIGN_GENERATION_STRATEGIES)[number];
+export type TestDesignCoverageStrategy = (typeof TEST_DESIGN_COVERAGE_STRATEGIES)[number];
 export type TestDesignCandidateStatus = (typeof TEST_DESIGN_CANDIDATE_STATUSES)[number];
 
 export interface TestDesignHealth {
@@ -578,6 +582,8 @@ export interface TestDesignTemplateView {
   promptKey: string;
   promptVersion: string;
   coverageTypes: string[];
+  generationStrategy: string;
+  coverageStrategy: string;
   caseCountPerRequirement: number;
   contextDefaults: Record<string, unknown>;
   enabled: boolean;
@@ -1269,6 +1275,8 @@ export interface SaveTestDesignTemplatePayload {
   promptKey?: string;
   promptVersion?: string;
   coverageTypes?: string[];
+  generationStrategy?: string;
+  coverageStrategy?: string;
   caseCountPerRequirement?: number;
   contextDefaults?: Record<string, unknown>;
   enabled?: boolean;
@@ -2365,6 +2373,8 @@ export function normalizeTestDesignTemplate(raw: unknown): TestDesignTemplateVie
     promptKey: stringValue(item.promptKey ?? item.prompt_key),
     promptVersion: stringValue(item.promptVersion ?? item.prompt_version),
     coverageTypes: stringArrayValue(item.coverageTypes ?? item.coverage_types),
+    generationStrategy: stringValue(item.generationStrategy ?? item.generation_strategy, 'BALANCED'),
+    coverageStrategy: stringValue(item.coverageStrategy ?? item.coverage_strategy, 'DEFAULT_ORDER'),
     caseCountPerRequirement: numberValue(item.caseCountPerRequirement ?? item.case_count_per_requirement, 1),
     contextDefaults: recordValue(item.contextDefaults ?? item.context_defaults ?? item.context_defaults_json),
     enabled: optionalBoolean(item.enabled) ?? true,

@@ -43,7 +43,9 @@ import {
 } from '../api/assets';
 import {
   TEST_DESIGN_CANDIDATE_STATUSES,
+  TEST_DESIGN_COVERAGE_STRATEGIES,
   TEST_DESIGN_COVERAGE_TYPES,
+  TEST_DESIGN_GENERATION_STRATEGIES,
   addTestDesignReportArchiveNote,
   addTestDesignContextPolicyNote,
   addTestDesignReleaseReadinessNote,
@@ -298,6 +300,8 @@ type GenerationDraft = {
   environmentKey: string;
   promptKey: string;
   promptVersion: string;
+  generationStrategy: string;
+  coverageStrategy: string;
   caseCountPerRequirement: string;
   coverageTypes: string[];
   contextApiIds: string;
@@ -330,6 +334,8 @@ type TemplateDraft = {
   description: string;
   promptKey: string;
   promptVersion: string;
+  generationStrategy: string;
+  coverageStrategy: string;
   caseCountPerRequirement: string;
   coverageTypes: string[];
   environmentKey: string;
@@ -541,6 +547,8 @@ const initialGenerationDraft: GenerationDraft = {
   environmentKey: '',
   promptKey: '',
   promptVersion: '',
+  generationStrategy: 'BALANCED',
+  coverageStrategy: 'DEFAULT_ORDER',
   caseCountPerRequirement: '2',
   coverageTypes: ['SMOKE', 'FUNCTIONAL', 'EXCEPTION'],
   contextApiIds: '',
@@ -554,6 +562,8 @@ const initialTemplateDraft: TemplateDraft = {
   description: '',
   promptKey: '',
   promptVersion: '',
+  generationStrategy: 'BALANCED',
+  coverageStrategy: 'DEFAULT_ORDER',
   caseCountPerRequirement: '2',
   coverageTypes: ['SMOKE', 'FUNCTIONAL', 'EXCEPTION'],
   environmentKey: '',
@@ -2141,6 +2151,8 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
         projectId: current.projectId || template.projectId || filters.projectId || '',
         promptKey: template.promptKey,
         promptVersion: template.promptVersion,
+        generationStrategy: template.generationStrategy,
+        coverageStrategy: template.coverageStrategy,
         environmentKey: stringDefault(contextDefaults.environmentKey),
         caseCountPerRequirement: String(template.caseCountPerRequirement || current.caseCountPerRequirement || 1),
         coverageTypes: template.coverageTypes.length ? template.coverageTypes : current.coverageTypes,
@@ -4706,6 +4718,24 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
                   <input value={templateDraft.environmentKey} onChange={(event) => setTemplateDraft((current) => ({ ...current, environmentKey: event.target.value }))} disabled={!canPolicyManage || templateState.loading} />
                 </label>
               </div>
+              <div className="test-design-template-inline-grid">
+                <label className="field">
+                  <span className="field-label">生成策略</span>
+                  <select value={templateDraft.generationStrategy} onChange={(event) => setTemplateDraft((current) => ({ ...current, generationStrategy: event.target.value }))} disabled={!canPolicyManage || templateState.loading}>
+                    {TEST_DESIGN_GENERATION_STRATEGIES.map((strategy) => (
+                      <option key={strategy} value={strategy}>{strategy}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="field">
+                  <span className="field-label">覆盖策略</span>
+                  <select value={templateDraft.coverageStrategy} onChange={(event) => setTemplateDraft((current) => ({ ...current, coverageStrategy: event.target.value }))} disabled={!canPolicyManage || templateState.loading}>
+                    {TEST_DESIGN_COVERAGE_STRATEGIES.map((strategy) => (
+                      <option key={strategy} value={strategy}>{strategy}</option>
+                    ))}
+                  </select>
+                </label>
+              </div>
               <label className="field">
                 <span className="field-label">上下文 API ID</span>
                 <input value={templateDraft.contextApiIds} onChange={(event) => setTemplateDraft((current) => ({ ...current, contextApiIds: event.target.value }))} disabled={!canPolicyManage || templateState.loading} />
@@ -5195,7 +5225,11 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
                     </option>
                   ))}
                 </select>
-                <span className="field-hint">{selectedGenerationTemplate ? `${selectedGenerationTemplate.promptKey}@${selectedGenerationTemplate.promptVersion}` : '不选择模板时使用手动参数或平台默认值。'}</span>
+                <span className="field-hint">
+                  {selectedGenerationTemplate
+                    ? `${selectedGenerationTemplate.promptKey}@${selectedGenerationTemplate.promptVersion} · ${selectedGenerationTemplate.generationStrategy}/${selectedGenerationTemplate.coverageStrategy}`
+                    : '不选择模板时使用手动参数或平台默认值。'}
+                </span>
               </label>
               <label className="field">
                 <span className="field-label">项目 ID</span>
@@ -8093,6 +8127,8 @@ function templateDraftFromView(template: TestDesignTemplateView): TemplateDraft 
     description: template.description ?? '',
     promptKey: template.promptKey,
     promptVersion: template.promptVersion,
+    generationStrategy: template.generationStrategy,
+    coverageStrategy: template.coverageStrategy,
     caseCountPerRequirement: String(template.caseCountPerRequirement || 1),
     coverageTypes: template.coverageTypes,
     environmentKey: stringDefault(defaults.environmentKey),
@@ -8117,6 +8153,8 @@ function templatePayload(draft: TemplateDraft, includeProjectId: boolean) {
     promptKey: draft.promptKey,
     promptVersion: draft.promptVersion,
     coverageTypes: draft.coverageTypes,
+    generationStrategy: draft.generationStrategy,
+    coverageStrategy: draft.coverageStrategy,
     caseCountPerRequirement: Number(draft.caseCountPerRequirement) || undefined,
     contextDefaults: compactContextDefaults(contextDefaults),
     enabled: draft.enabled

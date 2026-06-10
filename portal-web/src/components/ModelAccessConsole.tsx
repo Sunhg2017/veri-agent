@@ -975,6 +975,15 @@ function PolicyTab(props: {
     <div className="model-access-section">
       <div className="model-access-policy-grid">
         <form className="model-access-form" onSubmit={props.onSubmit}>
+          <div className="model-access-policy-entry">
+            <div>
+              <strong>生成/覆盖策略</strong>
+              <span>模型调用、预算和路由在 WP2 管理；用例生成策略和覆盖优先级在 WP5 模板管理维护。</span>
+            </div>
+            <a className="btn btn-secondary btn-sm" href="#test-design">
+              <SlidersHorizontal size={15} /> 打开模板管理
+            </a>
+          </div>
           <div className="document-form-grid model-access-policy-form-grid">
             <label className="field">
               <span>作用域<b>*</b></span>

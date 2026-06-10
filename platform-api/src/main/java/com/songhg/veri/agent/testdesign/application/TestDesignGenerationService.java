@@ -589,6 +589,7 @@ public class TestDesignGenerationService {
         payload.put("projectId", task.projectId());
         payload.put("coverageTypes", coverageTypes);
         payload.put("caseCountPerRequirement", Math.min(coverageTypes.size(), maxCasesPerRequirement()));
+        payload.put("generationPolicy", generationPolicy(task, coverageTypes));
         payload.put("requirements", requirements.stream().map(this::requirementModelPayload).toList());
         payload.put("contextSummary", contextSummaryPayload(task.contextSummaryJson()));
         payload.put("contextPacking", contextPackingPolicy(task));
@@ -599,8 +600,16 @@ public class TestDesignGenerationService {
         }
     }
 
-    private Map<String, Object> contextPackingPolicy() {
-        return contextPackingPolicy(null);
+    private Map<String, Object> generationPolicy(TestDesignTask task, List<String> coverageTypes) {
+        Map<String, Object> template = contextSummaryMap(task, "template");
+        Map<String, Object> policy = new LinkedHashMap<>();
+        policy.put("policySource", template.isEmpty() ? "AD_HOC" : "TEMPLATE");
+        policy.put("generationStrategy", template.getOrDefault("generationStrategy", "AD_HOC"));
+        policy.put("coverageStrategy", template.getOrDefault("coverageStrategy", "AD_HOC"));
+        policy.put("coverageTypes", coverageTypes);
+        policy.put("templateIdentifierExported", false);
+        policy.put("aggregateOnly", true);
+        return policy;
     }
 
     private Map<String, Object> contextPackingPolicy(TestDesignTask task) {

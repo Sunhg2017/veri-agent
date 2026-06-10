@@ -5,8 +5,8 @@
 | 工作包 | WP5 AI 用例生成与评审 |
 | 角色产出 | 资深前端工程师 |
 | 文档性质 | 前端页面、路由、权限、状态和可测性设计 |
-| 当前口径 | 基于 `portal-web` React + TypeScript + Vite 管理台扩展，已纳入任务质量、Prompt 趋势、Prompt 版本准出分布、任务诊断、本域审计链摘要面板、跨 WP 审计链策略摘要、跨 WP 统一运营面板、审计报表模板、模型观测聚合钻取、跨 WP 脱敏明细审计报表、模型观测策略摘要、生成编排策略摘要、显式上下文资产输入、服务端下发的上下文裁剪口径、上下文策略诊断摘要、权限/资源作用域策略摘要、评测语料运营策略摘要、发布准出审批策略摘要、归档策略摘要和报告清单策略摘要 |
-| 版本 | v0.15 |
+| 当前口径 | 基于 `portal-web` React + TypeScript + Vite 管理台扩展，已纳入生成模板管理、生成/覆盖策略配置、WP2 策略页到 WP5 模板管理入口、任务质量、Prompt 趋势、Prompt 版本准出分布、任务诊断、本域审计链摘要面板、跨 WP 审计链策略摘要、跨 WP 统一运营面板、审计报表模板、模型观测聚合钻取、跨 WP 脱敏明细审计报表、模型观测策略摘要、生成编排策略摘要、显式上下文资产输入、服务端下发的上下文裁剪口径、上下文策略诊断摘要、权限/资源作用域策略摘要、评测语料运营策略摘要、发布准出审批策略摘要、归档策略摘要和报告清单策略摘要 |
+| 版本 | v0.16 |
 | 日期 | 2026-06-11 |
 
 ## 1. 页面目标
@@ -59,7 +59,8 @@ WP5 前端页面负责让用户在浏览器内完成用例生成主流程：
 |---|---|
 | `TestDesignWorkbench` | 页面容器，维护筛选、选中任务、刷新和权限状态。 |
 | `TestDesignTaskList` | 任务列表、状态 badge、错误摘要、traceId、分页。 |
-| `TestDesignTaskCreateDialog` | 创建任务表单，选择项目、需求、策略和上下文选项。 |
+| `TestDesignTaskCreateDialog` | 创建任务表单，选择项目、需求、生成模板、覆盖类型和上下文选项。 |
+| `TestDesignTemplatePanel` | 管理全局/项目级生成模板，配置 Prompt 引用、生成策略、覆盖策略、覆盖类型、每需求数、环境键和上下文默认引用。 |
 | `TestDesignTaskSummary` | 任务详情摘要、模型调用信息、质量提示、成本、耗时和本域审计链摘要。 |
 | `TestDesignCandidateReviewPanel` | 候选列表、筛选、批量操作和候选详情。 |
 | `TestDesignCandidateEditor` | 候选编辑表单，维护标题、步骤、预期、优先级和标签。 |
@@ -78,6 +79,10 @@ WP5 前端页面负责让用户在浏览器内完成用例生成主流程：
 | `TestDesignPublishPreview` | dryRun 和发布结果类型。 |
 | `fetchTestDesignTasks(filters)` | 分页查询任务。 |
 | `createTestDesignTask(payload)` | 创建生成任务。 |
+| `fetchTestDesignTemplates(filters)` | 查询生成模板。 |
+| `createTestDesignTemplate(payload)` | 创建生成模板，payload 包含 `generationStrategy` 和 `coverageStrategy`。 |
+| `updateTestDesignTemplate(id, payload)` | 更新生成模板。 |
+| `deleteTestDesignTemplate(id)` | 禁用生成模板。 |
 | `fetchTestDesignTask(id)` | 查询任务详情。 |
 | `retryTestDesignTask(id)` | 重试任务。 |
 | `cancelTestDesignTask(id)` | 取消任务。 |
@@ -116,6 +121,7 @@ API client 需复用现有 `requestJson` 和 `ApiError` 处理，保留响应中
 | ButtonKey | `testDesign:review` | `testDesign:review` |
 | ButtonKey | `testDesign:publish` | `testDesign:publish` |
 | ButtonKey | `testDesign:export` | `testDesign:export` |
+| ButtonKey | `testDesign:policy_manage` | `testDesign:policy_manage` |
 
 按钮规则：
 
@@ -129,6 +135,7 @@ API client 需复用现有 `requestJson` 和 `ApiError` 处理，保留响应中
 | 发布 dryRun | `testDesign:publish` |
 | 正式发布 | `testDesign:publish` |
 | 导出摘要 | `testDesign:export` |
+| 模板创建/更新/禁用 | `testDesign:policy_manage` |
 
 前端权限只控制可见性和交互状态，后端仍是最终鉴权来源。
 
@@ -144,6 +151,17 @@ API client 需复用现有 `requestJson` 和 `ApiError` 处理，保留响应中
 | 覆盖类型 | 至少 1 个。 |
 | 任务名称 | 必填，最长 160 字符。 |
 | 上下文选项 | 至少保留需求上下文；API/页面/流程/历史用例可通过追踪关系自动带入，也可在生成配置中显式输入 API/页面/业务流 ID。前端占位文案、任务诊断的上下文规模、上下文策略摘要、生成编排策略摘要、作用域策略摘要、评测语料摘要、发布准出摘要、审计链摘要、模型观测摘要、归档策略摘要和报告清单摘要优先读取健康接口返回的 `contextLimits`、`generationOrchestrationPolicy`、`scopePolicy`、`evaluationCorpusPolicy`、`releaseReadinessPolicy`、`auditChainPolicy`、`modelObservationPolicy`、`archivePolicy`、`reportManifestPolicy` 与任务 `generationOrchestrationPolicy/contextSummary.limits/contextSummary.generationOrchestrationPolicy/contextSummary.scopePolicy/contextSummary.evaluationCorpusPolicy/contextSummary.releaseReadinessPolicy/contextSummary.auditChainPolicy/contextSummary.modelObservationPolicy/contextSummary.archivePolicy/contextSummary.reportManifestPolicy`。 |
+
+### 7.1A 生成模板
+
+| 字段 | 校验 |
+|---|---|
+| 名称 | 必填，同一项目或全局作用域内唯一。 |
+| 生成策略 | 固定枚举 `BALANCED/RISK_FIRST/COMPLIANCE/EXPLORATORY`，默认 `BALANCED`。 |
+| 覆盖策略 | 固定枚举 `DEFAULT_ORDER/SMOKE_FIRST/RISK_FIRST/REGRESSION_HEAVY/SECURITY_PERMISSION`，默认 `DEFAULT_ORDER`。 |
+| 覆盖类型 | 至少 1 个，限定 WP5 覆盖枚举。 |
+| 每需求数 | 1 到平台最大值。 |
+| 上下文默认引用 | 仅允许环境键和 API/页面/业务流 ID，不输入上下文正文。 |
 
 ### 7.2 候选编辑
 
@@ -171,6 +189,7 @@ API client 需复用现有 `requestJson` 和 `ApiError` 处理，保留响应中
 | partial success | 候选生成或发布部分成功时展示成功数、失败数和明细。 |
 | version conflict | 提示刷新候选后再操作，保留用户正在编辑内容。 |
 | model blocked | 展示 WP2 阻断原因摘要，不展示敏感内容。 |
+| generation template | 生成配置选择模板后展示 Prompt、生成策略和覆盖策略摘要；模板管理区可创建、更新或禁用模板，缺少 `testDesign:policy_manage` 时控件禁用。WP2 模型接入策略页只展示入口和职责说明，跳转到 WP5 模板管理。 |
 | prompt readiness | Prompt 趋势中展示 `PASSED/WARNING/BLOCKED` 准出状态分布；每个版本展示准出状态、阻断数和风险数；该状态仅用于运营比较，不禁用发布按钮。 |
 | evaluation corpus | 任务诊断和真实样本维护面板展示 `evaluationCorpusPolicy` 的 golden set 基线、手动可选 AI 评测、部署配置阈值、项目作用域、质量门禁接入、准出分布/Prompt 版本跟踪、样本维护、长期校准和运营后台 ready；页面支持样本增改、候选提取、状态流转和校准运行。 |
 | release readiness | 任务诊断和发布准出面板展示 `releaseReadinessPolicy` 的 advisory-only、发布阻断配置、审批流 ready、人工准出、自动发布关闭、候选确认要求和质量门禁例外；页面支持例外申请、审批/驳回、备注流转和 digest 绑定放行。 |
@@ -212,7 +231,9 @@ API client 需复用现有 `requestJson` 和 `ApiError` 处理，保留响应中
 7. dryRun 结果能区分创建、重复、跳过和失败。
 8. 发布成功后可跳转 WP3 测试用例详情或列表筛选结果。
 9. 资产冲突运营台可按项目查询正式发布冲突，能筛选 open/resolved、定位任务和候选、搜索既有 WP3 用例，并通过单条/批量复用完成闭环。
-10. loading/empty/error/partial success/version conflict/model blocked 状态均有可读展示。
-11. 任务诊断只展示上下文计数、裁剪策略、生成编排策略、作用域策略、评测语料策略、发布准出审批策略、审计链策略、模型观测策略、归档治理策略和报告清单策略聚合标记，不展示显式资产 ID、schema、页面树、流程 JSON、需求正文、事件 ID、事件 payload、队列消息体、恢复明细、幂等键原值、超时错误正文、候选 ID、角色规则、服务令牌原值、评测语料行、候选正文、评审评论、候选级准出证据、审批备注、阈值规则明细、平台审计标识原值、traceId/jobId/invocationId 原值、模型调用 ID 原值、provider 错误正文、actor service、发布 sourceRef、资产 ID、归档路径、归档备注、审批说明、工单 URL 或原始 Prompt。
-12. 跨 WP 统一运营面板可维护队列告警订阅、触发有界 queued generation/publish 重放、查看发布补偿运行手册、批量运营审计报表、完整审计报表模板、模型观测聚合钻取和跨 WP 脱敏明细审计报表，且不导出任务 ID、候选 ID、outbox payload、traceId、模型调用 ID、sourceRef 或 WP3 资产 ID。
-13. `cd portal-web && npm test`、`cd portal-web && npm run build`、WP5 前端 smoke 均通过。
+10. 模板管理可维护生成策略、覆盖策略和覆盖类型；创建任务选择模板后能回填并展示策略摘要。
+11. WP2 模型接入策略页提供 WP5 模板管理入口，并明确模型调用/预算/路由与用例生成/覆盖策略职责边界。
+12. loading/empty/error/partial success/version conflict/model blocked 状态均有可读展示。
+13. 任务诊断只展示上下文计数、裁剪策略、生成编排策略、作用域策略、评测语料策略、发布准出审批策略、审计链策略、模型观测策略、归档治理策略和报告清单策略聚合标记，不展示显式资产 ID、schema、页面树、流程 JSON、需求正文、事件 ID、事件 payload、队列消息体、恢复明细、幂等键原值、超时错误正文、候选 ID、角色规则、服务令牌原值、评测语料行、候选正文、评审评论、候选级准出证据、审批备注、阈值规则明细、平台审计标识原值、traceId/jobId/invocationId 原值、模型调用 ID 原值、provider 错误正文、actor service、发布 sourceRef、资产 ID、归档路径、归档备注、审批说明、工单 URL 或原始 Prompt。
+14. 跨 WP 统一运营面板可维护队列告警订阅、触发有界 queued generation/publish 重放、查看发布补偿运行手册、批量运营审计报表、完整审计报表模板、模型观测聚合钻取和跨 WP 脱敏明细审计报表，且不导出任务 ID、候选 ID、outbox payload、traceId、模型调用 ID、sourceRef 或 WP3 资产 ID。
+15. `cd portal-web && npm test`、`cd portal-web && npm run build`、WP5 前端 smoke 均通过。

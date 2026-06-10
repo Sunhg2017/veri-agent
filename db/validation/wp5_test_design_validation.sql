@@ -3,6 +3,7 @@
 
 with expected(table_name) as (
     values
+        ('test_design_template'),
         ('test_design_task'),
         ('test_design_candidate'),
         ('test_design_review_record'),
@@ -33,6 +34,26 @@ select
     'wp5.tables_exist' as check_name,
     case when count(*) = 0 then 'PASS' else 'FAIL' end as status,
     coalesce(string_agg(table_name, ', ' order by table_name), 'all WP5 tables exist') as details
+from missing;
+
+with expected(column_name) as (
+    values
+        ('generation_strategy'),
+        ('coverage_strategy')
+),
+missing as (
+    select e.column_name
+    from expected e
+    left join information_schema.columns c
+        on c.table_schema = current_schema()
+       and c.table_name = 'test_design_template'
+       and c.column_name = e.column_name
+    where c.column_name is null
+)
+select
+    'wp5.template_strategy_columns_exist' as check_name,
+    case when count(*) = 0 then 'PASS' else 'FAIL' end as status,
+    coalesce(string_agg(column_name, ', ' order by column_name), 'WP5 template generation/coverage strategy columns exist') as details
 from missing;
 
 with expected(column_name) as (
@@ -80,6 +101,11 @@ from missing;
 with expected(table_name, constraint_name) as (
     values
         ('test_design_task','ck_test_design_task_status'),
+        ('test_design_template','ck_test_design_template_case_count'),
+        ('test_design_template','ck_test_design_template_context_object'),
+        ('test_design_template','ck_test_design_template_context_keys'),
+        ('test_design_template','ck_test_design_template_generation_strategy'),
+        ('test_design_template','ck_test_design_template_coverage_strategy'),
         ('test_design_candidate','ck_test_design_candidate_status'),
         ('test_design_candidate','ck_test_design_candidate_coverage'),
         ('test_design_candidate','ck_test_design_candidate_priority'),
@@ -219,6 +245,11 @@ select
 with expected(table_name, index_name) as (
     values
         ('asset_test_case', 'uk_asset_test_case_project_ai_source_ref'),
+        ('test_design_template', 'uk_test_design_template_global_name'),
+        ('test_design_template', 'uk_test_design_template_project_name'),
+        ('test_design_template', 'idx_test_design_template_project_enabled'),
+        ('test_design_template', 'idx_test_design_template_enabled_updated'),
+        ('test_design_template', 'idx_test_design_template_strategy'),
         ('test_design_candidate', 'idx_test_design_candidate_publish_queue'),
         ('test_design_candidate', 'idx_test_design_candidate_publish_running'),
         ('test_design_publish_record', 'uk_test_design_publish_auto_comp_candidate'),
@@ -876,6 +907,7 @@ from found;
 
 with wp5_tables(table_name) as (
     values
+        ('test_design_template'),
         ('test_design_task'),
         ('test_design_candidate'),
         ('test_design_review_record'),
@@ -920,6 +952,7 @@ with missing as (
         and not pa.attisdropped
     where c.table_schema = current_schema()
       and c.table_name in (
+          'test_design_template',
           'test_design_task',
           'test_design_candidate',
           'test_design_review_record',

@@ -1137,6 +1137,8 @@ describe('WP5 test design API helpers', () => {
       prompt_key: 'wp5-template-login',
       prompt_version: '2026.05',
       coverage_types: 'SMOKE,BOUNDARY',
+      generation_strategy: 'RISK_FIRST',
+      coverage_strategy: 'SECURITY_PERMISSION',
       case_count_per_requirement: '2',
       context_defaults: {
         environmentKey: 'qa',
@@ -1151,6 +1153,8 @@ describe('WP5 test design API helpers', () => {
       promptKey: 'wp5-template-login',
       promptVersion: '2026.05',
       coverageTypes: ['SMOKE', 'BOUNDARY'],
+      generationStrategy: 'RISK_FIRST',
+      coverageStrategy: 'SECURITY_PERMISSION',
       caseCountPerRequirement: 2,
       contextDefaults: {
         environmentKey: 'qa',
@@ -3055,6 +3059,8 @@ describe('WP5 test design API helpers', () => {
       promptKey: ' wp5-template-login ',
       promptVersion: ' 2026.05 ',
       coverageTypes: ['SMOKE', 'BOUNDARY'],
+      generationStrategy: ' RISK_FIRST ',
+      coverageStrategy: ' SECURITY_PERMISSION ',
       caseCountPerRequirement: 2,
       contextDefaults: {
         environmentKey: 'qa',
@@ -3070,6 +3076,8 @@ describe('WP5 test design API helpers', () => {
         promptKey: 'wp5-template-login',
         promptVersion: '2026.05',
         coverageTypes: ['SMOKE', 'BOUNDARY'],
+        generationStrategy: 'RISK_FIRST',
+        coverageStrategy: 'SECURITY_PERMISSION',
         caseCountPerRequirement: 2,
         contextDefaults: {
           environmentKey: 'qa',
@@ -3084,6 +3092,8 @@ describe('WP5 test design API helpers', () => {
       promptKey: ' wp5-template-login ',
       promptVersion: ' 2026.06 ',
       coverageTypes: ['REGRESSION'],
+      generationStrategy: ' COMPLIANCE ',
+      coverageStrategy: ' REGRESSION_HEAVY ',
       caseCountPerRequirement: 1,
       contextDefaults: {},
       enabled: false
@@ -3095,6 +3105,8 @@ describe('WP5 test design API helpers', () => {
         promptKey: 'wp5-template-login',
         promptVersion: '2026.06',
         coverageTypes: ['REGRESSION'],
+        generationStrategy: 'COMPLIANCE',
+        coverageStrategy: 'REGRESSION_HEAVY',
         caseCountPerRequirement: 1,
         contextDefaults: {},
         enabled: false

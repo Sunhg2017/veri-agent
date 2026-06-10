@@ -19,6 +19,10 @@ public record UpdateTestDesignTemplateCommand(
         String promptVersion,
         @Schema(description = "默认覆盖类型列表")
         List<String> coverageTypes,
+        @Schema(description = "生成策略：BALANCED/RISK_FIRST/COMPLIANCE/EXPLORATORY")
+        String generationStrategy,
+        @Schema(description = "覆盖策略：DEFAULT_ORDER/SMOKE_FIRST/RISK_FIRST/REGRESSION_HEAVY/SECURITY_PERMISSION")
+        String coverageStrategy,
         @Schema(description = "每个需求生成的候选数量")
         Integer caseCountPerRequirement,
         @Schema(description = "上下文默认值，仅支持 environmentKey/contextApiIds/contextPageIds/contextFlowIds")

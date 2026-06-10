@@ -5,8 +5,8 @@
 | 工作包 | WP5 AI 用例生成与评审 |
 | 角色产出 | 资深服务端架构师 |
 | 文档性质 | 技术设计、数据模型、接口契约和服务端质量约束 |
-| 当前口径 | WP5 在 `platform-api` 内实现为独立领域模块，不新增独立部署服务；模块内应用服务按任务、生成、评审、质量、发布、发布补偿、冲突、报告、上下文策略、跨 WP 审计链和跨 WP 运营聚合拆分；任务本域审计链摘要由报告服务聚合 WP5 任务、评审和发布记录；任务级跨 WP 审计链只读聚合由 `TestDesignAuditChainService` 输出 aggregate-only 看板骨架，聚合任务相关 WP1 audit_log、WP2 invocation/job、WP3 发布引用、WP5 本域事件和 audit outbox 状态计数，不导出审计事件明细或跨域标识；跨 WP 运营由 `TestDesignCrossWpOperationsService` 输出 queue alert 订阅、人工 queued replay、补偿运行手册、批量运营审计报表、完整审计报表模板、模型观测聚合钻取和跨 WP 脱敏明细审计报表的聚合视图；Prompt 趋势按版本输出聚合准出摘要和准出状态分布；`scope-summary` 按项目 scope 输出任务/候选/发布记录项目一致性和导出红线聚合；任务创建支持显式 API/页面/业务流上下文资产和 `environmentKey`，并将上下文裁剪策略、项目/环境 effective context policy、`generationOrchestrationPolicy` 生成编排策略、`scopePolicy` 权限与资源作用域策略、`evaluationCorpusPolicy` 评测语料运营策略、`releaseReadinessPolicy` 发布准出审批策略、`auditChainPolicy` 跨 WP 审计链策略、`modelObservationPolicy` 模型观测策略、`archivePolicy` 归档治理策略、`reportManifestPolicy` 报告清单策略、`contextAssemblyPolicy` v2 装配策略安全边界、治理状态快照和 `contextPolicyOperations` v2 运营聚合快照暴露到 health、任务诊断、模型上下文打包、任务上下文摘要和任务全量报告；发布服务在配置开启时按任务聚合质量 `BLOCKED` 阻断正式发布，dryRun 保持可诊断；portal-web 工作台已提供上下文策略运营面板，复用策略 API 查询 effective policy/覆盖记录，提交或更新项目/环境级 bounded 覆盖，维护工单编号、标题、URL、状态、策略正文版本、策略 diff、申请/审批备注和工单备注时间线，并审批/驳回 PENDING 记录；任务报告导出增加治理聚合行、生成编排策略聚合行、作用域策略聚合行、评测语料策略聚合行、发布准出审批策略聚合行、跨 WP 审计链策略聚合行、上下文装配策略 v2 聚合行、上下文策略治理聚合行、上下文策略运营 v2 聚合行、模型观测策略聚合行、质量准出阈值策略聚合行、导出审计策略聚合行、安全扫描策略聚合行、归档策略聚合行、报告清单策略聚合行、Prompt 校准策略聚合行、发布补偿策略聚合行、报告 manifest 聚合行、最终安全扫描、安全扫描通过后的 aggregate-only manifest 持久化、托管归档正文存储、归档审批/外发审批工单、归档备注时间线和行级完整性索引；发布补偿后台仅自动处理已持有 WP3 用例引用的失败候选，不自动首次创建用例或解决高相似冲突 |
-| 版本 | v0.39 |
+| 当前口径 | WP5 在 `platform-api` 内实现为独立领域模块，不新增独立部署服务；模块内应用服务按任务、模板、生成、评审、质量、发布、发布补偿、冲突、报告、上下文策略、跨 WP 审计链和跨 WP 运营聚合拆分；生成/覆盖策略由 `test_design_template` 保存 `generation_strategy`、`coverage_strategy`、覆盖类型、Prompt 引用、每需求数和上下文默认引用，任务创建时固化到 `contextSummary.template`、request digest、任务审计和模型 `generationPolicy` 聚合载荷；WP2 `ma_model_policy_override` 仅承载模型调用开关、预算和路由策略；任务本域审计链摘要由报告服务聚合 WP5 任务、评审和发布记录；任务级跨 WP 审计链只读聚合由 `TestDesignAuditChainService` 输出 aggregate-only 看板骨架，聚合任务相关 WP1 audit_log、WP2 invocation/job、WP3 发布引用、WP5 本域事件和 audit outbox 状态计数，不导出审计事件明细或跨域标识；跨 WP 运营由 `TestDesignCrossWpOperationsService` 输出 queue alert 订阅、人工 queued replay、补偿运行手册、批量运营审计报表、完整审计报表模板、模型观测聚合钻取和跨 WP 脱敏明细审计报表的聚合视图；Prompt 趋势按版本输出聚合准出摘要和准出状态分布；`scope-summary` 按项目 scope 输出任务/候选/发布记录项目一致性和导出红线聚合；任务创建支持显式 API/页面/业务流上下文资产和 `environmentKey`，并将上下文裁剪策略、项目/环境 effective context policy、`generationOrchestrationPolicy` 生成编排策略、`scopePolicy` 权限与资源作用域策略、`evaluationCorpusPolicy` 评测语料运营策略、`releaseReadinessPolicy` 发布准出审批策略、`auditChainPolicy` 跨 WP 审计链策略、`modelObservationPolicy` 模型观测策略、`archivePolicy` 归档治理策略、`reportManifestPolicy` 报告清单策略、`contextAssemblyPolicy` v2 装配策略安全边界、治理状态快照和 `contextPolicyOperations` v2 运营聚合快照暴露到 health、任务诊断、模型上下文打包、任务上下文摘要和任务全量报告；发布服务在配置开启时按任务聚合质量 `BLOCKED` 阻断正式发布，dryRun 保持可诊断；portal-web 工作台已提供上下文策略运营面板，复用策略 API 查询 effective policy/覆盖记录，提交或更新项目/环境级 bounded 覆盖，维护工单编号、标题、URL、状态、策略正文版本、策略 diff、申请/审批备注和工单备注时间线，并审批/驳回 PENDING 记录；任务报告导出增加治理聚合行、生成编排策略聚合行、作用域策略聚合行、评测语料策略聚合行、发布准出审批策略聚合行、跨 WP 审计链策略聚合行、上下文装配策略 v2 聚合行、上下文策略治理聚合行、上下文策略运营 v2 聚合行、模型观测策略聚合行、质量准出阈值策略聚合行、导出审计策略聚合行、安全扫描策略聚合行、归档策略聚合行、报告清单策略聚合行、Prompt 校准策略聚合行、发布补偿策略聚合行、报告 manifest 聚合行、最终安全扫描、安全扫描通过后的 aggregate-only manifest 持久化、托管归档正文存储、归档审批/外发审批工单、归档备注时间线和行级完整性索引；发布补偿后台仅自动处理已持有 WP3 用例引用的失败候选，不自动首次创建用例或解决高相似冲突 |
+| 版本 | v0.40 |
 | 日期 | 2026-06-11 |
 
 ## 1. 架构原则
@@ -64,7 +64,8 @@ flowchart LR
 | `TestDesignCandidateController` | 候选查询、详情、编辑、确认、驳回、忽略、批量操作。 |
 | `TestDesignTaskPublishController` | 发布 dryRun、正式发布、发布记录查询和任务评审历史导出。 |
 | `TestDesignCrossWpOperationsController` | 跨 WP 统一运营看板、细粒度队列告警订阅、人工 queued replay、补偿运行手册、批量运营审计报表、审计报表模板、模型观测聚合钻取和跨 WP 脱敏明细审计报表接口。 |
-| `TestDesignTaskService` | 任务查询、任务摘要、服务健康、创建、重试、取消、异步消费认领、状态落库、幂等和任务审计。 |
+| `TestDesignTaskService` | 任务查询、任务摘要、服务健康、创建、重试、取消、异步消费认领、状态落库、幂等和任务审计；创建任务时读取模板默认值并把生成/覆盖策略写入 request digest 和 `contextSummary.template`。 |
+| `TestDesignTemplateService` | 管理全局/项目级生成模板，校验生成策略、覆盖策略、覆盖类型、Prompt 引用和上下文默认引用；模板仅保存配置和引用，不保存 Prompt 正文、上下文正文或模型载荷。 |
 | `TestDesignGenerationService` | 装配脱敏上下文、读取任务创建时固化的 effective context policy、选择规则模板或 WP2 模型生成、解析模型输出、生成候选批次并执行生成质量校验；不创建任务、不做状态流转、不写审计。 |
 | `TestDesignContextPolicyService` | 管理 WP5 项目/环境上下文策略覆盖元数据、审批状态和 effective policy 解析；只保存有界数字、固定状态和原因枚举捕获状态，不保存策略正文、策略 diff、审批备注、工单 URL 或上下文正文。 |
 | `TestDesignCandidateReviewService` | 候选查询、编辑、确认、驳回、忽略、批量评审和评审记录导出。 |
@@ -139,6 +140,23 @@ PUBLISHING -> FAILED
 | `input_digest` | varchar(96) | 上下文摘要 hash |
 | `context_summary_json` | jsonb | 脱敏后的上下文摘要 |
 | `quality_summary_json` | jsonb | 覆盖、重复、质量提示摘要 |
+
+### 4.1.1 `test_design_template`
+
+`test_design_template` 保存 WP5 生成模板配置。模板可以是全局或项目级，允许非研发人员配置生成策略和覆盖优先级；不保存 Prompt 正文、上下文正文、模型输入或资产明细。
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `id` | uuid | 模板 ID |
+| `project_id` | varchar(64) | 项目级模板；为空表示全局模板 |
+| `name` / `description` | varchar | 模板名称和说明 |
+| `prompt_key` / `prompt_version` | varchar | WP2 Prompt 引用 |
+| `coverage_types` | text | 逗号分隔覆盖类型，限定 `SMOKE/FUNCTIONAL/EXCEPTION/BOUNDARY/PERMISSION/REGRESSION` |
+| `generation_strategy` | varchar(32) | `BALANCED/RISK_FIRST/COMPLIANCE/EXPLORATORY` |
+| `coverage_strategy` | varchar(32) | `DEFAULT_ORDER/SMOKE_FIRST/RISK_FIRST/REGRESSION_HEAVY/SECURITY_PERMISSION` |
+| `case_count_per_requirement` | int | 每需求候选数，受平台最大值约束 |
+| `context_defaults_json` | jsonb | 仅允许 `environmentKey/contextApiIds/contextPageIds/contextFlowIds` 引用 |
+| `enabled` | boolean | 是否可用于任务创建 |
 
 ### 3.1.1 test_design_context_policy_override
 
@@ -531,6 +549,7 @@ WP5 任务项目时，才允许写入候选 `apiId`；非 UUID、缺失 API 或�
 ```json
 {
   "projectId": "project-001",
+  "templateId": "9cb7d5f2-0000-4000-8000-000000000001",
   "title": "登录需求用例生成",
   "requirementIds": ["4d76b2c1-0000-4000-8000-000000000001"],
   "contextApiIds": ["a2220000-0000-4000-8000-000000000001"],
@@ -541,6 +560,8 @@ WP5 任务项目时，才允许写入候选 `apiId`；非 UUID、缺失 API 或�
   "caseCountPerRequirement": 5
 }
 ```
+
+选择 `templateId` 时，服务端以模板中的 Prompt、生成策略、覆盖策略、覆盖类型、每需求数和上下文默认引用为基准；请求体里的显式上下文 ID 仍会进入当前任务的上下文装配和幂等 digest。模板策略不通过 WP2 `/policies` 解析。
 
 任务响应：
 
@@ -564,6 +585,14 @@ WP5 任务项目时，才允许写入候选 `apiId`；非 UUID、缺失 API 或�
     "emptyStepCount": 0,
     "duplicateRiskCount": 1,
     "coverageTypes": ["SMOKE", "FUNCTIONAL"]
+  },
+  "contextSummary": {
+    "template": {
+      "templateId": "9cb7d5f2-0000-4000-8000-000000000001",
+      "name": "登录主链路模板",
+      "generationStrategy": "RISK_FIRST",
+      "coverageStrategy": "RISK_FIRST"
+    }
   },
   "lastErrorCode": null,
   "lastErrorMessage": null,
@@ -682,6 +711,10 @@ WP5 任务项目时，才允许写入候选 `apiId`；非 UUID、缺失 API 或�
 | 方法 | 路径 | 权限 | 说明 |
 |---|---|---|---|
 | `GET` | `/health` | `testDesign:read` | 返回 WP5 开关、Prompt、fallback、质量阈值、上下文/生成编排/作用域/评测/发布准出、`auditChainPolicy`、`modelObservationPolicy`、`archivePolicy` 和 `reportManifestPolicy` 聚合摘要。 |
+| `GET` | `/templates` | `testDesign:read` | 分页查询全局/项目级生成模板，返回 Prompt 引用、覆盖类型、生成策略、覆盖策略、每需求数和上下文默认引用。 |
+| `POST` | `/templates` | `testDesign:policy_manage` | 创建生成模板；请求只能携带配置枚举、数量和上下文引用，不允许 Prompt 正文或上下文正文。 |
+| `PUT` | `/templates/{id}` | `testDesign:policy_manage` | 更新生成模板并写审计；项目作用域不可跨项目变更。 |
+| `DELETE` | `/templates/{id}` | `testDesign:policy_manage` | 禁用生成模板；历史任务保留任务创建时固化的模板策略快照。 |
 | `GET` | `/tasks/{id}/quality/summary` | `testDesign:read` | 返回任务全量质量摘要和按当前阈值计算的任务准出状态。 |
 | `GET` | `/quality/prompt-trend` | `testDesign:read` | 返回最近任务按 Prompt key/version 聚合的质量趋势，每个版本桶包含聚合准出摘要，并返回顶层准出状态分布。 |
 | `GET` | `/quality/scope-summary` | `testDesign:read` | 返回权限与资源作用域只读聚合摘要，按项目 scope 聚合任务/候选/发布记录项目一致性、作用域覆盖率、模型调用引用、发布作用域记录和导出红线。 |

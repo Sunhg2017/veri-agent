@@ -1500,6 +1500,8 @@ class TestDesignControllerTest {
                                   "promptKey": "wp5-template-login",
                                   "promptVersion": "2026.05",
                                   "coverageTypes": ["BOUNDARY", "PERMISSION"],
+                                  "generationStrategy": "RISK_FIRST",
+                                  "coverageStrategy": "RISK_FIRST",
                                   "caseCountPerRequirement": 2,
                                   "contextDefaults": {
                                     "environmentKey": "qa",
@@ -1520,6 +1522,8 @@ class TestDesignControllerTest {
                                   "promptKey": "wp5-template-login",
                                   "promptVersion": "2026.05",
                                   "coverageTypes": ["BOUNDARY", "PERMISSION"],
+                                  "generationStrategy": "RISK_FIRST",
+                                  "coverageStrategy": "RISK_FIRST",
                                   "caseCountPerRequirement": 2,
                                   "contextDefaults": {
                                     "environmentKey": "qa",
@@ -1535,6 +1539,8 @@ class TestDesignControllerTest {
                 .andExpect(jsonPath("$.data.promptKey").value("wp5-template-login"))
                 .andExpect(jsonPath("$.data.promptVersion").value("2026.05"))
                 .andExpect(jsonPath("$.data.coverageTypes", contains("BOUNDARY", "PERMISSION")))
+                .andExpect(jsonPath("$.data.generationStrategy").value("RISK_FIRST"))
+                .andExpect(jsonPath("$.data.coverageStrategy").value("RISK_FIRST"))
                 .andExpect(jsonPath("$.data.contextDefaults.environmentKey").value("qa"))
                 .andExpect(jsonPath("$.data.contextDefaults.contextApiIds", contains(apiId)))
                 .andExpect(jsonPath("$.data.enabled").value(true))
@@ -1564,7 +1570,9 @@ class TestDesignControllerTest {
                                   "description": "提高回归覆盖",
                                   "promptKey": "wp5-template-login",
                                   "promptVersion": "2026.06",
-                                  "coverageTypes": ["REGRESSION", "SMOKE"],
+                                  "coverageTypes": ["SMOKE", "REGRESSION", "EXCEPTION"],
+                                  "generationStrategy": "COMPLIANCE",
+                                  "coverageStrategy": "RISK_FIRST",
                                   "caseCountPerRequirement": 2,
                                   "contextDefaults": {
                                     "environmentKey": "qa",
@@ -1578,7 +1586,9 @@ class TestDesignControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.name").value("登录主链路模板 v2"))
                 .andExpect(jsonPath("$.data.promptVersion").value("2026.06"))
-                .andExpect(jsonPath("$.data.coverageTypes", contains("REGRESSION", "SMOKE")));
+                .andExpect(jsonPath("$.data.coverageTypes", contains("EXCEPTION", "SMOKE", "REGRESSION")))
+                .andExpect(jsonPath("$.data.generationStrategy").value("COMPLIANCE"))
+                .andExpect(jsonPath("$.data.coverageStrategy").value("RISK_FIRST"));
 
         MvcResult taskResult = mockMvc.perform(post("/api/v1/test-design/tasks")
                         .header("Authorization", "Bearer " + ownerToken)
@@ -1593,11 +1603,13 @@ class TestDesignControllerTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.data.task.promptKey").value("wp5-template-login"))
                 .andExpect(jsonPath("$.data.task.promptVersion").value("2026.06"))
-                .andExpect(jsonPath("$.data.task.coverageTypes", contains("REGRESSION", "SMOKE")))
+                .andExpect(jsonPath("$.data.task.coverageTypes", contains("EXCEPTION", "SMOKE")))
                 .andExpect(jsonPath("$.data.task.generatedCount").value(2))
                 .andExpect(jsonPath("$.data.task.contextSummary.environmentKey").value("qa"))
                 .andExpect(jsonPath("$.data.task.contextSummary.template.templateId").value(templateId))
                 .andExpect(jsonPath("$.data.task.contextSummary.template.name").value("登录主链路模板 v2"))
+                .andExpect(jsonPath("$.data.task.contextSummary.template.generationStrategy").value("COMPLIANCE"))
+                .andExpect(jsonPath("$.data.task.contextSummary.template.coverageStrategy").value("RISK_FIRST"))
                 .andExpect(jsonPath("$.data.task.contextSummary.explicitAssets.apiCount").value(1))
                 .andExpect(jsonPath("$.data.task.contextSummary.explicitAssets.pageCount").value(1))
                 .andExpect(jsonPath("$.data.task.contextSummary.explicitAssets.flowCount").value(1))
