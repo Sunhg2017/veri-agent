@@ -20,7 +20,9 @@ import com.songhg.veri.agent.testdesign.domain.TestDesignContextPolicyOverride;
 import com.songhg.veri.agent.testdesign.domain.TestDesignCrossWpOperationsAggregate;
 import com.songhg.veri.agent.testdesign.domain.TestDesignEvaluationSample;
 import com.songhg.veri.agent.testdesign.domain.TestDesignEvaluationSampleSummary;
+import com.songhg.veri.agent.testdesign.domain.TestDesignOperationsAuditAggregate;
 import com.songhg.veri.agent.testdesign.domain.TestDesignPublishRecord;
+import com.songhg.veri.agent.testdesign.domain.TestDesignQueueAlertSubscription;
 import com.songhg.veri.agent.testdesign.domain.TestDesignReleaseReadinessApproval;
 import com.songhg.veri.agent.testdesign.domain.TestDesignReleaseReadinessNote;
 import com.songhg.veri.agent.testdesign.domain.TestDesignReportManifest;
@@ -60,6 +62,8 @@ public class InMemoryTestDesignRepository implements TestDesignRepository {
     private final ConcurrentHashMap<UUID, TestDesignTemplate> templates = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<UUID, TestDesignEvaluationSample> evaluationSamples = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<UUID, TestDesignCalibrationRun> calibrationRuns = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<UUID, TestDesignQueueAlertSubscription> queueAlertSubscriptions =
+            new ConcurrentHashMap<>();
 
     @Override
     public List<TestDesignTemplate> templates(TestDesignTemplateQuery query) {
@@ -131,11 +135,53 @@ public class InMemoryTestDesignRepository implements TestDesignRepository {
     }
 
     @Override
+    public long countTasksByStatus(String projectId, String promptKey, TestDesignTaskStatus status) {
+        if (status == null) {
+            return 0L;
+        }
+        return tasks.values().stream()
+                .filter(task -> matches(projectId, task.projectId()))
+                .filter(task -> matches(promptKey, task.promptKey()))
+                .filter(task -> status.name().equals(task.status()))
+                .count();
+    }
+
+    @Override
+    public Optional<Instant> oldestTaskUpdatedAtByStatus(
+            String projectId,
+            String promptKey,
+            TestDesignTaskStatus status
+    ) {
+        if (status == null) {
+            return Optional.empty();
+        }
+        return tasks.values().stream()
+                .filter(task -> matches(projectId, task.projectId()))
+                .filter(task -> matches(promptKey, task.promptKey()))
+                .filter(task -> status.name().equals(task.status()))
+                .map(InMemoryTestDesignRepository::lastTouchedAt)
+                .min(Comparator.naturalOrder());
+    }
+
+    @Override
     public long countStaleRunningTasks(Instant staleBefore) {
         if (staleBefore == null) {
             return 0L;
         }
         return tasks.values().stream()
+                .filter(task -> TestDesignTaskStatus.RUNNING.name().equals(task.status()))
+                .filter(task -> lastTouchedAt(task).isBefore(staleBefore))
+                .count();
+    }
+
+    @Override
+    public long countStaleRunningTasks(String projectId, String promptKey, Instant staleBefore) {
+        if (staleBefore == null) {
+            return 0L;
+        }
+        return tasks.values().stream()
+                .filter(task -> matches(projectId, task.projectId()))
+                .filter(task -> matches(promptKey, task.promptKey()))
                 .filter(task -> TestDesignTaskStatus.RUNNING.name().equals(task.status()))
                 .filter(task -> lastTouchedAt(task).isBefore(staleBefore))
                 .count();
@@ -157,6 +203,35 @@ public class InMemoryTestDesignRepository implements TestDesignRepository {
             return Optional.empty();
         }
         return candidates.values().stream()
+                .filter(candidate -> status.name().equals(candidate.status()))
+                .map(TestDesignCandidate::updatedAt)
+                .min(Comparator.naturalOrder());
+    }
+
+    @Override
+    public long countCandidatesByStatus(String projectId, String promptKey, TestDesignCandidateStatus status) {
+        if (status == null) {
+            return 0L;
+        }
+        return candidates.values().stream()
+                .filter(candidate -> matches(projectId, candidate.projectId()))
+                .filter(candidate -> matches(promptKey, candidate.promptKey()))
+                .filter(candidate -> status.name().equals(candidate.status()))
+                .count();
+    }
+
+    @Override
+    public Optional<Instant> oldestCandidateUpdatedAtByStatus(
+            String projectId,
+            String promptKey,
+            TestDesignCandidateStatus status
+    ) {
+        if (status == null) {
+            return Optional.empty();
+        }
+        return candidates.values().stream()
+                .filter(candidate -> matches(projectId, candidate.projectId()))
+                .filter(candidate -> matches(promptKey, candidate.promptKey()))
                 .filter(candidate -> status.name().equals(candidate.status()))
                 .map(TestDesignCandidate::updatedAt)
                 .min(Comparator.naturalOrder());
@@ -359,6 +434,35 @@ public class InMemoryTestDesignRepository implements TestDesignRepository {
     }
 
     @Override
+    public List<TestDesignTask> queuedTasksForReplay(String projectId, String promptKey, int limit) {
+        if (limit <= 0) {
+            return List.of();
+        }
+        return tasks.values().stream()
+                .filter(task -> matches(projectId, task.projectId()))
+                .filter(task -> matches(promptKey, task.promptKey()))
+                .filter(task -> TestDesignTaskStatus.QUEUED.name().equals(task.status()))
+                .sorted(Comparator.comparing(InMemoryTestDesignRepository::lastTouchedAt))
+                .limit(limit)
+                .toList();
+    }
+
+    @Override
+    public List<TestDesignCandidate> publishQueuedCandidatesForReplay(String projectId, String promptKey, int limit) {
+        if (limit <= 0) {
+            return List.of();
+        }
+        return candidates.values().stream()
+                .filter(candidate -> matches(projectId, candidate.projectId()))
+                .filter(candidate -> matches(promptKey, candidate.promptKey()))
+                .filter(candidate -> TestDesignCandidateStatus.PUBLISH_QUEUED.name().equals(candidate.status()))
+                .sorted(Comparator.comparing(TestDesignCandidate::updatedAt,
+                        Comparator.nullsLast(Comparator.naturalOrder())))
+                .limit(limit)
+                .toList();
+    }
+
+    @Override
     public int markStalePublishingCandidatesFailed(
             Instant failedAt,
             Instant staleBefore,
@@ -426,11 +530,31 @@ public class InMemoryTestDesignRepository implements TestDesignRepository {
     }
 
     @Override
+    public long countStalePublishingCandidates(String projectId, String promptKey, Instant staleBefore) {
+        if (staleBefore == null) {
+            return 0L;
+        }
+        return candidates.values().stream()
+                .filter(candidate -> matches(projectId, candidate.projectId()))
+                .filter(candidate -> matches(promptKey, candidate.promptKey()))
+                .filter(candidate -> TestDesignCandidateStatus.PUBLISHING.name().equals(candidate.status()))
+                .filter(candidate -> candidate.updatedAt() != null && candidate.updatedAt().isBefore(staleBefore))
+                .count();
+    }
+
+    @Override
     public List<TestDesignCandidate> publishCompensationCandidates(int limit) {
+        return publishCompensationCandidates(null, null, limit);
+    }
+
+    @Override
+    public List<TestDesignCandidate> publishCompensationCandidates(String projectId, String promptKey, int limit) {
         if (limit <= 0) {
             return List.of();
         }
         return candidates.values().stream()
+                .filter(candidate -> matches(projectId, candidate.projectId()))
+                .filter(candidate -> matches(promptKey, candidate.promptKey()))
                 .filter(candidate -> "FAILED".equals(candidate.status()))
                 .filter(candidate -> candidate.assetCaseId() != null)
                 .filter(candidate -> publishRecords.values().stream()
@@ -442,6 +566,11 @@ public class InMemoryTestDesignRepository implements TestDesignRepository {
                 .sorted(Comparator.comparing(TestDesignCandidate::updatedAt, Comparator.nullsLast(Comparator.naturalOrder())))
                 .limit(limit)
                 .toList();
+    }
+
+    @Override
+    public long countPublishCompensationCandidates(String projectId, String promptKey) {
+        return publishCompensationCandidates(projectId, promptKey, Integer.MAX_VALUE).size();
     }
 
     @Override
@@ -684,6 +813,52 @@ public class InMemoryTestDesignRepository implements TestDesignRepository {
             Instant now
     ) {
         return 0;
+    }
+
+    @Override
+    public List<TestDesignQueueAlertSubscription> queueAlertSubscriptions(String projectId, String promptKey) {
+        return queueAlertSubscriptions.values().stream()
+                .filter(subscription -> matches(projectId, subscription.projectId()))
+                .filter(subscription -> !StringUtils.hasText(promptKey)
+                        || !StringUtils.hasText(subscription.promptKey())
+                        || promptKey.equalsIgnoreCase(subscription.promptKey()))
+                .sorted(Comparator.comparing(TestDesignQueueAlertSubscription::enabled).reversed()
+                        .thenComparing(TestDesignQueueAlertSubscription::updatedAt,
+                                Comparator.nullsLast(Comparator.reverseOrder())))
+                .toList();
+    }
+
+    @Override
+    public Optional<TestDesignQueueAlertSubscription> queueAlertSubscription(UUID id) {
+        return Optional.ofNullable(queueAlertSubscriptions.get(id));
+    }
+
+    @Override
+    public Optional<TestDesignQueueAlertSubscription> queueAlertSubscriptionByKey(
+            String projectId,
+            String promptKey,
+            String alertType,
+            String channel,
+            String targetRef
+    ) {
+        return queueAlertSubscriptions.values().stream()
+                .filter(subscription -> projectId.equals(subscription.projectId()))
+                .filter(subscription -> sameNullableProject(promptKey, subscription.promptKey()))
+                .filter(subscription -> alertType.equals(subscription.alertType()))
+                .filter(subscription -> channel.equals(subscription.channel()))
+                .filter(subscription -> targetRef.equals(subscription.targetRef()))
+                .findFirst();
+    }
+
+    @Override
+    public TestDesignQueueAlertSubscription saveQueueAlertSubscription(TestDesignQueueAlertSubscription subscription) {
+        queueAlertSubscriptions.put(subscription.id(), subscription);
+        return subscription;
+    }
+
+    @Override
+    public TestDesignOperationsAuditAggregate operationsAuditAggregate(String projectId, String promptKey) {
+        return new TestDesignOperationsAuditAggregate(0, 0, 0, 0, 0, 0, 0, 0, null);
     }
 
     @Override

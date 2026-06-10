@@ -232,6 +232,37 @@
         </constructor>
     </resultMap>
 
+    <resultMap id="queueAlertSubscriptionMap" type="com.songhg.veri.agent.testdesign.domain.TestDesignQueueAlertSubscription">
+        <constructor>
+            <arg column="id" javaType="java.util.UUID"/>
+            <arg column="project_id" javaType="java.lang.String"/>
+            <arg column="prompt_key" javaType="java.lang.String"/>
+            <arg column="alert_type" javaType="java.lang.String"/>
+            <arg column="channel" javaType="java.lang.String"/>
+            <arg column="target_ref" javaType="java.lang.String"/>
+            <arg column="threshold_seconds" javaType="java.lang.Integer"/>
+            <arg column="enabled" javaType="_boolean"/>
+            <arg column="created_by" javaType="java.lang.String"/>
+            <arg column="updated_by" javaType="java.lang.String"/>
+            <arg column="created_at" javaType="java.time.Instant"/>
+            <arg column="updated_at" javaType="java.time.Instant"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="operationsAuditAggregateMap" type="com.songhg.veri.agent.testdesign.domain.TestDesignOperationsAuditAggregate">
+        <constructor>
+            <arg column="total_operation_count" javaType="_long"/>
+            <arg column="success_count" javaType="_long"/>
+            <arg column="failed_count" javaType="_long"/>
+            <arg column="denied_count" javaType="_long"/>
+            <arg column="queue_alert_subscription_mutation_count" javaType="_long"/>
+            <arg column="queued_event_replay_count" javaType="_long"/>
+            <arg column="publish_compensation_run_count" javaType="_long"/>
+            <arg column="audit_outbox_requeue_count" javaType="_long"/>
+            <arg column="latest_operation_at" javaType="java.time.Instant"/>
+        </constructor>
+    </resultMap>
+
     <resultMap id="contextPolicyOverrideMap" type="com.songhg.veri.agent.testdesign.domain.TestDesignContextPolicyOverride">
         <constructor>
             <arg column="id" javaType="java.util.UUID"/>
@@ -418,6 +449,11 @@
         confidence, prompt_key, prompt_version, model_invocation_id, model_provider_name, model_name,
         asset_case_id, review_comment, rejected_reason, ignored_reason, error_message, confirmed_by,
         confirmed_at, version, created_at, updated_at
+    </sql>
+
+    <sql id="queueAlertSubscriptionColumns">
+        id, project_id, prompt_key, alert_type, channel, target_ref, threshold_seconds, enabled,
+        created_by, updated_by, created_at, updated_at
     </sql>
 
     <sql id="contextPolicyOverrideColumns">
@@ -680,11 +716,38 @@
         limit 1
     </select>
 
+    <select id="countTasksByStatusInScope" resultType="long">
+        select count(*)
+        from test_design_task
+        where status = #{status}
+          and (#{projectId} is null or project_id = #{projectId})
+          and (#{promptKey} is null or prompt_key = #{promptKey})
+    </select>
+
+    <select id="oldestTaskUpdatedAtByStatusInScope" resultType="java.time.Instant">
+        select updated_at
+        from test_design_task
+        where status = #{status}
+          and (#{projectId} is null or project_id = #{projectId})
+          and (#{promptKey} is null or prompt_key = #{promptKey})
+        order by updated_at asc
+        limit 1
+    </select>
+
     <select id="countStaleRunningTasks" resultType="long">
         select count(*)
         from test_design_task
         where status = 'RUNNING'
           and updated_at &lt; #{staleBefore}
+    </select>
+
+    <select id="countStaleRunningTasksInScope" resultType="long">
+        select count(*)
+        from test_design_task
+        where status = 'RUNNING'
+          and updated_at &lt; #{staleBefore}
+          and (#{projectId} is null or project_id = #{projectId})
+          and (#{promptKey} is null or prompt_key = #{promptKey})
     </select>
 
     <select id="countCandidatesByStatus" resultType="long">
@@ -697,6 +760,24 @@
         select updated_at
         from test_design_candidate
         where status = #{status}
+        order by updated_at asc
+        limit 1
+    </select>
+
+    <select id="countCandidatesByStatusInScope" resultType="long">
+        select count(*)
+        from test_design_candidate
+        where status = #{status}
+          and (#{projectId} is null or project_id = #{projectId})
+          and (#{promptKey} is null or prompt_key = #{promptKey})
+    </select>
+
+    <select id="oldestCandidateUpdatedAtByStatusInScope" resultType="java.time.Instant">
+        select updated_at
+        from test_design_candidate
+        where status = #{status}
+          and (#{projectId} is null or project_id = #{projectId})
+          and (#{promptKey} is null or prompt_key = #{promptKey})
         order by updated_at asc
         limit 1
     </select>
@@ -827,6 +908,26 @@
         limit #{limit}
     </select>
 
+    <select id="queuedTasksForReplay" resultMap="taskMap">
+        select <include refid="taskColumns"/>
+        from test_design_task
+        where status = 'QUEUED'
+          and project_id = #{projectId}
+          and (#{promptKey} is null or prompt_key = #{promptKey})
+        order by updated_at asc
+        limit #{limit}
+    </select>
+
+    <select id="publishQueuedCandidatesForReplay" resultMap="candidateMap">
+        select <include refid="candidateColumns"/>
+        from test_design_candidate
+        where status = 'PUBLISH_QUEUED'
+          and project_id = #{projectId}
+          and (#{promptKey} is null or prompt_key = #{promptKey})
+        order by updated_at asc
+        limit #{limit}
+    </select>
+
     <update id="markStalePublishingCandidatesFailed">
         with stale_candidates as (
             select id
@@ -853,6 +954,15 @@
           and updated_at &lt; #{staleBefore}
     </select>
 
+    <select id="countStalePublishingCandidatesInScope" resultType="long">
+        select count(*)
+        from test_design_candidate
+        where status = 'PUBLISHING'
+          and updated_at &lt; #{staleBefore}
+          and (#{projectId} is null or project_id = #{projectId})
+          and (#{promptKey} is null or prompt_key = #{promptKey})
+    </select>
+
     <select id="publishCompensationCandidates" resultMap="candidateMap">
         select <include refid="candidateColumns"/>
         from test_design_candidate c
@@ -872,6 +982,50 @@
           )
         order by c.updated_at asc
         limit #{limit}
+    </select>
+
+    <select id="publishCompensationCandidatesInScope" resultMap="candidateMap">
+        select <include refid="candidateColumns"/>
+        from test_design_candidate c
+        where c.status = 'FAILED'
+          and c.asset_case_id is not null
+          and (#{projectId} is null or c.project_id = #{projectId})
+          and (#{promptKey} is null or c.prompt_key = #{promptKey})
+          and not exists (
+              select 1
+              from test_design_publish_record succeeded
+              where succeeded.candidate_id = c.id
+                and succeeded.result = 'SUCCEEDED'
+          )
+          and not exists (
+              select 1
+              from test_design_publish_record attempted
+              where attempted.candidate_id = c.id
+                and attempted.action = 'AUTO_COMPENSATE_LINK_EXISTING'
+          )
+        order by c.updated_at asc
+        limit #{limit}
+    </select>
+
+    <select id="countPublishCompensationCandidates" resultType="long">
+        select count(*)
+        from test_design_candidate c
+        where c.status = 'FAILED'
+          and c.asset_case_id is not null
+          and (#{projectId} is null or c.project_id = #{projectId})
+          and (#{promptKey} is null or c.prompt_key = #{promptKey})
+          and not exists (
+              select 1
+              from test_design_publish_record succeeded
+              where succeeded.candidate_id = c.id
+                and succeeded.result = 'SUCCEEDED'
+          )
+          and not exists (
+              select 1
+              from test_design_publish_record attempted
+              where attempted.candidate_id = c.id
+                and attempted.action = 'AUTO_COMPENSATE_LINK_EXISTING'
+          )
     </select>
 
     <select id="lockPublishCompensationCandidate" resultType="int">
@@ -1444,6 +1598,84 @@
             limit #{limit}
         )
     </update>
+
+    <select id="queueAlertSubscriptions" resultMap="queueAlertSubscriptionMap">
+        select <include refid="queueAlertSubscriptionColumns"/>
+        from test_design_queue_alert_subscription
+        where (#{projectId} is null or project_id = #{projectId})
+          and (#{promptKey} is null or prompt_key is null or prompt_key = #{promptKey})
+        order by enabled desc, updated_at desc, created_at desc
+    </select>
+
+    <select id="queueAlertSubscription" resultMap="queueAlertSubscriptionMap">
+        select <include refid="queueAlertSubscriptionColumns"/>
+        from test_design_queue_alert_subscription
+        where id = cast(#{id} as uuid)
+    </select>
+
+    <select id="queueAlertSubscriptionByKey" resultMap="queueAlertSubscriptionMap">
+        select <include refid="queueAlertSubscriptionColumns"/>
+        from test_design_queue_alert_subscription
+        where project_id = #{projectId}
+          and coalesce(prompt_key, '') = coalesce(#{promptKey}, '')
+          and alert_type = #{alertType}
+          and channel = #{channel}
+          and target_ref = #{targetRef}
+        limit 1
+    </select>
+
+    <insert id="insertQueueAlertSubscription">
+        insert into test_design_queue_alert_subscription (
+            id, project_id, prompt_key, alert_type, channel, target_ref, threshold_seconds,
+            enabled, created_by, updated_by, created_at, updated_at
+        ) values (
+            cast(#{id} as uuid), #{projectId}, #{promptKey}, #{alertType}, #{channel}, #{targetRef},
+            #{thresholdSeconds}, #{enabled}, #{createdBy}, #{updatedBy}, #{createdAt}, #{updatedAt}
+        )
+    </insert>
+
+    <update id="updateQueueAlertSubscription">
+        update test_design_queue_alert_subscription
+        set prompt_key = #{promptKey},
+            alert_type = #{alertType},
+            channel = #{channel},
+            target_ref = #{targetRef},
+            threshold_seconds = #{thresholdSeconds},
+            enabled = #{enabled},
+            updated_by = #{updatedBy},
+            updated_at = #{updatedAt}
+        where id = cast(#{id} as uuid)
+    </update>
+
+    <select id="operationsAuditAggregate" resultMap="operationsAuditAggregateMap">
+        with scoped_operations as (
+            select action, result, created_at
+            from audit_log
+            where resource_type = 'TEST_DESIGN_CROSS_WP_OPERATIONS'
+              and action in (
+                  'WP5_QUEUE_ALERT_SUBSCRIPTION_UPSERT',
+                  'WP5_CROSS_WP_QUEUED_EVENT_REPLAY',
+                  'WP5_PUBLISH_COMPENSATION_RUN',
+                  'WP5_CROSS_WP_AUDIT_OUTBOX_REQUEUE'
+              )
+              and (#{projectId} is null or resource_id = #{projectId})
+        )
+        select
+            coalesce(count(*), 0) as total_operation_count,
+            coalesce(sum(case when result = 'SUCCESS' then 1 else 0 end), 0) as success_count,
+            coalesce(sum(case when result = 'FAILED' then 1 else 0 end), 0) as failed_count,
+            coalesce(sum(case when result = 'DENIED' then 1 else 0 end), 0) as denied_count,
+            coalesce(sum(case when action = 'WP5_QUEUE_ALERT_SUBSCRIPTION_UPSERT' then 1 else 0 end), 0)
+                as queue_alert_subscription_mutation_count,
+            coalesce(sum(case when action = 'WP5_CROSS_WP_QUEUED_EVENT_REPLAY' then 1 else 0 end), 0)
+                as queued_event_replay_count,
+            coalesce(sum(case when action = 'WP5_PUBLISH_COMPENSATION_RUN' then 1 else 0 end), 0)
+                as publish_compensation_run_count,
+            coalesce(sum(case when action = 'WP5_CROSS_WP_AUDIT_OUTBOX_REQUEUE' then 1 else 0 end), 0)
+                as audit_outbox_requeue_count,
+            max(created_at) as latest_operation_at
+        from scoped_operations
+    </select>
 
     <insert id="insertContextPolicyOverride">
         insert into test_design_context_policy_override (

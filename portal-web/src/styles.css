@@ -1925,7 +1925,7 @@ tbody tr:hover td {
 }
 
 .test-design-cross-wp-metrics {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
 }
 
 .test-design-cross-wp-readiness {
@@ -1980,6 +1980,18 @@ tbody tr:hover td {
 
 .test-design-cross-wp-actions {
   justify-content: flex-start;
+}
+
+.test-design-cross-wp-list {
+  display: grid;
+  gap: 8px;
+}
+
+.test-design-cross-wp-row em {
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+  font-style: normal;
+  overflow-wrap: anywhere;
 }
 
 .test-design-audit-metrics {

@@ -45,8 +45,20 @@ alter table ma_invocation_job
     add column if not exists principal_roles varchar(512);
 
 comment on table ma_model_policy_override is 'WP2 runtime model-access policy overrides maintained by operators. Stores bounded switches, budgets and route groups only.';
+comment on column ma_model_policy_override.id is 'Primary key for one runtime model-access policy override.';
 comment on column ma_model_policy_override.scope_type is 'Policy scope: PLATFORM, ROLE, PROJECT or ENVIRONMENT. Effective precedence is environment > project > role > platform.';
 comment on column ma_model_policy_override.scope_key is 'Scope key. PLATFORM uses GLOBAL; ROLE uses role code; PROJECT/ENVIRONMENT use logical WP1 resource IDs.';
+comment on column ma_model_policy_override.enabled is 'Whether this override participates in effective policy resolution.';
+comment on column ma_model_policy_override.model_invocation_enabled is 'Nullable model invocation switch. Null inherits the lower-precedence or default policy.';
+comment on column ma_model_policy_override.public_model_allowed is 'Nullable public-model access switch. Null inherits the lower-precedence or default policy.';
+comment on column ma_model_policy_override.daily_budget_limit is 'Nullable daily budget cap for the scope, stored in billing cost units.';
+comment on column ma_model_policy_override.cost_alert_warning_ratio is 'Nullable warning threshold ratio for budget alerts, greater than 0 and no more than 1.';
+comment on column ma_model_policy_override.budget_overrun_action is 'Nullable budget overrun action. BLOCK rejects calls; FALLBACK uses configured fallback routing.';
+comment on column ma_model_policy_override.routing_group is 'Nullable logical routing group selected by operators for this scope.';
 comment on column ma_model_policy_override.reason is 'Operator change reason after sensitive-content masking. Must not contain secrets or prompt/request payloads.';
+comment on column ma_model_policy_override.updated_by is 'Operator or service account that last changed the override.';
+comment on column ma_model_policy_override.created_at is 'Creation timestamp for audit and retention checks.';
+comment on column ma_model_policy_override.updated_at is 'Last update timestamp for audit and optimistic concurrency checks.';
+comment on column ma_model_policy_override.version is 'Optimistic concurrency version incremented by update operations.';
 comment on column ma_invocation_log.role_scope is 'Matched role policy scope used for role-level budget aggregation. Service-token invocations keep this null.';
 comment on column ma_invocation_job.principal_roles is 'Comma-separated role snapshot captured at async job submission for runtime policy resolution in workers.';

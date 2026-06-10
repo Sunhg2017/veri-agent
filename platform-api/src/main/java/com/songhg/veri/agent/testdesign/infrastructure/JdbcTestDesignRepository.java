@@ -20,7 +20,9 @@ import com.songhg.veri.agent.testdesign.domain.TestDesignContextPolicyOverride;
 import com.songhg.veri.agent.testdesign.domain.TestDesignCrossWpOperationsAggregate;
 import com.songhg.veri.agent.testdesign.domain.TestDesignEvaluationSample;
 import com.songhg.veri.agent.testdesign.domain.TestDesignEvaluationSampleSummary;
+import com.songhg.veri.agent.testdesign.domain.TestDesignOperationsAuditAggregate;
 import com.songhg.veri.agent.testdesign.domain.TestDesignPublishRecord;
+import com.songhg.veri.agent.testdesign.domain.TestDesignQueueAlertSubscription;
 import com.songhg.veri.agent.testdesign.domain.TestDesignReleaseReadinessApproval;
 import com.songhg.veri.agent.testdesign.domain.TestDesignReleaseReadinessNote;
 import com.songhg.veri.agent.testdesign.domain.TestDesignReportManifest;
@@ -97,8 +99,28 @@ public class JdbcTestDesignRepository implements TestDesignRepository {
     }
 
     @Override
+    public long countTasksByStatus(String projectId, String promptKey, TestDesignTaskStatus status) {
+        return status == null ? 0L : mapper.countTasksByStatusInScope(projectId, promptKey, status.name());
+    }
+
+    @Override
+    public Optional<Instant> oldestTaskUpdatedAtByStatus(
+            String projectId,
+            String promptKey,
+            TestDesignTaskStatus status
+    ) {
+        return status == null ? Optional.empty()
+                : Optional.ofNullable(mapper.oldestTaskUpdatedAtByStatusInScope(projectId, promptKey, status.name()));
+    }
+
+    @Override
     public long countStaleRunningTasks(Instant staleBefore) {
         return staleBefore == null ? 0L : mapper.countStaleRunningTasks(staleBefore);
+    }
+
+    @Override
+    public long countStaleRunningTasks(String projectId, String promptKey, Instant staleBefore) {
+        return staleBefore == null ? 0L : mapper.countStaleRunningTasksInScope(projectId, promptKey, staleBefore);
     }
 
     @Override
@@ -110,6 +132,25 @@ public class JdbcTestDesignRepository implements TestDesignRepository {
     public Optional<Instant> oldestCandidateUpdatedAtByStatus(TestDesignCandidateStatus status) {
         return status == null ? Optional.empty()
                 : Optional.ofNullable(mapper.oldestCandidateUpdatedAtByStatus(status.name()));
+    }
+
+    @Override
+    public long countCandidatesByStatus(String projectId, String promptKey, TestDesignCandidateStatus status) {
+        return status == null ? 0L : mapper.countCandidatesByStatusInScope(projectId, promptKey, status.name());
+    }
+
+    @Override
+    public Optional<Instant> oldestCandidateUpdatedAtByStatus(
+            String projectId,
+            String promptKey,
+            TestDesignCandidateStatus status
+    ) {
+        return status == null ? Optional.empty()
+                : Optional.ofNullable(mapper.oldestCandidateUpdatedAtByStatusInScope(
+                        projectId,
+                        promptKey,
+                        status.name()
+                ));
     }
 
     @Override
@@ -183,6 +224,16 @@ public class JdbcTestDesignRepository implements TestDesignRepository {
     }
 
     @Override
+    public List<TestDesignTask> queuedTasksForReplay(String projectId, String promptKey, int limit) {
+        return mapper.queuedTasksForReplay(projectId, promptKey, limit);
+    }
+
+    @Override
+    public List<TestDesignCandidate> publishQueuedCandidatesForReplay(String projectId, String promptKey, int limit) {
+        return mapper.publishQueuedCandidatesForReplay(projectId, promptKey, limit);
+    }
+
+    @Override
     public int markStalePublishingCandidatesFailed(
             Instant failedAt,
             Instant staleBefore,
@@ -198,8 +249,23 @@ public class JdbcTestDesignRepository implements TestDesignRepository {
     }
 
     @Override
+    public long countStalePublishingCandidates(String projectId, String promptKey, Instant staleBefore) {
+        return staleBefore == null ? 0L : mapper.countStalePublishingCandidatesInScope(projectId, promptKey, staleBefore);
+    }
+
+    @Override
     public List<TestDesignCandidate> publishCompensationCandidates(int limit) {
         return mapper.publishCompensationCandidates(limit);
+    }
+
+    @Override
+    public List<TestDesignCandidate> publishCompensationCandidates(String projectId, String promptKey, int limit) {
+        return mapper.publishCompensationCandidatesInScope(projectId, promptKey, limit);
+    }
+
+    @Override
+    public long countPublishCompensationCandidates(String projectId, String promptKey) {
+        return mapper.countPublishCompensationCandidates(projectId, promptKey);
     }
 
     @Override
@@ -308,6 +374,51 @@ public class JdbcTestDesignRepository implements TestDesignRepository {
             Instant now
     ) {
         return mapper.requeueAuditOutbox(projectId, status, limit, reason, actor, now);
+    }
+
+    @Override
+    public List<TestDesignQueueAlertSubscription> queueAlertSubscriptions(String projectId, String promptKey) {
+        return mapper.queueAlertSubscriptions(projectId, promptKey);
+    }
+
+    @Override
+    public Optional<TestDesignQueueAlertSubscription> queueAlertSubscription(UUID id) {
+        return Optional.ofNullable(mapper.queueAlertSubscription(id));
+    }
+
+    @Override
+    public Optional<TestDesignQueueAlertSubscription> queueAlertSubscriptionByKey(
+            String projectId,
+            String promptKey,
+            String alertType,
+            String channel,
+            String targetRef
+    ) {
+        return Optional.ofNullable(mapper.queueAlertSubscriptionByKey(
+                projectId,
+                promptKey,
+                alertType,
+                channel,
+                targetRef
+        ));
+    }
+
+    @Override
+    public TestDesignQueueAlertSubscription saveQueueAlertSubscription(
+            TestDesignQueueAlertSubscription subscription
+    ) {
+        if (mapper.queueAlertSubscription(subscription.id()) == null) {
+            mapper.insertQueueAlertSubscription(subscription);
+        } else {
+            mapper.updateQueueAlertSubscription(subscription);
+        }
+        return mapper.queueAlertSubscription(subscription.id());
+    }
+
+    @Override
+    public TestDesignOperationsAuditAggregate operationsAuditAggregate(String projectId, String promptKey) {
+        TestDesignOperationsAuditAggregate aggregate = mapper.operationsAuditAggregate(projectId, promptKey);
+        return aggregate == null ? emptyOperationsAuditAggregate() : aggregate;
     }
 
     @Override
@@ -468,6 +579,10 @@ public class JdbcTestDesignRepository implements TestDesignRepository {
         return new TestDesignCrossWpOperationsAggregate(
                 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
         );
+    }
+
+    private static TestDesignOperationsAuditAggregate emptyOperationsAuditAggregate() {
+        return new TestDesignOperationsAuditAggregate(0, 0, 0, 0, 0, 0, 0, 0, null);
     }
 
     private static TestDesignConflictOperationSummary emptyConflictOperationSummary() {

@@ -18,7 +18,9 @@ import com.songhg.veri.agent.testdesign.domain.TestDesignContextPolicyOverride;
 import com.songhg.veri.agent.testdesign.domain.TestDesignCrossWpOperationsAggregate;
 import com.songhg.veri.agent.testdesign.domain.TestDesignEvaluationSample;
 import com.songhg.veri.agent.testdesign.domain.TestDesignEvaluationSampleSummary;
+import com.songhg.veri.agent.testdesign.domain.TestDesignOperationsAuditAggregate;
 import com.songhg.veri.agent.testdesign.domain.TestDesignPublishRecord;
+import com.songhg.veri.agent.testdesign.domain.TestDesignQueueAlertSubscription;
 import com.songhg.veri.agent.testdesign.domain.TestDesignReleaseReadinessApproval;
 import com.songhg.veri.agent.testdesign.domain.TestDesignReleaseReadinessNote;
 import com.songhg.veri.agent.testdesign.domain.TestDesignReportManifest;
@@ -57,11 +59,41 @@ public interface TestDesignMapper {
 
     Instant oldestTaskUpdatedAtByStatus(@Param("status") String status);
 
+    long countTasksByStatusInScope(
+            @Param("projectId") String projectId,
+            @Param("promptKey") String promptKey,
+            @Param("status") String status
+    );
+
+    Instant oldestTaskUpdatedAtByStatusInScope(
+            @Param("projectId") String projectId,
+            @Param("promptKey") String promptKey,
+            @Param("status") String status
+    );
+
     long countStaleRunningTasks(@Param("staleBefore") Instant staleBefore);
+
+    long countStaleRunningTasksInScope(
+            @Param("projectId") String projectId,
+            @Param("promptKey") String promptKey,
+            @Param("staleBefore") Instant staleBefore
+    );
 
     long countCandidatesByStatus(@Param("status") String status);
 
     Instant oldestCandidateUpdatedAtByStatus(@Param("status") String status);
+
+    long countCandidatesByStatusInScope(
+            @Param("projectId") String projectId,
+            @Param("promptKey") String promptKey,
+            @Param("status") String status
+    );
+
+    Instant oldestCandidateUpdatedAtByStatusInScope(
+            @Param("projectId") String projectId,
+            @Param("promptKey") String promptKey,
+            @Param("status") String status
+    );
 
     TestDesignTask task(@Param("id") UUID id);
 
@@ -105,6 +137,18 @@ public interface TestDesignMapper {
 
     List<TestDesignCandidate> publishQueuedCandidates(@Param("limit") int limit);
 
+    List<TestDesignTask> queuedTasksForReplay(
+            @Param("projectId") String projectId,
+            @Param("promptKey") String promptKey,
+            @Param("limit") int limit
+    );
+
+    List<TestDesignCandidate> publishQueuedCandidatesForReplay(
+            @Param("projectId") String projectId,
+            @Param("promptKey") String promptKey,
+            @Param("limit") int limit
+    );
+
     int markStalePublishingCandidatesFailed(
             @Param("failedAt") Instant failedAt,
             @Param("staleBefore") Instant staleBefore,
@@ -114,7 +158,24 @@ public interface TestDesignMapper {
 
     long countStalePublishingCandidates(@Param("staleBefore") Instant staleBefore);
 
+    long countStalePublishingCandidatesInScope(
+            @Param("projectId") String projectId,
+            @Param("promptKey") String promptKey,
+            @Param("staleBefore") Instant staleBefore
+    );
+
     List<TestDesignCandidate> publishCompensationCandidates(@Param("limit") int limit);
+
+    List<TestDesignCandidate> publishCompensationCandidatesInScope(
+            @Param("projectId") String projectId,
+            @Param("promptKey") String promptKey,
+            @Param("limit") int limit
+    );
+
+    long countPublishCompensationCandidates(
+            @Param("projectId") String projectId,
+            @Param("promptKey") String promptKey
+    );
 
     int lockPublishCompensationCandidate(@Param("lockKey") String lockKey);
 
@@ -167,6 +228,30 @@ public interface TestDesignMapper {
             @Param("reason") String reason,
             @Param("actor") String actor,
             @Param("now") Instant now
+    );
+
+    List<TestDesignQueueAlertSubscription> queueAlertSubscriptions(
+            @Param("projectId") String projectId,
+            @Param("promptKey") String promptKey
+    );
+
+    TestDesignQueueAlertSubscription queueAlertSubscription(@Param("id") UUID id);
+
+    TestDesignQueueAlertSubscription queueAlertSubscriptionByKey(
+            @Param("projectId") String projectId,
+            @Param("promptKey") String promptKey,
+            @Param("alertType") String alertType,
+            @Param("channel") String channel,
+            @Param("targetRef") String targetRef
+    );
+
+    void insertQueueAlertSubscription(TestDesignQueueAlertSubscription subscription);
+
+    void updateQueueAlertSubscription(TestDesignQueueAlertSubscription subscription);
+
+    TestDesignOperationsAuditAggregate operationsAuditAggregate(
+            @Param("projectId") String projectId,
+            @Param("promptKey") String promptKey
     );
 
     void insertContextPolicyOverride(TestDesignContextPolicyOverride override);

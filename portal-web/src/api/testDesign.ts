@@ -795,6 +795,121 @@ export interface TestDesignAuditOutboxOperationsView {
   aggregateOnly?: boolean;
 }
 
+export interface TestDesignQueueAlertSubscriptionView {
+  id: string;
+  projectId: string;
+  promptKey?: string;
+  alertType: string;
+  channel: string;
+  targetRef: string;
+  thresholdSeconds?: number;
+  enabled: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface TestDesignQueueAlertOperationsView {
+  policyVersion?: string;
+  subscriptionCount: number;
+  enabledSubscriptionCount: number;
+  disabledSubscriptionCount: number;
+  queuedTaskCount: number;
+  staleRunningTaskCount: number;
+  publishQueuedCandidateCount: number;
+  stalePublishingCandidateCount: number;
+  compensationEligibleCandidateCount: number;
+  oldestGenerationQueuedAgeSeconds: number;
+  oldestPublishQueuedAgeSeconds: number;
+  generationQueueLagWarningSeconds: number;
+  publishQueueLagWarningSeconds: number;
+  generationQueueLagWarning?: boolean;
+  generationTimeoutWarning?: boolean;
+  publishQueueLagWarning?: boolean;
+  publishTimeoutWarning?: boolean;
+  compensationFailureWarning?: boolean;
+  activeWarningCount: number;
+  subscriptionConfigReady?: boolean;
+  manualReplaySupported?: boolean;
+  aggregateOnly?: boolean;
+  eventPayloadExported?: boolean;
+  detailIdentifiersExported?: boolean;
+  generatedAt?: string;
+}
+
+export interface TestDesignQueuedEventReplayResult {
+  projectId?: string;
+  promptKey?: string;
+  replayType: string;
+  requestedLimit: number;
+  generationTaskEvents: number;
+  publishTaskEvents: number;
+  publishCandidateEvents: number;
+  replaySupported?: boolean;
+  eventPayloadExported?: boolean;
+  eventIdentifierListExported?: boolean;
+  candidateIdentifierListExported?: boolean;
+  aggregateOnly?: boolean;
+  replayedAt?: string;
+}
+
+export interface TestDesignCompensationRunbookView {
+  policyVersion?: string;
+  projectId?: string;
+  promptKey?: string;
+  compensationEnabled?: boolean;
+  automaticScheduleReady?: boolean;
+  manualRunSupported?: boolean;
+  scopedRunSupported?: boolean;
+  effectiveBatchSize: number;
+  eligibleCandidateCount: number;
+  autoFirstCreateAllowed?: boolean;
+  autoConflictResolveAllowed?: boolean;
+  assetCaseIdentifierExported?: boolean;
+  sourceRefExported?: boolean;
+  errorDetailExported?: boolean;
+  aggregateOnly?: boolean;
+  steps: TestDesignScopeSummaryReadinessView[];
+  generatedAt?: string;
+}
+
+export interface TestDesignPublishCompensationRunResult {
+  projectId?: string;
+  promptKey?: string;
+  trigger: string;
+  requestedLimit: number;
+  scannedCandidates: number;
+  succeededCandidates: number;
+  failedCandidates: number;
+  skippedCandidates: number;
+  compensationEnabled?: boolean;
+  manualRunSupported?: boolean;
+  aggregateOnly?: boolean;
+  assetCaseIdentifierExported?: boolean;
+  candidateIdentifierListExported?: boolean;
+  errorDetailExported?: boolean;
+  runAt?: string;
+}
+
+export interface TestDesignOperationsAuditReportView {
+  projectId?: string;
+  promptKey?: string;
+  totalOperationCount: number;
+  successCount: number;
+  failedCount: number;
+  deniedCount: number;
+  queueAlertSubscriptionMutationCount: number;
+  queuedEventReplayCount: number;
+  publishCompensationRunCount: number;
+  auditOutboxRequeueCount: number;
+  latestOperationAt?: string;
+  exportSupported?: boolean;
+  detailRowsExported?: boolean;
+  actorIdentifierExported?: boolean;
+  traceIdValueExported?: boolean;
+  aggregateOnly?: boolean;
+  generatedAt?: string;
+}
+
 export interface TestDesignCrossWpOperationsDashboardView {
   projectId?: string;
   promptKey?: string;
@@ -817,6 +932,9 @@ export interface TestDesignCrossWpOperationsDashboardView {
   aggregateOnly?: boolean;
   detailIdentifiersExported?: boolean;
   generatedAt?: string;
+  queueAlerts?: TestDesignQueueAlertOperationsView;
+  compensationRunbook?: TestDesignCompensationRunbookView;
+  operationsAuditReport?: TestDesignOperationsAuditReportView;
 }
 
 export interface TestDesignAuditOutboxRequeueResult {
@@ -828,6 +946,31 @@ export interface TestDesignAuditOutboxRequeueResult {
   payloadExported?: boolean;
   detailIdentifiersExported?: boolean;
   generatedAt?: string;
+}
+
+export interface UpsertTestDesignQueueAlertSubscriptionPayload {
+  projectId: string;
+  promptKey?: string;
+  alertType: string;
+  channel: string;
+  targetRef: string;
+  thresholdSeconds?: number;
+  enabled?: boolean;
+}
+
+export interface ReplayTestDesignQueuedEventsPayload {
+  projectId: string;
+  promptKey?: string;
+  replayType: string;
+  maxItems?: number;
+  reason?: string;
+}
+
+export interface RunTestDesignPublishCompensationPayload {
+  projectId: string;
+  promptKey?: string;
+  maxItems?: number;
+  reason?: string;
 }
 
 export interface TestDesignAuditSummaryMetricView {
@@ -2412,6 +2555,210 @@ export function normalizeTestDesignAuditOutboxOperations(raw: unknown): TestDesi
   };
 }
 
+export function normalizeTestDesignQueueAlertSubscription(
+  raw: unknown
+): TestDesignQueueAlertSubscriptionView {
+  const item = isRecord(raw) ? raw : {};
+  return {
+    id: stringValue(item.id),
+    projectId: stringValue(item.projectId ?? item.project_id),
+    promptKey: optionalString(item.promptKey ?? item.prompt_key),
+    alertType: stringValue(item.alertType ?? item.alert_type),
+    channel: stringValue(item.channel),
+    targetRef: stringValue(item.targetRef ?? item.target_ref),
+    thresholdSeconds: optionalNumber(item.thresholdSeconds ?? item.threshold_seconds),
+    enabled: optionalBoolean(item.enabled) ?? true,
+    createdAt: optionalString(item.createdAt ?? item.created_at),
+    updatedAt: optionalString(item.updatedAt ?? item.updated_at)
+  };
+}
+
+export function normalizeTestDesignQueueAlertOperations(
+  raw: unknown
+): TestDesignQueueAlertOperationsView {
+  const item = isRecord(raw) ? raw : {};
+  return {
+    policyVersion: optionalString(item.policyVersion ?? item.policy_version),
+    subscriptionCount: numberValue(item.subscriptionCount ?? item.subscription_count, 0),
+    enabledSubscriptionCount: numberValue(
+      item.enabledSubscriptionCount ?? item.enabled_subscription_count,
+      0
+    ),
+    disabledSubscriptionCount: numberValue(
+      item.disabledSubscriptionCount ?? item.disabled_subscription_count,
+      0
+    ),
+    queuedTaskCount: numberValue(item.queuedTaskCount ?? item.queued_task_count, 0),
+    staleRunningTaskCount: numberValue(item.staleRunningTaskCount ?? item.stale_running_task_count, 0),
+    publishQueuedCandidateCount: numberValue(
+      item.publishQueuedCandidateCount ?? item.publish_queued_candidate_count,
+      0
+    ),
+    stalePublishingCandidateCount: numberValue(
+      item.stalePublishingCandidateCount ?? item.stale_publishing_candidate_count,
+      0
+    ),
+    compensationEligibleCandidateCount: numberValue(
+      item.compensationEligibleCandidateCount ?? item.compensation_eligible_candidate_count,
+      0
+    ),
+    oldestGenerationQueuedAgeSeconds: numberValue(
+      item.oldestGenerationQueuedAgeSeconds ?? item.oldest_generation_queued_age_seconds,
+      0
+    ),
+    oldestPublishQueuedAgeSeconds: numberValue(
+      item.oldestPublishQueuedAgeSeconds ?? item.oldest_publish_queued_age_seconds,
+      0
+    ),
+    generationQueueLagWarningSeconds: numberValue(
+      item.generationQueueLagWarningSeconds ?? item.generation_queue_lag_warning_seconds,
+      0
+    ),
+    publishQueueLagWarningSeconds: numberValue(
+      item.publishQueueLagWarningSeconds ?? item.publish_queue_lag_warning_seconds,
+      0
+    ),
+    generationQueueLagWarning: optionalBoolean(
+      item.generationQueueLagWarning ?? item.generation_queue_lag_warning
+    ),
+    generationTimeoutWarning: optionalBoolean(
+      item.generationTimeoutWarning ?? item.generation_timeout_warning
+    ),
+    publishQueueLagWarning: optionalBoolean(item.publishQueueLagWarning ?? item.publish_queue_lag_warning),
+    publishTimeoutWarning: optionalBoolean(item.publishTimeoutWarning ?? item.publish_timeout_warning),
+    compensationFailureWarning: optionalBoolean(
+      item.compensationFailureWarning ?? item.compensation_failure_warning
+    ),
+    activeWarningCount: numberValue(item.activeWarningCount ?? item.active_warning_count, 0),
+    subscriptionConfigReady: optionalBoolean(
+      item.subscriptionConfigReady ?? item.subscription_config_ready
+    ),
+    manualReplaySupported: optionalBoolean(item.manualReplaySupported ?? item.manual_replay_supported),
+    aggregateOnly: optionalBoolean(item.aggregateOnly ?? item.aggregate_only),
+    eventPayloadExported: optionalBoolean(item.eventPayloadExported ?? item.event_payload_exported),
+    detailIdentifiersExported: optionalBoolean(
+      item.detailIdentifiersExported ?? item.detail_identifiers_exported
+    ),
+    generatedAt: optionalString(item.generatedAt ?? item.generated_at)
+  };
+}
+
+export function normalizeTestDesignQueuedEventReplayResult(
+  raw: unknown
+): TestDesignQueuedEventReplayResult {
+  const item = isRecord(raw) ? raw : {};
+  return {
+    projectId: optionalString(item.projectId ?? item.project_id),
+    promptKey: optionalString(item.promptKey ?? item.prompt_key),
+    replayType: stringValue(item.replayType ?? item.replay_type, 'ALL'),
+    requestedLimit: numberValue(item.requestedLimit ?? item.requested_limit, 0),
+    generationTaskEvents: numberValue(item.generationTaskEvents ?? item.generation_task_events, 0),
+    publishTaskEvents: numberValue(item.publishTaskEvents ?? item.publish_task_events, 0),
+    publishCandidateEvents: numberValue(item.publishCandidateEvents ?? item.publish_candidate_events, 0),
+    replaySupported: optionalBoolean(item.replaySupported ?? item.replay_supported),
+    eventPayloadExported: optionalBoolean(item.eventPayloadExported ?? item.event_payload_exported),
+    eventIdentifierListExported: optionalBoolean(
+      item.eventIdentifierListExported ?? item.event_identifier_list_exported
+    ),
+    candidateIdentifierListExported: optionalBoolean(
+      item.candidateIdentifierListExported ?? item.candidate_identifier_list_exported
+    ),
+    aggregateOnly: optionalBoolean(item.aggregateOnly ?? item.aggregate_only),
+    replayedAt: optionalString(item.replayedAt ?? item.replayed_at)
+  };
+}
+
+export function normalizeTestDesignCompensationRunbook(
+  raw: unknown
+): TestDesignCompensationRunbookView {
+  const item = isRecord(raw) ? raw : {};
+  return {
+    policyVersion: optionalString(item.policyVersion ?? item.policy_version),
+    projectId: optionalString(item.projectId ?? item.project_id),
+    promptKey: optionalString(item.promptKey ?? item.prompt_key),
+    compensationEnabled: optionalBoolean(item.compensationEnabled ?? item.compensation_enabled),
+    automaticScheduleReady: optionalBoolean(
+      item.automaticScheduleReady ?? item.automatic_schedule_ready
+    ),
+    manualRunSupported: optionalBoolean(item.manualRunSupported ?? item.manual_run_supported),
+    scopedRunSupported: optionalBoolean(item.scopedRunSupported ?? item.scoped_run_supported),
+    effectiveBatchSize: numberValue(item.effectiveBatchSize ?? item.effective_batch_size, 0),
+    eligibleCandidateCount: numberValue(item.eligibleCandidateCount ?? item.eligible_candidate_count, 0),
+    autoFirstCreateAllowed: optionalBoolean(item.autoFirstCreateAllowed ?? item.auto_first_create_allowed),
+    autoConflictResolveAllowed: optionalBoolean(
+      item.autoConflictResolveAllowed ?? item.auto_conflict_resolve_allowed
+    ),
+    assetCaseIdentifierExported: optionalBoolean(
+      item.assetCaseIdentifierExported ?? item.asset_case_identifier_exported
+    ),
+    sourceRefExported: optionalBoolean(item.sourceRefExported ?? item.source_ref_exported),
+    errorDetailExported: optionalBoolean(item.errorDetailExported ?? item.error_detail_exported),
+    aggregateOnly: optionalBoolean(item.aggregateOnly ?? item.aggregate_only),
+    steps: listItems(item.steps).map(normalizeTestDesignScopeSummaryReadiness),
+    generatedAt: optionalString(item.generatedAt ?? item.generated_at)
+  };
+}
+
+export function normalizeTestDesignPublishCompensationRunResult(
+  raw: unknown
+): TestDesignPublishCompensationRunResult {
+  const item = isRecord(raw) ? raw : {};
+  return {
+    projectId: optionalString(item.projectId ?? item.project_id),
+    promptKey: optionalString(item.promptKey ?? item.prompt_key),
+    trigger: stringValue(item.trigger, 'manual'),
+    requestedLimit: numberValue(item.requestedLimit ?? item.requested_limit, 0),
+    scannedCandidates: numberValue(item.scannedCandidates ?? item.scanned_candidates, 0),
+    succeededCandidates: numberValue(item.succeededCandidates ?? item.succeeded_candidates, 0),
+    failedCandidates: numberValue(item.failedCandidates ?? item.failed_candidates, 0),
+    skippedCandidates: numberValue(item.skippedCandidates ?? item.skipped_candidates, 0),
+    compensationEnabled: optionalBoolean(item.compensationEnabled ?? item.compensation_enabled),
+    manualRunSupported: optionalBoolean(item.manualRunSupported ?? item.manual_run_supported),
+    aggregateOnly: optionalBoolean(item.aggregateOnly ?? item.aggregate_only),
+    assetCaseIdentifierExported: optionalBoolean(
+      item.assetCaseIdentifierExported ?? item.asset_case_identifier_exported
+    ),
+    candidateIdentifierListExported: optionalBoolean(
+      item.candidateIdentifierListExported ?? item.candidate_identifier_list_exported
+    ),
+    errorDetailExported: optionalBoolean(item.errorDetailExported ?? item.error_detail_exported),
+    runAt: optionalString(item.runAt ?? item.run_at)
+  };
+}
+
+export function normalizeTestDesignOperationsAuditReport(
+  raw: unknown
+): TestDesignOperationsAuditReportView {
+  const item = isRecord(raw) ? raw : {};
+  return {
+    projectId: optionalString(item.projectId ?? item.project_id),
+    promptKey: optionalString(item.promptKey ?? item.prompt_key),
+    totalOperationCount: numberValue(item.totalOperationCount ?? item.total_operation_count, 0),
+    successCount: numberValue(item.successCount ?? item.success_count, 0),
+    failedCount: numberValue(item.failedCount ?? item.failed_count, 0),
+    deniedCount: numberValue(item.deniedCount ?? item.denied_count, 0),
+    queueAlertSubscriptionMutationCount: numberValue(
+      item.queueAlertSubscriptionMutationCount ?? item.queue_alert_subscription_mutation_count,
+      0
+    ),
+    queuedEventReplayCount: numberValue(item.queuedEventReplayCount ?? item.queued_event_replay_count, 0),
+    publishCompensationRunCount: numberValue(
+      item.publishCompensationRunCount ?? item.publish_compensation_run_count,
+      0
+    ),
+    auditOutboxRequeueCount: numberValue(item.auditOutboxRequeueCount ?? item.audit_outbox_requeue_count, 0),
+    latestOperationAt: optionalString(item.latestOperationAt ?? item.latest_operation_at),
+    exportSupported: optionalBoolean(item.exportSupported ?? item.export_supported),
+    detailRowsExported: optionalBoolean(item.detailRowsExported ?? item.detail_rows_exported),
+    actorIdentifierExported: optionalBoolean(
+      item.actorIdentifierExported ?? item.actor_identifier_exported
+    ),
+    traceIdValueExported: optionalBoolean(item.traceIdValueExported ?? item.trace_id_value_exported),
+    aggregateOnly: optionalBoolean(item.aggregateOnly ?? item.aggregate_only),
+    generatedAt: optionalString(item.generatedAt ?? item.generated_at)
+  };
+}
+
 export function normalizeTestDesignCrossWpOperationsDashboard(
   raw: unknown
 ): TestDesignCrossWpOperationsDashboardView {
@@ -2451,6 +2798,13 @@ export function normalizeTestDesignCrossWpOperationsDashboard(
     ),
     auditDashboard: normalizeTestDesignCrossWpAuditDashboard(item.auditDashboard ?? item.audit_dashboard),
     auditOutbox: normalizeTestDesignAuditOutboxOperations(item.auditOutbox ?? item.audit_outbox),
+    queueAlerts: normalizeTestDesignQueueAlertOperations(item.queueAlerts ?? item.queue_alerts),
+    compensationRunbook: normalizeTestDesignCompensationRunbook(
+      item.compensationRunbook ?? item.compensation_runbook
+    ),
+    operationsAuditReport: normalizeTestDesignOperationsAuditReport(
+      item.operationsAuditReport ?? item.operations_audit_report
+    ),
     metrics: listItems(item.metrics).map(normalizeTestDesignScopeSummaryMetric),
     readiness: listItems(item.readiness).map(normalizeTestDesignScopeSummaryReadiness),
     aggregateOnly: optionalBoolean(item.aggregateOnly ?? item.aggregate_only),
@@ -2986,6 +3340,63 @@ export async function fetchTestDesignCrossWpOperationsDashboard(
     `/api/v1/test-design/operations/cross-wp-dashboard${queryString(filters as Record<string, unknown>)}`
   );
   return { ...response, data: normalizeTestDesignCrossWpOperationsDashboard(response.data) };
+}
+
+export async function fetchTestDesignQueueAlertSubscriptions(
+  filters: TestDesignCrossWpOperationsFilters = {}
+): Promise<ApiResponse<TestDesignQueueAlertSubscriptionView[]>> {
+  const response = await requestJson<unknown>(
+    `/api/v1/test-design/operations/queue-alert-subscriptions${queryString(filters as Record<string, unknown>)}`
+  );
+  return { ...response, data: listItems(response.data).map(normalizeTestDesignQueueAlertSubscription) };
+}
+
+export async function upsertTestDesignQueueAlertSubscription(
+  payload: UpsertTestDesignQueueAlertSubscriptionPayload
+): Promise<ApiResponse<TestDesignQueueAlertSubscriptionView>> {
+  const response = await requestJson<unknown>('/api/v1/test-design/operations/queue-alert-subscriptions', {
+    method: 'POST',
+    body: JSON.stringify(compactPayload(payload))
+  });
+  return { ...response, data: normalizeTestDesignQueueAlertSubscription(response.data) };
+}
+
+export async function replayTestDesignQueuedEvents(
+  payload: ReplayTestDesignQueuedEventsPayload
+): Promise<ApiResponse<TestDesignQueuedEventReplayResult>> {
+  const response = await requestJson<unknown>('/api/v1/test-design/operations/queued-events/replay', {
+    method: 'POST',
+    body: JSON.stringify(compactPayload(payload))
+  });
+  return { ...response, data: normalizeTestDesignQueuedEventReplayResult(response.data) };
+}
+
+export async function fetchTestDesignCompensationRunbook(
+  filters: TestDesignCrossWpOperationsFilters = {}
+): Promise<ApiResponse<TestDesignCompensationRunbookView>> {
+  const response = await requestJson<unknown>(
+    `/api/v1/test-design/operations/compensation-runbook${queryString(filters as Record<string, unknown>)}`
+  );
+  return { ...response, data: normalizeTestDesignCompensationRunbook(response.data) };
+}
+
+export async function runTestDesignPublishCompensation(
+  payload: RunTestDesignPublishCompensationPayload
+): Promise<ApiResponse<TestDesignPublishCompensationRunResult>> {
+  const response = await requestJson<unknown>('/api/v1/test-design/operations/publish-compensation/run', {
+    method: 'POST',
+    body: JSON.stringify(compactPayload(payload))
+  });
+  return { ...response, data: normalizeTestDesignPublishCompensationRunResult(response.data) };
+}
+
+export async function fetchTestDesignOperationsAuditReport(
+  filters: TestDesignCrossWpOperationsFilters = {}
+): Promise<ApiResponse<TestDesignOperationsAuditReportView>> {
+  const response = await requestJson<unknown>(
+    `/api/v1/test-design/operations/audit-report${queryString(filters as Record<string, unknown>)}`
+  );
+  return { ...response, data: normalizeTestDesignOperationsAuditReport(response.data) };
 }
 
 export async function requeueTestDesignAuditOutbox(

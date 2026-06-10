@@ -66,6 +66,7 @@ import {
   fetchTestDesignContextPolicyNotes,
   fetchTestDesignContextPolicyOverrides,
   fetchTestDesignCrossWpOperationsDashboard,
+  fetchTestDesignQueueAlertSubscriptions,
   fetchTestDesignCalibrationRuns,
   fetchTestDesignEvaluationCorpusSummary,
   fetchTestDesignEvaluationSamples,
@@ -87,6 +88,8 @@ import {
   rejectTestDesignContextPolicyOverride,
   rejectTestDesignReleaseReadinessApproval,
   requeueTestDesignAuditOutbox,
+  replayTestDesignQueuedEvents,
+  runTestDesignPublishCompensation,
   replayQueuedTestDesignTaskEvent,
   requestTestDesignEnvironmentContextPolicyOverride,
   requestTestDesignCalibrationRun,
@@ -101,6 +104,7 @@ import {
   updateTestDesignContextPolicyOverride,
   updateTestDesignEvaluationSample,
   updateTestDesignReleaseReadinessApproval,
+  upsertTestDesignQueueAlertSubscription,
   type TestDesignCandidateBatchActionResult,
   type TestDesignCandidateBatchActionType,
   type TestDesignCandidateView,
@@ -113,6 +117,9 @@ import {
   type TestDesignContextPolicyOverrideView,
   type TestDesignCrossWpOperationsDashboardView,
   type TestDesignAuditOutboxRequeueResult,
+  type TestDesignQueueAlertSubscriptionView,
+  type TestDesignQueuedEventReplayResult,
+  type TestDesignPublishCompensationRunResult,
   type TestDesignAuditSummaryView,
   type TestDesignHealth,
   type TestDesignEvaluationCorpusSummaryView,
@@ -374,6 +381,31 @@ type AuditOutboxRequeueDraft = {
   reason: string;
 };
 
+type QueueAlertSubscriptionDraft = {
+  projectId: string;
+  promptKey: string;
+  alertType: string;
+  channel: string;
+  targetRef: string;
+  thresholdSeconds: string;
+  enabled: boolean;
+};
+
+type QueuedEventReplayDraft = {
+  projectId: string;
+  promptKey: string;
+  replayType: string;
+  maxItems: string;
+  reason: string;
+};
+
+type PublishCompensationRunDraft = {
+  projectId: string;
+  promptKey: string;
+  maxItems: string;
+  reason: string;
+};
+
 type ConflictResolutionCandidate = Pick<TestDesignCandidateView, 'id' | 'title' | 'status' | 'version'>;
 type ConflictResolutionItem = {
   candidate: ConflictResolutionCandidate;
@@ -418,6 +450,16 @@ const evaluationSampleStatuses = ['CANDIDATE', 'GOLDEN', 'FROZEN', 'DEPRECATED']
 const evaluationSampleSourceTypes = ['MANUAL', 'REVIEW_FEEDBACK', 'PUBLISHED_CASE', 'IMPORTED'] as const;
 const calibrationRunModes = ['MANUAL', 'PROMPT_CHANGE', 'SCHEDULED', 'BASELINE_FREEZE'] as const;
 const auditOutboxReplayStatuses = ['FAILED_OR_DEAD', 'FAILED', 'DEAD'] as const;
+const queueAlertTypes = [
+  'GENERATION_QUEUE_LAG',
+  'GENERATION_TIMEOUT',
+  'PUBLISH_QUEUE_LAG',
+  'PUBLISH_TIMEOUT',
+  'COMPENSATION_FAILURE',
+  'AUDIT_OUTBOX_REPLAY_ELIGIBLE'
+] as const;
+const queueAlertChannels = ['OPS_CONSOLE', 'EMAIL', 'WEBHOOK'] as const;
+const queuedEventReplayTypes = ['GENERATION', 'PUBLISH', 'ALL'] as const;
 
 const initialReleaseReadinessDraft: ReleaseReadinessApprovalDraft = {
   exceptionReasonCode: 'SMOKE_VALIDATION',
@@ -527,6 +569,31 @@ const initialAuditOutboxRequeueDraft: AuditOutboxRequeueDraft = {
   reason: ''
 };
 
+const initialQueueAlertSubscriptionDraft: QueueAlertSubscriptionDraft = {
+  projectId: '',
+  promptKey: '',
+  alertType: 'GENERATION_QUEUE_LAG',
+  channel: 'OPS_CONSOLE',
+  targetRef: 'ops-console:wp5-cross-wp',
+  thresholdSeconds: '',
+  enabled: true
+};
+
+const initialQueuedEventReplayDraft: QueuedEventReplayDraft = {
+  projectId: '',
+  promptKey: '',
+  replayType: 'ALL',
+  maxItems: '20',
+  reason: ''
+};
+
+const initialPublishCompensationRunDraft: PublishCompensationRunDraft = {
+  projectId: '',
+  promptKey: '',
+  maxItems: '20',
+  reason: ''
+};
+
 const ASYNC_TASK_STATUSES = new Set(['QUEUED', 'RUNNING', 'PUBLISH_QUEUED', 'PUBLISHING']);
 const RETRYABLE_TASK_STATUSES = new Set(['FAILED', 'PARTIAL_SUCCESS', 'CANCELLED']);
 const CANCELLABLE_TASK_STATUSES = new Set(['DRAFT', 'QUEUED', 'RUNNING', 'PARTIAL_SUCCESS', 'FAILED']);
@@ -584,6 +651,13 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
   const [crossWpOperationsFilters, setCrossWpOperationsFilters] = useState<CrossWpOperationsFilters>(initialCrossWpOperationsFilters);
   const [auditOutboxRequeueDraft, setAuditOutboxRequeueDraft] = useState<AuditOutboxRequeueDraft>(initialAuditOutboxRequeueDraft);
   const [auditOutboxRequeueResult, setAuditOutboxRequeueResult] = useState<TestDesignAuditOutboxRequeueResult | null>(null);
+  const [queueAlertSubscriptions, setQueueAlertSubscriptions] = useState<TestDesignQueueAlertSubscriptionView[]>([]);
+  const [queueAlertSubscriptionDraft, setQueueAlertSubscriptionDraft] = useState<QueueAlertSubscriptionDraft>(initialQueueAlertSubscriptionDraft);
+  const [queueAlertSubscriptionResult, setQueueAlertSubscriptionResult] = useState<TestDesignQueueAlertSubscriptionView | null>(null);
+  const [queuedEventReplayDraft, setQueuedEventReplayDraft] = useState<QueuedEventReplayDraft>(initialQueuedEventReplayDraft);
+  const [queuedEventReplayResult, setQueuedEventReplayResult] = useState<TestDesignQueuedEventReplayResult | null>(null);
+  const [publishCompensationRunDraft, setPublishCompensationRunDraft] = useState<PublishCompensationRunDraft>(initialPublishCompensationRunDraft);
+  const [publishCompensationRunResult, setPublishCompensationRunResult] = useState<TestDesignPublishCompensationRunResult | null>(null);
   const [contextPolicyDraft, setContextPolicyDraft] = useState<TestDesignContextPolicyDraft>(initialTestDesignContextPolicyDraft);
   const [contextPolicyOverrides, setContextPolicyOverrides] = useState<TestDesignContextPolicyOverrideView[]>([]);
   const [contextPolicyEffective, setContextPolicyEffective] = useState<TestDesignContextPolicyEffectiveView | null>(null);
@@ -1091,6 +1165,10 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
     if (!props.signedIn || !canRead) {
       setCrossWpOperationsDashboard(null);
       setAuditOutboxRequeueResult(null);
+      setQueueAlertSubscriptions([]);
+      setQueueAlertSubscriptionResult(null);
+      setQueuedEventReplayResult(null);
+      setPublishCompensationRunResult(null);
       setCrossWpOperationsState({ loading: false });
       return;
     }
@@ -1103,22 +1181,42 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       setCrossWpOperationsState({ loading: true });
     }
     try {
-      const response = await fetchTestDesignCrossWpOperationsDashboard({ projectId, promptKey });
-      setCrossWpOperationsDashboard(response.data);
+      const [dashboardResponse, subscriptionsResponse] = await Promise.all([
+        fetchTestDesignCrossWpOperationsDashboard({ projectId, promptKey }),
+        fetchTestDesignQueueAlertSubscriptions({ projectId, promptKey })
+      ]);
+      setCrossWpOperationsDashboard(dashboardResponse.data);
+      setQueueAlertSubscriptions(subscriptionsResponse.data);
       setAuditOutboxRequeueDraft((current) => ({
         ...current,
         projectId: current.projectId || projectId,
         status: current.status || 'FAILED_OR_DEAD',
         maxItems: current.maxItems || '20'
       }));
+      setQueueAlertSubscriptionDraft((current) => ({
+        ...current,
+        projectId: current.projectId || projectId,
+        promptKey: current.promptKey || promptKey
+      }));
+      setQueuedEventReplayDraft((current) => ({
+        ...current,
+        projectId: current.projectId || projectId,
+        promptKey: current.promptKey || promptKey
+      }));
+      setPublishCompensationRunDraft((current) => ({
+        ...current,
+        projectId: current.projectId || projectId,
+        promptKey: current.promptKey || promptKey
+      }));
       setCrossWpOperationsState({
         loading: false,
-        success: `任务 ${response.data.taskCount} · outbox 可重放 ${response.data.auditOutbox?.replayEligibleCount ?? 0}`,
-        traceId: response.trace_id
+        success: `任务 ${dashboardResponse.data.taskCount} · outbox 可重放 ${dashboardResponse.data.auditOutbox?.replayEligibleCount ?? 0}`,
+        traceId: dashboardResponse.trace_id || subscriptionsResponse.trace_id
       });
     } catch (error: unknown) {
       if (!silent) {
         setCrossWpOperationsDashboard(null);
+        setQueueAlertSubscriptions([]);
         setCrossWpOperationsState({ loading: false, error: testDesignErrorMessage(error, '跨 WP 运营看板加载失败') });
       }
     }
@@ -1479,6 +1577,13 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       setCrossWpOperationsFilters(initialCrossWpOperationsFilters);
       setAuditOutboxRequeueDraft(initialAuditOutboxRequeueDraft);
       setAuditOutboxRequeueResult(null);
+      setQueueAlertSubscriptions([]);
+      setQueueAlertSubscriptionDraft(initialQueueAlertSubscriptionDraft);
+      setQueueAlertSubscriptionResult(null);
+      setQueuedEventReplayDraft(initialQueuedEventReplayDraft);
+      setQueuedEventReplayResult(null);
+      setPublishCompensationRunDraft(initialPublishCompensationRunDraft);
+      setPublishCompensationRunResult(null);
       setContextPolicyDraft(initialTestDesignContextPolicyDraft);
       setContextPolicyOverrides([]);
       setContextPolicyEffective(null);
@@ -2192,6 +2297,115 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       void refreshCrossWpOperations({ silent: true });
     } catch (error: unknown) {
       setCrossWpOperationsState({ loading: false, error: testDesignErrorMessage(error, 'Audit outbox 重新排队失败') });
+    }
+  }
+
+  async function saveQueueAlertSubscription(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!canPolicyManage) {
+      setCrossWpOperationsState({ loading: false, error: '缺少 testDesign:policy_manage 权限' });
+      return;
+    }
+    const projectId = queueAlertSubscriptionDraft.projectId.trim() || crossWpOperationsProjectId.trim();
+    if (!projectId) {
+      setCrossWpOperationsState({ loading: false, error: '请输入队列告警项目 ID' });
+      return;
+    }
+    const promptKey = queueAlertSubscriptionDraft.promptKey.trim();
+    const thresholdSeconds = Number.parseInt(queueAlertSubscriptionDraft.thresholdSeconds, 10);
+    setCrossWpOperationsState({ loading: true });
+    try {
+      const response = await upsertTestDesignQueueAlertSubscription({
+        projectId,
+        promptKey: promptKey || undefined,
+        alertType: queueAlertSubscriptionDraft.alertType,
+        channel: queueAlertSubscriptionDraft.channel,
+        targetRef: queueAlertSubscriptionDraft.targetRef,
+        thresholdSeconds: Number.isFinite(thresholdSeconds) ? thresholdSeconds : undefined,
+        enabled: queueAlertSubscriptionDraft.enabled
+      });
+      setQueueAlertSubscriptionResult(response.data);
+      setQueueAlertSubscriptions((current) => {
+        const next = current.filter((item) => item.id !== response.data.id);
+        next.unshift(response.data);
+        return next;
+      });
+      setQueueAlertSubscriptionDraft((current) => ({ ...current, projectId, promptKey }));
+      setCrossWpOperationsState({
+        loading: false,
+        success: `队列告警订阅已保存：${response.data.alertType}`,
+        traceId: response.trace_id
+      });
+      void refreshCrossWpOperations({ silent: true });
+    } catch (error: unknown) {
+      setCrossWpOperationsState({ loading: false, error: testDesignErrorMessage(error, '队列告警订阅保存失败') });
+    }
+  }
+
+  async function replayQueuedEvents(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!canPolicyManage) {
+      setCrossWpOperationsState({ loading: false, error: '缺少 testDesign:policy_manage 权限' });
+      return;
+    }
+    const projectId = queuedEventReplayDraft.projectId.trim() || crossWpOperationsProjectId.trim();
+    if (!projectId) {
+      setCrossWpOperationsState({ loading: false, error: '请输入 queued event 重放项目 ID' });
+      return;
+    }
+    const maxItems = Number.parseInt(queuedEventReplayDraft.maxItems, 10);
+    setCrossWpOperationsState({ loading: true });
+    try {
+      const response = await replayTestDesignQueuedEvents({
+        projectId,
+        promptKey: queuedEventReplayDraft.promptKey.trim() || undefined,
+        replayType: queuedEventReplayDraft.replayType,
+        maxItems: Number.isFinite(maxItems) ? maxItems : 20,
+        reason: queuedEventReplayDraft.reason
+      });
+      setQueuedEventReplayResult(response.data);
+      setQueuedEventReplayDraft((current) => ({ ...current, projectId }));
+      setCrossWpOperationsState({
+        loading: false,
+        success: `已重放生成 ${response.data.generationTaskEvents} · 发布 ${response.data.publishCandidateEvents}`,
+        traceId: response.trace_id
+      });
+      void refreshCrossWpOperations({ silent: true });
+    } catch (error: unknown) {
+      setCrossWpOperationsState({ loading: false, error: testDesignErrorMessage(error, 'queued event 重放失败') });
+    }
+  }
+
+  async function runPublishCompensation(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!canPolicyManage) {
+      setCrossWpOperationsState({ loading: false, error: '缺少 testDesign:policy_manage 权限' });
+      return;
+    }
+    const projectId = publishCompensationRunDraft.projectId.trim() || crossWpOperationsProjectId.trim();
+    if (!projectId) {
+      setCrossWpOperationsState({ loading: false, error: '请输入补偿运行项目 ID' });
+      return;
+    }
+    const maxItems = Number.parseInt(publishCompensationRunDraft.maxItems, 10);
+    setCrossWpOperationsState({ loading: true });
+    try {
+      const response = await runTestDesignPublishCompensation({
+        projectId,
+        promptKey: publishCompensationRunDraft.promptKey.trim() || undefined,
+        maxItems: Number.isFinite(maxItems) ? maxItems : 20,
+        reason: publishCompensationRunDraft.reason
+      });
+      setPublishCompensationRunResult(response.data);
+      setPublishCompensationRunDraft((current) => ({ ...current, projectId }));
+      setCrossWpOperationsState({
+        loading: false,
+        success: `补偿扫描 ${response.data.scannedCandidates} · 成功 ${response.data.succeededCandidates}`,
+        traceId: response.trace_id
+      });
+      void refreshCrossWpOperations({ silent: true });
+    } catch (error: unknown) {
+      setCrossWpOperationsState({ loading: false, error: testDesignErrorMessage(error, '发布补偿运行失败') });
     }
   }
 
@@ -3337,10 +3551,35 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
             projectId: auditOutboxRequeueDraft.projectId || crossWpOperationsProjectId
           }}
           requeueResult={auditOutboxRequeueResult}
+          queueAlertSubscriptions={queueAlertSubscriptions}
+          queueAlertSubscriptionDraft={{
+            ...queueAlertSubscriptionDraft,
+            projectId: queueAlertSubscriptionDraft.projectId || crossWpOperationsProjectId,
+            promptKey: queueAlertSubscriptionDraft.promptKey || crossWpOperationsPromptKey
+          }}
+          queueAlertSubscriptionResult={queueAlertSubscriptionResult}
+          queuedEventReplayDraft={{
+            ...queuedEventReplayDraft,
+            projectId: queuedEventReplayDraft.projectId || crossWpOperationsProjectId,
+            promptKey: queuedEventReplayDraft.promptKey || crossWpOperationsPromptKey
+          }}
+          queuedEventReplayResult={queuedEventReplayResult}
+          publishCompensationRunDraft={{
+            ...publishCompensationRunDraft,
+            projectId: publishCompensationRunDraft.projectId || crossWpOperationsProjectId,
+            promptKey: publishCompensationRunDraft.promptKey || crossWpOperationsPromptKey
+          }}
+          publishCompensationRunResult={publishCompensationRunResult}
           onFiltersChange={setCrossWpOperationsFilters}
           onRequeueDraftChange={setAuditOutboxRequeueDraft}
+          onQueueAlertSubscriptionDraftChange={setQueueAlertSubscriptionDraft}
+          onQueuedEventReplayDraftChange={setQueuedEventReplayDraft}
+          onPublishCompensationRunDraftChange={setPublishCompensationRunDraft}
           onRefresh={() => void refreshCrossWpOperations()}
           onRequeue={(event) => void requeueAuditOutbox(event)}
+          onQueueAlertSubscriptionSubmit={(event) => void saveQueueAlertSubscription(event)}
+          onQueuedEventReplaySubmit={(event) => void replayQueuedEvents(event)}
+          onPublishCompensationRunSubmit={(event) => void runPublishCompensation(event)}
         />
 
         <AuditSummaryPanel
@@ -5800,17 +6039,36 @@ function CrossWpOperationsPanel(props: {
   filters: CrossWpOperationsFilters;
   requeueDraft: AuditOutboxRequeueDraft;
   requeueResult: TestDesignAuditOutboxRequeueResult | null;
+  queueAlertSubscriptions: TestDesignQueueAlertSubscriptionView[];
+  queueAlertSubscriptionDraft: QueueAlertSubscriptionDraft;
+  queueAlertSubscriptionResult: TestDesignQueueAlertSubscriptionView | null;
+  queuedEventReplayDraft: QueuedEventReplayDraft;
+  queuedEventReplayResult: TestDesignQueuedEventReplayResult | null;
+  publishCompensationRunDraft: PublishCompensationRunDraft;
+  publishCompensationRunResult: TestDesignPublishCompensationRunResult | null;
   onFiltersChange: Dispatch<SetStateAction<CrossWpOperationsFilters>>;
   onRequeueDraftChange: Dispatch<SetStateAction<AuditOutboxRequeueDraft>>;
+  onQueueAlertSubscriptionDraftChange: Dispatch<SetStateAction<QueueAlertSubscriptionDraft>>;
+  onQueuedEventReplayDraftChange: Dispatch<SetStateAction<QueuedEventReplayDraft>>;
+  onPublishCompensationRunDraftChange: Dispatch<SetStateAction<PublishCompensationRunDraft>>;
   onRefresh: () => void;
   onRequeue: (event: FormEvent<HTMLFormElement>) => void;
+  onQueueAlertSubscriptionSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  onQueuedEventReplaySubmit: (event: FormEvent<HTMLFormElement>) => void;
+  onPublishCompensationRunSubmit: (event: FormEvent<HTMLFormElement>) => void;
 }) {
   const dashboard = props.dashboard;
   const auditDashboard = dashboard?.auditDashboard;
   const auditOutbox = dashboard?.auditOutbox;
+  const queueAlerts = dashboard?.queueAlerts;
+  const runbook = dashboard?.compensationRunbook;
+  const auditReport = dashboard?.operationsAuditReport;
   const projectId = props.filters.projectId;
   const promptKey = props.filters.promptKey;
   const canRequeue = props.canPolicyManage && !props.state.loading && Boolean(props.requeueDraft.projectId.trim() || projectId.trim());
+  const canQueueAlertSave = props.canPolicyManage && !props.state.loading && Boolean(props.queueAlertSubscriptionDraft.projectId.trim() || projectId.trim());
+  const canReplayQueuedEvents = props.canPolicyManage && !props.state.loading && Boolean(props.queuedEventReplayDraft.projectId.trim() || projectId.trim());
+  const canRunCompensation = props.canPolicyManage && !props.state.loading && Boolean(props.publishCompensationRunDraft.projectId.trim() || projectId.trim());
 
   return (
     <section className="panel test-design-cross-wp-operations">
@@ -5874,6 +6132,16 @@ function CrossWpOperationsPanel(props: {
                 <span>Outbox 可重放</span>
                 <strong>{auditOutbox?.replayEligibleCount ?? 0}</strong>
                 <small>失败 {auditOutbox?.failedCount ?? 0} · 死信 {auditOutbox?.deadCount ?? 0}</small>
+              </div>
+              <div className={`test-design-quality-metric tone-${(queueAlerts?.activeWarningCount ?? 0) > 0 ? 'warning' : 'success'}`}>
+                <span>队列告警</span>
+                <strong>{queueAlerts?.activeWarningCount ?? 0}</strong>
+                <small>订阅 {queueAlerts?.enabledSubscriptionCount ?? 0}/{queueAlerts?.subscriptionCount ?? 0}</small>
+              </div>
+              <div className={`test-design-quality-metric tone-${(runbook?.eligibleCandidateCount ?? 0) > 0 ? 'warning' : 'success'}`}>
+                <span>补偿候选</span>
+                <strong>{runbook?.eligibleCandidateCount ?? 0}</strong>
+                <small>批量 {runbook?.effectiveBatchSize ?? 0} · 手工 {runbook?.manualRunSupported ? 'ready' : 'blocked'}</small>
               </div>
             </div>
 
@@ -5972,6 +6240,337 @@ function CrossWpOperationsPanel(props: {
                 </div>
               </form>
             </div>
+
+            <div className="test-design-cross-wp-grid">
+              <form className="test-design-cross-wp-group" onSubmit={props.onQueueAlertSubscriptionSubmit}>
+                <div className="test-design-evaluation-list-heading">
+                  <strong>队列告警订阅</strong>
+                  <span>{queueAlerts?.subscriptionCount ?? props.queueAlertSubscriptions.length}</span>
+                </div>
+                <div className="form-grid test-design-cross-wp-requeue-grid">
+                  <label className="field">
+                    <span className="field-label">项目 ID</span>
+                    <input
+                      value={props.queueAlertSubscriptionDraft.projectId}
+                      onChange={(event) => props.onQueueAlertSubscriptionDraftChange((current) => ({ ...current, projectId: event.target.value }))}
+                      placeholder="project UUID"
+                      disabled={!props.canPolicyManage}
+                    />
+                  </label>
+                  <label className="field">
+                    <span className="field-label">Prompt</span>
+                    <input
+                      value={props.queueAlertSubscriptionDraft.promptKey}
+                      onChange={(event) => props.onQueueAlertSubscriptionDraftChange((current) => ({ ...current, promptKey: event.target.value }))}
+                      placeholder="可为空"
+                      disabled={!props.canPolicyManage}
+                    />
+                  </label>
+                  <label className="field">
+                    <span className="field-label">类型</span>
+                    <select
+                      value={props.queueAlertSubscriptionDraft.alertType}
+                      onChange={(event) => props.onQueueAlertSubscriptionDraftChange((current) => ({ ...current, alertType: event.target.value }))}
+                      disabled={!props.canPolicyManage}
+                    >
+                      {queueAlertTypes.map((type) => (
+                        <option key={type} value={type}>{type}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="field">
+                    <span className="field-label">渠道</span>
+                    <select
+                      value={props.queueAlertSubscriptionDraft.channel}
+                      onChange={(event) => props.onQueueAlertSubscriptionDraftChange((current) => ({ ...current, channel: event.target.value }))}
+                      disabled={!props.canPolicyManage}
+                    >
+                      {queueAlertChannels.map((channel) => (
+                        <option key={channel} value={channel}>{channel}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="field">
+                    <span className="field-label">阈值秒数</span>
+                    <input
+                      type="number"
+                      min={0}
+                      max={86400}
+                      value={props.queueAlertSubscriptionDraft.thresholdSeconds}
+                      onChange={(event) => props.onQueueAlertSubscriptionDraftChange((current) => ({ ...current, thresholdSeconds: event.target.value }))}
+                      placeholder="使用系统阈值"
+                      disabled={!props.canPolicyManage}
+                    />
+                  </label>
+                  <label className="field">
+                    <span className="field-label">启用</span>
+                    <input
+                      type="checkbox"
+                      checked={props.queueAlertSubscriptionDraft.enabled}
+                      onChange={(event) => props.onQueueAlertSubscriptionDraftChange((current) => ({ ...current, enabled: event.target.checked }))}
+                      disabled={!props.canPolicyManage}
+                    />
+                  </label>
+                </div>
+                <label className="field">
+                  <span className="field-label">目标引用</span>
+                  <input
+                    value={props.queueAlertSubscriptionDraft.targetRef}
+                    onChange={(event) => props.onQueueAlertSubscriptionDraftChange((current) => ({ ...current, targetRef: event.target.value }))}
+                    disabled={!props.canPolicyManage}
+                  />
+                </label>
+                <div className="toolbar-actions test-design-cross-wp-actions">
+                  <button className="btn btn-primary btn-sm" type="submit" disabled={!canQueueAlertSave}>
+                    <Save size={15} />
+                    保存订阅
+                  </button>
+                  {props.queueAlertSubscriptionResult && (
+                    <span className="test-design-cross-wp-result">
+                      {props.queueAlertSubscriptionResult.alertType} · {props.queueAlertSubscriptionResult.channel}
+                    </span>
+                  )}
+                </div>
+              </form>
+
+              <form className="test-design-cross-wp-group" onSubmit={props.onQueuedEventReplaySubmit}>
+                <div className="test-design-evaluation-list-heading">
+                  <strong>人工重放</strong>
+                  <span>{queueAlerts?.queuedTaskCount ?? 0} / {queueAlerts?.publishQueuedCandidateCount ?? 0}</span>
+                </div>
+                <div className="form-grid test-design-cross-wp-requeue-grid">
+                  <label className="field">
+                    <span className="field-label">项目 ID</span>
+                    <input
+                      value={props.queuedEventReplayDraft.projectId}
+                      onChange={(event) => props.onQueuedEventReplayDraftChange((current) => ({ ...current, projectId: event.target.value }))}
+                      placeholder="project UUID"
+                      disabled={!props.canPolicyManage}
+                    />
+                  </label>
+                  <label className="field">
+                    <span className="field-label">Prompt</span>
+                    <input
+                      value={props.queuedEventReplayDraft.promptKey}
+                      onChange={(event) => props.onQueuedEventReplayDraftChange((current) => ({ ...current, promptKey: event.target.value }))}
+                      placeholder="可为空"
+                      disabled={!props.canPolicyManage}
+                    />
+                  </label>
+                  <label className="field">
+                    <span className="field-label">类型</span>
+                    <select
+                      value={props.queuedEventReplayDraft.replayType}
+                      onChange={(event) => props.onQueuedEventReplayDraftChange((current) => ({ ...current, replayType: event.target.value }))}
+                      disabled={!props.canPolicyManage}
+                    >
+                      {queuedEventReplayTypes.map((type) => (
+                        <option key={type} value={type}>{type}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="field">
+                    <span className="field-label">上限</span>
+                    <input
+                      type="number"
+                      min={1}
+                      max={100}
+                      value={props.queuedEventReplayDraft.maxItems}
+                      onChange={(event) => props.onQueuedEventReplayDraftChange((current) => ({ ...current, maxItems: event.target.value }))}
+                      disabled={!props.canPolicyManage}
+                    />
+                  </label>
+                </div>
+                <label className="field">
+                  <span className="field-label">原因</span>
+                  <textarea
+                    value={props.queuedEventReplayDraft.reason}
+                    onChange={(event) => props.onQueuedEventReplayDraftChange((current) => ({ ...current, reason: event.target.value }))}
+                    rows={2}
+                    disabled={!props.canPolicyManage}
+                  />
+                </label>
+                <div className="toolbar-actions test-design-cross-wp-actions">
+                  <button className="btn btn-primary btn-sm" type="submit" disabled={!canReplayQueuedEvents}>
+                    <Send size={15} />
+                    重放队列
+                  </button>
+                  {props.queuedEventReplayResult && (
+                    <span className="test-design-cross-wp-result">
+                      {props.queuedEventReplayResult.replayType} · {props.queuedEventReplayResult.generationTaskEvents}/{props.queuedEventReplayResult.publishCandidateEvents}
+                    </span>
+                  )}
+                </div>
+              </form>
+            </div>
+
+            <div className="test-design-cross-wp-grid">
+              <form className="test-design-cross-wp-group" onSubmit={props.onPublishCompensationRunSubmit}>
+                <div className="test-design-evaluation-list-heading">
+                  <strong>补偿运行手册</strong>
+                  <span>{runbook?.effectiveBatchSize ?? 0} · {runbook?.eligibleCandidateCount ?? 0}</span>
+                </div>
+                <div className="test-design-cross-wp-readiness">
+                  {(runbook?.steps ?? []).map((step) => (
+                    <span className={`test-design-quality-chip tone-${step.tone}`} key={step.code}>
+                      {step.label} {step.ready ? 'ready' : 'blocked'}
+                    </span>
+                  ))}
+                </div>
+                <div className="form-grid test-design-cross-wp-requeue-grid">
+                  <label className="field">
+                    <span className="field-label">项目 ID</span>
+                    <input
+                      value={props.publishCompensationRunDraft.projectId}
+                      onChange={(event) => props.onPublishCompensationRunDraftChange((current) => ({ ...current, projectId: event.target.value }))}
+                      placeholder="project UUID"
+                      disabled={!props.canPolicyManage}
+                    />
+                  </label>
+                  <label className="field">
+                    <span className="field-label">Prompt</span>
+                    <input
+                      value={props.publishCompensationRunDraft.promptKey}
+                      onChange={(event) => props.onPublishCompensationRunDraftChange((current) => ({ ...current, promptKey: event.target.value }))}
+                      placeholder="可为空"
+                      disabled={!props.canPolicyManage}
+                    />
+                  </label>
+                  <label className="field">
+                    <span className="field-label">上限</span>
+                    <input
+                      type="number"
+                      min={1}
+                      max={100}
+                      value={props.publishCompensationRunDraft.maxItems}
+                      onChange={(event) => props.onPublishCompensationRunDraftChange((current) => ({ ...current, maxItems: event.target.value }))}
+                      disabled={!props.canPolicyManage}
+                    />
+                  </label>
+                </div>
+                <label className="field">
+                  <span className="field-label">原因</span>
+                  <textarea
+                    value={props.publishCompensationRunDraft.reason}
+                    onChange={(event) => props.onPublishCompensationRunDraftChange((current) => ({ ...current, reason: event.target.value }))}
+                    rows={2}
+                    disabled={!props.canPolicyManage}
+                  />
+                </label>
+                <div className="toolbar-actions test-design-cross-wp-actions">
+                  <button className="btn btn-primary btn-sm" type="submit" disabled={!canRunCompensation}>
+                    <Sparkles size={15} />
+                    运行补偿
+                  </button>
+                  {props.publishCompensationRunResult && (
+                    <span className="test-design-cross-wp-result">
+                      {props.publishCompensationRunResult.scannedCandidates} · {props.publishCompensationRunResult.succeededCandidates}
+                    </span>
+                  )}
+                </div>
+              </form>
+
+              <div className="test-design-cross-wp-group">
+                <div className="test-design-evaluation-list-heading">
+                  <strong>运营审计报表</strong>
+                  <span>{auditReport?.totalOperationCount ?? 0}</span>
+                </div>
+                <div className="test-design-quality-metrics">
+                  <div className="test-design-quality-metric tone-info">
+                    <span>成功</span>
+                    <strong>{auditReport?.successCount ?? 0}</strong>
+                    <small>失败 {auditReport?.failedCount ?? 0} · 拒绝 {auditReport?.deniedCount ?? 0}</small>
+                  </div>
+                  <div className="test-design-quality-metric tone-info">
+                    <span>订阅变更</span>
+                    <strong>{auditReport?.queueAlertSubscriptionMutationCount ?? 0}</strong>
+                    <small>queued replay {auditReport?.queuedEventReplayCount ?? 0}</small>
+                  </div>
+                  <div className="test-design-quality-metric tone-info">
+                    <span>补偿运行</span>
+                    <strong>{auditReport?.publishCompensationRunCount ?? 0}</strong>
+                    <small>outbox 重排 {auditReport?.auditOutboxRequeueCount ?? 0}</small>
+                  </div>
+                </div>
+                <div className="test-design-cross-wp-readiness">
+                  <span className={`test-design-quality-chip tone-${auditReport?.aggregateOnly && !auditReport?.detailRowsExported ? 'success' : 'warning'}`}>
+                    aggregate-only {auditReport?.aggregateOnly && !auditReport?.detailRowsExported ? 'on' : 'check'}
+                  </span>
+                  <span className={`test-design-quality-chip tone-${auditReport?.exportSupported ? 'success' : 'warning'}`}>
+                    export {auditReport?.exportSupported ? 'ready' : 'blocked'}
+                  </span>
+                </div>
+                <div className="test-design-cross-wp-row">
+                  <span>最近操作</span>
+                  <strong>{auditReport?.latestOperationAt ?? '-'}</strong>
+                  <small>trace/actor/detail 保持聚合</small>
+                </div>
+              </div>
+            </div>
+
+            {queueAlerts && (
+              <div className="test-design-cross-wp-grid">
+                <div className="test-design-cross-wp-group">
+                  <div className="test-design-evaluation-list-heading">
+                    <strong>队列聚合</strong>
+                    <span>{queueAlerts.generatedAt ?? '-'}</span>
+                  </div>
+                  <div className="test-design-cross-wp-row">
+                    <span>生成排队</span>
+                    <strong>{queueAlerts.queuedTaskCount}</strong>
+                    <small>最老 {queueAlerts.oldestGenerationQueuedAgeSeconds}s · 阈值 {queueAlerts.generationQueueLagWarningSeconds}s</small>
+                  </div>
+                  <div className="test-design-cross-wp-row">
+                    <span>发布排队</span>
+                    <strong>{queueAlerts.publishQueuedCandidateCount}</strong>
+                    <small>最老 {queueAlerts.oldestPublishQueuedAgeSeconds}s · 阈值 {queueAlerts.publishQueueLagWarningSeconds}s</small>
+                  </div>
+                  <div className="test-design-cross-wp-row">
+                    <span>补偿待处理</span>
+                    <strong>{queueAlerts.compensationEligibleCandidateCount}</strong>
+                    <small>运行超时 {queueAlerts.staleRunningTaskCount} · 发布超时 {queueAlerts.stalePublishingCandidateCount}</small>
+                  </div>
+                </div>
+                <div className="test-design-cross-wp-group">
+                  <div className="test-design-evaluation-list-heading">
+                    <strong>订阅清单</strong>
+                    <span>{props.queueAlertSubscriptions.length}</span>
+                  </div>
+                  <div className="test-design-cross-wp-list">
+                    {props.queueAlertSubscriptions.length ? (
+                      props.queueAlertSubscriptions.map((subscription) => (
+                        <div className="test-design-cross-wp-row" key={subscription.id}>
+                          <span>
+                            <strong>{subscription.alertType}</strong>
+                            <em>{subscription.channel} · {subscription.targetRef}</em>
+                            <small>{subscription.promptKey || '项目级'}</small>
+                          </span>
+                          <span className={`badge badge-${subscription.enabled ? 'success' : 'neutral'}`}>
+                            {subscription.enabled ? 'ENABLED' : 'DISABLED'}
+                          </span>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="notice info">暂无队列告警订阅</div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {props.publishCompensationRunResult && (
+              <div className="test-design-cross-wp-group">
+                <div className="test-design-evaluation-list-heading">
+                  <strong>补偿运行结果</strong>
+                  <span>{props.publishCompensationRunResult.runAt ?? '-'}</span>
+                </div>
+                <div className="test-design-cross-wp-row">
+                  <span>扫描/成功</span>
+                  <strong>{props.publishCompensationRunResult.scannedCandidates}</strong>
+                  <small>{props.publishCompensationRunResult.succeededCandidates} 成功 · {props.publishCompensationRunResult.failedCandidates} 失败 · {props.publishCompensationRunResult.skippedCandidates} 跳过</small>
+                </div>
+              </div>
+            )}
           </>
         ) : (
           <div className="notice info">暂无跨 WP 运营数据</div>

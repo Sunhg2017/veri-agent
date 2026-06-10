@@ -32,7 +32,9 @@ import com.songhg.veri.agent.testdesign.domain.TestDesignCandidate;
 import com.songhg.veri.agent.testdesign.domain.TestDesignCandidateStatus;
 import com.songhg.veri.agent.testdesign.domain.TestDesignContextPolicyOverride;
 import com.songhg.veri.agent.testdesign.domain.TestDesignCrossWpOperationsAggregate;
+import com.songhg.veri.agent.testdesign.domain.TestDesignOperationsAuditAggregate;
 import com.songhg.veri.agent.testdesign.domain.TestDesignPublishRecord;
+import com.songhg.veri.agent.testdesign.domain.TestDesignQueueAlertSubscription;
 import com.songhg.veri.agent.testdesign.domain.TestDesignReviewRecord;
 import com.songhg.veri.agent.testdesign.domain.TestDesignTask;
 import com.songhg.veri.agent.testdesign.domain.TestDesignTaskStatus;
@@ -689,9 +691,16 @@ class DbProfileRepositoryContractTest {
                 now
         ));
 
-        assertThat(testDesignRepository.publishCompensationCandidates(10))
+        List<UUID> globalCompensationCandidates = testDesignRepository.publishCompensationCandidates(100).stream()
+                .map(TestDesignCandidate::id)
+                .toList();
+        assertThat(globalCompensationCandidates)
+                .contains(repairableCandidateId)
+                .doesNotContain(noAssetReference.id(), alreadySucceeded.id(), alreadyAttempted.id());
+        assertThat(testDesignRepository.publishCompensationCandidates(projectId, "wp5.case.generate", 10))
                 .extracting(TestDesignCandidate::id)
                 .containsExactly(repairableCandidateId);
+        assertThat(testDesignRepository.countPublishCompensationCandidates(projectId, "wp5.case.generate")).isEqualTo(1);
         assertThatThrownBy(() -> testDesignRepository.savePublishRecord(publishRecord(
                 taskId,
                 alreadyAttempted.id(),
@@ -1027,6 +1036,156 @@ class DbProfileRepositoryContractTest {
                 """, Long.class, unrelatedOutboxResourceId.toString());
         assertThat(scopedPending).isEqualTo(1L);
         assertThat(unrelatedFailed).isEqualTo(1L);
+    }
+
+    @Test
+    void testDesignRepositoryPersistsQueueAlertOperationsThroughJdbc() {
+        String projectId = "project-wp5-ops-alert-db-" + UUID.randomUUID();
+        Instant now = Instant.now();
+        AssetRequirement requirement = requirement(
+                projectId,
+                "REQ-WP5-OPS-ALERT",
+                "WP5 运营告警 DB 需求",
+                "SRC-WP5-OPS-ALERT",
+                now
+        );
+        assetRepository.saveRequirement(requirement);
+        UUID queuedTaskId = UUID.randomUUID();
+        testDesignRepository.saveTask(testDesignTask(
+                queuedTaskId,
+                projectId,
+                TestDesignTaskStatus.QUEUED,
+                "DB 队列告警任务",
+                now.minusSeconds(180)
+        ));
+        UUID publishQueuedCandidateId = UUID.randomUUID();
+        testDesignRepository.saveCandidate(testDesignCandidate(
+                publishQueuedCandidateId,
+                queuedTaskId,
+                projectId,
+                requirement.id(),
+                TestDesignCandidateStatus.PUBLISH_QUEUED.name(),
+                null,
+                now.minusSeconds(90)
+        ));
+        TestCaseRecord existingCase = testCase(
+                projectId,
+                UUID.randomUUID(),
+                "TC-WP5-OPS-ALERT",
+                "WP5 运营补偿既有用例",
+                "wp5:" + UUID.randomUUID()
+        );
+        assetRepository.saveTestCase(existingCase);
+        UUID failedCandidateId = UUID.randomUUID();
+        testDesignRepository.saveCandidate(testDesignCandidate(
+                failedCandidateId,
+                queuedTaskId,
+                projectId,
+                requirement.id(),
+                TestDesignCandidateStatus.FAILED.name(),
+                existingCase.id(),
+                now.minusSeconds(60)
+        ));
+
+        assertThat(testDesignRepository.countTasksByStatus(
+                projectId,
+                "wp5.case.generate",
+                TestDesignTaskStatus.QUEUED
+        )).isEqualTo(1L);
+        assertThat(testDesignRepository.oldestTaskUpdatedAtByStatus(
+                projectId,
+                "wp5.case.generate",
+                TestDesignTaskStatus.QUEUED
+        )).isPresent();
+        assertThat(testDesignRepository.queuedTasksForReplay(projectId, "wp5.case.generate", 10))
+                .singleElement()
+                .extracting(TestDesignTask::id)
+                .isEqualTo(queuedTaskId);
+        assertThat(testDesignRepository.countCandidatesByStatus(
+                projectId,
+                "wp5.case.generate",
+                TestDesignCandidateStatus.PUBLISH_QUEUED
+        )).isEqualTo(1L);
+        assertThat(testDesignRepository.publishQueuedCandidatesForReplay(projectId, "wp5.case.generate", 10))
+                .singleElement()
+                .extracting(TestDesignCandidate::id)
+                .isEqualTo(publishQueuedCandidateId);
+        assertThat(testDesignRepository.countPublishCompensationCandidates(projectId, "wp5.case.generate"))
+                .isEqualTo(1L);
+        assertThat(testDesignRepository.publishCompensationCandidates(projectId, "wp5.case.generate", 10))
+                .singleElement()
+                .extracting(TestDesignCandidate::id)
+                .isEqualTo(failedCandidateId);
+
+        UUID subscriptionId = UUID.randomUUID();
+        TestDesignQueueAlertSubscription subscription = new TestDesignQueueAlertSubscription(
+                subscriptionId,
+                projectId,
+                "wp5.case.generate",
+                "GENERATION_QUEUE_LAG",
+                "OPS_CONSOLE",
+                "ops-console:wp5-db",
+                120,
+                true,
+                "db-contract",
+                "db-contract",
+                now.minusSeconds(10),
+                now.minusSeconds(10)
+        );
+        testDesignRepository.saveQueueAlertSubscription(subscription);
+        assertThat(testDesignRepository.queueAlertSubscriptionByKey(
+                projectId,
+                "wp5.case.generate",
+                "GENERATION_QUEUE_LAG",
+                "OPS_CONSOLE",
+                "ops-console:wp5-db"
+        )).get().extracting(TestDesignQueueAlertSubscription::id).isEqualTo(subscriptionId);
+
+        TestDesignQueueAlertSubscription disabledSubscription = new TestDesignQueueAlertSubscription(
+                subscriptionId,
+                projectId,
+                "wp5.case.generate",
+                "GENERATION_QUEUE_LAG",
+                "OPS_CONSOLE",
+                "ops-console:wp5-db",
+                60,
+                false,
+                "db-contract",
+                "db-reviewer",
+                now.minusSeconds(10),
+                now
+        );
+        testDesignRepository.saveQueueAlertSubscription(disabledSubscription);
+        assertThat(testDesignRepository.queueAlertSubscriptions(projectId, "wp5.case.generate"))
+                .singleElement()
+                .satisfies(current -> {
+                    assertThat(current.enabled()).isFalse();
+                    assertThat(current.thresholdSeconds()).isEqualTo(60);
+                });
+
+        jdbcTemplate.update("""
+                insert into audit_log (actor_type, actor_service, action, resource_type, resource_id, scope_type, result)
+                values ('SERVICE', 'test-design', 'WP5_QUEUE_ALERT_SUBSCRIPTION_UPSERT',
+                    'TEST_DESIGN_CROSS_WP_OPERATIONS', ?, 'PROJECT', 'SUCCESS')
+                """, projectId);
+        jdbcTemplate.update("""
+                insert into audit_log (actor_type, actor_service, action, resource_type, resource_id, scope_type, result)
+                values ('SERVICE', 'test-design', 'WP5_CROSS_WP_QUEUED_EVENT_REPLAY',
+                    'TEST_DESIGN_CROSS_WP_OPERATIONS', ?, 'PROJECT', 'SUCCESS')
+                """, projectId);
+        jdbcTemplate.update("""
+                insert into audit_log (actor_type, actor_service, action, resource_type, resource_id, scope_type, result)
+                values ('SERVICE', 'test-design', 'WP5_PUBLISH_COMPENSATION_RUN',
+                    'TEST_DESIGN_CROSS_WP_OPERATIONS', ?, 'PROJECT', 'FAILED')
+                """, projectId);
+        TestDesignOperationsAuditAggregate aggregate =
+                testDesignRepository.operationsAuditAggregate(projectId, "wp5.case.generate");
+        assertThat(aggregate.totalOperationCount()).isEqualTo(3L);
+        assertThat(aggregate.successCount()).isEqualTo(2L);
+        assertThat(aggregate.failedCount()).isEqualTo(1L);
+        assertThat(aggregate.queueAlertSubscriptionMutationCount()).isEqualTo(1L);
+        assertThat(aggregate.queuedEventReplayCount()).isEqualTo(1L);
+        assertThat(aggregate.publishCompensationRunCount()).isEqualTo(1L);
     }
 
     @Test

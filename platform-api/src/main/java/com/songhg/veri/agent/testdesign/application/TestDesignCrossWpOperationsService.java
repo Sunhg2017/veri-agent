@@ -5,7 +5,10 @@ import com.songhg.veri.agent.authorization.application.AuthorizationService;
 import com.songhg.veri.agent.common.audit.AuditLogWriter;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
+import com.songhg.veri.agent.testdesign.application.command.ReplayTestDesignQueuedEventsCommand;
 import com.songhg.veri.agent.testdesign.application.command.RequeueTestDesignAuditOutboxCommand;
+import com.songhg.veri.agent.testdesign.application.command.RunTestDesignPublishCompensationCommand;
+import com.songhg.veri.agent.testdesign.application.command.UpsertTestDesignQueueAlertSubscriptionCommand;
 import com.songhg.veri.agent.testdesign.application.port.TestDesignRepository;
 import com.songhg.veri.agent.testdesign.application.query.TestDesignCrossWpOperationsRequest;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignAuditChainMetricResponse;
@@ -13,23 +16,44 @@ import com.songhg.veri.agent.testdesign.application.view.TestDesignAuditChainPol
 import com.songhg.veri.agent.testdesign.application.view.TestDesignAuditChainReadinessResponse;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignAuditOutboxOperationsResponse;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignAuditOutboxRequeueResponse;
+import com.songhg.veri.agent.testdesign.application.view.TestDesignCompensationRunbookResponse;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignCrossWpAuditDashboardResponse;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignCrossWpOperationsDashboardResponse;
+import com.songhg.veri.agent.testdesign.application.view.TestDesignOperationsAuditReportResponse;
+import com.songhg.veri.agent.testdesign.application.view.TestDesignPublishCompensationRunResponse;
+import com.songhg.veri.agent.testdesign.application.view.TestDesignQueueAlertOperationsResponse;
+import com.songhg.veri.agent.testdesign.application.view.TestDesignQueueAlertSubscriptionResponse;
+import com.songhg.veri.agent.testdesign.application.view.TestDesignQueuedEventReplayResponse;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignScopePolicyResponse;
+import com.songhg.veri.agent.testdesign.config.TestDesignProperties;
+import com.songhg.veri.agent.testdesign.domain.TestDesignCandidate;
+import com.songhg.veri.agent.testdesign.domain.TestDesignCandidateStatus;
 import com.songhg.veri.agent.testdesign.domain.TestDesignCrossWpOperationsAggregate;
+import com.songhg.veri.agent.testdesign.domain.TestDesignOperationsAuditAggregate;
+import com.songhg.veri.agent.testdesign.domain.TestDesignQueueAlertSubscription;
+import com.songhg.veri.agent.testdesign.domain.TestDesignTask;
+import com.songhg.veri.agent.testdesign.domain.TestDesignTaskStatus;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 /**
- * Builds the unified WP5 cross-WP operations cockpit and performs bounded audit outbox requeue actions.
+ * Builds the unified WP5 cross-WP operations cockpit and performs bounded replay/compensation actions.
  *
- * <p>The cockpit is deliberately aggregate-only. It can prove WP1/WP2/WP3/WP5 links, scope coverage and replay
- * readiness, but it never exports audit rows, outbox payloads, trace ids, model invocation ids, sourceRef values or
- * asset identifiers.
+ * <p>The cockpit is deliberately aggregate-only. It can prove WP1/WP2/WP3/WP5 links, queue alert coverage, replay
+ * readiness and compensation readiness, but it never exports audit rows, outbox payloads, trace ids, model invocation
+ * ids, sourceRef values, task ids, candidate ids or asset identifiers.</p>
  */
 @Service
 public class TestDesignCrossWpOperationsService {
@@ -43,22 +67,55 @@ public class TestDesignCrossWpOperationsService {
     private static final String TONE_INFO = "info";
     private static final String TONE_WARNING = "warning";
     private static final String TONE_NEUTRAL = "neutral";
+    private static final String RESOURCE_TYPE = "TEST_DESIGN_CROSS_WP_OPERATIONS";
+    private static final String ACTION_QUEUE_ALERT_UPSERT = "WP5_QUEUE_ALERT_SUBSCRIPTION_UPSERT";
+    private static final String ACTION_QUEUED_EVENT_REPLAY = "WP5_CROSS_WP_QUEUED_EVENT_REPLAY";
+    private static final String ACTION_PUBLISH_COMPENSATION_RUN = "WP5_PUBLISH_COMPENSATION_RUN";
+    private static final String ACTION_AUDIT_OUTBOX_REQUEUE = "WP5_CROSS_WP_AUDIT_OUTBOX_REQUEUE";
+    private static final String REPLAY_GENERATION = "GENERATION";
+    private static final String REPLAY_PUBLISH = "PUBLISH";
+    private static final String REPLAY_ALL = "ALL";
+    private static final String ALERT_GENERATION_QUEUE_LAG = "GENERATION_QUEUE_LAG";
+    private static final String ALERT_GENERATION_TIMEOUT = "GENERATION_TIMEOUT";
+    private static final String ALERT_PUBLISH_QUEUE_LAG = "PUBLISH_QUEUE_LAG";
+    private static final String ALERT_PUBLISH_TIMEOUT = "PUBLISH_TIMEOUT";
+    private static final String ALERT_COMPENSATION_FAILURE = "COMPENSATION_FAILURE";
+    private static final String ALERT_AUDIT_OUTBOX_REPLAY_ELIGIBLE = "AUDIT_OUTBOX_REPLAY_ELIGIBLE";
+    private static final Set<String> ALERT_TYPES = Set.of(
+            ALERT_GENERATION_QUEUE_LAG,
+            ALERT_GENERATION_TIMEOUT,
+            ALERT_PUBLISH_QUEUE_LAG,
+            ALERT_PUBLISH_TIMEOUT,
+            ALERT_COMPENSATION_FAILURE,
+            ALERT_AUDIT_OUTBOX_REPLAY_ELIGIBLE
+    );
+    private static final Set<String> CHANNELS = Set.of("OPS_CONSOLE", "EMAIL", "WEBHOOK");
+    private static final Pattern TARGET_REF_PATTERN = Pattern.compile("^[A-Za-z0-9@._:/#-]{1,180}$");
 
     private final TestDesignRepository repository;
     private final TestDesignActorResolver actorResolver;
     private final AuthorizationService authorizationService;
     private final AuditLogWriter auditLogWriter;
+    private final TestDesignEventPublisher eventPublisher;
+    private final TestDesignPublishCompensationService publishCompensationService;
+    private final TestDesignProperties properties;
 
     public TestDesignCrossWpOperationsService(
             TestDesignRepository repository,
             TestDesignActorResolver actorResolver,
             AuthorizationService authorizationService,
-            AuditLogWriter auditLogWriter
+            AuditLogWriter auditLogWriter,
+            TestDesignEventPublisher eventPublisher,
+            TestDesignPublishCompensationService publishCompensationService,
+            TestDesignProperties properties
     ) {
         this.repository = repository;
         this.actorResolver = actorResolver;
         this.authorizationService = authorizationService;
         this.auditLogWriter = auditLogWriter;
+        this.eventPublisher = eventPublisher;
+        this.publishCompensationService = publishCompensationService;
+        this.properties = properties;
     }
 
     /**
@@ -68,9 +125,13 @@ public class TestDesignCrossWpOperationsService {
     public TestDesignCrossWpOperationsDashboardResponse dashboard(TestDesignCrossWpOperationsRequest request) {
         String projectId = trimToNull(request == null ? null : request.getProjectId());
         String promptKey = trimToNull(request == null ? null : request.getPromptKey());
+        Instant now = Instant.now();
         TestDesignCrossWpOperationsAggregate aggregate = repository.crossWpOperationsAggregate(projectId, promptKey);
         TestDesignScopePolicyResponse scopePolicy = TestDesignScopePolicy.response();
         TestDesignAuditChainPolicyResponse auditPolicy = TestDesignAuditChainPolicy.response();
+        TestDesignQueueAlertOperationsResponse queueAlerts = queueAlerts(projectId, promptKey, aggregate, now);
+        TestDesignCompensationRunbookResponse runbook = compensationRunbook(projectId, promptKey, now);
+        TestDesignOperationsAuditReportResponse auditReport = operationsAuditReport(projectId, promptKey, now);
         return new TestDesignCrossWpOperationsDashboardResponse(
                 projectId,
                 promptKey,
@@ -90,12 +151,211 @@ public class TestDesignCrossWpOperationsService {
                         aggregate.publishRecordCount()),
                 auditDashboard(aggregate, auditPolicy),
                 auditOutbox(aggregate),
-                metrics(aggregate),
-                readiness(aggregate, scopePolicy, auditPolicy),
-                scopePolicy.aggregateOnly() && auditPolicy.aggregateOnly(),
+                queueAlerts,
+                runbook,
+                auditReport,
+                metrics(aggregate, queueAlerts, runbook, auditReport),
+                readiness(aggregate, scopePolicy, auditPolicy, queueAlerts, runbook, auditReport),
+                scopePolicy.aggregateOnly()
+                        && auditPolicy.aggregateOnly()
+                        && queueAlerts.aggregateOnly()
+                        && runbook.aggregateOnly()
+                        && auditReport.aggregateOnly(),
                 false,
-                Instant.now()
+                now
         );
+    }
+
+    /**
+     * Lists bounded queue alert subscriptions for one project/prompt scope.
+     */
+    @Transactional(readOnly = true)
+    public List<TestDesignQueueAlertSubscriptionResponse> queueAlertSubscriptions(
+            TestDesignCrossWpOperationsRequest request
+    ) {
+        String projectId = trimToNull(request == null ? null : request.getProjectId());
+        String promptKey = trimToNull(request == null ? null : request.getPromptKey());
+        return repository.queueAlertSubscriptions(projectId, promptKey).stream()
+                .map(TestDesignCrossWpOperationsService::subscriptionResponse)
+                .toList();
+    }
+
+    /**
+     * Creates or updates one non-secret queue alert subscription.
+     *
+     * <p>Webhook URLs, tokens, event payload snippets and task/candidate identifiers are rejected at the boundary. The
+     * saved targetRef is a bounded routing alias only, so the operations dashboard can safely display it.</p>
+     */
+    @Transactional
+    public TestDesignQueueAlertSubscriptionResponse upsertQueueAlertSubscription(
+            UpsertTestDesignQueueAlertSubscriptionCommand command
+    ) {
+        if (command == null || !StringUtils.hasText(command.projectId())) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "projectId 不能为空");
+        }
+        String projectId = command.projectId().trim();
+        String promptKey = trimToNull(command.promptKey());
+        String alertType = normalizeAlertType(command.alertType());
+        String channel = normalizeChannel(command.channel());
+        String targetRef = normalizeTargetRef(command.targetRef());
+        Instant now = Instant.now();
+        String actor = actorResolver.currentActor();
+        TestDesignQueueAlertSubscription existing = repository.queueAlertSubscriptionByKey(
+                projectId,
+                promptKey,
+                alertType,
+                channel,
+                targetRef
+        ).orElse(null);
+        TestDesignQueueAlertSubscription saved = repository.saveQueueAlertSubscription(new TestDesignQueueAlertSubscription(
+                existing == null ? UUID.randomUUID() : existing.id(),
+                projectId,
+                promptKey,
+                alertType,
+                channel,
+                targetRef,
+                command.thresholdSeconds(),
+                command.enabled() == null || command.enabled(),
+                existing == null ? actor : existing.createdBy(),
+                actor,
+                existing == null ? now : existing.createdAt(),
+                now
+        ));
+        auditLogWriter.record(AuditLogWriter.success(
+                currentUser(),
+                ACTION_QUEUE_ALERT_UPSERT,
+                RESOURCE_TYPE,
+                projectId,
+                "WP5 queue alert subscription upsert"
+        ));
+        return subscriptionResponse(saved);
+    }
+
+    /**
+     * Replays queued generation and publish events inside one project/prompt scope.
+     *
+     * <p>The method republishes platform events using repository-selected ids, but returns only aggregate counts. It
+     * does not expose event payloads, task ids, candidate ids or queue message identifiers.</p>
+     */
+    @Transactional
+    public TestDesignQueuedEventReplayResponse replayQueuedEvents(ReplayTestDesignQueuedEventsCommand command) {
+        if (command == null || !StringUtils.hasText(command.projectId())) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "projectId 不能为空");
+        }
+        String projectId = command.projectId().trim();
+        String promptKey = trimToNull(command.promptKey());
+        String replayType = normalizeReplayType(command.replayType());
+        int limit = safeLimit(command.maxItems());
+        String reason = sanitizeReason(command.reason());
+        int remaining = limit;
+        int generationEvents = 0;
+        int publishTaskEvents = 0;
+        int publishCandidateEvents = 0;
+        if (REPLAY_GENERATION.equals(replayType) || REPLAY_ALL.equals(replayType)) {
+            List<TestDesignTask> tasks = repository.queuedTasksForReplay(projectId, promptKey, remaining);
+            tasks.forEach(task -> eventPublisher.publishGenerationRequested(task.id()));
+            generationEvents = tasks.size();
+            remaining = Math.max(0, remaining - generationEvents);
+        }
+        if ((REPLAY_PUBLISH.equals(replayType) || REPLAY_ALL.equals(replayType)) && remaining > 0) {
+            List<TestDesignCandidate> candidates =
+                    repository.publishQueuedCandidatesForReplay(projectId, promptKey, remaining);
+            Map<UUID, List<UUID>> candidatesByTask = candidates.stream()
+                    .collect(Collectors.groupingBy(
+                            TestDesignCandidate::taskId,
+                            LinkedHashMap::new,
+                            Collectors.mapping(TestDesignCandidate::id, Collectors.toList())
+                    ));
+            candidatesByTask.forEach(eventPublisher::publishPublishRequested);
+            publishTaskEvents = candidatesByTask.size();
+            publishCandidateEvents = candidates.size();
+        }
+        Instant now = Instant.now();
+        auditLogWriter.record(AuditLogWriter.success(
+                currentUser(),
+                ACTION_QUEUED_EVENT_REPLAY,
+                RESOURCE_TYPE,
+                projectId,
+                reason == null ? "WP5 queued event replay" : "WP5 queued event replay: " + reason
+        ));
+        return new TestDesignQueuedEventReplayResponse(
+                projectId,
+                promptKey,
+                replayType,
+                limit,
+                generationEvents,
+                publishTaskEvents,
+                publishCandidateEvents,
+                true,
+                false,
+                false,
+                false,
+                true,
+                now
+        );
+    }
+
+    /**
+     * Returns the compensation runbook for one project/prompt scope.
+     */
+    @Transactional(readOnly = true)
+    public TestDesignCompensationRunbookResponse compensationRunbook(TestDesignCrossWpOperationsRequest request) {
+        String projectId = trimToNull(request == null ? null : request.getProjectId());
+        String promptKey = trimToNull(request == null ? null : request.getPromptKey());
+        return compensationRunbook(projectId, promptKey, Instant.now());
+    }
+
+    /**
+     * Runs bounded publish compensation manually inside one project/prompt scope.
+     */
+    @Transactional
+    public TestDesignPublishCompensationRunResponse runPublishCompensation(
+            RunTestDesignPublishCompensationCommand command
+    ) {
+        if (command == null || !StringUtils.hasText(command.projectId())) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "projectId 不能为空");
+        }
+        String projectId = command.projectId().trim();
+        String promptKey = trimToNull(command.promptKey());
+        int limit = safeLimit(command.maxItems());
+        String reason = sanitizeReason(command.reason());
+        TestDesignPublishCompensationService.CompensationResult result =
+                publishCompensationService.compensateFailedLinkedCandidates("manual", projectId, promptKey, limit);
+        Instant now = Instant.now();
+        auditLogWriter.record(AuditLogWriter.success(
+                currentUser(),
+                ACTION_PUBLISH_COMPENSATION_RUN,
+                RESOURCE_TYPE,
+                projectId,
+                reason == null ? "WP5 publish compensation run" : "WP5 publish compensation run: " + reason
+        ));
+        return new TestDesignPublishCompensationRunResponse(
+                projectId,
+                promptKey,
+                result.trigger(),
+                limit,
+                result.scannedCandidates(),
+                result.succeededCandidates(),
+                result.failedCandidates(),
+                result.skippedCandidates(),
+                properties.publishCompensationEnabled(),
+                true,
+                true,
+                false,
+                false,
+                false,
+                now
+        );
+    }
+
+    /**
+     * Returns aggregate-only batch operation audit counts.
+     */
+    @Transactional(readOnly = true)
+    public TestDesignOperationsAuditReportResponse operationsAuditReport(TestDesignCrossWpOperationsRequest request) {
+        String projectId = trimToNull(request == null ? null : request.getProjectId());
+        String promptKey = trimToNull(request == null ? null : request.getPromptKey());
+        return operationsAuditReport(projectId, promptKey, Instant.now());
     }
 
     /**
@@ -121,8 +381,8 @@ public class TestDesignCrossWpOperationsService {
         );
         auditLogWriter.record(AuditLogWriter.success(
                 currentUser(),
-                "WP5_CROSS_WP_AUDIT_OUTBOX_REQUEUE",
-                "TEST_DESIGN_CROSS_WP_OPERATIONS",
+                ACTION_AUDIT_OUTBOX_REQUEUE,
+                RESOURCE_TYPE,
                 command.projectId().trim(),
                 "WP5 cross-WP audit outbox requeue"
         ));
@@ -134,6 +394,164 @@ public class TestDesignCrossWpOperationsService {
                 true,
                 false,
                 false,
+                now
+        );
+    }
+
+    private TestDesignQueueAlertOperationsResponse queueAlerts(
+            String projectId,
+            String promptKey,
+            TestDesignCrossWpOperationsAggregate aggregate,
+            Instant now
+    ) {
+        List<TestDesignQueueAlertSubscription> subscriptions = repository.queueAlertSubscriptions(projectId, promptKey);
+        long enabledSubscriptionCount = subscriptions.stream().filter(TestDesignQueueAlertSubscription::enabled).count();
+        long generationQueued = repository.countTasksByStatus(projectId, promptKey, TestDesignTaskStatus.QUEUED);
+        long publishQueued = repository.countCandidatesByStatus(
+                projectId,
+                promptKey,
+                TestDesignCandidateStatus.PUBLISH_QUEUED
+        );
+        long generationLagThreshold = alertThreshold(
+                subscriptions,
+                ALERT_GENERATION_QUEUE_LAG,
+                properties.eventRecoveryQueueLagWarningSeconds()
+        );
+        long publishLagThreshold = alertThreshold(
+                subscriptions,
+                ALERT_PUBLISH_QUEUE_LAG,
+                properties.publishEventRecoveryQueueLagWarningSeconds()
+        );
+        long oldestGenerationAge = ageSeconds(
+                repository.oldestTaskUpdatedAtByStatus(projectId, promptKey, TestDesignTaskStatus.QUEUED),
+                now
+        );
+        long oldestPublishAge = ageSeconds(
+                repository.oldestCandidateUpdatedAtByStatus(
+                        projectId,
+                        promptKey,
+                        TestDesignCandidateStatus.PUBLISH_QUEUED
+                ),
+                now
+        );
+        long staleRunning = properties.eventRecoveryRunningTimeoutSeconds() <= 0 ? 0
+                : repository.countStaleRunningTasks(projectId, promptKey,
+                        now.minusSeconds(properties.eventRecoveryRunningTimeoutSeconds()));
+        long stalePublishing = properties.publishEventRecoveryRunningTimeoutSeconds() <= 0 ? 0
+                : repository.countStalePublishingCandidates(projectId, promptKey,
+                        now.minusSeconds(properties.publishEventRecoveryRunningTimeoutSeconds()));
+        long compensationEligible = repository.countPublishCompensationCandidates(projectId, promptKey);
+        boolean generationLagWarning = generationLagThreshold >= 0 && generationQueued > 0
+                && oldestGenerationAge > generationLagThreshold;
+        boolean publishLagWarning = publishLagThreshold >= 0 && publishQueued > 0
+                && oldestPublishAge > publishLagThreshold;
+        boolean generationTimeoutWarning = staleRunning > 0;
+        boolean publishTimeoutWarning = stalePublishing > 0;
+        boolean compensationFailureWarning = compensationEligible > 0;
+        long activeWarningCount = activeWarningCount(
+                subscriptions,
+                generationLagWarning,
+                generationTimeoutWarning,
+                publishLagWarning,
+                publishTimeoutWarning,
+                compensationFailureWarning,
+                aggregate.replayEligibleOutboxCount() > 0
+        );
+        return new TestDesignQueueAlertOperationsResponse(
+                "wp5-queue-alert-operations-v1",
+                subscriptions.size(),
+                enabledSubscriptionCount,
+                subscriptions.size() - enabledSubscriptionCount,
+                generationQueued,
+                staleRunning,
+                publishQueued,
+                stalePublishing,
+                compensationEligible,
+                oldestGenerationAge,
+                oldestPublishAge,
+                generationLagThreshold,
+                publishLagThreshold,
+                generationLagWarning,
+                generationTimeoutWarning,
+                publishLagWarning,
+                publishTimeoutWarning,
+                compensationFailureWarning,
+                activeWarningCount,
+                enabledSubscriptionCount > 0,
+                true,
+                true,
+                false,
+                false,
+                now
+        );
+    }
+
+    private TestDesignCompensationRunbookResponse compensationRunbook(
+            String projectId,
+            String promptKey,
+            Instant now
+    ) {
+        long eligibleCount = repository.countPublishCompensationCandidates(projectId, promptKey);
+        return new TestDesignCompensationRunbookResponse(
+                "wp5-publish-compensation-runbook-v1",
+                projectId,
+                promptKey,
+                properties.publishCompensationEnabled(),
+                properties.publishCompensationEnabled(),
+                true,
+                true,
+                properties.effectivePublishCompensationBatchSize(),
+                eligibleCount,
+                false,
+                false,
+                false,
+                false,
+                false,
+                true,
+                List.of(
+                        readiness("compensationScopeLocked", "候选选择范围",
+                                true,
+                                "仅选择 FAILED 且已有 WP3 用例引用、无成功发布记录、无自动补偿记录的候选"),
+                        readiness("manualRunSupported", "人工补偿运行",
+                                true,
+                                "支持按项目和 prompt 有界触发补偿"),
+                        readiness("automaticScheduleReady", "自动调度",
+                                properties.publishCompensationEnabled(),
+                                "自动调度使用同一补偿候选选择策略"),
+                        readiness("firstCreateBlocked", "禁止自动首次创建",
+                                true,
+                                "补偿后台只补链和恢复记录，不创建新的 WP3 用例资产"),
+                        readiness("detailIdentifiersRedacted", "明细标识不导出",
+                                true,
+                                "运行手册和 dashboard 只返回聚合计数")
+                ),
+                now
+        );
+    }
+
+    private TestDesignOperationsAuditReportResponse operationsAuditReport(
+            String projectId,
+            String promptKey,
+            Instant now
+    ) {
+        TestDesignOperationsAuditAggregate aggregate = repository.operationsAuditAggregate(projectId, promptKey);
+        return new TestDesignOperationsAuditReportResponse(
+                projectId,
+                promptKey,
+                aggregate.totalOperationCount(),
+                aggregate.successCount(),
+                aggregate.failedCount(),
+                aggregate.deniedCount(),
+                aggregate.queueAlertSubscriptionMutationCount(),
+                aggregate.queuedEventReplayCount(),
+                aggregate.publishCompensationRunCount(),
+                aggregate.auditOutboxRequeueCount(),
+                aggregate.latestOperationAt(),
+                true,
+                false,
+                false,
+                false,
+                true,
                 now
         );
     }
@@ -181,7 +599,12 @@ public class TestDesignCrossWpOperationsService {
         );
     }
 
-    private static List<TestDesignAuditChainMetricResponse> metrics(TestDesignCrossWpOperationsAggregate aggregate) {
+    private static List<TestDesignAuditChainMetricResponse> metrics(
+            TestDesignCrossWpOperationsAggregate aggregate,
+            TestDesignQueueAlertOperationsResponse queueAlerts,
+            TestDesignCompensationRunbookResponse runbook,
+            TestDesignOperationsAuditReportResponse auditReport
+    ) {
         List<TestDesignAuditChainMetricResponse> metrics = new ArrayList<>();
         metrics.add(metric("taskProjectScopes", "任务项目作用域", aggregate.taskCount(),
                 aggregate.taskCount() > 0 ? TONE_SUCCESS : TONE_INFO));
@@ -199,13 +622,22 @@ public class TestDesignCrossWpOperationsService {
                 aggregate.wp3PublishedCaseCount() > 0 ? TONE_SUCCESS : TONE_NEUTRAL));
         metrics.add(metric("auditOutboxReplayEligible", "Audit outbox 可重放", aggregate.replayEligibleOutboxCount(),
                 aggregate.replayEligibleOutboxCount() > 0 ? TONE_WARNING : TONE_SUCCESS));
+        metrics.add(metric("queueAlertActiveWarnings", "队列告警激活", queueAlerts.activeWarningCount(),
+                queueAlerts.activeWarningCount() > 0 ? TONE_WARNING : TONE_SUCCESS));
+        metrics.add(metric("compensationEligible", "可补偿候选", runbook.eligibleCandidateCount(),
+                runbook.eligibleCandidateCount() > 0 ? TONE_WARNING : TONE_SUCCESS));
+        metrics.add(metric("operationsAuditEvents", "运营审计操作", auditReport.totalOperationCount(),
+                auditReport.totalOperationCount() > 0 ? TONE_INFO : TONE_NEUTRAL));
         return metrics;
     }
 
     private static List<TestDesignAuditChainReadinessResponse> readiness(
             TestDesignCrossWpOperationsAggregate aggregate,
             TestDesignScopePolicyResponse scopePolicy,
-            TestDesignAuditChainPolicyResponse auditPolicy
+            TestDesignAuditChainPolicyResponse auditPolicy,
+            TestDesignQueueAlertOperationsResponse queueAlerts,
+            TestDesignCompensationRunbookResponse runbook,
+            TestDesignOperationsAuditReportResponse auditReport
     ) {
         return List.of(
                 readiness("crossWpScopeDashboardReady", "跨 WP 统一作用域看板",
@@ -217,16 +649,34 @@ public class TestDesignCrossWpOperationsService {
                 readiness("auditOutboxReplayDashboardReady", "Audit outbox 重放看板",
                         auditPolicy.auditOutboxReplayDashboardReady(),
                         "支持按项目 scope 将 FAILED/DEAD outbox 受限重新排队"),
+                readiness("queueAlertSubscriptionReady", "队列告警订阅",
+                        queueAlerts.subscriptionConfigReady(),
+                        "支持项目和 prompt 维度订阅聚合队列告警"),
+                readiness("manualQueuedEventReplayReady", "人工队列重放",
+                        queueAlerts.manualReplaySupported(),
+                        "支持按项目和 prompt 有界重发 queued generation/publish 事件"),
+                readiness("publishCompensationRunbookReady", "发布补偿运行手册",
+                        runbook.manualRunSupported() && runbook.scopedRunSupported(),
+                        "补偿运行手册和手工运行均返回聚合计数"),
+                readiness("operationsAuditReportReady", "批量运营审计报表",
+                        auditReport.exportSupported() && auditReport.aggregateOnly(),
+                        "订阅、重放、补偿和 outbox 重排均进入聚合审计报表"),
                 readiness("scopeMismatchClear", "作用域一致性",
                         aggregate.scopeMismatchCount() == 0,
                         "候选和发布记录项目 scope 必须与任务项目保持一致"),
                 readiness("detailIdentifiersRedacted", "明细标识不导出",
                         scopePolicy.aggregateOnly()
                                 && auditPolicy.aggregateOnly()
+                                && queueAlerts.aggregateOnly()
+                                && runbook.aggregateOnly()
+                                && auditReport.aggregateOnly()
                                 && !scopePolicy.candidateIdentifierListExported()
                                 && !auditPolicy.traceIdValueExported()
                                 && !auditPolicy.modelInvocationIdValueExported()
-                                && !auditPolicy.publishIdentifierValueExported(),
+                                && !auditPolicy.publishIdentifierValueExported()
+                                && !queueAlerts.detailIdentifiersExported()
+                                && !runbook.assetCaseIdentifierExported()
+                                && !auditReport.detailRowsExported(),
                         "候选 ID、资产 ID、traceId、模型调用 ID、sourceRef、outbox payload 均不进入看板")
         );
     }
@@ -250,6 +700,69 @@ public class TestDesignCrossWpOperationsService {
         );
     }
 
+    private static TestDesignQueueAlertSubscriptionResponse subscriptionResponse(
+            TestDesignQueueAlertSubscription subscription
+    ) {
+        return new TestDesignQueueAlertSubscriptionResponse(
+                subscription.id(),
+                subscription.projectId(),
+                subscription.promptKey(),
+                subscription.alertType(),
+                subscription.channel(),
+                subscription.targetRef(),
+                subscription.thresholdSeconds(),
+                subscription.enabled(),
+                subscription.createdAt(),
+                subscription.updatedAt()
+        );
+    }
+
+    private static long activeWarningCount(
+            List<TestDesignQueueAlertSubscription> subscriptions,
+            boolean generationLagWarning,
+            boolean generationTimeoutWarning,
+            boolean publishLagWarning,
+            boolean publishTimeoutWarning,
+            boolean compensationFailureWarning,
+            boolean auditOutboxReplayWarning
+    ) {
+        Map<String, Boolean> warnings = new LinkedHashMap<>();
+        warnings.put(ALERT_GENERATION_QUEUE_LAG, generationLagWarning);
+        warnings.put(ALERT_GENERATION_TIMEOUT, generationTimeoutWarning);
+        warnings.put(ALERT_PUBLISH_QUEUE_LAG, publishLagWarning);
+        warnings.put(ALERT_PUBLISH_TIMEOUT, publishTimeoutWarning);
+        warnings.put(ALERT_COMPENSATION_FAILURE, compensationFailureWarning);
+        warnings.put(ALERT_AUDIT_OUTBOX_REPLAY_ELIGIBLE, auditOutboxReplayWarning);
+        return warnings.entrySet().stream()
+                .filter(Map.Entry::getValue)
+                .filter(entry -> subscriptions.stream()
+                        .anyMatch(subscription -> subscription.enabled()
+                                && entry.getKey().equals(subscription.alertType())))
+                .count();
+    }
+
+    private static long alertThreshold(
+            List<TestDesignQueueAlertSubscription> subscriptions,
+            String alertType,
+            long defaultThreshold
+    ) {
+        return subscriptions.stream()
+                .filter(TestDesignQueueAlertSubscription::enabled)
+                .filter(subscription -> alertType.equals(subscription.alertType()))
+                .map(TestDesignQueueAlertSubscription::thresholdSeconds)
+                .filter(value -> value != null && value >= 0)
+                .mapToLong(Integer::longValue)
+                .min()
+                .orElse(Math.max(0L, defaultThreshold));
+    }
+
+    private static long ageSeconds(java.util.Optional<Instant> oldestAt, Instant now) {
+        if (oldestAt.isEmpty() || oldestAt.get() == null || oldestAt.get().isAfter(now)) {
+            return 0L;
+        }
+        return Math.max(0L, Duration.between(oldestAt.get(), now).getSeconds());
+    }
+
     private static double percentValue(long value, long total) {
         return total <= 0 ? 0D : Math.round(value * 10_000D / total) / 100D;
     }
@@ -265,12 +778,58 @@ public class TestDesignCrossWpOperationsService {
         if (!StringUtils.hasText(value)) {
             return STATUS_FAILED_OR_DEAD;
         }
-        String normalized = value.trim().toUpperCase();
+        String normalized = value.trim().toUpperCase(Locale.ROOT);
         if (STATUS_FAILED.equals(normalized) || STATUS_DEAD.equals(normalized)
                 || STATUS_FAILED_OR_DEAD.equals(normalized)) {
             return normalized;
         }
         throw new BusinessException(ErrorCode.VALIDATION_ERROR, "audit outbox 重放状态不合法");
+    }
+
+    private static String normalizeReplayType(String value) {
+        if (!StringUtils.hasText(value)) {
+            return REPLAY_ALL;
+        }
+        String normalized = value.trim().toUpperCase(Locale.ROOT);
+        if (REPLAY_GENERATION.equals(normalized) || REPLAY_PUBLISH.equals(normalized)
+                || REPLAY_ALL.equals(normalized)) {
+            return normalized;
+        }
+        throw new BusinessException(ErrorCode.VALIDATION_ERROR, "queued event 重放类型不合法");
+    }
+
+    private static String normalizeAlertType(String value) {
+        if (!StringUtils.hasText(value)) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "alertType 不能为空");
+        }
+        String normalized = value.trim().toUpperCase(Locale.ROOT);
+        if (ALERT_TYPES.contains(normalized)) {
+            return normalized;
+        }
+        throw new BusinessException(ErrorCode.VALIDATION_ERROR, "队列告警类型不合法");
+    }
+
+    private static String normalizeChannel(String value) {
+        if (!StringUtils.hasText(value)) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "channel 不能为空");
+        }
+        String normalized = value.trim().toUpperCase(Locale.ROOT);
+        if (CHANNELS.contains(normalized)) {
+            return normalized;
+        }
+        throw new BusinessException(ErrorCode.VALIDATION_ERROR, "队列告警渠道不合法");
+    }
+
+    private static String normalizeTargetRef(String value) {
+        if (!StringUtils.hasText(value)) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "targetRef 不能为空");
+        }
+        String trimmed = value.trim();
+        String redacted = TestDesignSensitiveText.redact(trimmed);
+        if (!trimmed.equals(redacted) || !TARGET_REF_PATTERN.matcher(trimmed).matches()) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "targetRef 只能保存非密钥的渠道目标引用");
+        }
+        return trimmed;
     }
 
     private static String sanitizeReason(String value) {

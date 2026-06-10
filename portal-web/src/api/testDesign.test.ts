@@ -22,6 +22,9 @@ import {
   fetchTestDesignContextPolicyNotes,
   fetchTestDesignContextPolicyOverrides,
   fetchTestDesignCrossWpOperationsDashboard,
+  fetchTestDesignQueueAlertSubscriptions,
+  fetchTestDesignCompensationRunbook,
+  fetchTestDesignOperationsAuditReport,
   fetchTestDesignCandidates,
   fetchTestDesignConflictOperations,
   fetchTestDesignCalibrationRuns,
@@ -50,6 +53,9 @@ import {
   normalizeTestDesignContextPolicyOverride,
   normalizeTestDesignCrossWpOperationsDashboard,
   normalizeTestDesignAuditOutboxRequeueResult,
+  normalizeTestDesignQueueAlertSubscription,
+  normalizeTestDesignQueuedEventReplayResult,
+  normalizeTestDesignPublishCompensationRunResult,
   normalizeTestDesignCalibrationRun,
   normalizeTestDesignCalibrationRunList,
   normalizeTestDesignCalibrationSummary,
@@ -75,6 +81,7 @@ import {
   normalizeTestDesignTaskDetail,
   publishTestDesignDryRun,
   publishTestDesignTask,
+  replayTestDesignQueuedEvents,
   requestTestDesignCalibrationRun,
   rejectTestDesignReleaseReadinessApproval,
   requeueTestDesignAuditOutbox,
@@ -88,6 +95,7 @@ import {
   createTestDesignEvaluationSampleFromCandidate,
   resolveTestDesignConflict,
   retryTestDesignTask,
+  runTestDesignPublishCompensation,
   testDesignCandidateExportPath,
   testDesignReviewRecordExportPath,
   testDesignTaskReportExportPath,
@@ -96,7 +104,8 @@ import {
   updateTestDesignContextPolicyOverride,
   transitionTestDesignEvaluationSample,
   updateTestDesignEvaluationSample,
-  updateTestDesignReleaseReadinessApproval
+  updateTestDesignReleaseReadinessApproval,
+  upsertTestDesignQueueAlertSubscription
 } from './testDesign';
 
 vi.mock('./client', () => ({
@@ -1568,6 +1577,61 @@ describe('WP5 test design API helpers', () => {
         last_error_text_exported: false,
         aggregate_only: true
       },
+      queue_alerts: {
+        policy_version: 'wp5-queue-alert-operations-v1',
+        subscription_count: '3',
+        enabled_subscription_count: '2',
+        disabled_subscription_count: '1',
+        queued_task_count: '4',
+        stale_running_task_count: '1',
+        publish_queued_candidate_count: '5',
+        stale_publishing_candidate_count: '2',
+        compensation_eligible_candidate_count: '1',
+        oldest_generation_queued_age_seconds: '180',
+        oldest_publish_queued_age_seconds: '90',
+        generation_queue_lag_warning_seconds: '120',
+        publish_queue_lag_warning_seconds: '60',
+        generation_queue_lag_warning: true,
+        publish_timeout_warning: true,
+        active_warning_count: '2',
+        subscription_config_ready: true,
+        manual_replay_supported: true,
+        event_payload_exported: false,
+        detail_identifiers_exported: false,
+        aggregate_only: true
+      },
+      compensation_runbook: {
+        policy_version: 'wp5-publish-compensation-runbook-v1',
+        compensation_enabled: true,
+        automatic_schedule_ready: true,
+        manual_run_supported: true,
+        scoped_run_supported: true,
+        effective_batch_size: '50',
+        eligible_candidate_count: '1',
+        auto_first_create_allowed: false,
+        auto_conflict_resolve_allowed: false,
+        asset_case_identifier_exported: false,
+        source_ref_exported: false,
+        error_detail_exported: false,
+        aggregate_only: true,
+        steps: [{ code: 'manualRunSupported', label: '人工补偿运行', ready: true, tone: 'success' }]
+      },
+      operations_audit_report: {
+        total_operation_count: '7',
+        success_count: '6',
+        failed_count: '1',
+        denied_count: '0',
+        queue_alert_subscription_mutation_count: '2',
+        queued_event_replay_count: '1',
+        publish_compensation_run_count: '1',
+        audit_outbox_requeue_count: '3',
+        latest_operation_at: '2026-05-30T10:05:00Z',
+        export_supported: true,
+        detail_rows_exported: false,
+        actor_identifier_exported: false,
+        trace_id_value_exported: false,
+        aggregate_only: true
+      },
       metrics: [{ code: 'auditOutboxReplayEligible', label: 'Audit outbox 可重放', count: '2', tone: 'warning' }],
       readiness: [{ code: 'detailIdentifiersRedacted', label: '明细标识不导出', ready: true, tone: 'success' }],
       aggregate_only: true,
@@ -1591,6 +1655,22 @@ describe('WP5 test design API helpers', () => {
         replayEligibleCount: 2,
         replaySupported: true,
         payloadExported: false
+      }),
+      queueAlerts: expect.objectContaining({
+        subscriptionCount: 3,
+        queuedTaskCount: 4,
+        activeWarningCount: 2,
+        detailIdentifiersExported: false
+      }),
+      compensationRunbook: expect.objectContaining({
+        effectiveBatchSize: 50,
+        eligibleCandidateCount: 1,
+        assetCaseIdentifierExported: false
+      }),
+      operationsAuditReport: expect.objectContaining({
+        totalOperationCount: 7,
+        queueAlertSubscriptionMutationCount: 2,
+        detailRowsExported: false
       }),
       readiness: [expect.objectContaining({ code: 'detailIdentifiersRedacted', ready: true })],
       aggregateOnly: true,
@@ -1616,6 +1696,51 @@ describe('WP5 test design API helpers', () => {
       requeuedCount: 2,
       payloadExported: false,
       detailIdentifiersExported: false
+    });
+    expect(normalizeTestDesignQueueAlertSubscription({
+      id: 'sub-1',
+      project_id: 'project-1',
+      prompt_key: 'wp5-test-design-v1',
+      alert_type: 'GENERATION_QUEUE_LAG',
+      channel: 'OPS_CONSOLE',
+      target_ref: 'ops-console:wp5',
+      threshold_seconds: '120',
+      enabled: true
+    })).toMatchObject({
+      id: 'sub-1',
+      projectId: 'project-1',
+      alertType: 'GENERATION_QUEUE_LAG',
+      thresholdSeconds: 120,
+      enabled: true
+    });
+    expect(normalizeTestDesignQueuedEventReplayResult({
+      project_id: 'project-1',
+      replay_type: 'ALL',
+      requested_limit: '20',
+      generation_task_events: '2',
+      publish_task_events: '1',
+      publish_candidate_events: '3',
+      event_payload_exported: false
+    })).toMatchObject({
+      replayType: 'ALL',
+      requestedLimit: 20,
+      generationTaskEvents: 2,
+      publishCandidateEvents: 3,
+      eventPayloadExported: false
+    });
+    expect(normalizeTestDesignPublishCompensationRunResult({
+      trigger: 'manual',
+      requested_limit: '20',
+      scanned_candidates: '4',
+      succeeded_candidates: '2',
+      failed_candidates: '1',
+      skipped_candidates: '1',
+      asset_case_identifier_exported: false
+    })).toMatchObject({
+      requestedLimit: 20,
+      scannedCandidates: 4,
+      succeededCandidates: 2,
+      assetCaseIdentifierExported: false
     });
 
     const auditSummary = normalizeTestDesignAuditSummary({
@@ -1717,6 +1842,71 @@ describe('WP5 test design API helpers', () => {
 
     await fetchTestDesignCrossWpOperationsDashboard({ projectId: 'proj pay', promptKey: 'wp5-test-design-v1' });
     expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/test-design/operations/cross-wp-dashboard?projectId=proj+pay&promptKey=wp5-test-design-v1');
+
+    await fetchTestDesignQueueAlertSubscriptions({ projectId: 'proj pay', promptKey: 'wp5-test-design-v1' });
+    expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/test-design/operations/queue-alert-subscriptions?projectId=proj+pay&promptKey=wp5-test-design-v1');
+
+    await upsertTestDesignQueueAlertSubscription({
+      projectId: 'proj pay',
+      promptKey: 'wp5-test-design-v1',
+      alertType: 'GENERATION_QUEUE_LAG',
+      channel: 'OPS_CONSOLE',
+      targetRef: 'ops-console:wp5',
+      thresholdSeconds: 120,
+      enabled: true
+    });
+    expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/test-design/operations/queue-alert-subscriptions', {
+      method: 'POST',
+      body: JSON.stringify({
+        projectId: 'proj pay',
+        promptKey: 'wp5-test-design-v1',
+        alertType: 'GENERATION_QUEUE_LAG',
+        channel: 'OPS_CONSOLE',
+        targetRef: 'ops-console:wp5',
+        thresholdSeconds: 120,
+        enabled: true
+      })
+    });
+
+    await replayTestDesignQueuedEvents({
+      projectId: 'proj pay',
+      promptKey: 'wp5-test-design-v1',
+      replayType: 'ALL',
+      maxItems: 20,
+      reason: '  queue replay  '
+    });
+    expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/test-design/operations/queued-events/replay', {
+      method: 'POST',
+      body: JSON.stringify({
+        projectId: 'proj pay',
+        promptKey: 'wp5-test-design-v1',
+        replayType: 'ALL',
+        maxItems: 20,
+        reason: 'queue replay'
+      })
+    });
+
+    await fetchTestDesignCompensationRunbook({ projectId: 'proj pay', promptKey: 'wp5-test-design-v1' });
+    expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/test-design/operations/compensation-runbook?projectId=proj+pay&promptKey=wp5-test-design-v1');
+
+    await runTestDesignPublishCompensation({
+      projectId: 'proj pay',
+      promptKey: 'wp5-test-design-v1',
+      maxItems: 20,
+      reason: '  manual run  '
+    });
+    expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/test-design/operations/publish-compensation/run', {
+      method: 'POST',
+      body: JSON.stringify({
+        projectId: 'proj pay',
+        promptKey: 'wp5-test-design-v1',
+        maxItems: 20,
+        reason: 'manual run'
+      })
+    });
+
+    await fetchTestDesignOperationsAuditReport({ projectId: 'proj pay', promptKey: 'wp5-test-design-v1' });
+    expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/test-design/operations/audit-report?projectId=proj+pay&promptKey=wp5-test-design-v1');
 
     await requeueTestDesignAuditOutbox({
       projectId: 'proj pay',

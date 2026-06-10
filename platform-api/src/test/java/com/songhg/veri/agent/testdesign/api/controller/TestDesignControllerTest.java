@@ -3145,11 +3145,27 @@ class TestDesignControllerTest {
                 .andExpect(jsonPath("$.data.auditOutbox.payloadExported").value(false))
                 .andExpect(jsonPath("$.data.auditOutbox.traceIdValueExported").value(false))
                 .andExpect(jsonPath("$.data.auditOutbox.lastErrorTextExported").value(false))
+                .andExpect(jsonPath("$.data.queueAlerts.policyVersion").value("wp5-queue-alert-operations-v1"))
+                .andExpect(jsonPath("$.data.queueAlerts.manualReplaySupported").value(true))
+                .andExpect(jsonPath("$.data.queueAlerts.eventPayloadExported").value(false))
+                .andExpect(jsonPath("$.data.queueAlerts.detailIdentifiersExported").value(false))
+                .andExpect(jsonPath("$.data.compensationRunbook.policyVersion")
+                        .value("wp5-publish-compensation-runbook-v1"))
+                .andExpect(jsonPath("$.data.compensationRunbook.manualRunSupported").value(true))
+                .andExpect(jsonPath("$.data.compensationRunbook.assetCaseIdentifierExported").value(false))
+                .andExpect(jsonPath("$.data.compensationRunbook.sourceRefExported").value(false))
+                .andExpect(jsonPath("$.data.operationsAuditReport.aggregateOnly").value(true))
+                .andExpect(jsonPath("$.data.operationsAuditReport.detailRowsExported").value(false))
+                .andExpect(jsonPath("$.data.operationsAuditReport.actorIdentifierExported").value(false))
                 .andExpect(jsonPath("$.data.readiness[?(@.code == 'crossWpScopeDashboardReady')].ready")
                         .value(contains(true)))
                 .andExpect(jsonPath("$.data.readiness[?(@.code == 'crossWpAuditDashboardReady')].ready")
                         .value(contains(true)))
                 .andExpect(jsonPath("$.data.readiness[?(@.code == 'auditOutboxReplayDashboardReady')].ready")
+                        .value(contains(true)))
+                .andExpect(jsonPath("$.data.readiness[?(@.code == 'queueAlertSubscriptionReady')].ready")
+                        .value(contains(false)))
+                .andExpect(jsonPath("$.data.readiness[?(@.code == 'manualQueuedEventReplayReady')].ready")
                         .value(contains(true)))
                 .andExpect(jsonPath("$.data.readiness[?(@.code == 'detailIdentifiersRedacted')].ready")
                         .value(contains(true)))
@@ -3187,6 +3203,95 @@ class TestDesignControllerTest {
                 .andReturn();
         MatcherAssert.assertThat(requeue.getResponse().getContentAsString(), not(containsString("secret-value")));
 
+        MvcResult subscription = mockMvc.perform(post("/api/v1/test-design/operations/queue-alert-subscriptions")
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "projectId": "project-wp5",
+                                  "promptKey": "wp5-test-design-v1",
+                                  "alertType": "GENERATION_QUEUE_LAG",
+                                  "channel": "OPS_CONSOLE",
+                                  "targetRef": "ops-console:wp5",
+                                  "thresholdSeconds": 120,
+                                  "enabled": true
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.projectId").value("project-wp5"))
+                .andExpect(jsonPath("$.data.alertType").value("GENERATION_QUEUE_LAG"))
+                .andExpect(jsonPath("$.data.channel").value("OPS_CONSOLE"))
+                .andExpect(jsonPath("$.data.targetRef").value("ops-console:wp5"))
+                .andReturn();
+        MatcherAssert.assertThat(subscription.getResponse().getContentAsString(), not(containsString("secret-value")));
+
+        mockMvc.perform(get("/api/v1/test-design/operations/queue-alert-subscriptions")
+                        .header("Authorization", "Bearer " + auditorToken)
+                        .param("projectId", "project-wp5")
+                        .param("promptKey", "wp5-test-design-v1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data", hasSize(1)))
+                .andExpect(jsonPath("$.data[0].alertType").value("GENERATION_QUEUE_LAG"));
+
+        mockMvc.perform(post("/api/v1/test-design/operations/queued-events/replay")
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "projectId": "project-wp5",
+                                  "promptKey": "wp5-test-design-v1",
+                                  "replayType": "ALL",
+                                  "maxItems": 10,
+                                  "reason": "手工重放 token=secret-value"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.replayType").value("ALL"))
+                .andExpect(jsonPath("$.data.requestedLimit").value(10))
+                .andExpect(jsonPath("$.data.eventPayloadExported").value(false))
+                .andExpect(jsonPath("$.data.eventIdentifierListExported").value(false))
+                .andExpect(jsonPath("$.data.candidateIdentifierListExported").value(false));
+
+        mockMvc.perform(get("/api/v1/test-design/operations/compensation-runbook")
+                        .header("Authorization", "Bearer " + auditorToken)
+                        .param("projectId", "project-wp5")
+                        .param("promptKey", "wp5-test-design-v1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.manualRunSupported").value(true))
+                .andExpect(jsonPath("$.data.scopedRunSupported").value(true))
+                .andExpect(jsonPath("$.data.autoFirstCreateAllowed").value(false))
+                .andExpect(jsonPath("$.data.errorDetailExported").value(false))
+                .andExpect(jsonPath("$.data.aggregateOnly").value(true));
+
+        mockMvc.perform(post("/api/v1/test-design/operations/publish-compensation/run")
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "projectId": "project-wp5",
+                                  "promptKey": "wp5-test-design-v1",
+                                  "maxItems": 10,
+                                  "reason": "补偿运行 token=secret-value"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.requestedLimit").value(10))
+                .andExpect(jsonPath("$.data.manualRunSupported").value(true))
+                .andExpect(jsonPath("$.data.assetCaseIdentifierExported").value(false))
+                .andExpect(jsonPath("$.data.candidateIdentifierListExported").value(false))
+                .andExpect(jsonPath("$.data.errorDetailExported").value(false));
+
+        mockMvc.perform(get("/api/v1/test-design/operations/audit-report")
+                        .header("Authorization", "Bearer " + auditorToken)
+                        .param("projectId", "project-wp5")
+                        .param("promptKey", "wp5-test-design-v1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.exportSupported").value(true))
+                .andExpect(jsonPath("$.data.detailRowsExported").value(false))
+                .andExpect(jsonPath("$.data.actorIdentifierExported").value(false))
+                .andExpect(jsonPath("$.data.traceIdValueExported").value(false))
+                .andExpect(jsonPath("$.data.aggregateOnly").value(true));
+
         mockMvc.perform(get("/api/v1/test-design/quality/scope-summary")
                         .header("Authorization", "Bearer " + deniedAuditorToken)
                         .param("projectId", "project-wp5"))
@@ -3200,6 +3305,14 @@ class TestDesignControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"projectId": "project-wp5", "status": "FAILED_OR_DEAD", "maxItems": 10}
+                                """))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(post("/api/v1/test-design/operations/queue-alert-subscriptions")
+                        .header("Authorization", "Bearer " + deniedOwnerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"projectId": "project-wp5", "alertType": "PUBLISH_TIMEOUT",
+                                 "channel": "OPS_CONSOLE", "targetRef": "ops-console:wp5"}
                                 """))
                 .andExpect(status().isForbidden());
     }

@@ -5,9 +5,9 @@
 | 工作包 | WP5 AI 用例生成与评审 |
 | 角色产出 | 资深服务端架构师 |
 | 文档性质 | 技术设计、数据模型、接口契约和服务端质量约束 |
-| 当前口径 | WP5 在 `platform-api` 内实现为独立领域模块，不新增独立部署服务；模块内应用服务按任务、生成、评审、质量、发布、发布补偿、冲突、报告、上下文策略和跨 WP 审计链聚合拆分；任务本域审计链摘要由报告服务聚合 WP5 任务、评审和发布记录；任务级跨 WP 审计链只读聚合由 `TestDesignAuditChainService` 输出 aggregate-only 看板骨架，聚合任务相关 WP1 audit_log、WP2 invocation/job、WP3 发布引用、WP5 本域事件和 audit outbox 状态计数，不导出审计事件明细或跨域标识；Prompt 趋势按版本输出聚合准出摘要和准出状态分布；`scope-summary` 按项目 scope 输出任务/候选/发布记录项目一致性和导出红线聚合；任务创建支持显式 API/页面/业务流上下文资产和 `environmentKey`，并将上下文裁剪策略、项目/环境 effective context policy、`generationOrchestrationPolicy` 生成编排策略、`scopePolicy` 权限与资源作用域策略、`evaluationCorpusPolicy` 评测语料运营策略、`releaseReadinessPolicy` 发布准出审批策略、`auditChainPolicy` 跨 WP 审计链策略、`modelObservationPolicy` 模型观测策略、`archivePolicy` 归档治理策略、`reportManifestPolicy` 报告清单策略、`contextAssemblyPolicy` v2 装配策略安全边界、治理状态快照和 `contextPolicyOperations` v2 运营聚合快照暴露到 health、任务诊断、模型上下文打包、任务上下文摘要和任务全量报告；发布服务在配置开启时按任务聚合质量 `BLOCKED` 阻断正式发布，dryRun 保持可诊断；portal-web 工作台已提供上下文策略运营面板，复用策略 API 查询 effective policy/覆盖记录，提交或更新项目/环境级 bounded 覆盖，维护工单编号、标题、URL、状态、策略正文版本、策略 diff、申请/审批备注和工单备注时间线，并审批/驳回 PENDING 记录；任务报告导出增加治理聚合行、生成编排策略聚合行、作用域策略聚合行、评测语料策略聚合行、发布准出审批策略聚合行、跨 WP 审计链策略聚合行、上下文装配策略 v2 聚合行、上下文策略治理聚合行、上下文策略运营 v2 聚合行、模型观测策略聚合行、质量准出阈值策略聚合行、导出审计策略聚合行、安全扫描策略聚合行、归档策略聚合行、报告清单策略聚合行、Prompt 校准策略聚合行、发布补偿策略聚合行、报告 manifest 聚合行、最终安全扫描和安全扫描通过后的 aggregate-only manifest 持久化；发布补偿后台仅自动处理已持有 WP3 用例引用的失败候选，不自动首次创建用例或解决高相似冲突 |
-| 版本 | v0.37 |
-| 日期 | 2026-05-31 |
+| 当前口径 | WP5 在 `platform-api` 内实现为独立领域模块，不新增独立部署服务；模块内应用服务按任务、生成、评审、质量、发布、发布补偿、冲突、报告、上下文策略、跨 WP 审计链和跨 WP 运营聚合拆分；任务本域审计链摘要由报告服务聚合 WP5 任务、评审和发布记录；任务级跨 WP 审计链只读聚合由 `TestDesignAuditChainService` 输出 aggregate-only 看板骨架，聚合任务相关 WP1 audit_log、WP2 invocation/job、WP3 发布引用、WP5 本域事件和 audit outbox 状态计数，不导出审计事件明细或跨域标识；跨 WP 运营由 `TestDesignCrossWpOperationsService` 输出 queue alert 订阅、人工 queued replay、补偿运行手册和批量运营审计报表的聚合视图；Prompt 趋势按版本输出聚合准出摘要和准出状态分布；`scope-summary` 按项目 scope 输出任务/候选/发布记录项目一致性和导出红线聚合；任务创建支持显式 API/页面/业务流上下文资产和 `environmentKey`，并将上下文裁剪策略、项目/环境 effective context policy、`generationOrchestrationPolicy` 生成编排策略、`scopePolicy` 权限与资源作用域策略、`evaluationCorpusPolicy` 评测语料运营策略、`releaseReadinessPolicy` 发布准出审批策略、`auditChainPolicy` 跨 WP 审计链策略、`modelObservationPolicy` 模型观测策略、`archivePolicy` 归档治理策略、`reportManifestPolicy` 报告清单策略、`contextAssemblyPolicy` v2 装配策略安全边界、治理状态快照和 `contextPolicyOperations` v2 运营聚合快照暴露到 health、任务诊断、模型上下文打包、任务上下文摘要和任务全量报告；发布服务在配置开启时按任务聚合质量 `BLOCKED` 阻断正式发布，dryRun 保持可诊断；portal-web 工作台已提供上下文策略运营面板，复用策略 API 查询 effective policy/覆盖记录，提交或更新项目/环境级 bounded 覆盖，维护工单编号、标题、URL、状态、策略正文版本、策略 diff、申请/审批备注和工单备注时间线，并审批/驳回 PENDING 记录；任务报告导出增加治理聚合行、生成编排策略聚合行、作用域策略聚合行、评测语料策略聚合行、发布准出审批策略聚合行、跨 WP 审计链策略聚合行、上下文装配策略 v2 聚合行、上下文策略治理聚合行、上下文策略运营 v2 聚合行、模型观测策略聚合行、质量准出阈值策略聚合行、导出审计策略聚合行、安全扫描策略聚合行、归档策略聚合行、报告清单策略聚合行、Prompt 校准策略聚合行、发布补偿策略聚合行、报告 manifest 聚合行、最终安全扫描和安全扫描通过后的 aggregate-only manifest 持久化；发布补偿后台仅自动处理已持有 WP3 用例引用的失败候选，不自动首次创建用例或解决高相似冲突 |
+| 版本 | v0.38 |
+| 日期 | 2026-06-11 |
 
 ## 1. 架构原则
 
@@ -33,6 +33,7 @@ flowchart LR
     API --> CONFLICT["TestDesignConflictService"]
     API --> REPORT["TestDesignTaskReportService"]
     API --> AUDITCHAIN["TestDesignAuditChainService"]
+    API --> OPS["TestDesignCrossWpOperationsService"]
     TASK --> GEN["TestDesignGenerationService"]
     GEN --> CTX["WP5 generation context assembly"]
     CTX --> WP3R["WP3 Asset Services"]
@@ -49,10 +50,12 @@ flowchart LR
     REPORT --> REPO
     AUDITCHAIN --> REPORT
     AUDITCHAIN --> REPO
+    OPS --> REPO
     TASK --> AUDIT["WP1 Audit/Authorization"]
     REV --> AUDIT
     PUB --> AUDIT
     CONFLICT --> AUDIT
+    OPS --> AUDIT
 ```
 
 | 组件 | 职责 |
@@ -60,6 +63,7 @@ flowchart LR
 | `TestDesignTaskController` | 任务创建、列表、详情、取消、重试。 |
 | `TestDesignCandidateController` | 候选查询、详情、编辑、确认、驳回、忽略、批量操作。 |
 | `TestDesignTaskPublishController` | 发布 dryRun、正式发布、发布记录查询和任务评审历史导出。 |
+| `TestDesignCrossWpOperationsController` | 跨 WP 统一运营看板、细粒度队列告警订阅、人工 queued replay、补偿运行手册和批量运营审计报表接口。 |
 | `TestDesignTaskService` | 任务查询、任务摘要、服务健康、创建、重试、取消、异步消费认领、状态落库、幂等和任务审计。 |
 | `TestDesignGenerationService` | 装配脱敏上下文、读取任务创建时固化的 effective context policy、选择规则模板或 WP2 模型生成、解析模型输出、生成候选批次并执行生成质量校验；不创建任务、不做状态流转、不写审计。 |
 | `TestDesignContextPolicyService` | 管理 WP5 项目/环境上下文策略覆盖元数据、审批状态和 effective policy 解析；只保存有界数字、固定状态和原因枚举捕获状态，不保存策略正文、策略 diff、审批备注、工单 URL 或上下文正文。 |
@@ -71,6 +75,7 @@ flowchart LR
 | `TestDesignConflictService` | 发布冲突人工链接和批量冲突处理，复用 WP3 用例需求追踪校验和审计记录。 |
 | `TestDesignTaskReportService` | 导出任务级聚合报告，提供任务本域审计链摘要，并在最终安全扫描通过后保存 aggregate-only manifest 归档核验记录，避免报告拼装逻辑回流到任务服务。 |
 | `TestDesignAuditChainService` | 提供任务级跨 WP 审计链只读聚合骨架，复用本域审计摘要并通过仓储读取 WP1/WP2/WP3/outbox 计数；只返回 aggregate-only 指标和 readiness，不返回审计行、候选 ID、traceId、模型调用 ID、sourceRef 或 WP3 资产 ID。 |
+| `TestDesignCrossWpOperationsService` | 提供跨 WP 统一运营看板、队列告警订阅 CRUD、人工 queued generation/publish 重放、补偿运行手册和批量运营审计报表；只返回聚合计数和有界操作结果，不暴露任务/候选/outbox 明细。 |
 | `TestDesignScopeService` | 为权限解析提供任务/候选项目作用域，不承载业务流。 |
 | `TestDesignRepository` | 维护生成任务、候选、评审记录、发布记录、报告 manifest 聚合记录和任务级跨 WP 审计链聚合只读查询。 |
 
@@ -170,6 +175,45 @@ PUBLISHING -> FAILED
 - `idx_test_design_task_project_status(project_id, status, updated_at desc)`
 - `idx_test_design_task_created_by(created_by, created_at desc)`
 - `uk_test_design_task_input(project_id, input_digest, prompt_key, prompt_version)` 可用于幂等提示，不强制唯一阻断。
+
+### 3.1.2 test_design_queue_alert_subscription
+
+`test_design_queue_alert_subscription` 保存细粒度队列告警订阅，只允许存储项目/prompt scope、告警类型、渠道、bounded targetRef、阈值秒数、启停状态和审计元数据，不允许存储 webhook URL、token、payload、任务 ID、候选 ID 或 outbox 明细。
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `id` | uuid | 订阅记录 ID |
+| `project_id` | varchar(64) | 所属项目 |
+| `prompt_key` | varchar(128) | 可选 prompt scope；为空表示项目级订阅 |
+| `alert_type` | varchar(64) | `GENERATION_QUEUE_LAG`、`GENERATION_TIMEOUT`、`PUBLISH_QUEUE_LAG`、`PUBLISH_TIMEOUT`、`COMPENSATION_FAILURE`、`AUDIT_OUTBOX_REPLAY_ELIGIBLE` |
+| `channel` | varchar(32) | `OPS_CONSOLE`、`EMAIL` 或 `WEBHOOK` |
+| `target_ref` | varchar(180) | 非密钥的渠道目标引用 |
+| `threshold_seconds` | int | 队列滞留/超时阈值 |
+| `enabled` | boolean | 是否启用 |
+| `created_by` / `updated_by` | varchar(128) | 审计元数据 |
+| `created_at` / `updated_at` | timestamptz | 时间戳 |
+
+约束与索引：
+
+- `uk_test_design_queue_alert_subscription(project_id, coalesce(prompt_key,''), alert_type, channel, target_ref)` 保证稳定 upsert。
+- `idx_test_design_queue_alert_subscription_scope(project_id, prompt_key, alert_type, enabled)` 支持运营查询。
+- `ck_test_design_queue_alert_subscription_target_ref` 约束 targetRef 仅允许有界非敏感引用。
+
+### 3.1.3 test_design_operations_audit_aggregate
+
+`test_design_operations_audit_aggregate` 只作为运营读模型，不单独存行。它聚合 WP5 批量运营动作的审计计数，范围限定为队列告警订阅变更、queued replay、发布补偿运行和 audit outbox requeue，不导出任何审计明细、actor、trace 或 payload。
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `total_operation_count` | bigint | 总操作数 |
+| `success_count` | bigint | 成功数 |
+| `failed_count` | bigint | 失败数 |
+| `denied_count` | bigint | 拒绝数 |
+| `queue_alert_subscription_mutation_count` | bigint | 队列告警订阅变更数 |
+| `queued_event_replay_count` | bigint | queued replay 次数 |
+| `publish_compensation_run_count` | bigint | 手工补偿运行次数 |
+| `audit_outbox_requeue_count` | bigint | audit outbox 重排队次数 |
+| `latest_operation_at` | timestamptz | 最近操作时间 |
 
 ### 4.2 `test_design_candidate`
 
@@ -611,6 +655,12 @@ WP5 任务项目时，才允许写入候选 `apiId`；非 UUID、缺失 API 或�
 | `GET` | `/quality/prompt-trend` | `testDesign:read` | 返回最近任务按 Prompt key/version 聚合的质量趋势，每个版本桶包含聚合准出摘要，并返回顶层准出状态分布。 |
 | `GET` | `/quality/scope-summary` | `testDesign:read` | 返回权限与资源作用域只读聚合摘要，按项目 scope 聚合任务/候选/发布记录项目一致性、作用域覆盖率、模型调用引用、发布作用域记录和导出红线。 |
 | `GET` | `/operations/cross-wp-dashboard` | `testDesign:read` | 返回跨 WP 统一运营看板，按项目和 Prompt 聚合 scope 覆盖、WP1 审计、WP2 调用、WP3 发布引用和 audit outbox 状态；只输出 aggregate-only 指标。 |
+| `GET` | `/operations/queue-alert-subscriptions` | `testDesign:read` | 查询项目/prompt scope 下的队列告警订阅，只返回 bounded targetRef 和审计元数据。 |
+| `POST` | `/operations/queue-alert-subscriptions` | `testDesign:policy_manage` | 创建或更新一条队列告警订阅；请求只能携带 bounded targetRef、渠道、阈值和启停状态。 |
+| `POST` | `/operations/queued-events/replay` | `testDesign:policy_manage` | 按项目/prompt 有界重放 queued generation/publish 事件，只返回重放计数。 |
+| `GET` | `/operations/compensation-runbook` | `testDesign:read` | 返回发布补偿运行手册，说明候选选择边界、手工运行条件和聚合就绪状态。 |
+| `POST` | `/operations/publish-compensation/run` | `testDesign:policy_manage` | 按项目/prompt 触发手工发布补偿运行，只返回扫描/成功/失败/跳过计数。 |
+| `GET` | `/operations/audit-report` | `testDesign:read` | 返回批量运营审计报表，聚合队列告警订阅变更、queued replay、发布补偿运行和 audit outbox requeue。 |
 | `POST` | `/operations/audit-outbox/requeue` | `testDesign:policy_manage` | 按项目 scope 对 `FAILED/DEAD` audit outbox 执行 bounded requeue；请求必须带 `projectId`，响应只返回重排队数量和导出红线。 |
 | `GET` | `/tasks/{id}/report/audit-summary` | `testDesign:read` | 返回任务本域审计链摘要，聚合 WP5 任务、评审记录和发布记录，不查询全局 `audit_log`。 |
 | `GET` | `/tasks/{id}/report/audit-chain` | `testDesign:read` | 返回任务级跨 WP 审计链只读聚合骨架，聚合 WP1 审计、WP2 调用/job、WP3 发布引用、WP5 本域事件和任务相关 audit outbox 状态计数；固定不导出审计事件明细、候选 ID、traceId、模型调用 ID、发布 sourceRef 或 WP3 资产 ID。 |
@@ -620,6 +670,8 @@ WP5 任务项目时，才允许写入候选 `apiId`；非 UUID、缺失 API 或�
 `/quality/scope-summary` 响应固定包含 `scopePolicy`、`aggregateOnly=true`、`candidateIdentifierListExported=false`、`roleRuleDetailExported=false` 和 `serviceTokenValueExported=false`。`metrics/readiness` 只允许返回聚合计数、布尔准入和固定说明；不得返回任务 ID、候选 ID、发布 sourceRef、WP3 资产 ID、角色规则明细、服务令牌原值、评审说明或错误正文。
 
 `/operations/cross-wp-dashboard` 响应固定包含 `scopePolicy.crossWpScopeDashboardReady=true`、`auditChainPolicy.crossWpAuditDashboardReady=true`、`auditChainPolicy.auditOutboxReplayDashboardReady=true`、`aggregateOnly=true` 和 `detailIdentifiersExported=false`。`auditDashboard` 与 `auditOutbox` 只允许返回计数、ready 布尔值和导出红线；不得返回审计事件行、outbox payload、lastError、traceId 原值、模型调用 ID、候选 ID、发布 sourceRef、WP3 资产 ID、角色规则明细或服务令牌原值。`/operations/audit-outbox/requeue` 必须按项目 scope、状态和 limit 受限更新 `FAILED/DEAD` 为 `PENDING`，并写操作审计；响应不回显 reason 原文。
+
+`/operations/queue-alert-subscriptions` 和 `/operations/audit-report` 一律只返回聚合计数、bounded targetRef、启停状态和审计元数据；不得返回 webhook URL、token、payload、任务 ID、候选 ID、sourceRef、outbox payload、traceId 原值或模型调用 ID。`/operations/queued-events/replay` 和 `/operations/publish-compensation/run` 只返回重放/补偿扫描计数和成功计数，不回显 event payload、候选 ID、资产 ID、sourceRef 或错误正文。`/operations/compensation-runbook` 只返回运行边界、阈值、候选范围和就绪状态，不回显明细标识或人工备注。
 
 `/tasks/{id}/report/audit-chain` 响应固定包含 `readOnlyAggregateDashboardReady=true`、`crossWpAuditDashboardReady=true`、`auditOutboxReplayDashboardReady=true` 和 `aggregateOnly=true`。`metrics` 仅允许返回聚合计数和语义 tone，`readiness` 仅允许返回就绪布尔值和固定说明；仓储 SQL 必须把 `audit_outbox` 计数限定在当前任务、候选或发布用例相关资源上，不得输出全局 outbox 运营计数。
 

@@ -567,7 +567,7 @@ main() {
 
   cross_wp_dashboard="$(get_test_design_json "/operations/cross-wp-dashboard?projectId=$(urlencode "$PROJECT_ID")&promptKey=wp5-test-design-v1")"
   if printf '%s' "$cross_wp_dashboard" | jq -e --arg projectId "$PROJECT_ID" \
-    '.data.projectId == $projectId and .data.promptKey == "wp5-test-design-v1" and .data.scopePolicy.crossWpScopeDashboardReady == true and .data.auditChainPolicy.crossWpAuditDashboardReady == true and .data.auditChainPolicy.auditOutboxReplayDashboardReady == true and .data.taskCount >= 1 and .data.candidateCount >= 2 and .data.publishRecordCount >= 2 and .data.candidateScopeMismatchCount == 0 and .data.publishScopeMismatchCount == 0 and .data.auditDashboard.crossWpAuditDashboardReady == true and .data.auditDashboard.auditEventDetailExported == false and .data.auditDashboard.traceIdValueExported == false and .data.auditDashboard.modelInvocationIdValueExported == false and .data.auditDashboard.publishIdentifierValueExported == false and .data.auditOutbox.replaySupported == true and .data.auditOutbox.payloadExported == false and .data.auditOutbox.traceIdValueExported == false and .data.auditOutbox.lastErrorTextExported == false and (.data.readiness | any(.code == "crossWpScopeDashboardReady" and .ready == true)) and (.data.readiness | any(.code == "crossWpAuditDashboardReady" and .ready == true)) and (.data.readiness | any(.code == "auditOutboxReplayDashboardReady" and .ready == true)) and (.data.readiness | any(.code == "detailIdentifiersRedacted" and .ready == true)) and .data.aggregateOnly == true and .data.detailIdentifiersExported == false' >/dev/null \
+    '.data.projectId == $projectId and .data.promptKey == "wp5-test-design-v1" and .data.scopePolicy.crossWpScopeDashboardReady == true and .data.auditChainPolicy.crossWpAuditDashboardReady == true and .data.auditChainPolicy.auditOutboxReplayDashboardReady == true and .data.taskCount >= 1 and .data.candidateCount >= 2 and .data.publishRecordCount >= 2 and .data.candidateScopeMismatchCount == 0 and .data.publishScopeMismatchCount == 0 and .data.auditDashboard.crossWpAuditDashboardReady == true and .data.auditDashboard.auditEventDetailExported == false and .data.auditDashboard.traceIdValueExported == false and .data.auditDashboard.modelInvocationIdValueExported == false and .data.auditDashboard.publishIdentifierValueExported == false and .data.auditOutbox.replaySupported == true and .data.auditOutbox.payloadExported == false and .data.auditOutbox.traceIdValueExported == false and .data.auditOutbox.lastErrorTextExported == false and .data.queueAlerts.manualReplaySupported == true and .data.queueAlerts.eventPayloadExported == false and .data.queueAlerts.detailIdentifiersExported == false and .data.compensationRunbook.manualRunSupported == true and .data.compensationRunbook.assetCaseIdentifierExported == false and .data.compensationRunbook.sourceRefExported == false and .data.operationsAuditReport.aggregateOnly == true and .data.operationsAuditReport.detailRowsExported == false and (.data.readiness | any(.code == "crossWpScopeDashboardReady" and .ready == true)) and (.data.readiness | any(.code == "crossWpAuditDashboardReady" and .ready == true)) and (.data.readiness | any(.code == "auditOutboxReplayDashboardReady" and .ready == true)) and (.data.readiness | any(.code == "manualQueuedEventReplayReady" and .ready == true)) and (.data.readiness | any(.code == "detailIdentifiersRedacted" and .ready == true)) and .data.aggregateOnly == true and .data.detailIdentifiersExported == false' >/dev/null \
     && ! printf '%s' "$cross_wp_dashboard" | grep -Eq "$task_id|token=|rawPrompt|local-test-design-token"; then
     echo "   PASS Cross-WP operations dashboard is aggregate-only"
     PASS=$((PASS + 1))
@@ -590,6 +590,63 @@ main() {
     echo "$outbox_requeue"
     FAIL=$((FAIL + 1))
   fi
+
+  queue_alert_subscription="$(post_test_design_json "/operations/queue-alert-subscriptions" "$(jq -nc \
+    --arg projectId "$PROJECT_ID" \
+    '{projectId:$projectId,promptKey:"wp5-test-design-v1",alertType:"GENERATION_QUEUE_LAG",channel:"OPS_CONSOLE",targetRef:"ops-console:wp5-smoke",thresholdSeconds:120,enabled:true}')")"
+  if printf '%s' "$queue_alert_subscription" | jq -e --arg projectId "$PROJECT_ID" \
+    '.data.projectId == $projectId and .data.promptKey == "wp5-test-design-v1" and .data.alertType == "GENERATION_QUEUE_LAG" and .data.channel == "OPS_CONSOLE" and .data.targetRef == "ops-console:wp5-smoke"' >/dev/null \
+    && ! printf '%s' "$queue_alert_subscription" | grep -Eq 'token=|secret-value|rawPrompt'; then
+    echo "   PASS Queue alert subscription is bounded"
+    PASS=$((PASS + 1))
+  else
+    echo "   FAIL Queue alert subscription is bounded"
+    echo "$queue_alert_subscription"
+    FAIL=$((FAIL + 1))
+  fi
+
+  queue_alert_list="$(get_test_design_json "/operations/queue-alert-subscriptions?projectId=$(urlencode "$PROJECT_ID")&promptKey=wp5-test-design-v1")"
+  check "Queue alert subscription list is scoped" \
+    '.data | length >= 1 and any(.alertType == "GENERATION_QUEUE_LAG" and .channel == "OPS_CONSOLE")' \
+    "$queue_alert_list"
+
+  queued_replay="$(post_test_design_json "/operations/queued-events/replay" "$(jq -nc \
+    --arg projectId "$PROJECT_ID" \
+    '{projectId:$projectId,promptKey:"wp5-test-design-v1",replayType:"ALL",maxItems:20,reason:"WP5 smoke replay token=secret-value"}')")"
+  if printf '%s' "$queued_replay" | jq -e --arg projectId "$PROJECT_ID" \
+    '.data.projectId == $projectId and .data.replayType == "ALL" and .data.requestedLimit == 20 and .data.replaySupported == true and .data.eventPayloadExported == false and .data.eventIdentifierListExported == false and .data.candidateIdentifierListExported == false' >/dev/null \
+    && ! printf '%s' "$queued_replay" | grep -Eq 'token=|secret-value|rawPrompt'; then
+    echo "   PASS Queued event replay is aggregate-only"
+    PASS=$((PASS + 1))
+  else
+    echo "   FAIL Queued event replay is aggregate-only"
+    echo "$queued_replay"
+    FAIL=$((FAIL + 1))
+  fi
+
+  compensation_runbook="$(get_test_design_json "/operations/compensation-runbook?projectId=$(urlencode "$PROJECT_ID")&promptKey=wp5-test-design-v1")"
+  check "Publish compensation runbook is aggregate-only" \
+    '.data.manualRunSupported == true and .data.scopedRunSupported == true and .data.autoFirstCreateAllowed == false and .data.assetCaseIdentifierExported == false and .data.sourceRefExported == false and .data.errorDetailExported == false and .data.aggregateOnly == true' \
+    "$compensation_runbook"
+
+  compensation_run="$(post_test_design_json "/operations/publish-compensation/run" "$(jq -nc \
+    --arg projectId "$PROJECT_ID" \
+    '{projectId:$projectId,promptKey:"wp5-test-design-v1",maxItems:20,reason:"WP5 smoke compensation token=secret-value"}')")"
+  if printf '%s' "$compensation_run" | jq -e --arg projectId "$PROJECT_ID" \
+    '.data.projectId == $projectId and .data.requestedLimit == 20 and .data.manualRunSupported == true and .data.assetCaseIdentifierExported == false and .data.candidateIdentifierListExported == false and .data.errorDetailExported == false' >/dev/null \
+    && ! printf '%s' "$compensation_run" | grep -Eq 'token=|secret-value|rawPrompt'; then
+    echo "   PASS Publish compensation manual run is sanitized"
+    PASS=$((PASS + 1))
+  else
+    echo "   FAIL Publish compensation manual run is sanitized"
+    echo "$compensation_run"
+    FAIL=$((FAIL + 1))
+  fi
+
+  operations_audit_report="$(get_test_design_json "/operations/audit-report?projectId=$(urlencode "$PROJECT_ID")&promptKey=wp5-test-design-v1")"
+  check "Operations audit report is aggregate-only" \
+    '.data.exportSupported == true and .data.detailRowsExported == false and .data.actorIdentifierExported == false and .data.traceIdValueExported == false and .data.aggregateOnly == true' \
+    "$operations_audit_report"
 
   case_id="$(printf '%s' "$publish" | jq -r '.data.publishRecords[] | select(.result == "SUCCEEDED" and .assetCaseId != null) | .assetCaseId' | head -n 1)"
 

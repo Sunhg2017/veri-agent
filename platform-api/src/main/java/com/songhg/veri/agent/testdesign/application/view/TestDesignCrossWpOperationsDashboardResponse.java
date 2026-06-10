@@ -40,6 +40,12 @@ public record TestDesignCrossWpOperationsDashboardResponse(
         TestDesignCrossWpAuditDashboardResponse auditDashboard,
         @Schema(description = "audit outbox 聚合和重放能力")
         TestDesignAuditOutboxOperationsResponse auditOutbox,
+        @Schema(description = "细粒度队列告警订阅和聚合告警状态")
+        TestDesignQueueAlertOperationsResponse queueAlerts,
+        @Schema(description = "发布补偿运行手册")
+        TestDesignCompensationRunbookResponse compensationRunbook,
+        @Schema(description = "批量运营审计报表")
+        TestDesignOperationsAuditReportResponse operationsAuditReport,
         @Schema(description = "运营指标")
         List<TestDesignAuditChainMetricResponse> metrics,
         @Schema(description = "准入状态")

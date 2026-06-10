@@ -19,7 +19,9 @@ import com.songhg.veri.agent.testdesign.domain.TestDesignContextPolicyOverride;
 import com.songhg.veri.agent.testdesign.domain.TestDesignCrossWpOperationsAggregate;
 import com.songhg.veri.agent.testdesign.domain.TestDesignEvaluationSample;
 import com.songhg.veri.agent.testdesign.domain.TestDesignEvaluationSampleSummary;
+import com.songhg.veri.agent.testdesign.domain.TestDesignOperationsAuditAggregate;
 import com.songhg.veri.agent.testdesign.domain.TestDesignPublishRecord;
+import com.songhg.veri.agent.testdesign.domain.TestDesignQueueAlertSubscription;
 import com.songhg.veri.agent.testdesign.domain.TestDesignReleaseReadinessApproval;
 import com.songhg.veri.agent.testdesign.domain.TestDesignReleaseReadinessNote;
 import com.songhg.veri.agent.testdesign.domain.TestDesignReportManifest;
@@ -85,9 +87,24 @@ public interface TestDesignRepository {
     Optional<Instant> oldestTaskUpdatedAtByStatus(TestDesignTaskStatus status);
 
     /**
+     * 按项目/prompt scope 统计任务状态，不返回任务标识或 payload。
+     */
+    long countTasksByStatus(String projectId, String promptKey, TestDesignTaskStatus status);
+
+    /**
+     * 按项目/prompt scope 查询某状态下最早更新时间，用于细粒度队列滞留告警。
+     */
+    Optional<Instant> oldestTaskUpdatedAtByStatus(String projectId, String promptKey, TestDesignTaskStatus status);
+
+    /**
      * 统计达到运行超时阈值的 RUNNING 任务数量，用于超时告警聚合指标。
      */
     long countStaleRunningTasks(Instant staleBefore);
+
+    /**
+     * 按项目/prompt scope 统计达到运行超时阈值的 RUNNING 任务数量。
+     */
+    long countStaleRunningTasks(String projectId, String promptKey, Instant staleBefore);
 
     /**
      * 按候选状态统计聚合数量，用于异步发布编排健康和恢复扫描，不返回候选明细。
@@ -98,6 +115,20 @@ public interface TestDesignRepository {
      * 查询某候选状态下最早更新时间，用于发布队列滞留聚合指标，不返回候选标识或 payload。
      */
     Optional<Instant> oldestCandidateUpdatedAtByStatus(TestDesignCandidateStatus status);
+
+    /**
+     * 按项目/prompt scope 统计候选状态，不返回候选明细标识。
+     */
+    long countCandidatesByStatus(String projectId, String promptKey, TestDesignCandidateStatus status);
+
+    /**
+     * 按项目/prompt scope 查询某候选状态下最早更新时间，用于发布队列滞留告警。
+     */
+    Optional<Instant> oldestCandidateUpdatedAtByStatus(
+            String projectId,
+            String promptKey,
+            TestDesignCandidateStatus status
+    );
 
     /**
      * 查询单个任务
@@ -161,6 +192,16 @@ public interface TestDesignRepository {
     List<TestDesignCandidate> publishQueuedCandidates(int limit);
 
     /**
+     * 查询项目/prompt scope 下已排队生成任务，用于人工重发事件；调用方不得把任务 ID 返回给前端。
+     */
+    List<TestDesignTask> queuedTasksForReplay(String projectId, String promptKey, int limit);
+
+    /**
+     * 查询项目/prompt scope 下已排队发布候选，用于人工重发事件；调用方不得把候选 ID 返回给前端。
+     */
+    List<TestDesignCandidate> publishQueuedCandidatesForReplay(String projectId, String promptKey, int limit);
+
+    /**
      * 将长时间未更新的发布中候选标记为失败，用于进程中断或事件消费者异常退出后的恢复扫描。
      */
     int markStalePublishingCandidatesFailed(Instant failedAt, Instant staleBefore, String errorMessage, int limit);
@@ -171,11 +212,26 @@ public interface TestDesignRepository {
     long countStalePublishingCandidates(Instant staleBefore);
 
     /**
+     * 按项目/prompt scope 统计发布中超时候选数量。
+     */
+    long countStalePublishingCandidates(String projectId, String promptKey, Instant staleBefore);
+
+    /**
      * 查询具备 WP3 用例引用但仍处于 FAILED 的候选，用于受限发布补偿后台。
      *
      * <p>只返回存在资产引用且尚无成功发布记录、尚未执行自动补偿记录的候选，避免后台反复重试同一失败项。
      */
     List<TestDesignCandidate> publishCompensationCandidates(int limit);
+
+    /**
+     * 查询项目/prompt scope 下具备 WP3 用例引用但仍处于 FAILED 的候选，用于手工补偿运行。
+     */
+    List<TestDesignCandidate> publishCompensationCandidates(String projectId, String promptKey, int limit);
+
+    /**
+     * 统计项目/prompt scope 下可补偿候选数量，不返回候选或资产标识。
+     */
+    long countPublishCompensationCandidates(String projectId, String promptKey);
 
     /**
      * 当底层存储支持事务级锁时，串行化同一候选的自动发布补偿，避免多实例调度重复修复或重复记账。
@@ -269,6 +325,37 @@ public interface TestDesignRepository {
             String actor,
             Instant now
     );
+
+    /**
+     * 查询 WP5 细粒度队列告警订阅；prompt 过滤命中项目级订阅和 prompt 专属订阅。
+     */
+    List<TestDesignQueueAlertSubscription> queueAlertSubscriptions(String projectId, String promptKey);
+
+    /**
+     * 查询一个订阅 ID。
+     */
+    Optional<TestDesignQueueAlertSubscription> queueAlertSubscription(UUID id);
+
+    /**
+     * 按业务唯一键查询订阅，用于稳定 upsert。
+     */
+    Optional<TestDesignQueueAlertSubscription> queueAlertSubscriptionByKey(
+            String projectId,
+            String promptKey,
+            String alertType,
+            String channel,
+            String targetRef
+    );
+
+    /**
+     * 新增或更新一个队列告警订阅。
+     */
+    TestDesignQueueAlertSubscription saveQueueAlertSubscription(TestDesignQueueAlertSubscription subscription);
+
+    /**
+     * 聚合 WP5 批量运营操作审计，不导出审计明细、actor 或 trace 值。
+     */
+    TestDesignOperationsAuditAggregate operationsAuditAggregate(String projectId, String promptKey);
 
     /**
      * 保存项目或环境级上下文策略覆盖请求，包含有界裁剪数字、审批工单和策略正文版本。

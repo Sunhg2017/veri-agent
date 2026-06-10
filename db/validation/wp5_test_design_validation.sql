@@ -13,7 +13,8 @@ with expected(table_name) as (
         ('test_design_release_readiness_approval'),
         ('test_design_release_readiness_note'),
         ('test_design_evaluation_sample'),
-        ('test_design_calibration_run')
+        ('test_design_calibration_run'),
+        ('test_design_queue_alert_subscription')
 ),
 missing as (
     select e.table_name
@@ -123,7 +124,12 @@ with expected(table_name, constraint_name) as (
         ('test_design_calibration_run','ck_test_design_calibration_run_counts'),
         ('test_design_calibration_run','ck_test_design_calibration_run_percents'),
         ('test_design_calibration_run','ck_test_design_calibration_run_digest'),
-        ('test_design_calibration_run','ck_test_design_calibration_run_notes')
+        ('test_design_calibration_run','ck_test_design_calibration_run_notes'),
+        ('test_design_queue_alert_subscription','ck_test_design_queue_alert_subscription_alert_type'),
+        ('test_design_queue_alert_subscription','ck_test_design_queue_alert_subscription_channel'),
+        ('test_design_queue_alert_subscription','ck_test_design_queue_alert_subscription_threshold'),
+        ('test_design_queue_alert_subscription','ck_test_design_queue_alert_subscription_target_ref'),
+        ('test_design_queue_alert_subscription','ck_test_design_queue_alert_subscription_prompt_key')
 ),
 missing as (
     select e.table_name || '.' || e.constraint_name as item
@@ -214,7 +220,10 @@ with expected(table_name, index_name) as (
         ('test_design_evaluation_sample', 'idx_test_design_eval_sample_source_candidate'),
         ('test_design_calibration_run', 'idx_test_design_calibration_run_project_prompt_created'),
         ('test_design_calibration_run', 'idx_test_design_calibration_run_baseline_created'),
-        ('test_design_calibration_run', 'idx_test_design_calibration_run_status_created')
+        ('test_design_calibration_run', 'idx_test_design_calibration_run_status_created'),
+        ('test_design_queue_alert_subscription', 'uk_test_design_queue_alert_subscription_scope'),
+        ('test_design_queue_alert_subscription', 'idx_test_design_queue_alert_subscription_project_enabled'),
+        ('test_design_queue_alert_subscription', 'idx_test_design_queue_alert_subscription_prompt_alert')
 ),
 missing as (
     select e.table_name || '.' || e.index_name as item
@@ -381,6 +390,64 @@ select
     case when count(*) = 0 then 'PASS' else 'FAIL' end as status,
     coalesce(string_agg(column_name, ', ' order by column_name), 'WP5 long-term calibration run columns exist') as details
 from missing;
+
+with expected(column_name) as (
+    values
+        ('id'),
+        ('project_id'),
+        ('prompt_key'),
+        ('alert_type'),
+        ('channel'),
+        ('target_ref'),
+        ('threshold_seconds'),
+        ('enabled'),
+        ('created_by'),
+        ('updated_by'),
+        ('created_at'),
+        ('updated_at')
+),
+missing as (
+    select e.column_name
+    from expected e
+    left join information_schema.columns c
+        on c.table_schema = current_schema()
+       and c.table_name = 'test_design_queue_alert_subscription'
+       and c.column_name = e.column_name
+    where c.column_name is null
+)
+select
+    'wp5.queue_alert_subscription_columns_exist' as check_name,
+    case when count(*) = 0 then 'PASS' else 'FAIL' end as status,
+    coalesce(string_agg(column_name, ', ' order by column_name), 'WP5 queue alert subscription stores bounded non-secret routing references') as details
+from missing;
+
+with forbidden(column_name) as (
+    values
+        ('task_id'),
+        ('task_ids'),
+        ('candidate_id'),
+        ('candidate_ids'),
+        ('trace_id'),
+        ('trace_ids'),
+        ('event_payload_json'),
+        ('payload_json'),
+        ('webhook_url'),
+        ('webhook_token'),
+        ('secret_value'),
+        ('api_key')
+),
+found as (
+    select column_name
+    from information_schema.columns c
+    join forbidden f using (column_name)
+    where c.table_schema = current_schema()
+      and c.table_name = 'test_design_queue_alert_subscription'
+)
+select
+    'wp5.queue_alert_subscription_no_payload_or_identifier_columns' as check_name,
+    case when count(*) = 0 then 'PASS' else 'FAIL' end as status,
+    coalesce(string_agg(column_name, ', ' order by column_name), 'WP5 queue alert subscriptions store no queue payload, trace, task, candidate or secret columns') as details
+from found;
 
 with expected(column_name) as (
     values
@@ -603,7 +670,8 @@ with wp5_tables(table_name) as (
         ('test_design_release_readiness_approval'),
         ('test_design_release_readiness_note'),
         ('test_design_evaluation_sample'),
-        ('test_design_calibration_run')
+        ('test_design_calibration_run'),
+        ('test_design_queue_alert_subscription')
 ),
 missing as (
     select t.table_name
