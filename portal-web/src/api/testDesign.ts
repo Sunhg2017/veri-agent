@@ -910,6 +910,117 @@ export interface TestDesignOperationsAuditReportView {
   generatedAt?: string;
 }
 
+export interface TestDesignAuditReportTemplateFieldView {
+  code: string;
+  label: string;
+  source: string;
+  exportMode: string;
+  required?: boolean;
+  identifierValueExported?: boolean;
+  payloadExported?: boolean;
+}
+
+export interface TestDesignAuditReportTemplateSectionView {
+  code: string;
+  label: string;
+  description?: string;
+  fields: TestDesignAuditReportTemplateFieldView[];
+}
+
+export interface TestDesignAuditReportTemplateView {
+  projectId?: string;
+  promptKey?: string;
+  templateVersion?: string;
+  fieldSetVersion?: string;
+  sections: TestDesignAuditReportTemplateSectionView[];
+  exportSupported?: boolean;
+  crossWpDetailReportSupported?: boolean;
+  modelObservationDrilldownSupported?: boolean;
+  identifierValuesExported?: boolean;
+  payloadExported?: boolean;
+  actorIdentifierExported?: boolean;
+  aggregateOnly?: boolean;
+  generatedAt?: string;
+}
+
+export interface TestDesignModelObservationBucketView {
+  dimension: string;
+  bucketKey: string;
+  bucketLabel: string;
+  invocationCount: number;
+  succeededCount: number;
+  failedCount: number;
+  blockedCount: number;
+  fallbackCount: number;
+  inputTokenTotal: number;
+  outputTokenTotal: number;
+  latencyMsTotal: number;
+  averageLatencyMs: number;
+  totalCostText: string;
+  traceSignalCount: number;
+  jobSignalCount: number;
+  latestInvocationAt?: string;
+}
+
+export interface TestDesignModelObservationDrilldownView {
+  projectId?: string;
+  promptKey?: string;
+  totalInvocationCount: number;
+  succeededCount: number;
+  failedCount: number;
+  blockedCount: number;
+  fallbackCount: number;
+  inputTokenTotal: number;
+  outputTokenTotal: number;
+  latencyMsTotal: number;
+  averageLatencyMs: number;
+  totalCostText: string;
+  traceSignalCount: number;
+  jobSignalCount: number;
+  buckets: TestDesignModelObservationBucketView[];
+  drilldownSupported?: boolean;
+  traceIdValueExported?: boolean;
+  jobIdValueExported?: boolean;
+  invocationIdValueExported?: boolean;
+  payloadPreviewExported?: boolean;
+  providerErrorTextExported?: boolean;
+  aggregateOnly?: boolean;
+  generatedAt?: string;
+}
+
+export interface TestDesignCrossWpAuditDetailRowView {
+  section: string;
+  category: string;
+  status: string;
+  eventCount: number;
+  successCount: number;
+  failedCount: number;
+  warningCount: number;
+  latestEventAt?: string;
+  identifierValuesExported?: boolean;
+  payloadExported?: boolean;
+  actorIdentifierExported?: boolean;
+  aggregateOnly?: boolean;
+}
+
+export interface TestDesignCrossWpDetailAuditReportView {
+  projectId?: string;
+  promptKey?: string;
+  templateVersion?: string;
+  rowCount: number;
+  rows: TestDesignCrossWpAuditDetailRowView[];
+  detailReportSupported?: boolean;
+  rawAuditEventExported?: boolean;
+  identifierValuesExported?: boolean;
+  traceIdValueExported?: boolean;
+  modelInvocationIdValueExported?: boolean;
+  publishIdentifierValueExported?: boolean;
+  payloadExported?: boolean;
+  actorIdentifierExported?: boolean;
+  aggregateOnly?: boolean;
+  generatedAt?: string;
+}
+
 export interface TestDesignCrossWpOperationsDashboardView {
   projectId?: string;
   promptKey?: string;
@@ -935,6 +1046,9 @@ export interface TestDesignCrossWpOperationsDashboardView {
   queueAlerts?: TestDesignQueueAlertOperationsView;
   compensationRunbook?: TestDesignCompensationRunbookView;
   operationsAuditReport?: TestDesignOperationsAuditReportView;
+  auditReportTemplate?: TestDesignAuditReportTemplateView;
+  modelObservationDrilldown?: TestDesignModelObservationDrilldownView;
+  crossWpDetailAuditReport?: TestDesignCrossWpDetailAuditReportView;
 }
 
 export interface TestDesignAuditOutboxRequeueResult {
@@ -2759,6 +2873,178 @@ export function normalizeTestDesignOperationsAuditReport(
   };
 }
 
+export function normalizeTestDesignAuditReportTemplateField(
+  raw: unknown
+): TestDesignAuditReportTemplateFieldView {
+  const item = isRecord(raw) ? raw : {};
+  return {
+    code: stringValue(item.code),
+    label: stringValue(item.label),
+    source: stringValue(item.source),
+    exportMode: stringValue(item.exportMode ?? item.export_mode),
+    required: optionalBoolean(item.required),
+    identifierValueExported: optionalBoolean(
+      item.identifierValueExported ?? item.identifier_value_exported
+    ),
+    payloadExported: optionalBoolean(item.payloadExported ?? item.payload_exported)
+  };
+}
+
+export function normalizeTestDesignAuditReportTemplateSection(
+  raw: unknown
+): TestDesignAuditReportTemplateSectionView {
+  const item = isRecord(raw) ? raw : {};
+  return {
+    code: stringValue(item.code),
+    label: stringValue(item.label),
+    description: optionalString(item.description),
+    fields: listItems(item.fields).map(normalizeTestDesignAuditReportTemplateField)
+  };
+}
+
+export function normalizeTestDesignAuditReportTemplate(
+  raw: unknown
+): TestDesignAuditReportTemplateView {
+  const item = isRecord(raw) ? raw : {};
+  return {
+    projectId: optionalString(item.projectId ?? item.project_id),
+    promptKey: optionalString(item.promptKey ?? item.prompt_key),
+    templateVersion: optionalString(item.templateVersion ?? item.template_version),
+    fieldSetVersion: optionalString(item.fieldSetVersion ?? item.field_set_version),
+    sections: listItems(item.sections).map(normalizeTestDesignAuditReportTemplateSection),
+    exportSupported: optionalBoolean(item.exportSupported ?? item.export_supported),
+    crossWpDetailReportSupported: optionalBoolean(
+      item.crossWpDetailReportSupported ?? item.cross_wp_detail_report_supported
+    ),
+    modelObservationDrilldownSupported: optionalBoolean(
+      item.modelObservationDrilldownSupported ?? item.model_observation_drilldown_supported
+    ),
+    identifierValuesExported: optionalBoolean(
+      item.identifierValuesExported ?? item.identifier_values_exported
+    ),
+    payloadExported: optionalBoolean(item.payloadExported ?? item.payload_exported),
+    actorIdentifierExported: optionalBoolean(
+      item.actorIdentifierExported ?? item.actor_identifier_exported
+    ),
+    aggregateOnly: optionalBoolean(item.aggregateOnly ?? item.aggregate_only),
+    generatedAt: optionalString(item.generatedAt ?? item.generated_at)
+  };
+}
+
+export function normalizeTestDesignModelObservationBucket(
+  raw: unknown
+): TestDesignModelObservationBucketView {
+  const item = isRecord(raw) ? raw : {};
+  return {
+    dimension: stringValue(item.dimension),
+    bucketKey: stringValue(item.bucketKey ?? item.bucket_key),
+    bucketLabel: stringValue(item.bucketLabel ?? item.bucket_label),
+    invocationCount: numberValue(item.invocationCount ?? item.invocation_count, 0),
+    succeededCount: numberValue(item.succeededCount ?? item.succeeded_count, 0),
+    failedCount: numberValue(item.failedCount ?? item.failed_count, 0),
+    blockedCount: numberValue(item.blockedCount ?? item.blocked_count, 0),
+    fallbackCount: numberValue(item.fallbackCount ?? item.fallback_count, 0),
+    inputTokenTotal: numberValue(item.inputTokenTotal ?? item.input_token_total, 0),
+    outputTokenTotal: numberValue(item.outputTokenTotal ?? item.output_token_total, 0),
+    latencyMsTotal: numberValue(item.latencyMsTotal ?? item.latency_ms_total, 0),
+    averageLatencyMs: numberValue(item.averageLatencyMs ?? item.average_latency_ms, 0),
+    totalCostText: stringValue(item.totalCostText ?? item.total_cost_text, '0'),
+    traceSignalCount: numberValue(item.traceSignalCount ?? item.trace_signal_count, 0),
+    jobSignalCount: numberValue(item.jobSignalCount ?? item.job_signal_count, 0),
+    latestInvocationAt: optionalString(item.latestInvocationAt ?? item.latest_invocation_at)
+  };
+}
+
+export function normalizeTestDesignModelObservationDrilldown(
+  raw: unknown
+): TestDesignModelObservationDrilldownView {
+  const item = isRecord(raw) ? raw : {};
+  return {
+    projectId: optionalString(item.projectId ?? item.project_id),
+    promptKey: optionalString(item.promptKey ?? item.prompt_key),
+    totalInvocationCount: numberValue(item.totalInvocationCount ?? item.total_invocation_count, 0),
+    succeededCount: numberValue(item.succeededCount ?? item.succeeded_count, 0),
+    failedCount: numberValue(item.failedCount ?? item.failed_count, 0),
+    blockedCount: numberValue(item.blockedCount ?? item.blocked_count, 0),
+    fallbackCount: numberValue(item.fallbackCount ?? item.fallback_count, 0),
+    inputTokenTotal: numberValue(item.inputTokenTotal ?? item.input_token_total, 0),
+    outputTokenTotal: numberValue(item.outputTokenTotal ?? item.output_token_total, 0),
+    latencyMsTotal: numberValue(item.latencyMsTotal ?? item.latency_ms_total, 0),
+    averageLatencyMs: numberValue(item.averageLatencyMs ?? item.average_latency_ms, 0),
+    totalCostText: stringValue(item.totalCostText ?? item.total_cost_text, '0'),
+    traceSignalCount: numberValue(item.traceSignalCount ?? item.trace_signal_count, 0),
+    jobSignalCount: numberValue(item.jobSignalCount ?? item.job_signal_count, 0),
+    buckets: listItems(item.buckets).map(normalizeTestDesignModelObservationBucket),
+    drilldownSupported: optionalBoolean(item.drilldownSupported ?? item.drilldown_supported),
+    traceIdValueExported: optionalBoolean(item.traceIdValueExported ?? item.trace_id_value_exported),
+    jobIdValueExported: optionalBoolean(item.jobIdValueExported ?? item.job_id_value_exported),
+    invocationIdValueExported: optionalBoolean(
+      item.invocationIdValueExported ?? item.invocation_id_value_exported
+    ),
+    payloadPreviewExported: optionalBoolean(item.payloadPreviewExported ?? item.payload_preview_exported),
+    providerErrorTextExported: optionalBoolean(
+      item.providerErrorTextExported ?? item.provider_error_text_exported
+    ),
+    aggregateOnly: optionalBoolean(item.aggregateOnly ?? item.aggregate_only),
+    generatedAt: optionalString(item.generatedAt ?? item.generated_at)
+  };
+}
+
+export function normalizeTestDesignCrossWpAuditDetailRow(
+  raw: unknown
+): TestDesignCrossWpAuditDetailRowView {
+  const item = isRecord(raw) ? raw : {};
+  return {
+    section: stringValue(item.section),
+    category: stringValue(item.category),
+    status: stringValue(item.status),
+    eventCount: numberValue(item.eventCount ?? item.event_count, 0),
+    successCount: numberValue(item.successCount ?? item.success_count, 0),
+    failedCount: numberValue(item.failedCount ?? item.failed_count, 0),
+    warningCount: numberValue(item.warningCount ?? item.warning_count, 0),
+    latestEventAt: optionalString(item.latestEventAt ?? item.latest_event_at),
+    identifierValuesExported: optionalBoolean(
+      item.identifierValuesExported ?? item.identifier_values_exported
+    ),
+    payloadExported: optionalBoolean(item.payloadExported ?? item.payload_exported),
+    actorIdentifierExported: optionalBoolean(
+      item.actorIdentifierExported ?? item.actor_identifier_exported
+    ),
+    aggregateOnly: optionalBoolean(item.aggregateOnly ?? item.aggregate_only)
+  };
+}
+
+export function normalizeTestDesignCrossWpDetailAuditReport(
+  raw: unknown
+): TestDesignCrossWpDetailAuditReportView {
+  const item = isRecord(raw) ? raw : {};
+  return {
+    projectId: optionalString(item.projectId ?? item.project_id),
+    promptKey: optionalString(item.promptKey ?? item.prompt_key),
+    templateVersion: optionalString(item.templateVersion ?? item.template_version),
+    rowCount: numberValue(item.rowCount ?? item.row_count, 0),
+    rows: listItems(item.rows).map(normalizeTestDesignCrossWpAuditDetailRow),
+    detailReportSupported: optionalBoolean(item.detailReportSupported ?? item.detail_report_supported),
+    rawAuditEventExported: optionalBoolean(item.rawAuditEventExported ?? item.raw_audit_event_exported),
+    identifierValuesExported: optionalBoolean(
+      item.identifierValuesExported ?? item.identifier_values_exported
+    ),
+    traceIdValueExported: optionalBoolean(item.traceIdValueExported ?? item.trace_id_value_exported),
+    modelInvocationIdValueExported: optionalBoolean(
+      item.modelInvocationIdValueExported ?? item.model_invocation_id_value_exported
+    ),
+    publishIdentifierValueExported: optionalBoolean(
+      item.publishIdentifierValueExported ?? item.publish_identifier_value_exported
+    ),
+    payloadExported: optionalBoolean(item.payloadExported ?? item.payload_exported),
+    actorIdentifierExported: optionalBoolean(
+      item.actorIdentifierExported ?? item.actor_identifier_exported
+    ),
+    aggregateOnly: optionalBoolean(item.aggregateOnly ?? item.aggregate_only),
+    generatedAt: optionalString(item.generatedAt ?? item.generated_at)
+  };
+}
+
 export function normalizeTestDesignCrossWpOperationsDashboard(
   raw: unknown
 ): TestDesignCrossWpOperationsDashboardView {
@@ -2804,6 +3090,15 @@ export function normalizeTestDesignCrossWpOperationsDashboard(
     ),
     operationsAuditReport: normalizeTestDesignOperationsAuditReport(
       item.operationsAuditReport ?? item.operations_audit_report
+    ),
+    auditReportTemplate: normalizeTestDesignAuditReportTemplate(
+      item.auditReportTemplate ?? item.audit_report_template
+    ),
+    modelObservationDrilldown: normalizeTestDesignModelObservationDrilldown(
+      item.modelObservationDrilldown ?? item.model_observation_drilldown
+    ),
+    crossWpDetailAuditReport: normalizeTestDesignCrossWpDetailAuditReport(
+      item.crossWpDetailAuditReport ?? item.cross_wp_detail_audit_report
     ),
     metrics: listItems(item.metrics).map(normalizeTestDesignScopeSummaryMetric),
     readiness: listItems(item.readiness).map(normalizeTestDesignScopeSummaryReadiness),
@@ -3397,6 +3692,33 @@ export async function fetchTestDesignOperationsAuditReport(
     `/api/v1/test-design/operations/audit-report${queryString(filters as Record<string, unknown>)}`
   );
   return { ...response, data: normalizeTestDesignOperationsAuditReport(response.data) };
+}
+
+export async function fetchTestDesignAuditReportTemplate(
+  filters: TestDesignCrossWpOperationsFilters = {}
+): Promise<ApiResponse<TestDesignAuditReportTemplateView>> {
+  const response = await requestJson<unknown>(
+    `/api/v1/test-design/operations/audit-report-template${queryString(filters as Record<string, unknown>)}`
+  );
+  return { ...response, data: normalizeTestDesignAuditReportTemplate(response.data) };
+}
+
+export async function fetchTestDesignModelObservationDrilldown(
+  filters: TestDesignCrossWpOperationsFilters = {}
+): Promise<ApiResponse<TestDesignModelObservationDrilldownView>> {
+  const response = await requestJson<unknown>(
+    `/api/v1/test-design/operations/model-observation-drilldown${queryString(filters as Record<string, unknown>)}`
+  );
+  return { ...response, data: normalizeTestDesignModelObservationDrilldown(response.data) };
+}
+
+export async function fetchTestDesignCrossWpDetailAuditReport(
+  filters: TestDesignCrossWpOperationsFilters = {}
+): Promise<ApiResponse<TestDesignCrossWpDetailAuditReportView>> {
+  const response = await requestJson<unknown>(
+    `/api/v1/test-design/operations/cross-wp-detail-audit-report${queryString(filters as Record<string, unknown>)}`
+  );
+  return { ...response, data: normalizeTestDesignCrossWpDetailAuditReport(response.data) };
 }
 
 export async function requeueTestDesignAuditOutbox(

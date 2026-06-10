@@ -3157,6 +3157,20 @@ class TestDesignControllerTest {
                 .andExpect(jsonPath("$.data.operationsAuditReport.aggregateOnly").value(true))
                 .andExpect(jsonPath("$.data.operationsAuditReport.detailRowsExported").value(false))
                 .andExpect(jsonPath("$.data.operationsAuditReport.actorIdentifierExported").value(false))
+                .andExpect(jsonPath("$.data.auditReportTemplate.templateVersion")
+                        .value("wp5-cross-wp-audit-report-template-v1"))
+                .andExpect(jsonPath("$.data.auditReportTemplate.identifierValuesExported").value(false))
+                .andExpect(jsonPath("$.data.auditReportTemplate.payloadExported").value(false))
+                .andExpect(jsonPath("$.data.auditReportTemplate.aggregateOnly").value(true))
+                .andExpect(jsonPath("$.data.modelObservationDrilldown.drilldownSupported").value(true))
+                .andExpect(jsonPath("$.data.modelObservationDrilldown.invocationIdValueExported").value(false))
+                .andExpect(jsonPath("$.data.modelObservationDrilldown.traceIdValueExported").value(false))
+                .andExpect(jsonPath("$.data.modelObservationDrilldown.payloadPreviewExported").value(false))
+                .andExpect(jsonPath("$.data.modelObservationDrilldown.aggregateOnly").value(true))
+                .andExpect(jsonPath("$.data.crossWpDetailAuditReport.detailReportSupported").value(true))
+                .andExpect(jsonPath("$.data.crossWpDetailAuditReport.identifierValuesExported").value(false))
+                .andExpect(jsonPath("$.data.crossWpDetailAuditReport.payloadExported").value(false))
+                .andExpect(jsonPath("$.data.crossWpDetailAuditReport.aggregateOnly").value(true))
                 .andExpect(jsonPath("$.data.readiness[?(@.code == 'crossWpScopeDashboardReady')].ready")
                         .value(contains(true)))
                 .andExpect(jsonPath("$.data.readiness[?(@.code == 'crossWpAuditDashboardReady')].ready")
@@ -3166,6 +3180,12 @@ class TestDesignControllerTest {
                 .andExpect(jsonPath("$.data.readiness[?(@.code == 'queueAlertSubscriptionReady')].ready")
                         .value(contains(false)))
                 .andExpect(jsonPath("$.data.readiness[?(@.code == 'manualQueuedEventReplayReady')].ready")
+                        .value(contains(true)))
+                .andExpect(jsonPath("$.data.readiness[?(@.code == 'auditReportTemplateReady')].ready")
+                        .value(contains(true)))
+                .andExpect(jsonPath("$.data.readiness[?(@.code == 'modelObservationDrilldownReady')].ready")
+                        .value(contains(true)))
+                .andExpect(jsonPath("$.data.readiness[?(@.code == 'crossWpDetailAuditReportReady')].ready")
                         .value(contains(true)))
                 .andExpect(jsonPath("$.data.readiness[?(@.code == 'detailIdentifiersRedacted')].ready")
                         .value(contains(true)))
@@ -3292,11 +3312,73 @@ class TestDesignControllerTest {
                 .andExpect(jsonPath("$.data.traceIdValueExported").value(false))
                 .andExpect(jsonPath("$.data.aggregateOnly").value(true));
 
+        MvcResult auditTemplate = mockMvc.perform(get("/api/v1/test-design/operations/audit-report-template")
+                        .header("Authorization", "Bearer " + auditorToken)
+                        .param("projectId", "project-wp5")
+                        .param("promptKey", "wp5-test-design-v1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.templateVersion").value("wp5-cross-wp-audit-report-template-v1"))
+                .andExpect(jsonPath("$.data.sections", hasSize(5)))
+                .andExpect(jsonPath("$.data.crossWpDetailReportSupported").value(true))
+                .andExpect(jsonPath("$.data.modelObservationDrilldownSupported").value(true))
+                .andExpect(jsonPath("$.data.identifierValuesExported").value(false))
+                .andExpect(jsonPath("$.data.payloadExported").value(false))
+                .andExpect(jsonPath("$.data.actorIdentifierExported").value(false))
+                .andExpect(jsonPath("$.data.aggregateOnly").value(true))
+                .andReturn();
+        MatcherAssert.assertThat(auditTemplate.getResponse().getContentAsString(), not(containsString(taskId)));
+
+        MvcResult modelDrilldown = mockMvc.perform(get("/api/v1/test-design/operations/model-observation-drilldown")
+                        .header("Authorization", "Bearer " + auditorToken)
+                        .param("projectId", "project-wp5")
+                        .param("promptKey", "wp5-test-design-v1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.drilldownSupported").value(true))
+                .andExpect(jsonPath("$.data.invocationIdValueExported").value(false))
+                .andExpect(jsonPath("$.data.traceIdValueExported").value(false))
+                .andExpect(jsonPath("$.data.jobIdValueExported").value(false))
+                .andExpect(jsonPath("$.data.payloadPreviewExported").value(false))
+                .andExpect(jsonPath("$.data.providerErrorTextExported").value(false))
+                .andExpect(jsonPath("$.data.aggregateOnly").value(true))
+                .andReturn();
+        MatcherAssert.assertThat(modelDrilldown.getResponse().getContentAsString(), not(containsString(taskId)));
+        MatcherAssert.assertThat(modelDrilldown.getResponse().getContentAsString(), not(containsString("rawPrompt")));
+
+        MvcResult detailReport = mockMvc.perform(get("/api/v1/test-design/operations/cross-wp-detail-audit-report")
+                        .header("Authorization", "Bearer " + auditorToken)
+                        .param("projectId", "project-wp5")
+                        .param("promptKey", "wp5-test-design-v1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.detailReportSupported").value(true))
+                .andExpect(jsonPath("$.data.rawAuditEventExported").value(false))
+                .andExpect(jsonPath("$.data.identifierValuesExported").value(false))
+                .andExpect(jsonPath("$.data.traceIdValueExported").value(false))
+                .andExpect(jsonPath("$.data.modelInvocationIdValueExported").value(false))
+                .andExpect(jsonPath("$.data.publishIdentifierValueExported").value(false))
+                .andExpect(jsonPath("$.data.payloadExported").value(false))
+                .andExpect(jsonPath("$.data.actorIdentifierExported").value(false))
+                .andExpect(jsonPath("$.data.aggregateOnly").value(true))
+                .andReturn();
+        MatcherAssert.assertThat(detailReport.getResponse().getContentAsString(), not(containsString(firstCandidateId)));
+        MatcherAssert.assertThat(detailReport.getResponse().getContentAsString(), not(containsString(assetCaseId)));
+
         mockMvc.perform(get("/api/v1/test-design/quality/scope-summary")
                         .header("Authorization", "Bearer " + deniedAuditorToken)
                         .param("projectId", "project-wp5"))
                 .andExpect(status().isForbidden());
         mockMvc.perform(get("/api/v1/test-design/operations/cross-wp-dashboard")
+                        .header("Authorization", "Bearer " + deniedAuditorToken)
+                        .param("projectId", "project-wp5"))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(get("/api/v1/test-design/operations/audit-report-template")
+                        .header("Authorization", "Bearer " + deniedAuditorToken)
+                        .param("projectId", "project-wp5"))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(get("/api/v1/test-design/operations/model-observation-drilldown")
+                        .header("Authorization", "Bearer " + deniedAuditorToken)
+                        .param("projectId", "project-wp5"))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(get("/api/v1/test-design/operations/cross-wp-detail-audit-report")
                         .header("Authorization", "Bearer " + deniedAuditorToken)
                         .param("projectId", "project-wp5"))
                 .andExpect(status().isForbidden());

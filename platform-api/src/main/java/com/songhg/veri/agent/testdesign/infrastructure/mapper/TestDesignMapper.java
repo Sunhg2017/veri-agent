@@ -15,9 +15,11 @@ import com.songhg.veri.agent.testdesign.domain.TestDesignConflictOperationRecord
 import com.songhg.veri.agent.testdesign.domain.TestDesignConflictOperationSummary;
 import com.songhg.veri.agent.testdesign.domain.TestDesignContextPolicyNote;
 import com.songhg.veri.agent.testdesign.domain.TestDesignContextPolicyOverride;
+import com.songhg.veri.agent.testdesign.domain.TestDesignCrossWpAuditDetailBucket;
 import com.songhg.veri.agent.testdesign.domain.TestDesignCrossWpOperationsAggregate;
 import com.songhg.veri.agent.testdesign.domain.TestDesignEvaluationSample;
 import com.songhg.veri.agent.testdesign.domain.TestDesignEvaluationSampleSummary;
+import com.songhg.veri.agent.testdesign.domain.TestDesignModelObservationBucket;
 import com.songhg.veri.agent.testdesign.domain.TestDesignOperationsAuditAggregate;
 import com.songhg.veri.agent.testdesign.domain.TestDesignPublishRecord;
 import com.songhg.veri.agent.testdesign.domain.TestDesignQueueAlertSubscription;
@@ -250,6 +252,16 @@ public interface TestDesignMapper {
     void updateQueueAlertSubscription(TestDesignQueueAlertSubscription subscription);
 
     TestDesignOperationsAuditAggregate operationsAuditAggregate(
+            @Param("projectId") String projectId,
+            @Param("promptKey") String promptKey
+    );
+
+    List<TestDesignModelObservationBucket> modelObservationBuckets(
+            @Param("projectId") String projectId,
+            @Param("promptKey") String promptKey
+    );
+
+    List<TestDesignCrossWpAuditDetailBucket> crossWpAuditDetailBuckets(
             @Param("projectId") String projectId,
             @Param("promptKey") String promptKey
     );

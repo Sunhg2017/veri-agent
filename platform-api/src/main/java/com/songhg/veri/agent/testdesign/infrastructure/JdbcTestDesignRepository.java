@@ -17,9 +17,11 @@ import com.songhg.veri.agent.testdesign.domain.TestDesignConflictOperationRecord
 import com.songhg.veri.agent.testdesign.domain.TestDesignConflictOperationSummary;
 import com.songhg.veri.agent.testdesign.domain.TestDesignContextPolicyNote;
 import com.songhg.veri.agent.testdesign.domain.TestDesignContextPolicyOverride;
+import com.songhg.veri.agent.testdesign.domain.TestDesignCrossWpAuditDetailBucket;
 import com.songhg.veri.agent.testdesign.domain.TestDesignCrossWpOperationsAggregate;
 import com.songhg.veri.agent.testdesign.domain.TestDesignEvaluationSample;
 import com.songhg.veri.agent.testdesign.domain.TestDesignEvaluationSampleSummary;
+import com.songhg.veri.agent.testdesign.domain.TestDesignModelObservationBucket;
 import com.songhg.veri.agent.testdesign.domain.TestDesignOperationsAuditAggregate;
 import com.songhg.veri.agent.testdesign.domain.TestDesignPublishRecord;
 import com.songhg.veri.agent.testdesign.domain.TestDesignQueueAlertSubscription;
@@ -419,6 +421,16 @@ public class JdbcTestDesignRepository implements TestDesignRepository {
     public TestDesignOperationsAuditAggregate operationsAuditAggregate(String projectId, String promptKey) {
         TestDesignOperationsAuditAggregate aggregate = mapper.operationsAuditAggregate(projectId, promptKey);
         return aggregate == null ? emptyOperationsAuditAggregate() : aggregate;
+    }
+
+    @Override
+    public List<TestDesignModelObservationBucket> modelObservationBuckets(String projectId, String promptKey) {
+        return mapper.modelObservationBuckets(projectId, promptKey);
+    }
+
+    @Override
+    public List<TestDesignCrossWpAuditDetailBucket> crossWpAuditDetailBuckets(String projectId, String promptKey) {
+        return mapper.crossWpAuditDetailBuckets(projectId, promptKey);
     }
 
     @Override

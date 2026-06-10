@@ -65,7 +65,10 @@ import {
   fetchTestDesignContextPolicyEffective,
   fetchTestDesignContextPolicyNotes,
   fetchTestDesignContextPolicyOverrides,
+  fetchTestDesignAuditReportTemplate,
+  fetchTestDesignCrossWpDetailAuditReport,
   fetchTestDesignCrossWpOperationsDashboard,
+  fetchTestDesignModelObservationDrilldown,
   fetchTestDesignQueueAlertSubscriptions,
   fetchTestDesignCalibrationRuns,
   fetchTestDesignEvaluationCorpusSummary,
@@ -116,7 +119,10 @@ import {
   type TestDesignContextPolicyNoteView,
   type TestDesignContextPolicyOverrideView,
   type TestDesignCrossWpOperationsDashboardView,
+  type TestDesignAuditReportTemplateView,
   type TestDesignAuditOutboxRequeueResult,
+  type TestDesignCrossWpDetailAuditReportView,
+  type TestDesignModelObservationDrilldownView,
   type TestDesignQueueAlertSubscriptionView,
   type TestDesignQueuedEventReplayResult,
   type TestDesignPublishCompensationRunResult,
@@ -648,6 +654,9 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
   const [calibrationSummary, setCalibrationSummary] = useState<TestDesignCalibrationSummaryView | null>(null);
   const [calibrationRunDraft, setCalibrationRunDraft] = useState<CalibrationRunDraft>(initialCalibrationRunDraft);
   const [crossWpOperationsDashboard, setCrossWpOperationsDashboard] = useState<TestDesignCrossWpOperationsDashboardView | null>(null);
+  const [auditReportTemplate, setAuditReportTemplate] = useState<TestDesignAuditReportTemplateView | null>(null);
+  const [modelObservationDrilldown, setModelObservationDrilldown] = useState<TestDesignModelObservationDrilldownView | null>(null);
+  const [crossWpDetailAuditReport, setCrossWpDetailAuditReport] = useState<TestDesignCrossWpDetailAuditReportView | null>(null);
   const [crossWpOperationsFilters, setCrossWpOperationsFilters] = useState<CrossWpOperationsFilters>(initialCrossWpOperationsFilters);
   const [auditOutboxRequeueDraft, setAuditOutboxRequeueDraft] = useState<AuditOutboxRequeueDraft>(initialAuditOutboxRequeueDraft);
   const [auditOutboxRequeueResult, setAuditOutboxRequeueResult] = useState<TestDesignAuditOutboxRequeueResult | null>(null);
@@ -1164,6 +1173,9 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
   const refreshCrossWpOperations = useCallback(async (options?: { silent?: boolean }) => {
     if (!props.signedIn || !canRead) {
       setCrossWpOperationsDashboard(null);
+      setAuditReportTemplate(null);
+      setModelObservationDrilldown(null);
+      setCrossWpDetailAuditReport(null);
       setAuditOutboxRequeueResult(null);
       setQueueAlertSubscriptions([]);
       setQueueAlertSubscriptionResult(null);
@@ -1181,12 +1193,24 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       setCrossWpOperationsState({ loading: true });
     }
     try {
-      const [dashboardResponse, subscriptionsResponse] = await Promise.all([
+      const [
+        dashboardResponse,
+        subscriptionsResponse,
+        templateResponse,
+        modelDrilldownResponse,
+        detailReportResponse
+      ] = await Promise.all([
         fetchTestDesignCrossWpOperationsDashboard({ projectId, promptKey }),
-        fetchTestDesignQueueAlertSubscriptions({ projectId, promptKey })
+        fetchTestDesignQueueAlertSubscriptions({ projectId, promptKey }),
+        fetchTestDesignAuditReportTemplate({ projectId, promptKey }),
+        fetchTestDesignModelObservationDrilldown({ projectId, promptKey }),
+        fetchTestDesignCrossWpDetailAuditReport({ projectId, promptKey })
       ]);
       setCrossWpOperationsDashboard(dashboardResponse.data);
       setQueueAlertSubscriptions(subscriptionsResponse.data);
+      setAuditReportTemplate(templateResponse.data);
+      setModelObservationDrilldown(modelDrilldownResponse.data);
+      setCrossWpDetailAuditReport(detailReportResponse.data);
       setAuditOutboxRequeueDraft((current) => ({
         ...current,
         projectId: current.projectId || projectId,
@@ -1210,12 +1234,19 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       }));
       setCrossWpOperationsState({
         loading: false,
-        success: `任务 ${dashboardResponse.data.taskCount} · outbox 可重放 ${dashboardResponse.data.auditOutbox?.replayEligibleCount ?? 0}`,
-        traceId: dashboardResponse.trace_id || subscriptionsResponse.trace_id
+        success: `任务 ${dashboardResponse.data.taskCount} · outbox 可重放 ${dashboardResponse.data.auditOutbox?.replayEligibleCount ?? 0} · 明细 ${detailReportResponse.data.rowCount}`,
+        traceId: dashboardResponse.trace_id
+          || subscriptionsResponse.trace_id
+          || templateResponse.trace_id
+          || modelDrilldownResponse.trace_id
+          || detailReportResponse.trace_id
       });
     } catch (error: unknown) {
       if (!silent) {
         setCrossWpOperationsDashboard(null);
+        setAuditReportTemplate(null);
+        setModelObservationDrilldown(null);
+        setCrossWpDetailAuditReport(null);
         setQueueAlertSubscriptions([]);
         setCrossWpOperationsState({ loading: false, error: testDesignErrorMessage(error, '跨 WP 运营看板加载失败') });
       }
@@ -1574,6 +1605,9 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       setCalibrationSummary(null);
       setCalibrationRunDraft(initialCalibrationRunDraft);
       setCrossWpOperationsDashboard(null);
+      setAuditReportTemplate(null);
+      setModelObservationDrilldown(null);
+      setCrossWpDetailAuditReport(null);
       setCrossWpOperationsFilters(initialCrossWpOperationsFilters);
       setAuditOutboxRequeueDraft(initialAuditOutboxRequeueDraft);
       setAuditOutboxRequeueResult(null);
@@ -3545,6 +3579,9 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
           state={crossWpOperationsState}
           canPolicyManage={canPolicyManage}
           dashboard={crossWpOperationsDashboard}
+          auditReportTemplate={auditReportTemplate}
+          modelObservationDrilldown={modelObservationDrilldown}
+          crossWpDetailAuditReport={crossWpDetailAuditReport}
           filters={crossWpOperationsEffectiveFilters}
           requeueDraft={{
             ...auditOutboxRequeueDraft,
@@ -6036,6 +6073,9 @@ function CrossWpOperationsPanel(props: {
   state: WorkState;
   canPolicyManage: boolean;
   dashboard: TestDesignCrossWpOperationsDashboardView | null;
+  auditReportTemplate: TestDesignAuditReportTemplateView | null;
+  modelObservationDrilldown: TestDesignModelObservationDrilldownView | null;
+  crossWpDetailAuditReport: TestDesignCrossWpDetailAuditReportView | null;
   filters: CrossWpOperationsFilters;
   requeueDraft: AuditOutboxRequeueDraft;
   requeueResult: TestDesignAuditOutboxRequeueResult | null;
@@ -6063,6 +6103,9 @@ function CrossWpOperationsPanel(props: {
   const queueAlerts = dashboard?.queueAlerts;
   const runbook = dashboard?.compensationRunbook;
   const auditReport = dashboard?.operationsAuditReport;
+  const auditTemplate = props.auditReportTemplate ?? dashboard?.auditReportTemplate;
+  const modelDrilldown = props.modelObservationDrilldown ?? dashboard?.modelObservationDrilldown;
+  const detailAuditReport = props.crossWpDetailAuditReport ?? dashboard?.crossWpDetailAuditReport;
   const projectId = props.filters.projectId;
   const promptKey = props.filters.promptKey;
   const canRequeue = props.canPolicyManage && !props.state.loading && Boolean(props.requeueDraft.projectId.trim() || projectId.trim());
@@ -6142,6 +6185,16 @@ function CrossWpOperationsPanel(props: {
                 <span>补偿候选</span>
                 <strong>{runbook?.eligibleCandidateCount ?? 0}</strong>
                 <small>批量 {runbook?.effectiveBatchSize ?? 0} · 手工 {runbook?.manualRunSupported ? 'ready' : 'blocked'}</small>
+              </div>
+              <div className="test-design-quality-metric tone-info">
+                <span>模型观测</span>
+                <strong>{modelDrilldown?.totalInvocationCount ?? 0}</strong>
+                <small>桶 {modelDrilldown?.buckets.length ?? 0} · fallback {modelDrilldown?.fallbackCount ?? 0}</small>
+              </div>
+              <div className="test-design-quality-metric tone-info">
+                <span>明细审计</span>
+                <strong>{detailAuditReport?.rowCount ?? 0}</strong>
+                <small>模板 {auditTemplate?.sections.length ?? 0} 分区</small>
               </div>
             </div>
 
@@ -6505,6 +6558,106 @@ function CrossWpOperationsPanel(props: {
                   <strong>{auditReport?.latestOperationAt ?? '-'}</strong>
                   <small>trace/actor/detail 保持聚合</small>
                 </div>
+              </div>
+            </div>
+
+            <div className="test-design-cross-wp-grid">
+              <div className="test-design-cross-wp-group">
+                <div className="test-design-evaluation-list-heading">
+                  <strong>审计报表模板</strong>
+                  <span>{auditTemplate?.templateVersion ?? '-'}</span>
+                </div>
+                <div className="test-design-cross-wp-readiness">
+                  <span className={`test-design-quality-chip tone-${auditTemplate?.aggregateOnly && !auditTemplate?.identifierValuesExported ? 'success' : 'warning'}`}>
+                    aggregate-only {auditTemplate?.aggregateOnly ? 'on' : 'check'}
+                  </span>
+                  <span className={`test-design-quality-chip tone-${auditTemplate?.modelObservationDrilldownSupported ? 'success' : 'warning'}`}>
+                    model drilldown {auditTemplate?.modelObservationDrilldownSupported ? 'ready' : 'blocked'}
+                  </span>
+                  <span className={`test-design-quality-chip tone-${auditTemplate?.crossWpDetailReportSupported ? 'success' : 'warning'}`}>
+                    detail report {auditTemplate?.crossWpDetailReportSupported ? 'ready' : 'blocked'}
+                  </span>
+                </div>
+                <div className="test-design-cross-wp-list">
+                  {(auditTemplate?.sections ?? []).map((section) => (
+                    <div className="test-design-cross-wp-row" key={section.code}>
+                      <span>
+                        <strong>{section.label}</strong>
+                        <em>{section.description ?? '-'}</em>
+                      </span>
+                      <span className="badge badge-info">{section.fields.length} fields</span>
+                    </div>
+                  ))}
+                  {!auditTemplate?.sections.length && <div className="notice info">暂无模板字段</div>}
+                </div>
+              </div>
+
+              <div className="test-design-cross-wp-group">
+                <div className="test-design-evaluation-list-heading">
+                  <strong>模型观测聚合钻取</strong>
+                  <span>{modelDrilldown?.totalInvocationCount ?? 0}</span>
+                </div>
+                <div className="test-design-quality-metrics">
+                  <div className="test-design-quality-metric tone-info">
+                    <span>token</span>
+                    <strong>{(modelDrilldown?.inputTokenTotal ?? 0) + (modelDrilldown?.outputTokenTotal ?? 0)}</strong>
+                    <small>输入 {modelDrilldown?.inputTokenTotal ?? 0} · 输出 {modelDrilldown?.outputTokenTotal ?? 0}</small>
+                  </div>
+                  <div className="test-design-quality-metric tone-info">
+                    <span>耗时/成本</span>
+                    <strong>{modelDrilldown?.averageLatencyMs ?? 0}ms</strong>
+                    <small>cost {modelDrilldown?.totalCostText ?? '0'}</small>
+                  </div>
+                  <div className={`test-design-quality-metric tone-${(modelDrilldown?.failedCount ?? 0) + (modelDrilldown?.blockedCount ?? 0) > 0 ? 'warning' : 'success'}`}>
+                    <span>失败/阻断</span>
+                    <strong>{(modelDrilldown?.failedCount ?? 0) + (modelDrilldown?.blockedCount ?? 0)}</strong>
+                    <small>trace 信号 {modelDrilldown?.traceSignalCount ?? 0} · job {modelDrilldown?.jobSignalCount ?? 0}</small>
+                  </div>
+                </div>
+                <div className="test-design-cross-wp-list">
+                  {(modelDrilldown?.buckets ?? []).slice(0, 8).map((bucket) => (
+                    <div className="test-design-cross-wp-row" key={`${bucket.dimension}-${bucket.bucketKey}`}>
+                      <span>
+                        <strong>{bucket.dimension} · {bucket.bucketLabel}</strong>
+                        <em>成功 {bucket.succeededCount} · 失败 {bucket.failedCount} · 阻断 {bucket.blockedCount}</em>
+                        <small>token {bucket.inputTokenTotal + bucket.outputTokenTotal} · avg {bucket.averageLatencyMs}ms</small>
+                      </span>
+                      <span className="badge badge-info">{bucket.invocationCount}</span>
+                    </div>
+                  ))}
+                  {!modelDrilldown?.buckets.length && <div className="notice info">暂无模型观测聚合</div>}
+                </div>
+              </div>
+            </div>
+
+            <div className="test-design-cross-wp-group">
+              <div className="test-design-evaluation-list-heading">
+                <strong>跨 WP 明细审计报表</strong>
+                <span>{detailAuditReport?.rowCount ?? 0}</span>
+              </div>
+              <div className="test-design-cross-wp-readiness">
+                <span className={`test-design-quality-chip tone-${detailAuditReport?.aggregateOnly && !detailAuditReport?.identifierValuesExported ? 'success' : 'warning'}`}>
+                  redacted rows {detailAuditReport?.aggregateOnly ? 'on' : 'check'}
+                </span>
+                <span className={`test-design-quality-chip tone-${detailAuditReport?.rawAuditEventExported ? 'warning' : 'success'}`}>
+                  raw audit {detailAuditReport?.rawAuditEventExported ? 'exported' : 'off'}
+                </span>
+                <span className={`test-design-quality-chip tone-${detailAuditReport?.payloadExported ? 'warning' : 'success'}`}>
+                  payload {detailAuditReport?.payloadExported ? 'exported' : 'off'}
+                </span>
+              </div>
+              <div className="test-design-cross-wp-list">
+                {(detailAuditReport?.rows ?? []).slice(0, 10).map((row) => (
+                  <div className="test-design-cross-wp-row" key={`${row.section}-${row.category}-${row.status}`}>
+                    <span>
+                      <strong>{row.section} · {row.category}</strong>
+                      <em>{row.status} · 成功 {row.successCount} · 失败 {row.failedCount} · 告警 {row.warningCount}</em>
+                      <small>{row.latestEventAt ?? '-'}</small>
+                    </span>
+                    <span className="badge badge-info">{row.eventCount}</span>
+                  </div>
+                ))}
+                {!detailAuditReport?.rows.length && <div className="notice info">暂无跨 WP 明细审计行</div>}
               </div>
             </div>
 

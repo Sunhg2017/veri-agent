@@ -46,6 +46,12 @@ public record TestDesignCrossWpOperationsDashboardResponse(
         TestDesignCompensationRunbookResponse compensationRunbook,
         @Schema(description = "批量运营审计报表")
         TestDesignOperationsAuditReportResponse operationsAuditReport,
+        @Schema(description = "审计报表模板")
+        TestDesignAuditReportTemplateResponse auditReportTemplate,
+        @Schema(description = "模型观测聚合钻取")
+        TestDesignModelObservationDrilldownResponse modelObservationDrilldown,
+        @Schema(description = "跨 WP 脱敏明细审计报表")
+        TestDesignCrossWpDetailAuditReportResponse crossWpDetailAuditReport,
         @Schema(description = "运营指标")
         List<TestDesignAuditChainMetricResponse> metrics,
         @Schema(description = "准入状态")

@@ -567,13 +567,131 @@ main() {
 
   cross_wp_dashboard="$(get_test_design_json "/operations/cross-wp-dashboard?projectId=$(urlencode "$PROJECT_ID")&promptKey=wp5-test-design-v1")"
   if printf '%s' "$cross_wp_dashboard" | jq -e --arg projectId "$PROJECT_ID" \
-    '.data.projectId == $projectId and .data.promptKey == "wp5-test-design-v1" and .data.scopePolicy.crossWpScopeDashboardReady == true and .data.auditChainPolicy.crossWpAuditDashboardReady == true and .data.auditChainPolicy.auditOutboxReplayDashboardReady == true and .data.taskCount >= 1 and .data.candidateCount >= 2 and .data.publishRecordCount >= 2 and .data.candidateScopeMismatchCount == 0 and .data.publishScopeMismatchCount == 0 and .data.auditDashboard.crossWpAuditDashboardReady == true and .data.auditDashboard.auditEventDetailExported == false and .data.auditDashboard.traceIdValueExported == false and .data.auditDashboard.modelInvocationIdValueExported == false and .data.auditDashboard.publishIdentifierValueExported == false and .data.auditOutbox.replaySupported == true and .data.auditOutbox.payloadExported == false and .data.auditOutbox.traceIdValueExported == false and .data.auditOutbox.lastErrorTextExported == false and .data.queueAlerts.manualReplaySupported == true and .data.queueAlerts.eventPayloadExported == false and .data.queueAlerts.detailIdentifiersExported == false and .data.compensationRunbook.manualRunSupported == true and .data.compensationRunbook.assetCaseIdentifierExported == false and .data.compensationRunbook.sourceRefExported == false and .data.operationsAuditReport.aggregateOnly == true and .data.operationsAuditReport.detailRowsExported == false and (.data.readiness | any(.code == "crossWpScopeDashboardReady" and .ready == true)) and (.data.readiness | any(.code == "crossWpAuditDashboardReady" and .ready == true)) and (.data.readiness | any(.code == "auditOutboxReplayDashboardReady" and .ready == true)) and (.data.readiness | any(.code == "manualQueuedEventReplayReady" and .ready == true)) and (.data.readiness | any(.code == "detailIdentifiersRedacted" and .ready == true)) and .data.aggregateOnly == true and .data.detailIdentifiersExported == false' >/dev/null \
+    '.data.projectId == $projectId
+      and .data.promptKey == "wp5-test-design-v1"
+      and .data.scopePolicy.crossWpScopeDashboardReady == true
+      and .data.auditChainPolicy.crossWpAuditDashboardReady == true
+      and .data.auditChainPolicy.auditOutboxReplayDashboardReady == true
+      and .data.taskCount >= 1
+      and .data.candidateCount >= 2
+      and .data.publishRecordCount >= 2
+      and .data.candidateScopeMismatchCount == 0
+      and .data.publishScopeMismatchCount == 0
+      and .data.auditDashboard.crossWpAuditDashboardReady == true
+      and .data.auditDashboard.auditEventDetailExported == false
+      and .data.auditDashboard.traceIdValueExported == false
+      and .data.auditDashboard.modelInvocationIdValueExported == false
+      and .data.auditDashboard.publishIdentifierValueExported == false
+      and .data.auditOutbox.replaySupported == true
+      and .data.auditOutbox.payloadExported == false
+      and .data.auditOutbox.traceIdValueExported == false
+      and .data.auditOutbox.lastErrorTextExported == false
+      and .data.queueAlerts.manualReplaySupported == true
+      and .data.queueAlerts.eventPayloadExported == false
+      and .data.queueAlerts.detailIdentifiersExported == false
+      and .data.compensationRunbook.manualRunSupported == true
+      and .data.compensationRunbook.assetCaseIdentifierExported == false
+      and .data.compensationRunbook.sourceRefExported == false
+      and .data.operationsAuditReport.aggregateOnly == true
+      and .data.operationsAuditReport.detailRowsExported == false
+      and .data.auditReportTemplate.aggregateOnly == true
+      and .data.auditReportTemplate.identifierValuesExported == false
+      and .data.auditReportTemplate.payloadExported == false
+      and .data.modelObservationDrilldown.drilldownSupported == true
+      and .data.modelObservationDrilldown.invocationIdValueExported == false
+      and .data.modelObservationDrilldown.traceIdValueExported == false
+      and .data.modelObservationDrilldown.payloadPreviewExported == false
+      and .data.crossWpDetailAuditReport.detailReportSupported == true
+      and .data.crossWpDetailAuditReport.identifierValuesExported == false
+      and .data.crossWpDetailAuditReport.payloadExported == false
+      and (.data.readiness | any(.code == "crossWpScopeDashboardReady" and .ready == true))
+      and (.data.readiness | any(.code == "crossWpAuditDashboardReady" and .ready == true))
+      and (.data.readiness | any(.code == "auditOutboxReplayDashboardReady" and .ready == true))
+      and (.data.readiness | any(.code == "manualQueuedEventReplayReady" and .ready == true))
+      and (.data.readiness | any(.code == "auditReportTemplateReady" and .ready == true))
+      and (.data.readiness | any(.code == "modelObservationDrilldownReady" and .ready == true))
+      and (.data.readiness | any(.code == "crossWpDetailAuditReportReady" and .ready == true))
+      and (.data.readiness | any(.code == "detailIdentifiersRedacted" and .ready == true))
+      and .data.aggregateOnly == true
+      and .data.detailIdentifiersExported == false' >/dev/null \
     && ! printf '%s' "$cross_wp_dashboard" | grep -Eq "$task_id|token=|rawPrompt|local-test-design-token"; then
     echo "   PASS Cross-WP operations dashboard is aggregate-only"
     PASS=$((PASS + 1))
   else
     echo "   FAIL Cross-WP operations dashboard is aggregate-only"
     echo "$cross_wp_dashboard"
+    FAIL=$((FAIL + 1))
+  fi
+
+  audit_report_template="$(get_test_design_json "/operations/audit-report-template?projectId=$(urlencode "$PROJECT_ID")&promptKey=wp5-test-design-v1")"
+  if printf '%s' "$audit_report_template" | jq -e --arg projectId "$PROJECT_ID" \
+    '.data.projectId == $projectId
+      and .data.promptKey == "wp5-test-design-v1"
+      and .data.exportSupported == true
+      and .data.crossWpDetailReportSupported == true
+      and .data.modelObservationDrilldownSupported == true
+      and .data.identifierValuesExported == false
+      and .data.payloadExported == false
+      and .data.actorIdentifierExported == false
+      and .data.aggregateOnly == true
+      and (.data.sections | length) >= 4
+      and (.data.sections | any(.code == "queueAlertSubscriptions"))
+      and (.data.sections | any(.code == "modelObservationDrilldown"))
+      and (.data.sections | any(.code == "crossWpDetailAudit"))
+      and ([.data.sections[].fields[]? | select(.identifierValueExported == true or .payloadExported == true)] | length) == 0' >/dev/null \
+    && ! printf '%s' "$audit_report_template" | grep -Eq "$task_id|token=|rawPrompt|local-test-design-token"; then
+    echo "   PASS Audit report template is redacted"
+    PASS=$((PASS + 1))
+  else
+    echo "   FAIL Audit report template is redacted"
+    echo "$audit_report_template"
+    FAIL=$((FAIL + 1))
+  fi
+
+  model_observation_drilldown="$(get_test_design_json "/operations/model-observation-drilldown?projectId=$(urlencode "$PROJECT_ID")&promptKey=wp5-test-design-v1")"
+  if printf '%s' "$model_observation_drilldown" | jq -e --arg projectId "$PROJECT_ID" \
+    '.data.projectId == $projectId
+      and .data.promptKey == "wp5-test-design-v1"
+      and .data.totalInvocationCount >= 1
+      and (.data.buckets | length) >= 1
+      and .data.drilldownSupported == true
+      and .data.traceIdValueExported == false
+      and .data.jobIdValueExported == false
+      and .data.invocationIdValueExported == false
+      and .data.payloadPreviewExported == false
+      and .data.providerErrorTextExported == false
+      and .data.aggregateOnly == true' >/dev/null \
+    && ! printf '%s' "$model_observation_drilldown" | grep -Eq 'token=|rawPrompt|local-test-design-token'; then
+    echo "   PASS Model observation drilldown is aggregate-only"
+    PASS=$((PASS + 1))
+  else
+    echo "   FAIL Model observation drilldown is aggregate-only"
+    echo "$model_observation_drilldown"
+    FAIL=$((FAIL + 1))
+  fi
+
+  cross_wp_detail_audit_report="$(get_test_design_json "/operations/cross-wp-detail-audit-report?projectId=$(urlencode "$PROJECT_ID")&promptKey=wp5-test-design-v1")"
+  if printf '%s' "$cross_wp_detail_audit_report" | jq -e --arg projectId "$PROJECT_ID" \
+    '.data.projectId == $projectId
+      and .data.promptKey == "wp5-test-design-v1"
+      and .data.detailReportSupported == true
+      and .data.rawAuditEventExported == false
+      and .data.identifierValuesExported == false
+      and .data.traceIdValueExported == false
+      and .data.modelInvocationIdValueExported == false
+      and .data.publishIdentifierValueExported == false
+      and .data.payloadExported == false
+      and .data.actorIdentifierExported == false
+      and .data.aggregateOnly == true
+      and .data.rowCount >= 1
+      and (.data.rows | length) >= 1
+      and ([.data.rows[] | select(.identifierValuesExported == true or .payloadExported == true or .actorIdentifierExported == true or .aggregateOnly != true)] | length) == 0' >/dev/null \
+    && ! printf '%s' "$cross_wp_detail_audit_report" | grep -Eq "$task_id|token=|rawPrompt|local-test-design-token"; then
+    echo "   PASS Cross-WP detail audit report is redacted"
+    PASS=$((PASS + 1))
+  else
+    echo "   FAIL Cross-WP detail audit report is redacted"
+    echo "$cross_wp_detail_audit_report"
     FAIL=$((FAIL + 1))
   fi
 

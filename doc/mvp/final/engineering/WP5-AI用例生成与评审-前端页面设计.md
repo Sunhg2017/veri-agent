@@ -5,8 +5,8 @@
 | 工作包 | WP5 AI 用例生成与评审 |
 | 角色产出 | 资深前端工程师 |
 | 文档性质 | 前端页面、路由、权限、状态和可测性设计 |
-| 当前口径 | 基于 `portal-web` React + TypeScript + Vite 管理台扩展，已纳入任务质量、Prompt 趋势、Prompt 版本准出分布、任务诊断、本域审计链摘要面板、跨 WP 审计链策略摘要、跨 WP 统一运营面板、模型观测策略摘要、生成编排策略摘要、显式上下文资产输入、服务端下发的上下文裁剪口径、上下文策略诊断摘要、权限/资源作用域策略摘要、评测语料运营策略摘要、发布准出审批策略摘要、归档策略摘要和报告清单策略摘要 |
-| 版本 | v0.14 |
+| 当前口径 | 基于 `portal-web` React + TypeScript + Vite 管理台扩展，已纳入任务质量、Prompt 趋势、Prompt 版本准出分布、任务诊断、本域审计链摘要面板、跨 WP 审计链策略摘要、跨 WP 统一运营面板、审计报表模板、模型观测聚合钻取、跨 WP 脱敏明细审计报表、模型观测策略摘要、生成编排策略摘要、显式上下文资产输入、服务端下发的上下文裁剪口径、上下文策略诊断摘要、权限/资源作用域策略摘要、评测语料运营策略摘要、发布准出审批策略摘要、归档策略摘要和报告清单策略摘要 |
+| 版本 | v0.15 |
 | 日期 | 2026-06-11 |
 
 ## 1. 页面目标
@@ -65,7 +65,7 @@ WP5 前端页面负责让用户在浏览器内完成用例生成主流程：
 | `TestDesignCandidateEditor` | 候选编辑表单，维护标题、步骤、预期、优先级和标签。 |
 | `TestDesignPublishPreviewPanel` | dryRun 结果、重复风险、失败明细和发布按钮。 |
 | `TestDesignPublishRecordsPanel` | 发布记录、WP3 用例跳转和失败排查。 |
-| `TestDesignCrossWpOperationsPanel` | 跨 WP 统一运营看板，维护队列告警订阅、人工重放、补偿运行手册和批量运营审计报表。 |
+| `TestDesignCrossWpOperationsPanel` | 跨 WP 统一运营看板，维护队列告警订阅、人工重放、补偿运行手册，展示批量运营审计报表、完整审计报表模板、模型观测聚合钻取和跨 WP 脱敏明细审计报表。 |
 
 ## 5. API Client 设计
 
@@ -94,6 +94,9 @@ WP5 前端页面负责让用户在浏览器内完成用例生成主流程：
 | `fetchTestDesignCompensationRunbook(filters)` | 查询发布补偿运行手册。 |
 | `runTestDesignPublishCompensation(payload)` | 手工运行发布补偿。 |
 | `fetchTestDesignOperationsAuditReport(filters)` | 查询批量运营审计报表。 |
+| `fetchTestDesignAuditReportTemplate(filters)` | 查询完整审计报表模板。 |
+| `fetchTestDesignModelObservationDrilldown(filters)` | 查询模型观测聚合钻取。 |
+| `fetchTestDesignCrossWpDetailAuditReport(filters)` | 查询跨 WP 脱敏明细审计报表。 |
 | `previewTestDesignPublish(taskId, payload)` | 发布 dryRun。 |
 | `publishTestDesignCandidates(taskId, payload)` | 正式发布。 |
 | `fetchTestDesignTaskQualitySummary(taskId)` | 查询任务全量质量摘要和任务准出状态。 |
@@ -172,8 +175,8 @@ API client 需复用现有 `requestJson` 和 `ApiError` 处理，保留响应中
 | evaluation corpus | 任务诊断和真实样本维护面板展示 `evaluationCorpusPolicy` 的 golden set 基线、手动可选 AI 评测、部署配置阈值、项目作用域、质量门禁接入、准出分布/Prompt 版本跟踪、样本维护、长期校准和运营后台 ready；页面支持样本增改、候选提取、状态流转和校准运行。 |
 | release readiness | 任务诊断和发布准出面板展示 `releaseReadinessPolicy` 的 advisory-only、发布阻断配置、审批流 ready、人工准出、自动发布关闭、候选确认要求和质量门禁例外；页面支持例外申请、审批/驳回、备注流转和 digest 绑定放行。 |
 | audit chain | 任务诊断展示 `auditChainPolicy` 的 WP1 审计写入、WP2 调用引用、WP3 发布引用、WP5 本域事件、项目作用域、trace 信号、跨 WP 看板 ready 和 outbox 看板 ready；跨 WP 统一运营面板只展示聚合 scope/audit/outbox 指标，并支持按项目受限 requeue，不展示审计/outbox/trace/候选/资产明细标识。 |
-| cross wp operations | 跨 WP 统一运营面板展示队列告警订阅、queued generation/publish 重放、发布补偿运行手册和批量运营审计报表；所有操作都保持 aggregate-only，不展示任务 ID、候选 ID、outbox payload、traceId、模型调用 ID、sourceRef 或 WP3 资产 ID。 |
-| model observation policy | 任务诊断展示 `modelObservationPolicy` 的策略版本、聚合观测模式、WP2 调用引用、trace/job/routing/token/latency/cost/fallback 跟踪能力、Prompt 载荷不存储和细节导出关闭；该状态只说明当前模型观测治理边界，不代表真实跨 WP 模型调用明细看板已就绪，也不展示 traceId/jobId/invocationId 原值、载荷预览、provider 错误正文或 actor service。 |
+| cross wp operations | 跨 WP 统一运营面板展示队列告警订阅、queued generation/publish 重放、发布补偿运行手册、批量运营审计报表、审计报表模板、模型观测聚合钻取和跨 WP 脱敏明细审计报表；所有操作都保持 aggregate-only，不展示任务 ID、候选 ID、outbox payload、traceId、模型调用 ID、sourceRef 或 WP3 资产 ID。 |
+| model observation policy | 任务诊断展示 `modelObservationPolicy` 的策略版本、聚合观测模式、WP2 调用引用、trace/job/routing/token/latency/cost/fallback 跟踪能力、Prompt 载荷不存储和细节导出关闭；跨 WP 运营面板提供聚合钻取桶，但不展示 traceId/jobId/invocationId 原值、载荷预览、provider 错误正文或 actor service。 |
 | generation orchestration policy | 任务诊断展示 `generationOrchestrationPolicy` 的策略版本、编排模式、条件认领、幂等回放、重复事件安全、恢复扫描、运行中超时回收、人工重试、人工排队事件重发、队列 lag 指标、超时告警、恢复批次上限、排队/运行/最旧排队年龄/超时运行聚合计数和告警布尔值；该状态只说明当前生成编排边界，人工排队事件重发仅支持 `QUEUED` 任务，仅代表本地多 worker 重复事件认领证据已就绪，不代表跨 WP 事务编排已就绪，也不展示事件 ID、事件 payload、队列消息体、恢复明细、幂等键原值或超时错误正文。 |
 | archive policy | 任务诊断展示 `archivePolicy` 的策略版本、保留天数、`platformManaged` 存储策略、审批要求、审批流 pending、真实归档存储 pending、外发开关、保留策略跟踪和细节导出关闭；该状态只说明当前归档治理边界，不代表真实归档存储、审批流、外发流程或工单流转已就绪。 |
 | report manifest policy | 任务诊断展示 `reportManifestPolicy` 的策略版本、报告 schema/字段集版本、清单模式、行数/完成状态跟踪、归档核验和细节导出关闭；该状态只说明当前报告清单聚合核验边界，不代表行级完整性值、候选 ID、trace ID 或审计 ID 明细索引已开放。 |
@@ -211,5 +214,5 @@ API client 需复用现有 `requestJson` 和 `ApiError` 处理，保留响应中
 9. 资产冲突运营台可按项目查询正式发布冲突，能筛选 open/resolved、定位任务和候选、搜索既有 WP3 用例，并通过单条/批量复用完成闭环。
 10. loading/empty/error/partial success/version conflict/model blocked 状态均有可读展示。
 11. 任务诊断只展示上下文计数、裁剪策略、生成编排策略、作用域策略、评测语料策略、发布准出审批策略、审计链策略、模型观测策略、归档治理策略和报告清单策略聚合标记，不展示显式资产 ID、schema、页面树、流程 JSON、需求正文、事件 ID、事件 payload、队列消息体、恢复明细、幂等键原值、超时错误正文、候选 ID、角色规则、服务令牌原值、评测语料行、候选正文、评审评论、候选级准出证据、审批备注、阈值规则明细、平台审计标识原值、traceId/jobId/invocationId 原值、模型调用 ID 原值、provider 错误正文、actor service、发布 sourceRef、资产 ID、归档路径、归档备注、审批说明、工单 URL 或原始 Prompt。
-12. 跨 WP 统一运营面板可维护队列告警订阅、触发有界 queued generation/publish 重放、查看发布补偿运行手册和批量运营审计报表，且不导出任务 ID、候选 ID、outbox payload、traceId、模型调用 ID、sourceRef 或 WP3 资产 ID。
+12. 跨 WP 统一运营面板可维护队列告警订阅、触发有界 queued generation/publish 重放、查看发布补偿运行手册、批量运营审计报表、完整审计报表模板、模型观测聚合钻取和跨 WP 脱敏明细审计报表，且不导出任务 ID、候选 ID、outbox payload、traceId、模型调用 ID、sourceRef 或 WP3 资产 ID。
 13. `cd portal-web && npm test`、`cd portal-web && npm run build`、WP5 前端 smoke 均通过。

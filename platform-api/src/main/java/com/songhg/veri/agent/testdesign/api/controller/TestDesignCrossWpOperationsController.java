@@ -10,8 +10,11 @@ import com.songhg.veri.agent.testdesign.application.command.RunTestDesignPublish
 import com.songhg.veri.agent.testdesign.application.command.UpsertTestDesignQueueAlertSubscriptionCommand;
 import com.songhg.veri.agent.testdesign.application.query.TestDesignCrossWpOperationsRequest;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignAuditOutboxRequeueResponse;
+import com.songhg.veri.agent.testdesign.application.view.TestDesignAuditReportTemplateResponse;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignCompensationRunbookResponse;
+import com.songhg.veri.agent.testdesign.application.view.TestDesignCrossWpDetailAuditReportResponse;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignCrossWpOperationsDashboardResponse;
+import com.songhg.veri.agent.testdesign.application.view.TestDesignModelObservationDrilldownResponse;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignOperationsAuditReportResponse;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignPublishCompensationRunResponse;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignQueueAlertSubscriptionResponse;
@@ -121,6 +124,42 @@ public class TestDesignCrossWpOperationsController {
             @Valid @ModelAttribute TestDesignCrossWpOperationsRequest request
     ) {
         return service.operationsAuditReport(request);
+    }
+
+    /**
+     * Returns the fixed cross-WP audit report template and export guardrails.
+     */
+    @GetMapping("/audit-report-template")
+    @RequirePermission(value = PermissionCodes.TEST_DESIGN_READ,
+            scope = TestDesignPermissionScopes.CROSS_WP_OPERATIONS)
+    public TestDesignAuditReportTemplateResponse auditReportTemplate(
+            @Valid @ModelAttribute TestDesignCrossWpOperationsRequest request
+    ) {
+        return service.auditReportTemplate(request);
+    }
+
+    /**
+     * Returns aggregate model observation drilldown without invocation/job/trace identifiers.
+     */
+    @GetMapping("/model-observation-drilldown")
+    @RequirePermission(value = PermissionCodes.TEST_DESIGN_READ,
+            scope = TestDesignPermissionScopes.CROSS_WP_OPERATIONS)
+    public TestDesignModelObservationDrilldownResponse modelObservationDrilldown(
+            @Valid @ModelAttribute TestDesignCrossWpOperationsRequest request
+    ) {
+        return service.modelObservationDrilldown(request);
+    }
+
+    /**
+     * Returns redacted cross-WP detail audit rows grouped by source, category and status.
+     */
+    @GetMapping("/cross-wp-detail-audit-report")
+    @RequirePermission(value = PermissionCodes.TEST_DESIGN_READ,
+            scope = TestDesignPermissionScopes.CROSS_WP_OPERATIONS)
+    public TestDesignCrossWpDetailAuditReportResponse crossWpDetailAuditReport(
+            @Valid @ModelAttribute TestDesignCrossWpOperationsRequest request
+    ) {
+        return service.crossWpDetailAuditReport(request);
     }
 
     /**

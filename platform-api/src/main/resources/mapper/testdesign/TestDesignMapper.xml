@@ -263,6 +263,40 @@
         </constructor>
     </resultMap>
 
+    <resultMap id="modelObservationBucketMap" type="com.songhg.veri.agent.testdesign.domain.TestDesignModelObservationBucket">
+        <constructor>
+            <arg column="dimension" javaType="java.lang.String"/>
+            <arg column="bucket_key" javaType="java.lang.String"/>
+            <arg column="bucket_label" javaType="java.lang.String"/>
+            <arg column="invocation_count" javaType="_long"/>
+            <arg column="succeeded_count" javaType="_long"/>
+            <arg column="failed_count" javaType="_long"/>
+            <arg column="blocked_count" javaType="_long"/>
+            <arg column="fallback_count" javaType="_long"/>
+            <arg column="input_token_total" javaType="_long"/>
+            <arg column="output_token_total" javaType="_long"/>
+            <arg column="latency_ms_total" javaType="_long"/>
+            <arg column="average_latency_ms" javaType="_long"/>
+            <arg column="total_cost_text" javaType="java.lang.String"/>
+            <arg column="trace_signal_count" javaType="_long"/>
+            <arg column="job_signal_count" javaType="_long"/>
+            <arg column="latest_invocation_at" javaType="java.time.Instant"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="crossWpAuditDetailBucketMap" type="com.songhg.veri.agent.testdesign.domain.TestDesignCrossWpAuditDetailBucket">
+        <constructor>
+            <arg column="section" javaType="java.lang.String"/>
+            <arg column="category" javaType="java.lang.String"/>
+            <arg column="status" javaType="java.lang.String"/>
+            <arg column="event_count" javaType="_long"/>
+            <arg column="success_count" javaType="_long"/>
+            <arg column="failed_count" javaType="_long"/>
+            <arg column="warning_count" javaType="_long"/>
+            <arg column="latest_event_at" javaType="java.time.Instant"/>
+        </constructor>
+    </resultMap>
+
     <resultMap id="contextPolicyOverrideMap" type="com.songhg.veri.agent.testdesign.domain.TestDesignContextPolicyOverride">
         <constructor>
             <arg column="id" javaType="java.util.UUID"/>
@@ -1675,6 +1709,395 @@
                 as audit_outbox_requeue_count,
             max(created_at) as latest_operation_at
         from scoped_operations
+    </select>
+
+    <select id="modelObservationBuckets" resultMap="modelObservationBucketMap">
+        with task_scope as (
+            select id, project_id, prompt_key, prompt_version, model_invocation_id
+            from test_design_task
+            where (#{projectId} is null or project_id = #{projectId})
+              and (#{promptKey} is null or prompt_key = #{promptKey})
+        ),
+        candidates as (
+            select c.id, c.task_id, c.project_id, c.prompt_key, c.prompt_version, c.model_invocation_id
+            from test_design_candidate c
+            join task_scope ts on ts.id = c.task_id
+        ),
+        invocation_links as (
+            select model_invocation_id, prompt_key, prompt_version
+            from task_scope
+            where model_invocation_id is not null
+            union all
+            select model_invocation_id, prompt_key, prompt_version
+            from candidates
+            where model_invocation_id is not null
+        ),
+        dedup_links as (
+            select distinct on (model_invocation_id)
+                model_invocation_id,
+                prompt_key,
+                prompt_version
+            from invocation_links
+            order by model_invocation_id, prompt_key nulls last, prompt_version nulls last
+        ),
+        wp2_invocations as (
+            select
+                coalesce(l.prompt_key, i.prompt_key, 'UNKNOWN') as prompt_key,
+                coalesce(l.prompt_version, cast(i.prompt_version as text), 'UNKNOWN') as prompt_version,
+                coalesce(i.provider_name, 'UNKNOWN') as provider_name,
+                coalesce(i.model_name, 'UNKNOWN') as model_name,
+                coalesce(i.routing_group, 'default') as routing_group,
+                i.status,
+                i.fallback_used,
+                i.input_tokens,
+                i.output_tokens,
+                i.latency_ms,
+                i.total_cost,
+                i.created_at,
+                exists (
+                    select 1
+                    from ma_invocation_job j
+                    where j.invocation_id = i.id
+                ) as job_present,
+                exists (
+                    select 1
+                    from ma_invocation_job j
+                    where j.invocation_id = i.id
+                      and j.trace_id is not null
+                      and j.trace_id &lt;&gt; ''
+                ) as trace_present
+            from ma_invocation_log i
+            join dedup_links l on l.model_invocation_id = i.id
+        ),
+        buckets as (
+            select 'STATUS' as dimension, status as bucket_key, status as bucket_label,
+                count(*) as invocation_count,
+                coalesce(sum(case when status = 'SUCCEEDED' then 1 else 0 end), 0) as succeeded_count,
+                coalesce(sum(case when status = 'FAILED' then 1 else 0 end), 0) as failed_count,
+                coalesce(sum(case when status = 'BLOCKED' then 1 else 0 end), 0) as blocked_count,
+                coalesce(sum(case when fallback_used = true then 1 else 0 end), 0) as fallback_count,
+                coalesce(sum(input_tokens), 0) as input_token_total,
+                coalesce(sum(output_tokens), 0) as output_token_total,
+                coalesce(sum(latency_ms), 0) as latency_ms_total,
+                coalesce(round(avg(latency_ms))::bigint, 0) as average_latency_ms,
+                coalesce(sum(total_cost)::text, '0') as total_cost_text,
+                coalesce(sum(case when trace_present then 1 else 0 end), 0) as trace_signal_count,
+                coalesce(sum(case when job_present then 1 else 0 end), 0) as job_signal_count,
+                max(created_at) as latest_invocation_at
+            from wp2_invocations
+            group by status
+            union all
+            select 'PROVIDER' as dimension, provider_name as bucket_key, provider_name as bucket_label,
+                count(*) as invocation_count,
+                coalesce(sum(case when status = 'SUCCEEDED' then 1 else 0 end), 0) as succeeded_count,
+                coalesce(sum(case when status = 'FAILED' then 1 else 0 end), 0) as failed_count,
+                coalesce(sum(case when status = 'BLOCKED' then 1 else 0 end), 0) as blocked_count,
+                coalesce(sum(case when fallback_used = true then 1 else 0 end), 0) as fallback_count,
+                coalesce(sum(input_tokens), 0) as input_token_total,
+                coalesce(sum(output_tokens), 0) as output_token_total,
+                coalesce(sum(latency_ms), 0) as latency_ms_total,
+                coalesce(round(avg(latency_ms))::bigint, 0) as average_latency_ms,
+                coalesce(sum(total_cost)::text, '0') as total_cost_text,
+                coalesce(sum(case when trace_present then 1 else 0 end), 0) as trace_signal_count,
+                coalesce(sum(case when job_present then 1 else 0 end), 0) as job_signal_count,
+                max(created_at) as latest_invocation_at
+            from wp2_invocations
+            group by provider_name
+            union all
+            select 'MODEL' as dimension, model_name as bucket_key, model_name as bucket_label,
+                count(*) as invocation_count,
+                coalesce(sum(case when status = 'SUCCEEDED' then 1 else 0 end), 0) as succeeded_count,
+                coalesce(sum(case when status = 'FAILED' then 1 else 0 end), 0) as failed_count,
+                coalesce(sum(case when status = 'BLOCKED' then 1 else 0 end), 0) as blocked_count,
+                coalesce(sum(case when fallback_used = true then 1 else 0 end), 0) as fallback_count,
+                coalesce(sum(input_tokens), 0) as input_token_total,
+                coalesce(sum(output_tokens), 0) as output_token_total,
+                coalesce(sum(latency_ms), 0) as latency_ms_total,
+                coalesce(round(avg(latency_ms))::bigint, 0) as average_latency_ms,
+                coalesce(sum(total_cost)::text, '0') as total_cost_text,
+                coalesce(sum(case when trace_present then 1 else 0 end), 0) as trace_signal_count,
+                coalesce(sum(case when job_present then 1 else 0 end), 0) as job_signal_count,
+                max(created_at) as latest_invocation_at
+            from wp2_invocations
+            group by model_name
+            union all
+            select 'ROUTING_GROUP' as dimension, routing_group as bucket_key, routing_group as bucket_label,
+                count(*) as invocation_count,
+                coalesce(sum(case when status = 'SUCCEEDED' then 1 else 0 end), 0) as succeeded_count,
+                coalesce(sum(case when status = 'FAILED' then 1 else 0 end), 0) as failed_count,
+                coalesce(sum(case when status = 'BLOCKED' then 1 else 0 end), 0) as blocked_count,
+                coalesce(sum(case when fallback_used = true then 1 else 0 end), 0) as fallback_count,
+                coalesce(sum(input_tokens), 0) as input_token_total,
+                coalesce(sum(output_tokens), 0) as output_token_total,
+                coalesce(sum(latency_ms), 0) as latency_ms_total,
+                coalesce(round(avg(latency_ms))::bigint, 0) as average_latency_ms,
+                coalesce(sum(total_cost)::text, '0') as total_cost_text,
+                coalesce(sum(case when trace_present then 1 else 0 end), 0) as trace_signal_count,
+                coalesce(sum(case when job_present then 1 else 0 end), 0) as job_signal_count,
+                max(created_at) as latest_invocation_at
+            from wp2_invocations
+            group by routing_group
+            union all
+            select 'PROMPT_VERSION' as dimension, prompt_version as bucket_key, prompt_version as bucket_label,
+                count(*) as invocation_count,
+                coalesce(sum(case when status = 'SUCCEEDED' then 1 else 0 end), 0) as succeeded_count,
+                coalesce(sum(case when status = 'FAILED' then 1 else 0 end), 0) as failed_count,
+                coalesce(sum(case when status = 'BLOCKED' then 1 else 0 end), 0) as blocked_count,
+                coalesce(sum(case when fallback_used = true then 1 else 0 end), 0) as fallback_count,
+                coalesce(sum(input_tokens), 0) as input_token_total,
+                coalesce(sum(output_tokens), 0) as output_token_total,
+                coalesce(sum(latency_ms), 0) as latency_ms_total,
+                coalesce(round(avg(latency_ms))::bigint, 0) as average_latency_ms,
+                coalesce(sum(total_cost)::text, '0') as total_cost_text,
+                coalesce(sum(case when trace_present then 1 else 0 end), 0) as trace_signal_count,
+                coalesce(sum(case when job_present then 1 else 0 end), 0) as job_signal_count,
+                max(created_at) as latest_invocation_at
+            from wp2_invocations
+            group by prompt_version
+            union all
+            select 'FALLBACK' as dimension,
+                case when fallback_used = true then 'FALLBACK' else 'PRIMARY' end as bucket_key,
+                case when fallback_used = true then 'Fallback' else 'Primary' end as bucket_label,
+                count(*) as invocation_count,
+                coalesce(sum(case when status = 'SUCCEEDED' then 1 else 0 end), 0) as succeeded_count,
+                coalesce(sum(case when status = 'FAILED' then 1 else 0 end), 0) as failed_count,
+                coalesce(sum(case when status = 'BLOCKED' then 1 else 0 end), 0) as blocked_count,
+                coalesce(sum(case when fallback_used = true then 1 else 0 end), 0) as fallback_count,
+                coalesce(sum(input_tokens), 0) as input_token_total,
+                coalesce(sum(output_tokens), 0) as output_token_total,
+                coalesce(sum(latency_ms), 0) as latency_ms_total,
+                coalesce(round(avg(latency_ms))::bigint, 0) as average_latency_ms,
+                coalesce(sum(total_cost)::text, '0') as total_cost_text,
+                coalesce(sum(case when trace_present then 1 else 0 end), 0) as trace_signal_count,
+                coalesce(sum(case when job_present then 1 else 0 end), 0) as job_signal_count,
+                max(created_at) as latest_invocation_at
+            from wp2_invocations
+            group by fallback_used
+        )
+        select *
+        from buckets
+        order by
+            case dimension
+                when 'STATUS' then 1
+                when 'PROVIDER' then 2
+                when 'MODEL' then 3
+                when 'ROUTING_GROUP' then 4
+                when 'PROMPT_VERSION' then 5
+                when 'FALLBACK' then 6
+                else 99
+            end,
+            invocation_count desc,
+            bucket_key asc
+    </select>
+
+    <select id="crossWpAuditDetailBuckets" resultMap="crossWpAuditDetailBucketMap">
+        with task_scope as (
+            select id, project_id, status, prompt_key, prompt_version, model_invocation_id, created_at, updated_at
+            from test_design_task
+            where (#{projectId} is null or project_id = #{projectId})
+              and (#{promptKey} is null or prompt_key = #{promptKey})
+        ),
+        candidates as (
+            select c.id, c.task_id, c.project_id, c.requirement_id, c.status, c.model_invocation_id,
+                   c.asset_case_id, c.created_at, c.updated_at
+            from test_design_candidate c
+            join task_scope ts on ts.id = c.task_id
+        ),
+        publish_records as (
+            select pr.id, pr.task_id, pr.project_id, pr.candidate_id, pr.asset_case_id, pr.dry_run,
+                   pr.action, pr.result, pr.created_at
+            from test_design_publish_record pr
+            join task_scope ts on ts.id = pr.task_id
+        ),
+        invocation_ids as (
+            select model_invocation_id
+            from task_scope
+            where model_invocation_id is not null
+            union
+            select model_invocation_id
+            from candidates
+            where model_invocation_id is not null
+        ),
+        audit_events as (
+            select action, resource_type, result, created_at
+            from audit_log
+            where (
+                resource_type = 'TEST_DESIGN_TASK'
+                and resource_id in (select cast(id as text) from task_scope)
+            ) or (
+                resource_type in (
+                    'TEST_DESIGN_CANDIDATE',
+                    'TEST_DESIGN_REVIEW_RECORD',
+                    'TEST_DESIGN_TASK_REPORT',
+                    'TEST_DESIGN_CROSS_WP_OPERATIONS'
+                )
+                and after_json -&gt;&gt; 'taskId' in (select cast(id as text) from task_scope)
+            ) or (
+                resource_type = 'TEST_DESIGN_CANDIDATE'
+                and resource_id in (select cast(id as text) from candidates)
+            ) or (
+                resource_type = 'TEST_DESIGN_CROSS_WP_OPERATIONS'
+                and (#{projectId} is null or resource_id = #{projectId})
+            )
+        ),
+        wp2_invocations as (
+            select status, created_at
+            from ma_invocation_log
+            where id in (select model_invocation_id from invocation_ids)
+        ),
+        published_cases as (
+            select distinct atc.id, atc.updated_at
+            from asset_test_case atc
+            join publish_records pr on pr.asset_case_id = atc.id
+            join task_scope ts on ts.project_id = atc.project_id and ts.id = pr.task_id
+            where atc.deleted_at is null
+              and atc.source = 'AI_GENERATED'
+        ),
+        trace_links as (
+            select distinct l.id, l.created_at
+            from asset_link l
+            join candidates c on c.requirement_id = l.source_id
+            join published_cases pc on pc.id = l.target_id
+            where l.deleted_at is null
+              and l.source_type = 'REQUIREMENT'
+              and l.target_type = 'CASE'
+        ),
+        scoped_resource_ids as (
+            select cast(id as text) as resource_id
+            from task_scope
+            union
+            select cast(id as text) as resource_id
+            from candidates
+            union
+            select cast(asset_case_id as text) as resource_id
+            from publish_records
+            where asset_case_id is not null
+        ),
+        outbox_events as (
+            select o.status, o.updated_at, o.created_at
+            from audit_outbox o
+            where coalesce(
+                o.event_payload_json -&gt;&gt; 'projectId',
+                o.event_payload_json -&gt;&gt; 'project_id',
+                o.event_payload_json #&gt;&gt; '{record,projectId}',
+                o.event_payload_json #&gt;&gt; '{record,project_id}',
+                o.event_payload_json #&gt;&gt; '{metadata,projectId}',
+                o.event_payload_json #&gt;&gt; '{metadata,project_id}',
+                o.event_payload_json #&gt;&gt; '{payload,projectId}',
+                o.event_payload_json #&gt;&gt; '{payload,project_id}',
+                ''
+            ) in (select distinct project_id from task_scope where project_id is not null)
+               or coalesce(
+                o.event_payload_json -&gt;&gt; 'resourceId',
+                o.event_payload_json -&gt;&gt; 'resource_id',
+                o.event_payload_json #&gt;&gt; '{record,resourceId}',
+                o.event_payload_json #&gt;&gt; '{record,resource_id}',
+                o.event_payload_json #&gt;&gt; '{payload,resourceId}',
+                o.event_payload_json #&gt;&gt; '{payload,resource_id}',
+                ''
+            ) in (select resource_id from scoped_resource_ids)
+               or coalesce(
+                o.event_payload_json -&gt;&gt; 'taskId',
+                o.event_payload_json -&gt;&gt; 'task_id',
+                o.event_payload_json #&gt;&gt; '{record,taskId}',
+                o.event_payload_json #&gt;&gt; '{record,task_id}',
+                o.event_payload_json #&gt;&gt; '{metadata,taskId}',
+                o.event_payload_json #&gt;&gt; '{metadata,task_id}',
+                o.event_payload_json #&gt;&gt; '{payload,taskId}',
+                o.event_payload_json #&gt;&gt; '{payload,task_id}',
+                ''
+            ) in (select cast(id as text) from task_scope)
+        ),
+        buckets as (
+            select 'WP5_TASK' as section, 'TASK_STATUS' as category, status,
+                count(*) as event_count,
+                coalesce(sum(case when status in ('SUCCEEDED', 'PARTIAL_SUCCESS') then 1 else 0 end), 0) as success_count,
+                coalesce(sum(case when status in ('FAILED', 'CANCELLED') then 1 else 0 end), 0) as failed_count,
+                coalesce(sum(case when status in ('QUEUED', 'RUNNING') then 1 else 0 end), 0) as warning_count,
+                max(coalesce(updated_at, created_at)) as latest_event_at
+            from task_scope
+            group by status
+            union all
+            select 'WP5_CANDIDATE' as section, 'CANDIDATE_STATUS' as category, status,
+                count(*) as event_count,
+                coalesce(sum(case when status in ('CONFIRMED', 'PUBLISHED') then 1 else 0 end), 0) as success_count,
+                coalesce(sum(case when status in ('REJECTED', 'FAILED') then 1 else 0 end), 0) as failed_count,
+                coalesce(sum(case when status in ('PUBLISH_QUEUED', 'PUBLISHING') then 1 else 0 end), 0) as warning_count,
+                max(coalesce(updated_at, created_at)) as latest_event_at
+            from candidates
+            group by status
+            union all
+            select 'WP5_PUBLISH' as section, action as category, result as status,
+                count(*) as event_count,
+                coalesce(sum(case when result = 'SUCCEEDED' then 1 else 0 end), 0) as success_count,
+                coalesce(sum(case when result not in ('SUCCEEDED', 'DRY_RUN') then 1 else 0 end), 0) as failed_count,
+                coalesce(sum(case when result in ('CONFLICT', 'PARTIAL_SUCCESS') then 1 else 0 end), 0) as warning_count,
+                max(created_at) as latest_event_at
+            from publish_records
+            group by action, result
+            union all
+            select 'WP1_AUDIT' as section, resource_type || ':' || action as category, result as status,
+                count(*) as event_count,
+                coalesce(sum(case when result = 'SUCCESS' then 1 else 0 end), 0) as success_count,
+                coalesce(sum(case when result = 'FAILED' then 1 else 0 end), 0) as failed_count,
+                coalesce(sum(case when result = 'DENIED' then 1 else 0 end), 0) as warning_count,
+                max(created_at) as latest_event_at
+            from audit_events
+            group by resource_type, action, result
+            union all
+            select 'WP2_MODEL' as section, 'MODEL_STATUS' as category, status,
+                count(*) as event_count,
+                coalesce(sum(case when status = 'SUCCEEDED' then 1 else 0 end), 0) as success_count,
+                coalesce(sum(case when status = 'FAILED' then 1 else 0 end), 0) as failed_count,
+                coalesce(sum(case when status = 'BLOCKED' then 1 else 0 end), 0) as warning_count,
+                max(created_at) as latest_event_at
+            from wp2_invocations
+            group by status
+            union all
+            select 'WP3_ASSET' as section, 'PUBLISHED_CASE' as category, 'LINKED' as status,
+                count(*) as event_count,
+                count(*) as success_count,
+                0 as failed_count,
+                0 as warning_count,
+                max(updated_at) as latest_event_at
+            from published_cases
+            having count(*) &gt; 0
+            union all
+            select 'WP3_TRACE' as section, 'TRACE_LINK' as category, 'LINKED' as status,
+                count(*) as event_count,
+                count(*) as success_count,
+                0 as failed_count,
+                0 as warning_count,
+                max(created_at) as latest_event_at
+            from trace_links
+            having count(*) &gt; 0
+            union all
+            select 'WP1_OUTBOX' as section, 'OUTBOX_STATUS' as category, status,
+                count(*) as event_count,
+                coalesce(sum(case when status = 'DONE' then 1 else 0 end), 0) as success_count,
+                coalesce(sum(case when status in ('FAILED', 'DEAD') then 1 else 0 end), 0) as failed_count,
+                coalesce(sum(case when status in ('PENDING', 'PROCESSING') then 1 else 0 end), 0) as warning_count,
+                max(coalesce(updated_at, created_at)) as latest_event_at
+            from outbox_events
+            group by status
+        )
+        select *
+        from buckets
+        order by
+            case section
+                when 'WP5_TASK' then 1
+                when 'WP5_CANDIDATE' then 2
+                when 'WP5_PUBLISH' then 3
+                when 'WP1_AUDIT' then 4
+                when 'WP2_MODEL' then 5
+                when 'WP3_ASSET' then 6
+                when 'WP3_TRACE' then 7
+                when 'WP1_OUTBOX' then 8
+                else 99
+            end,
+            event_count desc,
+            category asc,
+            status asc
     </select>
 
     <insert id="insertContextPolicyOverride">

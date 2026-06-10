@@ -17,9 +17,11 @@ import com.songhg.veri.agent.testdesign.domain.TestDesignConflictOperationRecord
 import com.songhg.veri.agent.testdesign.domain.TestDesignConflictOperationSummary;
 import com.songhg.veri.agent.testdesign.domain.TestDesignContextPolicyNote;
 import com.songhg.veri.agent.testdesign.domain.TestDesignContextPolicyOverride;
+import com.songhg.veri.agent.testdesign.domain.TestDesignCrossWpAuditDetailBucket;
 import com.songhg.veri.agent.testdesign.domain.TestDesignCrossWpOperationsAggregate;
 import com.songhg.veri.agent.testdesign.domain.TestDesignEvaluationSample;
 import com.songhg.veri.agent.testdesign.domain.TestDesignEvaluationSampleSummary;
+import com.songhg.veri.agent.testdesign.domain.TestDesignModelObservationBucket;
 import com.songhg.veri.agent.testdesign.domain.TestDesignOperationsAuditAggregate;
 import com.songhg.veri.agent.testdesign.domain.TestDesignPublishRecord;
 import com.songhg.veri.agent.testdesign.domain.TestDesignQueueAlertSubscription;
@@ -31,11 +33,15 @@ import com.songhg.veri.agent.testdesign.domain.TestDesignTask;
 import com.songhg.veri.agent.testdesign.domain.TestDesignTaskStatus;
 import com.songhg.veri.agent.testdesign.domain.TestDesignTemplate;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Function;
 import java.util.stream.Stream;
 import org.springframework.context.annotation.Primary;
 import org.springframework.context.annotation.Profile;
@@ -862,6 +868,111 @@ public class InMemoryTestDesignRepository implements TestDesignRepository {
     }
 
     @Override
+    public List<TestDesignModelObservationBucket> modelObservationBuckets(String projectId, String promptKey) {
+        List<LocalModelObservationLink> links = modelObservationLinks(projectId, promptKey);
+        if (links.isEmpty()) {
+            return List.of();
+        }
+        List<TestDesignModelObservationBucket> buckets = new ArrayList<>();
+        addModelObservationBuckets(buckets, "STATUS", groupedLinks(links, link -> "REFERENCED"));
+        addModelObservationBuckets(buckets, "PROVIDER", groupedLinks(links, link -> valueOrUnknown(link.providerName())));
+        addModelObservationBuckets(buckets, "MODEL", groupedLinks(links, link -> valueOrUnknown(link.modelName())));
+        addModelObservationBuckets(buckets, "PROMPT_VERSION", groupedLinks(links, link -> valueOrUnknown(link.promptVersion())));
+        addModelObservationBuckets(buckets, "FALLBACK", groupedLinks(links, link -> "UNKNOWN"));
+        return buckets;
+    }
+
+    @Override
+    public List<TestDesignCrossWpAuditDetailBucket> crossWpAuditDetailBuckets(String projectId, String promptKey) {
+        List<TestDesignTask> scopedTasks = tasks.values().stream()
+                .filter(task -> matches(projectId, task.projectId()))
+                .filter(task -> matches(promptKey, task.promptKey()))
+                .toList();
+        List<UUID> taskIds = scopedTasks.stream().map(TestDesignTask::id).toList();
+        List<TestDesignCandidate> scopedCandidates = candidates.values().stream()
+                .filter(candidate -> taskIds.contains(candidate.taskId()))
+                .toList();
+        List<TestDesignPublishRecord> scopedPublishRecords = publishRecords.values().stream()
+                .filter(record -> taskIds.contains(record.taskId()))
+                .toList();
+        List<TestDesignCrossWpAuditDetailBucket> buckets = new ArrayList<>();
+        addAuditDetailBuckets(
+                buckets,
+                "WP5_TASK",
+                "TASK_STATUS",
+                groupedTasks(scopedTasks)
+        );
+        addAuditDetailBuckets(
+                buckets,
+                "WP5_CANDIDATE",
+                "CANDIDATE_STATUS",
+                groupedCandidates(scopedCandidates)
+        );
+        addAuditDetailBuckets(
+                buckets,
+                "WP5_PUBLISH",
+                "PUBLISH_RESULT",
+                groupedPublishRecords(scopedPublishRecords)
+        );
+        long reviewRecordCount = reviewRecords.values().stream()
+                .filter(record -> taskIds.contains(record.taskId()))
+                .count();
+        long manifestCount = reportManifests.values().stream()
+                .filter(manifest -> taskIds.contains(manifest.taskId()))
+                .count();
+        long domainAuditCount = scopedTasks.size() + reviewRecordCount + manifestCount;
+        if (domainAuditCount > 0) {
+            buckets.add(new TestDesignCrossWpAuditDetailBucket(
+                    "WP1_AUDIT",
+                    "WP5_DOMAIN_AUDIT",
+                    "SUCCESS",
+                    domainAuditCount,
+                    domainAuditCount,
+                    0,
+                    0,
+                    scopedTasks.stream().map(InMemoryTestDesignRepository::lastTouchedAt)
+                            .max(Comparator.naturalOrder())
+                            .orElse(null)
+            ));
+        }
+        long modelReferenceCount = modelObservationLinks(projectId, promptKey).size();
+        if (modelReferenceCount > 0) {
+            buckets.add(new TestDesignCrossWpAuditDetailBucket(
+                    "WP2_MODEL",
+                    "MODEL_REFERENCE",
+                    "REFERENCED",
+                    modelReferenceCount,
+                    modelReferenceCount,
+                    0,
+                    0,
+                    modelObservationLinks(projectId, promptKey).stream()
+                            .map(LocalModelObservationLink::touchedAt)
+                            .max(Comparator.naturalOrder())
+                            .orElse(null)
+            ));
+        }
+        long publishedCaseCount = scopedCandidates.stream().filter(candidate -> candidate.assetCaseId() != null).count();
+        if (publishedCaseCount > 0) {
+            buckets.add(new TestDesignCrossWpAuditDetailBucket(
+                    "WP3_ASSET",
+                    "PUBLISHED_CASE",
+                    "LINKED",
+                    publishedCaseCount,
+                    publishedCaseCount,
+                    0,
+                    0,
+                    scopedCandidates.stream()
+                            .filter(candidate -> candidate.assetCaseId() != null)
+                            .map(TestDesignCandidate::updatedAt)
+                            .filter(updatedAt -> updatedAt != null)
+                            .max(Comparator.naturalOrder())
+                            .orElse(null)
+            ));
+        }
+        return buckets;
+    }
+
+    @Override
     public TestDesignContextPolicyOverride saveContextPolicyOverride(TestDesignContextPolicyOverride override) {
         contextPolicyOverrides.put(override.id(), override);
         return override;
@@ -1237,6 +1348,194 @@ public class InMemoryTestDesignRepository implements TestDesignRepository {
             }
         }
         return false;
+    }
+
+    private List<LocalModelObservationLink> modelObservationLinks(String projectId, String promptKey) {
+        LinkedHashMap<UUID, LocalModelObservationLink> links = new LinkedHashMap<>();
+        tasks.values().stream()
+                .filter(task -> matches(projectId, task.projectId()))
+                .filter(task -> matches(promptKey, task.promptKey()))
+                .filter(task -> task.modelInvocationId() != null)
+                .forEach(task -> links.putIfAbsent(task.modelInvocationId(), new LocalModelObservationLink(
+                        task.modelInvocationId(),
+                        task.modelProviderName(),
+                        task.modelName(),
+                        task.promptVersion(),
+                        lastTouchedAt(task)
+                )));
+        candidates.values().stream()
+                .filter(candidate -> matches(projectId, candidate.projectId()))
+                .filter(candidate -> matches(promptKey, candidate.promptKey()))
+                .filter(candidate -> candidate.modelInvocationId() != null)
+                .forEach(candidate -> links.putIfAbsent(candidate.modelInvocationId(), new LocalModelObservationLink(
+                        candidate.modelInvocationId(),
+                        candidate.modelProviderName(),
+                        candidate.modelName(),
+                        candidate.promptVersion(),
+                        candidate.updatedAt() == null ? candidate.createdAt() : candidate.updatedAt()
+                )));
+        return List.copyOf(links.values());
+    }
+
+    private static Map<String, List<LocalModelObservationLink>> groupedLinks(
+            List<LocalModelObservationLink> links,
+            Function<LocalModelObservationLink, String> classifier
+    ) {
+        LinkedHashMap<String, List<LocalModelObservationLink>> grouped = new LinkedHashMap<>();
+        for (LocalModelObservationLink link : links) {
+            String key = classifier.apply(link);
+            grouped.computeIfAbsent(valueOrUnknown(key), ignored -> new ArrayList<>()).add(link);
+        }
+        return grouped;
+    }
+
+    private static void addModelObservationBuckets(
+            List<TestDesignModelObservationBucket> buckets,
+            String dimension,
+            Map<String, List<LocalModelObservationLink>> grouped
+    ) {
+        grouped.forEach((key, links) -> buckets.add(new TestDesignModelObservationBucket(
+                dimension,
+                key,
+                key,
+                links.size(),
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                "0",
+                0,
+                0,
+                links.stream()
+                        .map(LocalModelObservationLink::touchedAt)
+                        .filter(touchedAt -> touchedAt != null)
+                        .max(Comparator.naturalOrder())
+                        .orElse(null)
+        )));
+    }
+
+    private static Map<String, AuditBucketStats> groupedTasks(List<TestDesignTask> tasks) {
+        LinkedHashMap<String, List<TestDesignTask>> grouped = new LinkedHashMap<>();
+        for (TestDesignTask task : tasks) {
+            grouped.computeIfAbsent(valueOrUnknown(task.status()), ignored -> new ArrayList<>()).add(task);
+        }
+        LinkedHashMap<String, AuditBucketStats> result = new LinkedHashMap<>();
+        grouped.forEach((status, items) -> result.put(status, new AuditBucketStats(
+                items.size(),
+                items.stream().filter(item -> taskStatusSuccess(item.status())).count(),
+                items.stream().filter(item -> taskStatusFailed(item.status())).count(),
+                items.stream().filter(item -> taskStatusWarning(item.status())).count(),
+                items.stream().map(InMemoryTestDesignRepository::lastTouchedAt)
+                        .max(Comparator.naturalOrder())
+                        .orElse(null)
+        )));
+        return result;
+    }
+
+    private static Map<String, AuditBucketStats> groupedCandidates(List<TestDesignCandidate> candidates) {
+        LinkedHashMap<String, List<TestDesignCandidate>> grouped = new LinkedHashMap<>();
+        for (TestDesignCandidate candidate : candidates) {
+            grouped.computeIfAbsent(valueOrUnknown(candidate.status()), ignored -> new ArrayList<>()).add(candidate);
+        }
+        LinkedHashMap<String, AuditBucketStats> result = new LinkedHashMap<>();
+        grouped.forEach((status, items) -> result.put(status, new AuditBucketStats(
+                items.size(),
+                items.stream().filter(item -> candidateStatusSuccess(item.status())).count(),
+                items.stream().filter(item -> candidateStatusFailed(item.status())).count(),
+                items.stream().filter(item -> candidateStatusWarning(item.status())).count(),
+                items.stream().map(TestDesignCandidate::updatedAt)
+                        .filter(updatedAt -> updatedAt != null)
+                        .max(Comparator.naturalOrder())
+                        .orElse(null)
+        )));
+        return result;
+    }
+
+    private static Map<String, AuditBucketStats> groupedPublishRecords(List<TestDesignPublishRecord> records) {
+        LinkedHashMap<String, List<TestDesignPublishRecord>> grouped = new LinkedHashMap<>();
+        for (TestDesignPublishRecord record : records) {
+            String key = valueOrUnknown(record.action()) + ":" + valueOrUnknown(record.result());
+            grouped.computeIfAbsent(key, ignored -> new ArrayList<>()).add(record);
+        }
+        LinkedHashMap<String, AuditBucketStats> result = new LinkedHashMap<>();
+        grouped.forEach((key, items) -> result.put(key, new AuditBucketStats(
+                items.size(),
+                items.stream().filter(item -> "SUCCEEDED".equals(item.result())).count(),
+                items.stream().filter(item -> !"SUCCEEDED".equals(item.result()) && !"DRY_RUN".equals(item.result())).count(),
+                items.stream().filter(item -> "CONFLICT".equals(item.result()) || "PARTIAL_SUCCESS".equals(item.result())).count(),
+                items.stream().map(TestDesignPublishRecord::createdAt)
+                        .max(Comparator.naturalOrder())
+                        .orElse(null)
+        )));
+        return result;
+    }
+
+    private static void addAuditDetailBuckets(
+            List<TestDesignCrossWpAuditDetailBucket> buckets,
+            String section,
+            String category,
+            Map<String, AuditBucketStats> grouped
+    ) {
+        grouped.forEach((status, stats) -> buckets.add(new TestDesignCrossWpAuditDetailBucket(
+                section,
+                category,
+                status,
+                stats.eventCount(),
+                stats.successCount(),
+                stats.failedCount(),
+                stats.warningCount(),
+                stats.latestAt()
+        )));
+    }
+
+    private static boolean taskStatusSuccess(String status) {
+        return "SUCCEEDED".equals(status) || "PARTIAL_SUCCESS".equals(status);
+    }
+
+    private static boolean taskStatusFailed(String status) {
+        return "FAILED".equals(status) || "CANCELLED".equals(status);
+    }
+
+    private static boolean taskStatusWarning(String status) {
+        return "QUEUED".equals(status) || "RUNNING".equals(status);
+    }
+
+    private static boolean candidateStatusSuccess(String status) {
+        return "CONFIRMED".equals(status) || "PUBLISHED".equals(status);
+    }
+
+    private static boolean candidateStatusFailed(String status) {
+        return "REJECTED".equals(status) || "FAILED".equals(status);
+    }
+
+    private static boolean candidateStatusWarning(String status) {
+        return "PUBLISH_QUEUED".equals(status) || "PUBLISHING".equals(status);
+    }
+
+    private static String valueOrUnknown(String value) {
+        return StringUtils.hasText(value) ? value : "UNKNOWN";
+    }
+
+    private record LocalModelObservationLink(
+            UUID invocationId,
+            String providerName,
+            String modelName,
+            String promptVersion,
+            Instant touchedAt
+    ) {
+    }
+
+    private record AuditBucketStats(
+            long eventCount,
+            long successCount,
+            long failedCount,
+            long warningCount,
+            Instant latestAt
+    ) {
     }
 
     private static TestDesignEvaluationSampleSummary sampleSummary(List<TestDesignEvaluationSample> samples) {

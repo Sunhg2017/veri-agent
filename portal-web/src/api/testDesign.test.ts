@@ -21,7 +21,10 @@ import {
   fetchTestDesignContextPolicyEffective,
   fetchTestDesignContextPolicyNotes,
   fetchTestDesignContextPolicyOverrides,
+  fetchTestDesignAuditReportTemplate,
+  fetchTestDesignCrossWpDetailAuditReport,
   fetchTestDesignCrossWpOperationsDashboard,
+  fetchTestDesignModelObservationDrilldown,
   fetchTestDesignQueueAlertSubscriptions,
   fetchTestDesignCompensationRunbook,
   fetchTestDesignOperationsAuditReport,
@@ -1632,6 +1635,105 @@ describe('WP5 test design API helpers', () => {
         trace_id_value_exported: false,
         aggregate_only: true
       },
+      audit_report_template: {
+        template_version: 'wp5-cross-wp-audit-report-template-v1',
+        field_set_version: 'wp5-cross-wp-audit-fieldset-v1',
+        sections: [
+          {
+            code: 'modelObservationDrilldown',
+            label: '模型观测聚合钻取',
+            description: 'WP2 调用聚合',
+            fields: [
+              {
+                code: 'dimension',
+                label: '钻取维度',
+                source: 'ma_invocation_log',
+                export_mode: 'REDACTED_BUCKET',
+                required: true,
+                identifier_value_exported: false,
+                payload_exported: false
+              }
+            ]
+          }
+        ],
+        export_supported: true,
+        cross_wp_detail_report_supported: true,
+        model_observation_drilldown_supported: true,
+        identifier_values_exported: false,
+        payload_exported: false,
+        actor_identifier_exported: false,
+        aggregate_only: true
+      },
+      model_observation_drilldown: {
+        total_invocation_count: '3',
+        succeeded_count: '2',
+        failed_count: '1',
+        blocked_count: '0',
+        fallback_count: '1',
+        input_token_total: '300',
+        output_token_total: '120',
+        latency_ms_total: '900',
+        average_latency_ms: '300',
+        total_cost_text: '0.003',
+        trace_signal_count: '3',
+        job_signal_count: '2',
+        drilldown_supported: true,
+        trace_id_value_exported: false,
+        job_id_value_exported: false,
+        invocation_id_value_exported: false,
+        payload_preview_exported: false,
+        provider_error_text_exported: false,
+        aggregate_only: true,
+        buckets: [
+          {
+            dimension: 'STATUS',
+            bucket_key: 'SUCCEEDED',
+            bucket_label: 'SUCCEEDED',
+            invocation_count: '2',
+            succeeded_count: '2',
+            failed_count: '0',
+            blocked_count: '0',
+            fallback_count: '1',
+            input_token_total: '200',
+            output_token_total: '80',
+            latency_ms_total: '600',
+            average_latency_ms: '300',
+            total_cost_text: '0.002',
+            trace_signal_count: '2',
+            job_signal_count: '1',
+            latest_invocation_at: '2026-05-30T10:03:00Z'
+          }
+        ]
+      },
+      cross_wp_detail_audit_report: {
+        template_version: 'wp5-cross-wp-audit-report-template-v1',
+        row_count: '2',
+        detail_report_supported: true,
+        raw_audit_event_exported: false,
+        identifier_values_exported: false,
+        trace_id_value_exported: false,
+        model_invocation_id_value_exported: false,
+        publish_identifier_value_exported: false,
+        payload_exported: false,
+        actor_identifier_exported: false,
+        aggregate_only: true,
+        rows: [
+          {
+            section: 'WP2_MODEL',
+            category: 'MODEL_STATUS',
+            status: 'SUCCEEDED',
+            event_count: '2',
+            success_count: '2',
+            failed_count: '0',
+            warning_count: '0',
+            latest_event_at: '2026-05-30T10:03:00Z',
+            identifier_values_exported: false,
+            payload_exported: false,
+            actor_identifier_exported: false,
+            aggregate_only: true
+          }
+        ]
+      },
       metrics: [{ code: 'auditOutboxReplayEligible', label: 'Audit outbox 可重放', count: '2', tone: 'warning' }],
       readiness: [{ code: 'detailIdentifiersRedacted', label: '明细标识不导出', ready: true, tone: 'success' }],
       aggregate_only: true,
@@ -1671,6 +1773,25 @@ describe('WP5 test design API helpers', () => {
         totalOperationCount: 7,
         queueAlertSubscriptionMutationCount: 2,
         detailRowsExported: false
+      }),
+      auditReportTemplate: expect.objectContaining({
+        templateVersion: 'wp5-cross-wp-audit-report-template-v1',
+        sections: [expect.objectContaining({
+          code: 'modelObservationDrilldown',
+          fields: [expect.objectContaining({ code: 'dimension', payloadExported: false })]
+        })],
+        identifierValuesExported: false
+      }),
+      modelObservationDrilldown: expect.objectContaining({
+        totalInvocationCount: 3,
+        fallbackCount: 1,
+        invocationIdValueExported: false,
+        buckets: [expect.objectContaining({ dimension: 'STATUS', invocationCount: 2 })]
+      }),
+      crossWpDetailAuditReport: expect.objectContaining({
+        rowCount: 2,
+        rawAuditEventExported: false,
+        rows: [expect.objectContaining({ section: 'WP2_MODEL', eventCount: 2 })]
       }),
       readiness: [expect.objectContaining({ code: 'detailIdentifiersRedacted', ready: true })],
       aggregateOnly: true,
@@ -1907,6 +2028,15 @@ describe('WP5 test design API helpers', () => {
 
     await fetchTestDesignOperationsAuditReport({ projectId: 'proj pay', promptKey: 'wp5-test-design-v1' });
     expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/test-design/operations/audit-report?projectId=proj+pay&promptKey=wp5-test-design-v1');
+
+    await fetchTestDesignAuditReportTemplate({ projectId: 'proj pay', promptKey: 'wp5-test-design-v1' });
+    expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/test-design/operations/audit-report-template?projectId=proj+pay&promptKey=wp5-test-design-v1');
+
+    await fetchTestDesignModelObservationDrilldown({ projectId: 'proj pay', promptKey: 'wp5-test-design-v1' });
+    expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/test-design/operations/model-observation-drilldown?projectId=proj+pay&promptKey=wp5-test-design-v1');
+
+    await fetchTestDesignCrossWpDetailAuditReport({ projectId: 'proj pay', promptKey: 'wp5-test-design-v1' });
+    expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/test-design/operations/cross-wp-detail-audit-report?projectId=proj+pay&promptKey=wp5-test-design-v1');
 
     await requeueTestDesignAuditOutbox({
       projectId: 'proj pay',

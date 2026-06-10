@@ -16,9 +16,16 @@ import com.songhg.veri.agent.testdesign.application.view.TestDesignAuditChainPol
 import com.songhg.veri.agent.testdesign.application.view.TestDesignAuditChainReadinessResponse;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignAuditOutboxOperationsResponse;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignAuditOutboxRequeueResponse;
+import com.songhg.veri.agent.testdesign.application.view.TestDesignAuditReportTemplateFieldResponse;
+import com.songhg.veri.agent.testdesign.application.view.TestDesignAuditReportTemplateResponse;
+import com.songhg.veri.agent.testdesign.application.view.TestDesignAuditReportTemplateSectionResponse;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignCompensationRunbookResponse;
+import com.songhg.veri.agent.testdesign.application.view.TestDesignCrossWpAuditDetailRowResponse;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignCrossWpAuditDashboardResponse;
+import com.songhg.veri.agent.testdesign.application.view.TestDesignCrossWpDetailAuditReportResponse;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignCrossWpOperationsDashboardResponse;
+import com.songhg.veri.agent.testdesign.application.view.TestDesignModelObservationBucketResponse;
+import com.songhg.veri.agent.testdesign.application.view.TestDesignModelObservationDrilldownResponse;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignOperationsAuditReportResponse;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignPublishCompensationRunResponse;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignQueueAlertOperationsResponse;
@@ -28,11 +35,14 @@ import com.songhg.veri.agent.testdesign.application.view.TestDesignScopePolicyRe
 import com.songhg.veri.agent.testdesign.config.TestDesignProperties;
 import com.songhg.veri.agent.testdesign.domain.TestDesignCandidate;
 import com.songhg.veri.agent.testdesign.domain.TestDesignCandidateStatus;
+import com.songhg.veri.agent.testdesign.domain.TestDesignCrossWpAuditDetailBucket;
 import com.songhg.veri.agent.testdesign.domain.TestDesignCrossWpOperationsAggregate;
+import com.songhg.veri.agent.testdesign.domain.TestDesignModelObservationBucket;
 import com.songhg.veri.agent.testdesign.domain.TestDesignOperationsAuditAggregate;
 import com.songhg.veri.agent.testdesign.domain.TestDesignQueueAlertSubscription;
 import com.songhg.veri.agent.testdesign.domain.TestDesignTask;
 import com.songhg.veri.agent.testdesign.domain.TestDesignTaskStatus;
+import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -72,6 +82,8 @@ public class TestDesignCrossWpOperationsService {
     private static final String ACTION_QUEUED_EVENT_REPLAY = "WP5_CROSS_WP_QUEUED_EVENT_REPLAY";
     private static final String ACTION_PUBLISH_COMPENSATION_RUN = "WP5_PUBLISH_COMPENSATION_RUN";
     private static final String ACTION_AUDIT_OUTBOX_REQUEUE = "WP5_CROSS_WP_AUDIT_OUTBOX_REQUEUE";
+    private static final String AUDIT_REPORT_TEMPLATE_VERSION = "wp5-cross-wp-audit-report-template-v1";
+    private static final String AUDIT_REPORT_FIELD_SET_VERSION = "wp5-cross-wp-audit-fieldset-v1";
     private static final String REPLAY_GENERATION = "GENERATION";
     private static final String REPLAY_PUBLISH = "PUBLISH";
     private static final String REPLAY_ALL = "ALL";
@@ -132,6 +144,9 @@ public class TestDesignCrossWpOperationsService {
         TestDesignQueueAlertOperationsResponse queueAlerts = queueAlerts(projectId, promptKey, aggregate, now);
         TestDesignCompensationRunbookResponse runbook = compensationRunbook(projectId, promptKey, now);
         TestDesignOperationsAuditReportResponse auditReport = operationsAuditReport(projectId, promptKey, now);
+        TestDesignAuditReportTemplateResponse auditTemplate = auditReportTemplate(projectId, promptKey, now);
+        TestDesignModelObservationDrilldownResponse modelDrilldown = modelObservationDrilldown(projectId, promptKey, now);
+        TestDesignCrossWpDetailAuditReportResponse detailReport = crossWpDetailAuditReport(projectId, promptKey, now);
         return new TestDesignCrossWpOperationsDashboardResponse(
                 projectId,
                 promptKey,
@@ -154,13 +169,20 @@ public class TestDesignCrossWpOperationsService {
                 queueAlerts,
                 runbook,
                 auditReport,
-                metrics(aggregate, queueAlerts, runbook, auditReport),
-                readiness(aggregate, scopePolicy, auditPolicy, queueAlerts, runbook, auditReport),
+                auditTemplate,
+                modelDrilldown,
+                detailReport,
+                metrics(aggregate, queueAlerts, runbook, auditReport, modelDrilldown, detailReport),
+                readiness(aggregate, scopePolicy, auditPolicy, queueAlerts, runbook, auditReport, auditTemplate,
+                        modelDrilldown, detailReport),
                 scopePolicy.aggregateOnly()
                         && auditPolicy.aggregateOnly()
                         && queueAlerts.aggregateOnly()
                         && runbook.aggregateOnly()
-                        && auditReport.aggregateOnly(),
+                        && auditReport.aggregateOnly()
+                        && auditTemplate.aggregateOnly()
+                        && modelDrilldown.aggregateOnly()
+                        && detailReport.aggregateOnly(),
                 false,
                 now
         );
@@ -356,6 +378,40 @@ public class TestDesignCrossWpOperationsService {
         String projectId = trimToNull(request == null ? null : request.getProjectId());
         String promptKey = trimToNull(request == null ? null : request.getPromptKey());
         return operationsAuditReport(projectId, promptKey, Instant.now());
+    }
+
+    /**
+     * Returns the fixed audit report template and export guardrails for one operations scope.
+     */
+    @Transactional(readOnly = true)
+    public TestDesignAuditReportTemplateResponse auditReportTemplate(TestDesignCrossWpOperationsRequest request) {
+        String projectId = trimToNull(request == null ? null : request.getProjectId());
+        String promptKey = trimToNull(request == null ? null : request.getPromptKey());
+        return auditReportTemplate(projectId, promptKey, Instant.now());
+    }
+
+    /**
+     * Returns model observation drilldown buckets without exposing invocation, job or trace identifiers.
+     */
+    @Transactional(readOnly = true)
+    public TestDesignModelObservationDrilldownResponse modelObservationDrilldown(
+            TestDesignCrossWpOperationsRequest request
+    ) {
+        String projectId = trimToNull(request == null ? null : request.getProjectId());
+        String promptKey = trimToNull(request == null ? null : request.getPromptKey());
+        return modelObservationDrilldown(projectId, promptKey, Instant.now());
+    }
+
+    /**
+     * Returns redacted cross-WP audit detail rows grouped by source, category and status.
+     */
+    @Transactional(readOnly = true)
+    public TestDesignCrossWpDetailAuditReportResponse crossWpDetailAuditReport(
+            TestDesignCrossWpOperationsRequest request
+    ) {
+        String projectId = trimToNull(request == null ? null : request.getProjectId());
+        String promptKey = trimToNull(request == null ? null : request.getPromptKey());
+        return crossWpDetailAuditReport(projectId, promptKey, Instant.now());
     }
 
     /**
@@ -556,6 +612,139 @@ public class TestDesignCrossWpOperationsService {
         );
     }
 
+    private static TestDesignAuditReportTemplateResponse auditReportTemplate(
+            String projectId,
+            String promptKey,
+            Instant now
+    ) {
+        return new TestDesignAuditReportTemplateResponse(
+                projectId,
+                promptKey,
+                AUDIT_REPORT_TEMPLATE_VERSION,
+                AUDIT_REPORT_FIELD_SET_VERSION,
+                List.of(
+                        templateSection("operationsSummary", "运营审计汇总", "运营动作的结果计数和最近时间",
+                                List.of(
+                                        templateField("totalOperationCount", "操作总数", "audit_log", "AGGREGATE_COUNT"),
+                                        templateField("successCount", "成功数", "audit_log", "AGGREGATE_COUNT"),
+                                        templateField("failedCount", "失败数", "audit_log", "AGGREGATE_COUNT"),
+                                        templateField("deniedCount", "拒绝数", "audit_log", "AGGREGATE_COUNT"),
+                                        templateField("latestOperationAt", "最近操作时间", "audit_log", "TIMESTAMP")
+                                )),
+                        templateSection("queueAlertSubscriptions", "告警订阅", "队列告警配置和激活告警聚合",
+                                List.of(
+                                        templateField("subscriptionCount", "订阅数", "test_design_queue_alert_subscription",
+                                                "AGGREGATE_COUNT"),
+                                        templateField("activeWarningCount", "激活告警数", "runtime_queue_metrics",
+                                                "AGGREGATE_COUNT"),
+                                        templateField("generationQueueLagWarningSeconds", "生成队列阈值", "runtime_config",
+                                                "AGGREGATE_NUMBER"),
+                                        templateField("publishQueueLagWarningSeconds", "发布队列阈值", "runtime_config",
+                                                "AGGREGATE_NUMBER")
+                                )),
+                        templateSection("modelObservationDrilldown", "模型观测聚合钻取", "WP2 调用路由、成本和延迟桶",
+                                List.of(
+                                        templateField("dimension", "钻取维度", "ma_invocation_log", "REDACTED_BUCKET"),
+                                        templateField("bucketKey", "桶编码", "ma_invocation_log", "REDACTED_BUCKET"),
+                                        templateField("invocationCount", "调用数", "ma_invocation_log", "AGGREGATE_COUNT"),
+                                        templateField("tokenTotals", "token 总数", "ma_invocation_log", "AGGREGATE_NUMBER"),
+                                        templateField("latencyAndCost", "耗时和成本", "ma_invocation_log",
+                                                "AGGREGATE_NUMBER")
+                                )),
+                        templateSection("crossWpDetailAudit", "跨 WP 脱敏明细", "按 WP 来源、分类和状态聚合的明细行",
+                                List.of(
+                                        templateField("section", "WP 分区", "wp_aggregate_sources", "REDACTED_BUCKET"),
+                                        templateField("category", "分类", "wp_aggregate_sources", "REDACTED_BUCKET"),
+                                        templateField("status", "状态", "wp_aggregate_sources", "REDACTED_BUCKET"),
+                                        templateField("eventCount", "事件数", "wp_aggregate_sources", "AGGREGATE_COUNT"),
+                                        templateField("latestEventAt", "最近事件时间", "wp_aggregate_sources",
+                                                "TIMESTAMP")
+                                )),
+                        templateSection("exportGuardrails", "导出红线", "固定禁止导出的敏感字段族",
+                                List.of(
+                                        templateField("identifierValuesExported", "标识原值导出", "policy",
+                                                "BOOLEAN_GUARDRAIL"),
+                                        templateField("payloadExported", "payload/正文导出", "policy",
+                                                "BOOLEAN_GUARDRAIL"),
+                                        templateField("actorIdentifierExported", "操作者标识导出", "policy",
+                                                "BOOLEAN_GUARDRAIL"),
+                                        templateField("aggregateOnly", "聚合输出", "policy", "BOOLEAN_GUARDRAIL")
+                                ))
+                ),
+                true,
+                true,
+                true,
+                false,
+                false,
+                false,
+                true,
+                now
+        );
+    }
+
+    private TestDesignModelObservationDrilldownResponse modelObservationDrilldown(
+            String projectId,
+            String promptKey,
+            Instant now
+    ) {
+        List<TestDesignModelObservationBucket> buckets = repository.modelObservationBuckets(projectId, promptKey);
+        List<TestDesignModelObservationBucket> totalBuckets = buckets.stream()
+                .filter(bucket -> "STATUS".equals(bucket.dimension()))
+                .toList();
+        long totalInvocationCount = totalBuckets.stream().mapToLong(TestDesignModelObservationBucket::invocationCount).sum();
+        long latencyMsTotal = totalBuckets.stream().mapToLong(TestDesignModelObservationBucket::latencyMsTotal).sum();
+        return new TestDesignModelObservationDrilldownResponse(
+                projectId,
+                promptKey,
+                totalInvocationCount,
+                totalBuckets.stream().mapToLong(TestDesignModelObservationBucket::succeededCount).sum(),
+                totalBuckets.stream().mapToLong(TestDesignModelObservationBucket::failedCount).sum(),
+                totalBuckets.stream().mapToLong(TestDesignModelObservationBucket::blockedCount).sum(),
+                totalBuckets.stream().mapToLong(TestDesignModelObservationBucket::fallbackCount).sum(),
+                totalBuckets.stream().mapToLong(TestDesignModelObservationBucket::inputTokenTotal).sum(),
+                totalBuckets.stream().mapToLong(TestDesignModelObservationBucket::outputTokenTotal).sum(),
+                latencyMsTotal,
+                totalInvocationCount == 0 ? 0 : Math.round((double) latencyMsTotal / totalInvocationCount),
+                sumCostText(totalBuckets),
+                totalBuckets.stream().mapToLong(TestDesignModelObservationBucket::traceSignalCount).sum(),
+                totalBuckets.stream().mapToLong(TestDesignModelObservationBucket::jobSignalCount).sum(),
+                buckets.stream().map(TestDesignCrossWpOperationsService::modelBucketResponse).toList(),
+                true,
+                false,
+                false,
+                false,
+                false,
+                false,
+                true,
+                now
+        );
+    }
+
+    private TestDesignCrossWpDetailAuditReportResponse crossWpDetailAuditReport(
+            String projectId,
+            String promptKey,
+            Instant now
+    ) {
+        List<TestDesignCrossWpAuditDetailBucket> buckets = repository.crossWpAuditDetailBuckets(projectId, promptKey);
+        return new TestDesignCrossWpDetailAuditReportResponse(
+                projectId,
+                promptKey,
+                AUDIT_REPORT_TEMPLATE_VERSION,
+                buckets.size(),
+                buckets.stream().map(TestDesignCrossWpOperationsService::detailRowResponse).toList(),
+                true,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                true,
+                now
+        );
+    }
+
     private static TestDesignCrossWpAuditDashboardResponse auditDashboard(
             TestDesignCrossWpOperationsAggregate aggregate,
             TestDesignAuditChainPolicyResponse policy
@@ -603,7 +792,9 @@ public class TestDesignCrossWpOperationsService {
             TestDesignCrossWpOperationsAggregate aggregate,
             TestDesignQueueAlertOperationsResponse queueAlerts,
             TestDesignCompensationRunbookResponse runbook,
-            TestDesignOperationsAuditReportResponse auditReport
+            TestDesignOperationsAuditReportResponse auditReport,
+            TestDesignModelObservationDrilldownResponse modelDrilldown,
+            TestDesignCrossWpDetailAuditReportResponse detailReport
     ) {
         List<TestDesignAuditChainMetricResponse> metrics = new ArrayList<>();
         metrics.add(metric("taskProjectScopes", "任务项目作用域", aggregate.taskCount(),
@@ -628,6 +819,10 @@ public class TestDesignCrossWpOperationsService {
                 runbook.eligibleCandidateCount() > 0 ? TONE_WARNING : TONE_SUCCESS));
         metrics.add(metric("operationsAuditEvents", "运营审计操作", auditReport.totalOperationCount(),
                 auditReport.totalOperationCount() > 0 ? TONE_INFO : TONE_NEUTRAL));
+        metrics.add(metric("modelObservationBuckets", "模型观测钻取桶", modelDrilldown.buckets().size(),
+                modelDrilldown.totalInvocationCount() > 0 ? TONE_INFO : TONE_NEUTRAL));
+        metrics.add(metric("crossWpDetailRows", "跨 WP 明细行", detailReport.rowCount(),
+                detailReport.rowCount() > 0 ? TONE_INFO : TONE_NEUTRAL));
         return metrics;
     }
 
@@ -637,7 +832,10 @@ public class TestDesignCrossWpOperationsService {
             TestDesignAuditChainPolicyResponse auditPolicy,
             TestDesignQueueAlertOperationsResponse queueAlerts,
             TestDesignCompensationRunbookResponse runbook,
-            TestDesignOperationsAuditReportResponse auditReport
+            TestDesignOperationsAuditReportResponse auditReport,
+            TestDesignAuditReportTemplateResponse auditTemplate,
+            TestDesignModelObservationDrilldownResponse modelDrilldown,
+            TestDesignCrossWpDetailAuditReportResponse detailReport
     ) {
         return List.of(
                 readiness("crossWpScopeDashboardReady", "跨 WP 统一作用域看板",
@@ -661,6 +859,15 @@ public class TestDesignCrossWpOperationsService {
                 readiness("operationsAuditReportReady", "批量运营审计报表",
                         auditReport.exportSupported() && auditReport.aggregateOnly(),
                         "订阅、重放、补偿和 outbox 重排均进入聚合审计报表"),
+                readiness("auditReportTemplateReady", "审计报表模板",
+                        auditTemplate.exportSupported() && auditTemplate.aggregateOnly(),
+                        "固定模板声明汇总、告警、模型观测、跨 WP 明细和导出红线字段"),
+                readiness("modelObservationDrilldownReady", "模型观测聚合钻取",
+                        modelDrilldown.drilldownSupported() && modelDrilldown.aggregateOnly(),
+                        "按 status/provider/model/routing/prompt/fallback 聚合，不导出调用标识或载荷"),
+                readiness("crossWpDetailAuditReportReady", "跨 WP 明细审计报表",
+                        detailReport.detailReportSupported() && detailReport.aggregateOnly(),
+                        "按 WP 来源、分类和状态输出脱敏明细桶"),
                 readiness("scopeMismatchClear", "作用域一致性",
                         aggregate.scopeMismatchCount() == 0,
                         "候选和发布记录项目 scope 必须与任务项目保持一致"),
@@ -670,19 +877,98 @@ public class TestDesignCrossWpOperationsService {
                                 && queueAlerts.aggregateOnly()
                                 && runbook.aggregateOnly()
                                 && auditReport.aggregateOnly()
+                                && auditTemplate.aggregateOnly()
+                                && modelDrilldown.aggregateOnly()
+                                && detailReport.aggregateOnly()
                                 && !scopePolicy.candidateIdentifierListExported()
                                 && !auditPolicy.traceIdValueExported()
                                 && !auditPolicy.modelInvocationIdValueExported()
                                 && !auditPolicy.publishIdentifierValueExported()
                                 && !queueAlerts.detailIdentifiersExported()
                                 && !runbook.assetCaseIdentifierExported()
-                                && !auditReport.detailRowsExported(),
+                                && !auditReport.detailRowsExported()
+                                && !auditTemplate.identifierValuesExported()
+                                && !modelDrilldown.invocationIdValueExported()
+                                && !modelDrilldown.traceIdValueExported()
+                                && !detailReport.identifierValuesExported()
+                                && !detailReport.payloadExported(),
                         "候选 ID、资产 ID、traceId、模型调用 ID、sourceRef、outbox payload 均不进入看板")
         );
     }
 
     private static TestDesignAuditChainMetricResponse metric(String code, String label, long count, String tone) {
         return new TestDesignAuditChainMetricResponse(code, label, count, tone);
+    }
+
+    private static TestDesignAuditReportTemplateSectionResponse templateSection(
+            String code,
+            String label,
+            String description,
+            List<TestDesignAuditReportTemplateFieldResponse> fields
+    ) {
+        return new TestDesignAuditReportTemplateSectionResponse(code, label, description, fields);
+    }
+
+    private static TestDesignAuditReportTemplateFieldResponse templateField(
+            String code,
+            String label,
+            String source,
+            String exportMode
+    ) {
+        return new TestDesignAuditReportTemplateFieldResponse(code, label, source, exportMode, true, false, false);
+    }
+
+    private static TestDesignModelObservationBucketResponse modelBucketResponse(
+            TestDesignModelObservationBucket bucket
+    ) {
+        return new TestDesignModelObservationBucketResponse(
+                bucket.dimension(),
+                bucket.bucketKey(),
+                bucket.bucketLabel(),
+                bucket.invocationCount(),
+                bucket.succeededCount(),
+                bucket.failedCount(),
+                bucket.blockedCount(),
+                bucket.fallbackCount(),
+                bucket.inputTokenTotal(),
+                bucket.outputTokenTotal(),
+                bucket.latencyMsTotal(),
+                bucket.averageLatencyMs(),
+                bucket.totalCostText(),
+                bucket.traceSignalCount(),
+                bucket.jobSignalCount(),
+                bucket.latestInvocationAt()
+        );
+    }
+
+    private static TestDesignCrossWpAuditDetailRowResponse detailRowResponse(
+            TestDesignCrossWpAuditDetailBucket bucket
+    ) {
+        return new TestDesignCrossWpAuditDetailRowResponse(
+                bucket.section(),
+                bucket.category(),
+                bucket.status(),
+                bucket.eventCount(),
+                bucket.successCount(),
+                bucket.failedCount(),
+                bucket.warningCount(),
+                bucket.latestEventAt(),
+                false,
+                false,
+                false,
+                true
+        );
+    }
+
+    private static String sumCostText(List<TestDesignModelObservationBucket> buckets) {
+        BigDecimal total = BigDecimal.ZERO;
+        for (TestDesignModelObservationBucket bucket : buckets) {
+            if (!StringUtils.hasText(bucket.totalCostText())) {
+                continue;
+            }
+            total = total.add(new BigDecimal(bucket.totalCostText()));
+        }
+        return total.stripTrailingZeros().toPlainString();
     }
 
     private static TestDesignAuditChainReadinessResponse readiness(

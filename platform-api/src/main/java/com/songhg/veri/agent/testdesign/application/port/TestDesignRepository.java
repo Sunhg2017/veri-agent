@@ -16,9 +16,11 @@ import com.songhg.veri.agent.testdesign.domain.TestDesignConflictOperationRecord
 import com.songhg.veri.agent.testdesign.domain.TestDesignConflictOperationSummary;
 import com.songhg.veri.agent.testdesign.domain.TestDesignContextPolicyNote;
 import com.songhg.veri.agent.testdesign.domain.TestDesignContextPolicyOverride;
+import com.songhg.veri.agent.testdesign.domain.TestDesignCrossWpAuditDetailBucket;
 import com.songhg.veri.agent.testdesign.domain.TestDesignCrossWpOperationsAggregate;
 import com.songhg.veri.agent.testdesign.domain.TestDesignEvaluationSample;
 import com.songhg.veri.agent.testdesign.domain.TestDesignEvaluationSampleSummary;
+import com.songhg.veri.agent.testdesign.domain.TestDesignModelObservationBucket;
 import com.songhg.veri.agent.testdesign.domain.TestDesignOperationsAuditAggregate;
 import com.songhg.veri.agent.testdesign.domain.TestDesignPublishRecord;
 import com.songhg.veri.agent.testdesign.domain.TestDesignQueueAlertSubscription;
@@ -356,6 +358,16 @@ public interface TestDesignRepository {
      * 聚合 WP5 批量运营操作审计，不导出审计明细、actor 或 trace 值。
      */
     TestDesignOperationsAuditAggregate operationsAuditAggregate(String projectId, String promptKey);
+
+    /**
+     * 聚合模型观测钻取桶，不返回 invocation/job/trace 原值或模型载荷。
+     */
+    List<TestDesignModelObservationBucket> modelObservationBuckets(String projectId, String promptKey);
+
+    /**
+     * 查询跨 WP 脱敏明细审计桶，不返回审计事件、候选、资产、模型调用或 trace 标识原值。
+     */
+    List<TestDesignCrossWpAuditDetailBucket> crossWpAuditDetailBuckets(String projectId, String promptKey);
 
     /**
      * 保存项目或环境级上下文策略覆盖请求，包含有界裁剪数字、审批工单和策略正文版本。

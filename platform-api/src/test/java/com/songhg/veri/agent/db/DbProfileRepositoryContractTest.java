@@ -31,7 +31,9 @@ import com.songhg.veri.agent.testdesign.domain.TestDesignAuditChainAggregate;
 import com.songhg.veri.agent.testdesign.domain.TestDesignCandidate;
 import com.songhg.veri.agent.testdesign.domain.TestDesignCandidateStatus;
 import com.songhg.veri.agent.testdesign.domain.TestDesignContextPolicyOverride;
+import com.songhg.veri.agent.testdesign.domain.TestDesignCrossWpAuditDetailBucket;
 import com.songhg.veri.agent.testdesign.domain.TestDesignCrossWpOperationsAggregate;
+import com.songhg.veri.agent.testdesign.domain.TestDesignModelObservationBucket;
 import com.songhg.veri.agent.testdesign.domain.TestDesignOperationsAuditAggregate;
 import com.songhg.veri.agent.testdesign.domain.TestDesignPublishRecord;
 import com.songhg.veri.agent.testdesign.domain.TestDesignQueueAlertSubscription;
@@ -1012,6 +1014,50 @@ class DbProfileRepositoryContractTest {
         assertThat(crossWpAggregate.wp3PublishedCaseCount()).isEqualTo(1L);
         assertThat(crossWpAggregate.auditOutboxFailedCount()).isEqualTo(1L);
         assertThat(crossWpAggregate.replayEligibleOutboxCount()).isEqualTo(1L);
+
+        List<TestDesignModelObservationBucket> modelBuckets =
+                testDesignRepository.modelObservationBuckets(projectId, "wp5.case.generate");
+        assertThat(modelBuckets)
+                .anySatisfy(bucket -> {
+                    assertThat(bucket.dimension()).isEqualTo("STATUS");
+                    assertThat(bucket.bucketKey()).isEqualTo("SUCCEEDED");
+                    assertThat(bucket.invocationCount()).isEqualTo(1L);
+                    assertThat(bucket.succeededCount()).isEqualTo(1L);
+                    assertThat(bucket.traceSignalCount()).isEqualTo(1L);
+                    assertThat(bucket.jobSignalCount()).isEqualTo(1L);
+                })
+                .anySatisfy(bucket -> {
+                    assertThat(bucket.dimension()).isEqualTo("PROVIDER");
+                    assertThat(bucket.bucketKey()).isEqualTo("local-echo-primary");
+                    assertThat(bucket.totalCostText()).isNotBlank();
+                });
+
+        List<TestDesignCrossWpAuditDetailBucket> detailBuckets =
+                testDesignRepository.crossWpAuditDetailBuckets(projectId, "wp5.case.generate");
+        assertThat(detailBuckets)
+                .anySatisfy(bucket -> {
+                    assertThat(bucket.section()).isEqualTo("WP5_TASK");
+                    assertThat(bucket.category()).isEqualTo("TASK_STATUS");
+                    assertThat(bucket.status()).isEqualTo(TestDesignTaskStatus.PUBLISHED.name());
+                    assertThat(bucket.eventCount()).isEqualTo(1L);
+                })
+                .anySatisfy(bucket -> {
+                    assertThat(bucket.section()).isEqualTo("WP2_MODEL");
+                    assertThat(bucket.category()).isEqualTo("MODEL_STATUS");
+                    assertThat(bucket.status()).isEqualTo(InvocationStatus.SUCCEEDED.name());
+                    assertThat(bucket.successCount()).isEqualTo(1L);
+                })
+                .anySatisfy(bucket -> {
+                    assertThat(bucket.section()).isEqualTo("WP3_TRACE");
+                    assertThat(bucket.category()).isEqualTo("TRACE_LINK");
+                    assertThat(bucket.status()).isEqualTo("LINKED");
+                    assertThat(bucket.successCount()).isEqualTo(1L);
+                })
+                .anySatisfy(bucket -> {
+                    assertThat(bucket.section()).isEqualTo("WP1_OUTBOX");
+                    assertThat(bucket.status()).isEqualTo("FAILED");
+                    assertThat(bucket.failedCount()).isEqualTo(1L);
+                });
 
         int requeued = testDesignRepository.requeueAuditOutbox(
                 projectId,
