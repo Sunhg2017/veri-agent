@@ -11,6 +11,8 @@ import com.songhg.veri.agent.modelaccess.application.view.ModelInvocationJobReco
 import com.songhg.veri.agent.modelaccess.application.view.ModelInvocationResult;
 import com.songhg.veri.agent.modelaccess.security.ServicePrincipal;
 import java.time.Instant;
+import java.util.Arrays;
+import java.util.List;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -65,7 +67,18 @@ public class ModelInvocationJobExecutor {
     }
 
     private ServicePrincipal principal(ModelInvocationJobRecord job) {
-        return new ServicePrincipal(job.actorService(), job.delegatedUserId());
+        return new ServicePrincipal(job.actorService(), job.delegatedUserId(), roles(job.principalRoles()));
+    }
+
+    private List<String> roles(String principalRoles) {
+        if (principalRoles == null || principalRoles.isBlank()) {
+            return List.of();
+        }
+        return Arrays.stream(principalRoles.split(","))
+                .map(String::trim)
+                .filter(role -> !role.isBlank())
+                .distinct()
+                .toList();
     }
 
     private String json(Object value) {

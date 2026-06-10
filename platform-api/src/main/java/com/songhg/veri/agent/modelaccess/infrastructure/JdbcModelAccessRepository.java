@@ -4,6 +4,7 @@ import com.songhg.veri.agent.modelaccess.application.query.InvocationQuery;
 import com.songhg.veri.agent.modelaccess.application.view.InvocationSummaryResult;
 import com.songhg.veri.agent.modelaccess.application.port.ModelAccessRepository;
 import com.songhg.veri.agent.modelaccess.domain.InvocationRecord;
+import com.songhg.veri.agent.modelaccess.domain.ModelAccessPolicyOverride;
 import com.songhg.veri.agent.modelaccess.domain.ModelProviderConfig;
 import com.songhg.veri.agent.modelaccess.domain.PromptTemplate;
 import com.songhg.veri.agent.modelaccess.infrastructure.mapper.ModelAccessMapper;
@@ -100,5 +101,21 @@ public class JdbcModelAccessRepository implements ModelAccessRepository {
     @Override
     public InvocationSummaryResult invocationSummary(InvocationQuery query) {
         return mapper.invocationSummary(query);
+    }
+
+    @Override
+    public List<ModelAccessPolicyOverride> modelAccessPolicies(String scopeType, String scopeKey) {
+        return mapper.modelAccessPolicies(scopeType, scopeKey);
+    }
+
+    @Override
+    public Optional<ModelAccessPolicyOverride> modelAccessPolicy(String scopeType, String scopeKey) {
+        return Optional.ofNullable(mapper.modelAccessPolicy(scopeType, scopeKey));
+    }
+
+    @Override
+    public ModelAccessPolicyOverride saveModelAccessPolicy(ModelAccessPolicyOverride policy) {
+        mapper.upsertModelAccessPolicy(policy);
+        return policy;
     }
 }

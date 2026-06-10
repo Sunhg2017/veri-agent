@@ -57,6 +57,27 @@ main() {
     exit 1
   fi
 
+  local policy
+  policy="$(curl -fsS -X PUT "$API_BASE/policies" \
+    "${auth_headers[@]}" \
+    -H 'Content-Type: application/json' \
+    -d "$(jq -nc \
+      --arg projectId "$PROJECT_ID" \
+      '{scopeType:"PROJECT",scopeKey:$projectId,modelInvocationEnabled:true,publicModelAllowed:false,budgetOverrunAction:"BLOCK",reason:"wp2 smoke policy"}')")"
+  if ! printf '%s' "$policy" | jq -e --arg project_id "$PROJECT_ID" '.data.scopeType == "PROJECT" and .data.scopeKey == $project_id and .data.modelInvocationEnabled == true and .data.publicModelAllowed == false' >/dev/null; then
+    echo "WP2 policy upsert did not return expected project policy" >&2
+    echo "$policy" >&2
+    exit 1
+  fi
+
+  local effective_policy
+  effective_policy="$(get_json "/policies/effective?projectId=$PROJECT_ID")"
+  if ! printf '%s' "$effective_policy" | jq -e --arg project_id "$PROJECT_ID" '.data.modelInvocationEnabled == true and .data.publicModelAllowed == false and (.data.matchedScopes | index("PROJECT:" + $project_id)) != null' >/dev/null; then
+    echo "WP2 effective policy did not include smoke project policy" >&2
+    echo "$effective_policy" >&2
+    exit 1
+  fi
+
   local provider_check
   provider_check="$(post_json "/providers/$provider_id/check" '{}')"
   if ! printf '%s' "$provider_check" | jq -e '.data.providerName == "local-echo-primary" and .data.status == "UP" and .data.cached == false and .data.errorCode == null' >/dev/null; then

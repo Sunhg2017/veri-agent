@@ -4,6 +4,7 @@ import com.songhg.veri.agent.modelaccess.application.query.InvocationQuery;
 import com.songhg.veri.agent.modelaccess.application.view.InvocationSummaryResult;
 import com.songhg.veri.agent.modelaccess.application.view.ModelInvocationJobRecord;
 import com.songhg.veri.agent.modelaccess.domain.InvocationRecord;
+import com.songhg.veri.agent.modelaccess.domain.ModelAccessPolicyOverride;
 import com.songhg.veri.agent.modelaccess.domain.ModelProviderConfig;
 import com.songhg.veri.agent.modelaccess.domain.PromptTemplate;
 import java.time.Instant;
@@ -44,6 +45,18 @@ public interface ModelAccessMapper {
     List<String> distinctActorServices(@Param("startTime") Instant startTime, @Param("endTime") Instant endTime);
 
     InvocationSummaryResult invocationSummary(@Param("query") InvocationQuery query);
+
+    List<ModelAccessPolicyOverride> modelAccessPolicies(
+            @Param("scopeType") String scopeType,
+            @Param("scopeKey") String scopeKey
+    );
+
+    ModelAccessPolicyOverride modelAccessPolicy(
+            @Param("scopeType") String scopeType,
+            @Param("scopeKey") String scopeKey
+    );
+
+    void upsertModelAccessPolicy(ModelAccessPolicyOverride policy);
 
     void insertInvocationJob(ModelInvocationJobRecord job);
 

@@ -68,9 +68,29 @@
             <arg column="error_code" javaType="java.lang.String"/>
             <arg column="error_message" javaType="java.lang.String"/>
             <arg column="latency_ms" javaType="_long"/>
+            <arg column="role_scope" javaType="java.lang.String"/>
             <arg column="actor_service" javaType="java.lang.String"/>
             <arg column="delegated_user_id" javaType="java.lang.String"/>
             <arg column="created_at" javaType="java.time.Instant"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="policyOverrideMap" type="com.songhg.veri.agent.modelaccess.domain.ModelAccessPolicyOverride">
+        <constructor>
+            <arg column="id" javaType="java.util.UUID"/>
+            <arg column="scope_type" javaType="java.lang.String"/>
+            <arg column="scope_key" javaType="java.lang.String"/>
+            <arg column="enabled" javaType="_boolean"/>
+            <arg column="model_invocation_enabled" javaType="java.lang.Boolean"/>
+            <arg column="public_model_allowed" javaType="java.lang.Boolean"/>
+            <arg column="daily_budget_limit" javaType="java.math.BigDecimal"/>
+            <arg column="cost_alert_warning_ratio" javaType="java.math.BigDecimal"/>
+            <arg column="budget_overrun_action" javaType="java.lang.String"/>
+            <arg column="routing_group" javaType="java.lang.String"/>
+            <arg column="reason" javaType="java.lang.String"/>
+            <arg column="updated_by" javaType="java.lang.String"/>
+            <arg column="created_at" javaType="java.time.Instant"/>
+            <arg column="updated_at" javaType="java.time.Instant"/>
         </constructor>
     </resultMap>
 
@@ -93,6 +113,7 @@
             <arg column="request_json" javaType="java.lang.String"/>
             <arg column="actor_service" javaType="java.lang.String"/>
             <arg column="delegated_user_id" javaType="java.lang.String"/>
+            <arg column="principal_roles" javaType="java.lang.String"/>
             <arg column="trace_id" javaType="java.lang.String"/>
             <arg column="created_at" javaType="java.time.Instant"/>
             <arg column="started_at" javaType="java.time.Instant"/>
@@ -120,11 +141,17 @@
         sensitivity_level, provider_id, provider_name, model_name, routing_rule_name, routing_group, model_capability,
         status, fallback_used, prompt_digest,
         request_preview, response_preview, input_tokens, output_tokens, total_cost,
-        error_code, error_message, latency_ms, actor_service, delegated_user_id, created_at
+        error_code, error_message, latency_ms, role_scope, actor_service, delegated_user_id, created_at
+    </sql>
+
+    <sql id="policyOverrideColumns">
+        id, scope_type, scope_key, enabled, model_invocation_enabled, public_model_allowed,
+        daily_budget_limit, cost_alert_warning_ratio, budget_overrun_action, routing_group,
+        reason, updated_by, created_at, updated_at
     </sql>
 
     <sql id="invocationJobColumns">
-        job_id, status, request_json::text as request_json, actor_service, delegated_user_id, trace_id,
+        job_id, status, request_json::text as request_json, actor_service, delegated_user_id, principal_roles, trace_id,
         created_at, started_at, finished_at, invocation_id, error_code, error_message,
         response_json::text as response_json
     </sql>
@@ -133,9 +160,11 @@
         <where>
             <if test="query.projectId != null">project_id = #{query.projectId}</if>
             <if test="query.applicationId != null">and application_id = #{query.applicationId}</if>
+            <if test="query.environmentId != null">and environment_id = #{query.environmentId}</if>
             <if test="query.sensitivityLevel != null">and sensitivity_level = #{query.sensitivityLevel}</if>
             <if test="query.providerId != null">and provider_id = #{query.providerId}</if>
             <if test="query.actorService != null">and actor_service = #{query.actorService}</if>
+            <if test="query.roleScope != null">and role_scope = #{query.roleScope}</if>
             <if test="query.status != null">and status = #{query.status}</if>
             <if test="query.startTime != null">and created_at &gt;= #{query.startTime}</if>
             <if test="query.endTime != null">and created_at &lt; #{query.endTime}</if>
@@ -235,13 +264,13 @@
             sensitivity_level, provider_id, provider_name, model_name, routing_rule_name, routing_group, model_capability,
             status, fallback_used, prompt_digest,
             request_preview, response_preview, input_tokens, output_tokens, total_cost,
-            error_code, error_message, latency_ms, actor_service, delegated_user_id, created_at
+            error_code, error_message, latency_ms, role_scope, actor_service, delegated_user_id, created_at
         ) values (
             #{id}, #{projectId}, #{applicationId}, #{environmentId}, #{promptKey}, #{promptVersion},
             #{sensitivityLevel}, #{providerId}, #{providerName}, #{modelName}, #{routingRuleName}, #{routingGroup}, #{modelCapability},
             #{status}, #{fallbackUsed}, #{promptDigest},
             #{requestPreview}, #{responsePreview}, #{inputTokens}, #{outputTokens}, #{totalCost},
-            #{errorCode}, #{errorMessage}, #{latencyMs}, #{actorService}, #{delegatedUserId}, #{createdAt}
+            #{errorCode}, #{errorMessage}, #{latencyMs}, #{roleScope}, #{actorService}, #{delegatedUserId}, #{createdAt}
         )
     </insert>
 
@@ -302,12 +331,60 @@
         <include refid="invocationWhere"/>
     </select>
 
+    <select id="modelAccessPolicies" resultMap="policyOverrideMap">
+        select <include refid="policyOverrideColumns"/>
+        from ma_model_policy_override
+        <where>
+            <if test="scopeType != null">scope_type = #{scopeType}</if>
+            <if test="scopeKey != null">and scope_key = #{scopeKey}</if>
+        </where>
+        order by
+            case scope_type
+                when 'PLATFORM' then 0
+                when 'ROLE' then 1
+                when 'PROJECT' then 2
+                when 'ENVIRONMENT' then 3
+                else 9
+            end asc,
+            scope_key asc
+    </select>
+
+    <select id="modelAccessPolicy" resultMap="policyOverrideMap">
+        select <include refid="policyOverrideColumns"/>
+        from ma_model_policy_override
+        where scope_type = #{scopeType}
+          and scope_key = #{scopeKey}
+    </select>
+
+    <insert id="upsertModelAccessPolicy">
+        insert into ma_model_policy_override (
+            id, scope_type, scope_key, enabled, model_invocation_enabled, public_model_allowed,
+            daily_budget_limit, cost_alert_warning_ratio, budget_overrun_action, routing_group,
+            reason, updated_by, created_at, updated_at
+        ) values (
+            #{id}, #{scopeType}, #{scopeKey}, #{enabled}, #{modelInvocationEnabled}, #{publicModelAllowed},
+            #{dailyBudgetLimit}, #{costAlertWarningRatio}, #{budgetOverrunAction}, #{routingGroup},
+            #{reason}, #{updatedBy}, #{createdAt}, #{updatedAt}
+        )
+        on conflict (scope_type, scope_key) do update set
+            enabled = excluded.enabled,
+            model_invocation_enabled = excluded.model_invocation_enabled,
+            public_model_allowed = excluded.public_model_allowed,
+            daily_budget_limit = excluded.daily_budget_limit,
+            cost_alert_warning_ratio = excluded.cost_alert_warning_ratio,
+            budget_overrun_action = excluded.budget_overrun_action,
+            routing_group = excluded.routing_group,
+            reason = excluded.reason,
+            updated_by = excluded.updated_by,
+            updated_at = excluded.updated_at
+    </insert>
+
     <insert id="insertInvocationJob">
         insert into ma_invocation_job (
-            job_id, status, request_json, actor_service, delegated_user_id, trace_id,
+            job_id, status, request_json, actor_service, delegated_user_id, principal_roles, trace_id,
             created_at, started_at, finished_at, invocation_id, error_code, error_message, response_json
         ) values (
-            #{jobId}, #{status}, cast(#{requestJson} as jsonb), #{actorService}, #{delegatedUserId}, #{traceId},
+            #{jobId}, #{status}, cast(#{requestJson} as jsonb), #{actorService}, #{delegatedUserId}, #{principalRoles}, #{traceId},
             #{createdAt}, #{startedAt}, #{finishedAt}, #{invocationId}, #{errorCode}, #{errorMessage}, cast(#{responseJson} as jsonb)
         )
     </insert>

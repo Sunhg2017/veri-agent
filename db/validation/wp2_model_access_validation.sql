@@ -6,7 +6,8 @@ with expected(table_name) as (
         ('ma_model_provider'),
         ('ma_prompt_template'),
         ('ma_invocation_log'),
-        ('ma_invocation_job')
+        ('ma_invocation_job'),
+        ('ma_model_policy_override')
 ),
 missing as (
     select e.table_name
@@ -34,10 +35,15 @@ with expected(table_name, column_name) as (
         ('ma_invocation_log','project_id'), ('ma_invocation_log','sensitivity_level'), ('ma_invocation_log','prompt_digest'), ('ma_invocation_log','request_preview'),
         ('ma_invocation_log','routing_rule_name'), ('ma_invocation_log','routing_group'), ('ma_invocation_log','model_capability'),
         ('ma_invocation_log','input_tokens'), ('ma_invocation_log','output_tokens'), ('ma_invocation_log','total_cost'), ('ma_invocation_log','actor_service'),
-        ('ma_invocation_log','created_by'), ('ma_invocation_log','version'),
+        ('ma_invocation_log','role_scope'), ('ma_invocation_log','created_by'), ('ma_invocation_log','version'),
         ('ma_invocation_job','job_id'), ('ma_invocation_job','status'), ('ma_invocation_job','request_json'), ('ma_invocation_job','actor_service'),
-        ('ma_invocation_job','delegated_user_id'), ('ma_invocation_job','trace_id'), ('ma_invocation_job','invocation_id'), ('ma_invocation_job','response_json'),
+        ('ma_invocation_job','delegated_user_id'), ('ma_invocation_job','principal_roles'), ('ma_invocation_job','trace_id'), ('ma_invocation_job','invocation_id'), ('ma_invocation_job','response_json'),
         ('ma_invocation_job','created_at'), ('ma_invocation_job','started_at'), ('ma_invocation_job','finished_at'), ('ma_invocation_job','version')
+        ,('ma_model_policy_override','id'), ('ma_model_policy_override','scope_type'), ('ma_model_policy_override','scope_key'),
+        ('ma_model_policy_override','enabled'), ('ma_model_policy_override','model_invocation_enabled'), ('ma_model_policy_override','public_model_allowed'),
+        ('ma_model_policy_override','daily_budget_limit'), ('ma_model_policy_override','cost_alert_warning_ratio'),
+        ('ma_model_policy_override','budget_overrun_action'), ('ma_model_policy_override','routing_group'),
+        ('ma_model_policy_override','reason'), ('ma_model_policy_override','updated_by'), ('ma_model_policy_override','version')
 ),
 missing as (
     select e.table_name || '.' || e.column_name as item
@@ -71,7 +77,10 @@ with expected(index_name) as (
         ('idx_ma_invocation_routing_time'),
         ('idx_ma_invocation_job_status_created'),
         ('idx_ma_invocation_job_trace_id'),
-        ('idx_ma_invocation_job_invocation_id')
+        ('idx_ma_invocation_job_invocation_id'),
+        ('uk_ma_model_policy_override_scope'),
+        ('idx_ma_model_policy_override_enabled_scope'),
+        ('idx_ma_invocation_role_scope_time')
 ),
 missing as (
     select e.index_name as item
@@ -133,6 +142,18 @@ where conname = 'ck_ma_invocation_job_status'
   and pg_get_constraintdef(oid) like '%SUCCEEDED%'
   and pg_get_constraintdef(oid) like '%FAILED%'
   and pg_get_constraintdef(oid) like '%CANCELLED%';
+
+select
+    'wp2.schema.policy_scope_constraint_accepts_expected_scopes' as check_name,
+    case when count(*) = 1 then 'PASS' else 'FAIL' end as status,
+    coalesce(max(pg_get_constraintdef(oid)), 'ck_ma_model_policy_override_scope missing expected scopes') as details
+from pg_constraint
+where conname = 'ck_ma_model_policy_override_scope'
+  and conrelid = 'ma_model_policy_override'::regclass
+  and pg_get_constraintdef(oid) like '%PLATFORM%'
+  and pg_get_constraintdef(oid) like '%ROLE%'
+  and pg_get_constraintdef(oid) like '%PROJECT%'
+  and pg_get_constraintdef(oid) like '%ENVIRONMENT%';
 
 with found as (
     select table_name || '.tenant_id' as item

@@ -30,7 +30,7 @@ public class ModelAccessActorResolver {
         }
         AuthUserPrincipal principal = authorizationService.currentUserPrincipal();
         if (principal != null) {
-            return new ServicePrincipal("model-access-console", principal.userId().toString());
+            return new ServicePrincipal("model-access-console", principal.userId().toString(), principal.roles());
         }
         throw new PlatformAccessDeniedException(PermissionCodes.MODEL_ACCESS_MANAGE);
     }

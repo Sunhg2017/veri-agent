@@ -49,14 +49,17 @@ public class SensitiveContentGuard {
         if (content == null) {
             return null;
         }
-        String masked = applyMaskRules(content);
+        String masked = maskText(content);
         if (masked.length() > 600) {
             return masked.substring(0, 600) + "...";
         }
         return masked;
     }
 
-    private String applyMaskRules(String content) {
+    public static String maskText(String content) {
+        if (content == null) {
+            return null;
+        }
         List<MaskReplacement> replacements = new ArrayList<>();
         for (SensitiveRule rule : RULES) {
             Matcher matcher = rule.pattern().matcher(content);

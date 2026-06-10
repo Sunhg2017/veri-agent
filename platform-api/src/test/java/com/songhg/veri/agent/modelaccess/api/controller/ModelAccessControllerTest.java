@@ -1038,6 +1038,205 @@ class ModelAccessControllerTest {
                 .andExpect(jsonPath("$.data.items[0].modelCapability").value("REQUIREMENT_PARSE"));
     }
 
+    @Test
+    void managesRuntimePolicyAndBlocksProjectInvocationWhenDisabled() throws Exception {
+        mockMvc.perform(put("/api/v1/model-access/policies")
+                        .headers(authHeaders())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "scopeType": "PROJECT",
+                                  "scopeKey": "project-policy-off",
+                                  "modelInvocationEnabled": false,
+                                  "reason": "token=SecretValue12345 disable self-service"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.scopeType").value("PROJECT"))
+                .andExpect(jsonPath("$.data.scopeKey").value("project-policy-off"))
+                .andExpect(jsonPath("$.data.modelInvocationEnabled").value(false))
+                .andExpect(jsonPath("$.data.reason").value("token=*** disable self-service"));
+
+        mockMvc.perform(get("/api/v1/model-access/policies")
+                        .headers(authHeaders())
+                        .param("scopeType", "PROJECT")
+                        .param("scopeKey", "project-policy-off"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].scopeKey").value("project-policy-off"));
+
+        mockMvc.perform(get("/api/v1/model-access/policies/effective")
+                        .headers(authHeaders())
+                        .param("projectId", "project-policy-off"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.modelInvocationEnabled").value(false))
+                .andExpect(jsonPath("$.data.matchedScopes[0]").value("PROJECT:project-policy-off"));
+
+        mockMvc.perform(post("/api/v1/model-access/invocations")
+                        .headers(authHeaders())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "projectId": "project-policy-off",
+                                  "messages": [
+                                    {"role": "user", "content": "这条调用应被项目策略阻断"}
+                                  ],
+                                  "allowPublicModel": false
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("MODEL_POLICY_VIOLATION"));
+
+        mockMvc.perform(get("/api/v1/model-access/invocations")
+                        .headers(authHeaders())
+                        .param("projectId", "project-policy-off"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(1))
+                .andExpect(jsonPath("$.data.items[0].status").value("BLOCKED"))
+                .andExpect(jsonPath("$.data.items[0].errorCode").value("MODEL_POLICY_VIOLATION"));
+    }
+
+    @Test
+    void runtimePolicyRoutingGroupSelectsOperatorConfiguredProvider() throws Exception {
+        mockMvc.perform(post("/api/v1/model-access/providers")
+                        .headers(authHeaders())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "name": "policy-private-provider",
+                                  "providerType": "LOCAL_ECHO",
+                                  "routingGroup": "private",
+                                  "priority": 50,
+                                  "timeoutMs": 1000
+                                }
+                                """))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(put("/api/v1/model-access/policies")
+                        .headers(authHeaders())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "scopeType": "PROJECT",
+                                  "scopeKey": "project-policy-routing",
+                                  "routingGroup": "private",
+                                  "reason": "route private group"
+                                }
+                                """))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/v1/model-access/invocations")
+                        .headers(authHeaders())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "projectId": "project-policy-routing",
+                                  "messages": [
+                                    {"role": "user", "content": "检查策略路由组"}
+                                  ],
+                                  "allowPublicModel": false
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.providerName").value("policy-private-provider"));
+
+        mockMvc.perform(get("/api/v1/model-access/invocations")
+                        .headers(authHeaders())
+                        .param("projectId", "project-policy-routing"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items[0].routingGroup").value("private"))
+                .andExpect(jsonPath("$.data.items[0].routingRuleName").value("default-priority+policy:private"));
+    }
+
+    @Test
+    void runtimePolicyBudgetBlocksProjectBeforeProviderCall() throws Exception {
+        mockMvc.perform(put("/api/v1/model-access/policies")
+                        .headers(authHeaders())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "scopeType": "PROJECT",
+                                  "scopeKey": "project-policy-budget",
+                                  "dailyBudgetLimit": 0.00000001,
+                                  "budgetOverrunAction": "BLOCK",
+                                  "reason": "limit daily cost"
+                                }
+                                """))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/v1/model-access/invocations")
+                        .headers(authHeaders())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "projectId": "project-policy-budget",
+                                  "messages": [
+                                    {"role": "user", "content": "这是一段足够触发策略预算预估的模型输入内容"}
+                                  ],
+                                  "allowPublicModel": false
+                                }
+                                """))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.code").value("BUDGET_EXCEEDED"));
+
+        mockMvc.perform(get("/api/v1/model-access/invocations")
+                        .headers(authHeaders())
+                        .param("projectId", "project-policy-budget"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items[0].status").value("BLOCKED"))
+                .andExpect(jsonPath("$.data.items[0].errorCode").value("BUDGET_EXCEEDED"))
+                .andExpect(jsonPath("$.data.items[0].providerName").value("local-echo-primary"));
+    }
+
+    @Test
+    void userRolePolicyAppliesToBearerTokenInvocationAndPersistsRoleScope() throws Exception {
+        String token = superAdminToken();
+
+        mockMvc.perform(put("/api/v1/model-access/policies")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "scopeType": "ROLE",
+                                  "scopeKey": "SuperAdmin",
+                                  "modelInvocationEnabled": false,
+                                  "reason": "role freeze"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.scopeType").value("ROLE"));
+
+        mockMvc.perform(get("/api/v1/model-access/policies/effective")
+                        .header("Authorization", "Bearer " + token)
+                        .param("roles", "SuperAdmin"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.modelInvocationEnabled").value(false))
+                .andExpect(jsonPath("$.data.roleScope").value("SuperAdmin"));
+
+        mockMvc.perform(post("/api/v1/model-access/invocations")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "projectId": "project-role-policy",
+                                  "messages": [
+                                    {"role": "user", "content": "用户态角色策略应阻断"}
+                                  ],
+                                  "allowPublicModel": false
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("MODEL_POLICY_VIOLATION"));
+
+        mockMvc.perform(get("/api/v1/model-access/invocations")
+                        .header("Authorization", "Bearer " + token)
+                        .param("projectId", "project-role-policy")
+                        .param("roleScope", "SuperAdmin"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(1))
+                .andExpect(jsonPath("$.data.items[0].roleScope").value("SuperAdmin"))
+                .andExpect(jsonPath("$.data.items[0].actorService").value("model-access-console"));
+    }
+
     private String createPromptVersion(String changeNote, boolean activate) throws Exception {
         MvcResult result = mockMvc.perform(post("/api/v1/model-access/prompts")
                         .headers(authHeaders())

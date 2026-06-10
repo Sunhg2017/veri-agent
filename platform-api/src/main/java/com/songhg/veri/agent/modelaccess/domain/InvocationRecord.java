@@ -53,6 +53,8 @@ public record InvocationRecord(
         String errorMessage,
         /** 调用耗时，单位毫秒 */
         long latencyMs,
+        /** 命中的角色级策略作用域；仅保存角色编码，不保存权限或用户敏感信息 */
+        String roleScope,
         /** 发起调用的服务编码 */
         String actorService,
         /** 代理用户 ID */
@@ -60,4 +62,65 @@ public record InvocationRecord(
         /** 创建时间 */
         Instant createdAt
 ) {
+
+    public InvocationRecord(
+            UUID id,
+            String projectId,
+            String applicationId,
+            String environmentId,
+            String sensitivityLevel,
+            String promptKey,
+            Integer promptVersion,
+            UUID providerId,
+            String providerName,
+            String modelName,
+            String routingRuleName,
+            String routingGroup,
+            String modelCapability,
+            InvocationStatus status,
+            boolean fallbackUsed,
+            String promptDigest,
+            String requestPreview,
+            String responsePreview,
+            int inputTokens,
+            int outputTokens,
+            BigDecimal totalCost,
+            String errorCode,
+            String errorMessage,
+            long latencyMs,
+            String actorService,
+            String delegatedUserId,
+            Instant createdAt
+    ) {
+        this(
+                id,
+                projectId,
+                applicationId,
+                environmentId,
+                sensitivityLevel,
+                promptKey,
+                promptVersion,
+                providerId,
+                providerName,
+                modelName,
+                routingRuleName,
+                routingGroup,
+                modelCapability,
+                status,
+                fallbackUsed,
+                promptDigest,
+                requestPreview,
+                responsePreview,
+                inputTokens,
+                outputTokens,
+                totalCost,
+                errorCode,
+                errorMessage,
+                latencyMs,
+                null,
+                actorService,
+                delegatedUserId,
+                createdAt
+        );
+    }
 }

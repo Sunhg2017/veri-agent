@@ -1394,7 +1394,52 @@ tbody tr:hover td {
 }
 
 .model-access-log-filter {
-  grid-template-columns: repeat(5, minmax(0, 1fr)) auto;
+  grid-template-columns: repeat(6, minmax(0, 1fr)) auto;
+}
+
+.model-access-policy-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(320px, 0.8fr);
+  gap: var(--space-lg);
+  align-items: start;
+}
+
+.model-access-policy-form-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.model-access-policy-reason {
+  grid-column: span 2;
+}
+
+.model-access-effective-panel {
+  display: grid;
+  gap: var(--space-md);
+  padding: var(--space-lg);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+
+.model-access-effective-grid {
+  grid-template-columns: 1fr;
+}
+
+.model-access-policy-match-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+@media (max-width: 1100px) {
+  .model-access-policy-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .model-access-log-filter {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
 
 /* ============================================================

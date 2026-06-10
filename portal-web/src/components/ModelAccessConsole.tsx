@@ -3,6 +3,7 @@ import {
   AlertTriangle,
   CheckCircle2,
   Download,
+  Eye,
   FileDiff,
   KeyRound,
   PlayCircle,
@@ -13,6 +14,7 @@ import {
   Search,
   ServerCog,
   ShieldCheck,
+  SlidersHorizontal,
   ToggleLeft,
   ToggleRight,
   XCircle,
@@ -22,6 +24,7 @@ import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react
 import type { CurrentUser } from '../api/auth';
 import {
   INVOCATION_STATUSES,
+  MODEL_POLICY_SCOPE_TYPES,
   MODEL_PROVIDER_TYPES,
   PROMPT_STATUSES,
   activatePromptVersion,
@@ -32,24 +35,30 @@ import {
   disableModelProvider,
   enableModelProvider,
   exportInvocationsCsv,
+  fetchEffectiveModelAccessPolicy,
   fetchCostAlerts,
   fetchCostReport,
   fetchInvocationSummary,
   fetchInvocations,
   fetchModelAccessHealth,
+  fetchModelAccessPolicies,
   fetchModelProviders,
   fetchPrompts,
   fetchProviderResilience,
   invocationExportPath,
   rejectPromptVersion,
   resetProviderCircuit,
+  upsertModelAccessPolicy,
   updateModelProvider,
   type CostAlert,
   type CostReport,
   type InvocationFilters,
   type InvocationList,
   type InvocationSummary,
+  type ModelAccessEffectivePolicy,
   type ModelAccessHealth,
+  type ModelAccessPolicy,
+  type ModelAccessPolicyPayload,
   type ModelProviderConfig,
   type ModelProviderPayload,
   type PromptTemplate,
@@ -65,7 +74,7 @@ type WorkState = {
   traceId?: string;
 };
 
-type TabKey = 'providers' | 'prompts' | 'logs';
+type TabKey = 'providers' | 'prompts' | 'policies' | 'logs';
 
 type ProviderDraft = {
   name: string;
@@ -92,10 +101,12 @@ type PromptDraft = {
 type LogFilterDraft = {
   projectId: string;
   applicationId: string;
+  environmentId: string;
   sensitivityLevel: string;
   status: string;
   providerId: string;
   actorService: string;
+  roleScope: string;
   startTime: string;
   endTime: string;
 };
@@ -105,6 +116,25 @@ type CostFilterDraft = {
   actorService: string;
   startDate: string;
   endDate: string;
+};
+
+type PolicyDraft = {
+  scopeType: string;
+  scopeKey: string;
+  enabled: boolean;
+  modelInvocationEnabled: 'INHERIT' | 'ENABLED' | 'DISABLED';
+  publicModelAllowed: 'INHERIT' | 'ENABLED' | 'DISABLED';
+  dailyBudgetLimit: string;
+  costAlertWarningRatio: string;
+  budgetOverrunAction: '' | 'BLOCK' | 'FALLBACK';
+  routingGroup: string;
+  reason: string;
+};
+
+type PolicyPreviewDraft = {
+  projectId: string;
+  environmentId: string;
+  roles: string;
 };
 
 type DiffRow = {
@@ -139,10 +169,12 @@ const initialPromptDraft: PromptDraft = {
 const initialLogFilters: LogFilterDraft = {
   projectId: '',
   applicationId: '',
+  environmentId: '',
   sensitivityLevel: '',
   status: '',
   providerId: '',
   actorService: '',
+  roleScope: '',
   startTime: '',
   endTime: ''
 };
@@ -154,9 +186,29 @@ const initialCostFilters: CostFilterDraft = {
   endDate: ''
 };
 
+const initialPolicyDraft: PolicyDraft = {
+  scopeType: 'PLATFORM',
+  scopeKey: 'GLOBAL',
+  enabled: true,
+  modelInvocationEnabled: 'INHERIT',
+  publicModelAllowed: 'INHERIT',
+  dailyBudgetLimit: '',
+  costAlertWarningRatio: '',
+  budgetOverrunAction: '',
+  routingGroup: '',
+  reason: ''
+};
+
+const initialPolicyPreviewDraft: PolicyPreviewDraft = {
+  projectId: '',
+  environmentId: '',
+  roles: ''
+};
+
 const tabs: Array<{ key: TabKey; label: string; icon: LucideIcon }> = [
   { key: 'providers', label: '供应商', icon: ServerCog },
   { key: 'prompts', label: 'Prompt', icon: FileDiff },
+  { key: 'policies', label: '策略', icon: SlidersHorizontal },
   { key: 'logs', label: '日志与成本', icon: Activity }
 ];
 
@@ -164,12 +216,15 @@ export function ModelAccessConsole(props: { signedIn: boolean; currentUser: Curr
   const canRead = hasPermission(props.currentUser, 'modelAccess:read');
   const canManageProviders = canUseButton(props.currentUser, 'modelAccess:provider_manage');
   const canManagePrompts = canUseButton(props.currentUser, 'modelAccess:prompt_manage');
+  const canManagePolicies = canUseButton(props.currentUser, 'modelAccess:policy_manage');
   const canExport = canUseButton(props.currentUser, 'modelAccess:export');
 
   const [activeTab, setActiveTab] = useState<TabKey>('providers');
   const [health, setHealth] = useState<ModelAccessHealth | null>(null);
   const [providers, setProviders] = useState<ModelProviderConfig[]>([]);
   const [prompts, setPrompts] = useState<PromptTemplate[]>([]);
+  const [policies, setPolicies] = useState<ModelAccessPolicy[]>([]);
+  const [effectivePolicy, setEffectivePolicy] = useState<ModelAccessEffectivePolicy | null>(null);
   const [invocations, setInvocations] = useState<InvocationList>({ items: [], total: 0 });
   const [summary, setSummary] = useState<InvocationSummary | null>(null);
   const [costReport, setCostReport] = useState<CostReport>({ rows: [] });
@@ -177,6 +232,8 @@ export function ModelAccessConsole(props: { signedIn: boolean; currentUser: Curr
   const [providerDraft, setProviderDraft] = useState<ProviderDraft>(initialProviderDraft);
   const [editingProviderId, setEditingProviderId] = useState<string | null>(null);
   const [promptDraft, setPromptDraft] = useState<PromptDraft>(initialPromptDraft);
+  const [policyDraft, setPolicyDraft] = useState<PolicyDraft>(initialPolicyDraft);
+  const [policyPreviewDraft, setPolicyPreviewDraft] = useState<PolicyPreviewDraft>(initialPolicyPreviewDraft);
   const [promptFilter, setPromptFilter] = useState('');
   const [leftPromptId, setLeftPromptId] = useState('');
   const [rightPromptId, setRightPromptId] = useState('');
@@ -187,6 +244,7 @@ export function ModelAccessConsole(props: { signedIn: boolean; currentUser: Curr
   const [loadState, setLoadState] = useState<WorkState>({ loading: false });
   const [providerState, setProviderState] = useState<WorkState>({ loading: false });
   const [promptState, setPromptState] = useState<WorkState>({ loading: false });
+  const [policyState, setPolicyState] = useState<WorkState>({ loading: false });
   const [logState, setLogState] = useState<WorkState>({ loading: false });
   const [exportState, setExportState] = useState<WorkState>({ loading: false });
 
@@ -197,6 +255,16 @@ export function ModelAccessConsole(props: { signedIn: boolean; currentUser: Curr
     setPrompts(response.data);
     return response.trace_id;
   }, [promptFilter]);
+
+  const refreshPolicies = useCallback(async () => {
+    const [policiesResponse, effectiveResponse] = await Promise.all([
+      fetchModelAccessPolicies(),
+      fetchEffectiveModelAccessPolicy(compactPolicyPreviewFilters(policyPreviewDraft))
+    ]);
+    setPolicies(policiesResponse.data);
+    setEffectivePolicy(effectiveResponse.data);
+    return policiesResponse.trace_id || effectiveResponse.trace_id;
+  }, [policyPreviewDraft]);
 
   const refreshLogs = useCallback(async () => {
     const [invocationResponse, summaryResponse, reportResponse, alertResponse] = await Promise.all([
@@ -217,6 +285,8 @@ export function ModelAccessConsole(props: { signedIn: boolean; currentUser: Curr
       setHealth(null);
       setProviders([]);
       setPrompts([]);
+      setPolicies([]);
+      setEffectivePolicy(null);
       setInvocations({ items: [], total: 0 });
       setSummary(null);
       setCostReport({ rows: [] });
@@ -226,10 +296,11 @@ export function ModelAccessConsole(props: { signedIn: boolean; currentUser: Curr
     }
 
     setLoadState({ loading: true });
-    const [healthResult, providersResult, promptsResult, logsResult] = await Promise.allSettled([
+    const [healthResult, providersResult, promptsResult, policiesResult, logsResult] = await Promise.allSettled([
       fetchModelAccessHealth(),
       fetchModelProviders(),
       refreshPrompts(),
+      refreshPolicies(),
       refreshLogs()
     ]);
     const errors: string[] = [];
@@ -255,6 +326,12 @@ export function ModelAccessConsole(props: { signedIn: boolean; currentUser: Curr
       errors.push(errorMessage(promptsResult.reason, 'Prompt 列表加载失败'));
     }
 
+    if (policiesResult.status === 'fulfilled') {
+      traceIds.push(policiesResult.value);
+    } else {
+      errors.push(errorMessage(policiesResult.reason, '策略列表加载失败'));
+    }
+
     if (logsResult.status === 'fulfilled') {
       traceIds.push(logsResult.value);
     } else {
@@ -266,7 +343,7 @@ export function ModelAccessConsole(props: { signedIn: boolean; currentUser: Curr
       error: errors.length ? errors.join('；') : undefined,
       traceId: traceIds.find(Boolean)
     });
-  }, [canRead, props.signedIn, refreshLogs, refreshPrompts]);
+  }, [canRead, props.signedIn, refreshLogs, refreshPolicies, refreshPrompts]);
 
   useEffect(() => {
     void refreshAll();
@@ -431,6 +508,39 @@ export function ModelAccessConsole(props: { signedIn: boolean; currentUser: Curr
     }
   }
 
+  async function onSubmitPolicy(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!canManagePolicies) {
+      setPolicyState({ loading: false, error: '当前账号无策略管理权限' });
+      return;
+    }
+    const validation = validatePolicyDraft(policyDraft);
+    if (validation) {
+      setPolicyState({ loading: false, error: validation });
+      return;
+    }
+    setPolicyState({ loading: true });
+    try {
+      const response = await upsertModelAccessPolicy(policyPayload(policyDraft));
+      const traceId = await refreshPolicies();
+      setPolicyState({ loading: false, success: `${response.data.scopeType}:${response.data.scopeKey} 已保存`, traceId: traceId || response.trace_id });
+    } catch (error: unknown) {
+      setPolicyState({ loading: false, error: errorMessage(error, '策略保存失败'), traceId: traceId(error) });
+    }
+  }
+
+  async function onRefreshEffectivePolicy(event?: FormEvent<HTMLFormElement>) {
+    event?.preventDefault();
+    setPolicyState({ loading: true });
+    try {
+      const response = await fetchEffectiveModelAccessPolicy(compactPolicyPreviewFilters(policyPreviewDraft));
+      setEffectivePolicy(response.data);
+      setPolicyState({ loading: false, success: '有效策略已刷新', traceId: response.trace_id });
+    } catch (error: unknown) {
+      setPolicyState({ loading: false, error: errorMessage(error, '有效策略刷新失败'), traceId: traceId(error) });
+    }
+  }
+
   async function onApplyLogFilters(event?: FormEvent<HTMLFormElement>) {
     event?.preventDefault();
     setLogState({ loading: true });
@@ -472,6 +582,23 @@ export function ModelAccessConsole(props: { signedIn: boolean; currentUser: Curr
       outputCostPer1kTokens: String(provider.outputCostPer1kTokens)
     });
     setActiveTab('providers');
+  }
+
+  function editPolicy(policy: ModelAccessPolicy) {
+    setPolicyDraft({
+      scopeType: String(policy.scopeType),
+      scopeKey: policy.scopeKey,
+      enabled: policy.enabled,
+      modelInvocationEnabled: triStateFromBoolean(policy.modelInvocationEnabled),
+      publicModelAllowed: triStateFromBoolean(policy.publicModelAllowed),
+      dailyBudgetLimit: policy.dailyBudgetLimit === undefined ? '' : String(policy.dailyBudgetLimit),
+      costAlertWarningRatio: policy.costAlertWarningRatio === undefined ? '' : String(policy.costAlertWarningRatio),
+      budgetOverrunAction: policy.budgetOverrunAction === undefined ? '' : policy.budgetOverrunAction === 'FALLBACK' ? 'FALLBACK' : 'BLOCK',
+      routingGroup: policy.routingGroup ?? '',
+      reason: policy.reason ?? ''
+    });
+    setActiveTab('policies');
+    setPolicyState({ loading: false });
   }
 
   if (!props.signedIn || !canRead) {
@@ -591,6 +718,36 @@ export function ModelAccessConsole(props: { signedIn: boolean; currentUser: Curr
             />
           )}
 
+          {activeTab === 'policies' && (
+            <PolicyTab
+              canManage={canManagePolicies}
+              draft={policyDraft}
+              effectivePolicy={effectivePolicy}
+              policies={policies}
+              previewDraft={policyPreviewDraft}
+              state={policyState}
+              onChangeDraft={(key, value) => {
+                const patch: Partial<PolicyDraft> = { [key]: value } as Partial<PolicyDraft>;
+                if (key === 'scopeType' && value === 'PLATFORM') {
+                  patch.scopeKey = 'GLOBAL';
+                }
+                setPolicyDraft((current) => ({ ...current, ...patch }));
+                setPolicyState({ loading: false });
+              }}
+              onChangePreview={(key, value) => {
+                setPolicyPreviewDraft((current) => ({ ...current, [key]: value }));
+                setPolicyState({ loading: false });
+              }}
+              onEdit={editPolicy}
+              onPreview={onRefreshEffectivePolicy}
+              onResetDraft={() => {
+                setPolicyDraft(initialPolicyDraft);
+                setPolicyState({ loading: false });
+              }}
+              onSubmit={onSubmitPolicy}
+            />
+          )}
+
           {activeTab === 'logs' && (
             <LogsTab
               alerts={alerts}
@@ -643,6 +800,7 @@ export function ModelAccessConsole(props: { signedIn: boolean; currentUser: Curr
             <PermissionFlag label="读取" enabled={canRead} />
             <PermissionFlag label="管理供应商" enabled={canManageProviders} />
             <PermissionFlag label="管理 Prompt" enabled={canManagePrompts} />
+            <PermissionFlag label="管理策略" enabled={canManagePolicies} />
             <PermissionFlag label="导出日志" enabled={canExport} />
           </div>
         </div>
@@ -791,6 +949,168 @@ function ProviderTab(props: {
               );
             }) : (
               <tr><td className="table-empty" colSpan={8}>暂无供应商</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function PolicyTab(props: {
+  canManage: boolean;
+  draft: PolicyDraft;
+  effectivePolicy: ModelAccessEffectivePolicy | null;
+  policies: ModelAccessPolicy[];
+  previewDraft: PolicyPreviewDraft;
+  state: WorkState;
+  onChangeDraft: (key: keyof PolicyDraft, value: string | boolean) => void;
+  onChangePreview: (key: keyof PolicyPreviewDraft, value: string) => void;
+  onEdit: (policy: ModelAccessPolicy) => void;
+  onPreview: (event?: FormEvent<HTMLFormElement>) => Promise<void>;
+  onResetDraft: () => void;
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+}) {
+  return (
+    <div className="model-access-section">
+      <div className="model-access-policy-grid">
+        <form className="model-access-form" onSubmit={props.onSubmit}>
+          <div className="document-form-grid model-access-policy-form-grid">
+            <label className="field">
+              <span>作用域<b>*</b></span>
+              <select value={props.draft.scopeType} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('scopeType', event.target.value)}>
+                {MODEL_POLICY_SCOPE_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}
+              </select>
+            </label>
+            <label className="field">
+              <span>Scope key<b>*</b></span>
+              <input value={props.draft.scopeKey} disabled={!props.canManage || props.draft.scopeType === 'PLATFORM'} onChange={(event) => props.onChangeDraft('scopeKey', event.target.value)} />
+            </label>
+            <label className="field model-access-checkbox-field">
+              <span>启用策略</span>
+              <input type="checkbox" checked={props.draft.enabled} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('enabled', event.target.checked)} />
+            </label>
+            <label className="field">
+              <span>模型调用</span>
+              <select value={props.draft.modelInvocationEnabled} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('modelInvocationEnabled', event.target.value)}>
+                <option value="INHERIT">继承</option>
+                <option value="ENABLED">允许</option>
+                <option value="DISABLED">关闭</option>
+              </select>
+            </label>
+            <label className="field">
+              <span>公开模型</span>
+              <select value={props.draft.publicModelAllowed} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('publicModelAllowed', event.target.value)}>
+                <option value="INHERIT">继承</option>
+                <option value="ENABLED">允许</option>
+                <option value="DISABLED">禁止</option>
+              </select>
+            </label>
+            <label className="field">
+              <span>日预算</span>
+              <input type="number" min="0" step="0.00000001" value={props.draft.dailyBudgetLimit} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('dailyBudgetLimit', event.target.value)} />
+            </label>
+            <label className="field">
+              <span>告警比例</span>
+              <input type="number" min="0.01" max="1" step="0.01" value={props.draft.costAlertWarningRatio} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('costAlertWarningRatio', event.target.value)} />
+            </label>
+            <label className="field">
+              <span>超预算</span>
+              <select value={props.draft.budgetOverrunAction} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('budgetOverrunAction', event.target.value)}>
+                <option value="">继承</option>
+                <option value="BLOCK">阻断</option>
+                <option value="FALLBACK">降级</option>
+              </select>
+            </label>
+            <label className="field">
+              <span>路由组</span>
+              <input value={props.draft.routingGroup} placeholder="default/private" disabled={!props.canManage} onChange={(event) => props.onChangeDraft('routingGroup', event.target.value)} />
+            </label>
+            <label className="field model-access-policy-reason">
+              <span>备注</span>
+              <input value={props.draft.reason} maxLength={300} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('reason', event.target.value)} />
+            </label>
+          </div>
+          <div className="document-actions">
+            <button className="primary-button" type="submit" disabled={!props.canManage || props.state.loading}>
+              <Save size={16} /> 保存策略
+            </button>
+            <button className="secondary-button" type="button" disabled={!props.canManage} onClick={props.onResetDraft}>重置</button>
+            <StateLine state={props.state} />
+          </div>
+        </form>
+
+        <form className="model-access-effective-panel" onSubmit={(event) => void props.onPreview(event)}>
+          <div className="panel-title-row">
+            <h2>有效策略</h2>
+            <Eye size={16} />
+          </div>
+          <div className="document-form-grid model-access-effective-grid">
+            <label className="field"><span>Project ID</span><input value={props.previewDraft.projectId} onChange={(event) => props.onChangePreview('projectId', event.target.value)} /></label>
+            <label className="field"><span>Environment ID</span><input value={props.previewDraft.environmentId} onChange={(event) => props.onChangePreview('environmentId', event.target.value)} /></label>
+            <label className="field"><span>角色</span><input value={props.previewDraft.roles} placeholder="SuperAdmin,Auditor" onChange={(event) => props.onChangePreview('roles', event.target.value)} /></label>
+          </div>
+          <div className="document-actions">
+            <button className="secondary-button" type="submit" disabled={props.state.loading}><RefreshCw size={15} /> 刷新预览</button>
+          </div>
+          <div className="model-access-summary-grid">
+            <StatusMetric label="调用" value={props.effectivePolicy?.modelInvocationEnabled ? 'ON' : 'OFF'} tone={props.effectivePolicy?.modelInvocationEnabled ? 'positive' : 'negative'} />
+            <StatusMetric label="公开模型" value={props.effectivePolicy?.publicModelAllowed ? 'ON' : 'OFF'} tone={props.effectivePolicy?.publicModelAllowed ? 'positive' : 'pending'} />
+            <StatusMetric label="预算" value={props.effectivePolicy?.dailyBudgetLimit === undefined ? '-' : formatMoney(props.effectivePolicy.dailyBudgetLimit)} />
+            <StatusMetric label="动作" value={props.effectivePolicy?.budgetOverrunAction ?? '-'} />
+            <StatusMetric label="路由组" value={props.effectivePolicy?.routingGroup ?? '-'} />
+            <StatusMetric label="角色" value={props.effectivePolicy?.roleScope ?? '-'} />
+          </div>
+          <div className="model-access-policy-match-list">
+            {(props.effectivePolicy?.matchedScopes.length ?? 0) > 0
+              ? props.effectivePolicy?.matchedScopes.map((scope) => <StatusPill key={scope} value={scope} />)
+              : <span className="table-secondary">-</span>}
+          </div>
+        </form>
+      </div>
+
+      <div className="table-wrap model-access-table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>作用域</th>
+              <th>开关</th>
+              <th>预算</th>
+              <th>路由</th>
+              <th>备注</th>
+              <th>更新</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            {props.policies.length ? props.policies.map((policy) => (
+              <tr key={`${policy.scopeType}:${policy.scopeKey}`}>
+                <td>
+                  <span className="table-primary">{policy.scopeType}</span>
+                  <span className="table-secondary">{policy.scopeKey}</span>
+                </td>
+                <td>
+                  <StatusPill value={policy.enabled ? 'ENABLED' : 'DISABLED'} />
+                  <span className="table-secondary">调用 {formatOptionalBoolean(policy.modelInvocationEnabled)} · 公开 {formatOptionalBoolean(policy.publicModelAllowed)}</span>
+                </td>
+                <td>
+                  <span className="table-primary">{policy.dailyBudgetLimit === undefined ? '-' : formatMoney(policy.dailyBudgetLimit)}</span>
+                  <span className="table-secondary">{policy.costAlertWarningRatio === undefined ? '-' : policy.costAlertWarningRatio} · {policy.budgetOverrunAction ?? '-'}</span>
+                </td>
+                <td><span className="table-secondary">{policy.routingGroup ?? '-'}</span></td>
+                <td><span className="table-secondary">{policy.reason ?? '-'}</span></td>
+                <td>
+                  <span className="table-primary">{policy.updatedBy ?? '-'}</span>
+                  <span className="table-secondary">{formatDateTime(policy.updatedAt)}</span>
+                </td>
+                <td>
+                  <button className="mini-button" type="button" disabled={!props.canManage} onClick={() => props.onEdit(policy)}>
+                    <Save size={14} /> 编辑
+                  </button>
+                </td>
+              </tr>
+            )) : (
+              <tr><td className="table-empty" colSpan={7}>暂无策略</td></tr>
             )}
           </tbody>
         </table>
@@ -982,6 +1302,7 @@ function LogsTab(props: {
       <form className="asset-filter-bar model-access-log-filter" onSubmit={(event) => void props.onApplyFilters(event)}>
         <label className="field"><span>Project ID</span><input value={props.filters.projectId} onChange={(event) => props.onChangeFilter('projectId', event.target.value)} /></label>
         <label className="field"><span>Application ID</span><input value={props.filters.applicationId} onChange={(event) => props.onChangeFilter('applicationId', event.target.value)} /></label>
+        <label className="field"><span>Environment ID</span><input value={props.filters.environmentId} onChange={(event) => props.onChangeFilter('environmentId', event.target.value)} /></label>
         <label className="field">
           <span>敏感级别</span>
           <select value={props.filters.sensitivityLevel} onChange={(event) => props.onChangeFilter('sensitivityLevel', event.target.value)}>
@@ -1007,6 +1328,7 @@ function LogsTab(props: {
           </select>
         </label>
         <label className="field"><span>Actor service</span><input value={props.filters.actorService} onChange={(event) => props.onChangeFilter('actorService', event.target.value)} /></label>
+        <label className="field"><span>Role scope</span><input value={props.filters.roleScope} onChange={(event) => props.onChangeFilter('roleScope', event.target.value)} /></label>
         <label className="field"><span>成本项目</span><input value={props.costFilters.projectId} onChange={(event) => props.onChangeCostFilter('projectId', event.target.value)} /></label>
         <label className="field"><span>成本服务</span><input value={props.costFilters.actorService} onChange={(event) => props.onChangeCostFilter('actorService', event.target.value)} /></label>
         <label className="field"><span>开始时间</span><input type="datetime-local" value={props.filters.startTime} onChange={(event) => props.onChangeFilter('startTime', event.target.value)} /></label>
@@ -1048,7 +1370,7 @@ function LogsTab(props: {
               <tr key={item.id}>
                 <td>
                   <span className="table-primary">{item.projectId ?? '-'}</span>
-                  <span className="table-secondary">{formatDateTime(item.createdAt)} · {item.actorService ?? '-'}</span>
+                  <span className="table-secondary">{formatDateTime(item.createdAt)} · {item.actorService ?? '-'} · {item.environmentId ?? '-'}</span>
                 </td>
                 <td><StatusPill value={item.status} /></td>
                 <td>
@@ -1057,7 +1379,7 @@ function LogsTab(props: {
                 </td>
                 <td>
                   <span className="table-primary">{item.promptKey ?? '-'}</span>
-                  <span className="table-secondary">{item.promptVersion ? `v${item.promptVersion}` : '-'} · {item.sensitivityLevel ?? 'INTERNAL'} · {item.routingRuleName ?? '-'}</span>
+                  <span className="table-secondary">{item.promptVersion ? `v${item.promptVersion}` : '-'} · {item.sensitivityLevel ?? 'INTERNAL'} · {item.roleScope ?? '-'} · {item.routingRuleName ?? '-'}</span>
                 </td>
                 <td>
                   <span className="table-primary">{item.requestPreview ?? '-'}</span>
@@ -1218,6 +1540,69 @@ function providerPayload(draft: ProviderDraft, includeType: boolean): ModelProvi
   };
 }
 
+function validatePolicyDraft(draft: PolicyDraft) {
+  const scopeType = draft.scopeType.trim().toUpperCase();
+  if (!MODEL_POLICY_SCOPE_TYPES.includes(scopeType as (typeof MODEL_POLICY_SCOPE_TYPES)[number])) {
+    return '策略作用域无效';
+  }
+  if (scopeType !== 'PLATFORM' && !draft.scopeKey.trim()) {
+    return '非平台级策略必须填写 Scope key';
+  }
+  if (draft.scopeKey.trim() && !/^[A-Za-z0-9_.:@-]{1,128}$/.test(draft.scopeKey.trim())) {
+    return 'Scope key 仅支持 128 位内字母、数字、点、下划线、冒号、@ 和短横线';
+  }
+  const dailyBudgetLimit = numberOrUndefined(draft.dailyBudgetLimit);
+  if (dailyBudgetLimit !== undefined && dailyBudgetLimit < 0) {
+    return '日预算不能为负数';
+  }
+  const warningRatio = numberOrUndefined(draft.costAlertWarningRatio);
+  if (warningRatio !== undefined && (warningRatio <= 0 || warningRatio > 1)) {
+    return '告警比例必须在 0 到 1 之间';
+  }
+  if (draft.routingGroup.trim() && !/^[A-Za-z0-9_.:-]{1,64}$/.test(draft.routingGroup.trim())) {
+    return '路由组仅支持字母、数字、点、下划线、冒号和短横线';
+  }
+  if (draft.reason.length > 300) {
+    return '备注不能超过 300 字符';
+  }
+  return '';
+}
+
+function policyPayload(draft: PolicyDraft): ModelAccessPolicyPayload {
+  return {
+    scopeType: draft.scopeType.trim(),
+    scopeKey: draft.scopeType === 'PLATFORM' ? 'GLOBAL' : draft.scopeKey.trim(),
+    enabled: draft.enabled,
+    modelInvocationEnabled: triStateToBoolean(draft.modelInvocationEnabled),
+    publicModelAllowed: triStateToBoolean(draft.publicModelAllowed),
+    dailyBudgetLimit: numberOrUndefined(draft.dailyBudgetLimit),
+    costAlertWarningRatio: numberOrUndefined(draft.costAlertWarningRatio),
+    budgetOverrunAction: draft.budgetOverrunAction || undefined,
+    routingGroup: draft.routingGroup.trim(),
+    reason: draft.reason.trim()
+  };
+}
+
+function triStateToBoolean(value: PolicyDraft['modelInvocationEnabled']) {
+  if (value === 'ENABLED') {
+    return true;
+  }
+  if (value === 'DISABLED') {
+    return false;
+  }
+  return undefined;
+}
+
+function triStateFromBoolean(value?: boolean): PolicyDraft['modelInvocationEnabled'] {
+  if (value === true) {
+    return 'ENABLED';
+  }
+  if (value === false) {
+    return 'DISABLED';
+  }
+  return 'INHERIT';
+}
+
 function numberOrUndefined(value: string) {
   if (!value.trim()) {
     return undefined;
@@ -1230,12 +1615,22 @@ function buildInvocationFilters(filters: LogFilterDraft): InvocationFilters {
   return {
     projectId: filters.projectId,
     applicationId: filters.applicationId,
+    environmentId: filters.environmentId,
     sensitivityLevel: filters.sensitivityLevel,
     status: filters.status,
     providerId: filters.providerId,
     actorService: filters.actorService,
+    roleScope: filters.roleScope,
     startTime: localDateTimeToInstant(filters.startTime),
     endTime: localDateTimeToInstant(filters.endTime)
+  };
+}
+
+function compactPolicyPreviewFilters(filters: PolicyPreviewDraft) {
+  return {
+    projectId: filters.projectId,
+    environmentId: filters.environmentId,
+    roles: filters.roles
   };
 }
 
@@ -1310,6 +1705,16 @@ function formatMoney(value: number) {
     minimumFractionDigits: 4,
     maximumFractionDigits: 4
   });
+}
+
+function formatOptionalBoolean(value?: boolean) {
+  if (value === true) {
+    return '允许';
+  }
+  if (value === false) {
+    return '关闭';
+  }
+  return '继承';
 }
 
 function formatDateTime(value?: string) {

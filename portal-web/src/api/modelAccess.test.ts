@@ -10,9 +10,11 @@ import {
   exportInvocationsCsv,
   fetchCostAlerts,
   fetchCostReport,
+  fetchEffectiveModelAccessPolicy,
   fetchModelInvocationJob,
   fetchInvocationSummary,
   fetchInvocations,
+  fetchModelAccessPolicies,
   fetchModelProviders,
   fetchPrompts,
   invokeModelStream,
@@ -22,12 +24,15 @@ import {
   modelAccessQueryPath,
   normalizeCostAlert,
   normalizeInvocationRecord,
+  normalizeModelAccessEffectivePolicy,
+  normalizeModelAccessPolicy,
   normalizeModelInvocationJob,
   normalizeModelProvider,
   normalizePromptTemplate,
   parseModelStreamEvents,
   rejectPromptVersion,
   submitModelInvocationJob,
+  upsertModelAccessPolicy,
   updateModelProvider
 } from './modelAccess';
 
@@ -131,6 +136,7 @@ describe('model access API helpers', () => {
       routingRuleName: 'wp4-private-low-cost',
       routingGroup: 'private',
       modelCapability: 'REQUIREMENT_PARSE',
+      roleScope: undefined,
       promptDigest: 'sha256:abc',
       requestPreview: 'user: password=***',
       inputTokens: 12,
@@ -153,6 +159,48 @@ describe('model access API helpers', () => {
       budgetLimit: 0.001,
       usageRatio: 0.2,
       level: 'WARNING'
+    });
+
+    expect(normalizeModelAccessPolicy({
+      id: 'policy-1',
+      scope_type: 'project',
+      scope_key: 'project-1',
+      enabled: true,
+      model_invocation_enabled: false,
+      public_model_allowed: true,
+      daily_budget_limit: '3.5',
+      cost_alert_warning_ratio: '0.75',
+      budget_overrun_action: 'fallback',
+      routing_group: 'private',
+      updated_by: 'admin_user'
+    })).toMatchObject({
+      id: 'policy-1',
+      scopeType: 'PROJECT',
+      scopeKey: 'project-1',
+      modelInvocationEnabled: false,
+      publicModelAllowed: true,
+      dailyBudgetLimit: 3.5,
+      costAlertWarningRatio: 0.75,
+      budgetOverrunAction: 'FALLBACK',
+      routingGroup: 'private',
+      updatedBy: 'admin_user'
+    });
+
+    expect(normalizeModelAccessEffectivePolicy({
+      model_invocation_enabled: true,
+      public_model_allowed: false,
+      daily_budget_limit: '1.25',
+      budget_scope_type: 'ROLE',
+      budget_scope_key: 'Auditor',
+      role_scope: 'Auditor',
+      matched_scopes: ['PLATFORM:GLOBAL', 'ROLE:Auditor']
+    })).toMatchObject({
+      modelInvocationEnabled: true,
+      publicModelAllowed: false,
+      dailyBudgetLimit: 1.25,
+      budgetScopeType: 'ROLE',
+      roleScope: 'Auditor',
+      matchedScopes: ['PLATFORM:GLOBAL', 'ROLE:Auditor']
     });
 
     expect(normalizeModelInvocationJob({
@@ -210,6 +258,35 @@ describe('model access API helpers', () => {
 
     await fetchCostAlerts({ projectId: 'project pay', actorService: 'wp4 parser' });
     expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/model-access/cost/alerts?projectId=project+pay&actorService=wp4+parser');
+
+    await fetchModelAccessPolicies({ scopeType: 'PROJECT', scopeKey: 'project pay' });
+    expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/model-access/policies?scopeType=PROJECT&scopeKey=project+pay');
+
+    await fetchEffectiveModelAccessPolicy({ projectId: 'project pay', environmentId: 'env prod', roles: 'Auditor,QA' });
+    expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/model-access/policies/effective?projectId=project+pay&environmentId=env+prod&roles=Auditor%2CQA');
+
+    await upsertModelAccessPolicy({
+      scopeType: 'PROJECT',
+      scopeKey: 'project pay',
+      enabled: true,
+      modelInvocationEnabled: false,
+      publicModelAllowed: true,
+      dailyBudgetLimit: 1,
+      budgetOverrunAction: 'BLOCK',
+      routingGroup: ''
+    });
+    expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/model-access/policies', {
+      method: 'PUT',
+      body: JSON.stringify({
+        scopeType: 'PROJECT',
+        scopeKey: 'project pay',
+        enabled: true,
+        modelInvocationEnabled: false,
+        publicModelAllowed: true,
+        dailyBudgetLimit: 1,
+        budgetOverrunAction: 'BLOCK'
+      })
+    });
 
     expect(invocationExportPath({ projectId: 'project pay', status: 'BLOCKED', index: 2, size: 10 })).toBe('/api/v1/model-access/invocations/export?projectId=project+pay&status=BLOCKED');
     await exportInvocationsCsv({ projectId: 'project pay', status: 'BLOCKED' });

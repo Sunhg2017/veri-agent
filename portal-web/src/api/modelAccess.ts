@@ -6,6 +6,8 @@ export const PROMPT_STATUSES = ['DRAFT', 'ACTIVE', 'ARCHIVED'] as const;
 export const PROMPT_APPROVAL_STATUSES = ['NOT_REQUIRED', 'PENDING', 'APPROVED', 'REJECTED'] as const;
 export const INVOCATION_STATUSES = ['SUCCEEDED', 'FAILED', 'BLOCKED'] as const;
 export const MODEL_INVOCATION_JOB_STATUSES = ['QUEUED', 'RUNNING', 'SUCCEEDED', 'FAILED', 'CANCELLED'] as const;
+export const MODEL_POLICY_SCOPE_TYPES = ['PLATFORM', 'ROLE', 'PROJECT', 'ENVIRONMENT'] as const;
+export const MODEL_POLICY_BUDGET_ACTIONS = ['BLOCK', 'FALLBACK'] as const;
 
 export type ModelProviderType = (typeof MODEL_PROVIDER_TYPES)[number];
 export type ModelProviderStatus = (typeof MODEL_PROVIDER_STATUSES)[number];
@@ -13,6 +15,8 @@ export type PromptStatus = (typeof PROMPT_STATUSES)[number];
 export type PromptApprovalStatus = (typeof PROMPT_APPROVAL_STATUSES)[number];
 export type InvocationStatus = (typeof INVOCATION_STATUSES)[number];
 export type ModelInvocationJobStatus = (typeof MODEL_INVOCATION_JOB_STATUSES)[number];
+export type ModelPolicyScopeType = (typeof MODEL_POLICY_SCOPE_TYPES)[number];
+export type ModelPolicyBudgetAction = (typeof MODEL_POLICY_BUDGET_ACTIONS)[number];
 
 export interface ModelAccessHealth {
   service: string;
@@ -140,6 +144,7 @@ export interface InvocationRecord {
   errorCode?: string;
   errorMessage?: string;
   latencyMs: number;
+  roleScope?: string;
   actorService?: string;
   delegatedUserId?: string;
   createdAt?: string;
@@ -157,12 +162,70 @@ export interface InvocationFilters {
   size?: number;
   projectId?: string;
   applicationId?: string;
+  environmentId?: string;
   sensitivityLevel?: string;
   status?: string;
   providerId?: string;
   actorService?: string;
+  roleScope?: string;
   startTime?: string;
   endTime?: string;
+}
+
+export interface ModelAccessPolicy {
+  id: string;
+  scopeType: ModelPolicyScopeType | string;
+  scopeKey: string;
+  enabled: boolean;
+  modelInvocationEnabled?: boolean;
+  publicModelAllowed?: boolean;
+  dailyBudgetLimit?: number;
+  costAlertWarningRatio?: number;
+  budgetOverrunAction?: ModelPolicyBudgetAction | string;
+  routingGroup?: string;
+  reason?: string;
+  updatedBy?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  aggregateOnly?: boolean;
+}
+
+export interface ModelAccessPolicyPayload {
+  scopeType: string;
+  scopeKey?: string;
+  enabled?: boolean;
+  modelInvocationEnabled?: boolean;
+  publicModelAllowed?: boolean;
+  dailyBudgetLimit?: number;
+  costAlertWarningRatio?: number;
+  budgetOverrunAction?: string;
+  routingGroup?: string;
+  reason?: string;
+}
+
+export interface ModelAccessPolicyFilters {
+  scopeType?: string;
+  scopeKey?: string;
+}
+
+export interface ModelAccessEffectivePolicy {
+  modelInvocationEnabled: boolean;
+  publicModelAllowed: boolean;
+  dailyBudgetLimit?: number;
+  costAlertWarningRatio?: number;
+  budgetOverrunAction?: ModelPolicyBudgetAction | string;
+  routingGroup?: string;
+  budgetScopeType?: string;
+  budgetScopeKey?: string;
+  roleScope?: string;
+  matchedScopes: string[];
+  aggregateOnly: boolean;
+}
+
+export interface ModelAccessEffectivePolicyFilters {
+  projectId?: string;
+  environmentId?: string;
+  roles?: string;
 }
 
 export interface InvocationSummary {
@@ -401,9 +464,48 @@ export function normalizeInvocationRecord(raw: unknown): InvocationRecord {
     errorCode: optionalString(value.errorCode ?? value.error_code),
     errorMessage: optionalString(value.errorMessage ?? value.error_message),
     latencyMs: numberValue(value.latencyMs ?? value.latency_ms),
+    roleScope: optionalString(value.roleScope ?? value.role_scope),
     actorService: optionalString(value.actorService ?? value.actor_service),
     delegatedUserId: optionalString(value.delegatedUserId ?? value.delegated_user_id),
     createdAt: optionalString(value.createdAt ?? value.created_at)
+  };
+}
+
+export function normalizeModelAccessPolicy(raw: unknown): ModelAccessPolicy {
+  const value = record(raw);
+  return {
+    id: stringValue(value.id),
+    scopeType: enumValue(value.scopeType ?? value.scope_type, MODEL_POLICY_SCOPE_TYPES, 'PLATFORM'),
+    scopeKey: stringValue(value.scopeKey ?? value.scope_key),
+    enabled: booleanValue(value.enabled ?? true),
+    modelInvocationEnabled: optionalBoolean(value.modelInvocationEnabled ?? value.model_invocation_enabled),
+    publicModelAllowed: optionalBoolean(value.publicModelAllowed ?? value.public_model_allowed),
+    dailyBudgetLimit: optionalNumber(value.dailyBudgetLimit ?? value.daily_budget_limit),
+    costAlertWarningRatio: optionalNumber(value.costAlertWarningRatio ?? value.cost_alert_warning_ratio),
+    budgetOverrunAction: optionalEnumValue(value.budgetOverrunAction ?? value.budget_overrun_action, MODEL_POLICY_BUDGET_ACTIONS),
+    routingGroup: optionalString(value.routingGroup ?? value.routing_group),
+    reason: optionalString(value.reason),
+    updatedBy: optionalString(value.updatedBy ?? value.updated_by),
+    createdAt: optionalString(value.createdAt ?? value.created_at),
+    updatedAt: optionalString(value.updatedAt ?? value.updated_at),
+    aggregateOnly: booleanValue(value.aggregateOnly ?? value.aggregate_only)
+  };
+}
+
+export function normalizeModelAccessEffectivePolicy(raw: unknown): ModelAccessEffectivePolicy {
+  const value = record(raw);
+  return {
+    modelInvocationEnabled: booleanValue(value.modelInvocationEnabled ?? value.model_invocation_enabled ?? true),
+    publicModelAllowed: booleanValue(value.publicModelAllowed ?? value.public_model_allowed ?? true),
+    dailyBudgetLimit: optionalNumber(value.dailyBudgetLimit ?? value.daily_budget_limit),
+    costAlertWarningRatio: optionalNumber(value.costAlertWarningRatio ?? value.cost_alert_warning_ratio),
+    budgetOverrunAction: optionalEnumValue(value.budgetOverrunAction ?? value.budget_overrun_action, MODEL_POLICY_BUDGET_ACTIONS),
+    routingGroup: optionalString(value.routingGroup ?? value.routing_group),
+    budgetScopeType: optionalString(value.budgetScopeType ?? value.budget_scope_type),
+    budgetScopeKey: optionalString(value.budgetScopeKey ?? value.budget_scope_key),
+    roleScope: optionalString(value.roleScope ?? value.role_scope),
+    matchedScopes: listItems(value.matchedScopes ?? value.matched_scopes).map((item) => stringValue(item)).filter(Boolean),
+    aggregateOnly: booleanValue(value.aggregateOnly ?? value.aggregate_only)
   };
 }
 
@@ -516,6 +618,10 @@ export function costAlertItems(data: unknown): CostAlert[] {
   return listItems(data).map(normalizeCostAlert);
 }
 
+export function modelAccessPolicyItems(data: unknown): ModelAccessPolicy[] {
+  return listItems(data).map(normalizeModelAccessPolicy);
+}
+
 export function modelAccessQueryPath(base: string, filters: object = {}) {
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(filters)) {
@@ -624,6 +730,26 @@ export async function rejectPromptVersion(id: string, payload: PromptReviewPaylo
     body: JSON.stringify(compactPayload(payload))
   });
   return { ...response, data: normalizePromptTemplate(response.data) };
+}
+
+export async function fetchModelAccessPolicies(filters: ModelAccessPolicyFilters = {}): Promise<ApiResponse<ModelAccessPolicy[]>> {
+  const response = await requestJson<unknown>(modelAccessQueryPath('/api/v1/model-access/policies', filters));
+  return { ...response, data: modelAccessPolicyItems(response.data) };
+}
+
+export async function upsertModelAccessPolicy(payload: ModelAccessPolicyPayload): Promise<ApiResponse<ModelAccessPolicy>> {
+  const response = await requestJson<unknown>('/api/v1/model-access/policies', {
+    method: 'PUT',
+    body: JSON.stringify(compactPayload(payload))
+  });
+  return { ...response, data: normalizeModelAccessPolicy(response.data) };
+}
+
+export async function fetchEffectiveModelAccessPolicy(
+  filters: ModelAccessEffectivePolicyFilters = {}
+): Promise<ApiResponse<ModelAccessEffectivePolicy>> {
+  const response = await requestJson<unknown>(modelAccessQueryPath('/api/v1/model-access/policies/effective', filters));
+  return { ...response, data: normalizeModelAccessEffectivePolicy(response.data) };
 }
 
 export async function fetchInvocations(filters: InvocationFilters = {}): Promise<ApiResponse<InvocationList>> {
@@ -897,9 +1023,33 @@ function booleanValue(value: unknown) {
   return false;
 }
 
+function optionalBoolean(value: unknown) {
+  if (typeof value === 'boolean') {
+    return value;
+  }
+  if (typeof value === 'string' && value.trim()) {
+    const normalized = value.trim().toLowerCase();
+    if (normalized === 'true') {
+      return true;
+    }
+    if (normalized === 'false') {
+      return false;
+    }
+  }
+  return undefined;
+}
+
 function enumValue<T extends readonly string[]>(value: unknown, allowed: T, fallback: T[number]): T[number] | string {
   if (typeof value !== 'string' || !value.trim()) {
     return fallback;
+  }
+  const normalized = value.trim().toUpperCase();
+  return allowed.includes(normalized as T[number]) ? normalized as T[number] : value.trim();
+}
+
+function optionalEnumValue<T extends readonly string[]>(value: unknown, allowed: T): T[number] | string | undefined {
+  if (typeof value !== 'string' || !value.trim()) {
+    return undefined;
   }
   const normalized = value.trim().toUpperCase();
   return allowed.includes(normalized as T[number]) ? normalized as T[number] : value.trim();

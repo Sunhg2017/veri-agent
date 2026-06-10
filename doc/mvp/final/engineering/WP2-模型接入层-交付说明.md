@@ -5,7 +5,7 @@
 | 工作包 | WP2 模型接入层 |
 | 依赖 | WP1 平台基础底座 API 契约 |
 | 服务模块 | `platform-api` 内聚合模块 `/api/v1/model-access` |
-| 当前状态 | P0 可交付实现已落地；WP2-C1 高级路由策略、WP2-C2 预算策略产品化、WP2-C4 Prompt 评审与审批和 WP2-D2 流式响应支持已补齐 |
+| 当前状态 | P0 可交付实现已落地；WP2-C1 高级路由策略、WP2-C2 预算策略产品化、WP2-C4 Prompt 评审与审批、WP2-D2 流式响应和 P2 策略运营后台已补齐 |
 
 ## 1. 交付范围
 
@@ -18,10 +18,11 @@ WP2 P0 交付以下能力：
 5. 高级路由策略：支持按项目、敏感级别、调用服务、模型能力和供应商组匹配路由规则；规则可选择 `LOWEST_COST` 在候选组内按预估成本优先。
 6. 脱敏与安全校验：调用前阻断明显密钥、Bearer token、身份证号；日志仅保存 masked preview 和 prompt SHA-256 digest。
 7. 预算护栏：支持平台、项目、调用服务日预算配置，供应商调用前按当前日已发生成本和预估成本执行阻断或低成本 provider 降级。
-8. 失败降级：供应商调用失败后按优先级尝试下一个可用供应商，并记录 `fallbackUsed`。
-9. 成本记录：按输入/输出 token 和供应商单价计算 `totalCost`。
-10. 调用审计日志：记录 WP1 资源逻辑归属、敏感级别、调用服务、委托用户、模型、供应商、路由规则、路由组、模型能力、状态、延迟、成本和错误摘要。
-11. 持久化模式：`local` profile 使用内存仓储，`db` profile 使用 PostgreSQL 仓储并自动执行 WP2 Flyway 迁移。
+8. 运行时策略运营后台：支持运营人员通过 UI/API 自助配置平台、角色、项目、环境级模型调用开关、公开模型许可、日预算阈值、预警比例、超预算动作和路由组，不需要改部署配置即可影响真实 invocation 链路。
+9. 失败降级：供应商调用失败后按优先级尝试下一个可用供应商，并记录 `fallbackUsed`。
+10. 成本记录：按输入/输出 token 和供应商单价计算 `totalCost`。
+11. 调用审计日志：记录 WP1 资源逻辑归属、敏感级别、调用服务、委托用户、角色策略作用域、模型、供应商、路由规则、路由组、模型能力、状态、延迟、成本和错误摘要。
+12. 持久化模式：`local` profile 使用内存仓储，`db` profile 使用 PostgreSQL 仓储并自动执行 WP2 Flyway 迁移。
 
 ## 2. API 边界
 
@@ -43,6 +44,9 @@ WP2 P0 交付以下能力：
 | `POST /prompts/{id}/approve` | 审批通过高风险 Prompt 版本，记录审批人、审批时间和审批说明。 |
 | `POST /prompts/{id}/reject` | 驳回高风险 Prompt 版本，记录审批人、审批时间和审批说明。 |
 | `POST /prompts/{id}/activate` | 激活指定 Prompt 版本；高风险版本必须先审批通过。 |
+| `GET /policies?scopeType=&scopeKey=` | 查询平台、角色、项目、环境级运行时策略覆盖。 |
+| `PUT /policies` | 创建或更新一条运行时策略覆盖，支持模型调用开关、公开模型开关、日预算、预警比例、超预算动作、路由组和备注。 |
+| `GET /policies/effective?projectId=&environmentId=&roles=` | 预览指定项目、环境、角色集合下最终生效的策略和命中作用域。 |
 | `POST /invocations` | 发起模型调用。 |
 | `POST /invocations/stream` | 发起 SSE 流式模型调用，返回 `metadata`、`delta`、`done` 事件；MVP 先完整执行同步 invocation 并落盘调用日志，再将响应内容按 UTF-8 SSE 分片输出。 |
 | `POST /invocations/jobs` | 提交异步模型调用任务，返回 `202 Accepted`、`jobId` 和 `QUEUED/RUNNING/SUCCEEDED/FAILED/CANCELLED` 状态摘要。 |
@@ -76,6 +80,8 @@ Prompt 版本创建可设置 `highRisk=true`。高风险版本默认 `approvalSt
 
 预算护栏默认关闭。设置 `WP2_DAILY_PLATFORM_COST_LIMIT`、`WP2_DAILY_PROJECT_COST_LIMIT` 或 `WP2_DAILY_CALLER_SERVICE_COST_LIMIT` 为大于 0 的金额后，WP2 使用 `WP2_BUDGET_ZONE_ID` 对齐日窗口，并用 `WP2_BUDGET_ESTIMATED_OUTPUT_TOKENS` 作为调用前输出 token 预估保留量。`WP2_COST_ALERT_WARNING_RATIO` 控制告警阈值，成本告警接口会返回平台、项目和调用服务维度的 `OK`、`WARNING` 或 `EXCEEDED`。`WP2_BUDGET_OVERRUN_ACTION=BLOCK` 时超额请求返回 `BUDGET_EXCEEDED`，并记录 `BLOCKED` 调用日志，实际成本为 0；设置为 `FALLBACK` 时，WP2 会跳过当前预估超预算 provider，继续尝试后续低成本候选，全部候选仍超预算时再阻断。
 
+P2 运行时策略覆盖保存在 `ma_model_policy_override`，作用域固定为 `PLATFORM/GLOBAL`、`ROLE/<roleCode>`、`PROJECT/<projectId>`、`ENVIRONMENT/<environmentId>`。有效策略按 `environment > project > role > platform > deployment defaults` 解析，真实 invocation、流式 invocation 和异步 job worker 共用同一解析结果。策略可覆盖模型调用开关、公开模型许可、日预算阈值、成本告警比例、超预算动作和路由组；其中策略日预算会优先于部署配置预算执行，`ROLE` 预算通过调用日志的 `roleScope` 聚合。用户 Bearer token 调用会携带登录态角色；服务令牌调用不接受 header 伪造角色，只适用平台/项目/环境策略。异步 job 会保存提交时的角色编码快照，worker 执行时恢复角色策略上下文。
+
 Provider 级生产保护默认关闭。设置 `WP2_PROVIDER_RATE_LIMIT_MAX_REQUESTS`、`WP2_PROVIDER_RATE_LIMIT_WINDOW_SECONDS` 可开启单 provider 时间窗口限流；设置 `WP2_PROVIDER_MAX_CONCURRENT_REQUESTS` 可开启单 provider 并发保护。触发限流或并发上限时返回 `BUDGET_EXCEEDED`，并记录 `BLOCKED` 调用日志。连续失败熔断仍由 `WP2_PROVIDER_CIRCUIT_FAILURE_THRESHOLD` 和 `WP2_PROVIDER_CIRCUIT_OPEN_MS` 控制，可通过 resilience API 查询和 reset。
 
 `POST /invocations/stream` 复用同步 `POST /invocations` 的请求体和校验链路。当前 MVP 不直接透传外部 provider 原生 token streaming，而是在 provider 调用成功、成本和调用日志已经确定后输出 `text/event-stream;charset=UTF-8`：`metadata` 事件包含 invocation、provider、token、cost 和 traceId 摘要，`delta` 事件承载响应分片，`done` 事件承载结束原因。这样可先保证策略、预算、审计、日志和前端消费契约稳定，后续再替换 provider 适配层为真实 token streaming。
@@ -93,6 +99,7 @@ Provider 级生产保护默认关闭。设置 `WP2_PROVIDER_RATE_LIMIT_MAX_REQUE
 - `db/migration/wp1/V20260518_013__wp2_soft_delete_audit_columns.sql`
 - `db/migration/wp1/V20260522_025__wp2_advanced_routing_metadata.sql`
 - `db/migration/wp1/V20260522_026__wp2_prompt_review_approval.sql`
+- `db/migration/wp1/V20260610_048__wp2_policy_operations.sql`
 
 默认种子：`V20260518_010__wp2_default_seed_data.sql`，为 `db` profile 初始化 `local-echo-primary` 和 `test-case-design` ACTIVE Prompt，便于持久化模式直接 smoke。
 
@@ -101,6 +108,8 @@ Provider 级生产保护默认关闭。设置 `WP2_PROVIDER_RATE_LIMIT_MAX_REQUE
 - `ma_model_provider`
 - `ma_prompt_template`
 - `ma_invocation_log`
+- `ma_invocation_job`
+- `ma_model_policy_override`
 
 校验脚本：
 
@@ -141,6 +150,8 @@ Provider 级生产保护默认关闭。设置 `WP2_PROVIDER_RATE_LIMIT_MAX_REQUE
 26. 高风险 Prompt 覆盖待审批创建、审批通过、驳回后重审、审批人/说明保留、未审批激活拒绝和审批后激活。
 27. SSE 流式调用覆盖 `metadata/delta/done` 事件输出、UTF-8 文本响应、异步安全分派和调用日志落盘。
 28. 异步 invocation job 覆盖提交 `202`、状态轮询成功、排队取消、匿名/低权限拒绝、未知 job 404、OpenAPI 契约和 portal-web helper 路径/归一化。
+29. P2 运行时策略运营覆盖策略 CRUD、effective preview、项目级关闭模型调用、项目预算阻断、项目路由组覆盖、用户角色级策略阻断和调用日志 `roleScope` 查询。
+30. WP2 `db` profile 仓储契约覆盖 `ma_model_policy_override` upsert/list/get、`ma_invocation_log.role_scope` 查询和 `ma_invocation_job.principal_roles` 持久化。
 
 运行命令：
 
@@ -156,6 +167,11 @@ cd portal-web && npm run build
 ```bash
 mvn -B -pl platform-api -Dtest=ModelAccessControllerTest,ModelAccessOpenApiContractTest test
 cd portal-web && npm test -- modelAccess.test.ts
+```
+
+```bash
+mvn -B -pl platform-api -Dtest=ModelAccessControllerTest,ModelInvocationBudgetServiceTest,ModelCostAnalysisServiceTest,DbProfileRepositoryContractTest test
+cd portal-web && npm test -- modelAccess permissions
 ```
 
 ```bash
@@ -196,6 +212,7 @@ bash scripts/wp_all_integration_test.sh
 8. 已新增 WP2-C4 Prompt 评审与审批，高风险 Prompt 需审批通过后激活，并在后端、DB 和 portal-web 管理台保留审批状态、审批人、审批时间和审批说明。
 9. 已新增 WP2-D2 流式响应支持，提供 `/invocations/stream` SSE 入口和 portal-web 解析/调用 helper，保持同步 invocation 契约、策略、预算和调用日志链路不变。
 10. 已新增 WP2-D3 异步长任务调用，提供 `/invocations/jobs` 提交、查询和取消 API 及 portal-web helper；任务状态已通过 `ma_invocation_job` 持久化，成功/失败复用既有 invocation 审计链路。
+11. 已新增 P2 策略运营后台，提供 `/policies` CRUD、`/policies/effective` 预览和 portal-web 策略页签；平台/角色/项目/环境级模型开关、预算阈值、超预算动作和路由组覆盖会进入真实 invocation 策略、预算、路由和日志链路。
 
 ## 7. Provider 生产接入与密钥轮换
 

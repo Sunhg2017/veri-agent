@@ -5,6 +5,7 @@ import com.songhg.veri.agent.modelaccess.application.view.InvocationSummaryResul
 import com.songhg.veri.agent.modelaccess.application.port.ModelAccessRepository;
 import com.songhg.veri.agent.modelaccess.domain.InvocationRecord;
 import com.songhg.veri.agent.modelaccess.domain.InvocationStatus;
+import com.songhg.veri.agent.modelaccess.domain.ModelAccessPolicyOverride;
 import com.songhg.veri.agent.modelaccess.domain.ModelProviderConfig;
 import com.songhg.veri.agent.modelaccess.domain.PromptApprovalStatus;
 import com.songhg.veri.agent.modelaccess.domain.PromptStatus;
@@ -32,6 +33,7 @@ public class InMemoryModelAccessRepository implements ModelAccessRepository {
 
     private final Map<UUID, ModelProviderConfig> providers = new ConcurrentHashMap<>();
     private final Map<UUID, PromptTemplate> prompts = new ConcurrentHashMap<>();
+    private final Map<String, ModelAccessPolicyOverride> policies = new ConcurrentHashMap<>();
     private final List<InvocationRecord> invocations = new ArrayList<>();
 
     public InMemoryModelAccessRepository() {
@@ -247,16 +249,55 @@ public class InMemoryModelAccessRepository implements ModelAccessRepository {
         return new InvocationSummaryResult(records.size(), succeeded, failed, blocked, inputTokens, outputTokens, totalCost);
     }
 
+    @Override
+    public List<ModelAccessPolicyOverride> modelAccessPolicies(String scopeType, String scopeKey) {
+        return policies.values()
+                .stream()
+                .filter(policy -> scopeType == null || scopeType.equals(policy.scopeType()))
+                .filter(policy -> scopeKey == null || scopeKey.equals(policy.scopeKey()))
+                .sorted(Comparator
+                        .comparingInt(this::scopePriority)
+                        .thenComparing(ModelAccessPolicyOverride::scopeKey))
+                .toList();
+    }
+
+    @Override
+    public Optional<ModelAccessPolicyOverride> modelAccessPolicy(String scopeType, String scopeKey) {
+        return Optional.ofNullable(policies.get(policyKey(scopeType, scopeKey)));
+    }
+
+    @Override
+    public ModelAccessPolicyOverride saveModelAccessPolicy(ModelAccessPolicyOverride policy) {
+        policies.put(policyKey(policy.scopeType(), policy.scopeKey()), policy);
+        return policy;
+    }
+
     private java.util.stream.Stream<InvocationRecord> filteredInvocations(InvocationQuery query) {
         return invocations.stream()
                 .filter(record -> query.projectId() == null || query.projectId().equals(record.projectId()))
                 .filter(record -> query.applicationId() == null || query.applicationId().equals(record.applicationId()))
+                .filter(record -> query.environmentId() == null || query.environmentId().equals(record.environmentId()))
                 .filter(record -> query.sensitivityLevel() == null || query.sensitivityLevel().equals(record.sensitivityLevel()))
                 .filter(record -> query.status() == null || query.status() == record.status())
                 .filter(record -> query.providerId() == null || query.providerId().equals(record.providerId()))
                 .filter(record -> query.actorService() == null || query.actorService().equals(record.actorService()))
+                .filter(record -> query.roleScope() == null || query.roleScope().equals(record.roleScope()))
                 .filter(record -> query.startTime() == null || !record.createdAt().isBefore(query.startTime()))
                 .filter(record -> query.endTime() == null || record.createdAt().isBefore(query.endTime()));
+    }
+
+    private String policyKey(String scopeType, String scopeKey) {
+        return scopeType + ":" + scopeKey;
+    }
+
+    private int scopePriority(ModelAccessPolicyOverride policy) {
+        return switch (policy.scopeType()) {
+            case "PLATFORM" -> 0;
+            case "ROLE" -> 1;
+            case "PROJECT" -> 2;
+            case "ENVIRONMENT" -> 3;
+            default -> 9;
+        };
     }
 
     private boolean inWindow(InvocationRecord record, Instant startTime, Instant endTime) {

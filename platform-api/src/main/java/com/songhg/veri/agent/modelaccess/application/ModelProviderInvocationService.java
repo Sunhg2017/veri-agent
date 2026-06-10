@@ -76,8 +76,10 @@ public class ModelProviderInvocationService {
     ) {
         RuntimeException lastFailure = null;
         boolean fallbackUsed = false;
-        boolean fallbackOnBudgetOverrun = properties.fallbackOnBudgetOverrun();
-        ModelInvocationBudgetService.BudgetWindow budgetWindow = budgetService.currentWindowIfEnabled();
+        boolean fallbackOnBudgetOverrun = plan.effectivePolicy() == null
+                ? properties.fallbackOnBudgetOverrun()
+                : plan.effectivePolicy().fallbackOnBudgetOverrun();
+        ModelInvocationBudgetService.BudgetWindow budgetWindow = budgetService.currentWindowIfEnabled(plan.effectivePolicy());
         for (int index = 0; index < plan.candidates().size(); index++) {
             ModelProviderConfig provider = plan.candidates().get(index);
             ProviderAttemptResult attempt = attemptProvider(
@@ -129,7 +131,8 @@ public class ModelProviderInvocationService {
                 principal,
                 provider,
                 plan.fullPrompt(),
-                budgetWindow
+                budgetWindow,
+                plan.effectivePolicy()
         );
         if (budgetViolation != null) {
             return handleBudgetViolation(
@@ -329,6 +332,7 @@ public class ModelProviderInvocationService {
                 errorCode,
                 errorMessage,
                 Duration.between(plan.startedAt(), Instant.now()).toMillis(),
+                plan.effectivePolicy() == null ? null : plan.effectivePolicy().roleScope(),
                 principal.callerService(),
                 principal.delegatedUserId(),
                 Instant.now()

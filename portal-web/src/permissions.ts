@@ -127,6 +127,7 @@ export type ButtonKey =
   | 'testDesign:policy_manage'
   | 'modelAccess:provider_manage'
   | 'modelAccess:prompt_manage'
+  | 'modelAccess:policy_manage'
   | 'modelAccess:export';
 
 export type UserLifecycleAction = 'enable' | 'disable' | 'lock' | 'unlock' | 'reset-password' | 'assign-role' | 'unassign-role';
@@ -215,6 +216,7 @@ const buttonPermissionGroups: Record<ButtonKey, Permission[][]> = {
   'testDesign:policy_manage': [['testDesign:policy_manage']],
   'modelAccess:provider_manage': [['modelAccess:manage']],
   'modelAccess:prompt_manage': [['modelAccess:manage']],
+  'modelAccess:policy_manage': [['modelAccess:manage']],
   'modelAccess:export': [['modelAccess:export']],
 
   // Compound operations requiring ALL permissions in a group (AND logic)

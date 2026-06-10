@@ -6,6 +6,7 @@ import com.songhg.veri.agent.common.error.ErrorCode;
 import com.songhg.veri.agent.modelaccess.application.command.ModelInvocationCommand;
 import com.songhg.veri.agent.modelaccess.application.port.ModelAccessRepository;
 import com.songhg.veri.agent.modelaccess.application.query.InvocationQuery;
+import com.songhg.veri.agent.modelaccess.application.view.ModelAccessEffectivePolicy;
 import com.songhg.veri.agent.modelaccess.config.ModelAccessProperties;
 import com.songhg.veri.agent.modelaccess.domain.ModelProviderConfig;
 import com.songhg.veri.agent.modelaccess.security.ServicePrincipal;
@@ -39,8 +40,14 @@ public class ModelInvocationBudgetService {
     }
 
     BudgetWindow currentWindowIfEnabled() {
+        return currentWindowIfEnabled(null);
+    }
+
+    BudgetWindow currentWindowIfEnabled(ModelAccessEffectivePolicy policy) {
         if (!budgetCheckEnabled()) {
-            return null;
+            if (policy == null || !policy.hasBudgetLimit()) {
+                return null;
+            }
         }
         try {
             ZoneId zone = StringUtils.hasText(properties.budgetZoneId())
@@ -66,10 +73,36 @@ public class ModelInvocationBudgetService {
             String fullPrompt,
             BudgetWindow window
     ) {
+        return budgetViolation(request, principal, provider, fullPrompt, window, null);
+    }
+
+    /**
+     * Checks runtime policy budgets before deployment defaults so self-service guardrails are enforced immediately.
+     */
+    BudgetViolation budgetViolation(
+            ModelInvocationCommand request,
+            ServicePrincipal principal,
+            ModelProviderConfig provider,
+            String fullPrompt,
+            BudgetWindow window,
+            ModelAccessEffectivePolicy policy
+    ) {
         if (window == null) {
             return null;
         }
         BigDecimal estimatedCost = estimatedCost(provider, fullPrompt);
+
+        if (policy != null && policy.hasBudgetLimit()) {
+            BudgetViolation violation = budgetViolation(
+                    policy.budgetScopeType() == null ? "POLICY" : policy.budgetScopeType(),
+                    policy.dailyBudgetLimit(),
+                    estimatedCost,
+                    policyBudgetQuery(request, policy, window)
+            );
+            if (violation != null) {
+                return violation;
+            }
+        }
 
         if (properties.hasDailyProjectCostLimit()) {
             BudgetViolation violation = budgetViolation(
@@ -137,6 +170,37 @@ public class ModelInvocationBudgetService {
             );
         }
         return null;
+    }
+
+    private InvocationQuery policyBudgetQuery(
+            ModelInvocationCommand request,
+            ModelAccessEffectivePolicy policy,
+            BudgetWindow window
+    ) {
+        String scopeType = policy.budgetScopeType();
+        String projectId = null;
+        String environmentId = null;
+        String roleScope = null;
+        if ("PROJECT".equals(scopeType)) {
+            projectId = trimToNull(request.projectId());
+        } else if ("ENVIRONMENT".equals(scopeType)) {
+            environmentId = trimToNull(request.environmentId());
+        } else if ("ROLE".equals(scopeType)) {
+            roleScope = trimToNull(policy.roleScope());
+        }
+        return new InvocationQuery(
+                projectId,
+                null,
+                environmentId,
+                null,
+                null,
+                null,
+                null,
+                roleScope,
+                window.startTime(),
+                window.endTime(),
+                PageQuery.of(0, 1)
+        );
     }
 
     BigDecimal estimatedCost(ModelProviderConfig provider, String fullPrompt) {

@@ -11,11 +11,13 @@ public class InvocationPageRequest extends BasePageRequest {
     @Schema(description = "所属项目 ID，用于权限 scope、筛选和数据隔离")
     private String projectId;
     private String applicationId;
+    private String environmentId;
     private String sensitivityLevel;
     @Schema(description = "业务状态")
     private InvocationStatus status;
     private UUID providerId;
     private String actorService;
+    private String roleScope;
     @Schema(description = "查询开始时间")
     private Instant startTime;
     private Instant endTime;
@@ -34,6 +36,14 @@ public class InvocationPageRequest extends BasePageRequest {
 
     public void setApplicationId(String applicationId) {
         this.applicationId = applicationId;
+    }
+
+    public String getEnvironmentId() {
+        return environmentId;
+    }
+
+    public void setEnvironmentId(String environmentId) {
+        this.environmentId = environmentId;
     }
 
     public String getSensitivityLevel() {
@@ -66,6 +76,14 @@ public class InvocationPageRequest extends BasePageRequest {
 
     public void setActorService(String actorService) {
         this.actorService = actorService;
+    }
+
+    public String getRoleScope() {
+        return roleScope;
+    }
+
+    public void setRoleScope(String roleScope) {
+        this.roleScope = roleScope;
     }
 
     public Instant getStartTime() {

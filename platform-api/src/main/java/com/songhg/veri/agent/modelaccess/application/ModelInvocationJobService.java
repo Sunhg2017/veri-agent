@@ -20,7 +20,9 @@ import com.songhg.veri.agent.modelaccess.security.ServicePrincipal;
 import jakarta.annotation.PostConstruct;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.stream.Collectors;
 import java.util.UUID;
+import org.springframework.util.StringUtils;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -73,6 +75,7 @@ public class ModelInvocationJobService {
                 json(request),
                 principal.callerService(),
                 principal.delegatedUserId(),
+                principalRoles(principal),
                 TraceContext.getOrCreateTraceId(),
                 Instant.now(),
                 null,
@@ -155,6 +158,16 @@ public class ModelInvocationJobService {
         } catch (JsonProcessingException exception) {
             throw new BusinessException(ErrorCode.INVALID_STATE, "异步模型调用载荷无法序列化");
         }
+    }
+
+    private String principalRoles(ServicePrincipal principal) {
+        String roles = principal.roles()
+                .stream()
+                .filter(StringUtils::hasText)
+                .map(String::trim)
+                .distinct()
+                .collect(Collectors.joining(","));
+        return roles.isBlank() ? null : roles;
     }
 
     private boolean terminal(ModelInvocationJobStatus status) {

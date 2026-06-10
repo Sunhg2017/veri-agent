@@ -15,6 +15,8 @@ public record ModelInvocationJobRecord(
         String actorService,
         @Schema(description = "代理执行用户 ID")
         String delegatedUserId,
+        @Schema(description = "提交任务时的用户角色编码快照，逗号分隔")
+        String principalRoles,
         @Schema(description = "链路追踪 ID")
         String traceId,
         @Schema(description = "创建时间")
@@ -32,4 +34,37 @@ public record ModelInvocationJobRecord(
         @Schema(description = "响应 JSON 快照")
         String responseJson
 ) {
+
+    public ModelInvocationJobRecord(
+            UUID jobId,
+            ModelInvocationJobStatus status,
+            String requestJson,
+            String actorService,
+            String delegatedUserId,
+            String traceId,
+            Instant createdAt,
+            Instant startedAt,
+            Instant finishedAt,
+            UUID invocationId,
+            String errorCode,
+            String errorMessage,
+            String responseJson
+    ) {
+        this(
+                jobId,
+                status,
+                requestJson,
+                actorService,
+                delegatedUserId,
+                null,
+                traceId,
+                createdAt,
+                startedAt,
+                finishedAt,
+                invocationId,
+                errorCode,
+                errorMessage,
+                responseJson
+        );
+    }
 }

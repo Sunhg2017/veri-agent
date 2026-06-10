@@ -66,10 +66,12 @@ public interface ModelAccessApiMapper {
         return new InvocationQuery(
                 request.getProjectId(),
                 request.getApplicationId(),
+                request.getEnvironmentId(),
                 request.getSensitivityLevel(),
                 request.getStatus(),
                 request.getProviderId(),
                 request.getActorService(),
+                request.getRoleScope(),
                 request.getStartTime(),
                 request.getEndTime(),
                 pageQuery

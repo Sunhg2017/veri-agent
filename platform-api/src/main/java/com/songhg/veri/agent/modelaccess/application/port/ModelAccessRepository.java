@@ -3,6 +3,7 @@ package com.songhg.veri.agent.modelaccess.application.port;
 import com.songhg.veri.agent.modelaccess.application.query.InvocationQuery;
 import com.songhg.veri.agent.modelaccess.application.view.InvocationSummaryResult;
 import com.songhg.veri.agent.modelaccess.domain.InvocationRecord;
+import com.songhg.veri.agent.modelaccess.domain.ModelAccessPolicyOverride;
 import com.songhg.veri.agent.modelaccess.domain.ModelProviderConfig;
 import com.songhg.veri.agent.modelaccess.domain.PromptTemplate;
 import java.time.Instant;
@@ -43,4 +44,10 @@ public interface ModelAccessRepository {
     List<String> distinctActorServices(Instant startTime, Instant endTime);
 
     InvocationSummaryResult invocationSummary(InvocationQuery query);
+
+    List<ModelAccessPolicyOverride> modelAccessPolicies(String scopeType, String scopeKey);
+
+    Optional<ModelAccessPolicyOverride> modelAccessPolicy(String scopeType, String scopeKey);
+
+    ModelAccessPolicyOverride saveModelAccessPolicy(ModelAccessPolicyOverride policy);
 }

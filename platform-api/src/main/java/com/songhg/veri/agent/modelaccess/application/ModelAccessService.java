@@ -205,17 +205,19 @@ public class ModelAccessService {
         writer.append("invocationId,createdAt,projectId,applicationId,environmentId,sensitivityLevel,status,")
                 .append("providerId,providerName,modelName,routingRuleName,routingGroup,modelCapability,promptKey,promptVersion,fallbackUsed,")
                 .append("promptDigest,inputTokens,outputTokens,totalCost,latencyMs,actorService,")
-                .append("delegatedUserId,errorCode,errorMessage,requestPreview,responsePreview\n");
+                .append("delegatedUserId,roleScope,errorCode,errorMessage,requestPreview,responsePreview\n");
         int written = 0;
         int pageIndex = 0;
         while (written < exportRows) {
             InvocationQuery exportQuery = new InvocationQuery(
                     normalized.projectId(),
                     normalized.applicationId(),
+                    normalized.environmentId(),
                     normalized.sensitivityLevel(),
                     normalized.status(),
                     normalized.providerId(),
                     normalized.actorService(),
+                    normalized.roleScope(),
                     normalized.startTime(),
                     normalized.endTime(),
                     PageQuery.of(pageIndex, chunkSize)
@@ -289,10 +291,12 @@ public class ModelAccessService {
         return new InvocationQuery(
                 trimToNull(query.projectId()),
                 trimToNull(query.applicationId()),
+                trimToNull(query.environmentId()),
                 normalizeQuerySensitivityLevel(query.sensitivityLevel()),
                 query.status(),
                 query.providerId(),
                 trimToNull(query.actorService()),
+                trimToNull(query.roleScope()),
                 query.startTime(),
                 query.endTime(),
                 pageQuery
@@ -332,6 +336,7 @@ public class ModelAccessService {
                 record.latencyMs(),
                 record.actorService(),
                 record.delegatedUserId(),
+                record.roleScope(),
                 record.errorCode(),
                 record.errorMessage(),
                 record.requestPreview(),

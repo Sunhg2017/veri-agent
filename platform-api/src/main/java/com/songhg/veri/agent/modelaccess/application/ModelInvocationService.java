@@ -7,6 +7,7 @@ import com.songhg.veri.agent.modelaccess.application.port.ModelAccessRepository;
 import com.songhg.veri.agent.modelaccess.application.port.ModelProviderClient;
 import com.songhg.veri.agent.modelaccess.application.port.PlatformContextClient;
 import com.songhg.veri.agent.modelaccess.application.port.PlatformInvocationPolicy;
+import com.songhg.veri.agent.modelaccess.application.view.ModelAccessEffectivePolicy;
 import com.songhg.veri.agent.modelaccess.application.view.ModelInvocationResult;
 import com.songhg.veri.agent.modelaccess.config.ModelAccessProperties;
 import com.songhg.veri.agent.modelaccess.domain.ChatMessage;
@@ -41,6 +42,7 @@ public class ModelInvocationService {
     private final PromptRenderer promptRenderer;
     private final ModelAccessProperties properties;
     private final ModelProviderInvocationService providerInvocationService;
+    private final ModelAccessPolicyOperationsService policyOperationsService;
 
     public ModelInvocationService(
             ModelAccessRepository repository,
@@ -67,7 +69,8 @@ public class ModelInvocationService {
                         metrics,
                         providerResilienceManager,
                         new ModelInvocationBudgetService(repository, properties)
-                )
+                ),
+                null
         );
     }
 
@@ -78,7 +81,8 @@ public class ModelInvocationService {
             SensitiveContentGuard contentGuard,
             PromptRenderer promptRenderer,
             ModelAccessProperties properties,
-            ModelProviderInvocationService providerInvocationService
+            ModelProviderInvocationService providerInvocationService,
+            ModelAccessPolicyOperationsService policyOperationsService
     ) {
         this.repository = repository;
         this.platformContextClient = platformContextClient;
@@ -86,6 +90,7 @@ public class ModelInvocationService {
         this.promptRenderer = promptRenderer;
         this.properties = properties;
         this.providerInvocationService = providerInvocationService;
+        this.policyOperationsService = policyOperationsService;
     }
 
     /**
@@ -117,7 +122,17 @@ public class ModelInvocationService {
         }
         String requestSensitivityLevel = sensitivityLevel(request.sensitivityLevel());
         String modelCapability = modelCapability(request);
-        assertPromptSafe(request, principal, prompt, fullPrompt, modelCapability, requestSensitivityLevel, startedAt);
+        ModelAccessEffectivePolicy effectivePolicy = effectivePolicy(request, principal);
+        assertPromptSafe(
+                request,
+                principal,
+                prompt,
+                fullPrompt,
+                modelCapability,
+                requestSensitivityLevel,
+                startedAt,
+                effectivePolicy
+        );
         PlatformInvocationPolicy platformPolicy = platformContextClient.verifyInvocationContext(request, principal);
         String effectiveSensitivityLevel = stricterSensitivityLevel(
                 requestSensitivityLevel,
@@ -129,20 +144,23 @@ public class ModelInvocationService {
                 prompt,
                 fullPrompt,
                 platformPolicy,
+                effectivePolicy,
                 effectiveSensitivityLevel,
                 modelCapability,
                 startedAt
         );
 
         Boolean effectiveAllowPublicModel = Boolean.TRUE.equals(request.allowPublicModel())
-                && platformPolicy.allowPublicModel();
+                && platformPolicy.allowPublicModel()
+                && effectivePolicy.publicModelAllowed();
         RoutingDecision routingDecision = candidateProviders(
                 request,
                 principal,
                 effectiveAllowPublicModel,
                 effectiveSensitivityLevel,
                 modelCapability,
-                fullPrompt
+                fullPrompt,
+                effectivePolicy
         );
         return new ModelInvocationExecutionPlan(
                 startedAt,
@@ -153,7 +171,28 @@ public class ModelInvocationService {
                 effectiveSensitivityLevel,
                 modelCapability,
                 routingDecision.providers(),
-                routingDecision.ruleName()
+                routingDecision.ruleName(),
+                effectivePolicy
+        );
+    }
+
+    private ModelAccessEffectivePolicy effectivePolicy(ModelInvocationCommand request, ServicePrincipal principal) {
+        if (policyOperationsService != null) {
+            return policyOperationsService.effectivePolicy(request, principal);
+        }
+        List<String> roles = principal == null || principal.roles().isEmpty() ? List.of() : principal.roles();
+        return new ModelAccessEffectivePolicy(
+                true,
+                true,
+                null,
+                properties.safeCostAlertWarningRatio(),
+                properties.safeBudgetOverrunAction(),
+                null,
+                null,
+                null,
+                roles.isEmpty() ? null : roles.get(0),
+                List.of(),
+                true
         );
     }
 
@@ -164,7 +203,8 @@ public class ModelInvocationService {
             String fullPrompt,
             String modelCapability,
             String requestSensitivityLevel,
-            Instant startedAt
+            Instant startedAt,
+            ModelAccessEffectivePolicy effectivePolicy
     ) {
         try {
             contentGuard.assertSafe(fullPrompt);
@@ -173,7 +213,7 @@ public class ModelInvocationService {
                 providerInvocationService.recordBlocked(
                         request,
                         principal,
-                        blockedPlan(prompt, fullPrompt, modelCapability, requestSensitivityLevel, startedAt),
+                        blockedPlan(prompt, fullPrompt, modelCapability, requestSensitivityLevel, startedAt, effectivePolicy),
                         null,
                         false,
                         exception.getErrorCode().name(),
@@ -201,7 +241,8 @@ public class ModelInvocationService {
             Boolean allowPublicModel,
             String sensitivityLevel,
             String capability,
-            String fullPrompt
+            String fullPrompt,
+            ModelAccessEffectivePolicy effectivePolicy
     ) {
         List<ModelProviderConfig> baseCandidates = repository.providers()
                 .stream()
@@ -214,7 +255,13 @@ public class ModelInvocationService {
         ModelAccessProperties.RoutingRule rule = request.providerId() == null
                 ? matchingRoutingRule(request, principal, sensitivityLevel, capability)
                 : null;
-        List<ModelProviderConfig> candidates = applyRoutingRule(baseCandidates, rule)
+        List<ModelProviderConfig> routedCandidates = applyRoutingRule(baseCandidates, rule);
+        if (effectivePolicy != null && effectivePolicy.hasRoutingGroupOverride()) {
+            routedCandidates = routedCandidates.stream()
+                    .filter(provider -> routeFieldMatches(provider.routingGroup(), List.of(effectivePolicy.routingGroup()), false))
+                    .toList();
+        }
+        List<ModelProviderConfig> candidates = routedCandidates
                 .stream()
                 .sorted(providerComparator(rule, fullPrompt))
                 .toList();
@@ -227,6 +274,9 @@ public class ModelInvocationService {
         String ruleName = request.providerId() != null
                 ? "explicit-provider"
                 : routingRuleName(rule);
+        if (effectivePolicy != null && effectivePolicy.hasRoutingGroupOverride()) {
+            ruleName = ruleName + "+policy:" + effectivePolicy.routingGroup();
+        }
         return new RoutingDecision(candidates, ruleName);
     }
 
@@ -310,10 +360,25 @@ public class ModelInvocationService {
             PromptTemplate prompt,
             String fullPrompt,
             PlatformInvocationPolicy platformPolicy,
+            ModelAccessEffectivePolicy effectivePolicy,
             String sensitivityLevel,
             String modelCapability,
             Instant startedAt
     ) {
+        if (!effectivePolicy.modelInvocationEnabled()) {
+            blockBySensitivityPolicy(
+                    request,
+                    principal,
+                    prompt,
+                    null,
+                    fullPrompt,
+                    sensitivityLevel,
+                    "WP2 运营策略已关闭该范围模型调用",
+                    modelCapability,
+                    startedAt,
+                    effectivePolicy
+            );
+        }
         if (!platformPolicy.allowPublicModel() && Boolean.TRUE.equals(request.allowPublicModel())) {
             blockBySensitivityPolicy(
                     request,
@@ -324,7 +389,22 @@ public class ModelInvocationService {
                     sensitivityLevel,
                     "WP1 平台策略不允许该资源开启公开模型路由",
                     modelCapability,
-                    startedAt
+                    startedAt,
+                    effectivePolicy
+            );
+        }
+        if (!effectivePolicy.publicModelAllowed() && Boolean.TRUE.equals(request.allowPublicModel())) {
+            blockBySensitivityPolicy(
+                    request,
+                    principal,
+                    prompt,
+                    null,
+                    fullPrompt,
+                    sensitivityLevel,
+                    "WP2 运营策略不允许该范围开启公开模型路由",
+                    modelCapability,
+                    startedAt,
+                    effectivePolicy
             );
         }
         if (highSensitivity(sensitivityLevel) && Boolean.TRUE.equals(request.allowPublicModel())) {
@@ -337,13 +417,16 @@ public class ModelInvocationService {
                     sensitivityLevel,
                     "高敏感级别 " + sensitivityLevel + " 不允许开启公开模型路由",
                     modelCapability,
-                    startedAt
+                    startedAt,
+                    effectivePolicy
             );
         }
         if (request.providerId() != null) {
             repository.provider(request.providerId())
                     .filter(provider -> !localProvider(provider)
-                            && (highSensitivity(sensitivityLevel) || !platformPolicy.allowPublicModel()))
+                            && (highSensitivity(sensitivityLevel)
+                            || !platformPolicy.allowPublicModel()
+                            || !effectivePolicy.publicModelAllowed()))
                     .ifPresent(provider -> blockBySensitivityPolicy(
                             request,
                             principal,
@@ -351,19 +434,24 @@ public class ModelInvocationService {
                             provider,
                             fullPrompt,
                             sensitivityLevel,
-                            externalProviderBlockedMessage(sensitivityLevel, platformPolicy),
+                            externalProviderBlockedMessage(sensitivityLevel, platformPolicy, effectivePolicy),
                             modelCapability,
-                            startedAt
+                            startedAt,
+                            effectivePolicy
                     ));
         }
     }
 
     private String externalProviderBlockedMessage(
             String sensitivityLevel,
-            PlatformInvocationPolicy platformPolicy
+            PlatformInvocationPolicy platformPolicy,
+            ModelAccessEffectivePolicy effectivePolicy
     ) {
         if (!platformPolicy.allowPublicModel()) {
             return "WP1 平台策略不允许该资源指定外部模型供应商";
+        }
+        if (!effectivePolicy.publicModelAllowed()) {
+            return "WP2 运营策略不允许该范围指定外部模型供应商";
         }
         return "高敏感级别 " + sensitivityLevel + " 不允许指定外部模型供应商";
     }
@@ -377,12 +465,13 @@ public class ModelInvocationService {
             String sensitivityLevel,
             String message,
             String modelCapability,
-            Instant startedAt
+            Instant startedAt,
+            ModelAccessEffectivePolicy effectivePolicy
     ) {
         providerInvocationService.recordBlocked(
                 request,
                 principal,
-                blockedPlan(prompt, fullPrompt, modelCapability, sensitivityLevel, startedAt),
+                blockedPlan(prompt, fullPrompt, modelCapability, sensitivityLevel, startedAt, effectivePolicy),
                 provider,
                 false,
                 ErrorCode.MODEL_POLICY_VIOLATION.name(),
@@ -396,7 +485,8 @@ public class ModelInvocationService {
             String fullPrompt,
             String modelCapability,
             String sensitivityLevel,
-            Instant startedAt
+            Instant startedAt,
+            ModelAccessEffectivePolicy effectivePolicy
     ) {
         return new ModelInvocationExecutionPlan(
                 startedAt,
@@ -407,7 +497,8 @@ public class ModelInvocationService {
                 sensitivityLevel,
                 modelCapability,
                 List.of(),
-                null
+                null,
+                effectivePolicy
         );
     }
 

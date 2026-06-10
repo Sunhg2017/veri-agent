@@ -26,8 +26,8 @@
 | WP1 smoke | 已启动 `db` profile 平台 API，已执行 SuperAdmin seed | `bash scripts/wp1_db_profile_smoke.sh` | 管理控制面、RBAC、审计、资源作用域、首次登录强制改密 |
 | WP1 quality gate | WP1 本地聚合门禁 | `bash scripts/wp1_quality_gate.sh` | 后端测试、前端测试、前端构建、WP1 DB validation |
 | WP1 预发/生产 DB 权限 | 真实 app/readonly/migration 数据库角色 | `WP1_RELEASE_DATABASE_URL=... WP1_RELEASE_SCHEMA=... WP1_RELEASE_APP_ROLE=... WP1_RELEASE_READONLY_ROLE=... WP1_RELEASE_MIGRATION_ROLE=... bash scripts/wp1_release_role_validation.sh` | `release.app_role.*`、`release.readonly_role.*`、`release.migration_role.*`、`release.audit_log.*`、`release.audit_retention_cleanup.*`、`release.secret_local_store.*` 检查；详见 `WP1-发布前DB权限Runbook.md` |
-| WP2 DB | WP2 model access schema/seed/security | `bash db/validation/run_wp2_db_validation.sh` | `build/wp2-db-validation/` |
-| WP2 smoke | 已启动平台 API 的模型接入 API | `WP2_SERVICE_TOKEN=local-model-access-token bash scripts/wp2_model_access_smoke.sh` | provider、prompt、invocation、日志、成本、导出 |
+| WP2 DB | WP2 model access schema/seed/security/runtime policy | `bash db/validation/run_wp2_db_validation.sh` | `build/wp2-db-validation/` |
+| WP2 smoke | 已启动平台 API 的模型接入 API | `WP2_SERVICE_TOKEN=local-model-access-token bash scripts/wp2_model_access_smoke.sh` | provider、prompt、runtime policy、invocation、日志、成本、导出 |
 | WP2 policy smoke | WP2 消费 WP1 context/audit 策略 | `WP1_SERVICE_TOKEN=local-platform-service-token WP1_AUTH_TOKEN_SECRET=local-auth-secret-32-byte-minimum! WP2_SERVICE_TOKEN=local-model-access-token bash scripts/wp2_module_policy_smoke.sh` | 公开模型策略、敏感级别升级、本地模型调用 |
 | WP2 model quality | Prompt/provider 变更的离线任务评测 | `bash scripts/wp2_model_quality_eval.sh` | `case-design`、`defect-triage`、`requirement-summary` 任务的通过率、必需术语召回和禁用术语清洁率；可用 `WP2_MODEL_EVAL_TASK=case-design` 过滤 |
 | WP2 quality gate | WP2 聚合门禁 | `bash scripts/wp2_quality_gate.sh` | 后端测试、WP2 模型质量评测、portal-web 模型接入测试与构建、WP2 DB validation；HTTP smoke 需 `WP2_RUN_HTTP_SMOKE=1`，策略 smoke 需 `WP2_RUN_POLICY_SMOKE=1` |

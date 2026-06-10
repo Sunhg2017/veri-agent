@@ -22,6 +22,7 @@ import com.songhg.veri.agent.modelaccess.application.view.ModelInvocationJobStat
 import com.songhg.veri.agent.modelaccess.application.view.ModelInvocationResult;
 import com.songhg.veri.agent.modelaccess.domain.InvocationRecord;
 import com.songhg.veri.agent.modelaccess.domain.InvocationStatus;
+import com.songhg.veri.agent.modelaccess.domain.ModelAccessPolicyOverride;
 import com.songhg.veri.agent.modelaccess.infrastructure.JdbcModelInvocationJobRepository;
 import com.songhg.veri.agent.modelaccess.infrastructure.JdbcModelAccessRepository;
 import com.songhg.veri.agent.testdesign.application.port.TestDesignRepository;
@@ -333,7 +334,7 @@ class DbProfileRepositoryContractTest {
     void modelAccessRepositoryPersistsInvocationsAndRunsDistinctQueriesThroughJdbc() {
         String projectId = "project-db-" + UUID.randomUUID();
         Instant now = Instant.now();
-        modelAccessRepository.saveInvocation(invocation(projectId, "wp4-document-input", now.minusSeconds(20)));
+        modelAccessRepository.saveInvocation(invocation(projectId, "wp4-document-input", now.minusSeconds(20), UUID.randomUUID(), "Auditor"));
         modelAccessRepository.saveInvocation(invocation(projectId, "wp4-document-input", now.minusSeconds(10)));
         modelAccessRepository.saveInvocation(invocation(projectId + "-other", "wp5-test-design", now.minusSeconds(5)));
 
@@ -351,10 +352,90 @@ class DbProfileRepositoryContractTest {
 
         assertThat(modelAccessRepository.countInvocations(projectQuery)).isEqualTo(2);
         assertThat(modelAccessRepository.invocationSummary(projectQuery).totalCost()).isEqualByComparingTo("0.03000000");
+        InvocationQuery roleQuery = new InvocationQuery(
+                projectId,
+                null,
+                "env-db",
+                null,
+                InvocationStatus.SUCCEEDED,
+                null,
+                null,
+                "Auditor",
+                now.minusSeconds(60),
+                now.plusSeconds(60),
+                PageQuery.of(0, 10)
+        );
+        assertThat(modelAccessRepository.countInvocations(roleQuery)).isEqualTo(1);
+        assertThat(modelAccessRepository.invocations(roleQuery))
+                .singleElement()
+                .satisfies(record -> assertThat(record.roleScope()).isEqualTo("Auditor"));
         assertThat(modelAccessRepository.distinctProjectIds(now.minusSeconds(60), now.plusSeconds(60)))
                 .contains(projectId, projectId + "-other");
         assertThat(modelAccessRepository.distinctActorServices(now.minusSeconds(60), now.plusSeconds(60)))
                 .contains("wp4-document-input", "wp5-test-design");
+    }
+
+    @Test
+    void modelAccessRepositoryPersistsRuntimePolicyOverridesThroughJdbc() {
+        String projectScope = "project-policy-db-" + UUID.randomUUID();
+        Instant now = Instant.now();
+        ModelAccessPolicyOverride policy = new ModelAccessPolicyOverride(
+                UUID.randomUUID(),
+                "PROJECT",
+                projectScope,
+                true,
+                false,
+                true,
+                new BigDecimal("3.00000000"),
+                new BigDecimal("0.7500"),
+                "BLOCK",
+                "private",
+                "db policy",
+                "db-admin",
+                now,
+                now
+        );
+
+        modelAccessRepository.saveModelAccessPolicy(policy);
+
+        assertThat(modelAccessRepository.modelAccessPolicy("PROJECT", projectScope))
+                .hasValueSatisfying(stored -> {
+                    assertThat(stored.modelInvocationEnabled()).isFalse();
+                    assertThat(stored.publicModelAllowed()).isTrue();
+                    assertThat(stored.dailyBudgetLimit()).isEqualByComparingTo("3.00000000");
+                    assertThat(stored.routingGroup()).isEqualTo("private");
+                });
+        assertThat(modelAccessRepository.modelAccessPolicies("PROJECT", null))
+                .extracting(ModelAccessPolicyOverride::scopeKey)
+                .contains(projectScope);
+
+        ModelAccessPolicyOverride updated = new ModelAccessPolicyOverride(
+                policy.id(),
+                policy.scopeType(),
+                policy.scopeKey(),
+                false,
+                true,
+                false,
+                null,
+                null,
+                "FALLBACK",
+                null,
+                "db policy updated",
+                "db-admin-2",
+                policy.createdAt(),
+                now.plusSeconds(1)
+        );
+        modelAccessRepository.saveModelAccessPolicy(updated);
+
+        assertThat(modelAccessRepository.modelAccessPolicy("PROJECT", projectScope))
+                .hasValueSatisfying(stored -> {
+                    assertThat(stored.enabled()).isFalse();
+                    assertThat(stored.modelInvocationEnabled()).isTrue();
+                    assertThat(stored.publicModelAllowed()).isFalse();
+                    assertThat(stored.dailyBudgetLimit()).isNull();
+                    assertThat(stored.budgetOverrunAction()).isEqualTo("FALLBACK");
+                    assertThat(stored.updatedBy()).isEqualTo("db-admin-2");
+                });
     }
 
     @Test
@@ -383,6 +464,7 @@ class DbProfileRepositoryContractTest {
                 requestJson,
                 "wp5-test-design",
                 "db-user",
+                "SuperAdmin,Auditor",
                 "trc_db_job",
                 now,
                 null,
@@ -411,6 +493,7 @@ class DbProfileRepositoryContractTest {
         assertThat(stored.status()).isEqualTo(ModelInvocationJobStatus.SUCCEEDED);
         assertThat(stored.invocationId()).isEqualTo(invocationId);
         assertThat(stored.responseJson()).contains("local model response");
+        assertThat(stored.principalRoles()).isEqualTo("SuperAdmin,Auditor");
 
         UUID runningJobId = UUID.randomUUID();
         modelInvocationJobRepository.save(new ModelInvocationJobRecord(
@@ -1131,6 +1214,16 @@ class DbProfileRepositoryContractTest {
     }
 
     private InvocationRecord invocation(String projectId, String actorService, Instant createdAt, UUID invocationId) {
+        return invocation(projectId, actorService, createdAt, invocationId, null);
+    }
+
+    private InvocationRecord invocation(
+            String projectId,
+            String actorService,
+            Instant createdAt,
+            UUID invocationId,
+            String roleScope
+    ) {
         return new InvocationRecord(
                 invocationId,
                 projectId,
@@ -1156,6 +1249,7 @@ class DbProfileRepositoryContractTest {
                 null,
                 null,
                 25,
+                roleScope,
                 actorService,
                 "db-test-user",
                 createdAt

@@ -175,7 +175,9 @@ describe('WP1 permission helpers', () => {
     expect(canUseButton(user(['testDesign:read']), 'testDesign:policy_manage')).toBe(false);
     expect(canUseButton(user(['modelAccess:manage']), 'modelAccess:provider_manage')).toBe(true);
     expect(canUseButton(user(['modelAccess:manage']), 'modelAccess:prompt_manage')).toBe(true);
+    expect(canUseButton(user(['modelAccess:manage']), 'modelAccess:policy_manage')).toBe(true);
     expect(canUseButton(user(['modelAccess:read']), 'modelAccess:provider_manage')).toBe(false);
+    expect(canUseButton(user(['modelAccess:read']), 'modelAccess:policy_manage')).toBe(false);
     expect(canUseButton(user(['modelAccess:export']), 'modelAccess:export')).toBe(true);
     expect(canUseButton(user(['secret:manage']), 'secret:create')).toBe(true);
     expect(canUseButton(user(['secret:read']), 'secret:create')).toBe(false);
