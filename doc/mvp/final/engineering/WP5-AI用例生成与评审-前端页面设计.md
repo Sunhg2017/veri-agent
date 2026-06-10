@@ -162,9 +162,9 @@ API client 需复用现有 `requestJson` 和 `ApiError` 处理，保留响应中
 | version conflict | 提示刷新候选后再操作，保留用户正在编辑内容。 |
 | model blocked | 展示 WP2 阻断原因摘要，不展示敏感内容。 |
 | prompt readiness | Prompt 趋势中展示 `PASSED/WARNING/BLOCKED` 准出状态分布；每个版本展示准出状态、阻断数和风险数；该状态仅用于运营比较，不禁用发布按钮。 |
-| evaluation corpus | 任务诊断展示 `evaluationCorpusPolicy` 的 golden set 基线、手动可选 AI 评测、部署配置阈值、项目作用域、质量门禁接入、准出分布/Prompt 版本跟踪和运营后台 pending；该状态只说明当前评测语料边界，不代表真实样本维护或长期校准后台已就绪。 |
-| release readiness | 任务诊断展示 `releaseReadinessPolicy` 的 advisory-only、发布阻断关闭、审批流 pending、人工准出、自动发布关闭和候选确认要求；该状态只说明当前准出边界，不代表真实审批流已就绪。 |
-| audit chain | 任务诊断展示 `auditChainPolicy` 的 WP1 审计写入、WP2 调用引用、WP3 发布引用、WP5 本域事件、项目作用域、trace 信号、跨 WP 看板 pending 和 outbox 看板 pending；该状态只说明当前审计链观测边界，不代表真实跨 WP 审计看板或 outbox 重放看板已就绪。 |
+| evaluation corpus | 任务诊断和真实样本维护面板展示 `evaluationCorpusPolicy` 的 golden set 基线、手动可选 AI 评测、部署配置阈值、项目作用域、质量门禁接入、准出分布/Prompt 版本跟踪、样本维护、长期校准和运营后台 ready；页面支持样本增改、候选提取、状态流转和校准运行。 |
+| release readiness | 任务诊断和发布准出面板展示 `releaseReadinessPolicy` 的 advisory-only、发布阻断配置、审批流 ready、人工准出、自动发布关闭、候选确认要求和质量门禁例外；页面支持例外申请、审批/驳回、备注流转和 digest 绑定放行。 |
+| audit chain | 任务诊断展示 `auditChainPolicy` 的 WP1 审计写入、WP2 调用引用、WP3 发布引用、WP5 本域事件、项目作用域、trace 信号、跨 WP 看板 ready 和 outbox 看板 ready；跨 WP 统一运营面板只展示聚合 scope/audit/outbox 指标，并支持按项目受限 requeue，不展示审计/outbox/trace/候选/资产明细标识。 |
 | model observation policy | 任务诊断展示 `modelObservationPolicy` 的策略版本、聚合观测模式、WP2 调用引用、trace/job/routing/token/latency/cost/fallback 跟踪能力、Prompt 载荷不存储和细节导出关闭；该状态只说明当前模型观测治理边界，不代表真实跨 WP 模型调用明细看板已就绪，也不展示 traceId/jobId/invocationId 原值、载荷预览、provider 错误正文或 actor service。 |
 | generation orchestration policy | 任务诊断展示 `generationOrchestrationPolicy` 的策略版本、编排模式、条件认领、幂等回放、重复事件安全、恢复扫描、运行中超时回收、人工重试、人工排队事件重发、队列 lag 指标、超时告警、恢复批次上限、排队/运行/最旧排队年龄/超时运行聚合计数和告警布尔值；该状态只说明当前生成编排边界，人工排队事件重发仅支持 `QUEUED` 任务，仅代表本地多 worker 重复事件认领证据已就绪，不代表跨 WP 事务编排已就绪，也不展示事件 ID、事件 payload、队列消息体、恢复明细、幂等键原值或超时错误正文。 |
 | archive policy | 任务诊断展示 `archivePolicy` 的策略版本、保留天数、`platformManaged` 存储策略、审批要求、审批流 pending、真实归档存储 pending、外发开关、保留策略跟踪和细节导出关闭；该状态只说明当前归档治理边界，不代表真实归档存储、审批流、外发流程或工单流转已就绪。 |

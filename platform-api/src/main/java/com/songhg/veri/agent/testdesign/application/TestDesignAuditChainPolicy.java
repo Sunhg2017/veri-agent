@@ -7,10 +7,10 @@ import java.util.Map;
 /**
  * Centralizes the WP5 audit-chain observability boundary.
  *
- * <p>The current slice writes WP1 audit events and exposes WP5 task-local audit summaries, but it does not yet provide
- * a cross-WP audit dashboard over WP1 audit_log, WP2 invocations and WP3 publish records. This aggregate snapshot makes
- * that boundary explicit for health checks, task diagnostics, model payloads and reports without exporting audit rows,
- * candidate identifiers, trace IDs, invocation IDs, sourceRef values or asset IDs.
+ * <p>The current slice writes WP1 audit events and exposes task-level and project-level aggregate dashboards over WP1
+ * audit_log, WP2 invocations, WP3 publish records and WP1 audit outbox replay readiness. This snapshot keeps health
+ * checks, task diagnostics, model payloads and reports aligned without exporting audit rows, candidate identifiers,
+ * trace IDs, invocation IDs, sourceRef values, outbox payloads or asset IDs.
  */
 public final class TestDesignAuditChainPolicy {
 
@@ -38,8 +38,8 @@ public final class TestDesignAuditChainPolicy {
                 false,
                 false,
                 false,
-                false,
-                false,
+                true,
+                true,
                 true
         );
     }

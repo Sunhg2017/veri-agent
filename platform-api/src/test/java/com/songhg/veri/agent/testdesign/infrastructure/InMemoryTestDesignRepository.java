@@ -17,6 +17,7 @@ import com.songhg.veri.agent.testdesign.domain.TestDesignConflictOperationRecord
 import com.songhg.veri.agent.testdesign.domain.TestDesignConflictOperationSummary;
 import com.songhg.veri.agent.testdesign.domain.TestDesignContextPolicyNote;
 import com.songhg.veri.agent.testdesign.domain.TestDesignContextPolicyOverride;
+import com.songhg.veri.agent.testdesign.domain.TestDesignCrossWpOperationsAggregate;
 import com.songhg.veri.agent.testdesign.domain.TestDesignEvaluationSample;
 import com.songhg.veri.agent.testdesign.domain.TestDesignEvaluationSampleSummary;
 import com.songhg.veri.agent.testdesign.domain.TestDesignPublishRecord;
@@ -600,6 +601,89 @@ public class InMemoryTestDesignRepository implements TestDesignRepository {
                 0,
                 0
         );
+    }
+
+    @Override
+    public TestDesignCrossWpOperationsAggregate crossWpOperationsAggregate(String projectId, String promptKey) {
+        List<TestDesignTask> scopedTasks = tasks.values().stream()
+                .filter(task -> matches(projectId, task.projectId()))
+                .filter(task -> matches(promptKey, task.promptKey()))
+                .toList();
+        List<UUID> taskIds = scopedTasks.stream().map(TestDesignTask::id).toList();
+        List<TestDesignCandidate> scopedCandidates = candidates.values().stream()
+                .filter(candidate -> taskIds.contains(candidate.taskId()))
+                .toList();
+        List<TestDesignPublishRecord> scopedPublishRecords = publishRecords.values().stream()
+                .filter(record -> taskIds.contains(record.taskId()))
+                .toList();
+        long candidateScopeMismatchCount = scopedCandidates.stream()
+                .filter(candidate -> tasks.get(candidate.taskId()) != null)
+                .filter(candidate -> !tasks.get(candidate.taskId()).projectId().equals(candidate.projectId()))
+                .count();
+        long publishScopeMismatchCount = scopedPublishRecords.stream()
+                .filter(record -> tasks.get(record.taskId()) != null)
+                .filter(record -> !tasks.get(record.taskId()).projectId().equals(record.projectId()))
+                .count();
+        long modelInvocationReferenceCount = scopedTasks.stream().filter(task -> task.modelInvocationId() != null).count()
+                + scopedCandidates.stream().filter(candidate -> candidate.modelInvocationId() != null).count();
+        long publishProjectScopeRecordCount = scopedPublishRecords.stream()
+                .filter(record -> StringUtils.hasText(record.projectId()))
+                .count();
+        long reviewRecordCount = reviewRecords.values().stream()
+                .filter(record -> taskIds.contains(record.taskId()))
+                .count();
+        long reportManifestCount = reportManifests.values().stream()
+                .filter(manifest -> taskIds.contains(manifest.taskId()))
+                .count();
+        long publishedCaseCount = scopedCandidates.stream()
+                .filter(candidate -> candidate.assetCaseId() != null)
+                .count();
+        long traceLinkCount = scopedPublishRecords.stream()
+                .filter(record -> !record.dryRun())
+                .filter(record -> "SUCCEEDED".equals(record.result()))
+                .filter(record -> record.assetCaseId() != null)
+                .count();
+        long wp1AuditEventCount = scopedTasks.size() + reviewRecordCount + reportManifestCount;
+        return new TestDesignCrossWpOperationsAggregate(
+                scopedTasks.size(),
+                scopedCandidates.size(),
+                scopedPublishRecords.size(),
+                scopedTasks.stream().map(TestDesignTask::projectId).filter(StringUtils::hasText).distinct().count(),
+                candidateScopeMismatchCount,
+                publishScopeMismatchCount,
+                modelInvocationReferenceCount,
+                publishProjectScopeRecordCount,
+                wp1AuditEventCount,
+                wp1AuditEventCount,
+                0,
+                0,
+                modelInvocationReferenceCount,
+                modelInvocationReferenceCount,
+                0,
+                0,
+                0,
+                modelInvocationReferenceCount,
+                publishedCaseCount,
+                traceLinkCount,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+        );
+    }
+
+    @Override
+    public int requeueAuditOutbox(
+            String projectId,
+            String status,
+            int limit,
+            String reason,
+            String actor,
+            Instant now
+    ) {
+        return 0;
     }
 
     @Override

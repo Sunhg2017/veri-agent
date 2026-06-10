@@ -173,7 +173,7 @@ class TestDesignControllerTest {
                 .andExpect(jsonPath("$.data.scopePolicy.smokeProjectScopeRequired").value(true))
                 .andExpect(jsonPath("$.data.scopePolicy.evaluationCorpusProjectIsolated").value(true))
                 .andExpect(jsonPath("$.data.scopePolicy.evaluationCorpusOperationsReady").value(true))
-                .andExpect(jsonPath("$.data.scopePolicy.crossWpScopeDashboardReady").value(false))
+                .andExpect(jsonPath("$.data.scopePolicy.crossWpScopeDashboardReady").value(true))
                 .andExpect(jsonPath("$.data.scopePolicy.candidateIdentifierListExported").value(false))
                 .andExpect(jsonPath("$.data.scopePolicy.roleRuleDetailExported").value(false))
                 .andExpect(jsonPath("$.data.scopePolicy.serviceTokenValueExported").value(false))
@@ -229,8 +229,8 @@ class TestDesignControllerTest {
                 .andExpect(jsonPath("$.data.auditChainPolicy.wp5DomainEventsTracked").value(true))
                 .andExpect(jsonPath("$.data.auditChainPolicy.projectScopeRequired").value(true))
                 .andExpect(jsonPath("$.data.auditChainPolicy.traceSignalTracked").value(true))
-                .andExpect(jsonPath("$.data.auditChainPolicy.crossWpAuditDashboardReady").value(false))
-                .andExpect(jsonPath("$.data.auditChainPolicy.auditOutboxReplayDashboardReady").value(false))
+                .andExpect(jsonPath("$.data.auditChainPolicy.crossWpAuditDashboardReady").value(true))
+                .andExpect(jsonPath("$.data.auditChainPolicy.auditOutboxReplayDashboardReady").value(true))
                 .andExpect(jsonPath("$.data.auditChainPolicy.auditEventDetailExported").value(false))
                 .andExpect(jsonPath("$.data.auditChainPolicy.candidateIdentifierListExported").value(false))
                 .andExpect(jsonPath("$.data.auditChainPolicy.platformAuditIdentifierExported").value(false))
@@ -888,7 +888,7 @@ class TestDesignControllerTest {
                 .andExpect(jsonPath("$.data.task.auditChainPolicy.chainMode")
                         .value("WP5_DOMAIN_AGGREGATE_WITH_WP1_AUDIT"))
                 .andExpect(jsonPath("$.data.task.auditChainPolicy.wp1AuditEventWritten").value(true))
-                .andExpect(jsonPath("$.data.task.auditChainPolicy.crossWpAuditDashboardReady").value(false))
+                .andExpect(jsonPath("$.data.task.auditChainPolicy.crossWpAuditDashboardReady").value(true))
                 .andExpect(jsonPath("$.data.task.auditChainPolicy.auditEventDetailExported").value(false))
                 .andExpect(jsonPath("$.data.task.auditChainPolicy.traceIdValueExported").value(false))
                 .andExpect(jsonPath("$.data.task.modelObservationPolicy.policyVersion")
@@ -1630,6 +1630,7 @@ class TestDesignControllerTest {
         String ownerToken = userAccessToken(List.of("ProjectOwner@PROJECT:project-wp5"));
         String auditorToken = userAccessToken(List.of("Auditor@PROJECT:project-wp5"));
         String deniedAuditorToken = userAccessToken(List.of("Auditor@PROJECT:project-other"));
+        String deniedOwnerToken = userAccessToken(List.of("ProjectOwner@PROJECT:project-other"));
         String requirementId = createRequirement(
                 ownerToken,
                 "导出安全需求 token=secret-value",
@@ -2195,7 +2196,7 @@ class TestDesignControllerTest {
         MatcherAssert.assertThat(csv, containsString("scopePolicy,smokeProjectScopeRequired,,true"));
         MatcherAssert.assertThat(csv, containsString("scopePolicy,evaluationCorpusProjectIsolated,,true"));
         MatcherAssert.assertThat(csv, containsString("scopePolicy,evaluationCorpusOperationsReady,,true"));
-        MatcherAssert.assertThat(csv, containsString("scopePolicy,crossWpScopeDashboardReady,,false"));
+        MatcherAssert.assertThat(csv, containsString("scopePolicy,crossWpScopeDashboardReady,,true"));
         MatcherAssert.assertThat(csv, containsString("scopePolicy,candidateIdentifierListExported,,false"));
         MatcherAssert.assertThat(csv, containsString("scopePolicy,roleRuleDetailExported,,false"));
         MatcherAssert.assertThat(csv, containsString("scopePolicy,serviceTokenValueExported,,false"));
@@ -2231,8 +2232,8 @@ class TestDesignControllerTest {
         MatcherAssert.assertThat(csv, containsString("auditChainPolicy,wp3PublishReferenceTracked,,true"));
         MatcherAssert.assertThat(csv, containsString("auditChainPolicy,wp5DomainEventsTracked,,true"));
         MatcherAssert.assertThat(csv, containsString("auditChainPolicy,projectScopeRequired,,true"));
-        MatcherAssert.assertThat(csv, containsString("auditChainPolicy,crossWpAuditDashboardReady,,false"));
-        MatcherAssert.assertThat(csv, containsString("auditChainPolicy,auditOutboxReplayDashboardReady,,false"));
+        MatcherAssert.assertThat(csv, containsString("auditChainPolicy,crossWpAuditDashboardReady,,true"));
+        MatcherAssert.assertThat(csv, containsString("auditChainPolicy,auditOutboxReplayDashboardReady,,true"));
         MatcherAssert.assertThat(csv, containsString("auditChainPolicy,auditEventDetailExported,,false"));
         MatcherAssert.assertThat(csv, containsString("auditChainPolicy,candidateIdentifierListExported,,false"));
         MatcherAssert.assertThat(csv, containsString("auditChainPolicy,platformAuditIdentifierExported,,false"));
@@ -2377,6 +2378,7 @@ class TestDesignControllerTest {
         String ownerToken = userAccessToken(List.of("ProjectOwner@PROJECT:project-wp5"));
         String auditorToken = userAccessToken(List.of("Auditor@PROJECT:project-wp5"));
         String deniedAuditorToken = userAccessToken(List.of("Auditor@PROJECT:project-other"));
+        String deniedOwnerToken = userAccessToken(List.of("ProjectOwner@PROJECT:project-other"));
         String requirementId = createRequirement(
                 ownerToken,
                 "审计链需求 token=secret-value",
@@ -2479,6 +2481,7 @@ class TestDesignControllerTest {
         String ownerToken = userAccessToken(List.of("ProjectOwner@PROJECT:project-wp5"));
         String auditorToken = userAccessToken(List.of("Auditor@PROJECT:project-wp5"));
         String deniedAuditorToken = userAccessToken(List.of("Auditor@PROJECT:project-other"));
+        String deniedOwnerToken = userAccessToken(List.of("ProjectOwner@PROJECT:project-other"));
         String requirementId = createRequirement(
                 ownerToken,
                 "跨 WP 审计需求 token=secret-value",
@@ -2524,8 +2527,8 @@ class TestDesignControllerTest {
                 .andExpect(jsonPath("$.data.projectId").value("project-wp5"))
                 .andExpect(jsonPath("$.data.policyVersion").value("wp5-audit-chain-policy-v1"))
                 .andExpect(jsonPath("$.data.readOnlyAggregateDashboardReady").value(true))
-                .andExpect(jsonPath("$.data.crossWpAuditDashboardReady").value(false))
-                .andExpect(jsonPath("$.data.auditOutboxReplayDashboardReady").value(false))
+                .andExpect(jsonPath("$.data.crossWpAuditDashboardReady").value(true))
+                .andExpect(jsonPath("$.data.auditOutboxReplayDashboardReady").value(true))
                 .andExpect(jsonPath("$.data.aggregateOnly").value(true))
                 .andExpect(jsonPath("$.data.auditEventDetailExported").value(false))
                 .andExpect(jsonPath("$.data.candidateIdentifierListExported").value(false))
@@ -3028,6 +3031,7 @@ class TestDesignControllerTest {
         String ownerToken = userAccessToken(List.of("ProjectOwner@PROJECT:project-wp5"));
         String auditorToken = userAccessToken(List.of("Auditor@PROJECT:project-wp5"));
         String deniedAuditorToken = userAccessToken(List.of("Auditor@PROJECT:project-other"));
+        String deniedOwnerToken = userAccessToken(List.of("ProjectOwner@PROJECT:project-other"));
         String requirementId = createRequirement(
                 ownerToken,
                 "作用域摘要需求 token=secret-value",
@@ -3117,9 +3121,86 @@ class TestDesignControllerTest {
         MatcherAssert.assertThat(json, not(containsString("作用域拒绝")));
         MatcherAssert.assertThat(json, not(containsString("role rule")));
 
+        MvcResult crossWpDashboard = mockMvc.perform(get("/api/v1/test-design/operations/cross-wp-dashboard")
+                        .header("Authorization", "Bearer " + auditorToken)
+                        .param("projectId", "project-wp5")
+                        .param("promptKey", "wp5-test-design-v1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.projectId").value("project-wp5"))
+                .andExpect(jsonPath("$.data.promptKey").value("wp5-test-design-v1"))
+                .andExpect(jsonPath("$.data.scopePolicy.crossWpScopeDashboardReady").value(true))
+                .andExpect(jsonPath("$.data.auditChainPolicy.crossWpAuditDashboardReady").value(true))
+                .andExpect(jsonPath("$.data.auditChainPolicy.auditOutboxReplayDashboardReady").value(true))
+                .andExpect(jsonPath("$.data.taskCount").value(1))
+                .andExpect(jsonPath("$.data.candidateCount").value(2))
+                .andExpect(jsonPath("$.data.publishRecordCount").value(1))
+                .andExpect(jsonPath("$.data.candidateScopeMismatchCount").value(0))
+                .andExpect(jsonPath("$.data.publishScopeMismatchCount").value(0))
+                .andExpect(jsonPath("$.data.auditDashboard.crossWpAuditDashboardReady").value(true))
+                .andExpect(jsonPath("$.data.auditDashboard.auditEventDetailExported").value(false))
+                .andExpect(jsonPath("$.data.auditDashboard.traceIdValueExported").value(false))
+                .andExpect(jsonPath("$.data.auditDashboard.modelInvocationIdValueExported").value(false))
+                .andExpect(jsonPath("$.data.auditDashboard.publishIdentifierValueExported").value(false))
+                .andExpect(jsonPath("$.data.auditOutbox.replaySupported").value(true))
+                .andExpect(jsonPath("$.data.auditOutbox.payloadExported").value(false))
+                .andExpect(jsonPath("$.data.auditOutbox.traceIdValueExported").value(false))
+                .andExpect(jsonPath("$.data.auditOutbox.lastErrorTextExported").value(false))
+                .andExpect(jsonPath("$.data.readiness[?(@.code == 'crossWpScopeDashboardReady')].ready")
+                        .value(contains(true)))
+                .andExpect(jsonPath("$.data.readiness[?(@.code == 'crossWpAuditDashboardReady')].ready")
+                        .value(contains(true)))
+                .andExpect(jsonPath("$.data.readiness[?(@.code == 'auditOutboxReplayDashboardReady')].ready")
+                        .value(contains(true)))
+                .andExpect(jsonPath("$.data.readiness[?(@.code == 'detailIdentifiersRedacted')].ready")
+                        .value(contains(true)))
+                .andExpect(jsonPath("$.data.aggregateOnly").value(true))
+                .andExpect(jsonPath("$.data.detailIdentifiersExported").value(false))
+                .andReturn();
+        String dashboardJson = crossWpDashboard.getResponse().getContentAsString();
+        MatcherAssert.assertThat(dashboardJson, not(containsString(taskId)));
+        MatcherAssert.assertThat(dashboardJson, not(containsString(firstCandidateId)));
+        MatcherAssert.assertThat(dashboardJson, not(containsString(secondCandidateId)));
+        MatcherAssert.assertThat(dashboardJson, not(containsString(assetCaseId)));
+        MatcherAssert.assertThat(dashboardJson, not(containsString("secret-value")));
+        MatcherAssert.assertThat(dashboardJson, not(containsString("rawPrompt")));
+        MatcherAssert.assertThat(dashboardJson, not(containsString("local-test-design-token")));
+
+        MvcResult requeue = mockMvc.perform(post("/api/v1/test-design/operations/audit-outbox/requeue")
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "projectId": "project-wp5",
+                                  "status": "FAILED_OR_DEAD",
+                                  "maxItems": 10,
+                                  "reason": "重放 token=secret-value"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.projectId").value("project-wp5"))
+                .andExpect(jsonPath("$.data.requestedStatus").value("FAILED_OR_DEAD"))
+                .andExpect(jsonPath("$.data.requestedLimit").value(10))
+                .andExpect(jsonPath("$.data.requeuedCount").value(0))
+                .andExpect(jsonPath("$.data.replaySupported").value(true))
+                .andExpect(jsonPath("$.data.payloadExported").value(false))
+                .andExpect(jsonPath("$.data.detailIdentifiersExported").value(false))
+                .andReturn();
+        MatcherAssert.assertThat(requeue.getResponse().getContentAsString(), not(containsString("secret-value")));
+
         mockMvc.perform(get("/api/v1/test-design/quality/scope-summary")
                         .header("Authorization", "Bearer " + deniedAuditorToken)
                         .param("projectId", "project-wp5"))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(get("/api/v1/test-design/operations/cross-wp-dashboard")
+                        .header("Authorization", "Bearer " + deniedAuditorToken)
+                        .param("projectId", "project-wp5"))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(post("/api/v1/test-design/operations/audit-outbox/requeue")
+                        .header("Authorization", "Bearer " + deniedOwnerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"projectId": "project-wp5", "status": "FAILED_OR_DEAD", "maxItems": 10}
+                                """))
                 .andExpect(status().isForbidden());
     }
 

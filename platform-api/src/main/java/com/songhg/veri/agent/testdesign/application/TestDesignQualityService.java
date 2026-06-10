@@ -818,7 +818,7 @@ public class TestDesignQualityService {
                             "评测语料摘要和 AI 评测基线按固定项目作用域隔离"),
                     scopeReadiness("crossWpScopeDashboardReady", "跨 WP 统一作用域看板",
                             policy.crossWpScopeDashboardReady(),
-                            "当前只提供 WP5 只读聚合骨架，完整跨 WP scope 看板仍未就绪"),
+                            "跨 WP 统一运营台已聚合任务、候选、发布记录和模型调用 scope 覆盖率"),
                     scopeReadiness("detailIdentifiersRedacted", "明细标识不导出",
                             policy.aggregateOnly()
                                     && !policy.candidateIdentifierListExported()

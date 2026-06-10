@@ -16,6 +16,7 @@ import com.songhg.veri.agent.testdesign.domain.TestDesignConflictOperationRecord
 import com.songhg.veri.agent.testdesign.domain.TestDesignConflictOperationSummary;
 import com.songhg.veri.agent.testdesign.domain.TestDesignContextPolicyNote;
 import com.songhg.veri.agent.testdesign.domain.TestDesignContextPolicyOverride;
+import com.songhg.veri.agent.testdesign.domain.TestDesignCrossWpOperationsAggregate;
 import com.songhg.veri.agent.testdesign.domain.TestDesignEvaluationSample;
 import com.songhg.veri.agent.testdesign.domain.TestDesignEvaluationSampleSummary;
 import com.songhg.veri.agent.testdesign.domain.TestDesignPublishRecord;
@@ -251,6 +252,23 @@ public interface TestDesignRepository {
      * 查询任务级跨 WP 审计链聚合计数，不返回审计事件、trace、模型调用、候选或资产明细标识。
      */
     TestDesignAuditChainAggregate auditChainAggregate(UUID taskId);
+
+    /**
+     * Aggregate cross-WP operational signals for a project or platform scope without exposing identifiers.
+     */
+    TestDesignCrossWpOperationsAggregate crossWpOperationsAggregate(String projectId, String promptKey);
+
+    /**
+     * Requeue failed/dead audit outbox events that are related to a WP5 project scope.
+     */
+    int requeueAuditOutbox(
+            String projectId,
+            String status,
+            int limit,
+            String reason,
+            String actor,
+            Instant now
+    );
 
     /**
      * 保存项目或环境级上下文策略覆盖请求，包含有界裁剪数字、审批工单和策略正文版本。

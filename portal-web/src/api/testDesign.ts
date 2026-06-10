@@ -759,6 +759,77 @@ export interface TestDesignScopeSummaryView {
   generatedAt?: string;
 }
 
+export interface TestDesignCrossWpAuditDashboardView {
+  wp1AuditEventCount: number;
+  wp1AuditSuccessCount: number;
+  wp1AuditFailureCount: number;
+  wp1AuditDeniedCount: number;
+  wp2InvocationCount: number;
+  wp2InvocationSucceededCount: number;
+  wp2InvocationFailedCount: number;
+  wp2InvocationBlockedCount: number;
+  wp2FallbackCount: number;
+  wp2TraceSignalCount: number;
+  wp3PublishedCaseCount: number;
+  wp3TraceLinkCount: number;
+  crossWpAuditDashboardReady?: boolean;
+  auditEventDetailExported?: boolean;
+  traceIdValueExported?: boolean;
+  modelInvocationIdValueExported?: boolean;
+  publishIdentifierValueExported?: boolean;
+  aggregateOnly?: boolean;
+}
+
+export interface TestDesignAuditOutboxOperationsView {
+  totalCount: number;
+  pendingCount: number;
+  processingCount: number;
+  doneCount: number;
+  failedCount: number;
+  deadCount: number;
+  replayEligibleCount: number;
+  replaySupported?: boolean;
+  payloadExported?: boolean;
+  traceIdValueExported?: boolean;
+  lastErrorTextExported?: boolean;
+  aggregateOnly?: boolean;
+}
+
+export interface TestDesignCrossWpOperationsDashboardView {
+  projectId?: string;
+  promptKey?: string;
+  scopePolicy?: TestDesignScopePolicyView;
+  auditChainPolicy?: TestDesignAuditChainPolicyView;
+  taskCount: number;
+  candidateCount: number;
+  publishRecordCount: number;
+  projectBucketCount: number;
+  candidateScopeMismatchCount: number;
+  publishScopeMismatchCount: number;
+  modelInvocationReferenceCount: number;
+  publishProjectScopeRecordCount: number;
+  candidateScopeCoveragePercent: number;
+  publishScopeCoveragePercent: number;
+  auditDashboard?: TestDesignCrossWpAuditDashboardView;
+  auditOutbox?: TestDesignAuditOutboxOperationsView;
+  metrics: TestDesignScopeSummaryMetricView[];
+  readiness: TestDesignScopeSummaryReadinessView[];
+  aggregateOnly?: boolean;
+  detailIdentifiersExported?: boolean;
+  generatedAt?: string;
+}
+
+export interface TestDesignAuditOutboxRequeueResult {
+  projectId?: string;
+  requestedStatus: string;
+  requestedLimit: number;
+  requeuedCount: number;
+  replaySupported?: boolean;
+  payloadExported?: boolean;
+  detailIdentifiersExported?: boolean;
+  generatedAt?: string;
+}
+
 export interface TestDesignAuditSummaryMetricView {
   code: string;
   label: string;
@@ -1095,6 +1166,18 @@ export interface TestDesignScopeSummaryFilters {
   size?: number;
   projectId?: string;
   promptKey?: string;
+}
+
+export interface TestDesignCrossWpOperationsFilters {
+  projectId?: string;
+  promptKey?: string;
+}
+
+export interface RequeueTestDesignAuditOutboxPayload {
+  projectId: string;
+  status?: string;
+  maxItems?: number;
+  reason?: string;
 }
 
 export interface TestDesignCandidateFilters {
@@ -2273,6 +2356,129 @@ export function normalizeTestDesignScopeSummary(raw: unknown): TestDesignScopeSu
   };
 }
 
+export function normalizeTestDesignCrossWpAuditDashboard(raw: unknown): TestDesignCrossWpAuditDashboardView {
+  const item = isRecord(raw) ? raw : {};
+  return {
+    wp1AuditEventCount: numberValue(item.wp1AuditEventCount ?? item.wp1_audit_event_count, 0),
+    wp1AuditSuccessCount: numberValue(item.wp1AuditSuccessCount ?? item.wp1_audit_success_count, 0),
+    wp1AuditFailureCount: numberValue(item.wp1AuditFailureCount ?? item.wp1_audit_failure_count, 0),
+    wp1AuditDeniedCount: numberValue(item.wp1AuditDeniedCount ?? item.wp1_audit_denied_count, 0),
+    wp2InvocationCount: numberValue(item.wp2InvocationCount ?? item.wp2_invocation_count, 0),
+    wp2InvocationSucceededCount: numberValue(
+      item.wp2InvocationSucceededCount ?? item.wp2_invocation_succeeded_count,
+      0
+    ),
+    wp2InvocationFailedCount: numberValue(item.wp2InvocationFailedCount ?? item.wp2_invocation_failed_count, 0),
+    wp2InvocationBlockedCount: numberValue(
+      item.wp2InvocationBlockedCount ?? item.wp2_invocation_blocked_count,
+      0
+    ),
+    wp2FallbackCount: numberValue(item.wp2FallbackCount ?? item.wp2_fallback_count, 0),
+    wp2TraceSignalCount: numberValue(item.wp2TraceSignalCount ?? item.wp2_trace_signal_count, 0),
+    wp3PublishedCaseCount: numberValue(item.wp3PublishedCaseCount ?? item.wp3_published_case_count, 0),
+    wp3TraceLinkCount: numberValue(item.wp3TraceLinkCount ?? item.wp3_trace_link_count, 0),
+    crossWpAuditDashboardReady: optionalBoolean(
+      item.crossWpAuditDashboardReady ?? item.cross_wp_audit_dashboard_ready
+    ),
+    auditEventDetailExported: optionalBoolean(
+      item.auditEventDetailExported ?? item.audit_event_detail_exported
+    ),
+    traceIdValueExported: optionalBoolean(item.traceIdValueExported ?? item.trace_id_value_exported),
+    modelInvocationIdValueExported: optionalBoolean(
+      item.modelInvocationIdValueExported ?? item.model_invocation_id_value_exported
+    ),
+    publishIdentifierValueExported: optionalBoolean(
+      item.publishIdentifierValueExported ?? item.publish_identifier_value_exported
+    ),
+    aggregateOnly: optionalBoolean(item.aggregateOnly ?? item.aggregate_only)
+  };
+}
+
+export function normalizeTestDesignAuditOutboxOperations(raw: unknown): TestDesignAuditOutboxOperationsView {
+  const item = isRecord(raw) ? raw : {};
+  return {
+    totalCount: numberValue(item.totalCount ?? item.total_count, 0),
+    pendingCount: numberValue(item.pendingCount ?? item.pending_count, 0),
+    processingCount: numberValue(item.processingCount ?? item.processing_count, 0),
+    doneCount: numberValue(item.doneCount ?? item.done_count, 0),
+    failedCount: numberValue(item.failedCount ?? item.failed_count, 0),
+    deadCount: numberValue(item.deadCount ?? item.dead_count, 0),
+    replayEligibleCount: numberValue(item.replayEligibleCount ?? item.replay_eligible_count, 0),
+    replaySupported: optionalBoolean(item.replaySupported ?? item.replay_supported),
+    payloadExported: optionalBoolean(item.payloadExported ?? item.payload_exported),
+    traceIdValueExported: optionalBoolean(item.traceIdValueExported ?? item.trace_id_value_exported),
+    lastErrorTextExported: optionalBoolean(item.lastErrorTextExported ?? item.last_error_text_exported),
+    aggregateOnly: optionalBoolean(item.aggregateOnly ?? item.aggregate_only)
+  };
+}
+
+export function normalizeTestDesignCrossWpOperationsDashboard(
+  raw: unknown
+): TestDesignCrossWpOperationsDashboardView {
+  const item = isRecord(raw) ? raw : {};
+  return {
+    projectId: optionalString(item.projectId) ?? optionalString(item.project_id),
+    promptKey: optionalString(item.promptKey) ?? optionalString(item.prompt_key),
+    scopePolicy: normalizeTestDesignScopePolicy(item.scopePolicy ?? item.scope_policy),
+    auditChainPolicy: normalizeTestDesignAuditChainPolicy(item.auditChainPolicy ?? item.audit_chain_policy),
+    taskCount: numberValue(item.taskCount ?? item.task_count, 0),
+    candidateCount: numberValue(item.candidateCount ?? item.candidate_count, 0),
+    publishRecordCount: numberValue(item.publishRecordCount ?? item.publish_record_count, 0),
+    projectBucketCount: numberValue(item.projectBucketCount ?? item.project_bucket_count, 0),
+    candidateScopeMismatchCount: numberValue(
+      item.candidateScopeMismatchCount ?? item.candidate_scope_mismatch_count,
+      0
+    ),
+    publishScopeMismatchCount: numberValue(
+      item.publishScopeMismatchCount ?? item.publish_scope_mismatch_count,
+      0
+    ),
+    modelInvocationReferenceCount: numberValue(
+      item.modelInvocationReferenceCount ?? item.model_invocation_reference_count,
+      0
+    ),
+    publishProjectScopeRecordCount: numberValue(
+      item.publishProjectScopeRecordCount ?? item.publish_project_scope_record_count,
+      0
+    ),
+    candidateScopeCoveragePercent: numberValue(
+      item.candidateScopeCoveragePercent ?? item.candidate_scope_coverage_percent,
+      0
+    ),
+    publishScopeCoveragePercent: numberValue(
+      item.publishScopeCoveragePercent ?? item.publish_scope_coverage_percent,
+      0
+    ),
+    auditDashboard: normalizeTestDesignCrossWpAuditDashboard(item.auditDashboard ?? item.audit_dashboard),
+    auditOutbox: normalizeTestDesignAuditOutboxOperations(item.auditOutbox ?? item.audit_outbox),
+    metrics: listItems(item.metrics).map(normalizeTestDesignScopeSummaryMetric),
+    readiness: listItems(item.readiness).map(normalizeTestDesignScopeSummaryReadiness),
+    aggregateOnly: optionalBoolean(item.aggregateOnly ?? item.aggregate_only),
+    detailIdentifiersExported: optionalBoolean(
+      item.detailIdentifiersExported ?? item.detail_identifiers_exported
+    ),
+    generatedAt: optionalString(item.generatedAt) ?? optionalString(item.generated_at)
+  };
+}
+
+export function normalizeTestDesignAuditOutboxRequeueResult(
+  raw: unknown
+): TestDesignAuditOutboxRequeueResult {
+  const item = isRecord(raw) ? raw : {};
+  return {
+    projectId: optionalString(item.projectId) ?? optionalString(item.project_id),
+    requestedStatus: stringValue(item.requestedStatus ?? item.requested_status, 'FAILED_OR_DEAD'),
+    requestedLimit: numberValue(item.requestedLimit ?? item.requested_limit, 0),
+    requeuedCount: numberValue(item.requeuedCount ?? item.requeued_count, 0),
+    replaySupported: optionalBoolean(item.replaySupported ?? item.replay_supported),
+    payloadExported: optionalBoolean(item.payloadExported ?? item.payload_exported),
+    detailIdentifiersExported: optionalBoolean(
+      item.detailIdentifiersExported ?? item.detail_identifiers_exported
+    ),
+    generatedAt: optionalString(item.generatedAt) ?? optionalString(item.generated_at)
+  };
+}
+
 export function normalizeTestDesignAuditSummaryMetric(raw: unknown): TestDesignAuditSummaryMetricView {
   const item = isRecord(raw) ? raw : {};
   return {
@@ -2771,6 +2977,25 @@ export async function fetchTestDesignScopeSummary(
     `/api/v1/test-design/quality/scope-summary${queryString(filters as Record<string, unknown>)}`
   );
   return { ...response, data: normalizeTestDesignScopeSummary(response.data) };
+}
+
+export async function fetchTestDesignCrossWpOperationsDashboard(
+  filters: TestDesignCrossWpOperationsFilters = {}
+): Promise<ApiResponse<TestDesignCrossWpOperationsDashboardView>> {
+  const response = await requestJson<unknown>(
+    `/api/v1/test-design/operations/cross-wp-dashboard${queryString(filters as Record<string, unknown>)}`
+  );
+  return { ...response, data: normalizeTestDesignCrossWpOperationsDashboard(response.data) };
+}
+
+export async function requeueTestDesignAuditOutbox(
+  payload: RequeueTestDesignAuditOutboxPayload
+): Promise<ApiResponse<TestDesignAuditOutboxRequeueResult>> {
+  const response = await requestJson<unknown>('/api/v1/test-design/operations/audit-outbox/requeue', {
+    method: 'POST',
+    body: JSON.stringify(compactPayload(payload))
+  });
+  return { ...response, data: normalizeTestDesignAuditOutboxRequeueResult(response.data) };
 }
 
 export async function fetchTestDesignTaskAuditSummary(taskId: string): Promise<ApiResponse<TestDesignAuditSummaryView>> {

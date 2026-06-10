@@ -135,7 +135,7 @@ class TestDesignGenerationServiceTest {
         assertThat(summary.path("scopePolicy").path("smokeProjectScopeRequired").asBoolean()).isTrue();
         assertThat(summary.path("scopePolicy").path("evaluationCorpusProjectIsolated").asBoolean()).isTrue();
         assertThat(summary.path("scopePolicy").path("evaluationCorpusOperationsReady").asBoolean()).isTrue();
-        assertThat(summary.path("scopePolicy").path("crossWpScopeDashboardReady").asBoolean()).isFalse();
+        assertThat(summary.path("scopePolicy").path("crossWpScopeDashboardReady").asBoolean()).isTrue();
         assertThat(summary.path("scopePolicy").path("candidateIdentifierListExported").asBoolean()).isFalse();
         assertThat(summary.path("scopePolicy").path("roleRuleDetailExported").asBoolean()).isFalse();
         assertThat(summary.path("scopePolicy").path("serviceTokenValueExported").asBoolean()).isFalse();
@@ -192,8 +192,8 @@ class TestDesignGenerationServiceTest {
         assertThat(summary.path("auditChainPolicy").path("wp5DomainEventsTracked").asBoolean()).isTrue();
         assertThat(summary.path("auditChainPolicy").path("projectScopeRequired").asBoolean()).isTrue();
         assertThat(summary.path("auditChainPolicy").path("traceSignalTracked").asBoolean()).isTrue();
-        assertThat(summary.path("auditChainPolicy").path("crossWpAuditDashboardReady").asBoolean()).isFalse();
-        assertThat(summary.path("auditChainPolicy").path("auditOutboxReplayDashboardReady").asBoolean()).isFalse();
+        assertThat(summary.path("auditChainPolicy").path("crossWpAuditDashboardReady").asBoolean()).isTrue();
+        assertThat(summary.path("auditChainPolicy").path("auditOutboxReplayDashboardReady").asBoolean()).isTrue();
         assertThat(summary.path("auditChainPolicy").path("auditEventDetailExported").asBoolean()).isFalse();
         assertThat(summary.path("auditChainPolicy").path("candidateIdentifierListExported").asBoolean()).isFalse();
         assertThat(summary.path("auditChainPolicy").path("platformAuditIdentifierExported").asBoolean()).isFalse();
@@ -424,7 +424,7 @@ class TestDesignGenerationServiceTest {
         assertThat(payload.path("contextPacking").path("auditChainPolicy").path("wp1AuditEventWritten").asBoolean())
                 .isTrue();
         assertThat(payload.path("contextPacking").path("auditChainPolicy").path("crossWpAuditDashboardReady").asBoolean())
-                .isFalse();
+                .isTrue();
         assertThat(payload.path("contextPacking").path("auditChainPolicy").path("auditEventDetailExported").asBoolean())
                 .isFalse();
         assertThat(payload.path("contextPacking").path("auditChainPolicy").path("traceIdValueExported").asBoolean())

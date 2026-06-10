@@ -7,6 +7,8 @@ final class TestDesignPermissionScopes {
     static final String PROMPT_TREND = "@testDesignPermissionScopeResolver.promptTrend(#request)";
     static final String EVALUATION_CORPUS_SUMMARY = "@testDesignPermissionScopeResolver.evaluationCorpusSummary(#request)";
     static final String SCOPE_SUMMARY = "@testDesignPermissionScopeResolver.scopeSummary(#request)";
+    static final String CROSS_WP_OPERATIONS = "@testDesignPermissionScopeResolver.crossWpOperations(#request)";
+    static final String AUDIT_OUTBOX_REQUEUE = "@testDesignPermissionScopeResolver.auditOutboxRequeue(#command)";
     static final String CONFLICT_OPERATIONS = "@testDesignPermissionScopeResolver.conflictOperations(#request)";
     static final String CANDIDATE_LIST = "@testDesignPermissionScopeResolver.candidateList(#request)";
     static final String TASK = "@testDesignPermissionScopeResolver.task(#id)";

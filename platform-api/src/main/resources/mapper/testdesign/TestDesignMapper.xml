@@ -201,6 +201,37 @@
         </constructor>
     </resultMap>
 
+    <resultMap id="crossWpOperationsAggregateMap" type="com.songhg.veri.agent.testdesign.domain.TestDesignCrossWpOperationsAggregate">
+        <constructor>
+            <arg column="task_count" javaType="_long"/>
+            <arg column="candidate_count" javaType="_long"/>
+            <arg column="publish_record_count" javaType="_long"/>
+            <arg column="project_bucket_count" javaType="_long"/>
+            <arg column="candidate_scope_mismatch_count" javaType="_long"/>
+            <arg column="publish_scope_mismatch_count" javaType="_long"/>
+            <arg column="model_invocation_reference_count" javaType="_long"/>
+            <arg column="publish_project_scope_record_count" javaType="_long"/>
+            <arg column="wp1_audit_event_count" javaType="_long"/>
+            <arg column="wp1_audit_success_count" javaType="_long"/>
+            <arg column="wp1_audit_failure_count" javaType="_long"/>
+            <arg column="wp1_audit_denied_count" javaType="_long"/>
+            <arg column="wp2_invocation_count" javaType="_long"/>
+            <arg column="wp2_invocation_succeeded_count" javaType="_long"/>
+            <arg column="wp2_invocation_failed_count" javaType="_long"/>
+            <arg column="wp2_invocation_blocked_count" javaType="_long"/>
+            <arg column="wp2_fallback_count" javaType="_long"/>
+            <arg column="wp2_trace_signal_count" javaType="_long"/>
+            <arg column="wp3_published_case_count" javaType="_long"/>
+            <arg column="wp3_trace_link_count" javaType="_long"/>
+            <arg column="audit_outbox_total_count" javaType="_long"/>
+            <arg column="audit_outbox_pending_count" javaType="_long"/>
+            <arg column="audit_outbox_processing_count" javaType="_long"/>
+            <arg column="audit_outbox_done_count" javaType="_long"/>
+            <arg column="audit_outbox_failed_count" javaType="_long"/>
+            <arg column="audit_outbox_dead_count" javaType="_long"/>
+        </constructor>
+    </resultMap>
+
     <resultMap id="contextPolicyOverrideMap" type="com.songhg.veri.agent.testdesign.domain.TestDesignContextPolicyOverride">
         <constructor>
             <arg column="id" javaType="java.util.UUID"/>
@@ -1170,6 +1201,249 @@
             coalesce((select count(*) from outbox_events where status = 'FAILED'), 0) as audit_outbox_failed_count,
             coalesce((select count(*) from outbox_events where status = 'DEAD'), 0) as audit_outbox_dead_count
     </select>
+
+    <select id="crossWpOperationsAggregate" resultMap="crossWpOperationsAggregateMap">
+        with task_scope as (
+            select id, project_id, model_invocation_id
+            from test_design_task
+            where (#{projectId} is null or project_id = #{projectId})
+              and (#{promptKey} is null or prompt_key = #{promptKey})
+        ),
+        candidates as (
+            select c.id, c.task_id, c.project_id, c.requirement_id, c.model_invocation_id, c.asset_case_id
+            from test_design_candidate c
+            join task_scope ts on ts.id = c.task_id
+        ),
+        publish_records as (
+            select pr.id, pr.task_id, pr.project_id, pr.candidate_id, pr.asset_case_id, pr.dry_run, pr.result
+            from test_design_publish_record pr
+            join task_scope ts on ts.id = pr.task_id
+        ),
+        invocation_ids as (
+            select model_invocation_id
+            from task_scope
+            where model_invocation_id is not null
+            union
+            select model_invocation_id
+            from candidates
+            where model_invocation_id is not null
+        ),
+        audit_events as (
+            select action, resource_type, result
+            from audit_log
+            where (
+                resource_type = 'TEST_DESIGN_TASK'
+                and resource_id in (select cast(id as text) from task_scope)
+            ) or (
+                resource_type in ('TEST_DESIGN_CANDIDATE', 'TEST_DESIGN_REVIEW_RECORD', 'TEST_DESIGN_TASK_REPORT')
+                and after_json -&gt;&gt; 'taskId' in (select cast(id as text) from task_scope)
+            ) or (
+                resource_type = 'TEST_DESIGN_CANDIDATE'
+                and resource_id in (select cast(id as text) from candidates)
+            )
+        ),
+        wp2_invocations as (
+            select status, fallback_used
+            from ma_invocation_log
+            where id in (select model_invocation_id from invocation_ids)
+        ),
+        wp2_jobs as (
+            select job_id, trace_id
+            from ma_invocation_job
+            where invocation_id in (select model_invocation_id from invocation_ids)
+        ),
+        published_cases as (
+            select distinct atc.id
+            from asset_test_case atc
+            join publish_records pr on pr.asset_case_id = atc.id
+            join task_scope ts on ts.project_id = atc.project_id and ts.id = pr.task_id
+            where atc.deleted_at is null
+              and atc.source = 'AI_GENERATED'
+        ),
+        trace_links as (
+            select distinct l.source_id, l.target_id
+            from asset_link l
+            join candidates c on c.requirement_id = l.source_id
+            join published_cases pc on pc.id = l.target_id
+            where l.deleted_at is null
+              and l.source_type = 'REQUIREMENT'
+              and l.target_type = 'CASE'
+        ),
+        scoped_resource_ids as (
+            select cast(id as text) as resource_id
+            from task_scope
+            union
+            select cast(id as text) as resource_id
+            from candidates
+            union
+            select cast(asset_case_id as text) as resource_id
+            from publish_records
+            where asset_case_id is not null
+        ),
+        outbox_events as (
+            select o.status
+            from audit_outbox o
+            where coalesce(
+                o.event_payload_json -&gt;&gt; 'projectId',
+                o.event_payload_json -&gt;&gt; 'project_id',
+                o.event_payload_json #&gt;&gt; '{record,projectId}',
+                o.event_payload_json #&gt;&gt; '{record,project_id}',
+                o.event_payload_json #&gt;&gt; '{metadata,projectId}',
+                o.event_payload_json #&gt;&gt; '{metadata,project_id}',
+                o.event_payload_json #&gt;&gt; '{payload,projectId}',
+                o.event_payload_json #&gt;&gt; '{payload,project_id}',
+                ''
+            ) in (select distinct project_id from task_scope where project_id is not null)
+               or coalesce(
+                o.event_payload_json -&gt;&gt; 'resourceId',
+                o.event_payload_json -&gt;&gt; 'resource_id',
+                o.event_payload_json #&gt;&gt; '{record,resourceId}',
+                o.event_payload_json #&gt;&gt; '{record,resource_id}',
+                o.event_payload_json #&gt;&gt; '{payload,resourceId}',
+                o.event_payload_json #&gt;&gt; '{payload,resource_id}',
+                ''
+            ) in (select resource_id from scoped_resource_ids)
+               or coalesce(
+                o.event_payload_json -&gt;&gt; 'taskId',
+                o.event_payload_json -&gt;&gt; 'task_id',
+                o.event_payload_json #&gt;&gt; '{record,taskId}',
+                o.event_payload_json #&gt;&gt; '{record,task_id}',
+                o.event_payload_json #&gt;&gt; '{metadata,taskId}',
+                o.event_payload_json #&gt;&gt; '{metadata,task_id}',
+                o.event_payload_json #&gt;&gt; '{payload,taskId}',
+                o.event_payload_json #&gt;&gt; '{payload,task_id}',
+                ''
+            ) in (select cast(id as text) from task_scope)
+        )
+        select
+            coalesce((select count(*) from task_scope), 0) as task_count,
+            coalesce((select count(*) from candidates), 0) as candidate_count,
+            coalesce((select count(*) from publish_records), 0) as publish_record_count,
+            coalesce((select count(distinct project_id) from task_scope where project_id is not null), 0)
+                as project_bucket_count,
+            coalesce((
+                select count(*)
+                from candidates c
+                join task_scope ts on ts.id = c.task_id
+                where coalesce(c.project_id, '') &lt;&gt; coalesce(ts.project_id, '')
+            ), 0) as candidate_scope_mismatch_count,
+            coalesce((
+                select count(*)
+                from publish_records pr
+                join task_scope ts on ts.id = pr.task_id
+                where coalesce(pr.project_id, '') &lt;&gt; coalesce(ts.project_id, '')
+            ), 0) as publish_scope_mismatch_count,
+            coalesce((select count(*) from invocation_ids), 0) as model_invocation_reference_count,
+            coalesce((select count(*) from publish_records where project_id is not null and project_id &lt;&gt; ''), 0)
+                as publish_project_scope_record_count,
+            coalesce((select count(*) from audit_events), 0) as wp1_audit_event_count,
+            coalesce((select count(*) from audit_events where result = 'SUCCESS'), 0) as wp1_audit_success_count,
+            coalesce((select count(*) from audit_events where result = 'FAILED'), 0) as wp1_audit_failure_count,
+            coalesce((select count(*) from audit_events where result = 'DENIED'), 0) as wp1_audit_denied_count,
+            coalesce((select count(*) from wp2_invocations), 0) as wp2_invocation_count,
+            coalesce((select count(*) from wp2_invocations where status = 'SUCCEEDED'), 0)
+                as wp2_invocation_succeeded_count,
+            coalesce((select count(*) from wp2_invocations where status = 'FAILED'), 0)
+                as wp2_invocation_failed_count,
+            coalesce((select count(*) from wp2_invocations where status = 'BLOCKED'), 0)
+                as wp2_invocation_blocked_count,
+            coalesce((select count(*) from wp2_invocations where fallback_used = true), 0) as wp2_fallback_count,
+            coalesce((select count(*) from wp2_jobs where trace_id is not null and trace_id &lt;&gt; ''), 0)
+                as wp2_trace_signal_count,
+            coalesce((select count(*) from published_cases), 0) as wp3_published_case_count,
+            coalesce((select count(*) from trace_links), 0) as wp3_trace_link_count,
+            coalesce((select count(*) from outbox_events), 0) as audit_outbox_total_count,
+            coalesce((select count(*) from outbox_events where status = 'PENDING'), 0) as audit_outbox_pending_count,
+            coalesce((select count(*) from outbox_events where status = 'PROCESSING'), 0)
+                as audit_outbox_processing_count,
+            coalesce((select count(*) from outbox_events where status = 'DONE'), 0) as audit_outbox_done_count,
+            coalesce((select count(*) from outbox_events where status = 'FAILED'), 0) as audit_outbox_failed_count,
+            coalesce((select count(*) from outbox_events where status = 'DEAD'), 0) as audit_outbox_dead_count
+    </select>
+
+    <update id="requeueAuditOutbox">
+        update audit_outbox
+        set status = 'PENDING',
+            next_retry_at = #{now},
+            locked_at = null,
+            locked_by = null,
+            last_error = case
+                when #{reason} is null or #{reason} = '' then last_error
+                else left(concat('WP5 cross-WP operations requeue: ', #{reason}), 500)
+            end,
+            updated_at = #{now}
+        where id in (
+            with task_scope as (
+                select id, project_id
+                from test_design_task
+                where project_id = #{projectId}
+            ),
+            candidates as (
+                select c.id, c.task_id
+                from test_design_candidate c
+                join task_scope ts on ts.id = c.task_id
+            ),
+            publish_records as (
+                select pr.task_id, pr.asset_case_id
+                from test_design_publish_record pr
+                join task_scope ts on ts.id = pr.task_id
+            ),
+            scoped_resource_ids as (
+                select cast(id as text) as resource_id
+                from task_scope
+                union
+                select cast(id as text) as resource_id
+                from candidates
+                union
+                select cast(asset_case_id as text) as resource_id
+                from publish_records
+                where asset_case_id is not null
+            )
+            select o.id
+            from audit_outbox o
+            where
+                <choose>
+                    <when test="status == 'FAILED'">o.status = 'FAILED'</when>
+                    <when test="status == 'DEAD'">o.status = 'DEAD'</when>
+                    <otherwise>o.status in ('FAILED', 'DEAD')</otherwise>
+                </choose>
+              and (
+                  coalesce(
+                    o.event_payload_json -&gt;&gt; 'projectId',
+                    o.event_payload_json -&gt;&gt; 'project_id',
+                    o.event_payload_json #&gt;&gt; '{record,projectId}',
+                    o.event_payload_json #&gt;&gt; '{record,project_id}',
+                    o.event_payload_json #&gt;&gt; '{metadata,projectId}',
+                    o.event_payload_json #&gt;&gt; '{metadata,project_id}',
+                    o.event_payload_json #&gt;&gt; '{payload,projectId}',
+                    o.event_payload_json #&gt;&gt; '{payload,project_id}',
+                    ''
+                  ) = #{projectId}
+                  or coalesce(
+                    o.event_payload_json -&gt;&gt; 'resourceId',
+                    o.event_payload_json -&gt;&gt; 'resource_id',
+                    o.event_payload_json #&gt;&gt; '{record,resourceId}',
+                    o.event_payload_json #&gt;&gt; '{record,resource_id}',
+                    o.event_payload_json #&gt;&gt; '{payload,resourceId}',
+                    o.event_payload_json #&gt;&gt; '{payload,resource_id}',
+                    ''
+                  ) in (select resource_id from scoped_resource_ids)
+                  or coalesce(
+                    o.event_payload_json -&gt;&gt; 'taskId',
+                    o.event_payload_json -&gt;&gt; 'task_id',
+                    o.event_payload_json #&gt;&gt; '{record,taskId}',
+                    o.event_payload_json #&gt;&gt; '{record,task_id}',
+                    o.event_payload_json #&gt;&gt; '{metadata,taskId}',
+                    o.event_payload_json #&gt;&gt; '{metadata,task_id}',
+                    o.event_payload_json #&gt;&gt; '{payload,taskId}',
+                    o.event_payload_json #&gt;&gt; '{payload,task_id}',
+                    ''
+                  ) in (select cast(id as text) from task_scope)
+              )
+            order by o.updated_at asc, o.created_at asc, o.id asc
+            limit #{limit}
+        )
+    </update>
 
     <insert id="insertContextPolicyOverride">
         insert into test_design_context_policy_override (

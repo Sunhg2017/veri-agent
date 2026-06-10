@@ -30,6 +30,7 @@ import com.songhg.veri.agent.testdesign.domain.TestDesignAuditChainAggregate;
 import com.songhg.veri.agent.testdesign.domain.TestDesignCandidate;
 import com.songhg.veri.agent.testdesign.domain.TestDesignCandidateStatus;
 import com.songhg.veri.agent.testdesign.domain.TestDesignContextPolicyOverride;
+import com.songhg.veri.agent.testdesign.domain.TestDesignCrossWpOperationsAggregate;
 import com.songhg.veri.agent.testdesign.domain.TestDesignPublishRecord;
 import com.songhg.veri.agent.testdesign.domain.TestDesignReviewRecord;
 import com.songhg.veri.agent.testdesign.domain.TestDesignTask;
@@ -888,10 +889,11 @@ class DbProfileRepositoryContractTest {
                 insert into audit_outbox (event_payload_json, status)
                 values (cast(? as jsonb), 'FAILED')
                 """, "{\"record\":{\"resourceId\":\"" + taskId + "\"}}");
+        UUID unrelatedOutboxResourceId = UUID.randomUUID();
         jdbcTemplate.update("""
                 insert into audit_outbox (event_payload_json, status)
                 values (cast(? as jsonb), 'FAILED')
-                """, "{\"record\":{\"resourceId\":\"" + UUID.randomUUID() + "\"}}");
+                """, "{\"record\":{\"resourceId\":\"" + unrelatedOutboxResourceId + "\"}}");
 
         TestDesignAuditChainAggregate aggregate = testDesignRepository.auditChainAggregate(taskId);
 
@@ -904,6 +906,44 @@ class DbProfileRepositoryContractTest {
         assertThat(aggregate.wp3PublishedCaseCount()).isEqualTo(1L);
         assertThat(aggregate.wp3TraceLinkCount()).isEqualTo(1L);
         assertThat(aggregate.auditOutboxFailedCount()).isEqualTo(1L);
+
+        TestDesignCrossWpOperationsAggregate crossWpAggregate =
+                testDesignRepository.crossWpOperationsAggregate(projectId, "wp5.case.generate");
+        assertThat(crossWpAggregate.taskCount()).isEqualTo(1L);
+        assertThat(crossWpAggregate.candidateCount()).isEqualTo(1L);
+        assertThat(crossWpAggregate.publishRecordCount()).isEqualTo(1L);
+        assertThat(crossWpAggregate.candidateScopeMismatchCount()).isZero();
+        assertThat(crossWpAggregate.publishScopeMismatchCount()).isZero();
+        assertThat(crossWpAggregate.modelInvocationReferenceCount()).isEqualTo(1L);
+        assertThat(crossWpAggregate.wp1AuditEventCount()).isEqualTo(2L);
+        assertThat(crossWpAggregate.wp2InvocationCount()).isEqualTo(1L);
+        assertThat(crossWpAggregate.wp3PublishedCaseCount()).isEqualTo(1L);
+        assertThat(crossWpAggregate.auditOutboxFailedCount()).isEqualTo(1L);
+        assertThat(crossWpAggregate.replayEligibleOutboxCount()).isEqualTo(1L);
+
+        int requeued = testDesignRepository.requeueAuditOutbox(
+                projectId,
+                "FAILED",
+                10,
+                "db contract token=secret-value",
+                "db-contract",
+                now
+        );
+        assertThat(requeued).isEqualTo(1);
+        Long scopedPending = jdbcTemplate.queryForObject("""
+                select count(*)
+                from audit_outbox
+                where status = 'PENDING'
+                  and event_payload_json #>> '{record,resourceId}' = ?
+                """, Long.class, taskId.toString());
+        Long unrelatedFailed = jdbcTemplate.queryForObject("""
+                select count(*)
+                from audit_outbox
+                where status = 'FAILED'
+                  and event_payload_json #>> '{record,resourceId}' = ?
+                """, Long.class, unrelatedOutboxResourceId.toString());
+        assertThat(scopedPending).isEqualTo(1L);
+        assertThat(unrelatedFailed).isEqualTo(1L);
     }
 
     @Test

@@ -435,7 +435,7 @@ main() {
   echo "== WP5 test-design smoke =="
   echo "baseUrl=$BASE_URL project=$PROJECT_ID"
 
-  local health project_policy env_policy pending_effective approved_project approved_env effective_policy overrides requirement requirement_id task task_id candidates candidate_targets candidate_source_refs confirm calibration_task calibration_task_id calibration_candidates calibration_targets calibration_reject calibration_ignore corpus_summary dry_run asset_before asset_before_for_task publish scope_summary case_id case_asset links
+  local health project_policy env_policy pending_effective approved_project approved_env effective_policy overrides requirement requirement_id task task_id candidates candidate_targets candidate_source_refs confirm calibration_task calibration_task_id calibration_candidates calibration_targets calibration_reject calibration_ignore corpus_summary dry_run asset_before asset_before_for_task publish scope_summary cross_wp_dashboard outbox_requeue case_id case_asset links
   health="$(curl -fsS "$TEST_DESIGN_API_BASE/health")"
   check "WP5 health" '.data.service == "test-design" and .data.status == "UP" and .data.generationEnabled == true' "$health"
   validate_release_readiness_policy "$health"
@@ -562,6 +562,32 @@ main() {
   else
     echo "   FAIL Scope operations summary is aggregate-only"
     echo "$scope_summary"
+    FAIL=$((FAIL + 1))
+  fi
+
+  cross_wp_dashboard="$(get_test_design_json "/operations/cross-wp-dashboard?projectId=$(urlencode "$PROJECT_ID")&promptKey=wp5-test-design-v1")"
+  if printf '%s' "$cross_wp_dashboard" | jq -e --arg projectId "$PROJECT_ID" \
+    '.data.projectId == $projectId and .data.promptKey == "wp5-test-design-v1" and .data.scopePolicy.crossWpScopeDashboardReady == true and .data.auditChainPolicy.crossWpAuditDashboardReady == true and .data.auditChainPolicy.auditOutboxReplayDashboardReady == true and .data.taskCount >= 1 and .data.candidateCount >= 2 and .data.publishRecordCount >= 2 and .data.candidateScopeMismatchCount == 0 and .data.publishScopeMismatchCount == 0 and .data.auditDashboard.crossWpAuditDashboardReady == true and .data.auditDashboard.auditEventDetailExported == false and .data.auditDashboard.traceIdValueExported == false and .data.auditDashboard.modelInvocationIdValueExported == false and .data.auditDashboard.publishIdentifierValueExported == false and .data.auditOutbox.replaySupported == true and .data.auditOutbox.payloadExported == false and .data.auditOutbox.traceIdValueExported == false and .data.auditOutbox.lastErrorTextExported == false and (.data.readiness | any(.code == "crossWpScopeDashboardReady" and .ready == true)) and (.data.readiness | any(.code == "crossWpAuditDashboardReady" and .ready == true)) and (.data.readiness | any(.code == "auditOutboxReplayDashboardReady" and .ready == true)) and (.data.readiness | any(.code == "detailIdentifiersRedacted" and .ready == true)) and .data.aggregateOnly == true and .data.detailIdentifiersExported == false' >/dev/null \
+    && ! printf '%s' "$cross_wp_dashboard" | grep -Eq "$task_id|token=|rawPrompt|local-test-design-token"; then
+    echo "   PASS Cross-WP operations dashboard is aggregate-only"
+    PASS=$((PASS + 1))
+  else
+    echo "   FAIL Cross-WP operations dashboard is aggregate-only"
+    echo "$cross_wp_dashboard"
+    FAIL=$((FAIL + 1))
+  fi
+
+  outbox_requeue="$(post_test_design_json "/operations/audit-outbox/requeue" "$(jq -nc \
+    --arg projectId "$PROJECT_ID" \
+    '{projectId:$projectId,status:"FAILED_OR_DEAD",maxItems:20,reason:"WP5 smoke bounded requeue token=secret-value"}')")"
+  if printf '%s' "$outbox_requeue" | jq -e --arg projectId "$PROJECT_ID" \
+    '.data.projectId == $projectId and .data.requestedStatus == "FAILED_OR_DEAD" and .data.requestedLimit == 20 and (.data.requeuedCount | type == "number") and .data.replaySupported == true and .data.payloadExported == false and .data.detailIdentifiersExported == false' >/dev/null \
+    && ! printf '%s' "$outbox_requeue" | grep -Eq 'token=|secret-value'; then
+    echo "   PASS Audit outbox bounded requeue is sanitized"
+    PASS=$((PASS + 1))
+  else
+    echo "   FAIL Audit outbox bounded requeue is sanitized"
+    echo "$outbox_requeue"
     FAIL=$((FAIL + 1))
   fi
 

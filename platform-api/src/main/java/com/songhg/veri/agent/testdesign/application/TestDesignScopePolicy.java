@@ -7,9 +7,10 @@ import java.util.Map;
 /**
  * Centralizes the WP5 permission and resource-scope operating contract.
  *
- * <p>The current slice enforces project scope from task and candidate ownership instead of exposing configurable
- * role-rule details. This aggregate snapshot keeps health checks, task diagnostics, model payloads and reports aligned
- * on the same boundary while avoiding candidate ID lists, role matrices or service-token values in exports.
+ * <p>The current slice enforces project scope from task and candidate ownership and exposes a cross-WP aggregate
+ * operations dashboard for scope coverage. This snapshot keeps health checks, task diagnostics, model payloads and
+ * reports aligned on the same boundary while avoiding candidate ID lists, role matrices or service-token values in
+ * exports.
  */
 public final class TestDesignScopePolicy {
 
@@ -33,7 +34,7 @@ public final class TestDesignScopePolicy {
                 true,
                 true,
                 true,
-                false,
+                true,
                 false,
                 false,
                 false,

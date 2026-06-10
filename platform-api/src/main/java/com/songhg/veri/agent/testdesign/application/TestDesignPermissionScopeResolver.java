@@ -2,6 +2,7 @@ package com.songhg.veri.agent.testdesign.application;
 
 import com.songhg.veri.agent.authorization.application.ResourceScope;
 import com.songhg.veri.agent.testdesign.application.command.CreateTestDesignEvaluationSampleFromCandidateCommand;
+import com.songhg.veri.agent.testdesign.application.command.RequeueTestDesignAuditOutboxCommand;
 import com.songhg.veri.agent.testdesign.application.command.ResolveTestDesignConflictBatchCommand;
 import com.songhg.veri.agent.testdesign.application.command.RequestTestDesignCalibrationRunCommand;
 import com.songhg.veri.agent.testdesign.application.command.SaveTestDesignEvaluationSampleCommand;
@@ -10,6 +11,7 @@ import com.songhg.veri.agent.testdesign.application.command.CreateTestDesignTemp
 import com.songhg.veri.agent.testdesign.application.query.TestDesignCandidatePageRequest;
 import com.songhg.veri.agent.testdesign.application.query.TestDesignCalibrationRunPageRequest;
 import com.songhg.veri.agent.testdesign.application.query.TestDesignConflictOperationPageRequest;
+import com.songhg.veri.agent.testdesign.application.query.TestDesignCrossWpOperationsRequest;
 import com.songhg.veri.agent.testdesign.application.query.TestDesignEvaluationSamplePageRequest;
 import com.songhg.veri.agent.testdesign.application.query.TestDesignEvaluationCorpusSummaryRequest;
 import com.songhg.veri.agent.testdesign.application.query.TestDesignPromptTrendRequest;
@@ -67,6 +69,21 @@ public class TestDesignPermissionScopeResolver {
             return project(request.getProjectId());
         }
         // Platform fallback is aggregate-only and never returns task, candidate or role identifiers.
+        return ResourceScope.platform();
+    }
+
+    public ResourceScope crossWpOperations(TestDesignCrossWpOperationsRequest request) {
+        if (request != null && StringUtils.hasText(request.getProjectId())) {
+            return project(request.getProjectId());
+        }
+        // Platform fallback is aggregate-only and never returns audit, outbox, trace or asset identifiers.
+        return ResourceScope.platform();
+    }
+
+    public ResourceScope auditOutboxRequeue(RequeueTestDesignAuditOutboxCommand command) {
+        if (command != null && StringUtils.hasText(command.projectId())) {
+            return project(command.projectId());
+        }
         return ResourceScope.platform();
     }
 

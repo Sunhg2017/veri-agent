@@ -15,6 +15,7 @@ import com.songhg.veri.agent.testdesign.domain.TestDesignConflictOperationRecord
 import com.songhg.veri.agent.testdesign.domain.TestDesignConflictOperationSummary;
 import com.songhg.veri.agent.testdesign.domain.TestDesignContextPolicyNote;
 import com.songhg.veri.agent.testdesign.domain.TestDesignContextPolicyOverride;
+import com.songhg.veri.agent.testdesign.domain.TestDesignCrossWpOperationsAggregate;
 import com.songhg.veri.agent.testdesign.domain.TestDesignEvaluationSample;
 import com.songhg.veri.agent.testdesign.domain.TestDesignEvaluationSampleSummary;
 import com.songhg.veri.agent.testdesign.domain.TestDesignPublishRecord;
@@ -153,6 +154,20 @@ public interface TestDesignMapper {
     List<TestDesignReportManifest> reportManifestsByTask(@Param("taskId") UUID taskId);
 
     TestDesignAuditChainAggregate auditChainAggregate(@Param("taskId") UUID taskId);
+
+    TestDesignCrossWpOperationsAggregate crossWpOperationsAggregate(
+            @Param("projectId") String projectId,
+            @Param("promptKey") String promptKey
+    );
+
+    int requeueAuditOutbox(
+            @Param("projectId") String projectId,
+            @Param("status") String status,
+            @Param("limit") int limit,
+            @Param("reason") String reason,
+            @Param("actor") String actor,
+            @Param("now") Instant now
+    );
 
     void insertContextPolicyOverride(TestDesignContextPolicyOverride override);
 

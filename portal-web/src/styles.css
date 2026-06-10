@@ -1563,6 +1563,10 @@ tbody tr:hover td {
   margin-bottom: var(--space-lg);
 }
 
+.test-design-cross-wp-operations {
+  margin-bottom: var(--space-lg);
+}
+
 .test-design-audit-summary {
   margin-bottom: var(--space-lg);
 }
@@ -1869,6 +1873,68 @@ tbody tr:hover td {
   font-size: var(--font-size-xs);
   font-style: normal;
   line-height: 1.45;
+}
+
+.test-design-cross-wp-filter {
+  align-items: end;
+}
+
+.test-design-cross-wp-metrics {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.test-design-cross-wp-readiness {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+
+.test-design-cross-wp-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(320px, 1.1fr);
+  gap: var(--space-md);
+  align-items: start;
+}
+
+.test-design-cross-wp-group {
+  display: grid;
+  gap: var(--space-sm);
+  min-width: 0;
+}
+
+.test-design-cross-wp-row {
+  display: grid;
+  grid-template-columns: minmax(0, 0.8fr) auto minmax(0, 1.2fr);
+  gap: 10px;
+  align-items: center;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  overflow-wrap: anywhere;
+}
+
+.test-design-cross-wp-row span,
+.test-design-cross-wp-row small,
+.test-design-cross-wp-result {
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+  font-weight: 650;
+}
+
+.test-design-cross-wp-row strong {
+  color: var(--text-primary);
+  font-size: var(--font-size-md);
+}
+
+.test-design-cross-wp-requeue-grid {
+  grid-template-columns: minmax(0, 1.4fr) minmax(130px, 0.8fr) minmax(90px, 0.5fr);
+}
+
+.test-design-cross-wp-actions {
+  justify-content: flex-start;
 }
 
 .test-design-audit-metrics {
@@ -2736,7 +2802,9 @@ tbody tr:hover td {
   .metrics-grid { grid-template-columns: repeat(2, 1fr); }
   .test-design-quality-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .test-design-evaluation-grid,
-  .test-design-calibration-grid { grid-template-columns: 1fr; }
+  .test-design-calibration-grid,
+  .test-design-cross-wp-grid { grid-template-columns: 1fr; }
+  .test-design-cross-wp-requeue-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .content-grid,
   .module-layout,
   .document-layout { grid-template-columns: 1fr; }
@@ -2802,10 +2870,13 @@ tbody tr:hover td {
   .metrics-grid { grid-template-columns: 1fr; }
   .test-design-quality-metrics { grid-template-columns: 1fr; }
   .test-design-evaluation-metrics { grid-template-columns: 1fr; }
+  .test-design-cross-wp-metrics,
+  .test-design-cross-wp-requeue-grid { grid-template-columns: 1fr; }
   .test-design-quality-distribution { grid-template-columns: 1fr; }
   .test-design-prompt-trend-row { grid-template-columns: 1fr; }
   .test-design-evaluation-row,
-  .test-design-calibration-row { grid-template-columns: 1fr; }
+  .test-design-calibration-row,
+  .test-design-cross-wp-row { grid-template-columns: 1fr; }
   .test-design-audit-metrics { grid-template-columns: 1fr; }
   .test-design-audit-event { grid-template-columns: 1fr; }
   .model-summary-grid { grid-template-columns: repeat(2, 1fr); }
@@ -2830,6 +2901,7 @@ tbody tr:hover td {
   .test-design-conflict-row,
   .test-design-conflict-operation-row,
   .test-design-evaluation-filter,
+  .test-design-cross-wp-filter,
   .test-design-template-inline-grid,
   .test-design-diff-item { grid-template-columns: 1fr; }
 

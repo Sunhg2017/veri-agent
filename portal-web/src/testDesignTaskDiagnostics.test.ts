@@ -102,7 +102,7 @@ const baseTask: TestDesignTaskView = {
     smokeProjectScopeRequired: true,
     evaluationCorpusProjectIsolated: true,
     evaluationCorpusOperationsReady: true,
-    crossWpScopeDashboardReady: false,
+    crossWpScopeDashboardReady: true,
     candidateIdentifierListExported: false,
     roleRuleDetailExported: false,
     serviceTokenValueExported: false,
@@ -162,8 +162,8 @@ const baseTask: TestDesignTaskView = {
     traceIdValueExported: false,
     modelInvocationIdValueExported: false,
     publishIdentifierValueExported: false,
-    crossWpAuditDashboardReady: false,
-    auditOutboxReplayDashboardReady: false,
+    crossWpAuditDashboardReady: true,
+    auditOutboxReplayDashboardReady: true,
     aggregateOnly: true
   },
   modelObservationPolicy: {
@@ -324,7 +324,7 @@ describe('WP5 task diagnostics helpers', () => {
         }),
         expect.objectContaining({
           label: '作用域策略',
-          tone: 'warning',
+          tone: 'neutral',
           value: 'PROJECT_RESOURCE_SCOPE · PLATFORM_WHEN_PROJECT_FILTER_ABSENT · 任务:project · 候选:project · 批量:project-set · 发布:project · 异步:task-project · 评测语料:project'
         }),
         expect.objectContaining({
@@ -339,8 +339,8 @@ describe('WP5 task diagnostics helpers', () => {
         }),
         expect.objectContaining({
           label: '审计链',
-          tone: 'warning',
-          value: 'WP5_DOMAIN_AGGREGATE_WITH_WP1_AUDIT · TASK_REVIEW_PUBLISH_MODEL_REFERENCES · WP1审计:written · WP2调用:tracked · WP3发布:tracked · WP5本域:tracked · 项目作用域:required · trace信号:tracked · 跨WP看板:pending · outbox看板:pending'
+          tone: 'neutral',
+          value: 'WP5_DOMAIN_AGGREGATE_WITH_WP1_AUDIT · TASK_REVIEW_PUBLISH_MODEL_REFERENCES · WP1审计:written · WP2调用:tracked · WP3发布:tracked · WP5本域:tracked · 项目作用域:required · trace信号:tracked · 跨WP看板:ready · outbox看板:ready'
         }),
         expect.objectContaining({
           label: '归档策略',
@@ -691,7 +691,7 @@ describe('WP5 task diagnostics helpers', () => {
           smokeProjectScopeRequired: true,
           evaluationCorpusProjectIsolated: true,
           evaluationCorpusOperationsReady: true,
-          crossWpScopeDashboardReady: false,
+          crossWpScopeDashboardReady: true,
           candidateIds: ['candidate-secret-id'],
           roleRuleDetails: 'role matrix should not appear',
           serviceTokenValue: 'token=secret-value'
@@ -703,7 +703,7 @@ describe('WP5 task diagnostics helpers', () => {
       expect.arrayContaining([
         expect.objectContaining({
           label: '作用域策略',
-          tone: 'warning',
+          tone: 'neutral',
           value: expect.stringContaining('批量:project-set')
         })
       ])
@@ -870,8 +870,8 @@ describe('WP5 task diagnostics helpers', () => {
           wp5DomainEventsTracked: true,
           projectScopeRequired: true,
           traceSignalTracked: true,
-          crossWpAuditDashboardReady: false,
-          auditOutboxReplayDashboardReady: false,
+          crossWpAuditDashboardReady: true,
+          auditOutboxReplayDashboardReady: true,
           auditLogIds: ['audit-log-secret'],
           candidateIds: ['candidate-secret-id'],
           traceIds: ['trc_secret'],
@@ -885,8 +885,8 @@ describe('WP5 task diagnostics helpers', () => {
       expect.arrayContaining([
         expect.objectContaining({
           label: '审计链',
-          tone: 'warning',
-          value: expect.stringContaining('跨WP看板:pending')
+          tone: 'neutral',
+          value: expect.stringContaining('跨WP看板:ready')
         })
       ])
     );

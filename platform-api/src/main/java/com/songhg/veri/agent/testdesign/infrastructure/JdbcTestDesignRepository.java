@@ -17,6 +17,7 @@ import com.songhg.veri.agent.testdesign.domain.TestDesignConflictOperationRecord
 import com.songhg.veri.agent.testdesign.domain.TestDesignConflictOperationSummary;
 import com.songhg.veri.agent.testdesign.domain.TestDesignContextPolicyNote;
 import com.songhg.veri.agent.testdesign.domain.TestDesignContextPolicyOverride;
+import com.songhg.veri.agent.testdesign.domain.TestDesignCrossWpOperationsAggregate;
 import com.songhg.veri.agent.testdesign.domain.TestDesignEvaluationSample;
 import com.songhg.veri.agent.testdesign.domain.TestDesignEvaluationSampleSummary;
 import com.songhg.veri.agent.testdesign.domain.TestDesignPublishRecord;
@@ -292,6 +293,24 @@ public class JdbcTestDesignRepository implements TestDesignRepository {
     }
 
     @Override
+    public TestDesignCrossWpOperationsAggregate crossWpOperationsAggregate(String projectId, String promptKey) {
+        TestDesignCrossWpOperationsAggregate aggregate = mapper.crossWpOperationsAggregate(projectId, promptKey);
+        return aggregate == null ? emptyCrossWpOperationsAggregate() : aggregate;
+    }
+
+    @Override
+    public int requeueAuditOutbox(
+            String projectId,
+            String status,
+            int limit,
+            String reason,
+            String actor,
+            Instant now
+    ) {
+        return mapper.requeueAuditOutbox(projectId, status, limit, reason, actor, now);
+    }
+
+    @Override
     public TestDesignContextPolicyOverride saveContextPolicyOverride(TestDesignContextPolicyOverride override) {
         if (mapper.contextPolicyOverride(override.id()) == null) {
             mapper.insertContextPolicyOverride(override);
@@ -442,6 +461,12 @@ public class JdbcTestDesignRepository implements TestDesignRepository {
         return new TestDesignAuditChainAggregate(
                 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
                 "0", 0, 0, 0, 0, 0, 0, 0
+        );
+    }
+
+    private static TestDesignCrossWpOperationsAggregate emptyCrossWpOperationsAggregate() {
+        return new TestDesignCrossWpOperationsAggregate(
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
         );
     }
 

@@ -21,6 +21,7 @@ import {
   fetchTestDesignContextPolicyEffective,
   fetchTestDesignContextPolicyNotes,
   fetchTestDesignContextPolicyOverrides,
+  fetchTestDesignCrossWpOperationsDashboard,
   fetchTestDesignCandidates,
   fetchTestDesignConflictOperations,
   fetchTestDesignCalibrationRuns,
@@ -47,6 +48,8 @@ import {
   normalizeTestDesignContextPolicyEffective,
   normalizeTestDesignContextPolicyNote,
   normalizeTestDesignContextPolicyOverride,
+  normalizeTestDesignCrossWpOperationsDashboard,
+  normalizeTestDesignAuditOutboxRequeueResult,
   normalizeTestDesignCalibrationRun,
   normalizeTestDesignCalibrationRunList,
   normalizeTestDesignCalibrationSummary,
@@ -74,6 +77,7 @@ import {
   publishTestDesignTask,
   requestTestDesignCalibrationRun,
   rejectTestDesignReleaseReadinessApproval,
+  requeueTestDesignAuditOutbox,
   rejectTestDesignCandidate,
   rejectTestDesignContextPolicyOverride,
   replayQueuedTestDesignTaskEvent,
@@ -181,7 +185,7 @@ describe('WP5 test design API helpers', () => {
         smoke_project_scope_required: true,
         evaluation_corpus_project_isolated: true,
         evaluation_corpus_operations_ready: true,
-        cross_wp_scope_dashboard_ready: false,
+        cross_wp_scope_dashboard_ready: true,
         candidate_identifier_list_exported: false,
         role_rule_detail_exported: false,
         service_token_value_exported: false,
@@ -241,8 +245,8 @@ describe('WP5 test design API helpers', () => {
         trace_id_value_exported: false,
         model_invocation_id_value_exported: false,
         publish_identifier_value_exported: false,
-        cross_wp_audit_dashboard_ready: false,
-        audit_outbox_replay_dashboard_ready: false,
+        cross_wp_audit_dashboard_ready: true,
+        audit_outbox_replay_dashboard_ready: true,
         aggregate_only: true
       },
       model_observation_policy: {
@@ -386,7 +390,7 @@ describe('WP5 test design API helpers', () => {
         smokeProjectScopeRequired: true,
         evaluationCorpusProjectIsolated: true,
         evaluationCorpusOperationsReady: true,
-        crossWpScopeDashboardReady: false,
+        crossWpScopeDashboardReady: true,
         candidateIdentifierListExported: false,
         roleRuleDetailExported: false,
         serviceTokenValueExported: false,
@@ -446,8 +450,8 @@ describe('WP5 test design API helpers', () => {
         traceIdValueExported: false,
         modelInvocationIdValueExported: false,
         publishIdentifierValueExported: false,
-        crossWpAuditDashboardReady: false,
-        auditOutboxReplayDashboardReady: false,
+        crossWpAuditDashboardReady: true,
+        auditOutboxReplayDashboardReady: true,
         aggregateOnly: true
       },
       modelObservationPolicy: {
@@ -635,8 +639,8 @@ describe('WP5 test design API helpers', () => {
         trace_id_value_exported: false,
         model_invocation_id_value_exported: false,
         publish_identifier_value_exported: false,
-        cross_wp_audit_dashboard_ready: false,
-        audit_outbox_replay_dashboard_ready: false,
+        cross_wp_audit_dashboard_ready: true,
+        audit_outbox_replay_dashboard_ready: true,
         aggregate_only: true
       },
       model_observation_policy: {
@@ -826,8 +830,8 @@ describe('WP5 test design API helpers', () => {
         traceIdValueExported: false,
         modelInvocationIdValueExported: false,
         publishIdentifierValueExported: false,
-        crossWpAuditDashboardReady: false,
-        auditOutboxReplayDashboardReady: false,
+        crossWpAuditDashboardReady: true,
+        auditOutboxReplayDashboardReady: true,
         aggregateOnly: true
       },
       modelObservationPolicy: {
@@ -1508,6 +1512,112 @@ describe('WP5 test design API helpers', () => {
       })
     });
 
+    const crossWpDashboard = normalizeTestDesignCrossWpOperationsDashboard({
+      project_id: 'project-1',
+      prompt_key: 'wp5-test-design-v1',
+      scope_policy: {
+        policy_version: 'wp5-scope-policy-v1',
+        cross_wp_scope_dashboard_ready: true,
+        aggregate_only: true
+      },
+      audit_chain_policy: {
+        policy_version: 'wp5-audit-chain-policy-v1',
+        cross_wp_audit_dashboard_ready: true,
+        audit_outbox_replay_dashboard_ready: true,
+        trace_id_value_exported: false,
+        model_invocation_id_value_exported: false,
+        publish_identifier_value_exported: false,
+        aggregate_only: true
+      },
+      task_count: '2',
+      candidate_count: '4',
+      publish_record_count: '2',
+      project_bucket_count: '1',
+      candidate_scope_mismatch_count: '0',
+      publish_scope_mismatch_count: '0',
+      model_invocation_reference_count: '2',
+      publish_project_scope_record_count: '2',
+      candidate_scope_coverage_percent: '100',
+      publish_scope_coverage_percent: '100',
+      audit_dashboard: {
+        wp1_audit_event_count: '6',
+        wp1_audit_success_count: '5',
+        wp1_audit_denied_count: '1',
+        wp2_invocation_count: '2',
+        wp2_invocation_succeeded_count: '2',
+        wp2_fallback_count: '1',
+        wp2_trace_signal_count: '2',
+        wp3_published_case_count: '1',
+        wp3_trace_link_count: '1',
+        cross_wp_audit_dashboard_ready: true,
+        audit_event_detail_exported: false,
+        trace_id_value_exported: false,
+        model_invocation_id_value_exported: false,
+        publish_identifier_value_exported: false,
+        aggregate_only: true
+      },
+      audit_outbox: {
+        total_count: '3',
+        pending_count: '1',
+        failed_count: '1',
+        dead_count: '1',
+        replay_eligible_count: '2',
+        replay_supported: true,
+        payload_exported: false,
+        trace_id_value_exported: false,
+        last_error_text_exported: false,
+        aggregate_only: true
+      },
+      metrics: [{ code: 'auditOutboxReplayEligible', label: 'Audit outbox 可重放', count: '2', tone: 'warning' }],
+      readiness: [{ code: 'detailIdentifiersRedacted', label: '明细标识不导出', ready: true, tone: 'success' }],
+      aggregate_only: true,
+      detail_identifiers_exported: false,
+      generated_at: '2026-05-30T10:04:00Z'
+    });
+    expect(crossWpDashboard).toMatchObject({
+      projectId: 'project-1',
+      promptKey: 'wp5-test-design-v1',
+      taskCount: 2,
+      candidateCount: 4,
+      modelInvocationReferenceCount: 2,
+      auditDashboard: expect.objectContaining({
+        wp1AuditEventCount: 6,
+        wp2InvocationCount: 2,
+        wp3PublishedCaseCount: 1,
+        traceIdValueExported: false
+      }),
+      auditOutbox: expect.objectContaining({
+        totalCount: 3,
+        replayEligibleCount: 2,
+        replaySupported: true,
+        payloadExported: false
+      }),
+      readiness: [expect.objectContaining({ code: 'detailIdentifiersRedacted', ready: true })],
+      aggregateOnly: true,
+      detailIdentifiersExported: false,
+      scopePolicy: expect.objectContaining({ crossWpScopeDashboardReady: true }),
+      auditChainPolicy: expect.objectContaining({
+        crossWpAuditDashboardReady: true,
+        auditOutboxReplayDashboardReady: true
+      })
+    });
+    expect(normalizeTestDesignAuditOutboxRequeueResult({
+      project_id: 'project-1',
+      requested_status: 'FAILED_OR_DEAD',
+      requested_limit: '20',
+      requeued_count: '2',
+      replay_supported: true,
+      payload_exported: false,
+      detail_identifiers_exported: false
+    })).toMatchObject({
+      projectId: 'project-1',
+      requestedStatus: 'FAILED_OR_DEAD',
+      requestedLimit: 20,
+      requeuedCount: 2,
+      payloadExported: false,
+      detailIdentifiersExported: false
+    });
+
     const auditSummary = normalizeTestDesignAuditSummary({
       task_id: 'task-1',
       project_id: 'project-1',
@@ -1604,6 +1714,25 @@ describe('WP5 test design API helpers', () => {
 
     await fetchTestDesignScopeSummary({ index: 0, size: 10, projectId: 'proj pay', promptKey: 'wp5-test-design-v1' });
     expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/test-design/quality/scope-summary?index=0&size=10&projectId=proj+pay&promptKey=wp5-test-design-v1');
+
+    await fetchTestDesignCrossWpOperationsDashboard({ projectId: 'proj pay', promptKey: 'wp5-test-design-v1' });
+    expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/test-design/operations/cross-wp-dashboard?projectId=proj+pay&promptKey=wp5-test-design-v1');
+
+    await requeueTestDesignAuditOutbox({
+      projectId: 'proj pay',
+      status: 'FAILED_OR_DEAD',
+      maxItems: 20,
+      reason: '  重放原因  '
+    });
+    expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/test-design/operations/audit-outbox/requeue', {
+      method: 'POST',
+      body: JSON.stringify({
+        projectId: 'proj pay',
+        status: 'FAILED_OR_DEAD',
+        maxItems: 20,
+        reason: '重放原因'
+      })
+    });
   });
 
   it('calls evaluation sample maintenance and calibration endpoints', async () => {

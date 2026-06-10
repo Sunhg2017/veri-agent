@@ -65,6 +65,7 @@ import {
   fetchTestDesignContextPolicyEffective,
   fetchTestDesignContextPolicyNotes,
   fetchTestDesignContextPolicyOverrides,
+  fetchTestDesignCrossWpOperationsDashboard,
   fetchTestDesignCalibrationRuns,
   fetchTestDesignEvaluationCorpusSummary,
   fetchTestDesignEvaluationSamples,
@@ -85,6 +86,7 @@ import {
   rejectTestDesignCandidate,
   rejectTestDesignContextPolicyOverride,
   rejectTestDesignReleaseReadinessApproval,
+  requeueTestDesignAuditOutbox,
   replayQueuedTestDesignTaskEvent,
   requestTestDesignEnvironmentContextPolicyOverride,
   requestTestDesignCalibrationRun,
@@ -109,6 +111,8 @@ import {
   type TestDesignContextPolicyEffectiveView,
   type TestDesignContextPolicyNoteView,
   type TestDesignContextPolicyOverrideView,
+  type TestDesignCrossWpOperationsDashboardView,
+  type TestDesignAuditOutboxRequeueResult,
   type TestDesignAuditSummaryView,
   type TestDesignHealth,
   type TestDesignEvaluationCorpusSummaryView,
@@ -358,6 +362,18 @@ type CalibrationRunDraft = {
   notes: string;
 };
 
+type CrossWpOperationsFilters = {
+  projectId: string;
+  promptKey: string;
+};
+
+type AuditOutboxRequeueDraft = {
+  projectId: string;
+  status: string;
+  maxItems: string;
+  reason: string;
+};
+
 type ConflictResolutionCandidate = Pick<TestDesignCandidateView, 'id' | 'title' | 'status' | 'version'>;
 type ConflictResolutionItem = {
   candidate: ConflictResolutionCandidate;
@@ -401,6 +417,7 @@ const releaseReadinessWorkOrderStatuses = ['OPEN', 'IN_REVIEW', 'APPROVED', 'REJ
 const evaluationSampleStatuses = ['CANDIDATE', 'GOLDEN', 'FROZEN', 'DEPRECATED'] as const;
 const evaluationSampleSourceTypes = ['MANUAL', 'REVIEW_FEEDBACK', 'PUBLISHED_CASE', 'IMPORTED'] as const;
 const calibrationRunModes = ['MANUAL', 'PROMPT_CHANGE', 'SCHEDULED', 'BASELINE_FREEZE'] as const;
+const auditOutboxReplayStatuses = ['FAILED_OR_DEAD', 'FAILED', 'DEAD'] as const;
 
 const initialReleaseReadinessDraft: ReleaseReadinessApprovalDraft = {
   exceptionReasonCode: 'SMOKE_VALIDATION',
@@ -498,6 +515,18 @@ const initialCalibrationRunDraft: CalibrationRunDraft = {
   notes: ''
 };
 
+const initialCrossWpOperationsFilters: CrossWpOperationsFilters = {
+  projectId: '',
+  promptKey: ''
+};
+
+const initialAuditOutboxRequeueDraft: AuditOutboxRequeueDraft = {
+  projectId: '',
+  status: 'FAILED_OR_DEAD',
+  maxItems: '20',
+  reason: ''
+};
+
 const ASYNC_TASK_STATUSES = new Set(['QUEUED', 'RUNNING', 'PUBLISH_QUEUED', 'PUBLISHING']);
 const RETRYABLE_TASK_STATUSES = new Set(['FAILED', 'PARTIAL_SUCCESS', 'CANCELLED']);
 const CANCELLABLE_TASK_STATUSES = new Set(['DRAFT', 'QUEUED', 'RUNNING', 'PARTIAL_SUCCESS', 'FAILED']);
@@ -551,6 +580,10 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
   const [calibrationRuns, setCalibrationRuns] = useState<TestDesignCalibrationRunView[]>([]);
   const [calibrationSummary, setCalibrationSummary] = useState<TestDesignCalibrationSummaryView | null>(null);
   const [calibrationRunDraft, setCalibrationRunDraft] = useState<CalibrationRunDraft>(initialCalibrationRunDraft);
+  const [crossWpOperationsDashboard, setCrossWpOperationsDashboard] = useState<TestDesignCrossWpOperationsDashboardView | null>(null);
+  const [crossWpOperationsFilters, setCrossWpOperationsFilters] = useState<CrossWpOperationsFilters>(initialCrossWpOperationsFilters);
+  const [auditOutboxRequeueDraft, setAuditOutboxRequeueDraft] = useState<AuditOutboxRequeueDraft>(initialAuditOutboxRequeueDraft);
+  const [auditOutboxRequeueResult, setAuditOutboxRequeueResult] = useState<TestDesignAuditOutboxRequeueResult | null>(null);
   const [contextPolicyDraft, setContextPolicyDraft] = useState<TestDesignContextPolicyDraft>(initialTestDesignContextPolicyDraft);
   const [contextPolicyOverrides, setContextPolicyOverrides] = useState<TestDesignContextPolicyOverrideView[]>([]);
   const [contextPolicyEffective, setContextPolicyEffective] = useState<TestDesignContextPolicyEffectiveView | null>(null);
@@ -581,6 +614,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
   const [taskAuditState, setTaskAuditState] = useState<WorkState>({ loading: false });
   const [promptTrendState, setPromptTrendState] = useState<WorkState>({ loading: false });
   const [evaluationCorpusState, setEvaluationCorpusState] = useState<WorkState>({ loading: false });
+  const [crossWpOperationsState, setCrossWpOperationsState] = useState<WorkState>({ loading: false });
   const [contextPolicyState, setContextPolicyState] = useState<WorkState>({ loading: false });
   const [releaseReadinessState, setReleaseReadinessState] = useState<WorkState>({ loading: false });
   const [conflictOperationState, setConflictOperationState] = useState<WorkState>({ loading: false });
@@ -685,6 +719,21 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
     || selectedTask?.promptKey
     || generationDraft.promptKey
     || '';
+  const crossWpOperationsProjectId = crossWpOperationsFilters.projectId
+    || selectedTask?.projectId
+    || taskFilters.projectId
+    || filters.projectId
+    || generationDraft.projectId
+    || '';
+  const crossWpOperationsPromptKey = crossWpOperationsFilters.promptKey
+    || health?.promptKey
+    || selectedTask?.promptKey
+    || generationDraft.promptKey
+    || '';
+  const crossWpOperationsEffectiveFilters = useMemo(() => ({
+    projectId: crossWpOperationsProjectId,
+    promptKey: crossWpOperationsPromptKey
+  }), [crossWpOperationsProjectId, crossWpOperationsPromptKey]);
   const qualitySummaryScope = selectedTaskId
     ? taskQualitySummary
       ? `任务全量 ${taskQualitySummary.total} 个候选`
@@ -1038,6 +1087,48 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
     props.signedIn
   ]);
 
+  const refreshCrossWpOperations = useCallback(async (options?: { silent?: boolean }) => {
+    if (!props.signedIn || !canRead) {
+      setCrossWpOperationsDashboard(null);
+      setAuditOutboxRequeueResult(null);
+      setCrossWpOperationsState({ loading: false });
+      return;
+    }
+    const projectId = crossWpOperationsProjectId.trim();
+    const promptKey = crossWpOperationsPromptKey.trim();
+    const silent = options?.silent === true;
+    if (silent) {
+      setCrossWpOperationsState((current) => ({ ...current, error: undefined }));
+    } else {
+      setCrossWpOperationsState({ loading: true });
+    }
+    try {
+      const response = await fetchTestDesignCrossWpOperationsDashboard({ projectId, promptKey });
+      setCrossWpOperationsDashboard(response.data);
+      setAuditOutboxRequeueDraft((current) => ({
+        ...current,
+        projectId: current.projectId || projectId,
+        status: current.status || 'FAILED_OR_DEAD',
+        maxItems: current.maxItems || '20'
+      }));
+      setCrossWpOperationsState({
+        loading: false,
+        success: `任务 ${response.data.taskCount} · outbox 可重放 ${response.data.auditOutbox?.replayEligibleCount ?? 0}`,
+        traceId: response.trace_id
+      });
+    } catch (error: unknown) {
+      if (!silent) {
+        setCrossWpOperationsDashboard(null);
+        setCrossWpOperationsState({ loading: false, error: testDesignErrorMessage(error, '跨 WP 运营看板加载失败') });
+      }
+    }
+  }, [
+    canRead,
+    crossWpOperationsProjectId,
+    crossWpOperationsPromptKey,
+    props.signedIn
+  ]);
+
   const refreshConflictOperations = useCallback(async (pageIndex = conflictOperationPageIndex, options?: { silent?: boolean }) => {
     const silent = options?.silent === true;
     if (!props.signedIn || !canRead) {
@@ -1384,6 +1475,10 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       setCalibrationRuns([]);
       setCalibrationSummary(null);
       setCalibrationRunDraft(initialCalibrationRunDraft);
+      setCrossWpOperationsDashboard(null);
+      setCrossWpOperationsFilters(initialCrossWpOperationsFilters);
+      setAuditOutboxRequeueDraft(initialAuditOutboxRequeueDraft);
+      setAuditOutboxRequeueResult(null);
       setContextPolicyDraft(initialTestDesignContextPolicyDraft);
       setContextPolicyOverrides([]);
       setContextPolicyEffective(null);
@@ -1399,6 +1494,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       setTaskAuditState({ loading: false });
       setPromptTrendState({ loading: false });
       setEvaluationCorpusState({ loading: false });
+      setCrossWpOperationsState({ loading: false });
       setContextPolicyState({ loading: false });
       setTemplateState({ loading: false });
       return;
@@ -1467,6 +1563,10 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
   }, [refreshEvaluationCorpusOperations]);
 
   useEffect(() => {
+    void refreshCrossWpOperations();
+  }, [refreshCrossWpOperations]);
+
+  useEffect(() => {
     void refreshTemplates();
   }, [refreshTemplates]);
 
@@ -1491,6 +1591,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
     setConflictCaseResults([]);
     setSelectedConflictCaseIds({});
     setPendingConfirmation(null);
+    setAuditOutboxRequeueResult(null);
     setReleaseReadinessDraft(initialReleaseReadinessDraft);
     setReleaseReadinessApprovals([]);
     setSelectedReleaseReadinessApprovalId('');
@@ -1540,10 +1641,12 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       void refreshTaskAuditSummary(selectedTaskId, { silent: true });
       void refreshPromptTrend({ silent: true });
       void refreshEvaluationCorpusOperations({ silent: true });
+      void refreshCrossWpOperations({ silent: true });
     }, 2000);
     return () => window.clearInterval(timer);
   }, [
     refreshCandidatePage,
+    refreshCrossWpOperations,
     refreshEvaluationCorpusOperations,
     refreshPromptTrend,
     refreshReviewRecords,
@@ -2056,6 +2159,39 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       void refreshPromptTrend({ silent: true });
     } catch (error: unknown) {
       setEvaluationCorpusState({ loading: false, error: testDesignErrorMessage(error, '校准运行失败') });
+    }
+  }
+
+  async function requeueAuditOutbox(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!canPolicyManage) {
+      setCrossWpOperationsState({ loading: false, error: '缺少 testDesign:policy_manage 权限' });
+      return;
+    }
+    const projectId = auditOutboxRequeueDraft.projectId.trim() || crossWpOperationsProjectId.trim();
+    if (!projectId) {
+      setCrossWpOperationsState({ loading: false, error: '请输入 outbox 重放项目 ID' });
+      return;
+    }
+    const maxItems = Number.parseInt(auditOutboxRequeueDraft.maxItems, 10);
+    setCrossWpOperationsState({ loading: true });
+    try {
+      const response = await requeueTestDesignAuditOutbox({
+        projectId,
+        status: auditOutboxRequeueDraft.status,
+        maxItems: Number.isFinite(maxItems) ? maxItems : 20,
+        reason: auditOutboxRequeueDraft.reason
+      });
+      setAuditOutboxRequeueResult(response.data);
+      setAuditOutboxRequeueDraft((current) => ({ ...current, projectId, reason: '' }));
+      setCrossWpOperationsState({
+        loading: false,
+        success: `已重新排队 ${response.data.requeuedCount} 条 outbox`,
+        traceId: response.trace_id
+      });
+      void refreshCrossWpOperations({ silent: true });
+    } catch (error: unknown) {
+      setCrossWpOperationsState({ loading: false, error: testDesignErrorMessage(error, 'Audit outbox 重新排队失败') });
     }
   }
 
@@ -3189,6 +3325,22 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
           onTransitionSample={(status) => void transitionEvaluationSample(status)}
           onExtractFromCandidate={() => void extractEvaluationSampleFromCandidate()}
           onRunCalibration={() => void runCalibration()}
+        />
+
+        <CrossWpOperationsPanel
+          state={crossWpOperationsState}
+          canPolicyManage={canPolicyManage}
+          dashboard={crossWpOperationsDashboard}
+          filters={crossWpOperationsEffectiveFilters}
+          requeueDraft={{
+            ...auditOutboxRequeueDraft,
+            projectId: auditOutboxRequeueDraft.projectId || crossWpOperationsProjectId
+          }}
+          requeueResult={auditOutboxRequeueResult}
+          onFiltersChange={setCrossWpOperationsFilters}
+          onRequeueDraftChange={setAuditOutboxRequeueDraft}
+          onRefresh={() => void refreshCrossWpOperations()}
+          onRequeue={(event) => void requeueAuditOutbox(event)}
         />
 
         <AuditSummaryPanel
@@ -5641,6 +5793,194 @@ function EvaluationCorpusOperationsPanel(props: {
   );
 }
 
+function CrossWpOperationsPanel(props: {
+  state: WorkState;
+  canPolicyManage: boolean;
+  dashboard: TestDesignCrossWpOperationsDashboardView | null;
+  filters: CrossWpOperationsFilters;
+  requeueDraft: AuditOutboxRequeueDraft;
+  requeueResult: TestDesignAuditOutboxRequeueResult | null;
+  onFiltersChange: Dispatch<SetStateAction<CrossWpOperationsFilters>>;
+  onRequeueDraftChange: Dispatch<SetStateAction<AuditOutboxRequeueDraft>>;
+  onRefresh: () => void;
+  onRequeue: (event: FormEvent<HTMLFormElement>) => void;
+}) {
+  const dashboard = props.dashboard;
+  const auditDashboard = dashboard?.auditDashboard;
+  const auditOutbox = dashboard?.auditOutbox;
+  const projectId = props.filters.projectId;
+  const promptKey = props.filters.promptKey;
+  const canRequeue = props.canPolicyManage && !props.state.loading && Boolean(props.requeueDraft.projectId.trim() || projectId.trim());
+
+  return (
+    <section className="panel test-design-cross-wp-operations">
+      <div className="panel-header compact">
+        <div>
+          <h2 className="panel-title">跨 WP 统一运营</h2>
+          <p className="panel-desc">
+            {dashboard?.projectId || projectId || '平台聚合'}
+            {' · '}
+            {dashboard?.promptKey || promptKey || '全部 Prompt'}
+          </p>
+        </div>
+        <div className="toolbar-actions">
+          <button className="btn btn-secondary btn-sm" type="button" disabled={props.state.loading} onClick={props.onRefresh}>
+            <RefreshCw size={15} />
+            刷新
+          </button>
+        </div>
+      </div>
+      <div className="panel-body compact main-stack">
+        <StateLine state={props.state} />
+
+        <div className="form-grid test-design-cross-wp-filter">
+          <label className="field">
+            <span className="field-label">项目 ID</span>
+            <input
+              value={projectId}
+              onChange={(event) => props.onFiltersChange((current) => ({ ...current, projectId: event.target.value }))}
+              placeholder="project UUID"
+            />
+          </label>
+          <label className="field">
+            <span className="field-label">Prompt</span>
+            <input
+              value={promptKey}
+              onChange={(event) => props.onFiltersChange((current) => ({ ...current, promptKey: event.target.value }))}
+              placeholder="prompt key"
+            />
+          </label>
+        </div>
+
+        {dashboard ? (
+          <>
+            <div className="test-design-quality-metrics test-design-cross-wp-metrics">
+              <div className="test-design-quality-metric tone-info">
+                <span>任务/候选</span>
+                <strong>{dashboard.taskCount}</strong>
+                <small>候选 {dashboard.candidateCount} · 发布 {dashboard.publishRecordCount}</small>
+              </div>
+              <div className={`test-design-quality-metric tone-${dashboard.candidateScopeMismatchCount + dashboard.publishScopeMismatchCount > 0 ? 'warning' : 'success'}`}>
+                <span>Scope 覆盖</span>
+                <strong>{formatPercent(dashboard.candidateScopeCoveragePercent)}</strong>
+                <small>发布 {formatPercent(dashboard.publishScopeCoveragePercent)}</small>
+              </div>
+              <div className="test-design-quality-metric tone-info">
+                <span>WP1 审计</span>
+                <strong>{auditDashboard?.wp1AuditEventCount ?? 0}</strong>
+                <small>成功 {auditDashboard?.wp1AuditSuccessCount ?? 0} · 拒绝 {auditDashboard?.wp1AuditDeniedCount ?? 0}</small>
+              </div>
+              <div className={`test-design-quality-metric tone-${(auditOutbox?.replayEligibleCount ?? 0) > 0 ? 'warning' : 'success'}`}>
+                <span>Outbox 可重放</span>
+                <strong>{auditOutbox?.replayEligibleCount ?? 0}</strong>
+                <small>失败 {auditOutbox?.failedCount ?? 0} · 死信 {auditOutbox?.deadCount ?? 0}</small>
+              </div>
+            </div>
+
+            <div className="test-design-cross-wp-readiness">
+              {dashboard.readiness.map((item) => (
+                <span className={`test-design-quality-chip tone-${item.tone}`} key={item.code}>
+                  {item.label} {item.ready ? 'ready' : 'blocked'}
+                </span>
+              ))}
+              <span className={`test-design-quality-chip tone-${dashboard.aggregateOnly && !dashboard.detailIdentifiersExported ? 'success' : 'warning'}`}>
+                aggregate-only {dashboard.aggregateOnly && !dashboard.detailIdentifiersExported ? 'on' : 'check'}
+              </span>
+            </div>
+
+            <div className="test-design-cross-wp-grid">
+              <div className="test-design-cross-wp-group">
+                <div className="test-design-evaluation-list-heading">
+                  <strong>审计链聚合</strong>
+                  <span>{dashboard.generatedAt ?? '-'}</span>
+                </div>
+                <div className="test-design-cross-wp-row">
+                  <span>WP2 调用</span>
+                  <strong>{auditDashboard?.wp2InvocationCount ?? 0}</strong>
+                  <small>成功 {auditDashboard?.wp2InvocationSucceededCount ?? 0} · fallback {auditDashboard?.wp2FallbackCount ?? 0}</small>
+                </div>
+                <div className="test-design-cross-wp-row">
+                  <span>WP3 发布</span>
+                  <strong>{auditDashboard?.wp3PublishedCaseCount ?? 0}</strong>
+                  <small>trace link {auditDashboard?.wp3TraceLinkCount ?? 0}</small>
+                </div>
+                <div className="test-design-cross-wp-row">
+                  <span>标识导出</span>
+                  <strong>{dashboard.detailIdentifiersExported ? 'ON' : 'OFF'}</strong>
+                  <small>trace/model/sourceRef 均为聚合信号</small>
+                </div>
+              </div>
+
+              <form className="test-design-cross-wp-group" onSubmit={props.onRequeue}>
+                <div className="test-design-evaluation-list-heading">
+                  <strong>Audit outbox</strong>
+                  <span>总数 {auditOutbox?.totalCount ?? 0}</span>
+                </div>
+                <div className="form-grid test-design-cross-wp-requeue-grid">
+                  <label className="field">
+                    <span className="field-label">项目 ID</span>
+                    <input
+                      value={props.requeueDraft.projectId}
+                      onChange={(event) => props.onRequeueDraftChange((current) => ({ ...current, projectId: event.target.value }))}
+                      placeholder="project UUID"
+                      disabled={!props.canPolicyManage}
+                    />
+                  </label>
+                  <label className="field">
+                    <span className="field-label">状态</span>
+                    <select
+                      value={props.requeueDraft.status}
+                      onChange={(event) => props.onRequeueDraftChange((current) => ({ ...current, status: event.target.value }))}
+                      disabled={!props.canPolicyManage}
+                    >
+                      {auditOutboxReplayStatuses.map((status) => (
+                        <option key={status} value={status}>{status}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="field">
+                    <span className="field-label">上限</span>
+                    <input
+                      type="number"
+                      min={1}
+                      max={100}
+                      value={props.requeueDraft.maxItems}
+                      onChange={(event) => props.onRequeueDraftChange((current) => ({ ...current, maxItems: event.target.value }))}
+                      disabled={!props.canPolicyManage}
+                    />
+                  </label>
+                </div>
+                <label className="field">
+                  <span className="field-label">原因</span>
+                  <textarea
+                    value={props.requeueDraft.reason}
+                    onChange={(event) => props.onRequeueDraftChange((current) => ({ ...current, reason: event.target.value }))}
+                    rows={2}
+                    disabled={!props.canPolicyManage}
+                  />
+                </label>
+                <div className="toolbar-actions test-design-cross-wp-actions">
+                  <button className="btn btn-primary btn-sm" type="submit" disabled={!canRequeue}>
+                    <Repeat2 size={15} />
+                    重新排队
+                  </button>
+                  {props.requeueResult && (
+                    <span className="test-design-cross-wp-result">
+                      {props.requeueResult.requestedStatus} · {props.requeueResult.requeuedCount}/{props.requeueResult.requestedLimit}
+                    </span>
+                  )}
+                </div>
+              </form>
+            </div>
+          </>
+        ) : (
+          <div className="notice info">暂无跨 WP 运营数据</div>
+        )}
+      </div>
+    </section>
+  );
+}
+
 function AuditSummaryPanel(props: {
   state: WorkState;
   summary: TestDesignAuditSummary;
@@ -5708,6 +6048,13 @@ function badgeTone(tone: string) {
     return tone;
   }
   return 'neutral';
+}
+
+function formatPercent(value?: number) {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    return '0%';
+  }
+  return `${Math.round(value * 10) / 10}%`;
 }
 
 function ReviewSummaryPanel(props: {

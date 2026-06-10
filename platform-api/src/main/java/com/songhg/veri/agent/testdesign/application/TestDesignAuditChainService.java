@@ -126,6 +126,7 @@ public class TestDesignAuditChainService {
             TestDesignAuditSummaryResponse domainSummary,
             TestDesignAuditChainAggregate aggregate
     ) {
+        TestDesignAuditChainPolicyResponse policy = TestDesignAuditChainPolicy.response();
         return List.of(
                 readiness("wp5DomainEventsTracked", "WP5 本域事件聚合", domainSummary.eventCount() > 0,
                         "任务、评审和发布记录已纳入本域聚合摘要"),
@@ -135,8 +136,9 @@ public class TestDesignAuditChainService {
                         "只读取 WP2 调用状态、token、成本、延迟和 trace 存在性"),
                 readiness("wp3PublishAggregateReady", "WP3 发布引用聚合", aggregate.wp3PublishedCaseCount() > 0,
                         "只读取 WP3 AI 生成用例和需求追踪链接计数"),
-                readiness("auditOutboxReplayDashboardReady", "Audit outbox 重放看板", false,
-                        "当前仅输出 outbox 状态计数，重放操作台仍未就绪"),
+                readiness("auditOutboxReplayDashboardReady", "Audit outbox 重放看板",
+                        policy.auditOutboxReplayDashboardReady(),
+                        "项目级运营台支持按项目 scope 将 FAILED/DEAD outbox 受限重新排队"),
                 readiness("detailIdentifiersRedacted", "明细标识不导出", true,
                         "候选 ID、资产 ID、traceId、模型调用 ID、sourceRef 和审计 ID 原值不导出")
         );
