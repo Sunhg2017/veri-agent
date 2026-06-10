@@ -169,6 +169,7 @@ API client 需复用现有 `requestJson` 和 `ApiError` 处理，保留响应中
 | generation orchestration policy | 任务诊断展示 `generationOrchestrationPolicy` 的策略版本、编排模式、条件认领、幂等回放、重复事件安全、恢复扫描、运行中超时回收、人工重试、人工排队事件重发、队列 lag 指标、超时告警、恢复批次上限、排队/运行/最旧排队年龄/超时运行聚合计数和告警布尔值；该状态只说明当前生成编排边界，人工排队事件重发仅支持 `QUEUED` 任务，仅代表本地多 worker 重复事件认领证据已就绪，不代表跨 WP 事务编排已就绪，也不展示事件 ID、事件 payload、队列消息体、恢复明细、幂等键原值或超时错误正文。 |
 | archive policy | 任务诊断展示 `archivePolicy` 的策略版本、保留天数、`platformManaged` 存储策略、审批要求、审批流 pending、真实归档存储 pending、外发开关、保留策略跟踪和细节导出关闭；该状态只说明当前归档治理边界，不代表真实归档存储、审批流、外发流程或工单流转已就绪。 |
 | report manifest policy | 任务诊断展示 `reportManifestPolicy` 的策略版本、报告 schema/字段集版本、清单模式、行数/完成状态跟踪、归档核验和细节导出关闭；该状态只说明当前报告清单聚合核验边界，不代表行级完整性值、候选 ID、trace ID 或审计 ID 明细索引已开放。 |
+| asset conflict operations | 资产冲突运营台按项目 scope 查询正式发布冲突，展示 open/resolved 汇总、任务摘要、候选状态和版本、推荐 WP3 用例、错误摘要和可处理状态；单条/批量复用必须先选择目标用例并走二次确认。 |
 
 ## 9. 候选评审交互
 
@@ -199,6 +200,7 @@ API client 需复用现有 `requestJson` 和 `ApiError` 处理，保留响应中
 6. 候选列表、详情、编辑、批量确认、驳回和忽略主流程可用。
 7. dryRun 结果能区分创建、重复、跳过和失败。
 8. 发布成功后可跳转 WP3 测试用例详情或列表筛选结果。
-9. loading/empty/error/partial success/version conflict/model blocked 状态均有可读展示。
-10. 任务诊断只展示上下文计数、裁剪策略、生成编排策略、作用域策略、评测语料策略、发布准出审批策略、审计链策略、模型观测策略、归档治理策略和报告清单策略聚合标记，不展示显式资产 ID、schema、页面树、流程 JSON、需求正文、事件 ID、事件 payload、队列消息体、恢复明细、幂等键原值、超时错误正文、候选 ID、角色规则、服务令牌原值、评测语料行、候选正文、评审评论、候选级准出证据、审批备注、阈值规则明细、平台审计标识原值、traceId/jobId/invocationId 原值、模型调用 ID 原值、provider 错误正文、actor service、发布 sourceRef、资产 ID、归档路径、归档备注、审批说明、工单 URL 或原始 Prompt。
-11. `cd portal-web && npm test`、`cd portal-web && npm run build`、WP5 前端 smoke 均通过。
+9. 资产冲突运营台可按项目查询正式发布冲突，能筛选 open/resolved、定位任务和候选、搜索既有 WP3 用例，并通过单条/批量复用完成闭环。
+10. loading/empty/error/partial success/version conflict/model blocked 状态均有可读展示。
+11. 任务诊断只展示上下文计数、裁剪策略、生成编排策略、作用域策略、评测语料策略、发布准出审批策略、审计链策略、模型观测策略、归档治理策略和报告清单策略聚合标记，不展示显式资产 ID、schema、页面树、流程 JSON、需求正文、事件 ID、事件 payload、队列消息体、恢复明细、幂等键原值、超时错误正文、候选 ID、角色规则、服务令牌原值、评测语料行、候选正文、评审评论、候选级准出证据、审批备注、阈值规则明细、平台审计标识原值、traceId/jobId/invocationId 原值、模型调用 ID 原值、provider 错误正文、actor service、发布 sourceRef、资产 ID、归档路径、归档备注、审批说明、工单 URL 或原始 Prompt。
+12. `cd portal-web && npm test`、`cd portal-web && npm run build`、WP5 前端 smoke 均通过。

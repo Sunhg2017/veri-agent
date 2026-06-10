@@ -511,6 +511,7 @@ WP5 任务项目时，才允许写入候选 `apiId`；非 UUID、缺失 API 或�
 | `POST` | `/candidates/{id}/resolve-conflict` | `testDesign:publish` | 人工确认发布冲突并链接既有 WP3 测试用例。 |
 | `POST` | `/candidates/batch-action` | `testDesign:review` | 批量确认、驳回、忽略。 |
 | `POST` | `/candidates/batch-resolve-conflicts` | `testDesign:publish` | 批量人工处理发布冲突并返回逐项结果。 |
+| `GET` | `/conflicts` | `testDesign:read` | 资产冲突运营台查询，必须传 `projectId`，按项目 scope 返回正式发布冲突的 open/resolved 汇总、任务摘要、候选当前版本、推荐 WP3 用例和可处理性。 |
 
 人工编辑候选时如提交 `apiId`，服务端必须通过 WP3 `AssetService` 解析该 API，并确认 API `projectId` 与候选所属任务项目一致；API 不存在或跨项目时返回 `VALIDATION_ERROR`，不得持久化候选变更、递增版本或写入后续发布请求。
 
