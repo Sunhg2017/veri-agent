@@ -178,8 +178,8 @@ API client 需复用现有 `requestJson` 和 `ApiError` 处理，保留响应中
 | cross wp operations | 跨 WP 统一运营面板展示队列告警订阅、queued generation/publish 重放、发布补偿运行手册、批量运营审计报表、审计报表模板、模型观测聚合钻取和跨 WP 脱敏明细审计报表；所有操作都保持 aggregate-only，不展示任务 ID、候选 ID、outbox payload、traceId、模型调用 ID、sourceRef 或 WP3 资产 ID。 |
 | model observation policy | 任务诊断展示 `modelObservationPolicy` 的策略版本、聚合观测模式、WP2 调用引用、trace/job/routing/token/latency/cost/fallback 跟踪能力、Prompt 载荷不存储和细节导出关闭；跨 WP 运营面板提供聚合钻取桶，但不展示 traceId/jobId/invocationId 原值、载荷预览、provider 错误正文或 actor service。 |
 | generation orchestration policy | 任务诊断展示 `generationOrchestrationPolicy` 的策略版本、编排模式、条件认领、幂等回放、重复事件安全、恢复扫描、运行中超时回收、人工重试、人工排队事件重发、队列 lag 指标、超时告警、恢复批次上限、排队/运行/最旧排队年龄/超时运行聚合计数和告警布尔值；该状态只说明当前生成编排边界，人工排队事件重发仅支持 `QUEUED` 任务，仅代表本地多 worker 重复事件认领证据已就绪，不代表跨 WP 事务编排已就绪，也不展示事件 ID、事件 payload、队列消息体、恢复明细、幂等键原值或超时错误正文。 |
-| archive policy | 任务诊断展示 `archivePolicy` 的策略版本、保留天数、`platformManaged` 存储策略、审批要求、审批流 pending、真实归档存储 pending、外发开关、保留策略跟踪和细节导出关闭；该状态只说明当前归档治理边界，不代表真实归档存储、审批流、外发流程或工单流转已就绪。 |
-| report manifest policy | 任务诊断展示 `reportManifestPolicy` 的策略版本、报告 schema/字段集版本、清单模式、行数/完成状态跟踪、归档核验和细节导出关闭；该状态只说明当前报告清单聚合核验边界，不代表行级完整性值、候选 ID、trace ID 或审计 ID 明细索引已开放。 |
+| archive policy | 任务诊断展示 `archivePolicy` 的策略版本、保留天数、`platformManaged` 存储策略、审批要求、审批流 ready、外发审批流 ready、归档工单流转 ready、真实归档存储 ready、归档正文 stored、行级索引 ready、外发开关、保留策略跟踪和细节导出关闭；归档运营面板可查看归档元数据、完整性摘要、审批/外发工单和备注时间线，不展示归档正文、内部存储 key、归档路径、审批说明或工单 URL。 |
+| report manifest policy | 任务诊断展示 `reportManifestPolicy` 的策略版本、报告 schema/字段集版本、清单模式、行数/完成状态跟踪、归档核验、行级完整性存储/index ready 和细节导出关闭；行级完整性值、行内容摘要、候选 ID、trace ID 或审计 ID 明细仍不开放。 |
 | asset conflict operations | 资产冲突运营台按项目 scope 查询正式发布冲突，展示 open/resolved 汇总、任务摘要、候选状态和版本、推荐 WP3 用例、错误摘要和可处理状态；单条/批量复用必须先选择目标用例并走二次确认。 |
 
 ## 9. 候选评审交互

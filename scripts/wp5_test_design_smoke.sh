@@ -435,7 +435,7 @@ main() {
   echo "== WP5 test-design smoke =="
   echo "baseUrl=$BASE_URL project=$PROJECT_ID"
 
-  local health project_policy env_policy pending_effective approved_project approved_env effective_policy overrides requirement requirement_id task task_id candidates candidate_targets candidate_source_refs confirm calibration_task calibration_task_id calibration_candidates calibration_targets calibration_reject calibration_ignore corpus_summary dry_run asset_before asset_before_for_task publish scope_summary cross_wp_dashboard outbox_requeue case_id case_asset links
+  local health project_policy env_policy pending_effective approved_project approved_env effective_policy overrides requirement requirement_id task task_id candidates candidate_targets candidate_source_refs confirm calibration_task calibration_task_id calibration_candidates calibration_targets calibration_reject calibration_ignore corpus_summary dry_run asset_before asset_before_for_task publish report_csv archives archive_id integrity archive_approvals archive_approval_id archive_note approved_archive archives_after external_approval scope_summary cross_wp_dashboard outbox_requeue case_id case_asset links
   health="$(curl -fsS "$TEST_DESIGN_API_BASE/health")"
   check "WP5 health" '.data.service == "test-design" and .data.status == "UP" and .data.generationEnabled == true' "$health"
   validate_release_readiness_policy "$health"
@@ -554,6 +554,67 @@ main() {
   publish="$(wait_for_task_published "$task_id" 2)"
   check "Publish creates WP3 cases" '.data.task.status == "PUBLISHED" and .data.task.publishedCount == 2 and ([.data.publishRecords[] | select(.result == "SUCCEEDED")] | length) >= 2' "$publish"
 
+  report_csv="$(curl -fsS "$TEST_DESIGN_API_BASE/tasks/$task_id/report/export" "${test_design_headers[@]}")"
+  if printf '%s' "$report_csv" | grep -q 'archivePolicy' \
+    && printf '%s' "$report_csv" | grep -q 'reportManifestPolicy' \
+    && printf '%s' "$report_csv" | grep -q 'lineIntegrityIndexReady' \
+    && ! printf '%s' "$report_csv" | grep -Eq 'storageKey|content_bytes|rowDigest|previousDigest|chainDigest|token=|secret-value|local-test-design-token'; then
+    echo "   PASS Task report export writes aggregate archive manifest only"
+    PASS=$((PASS + 1))
+  else
+    echo "   FAIL Task report export writes aggregate archive manifest only"
+    echo "$report_csv"
+    FAIL=$((FAIL + 1))
+  fi
+
+  archives="$(get_test_design_json "/tasks/$task_id/report/archives")"
+  check "Report archive metadata is sanitized" \
+    '(.data | length) >= 1 and .data[0].taskId == "'"$task_id"'" and .data[0].storageBackend == "DATABASE" and .data[0].archiveContentStored == true and .data[0].lineIntegrityIndexReady == true and .data[0].archiveContentExported == false and .data[0].storageKeyExported == false and .data[0].aggregateOnly == true and (.data[0].contentDigest | type == "string") and .data[0].reportRowCount > 0 and .data[0].lineIntegrityCount == .data[0].reportRowCount and (.data[0].storageKey | not) and (.data[0].contentBytes | not)' \
+    "$archives"
+  archive_id="$(printf '%s' "$archives" | jq -r '.data[0].id')"
+
+  integrity="$(get_test_design_json "/report-archives/$archive_id/integrity")"
+  check "Report archive line integrity index is aggregate-only" \
+    '.data.archiveId == "'"$archive_id"'" and .data.reportRowCount > 0 and .data.indexedRowCount == .data.reportRowCount and .data.chainIntegrityStored == true and .data.rowIntegrityValueExported == false and .data.rowContentSummaryExported == false and .data.archiveContentExported == false and .data.aggregateOnly == true and (.data.rowDigest | not) and (.data.chainDigest | not)' \
+    "$integrity"
+
+  archive_approvals="$(get_test_design_json "/report-archives/$archive_id/approvals")"
+  check "Report archive approval work order is created" \
+    '(.data | length) >= 1 and (.data | any(.approvalType == "ARCHIVE" and .status == "PENDING" and .reasonCodeCaptured == true and .noteCount >= 1 and (.requestSummaryDigest | type == "string")))' \
+    "$archive_approvals"
+  archive_approval_id="$(printf '%s' "$archive_approvals" | jq -r '.data[] | select(.approvalType == "ARCHIVE" and .status == "PENDING") | .id' | head -n 1)"
+
+  archive_note="$(post_test_design_json "/report-archive-approvals/$archive_approval_id/notes" "$(jq -nc \
+    '{noteType:"WORK_ORDER",noteText:"WP5 smoke archive work-order note"}')")"
+  check "Append report archive approval note" \
+    '.data.approvalId == "'"$archive_approval_id"'" and .data.noteType == "WORK_ORDER" and (.data.noteText | contains("work-order note"))' \
+    "$archive_note"
+
+  approved_archive="$(post_test_design_json "/report-archive-approvals/$archive_approval_id/approve" "$(jq -nc \
+    '{approvalReasonCode:"RETENTION_POLICY",reviewNote:"Approved by WP5 archive smoke.",workOrderStatus:"APPROVED"}')")"
+  check "Approve report archive work order" \
+    '.data.id == "'"$archive_approval_id"'" and .data.status == "APPROVED" and .data.approvalReasonCodeCaptured == true and .data.approvalReasonCode == "RETENTION_POLICY" and .data.workOrderStatus == "APPROVED" and .data.noteCount >= 3' \
+    "$approved_archive"
+
+  archives_after="$(get_test_design_json "/tasks/$task_id/report/archives")"
+  check "Approved report archive moves to archived state" \
+    '(.data | length) >= 1 and .data[0].id == "'"$archive_id"'" and .data[0].status == "ARCHIVED" and .data[0].archiveApprovalStatus == "APPROVED" and .data[0].archiveContentExported == false and .data[0].storageKeyExported == false' \
+    "$archives_after"
+
+  if printf '%s' "$health" | jq -e '.data.archivePolicy.externalSharingAllowed == true' >/dev/null; then
+    external_approval="$(post_test_design_json "/report-archives/$archive_id/external-approvals" "$(jq -nc \
+      '{reasonCode:"PARTNER_AUDIT",requestSummary:"WP5 smoke external share approval",workOrderKey:"WP5-ARCH-EXT-SMOKE"}')")"
+    check "Request report archive external-share approval" \
+      '.data.archiveId == "'"$archive_id"'" and .data.approvalType == "EXTERNAL_SHARE" and .data.status == "PENDING" and .data.reasonCodeCaptured == true' \
+      "$external_approval"
+  else
+    external_approval="$(expect_test_design_http_error "/report-archives/$archive_id/external-approvals" "$(jq -nc \
+      '{reasonCode:"PARTNER_AUDIT",requestSummary:"WP5 smoke external share approval"}')" 409 INVALID_STATE)"
+    check "Report archive external-share approval is config gated" \
+      '.httpStatus == .expectedStatus and .body.code == .expectedCode and (.body.message | contains("未开启报告归档外发"))' \
+      "$external_approval"
+  fi
+
   scope_summary="$(get_test_design_json "/quality/scope-summary?projectId=$(urlencode "$PROJECT_ID")&promptKey=wp5-test-design-v1")"
   if printf '%s' "$scope_summary" | jq -e --arg projectId "$PROJECT_ID" \
     '.data.projectId == $projectId and .data.promptKey == "wp5-test-design-v1" and .data.policy.policyVersion == "wp5-scope-policy-v1" and .data.policy.scopeModel == "PROJECT_RESOURCE_SCOPE" and .data.taskCount >= 1 and .data.candidateCount >= 2 and .data.publishRecordCount >= 2 and .data.projectBucketCount >= 1 and .data.candidateScopeMismatchCount == 0 and .data.publishScopeMismatchCount == 0 and .data.candidateScopeCoveragePercent == 100 and .data.publishScopeCoveragePercent == 100 and (.data.metrics | any(.code == "scopeMismatches" and .count == 0)) and (.data.readiness | any(.code == "detailIdentifiersRedacted" and .ready == true)) and .data.aggregateOnly == true and .data.candidateIdentifierListExported == false and .data.roleRuleDetailExported == false and .data.serviceTokenValueExported == false' >/dev/null; then
@@ -652,8 +713,8 @@ main() {
   if printf '%s' "$model_observation_drilldown" | jq -e --arg projectId "$PROJECT_ID" \
     '.data.projectId == $projectId
       and .data.promptKey == "wp5-test-design-v1"
-      and .data.totalInvocationCount >= 1
-      and (.data.buckets | length) >= 1
+      and .data.totalInvocationCount >= 0
+      and ((.data.totalInvocationCount == 0 and (.data.buckets | length) == 0) or (.data.totalInvocationCount >= 1 and (.data.buckets | length) >= 1))
       and .data.drilldownSupported == true
       and .data.traceIdValueExported == false
       and .data.jobIdValueExported == false

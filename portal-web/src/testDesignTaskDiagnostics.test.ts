@@ -222,10 +222,15 @@ const baseTask: TestDesignTaskView = {
     retentionDays: 180,
     storagePolicy: 'platformManaged',
     approvalRequired: true,
-    archiveApprovalWorkflowReady: false,
+    archiveApprovalWorkflowReady: true,
+    externalShareApprovalWorkflowReady: true,
+    workOrderWorkflowReady: true,
     externalSharingAllowed: false,
     retentionPolicyTracked: true,
-    archiveStorageReady: false,
+    archiveStorageReady: true,
+    archiveContentStored: true,
+    lineIntegrityIndexReady: true,
+    archiveContentExported: false,
     archivePathExported: false,
     archiveNotesExported: false,
     approvalNotesExported: false,
@@ -240,6 +245,8 @@ const baseTask: TestDesignTaskView = {
     rowCountTracked: true,
     completionStatusTracked: true,
     archiveReconciliationReady: true,
+    rowIntegrityStored: true,
+    rowIntegrityIndexReady: true,
     detailRowsExported: false,
     rowIntegrityValueExported: false,
     rowContentSummaryExported: false,
@@ -344,13 +351,13 @@ describe('WP5 task diagnostics helpers', () => {
         }),
         expect.objectContaining({
           label: '归档策略',
-          tone: 'warning',
-          value: 'wp5-archive-policy-v1 · platformManaged · 保留:180天 · 审批:required · 审批流:pending · 归档存储:pending · 外发:off · 保留策略:tracked · 细节导出:off'
+          tone: 'neutral',
+          value: 'wp5-archive-policy-v1 · platformManaged · 保留:180天 · 审批:required · 审批流:ready · 外发审批:ready · 工单流转:ready · 归档存储:ready · 归档正文:stored · 行级索引:ready · 外发:off · 保留策略:tracked · 细节导出:off'
         }),
         expect.objectContaining({
           label: '报告清单',
           tone: 'neutral',
-          value: 'wp5-report-manifest-policy-v1 · wp5-task-report-v1 · aggregate-only-v1 · AGGREGATE_RECONCILIATION · 行数:tracked · 完成状态:tracked · 归档核验:ready · 细节导出:off'
+          value: 'wp5-report-manifest-policy-v1 · wp5-task-report-v1 · aggregate-only-v1 · AGGREGATE_RECONCILIATION · 行数:tracked · 完成状态:tracked · 归档核验:ready · 行级完整性:stored · 行级索引:ready · 细节导出:off'
         }),
         expect.objectContaining({
           label: '错误',
@@ -929,10 +936,15 @@ describe('WP5 task diagnostics helpers', () => {
           retentionDays: 365,
           storagePolicy: 'platformManaged',
           approvalRequired: true,
-          archiveApprovalWorkflowReady: false,
+          archiveApprovalWorkflowReady: true,
+          externalShareApprovalWorkflowReady: true,
+          workOrderWorkflowReady: true,
           externalSharingAllowed: false,
           retentionPolicyTracked: true,
-          archiveStorageReady: false,
+          archiveStorageReady: true,
+          archiveContentStored: true,
+          lineIntegrityIndexReady: true,
+          archiveContentExported: false,
           archivePathExported: false,
           archiveNotesExported: false,
           approvalNotesExported: false,
@@ -950,7 +962,7 @@ describe('WP5 task diagnostics helpers', () => {
       expect.arrayContaining([
         expect.objectContaining({
           label: '归档策略',
-          tone: 'warning',
+          tone: 'neutral',
           value: expect.stringContaining('保留:365天')
         })
       ])
@@ -996,6 +1008,8 @@ describe('WP5 task diagnostics helpers', () => {
           rowCountTracked: true,
           completionStatusTracked: true,
           archiveReconciliationReady: true,
+          rowIntegrityStored: true,
+          rowIntegrityIndexReady: true,
           detailRowsExported: false,
           rowIntegrityValueExported: false,
           rowContentSummaryExported: false,

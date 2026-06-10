@@ -8,9 +8,9 @@ import java.util.Map;
 /**
  * Centralizes the WP5 task-report archive governance boundary.
  *
- * <p>The current slice exposes bounded retention, approval and sharing policy as an aggregate snapshot only. It does
- * not persist report archives, run an archive approval workflow or export storage paths, notes, ticket URLs or other
- * free-form archive metadata that can carry tenant identifiers or secrets.
+ * <p>The policy exposes bounded retention, approval and storage readiness facts. The underlying archive storage
+ * persists safety-scanned aggregate CSV content and line-integrity indexes, but paths, content, notes and ticket URLs
+ * remain outside task diagnostics and task reports.
  */
 public final class TestDesignArchivePolicy {
 
@@ -26,8 +26,13 @@ public final class TestDesignArchivePolicy {
                 properties.effectiveReportArchiveRetentionDays(),
                 STORAGE_POLICY,
                 properties.reportArchiveApprovalRequired(),
-                false,
+                true,
+                true,
+                true,
                 properties.reportArchiveExternalSharingAllowed(),
+                true,
+                true,
+                true,
                 true,
                 false,
                 false,
@@ -46,9 +51,14 @@ public final class TestDesignArchivePolicy {
         snapshot.put("storagePolicy", response.storagePolicy());
         snapshot.put("approvalRequired", response.approvalRequired());
         snapshot.put("archiveApprovalWorkflowReady", response.archiveApprovalWorkflowReady());
+        snapshot.put("externalShareApprovalWorkflowReady", response.externalShareApprovalWorkflowReady());
+        snapshot.put("workOrderWorkflowReady", response.workOrderWorkflowReady());
         snapshot.put("externalSharingAllowed", response.externalSharingAllowed());
         snapshot.put("retentionPolicyTracked", response.retentionPolicyTracked());
         snapshot.put("archiveStorageReady", response.archiveStorageReady());
+        snapshot.put("archiveContentStored", response.archiveContentStored());
+        snapshot.put("lineIntegrityIndexReady", response.lineIntegrityIndexReady());
+        snapshot.put("archiveContentExported", response.archiveContentExported());
         snapshot.put("archivePathExported", response.archivePathExported());
         snapshot.put("archiveNotesExported", response.archiveNotesExported());
         snapshot.put("approvalNotesExported", response.approvalNotesExported());

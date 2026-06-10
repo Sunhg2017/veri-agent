@@ -16,12 +16,22 @@ public record TestDesignArchivePolicyResponse(
         boolean approvalRequired,
         @Schema(description = "归档审批流是否就绪")
         boolean archiveApprovalWorkflowReady,
+        @Schema(description = "外发审批流是否就绪")
+        boolean externalShareApprovalWorkflowReady,
+        @Schema(description = "归档工单流转是否就绪")
+        boolean workOrderWorkflowReady,
         @Schema(description = "是否允许归档外发")
         boolean externalSharingAllowed,
         @Schema(description = "归档保留策略是否已纳入跟踪")
         boolean retentionPolicyTracked,
         @Schema(description = "真实归档存储是否就绪")
         boolean archiveStorageReady,
+        @Schema(description = "是否存储安全扫描后的归档内容")
+        boolean archiveContentStored,
+        @Schema(description = "报告行级完整性索引是否就绪")
+        boolean lineIntegrityIndexReady,
+        @Schema(description = "是否导出归档内容")
+        boolean archiveContentExported,
         @Schema(description = "是否导出归档路径")
         boolean archivePathExported,
         @Schema(description = "是否导出归档备注")

@@ -10,7 +10,7 @@ final class TestDesignTaskReportManifestPolicyRows {
     }
 
     /**
-     * Appends manifest reconciliation policy without exporting row-level indexes or identifiers.
+     * Appends manifest reconciliation policy without exporting row-level digest values or identifiers.
      *
      * <p>The rows below prove that a report can be checked for schema, field-set, row count and completion status. They
      * must not include row-level integrity values, row summaries, candidate IDs, trace IDs or audit IDs because those
@@ -30,6 +30,10 @@ final class TestDesignTaskReportManifestPolicyRows {
                 policy.completionStatusTracked(), policy.completionStatusTracked() ? "success" : "danger");
         appendMetadataRow(csv, task, generatedAt, "archiveReconciliationReady",
                 policy.archiveReconciliationReady(), policy.archiveReconciliationReady() ? "success" : "warning");
+        appendMetadataRow(csv, task, generatedAt, "rowIntegrityStored",
+                policy.rowIntegrityStored(), policy.rowIntegrityStored() ? "success" : "warning");
+        appendMetadataRow(csv, task, generatedAt, "rowIntegrityIndexReady",
+                policy.rowIntegrityIndexReady(), policy.rowIntegrityIndexReady() ? "success" : "warning");
         appendMetadataRow(csv, task, generatedAt, "detailRowsExported", policy.detailRowsExported(), null);
         appendMetadataRow(csv, task, generatedAt, "rowIntegrityValueExported",
                 policy.rowIntegrityValueExported(), null);

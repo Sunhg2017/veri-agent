@@ -328,11 +328,29 @@ export function summarizeTestDesignArchivePolicy(task: TestDesignTaskView | null
     : '保留:-';
   const approval = policy.approvalRequired === true ? '审批:required' : '审批:optional';
   const workflow = policy.archiveApprovalWorkflowReady === true ? '审批流:ready' : '审批流:pending';
+  const externalWorkflow = policy.externalShareApprovalWorkflowReady === true ? '外发审批:ready' : '外发审批:pending';
+  const workOrder = policy.workOrderWorkflowReady === true ? '工单流转:ready' : '工单流转:pending';
   const storageReady = policy.archiveStorageReady === true ? '归档存储:ready' : '归档存储:pending';
+  const contentStored = policy.archiveContentStored === true ? '归档正文:stored' : '归档正文:pending';
+  const lineIndex = policy.lineIntegrityIndexReady === true ? '行级索引:ready' : '行级索引:pending';
   const sharing = policy.externalSharingAllowed === true ? '外发:on' : '外发:off';
   const retentionTracked = policy.retentionPolicyTracked === true ? '保留策略:tracked' : '保留策略:missing';
   const detailExport = anyArchiveDetailExported(policy) ? '细节导出:on' : '细节导出:off';
-  return [version, storage, retention, approval, workflow, storageReady, sharing, retentionTracked, detailExport]
+  return [
+    version,
+    storage,
+    retention,
+    approval,
+    workflow,
+    externalWorkflow,
+    workOrder,
+    storageReady,
+    contentStored,
+    lineIndex,
+    sharing,
+    retentionTracked,
+    detailExport
+  ]
     .filter((part) => part !== '-')
     .join(' · ') || '-';
 }
@@ -350,8 +368,10 @@ export function summarizeTestDesignReportManifestPolicy(task: TestDesignTaskView
   const rowCount = policy.rowCountTracked === true ? '行数:tracked' : '行数:missing';
   const completion = policy.completionStatusTracked === true ? '完成状态:tracked' : '完成状态:missing';
   const reconciliation = policy.archiveReconciliationReady === true ? '归档核验:ready' : '归档核验:pending';
+  const rowIntegrityStored = policy.rowIntegrityStored === true ? '行级完整性:stored' : '行级完整性:pending';
+  const rowIntegrityIndex = policy.rowIntegrityIndexReady === true ? '行级索引:ready' : '行级索引:pending';
   const detailExport = anyReportManifestDetailExported(policy) ? '细节导出:on' : '细节导出:off';
-  return [version, schema, fieldSet, mode, rowCount, completion, reconciliation, detailExport]
+  return [version, schema, fieldSet, mode, rowCount, completion, reconciliation, rowIntegrityStored, rowIntegrityIndex, detailExport]
     .filter((part) => part !== '-')
     .join(' · ') || '-';
 }
@@ -544,6 +564,7 @@ function archivePolicyTone(task: TestDesignTaskView): TestDesignTaskDiagnosticTo
   if (
     typeof policy?.retentionDays === 'number' && policy.retentionDays <= 0 ||
     policy?.retentionPolicyTracked === false ||
+    policy?.archiveContentExported === true ||
     policy?.archivePathExported === true ||
     policy?.archiveNotesExported === true ||
     policy?.approvalNotesExported === true ||
@@ -555,6 +576,10 @@ function archivePolicyTone(task: TestDesignTaskView): TestDesignTaskDiagnosticTo
   if (
     policy?.archiveStorageReady === false ||
     policy?.archiveApprovalWorkflowReady === false ||
+    policy?.externalShareApprovalWorkflowReady === false ||
+    policy?.workOrderWorkflowReady === false ||
+    policy?.archiveContentStored === false ||
+    policy?.lineIntegrityIndexReady === false ||
     policy?.externalSharingAllowed === true
   ) {
     return 'warning';
@@ -577,7 +602,11 @@ function reportManifestPolicyTone(task: TestDesignTaskView): TestDesignTaskDiagn
   ) {
     return 'danger';
   }
-  if (policy?.archiveReconciliationReady === false) {
+  if (
+    policy?.archiveReconciliationReady === false ||
+    policy?.rowIntegrityStored === false ||
+    policy?.rowIntegrityIndexReady === false
+  ) {
     return 'warning';
   }
   return 'neutral';
@@ -797,9 +826,14 @@ function archivePolicyFromContextSummary(contextSummary: Record<string, unknown>
     storagePolicy: safeOptionalString(record.storagePolicy),
     approvalRequired: safeOptionalBoolean(record.approvalRequired),
     archiveApprovalWorkflowReady: safeOptionalBoolean(record.archiveApprovalWorkflowReady),
+    externalShareApprovalWorkflowReady: safeOptionalBoolean(record.externalShareApprovalWorkflowReady),
+    workOrderWorkflowReady: safeOptionalBoolean(record.workOrderWorkflowReady),
     externalSharingAllowed: safeOptionalBoolean(record.externalSharingAllowed),
     retentionPolicyTracked: safeOptionalBoolean(record.retentionPolicyTracked),
     archiveStorageReady: safeOptionalBoolean(record.archiveStorageReady),
+    archiveContentStored: safeOptionalBoolean(record.archiveContentStored),
+    lineIntegrityIndexReady: safeOptionalBoolean(record.lineIntegrityIndexReady),
+    archiveContentExported: safeOptionalBoolean(record.archiveContentExported),
     archivePathExported: safeOptionalBoolean(record.archivePathExported),
     archiveNotesExported: safeOptionalBoolean(record.archiveNotesExported),
     approvalNotesExported: safeOptionalBoolean(record.approvalNotesExported),
@@ -825,6 +859,8 @@ function reportManifestPolicyFromContextSummary(contextSummary: Record<string, u
     rowCountTracked: safeOptionalBoolean(record.rowCountTracked),
     completionStatusTracked: safeOptionalBoolean(record.completionStatusTracked),
     archiveReconciliationReady: safeOptionalBoolean(record.archiveReconciliationReady),
+    rowIntegrityStored: safeOptionalBoolean(record.rowIntegrityStored),
+    rowIntegrityIndexReady: safeOptionalBoolean(record.rowIntegrityIndexReady),
     detailRowsExported: safeOptionalBoolean(record.detailRowsExported),
     rowIntegrityValueExported: safeOptionalBoolean(record.rowIntegrityValueExported),
     rowContentSummaryExported: safeOptionalBoolean(record.rowContentSummaryExported),
@@ -976,6 +1012,7 @@ function anyAssemblyDetailExported(policy: {
 }
 
 function anyArchiveDetailExported(policy: {
+  archiveContentExported?: boolean;
   archivePathExported?: boolean;
   archiveNotesExported?: boolean;
   approvalNotesExported?: boolean;
@@ -984,7 +1021,8 @@ function anyArchiveDetailExported(policy: {
   if (!policy) {
     return false;
   }
-  return policy.archivePathExported === true ||
+  return policy.archiveContentExported === true ||
+    policy.archivePathExported === true ||
     policy.archiveNotesExported === true ||
     policy.approvalNotesExported === true ||
     policy.ticketUrlExported === true;

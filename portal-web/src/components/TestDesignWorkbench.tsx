@@ -44,8 +44,10 @@ import {
 import {
   TEST_DESIGN_CANDIDATE_STATUSES,
   TEST_DESIGN_COVERAGE_TYPES,
+  addTestDesignReportArchiveNote,
   addTestDesignContextPolicyNote,
   addTestDesignReleaseReadinessNote,
+  approveTestDesignReportArchiveApproval,
   approveTestDesignReleaseReadinessApproval,
   approveTestDesignContextPolicyOverride,
   batchActionTestDesignCandidates,
@@ -78,6 +80,10 @@ import {
   fetchTestDesignPromptTrend,
   fetchTestDesignReleaseReadinessApprovals,
   fetchTestDesignReleaseReadinessNotes,
+  fetchTestDesignReportArchiveApprovals,
+  fetchTestDesignReportArchiveIntegrity,
+  fetchTestDesignReportArchiveNotes,
+  fetchTestDesignReportArchives,
   fetchTestDesignReviewRecords,
   fetchTestDesignTemplates,
   fetchTestDesignTaskAuditSummary,
@@ -89,6 +95,7 @@ import {
   publishTestDesignTask,
   rejectTestDesignCandidate,
   rejectTestDesignContextPolicyOverride,
+  rejectTestDesignReportArchiveApproval,
   rejectTestDesignReleaseReadinessApproval,
   requeueTestDesignAuditOutbox,
   replayTestDesignQueuedEvents,
@@ -96,6 +103,8 @@ import {
   replayQueuedTestDesignTaskEvent,
   requestTestDesignEnvironmentContextPolicyOverride,
   requestTestDesignCalibrationRun,
+  requestTestDesignReportArchiveApproval,
+  requestTestDesignReportArchiveExternalApproval,
   requestTestDesignProjectContextPolicyOverride,
   requestTestDesignReleaseReadinessApproval,
   resolveTestDesignConflict,
@@ -138,6 +147,10 @@ import {
   type TestDesignQualitySummaryView,
   type TestDesignReleaseReadinessApprovalView,
   type TestDesignReleaseReadinessNoteView,
+  type TestDesignReportArchiveApprovalView,
+  type TestDesignReportArchiveIntegrityView,
+  type TestDesignReportArchiveNoteView,
+  type TestDesignReportArchiveView,
   type TestDesignReviewRecordView,
   type TestDesignStepView,
   type TestDesignTemplateView,
@@ -253,6 +266,21 @@ type ReleaseReadinessApprovalDraft = {
   approvalReasonCode: string;
   exceptionSummary: string;
   riskMitigation: string;
+  workOrderKey: string;
+  workOrderTitle: string;
+  workOrderUrl: string;
+  workOrderStatus: string;
+  requestNote: string;
+  reviewNote: string;
+  noteType: 'COMMENT' | 'WORK_ORDER';
+  noteText: string;
+};
+
+type ReportArchiveApprovalDraft = {
+  approvalType: 'ARCHIVE' | 'EXTERNAL_SHARE';
+  reasonCode: string;
+  approvalReasonCode: string;
+  requestSummary: string;
   workOrderKey: string;
   workOrderTitle: string;
   workOrderUrl: string;
@@ -452,6 +480,15 @@ const releaseReadinessReasonCodes = [
 ] as const;
 
 const releaseReadinessWorkOrderStatuses = ['OPEN', 'IN_REVIEW', 'APPROVED', 'REJECTED', 'CANCELLED'] as const;
+const reportArchiveReasonCodes = [
+  'RETENTION_POLICY',
+  'COMPLIANCE_AUDIT',
+  'CUSTOMER_REQUEST',
+  'REGULATED_EXPORT',
+  'SMOKE_VALIDATION'
+] as const;
+const reportArchiveApprovalTypes = ['ARCHIVE', 'EXTERNAL_SHARE'] as const;
+const reportArchiveWorkOrderStatuses = ['OPEN', 'IN_REVIEW', 'APPROVED', 'REJECTED', 'CANCELLED'] as const;
 const evaluationSampleStatuses = ['CANDIDATE', 'GOLDEN', 'FROZEN', 'DEPRECATED'] as const;
 const evaluationSampleSourceTypes = ['MANUAL', 'REVIEW_FEEDBACK', 'PUBLISHED_CASE', 'IMPORTED'] as const;
 const calibrationRunModes = ['MANUAL', 'PROMPT_CHANGE', 'SCHEDULED', 'BASELINE_FREEZE'] as const;
@@ -472,6 +509,21 @@ const initialReleaseReadinessDraft: ReleaseReadinessApprovalDraft = {
   approvalReasonCode: 'SMOKE_VALIDATION',
   exceptionSummary: '',
   riskMitigation: '',
+  workOrderKey: '',
+  workOrderTitle: '',
+  workOrderUrl: '',
+  workOrderStatus: '',
+  requestNote: '',
+  reviewNote: '',
+  noteType: 'COMMENT',
+  noteText: ''
+};
+
+const initialReportArchiveDraft: ReportArchiveApprovalDraft = {
+  approvalType: 'ARCHIVE',
+  reasonCode: 'RETENTION_POLICY',
+  approvalReasonCode: 'RETENTION_POLICY',
+  requestSummary: '',
   workOrderKey: '',
   workOrderTitle: '',
   workOrderUrl: '',
@@ -676,6 +728,13 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
   const [releaseReadinessApprovals, setReleaseReadinessApprovals] = useState<TestDesignReleaseReadinessApprovalView[]>([]);
   const [selectedReleaseReadinessApprovalId, setSelectedReleaseReadinessApprovalId] = useState('');
   const [releaseReadinessNotes, setReleaseReadinessNotes] = useState<TestDesignReleaseReadinessNoteView[]>([]);
+  const [reportArchiveDraft, setReportArchiveDraft] = useState<ReportArchiveApprovalDraft>(initialReportArchiveDraft);
+  const [reportArchives, setReportArchives] = useState<TestDesignReportArchiveView[]>([]);
+  const [selectedReportArchiveId, setSelectedReportArchiveId] = useState('');
+  const [reportArchiveIntegrity, setReportArchiveIntegrity] = useState<TestDesignReportArchiveIntegrityView | null>(null);
+  const [reportArchiveApprovals, setReportArchiveApprovals] = useState<TestDesignReportArchiveApprovalView[]>([]);
+  const [selectedReportArchiveApprovalId, setSelectedReportArchiveApprovalId] = useState('');
+  const [reportArchiveNotes, setReportArchiveNotes] = useState<TestDesignReportArchiveNoteView[]>([]);
   const [batchActionResult, setBatchActionResult] = useState<TestDesignCandidateBatchActionResult | null>(null);
   const [batchEditResult, setBatchEditResult] = useState<BatchEditResult | null>(null);
   const [selectedCandidateIds, setSelectedCandidateIds] = useState<string[]>([]);
@@ -700,6 +759,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
   const [crossWpOperationsState, setCrossWpOperationsState] = useState<WorkState>({ loading: false });
   const [contextPolicyState, setContextPolicyState] = useState<WorkState>({ loading: false });
   const [releaseReadinessState, setReleaseReadinessState] = useState<WorkState>({ loading: false });
+  const [reportArchiveState, setReportArchiveState] = useState<WorkState>({ loading: false });
   const [conflictOperationState, setConflictOperationState] = useState<WorkState>({ loading: false });
   const [templateState, setTemplateState] = useState<WorkState>({ loading: false });
   const [draggingStepId, setDraggingStepId] = useState('');
@@ -944,6 +1004,17 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
   );
   const selectedPendingReleaseReadinessApproval = selectedReleaseReadinessApproval?.status === 'PENDING'
     ? selectedReleaseReadinessApproval
+    : null;
+  const selectedReportArchive = useMemo(
+    () => reportArchives.find((archive) => archive.id === selectedReportArchiveId) ?? null,
+    [reportArchives, selectedReportArchiveId]
+  );
+  const selectedReportArchiveApproval = useMemo(
+    () => reportArchiveApprovals.find((approval) => approval.id === selectedReportArchiveApprovalId) ?? null,
+    [reportArchiveApprovals, selectedReportArchiveApprovalId]
+  );
+  const selectedPendingReportArchiveApproval = selectedReportArchiveApproval?.status === 'PENDING'
+    ? selectedReportArchiveApproval
     : null;
   const currentReleaseReadiness = taskQualitySummary?.readiness ?? null;
   const releaseReadinessSubmitBlocked = !selectedTaskId
@@ -1483,6 +1554,120 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
     }
   }, [canRead, props.signedIn, selectedReleaseReadinessApprovalId]);
 
+  const refreshReportArchives = useCallback(async (
+    taskId: string = selectedTaskId,
+    options?: { silent?: boolean }
+  ) => {
+    if (!props.signedIn || !canRead || !taskId) {
+      setReportArchives([]);
+      setSelectedReportArchiveId('');
+      setReportArchiveIntegrity(null);
+      setReportArchiveApprovals([]);
+      setSelectedReportArchiveApprovalId('');
+      setReportArchiveNotes([]);
+      setReportArchiveState({ loading: false });
+      return;
+    }
+    const silent = options?.silent === true;
+    if (!silent) {
+      setReportArchiveState({ loading: true });
+    }
+    try {
+      const response = await fetchTestDesignReportArchives(taskId);
+      const archives = response.data;
+      setReportArchives(archives);
+      setSelectedReportArchiveId((current) => (
+        current && archives.some((archive) => archive.id === current) ? current : archives[0]?.id ?? ''
+      ));
+      if (!archives.length) {
+        setReportArchiveIntegrity(null);
+        setReportArchiveApprovals([]);
+        setSelectedReportArchiveApprovalId('');
+        setReportArchiveNotes([]);
+      }
+      if (!silent) {
+        setReportArchiveState({
+          loading: false,
+          success: `报告归档已加载：${archives.length} 条`,
+          traceId: response.trace_id
+        });
+      }
+    } catch (error: unknown) {
+      setReportArchives([]);
+      setSelectedReportArchiveId('');
+      setReportArchiveIntegrity(null);
+      setReportArchiveApprovals([]);
+      setSelectedReportArchiveApprovalId('');
+      setReportArchiveNotes([]);
+      if (!silent) {
+        setReportArchiveState({ loading: false, error: testDesignErrorMessage(error, '报告归档加载失败') });
+      }
+    }
+  }, [canRead, props.signedIn, selectedTaskId]);
+
+  const refreshReportArchiveDetail = useCallback(async (
+    archiveId: string = selectedReportArchiveId,
+    options?: { silent?: boolean }
+  ) => {
+    if (!props.signedIn || !canRead || !archiveId) {
+      setReportArchiveIntegrity(null);
+      setReportArchiveApprovals([]);
+      setSelectedReportArchiveApprovalId('');
+      setReportArchiveNotes([]);
+      return;
+    }
+    const silent = options?.silent === true;
+    if (!silent) {
+      setReportArchiveState({ loading: true });
+    }
+    try {
+      const [integrityResponse, approvalsResponse] = await Promise.all([
+        fetchTestDesignReportArchiveIntegrity(archiveId),
+        fetchTestDesignReportArchiveApprovals(archiveId)
+      ]);
+      const approvals = approvalsResponse.data;
+      setReportArchiveIntegrity(integrityResponse.data);
+      setReportArchiveApprovals(approvals);
+      setSelectedReportArchiveApprovalId((current) => (
+        current && approvals.some((approval) => approval.id === current) ? current : approvals[0]?.id ?? ''
+      ));
+      if (!approvals.length) {
+        setReportArchiveNotes([]);
+      }
+      if (!silent) {
+        setReportArchiveState({
+          loading: false,
+          success: `归档明细已加载：审批 ${approvals.length} 条`,
+          traceId: integrityResponse.trace_id || approvalsResponse.trace_id
+        });
+      }
+    } catch (error: unknown) {
+      setReportArchiveIntegrity(null);
+      setReportArchiveApprovals([]);
+      setSelectedReportArchiveApprovalId('');
+      setReportArchiveNotes([]);
+      if (!silent) {
+        setReportArchiveState({ loading: false, error: testDesignErrorMessage(error, '归档明细加载失败') });
+      }
+    }
+  }, [canRead, props.signedIn, selectedReportArchiveId]);
+
+  const refreshReportArchiveNotes = useCallback(async (
+    approvalId: string = selectedReportArchiveApprovalId
+  ) => {
+    if (!props.signedIn || !canRead || !approvalId) {
+      setReportArchiveNotes([]);
+      return;
+    }
+    try {
+      const response = await fetchTestDesignReportArchiveNotes(approvalId);
+      setReportArchiveNotes(response.data);
+    } catch (error: unknown) {
+      setReportArchiveNotes([]);
+      setReportArchiveState({ loading: false, error: testDesignErrorMessage(error, '归档备注加载失败') });
+    }
+  }, [canRead, props.signedIn, selectedReportArchiveApprovalId]);
+
   const refreshTemplates = useCallback(async (options?: { silent?: boolean }) => {
     if (!props.signedIn || !canRead) {
       setTemplates([]);
@@ -1735,6 +1920,13 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
     setReleaseReadinessApprovals([]);
     setSelectedReleaseReadinessApprovalId('');
     setReleaseReadinessNotes([]);
+    setReportArchiveDraft(initialReportArchiveDraft);
+    setReportArchives([]);
+    setSelectedReportArchiveId('');
+    setReportArchiveIntegrity(null);
+    setReportArchiveApprovals([]);
+    setSelectedReportArchiveApprovalId('');
+    setReportArchiveNotes([]);
   }, [selectedTaskId]);
 
   useEffect(() => {
@@ -1768,6 +1960,18 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
   useEffect(() => {
     void refreshTaskAuditSummary(selectedTaskId);
   }, [refreshTaskAuditSummary, selectedTaskId]);
+
+  useEffect(() => {
+    void refreshReportArchives(selectedTaskId, { silent: true });
+  }, [refreshReportArchives, selectedTaskId]);
+
+  useEffect(() => {
+    void refreshReportArchiveDetail(selectedReportArchiveId, { silent: true });
+  }, [refreshReportArchiveDetail, selectedReportArchiveId]);
+
+  useEffect(() => {
+    void refreshReportArchiveNotes(selectedReportArchiveApprovalId);
+  }, [refreshReportArchiveNotes, selectedReportArchiveApprovalId]);
 
   useEffect(() => {
     if (!selectedTaskId || !selectedTaskAsyncInFlight) {
@@ -2842,6 +3046,149 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
     }
   }
 
+  async function requestReportArchiveApproval(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedReportArchiveId) {
+      setReportArchiveState({ loading: false, error: '请先选择报告归档' });
+      return;
+    }
+    if (!canExport) {
+      setReportArchiveState({ loading: false, error: '缺少 testDesign:export 权限' });
+      return;
+    }
+    if (!reportArchiveDraft.requestSummary.trim()) {
+      setReportArchiveState({ loading: false, error: '请输入归档审批申请摘要' });
+      return;
+    }
+
+    setReportArchiveState({ loading: true });
+    try {
+      const payload = {
+        reasonCode: reportArchiveDraft.reasonCode,
+        requestSummary: reportArchiveDraft.requestSummary,
+        workOrderKey: reportArchiveDraft.workOrderKey,
+        workOrderTitle: reportArchiveDraft.workOrderTitle,
+        workOrderUrl: reportArchiveDraft.workOrderUrl,
+        requestNote: reportArchiveDraft.requestNote
+      };
+      const response = reportArchiveDraft.approvalType === 'EXTERNAL_SHARE'
+        ? await requestTestDesignReportArchiveExternalApproval(selectedReportArchiveId, payload)
+        : await requestTestDesignReportArchiveApproval(selectedReportArchiveId, payload);
+      setReportArchiveApprovals((current) => [response.data, ...current.filter((item) => item.id !== response.data.id)]);
+      setSelectedReportArchiveApprovalId(response.data.id);
+      setReportArchiveState({ loading: false, success: '归档审批已提交', traceId: response.trace_id });
+      void refreshReportArchiveDetail(selectedReportArchiveId, { silent: true });
+      void refreshReportArchiveNotes(response.data.id);
+    } catch (error: unknown) {
+      setReportArchiveState({ loading: false, error: testDesignErrorMessage(error, '归档审批提交失败') });
+    }
+  }
+
+  async function reviewReportArchiveApproval(approvalId: string, action: 'approve' | 'reject') {
+    if (!canExport) {
+      setReportArchiveState({ loading: false, error: '缺少 testDesign:export 权限' });
+      return;
+    }
+    if (!reportArchiveDraft.approvalReasonCode) {
+      setReportArchiveState({ loading: false, error: '请选择审批原因编码' });
+      return;
+    }
+    setReportArchiveState({ loading: true });
+    try {
+      const payload = {
+        approvalReasonCode: reportArchiveDraft.approvalReasonCode,
+        reviewNote: reportArchiveDraft.reviewNote,
+        workOrderStatus: reportArchiveDraft.workOrderStatus || undefined
+      };
+      const response = action === 'approve'
+        ? await approveTestDesignReportArchiveApproval(approvalId, payload)
+        : await rejectTestDesignReportArchiveApproval(approvalId, payload);
+      setReportArchiveApprovals((current) => current.map((item) => item.id === response.data.id ? response.data : item));
+      setSelectedReportArchiveApprovalId(response.data.id);
+      setReportArchiveDraft((current) => ({ ...current, reviewNote: '', noteText: '' }));
+      setReportArchiveState({
+        loading: false,
+        success: action === 'approve' ? '归档审批已通过' : '归档审批已驳回',
+        traceId: response.trace_id
+      });
+      void refreshReportArchives(selectedTaskId, { silent: true });
+      void refreshReportArchiveDetail(response.data.archiveId, { silent: true });
+      void refreshReportArchiveNotes(response.data.id);
+    } catch (error: unknown) {
+      setReportArchiveState({
+        loading: false,
+        error: testDesignErrorMessage(error, action === 'approve' ? '归档审批失败' : '归档驳回失败')
+      });
+    }
+  }
+
+  function selectReportArchive(archive: TestDesignReportArchiveView) {
+    setSelectedReportArchiveId(archive.id);
+    setReportArchiveDraft((current) => ({
+      ...current,
+      approvalType: archive.status === 'ARCHIVED' ? 'EXTERNAL_SHARE' : 'ARCHIVE',
+      reasonCode: archive.status === 'ARCHIVED' ? 'CUSTOMER_REQUEST' : 'RETENTION_POLICY',
+      requestSummary: archive.status === 'ARCHIVED'
+        ? 'Request controlled external sharing for archived WP5 task report.'
+        : 'Request final archive approval for WP5 task report.',
+      noteText: ''
+    }));
+    void refreshReportArchiveDetail(archive.id);
+  }
+
+  function selectReportArchiveApproval(approval: TestDesignReportArchiveApprovalView) {
+    setSelectedReportArchiveApprovalId(approval.id);
+    setReportArchiveDraft((current) => ({
+      ...current,
+      approvalType: approval.approvalType === 'EXTERNAL_SHARE' ? 'EXTERNAL_SHARE' : 'ARCHIVE',
+      reasonCode: reportArchiveReasonCodeValue(approval.reasonCode, current.reasonCode),
+      approvalReasonCode: reportArchiveReasonCodeValue(approval.approvalReasonCode, current.approvalReasonCode),
+      requestSummary: approval.requestSummary ?? '',
+      workOrderKey: approval.workOrderKey ?? '',
+      workOrderTitle: approval.workOrderTitle ?? '',
+      workOrderUrl: approval.workOrderUrl ?? '',
+      workOrderStatus: approval.status === 'PENDING' ? '' : approval.workOrderStatus ?? '',
+      requestNote: approval.requestNote ?? '',
+      reviewNote: approval.reviewNote ?? '',
+      noteText: ''
+    }));
+    void refreshReportArchiveNotes(approval.id);
+  }
+
+  async function addReportArchiveNote() {
+    if (!selectedReportArchiveApprovalId) {
+      setReportArchiveState({ loading: false, error: '请选择归档审批记录' });
+      return;
+    }
+    if (!canExport) {
+      setReportArchiveState({ loading: false, error: '缺少 testDesign:export 权限' });
+      return;
+    }
+    if (!reportArchiveDraft.noteText.trim()) {
+      setReportArchiveState({ loading: false, error: '请输入流转备注' });
+      return;
+    }
+    setReportArchiveState({ loading: true });
+    try {
+      const response = await addTestDesignReportArchiveNote(selectedReportArchiveApprovalId, {
+        noteType: reportArchiveDraft.noteType,
+        noteText: reportArchiveDraft.noteText
+      });
+      setReportArchiveNotes((current) => [...current, response.data]);
+      setReportArchiveApprovals((current) => current.map((approval) => approval.id === selectedReportArchiveApprovalId
+        ? {
+          ...approval,
+          noteCount: (approval.noteCount ?? 0) + 1,
+          latestNotePreview: response.data.noteText
+        }
+        : approval));
+      setReportArchiveDraft((current) => ({ ...current, noteText: '' }));
+      setReportArchiveState({ loading: false, success: '归档备注已追加', traceId: response.trace_id });
+    } catch (error: unknown) {
+      setReportArchiveState({ loading: false, error: testDesignErrorMessage(error, '归档备注追加失败') });
+    }
+  }
+
   async function saveCandidate() {
     if (!selectedCandidate || !candidateDraft) {
       return;
@@ -3480,6 +3827,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
         response.filename ?? buildTestDesignExportFilename('task-report', selectedTask.id, new Date().toISOString()),
         response.contentType || TEST_DESIGN_EXPORT_CONTENT_TYPE
       );
+      void refreshReportArchives(selectedTask.id, { silent: true });
       setTaskState({ loading: false, success: '已导出任务全量报告', traceId: response.traceId });
     } catch (error: unknown) {
       setTaskState({ loading: false, error: testDesignErrorMessage(error, '任务报告导出失败') });
@@ -5284,6 +5632,262 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
               </div>
               <StateLine state={releaseReadinessState} />
             </div>
+            <div className="test-design-release-readiness-panel">
+              <div className="test-design-release-readiness-heading">
+                <span>报告归档</span>
+                <div className="toolbar-actions">
+                  {selectedReportArchive && (
+                    <span className={`badge badge-${reportArchiveStatusTone(selectedReportArchive.status)}`}>
+                      {selectedReportArchive.status}
+                    </span>
+                  )}
+                  <button
+                    className="btn btn-secondary btn-xs"
+                    type="button"
+                    disabled={!canRead || reportArchiveState.loading || !selectedTaskId}
+                    onClick={() => void refreshReportArchives(selectedTaskId)}
+                  >
+                    <RefreshCw size={14} />
+                    刷新
+                  </button>
+                </div>
+              </div>
+              <div className="detail-grid">
+                <Detail label="归档记录" value={reportArchives.length} />
+                <Detail label="归档审批" value={selectedReportArchive?.archiveApprovalStatus ?? '-'} />
+                <Detail label="外发审批" value={selectedReportArchive?.externalApprovalStatus ?? '-'} />
+                <Detail label="完整性索引" value={reportArchiveIntegrity ? `${reportArchiveIntegrity.indexedRowCount}/${reportArchiveIntegrity.reportRowCount}` : '-'} />
+              </div>
+              <div className="test-design-release-readiness-approvals">
+                {reportArchives.length ? reportArchives.slice(0, 5).map((archive) => (
+                  <div className={`test-design-release-readiness-approval${selectedReportArchiveId === archive.id ? ' selected' : ''}`} key={archive.id}>
+                    <div>
+                      <strong>{archive.storageBackend ?? 'DATABASE'} · {archive.contentSizeBytes} bytes</strong>
+                      <em>行 {archive.reportRowCount} · 索引 {archive.lineIntegrityCount} · 保留至 {archive.retentionUntil ?? '-'}</em>
+                      <small>{archive.contentDigest ? `sha256:${archive.contentDigest.slice(0, 12)}` : '-'} · 内容存储 {archive.archiveContentStored ? 'ready' : 'pending'}</small>
+                    </div>
+                    <div className="test-design-release-readiness-approval-actions">
+                      <span className={`badge badge-${reportArchiveStatusTone(archive.status)}`}>{archive.status}</span>
+                      <button
+                        className="btn btn-secondary btn-xs"
+                        type="button"
+                        disabled={!canRead || reportArchiveState.loading}
+                        onClick={() => selectReportArchive(archive)}
+                      >
+                        <FileText size={14} />
+                        查看
+                      </button>
+                    </div>
+                  </div>
+                )) : (
+                  <div className="notice info">暂无报告归档记录</div>
+                )}
+              </div>
+              <form className="test-design-release-readiness-form" onSubmit={requestReportArchiveApproval}>
+                <label className="field">
+                  <span className="field-label">审批类型</span>
+                  <select
+                    value={reportArchiveDraft.approvalType}
+                    onChange={(event) => setReportArchiveDraft((current) => ({ ...current, approvalType: event.target.value === 'EXTERNAL_SHARE' ? 'EXTERNAL_SHARE' : 'ARCHIVE' }))}
+                    disabled={!canExport || reportArchiveState.loading || !selectedReportArchiveId}
+                  >
+                    {reportArchiveApprovalTypes.map((type) => (
+                      <option key={type} value={type}>{type}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="field">
+                  <span className="field-label">申请原因</span>
+                  <select
+                    value={reportArchiveDraft.reasonCode}
+                    onChange={(event) => setReportArchiveDraft((current) => ({ ...current, reasonCode: event.target.value }))}
+                    disabled={!canExport || reportArchiveState.loading || !selectedReportArchiveId}
+                  >
+                    {reportArchiveReasonCodes.map((code) => (
+                      <option key={code} value={code}>{code}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="field">
+                  <span className="field-label">工单编号</span>
+                  <input
+                    value={reportArchiveDraft.workOrderKey}
+                    onChange={(event) => setReportArchiveDraft((current) => ({ ...current, workOrderKey: event.target.value }))}
+                    placeholder="WP5-ARCH-..."
+                    disabled={!canExport || reportArchiveState.loading || !selectedReportArchiveId}
+                  />
+                </label>
+                <label className="field">
+                  <span className="field-label">工单 URL</span>
+                  <input
+                    value={reportArchiveDraft.workOrderUrl}
+                    onChange={(event) => setReportArchiveDraft((current) => ({ ...current, workOrderUrl: event.target.value }))}
+                    placeholder="https://..."
+                    disabled={!canExport || reportArchiveState.loading || !selectedReportArchiveId}
+                  />
+                </label>
+                <label className="field test-design-release-readiness-wide">
+                  <span className="field-label">申请摘要</span>
+                  <textarea
+                    value={reportArchiveDraft.requestSummary}
+                    maxLength={1000}
+                    rows={3}
+                    onChange={(event) => setReportArchiveDraft((current) => ({ ...current, requestSummary: event.target.value }))}
+                    disabled={!canExport || reportArchiveState.loading || !selectedReportArchiveId}
+                  />
+                </label>
+                <label className="field test-design-release-readiness-wide">
+                  <span className="field-label">申请备注</span>
+                  <textarea
+                    value={reportArchiveDraft.requestNote}
+                    maxLength={1000}
+                    rows={2}
+                    onChange={(event) => setReportArchiveDraft((current) => ({ ...current, requestNote: event.target.value }))}
+                    disabled={!canExport || reportArchiveState.loading || !selectedReportArchiveId}
+                  />
+                </label>
+                <button
+                  className="btn btn-secondary btn-sm test-design-release-readiness-submit"
+                  type="submit"
+                  disabled={!canExport || reportArchiveState.loading || !selectedReportArchiveId || !reportArchiveDraft.requestSummary.trim()}
+                >
+                  <Save size={15} />
+                  提交审批
+                </button>
+              </form>
+              <div className="test-design-release-readiness-review-grid">
+                <label className="field">
+                  <span className="field-label">审批原因</span>
+                  <select
+                    value={reportArchiveDraft.approvalReasonCode}
+                    onChange={(event) => setReportArchiveDraft((current) => ({ ...current, approvalReasonCode: event.target.value }))}
+                    disabled={!canExport || reportArchiveState.loading || !selectedPendingReportArchiveApproval}
+                  >
+                    {reportArchiveReasonCodes.map((code) => (
+                      <option key={code} value={code}>{code}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="field">
+                  <span className="field-label">工单状态</span>
+                  <select
+                    value={reportArchiveDraft.workOrderStatus}
+                    onChange={(event) => setReportArchiveDraft((current) => ({ ...current, workOrderStatus: event.target.value }))}
+                    disabled={!canExport || reportArchiveState.loading || !selectedPendingReportArchiveApproval}
+                  >
+                    <option value="">跟随审批</option>
+                    {reportArchiveWorkOrderStatuses.map((status) => (
+                      <option key={status} value={status}>{status}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="field test-design-release-readiness-wide">
+                  <span className="field-label">审批备注</span>
+                  <textarea
+                    value={reportArchiveDraft.reviewNote}
+                    maxLength={1000}
+                    rows={2}
+                    onChange={(event) => setReportArchiveDraft((current) => ({ ...current, reviewNote: event.target.value }))}
+                    disabled={!canExport || reportArchiveState.loading || !selectedPendingReportArchiveApproval}
+                  />
+                </label>
+                <div className="toolbar-actions test-design-release-readiness-submit">
+                  <button
+                    className="btn btn-secondary btn-sm"
+                    type="button"
+                    disabled={!canExport || reportArchiveState.loading || !selectedPendingReportArchiveApproval}
+                    onClick={() => selectedPendingReportArchiveApproval && void reviewReportArchiveApproval(selectedPendingReportArchiveApproval.id, 'approve')}
+                  >
+                    <CheckCircle2 size={15} />
+                    通过
+                  </button>
+                  <button
+                    className="btn btn-ghost btn-sm"
+                    type="button"
+                    disabled={!canExport || reportArchiveState.loading || !selectedPendingReportArchiveApproval}
+                    onClick={() => selectedPendingReportArchiveApproval && void reviewReportArchiveApproval(selectedPendingReportArchiveApproval.id, 'reject')}
+                  >
+                    <XCircle size={15} />
+                    驳回
+                  </button>
+                </div>
+              </div>
+              <div className="test-design-release-readiness-approvals">
+                {reportArchiveApprovals.length ? reportArchiveApprovals.slice(0, 6).map((approval) => (
+                  <div className={`test-design-release-readiness-approval${selectedReportArchiveApprovalId === approval.id ? ' selected' : ''}`} key={approval.id}>
+                    <div>
+                      <strong>{approval.workOrderKey ?? approval.id}</strong>
+                      <em>{approval.approvalType} · {approval.workOrderStatus ?? '-'}</em>
+                      <small>{approval.requestSummaryDigest ? `sha256:${approval.requestSummaryDigest.slice(0, 12)}` : '-'} · 备注 {approval.noteCount ?? 0}</small>
+                      {approval.latestNotePreview ? <small>最新备注：{approval.latestNotePreview}</small> : null}
+                    </div>
+                    <div className="test-design-release-readiness-approval-actions">
+                      <span className={`badge badge-${reportArchiveStatusTone(approval.status)}`}>{approval.status}</span>
+                      <button
+                        className="btn btn-secondary btn-xs"
+                        type="button"
+                        disabled={!canRead || reportArchiveState.loading}
+                        onClick={() => selectReportArchiveApproval(approval)}
+                      >
+                        <FileText size={14} />
+                        流转
+                      </button>
+                    </div>
+                  </div>
+                )) : (
+                  <div className="notice info">暂无归档审批工单</div>
+                )}
+              </div>
+              <div className="test-design-release-readiness-note-form">
+                <label className="field">
+                  <span className="field-label">备注类型</span>
+                  <select
+                    value={reportArchiveDraft.noteType}
+                    onChange={(event) => setReportArchiveDraft((current) => ({ ...current, noteType: event.target.value === 'WORK_ORDER' ? 'WORK_ORDER' : 'COMMENT' }))}
+                    disabled={!canExport || reportArchiveState.loading || !selectedReportArchiveApprovalId}
+                  >
+                    <option value="COMMENT">COMMENT</option>
+                    <option value="WORK_ORDER">WORK_ORDER</option>
+                  </select>
+                </label>
+                <label className="field test-design-release-readiness-wide">
+                  <span className="field-label">流转备注</span>
+                  <textarea
+                    value={reportArchiveDraft.noteText}
+                    maxLength={1000}
+                    rows={2}
+                    onChange={(event) => setReportArchiveDraft((current) => ({ ...current, noteText: event.target.value }))}
+                    disabled={!canExport || reportArchiveState.loading || !selectedReportArchiveApprovalId}
+                  />
+                </label>
+                <button
+                  className="btn btn-secondary btn-sm test-design-release-readiness-submit"
+                  type="button"
+                  disabled={!canExport || reportArchiveState.loading || !selectedReportArchiveApprovalId || !reportArchiveDraft.noteText.trim()}
+                  onClick={() => void addReportArchiveNote()}
+                >
+                  <Plus size={15} />
+                  追加备注
+                </button>
+              </div>
+              <div className="test-design-release-readiness-notes">
+                <strong>备注流转 · {selectedReportArchiveApproval?.workOrderKey ?? (selectedReportArchiveApprovalId || '-')}</strong>
+                {selectedReportArchiveApprovalId ? (
+                  reportArchiveNotes.length ? reportArchiveNotes.slice(-6).map((note) => (
+                    <div className="test-design-release-readiness-note" key={note.id}>
+                      <span className="badge badge-neutral">{note.noteType}</span>
+                      <em>{note.noteText}</em>
+                      <small>{note.createdBy ?? '-'} · {note.createdAt ?? '-'}</small>
+                    </div>
+                  )) : (
+                    <div className="notice info">暂无归档备注</div>
+                  )
+                ) : (
+                  <div className="notice info">未选择归档审批工单</div>
+                )}
+              </div>
+              <StateLine state={reportArchiveState} />
+            </div>
             {publishResult && (
               <>
                 <div className="toolbar-actions test-design-export-actions">
@@ -6966,6 +7570,19 @@ function releaseReadinessStatusTone(status?: string) {
   if (status === 'APPROVED' || status === 'READY') return 'success';
   if (status === 'REJECTED' || status === 'BLOCKED') return 'danger';
   if (status === 'PENDING' || status === 'WARNING') return 'warning';
+  return 'neutral';
+}
+
+function reportArchiveReasonCodeValue(value: string | undefined, fallback: string) {
+  return reportArchiveReasonCodes.includes(value as (typeof reportArchiveReasonCodes)[number])
+    ? value ?? fallback
+    : fallback;
+}
+
+function reportArchiveStatusTone(status?: string) {
+  if (status === 'ARCHIVED' || status === 'APPROVED') return 'success';
+  if (status === 'REJECTED') return 'danger';
+  if (status === 'PENDING' || status === 'PENDING_APPROVAL') return 'warning';
   return 'neutral';
 }
 

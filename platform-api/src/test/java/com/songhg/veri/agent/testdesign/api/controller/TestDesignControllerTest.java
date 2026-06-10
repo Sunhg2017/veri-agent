@@ -263,10 +263,15 @@ class TestDesignControllerTest {
                 .andExpect(jsonPath("$.data.archivePolicy.retentionDays").value(180))
                 .andExpect(jsonPath("$.data.archivePolicy.storagePolicy").value("platformManaged"))
                 .andExpect(jsonPath("$.data.archivePolicy.approvalRequired").value(true))
-                .andExpect(jsonPath("$.data.archivePolicy.archiveApprovalWorkflowReady").value(false))
+                .andExpect(jsonPath("$.data.archivePolicy.archiveApprovalWorkflowReady").value(true))
+                .andExpect(jsonPath("$.data.archivePolicy.externalShareApprovalWorkflowReady").value(true))
+                .andExpect(jsonPath("$.data.archivePolicy.workOrderWorkflowReady").value(true))
                 .andExpect(jsonPath("$.data.archivePolicy.externalSharingAllowed").value(false))
                 .andExpect(jsonPath("$.data.archivePolicy.retentionPolicyTracked").value(true))
-                .andExpect(jsonPath("$.data.archivePolicy.archiveStorageReady").value(false))
+                .andExpect(jsonPath("$.data.archivePolicy.archiveStorageReady").value(true))
+                .andExpect(jsonPath("$.data.archivePolicy.archiveContentStored").value(true))
+                .andExpect(jsonPath("$.data.archivePolicy.lineIntegrityIndexReady").value(true))
+                .andExpect(jsonPath("$.data.archivePolicy.archiveContentExported").value(false))
                 .andExpect(jsonPath("$.data.archivePolicy.archivePathExported").value(false))
                 .andExpect(jsonPath("$.data.archivePolicy.archiveNotesExported").value(false))
                 .andExpect(jsonPath("$.data.archivePolicy.approvalNotesExported").value(false))
@@ -283,6 +288,8 @@ class TestDesignControllerTest {
                 .andExpect(jsonPath("$.data.reportManifestPolicy.rowCountTracked").value(true))
                 .andExpect(jsonPath("$.data.reportManifestPolicy.completionStatusTracked").value(true))
                 .andExpect(jsonPath("$.data.reportManifestPolicy.archiveReconciliationReady").value(true))
+                .andExpect(jsonPath("$.data.reportManifestPolicy.rowIntegrityStored").value(true))
+                .andExpect(jsonPath("$.data.reportManifestPolicy.rowIntegrityIndexReady").value(true))
                 .andExpect(jsonPath("$.data.reportManifestPolicy.detailRowsExported").value(false))
                 .andExpect(jsonPath("$.data.reportManifestPolicy.rowIntegrityValueExported").value(false))
                 .andExpect(jsonPath("$.data.reportManifestPolicy.rowContentSummaryExported").value(false))
@@ -917,10 +924,15 @@ class TestDesignControllerTest {
                 .andExpect(jsonPath("$.data.task.archivePolicy.retentionDays").value(180))
                 .andExpect(jsonPath("$.data.task.archivePolicy.storagePolicy").value("platformManaged"))
                 .andExpect(jsonPath("$.data.task.archivePolicy.approvalRequired").value(true))
-                .andExpect(jsonPath("$.data.task.archivePolicy.archiveApprovalWorkflowReady").value(false))
+                .andExpect(jsonPath("$.data.task.archivePolicy.archiveApprovalWorkflowReady").value(true))
+                .andExpect(jsonPath("$.data.task.archivePolicy.externalShareApprovalWorkflowReady").value(true))
+                .andExpect(jsonPath("$.data.task.archivePolicy.workOrderWorkflowReady").value(true))
                 .andExpect(jsonPath("$.data.task.archivePolicy.externalSharingAllowed").value(false))
                 .andExpect(jsonPath("$.data.task.archivePolicy.retentionPolicyTracked").value(true))
-                .andExpect(jsonPath("$.data.task.archivePolicy.archiveStorageReady").value(false))
+                .andExpect(jsonPath("$.data.task.archivePolicy.archiveStorageReady").value(true))
+                .andExpect(jsonPath("$.data.task.archivePolicy.archiveContentStored").value(true))
+                .andExpect(jsonPath("$.data.task.archivePolicy.lineIntegrityIndexReady").value(true))
+                .andExpect(jsonPath("$.data.task.archivePolicy.archiveContentExported").value(false))
                 .andExpect(jsonPath("$.data.task.archivePolicy.archivePathExported").value(false))
                 .andExpect(jsonPath("$.data.task.archivePolicy.approvalNotesExported").value(false))
                 .andExpect(jsonPath("$.data.task.archivePolicy.ticketUrlExported").value(false))
@@ -932,6 +944,8 @@ class TestDesignControllerTest {
                 .andExpect(jsonPath("$.data.task.reportManifestPolicy.rowCountTracked").value(true))
                 .andExpect(jsonPath("$.data.task.reportManifestPolicy.completionStatusTracked").value(true))
                 .andExpect(jsonPath("$.data.task.reportManifestPolicy.archiveReconciliationReady").value(true))
+                .andExpect(jsonPath("$.data.task.reportManifestPolicy.rowIntegrityStored").value(true))
+                .andExpect(jsonPath("$.data.task.reportManifestPolicy.rowIntegrityIndexReady").value(true))
                 .andExpect(jsonPath("$.data.task.reportManifestPolicy.detailRowsExported").value(false))
                 .andExpect(jsonPath("$.data.task.reportManifestPolicy.rowIntegrityValueExported").value(false))
                 .andExpect(jsonPath("$.data.task.reportManifestPolicy.rowContentSummaryExported").value(false))
@@ -1027,8 +1041,18 @@ class TestDesignControllerTest {
                 .andExpect(jsonPath("$.data.task.contextSummary.archivePolicy.storagePolicy")
                         .value("platformManaged"))
                 .andExpect(jsonPath("$.data.task.contextSummary.archivePolicy.archiveApprovalWorkflowReady")
-                        .value(false))
+                        .value(true))
+                .andExpect(jsonPath("$.data.task.contextSummary.archivePolicy.externalShareApprovalWorkflowReady")
+                        .value(true))
+                .andExpect(jsonPath("$.data.task.contextSummary.archivePolicy.workOrderWorkflowReady")
+                        .value(true))
                 .andExpect(jsonPath("$.data.task.contextSummary.archivePolicy.archiveStorageReady")
+                        .value(true))
+                .andExpect(jsonPath("$.data.task.contextSummary.archivePolicy.archiveContentStored")
+                        .value(true))
+                .andExpect(jsonPath("$.data.task.contextSummary.archivePolicy.lineIntegrityIndexReady")
+                        .value(true))
+                .andExpect(jsonPath("$.data.task.contextSummary.archivePolicy.archiveContentExported")
                         .value(false))
                 .andExpect(jsonPath("$.data.task.contextSummary.archivePolicy.archivePathExported")
                         .value(false))
@@ -1046,6 +1070,10 @@ class TestDesignControllerTest {
                 .andExpect(jsonPath("$.data.task.contextSummary.reportManifestPolicy.manifestMode")
                         .value("AGGREGATE_RECONCILIATION"))
                 .andExpect(jsonPath("$.data.task.contextSummary.reportManifestPolicy.rowCountTracked")
+                        .value(true))
+                .andExpect(jsonPath("$.data.task.contextSummary.reportManifestPolicy.rowIntegrityStored")
+                        .value(true))
+                .andExpect(jsonPath("$.data.task.contextSummary.reportManifestPolicy.rowIntegrityIndexReady")
                         .value(true))
                 .andExpect(jsonPath("$.data.task.contextSummary.reportManifestPolicy.detailRowsExported")
                         .value(false))
@@ -2262,10 +2290,15 @@ class TestDesignControllerTest {
         MatcherAssert.assertThat(csv, containsString("archivePolicy,retentionDays,,180"));
         MatcherAssert.assertThat(csv, containsString("archivePolicy,storagePolicy,,platformManaged"));
         MatcherAssert.assertThat(csv, containsString("archivePolicy,approvalRequired,,true"));
-        MatcherAssert.assertThat(csv, containsString("archivePolicy,archiveApprovalWorkflowReady,,false"));
+        MatcherAssert.assertThat(csv, containsString("archivePolicy,archiveApprovalWorkflowReady,,true"));
+        MatcherAssert.assertThat(csv, containsString("archivePolicy,externalShareApprovalWorkflowReady,,true"));
+        MatcherAssert.assertThat(csv, containsString("archivePolicy,workOrderWorkflowReady,,true"));
         MatcherAssert.assertThat(csv, containsString("archivePolicy,externalSharingAllowed,,false"));
         MatcherAssert.assertThat(csv, containsString("archivePolicy,retentionPolicyTracked,,true"));
-        MatcherAssert.assertThat(csv, containsString("archivePolicy,archiveStorageReady,,false"));
+        MatcherAssert.assertThat(csv, containsString("archivePolicy,archiveStorageReady,,true"));
+        MatcherAssert.assertThat(csv, containsString("archivePolicy,archiveContentStored,,true"));
+        MatcherAssert.assertThat(csv, containsString("archivePolicy,lineIntegrityIndexReady,,true"));
+        MatcherAssert.assertThat(csv, containsString("archivePolicy,archiveContentExported,,false"));
         MatcherAssert.assertThat(csv, containsString("archivePolicy,archivePathExported,,false"));
         MatcherAssert.assertThat(csv, containsString("archivePolicy,archiveNotesExported,,false"));
         MatcherAssert.assertThat(csv, containsString("archivePolicy,approvalNotesExported,,false"));
@@ -2280,6 +2313,8 @@ class TestDesignControllerTest {
         MatcherAssert.assertThat(csv, containsString("reportManifestPolicy,rowCountTracked,,true"));
         MatcherAssert.assertThat(csv, containsString("reportManifestPolicy,completionStatusTracked,,true"));
         MatcherAssert.assertThat(csv, containsString("reportManifestPolicy,archiveReconciliationReady,,true"));
+        MatcherAssert.assertThat(csv, containsString("reportManifestPolicy,rowIntegrityStored,,true"));
+        MatcherAssert.assertThat(csv, containsString("reportManifestPolicy,rowIntegrityIndexReady,,true"));
         MatcherAssert.assertThat(csv, containsString("reportManifestPolicy,detailRowsExported,,false"));
         MatcherAssert.assertThat(csv, containsString("reportManifestPolicy,rowIntegrityValueExported,,false"));
         MatcherAssert.assertThat(csv, containsString("reportManifestPolicy,rowContentSummaryExported,,false"));
@@ -2316,6 +2351,112 @@ class TestDesignControllerTest {
                 .doesNotContain(secondCandidateId)
                 .doesNotContain("trc_wp5_task_report")
                 .doesNotContain("secret-value");
+        MvcResult archivesResult = mockMvc.perform(get("/api/v1/test-design/tasks/{id}/report/archives", taskId)
+                        .header("Authorization", "Bearer " + auditorToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data", hasSize(1)))
+                .andExpect(jsonPath("$.data[0].taskId").value(taskId))
+                .andExpect(jsonPath("$.data[0].projectId").value("project-wp5"))
+                .andExpect(jsonPath("$.data[0].storageBackend").value("DATABASE"))
+                .andExpect(jsonPath("$.data[0].contentDigest", matchesPattern("[0-9a-f]{64}")))
+                .andExpect(jsonPath("$.data[0].contentSizeBytes").isNumber())
+                .andExpect(jsonPath("$.data[0].reportRowCount").value((int) manifest.reportRowCount()))
+                .andExpect(jsonPath("$.data[0].lineIntegrityCount").value((int) manifest.reportRowCount()))
+                .andExpect(jsonPath("$.data[0].status").value("PENDING_APPROVAL"))
+                .andExpect(jsonPath("$.data[0].archiveApprovalStatus").value("PENDING"))
+                .andExpect(jsonPath("$.data[0].externalApprovalStatus").value("NOT_REQUESTED"))
+                .andExpect(jsonPath("$.data[0].archiveContentStored").value(true))
+                .andExpect(jsonPath("$.data[0].lineIntegrityIndexReady").value(true))
+                .andExpect(jsonPath("$.data[0].archiveContentExported").value(false))
+                .andExpect(jsonPath("$.data[0].storageKeyExported").value(false))
+                .andExpect(jsonPath("$.data[0].aggregateOnly").value(true))
+                .andExpect(jsonPath("$.data[0].storageKey").doesNotExist())
+                .andExpect(jsonPath("$.data[0].contentBytes").doesNotExist())
+                .andReturn();
+        String archiveId = JsonPath.read(archivesResult.getResponse().getContentAsString(), "$.data[0].id");
+        mockMvc.perform(get("/api/v1/test-design/tasks/{id}/report/archives", taskId)
+                        .header("Authorization", "Bearer " + deniedAuditorToken))
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(get("/api/v1/test-design/report-archives/{id}/integrity", archiveId)
+                        .header("Authorization", "Bearer " + auditorToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.archiveId").value(archiveId))
+                .andExpect(jsonPath("$.data.reportRowCount").value((int) manifest.reportRowCount()))
+                .andExpect(jsonPath("$.data.indexedRowCount").value((int) manifest.reportRowCount()))
+                .andExpect(jsonPath("$.data.digestAlgorithm").value("SHA-256"))
+                .andExpect(jsonPath("$.data.chainIntegrityStored").value(true))
+                .andExpect(jsonPath("$.data.rowIntegrityValueExported").value(false))
+                .andExpect(jsonPath("$.data.rowContentSummaryExported").value(false))
+                .andExpect(jsonPath("$.data.archiveContentExported").value(false))
+                .andExpect(jsonPath("$.data.aggregateOnly").value(true))
+                .andExpect(jsonPath("$.data.rowDigest").doesNotExist())
+                .andExpect(jsonPath("$.data.chainDigest").doesNotExist());
+
+        MvcResult approvalsResult = mockMvc.perform(get("/api/v1/test-design/report-archives/{id}/approvals", archiveId)
+                        .header("Authorization", "Bearer " + auditorToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data", hasSize(1)))
+                .andExpect(jsonPath("$.data[0].archiveId").value(archiveId))
+                .andExpect(jsonPath("$.data[0].approvalType").value("ARCHIVE"))
+                .andExpect(jsonPath("$.data[0].status").value("PENDING"))
+                .andExpect(jsonPath("$.data[0].reasonCodeCaptured").value(true))
+                .andExpect(jsonPath("$.data[0].workOrderStatus").value("OPEN"))
+                .andExpect(jsonPath("$.data[0].requestSummaryDigest", matchesPattern("[0-9a-f]{64}")))
+                .andExpect(jsonPath("$.data[0].noteCount").value(1))
+                .andExpect(jsonPath("$.data[0].latestNotePreview").value("Archive aggregate WP5 task report after export safety scan."))
+                .andReturn();
+        String archiveApprovalId = JsonPath.read(approvalsResult.getResponse().getContentAsString(), "$.data[0].id");
+
+        mockMvc.perform(post("/api/v1/test-design/report-archive-approvals/{id}/notes", archiveApprovalId)
+                        .header("Authorization", "Bearer " + auditorToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"noteType":"WORK_ORDER","noteText":"归档工单已进入审批队列"}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.noteType").value("WORK_ORDER"))
+                .andExpect(jsonPath("$.data.noteText").value("归档工单已进入审批队列"));
+
+        mockMvc.perform(post("/api/v1/test-design/report-archive-approvals/{id}/approve", archiveApprovalId)
+                        .header("Authorization", "Bearer " + deniedAuditorToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"approvalReasonCode":"SMOKE_VALIDATION"}
+                                """))
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(post("/api/v1/test-design/report-archive-approvals/{id}/approve", archiveApprovalId)
+                        .header("Authorization", "Bearer " + auditorToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "approvalReasonCode": "SMOKE_VALIDATION",
+                                  "reviewNote": "同意归档。",
+                                  "workOrderStatus": "APPROVED"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("APPROVED"))
+                .andExpect(jsonPath("$.data.approvalReasonCodeCaptured").value(true))
+                .andExpect(jsonPath("$.data.approvalReasonCode").value("SMOKE_VALIDATION"))
+                .andExpect(jsonPath("$.data.workOrderStatus").value("APPROVED"))
+                .andExpect(jsonPath("$.data.noteCount").value(3));
+
+        mockMvc.perform(get("/api/v1/test-design/report-archive-approvals/{id}/notes", archiveApprovalId)
+                        .header("Authorization", "Bearer " + auditorToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data", hasSize(3)))
+                .andExpect(jsonPath("$.data[0].noteType").value("REQUEST"))
+                .andExpect(jsonPath("$.data[1].noteType").value("WORK_ORDER"))
+                .andExpect(jsonPath("$.data[2].noteType").value("REVIEW"));
+
+        mockMvc.perform(get("/api/v1/test-design/tasks/{id}/report/archives", taskId)
+                        .header("Authorization", "Bearer " + auditorToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].status").value("ARCHIVED"))
+                .andExpect(jsonPath("$.data[0].archiveApprovalStatus").value("APPROVED"))
+                .andExpect(jsonPath("$.data[0].externalApprovalStatus").value("NOT_REQUESTED"));
         MvcResult secondExport = mockMvc.perform(get("/api/v1/test-design/tasks/{id}/report/export", taskId)
                         .header("Authorization", "Bearer " + auditorToken))
                 .andExpect(status().isOk())

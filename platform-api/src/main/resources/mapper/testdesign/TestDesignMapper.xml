@@ -172,6 +172,66 @@
         </constructor>
     </resultMap>
 
+    <resultMap id="reportArchiveMap" type="com.songhg.veri.agent.testdesign.domain.TestDesignReportArchive">
+        <constructor>
+            <arg column="id" javaType="java.util.UUID"/>
+            <arg column="manifest_id" javaType="java.util.UUID"/>
+            <arg column="task_id" javaType="java.util.UUID"/>
+            <arg column="project_id" javaType="java.lang.String"/>
+            <arg column="storage_backend" javaType="java.lang.String"/>
+            <arg column="storage_key" javaType="java.lang.String"/>
+            <arg column="content_digest" javaType="java.lang.String"/>
+            <arg column="content_size_bytes" javaType="_long"/>
+            <arg column="report_row_count" javaType="_long"/>
+            <arg column="line_integrity_count" javaType="_long"/>
+            <arg column="status" javaType="java.lang.String"/>
+            <arg column="archive_approval_status" javaType="java.lang.String"/>
+            <arg column="external_approval_status" javaType="java.lang.String"/>
+            <arg column="retention_until" javaType="java.time.Instant"/>
+            <arg column="content_bytes" javaType="[B"/>
+            <arg column="created_by" javaType="java.lang.String"/>
+            <arg column="created_at" javaType="java.time.Instant"/>
+            <arg column="updated_at" javaType="java.time.Instant"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="reportArchiveApprovalMap" type="com.songhg.veri.agent.testdesign.domain.TestDesignReportArchiveApproval">
+        <constructor>
+            <arg column="id" javaType="java.util.UUID"/>
+            <arg column="archive_id" javaType="java.util.UUID"/>
+            <arg column="task_id" javaType="java.util.UUID"/>
+            <arg column="project_id" javaType="java.lang.String"/>
+            <arg column="approval_type" javaType="java.lang.String"/>
+            <arg column="status" javaType="java.lang.String"/>
+            <arg column="reason_code" javaType="java.lang.String"/>
+            <arg column="approval_reason_code" javaType="java.lang.String"/>
+            <arg column="work_order_key" javaType="java.lang.String"/>
+            <arg column="work_order_title" javaType="java.lang.String"/>
+            <arg column="work_order_url" javaType="java.lang.String"/>
+            <arg column="work_order_status" javaType="java.lang.String"/>
+            <arg column="request_summary" javaType="java.lang.String"/>
+            <arg column="request_summary_digest" javaType="java.lang.String"/>
+            <arg column="request_note" javaType="java.lang.String"/>
+            <arg column="review_note" javaType="java.lang.String"/>
+            <arg column="requested_by" javaType="java.lang.String"/>
+            <arg column="approved_by" javaType="java.lang.String"/>
+            <arg column="reviewed_at" javaType="java.time.Instant"/>
+            <arg column="created_at" javaType="java.time.Instant"/>
+            <arg column="updated_at" javaType="java.time.Instant"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="reportArchiveNoteMap" type="com.songhg.veri.agent.testdesign.domain.TestDesignReportArchiveNote">
+        <constructor>
+            <arg column="id" javaType="java.util.UUID"/>
+            <arg column="approval_id" javaType="java.util.UUID"/>
+            <arg column="note_type" javaType="java.lang.String"/>
+            <arg column="note_text" javaType="java.lang.String"/>
+            <arg column="created_by" javaType="java.lang.String"/>
+            <arg column="created_at" javaType="java.time.Instant"/>
+        </constructor>
+    </resultMap>
+
     <resultMap id="auditChainAggregateMap" type="com.songhg.veri.agent.testdesign.domain.TestDesignAuditChainAggregate">
         <constructor>
             <arg column="wp1_audit_event_count" javaType="_long"/>
@@ -1252,6 +1312,153 @@
         from test_design_report_manifest
         where task_id = cast(#{taskId} as uuid)
         order by created_at desc
+    </select>
+
+    <sql id="reportArchiveColumns">
+        id, manifest_id, task_id, project_id, storage_backend, storage_key, content_digest,
+        content_size_bytes, report_row_count, line_integrity_count, status, archive_approval_status,
+        external_approval_status, retention_until, null::bytea as content_bytes, created_by, created_at, updated_at
+    </sql>
+
+    <insert id="insertReportArchive">
+        insert into test_design_report_archive (
+            id, manifest_id, task_id, project_id, storage_backend, storage_key, content_digest,
+            content_size_bytes, report_row_count, line_integrity_count, status, archive_approval_status,
+            external_approval_status, retention_until, content_bytes, created_by, created_at, updated_at
+        ) values (
+            cast(#{id} as uuid), cast(#{manifestId} as uuid), cast(#{taskId} as uuid), #{projectId},
+            #{storageBackend}, #{storageKey}, #{contentDigest}, #{contentSizeBytes}, #{reportRowCount},
+            #{lineIntegrityCount}, #{status}, #{archiveApprovalStatus}, #{externalApprovalStatus},
+            #{retentionUntil}, #{contentBytes}, #{createdBy}, #{createdAt}, #{updatedAt}
+        )
+        on conflict (manifest_id) do nothing
+    </insert>
+
+    <select id="reportArchive" resultMap="reportArchiveMap">
+        select <include refid="reportArchiveColumns"/>
+        from test_design_report_archive
+        where id = cast(#{id} as uuid)
+    </select>
+
+    <select id="reportArchiveByManifest" resultMap="reportArchiveMap">
+        select <include refid="reportArchiveColumns"/>
+        from test_design_report_archive
+        where manifest_id = cast(#{manifestId} as uuid)
+    </select>
+
+    <select id="reportArchivesByTask" resultMap="reportArchiveMap">
+        select <include refid="reportArchiveColumns"/>
+        from test_design_report_archive
+        where task_id = cast(#{taskId} as uuid)
+        order by created_at desc
+    </select>
+
+    <update id="updateReportArchiveStatus">
+        update test_design_report_archive set
+            status = #{status},
+            archive_approval_status = #{archiveApprovalStatus},
+            external_approval_status = #{externalApprovalStatus},
+            updated_at = #{updatedAt}
+        where id = cast(#{archiveId} as uuid)
+    </update>
+
+    <insert id="insertReportArchiveLineIntegrity">
+        insert into test_design_report_archive_line_integrity (
+            archive_id, row_number, row_digest, previous_row_digest, chain_digest,
+            record_type, section, metric, created_at
+        ) values (
+            cast(#{archiveId} as uuid), #{rowNumber}, #{rowDigest}, #{previousRowDigest},
+            #{chainDigest}, #{recordType}, #{section}, #{metric}, #{createdAt}
+        )
+        on conflict (archive_id, row_number) do nothing
+    </insert>
+
+    <select id="countReportArchiveLineIntegrity" resultType="long">
+        select count(*)
+        from test_design_report_archive_line_integrity
+        where archive_id = cast(#{archiveId} as uuid)
+    </select>
+
+    <select id="reportArchiveApproval" resultMap="reportArchiveApprovalMap">
+        select id, archive_id, task_id, project_id, approval_type, status, reason_code,
+               approval_reason_code, work_order_key, work_order_title, work_order_url,
+               work_order_status, request_summary, request_summary_digest, request_note,
+               review_note, requested_by, approved_by, reviewed_at, created_at, updated_at
+        from test_design_report_archive_approval
+        where id = cast(#{id} as uuid)
+    </select>
+
+    <insert id="insertReportArchiveApproval">
+        insert into test_design_report_archive_approval (
+            id, archive_id, task_id, project_id, approval_type, status, reason_code,
+            approval_reason_code, work_order_key, work_order_title, work_order_url,
+            work_order_status, request_summary, request_summary_digest, request_note,
+            review_note, requested_by, approved_by, reviewed_at, created_at, updated_at
+        ) values (
+            cast(#{id} as uuid), cast(#{archiveId} as uuid), cast(#{taskId} as uuid), #{projectId},
+            #{approvalType}, #{status}, #{reasonCode}, #{approvalReasonCode}, #{workOrderKey},
+            #{workOrderTitle}, #{workOrderUrl}, #{workOrderStatus}, #{requestSummary},
+            #{requestSummaryDigest}, #{requestNote}, #{reviewNote}, #{requestedBy}, #{approvedBy},
+            #{reviewedAt}, #{createdAt}, #{updatedAt}
+        )
+    </insert>
+
+    <update id="updateReportArchiveApproval">
+        update test_design_report_archive_approval set
+            status = #{status},
+            reason_code = #{reasonCode},
+            approval_reason_code = #{approvalReasonCode},
+            work_order_key = #{workOrderKey},
+            work_order_title = #{workOrderTitle},
+            work_order_url = #{workOrderUrl},
+            work_order_status = #{workOrderStatus},
+            request_summary = #{requestSummary},
+            request_summary_digest = #{requestSummaryDigest},
+            request_note = #{requestNote},
+            review_note = #{reviewNote},
+            requested_by = #{requestedBy},
+            approved_by = #{approvedBy},
+            reviewed_at = #{reviewedAt},
+            updated_at = #{updatedAt}
+        where id = cast(#{id} as uuid)
+    </update>
+
+    <select id="reportArchiveApprovals" resultMap="reportArchiveApprovalMap">
+        select id, archive_id, task_id, project_id, approval_type, status, reason_code,
+               approval_reason_code, work_order_key, work_order_title, work_order_url,
+               work_order_status, request_summary, request_summary_digest, request_note,
+               review_note, requested_by, approved_by, reviewed_at, created_at, updated_at
+        from test_design_report_archive_approval
+        where archive_id = cast(#{archiveId} as uuid)
+        order by created_at desc
+    </select>
+
+    <select id="latestReportArchiveApproval" resultMap="reportArchiveApprovalMap">
+        select id, archive_id, task_id, project_id, approval_type, status, reason_code,
+               approval_reason_code, work_order_key, work_order_title, work_order_url,
+               work_order_status, request_summary, request_summary_digest, request_note,
+               review_note, requested_by, approved_by, reviewed_at, created_at, updated_at
+        from test_design_report_archive_approval
+        where archive_id = cast(#{archiveId} as uuid)
+          and approval_type = #{approvalType}
+        order by updated_at desc
+        limit 1
+    </select>
+
+    <insert id="insertReportArchiveNote">
+        insert into test_design_report_archive_note (
+            id, approval_id, note_type, note_text, created_by, created_at
+        ) values (
+            cast(#{id} as uuid), cast(#{approvalId} as uuid), #{noteType}, #{noteText},
+            #{createdBy}, #{createdAt}
+        )
+    </insert>
+
+    <select id="reportArchiveNotes" resultMap="reportArchiveNoteMap">
+        select id, approval_id, note_type, note_text, created_by, created_at
+        from test_design_report_archive_note
+        where approval_id = cast(#{approvalId} as uuid)
+        order by created_at asc
     </select>
 
     <select id="auditChainAggregate" resultMap="auditChainAggregateMap">

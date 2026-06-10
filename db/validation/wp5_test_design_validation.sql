@@ -8,6 +8,10 @@ with expected(table_name) as (
         ('test_design_review_record'),
         ('test_design_publish_record'),
         ('test_design_report_manifest'),
+        ('test_design_report_archive'),
+        ('test_design_report_archive_line_integrity'),
+        ('test_design_report_archive_approval'),
+        ('test_design_report_archive_note'),
         ('test_design_context_policy_override'),
         ('test_design_context_policy_note'),
         ('test_design_release_readiness_approval'),
@@ -87,6 +91,23 @@ with expected(table_name, constraint_name) as (
         ('test_design_report_manifest','ck_test_design_report_manifest_status'),
         ('test_design_report_manifest','ck_test_design_report_manifest_aggregate_only'),
         ('test_design_report_manifest','ck_test_design_report_manifest_digest'),
+        ('test_design_report_archive','ck_test_design_report_archive_storage_backend'),
+        ('test_design_report_archive','ck_test_design_report_archive_digest'),
+        ('test_design_report_archive','ck_test_design_report_archive_counts'),
+        ('test_design_report_archive','ck_test_design_report_archive_status'),
+        ('test_design_report_archive','ck_test_design_report_archive_approval_state'),
+        ('test_design_report_archive','ck_test_design_report_archive_storage_key'),
+        ('test_design_report_archive_line_integrity','ck_test_design_report_archive_line_number'),
+        ('test_design_report_archive_line_integrity','ck_test_design_report_archive_line_digest'),
+        ('test_design_report_archive_line_integrity','ck_test_design_report_archive_line_metadata'),
+        ('test_design_report_archive_approval','ck_test_design_report_archive_approval_type'),
+        ('test_design_report_archive_approval','ck_test_design_report_archive_approval_status'),
+        ('test_design_report_archive_approval','ck_test_design_report_archive_approval_reason'),
+        ('test_design_report_archive_approval','ck_test_design_report_archive_approval_work_status'),
+        ('test_design_report_archive_approval','ck_test_design_report_archive_approval_digest'),
+        ('test_design_report_archive_approval','ck_test_design_report_archive_approval_lengths'),
+        ('test_design_report_archive_note','ck_test_design_report_archive_note_type'),
+        ('test_design_report_archive_note','ck_test_design_report_archive_note_text'),
         ('test_design_context_policy_override','ck_test_design_context_policy_override_scope'),
         ('test_design_context_policy_override','ck_test_design_context_policy_override_status'),
         ('test_design_context_policy_override','ck_test_design_context_policy_override_environment'),
@@ -204,6 +225,17 @@ with expected(table_name, index_name) as (
         ('test_design_report_manifest', 'uk_test_design_report_manifest_content_digest'),
         ('test_design_report_manifest', 'idx_test_design_report_manifest_task_created'),
         ('test_design_report_manifest', 'idx_test_design_report_manifest_project_created'),
+        ('test_design_report_archive', 'uk_test_design_report_archive_manifest'),
+        ('test_design_report_archive', 'uk_test_design_report_archive_storage_key'),
+        ('test_design_report_archive', 'idx_test_design_report_archive_task_created'),
+        ('test_design_report_archive', 'idx_test_design_report_archive_project_status'),
+        ('test_design_report_archive', 'idx_test_design_report_archive_retention'),
+        ('test_design_report_archive_line_integrity', 'idx_test_design_report_archive_line_chain'),
+        ('test_design_report_archive_line_integrity', 'idx_test_design_report_archive_line_section_metric'),
+        ('test_design_report_archive_approval', 'idx_test_design_report_archive_approval_archive_created'),
+        ('test_design_report_archive_approval', 'idx_test_design_report_archive_approval_project_type_status'),
+        ('test_design_report_archive_approval', 'idx_test_design_report_archive_approval_work_order'),
+        ('test_design_report_archive_note', 'idx_test_design_report_archive_note_approval_created'),
         ('test_design_context_policy_override', 'idx_test_design_context_policy_override_project_created'),
         ('test_design_context_policy_override', 'idx_test_design_context_policy_override_project_status'),
         ('test_design_context_policy_override', 'idx_test_design_context_policy_override_environment_status'),
@@ -629,6 +661,190 @@ select
     ) then 'PASS' else 'FAIL' end as status,
     coalesce((select definition from aggregate_only_constraint limit 1), 'report manifest aggregate-only constraint missing') as details;
 
+with expected(column_name) as (
+    values
+        ('id'),
+        ('manifest_id'),
+        ('task_id'),
+        ('project_id'),
+        ('storage_backend'),
+        ('storage_key'),
+        ('content_digest'),
+        ('content_size_bytes'),
+        ('report_row_count'),
+        ('line_integrity_count'),
+        ('status'),
+        ('archive_approval_status'),
+        ('external_approval_status'),
+        ('retention_until'),
+        ('content_bytes'),
+        ('created_by'),
+        ('created_at'),
+        ('updated_at')
+),
+missing as (
+    select e.column_name
+    from expected e
+    left join information_schema.columns c
+        on c.table_schema = current_schema()
+       and c.table_name = 'test_design_report_archive'
+       and c.column_name = e.column_name
+    where c.column_name is null
+)
+select
+    'wp5.report_archive_columns_exist' as check_name,
+    case when count(*) = 0 then 'PASS' else 'FAIL' end as status,
+    coalesce(string_agg(column_name, ', ' order by column_name), 'WP5 report archive stores managed content, digest, retention and approval state') as details
+from missing;
+
+with expected(column_name) as (
+    values
+        ('archive_id'),
+        ('row_number'),
+        ('row_digest'),
+        ('previous_row_digest'),
+        ('chain_digest'),
+        ('record_type'),
+        ('section'),
+        ('metric'),
+        ('created_at')
+),
+missing as (
+    select e.column_name
+    from expected e
+    left join information_schema.columns c
+        on c.table_schema = current_schema()
+       and c.table_name = 'test_design_report_archive_line_integrity'
+       and c.column_name = e.column_name
+    where c.column_name is null
+)
+select
+    'wp5.report_archive_line_integrity_columns_exist' as check_name,
+    case when count(*) = 0 then 'PASS' else 'FAIL' end as status,
+    coalesce(string_agg(column_name, ', ' order by column_name), 'WP5 report archive line-integrity index columns exist') as details
+from missing;
+
+with expected(column_name) as (
+    values
+        ('id'),
+        ('archive_id'),
+        ('task_id'),
+        ('project_id'),
+        ('approval_type'),
+        ('status'),
+        ('reason_code'),
+        ('approval_reason_code'),
+        ('work_order_key'),
+        ('work_order_title'),
+        ('work_order_url'),
+        ('work_order_status'),
+        ('request_summary'),
+        ('request_summary_digest'),
+        ('request_note'),
+        ('review_note'),
+        ('requested_by'),
+        ('approved_by'),
+        ('reviewed_at'),
+        ('created_at'),
+        ('updated_at')
+),
+missing as (
+    select e.column_name
+    from expected e
+    left join information_schema.columns c
+        on c.table_schema = current_schema()
+       and c.table_name = 'test_design_report_archive_approval'
+       and c.column_name = e.column_name
+    where c.column_name is null
+)
+select
+    'wp5.report_archive_approval_columns_exist' as check_name,
+    case when count(*) = 0 then 'PASS' else 'FAIL' end as status,
+    coalesce(string_agg(column_name, ', ' order by column_name), 'WP5 report archive approval and external-share work-order columns exist') as details
+from missing;
+
+with expected(column_name) as (
+    values
+        ('id'),
+        ('approval_id'),
+        ('note_type'),
+        ('note_text'),
+        ('created_by'),
+        ('created_at')
+),
+missing as (
+    select e.column_name
+    from expected e
+    left join information_schema.columns c
+        on c.table_schema = current_schema()
+       and c.table_name = 'test_design_report_archive_note'
+       and c.column_name = e.column_name
+    where c.column_name is null
+)
+select
+    'wp5.report_archive_note_columns_exist' as check_name,
+    case when count(*) = 0 then 'PASS' else 'FAIL' end as status,
+    coalesce(string_agg(column_name, ', ' order by column_name), 'WP5 report archive work-order note timeline columns exist') as details
+from missing;
+
+with forbidden(column_name) as (
+    values
+        ('archive_path'),
+        ('download_url'),
+        ('candidate_id'),
+        ('candidate_ids'),
+        ('trace_id'),
+        ('trace_ids'),
+        ('audit_id'),
+        ('audit_ids'),
+        ('audit_log_id'),
+        ('audit_log_ids'),
+        ('raw_prompt'),
+        ('prompt_payload'),
+        ('model_payload'),
+        ('request_body'),
+        ('response_body')
+),
+found as (
+    select column_name
+    from information_schema.columns c
+    join forbidden f using (column_name)
+    where c.table_schema = current_schema()
+      and c.table_name = 'test_design_report_archive'
+)
+select
+    'wp5.report_archive_no_external_path_or_detail_identifier_columns' as check_name,
+    case when count(*) = 0 then 'PASS' else 'FAIL' end as status,
+    coalesce(string_agg(column_name, ', ' order by column_name), 'WP5 report archive stores no external path, candidate, trace, audit or model payload columns') as details
+from found;
+
+with forbidden(column_name) as (
+    values
+        ('row_content'),
+        ('row_summary'),
+        ('row_content_summary'),
+        ('candidate_id'),
+        ('candidate_ids'),
+        ('trace_id'),
+        ('trace_ids'),
+        ('audit_id'),
+        ('audit_ids'),
+        ('audit_log_id'),
+        ('audit_log_ids')
+),
+found as (
+    select column_name
+    from information_schema.columns c
+    join forbidden f using (column_name)
+    where c.table_schema = current_schema()
+      and c.table_name = 'test_design_report_archive_line_integrity'
+)
+select
+    'wp5.report_archive_line_integrity_no_row_content_or_identifier_columns' as check_name,
+    case when count(*) = 0 then 'PASS' else 'FAIL' end as status,
+    coalesce(string_agg(column_name, ', ' order by column_name), 'WP5 line-integrity index stores no row content, row summary, candidate, trace or audit identifiers') as details
+from found;
+
 with found as (
     select table_name || '.tenant_id' as item
     from information_schema.columns
@@ -665,6 +881,10 @@ with wp5_tables(table_name) as (
         ('test_design_review_record'),
         ('test_design_publish_record'),
         ('test_design_report_manifest'),
+        ('test_design_report_archive'),
+        ('test_design_report_archive_line_integrity'),
+        ('test_design_report_archive_approval'),
+        ('test_design_report_archive_note'),
         ('test_design_context_policy_override'),
         ('test_design_context_policy_note'),
         ('test_design_release_readiness_approval'),
@@ -705,6 +925,10 @@ with missing as (
           'test_design_review_record',
           'test_design_publish_record',
           'test_design_report_manifest',
+          'test_design_report_archive',
+          'test_design_report_archive_line_integrity',
+          'test_design_report_archive_approval',
+          'test_design_report_archive_note',
           'test_design_context_policy_override',
           'test_design_context_policy_note',
           'test_design_release_readiness_approval',

@@ -3,8 +3,10 @@ import { requestJson, requestText } from './client';
 import {
   TEST_DESIGN_CANDIDATE_STATUSES,
   TEST_DESIGN_COVERAGE_TYPES,
+  addTestDesignReportArchiveNote,
   addTestDesignReleaseReadinessNote,
   addTestDesignContextPolicyNote,
+  approveTestDesignReportArchiveApproval,
   approveTestDesignReleaseReadinessApproval,
   approveTestDesignContextPolicyOverride,
   batchActionTestDesignCandidates,
@@ -36,6 +38,10 @@ import {
   fetchTestDesignEvaluationSampleSummary,
   fetchTestDesignHealth,
   fetchTestDesignPromptTrend,
+  fetchTestDesignReportArchiveApprovals,
+  fetchTestDesignReportArchiveIntegrity,
+  fetchTestDesignReportArchiveNotes,
+  fetchTestDesignReportArchives,
   fetchTestDesignReleaseReadinessApprovals,
   fetchTestDesignReleaseReadinessNotes,
   fetchTestDesignReviewRecords,
@@ -73,6 +79,10 @@ import {
   normalizeTestDesignPromptTrendBucket,
   normalizeTestDesignPublishResult,
   normalizeTestDesignQualitySummary,
+  normalizeTestDesignReportArchive,
+  normalizeTestDesignReportArchiveApproval,
+  normalizeTestDesignReportArchiveIntegrity,
+  normalizeTestDesignReportArchiveNote,
   normalizeTestDesignReleaseReadinessApproval,
   normalizeTestDesignReleaseReadinessNote,
   normalizeTestDesignReviewRecord,
@@ -86,6 +96,7 @@ import {
   publishTestDesignTask,
   replayTestDesignQueuedEvents,
   requestTestDesignCalibrationRun,
+  rejectTestDesignReportArchiveApproval,
   rejectTestDesignReleaseReadinessApproval,
   requeueTestDesignAuditOutbox,
   rejectTestDesignCandidate,
@@ -93,6 +104,8 @@ import {
   replayQueuedTestDesignTaskEvent,
   requestTestDesignEnvironmentContextPolicyOverride,
   requestTestDesignProjectContextPolicyOverride,
+  requestTestDesignReportArchiveApproval,
+  requestTestDesignReportArchiveExternalApproval,
   requestTestDesignReleaseReadinessApproval,
   createTestDesignEvaluationSample,
   createTestDesignEvaluationSampleFromCandidate,
@@ -317,10 +330,15 @@ describe('WP5 test design API helpers', () => {
         retention_days: 180,
         storage_policy: 'platformManaged',
         approval_required: true,
-        archive_approval_workflow_ready: false,
+        archive_approval_workflow_ready: true,
+        external_share_approval_workflow_ready: true,
+        work_order_workflow_ready: true,
         external_sharing_allowed: false,
         retention_policy_tracked: true,
-        archive_storage_ready: false,
+        archive_storage_ready: true,
+        archive_content_stored: true,
+        line_integrity_index_ready: true,
+        archive_content_exported: false,
         archive_path_exported: false,
         archive_notes_exported: false,
         approval_notes_exported: false,
@@ -335,6 +353,8 @@ describe('WP5 test design API helpers', () => {
         row_count_tracked: true,
         completion_status_tracked: true,
         archive_reconciliation_ready: true,
+        row_integrity_stored: true,
+        row_integrity_index_ready: true,
         detail_rows_exported: false,
         row_integrity_value_exported: false,
         row_content_summary_exported: false,
@@ -519,10 +539,15 @@ describe('WP5 test design API helpers', () => {
         retentionDays: 180,
         storagePolicy: 'platformManaged',
         approvalRequired: true,
-        archiveApprovalWorkflowReady: false,
+        archiveApprovalWorkflowReady: true,
+        externalShareApprovalWorkflowReady: true,
+        workOrderWorkflowReady: true,
         externalSharingAllowed: false,
         retentionPolicyTracked: true,
-        archiveStorageReady: false,
+        archiveStorageReady: true,
+        archiveContentStored: true,
+        lineIntegrityIndexReady: true,
+        archiveContentExported: false,
         archivePathExported: false,
         archiveNotesExported: false,
         approvalNotesExported: false,
@@ -537,6 +562,8 @@ describe('WP5 test design API helpers', () => {
         rowCountTracked: true,
         completionStatusTracked: true,
         archiveReconciliationReady: true,
+        rowIntegrityStored: true,
+        rowIntegrityIndexReady: true,
         detailRowsExported: false,
         rowIntegrityValueExported: false,
         rowContentSummaryExported: false,
@@ -708,10 +735,15 @@ describe('WP5 test design API helpers', () => {
         retention_days: '365',
         storage_policy: 'platformManaged',
         approval_required: true,
-        archive_approval_workflow_ready: false,
+        archive_approval_workflow_ready: true,
+        external_share_approval_workflow_ready: true,
+        work_order_workflow_ready: true,
         external_sharing_allowed: false,
         retention_policy_tracked: true,
-        archive_storage_ready: false,
+        archive_storage_ready: true,
+        archive_content_stored: true,
+        line_integrity_index_ready: true,
+        archive_content_exported: false,
         archive_path_exported: false,
         archive_notes_exported: false,
         approval_notes_exported: false,
@@ -726,6 +758,8 @@ describe('WP5 test design API helpers', () => {
         row_count_tracked: true,
         completion_status_tracked: true,
         archive_reconciliation_ready: true,
+        row_integrity_stored: true,
+        row_integrity_index_ready: true,
         detail_rows_exported: false,
         row_integrity_value_exported: false,
         row_content_summary_exported: false,
@@ -893,10 +927,15 @@ describe('WP5 test design API helpers', () => {
         retentionDays: 365,
         storagePolicy: 'platformManaged',
         approvalRequired: true,
-        archiveApprovalWorkflowReady: false,
+        archiveApprovalWorkflowReady: true,
+        externalShareApprovalWorkflowReady: true,
+        workOrderWorkflowReady: true,
         externalSharingAllowed: false,
         retentionPolicyTracked: true,
-        archiveStorageReady: false,
+        archiveStorageReady: true,
+        archiveContentStored: true,
+        lineIntegrityIndexReady: true,
+        archiveContentExported: false,
         archivePathExported: false,
         archiveNotesExported: false,
         approvalNotesExported: false,
@@ -911,6 +950,8 @@ describe('WP5 test design API helpers', () => {
         rowCountTracked: true,
         completionStatusTracked: true,
         archiveReconciliationReady: true,
+        rowIntegrityStored: true,
+        rowIntegrityIndexReady: true,
         detailRowsExported: false,
         rowIntegrityValueExported: false,
         rowContentSummaryExported: false,
@@ -963,14 +1004,21 @@ describe('WP5 test design API helpers', () => {
       retentionDays: 365,
       storagePolicy: 'platformManaged',
       approvalRequired: true,
-      archiveApprovalWorkflowReady: false,
-      archiveStorageReady: false,
+      archiveApprovalWorkflowReady: true,
+      externalShareApprovalWorkflowReady: true,
+      workOrderWorkflowReady: true,
+      archiveStorageReady: true,
+      archiveContentStored: true,
+      lineIntegrityIndexReady: true,
+      archiveContentExported: false,
       aggregateOnly: true
     });
     expect(task.reportManifestPolicy).toMatchObject({
       policyVersion: 'wp5-report-manifest-policy-v1',
       rowCountTracked: true,
       completionStatusTracked: true,
+      rowIntegrityStored: true,
+      rowIntegrityIndexReady: true,
       detailRowsExported: false,
       rowIntegrityValueExported: false,
       candidateIdentifierListExported: false,
@@ -2656,6 +2704,268 @@ describe('WP5 test design API helpers', () => {
     });
     expect(requestJsonMock).toHaveBeenLastCalledWith(
       '/api/v1/test-design/release-readiness/approvals/approval%201/notes',
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          noteType: 'WORK_ORDER',
+          noteText: 'ticket moved'
+        })
+      }
+    );
+  });
+
+  it('calls report archive storage, approval and work-order endpoints', async () => {
+    requestJsonMock.mockResolvedValueOnce({
+      code: 'OK',
+      message: 'ok',
+      trace_id: 'trace-archives',
+      data: [
+        {
+          id: 'archive-1',
+          manifest_id: 'manifest-1',
+          task_id: 'task-1',
+          project_id: 'project-1',
+          storage_backend: 'DB_MANAGED',
+          content_digest: 'a'.repeat(64),
+          content_size_bytes: '2048',
+          report_row_count: '18',
+          line_integrity_count: '18',
+          status: 'PENDING_APPROVAL',
+          archive_approval_status: 'PENDING',
+          external_approval_status: 'NOT_REQUESTED',
+          retention_until: '2026-12-31T00:00:00Z',
+          archive_content_stored: true,
+          line_integrity_index_ready: true,
+          archive_content_exported: false,
+          storage_key_exported: false,
+          aggregate_only: true
+        }
+      ]
+    });
+
+    const archives = await fetchTestDesignReportArchives('task 1');
+    expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/test-design/tasks/task%201/report/archives');
+    expect(archives.data[0]).toMatchObject({
+      id: 'archive-1',
+      manifestId: 'manifest-1',
+      taskId: 'task-1',
+      storageBackend: 'DB_MANAGED',
+      contentSizeBytes: 2048,
+      reportRowCount: 18,
+      lineIntegrityCount: 18,
+      archiveContentStored: true,
+      lineIntegrityIndexReady: true,
+      archiveContentExported: false,
+      storageKeyExported: false,
+      aggregateOnly: true
+    });
+
+    requestJsonMock.mockResolvedValueOnce({
+      code: 'OK',
+      message: 'ok',
+      trace_id: 'trace-integrity',
+      data: {
+        archive_id: 'archive-1',
+        report_row_count: '18',
+        indexed_row_count: '18',
+        digest_algorithm: 'SHA-256',
+        chain_integrity_stored: true,
+        row_integrity_value_exported: false,
+        row_content_summary_exported: false,
+        archive_content_exported: false,
+        aggregate_only: true
+      }
+    });
+
+    const integrity = await fetchTestDesignReportArchiveIntegrity('archive 1');
+    expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/test-design/report-archives/archive%201/integrity');
+    expect(integrity.data).toMatchObject({
+      archiveId: 'archive-1',
+      reportRowCount: 18,
+      indexedRowCount: 18,
+      chainIntegrityStored: true,
+      rowIntegrityValueExported: false,
+      archiveContentExported: false,
+      aggregateOnly: true
+    });
+
+    requestJsonMock.mockResolvedValueOnce({
+      code: 'OK',
+      message: 'ok',
+      trace_id: 'trace-archive-approvals',
+      data: [
+        {
+          id: 'approval-1',
+          archive_id: 'archive-1',
+          task_id: 'task-1',
+          project_id: 'project-1',
+          approval_type: 'ARCHIVE',
+          status: 'PENDING',
+          reason_code_captured: true,
+          approval_reason_code_captured: false,
+          work_order_key: 'WP5-ARCH-1',
+          work_order_status: 'OPEN',
+          request_summary_digest: 'b'.repeat(64),
+          note_count: '1',
+          latest_note_preview: 'auto-created'
+        }
+      ]
+    });
+
+    const approvals = await fetchTestDesignReportArchiveApprovals('archive 1');
+    expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/test-design/report-archives/archive%201/approvals');
+    expect(approvals.data[0]).toMatchObject({
+      id: 'approval-1',
+      archiveId: 'archive-1',
+      approvalType: 'ARCHIVE',
+      status: 'PENDING',
+      reasonCodeCaptured: true,
+      approvalReasonCodeCaptured: false,
+      workOrderKey: 'WP5-ARCH-1',
+      workOrderStatus: 'OPEN',
+      requestSummaryDigest: 'b'.repeat(64),
+      noteCount: 1,
+      latestNotePreview: 'auto-created'
+    });
+
+    expect(normalizeTestDesignReportArchive({
+      id: 'archive-2',
+      line_integrity_count: '7',
+      archive_content_stored: true,
+      storage_key_exported: false
+    })).toMatchObject({
+      id: 'archive-2',
+      lineIntegrityCount: 7,
+      archiveContentStored: true,
+      storageKeyExported: false
+    });
+    expect(normalizeTestDesignReportArchiveIntegrity({
+      archive_id: 'archive-2',
+      indexed_row_count: '7',
+      row_integrity_value_exported: false
+    })).toMatchObject({
+      archiveId: 'archive-2',
+      indexedRowCount: 7,
+      rowIntegrityValueExported: false
+    });
+    expect(normalizeTestDesignReportArchiveApproval({
+      id: 'approval-2',
+      approval_type: 'EXTERNAL_SHARE',
+      approval_reason_code_captured: true,
+      note_count: '3'
+    })).toMatchObject({
+      id: 'approval-2',
+      approvalType: 'EXTERNAL_SHARE',
+      approvalReasonCodeCaptured: true,
+      noteCount: 3
+    });
+    expect(normalizeTestDesignReportArchiveNote({
+      id: 'note-2',
+      approval_id: 'approval-2',
+      note_type: 'WORK_ORDER',
+      note_text: 'ticket moved'
+    })).toMatchObject({
+      id: 'note-2',
+      approvalId: 'approval-2',
+      noteType: 'WORK_ORDER',
+      noteText: 'ticket moved'
+    });
+
+    requestJsonMock.mockResolvedValue({
+      code: 'OK',
+      message: 'ok',
+      trace_id: 'trace-archive-mutation',
+      data: { id: 'approval-1', archive_id: 'archive-1', status: 'PENDING' }
+    });
+
+    await requestTestDesignReportArchiveApproval('archive 1', {
+      reasonCode: ' RETENTION_CONTROL ',
+      requestSummary: ' official archive ',
+      workOrderKey: ' WP5-ARCH-1 ',
+      workOrderTitle: ' Archive approval ',
+      workOrderUrl: ' https://ticket.example/wp5/archive-1 ',
+      requestNote: ' please approve '
+    });
+    expect(requestJsonMock).toHaveBeenLastCalledWith(
+      '/api/v1/test-design/report-archives/archive%201/archive-approvals',
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          reasonCode: 'RETENTION_CONTROL',
+          requestSummary: 'official archive',
+          workOrderKey: 'WP5-ARCH-1',
+          workOrderTitle: 'Archive approval',
+          workOrderUrl: 'https://ticket.example/wp5/archive-1',
+          requestNote: 'please approve'
+        })
+      }
+    );
+
+    await requestTestDesignReportArchiveExternalApproval('archive 1', {
+      reasonCode: ' PARTNER_AUDIT ',
+      requestSummary: ' external evidence '
+    });
+    expect(requestJsonMock).toHaveBeenLastCalledWith(
+      '/api/v1/test-design/report-archives/archive%201/external-approvals',
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          reasonCode: 'PARTNER_AUDIT',
+          requestSummary: 'external evidence'
+        })
+      }
+    );
+
+    await approveTestDesignReportArchiveApproval('approval 1', {
+      approvalReasonCode: 'RETENTION_CONTROL',
+      reviewNote: 'approved',
+      workOrderStatus: 'APPROVED'
+    });
+    expect(requestJsonMock).toHaveBeenLastCalledWith(
+      '/api/v1/test-design/report-archive-approvals/approval%201/approve',
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          approvalReasonCode: 'RETENTION_CONTROL',
+          reviewNote: 'approved',
+          workOrderStatus: 'APPROVED'
+        })
+      }
+    );
+
+    await rejectTestDesignReportArchiveApproval('approval 1', {
+      approvalReasonCode: 'SCOPE_MISMATCH',
+      reviewNote: 'rejected'
+    });
+    expect(requestJsonMock).toHaveBeenLastCalledWith(
+      '/api/v1/test-design/report-archive-approvals/approval%201/reject',
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          approvalReasonCode: 'SCOPE_MISMATCH',
+          reviewNote: 'rejected'
+        })
+      }
+    );
+
+    requestJsonMock.mockResolvedValueOnce({
+      code: 'OK',
+      message: 'ok',
+      trace_id: 'trace-archive-notes',
+      data: [{ id: 'note-1', approval_id: 'approval-1', note_type: 'COMMENT', note_text: 'checked' }]
+    });
+    const notes = await fetchTestDesignReportArchiveNotes('approval 1');
+    expect(requestJsonMock).toHaveBeenLastCalledWith(
+      '/api/v1/test-design/report-archive-approvals/approval%201/notes'
+    );
+    expect(notes.data[0]).toMatchObject({ id: 'note-1', approvalId: 'approval-1', noteText: 'checked' });
+
+    await addTestDesignReportArchiveNote('approval 1', {
+      noteType: ' WORK_ORDER ',
+      noteText: ' ticket moved '
+    });
+    expect(requestJsonMock).toHaveBeenLastCalledWith(
+      '/api/v1/test-design/report-archive-approvals/approval%201/notes',
       {
         method: 'POST',
         body: JSON.stringify({

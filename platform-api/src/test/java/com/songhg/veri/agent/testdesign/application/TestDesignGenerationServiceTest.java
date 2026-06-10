@@ -241,10 +241,15 @@ class TestDesignGenerationServiceTest {
         assertThat(summary.path("archivePolicy").path("retentionDays").asInt()).isEqualTo(180);
         assertThat(summary.path("archivePolicy").path("storagePolicy").asText()).isEqualTo("platformManaged");
         assertThat(summary.path("archivePolicy").path("approvalRequired").asBoolean()).isTrue();
-        assertThat(summary.path("archivePolicy").path("archiveApprovalWorkflowReady").asBoolean()).isFalse();
+        assertThat(summary.path("archivePolicy").path("archiveApprovalWorkflowReady").asBoolean()).isTrue();
+        assertThat(summary.path("archivePolicy").path("externalShareApprovalWorkflowReady").asBoolean()).isTrue();
+        assertThat(summary.path("archivePolicy").path("workOrderWorkflowReady").asBoolean()).isTrue();
         assertThat(summary.path("archivePolicy").path("externalSharingAllowed").asBoolean()).isFalse();
         assertThat(summary.path("archivePolicy").path("retentionPolicyTracked").asBoolean()).isTrue();
-        assertThat(summary.path("archivePolicy").path("archiveStorageReady").asBoolean()).isFalse();
+        assertThat(summary.path("archivePolicy").path("archiveStorageReady").asBoolean()).isTrue();
+        assertThat(summary.path("archivePolicy").path("archiveContentStored").asBoolean()).isTrue();
+        assertThat(summary.path("archivePolicy").path("lineIntegrityIndexReady").asBoolean()).isTrue();
+        assertThat(summary.path("archivePolicy").path("archiveContentExported").asBoolean()).isFalse();
         assertThat(summary.path("archivePolicy").path("archivePathExported").asBoolean()).isFalse();
         assertThat(summary.path("archivePolicy").path("archiveNotesExported").asBoolean()).isFalse();
         assertThat(summary.path("archivePolicy").path("approvalNotesExported").asBoolean()).isFalse();
@@ -261,6 +266,8 @@ class TestDesignGenerationServiceTest {
         assertThat(summary.path("reportManifestPolicy").path("rowCountTracked").asBoolean()).isTrue();
         assertThat(summary.path("reportManifestPolicy").path("completionStatusTracked").asBoolean()).isTrue();
         assertThat(summary.path("reportManifestPolicy").path("archiveReconciliationReady").asBoolean()).isTrue();
+        assertThat(summary.path("reportManifestPolicy").path("rowIntegrityStored").asBoolean()).isTrue();
+        assertThat(summary.path("reportManifestPolicy").path("rowIntegrityIndexReady").asBoolean()).isTrue();
         assertThat(summary.path("reportManifestPolicy").path("detailRowsExported").asBoolean()).isFalse();
         assertThat(summary.path("reportManifestPolicy").path("rowIntegrityValueExported").asBoolean()).isFalse();
         assertThat(summary.path("reportManifestPolicy").path("rowContentSummaryExported").asBoolean()).isFalse();
@@ -487,8 +494,18 @@ class TestDesignGenerationServiceTest {
         assertThat(payload.path("contextPacking").path("archivePolicy").path("approvalRequired").asBoolean())
                 .isTrue();
         assertThat(payload.path("contextPacking").path("archivePolicy").path("archiveApprovalWorkflowReady").asBoolean())
-                .isFalse();
+                .isTrue();
+        assertThat(payload.path("contextPacking").path("archivePolicy").path("externalShareApprovalWorkflowReady")
+                .asBoolean()).isTrue();
+        assertThat(payload.path("contextPacking").path("archivePolicy").path("workOrderWorkflowReady").asBoolean())
+                .isTrue();
         assertThat(payload.path("contextPacking").path("archivePolicy").path("archiveStorageReady").asBoolean())
+                .isTrue();
+        assertThat(payload.path("contextPacking").path("archivePolicy").path("archiveContentStored").asBoolean())
+                .isTrue();
+        assertThat(payload.path("contextPacking").path("archivePolicy").path("lineIntegrityIndexReady").asBoolean())
+                .isTrue();
+        assertThat(payload.path("contextPacking").path("archivePolicy").path("archiveContentExported").asBoolean())
                 .isFalse();
         assertThat(payload.path("contextPacking").path("archivePolicy").path("archivePathExported").asBoolean())
                 .isFalse();
@@ -505,6 +522,10 @@ class TestDesignGenerationServiceTest {
         assertThat(payload.path("contextPacking").path("reportManifestPolicy").path("rowCountTracked")
                 .asBoolean()).isTrue();
         assertThat(payload.path("contextPacking").path("reportManifestPolicy").path("completionStatusTracked")
+                .asBoolean()).isTrue();
+        assertThat(payload.path("contextPacking").path("reportManifestPolicy").path("rowIntegrityStored")
+                .asBoolean()).isTrue();
+        assertThat(payload.path("contextPacking").path("reportManifestPolicy").path("rowIntegrityIndexReady")
                 .asBoolean()).isTrue();
         assertThat(payload.path("contextPacking").path("reportManifestPolicy").path("detailRowsExported")
                 .asBoolean()).isFalse();

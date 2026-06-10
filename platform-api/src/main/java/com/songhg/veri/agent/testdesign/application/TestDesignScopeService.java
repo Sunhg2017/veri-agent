@@ -42,6 +42,18 @@ public class TestDesignScopeService {
                 .projectId();
     }
 
+    public String reportArchiveProjectScopeId(UUID id) {
+        return repository.reportArchive(id)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "报告归档不存在: " + id))
+                .projectId();
+    }
+
+    public String reportArchiveApprovalProjectScopeId(UUID id) {
+        return repository.reportArchiveApproval(id)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "报告归档审批不存在: " + id))
+                .projectId();
+    }
+
     public String templateProjectScopeId(UUID id) {
         return repository.template(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "生成模板不存在: " + id))

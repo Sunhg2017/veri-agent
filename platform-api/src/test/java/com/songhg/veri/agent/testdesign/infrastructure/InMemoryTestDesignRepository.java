@@ -27,6 +27,10 @@ import com.songhg.veri.agent.testdesign.domain.TestDesignPublishRecord;
 import com.songhg.veri.agent.testdesign.domain.TestDesignQueueAlertSubscription;
 import com.songhg.veri.agent.testdesign.domain.TestDesignReleaseReadinessApproval;
 import com.songhg.veri.agent.testdesign.domain.TestDesignReleaseReadinessNote;
+import com.songhg.veri.agent.testdesign.domain.TestDesignReportArchive;
+import com.songhg.veri.agent.testdesign.domain.TestDesignReportArchiveApproval;
+import com.songhg.veri.agent.testdesign.domain.TestDesignReportArchiveLineIntegrity;
+import com.songhg.veri.agent.testdesign.domain.TestDesignReportArchiveNote;
 import com.songhg.veri.agent.testdesign.domain.TestDesignReportManifest;
 import com.songhg.veri.agent.testdesign.domain.TestDesignReviewRecord;
 import com.songhg.veri.agent.testdesign.domain.TestDesignTask;
@@ -61,6 +65,12 @@ public class InMemoryTestDesignRepository implements TestDesignRepository {
     private final ConcurrentHashMap<UUID, TestDesignReviewRecord> reviewRecords = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<UUID, TestDesignPublishRecord> publishRecords = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<UUID, TestDesignReportManifest> reportManifests = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<UUID, TestDesignReportArchive> reportArchives = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<UUID, List<TestDesignReportArchiveLineIntegrity>> reportArchiveLineIntegrity =
+            new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<UUID, TestDesignReportArchiveApproval> reportArchiveApprovals =
+            new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<UUID, TestDesignReportArchiveNote> reportArchiveNotes = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<UUID, TestDesignContextPolicyOverride> contextPolicyOverrides = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<UUID, TestDesignContextPolicyNote> contextPolicyNotes = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<UUID, TestDesignReleaseReadinessApproval> releaseReadinessApprovals = new ConcurrentHashMap<>();
@@ -688,6 +698,133 @@ public class InMemoryTestDesignRepository implements TestDesignRepository {
         return reportManifests.values().stream()
                 .filter(manifest -> taskId.equals(manifest.taskId()))
                 .sorted(Comparator.comparing(TestDesignReportManifest::createdAt).reversed())
+                .toList();
+    }
+
+    @Override
+    public TestDesignReportArchive saveReportArchive(TestDesignReportArchive archive) {
+        Optional<TestDesignReportArchive> existing = reportArchives.values().stream()
+                .filter(current -> archive.manifestId().equals(current.manifestId()))
+                .findFirst();
+        if (existing.isPresent()) {
+            return existing.get();
+        }
+        reportArchives.put(archive.id(), archive);
+        return archive;
+    }
+
+    @Override
+    public TestDesignReportArchive updateReportArchiveStatus(
+            UUID archiveId,
+            String status,
+            String archiveApprovalStatus,
+            String externalApprovalStatus,
+            Instant updatedAt
+    ) {
+        synchronized (reportArchives) {
+            TestDesignReportArchive current = reportArchives.get(archiveId);
+            if (current == null) {
+                return null;
+            }
+            TestDesignReportArchive updated = new TestDesignReportArchive(
+                    current.id(),
+                    current.manifestId(),
+                    current.taskId(),
+                    current.projectId(),
+                    current.storageBackend(),
+                    current.storageKey(),
+                    current.contentDigest(),
+                    current.contentSizeBytes(),
+                    current.reportRowCount(),
+                    current.lineIntegrityCount(),
+                    status,
+                    archiveApprovalStatus,
+                    externalApprovalStatus,
+                    current.retentionUntil(),
+                    current.contentBytes(),
+                    current.createdBy(),
+                    current.createdAt(),
+                    updatedAt
+            );
+            reportArchives.put(archiveId, updated);
+            return updated;
+        }
+    }
+
+    @Override
+    public Optional<TestDesignReportArchive> reportArchive(UUID id) {
+        return Optional.ofNullable(reportArchives.get(id));
+    }
+
+    @Override
+    public List<TestDesignReportArchive> reportArchivesByTask(UUID taskId) {
+        return reportArchives.values().stream()
+                .filter(archive -> taskId.equals(archive.taskId()))
+                .sorted(Comparator.comparing(TestDesignReportArchive::createdAt).reversed())
+                .toList();
+    }
+
+    @Override
+    public void saveReportArchiveLineIntegrity(List<TestDesignReportArchiveLineIntegrity> lines) {
+        if (lines == null || lines.isEmpty()) {
+            return;
+        }
+        UUID archiveId = lines.get(0).archiveId();
+        reportArchiveLineIntegrity.compute(archiveId, (ignored, current) -> {
+            Map<Integer, TestDesignReportArchiveLineIntegrity> byRow = new LinkedHashMap<>();
+            if (current != null) {
+                current.forEach(line -> byRow.put(line.rowNumber(), line));
+            }
+            lines.forEach(line -> byRow.putIfAbsent(line.rowNumber(), line));
+            return byRow.values().stream()
+                    .sorted(Comparator.comparingInt(TestDesignReportArchiveLineIntegrity::rowNumber))
+                    .toList();
+        });
+    }
+
+    @Override
+    public long countReportArchiveLineIntegrity(UUID archiveId) {
+        return reportArchiveLineIntegrity.getOrDefault(archiveId, List.of()).size();
+    }
+
+    @Override
+    public TestDesignReportArchiveApproval saveReportArchiveApproval(TestDesignReportArchiveApproval approval) {
+        reportArchiveApprovals.put(approval.id(), approval);
+        return approval;
+    }
+
+    @Override
+    public Optional<TestDesignReportArchiveApproval> reportArchiveApproval(UUID id) {
+        return Optional.ofNullable(reportArchiveApprovals.get(id));
+    }
+
+    @Override
+    public List<TestDesignReportArchiveApproval> reportArchiveApprovals(UUID archiveId) {
+        return reportArchiveApprovals.values().stream()
+                .filter(approval -> archiveId.equals(approval.archiveId()))
+                .sorted(Comparator.comparing(TestDesignReportArchiveApproval::createdAt).reversed())
+                .toList();
+    }
+
+    @Override
+    public Optional<TestDesignReportArchiveApproval> latestReportArchiveApproval(UUID archiveId, String approvalType) {
+        return reportArchiveApprovals.values().stream()
+                .filter(approval -> archiveId.equals(approval.archiveId()))
+                .filter(approval -> approvalType.equals(approval.approvalType()))
+                .max(Comparator.comparing(TestDesignReportArchiveApproval::updatedAt));
+    }
+
+    @Override
+    public TestDesignReportArchiveNote saveReportArchiveNote(TestDesignReportArchiveNote note) {
+        reportArchiveNotes.put(note.id(), note);
+        return note;
+    }
+
+    @Override
+    public List<TestDesignReportArchiveNote> reportArchiveNotes(UUID approvalId) {
+        return reportArchiveNotes.values().stream()
+                .filter(note -> approvalId.equals(note.approvalId()))
+                .sorted(Comparator.comparing(TestDesignReportArchiveNote::createdAt))
                 .toList();
     }
 

@@ -28,6 +28,10 @@ import com.songhg.veri.agent.testdesign.domain.TestDesignQueueAlertSubscription;
 import com.songhg.veri.agent.testdesign.domain.TestDesignReleaseReadinessApproval;
 import com.songhg.veri.agent.testdesign.domain.TestDesignReleaseReadinessNote;
 import com.songhg.veri.agent.testdesign.domain.TestDesignReportManifest;
+import com.songhg.veri.agent.testdesign.domain.TestDesignReportArchive;
+import com.songhg.veri.agent.testdesign.domain.TestDesignReportArchiveApproval;
+import com.songhg.veri.agent.testdesign.domain.TestDesignReportArchiveLineIntegrity;
+import com.songhg.veri.agent.testdesign.domain.TestDesignReportArchiveNote;
 import com.songhg.veri.agent.testdesign.domain.TestDesignReviewRecord;
 import com.songhg.veri.agent.testdesign.domain.TestDesignTask;
 import com.songhg.veri.agent.testdesign.domain.TestDesignTaskStatus;
@@ -352,6 +356,83 @@ public class JdbcTestDesignRepository implements TestDesignRepository {
     @Override
     public List<TestDesignReportManifest> reportManifestsByTask(UUID taskId) {
         return mapper.reportManifestsByTask(taskId);
+    }
+
+    @Override
+    public TestDesignReportArchive saveReportArchive(TestDesignReportArchive archive) {
+        mapper.insertReportArchive(archive);
+        TestDesignReportArchive saved = mapper.reportArchiveByManifest(archive.manifestId());
+        return saved == null ? archive : saved;
+    }
+
+    @Override
+    public TestDesignReportArchive updateReportArchiveStatus(
+            UUID archiveId,
+            String status,
+            String archiveApprovalStatus,
+            String externalApprovalStatus,
+            Instant updatedAt
+    ) {
+        mapper.updateReportArchiveStatus(archiveId, status, archiveApprovalStatus, externalApprovalStatus, updatedAt);
+        return mapper.reportArchive(archiveId);
+    }
+
+    @Override
+    public Optional<TestDesignReportArchive> reportArchive(UUID id) {
+        return Optional.ofNullable(mapper.reportArchive(id));
+    }
+
+    @Override
+    public List<TestDesignReportArchive> reportArchivesByTask(UUID taskId) {
+        return mapper.reportArchivesByTask(taskId);
+    }
+
+    @Override
+    public void saveReportArchiveLineIntegrity(List<TestDesignReportArchiveLineIntegrity> lines) {
+        for (TestDesignReportArchiveLineIntegrity line : lines) {
+            mapper.insertReportArchiveLineIntegrity(line);
+        }
+    }
+
+    @Override
+    public long countReportArchiveLineIntegrity(UUID archiveId) {
+        return mapper.countReportArchiveLineIntegrity(archiveId);
+    }
+
+    @Override
+    public TestDesignReportArchiveApproval saveReportArchiveApproval(TestDesignReportArchiveApproval approval) {
+        if (mapper.reportArchiveApproval(approval.id()) == null) {
+            mapper.insertReportArchiveApproval(approval);
+        } else {
+            mapper.updateReportArchiveApproval(approval);
+        }
+        return mapper.reportArchiveApproval(approval.id());
+    }
+
+    @Override
+    public Optional<TestDesignReportArchiveApproval> reportArchiveApproval(UUID id) {
+        return Optional.ofNullable(mapper.reportArchiveApproval(id));
+    }
+
+    @Override
+    public List<TestDesignReportArchiveApproval> reportArchiveApprovals(UUID archiveId) {
+        return mapper.reportArchiveApprovals(archiveId);
+    }
+
+    @Override
+    public Optional<TestDesignReportArchiveApproval> latestReportArchiveApproval(UUID archiveId, String approvalType) {
+        return Optional.ofNullable(mapper.latestReportArchiveApproval(archiveId, approvalType));
+    }
+
+    @Override
+    public TestDesignReportArchiveNote saveReportArchiveNote(TestDesignReportArchiveNote note) {
+        mapper.insertReportArchiveNote(note);
+        return note;
+    }
+
+    @Override
+    public List<TestDesignReportArchiveNote> reportArchiveNotes(UUID approvalId) {
+        return mapper.reportArchiveNotes(approvalId);
     }
 
     @Override

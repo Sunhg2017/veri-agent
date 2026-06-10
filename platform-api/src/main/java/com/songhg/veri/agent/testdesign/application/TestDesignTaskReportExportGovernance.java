@@ -125,13 +125,23 @@ final class TestDesignTaskReportExportGovernance {
         appendRow(csv, task, generatedAt, "metadata", "archivePolicy", "approvalRequired", null,
                 policy.approvalRequired(), null, null, "fullTask", null);
         appendRow(csv, task, generatedAt, "metadata", "archivePolicy", "archiveApprovalWorkflowReady", null,
-                policy.archiveApprovalWorkflowReady(), null, "warning", "fullTask", null);
+                policy.archiveApprovalWorkflowReady(), null, "success", "fullTask", null);
+        appendRow(csv, task, generatedAt, "metadata", "archivePolicy", "externalShareApprovalWorkflowReady", null,
+                policy.externalShareApprovalWorkflowReady(), null, "success", "fullTask", null);
+        appendRow(csv, task, generatedAt, "metadata", "archivePolicy", "workOrderWorkflowReady", null,
+                policy.workOrderWorkflowReady(), null, "success", "fullTask", null);
         appendRow(csv, task, generatedAt, "metadata", "archivePolicy", "externalSharingAllowed", null,
                 policy.externalSharingAllowed(), null, null, "fullTask", null);
         appendRow(csv, task, generatedAt, "metadata", "archivePolicy", "retentionPolicyTracked", null,
                 policy.retentionPolicyTracked(), null, "success", "fullTask", null);
         appendRow(csv, task, generatedAt, "metadata", "archivePolicy", "archiveStorageReady", null,
-                policy.archiveStorageReady(), null, "warning", "fullTask", null);
+                policy.archiveStorageReady(), null, "success", "fullTask", null);
+        appendRow(csv, task, generatedAt, "metadata", "archivePolicy", "archiveContentStored", null,
+                policy.archiveContentStored(), null, "success", "fullTask", null);
+        appendRow(csv, task, generatedAt, "metadata", "archivePolicy", "lineIntegrityIndexReady", null,
+                policy.lineIntegrityIndexReady(), null, "success", "fullTask", null);
+        appendRow(csv, task, generatedAt, "metadata", "archivePolicy", "archiveContentExported", null,
+                policy.archiveContentExported(), null, null, "fullTask", null);
         appendRow(csv, task, generatedAt, "metadata", "archivePolicy", "archivePathExported", null,
                 policy.archivePathExported(), null, null, "fullTask", null);
         appendRow(csv, task, generatedAt, "metadata", "archivePolicy", "archiveNotesExported", null,

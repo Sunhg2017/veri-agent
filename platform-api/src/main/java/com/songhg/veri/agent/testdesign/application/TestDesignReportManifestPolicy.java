@@ -7,9 +7,10 @@ import java.util.Map;
 /**
  * Centralizes the WP5 task-report manifest reconciliation boundary.
  *
- * <p>The current report manifest proves schema version, field-set version, row count and completion status for archive
- * reconciliation. It intentionally avoids row-level integrity values, row summaries, candidate identifiers, trace
- * identifiers and audit identifiers because those details would turn the aggregate report into a sensitive index.
+ * <p>The report manifest proves schema version, field-set version, row count, completion status and row-integrity index
+ * readiness for archive reconciliation. It intentionally avoids exporting row-level integrity values, row summaries,
+ * candidate identifiers, trace identifiers and audit identifiers because those details would turn the aggregate report
+ * into a sensitive operations index.
  */
 public final class TestDesignReportManifestPolicy {
 
@@ -27,6 +28,8 @@ public final class TestDesignReportManifestPolicy {
                 SCHEMA_VERSION,
                 FIELD_SET_VERSION,
                 MANIFEST_MODE,
+                true,
+                true,
                 true,
                 true,
                 true,
@@ -50,6 +53,8 @@ public final class TestDesignReportManifestPolicy {
         snapshot.put("rowCountTracked", response.rowCountTracked());
         snapshot.put("completionStatusTracked", response.completionStatusTracked());
         snapshot.put("archiveReconciliationReady", response.archiveReconciliationReady());
+        snapshot.put("rowIntegrityStored", response.rowIntegrityStored());
+        snapshot.put("rowIntegrityIndexReady", response.rowIntegrityIndexReady());
         snapshot.put("detailRowsExported", response.detailRowsExported());
         snapshot.put("rowIntegrityValueExported", response.rowIntegrityValueExported());
         snapshot.put("rowContentSummaryExported", response.rowContentSummaryExported());

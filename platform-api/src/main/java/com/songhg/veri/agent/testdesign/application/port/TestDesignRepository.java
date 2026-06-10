@@ -27,6 +27,10 @@ import com.songhg.veri.agent.testdesign.domain.TestDesignQueueAlertSubscription;
 import com.songhg.veri.agent.testdesign.domain.TestDesignReleaseReadinessApproval;
 import com.songhg.veri.agent.testdesign.domain.TestDesignReleaseReadinessNote;
 import com.songhg.veri.agent.testdesign.domain.TestDesignReportManifest;
+import com.songhg.veri.agent.testdesign.domain.TestDesignReportArchive;
+import com.songhg.veri.agent.testdesign.domain.TestDesignReportArchiveApproval;
+import com.songhg.veri.agent.testdesign.domain.TestDesignReportArchiveLineIntegrity;
+import com.songhg.veri.agent.testdesign.domain.TestDesignReportArchiveNote;
 import com.songhg.veri.agent.testdesign.domain.TestDesignReviewRecord;
 import com.songhg.veri.agent.testdesign.domain.TestDesignTask;
 import com.songhg.veri.agent.testdesign.domain.TestDesignTaskStatus;
@@ -305,6 +309,72 @@ public interface TestDesignRepository {
      * 查询任务下已保存的报告 manifest 聚合记录，按创建时间倒序返回。
      */
     List<TestDesignReportManifest> reportManifestsByTask(UUID taskId);
+
+    /**
+     * 保存安全扫描后的任务报告归档内容和聚合元数据；响应层不得导出内容或内部存储 key。
+     */
+    TestDesignReportArchive saveReportArchive(TestDesignReportArchive archive);
+
+    /**
+     * 更新报告归档审批相关状态。
+     */
+    TestDesignReportArchive updateReportArchiveStatus(
+            UUID archiveId,
+            String status,
+            String archiveApprovalStatus,
+            String externalApprovalStatus,
+            Instant updatedAt
+    );
+
+    /**
+     * 查询单个归档记录。
+     */
+    Optional<TestDesignReportArchive> reportArchive(UUID id);
+
+    /**
+     * 查询任务下已保存的归档记录，按创建时间倒序返回。
+     */
+    List<TestDesignReportArchive> reportArchivesByTask(UUID taskId);
+
+    /**
+     * 保存报告行级完整性索引；仅保存行号和 digest，不保存行内容或业务标识。
+     */
+    void saveReportArchiveLineIntegrity(List<TestDesignReportArchiveLineIntegrity> lines);
+
+    /**
+     * 统计一个归档记录的行级完整性索引数量。
+     */
+    long countReportArchiveLineIntegrity(UUID archiveId);
+
+    /**
+     * 保存归档或外发审批工单。
+     */
+    TestDesignReportArchiveApproval saveReportArchiveApproval(TestDesignReportArchiveApproval approval);
+
+    /**
+     * 查询单个归档审批工单。
+     */
+    Optional<TestDesignReportArchiveApproval> reportArchiveApproval(UUID id);
+
+    /**
+     * 查询归档记录下的审批工单。
+     */
+    List<TestDesignReportArchiveApproval> reportArchiveApprovals(UUID archiveId);
+
+    /**
+     * 查询归档记录下指定类型的最新审批工单。
+     */
+    Optional<TestDesignReportArchiveApproval> latestReportArchiveApproval(UUID archiveId, String approvalType);
+
+    /**
+     * 追加归档审批工单备注。
+     */
+    TestDesignReportArchiveNote saveReportArchiveNote(TestDesignReportArchiveNote note);
+
+    /**
+     * 查询归档审批工单备注时间线。
+     */
+    List<TestDesignReportArchiveNote> reportArchiveNotes(UUID approvalId);
 
     /**
      * 查询任务级跨 WP 审计链聚合计数，不返回审计事件、trace、模型调用、候选或资产明细标识。

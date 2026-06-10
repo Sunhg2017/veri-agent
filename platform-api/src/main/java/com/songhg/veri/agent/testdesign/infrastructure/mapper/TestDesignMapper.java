@@ -26,6 +26,10 @@ import com.songhg.veri.agent.testdesign.domain.TestDesignQueueAlertSubscription;
 import com.songhg.veri.agent.testdesign.domain.TestDesignReleaseReadinessApproval;
 import com.songhg.veri.agent.testdesign.domain.TestDesignReleaseReadinessNote;
 import com.songhg.veri.agent.testdesign.domain.TestDesignReportManifest;
+import com.songhg.veri.agent.testdesign.domain.TestDesignReportArchive;
+import com.songhg.veri.agent.testdesign.domain.TestDesignReportArchiveApproval;
+import com.songhg.veri.agent.testdesign.domain.TestDesignReportArchiveLineIntegrity;
+import com.songhg.veri.agent.testdesign.domain.TestDesignReportArchiveNote;
 import com.songhg.veri.agent.testdesign.domain.TestDesignReviewRecord;
 import com.songhg.veri.agent.testdesign.domain.TestDesignTask;
 import com.songhg.veri.agent.testdesign.domain.TestDesignTemplate;
@@ -215,6 +219,43 @@ public interface TestDesignMapper {
     void insertReportManifest(TestDesignReportManifest manifest);
 
     List<TestDesignReportManifest> reportManifestsByTask(@Param("taskId") UUID taskId);
+
+    void insertReportArchive(TestDesignReportArchive archive);
+
+    TestDesignReportArchive reportArchive(@Param("id") UUID id);
+
+    TestDesignReportArchive reportArchiveByManifest(@Param("manifestId") UUID manifestId);
+
+    List<TestDesignReportArchive> reportArchivesByTask(@Param("taskId") UUID taskId);
+
+    void updateReportArchiveStatus(
+            @Param("archiveId") UUID archiveId,
+            @Param("status") String status,
+            @Param("archiveApprovalStatus") String archiveApprovalStatus,
+            @Param("externalApprovalStatus") String externalApprovalStatus,
+            @Param("updatedAt") Instant updatedAt
+    );
+
+    void insertReportArchiveLineIntegrity(TestDesignReportArchiveLineIntegrity line);
+
+    long countReportArchiveLineIntegrity(@Param("archiveId") UUID archiveId);
+
+    TestDesignReportArchiveApproval reportArchiveApproval(@Param("id") UUID id);
+
+    void insertReportArchiveApproval(TestDesignReportArchiveApproval approval);
+
+    void updateReportArchiveApproval(TestDesignReportArchiveApproval approval);
+
+    List<TestDesignReportArchiveApproval> reportArchiveApprovals(@Param("archiveId") UUID archiveId);
+
+    TestDesignReportArchiveApproval latestReportArchiveApproval(
+            @Param("archiveId") UUID archiveId,
+            @Param("approvalType") String approvalType
+    );
+
+    void insertReportArchiveNote(TestDesignReportArchiveNote note);
+
+    List<TestDesignReportArchiveNote> reportArchiveNotes(@Param("approvalId") UUID approvalId);
 
     TestDesignAuditChainAggregate auditChainAggregate(@Param("taskId") UUID taskId);
 

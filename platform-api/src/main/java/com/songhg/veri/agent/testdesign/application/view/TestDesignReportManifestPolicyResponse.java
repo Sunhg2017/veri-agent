@@ -20,6 +20,10 @@ public record TestDesignReportManifestPolicyResponse(
         boolean completionStatusTracked,
         @Schema(description = "是否具备归档核验用的聚合清单")
         boolean archiveReconciliationReady,
+        @Schema(description = "是否已存储行级完整性索引")
+        boolean rowIntegrityStored,
+        @Schema(description = "行级完整性索引是否可查询")
+        boolean rowIntegrityIndexReady,
         @Schema(description = "是否导出明细行")
         boolean detailRowsExported,
         @Schema(description = "是否导出行级完整性值")

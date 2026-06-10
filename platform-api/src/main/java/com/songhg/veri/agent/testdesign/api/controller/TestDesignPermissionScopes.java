@@ -26,6 +26,8 @@ final class TestDesignPermissionScopes {
     static final String POLICY_PROJECT = "@testDesignPermissionScopeResolver.project(#projectId)";
     static final String POLICY_OVERRIDE = "@testDesignPermissionScopeResolver.contextPolicyOverride(#id)";
     static final String RELEASE_READINESS_APPROVAL = "@testDesignPermissionScopeResolver.releaseReadinessApproval(#id)";
+    static final String REPORT_ARCHIVE = "@testDesignPermissionScopeResolver.reportArchive(#id)";
+    static final String REPORT_ARCHIVE_APPROVAL = "@testDesignPermissionScopeResolver.reportArchiveApproval(#id)";
 
     private TestDesignPermissionScopes() {
     }

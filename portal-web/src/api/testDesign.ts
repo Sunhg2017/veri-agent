@@ -199,6 +199,79 @@ export interface TestDesignReleaseReadinessNoteView {
   createdAt?: string;
 }
 
+export interface TestDesignReportArchiveView {
+  id: string;
+  manifestId: string;
+  taskId: string;
+  projectId?: string;
+  storageBackend?: string;
+  contentDigest?: string;
+  contentSizeBytes: number;
+  reportRowCount: number;
+  lineIntegrityCount: number;
+  status: string;
+  archiveApprovalStatus: string;
+  externalApprovalStatus: string;
+  retentionUntil?: string;
+  archiveContentStored?: boolean;
+  lineIntegrityIndexReady?: boolean;
+  archiveContentExported?: boolean;
+  storageKeyExported?: boolean;
+  aggregateOnly?: boolean;
+  createdBy?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface TestDesignReportArchiveIntegrityView {
+  archiveId: string;
+  reportRowCount: number;
+  indexedRowCount: number;
+  digestAlgorithm?: string;
+  chainIntegrityStored?: boolean;
+  rowIntegrityValueExported?: boolean;
+  rowContentSummaryExported?: boolean;
+  archiveContentExported?: boolean;
+  aggregateOnly?: boolean;
+}
+
+export interface TestDesignReportArchiveApprovalView {
+  id: string;
+  archiveId: string;
+  taskId: string;
+  projectId?: string;
+  approvalType: string;
+  status: string;
+  reasonCodeCaptured: boolean;
+  reasonCode?: string;
+  approvalReasonCodeCaptured: boolean;
+  approvalReasonCode?: string;
+  workOrderKey?: string;
+  workOrderTitle?: string;
+  workOrderUrl?: string;
+  workOrderStatus?: string;
+  requestSummary?: string;
+  requestSummaryDigest?: string;
+  requestNote?: string;
+  reviewNote?: string;
+  noteCount?: number;
+  latestNotePreview?: string;
+  requestedBy?: string;
+  approvedBy?: string;
+  reviewedAt?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface TestDesignReportArchiveNoteView {
+  id: string;
+  approvalId: string;
+  noteType: string;
+  noteText: string;
+  createdBy?: string;
+  createdAt?: string;
+}
+
 export interface TestDesignContextPolicyEffectiveView {
   projectId?: string;
   environmentKey?: string;
@@ -302,9 +375,14 @@ export interface TestDesignArchivePolicyView {
   storagePolicy?: string;
   approvalRequired?: boolean;
   archiveApprovalWorkflowReady?: boolean;
+  externalShareApprovalWorkflowReady?: boolean;
+  workOrderWorkflowReady?: boolean;
   externalSharingAllowed?: boolean;
   retentionPolicyTracked?: boolean;
   archiveStorageReady?: boolean;
+  archiveContentStored?: boolean;
+  lineIntegrityIndexReady?: boolean;
+  archiveContentExported?: boolean;
   archivePathExported?: boolean;
   archiveNotesExported?: boolean;
   approvalNotesExported?: boolean;
@@ -320,6 +398,8 @@ export interface TestDesignReportManifestPolicyView {
   rowCountTracked?: boolean;
   completionStatusTracked?: boolean;
   archiveReconciliationReady?: boolean;
+  rowIntegrityStored?: boolean;
+  rowIntegrityIndexReady?: boolean;
   detailRowsExported?: boolean;
   rowIntegrityValueExported?: boolean;
   rowContentSummaryExported?: boolean;
@@ -1505,6 +1585,26 @@ export interface AddTestDesignReleaseReadinessNotePayload {
   noteText?: string;
 }
 
+export interface RequestTestDesignReportArchiveApprovalPayload {
+  reasonCode?: string;
+  requestSummary?: string;
+  workOrderKey?: string;
+  workOrderTitle?: string;
+  workOrderUrl?: string;
+  requestNote?: string;
+}
+
+export interface ReviewTestDesignReportArchiveApprovalPayload {
+  approvalReasonCode?: string;
+  reviewNote?: string;
+  workOrderStatus?: string;
+}
+
+export interface AddTestDesignReportArchiveNotePayload {
+  noteType?: string;
+  noteText?: string;
+}
+
 type UnknownRecord = Record<string, unknown>;
 
 function isRecord(value: unknown): value is UnknownRecord {
@@ -1971,9 +2071,16 @@ export function normalizeTestDesignArchivePolicy(raw: unknown): TestDesignArchiv
     archiveApprovalWorkflowReady: optionalBoolean(
       raw.archiveApprovalWorkflowReady ?? raw.archive_approval_workflow_ready
     ),
+    externalShareApprovalWorkflowReady: optionalBoolean(
+      raw.externalShareApprovalWorkflowReady ?? raw.external_share_approval_workflow_ready
+    ),
+    workOrderWorkflowReady: optionalBoolean(raw.workOrderWorkflowReady ?? raw.work_order_workflow_ready),
     externalSharingAllowed: optionalBoolean(raw.externalSharingAllowed ?? raw.external_sharing_allowed),
     retentionPolicyTracked: optionalBoolean(raw.retentionPolicyTracked ?? raw.retention_policy_tracked),
     archiveStorageReady: optionalBoolean(raw.archiveStorageReady ?? raw.archive_storage_ready),
+    archiveContentStored: optionalBoolean(raw.archiveContentStored ?? raw.archive_content_stored),
+    lineIntegrityIndexReady: optionalBoolean(raw.lineIntegrityIndexReady ?? raw.line_integrity_index_ready),
+    archiveContentExported: optionalBoolean(raw.archiveContentExported ?? raw.archive_content_exported),
     archivePathExported: optionalBoolean(raw.archivePathExported ?? raw.archive_path_exported),
     archiveNotesExported: optionalBoolean(raw.archiveNotesExported ?? raw.archive_notes_exported),
     approvalNotesExported: optionalBoolean(raw.approvalNotesExported ?? raw.approval_notes_exported),
@@ -2000,6 +2107,8 @@ export function normalizeTestDesignReportManifestPolicy(
     archiveReconciliationReady: optionalBoolean(
       raw.archiveReconciliationReady ?? raw.archive_reconciliation_ready
     ),
+    rowIntegrityStored: optionalBoolean(raw.rowIntegrityStored ?? raw.row_integrity_stored),
+    rowIntegrityIndexReady: optionalBoolean(raw.rowIntegrityIndexReady ?? raw.row_integrity_index_ready),
     detailRowsExported: optionalBoolean(raw.detailRowsExported ?? raw.detail_rows_exported),
     rowIntegrityValueExported: optionalBoolean(
       raw.rowIntegrityValueExported ?? raw.row_integrity_value_exported
@@ -3422,6 +3531,103 @@ export function normalizeTestDesignReleaseReadinessNote(raw: unknown): TestDesig
   };
 }
 
+export function normalizeTestDesignReportArchive(raw: unknown): TestDesignReportArchiveView {
+  const item = isRecord(raw) ? raw : {};
+  return {
+    id: stringValue(item.id),
+    manifestId: stringValue(item.manifestId ?? item.manifest_id),
+    taskId: stringValue(item.taskId ?? item.task_id),
+    projectId: optionalString(item.projectId) ?? optionalString(item.project_id),
+    storageBackend: optionalString(item.storageBackend) ?? optionalString(item.storage_backend),
+    contentDigest: optionalString(item.contentDigest) ?? optionalString(item.content_digest),
+    contentSizeBytes: numberValue(item.contentSizeBytes ?? item.content_size_bytes, 0),
+    reportRowCount: numberValue(item.reportRowCount ?? item.report_row_count, 0),
+    lineIntegrityCount: numberValue(item.lineIntegrityCount ?? item.line_integrity_count, 0),
+    status: stringValue(item.status, 'UNKNOWN'),
+    archiveApprovalStatus: stringValue(item.archiveApprovalStatus ?? item.archive_approval_status, 'UNKNOWN'),
+    externalApprovalStatus: stringValue(item.externalApprovalStatus ?? item.external_approval_status, 'UNKNOWN'),
+    retentionUntil: optionalString(item.retentionUntil) ?? optionalString(item.retention_until),
+    archiveContentStored: optionalBoolean(item.archiveContentStored ?? item.archive_content_stored),
+    lineIntegrityIndexReady: optionalBoolean(item.lineIntegrityIndexReady ?? item.line_integrity_index_ready),
+    archiveContentExported: optionalBoolean(item.archiveContentExported ?? item.archive_content_exported),
+    storageKeyExported: optionalBoolean(item.storageKeyExported ?? item.storage_key_exported),
+    aggregateOnly: optionalBoolean(item.aggregateOnly ?? item.aggregate_only),
+    createdBy: optionalString(item.createdBy) ?? optionalString(item.created_by),
+    createdAt: optionalString(item.createdAt) ?? optionalString(item.created_at),
+    updatedAt: optionalString(item.updatedAt) ?? optionalString(item.updated_at)
+  };
+}
+
+export function normalizeTestDesignReportArchiveIntegrity(
+  raw: unknown
+): TestDesignReportArchiveIntegrityView {
+  const item = isRecord(raw) ? raw : {};
+  return {
+    archiveId: stringValue(item.archiveId ?? item.archive_id),
+    reportRowCount: numberValue(item.reportRowCount ?? item.report_row_count, 0),
+    indexedRowCount: numberValue(item.indexedRowCount ?? item.indexed_row_count, 0),
+    digestAlgorithm: optionalString(item.digestAlgorithm) ?? optionalString(item.digest_algorithm),
+    chainIntegrityStored: optionalBoolean(item.chainIntegrityStored ?? item.chain_integrity_stored),
+    rowIntegrityValueExported: optionalBoolean(
+      item.rowIntegrityValueExported ?? item.row_integrity_value_exported
+    ),
+    rowContentSummaryExported: optionalBoolean(
+      item.rowContentSummaryExported ?? item.row_content_summary_exported
+    ),
+    archiveContentExported: optionalBoolean(item.archiveContentExported ?? item.archive_content_exported),
+    aggregateOnly: optionalBoolean(item.aggregateOnly ?? item.aggregate_only)
+  };
+}
+
+export function normalizeTestDesignReportArchiveApproval(
+  raw: unknown
+): TestDesignReportArchiveApprovalView {
+  const item = isRecord(raw) ? raw : {};
+  return {
+    id: stringValue(item.id),
+    archiveId: stringValue(item.archiveId ?? item.archive_id),
+    taskId: stringValue(item.taskId ?? item.task_id),
+    projectId: optionalString(item.projectId) ?? optionalString(item.project_id),
+    approvalType: stringValue(item.approvalType ?? item.approval_type, 'ARCHIVE'),
+    status: stringValue(item.status, 'UNKNOWN'),
+    reasonCodeCaptured: Boolean(item.reasonCodeCaptured ?? item.reason_code_captured),
+    reasonCode: optionalString(item.reasonCode) ?? optionalString(item.reason_code),
+    approvalReasonCodeCaptured: Boolean(
+      item.approvalReasonCodeCaptured ?? item.approval_reason_code_captured
+    ),
+    approvalReasonCode: optionalString(item.approvalReasonCode)
+      ?? optionalString(item.approval_reason_code),
+    workOrderKey: optionalString(item.workOrderKey) ?? optionalString(item.work_order_key),
+    workOrderTitle: optionalString(item.workOrderTitle) ?? optionalString(item.work_order_title),
+    workOrderUrl: optionalString(item.workOrderUrl) ?? optionalString(item.work_order_url),
+    workOrderStatus: optionalString(item.workOrderStatus) ?? optionalString(item.work_order_status),
+    requestSummary: optionalString(item.requestSummary) ?? optionalString(item.request_summary),
+    requestSummaryDigest: optionalString(item.requestSummaryDigest)
+      ?? optionalString(item.request_summary_digest),
+    requestNote: optionalString(item.requestNote) ?? optionalString(item.request_note),
+    reviewNote: optionalString(item.reviewNote) ?? optionalString(item.review_note),
+    noteCount: optionalNumber(item.noteCount ?? item.note_count),
+    latestNotePreview: optionalString(item.latestNotePreview) ?? optionalString(item.latest_note_preview),
+    requestedBy: optionalString(item.requestedBy) ?? optionalString(item.requested_by),
+    approvedBy: optionalString(item.approvedBy) ?? optionalString(item.approved_by),
+    reviewedAt: optionalString(item.reviewedAt) ?? optionalString(item.reviewed_at),
+    createdAt: optionalString(item.createdAt) ?? optionalString(item.created_at),
+    updatedAt: optionalString(item.updatedAt) ?? optionalString(item.updated_at)
+  };
+}
+
+export function normalizeTestDesignReportArchiveNote(raw: unknown): TestDesignReportArchiveNoteView {
+  const item = isRecord(raw) ? raw : {};
+  return {
+    id: stringValue(item.id),
+    approvalId: stringValue(item.approvalId ?? item.approval_id),
+    noteType: stringValue(item.noteType ?? item.note_type, 'COMMENT'),
+    noteText: stringValue(item.noteText ?? item.note_text),
+    createdBy: optionalString(item.createdBy) ?? optionalString(item.created_by),
+    createdAt: optionalString(item.createdAt) ?? optionalString(item.created_at)
+  };
+}
+
 export function normalizeTestDesignContextPolicyEffective(raw: unknown): TestDesignContextPolicyEffectiveView {
   const item = isRecord(raw) ? raw : {};
   return {
@@ -3980,6 +4186,112 @@ export async function addTestDesignReleaseReadinessNote(
     }
   );
   return { ...response, data: normalizeTestDesignReleaseReadinessNote(response.data) };
+}
+
+export async function fetchTestDesignReportArchives(
+  taskId: string
+): Promise<ApiResponse<TestDesignReportArchiveView[]>> {
+  const response = await requestJson<unknown>(
+    `/api/v1/test-design/tasks/${encodeURIComponent(taskId)}/report/archives`
+  );
+  return { ...response, data: listItems(response.data).map(normalizeTestDesignReportArchive) };
+}
+
+export async function fetchTestDesignReportArchiveIntegrity(
+  archiveId: string
+): Promise<ApiResponse<TestDesignReportArchiveIntegrityView>> {
+  const response = await requestJson<unknown>(
+    `/api/v1/test-design/report-archives/${encodeURIComponent(archiveId)}/integrity`
+  );
+  return { ...response, data: normalizeTestDesignReportArchiveIntegrity(response.data) };
+}
+
+export async function fetchTestDesignReportArchiveApprovals(
+  archiveId: string
+): Promise<ApiResponse<TestDesignReportArchiveApprovalView[]>> {
+  const response = await requestJson<unknown>(
+    `/api/v1/test-design/report-archives/${encodeURIComponent(archiveId)}/approvals`
+  );
+  return { ...response, data: listItems(response.data).map(normalizeTestDesignReportArchiveApproval) };
+}
+
+export async function requestTestDesignReportArchiveApproval(
+  archiveId: string,
+  payload: RequestTestDesignReportArchiveApprovalPayload
+): Promise<ApiResponse<TestDesignReportArchiveApprovalView>> {
+  const response = await requestJson<unknown>(
+    `/api/v1/test-design/report-archives/${encodeURIComponent(archiveId)}/archive-approvals`,
+    {
+      method: 'POST',
+      body: JSON.stringify(compactPayload(payload))
+    }
+  );
+  return { ...response, data: normalizeTestDesignReportArchiveApproval(response.data) };
+}
+
+export async function requestTestDesignReportArchiveExternalApproval(
+  archiveId: string,
+  payload: RequestTestDesignReportArchiveApprovalPayload
+): Promise<ApiResponse<TestDesignReportArchiveApprovalView>> {
+  const response = await requestJson<unknown>(
+    `/api/v1/test-design/report-archives/${encodeURIComponent(archiveId)}/external-approvals`,
+    {
+      method: 'POST',
+      body: JSON.stringify(compactPayload(payload))
+    }
+  );
+  return { ...response, data: normalizeTestDesignReportArchiveApproval(response.data) };
+}
+
+export async function approveTestDesignReportArchiveApproval(
+  approvalId: string,
+  payload: ReviewTestDesignReportArchiveApprovalPayload = {}
+): Promise<ApiResponse<TestDesignReportArchiveApprovalView>> {
+  const response = await requestJson<unknown>(
+    `/api/v1/test-design/report-archive-approvals/${encodeURIComponent(approvalId)}/approve`,
+    {
+      method: 'POST',
+      body: JSON.stringify(compactPayload(payload))
+    }
+  );
+  return { ...response, data: normalizeTestDesignReportArchiveApproval(response.data) };
+}
+
+export async function rejectTestDesignReportArchiveApproval(
+  approvalId: string,
+  payload: ReviewTestDesignReportArchiveApprovalPayload = {}
+): Promise<ApiResponse<TestDesignReportArchiveApprovalView>> {
+  const response = await requestJson<unknown>(
+    `/api/v1/test-design/report-archive-approvals/${encodeURIComponent(approvalId)}/reject`,
+    {
+      method: 'POST',
+      body: JSON.stringify(compactPayload(payload))
+    }
+  );
+  return { ...response, data: normalizeTestDesignReportArchiveApproval(response.data) };
+}
+
+export async function fetchTestDesignReportArchiveNotes(
+  approvalId: string
+): Promise<ApiResponse<TestDesignReportArchiveNoteView[]>> {
+  const response = await requestJson<unknown>(
+    `/api/v1/test-design/report-archive-approvals/${encodeURIComponent(approvalId)}/notes`
+  );
+  return { ...response, data: listItems(response.data).map(normalizeTestDesignReportArchiveNote) };
+}
+
+export async function addTestDesignReportArchiveNote(
+  approvalId: string,
+  payload: AddTestDesignReportArchiveNotePayload
+): Promise<ApiResponse<TestDesignReportArchiveNoteView>> {
+  const response = await requestJson<unknown>(
+    `/api/v1/test-design/report-archive-approvals/${encodeURIComponent(approvalId)}/notes`,
+    {
+      method: 'POST',
+      body: JSON.stringify(compactPayload(payload))
+    }
+  );
+  return { ...response, data: normalizeTestDesignReportArchiveNote(response.data) };
 }
 
 export async function fetchTestDesignReviewRecords(

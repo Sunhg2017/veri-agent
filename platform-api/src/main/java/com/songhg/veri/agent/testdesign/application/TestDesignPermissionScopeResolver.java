@@ -178,6 +178,14 @@ public class TestDesignPermissionScopeResolver {
         return ResourceScope.project(scopeService.releaseReadinessApprovalProjectScopeId(id));
     }
 
+    public ResourceScope reportArchive(UUID id) {
+        return ResourceScope.project(scopeService.reportArchiveProjectScopeId(id));
+    }
+
+    public ResourceScope reportArchiveApproval(UUID id) {
+        return ResourceScope.project(scopeService.reportArchiveApprovalProjectScopeId(id));
+    }
+
     public List<ResourceScope> candidateBatch(TestDesignCandidateBatchActionCommand command) {
         LinkedHashSet<String> projectIds = new LinkedHashSet<>();
         for (UUID candidateId : batchCandidateIds(command)) {
