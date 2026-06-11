@@ -2,13 +2,17 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { requestJson } from './client';
 import {
   createApiAutomationSpec,
+  fetchApiAutomationDiff,
   fetchApiAutomationHealth,
   fetchApiAutomationSpec,
   fetchApiAutomationSpecs,
   normalizeApiAutomationEndpointSnapshot,
+  normalizeApiAutomationDiffResponse,
   normalizeApiAutomationHealth,
   normalizeApiAutomationSpecDetail,
-  parseApiAutomationSpec
+  normalizeApiAutomationSyncResponse,
+  parseApiAutomationSpec,
+  syncApiAutomationSpec
 } from './apiAutomation';
 
 vi.mock('./client', () => ({
@@ -58,7 +62,10 @@ describe('WP6 API automation helpers', () => {
         path: '/v1/payments',
         parameter_count: '1',
         request_body_present: true,
-        diff_status: 'UNKNOWN'
+        diff_status: 'NEW',
+        asset_api_id: 'asset-api-1',
+        diff_summary: { reason: 'NO_MATCHING_WP3_API' },
+        last_diff_at: '2026-06-11T00:00:00Z'
       }]
     })).toMatchObject({
       spec: {
@@ -67,7 +74,13 @@ describe('WP6 API automation helpers', () => {
         contentSizeBytes: 1234,
         endpointCount: 2
       },
-      endpoints: [{ httpMethod: 'POST', path: '/v1/payments', parameterCount: 1 }]
+      endpoints: [{
+        httpMethod: 'POST',
+        path: '/v1/payments',
+        parameterCount: 1,
+        diffStatus: 'NEW',
+        assetApiId: 'asset-api-1'
+      }]
     });
 
     expect(normalizeApiAutomationEndpointSnapshot({
@@ -78,6 +91,33 @@ describe('WP6 API automation helpers', () => {
       requestBodyPresent: false,
       diffStatus: 'MATCHED'
     })).toMatchObject({ httpMethod: 'GET', diffStatus: 'MATCHED' });
+
+    expect(normalizeApiAutomationDiffResponse({
+      spec_id: 'spec-1',
+      counts: { NEW: '1', MATCHED: 2 },
+      endpoints: [{ id: 'endpoint-1', http_method: 'GET', path: '/v1/customers' }]
+    })).toMatchObject({
+      specId: 'spec-1',
+      counts: { NEW: 1, MATCHED: 2 },
+      endpoints: [{ id: 'endpoint-1', httpMethod: 'GET' }]
+    });
+
+    expect(normalizeApiAutomationSyncResponse({
+      specId: 'spec-1',
+      counts: { CREATED: '1' },
+      items: [{
+        endpoint_id: 'endpoint-1',
+        asset_api_id: 'asset-api-1',
+        http_method: 'POST',
+        path: '/v1/payments',
+        before_status: 'NEW',
+        result: 'CREATED'
+      }],
+      endpoints: []
+    })).toMatchObject({
+      counts: { CREATED: 1 },
+      items: [{ endpointId: 'endpoint-1', assetApiId: 'asset-api-1', beforeStatus: 'NEW', result: 'CREATED' }]
+    });
   });
 
   it('calls WP6 endpoints with expected methods and query parameters', async () => {
@@ -123,6 +163,8 @@ describe('WP6 API automation helpers', () => {
     });
     await fetchApiAutomationSpec('spec-1');
     await parseApiAutomationSpec('spec-1');
+    await fetchApiAutomationDiff('spec-1');
+    await syncApiAutomationSpec('spec-1', { includeChanged: false });
     await fetchApiAutomationHealth();
 
     expect(requestJsonMock).toHaveBeenNthCalledWith(1, '/api/v1/api-automation/specs', {
@@ -136,6 +178,11 @@ describe('WP6 API automation helpers', () => {
     });
     expect(requestJsonMock).toHaveBeenNthCalledWith(2, '/api/v1/api-automation/specs/spec-1');
     expect(requestJsonMock).toHaveBeenNthCalledWith(3, '/api/v1/api-automation/specs/spec-1/parse', { method: 'POST' });
-    expect(requestJsonMock).toHaveBeenNthCalledWith(4, '/api/v1/api-automation/health');
+    expect(requestJsonMock).toHaveBeenNthCalledWith(4, '/api/v1/api-automation/specs/spec-1/diff');
+    expect(requestJsonMock).toHaveBeenNthCalledWith(5, '/api/v1/api-automation/specs/spec-1/sync', {
+      method: 'POST',
+      body: JSON.stringify({ includeChanged: false })
+    });
+    expect(requestJsonMock).toHaveBeenNthCalledWith(6, '/api/v1/api-automation/health');
   });
 });

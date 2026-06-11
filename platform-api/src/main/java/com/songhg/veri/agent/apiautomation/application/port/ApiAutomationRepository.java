@@ -17,6 +17,8 @@ public interface ApiAutomationRepository {
 
     void insertEndpointSnapshot(ApiAutomationEndpointSnapshot snapshot);
 
+    void updateEndpointSnapshotDiff(ApiAutomationEndpointSnapshot snapshot);
+
     Optional<ApiAutomationSpec> spec(UUID id);
 
     Optional<ApiAutomationSpec> activeSpecByProjectAndDigest(String projectId, String specDigest);

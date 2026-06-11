@@ -47,6 +47,11 @@ export interface ApiAutomationEndpointSnapshot {
   responseStatuses?: string;
   schemaDigest?: string;
   diffStatus: string;
+  assetApiId?: string;
+  diffSummary: Record<string, unknown>;
+  lastDiffAt?: string;
+  syncedAt?: string;
+  syncErrorSummary?: string;
 }
 
 export interface ApiAutomationSpecDetail {
@@ -77,6 +82,34 @@ export interface ApiAutomationSpecFilters {
   keyword?: string;
   index?: number;
   size?: number;
+}
+
+export interface ApiAutomationDiffResponse {
+  specId: string;
+  counts: Record<string, number>;
+  endpoints: ApiAutomationEndpointSnapshot[];
+}
+
+export interface ApiAutomationSyncPayload {
+  endpointIds?: string[];
+  includeChanged?: boolean;
+}
+
+export interface ApiAutomationSyncItem {
+  endpointId: string;
+  assetApiId?: string;
+  httpMethod: string;
+  path: string;
+  beforeStatus: string;
+  result: string;
+  message?: string;
+}
+
+export interface ApiAutomationSyncResponse {
+  specId: string;
+  counts: Record<string, number>;
+  items: ApiAutomationSyncItem[];
+  endpoints: ApiAutomationEndpointSnapshot[];
 }
 
 export async function fetchApiAutomationHealth(): Promise<ApiResponse<ApiAutomationHealth>> {
@@ -111,6 +144,22 @@ export async function parseApiAutomationSpec(id: string): Promise<ApiResponse<Ap
     method: 'POST'
   });
   return { ...response, data: normalizeApiAutomationSpecDetail(response.data) };
+}
+
+export async function fetchApiAutomationDiff(id: string): Promise<ApiResponse<ApiAutomationDiffResponse>> {
+  const response = await requestJson<unknown>(`${API_AUTOMATION_BASE}/specs/${encodeURIComponent(id)}/diff`);
+  return { ...response, data: normalizeApiAutomationDiffResponse(response.data) };
+}
+
+export async function syncApiAutomationSpec(
+  id: string,
+  payload: ApiAutomationSyncPayload = {}
+): Promise<ApiResponse<ApiAutomationSyncResponse>> {
+  const response = await requestJson<unknown>(`${API_AUTOMATION_BASE}/specs/${encodeURIComponent(id)}/sync`, {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+  return { ...response, data: normalizeApiAutomationSyncResponse(response.data) };
 }
 
 export function normalizeApiAutomationHealth(input: unknown): ApiAutomationHealth {
@@ -184,7 +233,44 @@ export function normalizeApiAutomationEndpointSnapshot(input: unknown): ApiAutom
     requestBodyPresent: booleanValue(read(value, 'requestBodyPresent', 'request_body_present'), false),
     responseStatuses: optionalString(read(value, 'responseStatuses', 'response_statuses')),
     schemaDigest: optionalString(read(value, 'schemaDigest', 'schema_digest')),
-    diffStatus: stringValue(read(value, 'diffStatus', 'diff_status'), 'UNKNOWN')
+    diffStatus: stringValue(read(value, 'diffStatus', 'diff_status'), 'UNKNOWN'),
+    assetApiId: optionalString(read(value, 'assetApiId', 'asset_api_id')),
+    diffSummary: objectValue(read(value, 'diffSummary', 'diff_summary')),
+    lastDiffAt: optionalString(read(value, 'lastDiffAt', 'last_diff_at')),
+    syncedAt: optionalString(read(value, 'syncedAt', 'synced_at')),
+    syncErrorSummary: optionalString(read(value, 'syncErrorSummary', 'sync_error_summary'))
+  };
+}
+
+export function normalizeApiAutomationDiffResponse(input: unknown): ApiAutomationDiffResponse {
+  const value = objectValue(input);
+  return {
+    specId: stringValue(read(value, 'specId', 'spec_id')),
+    counts: numberRecord(read(value, 'counts')),
+    endpoints: arrayValue(read(value, 'endpoints')).map(normalizeApiAutomationEndpointSnapshot)
+  };
+}
+
+export function normalizeApiAutomationSyncResponse(input: unknown): ApiAutomationSyncResponse {
+  const value = objectValue(input);
+  return {
+    specId: stringValue(read(value, 'specId', 'spec_id')),
+    counts: numberRecord(read(value, 'counts')),
+    items: arrayValue(read(value, 'items')).map(normalizeApiAutomationSyncItem),
+    endpoints: arrayValue(read(value, 'endpoints')).map(normalizeApiAutomationEndpointSnapshot)
+  };
+}
+
+export function normalizeApiAutomationSyncItem(input: unknown): ApiAutomationSyncItem {
+  const value = objectValue(input);
+  return {
+    endpointId: stringValue(read(value, 'endpointId', 'endpoint_id')),
+    assetApiId: optionalString(read(value, 'assetApiId', 'asset_api_id')),
+    httpMethod: stringValue(read(value, 'httpMethod', 'http_method'), 'GET'),
+    path: stringValue(read(value, 'path')),
+    beforeStatus: stringValue(read(value, 'beforeStatus', 'before_status'), 'UNKNOWN'),
+    result: stringValue(read(value, 'result'), 'UNKNOWN'),
+    message: optionalString(read(value, 'message'))
   };
 }
 
@@ -234,4 +320,9 @@ function booleanValue(input: unknown, fallback: boolean) {
 
 function stringArray(input: unknown) {
   return Array.isArray(input) ? input.map((item) => stringValue(item)).filter(Boolean) : [];
+}
+
+function numberRecord(input: unknown) {
+  const value = objectValue(input);
+  return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, numberValue(item, 0)]));
 }

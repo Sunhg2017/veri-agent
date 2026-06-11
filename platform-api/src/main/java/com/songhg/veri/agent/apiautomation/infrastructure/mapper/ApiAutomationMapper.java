@@ -32,5 +32,7 @@ public interface ApiAutomationMapper {
 
     void insertEndpointSnapshot(ApiAutomationEndpointSnapshot snapshot);
 
+    void updateEndpointSnapshotDiff(ApiAutomationEndpointSnapshot snapshot);
+
     List<ApiAutomationEndpointSnapshot> endpointSnapshots(@Param("specId") UUID specId);
 }

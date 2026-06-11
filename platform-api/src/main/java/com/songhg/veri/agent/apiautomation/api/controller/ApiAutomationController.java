@@ -2,8 +2,11 @@ package com.songhg.veri.agent.apiautomation.api.controller;
 
 import com.songhg.veri.agent.apiautomation.application.ApiAutomationService;
 import com.songhg.veri.agent.apiautomation.application.command.CreateApiAutomationSpecCommand;
+import com.songhg.veri.agent.apiautomation.application.command.SyncApiAutomationSpecCommand;
 import com.songhg.veri.agent.apiautomation.application.query.ApiAutomationSpecPageRequest;
+import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationDiffResponse;
 import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationHealthResponse;
+import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationSyncResponse;
 import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationSpecDetailResponse;
 import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationSpecResponse;
 import com.songhg.veri.agent.authorization.application.PermissionCodes;
@@ -60,5 +63,20 @@ public class ApiAutomationController {
     @RequirePermission(value = PermissionCodes.API_AUTOMATION_IMPORT, scope = ApiAutomationPermissionScopes.SPEC)
     public ApiAutomationSpecDetailResponse parseSpec(@PathVariable UUID id) {
         return service.parseSpec(id);
+    }
+
+    @GetMapping("/specs/{id}/diff")
+    @RequirePermission(value = PermissionCodes.API_AUTOMATION_READ, scope = ApiAutomationPermissionScopes.SPEC)
+    public ApiAutomationDiffResponse diffSpec(@PathVariable UUID id) {
+        return service.diffSpec(id);
+    }
+
+    @PostMapping("/specs/{id}/sync")
+    @RequirePermission(value = PermissionCodes.API_AUTOMATION_IMPORT, scope = ApiAutomationPermissionScopes.SPEC)
+    public ApiAutomationSyncResponse syncSpec(
+            @PathVariable UUID id,
+            @RequestBody(required = false) SyncApiAutomationSpecCommand command
+    ) {
+        return service.syncSpec(id, command);
     }
 }

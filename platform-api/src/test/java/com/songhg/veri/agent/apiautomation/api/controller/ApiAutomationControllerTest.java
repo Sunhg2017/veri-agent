@@ -119,6 +119,29 @@ class ApiAutomationControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.spec.status").value("PARSED"))
                 .andExpect(jsonPath("$.data.spec.endpointCount").value(2));
+
+        mockMvc.perform(get("/api/v1/api-automation/specs/{id}/diff", specId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.counts.NEW").value(2))
+                .andExpect(jsonPath("$.data.counts.MATCHED").value(0))
+                .andExpect(jsonPath("$.data.endpoints[0].diffStatus").value("NEW"));
+
+        mockMvc.perform(post("/api/v1/api-automation/specs/{id}/sync", specId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.counts.CREATED").value(2))
+                .andExpect(jsonPath("$.data.items", hasSize(2)))
+                .andExpect(jsonPath("$.data.endpoints[0].diffStatus").value("MATCHED"))
+                .andExpect(jsonPath("$.data.endpoints[0].assetApiId").exists());
+
+        mockMvc.perform(get("/api/v1/api-automation/specs/{id}/diff", specId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.counts.NEW").value(0))
+                .andExpect(jsonPath("$.data.counts.MATCHED").value(2));
     }
 
     @Test

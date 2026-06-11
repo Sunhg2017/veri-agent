@@ -42,6 +42,11 @@ public class JdbcApiAutomationRepository implements ApiAutomationRepository {
     }
 
     @Override
+    public void updateEndpointSnapshotDiff(ApiAutomationEndpointSnapshot snapshot) {
+        mapper.updateEndpointSnapshotDiff(snapshot);
+    }
+
+    @Override
     public Optional<ApiAutomationSpec> spec(UUID id) {
         return Optional.ofNullable(mapper.spec(id));
     }

@@ -1,6 +1,7 @@
 package com.songhg.veri.agent.asset.application;
 
 import com.songhg.veri.agent.asset.application.command.CreateApiRequest;
+import com.songhg.veri.agent.asset.application.command.SyncOpenApiRequest;
 import com.songhg.veri.agent.asset.application.command.UpdateApiRequest;
 import com.songhg.veri.agent.asset.application.command.UpdateAssetLifecycleRequest;
 import com.songhg.veri.agent.asset.application.port.AssetRepository;
@@ -175,6 +176,91 @@ public class AssetApiService {
         );
         projectAuditService.writeProjectAudit("UPDATE", "API", id, existing.projectId());
         AssetApi stored = repository.saveApi(updated);
+        return AssetResponseMapper.toApiResponse(stored);
+    }
+
+    /**
+     * Creates an API asset from an upstream OpenAPI sync while preserving source identity for idempotency and audit.
+     */
+    public ApiResponseDTO createOpenApiSyncedApi(SyncOpenApiRequest request) {
+        String scopeId = projectAuditService.projectContext(request.projectId()).projectId();
+        String httpMethod = valueIn(request.httpMethod(), null, API_HTTP_METHODS, "httpMethod");
+        if (repository.hasActiveApiPathConflict(scopeId, request.path(), httpMethod, UUID.randomUUID())) {
+            throw new BusinessException(ErrorCode.CONFLICT, "同项目下 API 路径和方法已存在");
+        }
+        UUID id = UUID.randomUUID();
+        Instant now = Instant.now();
+        AssetApi api = new AssetApi(
+                id,
+                assetCode("API", id),
+                request.summary(),
+                request.description(),
+                httpMethod,
+                request.path(),
+                "OPENAPI",
+                trimToNull(request.sourceRef()),
+                trimToNull(request.version()),
+                request.requestSchema(),
+                request.responseSchema(),
+                scopeId,
+                initialStatus(request.status()),
+                "ACTIVE",
+                null,
+                null,
+                now,
+                now
+        );
+        projectAuditService.writeProjectAudit("CREATE", "API", id, scopeId);
+        AssetApi stored = repository.saveApi(api);
+        log.info("Created OpenAPI synced api id={}, path={}, method={}, trace_id={}",
+                id, stored.path(), stored.httpMethod(), TraceContext.getTraceId());
+        return AssetResponseMapper.toApiResponse(stored);
+    }
+
+    /**
+     * Updates a matched API asset through the WP3 application boundary and keeps lifecycle/source audit semantics intact.
+     */
+    public ApiResponseDTO updateOpenApiSyncedApi(UUID id, SyncOpenApiRequest request) {
+        AssetApi existing = repository.api(id)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "API不存在: " + id));
+        String httpMethod = valueIn(request.httpMethod(), null, API_HTTP_METHODS, "httpMethod");
+        if (repository.hasActiveApiPathConflict(existing.projectId(), request.path(), httpMethod, id)) {
+            throw new BusinessException(ErrorCode.CONFLICT, "同项目下 API 路径和方法已存在");
+        }
+        String nextStatus = nextStatus(
+                "API",
+                id,
+                existing.projectId(),
+                existing.status(),
+                request.status(),
+                API_STATUSES,
+                API_STATUS_TRANSITIONS
+        );
+        Instant now = Instant.now();
+        AssetApi updated = new AssetApi(
+                id,
+                existing.code(),
+                request.summary(),
+                request.description(),
+                httpMethod,
+                request.path(),
+                "OPENAPI",
+                trimToNull(request.sourceRef()),
+                valueOrDefault(request.version(), existing.version()),
+                request.requestSchema(),
+                request.responseSchema(),
+                existing.projectId(),
+                nextStatus,
+                existing.lifecycleStatus(),
+                existing.archivedAt(),
+                existing.deletedAt(),
+                existing.createdAt(),
+                now
+        );
+        projectAuditService.writeProjectAudit("UPDATE", "API", id, existing.projectId());
+        AssetApi stored = repository.saveApi(updated);
+        log.info("Updated OpenAPI synced api id={}, path={}, method={}, trace_id={}",
+                id, stored.path(), stored.httpMethod(), TraceContext.getTraceId());
         return AssetResponseMapper.toApiResponse(stored);
     }
 

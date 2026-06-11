@@ -44,6 +44,11 @@ public class InMemoryApiAutomationRepository implements ApiAutomationRepository 
     }
 
     @Override
+    public void updateEndpointSnapshotDiff(ApiAutomationEndpointSnapshot snapshot) {
+        endpointSnapshots.put(snapshot.id(), snapshot);
+    }
+
+    @Override
     public Optional<ApiAutomationSpec> spec(UUID id) {
         return Optional.ofNullable(specs.get(id));
     }

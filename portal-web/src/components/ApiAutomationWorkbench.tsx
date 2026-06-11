@@ -12,14 +12,17 @@ import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNo
 import type { CurrentUser } from '../api/auth';
 import {
   createApiAutomationSpec,
+  fetchApiAutomationDiff,
   fetchApiAutomationHealth,
   fetchApiAutomationSpec,
   fetchApiAutomationSpecs,
   parseApiAutomationSpec,
+  syncApiAutomationSpec,
   type ApiAutomationEndpointSnapshot,
   type ApiAutomationHealth,
   type ApiAutomationSpec,
-  type ApiAutomationSpecDetail
+  type ApiAutomationSpecDetail,
+  type ApiAutomationSyncResponse
 } from '../api/apiAutomation';
 import { canUseButton, hasPermission } from '../permissions';
 
@@ -57,6 +60,9 @@ export function ApiAutomationWorkbench(props: { signedIn: boolean; currentUser: 
   const [importState, setImportState] = useState<WorkState>({ loading: false });
   const [detailState, setDetailState] = useState<WorkState>({ loading: false });
   const [parseState, setParseState] = useState<WorkState>({ loading: false });
+  const [diffState, setDiffState] = useState<WorkState>({ loading: false });
+  const [syncState, setSyncState] = useState<WorkState>({ loading: false });
+  const [lastSync, setLastSync] = useState<ApiAutomationSyncResponse | null>(null);
 
   const summary = useMemo(() => {
     const parsed = specs.filter((spec) => spec.status === 'PARSED').length;
@@ -146,9 +152,36 @@ export function ApiAutomationWorkbench(props: { signedIn: boolean; currentUser: 
       const result = await parseApiAutomationSpec(selectedSpecId);
       setDetail(result.data);
       setParseState({ loading: false, success: '解析已刷新' });
+      setLastSync(null);
       await refreshSpecs();
     } catch (error: unknown) {
       setParseState({ loading: false, error: error instanceof Error ? error.message : '解析失败' });
+    }
+  }
+
+  async function onRefreshDiff() {
+    if (!selectedSpecId || !canRead) return;
+    setDiffState({ loading: true });
+    try {
+      const result = await fetchApiAutomationDiff(selectedSpecId);
+      setDetail((current) => current ? { ...current, endpoints: result.data.endpoints } : current);
+      setDiffState({ loading: false, success: diffSummaryText(result.data.counts) });
+    } catch (error: unknown) {
+      setDiffState({ loading: false, error: error instanceof Error ? error.message : 'Diff 失败' });
+    }
+  }
+
+  async function onSync() {
+    if (!selectedSpecId || !canImport) return;
+    setSyncState({ loading: true });
+    try {
+      const result = await syncApiAutomationSpec(selectedSpecId);
+      setLastSync(result.data);
+      setDetail((current) => current ? { ...current, endpoints: result.data.endpoints } : current);
+      setSyncState({ loading: false, success: syncSummaryText(result.data.counts) });
+      await refreshSpecs();
+    } catch (error: unknown) {
+      setSyncState({ loading: false, error: error instanceof Error ? error.message : '同步失败' });
     }
   }
 
@@ -287,15 +320,30 @@ export function ApiAutomationWorkbench(props: { signedIn: boolean; currentUser: 
             <div className="panel-title">Endpoint Snapshot</div>
             <div className="panel-desc">{detail ? `${detail.spec.name} · ${detail.endpoints.length} 条` : '未选择规格'}</div>
           </div>
-          <button className="btn btn-ghost btn-sm" type="button" onClick={() => void onReparse()} disabled={!selectedSpecId || !canImport || parseState.loading}>
-            <RotateCcw size={15} />
-            重解析
-          </button>
+          <div className="api-automation-panel-actions">
+            <button className="btn btn-ghost btn-sm" type="button" onClick={() => void onRefreshDiff()} disabled={!selectedSpecId || diffState.loading}>
+              <RefreshCw size={15} />
+              Diff
+            </button>
+            <button className="btn btn-secondary btn-sm" type="button" onClick={() => void onSync()} disabled={!selectedSpecId || !canImport || syncState.loading}>
+              <Upload size={15} />
+              同步
+            </button>
+            <button className="btn btn-ghost btn-sm" type="button" onClick={() => void onReparse()} disabled={!selectedSpecId || !canImport || parseState.loading}>
+              <RotateCcw size={15} />
+              重解析
+            </button>
+          </div>
         </div>
         <div className="panel-body compact">
           {detailState.error && <div className="document-state-line error">{detailState.error}</div>}
           {parseState.error && <div className="document-state-line error">{parseState.error}</div>}
           {parseState.success && <div className="document-state-line success">{parseState.success}</div>}
+          {diffState.error && <div className="document-state-line error">{diffState.error}</div>}
+          {diffState.success && <div className="document-state-line success">{diffState.success}</div>}
+          {syncState.error && <div className="document-state-line error">{syncState.error}</div>}
+          {syncState.success && <div className="document-state-line success">{syncState.success}</div>}
+          {lastSync && <SyncSummary sync={lastSync} />}
           <EndpointTable endpoints={detail?.endpoints ?? []} loading={detailState.loading} />
         </div>
       </section>
@@ -317,6 +365,7 @@ function EndpointTable(props: { endpoints: ApiAutomationEndpointSnapshot[]; load
             <th>方法</th>
             <th>Path</th>
             <th>Operation</th>
+            <th>Asset</th>
             <th>参数</th>
             <th>响应</th>
             <th>Diff</th>
@@ -331,15 +380,30 @@ function EndpointTable(props: { endpoints: ApiAutomationEndpointSnapshot[]; load
                 <span className="table-secondary">{endpoint.summary ?? '-'}</span>
               </td>
               <td><span className="table-secondary">{endpoint.operationId ?? '-'}</span></td>
+              <td><span className="table-secondary">{shortId(endpoint.assetApiId)}</span></td>
               <td>{endpoint.parameterCount}{endpoint.requestBodyPresent ? ' · body' : ''}</td>
               <td><span className="table-secondary">{endpoint.responseStatuses ?? '-'}</span></td>
-              <td><StatusBadge status={endpoint.diffStatus} /></td>
+              <td>
+                <StatusBadge status={endpoint.diffStatus} />
+                <span className="api-automation-diff-reason">{diffReason(endpoint)}</span>
+                {endpoint.syncErrorSummary && <span className="api-automation-diff-reason error">{endpoint.syncErrorSummary}</span>}
+              </td>
             </tr>
           )) : (
-            <tr><td className="table-empty" colSpan={6}>{props.loading ? '加载中' : '暂无 endpoint'}</td></tr>
+            <tr><td className="table-empty" colSpan={7}>{props.loading ? '加载中' : '暂无 endpoint'}</td></tr>
           )}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+function SyncSummary(props: { sync: ApiAutomationSyncResponse }) {
+  const text = syncSummaryText(props.sync.counts);
+  return (
+    <div className="api-automation-sync-summary">
+      <span>{text}</span>
+      <span>{props.sync.items.length} 条同步明细</span>
     </div>
   );
 }
@@ -376,10 +440,27 @@ function Field(props: { label: string; children: ReactNode }) {
 
 function StatusBadge(props: { status: string }) {
   const status = props.status || 'UNKNOWN';
-  const tone = status.includes('FAILED') || status === 'CONFLICT' ? 'danger'
-    : status === 'PARSED' || status === 'MATCHED' ? 'success'
+  const tone = status.includes('FAILED') || status === 'CONFLICT' || status === 'SKIPPED' ? 'danger'
+    : status === 'PARSED' || status === 'MATCHED' || status === 'CREATED' || status === 'UPDATED' ? 'success'
       : 'neutral';
   return <span className={`status-badge ${tone}`}>{status}</span>;
+}
+
+function diffReason(endpoint: ApiAutomationEndpointSnapshot) {
+  const reason = endpoint.diffSummary?.reason;
+  return typeof reason === 'string' ? reason : '';
+}
+
+function diffSummaryText(counts: Record<string, number>) {
+  return `Diff：NEW ${counts.NEW ?? 0} · CHANGED ${counts.CHANGED ?? 0} · MATCHED ${counts.MATCHED ?? 0}`;
+}
+
+function syncSummaryText(counts: Record<string, number>) {
+  return `同步：CREATED ${counts.CREATED ?? 0} · UPDATED ${counts.UPDATED ?? 0} · FAILED ${counts.FAILED ?? 0}`;
+}
+
+function shortId(value?: string) {
+  return value ? value.slice(0, 8) : '-';
 }
 
 function optionalText(value: string) {

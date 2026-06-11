@@ -166,12 +166,12 @@
 
 ## 16. 当前推进状态（2026-06-11）
 
-本轮完成 M1/M2 基础切片，退出标准以“OpenAPI 规格可导入、解析、脱敏、查询，并生成 endpoint snapshot”为准。
+当前完成 M1/M2/M3 控制面切片，退出标准以“OpenAPI 规格可导入、解析、脱敏、查询、生成 endpoint snapshot，并可对 WP3 API 资产 diff/sync”为准。
 
 | Story | 状态 | 说明 |
 |---|---|---|
 | WP6-1.1 权限点 seed | 已完成 | 新增 `apiAutomation:read/import/generate/review/execute/export`，DB seed 和 local/test 角色目录同步。 |
-| WP6-1.2 审计事件字典 | 部分完成 | 实现 `api_automation.spec.parsed`、`api_automation.spec.parse_failed` 写审计；sync/generation/bundle/run/export 事件待后续能力落地。 |
+| WP6-1.2 审计事件字典 | 部分完成 | 实现 `api_automation.spec.parsed`、`api_automation.spec.parse_failed`、`api_automation.api_diffed`、`api_automation.api_synced` 写审计；generation/bundle/run/export 事件待后续能力落地。 |
 | WP6-1.3 DB schema | 部分完成 | 已建 spec、endpoint snapshot 两张基础表和 validation；generation、case、script bundle、run、run result 表待 M4-M6。 |
 | WP6-1.4 模块骨架 | 已完成 | 新增 `apiautomation` controller/application/domain/infrastructure/config 包。 |
 | WP6-1.5 Health API | 已完成 | `GET /api/v1/api-automation/health` 公开返回配置边界、runner disabled 策略和当前功能边界。 |
@@ -180,11 +180,17 @@
 | WP6-2.3 脱敏与裁剪 | 已完成 | 对敏感字段名和值脱敏，响应不返回原始规格正文。 |
 | WP6-2.4 Endpoint snapshot | 已完成 | 解析后写 endpoint snapshot，包含 schemaDigest 和 `UNKNOWN` diff 初始状态。 |
 | WP6-2.5 解析状态机 | 部分完成 | 已支持 `UPLOADED/PARSING/PARSED/PARSE_FAILED/ARCHIVED` 状态约束和重解析；失败后不持久化原始未脱敏内容。 |
+| WP6-3.1 API 匹配规则 | 已完成 | 当前按 project + method + path 匹配 WP3 API，schemaDigest 判断 MATCHED/CHANGED；serviceName 受 WP3 API 领域模型限制暂不作为强匹配键。 |
+| WP6-3.2 Diff 查询 | 已完成 | 新增 `GET /specs/{id}/diff`，返回 `NEW/CHANGED/MATCHED/CONFLICT/SKIPPED`、assetApiId 和 diffSummary。 |
+| WP6-3.3 Sync preview | 部分完成 | diffSummary 已提供 create/update/review/skip 摘要；独立 preview API 未拆出，当前由 diff 响应承载。 |
+| WP6-3.4 Confirm sync | 已完成 | 新增 `POST /specs/{id}/sync`，通过 WP3 `AssetApiService` 创建/更新 API 资产，逐项容错并写 `api_automation.api_synced` 审计。 |
+| WP6-3.5 追踪关系 | 部分完成 | endpoint snapshot 已持久化 `asset_api_id` 和 sync 证据；后续 automation case/script 关系待 M4/M5。 |
 | WP6-7.1 API client | 已完成 | 新增 `portal-web/src/api/apiAutomation.ts` 和 Vitest。 |
 | WP6-7.2 权限入口 | 已完成 | 新增 `#api-automation` 导航入口和 `apiAutomation:read/import` 控制。 |
-| WP6-7.3 规格面板 | 部分完成 | 已完成导入表单、规格列表、状态、错误提示和 endpoint snapshot；diff/generation/run 面板待后续后端能力。 |
+| WP6-7.3 规格面板 | 已完成 | 已完成导入表单、规格列表、状态、错误提示和 endpoint snapshot。 |
+| WP6-7.4 Diff 面板 | 部分完成 | 已支持刷新 diff、展示状态/assetApiId/reason、触发同步；更细筛选和部分成功详情表待 M6 UI 收敛。 |
 | WP6-8.1 后端测试 | 部分完成 | 已覆盖 parser、controller、权限、OpenAPI 契约和安全配置；全量回归仍需发布前执行。 |
 | WP6-8.2 前端测试 | 部分完成 | 已覆盖 API helper 和权限 helper；复杂页面交互待后续 Playwright smoke。 |
 | WP6-8.3 DB validation | 已完成 | `run_wp1_db_validation.sh` 已纳入 WP6 schema/权限校验。 |
 
-下一步建议按 M3 推进 WP6-3.x：实现 endpoint 与 WP3 API 资产匹配、diff 查询、sync preview、人工确认同步和审计明细。
+下一步建议按 M4 推进 WP6-4.x：实现生成任务、WP5/WP3 输入适配、WP2 Prompt 调用、结构化输出校验、确定性 fallback 和生成审计。

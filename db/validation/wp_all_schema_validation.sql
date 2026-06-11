@@ -430,7 +430,10 @@ with expected(table_name, column_name) as (
         ('api_automation_endpoint_snapshot','id'), ('api_automation_endpoint_snapshot','spec_id'),
         ('api_automation_endpoint_snapshot','project_id'), ('api_automation_endpoint_snapshot','http_method'),
         ('api_automation_endpoint_snapshot','path'), ('api_automation_endpoint_snapshot','operation_id'),
-        ('api_automation_endpoint_snapshot','schema_digest'), ('api_automation_endpoint_snapshot','diff_status')
+        ('api_automation_endpoint_snapshot','schema_digest'), ('api_automation_endpoint_snapshot','diff_status'),
+        ('api_automation_endpoint_snapshot','asset_api_id'), ('api_automation_endpoint_snapshot','diff_summary_json'),
+        ('api_automation_endpoint_snapshot','last_diff_at'), ('api_automation_endpoint_snapshot','synced_at'),
+        ('api_automation_endpoint_snapshot','sync_error_summary')
 ),
 missing as (
     select e.table_name || '.' || e.column_name as item
@@ -538,6 +541,8 @@ with expected(table_name, index_name) as (
         ('api_automation_endpoint_snapshot','uk_api_automation_endpoint_spec_method_path'),
         ('api_automation_endpoint_snapshot','idx_api_automation_endpoint_project_method'),
         ('api_automation_endpoint_snapshot','idx_api_automation_endpoint_spec_diff'),
+        ('api_automation_endpoint_snapshot','idx_api_automation_endpoint_asset_api'),
+        ('api_automation_endpoint_snapshot','idx_api_automation_endpoint_last_diff'),
         ('test_design_report_archive_approval','idx_test_design_report_archive_approval_archive_created'),
         ('test_design_report_archive_approval','idx_test_design_report_archive_approval_project_type_status'),
         ('test_design_report_archive_approval','idx_test_design_report_archive_approval_work_order'),

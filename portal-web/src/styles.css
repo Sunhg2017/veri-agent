@@ -1253,6 +1253,14 @@ tbody tr:hover td {
   font-size: var(--font-size-sm);
 }
 
+.api-automation-panel-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-xs);
+  flex-wrap: wrap;
+}
+
 .api-automation-spec-textarea {
   min-height: 260px;
   resize: vertical;
@@ -1276,6 +1284,30 @@ tbody tr:hover td {
 .api-path {
   font-family: var(--font-mono);
   overflow-wrap: anywhere;
+}
+
+.api-automation-diff-reason {
+  display: block;
+  max-width: 220px;
+  margin-top: 4px;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.api-automation-diff-reason.error {
+  color: var(--danger-dark);
+}
+
+.api-automation-sync-summary {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-sm);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
 }
 
 .method-pill,

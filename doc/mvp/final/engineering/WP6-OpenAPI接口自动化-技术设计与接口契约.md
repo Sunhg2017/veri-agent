@@ -165,6 +165,7 @@ Runner 必须执行以下限制：
 |---|---|
 | `api_automation.spec.created` | OpenAPI 源 |
 | `api_automation.spec.parsed` | 解析任务 |
+| `api_automation.api_diffed` | WP3 API diff |
 | `api_automation.api_synced` | WP3 API sync |
 | `api_automation.generation.created` | 生成任务 |
 | `api_automation.bundle.generated` | 脚本包 |
@@ -196,12 +197,14 @@ Runner 必须执行以下限制：
 
 ## 12. 当前实现切片（2026-06-11）
 
-本轮已实现 M1/M2 基础控制面切片：
+当前已实现 M1/M2/M3 控制面切片：
 
 - DB：新增 `api_automation_spec`、`api_automation_endpoint_snapshot`、WP6 权限 seed、角色默认授权和 DB validation。
+- DB M3：新增 endpoint snapshot 的 `asset_api_id`、`diff_summary_json`、`last_diff_at`、`synced_at`、`sync_error_summary`，用于持久化 WP3 API 匹配和同步证据。
 - 后端：新增 `/api/v1/api-automation/health`、`/specs` 创建/列表、`/specs/{id}` 详情、`/specs/{id}/parse` 重解析。
+- 后端 M3：新增 `/specs/{id}/diff` 和 `/specs/{id}/sync`；diff 按 method + path 匹配 WP3 API 资产，输出 `NEW/CHANGED/MATCHED/CONFLICT/SKIPPED`，sync 通过 WP3 `AssetApiService` 创建/更新 API 资产并逐项返回同步明细。
 - Parser：支持 OpenAPI 3.x JSON/YAML，抽取 method/path/operationId/tags/参数数/requestBody/响应码/schemaDigest，并对 Authorization、apiKey、token、cookie、password、secret 等敏感示例脱敏。
 - 权限：除 health 外，规格导入、查询、重解析均按项目 scope 校验 `apiAutomation:*` 权限。
-- 前端：新增 `#api-automation` 入口、API helper、权限控制和规格导入/列表/endpoint snapshot 基础工作台。
+- 前端：新增 `#api-automation` 入口、API helper、权限控制、规格导入/列表/endpoint snapshot、diff 刷新和 WP3 API 同步入口。
 
-本轮未实现：WP3 diff/sync、WP2 生成任务、脚本包评审、runner 执行、运行结果、WP6 quality gate 聚合脚本。这些仍按研发任务拆解的 M3-M7 继续推进。
+本轮未实现：WP2 生成任务、脚本包评审、runner 执行、运行结果、WP6 quality gate 聚合脚本。这些仍按研发任务拆解的 M4-M7 继续推进。

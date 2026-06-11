@@ -21,6 +21,11 @@ public record ApiAutomationEndpointSnapshot(
         String responseStatuses,
         String schemaDigest,
         String diffStatus,
+        UUID assetApiId,
+        String diffSummaryJson,
+        Instant lastDiffAt,
+        Instant syncedAt,
+        String syncErrorSummary,
         Instant createdAt,
         Instant updatedAt
 ) {

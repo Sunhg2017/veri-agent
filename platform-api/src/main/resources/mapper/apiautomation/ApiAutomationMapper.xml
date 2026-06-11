@@ -43,6 +43,11 @@
             <arg column="response_statuses" javaType="java.lang.String"/>
             <arg column="schema_digest" javaType="java.lang.String"/>
             <arg column="diff_status" javaType="java.lang.String"/>
+            <arg column="asset_api_id" javaType="java.util.UUID"/>
+            <arg column="diff_summary_json" javaType="java.lang.String"/>
+            <arg column="last_diff_at" javaType="java.time.Instant"/>
+            <arg column="synced_at" javaType="java.time.Instant"/>
+            <arg column="sync_error_summary" javaType="java.lang.String"/>
             <arg column="created_at" javaType="java.time.Instant"/>
             <arg column="updated_at" javaType="java.time.Instant"/>
         </constructor>
@@ -57,7 +62,9 @@
 
     <sql id="endpointColumns">
         id, spec_id, project_id, service_name, operation_id, http_method, path, summary, tags,
-        parameter_count, request_body_present, response_statuses, schema_digest, diff_status, created_at, updated_at
+        parameter_count, request_body_present, response_statuses, schema_digest, diff_status,
+        asset_api_id, diff_summary_json::text as diff_summary_json, last_diff_at, synced_at,
+        sync_error_summary, created_at, updated_at
     </sql>
 
     <sql id="specWhere">
@@ -145,13 +152,27 @@
     <insert id="insertEndpointSnapshot">
         insert into api_automation_endpoint_snapshot (
             id, spec_id, project_id, service_name, operation_id, http_method, path, summary, tags,
-            parameter_count, request_body_present, response_statuses, schema_digest, diff_status, created_at, updated_at
+            parameter_count, request_body_present, response_statuses, schema_digest, diff_status,
+            asset_api_id, diff_summary_json, last_diff_at, synced_at, sync_error_summary, created_at, updated_at
         ) values (
             #{id}, #{specId}, #{projectId}, #{serviceName}, #{operationId}, #{httpMethod}, #{path}, #{summary}, #{tags},
             #{parameterCount}, #{requestBodyPresent}, #{responseStatuses}, #{schemaDigest}, #{diffStatus},
+            #{assetApiId}, cast(coalesce(#{diffSummaryJson}, '{}') as jsonb), #{lastDiffAt}, #{syncedAt}, #{syncErrorSummary},
             #{createdAt}, #{updatedAt}
         )
     </insert>
+
+    <update id="updateEndpointSnapshotDiff">
+        update api_automation_endpoint_snapshot set
+            asset_api_id = #{assetApiId},
+            diff_status = #{diffStatus},
+            diff_summary_json = cast(coalesce(#{diffSummaryJson}, '{}') as jsonb),
+            last_diff_at = #{lastDiffAt},
+            synced_at = #{syncedAt},
+            sync_error_summary = #{syncErrorSummary},
+            updated_at = #{updatedAt}
+        where id = #{id}
+    </update>
 
     <select id="endpointSnapshots" resultMap="endpointSnapshotMap">
         select <include refid="endpointColumns"/>

@@ -1,6 +1,8 @@
 package com.songhg.veri.agent.apiautomation.application.view;
 
 import io.swagger.v3.oas.annotations.media.Schema;
+import java.time.Instant;
+import java.util.Map;
 import java.util.UUID;
 
 public record ApiAutomationEndpointSnapshotResponse(
@@ -16,6 +18,11 @@ public record ApiAutomationEndpointSnapshotResponse(
         boolean requestBodyPresent,
         String responseStatuses,
         String schemaDigest,
-        String diffStatus
+        String diffStatus,
+        UUID assetApiId,
+        Map<String, Object> diffSummary,
+        Instant lastDiffAt,
+        Instant syncedAt,
+        String syncErrorSummary
 ) {
 }
