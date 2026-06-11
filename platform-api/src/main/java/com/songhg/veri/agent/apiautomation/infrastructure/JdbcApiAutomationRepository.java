@@ -2,7 +2,9 @@ package com.songhg.veri.agent.apiautomation.infrastructure;
 
 import com.songhg.veri.agent.apiautomation.application.port.ApiAutomationRepository;
 import com.songhg.veri.agent.apiautomation.application.query.ApiAutomationSpecQuery;
+import com.songhg.veri.agent.apiautomation.domain.ApiAutomationCase;
 import com.songhg.veri.agent.apiautomation.domain.ApiAutomationEndpointSnapshot;
+import com.songhg.veri.agent.apiautomation.domain.ApiAutomationGenerationTask;
 import com.songhg.veri.agent.apiautomation.domain.ApiAutomationSpec;
 import com.songhg.veri.agent.apiautomation.infrastructure.mapper.ApiAutomationMapper;
 import java.util.List;
@@ -47,8 +49,33 @@ public class JdbcApiAutomationRepository implements ApiAutomationRepository {
     }
 
     @Override
+    public void insertGenerationTask(ApiAutomationGenerationTask task) {
+        mapper.insertGenerationTask(task);
+    }
+
+    @Override
+    public void insertAutomationCase(ApiAutomationCase automationCase) {
+        mapper.insertAutomationCase(automationCase);
+    }
+
+    @Override
     public Optional<ApiAutomationSpec> spec(UUID id) {
         return Optional.ofNullable(mapper.spec(id));
+    }
+
+    @Override
+    public Optional<ApiAutomationGenerationTask> generationTask(UUID id) {
+        return Optional.ofNullable(mapper.generationTask(id));
+    }
+
+    @Override
+    public Optional<ApiAutomationGenerationTask> generationTaskByProjectAndDigest(String projectId, String requestDigest) {
+        return Optional.ofNullable(mapper.generationTaskByProjectAndDigest(projectId, requestDigest));
+    }
+
+    @Override
+    public Optional<ApiAutomationGenerationTask> generationTaskByProjectAndKey(String projectId, String requestKey) {
+        return Optional.ofNullable(mapper.generationTaskByProjectAndKey(projectId, requestKey));
     }
 
     @Override
@@ -72,7 +99,17 @@ public class JdbcApiAutomationRepository implements ApiAutomationRepository {
     }
 
     @Override
+    public List<ApiAutomationCase> automationCases(UUID taskId) {
+        return mapper.automationCases(taskId);
+    }
+
+    @Override
     public Optional<String> specProjectScopeId(UUID id) {
         return Optional.ofNullable(mapper.specProjectScopeId(id));
+    }
+
+    @Override
+    public Optional<String> generationTaskProjectScopeId(UUID id) {
+        return Optional.ofNullable(mapper.generationTaskProjectScopeId(id));
     }
 }

@@ -1,7 +1,9 @@
 package com.songhg.veri.agent.apiautomation.application.port;
 
 import com.songhg.veri.agent.apiautomation.application.query.ApiAutomationSpecQuery;
+import com.songhg.veri.agent.apiautomation.domain.ApiAutomationCase;
 import com.songhg.veri.agent.apiautomation.domain.ApiAutomationEndpointSnapshot;
+import com.songhg.veri.agent.apiautomation.domain.ApiAutomationGenerationTask;
 import com.songhg.veri.agent.apiautomation.domain.ApiAutomationSpec;
 import java.util.List;
 import java.util.Optional;
@@ -19,7 +21,17 @@ public interface ApiAutomationRepository {
 
     void updateEndpointSnapshotDiff(ApiAutomationEndpointSnapshot snapshot);
 
+    void insertGenerationTask(ApiAutomationGenerationTask task);
+
+    void insertAutomationCase(ApiAutomationCase automationCase);
+
     Optional<ApiAutomationSpec> spec(UUID id);
+
+    Optional<ApiAutomationGenerationTask> generationTask(UUID id);
+
+    Optional<ApiAutomationGenerationTask> generationTaskByProjectAndDigest(String projectId, String requestDigest);
+
+    Optional<ApiAutomationGenerationTask> generationTaskByProjectAndKey(String projectId, String requestKey);
 
     Optional<ApiAutomationSpec> activeSpecByProjectAndDigest(String projectId, String specDigest);
 
@@ -29,5 +41,9 @@ public interface ApiAutomationRepository {
 
     List<ApiAutomationEndpointSnapshot> endpointSnapshots(UUID specId);
 
+    List<ApiAutomationCase> automationCases(UUID taskId);
+
     Optional<String> specProjectScopeId(UUID id);
+
+    Optional<String> generationTaskProjectScopeId(UUID id);
 }

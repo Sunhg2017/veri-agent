@@ -1,7 +1,9 @@
 package com.songhg.veri.agent.apiautomation.infrastructure.mapper;
 
 import com.songhg.veri.agent.apiautomation.application.query.ApiAutomationSpecQuery;
+import com.songhg.veri.agent.apiautomation.domain.ApiAutomationCase;
 import com.songhg.veri.agent.apiautomation.domain.ApiAutomationEndpointSnapshot;
+import com.songhg.veri.agent.apiautomation.domain.ApiAutomationGenerationTask;
 import com.songhg.veri.agent.apiautomation.domain.ApiAutomationSpec;
 import java.util.List;
 import java.util.UUID;
@@ -28,6 +30,8 @@ public interface ApiAutomationMapper {
 
     String specProjectScopeId(@Param("id") UUID id);
 
+    String generationTaskProjectScopeId(@Param("id") UUID id);
+
     void deleteEndpointSnapshots(@Param("specId") UUID specId);
 
     void insertEndpointSnapshot(ApiAutomationEndpointSnapshot snapshot);
@@ -35,4 +39,22 @@ public interface ApiAutomationMapper {
     void updateEndpointSnapshotDiff(ApiAutomationEndpointSnapshot snapshot);
 
     List<ApiAutomationEndpointSnapshot> endpointSnapshots(@Param("specId") UUID specId);
+
+    void insertGenerationTask(ApiAutomationGenerationTask task);
+
+    void insertAutomationCase(ApiAutomationCase automationCase);
+
+    ApiAutomationGenerationTask generationTask(@Param("id") UUID id);
+
+    ApiAutomationGenerationTask generationTaskByProjectAndDigest(
+            @Param("projectId") String projectId,
+            @Param("requestDigest") String requestDigest
+    );
+
+    ApiAutomationGenerationTask generationTaskByProjectAndKey(
+            @Param("projectId") String projectId,
+            @Param("requestKey") String requestKey
+    );
+
+    List<ApiAutomationCase> automationCases(@Param("taskId") UUID taskId);
 }

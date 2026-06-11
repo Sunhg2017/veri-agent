@@ -19,4 +19,9 @@ public class ApiAutomationScopeService {
         return repository.specProjectScopeId(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "OpenAPI 规格不存在: " + id));
     }
+
+    public String generationTaskProjectScopeId(UUID id) {
+        return repository.generationTaskProjectScopeId(id)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "接口自动化生成任务不存在: " + id));
+    }
 }

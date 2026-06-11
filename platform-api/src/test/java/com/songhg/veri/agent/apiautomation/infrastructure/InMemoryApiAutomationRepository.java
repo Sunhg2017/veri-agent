@@ -2,7 +2,9 @@ package com.songhg.veri.agent.apiautomation.infrastructure;
 
 import com.songhg.veri.agent.apiautomation.application.port.ApiAutomationRepository;
 import com.songhg.veri.agent.apiautomation.application.query.ApiAutomationSpecQuery;
+import com.songhg.veri.agent.apiautomation.domain.ApiAutomationCase;
 import com.songhg.veri.agent.apiautomation.domain.ApiAutomationEndpointSnapshot;
+import com.songhg.veri.agent.apiautomation.domain.ApiAutomationGenerationTask;
 import com.songhg.veri.agent.apiautomation.domain.ApiAutomationSpec;
 import java.util.Comparator;
 import java.util.List;
@@ -22,6 +24,8 @@ public class InMemoryApiAutomationRepository implements ApiAutomationRepository 
 
     private final ConcurrentHashMap<UUID, ApiAutomationSpec> specs = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<UUID, ApiAutomationEndpointSnapshot> endpointSnapshots = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<UUID, ApiAutomationGenerationTask> generationTasks = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<UUID, ApiAutomationCase> automationCases = new ConcurrentHashMap<>();
 
     @Override
     public void insertSpec(ApiAutomationSpec spec) {
@@ -49,8 +53,39 @@ public class InMemoryApiAutomationRepository implements ApiAutomationRepository 
     }
 
     @Override
+    public void insertGenerationTask(ApiAutomationGenerationTask task) {
+        generationTasks.put(task.id(), task);
+    }
+
+    @Override
+    public void insertAutomationCase(ApiAutomationCase automationCase) {
+        automationCases.put(automationCase.id(), automationCase);
+    }
+
+    @Override
     public Optional<ApiAutomationSpec> spec(UUID id) {
         return Optional.ofNullable(specs.get(id));
+    }
+
+    @Override
+    public Optional<ApiAutomationGenerationTask> generationTask(UUID id) {
+        return Optional.ofNullable(generationTasks.get(id));
+    }
+
+    @Override
+    public Optional<ApiAutomationGenerationTask> generationTaskByProjectAndDigest(String projectId, String requestDigest) {
+        return generationTasks.values().stream()
+                .filter(task -> projectId.equals(task.projectId()))
+                .filter(task -> requestDigest.equals(task.requestDigest()))
+                .findFirst();
+    }
+
+    @Override
+    public Optional<ApiAutomationGenerationTask> generationTaskByProjectAndKey(String projectId, String requestKey) {
+        return generationTasks.values().stream()
+                .filter(task -> projectId.equals(task.projectId()))
+                .filter(task -> requestKey.equals(task.requestKey()))
+                .findFirst();
     }
 
     @Override
@@ -85,8 +120,22 @@ public class InMemoryApiAutomationRepository implements ApiAutomationRepository 
     }
 
     @Override
+    public List<ApiAutomationCase> automationCases(UUID taskId) {
+        return automationCases.values().stream()
+                .filter(automationCase -> taskId.equals(automationCase.taskId()))
+                .sorted(Comparator.comparing(ApiAutomationCase::path)
+                        .thenComparing(ApiAutomationCase::coverageType))
+                .toList();
+    }
+
+    @Override
     public Optional<String> specProjectScopeId(UUID id) {
         return spec(id).map(ApiAutomationSpec::projectId);
+    }
+
+    @Override
+    public Optional<String> generationTaskProjectScopeId(UUID id) {
+        return generationTask(id).map(ApiAutomationGenerationTask::projectId);
     }
 
     private Stream<ApiAutomationSpec> filteredSpecs(ApiAutomationSpecQuery query) {

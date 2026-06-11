@@ -11,6 +11,7 @@ import {
 import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
 import type { CurrentUser } from '../api/auth';
 import {
+  createApiAutomationGenerationTask,
   createApiAutomationSpec,
   fetchApiAutomationDiff,
   fetchApiAutomationHealth,
@@ -19,6 +20,7 @@ import {
   parseApiAutomationSpec,
   syncApiAutomationSpec,
   type ApiAutomationEndpointSnapshot,
+  type ApiAutomationGenerationTaskDetail,
   type ApiAutomationHealth,
   type ApiAutomationSpec,
   type ApiAutomationSpecDetail,
@@ -51,6 +53,7 @@ const initialDraft: SpecDraft = {
 export function ApiAutomationWorkbench(props: { signedIn: boolean; currentUser: CurrentUser | null }) {
   const canRead = hasPermission(props.currentUser, 'apiAutomation:read');
   const canImport = canUseButton(props.currentUser, 'apiAutomation:import');
+  const canGenerate = canUseButton(props.currentUser, 'apiAutomation:generate');
   const [health, setHealth] = useState<ApiAutomationHealth | null>(null);
   const [specs, setSpecs] = useState<ApiAutomationSpec[]>([]);
   const [selectedSpecId, setSelectedSpecId] = useState('');
@@ -62,7 +65,9 @@ export function ApiAutomationWorkbench(props: { signedIn: boolean; currentUser: 
   const [parseState, setParseState] = useState<WorkState>({ loading: false });
   const [diffState, setDiffState] = useState<WorkState>({ loading: false });
   const [syncState, setSyncState] = useState<WorkState>({ loading: false });
+  const [generationState, setGenerationState] = useState<WorkState>({ loading: false });
   const [lastSync, setLastSync] = useState<ApiAutomationSyncResponse | null>(null);
+  const [lastGeneration, setLastGeneration] = useState<ApiAutomationGenerationTaskDetail | null>(null);
 
   const summary = useMemo(() => {
     const parsed = specs.filter((spec) => spec.status === 'PARSED').length;
@@ -153,6 +158,7 @@ export function ApiAutomationWorkbench(props: { signedIn: boolean; currentUser: 
       setDetail(result.data);
       setParseState({ loading: false, success: '解析已刷新' });
       setLastSync(null);
+      setLastGeneration(null);
       await refreshSpecs();
     } catch (error: unknown) {
       setParseState({ loading: false, error: error instanceof Error ? error.message : '解析失败' });
@@ -177,11 +183,31 @@ export function ApiAutomationWorkbench(props: { signedIn: boolean; currentUser: 
     try {
       const result = await syncApiAutomationSpec(selectedSpecId);
       setLastSync(result.data);
+      setLastGeneration(null);
       setDetail((current) => current ? { ...current, endpoints: result.data.endpoints } : current);
       setSyncState({ loading: false, success: syncSummaryText(result.data.counts) });
       await refreshSpecs();
     } catch (error: unknown) {
       setSyncState({ loading: false, error: error instanceof Error ? error.message : '同步失败' });
+    }
+  }
+
+  async function onGenerateFallbackCases() {
+    if (!selectedSpecId || !detail || !canGenerate) return;
+    setGenerationState({ loading: true });
+    try {
+      const result = await createApiAutomationGenerationTask({
+        projectId: detail.spec.projectId,
+        specId: selectedSpecId,
+        coverageTypes: ['SMOKE', 'EXCEPTION'],
+        generationMode: 'FALLBACK_ONLY',
+        caseCountPerApi: 2,
+        requestKey: `wp6-fallback-${selectedSpecId}`
+      });
+      setLastGeneration(result.data);
+      setGenerationState({ loading: false, success: generationSummaryText(result.data) });
+    } catch (error: unknown) {
+      setGenerationState({ loading: false, error: error instanceof Error ? error.message : '生成失败' });
     }
   }
 
@@ -329,6 +355,10 @@ export function ApiAutomationWorkbench(props: { signedIn: boolean; currentUser: 
               <Upload size={15} />
               同步
             </button>
+            <button className="btn btn-secondary btn-sm" type="button" onClick={() => void onGenerateFallbackCases()} disabled={!selectedSpecId || !canGenerate || generationState.loading}>
+              <ListChecks size={15} />
+              生成用例
+            </button>
             <button className="btn btn-ghost btn-sm" type="button" onClick={() => void onReparse()} disabled={!selectedSpecId || !canImport || parseState.loading}>
               <RotateCcw size={15} />
               重解析
@@ -343,7 +373,10 @@ export function ApiAutomationWorkbench(props: { signedIn: boolean; currentUser: 
           {diffState.success && <div className="document-state-line success">{diffState.success}</div>}
           {syncState.error && <div className="document-state-line error">{syncState.error}</div>}
           {syncState.success && <div className="document-state-line success">{syncState.success}</div>}
+          {generationState.error && <div className="document-state-line error">{generationState.error}</div>}
+          {generationState.success && <div className="document-state-line success">{generationState.success}</div>}
           {lastSync && <SyncSummary sync={lastSync} />}
+          {lastGeneration && <GenerationSummary generation={lastGeneration} />}
           <EndpointTable endpoints={detail?.endpoints ?? []} loading={detailState.loading} />
         </div>
       </section>
@@ -408,6 +441,15 @@ function SyncSummary(props: { sync: ApiAutomationSyncResponse }) {
   );
 }
 
+function GenerationSummary(props: { generation: ApiAutomationGenerationTaskDetail }) {
+  return (
+    <div className="api-automation-sync-summary">
+      <span>{generationSummaryText(props.generation)}</span>
+      <span>{props.generation.cases.length} 条草稿</span>
+    </div>
+  );
+}
+
 function MetricCard(props: { label: string; value: string; icon: ReactNode }) {
   return (
     <div className="metric-card">
@@ -457,6 +499,10 @@ function diffSummaryText(counts: Record<string, number>) {
 
 function syncSummaryText(counts: Record<string, number>) {
   return `同步：CREATED ${counts.CREATED ?? 0} · UPDATED ${counts.UPDATED ?? 0} · FAILED ${counts.FAILED ?? 0}`;
+}
+
+function generationSummaryText(generation: ApiAutomationGenerationTaskDetail) {
+  return `生成：${generation.task.status} · API ${generation.task.apiCount} · CASE ${generation.task.caseCount}`;
 }
 
 function shortId(value?: string) {

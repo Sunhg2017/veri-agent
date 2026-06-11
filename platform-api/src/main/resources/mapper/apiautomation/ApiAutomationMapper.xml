@@ -53,6 +53,54 @@
         </constructor>
     </resultMap>
 
+    <resultMap id="generationTaskMap" type="com.songhg.veri.agent.apiautomation.domain.ApiAutomationGenerationTask">
+        <constructor>
+            <arg column="id" javaType="java.util.UUID"/>
+            <arg column="project_id" javaType="java.lang.String"/>
+            <arg column="spec_id" javaType="java.util.UUID"/>
+            <arg column="request_key" javaType="java.lang.String"/>
+            <arg column="request_digest" javaType="java.lang.String"/>
+            <arg column="generation_mode" javaType="java.lang.String"/>
+            <arg column="coverage_types_json" javaType="java.lang.String"/>
+            <arg column="status" javaType="java.lang.String"/>
+            <arg column="prompt_key" javaType="java.lang.String"/>
+            <arg column="prompt_version" javaType="java.lang.String"/>
+            <arg column="model_invocation_id" javaType="java.lang.String"/>
+            <arg column="fallback_used" javaType="_boolean"/>
+            <arg column="api_count" javaType="_int"/>
+            <arg column="case_count" javaType="_int"/>
+            <arg column="input_summary_json" javaType="java.lang.String"/>
+            <arg column="error_summary" javaType="java.lang.String"/>
+            <arg column="created_by" javaType="java.lang.String"/>
+            <arg column="updated_by" javaType="java.lang.String"/>
+            <arg column="created_at" javaType="java.time.Instant"/>
+            <arg column="updated_at" javaType="java.time.Instant"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="automationCaseMap" type="com.songhg.veri.agent.apiautomation.domain.ApiAutomationCase">
+        <constructor>
+            <arg column="id" javaType="java.util.UUID"/>
+            <arg column="task_id" javaType="java.util.UUID"/>
+            <arg column="project_id" javaType="java.lang.String"/>
+            <arg column="spec_id" javaType="java.util.UUID"/>
+            <arg column="endpoint_snapshot_id" javaType="java.util.UUID"/>
+            <arg column="asset_api_id" javaType="java.util.UUID"/>
+            <arg column="asset_test_case_id" javaType="java.util.UUID"/>
+            <arg column="title" javaType="java.lang.String"/>
+            <arg column="http_method" javaType="java.lang.String"/>
+            <arg column="path" javaType="java.lang.String"/>
+            <arg column="coverage_type" javaType="java.lang.String"/>
+            <arg column="expected_status" javaType="_int"/>
+            <arg column="assertion_summary_json" javaType="java.lang.String"/>
+            <arg column="request_template_json" javaType="java.lang.String"/>
+            <arg column="source" javaType="java.lang.String"/>
+            <arg column="status" javaType="java.lang.String"/>
+            <arg column="created_at" javaType="java.time.Instant"/>
+            <arg column="updated_at" javaType="java.time.Instant"/>
+        </constructor>
+    </resultMap>
+
     <sql id="specColumns">
         id, project_id, source_type, source_ref, name, version_label, spec_digest, content_size_bytes,
         sanitized_spec_json::text as sanitized_spec_json, parse_summary_json::text as parse_summary_json,
@@ -65,6 +113,22 @@
         parameter_count, request_body_present, response_statuses, schema_digest, diff_status,
         asset_api_id, diff_summary_json::text as diff_summary_json, last_diff_at, synced_at,
         sync_error_summary, created_at, updated_at
+    </sql>
+
+    <sql id="generationTaskColumns">
+        id, project_id, spec_id, request_key, request_digest, generation_mode,
+        coverage_types_json::text as coverage_types_json, status, prompt_key, prompt_version,
+        model_invocation_id, fallback_used, api_count, case_count,
+        input_summary_json::text as input_summary_json, error_summary, created_by, updated_by,
+        created_at, updated_at
+    </sql>
+
+    <sql id="automationCaseColumns">
+        id, task_id, project_id, spec_id, endpoint_snapshot_id, asset_api_id, asset_test_case_id,
+        title, http_method, path, coverage_type, expected_status,
+        assertion_summary_json::text as assertion_summary_json,
+        request_template_json::text as request_template_json,
+        source, status, created_at, updated_at
     </sql>
 
     <sql id="specWhere">
@@ -144,6 +208,12 @@
         where id = #{id}
     </select>
 
+    <select id="generationTaskProjectScopeId" resultType="string">
+        select project_id
+        from api_automation_generation_task
+        where id = #{id}
+    </select>
+
     <delete id="deleteEndpointSnapshots">
         delete from api_automation_endpoint_snapshot
         where spec_id = #{specId}
@@ -179,5 +249,63 @@
         from api_automation_endpoint_snapshot
         where spec_id = #{specId}
         order by path asc, http_method asc
+    </select>
+
+    <insert id="insertGenerationTask">
+        insert into api_automation_generation_task (
+            id, project_id, spec_id, request_key, request_digest, generation_mode,
+            coverage_types_json, status, prompt_key, prompt_version, model_invocation_id,
+            fallback_used, api_count, case_count, input_summary_json, error_summary,
+            created_by, updated_by, created_at, updated_at
+        ) values (
+            #{id}, #{projectId}, #{specId}, #{requestKey}, #{requestDigest}, #{generationMode},
+            cast(coalesce(#{coverageTypesJson}, '[]') as jsonb), #{status}, #{promptKey}, #{promptVersion},
+            #{modelInvocationId}, #{fallbackUsed}, #{apiCount}, #{caseCount},
+            cast(coalesce(#{inputSummaryJson}, '{}') as jsonb), #{errorSummary},
+            #{createdBy}, #{updatedBy}, #{createdAt}, #{updatedAt}
+        )
+    </insert>
+
+    <insert id="insertAutomationCase">
+        insert into api_automation_case (
+            id, task_id, project_id, spec_id, endpoint_snapshot_id, asset_api_id, asset_test_case_id,
+            title, http_method, path, coverage_type, expected_status,
+            assertion_summary_json, request_template_json, source, status, created_at, updated_at
+        ) values (
+            #{id}, #{taskId}, #{projectId}, #{specId}, #{endpointSnapshotId}, #{assetApiId}, #{assetTestCaseId},
+            #{title}, #{httpMethod}, #{path}, #{coverageType}, #{expectedStatus},
+            cast(coalesce(#{assertionSummaryJson}, '{}') as jsonb),
+            cast(coalesce(#{requestTemplateJson}, '{}') as jsonb),
+            #{source}, #{status}, #{createdAt}, #{updatedAt}
+        )
+    </insert>
+
+    <select id="generationTask" resultMap="generationTaskMap">
+        select <include refid="generationTaskColumns"/>
+        from api_automation_generation_task
+        where id = #{id}
+    </select>
+
+    <select id="generationTaskByProjectAndDigest" resultMap="generationTaskMap">
+        select <include refid="generationTaskColumns"/>
+        from api_automation_generation_task
+        where project_id = #{projectId}
+          and request_digest = #{requestDigest}
+        limit 1
+    </select>
+
+    <select id="generationTaskByProjectAndKey" resultMap="generationTaskMap">
+        select <include refid="generationTaskColumns"/>
+        from api_automation_generation_task
+        where project_id = #{projectId}
+          and request_key = #{requestKey}
+        limit 1
+    </select>
+
+    <select id="automationCases" resultMap="automationCaseMap">
+        select <include refid="automationCaseColumns"/>
+        from api_automation_case
+        where task_id = #{taskId}
+        order by path asc, coverage_type asc
     </select>
 </mapper>

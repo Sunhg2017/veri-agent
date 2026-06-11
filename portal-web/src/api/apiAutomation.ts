@@ -112,6 +112,61 @@ export interface ApiAutomationSyncResponse {
   endpoints: ApiAutomationEndpointSnapshot[];
 }
 
+export interface ApiAutomationGenerationTaskPayload {
+  projectId: string;
+  specId: string;
+  assetApiIds?: string[];
+  assetTestCaseIds?: string[];
+  coverageTypes?: string[];
+  generationMode?: string;
+  caseCountPerApi?: number;
+  requestKey?: string;
+}
+
+export interface ApiAutomationCase {
+  id: string;
+  endpointSnapshotId: string;
+  assetApiId?: string;
+  assetTestCaseId?: string;
+  title: string;
+  httpMethod: string;
+  path: string;
+  coverageType: string;
+  expectedStatus: number;
+  assertionSummary: Record<string, unknown>;
+  requestTemplate: Record<string, unknown>;
+  source: string;
+  status: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface ApiAutomationGenerationTask {
+  id: string;
+  projectId: string;
+  specId: string;
+  requestKey?: string;
+  requestDigest?: string;
+  generationMode: string;
+  coverageTypes: string[];
+  status: string;
+  promptKey?: string;
+  promptVersion?: string;
+  modelInvocationId?: string;
+  fallbackUsed: boolean;
+  apiCount: number;
+  caseCount: number;
+  inputSummary: Record<string, unknown>;
+  errorSummary?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface ApiAutomationGenerationTaskDetail {
+  task: ApiAutomationGenerationTask;
+  cases: ApiAutomationCase[];
+}
+
 export async function fetchApiAutomationHealth(): Promise<ApiResponse<ApiAutomationHealth>> {
   const response = await requestJson<unknown>(`${API_AUTOMATION_BASE}/health`);
   return { ...response, data: normalizeApiAutomationHealth(response.data) };
@@ -160,6 +215,21 @@ export async function syncApiAutomationSpec(
     body: JSON.stringify(payload)
   });
   return { ...response, data: normalizeApiAutomationSyncResponse(response.data) };
+}
+
+export async function createApiAutomationGenerationTask(
+  payload: ApiAutomationGenerationTaskPayload
+): Promise<ApiResponse<ApiAutomationGenerationTaskDetail>> {
+  const response = await requestJson<unknown>(`${API_AUTOMATION_BASE}/generation-tasks`, {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+  return { ...response, data: normalizeApiAutomationGenerationTaskDetail(response.data) };
+}
+
+export async function fetchApiAutomationGenerationTask(id: string): Promise<ApiResponse<ApiAutomationGenerationTaskDetail>> {
+  const response = await requestJson<unknown>(`${API_AUTOMATION_BASE}/generation-tasks/${encodeURIComponent(id)}`);
+  return { ...response, data: normalizeApiAutomationGenerationTaskDetail(response.data) };
 }
 
 export function normalizeApiAutomationHealth(input: unknown): ApiAutomationHealth {
@@ -271,6 +341,59 @@ export function normalizeApiAutomationSyncItem(input: unknown): ApiAutomationSyn
     beforeStatus: stringValue(read(value, 'beforeStatus', 'before_status'), 'UNKNOWN'),
     result: stringValue(read(value, 'result'), 'UNKNOWN'),
     message: optionalString(read(value, 'message'))
+  };
+}
+
+export function normalizeApiAutomationGenerationTaskDetail(input: unknown): ApiAutomationGenerationTaskDetail {
+  const value = objectValue(input);
+  return {
+    task: normalizeApiAutomationGenerationTask(read(value, 'task')),
+    cases: arrayValue(read(value, 'cases')).map(normalizeApiAutomationCase)
+  };
+}
+
+export function normalizeApiAutomationGenerationTask(input: unknown): ApiAutomationGenerationTask {
+  const value = objectValue(input);
+  return {
+    id: stringValue(read(value, 'id')),
+    projectId: stringValue(read(value, 'projectId', 'project_id')),
+    specId: stringValue(read(value, 'specId', 'spec_id')),
+    requestKey: optionalString(read(value, 'requestKey', 'request_key')),
+    requestDigest: optionalString(read(value, 'requestDigest', 'request_digest')),
+    generationMode: stringValue(read(value, 'generationMode', 'generation_mode'), 'FALLBACK_ONLY'),
+    coverageTypes: stringArray(read(value, 'coverageTypes', 'coverage_types')),
+    status: stringValue(read(value, 'status'), 'UNKNOWN'),
+    promptKey: optionalString(read(value, 'promptKey', 'prompt_key')),
+    promptVersion: optionalString(read(value, 'promptVersion', 'prompt_version')),
+    modelInvocationId: optionalString(read(value, 'modelInvocationId', 'model_invocation_id')),
+    fallbackUsed: booleanValue(read(value, 'fallbackUsed', 'fallback_used'), false),
+    apiCount: numberValue(read(value, 'apiCount', 'api_count'), 0),
+    caseCount: numberValue(read(value, 'caseCount', 'case_count'), 0),
+    inputSummary: objectValue(read(value, 'inputSummary', 'input_summary')),
+    errorSummary: optionalString(read(value, 'errorSummary', 'error_summary')),
+    createdAt: optionalString(read(value, 'createdAt', 'created_at')),
+    updatedAt: optionalString(read(value, 'updatedAt', 'updated_at'))
+  };
+}
+
+export function normalizeApiAutomationCase(input: unknown): ApiAutomationCase {
+  const value = objectValue(input);
+  return {
+    id: stringValue(read(value, 'id')),
+    endpointSnapshotId: stringValue(read(value, 'endpointSnapshotId', 'endpoint_snapshot_id')),
+    assetApiId: optionalString(read(value, 'assetApiId', 'asset_api_id')),
+    assetTestCaseId: optionalString(read(value, 'assetTestCaseId', 'asset_test_case_id')),
+    title: stringValue(read(value, 'title')),
+    httpMethod: stringValue(read(value, 'httpMethod', 'http_method'), 'GET'),
+    path: stringValue(read(value, 'path')),
+    coverageType: stringValue(read(value, 'coverageType', 'coverage_type'), 'SMOKE'),
+    expectedStatus: numberValue(read(value, 'expectedStatus', 'expected_status'), 200),
+    assertionSummary: objectValue(read(value, 'assertionSummary', 'assertion_summary')),
+    requestTemplate: objectValue(read(value, 'requestTemplate', 'request_template')),
+    source: stringValue(read(value, 'source'), 'FALLBACK'),
+    status: stringValue(read(value, 'status'), 'DRAFT'),
+    createdAt: optionalString(read(value, 'createdAt', 'created_at')),
+    updatedAt: optionalString(read(value, 'updatedAt', 'updated_at'))
   };
 }
 

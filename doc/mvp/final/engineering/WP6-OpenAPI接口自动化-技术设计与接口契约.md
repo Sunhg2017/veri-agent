@@ -6,8 +6,8 @@
 | 角色产出 | 资深服务端架构师 |
 | 文档性质 | 技术设计、数据模型、接口契约和安全约束 |
 | 当前口径 | `platform-api` 承载 WP6 控制面，runner 通过端口适配；不绕过 WP1/WP2/WP3/WP5 应用服务边界 |
-| 版本 | v0.1 |
-| 日期 | 2026-06-11 |
+| 版本 | v0.2 |
+| 日期 | 2026-06-12 |
 
 ## 1. 架构原则
 
@@ -34,8 +34,8 @@
 |---|---|---|
 | `api_automation_spec` | `id`、`project_id`、`source_type`、`source_ref`、`name`、`version_label`、`spec_digest`、`sanitized_spec_json`、`status`、`parse_error_summary` | OpenAPI 源和脱敏规格快照 |
 | `api_automation_endpoint_snapshot` | `id`、`spec_id`、`project_id`、`service_name`、`operation_id`、`method`、`path`、`schema_digest`、`asset_api_id`、`diff_status` | 解析后的 endpoint 和 WP3 API 对齐结果 |
-| `api_automation_generation_task` | `id`、`project_id`、`spec_id`、`status`、`input_digest`、`prompt_key`、`prompt_version`、`model_invocation_id`、`fallback_used` | 接口自动化生成任务 |
-| `api_automation_case` | `id`、`project_id`、`task_id`、`asset_api_id`、`asset_test_case_id`、`title`、`method`、`path`、`assertion_summary_json`、`status` | 自动化用例草稿 |
+| `api_automation_generation_task` | `id`、`project_id`、`spec_id`、`request_key`、`input_digest`、`generation_mode`、`coverage_types_json`、`status`、`prompt_key`、`prompt_version`、`model_invocation_id`、`fallback_used`、`api_count`、`case_count`、`input_summary_json` | 接口自动化生成任务 |
+| `api_automation_case` | `id`、`project_id`、`task_id`、`spec_id`、`endpoint_snapshot_id`、`asset_api_id`、`asset_test_case_id`、`title`、`method`、`path`、`coverage_type`、`expected_status`、`assertion_summary_json`、`request_template_json`、`source`、`status` | 自动化用例草稿 |
 | `api_automation_script_bundle` | `id`、`project_id`、`task_id`、`status`、`bundle_digest`、`file_count`、`static_check_status`、`approved_by` | Pytest 脚本包元数据 |
 | `api_automation_run` | `id`、`project_id`、`bundle_id`、`environment_id`、`base_url_digest`、`status`、`timeout_seconds`、`trace_id` | 手动试运行任务 |
 | `api_automation_run_result` | `id`、`run_id`、`case_id`、`status`、`duration_ms`、`assertion_summary`、`error_code`、`error_summary` | 用例级运行结果摘要 |
@@ -108,9 +108,18 @@
   "assetTestCaseIds": ["uuid"],
   "generationMode": "MODEL_WITH_FALLBACK",
   "coverageTypes": ["SMOKE", "FUNCTIONAL", "EXCEPTION"],
-  "caseCountPerApi": 3
+  "caseCountPerApi": 3,
+  "requestKey": "optional-idempotency-key"
 }
 ```
+
+当前实现约束：
+
+- `assetApiIds` 为空时使用当前 spec 下所有已同步到 WP3 的 endpoint；非空时必须全部属于当前 spec 的已同步 endpoint。
+- `coverageTypes` 支持 `SMOKE/FUNCTIONAL/EXCEPTION`，为空默认 `SMOKE`。
+- `generationMode` 支持 `FALLBACK_ONLY/MODEL_WITH_FALLBACK`，当前 `MODEL_WITH_FALLBACK` 不调用 WP2，只记录 `MODEL_GENERATION_NOT_WIRED` 后走 fallback。
+- `caseCountPerApi` 范围为 1 至 5。
+- `requestKey` 为同项目幂等 key；同 key 不同规范化 payload 返回冲突，相同 payload 返回已有任务详情。
 
 ### 创建试运行
 
@@ -140,6 +149,13 @@
 - secretRef 明文、token、cookie、Authorization header 示例值。
 - 完整请求响应样例正文中的疑似密钥字段。
 - 未脱敏错误正文和 runner 环境变量值。
+
+当前 M4 fallback 切片的持久化策略：
+
+- 生成任务保存 `inputDigest`、`generationMode`、`coverageTypes`、`apiCount`、`caseCount` 和聚合输入摘要。
+- 自动化用例草稿保存 method、path、coverageType、expectedStatus、assertionSummary 和 requestTemplate 摘要。
+- `source=FALLBACK` 明确标识确定性模板输出，不伪装为模型输出。
+- 健康检查返回 `generationReady=true`、`modelGenerationReady=false`，用于前端和运营准出口径区分。
 
 ## 8. Runner 契约
 
@@ -195,16 +211,19 @@ Runner 必须执行以下限制：
 4. Runner smoke 默认关闭；发布或显式执行时必须验证 allowlist、timeout、失败结果和脱敏日志。
 5. OpenAPI contract 测试必须确认路径、权限、响应 envelope 和 traceId。
 
-## 12. 当前实现切片（2026-06-11）
+## 12. 当前实现切片（2026-06-12）
 
-当前已实现 M1/M2/M3 控制面切片：
+当前已实现 M1/M2/M3 控制面和 M4 fallback 生成任务切片：
 
 - DB：新增 `api_automation_spec`、`api_automation_endpoint_snapshot`、WP6 权限 seed、角色默认授权和 DB validation。
 - DB M3：新增 endpoint snapshot 的 `asset_api_id`、`diff_summary_json`、`last_diff_at`、`synced_at`、`sync_error_summary`，用于持久化 WP3 API 匹配和同步证据。
+- DB M4：新增 `api_automation_generation_task` 和 `api_automation_case`，记录生成任务幂等键、inputDigest、coverage、fallback 标识、用例草稿和 endpoint/API 追踪关系。
 - 后端：新增 `/api/v1/api-automation/health`、`/specs` 创建/列表、`/specs/{id}` 详情、`/specs/{id}/parse` 重解析。
 - 后端 M3：新增 `/specs/{id}/diff` 和 `/specs/{id}/sync`；diff 按 method + path 匹配 WP3 API 资产，输出 `NEW/CHANGED/MATCHED/CONFLICT/SKIPPED`，sync 通过 WP3 `AssetApiService` 创建/更新 API 资产并逐项返回同步明细。
+- 后端 M4：新增 `POST /generation-tasks` 和 `GET /generation-tasks/{id}`；生成任务仅允许使用当前项目、已解析 spec 和已同步 WP3 API endpoint，支持 requestKey 幂等和 payload 冲突校验。
+- 生成 M4：当前不调用 WP2 模型，`FALLBACK_ONLY` 和 `MODEL_WITH_FALLBACK` 均产出确定性 fallback 用例草稿；`MODEL_WITH_FALLBACK` 的 input summary 标记 `MODEL_GENERATION_NOT_WIRED`。
 - Parser：支持 OpenAPI 3.x JSON/YAML，抽取 method/path/operationId/tags/参数数/requestBody/响应码/schemaDigest，并对 Authorization、apiKey、token、cookie、password、secret 等敏感示例脱敏。
-- 权限：除 health 外，规格导入、查询、重解析均按项目 scope 校验 `apiAutomation:*` 权限。
-- 前端：新增 `#api-automation` 入口、API helper、权限控制、规格导入/列表/endpoint snapshot、diff 刷新和 WP3 API 同步入口。
+- 权限：除 health 外，规格导入、查询、重解析、diff、sync 和生成任务均按项目 scope 校验 `apiAutomation:*` 权限。
+- 前端：新增 `#api-automation` 入口、API helper、权限控制、规格导入/列表/endpoint snapshot、diff 刷新、WP3 API 同步入口和 fallback 生成用例入口。
 
-本轮未实现：WP2 生成任务、脚本包评审、runner 执行、运行结果、WP6 quality gate 聚合脚本。这些仍按研发任务拆解的 M4-M7 继续推进。
+本轮未实现：WP5 已发布用例摘要读取、WP2 Prompt 模型调用、模型输出 schema 校验、脚本包评审、runner 执行、运行结果、WP6 quality gate 聚合脚本。这些仍按研发任务拆解的 M4-M7 继续推进。

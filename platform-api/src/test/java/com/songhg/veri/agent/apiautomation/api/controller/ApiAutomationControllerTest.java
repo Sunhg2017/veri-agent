@@ -142,6 +142,34 @@ class ApiAutomationControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.counts.NEW").value(0))
                 .andExpect(jsonPath("$.data.counts.MATCHED").value(2));
+
+        MvcResult generated = mockMvc.perform(post("/api/v1/api-automation/generation-tasks")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "projectId", "project-alpha",
+                                "specId", specId.toString(),
+                                "coverageTypes", List.of("SMOKE", "EXCEPTION"),
+                                "generationMode", "FALLBACK_ONLY",
+                                "caseCountPerApi", 2,
+                                "requestKey", "billing-openapi-m4"
+                        ))))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.task.status").value("COMPLETED"))
+                .andExpect(jsonPath("$.data.task.fallbackUsed").value(true))
+                .andExpect(jsonPath("$.data.task.apiCount").value(2))
+                .andExpect(jsonPath("$.data.task.caseCount").value(4))
+                .andExpect(jsonPath("$.data.cases", hasSize(4)))
+                .andExpect(jsonPath("$.data.cases[0].source").value("FALLBACK"))
+                .andExpect(content().string(not(containsString("real-token-value"))))
+                .andReturn();
+
+        UUID taskId = UUID.fromString(JsonPath.read(generated.getResponse().getContentAsString(), "$.data.task.id"));
+        mockMvc.perform(get("/api/v1/api-automation/generation-tasks/{id}", taskId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.task.id").value(taskId.toString()))
+                .andExpect(jsonPath("$.data.cases", hasSize(4)));
     }
 
     @Test

@@ -4,7 +4,9 @@
 with expected(table_name) as (
     values
         ('api_automation_spec'),
-        ('api_automation_endpoint_snapshot')
+        ('api_automation_endpoint_snapshot'),
+        ('api_automation_generation_task'),
+        ('api_automation_case')
 ),
 missing as (
     select e.table_name
@@ -42,7 +44,33 @@ with expected(table_name, column_name) as (
         ('api_automation_endpoint_snapshot','diff_summary_json'),
         ('api_automation_endpoint_snapshot','last_diff_at'),
         ('api_automation_endpoint_snapshot','synced_at'),
-        ('api_automation_endpoint_snapshot','sync_error_summary')
+        ('api_automation_endpoint_snapshot','sync_error_summary'),
+        ('api_automation_generation_task','id'),
+        ('api_automation_generation_task','project_id'),
+        ('api_automation_generation_task','spec_id'),
+        ('api_automation_generation_task','request_digest'),
+        ('api_automation_generation_task','generation_mode'),
+        ('api_automation_generation_task','coverage_types_json'),
+        ('api_automation_generation_task','status'),
+        ('api_automation_generation_task','fallback_used'),
+        ('api_automation_generation_task','api_count'),
+        ('api_automation_generation_task','case_count'),
+        ('api_automation_generation_task','input_summary_json'),
+        ('api_automation_case','id'),
+        ('api_automation_case','task_id'),
+        ('api_automation_case','project_id'),
+        ('api_automation_case','spec_id'),
+        ('api_automation_case','endpoint_snapshot_id'),
+        ('api_automation_case','asset_api_id'),
+        ('api_automation_case','title'),
+        ('api_automation_case','http_method'),
+        ('api_automation_case','path'),
+        ('api_automation_case','coverage_type'),
+        ('api_automation_case','expected_status'),
+        ('api_automation_case','assertion_summary_json'),
+        ('api_automation_case','request_template_json'),
+        ('api_automation_case','source'),
+        ('api_automation_case','status')
 ),
 missing as (
     select e.table_name || '.' || e.column_name as item
@@ -70,7 +98,18 @@ with expected(table_name, constraint_name) as (
         ('api_automation_endpoint_snapshot','ck_api_automation_endpoint_diff_status'),
         ('api_automation_endpoint_snapshot','ck_api_automation_endpoint_counts'),
         ('api_automation_endpoint_snapshot','ck_api_automation_endpoint_schema_digest'),
-        ('api_automation_endpoint_snapshot','ck_api_automation_endpoint_diff_summary_object')
+        ('api_automation_endpoint_snapshot','ck_api_automation_endpoint_diff_summary_object'),
+        ('api_automation_generation_task','ck_api_automation_generation_digest'),
+        ('api_automation_generation_task','ck_api_automation_generation_mode'),
+        ('api_automation_generation_task','ck_api_automation_generation_status'),
+        ('api_automation_generation_task','ck_api_automation_generation_counts'),
+        ('api_automation_generation_task','ck_api_automation_generation_json'),
+        ('api_automation_case','ck_api_automation_case_method'),
+        ('api_automation_case','ck_api_automation_case_coverage'),
+        ('api_automation_case','ck_api_automation_case_expected_status'),
+        ('api_automation_case','ck_api_automation_case_source'),
+        ('api_automation_case','ck_api_automation_case_status'),
+        ('api_automation_case','ck_api_automation_case_json')
 ),
 missing as (
     select e.table_name || '.' || e.constraint_name as item
@@ -96,7 +135,14 @@ with expected(table_name, index_name) as (
         ('api_automation_endpoint_snapshot','idx_api_automation_endpoint_project_method'),
         ('api_automation_endpoint_snapshot','idx_api_automation_endpoint_spec_diff'),
         ('api_automation_endpoint_snapshot','idx_api_automation_endpoint_asset_api'),
-        ('api_automation_endpoint_snapshot','idx_api_automation_endpoint_last_diff')
+        ('api_automation_endpoint_snapshot','idx_api_automation_endpoint_last_diff'),
+        ('api_automation_generation_task','uk_api_automation_generation_project_digest'),
+        ('api_automation_generation_task','uk_api_automation_generation_project_key'),
+        ('api_automation_generation_task','idx_api_automation_generation_spec_created'),
+        ('api_automation_generation_task','idx_api_automation_generation_project_status'),
+        ('api_automation_case','idx_api_automation_case_task'),
+        ('api_automation_case','idx_api_automation_case_asset_api'),
+        ('api_automation_case','idx_api_automation_case_endpoint')
 ),
 missing as (
     select e.table_name || '.' || e.index_name as item

@@ -1,13 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { requestJson } from './client';
 import {
+  createApiAutomationGenerationTask,
   createApiAutomationSpec,
   fetchApiAutomationDiff,
+  fetchApiAutomationGenerationTask,
   fetchApiAutomationHealth,
   fetchApiAutomationSpec,
   fetchApiAutomationSpecs,
   normalizeApiAutomationEndpointSnapshot,
   normalizeApiAutomationDiffResponse,
+  normalizeApiAutomationGenerationTaskDetail,
   normalizeApiAutomationHealth,
   normalizeApiAutomationSpecDetail,
   normalizeApiAutomationSyncResponse,
@@ -118,6 +121,37 @@ describe('WP6 API automation helpers', () => {
       counts: { CREATED: 1 },
       items: [{ endpointId: 'endpoint-1', assetApiId: 'asset-api-1', beforeStatus: 'NEW', result: 'CREATED' }]
     });
+
+    expect(normalizeApiAutomationGenerationTaskDetail({
+      task: {
+        id: 'task-1',
+        project_id: 'project-alpha',
+        spec_id: 'spec-1',
+        generation_mode: 'FALLBACK_ONLY',
+        coverage_types: ['SMOKE', 'EXCEPTION'],
+        status: 'COMPLETED',
+        fallback_used: true,
+        api_count: '2',
+        case_count: '4',
+        input_summary: { aggregateOnly: true }
+      },
+      cases: [{
+        id: 'case-1',
+        endpoint_snapshot_id: 'endpoint-1',
+        asset_api_id: 'asset-api-1',
+        http_method: 'GET',
+        path: '/v1/customers',
+        coverage_type: 'SMOKE',
+        expected_status: '200',
+        assertion_summary: { expectedStatus: 200 },
+        request_template: { aggregateOnly: true },
+        source: 'FALLBACK',
+        status: 'DRAFT'
+      }]
+    })).toMatchObject({
+      task: { id: 'task-1', fallbackUsed: true, apiCount: 2, caseCount: 4 },
+      cases: [{ id: 'case-1', expectedStatus: 200, source: 'FALLBACK' }]
+    });
   });
 
   it('calls WP6 endpoints with expected methods and query parameters', async () => {
@@ -165,6 +199,13 @@ describe('WP6 API automation helpers', () => {
     await parseApiAutomationSpec('spec-1');
     await fetchApiAutomationDiff('spec-1');
     await syncApiAutomationSpec('spec-1', { includeChanged: false });
+    await createApiAutomationGenerationTask({
+      projectId: 'project-alpha',
+      specId: 'spec-1',
+      coverageTypes: ['SMOKE'],
+      generationMode: 'FALLBACK_ONLY'
+    });
+    await fetchApiAutomationGenerationTask('task-1');
     await fetchApiAutomationHealth();
 
     expect(requestJsonMock).toHaveBeenNthCalledWith(1, '/api/v1/api-automation/specs', {
@@ -183,6 +224,16 @@ describe('WP6 API automation helpers', () => {
       method: 'POST',
       body: JSON.stringify({ includeChanged: false })
     });
-    expect(requestJsonMock).toHaveBeenNthCalledWith(6, '/api/v1/api-automation/health');
+    expect(requestJsonMock).toHaveBeenNthCalledWith(6, '/api/v1/api-automation/generation-tasks', {
+      method: 'POST',
+      body: JSON.stringify({
+        projectId: 'project-alpha',
+        specId: 'spec-1',
+        coverageTypes: ['SMOKE'],
+        generationMode: 'FALLBACK_ONLY'
+      })
+    });
+    expect(requestJsonMock).toHaveBeenNthCalledWith(7, '/api/v1/api-automation/generation-tasks/task-1');
+    expect(requestJsonMock).toHaveBeenNthCalledWith(8, '/api/v1/api-automation/health');
   });
 });
