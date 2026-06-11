@@ -452,6 +452,11 @@ public class ApiAutomationService {
             List<GenerationSourceTestCase> sourceTestCases,
             String actor
     ) {
+        /*
+         * MODEL_WITH_FALLBACK is intentionally model-first but never model-only in the default WP6 path. WP2 policy,
+         * provider failures and schema violations must remain visible on the task while deterministic drafts keep the
+         * reviewer workflow available.
+         */
         if ("FALLBACK_ONLY".equals(request.generationMode())) {
             return fallbackGenerationAttempt(spec, targets, request, sourceTestCases, null, "DETERMINISTIC_MODE");
         }
@@ -572,6 +577,7 @@ public class ApiAutomationService {
         Map<UUID, Integer> countByEndpoint = new LinkedHashMap<>();
         List<ApiAutomationCase> cases = new ArrayList<>();
         for (ApiAutomationModelOutputParser.ModelGeneratedApiCase generatedCase : generatedCases) {
+            // Model output is untrusted: persist only cases that still match the caller-selected coverage and endpoints.
             if (!request.coverageTypes().contains(generatedCase.coverageType())) {
                 throw new BusinessException(ErrorCode.VALIDATION_ERROR, "模型输出 coverageType 不在请求范围: "
                         + generatedCase.coverageType());
