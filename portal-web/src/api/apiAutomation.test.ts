@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { requestJson } from './client';
 import {
+  approveApiAutomationScriptBundle,
   createApiAutomationGenerationTask,
   createApiAutomationSpec,
   fetchApiAutomationDiff,
@@ -8,13 +9,16 @@ import {
   fetchApiAutomationHealth,
   fetchApiAutomationSpec,
   fetchApiAutomationSpecs,
+  generateApiAutomationScriptBundle,
   normalizeApiAutomationEndpointSnapshot,
   normalizeApiAutomationDiffResponse,
   normalizeApiAutomationGenerationTaskDetail,
   normalizeApiAutomationHealth,
+  rejectApiAutomationScriptBundle,
   normalizeApiAutomationSpecDetail,
   normalizeApiAutomationSyncResponse,
   parseApiAutomationSpec,
+  submitApiAutomationScriptBundleReview,
   syncApiAutomationSpec
 } from './apiAutomation';
 
@@ -148,10 +152,23 @@ describe('WP6 API automation helpers', () => {
         request_template: { aggregateOnly: true },
         source: 'FALLBACK',
         status: 'DRAFT'
+      }],
+      script_bundles: [{
+        id: 'bundle-1',
+        project_id: 'project-alpha',
+        task_id: 'task-1',
+        status: 'DRAFT',
+        bundle_digest: 'abc123',
+        file_count: '5',
+        file_tree_summary: { files: [{ path: 'tests/test_generated_api.py' }] },
+        dependency_summary: { dependencies: [{ name: 'pytest' }] },
+        static_check_status: 'PASSED',
+        static_check_summary: { pythonSyntax: 'PASSED' }
       }]
     })).toMatchObject({
       task: { id: 'task-1', fallbackUsed: true, apiCount: 2, caseCount: 4 },
-      cases: [{ id: 'case-1', assetTestCaseId: 'asset-case-1', expectedStatus: 200, source: 'FALLBACK' }]
+      cases: [{ id: 'case-1', assetTestCaseId: 'asset-case-1', expectedStatus: 200, source: 'FALLBACK' }],
+      scriptBundles: [{ id: 'bundle-1', taskId: 'task-1', fileCount: 5, staticCheckStatus: 'PASSED' }]
     });
   });
 
@@ -208,6 +225,10 @@ describe('WP6 API automation helpers', () => {
       generationMode: 'FALLBACK_ONLY'
     });
     await fetchApiAutomationGenerationTask('task-1');
+    await generateApiAutomationScriptBundle('task-1');
+    await submitApiAutomationScriptBundleReview('bundle-1', { note: 'ready' });
+    await approveApiAutomationScriptBundle('bundle-1', { note: 'approved' });
+    await rejectApiAutomationScriptBundle('bundle-2', { note: 'missing assertion' });
     await fetchApiAutomationHealth();
 
     expect(requestJsonMock).toHaveBeenNthCalledWith(1, '/api/v1/api-automation/specs', {
@@ -237,6 +258,21 @@ describe('WP6 API automation helpers', () => {
       })
     });
     expect(requestJsonMock).toHaveBeenNthCalledWith(7, '/api/v1/api-automation/generation-tasks/task-1');
-    expect(requestJsonMock).toHaveBeenNthCalledWith(8, '/api/v1/api-automation/health');
+    expect(requestJsonMock).toHaveBeenNthCalledWith(8, '/api/v1/api-automation/generation-tasks/task-1/script-bundles', {
+      method: 'POST'
+    });
+    expect(requestJsonMock).toHaveBeenNthCalledWith(9, '/api/v1/api-automation/script-bundles/bundle-1/submit-review', {
+      method: 'POST',
+      body: JSON.stringify({ note: 'ready' })
+    });
+    expect(requestJsonMock).toHaveBeenNthCalledWith(10, '/api/v1/api-automation/script-bundles/bundle-1/approve', {
+      method: 'POST',
+      body: JSON.stringify({ note: 'approved' })
+    });
+    expect(requestJsonMock).toHaveBeenNthCalledWith(11, '/api/v1/api-automation/script-bundles/bundle-2/reject', {
+      method: 'POST',
+      body: JSON.stringify({ note: 'missing assertion' })
+    });
+    expect(requestJsonMock).toHaveBeenNthCalledWith(12, '/api/v1/api-automation/health');
   });
 });

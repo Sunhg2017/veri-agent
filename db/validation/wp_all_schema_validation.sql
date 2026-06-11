@@ -70,7 +70,8 @@ with expected(table_name) as (
         ('api_automation_spec'),
         ('api_automation_endpoint_snapshot'),
         ('api_automation_generation_task'),
-        ('api_automation_case')
+        ('api_automation_case'),
+        ('api_automation_script_bundle')
 ),
 missing as (
     select e.table_name
@@ -449,7 +450,17 @@ with expected(table_name, column_name) as (
         ('api_automation_case','path'), ('api_automation_case','coverage_type'),
         ('api_automation_case','expected_status'), ('api_automation_case','assertion_summary_json'),
         ('api_automation_case','request_template_json'), ('api_automation_case','source'),
-        ('api_automation_case','status')
+        ('api_automation_case','status'),
+        ('api_automation_script_bundle','id'), ('api_automation_script_bundle','project_id'),
+        ('api_automation_script_bundle','task_id'), ('api_automation_script_bundle','status'),
+        ('api_automation_script_bundle','bundle_digest'), ('api_automation_script_bundle','file_count'),
+        ('api_automation_script_bundle','file_tree_summary_json'),
+        ('api_automation_script_bundle','dependency_summary_json'),
+        ('api_automation_script_bundle','static_check_status'),
+        ('api_automation_script_bundle','static_check_summary_json'),
+        ('api_automation_script_bundle','review_note'), ('api_automation_script_bundle','submitted_by'),
+        ('api_automation_script_bundle','approved_by'), ('api_automation_script_bundle','submitted_at'),
+        ('api_automation_script_bundle','approved_at'), ('api_automation_script_bundle','rejected_at')
 ),
 missing as (
     select e.table_name || '.' || e.column_name as item
@@ -566,6 +577,10 @@ with expected(table_name, index_name) as (
         ('api_automation_case','idx_api_automation_case_task'),
         ('api_automation_case','idx_api_automation_case_asset_api'),
         ('api_automation_case','idx_api_automation_case_endpoint'),
+        ('api_automation_script_bundle','uk_api_automation_script_bundle_task_active'),
+        ('api_automation_script_bundle','idx_api_automation_script_bundle_project_status'),
+        ('api_automation_script_bundle','idx_api_automation_script_bundle_digest'),
+        ('api_automation_script_bundle','idx_api_automation_script_bundle_static_check'),
         ('test_design_report_archive_approval','idx_test_design_report_archive_approval_archive_created'),
         ('test_design_report_archive_approval','idx_test_design_report_archive_approval_project_type_status'),
         ('test_design_report_archive_approval','idx_test_design_report_archive_approval_work_order'),

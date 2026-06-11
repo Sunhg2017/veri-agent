@@ -5,6 +5,7 @@ import com.songhg.veri.agent.apiautomation.application.query.ApiAutomationSpecQu
 import com.songhg.veri.agent.apiautomation.domain.ApiAutomationCase;
 import com.songhg.veri.agent.apiautomation.domain.ApiAutomationEndpointSnapshot;
 import com.songhg.veri.agent.apiautomation.domain.ApiAutomationGenerationTask;
+import com.songhg.veri.agent.apiautomation.domain.ApiAutomationScriptBundle;
 import com.songhg.veri.agent.apiautomation.domain.ApiAutomationSpec;
 import java.util.Comparator;
 import java.util.List;
@@ -26,6 +27,7 @@ public class InMemoryApiAutomationRepository implements ApiAutomationRepository 
     private final ConcurrentHashMap<UUID, ApiAutomationEndpointSnapshot> endpointSnapshots = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<UUID, ApiAutomationGenerationTask> generationTasks = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<UUID, ApiAutomationCase> automationCases = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<UUID, ApiAutomationScriptBundle> scriptBundles = new ConcurrentHashMap<>();
 
     @Override
     public void insertSpec(ApiAutomationSpec spec) {
@@ -63,6 +65,16 @@ public class InMemoryApiAutomationRepository implements ApiAutomationRepository 
     }
 
     @Override
+    public void insertScriptBundle(ApiAutomationScriptBundle bundle) {
+        scriptBundles.put(bundle.id(), bundle);
+    }
+
+    @Override
+    public void updateScriptBundleReview(ApiAutomationScriptBundle bundle) {
+        scriptBundles.put(bundle.id(), bundle);
+    }
+
+    @Override
     public Optional<ApiAutomationSpec> spec(UUID id) {
         return Optional.ofNullable(specs.get(id));
     }
@@ -70,6 +82,11 @@ public class InMemoryApiAutomationRepository implements ApiAutomationRepository 
     @Override
     public Optional<ApiAutomationGenerationTask> generationTask(UUID id) {
         return Optional.ofNullable(generationTasks.get(id));
+    }
+
+    @Override
+    public Optional<ApiAutomationScriptBundle> scriptBundle(UUID id) {
+        return Optional.ofNullable(scriptBundles.get(id));
     }
 
     @Override
@@ -129,6 +146,14 @@ public class InMemoryApiAutomationRepository implements ApiAutomationRepository 
     }
 
     @Override
+    public List<ApiAutomationScriptBundle> scriptBundles(UUID taskId) {
+        return scriptBundles.values().stream()
+                .filter(bundle -> taskId.equals(bundle.taskId()))
+                .sorted(Comparator.comparing(ApiAutomationScriptBundle::createdAt).reversed())
+                .toList();
+    }
+
+    @Override
     public Optional<String> specProjectScopeId(UUID id) {
         return spec(id).map(ApiAutomationSpec::projectId);
     }
@@ -136,6 +161,11 @@ public class InMemoryApiAutomationRepository implements ApiAutomationRepository 
     @Override
     public Optional<String> generationTaskProjectScopeId(UUID id) {
         return generationTask(id).map(ApiAutomationGenerationTask::projectId);
+    }
+
+    @Override
+    public Optional<String> scriptBundleProjectScopeId(UUID id) {
+        return scriptBundle(id).map(ApiAutomationScriptBundle::projectId);
     }
 
     private Stream<ApiAutomationSpec> filteredSpecs(ApiAutomationSpecQuery query) {

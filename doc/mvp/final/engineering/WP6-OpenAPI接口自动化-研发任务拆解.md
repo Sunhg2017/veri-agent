@@ -166,13 +166,13 @@
 
 ## 16. 当前推进状态（2026-06-12）
 
-当前完成 M1/M2/M3 控制面和 M4 用例生成切片，退出标准以“OpenAPI 规格可导入、解析、脱敏、查询、生成 endpoint snapshot，可对 WP3 API 资产 diff/sync，可基于已同步 API 和已发布 WP3 测试用例摘要生成确定性 fallback 自动化用例草稿；`MODEL_WITH_FALLBACK` 可通过 WP2 `wp6-api-automation-v1` Prompt 生成结构化接口自动化用例并在输出非法或 WP2 阻断时可追踪 fallback”为准。
+当前完成 M1/M2/M3 控制面、M4 用例生成和 M5 脚本包评审切片，退出标准以“OpenAPI 规格可导入、解析、脱敏、查询、生成 endpoint snapshot，可对 WP3 API 资产 diff/sync，可基于已同步 API 和已发布 WP3 测试用例摘要生成确定性 fallback 或 WP2 模型优先自动化用例草稿，并可生成 Pytest/httpx 脚本包摘要、完成静态校验、提交评审、审批和驳回”为准。
 
 | Story | 状态 | 说明 |
 |---|---|---|
 | WP6-1.1 权限点 seed | 已完成 | 新增 `apiAutomation:read/import/generate/review/execute/export`，DB seed 和 local/test 角色目录同步。 |
-| WP6-1.2 审计事件字典 | 部分完成 | 实现 `api_automation.spec.parsed`、`api_automation.spec.parse_failed`、`api_automation.api_diffed`、`api_automation.api_synced`、`api_automation.generation.created` 写审计；bundle/run/export 事件待后续能力落地。 |
-| WP6-1.3 DB schema | 部分完成 | 已建 spec、endpoint snapshot、generation task、automation case 表并纳入 validation；script bundle、run、run result 表待 M5-M6。 |
+| WP6-1.2 审计事件字典 | 部分完成 | 实现 `api_automation.spec.parsed`、`api_automation.spec.parse_failed`、`api_automation.api_diffed`、`api_automation.api_synced`、`api_automation.generation.created`、`api_automation.bundle.generated`、`api_automation.bundle.reviewed` 写审计；run/export 事件待后续能力落地。 |
+| WP6-1.3 DB schema | 部分完成 | 已建 spec、endpoint snapshot、generation task、automation case、script bundle 表并纳入 validation；run、run result 表待 M6。 |
 | WP6-1.4 模块骨架 | 已完成 | 新增 `apiautomation` controller/application/domain/infrastructure/config 包。 |
 | WP6-1.5 Health API | 已完成 | `GET /api/v1/api-automation/health` 公开返回配置边界、runner disabled 策略和当前功能边界。 |
 | WP6-2.1 导入 API | 已完成 | `POST /specs` 支持 TEXT 内容导入；URL P0 仅保存脱敏 sourceRef，不主动拉取。 |
@@ -184,20 +184,26 @@
 | WP6-3.2 Diff 查询 | 已完成 | 新增 `GET /specs/{id}/diff`，返回 `NEW/CHANGED/MATCHED/CONFLICT/SKIPPED`、assetApiId 和 diffSummary。 |
 | WP6-3.3 Sync preview | 部分完成 | diffSummary 已提供 create/update/review/skip 摘要；独立 preview API 未拆出，当前由 diff 响应承载。 |
 | WP6-3.4 Confirm sync | 已完成 | 新增 `POST /specs/{id}/sync`，通过 WP3 `AssetApiService` 创建/更新 API 资产，逐项容错并写 `api_automation.api_synced` 审计。 |
-| WP6-3.5 追踪关系 | 部分完成 | endpoint snapshot 已持久化 `asset_api_id` 和 sync 证据；automation case 已关联 spec、endpoint snapshot、assetApiId；script 关系待 M5。 |
+| WP6-3.5 追踪关系 | 部分完成 | endpoint snapshot 已持久化 `asset_api_id` 和 sync 证据；automation case 已关联 spec、endpoint snapshot、assetApiId；script bundle 已关联 generation task 并保存 caseIdsDigest/file digest；run/result 关系待 M6。 |
 | WP6-4.1 生成任务 API | 已完成 | 新增 `POST /generation-tasks` 和 `GET /generation-tasks/{id}`，支持 project/spec/assetApiIds/assetTestCaseIds/coverageTypes/generationMode/caseCountPerApi/requestKey。 |
 | WP6-4.2 WP5 输入适配 | 已完成 | `assetTestCaseIds` 通过 WP3 `AssetTestCaseService` 读取已发布测试用例摘要，校验项目归属和已同步 API 范围；只保存标题、状态、优先级、标签、步骤摘要、sourceRef digest，不读取 WP5 候选正文或评审评论明细。 |
 | WP6-4.3 WP2 Prompt | 已完成 | 新增 `wp6-api-automation-v1` Prompt seed；`MODEL_WITH_FALLBACK` 通过 WP2 `ModelInvocationService` 调用，生成任务保存 `modelInvocationId`、`promptVersion`、`fallbackUsed` 和模型供应商 fallback 信号；health 返回 `modelGenerationReady=true`。 |
 | WP6-4.4 输出校验 | 已完成 | 新增 WP6 模型输出解析器，校验 `schemaVersion`、title、method、path、coverageType、expectedStatus、assertions、requestTemplate 聚合标识和 endpoint 范围；非法输出按配置 fallback 且不持久化原始模型响应。 |
 | WP6-4.5 确定性 fallback | 已完成 | 基于已同步 endpoint 的 method/path/response status/schemaDigest 生成 `SMOKE/FUNCTIONAL/EXCEPTION` 用例草稿，source 明确为 `FALLBACK`。 |
 | WP6-4.6 生成审计 | 已完成 | 生成任务写入 inputDigest、apiCount、caseCount、coverageTypes、generationMode、fallbackUsed、modelInvocationId/promptVersion 摘要，并记录 `api_automation.generation.created`；审计不保存 schema 明细、请求正文或原始模型响应。 |
+| WP6-5.1 脚本包模型 | 已完成 | 新增 `api_automation_script_bundle`，保存 `bundleDigest`、`fileCount`、文件树摘要、依赖摘要、静态校验摘要和评审状态；不持久化生成源码、请求/响应正文或 secret。 |
+| WP6-5.2 脚本模板 | 已完成 | 基于已生成 case 产出 Pytest/httpx 模板摘要，统一 `base_url` fixture、headers helper 和 assertion helper，文件 digest 可复核。 |
+| WP6-5.3 静态校验 | 已完成 | 生成时静态检查 Python 模板括号边界、禁止危险 import/call、禁止硬编码 secret pattern；失败状态为 `SCRIPT_STATIC_CHECK_FAILED`。 |
+| WP6-5.4 评审状态 | 已完成 | 支持 `DRAFT/REVIEWING/APPROVED/REJECTED/ARCHIVED` 状态约束；未 `APPROVED` 的脚本包后续不得作为默认 runner 准入。 |
+| WP6-5.5 评审 API | 已完成 | 新增生成脚本包、submit-review、approve、reject API，驳回原因必填，评审动作写 `api_automation.bundle.reviewed` 审计。 |
 | WP6-7.1 API client | 已完成 | 新增 `portal-web/src/api/apiAutomation.ts` 和 Vitest。 |
 | WP6-7.2 权限入口 | 已完成 | 新增 `#api-automation` 导航入口和 `apiAutomation:read/import` 控制。 |
 | WP6-7.3 规格面板 | 已完成 | 已完成导入表单、规格列表、状态、错误提示和 endpoint snapshot。 |
 | WP6-7.4 Diff 面板 | 部分完成 | 已支持刷新 diff、展示状态/assetApiId/reason、触发同步；更细筛选和部分成功详情表待 M6 UI 收敛。 |
 | WP6-7.5 生成面板 | 部分完成 | 工作台新增“生成用例”入口、生成模式选择和 WP3 用例 ID 输入，可按当前规格触发模型优先或确定模板生成并展示任务/用例摘要；API 范围选择、用例列表选择和任务历史列表待 M6 收敛。 |
-| WP6-8.1 后端测试 | 部分完成 | 已覆盖 parser、controller、权限、OpenAPI 契约、安全配置、fallback 生成任务、模型成功生成和非法模型输出 fallback；全量回归仍需发布前执行。 |
-| WP6-8.2 前端测试 | 部分完成 | 已覆盖 API helper、权限 helper、生成任务 normalize 和生成 API 调用；复杂页面交互待后续 Playwright smoke。 |
+| WP6-7.6 脚本包评审 | 已完成 | 工作台展示脚本包状态、静态校验、文件摘要、提交评审、审批和驳回入口，按钮按 `apiAutomation:review` 权限控制。 |
+| WP6-8.1 后端测试 | 部分完成 | 已覆盖 parser、controller、权限、OpenAPI 契约、安全配置、fallback 生成任务、模型成功生成、非法模型输出 fallback、脚本包生成、静态校验和评审状态流；全量回归仍需发布前执行。 |
+| WP6-8.2 前端测试 | 部分完成 | 已覆盖 API helper、权限 helper、生成任务 normalize、脚本包 normalize、生成 API 和评审 API 调用；复杂页面交互待后续 Playwright smoke。 |
 | WP6-8.3 DB validation | 已完成 | `run_wp1_db_validation.sh` 已纳入 WP6 schema/权限校验。 |
 
-下一步建议继续 M5：推进 Pytest 脚本包生成、静态校验、脚本包评审流和后续 runner disabled/allowlist 执行闭环。
+下一步建议继续 M6：推进 runner disabled/allowlist 执行闭环、运行任务和用例级结果摘要，再补 WP6 quality gate 聚合脚本。

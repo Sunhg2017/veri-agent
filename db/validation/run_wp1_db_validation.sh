@@ -177,6 +177,7 @@ grant select, insert, update on
     api_automation_endpoint_snapshot,
     api_automation_generation_task,
     api_automation_case,
+    api_automation_script_bundle,
     audit_outbox
 to wp1_app;
 

@@ -5,6 +5,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.songhg.veri.agent.apiautomation.application.command.CreateApiAutomationGenerationTaskCommand;
 import com.songhg.veri.agent.apiautomation.application.command.CreateApiAutomationSpecCommand;
+import com.songhg.veri.agent.apiautomation.application.command.ReviewApiAutomationScriptBundleCommand;
 import com.songhg.veri.agent.apiautomation.application.command.SyncApiAutomationSpecCommand;
 import com.songhg.veri.agent.apiautomation.application.parser.OpenApiParseResult;
 import com.songhg.veri.agent.apiautomation.application.parser.ParsedOpenApiEndpoint;
@@ -17,6 +18,7 @@ import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationCaseRes
 import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationGenerationTaskDetailResponse;
 import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationGenerationTaskResponse;
 import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationHealthResponse;
+import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationScriptBundleResponse;
 import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationSyncItemResponse;
 import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationSyncResponse;
 import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationSpecDetailResponse;
@@ -25,6 +27,7 @@ import com.songhg.veri.agent.apiautomation.config.ApiAutomationProperties;
 import com.songhg.veri.agent.apiautomation.domain.ApiAutomationCase;
 import com.songhg.veri.agent.apiautomation.domain.ApiAutomationEndpointSnapshot;
 import com.songhg.veri.agent.apiautomation.domain.ApiAutomationGenerationTask;
+import com.songhg.veri.agent.apiautomation.domain.ApiAutomationScriptBundle;
 import com.songhg.veri.agent.apiautomation.domain.ApiAutomationSpec;
 import com.songhg.veri.agent.apiautomation.infrastructure.openapi.OpenApiSpecParser;
 import com.songhg.veri.agent.asset.application.AssetApiService;
@@ -77,6 +80,10 @@ public class ApiAutomationService {
     private static final List<String> DIFF_STATUSES = List.of("NEW", "CHANGED", "MATCHED", "CONFLICT", "SKIPPED");
     private static final Set<String> GENERATION_MODES = Set.of("FALLBACK_ONLY", "MODEL_WITH_FALLBACK");
     private static final Set<String> COVERAGE_TYPES = Set.of("SMOKE", "FUNCTIONAL", "EXCEPTION");
+    private static final Set<String> SCRIPT_REVIEW_SUBMITTABLE_STATUSES = Set.of("DRAFT", "REJECTED");
+    private static final String SCRIPT_TEMPLATE_VERSION = "wp6-pytest-httpx-v1";
+    private static final String STATIC_CHECK_PASSED = "PASSED";
+    private static final String STATIC_CHECK_FAILED = "SCRIPT_STATIC_CHECK_FAILED";
     private static final String WP6_MODEL_SCHEMA_MARKER = "WP6_API_AUTOMATION_GENERATION_V1";
     private static final String MODEL_CALLER_SERVICE = "wp6-api-automation";
     private static final String MODEL_CAPABILITY_JSON = "JSON";
@@ -85,6 +92,10 @@ public class ApiAutomationService {
             Pattern.compile("(?i)\\bbearer\\s+[a-z0-9._\\-]{8,}"),
             Pattern.compile("(?i)\\b(api[_-]?key|secret|token|password|passwd|authorization)\\s*[:=]\\s*[^\\s,;，；]+"),
             Pattern.compile("(?i)\\b(sk|pk|rk)_[a-z0-9_-]{8,}\\b")
+    );
+    private static final List<Pattern> FORBIDDEN_SCRIPT_PATTERNS = List.of(
+            Pattern.compile("(?m)^\\s*(import|from)\\s+(subprocess|socket|ftplib|paramiko|telnetlib|pickle|marshal)\\b"),
+            Pattern.compile("\\b(os\\.system|eval|exec|__import__)\\s*\\(")
     );
     private static final TypeReference<Map<String, Object>> MAP_TYPE = new TypeReference<>() {
     };
@@ -148,6 +159,8 @@ public class ApiAutomationService {
                         Map.entry("diffSyncReady", true),
                         Map.entry("generationReady", true),
                         Map.entry("modelGenerationReady", true),
+                        Map.entry("scriptBundleReady", true),
+                        Map.entry("scriptBundleReviewReady", true),
                         Map.entry("aggregateOnly", true)
                 )
         );
@@ -316,9 +329,12 @@ public class ApiAutomationService {
                 now
         );
         repository.insertGenerationTask(task);
-        cases.stream()
+        List<ApiAutomationCase> persistedCases = cases.stream()
                 .map(value -> caseWithTask(value, task.id(), now))
-                .forEach(repository::insertAutomationCase);
+                .toList();
+        persistedCases.forEach(repository::insertAutomationCase);
+        ApiAutomationScriptBundle bundle = createScriptBundle(task, persistedCases, actor, now);
+        repository.insertScriptBundle(bundle);
         auditGenerationTask(task, "SUCCESS", Map.of(
                 "apiCount", task.apiCount(),
                 "caseCount", task.caseCount(),
@@ -329,14 +345,434 @@ public class ApiAutomationService {
                 "promptVersion", task.promptVersion() == null ? "" : task.promptVersion(),
                 "coverageTypes", normalized.coverageTypes()
         ));
-        return generationTaskDetail(task.id());
+        auditScriptBundle(bundle, "SUCCESS", "GENERATED", Map.of(
+                "taskId", task.id().toString(),
+                "fileCount", bundle.fileCount(),
+                "staticCheckStatus", bundle.staticCheckStatus()
+        ));
+        return toGenerationTaskDetail(task, persistedCases, List.of(bundle));
     }
 
     @Transactional(readOnly = true)
     public ApiAutomationGenerationTaskDetailResponse generationTaskDetail(UUID id) {
         ApiAutomationGenerationTask task = repository.generationTask(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "接口自动化生成任务不存在: " + id));
-        return toGenerationTaskDetail(task, repository.automationCases(id));
+        return toGenerationTaskDetail(task, repository.automationCases(id), repository.scriptBundles(id));
+    }
+
+    @Transactional
+    public ApiAutomationScriptBundleResponse generateScriptBundle(UUID taskId) {
+        ApiAutomationGenerationTask task = repository.generationTask(taskId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "接口自动化生成任务不存在: " + taskId));
+        List<ApiAutomationScriptBundle> existingBundles = repository.scriptBundles(taskId).stream()
+                .filter(bundle -> !"ARCHIVED".equals(bundle.status()))
+                .toList();
+        if (!existingBundles.isEmpty()) {
+            return toScriptBundleResponse(existingBundles.getFirst());
+        }
+        List<ApiAutomationCase> cases = repository.automationCases(taskId);
+        if (cases.isEmpty()) {
+            throw new BusinessException(ErrorCode.INVALID_STATE, "生成任务没有可打包的自动化用例草稿");
+        }
+        Instant now = Instant.now();
+        String actor = actorResolver.currentActor();
+        ApiAutomationScriptBundle bundle = createScriptBundle(task, cases, actor, now);
+        repository.insertScriptBundle(bundle);
+        auditScriptBundle(bundle, "SUCCESS", "GENERATED", Map.of(
+                "taskId", task.id().toString(),
+                "fileCount", bundle.fileCount(),
+                "staticCheckStatus", bundle.staticCheckStatus()
+        ));
+        return toScriptBundleResponse(bundle);
+    }
+
+    @Transactional
+    public ApiAutomationScriptBundleResponse submitScriptBundleReview(
+            UUID id,
+            ReviewApiAutomationScriptBundleCommand command
+    ) {
+        ApiAutomationScriptBundle bundle = requireScriptBundle(id);
+        if (!SCRIPT_REVIEW_SUBMITTABLE_STATUSES.contains(bundle.status())) {
+            throw new BusinessException(ErrorCode.INVALID_STATE, "仅 DRAFT/REJECTED 脚本包可提交评审");
+        }
+        if (!STATIC_CHECK_PASSED.equals(bundle.staticCheckStatus())) {
+            throw new BusinessException(ErrorCode.INVALID_STATE, STATIC_CHECK_FAILED + ": 脚本静态校验未通过");
+        }
+        Instant now = Instant.now();
+        String actor = actorResolver.currentActor();
+        ApiAutomationScriptBundle updated = scriptBundleWithReview(
+                bundle,
+                "REVIEWING",
+                boundedNullableText(command == null ? null : command.note(), 512),
+                actor,
+                bundle.approvedBy(),
+                now,
+                null,
+                null,
+                actor,
+                now
+        );
+        repository.updateScriptBundleReview(updated);
+        auditScriptBundle(updated, "SUCCESS", "SUBMITTED", Map.of("notePresent", StringUtils.hasText(updated.reviewNote())));
+        return toScriptBundleResponse(updated);
+    }
+
+    @Transactional
+    public ApiAutomationScriptBundleResponse approveScriptBundle(
+            UUID id,
+            ReviewApiAutomationScriptBundleCommand command
+    ) {
+        ApiAutomationScriptBundle bundle = requireScriptBundle(id);
+        if (!"REVIEWING".equals(bundle.status())) {
+            throw new BusinessException(ErrorCode.INVALID_STATE, "仅 REVIEWING 脚本包可审批通过");
+        }
+        Instant now = Instant.now();
+        String actor = actorResolver.currentActor();
+        ApiAutomationScriptBundle updated = scriptBundleWithReview(
+                bundle,
+                "APPROVED",
+                reviewNoteOrCurrent(bundle, command),
+                bundle.submittedBy(),
+                actor,
+                bundle.submittedAt(),
+                now,
+                null,
+                actor,
+                now
+        );
+        repository.updateScriptBundleReview(updated);
+        auditScriptBundle(updated, "SUCCESS", "APPROVED", Map.of("notePresent", StringUtils.hasText(updated.reviewNote())));
+        return toScriptBundleResponse(updated);
+    }
+
+    @Transactional
+    public ApiAutomationScriptBundleResponse rejectScriptBundle(
+            UUID id,
+            ReviewApiAutomationScriptBundleCommand command
+    ) {
+        ApiAutomationScriptBundle bundle = requireScriptBundle(id);
+        if (!"REVIEWING".equals(bundle.status())) {
+            throw new BusinessException(ErrorCode.INVALID_STATE, "仅 REVIEWING 脚本包可驳回");
+        }
+        String note = boundedNullableText(command == null ? null : command.note(), 512);
+        if (!StringUtils.hasText(note)) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "驳回原因必填");
+        }
+        Instant now = Instant.now();
+        String actor = actorResolver.currentActor();
+        ApiAutomationScriptBundle updated = scriptBundleWithReview(
+                bundle,
+                "REJECTED",
+                note,
+                bundle.submittedBy(),
+                null,
+                bundle.submittedAt(),
+                null,
+                now,
+                actor,
+                now
+        );
+        repository.updateScriptBundleReview(updated);
+        auditScriptBundle(updated, "FAILED", "REJECTED", Map.of("notePresent", true));
+        return toScriptBundleResponse(updated);
+    }
+
+    /**
+     * Builds a reviewable script bundle from already persisted case drafts. The source strings are used only to compute
+     * file digests and static-check evidence; persistence keeps file tree and dependency summaries so request bodies,
+     * response bodies and secret-bearing runtime configuration never become bundle metadata.
+     */
+    private ApiAutomationScriptBundle createScriptBundle(
+            ApiAutomationGenerationTask task,
+            List<ApiAutomationCase> cases,
+            String actor,
+            Instant now
+    ) {
+        List<ScriptFile> files = scriptFiles(cases);
+        Map<String, Object> fileTreeSummary = fileTreeSummary(task, cases, files);
+        Map<String, Object> dependencySummary = dependencySummary();
+        StaticCheckResult staticCheck = staticCheck(files);
+        String bundleDigest = sha256(writeJson(Map.of(
+                "templateVersion", SCRIPT_TEMPLATE_VERSION,
+                "taskId", task.id().toString(),
+                "fileTreeSummary", fileTreeSummary,
+                "dependencySummary", dependencySummary
+        )));
+        return new ApiAutomationScriptBundle(
+                UUID.randomUUID(),
+                task.projectId(),
+                task.id(),
+                "DRAFT",
+                bundleDigest,
+                files.size(),
+                writeJson(fileTreeSummary),
+                writeJson(dependencySummary),
+                staticCheck.status(),
+                writeJson(staticCheck.summary()),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                actor,
+                actor,
+                now,
+                now
+        );
+    }
+
+    private List<ScriptFile> scriptFiles(List<ApiAutomationCase> cases) {
+        List<ApiAutomationCase> sortedCases = cases.stream()
+                .sorted((left, right) -> {
+                    int pathCompare = left.path().compareTo(right.path());
+                    if (pathCompare != 0) {
+                        return pathCompare;
+                    }
+                    int coverageCompare = left.coverageType().compareTo(right.coverageType());
+                    return coverageCompare != 0 ? coverageCompare : left.id().compareTo(right.id());
+                })
+                .toList();
+        return List.of(
+                new ScriptFile("pyproject.toml", "PYPROJECT", pyprojectToml(sortedCases.size())),
+                new ScriptFile("tests/__init__.py", "PYTHON_PACKAGE", ""),
+                new ScriptFile("tests/conftest.py", "PYTEST_FIXTURE", conftestPy()),
+                new ScriptFile("tests/helpers.py", "ASSERTION_HELPER", helpersPy()),
+                new ScriptFile("tests/test_generated_api.py", "PYTEST_CASES", generatedTestPy(sortedCases)),
+                new ScriptFile("README.md", "RUNBOOK", bundleReadme(sortedCases.size()))
+        );
+    }
+
+    private String pyprojectToml(int caseCount) {
+        return """
+                [project]
+                name = "wp6-api-automation-bundle"
+                version = "0.1.0"
+                description = "Generated WP6 API automation bundle metadata"
+                requires-python = ">=3.11"
+                dependencies = [
+                    "pytest>=8,<9",
+                    "httpx>=0.27,<1"
+                ]
+
+                [tool.wp6]
+                template_version = "%s"
+                case_count = %d
+                """.formatted(SCRIPT_TEMPLATE_VERSION, caseCount);
+    }
+
+    private String conftestPy() {
+        return """
+                import pytest
+
+
+                def pytest_addoption(parser):
+                    parser.addoption("--base-url", action="store", default="http://127.0.0.1:8080")
+
+
+                @pytest.fixture()
+                def base_url(pytestconfig):
+                    return pytestconfig.getoption("--base-url").rstrip("/")
+
+
+                @pytest.fixture()
+                def default_headers():
+                    return {}
+                """;
+    }
+
+    private String helpersPy() {
+        return """
+                def assert_status(response, expected_status):
+                    assert response.status_code == expected_status
+
+
+                def assert_response_bounded(response):
+                    assert len(response.content) <= 1048576
+                """;
+    }
+
+    private String generatedTestPy(List<ApiAutomationCase> cases) {
+        StringBuilder builder = new StringBuilder();
+        builder.append("""
+                import httpx
+                import pytest
+
+                from tests.helpers import assert_response_bounded, assert_status
+
+
+                CASES = [
+                """);
+        for (ApiAutomationCase automationCase : cases) {
+            builder.append("    {\n")
+                    .append("        \"case_id\": ").append(pythonString(automationCase.id().toString())).append(",\n")
+                    .append("        \"title\": ").append(pythonString(automationCase.title())).append(",\n")
+                    .append("        \"method\": ").append(pythonString(automationCase.httpMethod())).append(",\n")
+                    .append("        \"path\": ").append(pythonString(automationCase.path())).append(",\n")
+                    .append("        \"coverage_type\": ").append(pythonString(automationCase.coverageType())).append(",\n")
+                    .append("        \"expected_status\": ").append(automationCase.expectedStatus()).append(",\n")
+                    .append("    },\n");
+        }
+        builder.append("""
+                ]
+
+
+                @pytest.mark.parametrize("case", CASES, ids=[item["title"] for item in CASES])
+                def test_generated_api_contract(base_url, default_headers, case):
+                    url = f"{base_url}{case['path']}"
+                    with httpx.Client(headers=default_headers, timeout=10.0) as client:
+                        response = client.request(case["method"], url)
+                    assert_status(response, case["expected_status"])
+                    assert_response_bounded(response)
+                """);
+        return builder.toString();
+    }
+
+    private String bundleReadme(int caseCount) {
+        return """
+                # WP6 API Automation Bundle
+
+                Template: %s
+                Cases: %d
+
+                Runtime base URL and headers are supplied by the controlled runner. The bundle metadata does not store
+                raw request bodies, response bodies, tokens, passwords or environment variable values.
+                """.formatted(SCRIPT_TEMPLATE_VERSION, caseCount);
+    }
+
+    private Map<String, Object> fileTreeSummary(
+            ApiAutomationGenerationTask task,
+            List<ApiAutomationCase> cases,
+            List<ScriptFile> files
+    ) {
+        Map<String, Object> summary = new LinkedHashMap<>();
+        summary.put("templateVersion", SCRIPT_TEMPLATE_VERSION);
+        summary.put("taskId", task.id().toString());
+        summary.put("caseCount", cases.size());
+        summary.put("caseIdsDigest", sha256(cases.stream()
+                .map(value -> value.id().toString())
+                .sorted()
+                .collect(Collectors.joining(","))));
+        summary.put("files", files.stream().map(file -> {
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("path", file.path());
+            item.put("kind", file.kind());
+            item.put("digest", sha256(file.content()));
+            item.put("lineCount", lineCount(file.content()));
+            item.put("pythonFile", file.path().endsWith(".py"));
+            return item;
+        }).toList());
+        summary.put("rawSourceStored", false);
+        summary.put("secretValuesStored", false);
+        summary.put("aggregateOnly", true);
+        return summary;
+    }
+
+    private Map<String, Object> dependencySummary() {
+        Map<String, Object> summary = new LinkedHashMap<>();
+        summary.put("runtime", "python>=3.11");
+        summary.put("packageManager", "pip");
+        summary.put("dependencies", List.of(
+                Map.of("name", "pytest", "versionRange", ">=8,<9"),
+                Map.of("name", "httpx", "versionRange", ">=0.27,<1")
+        ));
+        summary.put("networkAccessDuringStaticCheck", false);
+        summary.put("secretValuesStored", false);
+        summary.put("aggregateOnly", true);
+        return summary;
+    }
+
+    /**
+     * Static checks intentionally run without executing Python or touching the network. Because WP6 M5 stores only
+     * generated template summaries, this method validates the generated source before it is reduced to digests and
+     * blocks imports or literals that would make a future runner unsafe by default.
+     */
+    private StaticCheckResult staticCheck(List<ScriptFile> files) {
+        List<String> violations = new ArrayList<>();
+        int pythonFileCount = 0;
+        for (ScriptFile file : files) {
+            if (!file.path().endsWith(".py")) {
+                continue;
+            }
+            pythonFileCount++;
+            if (!balancedTemplateDelimiters(file.content())) {
+                violations.add(file.path() + ":PYTHON_TEMPLATE_SYNTAX");
+            }
+            for (Pattern pattern : FORBIDDEN_SCRIPT_PATTERNS) {
+                if (pattern.matcher(file.content()).find()) {
+                    violations.add(file.path() + ":FORBIDDEN_IMPORT_OR_CALL");
+                    break;
+                }
+            }
+            if (containsSensitiveText(file.content())) {
+                violations.add(file.path() + ":HARDCODED_SECRET_PATTERN");
+            }
+        }
+        Map<String, Object> summary = new LinkedHashMap<>();
+        summary.put("templateVersion", SCRIPT_TEMPLATE_VERSION);
+        summary.put("pythonSyntax", violations.stream().noneMatch(value -> value.endsWith("PYTHON_TEMPLATE_SYNTAX"))
+                ? "PASSED"
+                : "FAILED");
+        summary.put("forbiddenImports", violations.stream()
+                .filter(value -> value.endsWith("FORBIDDEN_IMPORT_OR_CALL"))
+                .count());
+        summary.put("secretPatternHits", violations.stream()
+                .filter(value -> value.endsWith("HARDCODED_SECRET_PATTERN"))
+                .count());
+        summary.put("pythonFileCount", pythonFileCount);
+        summary.put("violations", violations);
+        summary.put("networkAccessDuringStaticCheck", false);
+        summary.put("aggregateOnly", true);
+        return new StaticCheckResult(violations.isEmpty() ? STATIC_CHECK_PASSED : STATIC_CHECK_FAILED, summary);
+    }
+
+    private boolean balancedTemplateDelimiters(String content) {
+        int round = 0;
+        int square = 0;
+        int curly = 0;
+        for (int index = 0; index < content.length(); index++) {
+            char value = content.charAt(index);
+            if (value == '(') {
+                round++;
+            } else if (value == ')') {
+                round--;
+            } else if (value == '[') {
+                square++;
+            } else if (value == ']') {
+                square--;
+            } else if (value == '{') {
+                curly++;
+            } else if (value == '}') {
+                curly--;
+            }
+            if (round < 0 || square < 0 || curly < 0) {
+                return false;
+            }
+        }
+        return round == 0 && square == 0 && curly == 0;
+    }
+
+    private int lineCount(String content) {
+        if (!StringUtils.hasText(content)) {
+            return 0;
+        }
+        return content.split("\\R", -1).length;
+    }
+
+    private String pythonString(String value) {
+        String escaped = nullToEmpty(value)
+                .replace("\\", "\\\\")
+                .replace("\"", "\\\"")
+                .replace("\n", "\\n")
+                .replace("\r", "\\r");
+        return "\"" + escaped + "\"";
+    }
+
+    private boolean containsSensitiveText(String value) {
+        if (!StringUtils.hasText(value)) {
+            return false;
+        }
+        return SENSITIVE_TEXT_PATTERNS.stream().anyMatch(pattern -> pattern.matcher(value).find());
     }
 
     private GenerationRequest normalizeGenerationRequest(
@@ -1394,7 +1830,8 @@ public class ApiAutomationService {
 
     private ApiAutomationGenerationTaskDetailResponse toGenerationTaskDetail(
             ApiAutomationGenerationTask task,
-            List<ApiAutomationCase> cases
+            List<ApiAutomationCase> cases,
+            List<ApiAutomationScriptBundle> scriptBundles
     ) {
         return new ApiAutomationGenerationTaskDetailResponse(
                 new ApiAutomationGenerationTaskResponse(
@@ -1417,7 +1854,8 @@ public class ApiAutomationService {
                         task.createdAt(),
                         task.updatedAt()
                 ),
-                cases.stream().map(this::toAutomationCaseResponse).toList()
+                cases.stream().map(this::toAutomationCaseResponse).toList(),
+                scriptBundles.stream().map(this::toScriptBundleResponse).toList()
         );
     }
 
@@ -1438,6 +1876,29 @@ public class ApiAutomationService {
                 automationCase.status(),
                 automationCase.createdAt(),
                 automationCase.updatedAt()
+        );
+    }
+
+    private ApiAutomationScriptBundleResponse toScriptBundleResponse(ApiAutomationScriptBundle bundle) {
+        return new ApiAutomationScriptBundleResponse(
+                bundle.id(),
+                bundle.projectId(),
+                bundle.taskId(),
+                bundle.status(),
+                bundle.bundleDigest(),
+                bundle.fileCount(),
+                readSummary(bundle.fileTreeSummaryJson()),
+                readSummary(bundle.dependencySummaryJson()),
+                bundle.staticCheckStatus(),
+                readSummary(bundle.staticCheckSummaryJson()),
+                bundle.reviewNote(),
+                bundle.submittedBy(),
+                bundle.approvedBy(),
+                bundle.submittedAt(),
+                bundle.approvedAt(),
+                bundle.rejectedAt(),
+                bundle.createdAt(),
+                bundle.updatedAt()
         );
     }
 
@@ -1491,9 +1952,58 @@ public class ApiAutomationService {
         return spec;
     }
 
+    private ApiAutomationScriptBundle requireScriptBundle(UUID id) {
+        return repository.scriptBundle(id)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "脚本包不存在: " + id));
+    }
+
     private ApiAutomationSpec requireSpec(UUID id) {
         return repository.spec(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "OpenAPI 规格不存在: " + id));
+    }
+
+    private ApiAutomationScriptBundle scriptBundleWithReview(
+            ApiAutomationScriptBundle bundle,
+            String status,
+            String reviewNote,
+            String submittedBy,
+            String approvedBy,
+            Instant submittedAt,
+            Instant approvedAt,
+            Instant rejectedAt,
+            String updatedBy,
+            Instant updatedAt
+    ) {
+        return new ApiAutomationScriptBundle(
+                bundle.id(),
+                bundle.projectId(),
+                bundle.taskId(),
+                status,
+                bundle.bundleDigest(),
+                bundle.fileCount(),
+                bundle.fileTreeSummaryJson(),
+                bundle.dependencySummaryJson(),
+                bundle.staticCheckStatus(),
+                bundle.staticCheckSummaryJson(),
+                reviewNote,
+                submittedBy,
+                approvedBy,
+                submittedAt,
+                approvedAt,
+                rejectedAt,
+                bundle.createdBy(),
+                updatedBy,
+                bundle.createdAt(),
+                updatedAt
+        );
+    }
+
+    private String reviewNoteOrCurrent(
+            ApiAutomationScriptBundle bundle,
+            ReviewApiAutomationScriptBundleCommand command
+    ) {
+        String note = boundedNullableText(command == null ? null : command.note(), 512);
+        return StringUtils.hasText(note) ? note : bundle.reviewNote();
     }
 
     private String assetKey(String httpMethod, String path) {
@@ -1662,6 +2172,28 @@ public class ApiAutomationService {
         );
     }
 
+    private void auditScriptBundle(
+            ApiAutomationScriptBundle bundle,
+            String result,
+            String action,
+            Map<String, Object> afterJson
+    ) {
+        Map<String, Object> payload = new LinkedHashMap<>(afterJson);
+        payload.put("bundleId", bundle.id().toString());
+        payload.put("taskId", bundle.taskId().toString());
+        payload.put("status", bundle.status());
+        payload.put("staticCheckStatus", bundle.staticCheckStatus());
+        payload.put("reviewAction", action);
+        contextClient.writeAuditEvent(
+                "GENERATED".equals(action) ? "api_automation.bundle.generated" : "api_automation.bundle.reviewed",
+                "API_AUTOMATION_SCRIPT_BUNDLE",
+                bundle.id().toString(),
+                bundle.projectId(),
+                result,
+                payload
+        );
+    }
+
     private record GenerationRequest(
             String projectId,
             UUID specId,
@@ -1699,6 +2231,19 @@ public class ApiAutomationService {
     private record SyncAttempt(
             ApiAutomationEndpointSnapshot snapshot,
             ApiAutomationSyncItemResponse response
+    ) {
+    }
+
+    private record ScriptFile(
+            String path,
+            String kind,
+            String content
+    ) {
+    }
+
+    private record StaticCheckResult(
+            String status,
+            Map<String, Object> summary
     ) {
     }
 

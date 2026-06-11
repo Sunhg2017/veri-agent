@@ -165,6 +165,32 @@ export interface ApiAutomationGenerationTask {
 export interface ApiAutomationGenerationTaskDetail {
   task: ApiAutomationGenerationTask;
   cases: ApiAutomationCase[];
+  scriptBundles: ApiAutomationScriptBundle[];
+}
+
+export interface ApiAutomationScriptBundle {
+  id: string;
+  projectId: string;
+  taskId: string;
+  status: string;
+  bundleDigest?: string;
+  fileCount: number;
+  fileTreeSummary: Record<string, unknown>;
+  dependencySummary: Record<string, unknown>;
+  staticCheckStatus: string;
+  staticCheckSummary: Record<string, unknown>;
+  reviewNote?: string;
+  submittedBy?: string;
+  approvedBy?: string;
+  submittedAt?: string;
+  approvedAt?: string;
+  rejectedAt?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface ApiAutomationScriptBundleReviewPayload {
+  note?: string;
 }
 
 export async function fetchApiAutomationHealth(): Promise<ApiResponse<ApiAutomationHealth>> {
@@ -230,6 +256,47 @@ export async function createApiAutomationGenerationTask(
 export async function fetchApiAutomationGenerationTask(id: string): Promise<ApiResponse<ApiAutomationGenerationTaskDetail>> {
   const response = await requestJson<unknown>(`${API_AUTOMATION_BASE}/generation-tasks/${encodeURIComponent(id)}`);
   return { ...response, data: normalizeApiAutomationGenerationTaskDetail(response.data) };
+}
+
+export async function generateApiAutomationScriptBundle(taskId: string): Promise<ApiResponse<ApiAutomationScriptBundle>> {
+  const response = await requestJson<unknown>(
+    `${API_AUTOMATION_BASE}/generation-tasks/${encodeURIComponent(taskId)}/script-bundles`,
+    { method: 'POST' }
+  );
+  return { ...response, data: normalizeApiAutomationScriptBundle(response.data) };
+}
+
+export async function submitApiAutomationScriptBundleReview(
+  id: string,
+  payload: ApiAutomationScriptBundleReviewPayload = {}
+): Promise<ApiResponse<ApiAutomationScriptBundle>> {
+  const response = await requestJson<unknown>(`${API_AUTOMATION_BASE}/script-bundles/${encodeURIComponent(id)}/submit-review`, {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+  return { ...response, data: normalizeApiAutomationScriptBundle(response.data) };
+}
+
+export async function approveApiAutomationScriptBundle(
+  id: string,
+  payload: ApiAutomationScriptBundleReviewPayload = {}
+): Promise<ApiResponse<ApiAutomationScriptBundle>> {
+  const response = await requestJson<unknown>(`${API_AUTOMATION_BASE}/script-bundles/${encodeURIComponent(id)}/approve`, {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+  return { ...response, data: normalizeApiAutomationScriptBundle(response.data) };
+}
+
+export async function rejectApiAutomationScriptBundle(
+  id: string,
+  payload: ApiAutomationScriptBundleReviewPayload
+): Promise<ApiResponse<ApiAutomationScriptBundle>> {
+  const response = await requestJson<unknown>(`${API_AUTOMATION_BASE}/script-bundles/${encodeURIComponent(id)}/reject`, {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+  return { ...response, data: normalizeApiAutomationScriptBundle(response.data) };
 }
 
 export function normalizeApiAutomationHealth(input: unknown): ApiAutomationHealth {
@@ -348,7 +415,8 @@ export function normalizeApiAutomationGenerationTaskDetail(input: unknown): ApiA
   const value = objectValue(input);
   return {
     task: normalizeApiAutomationGenerationTask(read(value, 'task')),
-    cases: arrayValue(read(value, 'cases')).map(normalizeApiAutomationCase)
+    cases: arrayValue(read(value, 'cases')).map(normalizeApiAutomationCase),
+    scriptBundles: arrayValue(read(value, 'scriptBundles', 'script_bundles')).map(normalizeApiAutomationScriptBundle)
   };
 }
 
@@ -392,6 +460,30 @@ export function normalizeApiAutomationCase(input: unknown): ApiAutomationCase {
     requestTemplate: objectValue(read(value, 'requestTemplate', 'request_template')),
     source: stringValue(read(value, 'source'), 'FALLBACK'),
     status: stringValue(read(value, 'status'), 'DRAFT'),
+    createdAt: optionalString(read(value, 'createdAt', 'created_at')),
+    updatedAt: optionalString(read(value, 'updatedAt', 'updated_at'))
+  };
+}
+
+export function normalizeApiAutomationScriptBundle(input: unknown): ApiAutomationScriptBundle {
+  const value = objectValue(input);
+  return {
+    id: stringValue(read(value, 'id')),
+    projectId: stringValue(read(value, 'projectId', 'project_id')),
+    taskId: stringValue(read(value, 'taskId', 'task_id')),
+    status: stringValue(read(value, 'status'), 'DRAFT'),
+    bundleDigest: optionalString(read(value, 'bundleDigest', 'bundle_digest')),
+    fileCount: numberValue(read(value, 'fileCount', 'file_count'), 0),
+    fileTreeSummary: objectValue(read(value, 'fileTreeSummary', 'file_tree_summary')),
+    dependencySummary: objectValue(read(value, 'dependencySummary', 'dependency_summary')),
+    staticCheckStatus: stringValue(read(value, 'staticCheckStatus', 'static_check_status'), 'PENDING'),
+    staticCheckSummary: objectValue(read(value, 'staticCheckSummary', 'static_check_summary')),
+    reviewNote: optionalString(read(value, 'reviewNote', 'review_note')),
+    submittedBy: optionalString(read(value, 'submittedBy', 'submitted_by')),
+    approvedBy: optionalString(read(value, 'approvedBy', 'approved_by')),
+    submittedAt: optionalString(read(value, 'submittedAt', 'submitted_at')),
+    approvedAt: optionalString(read(value, 'approvedAt', 'approved_at')),
+    rejectedAt: optionalString(read(value, 'rejectedAt', 'rejected_at')),
     createdAt: optionalString(read(value, 'createdAt', 'created_at')),
     updatedAt: optionalString(read(value, 'updatedAt', 'updated_at'))
   };

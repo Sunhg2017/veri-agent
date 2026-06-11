@@ -24,4 +24,9 @@ public class ApiAutomationScopeService {
         return repository.generationTaskProjectScopeId(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "接口自动化生成任务不存在: " + id));
     }
+
+    public String scriptBundleProjectScopeId(UUID id) {
+        return repository.scriptBundleProjectScopeId(id)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "脚本包不存在: " + id));
+    }
 }

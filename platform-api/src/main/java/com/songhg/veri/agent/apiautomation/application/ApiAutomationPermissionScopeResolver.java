@@ -54,4 +54,8 @@ public class ApiAutomationPermissionScopeResolver {
     public ResourceScope generationTask(UUID id) {
         return ResourceScope.project(scopeService.generationTaskProjectScopeId(id));
     }
+
+    public ResourceScope scriptBundle(UUID id) {
+        return ResourceScope.project(scopeService.scriptBundleProjectScopeId(id));
+    }
 }

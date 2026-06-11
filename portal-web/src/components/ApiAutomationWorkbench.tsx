@@ -1,11 +1,13 @@
 import {
   AlertTriangle,
   CheckCircle2,
+  ClipboardCheck,
   FileText,
   ListChecks,
   RefreshCw,
   RotateCcw,
   ShieldCheck,
+  Send,
   Upload
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
@@ -13,15 +15,20 @@ import type { CurrentUser } from '../api/auth';
 import {
   createApiAutomationGenerationTask,
   createApiAutomationSpec,
+  approveApiAutomationScriptBundle,
   fetchApiAutomationDiff,
   fetchApiAutomationHealth,
   fetchApiAutomationSpec,
   fetchApiAutomationSpecs,
+  generateApiAutomationScriptBundle,
   parseApiAutomationSpec,
+  rejectApiAutomationScriptBundle,
+  submitApiAutomationScriptBundleReview,
   syncApiAutomationSpec,
   type ApiAutomationEndpointSnapshot,
   type ApiAutomationGenerationTaskDetail,
   type ApiAutomationHealth,
+  type ApiAutomationScriptBundle,
   type ApiAutomationSpec,
   type ApiAutomationSpecDetail,
   type ApiAutomationSyncResponse
@@ -54,6 +61,7 @@ export function ApiAutomationWorkbench(props: { signedIn: boolean; currentUser: 
   const canRead = hasPermission(props.currentUser, 'apiAutomation:read');
   const canImport = canUseButton(props.currentUser, 'apiAutomation:import');
   const canGenerate = canUseButton(props.currentUser, 'apiAutomation:generate');
+  const canReview = canUseButton(props.currentUser, 'apiAutomation:review');
   const [health, setHealth] = useState<ApiAutomationHealth | null>(null);
   const [specs, setSpecs] = useState<ApiAutomationSpec[]>([]);
   const [selectedSpecId, setSelectedSpecId] = useState('');
@@ -66,10 +74,12 @@ export function ApiAutomationWorkbench(props: { signedIn: boolean; currentUser: 
   const [diffState, setDiffState] = useState<WorkState>({ loading: false });
   const [syncState, setSyncState] = useState<WorkState>({ loading: false });
   const [generationState, setGenerationState] = useState<WorkState>({ loading: false });
+  const [scriptBundleState, setScriptBundleState] = useState<WorkState>({ loading: false });
   const [lastSync, setLastSync] = useState<ApiAutomationSyncResponse | null>(null);
   const [lastGeneration, setLastGeneration] = useState<ApiAutomationGenerationTaskDetail | null>(null);
   const [generationAssetTestCaseIds, setGenerationAssetTestCaseIds] = useState('');
   const [generationMode, setGenerationMode] = useState<'MODEL_WITH_FALLBACK' | 'FALLBACK_ONLY'>('MODEL_WITH_FALLBACK');
+  const [reviewNote, setReviewNote] = useState('');
 
   const summary = useMemo(() => {
     const parsed = specs.filter((spec) => spec.status === 'PARSED').length;
@@ -213,9 +223,54 @@ export function ApiAutomationWorkbench(props: { signedIn: boolean; currentUser: 
         requestKey: `wp6-${effectiveGenerationMode.toLowerCase()}-${selectedSpecId}`
       });
       setLastGeneration(result.data);
+      setReviewNote('');
       setGenerationState({ loading: false, success: generationSummaryText(result.data) });
     } catch (error: unknown) {
       setGenerationState({ loading: false, error: error instanceof Error ? error.message : '生成失败' });
+    }
+  }
+
+  async function onGenerateScriptBundle() {
+    if (!lastGeneration || !canGenerate) return;
+    setScriptBundleState({ loading: true });
+    try {
+      const result = await generateApiAutomationScriptBundle(lastGeneration.task.id);
+      mergeScriptBundle(result.data, '脚本包已生成');
+    } catch (error: unknown) {
+      setScriptBundleState({ loading: false, error: error instanceof Error ? error.message : '脚本包生成失败' });
+    }
+  }
+
+  async function onSubmitBundleReview(bundle: ApiAutomationScriptBundle) {
+    if (!canReview) return;
+    setScriptBundleState({ loading: true });
+    try {
+      const result = await submitApiAutomationScriptBundleReview(bundle.id, { note: optionalText(reviewNote) });
+      mergeScriptBundle(result.data, '脚本包已提交评审');
+    } catch (error: unknown) {
+      setScriptBundleState({ loading: false, error: error instanceof Error ? error.message : '提交评审失败' });
+    }
+  }
+
+  async function onApproveBundle(bundle: ApiAutomationScriptBundle) {
+    if (!canReview) return;
+    setScriptBundleState({ loading: true });
+    try {
+      const result = await approveApiAutomationScriptBundle(bundle.id, { note: optionalText(reviewNote) });
+      mergeScriptBundle(result.data, '脚本包已审批通过');
+    } catch (error: unknown) {
+      setScriptBundleState({ loading: false, error: error instanceof Error ? error.message : '审批失败' });
+    }
+  }
+
+  async function onRejectBundle(bundle: ApiAutomationScriptBundle) {
+    if (!canReview || !reviewNote.trim()) return;
+    setScriptBundleState({ loading: true });
+    try {
+      const result = await rejectApiAutomationScriptBundle(bundle.id, { note: reviewNote.trim() });
+      mergeScriptBundle(result.data, '脚本包已驳回');
+    } catch (error: unknown) {
+      setScriptBundleState({ loading: false, error: error instanceof Error ? error.message : '驳回失败' });
     }
   }
 
@@ -403,8 +458,23 @@ export function ApiAutomationWorkbench(props: { signedIn: boolean; currentUser: 
           {syncState.success && <div className="document-state-line success">{syncState.success}</div>}
           {generationState.error && <div className="document-state-line error">{generationState.error}</div>}
           {generationState.success && <div className="document-state-line success">{generationState.success}</div>}
+          {scriptBundleState.error && <div className="document-state-line error">{scriptBundleState.error}</div>}
+          {scriptBundleState.success && <div className="document-state-line success">{scriptBundleState.success}</div>}
           {lastSync && <SyncSummary sync={lastSync} />}
-          {lastGeneration && <GenerationSummary generation={lastGeneration} />}
+          {lastGeneration && (
+            <GenerationSummary
+              generation={lastGeneration}
+              canGenerate={canGenerate}
+              canReview={canReview}
+              loading={scriptBundleState.loading}
+              reviewNote={reviewNote}
+              onReviewNoteChange={setReviewNote}
+              onGenerateBundle={() => void onGenerateScriptBundle()}
+              onSubmitReview={(bundle) => void onSubmitBundleReview(bundle)}
+              onApprove={(bundle) => void onApproveBundle(bundle)}
+              onReject={(bundle) => void onRejectBundle(bundle)}
+            />
+          )}
           <EndpointTable endpoints={detail?.endpoints ?? []} loading={detailState.loading} />
         </div>
       </section>
@@ -414,6 +484,20 @@ export function ApiAutomationWorkbench(props: { signedIn: boolean; currentUser: 
   function setDraftValue(key: keyof SpecDraft, value: string) {
     setDraft((current) => ({ ...current, [key]: value }));
     setImportState({ loading: false });
+  }
+
+  function mergeScriptBundle(bundle: ApiAutomationScriptBundle, success: string) {
+    setLastGeneration((current) => {
+      if (!current) return current;
+      return {
+        ...current,
+        scriptBundles: [
+          bundle,
+          ...current.scriptBundles.filter((item) => item.id !== bundle.id)
+        ]
+      };
+    });
+    setScriptBundleState({ loading: false, success });
   }
 }
 
@@ -469,12 +553,99 @@ function SyncSummary(props: { sync: ApiAutomationSyncResponse }) {
   );
 }
 
-function GenerationSummary(props: { generation: ApiAutomationGenerationTaskDetail }) {
+function GenerationSummary(props: {
+  generation: ApiAutomationGenerationTaskDetail;
+  canGenerate: boolean;
+  canReview: boolean;
+  loading: boolean;
+  reviewNote: string;
+  onReviewNoteChange: (value: string) => void;
+  onGenerateBundle: () => void;
+  onSubmitReview: (bundle: ApiAutomationScriptBundle) => void;
+  onApprove: (bundle: ApiAutomationScriptBundle) => void;
+  onReject: (bundle: ApiAutomationScriptBundle) => void;
+}) {
+  const bundle = props.generation.scriptBundles[0];
   return (
-    <div className="api-automation-sync-summary">
-      <span>{generationSummaryText(props.generation)}</span>
-      <span>{props.generation.task.generationMode} · {props.generation.task.modelInvocationId ? shortId(props.generation.task.modelInvocationId) : 'no-model'}</span>
-      <span>{props.generation.cases.length} 条草稿</span>
+    <div className="api-automation-generation-summary">
+      <div className="api-automation-sync-summary">
+        <span>{generationSummaryText(props.generation)}</span>
+        <span>{props.generation.task.generationMode} · {props.generation.task.modelInvocationId ? shortId(props.generation.task.modelInvocationId) : 'no-model'}</span>
+        <span>{props.generation.cases.length} 条草稿</span>
+      </div>
+      {bundle ? (
+        <div className="api-automation-script-bundle">
+          <div className="api-automation-script-bundle-head">
+            <div>
+              <span className="table-primary">脚本包</span>
+              <span className="table-secondary">{shortId(bundle.bundleDigest)} · {bundle.fileCount} files</span>
+            </div>
+            <div className="api-automation-panel-actions">
+              <StatusBadge status={bundle.status} />
+              <StatusBadge status={bundle.staticCheckStatus} />
+            </div>
+          </div>
+          <div className="api-automation-bundle-files">
+            {scriptBundleFiles(bundle).map((file) => (
+              <span key={file.path}>{file.path}</span>
+            ))}
+          </div>
+          <div className="form-grid">
+            <Field label="备注">
+              <input
+                value={props.reviewNote}
+                onChange={(event) => props.onReviewNoteChange(event.target.value)}
+                disabled={!props.canReview || props.loading}
+              />
+            </Field>
+          </div>
+          <div className="api-automation-panel-actions">
+            {(bundle.status === 'DRAFT' || bundle.status === 'REJECTED') && (
+              <button
+                className="btn btn-secondary btn-sm"
+                type="button"
+                onClick={() => props.onSubmitReview(bundle)}
+                disabled={!props.canReview || props.loading || bundle.staticCheckStatus !== 'PASSED'}
+              >
+                <Send size={15} />
+                提交评审
+              </button>
+            )}
+            {bundle.status === 'REVIEWING' && (
+              <>
+                <button
+                  className="btn btn-primary btn-sm"
+                  type="button"
+                  onClick={() => props.onApprove(bundle)}
+                  disabled={!props.canReview || props.loading}
+                >
+                  <ClipboardCheck size={15} />
+                  审批
+                </button>
+                <button
+                  className="btn btn-secondary btn-sm"
+                  type="button"
+                  onClick={() => props.onReject(bundle)}
+                  disabled={!props.canReview || props.loading || !props.reviewNote.trim()}
+                >
+                  <AlertTriangle size={15} />
+                  驳回
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      ) : (
+        <button
+          className="btn btn-secondary btn-sm"
+          type="button"
+          onClick={props.onGenerateBundle}
+          disabled={!props.canGenerate || props.loading}
+        >
+          <ListChecks size={15} />
+          生成脚本包
+        </button>
+      )}
     </div>
   );
 }
@@ -512,9 +683,19 @@ function Field(props: { label: string; children: ReactNode }) {
 function StatusBadge(props: { status: string }) {
   const status = props.status || 'UNKNOWN';
   const tone = status.includes('FAILED') || status === 'CONFLICT' || status === 'SKIPPED' ? 'danger'
-    : status === 'PARSED' || status === 'MATCHED' || status === 'CREATED' || status === 'UPDATED' ? 'success'
+    : status === 'PARSED' || status === 'MATCHED' || status === 'CREATED' || status === 'UPDATED' || status === 'APPROVED' || status === 'PASSED' ? 'success'
       : 'neutral';
   return <span className={`status-badge ${tone}`}>{status}</span>;
+}
+
+function scriptBundleFiles(bundle: ApiAutomationScriptBundle) {
+  const files = bundle.fileTreeSummary.files;
+  if (!Array.isArray(files)) return [];
+  return files
+    .map((file) => file && typeof file === 'object' ? file as Record<string, unknown> : {})
+    .map((file) => ({ path: typeof file.path === 'string' ? file.path : '' }))
+    .filter((file) => file.path)
+    .slice(0, 6);
 }
 
 function diffReason(endpoint: ApiAutomationEndpointSnapshot) {

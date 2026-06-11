@@ -2,8 +2,10 @@ package com.songhg.veri.agent.apiautomation.application;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.songhg.veri.agent.apiautomation.application.command.CreateApiAutomationGenerationTaskCommand;
+import com.songhg.veri.agent.apiautomation.application.command.ReviewApiAutomationScriptBundleCommand;
 import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationDiffResponse;
 import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationGenerationTaskDetailResponse;
+import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationScriptBundleResponse;
 import com.songhg.veri.agent.apiautomation.application.port.ApiAutomationRepository;
 import com.songhg.veri.agent.apiautomation.application.query.ApiAutomationSpecPageRequest;
 import com.songhg.veri.agent.apiautomation.application.query.ApiAutomationSpecQuery;
@@ -19,6 +21,7 @@ import com.songhg.veri.agent.asset.application.view.ApiResponseDTO;
 import com.songhg.veri.agent.asset.application.view.TestCaseResponse;
 import com.songhg.veri.agent.asset.application.view.TestCaseStepResponse;
 import com.songhg.veri.agent.common.api.PageResponse;
+import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.integration.application.view.PlatformContext;
 import com.songhg.veri.agent.modelaccess.application.ModelInvocationService;
 import com.songhg.veri.agent.modelaccess.application.command.ModelInvocationCommand;
@@ -34,6 +37,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -200,6 +204,142 @@ class ApiAutomationServiceTest {
         assertThat(sourceSummary.get("rawCandidateStored")).isEqualTo(false);
         assertThat(sourceSummary.get("reviewCommentStored")).isEqualTo(false);
         assertThat(sourceSummary.get("sourceRefDigest")).isNotNull();
+    }
+
+    @Test
+    void generatesStaticCheckedScriptBundleAndApprovesReviewFlow() {
+        InMemoryApiAutomationRepository repository = new InMemoryApiAutomationRepository();
+        ApiAutomationPlatformContextClient contextClient = mock(ApiAutomationPlatformContextClient.class);
+        ApiAutomationActorResolver actorResolver = mock(ApiAutomationActorResolver.class);
+        when(contextClient.projectContext("project-alpha")).thenReturn(new PlatformContext(
+                "PROJECT",
+                "project-alpha",
+                "ACTIVE",
+                "INTERNAL",
+                false,
+                List.of(),
+                Instant.EPOCH
+        ));
+        when(actorResolver.currentActor()).thenReturn("api-reviewer");
+
+        ApiAutomationService service = new ApiAutomationService(
+                repository,
+                mock(OpenApiSpecParser.class),
+                new ApiAutomationProperties(65_536, 50, false, 120, 100, "wp6-api-automation-v1", true),
+                contextClient,
+                actorResolver,
+                mock(AssetApiService.class),
+                mock(AssetTestCaseService.class),
+                mock(ModelInvocationService.class),
+                new ApiAutomationModelOutputParser(new ObjectMapper()),
+                new ObjectMapper()
+        );
+        UUID specId = UUID.randomUUID();
+        UUID assetApiId = UUID.randomUUID();
+        ApiAutomationSpec spec = spec("project-alpha", specId);
+        repository.insertSpec(spec);
+        repository.insertEndpointSnapshot(syncedEndpoint(spec, "/v1/payments", "POST", "digest-payments", assetApiId));
+
+        ApiAutomationGenerationTaskDetailResponse generated = service.createGenerationTask(
+                new CreateApiAutomationGenerationTaskCommand(
+                        "project-alpha",
+                        specId,
+                        List.of(assetApiId),
+                        List.of(),
+                        List.of("SMOKE"),
+                        "FALLBACK_ONLY",
+                        1,
+                        "script-bundle-review"
+                )
+        );
+
+        assertThat(generated.scriptBundles()).hasSize(1);
+        ApiAutomationScriptBundleResponse bundle = generated.scriptBundles().getFirst();
+        assertThat(bundle.status()).isEqualTo("DRAFT");
+        assertThat(bundle.staticCheckStatus()).isEqualTo("PASSED");
+        assertThat(bundle.fileCount()).isEqualTo(6);
+        assertThat(bundle.fileTreeSummary()).containsEntry("rawSourceStored", false)
+                .containsEntry("secretValuesStored", false);
+        assertThat(bundle.staticCheckSummary()).containsEntry("pythonSyntax", "PASSED")
+                .containsEntry("secretPatternHits", 0);
+        assertThat(bundle.dependencySummary().toString()).contains("pytest", "httpx");
+
+        ApiAutomationScriptBundleResponse submitted = service.submitScriptBundleReview(
+                bundle.id(),
+                new ReviewApiAutomationScriptBundleCommand("ready for review")
+        );
+        assertThat(submitted.status()).isEqualTo("REVIEWING");
+        assertThat(submitted.submittedBy()).isEqualTo("api-reviewer");
+
+        ApiAutomationScriptBundleResponse approved = service.approveScriptBundle(
+                bundle.id(),
+                new ReviewApiAutomationScriptBundleCommand("approved")
+        );
+        assertThat(approved.status()).isEqualTo("APPROVED");
+        assertThat(approved.approvedBy()).isEqualTo("api-reviewer");
+
+        ApiAutomationScriptBundleResponse existing = service.generateScriptBundle(generated.task().id());
+        assertThat(existing.id()).isEqualTo(bundle.id());
+    }
+
+    @Test
+    void rejectsScriptBundleOnlyWhenReasonIsProvided() {
+        InMemoryApiAutomationRepository repository = new InMemoryApiAutomationRepository();
+        ApiAutomationPlatformContextClient contextClient = mock(ApiAutomationPlatformContextClient.class);
+        ApiAutomationActorResolver actorResolver = mock(ApiAutomationActorResolver.class);
+        when(contextClient.projectContext("project-alpha")).thenReturn(new PlatformContext(
+                "PROJECT",
+                "project-alpha",
+                "ACTIVE",
+                "INTERNAL",
+                false,
+                List.of(),
+                Instant.EPOCH
+        ));
+        when(actorResolver.currentActor()).thenReturn("api-reviewer");
+
+        ApiAutomationService service = new ApiAutomationService(
+                repository,
+                mock(OpenApiSpecParser.class),
+                new ApiAutomationProperties(65_536, 50, false, 120, 100, "wp6-api-automation-v1", true),
+                contextClient,
+                actorResolver,
+                mock(AssetApiService.class),
+                mock(AssetTestCaseService.class),
+                mock(ModelInvocationService.class),
+                new ApiAutomationModelOutputParser(new ObjectMapper()),
+                new ObjectMapper()
+        );
+        UUID specId = UUID.randomUUID();
+        UUID assetApiId = UUID.randomUUID();
+        ApiAutomationSpec spec = spec("project-alpha", specId);
+        repository.insertSpec(spec);
+        repository.insertEndpointSnapshot(syncedEndpoint(spec, "/v1/refunds", "POST", "digest-refunds", assetApiId));
+        ApiAutomationGenerationTaskDetailResponse generated = service.createGenerationTask(
+                new CreateApiAutomationGenerationTaskCommand(
+                        "project-alpha",
+                        specId,
+                        List.of(assetApiId),
+                        List.of(),
+                        List.of("EXCEPTION"),
+                        "FALLBACK_ONLY",
+                        1,
+                        "script-bundle-reject"
+                )
+        );
+        UUID bundleId = generated.scriptBundles().getFirst().id();
+        service.submitScriptBundleReview(bundleId, new ReviewApiAutomationScriptBundleCommand(null));
+
+        assertThatThrownBy(() -> service.rejectScriptBundle(bundleId, new ReviewApiAutomationScriptBundleCommand(" ")))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("驳回原因必填");
+
+        ApiAutomationScriptBundleResponse rejected = service.rejectScriptBundle(
+                bundleId,
+                new ReviewApiAutomationScriptBundleCommand("missing assertion")
+        );
+        assertThat(rejected.status()).isEqualTo("REJECTED");
+        assertThat(rejected.reviewNote()).isEqualTo("missing assertion");
     }
 
     @Test

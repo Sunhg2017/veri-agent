@@ -161,15 +161,43 @@ class ApiAutomationControllerTest {
                 .andExpect(jsonPath("$.data.task.caseCount").value(4))
                 .andExpect(jsonPath("$.data.cases", hasSize(4)))
                 .andExpect(jsonPath("$.data.cases[0].source").value("FALLBACK"))
+                .andExpect(jsonPath("$.data.scriptBundles", hasSize(1)))
+                .andExpect(jsonPath("$.data.scriptBundles[0].status").value("DRAFT"))
+                .andExpect(jsonPath("$.data.scriptBundles[0].staticCheckStatus").value("PASSED"))
                 .andExpect(content().string(not(containsString("real-token-value"))))
                 .andReturn();
 
         UUID taskId = UUID.fromString(JsonPath.read(generated.getResponse().getContentAsString(), "$.data.task.id"));
+        UUID bundleId = UUID.fromString(JsonPath.read(generated.getResponse().getContentAsString(), "$.data.scriptBundles[0].id"));
         mockMvc.perform(get("/api/v1/api-automation/generation-tasks/{id}", taskId)
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.task.id").value(taskId.toString()))
-                .andExpect(jsonPath("$.data.cases", hasSize(4)));
+                .andExpect(jsonPath("$.data.cases", hasSize(4)))
+                .andExpect(jsonPath("$.data.scriptBundles[0].id").value(bundleId.toString()));
+
+        mockMvc.perform(post("/api/v1/api-automation/script-bundles/{id}/submit-review", bundleId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("note", "ready"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("REVIEWING"))
+                .andExpect(jsonPath("$.data.submittedBy").exists());
+
+        mockMvc.perform(post("/api/v1/api-automation/script-bundles/{id}/reject", bundleId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("note", " "))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+
+        mockMvc.perform(post("/api/v1/api-automation/script-bundles/{id}/approve", bundleId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("note", "approved"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("APPROVED"))
+                .andExpect(jsonPath("$.data.approvedBy").exists());
     }
 
     @Test

@@ -1310,6 +1310,54 @@ tbody tr:hover td {
   font-size: var(--font-size-sm);
 }
 
+.api-automation-generation-summary {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-sm);
+}
+
+.api-automation-script-bundle {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  padding: 10px 12px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  background: var(--bg-alt);
+}
+
+.api-automation-script-bundle-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-sm);
+}
+
+.api-automation-bundle-files {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.api-automation-bundle-files span {
+  display: inline-flex;
+  max-width: 220px;
+  min-height: 24px;
+  align-items: center;
+  padding: 2px 8px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  background: var(--surface);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .method-pill,
 .status-badge {
   display: inline-flex;

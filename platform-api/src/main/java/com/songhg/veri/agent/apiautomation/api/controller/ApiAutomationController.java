@@ -3,11 +3,13 @@ package com.songhg.veri.agent.apiautomation.api.controller;
 import com.songhg.veri.agent.apiautomation.application.ApiAutomationService;
 import com.songhg.veri.agent.apiautomation.application.command.CreateApiAutomationGenerationTaskCommand;
 import com.songhg.veri.agent.apiautomation.application.command.CreateApiAutomationSpecCommand;
+import com.songhg.veri.agent.apiautomation.application.command.ReviewApiAutomationScriptBundleCommand;
 import com.songhg.veri.agent.apiautomation.application.command.SyncApiAutomationSpecCommand;
 import com.songhg.veri.agent.apiautomation.application.query.ApiAutomationSpecPageRequest;
 import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationDiffResponse;
 import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationGenerationTaskDetailResponse;
 import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationHealthResponse;
+import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationScriptBundleResponse;
 import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationSyncResponse;
 import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationSpecDetailResponse;
 import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationSpecResponse;
@@ -95,5 +97,39 @@ public class ApiAutomationController {
     @RequirePermission(value = PermissionCodes.API_AUTOMATION_READ, scope = ApiAutomationPermissionScopes.GENERATION_TASK)
     public ApiAutomationGenerationTaskDetailResponse generationTask(@PathVariable UUID id) {
         return service.generationTaskDetail(id);
+    }
+
+    @PostMapping("/generation-tasks/{id}/script-bundles")
+    @ResponseStatus(HttpStatus.CREATED)
+    @RequirePermission(value = PermissionCodes.API_AUTOMATION_GENERATE, scope = ApiAutomationPermissionScopes.GENERATION_TASK)
+    public ApiAutomationScriptBundleResponse generateScriptBundle(@PathVariable UUID id) {
+        return service.generateScriptBundle(id);
+    }
+
+    @PostMapping("/script-bundles/{id}/submit-review")
+    @RequirePermission(value = PermissionCodes.API_AUTOMATION_REVIEW, scope = ApiAutomationPermissionScopes.SCRIPT_BUNDLE)
+    public ApiAutomationScriptBundleResponse submitScriptBundleReview(
+            @PathVariable UUID id,
+            @RequestBody(required = false) ReviewApiAutomationScriptBundleCommand command
+    ) {
+        return service.submitScriptBundleReview(id, command);
+    }
+
+    @PostMapping("/script-bundles/{id}/approve")
+    @RequirePermission(value = PermissionCodes.API_AUTOMATION_REVIEW, scope = ApiAutomationPermissionScopes.SCRIPT_BUNDLE)
+    public ApiAutomationScriptBundleResponse approveScriptBundle(
+            @PathVariable UUID id,
+            @RequestBody(required = false) ReviewApiAutomationScriptBundleCommand command
+    ) {
+        return service.approveScriptBundle(id, command);
+    }
+
+    @PostMapping("/script-bundles/{id}/reject")
+    @RequirePermission(value = PermissionCodes.API_AUTOMATION_REVIEW, scope = ApiAutomationPermissionScopes.SCRIPT_BUNDLE)
+    public ApiAutomationScriptBundleResponse rejectScriptBundle(
+            @PathVariable UUID id,
+            @RequestBody(required = false) ReviewApiAutomationScriptBundleCommand command
+    ) {
+        return service.rejectScriptBundle(id, command);
     }
 }

@@ -76,6 +76,7 @@
 | `POST` | `/specs/{id}/sync` | `apiAutomation:import` | 确认同步新增/更新 API 资产 |
 | `POST` | `/generation-tasks` | `apiAutomation:generate` | 创建接口自动化生成任务 |
 | `GET` | `/generation-tasks/{id}` | `apiAutomation:read` | 查询生成任务、用例和脚本包摘要 |
+| `POST` | `/generation-tasks/{id}/script-bundles` | `apiAutomation:generate` | 为生成任务创建或返回脚本包摘要 |
 | `POST` | `/script-bundles/{id}/submit-review` | `apiAutomation:review` | 提交脚本包评审 |
 | `POST` | `/script-bundles/{id}/approve` | `apiAutomation:review` | 审批脚本包 |
 | `POST` | `/script-bundles/{id}/reject` | `apiAutomation:review` | 驳回脚本包 |
@@ -227,8 +228,12 @@ Runner 必须执行以下限制：
 - 生成 M4：`FALLBACK_ONLY` 产出确定性 fallback 用例草稿；`MODEL_WITH_FALLBACK` 调用 WP2 `wp6-api-automation-v1` Prompt，模型成功时产出 `source=MODEL` 草稿，模型失败、WP2 阻断或输出非法时按配置产出 `source=FALLBACK` 草稿并保存可解释 fallbackReason。
 - 模型输出校验 M4：新增 WP6 输出解析器，拒绝未知字段、非 JSON、非聚合 requestTemplate、敏感文本、非法 status/method/path/assertions 以及不属于当前生成范围的 API。
 - WP5/WP3 输入 M4：`assetTestCaseIds` 已通过 WP3 `AssetTestCaseService` 读取发布后的测试用例摘要，校验项目归属和已同步 API 范围；不读取 WP5 候选正文、评审评论或 sourceRef 明文。
+- DB M5：新增 `api_automation_script_bundle`，保存脚本包 digest、文件树摘要、依赖摘要、静态校验摘要、评审状态和提交/审批人时间戳。
+- 后端 M5：生成任务创建时同步生成 Pytest/httpx 脚本包摘要；也支持 `POST /generation-tasks/{id}/script-bundles` 对历史任务补包，幂等返回已有未归档脚本包。
+- 静态校验 M5：在不执行 Python、不访问网络的前提下校验模板括号边界、危险 import/call 和硬编码 secret pattern；失败状态为 `SCRIPT_STATIC_CHECK_FAILED`。
+- 评审 M5：`submit-review/approve/reject` 实现 `DRAFT/REVIEWING/APPROVED/REJECTED` 流转，驳回原因必填，审计只记录动作和备注存在性，不写备注正文。
 - Parser：支持 OpenAPI 3.x JSON/YAML，抽取 method/path/operationId/tags/参数数/requestBody/响应码/schemaDigest，并对 Authorization、apiKey、token、cookie、password、secret 等敏感示例脱敏。
-- 权限：除 health 外，规格导入、查询、重解析、diff、sync 和生成任务均按项目 scope 校验 `apiAutomation:*` 权限。
-- 前端：新增 `#api-automation` 入口、API helper、权限控制、规格导入/列表/endpoint snapshot、diff 刷新、WP3 API 同步入口、生成模式选择、WP3 用例 ID 输入和生成用例入口。
+- 权限：除 health 外，规格导入、查询、重解析、diff、sync、生成任务和脚本包评审均按项目 scope 校验 `apiAutomation:*` 权限。
+- 前端：新增 `#api-automation` 入口、API helper、权限控制、规格导入/列表/endpoint snapshot、diff 刷新、WP3 API 同步入口、生成模式选择、WP3 用例 ID 输入、生成用例入口和脚本包评审面板。
 
-本轮未实现：脚本包生成与评审、runner 执行、运行结果、WP6 quality gate 聚合脚本。这些仍按研发任务拆解的 M5-M7 继续推进。
+本轮未实现：runner 执行、运行结果、WP6 quality gate 聚合脚本。这些仍按研发任务拆解的 M6-M7 继续推进。

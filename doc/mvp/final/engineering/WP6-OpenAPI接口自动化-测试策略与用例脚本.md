@@ -59,6 +59,9 @@
 | 生成任务模型成功 | 保存 prompt、modelInvocationId、inputDigest 和脚本包 |
 | WP2 策略阻断 | 任务失败或 fallback，错误可解释 |
 | 模型输出非法 | 严格模式失败，fallback 模式生成模板草稿 |
+| 脚本包生成 | 返回 Pytest/httpx 文件树摘要、依赖摘要、bundleDigest 和 fileCount，不返回源码或 secret |
+| 脚本包静态校验 | Python 模板、危险 import/call、硬编码 secret pattern 均通过后状态为 `PASSED` |
+| 脚本包评审 | `DRAFT -> REVIEWING -> APPROVED/REJECTED` 状态正确，驳回原因必填并写审计 |
 | 未审批脚本包运行 | 默认拒绝或仅开发模式允许 |
 | runner disabled | 返回 `RUNNER_DISABLED` |
 | baseUrl 不在 allowlist | 返回 `RUNNER_TARGET_BLOCKED` |
@@ -75,6 +78,8 @@
 | 规格列表 loading/empty/error | 状态展示正确 |
 | diff 部分冲突 | 表格展示分类和逐项原因 |
 | 生成 payload | 只包含 project/spec/API/case/coverage/generationMode |
+| 脚本包面板 | 展示脚本包状态、静态校验、文件摘要和 digest |
+| 脚本包评审按钮 | 按 `apiAutomation:review` 权限和状态展示提交评审、审批、驳回 |
 | runner disabled | 运行入口禁用并展示策略摘要 |
 | 运行结果聚合 | pass/fail/skip/error 和耗时展示正确 |
 | 403/409/策略阻断 | 展示错误码、traceId 和脱敏 message |

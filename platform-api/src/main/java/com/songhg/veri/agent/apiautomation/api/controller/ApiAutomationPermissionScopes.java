@@ -7,6 +7,7 @@ final class ApiAutomationPermissionScopes {
     static final String SPEC = "@apiAutomationPermissionScopeResolver.spec(#id)";
     static final String GENERATION_REQUEST = "@apiAutomationPermissionScopeResolver.generationRequest(#command)";
     static final String GENERATION_TASK = "@apiAutomationPermissionScopeResolver.generationTask(#id)";
+    static final String SCRIPT_BUNDLE = "@apiAutomationPermissionScopeResolver.scriptBundle(#id)";
 
     private ApiAutomationPermissionScopes() {
     }

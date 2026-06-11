@@ -101,6 +101,31 @@
         </constructor>
     </resultMap>
 
+    <resultMap id="scriptBundleMap" type="com.songhg.veri.agent.apiautomation.domain.ApiAutomationScriptBundle">
+        <constructor>
+            <arg column="id" javaType="java.util.UUID"/>
+            <arg column="project_id" javaType="java.lang.String"/>
+            <arg column="task_id" javaType="java.util.UUID"/>
+            <arg column="status" javaType="java.lang.String"/>
+            <arg column="bundle_digest" javaType="java.lang.String"/>
+            <arg column="file_count" javaType="_int"/>
+            <arg column="file_tree_summary_json" javaType="java.lang.String"/>
+            <arg column="dependency_summary_json" javaType="java.lang.String"/>
+            <arg column="static_check_status" javaType="java.lang.String"/>
+            <arg column="static_check_summary_json" javaType="java.lang.String"/>
+            <arg column="review_note" javaType="java.lang.String"/>
+            <arg column="submitted_by" javaType="java.lang.String"/>
+            <arg column="approved_by" javaType="java.lang.String"/>
+            <arg column="submitted_at" javaType="java.time.Instant"/>
+            <arg column="approved_at" javaType="java.time.Instant"/>
+            <arg column="rejected_at" javaType="java.time.Instant"/>
+            <arg column="created_by" javaType="java.lang.String"/>
+            <arg column="updated_by" javaType="java.lang.String"/>
+            <arg column="created_at" javaType="java.time.Instant"/>
+            <arg column="updated_at" javaType="java.time.Instant"/>
+        </constructor>
+    </resultMap>
+
     <sql id="specColumns">
         id, project_id, source_type, source_ref, name, version_label, spec_digest, content_size_bytes,
         sanitized_spec_json::text as sanitized_spec_json, parse_summary_json::text as parse_summary_json,
@@ -129,6 +154,16 @@
         assertion_summary_json::text as assertion_summary_json,
         request_template_json::text as request_template_json,
         source, status, created_at, updated_at
+    </sql>
+
+    <sql id="scriptBundleColumns">
+        id, project_id, task_id, status, bundle_digest, file_count,
+        file_tree_summary_json::text as file_tree_summary_json,
+        dependency_summary_json::text as dependency_summary_json,
+        static_check_status,
+        static_check_summary_json::text as static_check_summary_json,
+        review_note, submitted_by, approved_by, submitted_at, approved_at, rejected_at,
+        created_by, updated_by, created_at, updated_at
     </sql>
 
     <sql id="specWhere">
@@ -214,6 +249,12 @@
         where id = #{id}
     </select>
 
+    <select id="scriptBundleProjectScopeId" resultType="string">
+        select project_id
+        from api_automation_script_bundle
+        where id = #{id}
+    </select>
+
     <delete id="deleteEndpointSnapshots">
         delete from api_automation_endpoint_snapshot
         where spec_id = #{specId}
@@ -280,6 +321,37 @@
         )
     </insert>
 
+    <insert id="insertScriptBundle">
+        insert into api_automation_script_bundle (
+            id, project_id, task_id, status, bundle_digest, file_count,
+            file_tree_summary_json, dependency_summary_json, static_check_status, static_check_summary_json,
+            review_note, submitted_by, approved_by, submitted_at, approved_at, rejected_at,
+            created_by, updated_by, created_at, updated_at
+        ) values (
+            #{id}, #{projectId}, #{taskId}, #{status}, #{bundleDigest}, #{fileCount},
+            cast(coalesce(#{fileTreeSummaryJson}, '{}') as jsonb),
+            cast(coalesce(#{dependencySummaryJson}, '{}') as jsonb),
+            #{staticCheckStatus},
+            cast(coalesce(#{staticCheckSummaryJson}, '{}') as jsonb),
+            #{reviewNote}, #{submittedBy}, #{approvedBy}, #{submittedAt}, #{approvedAt}, #{rejectedAt},
+            #{createdBy}, #{updatedBy}, #{createdAt}, #{updatedAt}
+        )
+    </insert>
+
+    <update id="updateScriptBundleReview">
+        update api_automation_script_bundle set
+            status = #{status},
+            review_note = #{reviewNote},
+            submitted_by = #{submittedBy},
+            approved_by = #{approvedBy},
+            submitted_at = #{submittedAt},
+            approved_at = #{approvedAt},
+            rejected_at = #{rejectedAt},
+            updated_by = #{updatedBy},
+            updated_at = #{updatedAt}
+        where id = #{id}
+    </update>
+
     <select id="generationTask" resultMap="generationTaskMap">
         select <include refid="generationTaskColumns"/>
         from api_automation_generation_task
@@ -307,5 +379,18 @@
         from api_automation_case
         where task_id = #{taskId}
         order by path asc, coverage_type asc
+    </select>
+
+    <select id="scriptBundle" resultMap="scriptBundleMap">
+        select <include refid="scriptBundleColumns"/>
+        from api_automation_script_bundle
+        where id = #{id}
+    </select>
+
+    <select id="scriptBundles" resultMap="scriptBundleMap">
+        select <include refid="scriptBundleColumns"/>
+        from api_automation_script_bundle
+        where task_id = #{taskId}
+        order by created_at desc
     </select>
 </mapper>
