@@ -65,7 +65,10 @@ with expected(table_name) as (
         ('test_design_release_readiness_approval'),
         ('test_design_release_readiness_note'),
         ('test_design_evaluation_sample'),
-        ('test_design_calibration_run')
+        ('test_design_calibration_run'),
+        -- WP6 OpenAPI API automation tables
+        ('api_automation_spec'),
+        ('api_automation_endpoint_snapshot')
 ),
 missing as (
     select e.table_name
@@ -417,7 +420,17 @@ with expected(table_name, column_name) as (
         ('test_design_calibration_run','readiness_blocking_count'), ('test_design_calibration_run','readiness_warning_count'),
         ('test_design_calibration_run','regression_count'), ('test_design_calibration_run','baseline_digest'),
         ('test_design_calibration_run','result_digest'), ('test_design_calibration_run','notes'),
-        ('test_design_calibration_run','run_by'), ('test_design_calibration_run','created_at')
+        ('test_design_calibration_run','run_by'), ('test_design_calibration_run','created_at'),
+        -- WP6 key columns
+        ('api_automation_spec','id'), ('api_automation_spec','project_id'),
+        ('api_automation_spec','source_type'), ('api_automation_spec','name'),
+        ('api_automation_spec','spec_digest'), ('api_automation_spec','content_size_bytes'),
+        ('api_automation_spec','sanitized_spec_json'), ('api_automation_spec','parse_summary_json'),
+        ('api_automation_spec','status'), ('api_automation_spec','endpoint_count'),
+        ('api_automation_endpoint_snapshot','id'), ('api_automation_endpoint_snapshot','spec_id'),
+        ('api_automation_endpoint_snapshot','project_id'), ('api_automation_endpoint_snapshot','http_method'),
+        ('api_automation_endpoint_snapshot','path'), ('api_automation_endpoint_snapshot','operation_id'),
+        ('api_automation_endpoint_snapshot','schema_digest'), ('api_automation_endpoint_snapshot','diff_status')
 ),
 missing as (
     select e.table_name || '.' || e.column_name as item
@@ -518,6 +531,13 @@ with expected(table_name, index_name) as (
         ('test_design_report_archive','idx_test_design_report_archive_retention'),
         ('test_design_report_archive_line_integrity','idx_test_design_report_archive_line_chain'),
         ('test_design_report_archive_line_integrity','idx_test_design_report_archive_line_section_metric'),
+        -- WP6 key indexes
+        ('api_automation_spec','uk_api_automation_spec_project_digest'),
+        ('api_automation_spec','idx_api_automation_spec_project_status'),
+        ('api_automation_spec','idx_api_automation_spec_created'),
+        ('api_automation_endpoint_snapshot','uk_api_automation_endpoint_spec_method_path'),
+        ('api_automation_endpoint_snapshot','idx_api_automation_endpoint_project_method'),
+        ('api_automation_endpoint_snapshot','idx_api_automation_endpoint_spec_diff'),
         ('test_design_report_archive_approval','idx_test_design_report_archive_approval_archive_created'),
         ('test_design_report_archive_approval','idx_test_design_report_archive_approval_project_type_status'),
         ('test_design_report_archive_approval','idx_test_design_report_archive_approval_work_order'),

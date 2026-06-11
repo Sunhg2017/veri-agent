@@ -24,6 +24,7 @@ VALIDATIONS=(
   "$ROOT_DIR/db/validation/wp_all_schema_validation.sql"
   "$ROOT_DIR/db/validation/wp4_document_input_validation.sql"
   "$ROOT_DIR/db/validation/wp5_test_design_validation.sql"
+  "$ROOT_DIR/db/validation/wp6_api_automation_validation.sql"
 )
 
 run_psql_file() {
@@ -172,6 +173,8 @@ grant select, insert, update on
     test_design_report_manifest,
     test_design_context_policy_override,
     test_design_release_readiness_approval,
+    api_automation_spec,
+    api_automation_endpoint_snapshot,
     audit_outbox
 to wp1_app;
 

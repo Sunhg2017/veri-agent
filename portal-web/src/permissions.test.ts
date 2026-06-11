@@ -36,6 +36,7 @@ describe('WP1 permission helpers', () => {
       'requirementInput:read',
       'asset:read',
       'testDesign:read',
+      'apiAutomation:read',
       'modelAccess:read'
     ]);
 
@@ -46,6 +47,7 @@ describe('WP1 permission helpers', () => {
     expect(canAccessPage(currentUser, 'document-input')).toBe(true);
     expect(canAccessPage(currentUser, 'asset-library')).toBe(true);
     expect(canAccessPage(currentUser, 'test-design')).toBe(true);
+    expect(canAccessPage(currentUser, 'api-automation')).toBe(true);
     expect(canAccessPage(currentUser, 'model-access')).toBe(true);
     expect(canAccessPage(currentUser, 'projects')).toBe(false);
   });
@@ -63,6 +65,11 @@ describe('WP1 permission helpers', () => {
   it('requires WP5 test design read permission for the test design workbench', () => {
     expect(canAccessPage(user(['asset:read']), 'test-design')).toBe(false);
     expect(canAccessPage(user(['testDesign:read']), 'test-design')).toBe(true);
+  });
+
+  it('requires WP6 API automation read permission for the API automation workbench', () => {
+    expect(canAccessPage(user(['testDesign:read']), 'api-automation')).toBe(false);
+    expect(canAccessPage(user(['apiAutomation:read']), 'api-automation')).toBe(true);
   });
 
   it('requires WP2 model access read permission for the model access console', () => {
@@ -173,6 +180,12 @@ describe('WP1 permission helpers', () => {
     expect(canUseButton(user(['testDesign:export']), 'testDesign:export')).toBe(true);
     expect(canUseButton(user(['testDesign:policy_manage']), 'testDesign:policy_manage')).toBe(true);
     expect(canUseButton(user(['testDesign:read']), 'testDesign:policy_manage')).toBe(false);
+    expect(canUseButton(user(['apiAutomation:import']), 'apiAutomation:import')).toBe(true);
+    expect(canUseButton(user(['apiAutomation:read']), 'apiAutomation:import')).toBe(false);
+    expect(canUseButton(user(['apiAutomation:generate']), 'apiAutomation:generate')).toBe(true);
+    expect(canUseButton(user(['apiAutomation:review']), 'apiAutomation:review')).toBe(true);
+    expect(canUseButton(user(['apiAutomation:execute']), 'apiAutomation:execute')).toBe(true);
+    expect(canUseButton(user(['apiAutomation:export']), 'apiAutomation:export')).toBe(true);
     expect(canUseButton(user(['modelAccess:manage']), 'modelAccess:provider_manage')).toBe(true);
     expect(canUseButton(user(['modelAccess:manage']), 'modelAccess:prompt_manage')).toBe(true);
     expect(canUseButton(user(['modelAccess:manage']), 'modelAccess:policy_manage')).toBe(true);

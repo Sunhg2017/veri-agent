@@ -147,6 +147,12 @@ public class OpenApiConfiguration {
         if (packageName.contains(".documentinput.")) {
             return "WP4 Document Input";
         }
+        if (packageName.contains(".testdesign.")) {
+            return "WP5 Test Design";
+        }
+        if (packageName.contains(".apiautomation.")) {
+            return "WP6 API Automation";
+        }
         if (beanType.getSimpleName().contains("Health")) {
             return "Platform Health";
         }

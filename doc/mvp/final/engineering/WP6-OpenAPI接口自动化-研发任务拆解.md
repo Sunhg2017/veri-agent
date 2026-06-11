@@ -163,3 +163,28 @@
 4. 再做 WP6-6.x，接入 runner disabled/allowlist/结果采集，最后开启真实 runner smoke。
 5. 前端 WP6-7.x 与后端契约并行推进，但 sync、生成、运行按钮必须以后端权限和状态为准。
 6. WP6-8.x 从第一轮迁移开始同步建设，避免最后补门禁。
+
+## 16. 当前推进状态（2026-06-11）
+
+本轮完成 M1/M2 基础切片，退出标准以“OpenAPI 规格可导入、解析、脱敏、查询，并生成 endpoint snapshot”为准。
+
+| Story | 状态 | 说明 |
+|---|---|---|
+| WP6-1.1 权限点 seed | 已完成 | 新增 `apiAutomation:read/import/generate/review/execute/export`，DB seed 和 local/test 角色目录同步。 |
+| WP6-1.2 审计事件字典 | 部分完成 | 实现 `api_automation.spec.parsed`、`api_automation.spec.parse_failed` 写审计；sync/generation/bundle/run/export 事件待后续能力落地。 |
+| WP6-1.3 DB schema | 部分完成 | 已建 spec、endpoint snapshot 两张基础表和 validation；generation、case、script bundle、run、run result 表待 M4-M6。 |
+| WP6-1.4 模块骨架 | 已完成 | 新增 `apiautomation` controller/application/domain/infrastructure/config 包。 |
+| WP6-1.5 Health API | 已完成 | `GET /api/v1/api-automation/health` 公开返回配置边界、runner disabled 策略和当前功能边界。 |
+| WP6-2.1 导入 API | 已完成 | `POST /specs` 支持 TEXT 内容导入；URL P0 仅保存脱敏 sourceRef，不主动拉取。 |
+| WP6-2.2 Parser | 已完成 | 支持 OpenAPI 3.x JSON/YAML，非法样本返回 `OPENAPI_PARSE_FAILED`。 |
+| WP6-2.3 脱敏与裁剪 | 已完成 | 对敏感字段名和值脱敏，响应不返回原始规格正文。 |
+| WP6-2.4 Endpoint snapshot | 已完成 | 解析后写 endpoint snapshot，包含 schemaDigest 和 `UNKNOWN` diff 初始状态。 |
+| WP6-2.5 解析状态机 | 部分完成 | 已支持 `UPLOADED/PARSING/PARSED/PARSE_FAILED/ARCHIVED` 状态约束和重解析；失败后不持久化原始未脱敏内容。 |
+| WP6-7.1 API client | 已完成 | 新增 `portal-web/src/api/apiAutomation.ts` 和 Vitest。 |
+| WP6-7.2 权限入口 | 已完成 | 新增 `#api-automation` 导航入口和 `apiAutomation:read/import` 控制。 |
+| WP6-7.3 规格面板 | 部分完成 | 已完成导入表单、规格列表、状态、错误提示和 endpoint snapshot；diff/generation/run 面板待后续后端能力。 |
+| WP6-8.1 后端测试 | 部分完成 | 已覆盖 parser、controller、权限、OpenAPI 契约和安全配置；全量回归仍需发布前执行。 |
+| WP6-8.2 前端测试 | 部分完成 | 已覆盖 API helper 和权限 helper；复杂页面交互待后续 Playwright smoke。 |
+| WP6-8.3 DB validation | 已完成 | `run_wp1_db_validation.sh` 已纳入 WP6 schema/权限校验。 |
+
+下一步建议按 M3 推进 WP6-3.x：实现 endpoint 与 WP3 API 资产匹配、diff 查询、sync preview、人工确认同步和审计明细。

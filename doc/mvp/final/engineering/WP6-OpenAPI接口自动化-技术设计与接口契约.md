@@ -67,7 +67,7 @@
 
 | 方法 | 路径 | 权限 | 说明 |
 |---|---|---|---|
-| `GET` | `/health` | `apiAutomation:read` | 返回 WP6 配置边界、runner 开关和安全策略摘要 |
+| `GET` | `/health` | 公开健康检查 | 返回 WP6 配置边界、runner 开关和安全策略摘要；不返回 secret、allowlist 明细或运行目标 |
 | `POST` | `/specs` | `apiAutomation:import` | 创建 OpenAPI 导入任务，支持 `UPLOAD/TEXT/URL` |
 | `GET` | `/specs` | `apiAutomation:read` | 分页查询规格源 |
 | `GET` | `/specs/{id}` | `apiAutomation:read` | 查询规格详情和解析摘要 |
@@ -193,3 +193,15 @@ Runner 必须执行以下限制：
 3. OpenAPI fixture smoke 覆盖 JSON/YAML、参数、请求体、响应码、非法 schema 和敏感样例脱敏。
 4. Runner smoke 默认关闭；发布或显式执行时必须验证 allowlist、timeout、失败结果和脱敏日志。
 5. OpenAPI contract 测试必须确认路径、权限、响应 envelope 和 traceId。
+
+## 12. 当前实现切片（2026-06-11）
+
+本轮已实现 M1/M2 基础控制面切片：
+
+- DB：新增 `api_automation_spec`、`api_automation_endpoint_snapshot`、WP6 权限 seed、角色默认授权和 DB validation。
+- 后端：新增 `/api/v1/api-automation/health`、`/specs` 创建/列表、`/specs/{id}` 详情、`/specs/{id}/parse` 重解析。
+- Parser：支持 OpenAPI 3.x JSON/YAML，抽取 method/path/operationId/tags/参数数/requestBody/响应码/schemaDigest，并对 Authorization、apiKey、token、cookie、password、secret 等敏感示例脱敏。
+- 权限：除 health 外，规格导入、查询、重解析均按项目 scope 校验 `apiAutomation:*` 权限。
+- 前端：新增 `#api-automation` 入口、API helper、权限控制和规格导入/列表/endpoint snapshot 基础工作台。
+
+本轮未实现：WP3 diff/sync、WP2 生成任务、脚本包评审、runner 执行、运行结果、WP6 quality gate 聚合脚本。这些仍按研发任务拆解的 M3-M7 继续推进。

@@ -90,6 +90,13 @@ public final class PermissionCodes {
     public static final String TEST_DESIGN_EXPORT = "testDesign:export";
     public static final String TEST_DESIGN_POLICY_MANAGE = "testDesign:policy_manage";
 
+    public static final String API_AUTOMATION_READ = "apiAutomation:read";
+    public static final String API_AUTOMATION_IMPORT = "apiAutomation:import";
+    public static final String API_AUTOMATION_GENERATE = "apiAutomation:generate";
+    public static final String API_AUTOMATION_REVIEW = "apiAutomation:review";
+    public static final String API_AUTOMATION_EXECUTE = "apiAutomation:execute";
+    public static final String API_AUTOMATION_EXPORT = "apiAutomation:export";
+
     public static final List<String> ALL = List.of(
             ROLE_READ, ROLE_CREATE, ROLE_EDIT, ROLE_BIND, ROLE_UNBIND,
             AUDIT_READ, AUDIT_EXPORT, AUDIT_WRITE_INTERNAL,
@@ -109,7 +116,9 @@ public final class PermissionCodes {
             REQUIREMENT_INPUT_READ, REQUIREMENT_INPUT_MANAGE, REQUIREMENT_INPUT_IMPORT,
             REQUIREMENT_INPUT_CANDIDATE_REVIEW, REQUIREMENT_INPUT_PUBLISH, REQUIREMENT_INPUT_WEBHOOK_REPLAY,
             TEST_DESIGN_READ, TEST_DESIGN_GENERATE, TEST_DESIGN_REVIEW, TEST_DESIGN_PUBLISH,
-            TEST_DESIGN_EXPORT, TEST_DESIGN_POLICY_MANAGE
+            TEST_DESIGN_EXPORT, TEST_DESIGN_POLICY_MANAGE,
+            API_AUTOMATION_READ, API_AUTOMATION_IMPORT, API_AUTOMATION_GENERATE,
+            API_AUTOMATION_REVIEW, API_AUTOMATION_EXECUTE, API_AUTOMATION_EXPORT
     );
 
     private static final String ARCHIVED_STATUS = "ARCHIVED";

@@ -6,6 +6,7 @@ export type PageKey =
   | 'document-input'
   | 'asset-library'
   | 'test-design'
+  | 'api-automation'
   | 'model-access'
   | 'organizations'
   | 'users'
@@ -78,6 +79,12 @@ export type Permission =
   | 'testDesign:publish'
   | 'testDesign:export'
   | 'testDesign:policy_manage'
+  | 'apiAutomation:read'
+  | 'apiAutomation:import'
+  | 'apiAutomation:generate'
+  | 'apiAutomation:review'
+  | 'apiAutomation:execute'
+  | 'apiAutomation:export'
   | 'modelAccess:read'
   | 'modelAccess:manage'
   | 'modelAccess:export';
@@ -125,6 +132,11 @@ export type ButtonKey =
   | 'testDesign:publish'
   | 'testDesign:export'
   | 'testDesign:policy_manage'
+  | 'apiAutomation:import'
+  | 'apiAutomation:generate'
+  | 'apiAutomation:review'
+  | 'apiAutomation:execute'
+  | 'apiAutomation:export'
   | 'modelAccess:provider_manage'
   | 'modelAccess:prompt_manage'
   | 'modelAccess:policy_manage'
@@ -136,6 +148,7 @@ export const pageReadPermissions: Partial<Record<PageKey, Permission>> = {
   'document-input': 'requirementInput:read',
   'asset-library': 'asset:read',
   'test-design': 'testDesign:read',
+  'api-automation': 'apiAutomation:read',
   'model-access': 'modelAccess:read',
   organizations: 'department:read',
   users: 'user:read',
@@ -214,6 +227,11 @@ const buttonPermissionGroups: Record<ButtonKey, Permission[][]> = {
   'testDesign:publish': [['testDesign:publish']],
   'testDesign:export': [['testDesign:export']],
   'testDesign:policy_manage': [['testDesign:policy_manage']],
+  'apiAutomation:import': [['apiAutomation:import']],
+  'apiAutomation:generate': [['apiAutomation:generate']],
+  'apiAutomation:review': [['apiAutomation:review']],
+  'apiAutomation:execute': [['apiAutomation:execute']],
+  'apiAutomation:export': [['apiAutomation:export']],
   'modelAccess:provider_manage': [['modelAccess:manage']],
   'modelAccess:prompt_manage': [['modelAccess:manage']],
   'modelAccess:policy_manage': [['modelAccess:manage']],

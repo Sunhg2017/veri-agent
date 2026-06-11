@@ -1,0 +1,162 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.songhg.veri.agent.apiautomation.infrastructure.mapper.ApiAutomationMapper">
+    <resultMap id="specMap" type="com.songhg.veri.agent.apiautomation.domain.ApiAutomationSpec">
+        <constructor>
+            <arg column="id" javaType="java.util.UUID"/>
+            <arg column="project_id" javaType="java.lang.String"/>
+            <arg column="source_type" javaType="java.lang.String"/>
+            <arg column="source_ref" javaType="java.lang.String"/>
+            <arg column="name" javaType="java.lang.String"/>
+            <arg column="version_label" javaType="java.lang.String"/>
+            <arg column="spec_digest" javaType="java.lang.String"/>
+            <arg column="content_size_bytes" javaType="_int"/>
+            <arg column="sanitized_spec_json" javaType="java.lang.String"/>
+            <arg column="parse_summary_json" javaType="java.lang.String"/>
+            <arg column="status" javaType="java.lang.String"/>
+            <arg column="parser_version" javaType="java.lang.String"/>
+            <arg column="endpoint_count" javaType="_int"/>
+            <arg column="parse_error_summary" javaType="java.lang.String"/>
+            <arg column="created_by" javaType="java.lang.String"/>
+            <arg column="updated_by" javaType="java.lang.String"/>
+            <arg column="parsed_at" javaType="java.time.Instant"/>
+            <arg column="created_at" javaType="java.time.Instant"/>
+            <arg column="updated_at" javaType="java.time.Instant"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="endpointSnapshotMap" type="com.songhg.veri.agent.apiautomation.domain.ApiAutomationEndpointSnapshot">
+        <constructor>
+            <arg column="id" javaType="java.util.UUID"/>
+            <arg column="spec_id" javaType="java.util.UUID"/>
+            <arg column="project_id" javaType="java.lang.String"/>
+            <arg column="service_name" javaType="java.lang.String"/>
+            <arg column="operation_id" javaType="java.lang.String"/>
+            <arg column="http_method" javaType="java.lang.String"/>
+            <arg column="path" javaType="java.lang.String"/>
+            <arg column="summary" javaType="java.lang.String"/>
+            <arg column="tags" javaType="java.lang.String"/>
+            <arg column="parameter_count" javaType="_int"/>
+            <arg column="request_body_present" javaType="_boolean"/>
+            <arg column="response_statuses" javaType="java.lang.String"/>
+            <arg column="schema_digest" javaType="java.lang.String"/>
+            <arg column="diff_status" javaType="java.lang.String"/>
+            <arg column="created_at" javaType="java.time.Instant"/>
+            <arg column="updated_at" javaType="java.time.Instant"/>
+        </constructor>
+    </resultMap>
+
+    <sql id="specColumns">
+        id, project_id, source_type, source_ref, name, version_label, spec_digest, content_size_bytes,
+        sanitized_spec_json::text as sanitized_spec_json, parse_summary_json::text as parse_summary_json,
+        status, parser_version, endpoint_count, parse_error_summary, created_by, updated_by,
+        parsed_at, created_at, updated_at
+    </sql>
+
+    <sql id="endpointColumns">
+        id, spec_id, project_id, service_name, operation_id, http_method, path, summary, tags,
+        parameter_count, request_body_present, response_statuses, schema_digest, diff_status, created_at, updated_at
+    </sql>
+
+    <sql id="specWhere">
+        <where>
+            <if test="query.projectId != null">project_id = #{query.projectId}</if>
+            <if test="query.status != null">and status = #{query.status}</if>
+            <if test="query.keyword != null">
+                and (
+                    position(lower(#{query.keyword}) in lower(coalesce(name, ''))) > 0
+                    or position(lower(#{query.keyword}) in lower(coalesce(version_label, ''))) > 0
+                    or position(lower(#{query.keyword}) in lower(coalesce(source_ref, ''))) > 0
+                )
+            </if>
+        </where>
+    </sql>
+
+    <insert id="insertSpec">
+        insert into api_automation_spec (
+            id, project_id, source_type, source_ref, name, version_label, spec_digest, content_size_bytes,
+            sanitized_spec_json, parse_summary_json, status, parser_version, endpoint_count,
+            parse_error_summary, created_by, updated_by, parsed_at, created_at, updated_at
+        ) values (
+            #{id}, #{projectId}, #{sourceType}, #{sourceRef}, #{name}, #{versionLabel}, #{specDigest}, #{contentSizeBytes},
+            cast(coalesce(#{sanitizedSpecJson}, '{}') as jsonb),
+            cast(coalesce(#{parseSummaryJson}, '{}') as jsonb),
+            #{status}, #{parserVersion}, #{endpointCount}, #{parseErrorSummary},
+            #{createdBy}, #{updatedBy}, #{parsedAt}, #{createdAt}, #{updatedAt}
+        )
+    </insert>
+
+    <update id="updateSpecParseResult">
+        update api_automation_spec set
+            sanitized_spec_json = cast(coalesce(#{sanitizedSpecJson}, '{}') as jsonb),
+            parse_summary_json = cast(coalesce(#{parseSummaryJson}, '{}') as jsonb),
+            status = #{status},
+            parser_version = #{parserVersion},
+            endpoint_count = #{endpointCount},
+            parse_error_summary = #{parseErrorSummary},
+            updated_by = #{updatedBy},
+            parsed_at = #{parsedAt},
+            updated_at = #{updatedAt}
+        where id = #{id}
+    </update>
+
+    <select id="spec" resultMap="specMap">
+        select <include refid="specColumns"/>
+        from api_automation_spec
+        where id = #{id}
+    </select>
+
+    <select id="activeSpecByProjectAndDigest" resultMap="specMap">
+        select <include refid="specColumns"/>
+        from api_automation_spec
+        where project_id = #{projectId}
+          and spec_digest = #{specDigest}
+          and status != 'ARCHIVED'
+        limit 1
+    </select>
+
+    <select id="specs" resultMap="specMap">
+        select <include refid="specColumns"/>
+        from api_automation_spec
+        <include refid="specWhere"/>
+        order by created_at desc
+        limit #{query.limit} offset #{query.offset}
+    </select>
+
+    <select id="countSpecs" resultType="long">
+        select count(*)
+        from api_automation_spec
+        <include refid="specWhere"/>
+    </select>
+
+    <select id="specProjectScopeId" resultType="string">
+        select project_id
+        from api_automation_spec
+        where id = #{id}
+    </select>
+
+    <delete id="deleteEndpointSnapshots">
+        delete from api_automation_endpoint_snapshot
+        where spec_id = #{specId}
+    </delete>
+
+    <insert id="insertEndpointSnapshot">
+        insert into api_automation_endpoint_snapshot (
+            id, spec_id, project_id, service_name, operation_id, http_method, path, summary, tags,
+            parameter_count, request_body_present, response_statuses, schema_digest, diff_status, created_at, updated_at
+        ) values (
+            #{id}, #{specId}, #{projectId}, #{serviceName}, #{operationId}, #{httpMethod}, #{path}, #{summary}, #{tags},
+            #{parameterCount}, #{requestBodyPresent}, #{responseStatuses}, #{schemaDigest}, #{diffStatus},
+            #{createdAt}, #{updatedAt}
+        )
+    </insert>
+
+    <select id="endpointSnapshots" resultMap="endpointSnapshotMap">
+        select <include refid="endpointColumns"/>
+        from api_automation_endpoint_snapshot
+        where spec_id = #{specId}
+        order by path asc, http_method asc
+    </select>
+</mapper>

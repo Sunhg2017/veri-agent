@@ -35,6 +35,7 @@ import {
 import { ApiError, clearAuthToken, getAuthToken, setAuthToken, setRefreshToken, setSessionId } from './api/client';
 import { fetchHealth, type HealthResult } from './api/health';
 import { AssetWorkbench } from './components/AssetWorkbench';
+import { ApiAutomationWorkbench } from './components/ApiAutomationWorkbench';
 import { DocumentInputConsole } from './components/DocumentInputConsole';
 import { ModelAccessConsole } from './components/ModelAccessConsole';
 import { TestDesignWorkbench } from './components/TestDesignWorkbench';
@@ -192,6 +193,13 @@ const pages: PageDefinition[] = [
     title: '用例生成',
     description: '基于 WP3 需求生成候选测试用例，完成评审后发布到资产库。',
     icon: Sparkles
+  },
+  {
+    key: 'api-automation',
+    label: '接口自动化',
+    title: '接口自动化',
+    description: '导入 OpenAPI 规格，解析接口摘要并维护 endpoint snapshot。',
+    icon: ClipboardList
   },
   {
     key: 'model-access',
@@ -739,6 +747,8 @@ export function App() {
           <AssetWorkbench signedIn={Boolean(currentUser)} currentUser={currentUser} />
         ) : activePage === 'test-design' ? (
           <TestDesignWorkbench signedIn={Boolean(currentUser)} currentUser={currentUser} />
+        ) : activePage === 'api-automation' ? (
+          <ApiAutomationWorkbench signedIn={Boolean(currentUser)} currentUser={currentUser} />
         ) : activePage === 'model-access' ? (
           <ModelAccessConsole signedIn={Boolean(currentUser)} currentUser={currentUser} />
         ) : (

@@ -33,6 +33,11 @@ class SecurityConfigTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.traceId", startsWith("trc_")))
                 .andExpect(jsonPath("$.data.status").value("UP"));
+
+        mockMvc.perform(get("/api/v1/api-automation/health"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.traceId", startsWith("trc_")))
+                .andExpect(jsonPath("$.data.status").value("UP"));
     }
 
     @Test

@@ -1198,6 +1198,120 @@ tbody tr:hover td {
 }
 
 /* ============================================================
+   WP6 接口自动化
+   ============================================================ */
+
+.api-automation-console {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+}
+
+.api-automation-console .metric-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-md);
+}
+
+.api-automation-layout {
+  display: grid;
+  grid-template-columns: minmax(360px, 0.9fr) minmax(420px, 1.1fr);
+  gap: var(--space-lg);
+  align-items: start;
+}
+
+.api-automation-policy-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: var(--space-sm);
+}
+
+.api-automation-policy-item {
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  background: var(--bg-alt);
+}
+
+.api-automation-policy-item span,
+.api-automation-policy-item strong {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.api-automation-policy-item span {
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+}
+
+.api-automation-policy-item strong {
+  margin-top: 2px;
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+}
+
+.api-automation-spec-textarea {
+  min-height: 260px;
+  resize: vertical;
+  font-family: var(--font-mono);
+  line-height: 1.5;
+}
+
+.api-automation-table-wrap table tr {
+  cursor: default;
+}
+
+.api-automation-table-wrap tbody tr:hover td {
+  background: var(--surface-hover);
+}
+
+.api-automation-table-wrap tbody tr.selected-row td,
+.api-automation-table-wrap tbody tr.selected-row:hover td {
+  background: var(--primary-bg);
+}
+
+.api-path {
+  font-family: var(--font-mono);
+  overflow-wrap: anywhere;
+}
+
+.method-pill,
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 24px;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.method-pill {
+  color: var(--info);
+  background: var(--info-light);
+}
+
+.status-badge.neutral {
+  color: var(--text-secondary);
+  background: var(--border-light);
+}
+
+.status-badge.success {
+  color: var(--success-dark);
+  background: var(--success-light);
+}
+
+.status-badge.danger {
+  color: var(--danger-dark);
+  background: var(--danger-light);
+}
+
+/* ============================================================
    认证状态面板
    ============================================================ */
 
@@ -2895,6 +3009,9 @@ tbody tr:hover td {
 
 @media (max-width: 1200px) {
   .metrics-grid { grid-template-columns: repeat(2, 1fr); }
+  .api-automation-console .metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .api-automation-layout { grid-template-columns: 1fr; }
+  .api-automation-policy-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .test-design-quality-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .test-design-evaluation-grid,
   .test-design-calibration-grid,
@@ -2963,6 +3080,8 @@ tbody tr:hover td {
 
 @media (max-width: 640px) {
   .metrics-grid { grid-template-columns: 1fr; }
+  .api-automation-console .metric-grid,
+  .api-automation-policy-grid { grid-template-columns: 1fr; }
   .test-design-quality-metrics { grid-template-columns: 1fr; }
   .test-design-evaluation-metrics { grid-template-columns: 1fr; }
   .test-design-cross-wp-metrics,
