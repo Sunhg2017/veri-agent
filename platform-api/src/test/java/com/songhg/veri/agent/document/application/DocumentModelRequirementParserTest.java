@@ -40,6 +40,7 @@ class DocumentModelRequirementParserTest {
                         providerId,
                         "local-echo-primary",
                         "test-local-model",
+                        1,
                         false,
                         """
                                 ```json

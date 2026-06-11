@@ -455,6 +455,7 @@ class DbProfileRepositoryContractTest {
                 null,
                 "local-echo-primary",
                 "test-local-model",
+                1,
                 false,
                 "local model response: db job",
                 10,

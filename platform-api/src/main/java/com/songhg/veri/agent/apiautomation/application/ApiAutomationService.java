@@ -37,6 +37,11 @@ import com.songhg.veri.agent.asset.application.view.TestCaseStepResponse;
 import com.songhg.veri.agent.common.api.PageResponse;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
+import com.songhg.veri.agent.modelaccess.application.ModelInvocationService;
+import com.songhg.veri.agent.modelaccess.application.command.ModelInvocationCommand;
+import com.songhg.veri.agent.modelaccess.application.view.ModelInvocationResult;
+import com.songhg.veri.agent.modelaccess.domain.ChatMessage;
+import com.songhg.veri.agent.modelaccess.security.ServicePrincipal;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -72,6 +77,10 @@ public class ApiAutomationService {
     private static final List<String> DIFF_STATUSES = List.of("NEW", "CHANGED", "MATCHED", "CONFLICT", "SKIPPED");
     private static final Set<String> GENERATION_MODES = Set.of("FALLBACK_ONLY", "MODEL_WITH_FALLBACK");
     private static final Set<String> COVERAGE_TYPES = Set.of("SMOKE", "FUNCTIONAL", "EXCEPTION");
+    private static final String WP6_MODEL_SCHEMA_MARKER = "WP6_API_AUTOMATION_GENERATION_V1";
+    private static final String MODEL_CALLER_SERVICE = "wp6-api-automation";
+    private static final String MODEL_CAPABILITY_JSON = "JSON";
+    private static final String DEFAULT_MODEL_SENSITIVITY_LEVEL = "INTERNAL";
     private static final List<Pattern> SENSITIVE_TEXT_PATTERNS = List.of(
             Pattern.compile("(?i)\\bbearer\\s+[a-z0-9._\\-]{8,}"),
             Pattern.compile("(?i)\\b(api[_-]?key|secret|token|password|passwd|authorization)\\s*[:=]\\s*[^\\s,;，；]+"),
@@ -89,6 +98,8 @@ public class ApiAutomationService {
     private final ApiAutomationActorResolver actorResolver;
     private final AssetApiService assetApiService;
     private final AssetTestCaseService assetTestCaseService;
+    private final ModelInvocationService modelInvocationService;
+    private final ApiAutomationModelOutputParser modelOutputParser;
     private final ObjectMapper objectMapper;
 
     public ApiAutomationService(
@@ -99,6 +110,8 @@ public class ApiAutomationService {
             ApiAutomationActorResolver actorResolver,
             AssetApiService assetApiService,
             AssetTestCaseService assetTestCaseService,
+            ModelInvocationService modelInvocationService,
+            ApiAutomationModelOutputParser modelOutputParser,
             ObjectMapper objectMapper
     ) {
         this.repository = repository;
@@ -108,6 +121,8 @@ public class ApiAutomationService {
         this.actorResolver = actorResolver;
         this.assetApiService = assetApiService;
         this.assetTestCaseService = assetTestCaseService;
+        this.modelInvocationService = modelInvocationService;
+        this.modelOutputParser = modelOutputParser;
         this.objectMapper = objectMapper;
     }
 
@@ -132,7 +147,7 @@ public class ApiAutomationService {
                         Map.entry("runnerDefaultDisabled", !properties.runnerEnabled()),
                         Map.entry("diffSyncReady", true),
                         Map.entry("generationReady", true),
-                        Map.entry("modelGenerationReady", false),
+                        Map.entry("modelGenerationReady", true),
                         Map.entry("aggregateOnly", true)
                 )
         );
@@ -274,10 +289,10 @@ public class ApiAutomationService {
         }
         List<ApiAutomationEndpointSnapshot> targets = generationTargets(spec, normalized.assetApiIds());
         List<GenerationSourceTestCase> sourceTestCases = sourceTestCases(normalized, targets);
-        // 当前 M4 切片尚未接入 WP2 模型调用，先生成明确标记为 FALLBACK 的聚合用例草稿。
-        List<ApiAutomationCase> cases = fallbackCases(spec, targets, normalized, sourceTestCases);
         Instant now = Instant.now();
         String actor = actorResolver.currentActor();
+        GenerationAttempt attempt = generationAttempt(spec, targets, normalized, sourceTestCases, actor);
+        List<ApiAutomationCase> cases = attempt.cases();
         ApiAutomationGenerationTask task = new ApiAutomationGenerationTask(
                 UUID.randomUUID(),
                 projectId,
@@ -288,13 +303,13 @@ public class ApiAutomationService {
                 writeJson(normalized.coverageTypes()),
                 "COMPLETED",
                 properties.promptKey(),
-                null,
-                null,
-                true,
+                attempt.promptVersion(),
+                attempt.modelInvocationId(),
+                attempt.fallbackUsed(),
                 targets.size(),
                 cases.size(),
-                writeJson(inputSummary(spec, normalized, targets, sourceTestCases, cases)),
-                null,
+                writeJson(inputSummary(spec, normalized, targets, sourceTestCases, attempt)),
+                attempt.errorSummary(),
                 actor,
                 actor,
                 now,
@@ -310,6 +325,8 @@ public class ApiAutomationService {
                 "sourceTestCaseCount", sourceTestCases.size(),
                 "generationMode", task.generationMode(),
                 "fallbackUsed", task.fallbackUsed(),
+                "modelInvocationId", task.modelInvocationId() == null ? "" : task.modelInvocationId(),
+                "promptVersion", task.promptVersion() == null ? "" : task.promptVersion(),
                 "coverageTypes", normalized.coverageTypes()
         ));
         return generationTaskDetail(task.id());
@@ -426,6 +443,303 @@ public class ApiAutomationService {
             sourceCases.add(sourceTestCaseSummary(testCase));
         }
         return sourceCases;
+    }
+
+    private GenerationAttempt generationAttempt(
+            ApiAutomationSpec spec,
+            List<ApiAutomationEndpointSnapshot> targets,
+            GenerationRequest request,
+            List<GenerationSourceTestCase> sourceTestCases,
+            String actor
+    ) {
+        if ("FALLBACK_ONLY".equals(request.generationMode())) {
+            return fallbackGenerationAttempt(spec, targets, request, sourceTestCases, null, "DETERMINISTIC_MODE");
+        }
+        try {
+            return modelGenerationAttempt(spec, targets, request, sourceTestCases, actor);
+        } catch (ApiAutomationModelGenerationException exception) {
+            if (!properties.modelFallbackEnabled()) {
+                throw unwrapModelGenerationException(exception);
+            }
+            return fallbackGenerationAttempt(spec, targets, request, sourceTestCases,
+                    exception.response(), modelFallbackReason(exception));
+        } catch (RuntimeException exception) {
+            if (!properties.modelFallbackEnabled()) {
+                throw exception;
+            }
+            return fallbackGenerationAttempt(spec, targets, request, sourceTestCases,
+                    null, modelFallbackReason(exception));
+        }
+    }
+
+    private GenerationAttempt modelGenerationAttempt(
+            ApiAutomationSpec spec,
+            List<ApiAutomationEndpointSnapshot> targets,
+            GenerationRequest request,
+            List<GenerationSourceTestCase> sourceTestCases,
+            String actor
+    ) {
+        ModelInvocationResult response = null;
+        try {
+            response = modelInvocationService.invoke(new ModelInvocationCommand(
+                    request.projectId(),
+                    null,
+                    null,
+                    properties.promptKey(),
+                    Map.of("schemaMarker", WP6_MODEL_SCHEMA_MARKER),
+                    List.of(new ChatMessage("user", modelGenerationPayload(spec, targets, request, sourceTestCases))),
+                    null,
+                    null,
+                    false,
+                    DEFAULT_MODEL_SENSITIVITY_LEVEL,
+                    MODEL_CAPABILITY_JSON
+            ), new ServicePrincipal(MODEL_CALLER_SERVICE, actor));
+            List<ApiAutomationModelOutputParser.ModelGeneratedApiCase> generatedCases =
+                    modelOutputParser.parse(response.content());
+            List<ApiAutomationCase> cases = casesFromModelOutput(spec, targets, request, sourceTestCases, generatedCases);
+            return new GenerationAttempt(
+                    cases,
+                    response.fallbackUsed(),
+                    null,
+                    response.invocationId().toString(),
+                    response.promptVersion() == null ? null : response.promptVersion().toString(),
+                    response.providerName(),
+                    response.modelName(),
+                    response.fallbackUsed(),
+                    true,
+                    null
+            );
+        } catch (RuntimeException exception) {
+            throw new ApiAutomationModelGenerationException(response, exception);
+        }
+    }
+
+    private GenerationAttempt fallbackGenerationAttempt(
+            ApiAutomationSpec spec,
+            List<ApiAutomationEndpointSnapshot> targets,
+            GenerationRequest request,
+            List<GenerationSourceTestCase> sourceTestCases,
+            ModelInvocationResult response,
+            String fallbackReason
+    ) {
+        List<ApiAutomationCase> cases = fallbackCases(spec, targets, request, sourceTestCases);
+        return new GenerationAttempt(
+                cases,
+                true,
+                fallbackReason,
+                response == null ? null : response.invocationId().toString(),
+                response == null || response.promptVersion() == null ? null : response.promptVersion().toString(),
+                response == null ? null : response.providerName(),
+                response == null ? null : response.modelName(),
+                response != null && response.fallbackUsed(),
+                false,
+                "DETERMINISTIC_MODE".equals(fallbackReason)
+                        ? null
+                        : boundedNullableText(fallbackReason, ERROR_SUMMARY_MAX_CHARS)
+        );
+    }
+
+    private List<ApiAutomationCase> casesFromModelOutput(
+            ApiAutomationSpec spec,
+            List<ApiAutomationEndpointSnapshot> targets,
+            GenerationRequest request,
+            List<GenerationSourceTestCase> sourceTestCases,
+            List<ApiAutomationModelOutputParser.ModelGeneratedApiCase> generatedCases
+    ) {
+        Map<UUID, ApiAutomationEndpointSnapshot> endpointByAssetApiId = targets.stream()
+                .filter(endpoint -> endpoint.assetApiId() != null)
+                .collect(Collectors.toMap(
+                        ApiAutomationEndpointSnapshot::assetApiId,
+                        endpoint -> endpoint,
+                        (existing, ignored) -> existing,
+                        LinkedHashMap::new
+                ));
+        Map<String, ApiAutomationEndpointSnapshot> endpointByMethodPath = targets.stream()
+                .collect(Collectors.toMap(
+                        endpoint -> assetKey(endpoint.httpMethod(), endpoint.path()),
+                        endpoint -> endpoint,
+                        (existing, ignored) -> existing,
+                        LinkedHashMap::new
+                ));
+        Map<UUID, UUID> sourceCaseIdByAssetApiId = sourceTestCases.stream()
+                .filter(sourceCase -> sourceCase.apiId() != null)
+                .collect(Collectors.toMap(
+                        GenerationSourceTestCase::apiId,
+                        GenerationSourceTestCase::id,
+                        (existing, ignored) -> existing,
+                        LinkedHashMap::new
+                ));
+        Map<UUID, Integer> countByEndpoint = new LinkedHashMap<>();
+        List<ApiAutomationCase> cases = new ArrayList<>();
+        for (ApiAutomationModelOutputParser.ModelGeneratedApiCase generatedCase : generatedCases) {
+            if (!request.coverageTypes().contains(generatedCase.coverageType())) {
+                throw new BusinessException(ErrorCode.VALIDATION_ERROR, "模型输出 coverageType 不在请求范围: "
+                        + generatedCase.coverageType());
+            }
+            ApiAutomationEndpointSnapshot endpoint = resolveGeneratedEndpoint(
+                    generatedCase,
+                    endpointByAssetApiId,
+                    endpointByMethodPath
+            );
+            int currentCount = countByEndpoint.getOrDefault(endpoint.id(), 0);
+            if (currentCount >= request.caseCountPerApi()) {
+                continue;
+            }
+            UUID sourceTestCaseId = endpoint.assetApiId() == null ? null : sourceCaseIdByAssetApiId.get(endpoint.assetApiId());
+            cases.add(modelCase(spec, endpoint, generatedCase, sourceTestCaseId));
+            countByEndpoint.put(endpoint.id(), currentCount + 1);
+        }
+        if (cases.isEmpty()) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "模型输出未匹配当前生成范围内的 API");
+        }
+        return cases;
+    }
+
+    private ApiAutomationEndpointSnapshot resolveGeneratedEndpoint(
+            ApiAutomationModelOutputParser.ModelGeneratedApiCase generatedCase,
+            Map<UUID, ApiAutomationEndpointSnapshot> endpointByAssetApiId,
+            Map<String, ApiAutomationEndpointSnapshot> endpointByMethodPath
+    ) {
+        ApiAutomationEndpointSnapshot endpoint = generatedCase.assetApiId() == null
+                ? null
+                : endpointByAssetApiId.get(generatedCase.assetApiId());
+        if (endpoint == null) {
+            endpoint = endpointByMethodPath.get(assetKey(generatedCase.method(), generatedCase.path()));
+        }
+        if (endpoint == null) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "模型输出 API 不在当前生成范围: "
+                    + generatedCase.method() + " " + generatedCase.path());
+        }
+        if (generatedCase.assetApiId() != null && !generatedCase.assetApiId().equals(endpoint.assetApiId())) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "模型输出 assetApiId 与 endpoint 不匹配");
+        }
+        if (!endpoint.httpMethod().equals(generatedCase.method()) || !endpoint.path().equals(generatedCase.path())) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "模型输出 method/path 与 endpoint 不匹配");
+        }
+        return endpoint;
+    }
+
+    private ApiAutomationCase modelCase(
+            ApiAutomationSpec spec,
+            ApiAutomationEndpointSnapshot endpoint,
+            ApiAutomationModelOutputParser.ModelGeneratedApiCase generatedCase,
+            UUID sourceTestCaseId
+    ) {
+        return new ApiAutomationCase(
+                UUID.randomUUID(),
+                null,
+                spec.projectId(),
+                spec.id(),
+                endpoint.id(),
+                endpoint.assetApiId(),
+                sourceTestCaseId,
+                boundedText(generatedCase.title(), 256),
+                endpoint.httpMethod(),
+                endpoint.path(),
+                generatedCase.coverageType(),
+                generatedCase.expectedStatus(),
+                writeJson(modelAssertionSummary(endpoint, generatedCase)),
+                writeJson(modelRequestTemplate(endpoint, generatedCase)),
+                "MODEL",
+                "DRAFT",
+                null,
+                null
+        );
+    }
+
+    private Map<String, Object> modelAssertionSummary(
+            ApiAutomationEndpointSnapshot endpoint,
+            ApiAutomationModelOutputParser.ModelGeneratedApiCase generatedCase
+    ) {
+        Map<String, Object> summary = new LinkedHashMap<>();
+        summary.put("coverageType", generatedCase.coverageType());
+        summary.put("expectedStatus", generatedCase.expectedStatus());
+        summary.put("statusClass", generatedCase.expectedStatus() / 100 + "xx");
+        summary.put("schemaDigest", endpoint.schemaDigest());
+        summary.put("assertions", generatedCase.assertions());
+        summary.put("rationale", safeSourceText(generatedCase.rationale(), GENERATION_SOURCE_TEXT_MAX_CHARS));
+        summary.put("modelOutputValidated", true);
+        summary.put("aggregateOnly", true);
+        return summary;
+    }
+
+    private Map<String, Object> modelRequestTemplate(
+            ApiAutomationEndpointSnapshot endpoint,
+            ApiAutomationModelOutputParser.ModelGeneratedApiCase generatedCase
+    ) {
+        Map<String, Object> template = new LinkedHashMap<>(generatedCase.requestTemplate());
+        template.put("httpMethod", endpoint.httpMethod());
+        template.put("path", endpoint.path());
+        template.put("parameterCount", endpoint.parameterCount());
+        template.put("requestBodyPresent", endpoint.requestBodyPresent());
+        template.put("bodyTemplateStored", false);
+        template.put("secretValuesStored", false);
+        template.put("endpointSnapshotId", endpoint.id().toString());
+        template.put("modelOutputValidated", true);
+        template.put("aggregateOnly", true);
+        return template;
+    }
+
+    private String modelGenerationPayload(
+            ApiAutomationSpec spec,
+            List<ApiAutomationEndpointSnapshot> targets,
+            GenerationRequest request,
+            List<GenerationSourceTestCase> sourceTestCases
+    ) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("schemaMarker", WP6_MODEL_SCHEMA_MARKER);
+        payload.put("schemaVersion", ApiAutomationModelOutputParser.SCHEMA_VERSION);
+        payload.put("projectId", request.projectId());
+        payload.put("specId", spec.id().toString());
+        payload.put("coverageTypes", request.coverageTypes());
+        payload.put("caseCountPerApi", request.caseCountPerApi());
+        payload.put("endpoints", targets.stream().map(this::endpointModelPayload).toList());
+        payload.put("sourceTestCases", sourceTestCases.stream().map(GenerationSourceTestCase::summary).toList());
+        payload.put("persistencePolicy", Map.of(
+                "rawPromptStored", false,
+                "rawModelResponseStored", false,
+                "requestResponseBodyStored", false,
+                "secretValuesStored", false,
+                "aggregateOnly", true
+        ));
+        return writeJson(payload);
+    }
+
+    private Map<String, Object> endpointModelPayload(ApiAutomationEndpointSnapshot endpoint) {
+        Map<String, Object> item = new LinkedHashMap<>();
+        item.put("endpointSnapshotId", endpoint.id().toString());
+        item.put("assetApiId", endpoint.assetApiId() == null ? null : endpoint.assetApiId().toString());
+        item.put("method", endpoint.httpMethod());
+        item.put("path", endpoint.path());
+        item.put("summary", safeSourceText(endpoint.summary(), GENERATION_SOURCE_TEXT_MAX_CHARS));
+        item.put("operationId", safeSourceText(endpoint.operationId(), GENERATION_SOURCE_TEXT_MAX_CHARS));
+        item.put("tags", safeSourceText(endpoint.tags(), GENERATION_SOURCE_TEXT_MAX_CHARS));
+        item.put("parameterCount", endpoint.parameterCount());
+        item.put("requestBodyPresent", endpoint.requestBodyPresent());
+        item.put("responseStatuses", endpoint.responseStatuses());
+        item.put("schemaDigest", endpoint.schemaDigest());
+        item.put("aggregateOnly", true);
+        return item;
+    }
+
+    private String modelFallbackReason(RuntimeException exception) {
+        Throwable root = exception instanceof ApiAutomationModelGenerationException generationException
+                && generationException.getCause() != null
+                ? generationException.getCause()
+                : exception;
+        if (root instanceof BusinessException businessException) {
+            return boundedText(businessException.getErrorCode().name() + ": " + businessException.getMessage(),
+                    ERROR_SUMMARY_MAX_CHARS);
+        }
+        return boundedText("MODEL_GENERATION_FAILED: " + (StringUtils.hasText(root.getMessage())
+                ? root.getMessage()
+                : root.getClass().getSimpleName()), ERROR_SUMMARY_MAX_CHARS);
+    }
+
+    private RuntimeException unwrapModelGenerationException(ApiAutomationModelGenerationException exception) {
+        return exception.getCause() instanceof RuntimeException runtimeException
+                ? runtimeException
+                : exception;
     }
 
     private List<ApiAutomationCase> fallbackCases(
@@ -576,12 +890,12 @@ public class ApiAutomationService {
             GenerationRequest request,
             List<ApiAutomationEndpointSnapshot> targets,
             List<GenerationSourceTestCase> sourceTestCases,
-            List<ApiAutomationCase> cases
+            GenerationAttempt attempt
     ) {
         Map<String, Object> summary = new LinkedHashMap<>();
         summary.put("specId", spec.id().toString());
         summary.put("apiCount", targets.size());
-        summary.put("caseCount", cases.size());
+        summary.put("caseCount", attempt.cases().size());
         summary.put("coverageTypes", request.coverageTypes());
         summary.put("assetApiIds", targets.stream().map(ApiAutomationEndpointSnapshot::assetApiId)
                 .filter(Objects::nonNull)
@@ -595,11 +909,17 @@ public class ApiAutomationService {
                 .toList());
         summary.put("generationMode", request.generationMode());
         summary.put("modelRequested", "MODEL_WITH_FALLBACK".equals(request.generationMode()));
-        summary.put("modelGenerationReady", false);
-        summary.put("fallbackReason", "MODEL_WITH_FALLBACK".equals(request.generationMode())
-                ? "MODEL_GENERATION_NOT_WIRED"
-                : "DETERMINISTIC_MODE");
+        summary.put("modelGenerationReady", true);
+        summary.put("modelOutputValidated", attempt.modelOutputValidated());
+        summary.put("modelInvocationId", attempt.modelInvocationId());
+        summary.put("promptVersion", attempt.promptVersion());
+        summary.put("modelProviderName", attempt.modelProviderName());
+        summary.put("modelName", attempt.modelName());
+        summary.put("modelProviderFallbackUsed", attempt.modelProviderFallbackUsed());
+        summary.put("fallbackUsed", attempt.fallbackUsed());
+        summary.put("fallbackReason", attempt.fallbackReason());
         summary.put("rawRequestResponseStored", false);
+        summary.put("rawModelResponseStored", false);
         summary.put("aggregateOnly", true);
         return summary;
     }
@@ -1356,9 +1676,37 @@ public class ApiAutomationService {
     ) {
     }
 
+    private record GenerationAttempt(
+            List<ApiAutomationCase> cases,
+            boolean fallbackUsed,
+            String fallbackReason,
+            String modelInvocationId,
+            String promptVersion,
+            String modelProviderName,
+            String modelName,
+            boolean modelProviderFallbackUsed,
+            boolean modelOutputValidated,
+            String errorSummary
+    ) {
+    }
+
     private record SyncAttempt(
             ApiAutomationEndpointSnapshot snapshot,
             ApiAutomationSyncItemResponse response
     ) {
+    }
+
+    private static final class ApiAutomationModelGenerationException extends RuntimeException {
+
+        private final ModelInvocationResult response;
+
+        private ApiAutomationModelGenerationException(ModelInvocationResult response, RuntimeException cause) {
+            super(cause.getMessage(), cause);
+            this.response = response;
+        }
+
+        private ModelInvocationResult response() {
+            return response;
+        }
     }
 }

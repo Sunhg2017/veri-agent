@@ -69,6 +69,7 @@ export function ApiAutomationWorkbench(props: { signedIn: boolean; currentUser: 
   const [lastSync, setLastSync] = useState<ApiAutomationSyncResponse | null>(null);
   const [lastGeneration, setLastGeneration] = useState<ApiAutomationGenerationTaskDetail | null>(null);
   const [generationAssetTestCaseIds, setGenerationAssetTestCaseIds] = useState('');
+  const [generationMode, setGenerationMode] = useState<'MODEL_WITH_FALLBACK' | 'FALLBACK_ONLY'>('MODEL_WITH_FALLBACK');
 
   const summary = useMemo(() => {
     const parsed = specs.filter((spec) => spec.status === 'PARSED').length;
@@ -193,19 +194,23 @@ export function ApiAutomationWorkbench(props: { signedIn: boolean; currentUser: 
     }
   }
 
-  async function onGenerateFallbackCases() {
+  async function onGenerateCases() {
     if (!selectedSpecId || !detail || !canGenerate) return;
     setGenerationState({ loading: true });
     try {
       const assetTestCaseIds = parseIdList(generationAssetTestCaseIds);
+      const modelReady = Boolean(health?.policy?.modelGenerationReady);
+      const effectiveGenerationMode = generationMode === 'MODEL_WITH_FALLBACK' && modelReady
+        ? 'MODEL_WITH_FALLBACK'
+        : 'FALLBACK_ONLY';
       const result = await createApiAutomationGenerationTask({
         projectId: detail.spec.projectId,
         specId: selectedSpecId,
         assetTestCaseIds: assetTestCaseIds.length ? assetTestCaseIds : undefined,
         coverageTypes: ['SMOKE', 'EXCEPTION'],
-        generationMode: 'FALLBACK_ONLY',
+        generationMode: effectiveGenerationMode,
         caseCountPerApi: 2,
-        requestKey: `wp6-fallback-${selectedSpecId}`
+        requestKey: `wp6-${effectiveGenerationMode.toLowerCase()}-${selectedSpecId}`
       });
       setLastGeneration(result.data);
       setGenerationState({ loading: false, success: generationSummaryText(result.data) });
@@ -358,7 +363,7 @@ export function ApiAutomationWorkbench(props: { signedIn: boolean; currentUser: 
               <Upload size={15} />
               同步
             </button>
-            <button className="btn btn-secondary btn-sm" type="button" onClick={() => void onGenerateFallbackCases()} disabled={!selectedSpecId || !canGenerate || generationState.loading}>
+            <button className="btn btn-secondary btn-sm" type="button" onClick={() => void onGenerateCases()} disabled={!selectedSpecId || !canGenerate || generationState.loading}>
               <ListChecks size={15} />
               生成用例
             </button>
@@ -370,6 +375,16 @@ export function ApiAutomationWorkbench(props: { signedIn: boolean; currentUser: 
         </div>
         <div className="panel-body compact">
           <div className="form-grid">
+            <Field label="生成模式">
+              <select
+                value={Boolean(health?.policy?.modelGenerationReady) ? generationMode : 'FALLBACK_ONLY'}
+                onChange={(event) => setGenerationMode(event.target.value as 'MODEL_WITH_FALLBACK' | 'FALLBACK_ONLY')}
+                disabled={!canGenerate || generationState.loading || !health}
+              >
+                {Boolean(health?.policy?.modelGenerationReady) && <option value="MODEL_WITH_FALLBACK">模型优先</option>}
+                <option value="FALLBACK_ONLY">确定模板</option>
+              </select>
+            </Field>
             <Field label="WP3 用例 ID">
               <input
                 value={generationAssetTestCaseIds}
@@ -458,6 +473,7 @@ function GenerationSummary(props: { generation: ApiAutomationGenerationTaskDetai
   return (
     <div className="api-automation-sync-summary">
       <span>{generationSummaryText(props.generation)}</span>
+      <span>{props.generation.task.generationMode} · {props.generation.task.modelInvocationId ? shortId(props.generation.task.modelInvocationId) : 'no-model'}</span>
       <span>{props.generation.cases.length} 条草稿</span>
     </div>
   );

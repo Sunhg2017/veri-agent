@@ -6,7 +6,7 @@
 | 角色产出 | 资深服务端架构师 |
 | 文档性质 | 技术设计、数据模型、接口契约和安全约束 |
 | 当前口径 | `platform-api` 承载 WP6 控制面，runner 通过端口适配；不绕过 WP1/WP2/WP3/WP5 应用服务边界 |
-| 版本 | v0.3 |
+| 版本 | v0.4 |
 | 日期 | 2026-06-12 |
 
 ## 1. 架构原则
@@ -117,7 +117,7 @@
 
 - `assetApiIds` 为空时使用当前 spec 下所有已同步到 WP3 的 endpoint；非空时必须全部属于当前 spec 的已同步 endpoint。
 - `coverageTypes` 支持 `SMOKE/FUNCTIONAL/EXCEPTION`，为空默认 `SMOKE`。
-- `generationMode` 支持 `FALLBACK_ONLY/MODEL_WITH_FALLBACK`，当前 `MODEL_WITH_FALLBACK` 不调用 WP2，只记录 `MODEL_GENERATION_NOT_WIRED` 后走 fallback。
+- `generationMode` 支持 `FALLBACK_ONLY/MODEL_WITH_FALLBACK`；`MODEL_WITH_FALLBACK` 通过 WP2 `ModelInvocationService` 调用 `wp6-api-automation-v1`，模型成功时保存 `MODEL` 草稿，WP2 阻断、供应商失败或输出 schema 非法时按 `model-fallback-enabled` 走确定性 fallback。
 - `caseCountPerApi` 范围为 1 至 5。
 - `requestKey` 为同项目幂等 key；同 key 不同规范化 payload 返回冲突，相同 payload 返回已有任务详情。
 
@@ -150,13 +150,15 @@
 - 完整请求响应样例正文中的疑似密钥字段。
 - 未脱敏错误正文和 runner 环境变量值。
 
-当前 M4 fallback 切片的持久化策略：
+当前 M4 生成切片的持久化策略：
 
 - 生成任务保存 `inputDigest`、`generationMode`、`coverageTypes`、`apiCount`、`caseCount` 和聚合输入摘要。
 - 自动化用例草稿保存 method、path、coverageType、expectedStatus、assertionSummary 和 requestTemplate 摘要。
 - `assetTestCaseIds` 通过 WP3 测试用例应用服务读取摘要，输入摘要只保存用例 ID、关联 API ID、标题、状态、优先级、标签、步骤数量、最多 3 条步骤摘要和 sourceRef digest。
-- `source=FALLBACK` 明确标识确定性模板输出，不伪装为模型输出。
-- 健康检查返回 `generationReady=true`、`modelGenerationReady=false`，用于前端和运营准出口径区分。
+- `MODEL_WITH_FALLBACK` 只通过 WP2 调用模型，任务保存 `modelInvocationId`、`promptVersion`、模型供应商名称、模型名称、模型供应商 fallback 信号和 fallback 原因摘要。
+- 模型输出必须符合 `wp6-api-automation-v1` JSON schema，并通过 title、method、path、coverageType、expectedStatus、assertions、requestTemplate 聚合标识、endpoint 范围校验；不保存原始模型响应。
+- `source=MODEL` 明确标识模型输出；`source=FALLBACK` 明确标识确定性模板输出，不互相伪装。
+- 健康检查返回 `generationReady=true`、`modelGenerationReady=true`，用于前端和运营准出口径区分。
 
 ## 8. Runner 契约
 
@@ -214,7 +216,7 @@ Runner 必须执行以下限制：
 
 ## 12. 当前实现切片（2026-06-12）
 
-当前已实现 M1/M2/M3 控制面和 M4 fallback 生成任务切片：
+当前已实现 M1/M2/M3 控制面和 M4 生成任务切片：
 
 - DB：新增 `api_automation_spec`、`api_automation_endpoint_snapshot`、WP6 权限 seed、角色默认授权和 DB validation。
 - DB M3：新增 endpoint snapshot 的 `asset_api_id`、`diff_summary_json`、`last_diff_at`、`synced_at`、`sync_error_summary`，用于持久化 WP3 API 匹配和同步证据。
@@ -222,10 +224,11 @@ Runner 必须执行以下限制：
 - 后端：新增 `/api/v1/api-automation/health`、`/specs` 创建/列表、`/specs/{id}` 详情、`/specs/{id}/parse` 重解析。
 - 后端 M3：新增 `/specs/{id}/diff` 和 `/specs/{id}/sync`；diff 按 method + path 匹配 WP3 API 资产，输出 `NEW/CHANGED/MATCHED/CONFLICT/SKIPPED`，sync 通过 WP3 `AssetApiService` 创建/更新 API 资产并逐项返回同步明细。
 - 后端 M4：新增 `POST /generation-tasks` 和 `GET /generation-tasks/{id}`；生成任务仅允许使用当前项目、已解析 spec 和已同步 WP3 API endpoint，支持 requestKey 幂等和 payload 冲突校验。
-- 生成 M4：当前不调用 WP2 模型，`FALLBACK_ONLY` 和 `MODEL_WITH_FALLBACK` 均产出确定性 fallback 用例草稿；`MODEL_WITH_FALLBACK` 的 input summary 标记 `MODEL_GENERATION_NOT_WIRED`。
+- 生成 M4：`FALLBACK_ONLY` 产出确定性 fallback 用例草稿；`MODEL_WITH_FALLBACK` 调用 WP2 `wp6-api-automation-v1` Prompt，模型成功时产出 `source=MODEL` 草稿，模型失败、WP2 阻断或输出非法时按配置产出 `source=FALLBACK` 草稿并保存可解释 fallbackReason。
+- 模型输出校验 M4：新增 WP6 输出解析器，拒绝未知字段、非 JSON、非聚合 requestTemplate、敏感文本、非法 status/method/path/assertions 以及不属于当前生成范围的 API。
 - WP5/WP3 输入 M4：`assetTestCaseIds` 已通过 WP3 `AssetTestCaseService` 读取发布后的测试用例摘要，校验项目归属和已同步 API 范围；不读取 WP5 候选正文、评审评论或 sourceRef 明文。
 - Parser：支持 OpenAPI 3.x JSON/YAML，抽取 method/path/operationId/tags/参数数/requestBody/响应码/schemaDigest，并对 Authorization、apiKey、token、cookie、password、secret 等敏感示例脱敏。
 - 权限：除 health 外，规格导入、查询、重解析、diff、sync 和生成任务均按项目 scope 校验 `apiAutomation:*` 权限。
-- 前端：新增 `#api-automation` 入口、API helper、权限控制、规格导入/列表/endpoint snapshot、diff 刷新、WP3 API 同步入口、WP3 用例 ID 输入和 fallback 生成用例入口。
+- 前端：新增 `#api-automation` 入口、API helper、权限控制、规格导入/列表/endpoint snapshot、diff 刷新、WP3 API 同步入口、生成模式选择、WP3 用例 ID 输入和生成用例入口。
 
-本轮未实现：WP2 Prompt 模型调用、模型输出 schema 校验、脚本包评审、runner 执行、运行结果、WP6 quality gate 聚合脚本。这些仍按研发任务拆解的 M4-M7 继续推进。
+本轮未实现：脚本包生成与评审、runner 执行、运行结果、WP6 quality gate 聚合脚本。这些仍按研发任务拆解的 M5-M7 继续推进。

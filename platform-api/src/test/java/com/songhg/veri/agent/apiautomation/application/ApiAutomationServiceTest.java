@@ -20,6 +20,11 @@ import com.songhg.veri.agent.asset.application.view.TestCaseResponse;
 import com.songhg.veri.agent.asset.application.view.TestCaseStepResponse;
 import com.songhg.veri.agent.common.api.PageResponse;
 import com.songhg.veri.agent.integration.application.view.PlatformContext;
+import com.songhg.veri.agent.modelaccess.application.ModelInvocationService;
+import com.songhg.veri.agent.modelaccess.application.command.ModelInvocationCommand;
+import com.songhg.veri.agent.modelaccess.application.view.ModelInvocationResult;
+import com.songhg.veri.agent.modelaccess.security.ServicePrincipal;
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -60,6 +65,8 @@ class ApiAutomationServiceTest {
                 mock(ApiAutomationActorResolver.class),
                 mock(AssetApiService.class),
                 mock(AssetTestCaseService.class),
+                mock(ModelInvocationService.class),
+                new ApiAutomationModelOutputParser(new ObjectMapper()),
                 new ObjectMapper()
         );
 
@@ -90,6 +97,8 @@ class ApiAutomationServiceTest {
                 mock(ApiAutomationActorResolver.class),
                 assetApiService,
                 assetTestCaseService,
+                mock(ModelInvocationService.class),
+                new ApiAutomationModelOutputParser(new ObjectMapper()),
                 new ObjectMapper()
         );
         UUID specId = UUID.randomUUID();
@@ -151,6 +160,8 @@ class ApiAutomationServiceTest {
                 actorResolver,
                 mock(AssetApiService.class),
                 assetTestCaseService,
+                mock(ModelInvocationService.class),
+                new ApiAutomationModelOutputParser(new ObjectMapper()),
                 new ObjectMapper()
         );
         UUID specId = UUID.randomUUID();
@@ -189,6 +200,184 @@ class ApiAutomationServiceTest {
         assertThat(sourceSummary.get("rawCandidateStored")).isEqualTo(false);
         assertThat(sourceSummary.get("reviewCommentStored")).isEqualTo(false);
         assertThat(sourceSummary.get("sourceRefDigest")).isNotNull();
+    }
+
+    @Test
+    void createsModelGeneratedApiAutomationCasesWithWp2TraceMetadata() {
+        InMemoryApiAutomationRepository repository = new InMemoryApiAutomationRepository();
+        ApiAutomationPlatformContextClient contextClient = mock(ApiAutomationPlatformContextClient.class);
+        ApiAutomationActorResolver actorResolver = mock(ApiAutomationActorResolver.class);
+        ModelInvocationService invocationService = mock(ModelInvocationService.class);
+        when(contextClient.projectContext("project-alpha")).thenReturn(new PlatformContext(
+                "PROJECT",
+                "project-alpha",
+                "ACTIVE",
+                "INTERNAL",
+                false,
+                List.of(),
+                Instant.EPOCH
+        ));
+        when(actorResolver.currentActor()).thenReturn("api-tester");
+
+        UUID specId = UUID.randomUUID();
+        UUID assetApiId = UUID.randomUUID();
+        ApiAutomationSpec spec = spec("project-alpha", specId);
+        repository.insertSpec(spec);
+        repository.insertEndpointSnapshot(syncedEndpoint(spec, "/v1/payments", "POST", "digest-payments", assetApiId));
+        UUID invocationId = UUID.fromString("00000000-0000-4000-8000-000000000606");
+        ArgumentCaptor<ModelInvocationCommand> commandCaptor = ArgumentCaptor.forClass(ModelInvocationCommand.class);
+        when(invocationService.invoke(commandCaptor.capture(), any(ServicePrincipal.class))).thenReturn(new ModelInvocationResult(
+                invocationId,
+                UUID.fromString("00000000-0000-4000-8000-000000000707"),
+                "local-echo-primary",
+                "test-local-model",
+                1,
+                false,
+                """
+                        {
+                          "schemaVersion": "wp6-api-automation-v1",
+                          "cases": [
+                            {
+                              "assetApiId": "%s",
+                              "title": "[SMOKE] POST /v1/payments",
+                              "method": "POST",
+                              "path": "/v1/payments",
+                              "coverageType": "SMOKE",
+                              "expectedStatus": 201,
+                              "assertions": ["STATUS_CODE", "RESPONSE_TIME_BOUNDED"],
+                              "requestTemplate": {
+                                "aggregateOnly": true,
+                                "parameterCount": 1,
+                                "requestBodyPresent": true,
+                                "bodyTemplateStored": false,
+                                "secretValuesStored": false
+                              },
+                              "rationale": "覆盖支付创建冒烟路径"
+                            }
+                          ]
+                        }
+                        """.formatted(assetApiId),
+                20,
+                10,
+                new BigDecimal("0.0003")
+        ));
+        ApiAutomationService service = new ApiAutomationService(
+                repository,
+                mock(OpenApiSpecParser.class),
+                new ApiAutomationProperties(65_536, 50, false, 120, 100, "wp6-api-automation-v1", true),
+                contextClient,
+                actorResolver,
+                mock(AssetApiService.class),
+                mock(AssetTestCaseService.class),
+                invocationService,
+                new ApiAutomationModelOutputParser(new ObjectMapper()),
+                new ObjectMapper()
+        );
+
+        ApiAutomationGenerationTaskDetailResponse response = service.createGenerationTask(
+                new CreateApiAutomationGenerationTaskCommand(
+                        "project-alpha",
+                        specId,
+                        List.of(assetApiId),
+                        List.of(),
+                        List.of("SMOKE"),
+                        "MODEL_WITH_FALLBACK",
+                        1,
+                        "model-success"
+                )
+        );
+
+        assertThat(response.task().modelInvocationId()).isEqualTo(invocationId.toString());
+        assertThat(response.task().promptVersion()).isEqualTo("1");
+        assertThat(response.task().fallbackUsed()).isFalse();
+        assertThat(response.task().inputSummary()).containsEntry("modelOutputValidated", true)
+                .containsEntry("rawModelResponseStored", false);
+        assertThat(response.cases()).hasSize(1);
+        assertThat(response.cases().getFirst().source()).isEqualTo("MODEL");
+        assertThat(response.cases().getFirst().assertionSummary().get("assertions").toString())
+                .contains("STATUS_CODE", "RESPONSE_TIME_BOUNDED");
+        assertThat(response.cases().getFirst().requestTemplate()).containsEntry("modelOutputValidated", true)
+                .containsEntry("secretValuesStored", false);
+        assertThat(commandCaptor.getValue().promptKey()).isEqualTo("wp6-api-automation-v1");
+        assertThat(commandCaptor.getValue().messages().getFirst().content())
+                .contains("WP6_API_AUTOMATION_GENERATION_V1")
+                .doesNotContain("secret-value");
+    }
+
+    @Test
+    void fallsBackWhenModelOutputSchemaIsInvalid() {
+        InMemoryApiAutomationRepository repository = new InMemoryApiAutomationRepository();
+        ApiAutomationPlatformContextClient contextClient = mock(ApiAutomationPlatformContextClient.class);
+        ApiAutomationActorResolver actorResolver = mock(ApiAutomationActorResolver.class);
+        ModelInvocationService invocationService = mock(ModelInvocationService.class);
+        when(contextClient.projectContext("project-alpha")).thenReturn(new PlatformContext(
+                "PROJECT",
+                "project-alpha",
+                "ACTIVE",
+                "INTERNAL",
+                false,
+                List.of(),
+                Instant.EPOCH
+        ));
+        when(actorResolver.currentActor()).thenReturn("api-tester");
+
+        UUID specId = UUID.randomUUID();
+        UUID assetApiId = UUID.randomUUID();
+        ApiAutomationSpec spec = spec("project-alpha", specId);
+        repository.insertSpec(spec);
+        repository.insertEndpointSnapshot(syncedEndpoint(spec, "/v1/refunds", "POST", "digest-refunds", assetApiId));
+        UUID invocationId = UUID.fromString("00000000-0000-4000-8000-000000000616");
+        when(invocationService.invoke(any(ModelInvocationCommand.class), any(ServicePrincipal.class)))
+                .thenReturn(new ModelInvocationResult(
+                        invocationId,
+                        UUID.fromString("00000000-0000-4000-8000-000000000717"),
+                        "local-echo-primary",
+                        "test-local-model",
+                        1,
+                        false,
+                        """
+                                {"schemaVersion":"wp6-api-automation-v1","cases":[{"title":"bad","method":"POST","path":"/v1/refunds","coverageType":"SMOKE","expectedStatus":99,"assertions":[],"requestTemplate":{"aggregateOnly":false}}]}
+                                """,
+                        20,
+                        10,
+                        new BigDecimal("0.0003")
+                ));
+        ApiAutomationService service = new ApiAutomationService(
+                repository,
+                mock(OpenApiSpecParser.class),
+                new ApiAutomationProperties(65_536, 50, false, 120, 100, "wp6-api-automation-v1", true),
+                contextClient,
+                actorResolver,
+                mock(AssetApiService.class),
+                mock(AssetTestCaseService.class),
+                invocationService,
+                new ApiAutomationModelOutputParser(new ObjectMapper()),
+                new ObjectMapper()
+        );
+
+        ApiAutomationGenerationTaskDetailResponse response = service.createGenerationTask(
+                new CreateApiAutomationGenerationTaskCommand(
+                        "project-alpha",
+                        specId,
+                        List.of(assetApiId),
+                        List.of(),
+                        List.of("SMOKE"),
+                        "MODEL_WITH_FALLBACK",
+                        1,
+                        "model-invalid-fallback"
+                )
+        );
+
+        assertThat(response.task().modelInvocationId()).isEqualTo(invocationId.toString());
+        assertThat(response.task().promptVersion()).isEqualTo("1");
+        assertThat(response.task().fallbackUsed()).isTrue();
+        assertThat(response.task().errorSummary()).contains("VALIDATION_ERROR");
+        assertThat(response.task().inputSummary()).containsEntry("modelOutputValidated", false)
+                .containsEntry("fallbackUsed", true);
+        assertThat((String) response.task().inputSummary().get("fallbackReason"))
+                .contains("WP6 模型输出结构校验不通过");
+        assertThat(response.cases()).hasSize(1);
+        assertThat(response.cases().getFirst().source()).isEqualTo("FALLBACK");
     }
 
     private ApiAutomationSpec spec(String projectId) {

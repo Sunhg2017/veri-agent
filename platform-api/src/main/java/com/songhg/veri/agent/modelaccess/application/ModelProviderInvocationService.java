@@ -213,6 +213,7 @@ public class ModelProviderInvocationService {
                 provider.id(),
                 provider.name(),
                 record.modelName(),
+                record.promptVersion(),
                 record.fallbackUsed(),
                 result.content(),
                 result.inputTokens(),

@@ -205,3 +205,13 @@ select
     case when count(*) = 0 then 'PASS' else 'FAIL' end as status,
     coalesce(string_agg(item, ', ' order by item), 'WP6 role permissions seeded') as details
 from missing;
+
+select
+    'wp6.model_prompt_seeded' as check_name,
+    case when count(*) = 1 then 'PASS' else 'FAIL' end as status,
+    coalesce(max(prompt_key || ':v' || version || ':' || status), 'WP6 model prompt missing') as details
+from ma_prompt_template
+where prompt_key = 'wp6-api-automation-v1'
+  and version = 1
+  and status = 'ACTIVE'
+  and approval_status = 'NOT_REQUIRED';

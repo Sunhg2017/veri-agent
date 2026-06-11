@@ -175,6 +175,8 @@ grant select, insert, update on
     test_design_release_readiness_approval,
     api_automation_spec,
     api_automation_endpoint_snapshot,
+    api_automation_generation_task,
+    api_automation_case,
     audit_outbox
 to wp1_app;
 

@@ -22,6 +22,7 @@ public class LocalEchoModelProviderClient implements ModelProviderClient {
 
     private static final String WP4_PARSE_MARKER = "WP4_REQUIREMENT_EXTRACTION_V1";
     private static final String WP5_TEST_DESIGN_MARKER = "WP5_TEST_DESIGN_GENERATION_V1";
+    private static final String WP6_API_AUTOMATION_MARKER = "WP6_API_AUTOMATION_GENERATION_V1";
     private static final Pattern MARKDOWN_HEADING = Pattern.compile("^#{1,6}\\s+(.+)$");
     private static final Pattern PRIORITY_LINE = Pattern.compile("(?i)^(priority|优先级)\\s*[:：]\\s*(.+)$");
     private static final Pattern ACCEPTANCE_START = Pattern.compile("(?i)^(acceptance\\s*criteria|验收标准)\\s*[:：]?\\s*(.*)$");
@@ -51,6 +52,12 @@ public class LocalEchoModelProviderClient implements ModelProviderClient {
             int outputTokens = estimateTokens(content);
             return new ProviderCallResult(content, inputTokens, outputTokens);
         }
+        if (containsWp6ApiAutomationMarker(request)) {
+            String content = wp6ApiAutomationResponse(request.messageText());
+            int inputTokens = estimateTokens(request.prompt()) + estimateTokens(request.messageText());
+            int outputTokens = estimateTokens(content);
+            return new ProviderCallResult(content, inputTokens, outputTokens);
+        }
         String content = "local model response: " + firstNonBlank(request.messageText(), request.prompt());
         int inputTokens = estimateTokens(request.prompt()) + estimateTokens(request.messageText());
         int outputTokens = estimateTokens(content);
@@ -64,6 +71,11 @@ public class LocalEchoModelProviderClient implements ModelProviderClient {
     private boolean containsWp5TestDesignMarker(ProviderCallRequest request) {
         return contains(request.prompt(), WP5_TEST_DESIGN_MARKER)
                 || contains(request.messageText(), WP5_TEST_DESIGN_MARKER);
+    }
+
+    private boolean containsWp6ApiAutomationMarker(ProviderCallRequest request) {
+        return contains(request.prompt(), WP6_API_AUTOMATION_MARKER)
+                || contains(request.messageText(), WP6_API_AUTOMATION_MARKER);
     }
 
     private String wp4RequirementParseResponse(String messageText) {
@@ -138,6 +150,91 @@ public class LocalEchoModelProviderClient implements ModelProviderClient {
         item.put("riskNotes", "需按项目环境补齐真实测试数据");
         item.put("confidence", 0.88D);
         return item;
+    }
+
+    private String wp6ApiAutomationResponse(String messageText) {
+        try {
+            JsonNode payload = objectMapper.readTree(stripRolePrefix(messageText));
+            List<String> coverageTypes = stringList(payload.path("coverageTypes"));
+            if (coverageTypes.isEmpty()) {
+                coverageTypes = List.of("SMOKE");
+            }
+            int caseCountPerApi = Math.max(1, Math.min(payload.path("caseCountPerApi").asInt(coverageTypes.size()), 5));
+            List<Map<String, Object>> cases = new ArrayList<>();
+            JsonNode endpoints = payload.path("endpoints");
+            if (endpoints.isArray()) {
+                for (JsonNode endpoint : endpoints) {
+                    coverageTypes.stream()
+                            .limit(caseCountPerApi)
+                            .map(coverageType -> wp6GeneratedCase(endpoint, coverageType))
+                            .forEach(cases::add);
+                }
+            }
+            return objectMapper.writeValueAsString(Map.of(
+                    "schemaVersion", "wp6-api-automation-v1",
+                    "cases", cases
+            ));
+        } catch (Exception exception) {
+            try {
+                return objectMapper.writeValueAsString(Map.of(
+                        "schemaVersion", "wp6-api-automation-v1",
+                        "cases", List.of()
+                ));
+            } catch (Exception ignored) {
+                return "{\"schemaVersion\":\"wp6-api-automation-v1\",\"cases\":[]}";
+            }
+        }
+    }
+
+    private Map<String, Object> wp6GeneratedCase(JsonNode endpoint, String coverageType) {
+        String method = normalizeHttpMethod(text(endpoint, "method"));
+        String path = firstText(text(endpoint, "path"), "/");
+        String normalizedCoverage = normalizeWp6CoverageType(coverageType);
+        int expectedStatus = wp6ExpectedStatus(text(endpoint, "responseStatuses"), normalizedCoverage);
+        Map<String, Object> item = new LinkedHashMap<>();
+        item.put("assetApiId", text(endpoint, "assetApiId"));
+        item.put("title", wp6CaseTitle(method, path, normalizedCoverage));
+        item.put("method", method);
+        item.put("path", path);
+        item.put("coverageType", normalizedCoverage);
+        item.put("expectedStatus", expectedStatus);
+        item.put("assertions", List.of("STATUS_CODE", "RESPONSE_TIME_BOUNDED", "SCHEMA_DIGEST_PRESENT"));
+        item.put("requestTemplate", Map.of(
+                "aggregateOnly", true,
+                "parameterCount", endpoint.path("parameterCount").asInt(0),
+                "requestBodyPresent", endpoint.path("requestBodyPresent").asBoolean(false),
+                "bodyTemplateStored", false,
+                "secretValuesStored", false
+        ));
+        item.put("rationale", "覆盖 " + method + " " + path + " 的 " + normalizedCoverage + " 场景");
+        return item;
+    }
+
+    private String wp6CaseTitle(String method, String path, String coverageType) {
+        String title = "[" + coverageType + "] " + method + " " + path;
+        return title.length() <= 256 ? title : title.substring(0, 253) + "...";
+    }
+
+    private int wp6ExpectedStatus(String responseStatuses, String coverageType) {
+        List<Integer> statuses = responseStatusCodes(responseStatuses);
+        if ("EXCEPTION".equals(coverageType)) {
+            return statuses.stream().filter(status -> status >= 400 && status < 500).findFirst().orElse(400);
+        }
+        return statuses.stream()
+                .filter(status -> status >= 200 && status < 300)
+                .findFirst()
+                .orElse(statuses.isEmpty() ? 200 : statuses.getFirst());
+    }
+
+    private List<Integer> responseStatusCodes(String responseStatuses) {
+        if (!StringUtils.hasText(responseStatuses)) {
+            return List.of();
+        }
+        return List.of(responseStatuses.split(",")).stream()
+                .map(String::trim)
+                .filter(value -> value.matches("\\d{3}"))
+                .map(Integer::parseInt)
+                .toList();
     }
 
     private String wp5CaseTitle(String title, String coverageType) {
@@ -408,6 +505,28 @@ public class LocalEchoModelProviderClient implements ModelProviderClient {
         return switch (normalized) {
             case "SMOKE", "FUNCTIONAL", "EXCEPTION", "BOUNDARY", "PERMISSION", "REGRESSION" -> normalized;
             default -> "FUNCTIONAL";
+        };
+    }
+
+    private String normalizeWp6CoverageType(String rawValue) {
+        if (!StringUtils.hasText(rawValue)) {
+            return "SMOKE";
+        }
+        String normalized = rawValue.trim().toUpperCase(Locale.ROOT);
+        return switch (normalized) {
+            case "SMOKE", "FUNCTIONAL", "EXCEPTION" -> normalized;
+            default -> "SMOKE";
+        };
+    }
+
+    private String normalizeHttpMethod(String rawValue) {
+        if (!StringUtils.hasText(rawValue)) {
+            return "GET";
+        }
+        String normalized = rawValue.trim().toUpperCase(Locale.ROOT);
+        return switch (normalized) {
+            case "GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS" -> normalized;
+            default -> "GET";
         };
     }
 

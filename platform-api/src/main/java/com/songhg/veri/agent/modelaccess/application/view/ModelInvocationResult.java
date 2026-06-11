@@ -19,6 +19,8 @@ public record ModelInvocationResult(
         String providerName,
         @Schema(description = "模型名称")
         String modelName,
+        @Schema(description = "Prompt 模板版本")
+        Integer promptVersion,
         @Schema(description = "是否使用 fallback 结果")
         boolean fallbackUsed,
         @Schema(description = "请求或导入内容正文")

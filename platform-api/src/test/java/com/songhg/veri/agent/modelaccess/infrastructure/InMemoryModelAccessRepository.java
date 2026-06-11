@@ -112,6 +112,27 @@ public class InMemoryModelAccessRepository implements ModelAccessRepository {
                 now,
                 now
         ));
+        savePrompt(new PromptTemplate(
+                UUID.fromString("00000000-0000-0000-0000-000000000304"),
+                "wp6-api-automation-v1",
+                "WP6 接口自动化用例生成助手",
+                1,
+                """
+                        {{schemaMarker}}
+                        你是企业级接口自动化用例生成助手。请只返回 JSON，不要返回 Markdown。
+                        JSON schema: {"schemaVersion":"wp6-api-automation-v1","cases":[{"assetApiId":"uuid","title":"用例标题","method":"GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS","path":"/openapi/path","coverageType":"SMOKE|FUNCTIONAL|EXCEPTION","expectedStatus":200,"assertions":["STATUS_CODE"],"requestTemplate":{"aggregateOnly":true,"bodyTemplateStored":false,"secretValuesStored":false},"rationale":"生成依据"}]}
+                        只能基于用户提供的 endpoint 聚合摘要生成用例；不得输出请求正文、响应正文、secret、token、cookie 或 Authorization 示例值。
+                        """,
+                PromptStatus.ACTIVE,
+                "WP6 API automation model prompt",
+                false,
+                PromptApprovalStatus.NOT_REQUIRED,
+                null,
+                null,
+                null,
+                now,
+                now
+        ));
     }
 
     @Override

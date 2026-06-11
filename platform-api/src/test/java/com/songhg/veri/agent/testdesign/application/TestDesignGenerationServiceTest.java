@@ -299,6 +299,7 @@ class TestDesignGenerationServiceTest {
                 UUID.fromString("00000000-0000-4000-8000-000000000701"),
                 "local-echo-primary",
                 "test-local-model",
+                1,
                 false,
                 """
                         {
@@ -677,6 +678,7 @@ class TestDesignGenerationServiceTest {
                 UUID.fromString("00000000-0000-4000-8000-000000000701"),
                 "local-echo-primary",
                 "test-local-model",
+                1,
                 false,
                 content,
                 20,
@@ -707,6 +709,7 @@ class TestDesignGenerationServiceTest {
                     UUID.randomUUID(),
                     "local-echo-primary",
                     "test-local-model",
+                    1,
                     false,
                     result.content(),
                     result.inputTokens(),
