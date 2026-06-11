@@ -186,6 +186,7 @@ public class ApiAutomationService {
     @Transactional
     public ApiAutomationDiffResponse diffSpec(UUID id) {
         ApiAutomationSpec spec = requireParsedSpec(id);
+        // Diff 结果是运营确认同步前的证据快照，必须落库以便审计和前端复核。
         List<ApiAutomationEndpointSnapshot> endpoints = evaluateAndPersistDiff(spec);
         audit("api_automation.api_diffed", spec, "SUCCESS", Map.of(
                 "counts", countDiffStatuses(endpoints),
@@ -203,6 +204,7 @@ public class ApiAutomationService {
                 ? new SyncApiAutomationSpecCommand(List.of(), true)
                 : command;
         Set<UUID> selectedEndpointIds = safeCommand.endpointIdSet();
+        // 同步前重新 diff，避免基于前端旧状态写入 WP3；单 endpoint 业务失败在 syncEndpoint 内收敛为明细。
         List<ApiAutomationEndpointSnapshot> diffedEndpoints = evaluateAndPersistDiff(spec);
         List<ApiAutomationSyncItemResponse> items = new ArrayList<>();
         List<ApiAutomationEndpointSnapshot> updatedEndpoints = new ArrayList<>();
@@ -359,6 +361,7 @@ public class ApiAutomationService {
 
     private List<ApiAutomationEndpointSnapshot> evaluateAndPersistDiff(ApiAutomationSpec spec) {
         Instant now = Instant.now();
+        // WP3 API 当前没有 serviceName 字段，M3 先按项目内 method + path 匹配，serviceName 仅作为展示和后续扩展依据。
         Map<String, List<ApiResponseDTO>> assetApisByKey = assetApisByKey(spec.projectId());
         List<ApiAutomationEndpointSnapshot> updated = repository.endpointSnapshots(spec.id()).stream()
                 .map(endpoint -> diffEndpoint(endpoint, assetApisByKey, now))
@@ -411,6 +414,7 @@ public class ApiAutomationService {
             SyncApiAutomationSpecCommand command,
             Instant now
     ) {
+        // 只有 NEW 和显式允许的 CHANGED 写入 WP3；冲突、跳过和已匹配 endpoint 保留人工运营判断。
         if ("NEW".equals(endpoint.diffStatus())) {
             return createAssetApi(spec, endpoint, now);
         }
@@ -537,6 +541,7 @@ public class ApiAutomationService {
 
     private Map<String, List<ApiResponseDTO>> assetApisByKey(String projectId) {
         List<ApiResponseDTO> assets = new ArrayList<>();
+        // 防御性分页上限避免一次 diff 因异常资产量拖垮控制面，后续可按 WP3 查询能力改为精确按 path 拉取。
         for (int index = 0; index < WP3_API_PAGE_LIMIT; index++) {
             AssetListRequest request = new AssetListRequest();
             request.setProjectId(projectId);
