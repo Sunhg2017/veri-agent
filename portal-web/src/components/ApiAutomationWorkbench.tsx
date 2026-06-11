@@ -68,6 +68,7 @@ export function ApiAutomationWorkbench(props: { signedIn: boolean; currentUser: 
   const [generationState, setGenerationState] = useState<WorkState>({ loading: false });
   const [lastSync, setLastSync] = useState<ApiAutomationSyncResponse | null>(null);
   const [lastGeneration, setLastGeneration] = useState<ApiAutomationGenerationTaskDetail | null>(null);
+  const [generationAssetTestCaseIds, setGenerationAssetTestCaseIds] = useState('');
 
   const summary = useMemo(() => {
     const parsed = specs.filter((spec) => spec.status === 'PARSED').length;
@@ -196,9 +197,11 @@ export function ApiAutomationWorkbench(props: { signedIn: boolean; currentUser: 
     if (!selectedSpecId || !detail || !canGenerate) return;
     setGenerationState({ loading: true });
     try {
+      const assetTestCaseIds = parseIdList(generationAssetTestCaseIds);
       const result = await createApiAutomationGenerationTask({
         projectId: detail.spec.projectId,
         specId: selectedSpecId,
+        assetTestCaseIds: assetTestCaseIds.length ? assetTestCaseIds : undefined,
         coverageTypes: ['SMOKE', 'EXCEPTION'],
         generationMode: 'FALLBACK_ONLY',
         caseCountPerApi: 2,
@@ -366,6 +369,16 @@ export function ApiAutomationWorkbench(props: { signedIn: boolean; currentUser: 
           </div>
         </div>
         <div className="panel-body compact">
+          <div className="form-grid">
+            <Field label="WP3 用例 ID">
+              <input
+                value={generationAssetTestCaseIds}
+                onChange={(event) => setGenerationAssetTestCaseIds(event.target.value)}
+                placeholder="逗号或换行分隔"
+                disabled={!canGenerate || generationState.loading}
+              />
+            </Field>
+          </div>
           {detailState.error && <div className="document-state-line error">{detailState.error}</div>}
           {parseState.error && <div className="document-state-line error">{parseState.error}</div>}
           {parseState.success && <div className="document-state-line success">{parseState.success}</div>}
@@ -512,4 +525,10 @@ function shortId(value?: string) {
 function optionalText(value: string) {
   const trimmed = value.trim();
   return trimmed ? trimmed : undefined;
+}
+
+function parseIdList(value: string) {
+  return value.split(/[\s,，]+/)
+    .map((item) => item.trim())
+    .filter(Boolean);
 }

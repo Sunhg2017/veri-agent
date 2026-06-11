@@ -28,9 +28,12 @@ import com.songhg.veri.agent.apiautomation.domain.ApiAutomationGenerationTask;
 import com.songhg.veri.agent.apiautomation.domain.ApiAutomationSpec;
 import com.songhg.veri.agent.apiautomation.infrastructure.openapi.OpenApiSpecParser;
 import com.songhg.veri.agent.asset.application.AssetApiService;
+import com.songhg.veri.agent.asset.application.AssetTestCaseService;
 import com.songhg.veri.agent.asset.application.command.SyncOpenApiRequest;
 import com.songhg.veri.agent.asset.application.query.AssetListRequest;
 import com.songhg.veri.agent.asset.application.view.ApiResponseDTO;
+import com.songhg.veri.agent.asset.application.view.TestCaseResponse;
+import com.songhg.veri.agent.asset.application.view.TestCaseStepResponse;
 import com.songhg.veri.agent.common.api.PageResponse;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
@@ -46,6 +49,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -62,9 +66,17 @@ public class ApiAutomationService {
     private static final int WP3_API_PAGE_SIZE = 100;
     private static final int WP3_API_PAGE_LIMIT = 20;
     private static final int GENERATION_CASE_COUNT_MAX = 5;
+    private static final int GENERATION_SOURCE_TEST_CASE_MAX = 20;
+    private static final int GENERATION_SOURCE_STEP_MAX = 3;
+    private static final int GENERATION_SOURCE_TEXT_MAX_CHARS = 160;
     private static final List<String> DIFF_STATUSES = List.of("NEW", "CHANGED", "MATCHED", "CONFLICT", "SKIPPED");
     private static final Set<String> GENERATION_MODES = Set.of("FALLBACK_ONLY", "MODEL_WITH_FALLBACK");
     private static final Set<String> COVERAGE_TYPES = Set.of("SMOKE", "FUNCTIONAL", "EXCEPTION");
+    private static final List<Pattern> SENSITIVE_TEXT_PATTERNS = List.of(
+            Pattern.compile("(?i)\\bbearer\\s+[a-z0-9._\\-]{8,}"),
+            Pattern.compile("(?i)\\b(api[_-]?key|secret|token|password|passwd|authorization)\\s*[:=]\\s*[^\\s,;，；]+"),
+            Pattern.compile("(?i)\\b(sk|pk|rk)_[a-z0-9_-]{8,}\\b")
+    );
     private static final TypeReference<Map<String, Object>> MAP_TYPE = new TypeReference<>() {
     };
     private static final TypeReference<List<String>> STRING_LIST_TYPE = new TypeReference<>() {
@@ -76,6 +88,7 @@ public class ApiAutomationService {
     private final ApiAutomationPlatformContextClient contextClient;
     private final ApiAutomationActorResolver actorResolver;
     private final AssetApiService assetApiService;
+    private final AssetTestCaseService assetTestCaseService;
     private final ObjectMapper objectMapper;
 
     public ApiAutomationService(
@@ -85,6 +98,7 @@ public class ApiAutomationService {
             ApiAutomationPlatformContextClient contextClient,
             ApiAutomationActorResolver actorResolver,
             AssetApiService assetApiService,
+            AssetTestCaseService assetTestCaseService,
             ObjectMapper objectMapper
     ) {
         this.repository = repository;
@@ -93,6 +107,7 @@ public class ApiAutomationService {
         this.contextClient = contextClient;
         this.actorResolver = actorResolver;
         this.assetApiService = assetApiService;
+        this.assetTestCaseService = assetTestCaseService;
         this.objectMapper = objectMapper;
     }
 
@@ -258,8 +273,9 @@ public class ApiAutomationService {
             return generationTaskDetail(existing.id());
         }
         List<ApiAutomationEndpointSnapshot> targets = generationTargets(spec, normalized.assetApiIds());
+        List<GenerationSourceTestCase> sourceTestCases = sourceTestCases(normalized, targets);
         // 当前 M4 切片尚未接入 WP2 模型调用，先生成明确标记为 FALLBACK 的聚合用例草稿。
-        List<ApiAutomationCase> cases = fallbackCases(spec, targets, normalized);
+        List<ApiAutomationCase> cases = fallbackCases(spec, targets, normalized, sourceTestCases);
         Instant now = Instant.now();
         String actor = actorResolver.currentActor();
         ApiAutomationGenerationTask task = new ApiAutomationGenerationTask(
@@ -277,7 +293,7 @@ public class ApiAutomationService {
                 true,
                 targets.size(),
                 cases.size(),
-                writeJson(inputSummary(spec, normalized, targets, cases)),
+                writeJson(inputSummary(spec, normalized, targets, sourceTestCases, cases)),
                 null,
                 actor,
                 actor,
@@ -291,6 +307,7 @@ public class ApiAutomationService {
         auditGenerationTask(task, "SUCCESS", Map.of(
                 "apiCount", task.apiCount(),
                 "caseCount", task.caseCount(),
+                "sourceTestCaseCount", sourceTestCases.size(),
                 "generationMode", task.generationMode(),
                 "fallbackUsed", task.fallbackUsed(),
                 "coverageTypes", normalized.coverageTypes()
@@ -314,6 +331,12 @@ public class ApiAutomationService {
         int caseCountPerApi = normalizeCaseCountPerApi(command.caseCountPerApi(), coverageTypes.size());
         List<UUID> assetApiIds = normalizedUuidList(command.assetApiIds());
         List<UUID> assetTestCaseIds = normalizedUuidList(command.assetTestCaseIds());
+        if (assetTestCaseIds.size() > GENERATION_SOURCE_TEST_CASE_MAX) {
+            throw new BusinessException(
+                    ErrorCode.VALIDATION_ERROR,
+                    "assetTestCaseIds 最多支持 " + GENERATION_SOURCE_TEST_CASE_MAX + " 个"
+            );
+        }
         String requestKey = boundedNullableText(command.requestKey(), 128);
         Map<String, Object> digestPayload = new LinkedHashMap<>();
         digestPayload.put("projectId", projectId);
@@ -377,16 +400,54 @@ public class ApiAutomationService {
         return targets;
     }
 
+    private List<GenerationSourceTestCase> sourceTestCases(
+            GenerationRequest request,
+            List<ApiAutomationEndpointSnapshot> targets
+    ) {
+        if (request.assetTestCaseIds().isEmpty()) {
+            return List.of();
+        }
+        Set<UUID> targetAssetApiIds = targets.stream()
+                .map(ApiAutomationEndpointSnapshot::assetApiId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        List<GenerationSourceTestCase> sourceCases = new ArrayList<>();
+        for (UUID assetTestCaseId : request.assetTestCaseIds()) {
+            TestCaseResponse testCase = assetTestCaseService.getTestCase(assetTestCaseId);
+            if (!request.projectId().equals(testCase.projectId())) {
+                throw new BusinessException(ErrorCode.FORBIDDEN, "测试用例不属于当前项目: " + assetTestCaseId);
+            }
+            if (testCase.apiId() != null && !targetAssetApiIds.contains(testCase.apiId())) {
+                throw new BusinessException(
+                        ErrorCode.VALIDATION_ERROR,
+                        "assetTestCaseIds 必须关联当前生成范围内的已同步 API: " + assetTestCaseId
+                );
+            }
+            sourceCases.add(sourceTestCaseSummary(testCase));
+        }
+        return sourceCases;
+    }
+
     private List<ApiAutomationCase> fallbackCases(
             ApiAutomationSpec spec,
             List<ApiAutomationEndpointSnapshot> targets,
-            GenerationRequest request
+            GenerationRequest request,
+            List<GenerationSourceTestCase> sourceTestCases
     ) {
         List<ApiAutomationCase> cases = new ArrayList<>();
+        Map<UUID, UUID> sourceCaseIdByAssetApiId = sourceTestCases.stream()
+                .filter(sourceCase -> sourceCase.apiId() != null)
+                .collect(Collectors.toMap(
+                        GenerationSourceTestCase::apiId,
+                        GenerationSourceTestCase::id,
+                        (existing, ignored) -> existing,
+                        LinkedHashMap::new
+                ));
         for (ApiAutomationEndpointSnapshot endpoint : targets) {
+            UUID sourceTestCaseId = endpoint.assetApiId() == null ? null : sourceCaseIdByAssetApiId.get(endpoint.assetApiId());
             request.coverageTypes().stream()
                     .limit(request.caseCountPerApi())
-                    .map(coverageType -> fallbackCase(spec, endpoint, coverageType))
+                    .map(coverageType -> fallbackCase(spec, endpoint, coverageType, sourceTestCaseId))
                     .forEach(cases::add);
         }
         if (cases.isEmpty()) {
@@ -398,7 +459,8 @@ public class ApiAutomationService {
     private ApiAutomationCase fallbackCase(
             ApiAutomationSpec spec,
             ApiAutomationEndpointSnapshot endpoint,
-            String coverageType
+            String coverageType,
+            UUID sourceTestCaseId
     ) {
         int expectedStatus = expectedStatus(endpoint, coverageType);
         return new ApiAutomationCase(
@@ -408,7 +470,7 @@ public class ApiAutomationService {
                 spec.id(),
                 endpoint.id(),
                 endpoint.assetApiId(),
-                null,
+                sourceTestCaseId,
                 boundedText("[" + coverageType + "] " + endpoint.httpMethod() + " " + endpoint.path(), 256),
                 endpoint.httpMethod(),
                 endpoint.path(),
@@ -421,6 +483,41 @@ public class ApiAutomationService {
                 null,
                 null
         );
+    }
+
+    private GenerationSourceTestCase sourceTestCaseSummary(TestCaseResponse testCase) {
+        Map<String, Object> summary = new LinkedHashMap<>();
+        summary.put("assetTestCaseId", testCase.id().toString());
+        summary.put("assetApiId", testCase.apiId() == null ? null : testCase.apiId().toString());
+        summary.put("code", safeSourceText(testCase.code(), 64));
+        summary.put("title", safeSourceText(testCase.title(), GENERATION_SOURCE_TEXT_MAX_CHARS));
+        summary.put("status", nullToEmpty(testCase.status()));
+        summary.put("priority", nullToEmpty(testCase.priority()));
+        summary.put("tags", safeSourceText(testCase.tags(), GENERATION_SOURCE_TEXT_MAX_CHARS));
+        summary.put("source", nullToEmpty(testCase.source()));
+        summary.put("sourceRefDigest", StringUtils.hasText(testCase.sourceRef()) ? sha256(testCase.sourceRef()) : null);
+        summary.put("stepCount", testCase.steps() == null ? 0 : testCase.steps().size());
+        summary.put("steps", sourceStepSummaries(testCase.steps()));
+        summary.put("rawCandidateStored", false);
+        summary.put("reviewCommentStored", false);
+        summary.put("aggregateOnly", true);
+        return new GenerationSourceTestCase(testCase.id(), testCase.apiId(), summary);
+    }
+
+    private List<Map<String, Object>> sourceStepSummaries(List<TestCaseStepResponse> steps) {
+        if (steps == null || steps.isEmpty()) {
+            return List.of();
+        }
+        return steps.stream()
+                .limit(GENERATION_SOURCE_STEP_MAX)
+                .map(step -> {
+                    Map<String, Object> summary = new LinkedHashMap<>();
+                    summary.put("stepOrder", step.stepOrder());
+                    summary.put("actionSummary", safeSourceText(step.action(), GENERATION_SOURCE_TEXT_MAX_CHARS));
+                    summary.put("expectedSummary", safeSourceText(step.expectedResult(), GENERATION_SOURCE_TEXT_MAX_CHARS));
+                    return summary;
+                })
+                .toList();
     }
 
     private ApiAutomationCase caseWithTask(ApiAutomationCase automationCase, UUID taskId, Instant now) {
@@ -478,6 +575,7 @@ public class ApiAutomationService {
             ApiAutomationSpec spec,
             GenerationRequest request,
             List<ApiAutomationEndpointSnapshot> targets,
+            List<GenerationSourceTestCase> sourceTestCases,
             List<ApiAutomationCase> cases
     ) {
         Map<String, Object> summary = new LinkedHashMap<>();
@@ -490,6 +588,11 @@ public class ApiAutomationService {
                 .map(UUID::toString)
                 .toList());
         summary.put("assetTestCaseIds", uuidStrings(request.assetTestCaseIds()));
+        summary.put("sourceTestCaseCount", sourceTestCases.size());
+        // 只保存 WP3 已发布测试用例的摘要证据，不回读或持久化 WP5 候选正文、评审评论和 sourceRef 明文。
+        summary.put("sourceTestCases", sourceTestCases.stream()
+                .map(GenerationSourceTestCase::summary)
+                .toList());
         summary.put("generationMode", request.generationMode());
         summary.put("modelRequested", "MODEL_WITH_FALLBACK".equals(request.generationMode()));
         summary.put("modelGenerationReady", false);
@@ -1162,6 +1265,21 @@ public class ApiAutomationService {
         return trimmed.length() <= maxLength ? trimmed : trimmed.substring(0, maxLength);
     }
 
+    private String safeSourceText(String value, int maxLength) {
+        if (!StringUtils.hasText(value)) {
+            return "";
+        }
+        return boundedText(redactSensitiveText(value), maxLength);
+    }
+
+    private String redactSensitiveText(String value) {
+        String redacted = value;
+        for (Pattern pattern : SENSITIVE_TEXT_PATTERNS) {
+            redacted = pattern.matcher(redacted).replaceAll("[REDACTED]");
+        }
+        return redacted;
+    }
+
     private String nullToEmpty(String value) {
         return value == null ? "" : value;
     }
@@ -1228,6 +1346,13 @@ public class ApiAutomationService {
             List<UUID> assetApiIds,
             List<UUID> assetTestCaseIds,
             int caseCountPerApi
+    ) {
+    }
+
+    private record GenerationSourceTestCase(
+            UUID id,
+            UUID apiId,
+            Map<String, Object> summary
     ) {
     }
 

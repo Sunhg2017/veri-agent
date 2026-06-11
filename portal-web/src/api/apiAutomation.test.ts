@@ -139,6 +139,7 @@ describe('WP6 API automation helpers', () => {
         id: 'case-1',
         endpoint_snapshot_id: 'endpoint-1',
         asset_api_id: 'asset-api-1',
+        asset_test_case_id: 'asset-case-1',
         http_method: 'GET',
         path: '/v1/customers',
         coverage_type: 'SMOKE',
@@ -150,7 +151,7 @@ describe('WP6 API automation helpers', () => {
       }]
     })).toMatchObject({
       task: { id: 'task-1', fallbackUsed: true, apiCount: 2, caseCount: 4 },
-      cases: [{ id: 'case-1', expectedStatus: 200, source: 'FALLBACK' }]
+      cases: [{ id: 'case-1', assetTestCaseId: 'asset-case-1', expectedStatus: 200, source: 'FALLBACK' }]
     });
   });
 
@@ -202,6 +203,7 @@ describe('WP6 API automation helpers', () => {
     await createApiAutomationGenerationTask({
       projectId: 'project-alpha',
       specId: 'spec-1',
+      assetTestCaseIds: ['asset-case-1'],
       coverageTypes: ['SMOKE'],
       generationMode: 'FALLBACK_ONLY'
     });
@@ -229,6 +231,7 @@ describe('WP6 API automation helpers', () => {
       body: JSON.stringify({
         projectId: 'project-alpha',
         specId: 'spec-1',
+        assetTestCaseIds: ['asset-case-1'],
         coverageTypes: ['SMOKE'],
         generationMode: 'FALLBACK_ONLY'
       })

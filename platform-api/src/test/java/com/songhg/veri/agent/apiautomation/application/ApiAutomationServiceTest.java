@@ -1,7 +1,9 @@
 package com.songhg.veri.agent.apiautomation.application;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.songhg.veri.agent.apiautomation.application.command.CreateApiAutomationGenerationTaskCommand;
 import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationDiffResponse;
+import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationGenerationTaskDetailResponse;
 import com.songhg.veri.agent.apiautomation.application.port.ApiAutomationRepository;
 import com.songhg.veri.agent.apiautomation.application.query.ApiAutomationSpecPageRequest;
 import com.songhg.veri.agent.apiautomation.application.query.ApiAutomationSpecQuery;
@@ -11,8 +13,11 @@ import com.songhg.veri.agent.apiautomation.domain.ApiAutomationSpec;
 import com.songhg.veri.agent.apiautomation.infrastructure.InMemoryApiAutomationRepository;
 import com.songhg.veri.agent.apiautomation.infrastructure.openapi.OpenApiSpecParser;
 import com.songhg.veri.agent.asset.application.AssetApiService;
+import com.songhg.veri.agent.asset.application.AssetTestCaseService;
 import com.songhg.veri.agent.asset.application.query.AssetListRequest;
 import com.songhg.veri.agent.asset.application.view.ApiResponseDTO;
+import com.songhg.veri.agent.asset.application.view.TestCaseResponse;
+import com.songhg.veri.agent.asset.application.view.TestCaseStepResponse;
 import com.songhg.veri.agent.common.api.PageResponse;
 import com.songhg.veri.agent.integration.application.view.PlatformContext;
 import java.time.Instant;
@@ -54,6 +59,7 @@ class ApiAutomationServiceTest {
                 contextClient,
                 mock(ApiAutomationActorResolver.class),
                 mock(AssetApiService.class),
+                mock(AssetTestCaseService.class),
                 new ObjectMapper()
         );
 
@@ -75,6 +81,7 @@ class ApiAutomationServiceTest {
         InMemoryApiAutomationRepository repository = new InMemoryApiAutomationRepository();
         AssetApiService assetApiService = mock(AssetApiService.class);
         ApiAutomationPlatformContextClient contextClient = mock(ApiAutomationPlatformContextClient.class);
+        AssetTestCaseService assetTestCaseService = mock(AssetTestCaseService.class);
         ApiAutomationService service = new ApiAutomationService(
                 repository,
                 mock(OpenApiSpecParser.class),
@@ -82,6 +89,7 @@ class ApiAutomationServiceTest {
                 contextClient,
                 mock(ApiAutomationActorResolver.class),
                 assetApiService,
+                assetTestCaseService,
                 new ObjectMapper()
         );
         UUID specId = UUID.randomUUID();
@@ -116,6 +124,71 @@ class ApiAutomationServiceTest {
                 .containsEntry("/v1/new", "NEW")
                 .containsEntry("/v1/conflict", "CONFLICT")
                 .containsEntry("too-long", "SKIPPED");
+    }
+
+    @Test
+    void includesWp3TestCaseSummariesInGenerationInput() {
+        InMemoryApiAutomationRepository repository = new InMemoryApiAutomationRepository();
+        ApiAutomationPlatformContextClient contextClient = mock(ApiAutomationPlatformContextClient.class);
+        ApiAutomationActorResolver actorResolver = mock(ApiAutomationActorResolver.class);
+        AssetTestCaseService assetTestCaseService = mock(AssetTestCaseService.class);
+        when(contextClient.projectContext("project-alpha")).thenReturn(new PlatformContext(
+                "PROJECT",
+                "project-alpha",
+                "ACTIVE",
+                "INTERNAL",
+                false,
+                List.of(),
+                Instant.EPOCH
+        ));
+        when(actorResolver.currentActor()).thenReturn("api-tester");
+
+        ApiAutomationService service = new ApiAutomationService(
+                repository,
+                mock(OpenApiSpecParser.class),
+                new ApiAutomationProperties(65_536, 50, false, 120, 100, "wp6-api-automation-v1", true),
+                contextClient,
+                actorResolver,
+                mock(AssetApiService.class),
+                assetTestCaseService,
+                new ObjectMapper()
+        );
+        UUID specId = UUID.randomUUID();
+        UUID assetApiId = UUID.randomUUID();
+        UUID assetTestCaseId = UUID.randomUUID();
+        ApiAutomationSpec spec = spec("project-alpha", specId);
+        repository.insertSpec(spec);
+        repository.insertEndpointSnapshot(syncedEndpoint(spec, "/v1/payments", "POST", "digest-payments", assetApiId));
+        when(assetTestCaseService.getTestCase(assetTestCaseId)).thenReturn(testCase(assetTestCaseId, assetApiId));
+
+        ApiAutomationGenerationTaskDetailResponse response = service.createGenerationTask(
+                new CreateApiAutomationGenerationTaskCommand(
+                        "project-alpha",
+                        specId,
+                        List.of(assetApiId),
+                        List.of(assetTestCaseId),
+                        List.of("SMOKE"),
+                        "FALLBACK_ONLY",
+                        1,
+                        "with-wp3-case"
+                )
+        );
+
+        assertThat(response.task().inputSummary()).containsEntry("sourceTestCaseCount", 1);
+        assertThat(response.task().inputSummary().toString())
+                .doesNotContain("secret-value", "Bearer abcdefgh1234", "token=abc123456");
+        assertThat(response.cases()).hasSize(1);
+        assertThat(response.cases().getFirst().assetTestCaseId()).isEqualTo(assetTestCaseId);
+        assertThat(response.cases().getFirst().source()).isEqualTo("FALLBACK");
+
+        List<?> sourceCases = (List<?>) response.task().inputSummary().get("sourceTestCases");
+        assertThat(sourceCases).hasSize(1);
+        Map<?, ?> sourceSummary = (Map<?, ?>) sourceCases.getFirst();
+        assertThat(sourceSummary.get("assetTestCaseId")).isEqualTo(assetTestCaseId.toString());
+        assertThat(sourceSummary.get("assetApiId")).isEqualTo(assetApiId.toString());
+        assertThat(sourceSummary.get("rawCandidateStored")).isEqualTo(false);
+        assertThat(sourceSummary.get("reviewCommentStored")).isEqualTo(false);
+        assertThat(sourceSummary.get("sourceRefDigest")).isNotNull();
     }
 
     private ApiAutomationSpec spec(String projectId) {
@@ -167,6 +240,64 @@ class ApiAutomationServiceTest {
                 null,
                 "{}",
                 null,
+                null,
+                null,
+                now,
+                now
+        );
+    }
+
+    private ApiAutomationEndpointSnapshot syncedEndpoint(
+            ApiAutomationSpec spec,
+            String path,
+            String httpMethod,
+            String schemaDigest,
+            UUID assetApiId
+    ) {
+        Instant now = Instant.EPOCH;
+        return new ApiAutomationEndpointSnapshot(
+                UUID.randomUUID(),
+                spec.id(),
+                spec.projectId(),
+                "billing",
+                httpMethod.toLowerCase() + "Billing",
+                httpMethod,
+                path,
+                httpMethod + " " + path,
+                "billing",
+                1,
+                true,
+                "201,400",
+                schemaDigest,
+                "MATCHED",
+                assetApiId,
+                "{}",
+                now,
+                now,
+                null,
+                now,
+                now
+        );
+    }
+
+    private TestCaseResponse testCase(UUID id, UUID assetApiId) {
+        Instant now = Instant.EPOCH;
+        return new TestCaseResponse(
+                id,
+                "TC-" + id.toString().replace("-", "").substring(0, 12),
+                "Payment smoke Bearer abcdefgh1234",
+                "Published WP3 case secret=secret-value",
+                null,
+                assetApiId,
+                "AI_GENERATED",
+                "wp5-candidate-token=secret-value",
+                "project-alpha",
+                "APPROVED",
+                "HIGH",
+                "smoke,payment",
+                List.of(new TestCaseStepResponse(0, "POST payment token=abc123456", "expect 201")),
+                1,
+                "ACTIVE",
                 null,
                 null,
                 now,
