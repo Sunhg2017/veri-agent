@@ -62,6 +62,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -90,6 +91,8 @@ public class ApiAutomationService {
     private static final int GENERATION_SOURCE_STEP_MAX = 3;
     private static final int GENERATION_SOURCE_TEXT_MAX_CHARS = 160;
     private static final int RUNNER_BASE_URL_MAX_CHARS = 512;
+    private static final int RUNNER_SECRET_REF_MAX_COUNT = 10;
+    private static final int RUNNER_SECRET_REF_MAX_CHARS = 256;
     private static final List<String> DIFF_STATUSES = List.of("NEW", "CHANGED", "MATCHED", "CONFLICT", "SKIPPED");
     private static final Set<String> GENERATION_MODES = Set.of("FALLBACK_ONLY", "MODEL_WITH_FALLBACK");
     private static final Set<String> COVERAGE_TYPES = Set.of("SMOKE", "FUNCTIONAL", "EXCEPTION");
@@ -114,6 +117,7 @@ public class ApiAutomationService {
             Pattern.compile("\\b(os\\.system|eval|exec|__import__)\\s*\\(")
     );
     private static final Pattern IPV4_LITERAL_PATTERN = Pattern.compile("\\d{1,3}(\\.\\d{1,3}){3}");
+    private static final Pattern SECRET_REF_PATTERN = Pattern.compile("^secret://[A-Za-z0-9._~:/?#\\[\\]@!$&'()*+,;=%-]+$");
     private static final TypeReference<Map<String, Object>> MAP_TYPE = new TypeReference<>() {
     };
     private static final TypeReference<List<String>> STRING_LIST_TYPE = new TypeReference<>() {
@@ -510,6 +514,7 @@ public class ApiAutomationService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "接口自动化生成任务不存在: " + bundle.taskId()));
         List<ApiAutomationCase> cases = selectedRunCases(task, command.caseIds());
         RunTarget target = validateRunTarget(command.baseUrl());
+        RunSecretRefs secretRefs = validateRunSecretRefs(command.secretRefs());
         int timeoutSeconds = properties.effectiveRunnerTimeoutSeconds(command.timeoutSeconds());
         Instant now = Instant.now();
         String actor = actorResolver.currentActor();
@@ -543,7 +548,9 @@ public class ApiAutomationService {
             auditRun(run, "FAILED", "BLOCKED", Map.of(
                     "errorCode", block.errorCode(),
                     "caseCount", cases.size(),
-                    "baseUrlHost", target.host()
+                    "baseUrlHost", target.host(),
+                    "secretRefCount", secretRefs.count(),
+                    "secretRefDigests", secretRefs.digests()
             ));
             return toRunDetail(run, results);
         }
@@ -553,7 +560,8 @@ public class ApiAutomationService {
                 bundle,
                 cases,
                 target.normalizedBaseUrl(),
-                timeoutSeconds
+                timeoutSeconds,
+                secretRefs.digests()
         ));
         String status = normalizeRunStatus(attempt.status());
         String runnerMode = normalizeRunnerMode(attempt.runnerMode());
@@ -579,13 +587,17 @@ public class ApiAutomationService {
         results.forEach(repository::insertRunResult);
         auditRun(run, "SUCCESS", "STARTED", Map.of(
                 "runnerMode", run.runnerMode(),
-                "caseCount", run.caseCount()
+                "caseCount", run.caseCount(),
+                "secretRefCount", secretRefs.count(),
+                "secretRefDigests", secretRefs.digests()
         ));
         auditRun(run, runAuditResult(status), "COMPLETED", Map.of(
                 "status", run.status(),
                 "runnerMode", run.runnerMode(),
                 "caseCount", run.caseCount(),
-                "resultCount", results.size()
+                "resultCount", results.size(),
+                "secretRefCount", secretRefs.count(),
+                "secretRefDigests", secretRefs.digests()
         ));
         return toRunDetail(run, results);
     }
@@ -686,6 +698,44 @@ public class ApiAutomationService {
             );
         }
         return selected;
+    }
+
+    /**
+     * Validates secret references as runtime-only inputs. Full secretRef values are never persisted, exported or passed
+     * to audit; only deterministic digests are forwarded so future runner adapters can correlate injected credentials
+     * without leaking references or plaintext.
+     */
+    private RunSecretRefs validateRunSecretRefs(List<String> rawSecretRefs) {
+        if (rawSecretRefs == null || rawSecretRefs.isEmpty()) {
+            return new RunSecretRefs(0, List.of());
+        }
+        LinkedHashSet<String> normalized = new LinkedHashSet<>();
+        for (String rawSecretRef : rawSecretRefs) {
+            String secretRef = rawSecretRef == null ? null : rawSecretRef.trim();
+            if (!StringUtils.hasText(secretRef)) {
+                continue;
+            }
+            if (secretRef.length() > RUNNER_SECRET_REF_MAX_CHARS) {
+                throw new BusinessException(
+                        ErrorCode.VALIDATION_ERROR,
+                        "secretRefs 单个引用最多 " + RUNNER_SECRET_REF_MAX_CHARS + " 字符"
+                );
+            }
+            if (!SECRET_REF_PATTERN.matcher(secretRef).matches()) {
+                throw new BusinessException(ErrorCode.VALIDATION_ERROR, "secretRefs 必须使用 secret:// 引用");
+            }
+            normalized.add(secretRef);
+        }
+        if (normalized.size() > RUNNER_SECRET_REF_MAX_COUNT) {
+            throw new BusinessException(
+                    ErrorCode.VALIDATION_ERROR,
+                    "secretRefs 单次运行最多 " + RUNNER_SECRET_REF_MAX_COUNT + " 个"
+            );
+        }
+        return new RunSecretRefs(
+                normalized.size(),
+                normalized.stream().map(secretRef -> "sha256:" + sha256(secretRef)).toList()
+        );
     }
 
     /**
@@ -2958,6 +3008,12 @@ public class ApiAutomationService {
     private record RunBlock(
             String errorCode,
             String errorSummary
+    ) {
+    }
+
+    private record RunSecretRefs(
+            int count,
+            List<String> digests
     ) {
     }
 

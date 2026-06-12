@@ -295,7 +295,8 @@ describe('WP6 API automation helpers', () => {
       environmentId: 'staging',
       baseUrl: 'https://api.example.test',
       caseIds: ['case-1'],
-      timeoutSeconds: 30
+      timeoutSeconds: 30,
+      secretRefs: ['secret://wp6/payment-token']
     });
     await fetchApiAutomationRun('run-1');
     await cancelApiAutomationRun('run-1');
@@ -351,7 +352,8 @@ describe('WP6 API automation helpers', () => {
         environmentId: 'staging',
         baseUrl: 'https://api.example.test',
         caseIds: ['case-1'],
-        timeoutSeconds: 30
+        timeoutSeconds: 30,
+        secretRefs: ['secret://wp6/payment-token']
       })
     });
     expect(requestJsonMock).toHaveBeenNthCalledWith(13, '/api/v1/api-automation/runs/run-1');

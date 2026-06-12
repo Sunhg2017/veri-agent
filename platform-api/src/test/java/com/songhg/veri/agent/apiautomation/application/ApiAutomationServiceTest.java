@@ -412,7 +412,8 @@ class ApiAutomationServiceTest {
                 "staging",
                 "https://api.example.test/service",
                 List.of(generated.cases().getFirst().id()),
-                30
+                30,
+                List.of(" secret://wp6/payment-token ", "secret://wp6/payment-token")
         ));
 
         assertThat(response.run().status()).isEqualTo("BLOCKED");
@@ -442,6 +443,26 @@ class ApiAutomationServiceTest {
                         && Boolean.FALSE.equals(payload.get("rawRequestResponseExported"))
                         && !payload.toString().contains("https://api.example.test/service"))
         );
+        verify(contextClient, atLeastOnce()).writeAuditEvent(
+                eq("api_automation.run.started"),
+                eq("API_AUTOMATION_RUN"),
+                eq(response.run().id().toString()),
+                eq("project-alpha"),
+                eq("FAILED"),
+                argThat(payload -> Integer.valueOf(1).equals(payload.get("secretRefCount"))
+                        && payload.toString().contains("sha256:")
+                        && !payload.toString().contains("secret://wp6/payment-token"))
+        );
+        assertThatThrownBy(() -> service.createRun(new CreateApiAutomationRunCommand(
+                bundleId,
+                "staging",
+                "https://api.example.test/service",
+                List.of(generated.cases().getFirst().id()),
+                30,
+                List.of("env:WP6_TOKEN")
+        )))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("secretRefs 必须使用 secret:// 引用");
     }
 
     @Test
@@ -508,6 +529,7 @@ class ApiAutomationServiceTest {
                 null,
                 "http://127.0.0.1:8080",
                 List.of(),
+                null,
                 null
         ));
 

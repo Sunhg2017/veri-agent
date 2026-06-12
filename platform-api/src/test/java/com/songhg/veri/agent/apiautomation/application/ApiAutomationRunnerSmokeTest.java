@@ -53,10 +53,14 @@ class ApiAutomationRunnerSmokeTest {
                 "qa",
                 SMOKE_BASE_URL,
                 List.of(fixture.caseId()),
-                10
+                10,
+                List.of("secret://wp6/runner-smoke")
         ));
 
         assertThat(runnerPort.runCalls()).isEqualTo(1);
+        assertThat(runnerPort.lastSecretRefDigests()).singleElement()
+                .satisfies(digest -> assertThat(digest).startsWith("sha256:").hasSize(71));
+        assertThat(runnerPort.lastSecretRefDigests().toString()).doesNotContain("secret://wp6/runner-smoke");
         assertThat(response.run().status()).isEqualTo("FAILED");
         assertThat(response.run().runnerMode()).isEqualTo("MANAGED");
         assertThat(response.run().baseUrlHost()).isEqualTo(SMOKE_ALLOWED_HOST);
@@ -95,7 +99,8 @@ class ApiAutomationRunnerSmokeTest {
                 "qa-timeout",
                 SMOKE_BASE_URL,
                 List.of(fixture.caseId()),
-                1
+                1,
+                null
         ));
 
         assertThat(runnerPort.runCalls()).isEqualTo(1);
@@ -121,7 +126,8 @@ class ApiAutomationRunnerSmokeTest {
                 "qa-blocked",
                 "https://blocked." + SMOKE_ALLOWED_HOST + "/service",
                 List.of(fixture.caseId()),
-                10
+                10,
+                null
         ));
 
         assertThat(runnerPort.runCalls()).isZero();
@@ -261,6 +267,7 @@ class ApiAutomationRunnerSmokeTest {
 
         private final RunnerScenario scenario;
         private final AtomicInteger runCalls = new AtomicInteger();
+        private List<String> lastSecretRefDigests = List.of();
 
         private RecordingRunnerPort(RunnerScenario scenario) {
             this.scenario = scenario;
@@ -274,6 +281,7 @@ class ApiAutomationRunnerSmokeTest {
         @Override
         public RunnerRunResult run(RunnerRunRequest request) {
             runCalls.incrementAndGet();
+            lastSecretRefDigests = request.secretRefDigests();
             ApiAutomationCase automationCase = request.cases().getFirst();
             return switch (scenario) {
                 case MANAGED_ASSERTION_FAILURE -> new RunnerRunResult(
@@ -322,6 +330,10 @@ class ApiAutomationRunnerSmokeTest {
 
         private int runCalls() {
             return runCalls.get();
+        }
+
+        private List<String> lastSecretRefDigests() {
+            return lastSecretRefDigests;
         }
     }
 

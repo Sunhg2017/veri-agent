@@ -127,7 +127,8 @@ class ManagedHttpApiAutomationRunnerAdapterTest {
                 scriptBundle("APPROVED", "PASSED", 1, "digest"),
                 List.of(automationCase("GET", "https://attacker.example/v1", 200)),
                 "https://api.example.test",
-                5
+                5,
+                List.of()
         ));
 
         assertThat(result.status()).isEqualTo("FAILED");
@@ -180,7 +181,8 @@ class ManagedHttpApiAutomationRunnerAdapterTest {
                 scriptBundle("APPROVED", "PASSED", 1, "digest"),
                 cases,
                 "http://127.0.0.1:" + server.getAddress().getPort(),
-                timeoutSeconds
+                timeoutSeconds,
+                List.of()
         );
     }
 

@@ -16,6 +16,8 @@ public record CreateApiAutomationRunCommand(
         @Schema(description = "可选用例 ID 列表；为空时运行脚本包任务下所有用例")
         List<UUID> caseIds,
         @Schema(description = "本次运行超时时间，为空时使用系统默认")
-        Integer timeoutSeconds
+        Integer timeoutSeconds,
+        @Schema(description = "可选密钥引用列表；仅用于运行期解析，后端只记录 digest 证据")
+        List<String> secretRefs
 ) {
 }

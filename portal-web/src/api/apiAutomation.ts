@@ -199,6 +199,7 @@ export interface ApiAutomationRunPayload {
   baseUrl: string;
   caseIds?: string[];
   timeoutSeconds?: number;
+  secretRefs?: string[];
 }
 
 export interface ApiAutomationRun {

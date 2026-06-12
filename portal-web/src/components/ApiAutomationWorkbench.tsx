@@ -97,6 +97,7 @@ export function ApiAutomationWorkbench(props: { signedIn: boolean; currentUser: 
   const [runBaseUrl, setRunBaseUrl] = useState('');
   const [runEnvironmentId, setRunEnvironmentId] = useState('');
   const [runCaseIds, setRunCaseIds] = useState('');
+  const [runSecretRefs, setRunSecretRefs] = useState('');
 
   const summary = useMemo(() => {
     const parsed = specs.filter((spec) => spec.status === 'PARSED').length;
@@ -306,11 +307,13 @@ export function ApiAutomationWorkbench(props: { signedIn: boolean; currentUser: 
     setRunState({ loading: true });
     try {
       const caseIds = parseIdList(runCaseIds);
+      const secretRefs = parseIdList(runSecretRefs);
       const result = await createApiAutomationRun({
         bundleId: bundle.id,
         environmentId: optionalText(runEnvironmentId),
         baseUrl: runBaseUrl.trim(),
-        caseIds: caseIds.length ? caseIds : undefined
+        caseIds: caseIds.length ? caseIds : undefined,
+        secretRefs: secretRefs.length ? secretRefs : undefined
       });
       setLastRun(result.data);
       setLastRunExport(null);
@@ -550,12 +553,14 @@ export function ApiAutomationWorkbench(props: { signedIn: boolean; currentUser: 
               runBaseUrl={runBaseUrl}
               runEnvironmentId={runEnvironmentId}
               runCaseIds={runCaseIds}
+              runSecretRefs={runSecretRefs}
               lastRun={lastRun}
               lastRunExport={lastRunExport}
               onReviewNoteChange={setReviewNote}
               onRunBaseUrlChange={setRunBaseUrl}
               onRunEnvironmentIdChange={setRunEnvironmentId}
               onRunCaseIdsChange={setRunCaseIds}
+              onRunSecretRefsChange={setRunSecretRefs}
               onGenerateBundle={() => void onGenerateScriptBundle()}
               onSubmitReview={(bundle) => void onSubmitBundleReview(bundle)}
               onApprove={(bundle) => void onApproveBundle(bundle)}
@@ -657,12 +662,14 @@ function GenerationSummary(props: {
   runBaseUrl: string;
   runEnvironmentId: string;
   runCaseIds: string;
+  runSecretRefs: string;
   lastRun: ApiAutomationRunDetail | null;
   lastRunExport: ApiAutomationRunExport | null;
   onReviewNoteChange: (value: string) => void;
   onRunBaseUrlChange: (value: string) => void;
   onRunEnvironmentIdChange: (value: string) => void;
   onRunCaseIdsChange: (value: string) => void;
+  onRunSecretRefsChange: (value: string) => void;
   onGenerateBundle: () => void;
   onSubmitReview: (bundle: ApiAutomationScriptBundle) => void;
   onApprove: (bundle: ApiAutomationScriptBundle) => void;
@@ -769,6 +776,14 @@ function GenerationSummary(props: {
                     value={props.runCaseIds}
                     onChange={(event) => props.onRunCaseIdsChange(event.target.value)}
                     placeholder="为空则使用全部用例"
+                    disabled={!props.canExecute || props.runLoading}
+                  />
+                </Field>
+                <Field label="secretRefs">
+                  <input
+                    value={props.runSecretRefs}
+                    onChange={(event) => props.onRunSecretRefsChange(event.target.value)}
+                    placeholder="secret://wp6/token"
                     disabled={!props.canExecute || props.runLoading}
                   />
                 </Field>

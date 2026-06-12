@@ -25,7 +25,8 @@ public interface ApiAutomationRunnerPort {
             ApiAutomationScriptBundle bundle,
             List<ApiAutomationCase> cases,
             String baseUrl,
-            int timeoutSeconds
+            int timeoutSeconds,
+            List<String> secretRefDigests
     ) {
     }
 
