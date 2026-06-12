@@ -25,6 +25,7 @@ VALIDATIONS=(
   "$ROOT_DIR/db/validation/wp4_document_input_validation.sql"
   "$ROOT_DIR/db/validation/wp5_test_design_validation.sql"
   "$ROOT_DIR/db/validation/wp6_api_automation_validation.sql"
+  "$ROOT_DIR/db/validation/wp9_execution_validation.sql"
 )
 
 run_psql_file() {
@@ -180,6 +181,13 @@ grant select, insert, update on
     api_automation_script_bundle,
     api_automation_run,
     api_automation_run_result,
+    execution_plan,
+    execution_plan_node,
+    execution_run,
+    execution_node_run,
+    execution_trigger,
+    execution_trigger_event,
+    execution_queue_claim,
     audit_outbox
 to wp1_app;
 

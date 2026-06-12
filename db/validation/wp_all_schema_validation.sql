@@ -73,7 +73,15 @@ with expected(table_name) as (
         ('api_automation_case'),
         ('api_automation_script_bundle'),
         ('api_automation_run'),
-        ('api_automation_run_result')
+        ('api_automation_run_result'),
+        -- WP9 execution orchestration tables
+        ('execution_plan'),
+        ('execution_plan_node'),
+        ('execution_run'),
+        ('execution_node_run'),
+        ('execution_trigger'),
+        ('execution_trigger_event'),
+        ('execution_queue_claim')
 ),
 missing as (
     select e.table_name

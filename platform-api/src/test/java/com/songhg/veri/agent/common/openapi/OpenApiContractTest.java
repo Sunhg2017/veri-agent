@@ -149,6 +149,7 @@ class OpenApiContractTest {
                 .andExpect(jsonPath("$.paths['/api/v1/api-automation/runs/{id}'].get").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/api-automation/runs/{id}/cancel'].post").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/api-automation/runs/{id}/export'].get").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/execution/health'].get").exists())
                 .andReturn();
 
         Path output = Path.of("..", "build", "openapi", "wp1-v1.json").normalize();
