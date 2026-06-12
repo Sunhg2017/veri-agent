@@ -1,0 +1,262 @@
+# WP9 执行编排与任务调度 - 技术设计与接口契约
+
+| 项目 | 内容 |
+|---|---|
+| 工作包 | WP9 执行编排与任务调度 |
+| 角色产出 | 资深服务端架构师 |
+| 文档性质 | 技术设计、数据模型、状态机、接口契约和服务端质量约束 |
+| 当前口径 | `platform-api` 内新增 execution 模块；调度端口可替换；P0 通过 WP6 应用服务调度 API automation run |
+| 版本 | v0.1 |
+| 日期 | 2026-06-13 |
+
+## 1. 架构原则
+
+1. WP9 是执行编排控制面，不直接实现 Pytest/Playwright runner。
+2. API 使用统一 envelope，JSON 字段使用 camelCase，分页使用 `index/size`。
+3. SQL 放在 MyBatis Mapper XML，不在 Java 代码拼接 SQL。
+4. 不恢复多租户，不新增 `tenant_id`。
+5. WP9 不直接读写 WP3/WP6 表，必须通过对应应用服务或明确 port。
+6. 调度状态必须可恢复，所有认领使用条件更新和幂等键。
+7. 不保存 secret 明文、完整 stdout/stderr、完整请求响应正文或外部 webhook secret。
+8. Java 代码需符合《阿里巴巴 Java 开发手册》和仓库 `AGENTS.md` 注释准入要求。
+
+## 2. 模块边界
+
+```mermaid
+flowchart LR
+    UI["portal-web 执行编排"] --> API["ExecutionController"]
+    API --> PLAN["ExecutionPlanService"]
+    API --> RUN["ExecutionRunService"]
+    API --> TRIGGER["ExecutionTriggerService"]
+    RUN --> DAG["ExecutionDagService"]
+    RUN --> QUEUE["ExecutionQueueService"]
+    QUEUE --> DISPATCH["ExecutionDispatchService"]
+    DISPATCH --> WP6["WP6 ApiAutomationService"]
+    DISPATCH --> WP7["WP7 Runner Port placeholder"]
+    RUN --> RECOVERY["ExecutionRecoveryService"]
+    RUN --> REPO["ExecutionRepository"]
+    TRIGGER --> REPO
+    PLAN --> REPO
+    API --> AUDIT["WP1 Audit/Authorization"]
+```
+
+| 组件 | 职责 |
+|---|---|
+| `ExecutionPlanController` | 计划创建、更新、列表、详情、dryRun、归档。 |
+| `ExecutionRunController` | 手动触发、运行列表、详情、取消、重试、导出摘要。 |
+| `ExecutionTriggerController` | webhook/cron 触发配置、启停、dryRun 和事件查询。 |
+| `ExecutionPlanService` | 计划状态、DAG 持久化、资源引用校验、幂等键计算。 |
+| `ExecutionDagService` | DAG 循环检测、依赖拓扑排序、失败策略和节点输入 schema 校验。 |
+| `ExecutionRunService` | 创建 run、生成 node run、状态聚合、取消和重试。 |
+| `ExecutionQueueService` | 条件认领、优先级、并发限制、heartbeat 和超时回收。 |
+| `ExecutionDispatchService` | 按节点类型调用 WP6/WP7/utility port，并归一化节点结果。 |
+| `ExecutionTriggerService` | webhook 签名、sourceEventId 幂等、cron 元数据、触发审计。 |
+| `ExecutionRecoveryService` | 扫描超时 RUNNING、过期 heartbeat、卡死 QUEUED，并执行状态收敛或重发。 |
+| `ExecutionRepository` | MyBatis 仓储，维护计划、节点、运行、触发、队列和审计聚合查询。 |
+
+## 3. 状态机
+
+### 3.1 Plan
+
+```text
+DRAFT -> READY
+READY -> DISABLED
+DISABLED -> READY
+DRAFT -> ARCHIVED
+READY -> ARCHIVED
+DISABLED -> ARCHIVED
+```
+
+### 3.2 Run
+
+```text
+QUEUED -> RUNNING -> SUCCEEDED
+QUEUED -> RUNNING -> PARTIAL_SUCCESS
+QUEUED -> RUNNING -> FAILED
+QUEUED -> RUNNING -> TIMEOUT
+QUEUED -> CANCELED
+RUNNING -> CANCELED
+FAILED -> QUEUED   (retry creates new attempt)
+PARTIAL_SUCCESS -> QUEUED (retry failed nodes)
+```
+
+### 3.3 NodeRun
+
+```text
+PENDING -> QUEUED -> RUNNING -> SUCCEEDED
+PENDING -> QUEUED -> RUNNING -> FAILED
+PENDING -> QUEUED -> RUNNING -> TIMEOUT
+PENDING -> SKIPPED
+PENDING -> BLOCKED
+QUEUED -> CANCELED
+RUNNING -> CANCELED
+FAILED -> QUEUED   (retry attempt)
+```
+
+非法状态流返回 `INVALID_STATE` 并写入拒绝审计。
+
+## 4. 建议数据模型
+
+| 表 | 关键字段 | 说明 |
+|---|---|---|
+| `execution_plan` | `id/project_id/name/status/environment_key/trigger_policy_json/dag_digest/created_by/updated_by` | 执行计划主表。 |
+| `execution_plan_node` | `id/plan_id/node_key/node_type/dependency_keys/input_summary_json/failure_policy/timeout_seconds/retry_policy_json` | DAG 节点定义。 |
+| `execution_run` | `id/plan_id/project_id/status/trigger_type/request_key/source_event_id/attempt/started_at/finished_at/result_summary_json` | 一次执行。 |
+| `execution_node_run` | `id/run_id/plan_node_id/status/attempt/runner_type/external_run_id/error_code/error_summary/result_summary_json/heartbeat_at` | 节点运行记录。 |
+| `execution_trigger` | `id/plan_id/trigger_type/status/config_digest/secret_ref_digest/next_fire_at/last_fire_at` | webhook/cron 配置摘要。 |
+| `execution_trigger_event` | `id/trigger_id/source_event_id/request_digest/status/run_id/received_at/error_code` | 触发事件和幂等记录。 |
+| `execution_queue_claim` | `id/node_run_id/claim_token/worker_id/claimed_at/heartbeat_at/expires_at/status` | 条件认领和恢复证据。 |
+
+索引要求：
+
+1. `execution_plan(project_id,status,updated_at)`。
+2. `execution_run(project_id,status,created_at)`。
+3. `execution_run(plan_id,request_key)` 唯一，空值按数据库能力拆分处理。
+4. `execution_trigger_event(trigger_id,source_event_id)` 唯一。
+5. `execution_node_run(run_id,status)`。
+
+## 5. 配置项草案
+
+| 配置 | 默认值 | 说明 |
+|---|---|---|
+| `veri-agent.execution.scheduler-enabled` | `false` | 是否启用后台队列认领。 |
+| `veri-agent.execution.webhook-enabled` | `false` | 是否允许 webhook 触发。 |
+| `veri-agent.execution.cron-enabled` | `false` | 是否启用 cron 扫描触发。 |
+| `veri-agent.execution.max-concurrent-runs-per-project` | `2` | 单项目并发 run 上限。 |
+| `veri-agent.execution.max-concurrent-nodes-per-run` | `4` | 单 run 并发节点上限。 |
+| `veri-agent.execution.node-heartbeat-timeout-seconds` | `180` | 节点 heartbeat 超时。 |
+| `veri-agent.execution.default-run-timeout-seconds` | `1800` | 默认 run 超时。 |
+| `veri-agent.execution.recovery-batch-size` | `50` | 恢复扫描批量。 |
+
+## 6. 接口契约草案
+
+统一前缀：`/api/v1/execution`
+
+| 方法 | 路径 | 权限 | 说明 |
+|---|---|---|---|
+| `GET` | `/health` | `execution:read` | 返回 WP9 配置边界、调度开关和安全摘要。 |
+| `POST` | `/plans` | `execution:manage` | 创建执行计划。 |
+| `GET` | `/plans` | `execution:read` | 分页查询计划。 |
+| `GET` | `/plans/{id}` | `execution:read` | 查询计划详情、DAG 和最近运行摘要。 |
+| `PATCH` | `/plans/{id}` | `execution:manage` | 更新草稿或 READY 计划元数据。 |
+| `POST` | `/plans/{id}/dry-run` | `execution:read` | 校验 DAG、权限、资源引用和 runner 策略。 |
+| `POST` | `/plans/{id}/archive` | `execution:manage` | 归档计划。 |
+| `POST` | `/plans/{id}/runs` | `execution:trigger` | 手动触发执行。 |
+| `GET` | `/runs` | `execution:read` | 分页查询运行。 |
+| `GET` | `/runs/{id}` | `execution:read` | 查询运行详情和节点状态。 |
+| `POST` | `/runs/{id}/cancel` | `execution:trigger` | 取消运行和可取消节点。 |
+| `POST` | `/runs/{id}/retry` | `execution:trigger` | 重试失败或超时节点。 |
+| `GET` | `/runs/{id}/export` | `execution:export` | 导出脱敏执行摘要。 |
+| `POST` | `/plans/{id}/triggers` | `execution:manage` | 创建 webhook/cron 触发配置。 |
+| `PATCH` | `/triggers/{id}` | `execution:manage` | 启停或更新触发配置。 |
+| `POST` | `/triggers/{id}/dry-run` | `execution:read` | 校验触发配置。 |
+| `POST` | `/webhooks/{triggerKey}` | 签名 + trigger scope | 外部 webhook 触发入口。 |
+
+## 7. 关键请求体
+
+### 创建计划
+
+```json
+{
+  "projectId": "project-alpha",
+  "name": "Release smoke",
+  "environmentKey": "staging",
+  "dag": {
+    "nodes": [
+      {
+        "key": "api-smoke",
+        "type": "API_TEST",
+        "dependencies": [],
+        "input": {
+          "apiAutomationBundleId": "uuid",
+          "baseUrlRef": "env:STAGING_BASE_URL",
+          "secretRefs": ["secret://wp6/token"]
+        },
+        "timeoutSeconds": 300,
+        "failurePolicy": "FAIL_FAST"
+      }
+    ]
+  },
+  "triggerPolicy": {
+    "manualEnabled": true,
+    "webhookEnabled": false,
+    "cronEnabled": false
+  }
+}
+```
+
+### 手动触发
+
+```json
+{
+  "requestKey": "release-2026-06-13-smoke",
+  "reason": "release gate",
+  "variables": {
+    "buildId": "20260613.1"
+  }
+}
+```
+
+## 8. Runner 集成
+
+| 节点类型 | P0/P1 | 集成方式 |
+|---|---|---|
+| `API_TEST` | P0 | 调用 WP6 应用服务创建 run，传递 bundle、environment、baseUrlRef、secretRefs 和 caseIds。 |
+| `UI_TEST` | P1 | 预留 WP7 runner port，未实现时 dryRun 返回 `RUNNER_NOT_READY`。 |
+| `SETUP` | P1 | 预留 utility runner，不执行数据库直连脚本。 |
+| `VERIFY` | P1 | 预留验证节点，只保存摘要。 |
+| `CLEANUP` | P1 | 预留清理节点，失败不删除审计证据。 |
+| `REPORT_HANDOFF` | P0 | 生成 WP10 handoff 摘要事件，不生成报告正文。 |
+
+## 9. 审计事件
+
+| 事件 | 资源 |
+|---|---|
+| `execution.plan.created` | `EXECUTION_PLAN` |
+| `execution.plan.updated` | `EXECUTION_PLAN` |
+| `execution.plan.archived` | `EXECUTION_PLAN` |
+| `execution.run.created` | `EXECUTION_RUN` |
+| `execution.run.started` | `EXECUTION_RUN` |
+| `execution.run.completed` | `EXECUTION_RUN` |
+| `execution.run.canceled` | `EXECUTION_RUN` |
+| `execution.run.retried` | `EXECUTION_RUN` |
+| `execution.trigger.created` | `EXECUTION_TRIGGER` |
+| `execution.trigger.fired` | `EXECUTION_TRIGGER_EVENT` |
+| `execution.exported` | `EXECUTION_RUN` |
+
+审计 payload 只保存状态、计数、digest、错误码和策略摘要，不保存 webhook secret、环境变量值、secret 明文、stdout/stderr 原文或请求响应正文。
+
+## 10. 错误码
+
+| 错误码 | 场景 |
+|---|---|
+| `EXECUTION_DAG_INVALID` | DAG 有环、节点缺失、输入非法。 |
+| `EXECUTION_PLAN_NOT_READY` | 非 READY 计划触发。 |
+| `EXECUTION_TRIGGER_DISABLED` | 触发器禁用或全局开关关闭。 |
+| `EXECUTION_TRIGGER_SIGNATURE_INVALID` | webhook 签名错误。 |
+| `EXECUTION_DUPLICATE_TRIGGER` | 幂等键重复且已有 run。 |
+| `EXECUTION_RESOURCE_SCOPE_DENIED` | 跨项目或无权限引用资源。 |
+| `EXECUTION_RUN_NOT_CANCELABLE` | 终态 run 取消幂等返回或拒绝。 |
+| `EXECUTION_NODE_DISPATCH_FAILED` | 节点调度失败。 |
+| `EXECUTION_RUN_TIMEOUT` | run 或节点超时。 |
+| `EXECUTION_RUNNER_NOT_READY` | WP7/utility runner 未就绪。 |
+
+## 11. 安全与兼容
+
+1. webhook secret 必须以 secretRef 或平台密钥能力保存，不落明文。
+2. 外部 webhook 必须校验签名、时间窗口和 sourceEventId 幂等。
+3. 计划和运行必须绑定 projectId，所有引用资源必须同项目或满足显式共享策略。
+4. 运行变量只允许固定白名单类型，禁止用户上传任意 shell 脚本。
+5. 对 WP6 的调用必须保留 traceId，并复用 WP6 自身 allowlist 和 secretRef 解析。
+
+## 12. 当前实现切片建议
+
+第一轮实现建议只做：
+
+1. 权限、DB、health、plan CRUD、DAG dryRun。
+2. 手动触发和 run/node run 状态流。
+3. API_TEST 节点接 WP6 run。
+4. cancel/retry/timeout/recovery 的最小闭环。
+5. 前端计划列表、DAG 预览、运行详情和取消重试。
+6. WP9 quality gate 聚合后端、前端、DB 和 smoke。
+
