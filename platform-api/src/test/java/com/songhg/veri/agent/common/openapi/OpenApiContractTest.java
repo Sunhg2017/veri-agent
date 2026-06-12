@@ -134,9 +134,12 @@ class OpenApiContractTest {
                 .andExpect(jsonPath("$.paths['/api/v1/api-automation/specs'].post").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/api-automation/specs/{id}'].get").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/api-automation/specs/{id}/parse'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/api-automation/specs/{id}/archive'].post").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/api-automation/specs/{id}/diff'].get").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/api-automation/specs/{id}/sync-preview'].get").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/api-automation/specs/{id}/sync'].post").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/api-automation/generation-tasks'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/api-automation/generation-tasks'].get").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/api-automation/generation-tasks/{id}'].get").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/api-automation/generation-tasks/{id}/script-bundles'].post").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/api-automation/script-bundles/{id}/submit-review'].post").exists())
@@ -144,6 +147,7 @@ class OpenApiContractTest {
                 .andExpect(jsonPath("$.paths['/api/v1/api-automation/script-bundles/{id}/reject'].post").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/api-automation/runs'].post").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/api-automation/runs/{id}'].get").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/api-automation/runs/{id}/cancel'].post").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/api-automation/runs/{id}/export'].get").exists())
                 .andReturn();
 

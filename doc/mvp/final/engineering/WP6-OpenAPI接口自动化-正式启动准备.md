@@ -4,16 +4,16 @@
 |---|---|
 | 工作包 | WP6 OpenAPI 接口自动化 |
 | 角色产出 | 资深项目经理 |
-| 文档性质 | 正式启动前范围冻结、里程碑、风险和准入清单 |
+| 文档性质 | 正式启动前范围冻结、里程碑、风险和准入清单；当前附带实现闭环状态校准 |
 | 当前口径 | 单个 `platform-api` Java 服务承载 WP6 控制面；Pytest 执行器通过受控 runner 契约接入；WP6 不承接 WP9 调度和 WP10 完整报告诊断 |
 | 版本 | v0.1 |
-| 日期 | 2026-06-11 |
+| 日期 | 2026-06-13 |
 
 ## 1. 启动结论
 
-WP6 可以进入正式研发准备完成状态。当前启动包已冻结 P0 范围、非目标、跨 WP 依赖、接口契约、前端入口、测试策略、风险和回滚方式。
+WP6 已完成正式研发准备并进入 P0/P1 控制面闭环状态。启动包冻结的范围、非目标、跨 WP 依赖、接口契约、前端入口、测试策略、风险和回滚方式已经在后续实现中落地，当前准出口径以研发任务拆解、技术设计、Runner Runbook 和发布准出说明为准。
 
-正式编码前仍需项目提供至少 1 份真实但脱敏的 OpenAPI 样本，以及可用于本地 smoke 的测试服务 baseUrl；没有真实样本时，可以先使用仓库 fixture 完成解析、生成、权限、审计和前端主链路。
+真实外部业务目标 runner smoke 仍需项目提供经过评审的脱敏 OpenAPI 样本和测试服务 baseUrl；没有真实目标时，仓库 fixture、managed loopback runner smoke 和前端 Playwright smoke 已覆盖解析、生成、权限、审计和前端主链路。
 
 ## 2. 目标
 
@@ -52,8 +52,8 @@ WP6 的目标是跑通“OpenAPI 规格导入 -> 接口资产对齐 -> 接口自
 | WP3 资产管理 | 读取/同步 API 资产，建立 API 与自动化用例/脚本包追踪关系。 |
 | WP5 用例生成 | 读取已确认测试用例和覆盖策略，作为接口自动化用例生成输入；不反向修改 WP5 候选。 |
 | `portal-web` | 新增“接口自动化”工作台，覆盖导入、diff、生成、脚本包、试运行和结果摘要。 |
-| `db/migration/wp1` | 后续新增 WP6 表、权限、索引、注释和 validation。 |
-| `scripts` | 后续新增 `scripts/wp6_quality_gate.sh`、OpenAPI fixture smoke 和 runner smoke。 |
+| `db/migration/wp1` | 已新增 WP6 表、权限、索引、注释和 validation。 |
+| `scripts` | 已新增 `scripts/wp6_quality_gate.sh`、OpenAPI fixture smoke 和 runner smoke。 |
 
 ## 6. 五角色启动交付
 
@@ -86,8 +86,8 @@ WP6 的目标是跑通“OpenAPI 规格导入 -> 接口资产对齐 -> 接口自
 | 模型边界 | 通过 WP2 Prompt 生成，不直连供应商；模型失败必须 fallback 或可解释失败 | 通过 |
 | 执行边界 | runner 必须受 timeout、baseUrl allowlist、secretRef、并发和产物大小约束 | 通过 |
 | 数据安全 | 不保存明文密钥、token、完整请求响应正文、环境变量值或未脱敏错误正文 | 通过 |
-| 权限审计 | 新增权限点和审计事件必须在 DB seed、权限矩阵和测试中落地 | 待实现 |
-| 验证入口 | 后续必须提供后端、前端、DB validation、OpenAPI fixture smoke、runner smoke | 待实现 |
+| 权限审计 | 新增权限点和审计事件已在 DB seed、权限矩阵和测试中落地 | 通过 |
+| 验证入口 | 已提供后端、前端、DB validation、OpenAPI fixture smoke、runner smoke 和 WP6 release gate | 通过 |
 
 ## 9. 风险和回滚
 
@@ -103,6 +103,6 @@ WP6 的目标是跑通“OpenAPI 规格导入 -> 接口资产对齐 -> 接口自
 
 1. 五角色文档均完成且口径一致。
 2. P0 范围、非目标、依赖、权限、审计、安全和回滚已明确。
-3. 后续开发可以直接按接口契约拆分 DB、后端、前端、测试任务。
-4. 没有提前引入业务代码、数据库迁移或未验证执行器行为。
-5. 文档变更通过格式检查并提交推送。
+3. 当前实现已经完成 DB、后端、前端、测试和文档准出闭环；真实后台调度、进程级中断和完整报告诊断按 WP9/WP10 承接。
+4. 执行器行为已通过 disabled/managed/pytest 契约测试、runner smoke 和 release gate 验证。
+5. 文档变更通过格式检查、WP6 gate 并提交推送。

@@ -57,7 +57,7 @@
 | `veri-agent.api-automation.runner-enabled` | `false` | 默认关闭本地执行器 |
 | `veri-agent.api-automation.runner-timeout-seconds` | `120` | 单次运行默认超时 |
 | `veri-agent.api-automation.runner-max-cases` | `100` | 单次运行用例上限 |
-| `veri-agent.api-automation.allowed-base-url-patterns` | 空 | 允许访问的测试目标地址模式 |
+| `veri-agent.api-automation.runner-allowed-base-url-patterns` | 空 | 允许访问的测试目标地址模式 |
 | `veri-agent.api-automation.prompt-key` | `wp6-api-automation-v1` | WP2 Prompt key |
 | `veri-agent.api-automation.model-fallback-enabled` | `true` | 模型失败时允许确定性模板 fallback |
 
