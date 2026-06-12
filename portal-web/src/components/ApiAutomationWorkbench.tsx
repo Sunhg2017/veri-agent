@@ -23,6 +23,8 @@ import {
   exportApiAutomationRun,
   approveApiAutomationScriptBundle,
   fetchApiAutomationDiff,
+  fetchApiAutomationGenerationTask,
+  fetchApiAutomationGenerationTasks,
   fetchApiAutomationHealth,
   fetchApiAutomationSpec,
   fetchApiAutomationSpecs,
@@ -32,6 +34,7 @@ import {
   submitApiAutomationScriptBundleReview,
   syncApiAutomationSpec,
   type ApiAutomationEndpointSnapshot,
+  type ApiAutomationGenerationTask,
   type ApiAutomationGenerationTaskDetail,
   type ApiAutomationHealth,
   type ApiAutomationRunDetail,
@@ -42,6 +45,8 @@ import {
   type ApiAutomationSyncResponse
 } from '../api/apiAutomation';
 import { canUseButton, hasPermission } from '../permissions';
+
+const DIFF_STATUS_OPTIONS = ['ALL', 'NEW', 'CHANGED', 'MATCHED', 'CONFLICT', 'SKIPPED', 'UNKNOWN'] as const;
 
 type WorkState = {
   loading: boolean;
@@ -89,10 +94,13 @@ export function ApiAutomationWorkbench(props: { signedIn: boolean; currentUser: 
   const [runExportState, setRunExportState] = useState<WorkState>({ loading: false });
   const [lastSync, setLastSync] = useState<ApiAutomationSyncResponse | null>(null);
   const [lastGeneration, setLastGeneration] = useState<ApiAutomationGenerationTaskDetail | null>(null);
+  const [generationHistory, setGenerationHistory] = useState<ApiAutomationGenerationTask[]>([]);
   const [lastRun, setLastRun] = useState<ApiAutomationRunDetail | null>(null);
   const [lastRunExport, setLastRunExport] = useState<ApiAutomationRunExport | null>(null);
   const [generationAssetTestCaseIds, setGenerationAssetTestCaseIds] = useState('');
   const [generationMode, setGenerationMode] = useState<'MODEL_WITH_FALLBACK' | 'FALLBACK_ONLY'>('MODEL_WITH_FALLBACK');
+  const [diffStatusFilter, setDiffStatusFilter] = useState<(typeof DIFF_STATUS_OPTIONS)[number]>('ALL');
+  const [selectedAssetApiIds, setSelectedAssetApiIds] = useState<string[]>([]);
   const [reviewNote, setReviewNote] = useState('');
   const [runBaseUrl, setRunBaseUrl] = useState('');
   const [runEnvironmentId, setRunEnvironmentId] = useState('');
@@ -143,6 +151,19 @@ export function ApiAutomationWorkbench(props: { signedIn: boolean; currentUser: 
     }
   }, [canRead]);
 
+  const refreshGenerationHistory = useCallback(async (projectId: string, specId: string) => {
+    if (!projectId || !specId || !canRead) {
+      setGenerationHistory([]);
+      return;
+    }
+    try {
+      const result = await fetchApiAutomationGenerationTasks({ projectId, specId, size: 8 });
+      setGenerationHistory(result.data.items);
+    } catch {
+      setGenerationHistory([]);
+    }
+  }, [canRead]);
+
   useEffect(() => {
     void refreshSpecs();
   }, [refreshSpecs]);
@@ -152,6 +173,24 @@ export function ApiAutomationWorkbench(props: { signedIn: boolean; currentUser: 
       void refreshDetail(selectedSpecId);
     }
   }, [refreshDetail, selectedSpecId]);
+
+  useEffect(() => {
+    setDiffStatusFilter('ALL');
+    setSelectedAssetApiIds([]);
+  }, [selectedSpecId]);
+
+  useEffect(() => {
+    if (detail) {
+      void refreshGenerationHistory(detail.spec.projectId, detail.spec.id);
+    } else {
+      setGenerationHistory([]);
+    }
+  }, [detail, refreshGenerationHistory]);
+
+  useEffect(() => {
+    const available = new Set((detail?.endpoints ?? []).map((endpoint) => endpoint.assetApiId).filter(Boolean) as string[]);
+    setSelectedAssetApiIds((current) => current.filter((id) => available.has(id)));
+  }, [detail?.endpoints]);
 
   async function onImport(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -238,19 +277,35 @@ export function ApiAutomationWorkbench(props: { signedIn: boolean; currentUser: 
       const result = await createApiAutomationGenerationTask({
         projectId: detail.spec.projectId,
         specId: selectedSpecId,
+        assetApiIds: selectedAssetApiIds.length ? selectedAssetApiIds : undefined,
         assetTestCaseIds: assetTestCaseIds.length ? assetTestCaseIds : undefined,
         coverageTypes: ['SMOKE', 'EXCEPTION'],
         generationMode: effectiveGenerationMode,
-        caseCountPerApi: 2,
-        requestKey: `wp6-${effectiveGenerationMode.toLowerCase()}-${selectedSpecId}`
+        caseCountPerApi: 2
       });
       setLastGeneration(result.data);
       setLastRun(null);
       setLastRunExport(null);
       setReviewNote('');
       setGenerationState({ loading: false, success: generationSummaryText(result.data) });
+      await refreshGenerationHistory(detail.spec.projectId, selectedSpecId);
     } catch (error: unknown) {
       setGenerationState({ loading: false, error: error instanceof Error ? error.message : '生成失败' });
+    }
+  }
+
+  async function onLoadGenerationTask(taskId: string) {
+    if (!taskId || !canRead) return;
+    setGenerationState({ loading: true });
+    try {
+      const result = await fetchApiAutomationGenerationTask(taskId);
+      setLastGeneration(result.data);
+      setLastRun(null);
+      setLastRunExport(null);
+      setReviewNote('');
+      setGenerationState({ loading: false, success: generationSummaryText(result.data) });
+    } catch (error: unknown) {
+      setGenerationState({ loading: false, error: error instanceof Error ? error.message : '加载生成任务失败' });
     }
   }
 
@@ -521,7 +576,24 @@ export function ApiAutomationWorkbench(props: { signedIn: boolean; currentUser: 
                 disabled={!canGenerate || generationState.loading}
               />
             </Field>
+            <Field label="Diff 筛选">
+              <select
+                value={diffStatusFilter}
+                onChange={(event) => setDiffStatusFilter(event.target.value as (typeof DIFF_STATUS_OPTIONS)[number])}
+                disabled={!detail || detailState.loading}
+              >
+                {DIFF_STATUS_OPTIONS.map((status) => (
+                  <option value={status} key={status}>{status === 'ALL' ? '全部' : status}</option>
+                ))}
+              </select>
+            </Field>
           </div>
+          <GenerationScopeSummary
+            endpoints={detail?.endpoints ?? []}
+            selectedAssetApiIds={selectedAssetApiIds}
+            onSelectAll={() => setSelectedAssetApiIds(selectableAssetApiIds(detail?.endpoints ?? []))}
+            onClear={() => setSelectedAssetApiIds([])}
+          />
           {detailState.error && <div className="document-state-line error">{detailState.error}</div>}
           {parseState.error && <div className="document-state-line error">{parseState.error}</div>}
           {parseState.success && <div className="document-state-line success">{parseState.success}</div>}
@@ -538,6 +610,12 @@ export function ApiAutomationWorkbench(props: { signedIn: boolean; currentUser: 
           {runExportState.error && <div className="document-state-line error">{runExportState.error}</div>}
           {runExportState.success && <div className="document-state-line success">{runExportState.success}</div>}
           {lastSync && <SyncSummary sync={lastSync} />}
+          <GenerationHistory
+            tasks={generationHistory}
+            selectedTaskId={lastGeneration?.task.id}
+            loading={generationState.loading}
+            onLoad={(taskId) => void onLoadGenerationTask(taskId)}
+          />
           {lastGeneration && (
             <GenerationSummary
               generation={lastGeneration}
@@ -570,7 +648,12 @@ export function ApiAutomationWorkbench(props: { signedIn: boolean; currentUser: 
               onExportRun={(run) => void onExportRun(run)}
             />
           )}
-          <EndpointTable endpoints={detail?.endpoints ?? []} loading={detailState.loading} />
+          <EndpointTable
+            endpoints={filteredEndpoints(detail?.endpoints ?? [], diffStatusFilter)}
+            loading={detailState.loading}
+            selectedAssetApiIds={selectedAssetApiIds}
+            onToggleAssetApiId={toggleSelectedAssetApiId}
+          />
         </div>
       </section>
     </section>
@@ -594,14 +677,26 @@ export function ApiAutomationWorkbench(props: { signedIn: boolean; currentUser: 
     });
     setScriptBundleState({ loading: false, success });
   }
+
+  function toggleSelectedAssetApiId(assetApiId: string) {
+    setSelectedAssetApiIds((current) => current.includes(assetApiId)
+      ? current.filter((id) => id !== assetApiId)
+      : [...current, assetApiId]);
+  }
 }
 
-function EndpointTable(props: { endpoints: ApiAutomationEndpointSnapshot[]; loading: boolean }) {
+function EndpointTable(props: {
+  endpoints: ApiAutomationEndpointSnapshot[];
+  loading: boolean;
+  selectedAssetApiIds: string[];
+  onToggleAssetApiId: (assetApiId: string) => void;
+}) {
   return (
     <div className="table-wrap api-automation-table-wrap">
       <table>
         <thead>
           <tr>
+            <th>范围</th>
             <th>方法</th>
             <th>Path</th>
             <th>Operation</th>
@@ -614,6 +709,15 @@ function EndpointTable(props: { endpoints: ApiAutomationEndpointSnapshot[]; load
         <tbody>
           {props.endpoints.length ? props.endpoints.map((endpoint) => (
             <tr key={endpoint.id}>
+              <td>
+                <input
+                  aria-label={`选择 ${endpoint.httpMethod} ${endpoint.path}`}
+                  type="checkbox"
+                  checked={Boolean(endpoint.assetApiId && props.selectedAssetApiIds.includes(endpoint.assetApiId))}
+                  disabled={!endpoint.assetApiId}
+                  onChange={() => endpoint.assetApiId && props.onToggleAssetApiId(endpoint.assetApiId)}
+                />
+              </td>
               <td><span className="method-pill">{endpoint.httpMethod}</span></td>
               <td>
                 <span className="table-primary api-path">{endpoint.path}</span>
@@ -630,7 +734,7 @@ function EndpointTable(props: { endpoints: ApiAutomationEndpointSnapshot[]; load
               </td>
             </tr>
           )) : (
-            <tr><td className="table-empty" colSpan={7}>{props.loading ? '加载中' : '暂无 endpoint'}</td></tr>
+            <tr><td className="table-empty" colSpan={8}>{props.loading ? '加载中' : '暂无 endpoint'}</td></tr>
           )}
         </tbody>
       </table>
@@ -644,6 +748,60 @@ function SyncSummary(props: { sync: ApiAutomationSyncResponse }) {
     <div className="api-automation-sync-summary">
       <span>{text}</span>
       <span>{props.sync.items.length} 条同步明细</span>
+    </div>
+  );
+}
+
+function GenerationScopeSummary(props: {
+  endpoints: ApiAutomationEndpointSnapshot[];
+  selectedAssetApiIds: string[];
+  onSelectAll: () => void;
+  onClear: () => void;
+}) {
+  const selectableCount = selectableAssetApiIds(props.endpoints).length;
+  return (
+    <div className="api-automation-scope-bar">
+      <span>API 范围 {props.selectedAssetApiIds.length ? `${props.selectedAssetApiIds.length}/${selectableCount}` : `全部已同步 ${selectableCount}`}</span>
+      <button className="btn btn-ghost btn-sm" type="button" onClick={props.onSelectAll} disabled={!selectableCount}>
+        全选
+      </button>
+      <button className="btn btn-ghost btn-sm" type="button" onClick={props.onClear} disabled={!props.selectedAssetApiIds.length}>
+        全量
+      </button>
+    </div>
+  );
+}
+
+function GenerationHistory(props: {
+  tasks: ApiAutomationGenerationTask[];
+  selectedTaskId?: string;
+  loading: boolean;
+  onLoad: (taskId: string) => void;
+}) {
+  if (!props.tasks.length) return null;
+  return (
+    <div className="api-automation-history">
+      <div className="api-automation-history-head">
+        <span>生成任务</span>
+        <em>{props.tasks.length} 条最近记录</em>
+      </div>
+      <div className="api-automation-history-list">
+        {props.tasks.map((task) => (
+          <button
+            className={task.id === props.selectedTaskId ? 'api-automation-history-item active' : 'api-automation-history-item'}
+            type="button"
+            key={task.id}
+            onClick={() => props.onLoad(task.id)}
+            disabled={props.loading}
+          >
+            <span>
+              <strong>{task.status}</strong>
+              <em>{task.generationMode} · API {task.apiCount} · CASE {task.caseCount}</em>
+            </span>
+            <small>{task.createdAt ? formatDateTime(task.createdAt) : shortId(task.id)}</small>
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
@@ -990,4 +1148,17 @@ function parseIdList(value: string) {
   return value.split(/[\s,，]+/)
     .map((item) => item.trim())
     .filter(Boolean);
+}
+
+function selectableAssetApiIds(endpoints: ApiAutomationEndpointSnapshot[]) {
+  return Array.from(new Set(endpoints.map((endpoint) => endpoint.assetApiId).filter(Boolean) as string[]));
+}
+
+function filteredEndpoints(
+  endpoints: ApiAutomationEndpointSnapshot[],
+  diffStatusFilter: (typeof DIFF_STATUS_OPTIONS)[number]
+) {
+  return diffStatusFilter === 'ALL'
+    ? endpoints
+    : endpoints.filter((endpoint) => endpoint.diffStatus === diffStatusFilter);
 }

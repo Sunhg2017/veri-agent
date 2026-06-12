@@ -6,6 +6,7 @@ final class ApiAutomationPermissionScopes {
     static final String SPEC_LIST = "@apiAutomationPermissionScopeResolver.specList(#request)";
     static final String SPEC = "@apiAutomationPermissionScopeResolver.spec(#id)";
     static final String GENERATION_REQUEST = "@apiAutomationPermissionScopeResolver.generationRequest(#command)";
+    static final String GENERATION_TASK_LIST = "@apiAutomationPermissionScopeResolver.generationTaskList(#request)";
     static final String GENERATION_TASK = "@apiAutomationPermissionScopeResolver.generationTask(#id)";
     static final String SCRIPT_BUNDLE = "@apiAutomationPermissionScopeResolver.scriptBundle(#id)";
     static final String RUN_REQUEST = "@apiAutomationPermissionScopeResolver.runRequest(#command)";

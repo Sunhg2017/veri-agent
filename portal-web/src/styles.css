@@ -1310,6 +1310,103 @@ tbody tr:hover td {
   font-size: var(--font-size-sm);
 }
 
+.api-automation-scope-bar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: var(--space-xs);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-sm);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.api-automation-scope-bar span {
+  min-height: 28px;
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  background: var(--bg-alt);
+}
+
+.api-automation-history {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  margin-bottom: var(--space-sm);
+}
+
+.api-automation-history-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.api-automation-history-head em {
+  color: var(--text-tertiary);
+  font-style: normal;
+  font-size: var(--font-size-xs);
+}
+
+.api-automation-history-list {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-xs);
+}
+
+.api-automation-history-item {
+  min-width: 0;
+  min-height: 58px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-xs);
+  padding: 8px 10px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text-secondary);
+  text-align: left;
+  cursor: pointer;
+}
+
+.api-automation-history-item.active {
+  border-color: var(--border-focus);
+  background: var(--primary-bg);
+}
+
+.api-automation-history-item span,
+.api-automation-history-item strong,
+.api-automation-history-item em,
+.api-automation-history-item small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.api-automation-history-item span {
+  display: flex;
+  flex-direction: column;
+}
+
+.api-automation-history-item strong {
+  color: var(--text-primary);
+  font-size: var(--font-size-xs);
+}
+
+.api-automation-history-item em,
+.api-automation-history-item small {
+  color: var(--text-tertiary);
+  font-style: normal;
+  font-size: var(--font-size-xs);
+}
+
 .api-automation-generation-summary {
   display: flex;
   flex-direction: column;
@@ -3126,6 +3223,7 @@ tbody tr:hover td {
   .metrics-grid { grid-template-columns: repeat(2, 1fr); }
   .api-automation-console .metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .api-automation-layout { grid-template-columns: 1fr; }
+  .api-automation-history-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .api-automation-policy-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .test-design-quality-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .test-design-evaluation-grid,
@@ -3196,6 +3294,7 @@ tbody tr:hover td {
 @media (max-width: 640px) {
   .metrics-grid { grid-template-columns: 1fr; }
   .api-automation-console .metric-grid,
+  .api-automation-history-list,
   .api-automation-policy-grid { grid-template-columns: 1fr; }
   .test-design-quality-metrics { grid-template-columns: 1fr; }
   .test-design-evaluation-metrics { grid-template-columns: 1fr; }

@@ -75,6 +75,7 @@
 | `GET` | `/specs/{id}/diff` | `apiAutomation:read` | 查询与 WP3 API 资产的 diff |
 | `POST` | `/specs/{id}/sync` | `apiAutomation:import` | 确认同步新增/更新 API 资产 |
 | `POST` | `/generation-tasks` | `apiAutomation:generate` | 创建接口自动化生成任务 |
+| `GET` | `/generation-tasks` | `apiAutomation:read` | 按 project/spec/status 分页查询生成任务摘要 |
 | `GET` | `/generation-tasks/{id}` | `apiAutomation:read` | 查询生成任务、用例和脚本包摘要 |
 | `POST` | `/generation-tasks/{id}/script-bundles` | `apiAutomation:generate` | 为生成任务创建或返回脚本包摘要 |
 | `POST` | `/script-bundles/{id}/submit-review` | `apiAutomation:review` | 提交脚本包评审 |
@@ -121,6 +122,7 @@
 - `generationMode` 支持 `FALLBACK_ONLY/MODEL_WITH_FALLBACK`；`MODEL_WITH_FALLBACK` 通过 WP2 `ModelInvocationService` 调用 `wp6-api-automation-v1`，模型成功时保存 `MODEL` 草稿，WP2 阻断、供应商失败或输出 schema 非法时按 `model-fallback-enabled` 走确定性 fallback。
 - `caseCountPerApi` 范围为 1 至 5。
 - `requestKey` 为同项目幂等 key；同 key 不同规范化 payload 返回冲突，相同 payload 返回已有任务详情。
+- `GET /generation-tasks` 只返回生成任务聚合摘要和 `inputSummary`，不返回自动化用例草稿、脚本文件树或原始模型响应；前端历史列表需要详情时再调用 `GET /generation-tasks/{id}`。
 
 ### 创建试运行
 
@@ -225,7 +227,7 @@ Runner 必须执行以下限制：
 - DB M4：新增 `api_automation_generation_task` 和 `api_automation_case`，记录生成任务幂等键、inputDigest、coverage、fallback 标识、用例草稿和 endpoint/API 追踪关系。
 - 后端：新增 `/api/v1/api-automation/health`、`/specs` 创建/列表、`/specs/{id}` 详情、`/specs/{id}/parse` 重解析。
 - 后端 M3：新增 `/specs/{id}/diff` 和 `/specs/{id}/sync`；diff 按 method + path 匹配 WP3 API 资产，输出 `NEW/CHANGED/MATCHED/CONFLICT/SKIPPED`，sync 通过 WP3 `AssetApiService` 创建/更新 API 资产并逐项返回同步明细。
-- 后端 M4：新增 `POST /generation-tasks` 和 `GET /generation-tasks/{id}`；生成任务仅允许使用当前项目、已解析 spec 和已同步 WP3 API endpoint，支持 requestKey 幂等和 payload 冲突校验。
+- 后端 M4/M6 UI 支撑：新增 `POST /generation-tasks`、`GET /generation-tasks` 和 `GET /generation-tasks/{id}`；生成任务仅允许使用当前项目、已解析 spec 和已同步 WP3 API endpoint，支持 requestKey 幂等和 payload 冲突校验；列表接口按 project/spec/status 返回聚合历史摘要。
 - 生成 M4：`FALLBACK_ONLY` 产出确定性 fallback 用例草稿；`MODEL_WITH_FALLBACK` 调用 WP2 `wp6-api-automation-v1` Prompt，模型成功时产出 `source=MODEL` 草稿，模型失败、WP2 阻断或输出非法时按配置产出 `source=FALLBACK` 草稿并保存可解释 fallbackReason。
 - 模型输出校验 M4：新增 WP6 输出解析器，拒绝未知字段、非 JSON、非聚合 requestTemplate、敏感文本、非法 status/method/path/assertions 以及不属于当前生成范围的 API。
 - WP5/WP3 输入 M4：`assetTestCaseIds` 已通过 WP3 `AssetTestCaseService` 读取发布后的测试用例摘要，校验项目归属和已同步 API 范围；不读取 WP5 候选正文、评审评论或 sourceRef 明文。
@@ -246,6 +248,6 @@ Runner 必须执行以下限制：
 - Runner Smoke M8：新增 `scripts/wp6_runner_smoke.sh`、`ApiAutomationRunnerSmokeTest`、`ManagedHttpApiAutomationRunnerAdapterTest`、`PytestSubprocessApiAutomationRunnerAdapterTest` 和 runner 配置测试，在不访问真实业务网络的前提下验证 runner 执行分支、allowlist 阻断、基础 loopback HTTP pass/fail/path-template/timeout、secretRef digest 传递、SecretProvider 解析、Managed HTTP 受控 header 注入、Pytest subprocess 命令/env/JUnit XML 解析、Pytest runtime secret header 映射、取消 API 幂等返回、调度型 runner 控制面异步取消、失败结果和运行导出脱敏；`external` 模式要求显式配置 `WP6_RUNNER_BASE_URL`。
 - Parser：支持 OpenAPI 3.x JSON/YAML，抽取 method/path/operationId/tags/参数数/requestBody/响应码/schemaDigest，并对 Authorization、apiKey、token、cookie、password、secret 等敏感示例脱敏。
 - 权限：除 health 外，规格导入、查询、重解析、diff、sync、生成任务和脚本包评审均按项目 scope 校验 `apiAutomation:*` 权限。
-- 前端：新增 `#api-automation` 入口、API helper、权限控制、规格导入/列表/endpoint snapshot、diff 刷新、WP3 API 同步入口、生成模式选择、WP3 用例 ID 输入、生成用例入口、脚本包评审面板、已审批脚本包运行面板和脱敏运行摘要导出入口。
+- 前端：新增 `#api-automation` 入口、API helper、权限控制、规格导入/列表/endpoint snapshot、diff 刷新和状态筛选、WP3 API 同步入口、生成模式选择、WP3 用例 ID 输入、已同步 API 范围勾选、生成任务历史列表/详情回看、生成用例入口、脚本包评审面板、已审批脚本包运行面板和脱敏运行摘要导出入口。
 
 本轮未实现：真实后台调度、进程级中断和分布式任务回收。调度型 runner 控制面异步 cancel smoke 已覆盖；发布模式下 WP6 quality gate 会要求显式 runner smoke，当前可通过 service contract smoke、secretRef digest/SecretProvider/header 注入测试、Pytest subprocess adapter 契约测试、取消 API 幂等与异步控制面 smoke、基础 Managed HTTP loopback smoke 和 WP6 Playwright smoke 防止执行分支、脱敏、allowlist、取消入口、HTTP/Pytest 探测和前端主链路回归。

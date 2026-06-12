@@ -231,6 +231,14 @@
         </where>
     </sql>
 
+    <sql id="generationTaskWhere">
+        <where>
+            <if test="query.projectId != null">project_id = #{query.projectId}</if>
+            <if test="query.specId != null">and spec_id = #{query.specId}</if>
+            <if test="query.status != null">and status = #{query.status}</if>
+        </where>
+    </sql>
+
     <insert id="insertSpec">
         insert into api_automation_spec (
             id, project_id, source_type, source_ref, name, version_label, spec_digest, content_size_bytes,
@@ -286,6 +294,20 @@
         select count(*)
         from api_automation_spec
         <include refid="specWhere"/>
+    </select>
+
+    <select id="generationTasks" resultMap="generationTaskMap">
+        select <include refid="generationTaskColumns"/>
+        from api_automation_generation_task
+        <include refid="generationTaskWhere"/>
+        order by created_at desc
+        limit #{query.limit} offset #{query.offset}
+    </select>
+
+    <select id="countGenerationTasks" resultType="long">
+        select count(*)
+        from api_automation_generation_task
+        <include refid="generationTaskWhere"/>
     </select>
 
     <select id="specProjectScopeId" resultType="string">

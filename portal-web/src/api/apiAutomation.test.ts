@@ -9,6 +9,7 @@ import {
   exportApiAutomationRun,
   fetchApiAutomationDiff,
   fetchApiAutomationGenerationTask,
+  fetchApiAutomationGenerationTasks,
   fetchApiAutomationHealth,
   fetchApiAutomationRun,
   fetchApiAutomationSpec,
@@ -17,6 +18,7 @@ import {
   normalizeApiAutomationEndpointSnapshot,
   normalizeApiAutomationDiffResponse,
   normalizeApiAutomationGenerationTaskDetail,
+  normalizeApiAutomationGenerationTaskList,
   normalizeApiAutomationHealth,
   normalizeApiAutomationRunExport,
   normalizeApiAutomationRunDetail,
@@ -177,6 +179,29 @@ describe('WP6 API automation helpers', () => {
       scriptBundles: [{ id: 'bundle-1', taskId: 'task-1', fileCount: 5, staticCheckStatus: 'PASSED' }]
     });
 
+    expect(normalizeApiAutomationGenerationTaskList({
+      items: [{
+        id: 'task-2',
+        project_id: 'project-alpha',
+        spec_id: 'spec-1',
+        generation_mode: 'MODEL_WITH_FALLBACK',
+        coverage_types: ['SMOKE'],
+        status: 'COMPLETED',
+        fallback_used: false,
+        api_count: '1',
+        case_count: '2',
+        input_summary: { aggregateOnly: true }
+      }],
+      index: '0',
+      size: '10',
+      total: '1'
+    })).toMatchObject({
+      items: [{ id: 'task-2', generationMode: 'MODEL_WITH_FALLBACK', apiCount: 1, caseCount: 2 }],
+      index: 0,
+      size: 10,
+      total: 1
+    });
+
     expect(normalizeApiAutomationRunDetail({
       run: {
         id: 'run-1',
@@ -281,10 +306,12 @@ describe('WP6 API automation helpers', () => {
     await createApiAutomationGenerationTask({
       projectId: 'project-alpha',
       specId: 'spec-1',
+      assetApiIds: ['asset-api-1'],
       assetTestCaseIds: ['asset-case-1'],
       coverageTypes: ['SMOKE'],
       generationMode: 'FALLBACK_ONLY'
     });
+    await fetchApiAutomationGenerationTasks({ projectId: 'project-alpha', specId: 'spec-1', status: 'COMPLETED', size: 8 });
     await fetchApiAutomationGenerationTask('task-1');
     await generateApiAutomationScriptBundle('task-1');
     await submitApiAutomationScriptBundleReview('bundle-1', { note: 'ready' });
@@ -324,28 +351,30 @@ describe('WP6 API automation helpers', () => {
       body: JSON.stringify({
         projectId: 'project-alpha',
         specId: 'spec-1',
+        assetApiIds: ['asset-api-1'],
         assetTestCaseIds: ['asset-case-1'],
         coverageTypes: ['SMOKE'],
         generationMode: 'FALLBACK_ONLY'
       })
     });
-    expect(requestJsonMock).toHaveBeenNthCalledWith(7, '/api/v1/api-automation/generation-tasks/task-1');
-    expect(requestJsonMock).toHaveBeenNthCalledWith(8, '/api/v1/api-automation/generation-tasks/task-1/script-bundles', {
+    expect(requestJsonMock).toHaveBeenNthCalledWith(7, '/api/v1/api-automation/generation-tasks?projectId=project-alpha&specId=spec-1&status=COMPLETED&size=8');
+    expect(requestJsonMock).toHaveBeenNthCalledWith(8, '/api/v1/api-automation/generation-tasks/task-1');
+    expect(requestJsonMock).toHaveBeenNthCalledWith(9, '/api/v1/api-automation/generation-tasks/task-1/script-bundles', {
       method: 'POST'
     });
-    expect(requestJsonMock).toHaveBeenNthCalledWith(9, '/api/v1/api-automation/script-bundles/bundle-1/submit-review', {
+    expect(requestJsonMock).toHaveBeenNthCalledWith(10, '/api/v1/api-automation/script-bundles/bundle-1/submit-review', {
       method: 'POST',
       body: JSON.stringify({ note: 'ready' })
     });
-    expect(requestJsonMock).toHaveBeenNthCalledWith(10, '/api/v1/api-automation/script-bundles/bundle-1/approve', {
+    expect(requestJsonMock).toHaveBeenNthCalledWith(11, '/api/v1/api-automation/script-bundles/bundle-1/approve', {
       method: 'POST',
       body: JSON.stringify({ note: 'approved' })
     });
-    expect(requestJsonMock).toHaveBeenNthCalledWith(11, '/api/v1/api-automation/script-bundles/bundle-2/reject', {
+    expect(requestJsonMock).toHaveBeenNthCalledWith(12, '/api/v1/api-automation/script-bundles/bundle-2/reject', {
       method: 'POST',
       body: JSON.stringify({ note: 'missing assertion' })
     });
-    expect(requestJsonMock).toHaveBeenNthCalledWith(12, '/api/v1/api-automation/runs', {
+    expect(requestJsonMock).toHaveBeenNthCalledWith(13, '/api/v1/api-automation/runs', {
       method: 'POST',
       body: JSON.stringify({
         bundleId: 'bundle-1',
@@ -356,11 +385,11 @@ describe('WP6 API automation helpers', () => {
         secretRefs: ['secret://wp6/payment-token']
       })
     });
-    expect(requestJsonMock).toHaveBeenNthCalledWith(13, '/api/v1/api-automation/runs/run-1');
-    expect(requestJsonMock).toHaveBeenNthCalledWith(14, '/api/v1/api-automation/runs/run-1/cancel', {
+    expect(requestJsonMock).toHaveBeenNthCalledWith(14, '/api/v1/api-automation/runs/run-1');
+    expect(requestJsonMock).toHaveBeenNthCalledWith(15, '/api/v1/api-automation/runs/run-1/cancel', {
       method: 'POST'
     });
-    expect(requestJsonMock).toHaveBeenNthCalledWith(15, '/api/v1/api-automation/runs/run-1/export');
-    expect(requestJsonMock).toHaveBeenNthCalledWith(16, '/api/v1/api-automation/health');
+    expect(requestJsonMock).toHaveBeenNthCalledWith(16, '/api/v1/api-automation/runs/run-1/export');
+    expect(requestJsonMock).toHaveBeenNthCalledWith(17, '/api/v1/api-automation/health');
   });
 });

@@ -1,6 +1,7 @@
 package com.songhg.veri.agent.apiautomation.infrastructure;
 
 import com.songhg.veri.agent.apiautomation.application.port.ApiAutomationRepository;
+import com.songhg.veri.agent.apiautomation.application.query.ApiAutomationGenerationTaskQuery;
 import com.songhg.veri.agent.apiautomation.application.query.ApiAutomationSpecQuery;
 import com.songhg.veri.agent.apiautomation.domain.ApiAutomationCase;
 import com.songhg.veri.agent.apiautomation.domain.ApiAutomationEndpointSnapshot;
@@ -155,6 +156,19 @@ public class InMemoryApiAutomationRepository implements ApiAutomationRepository 
     }
 
     @Override
+    public List<ApiAutomationGenerationTask> generationTasks(ApiAutomationGenerationTaskQuery query) {
+        return filteredGenerationTasks(query)
+                .skip(query.offset())
+                .limit(query.limit())
+                .toList();
+    }
+
+    @Override
+    public long countGenerationTasks(ApiAutomationGenerationTaskQuery query) {
+        return filteredGenerationTasks(query).count();
+    }
+
+    @Override
     public List<ApiAutomationEndpointSnapshot> endpointSnapshots(UUID specId) {
         return endpointSnapshots.values().stream()
                 .filter(snapshot -> specId.equals(snapshot.specId()))
@@ -223,6 +237,20 @@ public class InMemoryApiAutomationRepository implements ApiAutomationRepository 
                     || contains(spec.sourceRef(), keyword));
         }
         return stream.sorted(Comparator.comparing(ApiAutomationSpec::createdAt).reversed());
+    }
+
+    private Stream<ApiAutomationGenerationTask> filteredGenerationTasks(ApiAutomationGenerationTaskQuery query) {
+        Stream<ApiAutomationGenerationTask> stream = generationTasks.values().stream();
+        if (StringUtils.hasText(query.projectId())) {
+            stream = stream.filter(task -> query.projectId().equals(task.projectId()));
+        }
+        if (query.specId() != null) {
+            stream = stream.filter(task -> query.specId().equals(task.specId()));
+        }
+        if (StringUtils.hasText(query.status())) {
+            stream = stream.filter(task -> query.status().equals(task.status()));
+        }
+        return stream.sorted(Comparator.comparing(ApiAutomationGenerationTask::createdAt).reversed());
     }
 
     private boolean contains(String value, String keyword) {

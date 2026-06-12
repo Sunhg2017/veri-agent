@@ -19,8 +19,8 @@
 |---|---|
 | 顶部筛选 | 项目、服务、规格版本、状态、关键词 |
 | 规格管理 | 导入入口、规格列表、解析状态、digest、最近解析时间 |
-| API diff | endpoint 列表、新增/变更/匹配/跳过分类、同步预览 |
-| 生成任务 | 选择 API、WP5 用例、覆盖类型、生成模式、生成状态 |
+| API diff | endpoint 列表、新增/变更/匹配/跳过分类、状态筛选、同步预览 |
+| 生成任务 | 选择已同步 API、WP5 用例、覆盖类型、生成模式、生成状态、历史任务回看 |
 | 脚本包 | 文件摘要、静态校验、评审状态、审批/驳回 |
 | 试运行 | 环境、baseUrl、secretRef 引用、用例范围、运行状态 |
 | 结果摘要 | pass/fail/skip/error、耗时、断言摘要、脱敏错误、traceId |
@@ -52,8 +52,8 @@
 |---|---|
 | `ApiAutomationWorkbench` | 页面容器，维护项目、筛选、权限、刷新和 toast |
 | `OpenApiSpecPanel` | 规格列表、导入对话框、解析状态 |
-| `OpenApiDiffTable` | endpoint diff 展示和同步选择 |
-| `ApiAutomationGenerationPanel` | 生成任务创建、覆盖类型和 WP5 用例选择 |
+| `OpenApiDiffTable` | endpoint diff 展示、状态筛选和同步选择 |
+| `ApiAutomationGenerationPanel` | 生成任务创建、已同步 API 范围、覆盖类型、WP5 用例和历史任务选择 |
 | `ScriptBundlePanel` | 脚本包摘要、静态校验、评审操作 |
 | `ApiAutomationRunPanel` | 手动试运行表单、运行状态、取消入口 |
 | `ApiAutomationResultSummary` | 运行结果聚合、用例级结果、脱敏错误 |
@@ -65,7 +65,7 @@
 |---|---|
 | OpenAPI 导入 | 项目必填；`sourceType` 必填；TEXT/UPLOAD/URL 三选一；名称最长 128；版本最长 64 |
 | API sync | 至少选择 1 个 `NEW/CHANGED` endpoint；冲突项必须显式确认 |
-| 生成任务 | 项目、规格、API 范围必填；每 API 数量 1-10；覆盖类型限定枚举 |
+| 生成任务 | 项目、规格必填；可勾选已同步 API 范围，未选择时默认全量已同步 API；每 API 数量 1-10；覆盖类型限定枚举 |
 | 试运行 | 脚本包必须 approved 或允许开发模式；baseUrl 必填并提示 allowlist；timeout 10-600 秒 |
 | 审批/驳回 | 驳回原因必填；审批备注可选但最长 500 |
 
@@ -106,7 +106,8 @@
 2. 页面状态和权限判断抽成可单测 helper。
 3. 运行结果摘要聚合 helper 单独测试。
 4. 表单 payload 构造单独测试，确保不提交空 secret 或敏感正文。
-5. 关键按钮有稳定 accessible name，方便后续 Playwright smoke。
+5. 生成任务历史列表只展示聚合摘要，详情回看通过任务 ID 拉取，不在列表暴露脚本源码或原始模型响应。
+6. 关键按钮有稳定 accessible name，方便后续 Playwright smoke。
 
 ## 9. 响应式要求
 

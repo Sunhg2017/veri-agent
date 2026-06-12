@@ -169,6 +169,20 @@ class ApiAutomationControllerTest {
 
         UUID taskId = UUID.fromString(JsonPath.read(generated.getResponse().getContentAsString(), "$.data.task.id"));
         UUID bundleId = UUID.fromString(JsonPath.read(generated.getResponse().getContentAsString(), "$.data.scriptBundles[0].id"));
+        mockMvc.perform(get("/api/v1/api-automation/generation-tasks")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .param("projectId", "project-alpha")
+                        .param("specId", specId.toString())
+                        .param("status", "completed"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(1))
+                .andExpect(jsonPath("$.data.items[0].id").value(taskId.toString()))
+                .andExpect(jsonPath("$.data.items[0].caseCount").value(4))
+                .andExpect(jsonPath("$.data.items[0].inputSummary.aggregateOnly").value(true))
+                .andExpect(jsonPath("$.data.items[0].inputSummary.rawRequestResponseStored").value(false))
+                .andExpect(jsonPath("$.data.items[0].inputSummary.rawModelResponseStored").value(false))
+                .andExpect(content().string(not(containsString("real-token-value"))));
+
         mockMvc.perform(get("/api/v1/api-automation/generation-tasks/{id}", taskId)
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
                 .andExpect(status().isOk())
@@ -280,6 +294,12 @@ class ApiAutomationControllerTest {
         String projectAlphaToken = userAccessToken(List.of("ProjectOwner@PROJECT:project-alpha"));
         mockMvc.perform(get("/api/v1/api-automation/specs/{id}", specId)
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + projectAlphaToken))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+
+        mockMvc.perform(get("/api/v1/api-automation/generation-tasks")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + projectAlphaToken)
+                        .param("specId", specId.toString()))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("FORBIDDEN"));
     }

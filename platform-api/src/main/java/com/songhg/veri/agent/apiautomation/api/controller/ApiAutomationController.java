@@ -6,9 +6,11 @@ import com.songhg.veri.agent.apiautomation.application.command.CreateApiAutomati
 import com.songhg.veri.agent.apiautomation.application.command.CreateApiAutomationSpecCommand;
 import com.songhg.veri.agent.apiautomation.application.command.ReviewApiAutomationScriptBundleCommand;
 import com.songhg.veri.agent.apiautomation.application.command.SyncApiAutomationSpecCommand;
+import com.songhg.veri.agent.apiautomation.application.query.ApiAutomationGenerationTaskPageRequest;
 import com.songhg.veri.agent.apiautomation.application.query.ApiAutomationSpecPageRequest;
 import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationDiffResponse;
 import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationGenerationTaskDetailResponse;
+import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationGenerationTaskResponse;
 import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationHealthResponse;
 import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationRunDetailResponse;
 import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationRunExportResponse;
@@ -94,6 +96,14 @@ public class ApiAutomationController {
             @Valid @RequestBody CreateApiAutomationGenerationTaskCommand command
     ) {
         return service.createGenerationTask(command);
+    }
+
+    @GetMapping("/generation-tasks")
+    @RequirePermission(value = PermissionCodes.API_AUTOMATION_READ, scope = ApiAutomationPermissionScopes.GENERATION_TASK_LIST)
+    public PageResponse<ApiAutomationGenerationTaskResponse> generationTasks(
+            @Valid ApiAutomationGenerationTaskPageRequest request
+    ) {
+        return service.generationTasks(request);
     }
 
     @GetMapping("/generation-tasks/{id}")

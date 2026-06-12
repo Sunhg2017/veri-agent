@@ -1,5 +1,6 @@
 package com.songhg.veri.agent.apiautomation.infrastructure.mapper;
 
+import com.songhg.veri.agent.apiautomation.application.query.ApiAutomationGenerationTaskQuery;
 import com.songhg.veri.agent.apiautomation.application.query.ApiAutomationSpecQuery;
 import com.songhg.veri.agent.apiautomation.domain.ApiAutomationCase;
 import com.songhg.veri.agent.apiautomation.domain.ApiAutomationEndpointSnapshot;
@@ -30,6 +31,10 @@ public interface ApiAutomationMapper {
     List<ApiAutomationSpec> specs(@Param("query") ApiAutomationSpecQuery query);
 
     long countSpecs(@Param("query") ApiAutomationSpecQuery query);
+
+    List<ApiAutomationGenerationTask> generationTasks(@Param("query") ApiAutomationGenerationTaskQuery query);
+
+    long countGenerationTasks(@Param("query") ApiAutomationGenerationTaskQuery query);
 
     String specProjectScopeId(@Param("id") UUID id);
 

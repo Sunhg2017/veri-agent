@@ -123,6 +123,14 @@ export interface ApiAutomationGenerationTaskPayload {
   requestKey?: string;
 }
 
+export interface ApiAutomationGenerationTaskFilters {
+  projectId?: string;
+  specId?: string;
+  status?: string;
+  index?: number;
+  size?: number;
+}
+
 export interface ApiAutomationCase {
   id: string;
   endpointSnapshotId: string;
@@ -160,6 +168,13 @@ export interface ApiAutomationGenerationTask {
   errorSummary?: string;
   createdAt?: string;
   updatedAt?: string;
+}
+
+export interface ApiAutomationGenerationTaskList {
+  items: ApiAutomationGenerationTask[];
+  index: number;
+  size: number;
+  total: number;
 }
 
 export interface ApiAutomationGenerationTaskDetail {
@@ -307,6 +322,13 @@ export async function createApiAutomationGenerationTask(
     body: JSON.stringify(payload)
   });
   return { ...response, data: normalizeApiAutomationGenerationTaskDetail(response.data) };
+}
+
+export async function fetchApiAutomationGenerationTasks(
+  filters: ApiAutomationGenerationTaskFilters = {}
+): Promise<ApiResponse<ApiAutomationGenerationTaskList>> {
+  const response = await requestJson<unknown>(`${API_AUTOMATION_BASE}/generation-tasks${queryString(filters)}`);
+  return { ...response, data: normalizeApiAutomationGenerationTaskList(response.data) };
 }
 
 export async function fetchApiAutomationGenerationTask(id: string): Promise<ApiResponse<ApiAutomationGenerationTaskDetail>> {
@@ -501,6 +523,16 @@ export function normalizeApiAutomationGenerationTaskDetail(input: unknown): ApiA
   };
 }
 
+export function normalizeApiAutomationGenerationTaskList(input: unknown): ApiAutomationGenerationTaskList {
+  const value = objectValue(input);
+  return {
+    items: arrayValue(read(value, 'items')).map(normalizeApiAutomationGenerationTask),
+    index: numberValue(read(value, 'index'), 0),
+    size: numberValue(read(value, 'size'), 20),
+    total: numberValue(read(value, 'total'), 0)
+  };
+}
+
 export function normalizeApiAutomationGenerationTask(input: unknown): ApiAutomationGenerationTask {
   const value = objectValue(input);
   return {
@@ -629,7 +661,7 @@ export function normalizeApiAutomationRunResult(input: unknown): ApiAutomationRu
   };
 }
 
-function queryString(filters: ApiAutomationSpecFilters) {
+function queryString(filters: object) {
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(filters)) {
     if (value !== undefined && value !== '') {

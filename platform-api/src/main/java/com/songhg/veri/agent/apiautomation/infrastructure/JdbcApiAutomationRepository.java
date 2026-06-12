@@ -1,6 +1,7 @@
 package com.songhg.veri.agent.apiautomation.infrastructure;
 
 import com.songhg.veri.agent.apiautomation.application.port.ApiAutomationRepository;
+import com.songhg.veri.agent.apiautomation.application.query.ApiAutomationGenerationTaskQuery;
 import com.songhg.veri.agent.apiautomation.application.query.ApiAutomationSpecQuery;
 import com.songhg.veri.agent.apiautomation.domain.ApiAutomationCase;
 import com.songhg.veri.agent.apiautomation.domain.ApiAutomationEndpointSnapshot;
@@ -129,6 +130,16 @@ public class JdbcApiAutomationRepository implements ApiAutomationRepository {
     @Override
     public long countSpecs(ApiAutomationSpecQuery query) {
         return mapper.countSpecs(query);
+    }
+
+    @Override
+    public List<ApiAutomationGenerationTask> generationTasks(ApiAutomationGenerationTaskQuery query) {
+        return mapper.generationTasks(query);
+    }
+
+    @Override
+    public long countGenerationTasks(ApiAutomationGenerationTaskQuery query) {
+        return mapper.countGenerationTasks(query);
     }
 
     @Override

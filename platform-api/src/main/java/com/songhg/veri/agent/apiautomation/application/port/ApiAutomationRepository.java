@@ -1,5 +1,6 @@
 package com.songhg.veri.agent.apiautomation.application.port;
 
+import com.songhg.veri.agent.apiautomation.application.query.ApiAutomationGenerationTaskQuery;
 import com.songhg.veri.agent.apiautomation.application.query.ApiAutomationSpecQuery;
 import com.songhg.veri.agent.apiautomation.domain.ApiAutomationCase;
 import com.songhg.veri.agent.apiautomation.domain.ApiAutomationEndpointSnapshot;
@@ -55,6 +56,10 @@ public interface ApiAutomationRepository {
     List<ApiAutomationSpec> specs(ApiAutomationSpecQuery query);
 
     long countSpecs(ApiAutomationSpecQuery query);
+
+    List<ApiAutomationGenerationTask> generationTasks(ApiAutomationGenerationTaskQuery query);
+
+    long countGenerationTasks(ApiAutomationGenerationTaskQuery query);
 
     List<ApiAutomationEndpointSnapshot> endpointSnapshots(UUID specId);
 

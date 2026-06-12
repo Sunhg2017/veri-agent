@@ -12,6 +12,8 @@ import com.songhg.veri.agent.apiautomation.application.parser.OpenApiParseResult
 import com.songhg.veri.agent.apiautomation.application.parser.ParsedOpenApiEndpoint;
 import com.songhg.veri.agent.apiautomation.application.port.ApiAutomationRepository;
 import com.songhg.veri.agent.apiautomation.application.port.ApiAutomationRunnerPort;
+import com.songhg.veri.agent.apiautomation.application.query.ApiAutomationGenerationTaskPageRequest;
+import com.songhg.veri.agent.apiautomation.application.query.ApiAutomationGenerationTaskQuery;
 import com.songhg.veri.agent.apiautomation.application.query.ApiAutomationSpecPageRequest;
 import com.songhg.veri.agent.apiautomation.application.query.ApiAutomationSpecQuery;
 import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationDiffResponse;
@@ -456,6 +458,19 @@ public class ApiAutomationService {
                 "staticCheckStatus", bundle.staticCheckStatus()
         ));
         return toGenerationTaskDetail(task, persistedCases, List.of(bundle));
+    }
+
+    @Transactional(readOnly = true)
+    public PageResponse<ApiAutomationGenerationTaskResponse> generationTasks(ApiAutomationGenerationTaskPageRequest request) {
+        ApiAutomationGenerationTaskQuery query = canonicalGenerationTaskQuery(request.toQuery());
+        /*
+         * The history list is an aggregate control-plane view. It intentionally excludes generated case bodies,
+         * script file details and raw model payloads; callers can fetch one task detail when they need drill-down.
+         */
+        List<ApiAutomationGenerationTaskResponse> items = repository.generationTasks(query).stream()
+                .map(this::toGenerationTaskResponse)
+                .toList();
+        return PageResponse.of(items, request.getIndex(), request.getSize(), repository.countGenerationTasks(query));
     }
 
     @Transactional(readOnly = true)
@@ -2804,28 +2819,32 @@ public class ApiAutomationService {
             List<ApiAutomationScriptBundle> scriptBundles
     ) {
         return new ApiAutomationGenerationTaskDetailResponse(
-                new ApiAutomationGenerationTaskResponse(
-                        task.id(),
-                        task.projectId(),
-                        task.specId(),
-                        task.requestKey(),
-                        task.requestDigest(),
-                        task.generationMode(),
-                        readStringList(task.coverageTypesJson()),
-                        task.status(),
-                        task.promptKey(),
-                        task.promptVersion(),
-                        task.modelInvocationId(),
-                        task.fallbackUsed(),
-                        task.apiCount(),
-                        task.caseCount(),
-                        readSummary(task.inputSummaryJson()),
-                        task.errorSummary(),
-                        task.createdAt(),
-                        task.updatedAt()
-                ),
+                toGenerationTaskResponse(task),
                 cases.stream().map(this::toAutomationCaseResponse).toList(),
                 scriptBundles.stream().map(this::toScriptBundleResponse).toList()
+        );
+    }
+
+    private ApiAutomationGenerationTaskResponse toGenerationTaskResponse(ApiAutomationGenerationTask task) {
+        return new ApiAutomationGenerationTaskResponse(
+                task.id(),
+                task.projectId(),
+                task.specId(),
+                task.requestKey(),
+                task.requestDigest(),
+                task.generationMode(),
+                readStringList(task.coverageTypesJson()),
+                task.status(),
+                task.promptKey(),
+                task.promptVersion(),
+                task.modelInvocationId(),
+                task.fallbackUsed(),
+                task.apiCount(),
+                task.caseCount(),
+                readSummary(task.inputSummaryJson()),
+                task.errorSummary(),
+                task.createdAt(),
+                task.updatedAt()
         );
     }
 
@@ -3112,6 +3131,21 @@ public class ApiAutomationService {
         // 权限解析允许项目 ID 或编码，数据库过滤必须统一使用平台上下文返回的规范资源 ID。
         String projectId = contextClient.projectContext(query.projectId()).resourceId();
         return new ApiAutomationSpecQuery(projectId, query.status(), query.keyword(), query.limit(), query.offset());
+    }
+
+    private ApiAutomationGenerationTaskQuery canonicalGenerationTaskQuery(ApiAutomationGenerationTaskQuery query) {
+        if (!StringUtils.hasText(query.projectId())) {
+            return query;
+        }
+        // 与规格列表保持一致，允许前端用项目 ID 或编码查询，但持久化过滤始终使用规范项目资源 ID。
+        String projectId = contextClient.projectContext(query.projectId()).resourceId();
+        return new ApiAutomationGenerationTaskQuery(
+                projectId,
+                query.specId(),
+                query.status(),
+                query.limit(),
+                query.offset()
+        );
     }
 
     private String sanitizeSourceRef(String sourceRef) {

@@ -185,7 +185,7 @@
 | WP6-3.3 Sync preview | 部分完成 | diffSummary 已提供 create/update/review/skip 摘要；独立 preview API 未拆出，当前由 diff 响应承载。 |
 | WP6-3.4 Confirm sync | 已完成 | 新增 `POST /specs/{id}/sync`，通过 WP3 `AssetApiService` 创建/更新 API 资产，逐项容错并写 `api_automation.api_synced` 审计。 |
 | WP6-3.5 追踪关系 | 已完成 | endpoint snapshot 已持久化 `asset_api_id` 和 sync 证据；automation case 已关联 spec、endpoint snapshot、assetApiId；script bundle 已关联 generation task 并保存 caseIdsDigest/file digest；run/result 已关联 bundle 和 automation case。 |
-| WP6-4.1 生成任务 API | 已完成 | 新增 `POST /generation-tasks` 和 `GET /generation-tasks/{id}`，支持 project/spec/assetApiIds/assetTestCaseIds/coverageTypes/generationMode/caseCountPerApi/requestKey。 |
+| WP6-4.1 生成任务 API | 已完成 | 新增 `POST /generation-tasks`、`GET /generation-tasks` 和 `GET /generation-tasks/{id}`，支持 project/spec/status 分页查询历史摘要，以及 project/spec/assetApiIds/assetTestCaseIds/coverageTypes/generationMode/caseCountPerApi/requestKey 创建。 |
 | WP6-4.2 WP5 输入适配 | 已完成 | `assetTestCaseIds` 通过 WP3 `AssetTestCaseService` 读取已发布测试用例摘要，校验项目归属和已同步 API 范围；只保存标题、状态、优先级、标签、步骤摘要、sourceRef digest，不读取 WP5 候选正文或评审评论明细。 |
 | WP6-4.3 WP2 Prompt | 已完成 | 新增 `wp6-api-automation-v1` Prompt seed；`MODEL_WITH_FALLBACK` 通过 WP2 `ModelInvocationService` 调用，生成任务保存 `modelInvocationId`、`promptVersion`、`fallbackUsed` 和模型供应商 fallback 信号；health 返回 `modelGenerationReady=true`。 |
 | WP6-4.4 输出校验 | 已完成 | 新增 WP6 模型输出解析器，校验 `schemaVersion`、title、method、path、coverageType、expectedStatus、assertions、requestTemplate 聚合标识和 endpoint 范围；非法输出按配置 fallback 且不持久化原始模型响应。 |
@@ -206,15 +206,15 @@
 | WP6-7.1 API client | 已完成 | 新增 `portal-web/src/api/apiAutomation.ts` 和 Vitest。 |
 | WP6-7.2 权限入口 | 已完成 | 新增 `#api-automation` 导航入口和 `apiAutomation:read/import` 控制。 |
 | WP6-7.3 规格面板 | 已完成 | 已完成导入表单、规格列表、状态、错误提示和 endpoint snapshot。 |
-| WP6-7.4 Diff 面板 | 部分完成 | 已支持刷新 diff、展示状态/assetApiId/reason、触发同步；更细筛选和部分成功详情表待 M6 UI 收敛。 |
-| WP6-7.5 生成面板 | 部分完成 | 工作台新增“生成用例”入口、生成模式选择和 WP3 用例 ID 输入，可按当前规格触发模型优先或确定模板生成并展示任务/用例摘要；API 范围选择、用例列表选择和任务历史列表待 M6 收敛。 |
+| WP6-7.4 Diff 面板 | 已完成 | 已支持刷新 diff、按 `NEW/CHANGED/MATCHED/CONFLICT/SKIPPED/UNKNOWN` 本地筛选、展示状态/assetApiId/reason、触发同步，并保留同步结果聚合摘要。 |
+| WP6-7.5 生成面板 | 已完成 | 工作台支持“生成用例”入口、生成模式选择、WP3 用例 ID 输入、从已同步 endpoint 勾选 API 范围、未选择时全量已同步 API 生成、最近生成任务历史列表和任务详情回看；payload 不包含敏感正文。 |
 | WP6-7.6 脚本包评审 | 已完成 | 工作台展示脚本包状态、静态校验、文件摘要、提交评审、审批和驳回入口，按钮按 `apiAutomation:review` 权限控制。 |
 | WP6-7.7 运行面板 | 已完成 | 工作台新增已审批脚本包的 baseUrl/environment/secretRefs/caseIds 运行入口，按 `apiAutomation:execute` 控制，展示 runner 策略、host/digest、状态、错误码和结果聚合；`QUEUED/RUNNING` run 可触发取消；按 `apiAutomation:export` 支持脱敏运行摘要导出。 |
-| WP6-8.1 后端测试 | 已完成 | 已覆盖 parser、controller、权限、OpenAPI 契约、安全配置、fallback 生成任务、模型成功生成、非法模型输出 fallback、脚本包生成、静态校验、评审状态流、runner disabled、localhost 阻断、run 查询、run cancel 幂等/接受分支和 OpenAPI fixture smoke；专项入口已纳入 `scripts/wp6_quality_gate.sh`。 |
-| WP6-8.2 前端测试 | 已完成 | 已覆盖 API helper、权限 helper、生成任务 normalize、脚本包 normalize、run normalize、run secretRefs payload、run cancel/export normalize、生成 API、评审 API、run API、run cancel API、run export API 调用和复杂页面 Playwright smoke；`scripts/wp6_frontend_e2e_smoke.sh` 覆盖导入、diff、同步、生成、脚本包评审、运行、取消和脱敏导出，并纳入 `scripts/wp6_quality_gate.sh`。 |
+| WP6-8.1 后端测试 | 已完成 | 已覆盖 parser、controller、权限、OpenAPI 契约、安全配置、fallback 生成任务、生成任务历史列表、模型成功生成、非法模型输出 fallback、脚本包生成、静态校验、评审状态流、runner disabled、localhost 阻断、run 查询、run cancel 幂等/接受分支和 OpenAPI fixture smoke；专项入口已纳入 `scripts/wp6_quality_gate.sh`。 |
+| WP6-8.2 前端测试 | 已完成 | 已覆盖 API helper、权限 helper、生成任务 normalize/list normalize、脚本包 normalize、run normalize、run secretRefs payload、run cancel/export normalize、生成 API、生成任务列表 API、评审 API、run API、run cancel API、run export API 调用和复杂页面 Playwright smoke；`scripts/wp6_frontend_e2e_smoke.sh` 覆盖导入、diff、同步、生成、脚本包评审、运行、取消和脱敏导出，并纳入 `scripts/wp6_quality_gate.sh`。 |
 | WP6-8.3 DB validation | 已完成 | `run_wp1_db_validation.sh` 已纳入 WP6 schema/权限校验。 |
 | WP6-8.4 Fixture smoke | 已完成 | 新增 `platform-api/src/test/resources/wp6-openapi-fixtures` 和 `OpenApiFixtureSmokeTest`，覆盖 JSON/YAML、path/query/header/cookie 参数、requestBody、响应码、非法 OpenAPI、endpoint 上限和敏感示例脱敏；入口为 `bash scripts/wp6_openapi_fixture_smoke.sh`。 |
 | WP6-8.5 Quality gate | 已完成 | 新增 `scripts/wp6_quality_gate.sh` 聚合脚本语法、OpenAPI fixture smoke、WP6 后端/OpenAPI 测试、前端 WP6 helper/权限测试、WP6 Playwright smoke、前端构建和 DB validation；默认不启 runner，可用 `WP6_SKIP_FRONTEND_E2E=1` 显式跳过浏览器 smoke。 |
 | WP6-8.6 Runner smoke | 已完成 | 新增 `scripts/wp6_runner_smoke.sh`、`ApiAutomationRunnerSmokeTest`、`ManagedHttpApiAutomationRunnerAdapterTest`、`PytestSubprocessApiAutomationRunnerAdapterTest` 和 runner 配置测试，支持 `managed/pytest/auto/external` smoke，覆盖 runner 执行分支、allowlist 阻断、基础 loopback HTTP pass/fail/path-template/timeout、secretRef digest 传递、SecretProvider 解析、Managed HTTP 受控 header 注入、Pytest subprocess 命令/env/JUnit XML 解析契约、Pytest runtime secret header 映射、runner artifact size 准入与导出脱敏、取消 API 幂等返回、异步 cancel 控制面模拟、失败摘要和导出脱敏。 |
 
-下一步建议继续收敛 WP6-7.4/WP6-7.5 的更细筛选、API 范围选择和任务历史列表等 P1 UI 体验项；真实后台调度和进程级中断仍由后续异步 runner/WP9 调度能力承接。
+下一步建议继续收敛 WP6-7.9 的窄屏截图验收和 WP6-9.4 前端操作说明等 P1 体验/文档项；真实后台调度和进程级中断仍由后续异步 runner/WP9 调度能力承接。
