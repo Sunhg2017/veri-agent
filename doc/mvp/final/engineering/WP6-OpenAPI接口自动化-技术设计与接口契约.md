@@ -72,6 +72,7 @@
 | `GET` | `/specs` | `apiAutomation:read` | 分页查询规格源 |
 | `GET` | `/specs/{id}` | `apiAutomation:read` | 查询规格详情和解析摘要 |
 | `POST` | `/specs/{id}/parse` | `apiAutomation:import` | 重新解析规格 |
+| `POST` | `/specs/{id}/archive` | `apiAutomation:import` | 归档规格源，保留脱敏解析证据但阻断后续重解析、diff、sync 和生成 |
 | `GET` | `/specs/{id}/diff` | `apiAutomation:read` | 查询与 WP3 API 资产的 diff |
 | `GET` | `/specs/{id}/sync-preview` | `apiAutomation:read` | 预览待创建/更新/复核/跳过的 WP3 API 同步动作，只返回聚合 payload 摘要 |
 | `POST` | `/specs/{id}/sync` | `apiAutomation:import` | 确认同步新增/更新 API 资产 |
@@ -188,6 +189,7 @@ Runner 必须执行以下限制：
 |---|---|
 | `api_automation.spec.created` | OpenAPI 源 |
 | `api_automation.spec.parsed` | 解析任务 |
+| `api_automation.spec.archived` | OpenAPI 源归档 |
 | `api_automation.api_diffed` | WP3 API diff |
 | `api_automation.api_synced` | WP3 API sync |
 | `api_automation.generation.created` | 生成任务 |
@@ -226,7 +228,7 @@ Runner 必须执行以下限制：
 - DB：新增 `api_automation_spec`、`api_automation_endpoint_snapshot`、WP6 权限 seed、角色默认授权和 DB validation。
 - DB M3：新增 endpoint snapshot 的 `asset_api_id`、`diff_summary_json`、`last_diff_at`、`synced_at`、`sync_error_summary`，用于持久化 WP3 API 匹配和同步证据。
 - DB M4：新增 `api_automation_generation_task` 和 `api_automation_case`，记录生成任务幂等键、inputDigest、coverage、fallback 标识、用例草稿和 endpoint/API 追踪关系。
-- 后端：新增 `/api/v1/api-automation/health`、`/specs` 创建/列表、`/specs/{id}` 详情、`/specs/{id}/parse` 重解析。
+- 后端：新增 `/api/v1/api-automation/health`、`/specs` 创建/列表、`/specs/{id}` 详情、`/specs/{id}/parse` 重解析和 `/specs/{id}/archive` 归档；归档保留脱敏 spec 与 endpoint snapshot 证据，但后续 parse/diff/sync/sync-preview/generation 全部按状态机返回 `INVALID_STATE`。
 - 后端 M3：新增 `/specs/{id}/diff`、`/specs/{id}/sync-preview` 和 `/specs/{id}/sync`；diff 按 method + path 匹配 WP3 API 资产，输出 `NEW/CHANGED/MATCHED/CONFLICT/SKIPPED`，sync-preview 复用匹配规则以 dry-run 方式返回 `CREATE/UPDATE/REVIEW/SKIP`、聚合 payload 摘要和 `dryRun/wp3Write=false` 策略且不写 WP3/endpoint snapshot，sync 通过 WP3 `AssetApiService` 创建/更新 API 资产并逐项返回同步明细。
 - 后端 M4/M6 UI 支撑：新增 `POST /generation-tasks`、`GET /generation-tasks` 和 `GET /generation-tasks/{id}`；生成任务仅允许使用当前项目、已解析 spec 和已同步 WP3 API endpoint，支持 requestKey 幂等和 payload 冲突校验；列表接口按 project/spec/status 返回聚合历史摘要。
 - 生成 M4：`FALLBACK_ONLY` 产出确定性 fallback 用例草稿；`MODEL_WITH_FALLBACK` 调用 WP2 `wp6-api-automation-v1` Prompt，模型成功时产出 `source=MODEL` 草稿，模型失败、WP2 阻断或输出非法时按配置产出 `source=FALLBACK` 草稿并保存可解释 fallbackReason。

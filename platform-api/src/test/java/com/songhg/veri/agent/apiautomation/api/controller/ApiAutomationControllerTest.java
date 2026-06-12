@@ -317,6 +317,69 @@ class ApiAutomationControllerTest {
                 .andExpect(jsonPath("$.code").value("FORBIDDEN"));
     }
 
+    @Test
+    void archivesSpecAndBlocksStateMachineMutations() throws Exception {
+        String token = userAccessToken(List.of("ProjectOwner@PROJECT:project-alpha"));
+        MvcResult created = mockMvc.perform(post("/api/v1/api-automation/specs")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "projectId", "project-alpha",
+                                "sourceType", "TEXT",
+                                "name", "archive-openapi",
+                                "content", openApiJson()
+                        ))))
+                .andExpect(status().isCreated())
+                .andReturn();
+
+        UUID specId = UUID.fromString(JsonPath.read(created.getResponse().getContentAsString(), "$.data.spec.id"));
+        mockMvc.perform(post("/api/v1/api-automation/specs/{id}/archive", specId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.spec.status").value("ARCHIVED"))
+                .andExpect(jsonPath("$.data.endpoints", hasSize(2)))
+                .andExpect(content().string(not(containsString("real-token-value"))));
+
+        mockMvc.perform(post("/api/v1/api-automation/specs/{id}/archive", specId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.spec.status").value("ARCHIVED"));
+
+        mockMvc.perform(post("/api/v1/api-automation/specs/{id}/parse", specId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("INVALID_STATE"));
+
+        mockMvc.perform(get("/api/v1/api-automation/specs/{id}/diff", specId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("INVALID_STATE"));
+
+        mockMvc.perform(get("/api/v1/api-automation/specs/{id}/sync-preview", specId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("INVALID_STATE"));
+
+        mockMvc.perform(post("/api/v1/api-automation/specs/{id}/sync", specId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("INVALID_STATE"));
+
+        mockMvc.perform(post("/api/v1/api-automation/generation-tasks")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "projectId", "project-alpha",
+                                "specId", specId.toString(),
+                                "coverageTypes", List.of("SMOKE"),
+                                "generationMode", "FALLBACK_ONLY"
+                        ))))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("INVALID_STATE"));
+    }
+
     private String userAccessToken(List<String> roles) {
         return tokenService.issue(new AuthUserRecord(
                 UUID.randomUUID(),

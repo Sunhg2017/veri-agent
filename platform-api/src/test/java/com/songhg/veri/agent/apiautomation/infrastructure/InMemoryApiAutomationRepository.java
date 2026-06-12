@@ -46,6 +46,11 @@ public class InMemoryApiAutomationRepository implements ApiAutomationRepository 
     }
 
     @Override
+    public void archiveSpec(ApiAutomationSpec spec) {
+        specs.computeIfPresent(spec.id(), (ignored, current) -> "ARCHIVED".equals(current.status()) ? current : spec);
+    }
+
+    @Override
     public void deleteEndpointSnapshots(UUID specId) {
         endpointSnapshots.entrySet().removeIf(entry -> specId.equals(entry.getValue().specId()));
     }

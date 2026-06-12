@@ -19,6 +19,8 @@ public interface ApiAutomationRepository {
 
     void updateSpecParseResult(ApiAutomationSpec spec);
 
+    void archiveSpec(ApiAutomationSpec spec);
+
     void deleteEndpointSnapshots(UUID specId);
 
     void insertEndpointSnapshot(ApiAutomationEndpointSnapshot snapshot);

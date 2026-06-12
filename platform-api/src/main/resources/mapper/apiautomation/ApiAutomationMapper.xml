@@ -267,6 +267,15 @@
         where id = #{id}
     </update>
 
+    <update id="archiveSpec">
+        update api_automation_spec set
+            status = 'ARCHIVED',
+            updated_by = #{updatedBy},
+            updated_at = #{updatedAt}
+        where id = #{id}
+          and status != 'ARCHIVED'
+    </update>
+
     <select id="spec" resultMap="specMap">
         select <include refid="specColumns"/>
         from api_automation_spec

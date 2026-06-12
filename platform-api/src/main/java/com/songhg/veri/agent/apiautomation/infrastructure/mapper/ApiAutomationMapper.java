@@ -21,6 +21,8 @@ public interface ApiAutomationMapper {
 
     void updateSpecParseResult(ApiAutomationSpec spec);
 
+    void archiveSpec(ApiAutomationSpec spec);
+
     ApiAutomationSpec spec(@Param("id") UUID id);
 
     ApiAutomationSpec activeSpecByProjectAndDigest(

@@ -75,6 +75,12 @@ public class ApiAutomationController {
         return service.parseSpec(id);
     }
 
+    @PostMapping("/specs/{id}/archive")
+    @RequirePermission(value = PermissionCodes.API_AUTOMATION_IMPORT, scope = ApiAutomationPermissionScopes.SPEC)
+    public ApiAutomationSpecDetailResponse archiveSpec(@PathVariable UUID id) {
+        return service.archiveSpec(id);
+    }
+
     @GetMapping("/specs/{id}/diff")
     @RequirePermission(value = PermissionCodes.API_AUTOMATION_READ, scope = ApiAutomationPermissionScopes.SPEC)
     public ApiAutomationDiffResponse diffSpec(@PathVariable UUID id) {

@@ -350,6 +350,22 @@ public class ApiAutomationService {
     }
 
     @Transactional
+    public ApiAutomationSpecDetailResponse archiveSpec(UUID id) {
+        ApiAutomationSpec spec = requireSpec(id);
+        if ("ARCHIVED".equals(spec.status())) {
+            return toDetail(spec, repository.endpointSnapshots(id));
+        }
+        ApiAutomationSpec archivedSpec = markArchived(spec, actorResolver.currentActor());
+        // 归档只关闭后续 parse/diff/sync/generation 入口，保留脱敏 spec 与 endpoint 证据供审计回看。
+        repository.archiveSpec(archivedSpec);
+        audit("api_automation.spec.archived", archivedSpec, "SUCCESS", Map.of(
+                "previousStatus", spec.status(),
+                "endpointCount", archivedSpec.endpointCount()
+        ));
+        return toDetail(archivedSpec, repository.endpointSnapshots(id));
+    }
+
+    @Transactional
     public ApiAutomationDiffResponse diffSpec(UUID id) {
         ApiAutomationSpec spec = requireParsedSpec(id);
         // Diff 结果是运营确认同步前的证据快照，必须落库以便审计和前端复核。
@@ -2546,6 +2562,31 @@ public class ApiAutomationService {
                 OpenApiSpecParser.PARSER_VERSION,
                 spec.endpointCount(),
                 null,
+                spec.createdBy(),
+                actor,
+                spec.parsedAt(),
+                spec.createdAt(),
+                now
+        );
+    }
+
+    private ApiAutomationSpec markArchived(ApiAutomationSpec spec, String actor) {
+        Instant now = Instant.now();
+        return new ApiAutomationSpec(
+                spec.id(),
+                spec.projectId(),
+                spec.sourceType(),
+                spec.sourceRef(),
+                spec.name(),
+                spec.versionLabel(),
+                spec.specDigest(),
+                spec.contentSizeBytes(),
+                spec.sanitizedSpecJson(),
+                spec.parseSummaryJson(),
+                "ARCHIVED",
+                spec.parserVersion(),
+                spec.endpointCount(),
+                spec.parseErrorSummary(),
                 spec.createdBy(),
                 actor,
                 spec.parsedAt(),

@@ -317,6 +317,13 @@ export async function parseApiAutomationSpec(id: string): Promise<ApiResponse<Ap
   return { ...response, data: normalizeApiAutomationSpecDetail(response.data) };
 }
 
+export async function archiveApiAutomationSpec(id: string): Promise<ApiResponse<ApiAutomationSpecDetail>> {
+  const response = await requestJson<unknown>(`${API_AUTOMATION_BASE}/specs/${encodeURIComponent(id)}/archive`, {
+    method: 'POST'
+  });
+  return { ...response, data: normalizeApiAutomationSpecDetail(response.data) };
+}
+
 export async function fetchApiAutomationDiff(id: string): Promise<ApiResponse<ApiAutomationDiffResponse>> {
   const response = await requestJson<unknown>(`${API_AUTOMATION_BASE}/specs/${encodeURIComponent(id)}/diff`);
   return { ...response, data: normalizeApiAutomationDiffResponse(response.data) };

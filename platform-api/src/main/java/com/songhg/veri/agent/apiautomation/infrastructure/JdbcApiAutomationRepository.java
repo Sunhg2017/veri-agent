@@ -38,6 +38,11 @@ public class JdbcApiAutomationRepository implements ApiAutomationRepository {
     }
 
     @Override
+    public void archiveSpec(ApiAutomationSpec spec) {
+        mapper.archiveSpec(spec);
+    }
+
+    @Override
     public void deleteEndpointSnapshots(UUID specId) {
         mapper.deleteEndpointSnapshots(specId);
     }

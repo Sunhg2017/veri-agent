@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.songhg.veri.agent.apiautomation.application.command.CreateApiAutomationGenerationTaskCommand;
 import com.songhg.veri.agent.apiautomation.application.command.CreateApiAutomationRunCommand;
 import com.songhg.veri.agent.apiautomation.application.command.ReviewApiAutomationScriptBundleCommand;
+import com.songhg.veri.agent.apiautomation.application.command.SyncApiAutomationSpecCommand;
 import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationRunDetailResponse;
 import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationRunExportResponse;
 import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationDiffResponse;
@@ -53,9 +54,11 @@ import org.mockito.ArgumentCaptor;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -222,6 +225,82 @@ class ApiAutomationServiceTest {
                 .containsOnly("UNKNOWN");
         verify(assetApiService, never()).createOpenApiSyncedApi(any());
         verify(assetApiService, never()).updateOpenApiSyncedApi(any(), any());
+    }
+
+    @Test
+    void archivesSpecAndBlocksParseDiffSyncAndGenerationRetry() {
+        InMemoryApiAutomationRepository repository = new InMemoryApiAutomationRepository();
+        ApiAutomationActorResolver actorResolver = mock(ApiAutomationActorResolver.class);
+        ApiAutomationPlatformContextClient contextClient = mock(ApiAutomationPlatformContextClient.class);
+        OpenApiSpecParser parser = mock(OpenApiSpecParser.class);
+        when(actorResolver.currentActor()).thenReturn("api-archiver");
+        when(contextClient.projectContext("project-alpha")).thenReturn(new PlatformContext(
+                "PROJECT",
+                "project-alpha",
+                "ACTIVE",
+                "INTERNAL",
+                false,
+                List.of(),
+                Instant.EPOCH
+        ));
+        when(parser.parse(any(), anyInt())).thenThrow(new BusinessException(
+                com.songhg.veri.agent.common.error.ErrorCode.VALIDATION_ERROR,
+                "OPENAPI_PARSE_FAILED"
+        ));
+        ApiAutomationService service = new ApiAutomationService(
+                repository,
+                new DisabledApiAutomationRunnerAdapter(),
+                parser,
+                new ApiAutomationProperties(65_536, 50, false, 120, 100, "wp6-api-automation-v1", true),
+                contextClient,
+                actorResolver,
+                mock(AssetApiService.class),
+                mock(AssetTestCaseService.class),
+                mock(ModelInvocationService.class),
+                new ApiAutomationModelOutputParser(new ObjectMapper()),
+                new ObjectMapper()
+        );
+        UUID specId = UUID.randomUUID();
+        ApiAutomationSpec failedSpec = parseFailedSpec("project-alpha", specId);
+        repository.insertSpec(failedSpec);
+
+        assertThatThrownBy(() -> service.parseSpec(specId))
+                .isInstanceOf(BusinessException.class);
+        assertThat(repository.spec(specId).orElseThrow().status()).isEqualTo("PARSE_FAILED");
+        clearInvocations(parser);
+
+        var archived = service.archiveSpec(specId);
+
+        assertThat(archived.spec().status()).isEqualTo("ARCHIVED");
+        assertThat(archived.spec().parseErrorSummary()).isEqualTo("OPENAPI_PARSE_FAILED");
+        assertThat(repository.spec(specId).orElseThrow().updatedBy()).isEqualTo("api-archiver");
+        service.archiveSpec(specId);
+        assertThat(repository.spec(specId).orElseThrow().status()).isEqualTo("ARCHIVED");
+        assertThatThrownBy(() -> service.parseSpec(specId)).isInstanceOf(BusinessException.class);
+        assertThatThrownBy(() -> service.diffSpec(specId)).isInstanceOf(BusinessException.class);
+        assertThatThrownBy(() -> service.syncPreview(specId)).isInstanceOf(BusinessException.class);
+        assertThatThrownBy(() -> service.syncSpec(specId, new SyncApiAutomationSpecCommand(List.of(), true)))
+                .isInstanceOf(BusinessException.class);
+        assertThatThrownBy(() -> service.createGenerationTask(new CreateApiAutomationGenerationTaskCommand(
+                "project-alpha",
+                specId,
+                List.of(),
+                List.of(),
+                List.of("SMOKE"),
+                "FALLBACK_ONLY",
+                1,
+                "archived-spec"
+        ))).isInstanceOf(BusinessException.class);
+        verify(parser, never()).parse(any(), anyInt());
+        verify(contextClient).writeAuditEvent(
+                eq("api_automation.spec.archived"),
+                eq("API_AUTOMATION_SPEC"),
+                eq(specId.toString()),
+                eq("project-alpha"),
+                eq("SUCCESS"),
+                argThat(payload -> "ARCHIVED".equals(payload.get("status"))
+                        && "PARSE_FAILED".equals(payload.get("previousStatus")))
+        );
     }
 
     @Test
@@ -1088,6 +1167,31 @@ class ApiAutomationServiceTest {
                 "tester",
                 "tester",
                 now,
+                now,
+                now
+        );
+    }
+
+    private ApiAutomationSpec parseFailedSpec(String projectId, UUID id) {
+        Instant now = Instant.EPOCH;
+        return new ApiAutomationSpec(
+                id,
+                projectId,
+                "TEXT",
+                null,
+                "invalid-openapi",
+                "2026.06",
+                "fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210",
+                128,
+                "{}",
+                "{\"parseFailed\":true,\"aggregateOnly\":true}",
+                "PARSE_FAILED",
+                OpenApiSpecParser.PARSER_VERSION,
+                0,
+                "OPENAPI_PARSE_FAILED",
+                "tester",
+                "tester",
+                null,
                 now,
                 now
         );

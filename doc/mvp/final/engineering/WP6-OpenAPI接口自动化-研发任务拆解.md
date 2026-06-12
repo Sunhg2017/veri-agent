@@ -179,7 +179,7 @@
 | WP6-2.2 Parser | 已完成 | 支持 OpenAPI 3.x JSON/YAML，非法样本返回 `OPENAPI_PARSE_FAILED`。 |
 | WP6-2.3 脱敏与裁剪 | 已完成 | 对敏感字段名和值脱敏，响应不返回原始规格正文。 |
 | WP6-2.4 Endpoint snapshot | 已完成 | 解析后写 endpoint snapshot，包含 schemaDigest 和 `UNKNOWN` diff 初始状态。 |
-| WP6-2.5 解析状态机 | 部分完成 | 已支持 `UPLOADED/PARSING/PARSED/PARSE_FAILED/ARCHIVED` 状态约束和重解析；失败后不持久化原始未脱敏内容。 |
+| WP6-2.5 解析状态机 | 已完成 | 已支持 `UPLOADED/PARSING/PARSED/PARSE_FAILED/ARCHIVED` 状态约束；解析失败可重试且失败态不持久化原始未脱敏内容；新增 `POST /specs/{id}/archive`，归档后保留脱敏 spec 与 endpoint 证据，但重解析、diff、sync、sync-preview 和生成任务均返回 `INVALID_STATE`。 |
 | WP6-3.1 API 匹配规则 | 已完成 | 当前按 project + method + path 匹配 WP3 API，schemaDigest 判断 MATCHED/CHANGED；serviceName 受 WP3 API 领域模型限制暂不作为强匹配键。 |
 | WP6-3.2 Diff 查询 | 已完成 | 新增 `GET /specs/{id}/diff`，返回 `NEW/CHANGED/MATCHED/CONFLICT/SKIPPED`、assetApiId 和 diffSummary。 |
 | WP6-3.3 Sync preview | 已完成 | 新增 `GET /specs/{id}/sync-preview` 独立 dry-run 接口，复用 diff 匹配规则返回 `CREATE/UPDATE/REVIEW/SKIP` 预览动作、聚合 payload 摘要和只读策略；不写 WP3、不更新 endpoint snapshot、不返回敏感 schema 明细。 |
@@ -219,4 +219,4 @@
 | WP6-8.6 Runner smoke | 已完成 | 新增 `scripts/wp6_runner_smoke.sh`、`ApiAutomationRunnerSmokeTest`、`ManagedHttpApiAutomationRunnerAdapterTest`、`PytestSubprocessApiAutomationRunnerAdapterTest` 和 runner 配置测试，支持 `managed/pytest/auto/external` smoke，覆盖 runner 执行分支、allowlist 阻断、基础 loopback HTTP pass/fail/path-template/timeout、secretRef digest 传递、SecretProvider 解析、Managed HTTP 受控 header 注入、Pytest subprocess 命令/env/JUnit XML 解析契约、Pytest runtime secret header 映射、runner artifact size 准入与导出脱敏、取消 API 幂等返回、异步 cancel 控制面模拟、失败摘要和导出脱敏。 |
 | WP6-9.4 前端操作说明 | 已完成 | 前端设计文档已补浏览器操作说明，覆盖入口权限、OpenAPI 导入、diff 筛选、sync、生成范围、生成历史、脚本包评审、运行、取消、脱敏导出和结果解释；用户可在 `#api-automation` 不依赖 curl 完成主链路。 |
 
-下一步建议继续收敛 WP6-2.5 归档/重试状态机边界；真实后台调度和进程级中断仍由后续异步 runner/WP9 调度能力承接。
+下一步建议围绕真实后台调度、进程级中断和分布式任务回收进入后续异步 runner/WP9 调度能力；WP6 P0/P1 控制面、状态机、预览、同步、生成、评审、运行、导出和质量门禁已形成可验收闭环。
