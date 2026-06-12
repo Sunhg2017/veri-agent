@@ -586,6 +586,96 @@ class ApiAutomationServiceTest {
     }
 
     @Test
+    void foldsOversizedRunnerArtifactBeforePersistenceAndExport() {
+        InMemoryApiAutomationRepository repository = new InMemoryApiAutomationRepository();
+        OversizedArtifactRunner runner = new OversizedArtifactRunner();
+        ApiAutomationPlatformContextClient contextClient = mock(ApiAutomationPlatformContextClient.class);
+        ApiAutomationActorResolver actorResolver = mock(ApiAutomationActorResolver.class);
+        when(contextClient.projectContext("project-alpha")).thenReturn(new PlatformContext(
+                "PROJECT",
+                "project-alpha",
+                "ACTIVE",
+                "INTERNAL",
+                false,
+                List.of(),
+                Instant.EPOCH
+        ));
+        when(actorResolver.currentActor()).thenReturn("api-runner");
+        ApiAutomationService service = new ApiAutomationService(
+                repository,
+                runner,
+                mock(OpenApiSpecParser.class),
+                new ApiAutomationProperties(
+                        65_536,
+                        50,
+                        true,
+                        120,
+                        100,
+                        "api.example.test",
+                        128,
+                        "wp6-api-automation-v1",
+                        true
+                ),
+                contextClient,
+                actorResolver,
+                mock(AssetApiService.class),
+                mock(AssetTestCaseService.class),
+                mock(ModelInvocationService.class),
+                new ApiAutomationModelOutputParser(new ObjectMapper()),
+                new ObjectMapper()
+        );
+        UUID specId = UUID.randomUUID();
+        UUID assetApiId = UUID.randomUUID();
+        ApiAutomationSpec spec = spec("project-alpha", specId);
+        repository.insertSpec(spec);
+        repository.insertEndpointSnapshot(syncedEndpoint(spec, "/v1/payments", "GET", "digest-payments", assetApiId));
+        ApiAutomationGenerationTaskDetailResponse generated = service.createGenerationTask(
+                new CreateApiAutomationGenerationTaskCommand(
+                        "project-alpha",
+                        specId,
+                        List.of(assetApiId),
+                        List.of(),
+                        List.of("SMOKE"),
+                        "FALLBACK_ONLY",
+                        1,
+                        "runner-artifact-limit"
+                )
+        );
+        UUID bundleId = generated.scriptBundles().getFirst().id();
+        service.submitScriptBundleReview(bundleId, new ReviewApiAutomationScriptBundleCommand("ready"));
+        service.approveScriptBundle(bundleId, new ReviewApiAutomationScriptBundleCommand("approved"));
+
+        ApiAutomationRunDetailResponse response = service.createRun(new CreateApiAutomationRunCommand(
+                bundleId,
+                "staging",
+                "https://api.example.test/service",
+                List.of(generated.cases().getFirst().id()),
+                30,
+                null
+        ));
+
+        assertThat(response.run().status()).isEqualTo("FAILED");
+        assertThat(response.run().errorCode()).isEqualTo("RUNNER_ARTIFACT_TOO_LARGE");
+        assertThat(response.run().errorSummary()).doesNotContain(OversizedArtifactRunner.RAW_ARTIFACT_MARKER);
+        assertThat(response.results()).singleElement().satisfies(result -> {
+            assertThat(result.status()).isEqualTo("ERROR");
+            assertThat(result.errorCode()).isEqualTo("RUNNER_ARTIFACT_TOO_LARGE");
+            assertThat(result.assertionSummary())
+                    .containsEntry("aggregateOnly", true)
+                    .containsEntry("rawRequestResponseStored", false)
+                    .containsEntry("secretValuesStored", false)
+                    .containsEntry("artifactStored", false)
+                    .containsEntry("artifactTooLarge", true)
+                    .containsEntry("artifactMaxBytes", 128);
+            assertThat(result.toString()).doesNotContain(OversizedArtifactRunner.RAW_ARTIFACT_MARKER);
+        });
+
+        ApiAutomationRunExportResponse exported = service.exportRun(response.run().id());
+        assertThat(exported.resultCounts()).containsEntry("ERROR", 1);
+        assertThat(exported.toString()).doesNotContain(OversizedArtifactRunner.RAW_ARTIFACT_MARKER);
+    }
+
+    @Test
     void blocksLocalhostTargetEvenWhenRunnerIsEnabled() {
         InMemoryApiAutomationRepository repository = new InMemoryApiAutomationRepository();
         ApiAutomationPlatformContextClient contextClient = mock(ApiAutomationPlatformContextClient.class);
@@ -1121,6 +1211,39 @@ class ApiAutomationServiceTest {
         @Override
         public RunnerCancelResult cancel(UUID runId) {
             return new RunnerCancelResult(false, "NOT_RUNNING", "capturing runner is synchronous");
+        }
+    }
+
+    private static final class OversizedArtifactRunner implements ApiAutomationRunnerPort {
+
+        private static final String RAW_ARTIFACT_MARKER = "raw-runner-artifact-should-not-persist";
+
+        @Override
+        public RunnerValidation validateBundle(ApiAutomationScriptBundle bundle) {
+            return new RunnerValidation(true, null, null);
+        }
+
+        @Override
+        public RunnerRunResult run(RunnerRunRequest request) {
+            return new RunnerRunResult(
+                    "PASSED",
+                    "MANAGED",
+                    null,
+                    null,
+                    List.of(new RunnerCaseResult(
+                            request.cases().getFirst().id(),
+                            "PASSED",
+                            12,
+                            "{\"stdout\":\"" + RAW_ARTIFACT_MARKER + " ".repeat(220) + "\"}",
+                            null,
+                            null
+                    ))
+            );
+        }
+
+        @Override
+        public RunnerCancelResult cancel(UUID runId) {
+            return new RunnerCancelResult(false, "NOT_RUNNING", "oversized artifact runner is synchronous");
         }
     }
 

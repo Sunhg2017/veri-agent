@@ -633,7 +633,7 @@ public class ApiAutomationService {
         }
 
         List<ApiAutomationRunnerPort.RunnerSecret> runnerSecrets = resolveRunSecrets(secretRefs, bundle.projectId());
-        ApiAutomationRunnerPort.RunnerRunResult attempt = runnerPort.run(new ApiAutomationRunnerPort.RunnerRunRequest(
+        ApiAutomationRunnerPort.RunnerRunResult rawAttempt = runnerPort.run(new ApiAutomationRunnerPort.RunnerRunRequest(
                 runId,
                 bundle,
                 cases,
@@ -642,6 +642,7 @@ public class ApiAutomationService {
                 secretRefs.digests(),
                 runnerSecrets
         ));
+        ApiAutomationRunnerPort.RunnerRunResult attempt = enforceRunnerArtifactLimit(rawAttempt);
         String status = normalizeRunStatus(attempt.status());
         String runnerMode = normalizeRunnerMode(attempt.runnerMode());
         Instant completedAt = Instant.now();
@@ -1099,6 +1100,7 @@ public class ApiAutomationService {
         Map<UUID, ApiAutomationRunnerPort.RunnerCaseResult> resultByCaseId = attempt.caseResults() == null
                 ? Map.of()
                 : attempt.caseResults().stream()
+                .filter(Objects::nonNull)
                 .filter(result -> result.caseId() != null)
                 .collect(Collectors.toMap(
                         ApiAutomationRunnerPort.RunnerCaseResult::caseId,
@@ -1128,7 +1130,63 @@ public class ApiAutomationService {
                 .toList();
     }
 
+    private ApiAutomationRunnerPort.RunnerRunResult enforceRunnerArtifactLimit(
+            ApiAutomationRunnerPort.RunnerRunResult attempt
+    ) {
+        if (attempt == null) {
+            return new ApiAutomationRunnerPort.RunnerRunResult(
+                    "FAILED",
+                    "NOOP",
+                    "RUNNER_FAILED",
+                    "runner returned no result",
+                    List.of()
+            );
+        }
+        if (attempt.caseResults() == null || attempt.caseResults().isEmpty()) {
+            return attempt;
+        }
+        List<ApiAutomationRunnerPort.RunnerCaseResult> admittedResults = attempt.caseResults().stream()
+                .filter(Objects::nonNull)
+                .map(this::enforceRunnerCaseArtifactLimit)
+                .toList();
+        boolean artifactLimited = admittedResults.stream()
+                .anyMatch(result -> "RUNNER_ARTIFACT_TOO_LARGE".equals(result.errorCode()));
+        if (!artifactLimited) {
+            return attempt;
+        }
+        /*
+         * Artifact limits are a runner admission gate. Even if a future subprocess reports success, oversized
+         * stdout/stderr-like summaries are treated as failed execution evidence and reduced before persistence.
+         */
+        return new ApiAutomationRunnerPort.RunnerRunResult(
+                "FAILED",
+                attempt.runnerMode(),
+                "RUNNER_ARTIFACT_TOO_LARGE",
+                "runner artifact exceeded configured size limit",
+                admittedResults
+        );
+    }
+
+    private ApiAutomationRunnerPort.RunnerCaseResult enforceRunnerCaseArtifactLimit(
+            ApiAutomationRunnerPort.RunnerCaseResult result
+    ) {
+        if (result == null || !artifactTooLarge(result.assertionSummaryJson())) {
+            return result;
+        }
+        return new ApiAutomationRunnerPort.RunnerCaseResult(
+                result.caseId(),
+                "ERROR",
+                Math.max(0, result.durationMs()),
+                writeJson(artifactTooLargeSummary(result.assertionSummaryJson())),
+                "RUNNER_ARTIFACT_TOO_LARGE",
+                "runner artifact exceeded configured size limit"
+        );
+    }
+
     private String safeAssertionSummary(String value) {
+        if (artifactTooLarge(value)) {
+            return writeJson(artifactTooLargeSummary(value));
+        }
         Map<String, Object> summary = readSummary(value);
         if (summary.isEmpty()) {
             return writeJson(Map.of("aggregateOnly", true, "rawRequestResponseStored", false));
@@ -1143,6 +1201,30 @@ public class ApiAutomationService {
         sanitized.put("rawRequestResponseStored", false);
         sanitized.put("secretValuesStored", false);
         return writeJson(sanitized);
+    }
+
+    /**
+     * Runner adapters may eventually wrap subprocess output. Oversized assertion artifacts are folded before JSON
+     * parsing so malformed or huge stdout/stderr-like payloads cannot be persisted, exported or recursively expanded.
+     */
+    private boolean artifactTooLarge(String value) {
+        if (!StringUtils.hasText(value)) {
+            return false;
+        }
+        return value.getBytes(StandardCharsets.UTF_8).length > properties.effectiveRunnerArtifactMaxBytes();
+    }
+
+    private Map<String, Object> artifactTooLargeSummary(String value) {
+        Map<String, Object> summary = new LinkedHashMap<>();
+        summary.put("aggregateOnly", true);
+        summary.put("rawRequestResponseStored", false);
+        summary.put("secretValuesStored", false);
+        summary.put("artifactStored", false);
+        summary.put("artifactTooLarge", true);
+        summary.put("errorCode", "RUNNER_ARTIFACT_TOO_LARGE");
+        summary.put("artifactBytes", value == null ? 0 : value.getBytes(StandardCharsets.UTF_8).length);
+        summary.put("artifactMaxBytes", properties.effectiveRunnerArtifactMaxBytes());
+        return summary;
     }
 
     @SuppressWarnings("unchecked")

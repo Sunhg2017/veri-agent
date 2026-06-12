@@ -127,6 +127,37 @@ class ApiAutomationRunnerSmokeTest {
     }
 
     @Test
+    void runnerSmokeFoldsOversizedArtifactBeforeExport() {
+        RecordingRunnerPort runnerPort = new RecordingRunnerPort(RunnerScenario.OVERSIZED_ARTIFACT);
+        RunnerFixture fixture = runnerFixture(runnerPort, 128);
+
+        ApiAutomationRunDetailResponse response = fixture.service().createRun(new CreateApiAutomationRunCommand(
+                fixture.bundleId(),
+                "qa-artifact-limit",
+                SMOKE_BASE_URL,
+                List.of(fixture.caseId()),
+                10,
+                null
+        ));
+
+        assertThat(runnerPort.runCalls()).isEqualTo(1);
+        assertThat(response.run().status()).isEqualTo("FAILED");
+        assertThat(response.run().errorCode()).isEqualTo("RUNNER_ARTIFACT_TOO_LARGE");
+        assertThat(response.results()).singleElement().satisfies(result -> {
+            assertThat(result.status()).isEqualTo("ERROR");
+            assertThat(result.errorCode()).isEqualTo("RUNNER_ARTIFACT_TOO_LARGE");
+            assertThat(result.assertionSummary())
+                    .containsEntry("artifactTooLarge", true)
+                    .containsEntry("artifactStored", false)
+                    .containsEntry("artifactMaxBytes", 128)
+                    .containsEntry("rawRequestResponseStored", false);
+            assertThat(result.toString()).doesNotContain(RecordingRunnerPort.OVERSIZED_ARTIFACT_MARKER);
+        });
+        assertThat(fixture.service().exportRun(response.run().id()).toString())
+                .doesNotContain(RecordingRunnerPort.OVERSIZED_ARTIFACT_MARKER);
+    }
+
+    @Test
     void runnerSmokeBlocksUnreviewedTargetBeforePortExecution() {
         RecordingRunnerPort runnerPort = new RecordingRunnerPort(RunnerScenario.MANAGED_ASSERTION_FAILURE);
         RunnerFixture fixture = runnerFixture(runnerPort);
@@ -150,6 +181,10 @@ class ApiAutomationRunnerSmokeTest {
     }
 
     private RunnerFixture runnerFixture(ApiAutomationRunnerPort runnerPort) {
+        return runnerFixture(runnerPort, 1_048_576);
+    }
+
+    private RunnerFixture runnerFixture(ApiAutomationRunnerPort runnerPort, int runnerArtifactMaxBytes) {
         InMemoryApiAutomationRepository repository = new InMemoryApiAutomationRepository();
         ApiAutomationPlatformContextClient contextClient = mock(ApiAutomationPlatformContextClient.class);
         ApiAutomationActorResolver actorResolver = mock(ApiAutomationActorResolver.class);
@@ -174,7 +209,7 @@ class ApiAutomationRunnerSmokeTest {
                         10,
                         10,
                         SMOKE_ALLOWED_HOST,
-                        1_048_576,
+                        runnerArtifactMaxBytes,
                         "wp6-api-automation-v1",
                         true
                 ),
@@ -271,10 +306,13 @@ class ApiAutomationRunnerSmokeTest {
 
     private enum RunnerScenario {
         MANAGED_ASSERTION_FAILURE,
-        EXTERNAL_TIMEOUT
+        EXTERNAL_TIMEOUT,
+        OVERSIZED_ARTIFACT
     }
 
     private static final class RecordingRunnerPort implements ApiAutomationRunnerPort {
+
+        private static final String OVERSIZED_ARTIFACT_MARKER = "raw-runner-artifact-should-not-persist";
 
         private final RunnerScenario scenario;
         private final AtomicInteger runCalls = new AtomicInteger();
@@ -331,6 +369,20 @@ class ApiAutomationRunnerSmokeTest {
                                 "{\"durationMs\":1000,\"rawRequestResponseStored\":true}",
                                 "RUNNER_TIMEOUT",
                                 "case timeout token=timeout-case-token123456"
+                        ))
+                );
+                case OVERSIZED_ARTIFACT -> new RunnerRunResult(
+                        "PASSED",
+                        "MANAGED",
+                        null,
+                        null,
+                        List.of(new RunnerCaseResult(
+                                automationCase.id(),
+                                "PASSED",
+                                33,
+                                "{\"stdout\":\"" + OVERSIZED_ARTIFACT_MARKER + " ".repeat(220) + "\"}",
+                                null,
+                                null
                         ))
                 );
             };
