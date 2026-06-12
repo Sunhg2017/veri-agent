@@ -54,6 +54,46 @@ class OpenApiSpecParserTest {
     }
 
     @Test
+    void keepsSensitiveWordsInRouteTemplatesWhileMaskingFieldValues() {
+        String json = """
+                {
+                  "openapi": "3.0.3",
+                  "info": {"title": "Credential API", "version": "1.0.0"},
+                  "paths": {
+                    "/v1/credentials": {
+                      "post": {
+                        "operationId": "createCredential",
+                        "requestBody": {
+                          "content": {
+                            "application/json": {
+                              "schema": {
+                                "type": "object",
+                                "properties": {
+                                  "clientSecret": {
+                                    "type": "string",
+                                    "example": "clear-client-secret"
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "responses": {"201": {"description": "created"}}
+                      }
+                    }
+                  }
+                }
+                """;
+
+        var result = parser.parse(json, 10);
+
+        assertThat(result.endpoints()).hasSize(1);
+        assertThat(result.endpoints().getFirst().path()).isEqualTo("/v1/credentials");
+        assertThat(result.sanitizedSpecJson()).contains("/v1/credentials", "***MASKED***")
+                .doesNotContain("clear-client-secret");
+    }
+
+    @Test
     void rejectsUnsupportedOpenApiVersion() {
         String swagger2 = """
                 swagger: '2.0'

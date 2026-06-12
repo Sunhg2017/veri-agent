@@ -1,0 +1,57 @@
+openapi: 3.0.3
+info:
+  title: WP6 Catalog API
+  version: 1.0.0
+paths:
+  /v1/products/{productId}/reviews:
+    parameters:
+      - name: productId
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      operationId: listProductReviews
+      tags:
+        - catalog
+        - reviews
+      summary: List product reviews
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+        - name: X-Request-Id
+          in: header
+          schema:
+            type: string
+        - name: session
+          in: cookie
+          schema:
+            type: string
+          example: token fixture-cookie-value
+      responses:
+        '200':
+          description: ok
+        '429':
+          description: rate limited
+    post:
+      operationId: createProductReview
+      tags:
+        - catalog
+        - reviews
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                rating:
+                  type: integer
+                comment:
+                  type: string
+      responses:
+        '201':
+          description: created
+        '400':
+          description: bad request

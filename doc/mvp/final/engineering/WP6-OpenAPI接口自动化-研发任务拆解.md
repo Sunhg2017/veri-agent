@@ -166,7 +166,7 @@
 
 ## 16. 当前推进状态（2026-06-12）
 
-当前完成 M1/M2/M3 控制面、M4 用例生成、M5 脚本包评审和 M6 runner 默认禁用/allowlist 控制面切片，退出标准以“OpenAPI 规格可导入、解析、脱敏、查询、生成 endpoint snapshot，可对 WP3 API 资产 diff/sync，可基于已同步 API 和已发布 WP3 测试用例摘要生成确定性 fallback 或 WP2 模型优先自动化用例草稿，可生成 Pytest/httpx 脚本包摘要、完成静态校验、提交评审、审批和驳回，并可创建受控运行任务、在默认禁用或目标阻断时保存脱敏运行结果摘要”为准。
+当前完成 M1/M2/M3 控制面、M4 用例生成、M5 脚本包评审、M6 runner 默认禁用/allowlist 控制面切片和 M7 离线质量门禁切片，退出标准以“OpenAPI 规格可导入、解析、脱敏、查询、生成 endpoint snapshot，可对 WP3 API 资产 diff/sync，可基于已同步 API 和已发布 WP3 测试用例摘要生成确定性 fallback 或 WP2 模型优先自动化用例草稿，可生成 Pytest/httpx 脚本包摘要、完成静态校验、提交评审、审批和驳回，并可创建受控运行任务、在默认禁用或目标阻断时保存脱敏运行结果摘要，且可通过 WP6 专项 quality gate 聚合后端、前端、构建、DB validation 和 OpenAPI fixture smoke”为准。
 
 | Story | 状态 | 说明 |
 |---|---|---|
@@ -209,8 +209,11 @@
 | WP6-7.5 生成面板 | 部分完成 | 工作台新增“生成用例”入口、生成模式选择和 WP3 用例 ID 输入，可按当前规格触发模型优先或确定模板生成并展示任务/用例摘要；API 范围选择、用例列表选择和任务历史列表待 M6 收敛。 |
 | WP6-7.6 脚本包评审 | 已完成 | 工作台展示脚本包状态、静态校验、文件摘要、提交评审、审批和驳回入口，按钮按 `apiAutomation:review` 权限控制。 |
 | WP6-7.7 运行面板 | 已完成 | 工作台新增已审批脚本包的 baseUrl/environment/caseIds 运行入口，按 `apiAutomation:execute` 控制，展示 runner 策略、host/digest、状态、错误码和结果聚合。 |
-| WP6-8.1 后端测试 | 部分完成 | 已覆盖 parser、controller、权限、OpenAPI 契约、安全配置、fallback 生成任务、模型成功生成、非法模型输出 fallback、脚本包生成、静态校验、评审状态流、runner disabled、localhost 阻断和 run 查询；全量回归仍需发布前执行。 |
-| WP6-8.2 前端测试 | 部分完成 | 已覆盖 API helper、权限 helper、生成任务 normalize、脚本包 normalize、run normalize、生成 API、评审 API 和 run API 调用；复杂页面交互待后续 Playwright smoke。 |
+| WP6-8.1 后端测试 | 已完成 | 已覆盖 parser、controller、权限、OpenAPI 契约、安全配置、fallback 生成任务、模型成功生成、非法模型输出 fallback、脚本包生成、静态校验、评审状态流、runner disabled、localhost 阻断、run 查询和 OpenAPI fixture smoke；专项入口已纳入 `scripts/wp6_quality_gate.sh`。 |
+| WP6-8.2 前端测试 | 部分完成 | 已覆盖 API helper、权限 helper、生成任务 normalize、脚本包 normalize、run normalize、生成 API、评审 API、run API 调用，并纳入 `scripts/wp6_quality_gate.sh`；复杂页面交互待后续 Playwright smoke。 |
 | WP6-8.3 DB validation | 已完成 | `run_wp1_db_validation.sh` 已纳入 WP6 schema/权限校验。 |
+| WP6-8.4 Fixture smoke | 已完成 | 新增 `platform-api/src/test/resources/wp6-openapi-fixtures` 和 `OpenApiFixtureSmokeTest`，覆盖 JSON/YAML、path/query/header/cookie 参数、requestBody、响应码、非法 OpenAPI、endpoint 上限和敏感示例脱敏；入口为 `bash scripts/wp6_openapi_fixture_smoke.sh`。 |
+| WP6-8.5 Quality gate | 已完成 | 新增 `scripts/wp6_quality_gate.sh` 聚合脚本语法、OpenAPI fixture smoke、WP6 后端/OpenAPI 测试、前端 WP6 helper/权限测试、前端构建和 DB validation；默认不启 runner。 |
+| WP6-8.6 Runner smoke | 未完成 | 开发模式默认跳过；`WP6_GATE_MODE=release` 或 `WP6_RELEASE_GATE=1` 时要求显式配置 runner smoke 并阻断当前未实现的真实 runner smoke，避免发布准出误判。 |
 
-下一步建议继续 M7/M8：补 WP6 quality gate 聚合脚本、OpenAPI fixture smoke 和显式 runner smoke；真实 managed/external runner、timeout/cancel、导出接口仍需在 runner 明确开启策略后推进。
+下一步建议继续 M8：补真实 managed/external runner、timeout/cancel、显式 runner smoke、导出接口、Runner Runbook 和复杂页面 Playwright smoke。

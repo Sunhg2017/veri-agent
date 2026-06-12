@@ -1,0 +1,88 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "WP6 Billing API",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/v1/customers/{customerId}": {
+      "parameters": [
+        {
+          "name": "customerId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "get": {
+        "operationId": "getCustomer",
+        "tags": [
+          "customers"
+        ],
+        "summary": "Get a customer",
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            },
+            "example": "Bearer wp6-fixture-token-value"
+          },
+          {
+            "name": "includeInactive",
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "404": {
+            "description": "not found"
+          }
+        }
+      }
+    },
+    "/v1/payments": {
+      "post": {
+        "operationId": "createPayment",
+        "tags": [
+          "payments"
+        ],
+        "summary": "Create a payment",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "amount": {
+                    "type": "number"
+                  },
+                  "password": {
+                    "type": "string",
+                    "example": "fixture-clear-password"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "created"
+          },
+          "400": {
+            "description": "bad request"
+          }
+        }
+      }
+    }
+  }
+}

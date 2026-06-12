@@ -86,7 +86,7 @@
 
 ## 6. 建议验证入口
 
-正式实现后默认门禁：
+默认门禁：
 
 ```bash
 mvn -B -pl platform-api test
@@ -110,7 +110,13 @@ WP6 专项门禁建议：
 bash scripts/wp6_quality_gate.sh
 ```
 
-发布或显式 runner smoke：
+OpenAPI fixture smoke 可独立执行：
+
+```bash
+bash scripts/wp6_openapi_fixture_smoke.sh
+```
+
+发布或显式 runner smoke。当前真实 runner smoke 仍未实现，发布模式会阻断并要求先完成 WP6-8.6：
 
 ```bash
 WP6_RUNNER_SMOKE=1 WP6_RUNNER_BASE_URL=http://127.0.0.1:8089 bash scripts/wp6_quality_gate.sh
@@ -118,14 +124,15 @@ WP6_RUNNER_SMOKE=1 WP6_RUNNER_BASE_URL=http://127.0.0.1:8089 bash scripts/wp6_qu
 
 ## 7. WP6 Quality Gate 草案
 
-`scripts/wp6_quality_gate.sh` 后续至少串联：
+`scripts/wp6_quality_gate.sh` 当前串联：
 
-1. `mvn -B -pl platform-api -Dtest=ApiAutomation*Test test`
-2. OpenAPI parser fixture tests。
-3. WP6 DB validation。
-4. `cd portal-web && npm test -- apiAutomation.test.ts apiAutomation*.test.ts --run`
-5. `cd portal-web && npm run build`
-6. 可选 runner smoke，默认关闭，发布模式强制显式选择 managed/external。
+1. 脚本语法检查：`wp6_quality_gate.sh` 和 `wp6_openapi_fixture_smoke.sh`。
+2. OpenAPI fixture smoke：JSON/YAML、参数、requestBody、响应码、非法样本、endpoint 上限和敏感样例脱敏。
+3. 后端专项测试：`ApiAutomationServiceTest`、`ApiAutomationControllerTest`、`OpenApiSpecParserTest`、`OpenApiFixtureSmokeTest`、`OpenApiContractTest`。
+4. 前端专项测试：`apiAutomation.test.ts` 和 `permissions.test.ts`。
+5. 前端构建：`npm run build`。
+6. DB validation：`bash db/validation/run_wp1_db_validation.sh`。
+7. runner smoke：默认关闭；release/preprod/prod 模式必须显式配置，当前因 WP6-8.6 未实现而阻断。
 
 ## 8. 准出标准
 
@@ -138,4 +145,4 @@ WP6_RUNNER_SMOKE=1 WP6_RUNNER_BASE_URL=http://127.0.0.1:8089 bash scripts/wp6_qu
 
 ## 9. 启动前质量结论
 
-当前已覆盖 M1-M6 控制面、脚本包评审、runner disabled、localhost/metadata 阻断、run 结果摘要和前端 run API helper；真实 runner smoke、timeout/cancel 和 WP6 quality gate 聚合脚本仍需在显式 runner 策略确定后补齐。
+当前已覆盖 M1-M7 离线控制面、脚本包评审、runner disabled、localhost/metadata 阻断、run 结果摘要、前端 run API helper、OpenAPI fixture smoke 和 WP6 quality gate 聚合脚本；真实 runner smoke、timeout/cancel、Runner Runbook 和复杂页面 Playwright smoke 仍需在显式 runner 策略确定后补齐。

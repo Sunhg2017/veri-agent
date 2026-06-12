@@ -203,6 +203,11 @@ public class OpenApiSpecParser {
         if (!StringUtils.hasText(fieldName)) {
             return false;
         }
+        // OpenAPI path-item keys are route templates, not data field names. A path such as
+        // /v1/credentials must remain an object so endpoint extraction can still run.
+        if (fieldName.startsWith("/")) {
+            return false;
+        }
         String normalized = fieldName.replace("-", "_").toLowerCase(Locale.ROOT);
         return SENSITIVE_NAME_FRAGMENTS.stream().anyMatch(normalized::contains);
     }
