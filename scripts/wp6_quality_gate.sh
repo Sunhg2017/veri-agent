@@ -77,11 +77,11 @@ check_script_syntax() {
 run_runner_smoke() {
   case "${WP6_RUNNER_SMOKE:-0}" in
     1|true|TRUE|managed|auto|external)
-      echo "WP6 runner smoke is not implemented in this gate yet; keep development gates offline, or complete WP6-8.6 before release mode." >&2
-      exit 2
+      run_step "wp6 runner smoke" \
+        bash "$ROOT_DIR/scripts/wp6_runner_smoke.sh"
       ;;
     0|false|FALSE|"")
-      echo "== wp6 runner smoke skipped; set WP6_RUNNER_SMOKE=managed or external after WP6-8.6 is implemented =="
+      echo "== wp6 runner smoke skipped; set WP6_RUNNER_SMOKE=managed or external for explicit runner contract smoke =="
       ;;
     *)
       echo "Unsupported WP6_RUNNER_SMOKE=${WP6_RUNNER_SMOKE}; use managed, auto, external, 1, or 0." >&2
@@ -96,7 +96,8 @@ main() {
   run_step "wp6 script syntax" \
     check_script_syntax \
       "$ROOT_DIR/scripts/wp6_quality_gate.sh" \
-      "$ROOT_DIR/scripts/wp6_openapi_fixture_smoke.sh"
+      "$ROOT_DIR/scripts/wp6_openapi_fixture_smoke.sh" \
+      "$ROOT_DIR/scripts/wp6_runner_smoke.sh"
 
   run_step "wp6 OpenAPI fixture smoke" \
     bash "$ROOT_DIR/scripts/wp6_openapi_fixture_smoke.sh"

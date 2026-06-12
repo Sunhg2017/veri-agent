@@ -237,10 +237,11 @@ Runner 必须执行以下限制：
 - Allowlist M6：baseUrl 标准化后仅保存 host 和 SHA-256 digest；阻断 localhost、私网 IPv4、metadata host、`.local` 和未授权 host，错误码为 `RUNNER_TARGET_BLOCKED`。
 - Run API M6：新增 `POST /api/v1/api-automation/runs` 和 `GET /api/v1/api-automation/runs/{id}`，按脚本包/run 项目 scope 校验 `apiAutomation:execute/read`，返回 run 摘要和 case-level result 摘要。
 - Run Export：新增 `GET /api/v1/api-automation/runs/{id}/export`，按 run 项目 scope 校验 `apiAutomation:export`，返回 `schemaVersion/exportedAt/run/results/resultCounts/redactionPolicy`，只导出 baseUrl host/digest、状态、耗时、错误码和聚合断言摘要；不导出 baseUrl 明文、请求响应正文、stdout/stderr 或 secret，并写 `api_automation.exported` 审计。
-- Quality Gate M7：新增 `scripts/wp6_quality_gate.sh` 聚合脚本语法、OpenAPI fixture smoke、WP6 后端/OpenAPI 测试、前端 WP6 helper/权限测试、前端构建和 DB validation；支持 `WP6_QUALITY_GATE_PLAN_ONLY=1` 输出计划，开发模式默认不启 runner。
+- Quality Gate M7/M8：`scripts/wp6_quality_gate.sh` 聚合脚本语法、OpenAPI fixture smoke、WP6 后端/OpenAPI 测试、前端 WP6 helper/权限测试、前端构建和 DB validation；支持 `WP6_QUALITY_GATE_PLAN_ONLY=1` 输出计划，开发模式默认不启 runner；显式 `WP6_RUNNER_SMOKE=managed|auto|external` 时调用 runner contract smoke。
 - Fixture Smoke M7：新增 `scripts/wp6_openapi_fixture_smoke.sh`、`OpenApiFixtureSmokeTest` 和 `wp6-openapi-fixtures`，覆盖 JSON/YAML、path/query/header/cookie 参数、requestBody、响应码、非法 OpenAPI、endpoint 上限和敏感示例脱敏。
+- Runner Smoke M8：新增 `scripts/wp6_runner_smoke.sh` 和 `ApiAutomationRunnerSmokeTest`，在不访问真实业务网络的前提下验证 runner 执行分支、allowlist 阻断、timeout 结果归一化、失败结果和运行导出脱敏；`external` 模式要求显式配置 `WP6_RUNNER_BASE_URL`，当前仍属于 contract smoke，不替代后续真实 runner adapter 联调。
 - Parser：支持 OpenAPI 3.x JSON/YAML，抽取 method/path/operationId/tags/参数数/requestBody/响应码/schemaDigest，并对 Authorization、apiKey、token、cookie、password、secret 等敏感示例脱敏。
 - 权限：除 health 外，规格导入、查询、重解析、diff、sync、生成任务和脚本包评审均按项目 scope 校验 `apiAutomation:*` 权限。
 - 前端：新增 `#api-automation` 入口、API helper、权限控制、规格导入/列表/endpoint snapshot、diff 刷新、WP3 API 同步入口、生成模式选择、WP3 用例 ID 输入、生成用例入口、脚本包评审面板、已审批脚本包运行面板和脱敏运行摘要导出入口。
 
-本轮未实现：真实 managed/external runner 执行器、timeout/cancel smoke、Runner Runbook 和复杂页面 Playwright smoke。这些仍按研发任务拆解的 M8/P1 继续推进；发布模式下 WP6 quality gate 会要求显式 runner smoke，当前在 WP6-8.6 完成前保持阻断。
+本轮未实现：真实 managed/external runner 执行器、异步 cancel smoke、Runner Runbook 和复杂页面 Playwright smoke。这些仍按研发任务拆解的 M8/P1 继续推进；发布模式下 WP6 quality gate 会要求显式 runner smoke，当前可先通过 contract smoke 防止执行分支、脱敏和 allowlist 回归。

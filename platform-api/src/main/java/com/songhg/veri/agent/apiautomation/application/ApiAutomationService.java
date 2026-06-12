@@ -568,14 +568,14 @@ public class ApiAutomationService {
                 cases.size(),
                 runnerMode,
                 boundedNullableText(attempt.errorCode(), 64),
-                boundedNullableText(attempt.errorSummary(), ERROR_SUMMARY_MAX_CHARS),
+                safeRunnerErrorSummary(attempt.errorSummary(), target.normalizedBaseUrl()),
                 actor,
                 now,
                 now,
                 completedAt
         );
         repository.insertRun(run);
-        List<ApiAutomationRunResult> results = runnerResults(run, cases, attempt, completedAt);
+        List<ApiAutomationRunResult> results = runnerResults(run, cases, attempt, target.normalizedBaseUrl(), completedAt);
         results.forEach(repository::insertRunResult);
         auditRun(run, "SUCCESS", "STARTED", Map.of(
                 "runnerMode", run.runnerMode(),
@@ -781,7 +781,7 @@ public class ApiAutomationService {
                             ? boundedText(validation.errorCode(), 64)
                             : "RUNNER_FAILED",
                     StringUtils.hasText(validation.errorSummary())
-                            ? boundedText(validation.errorSummary(), ERROR_SUMMARY_MAX_CHARS)
+                            ? safeRunnerErrorSummary(validation.errorSummary())
                             : "runner 校验失败"
             );
         }
@@ -860,6 +860,7 @@ public class ApiAutomationService {
             ApiAutomationRun run,
             List<ApiAutomationCase> cases,
             ApiAutomationRunnerPort.RunnerRunResult attempt,
+            String normalizedBaseUrl,
             Instant now
     ) {
         Map<UUID, ApiAutomationRunnerPort.RunnerCaseResult> resultByCaseId = attempt.caseResults() == null
@@ -886,7 +887,7 @@ public class ApiAutomationService {
                             runnerResult == null ? run.errorCode() : boundedNullableText(runnerResult.errorCode(), 64),
                             runnerResult == null
                                     ? run.errorSummary()
-                                    : boundedNullableText(runnerResult.errorSummary(), ERROR_SUMMARY_MAX_CHARS),
+                                    : safeRunnerErrorSummary(runnerResult.errorSummary(), normalizedBaseUrl),
                             now,
                             now
                     );
@@ -899,11 +900,69 @@ public class ApiAutomationService {
         if (summary.isEmpty()) {
             return writeJson(Map.of("aggregateOnly", true, "rawRequestResponseStored", false));
         }
-        Map<String, Object> sanitized = new LinkedHashMap<>(summary);
+        /*
+         * Runner adapters are an external trust boundary. Their summaries are useful for diagnosis, but must be
+         * reduced to aggregate, recursively redacted evidence before persistence or export.
+         */
+        Map<String, Object> sanitized = new LinkedHashMap<>();
+        summary.forEach((key, summaryValue) -> sanitized.put(key, sanitizeRunnerSummaryValue(key, summaryValue)));
         sanitized.put("aggregateOnly", true);
         sanitized.put("rawRequestResponseStored", false);
         sanitized.put("secretValuesStored", false);
         return writeJson(sanitized);
+    }
+
+    @SuppressWarnings("unchecked")
+    private Object sanitizeRunnerSummaryValue(String key, Object value) {
+        if (sensitiveRunnerSummaryKey(key)) {
+            return "[REDACTED]";
+        }
+        if (value instanceof String text) {
+            return safeSourceText(text, ERROR_SUMMARY_MAX_CHARS);
+        }
+        if (value instanceof Map<?, ?> map) {
+            Map<String, Object> sanitized = new LinkedHashMap<>();
+            map.forEach((nestedKey, nestedValue) -> sanitized.put(
+                    nestedKey == null ? "" : nestedKey.toString(),
+                    sanitizeRunnerSummaryValue(nestedKey == null ? "" : nestedKey.toString(), nestedValue)
+            ));
+            return sanitized;
+        }
+        if (value instanceof List<?> list) {
+            return list.stream().map(item -> sanitizeRunnerSummaryValue("", item)).toList();
+        }
+        return value;
+    }
+
+    private boolean sensitiveRunnerSummaryKey(String key) {
+        if (!StringUtils.hasText(key)) {
+            return false;
+        }
+        String normalized = key.toLowerCase(Locale.ROOT);
+        return normalized.contains("authorization")
+                || normalized.contains("cookie")
+                || normalized.contains("token")
+                || normalized.contains("secret")
+                || normalized.contains("password")
+                || normalized.contains("passwd")
+                || normalized.contains("apikey")
+                || normalized.contains("api_key")
+                || normalized.contains("api-key");
+    }
+
+    private String safeRunnerErrorSummary(String value) {
+        return safeRunnerErrorSummary(value, null);
+    }
+
+    private String safeRunnerErrorSummary(String value, String normalizedBaseUrl) {
+        if (!StringUtils.hasText(value)) {
+            return null;
+        }
+        String sanitized = value;
+        if (StringUtils.hasText(normalizedBaseUrl)) {
+            sanitized = sanitized.replace(normalizedBaseUrl, "[REDACTED_BASE_URL]");
+        }
+        return safeSourceText(sanitized, ERROR_SUMMARY_MAX_CHARS);
     }
 
     private String normalizeRunStatus(String status) {

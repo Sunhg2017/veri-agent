@@ -215,6 +215,6 @@
 | WP6-8.3 DB validation | 已完成 | `run_wp1_db_validation.sh` 已纳入 WP6 schema/权限校验。 |
 | WP6-8.4 Fixture smoke | 已完成 | 新增 `platform-api/src/test/resources/wp6-openapi-fixtures` 和 `OpenApiFixtureSmokeTest`，覆盖 JSON/YAML、path/query/header/cookie 参数、requestBody、响应码、非法 OpenAPI、endpoint 上限和敏感示例脱敏；入口为 `bash scripts/wp6_openapi_fixture_smoke.sh`。 |
 | WP6-8.5 Quality gate | 已完成 | 新增 `scripts/wp6_quality_gate.sh` 聚合脚本语法、OpenAPI fixture smoke、WP6 后端/OpenAPI 测试、前端 WP6 helper/权限测试、前端构建和 DB validation；默认不启 runner。 |
-| WP6-8.6 Runner smoke | 未完成 | 开发模式默认跳过；`WP6_GATE_MODE=release` 或 `WP6_RELEASE_GATE=1` 时要求显式配置 runner smoke 并阻断当前未实现的真实 runner smoke，避免发布准出误判。 |
+| WP6-8.6 Runner smoke | 部分完成 | 新增 `scripts/wp6_runner_smoke.sh` 和 `ApiAutomationRunnerSmokeTest`，支持 `managed/auto/external` contract smoke，覆盖 runner 执行分支、allowlist 阻断、timeout 结果归一化、失败摘要和导出脱敏；真实网络执行器和异步 cancel smoke 仍待后续 runner adapter 明确后补。 |
 
-下一步建议继续 M8：补真实 managed/external runner、timeout/cancel、显式 runner smoke、Runner Runbook 和复杂页面 Playwright smoke。
+下一步建议继续 M8：补真实 managed/external runner adapter、异步 cancel smoke、Runner Runbook 和复杂页面 Playwright smoke。
