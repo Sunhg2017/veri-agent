@@ -4,6 +4,7 @@ import {
   ClipboardCheck,
   FileText,
   Download,
+  Square,
   Play,
   ListChecks,
   RefreshCw,
@@ -15,6 +16,7 @@ import {
 import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
 import type { CurrentUser } from '../api/auth';
 import {
+  cancelApiAutomationRun,
   createApiAutomationGenerationTask,
   createApiAutomationRun,
   createApiAutomationSpec,
@@ -330,6 +332,18 @@ export function ApiAutomationWorkbench(props: { signedIn: boolean; currentUser: 
     }
   }
 
+  async function onCancelRun(run: ApiAutomationRunDetail) {
+    if (!canExecute || !activeRunStatus(run.run.status)) return;
+    setRunState({ loading: true });
+    try {
+      const result = await cancelApiAutomationRun(run.run.id);
+      setLastRun(result.data);
+      setRunState({ loading: false, success: runSummaryText(result.data) });
+    } catch (error: unknown) {
+      setRunState({ loading: false, error: error instanceof Error ? error.message : '取消失败' });
+    }
+  }
+
   if (!props.signedIn || !canRead) {
     return (
       <section className="panel">
@@ -547,6 +561,7 @@ export function ApiAutomationWorkbench(props: { signedIn: boolean; currentUser: 
               onApprove={(bundle) => void onApproveBundle(bundle)}
               onReject={(bundle) => void onRejectBundle(bundle)}
               onCreateRun={(bundle) => void onCreateRun(bundle)}
+              onCancelRun={(run) => void onCancelRun(run)}
               onExportRun={(run) => void onExportRun(run)}
             />
           )}
@@ -653,6 +668,7 @@ function GenerationSummary(props: {
   onApprove: (bundle: ApiAutomationScriptBundle) => void;
   onReject: (bundle: ApiAutomationScriptBundle) => void;
   onCreateRun: (bundle: ApiAutomationScriptBundle) => void;
+  onCancelRun: (run: ApiAutomationRunDetail) => void;
   onExportRun: (run: ApiAutomationRunDetail) => void;
 }) {
   const bundle = props.generation.scriptBundles[0];
@@ -773,7 +789,10 @@ function GenerationSummary(props: {
                   run={props.lastRun}
                   runExport={props.lastRunExport}
                   canExport={props.canExport}
+                  canCancel={props.canExecute}
                   exportLoading={props.runExportLoading}
+                  runLoading={props.runLoading}
+                  onCancel={() => props.onCancelRun(props.lastRun!)}
                   onExport={() => props.onExportRun(props.lastRun!)}
                 />
               )}
@@ -799,7 +818,10 @@ function RunSummary(props: {
   run: ApiAutomationRunDetail;
   runExport: ApiAutomationRunExport | null;
   canExport: boolean;
+  canCancel: boolean;
   exportLoading: boolean;
+  runLoading: boolean;
+  onCancel: () => void;
   onExport: () => void;
 }) {
   const counts = props.run.results.reduce<Record<string, number>>((acc, result) => {
@@ -825,6 +847,17 @@ function RunSummary(props: {
         <span>PASSED {counts.PASSED ?? 0}</span>
       </div>
       <div className="api-automation-panel-actions">
+        {activeRunStatus(props.run.run.status) && (
+          <button
+            className="btn btn-secondary btn-sm"
+            type="button"
+            disabled={!props.canCancel || props.runLoading}
+            onClick={props.onCancel}
+          >
+            <Square size={15} />
+            取消
+          </button>
+        )}
         <button
           className="btn btn-secondary btn-sm"
           type="button"
@@ -919,6 +952,10 @@ function generationSummaryText(generation: ApiAutomationGenerationTaskDetail) {
 
 function runSummaryText(run: ApiAutomationRunDetail) {
   return `运行：${run.run.status} · CASE ${run.run.caseCount} · ${run.run.errorCode ?? 'OK'}`;
+}
+
+function activeRunStatus(status: string) {
+  return status === 'QUEUED' || status === 'RUNNING';
 }
 
 function shortId(value?: string) {

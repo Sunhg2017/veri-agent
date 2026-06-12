@@ -224,6 +224,14 @@ class ApiAutomationControllerTest {
                 .andExpect(jsonPath("$.data.run.id").value(runId.toString()))
                 .andExpect(jsonPath("$.data.results[0].status").value("BLOCKED"));
 
+        mockMvc.perform(post("/api/v1/api-automation/runs/{id}/cancel", runId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.run.id").value(runId.toString()))
+                .andExpect(jsonPath("$.data.run.status").value("BLOCKED"))
+                .andExpect(jsonPath("$.data.run.errorCode").value("RUNNER_DISABLED"))
+                .andExpect(jsonPath("$.data.results[0].status").value("BLOCKED"));
+
         String exportToken = userAccessToken(List.of("SuperAdmin"));
         mockMvc.perform(get("/api/v1/api-automation/runs/{id}/export", runId)
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + exportToken))

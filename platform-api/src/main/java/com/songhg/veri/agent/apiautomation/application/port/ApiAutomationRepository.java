@@ -34,6 +34,8 @@ public interface ApiAutomationRepository {
 
     void insertRun(ApiAutomationRun run);
 
+    void updateRunCancel(ApiAutomationRun run);
+
     void insertRunResult(ApiAutomationRunResult result);
 
     Optional<ApiAutomationSpec> spec(UUID id);

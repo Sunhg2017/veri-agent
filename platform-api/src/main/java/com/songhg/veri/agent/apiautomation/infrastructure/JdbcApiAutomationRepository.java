@@ -77,6 +77,11 @@ public class JdbcApiAutomationRepository implements ApiAutomationRepository {
     }
 
     @Override
+    public void updateRunCancel(ApiAutomationRun run) {
+        mapper.updateRunCancel(run);
+    }
+
+    @Override
     public void insertRunResult(ApiAutomationRunResult result) {
         mapper.insertRunResult(result);
     }

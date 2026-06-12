@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { requestJson } from './client';
 import {
   approveApiAutomationScriptBundle,
+  cancelApiAutomationRun,
   createApiAutomationGenerationTask,
   createApiAutomationRun,
   createApiAutomationSpec,
@@ -297,6 +298,7 @@ describe('WP6 API automation helpers', () => {
       timeoutSeconds: 30
     });
     await fetchApiAutomationRun('run-1');
+    await cancelApiAutomationRun('run-1');
     await exportApiAutomationRun('run-1');
     await fetchApiAutomationHealth();
 
@@ -353,7 +355,10 @@ describe('WP6 API automation helpers', () => {
       })
     });
     expect(requestJsonMock).toHaveBeenNthCalledWith(13, '/api/v1/api-automation/runs/run-1');
-    expect(requestJsonMock).toHaveBeenNthCalledWith(14, '/api/v1/api-automation/runs/run-1/export');
-    expect(requestJsonMock).toHaveBeenNthCalledWith(15, '/api/v1/api-automation/health');
+    expect(requestJsonMock).toHaveBeenNthCalledWith(14, '/api/v1/api-automation/runs/run-1/cancel', {
+      method: 'POST'
+    });
+    expect(requestJsonMock).toHaveBeenNthCalledWith(15, '/api/v1/api-automation/runs/run-1/export');
+    expect(requestJsonMock).toHaveBeenNthCalledWith(16, '/api/v1/api-automation/health');
   });
 });

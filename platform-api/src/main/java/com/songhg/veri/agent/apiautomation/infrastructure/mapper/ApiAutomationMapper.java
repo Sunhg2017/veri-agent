@@ -57,6 +57,8 @@ public interface ApiAutomationMapper {
 
     void insertRun(ApiAutomationRun run);
 
+    int updateRunCancel(ApiAutomationRun run);
+
     void insertRunResult(ApiAutomationRunResult result);
 
     ApiAutomationGenerationTask generationTask(@Param("id") UUID id);

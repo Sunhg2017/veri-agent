@@ -597,6 +597,48 @@ public class ApiAutomationService {
         return toRunDetail(run, repository.runResults(id));
     }
 
+    /**
+     * Cancels only active control-plane runs. Current managed HTTP execution is synchronous, so most runs are already
+     * terminal when this method is called; those calls intentionally return the existing run without mutation to keep
+     * retrying clients idempotent until a future asynchronous runner can honor cancellation in-flight.
+     */
+    @Transactional
+    public ApiAutomationRunDetailResponse cancelRun(UUID id) {
+        ApiAutomationRun run = repository.run(id)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "接口自动化运行任务不存在: " + id));
+        if (!cancelableRunStatus(run.status())) {
+            auditRun(run, "SUCCESS", "CANCEL_SKIPPED", Map.of(
+                    "status", run.status(),
+                    "terminal", true
+            ));
+            return toRunDetail(run, repository.runResults(id));
+        }
+
+        ApiAutomationRunnerPort.RunnerCancelResult cancelResult = runnerPort.cancel(id);
+        boolean accepted = cancelResult != null && cancelResult.accepted();
+        if (!accepted) {
+            auditRun(run, "FAILED", "CANCEL_REJECTED", cancelAuditPayload(run, cancelResult));
+            return toRunDetail(run, repository.runResults(id));
+        }
+
+        Instant now = Instant.now();
+        String actor = actorResolver.currentActor();
+        ApiAutomationRun canceled = runWithCancel(
+                run,
+                boundedNullableText(cancelResult.errorCode(), 64),
+                safeRunnerErrorSummary(cancelResult.errorSummary()),
+                actor,
+                now
+        );
+        repository.updateRunCancel(canceled);
+        ApiAutomationRun persisted = repository.run(id).orElse(canceled);
+        auditRun(persisted, "SUCCESS", "CANCELED", Map.of(
+                "previousStatus", run.status(),
+                "status", persisted.status()
+        ));
+        return toRunDetail(persisted, repository.runResults(id));
+    }
+
     @Transactional
     public ApiAutomationRunExportResponse exportRun(UUID id) {
         ApiAutomationRun run = repository.run(id)
@@ -991,6 +1033,60 @@ public class ApiAutomationService {
 
     private String runAuditResult(String status) {
         return "PASSED".equals(status) ? "SUCCESS" : "FAILED";
+    }
+
+    private boolean cancelableRunStatus(String status) {
+        return Set.of("QUEUED", "RUNNING").contains(status);
+    }
+
+    private ApiAutomationRun runWithCancel(
+            ApiAutomationRun run,
+            String errorCode,
+            String errorSummary,
+            String actor,
+            Instant now
+    ) {
+        return new ApiAutomationRun(
+                run.id(),
+                run.projectId(),
+                run.bundleId(),
+                run.environmentId(),
+                run.baseUrlDigest(),
+                run.baseUrlHost(),
+                "CANCELED",
+                run.timeoutSeconds(),
+                run.caseCount(),
+                run.traceId(),
+                run.runnerMode(),
+                StringUtils.hasText(errorCode) ? errorCode : "RUNNER_CANCELED",
+                errorSummary,
+                run.createdBy(),
+                actor,
+                run.startedAt(),
+                now,
+                run.createdAt(),
+                now
+        );
+    }
+
+    private Map<String, Object> cancelAuditPayload(
+            ApiAutomationRun run,
+            ApiAutomationRunnerPort.RunnerCancelResult cancelResult
+    ) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("status", run.status());
+        payload.put("accepted", false);
+        if (cancelResult != null) {
+            String errorCode = boundedNullableText(cancelResult.errorCode(), 64);
+            String errorSummary = safeRunnerErrorSummary(cancelResult.errorSummary());
+            if (errorCode != null) {
+                payload.put("errorCode", errorCode);
+            }
+            if (errorSummary != null) {
+                payload.put("errorSummary", errorSummary);
+            }
+        }
+        return payload;
     }
 
     /**
@@ -2797,6 +2893,7 @@ public class ApiAutomationService {
     private String runAuditActionName(String action) {
         return switch (action) {
             case "BLOCKED", "STARTED" -> "api_automation.run.started";
+            case "CANCELED", "CANCEL_REJECTED", "CANCEL_SKIPPED" -> "api_automation.run.canceled";
             case "EXPORTED" -> "api_automation.exported";
             default -> "api_automation.run.completed";
         };

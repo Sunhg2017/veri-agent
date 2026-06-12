@@ -149,6 +149,12 @@ public class ApiAutomationController {
         return service.runDetail(id);
     }
 
+    @PostMapping("/runs/{id}/cancel")
+    @RequirePermission(value = PermissionCodes.API_AUTOMATION_EXECUTE, scope = ApiAutomationPermissionScopes.RUN)
+    public ApiAutomationRunDetailResponse cancelRun(@PathVariable UUID id) {
+        return service.cancelRun(id);
+    }
+
     @GetMapping("/runs/{id}/export")
     @RequirePermission(value = PermissionCodes.API_AUTOMATION_EXPORT, scope = ApiAutomationPermissionScopes.RUN)
     public ApiAutomationRunExportResponse exportRun(@PathVariable UUID id) {

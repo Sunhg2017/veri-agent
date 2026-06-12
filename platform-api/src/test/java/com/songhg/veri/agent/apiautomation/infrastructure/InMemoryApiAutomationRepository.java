@@ -12,6 +12,7 @@ import com.songhg.veri.agent.apiautomation.domain.ApiAutomationSpec;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Stream;
@@ -81,6 +82,13 @@ public class InMemoryApiAutomationRepository implements ApiAutomationRepository 
     @Override
     public void insertRun(ApiAutomationRun run) {
         runs.put(run.id(), run);
+    }
+
+    @Override
+    public void updateRunCancel(ApiAutomationRun run) {
+        runs.computeIfPresent(run.id(), (ignored, current) -> Set.of("QUEUED", "RUNNING").contains(current.status())
+                ? run
+                : current);
     }
 
     @Override

@@ -81,4 +81,4 @@ bash scripts/wp6_runner_smoke.sh
 
 ## 7. 当前限制
 
-当前 smoke 验证 runner port 契约、控制面脱敏和基础 Managed HTTP loopback 执行，不执行真实 Pytest/httpx 脚本、不启动 WP9 调度、不验证异步 cancel，也不提供 Allure 风格报告。后续接入 Pytest 子进程型 runner 时，需要补充网络隔离、secretRef 注入、产物大小限制和 cancel smoke。
+当前 smoke 验证 runner port 契约、控制面脱敏、取消 API 幂等语义和基础 Managed HTTP loopback 执行；`POST /api/v1/api-automation/runs/{id}/cancel` 已作为控制面尽力取消入口，当前同步 Managed HTTP runner 通常只能对终态 run 幂等返回，后续异步 runner 才能中断运行中任务。不执行真实 Pytest/httpx 脚本、不启动 WP9 调度、不验证异步 cancel smoke，也不提供 Allure 风格报告。后续接入 Pytest 子进程型 runner 时，需要补充网络隔离、secretRef 注入、产物大小限制和 cancel smoke。

@@ -367,6 +367,13 @@ export async function fetchApiAutomationRun(id: string): Promise<ApiResponse<Api
   return { ...response, data: normalizeApiAutomationRunDetail(response.data) };
 }
 
+export async function cancelApiAutomationRun(id: string): Promise<ApiResponse<ApiAutomationRunDetail>> {
+  const response = await requestJson<unknown>(`${API_AUTOMATION_BASE}/runs/${encodeURIComponent(id)}/cancel`, {
+    method: 'POST'
+  });
+  return { ...response, data: normalizeApiAutomationRunDetail(response.data) };
+}
+
 export async function exportApiAutomationRun(id: string): Promise<ApiResponse<ApiAutomationRunExport>> {
   const response = await requestJson<unknown>(`${API_AUTOMATION_BASE}/runs/${encodeURIComponent(id)}/export`);
   return { ...response, data: normalizeApiAutomationRunExport(response.data) };

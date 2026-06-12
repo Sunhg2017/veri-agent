@@ -421,6 +421,18 @@
         )
     </insert>
 
+    <update id="updateRunCancel">
+        update api_automation_run set
+            status = #{status},
+            error_code = #{errorCode},
+            error_summary = #{errorSummary},
+            updated_by = #{updatedBy},
+            completed_at = #{completedAt},
+            updated_at = #{updatedAt}
+        where id = #{id}
+          and status in ('QUEUED', 'RUNNING')
+    </update>
+
     <insert id="insertRunResult">
         insert into api_automation_run_result (
             id, run_id, case_id, status, duration_ms, assertion_summary_json,
