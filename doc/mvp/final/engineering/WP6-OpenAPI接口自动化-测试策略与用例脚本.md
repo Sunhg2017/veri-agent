@@ -129,13 +129,14 @@ WP6_GATE_MODE=release WP6_RUNNER_SMOKE=managed bash scripts/wp6_quality_gate.sh
 
 `scripts/wp6_quality_gate.sh` 当前串联：
 
-1. 脚本语法检查：`wp6_quality_gate.sh` 和 `wp6_openapi_fixture_smoke.sh`。
+1. 脚本语法检查：`wp6_quality_gate.sh`、`wp6_openapi_fixture_smoke.sh`、`wp6_frontend_e2e_smoke.sh` 和 `wp6_runner_smoke.sh`。
 2. OpenAPI fixture smoke：JSON/YAML、参数、requestBody、响应码、非法样本、endpoint 上限和敏感样例脱敏。
 3. 后端专项测试：`ApiAutomationServiceTest`、`ApiAutomationControllerTest`、`OpenApiSpecParserTest`、`OpenApiFixtureSmokeTest`、`OpenApiContractTest`。
 4. 前端专项测试：`apiAutomation.test.ts` 和 `permissions.test.ts`。
-5. 前端构建：`npm run build`。
-6. DB validation：`bash db/validation/run_wp1_db_validation.sh`。
-7. runner smoke：默认关闭；release/preprod/prod 模式必须显式配置，当前调用 `scripts/wp6_runner_smoke.sh` 覆盖 runner 执行分支、allowlist 阻断、基础 loopback HTTP pass/fail/path-template/timeout、Pytest subprocess 命令/env/JUnit XML 解析、失败摘要和导出脱敏。
+5. 前端 Playwright smoke：`bash scripts/wp6_frontend_e2e_smoke.sh`，覆盖导入、diff、同步、生成、脚本包评审、运行、取消和脱敏导出；可用 `WP6_SKIP_FRONTEND_E2E=1` 显式跳过。
+6. 前端构建：`npm run build`。
+7. DB validation：`bash db/validation/run_wp1_db_validation.sh`。
+8. runner smoke：默认关闭；release/preprod/prod 模式必须显式配置，当前调用 `scripts/wp6_runner_smoke.sh` 覆盖 runner 执行分支、allowlist 阻断、基础 loopback HTTP pass/fail/path-template/timeout、Pytest subprocess 命令/env/JUnit XML 解析、失败摘要和导出脱敏。
 
 ## 8. 准出标准
 
@@ -148,4 +149,4 @@ WP6_GATE_MODE=release WP6_RUNNER_SMOKE=managed bash scripts/wp6_quality_gate.sh
 
 ## 9. 启动前质量结论
 
-当前已覆盖 M1-M7 离线控制面、脚本包评审、runner disabled、localhost/metadata 阻断、run 结果摘要、secretRef digest 控制面、脱敏运行导出、前端 run/cancel/export API helper、OpenAPI fixture smoke 和 WP6 quality gate 聚合脚本；M8 已补 runner service contract smoke、secretRef digest 传递、SecretProvider 解析、Managed HTTP 受控 header 注入、Pytest subprocess adapter 契约、Pytest secretRef env/header 映射、取消 API 幂等测试、基础 Managed HTTP loopback adapter smoke 和 Runner Runbook，覆盖 managed/pytest/external 执行分支、allowlist 阻断、HTTP pass/fail/path-template/timeout、Pytest 命令/env/JUnit XML 解析、取消入口和脱敏回归。异步 cancel smoke 和复杂页面 Playwright smoke 仍需继续补齐。
+当前已覆盖 M1-M7 离线控制面、脚本包评审、runner disabled、localhost/metadata 阻断、run 结果摘要、secretRef digest 控制面、脱敏运行导出、前端 run/cancel/export API helper、OpenAPI fixture smoke 和 WP6 quality gate 聚合脚本；M8 已补 runner service contract smoke、secretRef digest 传递、SecretProvider 解析、Managed HTTP 受控 header 注入、Pytest subprocess adapter 契约、Pytest secretRef env/header 映射、取消 API 幂等测试、基础 Managed HTTP loopback adapter smoke、复杂页面 Playwright smoke 和 Runner Runbook，覆盖 managed/pytest/external 执行分支、allowlist 阻断、HTTP pass/fail/path-template/timeout、Pytest 命令/env/JUnit XML 解析、取消入口、前端主链路和脱敏回归。异步 cancel smoke 仍需继续补齐。

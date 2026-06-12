@@ -211,10 +211,10 @@
 | WP6-7.6 脚本包评审 | 已完成 | 工作台展示脚本包状态、静态校验、文件摘要、提交评审、审批和驳回入口，按钮按 `apiAutomation:review` 权限控制。 |
 | WP6-7.7 运行面板 | 已完成 | 工作台新增已审批脚本包的 baseUrl/environment/secretRefs/caseIds 运行入口，按 `apiAutomation:execute` 控制，展示 runner 策略、host/digest、状态、错误码和结果聚合；`QUEUED/RUNNING` run 可触发取消；按 `apiAutomation:export` 支持脱敏运行摘要导出。 |
 | WP6-8.1 后端测试 | 已完成 | 已覆盖 parser、controller、权限、OpenAPI 契约、安全配置、fallback 生成任务、模型成功生成、非法模型输出 fallback、脚本包生成、静态校验、评审状态流、runner disabled、localhost 阻断、run 查询、run cancel 幂等/接受分支和 OpenAPI fixture smoke；专项入口已纳入 `scripts/wp6_quality_gate.sh`。 |
-| WP6-8.2 前端测试 | 部分完成 | 已覆盖 API helper、权限 helper、生成任务 normalize、脚本包 normalize、run normalize、run secretRefs payload、run cancel/export normalize、生成 API、评审 API、run API、run cancel API 和 run export API 调用，并纳入 `scripts/wp6_quality_gate.sh`；复杂页面交互待后续 Playwright smoke。 |
+| WP6-8.2 前端测试 | 已完成 | 已覆盖 API helper、权限 helper、生成任务 normalize、脚本包 normalize、run normalize、run secretRefs payload、run cancel/export normalize、生成 API、评审 API、run API、run cancel API、run export API 调用和复杂页面 Playwright smoke；`scripts/wp6_frontend_e2e_smoke.sh` 覆盖导入、diff、同步、生成、脚本包评审、运行、取消和脱敏导出，并纳入 `scripts/wp6_quality_gate.sh`。 |
 | WP6-8.3 DB validation | 已完成 | `run_wp1_db_validation.sh` 已纳入 WP6 schema/权限校验。 |
 | WP6-8.4 Fixture smoke | 已完成 | 新增 `platform-api/src/test/resources/wp6-openapi-fixtures` 和 `OpenApiFixtureSmokeTest`，覆盖 JSON/YAML、path/query/header/cookie 参数、requestBody、响应码、非法 OpenAPI、endpoint 上限和敏感示例脱敏；入口为 `bash scripts/wp6_openapi_fixture_smoke.sh`。 |
-| WP6-8.5 Quality gate | 已完成 | 新增 `scripts/wp6_quality_gate.sh` 聚合脚本语法、OpenAPI fixture smoke、WP6 后端/OpenAPI 测试、前端 WP6 helper/权限测试、前端构建和 DB validation；默认不启 runner。 |
+| WP6-8.5 Quality gate | 已完成 | 新增 `scripts/wp6_quality_gate.sh` 聚合脚本语法、OpenAPI fixture smoke、WP6 后端/OpenAPI 测试、前端 WP6 helper/权限测试、WP6 Playwright smoke、前端构建和 DB validation；默认不启 runner，可用 `WP6_SKIP_FRONTEND_E2E=1` 显式跳过浏览器 smoke。 |
 | WP6-8.6 Runner smoke | 部分完成 | 新增 `scripts/wp6_runner_smoke.sh`、`ApiAutomationRunnerSmokeTest`、`ManagedHttpApiAutomationRunnerAdapterTest`、`PytestSubprocessApiAutomationRunnerAdapterTest` 和 runner 配置测试，支持 `managed/pytest/auto/external` smoke，覆盖 runner 执行分支、allowlist 阻断、基础 loopback HTTP pass/fail/path-template/timeout、secretRef digest 传递、SecretProvider 解析、Managed HTTP 受控 header 注入、Pytest subprocess 命令/env/JUnit XML 解析契约、Pytest runtime secret header 映射、runner artifact size 准入与导出脱敏、取消 API 幂等返回、失败摘要和导出脱敏；异步 cancel smoke 仍待后续调度型 runner 扩展后补。 |
 
-下一步建议继续 M8：补异步 cancel smoke 和复杂页面 Playwright smoke。
+下一步建议继续 M8：补异步 cancel smoke。

@@ -97,6 +97,7 @@ main() {
     check_script_syntax \
       "$ROOT_DIR/scripts/wp6_quality_gate.sh" \
       "$ROOT_DIR/scripts/wp6_openapi_fixture_smoke.sh" \
+      "$ROOT_DIR/scripts/wp6_frontend_e2e_smoke.sh" \
       "$ROOT_DIR/scripts/wp6_runner_smoke.sh"
 
   run_step "wp6 OpenAPI fixture smoke" \
@@ -107,6 +108,13 @@ main() {
 
   run_step "portal-web WP6 tests" \
     bash -lc "cd '$ROOT_DIR/portal-web' && npm run test -- apiAutomation.test.ts permissions.test.ts"
+
+  if [[ "${WP6_SKIP_FRONTEND_E2E:-0}" != "1" ]]; then
+    run_step "portal-web WP6 Playwright smoke" \
+      bash "$ROOT_DIR/scripts/wp6_frontend_e2e_smoke.sh"
+  else
+    echo "== portal-web WP6 Playwright smoke skipped by WP6_SKIP_FRONTEND_E2E=1 =="
+  fi
 
   run_step "portal-web build" \
     bash -lc "cd '$ROOT_DIR/portal-web' && npm run build"
