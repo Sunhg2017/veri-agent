@@ -2,6 +2,7 @@ package com.songhg.veri.agent.apiautomation.application;
 
 import com.songhg.veri.agent.apiautomation.application.command.CreateApiAutomationSpecCommand;
 import com.songhg.veri.agent.apiautomation.application.command.CreateApiAutomationGenerationTaskCommand;
+import com.songhg.veri.agent.apiautomation.application.command.CreateApiAutomationRunCommand;
 import com.songhg.veri.agent.apiautomation.application.query.ApiAutomationSpecPageRequest;
 import com.songhg.veri.agent.authorization.application.ResourceScope;
 import java.util.UUID;
@@ -57,5 +58,16 @@ public class ApiAutomationPermissionScopeResolver {
 
     public ResourceScope scriptBundle(UUID id) {
         return ResourceScope.project(scopeService.scriptBundleProjectScopeId(id));
+    }
+
+    public ResourceScope runRequest(CreateApiAutomationRunCommand command) {
+        if (command != null && command.bundleId() != null) {
+            return scriptBundle(command.bundleId());
+        }
+        return ResourceScope.platform();
+    }
+
+    public ResourceScope run(UUID id) {
+        return ResourceScope.project(scopeService.runProjectScopeId(id));
     }
 }

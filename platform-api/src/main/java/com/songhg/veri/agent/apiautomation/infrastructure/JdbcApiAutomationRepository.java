@@ -5,6 +5,8 @@ import com.songhg.veri.agent.apiautomation.application.query.ApiAutomationSpecQu
 import com.songhg.veri.agent.apiautomation.domain.ApiAutomationCase;
 import com.songhg.veri.agent.apiautomation.domain.ApiAutomationEndpointSnapshot;
 import com.songhg.veri.agent.apiautomation.domain.ApiAutomationGenerationTask;
+import com.songhg.veri.agent.apiautomation.domain.ApiAutomationRun;
+import com.songhg.veri.agent.apiautomation.domain.ApiAutomationRunResult;
 import com.songhg.veri.agent.apiautomation.domain.ApiAutomationScriptBundle;
 import com.songhg.veri.agent.apiautomation.domain.ApiAutomationSpec;
 import com.songhg.veri.agent.apiautomation.infrastructure.mapper.ApiAutomationMapper;
@@ -70,6 +72,16 @@ public class JdbcApiAutomationRepository implements ApiAutomationRepository {
     }
 
     @Override
+    public void insertRun(ApiAutomationRun run) {
+        mapper.insertRun(run);
+    }
+
+    @Override
+    public void insertRunResult(ApiAutomationRunResult result) {
+        mapper.insertRunResult(result);
+    }
+
+    @Override
     public Optional<ApiAutomationSpec> spec(UUID id) {
         return Optional.ofNullable(mapper.spec(id));
     }
@@ -82,6 +94,11 @@ public class JdbcApiAutomationRepository implements ApiAutomationRepository {
     @Override
     public Optional<ApiAutomationScriptBundle> scriptBundle(UUID id) {
         return Optional.ofNullable(mapper.scriptBundle(id));
+    }
+
+    @Override
+    public Optional<ApiAutomationRun> run(UUID id) {
+        return Optional.ofNullable(mapper.run(id));
     }
 
     @Override
@@ -125,6 +142,11 @@ public class JdbcApiAutomationRepository implements ApiAutomationRepository {
     }
 
     @Override
+    public List<ApiAutomationRunResult> runResults(UUID runId) {
+        return mapper.runResults(runId);
+    }
+
+    @Override
     public Optional<String> specProjectScopeId(UUID id) {
         return Optional.ofNullable(mapper.specProjectScopeId(id));
     }
@@ -137,5 +159,10 @@ public class JdbcApiAutomationRepository implements ApiAutomationRepository {
     @Override
     public Optional<String> scriptBundleProjectScopeId(UUID id) {
         return Optional.ofNullable(mapper.scriptBundleProjectScopeId(id));
+    }
+
+    @Override
+    public Optional<String> runProjectScopeId(UUID id) {
+        return Optional.ofNullable(mapper.runProjectScopeId(id));
     }
 }

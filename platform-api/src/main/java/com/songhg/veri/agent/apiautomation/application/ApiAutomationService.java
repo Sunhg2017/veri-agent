@@ -4,12 +4,14 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.songhg.veri.agent.apiautomation.application.command.CreateApiAutomationGenerationTaskCommand;
+import com.songhg.veri.agent.apiautomation.application.command.CreateApiAutomationRunCommand;
 import com.songhg.veri.agent.apiautomation.application.command.CreateApiAutomationSpecCommand;
 import com.songhg.veri.agent.apiautomation.application.command.ReviewApiAutomationScriptBundleCommand;
 import com.songhg.veri.agent.apiautomation.application.command.SyncApiAutomationSpecCommand;
 import com.songhg.veri.agent.apiautomation.application.parser.OpenApiParseResult;
 import com.songhg.veri.agent.apiautomation.application.parser.ParsedOpenApiEndpoint;
 import com.songhg.veri.agent.apiautomation.application.port.ApiAutomationRepository;
+import com.songhg.veri.agent.apiautomation.application.port.ApiAutomationRunnerPort;
 import com.songhg.veri.agent.apiautomation.application.query.ApiAutomationSpecPageRequest;
 import com.songhg.veri.agent.apiautomation.application.query.ApiAutomationSpecQuery;
 import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationDiffResponse;
@@ -18,6 +20,9 @@ import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationCaseRes
 import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationGenerationTaskDetailResponse;
 import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationGenerationTaskResponse;
 import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationHealthResponse;
+import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationRunDetailResponse;
+import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationRunResponse;
+import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationRunResultResponse;
 import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationScriptBundleResponse;
 import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationSyncItemResponse;
 import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationSyncResponse;
@@ -27,6 +32,8 @@ import com.songhg.veri.agent.apiautomation.config.ApiAutomationProperties;
 import com.songhg.veri.agent.apiautomation.domain.ApiAutomationCase;
 import com.songhg.veri.agent.apiautomation.domain.ApiAutomationEndpointSnapshot;
 import com.songhg.veri.agent.apiautomation.domain.ApiAutomationGenerationTask;
+import com.songhg.veri.agent.apiautomation.domain.ApiAutomationRun;
+import com.songhg.veri.agent.apiautomation.domain.ApiAutomationRunResult;
 import com.songhg.veri.agent.apiautomation.domain.ApiAutomationScriptBundle;
 import com.songhg.veri.agent.apiautomation.domain.ApiAutomationSpec;
 import com.songhg.veri.agent.apiautomation.infrastructure.openapi.OpenApiSpecParser;
@@ -40,11 +47,15 @@ import com.songhg.veri.agent.asset.application.view.TestCaseStepResponse;
 import com.songhg.veri.agent.common.api.PageResponse;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
+import com.songhg.veri.agent.common.trace.TraceContext;
 import com.songhg.veri.agent.modelaccess.application.ModelInvocationService;
 import com.songhg.veri.agent.modelaccess.application.command.ModelInvocationCommand;
 import com.songhg.veri.agent.modelaccess.application.view.ModelInvocationResult;
 import com.songhg.veri.agent.modelaccess.domain.ChatMessage;
 import com.songhg.veri.agent.modelaccess.security.ServicePrincipal;
+import java.net.IDN;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -77,10 +88,14 @@ public class ApiAutomationService {
     private static final int GENERATION_SOURCE_TEST_CASE_MAX = 20;
     private static final int GENERATION_SOURCE_STEP_MAX = 3;
     private static final int GENERATION_SOURCE_TEXT_MAX_CHARS = 160;
+    private static final int RUNNER_BASE_URL_MAX_CHARS = 512;
     private static final List<String> DIFF_STATUSES = List.of("NEW", "CHANGED", "MATCHED", "CONFLICT", "SKIPPED");
     private static final Set<String> GENERATION_MODES = Set.of("FALLBACK_ONLY", "MODEL_WITH_FALLBACK");
     private static final Set<String> COVERAGE_TYPES = Set.of("SMOKE", "FUNCTIONAL", "EXCEPTION");
     private static final Set<String> SCRIPT_REVIEW_SUBMITTABLE_STATUSES = Set.of("DRAFT", "REJECTED");
+    private static final Set<String> RUN_STATUSES = Set.of("BLOCKED", "QUEUED", "RUNNING", "PASSED", "FAILED", "TIMEOUT", "CANCELED");
+    private static final Set<String> RUN_RESULT_STATUSES = Set.of("PASSED", "FAILED", "SKIPPED", "ERROR", "TIMEOUT", "BLOCKED");
+    private static final Set<String> BLOCKED_RUN_TARGET_HOSTS = Set.of("localhost", "metadata.google.internal");
     private static final String SCRIPT_TEMPLATE_VERSION = "wp6-pytest-httpx-v1";
     private static final String STATIC_CHECK_PASSED = "PASSED";
     private static final String STATIC_CHECK_FAILED = "SCRIPT_STATIC_CHECK_FAILED";
@@ -97,12 +112,14 @@ public class ApiAutomationService {
             Pattern.compile("(?m)^\\s*(import|from)\\s+(subprocess|socket|ftplib|paramiko|telnetlib|pickle|marshal)\\b"),
             Pattern.compile("\\b(os\\.system|eval|exec|__import__)\\s*\\(")
     );
+    private static final Pattern IPV4_LITERAL_PATTERN = Pattern.compile("\\d{1,3}(\\.\\d{1,3}){3}");
     private static final TypeReference<Map<String, Object>> MAP_TYPE = new TypeReference<>() {
     };
     private static final TypeReference<List<String>> STRING_LIST_TYPE = new TypeReference<>() {
     };
 
     private final ApiAutomationRepository repository;
+    private final ApiAutomationRunnerPort runnerPort;
     private final OpenApiSpecParser parser;
     private final ApiAutomationProperties properties;
     private final ApiAutomationPlatformContextClient contextClient;
@@ -115,6 +132,7 @@ public class ApiAutomationService {
 
     public ApiAutomationService(
             ApiAutomationRepository repository,
+            ApiAutomationRunnerPort runnerPort,
             OpenApiSpecParser parser,
             ApiAutomationProperties properties,
             ApiAutomationPlatformContextClient contextClient,
@@ -126,6 +144,7 @@ public class ApiAutomationService {
             ObjectMapper objectMapper
     ) {
         this.repository = repository;
+        this.runnerPort = runnerPort;
         this.parser = parser;
         this.properties = properties;
         this.contextClient = contextClient;
@@ -145,8 +164,8 @@ public class ApiAutomationService {
                 properties.effectiveSpecMaxBytes(),
                 properties.effectiveEndpointMaxCount(),
                 properties.runnerEnabled(),
-                properties.runnerTimeoutSeconds(),
-                properties.runnerMaxCases(),
+                properties.effectiveRunnerTimeoutSeconds(null),
+                properties.effectiveRunnerMaxCases(),
                 properties.promptKey(),
                 properties.modelFallbackEnabled(),
                 Map.ofEntries(
@@ -161,6 +180,9 @@ public class ApiAutomationService {
                         Map.entry("modelGenerationReady", true),
                         Map.entry("scriptBundleReady", true),
                         Map.entry("scriptBundleReviewReady", true),
+                        Map.entry("runnerRunReady", true),
+                        Map.entry("runnerArtifactMaxBytes", properties.effectiveRunnerArtifactMaxBytes()),
+                        Map.entry("runnerAllowedBaseUrlConfigured", !allowedBaseUrlPatterns().isEmpty()),
                         Map.entry("aggregateOnly", true)
                 )
         );
@@ -475,6 +497,415 @@ public class ApiAutomationService {
         repository.updateScriptBundleReview(updated);
         auditScriptBundle(updated, "FAILED", "REJECTED", Map.of("notePresent", true));
         return toScriptBundleResponse(updated);
+    }
+
+    @Transactional
+    public ApiAutomationRunDetailResponse createRun(CreateApiAutomationRunCommand command) {
+        if (command == null) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "run 请求不能为空");
+        }
+        ApiAutomationScriptBundle bundle = requireScriptBundle(command.bundleId());
+        ApiAutomationGenerationTask task = repository.generationTask(bundle.taskId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "接口自动化生成任务不存在: " + bundle.taskId()));
+        List<ApiAutomationCase> cases = selectedRunCases(task, command.caseIds());
+        RunTarget target = validateRunTarget(command.baseUrl());
+        int timeoutSeconds = properties.effectiveRunnerTimeoutSeconds(command.timeoutSeconds());
+        Instant now = Instant.now();
+        String actor = actorResolver.currentActor();
+        UUID runId = UUID.randomUUID();
+
+        /*
+         * Runner admission is a control-plane safety gate: every attempt is persisted with a sanitized target digest
+         * and host, while the raw baseUrl and runtime output are discarded after validation.
+         */
+        RunBlock block = runBlockReason(bundle, cases, target);
+        if (block != null) {
+            ApiAutomationRun run = newRun(
+                    runId,
+                    bundle,
+                    command,
+                    target,
+                    "BLOCKED",
+                    timeoutSeconds,
+                    cases.size(),
+                    properties.runnerEnabled() ? "NOOP" : "DISABLED",
+                    block.errorCode(),
+                    block.errorSummary(),
+                    actor,
+                    now,
+                    now,
+                    now
+            );
+            repository.insertRun(run);
+            List<ApiAutomationRunResult> results = blockedRunResults(run, cases, block, now);
+            results.forEach(repository::insertRunResult);
+            auditRun(run, "FAILED", "BLOCKED", Map.of(
+                    "errorCode", block.errorCode(),
+                    "caseCount", cases.size(),
+                    "baseUrlHost", target.host()
+            ));
+            return toRunDetail(run, results);
+        }
+
+        ApiAutomationRunnerPort.RunnerRunResult attempt = runnerPort.run(new ApiAutomationRunnerPort.RunnerRunRequest(
+                runId,
+                bundle,
+                cases,
+                target.normalizedBaseUrl(),
+                timeoutSeconds
+        ));
+        String status = normalizeRunStatus(attempt.status());
+        String runnerMode = normalizeRunnerMode(attempt.runnerMode());
+        Instant completedAt = Instant.now();
+        ApiAutomationRun run = newRun(
+                runId,
+                bundle,
+                command,
+                target,
+                status,
+                timeoutSeconds,
+                cases.size(),
+                runnerMode,
+                boundedNullableText(attempt.errorCode(), 64),
+                boundedNullableText(attempt.errorSummary(), ERROR_SUMMARY_MAX_CHARS),
+                actor,
+                now,
+                now,
+                completedAt
+        );
+        repository.insertRun(run);
+        List<ApiAutomationRunResult> results = runnerResults(run, cases, attempt, completedAt);
+        results.forEach(repository::insertRunResult);
+        auditRun(run, "SUCCESS", "STARTED", Map.of(
+                "runnerMode", run.runnerMode(),
+                "caseCount", run.caseCount()
+        ));
+        auditRun(run, runAuditResult(status), "COMPLETED", Map.of(
+                "status", run.status(),
+                "runnerMode", run.runnerMode(),
+                "caseCount", run.caseCount(),
+                "resultCount", results.size()
+        ));
+        return toRunDetail(run, results);
+    }
+
+    @Transactional(readOnly = true)
+    public ApiAutomationRunDetailResponse runDetail(UUID id) {
+        ApiAutomationRun run = repository.run(id)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "接口自动化运行任务不存在: " + id));
+        return toRunDetail(run, repository.runResults(id));
+    }
+
+    private List<ApiAutomationCase> selectedRunCases(ApiAutomationGenerationTask task, List<UUID> requestedCaseIds) {
+        List<ApiAutomationCase> allCases = repository.automationCases(task.id());
+        if (allCases.isEmpty()) {
+            throw new BusinessException(ErrorCode.INVALID_STATE, "生成任务没有可运行的自动化用例");
+        }
+        List<UUID> requested = normalizedUuidList(requestedCaseIds);
+        List<ApiAutomationCase> selected = requested.isEmpty()
+                ? allCases
+                : allCases.stream().filter(automationCase -> requested.contains(automationCase.id())).toList();
+        if (!requested.isEmpty()) {
+            Set<UUID> found = selected.stream().map(ApiAutomationCase::id).collect(Collectors.toSet());
+            if (!found.containsAll(requested)) {
+                throw new BusinessException(ErrorCode.VALIDATION_ERROR, "caseIds 必须来自脚本包关联的生成任务");
+            }
+        }
+        if (selected.size() > properties.effectiveRunnerMaxCases()) {
+            throw new BusinessException(
+                    ErrorCode.VALIDATION_ERROR,
+                    "RUNNER_CASE_LIMIT_EXCEEDED: 单次运行最多 " + properties.effectiveRunnerMaxCases() + " 条用例"
+            );
+        }
+        return selected;
+    }
+
+    /**
+     * Normalizes the runner base URL before any persistence. The raw URL is used only for the runner adapter call; the
+     * database receives a digest and host so queryability and audit correlation do not leak path, query or credentials.
+     */
+    private RunTarget validateRunTarget(String rawBaseUrl) {
+        String bounded = boundedNullableText(rawBaseUrl, RUNNER_BASE_URL_MAX_CHARS);
+        if (!StringUtils.hasText(bounded)) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "baseUrl 必填");
+        }
+        URI uri;
+        try {
+            uri = new URI(bounded);
+        } catch (URISyntaxException exception) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "baseUrl 必须是合法 HTTP/HTTPS URL");
+        }
+        String scheme = uri.getScheme() == null ? "" : uri.getScheme().toLowerCase(Locale.ROOT);
+        if (!Set.of("http", "https").contains(scheme)) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "baseUrl 仅支持 http/https");
+        }
+        if (StringUtils.hasText(uri.getRawUserInfo()) || StringUtils.hasText(uri.getRawQuery())
+                || StringUtils.hasText(uri.getRawFragment())) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "baseUrl 不允许携带 userInfo/query/fragment");
+        }
+        String host = normalizedHost(uri.getHost());
+        if (!StringUtils.hasText(host)) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "baseUrl 必须包含 host");
+        }
+        String path = StringUtils.hasText(uri.getRawPath()) ? uri.getRawPath() : "";
+        if (path.endsWith("/") && path.length() > 1) {
+            path = path.substring(0, path.length() - 1);
+        }
+        int port = uri.getPort();
+        String authority = port > 0 ? host + ":" + port : host;
+        String normalized = scheme + "://" + authority + path;
+        return new RunTarget(normalized, host, sha256(normalized), blockedTargetHost(host), allowedTargetHost(host));
+    }
+
+    private String normalizedHost(String host) {
+        if (!StringUtils.hasText(host)) {
+            return "";
+        }
+        try {
+            return IDN.toASCII(host.trim().toLowerCase(Locale.ROOT));
+        } catch (IllegalArgumentException exception) {
+            return "";
+        }
+    }
+
+    private boolean blockedTargetHost(String host) {
+        if (!StringUtils.hasText(host)) {
+            return true;
+        }
+        String normalized = host.toLowerCase(Locale.ROOT);
+        if (BLOCKED_RUN_TARGET_HOSTS.contains(normalized) || normalized.endsWith(".localhost")) {
+            return true;
+        }
+        if ("169.254.169.254".equals(normalized) || "::1".equals(normalized) || "0:0:0:0:0:0:0:1".equals(normalized)) {
+            return true;
+        }
+        if (IPV4_LITERAL_PATTERN.matcher(normalized).matches()) {
+            return privateIpv4(normalized);
+        }
+        return normalized.startsWith("[") || normalized.endsWith(".local");
+    }
+
+    private boolean privateIpv4(String host) {
+        String[] parts = host.split("\\.");
+        int first = Integer.parseInt(parts[0]);
+        int second = Integer.parseInt(parts[1]);
+        if (first == 10 || first == 127 || first == 0 || first == 169 && second == 254) {
+            return true;
+        }
+        if (first == 172 && second >= 16 && second <= 31) {
+            return true;
+        }
+        return first == 192 && second == 168;
+    }
+
+    private boolean allowedTargetHost(String host) {
+        List<String> patterns = allowedBaseUrlPatterns();
+        if (patterns.isEmpty()) {
+            return false;
+        }
+        return patterns.stream().anyMatch(pattern -> hostMatchesPattern(host, pattern));
+    }
+
+    private List<String> allowedBaseUrlPatterns() {
+        if (!StringUtils.hasText(properties.runnerAllowedBaseUrlPatterns())) {
+            return List.of();
+        }
+        return List.of(properties.runnerAllowedBaseUrlPatterns().split(",")).stream()
+                .map(String::trim)
+                .map(value -> value.toLowerCase(Locale.ROOT))
+                .filter(StringUtils::hasText)
+                .distinct()
+                .toList();
+    }
+
+    private boolean hostMatchesPattern(String host, String pattern) {
+        String normalizedHost = host.toLowerCase(Locale.ROOT);
+        String normalizedPattern = pattern;
+        if (normalizedPattern.startsWith("http://") || normalizedPattern.startsWith("https://")) {
+            try {
+                normalizedPattern = normalizedHost(new URI(normalizedPattern).getHost());
+            } catch (URISyntaxException exception) {
+                return false;
+            }
+        }
+        if (normalizedPattern.startsWith("*.")) {
+            String suffix = normalizedPattern.substring(1);
+            return normalizedHost.endsWith(suffix) && normalizedHost.length() > suffix.length();
+        }
+        return normalizedHost.equals(normalizedPattern);
+    }
+
+    private RunBlock runBlockReason(ApiAutomationScriptBundle bundle, List<ApiAutomationCase> cases, RunTarget target) {
+        if (!"APPROVED".equals(bundle.status())) {
+            return new RunBlock("RUNNER_BUNDLE_NOT_APPROVED", "脚本包未审批通过，不能运行");
+        }
+        if (!STATIC_CHECK_PASSED.equals(bundle.staticCheckStatus())) {
+            return new RunBlock(STATIC_CHECK_FAILED, "脚本静态校验未通过，不能运行");
+        }
+        if (target.blocked() || properties.runnerEnabled() && !target.allowed()) {
+            return new RunBlock("RUNNER_TARGET_BLOCKED", "runner 目标地址未通过安全策略");
+        }
+        if (!properties.runnerEnabled()) {
+            return new RunBlock("RUNNER_DISABLED", "runner 默认关闭，未执行外部请求");
+        }
+        ApiAutomationRunnerPort.RunnerValidation validation = runnerPort.validateBundle(bundle);
+        if (!validation.accepted()) {
+            return new RunBlock(
+                    StringUtils.hasText(validation.errorCode())
+                            ? boundedText(validation.errorCode(), 64)
+                            : "RUNNER_FAILED",
+                    StringUtils.hasText(validation.errorSummary())
+                            ? boundedText(validation.errorSummary(), ERROR_SUMMARY_MAX_CHARS)
+                            : "runner 校验失败"
+            );
+        }
+        if (cases.isEmpty()) {
+            return new RunBlock("RUNNER_CASE_NOT_FOUND", "没有可运行的用例");
+        }
+        return null;
+    }
+
+    private ApiAutomationRun newRun(
+            UUID runId,
+            ApiAutomationScriptBundle bundle,
+            CreateApiAutomationRunCommand command,
+            RunTarget target,
+            String status,
+            int timeoutSeconds,
+            int caseCount,
+            String runnerMode,
+            String errorCode,
+            String errorSummary,
+            String actor,
+            Instant now,
+            Instant startedAt,
+            Instant completedAt
+    ) {
+        return new ApiAutomationRun(
+                runId,
+                bundle.projectId(),
+                bundle.id(),
+                boundedNullableText(command.environmentId(), 128),
+                target.digest(),
+                target.host(),
+                status,
+                timeoutSeconds,
+                caseCount,
+                TraceContext.getOrCreateTraceId(),
+                runnerMode,
+                errorCode,
+                errorSummary,
+                actor,
+                actor,
+                startedAt,
+                completedAt,
+                now,
+                completedAt == null ? now : completedAt
+        );
+    }
+
+    private List<ApiAutomationRunResult> blockedRunResults(
+            ApiAutomationRun run,
+            List<ApiAutomationCase> cases,
+            RunBlock block,
+            Instant now
+    ) {
+        return cases.stream()
+                .map(automationCase -> new ApiAutomationRunResult(
+                        UUID.randomUUID(),
+                        run.id(),
+                        automationCase.id(),
+                        "BLOCKED",
+                        0,
+                        writeJson(Map.of(
+                                "aggregateOnly", true,
+                                "rawRequestResponseStored", false,
+                                "reason", block.errorCode()
+                        )),
+                        block.errorCode(),
+                        block.errorSummary(),
+                        now,
+                        now
+                ))
+                .toList();
+    }
+
+    private List<ApiAutomationRunResult> runnerResults(
+            ApiAutomationRun run,
+            List<ApiAutomationCase> cases,
+            ApiAutomationRunnerPort.RunnerRunResult attempt,
+            Instant now
+    ) {
+        Map<UUID, ApiAutomationRunnerPort.RunnerCaseResult> resultByCaseId = attempt.caseResults() == null
+                ? Map.of()
+                : attempt.caseResults().stream()
+                .filter(result -> result.caseId() != null)
+                .collect(Collectors.toMap(
+                        ApiAutomationRunnerPort.RunnerCaseResult::caseId,
+                        result -> result,
+                        (existing, ignored) -> existing,
+                        LinkedHashMap::new
+                ));
+        return cases.stream()
+                .map(automationCase -> {
+                    ApiAutomationRunnerPort.RunnerCaseResult runnerResult = resultByCaseId.get(automationCase.id());
+                    String status = runnerResult == null ? runResultStatusFromRun(run.status()) : normalizeRunResultStatus(runnerResult.status());
+                    return new ApiAutomationRunResult(
+                            UUID.randomUUID(),
+                            run.id(),
+                            automationCase.id(),
+                            status,
+                            runnerResult == null ? 0 : Math.max(0, runnerResult.durationMs()),
+                            safeAssertionSummary(runnerResult == null ? null : runnerResult.assertionSummaryJson()),
+                            runnerResult == null ? run.errorCode() : boundedNullableText(runnerResult.errorCode(), 64),
+                            runnerResult == null
+                                    ? run.errorSummary()
+                                    : boundedNullableText(runnerResult.errorSummary(), ERROR_SUMMARY_MAX_CHARS),
+                            now,
+                            now
+                    );
+                })
+                .toList();
+    }
+
+    private String safeAssertionSummary(String value) {
+        Map<String, Object> summary = readSummary(value);
+        if (summary.isEmpty()) {
+            return writeJson(Map.of("aggregateOnly", true, "rawRequestResponseStored", false));
+        }
+        Map<String, Object> sanitized = new LinkedHashMap<>(summary);
+        sanitized.put("aggregateOnly", true);
+        sanitized.put("rawRequestResponseStored", false);
+        sanitized.put("secretValuesStored", false);
+        return writeJson(sanitized);
+    }
+
+    private String normalizeRunStatus(String status) {
+        String normalized = StringUtils.hasText(status) ? status.trim().toUpperCase(Locale.ROOT) : "FAILED";
+        return RUN_STATUSES.contains(normalized) ? normalized : "FAILED";
+    }
+
+    private String normalizeRunResultStatus(String status) {
+        String normalized = StringUtils.hasText(status) ? status.trim().toUpperCase(Locale.ROOT) : "ERROR";
+        return RUN_RESULT_STATUSES.contains(normalized) ? normalized : "ERROR";
+    }
+
+    private String runResultStatusFromRun(String runStatus) {
+        return switch (runStatus) {
+            case "PASSED" -> "PASSED";
+            case "TIMEOUT" -> "TIMEOUT";
+            case "BLOCKED" -> "BLOCKED";
+            default -> "ERROR";
+        };
+    }
+
+    private String normalizeRunnerMode(String runnerMode) {
+        String normalized = StringUtils.hasText(runnerMode) ? runnerMode.trim().toUpperCase(Locale.ROOT) : "NOOP";
+        return Set.of("DISABLED", "NOOP", "MANAGED", "EXTERNAL").contains(normalized) ? normalized : "NOOP";
+    }
+
+    private String runAuditResult(String status) {
+        return "PASSED".equals(status) ? "SUCCESS" : "FAILED";
     }
 
     /**
@@ -1902,6 +2333,50 @@ public class ApiAutomationService {
         );
     }
 
+    private ApiAutomationRunDetailResponse toRunDetail(ApiAutomationRun run, List<ApiAutomationRunResult> results) {
+        return new ApiAutomationRunDetailResponse(
+                toRunResponse(run),
+                results.stream().map(this::toRunResultResponse).toList()
+        );
+    }
+
+    private ApiAutomationRunResponse toRunResponse(ApiAutomationRun run) {
+        return new ApiAutomationRunResponse(
+                run.id(),
+                run.projectId(),
+                run.bundleId(),
+                run.environmentId(),
+                run.baseUrlDigest(),
+                run.baseUrlHost(),
+                run.status(),
+                run.timeoutSeconds(),
+                run.caseCount(),
+                run.traceId(),
+                run.runnerMode(),
+                run.errorCode(),
+                run.errorSummary(),
+                run.startedAt(),
+                run.completedAt(),
+                run.createdAt(),
+                run.updatedAt()
+        );
+    }
+
+    private ApiAutomationRunResultResponse toRunResultResponse(ApiAutomationRunResult result) {
+        return new ApiAutomationRunResultResponse(
+                result.id(),
+                result.runId(),
+                result.caseId(),
+                result.status(),
+                result.durationMs(),
+                readSummary(result.assertionSummaryJson()),
+                result.errorCode(),
+                result.errorSummary(),
+                result.createdAt(),
+                result.updatedAt()
+        );
+    }
+
     private ApiAutomationSpecResponse toSpecResponse(ApiAutomationSpec spec) {
         return new ApiAutomationSpecResponse(
                 spec.id(),
@@ -2194,6 +2669,30 @@ public class ApiAutomationService {
         );
     }
 
+    private void auditRun(
+            ApiAutomationRun run,
+            String result,
+            String action,
+            Map<String, Object> afterJson
+    ) {
+        Map<String, Object> payload = new LinkedHashMap<>(afterJson);
+        payload.put("runId", run.id().toString());
+        payload.put("bundleId", run.bundleId().toString());
+        payload.put("status", run.status());
+        payload.put("runnerMode", run.runnerMode());
+        payload.put("runAction", action);
+        contextClient.writeAuditEvent(
+                ("BLOCKED".equals(action) || "STARTED".equals(action))
+                        ? "api_automation.run.started"
+                        : "api_automation.run.completed",
+                "API_AUTOMATION_RUN",
+                run.id().toString(),
+                run.projectId(),
+                result,
+                payload
+        );
+    }
+
     private record GenerationRequest(
             String projectId,
             UUID specId,
@@ -2238,6 +2737,21 @@ public class ApiAutomationService {
             String path,
             String kind,
             String content
+    ) {
+    }
+
+    private record RunTarget(
+            String normalizedBaseUrl,
+            String host,
+            String digest,
+            boolean blocked,
+            boolean allowed
+    ) {
+    }
+
+    private record RunBlock(
+            String errorCode,
+            String errorSummary
     ) {
     }
 

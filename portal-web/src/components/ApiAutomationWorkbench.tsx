@@ -3,6 +3,7 @@ import {
   CheckCircle2,
   ClipboardCheck,
   FileText,
+  Play,
   ListChecks,
   RefreshCw,
   RotateCcw,
@@ -14,6 +15,7 @@ import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNo
 import type { CurrentUser } from '../api/auth';
 import {
   createApiAutomationGenerationTask,
+  createApiAutomationRun,
   createApiAutomationSpec,
   approveApiAutomationScriptBundle,
   fetchApiAutomationDiff,
@@ -28,6 +30,7 @@ import {
   type ApiAutomationEndpointSnapshot,
   type ApiAutomationGenerationTaskDetail,
   type ApiAutomationHealth,
+  type ApiAutomationRunDetail,
   type ApiAutomationScriptBundle,
   type ApiAutomationSpec,
   type ApiAutomationSpecDetail,
@@ -62,6 +65,7 @@ export function ApiAutomationWorkbench(props: { signedIn: boolean; currentUser: 
   const canImport = canUseButton(props.currentUser, 'apiAutomation:import');
   const canGenerate = canUseButton(props.currentUser, 'apiAutomation:generate');
   const canReview = canUseButton(props.currentUser, 'apiAutomation:review');
+  const canExecute = canUseButton(props.currentUser, 'apiAutomation:execute');
   const [health, setHealth] = useState<ApiAutomationHealth | null>(null);
   const [specs, setSpecs] = useState<ApiAutomationSpec[]>([]);
   const [selectedSpecId, setSelectedSpecId] = useState('');
@@ -75,11 +79,16 @@ export function ApiAutomationWorkbench(props: { signedIn: boolean; currentUser: 
   const [syncState, setSyncState] = useState<WorkState>({ loading: false });
   const [generationState, setGenerationState] = useState<WorkState>({ loading: false });
   const [scriptBundleState, setScriptBundleState] = useState<WorkState>({ loading: false });
+  const [runState, setRunState] = useState<WorkState>({ loading: false });
   const [lastSync, setLastSync] = useState<ApiAutomationSyncResponse | null>(null);
   const [lastGeneration, setLastGeneration] = useState<ApiAutomationGenerationTaskDetail | null>(null);
+  const [lastRun, setLastRun] = useState<ApiAutomationRunDetail | null>(null);
   const [generationAssetTestCaseIds, setGenerationAssetTestCaseIds] = useState('');
   const [generationMode, setGenerationMode] = useState<'MODEL_WITH_FALLBACK' | 'FALLBACK_ONLY'>('MODEL_WITH_FALLBACK');
   const [reviewNote, setReviewNote] = useState('');
+  const [runBaseUrl, setRunBaseUrl] = useState('');
+  const [runEnvironmentId, setRunEnvironmentId] = useState('');
+  const [runCaseIds, setRunCaseIds] = useState('');
 
   const summary = useMemo(() => {
     const parsed = specs.filter((spec) => spec.status === 'PARSED').length;
@@ -171,6 +180,7 @@ export function ApiAutomationWorkbench(props: { signedIn: boolean; currentUser: 
       setParseState({ loading: false, success: '解析已刷新' });
       setLastSync(null);
       setLastGeneration(null);
+      setLastRun(null);
       await refreshSpecs();
     } catch (error: unknown) {
       setParseState({ loading: false, error: error instanceof Error ? error.message : '解析失败' });
@@ -196,6 +206,7 @@ export function ApiAutomationWorkbench(props: { signedIn: boolean; currentUser: 
       const result = await syncApiAutomationSpec(selectedSpecId);
       setLastSync(result.data);
       setLastGeneration(null);
+      setLastRun(null);
       setDetail((current) => current ? { ...current, endpoints: result.data.endpoints } : current);
       setSyncState({ loading: false, success: syncSummaryText(result.data.counts) });
       await refreshSpecs();
@@ -223,6 +234,7 @@ export function ApiAutomationWorkbench(props: { signedIn: boolean; currentUser: 
         requestKey: `wp6-${effectiveGenerationMode.toLowerCase()}-${selectedSpecId}`
       });
       setLastGeneration(result.data);
+      setLastRun(null);
       setReviewNote('');
       setGenerationState({ loading: false, success: generationSummaryText(result.data) });
     } catch (error: unknown) {
@@ -271,6 +283,28 @@ export function ApiAutomationWorkbench(props: { signedIn: boolean; currentUser: 
       mergeScriptBundle(result.data, '脚本包已驳回');
     } catch (error: unknown) {
       setScriptBundleState({ loading: false, error: error instanceof Error ? error.message : '驳回失败' });
+    }
+  }
+
+  async function onCreateRun(bundle: ApiAutomationScriptBundle) {
+    if (!canExecute) return;
+    if (!runBaseUrl.trim()) {
+      setRunState({ loading: false, error: '请填写 baseUrl' });
+      return;
+    }
+    setRunState({ loading: true });
+    try {
+      const caseIds = parseIdList(runCaseIds);
+      const result = await createApiAutomationRun({
+        bundleId: bundle.id,
+        environmentId: optionalText(runEnvironmentId),
+        baseUrl: runBaseUrl.trim(),
+        caseIds: caseIds.length ? caseIds : undefined
+      });
+      setLastRun(result.data);
+      setRunState({ loading: false, success: runSummaryText(result.data) });
+    } catch (error: unknown) {
+      setRunState({ loading: false, error: error instanceof Error ? error.message : '运行失败' });
     }
   }
 
@@ -460,19 +494,32 @@ export function ApiAutomationWorkbench(props: { signedIn: boolean; currentUser: 
           {generationState.success && <div className="document-state-line success">{generationState.success}</div>}
           {scriptBundleState.error && <div className="document-state-line error">{scriptBundleState.error}</div>}
           {scriptBundleState.success && <div className="document-state-line success">{scriptBundleState.success}</div>}
+          {runState.error && <div className="document-state-line error">{runState.error}</div>}
+          {runState.success && <div className="document-state-line success">{runState.success}</div>}
           {lastSync && <SyncSummary sync={lastSync} />}
           {lastGeneration && (
             <GenerationSummary
               generation={lastGeneration}
+              health={health}
               canGenerate={canGenerate}
               canReview={canReview}
+              canExecute={canExecute}
               loading={scriptBundleState.loading}
+              runLoading={runState.loading}
               reviewNote={reviewNote}
+              runBaseUrl={runBaseUrl}
+              runEnvironmentId={runEnvironmentId}
+              runCaseIds={runCaseIds}
+              lastRun={lastRun}
               onReviewNoteChange={setReviewNote}
+              onRunBaseUrlChange={setRunBaseUrl}
+              onRunEnvironmentIdChange={setRunEnvironmentId}
+              onRunCaseIdsChange={setRunCaseIds}
               onGenerateBundle={() => void onGenerateScriptBundle()}
               onSubmitReview={(bundle) => void onSubmitBundleReview(bundle)}
               onApprove={(bundle) => void onApproveBundle(bundle)}
               onReject={(bundle) => void onRejectBundle(bundle)}
+              onCreateRun={(bundle) => void onCreateRun(bundle)}
             />
           )}
           <EndpointTable endpoints={detail?.endpoints ?? []} loading={detailState.loading} />
@@ -555,17 +602,29 @@ function SyncSummary(props: { sync: ApiAutomationSyncResponse }) {
 
 function GenerationSummary(props: {
   generation: ApiAutomationGenerationTaskDetail;
+  health: ApiAutomationHealth | null;
   canGenerate: boolean;
   canReview: boolean;
+  canExecute: boolean;
   loading: boolean;
+  runLoading: boolean;
   reviewNote: string;
+  runBaseUrl: string;
+  runEnvironmentId: string;
+  runCaseIds: string;
+  lastRun: ApiAutomationRunDetail | null;
   onReviewNoteChange: (value: string) => void;
+  onRunBaseUrlChange: (value: string) => void;
+  onRunEnvironmentIdChange: (value: string) => void;
+  onRunCaseIdsChange: (value: string) => void;
   onGenerateBundle: () => void;
   onSubmitReview: (bundle: ApiAutomationScriptBundle) => void;
   onApprove: (bundle: ApiAutomationScriptBundle) => void;
   onReject: (bundle: ApiAutomationScriptBundle) => void;
+  onCreateRun: (bundle: ApiAutomationScriptBundle) => void;
 }) {
   const bundle = props.generation.scriptBundles[0];
+  const runnerReady = props.health?.runnerEnabled ?? false;
   return (
     <div className="api-automation-generation-summary">
       <div className="api-automation-sync-summary">
@@ -634,6 +693,52 @@ function GenerationSummary(props: {
               </>
             )}
           </div>
+          {bundle.status === 'APPROVED' && (
+            <div className="api-automation-run-panel">
+              <div className="api-automation-sync-summary">
+                <span>Runner {runnerReady ? 'ENABLED' : 'DISABLED'}</span>
+                <span>timeout {props.health?.runnerTimeoutSeconds ?? '-'}s</span>
+                <span>max {props.health?.runnerMaxCases ?? '-'} cases</span>
+              </div>
+              <div className="form-grid">
+                <Field label="baseUrl">
+                  <input
+                    value={props.runBaseUrl}
+                    onChange={(event) => props.onRunBaseUrlChange(event.target.value)}
+                    placeholder="https://api.example.test"
+                    disabled={!props.canExecute || props.runLoading}
+                  />
+                </Field>
+                <Field label="环境">
+                  <input
+                    value={props.runEnvironmentId}
+                    onChange={(event) => props.onRunEnvironmentIdChange(event.target.value)}
+                    disabled={!props.canExecute || props.runLoading}
+                  />
+                </Field>
+                <Field label="Case IDs">
+                  <input
+                    value={props.runCaseIds}
+                    onChange={(event) => props.onRunCaseIdsChange(event.target.value)}
+                    placeholder="为空则使用全部用例"
+                    disabled={!props.canExecute || props.runLoading}
+                  />
+                </Field>
+              </div>
+              <div className="api-automation-panel-actions">
+                <button
+                  className="btn btn-primary btn-sm"
+                  type="button"
+                  onClick={() => props.onCreateRun(bundle)}
+                  disabled={!props.canExecute || props.runLoading || !props.runBaseUrl.trim()}
+                >
+                  <Play size={15} />
+                  运行
+                </button>
+              </div>
+              {props.lastRun && <RunSummary run={props.lastRun} />}
+            </div>
+          )}
         </div>
       ) : (
         <button
@@ -645,6 +750,38 @@ function GenerationSummary(props: {
           <ListChecks size={15} />
           生成脚本包
         </button>
+      )}
+    </div>
+  );
+}
+
+function RunSummary(props: { run: ApiAutomationRunDetail }) {
+  const counts = props.run.results.reduce<Record<string, number>>((acc, result) => {
+    acc[result.status] = (acc[result.status] ?? 0) + 1;
+    return acc;
+  }, {});
+  return (
+    <div className="api-automation-run-result">
+      <div className="api-automation-script-bundle-head">
+        <div>
+          <span className="table-primary">运行结果</span>
+          <span className="table-secondary">{props.run.run.baseUrlHost ?? '-'} · {shortId(props.run.run.baseUrlDigest)}</span>
+        </div>
+        <div className="api-automation-panel-actions">
+          <StatusBadge status={props.run.run.status} />
+          <StatusBadge status={props.run.run.runnerMode} />
+        </div>
+      </div>
+      <div className="api-automation-sync-summary">
+        <span>{runSummaryText(props.run)}</span>
+        <span>BLOCKED {counts.BLOCKED ?? 0}</span>
+        <span>FAILED {counts.FAILED ?? 0}</span>
+        <span>PASSED {counts.PASSED ?? 0}</span>
+      </div>
+      {props.run.run.errorCode && (
+        <div className="api-automation-diff-reason error">
+          {props.run.run.errorCode}{props.run.run.errorSummary ? ` · ${props.run.run.errorSummary}` : ''}
+        </div>
       )}
     </div>
   );
@@ -682,8 +819,8 @@ function Field(props: { label: string; children: ReactNode }) {
 
 function StatusBadge(props: { status: string }) {
   const status = props.status || 'UNKNOWN';
-  const tone = status.includes('FAILED') || status === 'CONFLICT' || status === 'SKIPPED' ? 'danger'
-    : status === 'PARSED' || status === 'MATCHED' || status === 'CREATED' || status === 'UPDATED' || status === 'APPROVED' || status === 'PASSED' ? 'success'
+  const tone = status.includes('FAILED') || status === 'CONFLICT' || status === 'SKIPPED' || status === 'BLOCKED' || status === 'ERROR' ? 'danger'
+    : status === 'PARSED' || status === 'MATCHED' || status === 'CREATED' || status === 'UPDATED' || status === 'APPROVED' || status === 'PASSED' || status === 'MANAGED' ? 'success'
       : 'neutral';
   return <span className={`status-badge ${tone}`}>{status}</span>;
 }
@@ -713,6 +850,10 @@ function syncSummaryText(counts: Record<string, number>) {
 
 function generationSummaryText(generation: ApiAutomationGenerationTaskDetail) {
   return `生成：${generation.task.status} · API ${generation.task.apiCount} · CASE ${generation.task.caseCount}`;
+}
+
+function runSummaryText(run: ApiAutomationRunDetail) {
+  return `运行：${run.run.status} · CASE ${run.run.caseCount} · ${run.run.errorCode ?? 'OK'}`;
 }
 
 function shortId(value?: string) {

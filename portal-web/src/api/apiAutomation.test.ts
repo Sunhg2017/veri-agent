@@ -3,10 +3,12 @@ import { requestJson } from './client';
 import {
   approveApiAutomationScriptBundle,
   createApiAutomationGenerationTask,
+  createApiAutomationRun,
   createApiAutomationSpec,
   fetchApiAutomationDiff,
   fetchApiAutomationGenerationTask,
   fetchApiAutomationHealth,
+  fetchApiAutomationRun,
   fetchApiAutomationSpec,
   fetchApiAutomationSpecs,
   generateApiAutomationScriptBundle,
@@ -14,6 +16,7 @@ import {
   normalizeApiAutomationDiffResponse,
   normalizeApiAutomationGenerationTaskDetail,
   normalizeApiAutomationHealth,
+  normalizeApiAutomationRunDetail,
   rejectApiAutomationScriptBundle,
   normalizeApiAutomationSpecDetail,
   normalizeApiAutomationSyncResponse,
@@ -170,6 +173,40 @@ describe('WP6 API automation helpers', () => {
       cases: [{ id: 'case-1', assetTestCaseId: 'asset-case-1', expectedStatus: 200, source: 'FALLBACK' }],
       scriptBundles: [{ id: 'bundle-1', taskId: 'task-1', fileCount: 5, staticCheckStatus: 'PASSED' }]
     });
+
+    expect(normalizeApiAutomationRunDetail({
+      run: {
+        id: 'run-1',
+        project_id: 'project-alpha',
+        bundle_id: 'bundle-1',
+        environment_id: 'staging',
+        base_url_digest: 'abc123',
+        base_url_host: 'api.example.test',
+        status: 'BLOCKED',
+        timeout_seconds: '30',
+        case_count: '1',
+        runner_mode: 'DISABLED',
+        error_code: 'RUNNER_DISABLED'
+      },
+      results: [{
+        id: 'result-1',
+        run_id: 'run-1',
+        case_id: 'case-1',
+        status: 'BLOCKED',
+        duration_ms: '0',
+        assertion_summary: { aggregateOnly: true },
+        error_code: 'RUNNER_DISABLED'
+      }]
+    })).toMatchObject({
+      run: {
+        id: 'run-1',
+        bundleId: 'bundle-1',
+        baseUrlHost: 'api.example.test',
+        status: 'BLOCKED',
+        timeoutSeconds: 30
+      },
+      results: [{ id: 'result-1', caseId: 'case-1', status: 'BLOCKED' }]
+    });
   });
 
   it('calls WP6 endpoints with expected methods and query parameters', async () => {
@@ -229,6 +266,14 @@ describe('WP6 API automation helpers', () => {
     await submitApiAutomationScriptBundleReview('bundle-1', { note: 'ready' });
     await approveApiAutomationScriptBundle('bundle-1', { note: 'approved' });
     await rejectApiAutomationScriptBundle('bundle-2', { note: 'missing assertion' });
+    await createApiAutomationRun({
+      bundleId: 'bundle-1',
+      environmentId: 'staging',
+      baseUrl: 'https://api.example.test',
+      caseIds: ['case-1'],
+      timeoutSeconds: 30
+    });
+    await fetchApiAutomationRun('run-1');
     await fetchApiAutomationHealth();
 
     expect(requestJsonMock).toHaveBeenNthCalledWith(1, '/api/v1/api-automation/specs', {
@@ -273,6 +318,17 @@ describe('WP6 API automation helpers', () => {
       method: 'POST',
       body: JSON.stringify({ note: 'missing assertion' })
     });
-    expect(requestJsonMock).toHaveBeenNthCalledWith(12, '/api/v1/api-automation/health');
+    expect(requestJsonMock).toHaveBeenNthCalledWith(12, '/api/v1/api-automation/runs', {
+      method: 'POST',
+      body: JSON.stringify({
+        bundleId: 'bundle-1',
+        environmentId: 'staging',
+        baseUrl: 'https://api.example.test',
+        caseIds: ['case-1'],
+        timeoutSeconds: 30
+      })
+    });
+    expect(requestJsonMock).toHaveBeenNthCalledWith(13, '/api/v1/api-automation/runs/run-1');
+    expect(requestJsonMock).toHaveBeenNthCalledWith(14, '/api/v1/api-automation/health');
   });
 });

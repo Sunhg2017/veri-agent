@@ -4,6 +4,8 @@ import com.songhg.veri.agent.apiautomation.application.query.ApiAutomationSpecQu
 import com.songhg.veri.agent.apiautomation.domain.ApiAutomationCase;
 import com.songhg.veri.agent.apiautomation.domain.ApiAutomationEndpointSnapshot;
 import com.songhg.veri.agent.apiautomation.domain.ApiAutomationGenerationTask;
+import com.songhg.veri.agent.apiautomation.domain.ApiAutomationRun;
+import com.songhg.veri.agent.apiautomation.domain.ApiAutomationRunResult;
 import com.songhg.veri.agent.apiautomation.domain.ApiAutomationScriptBundle;
 import com.songhg.veri.agent.apiautomation.domain.ApiAutomationSpec;
 import java.util.List;
@@ -35,6 +37,8 @@ public interface ApiAutomationMapper {
 
     String scriptBundleProjectScopeId(@Param("id") UUID id);
 
+    String runProjectScopeId(@Param("id") UUID id);
+
     void deleteEndpointSnapshots(@Param("specId") UUID specId);
 
     void insertEndpointSnapshot(ApiAutomationEndpointSnapshot snapshot);
@@ -51,9 +55,15 @@ public interface ApiAutomationMapper {
 
     void updateScriptBundleReview(ApiAutomationScriptBundle bundle);
 
+    void insertRun(ApiAutomationRun run);
+
+    void insertRunResult(ApiAutomationRunResult result);
+
     ApiAutomationGenerationTask generationTask(@Param("id") UUID id);
 
     ApiAutomationScriptBundle scriptBundle(@Param("id") UUID id);
+
+    ApiAutomationRun run(@Param("id") UUID id);
 
     ApiAutomationGenerationTask generationTaskByProjectAndDigest(
             @Param("projectId") String projectId,
@@ -68,4 +78,6 @@ public interface ApiAutomationMapper {
     List<ApiAutomationCase> automationCases(@Param("taskId") UUID taskId);
 
     List<ApiAutomationScriptBundle> scriptBundles(@Param("taskId") UUID taskId);
+
+    List<ApiAutomationRunResult> runResults(@Param("runId") UUID runId);
 }

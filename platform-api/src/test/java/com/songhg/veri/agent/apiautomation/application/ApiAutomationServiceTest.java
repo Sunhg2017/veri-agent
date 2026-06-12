@@ -2,16 +2,20 @@ package com.songhg.veri.agent.apiautomation.application;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.songhg.veri.agent.apiautomation.application.command.CreateApiAutomationGenerationTaskCommand;
+import com.songhg.veri.agent.apiautomation.application.command.CreateApiAutomationRunCommand;
 import com.songhg.veri.agent.apiautomation.application.command.ReviewApiAutomationScriptBundleCommand;
+import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationRunDetailResponse;
 import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationDiffResponse;
 import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationGenerationTaskDetailResponse;
 import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationScriptBundleResponse;
+import com.songhg.veri.agent.apiautomation.application.port.ApiAutomationRunnerPort;
 import com.songhg.veri.agent.apiautomation.application.port.ApiAutomationRepository;
 import com.songhg.veri.agent.apiautomation.application.query.ApiAutomationSpecPageRequest;
 import com.songhg.veri.agent.apiautomation.application.query.ApiAutomationSpecQuery;
 import com.songhg.veri.agent.apiautomation.config.ApiAutomationProperties;
 import com.songhg.veri.agent.apiautomation.domain.ApiAutomationEndpointSnapshot;
 import com.songhg.veri.agent.apiautomation.domain.ApiAutomationSpec;
+import com.songhg.veri.agent.apiautomation.infrastructure.DisabledApiAutomationRunnerAdapter;
 import com.songhg.veri.agent.apiautomation.infrastructure.InMemoryApiAutomationRepository;
 import com.songhg.veri.agent.apiautomation.infrastructure.openapi.OpenApiSpecParser;
 import com.songhg.veri.agent.asset.application.AssetApiService;
@@ -63,6 +67,7 @@ class ApiAutomationServiceTest {
 
         ApiAutomationService service = new ApiAutomationService(
                 repository,
+                new DisabledApiAutomationRunnerAdapter(),
                 mock(OpenApiSpecParser.class),
                 new ApiAutomationProperties(65_536, 50, false, 120, 100, "wp6-api-automation-v1", true),
                 contextClient,
@@ -95,6 +100,7 @@ class ApiAutomationServiceTest {
         AssetTestCaseService assetTestCaseService = mock(AssetTestCaseService.class);
         ApiAutomationService service = new ApiAutomationService(
                 repository,
+                new DisabledApiAutomationRunnerAdapter(),
                 mock(OpenApiSpecParser.class),
                 new ApiAutomationProperties(65_536, 50, false, 120, 100, "wp6-api-automation-v1", true),
                 contextClient,
@@ -158,6 +164,7 @@ class ApiAutomationServiceTest {
 
         ApiAutomationService service = new ApiAutomationService(
                 repository,
+                new DisabledApiAutomationRunnerAdapter(),
                 mock(OpenApiSpecParser.class),
                 new ApiAutomationProperties(65_536, 50, false, 120, 100, "wp6-api-automation-v1", true),
                 contextClient,
@@ -224,6 +231,7 @@ class ApiAutomationServiceTest {
 
         ApiAutomationService service = new ApiAutomationService(
                 repository,
+                new DisabledApiAutomationRunnerAdapter(),
                 mock(OpenApiSpecParser.class),
                 new ApiAutomationProperties(65_536, 50, false, 120, 100, "wp6-api-automation-v1", true),
                 contextClient,
@@ -300,6 +308,7 @@ class ApiAutomationServiceTest {
 
         ApiAutomationService service = new ApiAutomationService(
                 repository,
+                new DisabledApiAutomationRunnerAdapter(),
                 mock(OpenApiSpecParser.class),
                 new ApiAutomationProperties(65_536, 50, false, 120, 100, "wp6-api-automation-v1", true),
                 contextClient,
@@ -340,6 +349,146 @@ class ApiAutomationServiceTest {
         );
         assertThat(rejected.status()).isEqualTo("REJECTED");
         assertThat(rejected.reviewNote()).isEqualTo("missing assertion");
+    }
+
+    @Test
+    void createsBlockedRunWhenRunnerIsDisabledAndStoresOnlyTargetDigest() {
+        InMemoryApiAutomationRepository repository = new InMemoryApiAutomationRepository();
+        ApiAutomationPlatformContextClient contextClient = mock(ApiAutomationPlatformContextClient.class);
+        ApiAutomationActorResolver actorResolver = mock(ApiAutomationActorResolver.class);
+        when(contextClient.projectContext("project-alpha")).thenReturn(new PlatformContext(
+                "PROJECT",
+                "project-alpha",
+                "ACTIVE",
+                "INTERNAL",
+                false,
+                List.of(),
+                Instant.EPOCH
+        ));
+        when(actorResolver.currentActor()).thenReturn("api-runner");
+        ApiAutomationService service = new ApiAutomationService(
+                repository,
+                new DisabledApiAutomationRunnerAdapter(),
+                mock(OpenApiSpecParser.class),
+                new ApiAutomationProperties(65_536, 50, false, 120, 100, "wp6-api-automation-v1", true),
+                contextClient,
+                actorResolver,
+                mock(AssetApiService.class),
+                mock(AssetTestCaseService.class),
+                mock(ModelInvocationService.class),
+                new ApiAutomationModelOutputParser(new ObjectMapper()),
+                new ObjectMapper()
+        );
+        UUID specId = UUID.randomUUID();
+        UUID assetApiId = UUID.randomUUID();
+        ApiAutomationSpec spec = spec("project-alpha", specId);
+        repository.insertSpec(spec);
+        repository.insertEndpointSnapshot(syncedEndpoint(spec, "/v1/payments", "POST", "digest-payments", assetApiId));
+        ApiAutomationGenerationTaskDetailResponse generated = service.createGenerationTask(
+                new CreateApiAutomationGenerationTaskCommand(
+                        "project-alpha",
+                        specId,
+                        List.of(assetApiId),
+                        List.of(),
+                        List.of("SMOKE"),
+                        "FALLBACK_ONLY",
+                        1,
+                        "runner-disabled"
+                )
+        );
+        UUID bundleId = generated.scriptBundles().getFirst().id();
+        service.submitScriptBundleReview(bundleId, new ReviewApiAutomationScriptBundleCommand("ready"));
+        service.approveScriptBundle(bundleId, new ReviewApiAutomationScriptBundleCommand("approved"));
+
+        ApiAutomationRunDetailResponse response = service.createRun(new CreateApiAutomationRunCommand(
+                bundleId,
+                "staging",
+                "https://api.example.test/service",
+                List.of(generated.cases().getFirst().id()),
+                30
+        ));
+
+        assertThat(response.run().status()).isEqualTo("BLOCKED");
+        assertThat(response.run().errorCode()).isEqualTo("RUNNER_DISABLED");
+        assertThat(response.run().baseUrlHost()).isEqualTo("api.example.test");
+        assertThat(response.run().baseUrlDigest()).hasSize(64);
+        assertThat(response.run().toString()).doesNotContain("https://api.example.test/service");
+        assertThat(response.results()).hasSize(1);
+        assertThat(response.results().getFirst().status()).isEqualTo("BLOCKED");
+        assertThat(service.runDetail(response.run().id()).run().id()).isEqualTo(response.run().id());
+    }
+
+    @Test
+    void blocksLocalhostTargetEvenWhenRunnerIsEnabled() {
+        InMemoryApiAutomationRepository repository = new InMemoryApiAutomationRepository();
+        ApiAutomationPlatformContextClient contextClient = mock(ApiAutomationPlatformContextClient.class);
+        ApiAutomationActorResolver actorResolver = mock(ApiAutomationActorResolver.class);
+        when(contextClient.projectContext("project-alpha")).thenReturn(new PlatformContext(
+                "PROJECT",
+                "project-alpha",
+                "ACTIVE",
+                "INTERNAL",
+                false,
+                List.of(),
+                Instant.EPOCH
+        ));
+        when(actorResolver.currentActor()).thenReturn("api-runner");
+        ApiAutomationService service = new ApiAutomationService(
+                repository,
+                new DisabledApiAutomationRunnerAdapter(),
+                mock(OpenApiSpecParser.class),
+                new ApiAutomationProperties(
+                        65_536,
+                        50,
+                        true,
+                        120,
+                        100,
+                        "api.example.test",
+                        1_048_576,
+                        "wp6-api-automation-v1",
+                        true
+                ),
+                contextClient,
+                actorResolver,
+                mock(AssetApiService.class),
+                mock(AssetTestCaseService.class),
+                mock(ModelInvocationService.class),
+                new ApiAutomationModelOutputParser(new ObjectMapper()),
+                new ObjectMapper()
+        );
+        UUID specId = UUID.randomUUID();
+        UUID assetApiId = UUID.randomUUID();
+        ApiAutomationSpec spec = spec("project-alpha", specId);
+        repository.insertSpec(spec);
+        repository.insertEndpointSnapshot(syncedEndpoint(spec, "/v1/refunds", "POST", "digest-refunds", assetApiId));
+        ApiAutomationGenerationTaskDetailResponse generated = service.createGenerationTask(
+                new CreateApiAutomationGenerationTaskCommand(
+                        "project-alpha",
+                        specId,
+                        List.of(assetApiId),
+                        List.of(),
+                        List.of("SMOKE"),
+                        "FALLBACK_ONLY",
+                        1,
+                        "runner-localhost-block"
+                )
+        );
+        UUID bundleId = generated.scriptBundles().getFirst().id();
+        service.submitScriptBundleReview(bundleId, new ReviewApiAutomationScriptBundleCommand("ready"));
+        service.approveScriptBundle(bundleId, new ReviewApiAutomationScriptBundleCommand("approved"));
+
+        ApiAutomationRunDetailResponse response = service.createRun(new CreateApiAutomationRunCommand(
+                bundleId,
+                null,
+                "http://127.0.0.1:8080",
+                List.of(),
+                null
+        ));
+
+        assertThat(response.run().status()).isEqualTo("BLOCKED");
+        assertThat(response.run().runnerMode()).isEqualTo("NOOP");
+        assertThat(response.run().errorCode()).isEqualTo("RUNNER_TARGET_BLOCKED");
+        assertThat(response.run().baseUrlHost()).isEqualTo("127.0.0.1");
     }
 
     @Test
@@ -403,6 +552,7 @@ class ApiAutomationServiceTest {
         ));
         ApiAutomationService service = new ApiAutomationService(
                 repository,
+                new DisabledApiAutomationRunnerAdapter(),
                 mock(OpenApiSpecParser.class),
                 new ApiAutomationProperties(65_536, 50, false, 120, 100, "wp6-api-automation-v1", true),
                 contextClient,
@@ -484,6 +634,7 @@ class ApiAutomationServiceTest {
                 ));
         ApiAutomationService service = new ApiAutomationService(
                 repository,
+                new DisabledApiAutomationRunnerAdapter(),
                 mock(OpenApiSpecParser.class),
                 new ApiAutomationProperties(65_536, 50, false, 120, 100, "wp6-api-automation-v1", true),
                 contextClient,

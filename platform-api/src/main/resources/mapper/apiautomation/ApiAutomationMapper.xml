@@ -126,6 +126,45 @@
         </constructor>
     </resultMap>
 
+    <resultMap id="runMap" type="com.songhg.veri.agent.apiautomation.domain.ApiAutomationRun">
+        <constructor>
+            <arg column="id" javaType="java.util.UUID"/>
+            <arg column="project_id" javaType="java.lang.String"/>
+            <arg column="bundle_id" javaType="java.util.UUID"/>
+            <arg column="environment_id" javaType="java.lang.String"/>
+            <arg column="base_url_digest" javaType="java.lang.String"/>
+            <arg column="base_url_host" javaType="java.lang.String"/>
+            <arg column="status" javaType="java.lang.String"/>
+            <arg column="timeout_seconds" javaType="_int"/>
+            <arg column="case_count" javaType="_int"/>
+            <arg column="trace_id" javaType="java.lang.String"/>
+            <arg column="runner_mode" javaType="java.lang.String"/>
+            <arg column="error_code" javaType="java.lang.String"/>
+            <arg column="error_summary" javaType="java.lang.String"/>
+            <arg column="created_by" javaType="java.lang.String"/>
+            <arg column="updated_by" javaType="java.lang.String"/>
+            <arg column="started_at" javaType="java.time.Instant"/>
+            <arg column="completed_at" javaType="java.time.Instant"/>
+            <arg column="created_at" javaType="java.time.Instant"/>
+            <arg column="updated_at" javaType="java.time.Instant"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="runResultMap" type="com.songhg.veri.agent.apiautomation.domain.ApiAutomationRunResult">
+        <constructor>
+            <arg column="id" javaType="java.util.UUID"/>
+            <arg column="run_id" javaType="java.util.UUID"/>
+            <arg column="case_id" javaType="java.util.UUID"/>
+            <arg column="status" javaType="java.lang.String"/>
+            <arg column="duration_ms" javaType="_int"/>
+            <arg column="assertion_summary_json" javaType="java.lang.String"/>
+            <arg column="error_code" javaType="java.lang.String"/>
+            <arg column="error_summary" javaType="java.lang.String"/>
+            <arg column="created_at" javaType="java.time.Instant"/>
+            <arg column="updated_at" javaType="java.time.Instant"/>
+        </constructor>
+    </resultMap>
+
     <sql id="specColumns">
         id, project_id, source_type, source_ref, name, version_label, spec_digest, content_size_bytes,
         sanitized_spec_json::text as sanitized_spec_json, parse_summary_json::text as parse_summary_json,
@@ -164,6 +203,18 @@
         static_check_summary_json::text as static_check_summary_json,
         review_note, submitted_by, approved_by, submitted_at, approved_at, rejected_at,
         created_by, updated_by, created_at, updated_at
+    </sql>
+
+    <sql id="runColumns">
+        id, project_id, bundle_id, environment_id, base_url_digest, base_url_host, status,
+        timeout_seconds, case_count, trace_id, runner_mode, error_code, error_summary,
+        created_by, updated_by, started_at, completed_at, created_at, updated_at
+    </sql>
+
+    <sql id="runResultColumns">
+        id, run_id, case_id, status, duration_ms,
+        assertion_summary_json::text as assertion_summary_json,
+        error_code, error_summary, created_at, updated_at
     </sql>
 
     <sql id="specWhere">
@@ -252,6 +303,12 @@
     <select id="scriptBundleProjectScopeId" resultType="string">
         select project_id
         from api_automation_script_bundle
+        where id = #{id}
+    </select>
+
+    <select id="runProjectScopeId" resultType="string">
+        select project_id
+        from api_automation_run
         where id = #{id}
     </select>
 
@@ -352,6 +409,29 @@
         where id = #{id}
     </update>
 
+    <insert id="insertRun">
+        insert into api_automation_run (
+            id, project_id, bundle_id, environment_id, base_url_digest, base_url_host, status,
+            timeout_seconds, case_count, trace_id, runner_mode, error_code, error_summary,
+            created_by, updated_by, started_at, completed_at, created_at, updated_at
+        ) values (
+            #{id}, #{projectId}, #{bundleId}, #{environmentId}, #{baseUrlDigest}, #{baseUrlHost}, #{status},
+            #{timeoutSeconds}, #{caseCount}, #{traceId}, #{runnerMode}, #{errorCode}, #{errorSummary},
+            #{createdBy}, #{updatedBy}, #{startedAt}, #{completedAt}, #{createdAt}, #{updatedAt}
+        )
+    </insert>
+
+    <insert id="insertRunResult">
+        insert into api_automation_run_result (
+            id, run_id, case_id, status, duration_ms, assertion_summary_json,
+            error_code, error_summary, created_at, updated_at
+        ) values (
+            #{id}, #{runId}, #{caseId}, #{status}, #{durationMs},
+            cast(coalesce(#{assertionSummaryJson}, '{}') as jsonb),
+            #{errorCode}, #{errorSummary}, #{createdAt}, #{updatedAt}
+        )
+    </insert>
+
     <select id="generationTask" resultMap="generationTaskMap">
         select <include refid="generationTaskColumns"/>
         from api_automation_generation_task
@@ -392,5 +472,18 @@
         from api_automation_script_bundle
         where task_id = #{taskId}
         order by created_at desc
+    </select>
+
+    <select id="run" resultMap="runMap">
+        select <include refid="runColumns"/>
+        from api_automation_run
+        where id = #{id}
+    </select>
+
+    <select id="runResults" resultMap="runResultMap">
+        select <include refid="runResultColumns"/>
+        from api_automation_run_result
+        where run_id = #{runId}
+        order by created_at asc
     </select>
 </mapper>

@@ -2,6 +2,7 @@ package com.songhg.veri.agent.apiautomation.api.controller;
 
 import com.songhg.veri.agent.apiautomation.application.ApiAutomationService;
 import com.songhg.veri.agent.apiautomation.application.command.CreateApiAutomationGenerationTaskCommand;
+import com.songhg.veri.agent.apiautomation.application.command.CreateApiAutomationRunCommand;
 import com.songhg.veri.agent.apiautomation.application.command.CreateApiAutomationSpecCommand;
 import com.songhg.veri.agent.apiautomation.application.command.ReviewApiAutomationScriptBundleCommand;
 import com.songhg.veri.agent.apiautomation.application.command.SyncApiAutomationSpecCommand;
@@ -9,6 +10,7 @@ import com.songhg.veri.agent.apiautomation.application.query.ApiAutomationSpecPa
 import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationDiffResponse;
 import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationGenerationTaskDetailResponse;
 import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationHealthResponse;
+import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationRunDetailResponse;
 import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationScriptBundleResponse;
 import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationSyncResponse;
 import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationSpecDetailResponse;
@@ -131,5 +133,18 @@ public class ApiAutomationController {
             @RequestBody(required = false) ReviewApiAutomationScriptBundleCommand command
     ) {
         return service.rejectScriptBundle(id, command);
+    }
+
+    @PostMapping("/runs")
+    @ResponseStatus(HttpStatus.CREATED)
+    @RequirePermission(value = PermissionCodes.API_AUTOMATION_EXECUTE, scope = ApiAutomationPermissionScopes.RUN_REQUEST)
+    public ApiAutomationRunDetailResponse createRun(@Valid @RequestBody CreateApiAutomationRunCommand command) {
+        return service.createRun(command);
+    }
+
+    @GetMapping("/runs/{id}")
+    @RequirePermission(value = PermissionCodes.API_AUTOMATION_READ, scope = ApiAutomationPermissionScopes.RUN)
+    public ApiAutomationRunDetailResponse run(@PathVariable UUID id) {
+        return service.runDetail(id);
     }
 }

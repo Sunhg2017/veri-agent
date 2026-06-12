@@ -198,6 +198,31 @@ class ApiAutomationControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("APPROVED"))
                 .andExpect(jsonPath("$.data.approvedBy").exists());
+
+        MvcResult runCreated = mockMvc.perform(post("/api/v1/api-automation/runs")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "bundleId", bundleId.toString(),
+                                "environmentId", "staging",
+                                "baseUrl", "https://api.example.test/billing"
+                        ))))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.run.bundleId").value(bundleId.toString()))
+                .andExpect(jsonPath("$.data.run.status").value("BLOCKED"))
+                .andExpect(jsonPath("$.data.run.errorCode").value("RUNNER_DISABLED"))
+                .andExpect(jsonPath("$.data.run.baseUrlHost").value("api.example.test"))
+                .andExpect(jsonPath("$.data.run.baseUrlDigest").exists())
+                .andExpect(jsonPath("$.data.results", hasSize(4)))
+                .andExpect(content().string(not(containsString("https://api.example.test/billing"))))
+                .andReturn();
+
+        UUID runId = UUID.fromString(JsonPath.read(runCreated.getResponse().getContentAsString(), "$.data.run.id"));
+        mockMvc.perform(get("/api/v1/api-automation/runs/{id}", runId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.run.id").value(runId.toString()))
+                .andExpect(jsonPath("$.data.results[0].status").value("BLOCKED"));
     }
 
     @Test

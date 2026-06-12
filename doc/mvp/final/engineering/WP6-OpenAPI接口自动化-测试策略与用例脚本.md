@@ -62,9 +62,9 @@
 | 脚本包生成 | 返回 Pytest/httpx 文件树摘要、依赖摘要、bundleDigest 和 fileCount，不返回源码或 secret |
 | 脚本包静态校验 | Python 模板、危险 import/call、硬编码 secret pattern 均通过后状态为 `PASSED` |
 | 脚本包评审 | `DRAFT -> REVIEWING -> APPROVED/REJECTED` 状态正确，驳回原因必填并写审计 |
-| 未审批脚本包运行 | 默认拒绝或仅开发模式允许 |
-| runner disabled | 返回 `RUNNER_DISABLED` |
-| baseUrl 不在 allowlist | 返回 `RUNNER_TARGET_BLOCKED` |
+| 未审批脚本包运行 | 返回 `RUNNER_BUNDLE_NOT_APPROVED` 或阻断摘要 |
+| runner disabled | 创建 `BLOCKED` run，返回 `RUNNER_DISABLED`，保存 case-level `BLOCKED` 摘要 |
+| baseUrl 不在 allowlist | 创建 `BLOCKED` run，返回 `RUNNER_TARGET_BLOCKED`，不保存 baseUrl 明文 |
 | 运行超时 | 状态 `TIMEOUT`，用例结果可追踪 |
 | 断言失败 | run 为 `FAILED`，结果只保存脱敏摘要 |
 | 越权项目访问 | 返回 403，不泄露资源存在性 |
@@ -80,7 +80,7 @@
 | 生成 payload | 只包含 project/spec/API/case/coverage/generationMode |
 | 脚本包面板 | 展示脚本包状态、静态校验、文件摘要和 digest |
 | 脚本包评审按钮 | 按 `apiAutomation:review` 权限和状态展示提交评审、审批、驳回 |
-| runner disabled | 运行入口禁用并展示策略摘要 |
+| runner disabled | 运行入口展示策略摘要，提交后展示 `RUNNER_DISABLED` 和 host/digest 摘要 |
 | 运行结果聚合 | pass/fail/skip/error 和耗时展示正确 |
 | 403/409/策略阻断 | 展示错误码、traceId 和脱敏 message |
 
@@ -138,4 +138,4 @@ WP6_RUNNER_SMOKE=1 WP6_RUNNER_BASE_URL=http://127.0.0.1:8089 bash scripts/wp6_qu
 
 ## 9. 启动前质量结论
 
-本阶段只提交启动准备文档，不引入 Java/TS/DB 运行时代码。启动前质量关注点已覆盖，后续进入实现时必须先补 fixture、DB validation 和专项 gate，再扩大到 runner smoke。
+当前已覆盖 M1-M6 控制面、脚本包评审、runner disabled、localhost/metadata 阻断、run 结果摘要和前端 run API helper；真实 runner smoke、timeout/cancel 和 WP6 quality gate 聚合脚本仍需在显式 runner 策略确定后补齐。

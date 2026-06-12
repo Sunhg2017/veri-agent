@@ -71,7 +71,9 @@ with expected(table_name) as (
         ('api_automation_endpoint_snapshot'),
         ('api_automation_generation_task'),
         ('api_automation_case'),
-        ('api_automation_script_bundle')
+        ('api_automation_script_bundle'),
+        ('api_automation_run'),
+        ('api_automation_run_result')
 ),
 missing as (
     select e.table_name

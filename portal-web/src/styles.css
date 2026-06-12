@@ -1358,6 +1358,24 @@ tbody tr:hover td {
   white-space: nowrap;
 }
 
+.api-automation-run-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  padding-top: var(--space-sm);
+  border-top: 1px solid var(--border-light);
+}
+
+.api-automation-run-result {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  padding: 10px 12px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+
 .method-pill,
 .status-badge {
   display: inline-flex;

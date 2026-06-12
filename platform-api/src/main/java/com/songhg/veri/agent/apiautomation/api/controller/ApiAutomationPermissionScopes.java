@@ -8,6 +8,8 @@ final class ApiAutomationPermissionScopes {
     static final String GENERATION_REQUEST = "@apiAutomationPermissionScopeResolver.generationRequest(#command)";
     static final String GENERATION_TASK = "@apiAutomationPermissionScopeResolver.generationTask(#id)";
     static final String SCRIPT_BUNDLE = "@apiAutomationPermissionScopeResolver.scriptBundle(#id)";
+    static final String RUN_REQUEST = "@apiAutomationPermissionScopeResolver.runRequest(#command)";
+    static final String RUN = "@apiAutomationPermissionScopeResolver.run(#id)";
 
     private ApiAutomationPermissionScopes() {
     }

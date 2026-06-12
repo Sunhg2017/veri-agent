@@ -217,7 +217,7 @@ Runner 必须执行以下限制：
 
 ## 12. 当前实现切片（2026-06-12）
 
-当前已实现 M1/M2/M3 控制面和 M4 生成任务切片：
+当前已实现 M1/M2/M3 控制面、M4 生成任务、M5 脚本包评审和 M6 受控 runner 控制面切片：
 
 - DB：新增 `api_automation_spec`、`api_automation_endpoint_snapshot`、WP6 权限 seed、角色默认授权和 DB validation。
 - DB M3：新增 endpoint snapshot 的 `asset_api_id`、`diff_summary_json`、`last_diff_at`、`synced_at`、`sync_error_summary`，用于持久化 WP3 API 匹配和同步证据。
@@ -229,11 +229,15 @@ Runner 必须执行以下限制：
 - 模型输出校验 M4：新增 WP6 输出解析器，拒绝未知字段、非 JSON、非聚合 requestTemplate、敏感文本、非法 status/method/path/assertions 以及不属于当前生成范围的 API。
 - WP5/WP3 输入 M4：`assetTestCaseIds` 已通过 WP3 `AssetTestCaseService` 读取发布后的测试用例摘要，校验项目归属和已同步 API 范围；不读取 WP5 候选正文、评审评论或 sourceRef 明文。
 - DB M5：新增 `api_automation_script_bundle`，保存脚本包 digest、文件树摘要、依赖摘要、静态校验摘要、评审状态和提交/审批人时间戳。
+- DB M6：新增 `api_automation_run` 和 `api_automation_run_result`，保存运行任务、baseUrl host/digest、runnerMode、状态、错误码和用例级结果摘要；不保存 baseUrl 明文、完整请求/响应、stdout/stderr 或 secret。
 - 后端 M5：生成任务创建时同步生成 Pytest/httpx 脚本包摘要；也支持 `POST /generation-tasks/{id}/script-bundles` 对历史任务补包，幂等返回已有未归档脚本包。
 - 静态校验 M5：在不执行 Python、不访问网络的前提下校验模板括号边界、危险 import/call 和硬编码 secret pattern；失败状态为 `SCRIPT_STATIC_CHECK_FAILED`。
 - 评审 M5：`submit-review/approve/reject` 实现 `DRAFT/REVIEWING/APPROVED/REJECTED` 流转，驳回原因必填，审计只记录动作和备注存在性，不写备注正文。
+- Runner M6：新增 `ApiAutomationRunnerPort` validate/run/cancel 契约和默认 Disabled adapter，`POST /runs` 在脚本包 `APPROVED`、静态校验通过、baseUrl 安全策略通过后才进入执行路径；默认 disabled 时持久化 `BLOCKED/RUNNER_DISABLED` 摘要。
+- Allowlist M6：baseUrl 标准化后仅保存 host 和 SHA-256 digest；阻断 localhost、私网 IPv4、metadata host、`.local` 和未授权 host，错误码为 `RUNNER_TARGET_BLOCKED`。
+- Run API M6：新增 `POST /api/v1/api-automation/runs` 和 `GET /api/v1/api-automation/runs/{id}`，按脚本包/run 项目 scope 校验 `apiAutomation:execute/read`，返回 run 摘要和 case-level result 摘要。
 - Parser：支持 OpenAPI 3.x JSON/YAML，抽取 method/path/operationId/tags/参数数/requestBody/响应码/schemaDigest，并对 Authorization、apiKey、token、cookie、password、secret 等敏感示例脱敏。
 - 权限：除 health 外，规格导入、查询、重解析、diff、sync、生成任务和脚本包评审均按项目 scope 校验 `apiAutomation:*` 权限。
-- 前端：新增 `#api-automation` 入口、API helper、权限控制、规格导入/列表/endpoint snapshot、diff 刷新、WP3 API 同步入口、生成模式选择、WP3 用例 ID 输入、生成用例入口和脚本包评审面板。
+- 前端：新增 `#api-automation` 入口、API helper、权限控制、规格导入/列表/endpoint snapshot、diff 刷新、WP3 API 同步入口、生成模式选择、WP3 用例 ID 输入、生成用例入口、脚本包评审面板和已审批脚本包运行面板。
 
-本轮未实现：runner 执行、运行结果、WP6 quality gate 聚合脚本。这些仍按研发任务拆解的 M6-M7 继续推进。
+本轮未实现：真实 managed/external runner 执行器、timeout/cancel smoke、运行导出接口和 WP6 quality gate 聚合脚本。这些仍按研发任务拆解的 M7-M8/P1 继续推进。

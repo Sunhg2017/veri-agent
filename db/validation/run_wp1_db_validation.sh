@@ -178,6 +178,8 @@ grant select, insert, update on
     api_automation_generation_task,
     api_automation_case,
     api_automation_script_bundle,
+    api_automation_run,
+    api_automation_run_result,
     audit_outbox
 to wp1_app;
 

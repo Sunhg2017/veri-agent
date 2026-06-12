@@ -4,6 +4,8 @@ import com.songhg.veri.agent.apiautomation.application.query.ApiAutomationSpecQu
 import com.songhg.veri.agent.apiautomation.domain.ApiAutomationCase;
 import com.songhg.veri.agent.apiautomation.domain.ApiAutomationEndpointSnapshot;
 import com.songhg.veri.agent.apiautomation.domain.ApiAutomationGenerationTask;
+import com.songhg.veri.agent.apiautomation.domain.ApiAutomationRun;
+import com.songhg.veri.agent.apiautomation.domain.ApiAutomationRunResult;
 import com.songhg.veri.agent.apiautomation.domain.ApiAutomationScriptBundle;
 import com.songhg.veri.agent.apiautomation.domain.ApiAutomationSpec;
 import java.util.List;
@@ -30,11 +32,17 @@ public interface ApiAutomationRepository {
 
     void updateScriptBundleReview(ApiAutomationScriptBundle bundle);
 
+    void insertRun(ApiAutomationRun run);
+
+    void insertRunResult(ApiAutomationRunResult result);
+
     Optional<ApiAutomationSpec> spec(UUID id);
 
     Optional<ApiAutomationGenerationTask> generationTask(UUID id);
 
     Optional<ApiAutomationScriptBundle> scriptBundle(UUID id);
+
+    Optional<ApiAutomationRun> run(UUID id);
 
     Optional<ApiAutomationGenerationTask> generationTaskByProjectAndDigest(String projectId, String requestDigest);
 
@@ -52,9 +60,13 @@ public interface ApiAutomationRepository {
 
     List<ApiAutomationScriptBundle> scriptBundles(UUID taskId);
 
+    List<ApiAutomationRunResult> runResults(UUID runId);
+
     Optional<String> specProjectScopeId(UUID id);
 
     Optional<String> generationTaskProjectScopeId(UUID id);
 
     Optional<String> scriptBundleProjectScopeId(UUID id);
+
+    Optional<String> runProjectScopeId(UUID id);
 }

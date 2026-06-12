@@ -7,7 +7,9 @@ with expected(table_name) as (
         ('api_automation_endpoint_snapshot'),
         ('api_automation_generation_task'),
         ('api_automation_case'),
-        ('api_automation_script_bundle')
+        ('api_automation_script_bundle'),
+        ('api_automation_run'),
+        ('api_automation_run_result')
 ),
 missing as (
     select e.table_name
@@ -87,7 +89,30 @@ with expected(table_name, column_name) as (
         ('api_automation_script_bundle','approved_by'),
         ('api_automation_script_bundle','submitted_at'),
         ('api_automation_script_bundle','approved_at'),
-        ('api_automation_script_bundle','rejected_at')
+        ('api_automation_script_bundle','rejected_at'),
+        ('api_automation_run','id'),
+        ('api_automation_run','project_id'),
+        ('api_automation_run','bundle_id'),
+        ('api_automation_run','environment_id'),
+        ('api_automation_run','base_url_digest'),
+        ('api_automation_run','base_url_host'),
+        ('api_automation_run','status'),
+        ('api_automation_run','timeout_seconds'),
+        ('api_automation_run','case_count'),
+        ('api_automation_run','trace_id'),
+        ('api_automation_run','runner_mode'),
+        ('api_automation_run','error_code'),
+        ('api_automation_run','error_summary'),
+        ('api_automation_run','started_at'),
+        ('api_automation_run','completed_at'),
+        ('api_automation_run_result','id'),
+        ('api_automation_run_result','run_id'),
+        ('api_automation_run_result','case_id'),
+        ('api_automation_run_result','status'),
+        ('api_automation_run_result','duration_ms'),
+        ('api_automation_run_result','assertion_summary_json'),
+        ('api_automation_run_result','error_code'),
+        ('api_automation_run_result','error_summary')
 ),
 missing as (
     select e.table_name || '.' || e.column_name as item
@@ -131,7 +156,16 @@ with expected(table_name, constraint_name) as (
         ('api_automation_script_bundle','ck_api_automation_script_bundle_digest'),
         ('api_automation_script_bundle','ck_api_automation_script_bundle_counts'),
         ('api_automation_script_bundle','ck_api_automation_script_bundle_static_status'),
-        ('api_automation_script_bundle','ck_api_automation_script_bundle_json')
+        ('api_automation_script_bundle','ck_api_automation_script_bundle_json'),
+        ('api_automation_run','ck_api_automation_run_status'),
+        ('api_automation_run','ck_api_automation_run_digest'),
+        ('api_automation_run','ck_api_automation_run_counts'),
+        ('api_automation_run','ck_api_automation_run_runner_mode'),
+        ('api_automation_run','ck_api_automation_run_error_code'),
+        ('api_automation_run_result','ck_api_automation_run_result_status'),
+        ('api_automation_run_result','ck_api_automation_run_result_duration'),
+        ('api_automation_run_result','ck_api_automation_run_result_json'),
+        ('api_automation_run_result','uk_api_automation_run_result_case')
 ),
 missing as (
     select e.table_name || '.' || e.constraint_name as item
@@ -168,7 +202,13 @@ with expected(table_name, index_name) as (
         ('api_automation_script_bundle','uk_api_automation_script_bundle_task_active'),
         ('api_automation_script_bundle','idx_api_automation_script_bundle_project_status'),
         ('api_automation_script_bundle','idx_api_automation_script_bundle_digest'),
-        ('api_automation_script_bundle','idx_api_automation_script_bundle_static_check')
+        ('api_automation_script_bundle','idx_api_automation_script_bundle_static_check'),
+        ('api_automation_run','idx_api_automation_run_project_status'),
+        ('api_automation_run','idx_api_automation_run_bundle_created'),
+        ('api_automation_run','idx_api_automation_run_trace'),
+        ('api_automation_run','idx_api_automation_run_base_host'),
+        ('api_automation_run_result','idx_api_automation_run_result_run'),
+        ('api_automation_run_result','idx_api_automation_run_result_case')
 ),
 missing as (
     select e.table_name || '.' || e.index_name as item

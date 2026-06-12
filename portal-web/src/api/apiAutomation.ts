@@ -193,6 +193,52 @@ export interface ApiAutomationScriptBundleReviewPayload {
   note?: string;
 }
 
+export interface ApiAutomationRunPayload {
+  bundleId: string;
+  environmentId?: string;
+  baseUrl: string;
+  caseIds?: string[];
+  timeoutSeconds?: number;
+}
+
+export interface ApiAutomationRun {
+  id: string;
+  projectId: string;
+  bundleId: string;
+  environmentId?: string;
+  baseUrlDigest?: string;
+  baseUrlHost?: string;
+  status: string;
+  timeoutSeconds: number;
+  caseCount: number;
+  traceId?: string;
+  runnerMode: string;
+  errorCode?: string;
+  errorSummary?: string;
+  startedAt?: string;
+  completedAt?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface ApiAutomationRunResult {
+  id: string;
+  runId: string;
+  caseId: string;
+  status: string;
+  durationMs: number;
+  assertionSummary: Record<string, unknown>;
+  errorCode?: string;
+  errorSummary?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface ApiAutomationRunDetail {
+  run: ApiAutomationRun;
+  results: ApiAutomationRunResult[];
+}
+
 export async function fetchApiAutomationHealth(): Promise<ApiResponse<ApiAutomationHealth>> {
   const response = await requestJson<unknown>(`${API_AUTOMATION_BASE}/health`);
   return { ...response, data: normalizeApiAutomationHealth(response.data) };
@@ -297,6 +343,19 @@ export async function rejectApiAutomationScriptBundle(
     body: JSON.stringify(payload)
   });
   return { ...response, data: normalizeApiAutomationScriptBundle(response.data) };
+}
+
+export async function createApiAutomationRun(payload: ApiAutomationRunPayload): Promise<ApiResponse<ApiAutomationRunDetail>> {
+  const response = await requestJson<unknown>(`${API_AUTOMATION_BASE}/runs`, {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+  return { ...response, data: normalizeApiAutomationRunDetail(response.data) };
+}
+
+export async function fetchApiAutomationRun(id: string): Promise<ApiResponse<ApiAutomationRunDetail>> {
+  const response = await requestJson<unknown>(`${API_AUTOMATION_BASE}/runs/${encodeURIComponent(id)}`);
+  return { ...response, data: normalizeApiAutomationRunDetail(response.data) };
 }
 
 export function normalizeApiAutomationHealth(input: unknown): ApiAutomationHealth {
@@ -484,6 +543,53 @@ export function normalizeApiAutomationScriptBundle(input: unknown): ApiAutomatio
     submittedAt: optionalString(read(value, 'submittedAt', 'submitted_at')),
     approvedAt: optionalString(read(value, 'approvedAt', 'approved_at')),
     rejectedAt: optionalString(read(value, 'rejectedAt', 'rejected_at')),
+    createdAt: optionalString(read(value, 'createdAt', 'created_at')),
+    updatedAt: optionalString(read(value, 'updatedAt', 'updated_at'))
+  };
+}
+
+export function normalizeApiAutomationRunDetail(input: unknown): ApiAutomationRunDetail {
+  const value = objectValue(input);
+  return {
+    run: normalizeApiAutomationRun(read(value, 'run')),
+    results: arrayValue(read(value, 'results')).map(normalizeApiAutomationRunResult)
+  };
+}
+
+export function normalizeApiAutomationRun(input: unknown): ApiAutomationRun {
+  const value = objectValue(input);
+  return {
+    id: stringValue(read(value, 'id')),
+    projectId: stringValue(read(value, 'projectId', 'project_id')),
+    bundleId: stringValue(read(value, 'bundleId', 'bundle_id')),
+    environmentId: optionalString(read(value, 'environmentId', 'environment_id')),
+    baseUrlDigest: optionalString(read(value, 'baseUrlDigest', 'base_url_digest')),
+    baseUrlHost: optionalString(read(value, 'baseUrlHost', 'base_url_host')),
+    status: stringValue(read(value, 'status'), 'UNKNOWN'),
+    timeoutSeconds: numberValue(read(value, 'timeoutSeconds', 'timeout_seconds'), 0),
+    caseCount: numberValue(read(value, 'caseCount', 'case_count'), 0),
+    traceId: optionalString(read(value, 'traceId', 'trace_id')),
+    runnerMode: stringValue(read(value, 'runnerMode', 'runner_mode'), 'DISABLED'),
+    errorCode: optionalString(read(value, 'errorCode', 'error_code')),
+    errorSummary: optionalString(read(value, 'errorSummary', 'error_summary')),
+    startedAt: optionalString(read(value, 'startedAt', 'started_at')),
+    completedAt: optionalString(read(value, 'completedAt', 'completed_at')),
+    createdAt: optionalString(read(value, 'createdAt', 'created_at')),
+    updatedAt: optionalString(read(value, 'updatedAt', 'updated_at'))
+  };
+}
+
+export function normalizeApiAutomationRunResult(input: unknown): ApiAutomationRunResult {
+  const value = objectValue(input);
+  return {
+    id: stringValue(read(value, 'id')),
+    runId: stringValue(read(value, 'runId', 'run_id')),
+    caseId: stringValue(read(value, 'caseId', 'case_id')),
+    status: stringValue(read(value, 'status'), 'UNKNOWN'),
+    durationMs: numberValue(read(value, 'durationMs', 'duration_ms'), 0),
+    assertionSummary: objectValue(read(value, 'assertionSummary', 'assertion_summary')),
+    errorCode: optionalString(read(value, 'errorCode', 'error_code')),
+    errorSummary: optionalString(read(value, 'errorSummary', 'error_summary')),
     createdAt: optionalString(read(value, 'createdAt', 'created_at')),
     updatedAt: optionalString(read(value, 'updatedAt', 'updated_at'))
   };

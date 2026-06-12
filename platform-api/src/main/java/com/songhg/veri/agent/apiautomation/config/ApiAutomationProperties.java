@@ -1,6 +1,7 @@
 package com.songhg.veri.agent.apiautomation.config;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.boot.context.properties.bind.ConstructorBinding;
 import org.springframework.boot.context.properties.bind.DefaultValue;
 
 /**
@@ -18,6 +19,10 @@ public record ApiAutomationProperties(
         @DefaultValue("120") int runnerTimeoutSeconds,
         /** 默认 runner 单次运行用例上限 */
         @DefaultValue("100") int runnerMaxCases,
+        /** runner 允许访问的 baseUrl host 或模式，逗号分隔；默认空表示未配置 */
+        @DefaultValue("") String runnerAllowedBaseUrlPatterns,
+        /** runner 产物摘要大小上限；默认 1 MB */
+        @DefaultValue("1048576") int runnerArtifactMaxBytes,
         /** WP2 Prompt key */
         @DefaultValue("wp6-api-automation-v1") String promptKey,
         /** 模型失败时是否允许确定性模板兜底 */
@@ -27,6 +32,38 @@ public record ApiAutomationProperties(
     private static final int MAX_SPEC_BYTES = 5 * 1_048_576;
     private static final int DEFAULT_ENDPOINT_MAX_COUNT = 500;
     private static final int MAX_ENDPOINT_COUNT = 2_000;
+    private static final int DEFAULT_RUNNER_TIMEOUT_SECONDS = 120;
+    private static final int MAX_RUNNER_TIMEOUT_SECONDS = 3_600;
+    private static final int DEFAULT_RUNNER_MAX_CASES = 100;
+    private static final int MAX_RUNNER_MAX_CASES = 1_000;
+    private static final int DEFAULT_RUNNER_ARTIFACT_MAX_BYTES = 1_048_576;
+    private static final int MAX_RUNNER_ARTIFACT_MAX_BYTES = 10 * 1_048_576;
+
+    @ConstructorBinding
+    public ApiAutomationProperties {
+    }
+
+    public ApiAutomationProperties(
+            int specMaxBytes,
+            int endpointMaxCount,
+            boolean runnerEnabled,
+            int runnerTimeoutSeconds,
+            int runnerMaxCases,
+            String promptKey,
+            boolean modelFallbackEnabled
+    ) {
+        this(
+                specMaxBytes,
+                endpointMaxCount,
+                runnerEnabled,
+                runnerTimeoutSeconds,
+                runnerMaxCases,
+                "",
+                DEFAULT_RUNNER_ARTIFACT_MAX_BYTES,
+                promptKey,
+                modelFallbackEnabled
+        );
+    }
 
     public int effectiveSpecMaxBytes() {
         return boundedPositive(specMaxBytes, DEFAULT_SPEC_MAX_BYTES, MAX_SPEC_BYTES);
@@ -34,6 +71,19 @@ public record ApiAutomationProperties(
 
     public int effectiveEndpointMaxCount() {
         return boundedPositive(endpointMaxCount, DEFAULT_ENDPOINT_MAX_COUNT, MAX_ENDPOINT_COUNT);
+    }
+
+    public int effectiveRunnerTimeoutSeconds(Integer requestedTimeoutSeconds) {
+        int requested = requestedTimeoutSeconds == null ? runnerTimeoutSeconds : requestedTimeoutSeconds;
+        return boundedPositive(requested, DEFAULT_RUNNER_TIMEOUT_SECONDS, MAX_RUNNER_TIMEOUT_SECONDS);
+    }
+
+    public int effectiveRunnerMaxCases() {
+        return boundedPositive(runnerMaxCases, DEFAULT_RUNNER_MAX_CASES, MAX_RUNNER_MAX_CASES);
+    }
+
+    public int effectiveRunnerArtifactMaxBytes() {
+        return boundedPositive(runnerArtifactMaxBytes, DEFAULT_RUNNER_ARTIFACT_MAX_BYTES, MAX_RUNNER_ARTIFACT_MAX_BYTES);
     }
 
     private static int boundedPositive(int value, int defaultValue, int maxValue) {
