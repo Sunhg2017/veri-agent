@@ -223,6 +223,17 @@ class ApiAutomationControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.run.id").value(runId.toString()))
                 .andExpect(jsonPath("$.data.results[0].status").value("BLOCKED"));
+
+        String exportToken = userAccessToken(List.of("SuperAdmin"));
+        mockMvc.perform(get("/api/v1/api-automation/runs/{id}/export", runId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + exportToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.schemaVersion").value("wp6-run-export-v1"))
+                .andExpect(jsonPath("$.data.run.id").value(runId.toString()))
+                .andExpect(jsonPath("$.data.resultCounts.BLOCKED").value(4))
+                .andExpect(jsonPath("$.data.redactionPolicy.rawBaseUrlExported").value(false))
+                .andExpect(jsonPath("$.data.redactionPolicy.rawRequestResponseExported").value(false))
+                .andExpect(content().string(not(containsString("https://api.example.test/billing"))));
     }
 
     @Test

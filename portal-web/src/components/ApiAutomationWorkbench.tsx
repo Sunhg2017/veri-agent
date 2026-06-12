@@ -3,6 +3,7 @@ import {
   CheckCircle2,
   ClipboardCheck,
   FileText,
+  Download,
   Play,
   ListChecks,
   RefreshCw,
@@ -17,6 +18,7 @@ import {
   createApiAutomationGenerationTask,
   createApiAutomationRun,
   createApiAutomationSpec,
+  exportApiAutomationRun,
   approveApiAutomationScriptBundle,
   fetchApiAutomationDiff,
   fetchApiAutomationHealth,
@@ -31,6 +33,7 @@ import {
   type ApiAutomationGenerationTaskDetail,
   type ApiAutomationHealth,
   type ApiAutomationRunDetail,
+  type ApiAutomationRunExport,
   type ApiAutomationScriptBundle,
   type ApiAutomationSpec,
   type ApiAutomationSpecDetail,
@@ -66,6 +69,7 @@ export function ApiAutomationWorkbench(props: { signedIn: boolean; currentUser: 
   const canGenerate = canUseButton(props.currentUser, 'apiAutomation:generate');
   const canReview = canUseButton(props.currentUser, 'apiAutomation:review');
   const canExecute = canUseButton(props.currentUser, 'apiAutomation:execute');
+  const canExport = canUseButton(props.currentUser, 'apiAutomation:export');
   const [health, setHealth] = useState<ApiAutomationHealth | null>(null);
   const [specs, setSpecs] = useState<ApiAutomationSpec[]>([]);
   const [selectedSpecId, setSelectedSpecId] = useState('');
@@ -80,9 +84,11 @@ export function ApiAutomationWorkbench(props: { signedIn: boolean; currentUser: 
   const [generationState, setGenerationState] = useState<WorkState>({ loading: false });
   const [scriptBundleState, setScriptBundleState] = useState<WorkState>({ loading: false });
   const [runState, setRunState] = useState<WorkState>({ loading: false });
+  const [runExportState, setRunExportState] = useState<WorkState>({ loading: false });
   const [lastSync, setLastSync] = useState<ApiAutomationSyncResponse | null>(null);
   const [lastGeneration, setLastGeneration] = useState<ApiAutomationGenerationTaskDetail | null>(null);
   const [lastRun, setLastRun] = useState<ApiAutomationRunDetail | null>(null);
+  const [lastRunExport, setLastRunExport] = useState<ApiAutomationRunExport | null>(null);
   const [generationAssetTestCaseIds, setGenerationAssetTestCaseIds] = useState('');
   const [generationMode, setGenerationMode] = useState<'MODEL_WITH_FALLBACK' | 'FALLBACK_ONLY'>('MODEL_WITH_FALLBACK');
   const [reviewNote, setReviewNote] = useState('');
@@ -181,6 +187,7 @@ export function ApiAutomationWorkbench(props: { signedIn: boolean; currentUser: 
       setLastSync(null);
       setLastGeneration(null);
       setLastRun(null);
+      setLastRunExport(null);
       await refreshSpecs();
     } catch (error: unknown) {
       setParseState({ loading: false, error: error instanceof Error ? error.message : '解析失败' });
@@ -207,6 +214,7 @@ export function ApiAutomationWorkbench(props: { signedIn: boolean; currentUser: 
       setLastSync(result.data);
       setLastGeneration(null);
       setLastRun(null);
+      setLastRunExport(null);
       setDetail((current) => current ? { ...current, endpoints: result.data.endpoints } : current);
       setSyncState({ loading: false, success: syncSummaryText(result.data.counts) });
       await refreshSpecs();
@@ -235,6 +243,7 @@ export function ApiAutomationWorkbench(props: { signedIn: boolean; currentUser: 
       });
       setLastGeneration(result.data);
       setLastRun(null);
+      setLastRunExport(null);
       setReviewNote('');
       setGenerationState({ loading: false, success: generationSummaryText(result.data) });
     } catch (error: unknown) {
@@ -302,9 +311,22 @@ export function ApiAutomationWorkbench(props: { signedIn: boolean; currentUser: 
         caseIds: caseIds.length ? caseIds : undefined
       });
       setLastRun(result.data);
+      setLastRunExport(null);
       setRunState({ loading: false, success: runSummaryText(result.data) });
     } catch (error: unknown) {
       setRunState({ loading: false, error: error instanceof Error ? error.message : '运行失败' });
+    }
+  }
+
+  async function onExportRun(run: ApiAutomationRunDetail) {
+    if (!canExport) return;
+    setRunExportState({ loading: true });
+    try {
+      const result = await exportApiAutomationRun(run.run.id);
+      setLastRunExport(result.data);
+      setRunExportState({ loading: false, success: `导出 ${result.data.schemaVersion} · ${result.data.results.length} 条结果` });
+    } catch (error: unknown) {
+      setRunExportState({ loading: false, error: error instanceof Error ? error.message : '导出失败' });
     }
   }
 
@@ -496,6 +518,8 @@ export function ApiAutomationWorkbench(props: { signedIn: boolean; currentUser: 
           {scriptBundleState.success && <div className="document-state-line success">{scriptBundleState.success}</div>}
           {runState.error && <div className="document-state-line error">{runState.error}</div>}
           {runState.success && <div className="document-state-line success">{runState.success}</div>}
+          {runExportState.error && <div className="document-state-line error">{runExportState.error}</div>}
+          {runExportState.success && <div className="document-state-line success">{runExportState.success}</div>}
           {lastSync && <SyncSummary sync={lastSync} />}
           {lastGeneration && (
             <GenerationSummary
@@ -504,13 +528,16 @@ export function ApiAutomationWorkbench(props: { signedIn: boolean; currentUser: 
               canGenerate={canGenerate}
               canReview={canReview}
               canExecute={canExecute}
+              canExport={canExport}
               loading={scriptBundleState.loading}
               runLoading={runState.loading}
+              runExportLoading={runExportState.loading}
               reviewNote={reviewNote}
               runBaseUrl={runBaseUrl}
               runEnvironmentId={runEnvironmentId}
               runCaseIds={runCaseIds}
               lastRun={lastRun}
+              lastRunExport={lastRunExport}
               onReviewNoteChange={setReviewNote}
               onRunBaseUrlChange={setRunBaseUrl}
               onRunEnvironmentIdChange={setRunEnvironmentId}
@@ -520,6 +547,7 @@ export function ApiAutomationWorkbench(props: { signedIn: boolean; currentUser: 
               onApprove={(bundle) => void onApproveBundle(bundle)}
               onReject={(bundle) => void onRejectBundle(bundle)}
               onCreateRun={(bundle) => void onCreateRun(bundle)}
+              onExportRun={(run) => void onExportRun(run)}
             />
           )}
           <EndpointTable endpoints={detail?.endpoints ?? []} loading={detailState.loading} />
@@ -606,13 +634,16 @@ function GenerationSummary(props: {
   canGenerate: boolean;
   canReview: boolean;
   canExecute: boolean;
+  canExport: boolean;
   loading: boolean;
   runLoading: boolean;
+  runExportLoading: boolean;
   reviewNote: string;
   runBaseUrl: string;
   runEnvironmentId: string;
   runCaseIds: string;
   lastRun: ApiAutomationRunDetail | null;
+  lastRunExport: ApiAutomationRunExport | null;
   onReviewNoteChange: (value: string) => void;
   onRunBaseUrlChange: (value: string) => void;
   onRunEnvironmentIdChange: (value: string) => void;
@@ -622,6 +653,7 @@ function GenerationSummary(props: {
   onApprove: (bundle: ApiAutomationScriptBundle) => void;
   onReject: (bundle: ApiAutomationScriptBundle) => void;
   onCreateRun: (bundle: ApiAutomationScriptBundle) => void;
+  onExportRun: (run: ApiAutomationRunDetail) => void;
 }) {
   const bundle = props.generation.scriptBundles[0];
   const runnerReady = props.health?.runnerEnabled ?? false;
@@ -736,7 +768,15 @@ function GenerationSummary(props: {
                   运行
                 </button>
               </div>
-              {props.lastRun && <RunSummary run={props.lastRun} />}
+              {props.lastRun && (
+                <RunSummary
+                  run={props.lastRun}
+                  runExport={props.lastRunExport}
+                  canExport={props.canExport}
+                  exportLoading={props.runExportLoading}
+                  onExport={() => props.onExportRun(props.lastRun!)}
+                />
+              )}
             </div>
           )}
         </div>
@@ -755,7 +795,13 @@ function GenerationSummary(props: {
   );
 }
 
-function RunSummary(props: { run: ApiAutomationRunDetail }) {
+function RunSummary(props: {
+  run: ApiAutomationRunDetail;
+  runExport: ApiAutomationRunExport | null;
+  canExport: boolean;
+  exportLoading: boolean;
+  onExport: () => void;
+}) {
   const counts = props.run.results.reduce<Record<string, number>>((acc, result) => {
     acc[result.status] = (acc[result.status] ?? 0) + 1;
     return acc;
@@ -778,9 +824,28 @@ function RunSummary(props: { run: ApiAutomationRunDetail }) {
         <span>FAILED {counts.FAILED ?? 0}</span>
         <span>PASSED {counts.PASSED ?? 0}</span>
       </div>
+      <div className="api-automation-panel-actions">
+        <button
+          className="btn btn-secondary btn-sm"
+          type="button"
+          disabled={!props.canExport || props.exportLoading}
+          onClick={props.onExport}
+        >
+          <Download size={15} />
+          导出摘要
+        </button>
+      </div>
       {props.run.run.errorCode && (
         <div className="api-automation-diff-reason error">
           {props.run.run.errorCode}{props.run.run.errorSummary ? ` · ${props.run.run.errorSummary}` : ''}
+        </div>
+      )}
+      {props.runExport && (
+        <div className="api-automation-export-summary">
+          <span>{props.runExport.schemaVersion}</span>
+          <span>exported {props.runExport.exportedAt ? formatDateTime(props.runExport.exportedAt) : '-'}</span>
+          <span>raw URL {props.runExport.redactionPolicy.rawBaseUrlExported ? 'on' : 'off'}</span>
+          <span>request/response {props.runExport.redactionPolicy.rawRequestResponseExported ? 'on' : 'off'}</span>
         </div>
       )}
     </div>
@@ -858,6 +923,10 @@ function runSummaryText(run: ApiAutomationRunDetail) {
 
 function shortId(value?: string) {
   return value ? value.slice(0, 8) : '-';
+}
+
+function formatDateTime(value: string) {
+  return value.replace('T', ' ').replace('Z', '');
 }
 
 function optionalText(value: string) {

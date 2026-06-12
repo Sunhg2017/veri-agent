@@ -5,6 +5,7 @@ import com.songhg.veri.agent.apiautomation.application.command.CreateApiAutomati
 import com.songhg.veri.agent.apiautomation.application.command.CreateApiAutomationRunCommand;
 import com.songhg.veri.agent.apiautomation.application.command.ReviewApiAutomationScriptBundleCommand;
 import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationRunDetailResponse;
+import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationRunExportResponse;
 import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationDiffResponse;
 import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationGenerationTaskDetailResponse;
 import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationScriptBundleResponse;
@@ -43,6 +44,9 @@ import org.mockito.ArgumentCaptor;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -416,6 +420,25 @@ class ApiAutomationServiceTest {
         assertThat(response.results()).hasSize(1);
         assertThat(response.results().getFirst().status()).isEqualTo("BLOCKED");
         assertThat(service.runDetail(response.run().id()).run().id()).isEqualTo(response.run().id());
+
+        ApiAutomationRunExportResponse exported = service.exportRun(response.run().id());
+        assertThat(exported.schemaVersion()).isEqualTo("wp6-run-export-v1");
+        assertThat(exported.resultCounts()).containsEntry("BLOCKED", 1);
+        assertThat(exported.redactionPolicy()).containsEntry("rawBaseUrlExported", false)
+                .containsEntry("rawRequestResponseExported", false)
+                .containsEntry("stdoutStderrExported", false);
+        assertThat(exported.toString()).contains("api.example.test")
+                .doesNotContain("https://api.example.test/service");
+        verify(contextClient, atLeastOnce()).writeAuditEvent(
+                eq("api_automation.exported"),
+                eq("API_AUTOMATION_RUN"),
+                eq(response.run().id().toString()),
+                eq("project-alpha"),
+                eq("SUCCESS"),
+                argThat(payload -> Boolean.FALSE.equals(payload.get("rawBaseUrlExported"))
+                        && Boolean.FALSE.equals(payload.get("rawRequestResponseExported"))
+                        && !payload.toString().contains("https://api.example.test/service"))
+        );
     }
 
     @Test

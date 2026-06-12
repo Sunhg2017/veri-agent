@@ -1376,6 +1376,23 @@ tbody tr:hover td {
   background: var(--surface);
 }
 
+.api-automation-export-summary {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  flex-wrap: wrap;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+}
+
+.api-automation-export-summary span {
+  min-height: 22px;
+  padding: 2px 8px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  background: var(--bg-alt);
+}
+
 .method-pill,
 .status-badge {
   display: inline-flex;

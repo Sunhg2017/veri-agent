@@ -239,6 +239,15 @@ export interface ApiAutomationRunDetail {
   results: ApiAutomationRunResult[];
 }
 
+export interface ApiAutomationRunExport {
+  schemaVersion: string;
+  exportedAt?: string;
+  run: ApiAutomationRun;
+  results: ApiAutomationRunResult[];
+  resultCounts: Record<string, number>;
+  redactionPolicy: Record<string, unknown>;
+}
+
 export async function fetchApiAutomationHealth(): Promise<ApiResponse<ApiAutomationHealth>> {
   const response = await requestJson<unknown>(`${API_AUTOMATION_BASE}/health`);
   return { ...response, data: normalizeApiAutomationHealth(response.data) };
@@ -356,6 +365,11 @@ export async function createApiAutomationRun(payload: ApiAutomationRunPayload): 
 export async function fetchApiAutomationRun(id: string): Promise<ApiResponse<ApiAutomationRunDetail>> {
   const response = await requestJson<unknown>(`${API_AUTOMATION_BASE}/runs/${encodeURIComponent(id)}`);
   return { ...response, data: normalizeApiAutomationRunDetail(response.data) };
+}
+
+export async function exportApiAutomationRun(id: string): Promise<ApiResponse<ApiAutomationRunExport>> {
+  const response = await requestJson<unknown>(`${API_AUTOMATION_BASE}/runs/${encodeURIComponent(id)}/export`);
+  return { ...response, data: normalizeApiAutomationRunExport(response.data) };
 }
 
 export function normalizeApiAutomationHealth(input: unknown): ApiAutomationHealth {
@@ -553,6 +567,18 @@ export function normalizeApiAutomationRunDetail(input: unknown): ApiAutomationRu
   return {
     run: normalizeApiAutomationRun(read(value, 'run')),
     results: arrayValue(read(value, 'results')).map(normalizeApiAutomationRunResult)
+  };
+}
+
+export function normalizeApiAutomationRunExport(input: unknown): ApiAutomationRunExport {
+  const value = objectValue(input);
+  return {
+    schemaVersion: stringValue(read(value, 'schemaVersion', 'schema_version'), 'wp6-run-export-v1'),
+    exportedAt: optionalString(read(value, 'exportedAt', 'exported_at')),
+    run: normalizeApiAutomationRun(read(value, 'run')),
+    results: arrayValue(read(value, 'results')).map(normalizeApiAutomationRunResult),
+    resultCounts: numberRecord(read(value, 'resultCounts', 'result_counts')),
+    redactionPolicy: objectValue(read(value, 'redactionPolicy', 'redaction_policy'))
   };
 }
 

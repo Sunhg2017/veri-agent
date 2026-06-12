@@ -145,4 +145,4 @@ WP6_RUNNER_SMOKE=1 WP6_RUNNER_BASE_URL=http://127.0.0.1:8089 bash scripts/wp6_qu
 
 ## 9. 启动前质量结论
 
-当前已覆盖 M1-M7 离线控制面、脚本包评审、runner disabled、localhost/metadata 阻断、run 结果摘要、前端 run API helper、OpenAPI fixture smoke 和 WP6 quality gate 聚合脚本；真实 runner smoke、timeout/cancel、Runner Runbook 和复杂页面 Playwright smoke 仍需在显式 runner 策略确定后补齐。
+当前已覆盖 M1-M7 离线控制面、脚本包评审、runner disabled、localhost/metadata 阻断、run 结果摘要、脱敏运行导出、前端 run/export API helper、OpenAPI fixture smoke 和 WP6 quality gate 聚合脚本；真实 runner smoke、timeout/cancel、Runner Runbook 和复杂页面 Playwright smoke 仍需在显式 runner 策略确定后补齐。

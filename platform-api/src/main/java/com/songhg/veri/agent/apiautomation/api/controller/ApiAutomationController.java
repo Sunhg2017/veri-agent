@@ -11,6 +11,7 @@ import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationDiffRes
 import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationGenerationTaskDetailResponse;
 import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationHealthResponse;
 import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationRunDetailResponse;
+import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationRunExportResponse;
 import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationScriptBundleResponse;
 import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationSyncResponse;
 import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationSpecDetailResponse;
@@ -146,5 +147,11 @@ public class ApiAutomationController {
     @RequirePermission(value = PermissionCodes.API_AUTOMATION_READ, scope = ApiAutomationPermissionScopes.RUN)
     public ApiAutomationRunDetailResponse run(@PathVariable UUID id) {
         return service.runDetail(id);
+    }
+
+    @GetMapping("/runs/{id}/export")
+    @RequirePermission(value = PermissionCodes.API_AUTOMATION_EXPORT, scope = ApiAutomationPermissionScopes.RUN)
+    public ApiAutomationRunExportResponse exportRun(@PathVariable UUID id) {
+        return service.exportRun(id);
     }
 }

@@ -21,6 +21,7 @@ import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationGenerat
 import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationGenerationTaskResponse;
 import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationHealthResponse;
 import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationRunDetailResponse;
+import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationRunExportResponse;
 import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationRunResponse;
 import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationRunResultResponse;
 import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationScriptBundleResponse;
@@ -594,6 +595,31 @@ public class ApiAutomationService {
         ApiAutomationRun run = repository.run(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "接口自动化运行任务不存在: " + id));
         return toRunDetail(run, repository.runResults(id));
+    }
+
+    @Transactional
+    public ApiAutomationRunExportResponse exportRun(UUID id) {
+        ApiAutomationRun run = repository.run(id)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "接口自动化运行任务不存在: " + id));
+        List<ApiAutomationRunResult> results = repository.runResults(id);
+        Map<String, Integer> counts = resultCounts(results);
+        // 运行导出用于合规留存和运营排障，只复用脱敏摘要视图；导出动作本身也必须落审计。
+        ApiAutomationRunExportResponse response = new ApiAutomationRunExportResponse(
+                "wp6-run-export-v1",
+                Instant.now(),
+                toRunResponse(run),
+                results.stream().map(this::toRunResultResponse).toList(),
+                counts,
+                runExportRedactionPolicy()
+        );
+        auditRun(run, "SUCCESS", "EXPORTED", Map.of(
+                "resultCount", results.size(),
+                "resultCounts", counts,
+                "rawBaseUrlExported", false,
+                "rawRequestResponseExported", false,
+                "stdoutStderrExported", false
+        ));
+        return response;
     }
 
     private List<ApiAutomationCase> selectedRunCases(ApiAutomationGenerationTask task, List<UUID> requestedCaseIds) {
@@ -2377,6 +2403,24 @@ public class ApiAutomationService {
         );
     }
 
+    private Map<String, Integer> resultCounts(List<ApiAutomationRunResult> results) {
+        Map<String, Integer> counts = new LinkedHashMap<>();
+        results.forEach(result -> counts.merge(result.status(), 1, Integer::sum));
+        return counts;
+    }
+
+    private Map<String, Object> runExportRedactionPolicy() {
+        return Map.of(
+                "rawBaseUrlExported", false,
+                "baseUrlDigestExported", true,
+                "baseUrlHostExported", true,
+                "rawRequestResponseExported", false,
+                "stdoutStderrExported", false,
+                "secretValuesExported", false,
+                "assertionSummaryAggregateOnly", true
+        );
+    }
+
     private ApiAutomationSpecResponse toSpecResponse(ApiAutomationSpec spec) {
         return new ApiAutomationSpecResponse(
                 spec.id(),
@@ -2682,15 +2726,21 @@ public class ApiAutomationService {
         payload.put("runnerMode", run.runnerMode());
         payload.put("runAction", action);
         contextClient.writeAuditEvent(
-                ("BLOCKED".equals(action) || "STARTED".equals(action))
-                        ? "api_automation.run.started"
-                        : "api_automation.run.completed",
+                runAuditActionName(action),
                 "API_AUTOMATION_RUN",
                 run.id().toString(),
                 run.projectId(),
                 result,
                 payload
         );
+    }
+
+    private String runAuditActionName(String action) {
+        return switch (action) {
+            case "BLOCKED", "STARTED" -> "api_automation.run.started";
+            case "EXPORTED" -> "api_automation.exported";
+            default -> "api_automation.run.completed";
+        };
     }
 
     private record GenerationRequest(

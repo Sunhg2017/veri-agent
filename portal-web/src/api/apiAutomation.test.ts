@@ -5,6 +5,7 @@ import {
   createApiAutomationGenerationTask,
   createApiAutomationRun,
   createApiAutomationSpec,
+  exportApiAutomationRun,
   fetchApiAutomationDiff,
   fetchApiAutomationGenerationTask,
   fetchApiAutomationHealth,
@@ -16,6 +17,7 @@ import {
   normalizeApiAutomationDiffResponse,
   normalizeApiAutomationGenerationTaskDetail,
   normalizeApiAutomationHealth,
+  normalizeApiAutomationRunExport,
   normalizeApiAutomationRunDetail,
   rejectApiAutomationScriptBundle,
   normalizeApiAutomationSpecDetail,
@@ -207,6 +209,27 @@ describe('WP6 API automation helpers', () => {
       },
       results: [{ id: 'result-1', caseId: 'case-1', status: 'BLOCKED' }]
     });
+
+    expect(normalizeApiAutomationRunExport({
+      schema_version: 'wp6-run-export-v1',
+      exported_at: '2026-06-12T00:00:00Z',
+      run: {
+        id: 'run-1',
+        project_id: 'project-alpha',
+        bundle_id: 'bundle-1',
+        status: 'BLOCKED',
+        timeout_seconds: '30',
+        case_count: '1',
+        runner_mode: 'DISABLED'
+      },
+      results: [{ id: 'result-1', run_id: 'run-1', case_id: 'case-1', status: 'BLOCKED' }],
+      result_counts: { BLOCKED: '1' },
+      redaction_policy: { raw_base_url_exported: false, rawRequestResponseExported: false }
+    })).toMatchObject({
+      schemaVersion: 'wp6-run-export-v1',
+      resultCounts: { BLOCKED: 1 },
+      redactionPolicy: { raw_base_url_exported: false, rawRequestResponseExported: false }
+    });
   });
 
   it('calls WP6 endpoints with expected methods and query parameters', async () => {
@@ -274,6 +297,7 @@ describe('WP6 API automation helpers', () => {
       timeoutSeconds: 30
     });
     await fetchApiAutomationRun('run-1');
+    await exportApiAutomationRun('run-1');
     await fetchApiAutomationHealth();
 
     expect(requestJsonMock).toHaveBeenNthCalledWith(1, '/api/v1/api-automation/specs', {
@@ -329,6 +353,7 @@ describe('WP6 API automation helpers', () => {
       })
     });
     expect(requestJsonMock).toHaveBeenNthCalledWith(13, '/api/v1/api-automation/runs/run-1');
-    expect(requestJsonMock).toHaveBeenNthCalledWith(14, '/api/v1/api-automation/health');
+    expect(requestJsonMock).toHaveBeenNthCalledWith(14, '/api/v1/api-automation/runs/run-1/export');
+    expect(requestJsonMock).toHaveBeenNthCalledWith(15, '/api/v1/api-automation/health');
   });
 });
