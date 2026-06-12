@@ -11,6 +11,7 @@ import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationRunExpo
 import com.songhg.veri.agent.apiautomation.config.ApiAutomationProperties;
 import com.songhg.veri.agent.apiautomation.domain.ApiAutomationCase;
 import com.songhg.veri.agent.apiautomation.domain.ApiAutomationEndpointSnapshot;
+import com.songhg.veri.agent.apiautomation.domain.ApiAutomationRun;
 import com.songhg.veri.agent.apiautomation.domain.ApiAutomationScriptBundle;
 import com.songhg.veri.agent.apiautomation.domain.ApiAutomationSpec;
 import com.songhg.veri.agent.apiautomation.infrastructure.InMemoryApiAutomationRepository;
@@ -180,6 +181,37 @@ class ApiAutomationRunnerSmokeTest {
         });
     }
 
+    @Test
+    void runnerSmokeCancelsInFlightAsyncRunThroughRunnerPort() {
+        RecordingRunnerPort runnerPort = new RecordingRunnerPort(RunnerScenario.ASYNC_CANCEL_ACCEPTED);
+        RunnerFixture fixture = runnerFixture(runnerPort);
+        UUID runId = UUID.randomUUID();
+
+        /*
+         * createRun is intentionally synchronous today. This smoke seeds the control-plane state a future async runner
+         * would leave behind after accepting work, then verifies cancelRun performs the same persisted state convergence.
+         */
+        fixture.repository().insertRun(inFlightRun(runId, fixture.bundleId()));
+
+        ApiAutomationRunDetailResponse response = fixture.service().cancelRun(runId);
+
+        assertThat(runnerPort.cancelCalls()).isEqualTo(1);
+        assertThat(runnerPort.lastCanceledRunId()).isEqualTo(runId);
+        assertThat(response.run().status()).isEqualTo("CANCELED");
+        assertThat(response.run().runnerMode()).isEqualTo("EXTERNAL");
+        assertThat(response.run().errorCode()).isEqualTo("RUNNER_CANCELED");
+        assertThat(response.run().errorSummary())
+                .contains("cancel accepted")
+                .doesNotContain("cancel-token-123456", "cancel-secret-123456");
+        assertThat(response.run().completedAt()).isNotNull();
+        assertThat(fixture.repository().run(runId).orElseThrow().status()).isEqualTo("CANCELED");
+        assertThat(fixture.repository().run(runId).orElseThrow().updatedBy()).isEqualTo("wp6-runner-smoke");
+
+        ApiAutomationRunExportResponse exported = fixture.service().exportRun(runId);
+        assertThat(exported.run().status()).isEqualTo("CANCELED");
+        assertThat(exported.toString()).doesNotContain("cancel-token-123456", "cancel-secret-123456");
+    }
+
     private RunnerFixture runnerFixture(ApiAutomationRunnerPort runnerPort) {
         return runnerFixture(runnerPort, 1_048_576);
     }
@@ -243,7 +275,32 @@ class ApiAutomationRunnerSmokeTest {
         UUID bundleId = generated.scriptBundles().getFirst().id();
         service.submitScriptBundleReview(bundleId, new ReviewApiAutomationScriptBundleCommand("runner smoke ready"));
         service.approveScriptBundle(bundleId, new ReviewApiAutomationScriptBundleCommand("runner smoke approved"));
-        return new RunnerFixture(service, bundleId, generated.cases().getFirst().id());
+        return new RunnerFixture(service, repository, bundleId, generated.cases().getFirst().id());
+    }
+
+    private ApiAutomationRun inFlightRun(UUID id, UUID bundleId) {
+        Instant now = Instant.EPOCH;
+        return new ApiAutomationRun(
+                id,
+                PROJECT_ID,
+                bundleId,
+                "qa-async",
+                "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+                SMOKE_ALLOWED_HOST,
+                "RUNNING",
+                30,
+                1,
+                "trc_wp6_async_cancel",
+                "EXTERNAL",
+                null,
+                null,
+                "wp6-runner-smoke",
+                "wp6-runner-smoke",
+                now,
+                null,
+                now,
+                now
+        );
     }
 
     private ApiAutomationSpec spec(UUID id) {
@@ -307,7 +364,8 @@ class ApiAutomationRunnerSmokeTest {
     private enum RunnerScenario {
         MANAGED_ASSERTION_FAILURE,
         EXTERNAL_TIMEOUT,
-        OVERSIZED_ARTIFACT
+        OVERSIZED_ARTIFACT,
+        ASYNC_CANCEL_ACCEPTED
     }
 
     private static final class RecordingRunnerPort implements ApiAutomationRunnerPort {
@@ -316,8 +374,10 @@ class ApiAutomationRunnerSmokeTest {
 
         private final RunnerScenario scenario;
         private final AtomicInteger runCalls = new AtomicInteger();
+        private final AtomicInteger cancelCalls = new AtomicInteger();
         private List<String> lastSecretRefDigests = List.of();
         private List<RunnerSecret> lastSecrets = List.of();
+        private UUID lastCanceledRunId;
 
         private RecordingRunnerPort(RunnerScenario scenario) {
             this.scenario = scenario;
@@ -385,11 +445,27 @@ class ApiAutomationRunnerSmokeTest {
                                 null
                         ))
                 );
+                case ASYNC_CANCEL_ACCEPTED -> new RunnerRunResult(
+                        "RUNNING",
+                        "EXTERNAL",
+                        null,
+                        null,
+                        List.of()
+                );
             };
         }
 
         @Override
         public RunnerCancelResult cancel(UUID runId) {
+            cancelCalls.incrementAndGet();
+            lastCanceledRunId = runId;
+            if (scenario == RunnerScenario.ASYNC_CANCEL_ACCEPTED) {
+                return new RunnerCancelResult(
+                        true,
+                        "RUNNER_CANCELED",
+                        "cancel accepted token=cancel-token-123456 secret=cancel-secret-123456"
+                );
+            }
             return new RunnerCancelResult(false, "NOT_RUNNING", "runner smoke is synchronous");
         }
 
@@ -403,6 +479,14 @@ class ApiAutomationRunnerSmokeTest {
 
         private List<RunnerSecret> lastSecrets() {
             return lastSecrets;
+        }
+
+        private int cancelCalls() {
+            return cancelCalls.get();
+        }
+
+        private UUID lastCanceledRunId() {
+            return lastCanceledRunId;
         }
     }
 
@@ -427,6 +511,7 @@ class ApiAutomationRunnerSmokeTest {
 
     private record RunnerFixture(
             ApiAutomationService service,
+            InMemoryApiAutomationRepository repository,
             UUID bundleId,
             UUID caseId
     ) {
