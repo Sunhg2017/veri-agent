@@ -4,12 +4,12 @@
 |---|---|
 | 工作包 | WP6 OpenAPI 接口自动化 |
 | 文档性质 | runner smoke、开关、allowlist、排障和回滚说明 |
-| 当前口径 | 已提供基础 Managed HTTP adapter、service contract smoke、loopback runner smoke 和 Pytest runtime secret header 映射契约；Pytest 子进程型 runner 后续接入 |
+| 当前口径 | 已提供基础 Managed HTTP adapter、显式 Pytest 子进程 adapter 契约、service contract smoke、loopback runner smoke 和 Pytest runtime secret header 映射 |
 | 日期 | 2026-06-12 |
 
 ## 1. 适用范围
 
-本 Runbook 适用于 WP6 手动试运行和发布准出检查。当前 `platform-api` 默认使用 `DisabledApiAutomationRunnerAdapter`，不会访问外部网络；显式 `runner-enabled=true` 时装配基础 `ManagedHttpApiAutomationRunnerAdapter`，仅执行无请求体、丢弃响应体的受控 HTTP 状态码探测。runner smoke 通过 `ApiAutomationRunnerSmokeTest`、`ManagedHttpApiAutomationRunnerAdapterTest` 和配置测试验证执行分支、allowlist、timeout、loopback HTTP 执行、artifact size 准入和脱敏规则。
+本 Runbook 适用于 WP6 手动试运行和发布准出检查。当前 `platform-api` 默认使用 `DisabledApiAutomationRunnerAdapter`，不会访问外部网络；显式 `runner-enabled=true` 时默认装配基础 `ManagedHttpApiAutomationRunnerAdapter`，仅执行无请求体、丢弃响应体的受控 HTTP 状态码探测；显式 `runner-mode=pytest-subprocess` 时装配 `PytestSubprocessApiAutomationRunnerAdapter`，在临时目录重建已审批脚本包的最小 Pytest/httpx 文件树并执行本地子进程。runner smoke 通过 `ApiAutomationRunnerSmokeTest`、`ManagedHttpApiAutomationRunnerAdapterTest`、`PytestSubprocessApiAutomationRunnerAdapterTest` 和配置测试验证执行分支、allowlist、timeout、loopback HTTP 执行、Pytest 子进程契约、artifact size 准入和脱敏规则。
 
 ## 2. 开关和配置
 
@@ -20,11 +20,13 @@
 | `veri-agent.api-automation.runner-max-cases` | `100` | 单次运行用例上限。 |
 | `veri-agent.api-automation.runner-allowed-base-url-patterns` | 空 | 允许访问的 host 或 `*.domain` 模式，不在 health 中展示明细。 |
 | `veri-agent.api-automation.runner-artifact-max-bytes` | `1048576` | runner case 级断言/产物摘要最大字节数；超限折叠为聚合证据。 |
-| `WP6_RUNNER_SMOKE` | `0` | `managed/auto/external/1/true` 时执行 runner smoke。 |
+| `veri-agent.api-automation.runner-mode` | `managed-http` | `managed-http` 或 `pytest-subprocess`；Pytest 子进程必须显式启用。 |
+| `veri-agent.api-automation.runner-pytest-command` | `python3 -m pytest` | Pytest 子进程命令，不经 shell 执行；运行环境需预装 pytest/httpx。 |
+| `WP6_RUNNER_SMOKE` | `0` | `managed/pytest/auto/external/1/true` 时执行 runner smoke。 |
 | `WP6_RUNNER_BASE_URL` | `https://api.wp6-smoke.example.test/service` | `external` 模式必须显式配置并人工评审。 |
 | `WP6_RUNNER_ALLOWED_HOST` | 从 baseUrl 派生 | smoke 测试使用的 allowlist host；通常不需要手工设置。 |
-| `WP6_RUNNER_SECRET_HEADERS_JSON` | `[]` | 后续 Pytest 子进程 runner 注入的受控 header 映射，只允许 `X-VA-WP6-Secret-N`。 |
-| `WP6_RUNNER_SECRET_VALUE_N` | 空 | 后续 Pytest 子进程 runner 注入的第 N 个 secret 明文值；只存在于运行期进程环境，不得落库、审计或导出。 |
+| `WP6_RUNNER_SECRET_HEADERS_JSON` | `[]` | Pytest 子进程 runner 注入的受控 header 映射，只允许 `X-VA-WP6-Secret-N`。 |
+| `WP6_RUNNER_SECRET_VALUE_N` | 空 | Pytest 子进程 runner 注入的第 N 个 secret 明文值；只存在于运行期进程环境，不得落库、审计或导出。 |
 
 ## 3. 日常验证
 
@@ -38,6 +40,12 @@ bash scripts/wp6_quality_gate.sh
 
 ```bash
 WP6_RUNNER_SMOKE=managed bash scripts/wp6_runner_smoke.sh
+```
+
+仅执行 Pytest 子进程 adapter 契约 smoke：
+
+```bash
+WP6_RUNNER_SMOKE=pytest bash scripts/wp6_runner_smoke.sh
 ```
 
 发布模式必须显式启 runner smoke：
@@ -69,7 +77,7 @@ bash scripts/wp6_runner_smoke.sh
 
 | 现象 | 处理 |
 |---|---|
-| release gate 提示必须配置 runner smoke | 设置 `WP6_RUNNER_SMOKE=managed`，或在外部目标已评审后设置 `WP6_RUNNER_SMOKE=external` 和 `WP6_RUNNER_BASE_URL`。 |
+| release gate 提示必须配置 runner smoke | 设置 `WP6_RUNNER_SMOKE=managed` 或 `pytest`，或在外部目标已评审后设置 `WP6_RUNNER_SMOKE=external` 和 `WP6_RUNNER_BASE_URL`。 |
 | `RUNNER_TARGET_BLOCKED` | 检查 baseUrl 是否为 localhost/私网/metadata/.local，或 allowlist 是否只配置了错误 host。 |
 | `RUNNER_DISABLED` | 开发环境符合预期；真实试运行需显式开启 `runner-enabled` 并配置 allowlist。 |
 | smoke 中出现 secret 明文 | 视为安全阻断，先回滚 runner adapter 或禁用 runner，再修复脱敏后重跑。 |
@@ -88,4 +96,4 @@ bash scripts/wp6_runner_smoke.sh
 
 ## 7. 当前限制
 
-当前 smoke 验证 runner port 契约、控制面脱敏、secretRef 引用 digest、SecretProvider 解析、Managed HTTP 受控 header 注入、Pytest runtime secret header 映射契约、runner artifact size 准入与导出脱敏、取消 API 幂等语义和基础 Managed HTTP loopback 执行；`POST /api/v1/api-automation/runs/{id}/cancel` 已作为控制面尽力取消入口，当前同步 Managed HTTP runner 通常只能对终态 run 幂等返回，后续异步 runner 才能中断运行中任务。运行请求支持 `secretRefs`，完整引用只用于运行期 SecretProvider resolve，审计、落库和导出只保留 `sha256:<digest>`；Managed HTTP runner 只允许注入服务端生成的 `X-VA-WP6-Secret-N` header，不接受任意 Authorization/Cookie header 覆盖。Pytest 模板已定义 `WP6_RUNNER_SECRET_HEADERS_JSON` 到 `WP6_RUNNER_SECRET_VALUE_N` 的运行期映射，但当前仍不执行真实 Pytest/httpx 子进程、不启动 WP9 调度、不验证异步 cancel smoke，也不提供 Allure 风格报告。后续接入 Pytest 子进程型 runner 时，需要补充网络隔离和 cancel smoke。
+当前 smoke 验证 runner port 契约、控制面脱敏、secretRef 引用 digest、SecretProvider 解析、Managed HTTP 受控 header 注入、Pytest subprocess 命令/env/JUnit XML 解析契约、Pytest runtime secret header 映射、runner artifact size 准入与导出脱敏、取消 API 幂等语义和基础 Managed HTTP loopback 执行；`POST /api/v1/api-automation/runs/{id}/cancel` 已作为控制面尽力取消入口，当前同步 runner 通常只能对终态 run 幂等返回，后续异步 runner 才能中断运行中任务。运行请求支持 `secretRefs`，完整引用只用于运行期 SecretProvider resolve，审计、落库和导出只保留 `sha256:<digest>`；Managed HTTP 和 Pytest subprocess runner 都只允许注入服务端生成的 `X-VA-WP6-Secret-N` header，不接受任意 Authorization/Cookie header 覆盖。Pytest subprocess adapter 不持久化生成源码、stdout/stderr 原文、请求/响应正文或 secret；真实执行环境需预装 Python、pytest 和 httpx。不启动 WP9 调度、不验证异步 cancel smoke，也不提供 Allure 风格报告。后续需要补充异步 cancel smoke 和复杂页面 Playwright smoke。

@@ -34,7 +34,7 @@ is_plan_only() {
 
 runner_smoke_requested() {
   case "${WP6_RUNNER_SMOKE:-0}" in
-    1|true|TRUE|managed|auto|external)
+    1|true|TRUE|managed|pytest|auto|external)
       return 0
       ;;
     *)
@@ -48,7 +48,7 @@ validate_release_gate() {
     return
   fi
   if ! runner_smoke_requested; then
-    echo "WP6 release gate requires runner smoke. Set WP6_RUNNER_SMOKE=managed for a managed smoke, or WP6_RUNNER_SMOKE=external with a reviewed runner base URL." >&2
+    echo "WP6 release gate requires runner smoke. Set WP6_RUNNER_SMOKE=managed or pytest for local smoke, or WP6_RUNNER_SMOKE=external with a reviewed runner base URL." >&2
     exit 2
   fi
   echo "== wp6 release gate mode: runner smoke explicitly required =="
@@ -76,15 +76,15 @@ check_script_syntax() {
 
 run_runner_smoke() {
   case "${WP6_RUNNER_SMOKE:-0}" in
-    1|true|TRUE|managed|auto|external)
+    1|true|TRUE|managed|pytest|auto|external)
       run_step "wp6 runner smoke" \
         bash "$ROOT_DIR/scripts/wp6_runner_smoke.sh"
       ;;
     0|false|FALSE|"")
-      echo "== wp6 runner smoke skipped; set WP6_RUNNER_SMOKE=managed or external for explicit runner smoke =="
+      echo "== wp6 runner smoke skipped; set WP6_RUNNER_SMOKE=managed, pytest or external for explicit runner smoke =="
       ;;
     *)
-      echo "Unsupported WP6_RUNNER_SMOKE=${WP6_RUNNER_SMOKE}; use managed, auto, external, 1, or 0." >&2
+      echo "Unsupported WP6_RUNNER_SMOKE=${WP6_RUNNER_SMOKE}; use managed, pytest, auto, external, 1, or 0." >&2
       exit 2
       ;;
   esac

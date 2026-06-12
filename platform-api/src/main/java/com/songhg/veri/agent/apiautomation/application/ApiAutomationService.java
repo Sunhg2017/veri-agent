@@ -263,6 +263,7 @@ public class ApiAutomationService {
                         Map.entry("scriptBundleReady", true),
                         Map.entry("scriptBundleReviewReady", true),
                         Map.entry("runnerRunReady", true),
+                        Map.entry("runnerMode", properties.effectiveRunnerMode()),
                         Map.entry("runnerArtifactMaxBytes", properties.effectiveRunnerArtifactMaxBytes()),
                         Map.entry("runnerAllowedBaseUrlConfigured", !allowedBaseUrlPatterns().isEmpty()),
                         Map.entry("aggregateOnly", true)

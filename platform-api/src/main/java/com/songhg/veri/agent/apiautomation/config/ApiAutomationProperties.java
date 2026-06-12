@@ -1,5 +1,6 @@
 package com.songhg.veri.agent.apiautomation.config;
 
+import java.util.Locale;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.bind.ConstructorBinding;
 import org.springframework.boot.context.properties.bind.DefaultValue;
@@ -26,7 +27,11 @@ public record ApiAutomationProperties(
         /** WP2 Prompt key */
         @DefaultValue("wp6-api-automation-v1") String promptKey,
         /** 模型失败时是否允许确定性模板兜底 */
-        @DefaultValue("true") boolean modelFallbackEnabled
+        @DefaultValue("true") boolean modelFallbackEnabled,
+        /** runner adapter 模式；默认托管 HTTP 探测，pytest 子进程必须显式启用 */
+        @DefaultValue("managed-http") String runnerMode,
+        /** pytest 子进程命令；仅 runner-mode=pytest-subprocess 时使用，不经 shell 执行 */
+        @DefaultValue("python3 -m pytest") String runnerPytestCommand
 ) {
     private static final int DEFAULT_SPEC_MAX_BYTES = 1_048_576;
     private static final int MAX_SPEC_BYTES = 5 * 1_048_576;
@@ -38,6 +43,8 @@ public record ApiAutomationProperties(
     private static final int MAX_RUNNER_MAX_CASES = 1_000;
     private static final int DEFAULT_RUNNER_ARTIFACT_MAX_BYTES = 1_048_576;
     private static final int MAX_RUNNER_ARTIFACT_MAX_BYTES = 10 * 1_048_576;
+    private static final String DEFAULT_RUNNER_MODE = "managed-http";
+    private static final String DEFAULT_RUNNER_PYTEST_COMMAND = "python3 -m pytest";
 
     @ConstructorBinding
     public ApiAutomationProperties {
@@ -61,7 +68,35 @@ public record ApiAutomationProperties(
                 "",
                 DEFAULT_RUNNER_ARTIFACT_MAX_BYTES,
                 promptKey,
-                modelFallbackEnabled
+                modelFallbackEnabled,
+                DEFAULT_RUNNER_MODE,
+                DEFAULT_RUNNER_PYTEST_COMMAND
+        );
+    }
+
+    public ApiAutomationProperties(
+            int specMaxBytes,
+            int endpointMaxCount,
+            boolean runnerEnabled,
+            int runnerTimeoutSeconds,
+            int runnerMaxCases,
+            String runnerAllowedBaseUrlPatterns,
+            int runnerArtifactMaxBytes,
+            String promptKey,
+            boolean modelFallbackEnabled
+    ) {
+        this(
+                specMaxBytes,
+                endpointMaxCount,
+                runnerEnabled,
+                runnerTimeoutSeconds,
+                runnerMaxCases,
+                runnerAllowedBaseUrlPatterns,
+                runnerArtifactMaxBytes,
+                promptKey,
+                modelFallbackEnabled,
+                DEFAULT_RUNNER_MODE,
+                DEFAULT_RUNNER_PYTEST_COMMAND
         );
     }
 
@@ -84,6 +119,24 @@ public record ApiAutomationProperties(
 
     public int effectiveRunnerArtifactMaxBytes() {
         return boundedPositive(runnerArtifactMaxBytes, DEFAULT_RUNNER_ARTIFACT_MAX_BYTES, MAX_RUNNER_ARTIFACT_MAX_BYTES);
+    }
+
+    public String effectiveRunnerMode() {
+        String normalized = runnerMode == null
+                ? DEFAULT_RUNNER_MODE
+                : runnerMode.trim().toLowerCase(Locale.ROOT).replace('_', '-');
+        return switch (normalized) {
+            case "managed", "managed-http" -> "managed-http";
+            case "pytest", "pytest-subprocess" -> "pytest-subprocess";
+            default -> DEFAULT_RUNNER_MODE;
+        };
+    }
+
+    public String effectiveRunnerPytestCommand() {
+        if (runnerPytestCommand == null || runnerPytestCommand.trim().isEmpty()) {
+            return DEFAULT_RUNNER_PYTEST_COMMAND;
+        }
+        return runnerPytestCommand.trim();
     }
 
     private static int boundedPositive(int value, int defaultValue, int maxValue) {

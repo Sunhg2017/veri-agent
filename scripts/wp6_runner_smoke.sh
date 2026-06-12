@@ -8,10 +8,10 @@ case "$mode" in
   1|true|TRUE|auto)
     mode="managed"
     ;;
-  managed|external)
+  managed|external|pytest)
     ;;
   *)
-    echo "Unsupported WP6_RUNNER_SMOKE=${WP6_RUNNER_SMOKE:-}; use managed, auto, external, 1, or true." >&2
+    echo "Unsupported WP6_RUNNER_SMOKE=${WP6_RUNNER_SMOKE:-}; use managed, pytest, auto, external, 1, or true." >&2
     exit 2
     ;;
 esac
@@ -42,10 +42,16 @@ if [[ -z "$allowed_host" ]]; then
 fi
 
 echo "== wp6 runner ${mode} smoke =="
-mvn -B -pl platform-api \
-  -Dtest=ApiAutomationRunnerSmokeTest,ManagedHttpApiAutomationRunnerAdapterTest,ApiAutomationRunnerConfigurationTest \
-  -Dwp6.runner.smoke.baseUrl="$base_url" \
-  -Dwp6.runner.smoke.allowedHost="$allowed_host" \
-  test
+if [[ "$mode" == "pytest" ]]; then
+  mvn -B -pl platform-api \
+    -Dtest=PytestSubprocessApiAutomationRunnerAdapterTest,ApiAutomationRunnerConfigurationTest \
+    test
+else
+  mvn -B -pl platform-api \
+    -Dtest=ApiAutomationRunnerSmokeTest,ManagedHttpApiAutomationRunnerAdapterTest,PytestSubprocessApiAutomationRunnerAdapterTest,ApiAutomationRunnerConfigurationTest \
+    -Dwp6.runner.smoke.baseUrl="$base_url" \
+    -Dwp6.runner.smoke.allowedHost="$allowed_host" \
+    test
+fi
 
 echo "WP6 runner ${mode} smoke passed."
