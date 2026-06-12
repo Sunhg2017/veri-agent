@@ -279,10 +279,19 @@ class ApiAutomationServiceTest {
         assertThat(bundle.staticCheckStatus()).isEqualTo("PASSED");
         assertThat(bundle.fileCount()).isEqualTo(6);
         assertThat(bundle.fileTreeSummary()).containsEntry("rawSourceStored", false)
-                .containsEntry("secretValuesStored", false);
+                .containsEntry("secretValuesStored", false)
+                .containsEntry("pytestRunnerContractReady", true);
+        assertThat(bundle.fileTreeSummary().get("runtimeInputs").toString())
+                .contains("WP6_RUNNER_SECRET_HEADERS_JSON")
+                .contains("WP6_RUNNER_SECRET_VALUE_")
+                .contains("^X-VA-WP6-Secret-[1-9][0-9]*$")
+                .doesNotContain("secret://", "resolved-payment-secret");
         assertThat(bundle.staticCheckSummary()).containsEntry("pythonSyntax", "PASSED")
-                .containsEntry("secretPatternHits", 0);
-        assertThat(bundle.dependencySummary().toString()).contains("pytest", "httpx");
+                .containsEntry("secretPatternHits", 0)
+                .containsEntry("runtimeSecretHeaderMapping", "PASSED");
+        assertThat(bundle.dependencySummary().toString())
+                .contains("pytest", "httpx", "ENV_JSON_TO_CONTROLLED_HEADERS")
+                .doesNotContain("secret://", "resolved-payment-secret");
 
         ApiAutomationScriptBundleResponse submitted = service.submitScriptBundleReview(
                 bundle.id(),

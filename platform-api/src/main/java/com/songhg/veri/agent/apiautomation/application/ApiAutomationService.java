@@ -104,6 +104,9 @@ public class ApiAutomationService {
     private static final String RUNNER_SECRET_CALLER_SERVICE = "wp6-api-automation-runner";
     private static final String RUNNER_SECRET_SCOPE_TYPE = "PROJECT";
     private static final String RUNNER_SECRET_HEADER_PREFIX = "X-VA-WP6-Secret-";
+    private static final String RUNNER_SECRET_HEADER_PATTERN_TEXT = "^X-VA-WP6-Secret-[1-9][0-9]*$";
+    private static final String PYTEST_SECRET_HEADER_MAPPING_ENV = "WP6_RUNNER_SECRET_HEADERS_JSON";
+    private static final String PYTEST_SECRET_VALUE_ENV_PREFIX = "WP6_RUNNER_SECRET_VALUE_";
     private static final List<String> DIFF_STATUSES = List.of("NEW", "CHANGED", "MATCHED", "CONFLICT", "SKIPPED");
     private static final Set<String> GENERATION_MODES = Set.of("FALLBACK_ONLY", "MODEL_WITH_FALLBACK");
     private static final Set<String> COVERAGE_TYPES = Set.of("SMOKE", "FUNCTIONAL", "EXCEPTION");
@@ -1363,7 +1366,16 @@ public class ApiAutomationService {
 
     private String conftestPy() {
         return """
+                import json
+                import os
+                import re
+
                 import pytest
+
+
+                _RUNNER_HEADER_PATTERN = re.compile(r"%s")
+                _RUNNER_HEADER_MAPPING_ENV = "%s"
+                _RUNNER_VALUE_ENV_PREFIX = "%s"
 
 
                 def pytest_addoption(parser):
@@ -1375,10 +1387,43 @@ public class ApiAutomationService {
                     return pytestconfig.getoption("--base-url").rstrip("/")
 
 
+                def _runner_secret_headers():
+                    raw_mapping = os.environ.get(_RUNNER_HEADER_MAPPING_ENV, "[]").strip()
+                    if not raw_mapping:
+                        return {}
+                    try:
+                        mappings = json.loads(raw_mapping)
+                    except json.JSONDecodeError as exc:
+                        raise pytest.UsageError("invalid WP6 runner header mapping") from exc
+                    if not isinstance(mappings, list):
+                        raise pytest.UsageError("invalid WP6 runner header mapping")
+
+                    headers = {}
+                    for index, item in enumerate(mappings, start=1):
+                        if not isinstance(item, dict):
+                            raise pytest.UsageError("invalid WP6 runner header mapping")
+                        header_name = str(item.get("headerName", "")).strip()
+                        value_env = str(item.get("valueEnv", "")).strip()
+                        if not _RUNNER_HEADER_PATTERN.match(header_name):
+                            raise pytest.UsageError("invalid WP6 runner header name")
+                        if value_env != f"{_RUNNER_VALUE_ENV_PREFIX}{index}":
+                            raise pytest.UsageError("invalid WP6 runner value env")
+                        header_value = os.environ.get(value_env, "")
+                        if "\\r" in header_value or "\\n" in header_value:
+                            raise pytest.UsageError("invalid WP6 runner header value")
+                        if header_value:
+                            headers[header_name] = header_value
+                    return headers
+
+
                 @pytest.fixture()
                 def default_headers():
-                    return {}
-                """;
+                    return _runner_secret_headers()
+                """.formatted(
+                RUNNER_SECRET_HEADER_PATTERN_TEXT,
+                PYTEST_SECRET_HEADER_MAPPING_ENV,
+                PYTEST_SECRET_VALUE_ENV_PREFIX
+        );
     }
 
     private String helpersPy() {
@@ -1464,6 +1509,8 @@ public class ApiAutomationService {
         }).toList());
         summary.put("rawSourceStored", false);
         summary.put("secretValuesStored", false);
+        summary.put("runtimeInputs", runtimeInputsSummary());
+        summary.put("pytestRunnerContractReady", true);
         summary.put("aggregateOnly", true);
         return summary;
     }
@@ -1478,8 +1525,36 @@ public class ApiAutomationService {
         ));
         summary.put("networkAccessDuringStaticCheck", false);
         summary.put("secretValuesStored", false);
+        summary.put("runnerContract", Map.of(
+                "runtime", "PYTEST_HTTPX",
+                "secretHeaderMapping", "ENV_JSON_TO_CONTROLLED_HEADERS",
+                "mappingEnv", PYTEST_SECRET_HEADER_MAPPING_ENV,
+                "valueEnvPrefix", PYTEST_SECRET_VALUE_ENV_PREFIX,
+                "headerNamePattern", RUNNER_SECRET_HEADER_PATTERN_TEXT,
+                "secretValuesStored", false
+        ));
         summary.put("aggregateOnly", true);
         return summary;
+    }
+
+    private Map<String, Object> runtimeInputsSummary() {
+        Map<String, Object> baseUrl = new LinkedHashMap<>();
+        baseUrl.put("source", "pytest option --base-url");
+        baseUrl.put("rawValueStored", false);
+
+        Map<String, Object> secretHeaders = new LinkedHashMap<>();
+        secretHeaders.put("mappingEnv", PYTEST_SECRET_HEADER_MAPPING_ENV);
+        secretHeaders.put("valueEnvPrefix", PYTEST_SECRET_VALUE_ENV_PREFIX);
+        secretHeaders.put("headerNamePattern", RUNNER_SECRET_HEADER_PATTERN_TEXT);
+        secretHeaders.put("secretRefStored", false);
+        secretHeaders.put("secretValuesStored", false);
+        secretHeaders.put("allowedHeaderFamily", RUNNER_SECRET_HEADER_PREFIX + "N");
+
+        Map<String, Object> runtimeInputs = new LinkedHashMap<>();
+        runtimeInputs.put("baseUrl", baseUrl);
+        runtimeInputs.put("secretHeaders", secretHeaders);
+        runtimeInputs.put("rawRequestResponseStored", false);
+        return runtimeInputs;
     }
 
     /**
@@ -1490,6 +1565,7 @@ public class ApiAutomationService {
     private StaticCheckResult staticCheck(List<ScriptFile> files) {
         List<String> violations = new ArrayList<>();
         int pythonFileCount = 0;
+        boolean runtimeSecretHeaderMappingPresent = files.stream().anyMatch(this::hasRuntimeSecretHeaderMapping);
         for (ScriptFile file : files) {
             if (!file.path().endsWith(".py")) {
                 continue;
@@ -1508,6 +1584,9 @@ public class ApiAutomationService {
                 violations.add(file.path() + ":HARDCODED_SECRET_PATTERN");
             }
         }
+        if (!runtimeSecretHeaderMappingPresent) {
+            violations.add("tests/conftest.py:RUNTIME_SECRET_HEADER_MAPPING_MISSING");
+        }
         Map<String, Object> summary = new LinkedHashMap<>();
         summary.put("templateVersion", SCRIPT_TEMPLATE_VERSION);
         summary.put("pythonSyntax", violations.stream().noneMatch(value -> value.endsWith("PYTHON_TEMPLATE_SYNTAX"))
@@ -1519,11 +1598,19 @@ public class ApiAutomationService {
         summary.put("secretPatternHits", violations.stream()
                 .filter(value -> value.endsWith("HARDCODED_SECRET_PATTERN"))
                 .count());
+        summary.put("runtimeSecretHeaderMapping", runtimeSecretHeaderMappingPresent ? "PASSED" : "FAILED");
         summary.put("pythonFileCount", pythonFileCount);
         summary.put("violations", violations);
         summary.put("networkAccessDuringStaticCheck", false);
         summary.put("aggregateOnly", true);
         return new StaticCheckResult(violations.isEmpty() ? STATIC_CHECK_PASSED : STATIC_CHECK_FAILED, summary);
+    }
+
+    private boolean hasRuntimeSecretHeaderMapping(ScriptFile file) {
+        return "tests/conftest.py".equals(file.path())
+                && file.content().contains(PYTEST_SECRET_HEADER_MAPPING_ENV)
+                && file.content().contains(PYTEST_SECRET_VALUE_ENV_PREFIX)
+                && file.content().contains(RUNNER_SECRET_HEADER_PATTERN_TEXT);
     }
 
     private boolean balancedTemplateDelimiters(String content) {
