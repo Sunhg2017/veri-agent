@@ -38,6 +38,7 @@ AI 驱动的端到端企业级测试平台。WP1、WP2、WP3、WP4 是研发任�
 | `doc/mvp/final/engineering/WP5-AI用例生成与评审-技术设计与接口契约.md` | WP5 服务端技术设计、数据模型、状态机、权限、审计、配置和 API 契约草案。 |
 | `doc/mvp/final/engineering/WP5-AI用例生成与评审-前端页面设计.md` | WP5 前端页面、路由、权限、表单校验、状态展示和可测性设计。 |
 | `doc/mvp/final/engineering/WP5-AI用例生成与评审-测试策略与用例脚本.md` | WP5 测试策略、功能/安全/前端用例、质量评测指标和脚本入口建议。 |
+| `doc/mvp/final/engineering/WP6-OpenAPI接口自动化-发布准出说明.md` | WP6 发布准出、验证记录、跳过项、风险、回滚和五角色结论。 |
 | `doc/mvp/final/engineering/WP6-Runner-Runbook.md` | WP6 runner smoke、开关、allowlist、排障和回滚说明。 |
 | `doc/mvp/final/engineering/当前实现基线.md` | 当前代码与文档对齐的权威基线：单服务、无租户、camelCase、分页和验证入口。 |
 | `doc/mvp/final/engineering/WP1-单平台权限矩阵与菜单矩阵.md` | 当前 WP1 单平台权限、菜单和按钮规则。 |

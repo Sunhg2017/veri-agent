@@ -164,9 +164,9 @@
 5. 前端 WP6-7.x 与后端契约并行推进，但 sync、生成、运行按钮必须以后端权限和状态为准。
 6. WP6-8.x 从第一轮迁移开始同步建设，避免最后补门禁。
 
-## 16. 当前推进状态（2026-06-12）
+## 16. 当前推进状态（2026-06-13）
 
-当前完成 M1/M2/M3 控制面、M4 用例生成、M5 脚本包评审、M6 runner 默认禁用/allowlist 控制面切片、M7 离线质量门禁切片和运行导出切片，退出标准以“OpenAPI 规格可导入、解析、脱敏、查询、生成 endpoint snapshot，可对 WP3 API 资产 diff/sync，可基于已同步 API 和已发布 WP3 测试用例摘要生成确定性 fallback 或 WP2 模型优先自动化用例草稿，可生成 Pytest/httpx 脚本包摘要、完成静态校验、提交评审、审批和驳回，并可创建受控运行任务、在默认禁用或目标阻断时保存并导出脱敏运行结果摘要，且可通过 WP6 专项 quality gate 聚合后端、前端、构建、DB validation 和 OpenAPI fixture smoke”为准。
+当前完成 M1/M2/M3 控制面、M4 用例生成、M5 脚本包评审、M6 runner 默认禁用/allowlist 控制面切片、M7/M8 质量门禁和 runner smoke、M9 文档/Runbook/准出说明，退出标准以“OpenAPI 规格可导入、解析、脱敏、查询、归档、生成 endpoint snapshot，可对 WP3 API 资产 diff/sync-preview/sync，可基于已同步 API 和已发布 WP3 测试用例摘要生成确定性 fallback 或 WP2 模型优先自动化用例草稿，可生成 Pytest/httpx 脚本包摘要、完成静态校验、提交评审、审批和驳回，并可创建受控运行任务、在默认禁用或目标阻断时保存并导出脱敏运行结果摘要，且可通过 WP6 专项 quality gate 聚合后端、前端、构建、DB validation、OpenAPI fixture smoke 和显式 runner smoke”为准。
 
 | Story | 状态 | 说明 |
 |---|---|---|
@@ -217,6 +217,9 @@
 | WP6-8.4 Fixture smoke | 已完成 | 新增 `platform-api/src/test/resources/wp6-openapi-fixtures` 和 `OpenApiFixtureSmokeTest`，覆盖 JSON/YAML、path/query/header/cookie 参数、requestBody、响应码、非法 OpenAPI、endpoint 上限和敏感示例脱敏；入口为 `bash scripts/wp6_openapi_fixture_smoke.sh`。 |
 | WP6-8.5 Quality gate | 已完成 | 新增 `scripts/wp6_quality_gate.sh` 聚合脚本语法、OpenAPI fixture smoke、WP6 后端/OpenAPI 测试、前端 WP6 helper/权限测试、WP6 Playwright smoke、前端构建和 DB validation；默认不启 runner，可用 `WP6_SKIP_FRONTEND_E2E=1` 显式跳过浏览器 smoke。 |
 | WP6-8.6 Runner smoke | 已完成 | 新增 `scripts/wp6_runner_smoke.sh`、`ApiAutomationRunnerSmokeTest`、`ManagedHttpApiAutomationRunnerAdapterTest`、`PytestSubprocessApiAutomationRunnerAdapterTest` 和 runner 配置测试，支持 `managed/pytest/auto/external` smoke，覆盖 runner 执行分支、allowlist 阻断、基础 loopback HTTP pass/fail/path-template/timeout、secretRef digest 传递、SecretProvider 解析、Managed HTTP 受控 header 注入、Pytest subprocess 命令/env/JUnit XML 解析契约、Pytest runtime secret header 映射、runner artifact size 准入与导出脱敏、取消 API 幂等返回、异步 cancel 控制面模拟、失败摘要和导出脱敏。 |
+| WP6-9.1 API 契约更新 | 已完成 | 技术设计与接口契约已随实现更新 health、spec、archive、diff、sync-preview、sync、generation task、script bundle review、run、cancel 和 export 路径、权限、错误码、脱敏边界，并由 OpenAPI contract test 覆盖真实路径。 |
+| WP6-9.2 Runner Runbook | 已完成 | 新增 `WP6-Runner-Runbook.md`，覆盖 runner 开关、allowlist、secretRef、timeout、artifact size、managed/pytest/external smoke、排障和回滚步骤。 |
+| WP6-9.3 发布准出说明 | 已完成 | 新增 `WP6-OpenAPI接口自动化-发布准出说明.md`，记录验证命令、跳过项、风险、回滚、远端分支和五角色准出结论。 |
 | WP6-9.4 前端操作说明 | 已完成 | 前端设计文档已补浏览器操作说明，覆盖入口权限、OpenAPI 导入、diff 筛选、sync、生成范围、生成历史、脚本包评审、运行、取消、脱敏导出和结果解释；用户可在 `#api-automation` 不依赖 curl 完成主链路。 |
 
 下一步建议围绕真实后台调度、进程级中断和分布式任务回收进入后续异步 runner/WP9 调度能力；WP6 P0/P1 控制面、状态机、预览、同步、生成、评审、运行、导出和质量门禁已形成可验收闭环。
