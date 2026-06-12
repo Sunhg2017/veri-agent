@@ -32,7 +32,19 @@ const openApiDocument = JSON.stringify({
   }
 }, null, 2);
 
-test('WP6 API automation browser smoke covers import, diff, generation, review, run cancel and export', async ({ page }) => {
+const smokeViewports = [
+  { name: 'desktop', width: 1280, height: 900, assertResponsive: false },
+  { name: 'mobile', width: 390, height: 844, assertResponsive: true }
+] as const;
+
+for (const viewport of smokeViewports) {
+  test(`WP6 API automation browser smoke covers main flow on ${viewport.name}`, async ({ page }) => {
+    await page.setViewportSize({ width: viewport.width, height: viewport.height });
+    await runWp6MainFlow(page, viewport.assertResponsive);
+  });
+}
+
+async function runWp6MainFlow(page: Page, assertResponsive: boolean) {
   const mock = new Wp6ApiAutomationMock();
   await mock.install(page);
 
@@ -67,24 +79,37 @@ test('WP6 API automation browser smoke covers import, diff, generation, review, 
   await page.getByRole('button', { name: 'Diff' }).click();
   await expect(page.getByText('Diff：NEW 1 · CHANGED 1 · MATCHED 0')).toBeVisible();
   await expect(page.getByText('SCHEMA_DIGEST_CHANGED')).toBeVisible();
+  await page.getByLabel('Diff 筛选').selectOption('CHANGED');
+  await expect(page.getByText('SCHEMA_DIGEST_CHANGED')).toBeVisible();
+  await expect(page.getByText('NO_MATCHING_WP3_API')).toHaveCount(0);
+  await page.getByLabel('Diff 筛选').selectOption('ALL');
 
   await page.getByRole('button', { name: '同步' }).click();
   await expect(page.getByText('同步：CREATED 1 · UPDATED 1 · FAILED 0').first()).toBeVisible();
   await expect(page.getByText('2 条同步明细')).toBeVisible();
 
+  await page.getByLabel('选择 GET /v1/orders/{id}').check();
+  await expect(page.getByText('API 范围 1/2')).toBeVisible();
   await page.getByLabel('生成模式').selectOption('FALLBACK_ONLY');
   await page.getByLabel('WP3 用例 ID').fill('asset-case-smoke-1, asset-case-smoke-2');
   await page.getByRole('button', { name: '生成用例' }).click();
   await expect(page.getByText('生成：COMPLETED · API 2 · CASE 4').first()).toBeVisible();
   await expect(page.getByText('4 条草稿')).toBeVisible();
+  await expect(page.getByText('2 条最近记录')).toBeVisible();
+  await expect(page.getByText('MODEL_WITH_FALLBACK · API 1 · CASE 2')).toBeVisible();
   expect(mock.generationPayload).toMatchObject({
     projectId: 'project-wp6-ui-smoke',
     specId: 'spec-ui-1',
+    assetApiIds: ['asset-api-ui-1'],
     assetTestCaseIds: ['asset-case-smoke-1', 'asset-case-smoke-2'],
     coverageTypes: ['SMOKE', 'EXCEPTION'],
     generationMode: 'FALLBACK_ONLY',
     caseCountPerApi: 2
   });
+
+  await page.getByRole('button', { name: /MODEL_WITH_FALLBACK · API 1 · CASE 2/ }).click();
+  await expect(page.getByText('生成：COMPLETED · API 1 · CASE 2').first()).toBeVisible();
+  await expect(page.getByText('2 条草稿')).toBeVisible();
 
   await page.getByRole('button', { name: '生成脚本包' }).click();
   await expect(page.getByText('脚本包已生成')).toBeVisible();
@@ -125,7 +150,22 @@ test('WP6 API automation browser smoke covers import, diff, generation, review, 
   await expect(page.getByText('raw URL off')).toBeVisible();
   await expect(page.getByText('request/response off')).toBeVisible();
   expect(mock.exportSeen).toBe(true);
-});
+
+  if (assertResponsive) {
+    await expectNoHorizontalOverflow(page, '.api-automation-console');
+    await expect(page.locator('.api-automation-panel-actions').first()).toBeVisible();
+    await expect(page.locator('.api-path').filter({ hasText: '/v1/orders/{id}' }).first()).toBeVisible();
+    await expect(page.locator('.api-automation-history-item').first()).toBeVisible();
+  }
+}
+
+async function expectNoHorizontalOverflow(page: Page, selector: string) {
+  const overflow = await page.locator(selector).evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    return rect.left < -1 || rect.right > window.innerWidth + 1 || document.documentElement.scrollWidth > window.innerWidth + 1;
+  });
+  expect(overflow).toBe(false);
+}
 
 class Wp6ApiAutomationMock {
   importPayload: Record<string, unknown> | undefined;
@@ -260,12 +300,20 @@ class Wp6ApiAutomationMock {
 
     if (path === '/api/v1/api-automation/generation-tasks' && method === 'POST') {
       this.generationPayload = request.postDataJSON() as Record<string, unknown>;
-      return this.fulfill(route, this.generationDetail([]), 'trace-generation-create');
+      return this.fulfill(route, this.generationDetail([], 'task-ui-1'), 'trace-generation-create');
+    }
+
+    if (path === '/api/v1/api-automation/generation-tasks' && method === 'GET') {
+      return this.fulfill(route, this.page([
+        this.generationTask('task-ui-1', 'FALLBACK_ONLY', 2, 4, '2026-06-13T00:02:00Z'),
+        this.generationTask('task-ui-history-1', 'MODEL_WITH_FALLBACK', 1, 2, '2026-06-13T00:01:30Z')
+      ]), 'trace-generation-list');
     }
 
     const generationDetailMatch = path.match(/^\/api\/v1\/api-automation\/generation-tasks\/([^/]+)$/);
     if (generationDetailMatch && method === 'GET') {
-      return this.fulfill(route, this.generationDetail([]), 'trace-generation-detail');
+      const taskId = generationDetailMatch[1];
+      return this.fulfill(route, this.generationDetail([], taskId), 'trace-generation-detail');
     }
 
     const scriptBundleMatch = path.match(/^\/api\/v1\/api-automation\/generation-tasks\/([^/]+)\/script-bundles$/);
@@ -391,33 +439,54 @@ class Wp6ApiAutomationMock {
     ];
   }
 
-  private generationDetail(scriptBundles: Array<Record<string, unknown>>) {
+  private generationDetail(scriptBundles: Array<Record<string, unknown>>, taskId: string) {
+    const historyTask = taskId === 'task-ui-history-1';
     return {
       task: {
-        id: 'task-ui-1',
+        ...this.generationTask(
+          taskId,
+          historyTask ? 'MODEL_WITH_FALLBACK' : 'FALLBACK_ONLY',
+          historyTask ? 1 : 2,
+          historyTask ? 2 : 4,
+          historyTask ? '2026-06-13T00:01:30Z' : '2026-06-13T00:02:00Z'
+        ),
         projectId: 'project-wp6-ui-smoke',
         specId: 'spec-ui-1',
         requestKey: 'wp6-fallback_only-spec-ui-1',
         requestDigest: 'sha256:generation-ui',
-        generationMode: 'FALLBACK_ONLY',
-        coverageTypes: ['SMOKE', 'EXCEPTION'],
-        status: 'COMPLETED',
         promptKey: 'wp6-api-automation-v1',
         promptVersion: 'v1',
         fallbackUsed: true,
-        apiCount: 2,
-        caseCount: 4,
-        inputSummary: { aggregateOnly: true },
-        createdAt: '2026-06-13T00:02:00Z',
-        updatedAt: '2026-06-13T00:02:00Z'
+        inputSummary: { aggregateOnly: true }
       },
-      cases: [
-        this.case('case-ui-1', 'endpoint-ui-1', 'asset-api-ui-1', 'GET', '/v1/orders/{id}', 'SMOKE', 200),
-        this.case('case-ui-2', 'endpoint-ui-1', 'asset-api-ui-1', 'GET', '/v1/orders/{id}', 'EXCEPTION', 404),
-        this.case('case-ui-3', 'endpoint-ui-2', 'asset-api-ui-2', 'POST', '/v1/orders', 'SMOKE', 201),
-        this.case('case-ui-4', 'endpoint-ui-2', 'asset-api-ui-2', 'POST', '/v1/orders', 'EXCEPTION', 400)
-      ],
+      cases: historyTask
+        ? [
+          this.case('case-ui-1', 'endpoint-ui-1', 'asset-api-ui-1', 'GET', '/v1/orders/{id}', 'SMOKE', 200),
+          this.case('case-ui-2', 'endpoint-ui-1', 'asset-api-ui-1', 'GET', '/v1/orders/{id}', 'EXCEPTION', 404)
+        ]
+        : [
+          this.case('case-ui-1', 'endpoint-ui-1', 'asset-api-ui-1', 'GET', '/v1/orders/{id}', 'SMOKE', 200),
+          this.case('case-ui-2', 'endpoint-ui-1', 'asset-api-ui-1', 'GET', '/v1/orders/{id}', 'EXCEPTION', 404),
+          this.case('case-ui-3', 'endpoint-ui-2', 'asset-api-ui-2', 'POST', '/v1/orders', 'SMOKE', 201),
+          this.case('case-ui-4', 'endpoint-ui-2', 'asset-api-ui-2', 'POST', '/v1/orders', 'EXCEPTION', 400)
+        ],
       scriptBundles
+    };
+  }
+
+  private generationTask(id: string, generationMode: string, apiCount: number, caseCount: number, createdAt: string) {
+    return {
+      id,
+      projectId: 'project-wp6-ui-smoke',
+      specId: 'spec-ui-1',
+      generationMode,
+      coverageTypes: ['SMOKE', 'EXCEPTION'],
+      status: 'COMPLETED',
+      apiCount,
+      caseCount,
+      inputSummary: { aggregateOnly: true },
+      createdAt,
+      updatedAt: createdAt
     };
   }
 

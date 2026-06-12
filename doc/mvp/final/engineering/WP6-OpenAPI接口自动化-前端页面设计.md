@@ -116,10 +116,22 @@
 3. 所有按钮文案不得被挤压重叠，长 path、operationId 和错误摘要必须换行。
 4. 不使用营销式 hero，不把工具内容放进嵌套卡片。
 
-## 10. 前端验收
+## 10. 前端操作说明
+
+1. 具备 `apiAutomation:read` 权限的用户从侧边导航进入 `接口自动化`，直达路由为 `#api-automation`；无权限用户看不到入口，直达后只展示无权限态。
+2. 在 `导入规格` 区填写项目、名称、版本、来源并粘贴 OpenAPI JSON/YAML，点击 `导入` 后规格进入列表和 Endpoint Snapshot；页面只展示解析后的 endpoint 摘要，不回显原始规格正文中的敏感示例。
+3. 点击 `Diff` 刷新 WP3 API 对齐结果，通过 `Diff 筛选` 查看 `NEW/CHANGED/MATCHED/CONFLICT/SKIPPED/UNKNOWN`；reason、assetApiId 和同步摘要用于判断是否需要同步。
+4. 点击 `同步` 将可同步 endpoint 写入 WP3 API 资产，成功后 Endpoint Snapshot 显示已同步 assetApiId；部分失败时只展示失败摘要和可排障 trace，不暴露 schema 明细。
+5. 在生成区选择生成模式，按需填写 WP3 用例 ID，并可勾选已同步 endpoint 限定 API 范围；未勾选时默认对全部已同步 API 生成。点击 `生成用例` 后展示生成摘要、草稿数量和最近生成任务历史。
+6. 在 `生成任务` 历史中点击记录可回看详情；历史列表只展示状态、模式、API 数和 CASE 数，不展示脚本源码、原始模型响应或请求正文。
+7. 点击 `生成脚本包` 后查看文件摘要、依赖摘要和静态校验状态；填写备注后可提交评审，具备 `apiAutomation:review` 权限的用户可审批或驳回。
+8. 脚本包审批通过后，在运行区填写 baseUrl、环境、可选 Case IDs 和 secretRefs，点击 `运行` 创建受控试运行；页面只展示 baseUrl host/digest、runner 策略、状态和聚合结果，不展示 query token、secret 明文、请求/响应正文或 stdout/stderr。
+9. 对 `QUEUED/RUNNING` 运行可点击 `取消`；点击 `导出摘要` 只导出脱敏运行摘要，导出区会显示 raw URL、request/response、secret 等红线字段是否关闭。
+
+## 11. 前端验收
 
 1. 无权限用户不可见入口，直达路由后能看到 403/无权限态。
 2. 导入、diff、生成、审查、运行、结果每个阶段都有 loading/empty/error。
 3. runner disabled 和策略阻断不会误导用户重复点击。
 4. `npm test` 覆盖 API helper、权限 helper、结果摘要和表单 payload。
-5. `npm run build` 通过，移动和桌面无明显重叠。
+5. `npm run build` 通过，`bash scripts/wp6_frontend_e2e_smoke.sh` 覆盖桌面和 390px 窄屏主链路，移动和桌面无明显重叠。
