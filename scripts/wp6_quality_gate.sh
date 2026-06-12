@@ -81,7 +81,7 @@ run_runner_smoke() {
         bash "$ROOT_DIR/scripts/wp6_runner_smoke.sh"
       ;;
     0|false|FALSE|"")
-      echo "== wp6 runner smoke skipped; set WP6_RUNNER_SMOKE=managed or external for explicit runner contract smoke =="
+      echo "== wp6 runner smoke skipped; set WP6_RUNNER_SMOKE=managed or external for explicit runner smoke =="
       ;;
     *)
       echo "Unsupported WP6_RUNNER_SMOKE=${WP6_RUNNER_SMOKE}; use managed, auto, external, 1, or 0." >&2

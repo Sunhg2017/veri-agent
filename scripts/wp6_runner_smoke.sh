@@ -41,11 +41,11 @@ if [[ -z "$allowed_host" ]]; then
   exit 2
 fi
 
-echo "== wp6 runner ${mode} contract smoke =="
+echo "== wp6 runner ${mode} smoke =="
 mvn -B -pl platform-api \
-  -Dtest=ApiAutomationRunnerSmokeTest \
+  -Dtest=ApiAutomationRunnerSmokeTest,ManagedHttpApiAutomationRunnerAdapterTest,ApiAutomationRunnerConfigurationTest \
   -Dwp6.runner.smoke.baseUrl="$base_url" \
   -Dwp6.runner.smoke.allowedHost="$allowed_host" \
   test
 
-echo "WP6 runner ${mode} contract smoke passed."
+echo "WP6 runner ${mode} smoke passed."

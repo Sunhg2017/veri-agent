@@ -101,11 +101,11 @@ class ApiAutomationRunnerSmokeTest {
         assertThat(runnerPort.runCalls()).isEqualTo(1);
         assertThat(response.run().status()).isEqualTo("TIMEOUT");
         assertThat(response.run().runnerMode()).isEqualTo("EXTERNAL");
-        assertThat(response.run().errorCode()).isEqualTo("RUN_TIMEOUT");
+        assertThat(response.run().errorCode()).isEqualTo("RUNNER_TIMEOUT");
         assertThat(response.run().errorSummary()).doesNotContain("timeout-token-123456");
         assertThat(response.results()).singleElement().satisfies(result -> {
             assertThat(result.status()).isEqualTo("TIMEOUT");
-            assertThat(result.errorCode()).isEqualTo("RUN_TIMEOUT");
+            assertThat(result.errorCode()).isEqualTo("RUNNER_TIMEOUT");
             assertThat(result.assertionSummary()).containsEntry("aggregateOnly", true);
         });
         assertThat(fixture.service().exportRun(response.run().id()).resultCounts()).containsEntry("TIMEOUT", 1);
@@ -279,7 +279,7 @@ class ApiAutomationRunnerSmokeTest {
                 case MANAGED_ASSERTION_FAILURE -> new RunnerRunResult(
                         "FAILED",
                         "MANAGED",
-                        "RUN_ASSERTION_FAILED",
+                        "RUNNER_FAILED",
                         "Assertion failed against " + request.baseUrl()
                                 + " token=runner-token-123456 Bearer runnersecret123456",
                         List.of(new RunnerCaseResult(
@@ -301,14 +301,14 @@ class ApiAutomationRunnerSmokeTest {
                 case EXTERNAL_TIMEOUT -> new RunnerRunResult(
                         "TIMEOUT",
                         "EXTERNAL",
-                        "RUN_TIMEOUT",
+                        "RUNNER_TIMEOUT",
                         "timeout after " + request.timeoutSeconds() + "s token=timeout-token-123456",
                         List.of(new RunnerCaseResult(
                                 automationCase.id(),
                                 "TIMEOUT",
                                 1_000,
                                 "{\"durationMs\":1000,\"rawRequestResponseStored\":true}",
-                                "RUN_TIMEOUT",
+                                "RUNNER_TIMEOUT",
                                 "case timeout token=timeout-case-token123456"
                         ))
                 );

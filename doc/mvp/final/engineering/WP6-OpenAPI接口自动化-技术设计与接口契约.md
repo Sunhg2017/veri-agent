@@ -205,7 +205,7 @@ Runner 必须执行以下限制：
 | `SCRIPT_STATIC_CHECK_FAILED` | 脚本静态校验失败 |
 | `RUNNER_DISABLED` | runner 未开启 |
 | `RUNNER_TARGET_BLOCKED` | baseUrl 不在 allowlist |
-| `RUN_TIMEOUT` | 运行超时 |
+| `RUNNER_TIMEOUT` | 运行超时 |
 
 ## 11. 验证要求
 
@@ -233,15 +233,16 @@ Runner 必须执行以下限制：
 - 后端 M5：生成任务创建时同步生成 Pytest/httpx 脚本包摘要；也支持 `POST /generation-tasks/{id}/script-bundles` 对历史任务补包，幂等返回已有未归档脚本包。
 - 静态校验 M5：在不执行 Python、不访问网络的前提下校验模板括号边界、危险 import/call 和硬编码 secret pattern；失败状态为 `SCRIPT_STATIC_CHECK_FAILED`。
 - 评审 M5：`submit-review/approve/reject` 实现 `DRAFT/REVIEWING/APPROVED/REJECTED` 流转，驳回原因必填，审计只记录动作和备注存在性，不写备注正文。
-- Runner M6：新增 `ApiAutomationRunnerPort` validate/run/cancel 契约和默认 Disabled adapter，`POST /runs` 在脚本包 `APPROVED`、静态校验通过、baseUrl 安全策略通过后才进入执行路径；默认 disabled 时持久化 `BLOCKED/RUNNER_DISABLED` 摘要。
+- Runner M6：新增 `ApiAutomationRunnerPort` validate/run/cancel 契约、默认 Disabled adapter 和基础 Managed HTTP adapter，`POST /runs` 在脚本包 `APPROVED`、静态校验通过、baseUrl 安全策略通过后才进入执行路径；默认 disabled 时持久化 `BLOCKED/RUNNER_DISABLED` 摘要，显式 `runner-enabled=true` 时装配 Managed HTTP adapter。
+- Managed HTTP Runner M8：当前 adapter 使用 JDK `HttpClient`，不跟随重定向、不发送请求体、丢弃响应体，只按生成用例的 method/path/expectedStatus 执行受控 HTTP 探测并返回聚合断言摘要；OpenAPI path template 变量使用稳定占位值，错误摘要不包含原始 URL、请求/响应正文或 secret。
 - Allowlist M6：baseUrl 标准化后仅保存 host 和 SHA-256 digest；阻断 localhost、私网 IPv4、metadata host、`.local` 和未授权 host，错误码为 `RUNNER_TARGET_BLOCKED`。
 - Run API M6：新增 `POST /api/v1/api-automation/runs` 和 `GET /api/v1/api-automation/runs/{id}`，按脚本包/run 项目 scope 校验 `apiAutomation:execute/read`，返回 run 摘要和 case-level result 摘要。
 - Run Export：新增 `GET /api/v1/api-automation/runs/{id}/export`，按 run 项目 scope 校验 `apiAutomation:export`，返回 `schemaVersion/exportedAt/run/results/resultCounts/redactionPolicy`，只导出 baseUrl host/digest、状态、耗时、错误码和聚合断言摘要；不导出 baseUrl 明文、请求响应正文、stdout/stderr 或 secret，并写 `api_automation.exported` 审计。
-- Quality Gate M7/M8：`scripts/wp6_quality_gate.sh` 聚合脚本语法、OpenAPI fixture smoke、WP6 后端/OpenAPI 测试、前端 WP6 helper/权限测试、前端构建和 DB validation；支持 `WP6_QUALITY_GATE_PLAN_ONLY=1` 输出计划，开发模式默认不启 runner；显式 `WP6_RUNNER_SMOKE=managed|auto|external` 时调用 runner contract smoke。
+- Quality Gate M7/M8：`scripts/wp6_quality_gate.sh` 聚合脚本语法、OpenAPI fixture smoke、WP6 后端/OpenAPI 测试、前端 WP6 helper/权限测试、前端构建和 DB validation；支持 `WP6_QUALITY_GATE_PLAN_ONLY=1` 输出计划，开发模式默认不启 runner；显式 `WP6_RUNNER_SMOKE=managed|auto|external` 时调用 runner smoke。
 - Fixture Smoke M7：新增 `scripts/wp6_openapi_fixture_smoke.sh`、`OpenApiFixtureSmokeTest` 和 `wp6-openapi-fixtures`，覆盖 JSON/YAML、path/query/header/cookie 参数、requestBody、响应码、非法 OpenAPI、endpoint 上限和敏感示例脱敏。
-- Runner Smoke M8：新增 `scripts/wp6_runner_smoke.sh` 和 `ApiAutomationRunnerSmokeTest`，在不访问真实业务网络的前提下验证 runner 执行分支、allowlist 阻断、timeout 结果归一化、失败结果和运行导出脱敏；`external` 模式要求显式配置 `WP6_RUNNER_BASE_URL`，当前仍属于 contract smoke，不替代后续真实 runner adapter 联调。
+- Runner Smoke M8：新增 `scripts/wp6_runner_smoke.sh`、`ApiAutomationRunnerSmokeTest`、`ManagedHttpApiAutomationRunnerAdapterTest` 和 runner 配置测试，在不访问真实业务网络的前提下验证 runner 执行分支、allowlist 阻断、基础 loopback HTTP pass/fail/path-template/timeout、失败结果和运行导出脱敏；`external` 模式要求显式配置 `WP6_RUNNER_BASE_URL`，当前仍不覆盖 Pytest 子进程、secretRef 注入和异步 cancel。
 - Parser：支持 OpenAPI 3.x JSON/YAML，抽取 method/path/operationId/tags/参数数/requestBody/响应码/schemaDigest，并对 Authorization、apiKey、token、cookie、password、secret 等敏感示例脱敏。
 - 权限：除 health 外，规格导入、查询、重解析、diff、sync、生成任务和脚本包评审均按项目 scope 校验 `apiAutomation:*` 权限。
 - 前端：新增 `#api-automation` 入口、API helper、权限控制、规格导入/列表/endpoint snapshot、diff 刷新、WP3 API 同步入口、生成模式选择、WP3 用例 ID 输入、生成用例入口、脚本包评审面板、已审批脚本包运行面板和脱敏运行摘要导出入口。
 
-本轮未实现：真实 managed/external runner 执行器、异步 cancel smoke、Runner Runbook 和复杂页面 Playwright smoke。这些仍按研发任务拆解的 M8/P1 继续推进；发布模式下 WP6 quality gate 会要求显式 runner smoke，当前可先通过 contract smoke 防止执行分支、脱敏和 allowlist 回归。
+本轮未实现：Pytest 子进程型 runner、secretRef 注入、异步 cancel smoke 和复杂页面 Playwright smoke。这些仍按研发任务拆解的 M8/P1 继续推进；发布模式下 WP6 quality gate 会要求显式 runner smoke，当前可通过 service contract smoke 和基础 Managed HTTP loopback smoke 防止执行分支、脱敏、allowlist 和 HTTP 探测回归。

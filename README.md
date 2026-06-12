@@ -67,7 +67,7 @@ AI 驱动的端到端企业级测试平台。WP1、WP2、WP3、WP4 是研发任�
 | `scripts/wp4_binary_document_smoke.sh` | WP4 真实 Word/PDF/OCR 文本抽取的本地烟测脚本。 |
 | `scripts/wp4_ai_parse_quality_eval.sh` | WP4 AI 解析质量评测集门禁脚本。 |
 | `scripts/wp6_openapi_fixture_smoke.sh` | WP6 OpenAPI fixture 解析、脱敏和错误路径烟测脚本。 |
-| `scripts/wp6_runner_smoke.sh` | WP6 runner contract smoke，覆盖执行分支、allowlist、timeout 和脱敏回归。 |
+| `scripts/wp6_runner_smoke.sh` | WP6 runner smoke，覆盖执行分支、allowlist、基础 Managed HTTP loopback、timeout 和脱敏回归。 |
 | `scripts/wp6_quality_gate.sh` | WP6 本地质量门禁入口，串联 OpenAPI fixture、后端、前端、构建、DB validation 和可选 runner smoke。 |
 
 ## 本地内存模式
