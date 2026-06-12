@@ -97,6 +97,35 @@ class ManagedHttpApiAutomationRunnerAdapterTest {
     }
 
     @Test
+    void injectsResolvedSecretOnlyAsControlledRunnerHeader() throws Exception {
+        AtomicReference<String> receivedSecretHeader = new AtomicReference<>();
+        HttpServer server = startServer("/v1/secure", 200, "{\"token\":\"secret-response\"}", 0, null, receivedSecretHeader);
+        try {
+            ApiAutomationRunnerPort.RunnerRunRequest request = new ApiAutomationRunnerPort.RunnerRunRequest(
+                    UUID.randomUUID(),
+                    scriptBundle("APPROVED", "PASSED", 1, "digest"),
+                    List.of(automationCase("GET", "/v1/secure", 200)),
+                    "http://127.0.0.1:" + server.getAddress().getPort(),
+                    5,
+                    List.of("sha256:secret-ref-digest"),
+                    List.of(new ApiAutomationRunnerPort.RunnerSecret(
+                            "X-VA-WP6-Secret-1",
+                            "sha256:secret-ref-digest",
+                            "resolved-runner-secret"
+                    ))
+            );
+
+            ApiAutomationRunnerPort.RunnerRunResult result = adapter.run(request);
+
+            assertThat(result.status()).isEqualTo("PASSED");
+            assertThat(receivedSecretHeader.get()).isEqualTo("resolved-runner-secret");
+            assertThat(result.toString()).doesNotContain("resolved-runner-secret", "secret-response");
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
     void returnsTimeoutWithoutLeakingRawTarget() throws Exception {
         HttpServer server = startServer("/v1/slow", 200, "late response", 1_500, null);
         try {
@@ -128,6 +157,7 @@ class ManagedHttpApiAutomationRunnerAdapterTest {
                 List.of(automationCase("GET", "https://attacker.example/v1", 200)),
                 "https://api.example.test",
                 5,
+                List.of(),
                 List.of()
         ));
 
@@ -146,10 +176,24 @@ class ManagedHttpApiAutomationRunnerAdapterTest {
             int delayMillis,
             AtomicReference<String> requestedPath
     ) throws IOException {
+        return startServer(path, status, responseBody, delayMillis, requestedPath, null);
+    }
+
+    private static HttpServer startServer(
+            String path,
+            int status,
+            String responseBody,
+            int delayMillis,
+            AtomicReference<String> requestedPath,
+            AtomicReference<String> receivedSecretHeader
+    ) throws IOException {
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         server.createContext(path, exchange -> {
             if (requestedPath != null) {
                 requestedPath.set(exchange.getRequestURI().getPath());
+            }
+            if (receivedSecretHeader != null) {
+                receivedSecretHeader.set(exchange.getRequestHeaders().getFirst("X-VA-WP6-Secret-1"));
             }
             if (delayMillis > 0) {
                 try {
@@ -182,6 +226,7 @@ class ManagedHttpApiAutomationRunnerAdapterTest {
                 cases,
                 "http://127.0.0.1:" + server.getAddress().getPort(),
                 timeoutSeconds,
+                List.of(),
                 List.of()
         );
     }

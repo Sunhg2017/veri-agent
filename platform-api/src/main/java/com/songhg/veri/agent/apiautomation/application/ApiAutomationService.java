@@ -48,6 +48,9 @@ import com.songhg.veri.agent.asset.application.view.TestCaseStepResponse;
 import com.songhg.veri.agent.common.api.PageResponse;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
+import com.songhg.veri.agent.common.secret.ResolvedSecret;
+import com.songhg.veri.agent.common.secret.SecretProvider;
+import com.songhg.veri.agent.common.secret.SecretResolveContext;
 import com.songhg.veri.agent.common.trace.TraceContext;
 import com.songhg.veri.agent.modelaccess.application.ModelInvocationService;
 import com.songhg.veri.agent.modelaccess.application.command.ModelInvocationCommand;
@@ -68,10 +71,13 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -93,6 +99,11 @@ public class ApiAutomationService {
     private static final int RUNNER_BASE_URL_MAX_CHARS = 512;
     private static final int RUNNER_SECRET_REF_MAX_COUNT = 10;
     private static final int RUNNER_SECRET_REF_MAX_CHARS = 256;
+    private static final int RUNNER_SECRET_VALUE_MAX_CHARS = 8_192;
+    private static final String RUNNER_SECRET_PURPOSE = "API_AUTOMATION_RUNNER";
+    private static final String RUNNER_SECRET_CALLER_SERVICE = "wp6-api-automation-runner";
+    private static final String RUNNER_SECRET_SCOPE_TYPE = "PROJECT";
+    private static final String RUNNER_SECRET_HEADER_PREFIX = "X-VA-WP6-Secret-";
     private static final List<String> DIFF_STATUSES = List.of("NEW", "CHANGED", "MATCHED", "CONFLICT", "SKIPPED");
     private static final Set<String> GENERATION_MODES = Set.of("FALLBACK_ONLY", "MODEL_WITH_FALLBACK");
     private static final Set<String> COVERAGE_TYPES = Set.of("SMOKE", "FUNCTIONAL", "EXCEPTION");
@@ -134,6 +145,7 @@ public class ApiAutomationService {
     private final ModelInvocationService modelInvocationService;
     private final ApiAutomationModelOutputParser modelOutputParser;
     private final ObjectMapper objectMapper;
+    private final List<SecretProvider> secretProviders;
 
     public ApiAutomationService(
             ApiAutomationRepository repository,
@@ -148,6 +160,67 @@ public class ApiAutomationService {
             ApiAutomationModelOutputParser modelOutputParser,
             ObjectMapper objectMapper
     ) {
+        this(
+                repository,
+                runnerPort,
+                parser,
+                properties,
+                contextClient,
+                actorResolver,
+                assetApiService,
+                assetTestCaseService,
+                modelInvocationService,
+                modelOutputParser,
+                objectMapper,
+                List.of()
+        );
+    }
+
+    @Autowired
+    public ApiAutomationService(
+            ApiAutomationRepository repository,
+            ApiAutomationRunnerPort runnerPort,
+            OpenApiSpecParser parser,
+            ApiAutomationProperties properties,
+            ApiAutomationPlatformContextClient contextClient,
+            ApiAutomationActorResolver actorResolver,
+            AssetApiService assetApiService,
+            AssetTestCaseService assetTestCaseService,
+            ModelInvocationService modelInvocationService,
+            ApiAutomationModelOutputParser modelOutputParser,
+            ObjectMapper objectMapper,
+            ObjectProvider<SecretProvider> secretProviders
+    ) {
+        this(
+                repository,
+                runnerPort,
+                parser,
+                properties,
+                contextClient,
+                actorResolver,
+                assetApiService,
+                assetTestCaseService,
+                modelInvocationService,
+                modelOutputParser,
+                objectMapper,
+                secretProviders == null ? List.of() : secretProviders.orderedStream().toList()
+        );
+    }
+
+    ApiAutomationService(
+            ApiAutomationRepository repository,
+            ApiAutomationRunnerPort runnerPort,
+            OpenApiSpecParser parser,
+            ApiAutomationProperties properties,
+            ApiAutomationPlatformContextClient contextClient,
+            ApiAutomationActorResolver actorResolver,
+            AssetApiService assetApiService,
+            AssetTestCaseService assetTestCaseService,
+            ModelInvocationService modelInvocationService,
+            ApiAutomationModelOutputParser modelOutputParser,
+            ObjectMapper objectMapper,
+            List<SecretProvider> secretProviders
+    ) {
         this.repository = repository;
         this.runnerPort = runnerPort;
         this.parser = parser;
@@ -159,6 +232,7 @@ public class ApiAutomationService {
         this.modelInvocationService = modelInvocationService;
         this.modelOutputParser = modelOutputParser;
         this.objectMapper = objectMapper;
+        this.secretProviders = secretProviders == null ? List.of() : List.copyOf(secretProviders);
     }
 
     public ApiAutomationHealthResponse health() {
@@ -555,13 +629,15 @@ public class ApiAutomationService {
             return toRunDetail(run, results);
         }
 
+        List<ApiAutomationRunnerPort.RunnerSecret> runnerSecrets = resolveRunSecrets(secretRefs, bundle.projectId());
         ApiAutomationRunnerPort.RunnerRunResult attempt = runnerPort.run(new ApiAutomationRunnerPort.RunnerRunRequest(
                 runId,
                 bundle,
                 cases,
                 target.normalizedBaseUrl(),
                 timeoutSeconds,
-                secretRefs.digests()
+                secretRefs.digests(),
+                runnerSecrets
         ));
         String status = normalizeRunStatus(attempt.status());
         String runnerMode = normalizeRunnerMode(attempt.runnerMode());
@@ -702,12 +778,12 @@ public class ApiAutomationService {
 
     /**
      * Validates secret references as runtime-only inputs. Full secretRef values are never persisted, exported or passed
-     * to audit; only deterministic digests are forwarded so future runner adapters can correlate injected credentials
-     * without leaking references or plaintext.
+     * to audit; deterministic digests are used for audit and the full references remain in memory only until optional
+     * SecretProvider resolution finishes for the active runner call.
      */
     private RunSecretRefs validateRunSecretRefs(List<String> rawSecretRefs) {
         if (rawSecretRefs == null || rawSecretRefs.isEmpty()) {
-            return new RunSecretRefs(0, List.of());
+            return new RunSecretRefs(0, List.of(), List.of());
         }
         LinkedHashSet<String> normalized = new LinkedHashSet<>();
         for (String rawSecretRef : rawSecretRefs) {
@@ -734,8 +810,70 @@ public class ApiAutomationService {
         }
         return new RunSecretRefs(
                 normalized.size(),
+                List.copyOf(normalized),
                 normalized.stream().map(secretRef -> "sha256:" + sha256(secretRef)).toList()
         );
+    }
+
+    /**
+     * Resolves runner secrets after all admission gates have passed. Plaintext is converted to bounded per-run headers
+     * and never written to repository records, audit payloads, exports or error messages.
+     */
+    private List<ApiAutomationRunnerPort.RunnerSecret> resolveRunSecrets(RunSecretRefs secretRefs, String projectId) {
+        if (secretRefs == null || secretRefs.refs().isEmpty()) {
+            return List.of();
+        }
+        if (secretProviders.isEmpty()) {
+            throw new BusinessException(
+                    ErrorCode.SECRET_PROVIDER_ERROR,
+                    "runner secretRef 未解析: " + String.join(",", secretRefs.digests())
+            );
+        }
+        List<ApiAutomationRunnerPort.RunnerSecret> secrets = new ArrayList<>();
+        SecretResolveContext context = new SecretResolveContext(
+                RUNNER_SECRET_PURPOSE,
+                RUNNER_SECRET_CALLER_SERVICE,
+                RUNNER_SECRET_SCOPE_TYPE,
+                projectId
+        );
+        for (int index = 0; index < secretRefs.refs().size(); index++) {
+            String secretRef = secretRefs.refs().get(index);
+            String digest = secretRefs.digests().get(index);
+            ResolvedSecret resolved = resolveRunSecret(secretRef, digest, context);
+            validateRunnerSecretValue(resolved.value(), digest);
+            secrets.add(new ApiAutomationRunnerPort.RunnerSecret(
+                    RUNNER_SECRET_HEADER_PREFIX + (index + 1),
+                    digest,
+                    resolved.value()
+            ));
+        }
+        return secrets;
+    }
+
+    private ResolvedSecret resolveRunSecret(String secretRef, String digest, SecretResolveContext context) {
+        for (SecretProvider provider : secretProviders) {
+            try {
+                Optional<ResolvedSecret> resolved = provider.resolve(secretRef, context);
+                if (resolved.isPresent()) {
+                    return resolved.get();
+                }
+            } catch (BusinessException exception) {
+                throw new BusinessException(
+                        ErrorCode.SECRET_PROVIDER_ERROR,
+                        "runner secretRef 解析失败: " + digest
+                );
+            }
+        }
+        throw new BusinessException(ErrorCode.SECRET_PROVIDER_ERROR, "runner secretRef 未解析: " + digest);
+    }
+
+    private void validateRunnerSecretValue(String value, String digest) {
+        if (!StringUtils.hasText(value)) {
+            throw new BusinessException(ErrorCode.SECRET_PROVIDER_ERROR, "runner secretRef 解析为空: " + digest);
+        }
+        if (value.length() > RUNNER_SECRET_VALUE_MAX_CHARS || value.contains("\r") || value.contains("\n")) {
+            throw new BusinessException(ErrorCode.SECRET_PROVIDER_ERROR, "runner secretRef 值不适合注入: " + digest);
+        }
     }
 
     /**
@@ -3013,6 +3151,7 @@ public class ApiAutomationService {
 
     private record RunSecretRefs(
             int count,
+            List<String> refs,
             List<String> digests
     ) {
     }

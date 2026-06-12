@@ -17,12 +17,16 @@ import com.songhg.veri.agent.apiautomation.infrastructure.InMemoryApiAutomationR
 import com.songhg.veri.agent.apiautomation.infrastructure.openapi.OpenApiSpecParser;
 import com.songhg.veri.agent.asset.application.AssetApiService;
 import com.songhg.veri.agent.asset.application.AssetTestCaseService;
+import com.songhg.veri.agent.common.secret.ResolvedSecret;
+import com.songhg.veri.agent.common.secret.SecretProvider;
+import com.songhg.veri.agent.common.secret.SecretResolveContext;
 import com.songhg.veri.agent.integration.application.view.PlatformContext;
 import com.songhg.veri.agent.modelaccess.application.ModelInvocationService;
 import java.net.URI;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
@@ -60,6 +64,11 @@ class ApiAutomationRunnerSmokeTest {
         assertThat(runnerPort.runCalls()).isEqualTo(1);
         assertThat(runnerPort.lastSecretRefDigests()).singleElement()
                 .satisfies(digest -> assertThat(digest).startsWith("sha256:").hasSize(71));
+        assertThat(runnerPort.lastSecrets()).singleElement().satisfies(secret -> {
+            assertThat(secret.headerName()).isEqualTo("X-VA-WP6-Secret-1");
+            assertThat(secret.secretRefDigest()).isEqualTo(runnerPort.lastSecretRefDigests().getFirst());
+            assertThat(secret.value()).isEqualTo("runner-smoke-secret");
+        });
         assertThat(runnerPort.lastSecretRefDigests().toString()).doesNotContain("secret://wp6/runner-smoke");
         assertThat(response.run().status()).isEqualTo("FAILED");
         assertThat(response.run().runnerMode()).isEqualTo("MANAGED");
@@ -67,7 +76,7 @@ class ApiAutomationRunnerSmokeTest {
         assertThat(response.run().baseUrlDigest()).hasSize(64);
         assertThat(response.run().errorSummary())
                 .contains("[REDACTED_BASE_URL]")
-                .doesNotContain(SMOKE_BASE_URL, "runner-token-123456", "runnersecret123456");
+                .doesNotContain(SMOKE_BASE_URL, "runner-token-123456", "runnersecret123456", "runner-smoke-secret");
         assertThat(response.results()).hasSize(1);
         assertThat(response.results().getFirst().status()).isEqualTo("FAILED");
         assertThat(response.results().getFirst().assertionSummary())
@@ -86,7 +95,8 @@ class ApiAutomationRunnerSmokeTest {
                 .containsEntry("secretValuesExported", false);
         assertThat(exported.toString())
                 .contains(SMOKE_ALLOWED_HOST)
-                .doesNotContain(SMOKE_BASE_URL, "runner-token-123456", "case-secret-123456", "Bearer assertionsecret");
+                .doesNotContain(SMOKE_BASE_URL, "runner-token-123456", "case-secret-123456", "Bearer assertionsecret",
+                        "runner-smoke-secret");
     }
 
     @Test
@@ -174,7 +184,8 @@ class ApiAutomationRunnerSmokeTest {
                 mock(AssetTestCaseService.class),
                 mock(ModelInvocationService.class),
                 new ApiAutomationModelOutputParser(new ObjectMapper()),
-                new ObjectMapper()
+                new ObjectMapper(),
+                List.of(new StaticSecretProvider("secret://wp6/runner-smoke", "runner-smoke-secret"))
         );
 
         UUID specId = UUID.randomUUID();
@@ -268,6 +279,7 @@ class ApiAutomationRunnerSmokeTest {
         private final RunnerScenario scenario;
         private final AtomicInteger runCalls = new AtomicInteger();
         private List<String> lastSecretRefDigests = List.of();
+        private List<RunnerSecret> lastSecrets = List.of();
 
         private RecordingRunnerPort(RunnerScenario scenario) {
             this.scenario = scenario;
@@ -282,6 +294,7 @@ class ApiAutomationRunnerSmokeTest {
         public RunnerRunResult run(RunnerRunRequest request) {
             runCalls.incrementAndGet();
             lastSecretRefDigests = request.secretRefDigests();
+            lastSecrets = request.secrets();
             ApiAutomationCase automationCase = request.cases().getFirst();
             return switch (scenario) {
                 case MANAGED_ASSERTION_FAILURE -> new RunnerRunResult(
@@ -334,6 +347,29 @@ class ApiAutomationRunnerSmokeTest {
 
         private List<String> lastSecretRefDigests() {
             return lastSecretRefDigests;
+        }
+
+        private List<RunnerSecret> lastSecrets() {
+            return lastSecrets;
+        }
+    }
+
+    private static final class StaticSecretProvider implements SecretProvider {
+
+        private final String secretRef;
+        private final String value;
+
+        private StaticSecretProvider(String secretRef, String value) {
+            this.secretRef = secretRef;
+            this.value = value;
+        }
+
+        @Override
+        public Optional<ResolvedSecret> resolve(String requestedSecretRef, SecretResolveContext context) {
+            if (!secretRef.equals(requestedSecretRef)) {
+                return Optional.empty();
+            }
+            return Optional.of(new ResolvedSecret(requestedSecretRef, value, "smoke-provider", "v1"));
         }
     }
 

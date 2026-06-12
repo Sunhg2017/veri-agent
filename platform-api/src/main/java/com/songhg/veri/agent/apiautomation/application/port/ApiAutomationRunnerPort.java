@@ -26,8 +26,21 @@ public interface ApiAutomationRunnerPort {
             List<ApiAutomationCase> cases,
             String baseUrl,
             int timeoutSeconds,
-            List<String> secretRefDigests
+            List<String> secretRefDigests,
+            List<RunnerSecret> secrets
     ) {
+    }
+
+    record RunnerSecret(
+            String headerName,
+            String secretRefDigest,
+            String value
+    ) {
+        @Override
+        public String toString() {
+            return "RunnerSecret[headerName=%s, secretRefDigest=%s, value=****]"
+                    .formatted(headerName, secretRefDigest);
+        }
     }
 
     record RunnerRunResult(

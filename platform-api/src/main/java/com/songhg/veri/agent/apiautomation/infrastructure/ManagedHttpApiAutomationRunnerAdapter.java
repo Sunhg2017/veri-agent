@@ -15,6 +15,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
+import java.util.regex.Pattern;
 import org.springframework.util.StringUtils;
 
 /**
@@ -24,6 +25,7 @@ public class ManagedHttpApiAutomationRunnerAdapter implements ApiAutomationRunne
 
     private static final String STATIC_CHECK_PASSED = "PASSED";
     private static final List<String> SUPPORTED_METHODS = List.of("GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS");
+    private static final Pattern RUNNER_SECRET_HEADER_PATTERN = Pattern.compile("^X-VA-WP6-Secret-[1-9][0-9]*$");
 
     private final HttpClient httpClient;
 
@@ -90,12 +92,13 @@ public class ManagedHttpApiAutomationRunnerAdapter implements ApiAutomationRunne
             if (!SUPPORTED_METHODS.contains(method)) {
                 return caseResult(automationCase, "ERROR", 0, "RUNNER_FAILED", "unsupported http method");
             }
-            HttpRequest httpRequest = HttpRequest.newBuilder(target)
+            HttpRequest.Builder requestBuilder = HttpRequest.newBuilder(target)
                     .timeout(Duration.ofSeconds(Math.max(1, request.timeoutSeconds())))
                     .header("User-Agent", "veri-agent-wp6-managed-runner")
                     .header("Accept", "application/json, */*")
-                    .method(method, HttpRequest.BodyPublishers.noBody())
-                    .build();
+                    .method(method, HttpRequest.BodyPublishers.noBody());
+            applyRunnerSecrets(requestBuilder, request.secrets());
+            HttpRequest httpRequest = requestBuilder.build();
             HttpResponse<Void> response = httpClient.send(httpRequest, HttpResponse.BodyHandlers.discarding());
             int durationMs = durationMillis(startedAt);
             int actualStatus = response.statusCode();
@@ -117,6 +120,26 @@ public class ManagedHttpApiAutomationRunnerAdapter implements ApiAutomationRunne
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
             return caseResult(automationCase, "ERROR", durationMillis(startedAt), "RUNNER_CANCELED", "HTTP request interrupted");
+        }
+    }
+
+    /**
+     * Injects only service-generated WP6 runner headers. The adapter refuses arbitrary header names so direct port
+     * callers cannot overwrite Host, Authorization, Cookie or other security-sensitive HTTP headers.
+     */
+    private void applyRunnerSecrets(HttpRequest.Builder builder, List<RunnerSecret> secrets) {
+        if (secrets == null || secrets.isEmpty()) {
+            return;
+        }
+        for (RunnerSecret secret : secrets) {
+            if (secret == null
+                    || !RUNNER_SECRET_HEADER_PATTERN.matcher(nullToEmpty(secret.headerName())).matches()
+                    || !StringUtils.hasText(secret.value())
+                    || secret.value().contains("\r")
+                    || secret.value().contains("\n")) {
+                throw new IllegalArgumentException("runner secret header is unsafe");
+            }
+            builder.header(secret.headerName(), secret.value());
         }
     }
 
@@ -153,6 +176,10 @@ public class ManagedHttpApiAutomationRunnerAdapter implements ApiAutomationRunne
 
     private String normalizedMethod(String method) {
         return StringUtils.hasText(method) ? method.trim().toUpperCase(Locale.ROOT) : "";
+    }
+
+    private String nullToEmpty(String value) {
+        return value == null ? "" : value;
     }
 
     private RunnerCaseResult caseResult(

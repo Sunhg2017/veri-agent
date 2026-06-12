@@ -147,4 +147,4 @@ WP6_GATE_MODE=release WP6_RUNNER_SMOKE=managed bash scripts/wp6_quality_gate.sh
 
 ## 9. 启动前质量结论
 
-当前已覆盖 M1-M7 离线控制面、脚本包评审、runner disabled、localhost/metadata 阻断、run 结果摘要、secretRef digest 控制面、脱敏运行导出、前端 run/cancel/export API helper、OpenAPI fixture smoke 和 WP6 quality gate 聚合脚本；M8 已补 runner service contract smoke、secretRef digest 传递、取消 API 幂等测试、基础 Managed HTTP loopback adapter smoke 和 Runner Runbook，覆盖 managed/external 执行分支、allowlist 阻断、HTTP pass/fail/path-template/timeout、取消入口和脱敏回归。Pytest 子进程型 runner、SecretProvider 明文解析/secretRef 注入、异步 cancel smoke 和复杂页面 Playwright smoke 仍需继续补齐。
+当前已覆盖 M1-M7 离线控制面、脚本包评审、runner disabled、localhost/metadata 阻断、run 结果摘要、secretRef digest 控制面、脱敏运行导出、前端 run/cancel/export API helper、OpenAPI fixture smoke 和 WP6 quality gate 聚合脚本；M8 已补 runner service contract smoke、secretRef digest 传递、SecretProvider 解析、Managed HTTP 受控 header 注入、取消 API 幂等测试、基础 Managed HTTP loopback adapter smoke 和 Runner Runbook，覆盖 managed/external 执行分支、allowlist 阻断、HTTP pass/fail/path-template/timeout、取消入口和脱敏回归。Pytest 子进程型 runner、Pytest secretRef env/header 映射、异步 cancel smoke 和复杂页面 Playwright smoke 仍需继续补齐。

@@ -29,6 +29,10 @@ import com.songhg.veri.agent.asset.application.view.TestCaseResponse;
 import com.songhg.veri.agent.asset.application.view.TestCaseStepResponse;
 import com.songhg.veri.agent.common.api.PageResponse;
 import com.songhg.veri.agent.common.error.BusinessException;
+import com.songhg.veri.agent.common.secret.ResolvedSecret;
+import com.songhg.veri.agent.common.secret.SecretProvider;
+import com.songhg.veri.agent.common.secret.SecretProviderHealth;
+import com.songhg.veri.agent.common.secret.SecretResolveContext;
 import com.songhg.veri.agent.integration.application.view.PlatformContext;
 import com.songhg.veri.agent.modelaccess.application.ModelInvocationService;
 import com.songhg.veri.agent.modelaccess.application.command.ModelInvocationCommand;
@@ -38,6 +42,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -463,6 +468,112 @@ class ApiAutomationServiceTest {
         )))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("secretRefs 必须使用 secret:// 引用");
+    }
+
+    @Test
+    void resolvesRunSecretsOnlyForActiveRunnerAndPassesControlledHeaders() {
+        InMemoryApiAutomationRepository repository = new InMemoryApiAutomationRepository();
+        CapturingRunner runner = new CapturingRunner();
+        CapturingSecretProvider secretProvider = new CapturingSecretProvider(
+                "secret://wp6/payment-token",
+                "resolved-payment-secret"
+        );
+        ApiAutomationPlatformContextClient contextClient = mock(ApiAutomationPlatformContextClient.class);
+        ApiAutomationActorResolver actorResolver = mock(ApiAutomationActorResolver.class);
+        when(contextClient.projectContext("project-alpha")).thenReturn(new PlatformContext(
+                "PROJECT",
+                "project-alpha",
+                "ACTIVE",
+                "INTERNAL",
+                false,
+                List.of(),
+                Instant.EPOCH
+        ));
+        when(actorResolver.currentActor()).thenReturn("api-runner");
+        ApiAutomationService service = new ApiAutomationService(
+                repository,
+                runner,
+                mock(OpenApiSpecParser.class),
+                new ApiAutomationProperties(
+                        65_536,
+                        50,
+                        true,
+                        120,
+                        100,
+                        "api.example.test",
+                        1_048_576,
+                        "wp6-api-automation-v1",
+                        true
+                ),
+                contextClient,
+                actorResolver,
+                mock(AssetApiService.class),
+                mock(AssetTestCaseService.class),
+                mock(ModelInvocationService.class),
+                new ApiAutomationModelOutputParser(new ObjectMapper()),
+                new ObjectMapper(),
+                List.of(secretProvider)
+        );
+        UUID specId = UUID.randomUUID();
+        UUID assetApiId = UUID.randomUUID();
+        ApiAutomationSpec spec = spec("project-alpha", specId);
+        repository.insertSpec(spec);
+        repository.insertEndpointSnapshot(syncedEndpoint(spec, "/v1/payments", "POST", "digest-payments", assetApiId));
+        ApiAutomationGenerationTaskDetailResponse generated = service.createGenerationTask(
+                new CreateApiAutomationGenerationTaskCommand(
+                        "project-alpha",
+                        specId,
+                        List.of(assetApiId),
+                        List.of(),
+                        List.of("SMOKE"),
+                        "FALLBACK_ONLY",
+                        1,
+                        "runner-secret-provider"
+                )
+        );
+        UUID bundleId = generated.scriptBundles().getFirst().id();
+        service.submitScriptBundleReview(bundleId, new ReviewApiAutomationScriptBundleCommand("ready"));
+        service.approveScriptBundle(bundleId, new ReviewApiAutomationScriptBundleCommand("approved"));
+
+        ApiAutomationRunDetailResponse response = service.createRun(new CreateApiAutomationRunCommand(
+                bundleId,
+                "staging",
+                "https://api.example.test/service",
+                List.of(generated.cases().getFirst().id()),
+                30,
+                List.of(" secret://wp6/payment-token ")
+        ));
+
+        assertThat(response.run().status()).isEqualTo("PASSED");
+        assertThat(secretProvider.lastSecretRef).isEqualTo("secret://wp6/payment-token");
+        assertThat(secretProvider.lastContext).isEqualTo(new SecretResolveContext(
+                "API_AUTOMATION_RUNNER",
+                "wp6-api-automation-runner",
+                "PROJECT",
+                "project-alpha"
+        ));
+        assertThat(runner.lastRequest.secretRefDigests()).singleElement()
+                .satisfies(digest -> assertThat(digest).startsWith("sha256:").hasSize(71));
+        assertThat(runner.lastRequest.secrets()).singleElement().satisfies(secret -> {
+            assertThat(secret.headerName()).isEqualTo("X-VA-WP6-Secret-1");
+            assertThat(secret.secretRefDigest()).isEqualTo(runner.lastRequest.secretRefDigests().getFirst());
+            assertThat(secret.value()).isEqualTo("resolved-payment-secret");
+        });
+        assertThat(runner.lastRequest.toString()).doesNotContain("secret://wp6/payment-token", "resolved-payment-secret");
+        assertThat(response.toString()).doesNotContain("secret://wp6/payment-token", "resolved-payment-secret");
+        assertThat(service.exportRun(response.run().id()).toString())
+                .doesNotContain("secret://wp6/payment-token", "resolved-payment-secret");
+        verify(contextClient, atLeastOnce()).writeAuditEvent(
+                eq("api_automation.run.started"),
+                eq("API_AUTOMATION_RUN"),
+                eq(response.run().id().toString()),
+                eq("project-alpha"),
+                eq("SUCCESS"),
+                argThat(payload -> Integer.valueOf(1).equals(payload.get("secretRefCount"))
+                        && payload.toString().contains("sha256:")
+                        && !payload.toString().contains("secret://wp6/payment-token")
+                        && !payload.toString().contains("resolved-payment-secret"))
+        );
     }
 
     @Test
@@ -980,6 +1091,55 @@ class ApiAutomationServiceTest {
             cancelCalls++;
             lastRunId = runId;
             return cancelResult;
+        }
+    }
+
+    private static final class CapturingRunner implements ApiAutomationRunnerPort {
+
+        private RunnerRunRequest lastRequest;
+
+        @Override
+        public RunnerValidation validateBundle(ApiAutomationScriptBundle bundle) {
+            return new RunnerValidation(true, null, null);
+        }
+
+        @Override
+        public RunnerRunResult run(RunnerRunRequest request) {
+            lastRequest = request;
+            return new RunnerRunResult("PASSED", "MANAGED", null, null, List.of());
+        }
+
+        @Override
+        public RunnerCancelResult cancel(UUID runId) {
+            return new RunnerCancelResult(false, "NOT_RUNNING", "capturing runner is synchronous");
+        }
+    }
+
+    private static final class CapturingSecretProvider implements SecretProvider {
+
+        private final String acceptedSecretRef;
+        private final String value;
+        private String lastSecretRef;
+        private SecretResolveContext lastContext;
+
+        private CapturingSecretProvider(String acceptedSecretRef, String value) {
+            this.acceptedSecretRef = acceptedSecretRef;
+            this.value = value;
+        }
+
+        @Override
+        public Optional<ResolvedSecret> resolve(String secretRef, SecretResolveContext context) {
+            lastSecretRef = secretRef;
+            lastContext = context;
+            if (!acceptedSecretRef.equals(secretRef)) {
+                return Optional.empty();
+            }
+            return Optional.of(new ResolvedSecret(secretRef, value, "unit-test-provider", "v1"));
+        }
+
+        @Override
+        public SecretProviderHealth health() {
+            return SecretProviderHealth.unsupported("unit-test-provider", "UNKNOWN");
         }
     }
 }

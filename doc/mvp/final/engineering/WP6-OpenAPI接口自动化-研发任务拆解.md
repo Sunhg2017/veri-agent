@@ -215,6 +215,6 @@
 | WP6-8.3 DB validation | 已完成 | `run_wp1_db_validation.sh` 已纳入 WP6 schema/权限校验。 |
 | WP6-8.4 Fixture smoke | 已完成 | 新增 `platform-api/src/test/resources/wp6-openapi-fixtures` 和 `OpenApiFixtureSmokeTest`，覆盖 JSON/YAML、path/query/header/cookie 参数、requestBody、响应码、非法 OpenAPI、endpoint 上限和敏感示例脱敏；入口为 `bash scripts/wp6_openapi_fixture_smoke.sh`。 |
 | WP6-8.5 Quality gate | 已完成 | 新增 `scripts/wp6_quality_gate.sh` 聚合脚本语法、OpenAPI fixture smoke、WP6 后端/OpenAPI 测试、前端 WP6 helper/权限测试、前端构建和 DB validation；默认不启 runner。 |
-| WP6-8.6 Runner smoke | 部分完成 | 新增 `scripts/wp6_runner_smoke.sh`、`ApiAutomationRunnerSmokeTest`、`ManagedHttpApiAutomationRunnerAdapterTest` 和 runner 配置测试，支持 `managed/auto/external` smoke，覆盖 runner 执行分支、allowlist 阻断、基础 loopback HTTP pass/fail/path-template/timeout、secretRef digest 传递、取消 API 幂等返回、失败摘要和导出脱敏；Pytest 子进程、SecretProvider 明文解析/secretRef 注入和异步 cancel smoke 仍待后续 runner adapter 扩展后补。 |
+| WP6-8.6 Runner smoke | 部分完成 | 新增 `scripts/wp6_runner_smoke.sh`、`ApiAutomationRunnerSmokeTest`、`ManagedHttpApiAutomationRunnerAdapterTest` 和 runner 配置测试，支持 `managed/auto/external` smoke，覆盖 runner 执行分支、allowlist 阻断、基础 loopback HTTP pass/fail/path-template/timeout、secretRef digest 传递、SecretProvider 解析、Managed HTTP 受控 header 注入、取消 API 幂等返回、失败摘要和导出脱敏；Pytest 子进程、Pytest secretRef env/header 映射和异步 cancel smoke 仍待后续 runner adapter 扩展后补。 |
 
-下一步建议继续 M8：补 Pytest 子进程型 runner、SecretProvider 明文解析/secretRef 注入、异步 cancel smoke 和复杂页面 Playwright smoke。
+下一步建议继续 M8：补 Pytest 子进程型 runner、Pytest secretRef env/header 映射、异步 cancel smoke 和复杂页面 Playwright smoke。
