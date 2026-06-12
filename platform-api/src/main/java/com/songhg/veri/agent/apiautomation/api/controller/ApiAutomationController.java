@@ -15,6 +15,7 @@ import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationHealthR
 import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationRunDetailResponse;
 import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationRunExportResponse;
 import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationScriptBundleResponse;
+import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationSyncPreviewResponse;
 import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationSyncResponse;
 import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationSpecDetailResponse;
 import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationSpecResponse;
@@ -78,6 +79,12 @@ public class ApiAutomationController {
     @RequirePermission(value = PermissionCodes.API_AUTOMATION_READ, scope = ApiAutomationPermissionScopes.SPEC)
     public ApiAutomationDiffResponse diffSpec(@PathVariable UUID id) {
         return service.diffSpec(id);
+    }
+
+    @GetMapping("/specs/{id}/sync-preview")
+    @RequirePermission(value = PermissionCodes.API_AUTOMATION_READ, scope = ApiAutomationPermissionScopes.SPEC)
+    public ApiAutomationSyncPreviewResponse syncPreview(@PathVariable UUID id) {
+        return service.syncPreview(id);
     }
 
     @PostMapping("/specs/{id}/sync")

@@ -28,6 +28,8 @@ import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationRunResp
 import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationRunResultResponse;
 import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationScriptBundleResponse;
 import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationSyncItemResponse;
+import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationSyncPreviewItemResponse;
+import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationSyncPreviewResponse;
 import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationSyncResponse;
 import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationSpecDetailResponse;
 import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationSpecResponse;
@@ -123,6 +125,7 @@ public class ApiAutomationService {
     private static final String MODEL_CALLER_SERVICE = "wp6-api-automation";
     private static final String MODEL_CAPABILITY_JSON = "JSON";
     private static final String DEFAULT_MODEL_SENSITIVITY_LEVEL = "INTERNAL";
+    private static final List<String> SYNC_PREVIEW_ACTIONS = List.of("CREATE", "UPDATE", "REVIEW", "SKIP");
     private static final List<Pattern> SENSITIVE_TEXT_PATTERNS = List.of(
             Pattern.compile("(?i)\\bbearer\\s+[a-z0-9._\\-]{8,}"),
             Pattern.compile("(?i)\\b(api[_-]?key|secret|token|password|passwd|authorization)\\s*[:=]\\s*[^\\s,;，；]+"),
@@ -358,6 +361,30 @@ public class ApiAutomationService {
         return new ApiAutomationDiffResponse(spec.id(), countDiffStatuses(endpoints), endpoints.stream()
                 .map(this::toEndpointResponse)
                 .toList());
+    }
+
+    @Transactional(readOnly = true)
+    public ApiAutomationSyncPreviewResponse syncPreview(UUID id) {
+        ApiAutomationSpec spec = requireParsedSpec(id);
+        // Sync preview 是只读 dry-run 契约：复用同步前匹配逻辑，但不写 WP3、不更新 endpoint snapshot。
+        List<ApiAutomationEndpointSnapshot> endpoints = evaluateDiff(spec);
+        List<ApiAutomationSyncPreviewItemResponse> items = endpoints.stream()
+                .map(endpoint -> syncPreviewItem(spec, endpoint))
+                .toList();
+        return new ApiAutomationSyncPreviewResponse(
+                spec.id(),
+                countSyncPreviewActions(items),
+                items,
+                endpoints.stream().map(this::toEndpointResponse).toList(),
+                Map.of(
+                        "dryRun", true,
+                        "wp3Write", false,
+                        "endpointSnapshotWrite", false,
+                        "aggregateOnly", true,
+                        "rawSchemaStored", false,
+                        "rawRequestResponseStored", false
+                )
+        );
     }
 
     @Transactional
@@ -2558,14 +2585,18 @@ public class ApiAutomationService {
     }
 
     private List<ApiAutomationEndpointSnapshot> evaluateAndPersistDiff(ApiAutomationSpec spec) {
+        List<ApiAutomationEndpointSnapshot> updated = evaluateDiff(spec);
+        updated.forEach(repository::updateEndpointSnapshotDiff);
+        return updated;
+    }
+
+    private List<ApiAutomationEndpointSnapshot> evaluateDiff(ApiAutomationSpec spec) {
         Instant now = Instant.now();
         // WP3 API 当前没有 serviceName 字段，M3 先按项目内 method + path 匹配，serviceName 仅作为展示和后续扩展依据。
         Map<String, List<ApiResponseDTO>> assetApisByKey = assetApisByKey(spec.projectId());
-        List<ApiAutomationEndpointSnapshot> updated = repository.endpointSnapshots(spec.id()).stream()
+        return repository.endpointSnapshots(spec.id()).stream()
                 .map(endpoint -> diffEndpoint(endpoint, assetApisByKey, now))
                 .toList();
-        updated.forEach(repository::updateEndpointSnapshotDiff);
-        return updated;
     }
 
     private ApiAutomationEndpointSnapshot diffEndpoint(
@@ -2703,6 +2734,66 @@ public class ApiAutomationService {
         ));
     }
 
+    private ApiAutomationSyncPreviewItemResponse syncPreviewItem(
+            ApiAutomationSpec spec,
+            ApiAutomationEndpointSnapshot endpoint
+    ) {
+        String action = syncPreviewAction(endpoint.diffStatus());
+        Map<String, Object> summary = readSummary(endpoint.diffSummaryJson());
+        String reason = Objects.toString(summary.getOrDefault("reason", endpoint.diffStatus()), endpoint.diffStatus());
+        return new ApiAutomationSyncPreviewItemResponse(
+                endpoint.id(),
+                endpoint.assetApiId(),
+                endpoint.httpMethod(),
+                endpoint.path(),
+                endpoint.diffStatus(),
+                action,
+                reason,
+                syncPreviewPayloadSummary(spec, endpoint, action)
+        );
+    }
+
+    private String syncPreviewAction(String diffStatus) {
+        return switch (diffStatus) {
+            case "NEW" -> "CREATE";
+            case "CHANGED" -> "UPDATE";
+            case "CONFLICT" -> "REVIEW";
+            default -> "SKIP";
+        };
+    }
+
+    private Map<String, Object> syncPreviewPayloadSummary(
+            ApiAutomationSpec spec,
+            ApiAutomationEndpointSnapshot endpoint,
+            String action
+    ) {
+        Map<String, Object> summary = new LinkedHashMap<>();
+        summary.put("aggregateOnly", true);
+        summary.put("dryRun", true);
+        summary.put("wp3Write", false);
+        summary.put("rawSchemaStored", false);
+        summary.put("rawRequestResponseStored", false);
+        summary.put("action", action);
+        summary.put("httpMethod", endpoint.httpMethod());
+        summary.put("path", endpoint.path());
+        summary.put("summary", boundedText(
+                StringUtils.hasText(endpoint.summary()) ? endpoint.summary() : endpoint.httpMethod() + " " + endpoint.path(),
+                WP3_API_SUMMARY_MAX_CHARS
+        ));
+        summary.put("projectId", spec.projectId());
+        summary.put("versionLabel", boundedText(endpoint.schemaDigest(), WP3_API_VERSION_MAX_CHARS));
+        summary.put("sourceRef", endpointSourceRef(endpoint));
+        summary.put("requestSchemaDigest", sha256(requestSchema(endpoint)));
+        summary.put("responseSchemaDigest", sha256(responseSchema(endpoint)));
+        summary.put("parameterCount", endpoint.parameterCount());
+        summary.put("requestBodyPresent", endpoint.requestBodyPresent());
+        summary.put("responseStatuses", StringUtils.hasText(endpoint.responseStatuses()) ? endpoint.responseStatuses() : "");
+        if (endpoint.assetApiId() != null) {
+            summary.put("assetApiId", endpoint.assetApiId().toString());
+        }
+        return summary;
+    }
+
     private ApiAutomationEndpointSnapshot endpointWithDiff(
             ApiAutomationEndpointSnapshot endpoint,
             UUID assetApiId,
@@ -2768,6 +2859,12 @@ public class ApiAutomationService {
     private Map<String, Integer> countSyncResults(List<ApiAutomationSyncItemResponse> items) {
         Map<String, Integer> counts = initializedCounts(List.of("CREATED", "UPDATED", "MATCHED", "SKIPPED", "FAILED"));
         items.forEach(item -> counts.computeIfPresent(item.result(), (key, value) -> value + 1));
+        return counts;
+    }
+
+    private Map<String, Integer> countSyncPreviewActions(List<ApiAutomationSyncPreviewItemResponse> items) {
+        Map<String, Integer> counts = initializedCounts(SYNC_PREVIEW_ACTIONS);
+        items.forEach(item -> counts.computeIfPresent(item.action(), (key, value) -> value + 1));
         return counts;
     }
 

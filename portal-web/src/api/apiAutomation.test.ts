@@ -14,6 +14,7 @@ import {
   fetchApiAutomationRun,
   fetchApiAutomationSpec,
   fetchApiAutomationSpecs,
+  fetchApiAutomationSyncPreview,
   generateApiAutomationScriptBundle,
   normalizeApiAutomationEndpointSnapshot,
   normalizeApiAutomationDiffResponse,
@@ -24,6 +25,7 @@ import {
   normalizeApiAutomationRunDetail,
   rejectApiAutomationScriptBundle,
   normalizeApiAutomationSpecDetail,
+  normalizeApiAutomationSyncPreviewResponse,
   normalizeApiAutomationSyncResponse,
   parseApiAutomationSpec,
   submitApiAutomationScriptBundleReview,
@@ -132,6 +134,33 @@ describe('WP6 API automation helpers', () => {
     })).toMatchObject({
       counts: { CREATED: 1 },
       items: [{ endpointId: 'endpoint-1', assetApiId: 'asset-api-1', beforeStatus: 'NEW', result: 'CREATED' }]
+    });
+
+    expect(normalizeApiAutomationSyncPreviewResponse({
+      spec_id: 'spec-1',
+      counts: { CREATE: '1', SKIP: 2 },
+      policy: { dry_run: true },
+      items: [{
+        endpoint_id: 'endpoint-1',
+        asset_api_id: 'asset-api-1',
+        http_method: 'POST',
+        path: '/v1/payments',
+        diff_status: 'CHANGED',
+        action: 'UPDATE',
+        reason: 'SCHEMA_DIGEST_CHANGED',
+        payload_summary: { aggregateOnly: true, rawSchemaStored: false }
+      }],
+      endpoints: []
+    })).toMatchObject({
+      specId: 'spec-1',
+      counts: { CREATE: 1, SKIP: 2 },
+      items: [{
+        endpointId: 'endpoint-1',
+        assetApiId: 'asset-api-1',
+        diffStatus: 'CHANGED',
+        action: 'UPDATE',
+        payloadSummary: { aggregateOnly: true, rawSchemaStored: false }
+      }]
     });
 
     expect(normalizeApiAutomationGenerationTaskDetail({
@@ -302,6 +331,7 @@ describe('WP6 API automation helpers', () => {
     await fetchApiAutomationSpec('spec-1');
     await parseApiAutomationSpec('spec-1');
     await fetchApiAutomationDiff('spec-1');
+    await fetchApiAutomationSyncPreview('spec-1');
     await syncApiAutomationSpec('spec-1', { includeChanged: false });
     await createApiAutomationGenerationTask({
       projectId: 'project-alpha',
@@ -342,11 +372,12 @@ describe('WP6 API automation helpers', () => {
     expect(requestJsonMock).toHaveBeenNthCalledWith(2, '/api/v1/api-automation/specs/spec-1');
     expect(requestJsonMock).toHaveBeenNthCalledWith(3, '/api/v1/api-automation/specs/spec-1/parse', { method: 'POST' });
     expect(requestJsonMock).toHaveBeenNthCalledWith(4, '/api/v1/api-automation/specs/spec-1/diff');
-    expect(requestJsonMock).toHaveBeenNthCalledWith(5, '/api/v1/api-automation/specs/spec-1/sync', {
+    expect(requestJsonMock).toHaveBeenNthCalledWith(5, '/api/v1/api-automation/specs/spec-1/sync-preview');
+    expect(requestJsonMock).toHaveBeenNthCalledWith(6, '/api/v1/api-automation/specs/spec-1/sync', {
       method: 'POST',
       body: JSON.stringify({ includeChanged: false })
     });
-    expect(requestJsonMock).toHaveBeenNthCalledWith(6, '/api/v1/api-automation/generation-tasks', {
+    expect(requestJsonMock).toHaveBeenNthCalledWith(7, '/api/v1/api-automation/generation-tasks', {
       method: 'POST',
       body: JSON.stringify({
         projectId: 'project-alpha',
@@ -357,24 +388,24 @@ describe('WP6 API automation helpers', () => {
         generationMode: 'FALLBACK_ONLY'
       })
     });
-    expect(requestJsonMock).toHaveBeenNthCalledWith(7, '/api/v1/api-automation/generation-tasks?projectId=project-alpha&specId=spec-1&status=COMPLETED&size=8');
-    expect(requestJsonMock).toHaveBeenNthCalledWith(8, '/api/v1/api-automation/generation-tasks/task-1');
-    expect(requestJsonMock).toHaveBeenNthCalledWith(9, '/api/v1/api-automation/generation-tasks/task-1/script-bundles', {
+    expect(requestJsonMock).toHaveBeenNthCalledWith(8, '/api/v1/api-automation/generation-tasks?projectId=project-alpha&specId=spec-1&status=COMPLETED&size=8');
+    expect(requestJsonMock).toHaveBeenNthCalledWith(9, '/api/v1/api-automation/generation-tasks/task-1');
+    expect(requestJsonMock).toHaveBeenNthCalledWith(10, '/api/v1/api-automation/generation-tasks/task-1/script-bundles', {
       method: 'POST'
     });
-    expect(requestJsonMock).toHaveBeenNthCalledWith(10, '/api/v1/api-automation/script-bundles/bundle-1/submit-review', {
+    expect(requestJsonMock).toHaveBeenNthCalledWith(11, '/api/v1/api-automation/script-bundles/bundle-1/submit-review', {
       method: 'POST',
       body: JSON.stringify({ note: 'ready' })
     });
-    expect(requestJsonMock).toHaveBeenNthCalledWith(11, '/api/v1/api-automation/script-bundles/bundle-1/approve', {
+    expect(requestJsonMock).toHaveBeenNthCalledWith(12, '/api/v1/api-automation/script-bundles/bundle-1/approve', {
       method: 'POST',
       body: JSON.stringify({ note: 'approved' })
     });
-    expect(requestJsonMock).toHaveBeenNthCalledWith(12, '/api/v1/api-automation/script-bundles/bundle-2/reject', {
+    expect(requestJsonMock).toHaveBeenNthCalledWith(13, '/api/v1/api-automation/script-bundles/bundle-2/reject', {
       method: 'POST',
       body: JSON.stringify({ note: 'missing assertion' })
     });
-    expect(requestJsonMock).toHaveBeenNthCalledWith(13, '/api/v1/api-automation/runs', {
+    expect(requestJsonMock).toHaveBeenNthCalledWith(14, '/api/v1/api-automation/runs', {
       method: 'POST',
       body: JSON.stringify({
         bundleId: 'bundle-1',
@@ -385,11 +416,11 @@ describe('WP6 API automation helpers', () => {
         secretRefs: ['secret://wp6/payment-token']
       })
     });
-    expect(requestJsonMock).toHaveBeenNthCalledWith(14, '/api/v1/api-automation/runs/run-1');
-    expect(requestJsonMock).toHaveBeenNthCalledWith(15, '/api/v1/api-automation/runs/run-1/cancel', {
+    expect(requestJsonMock).toHaveBeenNthCalledWith(15, '/api/v1/api-automation/runs/run-1');
+    expect(requestJsonMock).toHaveBeenNthCalledWith(16, '/api/v1/api-automation/runs/run-1/cancel', {
       method: 'POST'
     });
-    expect(requestJsonMock).toHaveBeenNthCalledWith(16, '/api/v1/api-automation/runs/run-1/export');
-    expect(requestJsonMock).toHaveBeenNthCalledWith(17, '/api/v1/api-automation/health');
+    expect(requestJsonMock).toHaveBeenNthCalledWith(17, '/api/v1/api-automation/runs/run-1/export');
+    expect(requestJsonMock).toHaveBeenNthCalledWith(18, '/api/v1/api-automation/health');
   });
 });

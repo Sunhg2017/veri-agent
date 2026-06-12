@@ -9,6 +9,7 @@ import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationRunExpo
 import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationDiffResponse;
 import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationGenerationTaskDetailResponse;
 import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationScriptBundleResponse;
+import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationSyncPreviewResponse;
 import com.songhg.veri.agent.apiautomation.application.port.ApiAutomationRunnerPort;
 import com.songhg.veri.agent.apiautomation.application.port.ApiAutomationRepository;
 import com.songhg.veri.agent.apiautomation.application.query.ApiAutomationSpecPageRequest;
@@ -56,6 +57,7 @@ import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -155,6 +157,71 @@ class ApiAutomationServiceTest {
                 .containsEntry("/v1/new", "NEW")
                 .containsEntry("/v1/conflict", "CONFLICT")
                 .containsEntry("too-long", "SKIPPED");
+    }
+
+    @Test
+    void previewsSyncActionsWithoutPersistingOrWritingWp3() {
+        InMemoryApiAutomationRepository repository = new InMemoryApiAutomationRepository();
+        AssetApiService assetApiService = mock(AssetApiService.class);
+        ApiAutomationService service = new ApiAutomationService(
+                repository,
+                new DisabledApiAutomationRunnerAdapter(),
+                mock(OpenApiSpecParser.class),
+                new ApiAutomationProperties(65_536, 50, false, 120, 100, "wp6-api-automation-v1", true),
+                mock(ApiAutomationPlatformContextClient.class),
+                mock(ApiAutomationActorResolver.class),
+                assetApiService,
+                mock(AssetTestCaseService.class),
+                mock(ModelInvocationService.class),
+                new ApiAutomationModelOutputParser(new ObjectMapper()),
+                new ObjectMapper()
+        );
+        UUID specId = UUID.randomUUID();
+        ApiAutomationSpec spec = spec("project-alpha", specId);
+        repository.insertSpec(spec);
+        repository.insertEndpointSnapshot(endpoint(spec, "/v1/matched", "GET", "digest-match"));
+        repository.insertEndpointSnapshot(endpoint(spec, "/v1/changed", "POST", "digest-new"));
+        repository.insertEndpointSnapshot(endpoint(spec, "/v1/new", "GET", "digest-new-api"));
+        repository.insertEndpointSnapshot(endpoint(spec, "/v1/conflict", "GET", "digest-conflict"));
+        repository.insertEndpointSnapshot(endpoint(spec, "/v1/" + "too-long".repeat(40), "GET", "digest-skipped"));
+        List<ApiResponseDTO> assets = List.of(
+                asset("project-alpha", "/v1/matched", "GET", "digest-match"),
+                asset("project-alpha", "/v1/changed", "POST", "digest-old"),
+                asset("project-alpha", "/v1/conflict", "GET", "digest-conflict"),
+                asset("project-alpha", "/v1/conflict", "GET", "digest-conflict")
+        );
+        when(assetApiService.listApis(any(AssetListRequest.class)))
+                .thenReturn(PageResponse.of(assets, 0, 100, assets.size()));
+
+        ApiAutomationSyncPreviewResponse response = service.syncPreview(specId);
+
+        assertThat(response.counts()).containsEntry("CREATE", 1)
+                .containsEntry("UPDATE", 1)
+                .containsEntry("REVIEW", 1)
+                .containsEntry("SKIP", 2);
+        assertThat(response.policy()).containsEntry("dryRun", true)
+                .containsEntry("wp3Write", false)
+                .containsEntry("endpointSnapshotWrite", false);
+        assertThat(response.items()).extracting("path")
+                .contains("/v1/matched", "/v1/changed", "/v1/new", "/v1/conflict");
+        assertThat(response.items()).filteredOn(item -> "/v1/new".equals(item.path()))
+                .singleElement()
+                .satisfies(item -> {
+                    assertThat(item.action()).isEqualTo("CREATE");
+                    assertThat(item.reason()).isEqualTo("NO_MATCHING_WP3_API");
+                    assertThat(item.payloadSummary()).containsEntry("aggregateOnly", true)
+                            .containsEntry("dryRun", true)
+                            .containsEntry("wp3Write", false)
+                            .containsEntry("rawSchemaStored", false)
+                            .containsEntry("rawRequestResponseStored", false)
+                            .containsEntry("httpMethod", "GET")
+                            .containsEntry("path", "/v1/new");
+                    assertThat(item.payloadSummary()).containsKeys("requestSchemaDigest", "responseSchemaDigest");
+                });
+        assertThat(repository.endpointSnapshots(specId)).extracting(ApiAutomationEndpointSnapshot::diffStatus)
+                .containsOnly("UNKNOWN");
+        verify(assetApiService, never()).createOpenApiSyncedApi(any());
+        verify(assetApiService, never()).updateOpenApiSyncedApi(any(), any());
     }
 
     @Test

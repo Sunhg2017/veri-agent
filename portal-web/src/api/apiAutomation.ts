@@ -105,6 +105,25 @@ export interface ApiAutomationSyncItem {
   message?: string;
 }
 
+export interface ApiAutomationSyncPreviewItem {
+  endpointId: string;
+  assetApiId?: string;
+  httpMethod: string;
+  path: string;
+  diffStatus: string;
+  action: string;
+  reason?: string;
+  payloadSummary: Record<string, unknown>;
+}
+
+export interface ApiAutomationSyncPreviewResponse {
+  specId: string;
+  counts: Record<string, number>;
+  items: ApiAutomationSyncPreviewItem[];
+  endpoints: ApiAutomationEndpointSnapshot[];
+  policy: Record<string, unknown>;
+}
+
 export interface ApiAutomationSyncResponse {
   specId: string;
   counts: Record<string, number>;
@@ -303,6 +322,11 @@ export async function fetchApiAutomationDiff(id: string): Promise<ApiResponse<Ap
   return { ...response, data: normalizeApiAutomationDiffResponse(response.data) };
 }
 
+export async function fetchApiAutomationSyncPreview(id: string): Promise<ApiResponse<ApiAutomationSyncPreviewResponse>> {
+  const response = await requestJson<unknown>(`${API_AUTOMATION_BASE}/specs/${encodeURIComponent(id)}/sync-preview`);
+  return { ...response, data: normalizeApiAutomationSyncPreviewResponse(response.data) };
+}
+
 export async function syncApiAutomationSpec(
   id: string,
   payload: ApiAutomationSyncPayload = {}
@@ -498,6 +522,31 @@ export function normalizeApiAutomationSyncResponse(input: unknown): ApiAutomatio
     counts: numberRecord(read(value, 'counts')),
     items: arrayValue(read(value, 'items')).map(normalizeApiAutomationSyncItem),
     endpoints: arrayValue(read(value, 'endpoints')).map(normalizeApiAutomationEndpointSnapshot)
+  };
+}
+
+export function normalizeApiAutomationSyncPreviewResponse(input: unknown): ApiAutomationSyncPreviewResponse {
+  const value = objectValue(input);
+  return {
+    specId: stringValue(read(value, 'specId', 'spec_id')),
+    counts: numberRecord(read(value, 'counts')),
+    items: arrayValue(read(value, 'items')).map(normalizeApiAutomationSyncPreviewItem),
+    endpoints: arrayValue(read(value, 'endpoints')).map(normalizeApiAutomationEndpointSnapshot),
+    policy: objectValue(read(value, 'policy'))
+  };
+}
+
+export function normalizeApiAutomationSyncPreviewItem(input: unknown): ApiAutomationSyncPreviewItem {
+  const value = objectValue(input);
+  return {
+    endpointId: stringValue(read(value, 'endpointId', 'endpoint_id')),
+    assetApiId: optionalString(read(value, 'assetApiId', 'asset_api_id')),
+    httpMethod: stringValue(read(value, 'httpMethod', 'http_method'), 'GET'),
+    path: stringValue(read(value, 'path')),
+    diffStatus: stringValue(read(value, 'diffStatus', 'diff_status'), 'UNKNOWN'),
+    action: stringValue(read(value, 'action'), 'SKIP'),
+    reason: optionalString(read(value, 'reason')),
+    payloadSummary: objectValue(read(value, 'payloadSummary', 'payload_summary'))
   };
 }
 
