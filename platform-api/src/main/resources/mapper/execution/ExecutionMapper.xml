@@ -80,6 +80,21 @@
         </constructor>
     </resultMap>
 
+    <resultMap id="queueClaimMap" type="com.songhg.veri.agent.execution.domain.ExecutionQueueClaim">
+        <constructor>
+            <arg column="id" javaType="java.util.UUID"/>
+            <arg column="node_run_id" javaType="java.util.UUID"/>
+            <arg column="claim_token" javaType="java.lang.String"/>
+            <arg column="worker_id" javaType="java.lang.String"/>
+            <arg column="claimed_at" javaType="java.time.Instant"/>
+            <arg column="heartbeat_at" javaType="java.time.Instant"/>
+            <arg column="expires_at" javaType="java.time.Instant"/>
+            <arg column="status" javaType="java.lang.String"/>
+            <arg column="created_at" javaType="java.time.Instant"/>
+            <arg column="updated_at" javaType="java.time.Instant"/>
+        </constructor>
+    </resultMap>
+
     <sql id="planColumns">
         id, project_id, name, status, environment_key,
         trigger_policy_json::text as trigger_policy_json,
@@ -103,6 +118,10 @@
         nr.id, nr.run_id, nr.plan_node_id, nr.status, nr.attempt, nr.runner_type, nr.external_run_id,
         nr.error_code, nr.error_summary, nr.result_summary_json::text as result_summary_json,
         nr.heartbeat_at, nr.queued_at, nr.started_at, nr.finished_at, nr.created_at, nr.updated_at
+    </sql>
+
+    <sql id="queueClaimColumns">
+        id, node_run_id, claim_token, worker_id, claimed_at, heartbeat_at, expires_at, status, created_at, updated_at
     </sql>
 
     <sql id="planWhere">
@@ -241,6 +260,44 @@
         where id = #{id}
     </update>
 
+    <update id="updateNodeRunIfStatus">
+        update execution_node_run set
+            status = #{nodeRun.status},
+            attempt = #{nodeRun.attempt},
+            runner_type = #{nodeRun.runnerType},
+            external_run_id = #{nodeRun.externalRunId},
+            error_code = #{nodeRun.errorCode},
+            error_summary = #{nodeRun.errorSummary},
+            result_summary_json = cast(coalesce(#{nodeRun.resultSummaryJson}, '{}') as jsonb),
+            heartbeat_at = #{nodeRun.heartbeatAt},
+            queued_at = #{nodeRun.queuedAt},
+            started_at = #{nodeRun.startedAt},
+            finished_at = #{nodeRun.finishedAt},
+            updated_at = #{nodeRun.updatedAt}
+        where id = #{nodeRun.id}
+          and status = #{expectedStatus}
+    </update>
+
+    <insert id="insertQueueClaim">
+        insert into execution_queue_claim (
+            id, node_run_id, claim_token, worker_id, claimed_at, heartbeat_at,
+            expires_at, status, created_at, updated_at
+        ) values (
+            #{id}, #{nodeRunId}, #{claimToken}, #{workerId}, #{claimedAt}, #{heartbeatAt},
+            #{expiresAt}, #{status}, #{createdAt}, #{updatedAt}
+        )
+        on conflict do nothing
+    </insert>
+
+    <update id="updateQueueClaim">
+        update execution_queue_claim set
+            heartbeat_at = #{heartbeatAt},
+            expires_at = #{expiresAt},
+            status = #{status},
+            updated_at = #{updatedAt}
+        where id = #{id}
+    </update>
+
     <select id="plan" resultMap="planMap">
         select <include refid="planColumns"/>
         from execution_plan
@@ -280,6 +337,12 @@
         where id = #{id}
     </select>
 
+    <select id="nodeRun" resultMap="nodeRunMap">
+        select <include refid="nodeRunColumns"/>
+        from execution_node_run nr
+        where nr.id = #{id}
+    </select>
+
     <select id="runByPlanAndRequestKey" resultMap="runMap">
         select <include refid="runColumns"/>
         from execution_run
@@ -294,6 +357,33 @@
         join execution_plan_node pn on pn.id = nr.plan_node_id
         where nr.run_id = #{runId}
         order by pn.node_key asc, nr.attempt asc
+    </select>
+
+    <select id="queuedNodeRuns" resultMap="nodeRunMap">
+        select <include refid="nodeRunColumns"/>
+        from execution_node_run nr
+        join execution_run er on er.id = nr.run_id
+        join execution_plan_node pn on pn.id = nr.plan_node_id
+        where nr.status = 'QUEUED'
+          and er.status in ('QUEUED', 'RUNNING')
+        order by er.created_at asc, pn.node_key asc, nr.attempt asc
+        limit #{limit}
+    </select>
+
+    <select id="activeQueueClaim" resultMap="queueClaimMap">
+        select <include refid="queueClaimColumns"/>
+        from execution_queue_claim
+        where node_run_id = #{nodeRunId}
+          and status = 'CLAIMED'
+        order by claimed_at desc
+        limit 1
+    </select>
+
+    <select id="queueClaimByToken" resultMap="queueClaimMap">
+        select <include refid="queueClaimColumns"/>
+        from execution_queue_claim
+        where claim_token = #{claimToken}
+        limit 1
     </select>
 
     <select id="runs" resultMap="runMap">

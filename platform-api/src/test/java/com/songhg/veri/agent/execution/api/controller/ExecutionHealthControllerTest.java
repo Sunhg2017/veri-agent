@@ -40,6 +40,8 @@ class ExecutionHealthControllerTest {
                 .andExpect(jsonPath("$.data.policy.dagDryRunReady").value(true))
                 .andExpect(jsonPath("$.data.policy.manualTriggerReady").value(true))
                 .andExpect(jsonPath("$.data.policy.cancelRetryReady").value(true))
+                .andExpect(jsonPath("$.data.policy.queueClaimReady").value(true))
+                .andExpect(jsonPath("$.data.policy.stateAggregationReady").value(true))
                 .andExpect(jsonPath("$.data.policy.wp6DispatchReady").value(false))
                 .andExpect(jsonPath("$.data.policy.webhookDefaultDisabled").value(true))
                 .andExpect(jsonPath("$.data.policy.secretPlaintextStored").value(false))

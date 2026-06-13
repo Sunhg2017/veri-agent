@@ -5,6 +5,7 @@ import com.songhg.veri.agent.execution.application.query.ExecutionRunQuery;
 import com.songhg.veri.agent.execution.domain.ExecutionNodeRun;
 import com.songhg.veri.agent.execution.domain.ExecutionPlan;
 import com.songhg.veri.agent.execution.domain.ExecutionPlanNode;
+import com.songhg.veri.agent.execution.domain.ExecutionQueueClaim;
 import com.songhg.veri.agent.execution.domain.ExecutionRun;
 import java.util.List;
 import java.util.Optional;
@@ -38,7 +39,21 @@ public interface ExecutionRepository {
 
     void updateNodeRuns(List<ExecutionNodeRun> nodeRuns);
 
+    boolean updateNodeRunIfStatus(ExecutionNodeRun nodeRun, String expectedStatus);
+
+    List<ExecutionNodeRun> queuedNodeRuns(int limit);
+
+    boolean tryInsertQueueClaim(ExecutionQueueClaim claim);
+
+    void updateQueueClaim(ExecutionQueueClaim claim);
+
     Optional<ExecutionRun> run(UUID id);
+
+    Optional<ExecutionNodeRun> nodeRun(UUID id);
+
+    Optional<ExecutionQueueClaim> activeQueueClaim(UUID nodeRunId);
+
+    Optional<ExecutionQueueClaim> queueClaimByToken(String claimToken);
 
     Optional<ExecutionRun> runByPlanAndRequestKey(UUID planId, String requestKey);
 

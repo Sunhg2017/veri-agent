@@ -6,6 +6,7 @@ import com.songhg.veri.agent.execution.application.query.ExecutionRunQuery;
 import com.songhg.veri.agent.execution.domain.ExecutionNodeRun;
 import com.songhg.veri.agent.execution.domain.ExecutionPlan;
 import com.songhg.veri.agent.execution.domain.ExecutionPlanNode;
+import com.songhg.veri.agent.execution.domain.ExecutionQueueClaim;
 import com.songhg.veri.agent.execution.domain.ExecutionRun;
 import java.util.Comparator;
 import java.util.List;
@@ -27,6 +28,7 @@ public class InMemoryExecutionRepository implements ExecutionRepository {
     private final ConcurrentHashMap<UUID, ExecutionPlanNode> nodes = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<UUID, ExecutionRun> runs = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<UUID, ExecutionNodeRun> nodeRuns = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<UUID, ExecutionQueueClaim> queueClaims = new ConcurrentHashMap<>();
 
     @Override
     public void insertPlan(ExecutionPlan plan) {
@@ -110,8 +112,73 @@ public class InMemoryExecutionRepository implements ExecutionRepository {
     }
 
     @Override
+    public boolean updateNodeRunIfStatus(ExecutionNodeRun nodeRun, String expectedStatus) {
+        ExecutionNodeRun current = nodeRuns.get(nodeRun.id());
+        if (current == null || !expectedStatus.equals(current.status())) {
+            return false;
+        }
+        nodeRuns.put(nodeRun.id(), nodeRun);
+        return true;
+    }
+
+    @Override
+    public List<ExecutionNodeRun> queuedNodeRuns(int limit) {
+        return nodeRuns.values().stream()
+                .filter(nodeRun -> "QUEUED".equals(nodeRun.status()))
+                .filter(nodeRun -> run(nodeRun.runId())
+                        .map(run -> "QUEUED".equals(run.status()) || "RUNNING".equals(run.status()))
+                        .orElse(false))
+                .sorted(Comparator
+                        .comparing((ExecutionNodeRun nodeRun) -> run(nodeRun.runId())
+                                .map(ExecutionRun::createdAt)
+                                .orElse(java.time.Instant.EPOCH))
+                        .thenComparing(nodeRun -> planNodeKey(nodeRun.planNodeId()))
+                        .thenComparing(ExecutionNodeRun::attempt))
+                .limit(limit)
+                .toList();
+    }
+
+    @Override
+    public boolean tryInsertQueueClaim(ExecutionQueueClaim claim) {
+        boolean hasActiveClaim = queueClaims.values().stream()
+                .anyMatch(existing -> claim.nodeRunId().equals(existing.nodeRunId())
+                        && "CLAIMED".equals(existing.status()));
+        if (hasActiveClaim) {
+            return false;
+        }
+        return queueClaims.putIfAbsent(claim.id(), claim) == null;
+    }
+
+    @Override
+    public void updateQueueClaim(ExecutionQueueClaim claim) {
+        queueClaims.computeIfPresent(claim.id(), (ignored, current) -> claim);
+    }
+
+    @Override
     public Optional<ExecutionRun> run(UUID id) {
         return Optional.ofNullable(runs.get(id));
+    }
+
+    @Override
+    public Optional<ExecutionNodeRun> nodeRun(UUID id) {
+        return Optional.ofNullable(nodeRuns.get(id));
+    }
+
+    @Override
+    public Optional<ExecutionQueueClaim> activeQueueClaim(UUID nodeRunId) {
+        return queueClaims.values().stream()
+                .filter(claim -> nodeRunId.equals(claim.nodeRunId()) && "CLAIMED".equals(claim.status()))
+                .findFirst();
+    }
+
+    @Override
+    public Optional<ExecutionQueueClaim> queueClaimByToken(String claimToken) {
+        if (!StringUtils.hasText(claimToken)) {
+            return Optional.empty();
+        }
+        return queueClaims.values().stream()
+                .filter(claim -> claimToken.equals(claim.claimToken()))
+                .findFirst();
     }
 
     @Override

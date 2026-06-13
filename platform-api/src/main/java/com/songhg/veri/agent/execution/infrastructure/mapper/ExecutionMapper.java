@@ -5,6 +5,7 @@ import com.songhg.veri.agent.execution.application.query.ExecutionRunQuery;
 import com.songhg.veri.agent.execution.domain.ExecutionNodeRun;
 import com.songhg.veri.agent.execution.domain.ExecutionPlan;
 import com.songhg.veri.agent.execution.domain.ExecutionPlanNode;
+import com.songhg.veri.agent.execution.domain.ExecutionQueueClaim;
 import com.songhg.veri.agent.execution.domain.ExecutionRun;
 import java.util.List;
 import java.util.UUID;
@@ -42,7 +43,21 @@ public interface ExecutionMapper {
 
     void updateNodeRun(ExecutionNodeRun nodeRun);
 
+    int updateNodeRunIfStatus(@Param("nodeRun") ExecutionNodeRun nodeRun, @Param("expectedStatus") String expectedStatus);
+
+    List<ExecutionNodeRun> queuedNodeRuns(@Param("limit") int limit);
+
+    int insertQueueClaim(ExecutionQueueClaim claim);
+
+    void updateQueueClaim(ExecutionQueueClaim claim);
+
     ExecutionRun run(@Param("id") UUID id);
+
+    ExecutionNodeRun nodeRun(@Param("id") UUID id);
+
+    ExecutionQueueClaim activeQueueClaim(@Param("nodeRunId") UUID nodeRunId);
+
+    ExecutionQueueClaim queueClaimByToken(@Param("claimToken") String claimToken);
 
     ExecutionRun runByPlanAndRequestKey(@Param("planId") UUID planId, @Param("requestKey") String requestKey);
 

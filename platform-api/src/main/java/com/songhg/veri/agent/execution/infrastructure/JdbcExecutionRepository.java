@@ -6,6 +6,7 @@ import com.songhg.veri.agent.execution.application.query.ExecutionRunQuery;
 import com.songhg.veri.agent.execution.domain.ExecutionNodeRun;
 import com.songhg.veri.agent.execution.domain.ExecutionPlan;
 import com.songhg.veri.agent.execution.domain.ExecutionPlanNode;
+import com.songhg.veri.agent.execution.domain.ExecutionQueueClaim;
 import com.songhg.veri.agent.execution.domain.ExecutionRun;
 import com.songhg.veri.agent.execution.infrastructure.mapper.ExecutionMapper;
 import java.util.List;
@@ -97,8 +98,43 @@ public class JdbcExecutionRepository implements ExecutionRepository {
     }
 
     @Override
+    public boolean updateNodeRunIfStatus(ExecutionNodeRun nodeRun, String expectedStatus) {
+        return mapper.updateNodeRunIfStatus(nodeRun, expectedStatus) > 0;
+    }
+
+    @Override
+    public List<ExecutionNodeRun> queuedNodeRuns(int limit) {
+        return mapper.queuedNodeRuns(limit);
+    }
+
+    @Override
+    public boolean tryInsertQueueClaim(ExecutionQueueClaim claim) {
+        return mapper.insertQueueClaim(claim) > 0;
+    }
+
+    @Override
+    public void updateQueueClaim(ExecutionQueueClaim claim) {
+        mapper.updateQueueClaim(claim);
+    }
+
+    @Override
     public Optional<ExecutionRun> run(UUID id) {
         return Optional.ofNullable(mapper.run(id));
+    }
+
+    @Override
+    public Optional<ExecutionNodeRun> nodeRun(UUID id) {
+        return Optional.ofNullable(mapper.nodeRun(id));
+    }
+
+    @Override
+    public Optional<ExecutionQueueClaim> activeQueueClaim(UUID nodeRunId) {
+        return Optional.ofNullable(mapper.activeQueueClaim(nodeRunId));
+    }
+
+    @Override
+    public Optional<ExecutionQueueClaim> queueClaimByToken(String claimToken) {
+        return Optional.ofNullable(mapper.queueClaimByToken(claimToken));
     }
 
     @Override

@@ -19,6 +19,7 @@ import com.songhg.veri.agent.execution.application.query.ExecutionRunQuery;
 import com.songhg.veri.agent.execution.domain.ExecutionNodeRun;
 import com.songhg.veri.agent.execution.domain.ExecutionPlan;
 import com.songhg.veri.agent.execution.domain.ExecutionPlanNode;
+import com.songhg.veri.agent.execution.domain.ExecutionQueueClaim;
 import com.songhg.veri.agent.execution.domain.ExecutionRun;
 import com.songhg.veri.agent.modelaccess.application.query.InvocationQuery;
 import com.songhg.veri.agent.modelaccess.application.port.ModelAccessRepository;
@@ -332,11 +333,30 @@ class DbProfileRepositoryContractTest {
                 retriedAt,
                 retriedAt
         )));
+        executionRepository.updateRun(new ExecutionRun(
+                runId,
+                planId,
+                projectId,
+                "QUEUED",
+                "RETRY",
+                requestKey,
+                null,
+                2,
+                "trc_dbexecutioncontract_retry",
+                "{\"retryInFlight\":true,\"runnerDispatched\":false}",
+                null,
+                null,
+                "db-tester",
+                null,
+                null,
+                now,
+                retriedAt
+        ));
 
         assertThat(executionRepository.run(runId))
                 .get()
                 .extracting(ExecutionRun::status, ExecutionRun::errorCode)
-                .containsExactly("FAILED", "EXECUTION_NODE_DISPATCH_FAILED");
+                .containsExactly("QUEUED", null);
         assertThat(executionRepository.nodeRuns(runId))
                 .extracting(ExecutionNodeRun::planNodeId, ExecutionNodeRun::attempt, ExecutionNodeRun::status)
                 .containsExactly(
@@ -344,6 +364,80 @@ class DbProfileRepositoryContractTest {
                         org.assertj.core.groups.Tuple.tuple(apiNodeId, 2, "QUEUED"),
                         org.assertj.core.groups.Tuple.tuple(reportNodeId, 1, "PENDING")
                 );
+
+        ExecutionNodeRun queuedRetryNode = executionRepository.queuedNodeRuns(10).stream()
+                .filter(nodeRun -> runId.equals(nodeRun.runId()) && apiNodeId.equals(nodeRun.planNodeId()))
+                .findFirst()
+                .orElseThrow();
+        ExecutionQueueClaim claim = new ExecutionQueueClaim(
+                UUID.randomUUID(),
+                queuedRetryNode.id(),
+                "wp9_claim_db_" + UUID.randomUUID().toString().replace("-", ""),
+                "db-worker",
+                retriedAt,
+                retriedAt,
+                retriedAt.plusSeconds(180),
+                "CLAIMED",
+                retriedAt,
+                retriedAt
+        );
+        assertThat(executionRepository.tryInsertQueueClaim(claim)).isTrue();
+        assertThat(executionRepository.tryInsertQueueClaim(new ExecutionQueueClaim(
+                UUID.randomUUID(),
+                queuedRetryNode.id(),
+                "wp9_claim_db_" + UUID.randomUUID().toString().replace("-", ""),
+                "db-worker-duplicate",
+                retriedAt,
+                retriedAt,
+                retriedAt.plusSeconds(180),
+                "CLAIMED",
+                retriedAt,
+                retriedAt
+        ))).isFalse();
+
+        Instant runningAt = retriedAt.plusSeconds(1);
+        assertThat(executionRepository.updateNodeRunIfStatus(new ExecutionNodeRun(
+                queuedRetryNode.id(),
+                queuedRetryNode.runId(),
+                queuedRetryNode.planNodeId(),
+                "RUNNING",
+                queuedRetryNode.attempt(),
+                queuedRetryNode.runnerType(),
+                null,
+                null,
+                null,
+                "{\"schedulerClaimCreated\":true,\"runnerDispatched\":false}",
+                runningAt,
+                queuedRetryNode.queuedAt(),
+                runningAt,
+                null,
+                queuedRetryNode.createdAt(),
+                runningAt
+        ), "QUEUED")).isTrue();
+        assertThat(executionRepository.updateNodeRunIfStatus(queuedRetryNode, "QUEUED")).isFalse();
+        assertThat(executionRepository.activeQueueClaim(queuedRetryNode.id()))
+                .get()
+                .extracting(ExecutionQueueClaim::workerId)
+                .isEqualTo("db-worker");
+        assertThat(executionRepository.queueClaimByToken(claim.claimToken()))
+                .get()
+                .extracting(ExecutionQueueClaim::nodeRunId)
+                .isEqualTo(queuedRetryNode.id());
+
+        Instant completedAt = runningAt.plusSeconds(1);
+        executionRepository.updateQueueClaim(new ExecutionQueueClaim(
+                claim.id(),
+                claim.nodeRunId(),
+                claim.claimToken(),
+                claim.workerId(),
+                claim.claimedAt(),
+                completedAt,
+                claim.expiresAt(),
+                "COMPLETED",
+                claim.createdAt(),
+                completedAt
+        ));
+        assertThat(executionRepository.activeQueueClaim(queuedRetryNode.id())).isEmpty();
     }
 
     @Test

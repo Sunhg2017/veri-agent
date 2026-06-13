@@ -47,7 +47,11 @@
 | WP9-CANCEL-001 | P0 | RUNNING run 取消 | 调用节点 runner cancel，状态收敛为 CANCELED。 |
 | WP9-CANCEL-002 | P0 | 终态 run 取消 | 幂等返回当前状态。 |
 | WP9-RETRY-001 | P0 | FAILED 节点重试 | 新增 attempt，保留原失败摘要。 |
-| WP9-QUEUE-001 | P0 | heartbeat 超时 | recovery 标记 TIMEOUT 或重新排队。 |
+| WP9-QUEUE-001 | P0 | 多 worker 认领同一 queued node | 只有一个 active claim，节点只从 QUEUED 条件推进到 RUNNING。 |
+| WP9-QUEUE-002 | P0 | claimToken 完成成功节点 | 节点 SUCCEEDED，满足依赖的 PENDING 节点推进到 QUEUED。 |
+| WP9-QUEUE-003 | P0 | fail-fast 依赖失败 | 下游节点 BLOCKED，run 聚合为 FAILED 或 PARTIAL_SUCCESS。 |
+| WP9-QUEUE-004 | P0 | 完成回传包含 stdout/requestBody/token | 危险 key 丢弃，安全 key 中敏感文本脱敏。 |
+| WP9-QUEUE-005 | P0 | heartbeat 超时 | recovery 标记 TIMEOUT 或重新排队。 |
 | WP9-TRIGGER-001 | P0 | webhook disabled | 返回 `EXECUTION_TRIGGER_DISABLED`。 |
 | WP9-TRIGGER-002 | P0 | webhook 签名错误 | 返回 `EXECUTION_TRIGGER_SIGNATURE_INVALID`。 |
 | WP9-EXPORT-001 | P0 | 导出摘要 | 不包含 secret、baseUrl 明文、stdout/stderr 原文。 |
@@ -105,8 +109,8 @@ bash scripts/wp9_webhook_smoke.sh
 
 ## 8. 当前质量结论
 
-M1 已完成基础控制面、DB validation 和 health API 验收。M2 已完成计划与 DAG 后端切片，新增 `ExecutionDagValidatorTest`、`ExecutionPlanControllerTest`，并把 execution plan API 纳入 `OpenApiContractTest`。M3A 已完成手动触发与运行记录后端切片，新增 `ExecutionRunControllerTest`，并把 `/plans/{id}/runs`、`/runs`、`/runs/{id}` 纳入 `OpenApiContractTest`。M3B 已完成取消与控制面重试后端切片，覆盖 `/runs/{id}/cancel`、`/runs/{id}/retry`、终态取消幂等、非重试态拒绝、失败节点 retry attempt、防重复 retry 和 JDBC update/attempt 查询。
+M1 已完成基础控制面、DB validation 和 health API 验收。M2 已完成计划与 DAG 后端切片，新增 `ExecutionDagValidatorTest`、`ExecutionPlanControllerTest`，并把 execution plan API 纳入 `OpenApiContractTest`。M3A 已完成手动触发与运行记录后端切片，新增 `ExecutionRunControllerTest`，并把 `/plans/{id}/runs`、`/runs`、`/runs/{id}` 纳入 `OpenApiContractTest`。M3B 已完成取消与控制面重试后端切片，覆盖 `/runs/{id}/cancel`、`/runs/{id}/retry`、终态取消幂等、非重试态拒绝、失败节点 retry attempt、防重复 retry 和 JDBC update/attempt 查询。M3C 已完成内部 queue claim、节点完成回传、依赖推进和 run 聚合后端切片，覆盖 `/internal/queue/claims`、`/internal/queue/node-runs/{id}/complete`、成功节点推动下游 QUEUED、失败节点阻断下游、危险 resultSummary key 丢弃、敏感文本脱敏、active claim 唯一和条件更新 DB contract。
 
-当前已覆盖 plan 创建、列表、详情、更新、dry-run、归档、归档后状态保护、DAG 循环、跨项目 WP6 bundle 拒绝、secretRef 输入脱敏、READY 计划手动触发、requestKey 幂等回放、run 列表/详情、取消、重试和权限保护。
+当前已覆盖 plan 创建、列表、详情、更新、dry-run、归档、归档后状态保护、DAG 循环、跨项目 WP6 bundle 拒绝、secretRef 输入脱敏、READY 计划手动触发、requestKey 幂等回放、run 列表/详情、取消、重试、内部认领、节点完成、依赖推进、状态聚合和权限保护。
 
-尚未进入后续 M3/M4/M5/M6 的队列认领、WP6 dispatch、timeout recovery、webhook/cron 和前端工作台测试；这些后续仍必须按本文件 P0 用例矩阵补齐。
+尚未进入后续 M3/M4/M5/M6 的 heartbeat 续约、timeout recovery、WP6 dispatch、webhook/cron 和前端工作台测试；这些后续仍必须按本文件 P0 用例矩阵补齐。

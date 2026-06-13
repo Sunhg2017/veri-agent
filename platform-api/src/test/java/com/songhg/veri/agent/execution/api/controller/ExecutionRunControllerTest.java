@@ -193,6 +193,105 @@ class ExecutionRunControllerTest {
                 .andExpect(jsonPath("$.data.nodes.length()").value(3));
     }
 
+    @Test
+    void claimsQueuedNodeAndCompletesItWithDependencyAggregation() throws Exception {
+        UUID bundleId = approvedBundle("project-alpha");
+        String ownerToken = userAccessToken(List.of("ProjectOwner@PROJECT:project-alpha"));
+        String adminToken = userAccessToken(List.of("SuperAdmin"));
+        UUID planId = createPlan(bundleId, ownerToken, "READY");
+        UUID runId = triggerRun(planId, ownerToken, "claim-success-smoke");
+
+        MvcResult claimed = mockMvc.perform(post("/api/v1/execution/internal/queue/claims")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
+                        .param("workerId", "worker-a"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.runId").value(runId.toString()))
+                .andExpect(jsonPath("$.data.nodeKey").value("api-smoke"))
+                .andExpect(jsonPath("$.data.workerId").value("worker-a"))
+                .andExpect(jsonPath("$.data.claimToken", startsWith("wp9_claim_")))
+                .andReturn();
+        UUID nodeRunId = UUID.fromString(JsonPath.read(claimed.getResponse().getContentAsString(), "$.data.nodeRunId"));
+        String claimToken = JsonPath.read(claimed.getResponse().getContentAsString(), "$.data.claimToken");
+
+        mockMvc.perform(post("/api/v1/execution/internal/queue/node-runs/{id}/complete", nodeRunId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "claimToken", claimToken,
+                                "status", "SUCCEEDED",
+                                "resultSummary", Map.of(
+                                        "caseCount", 7,
+                                        "durationMs", 1200,
+                                        "stdout", "raw output must not be stored",
+                                        "message", "completed without token=wp9_secret_123456789"
+                                )
+                        ))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("RUNNING"))
+                .andExpect(jsonPath("$.data.resultSummary.succeededNodeCount").value(1))
+                .andExpect(jsonPath("$.data.resultSummary.queuedNodeCount").value(1))
+                .andExpect(jsonPath("$.data.nodes[0].status").value("SUCCEEDED"))
+                .andExpect(jsonPath("$.data.nodes[0].resultSummary.caseCount").value(7))
+                .andExpect(jsonPath("$.data.nodes[0].resultSummary.rawOutputStored").value(false))
+                .andExpect(jsonPath("$.data.nodes[0].resultSummary.stdout").doesNotExist())
+                .andExpect(jsonPath("$.data.nodes[0].resultSummary.message").value("completed without [REDACTED]"))
+                .andExpect(jsonPath("$.data.nodes[1].status").value("QUEUED"))
+                .andExpect(jsonPath("$.data.nodes[1].resultSummary.dependenciesSatisfied").value(true));
+    }
+
+    @Test
+    void completingClaimedFailureBlocksFailFastDependentsAndAllowsNoopClaim() throws Exception {
+        UUID bundleId = approvedBundle("project-alpha");
+        String ownerToken = userAccessToken(List.of("ProjectOwner@PROJECT:project-alpha"));
+        String adminToken = userAccessToken(List.of("SuperAdmin"));
+        UUID planId = createPlan(bundleId, ownerToken, "READY");
+        UUID runId = triggerRun(planId, ownerToken, "claim-failure-smoke");
+
+        MvcResult claimed = mockMvc.perform(post("/api/v1/execution/internal/queue/claims")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
+                        .param("workerId", "worker-b"))
+                .andExpect(status().isCreated())
+                .andReturn();
+        UUID nodeRunId = UUID.fromString(JsonPath.read(claimed.getResponse().getContentAsString(), "$.data.nodeRunId"));
+        String claimToken = JsonPath.read(claimed.getResponse().getContentAsString(), "$.data.claimToken");
+
+        mockMvc.perform(post("/api/v1/execution/internal/queue/node-runs/{id}/complete", nodeRunId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "claimToken", claimToken,
+                                "status", "FAILED",
+                                "errorCode", "EXECUTION_NODE_DISPATCH_FAILED",
+                                "errorSummary", "sanitized failure with bearer wp9secrettoken",
+                                "resultSummary", Map.of(
+                                        "failureCategory", "ASSERTION",
+                                        "requestBody", "{\"password\":\"plain\"}",
+                                        "nested", Map.of("token", "plain", "safe", "apiKey=sk_live_123456789")
+                                )
+                        ))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.id").value(runId.toString()))
+                .andExpect(jsonPath("$.data.status").value("FAILED"))
+                .andExpect(jsonPath("$.data.errorCode").value("EXECUTION_RUN_FAILED"))
+                .andExpect(jsonPath("$.data.resultSummary.failedNodeCount").value(1))
+                .andExpect(jsonPath("$.data.resultSummary.blockedNodeCount").value(1))
+                .andExpect(jsonPath("$.data.nodes[0].status").value("FAILED"))
+                .andExpect(jsonPath("$.data.nodes[0].errorCode").value("EXECUTION_NODE_DISPATCH_FAILED"))
+                .andExpect(jsonPath("$.data.nodes[0].errorSummary").value("sanitized failure with [REDACTED]"))
+                .andExpect(jsonPath("$.data.nodes[0].resultSummary.requestBody").doesNotExist())
+                .andExpect(jsonPath("$.data.nodes[0].resultSummary.nested.token").doesNotExist())
+                .andExpect(jsonPath("$.data.nodes[0].resultSummary.nested.safe").value("[REDACTED]"))
+                .andExpect(jsonPath("$.data.nodes[1].status").value("BLOCKED"))
+                .andExpect(jsonPath("$.data.nodes[1].errorCode").value("EXECUTION_DEPENDENCY_BLOCKED"));
+
+        mockMvc.perform(post("/api/v1/execution/internal/queue/claims")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
+                        .param("workerId", "worker-b"))
+                .andExpect(status().isNoContent())
+                .andExpect(jsonPath("$.code").value("OK"))
+                .andExpect(jsonPath("$.data").doesNotExist());
+    }
+
     private UUID createPlan(UUID bundleId, String token, String status) throws Exception {
         MvcResult created = mockMvc.perform(post("/api/v1/execution/plans")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)

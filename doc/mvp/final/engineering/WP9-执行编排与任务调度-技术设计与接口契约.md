@@ -56,13 +56,15 @@ flowchart LR
 
 ### 2.1 当前已落地实现
 
-截至 2026-06-13 M3B，本仓库已完成 `ExecutionPlanController`、`ExecutionRunController`、`ExecutionPlanService`、`ExecutionRunService`、`ExecutionDagValidator`、`ExecutionRepository`、`JdbcExecutionRepository`、`ExecutionMapper` 和 local 测试仓储。已支持 plan 创建、列表、详情、更新、归档、dry-run、READY 计划手动触发、run/node run 初始化、requestKey 幂等回放、run 列表、run 详情、run cancel 和控制面 retry；health policy 中 `planCrudReady=true`、`dagDryRunReady=true`、`manualTriggerReady=true`、`cancelRetryReady=true`。
+截至 2026-06-13 M3C，本仓库已完成 `ExecutionPlanController`、`ExecutionRunController`、`ExecutionPlanService`、`ExecutionRunService`、`ExecutionDagValidator`、`ExecutionRepository`、`JdbcExecutionRepository`、`ExecutionMapper` 和 local 测试仓储。已支持 plan 创建、列表、详情、更新、归档、dry-run、READY 计划手动触发、run/node run 初始化、requestKey 幂等回放、run 列表、run 详情、run cancel、控制面 retry、内部队列 claim、节点完成回传、依赖推进和 run 状态聚合；health policy 中 `planCrudReady=true`、`dagDryRunReady=true`、`manualTriggerReady=true`、`cancelRetryReady=true`、`queueClaimReady=true`、`stateAggregationReady=true`。
 
 M2 的资源校验通过 `ApiAutomationBundleScopeService` 查询 WP6 应用服务暴露的 bundle scope，不直读 WP6 表，不调用 runner adapter。`API_TEST` 节点要求 `apiAutomationBundleId` 存在、同项目且脚本包状态为 `APPROVED`；否则返回 `EXECUTION_DAG_INVALID`，具体 issue code 为 `EXECUTION_RESOURCE_NOT_FOUND`、`EXECUTION_RESOURCE_SCOPE_DENIED` 或 `EXECUTION_RESOURCE_NOT_READY`。
 
 M3A 的手动触发只创建 orchestration 记录，不认领队列、不调用 WP6 runner。`POST /plans/{id}/runs` 只允许 `READY` 计划，初始 run 状态为 `QUEUED`；无依赖节点初始化为 `QUEUED`，有依赖节点初始化为 `PENDING`。相同 plan/requestKey 会回放既有 run，响应中 `idempotentReplay=true`，不会重复生成 node run。
 
 M3B 的取消和重试仍只处理 orchestration 记录，不调用 runner cancel 或 dispatch。`POST /runs/{id}/cancel` 将非终态 run 收敛为 `CANCELED` 并关闭 PENDING/QUEUED/RUNNING node run；终态 run 重复取消幂等返回当前详情。`POST /runs/{id}/retry` 只允许 `FAILED`、`PARTIAL_SUCCESS`、`TIMEOUT` run，并在同一 run 下为最新 FAILED/TIMEOUT/BLOCKED 节点插入新 attempt；已处于 `QUEUED + RETRY + retryInFlight=true` 的 run 重复 retry 不重复插入 attempt。
+
+M3C 增加内部调度控制面，不启用后台 scheduler 线程、不调用 WP6 runner。`POST /internal/queue/claims?workerId=...` 按创建时间和 nodeKey 认领一个 `QUEUED` node run，写入 `execution_queue_claim`，再用条件更新将节点推进为 `RUNNING`；若并发导致节点状态变化，则释放 claim 并尝试下一个候选。`POST /internal/queue/node-runs/{id}/complete` 使用 claimToken 完成节点，支持 `SUCCEEDED/SKIPPED/FAILED/TIMEOUT/BLOCKED`，只保存脱敏 resultSummary；完成后根据依赖关系把满足依赖的 `PENDING` 节点推进为 `QUEUED`，或在 fail-fast 依赖失败时标记为 `BLOCKED`，并聚合 run 为 `RUNNING/SUCCEEDED/FAILED/PARTIAL_SUCCESS/TIMEOUT`。
 
 ## 3. 状态机
 
@@ -156,6 +158,8 @@ FAILED -> QUEUED   (retry attempt)
 | `GET` | `/runs/{id}` | `execution:read` | 查询运行详情和节点状态。 |
 | `POST` | `/runs/{id}/cancel` | `execution:trigger` | 取消运行和可取消节点。 |
 | `POST` | `/runs/{id}/retry` | `execution:trigger` | 重试失败或超时节点。 |
+| `POST` | `/internal/queue/claims` | `execution:admin` | 内部 worker 认领一个 queued node，返回 claimToken；无候选时返回 204 envelope。 |
+| `POST` | `/internal/queue/node-runs/{id}/complete` | `execution:admin` | 内部 worker 使用 claimToken 完成 node run，并触发依赖推进和 run 聚合。 |
 | `GET` | `/runs/{id}/export` | `execution:export` | 导出脱敏执行摘要。 |
 | `POST` | `/plans/{id}/triggers` | `execution:manage` | 创建 webhook/cron 触发配置。 |
 | `PATCH` | `/triggers/{id}` | `execution:manage` | 启停或更新触发配置。 |
@@ -276,6 +280,39 @@ FAILED -> QUEUED   (retry attempt)
 }
 ```
 
+### 内部队列认领响应
+
+```json
+{
+  "id": "claim-uuid",
+  "runId": "run-uuid",
+  "nodeRunId": "node-run-uuid",
+  "planNodeId": "plan-node-uuid",
+  "nodeKey": "api-smoke",
+  "runnerType": "WP6_API",
+  "claimToken": "wp9_claim_xxx",
+  "workerId": "worker-a",
+  "claimedAt": "2026-06-13T08:00:00Z",
+  "heartbeatAt": "2026-06-13T08:00:00Z",
+  "expiresAt": "2026-06-13T08:03:00Z"
+}
+```
+
+### 内部节点完成请求
+
+```json
+{
+  "claimToken": "wp9_claim_xxx",
+  "status": "SUCCEEDED",
+  "resultSummary": {
+    "caseCount": 7,
+    "durationMs": 1200
+  }
+}
+```
+
+节点完成请求体中的 `stdout`、`stderr`、`requestBody`、`responseBody`、`variables`、`environment`、`secret`、`token`、`password`、`authorization` 等字段会被丢弃；安全 key 中夹带的敏感文本会被替换为 `[REDACTED]`。WP9 只保存聚合证据，不保存 runner 原始输出。
+
 ## 8. Runner 集成
 
 | 节点类型 | P0/P1 | 集成方式 |
@@ -324,6 +361,12 @@ FAILED -> QUEUED   (retry attempt)
 | `EXECUTION_RESOURCE_REQUIRED` | `API_TEST` 节点缺少 `apiAutomationBundleId`。 |
 | `EXECUTION_RESOURCE_NOT_FOUND` | 引用的 WP6 脚本包不存在。 |
 | `EXECUTION_RESOURCE_NOT_READY` | 引用的 WP6 脚本包未审批通过。 |
+| `EXECUTION_QUEUE_WORKER_REQUIRED` | 内部队列认领缺少 workerId。 |
+| `EXECUTION_QUEUE_CLAIM_REQUIRED` | 内部节点完成缺少 nodeRunId 或 claimToken。 |
+| `EXECUTION_QUEUE_CLAIM_INVALID` | claimToken 不存在。 |
+| `EXECUTION_QUEUE_CLAIM_NODE_MISMATCH` | claimToken 与路径 nodeRunId 不匹配。 |
+| `EXECUTION_QUEUE_CLAIM_NOT_ACTIVE` | claim 已完成、已释放或节点不在 RUNNING。 |
+| `EXECUTION_NODE_STATUS_INVALID` | 节点完成状态不是允许的终态。 |
 
 ## 11. 安全与兼容
 
@@ -335,16 +378,16 @@ FAILED -> QUEUED   (retry attempt)
 
 ## 12. 当前实现切片建议
 
-M1、M2、M3A 和 M3B 已完成：
+M1、M2、M3A、M3B 和 M3C 已完成：
 
-1. 权限、DB、health、plan CRUD、DAG validator、plan dry-run、手动触发、run/node run 初始化、取消和控制面重试。
+1. 权限、DB、health、plan CRUD、DAG validator、plan dry-run、手动触发、run/node run 初始化、取消、控制面重试、内部 queue claim、节点完成回传、依赖推进和 run 聚合。
 2. `API_TEST` 资源 scope 校验通过 WP6 应用服务端口，不直读 WP6 表。
 3. 状态保护覆盖 `DRAFT/READY/DISABLED/ARCHIVED`，归档必须走专用 endpoint。
-4. dry-run 不创建 run；手动触发只创建 orchestration 记录，不认领队列、不调度 runner、不保存 secret 或变量明文。
+4. dry-run 不创建 run；手动触发只创建 orchestration 记录；内部 claim 只推进 WP9 控制面状态，不调度 runner、不保存 secret、变量明文或 runner 原始输出。
 
 后续切片继续推进：
 
-1. queue claim、timeout/recovery 和状态聚合。
+1. timeout/recovery 和 heartbeat 续约。
 2. API_TEST 节点接 WP6 run。
 3. webhook/cron 触发控制面。
 4. 前端计划列表、DAG 预览、运行详情和取消重试。
