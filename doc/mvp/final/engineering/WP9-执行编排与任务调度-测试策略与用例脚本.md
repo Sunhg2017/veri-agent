@@ -85,7 +85,7 @@
 
 ## 6. 建议脚本入口
 
-后续实现时新增：
+当前已提供：
 
 ```bash
 bash scripts/wp9_quality_gate.sh
@@ -94,7 +94,7 @@ bash scripts/wp9_scheduler_smoke.sh
 bash scripts/wp9_webhook_smoke.sh
 ```
 
-`wp9_quality_gate.sh` 建议串联：
+`wp9_quality_gate.sh` 已串联：
 
 1. 脚本语法检查。
 2. 后端 WP9 service/controller/OpenAPI contract 测试。
@@ -102,7 +102,9 @@ bash scripts/wp9_webhook_smoke.sh
 4. 前端 WP9 Vitest。
 5. 前端 build。
 6. Playwright smoke。
-7. managed scheduler smoke。
+7. managed scheduler smoke，可用 `WP9_SCHEDULER_SMOKE=managed` 显式启用；release gate 必须启用。
+
+`wp9_webhook_smoke.sh` 仍保留为后续供应商 webhook 插件样例/外部 HTTP smoke 入口。
 
 ## 7. 准出标准
 
@@ -119,4 +121,4 @@ M1 已完成基础控制面、DB validation 和 health API 验收。M2 已完成
 
 当前已覆盖 plan 创建、列表、详情、更新、dry-run、归档、归档后状态保护、DAG 循环、跨项目 WP6 bundle 拒绝、secretRef 输入脱敏、`runtimeSecretRefs` 引用校验/脱敏、READY 计划手动触发、requestKey 幂等回放、run 列表/详情、取消、重试、内部认领、heartbeat、recovery、节点完成、API_TEST dispatch、baseUrlRef 环境解析、WP6 failure/timeout 映射、后台 scheduler loop、trigger 管理、webhook 签名与幂等、依赖推进、状态聚合和权限保护。
 
-M6C 已补 `portal-web/e2e/wp9-execution.smoke.playwright.ts` 和 `scripts/wp9_frontend_e2e_smoke.sh`，覆盖桌面与 390px 视口下的执行工作台计划创建/更新、DAG dryRun、手动运行、取消、失败运行重试、触发器创建/dryRun/启停、事件查看和无横向溢出。尚未进入生产 cron scanner、供应商 webhook 插件样例、执行摘要导出落地和聚合 WP9 quality gate；这些后续仍必须按本文件 P0 用例矩阵补齐。
+M6C 已补 `portal-web/e2e/wp9-execution.smoke.playwright.ts` 和 `scripts/wp9_frontend_e2e_smoke.sh`，覆盖桌面与 390px 视口下的执行工作台计划创建/更新、DAG dryRun、手动运行、取消、失败运行重试、触发器创建/dryRun/启停、事件查看和无横向溢出。M7A 已补 `scripts/wp9_quality_gate.sh` 和 `scripts/wp9_scheduler_smoke.sh`，开发模式聚合 WP9 后端、前端、Playwright、build 和 DB validation，release 模式要求显式启用 managed scheduler smoke。尚未进入生产 cron scanner、供应商 webhook 插件样例、执行摘要导出落地和外部 webhook HTTP smoke；这些后续仍必须按本文件 P0 用例矩阵补齐。
