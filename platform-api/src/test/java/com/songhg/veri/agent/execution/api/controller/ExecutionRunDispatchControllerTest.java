@@ -10,6 +10,8 @@ import com.songhg.veri.agent.apiautomation.domain.ApiAutomationScriptBundle;
 import com.songhg.veri.agent.apiautomation.domain.ApiAutomationSpec;
 import com.songhg.veri.agent.auth.application.AuthTokenService;
 import com.songhg.veri.agent.auth.domain.AuthUserRecord;
+import com.songhg.veri.agent.management.application.port.ManagementStore;
+import com.songhg.veri.agent.management.application.port.ManagementStoreRows.EnvironmentRuntimeRef;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -27,7 +29,9 @@ import org.springframework.test.web.servlet.MvcResult;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.argThat;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -58,6 +62,9 @@ class ExecutionRunDispatchControllerTest {
 
     @MockitoBean
     private ApiAutomationRunnerPort runnerPort;
+
+    @MockitoBean
+    private ManagementStore managementStore;
 
     @Test
     void dispatchesClaimedApiTestNodeThroughWp6AndAggregatesSuccess() throws Exception {
@@ -117,6 +124,7 @@ class ExecutionRunDispatchControllerTest {
                 .andExpect(jsonPath("$.data.nodes[0].resultSummary.wp6CaseCount").value(1))
                 .andExpect(jsonPath("$.data.nodes[0].resultSummary.wp6ResultCounts.PASSED").value(1))
                 .andExpect(jsonPath("$.data.nodes[0].resultSummary.wp6BaseUrlHost").value("api.example.test"))
+                .andExpect(jsonPath("$.data.nodes[0].resultSummary.baseUrlSource").value("REQUEST_BASE_URL"))
                 .andExpect(jsonPath("$.data.nodes[0].resultSummary.rawBaseUrlStored").value(false))
                 .andExpect(jsonPath("$.data.nodes[0].resultSummary.rawOutputStored").value(false))
                 .andExpect(content().string(not(containsString("https://api.example.test/billing"))))
@@ -125,12 +133,206 @@ class ExecutionRunDispatchControllerTest {
         verify(runnerPort).run(any(ApiAutomationRunnerPort.RunnerRunRequest.class));
     }
 
+    @Test
+    void resolvesPlanBaseUrlRefAndKeepsRuntimeSecretRefsInsideWp6Boundary() throws Exception {
+        String projectId = UUID.randomUUID().toString();
+        when(managementStore.findEnvironmentRuntimeRef(argThat(params -> "staging".equals(params.get("keyword"))
+                && UUID.fromString(projectId).equals(params.get("projectId")))))
+                .thenReturn(new EnvironmentRuntimeRef(
+                        UUID.randomUUID(),
+                        UUID.fromString(projectId),
+                        "staging",
+                        "Staging",
+                        "https://api.example.test/runtime",
+                        "ENABLED"
+                ));
+        when(runnerPort.validateBundle(any(ApiAutomationScriptBundle.class)))
+                .thenReturn(new ApiAutomationRunnerPort.RunnerValidation(true, null, null));
+        SeededBundle seededBundle = approvedBundle(projectId);
+        String ownerToken = userAccessToken(List.of("ProjectOwner@PROJECT:" + projectId));
+        String adminToken = userAccessToken(List.of("SuperAdmin"));
+        UUID planId = createSingleApiPlan(projectId, seededBundle, ownerToken, Map.of(
+                "apiAutomationBundleId", seededBundle.bundleId().toString(),
+                "baseUrlRef", "env:staging",
+                "caseIds", List.of(seededBundle.caseIds().getFirst().toString()),
+                "runtimeSecretRefs", List.of("secret://wp6/runtime-token")
+        ));
+
+        mockMvc.perform(post("/api/v1/execution/plans/{id}/runs", planId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("requestKey", "dispatch-ref-smoke"))))
+                .andExpect(status().isCreated())
+                .andExpect(content().string(not(containsString("secret://wp6/runtime-token"))));
+
+        MvcResult claimed = mockMvc.perform(post("/api/v1/execution/internal/queue/claims")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
+                        .param("workerId", "worker-dispatch-ref"))
+                .andExpect(status().isCreated())
+                .andReturn();
+        UUID nodeRunId = UUID.fromString(JsonPath.read(claimed.getResponse().getContentAsString(), "$.data.nodeRunId"));
+        String claimToken = JsonPath.read(claimed.getResponse().getContentAsString(), "$.data.claimToken");
+
+        mockMvc.perform(post("/api/v1/execution/internal/queue/node-runs/{id}/dispatch", nodeRunId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("claimToken", claimToken))))
+                .andExpect(status().isBadGateway())
+                .andExpect(jsonPath("$.code").value("SECRET_PROVIDER_ERROR"))
+                .andExpect(content().string(containsString("sha256:")))
+                .andExpect(content().string(not(containsString("https://api.example.test/runtime"))))
+                .andExpect(content().string(not(containsString("secret://wp6/runtime-token"))));
+    }
+
+    @Test
+    void resolvesPlanBaseUrlRefWhenNoRuntimeSecretsAreRequired() throws Exception {
+        String projectId = UUID.randomUUID().toString();
+        when(managementStore.findEnvironmentRuntimeRef(argThat(params -> "staging".equals(params.get("keyword"))
+                && UUID.fromString(projectId).equals(params.get("projectId")))))
+                .thenReturn(new EnvironmentRuntimeRef(
+                        UUID.randomUUID(),
+                        UUID.fromString(projectId),
+                        "staging",
+                        "Staging",
+                        "https://api.example.test/runtime",
+                        "ENABLED"
+                ));
+        when(runnerPort.validateBundle(any(ApiAutomationScriptBundle.class)))
+                .thenReturn(new ApiAutomationRunnerPort.RunnerValidation(true, null, null));
+        when(runnerPort.run(any(ApiAutomationRunnerPort.RunnerRunRequest.class))).thenAnswer(invocation -> {
+            ApiAutomationRunnerPort.RunnerRunRequest request = invocation.getArgument(0);
+            return new ApiAutomationRunnerPort.RunnerRunResult(
+                    "PASSED",
+                    "MANAGED",
+                    null,
+                    null,
+                    request.cases().stream()
+                            .map(automationCase -> new ApiAutomationRunnerPort.RunnerCaseResult(
+                                    automationCase.id(),
+                                    "PASSED",
+                                    24,
+                                    "{}",
+                                    null,
+                                    null
+                            ))
+                            .toList()
+            );
+        });
+        SeededBundle seededBundle = approvedBundle(projectId);
+        String ownerToken = userAccessToken(List.of("ProjectOwner@PROJECT:" + projectId));
+        String adminToken = userAccessToken(List.of("SuperAdmin"));
+        UUID planId = createSingleApiPlan(projectId, seededBundle, ownerToken, Map.of(
+                "apiAutomationBundleId", seededBundle.bundleId().toString(),
+                "baseUrlRef", "env:staging",
+                "caseIds", List.of(seededBundle.caseIds().getFirst().toString())
+        ));
+        triggerRun(planId, ownerToken, "dispatch-ref-success-" + UUID.randomUUID());
+
+        MvcResult claimed = mockMvc.perform(post("/api/v1/execution/internal/queue/claims")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
+                        .param("workerId", "worker-dispatch-ref-success"))
+                .andExpect(status().isCreated())
+                .andReturn();
+        UUID nodeRunId = UUID.fromString(JsonPath.read(claimed.getResponse().getContentAsString(), "$.data.nodeRunId"));
+        String claimToken = JsonPath.read(claimed.getResponse().getContentAsString(), "$.data.claimToken");
+
+        mockMvc.perform(post("/api/v1/execution/internal/queue/node-runs/{id}/dispatch", nodeRunId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("claimToken", claimToken))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("SUCCEEDED"))
+                .andExpect(jsonPath("$.data.nodes[0].resultSummary.baseUrlSource").value("PLAN_BASE_URL_REF"))
+                .andExpect(jsonPath("$.data.nodes[0].resultSummary.baseUrlRefDigest").value(startsWith("sha256:")))
+                .andExpect(jsonPath("$.data.nodes[0].resultSummary.runtimeSecretRefCount").value(0))
+                .andExpect(jsonPath("$.data.nodes[0].resultSummary.secretRefsStored").value(false))
+                .andExpect(content().string(not(containsString("https://api.example.test/runtime"))));
+
+        verify(runnerPort).run(argThat(request -> "https://api.example.test/runtime".equals(request.baseUrl())
+                && request.secretRefDigests().isEmpty()));
+    }
+
+    @Test
+    void mapsWp6FailedAndTimeoutResultsToWp9TerminalStatuses() throws Exception {
+        SeededBundle failedBundle = approvedBundle("project-alpha");
+        String ownerToken = userAccessToken(List.of("ProjectOwner@PROJECT:project-alpha"));
+        String adminToken = userAccessToken(List.of("SuperAdmin"));
+        assertDispatchStatus(failedBundle, ownerToken, adminToken, "FAILED", "ASSERTION_FAILED", "FAILED");
+
+        SeededBundle timeoutBundle = approvedBundle("project-alpha");
+        assertDispatchStatus(timeoutBundle, ownerToken, adminToken, "TIMEOUT", "RUNNER_TIMEOUT", "TIMEOUT");
+    }
+
+    private void assertDispatchStatus(
+            SeededBundle bundle,
+            String ownerToken,
+            String adminToken,
+            String wp6Status,
+            String errorCode,
+            String expectedWp9Status
+    ) throws Exception {
+        when(runnerPort.validateBundle(any(ApiAutomationScriptBundle.class)))
+                .thenReturn(new ApiAutomationRunnerPort.RunnerValidation(true, null, null));
+        when(runnerPort.run(any(ApiAutomationRunnerPort.RunnerRunRequest.class))).thenReturn(new ApiAutomationRunnerPort.RunnerRunResult(
+                wp6Status,
+                "MANAGED",
+                errorCode,
+                wp6Status + " without sensitive data",
+                List.of(new ApiAutomationRunnerPort.RunnerCaseResult(
+                        bundle.caseIds().getFirst(),
+                        wp6Status,
+                        88,
+                        "{\"safe\":true}",
+                        errorCode,
+                        wp6Status + " without sensitive data"
+                ))
+        ));
+        UUID planId = createSingleApiPlan(bundle, ownerToken);
+        UUID runId = triggerRun(planId, ownerToken, "dispatch-" + wp6Status.toLowerCase() + "-" + UUID.randomUUID());
+
+        MvcResult claimed = mockMvc.perform(post("/api/v1/execution/internal/queue/claims")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
+                        .param("workerId", "worker-dispatch-" + wp6Status.toLowerCase()))
+                .andExpect(status().isCreated())
+                .andReturn();
+        UUID nodeRunId = UUID.fromString(JsonPath.read(claimed.getResponse().getContentAsString(), "$.data.nodeRunId"));
+        String claimToken = JsonPath.read(claimed.getResponse().getContentAsString(), "$.data.claimToken");
+
+        mockMvc.perform(post("/api/v1/execution/internal/queue/node-runs/{id}/dispatch", nodeRunId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "claimToken", claimToken,
+                                "baseUrl", "https://api.example.test/status-" + wp6Status.toLowerCase()
+                        ))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.id").value(runId.toString()))
+                .andExpect(jsonPath("$.data.status").value(expectedWp9Status))
+                .andExpect(jsonPath("$.data.nodes[0].status").value(expectedWp9Status))
+                .andExpect(jsonPath("$.data.nodes[0].errorCode").value(errorCode))
+                .andExpect(jsonPath("$.data.nodes[0].resultSummary.wp6Status").value(wp6Status))
+                .andExpect(jsonPath("$.data.nodes[0].resultSummary.wp6ResultCounts." + wp6Status).value(1))
+                .andExpect(content().string(not(containsString("https://api.example.test/status"))));
+    }
+
     private UUID createSingleApiPlan(SeededBundle bundle, String token) throws Exception {
+        return createSingleApiPlan("project-alpha", bundle, token, Map.of(
+                "apiAutomationBundleId", bundle.bundleId().toString(),
+                "caseIds", List.of(bundle.caseIds().getFirst().toString())
+        ));
+    }
+
+    private UUID createSingleApiPlan(
+            String projectId,
+            SeededBundle bundle,
+            String token,
+            Map<String, Object> input
+    ) throws Exception {
         MvcResult created = mockMvc.perform(post("/api/v1/execution/plans")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of(
-                                "projectId", "project-alpha",
+                                "projectId", projectId,
                                 "name", "Release API smoke",
                                 "environmentKey", "qa",
                                 "status", "READY",
@@ -138,10 +340,7 @@ class ExecutionRunDispatchControllerTest {
                                         "key", "api-smoke",
                                         "type", "API_TEST",
                                         "dependencies", List.of(),
-                                        "input", Map.of(
-                                                "apiAutomationBundleId", bundle.bundleId().toString(),
-                                                "caseIds", List.of(bundle.caseIds().getFirst().toString())
-                                        ),
+                                        "input", input,
                                         "timeoutSeconds", 120,
                                         "failurePolicy", "FAIL_FAST",
                                         "retryPolicy", Map.of("maxAttempts", 1)

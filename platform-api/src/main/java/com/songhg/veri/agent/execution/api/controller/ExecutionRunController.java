@@ -105,7 +105,7 @@ public class ExecutionRunController {
             @Valid @RequestBody(required = false) DispatchExecutionNodeRunCommand command
     ) {
         DispatchExecutionNodeRunCommand effectiveCommand = command == null
-                ? new DispatchExecutionNodeRunCommand(id, null, null, null, null, null)
+                ? new DispatchExecutionNodeRunCommand(id, null, null, null, null, null, null)
                 : command.withNodeRunId(id);
         return service.dispatchClaimedApiTestNodeRun(effectiveCommand);
     }

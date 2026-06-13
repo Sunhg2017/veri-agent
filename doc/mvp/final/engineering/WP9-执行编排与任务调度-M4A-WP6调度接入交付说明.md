@@ -86,7 +86,7 @@ M4A 后端 dispatch 切片完成以下能力：
 
 ## 8. 后续任务
 
-1. WP9-4B：补 baseUrlRef 环境解析、计划 secretRef 安全中继和 WP6 timeout/failure dispatch 测试。
+1. WP9-4B：补 baseUrlRef 环境解析、计划 secretRef 安全中继和 WP6 timeout/failure dispatch 测试（已在 M4B 完成）。
 2. WP9-4C：接后台 scheduler loop，由 worker 自动 claim、dispatch、heartbeat 和 recovery。
 3. WP9-5.x：补 webhook/cron 触发控制面和幂等事件记录。
 4. WP9-6.x：实现 `portal-web` execution 工作台。

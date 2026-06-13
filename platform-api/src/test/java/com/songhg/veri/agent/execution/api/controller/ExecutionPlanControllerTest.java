@@ -73,7 +73,11 @@ class ExecutionPlanControllerTest {
                 .andExpect(jsonPath("$.data.status").value("DRAFT"))
                 .andExpect(jsonPath("$.data.nodes", hasSize(2)))
                 .andExpect(jsonPath("$.data.nodes[0].inputSummary.secretRefs.masked").value(true))
+                .andExpect(jsonPath("$.data.nodes[0].inputSummary.runtimeSecretRefs.masked").value(true))
+                .andExpect(jsonPath("$.data.nodes[0].inputSummary.runtimeSecretRefs.count").value(1))
+                .andExpect(jsonPath("$.data.nodes[0].inputSummary.runtimeSecretRefs.digests[0]").value(startsWith("sha256:")))
                 .andExpect(content().string(not(containsString("secret://wp6/token"))))
+                .andExpect(content().string(not(containsString("secret://wp6/runtime-token"))))
                 .andReturn();
 
         UUID planId = UUID.fromString(JsonPath.read(created.getResponse().getContentAsString(), "$.data.id"));
@@ -193,7 +197,8 @@ class ExecutionPlanControllerTest {
                                 "input", Map.of(
                                         "apiAutomationBundleId", bundleId.toString(),
                                         "baseUrlRef", "env:STAGING_BASE_URL",
-                                        "secretRefs", List.of("secret://wp6/token")
+                                        "secretRefs", List.of("secret://wp6/token"),
+                                        "runtimeSecretRefs", List.of("secret://wp6/runtime-token")
                                 ),
                                 "timeoutSeconds", 180,
                                 "failurePolicy", "FAIL_FAST",

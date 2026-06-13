@@ -53,6 +53,7 @@ AI 驱动的端到端企业级测试平台。WP1、WP2、WP3、WP4 是研发任�
 | `doc/mvp/final/engineering/WP9-执行编排与任务调度-M3C队列认领与状态聚合交付说明.md` | WP9 M3C 队列认领与状态聚合交付记录，覆盖内部 claim、节点完成回传、依赖推进、脱敏和 DB contract。 |
 | `doc/mvp/final/engineering/WP9-执行编排与任务调度-M3D心跳续约与超时恢复交付说明.md` | WP9 M3D 心跳续约与超时恢复交付记录，覆盖 claim heartbeat、过期 recovery、节点重排、TIMEOUT 聚合和 DB contract。 |
 | `doc/mvp/final/engineering/WP9-执行编排与任务调度-M4A-WP6调度接入交付说明.md` | WP9 M4A WP6 调度接入交付记录，覆盖 claimed API_TEST dispatch、WP6 应用服务边界、结果聚合和脱敏测试。 |
+| `doc/mvp/final/engineering/WP9-执行编排与任务调度-M4B-环境解析与密钥中继交付说明.md` | WP9 M4B 环境解析与密钥中继交付记录，覆盖 `baseUrlRef=env:<key>`、计划 `runtimeSecretRefs` 安全中继、WP6 failure/timeout 映射和脱敏测试。 |
 | `doc/mvp/final/engineering/当前实现基线.md` | 当前代码与文档对齐的权威基线：单服务、无租户、camelCase、分页和验证入口。 |
 | `doc/mvp/final/engineering/WP1-单平台权限矩阵与菜单矩阵.md` | 当前 WP1 单平台权限、菜单和按钮规则。 |
 | `doc/mvp/final/engineering/WP1-审计事件字典.md` | 当前 WP1 P0 审计事件、字段和验收规则。 |

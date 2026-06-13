@@ -215,6 +215,17 @@
         </constructor>
     </resultMap>
 
+    <resultMap id="environmentRuntimeRefMap" type="com.songhg.veri.agent.management.application.port.ManagementStoreRows$EnvironmentRuntimeRef">
+        <constructor>
+            <arg column="id" javaType="java.util.UUID"/>
+            <arg column="project_id" javaType="java.util.UUID"/>
+            <arg column="code" javaType="java.lang.String"/>
+            <arg column="name" javaType="java.lang.String"/>
+            <arg column="api_base_url" javaType="java.lang.String"/>
+            <arg column="status" javaType="java.lang.String"/>
+        </constructor>
+    </resultMap>
+
     <resultMap id="environmentConnectivityTargetMap" type="com.songhg.veri.agent.management.application.port.ManagementStoreRows$EnvironmentConnectivityTargetRow">
         <constructor>
             <arg column="id" javaType="java.util.UUID"/>
@@ -1478,6 +1489,16 @@
         from base_environment env
         join base_project p on p.id = env.project_id and p.deleted_at is null
         where env.deleted_at is null
+          and (env.code = #{keyword} or env.name = #{keyword} or cast(env.id as text) = #{keyword})
+        order by env.created_at desc
+        limit 1
+    </select>
+
+    <select id="findEnvironmentRuntimeRef" resultMap="environmentRuntimeRefMap">
+        select env.id, env.project_id, env.code, env.name, env.api_base_url, env.status
+        from base_environment env
+        where env.deleted_at is null
+          and env.project_id = #{projectId}
           and (env.code = #{keyword} or env.name = #{keyword} or cast(env.id as text) = #{keyword})
         order by env.created_at desc
         limit 1

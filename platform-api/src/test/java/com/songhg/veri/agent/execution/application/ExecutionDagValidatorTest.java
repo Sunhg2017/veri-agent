@@ -36,7 +36,8 @@ class ExecutionDagValidatorTest {
                                 List.of(),
                                 Map.of(
                                         "apiAutomationBundleId", bundleId.toString(),
-                                        "secretRefs", List.of("secret://wp6/token")
+                                        "secretRefs", List.of("secret://wp6/token"),
+                                        "runtimeSecretRefs", List.of("secret://wp6/runtime-token")
                                 ),
                                 120,
                                 "FAIL_FAST",
@@ -63,6 +64,37 @@ class ExecutionDagValidatorTest {
                 .singleElement()
                 .satisfies(policy -> assertThat(policy.inputSummary().get("secretRefs"))
                         .isEqualTo(Map.of("masked", true, "count", 1)));
+    }
+
+    @Test
+    void rejectsInvalidRuntimeSecretRefs() {
+        UUID bundleId = UUID.randomUUID();
+        ApiAutomationBundleScopeService bundleScopeService = mock(ApiAutomationBundleScopeService.class);
+        when(bundleScopeService.bundleScope(bundleId))
+                .thenReturn(Optional.of(new ApiAutomationBundleScope(bundleId, "project-alpha", "APPROVED")));
+        ExecutionDagValidator validator = new ExecutionDagValidator(bundleScopeService, new ObjectMapper());
+
+        ExecutionDagValidationResult result = validator.validate(
+                UUID.randomUUID(),
+                "project-alpha",
+                new ExecutionDagCommand(List.of(new ExecutionDagNodeCommand(
+                        "api-smoke",
+                        "API_TEST",
+                        List.of(),
+                        Map.of(
+                                "apiAutomationBundleId", bundleId.toString(),
+                                "runtimeSecretRefs", List.of("plain-token")
+                        ),
+                        120,
+                        "FAIL_FAST",
+                        Map.of()
+                ))),
+                Instant.EPOCH
+        );
+
+        assertThat(result.valid()).isFalse();
+        assertThat(result.issues()).extracting("code")
+                .contains("EXECUTION_RUNTIME_SECRET_REFS_INVALID");
     }
 
     @Test

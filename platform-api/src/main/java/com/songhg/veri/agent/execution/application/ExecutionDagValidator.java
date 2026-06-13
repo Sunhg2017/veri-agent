@@ -46,6 +46,9 @@ public class ExecutionDagValidator {
             "secret", "secrets", "secretref", "secretrefs", "token", "password", "authorization", "cookie", "apikey",
             "api_key"
     );
+    private static final Pattern RUNTIME_SECRET_REF_PATTERN = Pattern.compile("^secret://[A-Za-z0-9._~:/?#\\[\\]@!$&'()*+,;=%-]+$");
+    private static final int RUNTIME_SECRET_REF_MAX_COUNT = 10;
+    private static final int RUNTIME_SECRET_REF_MAX_CHARS = 256;
     private static final int DEFAULT_TIMEOUT_SECONDS = 300;
     private static final int MAX_TIMEOUT_SECONDS = 86_400;
     private static final TypeReference<Map<String, Object>> MAP_TYPE = new TypeReference<>() {
@@ -252,6 +255,38 @@ public class ExecutionDagValidator {
         }
         if ("REPORT_HANDOFF".equals(type) && inputSummary.containsKey("reportBody")) {
             issues.add(issue("EXECUTION_REPORT_BODY_FORBIDDEN", key, "WP9 只允许保存报告移交摘要"));
+        }
+        if ("API_TEST".equals(type)) {
+            validateRuntimeSecretRefs(key, inputSummary.get("runtimeSecretRefs"), issues);
+        }
+    }
+
+    private void validateRuntimeSecretRefs(
+            String key,
+            Object runtimeSecretRefs,
+            List<ExecutionValidationIssueResponse> issues
+    ) {
+        if (runtimeSecretRefs == null) {
+            return;
+        }
+        if (!(runtimeSecretRefs instanceof Iterable<?> iterable)) {
+            issues.add(issue("EXECUTION_RUNTIME_SECRET_REFS_INVALID", key, "runtimeSecretRefs 必须是 secret:// 引用列表"));
+            return;
+        }
+        int count = 0;
+        for (Object value : iterable) {
+            if (value == null || !StringUtils.hasText(String.valueOf(value))) {
+                continue;
+            }
+            count++;
+            String secretRef = String.valueOf(value).trim();
+            if (secretRef.length() > RUNTIME_SECRET_REF_MAX_CHARS
+                    || !RUNTIME_SECRET_REF_PATTERN.matcher(secretRef).matches()) {
+                issues.add(issue("EXECUTION_RUNTIME_SECRET_REFS_INVALID", key, "runtimeSecretRefs 必须是 secret:// 引用列表"));
+            }
+        }
+        if (count > RUNTIME_SECRET_REF_MAX_COUNT) {
+            issues.add(issue("EXECUTION_RUNTIME_SECRET_REFS_LIMIT_EXCEEDED", key, "runtimeSecretRefs 单节点最多 10 个"));
         }
     }
 

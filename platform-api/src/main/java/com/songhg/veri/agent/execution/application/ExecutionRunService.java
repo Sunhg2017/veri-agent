@@ -30,6 +30,12 @@ import com.songhg.veri.agent.execution.domain.ExecutionPlan;
 import com.songhg.veri.agent.execution.domain.ExecutionPlanNode;
 import com.songhg.veri.agent.execution.domain.ExecutionQueueClaim;
 import com.songhg.veri.agent.execution.domain.ExecutionRun;
+import com.songhg.veri.agent.management.application.port.ManagementStore;
+import com.songhg.veri.agent.management.application.port.ManagementStoreParams;
+import com.songhg.veri.agent.management.application.port.ManagementStoreRows.EnvironmentRuntimeRef;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -91,6 +97,7 @@ public class ExecutionRunService {
     private final ExecutionPlatformContextClient contextClient;
     private final ExecutionActorResolver actorResolver;
     private final ApiAutomationService apiAutomationService;
+    private final ManagementStore managementStore;
     private final ObjectMapper objectMapper;
     private final ExecutionProperties properties;
     private final TransactionTemplate transactionTemplate;
@@ -101,6 +108,7 @@ public class ExecutionRunService {
             ExecutionPlatformContextClient contextClient,
             ExecutionActorResolver actorResolver,
             ApiAutomationService apiAutomationService,
+            ObjectProvider<ManagementStore> managementStores,
             ObjectMapper objectMapper,
             ExecutionProperties properties,
             ObjectProvider<PlatformTransactionManager> transactionManagers
@@ -110,6 +118,7 @@ public class ExecutionRunService {
         this.contextClient = contextClient;
         this.actorResolver = actorResolver;
         this.apiAutomationService = apiAutomationService;
+        this.managementStore = managementStores == null ? null : managementStores.getIfAvailable();
         this.objectMapper = objectMapper;
         this.properties = properties;
         PlatformTransactionManager transactionManager = transactionManagers == null
@@ -384,9 +393,6 @@ public class ExecutionRunService {
         if (command == null || command.nodeRunId() == null || !StringUtils.hasText(command.claimToken())) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "EXECUTION_QUEUE_CLAIM_REQUIRED");
         }
-        if (!StringUtils.hasText(command.baseUrl())) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "EXECUTION_DISPATCH_BASE_URL_REQUIRED");
-        }
         ApiTestDispatchPreparation preparation = inExecutionTransaction(() -> prepareApiTestDispatch(command));
         if (preparation.replayResponse() != null) {
             return preparation.replayResponse();
@@ -399,7 +405,7 @@ public class ExecutionRunService {
                 preparation.timeoutSeconds(),
                 preparation.secretRefs()
         ));
-        return inExecutionTransaction(() -> completeDispatchedApiTestNodeRun(preparation, wp6Run, command));
+        return inExecutionTransaction(() -> completeDispatchedApiTestNodeRun(preparation, wp6Run));
     }
 
     private ApiTestDispatchPreparation prepareApiTestDispatch(DispatchExecutionNodeRunCommand command) {
@@ -426,24 +432,30 @@ public class ExecutionRunService {
         if (!"API_TEST".equals(planNode.nodeType()) || !"WP6_API".equals(nodeRun.runnerType())) {
             throw new BusinessException(ErrorCode.INVALID_STATE, "EXECUTION_NODE_DISPATCH_UNSUPPORTED");
         }
+        Map<String, Object> planInput = readMap(planNode.inputSummaryJson());
+        ResolvedDispatchTarget target = resolvedDispatchTarget(command, planInput, run.projectId());
+        List<String> secretRefs = dispatchSecretRefs(command, planInput);
         renewClaimForDispatch(claim, planNode, now);
         return new ApiTestDispatchPreparation(
                 nodeRun.id(),
                 command.claimToken(),
                 apiAutomationBundleId(planNode),
-                boundedNullableText(command.environmentId(), 128),
-                command.baseUrl(),
+                dispatchEnvironmentId(command, target),
+                target.baseUrl(),
+                target.baseUrlSource(),
+                target.baseUrlRef(),
                 dispatchCaseIds(command, planNode),
                 planNode.timeoutSeconds(),
-                normalizedDispatchSecretRefs(command.secretRefs()),
+                secretRefs,
+                command.caseIds() != null && !command.caseIds().isEmpty(),
+                command.secretRefs() != null && !command.secretRefs().isEmpty(),
                 null
         );
     }
 
     private ExecutionRunDetailResponse completeDispatchedApiTestNodeRun(
             ApiTestDispatchPreparation preparation,
-            ApiAutomationRunDetailResponse wp6Run,
-            DispatchExecutionNodeRunCommand command
+            ApiAutomationRunDetailResponse wp6Run
     ) {
         ExecutionQueueClaim claim = repository.queueClaimByToken(preparation.claimToken())
                 .orElseThrow(() -> new BusinessException(ErrorCode.INVALID_STATE, "EXECUTION_QUEUE_CLAIM_INVALID"));
@@ -472,7 +484,7 @@ public class ExecutionRunService {
                 wp6Run.run().id().toString(),
                 terminalErrorCode(targetStatus, wp6DispatchErrorCode(targetStatus, wp6Run.run())),
                 terminalErrorSummary(targetStatus, wp6Run.run().errorSummary()),
-                mergedSummary(nodeRun.resultSummaryJson(), wp6DispatchSummary(wp6Run, command, completedAt)),
+                mergedSummary(nodeRun.resultSummaryJson(), wp6DispatchSummary(wp6Run, preparation, completedAt)),
                 completedAt,
                 nodeRun.queuedAt(),
                 nodeRun.startedAt(),
@@ -1450,6 +1462,118 @@ public class ExecutionRunService {
         return normalized;
     }
 
+    /**
+     * Resolves the runner target for M4B dispatch. Explicit runtime baseUrl wins; otherwise `baseUrlRef=env:<key>`
+     * resolves against WP1 environment metadata and must stay inside the execution plan project.
+     */
+    private ResolvedDispatchTarget resolvedDispatchTarget(
+            DispatchExecutionNodeRunCommand command,
+            Map<String, Object> planInput,
+            String projectId
+    ) {
+        String runtimeBaseUrl = boundedNullableText(command.baseUrl(), 512);
+        if (StringUtils.hasText(runtimeBaseUrl)) {
+            return new ResolvedDispatchTarget(runtimeBaseUrl, "REQUEST_BASE_URL", null, null);
+        }
+        boolean requestBaseUrlRefProvided = StringUtils.hasText(command.baseUrlRef());
+        String baseUrlRef = firstText(command.baseUrlRef(), planInput.get("baseUrlRef"));
+        if (!StringUtils.hasText(baseUrlRef)) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "EXECUTION_DISPATCH_BASE_URL_REQUIRED");
+        }
+        String normalizedRef = boundedNullableText(baseUrlRef, 128);
+        if (!normalizedRef.startsWith("env:")) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "EXECUTION_DISPATCH_BASE_URL_REF_UNSUPPORTED");
+        }
+        String environmentKey = normalizedRef.substring("env:".length()).trim();
+        if (!StringUtils.hasText(environmentKey)) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "EXECUTION_DISPATCH_BASE_URL_REF_INVALID");
+        }
+        UUID projectUuid = executionProjectUuid(projectId);
+        EnvironmentRuntimeRef environment = requireEnvironmentRuntimeRef(environmentKey, projectUuid);
+        if (!projectUuid.equals(environment.projectId())) {
+            throw new BusinessException(ErrorCode.INVALID_STATE, "EXECUTION_DISPATCH_ENVIRONMENT_SCOPE_DENIED");
+        }
+        if (!"ENABLED".equals(environment.status())) {
+            throw new BusinessException(ErrorCode.INVALID_STATE, "EXECUTION_DISPATCH_ENVIRONMENT_DISABLED");
+        }
+        if (!StringUtils.hasText(environment.apiBaseUrl())) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "EXECUTION_DISPATCH_BASE_URL_REF_EMPTY");
+        }
+        return new ResolvedDispatchTarget(
+                boundedNullableText(environment.apiBaseUrl(), 512),
+                requestBaseUrlRefProvided ? "REQUEST_BASE_URL_REF" : "PLAN_BASE_URL_REF",
+                normalizedRef,
+                environment.code()
+        );
+    }
+
+    private UUID executionProjectUuid(String projectId) {
+        try {
+            return UUID.fromString(projectId);
+        } catch (IllegalArgumentException exception) {
+            throw new BusinessException(ErrorCode.INVALID_STATE, "EXECUTION_DISPATCH_PROJECT_ID_INVALID");
+        }
+    }
+
+    private EnvironmentRuntimeRef requireEnvironmentRuntimeRef(String environmentKey, UUID projectId) {
+        if (managementStore == null) {
+            throw new BusinessException(ErrorCode.INVALID_STATE, "EXECUTION_DISPATCH_ENVIRONMENT_RESOLVER_UNAVAILABLE");
+        }
+        EnvironmentRuntimeRef environment = managementStore.findEnvironmentRuntimeRef(
+                ManagementStoreParams.of(
+                        "keyword", boundedNullableText(environmentKey, 128),
+                        "projectId", projectId
+                )
+        );
+        if (environment == null) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "EXECUTION_DISPATCH_ENVIRONMENT_NOT_FOUND");
+        }
+        return environment;
+    }
+
+    /**
+     * Chooses runtime secret references for WP6 without exposing them in WP9 responses. Request values override plan
+     * defaults; plan defaults must use `runtimeSecretRefs` because the public `secretRefs` input remains masked.
+     */
+    private List<String> dispatchSecretRefs(DispatchExecutionNodeRunCommand command, Map<String, Object> planInput) {
+        List<String> commandSecretRefs = normalizedDispatchSecretRefs(command.secretRefs());
+        if (!commandSecretRefs.isEmpty()) {
+            return commandSecretRefs;
+        }
+        return normalizedDispatchSecretRefs(stringList(planInput.get("runtimeSecretRefs")));
+    }
+
+    private String dispatchEnvironmentId(DispatchExecutionNodeRunCommand command, ResolvedDispatchTarget target) {
+        String environmentId = boundedNullableText(command.environmentId(), 128);
+        if (StringUtils.hasText(environmentId)) {
+            return environmentId;
+        }
+        return target.environmentKey();
+    }
+
+    private String firstText(String explicit, Object fallback) {
+        if (StringUtils.hasText(explicit)) {
+            return explicit;
+        }
+        if (fallback instanceof String text && StringUtils.hasText(text)) {
+            return text;
+        }
+        return null;
+    }
+
+    private List<String> stringList(Object value) {
+        if (!(value instanceof Iterable<?> iterable)) {
+            return List.of();
+        }
+        List<String> result = new ArrayList<>();
+        for (Object item : iterable) {
+            if (item != null) {
+                result.add(String.valueOf(item));
+            }
+        }
+        return result;
+    }
+
     private String wp9StatusFromWp6(String wp6Status) {
         String normalized = StringUtils.hasText(wp6Status) ? wp6Status.trim().toUpperCase(Locale.ROOT) : "";
         return switch (normalized) {
@@ -1476,7 +1600,7 @@ public class ExecutionRunService {
 
     private Map<String, Object> wp6DispatchSummary(
             ApiAutomationRunDetailResponse wp6Run,
-            DispatchExecutionNodeRunCommand command,
+            ApiTestDispatchPreparation preparation,
             Instant completedAt
     ) {
         Map<String, Object> summary = new LinkedHashMap<>();
@@ -1493,8 +1617,16 @@ public class ExecutionRunService {
         summary.put("wp6BaseUrlHost", wp6Run.run().baseUrlHost());
         summary.put("wp6BaseUrlDigest", wp6Run.run().baseUrlDigest());
         summary.put("wp6TraceId", wp6Run.run().traceId());
-        summary.put("runtimeCaseIdsProvided", command.caseIds() != null && !command.caseIds().isEmpty());
-        summary.put("runtimeSecretRefCount", normalizedDispatchSecretRefs(command.secretRefs()).size());
+        summary.put("baseUrlSource", preparation.baseUrlSource());
+        summary.put("baseUrlRefDigest", StringUtils.hasText(preparation.baseUrlRef())
+                ? "sha256:" + sha256(preparation.baseUrlRef())
+                : null);
+        summary.put("runtimeCaseIdsProvided", preparation.runtimeCaseIdsProvided());
+        summary.put("runtimeSecretRefsProvided", preparation.runtimeSecretRefsProvided());
+        summary.put("runtimeSecretRefCount", preparation.secretRefs().size());
+        summary.put("runtimeSecretRefDigests", preparation.secretRefs().stream()
+                .map(secretRef -> "sha256:" + sha256(secretRef))
+                .toList());
         summary.put("rawBaseUrlStored", false);
         summary.put("secretRefsStored", false);
         summary.put("rawOutputStored", false);
@@ -1683,6 +1815,20 @@ public class ExecutionRunService {
         }
     }
 
+    private String sha256(String value) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] bytes = digest.digest((value == null ? "" : value).getBytes(StandardCharsets.UTF_8));
+            StringBuilder builder = new StringBuilder(bytes.length * 2);
+            for (byte item : bytes) {
+                builder.append(String.format("%02x", item));
+            }
+            return builder.toString();
+        } catch (NoSuchAlgorithmException exception) {
+            throw new IllegalStateException("SHA-256 is unavailable", exception);
+        }
+    }
+
     private String mergedSummary(String existingJson, Map<String, Object> overrides) {
         Map<String, Object> summary = new LinkedHashMap<>(readMap(existingJson));
         summary.putAll(overrides);
@@ -1698,9 +1844,13 @@ public class ExecutionRunService {
             UUID bundleId,
             String environmentId,
             String baseUrl,
+            String baseUrlSource,
+            String baseUrlRef,
             List<UUID> caseIds,
             int timeoutSeconds,
             List<String> secretRefs,
+            boolean runtimeCaseIdsProvided,
+            boolean runtimeSecretRefsProvided,
             ExecutionRunDetailResponse replayResponse
     ) {
         private static ApiTestDispatchPreparation replay(ExecutionRunDetailResponse replayResponse) {
@@ -1710,12 +1860,19 @@ public class ExecutionRunService {
                     null,
                     null,
                     null,
+                    null,
+                    null,
                     List.of(),
                     0,
                     List.of(),
+                    false,
+                    false,
                     replayResponse
             );
         }
+    }
+
+    private record ResolvedDispatchTarget(String baseUrl, String baseUrlSource, String baseUrlRef, String environmentKey) {
     }
 
     private static final class RecoveryCounters {

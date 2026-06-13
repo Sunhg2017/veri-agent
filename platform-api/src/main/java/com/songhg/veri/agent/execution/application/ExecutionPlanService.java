@@ -19,7 +19,13 @@ import com.songhg.veri.agent.execution.application.view.ExecutionPlanSummaryResp
 import com.songhg.veri.agent.execution.domain.ExecutionPlan;
 import com.songhg.veri.agent.execution.domain.ExecutionPlanNode;
 import com.songhg.veri.agent.integration.application.view.PlatformContext;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -281,7 +287,7 @@ public class ExecutionPlanService {
                 node.nodeKey(),
                 node.nodeType(),
                 node.dependencyKeys(),
-                readMap(node.inputSummaryJson()),
+                publicInputSummary(readMap(node.inputSummaryJson())),
                 node.failurePolicy(),
                 node.timeoutSeconds(),
                 readMap(node.retryPolicyJson()),
@@ -398,6 +404,55 @@ public class ExecutionPlanService {
             return objectMapper.writeValueAsString(value == null ? Map.of() : value);
         } catch (JsonProcessingException exception) {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "EXECUTION_JSON_INVALID");
+        }
+    }
+
+    private Map<String, Object> publicInputSummary(Map<String, Object> input) {
+        if (input == null || input.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, Object> sanitized = new LinkedHashMap<>(input);
+        Object runtimeSecretRefs = sanitized.remove("runtimeSecretRefs");
+        List<String> secretRefs = normalizedSecretRefs(runtimeSecretRefs);
+        if (!secretRefs.isEmpty()) {
+            sanitized.put("runtimeSecretRefs", Map.of(
+                    "masked", true,
+                    "count", secretRefs.size(),
+                    "digests", secretRefs.stream().map(secretRef -> "sha256:" + sha256(secretRef)).toList()
+            ));
+        }
+        return sanitized;
+    }
+
+    private List<String> normalizedSecretRefs(Object value) {
+        if (!(value instanceof Iterable<?> iterable)) {
+            return List.of();
+        }
+        List<String> normalized = new ArrayList<>();
+        Set<String> seen = new HashSet<>();
+        for (Object item : iterable) {
+            if (item == null) {
+                continue;
+            }
+            String secretRef = boundedNullableText(String.valueOf(item), 256);
+            if (StringUtils.hasText(secretRef) && seen.add(secretRef)) {
+                normalized.add(secretRef);
+            }
+        }
+        return normalized;
+    }
+
+    private String sha256(String value) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] bytes = digest.digest((value == null ? "" : value).getBytes(StandardCharsets.UTF_8));
+            StringBuilder builder = new StringBuilder(bytes.length * 2);
+            for (byte item : bytes) {
+                builder.append(String.format("%02x", item));
+            }
+            return builder.toString();
+        } catch (NoSuchAlgorithmException exception) {
+            throw new IllegalStateException("SHA-256 is unavailable", exception);
         }
     }
 }

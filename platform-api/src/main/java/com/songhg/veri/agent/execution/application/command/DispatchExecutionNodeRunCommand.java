@@ -13,10 +13,12 @@ public record DispatchExecutionNodeRunCommand(
         @Size(max = 128)
         @Schema(description = "Queue claim token")
         String claimToken,
-        @NotBlank
         @Size(max = 512)
-        @Schema(description = "Runtime WP6 baseUrl; WP9 does not persist the raw value")
+        @Schema(description = "Optional runtime WP6 baseUrl; WP9 does not persist the raw value")
         String baseUrl,
+        @Size(max = 128)
+        @Schema(description = "Optional baseUrl reference, currently env:<environmentKey>")
+        String baseUrlRef,
         @Size(max = 128)
         @Schema(description = "Optional runtime environment reference")
         String environmentId,
@@ -31,6 +33,7 @@ public record DispatchExecutionNodeRunCommand(
                 targetNodeRunId,
                 claimToken,
                 baseUrl,
+                baseUrlRef,
                 environmentId,
                 caseIds,
                 secretRefs
