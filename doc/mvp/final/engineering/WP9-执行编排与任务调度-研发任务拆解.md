@@ -112,7 +112,7 @@ M5 后端切片已完成 trigger model、管理 API、webhook 签名入口、sou
 | WP9-6.6 触发配置 | P1 | 前端工程师 | webhook/cron 摘要、启停、dryRun | secret masked | Vitest |
 | WP9-6.7 响应式 smoke | P1 | 前端工程师、质量工程师 | 桌面和 390px 视口主链路 | 无横向溢出 | Playwright smoke |
 
-M6A 前端基础闭环已完成 `execution.ts` API client、`#execution` 权限入口、执行工作台主视图、计划列表/单节点创建、DAG 节点摘要、manual run、cancel/retry、trigger 摘要/dryRun 和前端 Vitest/build 验证。M6B 已完成多节点 DAG 草稿编辑、选中计划回填、计划更新/归档操作、触发事件切换查看和 helper 级校验测试。M6C 已新增 Playwright 前端浏览器 smoke，覆盖桌面和 390px 视口下的计划创建、更新、DAG dryRun、手动运行、取消、重试、触发器创建/校验/启停和无横向溢出；导出文件落地、生产 cron scanner 和聚合 WP9 quality gate 仍归 M7。
+M6A 前端基础闭环已完成 `execution.ts` API client、`#execution` 权限入口、执行工作台主视图、计划列表/单节点创建、DAG 节点摘要、manual run、cancel/retry、trigger 摘要/dryRun 和前端 Vitest/build 验证。M6B 已完成多节点 DAG 草稿编辑、选中计划回填、计划更新/归档操作、触发事件切换查看和 helper 级校验测试。M6C 已新增 Playwright 前端浏览器 smoke，覆盖桌面和 390px 视口下的计划创建、更新、DAG dryRun、手动运行、取消、重试、触发器创建/校验/启停和无横向溢出。M7C 已接入运行详情“导出摘要”按钮，调用脱敏 run export API 并展示 schema、节点状态计数和 redaction policy；生产 cron scanner 和聚合 WP9 quality gate 已在 M7A/M7B 落地。
 
 ## 11. Epic 7：质量门禁和发布准出
 
@@ -124,7 +124,7 @@ M6A 前端基础闭环已完成 `execution.ts` API client、`#execution` 权限�
 | WP9-7.4 Scheduler smoke | P0 | 质量工程师 | managed smoke 覆盖 scheduler tick、CRON scanner、WP6 dispatch、report handoff、disabled noop、失败脱敏和配置边界 | 默认不访问外部网络；release gate 显式启用 | `scripts/wp9_scheduler_smoke.sh` |
 | WP9-7.5 Quality gate | P0 | 质量工程师 | `scripts/wp9_quality_gate.sh` 聚合后端、前端、构建、DB、Playwright 和可选 scheduler smoke | release 模式显式要求 scheduler smoke | `scripts/wp9_quality_gate.sh` |
 
-M7A 已新增 `scripts/wp9_quality_gate.sh` 与 `scripts/wp9_scheduler_smoke.sh`。开发模式默认执行 WP9 脚本语法、后端定向/OpenAPI/权限测试、前端 WP9 Vitest、Playwright smoke、前端构建和 DB validation；release 模式通过 `WP9_GATE_MODE=release WP9_SCHEDULER_SMOKE=managed` 要求 managed scheduler smoke。M7B 已补生产 CRON scanner 最小闭环，scheduler tick 会在 recovery/claim 前扫描到期 CRON trigger，使用 trigger event 和 run requestKey 幂等创建 CRON run，并推进 `nextFireAt`。供应商 webhook 插件样例、执行摘要导出和外部 webhook HTTP smoke 仍归后续 M7/M8 切片。
+M7A 已新增 `scripts/wp9_quality_gate.sh` 与 `scripts/wp9_scheduler_smoke.sh`。开发模式默认执行 WP9 脚本语法、后端定向/OpenAPI/权限测试、前端 WP9 Vitest、Playwright smoke、前端构建和 DB validation；release 模式通过 `WP9_GATE_MODE=release WP9_SCHEDULER_SMOKE=managed` 要求 managed scheduler smoke。M7B 已补生产 CRON scanner 最小闭环，scheduler tick 会在 recovery/claim 前扫描到期 CRON trigger，使用 trigger event 和 run requestKey 幂等创建 CRON run，并推进 `nextFireAt`。M7C 已补执行摘要导出，`GET /runs/{id}/export` 返回脱敏 run detail、节点状态计数和 redactionPolicy，前端运行详情可触发导出并展示摘要。供应商 webhook 插件样例和外部 webhook HTTP smoke 仍归后续 M7/M8 切片。
 
 ## 12. Epic 8：文档和交付
 

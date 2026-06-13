@@ -23,6 +23,7 @@ import com.songhg.veri.agent.execution.application.view.ExecutionNodeRunResponse
 import com.songhg.veri.agent.execution.application.view.ExecutionQueueClaimResponse;
 import com.songhg.veri.agent.execution.application.view.ExecutionQueueRecoveryResponse;
 import com.songhg.veri.agent.execution.application.view.ExecutionRunDetailResponse;
+import com.songhg.veri.agent.execution.application.view.ExecutionRunExportResponse;
 import com.songhg.veri.agent.execution.application.view.ExecutionRunSummaryResponse;
 import com.songhg.veri.agent.execution.config.ExecutionProperties;
 import com.songhg.veri.agent.execution.domain.ExecutionNodeRun;
@@ -206,6 +207,42 @@ public class ExecutionRunService {
     @Transactional(readOnly = true)
     public ExecutionRunDetailResponse run(UUID id) {
         return detail(requireRun(id), false);
+    }
+
+    /**
+     * Exports the orchestration-safe run evidence without runner payloads or runtime secrets.
+     *
+     * <p>The export intentionally reuses the normal run detail response because that view is already constrained to
+     * sanitized summaries, node states and digest evidence. Raw stdout/stderr, request/response bodies, base URLs,
+     * secret references and claim tokens remain outside the export contract.</p>
+     */
+    @Transactional(noRollbackFor = BusinessException.class)
+    public ExecutionRunExportResponse exportRun(UUID id) {
+        ExecutionRun run = requireRun(id);
+        ExecutionRunDetailResponse detail = detail(run, false);
+        Map<String, Integer> nodeStatusCounts = detail.nodes().stream()
+                .collect(Collectors.toMap(
+                        ExecutionNodeRunResponse::status,
+                        ignored -> 1,
+                        Integer::sum,
+                        LinkedHashMap::new
+                ));
+        ExecutionRunExportResponse response = new ExecutionRunExportResponse(
+                "wp9-run-export-v1",
+                Instant.now(),
+                detail,
+                nodeStatusCounts,
+                runExportRedactionPolicy()
+        );
+        auditRun(run, "execution.run.exported", "SUCCESS", Map.of(
+                "nodeCount", detail.nodes().size(),
+                "nodeStatusCounts", nodeStatusCounts,
+                "rawOutputExported", false,
+                "rawRequestResponseExported", false,
+                "secretRefsExported", false,
+                "claimTokenExported", false
+        ));
+        return response;
     }
 
     /**
@@ -1778,6 +1815,19 @@ public class ExecutionRunService {
                 nodeRun.finishedAt(),
                 nodeRun.createdAt(),
                 nodeRun.updatedAt()
+        );
+    }
+
+    private Map<String, Object> runExportRedactionPolicy() {
+        return Map.of(
+                "rawOutputExported", false,
+                "stdoutStderrExported", false,
+                "rawRequestResponseExported", false,
+                "rawBaseUrlExported", false,
+                "secretRefsExported", false,
+                "claimTokenExported", false,
+                "triggerPayloadExported", false,
+                "onlySanitizedSummariesExported", true
         );
     }
 

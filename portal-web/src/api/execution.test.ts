@@ -7,6 +7,7 @@ import {
   createExecutionTrigger,
   dryRunExecutionPlan,
   dryRunExecutionTrigger,
+  exportExecutionRun,
   fetchExecutionHealth,
   fetchExecutionPlan,
   fetchExecutionPlans,
@@ -19,6 +20,7 @@ import {
   normalizeExecutionPlanDetail,
   normalizeExecutionPlanList,
   normalizeExecutionRunDetail,
+  normalizeExecutionRunExport,
   normalizeExecutionRunList,
   normalizeExecutionTrigger,
   normalizeExecutionTriggerEventList,
@@ -144,6 +146,29 @@ describe('WP9 execution API helpers', () => {
       nodes: [{ nodeKey: 'api-smoke', runnerType: 'WP6_API' }]
     });
 
+    expect(normalizeExecutionRunExport({
+      schema_version: 'wp9-run-export-v1',
+      exported_at: '2026-06-14T01:00:00Z',
+      run: {
+        id: 'run-1',
+        plan_id: 'plan-1',
+        project_id: 'project-alpha',
+        status: 'FAILED',
+        trigger_type: 'CRON',
+        source_event_id: 'cron:trigger-1:2026-06-14T01:00:00Z',
+        node_count: '2',
+        nodes: [{ id: 'node-run-1', plan_node_id: 'node-1', status: 'FAILED' }]
+      },
+      node_status_counts: { FAILED: '1', PENDING: '1' },
+      redaction_policy: { secretRefsExported: false, rawOutputExported: false }
+    })).toMatchObject({
+      schemaVersion: 'wp9-run-export-v1',
+      exportedAt: '2026-06-14T01:00:00Z',
+      run: { triggerType: 'CRON', sourceEventId: 'cron:trigger-1:2026-06-14T01:00:00Z' },
+      nodeStatusCounts: { FAILED: 1, PENDING: 1 },
+      redactionPolicy: { secretRefsExported: false, rawOutputExported: false }
+    });
+
     expect(normalizeExecutionRunList({
       items: [{ id: 'run-2', plan_id: 'plan-1', project_id: 'project-alpha', status: 'QUEUED', node_count: 0 }],
       total: '1'
@@ -226,6 +251,7 @@ describe('WP9 execution API helpers', () => {
     await archiveExecutionPlan('plan-1');
     await triggerExecutionRun('plan-1', { requestKey: 'rk-1', reason: 'manual' });
     await fetchExecutionRun('run-1');
+    await exportExecutionRun('run-1');
     await cancelExecutionRun('run-1');
     await retryExecutionRun('run-1');
     await createExecutionTrigger('plan-1', {
@@ -254,17 +280,18 @@ describe('WP9 execution API helpers', () => {
       body: JSON.stringify({ requestKey: 'rk-1', reason: 'manual' })
     });
     expect(requestJsonMock).toHaveBeenNthCalledWith(8, '/api/v1/execution/runs/run-1');
-    expect(requestJsonMock).toHaveBeenNthCalledWith(9, '/api/v1/execution/runs/run-1/cancel', { method: 'POST' });
-    expect(requestJsonMock).toHaveBeenNthCalledWith(10, '/api/v1/execution/runs/run-1/retry', { method: 'POST' });
-    expect(requestJsonMock).toHaveBeenNthCalledWith(11, '/api/v1/execution/plans/plan-1/triggers', {
+    expect(requestJsonMock).toHaveBeenNthCalledWith(9, '/api/v1/execution/runs/run-1/export');
+    expect(requestJsonMock).toHaveBeenNthCalledWith(10, '/api/v1/execution/runs/run-1/cancel', { method: 'POST' });
+    expect(requestJsonMock).toHaveBeenNthCalledWith(11, '/api/v1/execution/runs/run-1/retry', { method: 'POST' });
+    expect(requestJsonMock).toHaveBeenNthCalledWith(12, '/api/v1/execution/plans/plan-1/triggers', {
       method: 'POST',
       body: expect.stringContaining('secret://wp9/webhook')
     });
-    expect(requestJsonMock).toHaveBeenNthCalledWith(12, '/api/v1/execution/triggers/trigger-1', {
+    expect(requestJsonMock).toHaveBeenNthCalledWith(13, '/api/v1/execution/triggers/trigger-1', {
       method: 'PATCH',
       body: JSON.stringify({ status: 'ENABLED' })
     });
-    expect(requestJsonMock).toHaveBeenNthCalledWith(13, '/api/v1/execution/triggers/trigger-1/dry-run', {
+    expect(requestJsonMock).toHaveBeenNthCalledWith(14, '/api/v1/execution/triggers/trigger-1/dry-run', {
       method: 'POST'
     });
   });

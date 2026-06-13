@@ -365,6 +365,37 @@ class ExecutionRunControllerTest {
     }
 
     @Test
+    void exportsSanitizedRunEvidenceWithNodeStatusCounts() throws Exception {
+        UUID bundleId = approvedBundle("project-alpha");
+        String ownerToken = userAccessToken(List.of("ProjectOwner@PROJECT:project-alpha"));
+        String exportToken = userAccessToken(List.of("SuperAdmin"));
+        UUID planId = createPlan(bundleId, ownerToken, "READY");
+        UUID runId = triggerRun(planId, ownerToken, "export-smoke");
+
+        markFirstNodeFailed(runId);
+
+        mockMvc.perform(get("/api/v1/execution/runs/{id}/export", runId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + exportToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.schemaVersion").value("wp9-run-export-v1"))
+                .andExpect(jsonPath("$.data.exportedAt").exists())
+                .andExpect(jsonPath("$.data.run.id").value(runId.toString()))
+                .andExpect(jsonPath("$.data.run.status").value("FAILED"))
+                .andExpect(jsonPath("$.data.run.errorCode").value("EXECUTION_NODE_DISPATCH_FAILED"))
+                .andExpect(jsonPath("$.data.run.resultSummary.runnerDispatched").value(false))
+                .andExpect(jsonPath("$.data.run.nodes.length()").value(2))
+                .andExpect(jsonPath("$.data.nodeStatusCounts.FAILED").value(1))
+                .andExpect(jsonPath("$.data.nodeStatusCounts.PENDING").value(1))
+                .andExpect(jsonPath("$.data.redactionPolicy.rawOutputExported").value(false))
+                .andExpect(jsonPath("$.data.redactionPolicy.rawRequestResponseExported").value(false))
+                .andExpect(jsonPath("$.data.redactionPolicy.secretRefsExported").value(false))
+                .andExpect(jsonPath("$.data.redactionPolicy.claimTokenExported").value(false))
+                .andExpect(content().string(not(containsString("secret://"))))
+                .andExpect(content().string(not(containsString("wp9_claim_"))))
+                .andExpect(content().string(not(containsString("requestBody"))));
+    }
+
+    @Test
     void heartbeatsClaimAndRequeuesExpiredClaimForAnotherWorker() throws Exception {
         UUID bundleId = approvedBundle("project-alpha");
         String ownerToken = userAccessToken(List.of("ProjectOwner@PROJECT:project-alpha"));

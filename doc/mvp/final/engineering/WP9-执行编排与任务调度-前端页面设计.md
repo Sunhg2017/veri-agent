@@ -9,7 +9,7 @@
 | 版本 | v0.1 |
 | 日期 | 2026-06-13 |
 
-截至 2026-06-14 M6C，`portal-web` 已新增 `#execution` 工作台入口、`execution:read/manage/trigger/export` 权限判断、WP9 API client normalization、调度策略指标、计划列表、多节点计划创建/更新/归档、DAG 摘要与 dryRun、手动触发、运行详情、取消/重试、触发配置摘要、trigger dryRun、触发事件查看和桌面/390px Playwright browser smoke。当前实现以主链路控制面可用和可回归为准；导出文件下载和 cron scanner 操作台仍按后续切片推进。
+截至 2026-06-14 M7C，`portal-web` 已新增 `#execution` 工作台入口、`execution:read/manage/trigger/export` 权限判断、WP9 API client normalization、调度策略指标、计划列表、多节点计划创建/更新/归档、DAG 摘要与 dryRun、手动触发、运行详情、取消/重试、脱敏执行摘要导出、触发配置摘要、trigger dryRun、触发事件查看和桌面/390px Playwright browser smoke。当前实现以主链路控制面可用和可回归为准；cron scanner 操作台和外部 webhook HTTP smoke 仍按后续切片推进。
 
 ## 1. 页面目标
 

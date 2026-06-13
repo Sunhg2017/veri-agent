@@ -171,6 +171,14 @@ export interface ExecutionRunList {
   total: number;
 }
 
+export interface ExecutionRunExport {
+  schemaVersion: string;
+  exportedAt?: string;
+  run: ExecutionRunDetail;
+  nodeStatusCounts: Record<string, number>;
+  redactionPolicy: Record<string, unknown>;
+}
+
 export interface ExecutionRunFilters {
   projectId?: string;
   planId?: string;
@@ -320,6 +328,11 @@ export async function fetchExecutionRuns(filters: ExecutionRunFilters = {}): Pro
 export async function fetchExecutionRun(id: string): Promise<ApiResponse<ExecutionRunDetail>> {
   const response = await requestJson<unknown>(`${EXECUTION_BASE}/runs/${encodeURIComponent(id)}`);
   return { ...response, data: normalizeExecutionRunDetail(response.data) };
+}
+
+export async function exportExecutionRun(id: string): Promise<ApiResponse<ExecutionRunExport>> {
+  const response = await requestJson<unknown>(`${EXECUTION_BASE}/runs/${encodeURIComponent(id)}/export`);
+  return { ...response, data: normalizeExecutionRunExport(response.data) };
 }
 
 export async function cancelExecutionRun(id: string): Promise<ApiResponse<ExecutionRunDetail>> {
@@ -539,6 +552,17 @@ export function normalizeExecutionRunDetail(input: unknown): ExecutionRunDetail 
   };
 }
 
+export function normalizeExecutionRunExport(input: unknown): ExecutionRunExport {
+  const value = objectValue(input);
+  return {
+    schemaVersion: stringValue(read(value, 'schemaVersion', 'schema_version'), 'wp9-run-export-v1'),
+    exportedAt: optionalString(read(value, 'exportedAt', 'exported_at')),
+    run: normalizeExecutionRunDetail(read(value, 'run')),
+    nodeStatusCounts: numberRecord(read(value, 'nodeStatusCounts', 'node_status_counts')),
+    redactionPolicy: objectValue(read(value, 'redactionPolicy', 'redaction_policy'))
+  };
+}
+
 export function normalizeExecutionNodeRun(input: unknown): ExecutionNodeRun {
   const value = objectValue(input);
   return {
@@ -676,4 +700,13 @@ function booleanValue(input: unknown, fallback: boolean) {
   if (input === 'true') return true;
   if (input === 'false') return false;
   return fallback;
+}
+
+function numberRecord(input: unknown): Record<string, number> {
+  const value = objectValue(input);
+  return Object.fromEntries(
+    Object.entries(value)
+      .map(([key, item]) => [key, numberValue(item, 0)])
+      .filter(([key]) => Boolean(key))
+  );
 }

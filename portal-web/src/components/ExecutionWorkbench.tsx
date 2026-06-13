@@ -2,6 +2,7 @@ import {
   AlertTriangle,
   CheckCircle2,
   Clock3,
+  Download,
   FileText,
   PauseCircle,
   Play,
@@ -21,6 +22,7 @@ import {
   createExecutionTrigger,
   dryRunExecutionPlan,
   dryRunExecutionTrigger,
+  exportExecutionRun,
   fetchExecutionHealth,
   fetchExecutionPlan,
   fetchExecutionPlans,
@@ -37,6 +39,7 @@ import {
   type ExecutionPlanDetail,
   type ExecutionPlanSummary,
   type ExecutionRunDetail,
+  type ExecutionRunExport,
   type ExecutionRunSummary,
   type ExecutionTrigger,
   type ExecutionTriggerDryRun,
@@ -106,6 +109,7 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
   const [runActionState, setRunActionState] = useState<WorkState>({ loading: false });
   const [triggerActionState, setTriggerActionState] = useState<WorkState>({ loading: false });
   const [lastDryRun, setLastDryRun] = useState<ExecutionDryRun | null>(null);
+  const [lastRunExport, setLastRunExport] = useState<ExecutionRunExport | null>(null);
   const [lastTriggerDryRun, setLastTriggerDryRun] = useState<ExecutionTriggerDryRun | null>(null);
 
   const summary = useMemo(() => {
@@ -123,6 +127,7 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
       setRuns([]);
       setPlanDetail(null);
       setRunDetail(null);
+      setLastRunExport(null);
       setTriggers([]);
       setTriggerEvents([]);
       setSelectedTriggerId('');
@@ -180,11 +185,13 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
   const refreshRunDetail = useCallback(async (runId: string) => {
     if (!runId || !canRead) {
       setRunDetail(null);
+      setLastRunExport(null);
       return;
     }
     try {
       const result = await fetchExecutionRun(runId);
       setRunDetail(result.data);
+      setLastRunExport(null);
     } catch (error: unknown) {
       setRunActionState({ loading: false, error: error instanceof Error ? error.message : '加载运行详情失败' });
     }
@@ -305,6 +312,7 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
     try {
       const result = await cancelExecutionRun(runDetail.id);
       setRunDetail(result.data);
+      setLastRunExport(null);
       mergeRun(result.data);
       setRunActionState({ loading: false, success: '运行已取消或保持终态' });
     } catch (error: unknown) {
@@ -318,10 +326,23 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
     try {
       const result = await retryExecutionRun(runDetail.id);
       setRunDetail(result.data);
+      setLastRunExport(null);
       mergeRun(result.data);
       setRunActionState({ loading: false, success: '重试已提交' });
     } catch (error: unknown) {
       setRunActionState({ loading: false, error: error instanceof Error ? error.message : '重试失败' });
+    }
+  }
+
+  async function onExportRun() {
+    if (!runDetail || !canExport) return;
+    setRunActionState({ loading: true });
+    try {
+      const result = await exportExecutionRun(runDetail.id);
+      setLastRunExport(result.data);
+      setRunActionState({ loading: false, success: '脱敏摘要已导出' });
+    } catch (error: unknown) {
+      setRunActionState({ loading: false, error: error instanceof Error ? error.message : '导出失败' });
     }
   }
 
@@ -667,6 +688,10 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
                 <RotateCcw size={15} />
                 重试
               </button>
+              <button className="btn btn-secondary btn-sm" type="button" onClick={() => void onExportRun()} disabled={!runDetail || !canExport || runActionState.loading}>
+                <Download size={15} />
+                导出摘要
+              </button>
             </div>
           </div>
           <div className="panel-body compact">
@@ -676,6 +701,14 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
               <span>{runDetail?.sourceEventId ?? runDetail?.requestKey ?? '-'}</span>
               <span>export {canExport ? 'allowed' : 'blocked'}</span>
             </div>
+            {lastRunExport && (
+              <div className="execution-sync-summary">
+                <span>{lastRunExport.schemaVersion}</span>
+                <span>{lastRunExport.exportedAt ? formatDateTime(lastRunExport.exportedAt) : '-'}</span>
+                <span>{summaryText(lastRunExport.nodeStatusCounts)}</span>
+                <span>secret {lastRunExport.redactionPolicy.secretRefsExported ? 'exported' : 'blocked'}</span>
+              </div>
+            )}
             {runDetail?.errorCode && (
               <div className="document-state-line error">
                 {runDetail.errorCode}{runDetail.errorSummary ? ` · ${runDetail.errorSummary}` : ''}

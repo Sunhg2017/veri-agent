@@ -15,6 +15,7 @@ import com.songhg.veri.agent.execution.application.query.ExecutionRunPageRequest
 import com.songhg.veri.agent.execution.application.view.ExecutionQueueClaimResponse;
 import com.songhg.veri.agent.execution.application.view.ExecutionQueueRecoveryResponse;
 import com.songhg.veri.agent.execution.application.view.ExecutionRunDetailResponse;
+import com.songhg.veri.agent.execution.application.view.ExecutionRunExportResponse;
 import com.songhg.veri.agent.execution.application.view.ExecutionRunSummaryResponse;
 import jakarta.validation.Valid;
 import java.util.UUID;
@@ -62,6 +63,12 @@ public class ExecutionRunController {
     @RequirePermission(value = PermissionCodes.EXECUTION_READ, scope = ExecutionPermissionScopes.RUN)
     public ExecutionRunDetailResponse run(@PathVariable UUID id) {
         return service.run(id);
+    }
+
+    @GetMapping("/runs/{id}/export")
+    @RequirePermission(value = PermissionCodes.EXECUTION_EXPORT, scope = ExecutionPermissionScopes.RUN)
+    public ExecutionRunExportResponse exportRun(@PathVariable UUID id) {
+        return service.exportRun(id);
     }
 
     @PostMapping("/runs/{id}/cancel")
