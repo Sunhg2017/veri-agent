@@ -33,7 +33,7 @@ WP9 的核心目标是把 WP6 已具备的手动单次接口自动化运行能�
 | 队列与状态 | 支持 `DRAFT/READY/QUEUED/RUNNING/SUCCEEDED/PARTIAL_SUCCESS/FAILED/CANCELED/TIMEOUT/ARCHIVED` 状态和节点级状态。 |
 | 取消与重试 | 支持计划级、任务级和节点级取消；失败节点可按策略重试，重试必须可审计且幂等。 |
 | WP6 集成 | 通过 WP6 应用服务创建 API automation run，不直接调用 runner adapter，不绕过 WP6 allowlist/secretRef/redaction。 |
-| CI/CD 触发 | P1 提供签名 webhook、幂等 key、来源记录和 dryRun 校验；不绑定具体厂商插件。 |
+| CI/CD 触发 | P1 提供签名 webhook、幂等 key、来源记录、dryRun 校验和供应商 CI 签名样例；不绑定 marketplace/App 插件。 |
 | 定时触发 | P1 提供 cron 元数据、启停、下一次触发时间和审计；首期可只实现控制面，不启生产级分布式调度。 |
 | 前端控制台 | 新增执行编排入口，覆盖计划列表、DAG 预览、手动触发、运行详情、取消、重试和 webhook/cron 配置摘要。 |
 
@@ -60,7 +60,7 @@ WP9 的核心目标是把 WP6 已具备的手动单次接口自动化运行能�
 | WP10 报告诊断 | 输出执行摘要、节点结果索引、失败分类种子和 report handoff 事件。 |
 | `portal-web` | 新增执行编排工作台，接入权限、计划、运行、节点状态、取消重试和触发配置。 |
 | `db/migration/wp1` | 后续新增 WP9 计划、DAG、运行、节点、触发、队列和审计索引表。 |
-| `scripts` | 后续新增 WP9 quality gate、调度 smoke、webhook smoke 和 DB validation 扩展。 |
+| `scripts` | 后续新增 WP9 quality gate、调度 smoke、webhook smoke、webhook 签名 helper 和 DB validation 扩展。 |
 
 ## 6. 五角色启动交付
 
