@@ -37,6 +37,7 @@ import { fetchHealth, type HealthResult } from './api/health';
 import { AssetWorkbench } from './components/AssetWorkbench';
 import { ApiAutomationWorkbench } from './components/ApiAutomationWorkbench';
 import { DocumentInputConsole } from './components/DocumentInputConsole';
+import { ExecutionWorkbench } from './components/ExecutionWorkbench';
 import { ModelAccessConsole } from './components/ModelAccessConsole';
 import { TestDesignWorkbench } from './components/TestDesignWorkbench';
 import { useToast } from './components/Toast';
@@ -200,6 +201,13 @@ const pages: PageDefinition[] = [
     title: '接口自动化',
     description: '导入 OpenAPI 规格，解析接口摘要并维护 endpoint snapshot。',
     icon: ClipboardList
+  },
+  {
+    key: 'execution',
+    label: '执行编排',
+    title: '执行编排',
+    description: '管理执行计划、DAG 校验、运行状态、触发配置和调度摘要。',
+    icon: GitBranch
   },
   {
     key: 'model-access',
@@ -749,6 +757,8 @@ export function App() {
           <TestDesignWorkbench signedIn={Boolean(currentUser)} currentUser={currentUser} />
         ) : activePage === 'api-automation' ? (
           <ApiAutomationWorkbench signedIn={Boolean(currentUser)} currentUser={currentUser} />
+        ) : activePage === 'execution' ? (
+          <ExecutionWorkbench signedIn={Boolean(currentUser)} currentUser={currentUser} />
         ) : activePage === 'model-access' ? (
           <ModelAccessConsole signedIn={Boolean(currentUser)} currentUser={currentUser} />
         ) : (

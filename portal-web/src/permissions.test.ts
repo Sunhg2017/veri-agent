@@ -37,6 +37,7 @@ describe('WP1 permission helpers', () => {
       'asset:read',
       'testDesign:read',
       'apiAutomation:read',
+      'execution:read',
       'modelAccess:read'
     ]);
 
@@ -48,6 +49,7 @@ describe('WP1 permission helpers', () => {
     expect(canAccessPage(currentUser, 'asset-library')).toBe(true);
     expect(canAccessPage(currentUser, 'test-design')).toBe(true);
     expect(canAccessPage(currentUser, 'api-automation')).toBe(true);
+    expect(canAccessPage(currentUser, 'execution')).toBe(true);
     expect(canAccessPage(currentUser, 'model-access')).toBe(true);
     expect(canAccessPage(currentUser, 'projects')).toBe(false);
   });
@@ -70,6 +72,11 @@ describe('WP1 permission helpers', () => {
   it('requires WP6 API automation read permission for the API automation workbench', () => {
     expect(canAccessPage(user(['testDesign:read']), 'api-automation')).toBe(false);
     expect(canAccessPage(user(['apiAutomation:read']), 'api-automation')).toBe(true);
+  });
+
+  it('requires WP9 execution read permission for the execution workbench', () => {
+    expect(canAccessPage(user(['apiAutomation:read']), 'execution')).toBe(false);
+    expect(canAccessPage(user(['execution:read']), 'execution')).toBe(true);
   });
 
   it('requires WP2 model access read permission for the model access console', () => {
@@ -186,6 +193,12 @@ describe('WP1 permission helpers', () => {
     expect(canUseButton(user(['apiAutomation:review']), 'apiAutomation:review')).toBe(true);
     expect(canUseButton(user(['apiAutomation:execute']), 'apiAutomation:execute')).toBe(true);
     expect(canUseButton(user(['apiAutomation:export']), 'apiAutomation:export')).toBe(true);
+    expect(canUseButton(user(['execution:manage']), 'execution:manage')).toBe(true);
+    expect(canUseButton(user(['execution:read']), 'execution:manage')).toBe(false);
+    expect(canUseButton(user(['execution:trigger']), 'execution:trigger')).toBe(true);
+    expect(canUseButton(user(['execution:read']), 'execution:trigger')).toBe(false);
+    expect(canUseButton(user(['execution:admin']), 'execution:admin')).toBe(true);
+    expect(canUseButton(user(['execution:export']), 'execution:export')).toBe(true);
     expect(canUseButton(user(['modelAccess:manage']), 'modelAccess:provider_manage')).toBe(true);
     expect(canUseButton(user(['modelAccess:manage']), 'modelAccess:prompt_manage')).toBe(true);
     expect(canUseButton(user(['modelAccess:manage']), 'modelAccess:policy_manage')).toBe(true);
