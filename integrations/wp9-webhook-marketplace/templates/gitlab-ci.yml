@@ -1,0 +1,31 @@
+trigger_veri_agent_wp9:
+  image: alpine:3.20
+  variables:
+    VERI_AGENT_WP9_EVENT_PREFIX: "gitlab"
+  before_script:
+    - apk add --no-cache curl jq openssl
+  script:
+    - |
+      set -euo pipefail
+      set +x
+      timestamp="$(date +%s)"
+      event_id="${VERI_AGENT_WP9_EVENT_PREFIX}:${CI_PROJECT_PATH}:${CI_PIPELINE_ID}"
+      payload="$(jq -nc \
+        --arg provider gitlab \
+        --arg project "$CI_PROJECT_PATH" \
+        --arg ref "$CI_COMMIT_REF_NAME" \
+        --arg sha "$CI_COMMIT_SHA" \
+        --arg pipelineUrl "$CI_PIPELINE_URL" \
+        '{provider:$provider,project:$project,ref:$ref,sha:$sha,pipelineUrl:$pipelineUrl,status:"success"}')"
+      signature="$(printf '%s' "$timestamp.$event_id.$payload" \
+        | openssl dgst -sha256 -hmac "$VERI_AGENT_WP9_WEBHOOK_SECRET" -hex \
+        | awk '{print $NF}')"
+      curl -fsS -X POST "$VERI_AGENT_WP9_WEBHOOK_URL" \
+        -H 'Content-Type: application/json' \
+        -H "X-VA-Timestamp: $timestamp" \
+        -H "X-VA-Event-Id: $event_id" \
+        -H "X-VA-Signature: $signature" \
+        --data-binary "$payload"
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+    - if: '$CI_PIPELINE_SOURCE == "web"'

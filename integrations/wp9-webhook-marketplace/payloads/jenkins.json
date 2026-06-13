@@ -1,0 +1,1 @@
+{"provider":"jenkins","job":"example-job","build":"1","buildUrl":"https://jenkins.example.com/job/example-job/1/","gitCommit":"0000000000000000000000000000000000000000","status":"success"}

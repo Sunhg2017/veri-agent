@@ -134,7 +134,11 @@ main() {
       "$ROOT_DIR/scripts/wp9_frontend_e2e_smoke.sh" \
       "$ROOT_DIR/scripts/wp9_scheduler_smoke.sh" \
       "$ROOT_DIR/scripts/wp9_webhook_http_smoke.sh" \
-      "$ROOT_DIR/scripts/wp9_webhook_sign.sh"
+      "$ROOT_DIR/scripts/wp9_webhook_sign.sh" \
+      "$ROOT_DIR/scripts/wp9_marketplace_package_smoke.sh"
+
+  run_step "wp9 marketplace package smoke" \
+    bash "$ROOT_DIR/scripts/wp9_marketplace_package_smoke.sh"
 
   run_step "wp9 backend and OpenAPI tests" \
     mvn -B -pl platform-api -Dtest=ExecutionHealthControllerTest,ExecutionPlanControllerTest,ExecutionRunControllerTest,ExecutionRunDispatchControllerTest,ExecutionTriggerControllerTest,ExecutionDagValidatorTest,ExecutionSchedulerServiceTest,OpenApiContractTest,PermissionCodeUsageTest test

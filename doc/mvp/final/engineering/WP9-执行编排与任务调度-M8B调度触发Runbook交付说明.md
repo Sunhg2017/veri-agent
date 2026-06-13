@@ -33,7 +33,7 @@ rg -n "WP9-Scheduler|M8B|Scheduler Runbook|cron scanner 运维 runbook" doc/mvp/
 ## 4. 风险与后续
 
 1. 本轮只交付 Runbook，不自动执行真实环境恢复或 secret 轮换。
-2. 供应商 marketplace/App 插件包和安装配置向导仍归后续切片。
+2. 供应商 marketplace 模板包已由 M8C 承接；真实 OAuth/App 安装授权仍归后续供应商平台专项。
 3. WP10 报告 handoff 的端到端发布准出仍需后续 WP10 集成后补齐。
 
 ## 5. 五角色结论

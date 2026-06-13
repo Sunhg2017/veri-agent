@@ -9,7 +9,7 @@
 | 版本 | v0.1 |
 | 日期 | 2026-06-13 |
 
-截至 2026-06-14 M8B，`portal-web` 已新增 `#execution` 工作台入口、`execution:read/manage/trigger/export` 权限判断、WP9 API client normalization、调度策略指标、计划列表、多节点计划创建/更新/归档、DAG 摘要与 dryRun、手动触发、运行详情、取消/重试、脱敏执行摘要导出、触发配置摘要、trigger dryRun、触发事件查看和桌面/390px Playwright browser smoke。M7D/M8A/M8B 不新增前端页面改动，外部 webhook HTTP smoke、GitHub/GitLab/Jenkins 接入样例和 scheduler/trigger Runbook 已由脚本和文档覆盖；cron scanner 操作台和供应商 marketplace/App 插件包仍按后续切片推进。
+截至 2026-06-14 M8C，`portal-web` 已新增 `#execution` 工作台入口、`execution:read/manage/trigger/export` 权限判断、WP9 API client normalization、调度策略指标、计划列表、多节点计划创建/更新/归档、DAG 摘要与 dryRun、手动触发、运行详情、取消/重试、脱敏执行摘要导出、触发配置摘要、trigger dryRun、触发事件查看和桌面/390px Playwright browser smoke。M7D/M8A/M8B/M8C 不新增前端页面改动，外部 webhook HTTP smoke、GitHub/GitLab/Jenkins 接入样例、scheduler/trigger Runbook 和供应商 marketplace 接入包已由脚本、模板和文档覆盖；cron scanner 操作台与真实供应商 OAuth/App 安装向导仍按后续切片推进。
 
 ## 1. 页面目标
 

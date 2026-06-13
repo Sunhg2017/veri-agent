@@ -41,7 +41,7 @@ WP6 已经完成 OpenAPI 到接口自动化脚本包、受控单次运行和脱�
 | 队列状态 | QUEUED/RUNNING/SUCCEEDED/FAILED/CANCELED/TIMEOUT/PARTIAL_SUCCESS | 优先级抢占和资源池权重 |
 | 取消重试 | 计划级取消、失败节点重试、终态幂等 | 按节点重跑下游 |
 | WP6 集成 | 通过 WP6 service 创建 run 并聚合摘要 | 多 script bundle 并行 fan-out |
-| CI/CD webhook | 签名、幂等、禁用态、dryRun、GitHub/GitLab/Jenkins 签名样例 | marketplace/App 插件包 |
+| CI/CD webhook | 签名、幂等、禁用态、dryRun、GitHub/GitLab/Jenkins 签名样例、marketplace 模板包 | 真实 OAuth/App 上架和安装授权 |
 | Cron | 保存 cron 元数据、启停和下一次触发时间 | 真正定时扫描触发和错过补偿 |
 | 前端 | 执行计划工作台、运行详情、DAG 状态、取消重试 | 计划模板和趋势图 |
 
