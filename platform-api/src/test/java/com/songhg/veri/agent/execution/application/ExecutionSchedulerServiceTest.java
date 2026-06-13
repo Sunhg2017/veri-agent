@@ -13,10 +13,12 @@ import com.songhg.veri.agent.auth.domain.AuthUserRecord;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
 import com.songhg.veri.agent.execution.application.command.CompleteExecutionNodeRunCommand;
+import com.songhg.veri.agent.execution.application.port.ExecutionRepository;
 import com.songhg.veri.agent.execution.application.view.ExecutionQueueClaimResponse;
 import com.songhg.veri.agent.execution.application.view.ExecutionQueueRecoveryResponse;
 import com.songhg.veri.agent.execution.application.view.ExecutionSchedulerTickResponse;
 import com.songhg.veri.agent.execution.config.ExecutionProperties;
+import com.songhg.veri.agent.execution.domain.ExecutionTrigger;
 import com.songhg.veri.agent.management.application.port.ManagementStore;
 import com.songhg.veri.agent.management.application.port.ManagementStoreRows.EnvironmentRuntimeRef;
 import java.time.Instant;
@@ -54,6 +56,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest(properties = {
         "veri-agent.auth.token-secret=test-auth-secret-32-byte-minimum!",
         "veri-agent.execution.scheduler-enabled=true",
+        "veri-agent.execution.cron-enabled=true",
         "veri-agent.execution.scheduler-worker-id=wp9-managed-test-worker",
         "veri-agent.execution.scheduler-tick-batch-size=2",
         "veri-agent.execution.scheduler-interval-ms=3600000",
@@ -78,6 +81,9 @@ class ExecutionSchedulerServiceTest {
     private ApiAutomationRepository apiAutomationRepository;
 
     @Autowired
+    private ExecutionRepository executionRepository;
+
+    @Autowired
     private ExecutionSchedulerService schedulerService;
 
     @MockitoBean
@@ -89,37 +95,7 @@ class ExecutionSchedulerServiceTest {
     @Test
     void runOnceClaimsDispatchesApiTestAndCompletesReportHandoff() throws Exception {
         String projectId = UUID.randomUUID().toString();
-        when(managementStore.findEnvironmentRuntimeRef(argThat(params -> "staging".equals(params.get("keyword"))
-                && UUID.fromString(projectId).equals(params.get("projectId")))))
-                .thenReturn(new EnvironmentRuntimeRef(
-                        UUID.randomUUID(),
-                        UUID.fromString(projectId),
-                        "staging",
-                        "Staging",
-                        "https://api.example.test/runtime",
-                        "ENABLED"
-                ));
-        when(runnerPort.validateBundle(any(ApiAutomationScriptBundle.class)))
-                .thenReturn(new ApiAutomationRunnerPort.RunnerValidation(true, null, null));
-        when(runnerPort.run(any(ApiAutomationRunnerPort.RunnerRunRequest.class))).thenAnswer(invocation -> {
-            ApiAutomationRunnerPort.RunnerRunRequest request = invocation.getArgument(0);
-            return new ApiAutomationRunnerPort.RunnerRunResult(
-                    "PASSED",
-                    "MANAGED",
-                    null,
-                    null,
-                    request.cases().stream()
-                            .map(automationCase -> new ApiAutomationRunnerPort.RunnerCaseResult(
-                                    automationCase.id(),
-                                    "PASSED",
-                                    31,
-                                    "{\"statusCode\":200,\"authorization\":\"Bearer must-redact\"}",
-                                    null,
-                                    null
-                            ))
-                            .toList()
-            );
-        });
+        stubRuntimeAndRunner(projectId);
 
         SeededBundle seededBundle = approvedBundle(projectId);
         String ownerToken = userAccessToken(List.of("ProjectOwner@PROJECT:" + projectId));
@@ -159,10 +135,98 @@ class ExecutionSchedulerServiceTest {
     }
 
     @Test
+    void runOnceScansDueCronTriggerAndQueuesRunWithoutRawPayload() throws Exception {
+        String projectId = UUID.randomUUID().toString();
+        stubRuntimeAndRunner(projectId);
+        SeededBundle seededBundle = approvedBundle(projectId);
+        String ownerToken = userAccessToken(List.of("ProjectOwner@PROJECT:" + projectId));
+        UUID planId = createApiAndReportPlan(projectId, seededBundle, ownerToken);
+        Instant dueAt = Instant.now().minusSeconds(60);
+        UUID triggerId = createDueCronTrigger(planId, ownerToken, dueAt);
+
+        ExecutionSchedulerTickResponse tick = schedulerService.runOnce();
+
+        assertThat(tick.cronScannedTriggerCount()).isEqualTo(1);
+        assertThat(tick.cronTriggeredRunCount()).isEqualTo(1);
+        assertThat(tick.cronFailedTriggerCount()).isZero();
+        assertThat(tick.claimedNodeCount()).isEqualTo(2);
+        assertThat(tick.noop()).isFalse();
+
+        MvcResult runs = mockMvc.perform(get("/api/v1/execution/runs")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken)
+                        .param("planId", planId.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(1))
+                .andExpect(jsonPath("$.data.items[0].triggerType").value("CRON"))
+                .andExpect(jsonPath("$.data.items[0].requestKey").value(org.hamcrest.Matchers.startsWith("cron:")))
+                .andExpect(content().string(not(containsString("secret://"))))
+                .andReturn();
+        String runId = JsonPath.read(runs.getResponse().getContentAsString(), "$.data.items[0].id");
+
+        mockMvc.perform(get("/api/v1/execution/runs/{id}", runId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.triggerType").value("CRON"))
+                .andExpect(jsonPath("$.data.sourceEventId").value(org.hamcrest.Matchers.startsWith("cron:")))
+                .andExpect(jsonPath("$.data.resultSummary.triggerEventSource").value("CRON"))
+                .andExpect(jsonPath("$.data.resultSummary.scheduledFireAt").value(dueAt.toString()))
+                .andExpect(jsonPath("$.data.resultSummary.cronPayloadStored").value(false))
+                .andExpect(jsonPath("$.data.nodes.length()").value(2));
+
+        mockMvc.perform(get("/api/v1/execution/triggers/{id}/events", triggerId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(1))
+                .andExpect(jsonPath("$.data.items[0].status").value("ACCEPTED"))
+                .andExpect(jsonPath("$.data.items[0].runId").value(runId));
+
+        mockMvc.perform(get("/api/v1/execution/triggers/{id}", triggerId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.lastFireAt").exists())
+                .andExpect(jsonPath("$.data.nextFireAt").exists())
+                .andExpect(jsonPath("$.data.configSummary.cronPayloadStored").value(false));
+    }
+
+    @Test
+    void runOnceRecordsFailedEventAndPausesInvalidLegacyCronTrigger() throws Exception {
+        String projectId = UUID.randomUUID().toString();
+        SeededBundle seededBundle = approvedBundle(projectId);
+        String ownerToken = userAccessToken(List.of("ProjectOwner@PROJECT:" + projectId));
+        UUID planId = createApiAndReportPlan(projectId, seededBundle, ownerToken);
+        UUID triggerId = insertInvalidLegacyCronTrigger(planId);
+
+        ExecutionSchedulerTickResponse tick = schedulerService.runOnce();
+
+        assertThat(tick.cronScannedTriggerCount()).isEqualTo(1);
+        assertThat(tick.cronTriggeredRunCount()).isZero();
+        assertThat(tick.cronFailedTriggerCount()).isEqualTo(1);
+        assertThat(tick.claimedNodeCount()).isZero();
+        assertThat(tick.noop()).isFalse();
+
+        mockMvc.perform(get("/api/v1/execution/triggers/{id}/events", triggerId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(1))
+                .andExpect(jsonPath("$.data.items[0].status").value("FAILED"))
+                .andExpect(jsonPath("$.data.items[0].errorCode").value("EXECUTION_CRON_EXPRESSION_INVALID"))
+                .andExpect(jsonPath("$.data.items[0].runId").doesNotExist());
+
+        mockMvc.perform(get("/api/v1/execution/triggers/{id}", triggerId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("PAUSED"))
+                .andExpect(jsonPath("$.data.nextFireAt").doesNotExist())
+                .andExpect(jsonPath("$.data.lastFireAt").doesNotExist());
+    }
+
+    @Test
     void runOnceNoopsWhenSchedulerIsDisabled() {
         ExecutionRunService runService = mock(ExecutionRunService.class);
+        ExecutionTriggerService triggerService = mock(ExecutionTriggerService.class);
         ExecutionSchedulerService disabledScheduler = new ExecutionSchedulerService(
                 runService,
+                triggerService,
                 new ExecutionProperties(
                         false,
                         false,
@@ -187,13 +251,16 @@ class ExecutionSchedulerServiceTest {
         assertThat(tick.claimedNodeCount()).isZero();
         assertThat(tick.noop()).isTrue();
         verifyNoInteractions(runService);
+        verifyNoInteractions(triggerService);
     }
 
     @Test
     void runOnceUsesEffectiveSchedulerBounds() {
         ExecutionRunService runService = mock(ExecutionRunService.class);
+        ExecutionTriggerService triggerService = mock(ExecutionTriggerService.class);
         ExecutionSchedulerService boundedScheduler = new ExecutionSchedulerService(
                 runService,
+                triggerService,
                 new ExecutionProperties(
                         false,
                         false,
@@ -218,13 +285,16 @@ class ExecutionSchedulerServiceTest {
         assertThat(tick.workerId()).isEqualTo("wp9-managed-worker");
         assertThat(tick.tickBatchSize()).isEqualTo(3);
         verifyNoInteractions(runService);
+        verifyNoInteractions(triggerService);
     }
 
     @Test
     void runOnceClosesClaimedNodeWhenDispatchFails() {
         ExecutionRunService runService = mock(ExecutionRunService.class);
+        ExecutionTriggerService triggerService = mock(ExecutionTriggerService.class);
         ExecutionSchedulerService scheduler = new ExecutionSchedulerService(
                 runService,
+                triggerService,
                 new ExecutionProperties(
                         true,
                         false,
@@ -337,6 +407,84 @@ class ExecutionSchedulerServiceTest {
                 .andExpect(status().isCreated())
                 .andReturn();
         return UUID.fromString(JsonPath.read(created.getResponse().getContentAsString(), "$.data.id"));
+    }
+
+    private UUID createDueCronTrigger(UUID planId, String token, Instant nextFireAt) throws Exception {
+        MvcResult created = mockMvc.perform(post("/api/v1/execution/plans/{id}/triggers", planId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "triggerType", "CRON",
+                                "status", "ENABLED",
+                                "nextFireAt", nextFireAt.toString(),
+                                "config", Map.of(
+                                        "cron", "0 */5 * * * *",
+                                        "timezone", "UTC",
+                                        "source", "wp9-managed-scheduler"
+                                )
+                        ))))
+                .andExpect(status().isCreated())
+                .andReturn();
+        return UUID.fromString(JsonPath.read(created.getResponse().getContentAsString(), "$.data.id"));
+    }
+
+    private UUID insertInvalidLegacyCronTrigger(UUID planId) {
+        UUID triggerId = UUID.randomUUID();
+        Instant now = Instant.now();
+        String configSummaryJson = """
+                {"type":"CRON","cron":"bad cron","timezone":"UTC","rawPayloadStored":false,"secretStored":false,"cronPayloadStored":false}
+                """;
+        executionRepository.insertTrigger(new ExecutionTrigger(
+                triggerId,
+                planId,
+                "CRON",
+                "ENABLED",
+                "0".repeat(64),
+                configSummaryJson,
+                null,
+                null,
+                now.minusSeconds(60),
+                null,
+                "legacy-import",
+                "legacy-import",
+                now.minusSeconds(120),
+                now.minusSeconds(120)
+        ));
+        return triggerId;
+    }
+
+    private void stubRuntimeAndRunner(String projectId) {
+        when(managementStore.findEnvironmentRuntimeRef(argThat(params -> "staging".equals(params.get("keyword"))
+                && UUID.fromString(projectId).equals(params.get("projectId")))))
+                .thenReturn(new EnvironmentRuntimeRef(
+                        UUID.randomUUID(),
+                        UUID.fromString(projectId),
+                        "staging",
+                        "Staging",
+                        "https://api.example.test/runtime",
+                        "ENABLED"
+                ));
+        when(runnerPort.validateBundle(any(ApiAutomationScriptBundle.class)))
+                .thenReturn(new ApiAutomationRunnerPort.RunnerValidation(true, null, null));
+        when(runnerPort.run(any(ApiAutomationRunnerPort.RunnerRunRequest.class))).thenAnswer(invocation -> {
+            ApiAutomationRunnerPort.RunnerRunRequest request = invocation.getArgument(0);
+            return new ApiAutomationRunnerPort.RunnerRunResult(
+                    "PASSED",
+                    "MANAGED",
+                    null,
+                    null,
+                    request.cases().stream()
+                            .map(automationCase -> new ApiAutomationRunnerPort.RunnerCaseResult(
+                                    automationCase.id(),
+                                    "PASSED",
+                                    31,
+                                    "{\"statusCode\":200,\"authorization\":\"Bearer must-redact\"}",
+                                    null,
+                                    null
+                            ))
+                            .toList()
+            );
+        });
     }
 
     private SeededBundle approvedBundle(String projectId) {

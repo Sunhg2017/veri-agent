@@ -88,6 +88,8 @@ public interface ExecutionMapper {
 
     ExecutionTrigger trigger(@Param("id") UUID id);
 
+    List<ExecutionTrigger> dueCronTriggers(@Param("now") Instant now, @Param("limit") int limit);
+
     List<ExecutionTrigger> triggers(@Param("query") ExecutionTriggerQuery query);
 
     long countTriggers(@Param("query") ExecutionTriggerQuery query);

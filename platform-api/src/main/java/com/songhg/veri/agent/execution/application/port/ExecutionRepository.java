@@ -84,6 +84,8 @@ public interface ExecutionRepository {
 
     Optional<ExecutionTrigger> trigger(UUID id);
 
+    List<ExecutionTrigger> dueCronTriggers(Instant now, int limit);
+
     List<ExecutionTrigger> triggers(ExecutionTriggerQuery query);
 
     long countTriggers(ExecutionTriggerQuery query);

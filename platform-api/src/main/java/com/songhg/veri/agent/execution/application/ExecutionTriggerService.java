@@ -17,6 +17,7 @@ import com.songhg.veri.agent.execution.application.query.ExecutionTriggerEventPa
 import com.songhg.veri.agent.execution.application.query.ExecutionTriggerEventQuery;
 import com.songhg.veri.agent.execution.application.query.ExecutionTriggerPageRequest;
 import com.songhg.veri.agent.execution.application.query.ExecutionTriggerQuery;
+import com.songhg.veri.agent.execution.application.view.ExecutionCronScanResponse;
 import com.songhg.veri.agent.execution.application.view.ExecutionRunDetailResponse;
 import com.songhg.veri.agent.execution.application.view.ExecutionTriggerDryRunResponse;
 import com.songhg.veri.agent.execution.application.view.ExecutionTriggerEventResponse;
@@ -29,7 +30,10 @@ import com.songhg.veri.agent.execution.domain.ExecutionTriggerEvent;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.DateTimeException;
 import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -43,6 +47,7 @@ import java.util.regex.Pattern;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.scheduling.support.CronExpression;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -70,6 +75,7 @@ public class ExecutionTriggerService {
             Pattern.compile("^secret://[A-Za-z0-9._~:/?#\\[\\]@!$&'()*+,;=%-]{1,247}$");
     private static final int MAX_CONFIG_TEXT_LENGTH = 256;
     private static final int MAX_CONFIG_LIST_ITEMS = 20;
+    private static final String DEFAULT_CRON_TIMEZONE = "UTC";
     private static final TypeReference<Map<String, Object>> MAP_TYPE = new TypeReference<>() {
     };
 
@@ -108,6 +114,7 @@ public class ExecutionTriggerService {
         String secretRef = normalizedSecretRef(command == null ? null : command.secretRef(), triggerType, status);
         ensureTriggerGloballyAllowed(triggerType, status);
         Instant now = Instant.now();
+        Instant nextFireAt = initialNextFireAt(triggerType, configSummary, command == null ? null : command.nextFireAt(), now);
         String actor = actorResolver.currentActor();
         ExecutionTrigger trigger = new ExecutionTrigger(
                 UUID.randomUUID(),
@@ -118,7 +125,7 @@ public class ExecutionTriggerService {
                 json(configSummary),
                 secretRef,
                 StringUtils.hasText(secretRef) ? sha256(secretRef) : null,
-                command == null ? null : command.nextFireAt(),
+                nextFireAt,
                 null,
                 actor,
                 actor,
@@ -159,6 +166,14 @@ public class ExecutionTriggerService {
         ensureRequiredSecretRef(existing.triggerType(), status, secretRef);
         ensureTriggerGloballyAllowed(existing.triggerType(), status);
         Instant now = Instant.now();
+        Instant nextFireAt = updatedNextFireAt(
+                existing,
+                configSummary,
+                command == null ? null : command.nextFireAt(),
+                command != null && command.config() != null,
+                status,
+                now
+        );
         ExecutionTrigger updated = new ExecutionTrigger(
                 existing.id(),
                 existing.planId(),
@@ -168,7 +183,7 @@ public class ExecutionTriggerService {
                 json(configSummary),
                 secretRef,
                 StringUtils.hasText(secretRef) ? sha256(secretRef) : null,
-                command == null || command.nextFireAt() == null ? existing.nextFireAt() : command.nextFireAt(),
+                nextFireAt,
                 existing.lastFireAt(),
                 existing.createdBy(),
                 actorResolver.currentActor(),
@@ -197,7 +212,7 @@ public class ExecutionTriggerService {
                         "secretRefConfigured", StringUtils.hasText(trigger.secretRef()),
                         "configDigest", trigger.configDigest(),
                         "webhookSignatureRequired", "WEBHOOK".equals(trigger.triggerType()),
-                        "cronScannerEnabled", false
+                        "cronScannerEnabled", properties.cronEnabled()
                 )
         );
     }
@@ -211,6 +226,37 @@ public class ExecutionTriggerService {
                 .map(this::toEventResponse)
                 .toList();
         return PageResponse.of(items, request.getIndex(), request.getSize(), repository.countTriggerEvents(query));
+    }
+
+    /**
+     * Materializes due CRON trigger metadata into execution runs using trigger-event and run idempotency keys.
+     *
+     * <p>The scanner intentionally does not perform missed-fire catch-up. Each due `nextFireAt` yields at most one
+     * `sourceEventId`; after either an accepted run or a recorded failure, the trigger advances to the next fire after
+     * the scan timestamp. This prevents one bad plan or invalid legacy cron row from being retried every scheduler tick
+     * while keeping failed attempts observable in `execution_trigger_event`.</p>
+     */
+    @Transactional(noRollbackFor = BusinessException.class)
+    public ExecutionCronScanResponse scanDueCronTriggers(int limit) {
+        Instant now = Instant.now();
+        if (!properties.cronEnabled()) {
+            return new ExecutionCronScanResponse(false, 0, 0, 0, now);
+        }
+        int scanLimit = limit <= 0 ? properties.effectiveSchedulerTickBatchSize() : limit;
+        int scannedTriggerCount = 0;
+        int triggeredRunCount = 0;
+        int failedTriggerCount = 0;
+        for (ExecutionTrigger trigger : repository.dueCronTriggers(now, scanLimit)) {
+            scannedTriggerCount++;
+            CronTriggerOutcome outcome = fireDueCronTrigger(trigger, now);
+            if (outcome.triggered()) {
+                triggeredRunCount++;
+            }
+            if (outcome.failed()) {
+                failedTriggerCount++;
+            }
+        }
+        return new ExecutionCronScanResponse(true, scannedTriggerCount, triggeredRunCount, failedTriggerCount, now);
     }
 
     /**
@@ -362,6 +408,158 @@ public class ExecutionTriggerService {
                 trigger.updatedBy(),
                 trigger.createdAt(),
                 now
+        ));
+    }
+
+    private CronTriggerOutcome fireDueCronTrigger(ExecutionTrigger trigger, Instant scanTime) {
+        Instant fireAt = trigger.nextFireAt() == null ? scanTime : trigger.nextFireAt();
+        String sourceEventId = cronSourceEventId(trigger.id(), fireAt);
+        String requestDigest = cronRequestDigest(trigger, fireAt);
+        Optional<ExecutionTriggerEvent> replay = repository.triggerEventBySource(trigger.id(), sourceEventId);
+        if (replay.isPresent() && replay.get().runId() != null) {
+            Instant nextFireAt = safeNextCronFireAt(trigger, scanTime);
+            if (nextFireAt == null) {
+                pauseCronTrigger(trigger, scanTime);
+                return new CronTriggerOutcome(false, true);
+            }
+            advanceCronTrigger(trigger, scanTime, false, nextFireAt);
+            return new CronTriggerOutcome(true, false);
+        }
+        ExecutionTriggerEvent received = receivedCronEvent(trigger, replay, sourceEventId, requestDigest, scanTime);
+        ExecutionRunDetailResponse run;
+        Instant nextFireAt = null;
+        try {
+            // Freeze the next schedule before run creation; if a legacy row is unparseable, no orphan run is created.
+            nextFireAt = nextCronFireAt(readMap(trigger.configSummaryJson()), scanTime);
+            run = runService.triggerExternalRun(
+                    trigger.planId(),
+                    "CRON",
+                    cronRequestKey(trigger.id(), sourceEventId),
+                    sourceEventId,
+                    Map.of(
+                            "triggerId", trigger.id().toString(),
+                            "triggerEventSource", "CRON",
+                            "sourceEventDigest", sha256(sourceEventId),
+                            "scheduledFireAt", fireAt.toString(),
+                            "configDigest", trigger.configDigest(),
+                            "cronPayloadStored", false
+                    )
+            );
+        } catch (RuntimeException exception) {
+            ExecutionTriggerEvent failed = failedEvent(
+                    received,
+                    cronErrorCode(exception),
+                    sanitizedTriggerErrorSummary(exception.getMessage())
+            );
+            repository.updateTriggerEvent(failed);
+            if (nextFireAt == null) {
+                pauseCronTrigger(trigger, scanTime);
+            } else {
+                advanceCronTrigger(trigger, scanTime, false, nextFireAt);
+            }
+            auditTriggerEvent(trigger, failed, "execution.trigger.failed", "FAILED");
+            return new CronTriggerOutcome(false, true);
+        }
+        ExecutionTriggerEvent accepted = acceptedEvent(received, run.id());
+        repository.updateTriggerEvent(accepted);
+        advanceCronTrigger(trigger, scanTime, true, nextFireAt);
+        auditTriggerEvent(trigger, accepted, "execution.trigger.fired", "SUCCESS");
+        return new CronTriggerOutcome(true, false);
+    }
+
+    private ExecutionTriggerEvent receivedCronEvent(
+            ExecutionTrigger trigger,
+            Optional<ExecutionTriggerEvent> existing,
+            String sourceEventId,
+            String requestDigest,
+            Instant now
+    ) {
+        ExecutionTriggerEvent received = existing
+                .map(event -> retryReceivedEvent(event, requestDigest, now))
+                .orElseGet(() -> new ExecutionTriggerEvent(
+                        UUID.randomUUID(),
+                        trigger.id(),
+                        sourceEventId,
+                        requestDigest,
+                        "RECEIVED",
+                        null,
+                        now,
+                        null,
+                        null,
+                        TraceContext.getOrCreateTraceId()
+                ));
+        if (existing.isPresent()) {
+            repository.updateTriggerEvent(received);
+        } else if (!repository.insertTriggerEvent(received)) {
+            ExecutionTriggerEvent replay = repository.triggerEventBySource(trigger.id(), sourceEventId)
+                    .orElseThrow(() -> new BusinessException(ErrorCode.CONFLICT, "EXECUTION_DUPLICATE_TRIGGER"));
+            if (replay.runId() != null) {
+                return replay;
+            }
+            received = retryReceivedEvent(replay, requestDigest, now);
+            repository.updateTriggerEvent(received);
+        }
+        return received;
+    }
+
+    private ExecutionTriggerEvent acceptedEvent(ExecutionTriggerEvent event, UUID runId) {
+        return new ExecutionTriggerEvent(
+                event.id(),
+                event.triggerId(),
+                event.sourceEventId(),
+                event.requestDigest(),
+                "ACCEPTED",
+                runId,
+                event.receivedAt(),
+                null,
+                null,
+                event.traceId()
+        );
+    }
+
+    private void advanceCronTrigger(ExecutionTrigger trigger, Instant scanTime, boolean fired, Instant nextFireAt) {
+        repository.updateTrigger(new ExecutionTrigger(
+                trigger.id(),
+                trigger.planId(),
+                trigger.triggerType(),
+                trigger.status(),
+                trigger.configDigest(),
+                trigger.configSummaryJson(),
+                trigger.secretRef(),
+                trigger.secretRefDigest(),
+                nextFireAt,
+                fired ? scanTime : trigger.lastFireAt(),
+                trigger.createdBy(),
+                trigger.updatedBy(),
+                trigger.createdAt(),
+                scanTime
+        ));
+    }
+
+    private Instant safeNextCronFireAt(ExecutionTrigger trigger, Instant scanTime) {
+        try {
+            return nextCronFireAt(readMap(trigger.configSummaryJson()), scanTime);
+        } catch (RuntimeException exception) {
+            return null;
+        }
+    }
+
+    private void pauseCronTrigger(ExecutionTrigger trigger, Instant scanTime) {
+        repository.updateTrigger(new ExecutionTrigger(
+                trigger.id(),
+                trigger.planId(),
+                trigger.triggerType(),
+                "PAUSED",
+                trigger.configDigest(),
+                trigger.configSummaryJson(),
+                trigger.secretRef(),
+                trigger.secretRefDigest(),
+                null,
+                trigger.lastFireAt(),
+                trigger.createdBy(),
+                trigger.updatedBy(),
+                trigger.createdAt(),
+                scanTime
         ));
     }
 
@@ -581,7 +779,22 @@ public class ExecutionTriggerService {
         sanitized.put("type", triggerType);
         sanitized.put("rawPayloadStored", false);
         sanitized.put("secretStored", false);
+        if ("CRON".equals(triggerType)) {
+            normalizeCronConfig(sanitized);
+        }
         return sanitized;
+    }
+
+    private void normalizeCronConfig(Map<String, Object> sanitized) {
+        String cron = sanitizedConfigText(sanitized.get("cron"));
+        if (!StringUtils.hasText(cron)) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "EXECUTION_CRON_EXPRESSION_REQUIRED");
+        }
+        parseCron(cron);
+        ZoneId zone = cronZone(sanitized);
+        sanitized.put("cron", cron);
+        sanitized.put("timezone", zone.getId());
+        sanitized.put("cronPayloadStored", false);
     }
 
     private boolean forbiddenConfigKey(String key) {
@@ -619,6 +832,71 @@ public class ExecutionTriggerService {
             return values;
         }
         return boundedNullableText(String.valueOf(value), MAX_CONFIG_TEXT_LENGTH);
+    }
+
+    private Instant initialNextFireAt(
+            String triggerType,
+            Map<String, Object> configSummary,
+            Instant requestedNextFireAt,
+            Instant now
+    ) {
+        if (!"CRON".equals(triggerType)) {
+            return requestedNextFireAt;
+        }
+        return requestedNextFireAt == null ? nextCronFireAt(configSummary, now) : requestedNextFireAt;
+    }
+
+    private Instant updatedNextFireAt(
+            ExecutionTrigger existing,
+            Map<String, Object> configSummary,
+            Instant requestedNextFireAt,
+            boolean configChanged,
+            String status,
+            Instant now
+    ) {
+        if (!"CRON".equals(existing.triggerType())) {
+            return requestedNextFireAt == null ? existing.nextFireAt() : requestedNextFireAt;
+        }
+        if (requestedNextFireAt != null) {
+            return requestedNextFireAt;
+        }
+        if (configChanged || ("ENABLED".equals(status) && existing.nextFireAt() == null)) {
+            return nextCronFireAt(configSummary, now);
+        }
+        return existing.nextFireAt();
+    }
+
+    private Instant nextCronFireAt(Map<String, Object> configSummary, Instant referenceTime) {
+        String cron = sanitizedConfigText(configSummary.get("cron"));
+        CronExpression expression = parseCron(cron);
+        ZonedDateTime reference = ZonedDateTime.ofInstant(referenceTime, cronZone(configSummary));
+        ZonedDateTime next = expression.next(reference);
+        if (next == null) {
+            throw new BusinessException(ErrorCode.INVALID_STATE, "EXECUTION_CRON_NEXT_FIRE_UNAVAILABLE");
+        }
+        return next.toInstant();
+    }
+
+    private CronExpression parseCron(String cron) {
+        try {
+            return CronExpression.parse(cron);
+        } catch (IllegalArgumentException exception) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "EXECUTION_CRON_EXPRESSION_INVALID");
+        }
+    }
+
+    private ZoneId cronZone(Map<String, Object> configSummary) {
+        String timezone = sanitizedConfigText(configSummary.get("timezone"));
+        String zoneId = StringUtils.hasText(timezone) ? timezone : DEFAULT_CRON_TIMEZONE;
+        try {
+            return ZoneId.of(zoneId);
+        } catch (DateTimeException exception) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "EXECUTION_CRON_TIMEZONE_INVALID");
+        }
+    }
+
+    private String sanitizedConfigText(Object value) {
+        return value == null ? null : boundedNullableText(String.valueOf(value), MAX_CONFIG_TEXT_LENGTH);
     }
 
     private ExecutionTriggerResponse toResponse(ExecutionTrigger trigger) {
@@ -667,6 +945,23 @@ public class ExecutionTriggerService {
 
     private String webhookRequestKey(UUID triggerId, String sourceEventId) {
         return "webhook:" + sha256(triggerId + ":" + sourceEventId).substring(0, 64);
+    }
+
+    private String cronRequestKey(UUID triggerId, String sourceEventId) {
+        return "cron:" + sha256(triggerId + ":" + sourceEventId).substring(0, 64);
+    }
+
+    private String cronSourceEventId(UUID triggerId, Instant fireAt) {
+        return boundedNullableText("cron:" + triggerId + ":" + fireAt, 256);
+    }
+
+    private String cronRequestDigest(ExecutionTrigger trigger, Instant fireAt) {
+        return sha256(String.join(".",
+                "cron",
+                trigger.id().toString(),
+                fireAt.toString(),
+                trigger.configDigest()
+        ));
     }
 
     private String requestDigest(String timestamp, String sourceEventId, String rawPayload) {
@@ -723,6 +1018,24 @@ public class ExecutionTriggerService {
                 "secretRefConfigured", StringUtils.hasText(trigger.secretRef()),
                 "secretRefDigest", trigger.secretRefDigest() == null ? "" : trigger.secretRefDigest()
         );
+    }
+
+    private String cronErrorCode(RuntimeException exception) {
+        if (StringUtils.hasText(exception.getMessage()) && exception.getMessage().matches("[A-Z0-9_.:-]{1,64}")) {
+            return exception.getMessage();
+        }
+        if (exception instanceof BusinessException businessException) {
+            return businessException.getErrorCode().name();
+        }
+        return "EXECUTION_CRON_TRIGGER_FAILED";
+    }
+
+    private String sanitizedTriggerErrorSummary(String value) {
+        String bounded = boundedNullableText(value, 512);
+        return StringUtils.hasText(bounded) ? bounded : "Cron trigger failed";
+    }
+
+    private record CronTriggerOutcome(boolean triggered, boolean failed) {
     }
 
     private String boundedRequiredText(String value, int maxLength, String errorCode) {

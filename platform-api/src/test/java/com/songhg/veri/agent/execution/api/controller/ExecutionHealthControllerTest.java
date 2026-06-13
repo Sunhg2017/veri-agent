@@ -55,7 +55,7 @@ class ExecutionHealthControllerTest {
                 .andExpect(jsonPath("$.data.policy.webhookSignatureReady").value(true))
                 .andExpect(jsonPath("$.data.policy.triggerEventIdempotencyReady").value(true))
                 .andExpect(jsonPath("$.data.policy.cronMetadataReady").value(true))
-                .andExpect(jsonPath("$.data.policy.cronScannerReady").value(false))
+                .andExpect(jsonPath("$.data.policy.cronScannerReady").value(true))
                 .andExpect(jsonPath("$.data.policy.webhookDefaultDisabled").value(true))
                 .andExpect(jsonPath("$.data.policy.secretPlaintextStored").value(false))
                 .andExpect(jsonPath("$.data.policy.directRunnerAdapterCallAllowed").value(false))

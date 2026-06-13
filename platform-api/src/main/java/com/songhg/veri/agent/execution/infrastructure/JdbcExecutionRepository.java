@@ -203,6 +203,11 @@ public class JdbcExecutionRepository implements ExecutionRepository {
     }
 
     @Override
+    public List<ExecutionTrigger> dueCronTriggers(Instant now, int limit) {
+        return mapper.dueCronTriggers(now, limit);
+    }
+
+    @Override
     public List<ExecutionTrigger> triggers(ExecutionTriggerQuery query) {
         return mapper.triggers(query);
     }

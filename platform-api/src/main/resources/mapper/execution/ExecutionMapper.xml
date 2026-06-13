@@ -562,6 +562,17 @@
         where id = #{id}
     </select>
 
+    <select id="dueCronTriggers" resultMap="triggerMap">
+        select <include refid="triggerColumns"/>
+        from execution_trigger
+        where trigger_type = 'CRON'
+          and status = 'ENABLED'
+          and next_fire_at is not null
+          and next_fire_at &lt;= #{now}
+        order by next_fire_at asc, updated_at asc
+        limit #{limit}
+    </select>
+
     <select id="triggers" resultMap="triggerMap">
         select <include refid="triggerColumns"/>
         from execution_trigger

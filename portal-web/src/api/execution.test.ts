@@ -53,7 +53,7 @@ describe('WP9 execution API helpers', () => {
       node_heartbeat_timeout_seconds: '120',
       default_run_timeout_seconds: '3600',
       recovery_batch_size: '20',
-      policy: { schedulerLoopReady: true, cronScannerReady: false }
+      policy: { schedulerLoopReady: true, cronScannerReady: true }
     })).toMatchObject({
       service: 'execution',
       schedulerEnabled: true,
@@ -61,7 +61,7 @@ describe('WP9 execution API helpers', () => {
       cronEnabled: false,
       schedulerIntervalMs: 1000,
       schedulerTickBatchSize: 4,
-      policy: { schedulerLoopReady: true, cronScannerReady: false }
+      policy: { schedulerLoopReady: true, cronScannerReady: true }
     });
 
     expect(normalizeExecutionPlanList({

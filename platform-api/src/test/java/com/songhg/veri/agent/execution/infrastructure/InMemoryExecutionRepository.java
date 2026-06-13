@@ -287,6 +287,19 @@ public class InMemoryExecutionRepository implements ExecutionRepository {
     }
 
     @Override
+    public List<ExecutionTrigger> dueCronTriggers(Instant now, int limit) {
+        return triggers.values().stream()
+                .filter(trigger -> "CRON".equals(trigger.triggerType()))
+                .filter(trigger -> "ENABLED".equals(trigger.status()))
+                .filter(trigger -> trigger.nextFireAt() != null && !trigger.nextFireAt().isAfter(now))
+                .sorted(Comparator
+                        .comparing(ExecutionTrigger::nextFireAt)
+                        .thenComparing(ExecutionTrigger::updatedAt))
+                .limit(limit)
+                .toList();
+    }
+
+    @Override
     public List<ExecutionTrigger> triggers(ExecutionTriggerQuery query) {
         return filteredTriggers(query)
                 .skip(query.offset())

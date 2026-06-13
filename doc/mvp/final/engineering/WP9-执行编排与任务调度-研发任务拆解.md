@@ -121,10 +121,10 @@ M6A 前端基础闭环已完成 `execution.ts` API client、`#execution` 权限�
 | WP9-7.1 后端测试 | P0 | 质量工程师、服务端架构师 | plan、DAG、run、queue、dispatch、trigger、permission、audit 测试 | 主路径和错误路径覆盖 | `mvn -B -pl platform-api test` |
 | WP9-7.2 前端测试 | P0 | 质量工程师、前端工程师 | api helper、权限、计划表单、运行状态 helper | 稳定通过 | `cd portal-web && npm test` |
 | WP9-7.3 DB validation | P0 | 质量工程师、服务端架构师 | WP9 表、约束、索引、权限纳入 validation | 临时库迁移和复跑通过 | DB validation |
-| WP9-7.4 Scheduler smoke | P0 | 质量工程师 | managed smoke 覆盖 scheduler tick、WP6 dispatch、report handoff、disabled noop、失败脱敏和配置边界 | 默认不访问外部网络；release gate 显式启用 | `scripts/wp9_scheduler_smoke.sh` |
+| WP9-7.4 Scheduler smoke | P0 | 质量工程师 | managed smoke 覆盖 scheduler tick、CRON scanner、WP6 dispatch、report handoff、disabled noop、失败脱敏和配置边界 | 默认不访问外部网络；release gate 显式启用 | `scripts/wp9_scheduler_smoke.sh` |
 | WP9-7.5 Quality gate | P0 | 质量工程师 | `scripts/wp9_quality_gate.sh` 聚合后端、前端、构建、DB、Playwright 和可选 scheduler smoke | release 模式显式要求 scheduler smoke | `scripts/wp9_quality_gate.sh` |
 
-M7A 已新增 `scripts/wp9_quality_gate.sh` 与 `scripts/wp9_scheduler_smoke.sh`。开发模式默认执行 WP9 脚本语法、后端定向/OpenAPI/权限测试、前端 WP9 Vitest、Playwright smoke、前端构建和 DB validation；release 模式通过 `WP9_GATE_MODE=release WP9_SCHEDULER_SMOKE=managed` 要求 managed scheduler smoke。生产 cron scanner、供应商 webhook 插件样例、执行摘要导出和外部 webhook HTTP smoke 仍归后续 M7/M8 切片。
+M7A 已新增 `scripts/wp9_quality_gate.sh` 与 `scripts/wp9_scheduler_smoke.sh`。开发模式默认执行 WP9 脚本语法、后端定向/OpenAPI/权限测试、前端 WP9 Vitest、Playwright smoke、前端构建和 DB validation；release 模式通过 `WP9_GATE_MODE=release WP9_SCHEDULER_SMOKE=managed` 要求 managed scheduler smoke。M7B 已补生产 CRON scanner 最小闭环，scheduler tick 会在 recovery/claim 前扫描到期 CRON trigger，使用 trigger event 和 run requestKey 幂等创建 CRON run，并推进 `nextFireAt`。供应商 webhook 插件样例、执行摘要导出和外部 webhook HTTP smoke 仍归后续 M7/M8 切片。
 
 ## 12. Epic 8：文档和交付
 

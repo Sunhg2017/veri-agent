@@ -51,7 +51,7 @@ public class ExecutionHealthService {
                         Map.entry("webhookSignatureReady", true),
                         Map.entry("triggerEventIdempotencyReady", true),
                         Map.entry("cronMetadataReady", true),
-                        Map.entry("cronScannerReady", false),
+                        Map.entry("cronScannerReady", true),
                         Map.entry("webhookDefaultDisabled", !properties.webhookEnabled()),
                         Map.entry("cronDefaultDisabled", !properties.cronEnabled()),
                         Map.entry("schedulerDefaultDisabled", !properties.schedulerEnabled()),

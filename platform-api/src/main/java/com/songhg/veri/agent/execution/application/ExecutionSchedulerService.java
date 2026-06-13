@@ -4,6 +4,7 @@ import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.trace.TraceContext;
 import com.songhg.veri.agent.execution.application.command.CompleteExecutionNodeRunCommand;
 import com.songhg.veri.agent.execution.application.command.DispatchExecutionNodeRunCommand;
+import com.songhg.veri.agent.execution.application.view.ExecutionCronScanResponse;
 import com.songhg.veri.agent.execution.application.view.ExecutionQueueClaimResponse;
 import com.songhg.veri.agent.execution.application.view.ExecutionQueueRecoveryResponse;
 import com.songhg.veri.agent.execution.application.view.ExecutionSchedulerTickResponse;
@@ -33,10 +34,16 @@ public class ExecutionSchedulerService implements SchedulingConfigurer {
     private static final int MAX_ERROR_SUMMARY_LENGTH = 512;
 
     private final ExecutionRunService executionRunService;
+    private final ExecutionTriggerService executionTriggerService;
     private final ExecutionProperties properties;
 
-    public ExecutionSchedulerService(ExecutionRunService executionRunService, ExecutionProperties properties) {
+    public ExecutionSchedulerService(
+            ExecutionRunService executionRunService,
+            ExecutionTriggerService executionTriggerService,
+            ExecutionProperties properties
+    ) {
         this.executionRunService = executionRunService;
+        this.executionTriggerService = executionTriggerService;
         this.properties = properties;
     }
 
@@ -80,9 +87,10 @@ public class ExecutionSchedulerService implements SchedulingConfigurer {
     /**
      * Runs one managed scheduler tick through existing queue leases and dispatch contracts.
      *
-     * <p>The scheduler never calls runner adapters directly. It first lets recovery release expired claims, then claims
-     * bounded queued work and dispatches only through `ExecutionRunService`, so active claim tokens, state transitions
-     * and summary redaction stay centralized in the execution control plane.</p>
+     * <p>The scheduler first asks the trigger control plane to materialize due CRON events, then lets recovery release
+     * expired claims, and finally claims bounded queued work. Runner dispatch still only goes through
+     * `ExecutionRunService`, so trigger idempotency, active claim tokens, state transitions and summary redaction stay
+     * centralized in their owning services.</p>
      */
     public ExecutionSchedulerTickResponse runOnce() {
         String traceId = TraceContext.getOrCreateTraceId();
@@ -90,9 +98,10 @@ public class ExecutionSchedulerService implements SchedulingConfigurer {
         String workerId = properties.effectiveSchedulerWorkerId();
         int tickBatchSize = properties.effectiveSchedulerTickBatchSize();
         if (!properties.schedulerEnabled()) {
-            return newTickResponse(false, workerId, tickBatchSize, null, 0, 0, 0, 0, traceId, tickedAt);
+            return newTickResponse(false, workerId, tickBatchSize, null, null, 0, 0, 0, 0, traceId, tickedAt);
         }
 
+        ExecutionCronScanResponse cronScan = executionTriggerService.scanDueCronTriggers(tickBatchSize);
         ExecutionQueueRecoveryResponse recovery = executionRunService.recoverExpiredQueueClaims();
         int claimedNodeCount = 0;
         int dispatchedNodeCount = 0;
@@ -113,6 +122,7 @@ public class ExecutionSchedulerService implements SchedulingConfigurer {
                 true,
                 workerId,
                 tickBatchSize,
+                cronScan,
                 recovery,
                 claimedNodeCount,
                 dispatchedNodeCount,
@@ -207,6 +217,7 @@ public class ExecutionSchedulerService implements SchedulingConfigurer {
             boolean schedulerEnabled,
             String workerId,
             int tickBatchSize,
+            ExecutionCronScanResponse cronScan,
             ExecutionQueueRecoveryResponse recovery,
             int claimedNodeCount,
             int dispatchedNodeCount,
@@ -218,9 +229,13 @@ public class ExecutionSchedulerService implements SchedulingConfigurer {
         int recoveredExpiredClaimCount = recovery == null ? 0 : recovery.expiredClaimCount();
         int recoveredRequeuedNodeCount = recovery == null ? 0 : recovery.requeuedNodeCount();
         int recoveredTimedOutNodeCount = recovery == null ? 0 : recovery.timedOutNodeCount();
+        int cronScannedTriggerCount = cronScan == null ? 0 : cronScan.scannedTriggerCount();
+        int cronTriggeredRunCount = cronScan == null ? 0 : cronScan.triggeredRunCount();
+        int cronFailedTriggerCount = cronScan == null ? 0 : cronScan.failedTriggerCount();
         boolean noop = recoveredExpiredClaimCount == 0
                 && recoveredRequeuedNodeCount == 0
                 && recoveredTimedOutNodeCount == 0
+                && cronScannedTriggerCount == 0
                 && claimedNodeCount == 0;
         return new ExecutionSchedulerTickResponse(
                 schedulerEnabled,
@@ -229,6 +244,9 @@ public class ExecutionSchedulerService implements SchedulingConfigurer {
                 recoveredExpiredClaimCount,
                 recoveredRequeuedNodeCount,
                 recoveredTimedOutNodeCount,
+                cronScannedTriggerCount,
+                cronTriggeredRunCount,
+                cronFailedTriggerCount,
                 claimedNodeCount,
                 dispatchedNodeCount,
                 completedNodeCount,

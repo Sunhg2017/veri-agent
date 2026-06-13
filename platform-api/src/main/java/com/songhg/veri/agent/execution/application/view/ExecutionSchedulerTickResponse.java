@@ -16,6 +16,12 @@ public record ExecutionSchedulerTickResponse(
         int recoveredRequeuedNodeCount,
         @Schema(description = "Nodes timed out by recovery before claiming new work")
         int recoveredTimedOutNodeCount,
+        @Schema(description = "Due cron triggers inspected before queue recovery")
+        int cronScannedTriggerCount,
+        @Schema(description = "Runs created or replayed by cron scanning")
+        int cronTriggeredRunCount,
+        @Schema(description = "Due cron triggers that failed to create a run")
+        int cronFailedTriggerCount,
         @Schema(description = "Claims acquired by this tick")
         int claimedNodeCount,
         @Schema(description = "API_TEST nodes dispatched to WP6 by this tick")
