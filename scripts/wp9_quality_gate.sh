@@ -43,6 +43,17 @@ scheduler_smoke_requested() {
   esac
 }
 
+webhook_http_smoke_requested() {
+  case "${WP9_WEBHOOK_HTTP_SMOKE:-0}" in
+    1|true|TRUE|managed|auto|external)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
 validate_release_gate() {
   if ! is_release_gate; then
     return
@@ -51,7 +62,11 @@ validate_release_gate() {
     echo "WP9 release gate requires managed scheduler smoke. Set WP9_SCHEDULER_SMOKE=managed to run the local scheduler smoke." >&2
     exit 2
   fi
-  echo "== wp9 release gate mode: managed scheduler smoke explicitly required =="
+  if ! webhook_http_smoke_requested; then
+    echo "WP9 release gate requires webhook HTTP smoke. Set WP9_WEBHOOK_HTTP_SMOKE=managed for local managed smoke or external for an already running service." >&2
+    exit 2
+  fi
+  echo "== wp9 release gate mode: managed scheduler smoke and webhook HTTP smoke explicitly required =="
 }
 
 run_step() {
@@ -90,6 +105,26 @@ run_scheduler_smoke() {
   esac
 }
 
+run_webhook_http_smoke() {
+  case "${WP9_WEBHOOK_HTTP_SMOKE:-0}" in
+    1|true|TRUE|managed|auto)
+      run_step "wp9 managed webhook HTTP smoke" \
+        env WP9_WEBHOOK_SMOKE_MODE=managed bash "$ROOT_DIR/scripts/wp9_webhook_http_smoke.sh"
+      ;;
+    external)
+      run_step "wp9 external webhook HTTP smoke" \
+        env WP9_WEBHOOK_SMOKE_MODE=external bash "$ROOT_DIR/scripts/wp9_webhook_http_smoke.sh"
+      ;;
+    0|false|FALSE|"")
+      echo "== wp9 webhook HTTP smoke skipped; set WP9_WEBHOOK_HTTP_SMOKE=managed or external to run it =="
+      ;;
+    *)
+      echo "Unsupported WP9_WEBHOOK_HTTP_SMOKE=${WP9_WEBHOOK_HTTP_SMOKE}; use managed, external, auto, 1, or 0." >&2
+      exit 2
+      ;;
+  esac
+}
+
 main() {
   validate_release_gate
 
@@ -97,7 +132,8 @@ main() {
     check_script_syntax \
       "$ROOT_DIR/scripts/wp9_quality_gate.sh" \
       "$ROOT_DIR/scripts/wp9_frontend_e2e_smoke.sh" \
-      "$ROOT_DIR/scripts/wp9_scheduler_smoke.sh"
+      "$ROOT_DIR/scripts/wp9_scheduler_smoke.sh" \
+      "$ROOT_DIR/scripts/wp9_webhook_http_smoke.sh"
 
   run_step "wp9 backend and OpenAPI tests" \
     mvn -B -pl platform-api -Dtest=ExecutionHealthControllerTest,ExecutionPlanControllerTest,ExecutionRunControllerTest,ExecutionRunDispatchControllerTest,ExecutionTriggerControllerTest,ExecutionDagValidatorTest,ExecutionSchedulerServiceTest,OpenApiContractTest,PermissionCodeUsageTest test
@@ -123,6 +159,7 @@ main() {
   fi
 
   run_scheduler_smoke
+  run_webhook_http_smoke
 
   if is_plan_only; then
     echo "WP9 quality gate plan completed; no validation commands executed."
