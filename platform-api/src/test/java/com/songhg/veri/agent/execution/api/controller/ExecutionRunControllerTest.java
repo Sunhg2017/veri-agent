@@ -3,7 +3,10 @@ package com.songhg.veri.agent.execution.api.controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jayway.jsonpath.JsonPath;
 import com.songhg.veri.agent.apiautomation.application.port.ApiAutomationRepository;
+import com.songhg.veri.agent.apiautomation.domain.ApiAutomationCase;
+import com.songhg.veri.agent.apiautomation.domain.ApiAutomationGenerationTask;
 import com.songhg.veri.agent.apiautomation.domain.ApiAutomationScriptBundle;
+import com.songhg.veri.agent.apiautomation.domain.ApiAutomationSpec;
 import com.songhg.veri.agent.auth.application.AuthTokenService;
 import com.songhg.veri.agent.auth.domain.AuthUserRecord;
 import com.songhg.veri.agent.execution.application.port.ExecutionRepository;
@@ -23,9 +26,12 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -241,6 +247,71 @@ class ExecutionRunControllerTest {
     }
 
     @Test
+    void dispatchesClaimedApiTestNodeThroughWp6DisabledRunnerAndSanitizesSummary() throws Exception {
+        UUID bundleId = approvedBundle("project-alpha");
+        String ownerToken = userAccessToken(List.of("ProjectOwner@PROJECT:project-alpha"));
+        String adminToken = userAccessToken(List.of("SuperAdmin"));
+        UUID planId = createPlan(bundleId, ownerToken, "READY");
+        UUID runId = triggerRun(planId, ownerToken, "dispatch-disabled-smoke");
+
+        MvcResult claimed = mockMvc.perform(post("/api/v1/execution/internal/queue/claims")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
+                        .param("workerId", "worker-dispatch-disabled"))
+                .andExpect(status().isCreated())
+                .andReturn();
+        UUID nodeRunId = UUID.fromString(JsonPath.read(claimed.getResponse().getContentAsString(), "$.data.nodeRunId"));
+        String claimToken = JsonPath.read(claimed.getResponse().getContentAsString(), "$.data.claimToken");
+
+        mockMvc.perform(post("/api/v1/execution/internal/queue/node-runs/{id}/dispatch", nodeRunId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "claimToken", claimToken,
+                                "baseUrl", "https://api.example.test/billing?token=must-not-store",
+                                "environmentId", "qa",
+                                "secretRefs", List.of("secret://wp9/runtime-token")
+                        ))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("baseUrl 不允许携带 userInfo/query/fragment"));
+
+        mockMvc.perform(post("/api/v1/execution/internal/queue/node-runs/{id}/dispatch", nodeRunId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "claimToken", claimToken,
+                                "baseUrl", "https://api.example.test/billing",
+                                "environmentId", "qa",
+                                "secretRefs", List.of("secret://wp9/runtime-token")
+                        ))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.id").value(runId.toString()))
+                .andExpect(jsonPath("$.data.status").value("FAILED"))
+                .andExpect(jsonPath("$.data.resultSummary.runnerDispatched").value(true))
+                .andExpect(jsonPath("$.data.resultSummary.blockedNodeCount").value(2))
+                .andExpect(jsonPath("$.data.nodes[0].status").value("BLOCKED"))
+                .andExpect(jsonPath("$.data.nodes[0].externalRunId").exists())
+                .andExpect(jsonPath("$.data.nodes[0].errorCode").value("RUNNER_DISABLED"))
+                .andExpect(jsonPath("$.data.nodes[0].resultSummary.runnerDispatched").value(true))
+                .andExpect(jsonPath("$.data.nodes[0].resultSummary.wp6DispatchReady").value(true))
+                .andExpect(jsonPath("$.data.nodes[0].resultSummary.wp6Status").value("BLOCKED"))
+                .andExpect(jsonPath("$.data.nodes[0].resultSummary.wp6RunnerMode").value("DISABLED"))
+                .andExpect(jsonPath("$.data.nodes[0].resultSummary.wp6CaseCount").value(2))
+                .andExpect(jsonPath("$.data.nodes[0].resultSummary.wp6ResultCounts.BLOCKED").value(2))
+                .andExpect(jsonPath("$.data.nodes[0].resultSummary.wp6BaseUrlHost").value("api.example.test"))
+                .andExpect(jsonPath("$.data.nodes[0].resultSummary.wp6BaseUrlDigest").exists())
+                .andExpect(jsonPath("$.data.nodes[0].resultSummary.rawBaseUrlStored").value(false))
+                .andExpect(jsonPath("$.data.nodes[0].resultSummary.secretRefsStored").value(false))
+                .andExpect(jsonPath("$.data.nodes[0].resultSummary.runtimeSecretRefCount").value(1))
+                .andExpect(jsonPath("$.data.nodes[1].status").value("BLOCKED"));
+
+        mockMvc.perform(get("/api/v1/execution/runs/{id}", runId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken))
+                .andExpect(status().isOk())
+                .andExpect(content().string(not(containsString("secret://wp9/runtime-token"))))
+                .andExpect(content().string(not(containsString("https://api.example.test/billing"))));
+    }
+
+    @Test
     void completingClaimedFailureBlocksFailFastDependentsAndAllowsNoopClaim() throws Exception {
         UUID bundleId = approvedBundle("project-alpha");
         String ownerToken = userAccessToken(List.of("ProjectOwner@PROJECT:project-alpha"));
@@ -450,12 +521,77 @@ class ExecutionRunControllerTest {
     }
 
     private UUID approvedBundle(String projectId) {
+        UUID specId = UUID.randomUUID();
+        UUID taskId = UUID.randomUUID();
         UUID bundleId = UUID.randomUUID();
         Instant now = Instant.now();
+        apiAutomationRepository.insertSpec(new ApiAutomationSpec(
+                specId,
+                projectId,
+                "TEXT",
+                null,
+                "wp9-dispatch-openapi",
+                "2026.06",
+                "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+                128,
+                "{}",
+                "{}",
+                "PARSED",
+                "test-parser",
+                2,
+                null,
+                "tester",
+                "tester",
+                now,
+                now,
+                now
+        ));
+        apiAutomationRepository.insertGenerationTask(new ApiAutomationGenerationTask(
+                taskId,
+                projectId,
+                specId,
+                "wp9-dispatch-" + bundleId,
+                "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+                "FALLBACK_ONLY",
+                "[\"SMOKE\"]",
+                "SUCCEEDED",
+                "wp6-api-automation-v1",
+                "test",
+                null,
+                true,
+                2,
+                2,
+                "{}",
+                null,
+                "tester",
+                "tester",
+                now,
+                now
+        ));
+        apiAutomationRepository.insertAutomationCase(automationCase(
+                taskId,
+                projectId,
+                specId,
+                "GET /v1/orders",
+                "GET",
+                "/v1/orders",
+                "SMOKE",
+                now
+        ));
+        apiAutomationRepository.insertAutomationCase(automationCase(
+                taskId,
+                projectId,
+                specId,
+                "POST /v1/orders",
+                "POST",
+                "/v1/orders",
+                "SMOKE",
+                now
+        ));
         apiAutomationRepository.insertScriptBundle(new ApiAutomationScriptBundle(
                 bundleId,
                 projectId,
-                UUID.randomUUID(),
+                taskId,
                 "APPROVED",
                 "bundle-digest-" + bundleId,
                 2,
@@ -475,6 +611,38 @@ class ExecutionRunControllerTest {
                 now
         ));
         return bundleId;
+    }
+
+    private ApiAutomationCase automationCase(
+            UUID taskId,
+            String projectId,
+            UUID specId,
+            String title,
+            String method,
+            String path,
+            String coverageType,
+            Instant now
+    ) {
+        return new ApiAutomationCase(
+                UUID.randomUUID(),
+                taskId,
+                projectId,
+                specId,
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                title,
+                method,
+                path,
+                coverageType,
+                200,
+                "{}",
+                "{}",
+                "FALLBACK",
+                "READY",
+                now,
+                now
+        );
     }
 
     private Map<String, Object> planRequest(UUID bundleId, String status) {

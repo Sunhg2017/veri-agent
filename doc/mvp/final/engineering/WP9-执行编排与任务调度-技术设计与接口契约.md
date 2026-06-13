@@ -56,7 +56,7 @@ flowchart LR
 
 ### 2.1 当前已落地实现
 
-截至 2026-06-13 M3D，本仓库已完成 `ExecutionPlanController`、`ExecutionRunController`、`ExecutionPlanService`、`ExecutionRunService`、`ExecutionDagValidator`、`ExecutionRepository`、`JdbcExecutionRepository`、`ExecutionMapper` 和 local 测试仓储。已支持 plan 创建、列表、详情、更新、归档、dry-run、READY 计划手动触发、run/node run 初始化、requestKey 幂等回放、run 列表、run 详情、run cancel、控制面 retry、内部队列 claim、claim heartbeat、过期 claim recovery、节点完成回传、依赖推进和 run 状态聚合；health policy 中 `planCrudReady=true`、`dagDryRunReady=true`、`manualTriggerReady=true`、`cancelRetryReady=true`、`queueClaimReady=true`、`heartbeatRecoveryReady=true`、`stateAggregationReady=true`。
+截至 2026-06-13 M4A，本仓库已完成 `ExecutionPlanController`、`ExecutionRunController`、`ExecutionPlanService`、`ExecutionRunService`、`ExecutionDagValidator`、`ExecutionRepository`、`JdbcExecutionRepository`、`ExecutionMapper` 和 local 测试仓储。已支持 plan 创建、列表、详情、更新、归档、dry-run、READY 计划手动触发、run/node run 初始化、requestKey 幂等回放、run 列表、run 详情、run cancel、控制面 retry、内部队列 claim、claim heartbeat、过期 claim recovery、节点完成回传、依赖推进、run 状态聚合，以及 claimed `API_TEST` 节点通过 WP6 应用服务创建 API automation run 并同步脱敏摘要；health policy 中 `planCrudReady=true`、`dagDryRunReady=true`、`manualTriggerReady=true`、`cancelRetryReady=true`、`queueClaimReady=true`、`heartbeatRecoveryReady=true`、`stateAggregationReady=true`、`wp6DispatchReady=true`。
 
 M2 的资源校验通过 `ApiAutomationBundleScopeService` 查询 WP6 应用服务暴露的 bundle scope，不直读 WP6 表，不调用 runner adapter。`API_TEST` 节点要求 `apiAutomationBundleId` 存在、同项目且脚本包状态为 `APPROVED`；否则返回 `EXECUTION_DAG_INVALID`，具体 issue code 为 `EXECUTION_RESOURCE_NOT_FOUND`、`EXECUTION_RESOURCE_SCOPE_DENIED` 或 `EXECUTION_RESOURCE_NOT_READY`。
 
@@ -67,6 +67,8 @@ M3B 的取消和重试仍只处理 orchestration 记录，不调用 runner cance
 M3C 增加内部调度控制面，不启用后台 scheduler 线程、不调用 WP6 runner。`POST /internal/queue/claims?workerId=...` 按创建时间和 nodeKey 认领一个 `QUEUED` node run，写入 `execution_queue_claim`，再用条件更新将节点推进为 `RUNNING`；若并发导致节点状态变化，则释放 claim 并尝试下一个候选。`POST /internal/queue/node-runs/{id}/complete` 使用 claimToken 完成节点，支持 `SUCCEEDED/SKIPPED/FAILED/TIMEOUT/BLOCKED`，只保存脱敏 resultSummary；完成后根据依赖关系把满足依赖的 `PENDING` 节点推进为 `QUEUED`，或在 fail-fast 依赖失败时标记为 `BLOCKED`，并聚合 run 为 `RUNNING/SUCCEEDED/FAILED/PARTIAL_SUCCESS/TIMEOUT`。
 
 M3D 补齐内部 heartbeat 与 recovery 控制面，仍不启用后台 scheduler 线程、不调用 WP6 runner。`POST /internal/queue/claims/heartbeat` 使用 claimToken 续约 active claim，并同步 node heartbeat；claim 已过期、已完成或节点不在 `RUNNING` 时拒绝。`POST /internal/queue/recover-expired` 扫描过期 `CLAIMED` claim，先把 claim 标记为 `EXPIRED` 释放 active 唯一索引，再根据 plan node timeout 决定把节点重排为 `QUEUED` 或标记为 `TIMEOUT`，最后聚合 run 状态。没有 active claim 的 stale `RUNNING` 节点也会在超过节点 timeout 后收敛为 `TIMEOUT`。
+
+M4A 接入 claimed `API_TEST` 节点的 WP6 dispatch，但仍不启用后台 scheduler 线程。`POST /internal/queue/node-runs/{id}/dispatch` 要求 active claimToken、node run 仍为 `RUNNING` 且 plan node 类型为 `API_TEST`；请求体携带运行时 `baseUrl`、可选 `environmentId/caseIds/secretRefs`，WP9 不从 plan 摘要中反解 secretRefs，也不持久化 raw baseUrl 或 secretRef 明文。服务端通过 `ApiAutomationService#createRun` 创建 WP6 run，复用 WP6 runner-enabled、allowlist、secretRef 解析、host/digest 持久化和 runner 输出脱敏策略，再把 WP6 `PASSED/BLOCKED/TIMEOUT/FAILED` 归一为 WP9 `SUCCEEDED/BLOCKED/TIMEOUT/FAILED`。WP9 node summary 只保存 `wp6RunId`、`wp6Status`、`wp6RunnerMode`、case/result 计数、baseUrl host/digest、traceId 和安全策略布尔值。
 
 ## 3. 状态机
 
@@ -317,6 +319,20 @@ FAILED -> QUEUED   (retry attempt)
 
 节点完成请求体中的 `stdout`、`stderr`、`requestBody`、`responseBody`、`variables`、`environment`、`secret`、`token`、`password`、`authorization` 等字段会被丢弃；安全 key 中夹带的敏感文本会被替换为 `[REDACTED]`。WP9 只保存聚合证据，不保存 runner 原始输出。
 
+### 内部 API_TEST dispatch 请求
+
+```json
+{
+  "claimToken": "wp9_claim_xxx",
+  "baseUrl": "https://api.example.test/billing",
+  "environmentId": "qa",
+  "caseIds": ["case-uuid"],
+  "secretRefs": ["secret://wp6/runtime-token"]
+}
+```
+
+`baseUrl` 和 `secretRefs` 是运行时输入，WP9 只透传给 WP6 应用服务；持久化摘要仅包含 WP6 run ID、状态、runnerMode、case/result 计数、baseUrl host/digest、traceId、`runtimeSecretRefCount` 以及 `rawBaseUrlStored=false`、`secretRefsStored=false`、`rawOutputStored=false`、`requestResponseStored=false`。
+
 ### 内部 claim heartbeat 请求
 
 ```json
@@ -341,7 +357,7 @@ FAILED -> QUEUED   (retry attempt)
 
 | 节点类型 | P0/P1 | 集成方式 |
 |---|---|---|
-| `API_TEST` | P0 | 调用 WP6 应用服务创建 run，传递 bundle、environment、baseUrlRef、secretRefs 和 caseIds。 |
+| `API_TEST` | P0 | 调用 WP6 应用服务创建 run，传递 bundle、运行时 baseUrl、environment、secretRefs 和 caseIds；本切片不从 plan 的 `baseUrlRef` 自动解析环境值。 |
 | `UI_TEST` | P1 | 预留 WP7 runner port，未实现时 dryRun 返回 `RUNNER_NOT_READY`。 |
 | `SETUP` | P1 | 预留 utility runner，不执行数据库直连脚本。 |
 | `VERIFY` | P1 | 预留验证节点，只保存摘要。 |
@@ -391,6 +407,9 @@ FAILED -> QUEUED   (retry attempt)
 | `EXECUTION_QUEUE_CLAIM_NODE_MISMATCH` | claimToken 与路径 nodeRunId 不匹配。 |
 | `EXECUTION_QUEUE_CLAIM_NOT_ACTIVE` | claim 已完成、已释放或节点不在 RUNNING。 |
 | `EXECUTION_NODE_STATUS_INVALID` | 节点完成状态不是允许的终态。 |
+| `EXECUTION_DISPATCH_BASE_URL_REQUIRED` | API_TEST dispatch 缺少运行时 baseUrl。 |
+| `EXECUTION_NODE_DISPATCH_UNSUPPORTED` | 当前 claimed node 不是可 dispatch 的 API_TEST/WP6_API 节点。 |
+| `EXECUTION_DISPATCH_CASE_IDS_INVALID` | plan node 中的 caseIds 不是合法 UUID 列表。 |
 
 ## 11. 安全与兼容
 
@@ -402,16 +421,16 @@ FAILED -> QUEUED   (retry attempt)
 
 ## 12. 当前实现切片建议
 
-M1、M2、M3A、M3B、M3C 和 M3D 已完成：
+M1、M2、M3A、M3B、M3C、M3D 和 M4A 已完成：
 
-1. 权限、DB、health、plan CRUD、DAG validator、plan dry-run、手动触发、run/node run 初始化、取消、控制面重试、内部 queue claim、claim heartbeat、过期 claim recovery、节点完成回传、依赖推进和 run 聚合。
+1. 权限、DB、health、plan CRUD、DAG validator、plan dry-run、手动触发、run/node run 初始化、取消、控制面重试、内部 queue claim、claim heartbeat、过期 claim recovery、节点完成回传、API_TEST 到 WP6 应用服务 dispatch、依赖推进和 run 聚合。
 2. `API_TEST` 资源 scope 校验通过 WP6 应用服务端口，不直读 WP6 表。
 3. 状态保护覆盖 `DRAFT/READY/DISABLED/ARCHIVED`，归档必须走专用 endpoint。
-4. dry-run 不创建 run；手动触发只创建 orchestration 记录；内部 claim 只推进 WP9 控制面状态，不调度 runner、不保存 secret、变量明文或 runner 原始输出。
+4. dry-run 不创建 run；手动触发只创建 orchestration 记录；内部 dispatch 只通过 WP6 应用服务，不直连 runner adapter，不保存 secret、变量明文、raw baseUrl 或 runner 原始输出。
 
 后续切片继续推进：
 
-1. API_TEST 节点接 WP6 run。
+1. baseUrlRef 环境解析、secretRef 计划输入到运行时的安全中继和后台 scheduler loop。
 2. webhook/cron 触发控制面。
 3. 前端计划列表、DAG 预览、运行详情和取消重试。
 4. WP9 quality gate 聚合后端、前端、DB 和 smoke。

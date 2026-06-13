@@ -8,6 +8,7 @@ import com.songhg.veri.agent.common.openapi.ApiVersion;
 import com.songhg.veri.agent.common.trace.TraceContext;
 import com.songhg.veri.agent.execution.application.ExecutionRunService;
 import com.songhg.veri.agent.execution.application.command.CompleteExecutionNodeRunCommand;
+import com.songhg.veri.agent.execution.application.command.DispatchExecutionNodeRunCommand;
 import com.songhg.veri.agent.execution.application.command.HeartbeatExecutionQueueClaimCommand;
 import com.songhg.veri.agent.execution.application.command.TriggerExecutionRunCommand;
 import com.songhg.veri.agent.execution.application.query.ExecutionRunPageRequest;
@@ -95,6 +96,18 @@ public class ExecutionRunController {
                 ? new CompleteExecutionNodeRunCommand(id, null, null, null, null, null)
                 : command.withNodeRunId(id);
         return service.completeClaimedNodeRun(effectiveCommand);
+    }
+
+    @PostMapping("/internal/queue/node-runs/{id}/dispatch")
+    @RequirePermission(PermissionCodes.EXECUTION_ADMIN)
+    public ExecutionRunDetailResponse dispatchClaimedNodeRun(
+            @PathVariable UUID id,
+            @Valid @RequestBody(required = false) DispatchExecutionNodeRunCommand command
+    ) {
+        DispatchExecutionNodeRunCommand effectiveCommand = command == null
+                ? new DispatchExecutionNodeRunCommand(id, null, null, null, null, null)
+                : command.withNodeRunId(id);
+        return service.dispatchClaimedApiTestNodeRun(effectiveCommand);
     }
 
     @PostMapping("/internal/queue/claims/heartbeat")

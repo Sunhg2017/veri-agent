@@ -3,11 +3,17 @@ package com.songhg.veri.agent.execution.application;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.songhg.veri.agent.apiautomation.application.ApiAutomationService;
+import com.songhg.veri.agent.apiautomation.application.command.CreateApiAutomationRunCommand;
+import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationRunDetailResponse;
+import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationRunResponse;
+import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationRunResultResponse;
 import com.songhg.veri.agent.common.api.PageResponse;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
 import com.songhg.veri.agent.common.trace.TraceContext;
 import com.songhg.veri.agent.execution.application.command.CompleteExecutionNodeRunCommand;
+import com.songhg.veri.agent.execution.application.command.DispatchExecutionNodeRunCommand;
 import com.songhg.veri.agent.execution.application.command.HeartbeatExecutionQueueClaimCommand;
 import com.songhg.veri.agent.execution.application.command.TriggerExecutionRunCommand;
 import com.songhg.veri.agent.execution.application.port.ExecutionRepository;
@@ -37,10 +43,14 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.util.StringUtils;
 
 @Service
@@ -80,23 +90,32 @@ public class ExecutionRunService {
     private final ExecutionDagValidator dagValidator;
     private final ExecutionPlatformContextClient contextClient;
     private final ExecutionActorResolver actorResolver;
+    private final ApiAutomationService apiAutomationService;
     private final ObjectMapper objectMapper;
     private final ExecutionProperties properties;
+    private final TransactionTemplate transactionTemplate;
 
     public ExecutionRunService(
             ExecutionRepository repository,
             ExecutionDagValidator dagValidator,
             ExecutionPlatformContextClient contextClient,
             ExecutionActorResolver actorResolver,
+            ApiAutomationService apiAutomationService,
             ObjectMapper objectMapper,
-            ExecutionProperties properties
+            ExecutionProperties properties,
+            ObjectProvider<PlatformTransactionManager> transactionManagers
     ) {
         this.repository = repository;
         this.dagValidator = dagValidator;
         this.contextClient = contextClient;
         this.actorResolver = actorResolver;
+        this.apiAutomationService = apiAutomationService;
         this.objectMapper = objectMapper;
         this.properties = properties;
+        PlatformTransactionManager transactionManager = transactionManagers == null
+                ? null
+                : transactionManagers.getIfAvailable();
+        this.transactionTemplate = transactionManager == null ? null : new TransactionTemplate(transactionManager);
     }
 
     /**
@@ -352,6 +371,129 @@ public class ExecutionRunService {
                 now
         ));
         return aggregateRunAfterNodeCompletion(completed.runId(), now);
+    }
+
+    /**
+     * Dispatches a claimed API_TEST node through the WP6 application service and closes the WP9 node with the
+     * sanitized WP6 run outcome.
+     *
+     * <p>The runtime baseUrl and secretRefs are passed only to WP6. WP9 stores the WP6 run ID, host/digest evidence and
+     * aggregate counts, keeping raw target URLs, secret references and runner payloads out of execution summaries.</p>
+     */
+    public ExecutionRunDetailResponse dispatchClaimedApiTestNodeRun(DispatchExecutionNodeRunCommand command) {
+        if (command == null || command.nodeRunId() == null || !StringUtils.hasText(command.claimToken())) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "EXECUTION_QUEUE_CLAIM_REQUIRED");
+        }
+        if (!StringUtils.hasText(command.baseUrl())) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "EXECUTION_DISPATCH_BASE_URL_REQUIRED");
+        }
+        ApiTestDispatchPreparation preparation = inExecutionTransaction(() -> prepareApiTestDispatch(command));
+        if (preparation.replayResponse() != null) {
+            return preparation.replayResponse();
+        }
+        ApiAutomationRunDetailResponse wp6Run = apiAutomationService.createRun(new CreateApiAutomationRunCommand(
+                preparation.bundleId(),
+                preparation.environmentId(),
+                preparation.baseUrl(),
+                preparation.caseIds(),
+                preparation.timeoutSeconds(),
+                preparation.secretRefs()
+        ));
+        return inExecutionTransaction(() -> completeDispatchedApiTestNodeRun(preparation, wp6Run, command));
+    }
+
+    private ApiTestDispatchPreparation prepareApiTestDispatch(DispatchExecutionNodeRunCommand command) {
+        ExecutionQueueClaim claim = repository.queueClaimByToken(command.claimToken())
+                .orElseThrow(() -> new BusinessException(ErrorCode.INVALID_STATE, "EXECUTION_QUEUE_CLAIM_INVALID"));
+        if (!command.nodeRunId().equals(claim.nodeRunId())) {
+            throw new BusinessException(ErrorCode.INVALID_STATE, "EXECUTION_QUEUE_CLAIM_NODE_MISMATCH");
+        }
+        ExecutionNodeRun nodeRun = repository.nodeRun(command.nodeRunId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "执行节点运行不存在"));
+        Instant now = Instant.now();
+        if ("COMPLETED".equals(claim.status()) && COMPLETABLE_NODE_STATUSES.contains(nodeRun.status())) {
+            return ApiTestDispatchPreparation.replay(detail(requireRun(nodeRun.runId()), false));
+        }
+        if (!"CLAIMED".equals(claim.status()) || !claim.expiresAt().isAfter(now) || !"RUNNING".equals(nodeRun.status())) {
+            throw new BusinessException(ErrorCode.INVALID_STATE, "EXECUTION_QUEUE_CLAIM_NOT_ACTIVE");
+        }
+
+        ExecutionRun run = requireRun(nodeRun.runId());
+        ExecutionPlanNode planNode = repository.planNodes(run.planId()).stream()
+                .filter(node -> node.id().equals(nodeRun.planNodeId()))
+                .findFirst()
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "执行计划节点不存在"));
+        if (!"API_TEST".equals(planNode.nodeType()) || !"WP6_API".equals(nodeRun.runnerType())) {
+            throw new BusinessException(ErrorCode.INVALID_STATE, "EXECUTION_NODE_DISPATCH_UNSUPPORTED");
+        }
+        renewClaimForDispatch(claim, planNode, now);
+        return new ApiTestDispatchPreparation(
+                nodeRun.id(),
+                command.claimToken(),
+                apiAutomationBundleId(planNode),
+                boundedNullableText(command.environmentId(), 128),
+                command.baseUrl(),
+                dispatchCaseIds(command, planNode),
+                planNode.timeoutSeconds(),
+                normalizedDispatchSecretRefs(command.secretRefs()),
+                null
+        );
+    }
+
+    private ExecutionRunDetailResponse completeDispatchedApiTestNodeRun(
+            ApiTestDispatchPreparation preparation,
+            ApiAutomationRunDetailResponse wp6Run,
+            DispatchExecutionNodeRunCommand command
+    ) {
+        ExecutionQueueClaim claim = repository.queueClaimByToken(preparation.claimToken())
+                .orElseThrow(() -> new BusinessException(ErrorCode.INVALID_STATE, "EXECUTION_QUEUE_CLAIM_INVALID"));
+        if (!preparation.nodeRunId().equals(claim.nodeRunId())) {
+            throw new BusinessException(ErrorCode.INVALID_STATE, "EXECUTION_QUEUE_CLAIM_NODE_MISMATCH");
+        }
+        ExecutionNodeRun nodeRun = repository.nodeRun(preparation.nodeRunId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "执行节点运行不存在"));
+        Instant completedAt = Instant.now();
+        if ("COMPLETED".equals(claim.status()) && COMPLETABLE_NODE_STATUSES.contains(nodeRun.status())) {
+            return detail(requireRun(nodeRun.runId()), false);
+        }
+        if (!"CLAIMED".equals(claim.status())
+                || !claim.expiresAt().isAfter(completedAt)
+                || !"RUNNING".equals(nodeRun.status())) {
+            throw new BusinessException(ErrorCode.INVALID_STATE, "EXECUTION_QUEUE_CLAIM_NOT_ACTIVE");
+        }
+        String targetStatus = wp9StatusFromWp6(wp6Run.run().status());
+        ExecutionNodeRun completed = new ExecutionNodeRun(
+                nodeRun.id(),
+                nodeRun.runId(),
+                nodeRun.planNodeId(),
+                targetStatus,
+                nodeRun.attempt(),
+                nodeRun.runnerType(),
+                wp6Run.run().id().toString(),
+                terminalErrorCode(targetStatus, wp6DispatchErrorCode(targetStatus, wp6Run.run())),
+                terminalErrorSummary(targetStatus, wp6Run.run().errorSummary()),
+                mergedSummary(nodeRun.resultSummaryJson(), wp6DispatchSummary(wp6Run, command, completedAt)),
+                completedAt,
+                nodeRun.queuedAt(),
+                nodeRun.startedAt(),
+                completedAt,
+                nodeRun.createdAt(),
+                completedAt
+        );
+        repository.updateNodeRuns(List.of(completed));
+        repository.updateQueueClaim(new ExecutionQueueClaim(
+                claim.id(),
+                claim.nodeRunId(),
+                claim.claimToken(),
+                claim.workerId(),
+                claim.claimedAt(),
+                completedAt,
+                claim.expiresAt(),
+                "COMPLETED",
+                claim.createdAt(),
+                completedAt
+        ));
+        return aggregateRunAfterNodeCompletion(completed.runId(), completedAt);
     }
 
     /**
@@ -1040,7 +1182,7 @@ public class ExecutionRunService {
                         Map.entry("queuedNodeCount", queued),
                         Map.entry("pendingNodeCount", pending),
                         Map.entry("stateAggregationReady", true),
-                        Map.entry("runnerDispatched", false),
+                        Map.entry("runnerDispatched", runnerDispatched(latestNodeRuns)),
                         Map.entry("retryInFlight", active && "RETRY".equals(run.triggerType()))
                 )),
                 terminalRunErrorCode(status),
@@ -1221,6 +1363,168 @@ public class ExecutionRunService {
         };
     }
 
+    private void renewClaimForDispatch(ExecutionQueueClaim claim, ExecutionPlanNode planNode, Instant now) {
+        int timeoutSeconds = planNode.timeoutSeconds() <= 0
+                ? properties.effectiveDefaultRunTimeoutSeconds()
+                : planNode.timeoutSeconds();
+        int leaseSeconds = timeoutSeconds + properties.effectiveNodeHeartbeatTimeoutSeconds();
+        ExecutionQueueClaim renewed = new ExecutionQueueClaim(
+                claim.id(),
+                claim.nodeRunId(),
+                claim.claimToken(),
+                claim.workerId(),
+                claim.claimedAt(),
+                now,
+                now.plusSeconds(leaseSeconds),
+                "CLAIMED",
+                claim.createdAt(),
+                now
+        );
+        if (!repository.updateQueueClaimIfStatus(renewed, "CLAIMED")) {
+            throw new BusinessException(ErrorCode.INVALID_STATE, "EXECUTION_QUEUE_CLAIM_NOT_ACTIVE");
+        }
+    }
+
+    private UUID apiAutomationBundleId(ExecutionPlanNode planNode) {
+        Object bundleId = readMap(planNode.inputSummaryJson()).get("apiAutomationBundleId");
+        try {
+            return UUID.fromString(String.valueOf(bundleId));
+        } catch (RuntimeException exception) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "EXECUTION_RESOURCE_REQUIRED");
+        }
+    }
+
+    private List<UUID> dispatchCaseIds(DispatchExecutionNodeRunCommand command, ExecutionPlanNode planNode) {
+        List<UUID> commandCaseIds = normalizedUuidList(command.caseIds());
+        if (!commandCaseIds.isEmpty()) {
+            return commandCaseIds;
+        }
+        Object planCaseIds = readMap(planNode.inputSummaryJson()).get("caseIds");
+        if (!(planCaseIds instanceof Iterable<?> iterable)) {
+            return List.of();
+        }
+        List<UUID> normalized = new ArrayList<>();
+        Set<UUID> seen = new HashSet<>();
+        for (Object value : iterable) {
+            if (value == null) {
+                continue;
+            }
+            try {
+                UUID id = UUID.fromString(String.valueOf(value));
+                if (seen.add(id)) {
+                    normalized.add(id);
+                }
+            } catch (RuntimeException exception) {
+                throw new BusinessException(ErrorCode.VALIDATION_ERROR, "EXECUTION_DISPATCH_CASE_IDS_INVALID");
+            }
+        }
+        return normalized;
+    }
+
+    private List<UUID> normalizedUuidList(List<UUID> values) {
+        if (values == null || values.isEmpty()) {
+            return List.of();
+        }
+        List<UUID> normalized = new ArrayList<>();
+        Set<UUID> seen = new HashSet<>();
+        for (UUID value : values) {
+            if (value != null && seen.add(value)) {
+                normalized.add(value);
+            }
+        }
+        return normalized;
+    }
+
+    private List<String> normalizedDispatchSecretRefs(List<String> secretRefs) {
+        if (secretRefs == null || secretRefs.isEmpty()) {
+            return List.of();
+        }
+        List<String> normalized = new ArrayList<>();
+        Set<String> seen = new HashSet<>();
+        for (String secretRef : secretRefs) {
+            String bounded = boundedNullableText(secretRef, 256);
+            if (StringUtils.hasText(bounded) && seen.add(bounded)) {
+                normalized.add(bounded);
+            }
+        }
+        return normalized;
+    }
+
+    private String wp9StatusFromWp6(String wp6Status) {
+        String normalized = StringUtils.hasText(wp6Status) ? wp6Status.trim().toUpperCase(Locale.ROOT) : "";
+        return switch (normalized) {
+            case "PASSED" -> "SUCCEEDED";
+            case "TIMEOUT" -> "TIMEOUT";
+            case "BLOCKED" -> "BLOCKED";
+            default -> "FAILED";
+        };
+    }
+
+    private String wp6DispatchErrorCode(String wp9Status, ApiAutomationRunResponse wp6Run) {
+        if (SUCCESS_NODE_STATUSES.contains(wp9Status)) {
+            return null;
+        }
+        if (StringUtils.hasText(wp6Run.errorCode())) {
+            return wp6Run.errorCode();
+        }
+        return switch (wp9Status) {
+            case "TIMEOUT" -> "EXECUTION_WP6_RUN_TIMEOUT";
+            case "BLOCKED" -> "EXECUTION_WP6_RUN_BLOCKED";
+            default -> "EXECUTION_WP6_RUN_FAILED";
+        };
+    }
+
+    private Map<String, Object> wp6DispatchSummary(
+            ApiAutomationRunDetailResponse wp6Run,
+            DispatchExecutionNodeRunCommand command,
+            Instant completedAt
+    ) {
+        Map<String, Object> summary = new LinkedHashMap<>();
+        summary.put("completedStatus", wp9StatusFromWp6(wp6Run.run().status()));
+        summary.put("completedAt", completedAt.toString());
+        summary.put("runnerDispatched", true);
+        summary.put("wp6DispatchReady", true);
+        summary.put("wp6RunId", wp6Run.run().id().toString());
+        summary.put("wp6Status", wp6Run.run().status());
+        summary.put("wp6RunnerMode", wp6Run.run().runnerMode());
+        summary.put("wp6CaseCount", wp6Run.run().caseCount());
+        summary.put("wp6ResultCount", wp6Run.results().size());
+        summary.put("wp6ResultCounts", wp6ResultCounts(wp6Run.results()));
+        summary.put("wp6BaseUrlHost", wp6Run.run().baseUrlHost());
+        summary.put("wp6BaseUrlDigest", wp6Run.run().baseUrlDigest());
+        summary.put("wp6TraceId", wp6Run.run().traceId());
+        summary.put("runtimeCaseIdsProvided", command.caseIds() != null && !command.caseIds().isEmpty());
+        summary.put("runtimeSecretRefCount", normalizedDispatchSecretRefs(command.secretRefs()).size());
+        summary.put("rawBaseUrlStored", false);
+        summary.put("secretRefsStored", false);
+        summary.put("rawOutputStored", false);
+        summary.put("requestResponseStored", false);
+        return summary;
+    }
+
+    private Map<String, Integer> wp6ResultCounts(List<ApiAutomationRunResultResponse> results) {
+        Map<String, Integer> counts = new LinkedHashMap<>();
+        if (results == null) {
+            return counts;
+        }
+        results.stream()
+                .filter(Objects::nonNull)
+                .forEach(result -> counts.merge(result.status(), 1, Integer::sum));
+        return counts;
+    }
+
+    private boolean runnerDispatched(List<ExecutionNodeRun> nodeRuns) {
+        return nodeRuns.stream().anyMatch(nodeRun -> StringUtils.hasText(nodeRun.externalRunId())
+                || Boolean.TRUE.equals(readMap(nodeRun.resultSummaryJson()).get("runnerDispatched")));
+    }
+
+    private <T> T inExecutionTransaction(Supplier<T> action) {
+        if (transactionTemplate == null) {
+            return action.get();
+        }
+        return transactionTemplate.execute(ignored -> action.get());
+    }
+
     private ExecutionRunDetailResponse detail(ExecutionRun run, boolean idempotentReplay) {
         return detail(run, idempotentReplay, repository.nodeRuns(run.id()), repository.planNodes(run.planId()));
     }
@@ -1386,6 +1690,32 @@ public class ExecutionRunService {
     }
 
     private record DependencyState(boolean ready, String blockedByDependencyKey) {
+    }
+
+    private record ApiTestDispatchPreparation(
+            UUID nodeRunId,
+            String claimToken,
+            UUID bundleId,
+            String environmentId,
+            String baseUrl,
+            List<UUID> caseIds,
+            int timeoutSeconds,
+            List<String> secretRefs,
+            ExecutionRunDetailResponse replayResponse
+    ) {
+        private static ApiTestDispatchPreparation replay(ExecutionRunDetailResponse replayResponse) {
+            return new ApiTestDispatchPreparation(
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    List.of(),
+                    0,
+                    List.of(),
+                    replayResponse
+            );
+        }
     }
 
     private static final class RecoveryCounters {
