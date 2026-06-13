@@ -32,7 +32,11 @@ public interface ExecutionRepository {
 
     boolean insertRun(ExecutionRun run);
 
+    void updateRun(ExecutionRun run);
+
     void insertNodeRuns(List<ExecutionNodeRun> nodeRuns);
+
+    void updateNodeRuns(List<ExecutionNodeRun> nodeRuns);
 
     Optional<ExecutionRun> run(UUID id);
 

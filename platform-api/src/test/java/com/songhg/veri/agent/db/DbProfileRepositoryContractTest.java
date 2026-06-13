@@ -203,44 +203,43 @@ class DbProfileRepositoryContractTest {
                 now,
                 now
         ));
-        executionRepository.insertNodeRuns(List.of(
-                new ExecutionNodeRun(
-                        UUID.randomUUID(),
-                        runId,
-                        apiNodeId,
-                        "QUEUED",
-                        1,
-                        "WP6_API",
-                        null,
-                        null,
-                        null,
-                        "{\"dispatchReady\":false}",
-                        null,
-                        now,
-                        null,
-                        null,
-                        now,
-                        now
-                ),
-                new ExecutionNodeRun(
-                        UUID.randomUUID(),
-                        runId,
-                        reportNodeId,
-                        "PENDING",
-                        1,
-                        "REPORT",
-                        null,
-                        null,
-                        null,
-                        "{\"dispatchReady\":false}",
-                        null,
-                        null,
-                        null,
-                        null,
-                        now,
-                        now
-                )
-        ));
+        ExecutionNodeRun apiNodeRun = new ExecutionNodeRun(
+                UUID.randomUUID(),
+                runId,
+                apiNodeId,
+                "QUEUED",
+                1,
+                "WP6_API",
+                null,
+                null,
+                null,
+                "{\"dispatchReady\":false}",
+                null,
+                now,
+                null,
+                null,
+                now,
+                now
+        );
+        ExecutionNodeRun reportNodeRun = new ExecutionNodeRun(
+                UUID.randomUUID(),
+                runId,
+                reportNodeId,
+                "PENDING",
+                1,
+                "REPORT",
+                null,
+                null,
+                null,
+                "{\"dispatchReady\":false}",
+                null,
+                null,
+                null,
+                null,
+                now,
+                now
+        );
+        executionRepository.insertNodeRuns(List.of(apiNodeRun, reportNodeRun));
 
         assertThat(inserted).isTrue();
         assertThat(executionRepository.runByPlanAndRequestKey(planId, requestKey))
@@ -276,6 +275,75 @@ class DbProfileRepositoryContractTest {
         assertThat(executionRepository.countRuns(new ExecutionRunQuery(projectId, planId, "QUEUED", 10, 0)))
                 .isEqualTo(1);
         assertThat(executionRepository.runProjectScopeId(runId)).contains(projectId);
+
+        Instant retriedAt = now.plusSeconds(5);
+        executionRepository.updateNodeRuns(List.of(new ExecutionNodeRun(
+                apiNodeRun.id(),
+                apiNodeRun.runId(),
+                apiNodeRun.planNodeId(),
+                "FAILED",
+                apiNodeRun.attempt(),
+                apiNodeRun.runnerType(),
+                null,
+                "EXECUTION_NODE_DISPATCH_FAILED",
+                "sanitized dispatch failure",
+                "{\"dispatchReady\":false,\"failed\":true}",
+                null,
+                apiNodeRun.queuedAt(),
+                null,
+                retriedAt,
+                apiNodeRun.createdAt(),
+                retriedAt
+        )));
+        executionRepository.updateRun(new ExecutionRun(
+                runId,
+                planId,
+                projectId,
+                "FAILED",
+                "MANUAL",
+                requestKey,
+                null,
+                1,
+                "trc_dbexecutioncontract",
+                "{\"nodeCount\":2,\"failedNodeCount\":1,\"runnerDispatched\":false}",
+                "EXECUTION_NODE_DISPATCH_FAILED",
+                "sanitized run failure",
+                "db-tester",
+                null,
+                retriedAt,
+                now,
+                retriedAt
+        ));
+        executionRepository.insertNodeRuns(List.of(new ExecutionNodeRun(
+                UUID.randomUUID(),
+                runId,
+                apiNodeId,
+                "QUEUED",
+                2,
+                "WP6_API",
+                null,
+                null,
+                null,
+                "{\"retryAttempt\":2,\"runnerDispatched\":false}",
+                null,
+                retriedAt,
+                null,
+                null,
+                retriedAt,
+                retriedAt
+        )));
+
+        assertThat(executionRepository.run(runId))
+                .get()
+                .extracting(ExecutionRun::status, ExecutionRun::errorCode)
+                .containsExactly("FAILED", "EXECUTION_NODE_DISPATCH_FAILED");
+        assertThat(executionRepository.nodeRuns(runId))
+                .extracting(ExecutionNodeRun::planNodeId, ExecutionNodeRun::attempt, ExecutionNodeRun::status)
+                .containsExactly(
+                        org.assertj.core.groups.Tuple.tuple(apiNodeId, 1, "FAILED"),
+                        org.assertj.core.groups.Tuple.tuple(apiNodeId, 2, "QUEUED"),
+                        org.assertj.core.groups.Tuple.tuple(reportNodeId, 1, "PENDING")
+                );
     }
 
     @Test

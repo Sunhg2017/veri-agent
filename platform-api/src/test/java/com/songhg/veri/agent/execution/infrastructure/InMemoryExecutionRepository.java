@@ -91,9 +91,21 @@ public class InMemoryExecutionRepository implements ExecutionRepository {
     }
 
     @Override
+    public void updateRun(ExecutionRun run) {
+        runs.computeIfPresent(run.id(), (ignored, current) -> run);
+    }
+
+    @Override
     public void insertNodeRuns(List<ExecutionNodeRun> newNodeRuns) {
         for (ExecutionNodeRun nodeRun : newNodeRuns) {
             nodeRuns.put(nodeRun.id(), nodeRun);
+        }
+    }
+
+    @Override
+    public void updateNodeRuns(List<ExecutionNodeRun> updatedNodeRuns) {
+        for (ExecutionNodeRun nodeRun : updatedNodeRuns) {
+            nodeRuns.computeIfPresent(nodeRun.id(), (ignored, current) -> nodeRun);
         }
     }
 
@@ -116,7 +128,9 @@ public class InMemoryExecutionRepository implements ExecutionRepository {
     public List<ExecutionNodeRun> nodeRuns(UUID runId) {
         return nodeRuns.values().stream()
                 .filter(nodeRun -> runId.equals(nodeRun.runId()))
-                .sorted(Comparator.comparing(nodeRun -> planNodeKey(nodeRun.planNodeId())))
+                .sorted(Comparator
+                        .comparing((ExecutionNodeRun nodeRun) -> planNodeKey(nodeRun.planNodeId()))
+                        .thenComparing(ExecutionNodeRun::attempt))
                 .toList();
     }
 

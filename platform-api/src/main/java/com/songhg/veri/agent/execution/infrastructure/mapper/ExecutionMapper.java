@@ -36,7 +36,11 @@ public interface ExecutionMapper {
 
     int insertRun(ExecutionRun run);
 
+    void updateRun(ExecutionRun run);
+
     void insertNodeRun(ExecutionNodeRun nodeRun);
+
+    void updateNodeRun(ExecutionNodeRun nodeRun);
 
     ExecutionRun run(@Param("id") UUID id);
 

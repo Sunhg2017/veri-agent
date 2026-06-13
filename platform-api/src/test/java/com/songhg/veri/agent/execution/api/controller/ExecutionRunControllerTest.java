@@ -6,6 +6,9 @@ import com.songhg.veri.agent.apiautomation.application.port.ApiAutomationReposit
 import com.songhg.veri.agent.apiautomation.domain.ApiAutomationScriptBundle;
 import com.songhg.veri.agent.auth.application.AuthTokenService;
 import com.songhg.veri.agent.auth.domain.AuthUserRecord;
+import com.songhg.veri.agent.execution.application.port.ExecutionRepository;
+import com.songhg.veri.agent.execution.domain.ExecutionNodeRun;
+import com.songhg.veri.agent.execution.domain.ExecutionRun;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -44,6 +47,9 @@ class ExecutionRunControllerTest {
 
     @Autowired
     private ApiAutomationRepository apiAutomationRepository;
+
+    @Autowired
+    private ExecutionRepository executionRepository;
 
     @Test
     void createsManualRunAndReplaysRequestKeyIdempotently() throws Exception {
@@ -120,6 +126,73 @@ class ExecutionRunControllerTest {
                 .andExpect(jsonPath("$.message").value("EXECUTION_PLAN_NOT_READY"));
     }
 
+    @Test
+    void cancelsQueuedRunIdempotentlyWithoutRunnerDispatch() throws Exception {
+        UUID bundleId = approvedBundle("project-alpha");
+        String token = userAccessToken(List.of("ProjectOwner@PROJECT:project-alpha"));
+        UUID planId = createPlan(bundleId, token, "READY");
+        UUID runId = triggerRun(planId, token, "cancel-smoke");
+
+        mockMvc.perform(post("/api/v1/execution/runs/{id}/cancel", runId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.id").value(runId.toString()))
+                .andExpect(jsonPath("$.data.status").value("CANCELED"))
+                .andExpect(jsonPath("$.data.errorCode").value("EXECUTION_RUN_CANCELED"))
+                .andExpect(jsonPath("$.data.resultSummary.canceled").value(true))
+                .andExpect(jsonPath("$.data.resultSummary.runnerCancelAttempted").value(false))
+                .andExpect(jsonPath("$.data.nodes[0].status").value("CANCELED"))
+                .andExpect(jsonPath("$.data.nodes[0].errorCode").value("EXECUTION_RUN_CANCELED"))
+                .andExpect(jsonPath("$.data.nodes[1].status").value("CANCELED"));
+
+        mockMvc.perform(post("/api/v1/execution/runs/{id}/cancel", runId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.id").value(runId.toString()))
+                .andExpect(jsonPath("$.data.status").value("CANCELED"))
+                .andExpect(jsonPath("$.data.nodes.length()").value(2));
+    }
+
+    @Test
+    void retriesFailedRunOnceAndRejectsNonRetryableRun() throws Exception {
+        UUID bundleId = approvedBundle("project-alpha");
+        String token = userAccessToken(List.of("ProjectOwner@PROJECT:project-alpha"));
+        UUID planId = createPlan(bundleId, token, "READY");
+        UUID runId = triggerRun(planId, token, "retry-smoke");
+
+        mockMvc.perform(post("/api/v1/execution/runs/{id}/retry", runId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("INVALID_STATE"))
+                .andExpect(jsonPath("$.message").value("EXECUTION_RUN_NOT_RETRYABLE"));
+
+        markFirstNodeFailed(runId);
+
+        mockMvc.perform(post("/api/v1/execution/runs/{id}/retry", runId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.id").value(runId.toString()))
+                .andExpect(jsonPath("$.data.status").value("QUEUED"))
+                .andExpect(jsonPath("$.data.triggerType").value("RETRY"))
+                .andExpect(jsonPath("$.data.attempt").value(2))
+                .andExpect(jsonPath("$.data.resultSummary.retryInFlight").value(true))
+                .andExpect(jsonPath("$.data.resultSummary.retryNodeCount").value(1))
+                .andExpect(jsonPath("$.data.resultSummary.runnerDispatched").value(false))
+                .andExpect(jsonPath("$.data.nodes.length()").value(3))
+                .andExpect(jsonPath("$.data.nodes[0].status").value("FAILED"))
+                .andExpect(jsonPath("$.data.nodes[0].attempt").value(1))
+                .andExpect(jsonPath("$.data.nodes[1].status").value("QUEUED"))
+                .andExpect(jsonPath("$.data.nodes[1].attempt").value(2))
+                .andExpect(jsonPath("$.data.nodes[1].resultSummary.previousAttempt").value(1));
+
+        mockMvc.perform(post("/api/v1/execution/runs/{id}/retry", runId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("QUEUED"))
+                .andExpect(jsonPath("$.data.triggerType").value("RETRY"))
+                .andExpect(jsonPath("$.data.nodes.length()").value(3));
+    }
+
     private UUID createPlan(UUID bundleId, String token, String status) throws Exception {
         MvcResult created = mockMvc.perform(post("/api/v1/execution/plans")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
@@ -128,6 +201,59 @@ class ExecutionRunControllerTest {
                 .andExpect(status().isCreated())
                 .andReturn();
         return UUID.fromString(JsonPath.read(created.getResponse().getContentAsString(), "$.data.id"));
+    }
+
+    private UUID triggerRun(UUID planId, String token, String requestKey) throws Exception {
+        MvcResult created = mockMvc.perform(post("/api/v1/execution/plans/{id}/runs", planId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("requestKey", requestKey))))
+                .andExpect(status().isCreated())
+                .andReturn();
+        return UUID.fromString(JsonPath.read(created.getResponse().getContentAsString(), "$.data.id"));
+    }
+
+    private void markFirstNodeFailed(UUID runId) {
+        Instant now = Instant.now();
+        ExecutionRun run = executionRepository.run(runId).orElseThrow();
+        ExecutionNodeRun firstNode = executionRepository.nodeRuns(runId).get(0);
+        executionRepository.updateNodeRuns(List.of(new ExecutionNodeRun(
+                firstNode.id(),
+                firstNode.runId(),
+                firstNode.planNodeId(),
+                "FAILED",
+                firstNode.attempt(),
+                firstNode.runnerType(),
+                firstNode.externalRunId(),
+                "EXECUTION_NODE_DISPATCH_FAILED",
+                "simulated sanitized node failure",
+                "{\"simulatedFailure\":true,\"runnerDispatched\":false}",
+                firstNode.heartbeatAt(),
+                firstNode.queuedAt(),
+                firstNode.startedAt(),
+                now,
+                firstNode.createdAt(),
+                now
+        )));
+        executionRepository.updateRun(new ExecutionRun(
+                run.id(),
+                run.planId(),
+                run.projectId(),
+                "FAILED",
+                run.triggerType(),
+                run.requestKey(),
+                run.sourceEventId(),
+                run.attempt(),
+                run.traceId(),
+                "{\"nodeCount\":2,\"failedNodeCount\":1,\"runnerDispatched\":false}",
+                "EXECUTION_NODE_DISPATCH_FAILED",
+                "simulated sanitized run failure",
+                run.createdBy(),
+                run.startedAt(),
+                now,
+                run.createdAt(),
+                now
+        ));
     }
 
     private UUID approvedBundle(String projectId) {

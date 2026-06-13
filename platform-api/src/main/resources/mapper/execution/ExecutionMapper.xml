@@ -206,6 +206,41 @@
         )
     </insert>
 
+    <update id="updateRun">
+        update execution_run set
+            status = #{status},
+            trigger_type = #{triggerType},
+            request_key = #{requestKey},
+            source_event_id = #{sourceEventId},
+            attempt = #{attempt},
+            trace_id = #{traceId},
+            result_summary_json = cast(coalesce(#{resultSummaryJson}, '{}') as jsonb),
+            error_code = #{errorCode},
+            error_summary = #{errorSummary},
+            created_by = #{createdBy},
+            started_at = #{startedAt},
+            finished_at = #{finishedAt},
+            updated_at = #{updatedAt}
+        where id = #{id}
+    </update>
+
+    <update id="updateNodeRun">
+        update execution_node_run set
+            status = #{status},
+            attempt = #{attempt},
+            runner_type = #{runnerType},
+            external_run_id = #{externalRunId},
+            error_code = #{errorCode},
+            error_summary = #{errorSummary},
+            result_summary_json = cast(coalesce(#{resultSummaryJson}, '{}') as jsonb),
+            heartbeat_at = #{heartbeatAt},
+            queued_at = #{queuedAt},
+            started_at = #{startedAt},
+            finished_at = #{finishedAt},
+            updated_at = #{updatedAt}
+        where id = #{id}
+    </update>
+
     <select id="plan" resultMap="planMap">
         select <include refid="planColumns"/>
         from execution_plan
@@ -258,7 +293,7 @@
         from execution_node_run nr
         join execution_plan_node pn on pn.id = nr.plan_node_id
         where nr.run_id = #{runId}
-        order by pn.node_key asc
+        order by pn.node_key asc, nr.attempt asc
     </select>
 
     <select id="runs" resultMap="runMap">

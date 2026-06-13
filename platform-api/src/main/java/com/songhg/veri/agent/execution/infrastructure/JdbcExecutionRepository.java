@@ -78,9 +78,21 @@ public class JdbcExecutionRepository implements ExecutionRepository {
     }
 
     @Override
+    public void updateRun(ExecutionRun run) {
+        mapper.updateRun(run);
+    }
+
+    @Override
     public void insertNodeRuns(List<ExecutionNodeRun> nodeRuns) {
         for (ExecutionNodeRun nodeRun : nodeRuns) {
             mapper.insertNodeRun(nodeRun);
+        }
+    }
+
+    @Override
+    public void updateNodeRuns(List<ExecutionNodeRun> nodeRuns) {
+        for (ExecutionNodeRun nodeRun : nodeRuns) {
+            mapper.updateNodeRun(nodeRun);
         }
     }
 

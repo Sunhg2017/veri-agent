@@ -49,6 +49,7 @@ AI 驱动的端到端企业级测试平台。WP1、WP2、WP3、WP4 是研发任�
 | `doc/mvp/final/engineering/WP9-执行编排与任务调度-M1基础控制面交付说明.md` | WP9 M1 基础控制面交付记录，覆盖权限、DB、validation、配置和 health API。 |
 | `doc/mvp/final/engineering/WP9-执行编排与任务调度-M2计划与DAG交付说明.md` | WP9 M2 计划与 DAG 交付记录，覆盖 plan CRUD、DAG validator、dry-run、状态保护和后端测试。 |
 | `doc/mvp/final/engineering/WP9-执行编排与任务调度-M3A手动触发与运行记录交付说明.md` | WP9 M3A 手动触发与运行记录交付记录，覆盖 run/node run 初始化、requestKey 幂等和运行查询。 |
+| `doc/mvp/final/engineering/WP9-执行编排与任务调度-M3B取消重试控制面交付说明.md` | WP9 M3B 取消重试控制面交付记录，覆盖 run cancel/retry、失败节点 retry attempt、幂等和 JDBC 更新。 |
 | `doc/mvp/final/engineering/当前实现基线.md` | 当前代码与文档对齐的权威基线：单服务、无租户、camelCase、分页和验证入口。 |
 | `doc/mvp/final/engineering/WP1-单平台权限矩阵与菜单矩阵.md` | 当前 WP1 单平台权限、菜单和按钮规则。 |
 | `doc/mvp/final/engineering/WP1-审计事件字典.md` | 当前 WP1 P0 审计事件、字段和验收规则。 |

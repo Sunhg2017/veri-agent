@@ -35,6 +35,7 @@ public class ExecutionHealthService {
                         Map.entry("planCrudReady", true),
                         Map.entry("dagDryRunReady", true),
                         Map.entry("manualTriggerReady", true),
+                        Map.entry("cancelRetryReady", true),
                         Map.entry("queueClaimReady", false),
                         Map.entry("wp6DispatchReady", false),
                         Map.entry("webhookDefaultDisabled", !properties.webhookEnabled()),

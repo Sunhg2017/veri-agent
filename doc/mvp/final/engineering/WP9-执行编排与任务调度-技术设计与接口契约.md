@@ -56,11 +56,13 @@ flowchart LR
 
 ### 2.1 当前已落地实现
 
-截至 2026-06-13 M3A，本仓库已完成 `ExecutionPlanController`、`ExecutionRunController`、`ExecutionPlanService`、`ExecutionRunService`、`ExecutionDagValidator`、`ExecutionRepository`、`JdbcExecutionRepository`、`ExecutionMapper` 和 local 测试仓储。已支持 plan 创建、列表、详情、更新、归档、dry-run、READY 计划手动触发、run/node run 初始化、requestKey 幂等回放、run 列表和 run 详情；health policy 中 `planCrudReady=true`、`dagDryRunReady=true`、`manualTriggerReady=true`。
+截至 2026-06-13 M3B，本仓库已完成 `ExecutionPlanController`、`ExecutionRunController`、`ExecutionPlanService`、`ExecutionRunService`、`ExecutionDagValidator`、`ExecutionRepository`、`JdbcExecutionRepository`、`ExecutionMapper` 和 local 测试仓储。已支持 plan 创建、列表、详情、更新、归档、dry-run、READY 计划手动触发、run/node run 初始化、requestKey 幂等回放、run 列表、run 详情、run cancel 和控制面 retry；health policy 中 `planCrudReady=true`、`dagDryRunReady=true`、`manualTriggerReady=true`、`cancelRetryReady=true`。
 
 M2 的资源校验通过 `ApiAutomationBundleScopeService` 查询 WP6 应用服务暴露的 bundle scope，不直读 WP6 表，不调用 runner adapter。`API_TEST` 节点要求 `apiAutomationBundleId` 存在、同项目且脚本包状态为 `APPROVED`；否则返回 `EXECUTION_DAG_INVALID`，具体 issue code 为 `EXECUTION_RESOURCE_NOT_FOUND`、`EXECUTION_RESOURCE_SCOPE_DENIED` 或 `EXECUTION_RESOURCE_NOT_READY`。
 
 M3A 的手动触发只创建 orchestration 记录，不认领队列、不调用 WP6 runner。`POST /plans/{id}/runs` 只允许 `READY` 计划，初始 run 状态为 `QUEUED`；无依赖节点初始化为 `QUEUED`，有依赖节点初始化为 `PENDING`。相同 plan/requestKey 会回放既有 run，响应中 `idempotentReplay=true`，不会重复生成 node run。
+
+M3B 的取消和重试仍只处理 orchestration 记录，不调用 runner cancel 或 dispatch。`POST /runs/{id}/cancel` 将非终态 run 收敛为 `CANCELED` 并关闭 PENDING/QUEUED/RUNNING node run；终态 run 重复取消幂等返回当前详情。`POST /runs/{id}/retry` 只允许 `FAILED`、`PARTIAL_SUCCESS`、`TIMEOUT` run，并在同一 run 下为最新 FAILED/TIMEOUT/BLOCKED 节点插入新 attempt；已处于 `QUEUED + RETRY + retryInFlight=true` 的 run 重复 retry 不重复插入 attempt。
 
 ## 3. 状态机
 
@@ -333,16 +335,16 @@ FAILED -> QUEUED   (retry attempt)
 
 ## 12. 当前实现切片建议
 
-M1、M2 和 M3A 已完成：
+M1、M2、M3A 和 M3B 已完成：
 
-1. 权限、DB、health、plan CRUD、DAG validator、plan dry-run、手动触发和 run/node run 初始化。
+1. 权限、DB、health、plan CRUD、DAG validator、plan dry-run、手动触发、run/node run 初始化、取消和控制面重试。
 2. `API_TEST` 资源 scope 校验通过 WP6 应用服务端口，不直读 WP6 表。
 3. 状态保护覆盖 `DRAFT/READY/DISABLED/ARCHIVED`，归档必须走专用 endpoint。
 4. dry-run 不创建 run；手动触发只创建 orchestration 记录，不认领队列、不调度 runner、不保存 secret 或变量明文。
 
 后续切片继续推进：
 
-1. queue claim、cancel/retry、timeout/recovery 和状态聚合。
+1. queue claim、timeout/recovery 和状态聚合。
 2. API_TEST 节点接 WP6 run。
 3. webhook/cron 触发控制面。
 4. 前端计划列表、DAG 预览、运行详情和取消重试。

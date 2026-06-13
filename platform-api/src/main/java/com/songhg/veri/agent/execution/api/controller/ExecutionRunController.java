@@ -57,4 +57,16 @@ public class ExecutionRunController {
     public ExecutionRunDetailResponse run(@PathVariable UUID id) {
         return service.run(id);
     }
+
+    @PostMapping("/runs/{id}/cancel")
+    @RequirePermission(value = PermissionCodes.EXECUTION_TRIGGER, scope = ExecutionPermissionScopes.RUN)
+    public ExecutionRunDetailResponse cancelRun(@PathVariable UUID id) {
+        return service.cancelRun(id);
+    }
+
+    @PostMapping("/runs/{id}/retry")
+    @RequirePermission(value = PermissionCodes.EXECUTION_TRIGGER, scope = ExecutionPermissionScopes.RUN)
+    public ExecutionRunDetailResponse retryRun(@PathVariable UUID id) {
+        return service.retryRun(id);
+    }
 }
