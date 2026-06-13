@@ -4,7 +4,7 @@
 |---|---|
 | 工作包 | WP9 执行编排与任务调度 |
 | 文档性质 | scheduler、cron、webhook、恢复、重放、密钥和发布准出 runbook |
-| 当前口径 | 已提供后台 scheduler loop、生产 CRON scanner、webhook HTTP smoke、CI 签名样例和 release gate |
+| 当前口径 | 已提供后台 scheduler loop、生产 CRON scanner、webhook HTTP smoke、CI 签名样例、worker 托管 readiness 和 release gate |
 | 日期 | 2026-06-14 |
 
 ## 1. 适用范围
@@ -28,6 +28,23 @@
 
 生产建议分阶段启用：先 `scheduler-enabled=true` 验证手动 run 调度，再启 `webhook-enabled=true` 联调外部 CI，最后启 `cron-enabled=true` 扫描到期 CRON trigger。
 
+## 2.1 Worker 托管角色
+
+| 角色 | 关键开关 | 说明 |
+|---|---|---|
+| `web` | `WP9_SCHEDULER_ENABLED=false`、`WP9_CRON_ENABLED=false`、`WP9_WEBHOOK_ENABLED` 按需开启 | 承载 API、前端查询、计划管理、手动触发和 webhook ingress。 |
+| `scheduler-active` | `WP9_SCHEDULER_ENABLED=true`、`WP9_WEBHOOK_ENABLED=false`、`WP9_CRON_ENABLED` 按需开启 | 专用 scheduler 实例，执行 recovery、CRON scan、queue claim 和 dispatch。 |
+| `scheduler-standby` | scheduler、cron、webhook 均关闭 | 备用实例，故障切换时先确认旧 active 已关闭，再改为 active。 |
+
+离线 readiness：
+
+```bash
+WP9_WORKER_HOSTING_ENV_FILE=integrations/wp9-worker-hosting/scheduler-active.env.example \
+bash scripts/wp9_worker_hosting_readiness.sh
+```
+
+生产建议同一环境只保留一个 `scheduler-active` workerId。多 worker 条件认领不会重复执行同一 node run，但会增加 claim、heartbeat 和故障排查复杂度。
+
 ## 3. 日常验证
 
 开发默认 gate：
@@ -40,6 +57,12 @@ bash scripts/wp9_quality_gate.sh
 
 ```bash
 bash scripts/wp9_scheduler_smoke.sh
+```
+
+仅验证 worker 托管配置：
+
+```bash
+bash scripts/wp9_worker_hosting_readiness.sh
 ```
 
 仅验证 webhook HTTP 入口：
@@ -78,6 +101,7 @@ bash scripts/wp9_quality_gate.sh
 5. CRON trigger 必须通过服务端 `CronExpression` 和 `ZoneId` 校验；不做错过多次 fire 的批量补偿。
 6. run detail、trigger event、audit 和 export 不得包含 webhook secret、signature、raw payload、secretRef 明文、raw baseUrl 或请求响应正文。
 7. scheduler tick 先 recovery，再扫描 due CRON，再 claim/dispatch；dispatch 只通过 WP6 应用服务。
+8. web/API 实例不得误启 scheduler；专用 scheduler worker 不承载 webhook ingress；standby worker 未切换前必须保持 scheduler/cron/webhook 关闭。
 
 ## 5. 恢复和重放
 
@@ -123,6 +147,7 @@ bash scripts/wp9_quality_gate.sh
 | `EXECUTION_TRIGGER_SIGNATURE_INVALID` | raw body 被改写、secret 错误、timestamp 过期、canonical string 拼错 | 使用 `scripts/wp9_webhook_sign.sh` 固定 raw body 和 header，校准 CI 时钟。 |
 | webhook 重试创建新 run | eventId 变化或 payload 变化 | 同一外部事件重试必须复用 eventId 和 raw body。 |
 | scheduler 不认领 QUEUED 节点 | scheduler 未启、batch size 为 0、并发上限命中、计划资源不可用 | 查看 health、scheduler 配置、run detail 和 WP6 bundle 状态。 |
+| standby worker 抢占队列 | standby 实例误设 `WP9_SCHEDULER_ENABLED=true` 或复用了 active workerId | 立即关闭 standby scheduler，运行 `scripts/wp9_worker_hosting_readiness.sh`，保留 queue claim 和日志证据。 |
 | API_TEST 节点失败 | WP6 runner disabled、allowlist 阻断、secretRef 解析失败、baseUrlRef 环境停用 | 查看 node errorCode、WP6 runner runbook 和 WP1 环境配置。 |
 | cron 未触发 | `cron-enabled=false`、trigger disabled、`nextFireAt` 未到、cron/timezone 无效 | dryRun trigger，查询 trigger detail 和 events。 |
 | run export 泄露敏感内容 | redaction 策略回归或上游摘要夹带敏感字段 | 立即禁用 trigger/scheduler，修复脱敏后重跑 WP9 quality gate。 |
@@ -134,9 +159,10 @@ bash scripts/wp9_quality_gate.sh
 1. 关闭外部触发：设置 `WP9_WEBHOOK_ENABLED=false` 和/或将相关 WEBHOOK trigger 置为 `DISABLED`。
 2. 暂停定时触发：设置 `WP9_CRON_ENABLED=false` 或禁用具体 CRON trigger。
 3. 暂停后台调度：设置 `WP9_SCHEDULER_ENABLED=false`，保留控制面只读查询和手动修复。
-4. 撤销或轮换 webhook secret，更新 CI secret store。
-5. 保留 run、node run、trigger event、queue claim 和 audit 证据；不要直接删除审计数据。
-6. 修复后按 `scripts/wp9_quality_gate.sh` release 模式重跑准出，再分阶段恢复开关。
+4. worker 故障切换：先关闭旧 active，再将 standby 改为唯一 `scheduler-active`，并使用唯一 `WP9_SCHEDULER_WORKER_ID`。
+5. 撤销或轮换 webhook secret，更新 CI secret store。
+6. 保留 run、node run、trigger event、queue claim 和 audit 证据；不要直接删除审计数据。
+7. 修复后按 `scripts/wp9_quality_gate.sh` release 模式重跑准出，再分阶段恢复开关。
 
 ## 10. 准出记录
 
@@ -148,3 +174,4 @@ bash scripts/wp9_quality_gate.sh
 4. webhook smoke 或 CI 签名样例验证结果。
 5. cron 表达式、timezone、nextFireAt 和是否允许补偿历史窗口。
 6. 任何跳过项、豁免、回滚开关和责任人。
+7. worker 托管角色、workerId、standby 切换记录和 readiness 结果。

@@ -54,6 +54,16 @@ webhook_http_smoke_requested() {
   esac
 }
 
+run_worker_hosting_readiness() {
+  local env_file
+  for env_file in \
+    "$ROOT_DIR/integrations/wp9-worker-hosting/web.env.example" \
+    "$ROOT_DIR/integrations/wp9-worker-hosting/scheduler-active.env.example" \
+    "$ROOT_DIR/integrations/wp9-worker-hosting/scheduler-standby.env.example"; do
+    WP9_WORKER_HOSTING_ENV_FILE="$env_file" bash "$ROOT_DIR/scripts/wp9_worker_hosting_readiness.sh"
+  done
+}
+
 validate_release_gate() {
   if ! is_release_gate; then
     return
@@ -135,10 +145,14 @@ main() {
       "$ROOT_DIR/scripts/wp9_scheduler_smoke.sh" \
       "$ROOT_DIR/scripts/wp9_webhook_http_smoke.sh" \
       "$ROOT_DIR/scripts/wp9_webhook_sign.sh" \
-      "$ROOT_DIR/scripts/wp9_marketplace_package_smoke.sh"
+      "$ROOT_DIR/scripts/wp9_marketplace_package_smoke.sh" \
+      "$ROOT_DIR/scripts/wp9_worker_hosting_readiness.sh"
 
   run_step "wp9 marketplace package smoke" \
     bash "$ROOT_DIR/scripts/wp9_marketplace_package_smoke.sh"
+
+  run_step "wp9 worker hosting readiness" \
+    run_worker_hosting_readiness
 
   run_step "wp9 backend and OpenAPI tests" \
     mvn -B -pl platform-api -Dtest=ExecutionHealthControllerTest,ExecutionPlanControllerTest,ExecutionRunControllerTest,ExecutionRunDispatchControllerTest,ExecutionTriggerControllerTest,ExecutionDagValidatorTest,ExecutionSchedulerServiceTest,OpenApiContractTest,PermissionCodeUsageTest test
