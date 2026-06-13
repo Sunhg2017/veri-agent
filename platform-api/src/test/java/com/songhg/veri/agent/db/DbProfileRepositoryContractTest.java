@@ -424,17 +424,82 @@ class DbProfileRepositoryContractTest {
                 .extracting(ExecutionQueueClaim::nodeRunId)
                 .isEqualTo(queuedRetryNode.id());
 
-        Instant completedAt = runningAt.plusSeconds(1);
-        executionRepository.updateQueueClaim(new ExecutionQueueClaim(
+        Instant heartbeatAt = runningAt.plusSeconds(30);
+        ExecutionQueueClaim heartbeatClaim = new ExecutionQueueClaim(
                 claim.id(),
                 claim.nodeRunId(),
                 claim.claimToken(),
                 claim.workerId(),
                 claim.claimedAt(),
-                completedAt,
-                claim.expiresAt(),
-                "COMPLETED",
+                heartbeatAt,
+                heartbeatAt.plusSeconds(180),
+                "CLAIMED",
                 claim.createdAt(),
+                heartbeatAt
+        );
+        assertThat(executionRepository.updateQueueClaimIfStatus(heartbeatClaim, "CLAIMED")).isTrue();
+        assertThat(executionRepository.updateQueueClaimIfStatus(new ExecutionQueueClaim(
+                claim.id(),
+                claim.nodeRunId(),
+                claim.claimToken(),
+                claim.workerId(),
+                claim.claimedAt(),
+                heartbeatAt,
+                heartbeatAt.plusSeconds(180),
+                "EXPIRED",
+                claim.createdAt(),
+                heartbeatAt
+        ), "COMPLETED")).isFalse();
+
+        assertThat(executionRepository.expiredQueueClaims(heartbeatAt.plusSeconds(60), 10)).isEmpty();
+        assertThat(executionRepository.runningNodeRunsStartedBefore(runningAt.plusSeconds(1), 10))
+                .extracting(ExecutionNodeRun::id)
+                .contains(queuedRetryNode.id());
+
+        Instant expiredAt = heartbeatAt.plusSeconds(181);
+        ExecutionQueueClaim expiredClaim = new ExecutionQueueClaim(
+                claim.id(),
+                claim.nodeRunId(),
+                claim.claimToken(),
+                claim.workerId(),
+                claim.claimedAt(),
+                heartbeatClaim.heartbeatAt(),
+                heartbeatClaim.expiresAt(),
+                "EXPIRED",
+                claim.createdAt(),
+                expiredAt
+        );
+        assertThat(executionRepository.expiredQueueClaims(expiredAt, 10))
+                .extracting(ExecutionQueueClaim::id)
+                .contains(claim.id());
+        assertThat(executionRepository.updateExpiredQueueClaim(expiredClaim, expiredAt)).isTrue();
+        assertThat(executionRepository.activeQueueClaim(queuedRetryNode.id())).isEmpty();
+
+        ExecutionQueueClaim secondClaim = new ExecutionQueueClaim(
+                UUID.randomUUID(),
+                queuedRetryNode.id(),
+                "wp9_claim_db_" + UUID.randomUUID().toString().replace("-", ""),
+                "db-worker-second",
+                expiredAt.plusSeconds(1),
+                expiredAt.plusSeconds(1),
+                expiredAt.plusSeconds(181),
+                "CLAIMED",
+                expiredAt.plusSeconds(1),
+                expiredAt.plusSeconds(1)
+        );
+        assertThat(executionRepository.tryInsertQueueClaim(secondClaim)).isTrue();
+
+        Instant completedAt = expiredAt.plusSeconds(2);
+        executionRepository.updateQueueClaim(new ExecutionQueueClaim(
+                secondClaim.id(),
+                secondClaim.nodeRunId(),
+                secondClaim.claimToken(),
+                secondClaim.workerId(),
+                secondClaim.claimedAt(),
+                completedAt,
+                secondClaim.expiresAt(),
+                "COMPLETED",
+                secondClaim.createdAt(),
                 completedAt
         ));
         assertThat(executionRepository.activeQueueClaim(queuedRetryNode.id())).isEmpty();

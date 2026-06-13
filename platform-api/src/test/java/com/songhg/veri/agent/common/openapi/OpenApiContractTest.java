@@ -162,6 +162,8 @@ class OpenApiContractTest {
                 .andExpect(jsonPath("$.paths['/api/v1/execution/runs/{id}/cancel'].post").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/execution/runs/{id}/retry'].post").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/execution/internal/queue/claims'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/execution/internal/queue/claims/heartbeat'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/execution/internal/queue/recover-expired'].post").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/execution/internal/queue/node-runs/{id}/complete'].post").exists())
                 .andReturn();
 

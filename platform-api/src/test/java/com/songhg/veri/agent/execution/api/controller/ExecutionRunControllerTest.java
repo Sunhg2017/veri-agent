@@ -30,7 +30,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest(properties = {
-        "veri-agent.auth.token-secret=test-auth-secret-32-byte-minimum!"
+        "veri-agent.auth.token-secret=test-auth-secret-32-byte-minimum!",
+        "veri-agent.execution.node-heartbeat-timeout-seconds=1"
 })
 @AutoConfigureMockMvc
 @DirtiesContext(classMode = DirtiesContext.ClassMode.BEFORE_EACH_TEST_METHOD)
@@ -292,11 +293,104 @@ class ExecutionRunControllerTest {
                 .andExpect(jsonPath("$.data").doesNotExist());
     }
 
+    @Test
+    void heartbeatsClaimAndRequeuesExpiredClaimForAnotherWorker() throws Exception {
+        UUID bundleId = approvedBundle("project-alpha");
+        String ownerToken = userAccessToken(List.of("ProjectOwner@PROJECT:project-alpha"));
+        String adminToken = userAccessToken(List.of("SuperAdmin"));
+        UUID planId = createPlan(bundleId, ownerToken, "READY");
+        UUID runId = triggerRun(planId, ownerToken, "heartbeat-recovery-smoke");
+
+        MvcResult claimed = mockMvc.perform(post("/api/v1/execution/internal/queue/claims")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
+                        .param("workerId", "worker-heartbeat"))
+                .andExpect(status().isCreated())
+                .andReturn();
+        UUID nodeRunId = UUID.fromString(JsonPath.read(claimed.getResponse().getContentAsString(), "$.data.nodeRunId"));
+        String claimToken = JsonPath.read(claimed.getResponse().getContentAsString(), "$.data.claimToken");
+
+        mockMvc.perform(post("/api/v1/execution/internal/queue/claims/heartbeat")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("claimToken", claimToken))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.runId").value(runId.toString()))
+                .andExpect(jsonPath("$.data.nodeRunId").value(nodeRunId.toString()))
+                .andExpect(jsonPath("$.data.workerId").value("worker-heartbeat"))
+                .andExpect(jsonPath("$.data.claimToken").value(claimToken));
+
+        Thread.sleep(1200);
+
+        mockMvc.perform(post("/api/v1/execution/internal/queue/recover-expired")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.expiredClaimCount").value(1))
+                .andExpect(jsonPath("$.data.requeuedNodeCount").value(1))
+                .andExpect(jsonPath("$.data.timedOutNodeCount").value(0))
+                .andExpect(jsonPath("$.data.aggregatedRunCount").value(1));
+
+        mockMvc.perform(post("/api/v1/execution/internal/queue/node-runs/{id}/complete", nodeRunId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "claimToken", claimToken,
+                                "status", "SUCCEEDED"
+                        ))))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.message").value("EXECUTION_QUEUE_CLAIM_NOT_ACTIVE"));
+
+        mockMvc.perform(post("/api/v1/execution/internal/queue/claims")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
+                        .param("workerId", "worker-after-recovery"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.runId").value(runId.toString()))
+                .andExpect(jsonPath("$.data.nodeRunId").value(nodeRunId.toString()))
+                .andExpect(jsonPath("$.data.workerId").value("worker-after-recovery"));
+    }
+
+    @Test
+    void recoveryTimesOutRunningNodeWhenPlanTimeoutElapsed() throws Exception {
+        UUID bundleId = approvedBundle("project-alpha");
+        String ownerToken = userAccessToken(List.of("ProjectOwner@PROJECT:project-alpha"));
+        String adminToken = userAccessToken(List.of("SuperAdmin"));
+        UUID planId = createPlan(bundleId, ownerToken, "READY", 1);
+        UUID runId = triggerRun(planId, ownerToken, "timeout-recovery-smoke");
+
+        mockMvc.perform(post("/api/v1/execution/internal/queue/claims")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
+                        .param("workerId", "worker-timeout"))
+                .andExpect(status().isCreated());
+
+        Thread.sleep(1200);
+
+        mockMvc.perform(post("/api/v1/execution/internal/queue/recover-expired")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.expiredClaimCount").value(1))
+                .andExpect(jsonPath("$.data.requeuedNodeCount").value(0))
+                .andExpect(jsonPath("$.data.timedOutNodeCount").value(1))
+                .andExpect(jsonPath("$.data.aggregatedRunCount").value(1));
+
+        mockMvc.perform(get("/api/v1/execution/runs/{id}", runId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("TIMEOUT"))
+                .andExpect(jsonPath("$.data.errorCode").value("EXECUTION_RUN_TIMEOUT"))
+                .andExpect(jsonPath("$.data.resultSummary.timeoutNodeCount").value(1))
+                .andExpect(jsonPath("$.data.nodes[0].status").value("TIMEOUT"))
+                .andExpect(jsonPath("$.data.nodes[0].resultSummary.recoveryAction").value("TIMED_OUT"))
+                .andExpect(jsonPath("$.data.nodes[1].status").value("BLOCKED"));
+    }
+
     private UUID createPlan(UUID bundleId, String token, String status) throws Exception {
+        return createPlan(bundleId, token, status, 180);
+    }
+
+    private UUID createPlan(UUID bundleId, String token, String status, int apiTimeoutSeconds) throws Exception {
         MvcResult created = mockMvc.perform(post("/api/v1/execution/plans")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(planRequest(bundleId, status))))
+                        .content(objectMapper.writeValueAsString(planRequest(bundleId, status, apiTimeoutSeconds))))
                 .andExpect(status().isCreated())
                 .andReturn();
         return UUID.fromString(JsonPath.read(created.getResponse().getContentAsString(), "$.data.id"));
@@ -384,6 +478,10 @@ class ExecutionRunControllerTest {
     }
 
     private Map<String, Object> planRequest(UUID bundleId, String status) {
+        return planRequest(bundleId, status, 180);
+    }
+
+    private Map<String, Object> planRequest(UUID bundleId, String status, int apiTimeoutSeconds) {
         return Map.of(
                 "projectId", "project-alpha",
                 "name", "Release smoke",
@@ -395,7 +493,7 @@ class ExecutionRunControllerTest {
                                 "type", "API_TEST",
                                 "dependencies", List.of(),
                                 "input", Map.of("apiAutomationBundleId", bundleId.toString()),
-                                "timeoutSeconds", 180,
+                                "timeoutSeconds", apiTimeoutSeconds,
                                 "failurePolicy", "FAIL_FAST",
                                 "retryPolicy", Map.of("maxAttempts", 1)
                         ),

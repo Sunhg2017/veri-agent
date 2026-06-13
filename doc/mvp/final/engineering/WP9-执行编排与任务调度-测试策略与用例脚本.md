@@ -51,7 +51,9 @@
 | WP9-QUEUE-002 | P0 | claimToken 完成成功节点 | 节点 SUCCEEDED，满足依赖的 PENDING 节点推进到 QUEUED。 |
 | WP9-QUEUE-003 | P0 | fail-fast 依赖失败 | 下游节点 BLOCKED，run 聚合为 FAILED 或 PARTIAL_SUCCESS。 |
 | WP9-QUEUE-004 | P0 | 完成回传包含 stdout/requestBody/token | 危险 key 丢弃，安全 key 中敏感文本脱敏。 |
-| WP9-QUEUE-005 | P0 | heartbeat 超时 | recovery 标记 TIMEOUT 或重新排队。 |
+| WP9-QUEUE-005 | P0 | claim heartbeat 续约 | active claim 延长 expiresAt，并刷新 node heartbeat；过期或非 active claim 拒绝。 |
+| WP9-QUEUE-006 | P0 | 过期 claim recovery 未超过节点 timeout | claim 标记 EXPIRED，node RUNNING 重新排队为 QUEUED，旧 claimToken 不能完成。 |
+| WP9-QUEUE-007 | P0 | 过期 claim recovery 已超过节点 timeout | claim 标记 EXPIRED，node 标记 TIMEOUT，下游 fail-fast 节点 BLOCKED，run 聚合为 TIMEOUT。 |
 | WP9-TRIGGER-001 | P0 | webhook disabled | 返回 `EXECUTION_TRIGGER_DISABLED`。 |
 | WP9-TRIGGER-002 | P0 | webhook 签名错误 | 返回 `EXECUTION_TRIGGER_SIGNATURE_INVALID`。 |
 | WP9-EXPORT-001 | P0 | 导出摘要 | 不包含 secret、baseUrl 明文、stdout/stderr 原文。 |

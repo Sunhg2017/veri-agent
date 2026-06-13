@@ -8,12 +8,14 @@ import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
 import com.songhg.veri.agent.common.trace.TraceContext;
 import com.songhg.veri.agent.execution.application.command.CompleteExecutionNodeRunCommand;
+import com.songhg.veri.agent.execution.application.command.HeartbeatExecutionQueueClaimCommand;
 import com.songhg.veri.agent.execution.application.command.TriggerExecutionRunCommand;
 import com.songhg.veri.agent.execution.application.port.ExecutionRepository;
 import com.songhg.veri.agent.execution.application.query.ExecutionRunPageRequest;
 import com.songhg.veri.agent.execution.application.query.ExecutionRunQuery;
 import com.songhg.veri.agent.execution.application.view.ExecutionNodeRunResponse;
 import com.songhg.veri.agent.execution.application.view.ExecutionQueueClaimResponse;
+import com.songhg.veri.agent.execution.application.view.ExecutionQueueRecoveryResponse;
 import com.songhg.veri.agent.execution.application.view.ExecutionRunDetailResponse;
 import com.songhg.veri.agent.execution.application.view.ExecutionRunSummaryResponse;
 import com.songhg.veri.agent.execution.config.ExecutionProperties;
@@ -311,13 +313,13 @@ public class ExecutionRunService {
         }
         ExecutionNodeRun nodeRun = repository.nodeRun(command.nodeRunId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "执行节点运行不存在"));
+        Instant now = Instant.now();
         if ("COMPLETED".equals(claim.status()) && COMPLETABLE_NODE_STATUSES.contains(nodeRun.status())) {
             return detail(requireRun(nodeRun.runId()), false);
         }
-        if (!"CLAIMED".equals(claim.status()) || !"RUNNING".equals(nodeRun.status())) {
+        if (!"CLAIMED".equals(claim.status()) || !claim.expiresAt().isAfter(now) || !"RUNNING".equals(nodeRun.status())) {
             throw new BusinessException(ErrorCode.INVALID_STATE, "EXECUTION_QUEUE_CLAIM_NOT_ACTIVE");
         }
-        Instant now = Instant.now();
         ExecutionNodeRun completed = new ExecutionNodeRun(
                 nodeRun.id(),
                 nodeRun.runId(),
@@ -350,6 +352,106 @@ public class ExecutionRunService {
                 now
         ));
         return aggregateRunAfterNodeCompletion(completed.runId(), now);
+    }
+
+    /**
+     * Extends an active queue claim lease and records the node heartbeat used by recovery.
+     *
+     * <p>The claim token stays opaque and is never copied into node summaries. A heartbeat is accepted only while the
+     * claim is still active and the node remains RUNNING; completed or recovered claims must not be revived by retries
+     * from an old worker.</p>
+     */
+    @Transactional(noRollbackFor = BusinessException.class)
+    public ExecutionQueueClaimResponse heartbeatQueueClaim(HeartbeatExecutionQueueClaimCommand command) {
+        if (command == null || !StringUtils.hasText(command.claimToken())) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "EXECUTION_QUEUE_CLAIM_REQUIRED");
+        }
+        ExecutionQueueClaim claim = repository.queueClaimByToken(command.claimToken())
+                .orElseThrow(() -> new BusinessException(ErrorCode.INVALID_STATE, "EXECUTION_QUEUE_CLAIM_INVALID"));
+        ExecutionNodeRun nodeRun = repository.nodeRun(claim.nodeRunId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "执行节点运行不存在"));
+        Instant now = Instant.now();
+        if (!"CLAIMED".equals(claim.status()) || !claim.expiresAt().isAfter(now) || !"RUNNING".equals(nodeRun.status())) {
+            throw new BusinessException(ErrorCode.INVALID_STATE, "EXECUTION_QUEUE_CLAIM_NOT_ACTIVE");
+        }
+        ExecutionQueueClaim renewedClaim = new ExecutionQueueClaim(
+                claim.id(),
+                claim.nodeRunId(),
+                claim.claimToken(),
+                claim.workerId(),
+                claim.claimedAt(),
+                now,
+                now.plusSeconds(properties.effectiveNodeHeartbeatTimeoutSeconds()),
+                "CLAIMED",
+                claim.createdAt(),
+                now
+        );
+        if (!repository.updateQueueClaimIfStatus(renewedClaim, "CLAIMED")) {
+            throw new BusinessException(ErrorCode.INVALID_STATE, "EXECUTION_QUEUE_CLAIM_NOT_ACTIVE");
+        }
+        ExecutionNodeRun heartbeatNode = new ExecutionNodeRun(
+                nodeRun.id(),
+                nodeRun.runId(),
+                nodeRun.planNodeId(),
+                nodeRun.status(),
+                nodeRun.attempt(),
+                nodeRun.runnerType(),
+                nodeRun.externalRunId(),
+                nodeRun.errorCode(),
+                nodeRun.errorSummary(),
+                mergedSummary(nodeRun.resultSummaryJson(), Map.of(
+                        "lastHeartbeatAt", now.toString(),
+                        "runnerDispatched", false
+                )),
+                now,
+                nodeRun.queuedAt(),
+                nodeRun.startedAt(),
+                nodeRun.finishedAt(),
+                nodeRun.createdAt(),
+                now
+        );
+        if (!repository.updateNodeRunIfStatus(heartbeatNode, "RUNNING")) {
+            throw new BusinessException(ErrorCode.INVALID_STATE, "EXECUTION_QUEUE_CLAIM_NOT_ACTIVE");
+        }
+        ExecutionRun run = requireRun(nodeRun.runId());
+        ExecutionPlanNode planNode = repository.planNodes(run.planId()).stream()
+                .filter(node -> node.id().equals(nodeRun.planNodeId()))
+                .findFirst()
+                .orElse(null);
+        return toQueueClaimResponse(renewedClaim, heartbeatNode, run, planNode);
+    }
+
+    /**
+     * Recovers expired queue claims and stale RUNNING nodes without starting a scheduler thread.
+     *
+     * <p>Expired claims are first marked EXPIRED to release the active-claim unique index. The node is then either
+     * re-queued for another worker when its node timeout has not elapsed, or closed as TIMEOUT and aggregated into the
+     * enclosing run. This preserves at-most-one active claim while making stalled work observable and retryable.</p>
+     */
+    @Transactional(noRollbackFor = BusinessException.class)
+    public ExecutionQueueRecoveryResponse recoverExpiredQueueClaims() {
+        Instant now = Instant.now();
+        RecoveryCounters counters = new RecoveryCounters(now);
+        Set<UUID> processedNodeRunIds = new HashSet<>();
+        for (ExecutionQueueClaim claim : repository.expiredQueueClaims(now, properties.effectiveRecoveryBatchSize())) {
+            processedNodeRunIds.add(claim.nodeRunId());
+            recoverExpiredClaim(claim, now, counters);
+        }
+        for (ExecutionNodeRun staleNode : repository.runningNodeRunsStartedBefore(
+                now,
+                properties.effectiveRecoveryBatchSize()
+        )) {
+            if (processedNodeRunIds.contains(staleNode.id())) {
+                continue;
+            }
+            if (repository.activeQueueClaim(staleNode.id())
+                    .filter(claim -> claim.expiresAt().isAfter(now))
+                    .isPresent()) {
+                continue;
+            }
+            recoverUnclaimedStaleNode(staleNode, now, counters);
+        }
+        return counters.toResponse();
     }
 
     public String runProjectScopeId(UUID id) {
@@ -620,23 +722,11 @@ public class ExecutionRunService {
                 .filter(node -> node.id().equals(candidate.planNodeId()))
                 .findFirst()
                 .orElse(null);
-        return Optional.of(new ExecutionQueueClaimResponse(
-                claim.id(),
-                runningRun.id(),
-                candidate.id(),
-                candidate.planNodeId(),
-                planNode == null ? null : planNode.nodeKey(),
-                candidate.runnerType(),
-                claim.claimToken(),
-                claim.workerId(),
-                claim.claimedAt(),
-                claim.heartbeatAt(),
-                claim.expiresAt()
-        ));
+        return Optional.of(toQueueClaimResponse(claim, runningNode, runningRun, planNode));
     }
 
     private void releaseClaim(ExecutionQueueClaim claim, Instant now) {
-        repository.updateQueueClaim(new ExecutionQueueClaim(
+        repository.updateQueueClaimIfStatus(new ExecutionQueueClaim(
                 claim.id(),
                 claim.nodeRunId(),
                 claim.claimToken(),
@@ -647,7 +737,149 @@ public class ExecutionRunService {
                 "RELEASED",
                 claim.createdAt(),
                 now
-        ));
+        ), "CLAIMED");
+    }
+
+    private ExecutionQueueClaimResponse toQueueClaimResponse(
+            ExecutionQueueClaim claim,
+            ExecutionNodeRun nodeRun,
+            ExecutionRun run,
+            ExecutionPlanNode planNode
+    ) {
+        return new ExecutionQueueClaimResponse(
+                claim.id(),
+                run.id(),
+                nodeRun.id(),
+                nodeRun.planNodeId(),
+                planNode == null ? null : planNode.nodeKey(),
+                nodeRun.runnerType(),
+                claim.claimToken(),
+                claim.workerId(),
+                claim.claimedAt(),
+                claim.heartbeatAt(),
+                claim.expiresAt()
+        );
+    }
+
+    private void recoverExpiredClaim(ExecutionQueueClaim claim, Instant now, RecoveryCounters counters) {
+        if (!repository.updateExpiredQueueClaim(expiredClaim(claim, now), now)) {
+            return;
+        }
+        counters.expiredClaimCount++;
+        repository.nodeRun(claim.nodeRunId())
+                .filter(nodeRun -> "RUNNING".equals(nodeRun.status()))
+                .ifPresent(nodeRun -> recoverRunningNode(nodeRun, now, counters, true));
+    }
+
+    private ExecutionQueueClaim expiredClaim(ExecutionQueueClaim claim, Instant now) {
+        return new ExecutionQueueClaim(
+                claim.id(),
+                claim.nodeRunId(),
+                claim.claimToken(),
+                claim.workerId(),
+                claim.claimedAt(),
+                claim.heartbeatAt(),
+                claim.expiresAt(),
+                "EXPIRED",
+                claim.createdAt(),
+                now
+        );
+    }
+
+    private void recoverUnclaimedStaleNode(ExecutionNodeRun nodeRun, Instant now, RecoveryCounters counters) {
+        if (!nodeTimedOut(nodeRun, planNode(nodeRun), now)) {
+            return;
+        }
+        recoverRunningNode(nodeRun, now, counters, false);
+    }
+
+    private void recoverRunningNode(
+            ExecutionNodeRun nodeRun,
+            Instant now,
+            RecoveryCounters counters,
+            boolean allowRequeue
+    ) {
+        ExecutionPlanNode planNode = planNode(nodeRun);
+        ExecutionNodeRun recovered = allowRequeue && !nodeTimedOut(nodeRun, planNode, now)
+                ? requeuedExpiredNodeRun(nodeRun, now)
+                : timedOutNodeRun(nodeRun, now);
+        if (!repository.updateNodeRunIfStatus(recovered, "RUNNING")) {
+            return;
+        }
+        if ("QUEUED".equals(recovered.status())) {
+            counters.requeuedNodeCount++;
+        } else {
+            counters.timedOutNodeCount++;
+        }
+        counters.aggregatedRunIds.add(recovered.runId());
+        aggregateRunAfterNodeCompletion(recovered.runId(), now);
+    }
+
+    private ExecutionPlanNode planNode(ExecutionNodeRun nodeRun) {
+        return repository.run(nodeRun.runId())
+                .map(run -> repository.planNodes(run.planId()).stream()
+                        .filter(node -> node.id().equals(nodeRun.planNodeId()))
+                        .findFirst()
+                        .orElse(null))
+                .orElse(null);
+    }
+
+    private boolean nodeTimedOut(ExecutionNodeRun nodeRun, ExecutionPlanNode planNode, Instant now) {
+        int timeoutSeconds = planNode == null || planNode.timeoutSeconds() <= 0
+                ? properties.effectiveDefaultRunTimeoutSeconds()
+                : planNode.timeoutSeconds();
+        Instant timeoutBase = nodeRun.startedAt() == null ? nodeRun.createdAt() : nodeRun.startedAt();
+        return timeoutBase != null && !timeoutBase.plusSeconds(timeoutSeconds).isAfter(now);
+    }
+
+    private ExecutionNodeRun requeuedExpiredNodeRun(ExecutionNodeRun nodeRun, Instant now) {
+        return new ExecutionNodeRun(
+                nodeRun.id(),
+                nodeRun.runId(),
+                nodeRun.planNodeId(),
+                "QUEUED",
+                nodeRun.attempt(),
+                nodeRun.runnerType(),
+                nodeRun.externalRunId(),
+                null,
+                null,
+                mergedSummary(nodeRun.resultSummaryJson(), Map.of(
+                        "claimExpired", true,
+                        "recoveryAction", "REQUEUED",
+                        "runnerDispatched", false
+                )),
+                null,
+                now,
+                null,
+                null,
+                nodeRun.createdAt(),
+                now
+        );
+    }
+
+    private ExecutionNodeRun timedOutNodeRun(ExecutionNodeRun nodeRun, Instant now) {
+        return new ExecutionNodeRun(
+                nodeRun.id(),
+                nodeRun.runId(),
+                nodeRun.planNodeId(),
+                "TIMEOUT",
+                nodeRun.attempt(),
+                nodeRun.runnerType(),
+                nodeRun.externalRunId(),
+                "EXECUTION_RUN_TIMEOUT",
+                "Execution node timed out during queue recovery",
+                mergedSummary(nodeRun.resultSummaryJson(), Map.of(
+                        "claimExpired", true,
+                        "recoveryAction", "TIMED_OUT",
+                        "runnerDispatched", false
+                )),
+                nodeRun.heartbeatAt(),
+                nodeRun.queuedAt(),
+                nodeRun.startedAt(),
+                now,
+                nodeRun.createdAt(),
+                now
+        );
     }
 
     private ExecutionRunDetailResponse aggregateRunAfterNodeCompletion(UUID runId, Instant now) {
@@ -1154,5 +1386,27 @@ public class ExecutionRunService {
     }
 
     private record DependencyState(boolean ready, String blockedByDependencyKey) {
+    }
+
+    private static final class RecoveryCounters {
+        private final Instant recoveredAt;
+        private final Set<UUID> aggregatedRunIds = new HashSet<>();
+        private int expiredClaimCount;
+        private int requeuedNodeCount;
+        private int timedOutNodeCount;
+
+        private RecoveryCounters(Instant recoveredAt) {
+            this.recoveredAt = recoveredAt;
+        }
+
+        private ExecutionQueueRecoveryResponse toResponse() {
+            return new ExecutionQueueRecoveryResponse(
+                    expiredClaimCount,
+                    requeuedNodeCount,
+                    timedOutNodeCount,
+                    aggregatedRunIds.size(),
+                    recoveredAt
+            );
+        }
     }
 }

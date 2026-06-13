@@ -7,6 +7,7 @@ import com.songhg.veri.agent.execution.domain.ExecutionPlan;
 import com.songhg.veri.agent.execution.domain.ExecutionPlanNode;
 import com.songhg.veri.agent.execution.domain.ExecutionQueueClaim;
 import com.songhg.veri.agent.execution.domain.ExecutionRun;
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import org.apache.ibatis.annotations.Mapper;
@@ -50,6 +51,14 @@ public interface ExecutionMapper {
     int insertQueueClaim(ExecutionQueueClaim claim);
 
     void updateQueueClaim(ExecutionQueueClaim claim);
+
+    int updateQueueClaimIfStatus(@Param("claim") ExecutionQueueClaim claim, @Param("expectedStatus") String expectedStatus);
+
+    int updateExpiredQueueClaim(@Param("claim") ExecutionQueueClaim claim, @Param("referenceTime") Instant referenceTime);
+
+    List<ExecutionQueueClaim> expiredQueueClaims(@Param("now") Instant now, @Param("limit") int limit);
+
+    List<ExecutionNodeRun> runningNodeRunsStartedBefore(@Param("deadline") Instant deadline, @Param("limit") int limit);
 
     ExecutionRun run(@Param("id") UUID id);
 

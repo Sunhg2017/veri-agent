@@ -8,6 +8,7 @@ import com.songhg.veri.agent.execution.domain.ExecutionPlan;
 import com.songhg.veri.agent.execution.domain.ExecutionPlanNode;
 import com.songhg.veri.agent.execution.domain.ExecutionQueueClaim;
 import com.songhg.veri.agent.execution.domain.ExecutionRun;
+import java.time.Instant;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
@@ -155,6 +156,51 @@ public class InMemoryExecutionRepository implements ExecutionRepository {
     }
 
     @Override
+    public boolean updateQueueClaimIfStatus(ExecutionQueueClaim claim, String expectedStatus) {
+        ExecutionQueueClaim current = queueClaims.get(claim.id());
+        if (current == null || !expectedStatus.equals(current.status())) {
+            return false;
+        }
+        queueClaims.put(claim.id(), claim);
+        return true;
+    }
+
+    @Override
+    public boolean updateExpiredQueueClaim(ExecutionQueueClaim claim, Instant referenceTime) {
+        ExecutionQueueClaim current = queueClaims.get(claim.id());
+        if (current == null || !"CLAIMED".equals(current.status()) || current.expiresAt().isAfter(referenceTime)) {
+            return false;
+        }
+        queueClaims.put(claim.id(), claim);
+        return true;
+    }
+
+    @Override
+    public List<ExecutionQueueClaim> expiredQueueClaims(Instant now, int limit) {
+        return queueClaims.values().stream()
+                .filter(claim -> "CLAIMED".equals(claim.status()))
+                .filter(claim -> !claim.expiresAt().isAfter(now))
+                .sorted(Comparator
+                        .comparing(ExecutionQueueClaim::expiresAt)
+                        .thenComparing(ExecutionQueueClaim::claimedAt))
+                .limit(limit)
+                .toList();
+    }
+
+    @Override
+    public List<ExecutionNodeRun> runningNodeRunsStartedBefore(Instant deadline, int limit) {
+        return nodeRuns.values().stream()
+                .filter(nodeRun -> "RUNNING".equals(nodeRun.status()))
+                .filter(nodeRun -> run(nodeRun.runId())
+                        .map(run -> "QUEUED".equals(run.status()) || "RUNNING".equals(run.status()))
+                        .orElse(false))
+                .filter(nodeRun -> recoveryBaseTime(nodeRun).compareTo(deadline) <= 0)
+                .sorted(Comparator.comparing(this::recoveryBaseTime))
+                .limit(limit)
+                .toList();
+    }
+
+    @Override
     public Optional<ExecutionRun> run(UUID id) {
         return Optional.ofNullable(runs.get(id));
     }
@@ -251,6 +297,10 @@ public class InMemoryExecutionRepository implements ExecutionRepository {
     private String planNodeKey(UUID planNodeId) {
         ExecutionPlanNode node = nodes.get(planNodeId);
         return node == null ? "" : node.nodeKey();
+    }
+
+    private Instant recoveryBaseTime(ExecutionNodeRun nodeRun) {
+        return nodeRun.startedAt() == null ? nodeRun.createdAt() : nodeRun.startedAt();
     }
 
     private boolean contains(String value, String keyword) {

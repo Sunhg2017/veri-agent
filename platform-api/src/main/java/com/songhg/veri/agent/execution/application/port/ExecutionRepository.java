@@ -7,6 +7,7 @@ import com.songhg.veri.agent.execution.domain.ExecutionPlan;
 import com.songhg.veri.agent.execution.domain.ExecutionPlanNode;
 import com.songhg.veri.agent.execution.domain.ExecutionQueueClaim;
 import com.songhg.veri.agent.execution.domain.ExecutionRun;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -46,6 +47,14 @@ public interface ExecutionRepository {
     boolean tryInsertQueueClaim(ExecutionQueueClaim claim);
 
     void updateQueueClaim(ExecutionQueueClaim claim);
+
+    boolean updateQueueClaimIfStatus(ExecutionQueueClaim claim, String expectedStatus);
+
+    boolean updateExpiredQueueClaim(ExecutionQueueClaim claim, Instant referenceTime);
+
+    List<ExecutionQueueClaim> expiredQueueClaims(Instant now, int limit);
+
+    List<ExecutionNodeRun> runningNodeRunsStartedBefore(Instant deadline, int limit);
 
     Optional<ExecutionRun> run(UUID id);
 

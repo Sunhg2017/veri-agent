@@ -37,6 +37,7 @@ public class ExecutionHealthService {
                         Map.entry("manualTriggerReady", true),
                         Map.entry("cancelRetryReady", true),
                         Map.entry("queueClaimReady", true),
+                        Map.entry("heartbeatRecoveryReady", true),
                         Map.entry("stateAggregationReady", true),
                         Map.entry("wp6DispatchReady", false),
                         Map.entry("webhookDefaultDisabled", !properties.webhookEnabled()),

@@ -9,6 +9,7 @@ import com.songhg.veri.agent.execution.domain.ExecutionPlanNode;
 import com.songhg.veri.agent.execution.domain.ExecutionQueueClaim;
 import com.songhg.veri.agent.execution.domain.ExecutionRun;
 import com.songhg.veri.agent.execution.infrastructure.mapper.ExecutionMapper;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -115,6 +116,26 @@ public class JdbcExecutionRepository implements ExecutionRepository {
     @Override
     public void updateQueueClaim(ExecutionQueueClaim claim) {
         mapper.updateQueueClaim(claim);
+    }
+
+    @Override
+    public boolean updateQueueClaimIfStatus(ExecutionQueueClaim claim, String expectedStatus) {
+        return mapper.updateQueueClaimIfStatus(claim, expectedStatus) > 0;
+    }
+
+    @Override
+    public boolean updateExpiredQueueClaim(ExecutionQueueClaim claim, Instant referenceTime) {
+        return mapper.updateExpiredQueueClaim(claim, referenceTime) > 0;
+    }
+
+    @Override
+    public List<ExecutionQueueClaim> expiredQueueClaims(Instant now, int limit) {
+        return mapper.expiredQueueClaims(now, limit);
+    }
+
+    @Override
+    public List<ExecutionNodeRun> runningNodeRunsStartedBefore(Instant deadline, int limit) {
+        return mapper.runningNodeRunsStartedBefore(deadline, limit);
     }
 
     @Override

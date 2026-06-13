@@ -8,9 +8,11 @@ import com.songhg.veri.agent.common.openapi.ApiVersion;
 import com.songhg.veri.agent.common.trace.TraceContext;
 import com.songhg.veri.agent.execution.application.ExecutionRunService;
 import com.songhg.veri.agent.execution.application.command.CompleteExecutionNodeRunCommand;
+import com.songhg.veri.agent.execution.application.command.HeartbeatExecutionQueueClaimCommand;
 import com.songhg.veri.agent.execution.application.command.TriggerExecutionRunCommand;
 import com.songhg.veri.agent.execution.application.query.ExecutionRunPageRequest;
 import com.songhg.veri.agent.execution.application.view.ExecutionQueueClaimResponse;
+import com.songhg.veri.agent.execution.application.view.ExecutionQueueRecoveryResponse;
 import com.songhg.veri.agent.execution.application.view.ExecutionRunDetailResponse;
 import com.songhg.veri.agent.execution.application.view.ExecutionRunSummaryResponse;
 import jakarta.validation.Valid;
@@ -93,5 +95,19 @@ public class ExecutionRunController {
                 ? new CompleteExecutionNodeRunCommand(id, null, null, null, null, null)
                 : command.withNodeRunId(id);
         return service.completeClaimedNodeRun(effectiveCommand);
+    }
+
+    @PostMapping("/internal/queue/claims/heartbeat")
+    @RequirePermission(PermissionCodes.EXECUTION_ADMIN)
+    public ExecutionQueueClaimResponse heartbeatQueueClaim(
+            @Valid @RequestBody(required = false) HeartbeatExecutionQueueClaimCommand command
+    ) {
+        return service.heartbeatQueueClaim(command);
+    }
+
+    @PostMapping("/internal/queue/recover-expired")
+    @RequirePermission(PermissionCodes.EXECUTION_ADMIN)
+    public ExecutionQueueRecoveryResponse recoverExpiredQueueClaims() {
+        return service.recoverExpiredQueueClaims();
     }
 }

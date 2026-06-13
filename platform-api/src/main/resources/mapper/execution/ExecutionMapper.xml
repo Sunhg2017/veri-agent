@@ -298,6 +298,27 @@
         where id = #{id}
     </update>
 
+    <update id="updateQueueClaimIfStatus">
+        update execution_queue_claim set
+            heartbeat_at = #{claim.heartbeatAt},
+            expires_at = #{claim.expiresAt},
+            status = #{claim.status},
+            updated_at = #{claim.updatedAt}
+        where id = #{claim.id}
+          and status = #{expectedStatus}
+    </update>
+
+    <update id="updateExpiredQueueClaim">
+        update execution_queue_claim set
+            heartbeat_at = #{claim.heartbeatAt},
+            expires_at = #{claim.expiresAt},
+            status = #{claim.status},
+            updated_at = #{claim.updatedAt}
+        where id = #{claim.id}
+          and status = 'CLAIMED'
+          and expires_at &lt;= #{referenceTime}
+    </update>
+
     <select id="plan" resultMap="planMap">
         select <include refid="planColumns"/>
         from execution_plan
@@ -384,6 +405,26 @@
         from execution_queue_claim
         where claim_token = #{claimToken}
         limit 1
+    </select>
+
+    <select id="expiredQueueClaims" resultMap="queueClaimMap">
+        select <include refid="queueClaimColumns"/>
+        from execution_queue_claim
+        where status = 'CLAIMED'
+          and expires_at &lt;= #{now}
+        order by expires_at asc, claimed_at asc
+        limit #{limit}
+    </select>
+
+    <select id="runningNodeRunsStartedBefore" resultMap="nodeRunMap">
+        select <include refid="nodeRunColumns"/>
+        from execution_node_run nr
+        join execution_run er on er.id = nr.run_id
+        where nr.status = 'RUNNING'
+          and er.status in ('QUEUED', 'RUNNING')
+          and coalesce(nr.started_at, nr.created_at) &lt;= #{deadline}
+        order by coalesce(nr.started_at, nr.created_at) asc
+        limit #{limit}
     </select>
 
     <select id="runs" resultMap="runMap">
