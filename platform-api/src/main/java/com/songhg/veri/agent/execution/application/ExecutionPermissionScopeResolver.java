@@ -14,15 +14,18 @@ public class ExecutionPermissionScopeResolver {
     private final ExecutionPlatformContextClient contextClient;
     private final ExecutionPlanService planService;
     private final ExecutionRunService runService;
+    private final ExecutionTriggerService triggerService;
 
     public ExecutionPermissionScopeResolver(
             ExecutionPlatformContextClient contextClient,
             ExecutionPlanService planService,
-            ExecutionRunService runService
+            ExecutionRunService runService,
+            ExecutionTriggerService triggerService
     ) {
         this.contextClient = contextClient;
         this.planService = planService;
         this.runService = runService;
+        this.triggerService = triggerService;
     }
 
     public ResourceScope planRequest(CreateExecutionPlanCommand command) {
@@ -55,6 +58,10 @@ public class ExecutionPermissionScopeResolver {
 
     public ResourceScope run(UUID id) {
         return ResourceScope.project(runService.runProjectScopeId(id));
+    }
+
+    public ResourceScope trigger(UUID id) {
+        return ResourceScope.project(triggerService.triggerProjectScopeId(id));
     }
 
     private ResourceScope project(String projectId) {

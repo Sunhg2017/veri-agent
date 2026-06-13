@@ -76,8 +76,8 @@ WP6 已经完成 OpenAPI 到接口自动化脚本包、受控单次运行和脱�
 ### 6.3 CI/CD 触发
 
 1. 外部流水线带签名和 sourceEventId 调用 webhook。
-2. 系统校验签名、计划启用状态、项目 scope 和幂等键。
-3. dryRun 失败时返回可读错误；成功时创建 run。
+2. 系统校验全局 webhook 开关、触发器启用状态、HMAC 签名时间窗、计划 READY 状态和 sourceEventId 幂等键。
+3. dryRun 只校验配置和策略，不创建 run；真实 webhook 成功时创建或回放 run。
 4. 流水线轮询 run 状态或接收后续通知扩展。
 
 ## 7. 业务规则
@@ -90,6 +90,7 @@ WP6 已经完成 OpenAPI 到接口自动化脚本包、受控单次运行和脱�
 6. 取消 RUNNING 节点必须调用对应 runner service 的 cancel；终态取消幂等返回当前状态。
 7. 重试必须生成 retryAttempt，保留原失败节点结果，不覆盖审计证据。
 8. Cron/webhook 默认关闭；启用必须有权限、审计和配置开关。
+9. Webhook secret 只保存 `secretRef` 引用和 digest，不保存 secret 明文、签名值或 payload 原文；事件表只保存 requestDigest、错误码和 runId。
 
 ## 8. 权限矩阵
 
@@ -129,4 +130,3 @@ WP6 已经完成 OpenAPI 到接口自动化脚本包、受控单次运行和脱�
 | 用户误以为结果是完整报告 | 运行详情显示摘要，完整报告入口标注 WP10。 |
 | 触发配置误操作 | 触发启停需要 `execution:manage/admin`，危险操作二次确认。 |
 | 多节点状态难理解 | DAG 使用状态色、计数和失败策略摘要。 |
-

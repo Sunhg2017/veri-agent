@@ -74,6 +74,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/v1/api-automation/health").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/execution/health").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/document-input/webhooks/**").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/v1/execution/webhooks/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/examples/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/contexts/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/audit/events").permitAll()

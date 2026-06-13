@@ -95,6 +95,40 @@
         </constructor>
     </resultMap>
 
+    <resultMap id="triggerMap" type="com.songhg.veri.agent.execution.domain.ExecutionTrigger">
+        <constructor>
+            <arg column="id" javaType="java.util.UUID"/>
+            <arg column="plan_id" javaType="java.util.UUID"/>
+            <arg column="trigger_type" javaType="java.lang.String"/>
+            <arg column="status" javaType="java.lang.String"/>
+            <arg column="config_digest" javaType="java.lang.String"/>
+            <arg column="config_summary_json" javaType="java.lang.String"/>
+            <arg column="secret_ref" javaType="java.lang.String"/>
+            <arg column="secret_ref_digest" javaType="java.lang.String"/>
+            <arg column="next_fire_at" javaType="java.time.Instant"/>
+            <arg column="last_fire_at" javaType="java.time.Instant"/>
+            <arg column="created_by" javaType="java.lang.String"/>
+            <arg column="updated_by" javaType="java.lang.String"/>
+            <arg column="created_at" javaType="java.time.Instant"/>
+            <arg column="updated_at" javaType="java.time.Instant"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="triggerEventMap" type="com.songhg.veri.agent.execution.domain.ExecutionTriggerEvent">
+        <constructor>
+            <arg column="id" javaType="java.util.UUID"/>
+            <arg column="trigger_id" javaType="java.util.UUID"/>
+            <arg column="source_event_id" javaType="java.lang.String"/>
+            <arg column="request_digest" javaType="java.lang.String"/>
+            <arg column="status" javaType="java.lang.String"/>
+            <arg column="run_id" javaType="java.util.UUID"/>
+            <arg column="received_at" javaType="java.time.Instant"/>
+            <arg column="error_code" javaType="java.lang.String"/>
+            <arg column="error_summary" javaType="java.lang.String"/>
+            <arg column="trace_id" javaType="java.lang.String"/>
+        </constructor>
+    </resultMap>
+
     <sql id="planColumns">
         id, project_id, name, status, environment_key,
         trigger_policy_json::text as trigger_policy_json,
@@ -124,6 +158,17 @@
         id, node_run_id, claim_token, worker_id, claimed_at, heartbeat_at, expires_at, status, created_at, updated_at
     </sql>
 
+    <sql id="triggerColumns">
+        id, plan_id, trigger_type, status, config_digest,
+        config_summary_json::text as config_summary_json,
+        secret_ref, secret_ref_digest, next_fire_at, last_fire_at, created_by, updated_by, created_at, updated_at
+    </sql>
+
+    <sql id="triggerEventColumns">
+        id, trigger_id, source_event_id, request_digest, status, run_id,
+        received_at, error_code, error_summary, trace_id
+    </sql>
+
     <sql id="planWhere">
         <where>
             <if test="query.projectId != null">project_id = #{query.projectId}</if>
@@ -141,6 +186,21 @@
         <where>
             <if test="query.projectId != null">project_id = #{query.projectId}</if>
             <if test="query.planId != null">and plan_id = #{query.planId}</if>
+            <if test="query.status != null">and status = #{query.status}</if>
+        </where>
+    </sql>
+
+    <sql id="triggerWhere">
+        <where>
+            <if test="query.planId != null">plan_id = #{query.planId}</if>
+            <if test="query.triggerType != null">and trigger_type = #{query.triggerType}</if>
+            <if test="query.status != null">and status = #{query.status}</if>
+        </where>
+    </sql>
+
+    <sql id="triggerEventWhere">
+        <where>
+            <if test="query.triggerId != null">trigger_id = #{query.triggerId}</if>
             <if test="query.status != null">and status = #{query.status}</if>
         </where>
     </sql>
@@ -288,6 +348,55 @@
         )
         on conflict do nothing
     </insert>
+
+    <insert id="insertTrigger">
+        insert into execution_trigger (
+            id, plan_id, trigger_type, status, config_digest, config_summary_json,
+            secret_ref, secret_ref_digest, next_fire_at, last_fire_at,
+            created_by, updated_by, created_at, updated_at
+        ) values (
+            #{id}, #{planId}, #{triggerType}, #{status}, #{configDigest},
+            cast(coalesce(#{configSummaryJson}, '{}') as jsonb),
+            #{secretRef}, #{secretRefDigest}, #{nextFireAt}, #{lastFireAt},
+            #{createdBy}, #{updatedBy}, #{createdAt}, #{updatedAt}
+        )
+    </insert>
+
+    <update id="updateTrigger">
+        update execution_trigger set
+            status = #{status},
+            config_digest = #{configDigest},
+            config_summary_json = cast(coalesce(#{configSummaryJson}, '{}') as jsonb),
+            secret_ref = #{secretRef},
+            secret_ref_digest = #{secretRefDigest},
+            next_fire_at = #{nextFireAt},
+            last_fire_at = #{lastFireAt},
+            updated_by = #{updatedBy},
+            updated_at = #{updatedAt}
+        where id = #{id}
+    </update>
+
+    <insert id="insertTriggerEvent">
+        insert into execution_trigger_event (
+            id, trigger_id, source_event_id, request_digest, status, run_id,
+            received_at, error_code, error_summary, trace_id
+        ) values (
+            #{id}, #{triggerId}, #{sourceEventId}, #{requestDigest}, #{status}, #{runId},
+            #{receivedAt}, #{errorCode}, #{errorSummary}, #{traceId}
+        )
+        on conflict do nothing
+    </insert>
+
+    <update id="updateTriggerEvent">
+        update execution_trigger_event set
+            request_digest = #{requestDigest},
+            status = #{status},
+            run_id = #{runId},
+            error_code = #{errorCode},
+            error_summary = #{errorSummary},
+            trace_id = #{traceId}
+        where id = #{id}
+    </update>
 
     <update id="updateQueueClaim">
         update execution_queue_claim set
@@ -445,5 +554,60 @@
         select project_id
         from execution_run
         where id = #{id}
+    </select>
+
+    <select id="trigger" resultMap="triggerMap">
+        select <include refid="triggerColumns"/>
+        from execution_trigger
+        where id = #{id}
+    </select>
+
+    <select id="triggers" resultMap="triggerMap">
+        select <include refid="triggerColumns"/>
+        from execution_trigger
+        <include refid="triggerWhere"/>
+        order by updated_at desc
+        limit #{query.limit} offset #{query.offset}
+    </select>
+
+    <select id="countTriggers" resultType="long">
+        select count(*)
+        from execution_trigger
+        <include refid="triggerWhere"/>
+    </select>
+
+    <select id="triggerProjectScopeId" resultType="string">
+        select p.project_id
+        from execution_trigger t
+        join execution_plan p on p.id = t.plan_id
+        where t.id = #{id}
+    </select>
+
+    <select id="triggerEvent" resultMap="triggerEventMap">
+        select <include refid="triggerEventColumns"/>
+        from execution_trigger_event
+        where id = #{id}
+    </select>
+
+    <select id="triggerEventBySource" resultMap="triggerEventMap">
+        select <include refid="triggerEventColumns"/>
+        from execution_trigger_event
+        where trigger_id = #{triggerId}
+          and source_event_id = #{sourceEventId}
+        limit 1
+    </select>
+
+    <select id="triggerEvents" resultMap="triggerEventMap">
+        select <include refid="triggerEventColumns"/>
+        from execution_trigger_event
+        <include refid="triggerEventWhere"/>
+        order by received_at desc
+        limit #{query.limit} offset #{query.offset}
+    </select>
+
+    <select id="countTriggerEvents" resultType="long">
+        select count(*)
+        from execution_trigger_event
+        <include refid="triggerEventWhere"/>
     </select>
 </mapper>

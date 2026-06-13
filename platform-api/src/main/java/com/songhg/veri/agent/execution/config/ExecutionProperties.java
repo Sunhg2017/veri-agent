@@ -15,6 +15,8 @@ public record ExecutionProperties(
         @DefaultValue("false") boolean webhookEnabled,
         /** Enables cron metadata scanning; default is off for the first control-plane slice. */
         @DefaultValue("false") boolean cronEnabled,
+        /** Allowed signed webhook timestamp skew in seconds. */
+        @DefaultValue("300") long webhookClockSkewSeconds,
         /** Fixed delay for the managed scheduler loop. */
         @DefaultValue("5000") int schedulerIntervalMs,
         /** Startup delay for the managed scheduler loop. */
@@ -37,6 +39,8 @@ public record ExecutionProperties(
     private static final int DEFAULT_MAX_CONCURRENT_RUNS_PER_PROJECT = 2;
     private static final int MAX_CONCURRENT_RUNS_PER_PROJECT = 50;
     private static final int DEFAULT_SCHEDULER_INTERVAL_MS = 5_000;
+    private static final long DEFAULT_WEBHOOK_CLOCK_SKEW_SECONDS = 300;
+    private static final long MAX_WEBHOOK_CLOCK_SKEW_SECONDS = 86_400;
     private static final int MAX_SCHEDULER_INTERVAL_MS = 600_000;
     private static final int DEFAULT_SCHEDULER_INITIAL_DELAY_MS = 30_000;
     private static final int MAX_SCHEDULER_INITIAL_DELAY_MS = 3_600_000;
@@ -66,6 +70,14 @@ public record ExecutionProperties(
 
     public int effectiveSchedulerIntervalMs() {
         return boundedPositive(schedulerIntervalMs, DEFAULT_SCHEDULER_INTERVAL_MS, MAX_SCHEDULER_INTERVAL_MS);
+    }
+
+    public long effectiveWebhookClockSkewSeconds() {
+        return boundedPositiveLong(
+                webhookClockSkewSeconds,
+                DEFAULT_WEBHOOK_CLOCK_SKEW_SECONDS,
+                MAX_WEBHOOK_CLOCK_SKEW_SECONDS
+        );
     }
 
     public int effectiveSchedulerInitialDelayMs() {
@@ -118,6 +130,13 @@ public record ExecutionProperties(
     }
 
     private static int boundedPositive(int value, int defaultValue, int maxValue) {
+        if (value <= 0) {
+            return defaultValue;
+        }
+        return Math.min(value, maxValue);
+    }
+
+    private static long boundedPositiveLong(long value, long defaultValue, long maxValue) {
         if (value <= 0) {
             return defaultValue;
         }

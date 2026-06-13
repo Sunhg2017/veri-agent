@@ -3,11 +3,15 @@ package com.songhg.veri.agent.execution.infrastructure;
 import com.songhg.veri.agent.execution.application.port.ExecutionRepository;
 import com.songhg.veri.agent.execution.application.query.ExecutionPlanQuery;
 import com.songhg.veri.agent.execution.application.query.ExecutionRunQuery;
+import com.songhg.veri.agent.execution.application.query.ExecutionTriggerEventQuery;
+import com.songhg.veri.agent.execution.application.query.ExecutionTriggerQuery;
 import com.songhg.veri.agent.execution.domain.ExecutionNodeRun;
 import com.songhg.veri.agent.execution.domain.ExecutionPlan;
 import com.songhg.veri.agent.execution.domain.ExecutionPlanNode;
 import com.songhg.veri.agent.execution.domain.ExecutionQueueClaim;
 import com.songhg.veri.agent.execution.domain.ExecutionRun;
+import com.songhg.veri.agent.execution.domain.ExecutionTrigger;
+import com.songhg.veri.agent.execution.domain.ExecutionTriggerEvent;
 import com.songhg.veri.agent.execution.infrastructure.mapper.ExecutionMapper;
 import java.time.Instant;
 import java.util.List;
@@ -181,5 +185,65 @@ public class JdbcExecutionRepository implements ExecutionRepository {
     @Override
     public Optional<String> runProjectScopeId(UUID id) {
         return Optional.ofNullable(mapper.runProjectScopeId(id));
+    }
+
+    @Override
+    public void insertTrigger(ExecutionTrigger trigger) {
+        mapper.insertTrigger(trigger);
+    }
+
+    @Override
+    public void updateTrigger(ExecutionTrigger trigger) {
+        mapper.updateTrigger(trigger);
+    }
+
+    @Override
+    public Optional<ExecutionTrigger> trigger(UUID id) {
+        return Optional.ofNullable(mapper.trigger(id));
+    }
+
+    @Override
+    public List<ExecutionTrigger> triggers(ExecutionTriggerQuery query) {
+        return mapper.triggers(query);
+    }
+
+    @Override
+    public long countTriggers(ExecutionTriggerQuery query) {
+        return mapper.countTriggers(query);
+    }
+
+    @Override
+    public Optional<String> triggerProjectScopeId(UUID id) {
+        return Optional.ofNullable(mapper.triggerProjectScopeId(id));
+    }
+
+    @Override
+    public boolean insertTriggerEvent(ExecutionTriggerEvent event) {
+        return mapper.insertTriggerEvent(event) > 0;
+    }
+
+    @Override
+    public void updateTriggerEvent(ExecutionTriggerEvent event) {
+        mapper.updateTriggerEvent(event);
+    }
+
+    @Override
+    public Optional<ExecutionTriggerEvent> triggerEvent(UUID id) {
+        return Optional.ofNullable(mapper.triggerEvent(id));
+    }
+
+    @Override
+    public Optional<ExecutionTriggerEvent> triggerEventBySource(UUID triggerId, String sourceEventId) {
+        return Optional.ofNullable(mapper.triggerEventBySource(triggerId, sourceEventId));
+    }
+
+    @Override
+    public List<ExecutionTriggerEvent> triggerEvents(ExecutionTriggerEventQuery query) {
+        return mapper.triggerEvents(query);
+    }
+
+    @Override
+    public long countTriggerEvents(ExecutionTriggerEventQuery query) {
+        return mapper.countTriggerEvents(query);
     }
 }

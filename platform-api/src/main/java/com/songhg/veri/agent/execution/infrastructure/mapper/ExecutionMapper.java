@@ -2,11 +2,15 @@ package com.songhg.veri.agent.execution.infrastructure.mapper;
 
 import com.songhg.veri.agent.execution.application.query.ExecutionPlanQuery;
 import com.songhg.veri.agent.execution.application.query.ExecutionRunQuery;
+import com.songhg.veri.agent.execution.application.query.ExecutionTriggerEventQuery;
+import com.songhg.veri.agent.execution.application.query.ExecutionTriggerQuery;
 import com.songhg.veri.agent.execution.domain.ExecutionNodeRun;
 import com.songhg.veri.agent.execution.domain.ExecutionPlan;
 import com.songhg.veri.agent.execution.domain.ExecutionPlanNode;
 import com.songhg.veri.agent.execution.domain.ExecutionQueueClaim;
 import com.songhg.veri.agent.execution.domain.ExecutionRun;
+import com.songhg.veri.agent.execution.domain.ExecutionTrigger;
+import com.songhg.veri.agent.execution.domain.ExecutionTriggerEvent;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -77,4 +81,31 @@ public interface ExecutionMapper {
     long countRuns(@Param("query") ExecutionRunQuery query);
 
     String runProjectScopeId(@Param("id") UUID id);
+
+    void insertTrigger(ExecutionTrigger trigger);
+
+    void updateTrigger(ExecutionTrigger trigger);
+
+    ExecutionTrigger trigger(@Param("id") UUID id);
+
+    List<ExecutionTrigger> triggers(@Param("query") ExecutionTriggerQuery query);
+
+    long countTriggers(@Param("query") ExecutionTriggerQuery query);
+
+    String triggerProjectScopeId(@Param("id") UUID id);
+
+    int insertTriggerEvent(ExecutionTriggerEvent event);
+
+    void updateTriggerEvent(ExecutionTriggerEvent event);
+
+    ExecutionTriggerEvent triggerEvent(@Param("id") UUID id);
+
+    ExecutionTriggerEvent triggerEventBySource(
+            @Param("triggerId") UUID triggerId,
+            @Param("sourceEventId") String sourceEventId
+    );
+
+    List<ExecutionTriggerEvent> triggerEvents(@Param("query") ExecutionTriggerEventQuery query);
+
+    long countTriggerEvents(@Param("query") ExecutionTriggerEventQuery query);
 }

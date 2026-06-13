@@ -144,9 +144,48 @@ public class ExecutionRunService {
         if (StringUtils.hasText(requestKey)) {
             return repository.runByPlanAndRequestKey(plan.id(), requestKey)
                     .map(run -> detail(run, true))
-                    .orElseGet(() -> createManualRun(plan, command, requestKey));
+                    .orElseGet(() -> createRun(plan, command, requestKey, "MANUAL", null, Map.of()));
         }
-        return createManualRun(plan, command, null);
+        return createRun(plan, command, null, "MANUAL", null, Map.of());
+    }
+
+    /**
+     * Creates a run for trusted WP9 trigger-control-plane callers without duplicating DAG initialization.
+     *
+     * <p>The caller owns source validation and passes only sanitized trigger metadata. A bounded internal requestKey is
+     * still required for external trigger idempotency so the existing run unique index remains the final duplicate
+     * guard if two webhook requests race.</p>
+     */
+    @Transactional(noRollbackFor = BusinessException.class)
+    public ExecutionRunDetailResponse triggerExternalRun(
+            UUID planId,
+            String triggerType,
+            String requestKey,
+            String sourceEventId,
+            Map<String, Object> triggerSummary
+    ) {
+        ExecutionPlan plan = requirePlan(planId);
+        if (!"READY".equals(plan.status())) {
+            throw new BusinessException(ErrorCode.INVALID_STATE, "EXECUTION_PLAN_NOT_READY");
+        }
+        String normalizedTriggerType = boundedNullableText(triggerType, 32);
+        if (!Set.of("WEBHOOK", "CRON").contains(normalizedTriggerType)) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "EXECUTION_TRIGGER_TYPE_INVALID");
+        }
+        String normalizedRequestKey = boundedNullableText(requestKey, 128);
+        if (!StringUtils.hasText(normalizedRequestKey)) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "EXECUTION_TRIGGER_REQUEST_KEY_REQUIRED");
+        }
+        return repository.runByPlanAndRequestKey(plan.id(), normalizedRequestKey)
+                .map(run -> detail(run, true))
+                .orElseGet(() -> createRun(
+                        plan,
+                        null,
+                        normalizedRequestKey,
+                        normalizedTriggerType,
+                        boundedNullableText(sourceEventId, 256),
+                        triggerSummary
+                ));
     }
 
     @Transactional(readOnly = true)
@@ -613,10 +652,13 @@ public class ExecutionRunService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "执行运行不存在"));
     }
 
-    private ExecutionRunDetailResponse createManualRun(
+    private ExecutionRunDetailResponse createRun(
             ExecutionPlan plan,
             TriggerExecutionRunCommand command,
-            String requestKey
+            String requestKey,
+            String triggerType,
+            String sourceEventId,
+            Map<String, Object> triggerSummary
     ) {
         Instant now = Instant.now();
         List<ExecutionPlanNode> planNodes = repository.planNodes(plan.id());
@@ -640,27 +682,30 @@ public class ExecutionRunService {
         long queuedNodeCount = orderedPlanNodes.stream()
                 .filter(node -> node.dependencyKeys().isEmpty())
                 .count();
+        Map<String, Object> summary = new LinkedHashMap<>();
+        summary.put("nodeCount", orderedPlanNodes.size());
+        summary.put("queuedNodeCount", queuedNodeCount);
+        summary.put("pendingNodeCount", orderedPlanNodes.size() - queuedNodeCount);
+        summary.put("dagDigest", validation.dagDigest());
+        summary.put("manualReasonPresent", "MANUAL".equals(triggerType) && StringUtils.hasText(triggerReason));
+        summary.put("variablesAccepted", command != null && command.variables() != null
+                && !command.variables().isEmpty());
+        summary.put("schedulerClaimCreated", false);
+        summary.put("runnerDispatched", false);
+        if (triggerSummary != null && !triggerSummary.isEmpty()) {
+            summary.putAll(triggerSummary);
+        }
         ExecutionRun run = new ExecutionRun(
                 runId,
                 plan.id(),
                 plan.projectId(),
                 "QUEUED",
-                "MANUAL",
+                triggerType,
                 requestKey,
-                null,
+                sourceEventId,
                 1,
                 traceId,
-                json(Map.ofEntries(
-                        Map.entry("nodeCount", orderedPlanNodes.size()),
-                        Map.entry("queuedNodeCount", queuedNodeCount),
-                        Map.entry("pendingNodeCount", orderedPlanNodes.size() - queuedNodeCount),
-                        Map.entry("dagDigest", validation.dagDigest()),
-                        Map.entry("manualReasonPresent", StringUtils.hasText(triggerReason)),
-                        Map.entry("variablesAccepted", command != null && command.variables() != null
-                                && !command.variables().isEmpty()),
-                        Map.entry("schedulerClaimCreated", false),
-                        Map.entry("runnerDispatched", false)
-                )),
+                json(summary),
                 null,
                 null,
                 actorResolver.currentActor(),

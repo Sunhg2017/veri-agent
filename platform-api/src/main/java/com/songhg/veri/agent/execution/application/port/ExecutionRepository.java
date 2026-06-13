@@ -2,11 +2,15 @@ package com.songhg.veri.agent.execution.application.port;
 
 import com.songhg.veri.agent.execution.application.query.ExecutionPlanQuery;
 import com.songhg.veri.agent.execution.application.query.ExecutionRunQuery;
+import com.songhg.veri.agent.execution.application.query.ExecutionTriggerEventQuery;
+import com.songhg.veri.agent.execution.application.query.ExecutionTriggerQuery;
 import com.songhg.veri.agent.execution.domain.ExecutionNodeRun;
 import com.songhg.veri.agent.execution.domain.ExecutionPlan;
 import com.songhg.veri.agent.execution.domain.ExecutionPlanNode;
 import com.songhg.veri.agent.execution.domain.ExecutionQueueClaim;
 import com.songhg.veri.agent.execution.domain.ExecutionRun;
+import com.songhg.veri.agent.execution.domain.ExecutionTrigger;
+import com.songhg.veri.agent.execution.domain.ExecutionTriggerEvent;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -73,4 +77,28 @@ public interface ExecutionRepository {
     long countRuns(ExecutionRunQuery query);
 
     Optional<String> runProjectScopeId(UUID id);
+
+    void insertTrigger(ExecutionTrigger trigger);
+
+    void updateTrigger(ExecutionTrigger trigger);
+
+    Optional<ExecutionTrigger> trigger(UUID id);
+
+    List<ExecutionTrigger> triggers(ExecutionTriggerQuery query);
+
+    long countTriggers(ExecutionTriggerQuery query);
+
+    Optional<String> triggerProjectScopeId(UUID id);
+
+    boolean insertTriggerEvent(ExecutionTriggerEvent event);
+
+    void updateTriggerEvent(ExecutionTriggerEvent event);
+
+    Optional<ExecutionTriggerEvent> triggerEvent(UUID id);
+
+    Optional<ExecutionTriggerEvent> triggerEventBySource(UUID triggerId, String sourceEventId);
+
+    List<ExecutionTriggerEvent> triggerEvents(ExecutionTriggerEventQuery query);
+
+    long countTriggerEvents(ExecutionTriggerEventQuery query);
 }

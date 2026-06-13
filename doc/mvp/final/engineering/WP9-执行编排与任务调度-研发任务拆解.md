@@ -98,6 +98,8 @@
 | WP9-5.3 Cron metadata | P1 | 服务端架构师 | 保存 cron、timezone、nextFireAt 和启停 | 不启用时不触发 | Service test |
 | WP9-5.4 Trigger events | P1 | 服务端架构师 | 保存触发事件、错误码、runId | 重复事件不重复 run | Repository test |
 
+M5 后端切片已完成 trigger model、管理 API、webhook 签名入口、sourceEventId 幂等事件记录和 cron 元数据摘要；生产 cron scanner、供应商 webhook 插件样例和前端触发配置页仍归后续切片。
+
 ## 10. Epic 6：前端工作台
 
 | Story | 优先级 | 负责人 | 任务 | 验收 | 验证 |
@@ -152,4 +154,3 @@
 ## 15. 前期准备完成结论
 
 WP9 前期准备已形成启动包：正式启动准备、需求 PRD、技术设计与接口契约、前端页面设计、测试策略与用例脚本、研发任务拆解。后续可按 Epic 1 进入 DB/权限/模块骨架实现。
-

@@ -56,7 +56,7 @@ flowchart LR
 
 ### 2.1 当前已落地实现
 
-截至 2026-06-13 M4C，本仓库已完成 `ExecutionPlanController`、`ExecutionRunController`、`ExecutionPlanService`、`ExecutionRunService`、`ExecutionSchedulerService`、`ExecutionDagValidator`、`ExecutionRepository`、`JdbcExecutionRepository`、`ExecutionMapper` 和 local 测试仓储。已支持 plan 创建、列表、详情、更新、归档、dry-run、READY 计划手动触发、run/node run 初始化、requestKey 幂等回放、run 列表、run 详情、run cancel、控制面 retry、内部队列 claim、claim heartbeat、过期 claim recovery、节点完成回传、依赖推进、run 状态聚合，以及 claimed `API_TEST` 节点通过 WP6 应用服务创建 API automation run 并同步脱敏摘要；`baseUrlRef=env:<key>` 可解析同项目 WP1 环境 `api_base_url`，计划输入 `runtimeSecretRefs` 可作为 WP6 runtime secretRefs 默认值安全中继；后台 scheduler loop 可按配置启用，通过既有 claim/recovery/dispatch 契约执行 `API_TEST` 和 `REPORT_HANDOFF` 节点；health policy 中 `planCrudReady=true`、`dagDryRunReady=true`、`manualTriggerReady=true`、`cancelRetryReady=true`、`queueClaimReady=true`、`heartbeatRecoveryReady=true`、`stateAggregationReady=true`、`wp6DispatchReady=true`、`schedulerLoopReady=true`。
+截至 2026-06-13 M5，本仓库已完成 `ExecutionPlanController`、`ExecutionRunController`、`ExecutionTriggerController`、`ExecutionPlanService`、`ExecutionRunService`、`ExecutionTriggerService`、`ExecutionSchedulerService`、`ExecutionDagValidator`、`ExecutionRepository`、`JdbcExecutionRepository`、`ExecutionMapper` 和 local 测试仓储。已支持 plan 创建、列表、详情、更新、归档、dry-run、READY 计划手动触发、run/node run 初始化、requestKey 幂等回放、run 列表、run 详情、run cancel、控制面 retry、内部队列 claim、claim heartbeat、过期 claim recovery、节点完成回传、依赖推进、run 状态聚合，以及 claimed `API_TEST` 节点通过 WP6 应用服务创建 API automation run 并同步脱敏摘要；`baseUrlRef=env:<key>` 可解析同项目 WP1 环境 `api_base_url`，计划输入 `runtimeSecretRefs` 可作为 WP6 runtime secretRefs 默认值安全中继；后台 scheduler loop 可按配置启用，通过既有 claim/recovery/dispatch 契约执行 `API_TEST` 和 `REPORT_HANDOFF` 节点；M5 已新增 webhook/cron 触发器管理、cron 元数据摘要、webhook 签名校验、sourceEventId 幂等和事件记录；health policy 中 `planCrudReady=true`、`dagDryRunReady=true`、`manualTriggerReady=true`、`cancelRetryReady=true`、`queueClaimReady=true`、`heartbeatRecoveryReady=true`、`stateAggregationReady=true`、`wp6DispatchReady=true`、`schedulerLoopReady=true`。
 
 M2 的资源校验通过 `ApiAutomationBundleScopeService` 查询 WP6 应用服务暴露的 bundle scope，不直读 WP6 表，不调用 runner adapter。`API_TEST` 节点要求 `apiAutomationBundleId` 存在、同项目且脚本包状态为 `APPROVED`；否则返回 `EXECUTION_DAG_INVALID`，具体 issue code 为 `EXECUTION_RESOURCE_NOT_FOUND`、`EXECUTION_RESOURCE_SCOPE_DENIED` 或 `EXECUTION_RESOURCE_NOT_READY`。
 
@@ -73,6 +73,8 @@ M4A 接入 claimed `API_TEST` 节点的 WP6 dispatch，但仍不启用后台 sch
 M4B 补齐 `baseUrlRef` 与计划密钥中继。请求体显式 `baseUrl` 优先；否则读取请求或 plan input 中的 `baseUrlRef`，当前仅支持 `env:<environmentKey>`，通过 WP1 management runtime ref 查询同项目启用环境的 `api_base_url`，再交给 WP6 做 URL 安全、host allowlist 和 digest 持久化。请求体 `secretRefs` 优先；否则读取 plan input 的 `runtimeSecretRefs` 作为 WP6 runtime secretRefs 默认值。`runtimeSecretRefs` 仅用于服务端内存中继，plan 详情、run 详情和 dispatch summary 只返回 masked/count/digest，仍不持久化 raw baseUrl、secretRef 明文、请求响应或 runner artifact。原有 `secretRefs` 字段仍按敏感输入脱敏展示，不用于还原运行期引用。
 
 M4C 增加后台 scheduler loop，默认仍由 `veri-agent.execution.scheduler-enabled=false` 关闭。启用后，`ExecutionSchedulerService` 先执行过期 claim recovery，再按 bounded batch size 调用 `claimNextQueuedNode(workerId)`；`WP6_API` 节点只通过 `ExecutionRunService#dispatchClaimedApiTestNodeRun` 进入 WP6 应用服务，`REPORT` 节点完成为 report handoff 摘要，未知 runnerType 标记为 `BLOCKED`。调度器不直连 runner adapter，不保存 raw baseUrl、secretRef、请求响应或 runner 输出；dispatch 失败时使用脱敏 summary 关闭 claim，避免 active claim 卡死。
+
+M5 增加触发控制面，默认仍由 `veri-agent.execution.webhook-enabled=false` 和 `veri-agent.execution.cron-enabled=false` 关闭。`POST /plans/{id}/triggers` 和 `PATCH /triggers/{id}` 保存 WEBHOOK/CRON 元数据，配置只保留安全摘要和 digest；webhook secret 保存为 `secretRef` 引用与 digest，不保存 secret 明文。`POST /webhooks/{id}` 为外部免登录入口，只接受 `X-VA-Timestamp`、`X-VA-Event-Id`、`X-VA-Signature`，签名串为 `timestamp.eventId.rawBody` 的 HMAC-SHA256 小写 hex，时间窗由 `veri-agent.execution.webhook-clock-skew-seconds` 控制；事件表以 `(trigger_id, source_event_id)` 保证幂等，重复事件返回既有 runId，不重复创建 run。Cron 本切片仅保存 `cron/timezone/nextFireAt` 等控制面元数据，生产 cron scanner 和错过补偿仍属后续范围。
 
 ## 3. 状态机
 
@@ -123,7 +125,7 @@ FAILED -> QUEUED   (retry attempt)
 | `execution_plan_node` | `id/plan_id/node_key/node_type/dependency_keys/input_summary_json/failure_policy/timeout_seconds/retry_policy_json` | DAG 节点定义。 |
 | `execution_run` | `id/plan_id/project_id/status/trigger_type/request_key/source_event_id/attempt/started_at/finished_at/result_summary_json` | 一次执行。 |
 | `execution_node_run` | `id/run_id/plan_node_id/status/attempt/runner_type/external_run_id/error_code/error_summary/result_summary_json/heartbeat_at` | 节点运行记录。 |
-| `execution_trigger` | `id/plan_id/trigger_type/status/config_digest/secret_ref_digest/next_fire_at/last_fire_at` | webhook/cron 配置摘要。 |
+| `execution_trigger` | `id/plan_id/trigger_type/status/config_digest/config_summary_json/secret_ref/secret_ref_digest/next_fire_at/last_fire_at` | webhook/cron 配置摘要；`secret_ref` 仅为密钥引用。 |
 | `execution_trigger_event` | `id/trigger_id/source_event_id/request_digest/status/run_id/received_at/error_code` | 触发事件和幂等记录。 |
 | `execution_queue_claim` | `id/node_run_id/claim_token/worker_id/claimed_at/heartbeat_at/expires_at/status` | 条件认领和恢复证据。 |
 
@@ -142,6 +144,7 @@ FAILED -> QUEUED   (retry attempt)
 | `veri-agent.execution.scheduler-enabled` | `false` | 是否启用后台队列认领。 |
 | `veri-agent.execution.webhook-enabled` | `false` | 是否允许 webhook 触发。 |
 | `veri-agent.execution.cron-enabled` | `false` | 是否启用 cron 扫描触发。 |
+| `veri-agent.execution.webhook-clock-skew-seconds` | `300` | webhook 签名时间戳允许偏移，按 `1..86400` 做安全边界。 |
 | `veri-agent.execution.scheduler-interval-ms` | `5000` | 后台 scheduler fixed delay，按 `1..600000` 做安全边界。 |
 | `veri-agent.execution.scheduler-initial-delay-ms` | `30000` | 后台 scheduler 初始延迟，按 `1..3600000` 做安全边界。 |
 | `veri-agent.execution.scheduler-worker-id` | `wp9-managed-worker` | 后台 scheduler 使用的 workerId，空值回退默认值，最长 128 字符。 |
@@ -176,9 +179,12 @@ FAILED -> QUEUED   (retry attempt)
 | `POST` | `/internal/queue/node-runs/{id}/complete` | `execution:admin` | 内部 worker 使用 claimToken 完成 node run，并触发依赖推进和 run 聚合。 |
 | `GET` | `/runs/{id}/export` | `execution:export` | 导出脱敏执行摘要。 |
 | `POST` | `/plans/{id}/triggers` | `execution:manage` | 创建 webhook/cron 触发配置。 |
+| `GET` | `/plans/{id}/triggers` | `execution:read` | 分页查询计划下触发配置。 |
+| `GET` | `/triggers/{id}` | `execution:read` | 查询触发配置详情。 |
 | `PATCH` | `/triggers/{id}` | `execution:manage` | 启停或更新触发配置。 |
 | `POST` | `/triggers/{id}/dry-run` | `execution:read` | 校验触发配置。 |
-| `POST` | `/webhooks/{triggerKey}` | 签名 + trigger scope | 外部 webhook 触发入口。 |
+| `GET` | `/triggers/{id}/events` | `execution:read` | 查询触发事件和幂等证据。 |
+| `POST` | `/webhooks/{id}` | HMAC 签名 | 外部 webhook 触发入口。 |
 
 ## 7. 关键请求体
 
