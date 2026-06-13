@@ -15,6 +15,14 @@ public record ExecutionProperties(
         @DefaultValue("false") boolean webhookEnabled,
         /** Enables cron metadata scanning; default is off for the first control-plane slice. */
         @DefaultValue("false") boolean cronEnabled,
+        /** Fixed delay for the managed scheduler loop. */
+        @DefaultValue("5000") int schedulerIntervalMs,
+        /** Startup delay for the managed scheduler loop. */
+        @DefaultValue("30000") int schedulerInitialDelayMs,
+        /** Worker ID used by the managed scheduler loop. */
+        @DefaultValue("wp9-managed-worker") String schedulerWorkerId,
+        /** Maximum queued nodes claimed by one scheduler tick. */
+        @DefaultValue("4") int schedulerTickBatchSize,
         /** Project-level concurrent run limit. */
         @DefaultValue("2") int maxConcurrentRunsPerProject,
         /** Per-run concurrent node limit. */
@@ -28,6 +36,13 @@ public record ExecutionProperties(
 ) {
     private static final int DEFAULT_MAX_CONCURRENT_RUNS_PER_PROJECT = 2;
     private static final int MAX_CONCURRENT_RUNS_PER_PROJECT = 50;
+    private static final int DEFAULT_SCHEDULER_INTERVAL_MS = 5_000;
+    private static final int MAX_SCHEDULER_INTERVAL_MS = 600_000;
+    private static final int DEFAULT_SCHEDULER_INITIAL_DELAY_MS = 30_000;
+    private static final int MAX_SCHEDULER_INITIAL_DELAY_MS = 3_600_000;
+    private static final int DEFAULT_SCHEDULER_TICK_BATCH_SIZE = 4;
+    private static final int MAX_SCHEDULER_TICK_BATCH_SIZE = 100;
+    private static final String DEFAULT_SCHEDULER_WORKER_ID = "wp9-managed-worker";
     private static final int DEFAULT_MAX_CONCURRENT_NODES_PER_RUN = 4;
     private static final int MAX_CONCURRENT_NODES_PER_RUN = 100;
     private static final int DEFAULT_NODE_HEARTBEAT_TIMEOUT_SECONDS = 180;
@@ -47,6 +62,35 @@ public record ExecutionProperties(
                 DEFAULT_MAX_CONCURRENT_RUNS_PER_PROJECT,
                 MAX_CONCURRENT_RUNS_PER_PROJECT
         );
+    }
+
+    public int effectiveSchedulerIntervalMs() {
+        return boundedPositive(schedulerIntervalMs, DEFAULT_SCHEDULER_INTERVAL_MS, MAX_SCHEDULER_INTERVAL_MS);
+    }
+
+    public int effectiveSchedulerInitialDelayMs() {
+        return boundedPositive(
+                schedulerInitialDelayMs,
+                DEFAULT_SCHEDULER_INITIAL_DELAY_MS,
+                MAX_SCHEDULER_INITIAL_DELAY_MS
+        );
+    }
+
+    public String effectiveSchedulerWorkerId() {
+        if (schedulerWorkerId == null || schedulerWorkerId.isBlank()) {
+            return DEFAULT_SCHEDULER_WORKER_ID;
+        }
+        String trimmed = schedulerWorkerId.trim();
+        return trimmed.length() > 128 ? trimmed.substring(0, 128) : trimmed;
+    }
+
+    public int effectiveSchedulerTickBatchSize() {
+        int bounded = boundedPositive(
+                schedulerTickBatchSize,
+                DEFAULT_SCHEDULER_TICK_BATCH_SIZE,
+                MAX_SCHEDULER_TICK_BATCH_SIZE
+        );
+        return Math.min(bounded, effectiveMaxConcurrentNodesPerRun());
     }
 
     public int effectiveMaxConcurrentNodesPerRun() {

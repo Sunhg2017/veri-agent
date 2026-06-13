@@ -54,6 +54,10 @@
 | WP9-QUEUE-005 | P0 | claim heartbeat 续约 | active claim 延长 expiresAt，并刷新 node heartbeat；过期或非 active claim 拒绝。 |
 | WP9-QUEUE-006 | P0 | 过期 claim recovery 未超过节点 timeout | claim 标记 EXPIRED，node RUNNING 重新排队为 QUEUED，旧 claimToken 不能完成。 |
 | WP9-QUEUE-007 | P0 | 过期 claim recovery 已超过节点 timeout | claim 标记 EXPIRED，node 标记 TIMEOUT，下游 fail-fast 节点 BLOCKED，run 聚合为 TIMEOUT。 |
+| WP9-SCHED-001 | P0 | scheduler 启用后执行 tick | 先 recovery，再按 bounded batch claim，API_TEST 只通过 WP6 应用服务 dispatch，REPORT_HANDOFF 完成摘要。 |
+| WP9-SCHED-002 | P0 | scheduler disabled | 不访问 `ExecutionRunService`，tick 返回 noop。 |
+| WP9-SCHED-003 | P0 | scheduler dispatch 失败 | 使用脱敏 errorSummary 将 claimed 节点关闭为 FAILED，active claim 不悬挂。 |
+| WP9-SCHED-004 | P0 | scheduler 配置越界 | interval、initialDelay、workerId、batchSize 使用 effective 边界值。 |
 | WP9-TRIGGER-001 | P0 | webhook disabled | 返回 `EXECUTION_TRIGGER_DISABLED`。 |
 | WP9-TRIGGER-002 | P0 | webhook 签名错误 | 返回 `EXECUTION_TRIGGER_SIGNATURE_INVALID`。 |
 | WP9-EXPORT-001 | P0 | 导出摘要 | 不包含 secret、baseUrl 明文、stdout/stderr 原文。 |
@@ -111,8 +115,8 @@ bash scripts/wp9_webhook_smoke.sh
 
 ## 8. 当前质量结论
 
-M1 已完成基础控制面、DB validation 和 health API 验收。M2 已完成计划与 DAG 后端切片，新增 `ExecutionDagValidatorTest`、`ExecutionPlanControllerTest`，并把 execution plan API 纳入 `OpenApiContractTest`。M3A 已完成手动触发与运行记录后端切片，新增 `ExecutionRunControllerTest`，并把 `/plans/{id}/runs`、`/runs`、`/runs/{id}` 纳入 `OpenApiContractTest`。M3B 已完成取消与控制面重试后端切片，覆盖 `/runs/{id}/cancel`、`/runs/{id}/retry`、终态取消幂等、非重试态拒绝、失败节点 retry attempt、防重复 retry 和 JDBC update/attempt 查询。M3C 已完成内部 queue claim、节点完成回传、依赖推进和 run 聚合后端切片，覆盖 `/internal/queue/claims`、`/internal/queue/node-runs/{id}/complete`、成功节点推动下游 QUEUED、失败节点阻断下游、危险 resultSummary key 丢弃、敏感文本脱敏、active claim 唯一和条件更新 DB contract。M3D 已完成 claim heartbeat、过期 claim recovery、旧 claimToken 拒绝和 TIMEOUT recovery。M4A 已完成 claimed `API_TEST` dispatch 到 WP6 应用服务的后端切片，覆盖 runner disabled 归一为 BLOCKED、WP6 managed success 聚合为 SUCCEEDED、OpenAPI contract、health `wp6DispatchReady=true`、raw baseUrl/secretRef/runner payload 不落 WP9 摘要。M4B 已完成 `baseUrlRef=env:<key>` 环境解析、计划 `runtimeSecretRefs` 安全中继、WP6 `FAILED/TIMEOUT` 结果映射、`runtimeSecretRefs` 格式校验、plan 详情脱敏和 SecretProvider 边界失败脱敏。
+M1 已完成基础控制面、DB validation 和 health API 验收。M2 已完成计划与 DAG 后端切片，新增 `ExecutionDagValidatorTest`、`ExecutionPlanControllerTest`，并把 execution plan API 纳入 `OpenApiContractTest`。M3A 已完成手动触发与运行记录后端切片，新增 `ExecutionRunControllerTest`，并把 `/plans/{id}/runs`、`/runs`、`/runs/{id}` 纳入 `OpenApiContractTest`。M3B 已完成取消与控制面重试后端切片，覆盖 `/runs/{id}/cancel`、`/runs/{id}/retry`、终态取消幂等、非重试态拒绝、失败节点 retry attempt、防重复 retry 和 JDBC update/attempt 查询。M3C 已完成内部 queue claim、节点完成回传、依赖推进和 run 聚合后端切片，覆盖 `/internal/queue/claims`、`/internal/queue/node-runs/{id}/complete`、成功节点推动下游 QUEUED、失败节点阻断下游、危险 resultSummary key 丢弃、敏感文本脱敏、active claim 唯一和条件更新 DB contract。M3D 已完成 claim heartbeat、过期 claim recovery、旧 claimToken 拒绝和 TIMEOUT recovery。M4A 已完成 claimed `API_TEST` dispatch 到 WP6 应用服务的后端切片，覆盖 runner disabled 归一为 BLOCKED、WP6 managed success 聚合为 SUCCEEDED、OpenAPI contract、health `wp6DispatchReady=true`、raw baseUrl/secretRef/runner payload 不落 WP9 摘要。M4B 已完成 `baseUrlRef=env:<key>` 环境解析、计划 `runtimeSecretRefs` 安全中继、WP6 `FAILED/TIMEOUT` 结果映射、`runtimeSecretRefs` 格式校验、plan 详情脱敏和 SecretProvider 边界失败脱敏。M4C 已完成后台 scheduler loop 后端切片，覆盖启用后 recovery/claim/dispatch/report handoff、disabled noop、dispatch 失败脱敏关闭 claim、scheduler 配置边界和 health `schedulerLoopReady=true`。
 
-当前已覆盖 plan 创建、列表、详情、更新、dry-run、归档、归档后状态保护、DAG 循环、跨项目 WP6 bundle 拒绝、secretRef 输入脱敏、`runtimeSecretRefs` 引用校验/脱敏、READY 计划手动触发、requestKey 幂等回放、run 列表/详情、取消、重试、内部认领、heartbeat、recovery、节点完成、API_TEST dispatch、baseUrlRef 环境解析、WP6 failure/timeout 映射、依赖推进、状态聚合和权限保护。
+当前已覆盖 plan 创建、列表、详情、更新、dry-run、归档、归档后状态保护、DAG 循环、跨项目 WP6 bundle 拒绝、secretRef 输入脱敏、`runtimeSecretRefs` 引用校验/脱敏、READY 计划手动触发、requestKey 幂等回放、run 列表/详情、取消、重试、内部认领、heartbeat、recovery、节点完成、API_TEST dispatch、baseUrlRef 环境解析、WP6 failure/timeout 映射、后台 scheduler loop、依赖推进、状态聚合和权限保护。
 
-尚未进入后续 M4C/M5/M6 的后台 scheduler loop、webhook/cron 和前端工作台测试；这些后续仍必须按本文件 P0 用例矩阵补齐。
+尚未进入后续 M5/M6 的 webhook/cron 和前端工作台测试；这些后续仍必须按本文件 P0 用例矩阵补齐。

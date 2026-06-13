@@ -56,7 +56,7 @@ flowchart LR
 
 ### 2.1 当前已落地实现
 
-截至 2026-06-13 M4B，本仓库已完成 `ExecutionPlanController`、`ExecutionRunController`、`ExecutionPlanService`、`ExecutionRunService`、`ExecutionDagValidator`、`ExecutionRepository`、`JdbcExecutionRepository`、`ExecutionMapper` 和 local 测试仓储。已支持 plan 创建、列表、详情、更新、归档、dry-run、READY 计划手动触发、run/node run 初始化、requestKey 幂等回放、run 列表、run 详情、run cancel、控制面 retry、内部队列 claim、claim heartbeat、过期 claim recovery、节点完成回传、依赖推进、run 状态聚合，以及 claimed `API_TEST` 节点通过 WP6 应用服务创建 API automation run 并同步脱敏摘要；`baseUrlRef=env:<key>` 可解析同项目 WP1 环境 `api_base_url`，计划输入 `runtimeSecretRefs` 可作为 WP6 runtime secretRefs 默认值安全中继；health policy 中 `planCrudReady=true`、`dagDryRunReady=true`、`manualTriggerReady=true`、`cancelRetryReady=true`、`queueClaimReady=true`、`heartbeatRecoveryReady=true`、`stateAggregationReady=true`、`wp6DispatchReady=true`。
+截至 2026-06-13 M4C，本仓库已完成 `ExecutionPlanController`、`ExecutionRunController`、`ExecutionPlanService`、`ExecutionRunService`、`ExecutionSchedulerService`、`ExecutionDagValidator`、`ExecutionRepository`、`JdbcExecutionRepository`、`ExecutionMapper` 和 local 测试仓储。已支持 plan 创建、列表、详情、更新、归档、dry-run、READY 计划手动触发、run/node run 初始化、requestKey 幂等回放、run 列表、run 详情、run cancel、控制面 retry、内部队列 claim、claim heartbeat、过期 claim recovery、节点完成回传、依赖推进、run 状态聚合，以及 claimed `API_TEST` 节点通过 WP6 应用服务创建 API automation run 并同步脱敏摘要；`baseUrlRef=env:<key>` 可解析同项目 WP1 环境 `api_base_url`，计划输入 `runtimeSecretRefs` 可作为 WP6 runtime secretRefs 默认值安全中继；后台 scheduler loop 可按配置启用，通过既有 claim/recovery/dispatch 契约执行 `API_TEST` 和 `REPORT_HANDOFF` 节点；health policy 中 `planCrudReady=true`、`dagDryRunReady=true`、`manualTriggerReady=true`、`cancelRetryReady=true`、`queueClaimReady=true`、`heartbeatRecoveryReady=true`、`stateAggregationReady=true`、`wp6DispatchReady=true`、`schedulerLoopReady=true`。
 
 M2 的资源校验通过 `ApiAutomationBundleScopeService` 查询 WP6 应用服务暴露的 bundle scope，不直读 WP6 表，不调用 runner adapter。`API_TEST` 节点要求 `apiAutomationBundleId` 存在、同项目且脚本包状态为 `APPROVED`；否则返回 `EXECUTION_DAG_INVALID`，具体 issue code 为 `EXECUTION_RESOURCE_NOT_FOUND`、`EXECUTION_RESOURCE_SCOPE_DENIED` 或 `EXECUTION_RESOURCE_NOT_READY`。
 
@@ -71,6 +71,8 @@ M3D 补齐内部 heartbeat 与 recovery 控制面，仍不启用后台 scheduler
 M4A 接入 claimed `API_TEST` 节点的 WP6 dispatch，但仍不启用后台 scheduler 线程。`POST /internal/queue/node-runs/{id}/dispatch` 要求 active claimToken、node run 仍为 `RUNNING` 且 plan node 类型为 `API_TEST`；请求体携带运行时 `baseUrl`、可选 `environmentId/caseIds/secretRefs`。服务端通过 `ApiAutomationService#createRun` 创建 WP6 run，复用 WP6 runner-enabled、allowlist、secretRef 解析、host/digest 持久化和 runner 输出脱敏策略，再把 WP6 `PASSED/BLOCKED/TIMEOUT/FAILED` 归一为 WP9 `SUCCEEDED/BLOCKED/TIMEOUT/FAILED`。WP9 node summary 只保存 `wp6RunId`、`wp6Status`、`wp6RunnerMode`、case/result 计数、baseUrl host/digest、traceId 和安全策略布尔值。
 
 M4B 补齐 `baseUrlRef` 与计划密钥中继。请求体显式 `baseUrl` 优先；否则读取请求或 plan input 中的 `baseUrlRef`，当前仅支持 `env:<environmentKey>`，通过 WP1 management runtime ref 查询同项目启用环境的 `api_base_url`，再交给 WP6 做 URL 安全、host allowlist 和 digest 持久化。请求体 `secretRefs` 优先；否则读取 plan input 的 `runtimeSecretRefs` 作为 WP6 runtime secretRefs 默认值。`runtimeSecretRefs` 仅用于服务端内存中继，plan 详情、run 详情和 dispatch summary 只返回 masked/count/digest，仍不持久化 raw baseUrl、secretRef 明文、请求响应或 runner artifact。原有 `secretRefs` 字段仍按敏感输入脱敏展示，不用于还原运行期引用。
+
+M4C 增加后台 scheduler loop，默认仍由 `veri-agent.execution.scheduler-enabled=false` 关闭。启用后，`ExecutionSchedulerService` 先执行过期 claim recovery，再按 bounded batch size 调用 `claimNextQueuedNode(workerId)`；`WP6_API` 节点只通过 `ExecutionRunService#dispatchClaimedApiTestNodeRun` 进入 WP6 应用服务，`REPORT` 节点完成为 report handoff 摘要，未知 runnerType 标记为 `BLOCKED`。调度器不直连 runner adapter，不保存 raw baseUrl、secretRef、请求响应或 runner 输出；dispatch 失败时使用脱敏 summary 关闭 claim，避免 active claim 卡死。
 
 ## 3. 状态机
 
@@ -140,6 +142,10 @@ FAILED -> QUEUED   (retry attempt)
 | `veri-agent.execution.scheduler-enabled` | `false` | 是否启用后台队列认领。 |
 | `veri-agent.execution.webhook-enabled` | `false` | 是否允许 webhook 触发。 |
 | `veri-agent.execution.cron-enabled` | `false` | 是否启用 cron 扫描触发。 |
+| `veri-agent.execution.scheduler-interval-ms` | `5000` | 后台 scheduler fixed delay，按 `1..600000` 做安全边界。 |
+| `veri-agent.execution.scheduler-initial-delay-ms` | `30000` | 后台 scheduler 初始延迟，按 `1..3600000` 做安全边界。 |
+| `veri-agent.execution.scheduler-worker-id` | `wp9-managed-worker` | 后台 scheduler 使用的 workerId，空值回退默认值，最长 128 字符。 |
+| `veri-agent.execution.scheduler-tick-batch-size` | `4` | 单次 scheduler tick 最大认领节点数，受单 run 节点并发上限约束。 |
 | `veri-agent.execution.max-concurrent-runs-per-project` | `2` | 单项目并发 run 上限。 |
 | `veri-agent.execution.max-concurrent-nodes-per-run` | `4` | 单 run 并发节点上限。 |
 | `veri-agent.execution.node-heartbeat-timeout-seconds` | `180` | 节点 heartbeat 超时。 |
@@ -428,16 +434,16 @@ FAILED -> QUEUED   (retry attempt)
 
 ## 12. 当前实现切片建议
 
-M1、M2、M3A、M3B、M3C、M3D、M4A 和 M4B 已完成：
+M1、M2、M3A、M3B、M3C、M3D、M4A、M4B 和 M4C 已完成：
 
-1. 权限、DB、health、plan CRUD、DAG validator、plan dry-run、手动触发、run/node run 初始化、取消、控制面重试、内部 queue claim、claim heartbeat、过期 claim recovery、节点完成回传、API_TEST 到 WP6 应用服务 dispatch、`baseUrlRef` 环境解析、计划 `runtimeSecretRefs` 安全中继、依赖推进和 run 聚合。
+1. 权限、DB、health、plan CRUD、DAG validator、plan dry-run、手动触发、run/node run 初始化、取消、控制面重试、内部 queue claim、claim heartbeat、过期 claim recovery、节点完成回传、API_TEST 到 WP6 应用服务 dispatch、`baseUrlRef` 环境解析、计划 `runtimeSecretRefs` 安全中继、后台 scheduler loop、依赖推进和 run 聚合。
 2. `API_TEST` 资源 scope 校验通过 WP6 应用服务端口，不直读 WP6 表。
 3. 状态保护覆盖 `DRAFT/READY/DISABLED/ARCHIVED`，归档必须走专用 endpoint。
 4. dry-run 不创建 run；手动触发只创建 orchestration 记录；内部 dispatch 只通过 WP6 应用服务，不直连 runner adapter，不保存 secret、变量明文、raw baseUrl 或 runner 原始输出。
 
 后续切片继续推进：
 
-1. 后台 scheduler loop，由 worker 自动 claim、dispatch、heartbeat 和 recovery。
+1. scheduler heartbeat 和外部 worker 托管策略增强。
 2. webhook/cron 触发控制面。
 3. 前端计划列表、DAG 预览、运行详情和取消重试。
 4. WP9 quality gate 聚合后端、前端、DB 和 smoke。
