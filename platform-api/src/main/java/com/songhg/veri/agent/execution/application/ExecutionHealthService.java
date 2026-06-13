@@ -32,8 +32,8 @@ public class ExecutionHealthService {
                 properties.effectiveRecoveryBatchSize(),
                 Map.ofEntries(
                         Map.entry("controlPlaneReady", true),
-                        Map.entry("planCrudReady", false),
-                        Map.entry("dagDryRunReady", false),
+                        Map.entry("planCrudReady", true),
+                        Map.entry("dagDryRunReady", true),
                         Map.entry("manualTriggerReady", false),
                         Map.entry("queueClaimReady", false),
                         Map.entry("wp6DispatchReady", false),

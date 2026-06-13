@@ -1,0 +1,155 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.songhg.veri.agent.execution.infrastructure.mapper.ExecutionMapper">
+    <resultMap id="planMap" type="com.songhg.veri.agent.execution.domain.ExecutionPlan">
+        <constructor>
+            <arg column="id" javaType="java.util.UUID"/>
+            <arg column="project_id" javaType="java.lang.String"/>
+            <arg column="name" javaType="java.lang.String"/>
+            <arg column="status" javaType="java.lang.String"/>
+            <arg column="environment_key" javaType="java.lang.String"/>
+            <arg column="trigger_policy_json" javaType="java.lang.String"/>
+            <arg column="dag_digest" javaType="java.lang.String"/>
+            <arg column="description" javaType="java.lang.String"/>
+            <arg column="created_by" javaType="java.lang.String"/>
+            <arg column="updated_by" javaType="java.lang.String"/>
+            <arg column="archived_at" javaType="java.time.Instant"/>
+            <arg column="created_at" javaType="java.time.Instant"/>
+            <arg column="updated_at" javaType="java.time.Instant"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="planNodeMap" type="com.songhg.veri.agent.execution.domain.ExecutionPlanNode">
+        <constructor>
+            <arg column="id" javaType="java.util.UUID"/>
+            <arg column="plan_id" javaType="java.util.UUID"/>
+            <arg column="node_key" javaType="java.lang.String"/>
+            <arg column="node_type" javaType="java.lang.String"/>
+            <arg column="dependency_keys_csv" javaType="java.lang.String"/>
+            <arg column="input_summary_json" javaType="java.lang.String"/>
+            <arg column="failure_policy" javaType="java.lang.String"/>
+            <arg column="timeout_seconds" javaType="_int"/>
+            <arg column="retry_policy_json" javaType="java.lang.String"/>
+            <arg column="created_at" javaType="java.time.Instant"/>
+            <arg column="updated_at" javaType="java.time.Instant"/>
+        </constructor>
+    </resultMap>
+
+    <sql id="planColumns">
+        id, project_id, name, status, environment_key,
+        trigger_policy_json::text as trigger_policy_json,
+        dag_digest, description, created_by, updated_by, archived_at, created_at, updated_at
+    </sql>
+
+    <sql id="planNodeColumns">
+        id, plan_id, node_key, node_type, array_to_string(dependency_keys, ',') as dependency_keys_csv,
+        input_summary_json::text as input_summary_json,
+        failure_policy, timeout_seconds, retry_policy_json::text as retry_policy_json,
+        created_at, updated_at
+    </sql>
+
+    <sql id="planWhere">
+        <where>
+            <if test="query.projectId != null">project_id = #{query.projectId}</if>
+            <if test="query.status != null">and status = #{query.status}</if>
+            <if test="query.keyword != null">
+                and (
+                    position(lower(#{query.keyword}) in lower(coalesce(name, ''))) &gt; 0
+                    or position(lower(#{query.keyword}) in lower(coalesce(description, ''))) &gt; 0
+                )
+            </if>
+        </where>
+    </sql>
+
+    <insert id="insertPlan">
+        insert into execution_plan (
+            id, project_id, name, status, environment_key, trigger_policy_json, dag_digest,
+            description, created_by, updated_by, archived_at, created_at, updated_at
+        ) values (
+            #{id}, #{projectId}, #{name}, #{status}, #{environmentKey},
+            cast(coalesce(#{triggerPolicyJson}, '{}') as jsonb),
+            #{dagDigest}, #{description}, #{createdBy}, #{updatedBy}, #{archivedAt}, #{createdAt}, #{updatedAt}
+        )
+    </insert>
+
+    <update id="updatePlan">
+        update execution_plan set
+            name = #{name},
+            status = #{status},
+            environment_key = #{environmentKey},
+            trigger_policy_json = cast(coalesce(#{triggerPolicyJson}, '{}') as jsonb),
+            dag_digest = #{dagDigest},
+            description = #{description},
+            updated_by = #{updatedBy},
+            updated_at = #{updatedAt}
+        where id = #{id}
+          and status != 'ARCHIVED'
+    </update>
+
+    <update id="archivePlan">
+        update execution_plan set
+            status = 'ARCHIVED',
+            updated_by = #{updatedBy},
+            archived_at = #{archivedAt},
+            updated_at = #{updatedAt}
+        where id = #{id}
+          and status != 'ARCHIVED'
+    </update>
+
+    <delete id="deletePlanNodes">
+        delete from execution_plan_node
+        where plan_id = #{planId}
+    </delete>
+
+    <insert id="insertPlanNode">
+        insert into execution_plan_node (
+            id, plan_id, node_key, node_type, dependency_keys, input_summary_json,
+            failure_policy, timeout_seconds, retry_policy_json, created_at, updated_at
+        ) values (
+            #{id}, #{planId}, #{nodeKey}, #{nodeType},
+            case
+                when #{dependencyKeysCsv} is null or #{dependencyKeysCsv} = '' then '{}'::text[]
+                else string_to_array(#{dependencyKeysCsv}, ',')::text[]
+            end,
+            cast(coalesce(#{inputSummaryJson}, '{}') as jsonb),
+            #{failurePolicy}, #{timeoutSeconds},
+            cast(coalesce(#{retryPolicyJson}, '{}') as jsonb),
+            #{createdAt}, #{updatedAt}
+        )
+    </insert>
+
+    <select id="plan" resultMap="planMap">
+        select <include refid="planColumns"/>
+        from execution_plan
+        where id = #{id}
+    </select>
+
+    <select id="planNodes" resultMap="planNodeMap">
+        select <include refid="planNodeColumns"/>
+        from execution_plan_node
+        where plan_id = #{planId}
+        order by node_key asc
+    </select>
+
+    <select id="plans" resultMap="planMap">
+        select <include refid="planColumns"/>
+        from execution_plan
+        <include refid="planWhere"/>
+        order by updated_at desc
+        limit #{query.limit} offset #{query.offset}
+    </select>
+
+    <select id="countPlans" resultType="long">
+        select count(*)
+        from execution_plan
+        <include refid="planWhere"/>
+    </select>
+
+    <select id="planProjectScopeId" resultType="string">
+        select project_id
+        from execution_plan
+        where id = #{id}
+    </select>
+</mapper>

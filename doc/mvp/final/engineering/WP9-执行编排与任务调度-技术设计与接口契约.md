@@ -54,6 +54,12 @@ flowchart LR
 | `ExecutionRecoveryService` | 扫描超时 RUNNING、过期 heartbeat、卡死 QUEUED，并执行状态收敛或重发。 |
 | `ExecutionRepository` | MyBatis 仓储，维护计划、节点、运行、触发、队列和审计聚合查询。 |
 
+### 2.1 当前已落地实现
+
+截至 2026-06-13 M2，本仓库已完成 `ExecutionPlanController`、`ExecutionPlanService`、`ExecutionDagValidator`、`ExecutionRepository`、`JdbcExecutionRepository`、`ExecutionMapper` 和 local 测试仓储。已支持 plan 创建、列表、详情、更新、归档和 dry-run；health policy 中 `planCrudReady=true`、`dagDryRunReady=true`。
+
+M2 的资源校验通过 `ApiAutomationBundleScopeService` 查询 WP6 应用服务暴露的 bundle scope，不直读 WP6 表，不调用 runner adapter。`API_TEST` 节点要求 `apiAutomationBundleId` 存在、同项目且脚本包状态为 `APPROVED`；否则返回 `EXECUTION_DAG_INVALID`，具体 issue code 为 `EXECUTION_RESOURCE_NOT_FOUND`、`EXECUTION_RESOURCE_SCOPE_DENIED` 或 `EXECUTION_RESOURCE_NOT_READY`。
+
 ## 3. 状态机
 
 ### 3.1 Plan
@@ -185,6 +191,37 @@ FAILED -> QUEUED   (retry attempt)
 }
 ```
 
+### dryRun 响应
+
+```json
+{
+  "planId": "uuid",
+  "valid": true,
+  "dagDigest": "sha256-hex",
+  "nodes": [
+    {
+      "key": "api-smoke",
+      "type": "API_TEST",
+      "dependencies": [],
+      "failurePolicy": "FAIL_FAST",
+      "timeoutSeconds": 300,
+      "runnerType": "WP6_API",
+      "inputSummary": {
+        "apiAutomationBundleId": "uuid",
+        "secretRefs": {"masked": true, "count": 1}
+      }
+    }
+  ],
+  "issues": [],
+  "policy": {
+    "dryRun": true,
+    "runCreated": false,
+    "runnerDispatched": false,
+    "secretPlaintextStored": false
+  }
+}
+```
+
 ### 手动触发
 
 ```json
@@ -240,6 +277,11 @@ FAILED -> QUEUED   (retry attempt)
 | `EXECUTION_NODE_DISPATCH_FAILED` | 节点调度失败。 |
 | `EXECUTION_RUN_TIMEOUT` | run 或节点超时。 |
 | `EXECUTION_RUNNER_NOT_READY` | WP7/utility runner 未就绪。 |
+| `EXECUTION_PLAN_ARCHIVED` | 已归档计划不可更新。 |
+| `EXECUTION_PLAN_ARCHIVE_ENDPOINT_REQUIRED` | 归档必须走 `/plans/{id}/archive`，不得通过 create/update 直接写入 `ARCHIVED`。 |
+| `EXECUTION_RESOURCE_REQUIRED` | `API_TEST` 节点缺少 `apiAutomationBundleId`。 |
+| `EXECUTION_RESOURCE_NOT_FOUND` | 引用的 WP6 脚本包不存在。 |
+| `EXECUTION_RESOURCE_NOT_READY` | 引用的 WP6 脚本包未审批通过。 |
 
 ## 11. 安全与兼容
 
@@ -251,12 +293,17 @@ FAILED -> QUEUED   (retry attempt)
 
 ## 12. 当前实现切片建议
 
-第一轮实现建议只做：
+M1 和 M2 已完成：
 
-1. 权限、DB、health、plan CRUD、DAG dryRun。
-2. 手动触发和 run/node run 状态流。
-3. API_TEST 节点接 WP6 run。
-4. cancel/retry/timeout/recovery 的最小闭环。
-5. 前端计划列表、DAG 预览、运行详情和取消重试。
-6. WP9 quality gate 聚合后端、前端、DB 和 smoke。
+1. 权限、DB、health、plan CRUD、DAG validator 和 plan dry-run。
+2. `API_TEST` 资源 scope 校验通过 WP6 应用服务端口，不直读 WP6 表。
+3. 状态保护覆盖 `DRAFT/READY/DISABLED/ARCHIVED`，归档必须走专用 endpoint。
+4. dry-run 不创建 run、不调度 runner、不保存 secret 明文。
 
+后续切片继续推进：
+
+1. 手动触发和 run/node run 状态流。
+2. API_TEST 节点接 WP6 run。
+3. cancel/retry/timeout/recovery 的最小闭环。
+4. 前端计划列表、DAG 预览、运行详情和取消重试。
+5. WP9 quality gate 聚合后端、前端、DB 和 smoke。

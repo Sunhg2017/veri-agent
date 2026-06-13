@@ -103,7 +103,8 @@ bash scripts/wp9_webhook_smoke.sh
 5. WP6 dispatch 不泄露敏感值，不绕过 WP6 runner 安全策略。
 6. 后端、前端、构建、DB validation 和 WP9 quality gate 按影响面通过。
 
-## 8. 当前前期质量结论
+## 8. 当前质量结论
 
-本轮只完成 WP9 前期准备和任务拆分，不新增运行时代码、数据库迁移或脚本。当前质量验收以文档一致性、任务拆分完整性和仓库格式检查为准；后续进入实现阶段后，必须按本文件补齐测试脚本和 release gate。
+M1 已完成基础控制面、DB validation 和 health API 验收。M2 已完成计划与 DAG 后端切片，新增 `ExecutionDagValidatorTest`、`ExecutionPlanControllerTest`，并把 execution plan API 纳入 `OpenApiContractTest`。当前已覆盖 plan 创建、列表、详情、更新、dry-run、归档、归档后状态保护、DAG 循环、跨项目 WP6 bundle 拒绝、secretRef 输入脱敏和权限保护。
 
+尚未进入 M3/M4/M5/M6 的手动 run、队列认领、WP6 dispatch、cancel/retry、webhook/cron 和前端工作台测试；这些后续仍必须按本文件 P0 用例矩阵补齐。
