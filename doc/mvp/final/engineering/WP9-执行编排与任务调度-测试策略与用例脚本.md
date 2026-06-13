@@ -119,4 +119,4 @@ M1 已完成基础控制面、DB validation 和 health API 验收。M2 已完成
 
 当前已覆盖 plan 创建、列表、详情、更新、dry-run、归档、归档后状态保护、DAG 循环、跨项目 WP6 bundle 拒绝、secretRef 输入脱敏、`runtimeSecretRefs` 引用校验/脱敏、READY 计划手动触发、requestKey 幂等回放、run 列表/详情、取消、重试、内部认领、heartbeat、recovery、节点完成、API_TEST dispatch、baseUrlRef 环境解析、WP6 failure/timeout 映射、后台 scheduler loop、trigger 管理、webhook 签名与幂等、依赖推进、状态聚合和权限保护。
 
-尚未进入生产 cron scanner、供应商 webhook 插件样例和 M6 前端工作台测试；这些后续仍必须按本文件 P0 用例矩阵补齐。
+M6C 已补 `portal-web/e2e/wp9-execution.smoke.playwright.ts` 和 `scripts/wp9_frontend_e2e_smoke.sh`，覆盖桌面与 390px 视口下的执行工作台计划创建/更新、DAG dryRun、手动运行、取消、失败运行重试、触发器创建/dryRun/启停、事件查看和无横向溢出。尚未进入生产 cron scanner、供应商 webhook 插件样例、执行摘要导出落地和聚合 WP9 quality gate；这些后续仍必须按本文件 P0 用例矩阵补齐。

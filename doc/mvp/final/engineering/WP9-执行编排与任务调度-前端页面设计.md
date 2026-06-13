@@ -9,7 +9,7 @@
 | 版本 | v0.1 |
 | 日期 | 2026-06-13 |
 
-截至 2026-06-14 M6A，`portal-web` 已新增 `#execution` 工作台入口、`execution:read/manage/trigger/export` 权限判断、WP9 API client normalization、调度策略指标、计划列表、单节点计划创建、DAG 摘要、手动触发、运行详情、取消/重试、触发配置摘要和 trigger dryRun。M6B 继续补齐多节点 DAG 草稿编辑、选中计划回填、`PATCH /plans/{id}` 保存更新、计划归档入口和按触发器查看最近事件。当前实现以主链路控制面可用为准；导出文件下载、Playwright 390px smoke 和 cron scanner 操作台仍按后续切片推进。
+截至 2026-06-14 M6C，`portal-web` 已新增 `#execution` 工作台入口、`execution:read/manage/trigger/export` 权限判断、WP9 API client normalization、调度策略指标、计划列表、多节点计划创建/更新/归档、DAG 摘要与 dryRun、手动触发、运行详情、取消/重试、触发配置摘要、trigger dryRun、触发事件查看和桌面/390px Playwright browser smoke。当前实现以主链路控制面可用和可回归为准；导出文件下载和 cron scanner 操作台仍按后续切片推进。
 
 ## 1. 页面目标
 
@@ -124,7 +124,7 @@
 
 1. 关键按钮有稳定 accessible name：新建执行计划、Dry run、保存计划、运行计划、取消运行、重试失败节点、导出摘要。
 2. 关键区域使用稳定 data-testid：`execution-workbench`、`execution-plan-list`、`execution-dag-preview`、`execution-run-detail`。
-3. Playwright smoke 使用 mock API 覆盖创建、dryRun、运行、取消、重试和移动端布局。
+3. Playwright smoke 使用 mock API 覆盖创建、更新、dryRun、运行、取消、重试、触发配置和移动端布局。
 
 ## 11. 前端验收
 

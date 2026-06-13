@@ -139,18 +139,12 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
       setPlans(planResult.data.items);
       setRuns(runResult.data.items);
       setLoadState({ loading: false });
-      const nextPlanId = selectedPlanId || planResult.data.items[0]?.id || '';
-      if (nextPlanId) {
-        setSelectedPlanId(nextPlanId);
-      }
-      const nextRunId = selectedRunId || runResult.data.items[0]?.id || '';
-      if (nextRunId) {
-        setSelectedRunId(nextRunId);
-      }
+      setSelectedPlanId((current) => current || planResult.data.items[0]?.id || '');
+      setSelectedRunId((current) => current || runResult.data.items[0]?.id || '');
     } catch (error: unknown) {
       setLoadState({ loading: false, error: error instanceof Error ? error.message : '加载失败' });
     }
-  }, [canRead, props.signedIn, selectedPlanId, selectedRunId]);
+  }, [canRead, props.signedIn]);
 
   const refreshPlanDetail = useCallback(async (planId: string) => {
     if (!planId || !canRead) {
@@ -857,7 +851,10 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
   }
 
   function resetPlanDraft() {
-    setPlanDraft(initialExecutionPlanDraft);
+    setPlanDraft({
+      ...initialExecutionPlanDraft,
+      nodes: [blankExecutionNodeDraft(1)]
+    });
     setPlanDraftMode('create');
     setSelectedPlanId('');
     setSelectedTriggerId('');
