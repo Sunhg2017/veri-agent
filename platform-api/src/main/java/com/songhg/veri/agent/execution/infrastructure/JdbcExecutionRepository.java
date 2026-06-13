@@ -2,8 +2,11 @@ package com.songhg.veri.agent.execution.infrastructure;
 
 import com.songhg.veri.agent.execution.application.port.ExecutionRepository;
 import com.songhg.veri.agent.execution.application.query.ExecutionPlanQuery;
+import com.songhg.veri.agent.execution.application.query.ExecutionRunQuery;
+import com.songhg.veri.agent.execution.domain.ExecutionNodeRun;
 import com.songhg.veri.agent.execution.domain.ExecutionPlan;
 import com.songhg.veri.agent.execution.domain.ExecutionPlanNode;
+import com.songhg.veri.agent.execution.domain.ExecutionRun;
 import com.songhg.veri.agent.execution.infrastructure.mapper.ExecutionMapper;
 import java.util.List;
 import java.util.Optional;
@@ -67,5 +70,47 @@ public class JdbcExecutionRepository implements ExecutionRepository {
     @Override
     public Optional<String> planProjectScopeId(UUID id) {
         return Optional.ofNullable(mapper.planProjectScopeId(id));
+    }
+
+    @Override
+    public boolean insertRun(ExecutionRun run) {
+        return mapper.insertRun(run) > 0;
+    }
+
+    @Override
+    public void insertNodeRuns(List<ExecutionNodeRun> nodeRuns) {
+        for (ExecutionNodeRun nodeRun : nodeRuns) {
+            mapper.insertNodeRun(nodeRun);
+        }
+    }
+
+    @Override
+    public Optional<ExecutionRun> run(UUID id) {
+        return Optional.ofNullable(mapper.run(id));
+    }
+
+    @Override
+    public Optional<ExecutionRun> runByPlanAndRequestKey(UUID planId, String requestKey) {
+        return Optional.ofNullable(mapper.runByPlanAndRequestKey(planId, requestKey));
+    }
+
+    @Override
+    public List<ExecutionNodeRun> nodeRuns(UUID runId) {
+        return mapper.nodeRuns(runId);
+    }
+
+    @Override
+    public List<ExecutionRun> runs(ExecutionRunQuery query) {
+        return mapper.runs(query);
+    }
+
+    @Override
+    public long countRuns(ExecutionRunQuery query) {
+        return mapper.countRuns(query);
+    }
+
+    @Override
+    public Optional<String> runProjectScopeId(UUID id) {
+        return Optional.ofNullable(mapper.runProjectScopeId(id));
     }
 }

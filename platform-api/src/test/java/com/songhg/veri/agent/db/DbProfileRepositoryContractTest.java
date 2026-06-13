@@ -14,6 +14,12 @@ import com.songhg.veri.agent.auth.domain.AuthSessionStore;
 import com.songhg.veri.agent.auth.infrastructure.JdbcAuthSessionStore;
 import com.songhg.veri.agent.common.audit.AuditLogWriter;
 import com.songhg.veri.agent.common.api.PageQuery;
+import com.songhg.veri.agent.execution.application.port.ExecutionRepository;
+import com.songhg.veri.agent.execution.application.query.ExecutionRunQuery;
+import com.songhg.veri.agent.execution.domain.ExecutionNodeRun;
+import com.songhg.veri.agent.execution.domain.ExecutionPlan;
+import com.songhg.veri.agent.execution.domain.ExecutionPlanNode;
+import com.songhg.veri.agent.execution.domain.ExecutionRun;
 import com.songhg.veri.agent.modelaccess.application.query.InvocationQuery;
 import com.songhg.veri.agent.modelaccess.application.port.ModelAccessRepository;
 import com.songhg.veri.agent.modelaccess.application.view.ModelInvocationJobRecord;
@@ -102,6 +108,9 @@ class DbProfileRepositoryContractTest {
     private TestDesignRepository testDesignRepository;
 
     @Autowired
+    private ExecutionRepository executionRepository;
+
+    @Autowired
     private AuditLogWriter auditLogWriter;
 
     @Autowired
@@ -119,6 +128,154 @@ class DbProfileRepositoryContractTest {
         assertThat(modelAccessRepository).isInstanceOf(JdbcModelAccessRepository.class);
         assertThat(modelInvocationJobRepository).isInstanceOf(JdbcModelInvocationJobRepository.class);
         assertThat(applicationContext.getBeanNamesForType(AssetRepository.class)).hasSize(1);
+    }
+
+    @Test
+    void executionRepositoryPersistsRunsAndNodeRunsThroughJdbc() {
+        Instant now = Instant.now();
+        UUID planId = UUID.randomUUID();
+        UUID apiNodeId = UUID.randomUUID();
+        UUID reportNodeId = UUID.randomUUID();
+        UUID runId = UUID.randomUUID();
+        String projectId = "project-wp9-db-" + UUID.randomUUID();
+        String requestKey = "manual-" + UUID.randomUUID();
+
+        executionRepository.insertPlan(new ExecutionPlan(
+                planId,
+                projectId,
+                "DB execution plan",
+                "READY",
+                "staging",
+                "{\"manualEnabled\":true}",
+                "a".repeat(64),
+                "db profile contract",
+                "db-tester",
+                "db-tester",
+                null,
+                now,
+                now
+        ));
+        executionRepository.replacePlanNodes(planId, List.of(
+                new ExecutionPlanNode(
+                        apiNodeId,
+                        planId,
+                        "api-smoke",
+                        "API_TEST",
+                        "",
+                        "{\"apiAutomationBundleId\":\"00000000-0000-0000-0000-000000000001\"}",
+                        "FAIL_FAST",
+                        180,
+                        "{\"maxAttempts\":1}",
+                        now,
+                        now
+                ),
+                new ExecutionPlanNode(
+                        reportNodeId,
+                        planId,
+                        "report",
+                        "REPORT_HANDOFF",
+                        "api-smoke",
+                        "{\"summaryOnly\":true}",
+                        "CONTINUE",
+                        60,
+                        "{}",
+                        now,
+                        now
+                )
+        ));
+
+        boolean inserted = executionRepository.insertRun(new ExecutionRun(
+                runId,
+                planId,
+                projectId,
+                "QUEUED",
+                "MANUAL",
+                requestKey,
+                null,
+                1,
+                "trc_dbexecutioncontract",
+                "{\"nodeCount\":2,\"runnerDispatched\":false}",
+                null,
+                null,
+                "db-tester",
+                null,
+                null,
+                now,
+                now
+        ));
+        executionRepository.insertNodeRuns(List.of(
+                new ExecutionNodeRun(
+                        UUID.randomUUID(),
+                        runId,
+                        apiNodeId,
+                        "QUEUED",
+                        1,
+                        "WP6_API",
+                        null,
+                        null,
+                        null,
+                        "{\"dispatchReady\":false}",
+                        null,
+                        now,
+                        null,
+                        null,
+                        now,
+                        now
+                ),
+                new ExecutionNodeRun(
+                        UUID.randomUUID(),
+                        runId,
+                        reportNodeId,
+                        "PENDING",
+                        1,
+                        "REPORT",
+                        null,
+                        null,
+                        null,
+                        "{\"dispatchReady\":false}",
+                        null,
+                        null,
+                        null,
+                        null,
+                        now,
+                        now
+                )
+        ));
+
+        assertThat(inserted).isTrue();
+        assertThat(executionRepository.runByPlanAndRequestKey(planId, requestKey))
+                .get()
+                .extracting(ExecutionRun::id)
+                .isEqualTo(runId);
+        assertThat(executionRepository.insertRun(new ExecutionRun(
+                UUID.randomUUID(),
+                planId,
+                projectId,
+                "QUEUED",
+                "MANUAL",
+                requestKey,
+                null,
+                1,
+                "trc_duplicate",
+                "{}",
+                null,
+                null,
+                "db-tester",
+                null,
+                null,
+                now,
+                now
+        ))).isFalse();
+        assertThat(executionRepository.nodeRuns(runId))
+                .extracting(ExecutionNodeRun::planNodeId)
+                .containsExactly(apiNodeId, reportNodeId);
+        assertThat(executionRepository.runs(new ExecutionRunQuery(projectId, planId, "QUEUED", 10, 0)))
+                .singleElement()
+                .extracting(ExecutionRun::id)
+                .isEqualTo(runId);
+        assertThat(executionRepository.countRuns(new ExecutionRunQuery(projectId, planId, "QUEUED", 10, 0)))
+                .isEqualTo(1);
+        assertThat(executionRepository.runProjectScopeId(runId)).contains(projectId);
     }
 
     @Test

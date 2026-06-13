@@ -105,6 +105,6 @@ bash scripts/wp9_webhook_smoke.sh
 
 ## 8. 当前质量结论
 
-M1 已完成基础控制面、DB validation 和 health API 验收。M2 已完成计划与 DAG 后端切片，新增 `ExecutionDagValidatorTest`、`ExecutionPlanControllerTest`，并把 execution plan API 纳入 `OpenApiContractTest`。当前已覆盖 plan 创建、列表、详情、更新、dry-run、归档、归档后状态保护、DAG 循环、跨项目 WP6 bundle 拒绝、secretRef 输入脱敏和权限保护。
+M1 已完成基础控制面、DB validation 和 health API 验收。M2 已完成计划与 DAG 后端切片，新增 `ExecutionDagValidatorTest`、`ExecutionPlanControllerTest`，并把 execution plan API 纳入 `OpenApiContractTest`。M3A 已完成手动触发与运行记录后端切片，新增 `ExecutionRunControllerTest`，并把 `/plans/{id}/runs`、`/runs`、`/runs/{id}` 纳入 `OpenApiContractTest`。当前已覆盖 plan 创建、列表、详情、更新、dry-run、归档、归档后状态保护、DAG 循环、跨项目 WP6 bundle 拒绝、secretRef 输入脱敏、READY 计划手动触发、requestKey 幂等回放、run 列表/详情和权限保护。
 
-尚未进入 M3/M4/M5/M6 的手动 run、队列认领、WP6 dispatch、cancel/retry、webhook/cron 和前端工作台测试；这些后续仍必须按本文件 P0 用例矩阵补齐。
+尚未进入 M3B/M4/M5/M6 的队列认领、WP6 dispatch、cancel/retry、timeout recovery、webhook/cron 和前端工作台测试；这些后续仍必须按本文件 P0 用例矩阵补齐。

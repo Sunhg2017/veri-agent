@@ -2,8 +2,11 @@ package com.songhg.veri.agent.execution.infrastructure;
 
 import com.songhg.veri.agent.execution.application.port.ExecutionRepository;
 import com.songhg.veri.agent.execution.application.query.ExecutionPlanQuery;
+import com.songhg.veri.agent.execution.application.query.ExecutionRunQuery;
+import com.songhg.veri.agent.execution.domain.ExecutionNodeRun;
 import com.songhg.veri.agent.execution.domain.ExecutionPlan;
 import com.songhg.veri.agent.execution.domain.ExecutionPlanNode;
+import com.songhg.veri.agent.execution.domain.ExecutionRun;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
@@ -22,6 +25,8 @@ public class InMemoryExecutionRepository implements ExecutionRepository {
 
     private final ConcurrentHashMap<UUID, ExecutionPlan> plans = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<UUID, ExecutionPlanNode> nodes = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<UUID, ExecutionRun> runs = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<UUID, ExecutionNodeRun> nodeRuns = new ConcurrentHashMap<>();
 
     @Override
     public void insertPlan(ExecutionPlan plan) {
@@ -77,6 +82,62 @@ public class InMemoryExecutionRepository implements ExecutionRepository {
         return plan(id).map(ExecutionPlan::projectId);
     }
 
+    @Override
+    public boolean insertRun(ExecutionRun run) {
+        if (StringUtils.hasText(run.requestKey()) && runByPlanAndRequestKey(run.planId(), run.requestKey()).isPresent()) {
+            return false;
+        }
+        return runs.putIfAbsent(run.id(), run) == null;
+    }
+
+    @Override
+    public void insertNodeRuns(List<ExecutionNodeRun> newNodeRuns) {
+        for (ExecutionNodeRun nodeRun : newNodeRuns) {
+            nodeRuns.put(nodeRun.id(), nodeRun);
+        }
+    }
+
+    @Override
+    public Optional<ExecutionRun> run(UUID id) {
+        return Optional.ofNullable(runs.get(id));
+    }
+
+    @Override
+    public Optional<ExecutionRun> runByPlanAndRequestKey(UUID planId, String requestKey) {
+        if (!StringUtils.hasText(requestKey)) {
+            return Optional.empty();
+        }
+        return runs.values().stream()
+                .filter(run -> planId.equals(run.planId()) && requestKey.equals(run.requestKey()))
+                .findFirst();
+    }
+
+    @Override
+    public List<ExecutionNodeRun> nodeRuns(UUID runId) {
+        return nodeRuns.values().stream()
+                .filter(nodeRun -> runId.equals(nodeRun.runId()))
+                .sorted(Comparator.comparing(nodeRun -> planNodeKey(nodeRun.planNodeId())))
+                .toList();
+    }
+
+    @Override
+    public List<ExecutionRun> runs(ExecutionRunQuery query) {
+        return filteredRuns(query)
+                .skip(query.offset())
+                .limit(query.limit())
+                .toList();
+    }
+
+    @Override
+    public long countRuns(ExecutionRunQuery query) {
+        return filteredRuns(query).count();
+    }
+
+    @Override
+    public Optional<String> runProjectScopeId(UUID id) {
+        return run(id).map(ExecutionRun::projectId);
+    }
+
     private Stream<ExecutionPlan> filteredPlans(ExecutionPlanQuery query) {
         Stream<ExecutionPlan> stream = plans.values().stream();
         if (StringUtils.hasText(query.projectId())) {
@@ -90,6 +151,25 @@ public class InMemoryExecutionRepository implements ExecutionRepository {
             stream = stream.filter(plan -> contains(plan.name(), keyword) || contains(plan.description(), keyword));
         }
         return stream.sorted(Comparator.comparing(ExecutionPlan::updatedAt).reversed());
+    }
+
+    private Stream<ExecutionRun> filteredRuns(ExecutionRunQuery query) {
+        Stream<ExecutionRun> stream = runs.values().stream();
+        if (StringUtils.hasText(query.projectId())) {
+            stream = stream.filter(run -> query.projectId().equals(run.projectId()));
+        }
+        if (query.planId() != null) {
+            stream = stream.filter(run -> query.planId().equals(run.planId()));
+        }
+        if (StringUtils.hasText(query.status())) {
+            stream = stream.filter(run -> query.status().equals(run.status()));
+        }
+        return stream.sorted(Comparator.comparing(ExecutionRun::createdAt).reversed());
+    }
+
+    private String planNodeKey(UUID planNodeId) {
+        ExecutionPlanNode node = nodes.get(planNodeId);
+        return node == null ? "" : node.nodeKey();
     }
 
     private boolean contains(String value, String keyword) {

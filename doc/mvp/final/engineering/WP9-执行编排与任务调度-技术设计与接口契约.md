@@ -56,9 +56,11 @@ flowchart LR
 
 ### 2.1 当前已落地实现
 
-截至 2026-06-13 M2，本仓库已完成 `ExecutionPlanController`、`ExecutionPlanService`、`ExecutionDagValidator`、`ExecutionRepository`、`JdbcExecutionRepository`、`ExecutionMapper` 和 local 测试仓储。已支持 plan 创建、列表、详情、更新、归档和 dry-run；health policy 中 `planCrudReady=true`、`dagDryRunReady=true`。
+截至 2026-06-13 M3A，本仓库已完成 `ExecutionPlanController`、`ExecutionRunController`、`ExecutionPlanService`、`ExecutionRunService`、`ExecutionDagValidator`、`ExecutionRepository`、`JdbcExecutionRepository`、`ExecutionMapper` 和 local 测试仓储。已支持 plan 创建、列表、详情、更新、归档、dry-run、READY 计划手动触发、run/node run 初始化、requestKey 幂等回放、run 列表和 run 详情；health policy 中 `planCrudReady=true`、`dagDryRunReady=true`、`manualTriggerReady=true`。
 
 M2 的资源校验通过 `ApiAutomationBundleScopeService` 查询 WP6 应用服务暴露的 bundle scope，不直读 WP6 表，不调用 runner adapter。`API_TEST` 节点要求 `apiAutomationBundleId` 存在、同项目且脚本包状态为 `APPROVED`；否则返回 `EXECUTION_DAG_INVALID`，具体 issue code 为 `EXECUTION_RESOURCE_NOT_FOUND`、`EXECUTION_RESOURCE_SCOPE_DENIED` 或 `EXECUTION_RESOURCE_NOT_READY`。
+
+M3A 的手动触发只创建 orchestration 记录，不认领队列、不调用 WP6 runner。`POST /plans/{id}/runs` 只允许 `READY` 计划，初始 run 状态为 `QUEUED`；无依赖节点初始化为 `QUEUED`，有依赖节点初始化为 `PENDING`。相同 plan/requestKey 会回放既有 run，响应中 `idempotentReplay=true`，不会重复生成 node run。
 
 ## 3. 状态机
 
@@ -234,6 +236,44 @@ FAILED -> QUEUED   (retry attempt)
 }
 ```
 
+### 手动触发响应
+
+```json
+{
+  "id": "uuid",
+  "planId": "uuid",
+  "projectId": "project-alpha",
+  "status": "QUEUED",
+  "triggerType": "MANUAL",
+  "requestKey": "release-2026-06-13-smoke",
+  "attempt": 1,
+  "traceId": "trc_xxx",
+  "resultSummary": {
+    "nodeCount": 2,
+    "queuedNodeCount": 1,
+    "pendingNodeCount": 1,
+    "dagDigest": "sha256-hex",
+    "variablesAccepted": true,
+    "schedulerClaimCreated": false,
+    "runnerDispatched": false
+  },
+  "nodes": [
+    {
+      "planNodeId": "uuid",
+      "nodeKey": "api-smoke",
+      "nodeType": "API_TEST",
+      "status": "QUEUED",
+      "runnerType": "WP6_API",
+      "resultSummary": {
+        "dependencyCount": 0,
+        "dispatchReady": false
+      }
+    }
+  ],
+  "idempotentReplay": false
+}
+```
+
 ## 8. Runner 集成
 
 | 节点类型 | P0/P1 | 集成方式 |
@@ -293,17 +333,17 @@ FAILED -> QUEUED   (retry attempt)
 
 ## 12. 当前实现切片建议
 
-M1 和 M2 已完成：
+M1、M2 和 M3A 已完成：
 
-1. 权限、DB、health、plan CRUD、DAG validator 和 plan dry-run。
+1. 权限、DB、health、plan CRUD、DAG validator、plan dry-run、手动触发和 run/node run 初始化。
 2. `API_TEST` 资源 scope 校验通过 WP6 应用服务端口，不直读 WP6 表。
 3. 状态保护覆盖 `DRAFT/READY/DISABLED/ARCHIVED`，归档必须走专用 endpoint。
-4. dry-run 不创建 run、不调度 runner、不保存 secret 明文。
+4. dry-run 不创建 run；手动触发只创建 orchestration 记录，不认领队列、不调度 runner、不保存 secret 或变量明文。
 
 后续切片继续推进：
 
-1. 手动触发和 run/node run 状态流。
+1. queue claim、cancel/retry、timeout/recovery 和状态聚合。
 2. API_TEST 节点接 WP6 run。
-3. cancel/retry/timeout/recovery 的最小闭环。
+3. webhook/cron 触发控制面。
 4. 前端计划列表、DAG 预览、运行详情和取消重试。
 5. WP9 quality gate 聚合后端、前端、DB 和 smoke。

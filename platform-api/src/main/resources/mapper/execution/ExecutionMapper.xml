@@ -37,6 +37,49 @@
         </constructor>
     </resultMap>
 
+    <resultMap id="runMap" type="com.songhg.veri.agent.execution.domain.ExecutionRun">
+        <constructor>
+            <arg column="id" javaType="java.util.UUID"/>
+            <arg column="plan_id" javaType="java.util.UUID"/>
+            <arg column="project_id" javaType="java.lang.String"/>
+            <arg column="status" javaType="java.lang.String"/>
+            <arg column="trigger_type" javaType="java.lang.String"/>
+            <arg column="request_key" javaType="java.lang.String"/>
+            <arg column="source_event_id" javaType="java.lang.String"/>
+            <arg column="attempt" javaType="_int"/>
+            <arg column="trace_id" javaType="java.lang.String"/>
+            <arg column="result_summary_json" javaType="java.lang.String"/>
+            <arg column="error_code" javaType="java.lang.String"/>
+            <arg column="error_summary" javaType="java.lang.String"/>
+            <arg column="created_by" javaType="java.lang.String"/>
+            <arg column="started_at" javaType="java.time.Instant"/>
+            <arg column="finished_at" javaType="java.time.Instant"/>
+            <arg column="created_at" javaType="java.time.Instant"/>
+            <arg column="updated_at" javaType="java.time.Instant"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="nodeRunMap" type="com.songhg.veri.agent.execution.domain.ExecutionNodeRun">
+        <constructor>
+            <arg column="id" javaType="java.util.UUID"/>
+            <arg column="run_id" javaType="java.util.UUID"/>
+            <arg column="plan_node_id" javaType="java.util.UUID"/>
+            <arg column="status" javaType="java.lang.String"/>
+            <arg column="attempt" javaType="_int"/>
+            <arg column="runner_type" javaType="java.lang.String"/>
+            <arg column="external_run_id" javaType="java.lang.String"/>
+            <arg column="error_code" javaType="java.lang.String"/>
+            <arg column="error_summary" javaType="java.lang.String"/>
+            <arg column="result_summary_json" javaType="java.lang.String"/>
+            <arg column="heartbeat_at" javaType="java.time.Instant"/>
+            <arg column="queued_at" javaType="java.time.Instant"/>
+            <arg column="started_at" javaType="java.time.Instant"/>
+            <arg column="finished_at" javaType="java.time.Instant"/>
+            <arg column="created_at" javaType="java.time.Instant"/>
+            <arg column="updated_at" javaType="java.time.Instant"/>
+        </constructor>
+    </resultMap>
+
     <sql id="planColumns">
         id, project_id, name, status, environment_key,
         trigger_policy_json::text as trigger_policy_json,
@@ -50,6 +93,18 @@
         created_at, updated_at
     </sql>
 
+    <sql id="runColumns">
+        id, plan_id, project_id, status, trigger_type, request_key, source_event_id, attempt, trace_id,
+        result_summary_json::text as result_summary_json,
+        error_code, error_summary, created_by, started_at, finished_at, created_at, updated_at
+    </sql>
+
+    <sql id="nodeRunColumns">
+        nr.id, nr.run_id, nr.plan_node_id, nr.status, nr.attempt, nr.runner_type, nr.external_run_id,
+        nr.error_code, nr.error_summary, nr.result_summary_json::text as result_summary_json,
+        nr.heartbeat_at, nr.queued_at, nr.started_at, nr.finished_at, nr.created_at, nr.updated_at
+    </sql>
+
     <sql id="planWhere">
         <where>
             <if test="query.projectId != null">project_id = #{query.projectId}</if>
@@ -60,6 +115,14 @@
                     or position(lower(#{query.keyword}) in lower(coalesce(description, ''))) &gt; 0
                 )
             </if>
+        </where>
+    </sql>
+
+    <sql id="runWhere">
+        <where>
+            <if test="query.projectId != null">project_id = #{query.projectId}</if>
+            <if test="query.planId != null">and plan_id = #{query.planId}</if>
+            <if test="query.status != null">and status = #{query.status}</if>
         </where>
     </sql>
 
@@ -120,6 +183,29 @@
         )
     </insert>
 
+    <insert id="insertRun">
+        insert into execution_run (
+            id, plan_id, project_id, status, trigger_type, request_key, source_event_id, attempt, trace_id,
+            result_summary_json, error_code, error_summary, created_by, started_at, finished_at, created_at, updated_at
+        ) values (
+            #{id}, #{planId}, #{projectId}, #{status}, #{triggerType}, #{requestKey}, #{sourceEventId},
+            #{attempt}, #{traceId}, cast(coalesce(#{resultSummaryJson}, '{}') as jsonb),
+            #{errorCode}, #{errorSummary}, #{createdBy}, #{startedAt}, #{finishedAt}, #{createdAt}, #{updatedAt}
+        )
+        on conflict do nothing
+    </insert>
+
+    <insert id="insertNodeRun">
+        insert into execution_node_run (
+            id, run_id, plan_node_id, status, attempt, runner_type, external_run_id, error_code, error_summary,
+            result_summary_json, heartbeat_at, queued_at, started_at, finished_at, created_at, updated_at
+        ) values (
+            #{id}, #{runId}, #{planNodeId}, #{status}, #{attempt}, #{runnerType}, #{externalRunId},
+            #{errorCode}, #{errorSummary}, cast(coalesce(#{resultSummaryJson}, '{}') as jsonb),
+            #{heartbeatAt}, #{queuedAt}, #{startedAt}, #{finishedAt}, #{createdAt}, #{updatedAt}
+        )
+    </insert>
+
     <select id="plan" resultMap="planMap">
         select <include refid="planColumns"/>
         from execution_plan
@@ -150,6 +236,48 @@
     <select id="planProjectScopeId" resultType="string">
         select project_id
         from execution_plan
+        where id = #{id}
+    </select>
+
+    <select id="run" resultMap="runMap">
+        select <include refid="runColumns"/>
+        from execution_run
+        where id = #{id}
+    </select>
+
+    <select id="runByPlanAndRequestKey" resultMap="runMap">
+        select <include refid="runColumns"/>
+        from execution_run
+        where plan_id = #{planId}
+          and request_key = #{requestKey}
+        limit 1
+    </select>
+
+    <select id="nodeRuns" resultMap="nodeRunMap">
+        select <include refid="nodeRunColumns"/>
+        from execution_node_run nr
+        join execution_plan_node pn on pn.id = nr.plan_node_id
+        where nr.run_id = #{runId}
+        order by pn.node_key asc
+    </select>
+
+    <select id="runs" resultMap="runMap">
+        select <include refid="runColumns"/>
+        from execution_run
+        <include refid="runWhere"/>
+        order by created_at desc
+        limit #{query.limit} offset #{query.offset}
+    </select>
+
+    <select id="countRuns" resultType="long">
+        select count(*)
+        from execution_run
+        <include refid="runWhere"/>
+    </select>
+
+    <select id="runProjectScopeId" resultType="string">
+        select project_id
+        from execution_run
         where id = #{id}
     </select>
 </mapper>
