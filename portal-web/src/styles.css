@@ -1709,6 +1709,50 @@ tbody tr:hover td {
   margin-bottom: var(--space-sm);
 }
 
+.execution-subheader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  margin: var(--space-md) 0 var(--space-sm);
+}
+
+.execution-subheader strong {
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+}
+
+.execution-dag-editor,
+.execution-form-actions {
+  margin-top: var(--space-sm);
+}
+
+.execution-node-editor {
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  background: var(--bg-alt);
+}
+
+.execution-node-editor + .execution-node-editor {
+  margin-top: var(--space-sm);
+}
+
+.execution-node-editor-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-sm);
+}
+
+.execution-node-editor-head span {
+  min-width: 0;
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+
 .execution-event-item {
   display: flex;
   align-items: center;

@@ -9,7 +9,7 @@
 | 版本 | v0.1 |
 | 日期 | 2026-06-13 |
 
-截至 2026-06-14 M6A，`portal-web` 已新增 `#execution` 工作台入口、`execution:read/manage/trigger/export` 权限判断、WP9 API client normalization、调度策略指标、计划列表、单节点计划创建、DAG 摘要、手动触发、运行详情、取消/重试、触发配置摘要和 trigger dryRun。当前实现以主链路控制面可用为准；复杂多节点 DAG 编辑器、导出文件下载、Playwright 390px smoke 和 cron scanner 操作台仍按后续切片推进。
+截至 2026-06-14 M6A，`portal-web` 已新增 `#execution` 工作台入口、`execution:read/manage/trigger/export` 权限判断、WP9 API client normalization、调度策略指标、计划列表、单节点计划创建、DAG 摘要、手动触发、运行详情、取消/重试、触发配置摘要和 trigger dryRun。M6B 继续补齐多节点 DAG 草稿编辑、选中计划回填、`PATCH /plans/{id}` 保存更新、计划归档入口和按触发器查看最近事件。当前实现以主链路控制面可用为准；导出文件下载、Playwright 390px smoke 和 cron scanner 操作台仍按后续切片推进。
 
 ## 1. 页面目标
 
@@ -35,7 +35,7 @@
 |---|---|
 | 顶部指标 | READY 计划数、运行中数、失败数、调度开关、webhook/cron 开关。 |
 | 计划列表 | 项目、环境、状态、触发方式、最近运行、更新时间、操作入口。 |
-| 计划编辑 | M6A 为页面内单节点表单；后续再扩展为多节点 DAG 编辑抽屉。 |
+| 计划编辑 | M6B 为页面内多节点 DAG 草稿编辑；后续可再升级为图形化 DAG 编辑抽屉。 |
 | DAG 预览 | 节点卡片、依赖边、节点类型、输入摘要、状态色和错误提示。 |
 | 运行详情 | run 状态、触发来源、节点列表、耗时、错误码、traceId、外部 run 摘要。 |
 | 触发配置 | webhook/cron 配置摘要、启停、dryRun、最近事件。 |
@@ -47,10 +47,10 @@
 
 1. 点击新建。
 2. 填写计划名、项目、环境。
-3. 添加 API_TEST 节点，选择 WP6 approved script bundle。
-4. 添加依赖和失败策略。
+3. 添加 API_TEST 或 REPORT_HANDOFF 节点，填写 `apiAutomationBundleId`、`baseUrlRef`、caseIds 和 runtime secretRefs 引用。
+4. 添加依赖、失败策略、超时和 retry 次数。
 5. 点击 dryRun，展示循环依赖、权限、资源引用和 runner 策略结果。
-6. 保存为 DRAFT 或 READY。
+6. 保存为 DRAFT/READY/DISABLED；选中既有计划后可保存更新或归档。
 
 ### 4.2 手动触发
 

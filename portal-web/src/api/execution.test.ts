@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { requestJson } from './client';
 import {
+  archiveExecutionPlan,
   cancelExecutionRun,
   createExecutionPlan,
   createExecutionTrigger,
@@ -222,6 +223,7 @@ describe('WP9 execution API helpers', () => {
     });
     await updateExecutionPlan('plan-1', { status: 'READY' });
     await dryRunExecutionPlan('plan-1');
+    await archiveExecutionPlan('plan-1');
     await triggerExecutionRun('plan-1', { requestKey: 'rk-1', reason: 'manual' });
     await fetchExecutionRun('run-1');
     await cancelExecutionRun('run-1');
@@ -246,22 +248,23 @@ describe('WP9 execution API helpers', () => {
       body: JSON.stringify({ status: 'READY' })
     });
     expect(requestJsonMock).toHaveBeenNthCalledWith(5, '/api/v1/execution/plans/plan-1/dry-run', { method: 'POST' });
-    expect(requestJsonMock).toHaveBeenNthCalledWith(6, '/api/v1/execution/plans/plan-1/runs', {
+    expect(requestJsonMock).toHaveBeenNthCalledWith(6, '/api/v1/execution/plans/plan-1/archive', { method: 'POST' });
+    expect(requestJsonMock).toHaveBeenNthCalledWith(7, '/api/v1/execution/plans/plan-1/runs', {
       method: 'POST',
       body: JSON.stringify({ requestKey: 'rk-1', reason: 'manual' })
     });
-    expect(requestJsonMock).toHaveBeenNthCalledWith(7, '/api/v1/execution/runs/run-1');
-    expect(requestJsonMock).toHaveBeenNthCalledWith(8, '/api/v1/execution/runs/run-1/cancel', { method: 'POST' });
-    expect(requestJsonMock).toHaveBeenNthCalledWith(9, '/api/v1/execution/runs/run-1/retry', { method: 'POST' });
-    expect(requestJsonMock).toHaveBeenNthCalledWith(10, '/api/v1/execution/plans/plan-1/triggers', {
+    expect(requestJsonMock).toHaveBeenNthCalledWith(8, '/api/v1/execution/runs/run-1');
+    expect(requestJsonMock).toHaveBeenNthCalledWith(9, '/api/v1/execution/runs/run-1/cancel', { method: 'POST' });
+    expect(requestJsonMock).toHaveBeenNthCalledWith(10, '/api/v1/execution/runs/run-1/retry', { method: 'POST' });
+    expect(requestJsonMock).toHaveBeenNthCalledWith(11, '/api/v1/execution/plans/plan-1/triggers', {
       method: 'POST',
       body: expect.stringContaining('secret://wp9/webhook')
     });
-    expect(requestJsonMock).toHaveBeenNthCalledWith(11, '/api/v1/execution/triggers/trigger-1', {
+    expect(requestJsonMock).toHaveBeenNthCalledWith(12, '/api/v1/execution/triggers/trigger-1', {
       method: 'PATCH',
       body: JSON.stringify({ status: 'ENABLED' })
     });
-    expect(requestJsonMock).toHaveBeenNthCalledWith(12, '/api/v1/execution/triggers/trigger-1/dry-run', {
+    expect(requestJsonMock).toHaveBeenNthCalledWith(13, '/api/v1/execution/triggers/trigger-1/dry-run', {
       method: 'POST'
     });
   });

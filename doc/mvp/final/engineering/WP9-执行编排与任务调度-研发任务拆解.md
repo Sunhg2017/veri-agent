@@ -112,7 +112,7 @@ M5 后端切片已完成 trigger model、管理 API、webhook 签名入口、sou
 | WP9-6.6 触发配置 | P1 | 前端工程师 | webhook/cron 摘要、启停、dryRun | secret masked | Vitest |
 | WP9-6.7 响应式 smoke | P1 | 前端工程师、质量工程师 | 桌面和 390px 视口主链路 | 无横向溢出 | Playwright smoke |
 
-M6A 前端基础闭环已完成 `execution.ts` API client、`#execution` 权限入口、执行工作台主视图、计划列表/单节点创建、DAG 节点摘要、manual run、cancel/retry、trigger 摘要/dryRun 和前端 Vitest/build 验证；复杂多节点 DAG 编辑器、Playwright 390px smoke、导出文件落地和生产 cron scanner 仍归后续 M6B/M7。
+M6A 前端基础闭环已完成 `execution.ts` API client、`#execution` 权限入口、执行工作台主视图、计划列表/单节点创建、DAG 节点摘要、manual run、cancel/retry、trigger 摘要/dryRun 和前端 Vitest/build 验证。M6B 继续完成多节点 DAG 草稿编辑、选中计划回填、计划更新/归档操作、触发事件切换查看和 helper 级校验测试；Playwright 390px smoke、导出文件落地和生产 cron scanner 仍归后续 M6C/M7。
 
 ## 11. Epic 7：质量门禁和发布准出
 

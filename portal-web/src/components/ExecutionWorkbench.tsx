@@ -9,11 +9,13 @@ import {
   RotateCcw,
   ShieldCheck,
   Square,
+  Trash2,
   Webhook
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
 import type { CurrentUser } from '../api/auth';
 import {
+  archiveExecutionPlan,
   cancelExecutionRun,
   createExecutionPlan,
   createExecutionTrigger,
@@ -28,6 +30,7 @@ import {
   fetchExecutionTriggers,
   retryExecutionRun,
   triggerExecutionRun,
+  updateExecutionPlan,
   updateExecutionTrigger,
   type ExecutionDryRun,
   type ExecutionHealth,
@@ -39,24 +42,23 @@ import {
   type ExecutionTriggerDryRun,
   type ExecutionTriggerEvent
 } from '../api/execution';
+import {
+  blankExecutionNodeDraft,
+  buildExecutionPlanPayload,
+  buildExecutionPlanUpdatePayload,
+  executionPlanDraftFromDetail,
+  initialExecutionPlanDraft,
+  summarizeDraftNode,
+  validateExecutionPlanDraft,
+  type ExecutionDagNodeDraft,
+  type ExecutionPlanDraft
+} from '../executionDagEditor';
 import { canUseButton, hasPermission } from '../permissions';
 
 type WorkState = {
   loading: boolean;
   error?: string;
   success?: string;
-};
-
-type PlanDraft = {
-  projectId: string;
-  name: string;
-  environmentKey: string;
-  status: 'DRAFT' | 'READY';
-  description: string;
-  nodeKey: string;
-  nodeType: 'API_TEST' | 'REPORT_HANDOFF';
-  timeoutSeconds: number;
-  failurePolicy: 'FAIL_FAST' | 'CONTINUE' | 'BLOCK_DOWNSTREAM';
 };
 
 type TriggerDraft = {
@@ -67,18 +69,6 @@ type TriggerDraft = {
   cron: string;
   timezone: string;
   secretRef: string;
-};
-
-const initialPlanDraft: PlanDraft = {
-  projectId: '',
-  name: '',
-  environmentKey: '',
-  status: 'DRAFT',
-  description: '',
-  nodeKey: 'api-smoke',
-  nodeType: 'API_TEST',
-  timeoutSeconds: 180,
-  failurePolicy: 'FAIL_FAST'
 };
 
 const initialTriggerDraft: TriggerDraft = {
@@ -101,11 +91,13 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
   const [runs, setRuns] = useState<ExecutionRunSummary[]>([]);
   const [selectedPlanId, setSelectedPlanId] = useState('');
   const [selectedRunId, setSelectedRunId] = useState('');
+  const [selectedTriggerId, setSelectedTriggerId] = useState('');
   const [planDetail, setPlanDetail] = useState<ExecutionPlanDetail | null>(null);
   const [runDetail, setRunDetail] = useState<ExecutionRunDetail | null>(null);
   const [triggers, setTriggers] = useState<ExecutionTrigger[]>([]);
   const [triggerEvents, setTriggerEvents] = useState<ExecutionTriggerEvent[]>([]);
-  const [planDraft, setPlanDraft] = useState<PlanDraft>(initialPlanDraft);
+  const [planDraft, setPlanDraft] = useState<ExecutionPlanDraft>(initialExecutionPlanDraft);
+  const [planDraftMode, setPlanDraftMode] = useState<'create' | 'edit'>('create');
   const [triggerDraft, setTriggerDraft] = useState<TriggerDraft>(initialTriggerDraft);
   const [manualReason, setManualReason] = useState('');
   const [manualRequestKey, setManualRequestKey] = useState('');
@@ -133,6 +125,7 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
       setRunDetail(null);
       setTriggers([]);
       setTriggerEvents([]);
+      setSelectedTriggerId('');
       return;
     }
     setLoadState({ loading: true });
@@ -164,6 +157,7 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
       setPlanDetail(null);
       setTriggers([]);
       setTriggerEvents([]);
+      setSelectedTriggerId('');
       return;
     }
     try {
@@ -172,12 +166,16 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
         fetchExecutionTriggers(planId, { size: 20 })
       ]);
       setPlanDetail(planResult.data);
+      setPlanDraft(executionPlanDraftFromDetail(planResult.data));
+      setPlanDraftMode('edit');
       setTriggers(triggerResult.data.items);
       const firstTriggerId = triggerResult.data.items[0]?.id;
       if (firstTriggerId) {
+        setSelectedTriggerId((current) => current || firstTriggerId);
         const eventsResult = await fetchExecutionTriggerEvents(firstTriggerId, { size: 5 });
         setTriggerEvents(eventsResult.data.items);
       } else {
+        setSelectedTriggerId('');
         setTriggerEvents([]);
       }
     } catch (error: unknown) {
@@ -210,6 +208,12 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
     void refreshRunDetail(selectedRunId);
   }, [refreshRunDetail, selectedRunId]);
 
+  useEffect(() => {
+    if (selectedTriggerId) {
+      void refreshTriggerEvents(selectedTriggerId);
+    }
+  }, [selectedTriggerId]);
+
   if (!props.signedIn) {
     return <div className="notice warning">请先登录后查看执行编排。</div>;
   }
@@ -221,37 +225,54 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
   async function onCreatePlan(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!canManage) return;
-    if (!planDraft.projectId.trim() || !planDraft.name.trim() || !planDraft.environmentKey.trim()) {
-      setPlanActionState({ loading: false, error: '请填写项目、名称和环境' });
+    const issues = validateExecutionPlanDraft(planDraft);
+    if (issues.length) {
+      setPlanActionState({ loading: false, error: issues.map((issue) => issue.message).join('；') });
       return;
     }
     setPlanActionState({ loading: true });
     try {
-      const result = await createExecutionPlan({
-        projectId: planDraft.projectId.trim(),
-        name: planDraft.name.trim(),
-        environmentKey: planDraft.environmentKey.trim(),
-        status: planDraft.status,
-        description: optionalText(planDraft.description),
-        triggerPolicy: { manualEnabled: true, webhookEnabled: false, cronEnabled: false },
-        dag: {
-          nodes: [{
-            key: planDraft.nodeKey.trim() || 'api-smoke',
-            type: planDraft.nodeType,
-            dependencies: [],
-            input: { uiCreated: true, rawBaseUrlStored: false, secretRefsStored: false },
-            timeoutSeconds: planDraft.timeoutSeconds,
-            failurePolicy: planDraft.failurePolicy,
-            retryPolicy: { maxAttempts: 1 }
-          }]
-        }
-      });
+      const result = await createExecutionPlan(buildExecutionPlanPayload(planDraft));
       setPlans((current) => [result.data, ...current.filter((plan) => plan.id !== result.data.id)]);
       setSelectedPlanId(result.data.id);
       setPlanDetail(result.data);
+      setPlanDraft(executionPlanDraftFromDetail(result.data));
+      setPlanDraftMode('edit');
       setPlanActionState({ loading: false, success: '执行计划已创建' });
     } catch (error: unknown) {
       setPlanActionState({ loading: false, error: error instanceof Error ? error.message : '创建计划失败' });
+    }
+  }
+
+  async function onUpdatePlan() {
+    if (!selectedPlanId || !canManage) return;
+    const issues = validateExecutionPlanDraft(planDraft);
+    if (issues.length) {
+      setPlanActionState({ loading: false, error: issues.map((issue) => issue.message).join('；') });
+      return;
+    }
+    setPlanActionState({ loading: true });
+    try {
+      const result = await updateExecutionPlan(selectedPlanId, buildExecutionPlanUpdatePayload(planDraft));
+      setPlanDetail(result.data);
+      setPlanDraft(executionPlanDraftFromDetail(result.data));
+      setPlans((current) => current.map((plan) => plan.id === result.data.id ? result.data : plan));
+      setPlanActionState({ loading: false, success: '执行计划已更新' });
+    } catch (error: unknown) {
+      setPlanActionState({ loading: false, error: error instanceof Error ? error.message : '更新计划失败' });
+    }
+  }
+
+  async function onArchivePlan() {
+    if (!selectedPlanId || !canManage) return;
+    setPlanActionState({ loading: true });
+    try {
+      const result = await archiveExecutionPlan(selectedPlanId);
+      setPlanDetail(result.data);
+      setPlans((current) => current.map((plan) => plan.id === result.data.id ? result.data : plan));
+      setPlanActionState({ loading: false, success: '执行计划已归档' });
+    } catch (error: unknown) {
+      setPlanActionState({ loading: false, error: error instanceof Error ? error.message : '归档计划失败' });
     }
   }
 
@@ -325,6 +346,7 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
         secretRef: optionalText(triggerDraft.secretRef)
       });
       setTriggers((current) => [result.data, ...current.filter((trigger) => trigger.id !== result.data.id)]);
+      setSelectedTriggerId(result.data.id);
       setTriggerActionState({ loading: false, success: '触发配置已创建' });
     } catch (error: unknown) {
       setTriggerActionState({ loading: false, error: error instanceof Error ? error.message : '创建触发配置失败' });
@@ -352,6 +374,19 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
       setTriggerActionState({ loading: false, success: result.data.valid ? '触发配置校验通过' : '触发配置未就绪' });
     } catch (error: unknown) {
       setTriggerActionState({ loading: false, error: error instanceof Error ? error.message : '触发配置 dry run 失败' });
+    }
+  }
+
+  async function refreshTriggerEvents(triggerId: string) {
+    if (!triggerId || !canRead) {
+      setTriggerEvents([]);
+      return;
+    }
+    try {
+      const result = await fetchExecutionTriggerEvents(triggerId, { size: 5 });
+      setTriggerEvents(result.data.items);
+    } catch (error: unknown) {
+      setTriggerActionState({ loading: false, error: error instanceof Error ? error.message : '加载触发事件失败' });
     }
   }
 
@@ -396,13 +431,19 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
         <form className="panel" onSubmit={onCreatePlan}>
           <div className="panel-header">
             <div>
-              <div className="panel-title">新建计划</div>
-              <div className="panel-desc">API_TEST · 单节点起步</div>
+              <div className="panel-title">{planDraftMode === 'edit' ? '编辑计划' : '新建计划'}</div>
+              <div className="panel-desc">多节点 DAG · digest safe</div>
             </div>
-            <button className="btn btn-primary btn-sm" type="submit" disabled={!canManage || planActionState.loading}>
-              <FileText size={15} />
-              保存
-            </button>
+            <div className="execution-panel-actions">
+              <button className="btn btn-ghost btn-sm" type="button" onClick={resetPlanDraft}>
+                <RefreshCw size={15} />
+                新建
+              </button>
+              <button className="btn btn-primary btn-sm" type="submit" disabled={!canManage || planActionState.loading}>
+                <FileText size={15} />
+                创建
+              </button>
+            </div>
           </div>
           <div className="panel-body">
             <div className="form-grid">
@@ -416,43 +457,86 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
                 <input value={planDraft.environmentKey} onChange={(event) => setPlanDraftValue('environmentKey', event.target.value)} />
               </Field>
               <Field label="状态">
-                <select value={planDraft.status} onChange={(event) => setPlanDraftValue('status', event.target.value as PlanDraft['status'])}>
+                <select value={planDraft.status} onChange={(event) => setPlanDraftValue('status', event.target.value as ExecutionPlanDraft['status'])}>
                   <option value="DRAFT">DRAFT</option>
                   <option value="READY">READY</option>
-                </select>
-              </Field>
-              <Field label="节点 key">
-                <input value={planDraft.nodeKey} onChange={(event) => setPlanDraftValue('nodeKey', event.target.value)} />
-              </Field>
-              <Field label="节点类型">
-                <select value={planDraft.nodeType} onChange={(event) => setPlanDraftValue('nodeType', event.target.value as PlanDraft['nodeType'])}>
-                  <option value="API_TEST">API_TEST</option>
-                  <option value="REPORT_HANDOFF">REPORT_HANDOFF</option>
-                </select>
-              </Field>
-              <Field label="超时秒">
-                <input
-                  type="number"
-                  min={1}
-                  max={86400}
-                  value={planDraft.timeoutSeconds}
-                  onChange={(event) => setPlanDraftValue('timeoutSeconds', Number(event.target.value))}
-                />
-              </Field>
-              <Field label="失败策略">
-                <select
-                  value={planDraft.failurePolicy}
-                  onChange={(event) => setPlanDraftValue('failurePolicy', event.target.value as PlanDraft['failurePolicy'])}
-                >
-                  <option value="FAIL_FAST">FAIL_FAST</option>
-                  <option value="CONTINUE">CONTINUE</option>
-                  <option value="BLOCK_DOWNSTREAM">BLOCK_DOWNSTREAM</option>
+                  <option value="DISABLED">DISABLED</option>
                 </select>
               </Field>
             </div>
             <Field label="描述">
               <input value={planDraft.description} onChange={(event) => setPlanDraftValue('description', event.target.value)} />
             </Field>
+            <div className="execution-dag-editor">
+              <div className="execution-subheader">
+                <strong>DAG 节点</strong>
+                <button className="btn btn-secondary btn-sm" type="button" onClick={addPlanNode} disabled={!canManage}>
+                  <FileText size={15} />
+                  添加节点
+                </button>
+              </div>
+              {planDraft.nodes.map((node, index) => (
+                <div className="execution-node-editor" key={`${node.key}-${index}`}>
+                  <div className="execution-node-editor-head">
+                    <span className="mono">{node.key || `node-${index + 1}`}</span>
+                    <button className="btn btn-ghost btn-sm" type="button" onClick={() => removePlanNode(index)} disabled={planDraft.nodes.length <= 1 || !canManage}>
+                      <Trash2 size={15} />
+                      删除
+                    </button>
+                  </div>
+                  <div className="form-grid">
+                    <Field label="node key">
+                      <input value={node.key} onChange={(event) => setPlanNodeDraftValue(index, 'key', event.target.value)} />
+                    </Field>
+                    <Field label="节点类型">
+                      <select value={node.type} onChange={(event) => setPlanNodeDraftValue(index, 'type', event.target.value as ExecutionDagNodeDraft['type'])}>
+                        <option value="API_TEST">API_TEST</option>
+                        <option value="REPORT_HANDOFF">REPORT_HANDOFF</option>
+                      </select>
+                    </Field>
+                    <Field label="依赖">
+                      <input value={node.dependenciesText} onChange={(event) => setPlanNodeDraftValue(index, 'dependenciesText', event.target.value)} />
+                    </Field>
+                    <Field label="bundleId">
+                      <input value={node.apiAutomationBundleId} onChange={(event) => setPlanNodeDraftValue(index, 'apiAutomationBundleId', event.target.value)} />
+                    </Field>
+                    <Field label="baseUrlRef">
+                      <input value={node.baseUrlRef} onChange={(event) => setPlanNodeDraftValue(index, 'baseUrlRef', event.target.value)} />
+                    </Field>
+                    <Field label="caseIds">
+                      <input value={node.caseIdsText} onChange={(event) => setPlanNodeDraftValue(index, 'caseIdsText', event.target.value)} />
+                    </Field>
+                    <Field label="secretRefs">
+                      <input value={node.runtimeSecretRefsText} onChange={(event) => setPlanNodeDraftValue(index, 'runtimeSecretRefsText', event.target.value)} />
+                    </Field>
+                    <Field label="超时秒">
+                      <input type="number" min={1} max={86400} value={node.timeoutSeconds} onChange={(event) => setPlanNodeDraftValue(index, 'timeoutSeconds', Number(event.target.value))} />
+                    </Field>
+                    <Field label="失败策略">
+                      <select value={node.failurePolicy} onChange={(event) => setPlanNodeDraftValue(index, 'failurePolicy', event.target.value as ExecutionDagNodeDraft['failurePolicy'])}>
+                        <option value="FAIL_FAST">FAIL_FAST</option>
+                        <option value="CONTINUE">CONTINUE</option>
+                        <option value="BLOCK_DOWNSTREAM">BLOCK_DOWNSTREAM</option>
+                      </select>
+                    </Field>
+                    <Field label="重试次数">
+                      <input type="number" min={0} max={5} value={node.maxAttempts} onChange={(event) => setPlanNodeDraftValue(index, 'maxAttempts', Number(event.target.value))} />
+                    </Field>
+                  </div>
+                  <div className="execution-digest-line">{summarizeDraftNode(node)}</div>
+                </div>
+              ))}
+            </div>
+            <div className="execution-panel-actions execution-form-actions">
+              <button className="btn btn-secondary btn-sm" type="button" onClick={() => void onUpdatePlan()} disabled={!canManage || !selectedPlanId || planActionState.loading || planDraftMode !== 'edit'}>
+                <ShieldCheck size={15} />
+                保存更新
+              </button>
+              <button className="btn btn-ghost btn-sm" type="button" onClick={() => void onArchivePlan()} disabled={!canManage || !selectedPlanId || planActionState.loading || planDetail?.status === 'ARCHIVED'}>
+                <Trash2 size={15} />
+                归档
+              </button>
+            </div>
             {planActionState.error && <div className="document-state-line error">{planActionState.error}</div>}
             {planActionState.success && <div className="document-state-line success">{planActionState.success}</div>}
           </div>
@@ -481,7 +565,10 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
                     <tr
                       key={plan.id}
                       className={selectedPlanId === plan.id ? 'selected-row' : undefined}
-                      onClick={() => setSelectedPlanId(plan.id)}
+                      onClick={() => {
+                        setSelectedPlanId(plan.id);
+                        setSelectedTriggerId('');
+                      }}
                     >
                       <td>
                         <span className="table-primary">{plan.name}</span>
@@ -701,6 +788,16 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
                     <small className="mono">{shortId(trigger.secretRefDigest ?? trigger.configDigest)}</small>
                   </div>
                   <div className="execution-panel-actions">
+                    <button className="btn btn-ghost btn-sm" type="button" onClick={() => {
+                      if (selectedTriggerId === trigger.id) {
+                        void refreshTriggerEvents(trigger.id);
+                      } else {
+                        setSelectedTriggerId(trigger.id);
+                      }
+                    }}>
+                      <RefreshCw size={15} />
+                      事件
+                    </button>
                     <button className="btn btn-ghost btn-sm" type="button" onClick={() => void onDryRunTrigger(trigger)}>
                       <ShieldCheck size={15} />
                       Dry run
@@ -716,12 +813,12 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
               )}
             </div>
             <div className="execution-event-list">
-              {triggerEvents.map((event) => (
+              {triggerEvents.length ? triggerEvents.map((event) => (
                 <div className="execution-event-item" key={event.id}>
                   <span>{event.status} · {event.sourceEventId}</span>
-                  <small className="mono">{event.traceId ?? shortId(event.requestDigest)}</small>
+                  <small className="mono">{event.traceId ?? shortId(event.requestDigest)}{event.runId ? ` · ${shortId(event.runId)}` : ''}</small>
                 </div>
-              ))}
+              )) : <div className="table-empty">暂无触发事件</div>}
             </div>
           </div>
         </section>
@@ -729,8 +826,45 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
     </section>
   );
 
-  function setPlanDraftValue<K extends keyof PlanDraft>(key: K, value: PlanDraft[K]) {
+  function setPlanDraftValue<K extends keyof ExecutionPlanDraft>(key: K, value: ExecutionPlanDraft[K]) {
     setPlanDraft((current) => ({ ...current, [key]: value }));
+    setPlanActionState({ loading: false });
+  }
+
+  function setPlanNodeDraftValue<K extends keyof ExecutionDagNodeDraft>(
+    index: number,
+    key: K,
+    value: ExecutionDagNodeDraft[K]
+  ) {
+    setPlanDraft((current) => ({
+      ...current,
+      nodes: current.nodes.map((node, nodeIndex) => nodeIndex === index ? { ...node, [key]: value } : node)
+    }));
+    setPlanActionState({ loading: false });
+  }
+
+  function addPlanNode() {
+    setPlanDraft((current) => ({ ...current, nodes: [...current.nodes, blankExecutionNodeDraft(current.nodes.length + 1)] }));
+    setPlanActionState({ loading: false });
+  }
+
+  function removePlanNode(index: number) {
+    setPlanDraft((current) => ({
+      ...current,
+      nodes: current.nodes.length <= 1 ? current.nodes : current.nodes.filter((_, nodeIndex) => nodeIndex !== index)
+    }));
+    setPlanActionState({ loading: false });
+  }
+
+  function resetPlanDraft() {
+    setPlanDraft(initialExecutionPlanDraft);
+    setPlanDraftMode('create');
+    setSelectedPlanId('');
+    setSelectedTriggerId('');
+    setPlanDetail(null);
+    setTriggers([]);
+    setTriggerEvents([]);
+    setLastDryRun(null);
     setPlanActionState({ loading: false });
   }
 
