@@ -37,7 +37,7 @@ git diff --check
 1. CI 示例依赖 `curl`、`openssl`、`awk`，GitHub/GitLab 示例还依赖 `jq`；缺少工具时应在 runner image 或 before_script 中安装。
 2. helper 支持真实发送，生产使用必须显式设置 `WP9_WEBHOOK_SEND=1`，并确认 target URL 指向正确环境。
 3. 供应商 marketplace 插件包、OAuth/App 安装流程和 UI 化配置仍归后续切片；本轮只交付可执行接入样例。
-4. cron scanner 运维 runbook 和错过多次 fire 容量策略仍按后续 WP9-8.x 推进。
+4. cron scanner 运维 runbook 已在 M8B 补齐，错过多次 fire 容量策略仍按后续 WP9-8.x 推进。
 
 ## 5. 五角色结论
 

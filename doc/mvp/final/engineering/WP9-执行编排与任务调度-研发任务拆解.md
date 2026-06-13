@@ -125,14 +125,14 @@ M6A 前端基础闭环已完成 `execution.ts` API client、`#execution` 权限�
 | WP9-7.5 Webhook HTTP smoke | P0 | 质量工程师、服务端架构师 | managed/external smoke 覆盖真实 HTTP webhook 签名、sourceEventId 幂等、事件证据和 run export 脱敏 | release gate 显式启用；外部入口不泄露 secret/payload | `scripts/wp9_webhook_http_smoke.sh` |
 | WP9-7.6 Quality gate | P0 | 质量工程师 | `scripts/wp9_quality_gate.sh` 聚合后端、前端、构建、DB、Playwright、scheduler smoke 和 webhook HTTP smoke | release 模式显式要求 scheduler smoke 与 webhook HTTP smoke | `scripts/wp9_quality_gate.sh` |
 
-M7A 已新增 `scripts/wp9_quality_gate.sh` 与 `scripts/wp9_scheduler_smoke.sh`。开发模式默认执行 WP9 脚本语法、后端定向/OpenAPI/权限测试、前端 WP9 Vitest、Playwright smoke、前端构建和 DB validation；release 模式通过 `WP9_GATE_MODE=release WP9_SCHEDULER_SMOKE=managed` 要求 managed scheduler smoke。M7B 已补生产 CRON scanner 最小闭环，scheduler tick 会在 recovery/claim 前扫描到期 CRON trigger，使用 trigger event 和 run requestKey 幂等创建 CRON run，并推进 `nextFireAt`。M7C 已补执行摘要导出，`GET /runs/{id}/export` 返回脱敏 run detail、节点状态计数和 redactionPolicy，前端运行详情可触发导出并展示摘要。M7D 已新增 `scripts/wp9_webhook_http_smoke.sh`，managed 模式本地启动临时 Postgres 和 platform-api，external 模式面向已运行服务，覆盖 webhook 全局启用、项目上下文、WP6 approved bundle、WP9 READY plan、签名拒绝、签名接受、重复 `sourceEventId` 幂等、trigger event 证据和 run export 脱敏；release gate 现在要求同时显式启用 `WP9_SCHEDULER_SMOKE=managed` 与 `WP9_WEBHOOK_HTTP_SMOKE=managed`。M8A 已新增 `scripts/wp9_webhook_sign.sh` 和 `WP9-Webhook签名样例与CI接入说明.md`，覆盖 GitHub Actions、GitLab CI、Jenkins Pipeline 的签名调用样例；供应商 marketplace/App 插件包仍归后续切片。
+M7A 已新增 `scripts/wp9_quality_gate.sh` 与 `scripts/wp9_scheduler_smoke.sh`。开发模式默认执行 WP9 脚本语法、后端定向/OpenAPI/权限测试、前端 WP9 Vitest、Playwright smoke、前端构建和 DB validation；release 模式通过 `WP9_GATE_MODE=release WP9_SCHEDULER_SMOKE=managed` 要求 managed scheduler smoke。M7B 已补生产 CRON scanner 最小闭环，scheduler tick 会在 recovery/claim 前扫描到期 CRON trigger，使用 trigger event 和 run requestKey 幂等创建 CRON run，并推进 `nextFireAt`。M7C 已补执行摘要导出，`GET /runs/{id}/export` 返回脱敏 run detail、节点状态计数和 redactionPolicy，前端运行详情可触发导出并展示摘要。M7D 已新增 `scripts/wp9_webhook_http_smoke.sh`，managed 模式本地启动临时 Postgres 和 platform-api，external 模式面向已运行服务，覆盖 webhook 全局启用、项目上下文、WP6 approved bundle、WP9 READY plan、签名拒绝、签名接受、重复 `sourceEventId` 幂等、trigger event 证据和 run export 脱敏；release gate 现在要求同时显式启用 `WP9_SCHEDULER_SMOKE=managed` 与 `WP9_WEBHOOK_HTTP_SMOKE=managed`。M8A 已新增 `scripts/wp9_webhook_sign.sh` 和 `WP9-Webhook签名样例与CI接入说明.md`，覆盖 GitHub Actions、GitLab CI、Jenkins Pipeline 的签名调用样例。M8B 已新增 `WP9-Scheduler-Trigger-Runbook.md`，覆盖 scheduler/webhook/cron 开关、恢复重放、webhook secret 轮换、CRON 运维、排障、回滚和准出记录；供应商 marketplace/App 插件包仍归后续切片。
 
 ## 12. Epic 8：文档和交付
 
 | Story | 优先级 | 负责人 | 任务 | 验收 | 验证 |
 |---|---|---|---|---|---|
 | WP9-8.1 API 契约更新 | P0 | 服务端架构师 | 技术设计随实现更新真实路径、字段、错误码 | OpenAPI test 一致 | 文档评审 |
-| WP9-8.2 Scheduler Runbook | P0 | 质量工程师、服务端架构师 | 编写开关、恢复、重放、webhook secret、cron 排障 | 运维可按步骤处理 | Runbook 评审 |
+| WP9-8.2 Scheduler Runbook | P0 | 质量工程师、服务端架构师 | 编写开关、恢复、重放、webhook secret、cron 排障 | 运维可按步骤处理 | `WP9-Scheduler-Trigger-Runbook.md` |
 | WP9-8.3 发布准出说明 | P0 | 项目经理、质量工程师 | 记录验证命令、跳过项、风险、回滚和远端分支 | 符合仓库模板 | PR/交付检查 |
 | WP9-8.4 前端操作说明 | P1 | 产品经理、前端工程师 | 说明计划、DAG、运行、取消、重试和触发解释 | 用户无需 curl | 产品验收 |
 | WP9-8.5 供应商 webhook 接入样例 | P1 | 质量工程师、服务端架构师 | GitHub/GitLab/Jenkins 签名样例、eventId 策略、排错和验收 | 外部 CI 可按样例联调 | `scripts/wp9_webhook_sign.sh` |
