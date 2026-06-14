@@ -37,7 +37,7 @@ git diff --check
 1. CI 示例依赖 `curl`、`openssl`、`awk`，GitHub/GitLab 示例还依赖 `jq`；缺少工具时应在 runner image 或 before_script 中安装。
 2. helper 支持真实发送，生产使用必须显式设置 `WP9_WEBHOOK_SEND=1`，并确认 target URL 指向正确环境。
 3. 供应商 marketplace 模板包已由 M8C 承接；真实 OAuth/App 安装授权和 UI 化配置仍归后续供应商平台专项。
-4. cron scanner 运维 runbook 已在 M8B 补齐，错过多次 fire 容量策略仍按后续 WP9-8.x 推进。
+4. cron scanner 运维 runbook 已在 M8B 补齐，错过多次 fire 容量策略已由 M8F smoke 覆盖；真实生产压测和未来 backfill 设计仍按后续专项推进。
 
 ## 5. 五角色结论
 

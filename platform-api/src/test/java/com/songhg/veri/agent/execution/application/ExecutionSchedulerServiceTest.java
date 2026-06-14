@@ -21,6 +21,7 @@ import com.songhg.veri.agent.execution.config.ExecutionProperties;
 import com.songhg.veri.agent.execution.domain.ExecutionTrigger;
 import com.songhg.veri.agent.management.application.port.ManagementStore;
 import com.songhg.veri.agent.management.application.port.ManagementStoreRows.EnvironmentRuntimeRef;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -186,6 +187,68 @@ class ExecutionSchedulerServiceTest {
                 .andExpect(jsonPath("$.data.lastFireAt").exists())
                 .andExpect(jsonPath("$.data.nextFireAt").exists())
                 .andExpect(jsonPath("$.data.configSummary.cronPayloadStored").value(false));
+    }
+
+    @Test
+    void runOnceCapsMissedCronFireAtOneRunAndAdvancesPastScanWindow() throws Exception {
+        String projectId = UUID.randomUUID().toString();
+        stubRuntimeAndRunner(projectId);
+        SeededBundle seededBundle = approvedBundle(projectId);
+        String ownerToken = userAccessToken(List.of("ProjectOwner@PROJECT:" + projectId));
+        UUID planId = createApiAndReportPlan(projectId, seededBundle, ownerToken);
+        Instant missedFireAt = Instant.now().minus(Duration.ofHours(6));
+        UUID triggerId = createDueCronTrigger(planId, ownerToken, missedFireAt);
+
+        ExecutionSchedulerTickResponse tick = schedulerService.runOnce();
+
+        assertThat(tick.cronScannedTriggerCount()).isEqualTo(1);
+        assertThat(tick.cronTriggeredRunCount()).isEqualTo(1);
+        assertThat(tick.cronFailedTriggerCount()).isZero();
+
+        MvcResult runs = mockMvc.perform(get("/api/v1/execution/runs")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken)
+                        .param("planId", planId.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(1))
+                .andExpect(jsonPath("$.data.items[0].triggerType").value("CRON"))
+                .andReturn();
+        String runId = JsonPath.read(runs.getResponse().getContentAsString(), "$.data.items[0].id");
+
+        mockMvc.perform(get("/api/v1/execution/runs/{id}", runId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.resultSummary.scheduledFireAt").value(missedFireAt.toString()))
+                .andExpect(jsonPath("$.data.resultSummary.cronPayloadStored").value(false));
+
+        MvcResult trigger = mockMvc.perform(get("/api/v1/execution/triggers/{id}", triggerId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("ENABLED"))
+                .andExpect(jsonPath("$.data.lastFireAt").exists())
+                .andExpect(jsonPath("$.data.nextFireAt").exists())
+                .andReturn();
+        String nextFireAt = JsonPath.read(trigger.getResponse().getContentAsString(), "$.data.nextFireAt");
+        assertThat(Instant.parse(nextFireAt)).isAfter(tick.tickedAt());
+
+        // A second immediate scan must not backfill the missed 6-hour window.
+        ExecutionSchedulerTickResponse secondTick = schedulerService.runOnce();
+
+        assertThat(secondTick.cronScannedTriggerCount()).isZero();
+        assertThat(secondTick.cronTriggeredRunCount()).isZero();
+        assertThat(secondTick.claimedNodeCount()).isZero();
+
+        mockMvc.perform(get("/api/v1/execution/runs")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken)
+                        .param("planId", planId.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(1));
+
+        mockMvc.perform(get("/api/v1/execution/triggers/{id}/events", triggerId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(1))
+                .andExpect(jsonPath("$.data.items[0].status").value("ACCEPTED"))
+                .andExpect(jsonPath("$.data.items[0].runId").value(runId));
     }
 
     @Test

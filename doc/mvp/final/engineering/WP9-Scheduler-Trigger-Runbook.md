@@ -4,7 +4,7 @@
 |---|---|
 | 工作包 | WP9 执行编排与任务调度 |
 | 文档性质 | scheduler、cron、webhook、恢复、重放、密钥和发布准出 runbook |
-| 当前口径 | 已提供后台 scheduler loop、生产 CRON scanner、webhook HTTP smoke、CI 签名样例、worker 托管 readiness 和 release gate |
+| 当前口径 | 已提供后台 scheduler loop、生产 CRON scanner、webhook HTTP smoke、CRON 容量 smoke、CI 签名样例、worker 托管 readiness 和 release gate |
 | 日期 | 2026-06-14 |
 
 ## 1. 适用范围
@@ -57,6 +57,12 @@ bash scripts/wp9_quality_gate.sh
 
 ```bash
 bash scripts/wp9_scheduler_smoke.sh
+```
+
+仅验证 CRON 容量策略：
+
+```bash
+bash scripts/wp9_cron_capacity_smoke.sh
 ```
 
 仅验证 worker 托管配置：
@@ -133,7 +139,7 @@ bash scripts/wp9_quality_gate.sh
 | 新增 CRON trigger | 先 dryRun，再启用；未传 `nextFireAt` 时由服务端计算。 |
 | 暂停触发 | 将 trigger 状态改为 `DISABLED`，不要清空 cron 配置。 |
 | 变更频率 | 更新 cron/timezone 后确认下一次 `nextFireAt`，避免高频误触发。 |
-| 错过多次 fire | 当前只按每个 due `nextFireAt` 创建一次 run，不批量补偿历史窗口。 |
+| 错过多次 fire | 当前只按每个 due `nextFireAt` 创建一次 run，不批量补偿历史窗口；需要历史回补时必须单独设计 backfill 限额。 |
 | 容量保护 | 高风险计划先保持 `manualEnabled=true`，观察 scheduler queue 后再启 cron。 |
 | 排障证据 | 记录 triggerId、sourceEventId、requestDigest、runId、nextFireAt 和 traceId。 |
 
@@ -150,6 +156,7 @@ bash scripts/wp9_quality_gate.sh
 | standby worker 抢占队列 | standby 实例误设 `WP9_SCHEDULER_ENABLED=true` 或复用了 active workerId | 立即关闭 standby scheduler，运行 `scripts/wp9_worker_hosting_readiness.sh`，保留 queue claim 和日志证据。 |
 | API_TEST 节点失败 | WP6 runner disabled、allowlist 阻断、secretRef 解析失败、baseUrlRef 环境停用 | 查看 node errorCode、WP6 runner runbook 和 WP1 环境配置。 |
 | cron 未触发 | `cron-enabled=false`、trigger disabled、`nextFireAt` 未到、cron/timezone 无效 | dryRun trigger，查询 trigger detail 和 events。 |
+| missed fire 反复补偿 | `nextFireAt` 未推进或触发器被反复重放 | 查看 `wp9_cron_capacity_smoke.sh`，确认每个 due 时间只 materialize 一次。 |
 | run export 泄露敏感内容 | redaction 策略回归或上游摘要夹带敏感字段 | 立即禁用 trigger/scheduler，修复脱敏后重跑 WP9 quality gate。 |
 
 ## 9. 回滚

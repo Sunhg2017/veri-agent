@@ -39,7 +39,7 @@ git diff --check
 1. readiness 只校验配置形态，不连接真实 DB、Redis、Kafka 或 platform-api；真实发布仍需执行 WP9 quality gate 和 scheduler smoke。
 2. 多 active worker 虽受 queue claim 条件更新保护，但会增加排障复杂度；生产仍建议单 active workerId。
 3. 当前不引入分布式锁或 leader election；如后续需要多活 scheduler，应单独设计锁、租约、指标和故障切换。
-4. 错过多次 CRON fire 的容量策略和生产压测仍按后续 WP9 运维增强推进。
+4. 错过多次 CRON fire 的不补偿策略已由 M8F smoke 覆盖；生产压测和未来 backfill 设计仍按后续 WP9 运维增强推进。
 
 ## 5. 五角色结论
 
