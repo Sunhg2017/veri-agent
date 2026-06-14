@@ -147,6 +147,7 @@ public class ApiAutomationService {
     private final ModelInvocationService modelInvocationService;
     private final ApiAutomationModelOutputParser modelOutputParser;
     private final ObjectMapper objectMapper;
+    private final ApiAutomationRunnerResultSanitizer runnerResultSanitizer;
     private final List<SecretProvider> secretProviders;
 
     public ApiAutomationService(
@@ -234,6 +235,7 @@ public class ApiAutomationService {
         this.modelInvocationService = modelInvocationService;
         this.modelOutputParser = modelOutputParser;
         this.objectMapper = objectMapper;
+        this.runnerResultSanitizer = new ApiAutomationRunnerResultSanitizer(properties, objectMapper);
         this.secretProviders = secretProviders == null ? List.of() : List.copyOf(secretProviders);
     }
 
@@ -695,7 +697,7 @@ public class ApiAutomationService {
                 secretRefs.digests(),
                 runnerSecrets
         ));
-        ApiAutomationRunnerPort.RunnerRunResult attempt = enforceRunnerArtifactLimit(rawAttempt);
+        ApiAutomationRunnerPort.RunnerRunResult attempt = runnerResultSanitizer.enforceRunnerArtifactLimit(rawAttempt);
         String status = normalizeRunStatus(attempt.status());
         String runnerMode = normalizeRunnerMode(attempt.runnerMode());
         Instant completedAt = Instant.now();
@@ -709,7 +711,7 @@ public class ApiAutomationService {
                 cases.size(),
                 runnerMode,
                 SensitiveTextSanitizer.boundedNullableText(attempt.errorCode(), 64),
-                safeRunnerErrorSummary(attempt.errorSummary(), target.normalizedBaseUrl()),
+                runnerResultSanitizer.safeRunnerErrorSummary(attempt.errorSummary(), target.normalizedBaseUrl()),
                 actor,
                 now,
                 now,
@@ -771,7 +773,7 @@ public class ApiAutomationService {
         ApiAutomationRun canceled = runWithCancel(
                 run,
                 SensitiveTextSanitizer.boundedNullableText(cancelResult.errorCode(), 64),
-                safeRunnerErrorSummary(cancelResult.errorSummary()),
+                runnerResultSanitizer.safeRunnerErrorSummary(cancelResult.errorSummary()),
                 actor,
                 now
         );
@@ -1068,7 +1070,7 @@ public class ApiAutomationService {
                             ? SensitiveTextSanitizer.boundedText(validation.errorCode(), 64)
                             : "RUNNER_FAILED",
                     StringUtils.hasText(validation.errorSummary())
-                            ? safeRunnerErrorSummary(validation.errorSummary())
+                            ? runnerResultSanitizer.safeRunnerErrorSummary(validation.errorSummary())
                             : "runner 校验失败"
             );
         }
@@ -1171,165 +1173,16 @@ public class ApiAutomationService {
                             automationCase.id(),
                             status,
                             runnerResult == null ? 0 : Math.max(0, runnerResult.durationMs()),
-                            safeAssertionSummary(runnerResult == null ? null : runnerResult.assertionSummaryJson()),
+                            runnerResultSanitizer.safeAssertionSummary(runnerResult == null ? null : runnerResult.assertionSummaryJson()),
                             runnerResult == null ? run.errorCode() : SensitiveTextSanitizer.boundedNullableText(runnerResult.errorCode(), 64),
                             runnerResult == null
                                     ? run.errorSummary()
-                                    : safeRunnerErrorSummary(runnerResult.errorSummary(), normalizedBaseUrl),
+                                    : runnerResultSanitizer.safeRunnerErrorSummary(runnerResult.errorSummary(), normalizedBaseUrl),
                             now,
                             now
                     );
                 })
                 .toList();
-    }
-
-    private ApiAutomationRunnerPort.RunnerRunResult enforceRunnerArtifactLimit(
-            ApiAutomationRunnerPort.RunnerRunResult attempt
-    ) {
-        if (attempt == null) {
-            return new ApiAutomationRunnerPort.RunnerRunResult(
-                    "FAILED",
-                    "NOOP",
-                    "RUNNER_FAILED",
-                    "runner returned no result",
-                    List.of()
-            );
-        }
-        if (attempt.caseResults() == null || attempt.caseResults().isEmpty()) {
-            return attempt;
-        }
-        List<ApiAutomationRunnerPort.RunnerCaseResult> admittedResults = attempt.caseResults().stream()
-                .filter(Objects::nonNull)
-                .map(this::enforceRunnerCaseArtifactLimit)
-                .toList();
-        boolean artifactLimited = admittedResults.stream()
-                .anyMatch(result -> "RUNNER_ARTIFACT_TOO_LARGE".equals(result.errorCode()));
-        if (!artifactLimited) {
-            return attempt;
-        }
-        /*
-         * Artifact limits are a runner admission gate. Even if a future subprocess reports success, oversized
-         * stdout/stderr-like summaries are treated as failed execution evidence and reduced before persistence.
-         */
-        return new ApiAutomationRunnerPort.RunnerRunResult(
-                "FAILED",
-                attempt.runnerMode(),
-                "RUNNER_ARTIFACT_TOO_LARGE",
-                "runner artifact exceeded configured size limit",
-                admittedResults
-        );
-    }
-
-    private ApiAutomationRunnerPort.RunnerCaseResult enforceRunnerCaseArtifactLimit(
-            ApiAutomationRunnerPort.RunnerCaseResult result
-    ) {
-        if (result == null || !artifactTooLarge(result.assertionSummaryJson())) {
-            return result;
-        }
-        return new ApiAutomationRunnerPort.RunnerCaseResult(
-                result.caseId(),
-                "ERROR",
-                Math.max(0, result.durationMs()),
-                writeJson(artifactTooLargeSummary(result.assertionSummaryJson())),
-                "RUNNER_ARTIFACT_TOO_LARGE",
-                "runner artifact exceeded configured size limit"
-        );
-    }
-
-    private String safeAssertionSummary(String value) {
-        if (artifactTooLarge(value)) {
-            return writeJson(artifactTooLargeSummary(value));
-        }
-        Map<String, Object> summary = readSummary(value);
-        if (summary.isEmpty()) {
-            return writeJson(Map.of("aggregateOnly", true, "rawRequestResponseStored", false));
-        }
-        /*
-         * Runner adapters are an external trust boundary. Their summaries are useful for diagnosis, but must be
-         * reduced to aggregate, recursively redacted evidence before persistence or export.
-         */
-        Map<String, Object> sanitized = new LinkedHashMap<>();
-        summary.forEach((key, summaryValue) -> sanitized.put(key, sanitizeRunnerSummaryValue(key, summaryValue)));
-        sanitized.put("aggregateOnly", true);
-        sanitized.put("rawRequestResponseStored", false);
-        sanitized.put("secretValuesStored", false);
-        return writeJson(sanitized);
-    }
-
-    /**
-     * Runner adapters may eventually wrap subprocess output. Oversized assertion artifacts are folded before JSON
-     * parsing so malformed or huge stdout/stderr-like payloads cannot be persisted, exported or recursively expanded.
-     */
-    private boolean artifactTooLarge(String value) {
-        if (!StringUtils.hasText(value)) {
-            return false;
-        }
-        return value.getBytes(StandardCharsets.UTF_8).length > properties.effectiveRunnerArtifactMaxBytes();
-    }
-
-    private Map<String, Object> artifactTooLargeSummary(String value) {
-        Map<String, Object> summary = new LinkedHashMap<>();
-        summary.put("aggregateOnly", true);
-        summary.put("rawRequestResponseStored", false);
-        summary.put("secretValuesStored", false);
-        summary.put("artifactStored", false);
-        summary.put("artifactTooLarge", true);
-        summary.put("errorCode", "RUNNER_ARTIFACT_TOO_LARGE");
-        summary.put("artifactBytes", value == null ? 0 : value.getBytes(StandardCharsets.UTF_8).length);
-        summary.put("artifactMaxBytes", properties.effectiveRunnerArtifactMaxBytes());
-        return summary;
-    }
-
-    private Object sanitizeRunnerSummaryValue(String key, Object value) {
-        if (sensitiveRunnerSummaryKey(key)) {
-            return "[REDACTED]";
-        }
-        if (value instanceof String text) {
-            return safeSourceText(text, ERROR_SUMMARY_MAX_CHARS);
-        }
-        if (value instanceof Map<?, ?> map) {
-            Map<String, Object> sanitized = new LinkedHashMap<>();
-            map.forEach((nestedKey, nestedValue) -> sanitized.put(
-                    nestedKey == null ? "" : nestedKey.toString(),
-                    sanitizeRunnerSummaryValue(nestedKey == null ? "" : nestedKey.toString(), nestedValue)
-            ));
-            return sanitized;
-        }
-        if (value instanceof List<?> list) {
-            return list.stream().map(item -> sanitizeRunnerSummaryValue("", item)).toList();
-        }
-        return value;
-    }
-
-    private boolean sensitiveRunnerSummaryKey(String key) {
-        if (!StringUtils.hasText(key)) {
-            return false;
-        }
-        String normalized = key.toLowerCase(Locale.ROOT);
-        return normalized.contains("authorization")
-                || normalized.contains("cookie")
-                || normalized.contains("token")
-                || normalized.contains("secret")
-                || normalized.contains("password")
-                || normalized.contains("passwd")
-                || normalized.contains("apikey")
-                || normalized.contains("api_key")
-                || normalized.contains("api-key");
-    }
-
-    private String safeRunnerErrorSummary(String value) {
-        return safeRunnerErrorSummary(value, null);
-    }
-
-    private String safeRunnerErrorSummary(String value, String normalizedBaseUrl) {
-        if (!StringUtils.hasText(value)) {
-            return null;
-        }
-        String sanitized = value;
-        if (StringUtils.hasText(normalizedBaseUrl)) {
-            sanitized = sanitized.replace(normalizedBaseUrl, "[REDACTED_BASE_URL]");
-        }
-        return safeSourceText(sanitized, ERROR_SUMMARY_MAX_CHARS);
     }
 
     private String normalizeRunStatus(String status) {
@@ -1403,7 +1256,7 @@ public class ApiAutomationService {
         payload.put("accepted", false);
         if (cancelResult != null) {
             String errorCode = SensitiveTextSanitizer.boundedNullableText(cancelResult.errorCode(), 64);
-            String errorSummary = safeRunnerErrorSummary(cancelResult.errorSummary());
+            String errorSummary = runnerResultSanitizer.safeRunnerErrorSummary(cancelResult.errorSummary());
             if (errorCode != null) {
                 payload.put("errorCode", errorCode);
             }
