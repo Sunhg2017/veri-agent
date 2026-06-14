@@ -5,11 +5,11 @@
 | 工作包 | WP9 执行编排与任务调度 |
 | 角色产出 | 资深前端工程师 |
 | 文档性质 | 页面信息架构、交互、权限、状态和可测性设计 |
-| 当前口径 | 新增 `#execution` 工作台，先覆盖执行计划、DAG 预览、手动运行、运行详情、取消重试和触发配置摘要 |
+| 当前口径 | `#execution` 工作台已覆盖执行计划、DAG 预览、手动运行、运行详情、取消重试、导出摘要、触发配置和用户操作说明 |
 | 版本 | v0.1 |
 | 日期 | 2026-06-13 |
 
-截至 2026-06-14 M8D，`portal-web` 已新增 `#execution` 工作台入口、`execution:read/manage/trigger/export` 权限判断、WP9 API client normalization、调度策略指标、计划列表、多节点计划创建/更新/归档、DAG 摘要与 dryRun、手动触发、运行详情、取消/重试、脱敏执行摘要导出、触发配置摘要、trigger dryRun、触发事件查看和桌面/390px Playwright browser smoke。M7D/M8A/M8B/M8C/M8D 不新增前端页面改动，外部 webhook HTTP smoke、GitHub/GitLab/Jenkins 接入样例、scheduler/trigger Runbook、供应商 marketplace 接入包和 worker 托管 readiness 已由脚本、模板和文档覆盖；cron scanner 操作台、真实供应商 OAuth/App 安装向导与独立 worker 管理页面仍按后续切片推进。
+截至 2026-06-14 M8H，`portal-web` 已新增 `#execution` 工作台入口、`execution:read/manage/trigger/export` 权限判断、WP9 API client normalization、调度策略指标、计划列表、多节点计划创建/更新/归档、DAG 摘要与 dryRun、手动触发、运行详情、取消/重试、脱敏执行摘要导出、触发配置摘要、trigger dryRun、触发事件查看和桌面/390px Playwright browser smoke。M8H 已补 `WP9-执行编排与任务调度-前端操作说明.md`，覆盖用户不依赖 curl 完成计划、DAG、运行、取消、重试、导出和触发解释的浏览器路径。外部 webhook HTTP smoke、GitHub/GitLab/Jenkins 接入样例、scheduler/trigger Runbook、供应商 marketplace 接入包、worker 托管 readiness、CRON capacity/backlog 准出均已由脚本、模板和文档覆盖；cron scanner 操作台、真实供应商 OAuth/App 安装向导与独立 worker 管理页面仍按后续切片推进。
 
 ## 1. 页面目标
 
@@ -126,7 +126,20 @@
 2. 关键区域使用稳定 data-testid：`execution-workbench`、`execution-plan-list`、`execution-dag-preview`、`execution-run-detail`。
 3. Playwright smoke 使用 mock API 覆盖创建、更新、dryRun、运行、取消、重试、触发配置和移动端布局。
 
-## 11. 前端验收
+## 11. 前端操作说明
+
+完整操作说明见 `WP9-执行编排与任务调度-前端操作说明.md`。当前工作台的用户主链路如下：
+
+1. 具备 `execution:read` 的用户从侧边导航进入 `执行编排`，直达路由为 `#execution`；无权限用户看不到入口，直达后只展示无权限态。
+2. 在 `新建计划` 区填写项目、名称、环境、状态和描述，添加 `API_TEST` 或 `REPORT_HANDOFF` DAG 节点，并配置依赖、失败策略、超时、重试次数、`bundleId`、`baseUrlRef`、caseIds 和 secretRefs 摘要。
+3. 点击 `创建` 保存计划；选择计划列表中的既有计划后可点击 `保存更新` 或 `归档`。前端会先做字段和 DAG 依赖校验，后端继续校验项目 scope、WP6 bundle、环境和 secretRef。
+4. 在 `DAG 与运行` 区点击 `Dry run` 查看 valid、dagDigest 和 issue；填写可选 requestKey 与原因后点击 `运行`，同一 requestKey 会回放既有 run。
+5. 在 `运行详情` 区查看 run/node 状态、traceId、sourceEventId 或 requestKey；对 `QUEUED/RUNNING` run 点击 `取消`，对 `FAILED/TIMEOUT/PARTIAL_SUCCESS` run 点击 `重试`。
+6. 具备 `execution:export` 时点击 `导出摘要`，页面只展示脱敏 schema、导出时间、节点状态计数和 redactionPolicy 摘要。
+7. 在 `触发配置` 区新增 WEBHOOK 或 CRON trigger，点击 trigger `Dry run` 校验配置和全局开关，再按需 `启用`、`暂停` 或查看 `事件`。
+8. 页面不展示 secretRef 明文、webhook secret、baseUrl 明文、请求/响应正文、stdout/stderr 或 webhook payload 原文；触发签名和 CI 接入细节由 webhook 样例文档承接。
+
+## 12. 前端验收
 
 1. 无 read 权限不显示入口，直达路由显示无权限态。
 2. 可创建 DRAFT/READY 计划并 dryRun。

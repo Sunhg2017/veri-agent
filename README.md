@@ -44,6 +44,7 @@ AI 驱动的端到端企业级测试平台。WP1、WP2、WP3、WP4 是研发任�
 | `doc/mvp/final/engineering/WP9-执行编排与任务调度-需求文档与PRD.md` | WP9 需求文档和产品 PRD，定义计划、DAG、触发、运行和验收标准。 |
 | `doc/mvp/final/engineering/WP9-执行编排与任务调度-技术设计与接口契约.md` | WP9 服务端技术设计、数据模型、状态机、权限、审计和 API 契约草案。 |
 | `doc/mvp/final/engineering/WP9-执行编排与任务调度-前端页面设计.md` | WP9 前端工作台、路由、权限、DAG 预览、运行详情和可测性设计。 |
+| `doc/mvp/final/engineering/WP9-执行编排与任务调度-前端操作说明.md` | WP9 前端操作说明，覆盖执行编排工作台入口、计划、DAG、运行、取消、重试、导出和触发配置。 |
 | `doc/mvp/final/engineering/WP9-执行编排与任务调度-测试策略与用例脚本.md` | WP9 测试策略、DAG/队列/触发用例矩阵和质量门禁建议。 |
 | `doc/mvp/final/engineering/WP9-执行编排与任务调度-研发任务拆解.md` | WP9 Epic/Story/Task 研发拆解、实施顺序和 P0 完成定义。 |
 | `doc/mvp/final/engineering/WP9-执行编排与任务调度-M1基础控制面交付说明.md` | WP9 M1 基础控制面交付记录，覆盖权限、DB、validation、配置和 health API。 |
@@ -69,6 +70,7 @@ AI 驱动的端到端企业级测试平台。WP1、WP2、WP3、WP4 是研发任�
 | `doc/mvp/final/engineering/WP9-执行编排与任务调度-M8E-WP10交接准出交付说明.md` | WP9 M8E WP10 交接准出交付记录，覆盖 REPORT_HANDOFF 完成证据、run export 脱敏证据和 quality gate 接入。 |
 | `doc/mvp/final/engineering/WP9-执行编排与任务调度-M8F-CRON容量策略交付说明.md` | WP9 M8F CRON 容量策略交付记录，覆盖 missed-fire 不补偿、单次 materialize 和 quality gate 接入。 |
 | `doc/mvp/final/engineering/WP9-执行编排与任务调度-M8G-CRON积压批次准出交付说明.md` | WP9 M8G CRON 积压批次准出交付记录，覆盖 backlog batch 上限、剩余 due trigger 接续处理和 quality gate 接入。 |
+| `doc/mvp/final/engineering/WP9-执行编排与任务调度-M8H前端操作说明交付说明.md` | WP9 M8H 前端操作说明交付记录，覆盖浏览器主链路说明、产品验收边界和文档准出。 |
 | `doc/mvp/final/engineering/当前实现基线.md` | 当前代码与文档对齐的权威基线：单服务、无租户、camelCase、分页和验证入口。 |
 | `doc/mvp/final/engineering/WP1-单平台权限矩阵与菜单矩阵.md` | 当前 WP1 单平台权限、菜单和按钮规则。 |
 | `doc/mvp/final/engineering/WP1-审计事件字典.md` | 当前 WP1 P0 审计事件、字段和验收规则。 |
