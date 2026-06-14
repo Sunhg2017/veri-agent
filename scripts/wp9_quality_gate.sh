@@ -144,6 +144,7 @@ main() {
       "$ROOT_DIR/scripts/wp9_frontend_e2e_smoke.sh" \
       "$ROOT_DIR/scripts/wp9_scheduler_smoke.sh" \
       "$ROOT_DIR/scripts/wp9_cron_capacity_smoke.sh" \
+      "$ROOT_DIR/scripts/wp9_cron_backlog_smoke.sh" \
       "$ROOT_DIR/scripts/wp9_report_handoff_smoke.sh" \
       "$ROOT_DIR/scripts/wp9_webhook_http_smoke.sh" \
       "$ROOT_DIR/scripts/wp9_webhook_sign.sh" \
@@ -158,6 +159,9 @@ main() {
 
   run_step "wp9 cron capacity smoke" \
     bash "$ROOT_DIR/scripts/wp9_cron_capacity_smoke.sh"
+
+  run_step "wp9 cron backlog smoke" \
+    bash "$ROOT_DIR/scripts/wp9_cron_backlog_smoke.sh"
 
   run_step "wp9 report handoff smoke" \
     bash "$ROOT_DIR/scripts/wp9_report_handoff_smoke.sh"

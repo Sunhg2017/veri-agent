@@ -56,7 +56,7 @@ flowchart LR
 
 ### 2.1 当前已落地实现
 
-截至 2026-06-14 M8F，本仓库已完成 `ExecutionPlanController`、`ExecutionRunController`、`ExecutionTriggerController`、`ExecutionPlanService`、`ExecutionRunService`、`ExecutionTriggerService`、`ExecutionSchedulerService`、`ExecutionDagValidator`、`ExecutionRepository`、`JdbcExecutionRepository`、`ExecutionMapper` 和 local 测试仓储。已支持 plan 创建、列表、详情、更新、归档、dry-run、READY 计划手动触发、run/node run 初始化、requestKey 幂等回放、run 列表、run 详情、run cancel、控制面 retry、脱敏 run export、内部队列 claim、claim heartbeat、过期 claim recovery、节点完成回传、依赖推进、run 状态聚合，以及 claimed `API_TEST` 节点通过 WP6 应用服务创建 API automation run 并同步脱敏摘要；`baseUrlRef=env:<key>` 可解析同项目 WP1 环境 `api_base_url`，计划输入 `runtimeSecretRefs` 可作为 WP6 runtime secretRefs 默认值安全中继；后台 scheduler loop 可按配置启用，通过既有 claim/recovery/dispatch 契约执行 `API_TEST` 和 `REPORT_HANDOFF` 节点；M5 已新增 webhook/cron 触发器管理、cron 元数据摘要、webhook 签名校验、sourceEventId 幂等和事件记录；M7B 已新增生产 CRON scanner，scheduler tick 在 recovery/claim 前扫描到期 CRON trigger，使用 trigger event 和 run requestKey 幂等创建 CRON run，并推进 `nextFireAt`；M7C 已新增 `GET /runs/{id}/export`，按 run 项目 scope 校验 `execution:export`，返回 `schemaVersion/exportedAt/run/nodeStatusCounts/redactionPolicy`，只复用已脱敏的 run detail 和节点摘要；M7D 已新增 webhook HTTP smoke，使用真实 HTTP 入口验证 HMAC 签名、错误签名拒绝、`sourceEventId` 幂等、trigger event 证据、WP6 approved bundle 到 WP9 READY plan 的链路和 run export 脱敏；M8A 已新增 webhook 签名 helper 和 GitHub/GitLab/Jenkins CI 接入样例；M8B 已新增 Scheduler 与 Trigger Runbook，覆盖 release gate、恢复重放、webhook secret 轮换、CRON 运维、排障和回滚；M8C 已新增供应商 marketplace 接入包，覆盖 manifest、安装说明、模板、payload 示例和离线 smoke；M8D 已新增 worker 托管 readiness，覆盖 web、scheduler-active、scheduler-standby 三类角色的开关和配置准入；M8E 已新增 WP10 report handoff 准出 smoke，覆盖 `REPORT_HANDOFF` 完成摘要和 run export 脱敏证据；M8F 已新增 CRON 容量策略准出 smoke，覆盖 missed-fire 不补偿、单次 materialize 和 `nextFireAt` 推进；health policy 中 `planCrudReady=true`、`dagDryRunReady=true`、`manualTriggerReady=true`、`cancelRetryReady=true`、`queueClaimReady=true`、`heartbeatRecoveryReady=true`、`stateAggregationReady=true`、`wp6DispatchReady=true`、`schedulerLoopReady=true`、`cronScannerReady=true`。
+截至 2026-06-14 M8G，本仓库已完成 `ExecutionPlanController`、`ExecutionRunController`、`ExecutionTriggerController`、`ExecutionPlanService`、`ExecutionRunService`、`ExecutionTriggerService`、`ExecutionSchedulerService`、`ExecutionDagValidator`、`ExecutionRepository`、`JdbcExecutionRepository`、`ExecutionMapper` 和 local 测试仓储。已支持 plan 创建、列表、详情、更新、归档、dry-run、READY 计划手动触发、run/node run 初始化、requestKey 幂等回放、run 列表、run 详情、run cancel、控制面 retry、脱敏 run export、内部队列 claim、claim heartbeat、过期 claim recovery、节点完成回传、依赖推进、run 状态聚合，以及 claimed `API_TEST` 节点通过 WP6 应用服务创建 API automation run 并同步脱敏摘要；`baseUrlRef=env:<key>` 可解析同项目 WP1 环境 `api_base_url`，计划输入 `runtimeSecretRefs` 可作为 WP6 runtime secretRefs 默认值安全中继；后台 scheduler loop 可按配置启用，通过既有 claim/recovery/dispatch 契约执行 `API_TEST` 和 `REPORT_HANDOFF` 节点；M5 已新增 webhook/cron 触发器管理、cron 元数据摘要、webhook 签名校验、sourceEventId 幂等和事件记录；M7B 已新增生产 CRON scanner，scheduler tick 在 recovery/claim 前扫描到期 CRON trigger，使用 trigger event 和 run requestKey 幂等创建 CRON run，并推进 `nextFireAt`；M7C 已新增 `GET /runs/{id}/export`，按 run 项目 scope 校验 `execution:export`，返回 `schemaVersion/exportedAt/run/nodeStatusCounts/redactionPolicy`，只复用已脱敏的 run detail 和节点摘要；M7D 已新增 webhook HTTP smoke，使用真实 HTTP 入口验证 HMAC 签名、错误签名拒绝、`sourceEventId` 幂等、trigger event 证据、WP6 approved bundle 到 WP9 READY plan 的链路和 run export 脱敏；M8A 已新增 webhook 签名 helper 和 GitHub/GitLab/Jenkins CI 接入样例；M8B 已新增 Scheduler 与 Trigger Runbook，覆盖 release gate、恢复重放、webhook secret 轮换、CRON 运维、排障和回滚；M8C 已新增供应商 marketplace 接入包，覆盖 manifest、安装说明、模板、payload 示例和离线 smoke；M8D 已新增 worker 托管 readiness，覆盖 web、scheduler-active、scheduler-standby 三类角色的开关和配置准入；M8E 已新增 WP10 report handoff 准出 smoke，覆盖 `REPORT_HANDOFF` 完成摘要和 run export 脱敏证据；M8F 已新增 CRON 容量策略准出 smoke，覆盖 missed-fire 不补偿、单次 materialize 和 `nextFireAt` 推进；M8G 已新增 CRON backlog 批次准出 smoke，覆盖 due trigger 超过 `schedulerTickBatchSize` 时的限批扫描和后续 tick 接续处理；health policy 中 `planCrudReady=true`、`dagDryRunReady=true`、`manualTriggerReady=true`、`cancelRetryReady=true`、`queueClaimReady=true`、`heartbeatRecoveryReady=true`、`stateAggregationReady=true`、`wp6DispatchReady=true`、`schedulerLoopReady=true`、`cronScannerReady=true`。
 
 M2 的资源校验通过 `ApiAutomationBundleScopeService` 查询 WP6 应用服务暴露的 bundle scope，不直读 WP6 表，不调用 runner adapter。`API_TEST` 节点要求 `apiAutomationBundleId` 存在、同项目且脚本包状态为 `APPROVED`；否则返回 `EXECUTION_DAG_INVALID`，具体 issue code 为 `EXECUTION_RESOURCE_NOT_FOUND`、`EXECUTION_RESOURCE_SCOPE_DENIED` 或 `EXECUTION_RESOURCE_NOT_READY`。
 
@@ -91,6 +91,8 @@ M8D 增加 worker 托管 readiness，不改变 scheduler Java 契约。`integrat
 M8E 增加 WP10 report handoff 准出 smoke，不改变服务端接口契约。`scripts/wp9_report_handoff_smoke.sh` 定向验证 scheduler tick 可完成 `REPORT_HANDOFF` 节点并输出 `reportHandoffReady=true`、`rawReportStored=false` 摘要，同时验证 run export 只返回脱敏 run detail、节点状态计数和 redaction policy。该 smoke 不启动 WP10 服务、不生成报告正文，也不读取 runner 原始产物。
 
 M8F 增加 CRON 容量策略准出 smoke，不改变服务端接口契约。`scripts/wp9_cron_capacity_smoke.sh` 验证长时间积压的 due `nextFireAt` 在一次 tick 中只 materialize 一次，`nextFireAt` 会推进到当前 scan time 之后，重复 tick 不会补偿历史窗口。当前策略仍然明确不做 missed-fire backfill；如需补偿历史窗口，应另行设计 backfill 限额和速率控制。
+
+M8G 增加 CRON backlog 批次准出 smoke，不改变服务端接口契约。`scripts/wp9_cron_backlog_smoke.sh` 验证多个 due CRON trigger 同时积压且超过 `schedulerTickBatchSize` 时，单次 tick 只扫描和触发 batch 上限内的 trigger；未扫描的 due trigger 不生成 trigger event 或 run，并由后续 tick 接续处理。该 smoke 是本地控制面批次边界验证，不替代真实生产压测。
 
 ## 3. 状态机
 
@@ -456,9 +458,9 @@ FAILED -> QUEUED   (retry attempt)
 
 ## 12. 当前实现切片建议
 
-M1、M2、M3A、M3B、M3C、M3D、M4A、M4B、M4C、M5、M6A、M6B、M6C、M7A、M7B、M7C、M7D、M8A、M8B、M8C、M8D、M8E 和 M8F 已完成：
+M1、M2、M3A、M3B、M3C、M3D、M4A、M4B、M4C、M5、M6A、M6B、M6C、M7A、M7B、M7C、M7D、M8A、M8B、M8C、M8D、M8E、M8F 和 M8G 已完成：
 
-1. 权限、DB、health、plan CRUD、DAG validator、plan dry-run、手动触发、run/node run 初始化、取消、控制面重试、内部 queue claim、claim heartbeat、过期 claim recovery、节点完成回传、API_TEST 到 WP6 应用服务 dispatch、`baseUrlRef` 环境解析、计划 `runtimeSecretRefs` 安全中继、后台 scheduler loop、webhook/cron 触发控制面、生产 CRON scanner、run export、WP10 report handoff 准出 smoke、CRON 容量 smoke、前端主链路、Playwright smoke、managed scheduler smoke、webhook HTTP smoke、CI webhook 签名样例、scheduler/trigger runbook、供应商 marketplace 接入包、worker 托管 readiness、依赖推进和 run 聚合。
+1. 权限、DB、health、plan CRUD、DAG validator、plan dry-run、手动触发、run/node run 初始化、取消、控制面重试、内部 queue claim、claim heartbeat、过期 claim recovery、节点完成回传、API_TEST 到 WP6 应用服务 dispatch、`baseUrlRef` 环境解析、计划 `runtimeSecretRefs` 安全中继、后台 scheduler loop、webhook/cron 触发控制面、生产 CRON scanner、run export、WP10 report handoff 准出 smoke、CRON 容量 smoke、CRON backlog 批次 smoke、前端主链路、Playwright smoke、managed scheduler smoke、webhook HTTP smoke、CI webhook 签名样例、scheduler/trigger runbook、供应商 marketplace 接入包、worker 托管 readiness、依赖推进和 run 聚合。
 2. `API_TEST` 资源 scope 校验通过 WP6 应用服务端口，不直读 WP6 表。
 3. 状态保护覆盖 `DRAFT/READY/DISABLED/ARCHIVED`，归档必须走专用 endpoint。
 4. dry-run 不创建 run；手动触发只创建 orchestration 记录；内部 dispatch 只通过 WP6 应用服务，不直连 runner adapter，不保存 secret、变量明文、raw baseUrl 或 runner 原始输出。
@@ -467,5 +469,5 @@ M1、M2、M3A、M3B、M3C、M3D、M4A、M4B、M4C、M5、M6A、M6B、M6C、M7A�
 
 1. 独立外部 worker 进程、分布式锁/leader election 和多活调度指标增强。
 2. 真实供应商 OAuth/App 上架、安装授权、卸载回收和平台审核材料。
-3. CRON 生产压测，以及未来如需历史 backfill 时的限额和速率控制专项设计。
+3. CRON 真实生产压测、容量指标看板，以及未来如需历史 backfill 时的限额和速率控制专项设计。
 4. WP10 完整报告消费集成、报告生成和 WP10 端到端发布准出。

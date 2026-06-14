@@ -93,6 +93,7 @@ bash scripts/wp9_quality_gate.sh
 WP9_GATE_MODE=release WP9_SCHEDULER_SMOKE=managed WP9_WEBHOOK_HTTP_SMOKE=managed bash scripts/wp9_quality_gate.sh
 bash scripts/wp9_scheduler_smoke.sh
 bash scripts/wp9_cron_capacity_smoke.sh
+bash scripts/wp9_cron_backlog_smoke.sh
 bash scripts/wp9_report_handoff_smoke.sh
 bash scripts/wp9_webhook_http_smoke.sh
 bash scripts/wp9_webhook_sign.sh
@@ -113,7 +114,8 @@ bash scripts/wp9_worker_hosting_readiness.sh
 9. marketplace package smoke，离线校验供应商 manifest、GitHub/GitLab/Jenkins 模板、payload 示例和签名 helper。
 10. worker hosting readiness，离线校验 web、scheduler-active、scheduler-standby 三类部署角色的 WP9 开关和 worker 参数。
 11. cron capacity smoke，定向校验 missed-fire 不补偿、单次 materialize 和 nextFireAt 推进。
-12. report handoff smoke，定向校验 `REPORT_HANDOFF` scheduler 完成摘要和 run export 脱敏证据。
+12. cron backlog smoke，定向校验 due trigger 数量超过 scheduler tick batch 时只处理本轮上限，剩余 due trigger 留到后续 tick。
+13. report handoff smoke，定向校验 `REPORT_HANDOFF` scheduler 完成摘要和 run export 脱敏证据。
 
 `wp9_webhook_http_smoke.sh` 覆盖真实 HTTP webhook：创建 WP1 项目上下文和 webhook signing secret，生成并审批 WP6 script bundle，创建 WP9 READY plan 与 enabled WEBHOOK trigger，校验错误签名 403、有效签名 ACCEPTED、重复 `sourceEventId` 幂等回放、trigger event 证据和 run export 脱敏。`wp9_webhook_sign.sh` 供外部 CI 联调前生成 header/curl 或显式发送请求，默认不发送请求，避免误触发真实计划。
 
@@ -122,6 +124,8 @@ bash scripts/wp9_worker_hosting_readiness.sh
 `wp9_worker_hosting_readiness.sh` 不连接平台服务；它读取当前 shell 或 `WP9_WORKER_HOSTING_ENV_FILE`，验证 `WP9_WORKER_HOSTING_ROLE`、scheduler/webhook/cron 开关、workerId、interval、initialDelay、tick batch、heartbeat timeout、recovery batch 和 release smoke 证据，避免 web 实例误启 scheduler 或 standby worker 抢占队列。
 
 `wp9_cron_capacity_smoke.sh` 复用后端定向测试，不启动生产服务；它验证长时间积压的 due `nextFireAt` 在一次 tick 中只会 materialize 一次，`nextFireAt` 会推进到当前 tick 之后，且下一次立即 tick 不会回补历史窗口。
+
+`wp9_cron_backlog_smoke.sh` 复用后端定向测试，不启动生产服务；它验证多个 due CRON trigger 同时积压且超过 `schedulerTickBatchSize` 时，单次 tick 只处理 batch 上限内 trigger，未扫描 trigger 不生成事件或 run，并由后续 tick 接续处理。
 
 `wp9_report_handoff_smoke.sh` 复用后端定向测试，不启动 WP10 服务；它验证 scheduler tick 完成 `REPORT_HANDOFF` 节点并输出 `reportHandoffReady=true`、`rawReportStored=false`，同时验证 run export 只暴露脱敏执行摘要、节点状态计数和 redaction policy。
 
@@ -140,4 +144,4 @@ M1 已完成基础控制面、DB validation 和 health API 验收。M2 已完成
 
 当前已覆盖 plan 创建、列表、详情、更新、dry-run、归档、归档后状态保护、DAG 循环、跨项目 WP6 bundle 拒绝、secretRef 输入脱敏、`runtimeSecretRefs` 引用校验/脱敏、READY 计划手动触发、requestKey 幂等回放、run 列表/详情、取消、重试、内部认领、heartbeat、recovery、节点完成、API_TEST dispatch、baseUrlRef 环境解析、WP6 failure/timeout 映射、后台 scheduler loop、CRON scanner、trigger 管理、webhook 签名与幂等、依赖推进、状态聚合和权限保护。
 
-M6C 已补 `portal-web/e2e/wp9-execution.smoke.playwright.ts` 和 `scripts/wp9_frontend_e2e_smoke.sh`，覆盖桌面与 390px 视口下的执行工作台计划创建/更新、DAG dryRun、手动运行、取消、失败运行重试、触发器创建/dryRun/启停、事件查看和无横向溢出。M7A 已补 `scripts/wp9_quality_gate.sh` 和 `scripts/wp9_scheduler_smoke.sh`，开发模式聚合 WP9 后端、前端、Playwright、build 和 DB validation，release 模式要求显式启用 managed scheduler smoke。M7B 已补生产 CRON scanner 最小闭环，覆盖到期 CRON trigger 创建 CRON run、trigger event 证据、`nextFireAt` 推进和 health `cronScannerReady=true`。M7C 已补执行摘要导出落地，覆盖 `GET /runs/{id}/export` schema、节点状态计数、redactionPolicy、OpenAPI contract、前端 API normalization 和运行详情导出按钮。M7D 已补 `scripts/wp9_webhook_http_smoke.sh`，覆盖真实 HTTP 签名、sourceEventId 幂等、trigger event 证据和 run export 脱敏；`scripts/wp9_quality_gate.sh` release 模式同步要求 webhook HTTP smoke。M8A 已补 `scripts/wp9_webhook_sign.sh` 和 GitHub/GitLab/Jenkins CI 接入样例，覆盖签名 helper、稳定 eventId、raw body 和日志脱敏要求。M8B 已补 `WP9-Scheduler-Trigger-Runbook.md`，覆盖 release gate、恢复重放、webhook secret 轮换、CRON 运维、排障和回滚证据要求。M8C 已补 `integrations/wp9-webhook-marketplace/` 和 `scripts/wp9_marketplace_package_smoke.sh`，覆盖供应商 marketplace manifest、GitHub/GitLab/Jenkins 模板、payload 示例、安装说明、离线校验和 quality gate 接入。M8D 已补 `integrations/wp9-worker-hosting/` 和 `scripts/wp9_worker_hosting_readiness.sh`，覆盖 web、scheduler-active、scheduler-standby 三类托管角色的配置准入。M8E 已补 `scripts/wp9_report_handoff_smoke.sh`，覆盖 `REPORT_HANDOFF` scheduler 完成摘要和 run export 脱敏证据。M8F 已补 `scripts/wp9_cron_capacity_smoke.sh`，覆盖 missed-fire 不补偿和 nextFireAt 推进；真实 OAuth/App 上架、独立外部 worker 进程和 WP10 完整报告消费集成仍需后续专项验收。
+M6C 已补 `portal-web/e2e/wp9-execution.smoke.playwright.ts` 和 `scripts/wp9_frontend_e2e_smoke.sh`，覆盖桌面与 390px 视口下的执行工作台计划创建/更新、DAG dryRun、手动运行、取消、失败运行重试、触发器创建/dryRun/启停、事件查看和无横向溢出。M7A 已补 `scripts/wp9_quality_gate.sh` 和 `scripts/wp9_scheduler_smoke.sh`，开发模式聚合 WP9 后端、前端、Playwright、build 和 DB validation，release 模式要求显式启用 managed scheduler smoke。M7B 已补生产 CRON scanner 最小闭环，覆盖到期 CRON trigger 创建 CRON run、trigger event 证据、`nextFireAt` 推进和 health `cronScannerReady=true`。M7C 已补执行摘要导出落地，覆盖 `GET /runs/{id}/export` schema、节点状态计数、redactionPolicy、OpenAPI contract、前端 API normalization 和运行详情导出按钮。M7D 已补 `scripts/wp9_webhook_http_smoke.sh`，覆盖真实 HTTP 签名、sourceEventId 幂等、trigger event 证据和 run export 脱敏；`scripts/wp9_quality_gate.sh` release 模式同步要求 webhook HTTP smoke。M8A 已补 `scripts/wp9_webhook_sign.sh` 和 GitHub/GitLab/Jenkins CI 接入样例，覆盖签名 helper、稳定 eventId、raw body 和日志脱敏要求。M8B 已补 `WP9-Scheduler-Trigger-Runbook.md`，覆盖 release gate、恢复重放、webhook secret 轮换、CRON 运维、排障和回滚证据要求。M8C 已补 `integrations/wp9-webhook-marketplace/` 和 `scripts/wp9_marketplace_package_smoke.sh`，覆盖供应商 marketplace manifest、GitHub/GitLab/Jenkins 模板、payload 示例、安装说明、离线校验和 quality gate 接入。M8D 已补 `integrations/wp9-worker-hosting/` 和 `scripts/wp9_worker_hosting_readiness.sh`，覆盖 web、scheduler-active、scheduler-standby 三类托管角色的配置准入。M8E 已补 `scripts/wp9_report_handoff_smoke.sh`，覆盖 `REPORT_HANDOFF` scheduler 完成摘要和 run export 脱敏证据。M8F 已补 `scripts/wp9_cron_capacity_smoke.sh`，覆盖 missed-fire 不补偿和 nextFireAt 推进。M8G 已补 `scripts/wp9_cron_backlog_smoke.sh`，覆盖 CRON backlog 超过 tick batch 时的限批扫描和后续 tick 接续处理；真实 OAuth/App 上架、独立外部 worker 进程、真实 CRON 生产压测和 WP10 完整报告消费集成仍需后续专项验收。

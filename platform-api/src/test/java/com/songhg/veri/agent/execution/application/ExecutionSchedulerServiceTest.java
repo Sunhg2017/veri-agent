@@ -252,6 +252,64 @@ class ExecutionSchedulerServiceTest {
     }
 
     @Test
+    void runOnceRespectsCronBacklogBatchLimitAndLeavesRemainingDueTriggerForNextTick() throws Exception {
+        String projectId = UUID.randomUUID().toString();
+        stubRuntimeAndRunner(projectId);
+        SeededBundle seededBundle = approvedBundle(projectId);
+        String ownerToken = userAccessToken(List.of("ProjectOwner@PROJECT:" + projectId));
+        UUID planId = createApiAndReportPlan(projectId, seededBundle, ownerToken);
+        Instant firstDueAt = Instant.now().minus(Duration.ofMinutes(30));
+        UUID firstTriggerId = createDueCronTrigger(planId, ownerToken, firstDueAt);
+        UUID secondTriggerId = createDueCronTrigger(planId, ownerToken, firstDueAt.plus(Duration.ofMinutes(5)));
+        UUID thirdTriggerId = createDueCronTrigger(planId, ownerToken, firstDueAt.plus(Duration.ofMinutes(10)));
+
+        ExecutionSchedulerTickResponse firstTick = schedulerService.runOnce();
+
+        assertThat(firstTick.tickBatchSize()).isEqualTo(2);
+        assertThat(firstTick.cronScannedTriggerCount()).isEqualTo(2);
+        assertThat(firstTick.cronTriggeredRunCount()).isEqualTo(2);
+        assertThat(firstTick.cronFailedTriggerCount()).isZero();
+
+        mockMvc.perform(get("/api/v1/execution/runs")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken)
+                        .param("planId", planId.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(2));
+        mockMvc.perform(get("/api/v1/execution/triggers/{id}/events", firstTriggerId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(1))
+                .andExpect(jsonPath("$.data.items[0].status").value("ACCEPTED"));
+        mockMvc.perform(get("/api/v1/execution/triggers/{id}/events", secondTriggerId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(1))
+                .andExpect(jsonPath("$.data.items[0].status").value("ACCEPTED"));
+        mockMvc.perform(get("/api/v1/execution/triggers/{id}/events", thirdTriggerId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(0));
+
+        // Backlogged due triggers beyond the scheduler batch are left intact for a later tick.
+        ExecutionSchedulerTickResponse secondTick = schedulerService.runOnce();
+
+        assertThat(secondTick.cronScannedTriggerCount()).isEqualTo(1);
+        assertThat(secondTick.cronTriggeredRunCount()).isEqualTo(1);
+        assertThat(secondTick.cronFailedTriggerCount()).isZero();
+
+        mockMvc.perform(get("/api/v1/execution/runs")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken)
+                        .param("planId", planId.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(3));
+        mockMvc.perform(get("/api/v1/execution/triggers/{id}/events", thirdTriggerId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(1))
+                .andExpect(jsonPath("$.data.items[0].status").value("ACCEPTED"));
+    }
+
+    @Test
     void runOnceRecordsFailedEventAndPausesInvalidLegacyCronTrigger() throws Exception {
         String projectId = UUID.randomUUID().toString();
         SeededBundle seededBundle = approvedBundle(projectId);

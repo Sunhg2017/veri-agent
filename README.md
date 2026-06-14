@@ -68,6 +68,7 @@ AI 驱动的端到端企业级测试平台。WP1、WP2、WP3、WP4 是研发任�
 | `doc/mvp/final/engineering/WP9-执行编排与任务调度-M8D外部Worker托管策略交付说明.md` | WP9 M8D 外部 worker 托管策略交付记录，覆盖 web/scheduler-active/scheduler-standby env 示例和 readiness。 |
 | `doc/mvp/final/engineering/WP9-执行编排与任务调度-M8E-WP10交接准出交付说明.md` | WP9 M8E WP10 交接准出交付记录，覆盖 REPORT_HANDOFF 完成证据、run export 脱敏证据和 quality gate 接入。 |
 | `doc/mvp/final/engineering/WP9-执行编排与任务调度-M8F-CRON容量策略交付说明.md` | WP9 M8F CRON 容量策略交付记录，覆盖 missed-fire 不补偿、单次 materialize 和 quality gate 接入。 |
+| `doc/mvp/final/engineering/WP9-执行编排与任务调度-M8G-CRON积压批次准出交付说明.md` | WP9 M8G CRON 积压批次准出交付记录，覆盖 backlog batch 上限、剩余 due trigger 接续处理和 quality gate 接入。 |
 | `doc/mvp/final/engineering/当前实现基线.md` | 当前代码与文档对齐的权威基线：单服务、无租户、camelCase、分页和验证入口。 |
 | `doc/mvp/final/engineering/WP1-单平台权限矩阵与菜单矩阵.md` | 当前 WP1 单平台权限、菜单和按钮规则。 |
 | `doc/mvp/final/engineering/WP1-审计事件字典.md` | 当前 WP1 P0 审计事件、字段和验收规则。 |
