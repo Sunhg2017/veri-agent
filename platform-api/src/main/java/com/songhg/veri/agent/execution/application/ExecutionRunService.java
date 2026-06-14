@@ -21,7 +21,6 @@ import com.songhg.veri.agent.execution.application.command.TriggerExecutionRunCo
 import com.songhg.veri.agent.execution.application.port.ExecutionRepository;
 import com.songhg.veri.agent.execution.application.query.ExecutionRunPageRequest;
 import com.songhg.veri.agent.execution.application.query.ExecutionRunQuery;
-import com.songhg.veri.agent.execution.application.view.ExecutionNodeRunResponse;
 import com.songhg.veri.agent.execution.application.view.ExecutionQueueClaimResponse;
 import com.songhg.veri.agent.execution.application.view.ExecutionQueueRecoveryResponse;
 import com.songhg.veri.agent.execution.application.view.ExecutionRunDetailResponse;
@@ -94,6 +93,7 @@ public class ExecutionRunService {
     private final ApiAutomationService apiAutomationService;
     private final ManagementStore managementStore;
     private final ObjectMapper objectMapper;
+    private final ExecutionRunResponseMapper responseMapper;
     private final ExecutionProperties properties;
     private final TransactionTemplate transactionTemplate;
 
@@ -115,6 +115,7 @@ public class ExecutionRunService {
         this.apiAutomationService = apiAutomationService;
         this.managementStore = managementStores.getIfAvailable();
         this.objectMapper = objectMapper;
+        this.responseMapper = new ExecutionRunResponseMapper(objectMapper);
         this.properties = properties;
         this.transactionTemplate = OptionalTransactionTemplates.create(transactionManagers);
     }
@@ -190,7 +191,7 @@ public class ExecutionRunService {
                         run -> repository.nodeRuns(run.id()).size()
                 ));
         List<ExecutionRunSummaryResponse> items = runs.stream()
-                .map(run -> toSummary(run, nodeCounts.getOrDefault(run.id(), 0)))
+                .map(run -> responseMapper.toSummary(run, nodeCounts.getOrDefault(run.id(), 0)))
                 .toList();
         return PageResponse.of(items, request.getIndex(), request.getSize(), repository.countRuns(query));
     }
@@ -211,19 +212,13 @@ public class ExecutionRunService {
     public ExecutionRunExportResponse exportRun(UUID id) {
         ExecutionRun run = requireRun(id);
         ExecutionRunDetailResponse detail = detail(run, false);
-        Map<String, Integer> nodeStatusCounts = detail.nodes().stream()
-                .collect(Collectors.toMap(
-                        ExecutionNodeRunResponse::status,
-                        ignored -> 1,
-                        Integer::sum,
-                        LinkedHashMap::new
-                ));
+        Map<String, Integer> nodeStatusCounts = responseMapper.nodeStatusCounts(detail);
         ExecutionRunExportResponse response = new ExecutionRunExportResponse(
                 "wp9-run-export-v1",
                 Instant.now(),
                 detail,
                 nodeStatusCounts,
-                runExportRedactionPolicy()
+                responseMapper.runExportRedactionPolicy()
         );
         auditRun(run, "execution.run.exported", "SUCCESS", Map.of(
                 "nodeCount", detail.nodes().size(),
@@ -1809,86 +1804,7 @@ public class ExecutionRunService {
             List<ExecutionNodeRun> nodeRuns,
             List<ExecutionPlanNode> planNodes
     ) {
-        Map<UUID, ExecutionPlanNode> nodeById = planNodes.stream()
-                .collect(Collectors.toMap(ExecutionPlanNode::id, Function.identity()));
-        return new ExecutionRunDetailResponse(
-                run.id(),
-                run.planId(),
-                run.projectId(),
-                run.status(),
-                run.triggerType(),
-                run.requestKey(),
-                run.sourceEventId(),
-                run.attempt(),
-                run.traceId(),
-                readMap(run.resultSummaryJson()),
-                run.errorCode(),
-                run.errorSummary(),
-                nodeRuns.stream()
-                        .map(nodeRun -> toNodeRunResponse(nodeRun, nodeById.get(nodeRun.planNodeId())))
-                        .toList(),
-                idempotentReplay,
-                run.createdBy(),
-                run.startedAt(),
-                run.finishedAt(),
-                run.createdAt(),
-                run.updatedAt()
-        );
-    }
-
-    private ExecutionRunSummaryResponse toSummary(ExecutionRun run, int nodeCount) {
-        return new ExecutionRunSummaryResponse(
-                run.id(),
-                run.planId(),
-                run.projectId(),
-                run.status(),
-                run.triggerType(),
-                run.requestKey(),
-                run.attempt(),
-                run.traceId(),
-                readMap(run.resultSummaryJson()),
-                nodeCount,
-                run.createdBy(),
-                run.startedAt(),
-                run.finishedAt(),
-                run.createdAt(),
-                run.updatedAt()
-        );
-    }
-
-    private ExecutionNodeRunResponse toNodeRunResponse(ExecutionNodeRun nodeRun, ExecutionPlanNode planNode) {
-        return new ExecutionNodeRunResponse(
-                nodeRun.id(),
-                nodeRun.planNodeId(),
-                planNode == null ? null : planNode.nodeKey(),
-                planNode == null ? null : planNode.nodeType(),
-                nodeRun.status(),
-                nodeRun.attempt(),
-                nodeRun.runnerType(),
-                nodeRun.externalRunId(),
-                nodeRun.errorCode(),
-                nodeRun.errorSummary(),
-                readMap(nodeRun.resultSummaryJson()),
-                nodeRun.heartbeatAt(),
-                nodeRun.queuedAt(),
-                nodeRun.startedAt(),
-                nodeRun.finishedAt(),
-                nodeRun.createdAt(),
-                nodeRun.updatedAt()
-        );
-    }
-
-    private Map<String, Object> runExportRedactionPolicy() {
-        return Map.of(
-                "rawOutputExported", false,
-                "stdoutStderrExported", false,
-                "rawRequestResponseExported", false,
-                "rawBaseUrlExported", false,
-                "secretRefsExported", false,
-                "claimTokenExported", false,
-                "triggerPayloadExported", false,
-                "onlySanitizedSummariesExported", true
-        );
+        return responseMapper.toDetail(run, idempotentReplay, nodeRuns, planNodes);
     }
 
     private ExecutionPlan requirePlan(UUID id) {
