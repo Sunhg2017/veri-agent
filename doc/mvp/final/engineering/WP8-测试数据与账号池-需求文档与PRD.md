@@ -200,3 +200,9 @@ M6D 已推进租借脱敏导出摘要：测试工程师可通过 `#test-data` �
 1. 导出入口同时受 `testData:export` 权限和 `veri-agent.test-data.export-enabled` 控制。
 2. 导出摘要不展示 secretRef 原文、租借 token 明文、释放原因原文、账号健康摘要原文、scopeSummary 值、leasePolicy 值、token、cookie 或 Authorization header。
 3. 当前不提供文件下载，不触发 cleanup worker，不接入 WP7/WP9 真实执行器；这些能力按后续增强独立准出。
+
+M8B/M8C 已推进操作说明与运维 Runbook：用户可按 `WP8-测试数据与账号池-前端操作说明.md` 在浏览器内完成数据集、账号池、账号摘要、租借、释放、清理任务和脱敏导出摘要主链路；运维可按 `WP8-测试数据与账号池-运维Runbook.md` 处理租借卡死、账号锁定、SecretRef 轮换、清理失败和脱敏导出异常。产品边界如下：
+
+1. 操作说明只描述当前 `#test-data` 工作台已落地能力，不承诺筛选栏、分页、详情抽屉、真实文件下载或真实 cleanup worker。
+2. Runbook 坚持 `cleanup-enabled=false` 默认安全边界，真实清理 adapter 必须后续专项准出。
+3. 前端按钮显隐只做体验控制，最终准入仍由后端权限、项目 scope、对象状态和 WP8 开关决定。

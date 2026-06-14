@@ -396,4 +396,14 @@ bash scripts/platform_api_java_line_guard.sh
 bash db/validation/run_wp1_db_validation.sh
 ```
 
-租借并发、清理 worker、跨 WP adapter 和前端页面验证不属于 M3 后端账号池切片完成定义，仍按 M4-M6 承接；数据集脱敏导出摘要已在 M6C 补齐，租借导出仍按后续增强推进。
+租借并发、跨 WP adapter 和前端页面验证不属于 M3 后端账号池切片完成定义，已按 M4-M6 分阶段承接；数据集脱敏导出摘要已在 M6C 补齐，租借脱敏导出摘要已在 M6D 补齐。真实 cleanup worker、导出文件下载、外部 HTTP 并发压测和更细粒度前端筛选分页仍按后续增强推进。
+
+### M8B/M8C 文档化运维边界
+
+M8B/M8C 不改变本技术契约的 API、DB、权限或状态机实现，只补齐操作说明与运维 Runbook。服务端边界保持：
+
+1. 所有控制面和导出操作继续由 RBAC 与项目 scope 决定最终准入。
+2. `secretRef` 只作为账号摘要写入输入，查询、审计、导出和前端展示只允许 digest。
+3. active lease 唯一性继续由数据库条件更新和唯一约束兜底。
+4. `cleanup-enabled=false` 时只记录清理任务控制面，不执行破坏性 adapter。
+5. `export-enabled=false` 可作为导出风险的首要回滚开关。

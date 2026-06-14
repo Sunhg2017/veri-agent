@@ -317,6 +317,33 @@ M6C 未执行项和风险边界：
 3. 不启用真实 cleanup worker 或生产数据复制。
 4. 真实 HTTP 服务级并发压测仍由 release 外部环境后续补充；当前 release gate 使用 managed 并发 smoke。
 
+### M8B/M8C 操作说明与运维 Runbook 最小门禁
+
+当前 M8B/M8C 文档切片采用以下验证入口作为最小准出：
+
+```bash
+rg -n "WP8-8.2|WP8-8.3|M8B|M8C|前端操作说明|运维 Runbook|运维Runbook" README.md doc/mvp/final/engineering/WP8-*
+git diff --check
+cd portal-web && npm test -- api/testData.test.ts permissions.test.ts
+cd portal-web && npm run build
+```
+
+M8B/M8C 定向检查矩阵：
+
+| 检查项 | 覆盖范围 | 必须断言 | 失败条件 |
+|---|---|---|---|
+| 文档引用扫描 | README 和 WP8 主文档 | 前端操作说明、运维 Runbook、M8B/M8C 交付说明均可检索 | 新文档未被索引或 WP8-8.2/WP8-8.3 状态仍缺失 |
+| 操作说明人工核对 | `TestDataWorkbench` 当前 UI | 文档按钮、tab、字段和权限与当前页面一致 | 文档描述不存在的筛选栏、分页、详情抽屉或下载能力 |
+| Runbook 人工核对 | 服务端安全边界 | RBAC/project scope、secretRef 不回显、active lease 唯一约束、cleanup/export 开关和回滚路径明确 | Runbook 建议直接删库、绕过权限或启用未准出的破坏性清理 |
+| 前端定向 Vitest | WP8 API helper 和权限 | 操作说明不改变 helper 契约；权限映射仍稳定 | API/权限测试失败 |
+| 前端 build | 文档切片回归 | portal-web 构建仍通过 | 构建失败 |
+
+M8B/M8C 未执行项和风险边界：
+
+1. 不修改运行时代码，因此不要求后端全量测试作为本切片最小门禁；后续若文档伴随代码变更，需按影响面追加 WP8 quality gate。
+2. 不启用真实 cleanup worker；Runbook 只记录默认控制面安全边界和后续专项准出要求。
+3. 不实现导出文件下载；当前操作说明只描述控制面脱敏摘要。
+
 ## 9. 准出标准
 
 1. 数据集、账号池、租借、释放和清理任务主链路后端测试通过。

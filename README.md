@@ -44,8 +44,10 @@ AI 驱动的端到端企业级测试平台。WP1、WP2、WP3、WP4 是研发任�
 | `doc/mvp/final/engineering/WP8-测试数据与账号池-需求文档与PRD.md` | WP8 需求文档和产品 PRD，定义数据集、账号池、租借、清理和验收标准。 |
 | `doc/mvp/final/engineering/WP8-测试数据与账号池-技术设计与接口契约.md` | WP8 服务端技术设计、数据模型、状态机、权限、审计和 API 契约草案。 |
 | `doc/mvp/final/engineering/WP8-测试数据与账号池-前端页面设计.md` | WP8 前端工作台、路由、权限、数据集、账号池、租借和可测性设计。 |
+| `doc/mvp/final/engineering/WP8-测试数据与账号池-前端操作说明.md` | WP8 前端操作说明，覆盖测试数据工作台入口、数据集、账号池、租借、释放、清理任务和脱敏导出摘要。 |
 | `doc/mvp/final/engineering/WP8-测试数据与账号池-测试策略与用例脚本.md` | WP8 测试策略、租借并发、安全脱敏、前端 smoke 和质量门禁建议。 |
 | `doc/mvp/final/engineering/WP8-测试数据与账号池-研发任务拆解.md` | WP8 Epic/Story/Task 研发拆解、实施顺序和 P0 完成定义。 |
+| `doc/mvp/final/engineering/WP8-测试数据与账号池-运维Runbook.md` | WP8 运维 Runbook，覆盖租借卡死、账号锁定、SecretRef 轮换、清理失败、脱敏导出异常和回滚。 |
 | `doc/mvp/final/engineering/WP9-执行编排与任务调度-正式启动准备.md` | WP9 执行编排与任务调度的范围冻结、里程碑、风险和启动准入。 |
 | `doc/mvp/final/engineering/WP9-执行编排与任务调度-需求文档与PRD.md` | WP9 需求文档和产品 PRD，定义计划、DAG、触发、运行和验收标准。 |
 | `doc/mvp/final/engineering/WP9-执行编排与任务调度-技术设计与接口契约.md` | WP9 服务端技术设计、数据模型、状态机、权限、审计和 API 契约草案。 |
@@ -80,6 +82,7 @@ AI 驱动的端到端企业级测试平台。WP1、WP2、WP3、WP4 是研发任�
 | `doc/mvp/final/engineering/WP9-执行编排与任务调度-M8G-CRON积压批次准出交付说明.md` | WP9 M8G CRON 积压批次准出交付记录，覆盖 backlog batch 上限、剩余 due trigger 接续处理和 quality gate 接入。 |
 | `doc/mvp/final/engineering/WP9-执行编排与任务调度-M8H前端操作说明交付说明.md` | WP9 M8H 前端操作说明交付记录，覆盖浏览器主链路说明、产品验收边界和文档准出。 |
 | `doc/mvp/final/engineering/WP9-执行编排与任务调度-M8I发布准出收口交付说明.md` | WP9 M8I 发布准出收口交付记录，覆盖 WP9-8.3、剩余工作盘点和最终发布边界。 |
+| `doc/mvp/final/engineering/WP8-测试数据与账号池-M8B-M8C操作说明与运维Runbook交付说明.md` | WP8 M8B/M8C 操作说明与运维 Runbook 交付记录，覆盖用户操作路径、运维排障和文档准出。 |
 | `doc/mvp/final/engineering/当前实现基线.md` | 当前代码与文档对齐的权威基线：单服务、无租户、camelCase、分页和验证入口。 |
 | `doc/mvp/final/engineering/WP1-单平台权限矩阵与菜单矩阵.md` | 当前 WP1 单平台权限、菜单和按钮规则。 |
 | `doc/mvp/final/engineering/WP1-审计事件字典.md` | 当前 WP1 P0 审计事件、字段和验收规则。 |
@@ -340,6 +343,7 @@ bash scripts/wp4_ai_parse_quality_eval.sh
 
 - WP1 DB 权限：`doc/mvp/final/engineering/WP1-发布前DB权限Runbook.md`
 - WP2 provider 与密钥轮换：`doc/mvp/final/engineering/WP2-Provider接入与SecretRef轮换Runbook.md`
+- WP8 测试数据与账号池：`doc/mvp/final/engineering/WP8-测试数据与账号池-运维Runbook.md`
 - WP4 webhook 签名联调：`doc/mvp/final/engineering/WP4-Webhook签名样例与联调说明.md`
 - WP4 外部连接器接入：`doc/mvp/final/engineering/WP4-外部连接器接入Runbook与Mock契约.md`
 
