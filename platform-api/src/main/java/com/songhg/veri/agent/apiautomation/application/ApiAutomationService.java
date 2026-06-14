@@ -52,9 +52,7 @@ import com.songhg.veri.agent.asset.application.view.TestCaseStepResponse;
 import com.songhg.veri.agent.common.api.PageResponse;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
-import com.songhg.veri.agent.common.secret.ResolvedSecret;
 import com.songhg.veri.agent.common.secret.SecretProvider;
-import com.songhg.veri.agent.common.secret.SecretResolveContext;
 import com.songhg.veri.agent.common.trace.TraceContext;
 import com.songhg.veri.agent.common.util.SensitiveTextSanitizer;
 import com.songhg.veri.agent.modelaccess.application.ModelInvocationService;
@@ -65,7 +63,6 @@ import com.songhg.veri.agent.modelaccess.security.ServicePrincipal;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -96,13 +93,6 @@ public class ApiAutomationService {
     private static final int GENERATION_SOURCE_TEST_CASE_MAX = 20;
     private static final int GENERATION_SOURCE_STEP_MAX = 3;
     private static final int GENERATION_SOURCE_TEXT_MAX_CHARS = 160;
-    private static final int RUNNER_SECRET_REF_MAX_COUNT = 10;
-    private static final int RUNNER_SECRET_REF_MAX_CHARS = 256;
-    private static final int RUNNER_SECRET_VALUE_MAX_CHARS = 8_192;
-    private static final String RUNNER_SECRET_PURPOSE = "API_AUTOMATION_RUNNER";
-    private static final String RUNNER_SECRET_CALLER_SERVICE = "wp6-api-automation-runner";
-    private static final String RUNNER_SECRET_SCOPE_TYPE = "PROJECT";
-    private static final String RUNNER_SECRET_HEADER_PREFIX = "X-VA-WP6-Secret-";
     private static final String RUNNER_SECRET_HEADER_PATTERN_TEXT = "^X-VA-WP6-Secret-[1-9][0-9]*$";
     private static final String PYTEST_SECRET_HEADER_MAPPING_ENV = "WP6_RUNNER_SECRET_HEADERS_JSON";
     private static final String PYTEST_SECRET_VALUE_ENV_PREFIX = "WP6_RUNNER_SECRET_VALUE_";
@@ -124,7 +114,6 @@ public class ApiAutomationService {
             Pattern.compile("(?m)^\\s*(import|from)\\s+(subprocess|socket|ftplib|paramiko|telnetlib|pickle|marshal)\\b"),
             Pattern.compile("\\b(os\\.system|eval|exec|__import__)\\s*\\(")
     );
-    private static final Pattern SECRET_REF_PATTERN = Pattern.compile("^secret://[A-Za-z0-9._~:/?#\\[\\]@!$&'()*+,;=%-]+$");
     private static final TypeReference<Map<String, Object>> MAP_TYPE = new TypeReference<>() {
     };
     private static final TypeReference<List<String>> STRING_LIST_TYPE = new TypeReference<>() {
@@ -143,7 +132,7 @@ public class ApiAutomationService {
     private final ObjectMapper objectMapper;
     private final ApiAutomationRunnerResultSanitizer runnerResultSanitizer;
     private final ApiAutomationRunTargetGuard runTargetGuard;
-    private final List<SecretProvider> secretProviders;
+    private final ApiAutomationRunSecretResolver runSecretResolver;
 
     public ApiAutomationService(
             ApiAutomationRepository repository,
@@ -232,7 +221,7 @@ public class ApiAutomationService {
         this.objectMapper = objectMapper;
         this.runnerResultSanitizer = new ApiAutomationRunnerResultSanitizer(properties, objectMapper);
         this.runTargetGuard = new ApiAutomationRunTargetGuard(properties);
-        this.secretProviders = secretProviders == null ? List.of() : List.copyOf(secretProviders);
+        this.runSecretResolver = new ApiAutomationRunSecretResolver(secretProviders);
     }
 
     public ApiAutomationHealthResponse health() {
@@ -642,7 +631,8 @@ public class ApiAutomationService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "接口自动化生成任务不存在: " + bundle.taskId()));
         List<ApiAutomationCase> cases = selectedRunCases(task, command.caseIds());
         ApiAutomationRunTargetGuard.RunTarget target = runTargetGuard.validateRunTarget(command.baseUrl());
-        RunSecretRefs secretRefs = validateRunSecretRefs(command.secretRefs());
+        ApiAutomationRunSecretResolver.RunSecretRefs secretRefs =
+                runSecretResolver.validateRunSecretRefs(command.secretRefs());
         int timeoutSeconds = properties.effectiveRunnerTimeoutSeconds(command.timeoutSeconds());
         Instant now = Instant.now();
         String actor = actorResolver.currentActor();
@@ -683,7 +673,8 @@ public class ApiAutomationService {
             return toRunDetail(run, results);
         }
 
-        List<ApiAutomationRunnerPort.RunnerSecret> runnerSecrets = resolveRunSecrets(secretRefs, bundle.projectId());
+        List<ApiAutomationRunnerPort.RunnerSecret> runnerSecrets =
+                runSecretResolver.resolveRunSecrets(secretRefs, bundle.projectId());
         ApiAutomationRunnerPort.RunnerRunResult rawAttempt = runnerPort.run(new ApiAutomationRunnerPort.RunnerRunRequest(
                 runId,
                 bundle,
@@ -829,106 +820,6 @@ public class ApiAutomationService {
             );
         }
         return selected;
-    }
-
-    /**
-     * Validates secret references as runtime-only inputs. Full secretRef values are never persisted, exported or passed
-     * to audit; deterministic digests are used for audit and the full references remain in memory only until optional
-     * SecretProvider resolution finishes for the active runner call.
-     */
-    private RunSecretRefs validateRunSecretRefs(List<String> rawSecretRefs) {
-        if (rawSecretRefs == null || rawSecretRefs.isEmpty()) {
-            return new RunSecretRefs(0, List.of(), List.of());
-        }
-        LinkedHashSet<String> normalized = new LinkedHashSet<>();
-        for (String rawSecretRef : rawSecretRefs) {
-            String secretRef = rawSecretRef == null ? null : rawSecretRef.trim();
-            if (!StringUtils.hasText(secretRef)) {
-                continue;
-            }
-            if (secretRef.length() > RUNNER_SECRET_REF_MAX_CHARS) {
-                throw new BusinessException(
-                        ErrorCode.VALIDATION_ERROR,
-                        "secretRefs 单个引用最多 " + RUNNER_SECRET_REF_MAX_CHARS + " 字符"
-                );
-            }
-            if (!SECRET_REF_PATTERN.matcher(secretRef).matches()) {
-                throw new BusinessException(ErrorCode.VALIDATION_ERROR, "secretRefs 必须使用 secret:// 引用");
-            }
-            normalized.add(secretRef);
-        }
-        if (normalized.size() > RUNNER_SECRET_REF_MAX_COUNT) {
-            throw new BusinessException(
-                    ErrorCode.VALIDATION_ERROR,
-                    "secretRefs 单次运行最多 " + RUNNER_SECRET_REF_MAX_COUNT + " 个"
-            );
-        }
-        return new RunSecretRefs(
-                normalized.size(),
-                List.copyOf(normalized),
-                normalized.stream().map(secretRef -> "sha256:" + SensitiveTextSanitizer.sha256Hex(secretRef)).toList()
-        );
-    }
-
-    /**
-     * Resolves runner secrets after all admission gates have passed. Plaintext is converted to bounded per-run headers
-     * and never written to repository records, audit payloads, exports or error messages.
-     */
-    private List<ApiAutomationRunnerPort.RunnerSecret> resolveRunSecrets(RunSecretRefs secretRefs, String projectId) {
-        if (secretRefs == null || secretRefs.refs().isEmpty()) {
-            return List.of();
-        }
-        if (secretProviders.isEmpty()) {
-            throw new BusinessException(
-                    ErrorCode.SECRET_PROVIDER_ERROR,
-                    "runner secretRef 未解析: " + String.join(",", secretRefs.digests())
-            );
-        }
-        List<ApiAutomationRunnerPort.RunnerSecret> secrets = new ArrayList<>();
-        SecretResolveContext context = new SecretResolveContext(
-                RUNNER_SECRET_PURPOSE,
-                RUNNER_SECRET_CALLER_SERVICE,
-                RUNNER_SECRET_SCOPE_TYPE,
-                projectId
-        );
-        for (int index = 0; index < secretRefs.refs().size(); index++) {
-            String secretRef = secretRefs.refs().get(index);
-            String digest = secretRefs.digests().get(index);
-            ResolvedSecret resolved = resolveRunSecret(secretRef, digest, context);
-            validateRunnerSecretValue(resolved.value(), digest);
-            secrets.add(new ApiAutomationRunnerPort.RunnerSecret(
-                    RUNNER_SECRET_HEADER_PREFIX + (index + 1),
-                    digest,
-                    resolved.value()
-            ));
-        }
-        return secrets;
-    }
-
-    private ResolvedSecret resolveRunSecret(String secretRef, String digest, SecretResolveContext context) {
-        for (SecretProvider provider : secretProviders) {
-            try {
-                Optional<ResolvedSecret> resolved = provider.resolve(secretRef, context);
-                if (resolved.isPresent()) {
-                    return resolved.get();
-                }
-            } catch (BusinessException exception) {
-                throw new BusinessException(
-                        ErrorCode.SECRET_PROVIDER_ERROR,
-                        "runner secretRef 解析失败: " + digest
-                );
-            }
-        }
-        throw new BusinessException(ErrorCode.SECRET_PROVIDER_ERROR, "runner secretRef 未解析: " + digest);
-    }
-
-    private void validateRunnerSecretValue(String value, String digest) {
-        if (!StringUtils.hasText(value)) {
-            throw new BusinessException(ErrorCode.SECRET_PROVIDER_ERROR, "runner secretRef 解析为空: " + digest);
-        }
-        if (value.length() > RUNNER_SECRET_VALUE_MAX_CHARS || value.contains("\r") || value.contains("\n")) {
-            throw new BusinessException(ErrorCode.SECRET_PROVIDER_ERROR, "runner secretRef 值不适合注入: " + digest);
-        }
     }
 
     private RunBlock runBlockReason(
@@ -1420,7 +1311,7 @@ public class ApiAutomationService {
         secretHeaders.put("headerNamePattern", RUNNER_SECRET_HEADER_PATTERN_TEXT);
         secretHeaders.put("secretRefStored", false);
         secretHeaders.put("secretValuesStored", false);
-        secretHeaders.put("allowedHeaderFamily", RUNNER_SECRET_HEADER_PREFIX + "N");
+        secretHeaders.put("allowedHeaderFamily", ApiAutomationRunSecretResolver.RUNNER_SECRET_HEADER_PREFIX + "N");
 
         Map<String, Object> runtimeInputs = new LinkedHashMap<>();
         runtimeInputs.put("baseUrl", baseUrl);
@@ -3172,13 +3063,6 @@ public class ApiAutomationService {
     private record RunBlock(
             String errorCode,
             String errorSummary
-    ) {
-    }
-
-    private record RunSecretRefs(
-            int count,
-            List<String> refs,
-            List<String> digests
     ) {
     }
 
