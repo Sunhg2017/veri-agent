@@ -82,6 +82,8 @@ M2 当前推进状态：`platform-api` 已推进数据集控制面后端切片�
 | WP8-3.4 Role matrix | P1 | 产品经理、前端工程师 | 维护角色、菜单、资源作用域和场景标签 | WP7 权限场景可引用 | Service test |
 | WP8-3.5 Health summary | P1 | 服务端架构师 | 保存账号健康状态和最近失败摘要 | 不保存登录响应原文 | Unit test |
 
+M3 当前推进状态：`platform-api` 已推进账号池控制面后端切片，覆盖 `POST/GET/PATCH/disable/archive /api/v1/test-data/account-pools`、`POST /api/v1/test-data/account-pools/{id}/accounts` 和 `PATCH /api/v1/test-data/accounts/{id}`。本轮实现项目 scope 权限、账号池 code 唯一、账号 key 唯一、账号摘要维护、`secretRef` SHA-256 digest、健康摘要、审计事件、OpenAPI contract 和 DB profile 持久化验证。`secretRef` 原文只作为写入输入，服务端不保存、不返回、不写审计；`secret_ref_cipher` 不进入查询投影。M3 本轮未包含 WP8-3.4 独立角色矩阵维护页面、租借并发、续租、释放、过期回收、清理 worker、跨 WP adapter、脱敏导出和前端工作台，这些仍按 M4-M6 推进。
+
 ## 8. Epic 4：租借、释放和清理
 
 | Story | 优先级 | 负责人 | 任务 | 验收 | 验证 |

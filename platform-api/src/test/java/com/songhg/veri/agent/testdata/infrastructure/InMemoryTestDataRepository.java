@@ -1,9 +1,12 @@
 package com.songhg.veri.agent.testdata.infrastructure;
 
 import com.songhg.veri.agent.testdata.application.port.TestDataRepository;
+import com.songhg.veri.agent.testdata.application.query.TestAccountPoolQuery;
 import com.songhg.veri.agent.testdata.application.query.TestDataSetQuery;
+import com.songhg.veri.agent.testdata.domain.TestAccountPool;
 import com.songhg.veri.agent.testdata.domain.TestDataRecord;
 import com.songhg.veri.agent.testdata.domain.TestDataSet;
+import com.songhg.veri.agent.testdata.domain.TestPooledAccount;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
@@ -23,6 +26,8 @@ public class InMemoryTestDataRepository implements TestDataRepository {
 
     private final ConcurrentHashMap<UUID, TestDataSet> dataSets = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, TestDataRecord> records = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<UUID, TestAccountPool> accountPools = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<UUID, TestPooledAccount> pooledAccounts = new ConcurrentHashMap<>();
 
     @Override
     public void insertDataSet(TestDataSet dataSet) {
@@ -119,6 +124,108 @@ public class InMemoryTestDataRepository implements TestDataRepository {
                 .count();
     }
 
+    @Override
+    public void insertAccountPool(TestAccountPool pool) {
+        if (accountPoolByProjectAndCode(pool.projectId(), pool.code()).isPresent()) {
+            throw new DuplicateKeyException("Duplicate test account pool code");
+        }
+        accountPools.put(pool.id(), pool);
+    }
+
+    @Override
+    public void updateAccountPool(TestAccountPool pool) {
+        accountPools.computeIfPresent(pool.id(), (ignored, current) -> "ARCHIVED".equals(current.status())
+                ? current
+                : pool);
+    }
+
+    @Override
+    public void archiveAccountPool(TestAccountPool pool) {
+        accountPools.computeIfPresent(pool.id(), (ignored, current) -> "ARCHIVED".equals(current.status())
+                ? current
+                : pool);
+    }
+
+    @Override
+    public Optional<TestAccountPool> accountPool(UUID id) {
+        return Optional.ofNullable(accountPools.get(id));
+    }
+
+    @Override
+    public Optional<TestAccountPool> accountPoolByProjectAndCode(String projectId, String code) {
+        return accountPools.values().stream()
+                .filter(pool -> projectId.equals(pool.projectId()))
+                .filter(pool -> code.equals(pool.code()))
+                .findFirst();
+    }
+
+    @Override
+    public List<TestAccountPool> accountPools(TestAccountPoolQuery query) {
+        return filteredAccountPools(query)
+                .skip(query.offset())
+                .limit(query.limit())
+                .toList();
+    }
+
+    @Override
+    public long countAccountPools(TestAccountPoolQuery query) {
+        return filteredAccountPools(query).count();
+    }
+
+    @Override
+    public Optional<String> accountPoolProjectScopeId(UUID id) {
+        return accountPool(id).map(TestAccountPool::projectId);
+    }
+
+    @Override
+    public void insertPooledAccount(TestPooledAccount account) {
+        if (pooledAccountByPoolAndKey(account.poolId(), account.accountKey()).isPresent()) {
+            throw new DuplicateKeyException("Duplicate test pooled account key");
+        }
+        pooledAccounts.put(account.id(), account);
+    }
+
+    @Override
+    public void updatePooledAccount(TestPooledAccount account) {
+        pooledAccounts.put(account.id(), account);
+    }
+
+    @Override
+    public Optional<TestPooledAccount> pooledAccount(UUID id) {
+        return Optional.ofNullable(pooledAccounts.get(id));
+    }
+
+    @Override
+    public Optional<TestPooledAccount> pooledAccountByPoolAndKey(UUID poolId, String accountKey) {
+        return pooledAccounts.values().stream()
+                .filter(account -> poolId.equals(account.poolId()))
+                .filter(account -> accountKey.equals(account.accountKey()))
+                .findFirst();
+    }
+
+    @Override
+    public List<TestPooledAccount> pooledAccounts(UUID poolId) {
+        return pooledAccounts.values().stream()
+                .filter(account -> poolId.equals(account.poolId()))
+                .sorted(Comparator.comparing(TestPooledAccount::accountKey))
+                .toList();
+    }
+
+    @Override
+    public long countPooledAccounts(UUID poolId, String status) {
+        Stream<TestPooledAccount> stream = pooledAccounts.values().stream()
+                .filter(account -> poolId.equals(account.poolId()));
+        if (StringUtils.hasText(status)) {
+            stream = stream.filter(account -> status.equals(account.status()));
+        }
+        return stream.count();
+    }
+
+    @Override
+    public Optional<String> pooledAccountProjectScopeId(UUID id) {
+        return pooledAccount(id).map(TestPooledAccount::projectId);
+    }
+
     private Stream<TestDataSet> filteredDataSets(TestDataSetQuery query) {
         Stream<TestDataSet> stream = dataSets.values().stream();
         if (StringUtils.hasText(query.projectId())) {
@@ -139,6 +246,28 @@ public class InMemoryTestDataRepository implements TestDataRepository {
         }
         return stream.sorted(Comparator.comparing(TestDataSet::updatedAt).reversed()
                 .thenComparing(TestDataSet::code));
+    }
+
+    private Stream<TestAccountPool> filteredAccountPools(TestAccountPoolQuery query) {
+        Stream<TestAccountPool> stream = accountPools.values().stream();
+        if (StringUtils.hasText(query.projectId())) {
+            stream = stream.filter(pool -> query.projectId().equals(pool.projectId()));
+        }
+        if (StringUtils.hasText(query.applicationId())) {
+            stream = stream.filter(pool -> query.applicationId().equals(pool.applicationId()));
+        }
+        if (StringUtils.hasText(query.environmentId())) {
+            stream = stream.filter(pool -> query.environmentId().equals(pool.environmentId()));
+        }
+        if (StringUtils.hasText(query.status())) {
+            stream = stream.filter(pool -> query.status().equals(pool.status()));
+        }
+        if (StringUtils.hasText(query.keyword())) {
+            String keyword = query.keyword().toLowerCase();
+            stream = stream.filter(pool -> contains(pool.code(), keyword) || contains(pool.name(), keyword));
+        }
+        return stream.sorted(Comparator.comparing(TestAccountPool::updatedAt).reversed()
+                .thenComparing(TestAccountPool::code));
     }
 
     private static boolean contains(String value, String keyword) {

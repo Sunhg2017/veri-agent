@@ -47,7 +47,7 @@ class TestDataHealthControllerTest {
                 .andExpect(jsonPath("$.data.policy.cleanupTaskSchemaReady").value(true))
                 .andExpect(jsonPath("$.data.policy.auditEventDictionaryReady").value(true))
                 .andExpect(jsonPath("$.data.policy.crossWpReferenceSchemaReady").value(true))
-                .andExpect(jsonPath("$.data.policy.businessCrudApiReady").value(false))
+                .andExpect(jsonPath("$.data.policy.businessCrudApiReady").value(true))
                 .andExpect(jsonPath("$.data.policy.leaseApiReady").value(false))
                 .andExpect(jsonPath("$.data.policy.cleanupWorkerReady").value(false))
                 .andExpect(jsonPath("$.data.policy.destructiveCleanupDefaultDisabled").value(true))

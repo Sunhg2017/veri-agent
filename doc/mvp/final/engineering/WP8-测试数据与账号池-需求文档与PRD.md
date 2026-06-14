@@ -145,12 +145,20 @@ WP6 已具备 OpenAPI 接口自动化能力，WP9 已具备执行编排和任务
 6. WP7/WP9 可通过引用字段使用 WP8 能力，不需要直连 WP8 表。
 7. P0 验证包含后端测试、前端测试、构建、DB validation 和 WP8 quality gate。
 
-## 11. M2 当前产品口径
+## 11. 当前产品口径
 
-本轮 M2 已推进数据集控制面后端切片：测试工程师可通过 API 创建、查询、更新、归档数据集，并导入脱敏记录摘要。产品边界如下：
+M2 已推进数据集控制面后端切片：测试工程师可通过 API 创建、查询、更新、归档数据集，并导入脱敏记录摘要。产品边界如下：
 
 1. 数据集必须绑定项目 scope；项目角色未带 `projectId` 查询时按平台范围处理并拒绝。
 2. schema 字段名和类型会校验并归一化，记录导入只接受 digest、masked summary、external ref digest 和 tags。
 3. 清理策略仅保存摘要，不触发真实清理动作。
 4. `ARCHIVED` 只能通过归档接口进入，归档后禁止修改和继续导入。
-5. 本轮不包含账号池、账号租借、清理 worker、脱敏导出和前端工作台；这些仍按 M3-M6 验收。
+
+M3 已推进账号池控制面后端切片：测试工程师可通过 API 创建、查询、更新、禁用和归档账号池，并维护账号摘要。产品边界如下：
+
+1. 账号池必须绑定项目 scope，支持按应用、环境、状态和关键词筛选。
+2. 账号只保存 `accountKey/displayName/status/roleTags/scopeSummary/healthSummary` 和 `secretRefDigest`，API 响应和审计不回显 `secretRef` 原文。
+3. 新增或替换 `secretRef` 时，服务端只计算 SHA-256 digest；当前切片不解析 SecretProvider、不保存密文值。
+4. 账号池 `ARCHIVED` 只能通过归档接口进入；`DISABLED/ARCHIVED` 账号池禁止新增账号。
+5. 账号摘要支持 `AVAILABLE/LOCKED/DISABLED/ARCHIVED` 的人工维护状态；`LEASED/EXPIRED` 仍由 M4 租借流程维护。
+6. 本轮不包含账号租借、续租、释放、过期回收、清理 worker、脱敏导出、跨 WP adapter 和前端工作台；这些仍按 M4-M6 验收。

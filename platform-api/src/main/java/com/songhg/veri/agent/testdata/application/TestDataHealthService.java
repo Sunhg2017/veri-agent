@@ -38,7 +38,7 @@ public class TestDataHealthService {
                         Map.entry("cleanupTaskSchemaReady", true),
                         Map.entry("auditEventDictionaryReady", true),
                         Map.entry("crossWpReferenceSchemaReady", true),
-                        Map.entry("businessCrudApiReady", false),
+                        Map.entry("businessCrudApiReady", true),
                         Map.entry("leaseApiReady", false),
                         Map.entry("cleanupWorkerReady", false),
                         Map.entry("destructiveCleanupDefaultDisabled", !properties.cleanupEnabled()),

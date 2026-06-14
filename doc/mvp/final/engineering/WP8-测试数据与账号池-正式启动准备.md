@@ -86,6 +86,8 @@ WP8 的核心目标是把测试数据、账号池、租借、释放和清理任�
 | M6 前端闭环 | 工作台完成主链路 | portal-web 页面 | Vitest、Playwright smoke 通过 |
 | M7 准出门禁 | quality gate、DB validation、并发 smoke | `scripts/wp8_quality_gate.sh` | release gate 明确 |
 
+M3 当前推进说明：账号池控制面后端切片已按 `platform-api` API 落地，覆盖账号池创建、查询、更新、禁用、归档和账号摘要维护；`secretRef` 只计算 digest，不回显原文。租借、续租、释放、过期回收、清理任务、跨 WP adapter 和 `portal-web` 工作台仍按 M4-M6 推进。
+
 ## 8. 启动准入清单
 
 | 检查项 | 要求 | 状态 |

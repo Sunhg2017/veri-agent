@@ -48,9 +48,12 @@ import com.songhg.veri.agent.testdesign.domain.TestDesignReviewRecord;
 import com.songhg.veri.agent.testdesign.domain.TestDesignTask;
 import com.songhg.veri.agent.testdesign.domain.TestDesignTaskStatus;
 import com.songhg.veri.agent.testdata.application.port.TestDataRepository;
+import com.songhg.veri.agent.testdata.application.query.TestAccountPoolQuery;
 import com.songhg.veri.agent.testdata.application.query.TestDataSetQuery;
+import com.songhg.veri.agent.testdata.domain.TestAccountPool;
 import com.songhg.veri.agent.testdata.domain.TestDataRecord;
 import com.songhg.veri.agent.testdata.domain.TestDataSet;
+import com.songhg.veri.agent.testdata.domain.TestPooledAccount;
 import com.songhg.veri.agent.testdata.infrastructure.JdbcTestDataRepository;
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -268,6 +271,151 @@ class DbProfileRepositoryContractTest {
                 .get()
                 .extracting(TestDataSet::status)
                 .isEqualTo("ARCHIVED");
+    }
+
+    @Test
+    void testDataRepositoryPersistsAccountPoolsAndAccountsThroughJdbcWithoutSecretCipherProjection() {
+        Instant now = Instant.now();
+        UUID poolId = UUID.randomUUID();
+        UUID accountId = UUID.randomUUID();
+        String projectId = "project-wp8-account-db-" + UUID.randomUUID();
+
+        testDataRepository.insertAccountPool(new TestAccountPool(
+                poolId,
+                projectId,
+                "app-db",
+                "env-db",
+                "pool-db",
+                "DB account pool",
+                "READY",
+                "{\"sharing\":\"EXCLUSIVE\"}",
+                300,
+                "db-tester",
+                "db-tester",
+                null,
+                now,
+                now
+        ));
+
+        assertThat(testDataRepository.accountPoolByProjectAndCode(projectId, "pool-db"))
+                .isPresent()
+                .get()
+                .extracting(TestAccountPool::leasePolicyJson)
+                .asString()
+                .contains("EXCLUSIVE");
+
+        TestAccountPoolQuery query = new TestAccountPoolQuery(projectId, "app-db", "env-db", "READY", "pool", 0, 10);
+        assertThat(testDataRepository.countAccountPools(query)).isEqualTo(1);
+        assertThat(testDataRepository.accountPools(query))
+                .singleElement()
+                .extracting(TestAccountPool::defaultTtlSeconds)
+                .isEqualTo(300);
+
+        testDataRepository.insertPooledAccount(new TestPooledAccount(
+                accountId,
+                poolId,
+                projectId,
+                "admin-01",
+                "Admin 01",
+                "AVAILABLE",
+                "[\"ADMIN\",\"APPROVER\"]",
+                "{\"applicationId\":\"app-db\"}",
+                "e".repeat(64),
+                "HEALTHY",
+                "manual smoke passed",
+                "db-tester",
+                "db-tester",
+                null,
+                now,
+                now
+        ));
+        jdbcTemplate.update(
+                "update test_pooled_account set secret_ref_cipher = ? where id = ?",
+                "ciphertext-should-not-be-projected",
+                accountId
+        );
+
+        assertThat(testDataRepository.countPooledAccounts(poolId, null)).isEqualTo(1);
+        assertThat(testDataRepository.countPooledAccounts(poolId, "AVAILABLE")).isEqualTo(1);
+        assertThat(testDataRepository.pooledAccountByPoolAndKey(poolId, "admin-01"))
+                .isPresent()
+                .get()
+                .satisfies(account -> {
+                    assertThat(account.secretRefDigest()).isEqualTo("e".repeat(64));
+                    assertThat(account.toString()).doesNotContain("ciphertext-should-not-be-projected");
+                    assertThat(account.roleTagsJson()).contains("ADMIN");
+                });
+
+        testDataRepository.updatePooledAccount(new TestPooledAccount(
+                accountId,
+                poolId,
+                projectId,
+                "admin-01",
+                "Admin 01 locked",
+                "LOCKED",
+                "[\"ADMIN\"]",
+                "{\"reason\":\"manual\"}",
+                "f".repeat(64),
+                "LOCKED",
+                "manual lock",
+                "db-tester",
+                "db-updater",
+                null,
+                now,
+                now.plusSeconds(1)
+        ));
+
+        assertThat(testDataRepository.pooledAccounts(poolId))
+                .singleElement()
+                .satisfies(account -> {
+                    assertThat(account.status()).isEqualTo("LOCKED");
+                    assertThat(account.secretRefDigest()).isEqualTo("f".repeat(64));
+                    assertThat(account.toString()).doesNotContain("ciphertext-should-not-be-projected");
+                });
+        assertThat(testDataRepository.pooledAccountProjectScopeId(accountId)).contains(projectId);
+
+        testDataRepository.archiveAccountPool(new TestAccountPool(
+                poolId,
+                projectId,
+                "app-db",
+                "env-db",
+                "pool-db",
+                "DB account pool",
+                "ARCHIVED",
+                "{\"sharing\":\"EXCLUSIVE\"}",
+                300,
+                "db-tester",
+                "db-archiver",
+                now.plusSeconds(2),
+                now,
+                now.plusSeconds(2)
+        ));
+
+        assertThat(testDataRepository.accountPoolProjectScopeId(poolId)).contains(projectId);
+        assertThat(testDataRepository.accountPool(poolId))
+                .isPresent()
+                .get()
+                .extracting(TestAccountPool::status)
+                .isEqualTo("ARCHIVED");
+
+        assertThatThrownBy(() -> testDataRepository.insertPooledAccount(new TestPooledAccount(
+                UUID.randomUUID(),
+                poolId,
+                projectId,
+                "invalid account key",
+                "Invalid",
+                "AVAILABLE",
+                "[]",
+                "{}",
+                "a".repeat(64),
+                null,
+                null,
+                "db-tester",
+                "db-tester",
+                null,
+                now,
+                now
+        ))).isInstanceOf(DataIntegrityViolationException.class);
     }
 
     @Test

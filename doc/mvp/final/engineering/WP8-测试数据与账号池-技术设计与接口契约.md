@@ -80,6 +80,9 @@
 | `POST` | `/account-pools` | `testData:manage` | 创建账号池。 |
 | `GET` | `/account-pools` | `testData:read` | 分页查询账号池。 |
 | `GET` | `/account-pools/{id}` | `testData:read` | 查询账号池详情、账号摘要和策略。 |
+| `PATCH` | `/account-pools/{id}` | `testData:manage` | 更新账号池名称、状态、策略和默认 TTL。 |
+| `POST` | `/account-pools/{id}/disable` | `testData:manage` | 禁用账号池，阻断新增账号和后续租借。 |
+| `POST` | `/account-pools/{id}/archive` | `testData:manage` | 归档账号池，阻断后续维护。 |
 | `POST` | `/account-pools/{id}/accounts` | `testData:manage` | 新增账号摘要和 `secretRef`。 |
 | `PATCH` | `/accounts/{id}` | `testData:manage` | 更新账号状态、角色标签、健康摘要或替换 `secretRef`。 |
 | `POST` | `/leases` | `testData:lease` | 按角色、标签、环境申请账号租借。 |
@@ -107,6 +110,29 @@
 4. 数据集详情和记录列表只返回摘要、digest、tags 和时间戳。
 5. 数据集归档后禁止继续修改或导入记录摘要。
 6. 控制面总开关 `veri-agent.test-data.enabled=false` 时，业务 API 返回 `INVALID_STATE`，health API 保持可观测。
+
+### M3 已落地切片
+
+当前代码已实现并验证以下账号池控制面后端路径：
+
+- `POST /api/v1/test-data/account-pools`
+- `GET /api/v1/test-data/account-pools`
+- `GET /api/v1/test-data/account-pools/{id}`
+- `PATCH /api/v1/test-data/account-pools/{id}`
+- `POST /api/v1/test-data/account-pools/{id}/disable`
+- `POST /api/v1/test-data/account-pools/{id}/archive`
+- `POST /api/v1/test-data/account-pools/{id}/accounts`
+- `PATCH /api/v1/test-data/accounts/{id}`
+
+实现约束：
+
+1. 账号池和账号均通过 `@RequirePermission` 和项目作用域解析器生效。
+2. 账号池 code 在项目内唯一，账号 key 在 pool 内唯一。
+3. `secretRef` 只接受 `secret://` 写入引用；服务端只保存 SHA-256 digest，不保存明文或密文值。
+4. 账号池详情和账号详情只返回摘要、digest、角色标签、健康状态和时间戳。
+5. `AVAILABLE/LOCKED/DISABLED/ARCHIVED` 属于 M3 人工维护状态，`LEASED/EXPIRED` 留给 M4 租借流程。
+6. 账号池归档后禁止继续维护；账号池禁用后禁止新增账号。
+7. 控制面总开关关闭时，账号池维护 API 返回 `INVALID_STATE`，health API 仍可观测。
 
 ## 6. 关键请求体
 
@@ -264,14 +290,14 @@ FAILED -> PENDING
 4. OpenAPI contract 测试覆盖真实路径、权限注解和脱敏响应字段。
 5. Java 生产文件必须满足 1200 行门禁，并按核心状态机和并发逻辑补充必要注释。
 
-### M2 当前验证口径
+### M3 当前验证口径
 
-M2 后端数据集切片当前采用以下最小验证：
+M3 后端账号池切片当前采用以下最小验证：
 
 ```bash
-mvn -B -pl platform-api -Dtest=TestDataSetControllerTest,TestDataSetServiceTest,TestDataOpenApiContractTest,TestDataHealthControllerTest,OpenApiContractTest,PermissionCodeUsageTest,PersistenceProfileBoundaryTest test
+mvn -B -pl platform-api -Dtest=TestAccountPoolControllerTest,TestAccountPoolServiceTest,TestDataOpenApiContractTest,TestDataHealthControllerTest,OpenApiContractTest,PermissionCodeUsageTest,PersistenceProfileBoundaryTest test
 bash scripts/platform_api_java_line_guard.sh
 bash db/validation/run_wp1_db_validation.sh
 ```
 
-账号池、租借并发、清理 worker、脱敏导出、跨 WP adapter 和前端页面验证不属于本切片完成定义，仍按 M3-M6 承接。
+租借并发、清理 worker、脱敏导出、跨 WP adapter 和前端页面验证不属于本切片完成定义，仍按 M4-M6 承接。

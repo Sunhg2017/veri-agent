@@ -181,6 +181,14 @@ class OpenApiContractTest {
                 .andExpect(jsonPath("$.paths['/api/v1/test-data/data-sets/{id}'].patch").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/test-data/data-sets/{id}/archive'].post").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/test-data/data-sets/{id}/records'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/test-data/account-pools'].get").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/test-data/account-pools'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/test-data/account-pools/{id}'].get").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/test-data/account-pools/{id}'].patch").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/test-data/account-pools/{id}/disable'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/test-data/account-pools/{id}/archive'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/test-data/account-pools/{id}/accounts'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/test-data/accounts/{id}'].patch").exists())
                 .andReturn();
 
         Path output = Path.of("..", "build", "openapi", "wp1-v1.json").normalize();
@@ -217,6 +225,7 @@ class OpenApiContractTest {
         org.hamcrest.MatcherAssert.assertThat(openApi, not(containsString("plaintext")));
         org.hamcrest.MatcherAssert.assertThat(openApi, not(containsString("promptPlaintext")));
         org.hamcrest.MatcherAssert.assertThat(openApi, not(containsString("rawRecordPayload")));
+        org.hamcrest.MatcherAssert.assertThat(openApi, not(containsString("secretRefCipher")));
         org.hamcrest.MatcherAssert.assertThat(openApi, not(containsString("secret_ref_cipher")));
     }
 
