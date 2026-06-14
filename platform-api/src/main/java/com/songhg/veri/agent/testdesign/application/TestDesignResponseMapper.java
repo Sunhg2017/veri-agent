@@ -206,8 +206,8 @@ public class TestDesignResponseMapper {
             if (!node.isObject()) {
                 return Optional.empty();
             }
-            return Optional.of(objectMapper.convertValue(node, valueType));
-        } catch (Exception exception) {
+            return Optional.of(objectMapper.treeToValue(node, valueType));
+        } catch (JsonProcessingException exception) {
             return Optional.empty();
         }
     }
