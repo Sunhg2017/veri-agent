@@ -1500,17 +1500,16 @@ public class ExecutionRunService {
     }
 
     private String terminalErrorSummary(String status, String requestedErrorSummary) {
-        if (SUCCESS_NODE_STATUSES.contains(status)) {
-            return null;
-        }
-        if (StringUtils.hasText(requestedErrorSummary)) {
-            return boundedNullableText(redactSensitiveText(requestedErrorSummary), 512);
-        }
-        return switch (status) {
+        String fallback = switch (status) {
             case "TIMEOUT" -> "Execution node timed out";
             case "BLOCKED" -> "Execution node blocked";
             default -> "Execution node failed";
         };
+        if (SUCCESS_NODE_STATUSES.contains(status)) {
+            return null;
+        }
+        // Error summaries are persisted in node evidence, so URL, secret-ref and token redaction must stay centralized.
+        return SensitiveTextSanitizer.sanitizedErrorSummary(requestedErrorSummary, fallback, 512);
     }
 
     private String terminalRunErrorCode(String status) {
