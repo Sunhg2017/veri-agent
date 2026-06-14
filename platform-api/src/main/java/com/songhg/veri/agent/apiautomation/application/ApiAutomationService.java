@@ -17,15 +17,11 @@ import com.songhg.veri.agent.apiautomation.application.query.ApiAutomationGenera
 import com.songhg.veri.agent.apiautomation.application.query.ApiAutomationSpecPageRequest;
 import com.songhg.veri.agent.apiautomation.application.query.ApiAutomationSpecQuery;
 import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationDiffResponse;
-import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationEndpointSnapshotResponse;
-import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationCaseResponse;
 import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationGenerationTaskDetailResponse;
 import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationGenerationTaskResponse;
 import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationHealthResponse;
 import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationRunDetailResponse;
 import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationRunExportResponse;
-import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationRunResponse;
-import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationRunResultResponse;
 import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationScriptBundleResponse;
 import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationSyncItemResponse;
 import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationSyncPreviewItemResponse;
@@ -105,8 +101,6 @@ public class ApiAutomationService {
     private static final List<String> SYNC_PREVIEW_ACTIONS = List.of("CREATE", "UPDATE", "REVIEW", "SKIP");
     private static final TypeReference<Map<String, Object>> MAP_TYPE = new TypeReference<>() {
     };
-    private static final TypeReference<List<String>> STRING_LIST_TYPE = new TypeReference<>() {
-    };
 
     private final ApiAutomationRepository repository;
     private final ApiAutomationRunnerPort runnerPort;
@@ -123,6 +117,7 @@ public class ApiAutomationService {
     private final ApiAutomationRunTargetGuard runTargetGuard;
     private final ApiAutomationRunSecretResolver runSecretResolver;
     private final ApiAutomationScriptBundleFactory scriptBundleFactory;
+    private final ApiAutomationResponseMapper responseMapper;
 
     public ApiAutomationService(
             ApiAutomationRepository repository,
@@ -213,6 +208,7 @@ public class ApiAutomationService {
         this.runTargetGuard = new ApiAutomationRunTargetGuard(properties);
         this.runSecretResolver = new ApiAutomationRunSecretResolver(secretProviders);
         this.scriptBundleFactory = new ApiAutomationScriptBundleFactory(objectMapper);
+        this.responseMapper = new ApiAutomationResponseMapper(objectMapper);
     }
 
     public ApiAutomationHealthResponse health() {
@@ -297,7 +293,7 @@ public class ApiAutomationService {
     public PageResponse<ApiAutomationSpecResponse> specs(ApiAutomationSpecPageRequest request) {
         ApiAutomationSpecQuery query = canonicalProjectQuery(request.toQuery());
         List<ApiAutomationSpecResponse> items = repository.specs(query).stream()
-                .map(this::toSpecResponse)
+                .map(responseMapper::toSpecResponse)
                 .toList();
         return PageResponse.of(items, request.getIndex(), request.getSize(), repository.countSpecs(query));
     }
@@ -305,7 +301,7 @@ public class ApiAutomationService {
     @Transactional(readOnly = true)
     public ApiAutomationSpecDetailResponse specDetail(UUID id) {
         ApiAutomationSpec spec = requireSpec(id);
-        return toDetail(spec, repository.endpointSnapshots(id));
+        return responseMapper.toDetail(spec, repository.endpointSnapshots(id));
     }
 
     @Transactional(noRollbackFor = BusinessException.class)
@@ -325,7 +321,7 @@ public class ApiAutomationService {
     public ApiAutomationSpecDetailResponse archiveSpec(UUID id) {
         ApiAutomationSpec spec = requireSpec(id);
         if ("ARCHIVED".equals(spec.status())) {
-            return toDetail(spec, repository.endpointSnapshots(id));
+            return responseMapper.toDetail(spec, repository.endpointSnapshots(id));
         }
         ApiAutomationSpec archivedSpec = markArchived(spec, actorResolver.currentActor());
         // 归档只关闭后续 parse/diff/sync/generation 入口，保留脱敏 spec 与 endpoint 证据供审计回看。
@@ -334,7 +330,7 @@ public class ApiAutomationService {
                 "previousStatus", spec.status(),
                 "endpointCount", archivedSpec.endpointCount()
         ));
-        return toDetail(archivedSpec, repository.endpointSnapshots(id));
+        return responseMapper.toDetail(archivedSpec, repository.endpointSnapshots(id));
     }
 
     @Transactional
@@ -347,7 +343,7 @@ public class ApiAutomationService {
                 "endpointCount", endpoints.size()
         ));
         return new ApiAutomationDiffResponse(spec.id(), countDiffStatuses(endpoints), endpoints.stream()
-                .map(this::toEndpointResponse)
+                .map(responseMapper::toEndpointResponse)
                 .toList());
     }
 
@@ -363,7 +359,7 @@ public class ApiAutomationService {
                 spec.id(),
                 countSyncPreviewActions(items),
                 items,
-                endpoints.stream().map(this::toEndpointResponse).toList(),
+                endpoints.stream().map(responseMapper::toEndpointResponse).toList(),
                 Map.of(
                         "dryRun", true,
                         "wp3Write", false,
@@ -402,7 +398,7 @@ public class ApiAutomationService {
                 "requestedEndpointCount", selectedEndpointIds.isEmpty() ? diffedEndpoints.size() : selectedEndpointIds.size()
         ));
         return new ApiAutomationSyncResponse(spec.id(), counts, items, updatedEndpoints.stream()
-                .map(this::toEndpointResponse)
+                .map(responseMapper::toEndpointResponse)
                 .toList());
     }
 
@@ -472,7 +468,7 @@ public class ApiAutomationService {
                 "fileCount", bundle.fileCount(),
                 "staticCheckStatus", bundle.staticCheckStatus()
         ));
-        return toGenerationTaskDetail(task, persistedCases, List.of(bundle));
+        return responseMapper.toGenerationTaskDetail(task, persistedCases, List.of(bundle));
     }
 
     @Transactional(readOnly = true)
@@ -483,7 +479,7 @@ public class ApiAutomationService {
          * script file details and raw model payloads; callers can fetch one task detail when they need drill-down.
          */
         List<ApiAutomationGenerationTaskResponse> items = repository.generationTasks(query).stream()
-                .map(this::toGenerationTaskResponse)
+                .map(responseMapper::toGenerationTaskResponse)
                 .toList();
         return PageResponse.of(items, request.getIndex(), request.getSize(), repository.countGenerationTasks(query));
     }
@@ -492,7 +488,7 @@ public class ApiAutomationService {
     public ApiAutomationGenerationTaskDetailResponse generationTaskDetail(UUID id) {
         ApiAutomationGenerationTask task = repository.generationTask(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "接口自动化生成任务不存在: " + id));
-        return toGenerationTaskDetail(task, repository.automationCases(id), repository.scriptBundles(id));
+        return responseMapper.toGenerationTaskDetail(task, repository.automationCases(id), repository.scriptBundles(id));
     }
 
     @Transactional
@@ -503,7 +499,7 @@ public class ApiAutomationService {
                 .filter(bundle -> !"ARCHIVED".equals(bundle.status()))
                 .toList();
         if (!existingBundles.isEmpty()) {
-            return toScriptBundleResponse(existingBundles.getFirst());
+            return responseMapper.toScriptBundleResponse(existingBundles.getFirst());
         }
         List<ApiAutomationCase> cases = repository.automationCases(taskId);
         if (cases.isEmpty()) {
@@ -518,7 +514,7 @@ public class ApiAutomationService {
                 "fileCount", bundle.fileCount(),
                 "staticCheckStatus", bundle.staticCheckStatus()
         ));
-        return toScriptBundleResponse(bundle);
+        return responseMapper.toScriptBundleResponse(bundle);
     }
 
     @Transactional
@@ -552,7 +548,7 @@ public class ApiAutomationService {
         );
         repository.updateScriptBundleReview(updated);
         auditScriptBundle(updated, "SUCCESS", "SUBMITTED", Map.of("notePresent", StringUtils.hasText(updated.reviewNote())));
-        return toScriptBundleResponse(updated);
+        return responseMapper.toScriptBundleResponse(updated);
     }
 
     @Transactional
@@ -580,7 +576,7 @@ public class ApiAutomationService {
         );
         repository.updateScriptBundleReview(updated);
         auditScriptBundle(updated, "SUCCESS", "APPROVED", Map.of("notePresent", StringUtils.hasText(updated.reviewNote())));
-        return toScriptBundleResponse(updated);
+        return responseMapper.toScriptBundleResponse(updated);
     }
 
     @Transactional
@@ -612,7 +608,7 @@ public class ApiAutomationService {
         );
         repository.updateScriptBundleReview(updated);
         auditScriptBundle(updated, "FAILED", "REJECTED", Map.of("notePresent", true));
-        return toScriptBundleResponse(updated);
+        return responseMapper.toScriptBundleResponse(updated);
     }
 
     @Transactional
@@ -664,7 +660,7 @@ public class ApiAutomationService {
                     "secretRefCount", secretRefs.count(),
                     "secretRefDigests", secretRefs.digests()
             ));
-            return toRunDetail(run, results);
+            return responseMapper.toRunDetail(run, results);
         }
 
         List<ApiAutomationRunnerPort.RunnerSecret> runnerSecrets =
@@ -715,14 +711,14 @@ public class ApiAutomationService {
                 "secretRefCount", secretRefs.count(),
                 "secretRefDigests", secretRefs.digests()
         ));
-        return toRunDetail(run, results);
+        return responseMapper.toRunDetail(run, results);
     }
 
     @Transactional(readOnly = true)
     public ApiAutomationRunDetailResponse runDetail(UUID id) {
         ApiAutomationRun run = repository.run(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "接口自动化运行任务不存在: " + id));
-        return toRunDetail(run, repository.runResults(id));
+        return responseMapper.toRunDetail(run, repository.runResults(id));
     }
 
     /**
@@ -739,14 +735,14 @@ public class ApiAutomationService {
                     "status", run.status(),
                     "terminal", true
             ));
-            return toRunDetail(run, repository.runResults(id));
+            return responseMapper.toRunDetail(run, repository.runResults(id));
         }
 
         ApiAutomationRunnerPort.RunnerCancelResult cancelResult = runnerPort.cancel(id);
         boolean accepted = cancelResult != null && cancelResult.accepted();
         if (!accepted) {
             auditRun(run, "FAILED", "CANCEL_REJECTED", cancelAuditPayload(run, cancelResult));
-            return toRunDetail(run, repository.runResults(id));
+            return responseMapper.toRunDetail(run, repository.runResults(id));
         }
 
         Instant now = Instant.now();
@@ -764,7 +760,7 @@ public class ApiAutomationService {
                 "previousStatus", run.status(),
                 "status", persisted.status()
         ));
-        return toRunDetail(persisted, repository.runResults(id));
+        return responseMapper.toRunDetail(persisted, repository.runResults(id));
     }
 
     @Transactional
@@ -772,15 +768,15 @@ public class ApiAutomationService {
         ApiAutomationRun run = repository.run(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "接口自动化运行任务不存在: " + id));
         List<ApiAutomationRunResult> results = repository.runResults(id);
-        Map<String, Integer> counts = resultCounts(results);
+        Map<String, Integer> counts = responseMapper.resultCounts(results);
         // 运行导出用于合规留存和运营排障，只复用脱敏摘要视图；导出动作本身也必须落审计。
         ApiAutomationRunExportResponse response = new ApiAutomationRunExportResponse(
                 "wp6-run-export-v1",
                 Instant.now(),
-                toRunResponse(run),
-                results.stream().map(this::toRunResultResponse).toList(),
+                responseMapper.toRunResponse(run),
+                results.stream().map(responseMapper::toRunResultResponse).toList(),
                 counts,
-                runExportRedactionPolicy()
+                responseMapper.runExportRedactionPolicy()
         );
         auditRun(run, "SUCCESS", "EXPORTED", Map.of(
                 "resultCount", results.size(),
@@ -1736,7 +1732,7 @@ public class ApiAutomationService {
                     "endpointCount", parsedSpec.endpointCount(),
                     "parserVersion", parsedSpec.parserVersion()
             ));
-            return toDetail(parsedSpec, snapshots);
+            return responseMapper.toDetail(parsedSpec, snapshots);
         } catch (BusinessException exception) {
             ApiAutomationSpec failedSpec = markParseFailed(spec, exception.getMessage(), actor);
             repository.updateSpecParseResult(failedSpec);
@@ -2174,199 +2170,6 @@ public class ApiAutomationService {
         );
     }
 
-    private ApiAutomationSpecDetailResponse toDetail(
-            ApiAutomationSpec spec,
-            List<ApiAutomationEndpointSnapshot> endpoints
-    ) {
-        return new ApiAutomationSpecDetailResponse(
-                toSpecResponse(spec),
-                readSummary(spec.parseSummaryJson()),
-                endpoints.stream().map(this::toEndpointResponse).toList()
-        );
-    }
-
-    private ApiAutomationGenerationTaskDetailResponse toGenerationTaskDetail(
-            ApiAutomationGenerationTask task,
-            List<ApiAutomationCase> cases,
-            List<ApiAutomationScriptBundle> scriptBundles
-    ) {
-        return new ApiAutomationGenerationTaskDetailResponse(
-                toGenerationTaskResponse(task),
-                cases.stream().map(this::toAutomationCaseResponse).toList(),
-                scriptBundles.stream().map(this::toScriptBundleResponse).toList()
-        );
-    }
-
-    private ApiAutomationGenerationTaskResponse toGenerationTaskResponse(ApiAutomationGenerationTask task) {
-        return new ApiAutomationGenerationTaskResponse(
-                task.id(),
-                task.projectId(),
-                task.specId(),
-                task.requestKey(),
-                task.requestDigest(),
-                task.generationMode(),
-                readStringList(task.coverageTypesJson()),
-                task.status(),
-                task.promptKey(),
-                task.promptVersion(),
-                task.modelInvocationId(),
-                task.fallbackUsed(),
-                task.apiCount(),
-                task.caseCount(),
-                readSummary(task.inputSummaryJson()),
-                task.errorSummary(),
-                task.createdAt(),
-                task.updatedAt()
-        );
-    }
-
-    private ApiAutomationCaseResponse toAutomationCaseResponse(ApiAutomationCase automationCase) {
-        return new ApiAutomationCaseResponse(
-                automationCase.id(),
-                automationCase.endpointSnapshotId(),
-                automationCase.assetApiId(),
-                automationCase.assetTestCaseId(),
-                automationCase.title(),
-                automationCase.httpMethod(),
-                automationCase.path(),
-                automationCase.coverageType(),
-                automationCase.expectedStatus(),
-                readSummary(automationCase.assertionSummaryJson()),
-                readSummary(automationCase.requestTemplateJson()),
-                automationCase.source(),
-                automationCase.status(),
-                automationCase.createdAt(),
-                automationCase.updatedAt()
-        );
-    }
-
-    private ApiAutomationScriptBundleResponse toScriptBundleResponse(ApiAutomationScriptBundle bundle) {
-        return new ApiAutomationScriptBundleResponse(
-                bundle.id(),
-                bundle.projectId(),
-                bundle.taskId(),
-                bundle.status(),
-                bundle.bundleDigest(),
-                bundle.fileCount(),
-                readSummary(bundle.fileTreeSummaryJson()),
-                readSummary(bundle.dependencySummaryJson()),
-                bundle.staticCheckStatus(),
-                readSummary(bundle.staticCheckSummaryJson()),
-                bundle.reviewNote(),
-                bundle.submittedBy(),
-                bundle.approvedBy(),
-                bundle.submittedAt(),
-                bundle.approvedAt(),
-                bundle.rejectedAt(),
-                bundle.createdAt(),
-                bundle.updatedAt()
-        );
-    }
-
-    private ApiAutomationRunDetailResponse toRunDetail(ApiAutomationRun run, List<ApiAutomationRunResult> results) {
-        return new ApiAutomationRunDetailResponse(
-                toRunResponse(run),
-                results.stream().map(this::toRunResultResponse).toList()
-        );
-    }
-
-    private ApiAutomationRunResponse toRunResponse(ApiAutomationRun run) {
-        return new ApiAutomationRunResponse(
-                run.id(),
-                run.projectId(),
-                run.bundleId(),
-                run.environmentId(),
-                run.baseUrlDigest(),
-                run.baseUrlHost(),
-                run.status(),
-                run.timeoutSeconds(),
-                run.caseCount(),
-                run.traceId(),
-                run.runnerMode(),
-                run.errorCode(),
-                run.errorSummary(),
-                run.startedAt(),
-                run.completedAt(),
-                run.createdAt(),
-                run.updatedAt()
-        );
-    }
-
-    private ApiAutomationRunResultResponse toRunResultResponse(ApiAutomationRunResult result) {
-        return new ApiAutomationRunResultResponse(
-                result.id(),
-                result.runId(),
-                result.caseId(),
-                result.status(),
-                result.durationMs(),
-                readSummary(result.assertionSummaryJson()),
-                result.errorCode(),
-                result.errorSummary(),
-                result.createdAt(),
-                result.updatedAt()
-        );
-    }
-
-    private Map<String, Integer> resultCounts(List<ApiAutomationRunResult> results) {
-        Map<String, Integer> counts = new LinkedHashMap<>();
-        results.forEach(result -> counts.merge(result.status(), 1, Integer::sum));
-        return counts;
-    }
-
-    private Map<String, Object> runExportRedactionPolicy() {
-        return Map.of(
-                "rawBaseUrlExported", false,
-                "baseUrlDigestExported", true,
-                "baseUrlHostExported", true,
-                "rawRequestResponseExported", false,
-                "stdoutStderrExported", false,
-                "secretValuesExported", false,
-                "assertionSummaryAggregateOnly", true
-        );
-    }
-
-    private ApiAutomationSpecResponse toSpecResponse(ApiAutomationSpec spec) {
-        return new ApiAutomationSpecResponse(
-                spec.id(),
-                spec.projectId(),
-                spec.sourceType(),
-                spec.sourceRef(),
-                spec.name(),
-                spec.versionLabel(),
-                spec.specDigest(),
-                spec.contentSizeBytes(),
-                spec.status(),
-                spec.parserVersion(),
-                spec.endpointCount(),
-                spec.parseErrorSummary(),
-                spec.parsedAt(),
-                spec.createdAt(),
-                spec.updatedAt()
-        );
-    }
-
-    private ApiAutomationEndpointSnapshotResponse toEndpointResponse(ApiAutomationEndpointSnapshot snapshot) {
-        return new ApiAutomationEndpointSnapshotResponse(
-                snapshot.id(),
-                snapshot.serviceName(),
-                snapshot.operationId(),
-                snapshot.httpMethod(),
-                snapshot.path(),
-                snapshot.summary(),
-                snapshot.tags(),
-                snapshot.parameterCount(),
-                snapshot.requestBodyPresent(),
-                snapshot.responseStatuses(),
-                snapshot.schemaDigest(),
-                snapshot.diffStatus(),
-                snapshot.assetApiId(),
-                readSummary(snapshot.diffSummaryJson()),
-                snapshot.lastDiffAt(),
-                snapshot.syncedAt(),
-                snapshot.syncErrorSummary()
-        );
-    }
-
     private ApiAutomationSpec requireParsedSpec(UUID id) {
         ApiAutomationSpec spec = requireSpec(id);
         if (!"PARSED".equals(spec.status())) {
@@ -2466,17 +2269,6 @@ public class ApiAutomationService {
             return objectMapper.readValue(value, MAP_TYPE);
         } catch (JsonProcessingException exception) {
             return Map.of("parseSummaryUnreadable", true, "aggregateOnly", true);
-        }
-    }
-
-    private List<String> readStringList(String value) {
-        if (!StringUtils.hasText(value)) {
-            return List.of();
-        }
-        try {
-            return objectMapper.readValue(value, STRING_LIST_TYPE);
-        } catch (JsonProcessingException exception) {
-            return List.of();
         }
     }
 
