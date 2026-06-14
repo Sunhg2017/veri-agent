@@ -543,13 +543,9 @@ export function App() {
       return;
     }
 
-    let newPassword = '';
     if (action === 'reset-password') {
-      newPassword = window.prompt(`为 ${username} 设置新密码（至少 10 位）`, '')?.trim() ?? '';
-      if (!newPassword || newPassword.length < 10) {
-        addToast('error', '密码至少 10 位');
-        return;
-      }
+      openResetPasswordDialog(username);
+      return;
     }
 
     let roleCode = '';
@@ -565,7 +561,6 @@ export function App() {
         unlock: () => unlockUser(username),
         disable: () => disableUser(username),
         lock: () => lockUser(username),
-        'reset-password': () => resetUserPassword(username, newPassword),
         'assign-role': () => assignUserRole(username, roleCode),
         'unassign-role': () => unassignUserRole(username, roleCode)
       };
