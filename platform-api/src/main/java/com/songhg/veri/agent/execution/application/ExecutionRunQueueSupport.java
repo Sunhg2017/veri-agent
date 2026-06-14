@@ -743,7 +743,7 @@ final class ExecutionRunQueueSupport {
             return value;
         }
         if (value instanceof String text) {
-            return boundedSummaryText(SensitiveTextSanitizer.redactSensitiveText(text));
+            return boundedSummaryText(text);
         }
         if (value instanceof Map<?, ?> map) {
             Map<String, Object> sanitized = new LinkedHashMap<>();
@@ -768,11 +768,11 @@ final class ExecutionRunQueueSupport {
             }
             return sanitized;
         }
-        return boundedSummaryText(SensitiveTextSanitizer.redactSensitiveText(String.valueOf(value)));
+        return boundedSummaryText(String.valueOf(value));
     }
 
     private String boundedSummaryText(String value) {
-        return SensitiveTextSanitizer.boundedWithEllipsis(value, MAX_RESULT_SUMMARY_TEXT_LENGTH);
+        return SensitiveTextSanitizer.sanitizedEvidenceText(value, MAX_RESULT_SUMMARY_TEXT_LENGTH);
     }
 
     private String terminalRunErrorCode(String status) {

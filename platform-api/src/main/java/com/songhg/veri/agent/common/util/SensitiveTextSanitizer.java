@@ -71,6 +71,19 @@ public final class SensitiveTextSanitizer {
         return boundedWithEllipsis(summary, maxLength);
     }
 
+    /**
+     * Sanitizes persisted evidence fields where plain text may contain runtime URLs or secret references.
+     */
+    public static String sanitizedEvidenceText(String value, int maxLength) {
+        if (!StringUtils.hasText(value)) {
+            return value;
+        }
+        String sanitized = URL_PATTERN.matcher(value.trim()).replaceAll("[REDACTED_URL]");
+        sanitized = SECRET_REF_PATTERN.matcher(sanitized).replaceAll("[REDACTED_SECRET_REF]");
+        sanitized = redactSensitiveText(sanitized);
+        return boundedWithEllipsis(sanitized, maxLength);
+    }
+
     public static String sha256Hex(String value) {
         try {
             byte[] digest = MessageDigest.getInstance("SHA-256")
