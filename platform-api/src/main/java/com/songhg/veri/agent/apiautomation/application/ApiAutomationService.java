@@ -1,7 +1,5 @@
 package com.songhg.veri.agent.apiautomation.application;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.songhg.veri.agent.apiautomation.application.command.CreateApiAutomationGenerationTaskCommand;
 import com.songhg.veri.agent.apiautomation.application.command.CreateApiAutomationRunCommand;
@@ -40,22 +38,12 @@ import com.songhg.veri.agent.apiautomation.domain.ApiAutomationSpec;
 import com.songhg.veri.agent.apiautomation.infrastructure.openapi.OpenApiSpecParser;
 import com.songhg.veri.agent.asset.application.AssetApiService;
 import com.songhg.veri.agent.asset.application.AssetTestCaseService;
-import com.songhg.veri.agent.asset.application.command.SyncOpenApiRequest;
-import com.songhg.veri.agent.asset.application.query.AssetListRequest;
-import com.songhg.veri.agent.asset.application.view.ApiResponseDTO;
-import com.songhg.veri.agent.asset.application.view.TestCaseResponse;
-import com.songhg.veri.agent.asset.application.view.TestCaseStepResponse;
 import com.songhg.veri.agent.common.api.PageResponse;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
 import com.songhg.veri.agent.common.secret.SecretProvider;
-import com.songhg.veri.agent.common.trace.TraceContext;
 import com.songhg.veri.agent.common.util.SensitiveTextSanitizer;
 import com.songhg.veri.agent.modelaccess.application.ModelInvocationService;
-import com.songhg.veri.agent.modelaccess.application.command.ModelInvocationCommand;
-import com.songhg.veri.agent.modelaccess.application.view.ModelInvocationResult;
-import com.songhg.veri.agent.modelaccess.domain.ChatMessage;
-import com.songhg.veri.agent.modelaccess.security.ServicePrincipal;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -63,8 +51,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -79,28 +65,7 @@ public class ApiAutomationService {
 
     private static final Set<String> SOURCE_TYPES = Set.of("TEXT", "UPLOAD", "URL");
     private static final int ERROR_SUMMARY_MAX_CHARS = 512;
-    private static final int WP3_API_PATH_MAX_CHARS = 256;
-    private static final int WP3_API_SUMMARY_MAX_CHARS = 256;
-    private static final int WP3_API_VERSION_MAX_CHARS = 32;
-    private static final int WP3_API_PAGE_SIZE = 100;
-    private static final int WP3_API_PAGE_LIMIT = 20;
-    private static final int GENERATION_CASE_COUNT_MAX = 5;
-    private static final int GENERATION_SOURCE_TEST_CASE_MAX = 20;
-    private static final int GENERATION_SOURCE_STEP_MAX = 3;
-    private static final int GENERATION_SOURCE_TEXT_MAX_CHARS = 160;
-    private static final List<String> DIFF_STATUSES = List.of("NEW", "CHANGED", "MATCHED", "CONFLICT", "SKIPPED");
-    private static final Set<String> GENERATION_MODES = Set.of("FALLBACK_ONLY", "MODEL_WITH_FALLBACK");
-    private static final Set<String> COVERAGE_TYPES = Set.of("SMOKE", "FUNCTIONAL", "EXCEPTION");
     private static final Set<String> SCRIPT_REVIEW_SUBMITTABLE_STATUSES = Set.of("DRAFT", "REJECTED");
-    private static final Set<String> RUN_STATUSES = Set.of("BLOCKED", "QUEUED", "RUNNING", "PASSED", "FAILED", "TIMEOUT", "CANCELED");
-    private static final Set<String> RUN_RESULT_STATUSES = Set.of("PASSED", "FAILED", "SKIPPED", "ERROR", "TIMEOUT", "BLOCKED");
-    private static final String WP6_MODEL_SCHEMA_MARKER = "WP6_API_AUTOMATION_GENERATION_V1";
-    private static final String MODEL_CALLER_SERVICE = "wp6-api-automation";
-    private static final String MODEL_CAPABILITY_JSON = "JSON";
-    private static final String DEFAULT_MODEL_SENSITIVITY_LEVEL = "INTERNAL";
-    private static final List<String> SYNC_PREVIEW_ACTIONS = List.of("CREATE", "UPDATE", "REVIEW", "SKIP");
-    private static final TypeReference<Map<String, Object>> MAP_TYPE = new TypeReference<>() {
-    };
 
     private final ApiAutomationRepository repository;
     private final ApiAutomationRunnerPort runnerPort;
@@ -108,16 +73,15 @@ public class ApiAutomationService {
     private final ApiAutomationProperties properties;
     private final ApiAutomationPlatformContextClient contextClient;
     private final ApiAutomationActorResolver actorResolver;
-    private final AssetApiService assetApiService;
-    private final AssetTestCaseService assetTestCaseService;
-    private final ModelInvocationService modelInvocationService;
-    private final ApiAutomationModelOutputParser modelOutputParser;
-    private final ObjectMapper objectMapper;
     private final ApiAutomationRunnerResultSanitizer runnerResultSanitizer;
     private final ApiAutomationRunTargetGuard runTargetGuard;
     private final ApiAutomationRunSecretResolver runSecretResolver;
     private final ApiAutomationScriptBundleFactory scriptBundleFactory;
     private final ApiAutomationResponseMapper responseMapper;
+    private final ApiAutomationJsonSupport jsonSupport;
+    private final ApiAutomationGenerationSupport generationSupport;
+    private final ApiAutomationSyncSupport syncSupport;
+    private final ApiAutomationRunSupport runSupport;
 
     public ApiAutomationService(
             ApiAutomationRepository repository,
@@ -199,16 +163,22 @@ public class ApiAutomationService {
         this.properties = properties;
         this.contextClient = contextClient;
         this.actorResolver = actorResolver;
-        this.assetApiService = assetApiService;
-        this.assetTestCaseService = assetTestCaseService;
-        this.modelInvocationService = modelInvocationService;
-        this.modelOutputParser = modelOutputParser;
-        this.objectMapper = objectMapper;
         this.runnerResultSanitizer = new ApiAutomationRunnerResultSanitizer(properties, objectMapper);
         this.runTargetGuard = new ApiAutomationRunTargetGuard(properties);
         this.runSecretResolver = new ApiAutomationRunSecretResolver(secretProviders);
+        this.jsonSupport = new ApiAutomationJsonSupport(objectMapper);
         this.scriptBundleFactory = new ApiAutomationScriptBundleFactory(objectMapper);
         this.responseMapper = new ApiAutomationResponseMapper(objectMapper);
+        this.generationSupport = new ApiAutomationGenerationSupport(
+                repository,
+                assetTestCaseService,
+                modelInvocationService,
+                modelOutputParser,
+                properties,
+                jsonSupport
+        );
+        this.syncSupport = new ApiAutomationSyncSupport(repository, assetApiService, jsonSupport);
+        this.runSupport = new ApiAutomationRunSupport(runnerPort, properties, runnerResultSanitizer, jsonSupport);
     }
 
     public ApiAutomationHealthResponse health() {
@@ -337,12 +307,12 @@ public class ApiAutomationService {
     public ApiAutomationDiffResponse diffSpec(UUID id) {
         ApiAutomationSpec spec = requireParsedSpec(id);
         // Diff 结果是运营确认同步前的证据快照，必须落库以便审计和前端复核。
-        List<ApiAutomationEndpointSnapshot> endpoints = evaluateAndPersistDiff(spec);
+        List<ApiAutomationEndpointSnapshot> endpoints = syncSupport.evaluateAndPersistDiff(spec);
         audit("api_automation.api_diffed", spec, "SUCCESS", Map.of(
-                "counts", countDiffStatuses(endpoints),
+                "counts", syncSupport.countDiffStatuses(endpoints),
                 "endpointCount", endpoints.size()
         ));
-        return new ApiAutomationDiffResponse(spec.id(), countDiffStatuses(endpoints), endpoints.stream()
+        return new ApiAutomationDiffResponse(spec.id(), syncSupport.countDiffStatuses(endpoints), endpoints.stream()
                 .map(responseMapper::toEndpointResponse)
                 .toList());
     }
@@ -351,13 +321,13 @@ public class ApiAutomationService {
     public ApiAutomationSyncPreviewResponse syncPreview(UUID id) {
         ApiAutomationSpec spec = requireParsedSpec(id);
         // Sync preview 是只读 dry-run 契约：复用同步前匹配逻辑，但不写 WP3、不更新 endpoint snapshot。
-        List<ApiAutomationEndpointSnapshot> endpoints = evaluateDiff(spec);
+        List<ApiAutomationEndpointSnapshot> endpoints = syncSupport.evaluateDiff(spec);
         List<ApiAutomationSyncPreviewItemResponse> items = endpoints.stream()
-                .map(endpoint -> syncPreviewItem(spec, endpoint))
+                .map(endpoint -> syncSupport.syncPreviewItem(spec, endpoint))
                 .toList();
         return new ApiAutomationSyncPreviewResponse(
                 spec.id(),
-                countSyncPreviewActions(items),
+                syncSupport.countSyncPreviewActions(items),
                 items,
                 endpoints.stream().map(responseMapper::toEndpointResponse).toList(),
                 Map.of(
@@ -379,7 +349,7 @@ public class ApiAutomationService {
                 : command;
         Set<UUID> selectedEndpointIds = safeCommand.endpointIdSet();
         // 同步前重新 diff，避免基于前端旧状态写入 WP3；单 endpoint 业务失败在 syncEndpoint 内收敛为明细。
-        List<ApiAutomationEndpointSnapshot> diffedEndpoints = evaluateAndPersistDiff(spec);
+        List<ApiAutomationEndpointSnapshot> diffedEndpoints = syncSupport.evaluateAndPersistDiff(spec);
         List<ApiAutomationSyncItemResponse> items = new ArrayList<>();
         List<ApiAutomationEndpointSnapshot> updatedEndpoints = new ArrayList<>();
         Instant now = Instant.now();
@@ -388,12 +358,12 @@ public class ApiAutomationService {
                 updatedEndpoints.add(endpoint);
                 continue;
             }
-            SyncAttempt attempt = syncEndpoint(spec, endpoint, safeCommand, now);
+            ApiAutomationSyncSupport.SyncAttempt attempt = syncSupport.syncEndpoint(spec, endpoint, safeCommand, now);
             items.add(attempt.response());
             updatedEndpoints.add(attempt.snapshot());
         }
-        Map<String, Integer> counts = countSyncResults(items);
-        audit("api_automation.api_synced", spec, syncResult(counts), Map.of(
+        Map<String, Integer> counts = syncSupport.countSyncResults(items);
+        audit("api_automation.api_synced", spec, syncSupport.syncResult(counts), Map.of(
                 "counts", counts,
                 "requestedEndpointCount", selectedEndpointIds.isEmpty() ? diffedEndpoints.size() : selectedEndpointIds.size()
         ));
@@ -412,17 +382,17 @@ public class ApiAutomationService {
         if (!projectId.equals(spec.projectId())) {
             throw new BusinessException(ErrorCode.FORBIDDEN, "OpenAPI 规格不属于当前项目");
         }
-        GenerationRequest normalized = normalizeGenerationRequest(projectId, command);
+        ApiAutomationGenerationSupport.GenerationRequest normalized = generationSupport.normalizeRequest(projectId, command);
         // requestKey 面向运营台重试幂等；相同 key 只能绑定同一份规范化 payload，避免覆盖历史生成证据。
-        ApiAutomationGenerationTask existing = existingGenerationTask(normalized);
+        ApiAutomationGenerationTask existing = generationSupport.existingGenerationTask(normalized);
         if (existing != null) {
             return generationTaskDetail(existing.id());
         }
-        List<ApiAutomationEndpointSnapshot> targets = generationTargets(spec, normalized.assetApiIds());
-        List<GenerationSourceTestCase> sourceTestCases = sourceTestCases(normalized, targets);
+        List<ApiAutomationEndpointSnapshot> targets = generationSupport.generationTargets(spec, normalized.assetApiIds());
+        List<ApiAutomationGenerationSupport.GenerationSourceTestCase> sourceTestCases = generationSupport.sourceTestCases(normalized, targets);
         Instant now = Instant.now();
         String actor = actorResolver.currentActor();
-        GenerationAttempt attempt = generationAttempt(spec, targets, normalized, sourceTestCases, actor);
+        ApiAutomationGenerationSupport.GenerationAttempt attempt = generationSupport.generationAttempt(spec, targets, normalized, sourceTestCases, actor);
         List<ApiAutomationCase> cases = attempt.cases();
         ApiAutomationGenerationTask task = new ApiAutomationGenerationTask(
                 UUID.randomUUID(),
@@ -431,7 +401,7 @@ public class ApiAutomationService {
                 normalized.requestKey(),
                 normalized.requestDigest(),
                 normalized.generationMode(),
-                writeJson(normalized.coverageTypes()),
+                jsonSupport.writeJson(normalized.coverageTypes()),
                 "COMPLETED",
                 properties.promptKey(),
                 attempt.promptVersion(),
@@ -439,7 +409,7 @@ public class ApiAutomationService {
                 attempt.fallbackUsed(),
                 targets.size(),
                 cases.size(),
-                writeJson(inputSummary(spec, normalized, targets, sourceTestCases, attempt)),
+                jsonSupport.writeJson(generationSupport.inputSummary(spec, normalized, targets, sourceTestCases, attempt)),
                 attempt.errorSummary(),
                 actor,
                 actor,
@@ -448,7 +418,7 @@ public class ApiAutomationService {
         );
         repository.insertGenerationTask(task);
         List<ApiAutomationCase> persistedCases = cases.stream()
-                .map(value -> caseWithTask(value, task.id(), now))
+                .map(value -> generationSupport.caseWithTask(value, task.id(), now))
                 .toList();
         persistedCases.forEach(repository::insertAutomationCase);
         ApiAutomationScriptBundle bundle = scriptBundleFactory.createScriptBundle(task, persistedCases, actor, now);
@@ -632,9 +602,9 @@ public class ApiAutomationService {
          * Runner admission is a control-plane safety gate: every attempt is persisted with a sanitized target digest
          * and host, while the raw baseUrl and runtime output are discarded after validation.
          */
-        RunBlock block = runBlockReason(bundle, cases, target);
+        ApiAutomationRunSupport.RunBlock block = runSupport.runBlockReason(bundle, cases, target);
         if (block != null) {
-            ApiAutomationRun run = newRun(
+            ApiAutomationRun run = runSupport.newRun(
                     runId,
                     bundle,
                     command,
@@ -651,7 +621,7 @@ public class ApiAutomationService {
                     now
             );
             repository.insertRun(run);
-            List<ApiAutomationRunResult> results = blockedRunResults(run, cases, block, now);
+            List<ApiAutomationRunResult> results = runSupport.blockedRunResults(run, cases, block, now);
             results.forEach(repository::insertRunResult);
             auditRun(run, "FAILED", "BLOCKED", Map.of(
                     "errorCode", block.errorCode(),
@@ -675,10 +645,10 @@ public class ApiAutomationService {
                 runnerSecrets
         ));
         ApiAutomationRunnerPort.RunnerRunResult attempt = runnerResultSanitizer.enforceRunnerArtifactLimit(rawAttempt);
-        String status = normalizeRunStatus(attempt.status());
-        String runnerMode = normalizeRunnerMode(attempt.runnerMode());
+        String status = runSupport.normalizeRunStatus(attempt.status());
+        String runnerMode = runSupport.normalizeRunnerMode(attempt.runnerMode());
         Instant completedAt = Instant.now();
-        ApiAutomationRun run = newRun(
+        ApiAutomationRun run = runSupport.newRun(
                 runId,
                 bundle,
                 command,
@@ -695,7 +665,7 @@ public class ApiAutomationService {
                 completedAt
         );
         repository.insertRun(run);
-        List<ApiAutomationRunResult> results = runnerResults(run, cases, attempt, target.normalizedBaseUrl(), completedAt);
+        List<ApiAutomationRunResult> results = runSupport.runnerResults(run, cases, attempt, target.normalizedBaseUrl(), completedAt);
         results.forEach(repository::insertRunResult);
         auditRun(run, "SUCCESS", "STARTED", Map.of(
                 "runnerMode", run.runnerMode(),
@@ -703,7 +673,7 @@ public class ApiAutomationService {
                 "secretRefCount", secretRefs.count(),
                 "secretRefDigests", secretRefs.digests()
         ));
-        auditRun(run, runAuditResult(status), "COMPLETED", Map.of(
+        auditRun(run, runSupport.runAuditResult(status), "COMPLETED", Map.of(
                 "status", run.status(),
                 "runnerMode", run.runnerMode(),
                 "caseCount", run.caseCount(),
@@ -730,7 +700,7 @@ public class ApiAutomationService {
     public ApiAutomationRunDetailResponse cancelRun(UUID id) {
         ApiAutomationRun run = repository.run(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "接口自动化运行任务不存在: " + id));
-        if (!cancelableRunStatus(run.status())) {
+        if (!runSupport.cancelableRunStatus(run.status())) {
             auditRun(run, "SUCCESS", "CANCEL_SKIPPED", Map.of(
                     "status", run.status(),
                     "terminal", true
@@ -741,13 +711,13 @@ public class ApiAutomationService {
         ApiAutomationRunnerPort.RunnerCancelResult cancelResult = runnerPort.cancel(id);
         boolean accepted = cancelResult != null && cancelResult.accepted();
         if (!accepted) {
-            auditRun(run, "FAILED", "CANCEL_REJECTED", cancelAuditPayload(run, cancelResult));
+            auditRun(run, "FAILED", "CANCEL_REJECTED", runSupport.cancelAuditPayload(run, cancelResult));
             return responseMapper.toRunDetail(run, repository.runResults(id));
         }
 
         Instant now = Instant.now();
         String actor = actorResolver.currentActor();
-        ApiAutomationRun canceled = runWithCancel(
+        ApiAutomationRun canceled = runSupport.runWithCancel(
                 run,
                 SensitiveTextSanitizer.boundedNullableText(cancelResult.errorCode(), 64),
                 runnerResultSanitizer.safeRunnerErrorSummary(cancelResult.errorSummary()),
@@ -793,7 +763,7 @@ public class ApiAutomationService {
         if (allCases.isEmpty()) {
             throw new BusinessException(ErrorCode.INVALID_STATE, "生成任务没有可运行的自动化用例");
         }
-        List<UUID> requested = normalizedUuidList(requestedCaseIds);
+        List<UUID> requested = ApiAutomationJsonSupport.normalizedUuidList(requestedCaseIds);
         List<ApiAutomationCase> selected = requested.isEmpty()
                 ? allCases
                 : allCases.stream().filter(automationCase -> requested.contains(automationCase.id())).toList();
@@ -812,893 +782,6 @@ public class ApiAutomationService {
         return selected;
     }
 
-    private RunBlock runBlockReason(
-            ApiAutomationScriptBundle bundle,
-            List<ApiAutomationCase> cases,
-            ApiAutomationRunTargetGuard.RunTarget target
-    ) {
-        if (!"APPROVED".equals(bundle.status())) {
-            return new RunBlock("RUNNER_BUNDLE_NOT_APPROVED", "脚本包未审批通过，不能运行");
-        }
-        if (!ApiAutomationScriptBundleFactory.STATIC_CHECK_PASSED.equals(bundle.staticCheckStatus())) {
-            return new RunBlock(ApiAutomationScriptBundleFactory.STATIC_CHECK_FAILED, "脚本静态校验未通过，不能运行");
-        }
-        if (target.blocked() || properties.runnerEnabled() && !target.allowed()) {
-            return new RunBlock("RUNNER_TARGET_BLOCKED", "runner 目标地址未通过安全策略");
-        }
-        if (!properties.runnerEnabled()) {
-            return new RunBlock("RUNNER_DISABLED", "runner 默认关闭，未执行外部请求");
-        }
-        ApiAutomationRunnerPort.RunnerValidation validation = runnerPort.validateBundle(bundle);
-        if (!validation.accepted()) {
-            return new RunBlock(
-                    StringUtils.hasText(validation.errorCode())
-                            ? SensitiveTextSanitizer.boundedText(validation.errorCode(), 64)
-                            : "RUNNER_FAILED",
-                    StringUtils.hasText(validation.errorSummary())
-                            ? runnerResultSanitizer.safeRunnerErrorSummary(validation.errorSummary())
-                            : "runner 校验失败"
-            );
-        }
-        if (cases.isEmpty()) {
-            return new RunBlock("RUNNER_CASE_NOT_FOUND", "没有可运行的用例");
-        }
-        return null;
-    }
-
-    private ApiAutomationRun newRun(
-            UUID runId,
-            ApiAutomationScriptBundle bundle,
-            CreateApiAutomationRunCommand command,
-            ApiAutomationRunTargetGuard.RunTarget target,
-            String status,
-            int timeoutSeconds,
-            int caseCount,
-            String runnerMode,
-            String errorCode,
-            String errorSummary,
-            String actor,
-            Instant now,
-            Instant startedAt,
-            Instant completedAt
-    ) {
-        return new ApiAutomationRun(
-                runId,
-                bundle.projectId(),
-                bundle.id(),
-                SensitiveTextSanitizer.boundedNullableText(command.environmentId(), 128),
-                target.digest(),
-                target.host(),
-                status,
-                timeoutSeconds,
-                caseCount,
-                TraceContext.getOrCreateTraceId(),
-                runnerMode,
-                errorCode,
-                errorSummary,
-                actor,
-                actor,
-                startedAt,
-                completedAt,
-                now,
-                completedAt == null ? now : completedAt
-        );
-    }
-
-    private List<ApiAutomationRunResult> blockedRunResults(
-            ApiAutomationRun run,
-            List<ApiAutomationCase> cases,
-            RunBlock block,
-            Instant now
-    ) {
-        return cases.stream()
-                .map(automationCase -> new ApiAutomationRunResult(
-                        UUID.randomUUID(),
-                        run.id(),
-                        automationCase.id(),
-                        "BLOCKED",
-                        0,
-                        writeJson(Map.of(
-                                "aggregateOnly", true,
-                                "rawRequestResponseStored", false,
-                                "reason", block.errorCode()
-                        )),
-                        block.errorCode(),
-                        block.errorSummary(),
-                        now,
-                        now
-                ))
-                .toList();
-    }
-
-    private List<ApiAutomationRunResult> runnerResults(
-            ApiAutomationRun run,
-            List<ApiAutomationCase> cases,
-            ApiAutomationRunnerPort.RunnerRunResult attempt,
-            String normalizedBaseUrl,
-            Instant now
-    ) {
-        Map<UUID, ApiAutomationRunnerPort.RunnerCaseResult> resultByCaseId = attempt.caseResults() == null
-                ? Map.of()
-                : attempt.caseResults().stream()
-                .filter(Objects::nonNull)
-                .filter(result -> result.caseId() != null)
-                .collect(Collectors.toMap(
-                        ApiAutomationRunnerPort.RunnerCaseResult::caseId,
-                        result -> result,
-                        (existing, ignored) -> existing,
-                        LinkedHashMap::new
-                ));
-        return cases.stream()
-                .map(automationCase -> {
-                    ApiAutomationRunnerPort.RunnerCaseResult runnerResult = resultByCaseId.get(automationCase.id());
-                    String status = runnerResult == null ? runResultStatusFromRun(run.status()) : normalizeRunResultStatus(runnerResult.status());
-                    return new ApiAutomationRunResult(
-                            UUID.randomUUID(),
-                            run.id(),
-                            automationCase.id(),
-                            status,
-                            runnerResult == null ? 0 : Math.max(0, runnerResult.durationMs()),
-                            runnerResultSanitizer.safeAssertionSummary(runnerResult == null ? null : runnerResult.assertionSummaryJson()),
-                            runnerResult == null ? run.errorCode() : SensitiveTextSanitizer.boundedNullableText(runnerResult.errorCode(), 64),
-                            runnerResult == null
-                                    ? run.errorSummary()
-                                    : runnerResultSanitizer.safeRunnerErrorSummary(runnerResult.errorSummary(), normalizedBaseUrl),
-                            now,
-                            now
-                    );
-                })
-                .toList();
-    }
-
-    private String normalizeRunStatus(String status) {
-        String normalized = StringUtils.hasText(status) ? status.trim().toUpperCase(Locale.ROOT) : "FAILED";
-        return RUN_STATUSES.contains(normalized) ? normalized : "FAILED";
-    }
-
-    private String normalizeRunResultStatus(String status) {
-        String normalized = StringUtils.hasText(status) ? status.trim().toUpperCase(Locale.ROOT) : "ERROR";
-        return RUN_RESULT_STATUSES.contains(normalized) ? normalized : "ERROR";
-    }
-
-    private String runResultStatusFromRun(String runStatus) {
-        return switch (runStatus) {
-            case "PASSED" -> "PASSED";
-            case "TIMEOUT" -> "TIMEOUT";
-            case "BLOCKED" -> "BLOCKED";
-            default -> "ERROR";
-        };
-    }
-
-    private String normalizeRunnerMode(String runnerMode) {
-        String normalized = StringUtils.hasText(runnerMode) ? runnerMode.trim().toUpperCase(Locale.ROOT) : "NOOP";
-        return Set.of("DISABLED", "NOOP", "MANAGED", "EXTERNAL").contains(normalized) ? normalized : "NOOP";
-    }
-
-    private String runAuditResult(String status) {
-        return "PASSED".equals(status) ? "SUCCESS" : "FAILED";
-    }
-
-    private boolean cancelableRunStatus(String status) {
-        return Set.of("QUEUED", "RUNNING").contains(status);
-    }
-
-    private ApiAutomationRun runWithCancel(
-            ApiAutomationRun run,
-            String errorCode,
-            String errorSummary,
-            String actor,
-            Instant now
-    ) {
-        return new ApiAutomationRun(
-                run.id(),
-                run.projectId(),
-                run.bundleId(),
-                run.environmentId(),
-                run.baseUrlDigest(),
-                run.baseUrlHost(),
-                "CANCELED",
-                run.timeoutSeconds(),
-                run.caseCount(),
-                run.traceId(),
-                run.runnerMode(),
-                StringUtils.hasText(errorCode) ? errorCode : "RUNNER_CANCELED",
-                errorSummary,
-                run.createdBy(),
-                actor,
-                run.startedAt(),
-                now,
-                run.createdAt(),
-                now
-        );
-    }
-
-    private Map<String, Object> cancelAuditPayload(
-            ApiAutomationRun run,
-            ApiAutomationRunnerPort.RunnerCancelResult cancelResult
-    ) {
-        Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("status", run.status());
-        payload.put("accepted", false);
-        if (cancelResult != null) {
-            String errorCode = SensitiveTextSanitizer.boundedNullableText(cancelResult.errorCode(), 64);
-            String errorSummary = runnerResultSanitizer.safeRunnerErrorSummary(cancelResult.errorSummary());
-            if (errorCode != null) {
-                payload.put("errorCode", errorCode);
-            }
-            if (errorSummary != null) {
-                payload.put("errorSummary", errorSummary);
-            }
-        }
-        return payload;
-    }
-
-    private GenerationRequest normalizeGenerationRequest(
-            String projectId,
-            CreateApiAutomationGenerationTaskCommand command
-    ) {
-        List<String> coverageTypes = normalizeCoverageTypes(command.coverageTypes());
-        String generationMode = normalizeGenerationMode(command.generationMode());
-        int caseCountPerApi = normalizeCaseCountPerApi(command.caseCountPerApi(), coverageTypes.size());
-        List<UUID> assetApiIds = normalizedUuidList(command.assetApiIds());
-        List<UUID> assetTestCaseIds = normalizedUuidList(command.assetTestCaseIds());
-        if (assetTestCaseIds.size() > GENERATION_SOURCE_TEST_CASE_MAX) {
-            throw new BusinessException(
-                    ErrorCode.VALIDATION_ERROR,
-                    "assetTestCaseIds 最多支持 " + GENERATION_SOURCE_TEST_CASE_MAX + " 个"
-            );
-        }
-        String requestKey = SensitiveTextSanitizer.boundedNullableText(command.requestKey(), 128);
-        Map<String, Object> digestPayload = new LinkedHashMap<>();
-        digestPayload.put("projectId", projectId);
-        digestPayload.put("specId", command.specId().toString());
-        digestPayload.put("assetApiIds", uuidStrings(assetApiIds));
-        digestPayload.put("assetTestCaseIds", uuidStrings(assetTestCaseIds));
-        digestPayload.put("coverageTypes", coverageTypes);
-        digestPayload.put("generationMode", generationMode);
-        digestPayload.put("caseCountPerApi", caseCountPerApi);
-        String requestDigest = SensitiveTextSanitizer.sha256Hex(writeJson(digestPayload));
-        return new GenerationRequest(
-                projectId,
-                command.specId(),
-                requestKey,
-                requestDigest,
-                generationMode,
-                coverageTypes,
-                assetApiIds,
-                assetTestCaseIds,
-                caseCountPerApi
-        );
-    }
-
-    private ApiAutomationGenerationTask existingGenerationTask(GenerationRequest request) {
-        if (StringUtils.hasText(request.requestKey())) {
-            ApiAutomationGenerationTask existing = repository
-                    .generationTaskByProjectAndKey(request.projectId(), request.requestKey())
-                    .orElse(null);
-            if (existing != null && !request.requestDigest().equals(existing.requestDigest())) {
-                throw new BusinessException(ErrorCode.CONFLICT, "generation requestKey 已被不同 payload 使用");
-            }
-            if (existing != null) {
-                return existing;
-            }
-        }
-        return repository
-                .generationTaskByProjectAndDigest(request.projectId(), request.requestDigest())
-                .orElse(null);
-    }
-
-    private List<ApiAutomationEndpointSnapshot> generationTargets(
-            ApiAutomationSpec spec,
-            List<UUID> requestedAssetApiIds
-    ) {
-        Set<UUID> requested = Set.copyOf(requestedAssetApiIds);
-        List<ApiAutomationEndpointSnapshot> targets = repository.endpointSnapshots(spec.id()).stream()
-                .filter(endpoint -> endpoint.assetApiId() != null)
-                .filter(endpoint -> requested.isEmpty() || requested.contains(endpoint.assetApiId()))
-                .toList();
-        if (!requested.isEmpty()) {
-            Set<UUID> found = targets.stream()
-                    .map(ApiAutomationEndpointSnapshot::assetApiId)
-                    .collect(Collectors.toSet());
-            if (!found.containsAll(requested)) {
-                throw new BusinessException(ErrorCode.VALIDATION_ERROR, "assetApiIds 必须来自当前 OpenAPI 规格已同步的 endpoint");
-            }
-        }
-        if (targets.isEmpty()) {
-            throw new BusinessException(ErrorCode.INVALID_STATE, "没有可生成的已同步 API endpoint，请先执行 diff/sync");
-        }
-        return targets;
-    }
-
-    private List<GenerationSourceTestCase> sourceTestCases(
-            GenerationRequest request,
-            List<ApiAutomationEndpointSnapshot> targets
-    ) {
-        if (request.assetTestCaseIds().isEmpty()) {
-            return List.of();
-        }
-        Set<UUID> targetAssetApiIds = targets.stream()
-                .map(ApiAutomationEndpointSnapshot::assetApiId)
-                .filter(Objects::nonNull)
-                .collect(Collectors.toSet());
-        List<GenerationSourceTestCase> sourceCases = new ArrayList<>();
-        for (UUID assetTestCaseId : request.assetTestCaseIds()) {
-            TestCaseResponse testCase = assetTestCaseService.getTestCase(assetTestCaseId);
-            if (!request.projectId().equals(testCase.projectId())) {
-                throw new BusinessException(ErrorCode.FORBIDDEN, "测试用例不属于当前项目: " + assetTestCaseId);
-            }
-            if (testCase.apiId() != null && !targetAssetApiIds.contains(testCase.apiId())) {
-                throw new BusinessException(
-                        ErrorCode.VALIDATION_ERROR,
-                        "assetTestCaseIds 必须关联当前生成范围内的已同步 API: " + assetTestCaseId
-                );
-            }
-            sourceCases.add(sourceTestCaseSummary(testCase));
-        }
-        return sourceCases;
-    }
-
-    private GenerationAttempt generationAttempt(
-            ApiAutomationSpec spec,
-            List<ApiAutomationEndpointSnapshot> targets,
-            GenerationRequest request,
-            List<GenerationSourceTestCase> sourceTestCases,
-            String actor
-    ) {
-        /*
-         * MODEL_WITH_FALLBACK is intentionally model-first but never model-only in the default WP6 path. WP2 policy,
-         * provider failures and schema violations must remain visible on the task while deterministic drafts keep the
-         * reviewer workflow available.
-         */
-        if ("FALLBACK_ONLY".equals(request.generationMode())) {
-            return fallbackGenerationAttempt(spec, targets, request, sourceTestCases, null, "DETERMINISTIC_MODE");
-        }
-        try {
-            return modelGenerationAttempt(spec, targets, request, sourceTestCases, actor);
-        } catch (ApiAutomationModelGenerationException exception) {
-            if (!properties.modelFallbackEnabled()) {
-                throw unwrapModelGenerationException(exception);
-            }
-            return fallbackGenerationAttempt(spec, targets, request, sourceTestCases,
-                    exception.response(), modelFallbackReason(exception));
-        } catch (RuntimeException exception) {
-            if (!properties.modelFallbackEnabled()) {
-                throw exception;
-            }
-            return fallbackGenerationAttempt(spec, targets, request, sourceTestCases,
-                    null, modelFallbackReason(exception));
-        }
-    }
-
-    private GenerationAttempt modelGenerationAttempt(
-            ApiAutomationSpec spec,
-            List<ApiAutomationEndpointSnapshot> targets,
-            GenerationRequest request,
-            List<GenerationSourceTestCase> sourceTestCases,
-            String actor
-    ) {
-        ModelInvocationResult response = null;
-        try {
-            response = modelInvocationService.invoke(new ModelInvocationCommand(
-                    request.projectId(),
-                    null,
-                    null,
-                    properties.promptKey(),
-                    Map.of("schemaMarker", WP6_MODEL_SCHEMA_MARKER),
-                    List.of(new ChatMessage("user", modelGenerationPayload(spec, targets, request, sourceTestCases))),
-                    null,
-                    null,
-                    false,
-                    DEFAULT_MODEL_SENSITIVITY_LEVEL,
-                    MODEL_CAPABILITY_JSON
-            ), new ServicePrincipal(MODEL_CALLER_SERVICE, actor));
-            List<ApiAutomationModelOutputParser.ModelGeneratedApiCase> generatedCases =
-                    modelOutputParser.parse(response.content());
-            List<ApiAutomationCase> cases = casesFromModelOutput(spec, targets, request, sourceTestCases, generatedCases);
-            return new GenerationAttempt(
-                    cases,
-                    response.fallbackUsed(),
-                    null,
-                    response.invocationId().toString(),
-                    response.promptVersion() == null ? null : response.promptVersion().toString(),
-                    response.providerName(),
-                    response.modelName(),
-                    response.fallbackUsed(),
-                    true,
-                    null
-            );
-        } catch (RuntimeException exception) {
-            throw new ApiAutomationModelGenerationException(response, exception);
-        }
-    }
-
-    private GenerationAttempt fallbackGenerationAttempt(
-            ApiAutomationSpec spec,
-            List<ApiAutomationEndpointSnapshot> targets,
-            GenerationRequest request,
-            List<GenerationSourceTestCase> sourceTestCases,
-            ModelInvocationResult response,
-            String fallbackReason
-    ) {
-        List<ApiAutomationCase> cases = fallbackCases(spec, targets, request, sourceTestCases);
-        return new GenerationAttempt(
-                cases,
-                true,
-                fallbackReason,
-                response == null ? null : response.invocationId().toString(),
-                response == null || response.promptVersion() == null ? null : response.promptVersion().toString(),
-                response == null ? null : response.providerName(),
-                response == null ? null : response.modelName(),
-                response != null && response.fallbackUsed(),
-                false,
-                "DETERMINISTIC_MODE".equals(fallbackReason)
-                        ? null
-                        : SensitiveTextSanitizer.boundedNullableText(fallbackReason, ERROR_SUMMARY_MAX_CHARS)
-        );
-    }
-
-    private List<ApiAutomationCase> casesFromModelOutput(
-            ApiAutomationSpec spec,
-            List<ApiAutomationEndpointSnapshot> targets,
-            GenerationRequest request,
-            List<GenerationSourceTestCase> sourceTestCases,
-            List<ApiAutomationModelOutputParser.ModelGeneratedApiCase> generatedCases
-    ) {
-        Map<UUID, ApiAutomationEndpointSnapshot> endpointByAssetApiId = targets.stream()
-                .filter(endpoint -> endpoint.assetApiId() != null)
-                .collect(Collectors.toMap(
-                        ApiAutomationEndpointSnapshot::assetApiId,
-                        endpoint -> endpoint,
-                        (existing, ignored) -> existing,
-                        LinkedHashMap::new
-                ));
-        Map<String, ApiAutomationEndpointSnapshot> endpointByMethodPath = targets.stream()
-                .collect(Collectors.toMap(
-                        endpoint -> assetKey(endpoint.httpMethod(), endpoint.path()),
-                        endpoint -> endpoint,
-                        (existing, ignored) -> existing,
-                        LinkedHashMap::new
-                ));
-        Map<UUID, UUID> sourceCaseIdByAssetApiId = sourceTestCases.stream()
-                .filter(sourceCase -> sourceCase.apiId() != null)
-                .collect(Collectors.toMap(
-                        GenerationSourceTestCase::apiId,
-                        GenerationSourceTestCase::id,
-                        (existing, ignored) -> existing,
-                        LinkedHashMap::new
-                ));
-        Map<UUID, Integer> countByEndpoint = new LinkedHashMap<>();
-        List<ApiAutomationCase> cases = new ArrayList<>();
-        for (ApiAutomationModelOutputParser.ModelGeneratedApiCase generatedCase : generatedCases) {
-            // Model output is untrusted: persist only cases that still match the caller-selected coverage and endpoints.
-            if (!request.coverageTypes().contains(generatedCase.coverageType())) {
-                throw new BusinessException(ErrorCode.VALIDATION_ERROR, "模型输出 coverageType 不在请求范围: "
-                        + generatedCase.coverageType());
-            }
-            ApiAutomationEndpointSnapshot endpoint = resolveGeneratedEndpoint(
-                    generatedCase,
-                    endpointByAssetApiId,
-                    endpointByMethodPath
-            );
-            int currentCount = countByEndpoint.getOrDefault(endpoint.id(), 0);
-            if (currentCount >= request.caseCountPerApi()) {
-                continue;
-            }
-            UUID sourceTestCaseId = endpoint.assetApiId() == null ? null : sourceCaseIdByAssetApiId.get(endpoint.assetApiId());
-            cases.add(modelCase(spec, endpoint, generatedCase, sourceTestCaseId));
-            countByEndpoint.put(endpoint.id(), currentCount + 1);
-        }
-        if (cases.isEmpty()) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "模型输出未匹配当前生成范围内的 API");
-        }
-        return cases;
-    }
-
-    private ApiAutomationEndpointSnapshot resolveGeneratedEndpoint(
-            ApiAutomationModelOutputParser.ModelGeneratedApiCase generatedCase,
-            Map<UUID, ApiAutomationEndpointSnapshot> endpointByAssetApiId,
-            Map<String, ApiAutomationEndpointSnapshot> endpointByMethodPath
-    ) {
-        ApiAutomationEndpointSnapshot endpoint = generatedCase.assetApiId() == null
-                ? null
-                : endpointByAssetApiId.get(generatedCase.assetApiId());
-        if (endpoint == null) {
-            endpoint = endpointByMethodPath.get(assetKey(generatedCase.method(), generatedCase.path()));
-        }
-        if (endpoint == null) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "模型输出 API 不在当前生成范围: "
-                    + generatedCase.method() + " " + generatedCase.path());
-        }
-        if (generatedCase.assetApiId() != null && !generatedCase.assetApiId().equals(endpoint.assetApiId())) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "模型输出 assetApiId 与 endpoint 不匹配");
-        }
-        if (!endpoint.httpMethod().equals(generatedCase.method()) || !endpoint.path().equals(generatedCase.path())) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "模型输出 method/path 与 endpoint 不匹配");
-        }
-        return endpoint;
-    }
-
-    private ApiAutomationCase modelCase(
-            ApiAutomationSpec spec,
-            ApiAutomationEndpointSnapshot endpoint,
-            ApiAutomationModelOutputParser.ModelGeneratedApiCase generatedCase,
-            UUID sourceTestCaseId
-    ) {
-        return new ApiAutomationCase(
-                UUID.randomUUID(),
-                null,
-                spec.projectId(),
-                spec.id(),
-                endpoint.id(),
-                endpoint.assetApiId(),
-                sourceTestCaseId,
-                SensitiveTextSanitizer.boundedText(generatedCase.title(), 256),
-                endpoint.httpMethod(),
-                endpoint.path(),
-                generatedCase.coverageType(),
-                generatedCase.expectedStatus(),
-                writeJson(modelAssertionSummary(endpoint, generatedCase)),
-                writeJson(modelRequestTemplate(endpoint, generatedCase)),
-                "MODEL",
-                "DRAFT",
-                null,
-                null
-        );
-    }
-
-    private Map<String, Object> modelAssertionSummary(
-            ApiAutomationEndpointSnapshot endpoint,
-            ApiAutomationModelOutputParser.ModelGeneratedApiCase generatedCase
-    ) {
-        Map<String, Object> summary = new LinkedHashMap<>();
-        summary.put("coverageType", generatedCase.coverageType());
-        summary.put("expectedStatus", generatedCase.expectedStatus());
-        summary.put("statusClass", generatedCase.expectedStatus() / 100 + "xx");
-        summary.put("schemaDigest", endpoint.schemaDigest());
-        summary.put("assertions", generatedCase.assertions());
-        summary.put("rationale", safeSourceText(generatedCase.rationale(), GENERATION_SOURCE_TEXT_MAX_CHARS));
-        summary.put("modelOutputValidated", true);
-        summary.put("aggregateOnly", true);
-        return summary;
-    }
-
-    private Map<String, Object> modelRequestTemplate(
-            ApiAutomationEndpointSnapshot endpoint,
-            ApiAutomationModelOutputParser.ModelGeneratedApiCase generatedCase
-    ) {
-        Map<String, Object> template = new LinkedHashMap<>(generatedCase.requestTemplate());
-        template.put("httpMethod", endpoint.httpMethod());
-        template.put("path", endpoint.path());
-        template.put("parameterCount", endpoint.parameterCount());
-        template.put("requestBodyPresent", endpoint.requestBodyPresent());
-        template.put("bodyTemplateStored", false);
-        template.put("secretValuesStored", false);
-        template.put("endpointSnapshotId", endpoint.id().toString());
-        template.put("modelOutputValidated", true);
-        template.put("aggregateOnly", true);
-        return template;
-    }
-
-    private String modelGenerationPayload(
-            ApiAutomationSpec spec,
-            List<ApiAutomationEndpointSnapshot> targets,
-            GenerationRequest request,
-            List<GenerationSourceTestCase> sourceTestCases
-    ) {
-        Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("schemaMarker", WP6_MODEL_SCHEMA_MARKER);
-        payload.put("schemaVersion", ApiAutomationModelOutputParser.SCHEMA_VERSION);
-        payload.put("projectId", request.projectId());
-        payload.put("specId", spec.id().toString());
-        payload.put("coverageTypes", request.coverageTypes());
-        payload.put("caseCountPerApi", request.caseCountPerApi());
-        payload.put("endpoints", targets.stream().map(this::endpointModelPayload).toList());
-        payload.put("sourceTestCases", sourceTestCases.stream().map(GenerationSourceTestCase::summary).toList());
-        payload.put("persistencePolicy", Map.of(
-                "rawPromptStored", false,
-                "rawModelResponseStored", false,
-                "requestResponseBodyStored", false,
-                "secretValuesStored", false,
-                "aggregateOnly", true
-        ));
-        return writeJson(payload);
-    }
-
-    private Map<String, Object> endpointModelPayload(ApiAutomationEndpointSnapshot endpoint) {
-        Map<String, Object> item = new LinkedHashMap<>();
-        item.put("endpointSnapshotId", endpoint.id().toString());
-        item.put("assetApiId", endpoint.assetApiId() == null ? null : endpoint.assetApiId().toString());
-        item.put("method", endpoint.httpMethod());
-        item.put("path", endpoint.path());
-        item.put("summary", safeSourceText(endpoint.summary(), GENERATION_SOURCE_TEXT_MAX_CHARS));
-        item.put("operationId", safeSourceText(endpoint.operationId(), GENERATION_SOURCE_TEXT_MAX_CHARS));
-        item.put("tags", safeSourceText(endpoint.tags(), GENERATION_SOURCE_TEXT_MAX_CHARS));
-        item.put("parameterCount", endpoint.parameterCount());
-        item.put("requestBodyPresent", endpoint.requestBodyPresent());
-        item.put("responseStatuses", endpoint.responseStatuses());
-        item.put("schemaDigest", endpoint.schemaDigest());
-        item.put("aggregateOnly", true);
-        return item;
-    }
-
-    private String modelFallbackReason(RuntimeException exception) {
-        Throwable root = exception instanceof ApiAutomationModelGenerationException generationException
-                && generationException.getCause() != null
-                ? generationException.getCause()
-                : exception;
-        if (root instanceof BusinessException businessException) {
-            return SensitiveTextSanitizer.boundedText(businessException.getErrorCode().name() + ": " + businessException.getMessage(),
-                    ERROR_SUMMARY_MAX_CHARS);
-        }
-        return SensitiveTextSanitizer.boundedText("MODEL_GENERATION_FAILED: " + (StringUtils.hasText(root.getMessage())
-                ? root.getMessage()
-                : root.getClass().getSimpleName()), ERROR_SUMMARY_MAX_CHARS);
-    }
-
-    private RuntimeException unwrapModelGenerationException(ApiAutomationModelGenerationException exception) {
-        return exception.getCause() instanceof RuntimeException runtimeException
-                ? runtimeException
-                : exception;
-    }
-
-    private List<ApiAutomationCase> fallbackCases(
-            ApiAutomationSpec spec,
-            List<ApiAutomationEndpointSnapshot> targets,
-            GenerationRequest request,
-            List<GenerationSourceTestCase> sourceTestCases
-    ) {
-        List<ApiAutomationCase> cases = new ArrayList<>();
-        Map<UUID, UUID> sourceCaseIdByAssetApiId = sourceTestCases.stream()
-                .filter(sourceCase -> sourceCase.apiId() != null)
-                .collect(Collectors.toMap(
-                        GenerationSourceTestCase::apiId,
-                        GenerationSourceTestCase::id,
-                        (existing, ignored) -> existing,
-                        LinkedHashMap::new
-                ));
-        for (ApiAutomationEndpointSnapshot endpoint : targets) {
-            UUID sourceTestCaseId = endpoint.assetApiId() == null ? null : sourceCaseIdByAssetApiId.get(endpoint.assetApiId());
-            request.coverageTypes().stream()
-                    .limit(request.caseCountPerApi())
-                    .map(coverageType -> fallbackCase(spec, endpoint, coverageType, sourceTestCaseId))
-                    .forEach(cases::add);
-        }
-        if (cases.isEmpty()) {
-            throw new BusinessException(ErrorCode.INVALID_STATE, "未生成任何接口自动化用例草稿");
-        }
-        return cases;
-    }
-
-    private ApiAutomationCase fallbackCase(
-            ApiAutomationSpec spec,
-            ApiAutomationEndpointSnapshot endpoint,
-            String coverageType,
-            UUID sourceTestCaseId
-    ) {
-        int expectedStatus = expectedStatus(endpoint, coverageType);
-        return new ApiAutomationCase(
-                UUID.randomUUID(),
-                null,
-                spec.projectId(),
-                spec.id(),
-                endpoint.id(),
-                endpoint.assetApiId(),
-                sourceTestCaseId,
-                SensitiveTextSanitizer.boundedText("[" + coverageType + "] " + endpoint.httpMethod() + " " + endpoint.path(), 256),
-                endpoint.httpMethod(),
-                endpoint.path(),
-                coverageType,
-                expectedStatus,
-                writeJson(assertionSummary(endpoint, coverageType, expectedStatus)),
-                writeJson(requestTemplate(endpoint)),
-                "FALLBACK",
-                "DRAFT",
-                null,
-                null
-        );
-    }
-
-    private GenerationSourceTestCase sourceTestCaseSummary(TestCaseResponse testCase) {
-        Map<String, Object> summary = new LinkedHashMap<>();
-        summary.put("assetTestCaseId", testCase.id().toString());
-        summary.put("assetApiId", testCase.apiId() == null ? null : testCase.apiId().toString());
-        summary.put("code", safeSourceText(testCase.code(), 64));
-        summary.put("title", safeSourceText(testCase.title(), GENERATION_SOURCE_TEXT_MAX_CHARS));
-        summary.put("status", nullToEmpty(testCase.status()));
-        summary.put("priority", nullToEmpty(testCase.priority()));
-        summary.put("tags", safeSourceText(testCase.tags(), GENERATION_SOURCE_TEXT_MAX_CHARS));
-        summary.put("source", nullToEmpty(testCase.source()));
-        summary.put("sourceRefDigest", StringUtils.hasText(testCase.sourceRef()) ? SensitiveTextSanitizer.sha256Hex(testCase.sourceRef()) : null);
-        summary.put("stepCount", testCase.steps() == null ? 0 : testCase.steps().size());
-        summary.put("steps", sourceStepSummaries(testCase.steps()));
-        summary.put("rawCandidateStored", false);
-        summary.put("reviewCommentStored", false);
-        summary.put("aggregateOnly", true);
-        return new GenerationSourceTestCase(testCase.id(), testCase.apiId(), summary);
-    }
-
-    private List<Map<String, Object>> sourceStepSummaries(List<TestCaseStepResponse> steps) {
-        if (steps == null || steps.isEmpty()) {
-            return List.of();
-        }
-        return steps.stream()
-                .limit(GENERATION_SOURCE_STEP_MAX)
-                .map(step -> {
-                    Map<String, Object> summary = new LinkedHashMap<>();
-                    summary.put("stepOrder", step.stepOrder());
-                    summary.put("actionSummary", safeSourceText(step.action(), GENERATION_SOURCE_TEXT_MAX_CHARS));
-                    summary.put("expectedSummary", safeSourceText(step.expectedResult(), GENERATION_SOURCE_TEXT_MAX_CHARS));
-                    return summary;
-                })
-                .toList();
-    }
-
-    private ApiAutomationCase caseWithTask(ApiAutomationCase automationCase, UUID taskId, Instant now) {
-        return new ApiAutomationCase(
-                automationCase.id(),
-                taskId,
-                automationCase.projectId(),
-                automationCase.specId(),
-                automationCase.endpointSnapshotId(),
-                automationCase.assetApiId(),
-                automationCase.assetTestCaseId(),
-                automationCase.title(),
-                automationCase.httpMethod(),
-                automationCase.path(),
-                automationCase.coverageType(),
-                automationCase.expectedStatus(),
-                automationCase.assertionSummaryJson(),
-                automationCase.requestTemplateJson(),
-                automationCase.source(),
-                automationCase.status(),
-                now,
-                now
-        );
-    }
-
-    private Map<String, Object> assertionSummary(
-            ApiAutomationEndpointSnapshot endpoint,
-            String coverageType,
-            int expectedStatus
-    ) {
-        Map<String, Object> summary = new LinkedHashMap<>();
-        summary.put("coverageType", coverageType);
-        summary.put("expectedStatus", expectedStatus);
-        summary.put("statusClass", expectedStatus / 100 + "xx");
-        summary.put("schemaDigest", endpoint.schemaDigest());
-        summary.put("assertions", List.of("STATUS_CODE", "RESPONSE_TIME_BOUNDED", "SCHEMA_DIGEST_PRESENT"));
-        summary.put("aggregateOnly", true);
-        return summary;
-    }
-
-    private Map<String, Object> requestTemplate(ApiAutomationEndpointSnapshot endpoint) {
-        Map<String, Object> template = new LinkedHashMap<>();
-        template.put("httpMethod", endpoint.httpMethod());
-        template.put("path", endpoint.path());
-        template.put("parameterCount", endpoint.parameterCount());
-        template.put("requestBodyPresent", endpoint.requestBodyPresent());
-        template.put("bodyTemplateStored", false);
-        template.put("secretValuesStored", false);
-        template.put("endpointSnapshotId", endpoint.id().toString());
-        template.put("aggregateOnly", true);
-        return template;
-    }
-
-    private Map<String, Object> inputSummary(
-            ApiAutomationSpec spec,
-            GenerationRequest request,
-            List<ApiAutomationEndpointSnapshot> targets,
-            List<GenerationSourceTestCase> sourceTestCases,
-            GenerationAttempt attempt
-    ) {
-        Map<String, Object> summary = new LinkedHashMap<>();
-        summary.put("specId", spec.id().toString());
-        summary.put("apiCount", targets.size());
-        summary.put("caseCount", attempt.cases().size());
-        summary.put("coverageTypes", request.coverageTypes());
-        summary.put("assetApiIds", targets.stream().map(ApiAutomationEndpointSnapshot::assetApiId)
-                .filter(Objects::nonNull)
-                .map(UUID::toString)
-                .toList());
-        summary.put("assetTestCaseIds", uuidStrings(request.assetTestCaseIds()));
-        summary.put("sourceTestCaseCount", sourceTestCases.size());
-        // 只保存 WP3 已发布测试用例的摘要证据，不回读或持久化 WP5 候选正文、评审评论和 sourceRef 明文。
-        summary.put("sourceTestCases", sourceTestCases.stream()
-                .map(GenerationSourceTestCase::summary)
-                .toList());
-        summary.put("generationMode", request.generationMode());
-        summary.put("modelRequested", "MODEL_WITH_FALLBACK".equals(request.generationMode()));
-        summary.put("modelGenerationReady", true);
-        summary.put("modelOutputValidated", attempt.modelOutputValidated());
-        summary.put("modelInvocationId", attempt.modelInvocationId());
-        summary.put("promptVersion", attempt.promptVersion());
-        summary.put("modelProviderName", attempt.modelProviderName());
-        summary.put("modelName", attempt.modelName());
-        summary.put("modelProviderFallbackUsed", attempt.modelProviderFallbackUsed());
-        summary.put("fallbackUsed", attempt.fallbackUsed());
-        summary.put("fallbackReason", attempt.fallbackReason());
-        summary.put("rawRequestResponseStored", false);
-        summary.put("rawModelResponseStored", false);
-        summary.put("aggregateOnly", true);
-        return summary;
-    }
-
-    private int expectedStatus(ApiAutomationEndpointSnapshot endpoint, String coverageType) {
-        List<Integer> statuses = responseStatusCodes(endpoint.responseStatuses());
-        if ("EXCEPTION".equals(coverageType)) {
-            return statuses.stream()
-                    .filter(status -> status >= 400 && status < 500)
-                    .findFirst()
-                    .orElse(400);
-        }
-        return statuses.stream()
-                .filter(status -> status >= 200 && status < 300)
-                .findFirst()
-                .orElse(statuses.isEmpty() ? 200 : statuses.getFirst());
-    }
-
-    private List<Integer> responseStatusCodes(String responseStatuses) {
-        if (!StringUtils.hasText(responseStatuses)) {
-            return List.of();
-        }
-        return List.of(responseStatuses.split(",")).stream()
-                .map(String::trim)
-                .filter(value -> value.matches("\\d{3}"))
-                .map(Integer::parseInt)
-                .toList();
-    }
-
-    private List<String> normalizeCoverageTypes(List<String> coverageTypes) {
-        List<String> normalized = coverageTypes == null ? List.of() : coverageTypes.stream()
-                .filter(StringUtils::hasText)
-                .map(value -> value.trim().toUpperCase(Locale.ROOT))
-                .distinct()
-                .toList();
-        if (normalized.isEmpty()) {
-            return List.of("SMOKE");
-        }
-        normalized.forEach(value -> {
-            if (!COVERAGE_TYPES.contains(value)) {
-                throw new BusinessException(ErrorCode.VALIDATION_ERROR, "coverageTypes 不合法: " + value);
-            }
-        });
-        return normalized;
-    }
-
-    private String normalizeGenerationMode(String generationMode) {
-        String normalized = StringUtils.hasText(generationMode)
-                ? generationMode.trim().toUpperCase(Locale.ROOT)
-                : "FALLBACK_ONLY";
-        if (!GENERATION_MODES.contains(normalized)) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "generationMode 不合法: " + generationMode);
-        }
-        return normalized;
-    }
-
-    private int normalizeCaseCountPerApi(Integer caseCountPerApi, int coverageTypeCount) {
-        int normalized = caseCountPerApi == null ? Math.min(coverageTypeCount, 3) : caseCountPerApi;
-        if (normalized < 1 || normalized > GENERATION_CASE_COUNT_MAX) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "caseCountPerApi 必须在 1-" + GENERATION_CASE_COUNT_MAX + " 之间");
-        }
-        return normalized;
-    }
-
-    private List<UUID> normalizedUuidList(List<UUID> values) {
-        if (values == null || values.isEmpty()) {
-            return List.of();
-        }
-        return values.stream()
-                .filter(Objects::nonNull)
-                .distinct()
-                .sorted()
-                .toList();
-    }
-
-    private List<String> uuidStrings(List<UUID> values) {
-        return values.stream().map(UUID::toString).toList();
-    }
-
     private ApiAutomationSpecDetailResponse parseAndPersist(ApiAutomationSpec spec, String content, String actor) {
         try {
             OpenApiParseResult parseResult = parser.parse(content, properties.effectiveEndpointMaxCount());
@@ -1713,7 +796,7 @@ public class ApiAutomationService {
                     spec.specDigest(),
                     spec.contentSizeBytes(),
                     parseResult.sanitizedSpecJson(),
-                    writeJson(parseResult.summary()),
+                    jsonSupport.writeJson(parseResult.summary()),
                     "PARSED",
                     OpenApiSpecParser.PARSER_VERSION,
                     parseResult.endpoints().size(),
@@ -1837,7 +920,7 @@ public class ApiAutomationService {
                 spec.specDigest(),
                 spec.contentSizeBytes(),
                 "{}",
-                writeJson(Map.of(
+                jsonSupport.writeJson(Map.of(
                         "parserVersion", OpenApiSpecParser.PARSER_VERSION,
                         "endpointCount", 0,
                         "parseFailed", true,
@@ -1852,321 +935,6 @@ public class ApiAutomationService {
                 null,
                 spec.createdAt(),
                 now
-        );
-    }
-
-    private List<ApiAutomationEndpointSnapshot> evaluateAndPersistDiff(ApiAutomationSpec spec) {
-        List<ApiAutomationEndpointSnapshot> updated = evaluateDiff(spec);
-        updated.forEach(repository::updateEndpointSnapshotDiff);
-        return updated;
-    }
-
-    private List<ApiAutomationEndpointSnapshot> evaluateDiff(ApiAutomationSpec spec) {
-        Instant now = Instant.now();
-        // WP3 API 当前没有 serviceName 字段，M3 先按项目内 method + path 匹配，serviceName 仅作为展示和后续扩展依据。
-        Map<String, List<ApiResponseDTO>> assetApisByKey = assetApisByKey(spec.projectId());
-        return repository.endpointSnapshots(spec.id()).stream()
-                .map(endpoint -> diffEndpoint(endpoint, assetApisByKey, now))
-                .toList();
-    }
-
-    private ApiAutomationEndpointSnapshot diffEndpoint(
-            ApiAutomationEndpointSnapshot endpoint,
-            Map<String, List<ApiResponseDTO>> assetApisByKey,
-            Instant now
-    ) {
-        if (endpoint.path().length() > WP3_API_PATH_MAX_CHARS) {
-            return endpointWithDiff(endpoint, null, "SKIPPED", Map.of(
-                    "reason", "PATH_TOO_LONG",
-                    "action", "NONE",
-                    "maxPathChars", WP3_API_PATH_MAX_CHARS
-            ), now, endpoint.syncedAt(), null);
-        }
-        List<ApiResponseDTO> matches = assetApisByKey.getOrDefault(assetKey(endpoint.httpMethod(), endpoint.path()), List.of());
-        if (matches.isEmpty()) {
-            return endpointWithDiff(endpoint, null, "NEW", Map.of(
-                    "reason", "NO_MATCHING_WP3_API",
-                    "action", "CREATE",
-                    "sourceRef", endpointSourceRef(endpoint)
-            ), now, endpoint.syncedAt(), null);
-        }
-        if (matches.size() > 1) {
-            return endpointWithDiff(endpoint, null, "CONFLICT", Map.of(
-                    "reason", "DUPLICATE_WP3_API_MATCHES",
-                    "action", "REVIEW",
-                    "assetApiIds", matches.stream().map(value -> value.id().toString()).toList()
-            ), now, endpoint.syncedAt(), null);
-        }
-        ApiResponseDTO asset = matches.getFirst();
-        boolean sameDigest = endpoint.schemaDigest().equals(assetSchemaDigest(asset));
-        return endpointWithDiff(endpoint, asset.id(), sameDigest ? "MATCHED" : "CHANGED", Map.of(
-                "reason", sameDigest ? "SCHEMA_DIGEST_MATCHED" : "SCHEMA_DIGEST_CHANGED",
-                "action", sameDigest ? "NONE" : "UPDATE",
-                "assetApiId", asset.id().toString(),
-                "assetSource", nullToEmpty(asset.source()),
-                "assetSourceRef", nullToEmpty(asset.sourceRef())
-        ), now, endpoint.syncedAt(), null);
-    }
-
-    private SyncAttempt syncEndpoint(
-            ApiAutomationSpec spec,
-            ApiAutomationEndpointSnapshot endpoint,
-            SyncApiAutomationSpecCommand command,
-            Instant now
-    ) {
-        // 只有 NEW 和显式允许的 CHANGED 写入 WP3；冲突、跳过和已匹配 endpoint 保留人工运营判断。
-        if ("NEW".equals(endpoint.diffStatus())) {
-            return createAssetApi(spec, endpoint, now);
-        }
-        if ("CHANGED".equals(endpoint.diffStatus()) && command.shouldIncludeChanged()) {
-            return updateAssetApi(spec, endpoint, now);
-        }
-        String result = "MATCHED".equals(endpoint.diffStatus()) ? "MATCHED" : "SKIPPED";
-        String message = "CHANGED".equals(endpoint.diffStatus()) ? "includeChanged=false" : "diffStatus=" + endpoint.diffStatus();
-        return new SyncAttempt(endpoint, syncItem(endpoint, result, message));
-    }
-
-    private SyncAttempt createAssetApi(ApiAutomationSpec spec, ApiAutomationEndpointSnapshot endpoint, Instant now) {
-        try {
-            ApiResponseDTO asset = assetApiService.createOpenApiSyncedApi(syncRequest(spec, endpoint, true));
-            ApiAutomationEndpointSnapshot synced = endpointWithDiff(endpoint, asset.id(), "MATCHED", Map.of(
-                    "reason", "SYNC_CREATED",
-                    "action", "CREATE",
-                    "assetApiId", asset.id().toString()
-            ), endpoint.lastDiffAt(), now, null);
-            repository.updateEndpointSnapshotDiff(synced);
-            return new SyncAttempt(synced, syncItem(synced, endpoint.diffStatus(), "CREATED", "已创建 WP3 API 资产"));
-        } catch (BusinessException exception) {
-            ApiAutomationEndpointSnapshot failed = endpointWithDiff(endpoint, endpoint.assetApiId(), endpoint.diffStatus(),
-                    readSummary(endpoint.diffSummaryJson()), endpoint.lastDiffAt(), endpoint.syncedAt(),
-                    SensitiveTextSanitizer.boundedText(exception.getMessage(), ERROR_SUMMARY_MAX_CHARS));
-            repository.updateEndpointSnapshotDiff(failed);
-            return new SyncAttempt(failed, syncItem(failed, "FAILED", failed.syncErrorSummary()));
-        }
-    }
-
-    private SyncAttempt updateAssetApi(ApiAutomationSpec spec, ApiAutomationEndpointSnapshot endpoint, Instant now) {
-        if (endpoint.assetApiId() == null) {
-            ApiAutomationEndpointSnapshot skipped = endpointWithDiff(endpoint, null, "CONFLICT", Map.of(
-                    "reason", "MISSING_ASSET_API_ID",
-                    "action", "REVIEW"
-            ), endpoint.lastDiffAt(), endpoint.syncedAt(), "缺少可更新的 WP3 API 资产 ID");
-            repository.updateEndpointSnapshotDiff(skipped);
-            return new SyncAttempt(skipped, syncItem(skipped, "FAILED", skipped.syncErrorSummary()));
-        }
-        try {
-            ApiResponseDTO asset = assetApiService.updateOpenApiSyncedApi(endpoint.assetApiId(), syncRequest(spec, endpoint, false));
-            ApiAutomationEndpointSnapshot synced = endpointWithDiff(endpoint, asset.id(), "MATCHED", Map.of(
-                    "reason", "SYNC_UPDATED",
-                    "action", "UPDATE",
-                    "assetApiId", asset.id().toString()
-            ), endpoint.lastDiffAt(), now, null);
-            repository.updateEndpointSnapshotDiff(synced);
-            return new SyncAttempt(synced, syncItem(synced, endpoint.diffStatus(), "UPDATED", "已更新 WP3 API 资产"));
-        } catch (BusinessException exception) {
-            ApiAutomationEndpointSnapshot failed = endpointWithDiff(endpoint, endpoint.assetApiId(), endpoint.diffStatus(),
-                    readSummary(endpoint.diffSummaryJson()), endpoint.lastDiffAt(), endpoint.syncedAt(),
-                    SensitiveTextSanitizer.boundedText(exception.getMessage(), ERROR_SUMMARY_MAX_CHARS));
-            repository.updateEndpointSnapshotDiff(failed);
-            return new SyncAttempt(failed, syncItem(failed, "FAILED", failed.syncErrorSummary()));
-        }
-    }
-
-    private SyncOpenApiRequest syncRequest(ApiAutomationSpec spec, ApiAutomationEndpointSnapshot endpoint, boolean create) {
-        return new SyncOpenApiRequest(
-                SensitiveTextSanitizer.boundedText(StringUtils.hasText(endpoint.summary()) ? endpoint.summary() : endpoint.httpMethod() + " " + endpoint.path(),
-                        WP3_API_SUMMARY_MAX_CHARS),
-                SensitiveTextSanitizer.boundedText("WP6 OpenAPI sync " + nullToEmpty(endpoint.serviceName()) + " " + nullToEmpty(endpoint.operationId()), 512),
-                endpoint.httpMethod(),
-                endpoint.path(),
-                SensitiveTextSanitizer.boundedText(endpoint.schemaDigest(), WP3_API_VERSION_MAX_CHARS),
-                requestSchema(endpoint),
-                responseSchema(endpoint),
-                spec.projectId(),
-                endpointSourceRef(endpoint),
-                create ? "ACTIVE" : null
-        );
-    }
-
-    private String requestSchema(ApiAutomationEndpointSnapshot endpoint) {
-        return writeJson(Map.of(
-                "wp6SchemaDigest", endpoint.schemaDigest(),
-                "parameterCount", endpoint.parameterCount(),
-                "requestBodyPresent", endpoint.requestBodyPresent(),
-                "aggregateOnly", true
-        ));
-    }
-
-    private String responseSchema(ApiAutomationEndpointSnapshot endpoint) {
-        return writeJson(Map.of(
-                "wp6SchemaDigest", endpoint.schemaDigest(),
-                "responseStatuses", StringUtils.hasText(endpoint.responseStatuses()) ? endpoint.responseStatuses() : "",
-                "aggregateOnly", true
-        ));
-    }
-
-    private ApiAutomationSyncPreviewItemResponse syncPreviewItem(
-            ApiAutomationSpec spec,
-            ApiAutomationEndpointSnapshot endpoint
-    ) {
-        String action = syncPreviewAction(endpoint.diffStatus());
-        Map<String, Object> summary = readSummary(endpoint.diffSummaryJson());
-        String reason = Objects.toString(summary.getOrDefault("reason", endpoint.diffStatus()), endpoint.diffStatus());
-        return new ApiAutomationSyncPreviewItemResponse(
-                endpoint.id(),
-                endpoint.assetApiId(),
-                endpoint.httpMethod(),
-                endpoint.path(),
-                endpoint.diffStatus(),
-                action,
-                reason,
-                syncPreviewPayloadSummary(spec, endpoint, action)
-        );
-    }
-
-    private String syncPreviewAction(String diffStatus) {
-        return switch (diffStatus) {
-            case "NEW" -> "CREATE";
-            case "CHANGED" -> "UPDATE";
-            case "CONFLICT" -> "REVIEW";
-            default -> "SKIP";
-        };
-    }
-
-    private Map<String, Object> syncPreviewPayloadSummary(
-            ApiAutomationSpec spec,
-            ApiAutomationEndpointSnapshot endpoint,
-            String action
-    ) {
-        Map<String, Object> summary = new LinkedHashMap<>();
-        summary.put("aggregateOnly", true);
-        summary.put("dryRun", true);
-        summary.put("wp3Write", false);
-        summary.put("rawSchemaStored", false);
-        summary.put("rawRequestResponseStored", false);
-        summary.put("action", action);
-        summary.put("httpMethod", endpoint.httpMethod());
-        summary.put("path", endpoint.path());
-        summary.put("summary", SensitiveTextSanitizer.boundedText(
-                StringUtils.hasText(endpoint.summary()) ? endpoint.summary() : endpoint.httpMethod() + " " + endpoint.path(),
-                WP3_API_SUMMARY_MAX_CHARS
-        ));
-        summary.put("projectId", spec.projectId());
-        summary.put("versionLabel", SensitiveTextSanitizer.boundedText(endpoint.schemaDigest(), WP3_API_VERSION_MAX_CHARS));
-        summary.put("sourceRef", endpointSourceRef(endpoint));
-        summary.put("requestSchemaDigest", SensitiveTextSanitizer.sha256Hex(requestSchema(endpoint)));
-        summary.put("responseSchemaDigest", SensitiveTextSanitizer.sha256Hex(responseSchema(endpoint)));
-        summary.put("parameterCount", endpoint.parameterCount());
-        summary.put("requestBodyPresent", endpoint.requestBodyPresent());
-        summary.put("responseStatuses", StringUtils.hasText(endpoint.responseStatuses()) ? endpoint.responseStatuses() : "");
-        if (endpoint.assetApiId() != null) {
-            summary.put("assetApiId", endpoint.assetApiId().toString());
-        }
-        return summary;
-    }
-
-    private ApiAutomationEndpointSnapshot endpointWithDiff(
-            ApiAutomationEndpointSnapshot endpoint,
-            UUID assetApiId,
-            String diffStatus,
-            Map<String, Object> diffSummary,
-            Instant lastDiffAt,
-            Instant syncedAt,
-            String syncErrorSummary
-    ) {
-        return new ApiAutomationEndpointSnapshot(
-                endpoint.id(),
-                endpoint.specId(),
-                endpoint.projectId(),
-                endpoint.serviceName(),
-                endpoint.operationId(),
-                endpoint.httpMethod(),
-                endpoint.path(),
-                endpoint.summary(),
-                endpoint.tags(),
-                endpoint.parameterCount(),
-                endpoint.requestBodyPresent(),
-                endpoint.responseStatuses(),
-                endpoint.schemaDigest(),
-                diffStatus,
-                assetApiId,
-                writeJson(diffSummary == null ? Map.of() : diffSummary),
-                lastDiffAt,
-                syncedAt,
-                syncErrorSummary,
-                endpoint.createdAt(),
-                Instant.now()
-        );
-    }
-
-    private Map<String, List<ApiResponseDTO>> assetApisByKey(String projectId) {
-        List<ApiResponseDTO> assets = new ArrayList<>();
-        // 防御性分页上限避免一次 diff 因异常资产量拖垮控制面，后续可按 WP3 查询能力改为精确按 path 拉取。
-        for (int index = 0; index < WP3_API_PAGE_LIMIT; index++) {
-            AssetListRequest request = new AssetListRequest();
-            request.setProjectId(projectId);
-            request.setLifecycleStatus("ACTIVE");
-            request.setIndex(index);
-            request.setSize(WP3_API_PAGE_SIZE);
-            PageResponse<ApiResponseDTO> page = assetApiService.listApis(request);
-            assets.addAll(page.items());
-            if (page.items().size() < WP3_API_PAGE_SIZE) {
-                break;
-            }
-        }
-        return assets.stream().collect(Collectors.groupingBy(
-                asset -> assetKey(asset.httpMethod(), asset.path()),
-                LinkedHashMap::new,
-                Collectors.toList()
-        ));
-    }
-
-    private Map<String, Integer> countDiffStatuses(List<ApiAutomationEndpointSnapshot> endpoints) {
-        Map<String, Integer> counts = initializedCounts(DIFF_STATUSES);
-        endpoints.forEach(endpoint -> counts.computeIfPresent(endpoint.diffStatus(), (key, value) -> value + 1));
-        return counts;
-    }
-
-    private Map<String, Integer> countSyncResults(List<ApiAutomationSyncItemResponse> items) {
-        Map<String, Integer> counts = initializedCounts(List.of("CREATED", "UPDATED", "MATCHED", "SKIPPED", "FAILED"));
-        items.forEach(item -> counts.computeIfPresent(item.result(), (key, value) -> value + 1));
-        return counts;
-    }
-
-    private Map<String, Integer> countSyncPreviewActions(List<ApiAutomationSyncPreviewItemResponse> items) {
-        Map<String, Integer> counts = initializedCounts(SYNC_PREVIEW_ACTIONS);
-        items.forEach(item -> counts.computeIfPresent(item.action(), (key, value) -> value + 1));
-        return counts;
-    }
-
-    private Map<String, Integer> initializedCounts(List<String> keys) {
-        Map<String, Integer> counts = new LinkedHashMap<>();
-        keys.forEach(key -> counts.put(key, 0));
-        return counts;
-    }
-
-    private String syncResult(Map<String, Integer> counts) {
-        return counts.getOrDefault("FAILED", 0) > 0 ? "FAILED" : "SUCCESS";
-    }
-
-    private ApiAutomationSyncItemResponse syncItem(ApiAutomationEndpointSnapshot endpoint, String result, String message) {
-        return syncItem(endpoint, endpoint.diffStatus(), result, message);
-    }
-
-    private ApiAutomationSyncItemResponse syncItem(
-            ApiAutomationEndpointSnapshot endpoint,
-            String beforeStatus,
-            String result,
-            String message
-    ) {
-        return new ApiAutomationSyncItemResponse(
-                endpoint.id(),
-                endpoint.assetApiId(),
-                endpoint.httpMethod(),
-                endpoint.path(),
-                beforeStatus,
-                result,
-                message
         );
     }
 
@@ -2232,54 +1000,6 @@ public class ApiAutomationService {
         return StringUtils.hasText(note) ? note : bundle.reviewNote();
     }
 
-    private String assetKey(String httpMethod, String path) {
-        return (httpMethod == null ? "" : httpMethod.trim().toUpperCase(Locale.ROOT)) + " " + nullToEmpty(path).trim();
-    }
-
-    private String assetSchemaDigest(ApiResponseDTO asset) {
-        String requestDigest = schemaDigest(asset.requestSchema());
-        return StringUtils.hasText(requestDigest) ? requestDigest : schemaDigest(asset.responseSchema());
-    }
-
-    private String schemaDigest(String schemaJson) {
-        if (!StringUtils.hasText(schemaJson)) {
-            return "";
-        }
-        try {
-            Map<String, Object> value = objectMapper.readValue(schemaJson, MAP_TYPE);
-            Object digest = value.get("wp6SchemaDigest");
-            if (digest == null) {
-                digest = value.get("schemaDigest");
-            }
-            return digest == null ? "" : digest.toString();
-        } catch (JsonProcessingException exception) {
-            return "";
-        }
-    }
-
-    private String endpointSourceRef(ApiAutomationEndpointSnapshot endpoint) {
-        return "wp6:" + endpoint.specId() + ":" + endpoint.id();
-    }
-
-    private Map<String, Object> readSummary(String value) {
-        if (!StringUtils.hasText(value)) {
-            return Map.of();
-        }
-        try {
-            return objectMapper.readValue(value, MAP_TYPE);
-        } catch (JsonProcessingException exception) {
-            return Map.of("parseSummaryUnreadable", true, "aggregateOnly", true);
-        }
-    }
-
-    private String writeJson(Object value) {
-        try {
-            return objectMapper.writeValueAsString(value);
-        } catch (JsonProcessingException exception) {
-            throw new BusinessException(ErrorCode.INTERNAL_ERROR, "OpenAPI 摘要序列化失败");
-        }
-    }
-
     private String normalizeSourceType(String sourceType) {
         String normalized = sourceType == null ? "" : sourceType.trim().toUpperCase(Locale.ROOT);
         if (!SOURCE_TYPES.contains(normalized)) {
@@ -2320,17 +1040,6 @@ public class ApiAutomationService {
         int queryIndex = trimmed.indexOf('?');
         String withoutQuery = queryIndex >= 0 ? trimmed.substring(0, queryIndex) : trimmed;
         return SensitiveTextSanitizer.boundedText(withoutQuery, 512);
-    }
-
-    private String safeSourceText(String value, int maxLength) {
-        if (!StringUtils.hasText(value)) {
-            return "";
-        }
-        return SensitiveTextSanitizer.boundedText(SensitiveTextSanitizer.redactSensitiveText(value), maxLength);
-    }
-
-    private String nullToEmpty(String value) {
-        return value == null ? "" : value;
     }
 
     private void audit(
@@ -2424,63 +1133,4 @@ public class ApiAutomationService {
         };
     }
 
-    private record GenerationRequest(
-            String projectId,
-            UUID specId,
-            String requestKey,
-            String requestDigest,
-            String generationMode,
-            List<String> coverageTypes,
-            List<UUID> assetApiIds,
-            List<UUID> assetTestCaseIds,
-            int caseCountPerApi
-    ) {
-    }
-
-    private record GenerationSourceTestCase(
-            UUID id,
-            UUID apiId,
-            Map<String, Object> summary
-    ) {
-    }
-
-    private record GenerationAttempt(
-            List<ApiAutomationCase> cases,
-            boolean fallbackUsed,
-            String fallbackReason,
-            String modelInvocationId,
-            String promptVersion,
-            String modelProviderName,
-            String modelName,
-            boolean modelProviderFallbackUsed,
-            boolean modelOutputValidated,
-            String errorSummary
-    ) {
-    }
-
-    private record SyncAttempt(
-            ApiAutomationEndpointSnapshot snapshot,
-            ApiAutomationSyncItemResponse response
-    ) {
-    }
-
-    private record RunBlock(
-            String errorCode,
-            String errorSummary
-    ) {
-    }
-
-    private static final class ApiAutomationModelGenerationException extends RuntimeException {
-
-        private final ModelInvocationResult response;
-
-        private ApiAutomationModelGenerationException(ModelInvocationResult response, RuntimeException cause) {
-            super(cause.getMessage(), cause);
-            this.response = response;
-        }
-
-        private ModelInvocationResult response() {
-            return response;
-        }
-    }
 }

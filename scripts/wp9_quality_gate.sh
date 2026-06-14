@@ -149,7 +149,11 @@ main() {
       "$ROOT_DIR/scripts/wp9_webhook_http_smoke.sh" \
       "$ROOT_DIR/scripts/wp9_webhook_sign.sh" \
       "$ROOT_DIR/scripts/wp9_marketplace_package_smoke.sh" \
-      "$ROOT_DIR/scripts/wp9_worker_hosting_readiness.sh"
+      "$ROOT_DIR/scripts/wp9_worker_hosting_readiness.sh" \
+      "$ROOT_DIR/scripts/platform_api_java_line_guard.sh"
+
+  run_step "platform-api Java line guard" \
+    bash "$ROOT_DIR/scripts/platform_api_java_line_guard.sh"
 
   run_step "wp9 marketplace package smoke" \
     bash "$ROOT_DIR/scripts/wp9_marketplace_package_smoke.sh"
