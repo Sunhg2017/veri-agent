@@ -68,7 +68,7 @@
 
 | 方法 | 路径 | 权限 | 说明 |
 |---|---|---|---|
-| `GET` | `/health` | `testData:read` | 返回 WP8 开关、限制和安全策略摘要。 |
+| `GET` | `/health` | 匿名健康检查 | 返回 WP8 开关、限制和 M1 foundation 安全策略摘要；只表达 schema、权限、审计字典等基础面就绪，不代表 CRUD、租借执行或清理 worker 已可用。 |
 | `POST` | `/data-sets` | `testData:manage` | 创建数据集。 |
 | `GET` | `/data-sets` | `testData:read` | 按项目、应用、环境、状态分页查询数据集。 |
 | `GET` | `/data-sets/{id}` | `testData:read` | 查询数据集详情和记录摘要。 |

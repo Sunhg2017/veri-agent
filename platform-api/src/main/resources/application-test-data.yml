@@ -1,0 +1,9 @@
+veri-agent:
+  test-data:
+    enabled: ${WP8_TEST_DATA_ENABLED:true}
+    record-max-count: ${WP8_RECORD_MAX_COUNT:10000}
+    record-summary-max-bytes: ${WP8_RECORD_SUMMARY_MAX_BYTES:2048}
+    default-lease-ttl-seconds: ${WP8_DEFAULT_LEASE_TTL_SECONDS:1800}
+    max-lease-ttl-seconds: ${WP8_MAX_LEASE_TTL_SECONDS:14400}
+    cleanup-enabled: ${WP8_CLEANUP_ENABLED:false}
+    export-enabled: ${WP8_EXPORT_ENABLED:true}

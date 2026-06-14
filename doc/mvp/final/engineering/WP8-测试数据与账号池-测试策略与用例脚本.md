@@ -113,6 +113,18 @@ WP8 专项门禁建议：
 bash scripts/wp8_quality_gate.sh
 ```
 
+M1 foundation 准出最小门禁：
+
+```bash
+git diff --check
+bash scripts/platform_api_java_line_guard.sh
+mvn -B -pl platform-api -Dtest=TestDataHealthControllerTest,OpenApiContractTest,PermissionCodeUsageTest test
+mvn -B -pl platform-api test
+bash db/validation/run_wp1_db_validation.sh
+```
+
+M1 只验证权限 seed、DB foundation、运行时 DB 角色授权、审计事件字典配置、health API 和 OpenAPI contract；数据集 CRUD、账号池 CRUD、租借并发、清理 worker、导出和前端主链路按 M2-M6 对应 story 另行准出。
+
 前端 smoke 建议：
 
 ```bash

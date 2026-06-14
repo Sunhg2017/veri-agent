@@ -13,6 +13,7 @@ import com.songhg.veri.agent.integration.application.PlatformIntegrationProperti
 import com.songhg.veri.agent.management.config.ManagementProperties;
 import com.songhg.veri.agent.modelaccess.config.ModelAccessProperties;
 import com.songhg.veri.agent.testdesign.config.TestDesignProperties;
+import com.songhg.veri.agent.testdata.config.TestDataProperties;
 import jakarta.servlet.DispatcherType;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.beans.factory.ObjectProvider;
@@ -36,7 +37,22 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 @Configuration
 @EnableWebSecurity
-@EnableConfigurationProperties({AuthProperties.class, PlatformIntegrationProperties.class, ModelAccessProperties.class, AssetProperties.class, DocumentInputProperties.class, TestDesignProperties.class, ApiAutomationProperties.class, ExecutionProperties.class, SecretProviderProperties.class, AuditRetentionProperties.class, ManagementProperties.class, ServiceCallerProperties.class, CorsProperties.class})
+@EnableConfigurationProperties({
+        AuthProperties.class,
+        PlatformIntegrationProperties.class,
+        ModelAccessProperties.class,
+        AssetProperties.class,
+        DocumentInputProperties.class,
+        TestDesignProperties.class,
+        ApiAutomationProperties.class,
+        ExecutionProperties.class,
+        TestDataProperties.class,
+        SecretProviderProperties.class,
+        AuditRetentionProperties.class,
+        ManagementProperties.class,
+        ServiceCallerProperties.class,
+        CorsProperties.class
+})
 public class SecurityConfig {
 
     @Bean
@@ -76,6 +92,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/v1/test-design/health").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/api-automation/health").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/execution/health").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/test-data/health").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/document-input/webhooks/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/execution/webhooks/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/examples/**").permitAll()

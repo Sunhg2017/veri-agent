@@ -153,6 +153,9 @@ public class OpenApiConfiguration {
         if (packageName.contains(".apiautomation.")) {
             return "WP6 API Automation";
         }
+        if (packageName.contains(".testdata.")) {
+            return "WP8 Test Data";
+        }
         if (beanType.getSimpleName().contains("Health")) {
             return "Platform Health";
         }

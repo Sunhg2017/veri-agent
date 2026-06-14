@@ -121,5 +121,5 @@ WP8 的核心目标是把测试数据、账号池、租借、释放和清理任�
 1. 五角色文档均完成且口径一致。
 2. PRD、技术契约、前端设计、测试策略和任务拆解互相引用的范围一致。
 3. 明确目标、范围、非目标、跨 WP 依赖、权限、审计、安全、验证入口和回滚方式。
-4. 本轮只引入文档和 README 索引，不引入业务代码、数据库迁移或运行时配置变更。
-5. 文档变更通过格式检查并提交推送。
+4. 启动文档阶段只引入文档和 README 索引；WP8 M1 推进阶段允许引入权限、DB foundation、运行时配置、health API、OpenAPI contract 和最小测试，不引入数据集 CRUD、账号池 CRUD、租借执行或清理 worker。
+5. M1 变更必须通过 `mvn -B -pl platform-api -Dtest=TestDataHealthControllerTest,OpenApiContractTest,PermissionCodeUsageTest test`、`bash scripts/platform_api_java_line_guard.sh`、`bash db/validation/run_wp1_db_validation.sh` 和 `git diff --check`。

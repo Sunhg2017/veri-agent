@@ -53,10 +53,12 @@
 | Story | 优先级 | 负责人 | 任务 | 验收 | 验证 |
 |---|---|---|---|---|---|
 | WP8-1.1 权限点 seed | P0 | 服务端架构师 | 新增 `testData:read/manage/lease/cleanup/export` 权限和角色映射 | 默认角色符合 PRD | DB validation、权限测试 |
-| WP8-1.2 审计事件字典 | P0 | 服务端架构师、质量工程师 | 定义数据集、账号池、租借、释放、清理和导出审计事件 | payload 只含摘要和 digest | 审计单测 |
+| WP8-1.2 审计事件字典 | P0 | 服务端架构师、质量工程师 | 定义数据集、账号池、租借、释放、清理和导出审计事件；M1 先通过 `test_data.audit_events` system config 种子固化字典，后续业务 API 写审计时复用同一 action 集 | payload 只含摘要和 digest | DB validation、后续业务审计单测 |
 | WP8-1.3 DB schema | P0 | 服务端架构师 | 新增数据集、记录、任务、账号池、账号、租借、矩阵表 | 约束、索引、注释完整 | DB validation |
 | WP8-1.4 模块骨架 | P0 | 服务端架构师 | 新建 `testdata` api/application/domain/infrastructure/config 包 | 不破坏现有模块边界 | `mvn -B -pl platform-api test` |
-| WP8-1.5 Health API | P0 | 服务端架构师 | `GET /api/v1/test-data/health` 输出限制、开关和安全策略摘要 | 不泄露 secret 或 allowlist 明细 | Controller test |
+| WP8-1.5 Health API | P0 | 服务端架构师 | `GET /api/v1/test-data/health` 输出限制、开关和 M1 foundation 安全策略摘要 | 不泄露 secret 或 allowlist 明细；不把 CRUD/租借/清理 worker 标为 ready | Controller test |
+
+M1 当前推进状态：权限常量、角色 seed、7 张基础表、表/列注释、审计事件字典配置、只读账号密文字段限制、`testdata` 配置和 health API 已进入实现；数据集 CRUD、账号池 CRUD、租借执行、清理 worker、导出和前端页面仍归属 M2-M6。
 
 ## 6. Epic 2：数据集控制面
 
