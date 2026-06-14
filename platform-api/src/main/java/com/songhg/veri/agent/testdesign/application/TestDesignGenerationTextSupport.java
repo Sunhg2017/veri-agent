@@ -113,6 +113,17 @@ final class TestDesignGenerationTextSupport {
         return normalized.substring(0, Math.max(0, maxLength - 3)) + "...";
     }
 
+    static String candidateExportPreview(String value, int maxLength) {
+        String preview = redactedPreview(value, maxLength);
+        if (!StringUtils.hasText(preview)) {
+            return preview;
+        }
+        return preview
+                .replaceAll("(?i)raw\\s*prompt|rawPrompt", "[REDACTED]")
+                .replaceAll("(?i)prompt\\s*plaintext|promptPlaintext", "[REDACTED]")
+                .replaceAll("(?i)model\\s*input|modelInput", "[REDACTED]");
+    }
+
     static List<String> summaryTags(String value) {
         if (!StringUtils.hasText(value)) {
             return List.of();
