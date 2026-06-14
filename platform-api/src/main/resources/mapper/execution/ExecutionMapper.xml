@@ -262,6 +262,26 @@
         )
     </insert>
 
+    <insert id="insertPlanNodes">
+        insert into execution_plan_node (
+            id, plan_id, node_key, node_type, dependency_keys, input_summary_json,
+            failure_policy, timeout_seconds, retry_policy_json, created_at, updated_at
+        ) values
+        <foreach collection="nodes" item="node" separator=",">
+            (
+                #{node.id}, #{node.planId}, #{node.nodeKey}, #{node.nodeType},
+                case
+                    when #{node.dependencyKeysCsv} is null or #{node.dependencyKeysCsv} = '' then '{}'::text[]
+                    else string_to_array(#{node.dependencyKeysCsv}, ',')::text[]
+                end,
+                cast(coalesce(#{node.inputSummaryJson}, '{}') as jsonb),
+                #{node.failurePolicy}, #{node.timeoutSeconds},
+                cast(coalesce(#{node.retryPolicyJson}, '{}') as jsonb),
+                #{node.createdAt}, #{node.updatedAt}
+            )
+        </foreach>
+    </insert>
+
     <insert id="insertRun">
         insert into execution_run (
             id, plan_id, project_id, status, trigger_type, request_key, source_event_id, attempt, trace_id,
@@ -283,6 +303,22 @@
             #{errorCode}, #{errorSummary}, cast(coalesce(#{resultSummaryJson}, '{}') as jsonb),
             #{heartbeatAt}, #{queuedAt}, #{startedAt}, #{finishedAt}, #{createdAt}, #{updatedAt}
         )
+    </insert>
+
+    <insert id="insertNodeRuns">
+        insert into execution_node_run (
+            id, run_id, plan_node_id, status, attempt, runner_type, external_run_id, error_code, error_summary,
+            result_summary_json, heartbeat_at, queued_at, started_at, finished_at, created_at, updated_at
+        ) values
+        <foreach collection="nodeRuns" item="nodeRun" separator=",">
+            (
+                #{nodeRun.id}, #{nodeRun.runId}, #{nodeRun.planNodeId}, #{nodeRun.status}, #{nodeRun.attempt},
+                #{nodeRun.runnerType}, #{nodeRun.externalRunId}, #{nodeRun.errorCode}, #{nodeRun.errorSummary},
+                cast(coalesce(#{nodeRun.resultSummaryJson}, '{}') as jsonb),
+                #{nodeRun.heartbeatAt}, #{nodeRun.queuedAt}, #{nodeRun.startedAt}, #{nodeRun.finishedAt},
+                #{nodeRun.createdAt}, #{nodeRun.updatedAt}
+            )
+        </foreach>
     </insert>
 
     <update id="updateRun">
@@ -318,6 +354,46 @@
             finished_at = #{finishedAt},
             updated_at = #{updatedAt}
         where id = #{id}
+    </update>
+
+    <update id="updateNodeRuns">
+        update execution_node_run nr set
+            status = v.status,
+            attempt = v.attempt,
+            runner_type = v.runner_type,
+            external_run_id = v.external_run_id,
+            error_code = v.error_code,
+            error_summary = v.error_summary,
+            result_summary_json = cast(coalesce(v.result_summary_json, '{}') as jsonb),
+            heartbeat_at = v.heartbeat_at,
+            queued_at = v.queued_at,
+            started_at = v.started_at,
+            finished_at = v.finished_at,
+            updated_at = v.updated_at
+        from (
+            values
+            <foreach collection="nodeRuns" item="nodeRun" separator=",">
+                (
+                    cast(#{nodeRun.id} as uuid),
+                    cast(#{nodeRun.status} as text),
+                    cast(#{nodeRun.attempt} as integer),
+                    cast(#{nodeRun.runnerType} as text),
+                    cast(#{nodeRun.externalRunId} as text),
+                    cast(#{nodeRun.errorCode} as text),
+                    cast(#{nodeRun.errorSummary} as text),
+                    cast(#{nodeRun.resultSummaryJson} as text),
+                    cast(#{nodeRun.heartbeatAt} as timestamp with time zone),
+                    cast(#{nodeRun.queuedAt} as timestamp with time zone),
+                    cast(#{nodeRun.startedAt} as timestamp with time zone),
+                    cast(#{nodeRun.finishedAt} as timestamp with time zone),
+                    cast(#{nodeRun.updatedAt} as timestamp with time zone)
+                )
+            </foreach>
+        ) as v(
+            id, status, attempt, runner_type, external_run_id, error_code, error_summary, result_summary_json,
+            heartbeat_at, queued_at, started_at, finished_at, updated_at
+        )
+        where nr.id = v.id
     </update>
 
     <update id="updateNodeRunIfStatus">
@@ -571,6 +647,7 @@
           and next_fire_at &lt;= #{now}
         order by next_fire_at asc, updated_at asc
         limit #{limit}
+        for update skip locked
     </select>
 
     <select id="triggers" resultMap="triggerMap">

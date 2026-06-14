@@ -2,6 +2,7 @@ package com.songhg.veri.agent.execution.application;
 
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.trace.TraceContext;
+import com.songhg.veri.agent.common.util.SensitiveTextSanitizer;
 import com.songhg.veri.agent.execution.application.command.CompleteExecutionNodeRunCommand;
 import com.songhg.veri.agent.execution.application.command.DispatchExecutionNodeRunCommand;
 import com.songhg.veri.agent.execution.application.view.ExecutionCronScanResponse;
@@ -13,7 +14,6 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Map;
 import java.util.Optional;
-import java.util.regex.Pattern;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.SchedulingConfigurer;
@@ -26,11 +26,6 @@ import org.springframework.util.StringUtils;
 public class ExecutionSchedulerService implements SchedulingConfigurer {
 
     private static final Logger log = LoggerFactory.getLogger(ExecutionSchedulerService.class);
-    private static final Pattern URL_PATTERN = Pattern.compile("https?://[^\\s,;，；]+", Pattern.CASE_INSENSITIVE);
-    private static final Pattern SECRET_REF_PATTERN = Pattern.compile("secret://[^\\s,;，；]+", Pattern.CASE_INSENSITIVE);
-    private static final Pattern SENSITIVE_TEXT_PATTERN = Pattern.compile(
-            "(?i)\\b(api[_-]?key|secret|token|password|passwd|authorization)\\s*[:=]\\s*[^\\s,;，；]+"
-    );
     private static final int MAX_ERROR_SUMMARY_LENGTH = 512;
 
     private final ExecutionRunService executionRunService;
@@ -90,9 +85,10 @@ public class ExecutionSchedulerService implements SchedulingConfigurer {
      * <p>The scheduler first asks the trigger control plane to materialize due CRON events, then lets recovery release
      * expired claims, and finally claims bounded queued work. Runner dispatch still only goes through
      * `ExecutionRunService`, so trigger idempotency, active claim tokens, state transitions and summary redaction stay
-     * centralized in their owning services.</p>
+     * centralized in their owning services. The method is synchronized so manual/admin-triggered ticks cannot overlap
+     * with the managed loop inside the same JVM; database row locks still protect CRON scans across JVMs.</p>
      */
-    public ExecutionSchedulerTickResponse runOnce() {
+    public synchronized ExecutionSchedulerTickResponse runOnce() {
         String traceId = TraceContext.getOrCreateTraceId();
         Instant tickedAt = Instant.now();
         String workerId = properties.effectiveSchedulerWorkerId();
@@ -273,14 +269,11 @@ public class ExecutionSchedulerService implements SchedulingConfigurer {
     }
 
     private String sanitizedSummary(String value) {
-        String summary = StringUtils.hasText(value) ? value.trim() : "Execution scheduler failed";
-        summary = URL_PATTERN.matcher(summary).replaceAll("[REDACTED_URL]");
-        summary = SECRET_REF_PATTERN.matcher(summary).replaceAll("[REDACTED_SECRET_REF]");
-        summary = SENSITIVE_TEXT_PATTERN.matcher(summary).replaceAll("[REDACTED]");
-        if (summary.length() <= MAX_ERROR_SUMMARY_LENGTH) {
-            return summary;
-        }
-        return summary.substring(0, MAX_ERROR_SUMMARY_LENGTH - 3) + "...";
+        return SensitiveTextSanitizer.sanitizedErrorSummary(
+                value,
+                "Execution scheduler failed",
+                MAX_ERROR_SUMMARY_LENGTH
+        );
     }
 
     private record ClaimOutcome(int dispatchedNodeCount, int completedNodeCount, int failedNodeCount) {

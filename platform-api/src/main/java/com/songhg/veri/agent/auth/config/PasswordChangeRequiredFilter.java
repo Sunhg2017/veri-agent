@@ -31,6 +31,14 @@ public class PasswordChangeRequiredFilter extends OncePerRequestFilter {
         this.passwordChangeRequiredPolicy = new PasswordChangeRequiredPolicy(authProperties.passwordChangeRequired());
     }
 
+    /**
+     * Async MVC dispatches must observe the same password-change gate as the initial request.
+     */
+    @Override
+    protected boolean shouldNotFilterAsyncDispatch() {
+        return false;
+    }
+
     @Override
     protected void doFilterInternal(
             HttpServletRequest request,

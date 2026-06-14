@@ -167,6 +167,7 @@ with expected(table_name, index_name) as (
         ('execution_node_run','idx_execution_node_run_run_status'),
         ('execution_node_run','idx_execution_node_run_heartbeat'),
         ('execution_node_run','idx_execution_node_run_external'),
+        ('execution_node_run','idx_execution_node_run_plan_node'),
         ('execution_trigger','idx_execution_trigger_plan_status'),
         ('execution_trigger','idx_execution_trigger_next_fire'),
         ('execution_trigger','idx_execution_trigger_secret_digest'),

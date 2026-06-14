@@ -12,6 +12,7 @@ import com.songhg.veri.agent.common.api.PageResponse;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
 import com.songhg.veri.agent.common.trace.TraceContext;
+import com.songhg.veri.agent.common.util.SensitiveTextSanitizer;
 import com.songhg.veri.agent.execution.application.command.CompleteExecutionNodeRunCommand;
 import com.songhg.veri.agent.execution.application.command.DispatchExecutionNodeRunCommand;
 import com.songhg.veri.agent.execution.application.command.HeartbeatExecutionQueueClaimCommand;
@@ -34,9 +35,6 @@ import com.songhg.veri.agent.execution.domain.ExecutionRun;
 import com.songhg.veri.agent.management.application.port.ManagementStore;
 import com.songhg.veri.agent.management.application.port.ManagementStoreParams;
 import com.songhg.veri.agent.management.application.port.ManagementStoreRows.EnvironmentRuntimeRef;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -81,11 +79,6 @@ public class ExecutionRunService {
     private static final Set<String> FORBIDDEN_RESULT_SUMMARY_KEYS = Set.of(
             "secret", "secrets", "token", "password", "authorization", "stdout", "stderr",
             "request", "requestbody", "response", "responsebody", "body", "variables", "environment"
-    );
-    private static final List<Pattern> SENSITIVE_TEXT_PATTERNS = List.of(
-            Pattern.compile("(?i)\\b(api[_-]?key|secret|token|password|passwd|authorization)\\s*[:=]\\s*[^\\s,;，；]+"),
-            Pattern.compile("(?i)\\bbearer\\s+[a-z0-9._\\-]{8,}"),
-            Pattern.compile("(?i)\\b(sk|pk|rk)_[a-z0-9_-]{8,}\\b")
     );
     private static final Pattern ERROR_CODE_PATTERN = Pattern.compile("[A-Z0-9_.:-]{1,64}");
     private static final int MAX_RESULT_SUMMARY_TEXT_LENGTH = 512;
@@ -246,14 +239,23 @@ public class ExecutionRunService {
     }
 
     /**
-     * Cancels only the WP9 control-plane records in this slice.
+     * Cancels active WP9 runs and forwards best-effort cancellation to already-dispatched WP6 node runs.
      *
-     * <p>M3B does not call WP6/WP7 runner cancel ports because dispatch is not wired yet. Terminal runs are returned
-     * unchanged so client retries remain idempotent, while queued or running node records are closed with bounded
-     * cancellation metadata and no runner output.</p>
+     * <p>WP9 keeps cancellation idempotent by closing its control-plane records regardless of runner response. Only the
+     * external WP6 run ID is sent to WP6, and the persisted summary records bounded attempt counts instead of raw runner
+     * output.</p>
      */
-    @Transactional(noRollbackFor = BusinessException.class)
     public ExecutionRunDetailResponse cancelRun(UUID id) {
+        ExecutionRun run = inExecutionTransaction(() -> requireRun(id));
+        if (TERMINAL_RUN_STATUSES.contains(run.status())) {
+            return inExecutionTransaction(() -> detail(run, false));
+        }
+        List<ExecutionNodeRun> existingNodeRuns = inExecutionTransaction(() -> repository.nodeRuns(run.id()));
+        RunnerCancelSummary runnerCancelSummary = cancelDispatchedRunnerNodes(existingNodeRuns);
+        return inExecutionTransaction(() -> persistCanceledRun(id, runnerCancelSummary));
+    }
+
+    private ExecutionRunDetailResponse persistCanceledRun(UUID id, RunnerCancelSummary runnerCancelSummary) {
         ExecutionRun run = requireRun(id);
         if (TERMINAL_RUN_STATUSES.contains(run.status())) {
             return detail(run, false);
@@ -262,7 +264,7 @@ public class ExecutionRunService {
         List<ExecutionNodeRun> existingNodeRuns = repository.nodeRuns(run.id());
         List<ExecutionNodeRun> canceledNodeRuns = existingNodeRuns.stream()
                 .filter(nodeRun -> CANCELABLE_NODE_STATUSES.contains(nodeRun.status()))
-                .map(nodeRun -> canceledNodeRun(nodeRun, now))
+                .map(nodeRun -> canceledNodeRun(nodeRun, now, runnerCancelSummary.forNode(nodeRun)))
                 .toList();
         ExecutionRun canceled = new ExecutionRun(
                 run.id(),
@@ -274,14 +276,11 @@ public class ExecutionRunService {
                 run.sourceEventId(),
                 run.attempt(),
                 run.traceId(),
-                mergedSummary(run.resultSummaryJson(), Map.of(
-                        "canceled", true,
-                        "canceledNodeCount", canceledNodeRuns.size(),
-                        "runnerCancelAttempted", false,
-                        "runnerDispatched", false
-                )),
+                mergedSummary(run.resultSummaryJson(), runCancelSummary(canceledNodeRuns.size(), runnerCancelSummary)),
                 "EXECUTION_RUN_CANCELED",
-                "Execution run canceled before runner dispatch",
+                runnerCancelSummary.attempted()
+                        ? "Execution run canceled with best-effort runner cancellation"
+                        : "Execution run canceled before runner dispatch",
                 run.createdBy(),
                 run.startedAt(),
                 now,
@@ -293,7 +292,10 @@ public class ExecutionRunService {
         auditRun(canceled, "execution.run.canceled", "SUCCESS", Map.of(
                 "status", canceled.status(),
                 "canceledNodeCount", canceledNodeRuns.size(),
-                "runnerCancelAttempted", false
+                "runnerCancelAttempted", runnerCancelSummary.attempted(),
+                "runnerCancelAttemptCount", runnerCancelSummary.attemptedCount(),
+                "runnerCancelAcceptedCount", runnerCancelSummary.acceptedCount(),
+                "runnerCancelFailedCount", runnerCancelSummary.failedCount()
         ));
         return detail(requireRun(id), false);
     }
@@ -811,7 +813,20 @@ public class ExecutionRunService {
         );
     }
 
-    private ExecutionNodeRun canceledNodeRun(ExecutionNodeRun nodeRun, Instant now) {
+    private Map<String, Object> runCancelSummary(int canceledNodeCount, RunnerCancelSummary runnerCancelSummary) {
+        Map<String, Object> summary = new LinkedHashMap<>();
+        summary.put("canceled", true);
+        summary.put("canceledNodeCount", canceledNodeCount);
+        summary.put("runnerCancelAttempted", runnerCancelSummary.attempted());
+        summary.put("runnerCancelAttemptCount", runnerCancelSummary.attemptedCount());
+        summary.put("runnerCancelAcceptedCount", runnerCancelSummary.acceptedCount());
+        summary.put("runnerCancelFailedCount", runnerCancelSummary.failedCount());
+        summary.put("runnerDispatched", false);
+        return summary;
+    }
+
+    private ExecutionNodeRun canceledNodeRun(ExecutionNodeRun nodeRun, Instant now, RunnerCancelAttempt runnerCancel) {
+        boolean runnerCancelAttempted = runnerCancel != null && runnerCancel.attempted();
         return new ExecutionNodeRun(
                 nodeRun.id(),
                 nodeRun.runId(),
@@ -821,12 +836,10 @@ public class ExecutionRunService {
                 nodeRun.runnerType(),
                 nodeRun.externalRunId(),
                 "EXECUTION_RUN_CANCELED",
-                "Execution node canceled before runner dispatch",
-                mergedSummary(nodeRun.resultSummaryJson(), Map.of(
-                        "canceled", true,
-                        "runnerCancelAttempted", false,
-                        "runnerDispatched", false
-                )),
+                runnerCancelAttempted
+                        ? "Execution node canceled with best-effort runner cancellation"
+                        : "Execution node canceled before runner dispatch",
+                mergedSummary(nodeRun.resultSummaryJson(), nodeCancelSummary(runnerCancel)),
                 nodeRun.heartbeatAt(),
                 nodeRun.queuedAt(),
                 nodeRun.startedAt(),
@@ -834,6 +847,21 @@ public class ExecutionRunService {
                 nodeRun.createdAt(),
                 now
         );
+    }
+
+    private Map<String, Object> nodeCancelSummary(RunnerCancelAttempt runnerCancel) {
+        Map<String, Object> summary = new LinkedHashMap<>();
+        summary.put("canceled", true);
+        summary.put("runnerCancelAttempted", runnerCancel != null && runnerCancel.attempted());
+        summary.put("runnerCancelAccepted", runnerCancel != null && runnerCancel.accepted());
+        if (runnerCancel != null && StringUtils.hasText(runnerCancel.errorCode())) {
+            summary.put("runnerCancelErrorCode", runnerCancel.errorCode());
+        }
+        if (runnerCancel != null && StringUtils.hasText(runnerCancel.errorSummary())) {
+            summary.put("runnerCancelErrorSummary", runnerCancel.errorSummary());
+        }
+        summary.put("runnerDispatched", false);
+        return summary;
     }
 
     private ExecutionNodeRun retryNodeRun(
@@ -1387,26 +1415,15 @@ public class ExecutionRunService {
     }
 
     private String boundedSummaryText(String value) {
-        if (value == null || value.length() <= MAX_RESULT_SUMMARY_TEXT_LENGTH) {
-            return value;
-        }
-        return value.substring(0, MAX_RESULT_SUMMARY_TEXT_LENGTH - 3) + "...";
+        return SensitiveTextSanitizer.boundedWithEllipsis(value, MAX_RESULT_SUMMARY_TEXT_LENGTH);
     }
 
     private String redactSensitiveText(String value) {
-        if (!StringUtils.hasText(value)) {
-            return value;
-        }
-        String redacted = value;
-        for (Pattern pattern : SENSITIVE_TEXT_PATTERNS) {
-            redacted = pattern.matcher(redacted).replaceAll("[REDACTED]");
-        }
-        return redacted;
+        return SensitiveTextSanitizer.redactSensitiveText(value);
     }
 
     private boolean containsSensitiveText(String value) {
-        return StringUtils.hasText(value)
-                && SENSITIVE_TEXT_PATTERNS.stream().anyMatch(pattern -> pattern.matcher(value).find());
+        return SensitiveTextSanitizer.containsSensitiveText(value);
     }
 
     private String terminalErrorCode(String status, String requestedErrorCode) {
@@ -1424,6 +1441,62 @@ public class ExecutionRunService {
             case "BLOCKED" -> "EXECUTION_DEPENDENCY_BLOCKED";
             default -> "EXECUTION_NODE_FAILED";
         };
+    }
+
+    private RunnerCancelSummary cancelDispatchedRunnerNodes(List<ExecutionNodeRun> nodeRuns) {
+        List<RunnerCancelAttempt> attempts = nodeRuns.stream()
+                .filter(nodeRun -> CANCELABLE_NODE_STATUSES.contains(nodeRun.status()))
+                .filter(nodeRun -> "WP6_API".equals(nodeRun.runnerType()))
+                .filter(nodeRun -> StringUtils.hasText(nodeRun.externalRunId()))
+                .map(this::cancelDispatchedWp6Run)
+                .toList();
+        return new RunnerCancelSummary(attempts);
+    }
+
+    private RunnerCancelAttempt cancelDispatchedWp6Run(ExecutionNodeRun nodeRun) {
+        UUID wp6RunId = uuidOrNull(nodeRun.externalRunId());
+        if (wp6RunId == null) {
+            return RunnerCancelAttempt.failed(
+                    nodeRun.id(),
+                    "EXECUTION_RUNNER_CANCEL_ID_INVALID",
+                    "Dispatched WP6 run id is invalid"
+            );
+        }
+        try {
+            ApiAutomationRunDetailResponse response = apiAutomationService.cancelRun(wp6RunId);
+            String status = response == null || response.run() == null ? null : response.run().status();
+            boolean accepted = "CANCELED".equals(status);
+            return new RunnerCancelAttempt(
+                    nodeRun.id(),
+                    true,
+                    accepted,
+                    accepted ? null : "EXECUTION_RUNNER_CANCEL_NOT_ACCEPTED",
+                    accepted ? null : "WP6 runner cancel was not accepted"
+            );
+        } catch (BusinessException exception) {
+            return RunnerCancelAttempt.failed(
+                    nodeRun.id(),
+                    boundedNullableText(exception.getErrorCode().name(), 64),
+                    terminalErrorSummary("FAILED", exception.getMessage())
+            );
+        } catch (RuntimeException exception) {
+            return RunnerCancelAttempt.failed(
+                    nodeRun.id(),
+                    "EXECUTION_RUNNER_CANCEL_FAILED",
+                    terminalErrorSummary("FAILED", exception.getMessage())
+            );
+        }
+    }
+
+    private UUID uuidOrNull(String value) {
+        if (!StringUtils.hasText(value)) {
+            return null;
+        }
+        try {
+            return UUID.fromString(value);
+        } catch (IllegalArgumentException exception) {
+            return null;
+        }
     }
 
     private String terminalErrorSummary(String status, String requestedErrorSummary) {
@@ -1884,11 +1957,7 @@ public class ExecutionRunService {
     }
 
     private String boundedNullableText(String value, int maxLength) {
-        if (!StringUtils.hasText(value)) {
-            return null;
-        }
-        String trimmed = value.trim();
-        return trimmed.length() > maxLength ? trimmed.substring(0, maxLength) : trimmed;
+        return SensitiveTextSanitizer.boundedNullableText(value, maxLength);
     }
 
     private Map<String, Object> readMap(String json) {
@@ -1898,7 +1967,7 @@ public class ExecutionRunService {
         try {
             return objectMapper.readValue(json, MAP_TYPE);
         } catch (JsonProcessingException exception) {
-            return Map.of("unreadable", true);
+            return SensitiveTextSanitizer.unreadableMap();
         }
     }
 
@@ -1911,17 +1980,7 @@ public class ExecutionRunService {
     }
 
     private String sha256(String value) {
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] bytes = digest.digest((value == null ? "" : value).getBytes(StandardCharsets.UTF_8));
-            StringBuilder builder = new StringBuilder(bytes.length * 2);
-            for (byte item : bytes) {
-                builder.append(String.format("%02x", item));
-            }
-            return builder.toString();
-        } catch (NoSuchAlgorithmException exception) {
-            throw new IllegalStateException("SHA-256 is unavailable", exception);
-        }
+        return SensitiveTextSanitizer.sha256Hex(value);
     }
 
     private String mergedSummary(String existingJson, Map<String, Object> overrides) {
@@ -1968,6 +2027,46 @@ public class ExecutionRunService {
     }
 
     private record ResolvedDispatchTarget(String baseUrl, String baseUrlSource, String baseUrlRef, String environmentKey) {
+    }
+
+    private record RunnerCancelAttempt(
+            UUID nodeRunId,
+            boolean attempted,
+            boolean accepted,
+            String errorCode,
+            String errorSummary
+    ) {
+        private static RunnerCancelAttempt failed(UUID nodeRunId, String errorCode, String errorSummary) {
+            return new RunnerCancelAttempt(nodeRunId, true, false, errorCode, errorSummary);
+        }
+    }
+
+    private record RunnerCancelSummary(List<RunnerCancelAttempt> attempts) {
+        private boolean attempted() {
+            return !attempts.isEmpty();
+        }
+
+        private long attemptedCount() {
+            return attempts.size();
+        }
+
+        private long acceptedCount() {
+            return attempts.stream().filter(RunnerCancelAttempt::accepted).count();
+        }
+
+        private long failedCount() {
+            return attemptedCount() - acceptedCount();
+        }
+
+        private RunnerCancelAttempt forNode(ExecutionNodeRun nodeRun) {
+            if (nodeRun == null) {
+                return null;
+            }
+            return attempts.stream()
+                    .filter(attempt -> nodeRun.id().equals(attempt.nodeRunId()))
+                    .findFirst()
+                    .orElse(null);
+        }
     }
 
     private static final class RecoveryCounters {

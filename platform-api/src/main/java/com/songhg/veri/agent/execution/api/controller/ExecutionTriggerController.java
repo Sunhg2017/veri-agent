@@ -91,7 +91,11 @@ public class ExecutionTriggerController {
         return service.events(id, request);
     }
 
-    @PostMapping(path = "/webhooks/{id}", consumes = MediaType.ALL_VALUE)
+    @PostMapping(path = "/webhooks/{id}", consumes = {
+            MediaType.APPLICATION_JSON_VALUE,
+            MediaType.TEXT_PLAIN_VALUE,
+            MediaType.APPLICATION_FORM_URLENCODED_VALUE
+    })
     public ResponseEntity<ApiResponse<ExecutionWebhookTriggerResponse>> receiveWebhook(
             @PathVariable UUID id,
             @RequestHeader(name = "X-VA-Timestamp", required = false) String timestamp,

@@ -30,6 +30,8 @@ public interface ExecutionMapper {
 
     void insertPlanNode(ExecutionPlanNode node);
 
+    void insertPlanNodes(@Param("nodes") List<ExecutionPlanNode> nodes);
+
     ExecutionPlan plan(@Param("id") UUID id);
 
     List<ExecutionPlanNode> planNodes(@Param("planId") UUID planId);
@@ -46,7 +48,11 @@ public interface ExecutionMapper {
 
     void insertNodeRun(ExecutionNodeRun nodeRun);
 
+    void insertNodeRuns(@Param("nodeRuns") List<ExecutionNodeRun> nodeRuns);
+
     void updateNodeRun(ExecutionNodeRun nodeRun);
+
+    void updateNodeRuns(@Param("nodeRuns") List<ExecutionNodeRun> nodeRuns);
 
     int updateNodeRunIfStatus(@Param("nodeRun") ExecutionNodeRun nodeRun, @Param("expectedStatus") String expectedStatus);
 

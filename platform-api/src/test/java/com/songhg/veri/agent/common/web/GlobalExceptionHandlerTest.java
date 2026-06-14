@@ -5,11 +5,14 @@ import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
 import com.songhg.veri.agent.common.error.PlatformAccessDeniedException;
 import com.songhg.veri.agent.common.trace.TraceContext;
+import java.util.List;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -63,5 +66,20 @@ class GlobalExceptionHandlerTest {
         assertThat(response.getBody().code()).isEqualTo("FORBIDDEN");
         assertThat(response.getBody().message()).isEqualTo("权限不足");
         assertThat(response.getBody().traceId()).startsWith("trc_");
+    }
+
+    @Test
+    void unsupportedMediaTypeKeepsClientErrorStatus() {
+        TraceContext.setTraceId("trc_unsupported_media_type");
+
+        ResponseEntity<ApiResponse<Void>> response = handler.handleUnsupportedMediaType(
+                new HttpMediaTypeNotSupportedException(MediaType.APPLICATION_XML, List.of(MediaType.APPLICATION_JSON))
+        );
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNSUPPORTED_MEDIA_TYPE);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().code()).isEqualTo("UNSUPPORTED_MEDIA_TYPE");
+        assertThat(response.getBody().message()).isEqualTo("不支持的 Content-Type");
+        assertThat(response.getBody().traceId()).isEqualTo("trc_unsupported_media_type");
     }
 }

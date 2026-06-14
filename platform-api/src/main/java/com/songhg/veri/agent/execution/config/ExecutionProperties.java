@@ -17,6 +17,8 @@ public record ExecutionProperties(
         @DefaultValue("false") boolean cronEnabled,
         /** Allowed signed webhook timestamp skew in seconds. */
         @DefaultValue("300") long webhookClockSkewSeconds,
+        /** Webhook secret cache TTL in seconds; set to 0 to resolve every request. */
+        @DefaultValue("60") long webhookSecretCacheTtlSeconds,
         /** Fixed delay for the managed scheduler loop. */
         @DefaultValue("5000") int schedulerIntervalMs,
         /** Startup delay for the managed scheduler loop. */
@@ -41,6 +43,7 @@ public record ExecutionProperties(
     private static final int DEFAULT_SCHEDULER_INTERVAL_MS = 5_000;
     private static final long DEFAULT_WEBHOOK_CLOCK_SKEW_SECONDS = 300;
     private static final long MAX_WEBHOOK_CLOCK_SKEW_SECONDS = 86_400;
+    private static final long MAX_WEBHOOK_SECRET_CACHE_TTL_SECONDS = 3_600;
     private static final int MAX_SCHEDULER_INTERVAL_MS = 600_000;
     private static final int DEFAULT_SCHEDULER_INITIAL_DELAY_MS = 30_000;
     private static final int MAX_SCHEDULER_INITIAL_DELAY_MS = 3_600_000;
@@ -78,6 +81,13 @@ public record ExecutionProperties(
                 DEFAULT_WEBHOOK_CLOCK_SKEW_SECONDS,
                 MAX_WEBHOOK_CLOCK_SKEW_SECONDS
         );
+    }
+
+    public long effectiveWebhookSecretCacheTtlSeconds() {
+        if (webhookSecretCacheTtlSeconds <= 0) {
+            return 0;
+        }
+        return Math.min(webhookSecretCacheTtlSeconds, MAX_WEBHOOK_SECRET_CACHE_TTL_SECONDS);
     }
 
     public int effectiveSchedulerInitialDelayMs() {

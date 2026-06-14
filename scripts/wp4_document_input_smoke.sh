@@ -4,13 +4,21 @@ set -euo pipefail
 BASE_URL="${WP4_SMOKE_BASE_URL:-http://127.0.0.1:8080}"
 API_BASE="${BASE_URL%/}/api/v1/document-input"
 ASSET_API_BASE="${BASE_URL%/}/api/v1/asset"
+MANAGEMENT_API_BASE="${BASE_URL%/}/api/v1/management"
+AUTH_API_BASE="${BASE_URL%/}/api/v1/auth"
+PLATFORM_API_BASE="${BASE_URL%/}/api/v1"
 SERVICE_TOKEN="${WP4_SERVICE_TOKEN:-local-document-input-token}"
 ASSET_SERVICE_TOKEN="${WP3_SERVICE_TOKEN:-local-asset-token}"
+PLATFORM_SERVICE_TOKEN="${WP1_SERVICE_TOKEN:-local-platform-service-token}"
 CALLER_SERVICE="${WP4_SMOKE_CALLER_SERVICE:-wp4-document-input}"
 DELEGATED_USER_ID="${WP4_SMOKE_DELEGATED_USER_ID:-user-wp4-smoke}"
-PROJECT_ID="${WP4_SMOKE_PROJECT_ID:-project-wp4-smoke-$(date +%s)-$RANDOM}"
+PROJECT_ID="${WP4_SMOKE_PROJECT_ID:-wp4-smoke-$(date +%H%M%S)-$((RANDOM % 1000))}"
+PROJECT_ID_PROVIDED="${WP4_SMOKE_PROJECT_ID:-}"
 WEBHOOK_SECRET="${WP4_WEBHOOK_SECRET:-local-document-input-webhook-secret}"
 SOURCE_CODE="${WP4_SMOKE_SOURCE_CODE:-wp4-smoke-$(date +%s)-$RANDOM}"
+ADMIN_USERNAME="${WP4_SMOKE_ADMIN_USERNAME:-admin}"
+ADMIN_PASSWORD="${WP4_SMOKE_ADMIN_PASSWORD:-AdminPass12345}"
+ADMIN_CHANGED_PASSWORD="${WP4_SMOKE_ADMIN_NEW_PASSWORD:-AdminPass12345Changed!}"
 PASS=0
 FAIL=0
 
@@ -67,6 +75,88 @@ asset_headers=(
   -H "X-Caller-Service: $CALLER_SERVICE"
   -H "X-Delegated-User-Id: $DELEGATED_USER_ID"
 )
+
+platform_headers=(
+  -H "Authorization: Bearer $PLATFORM_SERVICE_TOKEN"
+  -H "X-Caller-Service: $CALLER_SERVICE"
+  -H "X-Delegated-User-Id: $DELEGATED_USER_ID"
+)
+
+post_json() {
+  local url="$1"
+  local body="$2"
+  shift 2
+  curl -sS -X POST "$url" "$@" -H 'Content-Type: application/json' -d "$body"
+}
+
+patch_json() {
+  local url="$1"
+  local body="$2"
+  shift 2
+  curl -sS -X PATCH "$url" "$@" -H 'Content-Type: application/json' -d "$body"
+}
+
+login_admin() {
+  local password="$1"
+  post_json "$AUTH_API_BASE/login" "$(jq -nc \
+    --arg username "$ADMIN_USERNAME" \
+    --arg password "$password" \
+    '{username:$username,password:$password}')"
+}
+
+get_platform_context() {
+  local project_key="$1"
+  curl -sS "$PLATFORM_API_BASE/contexts/projects/$(urlencode "$project_key")" "${platform_headers[@]}"
+}
+
+prepare_project() {
+  if [[ "${WP4_SMOKE_PREPARE_PROJECT:-1}" != "1" || -n "$PROJECT_ID_PROVIDED" ]]; then
+    return
+  fi
+
+  local login token project activated project_context project_resource_id
+  login="$(login_admin "$ADMIN_PASSWORD")"
+  token="$(printf '%s' "$login" | jq -r '.data.accessToken // empty')"
+  if [[ -z "$token" && "$ADMIN_CHANGED_PASSWORD" != "$ADMIN_PASSWORD" ]]; then
+    login="$(login_admin "$ADMIN_CHANGED_PASSWORD")"
+    token="$(printf '%s' "$login" | jq -r '.data.accessToken // empty')"
+    if [[ -n "$token" ]]; then
+      ADMIN_PASSWORD="$ADMIN_CHANGED_PASSWORD"
+    fi
+  fi
+  check "Login smoke admin" '.data.accessToken | type == "string"' "$login"
+
+  if printf '%s' "$login" | jq -e '(.data.mustChangePassword == true) or (.data.must_change_password == true)' >/dev/null; then
+    local password_change
+    password_change="$(post_json "$AUTH_API_BASE/change-password" "$(jq -nc \
+      --arg oldPassword "$ADMIN_PASSWORD" \
+      --arg newPassword "$ADMIN_CHANGED_PASSWORD" \
+      '{oldPassword:$oldPassword,newPassword:$newPassword}')" \
+      -H "Authorization: Bearer $token")"
+    check "Change initial admin password" '.code == "OK" and .data.passwordChanged == true' "$password_change"
+    ADMIN_PASSWORD="$ADMIN_CHANGED_PASSWORD"
+    login="$(login_admin "$ADMIN_PASSWORD")"
+    token="$(printf '%s' "$login" | jq -r '.data.accessToken // empty')"
+    check "Login smoke admin after password change" '.data.accessToken | type == "string"' "$login"
+  fi
+
+  project="$(post_json "$MANAGEMENT_API_BASE/projects" "$(jq -nc \
+    --arg code "$PROJECT_ID" \
+    '{code:$code,name:"WP4 smoke project",sensitivityLevel:"INTERNAL",allowPublicModel:false}')" \
+    -H "Authorization: Bearer $token")"
+  check "Prepare WP4 smoke project" '(.code == "OK" and .data.name == "WP4 smoke project") or .code == "CONFLICT"' "$project"
+  activated="$(patch_json "$MANAGEMENT_API_BASE/projects/$(urlencode "$PROJECT_ID")/status" '{"status":"ACTIVE"}' \
+    -H "Authorization: Bearer $token")"
+  check "Activate WP4 smoke project" '.code == "OK"' "$activated"
+  project_context="$(get_platform_context "$PROJECT_ID")"
+  check "Resolve WP4 smoke project context" '.code == "OK" and .data.status == "ACTIVE" and (.data.resourceId | type == "string")' "$project_context"
+  project_resource_id="$(printf '%s' "$project_context" | jq -r '.data.resourceId // empty')"
+  if [[ "$FAIL" -gt 0 ]]; then
+    echo "WP4 smoke setup failed: pass=$PASS fail=$FAIL" >&2
+    exit 2
+  fi
+  PROJECT_ID="$project_resource_id"
+}
 
 post_document_json() {
   local path="$1"
@@ -271,6 +361,7 @@ main() {
   check "WP4 health" '.data.service == "document-input" and .data.status == "UP" and .data.inputEnabled == true' "$health"
   local model_parse_enabled
   model_parse_enabled="$(printf '%s' "$health" | jq -r '.data.modelParseEnabled // false')"
+  prepare_project
 
   local markdown_import import_id candidates filtered_candidates candidate_ids candidate_targets batch dry_run publish requirement_id records asset
   markdown_import="$(post_document_json /imports "$(jq -nc \

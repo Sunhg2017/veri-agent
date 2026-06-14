@@ -35,6 +35,15 @@ public class BearerTokenAuthenticationFilter extends OncePerRequestFilter {
                 || path.equals("/api/v1/audit/events");
     }
 
+    /**
+     * Streaming MVC endpoints are re-dispatched after the initial request thread exits. Re-authenticating the async
+     * dispatch keeps those responses protected without falling back to dispatcher-type permitAll rules.
+     */
+    @Override
+    protected boolean shouldNotFilterAsyncDispatch() {
+        return false;
+    }
+
     @Override
     protected void doFilterInternal(
             HttpServletRequest request,

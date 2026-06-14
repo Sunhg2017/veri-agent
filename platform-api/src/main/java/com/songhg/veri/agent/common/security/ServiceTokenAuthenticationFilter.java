@@ -76,6 +76,15 @@ public class ServiceTokenAuthenticationFilter extends OncePerRequestFilter {
                 && !path.startsWith("/api/v1/test-design/");
     }
 
+    /**
+     * Service-token authenticated streaming/export endpoints must re-authenticate on async dispatch instead of relying
+     * on a dispatcher-type bypass.
+     */
+    @Override
+    protected boolean shouldNotFilterAsyncDispatch() {
+        return false;
+    }
+
     @Override
     protected void doFilterInternal(
             HttpServletRequest request,

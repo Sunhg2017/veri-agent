@@ -16,6 +16,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import org.junit.jupiter.api.Test;
@@ -66,6 +67,9 @@ class ExecutionTriggerControllerTest {
 
     @Autowired
     private ExecutionRepository executionRepository;
+
+    @Autowired
+    private SecretProviderTestConfig.CountingSecretProvider countingSecretProvider;
 
     @Test
     void createsListsUpdatesAndDryRunsTriggerWithoutLeakingSecretRef() throws Exception {
@@ -269,6 +273,45 @@ class ExecutionTriggerControllerTest {
     }
 
     @Test
+    void rejectsUnsupportedWebhookMediaTypeBeforeSignatureProcessing() throws Exception {
+        UUID bundleId = approvedBundle("project-alpha");
+        String token = userAccessToken(List.of("ProjectOwner@PROJECT:project-alpha"));
+        UUID planId = createPlan(bundleId, token, "READY");
+        UUID triggerId = createTrigger(planId, token, "ENABLED");
+        String payload = "<build token=\"not-stored\"/>";
+
+        mockMvc.perform(post("/api/v1/execution/webhooks/{id}", triggerId)
+                        .headers(webhookHeaders(payload, "evt-xml-rejected"))
+                        .contentType(MediaType.APPLICATION_XML)
+                        .content(payload))
+                .andExpect(status().isUnsupportedMediaType());
+    }
+
+    @Test
+    void cachesResolvedWebhookSecretWithinConfiguredTtl() throws Exception {
+        countingSecretProvider.reset();
+        UUID bundleId = approvedBundle("project-alpha");
+        String token = userAccessToken(List.of("ProjectOwner@PROJECT:project-alpha"));
+        UUID planId = createPlan(bundleId, token, "READY");
+        UUID triggerId = createTrigger(planId, token, "ENABLED");
+        String firstPayload = "{\"build\":\"cache-1\"}";
+        String secondPayload = "{\"build\":\"cache-2\"}";
+
+        mockMvc.perform(post("/api/v1/execution/webhooks/{id}", triggerId)
+                        .headers(webhookHeaders(firstPayload, "evt-cache-1"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(firstPayload))
+                .andExpect(status().isAccepted());
+        mockMvc.perform(post("/api/v1/execution/webhooks/{id}", triggerId)
+                        .headers(webhookHeaders(secondPayload, "evt-cache-2"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(secondPayload))
+                .andExpect(status().isAccepted());
+
+        org.assertj.core.api.Assertions.assertThat(countingSecretProvider.resolveCount()).isEqualTo(1);
+    }
+
+    @Test
     void signedWebhookRetryCanRecoverAfterRejectedSignatureAttempt() throws Exception {
         UUID bundleId = approvedBundle("project-alpha");
         String token = userAccessToken(List.of("ProjectOwner@PROJECT:project-alpha"));
@@ -422,16 +465,29 @@ class ExecutionTriggerControllerTest {
     @TestConfiguration
     static class SecretProviderTestConfig {
         @Bean
-        SecretProvider wp9TestSecretProvider() {
-            return new SecretProvider() {
-                @Override
-                public Optional<ResolvedSecret> resolve(String secretRef, SecretResolveContext context) {
-                    if (WEBHOOK_SECRET_REF.equals(secretRef)) {
-                        return Optional.of(new ResolvedSecret(secretRef, WEBHOOK_SECRET, "test", "v1"));
-                    }
-                    return Optional.empty();
+        CountingSecretProvider wp9TestSecretProvider() {
+            return new CountingSecretProvider();
+        }
+
+        static class CountingSecretProvider implements SecretProvider {
+            private final AtomicInteger resolveCount = new AtomicInteger();
+
+            @Override
+            public Optional<ResolvedSecret> resolve(String secretRef, SecretResolveContext context) {
+                resolveCount.incrementAndGet();
+                if (WEBHOOK_SECRET_REF.equals(secretRef)) {
+                    return Optional.of(new ResolvedSecret(secretRef, WEBHOOK_SECRET, "test", "v1"));
                 }
-            };
+                return Optional.empty();
+            }
+
+            void reset() {
+                resolveCount.set(0);
+            }
+
+            int resolveCount() {
+                return resolveCount.get();
+            }
         }
     }
 }

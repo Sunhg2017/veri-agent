@@ -10,6 +10,7 @@ import com.songhg.veri.agent.common.secret.ResolvedSecret;
 import com.songhg.veri.agent.common.secret.SecretResolveContext;
 import com.songhg.veri.agent.common.secret.SecretProvider;
 import com.songhg.veri.agent.common.trace.TraceContext;
+import com.songhg.veri.agent.common.util.SensitiveTextSanitizer;
 import com.songhg.veri.agent.execution.application.command.CreateExecutionTriggerCommand;
 import com.songhg.veri.agent.execution.application.command.UpdateExecutionTriggerCommand;
 import com.songhg.veri.agent.execution.application.port.ExecutionRepository;
@@ -29,11 +30,12 @@ import com.songhg.veri.agent.execution.domain.ExecutionTrigger;
 import com.songhg.veri.agent.execution.domain.ExecutionTriggerEvent;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.time.DateTimeException;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -86,6 +88,7 @@ public class ExecutionTriggerService {
     private final List<SecretProvider> secretProviders;
     private final ObjectMapper objectMapper;
     private final ExecutionProperties properties;
+    private final ConcurrentMap<String, CachedSecret> webhookSecretCache = new ConcurrentHashMap<>();
 
     public ExecutionTriggerService(
             ExecutionRepository repository,
@@ -266,7 +269,6 @@ public class ExecutionTriggerService {
      * request digests and bounded error summaries. Raw payloads, signature values and secret references are never
      * copied into event rows or responses.</p>
      */
-    @Transactional(noRollbackFor = BusinessException.class)
     public ExecutionWebhookTriggerResponse receiveWebhook(
             UUID triggerId,
             String rawPayload,
@@ -673,6 +675,12 @@ public class ExecutionTriggerService {
         if (!StringUtils.hasText(trigger.secretRef())) {
             throw new BusinessException(ErrorCode.INVALID_STATE, "EXECUTION_TRIGGER_SECRET_REQUIRED");
         }
+        String cacheKey = trigger.id() + ":" + stringOrEmpty(trigger.secretRefDigest());
+        CachedSecret cached = webhookSecretCache.get(cacheKey);
+        Instant now = Instant.now();
+        if (cached != null && cached.expiresAt().isAfter(now)) {
+            return cached.value();
+        }
         SecretResolveContext context = new SecretResolveContext(
                 "WEBHOOK_SIGNING",
                 "wp9-execution-service",
@@ -682,10 +690,21 @@ public class ExecutionTriggerService {
         for (SecretProvider provider : secretProviders) {
             Optional<ResolvedSecret> resolved = provider.resolve(trigger.secretRef(), context);
             if (resolved.isPresent() && StringUtils.hasText(resolved.get().value())) {
-                return resolved.get().value();
+                String value = resolved.get().value();
+                cacheWebhookSecret(cacheKey, value, now);
+                return value;
             }
         }
         throw new BusinessException(ErrorCode.SECRET_PROVIDER_ERROR, "EXECUTION_TRIGGER_SECRET_UNRESOLVED");
+    }
+
+    private void cacheWebhookSecret(String cacheKey, String value, Instant now) {
+        long ttlSeconds = properties.effectiveWebhookSecretCacheTtlSeconds();
+        if (ttlSeconds <= 0) {
+            webhookSecretCache.remove(cacheKey);
+            return;
+        }
+        webhookSecretCache.put(cacheKey, new CachedSecret(value, now.plusSeconds(ttlSeconds)));
     }
 
     private void ensureTriggerGloballyAllowed(String triggerType, String status) {
@@ -1047,11 +1066,7 @@ public class ExecutionTriggerService {
     }
 
     private String boundedNullableText(String value, int maxLength) {
-        if (!StringUtils.hasText(value)) {
-            return null;
-        }
-        String trimmed = value.trim();
-        return trimmed.length() > maxLength ? trimmed.substring(0, maxLength) : trimmed;
+        return SensitiveTextSanitizer.boundedNullableText(value, maxLength);
     }
 
     private Map<String, Object> readMap(String json) {
@@ -1061,7 +1076,7 @@ public class ExecutionTriggerService {
         try {
             return objectMapper.readValue(json, MAP_TYPE);
         } catch (JsonProcessingException exception) {
-            return Map.of("unreadable", true);
+            return SensitiveTextSanitizer.unreadableMap();
         }
     }
 
@@ -1074,11 +1089,13 @@ public class ExecutionTriggerService {
     }
 
     private String sha256(String value) {
-        try {
-            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
-                    .digest((value == null ? "" : value).getBytes(StandardCharsets.UTF_8)));
-        } catch (NoSuchAlgorithmException exception) {
-            throw new IllegalStateException("SHA-256 is unavailable", exception);
-        }
+        return SensitiveTextSanitizer.sha256Hex(value);
+    }
+
+    private String stringOrEmpty(Object value) {
+        return value == null ? "" : String.valueOf(value);
+    }
+
+    private record CachedSecret(String value, Instant expiresAt) {
     }
 }

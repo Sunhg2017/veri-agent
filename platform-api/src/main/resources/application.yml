@@ -42,3 +42,14 @@ springdoc:
 mybatis:
   mapper-locations: classpath*:mapper/**/*.xml
   type-handlers-package: com.songhg.veri.agent.common.mybatis
+
+veri-agent:
+  security:
+    cors:
+      allowed-origins: ${PLATFORM_CORS_ALLOWED_ORIGINS:http://localhost:5173,http://127.0.0.1:5173}
+      allowed-origin-patterns: ${PLATFORM_CORS_ALLOWED_ORIGIN_PATTERNS:}
+      allowed-methods: ${PLATFORM_CORS_ALLOWED_METHODS:GET,POST,PUT,PATCH,DELETE,OPTIONS}
+      allowed-headers: ${PLATFORM_CORS_ALLOWED_HEADERS:Authorization,Content-Type,X-Trace-Id,X-Caller-Service,X-Delegated-User-Id,X-VA-Timestamp,X-VA-Signature,X-VA-Event-Id}
+      exposed-headers: ${PLATFORM_CORS_EXPOSED_HEADERS:X-Trace-Id}
+      allow-credentials: ${PLATFORM_CORS_ALLOW_CREDENTIALS:true}
+      max-age-seconds: ${PLATFORM_CORS_MAX_AGE_SECONDS:3600}

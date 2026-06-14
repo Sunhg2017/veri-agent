@@ -48,8 +48,8 @@ public class JdbcExecutionRepository implements ExecutionRepository {
     @Override
     public void replacePlanNodes(UUID planId, List<ExecutionPlanNode> nodes) {
         mapper.deletePlanNodes(planId);
-        for (ExecutionPlanNode node : nodes) {
-            mapper.insertPlanNode(node);
+        if (nodes != null && !nodes.isEmpty()) {
+            mapper.insertPlanNodes(nodes);
         }
     }
 
@@ -90,15 +90,15 @@ public class JdbcExecutionRepository implements ExecutionRepository {
 
     @Override
     public void insertNodeRuns(List<ExecutionNodeRun> nodeRuns) {
-        for (ExecutionNodeRun nodeRun : nodeRuns) {
-            mapper.insertNodeRun(nodeRun);
+        if (nodeRuns != null && !nodeRuns.isEmpty()) {
+            mapper.insertNodeRuns(nodeRuns);
         }
     }
 
     @Override
     public void updateNodeRuns(List<ExecutionNodeRun> nodeRuns) {
-        for (ExecutionNodeRun nodeRun : nodeRuns) {
-            mapper.updateNodeRun(nodeRun);
+        if (nodeRuns != null && !nodeRuns.isEmpty()) {
+            mapper.updateNodeRuns(nodeRuns);
         }
     }
 

@@ -30,10 +30,13 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 @Configuration
 @EnableWebSecurity
-@EnableConfigurationProperties({AuthProperties.class, PlatformIntegrationProperties.class, ModelAccessProperties.class, AssetProperties.class, DocumentInputProperties.class, TestDesignProperties.class, ApiAutomationProperties.class, ExecutionProperties.class, SecretProviderProperties.class, AuditRetentionProperties.class, ManagementProperties.class, ServiceCallerProperties.class})
+@EnableConfigurationProperties({AuthProperties.class, PlatformIntegrationProperties.class, ModelAccessProperties.class, AssetProperties.class, DocumentInputProperties.class, TestDesignProperties.class, ApiAutomationProperties.class, ExecutionProperties.class, SecretProviderProperties.class, AuditRetentionProperties.class, ManagementProperties.class, ServiceCallerProperties.class, CorsProperties.class})
 public class SecurityConfig {
 
     @Bean
@@ -61,7 +64,7 @@ public class SecurityConfig {
                 .cors(Customizer.withDefaults())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(registry -> registry
-                        .dispatcherTypeMatchers(DispatcherType.ASYNC, DispatcherType.ERROR).permitAll()
+                        .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
                         .requestMatchers("/actuator/health", "/actuator/info", "/actuator/metrics/**").permitAll()
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/auth/login").permitAll()
@@ -96,5 +99,20 @@ public class SecurityConfig {
     @Bean
     PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
+    }
+
+    @Bean
+    CorsConfigurationSource corsConfigurationSource(CorsProperties properties) {
+        CorsConfiguration configuration = new CorsConfiguration();
+        configuration.setAllowedOrigins(properties.allowedOrigins());
+        configuration.setAllowedOriginPatterns(properties.allowedOriginPatterns());
+        configuration.setAllowedMethods(properties.allowedMethods());
+        configuration.setAllowedHeaders(properties.allowedHeaders());
+        configuration.setExposedHeaders(properties.exposedHeaders());
+        configuration.setAllowCredentials(properties.allowCredentials());
+        configuration.setMaxAge(properties.maxAgeSeconds());
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", configuration);
+        return source;
     }
 }

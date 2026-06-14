@@ -4,6 +4,7 @@ veri-agent:
     webhook-enabled: ${WP9_WEBHOOK_ENABLED:false}
     cron-enabled: ${WP9_CRON_ENABLED:false}
     webhook-clock-skew-seconds: ${WP9_WEBHOOK_CLOCK_SKEW_SECONDS:300}
+    webhook-secret-cache-ttl-seconds: ${WP9_WEBHOOK_SECRET_CACHE_TTL_SECONDS:60}
     scheduler-interval-ms: ${WP9_SCHEDULER_INTERVAL_MS:5000}
     scheduler-initial-delay-ms: ${WP9_SCHEDULER_INITIAL_DELAY_MS:30000}
     scheduler-worker-id: ${WP9_SCHEDULER_WORKER_ID:wp9-managed-worker}

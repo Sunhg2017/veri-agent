@@ -312,6 +312,87 @@ class ExecutionRunControllerTest {
     }
 
     @Test
+    void cancelAttemptsDispatchedWp6RunWithoutLeakingRunnerEvidence() throws Exception {
+        UUID bundleId = approvedBundle("project-alpha");
+        String ownerToken = userAccessToken(List.of("ProjectOwner@PROJECT:project-alpha"));
+        String adminToken = userAccessToken(List.of("SuperAdmin"));
+        UUID planId = createPlan(bundleId, ownerToken, "READY");
+        UUID runId = triggerRun(planId, ownerToken, "cancel-dispatched-smoke");
+
+        MvcResult claimed = mockMvc.perform(post("/api/v1/execution/internal/queue/claims")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
+                        .param("workerId", "worker-cancel-dispatched"))
+                .andExpect(status().isCreated())
+                .andReturn();
+        UUID nodeRunId = UUID.fromString(JsonPath.read(claimed.getResponse().getContentAsString(), "$.data.nodeRunId"));
+        String claimToken = JsonPath.read(claimed.getResponse().getContentAsString(), "$.data.claimToken");
+
+        mockMvc.perform(post("/api/v1/execution/internal/queue/node-runs/{id}/dispatch", nodeRunId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "claimToken", claimToken,
+                                "baseUrl", "https://api.example.test/cancel",
+                                "environmentId", "qa"
+                        ))))
+                .andExpect(status().isOk());
+
+        ExecutionRun run = executionRepository.run(runId).orElseThrow();
+        ExecutionNodeRun dispatched = executionRepository.nodeRuns(runId).get(0);
+        executionRepository.updateRun(new ExecutionRun(
+                run.id(),
+                run.planId(),
+                run.projectId(),
+                "RUNNING",
+                run.triggerType(),
+                run.requestKey(),
+                run.sourceEventId(),
+                run.attempt(),
+                run.traceId(),
+                run.resultSummaryJson(),
+                run.errorCode(),
+                run.errorSummary(),
+                run.createdBy(),
+                run.startedAt(),
+                null,
+                run.createdAt(),
+                Instant.now()
+        ));
+        executionRepository.updateNodeRuns(List.of(new ExecutionNodeRun(
+                dispatched.id(),
+                dispatched.runId(),
+                dispatched.planNodeId(),
+                "RUNNING",
+                dispatched.attempt(),
+                dispatched.runnerType(),
+                dispatched.externalRunId(),
+                null,
+                null,
+                dispatched.resultSummaryJson(),
+                Instant.now(),
+                dispatched.queuedAt(),
+                dispatched.startedAt(),
+                null,
+                dispatched.createdAt(),
+                Instant.now()
+        )));
+
+        mockMvc.perform(post("/api/v1/execution/runs/{id}/cancel", runId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("CANCELED"))
+                .andExpect(jsonPath("$.data.resultSummary.runnerCancelAttempted").value(true))
+                .andExpect(jsonPath("$.data.resultSummary.runnerCancelAttemptCount").value(1))
+                .andExpect(jsonPath("$.data.resultSummary.runnerCancelAcceptedCount").value(0))
+                .andExpect(jsonPath("$.data.resultSummary.runnerCancelFailedCount").value(1))
+                .andExpect(jsonPath("$.data.nodes[0].status").value("CANCELED"))
+                .andExpect(jsonPath("$.data.nodes[0].resultSummary.runnerCancelAttempted").value(true))
+                .andExpect(jsonPath("$.data.nodes[0].resultSummary.runnerCancelAccepted").value(false))
+                .andExpect(jsonPath("$.data.nodes[0].resultSummary.runnerCancelErrorCode").value("EXECUTION_RUNNER_CANCEL_NOT_ACCEPTED"))
+                .andExpect(content().string(not(containsString("https://api.example.test/cancel"))));
+    }
+
+    @Test
     void completingClaimedFailureBlocksFailFastDependentsAndAllowsNoopClaim() throws Exception {
         UUID bundleId = approvedBundle("project-alpha");
         String ownerToken = userAccessToken(List.of("ProjectOwner@PROJECT:project-alpha"));

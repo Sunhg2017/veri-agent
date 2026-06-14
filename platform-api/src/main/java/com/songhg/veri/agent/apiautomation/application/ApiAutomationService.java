@@ -56,6 +56,7 @@ import com.songhg.veri.agent.common.secret.ResolvedSecret;
 import com.songhg.veri.agent.common.secret.SecretProvider;
 import com.songhg.veri.agent.common.secret.SecretResolveContext;
 import com.songhg.veri.agent.common.trace.TraceContext;
+import com.songhg.veri.agent.common.util.SensitiveTextSanitizer;
 import com.songhg.veri.agent.modelaccess.application.ModelInvocationService;
 import com.songhg.veri.agent.modelaccess.application.command.ModelInvocationCommand;
 import com.songhg.veri.agent.modelaccess.application.view.ModelInvocationResult;
@@ -65,8 +66,6 @@ import java.net.IDN;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
@@ -126,11 +125,6 @@ public class ApiAutomationService {
     private static final String MODEL_CAPABILITY_JSON = "JSON";
     private static final String DEFAULT_MODEL_SENSITIVITY_LEVEL = "INTERNAL";
     private static final List<String> SYNC_PREVIEW_ACTIONS = List.of("CREATE", "UPDATE", "REVIEW", "SKIP");
-    private static final List<Pattern> SENSITIVE_TEXT_PATTERNS = List.of(
-            Pattern.compile("(?i)\\bbearer\\s+[a-z0-9._\\-]{8,}"),
-            Pattern.compile("(?i)\\b(api[_-]?key|secret|token|password|passwd|authorization)\\s*[:=]\\s*[^\\s,;，；]+"),
-            Pattern.compile("(?i)\\b(sk|pk|rk)_[a-z0-9_-]{8,}\\b")
-    );
     private static final List<Pattern> FORBIDDEN_SCRIPT_PATTERNS = List.of(
             Pattern.compile("(?m)^\\s*(import|from)\\s+(subprocess|socket|ftplib|paramiko|telnetlib|pickle|marshal)\\b"),
             Pattern.compile("\\b(os\\.system|eval|exec|__import__)\\s*\\(")
@@ -1797,10 +1791,7 @@ public class ApiAutomationService {
     }
 
     private boolean containsSensitiveText(String value) {
-        if (!StringUtils.hasText(value)) {
-            return false;
-        }
-        return SENSITIVE_TEXT_PATTERNS.stream().anyMatch(pattern -> pattern.matcher(value).find());
+        return SensitiveTextSanitizer.containsSensitiveText(value);
     }
 
     private GenerationRequest normalizeGenerationRequest(
@@ -3297,12 +3288,11 @@ public class ApiAutomationService {
     }
 
     private String boundedNullableText(String value, int maxLength) {
-        return StringUtils.hasText(value) ? boundedText(value, maxLength) : null;
+        return SensitiveTextSanitizer.boundedNullableText(value, maxLength);
     }
 
     private String boundedText(String value, int maxLength) {
-        String trimmed = value == null ? "" : value.trim();
-        return trimmed.length() <= maxLength ? trimmed : trimmed.substring(0, maxLength);
+        return SensitiveTextSanitizer.boundedText(value, maxLength);
     }
 
     private String safeSourceText(String value, int maxLength) {
@@ -3313,11 +3303,7 @@ public class ApiAutomationService {
     }
 
     private String redactSensitiveText(String value) {
-        String redacted = value;
-        for (Pattern pattern : SENSITIVE_TEXT_PATTERNS) {
-            redacted = pattern.matcher(redacted).replaceAll("[REDACTED]");
-        }
-        return redacted;
+        return SensitiveTextSanitizer.redactSensitiveText(value);
     }
 
     private String nullToEmpty(String value) {
@@ -3325,17 +3311,7 @@ public class ApiAutomationService {
     }
 
     private String sha256(String value) {
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] bytes = digest.digest(value.getBytes(StandardCharsets.UTF_8));
-            StringBuilder builder = new StringBuilder(bytes.length * 2);
-            for (byte b : bytes) {
-                builder.append(String.format("%02x", b));
-            }
-            return builder.toString();
-        } catch (NoSuchAlgorithmException exception) {
-            throw new BusinessException(ErrorCode.INTERNAL_ERROR, "SHA-256 不可用");
-        }
+        return SensitiveTextSanitizer.sha256Hex(value);
     }
 
     private void audit(
