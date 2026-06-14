@@ -9,12 +9,9 @@ import {
   Eye,
   FileText,
   GripVertical,
-  Layers3,
   Link2,
   Plus,
   RefreshCw,
-  Repeat2,
-  RotateCcw,
   Save,
   Search,
   Send,
@@ -39,9 +36,7 @@ import {
 } from '../api/assets';
 import {
   TEST_DESIGN_CANDIDATE_STATUSES,
-  TEST_DESIGN_COVERAGE_STRATEGIES,
   TEST_DESIGN_COVERAGE_TYPES,
-  TEST_DESIGN_GENERATION_STRATEGIES,
   addTestDesignReportArchiveNote,
   addTestDesignContextPolicyNote,
   addTestDesignReleaseReadinessNote,
@@ -218,8 +213,6 @@ import {
 } from '../testDesignAuditSummary';
 import { buildTestDesignTaskDiagnostics } from '../testDesignTaskDiagnostics';
 import {
-  TEST_DESIGN_CONTEXT_POLICY_REASON_CODES,
-  TEST_DESIGN_CONTEXT_POLICY_WORK_ORDER_STATUSES,
   buildTestDesignContextPolicyPayload,
   buildTestDesignContextPolicySummary,
   contextPolicyDraftFromOverride,
@@ -232,7 +225,6 @@ import {
   Metric,
   PromptTrendPanel,
   QualitySummaryPanel,
-  ReviewSummaryPanel,
   StateLine,
   type WorkState
 } from './TestDesignOverviewPanels';
@@ -244,12 +236,23 @@ import {
   type QueueAlertSubscriptionDraft,
   type QueuedEventReplayDraft
 } from './TestDesignCrossWpOperationsPanel';
+import { TestDesignConflictOperationsPanel } from './TestDesignConflictOperationsPanel';
+import { TestDesignContextPolicyPanel } from './TestDesignContextPolicyPanel';
 import {
   EvaluationCorpusOperationsPanel,
   type CalibrationRunDraft,
   type EvaluationSampleDraft,
   type EvaluationSampleFilters
 } from './TestDesignEvaluationCorpusPanel';
+import { TestDesignRequirementSelectionPanel } from './TestDesignRequirementSelectionPanel';
+import { TestDesignReviewHistoryPanel } from './TestDesignReviewHistoryPanel';
+import { TestDesignScopePanel } from './TestDesignScopePanel';
+import {
+  TestDesignGenerationConfigPanel,
+  TestDesignTaskDiagnosticsPanel,
+  TestDesignTaskListPanel
+} from './TestDesignTaskSidebarPanels';
+import { TestDesignTemplateManagementPanel } from './TestDesignTemplateManagementPanel';
 import {
   BatchActionSummary,
   BatchEditSummary,
@@ -260,13 +263,8 @@ import {
   PublishRecordRow,
   PublishResultBadge,
   QualityFieldMessages,
-  ReviewRecordRow,
   assetCaseTraceHref,
   calibrationStatusTone,
-  contextPolicyDigestText,
-  contextPolicyOverrideLimitText,
-  contextPolicyStatusTone,
-  emptyRequirementText,
   publishRecordKey,
   releaseReadinessDigestText,
   releaseReadinessStatusTone,
@@ -3666,855 +3664,101 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
           onRefresh={() => void refreshTaskAuditSummary(selectedTaskId)}
         />
 
-        <section className="panel">
-          <div className="panel-header">
-            <div>
-              <h2 className="panel-title">需求选择</h2>
-              <p className="panel-desc">从 WP3 已入库需求中选择生成范围。</p>
-            </div>
-            <div className="toolbar-actions">
-              <button className="btn btn-secondary btn-sm" type="button" disabled={disabled || loadState.loading} onClick={() => void refreshAll()}>
-                <RefreshCw size={15} />
-                刷新
-              </button>
-              <button className="btn btn-ghost btn-sm" type="button" disabled={disabled || loadState.loading} onClick={() => setSelectedRequirementIds(filteredRequirements.map((item) => item.id).filter(Boolean))}>
-                全选
-              </button>
-            </div>
-          </div>
-          <div className="panel-body">
-            <div className="asset-filter-bar">
-              <label className="field">
-                <span className="field-label">项目 ID</span>
-                <input value={filters.projectId} onChange={(event) => setFilters((current) => ({ ...current, projectId: event.target.value }))} placeholder="project UUID" disabled={disabled} />
-              </label>
-              <label className="field">
-                <span className="field-label">状态</span>
-                <select value={filters.status} onChange={(event) => setFilters((current) => ({ ...current, status: event.target.value }))} disabled={disabled}>
-                  <option value="">全部</option>
-                  <option value="APPROVED">APPROVED</option>
-                  <option value="REVIEWING">REVIEWING</option>
-                  <option value="DRAFT">DRAFT</option>
-                </select>
-              </label>
-              <label className="field">
-                <span className="field-label">关键词</span>
-                <input value={filters.keyword} onChange={(event) => setFilters((current) => ({ ...current, keyword: event.target.value }))} placeholder="标题 / 标签" disabled={disabled} />
-              </label>
-              <div className="filter-actions">
-                <button className="btn btn-secondary btn-sm" type="button" disabled={disabled} onClick={() => setFilters(initialFilters)}>
-                  <Search size={15} />
-                  重置
-                </button>
-              </div>
-            </div>
+        <TestDesignRequirementSelectionPanel
+          signedIn={props.signedIn}
+          canRead={canRead}
+          disabled={disabled}
+          loadState={loadState}
+          filters={filters}
+          initialFilters={initialFilters}
+          filteredRequirements={filteredRequirements}
+          selectedRequirementIds={selectedRequirementIds}
+          onRefresh={() => void refreshAll()}
+          onFiltersChange={setFilters}
+          onSelectedRequirementIdsChange={setSelectedRequirementIds}
+          onToggleRequirement={toggleRequirement}
+        />
 
-            <div className="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th style={{ width: 48 }}></th>
-                    <th>需求</th>
-                    <th>优先级</th>
-                    <th>来源</th>
-                    <th>标签</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredRequirements.length ? (
-                    filteredRequirements.map((requirement) => (
-                      <tr className={selectedRequirementIds.includes(requirement.id) ? 'selected-row' : ''} key={requirement.id}>
-                        <td>
-                          <input
-                            aria-label={`选择需求 ${requirement.title}`}
-                            type="checkbox"
-                            checked={selectedRequirementIds.includes(requirement.id)}
-                            onChange={() => toggleRequirement(requirement.id)}
-                            disabled={disabled || !requirement.id}
-                          />
-                        </td>
-                        <td>
-                          <strong>{requirement.title}</strong>
-                          <div className="field-hint">{requirement.id}</div>
-                        </td>
-                        <td><span className="badge badge-neutral">{requirement.priority}</span></td>
-                        <td>{requirement.sourceRef ?? requirement.source}</td>
-                        <td>{requirement.tags.join(', ') || '-'}</td>
-                      </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td className="table-empty" colSpan={5}>{emptyRequirementText(props.signedIn, canRead, loadState.loading)}</td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-            <StateLine state={loadState} />
-          </div>
-        </section>
+        <TestDesignContextPolicyPanel
+          disabled={disabled}
+          canRead={canRead}
+          canPolicyManage={canPolicyManage}
+          state={contextPolicyState}
+          summary={contextPolicySummary}
+          draft={contextPolicyDraft}
+          submitBlocked={contextPolicySubmitBlocked}
+          overrides={contextPolicyOverrides}
+          selectedOverrideId={selectedContextPolicyOverrideId}
+          selectedOverride={selectedContextPolicyOverride}
+          selectedPendingOverride={selectedPendingContextPolicyOverride}
+          notes={contextPolicyNotes}
+          onRefresh={() => void refreshContextPolicy()}
+          onNewDraft={newContextPolicyOverrideDraft}
+          onDraftChange={setContextPolicyDraft}
+          onSubmit={requestContextPolicyOverride}
+          onSelectOverride={(override) => void selectContextPolicyOverride(override)}
+          onReviewOverride={(overrideId, action) => void reviewContextPolicyOverride(overrideId, action)}
+          onAddNote={() => void addContextPolicyNote()}
+        />
 
-        <section className="panel test-design-context-policy-panel">
-          <div className="panel-header compact">
-            <div>
-              <h2 className="panel-title">上下文策略</h2>
-              <p className="panel-desc">{contextPolicySummary.scopeLabel}</p>
-            </div>
-            <div className="toolbar-actions">
-              <button className="btn btn-secondary btn-sm" type="button" disabled={disabled || contextPolicyState.loading} onClick={() => void refreshContextPolicy()}>
-                <RefreshCw size={15} />
-                查询
-              </button>
-              <button className="btn btn-ghost btn-sm" type="button" disabled={!canPolicyManage || contextPolicyState.loading} onClick={newContextPolicyOverrideDraft}>
-                <Plus size={15} />
-                新建
-              </button>
-            </div>
-          </div>
-          <div className="panel-body compact main-stack">
-            <form className="test-design-context-policy-form" onSubmit={requestContextPolicyOverride}>
-              <label className="field">
-                <span className="field-label">项目 ID</span>
-                <input
-                  value={contextPolicyDraft.projectId}
-                  onChange={(event) => setContextPolicyDraft((current) => ({ ...current, projectId: event.target.value }))}
-                  placeholder="project UUID"
-                  disabled={!canRead || contextPolicyState.loading}
-                />
-              </label>
-              <label className="field">
-                <span className="field-label">环境键</span>
-                <input
-                  value={contextPolicyDraft.environmentKey}
-                  onChange={(event) => setContextPolicyDraft((current) => ({ ...current, environmentKey: event.target.value }))}
-                  placeholder="qa"
-                  disabled={!canRead || contextPolicyState.loading}
-                />
-              </label>
-              <label className="field">
-                <span className="field-label">覆盖范围</span>
-                <select
-                  value={contextPolicyDraft.scopeType}
-                  onChange={(event) => setContextPolicyDraft((current) => ({ ...current, scopeType: event.target.value === 'ENVIRONMENT' ? 'ENVIRONMENT' : 'PROJECT' }))}
-                  disabled={!canPolicyManage || contextPolicyState.loading}
-                >
-                  <option value="PROJECT">PROJECT</option>
-                  <option value="ENVIRONMENT">ENVIRONMENT</option>
-                </select>
-              </label>
-              <label className="field">
-                <span className="field-label">变更原因</span>
-                <select
-                  value={contextPolicyDraft.changeReasonCode}
-                  onChange={(event) => setContextPolicyDraft((current) => ({ ...current, changeReasonCode: event.target.value as TestDesignContextPolicyDraft['changeReasonCode'] }))}
-                  disabled={!canPolicyManage || contextPolicyState.loading}
-                >
-                  {TEST_DESIGN_CONTEXT_POLICY_REASON_CODES.map((code) => (
-                    <option key={code} value={code}>{code}</option>
-                  ))}
-                </select>
-              </label>
-              <label className="field">
-                <span className="field-label">关联资产</span>
-                <input
-                  value={contextPolicyDraft.linkedAssetsPerRequirement}
-                  type="number"
-                  min="1"
-                  max="50"
-                  onChange={(event) => setContextPolicyDraft((current) => ({ ...current, linkedAssetsPerRequirement: event.target.value }))}
-                  disabled={!canPolicyManage || contextPolicyState.loading}
-                />
-              </label>
-              <label className="field">
-                <span className="field-label">显式资产</span>
-                <input
-                  value={contextPolicyDraft.explicitAssetsPerType}
-                  type="number"
-                  min="1"
-                  max="50"
-                  onChange={(event) => setContextPolicyDraft((current) => ({ ...current, explicitAssetsPerType: event.target.value }))}
-                  disabled={!canPolicyManage || contextPolicyState.loading}
-                />
-              </label>
-              <label className="field">
-                <span className="field-label">历史用例</span>
-                <input
-                  value={contextPolicyDraft.existingCasesPerRequirement}
-                  type="number"
-                  min="1"
-                  max="50"
-                  onChange={(event) => setContextPolicyDraft((current) => ({ ...current, existingCasesPerRequirement: event.target.value }))}
-                  disabled={!canPolicyManage || contextPolicyState.loading}
-                />
-              </label>
-              <label className="field">
-                <span className="field-label">需求摘要</span>
-                <input
-                  value={contextPolicyDraft.requirementDescriptionChars}
-                  type="number"
-                  min="1"
-                  max="2000"
-                  onChange={(event) => setContextPolicyDraft((current) => ({ ...current, requirementDescriptionChars: event.target.value }))}
-                  disabled={!canPolicyManage || contextPolicyState.loading}
-                />
-              </label>
-              <label className="field">
-                <span className="field-label">验收摘要</span>
-                <input
-                  value={contextPolicyDraft.acceptanceCriteriaChars}
-                  type="number"
-                  min="1"
-                  max="2000"
-                  onChange={(event) => setContextPolicyDraft((current) => ({ ...current, acceptanceCriteriaChars: event.target.value }))}
-                  disabled={!canPolicyManage || contextPolicyState.loading}
-                />
-              </label>
-              <label className="field">
-                <span className="field-label">资产摘要</span>
-                <input
-                  value={contextPolicyDraft.assetSchemaChars}
-                  type="number"
-                  min="1"
-                  max="2000"
-                  onChange={(event) => setContextPolicyDraft((current) => ({ ...current, assetSchemaChars: event.target.value }))}
-                  disabled={!canPolicyManage || contextPolicyState.loading}
-                />
-              </label>
-              <label className="field">
-                <span className="field-label">工单编号</span>
-                <input
-                  value={contextPolicyDraft.workOrderKey}
-                  onChange={(event) => setContextPolicyDraft((current) => ({ ...current, workOrderKey: event.target.value }))}
-                  placeholder="WP5-CTX-..."
-                  disabled={!canPolicyManage || contextPolicyState.loading}
-                />
-              </label>
-              <label className="field">
-                <span className="field-label">工单标题</span>
-                <input
-                  value={contextPolicyDraft.workOrderTitle}
-                  onChange={(event) => setContextPolicyDraft((current) => ({ ...current, workOrderTitle: event.target.value }))}
-                  disabled={!canPolicyManage || contextPolicyState.loading}
-                />
-              </label>
-              <label className="field test-design-context-policy-wide">
-                <span className="field-label">工单 URL</span>
-                <input
-                  value={contextPolicyDraft.workOrderUrl}
-                  onChange={(event) => setContextPolicyDraft((current) => ({ ...current, workOrderUrl: event.target.value }))}
-                  placeholder="https://..."
-                  disabled={!canPolicyManage || contextPolicyState.loading}
-                />
-              </label>
-              <label className="field test-design-context-policy-wide">
-                <span className="field-label">策略正文</span>
-                <textarea
-                  value={contextPolicyDraft.policyBody}
-                  maxLength={4000}
-                  rows={4}
-                  onChange={(event) => setContextPolicyDraft((current) => ({ ...current, policyBody: event.target.value }))}
-                  disabled={!canPolicyManage || contextPolicyState.loading}
-                />
-              </label>
-              <label className="field test-design-context-policy-wide">
-                <span className="field-label">策略 diff</span>
-                <textarea
-                  value={contextPolicyDraft.policyDiffSummary}
-                  maxLength={1000}
-                  rows={3}
-                  onChange={(event) => setContextPolicyDraft((current) => ({ ...current, policyDiffSummary: event.target.value }))}
-                  disabled={!canPolicyManage || contextPolicyState.loading}
-                />
-              </label>
-              <label className="field test-design-context-policy-wide">
-                <span className="field-label">申请备注</span>
-                <textarea
-                  value={contextPolicyDraft.requestNote}
-                  maxLength={1000}
-                  rows={3}
-                  onChange={(event) => setContextPolicyDraft((current) => ({ ...current, requestNote: event.target.value }))}
-                  disabled={!canPolicyManage || contextPolicyState.loading}
-                />
-              </label>
-              <button className="btn btn-primary btn-sm test-design-context-policy-submit" type="submit" disabled={!canPolicyManage || contextPolicyState.loading || contextPolicySubmitBlocked}>
-                <Save size={15} />
-                {selectedPendingContextPolicyOverride ? '更新草稿' : '提交覆盖'}
-              </button>
-            </form>
-            <div className="test-design-context-policy-summary">
-              <Detail label="生效限制" value={contextPolicySummary.limitSummary} />
-              <Detail label="状态分布" value={contextPolicySummary.statusSummary} />
-              <Detail label="导出红线" value={contextPolicySummary.redLineSummary} />
-            </div>
-            <div className="test-design-context-policy-review-grid">
-              <label className="field">
-                <span className="field-label">审批原因</span>
-                <select
-                  value={contextPolicyDraft.approvalReasonCode}
-                  onChange={(event) => setContextPolicyDraft((current) => ({ ...current, approvalReasonCode: event.target.value as TestDesignContextPolicyDraft['approvalReasonCode'] }))}
-                  disabled={!canPolicyManage || contextPolicyState.loading}
-                >
-                  {TEST_DESIGN_CONTEXT_POLICY_REASON_CODES.map((code) => (
-                    <option key={code} value={code}>{code}</option>
-                  ))}
-                </select>
-              </label>
-              <label className="field">
-                <span className="field-label">工单状态</span>
-                <select
-                  value={contextPolicyDraft.workOrderStatus}
-                  onChange={(event) => setContextPolicyDraft((current) => ({ ...current, workOrderStatus: event.target.value as TestDesignContextPolicyDraft['workOrderStatus'] }))}
-                  disabled={!canPolicyManage || contextPolicyState.loading}
-                >
-                  <option value="">跟随审批</option>
-                  {TEST_DESIGN_CONTEXT_POLICY_WORK_ORDER_STATUSES.map((status) => (
-                    <option key={status} value={status}>{status}</option>
-                  ))}
-                </select>
-              </label>
-              <label className="field test-design-context-policy-wide">
-                <span className="field-label">审批备注</span>
-                <textarea
-                  value={contextPolicyDraft.reviewNote}
-                  maxLength={1000}
-                  rows={3}
-                  onChange={(event) => setContextPolicyDraft((current) => ({ ...current, reviewNote: event.target.value }))}
-                  disabled={!canPolicyManage || contextPolicyState.loading}
-                />
-              </label>
-            </div>
-            <div className="test-design-context-policy-note-form">
-              <label className="field">
-                <span className="field-label">备注类型</span>
-                <select
-                  value={contextPolicyDraft.noteType}
-                  onChange={(event) => setContextPolicyDraft((current) => ({ ...current, noteType: event.target.value === 'WORK_ORDER' ? 'WORK_ORDER' : 'COMMENT' }))}
-                  disabled={!canPolicyManage || contextPolicyState.loading || !selectedContextPolicyOverrideId}
-                >
-                  <option value="COMMENT">COMMENT</option>
-                  <option value="WORK_ORDER">WORK_ORDER</option>
-                </select>
-              </label>
-              <label className="field test-design-context-policy-wide">
-                <span className="field-label">流转备注</span>
-                <textarea
-                  value={contextPolicyDraft.noteText}
-                  maxLength={1000}
-                  rows={3}
-                  onChange={(event) => setContextPolicyDraft((current) => ({ ...current, noteText: event.target.value }))}
-                  disabled={!canPolicyManage || contextPolicyState.loading || !selectedContextPolicyOverrideId}
-                />
-              </label>
-              <button
-                className="btn btn-secondary btn-sm test-design-context-policy-submit"
-                type="button"
-                disabled={!canPolicyManage || contextPolicyState.loading || !selectedContextPolicyOverrideId || !contextPolicyDraft.noteText.trim()}
-                onClick={() => void addContextPolicyNote()}
-              >
-                <Plus size={15} />
-                追加备注
-              </button>
-            </div>
-            <div className="test-design-context-policy-overrides">
-              {contextPolicyOverrides.length ? contextPolicyOverrides.slice(0, 6).map((override) => (
-                <div className={`test-design-context-policy-override${selectedContextPolicyOverrideId === override.id ? ' selected' : ''}`} key={override.id}>
-                  <div>
-                    <strong>{override.scopeType}{override.environmentKey ? ` · ${override.environmentKey}` : ''}</strong>
-                    <em>{contextPolicyOverrideLimitText(override.overrideLimits)}</em>
-                    <small>{override.workOrderKey ?? '-'} · {override.workOrderStatus ?? '-'}</small>
-                    <small>正文 v{override.policyBodyVersion ?? '-'} · {contextPolicyDigestText(override.policyBodyDigest)} · 备注 {override.noteCount ?? 0}</small>
-                    <small>{override.requestedBy ?? '-'} · {override.createdAt ?? '-'}</small>
-                    {override.latestNotePreview ? <small>最新备注：{override.latestNotePreview}</small> : null}
-                  </div>
-                  <div className="test-design-context-policy-override-actions">
-                    <span className={`badge badge-${contextPolicyStatusTone(override.status)}`}>{override.status}</span>
-                    <button
-                      className="btn btn-secondary btn-xs"
-                      type="button"
-                      disabled={!canPolicyManage || contextPolicyState.loading}
-                      onClick={() => void selectContextPolicyOverride(override)}
-                    >
-                      <FileText size={14} />
-                      {override.status === 'PENDING' ? '编辑' : '流转'}
-                    </button>
-                    {override.status === 'PENDING' && (
-                      <>
-                        <button
-                          className="btn btn-secondary btn-xs"
-                          type="button"
-                          disabled={!canPolicyManage || contextPolicyState.loading}
-                          onClick={() => void reviewContextPolicyOverride(override.id, 'approve')}
-                        >
-                          <CheckCircle2 size={14} />
-                          通过
-                        </button>
-                        <button
-                          className="btn btn-ghost btn-xs"
-                          type="button"
-                          disabled={!canPolicyManage || contextPolicyState.loading}
-                          onClick={() => void reviewContextPolicyOverride(override.id, 'reject')}
-                        >
-                          <XCircle size={14} />
-                          驳回
-                        </button>
-                      </>
-                    )}
-                  </div>
-                </div>
-              )) : (
-                <div className="notice info">暂无策略覆盖记录</div>
-              )}
-            </div>
-            <div className="test-design-context-policy-notes">
-              <strong>备注流转 · {selectedContextPolicyOverride?.workOrderKey ?? (selectedContextPolicyOverrideId || '-')}</strong>
-              {selectedContextPolicyOverrideId ? (
-                contextPolicyNotes.length ? contextPolicyNotes.slice(-6).map((note) => (
-                  <div className="test-design-context-policy-note" key={note.id}>
-                    <span className="badge badge-neutral">{note.noteType}</span>
-                    <em>{note.noteText}</em>
-                    <small>{note.createdBy ?? '-'} · {note.createdAt ?? '-'}</small>
-                  </div>
-                )) : (
-                  <div className="notice info">暂无备注流转记录</div>
-                )
-              ) : (
-                <div className="notice info">未选择策略覆盖记录</div>
-              )}
-            </div>
-            <StateLine state={contextPolicyState} />
-          </div>
-        </section>
+        <TestDesignConflictOperationsPanel
+          canRead={canRead}
+          canPublish={canPublish}
+          state={conflictOperationState}
+          publishState={publishState}
+          summary={conflictOperationSummary}
+          operations={conflictOperations}
+          page={conflictOperationPage}
+          projectId={conflictOperationProjectId}
+          selectedTaskId={selectedTaskId}
+          filters={conflictOperationFilters}
+          conflictResolutionDraft={conflictResolutionDraft}
+          conflictCaseKeyword={conflictCaseKeyword}
+          conflictCaseSearchProjectId={conflictCaseSearchProjectId}
+          conflictCaseResults={conflictCaseResults}
+          selectedConflictCaseIds={selectedConflictCaseIds}
+          conflictCandidateById={conflictCandidateById}
+          batchResolvableCount={batchResolvableConflictOperationItems.length}
+          onBatchResolve={requestBatchResolveConflictOperations}
+          onRefresh={(pageIndex) => void refreshConflictOperations(pageIndex)}
+          onFiltersChange={setConflictOperationFilters}
+          onConflictResolutionDraftChange={setConflictResolutionDraft}
+          onConflictCaseKeywordChange={setConflictCaseKeyword}
+          onSelectedConflictCaseIdsChange={setSelectedConflictCaseIds}
+          onSearchConflictCases={() => void searchConflictCases()}
+          onResolveConflict={requestResolveConflict}
+        />
 
-        <section className="panel test-design-conflict-operations-panel">
-          <div className="panel-header compact">
-            <div>
-              <h2 className="panel-title">资产冲突运营台</h2>
-              <p className="panel-desc">
-                {conflictOperationSummary
-                  ? `未处理 ${conflictOperationSummary.openCount} · 已处理 ${conflictOperationSummary.resolvedCount}`
-                  : '正式发布冲突集中处理。'}
-              </p>
-            </div>
-            <div className="toolbar-actions">
-              <button
-                className="btn btn-secondary btn-xs"
-                type="button"
-                disabled={!canPublish || publishState.loading || !batchResolvableConflictOperationItems.length}
-                onClick={requestBatchResolveConflictOperations}
-              >
-                <Link2 size={14} />
-                批量复用 {batchResolvableConflictOperationItems.length}
-              </button>
-              <button
-                className="btn btn-secondary btn-xs"
-                type="button"
-                disabled={!canRead || conflictOperationState.loading}
-                onClick={() => void refreshConflictOperations(0)}
-              >
-                <RefreshCw size={14} />
-                刷新
-              </button>
-            </div>
-          </div>
-          <div className="panel-body compact main-stack">
-            <div className="asset-filter-bar test-design-conflict-operations-filter">
-              <label className="field">
-                <span className="field-label">项目</span>
-                <input
-                  value={conflictOperationProjectId}
-                  onChange={(event) => setConflictOperationFilters((current) => ({ ...current, projectId: event.target.value }))}
-                  placeholder="project UUID"
-                  disabled={!canRead || conflictOperationState.loading}
-                />
-              </label>
-              <label className="field">
-                <span className="field-label">任务 ID</span>
-                <input
-                  value={conflictOperationFilters.taskId}
-                  onChange={(event) => setConflictOperationFilters((current) => ({ ...current, taskId: event.target.value }))}
-                  placeholder={selectedTaskId || '全部任务'}
-                  disabled={!canRead || conflictOperationState.loading}
-                />
-              </label>
-              <label className="field">
-                <span className="field-label">处理状态</span>
-                <select
-                  value={conflictOperationFilters.resolutionStatus}
-                  onChange={(event) => setConflictOperationFilters((current) => ({
-                    ...current,
-                    resolutionStatus: event.target.value as ConflictOperationFilters['resolutionStatus']
-                  }))}
-                  disabled={!canRead || conflictOperationState.loading}
-                >
-                  <option value="OPEN">OPEN</option>
-                  <option value="RESOLVED">RESOLVED</option>
-                  <option value="ALL">ALL</option>
-                </select>
-              </label>
-              <label className="field">
-                <span className="field-label">候选状态</span>
-                <select
-                  value={conflictOperationFilters.candidateStatus}
-                  onChange={(event) => setConflictOperationFilters((current) => ({ ...current, candidateStatus: event.target.value }))}
-                  disabled={!canRead || conflictOperationState.loading}
-                >
-                  <option value="">全部</option>
-                  {TEST_DESIGN_CANDIDATE_STATUSES.map((status) => (
-                    <option value={status} key={status}>{status}</option>
-                  ))}
-                </select>
-              </label>
-              <label className="field">
-                <span className="field-label">关键词</span>
-                <input
-                  value={conflictOperationFilters.keyword}
-                  onChange={(event) => setConflictOperationFilters((current) => ({ ...current, keyword: event.target.value }))}
-                  placeholder="候选 / 任务 / 用例"
-                  disabled={!canRead || conflictOperationState.loading}
-                />
-              </label>
-              <div className="toolbar-actions test-design-conflict-operations-actions">
-                <button
-                  className="btn btn-secondary btn-sm"
-                  type="button"
-                  disabled={!canRead || conflictOperationState.loading || !selectedTaskId}
-                  onClick={() => setConflictOperationFilters((current) => ({ ...current, taskId: selectedTaskId }))}
-                >
-                  <ClipboardCheck size={15} />
-                  当前任务
-                </button>
-                <button
-                  className="btn btn-ghost btn-sm"
-                  type="button"
-                  disabled={!canRead || conflictOperationState.loading}
-                  onClick={() => setConflictOperationFilters(initialConflictOperationFilters)}
-                >
-                  <Search size={15} />
-                  重置
-                </button>
-              </div>
-            </div>
-            <div className="test-design-conflict-form">
-              <label className="field">
-                <span className="field-label">处理原因</span>
-                <input
-                  value={conflictResolutionDraft.reason}
-                  onChange={(event) => setConflictResolutionDraft((current) => ({ ...current, reason: event.target.value }))}
-                  disabled={!canPublish || publishState.loading}
-                />
-              </label>
-              <label className="field">
-                <span className="field-label">用例关键词</span>
-                <input
-                  value={conflictCaseKeyword}
-                  onChange={(event) => setConflictCaseKeyword(event.target.value)}
-                  placeholder="标题 / 标签 / 编号"
-                  disabled={!canRead || publishState.loading || !conflictCaseSearchProjectId}
-                />
-              </label>
-              <label className="field">
-                <span className="field-label">补充说明</span>
-                <input
-                  value={conflictResolutionDraft.comment}
-                  onChange={(event) => setConflictResolutionDraft((current) => ({ ...current, comment: event.target.value }))}
-                  placeholder="比对说明"
-                  disabled={!canPublish || publishState.loading}
-                />
-              </label>
-              <div className="field test-design-conflict-search-action">
-                <span className="field-label">既有用例</span>
-                <button
-                  className="btn btn-secondary btn-sm"
-                  type="button"
-                  disabled={!canRead || publishState.loading || !conflictCaseSearchProjectId}
-                  onClick={() => void searchConflictCases()}
-                >
-                  <Search size={15} />
-                  搜索
-                </button>
-              </div>
-            </div>
-            {conflictOperationSummary && (
-              <div className="detail-grid">
-                <Detail label="冲突总数" value={conflictOperationSummary.totalCount} />
-                <Detail label="未处理" value={conflictOperationSummary.openCount} />
-                <Detail label="已处理" value={conflictOperationSummary.resolvedCount} />
-                <Detail label="人工复核" value={conflictOperationSummary.duplicateReviewCount} />
-                <Detail label="最近冲突" value={conflictOperationSummary.latestConflictAt ?? '-'} />
-              </div>
-            )}
-            <div className="test-design-conflict-operations-list">
-              {conflictOperations.length ? conflictOperations.map((item) => {
-                const record = item.record;
-                const candidate = conflictResolutionCandidate(record, conflictCandidateById);
-                const targetCaseId = conflictResolutionTargetCaseId(record, selectedConflictCaseIds);
-                return (
-                  <div className={item.resolved ? 'test-design-conflict-operation-row resolved' : 'test-design-conflict-operation-row'} key={publishRecordKey(record)}>
-                    <span>
-                      <strong>{item.candidateTitle ?? record.title ?? item.candidateId ?? '-'}</strong>
-                      <em>{item.taskTitle ?? item.taskId ?? '-'} · {item.candidateStatus ?? '-'}@v{item.candidateVersion}</em>
-                      <em>{targetCaseId ? `目标用例 ${targetCaseId}` : `推荐用例 ${item.recommendedCaseId ?? '-'}`}</em>
-                      {record.errorMessage && <small>{record.errorMessage}</small>}
-                    </span>
-                    <div className="test-design-conflict-controls">
-                      <PublishResultBadge value={item.resolved ? 'RESOLVED' : record.result} />
-                      <select
-                        value={targetCaseId}
-                        onChange={(event) => {
-                          const nextCaseId = event.target.value;
-                          const candidateId = record.candidateId;
-                          if (candidateId) {
-                            setSelectedConflictCaseIds((current) => ({
-                              ...current,
-                              [candidateId]: nextCaseId
-                            }));
-                          }
-                        }}
-                        disabled={!canPublish || publishState.loading || !item.resolvable}
-                      >
-                        <option value="">{record.assetCaseId ? '清空目标' : '选择目标用例'}</option>
-                        {record.assetCaseId && (
-                          <option value={record.assetCaseId}>推荐 {shortIdentifier(record.assetCaseId)}</option>
-                        )}
-                        {conflictCaseResults.filter((testCase) => testCase.id !== record.assetCaseId).map((testCase) => (
-                          <option value={testCase.id} key={`${record.candidateId}-${testCase.id}`}>
-                            {testCase.title || shortIdentifier(testCase.id)}
-                          </option>
-                        ))}
-                      </select>
-                      <button
-                        className="btn btn-secondary btn-xs"
-                        type="button"
-                        disabled={!canPublish || publishState.loading || !item.resolvable || !candidate || !targetCaseId}
-                        onClick={() => requestResolveConflict(record)}
-                      >
-                        <Link2 size={14} />
-                        复用
-                      </button>
-                    </div>
-                  </div>
-                );
-              }) : (
-                <div className="notice info">{conflictOperationProjectId ? '暂无匹配冲突' : '请先填写项目 ID'}</div>
-              )}
-            </div>
-            {conflictOperationPage.total > TEST_DESIGN_CONFLICT_OPERATION_PAGE_SIZE && (
-              <div className="test-design-pagination" aria-label="资产冲突分页">
-                <span>
-                  {conflictOperationPage.items.length
-                    ? `${conflictOperationPage.start}-${conflictOperationPage.end} / ${conflictOperationPage.total}`
-                    : `0 / ${conflictOperationPage.total}`}
-                </span>
-                <button
-                  className="btn btn-secondary btn-xs"
-                  type="button"
-                  disabled={conflictOperationPage.index <= 0 || conflictOperationState.loading}
-                  onClick={() => void refreshConflictOperations(Math.max(0, conflictOperationPage.index - 1))}
-                >
-                  <ChevronLeft size={14} />
-                  上一页
-                </button>
-                <button
-                  className="btn btn-secondary btn-xs"
-                  type="button"
-                  disabled={(conflictOperationPage.index + 1) * TEST_DESIGN_CONFLICT_OPERATION_PAGE_SIZE >= conflictOperationPage.total || conflictOperationState.loading}
-                  onClick={() => void refreshConflictOperations(conflictOperationPage.index + 1)}
-                >
-                  下一页
-                  <ChevronRight size={14} />
-                </button>
-              </div>
-            )}
-            <StateLine state={conflictOperationState} />
-          </div>
-        </section>
+        <TestDesignTemplateManagementPanel
+          canRead={canRead}
+          canPolicyManage={canPolicyManage}
+          state={templateState}
+          health={health}
+          templates={templates}
+          templatePageTotal={templatePageTotal}
+          selectedTemplateManageId={selectedTemplateManageId}
+          selectedManagedTemplate={selectedManagedTemplate}
+          templateDraft={templateDraft}
+          templateProjectId={templateProjectId}
+          onRefresh={() => void refreshTemplates()}
+          onSave={saveTemplate}
+          onSelectedTemplateManageIdChange={setSelectedTemplateManageId}
+          onTemplateDraftChange={setTemplateDraft}
+          onToggleCoverage={toggleTemplateCoverage}
+          onDisableTemplate={() => void disableTemplate()}
+        />
 
-        <section className="panel">
-          <div className="panel-header compact">
-            <div>
-              <h2 className="panel-title">模板管理</h2>
-              <p className="panel-desc">{templatePageTotal ? `${templatePageTotal} 个可用模板` : '生成参数预配置。'}</p>
-            </div>
-            <button className="btn btn-secondary btn-xs" type="button" disabled={!canRead || templateState.loading} title="刷新模板" onClick={() => void refreshTemplates()}>
-              <RefreshCw size={14} />
-            </button>
-          </div>
-          <div className="panel-body compact">
-            <form className="main-stack" onSubmit={saveTemplate}>
-              <div className="test-design-template-toolbar">
-                <label className="field">
-                  <span className="field-label">当前模板</span>
-                  <select value={selectedTemplateManageId} onChange={(event) => setSelectedTemplateManageId(event.target.value)} disabled={templateState.loading}>
-                    <option value="">新建模板</option>
-                    {templates.map((template) => (
-                      <option key={template.id} value={template.id}>
-                        {template.enabled ? '' : '禁用 · '}{template.projectId ? '项目' : '全局'} · {template.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <button
-                  className="btn btn-secondary btn-icon btn-sm"
-                  type="button"
-                  title="新建模板"
-                  disabled={templateState.loading}
-                  onClick={() => {
-                    setSelectedTemplateManageId('');
-                    setTemplateDraft({ ...initialTemplateDraft, projectId: templateProjectId });
-                  }}
-                >
-                  <Plus size={15} />
-                </button>
-              </div>
-              <label className="field">
-                <span className="field-label">名称</span>
-                <input value={templateDraft.name} onChange={(event) => setTemplateDraft((current) => ({ ...current, name: event.target.value }))} disabled={!canPolicyManage || templateState.loading} />
-              </label>
-              <label className="field">
-                <span className="field-label">作用域项目 ID</span>
-                <input value={templateDraft.projectId} onChange={(event) => setTemplateDraft((current) => ({ ...current, projectId: event.target.value }))} placeholder="留空为全局模板" disabled={!canPolicyManage || templateState.loading || Boolean(selectedManagedTemplate)} />
-              </label>
-              <label className="field">
-                <span className="field-label">说明</span>
-                <input value={templateDraft.description} onChange={(event) => setTemplateDraft((current) => ({ ...current, description: event.target.value }))} disabled={!canPolicyManage || templateState.loading} />
-              </label>
-              <div className="test-design-template-inline-grid">
-                <label className="field">
-                  <span className="field-label">Prompt Key</span>
-                  <input value={templateDraft.promptKey} onChange={(event) => setTemplateDraft((current) => ({ ...current, promptKey: event.target.value }))} placeholder={health?.promptKey ?? '默认'} disabled={!canPolicyManage || templateState.loading} />
-                </label>
-                <label className="field">
-                  <span className="field-label">版本</span>
-                  <input value={templateDraft.promptVersion} onChange={(event) => setTemplateDraft((current) => ({ ...current, promptVersion: event.target.value }))} placeholder={health?.promptVersion ?? '默认'} disabled={!canPolicyManage || templateState.loading} />
-                </label>
-              </div>
-              <div className="test-design-template-inline-grid">
-                <label className="field">
-                  <span className="field-label">每需求数</span>
-                  <input value={templateDraft.caseCountPerRequirement} type="number" min="1" max="6" onChange={(event) => setTemplateDraft((current) => ({ ...current, caseCountPerRequirement: event.target.value }))} disabled={!canPolicyManage || templateState.loading} />
-                </label>
-                <label className="field">
-                  <span className="field-label">环境 Key</span>
-                  <input value={templateDraft.environmentKey} onChange={(event) => setTemplateDraft((current) => ({ ...current, environmentKey: event.target.value }))} disabled={!canPolicyManage || templateState.loading} />
-                </label>
-              </div>
-              <div className="test-design-template-inline-grid">
-                <label className="field">
-                  <span className="field-label">生成策略</span>
-                  <select value={templateDraft.generationStrategy} onChange={(event) => setTemplateDraft((current) => ({ ...current, generationStrategy: event.target.value }))} disabled={!canPolicyManage || templateState.loading}>
-                    {TEST_DESIGN_GENERATION_STRATEGIES.map((strategy) => (
-                      <option key={strategy} value={strategy}>{strategy}</option>
-                    ))}
-                  </select>
-                </label>
-                <label className="field">
-                  <span className="field-label">覆盖策略</span>
-                  <select value={templateDraft.coverageStrategy} onChange={(event) => setTemplateDraft((current) => ({ ...current, coverageStrategy: event.target.value }))} disabled={!canPolicyManage || templateState.loading}>
-                    {TEST_DESIGN_COVERAGE_STRATEGIES.map((strategy) => (
-                      <option key={strategy} value={strategy}>{strategy}</option>
-                    ))}
-                  </select>
-                </label>
-              </div>
-              <label className="field">
-                <span className="field-label">上下文 API ID</span>
-                <input value={templateDraft.contextApiIds} onChange={(event) => setTemplateDraft((current) => ({ ...current, contextApiIds: event.target.value }))} disabled={!canPolicyManage || templateState.loading} />
-              </label>
-              <label className="field">
-                <span className="field-label">上下文页面 ID</span>
-                <input value={templateDraft.contextPageIds} onChange={(event) => setTemplateDraft((current) => ({ ...current, contextPageIds: event.target.value }))} disabled={!canPolicyManage || templateState.loading} />
-              </label>
-              <label className="field">
-                <span className="field-label">上下文业务流 ID</span>
-                <input value={templateDraft.contextFlowIds} onChange={(event) => setTemplateDraft((current) => ({ ...current, contextFlowIds: event.target.value }))} disabled={!canPolicyManage || templateState.loading} />
-              </label>
-              <div className="field">
-                <span className="field-label">覆盖类型</span>
-                <div className="test-design-checks">
-                  {TEST_DESIGN_COVERAGE_TYPES.map((type) => (
-                    <label key={type}>
-                      <input type="checkbox" checked={templateDraft.coverageTypes.includes(type)} onChange={() => toggleTemplateCoverage(type)} disabled={!canPolicyManage || templateState.loading} />
-                      <span>{type}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-              <label className="test-design-template-enabled">
-                <input type="checkbox" checked={templateDraft.enabled} onChange={(event) => setTemplateDraft((current) => ({ ...current, enabled: event.target.checked }))} disabled={!canPolicyManage || templateState.loading} />
-                <span>启用</span>
-              </label>
-              <div className="toolbar-actions">
-                <button className="btn btn-secondary btn-sm" type="submit" disabled={!canPolicyManage || templateState.loading || !templateDraft.name.trim()}>
-                  <Layers3 size={15} />
-                  {selectedManagedTemplate ? '更新' : '创建'}
-                </button>
-                <button className="btn btn-ghost btn-sm" type="button" disabled={!canPolicyManage || templateState.loading || !selectedManagedTemplate || !selectedManagedTemplate.enabled} onClick={() => void disableTemplate()}>
-                  <Trash2 size={15} />
-                  禁用
-                </button>
-              </div>
-              <StateLine state={templateState} />
-            </form>
-          </div>
-        </section>
-
-        <section className="panel">
-          <div className="panel-header compact">
-            <div>
-              <h2 className="panel-title">评审历史</h2>
-              <p className="panel-desc">{reviewRecordPageTotal ? `${reviewRecordPageTotal} 条候选编辑和评审记录` : '候选编辑和评审审计摘要。'}</p>
-            </div>
-            <button className="btn btn-secondary btn-sm" type="button" disabled={!canExport || reviewRecordState.loading || !reviewRecordPageTotal} onClick={() => void exportReviewRecords()}>
-              <Download size={15} />
-              导出
-            </button>
-          </div>
-          <div className="panel-body compact main-stack">
-            <StateLine state={reviewRecordState} />
-            <ReviewSummaryPanel
-              scopeLabel={reviewSummaryScope}
-              selectedTaskId={selectedTaskId}
-              summary={reviewSummary}
-            />
-            {reviewRecordPage.total > 0 && (
-              <div className="test-design-pagination" aria-label="评审历史分页">
-                <span>{reviewRecordPage.start}-{reviewRecordPage.end} / {reviewRecordPage.total}</span>
-                <div className="toolbar-actions">
-                  <button
-                    aria-label="上一页评审历史"
-                    className="btn btn-secondary btn-xs"
-                    disabled={!reviewRecordPage.hasPrevious || reviewRecordState.loading}
-                    title="上一页"
-                    type="button"
-                    onClick={() => setReviewRecordPageIndex((current) => Math.max(0, current - 1))}
-                  >
-                    <ChevronLeft size={14} />
-                  </button>
-                  <span className="field-hint">{reviewRecordPage.index + 1} / {reviewRecordPage.totalPages}</span>
-                  <button
-                    aria-label="下一页评审历史"
-                    className="btn btn-secondary btn-xs"
-                    disabled={!reviewRecordPage.hasNext || reviewRecordState.loading}
-                    title="下一页"
-                    type="button"
-                    onClick={() => setReviewRecordPageIndex((current) => current + 1)}
-                  >
-                    <ChevronRight size={14} />
-                  </button>
-                </div>
-              </div>
-            )}
-            {reviewRecordPage.items.length ? (
-              <div className="test-design-review-records">
-                {reviewRecordPage.items.map((record) => (
-                  <ReviewRecordRow key={record.id} record={record} />
-                ))}
-              </div>
-            ) : (
-              <div className="notice info">{selectedTaskId ? '暂无评审历史' : '请先选择任务'}</div>
-            )}
-          </div>
-        </section>
+        <TestDesignReviewHistoryPanel
+          canExport={canExport}
+          state={reviewRecordState}
+          reviewRecordPageTotal={reviewRecordPageTotal}
+          reviewRecordPage={reviewRecordPage}
+          reviewSummaryScope={reviewSummaryScope}
+          selectedTaskId={selectedTaskId}
+          reviewSummary={reviewSummary}
+          onExport={() => void exportReviewRecords()}
+          onReviewRecordPageIndexChange={setReviewRecordPageIndex}
+        />
 
         <section className="panel">
           <div className="panel-header">
@@ -4886,205 +4130,42 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       </div>
 
       <aside className="side-stack">
-        <section className="panel">
-          <div className="panel-header compact">
-            <div>
-              <h2 className="panel-title">生成配置</h2>
-              <p className="panel-desc">当前选择 {selectedRequirementIds.length} 个需求。</p>
-            </div>
-          </div>
-          <div className="panel-body compact">
-            <form className="main-stack" onSubmit={createTask}>
-              <label className="field">
-                <span className="field-label">生成模板</span>
-                <select value={generationDraft.templateId} onChange={(event) => selectGenerationTemplate(event.target.value)} disabled={!canGenerate || mutationState.loading || templateState.loading}>
-                  <option value="">手动配置</option>
-                  {templates.filter((template) => template.enabled).map((template) => (
-                    <option key={template.id} value={template.id}>
-                      {template.projectId ? '项目' : '全局'} · {template.name}
-                    </option>
-                  ))}
-                </select>
-                <span className="field-hint">
-                  {selectedGenerationTemplate
-                    ? `${selectedGenerationTemplate.promptKey}@${selectedGenerationTemplate.promptVersion} · ${selectedGenerationTemplate.generationStrategy}/${selectedGenerationTemplate.coverageStrategy}`
-                    : '不选择模板时使用手动参数或平台默认值。'}
-                </span>
-              </label>
-              <label className="field">
-                <span className="field-label">项目 ID</span>
-                <input value={generationDraft.projectId} onChange={(event) => setGenerationDraft((current) => ({ ...current, projectId: event.target.value }))} placeholder="project UUID" disabled={!canGenerate || mutationState.loading} />
-              </label>
-              <label className="field">
-                <span className="field-label">任务标题</span>
-                <input value={generationDraft.title} onChange={(event) => setGenerationDraft((current) => ({ ...current, title: event.target.value }))} placeholder="登录模块用例生成" disabled={!canGenerate || mutationState.loading} />
-              </label>
-              <div className="test-design-template-inline-grid">
-                <label className="field">
-                  <span className="field-label">Prompt Key</span>
-                  <input value={generationDraft.promptKey} onChange={(event) => setGenerationDraft((current) => ({ ...current, promptKey: event.target.value }))} placeholder={health?.promptKey ?? '平台默认'} disabled={!canGenerate || mutationState.loading} />
-                </label>
-                <label className="field">
-                  <span className="field-label">Prompt Version</span>
-                  <input value={generationDraft.promptVersion} onChange={(event) => setGenerationDraft((current) => ({ ...current, promptVersion: event.target.value }))} placeholder={health?.promptVersion ?? '平台默认'} disabled={!canGenerate || mutationState.loading} />
-                </label>
-              </div>
-              <label className="field">
-                <span className="field-label">每需求用例数</span>
-                <input value={generationDraft.caseCountPerRequirement} type="number" min="1" max="6" onChange={(event) => setGenerationDraft((current) => ({ ...current, caseCountPerRequirement: event.target.value }))} disabled={!canGenerate || mutationState.loading} />
-              </label>
-              <label className="field">
-                <span className="field-label">环境 Key</span>
-                <input value={generationDraft.environmentKey} onChange={(event) => setGenerationDraft((current) => ({ ...current, environmentKey: event.target.value }))} placeholder="qa / staging" disabled={!canGenerate || mutationState.loading} />
-              </label>
-              <label className="field">
-                <span className="field-label">上下文 API ID</span>
-                <input value={generationDraft.contextApiIds} onChange={(event) => setGenerationDraft((current) => ({ ...current, contextApiIds: event.target.value }))} placeholder={`最多 ${explicitContextAssetLimit} 个，逗号或换行分隔`} disabled={!canGenerate || mutationState.loading} />
-              </label>
-              <label className="field">
-                <span className="field-label">上下文页面 ID</span>
-                <input value={generationDraft.contextPageIds} onChange={(event) => setGenerationDraft((current) => ({ ...current, contextPageIds: event.target.value }))} placeholder={`最多 ${explicitContextAssetLimit} 个，逗号或换行分隔`} disabled={!canGenerate || mutationState.loading} />
-              </label>
-              <label className="field">
-                <span className="field-label">上下文业务流 ID</span>
-                <input value={generationDraft.contextFlowIds} onChange={(event) => setGenerationDraft((current) => ({ ...current, contextFlowIds: event.target.value }))} placeholder={`最多 ${explicitContextAssetLimit} 个，逗号或换行分隔`} disabled={!canGenerate || mutationState.loading} />
-              </label>
-              <div className="field">
-                <span className="field-label">覆盖类型</span>
-                <div className="test-design-checks">
-                  {TEST_DESIGN_COVERAGE_TYPES.map((type) => (
-                    <label key={type}>
-                      <input type="checkbox" checked={generationDraft.coverageTypes.includes(type)} onChange={() => toggleCoverage(type)} disabled={!canGenerate || mutationState.loading} />
-                      <span>{type}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-              <button className="btn btn-primary" type="submit" disabled={!canGenerate || mutationState.loading || !selectedRequirementIds.length}>
-                <Sparkles size={16} />
-                生成候选
-              </button>
-              <StateLine state={mutationState} />
-            </form>
-          </div>
-        </section>
+        <TestDesignGenerationConfigPanel
+          canGenerate={canGenerate}
+          mutationState={mutationState}
+          templateState={templateState}
+          health={health}
+          templates={templates}
+          selectedRequirementCount={selectedRequirementIds.length}
+          generationDraft={generationDraft}
+          selectedGenerationTemplate={selectedGenerationTemplate}
+          explicitContextAssetLimit={explicitContextAssetLimit}
+          onCreateTask={createTask}
+          onSelectGenerationTemplate={selectGenerationTemplate}
+          onGenerationDraftChange={setGenerationDraft}
+          onToggleCoverage={toggleCoverage}
+        />
 
-        <section className="panel">
-          <div className="panel-header compact">
-            <div>
-              <h2 className="panel-title">任务</h2>
-              <p className="panel-desc">最近 {tasks.length} 个生成任务。</p>
-            </div>
-          </div>
-          <div className="panel-body compact">
-            <div className="asset-filter-bar test-design-side-filter">
-              <label className="field">
-                <span className="field-label">项目</span>
-                <input value={taskFilters.projectId} onChange={(event) => setTaskFilters((current) => ({ ...current, projectId: event.target.value }))} placeholder="project UUID" disabled={disabled || loadState.loading} />
-              </label>
-              <label className="field">
-                <span className="field-label">状态</span>
-                <select value={taskFilters.status} onChange={(event) => setTaskFilters((current) => ({ ...current, status: event.target.value }))} disabled={disabled || loadState.loading}>
-                  <option value="">全部</option>
-                  <option value="DRAFT">DRAFT</option>
-                  <option value="QUEUED">QUEUED</option>
-                  <option value="RUNNING">RUNNING</option>
-                  <option value="SUCCEEDED">SUCCEEDED</option>
-                  <option value="PARTIAL_SUCCESS">PARTIAL_SUCCESS</option>
-                  <option value="FAILED">FAILED</option>
-                  <option value="CANCELLED">CANCELLED</option>
-                  <option value="PUBLISH_QUEUED">PUBLISH_QUEUED</option>
-                  <option value="PUBLISHING">PUBLISHING</option>
-                  <option value="PUBLISHED">PUBLISHED</option>
-                </select>
-              </label>
-              <label className="field">
-                <span className="field-label">关键词</span>
-                <input value={taskFilters.keyword} onChange={(event) => setTaskFilters((current) => ({ ...current, keyword: event.target.value }))} placeholder="任务标题" disabled={disabled || loadState.loading} />
-              </label>
-              <button className="btn btn-secondary btn-sm" type="button" disabled={disabled} onClick={() => setTaskFilters(initialTaskFilters)}>
-                <Search size={15} />
-                重置
-              </button>
-            </div>
-            <div className="quick-actions">
-              {tasks.length ? tasks.map((task) => (
-                <div className={task.id === selectedTaskId ? 'quick-action-row active' : 'quick-action-row'} key={task.id}>
-                  <button type="button" className="quick-action-main" onClick={() => setSelectedTaskId(task.id)}>
-                    <span>
-                      <strong>{task.title}</strong>
-                      <em>{task.status} · {task.generatedCount} / {task.confirmedCount}</em>
-                      <GenerationSourceBadge source={taskGenerationSource(task)} compact />
-                    </span>
-                  </button>
-                  <div className="quick-action-controls">
-                    {RETRYABLE_TASK_STATUSES.has(task.status) && (
-                      <button
-                        aria-label={`重试任务 ${task.title}`}
-                        className="btn btn-secondary btn-xs"
-                        disabled={!canGenerate || taskState.loading}
-                        title="重试任务"
-                        type="button"
-                        onClick={() => void retryTask(task)}
-                      >
-                        <RotateCcw size={14} />
-                      </button>
-                    )}
-                    {task.status === 'QUEUED' && (
-                      <button
-                        aria-label={`重发排队事件 ${task.title}`}
-                        className="btn btn-secondary btn-xs"
-                        disabled={!canGenerate || taskState.loading}
-                        title="重发排队事件"
-                        type="button"
-                        onClick={() => void replayQueuedTaskEvent(task)}
-                      >
-                        <Repeat2 size={14} />
-                      </button>
-                    )}
-                    {CANCELLABLE_TASK_STATUSES.has(task.status) && (
-                      <button
-                        aria-label={`取消任务 ${task.title}`}
-                        className="btn btn-secondary btn-xs"
-                        disabled={!canGenerate || taskState.loading}
-                        title="取消任务"
-                        type="button"
-                        onClick={() => void cancelTask(task)}
-                      >
-                        <XCircle size={14} />
-                      </button>
-                    )}
-                  </div>
-                </div>
-              )) : (
-                <div className="notice info">暂无生成任务</div>
-              )}
-            </div>
-          </div>
-        </section>
+        <TestDesignTaskListPanel
+          disabled={disabled}
+          canGenerate={canGenerate}
+          loadState={loadState}
+          taskState={taskState}
+          tasks={tasks}
+          selectedTaskId={selectedTaskId}
+          taskFilters={taskFilters}
+          initialTaskFilters={initialTaskFilters}
+          onTaskFiltersChange={setTaskFilters}
+          onSelectTask={setSelectedTaskId}
+          onRetryTask={(task) => void retryTask(task)}
+          onReplayQueuedTaskEvent={(task) => void replayQueuedTaskEvent(task)}
+          onCancelTask={(task) => void cancelTask(task)}
+        />
 
-        <section className="panel">
-          <div className="panel-header compact">
-            <div>
-              <h2 className="panel-title">任务诊断</h2>
-              <p className="panel-desc">{selectedTask ? `${selectedTask.status} · 诊断摘要已脱敏` : '定位模型调用、幂等回放和失败上下文摘要。'}</p>
-            </div>
-          </div>
-          <div className="panel-body compact">
-            {selectedTask ? (
-              <div className="test-design-task-diagnostics">
-                {taskDiagnostics.map((item) => (
-                  <div className={`test-design-task-diagnostic${item.tone ? ` ${item.tone}` : ''}`} key={item.label}>
-                    <span>{item.label}</span>
-                    <em>{item.value}</em>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="notice info">请先选择任务</div>
-            )}
-          </div>
-        </section>
+        <TestDesignTaskDiagnosticsPanel
+          selectedTask={selectedTask}
+          taskDiagnostics={taskDiagnostics}
+        />
 
         <section className="panel">
           <div className="panel-header compact">
@@ -5749,23 +4830,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
           </div>
         </section>
 
-        <section className="panel">
-          <div className="panel-header compact">
-            <div>
-              <h2 className="panel-title">范围</h2>
-              <p className="panel-desc">本次生成输入。</p>
-            </div>
-          </div>
-          <div className="panel-body compact">
-            {selectedRequirementTitles.length ? (
-              <div className="test-design-scope">
-                {selectedRequirementTitles.map((title) => <span className="badge badge-info" key={title}>{title}</span>)}
-              </div>
-            ) : (
-              <div className="notice info">尚未选择需求</div>
-            )}
-          </div>
-        </section>
+        <TestDesignScopePanel selectedRequirementTitles={selectedRequirementTitles} />
       </aside>
       </div>
     </>
