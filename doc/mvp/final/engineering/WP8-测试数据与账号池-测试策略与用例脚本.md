@@ -5,7 +5,7 @@
 | 工作包 | WP8 测试数据与账号池 |
 | 角色产出 | 资深质量工程师 |
 | 文档性质 | 测试策略、用例矩阵、脚本门禁和准出要求 |
-| 当前口径 | WP8 P0 覆盖数据集、账号池、租借、释放、清理任务、脱敏导出和跨 WP 引用契约 |
+| 当前口径 | WP8 分 M2-M6 推进；当前本轮聚焦 M2 数据集控制面，账号池、租借、释放、清理任务、脱敏导出和跨 WP 引用契约按后续里程碑承接 |
 | 版本 | v0.1 |
 | 日期 | 2026-06-15 |
 
@@ -154,6 +154,22 @@ release 模式必须显式执行并发租借 smoke 和脱敏导出检查：
 ```bash
 WP8_GATE_MODE=release WP8_LEASE_CONCURRENCY_SMOKE=managed bash scripts/wp8_quality_gate.sh
 ```
+
+### M2 数据集控制面最小门禁
+
+当前 M2 后端切片采用以下验证入口作为最小准出：
+
+```bash
+mvn -B -pl platform-api -Dtest=TestDataSetControllerTest,TestDataSetServiceTest,TestDataOpenApiContractTest,TestDataHealthControllerTest,OpenApiContractTest,PermissionCodeUsageTest,PersistenceProfileBoundaryTest test
+bash scripts/platform_api_java_line_guard.sh
+bash db/validation/run_wp1_db_validation.sh
+```
+
+说明：
+
+1. 这组门禁仅覆盖数据集 CRUD、schema validator、记录摘要导入、OpenAPI contract、权限字面量集中和 profile 边界。
+2. 账号池、租借并发、续租、释放、过期回收、清理 worker 和前端 smoke 不属于本轮 M2 完成定义。
+3. 如后续把 M2 扩展到账号池或前端，再补 `portal-web` 和 WP8 quality gate。
 
 ## 9. 准出标准
 

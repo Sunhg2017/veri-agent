@@ -88,6 +88,26 @@
 | `POST` | `/leases/{id}/release` | `testData:lease` | 释放账号并可创建清理任务。 |
 | `GET` | `/leases/{id}/export` | `testData:export` | 导出租借脱敏摘要。 |
 
+### M2 已落地切片
+
+当前代码已实现并验证以下数据集控制面后端路径：
+
+- `POST /api/v1/test-data/data-sets`
+- `GET /api/v1/test-data/data-sets`
+- `GET /api/v1/test-data/data-sets/{id}`
+- `PATCH /api/v1/test-data/data-sets/{id}`
+- `POST /api/v1/test-data/data-sets/{id}/archive`
+- `POST /api/v1/test-data/data-sets/{id}/records`
+
+实现约束：
+
+1. `testData:read/manage` 通过 `@RequirePermission` 和项目作用域解析器生效。
+2. `schema_json` 仅允许结构化对象，`fields` 的 `name/type` 做有限白名单校验。
+3. `cleanup_policy_json` 只保存摘要，不执行破坏性清理。
+4. 数据集详情和记录列表只返回摘要、digest、tags 和时间戳。
+5. 数据集归档后禁止继续修改或导入记录摘要。
+6. 控制面总开关 `veri-agent.test-data.enabled=false` 时，业务 API 返回 `INVALID_STATE`，health API 保持可观测。
+
 ## 6. 关键请求体
 
 ### 创建数据集
@@ -243,3 +263,15 @@ FAILED -> PENDING
 3. DB validation 覆盖 WP8 表、约束、索引、runtime role 权限和幂等迁移。
 4. OpenAPI contract 测试覆盖真实路径、权限注解和脱敏响应字段。
 5. Java 生产文件必须满足 1200 行门禁，并按核心状态机和并发逻辑补充必要注释。
+
+### M2 当前验证口径
+
+M2 后端数据集切片当前采用以下最小验证：
+
+```bash
+mvn -B -pl platform-api -Dtest=TestDataSetControllerTest,TestDataSetServiceTest,TestDataOpenApiContractTest,TestDataHealthControllerTest,OpenApiContractTest,PermissionCodeUsageTest,PersistenceProfileBoundaryTest test
+bash scripts/platform_api_java_line_guard.sh
+bash db/validation/run_wp1_db_validation.sh
+```
+
+账号池、租借并发、清理 worker、脱敏导出、跨 WP adapter 和前端页面验证不属于本切片完成定义，仍按 M3-M6 承接。

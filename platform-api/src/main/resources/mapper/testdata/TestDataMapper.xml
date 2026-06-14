@@ -1,0 +1,186 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.songhg.veri.agent.testdata.infrastructure.mapper.TestDataMapper">
+    <resultMap id="dataSetMap" type="com.songhg.veri.agent.testdata.domain.TestDataSet">
+        <constructor>
+            <arg column="id" javaType="java.util.UUID"/>
+            <arg column="project_id" javaType="java.lang.String"/>
+            <arg column="application_id" javaType="java.lang.String"/>
+            <arg column="environment_id" javaType="java.lang.String"/>
+            <arg column="code" javaType="java.lang.String"/>
+            <arg column="name" javaType="java.lang.String"/>
+            <arg column="status" javaType="java.lang.String"/>
+            <arg column="schema_json" javaType="java.lang.String"/>
+            <arg column="sensitivity_level" javaType="java.lang.String"/>
+            <arg column="cleanup_policy_json" javaType="java.lang.String"/>
+            <arg column="source_type" javaType="java.lang.String"/>
+            <arg column="source_ref_digest" javaType="java.lang.String"/>
+            <arg column="created_by" javaType="java.lang.String"/>
+            <arg column="updated_by" javaType="java.lang.String"/>
+            <arg column="archived_at" javaType="java.time.Instant"/>
+            <arg column="created_at" javaType="java.time.Instant"/>
+            <arg column="updated_at" javaType="java.time.Instant"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="recordMap" type="com.songhg.veri.agent.testdata.domain.TestDataRecord">
+        <constructor>
+            <arg column="id" javaType="java.util.UUID"/>
+            <arg column="data_set_id" javaType="java.util.UUID"/>
+            <arg column="project_id" javaType="java.lang.String"/>
+            <arg column="record_key" javaType="java.lang.String"/>
+            <arg column="status" javaType="java.lang.String"/>
+            <arg column="record_digest" javaType="java.lang.String"/>
+            <arg column="masked_summary_json" javaType="java.lang.String"/>
+            <arg column="external_ref_digest" javaType="java.lang.String"/>
+            <arg column="tags_json" javaType="java.lang.String"/>
+            <arg column="created_by" javaType="java.lang.String"/>
+            <arg column="updated_by" javaType="java.lang.String"/>
+            <arg column="created_at" javaType="java.time.Instant"/>
+            <arg column="updated_at" javaType="java.time.Instant"/>
+        </constructor>
+    </resultMap>
+
+    <sql id="dataSetColumns">
+        id, project_id, application_id, environment_id, code, name, status,
+        schema_json::text as schema_json, sensitivity_level,
+        cleanup_policy_json::text as cleanup_policy_json, source_type, source_ref_digest,
+        created_by, updated_by, archived_at, created_at, updated_at
+    </sql>
+
+    <sql id="recordColumns">
+        id, data_set_id, project_id, record_key, status, record_digest,
+        masked_summary_json::text as masked_summary_json, external_ref_digest,
+        tags_json::text as tags_json, created_by, updated_by, created_at, updated_at
+    </sql>
+
+    <sql id="dataSetWhere">
+        <where>
+            <if test="query.projectId != null">project_id = #{query.projectId}</if>
+            <if test="query.applicationId != null">and application_id = #{query.applicationId}</if>
+            <if test="query.environmentId != null">and environment_id = #{query.environmentId}</if>
+            <if test="query.status != null">and status = #{query.status}</if>
+            <if test="query.keyword != null">
+                and (
+                    position(lower(#{query.keyword}) in lower(coalesce(code, ''))) &gt; 0
+                    or position(lower(#{query.keyword}) in lower(coalesce(name, ''))) &gt; 0
+                )
+            </if>
+        </where>
+    </sql>
+
+    <insert id="insertDataSet">
+        insert into test_data_set (
+            id, project_id, application_id, environment_id, code, name, status, schema_json,
+            sensitivity_level, cleanup_policy_json, source_type, source_ref_digest,
+            created_by, updated_by, archived_at, created_at, updated_at
+        ) values (
+            #{id}, #{projectId}, #{applicationId}, #{environmentId}, #{code}, #{name}, #{status},
+            cast(coalesce(#{schemaJson}, '{}') as jsonb),
+            #{sensitivityLevel},
+            cast(coalesce(#{cleanupPolicyJson}, '{}') as jsonb),
+            #{sourceType}, #{sourceRefDigest}, #{createdBy}, #{updatedBy}, #{archivedAt},
+            #{createdAt}, #{updatedAt}
+        )
+    </insert>
+
+    <update id="updateDataSet">
+        update test_data_set set
+            application_id = #{applicationId},
+            environment_id = #{environmentId},
+            name = #{name},
+            status = #{status},
+            schema_json = cast(coalesce(#{schemaJson}, '{}') as jsonb),
+            sensitivity_level = #{sensitivityLevel},
+            cleanup_policy_json = cast(coalesce(#{cleanupPolicyJson}, '{}') as jsonb),
+            source_type = #{sourceType},
+            source_ref_digest = #{sourceRefDigest},
+            updated_by = #{updatedBy},
+            updated_at = #{updatedAt}
+        where id = #{id}
+          and status != 'ARCHIVED'
+    </update>
+
+    <update id="archiveDataSet">
+        update test_data_set set
+            status = 'ARCHIVED',
+            updated_by = #{updatedBy},
+            archived_at = #{archivedAt},
+            updated_at = #{updatedAt}
+        where id = #{id}
+          and status != 'ARCHIVED'
+    </update>
+
+    <insert id="upsertRecords">
+        insert into test_data_record (
+            id, data_set_id, project_id, record_key, status, record_digest,
+            masked_summary_json, external_ref_digest, tags_json,
+            created_by, updated_by, created_at, updated_at
+        ) values
+        <foreach collection="records" item="record" separator=",">
+            (
+                #{record.id}, #{record.dataSetId}, #{record.projectId}, #{record.recordKey}, #{record.status},
+                #{record.recordDigest}, cast(coalesce(#{record.maskedSummaryJson}, '{}') as jsonb),
+                #{record.externalRefDigest}, cast(coalesce(#{record.tagsJson}, '[]') as jsonb),
+                #{record.createdBy}, #{record.updatedBy}, #{record.createdAt}, #{record.updatedAt}
+            )
+        </foreach>
+        on conflict (data_set_id, record_key) do update set
+            project_id = excluded.project_id,
+            status = excluded.status,
+            record_digest = excluded.record_digest,
+            masked_summary_json = excluded.masked_summary_json,
+            external_ref_digest = excluded.external_ref_digest,
+            tags_json = excluded.tags_json,
+            updated_by = excluded.updated_by,
+            updated_at = excluded.updated_at
+    </insert>
+
+    <select id="dataSet" resultMap="dataSetMap">
+        select <include refid="dataSetColumns"/>
+        from test_data_set
+        where id = #{id}
+    </select>
+
+    <select id="dataSetByProjectAndCode" resultMap="dataSetMap">
+        select <include refid="dataSetColumns"/>
+        from test_data_set
+        where project_id = #{projectId}
+          and code = #{code}
+    </select>
+
+    <select id="dataSets" resultMap="dataSetMap">
+        select <include refid="dataSetColumns"/>
+        from test_data_set
+        <include refid="dataSetWhere"/>
+        order by updated_at desc, code asc
+        limit #{query.limit} offset #{query.offset}
+    </select>
+
+    <select id="countDataSets" resultType="long">
+        select count(1)
+        from test_data_set
+        <include refid="dataSetWhere"/>
+    </select>
+
+    <select id="dataSetProjectScopeId" resultType="string">
+        select project_id
+        from test_data_set
+        where id = #{id}
+    </select>
+
+    <select id="records" resultMap="recordMap">
+        select <include refid="recordColumns"/>
+        from test_data_record
+        where data_set_id = #{dataSetId}
+        order by record_key asc
+    </select>
+
+    <select id="countRecords" resultType="long">
+        select count(1)
+        from test_data_record
+        where data_set_id = #{dataSetId}
+    </select>
+</mapper>

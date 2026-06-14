@@ -47,6 +47,11 @@ import com.songhg.veri.agent.testdesign.domain.TestDesignQueueAlertSubscription;
 import com.songhg.veri.agent.testdesign.domain.TestDesignReviewRecord;
 import com.songhg.veri.agent.testdesign.domain.TestDesignTask;
 import com.songhg.veri.agent.testdesign.domain.TestDesignTaskStatus;
+import com.songhg.veri.agent.testdata.application.port.TestDataRepository;
+import com.songhg.veri.agent.testdata.application.query.TestDataSetQuery;
+import com.songhg.veri.agent.testdata.domain.TestDataRecord;
+import com.songhg.veri.agent.testdata.domain.TestDataSet;
+import com.songhg.veri.agent.testdata.infrastructure.JdbcTestDataRepository;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
@@ -112,6 +117,9 @@ class DbProfileRepositoryContractTest {
     private ExecutionRepository executionRepository;
 
     @Autowired
+    private TestDataRepository testDataRepository;
+
+    @Autowired
     private AuditLogWriter auditLogWriter;
 
     @Autowired
@@ -129,6 +137,137 @@ class DbProfileRepositoryContractTest {
         assertThat(modelAccessRepository).isInstanceOf(JdbcModelAccessRepository.class);
         assertThat(modelInvocationJobRepository).isInstanceOf(JdbcModelInvocationJobRepository.class);
         assertThat(applicationContext.getBeanNamesForType(AssetRepository.class)).hasSize(1);
+        assertThat(testDataRepository).isInstanceOf(JdbcTestDataRepository.class);
+        assertThat(applicationContext.getBeanNamesForType(TestDataRepository.class)).hasSize(1);
+    }
+
+    @Test
+    void testDataRepositoryPersistsDataSetsAndRecordsThroughJdbc() {
+        Instant now = Instant.now();
+        UUID dataSetId = UUID.randomUUID();
+        String projectId = "project-wp8-db-" + UUID.randomUUID();
+
+        testDataRepository.insertDataSet(new TestDataSet(
+                dataSetId,
+                projectId,
+                "app-db",
+                "env-db",
+                "dataset-db",
+                "DB dataset",
+                "DRAFT",
+                "{\"fields\":[{\"name\":\"customerId\",\"type\":\"STRING\"}]}",
+                "CONFIDENTIAL",
+                "{\"mode\":\"MANUAL_CONFIRM\"}",
+                "EXTERNAL_REF",
+                "a".repeat(64),
+                "db-tester",
+                "db-tester",
+                null,
+                now,
+                now
+        ));
+
+        assertThat(testDataRepository.dataSetByProjectAndCode(projectId, "dataset-db"))
+                .isPresent()
+                .get()
+                .extracting(TestDataSet::schemaJson)
+                .asString()
+                .contains("customerId");
+
+        TestDataSet ready = new TestDataSet(
+                dataSetId,
+                projectId,
+                "app-db",
+                "env-db",
+                "dataset-db",
+                "DB dataset ready",
+                "READY",
+                "{\"fields\":[{\"name\":\"customerId\",\"type\":\"STRING\"}]}",
+                "CONFIDENTIAL",
+                "{\"mode\":\"MANUAL_CONFIRM\",\"ttlDays\":7}",
+                "EXTERNAL_REF",
+                "a".repeat(64),
+                "db-tester",
+                "db-updater",
+                null,
+                now,
+                now.plusSeconds(1)
+        );
+        testDataRepository.updateDataSet(ready);
+
+        TestDataSetQuery query = new TestDataSetQuery(projectId, "app-db", "env-db", "READY", "dataset", 0, 10);
+        assertThat(testDataRepository.countDataSets(query)).isEqualTo(1);
+        assertThat(testDataRepository.dataSets(query))
+                .singleElement()
+                .extracting(TestDataSet::name)
+                .isEqualTo("DB dataset ready");
+
+        testDataRepository.upsertRecords(List.of(new TestDataRecord(
+                UUID.randomUUID(),
+                dataSetId,
+                projectId,
+                "customer:001",
+                "ACTIVE",
+                "b".repeat(64),
+                "{\"customerEmail\":\"c***@example.test\"}",
+                "c".repeat(64),
+                "[\"sanitized\",\"db\"]",
+                "db-tester",
+                "db-tester",
+                now,
+                now
+        )));
+        testDataRepository.upsertRecords(List.of(new TestDataRecord(
+                UUID.randomUUID(),
+                dataSetId,
+                projectId,
+                "customer:001",
+                "ACTIVE",
+                "d".repeat(64),
+                "{\"customerEmail\":\"updated***@example.test\"}",
+                null,
+                "[\"sanitized\"]",
+                "db-tester",
+                "db-updater",
+                now,
+                now.plusSeconds(2)
+        )));
+
+        assertThat(testDataRepository.countRecords(dataSetId)).isEqualTo(1);
+        assertThat(testDataRepository.records(dataSetId))
+                .singleElement()
+                .satisfies(record -> {
+                    assertThat(record.recordDigest()).isEqualTo("d".repeat(64));
+                    assertThat(record.maskedSummaryJson()).contains("updated***@example.test");
+                    assertThat(record.tagsJson()).contains("sanitized");
+                });
+
+        testDataRepository.archiveDataSet(new TestDataSet(
+                dataSetId,
+                projectId,
+                "app-db",
+                "env-db",
+                "dataset-db",
+                "DB dataset ready",
+                "ARCHIVED",
+                "{\"fields\":[{\"name\":\"customerId\",\"type\":\"STRING\"}]}",
+                "CONFIDENTIAL",
+                "{\"mode\":\"MANUAL_CONFIRM\",\"ttlDays\":7}",
+                "EXTERNAL_REF",
+                "a".repeat(64),
+                "db-tester",
+                "db-archiver",
+                now.plusSeconds(3),
+                now,
+                now.plusSeconds(3)
+        ));
+
+        assertThat(testDataRepository.dataSetProjectScopeId(dataSetId)).contains(projectId);
+        assertThat(testDataRepository.dataSet(dataSetId))
+                .isPresent()
+                .get()
+                .extracting(TestDataSet::status)
+                .isEqualTo("ARCHIVED");
     }
 
     @Test

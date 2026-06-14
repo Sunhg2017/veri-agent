@@ -70,6 +70,8 @@ M1 当前推进状态：权限常量、角色 seed、7 张基础表、表/列注
 | WP8-2.4 Cleanup policy | P0 | 产品经理、服务端架构师 | 保存手动确认、TTL、回滚策略摘要 | 非 READY 数据集不可引用 | Service test |
 | WP8-2.5 DataSet export | P1 | 服务端架构师、质量工程师 | 导出数据集脱敏摘要和 redaction policy | 不含完整 record payload | Security test |
 
+M2 当前推进状态：`platform-api` 已推进数据集控制面后端切片，覆盖 `POST/GET/PATCH/archive /api/v1/test-data/data-sets` 和 `POST /api/v1/test-data/data-sets/{id}/records`，实现项目 scope 权限、schema validator、脱敏记录摘要 upsert、清理策略摘要、审计事件和 OpenAPI contract。`veri-agent.test-data.enabled=false` 会阻断业务维护入口，health API 保持可观测。M2 本轮未包含 WP8-2.5 脱敏导出、账号池、租借并发、清理 worker、跨 WP adapter 和前端页面，这些仍按 M3-M6 推进。
+
 ## 7. Epic 3：账号池控制面
 
 | Story | 优先级 | 负责人 | 任务 | 验收 | 验证 |
