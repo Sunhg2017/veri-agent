@@ -125,6 +125,8 @@ M6B/M7A 当前推进状态：已新增 `portal-web/e2e/wp8-test-data.smoke.playw
 
 M6C 当前推进状态：已补齐数据集脱敏导出摘要后端接口和前端导出面板。`portal-web/src/api/testData.ts` 新增 `exportTestDataSet` 和导出 normalizer，`TestDataWorkbench` 数据集 tab 新增“脱敏导出摘要”面板，按钮受 `testData:export` 和 `health.exportEnabled` 控制；Playwright smoke 点击导出并断言 DOM 不含 `secret://` 或敏感测试值。真实文件下载、租借导出和真实 cleanup worker 仍未完成，不纳入本轮完成定义。
 
+M6D 当前推进状态：已补齐租借脱敏导出摘要后端接口和前端导出面板。`platform-api` 新增 `GET /api/v1/test-data/leases/{id}/export`、`TestAccountLeaseExportResponse` 和导出审计，`portal-web/src/api/testData.ts` 新增 `exportTestAccountLease`、导出 normalizer，`TestDataWorkbench` 租借 tab 新增“租借脱敏导出摘要”面板；Playwright smoke 进一步断言导出结果只展示 digest、keys 和 redaction policy，不回显释放原因、健康摘要原文或 secretRef 原文。真实文件下载、真实 cleanup worker 和 WP7/WP9 执行器集成仍未完成，不纳入本轮完成定义。
+
 ## 11. Epic 7：质量门禁和发布准出
 
 | Story | 优先级 | 负责人 | 任务 | 验收 | 验证 |

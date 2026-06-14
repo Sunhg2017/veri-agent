@@ -9,6 +9,7 @@ import {
   createTestDataSet,
   createTestDataTask,
   disableTestAccountPool,
+  exportTestAccountLease,
   exportTestDataSet,
   fetchTestAccountLease,
   fetchTestAccountLeases,
@@ -21,6 +22,7 @@ import {
   fetchTestDataTasks,
   importTestDataRecords,
   normalizeTestAccountLease,
+  normalizeTestAccountLeaseExport,
   normalizeTestAccountPoolDetail,
   normalizeTestDataSetDetail,
   normalizeTestDataSetExport,
@@ -210,6 +212,84 @@ describe('WP8 test data API helpers', () => {
         secretRefPlaintextExported: false
       }
     });
+
+    expect(normalizeTestAccountLeaseExport({
+      schema_version: 'wp8-account-lease-export-v1',
+      exported_at: '2026-06-15T00:00:00Z',
+      lease: {
+        id: 'lease-1',
+        pool_id: 'pool-1',
+        account_id: 'acc-1',
+        project_id: 'project-alpha',
+        status: 'RELEASED',
+        holder_type: 'EXECUTION_RUN',
+        holder_ref: 'run-1',
+        request_key: 'lease-run-1',
+        request_digest: 'digest-request',
+        lease_token_digest: 'digest-lease-token',
+        release_reason_present: true,
+        release_reason_digest: 'digest-release'
+      },
+      pool: {
+        id: 'pool-1',
+        project_id: 'project-alpha',
+        code: 'admin-pool',
+        name: 'Admin pool',
+        status: 'READY',
+        default_ttl_seconds: '1800',
+        lease_policy_keys: ['sharing', 'cookie', 'token']
+      },
+      account: {
+        id: 'acc-1',
+        pool_id: 'pool-1',
+        project_id: 'project-alpha',
+        account_key: 'admin-01',
+        status: 'LEASED',
+        role_tags: ['ADMIN'],
+        scope_summary_keys: ['tenant', 'token', 'authorization'],
+        secret_ref_digest: 'digest-secret',
+        last_health_status: 'HEALTHY',
+        last_health_summary_present: true,
+        last_health_summary_digest: 'digest-health'
+      },
+      lifecycle_summary: {
+        releaseReasonPresent: true,
+        authorization: 'Bearer raw'
+      },
+      redaction_policy: {
+        secretRefPlaintextExported: false,
+        leaseTokenPlaintextExported: false,
+        freeTextValuesExported: false,
+        cookie: 'raw'
+      }
+    })).toMatchObject({
+      schemaVersion: 'wp8-account-lease-export-v1',
+      lease: {
+        id: 'lease-1',
+        releaseReasonPresent: true,
+        releaseReasonDigest: 'digest-release'
+      },
+      pool: {
+        id: 'pool-1',
+        defaultTtlSeconds: 1800,
+        leasePolicyKeys: ['sharing']
+      },
+      account: {
+        accountKey: 'admin-01',
+        scopeSummaryKeys: ['tenant'],
+        secretRefDigest: 'digest-secret',
+        lastHealthSummaryPresent: true,
+        lastHealthSummaryDigest: 'digest-health'
+      },
+      lifecycleSummary: {
+        releaseReasonPresent: true
+      },
+      redactionPolicy: {
+        secretRefPlaintextExported: false,
+        leaseTokenPlaintextExported: false,
+        freeTextValuesExported: false
+      }
+    });
   });
 
   it('calls query endpoints with normalized paths', async () => {
@@ -223,6 +303,7 @@ describe('WP8 test data API helpers', () => {
     await fetchTestAccountPool('pool-1');
     await fetchTestAccountLeases({ projectId: 'project-alpha', poolId: 'pool-1', status: 'ACTIVE' });
     await fetchTestAccountLease('lease-1');
+    await exportTestAccountLease('lease-1');
     await fetchTestDataTasks({ projectId: 'project-alpha', taskType: 'CLEANUP', status: 'FAILED' });
     await fetchTestDataTask('task-1');
 
@@ -243,11 +324,12 @@ describe('WP8 test data API helpers', () => {
       '/api/v1/test-data/leases?projectId=project-alpha&poolId=pool-1&status=ACTIVE'
     );
     expect(requestJsonMock).toHaveBeenNthCalledWith(8, '/api/v1/test-data/leases/lease-1');
+    expect(requestJsonMock).toHaveBeenNthCalledWith(9, '/api/v1/test-data/leases/lease-1/export');
     expect(requestJsonMock).toHaveBeenNthCalledWith(
-      9,
+      10,
       '/api/v1/test-data/data-tasks?projectId=project-alpha&taskType=CLEANUP&status=FAILED'
     );
-    expect(requestJsonMock).toHaveBeenNthCalledWith(10, '/api/v1/test-data/data-tasks/task-1');
+    expect(requestJsonMock).toHaveBeenNthCalledWith(11, '/api/v1/test-data/data-tasks/task-1');
   });
 
   it('wraps mutating endpoints and keeps secretRef write-only', async () => {

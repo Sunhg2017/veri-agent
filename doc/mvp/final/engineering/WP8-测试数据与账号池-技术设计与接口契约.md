@@ -144,6 +144,7 @@
 - `POST /api/v1/test-data/leases`
 - `GET /api/v1/test-data/leases`
 - `GET /api/v1/test-data/leases/{id}`
+- `GET /api/v1/test-data/leases/{id}/export`
 - `POST /api/v1/test-data/leases/{id}/renew`
 - `POST /api/v1/test-data/leases/{id}/release`
 - `POST /api/v1/test-data/data-tasks`
@@ -161,6 +162,7 @@
 6. `POST /leases/{id}/release` 为终态幂等；账号释放后默认回到 `AVAILABLE`，失败场景可转入 `LOCKED`。
 7. 过期回收当前提供应用服务入口和 DB 查询能力，但不启用 scheduler worker。
 8. `data-tasks` 当前只记录准备、刷新、清理和回滚任务的控制面状态；`cleanupEnabled=false` 不触发破坏性清理 adapter。
+9. 租借脱敏导出受 `testData:export` 和 `veri-agent.test-data.export-enabled` 控制，只返回 `schemaVersion/exportedAt/lease/pool/account/lifecycleSummary/redactionPolicy`；其中 lease 只包含 holder、状态、时间戳、`requestDigest`、`leaseTokenDigest`、释放原因存在标记和释放原因 digest，pool/account 只包含摘要、digest、安全 key 名和健康状态，不返回 secretRef 原文、租借 token 明文、释放原因原文、健康摘要原文、scope/lease policy 值、token、cookie 或 Authorization header。
 
 ## 6. 关键请求体
 

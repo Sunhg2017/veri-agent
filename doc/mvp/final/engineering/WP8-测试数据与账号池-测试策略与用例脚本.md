@@ -5,7 +5,7 @@
 | 工作包 | WP8 测试数据与账号池 |
 | 角色产出 | 资深质量工程师 |
 | 文档性质 | 测试策略、用例矩阵、脚本门禁和准出要求 |
-| 当前口径 | WP8 分 M2-M7 推进；当前已完成 M6A 前端工作台基础闭环、M6B/M7A 浏览器 smoke 与 quality gate 基础脚本，并在 M6C 补齐数据集脱敏导出摘要；真实清理 worker、租借导出和导出文件下载仍按后续里程碑承接 |
+| 当前口径 | WP8 分 M2-M7 推进；当前已完成 M6A 前端工作台基础闭环、M6B/M7A 浏览器 smoke 与 quality gate 基础脚本，并在 M6C 补齐数据集脱敏导出摘要、M6D 补齐租借脱敏导出摘要；真实清理 worker 和导出文件下载仍按后续里程碑承接 |
 | 版本 | v0.1 |
 | 日期 | 2026-06-15 |
 
@@ -63,6 +63,7 @@
 | 清理任务失败重试 | 失败摘要保留，重试使用相同 target 和新 attempt。 |
 | 越权项目访问 | 403，不泄露资源存在性。 |
 | 导出摘要 | 只含白名单字段和 redaction policy。 |
+| 租借导出摘要 | 只含 holder/status/time/digest、安全 key 名和 redaction policy，不含 secretRef、token 明文、释放原因原文、健康摘要原文或 policy/scope 值。 |
 
 ## 5. 前端用例矩阵
 
@@ -76,7 +77,7 @@
 | 续租超 TTL | 本地阻断并提示最大 TTL。 |
 | 释放并创建清理任务 | payload 不包含 secret 或数据正文。 |
 | 清理任务失败 | 展示错误摘要和重试/人工确认入口。 |
-| 导出面板 | 显示 redaction policy，不展示 secretRef 原文。 |
+| 导出面板 | 显示 redaction policy，不展示 secretRef 原文；租借导出只展示 digest、keys 和 presence 标记。 |
 | 响应式主链路 | 桌面和 390px 均可完成数据集、账号池、租借、释放和任务查看。 |
 
 ## 6. 安全专项
@@ -85,7 +86,7 @@
 2. 审计 payload 检查：只能包含 digest、计数、状态、资源 ID 和错误码。
 3. 日志检查：租借、释放、清理失败日志不输出 secretRef 原文或数据记录原文。
 4. 前端 DOM 检查：Playwright smoke 中扫描页面文本不包含输入 secretRef。
-5. 导出检查：导出摘要带 redaction policy，禁止完整 record payload。
+5. 导出检查：导出摘要带 redaction policy，禁止完整 record payload、maskedSummary 值、secretRef 原文、租借 token 明文、释放原因原文和健康摘要原文。
 
 ## 7. 建议验证入口
 

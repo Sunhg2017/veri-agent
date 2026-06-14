@@ -66,6 +66,54 @@ class TestAccountLeaseServiceTest {
     }
 
     @Test
+    void exportsLeaseSummaryWithoutPlaintextFreeTextOrScopeValues() {
+        Fixture fixture = fixture(true);
+        var pool = fixture.poolService.createAccountPool(new CreateTestAccountPoolCommand(
+                "project-alpha",
+                "app-alpha",
+                "env-staging",
+                "pool-alpha",
+                "Pool alpha",
+                "READY",
+                Map.of("sharing", "EXCLUSIVE", "cookie", "raw-cookie"),
+                60
+        ));
+        fixture.poolService.addAccount(pool.id(), new UpsertTestPooledAccountCommand(
+                "admin-01",
+                "Admin 01",
+                "AVAILABLE",
+                List.of("ADMIN"),
+                Map.of("tenant", "alpha", "token", "raw-token"),
+                SECRET_REF,
+                "HEALTHY",
+                "Bearer raw health token"
+        ));
+        var lease = fixture.leaseService.acquireLease(leaseCommand(pool.id(), "run-001"));
+        var released = fixture.leaseService.releaseLease(
+                lease.id(),
+                new ReleaseTestAccountLeaseCommand("browser smoke done with raw note", "AVAILABLE")
+        );
+
+        var exported = fixture.leaseService.exportLease(released.id());
+
+        assertThat(exported.schemaVersion()).isEqualTo("wp8-account-lease-export-v1");
+        assertThat(exported.lease().releaseReasonPresent()).isTrue();
+        assertThat(exported.lease().releaseReasonDigest()).matches("[0-9a-f]{64}");
+        assertThat(exported.account().scopeSummaryKeys()).containsExactly("tenant");
+        assertThat(exported.account().lastHealthSummaryDigest()).matches("[0-9a-f]{64}");
+        assertThat(exported.pool().leasePolicyKeys()).containsExactly("sharing");
+        assertThat(exported.redactionPolicy()).containsEntry("freeTextValuesExported", false);
+        assertThat(exported.toString()).doesNotContain(
+                SECRET_REF,
+                "secret://",
+                "raw-token",
+                "raw-cookie",
+                "Bearer raw health token",
+                "browser smoke done with raw note"
+        );
+    }
+
+    @Test
     void rejectsSecondActiveLeaseUntilRelease() {
         Fixture fixture = fixture(true);
         var pool = fixture.poolService.createAccountPool(poolCommand());
@@ -120,12 +168,28 @@ class TestAccountLeaseServiceTest {
                         assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.INVALID_STATE));
     }
 
+    @Test
+    void rejectsLeaseExportWhenExportDisabled() {
+        Fixture fixture = fixture(true, false);
+        var pool = fixture.poolService.createAccountPool(poolCommand());
+        fixture.poolService.addAccount(pool.id(), accountCommand("admin-01", List.of("ADMIN")));
+        var lease = fixture.leaseService.acquireLease(leaseCommand(pool.id(), "run-001"));
+
+        assertThatThrownBy(() -> fixture.leaseService.exportLease(lease.id()))
+                .isInstanceOfSatisfying(BusinessException.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.INVALID_STATE));
+    }
+
     private Fixture fixture(boolean enabled) {
+        return fixture(enabled, true);
+    }
+
+    private Fixture fixture(boolean enabled, boolean exportEnabled) {
         InMemoryTestDataRepository repository = new InMemoryTestDataRepository();
         TestDataPlatformContextClient contextClient = contextClient();
         TestDataActorResolver actorResolver = mock(TestDataActorResolver.class);
         when(actorResolver.currentActor()).thenReturn("wp8-tester");
-        TestDataProperties properties = new TestDataProperties(enabled, 10, 512, 60, 120, false, true);
+        TestDataProperties properties = new TestDataProperties(enabled, 10, 512, 60, 120, false, exportEnabled);
         ObjectMapper objectMapper = new ObjectMapper();
         return new Fixture(
                 new TestAccountPoolService(repository, contextClient, actorResolver, properties, objectMapper),

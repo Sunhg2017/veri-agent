@@ -19,6 +19,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -81,6 +82,26 @@ class TestAccountLeaseControllerTest {
                 .andReturn();
         UUID leaseId = UUID.fromString(JsonPath.read(acquired.getResponse().getContentAsString(), "$.data.id"));
 
+        String readOnlyToken = userAccessToken(List.of("Tester@PROJECT:project-alpha"));
+        mockMvc.perform(get("/api/v1/test-data/leases/{id}/export", leaseId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + readOnlyToken))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+
+        mockMvc.perform(get("/api/v1/test-data/leases/{id}/export", leaseId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.schemaVersion").value("wp8-account-lease-export-v1"))
+                .andExpect(jsonPath("$.data.lease.id").value(leaseId.toString()))
+                .andExpect(jsonPath("$.data.lease.leaseTokenDigest").isString())
+                .andExpect(jsonPath("$.data.pool.id").value(poolId.toString()))
+                .andExpect(jsonPath("$.data.account.secretRefDigest").isString())
+                .andExpect(jsonPath("$.data.account.scopeSummaryKeys", hasSize(1)))
+                .andExpect(jsonPath("$.data.redactionPolicy.secretRefPlaintextExported").value(false))
+                .andExpect(jsonPath("$.data.redactionPolicy.leaseTokenPlaintextExported").value(false))
+                .andExpect(content().string(not(containsString(SECRET_REF))))
+                .andExpect(content().string(not(containsString("secret://"))));
+
         mockMvc.perform(post("/api/v1/test-data/leases")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -119,6 +140,36 @@ class TestAccountLeaseControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("RELEASED"))
                 .andExpect(jsonPath("$.data.account.status").value("AVAILABLE"));
+
+        mockMvc.perform(get("/api/v1/test-data/leases/{id}/export", leaseId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.lifecycleSummary.releaseReasonPresent").value(true))
+                .andExpect(jsonPath("$.data.lease.releaseReasonDigest").isString())
+                .andExpect(jsonPath("$.data.redactionPolicy.freeTextValuesExported").value(false))
+                .andExpect(content().string(not(containsString("run finished"))))
+                .andExpect(content().string(not(containsString(SECRET_REF))))
+                .andExpect(content().string(not(containsString("secret://"))));
+    }
+
+    @Test
+    void rejectsCrossProjectLeaseExportAccess() throws Exception {
+        String alphaToken = userAccessToken(List.of("ProjectOwner@PROJECT:project-alpha"));
+        String betaToken = userAccessToken(List.of("ProjectOwner@PROJECT:project-beta"));
+        UUID poolId = createPoolAndAccount(alphaToken);
+
+        MvcResult acquired = mockMvc.perform(post("/api/v1/test-data/leases")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + alphaToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(leaseRequest(poolId, "run-001"))))
+                .andExpect(status().isOk())
+                .andReturn();
+        UUID leaseId = UUID.fromString(JsonPath.read(acquired.getResponse().getContentAsString(), "$.data.id"));
+
+        mockMvc.perform(get("/api/v1/test-data/leases/{id}/export", leaseId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + betaToken))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
     }
 
     private UUID createPoolAndAccount(String token) throws Exception {

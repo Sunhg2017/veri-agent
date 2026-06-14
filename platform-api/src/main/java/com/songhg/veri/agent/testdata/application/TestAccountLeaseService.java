@@ -12,6 +12,7 @@ import com.songhg.veri.agent.testdata.application.command.RenewTestAccountLeaseC
 import com.songhg.veri.agent.testdata.application.port.TestDataRepository;
 import com.songhg.veri.agent.testdata.application.query.TestAccountLeasePageRequest;
 import com.songhg.veri.agent.testdata.application.query.TestAccountLeaseQuery;
+import com.songhg.veri.agent.testdata.application.view.TestAccountLeaseExportResponse;
 import com.songhg.veri.agent.testdata.application.view.TestAccountLeaseResponse;
 import com.songhg.veri.agent.testdata.application.view.TestPooledAccountResponse;
 import com.songhg.veri.agent.testdata.config.TestDataProperties;
@@ -40,6 +41,9 @@ public class TestAccountLeaseService {
     private static final Pattern HOLDER_REF_PATTERN = Pattern.compile("^[A-Za-z0-9_.:@/-]{1,128}$");
     private static final Pattern REQUEST_KEY_PATTERN = Pattern.compile("^[A-Za-z0-9_.:@/-]{1,128}$");
     private static final Pattern ROLE_TAG_PATTERN = Pattern.compile("^[A-Za-z0-9_.:-]{1,64}$");
+    private static final Pattern SENSITIVE_KEY_PATTERN = Pattern.compile(
+            "(?i).*(password|secret|token|cookie|authorization|credential).*"
+    );
     private static final Set<String> HOLDER_TYPES = Set.of("MANUAL", "EXECUTION_RUN", "UI_E2E_RUN", "API_AUTOMATION_RUN");
     private static final Set<String> LEASE_STATUSES = Set.of("ACTIVE", "RELEASED", "EXPIRED", "REVOKED");
     private static final Set<String> RELEASE_ACCOUNT_STATUSES = Set.of("AVAILABLE", "LOCKED");
@@ -97,6 +101,40 @@ public class TestAccountLeaseService {
     public TestAccountLeaseResponse lease(UUID id) {
         assertEnabled();
         return response(requireLease(id));
+    }
+
+    /**
+     * Builds an audit-safe account lease export for handoff and troubleshooting.
+     * Free-form cleanup and health text is reduced to presence flags and digests; credentials and token plaintext never leave WP8.
+     */
+    @Transactional(noRollbackFor = BusinessException.class)
+    public TestAccountLeaseExportResponse exportLease(UUID id) {
+        assertEnabled();
+        if (!properties.exportEnabled()) {
+            throw new BusinessException(ErrorCode.INVALID_STATE, "WP8 脱敏导出已关闭");
+        }
+        TestAccountLease lease = requireLease(id);
+        TestAccountPool pool = requirePool(lease.poolId());
+        TestPooledAccount account = repository.pooledAccount(lease.accountId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "账号不存在"));
+        TestAccountLeaseExportResponse response = new TestAccountLeaseExportResponse(
+                "wp8-account-lease-export-v1",
+                Instant.now(),
+                exportLeaseSnapshot(lease),
+                exportPoolSnapshot(pool),
+                exportAccountSnapshot(account),
+                exportLifecycleSummary(lease),
+                exportRedactionPolicy()
+        );
+        auditLease(lease, "test_data.lease.exported", Map.of(
+                "schemaVersion", response.schemaVersion(),
+                "status", lease.status(),
+                "holderType", lease.holderType(),
+                "leaseTokenPlaintextExported", false,
+                "secretRefPlaintextExported", false,
+                "freeTextValuesExported", false
+        ));
+        return response;
     }
 
     @Transactional(noRollbackFor = BusinessException.class)
@@ -367,6 +405,86 @@ public class TestAccountLeaseService {
         );
     }
 
+    private TestAccountLeaseExportResponse.LeaseSnapshot exportLeaseSnapshot(TestAccountLease lease) {
+        return new TestAccountLeaseExportResponse.LeaseSnapshot(
+                lease.id(),
+                lease.poolId(),
+                lease.accountId(),
+                lease.projectId(),
+                lease.status(),
+                lease.holderType(),
+                lease.holderRef(),
+                lease.requestKey(),
+                lease.requestDigest(),
+                lease.leaseTokenDigest(),
+                lease.expiresAt(),
+                lease.releasedAt(),
+                StringUtils.hasText(lease.releaseReason()),
+                digestIfPresent(lease.releaseReason(), "释放原因摘要算法不可用"),
+                lease.createdAt(),
+                lease.updatedAt()
+        );
+    }
+
+    private TestAccountLeaseExportResponse.PoolSnapshot exportPoolSnapshot(TestAccountPool pool) {
+        return new TestAccountLeaseExportResponse.PoolSnapshot(
+                pool.id(),
+                pool.projectId(),
+                pool.applicationId(),
+                pool.environmentId(),
+                pool.code(),
+                pool.name(),
+                pool.status(),
+                pool.defaultTtlSeconds(),
+                sortedKeys(readMap(pool.leasePolicyJson())),
+                pool.archivedAt(),
+                pool.createdAt(),
+                pool.updatedAt()
+        );
+    }
+
+    private TestAccountLeaseExportResponse.AccountSnapshot exportAccountSnapshot(TestPooledAccount account) {
+        return new TestAccountLeaseExportResponse.AccountSnapshot(
+                account.id(),
+                account.poolId(),
+                account.projectId(),
+                account.accountKey(),
+                account.displayName(),
+                account.status(),
+                readStringList(account.roleTagsJson()),
+                sortedKeys(readMap(account.scopeSummaryJson())),
+                account.secretRefDigest(),
+                account.lastHealthStatus(),
+                StringUtils.hasText(account.lastHealthSummary()),
+                digestIfPresent(account.lastHealthSummary(), "账号健康摘要算法不可用"),
+                account.archivedAt(),
+                account.createdAt(),
+                account.updatedAt()
+        );
+    }
+
+    private Map<String, Object> exportLifecycleSummary(TestAccountLease lease) {
+        return Map.of(
+                "active", "ACTIVE".equals(lease.status()) && lease.expiresAt().isAfter(Instant.now()),
+                "terminal", !"ACTIVE".equals(lease.status()),
+                "released", lease.releasedAt() != null,
+                "releaseReasonPresent", StringUtils.hasText(lease.releaseReason())
+        );
+    }
+
+    private Map<String, Object> exportRedactionPolicy() {
+        return Map.of(
+                "secretRefPlaintextExported", false,
+                "leaseTokenPlaintextExported", false,
+                "leaseTokenDigestExported", true,
+                "requestDigestExported", true,
+                "freeTextValuesExported", false,
+                "scopeSummaryValuesExported", false,
+                "leasePolicyValuesExported", false,
+                "destructiveCleanupTriggered", false
+        );
+    }
+
     private Map<String, Object> policy() {
         return Map.of(
                 "secretPlaintextReturned", false,
@@ -477,6 +595,13 @@ public class TestAccountLeaseService {
         return sha256(projectId + ":" + requestKey + ":" + accountId + ":" + now.toEpochMilli(), "租借 token 摘要算法不可用");
     }
 
+    private String digestIfPresent(String value, String errorMessage) {
+        if (!StringUtils.hasText(value)) {
+            return null;
+        }
+        return sha256(value, errorMessage);
+    }
+
     private String requestDigest(AcquireTestAccountLeaseCommand command, String projectId) {
         Map<String, Object> normalized = new LinkedHashMap<>();
         normalized.put("projectId", projectId);
@@ -512,6 +637,13 @@ public class TestAccountLeaseService {
         } catch (JsonProcessingException exception) {
             throw new BusinessException(ErrorCode.INTERNAL_ERROR, "账号摘要 JSON 读取失败");
         }
+    }
+
+    private List<String> sortedKeys(Map<String, Object> value) {
+        return value.keySet().stream()
+                .filter(key -> !SENSITIVE_KEY_PATTERN.matcher(key).matches())
+                .sorted()
+                .toList();
     }
 
     private List<String> readStringList(String json) {

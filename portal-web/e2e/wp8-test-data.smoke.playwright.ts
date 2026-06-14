@@ -9,6 +9,8 @@ const wp8Permissions = [
 ];
 
 const rawSecretRef = 'secret://wp8/ui-smoke-admin';
+const rawReleaseReason = 'browser smoke done';
+const rawHealthSummary = 'Bearer raw health token';
 
 const smokeViewports = [
   { name: 'desktop', width: 1280, height: 900, assertResponsive: false },
@@ -124,13 +126,25 @@ async function runWp8MainFlow(page: Page, assertResponsive: boolean) {
   await leaseRecordPanel.getByLabel('续租 TTL').fill('1200');
   await leaseRecordPanel.getByRole('button', { name: '续租' }).click();
   await expect(page.locator('.test-data-list-item').filter({ hasText: '2026-06-15 01:20:00' }).first()).toBeVisible();
-  await leaseRecordPanel.getByLabel('释放原因').fill('browser smoke done');
+  await leaseRecordPanel.getByLabel('释放原因').fill(rawReleaseReason);
   await leaseRecordPanel.getByRole('button', { name: '释放' }).click();
   await expect(page.locator('.test-data-list-item').filter({ hasText: 'RELEASED' }).first()).toBeVisible();
   expect(mock.releasePayload).toMatchObject({
-    releaseReason: 'browser smoke done',
+    releaseReason: rawReleaseReason,
     accountStatus: 'AVAILABLE'
   });
+
+  const leaseExportPanel = page.getByTestId('test-lease-export-panel');
+  await leaseExportPanel.getByRole('button', { name: '导出摘要' }).click();
+  await expect(leaseExportPanel.getByText('wp8-account-lease-export-v1')).toBeVisible();
+  await expect(leaseExportPanel.getByText('leaseTokenPlaintextExported')).toBeVisible();
+  await expect(leaseExportPanel.getByText('scopeKeys')).toBeVisible();
+  await expect(leaseExportPanel.getByText('tenant')).toBeVisible();
+  await expect(leaseExportPanel.getByText('healthSummary')).toBeVisible();
+  await expect(leaseExportPanel.getByText('digest only')).toBeVisible();
+  expect(mock.leaseExportSeen).toBe(true);
+  await expect(leaseExportPanel).not.toContainText(rawReleaseReason);
+  await expect(leaseExportPanel).not.toContainText(rawHealthSummary);
 
   await page.getByRole('tab', { name: '清理任务' }).click();
   await expect(page.getByText('cleanupEnabled=false')).toBeVisible();
@@ -193,6 +207,7 @@ class Wp8TestDataMock {
   taskPayload: Record<string, unknown> | undefined;
   retryPayload: Record<string, unknown> | undefined;
   exportSeen = false;
+  leaseExportSeen = false;
 
   private dataSets: Array<Record<string, unknown>> = [this.dataSetSummary('ds-ui-1', 'Baseline WP8 smoke data set', 'baseline-users')];
   private dataSetDetails = new Map<string, Record<string, unknown>>([
@@ -396,6 +411,12 @@ class Wp8TestDataMock {
       return this.fulfill(route, this.leaseDetails.get(leaseDetailMatch[1]) ?? this.leaseDetail(leaseDetailMatch[1], 'ACTIVE'), 'trace-lease-detail');
     }
 
+    const leaseExportMatch = path.match(/^\/api\/v1\/test-data\/leases\/([^/]+)\/export$/);
+    if (leaseExportMatch && method === 'GET') {
+      this.leaseExportSeen = true;
+      return this.fulfill(route, this.leaseExport(leaseExportMatch[1]), 'trace-lease-export');
+    }
+
     const renewMatch = path.match(/^\/api\/v1\/test-data\/leases\/([^/]+)\/renew$/);
     if (renewMatch && method === 'POST') {
       const current = this.leaseDetails.get(renewMatch[1]) ?? this.leaseDetail(renewMatch[1], 'ACTIVE');
@@ -413,7 +434,7 @@ class Wp8TestDataMock {
         ...current,
         status: 'RELEASED',
         releasedAt: '2026-06-15T00:09:00Z',
-        releaseReason: stringValue(this.releasePayload.releaseReason, 'browser smoke done'),
+        releaseReason: stringValue(this.releasePayload.releaseReason, rawReleaseReason),
         updatedAt: '2026-06-15T00:09:00Z'
       };
       this.leaseDetails.set(releaseMatch[1], lease);
@@ -711,7 +732,8 @@ class Wp8TestDataMock {
         displayName: 'Admin UI 01',
         status: 'LEASED',
         roleTags: ['ADMIN'],
-        scopeSummary: { tenant: 'alpha' }
+        scopeSummary: { tenant: 'alpha', token: 'must-not-render' },
+        lastHealthSummary: rawHealthSummary
       }),
       policy: { leaseTokenReturned: false },
       createdAt: '2026-06-15T00:00:00Z',
@@ -730,6 +752,76 @@ class Wp8TestDataMock {
       expiresAt: '2026-06-15T01:15:00Z',
       createdAt: '2026-06-15T00:08:00Z',
       updatedAt: '2026-06-15T00:08:00Z'
+    };
+  }
+
+  private leaseExport(id: string) {
+    const lease = this.leaseDetails.get(id) ?? this.leaseDetail(id, 'ACTIVE');
+    const account = objectValue(lease.account);
+    return {
+      schemaVersion: 'wp8-account-lease-export-v1',
+      exportedAt: '2026-06-15T00:12:00Z',
+      lease: {
+        id: lease.id,
+        poolId: lease.poolId,
+        accountId: lease.accountId,
+        projectId: lease.projectId,
+        status: lease.status,
+        holderType: lease.holderType,
+        holderRef: lease.holderRef,
+        requestKey: lease.requestKey,
+        requestDigest: 'sha256:request-ui-digest',
+        leaseTokenDigest: lease.leaseTokenDigest,
+        expiresAt: lease.expiresAt,
+        releasedAt: lease.releasedAt,
+        releaseReasonPresent: Boolean(lease.releaseReason),
+        releaseReasonDigest: lease.releaseReason ? 'sha256:release-reason-ui' : undefined,
+        createdAt: lease.createdAt,
+        updatedAt: lease.updatedAt
+      },
+      pool: {
+        id: lease.poolId,
+        projectId: lease.projectId,
+        applicationId: 'app-ui',
+        environmentId: 'staging',
+        code: 'admin-pool-ui',
+        name: 'WP8 UI smoke account pool',
+        status: 'READY',
+        defaultTtlSeconds: 1800,
+        leasePolicyKeys: ['sharing', 'token'],
+        createdAt: '2026-06-15T00:06:00Z',
+        updatedAt: '2026-06-15T00:06:00Z'
+      },
+      account: {
+        id: account.id,
+        poolId: account.poolId,
+        projectId: account.projectId,
+        accountKey: account.accountKey,
+        displayName: account.displayName,
+        status: account.status,
+        roleTags: account.roleTags,
+        scopeSummaryKeys: ['tenant', 'token'],
+        secretRefDigest: account.secretRefDigest,
+        lastHealthStatus: account.lastHealthStatus,
+        lastHealthSummaryPresent: true,
+        lastHealthSummaryDigest: 'sha256:health-summary-ui',
+        createdAt: account.createdAt,
+        updatedAt: account.updatedAt
+      },
+      lifecycleSummary: {
+        released: Boolean(lease.releasedAt),
+        releaseReasonPresent: Boolean(lease.releaseReason)
+      },
+      redactionPolicy: {
+        secretRefPlaintextExported: false,
+        leaseTokenPlaintextExported: false,
+        leaseTokenDigestExported: true,
+        requestDigestExported: true,
+        freeTextValuesExported: false,
+        scopeSummaryValuesExported: false,
+        leasePolicyValuesExported: false,
+        destructiveCleanupTriggered: false
+      }
     };
   }
 

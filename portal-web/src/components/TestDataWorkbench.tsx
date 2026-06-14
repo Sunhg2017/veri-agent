@@ -26,6 +26,7 @@ import {
   createTestDataSet,
   createTestDataTask,
   disableTestAccountPool,
+  exportTestAccountLease,
   exportTestDataSet,
   fetchTestAccountLease,
   fetchTestAccountLeases,
@@ -44,6 +45,7 @@ import {
   updateTestDataSet,
   updateTestPooledAccount,
   type TestAccountLease,
+  type TestAccountLeaseExport,
   type TestAccountPoolDetail,
   type TestAccountPoolSummary,
   type TestDataHealth,
@@ -231,6 +233,7 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
   const [leaseDetail, setLeaseDetail] = useState<TestAccountLease | null>(null);
   const [taskDetail, setTaskDetail] = useState<TestDataTask | null>(null);
   const [dataSetExport, setDataSetExport] = useState<TestDataSetExport | null>(null);
+  const [leaseExport, setLeaseExport] = useState<TestAccountLeaseExport | null>(null);
   const [dataSetDraft, setDataSetDraft] = useState<DataSetDraft>(initialDataSetDraft);
   const [recordDraft, setRecordDraft] = useState<RecordDraft>(initialRecordDraft);
   const [poolDraft, setPoolDraft] = useState<PoolDraft>(initialPoolDraft);
@@ -242,7 +245,8 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
   const [poolState, setPoolState] = useState<WorkState>({ loading: false });
   const [leaseState, setLeaseState] = useState<WorkState>({ loading: false });
   const [taskState, setTaskState] = useState<WorkState>({ loading: false });
-  const [exportState, setExportState] = useState<WorkState>({ loading: false });
+  const [dataSetExportState, setDataSetExportState] = useState<WorkState>({ loading: false });
+  const [leaseExportState, setLeaseExportState] = useState<WorkState>({ loading: false });
 
   const summary = useMemo(() => {
     const available = accountPools.reduce((total, pool) => total + pool.availableAccountCount, 0);
@@ -284,11 +288,11 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
     if (!id || !canRead) {
       setDataSetDetail(null);
       setDataSetExport(null);
-      setExportState({ loading: false });
+      setDataSetExportState({ loading: false });
       return;
     }
     setDataSetExport(null);
-    setExportState({ loading: false });
+    setDataSetExportState({ loading: false });
     try {
       const result = await fetchTestDataSet(id);
       setDataSetDetail(result.data);
@@ -319,8 +323,12 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
   const refreshLeaseDetail = useCallback(async (id: string) => {
     if (!id || !canRead) {
       setLeaseDetail(null);
+      setLeaseExport(null);
+      setLeaseExportState({ loading: false });
       return;
     }
+    setLeaseExport(null);
+    setLeaseExportState({ loading: false });
     try {
       const result = await fetchTestAccountLease(id);
       setLeaseDetail(result.data);
@@ -481,13 +489,25 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
 
   async function onExportDataSet() {
     if (!selectedDataSetId || !canExport || !health?.exportEnabled) return;
-    setExportState({ loading: true });
+    setDataSetExportState({ loading: true });
     try {
       const result = await exportTestDataSet(selectedDataSetId);
       setDataSetExport(result.data);
-      setExportState({ loading: false, success: '脱敏导出摘要已生成', traceId: result.trace_id });
+      setDataSetExportState({ loading: false, success: '脱敏导出摘要已生成', traceId: result.trace_id });
     } catch (error: unknown) {
-      setExportState(errorState(error, '脱敏导出失败'));
+      setDataSetExportState(errorState(error, '脱敏导出失败'));
+    }
+  }
+
+  async function onExportLease() {
+    if (!selectedLeaseId || !canExport || !health?.exportEnabled) return;
+    setLeaseExportState({ loading: true });
+    try {
+      const result = await exportTestAccountLease(selectedLeaseId);
+      setLeaseExport(result.data);
+      setLeaseExportState({ loading: false, success: '租借脱敏导出摘要已生成', traceId: result.trace_id });
+    } catch (error: unknown) {
+      setLeaseExportState(errorState(error, '租借脱敏导出失败'));
     }
   }
 
@@ -717,6 +737,7 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
     setTasks([]);
     setDataSetDetail(null);
     setDataSetExport(null);
+    setLeaseExport(null);
     setPoolDetail(null);
     setLeaseDetail(null);
     setTaskDetail(null);
@@ -726,7 +747,8 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
     setSelectedLeaseId('');
     setSelectedTaskId('');
     setLoadState({ loading: false });
-    setExportState({ loading: false });
+    setDataSetExportState({ loading: false });
+    setLeaseExportState({ loading: false });
   }
 
   return (
@@ -1020,6 +1042,7 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
                 <SummaryChip label="released" value={formatDateTime(leaseDetail.releasedAt)} />
               </div>
             )}
+            <LeaseExportPanel />
           </div>
         </section>
       </section>
@@ -1149,13 +1172,13 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
             className="btn btn-secondary btn-sm"
             type="button"
             onClick={() => void onExportDataSet()}
-            disabled={!selectedDataSetId || !canExport || !health?.exportEnabled || exportState.loading}
+            disabled={!selectedDataSetId || !canExport || !health?.exportEnabled || dataSetExportState.loading}
           >
             <Download size={15} />
             导出摘要
           </button>
         </div>
-        <StateLine state={exportState} />
+        <StateLine state={dataSetExportState} />
         {dataSetExport ? (
           <>
             <div className="test-data-summary">
@@ -1183,6 +1206,55 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
           </>
         ) : (
           <div className="table-empty">{health?.exportEnabled ? '尚未生成导出摘要' : '当前环境关闭脱敏导出'}</div>
+        )}
+      </div>
+    );
+  }
+
+  function LeaseExportPanel() {
+    return (
+      <div className="test-data-subform" data-testid="test-lease-export-panel">
+        <div className="test-data-subheader">
+          <strong>租借脱敏导出摘要</strong>
+          <button
+            className="btn btn-secondary btn-sm"
+            type="button"
+            onClick={() => void onExportLease()}
+            disabled={!selectedLeaseId || !canExport || !health?.exportEnabled || leaseExportState.loading}
+          >
+            <Download size={15} />
+            导出摘要
+          </button>
+        </div>
+        <StateLine state={leaseExportState} />
+        {leaseExport ? (
+          <>
+            <div className="test-data-summary">
+              <SummaryChip label="schema" value={leaseExport.schemaVersion} />
+              <SummaryChip label="status" value={leaseExport.lease.status} />
+              <SummaryChip label="holder" value={leaseExport.lease.holderRef} />
+              <SummaryChip label="account" value={leaseExport.account.accountKey} />
+              <SummaryChip label="exported" value={formatDateTime(leaseExport.exportedAt)} />
+            </div>
+            <div className="test-data-summary">
+              <SummaryChip label="leaseTokenDigest" value={shortId(leaseExport.lease.leaseTokenDigest)} />
+              <SummaryChip label="requestDigest" value={shortId(leaseExport.lease.requestDigest)} />
+              <SummaryChip label="secretDigest" value={shortId(leaseExport.account.secretRefDigest)} />
+              <SummaryChip label="releaseReasonDigest" value={shortId(leaseExport.lease.releaseReasonDigest)} />
+            </div>
+            <div className="test-data-summary">
+              <SummaryChip label="scopeKeys" value={leaseExport.account.scopeSummaryKeys.join(', ') || '-'} />
+              <SummaryChip label="leasePolicyKeys" value={leaseExport.pool.leasePolicyKeys.join(', ') || '-'} />
+              <SummaryChip label="healthSummary" value={leaseExport.account.lastHealthSummaryPresent ? 'digest only' : '-'} />
+            </div>
+            <div className="test-data-summary">
+              {Object.entries(leaseExport.redactionPolicy).map(([key, value]) => (
+                <SummaryChip key={key} label={key} value={String(value)} />
+              ))}
+            </div>
+          </>
+        ) : (
+          <div className="table-empty">{health?.exportEnabled ? '尚未生成租借导出摘要' : '当前环境关闭脱敏导出'}</div>
         )}
       </div>
     );

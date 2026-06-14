@@ -9,6 +9,7 @@ import com.songhg.veri.agent.testdata.application.command.AcquireTestAccountLeas
 import com.songhg.veri.agent.testdata.application.command.ReleaseTestAccountLeaseCommand;
 import com.songhg.veri.agent.testdata.application.command.RenewTestAccountLeaseCommand;
 import com.songhg.veri.agent.testdata.application.query.TestAccountLeasePageRequest;
+import com.songhg.veri.agent.testdata.application.view.TestAccountLeaseExportResponse;
 import com.songhg.veri.agent.testdata.application.view.TestAccountLeaseResponse;
 import jakarta.validation.Valid;
 import java.util.UUID;
@@ -46,6 +47,12 @@ public class TestAccountLeaseController {
     @RequirePermission(value = PermissionCodes.TEST_DATA_READ, scope = TestDataPermissionScopes.LEASE)
     public TestAccountLeaseResponse lease(@PathVariable UUID id) {
         return service.lease(id);
+    }
+
+    @GetMapping("/{id}/export")
+    @RequirePermission(value = PermissionCodes.TEST_DATA_EXPORT, scope = TestDataPermissionScopes.LEASE)
+    public TestAccountLeaseExportResponse exportLease(@PathVariable UUID id) {
+        return service.exportLease(id);
     }
 
     @PostMapping("/{id}/renew")

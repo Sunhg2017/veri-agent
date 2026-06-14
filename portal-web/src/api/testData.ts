@@ -148,6 +148,68 @@ export interface TestAccountLease {
   updatedAt?: string;
 }
 
+export interface TestAccountLeaseExportLease {
+  id: string;
+  poolId: string;
+  accountId: string;
+  projectId: string;
+  status: string;
+  holderType: string;
+  holderRef: string;
+  requestKey: string;
+  requestDigest?: string;
+  leaseTokenDigest?: string;
+  expiresAt?: string;
+  releasedAt?: string;
+  releaseReasonPresent: boolean;
+  releaseReasonDigest?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface TestAccountLeaseExportPool {
+  id: string;
+  projectId: string;
+  applicationId?: string;
+  environmentId?: string;
+  code: string;
+  name: string;
+  status: string;
+  defaultTtlSeconds: number;
+  leasePolicyKeys: string[];
+  archivedAt?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface TestAccountLeaseExportAccount {
+  id: string;
+  poolId: string;
+  projectId: string;
+  accountKey: string;
+  displayName?: string;
+  status: string;
+  roleTags: string[];
+  scopeSummaryKeys: string[];
+  secretRefDigest?: string;
+  lastHealthStatus?: string;
+  lastHealthSummaryPresent: boolean;
+  lastHealthSummaryDigest?: string;
+  archivedAt?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface TestAccountLeaseExport {
+  schemaVersion: string;
+  exportedAt?: string;
+  lease: TestAccountLeaseExportLease;
+  pool: TestAccountLeaseExportPool;
+  account: TestAccountLeaseExportAccount;
+  lifecycleSummary: Record<string, unknown>;
+  redactionPolicy: Record<string, unknown>;
+}
+
 export interface TestDataTask {
   id: string;
   projectId: string;
@@ -409,6 +471,11 @@ export async function fetchTestAccountLease(id: string): Promise<ApiResponse<Tes
   return { ...response, data: normalizeTestAccountLease(response.data) };
 }
 
+export async function exportTestAccountLease(id: string): Promise<ApiResponse<TestAccountLeaseExport>> {
+  const response = await requestJson<unknown>(`${TEST_DATA_BASE}/leases/${encodeURIComponent(id)}/export`);
+  return { ...response, data: normalizeTestAccountLeaseExport(response.data) };
+}
+
 export async function acquireTestAccountLease(payload: AcquireTestAccountLeasePayload): Promise<ApiResponse<TestAccountLease>> {
   const response = await requestJson<unknown>(`${TEST_DATA_BASE}/leases`, {
     method: 'POST',
@@ -643,6 +710,83 @@ export function normalizeTestAccountLease(input: unknown): TestAccountLease {
   };
 }
 
+export function normalizeTestAccountLeaseExport(input: unknown): TestAccountLeaseExport {
+  const value = objectValue(input);
+  return {
+    schemaVersion: stringValue(read(value, 'schemaVersion', 'schema_version'), 'wp8-account-lease-export-v1'),
+    exportedAt: optionalString(read(value, 'exportedAt', 'exported_at')),
+    lease: normalizeTestAccountLeaseExportLease(read(value, 'lease')),
+    pool: normalizeTestAccountLeaseExportPool(read(value, 'pool')),
+    account: normalizeTestAccountLeaseExportAccount(read(value, 'account')),
+    lifecycleSummary: sanitizePolicyObject(read(value, 'lifecycleSummary', 'lifecycle_summary')),
+    redactionPolicy: sanitizePolicyObject(read(value, 'redactionPolicy', 'redaction_policy'))
+  };
+}
+
+export function normalizeTestAccountLeaseExportLease(input: unknown): TestAccountLeaseExportLease {
+  const value = objectValue(input);
+  return {
+    id: stringValue(read(value, 'id')),
+    poolId: stringValue(read(value, 'poolId', 'pool_id')),
+    accountId: stringValue(read(value, 'accountId', 'account_id')),
+    projectId: stringValue(read(value, 'projectId', 'project_id')),
+    status: stringValue(read(value, 'status'), 'UNKNOWN'),
+    holderType: stringValue(read(value, 'holderType', 'holder_type')),
+    holderRef: stringValue(read(value, 'holderRef', 'holder_ref')),
+    requestKey: stringValue(read(value, 'requestKey', 'request_key')),
+    requestDigest: optionalString(read(value, 'requestDigest', 'request_digest')),
+    leaseTokenDigest: optionalString(read(value, 'leaseTokenDigest', 'lease_token_digest')),
+    expiresAt: optionalString(read(value, 'expiresAt', 'expires_at')),
+    releasedAt: optionalString(read(value, 'releasedAt', 'released_at')),
+    releaseReasonPresent: booleanValue(read(value, 'releaseReasonPresent', 'release_reason_present'), false),
+    releaseReasonDigest: optionalString(read(value, 'releaseReasonDigest', 'release_reason_digest')),
+    createdAt: optionalString(read(value, 'createdAt', 'created_at')),
+    updatedAt: optionalString(read(value, 'updatedAt', 'updated_at'))
+  };
+}
+
+export function normalizeTestAccountLeaseExportPool(input: unknown): TestAccountLeaseExportPool {
+  const value = objectValue(input);
+  return {
+    id: stringValue(read(value, 'id')),
+    projectId: stringValue(read(value, 'projectId', 'project_id')),
+    applicationId: optionalString(read(value, 'applicationId', 'application_id')),
+    environmentId: optionalString(read(value, 'environmentId', 'environment_id')),
+    code: stringValue(read(value, 'code')),
+    name: stringValue(read(value, 'name')),
+    status: stringValue(read(value, 'status'), 'UNKNOWN'),
+    defaultTtlSeconds: numberValue(read(value, 'defaultTtlSeconds', 'default_ttl_seconds'), 0),
+    leasePolicyKeys: safeKeyArray(read(value, 'leasePolicyKeys', 'lease_policy_keys')),
+    archivedAt: optionalString(read(value, 'archivedAt', 'archived_at')),
+    createdAt: optionalString(read(value, 'createdAt', 'created_at')),
+    updatedAt: optionalString(read(value, 'updatedAt', 'updated_at'))
+  };
+}
+
+export function normalizeTestAccountLeaseExportAccount(input: unknown): TestAccountLeaseExportAccount {
+  const value = objectValue(input);
+  return {
+    id: stringValue(read(value, 'id')),
+    poolId: stringValue(read(value, 'poolId', 'pool_id')),
+    projectId: stringValue(read(value, 'projectId', 'project_id')),
+    accountKey: stringValue(read(value, 'accountKey', 'account_key')),
+    displayName: optionalString(read(value, 'displayName', 'display_name')),
+    status: stringValue(read(value, 'status'), 'UNKNOWN'),
+    roleTags: stringArray(read(value, 'roleTags', 'role_tags')),
+    scopeSummaryKeys: safeKeyArray(read(value, 'scopeSummaryKeys', 'scope_summary_keys')),
+    secretRefDigest: optionalString(read(value, 'secretRefDigest', 'secret_ref_digest')),
+    lastHealthStatus: optionalString(read(value, 'lastHealthStatus', 'last_health_status')),
+    lastHealthSummaryPresent: booleanValue(
+      read(value, 'lastHealthSummaryPresent', 'last_health_summary_present'),
+      false
+    ),
+    lastHealthSummaryDigest: optionalString(read(value, 'lastHealthSummaryDigest', 'last_health_summary_digest')),
+    archivedAt: optionalString(read(value, 'archivedAt', 'archived_at')),
+    createdAt: optionalString(read(value, 'createdAt', 'created_at')),
+    updatedAt: optionalString(read(value, 'updatedAt', 'updated_at'))
+  };
+}
+
 export function normalizeTestDataTask(input: unknown): TestDataTask {
   const value = objectValue(input);
   return {
@@ -817,6 +961,10 @@ function optionalString(input: unknown) {
 
 function stringArray(input: unknown) {
   return Array.isArray(input) ? input.map((value) => stringValue(value)).filter(Boolean) : [];
+}
+
+function safeKeyArray(input: unknown) {
+  return stringArray(input).filter((key) => !sensitiveKey(key));
 }
 
 function numberValue(input: unknown, fallback: number) {
