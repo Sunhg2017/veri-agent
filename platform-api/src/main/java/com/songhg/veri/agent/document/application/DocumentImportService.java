@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.songhg.veri.agent.common.api.PageResponse;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
+import com.songhg.veri.agent.common.transaction.OptionalTransactionTemplates;
 import com.songhg.veri.agent.common.util.SensitiveTextSanitizer;
 import com.songhg.veri.agent.document.application.command.CreateDocumentImportRequest;
 import com.songhg.veri.agent.document.application.port.DocumentInputRepository;
@@ -95,8 +96,7 @@ public class DocumentImportService {
         this.actorResolver = actorResolver;
         this.responseMapper = new DocumentInputResponseMapper(repository, objectMapper);
         this.eventPublisher = eventPublisher;
-        PlatformTransactionManager transactionManager = transactionManagers.getIfAvailable();
-        this.transactionTemplate = transactionManager == null ? null : new TransactionTemplate(transactionManager);
+        this.transactionTemplate = OptionalTransactionTemplates.create(transactionManagers);
     }
 
     /**
@@ -427,9 +427,6 @@ public class DocumentImportService {
     }
 
     private <T> T inTransaction(Supplier<T> action) {
-        if (transactionTemplate == null) {
-            return action.get();
-        }
         return transactionTemplate.execute(ignored -> action.get());
     }
 

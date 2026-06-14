@@ -12,6 +12,7 @@ import com.songhg.veri.agent.common.api.PageResponse;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
 import com.songhg.veri.agent.common.trace.TraceContext;
+import com.songhg.veri.agent.common.transaction.OptionalTransactionTemplates;
 import com.songhg.veri.agent.common.util.SensitiveTextSanitizer;
 import com.songhg.veri.agent.execution.application.command.CompleteExecutionNodeRunCommand;
 import com.songhg.veri.agent.execution.application.command.DispatchExecutionNodeRunCommand;
@@ -115,8 +116,7 @@ public class ExecutionRunService {
         this.managementStore = managementStores.getIfAvailable();
         this.objectMapper = objectMapper;
         this.properties = properties;
-        PlatformTransactionManager transactionManager = transactionManagers.getIfAvailable();
-        this.transactionTemplate = transactionManager == null ? null : new TransactionTemplate(transactionManager);
+        this.transactionTemplate = OptionalTransactionTemplates.create(transactionManagers);
     }
 
     /**
@@ -1796,9 +1796,6 @@ public class ExecutionRunService {
     }
 
     private <T> T inExecutionTransaction(Supplier<T> action) {
-        if (transactionTemplate == null) {
-            return action.get();
-        }
         return transactionTemplate.execute(ignored -> action.get());
     }
 
