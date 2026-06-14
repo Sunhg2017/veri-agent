@@ -54,6 +54,19 @@ AI 驱动的端到端企业级测试平台。WP1、WP2、WP3、WP4 是研发任�
 | `doc/mvp/final/engineering/WP9-执行编排与任务调度-M3D心跳续约与超时恢复交付说明.md` | WP9 M3D 心跳续约与超时恢复交付记录，覆盖 claim heartbeat、过期 recovery、节点重排、TIMEOUT 聚合和 DB contract。 |
 | `doc/mvp/final/engineering/WP9-执行编排与任务调度-M4A-WP6调度接入交付说明.md` | WP9 M4A WP6 调度接入交付记录，覆盖 claimed API_TEST dispatch、WP6 应用服务边界、结果聚合和脱敏测试。 |
 | `doc/mvp/final/engineering/WP9-执行编排与任务调度-M4B-环境解析与密钥中继交付说明.md` | WP9 M4B 环境解析与密钥中继交付记录，覆盖 `baseUrlRef=env:<key>`、计划 `runtimeSecretRefs` 安全中继、WP6 failure/timeout 映射和脱敏测试。 |
+| `doc/mvp/final/engineering/WP9-执行编排与任务调度-M5触发控制面交付说明.md` | WP9 M5 触发控制面交付记录，覆盖 webhook/cron trigger、签名校验、幂等事件和 OpenAPI contract。 |
+| `doc/mvp/final/engineering/WP9-执行编排与任务调度-M6A前端工作台基础闭环交付说明.md` | WP9 M6A 前端工作台基础闭环交付记录，覆盖执行入口、计划列表、单节点创建、运行操作和 Vitest/build。 |
+| `doc/mvp/final/engineering/WP9-执行编排与任务调度-M6B前端DAG编辑与计划操作交付说明.md` | WP9 M6B 前端 DAG 编辑与计划操作交付记录，覆盖多节点编辑、计划更新归档、触发事件查看和 helper 测试。 |
+| `doc/mvp/final/engineering/WP9-执行编排与任务调度-M6C前端浏览器Smoke交付说明.md` | WP9 M6C 前端浏览器 smoke 交付记录，覆盖桌面和 390px 视口主链路。 |
+| `doc/mvp/final/engineering/WP9-执行编排与任务调度-M7A质量门禁脚本交付说明.md` | WP9 M7A 质量门禁脚本交付记录，覆盖 WP9 quality gate、scheduler smoke 和 release gate 约束。 |
+| `doc/mvp/final/engineering/WP9-执行编排与任务调度-M7B生产CronScanner交付说明.md` | WP9 M7B 生产 CronScanner 交付记录，覆盖到期 CRON trigger 扫描、幂等 run 创建和 health 标记。 |
+| `doc/mvp/final/engineering/WP9-执行编排与任务调度-M7C执行摘要导出交付说明.md` | WP9 M7C 执行摘要导出交付记录，覆盖 run export schema、节点状态计数、redaction policy 和前端导出入口。 |
+| `doc/mvp/final/engineering/WP9-执行编排与任务调度-M7D外部WebhookHTTPSmoke交付说明.md` | WP9 M7D 外部 webhook HTTP smoke 交付记录，覆盖真实 HTTP 签名、幂等、trigger event 证据和 run export 脱敏。 |
+| `doc/mvp/final/engineering/WP9-执行编排与任务调度-M8A供应商Webhook接入样例交付说明.md` | WP9 M8A 供应商 webhook 接入样例交付记录，覆盖签名 helper 和 GitHub/GitLab/Jenkins CI 样例。 |
+| `doc/mvp/final/engineering/WP9-执行编排与任务调度-M8B调度触发Runbook交付说明.md` | WP9 M8B 调度触发 Runbook 交付记录，覆盖 release gate、恢复重放、secret 轮换、CRON 运维和回滚。 |
+| `doc/mvp/final/engineering/WP9-执行编排与任务调度-M8C供应商Marketplace接入包交付说明.md` | WP9 M8C 供应商 marketplace 接入包交付记录，覆盖 manifest、安装说明、模板、payload 示例和离线 smoke。 |
+| `doc/mvp/final/engineering/WP9-执行编排与任务调度-M8D外部Worker托管策略交付说明.md` | WP9 M8D 外部 worker 托管策略交付记录，覆盖 web/scheduler-active/scheduler-standby env 示例和 readiness。 |
+| `doc/mvp/final/engineering/WP9-执行编排与任务调度-M8E-WP10交接准出交付说明.md` | WP9 M8E WP10 交接准出交付记录，覆盖 REPORT_HANDOFF 完成证据、run export 脱敏证据和 quality gate 接入。 |
 | `doc/mvp/final/engineering/当前实现基线.md` | 当前代码与文档对齐的权威基线：单服务、无租户、camelCase、分页和验证入口。 |
 | `doc/mvp/final/engineering/WP1-单平台权限矩阵与菜单矩阵.md` | 当前 WP1 单平台权限、菜单和按钮规则。 |
 | `doc/mvp/final/engineering/WP1-审计事件字典.md` | 当前 WP1 P0 审计事件、字段和验收规则。 |

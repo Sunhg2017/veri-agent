@@ -143,6 +143,7 @@ main() {
       "$ROOT_DIR/scripts/wp9_quality_gate.sh" \
       "$ROOT_DIR/scripts/wp9_frontend_e2e_smoke.sh" \
       "$ROOT_DIR/scripts/wp9_scheduler_smoke.sh" \
+      "$ROOT_DIR/scripts/wp9_report_handoff_smoke.sh" \
       "$ROOT_DIR/scripts/wp9_webhook_http_smoke.sh" \
       "$ROOT_DIR/scripts/wp9_webhook_sign.sh" \
       "$ROOT_DIR/scripts/wp9_marketplace_package_smoke.sh" \
@@ -153,6 +154,9 @@ main() {
 
   run_step "wp9 worker hosting readiness" \
     run_worker_hosting_readiness
+
+  run_step "wp9 report handoff smoke" \
+    bash "$ROOT_DIR/scripts/wp9_report_handoff_smoke.sh"
 
   run_step "wp9 backend and OpenAPI tests" \
     mvn -B -pl platform-api -Dtest=ExecutionHealthControllerTest,ExecutionPlanControllerTest,ExecutionRunControllerTest,ExecutionRunDispatchControllerTest,ExecutionTriggerControllerTest,ExecutionDagValidatorTest,ExecutionSchedulerServiceTest,OpenApiContractTest,PermissionCodeUsageTest test
