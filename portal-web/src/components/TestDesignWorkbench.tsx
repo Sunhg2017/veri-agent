@@ -1,23 +1,7 @@
 import {
-  ArrowDown,
-  ArrowUp,
-  CheckCircle2,
-  ChevronLeft,
-  ChevronRight,
   ClipboardCheck,
-  Download,
-  Eye,
   FileText,
-  GripVertical,
-  Link2,
-  Plus,
-  RefreshCw,
-  Save,
-  Search,
-  Send,
-  Sparkles,
-  Trash2,
-  XCircle
+  Sparkles
 } from 'lucide-react';
 import {
   useCallback,
@@ -35,8 +19,6 @@ import {
   type AssetTestCaseView
 } from '../api/assets';
 import {
-  TEST_DESIGN_CANDIDATE_STATUSES,
-  TEST_DESIGN_COVERAGE_TYPES,
   addTestDesignReportArchiveNote,
   addTestDesignContextPolicyNote,
   addTestDesignReleaseReadinessNote,
@@ -165,7 +147,6 @@ import {
 } from '../testDesignReviewSummary';
 import {
   DEFAULT_TEST_DESIGN_CANDIDATE_PAGE_SIZE,
-  TEST_DESIGN_CANDIDATE_PAGE_SIZES,
   pageFromServerItems
 } from '../testDesignPagination';
 import {
@@ -236,6 +217,7 @@ import {
   type QueueAlertSubscriptionDraft,
   type QueuedEventReplayDraft
 } from './TestDesignCrossWpOperationsPanel';
+import { TestDesignCandidateReviewPanel } from './TestDesignCandidateReviewPanel';
 import { TestDesignConflictOperationsPanel } from './TestDesignConflictOperationsPanel';
 import { TestDesignContextPolicyPanel } from './TestDesignContextPolicyPanel';
 import {
@@ -247,6 +229,7 @@ import {
 import { TestDesignRequirementSelectionPanel } from './TestDesignRequirementSelectionPanel';
 import { TestDesignReviewHistoryPanel } from './TestDesignReviewHistoryPanel';
 import { TestDesignScopePanel } from './TestDesignScopePanel';
+import { TestDesignPublishPanel } from './TestDesignPublishPanel';
 import {
   TestDesignGenerationConfigPanel,
   TestDesignTaskDiagnosticsPanel,
@@ -254,21 +237,10 @@ import {
 } from './TestDesignTaskSidebarPanels';
 import { TestDesignTemplateManagementPanel } from './TestDesignTemplateManagementPanel';
 import {
-  BatchActionSummary,
-  BatchEditSummary,
-  CandidateStatus,
   ConfirmationDialog,
-  Detail,
-  GenerationSourceBadge,
-  PublishRecordRow,
-  PublishResultBadge,
-  QualityFieldMessages,
   assetCaseTraceHref,
   calibrationStatusTone,
   publishRecordKey,
-  releaseReadinessDigestText,
-  releaseReadinessStatusTone,
-  reportArchiveStatusTone,
   reviewSuccessText,
   sampleStatusTone,
   shortIdentifier
@@ -3760,373 +3732,61 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
           onReviewRecordPageIndexChange={setReviewRecordPageIndex}
         />
 
-        <section className="panel">
-          <div className="panel-header">
-            <div>
-              <h2 className="panel-title">候选评审</h2>
-              <p className="panel-desc">编辑候选用例并确认，发布后会写入 WP3 测试用例和需求追踪关系。</p>
-            </div>
-            <StateLine state={taskState} />
-          </div>
-          <div className="panel-body">
-            <div className="asset-filter-bar test-design-candidate-filter">
-              <label className="field">
-                <span className="field-label">候选状态</span>
-                <select value={candidateFilters.status} onChange={(event) => setCandidateFilters((current) => ({ ...current, status: event.target.value }))} disabled={taskState.loading || !selectedTaskId}>
-                  <option value="">全部</option>
-                  {TEST_DESIGN_CANDIDATE_STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}
-                </select>
-              </label>
-              <label className="field">
-                <span className="field-label">覆盖类型</span>
-                <select value={candidateFilters.coverageType} onChange={(event) => setCandidateFilters((current) => ({ ...current, coverageType: event.target.value }))} disabled={taskState.loading || !selectedTaskId}>
-                  <option value="">全部</option>
-                  {TEST_DESIGN_COVERAGE_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}
-                </select>
-              </label>
-              <label className="field">
-                <span className="field-label">关键词</span>
-                <input value={candidateFilters.keyword} onChange={(event) => setCandidateFilters((current) => ({ ...current, keyword: event.target.value }))} placeholder="标题 / 标签 / 错误" disabled={taskState.loading || !selectedTaskId} />
-              </label>
-              <div className="filter-actions">
-                <button className="btn btn-secondary btn-sm" type="button" disabled={!selectedTaskId} onClick={() => setCandidateFilters(initialCandidateFilters)}>
-                  <Search size={15} />
-                  重置
-                </button>
-                <button className="btn btn-ghost btn-sm" type="button" disabled={!currentPageSelectableCandidates.length} onClick={selectCurrentPageCandidates}>
-                  选中本页
-                </button>
-                <button className="btn btn-ghost btn-sm" type="button" disabled={!selectedCandidateIds.length} onClick={() => setSelectedCandidateIds([])}>
-                  清空选择
-                </button>
-                <button className="btn btn-secondary btn-sm" type="button" disabled={!canExport || !selectedTaskId || !candidatePage.total} onClick={() => void exportCandidateReview('page')}>
-                  <Download size={15} />
-                  导出筛选
-                </button>
-                <button className="btn btn-secondary btn-sm" type="button" disabled={!canExport || !selectedCandidates.length} onClick={() => void exportCandidateReview('selected')}>
-                  <Download size={15} />
-                  导出已选
-                </button>
-                <button className="btn btn-secondary btn-sm" type="button" disabled={!canExport || !selectedTask || taskState.loading} onClick={() => void exportTaskReport()}>
-                  <Download size={15} />
-                  导出报告
-                </button>
-              </div>
-            </div>
-            {candidatePage.total > 0 && (
-              <div className="test-design-pagination" aria-label="候选分页">
-                <span>
-                  {candidatePage.start}-{candidatePage.end} / {candidatePage.total}
-                  {selectedCandidates.length ? ` · 已选 ${selectedCandidates.length}` : ''}
-                </span>
-                <label>
-                  <span>每页</span>
-                  <select value={candidatePageSize} onChange={(event) => setCandidatePageSize(Number(event.target.value))} disabled={taskState.loading}>
-                    {TEST_DESIGN_CANDIDATE_PAGE_SIZES.map((size) => <option key={size} value={size}>{size}</option>)}
-                  </select>
-                </label>
-                <div className="toolbar-actions">
-                  <button
-                    aria-label="上一页候选"
-                    className="btn btn-secondary btn-xs"
-                    disabled={!candidatePage.hasPrevious}
-                    title="上一页"
-                    type="button"
-                    onClick={() => setCandidatePageIndex((current) => Math.max(0, current - 1))}
-                  >
-                    <ChevronLeft size={14} />
-                  </button>
-                  <span className="field-hint">{candidatePage.index + 1} / {candidatePage.totalPages}</span>
-                  <button
-                    aria-label="下一页候选"
-                    className="btn btn-secondary btn-xs"
-                    disabled={!candidatePage.hasNext}
-                    title="下一页"
-                    type="button"
-                    onClick={() => setCandidatePageIndex((current) => current + 1)}
-                  >
-                    <ChevronRight size={14} />
-                  </button>
-                </div>
-              </div>
-            )}
-            {batchActionResult && <BatchActionSummary result={batchActionResult} />}
-            {batchEditResult && <BatchEditSummary result={batchEditResult} />}
-            {selectedReviewCandidates.length > 0 && (
-              <div className="test-design-batch-toolbar">
-                <span>批量评审 {selectedReviewCandidates.length} 个候选</span>
-                <div className="toolbar-actions">
-                  <button className="btn btn-secondary btn-sm" type="button" disabled={!canReview || mutationState.loading} onClick={() => requestBatchReviewCandidates('CONFIRM')}>
-                    批量确认
-                  </button>
-                  <button className="btn btn-secondary btn-sm" type="button" disabled={!canReview || mutationState.loading || !reviewComment.trim()} onClick={() => requestBatchReviewCandidates('REJECT')}>
-                    批量驳回
-                  </button>
-                  <button className="btn btn-ghost btn-sm" type="button" disabled={!canReview || mutationState.loading || !reviewComment.trim()} onClick={() => requestBatchReviewCandidates('IGNORE')}>
-                    批量忽略
-                  </button>
-                </div>
-              </div>
-            )}
-            {selectedCandidateIds.length > 0 && (
-              <div className="test-design-batch-editor">
-                <div className="test-design-batch-editor-heading">
-                  <span>批量字段编辑 {selectedBatchEditableCandidates.length} / {selectedCandidateIds.length} 个可编辑候选</span>
-                  <button className="btn btn-ghost btn-xs" type="button" disabled={mutationState.loading} onClick={() => setBatchEditDraft(initialTestDesignBatchEditDraft)}>
-                    重置
-                  </button>
-                </div>
-                <div className="test-design-batch-editor-grid">
-                  <label className="field">
-                    <span className="field-label">覆盖类型</span>
-                    <select value={batchEditDraft.coverageType} onChange={(event) => setBatchEditDraft((current) => ({ ...current, coverageType: event.target.value }))} disabled={!canReview || mutationState.loading}>
-                      <option value="">不修改</option>
-                      {TEST_DESIGN_COVERAGE_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}
-                    </select>
-                  </label>
-                  <label className="field">
-                    <span className="field-label">优先级</span>
-                    <select value={batchEditDraft.priority} onChange={(event) => setBatchEditDraft((current) => ({ ...current, priority: event.target.value }))} disabled={!canReview || mutationState.loading}>
-                      <option value="">不修改</option>
-                      <option value="CRITICAL">CRITICAL</option>
-                      <option value="HIGH">HIGH</option>
-                      <option value="MEDIUM">MEDIUM</option>
-                      <option value="LOW">LOW</option>
-                    </select>
-                  </label>
-                  <label className="field">
-                    <span className="field-label">标签策略</span>
-                    <select value={batchEditDraft.tagMode} onChange={(event) => setBatchEditDraft((current) => ({ ...current, tagMode: event.target.value === 'replace' ? 'replace' : 'append' }))} disabled={!canReview || mutationState.loading}>
-                      <option value="append">追加标签</option>
-                      <option value="replace">替换标签</option>
-                    </select>
-                  </label>
-                  <label className="field">
-                    <span className="field-label">标签</span>
-                    <input value={batchEditDraft.tags} onChange={(event) => setBatchEditDraft((current) => ({ ...current, tags: event.target.value }))} placeholder="regression, wp5" disabled={!canReview || mutationState.loading} />
-                  </label>
-                </div>
-                {batchEditIssues.length > 0 && (
-                  <div className="field-error-list">
-                    {batchEditIssues.map((issue, index) => <span key={`${issue.field}-${issue.message}-${index}`}>{issue.message}</span>)}
-                  </div>
-                )}
-                <div className="toolbar-actions">
-                  <button className="btn btn-secondary btn-sm" type="button" disabled={!canReview || mutationState.loading || batchEditBlocked} onClick={requestBatchEditCandidates}>
-                    <Save size={15} />
-                    批量应用字段
-                  </button>
-                  {batchEditFieldLabels.length > 0 && <span className="field-hint">{batchEditFieldLabels.join('；')}</span>}
-                </div>
-              </div>
-            )}
-            <div className="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th style={{ width: 48 }}></th>
-                    <th>标题</th>
-                    <th>覆盖</th>
-                    <th>优先级</th>
-                    <th>状态</th>
-                    <th>来源</th>
-                    <th>操作</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {candidatePage.items.length ? (
-                    candidatePage.items.map((candidate) => (
-                      <tr className={candidate.id === selectedCandidateId ? 'selected-row' : ''} key={candidate.id}>
-                        <td>
-                          <input
-                            aria-label={`选择候选 ${candidate.title}`}
-                            type="checkbox"
-                            checked={selectedCandidateIds.includes(candidate.id)}
-                            onChange={() => toggleCandidateSelection(candidate.id)}
-                            disabled={!canSelectTestDesignCandidate(candidate)}
-                          />
-                        </td>
-                        <td>
-                          <strong>{candidate.title}</strong>
-                          <div className="field-hint">{candidate.errorMessage ?? candidate.requirementId ?? '-'}</div>
-                        </td>
-                        <td>{candidate.coverageType}</td>
-                        <td>{candidate.priority}</td>
-                        <td><CandidateStatus value={candidate.status} /></td>
-                        <td><GenerationSourceBadge source={candidateGenerationSource(candidate, selectedTask)} compact /></td>
-                        <td>
-                          <button className="btn btn-secondary btn-xs" type="button" onClick={() => setSelectedCandidateId(candidate.id)}>
-                            <Eye size={14} />
-                            查看
-                          </button>
-                        </td>
-                      </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td className="table-empty" colSpan={7}>{selectedTaskId ? '暂无匹配候选用例' : '请先生成或选择任务'}</td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-
-            {candidateDraft && selectedCandidate && (
-              <div className="test-design-editor">
-                <div className="test-design-source-summary">
-                  <span>候选来源</span>
-                  <GenerationSourceBadge source={selectedCandidateSource} />
-                  <em>{generationSourceText(selectedCandidateSource)}</em>
-                </div>
-                {candidateQualityIssues.length > 0 && (
-                  <div className="notice warning test-design-quality-summary">
-                    <strong>质量提示</strong>
-                    <span>保存前需处理 {candidateQualityIssues.length} 项候选质量问题。</span>
-                    <ul className="test-design-quality-list">
-                      {candidateQualityIssues.slice(0, 6).map((issue, index) => (
-                        <li key={`${issue.field}-${issue.message}-${index}`}>{issue.message}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-                <div className="asset-form-grid">
-                  <label className="field">
-                    <span className="field-label">标题</span>
-                    <input value={candidateDraft.title} onChange={(event) => setCandidateDraft({ ...candidateDraft, title: event.target.value })} disabled={!canReview || mutationState.loading} />
-                    <QualityFieldMessages field="title" issues={candidateQualityIssues} />
-                  </label>
-                  <label className="field">
-                    <span className="field-label">覆盖类型</span>
-                    <select value={candidateDraft.coverageType} onChange={(event) => setCandidateDraft({ ...candidateDraft, coverageType: event.target.value })} disabled={!canReview || mutationState.loading}>
-                      {TEST_DESIGN_COVERAGE_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}
-                    </select>
-                    <QualityFieldMessages field="coverageType" issues={candidateQualityIssues} />
-                  </label>
-                  <label className="field">
-                    <span className="field-label">优先级</span>
-                    <select value={candidateDraft.priority} onChange={(event) => setCandidateDraft({ ...candidateDraft, priority: event.target.value })} disabled={!canReview || mutationState.loading}>
-                      <option value="CRITICAL">CRITICAL</option>
-                      <option value="HIGH">HIGH</option>
-                      <option value="MEDIUM">MEDIUM</option>
-                      <option value="LOW">LOW</option>
-                    </select>
-                    <QualityFieldMessages field="priority" issues={candidateQualityIssues} />
-                  </label>
-                </div>
-                <div className="asset-form-grid">
-                  <label className="field">
-                    <span className="field-label">API ID</span>
-                    <input value={candidateDraft.apiId} onChange={(event) => setCandidateDraft({ ...candidateDraft, apiId: event.target.value })} disabled={!canReview || mutationState.loading} />
-                  </label>
-                  <label className="field">
-                    <span className="field-label">前置条件</span>
-                    <input value={candidateDraft.preconditions} onChange={(event) => setCandidateDraft({ ...candidateDraft, preconditions: event.target.value })} disabled={!canReview || mutationState.loading} />
-                    <QualityFieldMessages field="preconditions" issues={candidateQualityIssues} />
-                  </label>
-                  <label className="field">
-                    <span className="field-label">标签</span>
-                    <input value={candidateDraft.tags} onChange={(event) => setCandidateDraft({ ...candidateDraft, tags: event.target.value })} disabled={!canReview || mutationState.loading} />
-                    <QualityFieldMessages field="tags" issues={candidateQualityIssues} />
-                  </label>
-                </div>
-                <label className="field">
-                  <span className="field-label">描述</span>
-                  <textarea value={candidateDraft.description} onChange={(event) => setCandidateDraft({ ...candidateDraft, description: event.target.value })} disabled={!canReview || mutationState.loading} />
-                  <QualityFieldMessages field="description" issues={candidateQualityIssues} />
-                </label>
-                <div className="field test-design-steps-editor">
-                  <div className="test-design-steps-heading">
-                    <span className="field-label">步骤</span>
-                    <div className="toolbar-actions">
-                      <button className="btn btn-secondary btn-xs" type="button" title="批量插入" disabled={!canReview || mutationState.loading} onClick={insertPresetSteps}>
-                        <Plus size={14} />
-                        批量
-                      </button>
-                      <button className="btn btn-secondary btn-icon btn-xs" type="button" title="添加步骤" disabled={!canReview || mutationState.loading} onClick={addStepDraft}>
-                        <Plus size={14} />
-                      </button>
-                      <button className="btn btn-ghost btn-icon btn-xs" type="button" title="删除已选步骤" disabled={!canReview || mutationState.loading || !candidateDraft.steps.some((step) => step.selected)} onClick={deleteSelectedSteps}>
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-                  </div>
-                  <div className="test-design-step-list">
-                    {candidateDraft.steps.map((step, index) => (
-                      <div
-                        key={step.id}
-                        className={draggingStepId === step.id ? 'test-design-step-row dragging' : 'test-design-step-row'}
-                        draggable={canReview && !mutationState.loading}
-                        onDragStart={() => setDraggingStepId(step.id)}
-                        onDragEnd={() => setDraggingStepId('')}
-                        onDragOver={(event) => event.preventDefault()}
-                        onDrop={() => dropStepDraft(step.id)}
-                      >
-                        <label className="test-design-step-select" title="选择步骤">
-                          <input type="checkbox" checked={step.selected} onChange={(event) => updateStepDraft(step.id, { selected: event.target.checked })} disabled={!canReview || mutationState.loading} />
-                        </label>
-                        <button className="btn btn-ghost btn-icon btn-xs test-design-step-drag" type="button" title="拖拽排序" disabled={!canReview || mutationState.loading}>
-                          <GripVertical size={14} />
-                        </button>
-                        <span className="asset-step-index">{index + 1}</span>
-                        <label className="field">
-                          <span className="field-label">操作</span>
-                          <textarea value={step.action} onChange={(event) => updateStepDraft(step.id, { action: event.target.value })} disabled={!canReview || mutationState.loading} />
-                        </label>
-                        <label className="field">
-                          <span className="field-label">预期</span>
-                          <textarea value={step.expectedResult} onChange={(event) => updateStepDraft(step.id, { expectedResult: event.target.value })} disabled={!canReview || mutationState.loading} />
-                        </label>
-                        <div className="test-design-step-actions">
-                          <button className="btn btn-secondary btn-icon btn-xs" type="button" title="上移" disabled={!canReview || mutationState.loading || index === 0} onClick={() => moveStepDraft(step.id, -1)}>
-                            <ArrowUp size={14} />
-                          </button>
-                          <button className="btn btn-secondary btn-icon btn-xs" type="button" title="下移" disabled={!canReview || mutationState.loading || index === candidateDraft.steps.length - 1} onClick={() => moveStepDraft(step.id, 1)}>
-                            <ArrowDown size={14} />
-                          </button>
-                          <button className="btn btn-secondary btn-icon btn-xs" type="button" title="插入下一步" disabled={!canReview || mutationState.loading} onClick={() => insertStepDraftAfter(step.id)}>
-                            <Plus size={14} />
-                          </button>
-                          <button className="btn btn-ghost btn-icon btn-xs" type="button" title="删除步骤" disabled={!canReview || mutationState.loading} onClick={() => removeStepDraft(step.id)}>
-                            <Trash2 size={14} />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  <span className="field-hint">{candidateDraft.steps.length} 个步骤，已选 {candidateDraft.steps.filter((step) => step.selected).length} 个。</span>
-                  <QualityFieldMessages field="steps" issues={candidateQualityIssues} />
-                </div>
-                <label className="field">
-                  <span className="field-label">预期结果</span>
-                  <textarea value={candidateDraft.expectedResult} onChange={(event) => setCandidateDraft({ ...candidateDraft, expectedResult: event.target.value })} disabled={!canReview || mutationState.loading} />
-                  <QualityFieldMessages field="expectedResult" issues={candidateQualityIssues} />
-                </label>
-                <label className="field">
-                  <span className="field-label">评审意见</span>
-                  <input value={reviewComment} onChange={(event) => setReviewComment(event.target.value)} disabled={!canReview || mutationState.loading} />
-                </label>
-                <div className="toolbar-actions">
-                  <button className="btn btn-secondary btn-sm" type="button" disabled={!canReview || mutationState.loading || !candidateDraft.title.trim() || candidateSaveBlocked} onClick={() => void saveCandidate()}>
-                    <Save size={15} />
-                    保存
-                  </button>
-                  <button className="btn btn-primary btn-sm" type="button" disabled={!canReview || mutationState.loading} onClick={() => void reviewCandidate('confirm')}>
-                    <CheckCircle2 size={15} />
-                    确认
-                  </button>
-                  <button className="btn btn-secondary btn-sm" type="button" disabled={!canReview || mutationState.loading} onClick={() => void reviewCandidate('reject')}>
-                    <XCircle size={15} />
-                    驳回
-                  </button>
-                  <button className="btn btn-ghost btn-sm" type="button" disabled={!canReview || mutationState.loading} onClick={() => void reviewCandidate('ignore')}>
-                    忽略
-                  </button>
-                </div>
-                <StateLine state={mutationState} />
-              </div>
-            )}
-          </div>
-        </section>
+        <TestDesignCandidateReviewPanel
+          canExport={canExport}
+          canReview={canReview}
+          selectedTask={selectedTask}
+          selectedTaskId={selectedTaskId}
+          taskState={taskState}
+          mutationState={mutationState}
+          candidateFilters={candidateFilters}
+          candidatePage={candidatePage}
+          candidatePageSize={candidatePageSize}
+          selectedCandidates={selectedCandidates}
+          selectedCandidateIds={selectedCandidateIds}
+          selectedCandidateId={selectedCandidateId}
+          selectedCandidate={selectedCandidate}
+          candidateDraft={candidateDraft}
+          selectedCandidateSource={selectedCandidateSource}
+          candidateQualityIssues={candidateQualityIssues}
+          candidateSaveBlocked={candidateSaveBlocked}
+          reviewComment={reviewComment}
+          currentPageSelectableCount={currentPageSelectableCandidates.length}
+          selectedReviewCandidates={selectedReviewCandidates}
+          selectedBatchEditableCandidates={selectedBatchEditableCandidates}
+          batchActionResult={batchActionResult}
+          batchEditResult={batchEditResult}
+          batchEditDraft={batchEditDraft}
+          batchEditIssues={batchEditIssues}
+          batchEditBlocked={batchEditBlocked}
+          batchEditFieldLabels={batchEditFieldLabels}
+          draggingStepId={draggingStepId}
+          onCandidateFiltersChange={setCandidateFilters}
+          onCandidatePageIndexChange={setCandidatePageIndex}
+          onCandidatePageSizeChange={setCandidatePageSize}
+          onSelectedCandidateIdsChange={setSelectedCandidateIds}
+          onSelectedCandidateIdChange={setSelectedCandidateId}
+          onCandidateDraftChange={setCandidateDraft}
+          onBatchEditDraftChange={setBatchEditDraft}
+          onReviewCommentChange={setReviewComment}
+          onDraggingStepIdChange={setDraggingStepId}
+          onSelectCurrentPageCandidates={selectCurrentPageCandidates}
+          onToggleCandidateSelection={toggleCandidateSelection}
+          onExportCandidateReview={(scope) => void exportCandidateReview(scope)}
+          onExportTaskReport={() => void exportTaskReport()}
+          onBatchReviewCandidates={requestBatchReviewCandidates}
+          onBatchEditCandidates={requestBatchEditCandidates}
+          onSaveCandidate={() => void saveCandidate()}
+          onReviewCandidate={(action) => void reviewCandidate(action)}
+          onInsertPresetSteps={insertPresetSteps}
+          onAddStepDraft={addStepDraft}
+          onDeleteSelectedSteps={deleteSelectedSteps}
+          onUpdateStepDraft={updateStepDraft}
+          onDropStepDraft={dropStepDraft}
+          onMoveStepDraft={moveStepDraft}
+          onInsertStepDraftAfter={insertStepDraftAfter}
+          onRemoveStepDraft={removeStepDraft}
+        />
       </div>
 
       <aside className="side-stack">
@@ -4167,668 +3827,74 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
           taskDiagnostics={taskDiagnostics}
         />
 
-        <section className="panel">
-          <div className="panel-header compact">
-            <div>
-              <h2 className="panel-title">发布</h2>
-              <p className="panel-desc">发布范围 {publishScopeLabel}。</p>
-            </div>
-          </div>
-          <div className="panel-body compact main-stack">
-            {selectedCandidateIds.length > 0 ? (
-              <div className="notice info">已按勾选候选中的可发布项发布：{selectedPublishableCandidates.length} / {selectedCandidateIds.length}。</div>
-            ) : (
-              <div className="notice info">当前将覆盖全部可发布候选。</div>
-            )}
-            <button className="btn btn-secondary" type="button" disabled={!canPublish || taskState.loading || publishState.loading || !canPublishCurrentScope} onClick={() => requestPublishTask(true)}>
-              <Eye size={16} />
-              预发布
-            </button>
-            <button className="btn btn-primary" type="button" disabled={!canPublish || taskState.loading || publishState.loading || !canPublishCurrentScope} onClick={() => requestPublishTask(false)}>
-              <Send size={16} />
-              发布到资产库
-            </button>
-            <StateLine state={publishState} />
-            <div className="test-design-release-readiness-panel">
-              <div className="test-design-release-readiness-heading">
-                <span>发布准出审批</span>
-                <div className="toolbar-actions">
-                  {currentReleaseReadiness && (
-                    <span className={`badge badge-${releaseReadinessStatusTone(currentReleaseReadiness.status)}`}>
-                      {currentReleaseReadiness.status}
-                    </span>
-                  )}
-                  <button
-                    className="btn btn-secondary btn-xs"
-                    type="button"
-                    disabled={!canRead || releaseReadinessState.loading || !selectedTaskId}
-                    onClick={() => void refreshReleaseReadinessApprovals(selectedTaskId)}
-                  >
-                    <RefreshCw size={14} />
-                    刷新
-                  </button>
-                </div>
-              </div>
-              <div className="detail-grid">
-                <Detail label="当前阻断" value={currentReleaseReadiness?.blockingCount ?? '-'} />
-                <Detail label="当前风险" value={currentReleaseReadiness?.warningCount ?? '-'} />
-                <Detail label="审批记录" value={releaseReadinessApprovals.length} />
-                <Detail label="当前摘要" value={releaseReadinessDigestText(selectedReleaseReadinessApproval?.readinessDigest)} />
-              </div>
-              <form className="test-design-release-readiness-form" onSubmit={requestReleaseReadinessApproval}>
-                <label className="field">
-                  <span className="field-label">例外原因</span>
-                  <select
-                    value={releaseReadinessDraft.exceptionReasonCode}
-                    onChange={(event) => setReleaseReadinessDraft((current) => ({ ...current, exceptionReasonCode: event.target.value }))}
-                    disabled={!canPublish || releaseReadinessState.loading}
-                  >
-                    {releaseReadinessReasonCodes.map((code) => (
-                      <option key={code} value={code}>{code}</option>
-                    ))}
-                  </select>
-                </label>
-                <label className="field">
-                  <span className="field-label">工单编号</span>
-                  <input
-                    value={releaseReadinessDraft.workOrderKey}
-                    onChange={(event) => setReleaseReadinessDraft((current) => ({ ...current, workOrderKey: event.target.value }))}
-                    placeholder="WP5-RR-..."
-                    disabled={!canPublish || releaseReadinessState.loading}
-                  />
-                </label>
-                <label className="field">
-                  <span className="field-label">工单标题</span>
-                  <input
-                    value={releaseReadinessDraft.workOrderTitle}
-                    onChange={(event) => setReleaseReadinessDraft((current) => ({ ...current, workOrderTitle: event.target.value }))}
-                    disabled={!canPublish || releaseReadinessState.loading}
-                  />
-                </label>
-                <label className="field">
-                  <span className="field-label">工单 URL</span>
-                  <input
-                    value={releaseReadinessDraft.workOrderUrl}
-                    onChange={(event) => setReleaseReadinessDraft((current) => ({ ...current, workOrderUrl: event.target.value }))}
-                    placeholder="https://..."
-                    disabled={!canPublish || releaseReadinessState.loading}
-                  />
-                </label>
-                <label className="field test-design-release-readiness-wide">
-                  <span className="field-label">例外摘要</span>
-                  <textarea
-                    value={releaseReadinessDraft.exceptionSummary}
-                    maxLength={1000}
-                    rows={3}
-                    onChange={(event) => setReleaseReadinessDraft((current) => ({ ...current, exceptionSummary: event.target.value }))}
-                    disabled={!canPublish || releaseReadinessState.loading}
-                  />
-                </label>
-                <label className="field test-design-release-readiness-wide">
-                  <span className="field-label">风险缓释</span>
-                  <textarea
-                    value={releaseReadinessDraft.riskMitigation}
-                    maxLength={1000}
-                    rows={3}
-                    onChange={(event) => setReleaseReadinessDraft((current) => ({ ...current, riskMitigation: event.target.value }))}
-                    disabled={!canPublish || releaseReadinessState.loading}
-                  />
-                </label>
-                <label className="field test-design-release-readiness-wide">
-                  <span className="field-label">申请备注</span>
-                  <textarea
-                    value={releaseReadinessDraft.requestNote}
-                    maxLength={1000}
-                    rows={2}
-                    onChange={(event) => setReleaseReadinessDraft((current) => ({ ...current, requestNote: event.target.value }))}
-                    disabled={!canPublish || releaseReadinessState.loading}
-                  />
-                </label>
-                <button
-                  className="btn btn-secondary btn-sm test-design-release-readiness-submit"
-                  type="submit"
-                  disabled={!canPublish || releaseReadinessSubmitBlocked}
-                >
-                  <Save size={15} />
-                  {selectedPendingReleaseReadinessApproval ? '更新例外' : '提交例外'}
-                </button>
-              </form>
-              <div className="test-design-release-readiness-review-grid">
-                <label className="field">
-                  <span className="field-label">审批原因</span>
-                  <select
-                    value={releaseReadinessDraft.approvalReasonCode}
-                    onChange={(event) => setReleaseReadinessDraft((current) => ({ ...current, approvalReasonCode: event.target.value }))}
-                    disabled={!canPublish || releaseReadinessState.loading || !selectedPendingReleaseReadinessApproval}
-                  >
-                    {releaseReadinessReasonCodes.map((code) => (
-                      <option key={code} value={code}>{code}</option>
-                    ))}
-                  </select>
-                </label>
-                <label className="field">
-                  <span className="field-label">工单状态</span>
-                  <select
-                    value={releaseReadinessDraft.workOrderStatus}
-                    onChange={(event) => setReleaseReadinessDraft((current) => ({ ...current, workOrderStatus: event.target.value }))}
-                    disabled={!canPublish || releaseReadinessState.loading || !selectedPendingReleaseReadinessApproval}
-                  >
-                    <option value="">跟随审批</option>
-                    {releaseReadinessWorkOrderStatuses.map((status) => (
-                      <option key={status} value={status}>{status}</option>
-                    ))}
-                  </select>
-                </label>
-                <label className="field test-design-release-readiness-wide">
-                  <span className="field-label">审批备注</span>
-                  <textarea
-                    value={releaseReadinessDraft.reviewNote}
-                    maxLength={1000}
-                    rows={2}
-                    onChange={(event) => setReleaseReadinessDraft((current) => ({ ...current, reviewNote: event.target.value }))}
-                    disabled={!canPublish || releaseReadinessState.loading || !selectedPendingReleaseReadinessApproval}
-                  />
-                </label>
-                <div className="toolbar-actions test-design-release-readiness-submit">
-                  <button
-                    className="btn btn-secondary btn-sm"
-                    type="button"
-                    disabled={!canPublish || releaseReadinessState.loading || !selectedPendingReleaseReadinessApproval}
-                    onClick={() => selectedPendingReleaseReadinessApproval && void reviewReleaseReadinessApproval(selectedPendingReleaseReadinessApproval.id, 'approve')}
-                  >
-                    <CheckCircle2 size={15} />
-                    通过
-                  </button>
-                  <button
-                    className="btn btn-ghost btn-sm"
-                    type="button"
-                    disabled={!canPublish || releaseReadinessState.loading || !selectedPendingReleaseReadinessApproval}
-                    onClick={() => selectedPendingReleaseReadinessApproval && void reviewReleaseReadinessApproval(selectedPendingReleaseReadinessApproval.id, 'reject')}
-                  >
-                    <XCircle size={15} />
-                    驳回
-                  </button>
-                </div>
-              </div>
-              <div className="test-design-release-readiness-approvals">
-                {releaseReadinessApprovals.length ? releaseReadinessApprovals.slice(0, 6).map((approval) => (
-                  <div className={`test-design-release-readiness-approval${selectedReleaseReadinessApprovalId === approval.id ? ' selected' : ''}`} key={approval.id}>
-                    <div>
-                      <strong>{approval.workOrderKey ?? approval.id}</strong>
-                      <em>{approval.qualityGateStatus} · 阻断 {approval.blockingCount} · 风险 {approval.warningCount}</em>
-                      <small>{releaseReadinessDigestText(approval.readinessDigest)} · 备注 {approval.noteCount ?? 0}</small>
-                      <small>{approval.requestedBy ?? '-'} · {approval.createdAt ?? '-'}</small>
-                      {approval.latestNotePreview ? <small>最新备注：{approval.latestNotePreview}</small> : null}
-                    </div>
-                    <div className="test-design-release-readiness-approval-actions">
-                      <span className={`badge badge-${releaseReadinessStatusTone(approval.status)}`}>{approval.status}</span>
-                      <button
-                        className="btn btn-secondary btn-xs"
-                        type="button"
-                        disabled={!canRead || releaseReadinessState.loading}
-                        onClick={() => selectReleaseReadinessApproval(approval)}
-                      >
-                        <FileText size={14} />
-                        {approval.status === 'PENDING' ? '编辑' : '流转'}
-                      </button>
-                    </div>
-                  </div>
-                )) : (
-                  <div className="notice info">暂无发布准出审批记录</div>
-                )}
-              </div>
-              <div className="test-design-release-readiness-note-form">
-                <label className="field">
-                  <span className="field-label">备注类型</span>
-                  <select
-                    value={releaseReadinessDraft.noteType}
-                    onChange={(event) => setReleaseReadinessDraft((current) => ({ ...current, noteType: event.target.value === 'WORK_ORDER' ? 'WORK_ORDER' : 'COMMENT' }))}
-                    disabled={!canPublish || releaseReadinessState.loading || !selectedReleaseReadinessApprovalId}
-                  >
-                    <option value="COMMENT">COMMENT</option>
-                    <option value="WORK_ORDER">WORK_ORDER</option>
-                  </select>
-                </label>
-                <label className="field test-design-release-readiness-wide">
-                  <span className="field-label">流转备注</span>
-                  <textarea
-                    value={releaseReadinessDraft.noteText}
-                    maxLength={1000}
-                    rows={2}
-                    onChange={(event) => setReleaseReadinessDraft((current) => ({ ...current, noteText: event.target.value }))}
-                    disabled={!canPublish || releaseReadinessState.loading || !selectedReleaseReadinessApprovalId}
-                  />
-                </label>
-                <button
-                  className="btn btn-secondary btn-sm test-design-release-readiness-submit"
-                  type="button"
-                  disabled={!canPublish || releaseReadinessState.loading || !selectedReleaseReadinessApprovalId || !releaseReadinessDraft.noteText.trim()}
-                  onClick={() => void addReleaseReadinessNote()}
-                >
-                  <Plus size={15} />
-                  追加备注
-                </button>
-              </div>
-              <div className="test-design-release-readiness-notes">
-                <strong>备注流转 · {selectedReleaseReadinessApproval?.workOrderKey ?? (selectedReleaseReadinessApprovalId || '-')}</strong>
-                {selectedReleaseReadinessApprovalId ? (
-                  releaseReadinessNotes.length ? releaseReadinessNotes.slice(-6).map((note) => (
-                    <div className="test-design-release-readiness-note" key={note.id}>
-                      <span className="badge badge-neutral">{note.noteType}</span>
-                      <em>{note.noteText}</em>
-                      <small>{note.createdBy ?? '-'} · {note.createdAt ?? '-'}</small>
-                    </div>
-                  )) : (
-                    <div className="notice info">暂无备注流转记录</div>
-                  )
-                ) : (
-                  <div className="notice info">未选择发布准出审批记录</div>
-                )}
-              </div>
-              <StateLine state={releaseReadinessState} />
-            </div>
-            <div className="test-design-release-readiness-panel">
-              <div className="test-design-release-readiness-heading">
-                <span>报告归档</span>
-                <div className="toolbar-actions">
-                  {selectedReportArchive && (
-                    <span className={`badge badge-${reportArchiveStatusTone(selectedReportArchive.status)}`}>
-                      {selectedReportArchive.status}
-                    </span>
-                  )}
-                  <button
-                    className="btn btn-secondary btn-xs"
-                    type="button"
-                    disabled={!canRead || reportArchiveState.loading || !selectedTaskId}
-                    onClick={() => void refreshReportArchives(selectedTaskId)}
-                  >
-                    <RefreshCw size={14} />
-                    刷新
-                  </button>
-                </div>
-              </div>
-              <div className="detail-grid">
-                <Detail label="归档记录" value={reportArchives.length} />
-                <Detail label="归档审批" value={selectedReportArchive?.archiveApprovalStatus ?? '-'} />
-                <Detail label="外发审批" value={selectedReportArchive?.externalApprovalStatus ?? '-'} />
-                <Detail label="完整性索引" value={reportArchiveIntegrity ? `${reportArchiveIntegrity.indexedRowCount}/${reportArchiveIntegrity.reportRowCount}` : '-'} />
-              </div>
-              <div className="test-design-release-readiness-approvals">
-                {reportArchives.length ? reportArchives.slice(0, 5).map((archive) => (
-                  <div className={`test-design-release-readiness-approval${selectedReportArchiveId === archive.id ? ' selected' : ''}`} key={archive.id}>
-                    <div>
-                      <strong>{archive.storageBackend ?? 'DATABASE'} · {archive.contentSizeBytes} bytes</strong>
-                      <em>行 {archive.reportRowCount} · 索引 {archive.lineIntegrityCount} · 保留至 {archive.retentionUntil ?? '-'}</em>
-                      <small>{archive.contentDigest ? `sha256:${archive.contentDigest.slice(0, 12)}` : '-'} · 内容存储 {archive.archiveContentStored ? 'ready' : 'pending'}</small>
-                    </div>
-                    <div className="test-design-release-readiness-approval-actions">
-                      <span className={`badge badge-${reportArchiveStatusTone(archive.status)}`}>{archive.status}</span>
-                      <button
-                        className="btn btn-secondary btn-xs"
-                        type="button"
-                        disabled={!canRead || reportArchiveState.loading}
-                        onClick={() => selectReportArchive(archive)}
-                      >
-                        <FileText size={14} />
-                        查看
-                      </button>
-                    </div>
-                  </div>
-                )) : (
-                  <div className="notice info">暂无报告归档记录</div>
-                )}
-              </div>
-              <form className="test-design-release-readiness-form" onSubmit={requestReportArchiveApproval}>
-                <label className="field">
-                  <span className="field-label">审批类型</span>
-                  <select
-                    value={reportArchiveDraft.approvalType}
-                    onChange={(event) => setReportArchiveDraft((current) => ({ ...current, approvalType: event.target.value === 'EXTERNAL_SHARE' ? 'EXTERNAL_SHARE' : 'ARCHIVE' }))}
-                    disabled={!canExport || reportArchiveState.loading || !selectedReportArchiveId}
-                  >
-                    {reportArchiveApprovalTypes.map((type) => (
-                      <option key={type} value={type}>{type}</option>
-                    ))}
-                  </select>
-                </label>
-                <label className="field">
-                  <span className="field-label">申请原因</span>
-                  <select
-                    value={reportArchiveDraft.reasonCode}
-                    onChange={(event) => setReportArchiveDraft((current) => ({ ...current, reasonCode: event.target.value }))}
-                    disabled={!canExport || reportArchiveState.loading || !selectedReportArchiveId}
-                  >
-                    {reportArchiveReasonCodes.map((code) => (
-                      <option key={code} value={code}>{code}</option>
-                    ))}
-                  </select>
-                </label>
-                <label className="field">
-                  <span className="field-label">工单编号</span>
-                  <input
-                    value={reportArchiveDraft.workOrderKey}
-                    onChange={(event) => setReportArchiveDraft((current) => ({ ...current, workOrderKey: event.target.value }))}
-                    placeholder="WP5-ARCH-..."
-                    disabled={!canExport || reportArchiveState.loading || !selectedReportArchiveId}
-                  />
-                </label>
-                <label className="field">
-                  <span className="field-label">工单 URL</span>
-                  <input
-                    value={reportArchiveDraft.workOrderUrl}
-                    onChange={(event) => setReportArchiveDraft((current) => ({ ...current, workOrderUrl: event.target.value }))}
-                    placeholder="https://..."
-                    disabled={!canExport || reportArchiveState.loading || !selectedReportArchiveId}
-                  />
-                </label>
-                <label className="field test-design-release-readiness-wide">
-                  <span className="field-label">申请摘要</span>
-                  <textarea
-                    value={reportArchiveDraft.requestSummary}
-                    maxLength={1000}
-                    rows={3}
-                    onChange={(event) => setReportArchiveDraft((current) => ({ ...current, requestSummary: event.target.value }))}
-                    disabled={!canExport || reportArchiveState.loading || !selectedReportArchiveId}
-                  />
-                </label>
-                <label className="field test-design-release-readiness-wide">
-                  <span className="field-label">申请备注</span>
-                  <textarea
-                    value={reportArchiveDraft.requestNote}
-                    maxLength={1000}
-                    rows={2}
-                    onChange={(event) => setReportArchiveDraft((current) => ({ ...current, requestNote: event.target.value }))}
-                    disabled={!canExport || reportArchiveState.loading || !selectedReportArchiveId}
-                  />
-                </label>
-                <button
-                  className="btn btn-secondary btn-sm test-design-release-readiness-submit"
-                  type="submit"
-                  disabled={!canExport || reportArchiveState.loading || !selectedReportArchiveId || !reportArchiveDraft.requestSummary.trim()}
-                >
-                  <Save size={15} />
-                  提交审批
-                </button>
-              </form>
-              <div className="test-design-release-readiness-review-grid">
-                <label className="field">
-                  <span className="field-label">审批原因</span>
-                  <select
-                    value={reportArchiveDraft.approvalReasonCode}
-                    onChange={(event) => setReportArchiveDraft((current) => ({ ...current, approvalReasonCode: event.target.value }))}
-                    disabled={!canExport || reportArchiveState.loading || !selectedPendingReportArchiveApproval}
-                  >
-                    {reportArchiveReasonCodes.map((code) => (
-                      <option key={code} value={code}>{code}</option>
-                    ))}
-                  </select>
-                </label>
-                <label className="field">
-                  <span className="field-label">工单状态</span>
-                  <select
-                    value={reportArchiveDraft.workOrderStatus}
-                    onChange={(event) => setReportArchiveDraft((current) => ({ ...current, workOrderStatus: event.target.value }))}
-                    disabled={!canExport || reportArchiveState.loading || !selectedPendingReportArchiveApproval}
-                  >
-                    <option value="">跟随审批</option>
-                    {reportArchiveWorkOrderStatuses.map((status) => (
-                      <option key={status} value={status}>{status}</option>
-                    ))}
-                  </select>
-                </label>
-                <label className="field test-design-release-readiness-wide">
-                  <span className="field-label">审批备注</span>
-                  <textarea
-                    value={reportArchiveDraft.reviewNote}
-                    maxLength={1000}
-                    rows={2}
-                    onChange={(event) => setReportArchiveDraft((current) => ({ ...current, reviewNote: event.target.value }))}
-                    disabled={!canExport || reportArchiveState.loading || !selectedPendingReportArchiveApproval}
-                  />
-                </label>
-                <div className="toolbar-actions test-design-release-readiness-submit">
-                  <button
-                    className="btn btn-secondary btn-sm"
-                    type="button"
-                    disabled={!canExport || reportArchiveState.loading || !selectedPendingReportArchiveApproval}
-                    onClick={() => selectedPendingReportArchiveApproval && void reviewReportArchiveApproval(selectedPendingReportArchiveApproval.id, 'approve')}
-                  >
-                    <CheckCircle2 size={15} />
-                    通过
-                  </button>
-                  <button
-                    className="btn btn-ghost btn-sm"
-                    type="button"
-                    disabled={!canExport || reportArchiveState.loading || !selectedPendingReportArchiveApproval}
-                    onClick={() => selectedPendingReportArchiveApproval && void reviewReportArchiveApproval(selectedPendingReportArchiveApproval.id, 'reject')}
-                  >
-                    <XCircle size={15} />
-                    驳回
-                  </button>
-                </div>
-              </div>
-              <div className="test-design-release-readiness-approvals">
-                {reportArchiveApprovals.length ? reportArchiveApprovals.slice(0, 6).map((approval) => (
-                  <div className={`test-design-release-readiness-approval${selectedReportArchiveApprovalId === approval.id ? ' selected' : ''}`} key={approval.id}>
-                    <div>
-                      <strong>{approval.workOrderKey ?? approval.id}</strong>
-                      <em>{approval.approvalType} · {approval.workOrderStatus ?? '-'}</em>
-                      <small>{approval.requestSummaryDigest ? `sha256:${approval.requestSummaryDigest.slice(0, 12)}` : '-'} · 备注 {approval.noteCount ?? 0}</small>
-                      {approval.latestNotePreview ? <small>最新备注：{approval.latestNotePreview}</small> : null}
-                    </div>
-                    <div className="test-design-release-readiness-approval-actions">
-                      <span className={`badge badge-${reportArchiveStatusTone(approval.status)}`}>{approval.status}</span>
-                      <button
-                        className="btn btn-secondary btn-xs"
-                        type="button"
-                        disabled={!canRead || reportArchiveState.loading}
-                        onClick={() => selectReportArchiveApproval(approval)}
-                      >
-                        <FileText size={14} />
-                        流转
-                      </button>
-                    </div>
-                  </div>
-                )) : (
-                  <div className="notice info">暂无归档审批工单</div>
-                )}
-              </div>
-              <div className="test-design-release-readiness-note-form">
-                <label className="field">
-                  <span className="field-label">备注类型</span>
-                  <select
-                    value={reportArchiveDraft.noteType}
-                    onChange={(event) => setReportArchiveDraft((current) => ({ ...current, noteType: event.target.value === 'WORK_ORDER' ? 'WORK_ORDER' : 'COMMENT' }))}
-                    disabled={!canExport || reportArchiveState.loading || !selectedReportArchiveApprovalId}
-                  >
-                    <option value="COMMENT">COMMENT</option>
-                    <option value="WORK_ORDER">WORK_ORDER</option>
-                  </select>
-                </label>
-                <label className="field test-design-release-readiness-wide">
-                  <span className="field-label">流转备注</span>
-                  <textarea
-                    value={reportArchiveDraft.noteText}
-                    maxLength={1000}
-                    rows={2}
-                    onChange={(event) => setReportArchiveDraft((current) => ({ ...current, noteText: event.target.value }))}
-                    disabled={!canExport || reportArchiveState.loading || !selectedReportArchiveApprovalId}
-                  />
-                </label>
-                <button
-                  className="btn btn-secondary btn-sm test-design-release-readiness-submit"
-                  type="button"
-                  disabled={!canExport || reportArchiveState.loading || !selectedReportArchiveApprovalId || !reportArchiveDraft.noteText.trim()}
-                  onClick={() => void addReportArchiveNote()}
-                >
-                  <Plus size={15} />
-                  追加备注
-                </button>
-              </div>
-              <div className="test-design-release-readiness-notes">
-                <strong>备注流转 · {selectedReportArchiveApproval?.workOrderKey ?? (selectedReportArchiveApprovalId || '-')}</strong>
-                {selectedReportArchiveApprovalId ? (
-                  reportArchiveNotes.length ? reportArchiveNotes.slice(-6).map((note) => (
-                    <div className="test-design-release-readiness-note" key={note.id}>
-                      <span className="badge badge-neutral">{note.noteType}</span>
-                      <em>{note.noteText}</em>
-                      <small>{note.createdBy ?? '-'} · {note.createdAt ?? '-'}</small>
-                    </div>
-                  )) : (
-                    <div className="notice info">暂无归档备注</div>
-                  )
-                ) : (
-                  <div className="notice info">未选择归档审批工单</div>
-                )}
-              </div>
-              <StateLine state={reportArchiveState} />
-            </div>
-            {publishResult && (
-              <>
-                <div className="toolbar-actions test-design-export-actions">
-                  <button className="btn btn-secondary btn-sm" type="button" disabled={!canExport} onClick={exportPublishResult}>
-                    <Download size={15} />
-                    导出发布摘要
-                  </button>
-                </div>
-                <div className="detail-grid">
-                  <Detail label="总数" value={publishResult.total} />
-                  <Detail label="创建" value={publishResult.created} />
-                  <Detail label="跳过" value={publishResult.skipped} />
-                  <Detail label="失败" value={publishResult.failed} />
-                  <Detail label="用例" value={publishResult.createdCaseIds.join(', ') || '-'} />
-                </div>
-                {publishIssueRecords.length > 0 && (
-                  <div className="notice warning test-design-publish-issues">
-                    {publishIssueRecords.slice(0, 4).map((record) => (
-                      <span key={`${record.candidateId}-${record.result}-${record.errorMessage ?? ''}`}>
-                        {record.title ?? record.candidateId ?? '-'}：{record.result}{record.errorMessage ? ` · ${record.errorMessage}` : ''}
-                      </span>
-                    ))}
-                  </div>
-                )}
-                {resolvableConflictRecords.length > 0 && (
-                  <div className="test-design-conflict-panel">
-                    <div className="test-design-conflict-heading">
-                      <span>冲突处理 {resolvableConflictRecords.length} 条</span>
-                      <div className="toolbar-actions">
-                        <button
-                          className="btn btn-secondary btn-xs"
-                          type="button"
-                          disabled={!canPublish || publishState.loading || !batchResolvableConflictItems.length}
-                          onClick={requestBatchResolveConflicts}
-                        >
-                          <Link2 size={14} />
-                          批量复用 {batchResolvableConflictItems.length}
-                        </button>
-                        <span className="badge badge-warning">需人工确认</span>
-                      </div>
-                    </div>
-                    <div className="test-design-conflict-form">
-                      <label className="field">
-                        <span className="field-label">处理原因</span>
-                        <input
-                          value={conflictResolutionDraft.reason}
-                          onChange={(event) => setConflictResolutionDraft((current) => ({ ...current, reason: event.target.value }))}
-                          disabled={!canPublish || publishState.loading}
-                        />
-                      </label>
-                      <label className="field">
-                        <span className="field-label">用例关键词</span>
-                        <input
-                          value={conflictCaseKeyword}
-                          onChange={(event) => setConflictCaseKeyword(event.target.value)}
-                          placeholder="标题 / 标签 / 编号"
-                          disabled={!canRead || publishState.loading || !conflictCaseSearchProjectId}
-                        />
-                      </label>
-                      <label className="field">
-                        <span className="field-label">补充说明</span>
-                        <input
-                          value={conflictResolutionDraft.comment}
-                          onChange={(event) => setConflictResolutionDraft((current) => ({ ...current, comment: event.target.value }))}
-                          placeholder="比对说明"
-                          disabled={!canPublish || publishState.loading}
-                        />
-                      </label>
-                      <div className="field test-design-conflict-search-action">
-                        <span className="field-label">既有用例</span>
-                        <button
-                          className="btn btn-secondary btn-sm"
-                          type="button"
-                          disabled={!canRead || publishState.loading || !conflictCaseSearchProjectId}
-                          onClick={() => void searchConflictCases()}
-                        >
-                          <Search size={15} />
-                          搜索
-                        </button>
-                      </div>
-                    </div>
-                    <div className="test-design-conflict-list">
-                      {resolvableConflictRecords.map((record) => {
-                        const candidate = conflictResolutionCandidate(record, conflictCandidateById);
-                        const targetCaseId = conflictResolutionTargetCaseId(record, selectedConflictCaseIds);
-                        return (
-                          <div className="test-design-conflict-row" key={publishRecordKey(record)}>
-                            <span>
-                              <strong>{record.title ?? record.candidateId ?? '-'}</strong>
-                              <em>{targetCaseId ? `目标用例 ${targetCaseId}` : '目标用例 -'}</em>
-                              {candidate && <em>候选 {candidate.status}@v{candidate.version}</em>}
-                              {record.errorMessage && <small>{record.errorMessage}</small>}
-                              {!candidate && <small>发布记录缺少候选版本，重新预发布后可处理。</small>}
-                            </span>
-                            <div className="test-design-conflict-controls">
-                              <select
-                                value={targetCaseId}
-                                onChange={(event) => {
-                                  const nextCaseId = event.target.value;
-                                  const candidateId = record.candidateId;
-                                  if (candidateId) {
-                                    setSelectedConflictCaseIds((current) => ({
-                                      ...current,
-                                      [candidateId]: nextCaseId
-                                    }));
-                                  }
-                                }}
-                                disabled={!canPublish || publishState.loading}
-                              >
-                                <option value="">{record.assetCaseId ? '清空目标' : '选择目标用例'}</option>
-                                {record.assetCaseId && (
-                                  <option value={record.assetCaseId}>推荐 {shortIdentifier(record.assetCaseId)}</option>
-                                )}
-                                {conflictCaseResults.filter((testCase) => testCase.id !== record.assetCaseId).map((testCase) => (
-                                  <option value={testCase.id} key={`${record.candidateId}-${testCase.id}`}>
-                                    {testCase.title || shortIdentifier(testCase.id)}
-                                  </option>
-                                ))}
-                              </select>
-                              <button
-                                className="btn btn-secondary btn-xs"
-                                type="button"
-                                disabled={!canPublish || publishState.loading || !candidate || !targetCaseId}
-                                onClick={() => requestResolveConflict(record)}
-                              >
-                                <Link2 size={14} />
-                                复用
-                              </button>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-                {publishResult.records.length > 0 && (
-                  <div className="test-design-publish-records">
-                    {publishResult.records.slice(0, 6).map((record) => (
-                      <PublishRecordRow key={publishRecordKey(record)} record={record} />
-                    ))}
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-        </section>
+        <TestDesignPublishPanel
+          canRead={canRead}
+          canExport={canExport}
+          canPublish={canPublish}
+          selectedTaskId={selectedTaskId}
+          taskState={taskState}
+          publishState={publishState}
+          releaseReadinessState={releaseReadinessState}
+          reportArchiveState={reportArchiveState}
+          publishScopeLabel={publishScopeLabel}
+          selectedCandidateCount={selectedCandidateIds.length}
+          selectedPublishableCount={selectedPublishableCandidates.length}
+          canPublishCurrentScope={canPublishCurrentScope}
+          currentReleaseReadiness={currentReleaseReadiness}
+          releaseReadinessApprovals={releaseReadinessApprovals}
+          selectedReleaseReadinessApprovalId={selectedReleaseReadinessApprovalId}
+          selectedReleaseReadinessApproval={selectedReleaseReadinessApproval}
+          selectedPendingReleaseReadinessApproval={selectedPendingReleaseReadinessApproval}
+          releaseReadinessDraft={releaseReadinessDraft}
+          releaseReadinessSubmitBlocked={releaseReadinessSubmitBlocked}
+          releaseReadinessNotes={releaseReadinessNotes}
+          releaseReadinessReasonCodes={releaseReadinessReasonCodes}
+          releaseReadinessWorkOrderStatuses={releaseReadinessWorkOrderStatuses}
+          reportArchives={reportArchives}
+          selectedReportArchiveId={selectedReportArchiveId}
+          selectedReportArchive={selectedReportArchive}
+          reportArchiveIntegrity={reportArchiveIntegrity}
+          reportArchiveApprovals={reportArchiveApprovals}
+          selectedReportArchiveApprovalId={selectedReportArchiveApprovalId}
+          selectedReportArchiveApproval={selectedReportArchiveApproval}
+          selectedPendingReportArchiveApproval={selectedPendingReportArchiveApproval}
+          reportArchiveDraft={reportArchiveDraft}
+          reportArchiveNotes={reportArchiveNotes}
+          reportArchiveApprovalTypes={reportArchiveApprovalTypes}
+          reportArchiveReasonCodes={reportArchiveReasonCodes}
+          reportArchiveWorkOrderStatuses={reportArchiveWorkOrderStatuses}
+          publishResult={publishResult}
+          publishIssueRecords={publishIssueRecords}
+          resolvableConflictRecords={resolvableConflictRecords}
+          batchResolvableConflictCount={batchResolvableConflictItems.length}
+          conflictResolutionDraft={conflictResolutionDraft}
+          conflictCaseKeyword={conflictCaseKeyword}
+          conflictCaseSearchProjectId={conflictCaseSearchProjectId}
+          conflictCaseResults={conflictCaseResults}
+          selectedConflictCaseIds={selectedConflictCaseIds}
+          conflictCandidateById={conflictCandidateById}
+          onPublish={(dryRun) => void requestPublishTask(dryRun)}
+          onRefreshReleaseReadiness={(taskId) => void refreshReleaseReadinessApprovals(taskId)}
+          onReleaseReadinessDraftChange={setReleaseReadinessDraft}
+          onRequestReleaseReadinessApproval={requestReleaseReadinessApproval}
+          onReviewReleaseReadinessApproval={(approvalId, action) => void reviewReleaseReadinessApproval(approvalId, action)}
+          onSelectReleaseReadinessApproval={selectReleaseReadinessApproval}
+          onAddReleaseReadinessNote={() => void addReleaseReadinessNote()}
+          onRefreshReportArchives={(taskId) => void refreshReportArchives(taskId)}
+          onReportArchiveDraftChange={setReportArchiveDraft}
+          onRequestReportArchiveApproval={requestReportArchiveApproval}
+          onReviewReportArchiveApproval={(approvalId, action) => void reviewReportArchiveApproval(approvalId, action)}
+          onSelectReportArchive={selectReportArchive}
+          onSelectReportArchiveApproval={selectReportArchiveApproval}
+          onAddReportArchiveNote={() => void addReportArchiveNote()}
+          onExportPublishResult={exportPublishResult}
+          onRequestBatchResolveConflicts={requestBatchResolveConflicts}
+          onConflictResolutionDraftChange={setConflictResolutionDraft}
+          onConflictCaseKeywordChange={setConflictCaseKeyword}
+          onSearchConflictCases={() => void searchConflictCases()}
+          onSelectedConflictCaseIdsChange={setSelectedConflictCaseIds}
+          onResolveConflict={requestResolveConflict}
+        />
 
         <TestDesignScopePanel selectedRequirementTitles={selectedRequirementTitles} />
       </aside>
