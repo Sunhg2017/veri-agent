@@ -8,9 +8,8 @@ import static com.songhg.veri.agent.asset.application.AssetFormatValidator.FORMA
 import static com.songhg.veri.agent.asset.application.AssetFormatValidator.FORMAT_OPENAPI;
 import static com.songhg.veri.agent.asset.application.AssetFormatValidator.SOURCE_IMPORT;
 import static com.songhg.veri.agent.asset.application.AssetFormatValidator.STATUS_ACTIVE;
+import static com.songhg.veri.agent.asset.application.AssetCodeGenerator.assetCode;
 import static com.songhg.veri.agent.asset.application.AssetImportExportSupport.appendCsvLine;
-import static com.songhg.veri.agent.asset.application.AssetImportExportSupport.assetCode;
-import static com.songhg.veri.agent.asset.application.AssetImportExportSupport.castMap;
 import static com.songhg.veri.agent.asset.application.AssetImportExportSupport.defaultJson;
 import static com.songhg.veri.agent.asset.application.AssetImportExportSupport.hasUsefulSchema;
 import static com.songhg.veri.agent.asset.application.AssetImportExportSupport.requireImportField;
@@ -226,9 +225,9 @@ final class ApiImportExportHandler extends AbstractAssetImportExportHandler {
         Map<String, Object> root = new LinkedHashMap<>();
         root.put("openapi", "3.0.3");
         root.put("info", Map.of("title", "WP3 API Assets", "version", "1.0.0"));
-        Map<String, Object> paths = new LinkedHashMap<>();
+        Map<String, Map<String, Object>> paths = new LinkedHashMap<>();
         for (ApiResponseDTO row : rows) {
-            Map<String, Object> pathItem = castMap(paths.computeIfAbsent(row.path(), ignored -> new LinkedHashMap<>()));
+            Map<String, Object> pathItem = paths.computeIfAbsent(row.path(), ignored -> new LinkedHashMap<>());
             Map<String, Object> operation = new LinkedHashMap<>();
             operation.put("summary", row.summary());
             operation.put("description", row.description());

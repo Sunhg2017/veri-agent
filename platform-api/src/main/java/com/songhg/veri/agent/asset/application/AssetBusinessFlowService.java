@@ -1,5 +1,7 @@
 package com.songhg.veri.agent.asset.application;
 
+import static com.songhg.veri.agent.asset.application.AssetCodeGenerator.assetCode;
+
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.songhg.veri.agent.asset.application.command.CreateBusinessFlowRequest;
@@ -217,10 +219,6 @@ public class AssetBusinessFlowService {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, fieldName + " 不合法: " + rawValue);
         }
         return value;
-    }
-
-    private static String assetCode(String prefix, UUID id) {
-        return prefix + "-" + id.toString().replace("-", "").substring(0, 12);
     }
 
     private static String trimToNull(String value) {

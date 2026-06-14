@@ -112,12 +112,10 @@ public class ExecutionRunService {
         this.contextClient = contextClient;
         this.actorResolver = actorResolver;
         this.apiAutomationService = apiAutomationService;
-        this.managementStore = managementStores == null ? null : managementStores.getIfAvailable();
+        this.managementStore = managementStores.getIfAvailable();
         this.objectMapper = objectMapper;
         this.properties = properties;
-        PlatformTransactionManager transactionManager = transactionManagers == null
-                ? null
-                : transactionManagers.getIfAvailable();
+        PlatformTransactionManager transactionManager = transactionManagers.getIfAvailable();
         this.transactionTemplate = transactionManager == null ? null : new TransactionTemplate(transactionManager);
     }
 
@@ -134,7 +132,7 @@ public class ExecutionRunService {
         if (!"READY".equals(plan.status())) {
             throw new BusinessException(ErrorCode.INVALID_STATE, "EXECUTION_PLAN_NOT_READY");
         }
-        String requestKey = boundedNullableText(command == null ? null : command.requestKey(), 128);
+        String requestKey = SensitiveTextSanitizer.boundedNullableText(command == null ? null : command.requestKey(), 128);
         if (StringUtils.hasText(requestKey)) {
             return repository.runByPlanAndRequestKey(plan.id(), requestKey)
                     .map(run -> detail(run, true))
@@ -162,11 +160,11 @@ public class ExecutionRunService {
         if (!"READY".equals(plan.status())) {
             throw new BusinessException(ErrorCode.INVALID_STATE, "EXECUTION_PLAN_NOT_READY");
         }
-        String normalizedTriggerType = boundedNullableText(triggerType, 32);
+        String normalizedTriggerType = SensitiveTextSanitizer.boundedNullableText(triggerType, 32);
         if (!Set.of("WEBHOOK", "CRON").contains(normalizedTriggerType)) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "EXECUTION_TRIGGER_TYPE_INVALID");
         }
-        String normalizedRequestKey = boundedNullableText(requestKey, 128);
+        String normalizedRequestKey = SensitiveTextSanitizer.boundedNullableText(requestKey, 128);
         if (!StringUtils.hasText(normalizedRequestKey)) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "EXECUTION_TRIGGER_REQUEST_KEY_REQUIRED");
         }
@@ -177,7 +175,7 @@ public class ExecutionRunService {
                         null,
                         normalizedRequestKey,
                         normalizedTriggerType,
-                        boundedNullableText(sourceEventId, 256),
+                        SensitiveTextSanitizer.boundedNullableText(sourceEventId, 256),
                         triggerSummary
                 ));
     }
@@ -380,7 +378,7 @@ public class ExecutionRunService {
      */
     @Transactional(noRollbackFor = BusinessException.class)
     public Optional<ExecutionQueueClaimResponse> claimNextQueuedNode(String workerId) {
-        String normalizedWorkerId = boundedNullableText(workerId, 128);
+        String normalizedWorkerId = SensitiveTextSanitizer.boundedNullableText(workerId, 128);
         if (!StringUtils.hasText(normalizedWorkerId)) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "EXECUTION_QUEUE_WORKER_REQUIRED");
         }
@@ -406,7 +404,7 @@ public class ExecutionRunService {
         if (command == null || command.nodeRunId() == null || !StringUtils.hasText(command.claimToken())) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "EXECUTION_QUEUE_CLAIM_REQUIRED");
         }
-        String targetStatus = Optional.ofNullable(boundedNullableText(command.status(), 32))
+        String targetStatus = Optional.ofNullable(SensitiveTextSanitizer.boundedNullableText(command.status(), 32))
                 .map(status -> status.toUpperCase(Locale.ROOT))
                 .orElse(null);
         if (!COMPLETABLE_NODE_STATUSES.contains(targetStatus)) {
@@ -715,7 +713,7 @@ public class ExecutionRunService {
                     .orElse("UNKNOWN"));
         }
         UUID runId = UUID.randomUUID();
-        String triggerReason = boundedNullableText(command == null ? null : command.reason(), 256);
+        String triggerReason = SensitiveTextSanitizer.boundedNullableText(command == null ? null : command.reason(), 256);
         String traceId = TraceContext.getOrCreateTraceId();
         List<ExecutionPlanNode> orderedPlanNodes = orderedPersistedNodes(planNodes, validation.nodes());
         long queuedNodeCount = orderedPlanNodes.stream()
@@ -1386,7 +1384,7 @@ public class ExecutionRunService {
             return value;
         }
         if (value instanceof String text) {
-            return boundedSummaryText(redactSensitiveText(text));
+            return boundedSummaryText(SensitiveTextSanitizer.redactSensitiveText(text));
         }
         if (value instanceof Map<?, ?> map) {
             Map<String, Object> sanitized = new LinkedHashMap<>();
@@ -1411,19 +1409,11 @@ public class ExecutionRunService {
             }
             return sanitized;
         }
-        return boundedSummaryText(redactSensitiveText(String.valueOf(value)));
+        return boundedSummaryText(SensitiveTextSanitizer.redactSensitiveText(String.valueOf(value)));
     }
 
     private String boundedSummaryText(String value) {
         return SensitiveTextSanitizer.boundedWithEllipsis(value, MAX_RESULT_SUMMARY_TEXT_LENGTH);
-    }
-
-    private String redactSensitiveText(String value) {
-        return SensitiveTextSanitizer.redactSensitiveText(value);
-    }
-
-    private boolean containsSensitiveText(String value) {
-        return SensitiveTextSanitizer.containsSensitiveText(value);
     }
 
     private String terminalErrorCode(String status, String requestedErrorCode) {
@@ -1431,8 +1421,9 @@ public class ExecutionRunService {
             return null;
         }
         if (StringUtils.hasText(requestedErrorCode)) {
-            String normalized = boundedNullableText(requestedErrorCode, 64);
-            if (!containsSensitiveText(normalized) && ERROR_CODE_PATTERN.matcher(normalized).matches()) {
+            String normalized = SensitiveTextSanitizer.boundedNullableText(requestedErrorCode, 64);
+            if (!SensitiveTextSanitizer.containsSensitiveText(normalized)
+                    && ERROR_CODE_PATTERN.matcher(normalized).matches()) {
                 return normalized;
             }
         }
@@ -1476,7 +1467,7 @@ public class ExecutionRunService {
         } catch (BusinessException exception) {
             return RunnerCancelAttempt.failed(
                     nodeRun.id(),
-                    boundedNullableText(exception.getErrorCode().name(), 64),
+                    SensitiveTextSanitizer.boundedNullableText(exception.getErrorCode().name(), 64),
                     terminalErrorSummary("FAILED", exception.getMessage())
             );
         } catch (RuntimeException exception) {
@@ -1608,7 +1599,7 @@ public class ExecutionRunService {
         List<String> normalized = new ArrayList<>();
         Set<String> seen = new HashSet<>();
         for (String secretRef : secretRefs) {
-            String bounded = boundedNullableText(secretRef, 256);
+            String bounded = SensitiveTextSanitizer.boundedNullableText(secretRef, 256);
             if (StringUtils.hasText(bounded) && seen.add(bounded)) {
                 normalized.add(bounded);
             }
@@ -1625,7 +1616,7 @@ public class ExecutionRunService {
             Map<String, Object> planInput,
             String projectId
     ) {
-        String runtimeBaseUrl = boundedNullableText(command.baseUrl(), 512);
+        String runtimeBaseUrl = SensitiveTextSanitizer.boundedNullableText(command.baseUrl(), 512);
         if (StringUtils.hasText(runtimeBaseUrl)) {
             return new ResolvedDispatchTarget(runtimeBaseUrl, "REQUEST_BASE_URL", null, null);
         }
@@ -1634,7 +1625,7 @@ public class ExecutionRunService {
         if (!StringUtils.hasText(baseUrlRef)) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "EXECUTION_DISPATCH_BASE_URL_REQUIRED");
         }
-        String normalizedRef = boundedNullableText(baseUrlRef, 128);
+        String normalizedRef = SensitiveTextSanitizer.boundedNullableText(baseUrlRef, 128);
         if (!normalizedRef.startsWith("env:")) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "EXECUTION_DISPATCH_BASE_URL_REF_UNSUPPORTED");
         }
@@ -1654,7 +1645,7 @@ public class ExecutionRunService {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "EXECUTION_DISPATCH_BASE_URL_REF_EMPTY");
         }
         return new ResolvedDispatchTarget(
-                boundedNullableText(environment.apiBaseUrl(), 512),
+                SensitiveTextSanitizer.boundedNullableText(environment.apiBaseUrl(), 512),
                 requestBaseUrlRefProvided ? "REQUEST_BASE_URL_REF" : "PLAN_BASE_URL_REF",
                 normalizedRef,
                 environment.code()
@@ -1675,7 +1666,7 @@ public class ExecutionRunService {
         }
         EnvironmentRuntimeRef environment = managementStore.findEnvironmentRuntimeRef(
                 ManagementStoreParams.of(
-                        "keyword", boundedNullableText(environmentKey, 128),
+                        "keyword", SensitiveTextSanitizer.boundedNullableText(environmentKey, 128),
                         "projectId", projectId
                 )
         );
@@ -1698,7 +1689,7 @@ public class ExecutionRunService {
     }
 
     private String dispatchEnvironmentId(DispatchExecutionNodeRunCommand command, ResolvedDispatchTarget target) {
-        String environmentId = boundedNullableText(command.environmentId(), 128);
+        String environmentId = SensitiveTextSanitizer.boundedNullableText(command.environmentId(), 128);
         if (StringUtils.hasText(environmentId)) {
             return environmentId;
         }
@@ -1773,13 +1764,13 @@ public class ExecutionRunService {
         summary.put("wp6TraceId", wp6Run.run().traceId());
         summary.put("baseUrlSource", preparation.baseUrlSource());
         summary.put("baseUrlRefDigest", StringUtils.hasText(preparation.baseUrlRef())
-                ? "sha256:" + sha256(preparation.baseUrlRef())
+                ? "sha256:" + SensitiveTextSanitizer.sha256Hex(preparation.baseUrlRef())
                 : null);
         summary.put("runtimeCaseIdsProvided", preparation.runtimeCaseIdsProvided());
         summary.put("runtimeSecretRefsProvided", preparation.runtimeSecretRefsProvided());
         summary.put("runtimeSecretRefCount", preparation.secretRefs().size());
         summary.put("runtimeSecretRefDigests", preparation.secretRefs().stream()
-                .map(secretRef -> "sha256:" + sha256(secretRef))
+                .map(secretRef -> "sha256:" + SensitiveTextSanitizer.sha256Hex(secretRef))
                 .toList());
         summary.put("rawBaseUrlStored", false);
         summary.put("secretRefsStored", false);
@@ -1955,10 +1946,6 @@ public class ExecutionRunService {
         contextClient.writeAuditEvent(action, "EXECUTION_RUN", run.id().toString(), run.projectId(), result, afterJson);
     }
 
-    private String boundedNullableText(String value, int maxLength) {
-        return SensitiveTextSanitizer.boundedNullableText(value, maxLength);
-    }
-
     private Map<String, Object> readMap(String json) {
         if (!StringUtils.hasText(json)) {
             return Map.of();
@@ -1976,10 +1963,6 @@ public class ExecutionRunService {
         } catch (JsonProcessingException exception) {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "EXECUTION_JSON_INVALID");
         }
-    }
-
-    private String sha256(String value) {
-        return SensitiveTextSanitizer.sha256Hex(value);
     }
 
     private String mergedSummary(String existingJson, Map<String, Object> overrides) {

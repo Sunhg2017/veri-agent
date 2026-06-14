@@ -1,6 +1,7 @@
 package com.songhg.veri.agent.testdesign.application;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -54,6 +55,8 @@ public class TestDesignGenerationService {
     private static final String MODEL_CALLER_SERVICE = "wp5-test-design";
     private static final String MODEL_CAPABILITY_JSON = "JSON";
     private static final String DEFAULT_MODEL_SENSITIVITY_LEVEL = "INTERNAL";
+    private static final TypeReference<Map<String, Object>> STRING_OBJECT_MAP = new TypeReference<>() {
+    };
     private static final Set<String> MODEL_CONTEXT_SUMMARY_POLICY_KEYS = Set.of(
             "assemblyPolicy",
             "policyGovernance",
@@ -1128,7 +1131,6 @@ public class TestDesignGenerationService {
         }
     }
 
-    @SuppressWarnings("unchecked")
     private Map<String, Object> contextSummaryMap(TestDesignTask task, String key) {
         if (task == null || !StringUtils.hasText(task.contextSummaryJson())) {
             return Map.of();
@@ -1138,8 +1140,8 @@ public class TestDesignGenerationService {
             if (!node.isObject()) {
                 return Map.of();
             }
-            return objectMapper.convertValue(node, Map.class);
-        } catch (Exception exception) {
+            return objectMapper.convertValue(node, STRING_OBJECT_MAP);
+        } catch (JsonProcessingException | IllegalArgumentException exception) {
             return Map.of();
         }
     }

@@ -63,13 +63,12 @@ final class TestDesignTaskReportContextPolicyOperationsRows {
                 snapshot.get("aggregateOnly"), null, "success", "fullTask", null);
     }
 
-    @SuppressWarnings("unchecked")
     private static Map<String, Object> taskPolicyOperations(TestDesignTaskResponse task) {
         Map<String, Object> snapshot = new LinkedHashMap<>(TestDesignContextPolicyOperations.snapshot());
         if (task != null && task.contextSummary() != null) {
             Object value = task.contextSummary().get("policyOperations");
             if (value instanceof Map<?, ?> map) {
-                snapshot.putAll((Map<String, Object>) map);
+                map.forEach((key, entryValue) -> snapshot.put(String.valueOf(key), entryValue));
             }
         }
         TestDesignContextPolicyOperationsResponse operations = task == null ? null : task.contextPolicyOperations();

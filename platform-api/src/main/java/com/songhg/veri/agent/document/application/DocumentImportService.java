@@ -95,9 +95,7 @@ public class DocumentImportService {
         this.actorResolver = actorResolver;
         this.responseMapper = new DocumentInputResponseMapper(repository, objectMapper);
         this.eventPublisher = eventPublisher;
-        PlatformTransactionManager transactionManager = transactionManagers == null
-                ? null
-                : transactionManagers.getIfAvailable();
+        PlatformTransactionManager transactionManager = transactionManagers.getIfAvailable();
         this.transactionTemplate = transactionManager == null ? null : new TransactionTemplate(transactionManager);
     }
 

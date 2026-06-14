@@ -306,10 +306,6 @@ final class AssetImportExportSupport {
         return StringUtils.hasText(value) ? value : defaultValue;
     }
 
-    static String assetCode(String prefix, UUID id) {
-        return prefix + "-" + id.toString().replace("-", "").substring(0, 12);
-    }
-
     static String trimToNull(String value) {
         return StringUtils.hasText(value) ? value.trim() : null;
     }
@@ -333,11 +329,6 @@ final class AssetImportExportSupport {
 
     static boolean hasUsefulSchema(String schema) {
         return StringUtils.hasText(schema) && !"{}".equals(schema.trim());
-    }
-
-    @SuppressWarnings("unchecked")
-    static Map<String, Object> castMap(Object value) {
-        return (Map<String, Object>) value;
     }
 
     private static String openApiSourceRef(String path, String method) {

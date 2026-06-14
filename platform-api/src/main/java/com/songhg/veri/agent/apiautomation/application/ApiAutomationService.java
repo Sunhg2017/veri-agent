@@ -282,7 +282,7 @@ public class ApiAutomationService {
             );
         }
         String sourceType = normalizeSourceType(command.sourceType());
-        String specDigest = sha256(content);
+        String specDigest = SensitiveTextSanitizer.sha256Hex(content);
         ApiAutomationSpec existing = repository.activeSpecByProjectAndDigest(projectId, specDigest).orElse(null);
         if (existing != null) {
             return specDetail(existing.id());
@@ -295,8 +295,8 @@ public class ApiAutomationService {
                 projectId,
                 sourceType,
                 sanitizeSourceRef(command.sourceRef()),
-                boundedText(command.name(), 128),
-                boundedNullableText(command.versionLabel(), 64),
+                SensitiveTextSanitizer.boundedText(command.name(), 128),
+                SensitiveTextSanitizer.boundedNullableText(command.versionLabel(), 64),
                 specDigest,
                 contentSize,
                 "{}",
@@ -560,7 +560,7 @@ public class ApiAutomationService {
         ApiAutomationScriptBundle updated = scriptBundleWithReview(
                 bundle,
                 "REVIEWING",
-                boundedNullableText(command == null ? null : command.note(), 512),
+                SensitiveTextSanitizer.boundedNullableText(command == null ? null : command.note(), 512),
                 actor,
                 bundle.approvedBy(),
                 now,
@@ -611,7 +611,7 @@ public class ApiAutomationService {
         if (!"REVIEWING".equals(bundle.status())) {
             throw new BusinessException(ErrorCode.INVALID_STATE, "仅 REVIEWING 脚本包可驳回");
         }
-        String note = boundedNullableText(command == null ? null : command.note(), 512);
+        String note = SensitiveTextSanitizer.boundedNullableText(command == null ? null : command.note(), 512);
         if (!StringUtils.hasText(note)) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "驳回原因必填");
         }
@@ -708,7 +708,7 @@ public class ApiAutomationService {
                 timeoutSeconds,
                 cases.size(),
                 runnerMode,
-                boundedNullableText(attempt.errorCode(), 64),
+                SensitiveTextSanitizer.boundedNullableText(attempt.errorCode(), 64),
                 safeRunnerErrorSummary(attempt.errorSummary(), target.normalizedBaseUrl()),
                 actor,
                 now,
@@ -770,7 +770,7 @@ public class ApiAutomationService {
         String actor = actorResolver.currentActor();
         ApiAutomationRun canceled = runWithCancel(
                 run,
-                boundedNullableText(cancelResult.errorCode(), 64),
+                SensitiveTextSanitizer.boundedNullableText(cancelResult.errorCode(), 64),
                 safeRunnerErrorSummary(cancelResult.errorSummary()),
                 actor,
                 now
@@ -868,7 +868,7 @@ public class ApiAutomationService {
         return new RunSecretRefs(
                 normalized.size(),
                 List.copyOf(normalized),
-                normalized.stream().map(secretRef -> "sha256:" + sha256(secretRef)).toList()
+                normalized.stream().map(secretRef -> "sha256:" + SensitiveTextSanitizer.sha256Hex(secretRef)).toList()
         );
     }
 
@@ -938,7 +938,7 @@ public class ApiAutomationService {
      * database receives a digest and host so queryability and audit correlation do not leak path, query or credentials.
      */
     private RunTarget validateRunTarget(String rawBaseUrl) {
-        String bounded = boundedNullableText(rawBaseUrl, RUNNER_BASE_URL_MAX_CHARS);
+        String bounded = SensitiveTextSanitizer.boundedNullableText(rawBaseUrl, RUNNER_BASE_URL_MAX_CHARS);
         if (!StringUtils.hasText(bounded)) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "baseUrl 必填");
         }
@@ -967,7 +967,7 @@ public class ApiAutomationService {
         int port = uri.getPort();
         String authority = port > 0 ? host + ":" + port : host;
         String normalized = scheme + "://" + authority + path;
-        return new RunTarget(normalized, host, sha256(normalized), blockedTargetHost(host), allowedTargetHost(host));
+        return new RunTarget(normalized, host, SensitiveTextSanitizer.sha256Hex(normalized), blockedTargetHost(host), allowedTargetHost(host));
     }
 
     private String normalizedHost(String host) {
@@ -1065,7 +1065,7 @@ public class ApiAutomationService {
         if (!validation.accepted()) {
             return new RunBlock(
                     StringUtils.hasText(validation.errorCode())
-                            ? boundedText(validation.errorCode(), 64)
+                            ? SensitiveTextSanitizer.boundedText(validation.errorCode(), 64)
                             : "RUNNER_FAILED",
                     StringUtils.hasText(validation.errorSummary())
                             ? safeRunnerErrorSummary(validation.errorSummary())
@@ -1098,7 +1098,7 @@ public class ApiAutomationService {
                 runId,
                 bundle.projectId(),
                 bundle.id(),
-                boundedNullableText(command.environmentId(), 128),
+                SensitiveTextSanitizer.boundedNullableText(command.environmentId(), 128),
                 target.digest(),
                 target.host(),
                 status,
@@ -1172,7 +1172,7 @@ public class ApiAutomationService {
                             status,
                             runnerResult == null ? 0 : Math.max(0, runnerResult.durationMs()),
                             safeAssertionSummary(runnerResult == null ? null : runnerResult.assertionSummaryJson()),
-                            runnerResult == null ? run.errorCode() : boundedNullableText(runnerResult.errorCode(), 64),
+                            runnerResult == null ? run.errorCode() : SensitiveTextSanitizer.boundedNullableText(runnerResult.errorCode(), 64),
                             runnerResult == null
                                     ? run.errorSummary()
                                     : safeRunnerErrorSummary(runnerResult.errorSummary(), normalizedBaseUrl),
@@ -1280,7 +1280,6 @@ public class ApiAutomationService {
         return summary;
     }
 
-    @SuppressWarnings("unchecked")
     private Object sanitizeRunnerSummaryValue(String key, Object value) {
         if (sensitiveRunnerSummaryKey(key)) {
             return "[REDACTED]";
@@ -1403,7 +1402,7 @@ public class ApiAutomationService {
         payload.put("status", run.status());
         payload.put("accepted", false);
         if (cancelResult != null) {
-            String errorCode = boundedNullableText(cancelResult.errorCode(), 64);
+            String errorCode = SensitiveTextSanitizer.boundedNullableText(cancelResult.errorCode(), 64);
             String errorSummary = safeRunnerErrorSummary(cancelResult.errorSummary());
             if (errorCode != null) {
                 payload.put("errorCode", errorCode);
@@ -1430,7 +1429,7 @@ public class ApiAutomationService {
         Map<String, Object> fileTreeSummary = fileTreeSummary(task, cases, files);
         Map<String, Object> dependencySummary = dependencySummary();
         StaticCheckResult staticCheck = staticCheck(files);
-        String bundleDigest = sha256(writeJson(Map.of(
+        String bundleDigest = SensitiveTextSanitizer.sha256Hex(writeJson(Map.of(
                 "templateVersion", SCRIPT_TEMPLATE_VERSION,
                 "taskId", task.id().toString(),
                 "fileTreeSummary", fileTreeSummary,
@@ -1629,7 +1628,7 @@ public class ApiAutomationService {
         summary.put("templateVersion", SCRIPT_TEMPLATE_VERSION);
         summary.put("taskId", task.id().toString());
         summary.put("caseCount", cases.size());
-        summary.put("caseIdsDigest", sha256(cases.stream()
+        summary.put("caseIdsDigest", SensitiveTextSanitizer.sha256Hex(cases.stream()
                 .map(value -> value.id().toString())
                 .sorted()
                 .collect(Collectors.joining(","))));
@@ -1637,7 +1636,7 @@ public class ApiAutomationService {
             Map<String, Object> item = new LinkedHashMap<>();
             item.put("path", file.path());
             item.put("kind", file.kind());
-            item.put("digest", sha256(file.content()));
+            item.put("digest", SensitiveTextSanitizer.sha256Hex(file.content()));
             item.put("lineCount", lineCount(file.content()));
             item.put("pythonFile", file.path().endsWith(".py"));
             return item;
@@ -1715,7 +1714,7 @@ public class ApiAutomationService {
                     break;
                 }
             }
-            if (containsSensitiveText(file.content())) {
+            if (SensitiveTextSanitizer.containsSensitiveText(file.content())) {
                 violations.add(file.path() + ":HARDCODED_SECRET_PATTERN");
             }
         }
@@ -1790,10 +1789,6 @@ public class ApiAutomationService {
         return "\"" + escaped + "\"";
     }
 
-    private boolean containsSensitiveText(String value) {
-        return SensitiveTextSanitizer.containsSensitiveText(value);
-    }
-
     private GenerationRequest normalizeGenerationRequest(
             String projectId,
             CreateApiAutomationGenerationTaskCommand command
@@ -1809,7 +1804,7 @@ public class ApiAutomationService {
                     "assetTestCaseIds 最多支持 " + GENERATION_SOURCE_TEST_CASE_MAX + " 个"
             );
         }
-        String requestKey = boundedNullableText(command.requestKey(), 128);
+        String requestKey = SensitiveTextSanitizer.boundedNullableText(command.requestKey(), 128);
         Map<String, Object> digestPayload = new LinkedHashMap<>();
         digestPayload.put("projectId", projectId);
         digestPayload.put("specId", command.specId().toString());
@@ -1818,7 +1813,7 @@ public class ApiAutomationService {
         digestPayload.put("coverageTypes", coverageTypes);
         digestPayload.put("generationMode", generationMode);
         digestPayload.put("caseCountPerApi", caseCountPerApi);
-        String requestDigest = sha256(writeJson(digestPayload));
+        String requestDigest = SensitiveTextSanitizer.sha256Hex(writeJson(digestPayload));
         return new GenerationRequest(
                 projectId,
                 command.specId(),
@@ -1995,7 +1990,7 @@ public class ApiAutomationService {
                 false,
                 "DETERMINISTIC_MODE".equals(fallbackReason)
                         ? null
-                        : boundedNullableText(fallbackReason, ERROR_SUMMARY_MAX_CHARS)
+                        : SensitiveTextSanitizer.boundedNullableText(fallbackReason, ERROR_SUMMARY_MAX_CHARS)
         );
     }
 
@@ -2094,7 +2089,7 @@ public class ApiAutomationService {
                 endpoint.id(),
                 endpoint.assetApiId(),
                 sourceTestCaseId,
-                boundedText(generatedCase.title(), 256),
+                SensitiveTextSanitizer.boundedText(generatedCase.title(), 256),
                 endpoint.httpMethod(),
                 endpoint.path(),
                 generatedCase.coverageType(),
@@ -2189,10 +2184,10 @@ public class ApiAutomationService {
                 ? generationException.getCause()
                 : exception;
         if (root instanceof BusinessException businessException) {
-            return boundedText(businessException.getErrorCode().name() + ": " + businessException.getMessage(),
+            return SensitiveTextSanitizer.boundedText(businessException.getErrorCode().name() + ": " + businessException.getMessage(),
                     ERROR_SUMMARY_MAX_CHARS);
         }
-        return boundedText("MODEL_GENERATION_FAILED: " + (StringUtils.hasText(root.getMessage())
+        return SensitiveTextSanitizer.boundedText("MODEL_GENERATION_FAILED: " + (StringUtils.hasText(root.getMessage())
                 ? root.getMessage()
                 : root.getClass().getSimpleName()), ERROR_SUMMARY_MAX_CHARS);
     }
@@ -2246,7 +2241,7 @@ public class ApiAutomationService {
                 endpoint.id(),
                 endpoint.assetApiId(),
                 sourceTestCaseId,
-                boundedText("[" + coverageType + "] " + endpoint.httpMethod() + " " + endpoint.path(), 256),
+                SensitiveTextSanitizer.boundedText("[" + coverageType + "] " + endpoint.httpMethod() + " " + endpoint.path(), 256),
                 endpoint.httpMethod(),
                 endpoint.path(),
                 coverageType,
@@ -2270,7 +2265,7 @@ public class ApiAutomationService {
         summary.put("priority", nullToEmpty(testCase.priority()));
         summary.put("tags", safeSourceText(testCase.tags(), GENERATION_SOURCE_TEXT_MAX_CHARS));
         summary.put("source", nullToEmpty(testCase.source()));
-        summary.put("sourceRefDigest", StringUtils.hasText(testCase.sourceRef()) ? sha256(testCase.sourceRef()) : null);
+        summary.put("sourceRefDigest", StringUtils.hasText(testCase.sourceRef()) ? SensitiveTextSanitizer.sha256Hex(testCase.sourceRef()) : null);
         summary.put("stepCount", testCase.steps() == null ? 0 : testCase.steps().size());
         summary.put("steps", sourceStepSummaries(testCase.steps()));
         summary.put("rawCandidateStored", false);
@@ -2607,7 +2602,7 @@ public class ApiAutomationService {
                 "PARSE_FAILED",
                 OpenApiSpecParser.PARSER_VERSION,
                 0,
-                boundedText(message, ERROR_SUMMARY_MAX_CHARS),
+                SensitiveTextSanitizer.boundedText(message, ERROR_SUMMARY_MAX_CHARS),
                 spec.createdBy(),
                 actor,
                 null,
@@ -2700,7 +2695,7 @@ public class ApiAutomationService {
         } catch (BusinessException exception) {
             ApiAutomationEndpointSnapshot failed = endpointWithDiff(endpoint, endpoint.assetApiId(), endpoint.diffStatus(),
                     readSummary(endpoint.diffSummaryJson()), endpoint.lastDiffAt(), endpoint.syncedAt(),
-                    boundedText(exception.getMessage(), ERROR_SUMMARY_MAX_CHARS));
+                    SensitiveTextSanitizer.boundedText(exception.getMessage(), ERROR_SUMMARY_MAX_CHARS));
             repository.updateEndpointSnapshotDiff(failed);
             return new SyncAttempt(failed, syncItem(failed, "FAILED", failed.syncErrorSummary()));
         }
@@ -2727,7 +2722,7 @@ public class ApiAutomationService {
         } catch (BusinessException exception) {
             ApiAutomationEndpointSnapshot failed = endpointWithDiff(endpoint, endpoint.assetApiId(), endpoint.diffStatus(),
                     readSummary(endpoint.diffSummaryJson()), endpoint.lastDiffAt(), endpoint.syncedAt(),
-                    boundedText(exception.getMessage(), ERROR_SUMMARY_MAX_CHARS));
+                    SensitiveTextSanitizer.boundedText(exception.getMessage(), ERROR_SUMMARY_MAX_CHARS));
             repository.updateEndpointSnapshotDiff(failed);
             return new SyncAttempt(failed, syncItem(failed, "FAILED", failed.syncErrorSummary()));
         }
@@ -2735,12 +2730,12 @@ public class ApiAutomationService {
 
     private SyncOpenApiRequest syncRequest(ApiAutomationSpec spec, ApiAutomationEndpointSnapshot endpoint, boolean create) {
         return new SyncOpenApiRequest(
-                boundedText(StringUtils.hasText(endpoint.summary()) ? endpoint.summary() : endpoint.httpMethod() + " " + endpoint.path(),
+                SensitiveTextSanitizer.boundedText(StringUtils.hasText(endpoint.summary()) ? endpoint.summary() : endpoint.httpMethod() + " " + endpoint.path(),
                         WP3_API_SUMMARY_MAX_CHARS),
-                boundedText("WP6 OpenAPI sync " + nullToEmpty(endpoint.serviceName()) + " " + nullToEmpty(endpoint.operationId()), 512),
+                SensitiveTextSanitizer.boundedText("WP6 OpenAPI sync " + nullToEmpty(endpoint.serviceName()) + " " + nullToEmpty(endpoint.operationId()), 512),
                 endpoint.httpMethod(),
                 endpoint.path(),
-                boundedText(endpoint.schemaDigest(), WP3_API_VERSION_MAX_CHARS),
+                SensitiveTextSanitizer.boundedText(endpoint.schemaDigest(), WP3_API_VERSION_MAX_CHARS),
                 requestSchema(endpoint),
                 responseSchema(endpoint),
                 spec.projectId(),
@@ -2808,15 +2803,15 @@ public class ApiAutomationService {
         summary.put("action", action);
         summary.put("httpMethod", endpoint.httpMethod());
         summary.put("path", endpoint.path());
-        summary.put("summary", boundedText(
+        summary.put("summary", SensitiveTextSanitizer.boundedText(
                 StringUtils.hasText(endpoint.summary()) ? endpoint.summary() : endpoint.httpMethod() + " " + endpoint.path(),
                 WP3_API_SUMMARY_MAX_CHARS
         ));
         summary.put("projectId", spec.projectId());
-        summary.put("versionLabel", boundedText(endpoint.schemaDigest(), WP3_API_VERSION_MAX_CHARS));
+        summary.put("versionLabel", SensitiveTextSanitizer.boundedText(endpoint.schemaDigest(), WP3_API_VERSION_MAX_CHARS));
         summary.put("sourceRef", endpointSourceRef(endpoint));
-        summary.put("requestSchemaDigest", sha256(requestSchema(endpoint)));
-        summary.put("responseSchemaDigest", sha256(responseSchema(endpoint)));
+        summary.put("requestSchemaDigest", SensitiveTextSanitizer.sha256Hex(requestSchema(endpoint)));
+        summary.put("responseSchemaDigest", SensitiveTextSanitizer.sha256Hex(responseSchema(endpoint)));
         summary.put("parameterCount", endpoint.parameterCount());
         summary.put("requestBodyPresent", endpoint.requestBodyPresent());
         summary.put("responseStatuses", StringUtils.hasText(endpoint.responseStatuses()) ? endpoint.responseStatuses() : "");
@@ -3182,7 +3177,7 @@ public class ApiAutomationService {
             ApiAutomationScriptBundle bundle,
             ReviewApiAutomationScriptBundleCommand command
     ) {
-        String note = boundedNullableText(command == null ? null : command.note(), 512);
+        String note = SensitiveTextSanitizer.boundedNullableText(command == null ? null : command.note(), 512);
         return StringUtils.hasText(note) ? note : bundle.reviewNote();
     }
 
@@ -3284,34 +3279,18 @@ public class ApiAutomationService {
         String trimmed = sourceRef.trim();
         int queryIndex = trimmed.indexOf('?');
         String withoutQuery = queryIndex >= 0 ? trimmed.substring(0, queryIndex) : trimmed;
-        return boundedText(withoutQuery, 512);
-    }
-
-    private String boundedNullableText(String value, int maxLength) {
-        return SensitiveTextSanitizer.boundedNullableText(value, maxLength);
-    }
-
-    private String boundedText(String value, int maxLength) {
-        return SensitiveTextSanitizer.boundedText(value, maxLength);
+        return SensitiveTextSanitizer.boundedText(withoutQuery, 512);
     }
 
     private String safeSourceText(String value, int maxLength) {
         if (!StringUtils.hasText(value)) {
             return "";
         }
-        return boundedText(redactSensitiveText(value), maxLength);
-    }
-
-    private String redactSensitiveText(String value) {
-        return SensitiveTextSanitizer.redactSensitiveText(value);
+        return SensitiveTextSanitizer.boundedText(SensitiveTextSanitizer.redactSensitiveText(value), maxLength);
     }
 
     private String nullToEmpty(String value) {
         return value == null ? "" : value;
-    }
-
-    private String sha256(String value) {
-        return SensitiveTextSanitizer.sha256Hex(value);
     }
 
     private void audit(
