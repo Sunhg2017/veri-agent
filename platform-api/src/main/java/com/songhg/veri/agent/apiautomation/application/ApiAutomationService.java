@@ -62,9 +62,6 @@ import com.songhg.veri.agent.modelaccess.application.command.ModelInvocationComm
 import com.songhg.veri.agent.modelaccess.application.view.ModelInvocationResult;
 import com.songhg.veri.agent.modelaccess.domain.ChatMessage;
 import com.songhg.veri.agent.modelaccess.security.ServicePrincipal;
-import java.net.IDN;
-import java.net.URI;
-import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -99,7 +96,6 @@ public class ApiAutomationService {
     private static final int GENERATION_SOURCE_TEST_CASE_MAX = 20;
     private static final int GENERATION_SOURCE_STEP_MAX = 3;
     private static final int GENERATION_SOURCE_TEXT_MAX_CHARS = 160;
-    private static final int RUNNER_BASE_URL_MAX_CHARS = 512;
     private static final int RUNNER_SECRET_REF_MAX_COUNT = 10;
     private static final int RUNNER_SECRET_REF_MAX_CHARS = 256;
     private static final int RUNNER_SECRET_VALUE_MAX_CHARS = 8_192;
@@ -116,7 +112,6 @@ public class ApiAutomationService {
     private static final Set<String> SCRIPT_REVIEW_SUBMITTABLE_STATUSES = Set.of("DRAFT", "REJECTED");
     private static final Set<String> RUN_STATUSES = Set.of("BLOCKED", "QUEUED", "RUNNING", "PASSED", "FAILED", "TIMEOUT", "CANCELED");
     private static final Set<String> RUN_RESULT_STATUSES = Set.of("PASSED", "FAILED", "SKIPPED", "ERROR", "TIMEOUT", "BLOCKED");
-    private static final Set<String> BLOCKED_RUN_TARGET_HOSTS = Set.of("localhost", "metadata.google.internal");
     private static final String SCRIPT_TEMPLATE_VERSION = "wp6-pytest-httpx-v1";
     private static final String STATIC_CHECK_PASSED = "PASSED";
     private static final String STATIC_CHECK_FAILED = "SCRIPT_STATIC_CHECK_FAILED";
@@ -129,7 +124,6 @@ public class ApiAutomationService {
             Pattern.compile("(?m)^\\s*(import|from)\\s+(subprocess|socket|ftplib|paramiko|telnetlib|pickle|marshal)\\b"),
             Pattern.compile("\\b(os\\.system|eval|exec|__import__)\\s*\\(")
     );
-    private static final Pattern IPV4_LITERAL_PATTERN = Pattern.compile("\\d{1,3}(\\.\\d{1,3}){3}");
     private static final Pattern SECRET_REF_PATTERN = Pattern.compile("^secret://[A-Za-z0-9._~:/?#\\[\\]@!$&'()*+,;=%-]+$");
     private static final TypeReference<Map<String, Object>> MAP_TYPE = new TypeReference<>() {
     };
@@ -148,6 +142,7 @@ public class ApiAutomationService {
     private final ApiAutomationModelOutputParser modelOutputParser;
     private final ObjectMapper objectMapper;
     private final ApiAutomationRunnerResultSanitizer runnerResultSanitizer;
+    private final ApiAutomationRunTargetGuard runTargetGuard;
     private final List<SecretProvider> secretProviders;
 
     public ApiAutomationService(
@@ -236,6 +231,7 @@ public class ApiAutomationService {
         this.modelOutputParser = modelOutputParser;
         this.objectMapper = objectMapper;
         this.runnerResultSanitizer = new ApiAutomationRunnerResultSanitizer(properties, objectMapper);
+        this.runTargetGuard = new ApiAutomationRunTargetGuard(properties);
         this.secretProviders = secretProviders == null ? List.of() : List.copyOf(secretProviders);
     }
 
@@ -266,7 +262,7 @@ public class ApiAutomationService {
                         Map.entry("runnerRunReady", true),
                         Map.entry("runnerMode", properties.effectiveRunnerMode()),
                         Map.entry("runnerArtifactMaxBytes", properties.effectiveRunnerArtifactMaxBytes()),
-                        Map.entry("runnerAllowedBaseUrlConfigured", !allowedBaseUrlPatterns().isEmpty()),
+                        Map.entry("runnerAllowedBaseUrlConfigured", runTargetGuard.allowedBaseUrlConfigured()),
                         Map.entry("aggregateOnly", true)
                 )
         );
@@ -645,7 +641,7 @@ public class ApiAutomationService {
         ApiAutomationGenerationTask task = repository.generationTask(bundle.taskId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "接口自动化生成任务不存在: " + bundle.taskId()));
         List<ApiAutomationCase> cases = selectedRunCases(task, command.caseIds());
-        RunTarget target = validateRunTarget(command.baseUrl());
+        ApiAutomationRunTargetGuard.RunTarget target = runTargetGuard.validateRunTarget(command.baseUrl());
         RunSecretRefs secretRefs = validateRunSecretRefs(command.secretRefs());
         int timeoutSeconds = properties.effectiveRunnerTimeoutSeconds(command.timeoutSeconds());
         Instant now = Instant.now();
@@ -935,122 +931,11 @@ public class ApiAutomationService {
         }
     }
 
-    /**
-     * Normalizes the runner base URL before any persistence. The raw URL is used only for the runner adapter call; the
-     * database receives a digest and host so queryability and audit correlation do not leak path, query or credentials.
-     */
-    private RunTarget validateRunTarget(String rawBaseUrl) {
-        String bounded = SensitiveTextSanitizer.boundedNullableText(rawBaseUrl, RUNNER_BASE_URL_MAX_CHARS);
-        if (!StringUtils.hasText(bounded)) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "baseUrl 必填");
-        }
-        URI uri;
-        try {
-            uri = new URI(bounded);
-        } catch (URISyntaxException exception) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "baseUrl 必须是合法 HTTP/HTTPS URL");
-        }
-        String scheme = uri.getScheme() == null ? "" : uri.getScheme().toLowerCase(Locale.ROOT);
-        if (!Set.of("http", "https").contains(scheme)) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "baseUrl 仅支持 http/https");
-        }
-        if (StringUtils.hasText(uri.getRawUserInfo()) || StringUtils.hasText(uri.getRawQuery())
-                || StringUtils.hasText(uri.getRawFragment())) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "baseUrl 不允许携带 userInfo/query/fragment");
-        }
-        String host = normalizedHost(uri.getHost());
-        if (!StringUtils.hasText(host)) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "baseUrl 必须包含 host");
-        }
-        String path = StringUtils.hasText(uri.getRawPath()) ? uri.getRawPath() : "";
-        if (path.endsWith("/") && path.length() > 1) {
-            path = path.substring(0, path.length() - 1);
-        }
-        int port = uri.getPort();
-        String authority = port > 0 ? host + ":" + port : host;
-        String normalized = scheme + "://" + authority + path;
-        return new RunTarget(normalized, host, SensitiveTextSanitizer.sha256Hex(normalized), blockedTargetHost(host), allowedTargetHost(host));
-    }
-
-    private String normalizedHost(String host) {
-        if (!StringUtils.hasText(host)) {
-            return "";
-        }
-        try {
-            return IDN.toASCII(host.trim().toLowerCase(Locale.ROOT));
-        } catch (IllegalArgumentException exception) {
-            return "";
-        }
-    }
-
-    private boolean blockedTargetHost(String host) {
-        if (!StringUtils.hasText(host)) {
-            return true;
-        }
-        String normalized = host.toLowerCase(Locale.ROOT);
-        if (BLOCKED_RUN_TARGET_HOSTS.contains(normalized) || normalized.endsWith(".localhost")) {
-            return true;
-        }
-        if ("169.254.169.254".equals(normalized) || "::1".equals(normalized) || "0:0:0:0:0:0:0:1".equals(normalized)) {
-            return true;
-        }
-        if (IPV4_LITERAL_PATTERN.matcher(normalized).matches()) {
-            return privateIpv4(normalized);
-        }
-        return normalized.startsWith("[") || normalized.endsWith(".local");
-    }
-
-    private boolean privateIpv4(String host) {
-        String[] parts = host.split("\\.");
-        int first = Integer.parseInt(parts[0]);
-        int second = Integer.parseInt(parts[1]);
-        if (first == 10 || first == 127 || first == 0 || first == 169 && second == 254) {
-            return true;
-        }
-        if (first == 172 && second >= 16 && second <= 31) {
-            return true;
-        }
-        return first == 192 && second == 168;
-    }
-
-    private boolean allowedTargetHost(String host) {
-        List<String> patterns = allowedBaseUrlPatterns();
-        if (patterns.isEmpty()) {
-            return false;
-        }
-        return patterns.stream().anyMatch(pattern -> hostMatchesPattern(host, pattern));
-    }
-
-    private List<String> allowedBaseUrlPatterns() {
-        if (!StringUtils.hasText(properties.runnerAllowedBaseUrlPatterns())) {
-            return List.of();
-        }
-        return List.of(properties.runnerAllowedBaseUrlPatterns().split(",")).stream()
-                .map(String::trim)
-                .map(value -> value.toLowerCase(Locale.ROOT))
-                .filter(StringUtils::hasText)
-                .distinct()
-                .toList();
-    }
-
-    private boolean hostMatchesPattern(String host, String pattern) {
-        String normalizedHost = host.toLowerCase(Locale.ROOT);
-        String normalizedPattern = pattern;
-        if (normalizedPattern.startsWith("http://") || normalizedPattern.startsWith("https://")) {
-            try {
-                normalizedPattern = normalizedHost(new URI(normalizedPattern).getHost());
-            } catch (URISyntaxException exception) {
-                return false;
-            }
-        }
-        if (normalizedPattern.startsWith("*.")) {
-            String suffix = normalizedPattern.substring(1);
-            return normalizedHost.endsWith(suffix) && normalizedHost.length() > suffix.length();
-        }
-        return normalizedHost.equals(normalizedPattern);
-    }
-
-    private RunBlock runBlockReason(ApiAutomationScriptBundle bundle, List<ApiAutomationCase> cases, RunTarget target) {
+    private RunBlock runBlockReason(
+            ApiAutomationScriptBundle bundle,
+            List<ApiAutomationCase> cases,
+            ApiAutomationRunTargetGuard.RunTarget target
+    ) {
         if (!"APPROVED".equals(bundle.status())) {
             return new RunBlock("RUNNER_BUNDLE_NOT_APPROVED", "脚本包未审批通过，不能运行");
         }
@@ -1084,7 +969,7 @@ public class ApiAutomationService {
             UUID runId,
             ApiAutomationScriptBundle bundle,
             CreateApiAutomationRunCommand command,
-            RunTarget target,
+            ApiAutomationRunTargetGuard.RunTarget target,
             String status,
             int timeoutSeconds,
             int caseCount,
@@ -3281,15 +3166,6 @@ public class ApiAutomationService {
             String path,
             String kind,
             String content
-    ) {
-    }
-
-    private record RunTarget(
-            String normalizedBaseUrl,
-            String host,
-            String digest,
-            boolean blocked,
-            boolean allowed
     ) {
     }
 
