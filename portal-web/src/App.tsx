@@ -7,6 +7,7 @@ import {
   DatabaseZap,
   FileText,
   GitBranch,
+  KeyRound,
   LayoutDashboard,
   Link2,
   LogOut,
@@ -37,6 +38,7 @@ import { ModelAccessConsole } from './components/ModelAccessConsole';
 import { ManagementPage } from './components/AppManagementPage';
 import { OverviewPage } from './components/AppOverviewPage';
 import { TestDesignWorkbench } from './components/TestDesignWorkbench';
+import { TestDataWorkbench } from './components/TestDataWorkbench';
 import { useToast } from './components/Toast';
 import {
   assignUserRole,
@@ -139,6 +141,13 @@ const pages: PageDefinition[] = [
     title: '执行编排',
     description: '管理执行计划、DAG 校验、运行状态、触发配置和调度摘要。',
     icon: GitBranch
+  },
+  {
+    key: 'test-data',
+    label: '测试数据',
+    title: '测试数据',
+    description: '维护数据集、账号池、租借记录和清理任务。',
+    icon: KeyRound
   },
   {
     key: 'model-access',
@@ -562,6 +571,8 @@ export function App() {
         return <ApiAutomationWorkbench signedIn={signedIn} currentUser={currentUser} />;
       case 'execution':
         return <ExecutionWorkbench signedIn={signedIn} currentUser={currentUser} />;
+      case 'test-data':
+        return <TestDataWorkbench signedIn={signedIn} currentUser={currentUser} />;
       case 'model-access':
         return <ModelAccessConsole signedIn={signedIn} currentUser={currentUser} />;
       default:

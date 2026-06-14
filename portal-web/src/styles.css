@@ -1833,6 +1833,281 @@ tbody tr:hover td {
   overflow-wrap: anywhere;
 }
 
+/* ============================================================
+   WP8 测试数据与账号池
+   ============================================================ */
+
+.test-data-workbench {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+}
+
+.test-data-metric-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.test-data-policy-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: var(--space-sm);
+}
+
+.test-data-policy-item {
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  background: var(--bg-alt);
+}
+
+.test-data-policy-item span,
+.test-data-policy-item strong {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.test-data-policy-item span {
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+}
+
+.test-data-policy-item strong {
+  margin-top: 2px;
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+}
+
+.test-data-tabs {
+  display: inline-flex;
+  width: fit-content;
+  max-width: 100%;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  overflow-x: auto;
+}
+
+.test-data-tab {
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.test-data-tab.active {
+  color: var(--primary);
+  background: var(--primary-light);
+}
+
+.test-data-layout {
+  display: grid;
+  grid-template-columns: minmax(360px, 0.95fr) minmax(420px, 1.05fr);
+  gap: var(--space-lg);
+  align-items: start;
+}
+
+.test-data-panel-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-xs);
+  flex-wrap: wrap;
+}
+
+.test-data-table-wrap table {
+  min-width: 620px;
+}
+
+.test-data-primary-text {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.test-data-primary-text strong,
+.test-data-primary-text small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.test-data-primary-text small {
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+}
+
+.test-data-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  margin-bottom: var(--space-sm);
+}
+
+.test-data-list-item,
+.test-data-account-card {
+  min-width: 0;
+  min-height: 56px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  padding: 9px 10px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text-secondary);
+  text-align: left;
+  cursor: pointer;
+}
+
+.test-data-list-item.active,
+.test-data-account-card.active {
+  border-color: var(--border-focus);
+  background: var(--primary-bg);
+}
+
+.test-data-list-item span,
+.test-data-list-item strong,
+.test-data-list-item small,
+.test-data-account-card span,
+.test-data-account-card strong,
+.test-data-account-card small {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.test-data-list-item > span,
+.test-data-account-card > span {
+  display: flex;
+  flex-direction: column;
+}
+
+.test-data-list-item strong,
+.test-data-account-card strong {
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+}
+
+.test-data-list-item small,
+.test-data-account-card small {
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+  line-height: 1.4;
+}
+
+.test-data-subform {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  padding-top: var(--space-sm);
+  margin-top: var(--space-sm);
+  border-top: 1px solid var(--border-light);
+}
+
+.test-data-subheader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+}
+
+.test-data-subheader strong {
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+}
+
+.test-data-subheader span {
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+}
+
+.test-data-record-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-sm);
+}
+
+.test-data-record-card,
+.test-data-summary {
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  background: var(--bg-alt);
+}
+
+.test-data-record-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.test-data-record-card strong,
+.test-data-record-card span,
+.test-data-record-card small {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.test-data-record-card strong {
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+}
+
+.test-data-record-card span,
+.test-data-record-card small {
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+}
+
+.test-data-account-card {
+  min-height: 96px;
+  flex-direction: column;
+}
+
+.test-data-summary {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  flex-wrap: wrap;
+  margin-top: var(--space-sm);
+  background: var(--surface);
+}
+
+.test-data-summary span {
+  min-height: 24px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  background: var(--bg-alt);
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+  overflow-wrap: anywhere;
+}
+
+.test-data-summary strong {
+  color: var(--text-primary);
+}
+
 .method-pill,
 .status-badge {
   display: inline-flex;
@@ -3569,9 +3844,13 @@ tbody tr:hover td {
   .api-automation-history-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .api-automation-policy-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .execution-metric-grid,
-  .execution-node-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .execution-layout { grid-template-columns: 1fr; }
-  .execution-policy-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .execution-node-grid,
+  .test-data-metric-grid,
+  .test-data-record-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .execution-layout,
+  .test-data-layout { grid-template-columns: 1fr; }
+  .execution-policy-grid,
+  .test-data-policy-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .test-design-quality-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .test-design-evaluation-grid,
   .test-design-calibration-grid,
@@ -3646,6 +3925,9 @@ tbody tr:hover td {
   .execution-metric-grid,
   .execution-node-grid,
   .execution-policy-grid,
+  .test-data-metric-grid,
+  .test-data-policy-grid,
+  .test-data-record-grid,
   .execution-trigger-form { grid-template-columns: 1fr; }
   .test-design-quality-metrics { grid-template-columns: 1fr; }
   .test-design-evaluation-metrics { grid-template-columns: 1fr; }

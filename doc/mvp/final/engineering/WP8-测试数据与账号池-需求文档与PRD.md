@@ -180,3 +180,11 @@ M5 已推进跨 WP 引用契约后端切片：WP9 可通过 `TestDataCrossWpRefe
 4. `secretRefDigest` 仅用于审计、比对和脱敏展示，不是可解析凭据；后续真实 runner 凭据注入必须通过受控 SecretProvider adapter，以 `accountLeaseRef` 为句柄完成。
 5. 账号 `scopeSummary` 只能包含项目、应用、环境、角色、菜单或资源范围等非敏感摘要，不得透传 secret、token、cookie、密码或业务数据正文。
 6. 这些契约仍在 `platform-api` 应用层完成，不对外新增跨 WP 公共 HTTP 入口。
+
+M6A 已推进前端工作台基础闭环：测试工程师可通过 `#test-data` 入口在 `portal-web` 维护数据集、账号池、账号摘要、租借和清理任务控制面。产品边界如下：
+
+1. `testData:read` 控制入口可见性和直达访问，`testData:manage/lease/cleanup/export` 分别控制维护、租借、清理和导出操作显隐。
+2. 前端 `testData` API helper 兼容后端 camelCase/snake_case 响应，并对 `schema/cleanupPolicy/maskedSummary/scopeSummary/resultSummary` 做敏感键过滤，保留 digest 字段。
+3. 账号 `secretRef` 只在新增或替换账号摘要时作为写入输入；保存成功后前端表单清空，列表、详情、状态提示和摘要只展示 `secretRefDigest`。
+4. 工作台已覆盖四个基础面板的 loading/empty/error、traceId 展示和 `cleanupEnabled=false` 解释。
+5. M6A 不包含脱敏导出结果面板、分页筛选增强、Playwright 桌面/390px smoke、DOM secretRef 原文扫描脚本或 WP8 聚合 quality gate。

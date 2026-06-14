@@ -119,6 +119,8 @@ M5 当前推进状态：`platform-api` 已新增 `TestDataCrossWpReferenceServic
 | WP8-6.6 清理任务面板 | P1 | 前端工程师 | 任务列表、创建、重试、失败摘要 | cleanup disabled 可解释 | Vitest |
 | WP8-6.7 响应式 smoke | P1 | 前端工程师、质量工程师 | 桌面和 390px 主链路 | 无横向溢出；DOM 无 secretRef 原文 | Playwright smoke |
 
+M6A 当前推进状态：`portal-web` 已新增 `#test-data` 工作台基础闭环，覆盖 `portal-web/src/api/testData.ts` API client/normalize helper、`testData:read/manage/lease/cleanup/export` 前端权限映射、数据集/账号池/租借/清理任务四个基础面板、secretRef 写入后清空且仅展示 `secretRefDigest`、traceId 错误展示和窄屏单列布局。当前 M6A 已通过 `testData.test.ts` 和 `permissions.test.ts` 覆盖路径、payload、权限和脱敏 helper，并通过 `npm run build`。M6A 尚未实现脱敏导出面板、Playwright 桌面/390px smoke 脚本、DOM secretRef 原文扫描脚本和完整 WP8 quality gate，这些继续按 WP8-6.7、WP8-7.5 和 M7 推进。
+
 ## 11. Epic 7：质量门禁和发布准出
 
 | Story | 优先级 | 负责人 | 任务 | 验收 | 验证 |

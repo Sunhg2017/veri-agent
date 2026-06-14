@@ -13,7 +13,7 @@
 
 让测试工程师在浏览器内完成 WP8 P0 主链路：维护数据集、维护账号池、申请和释放账号租借、查看清理任务和导出脱敏摘要。前端只做体验控制，后端仍是权限、scope、状态和敏感字段保护的最终来源。
 
-当前实现节奏说明：M3 只交付账号池后端控制面，不包含 `portal-web` 页面、API client、浏览器 smoke 或响应式验收；本设计仍作为 M6 前端闭环输入。
+当前实现节奏说明：M6A 已交付 `portal-web` 工作台基础闭环，包含 API client、`#test-data` 入口、权限显隐、数据集/账号池/租借/清理任务基础面板和 Vitest 脱敏断言；脱敏导出面板、Playwright 桌面/390px smoke 与 DOM secretRef 原文扫描继续按 M6B/M6C 推进。
 
 ## 2. 路由和入口
 
@@ -127,6 +127,20 @@
 4. redaction policy 和展示白名单 helper 单独测试，确保 secretRef 原文不进入 UI state。
 5. 关键按钮使用稳定 accessible name，便于 Playwright smoke。
 6. 主链路浏览器 smoke 覆盖桌面和 390px：创建数据集、创建账号池、新增账号、租借、续租、释放、创建清理任务、导出摘要。
+
+M6A 已实现项：
+
+1. `portal-web/src/api/testData.ts` 封装 `/api/v1/test-data` health、data-sets、account-pools、accounts、leases 和 data-tasks 路径，兼容 camelCase/snake_case 响应。
+2. `portal-web/src/permissions.ts` 增加 `test-data` 页面和 `testData:manage/lease/cleanup/export` 按钮权限。
+3. `portal-web/src/components/TestDataWorkbench.tsx` 提供四个 tab 的基础表单、列表、详情摘要、loading/empty/error、traceId 展示和 cleanup disabled 解释。
+4. 账号 secretRef 输入使用 password 控件，新增或替换成功后不回显原文；页面只展示 `secretRefDigest` 短摘要。
+5. `testData.test.ts` 覆盖 payload 路径、敏感字段过滤、secretRef 写入边界和 digest 保留；`permissions.test.ts` 覆盖入口和按钮权限。
+
+M6A 未完成项：
+
+1. 脱敏导出摘要按钮和导出结果面板尚未落地。
+2. Playwright 桌面/390px smoke 和 DOM secretRef 原文扫描脚本尚未落地。
+3. 筛选栏、分页和更细粒度详情抽屉可用性仍需 M6B 增强。
 
 ## 11. 前端验收
 

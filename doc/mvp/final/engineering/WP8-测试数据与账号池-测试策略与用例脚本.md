@@ -5,7 +5,7 @@
 | 工作包 | WP8 测试数据与账号池 |
 | 角色产出 | 资深质量工程师 |
 | 文档性质 | 测试策略、用例矩阵、脚本门禁和准出要求 |
-| 当前口径 | WP8 分 M2-M6 推进；当前本轮聚焦 M5 跨 WP 引用契约，已覆盖 WP9 lease adapter、WP7 runner contract 和 WP10 summary contract；脱敏导出、前端工作台和真实清理 worker 按后续里程碑承接 |
+| 当前口径 | WP8 分 M2-M7 推进；当前本轮聚焦 M6A 前端工作台基础闭环，已覆盖 API client、`#test-data` 权限入口、四个基础面板和前端脱敏断言；脱敏导出、Playwright smoke、DOM secretRef 扫描和真实清理 worker 按后续里程碑承接 |
 | 版本 | v0.1 |
 | 日期 | 2026-06-15 |
 
@@ -139,7 +139,7 @@ bash scripts/wp8_frontend_e2e_smoke.sh
 bash scripts/wp8_account_lease_concurrency_smoke.sh
 ```
 
-说明：前端 smoke 与外部并发租借 smoke 需要在 M6/M7 或 release 模式补齐脚本后执行；M5 当前后端切片以服务/控制器/DB profile/OpenAPI 自动化、跨 WP contract test 和全量后端测试作为当前证据。
+说明：前端 smoke 与外部并发租借 smoke 需要在 M6/M7 或 release 模式补齐脚本后执行；M6A 当前前端切片以 API helper/权限 Vitest、全量前端 Vitest、前端 build、后端全量测试和 DB validation 作为当前证据。
 
 ## 8. WP8 Quality Gate 草案
 
@@ -234,6 +234,34 @@ git diff --check
 3. 未执行 WP10 完整报告生成；本轮只验证报告证据字段白名单，报告页面、Allure/AI 诊断由 WP10 承接。
 4. 未新增 `portal-web` 工作台；前端只运行既有 Vitest 和 build，M6 再补 API helper、权限入口和 Playwright smoke。
 5. 未启用 cleanup worker 或破坏性清理；`cleanupEnabled=false` 仍是默认安全边界。
+
+### M6A 前端工作台基础闭环最小门禁
+
+当前 M6A 前端切片采用以下验证入口作为最小准出：
+
+```bash
+cd portal-web && npm test -- permissions testData
+cd portal-web && npm test
+cd portal-web && npm run build
+mvn -B -pl platform-api test
+bash scripts/platform_api_java_line_guard.sh
+bash db/validation/run_wp1_db_validation.sh
+git diff --check
+```
+
+M6A 定向测试矩阵：
+
+| 测试文件 | 覆盖范围 | 必须断言 | 失败条件 |
+|---|---|---|---|
+| `portal-web/src/api/testData.test.ts` | WP8 API helper、normalize、payload 构造 | 路径和 method 正确；`schema/cleanupPolicy/scopeSummary/resultSummary` 过滤 password/token/cookie/secret；`secretRefDigest` 保留；新增账号允许写入 `secretRef`，更新账号留空不发送 `secretRef` | 前端 state 或 payload 混入敏感摘要；路径偏离后端契约；digest 被误删 |
+| `portal-web/src/permissions.test.ts` | `#test-data` 入口和按钮权限 | `testData:read` 控制页面访问，`testData:manage/lease/cleanup/export` 控制对应操作 | 无 read 权限可见入口；read 权限误授予维护/租借/清理/导出按钮 |
+
+M6A 未执行项和风险边界：
+
+1. 未执行 Playwright 桌面/390px smoke；本轮仅通过响应式 CSS、TypeScript build 和 Vitest 验证基础闭环，M6B/M6C 需补真实浏览器脚本。
+2. 未实现脱敏导出面板；当前仅保留 `testData:export` 权限映射和策略摘要展示，导出主链路继续按 WP8-6.7/WP8-7.5 推进。
+3. 未执行 DOM secretRef 原文扫描脚本；M6A 通过 API normalize 和组件状态约束降低泄露风险，release gate 仍需浏览器级扫描。
+4. 本轮未改 Java 生产代码；Java 行数门禁作为仓库默认验证执行，阿里巴巴 Java 自查不适用于本轮代码变更。
 
 ## 9. 准出标准
 
