@@ -60,6 +60,27 @@ export interface TestDataSetDetail extends TestDataSetSummary {
   policy: Record<string, unknown>;
 }
 
+export interface TestDataSetExportRecord {
+  recordKey: string;
+  recordDigest: string;
+  externalRefDigest?: string;
+  tags: string[];
+  maskedSummaryKeys: string[];
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface TestDataSetExport {
+  schemaVersion: string;
+  exportedAt?: string;
+  dataSet: TestDataSetSummary;
+  recordCount: number;
+  schemaFieldCount: number;
+  sensitiveFieldCount: number;
+  records: TestDataSetExportRecord[];
+  redactionPolicy: Record<string, unknown>;
+}
+
 export interface TestDataRecordImport {
   dataSetId: string;
   importedCount: number;
@@ -297,6 +318,11 @@ export async function archiveTestDataSet(id: string): Promise<ApiResponse<TestDa
   return { ...response, data: normalizeTestDataSetDetail(response.data) };
 }
 
+export async function exportTestDataSet(id: string): Promise<ApiResponse<TestDataSetExport>> {
+  const response = await requestJson<unknown>(`${TEST_DATA_BASE}/data-sets/${encodeURIComponent(id)}/export`);
+  return { ...response, data: normalizeTestDataSetExport(response.data) };
+}
+
 export async function importTestDataRecords(
   dataSetId: string,
   payload: ImportTestDataRecordsPayload
@@ -516,6 +542,33 @@ export function normalizeTestDataRecordImport(input: unknown): TestDataRecordImp
   };
 }
 
+export function normalizeTestDataSetExport(input: unknown): TestDataSetExport {
+  const value = objectValue(input);
+  return {
+    schemaVersion: stringValue(read(value, 'schemaVersion', 'schema_version'), 'wp8-data-set-export-v1'),
+    exportedAt: optionalString(read(value, 'exportedAt', 'exported_at')),
+    dataSet: normalizeTestDataSetSummary(read(value, 'dataSet', 'data_set')),
+    recordCount: numberValue(read(value, 'recordCount', 'record_count'), 0),
+    schemaFieldCount: numberValue(read(value, 'schemaFieldCount', 'schema_field_count'), 0),
+    sensitiveFieldCount: numberValue(read(value, 'sensitiveFieldCount', 'sensitive_field_count'), 0),
+    records: arrayValue(read(value, 'records')).map(normalizeTestDataSetExportRecord),
+    redactionPolicy: sanitizePolicyObject(read(value, 'redactionPolicy', 'redaction_policy'))
+  };
+}
+
+export function normalizeTestDataSetExportRecord(input: unknown): TestDataSetExportRecord {
+  const value = objectValue(input);
+  return {
+    recordKey: stringValue(read(value, 'recordKey', 'record_key')),
+    recordDigest: stringValue(read(value, 'recordDigest', 'record_digest')),
+    externalRefDigest: optionalString(read(value, 'externalRefDigest', 'external_ref_digest')),
+    tags: stringArray(read(value, 'tags')),
+    maskedSummaryKeys: stringArray(read(value, 'maskedSummaryKeys', 'masked_summary_keys')),
+    createdAt: optionalString(read(value, 'createdAt', 'created_at')),
+    updatedAt: optionalString(read(value, 'updatedAt', 'updated_at'))
+  };
+}
+
 export function normalizeTestAccountPoolSummary(input: unknown): TestAccountPoolSummary {
   const value = objectValue(input);
   return {
@@ -690,6 +743,15 @@ function sanitizeObject(input: unknown): Record<string, unknown> {
   return Object.fromEntries(
     Object.entries(value)
       .filter(([key]) => !sensitiveKey(key))
+      .map(([key, item]) => [key, sanitizeValue(item)])
+  );
+}
+
+function sanitizePolicyObject(input: unknown): Record<string, unknown> {
+  const value = objectValue(input);
+  return Object.fromEntries(
+    Object.entries(value)
+      .filter(([key, item]) => !sensitiveKey(key) || typeof item === 'boolean' || typeof item === 'number')
       .map(([key, item]) => [key, sanitizeValue(item)])
   );
 }

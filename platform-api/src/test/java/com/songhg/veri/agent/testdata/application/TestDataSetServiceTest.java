@@ -10,6 +10,7 @@ import com.songhg.veri.agent.testdata.application.query.TestDataSetPageRequest;
 import com.songhg.veri.agent.testdata.config.TestDataProperties;
 import com.songhg.veri.agent.testdata.infrastructure.InMemoryTestDataRepository;
 import java.time.Instant;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -64,7 +65,69 @@ class TestDataSetServiceTest {
                         assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.VALIDATION_ERROR));
     }
 
+    @Test
+    void exportsRedactedDataSetSnapshotWithoutMaskedValues() {
+        TestDataSetService service = service(true, 10, 512);
+        var dataSet = service.createDataSet(new CreateTestDataSetCommand(
+                "project-alpha",
+                null,
+                null,
+                "dataset-alpha",
+                "Dataset alpha",
+                "READY",
+                Map.of("fields", List.of(
+                        Map.of("name", "recordId", "type", "STRING"),
+                        Map.of("name", "customerEmail", "type", "STRING", "sensitive", true)
+                )),
+                "CONFIDENTIAL",
+                Map.of("mode", "MANUAL_CONFIRM"),
+                "EXTERNAL_REF",
+                DIGEST_B
+        ));
+        service.importRecords(dataSet.id(), importCommand("record:001", DIGEST_A));
+
+        var exported = service.exportDataSet(dataSet.id());
+
+        assertThat(exported.schemaVersion()).isEqualTo("wp8-data-set-export-v1");
+        assertThat(exported.dataSet().sourceRefDigest()).isEqualTo(DIGEST_B);
+        assertThat(exported.recordCount()).isEqualTo(1);
+        assertThat(exported.schemaFieldCount()).isEqualTo(2);
+        assertThat(exported.sensitiveFieldCount()).isEqualTo(1);
+        assertThat(exported.records()).singleElement()
+                .satisfies(record -> {
+                    assertThat(record.recordDigest()).isEqualTo(DIGEST_A);
+                    assertThat(record.maskedSummaryKeys()).containsExactlyInAnyOrder("recordId", "customerEmail");
+                });
+        assertThat(exported.redactionPolicy()).containsEntry("maskedSummaryValuesExported", false);
+    }
+
+    @Test
+    void rejectsExportWhenExportSwitchDisabled() {
+        TestDataSetService service = service(true, 10, 512, false);
+        var dataSet = service.createDataSet(new CreateTestDataSetCommand(
+                "project-alpha",
+                null,
+                null,
+                "dataset-alpha",
+                "Dataset alpha",
+                "READY",
+                Map.of(),
+                "INTERNAL",
+                Map.of("mode", "MANUAL_CONFIRM"),
+                "MANUAL",
+                null
+        ));
+
+        assertThatThrownBy(() -> service.exportDataSet(dataSet.id()))
+                .isInstanceOfSatisfying(BusinessException.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.INVALID_STATE));
+    }
+
     private TestDataSetService service(boolean enabled, int maxRecords, int summaryMaxBytes) {
+        return service(enabled, maxRecords, summaryMaxBytes, true);
+    }
+
+    private TestDataSetService service(boolean enabled, int maxRecords, int summaryMaxBytes, boolean exportEnabled) {
         TestDataPlatformContextClient contextClient = mock(TestDataPlatformContextClient.class);
         when(contextClient.projectContext("project-alpha")).thenReturn(new PlatformContext(
                 "PROJECT",
@@ -81,16 +144,19 @@ class TestDataSetServiceTest {
                 new InMemoryTestDataRepository(),
                 contextClient,
                 actorResolver,
-                new TestDataProperties(enabled, maxRecords, summaryMaxBytes, 60, 120, false, true),
+                new TestDataProperties(enabled, maxRecords, summaryMaxBytes, 60, 120, false, exportEnabled),
                 new ObjectMapper()
         );
     }
 
     private ImportTestDataRecordsCommand importCommand(String recordKey, String digest) {
+        Map<String, Object> maskedSummary = new LinkedHashMap<>();
+        maskedSummary.put("recordId", recordKey);
+        maskedSummary.put("customerEmail", "c***@example.test");
         return new ImportTestDataRecordsCommand(List.of(new ImportTestDataRecordsCommand.RecordItem(
                 recordKey,
                 digest,
-                Map.of("recordId", recordKey),
+                maskedSummary,
                 null,
                 List.of("sanitized")
         )));

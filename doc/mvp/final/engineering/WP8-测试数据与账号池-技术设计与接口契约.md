@@ -75,6 +75,7 @@
 | `PATCH` | `/data-sets/{id}` | `testData:manage` | 更新名称、状态、schema、清理策略。 |
 | `POST` | `/data-sets/{id}/archive` | `testData:manage` | 归档数据集，阻断新引用。 |
 | `POST` | `/data-sets/{id}/records` | `testData:manage` | 批量写入脱敏记录摘要或外部引用。 |
+| `GET` | `/data-sets/{id}/export` | `testData:export` | 导出数据集脱敏摘要、字段计数、摘要键名和 redaction policy。 |
 | `POST` | `/data-tasks` | `testData:cleanup` | 创建准备、刷新、清理或回滚任务。 |
 | `GET` | `/data-tasks` | `testData:read` | 查询任务列表。 |
 | `POST` | `/account-pools` | `testData:manage` | 创建账号池。 |
@@ -101,6 +102,7 @@
 - `PATCH /api/v1/test-data/data-sets/{id}`
 - `POST /api/v1/test-data/data-sets/{id}/archive`
 - `POST /api/v1/test-data/data-sets/{id}/records`
+- `GET /api/v1/test-data/data-sets/{id}/export`
 
 实现约束：
 
@@ -110,6 +112,7 @@
 4. 数据集详情和记录列表只返回摘要、digest、tags 和时间戳。
 5. 数据集归档后禁止继续修改或导入记录摘要。
 6. 控制面总开关 `veri-agent.test-data.enabled=false` 时，业务 API 返回 `INVALID_STATE`，health API 保持可观测。
+7. 数据集脱敏导出受 `testData:export` 和 `veri-agent.test-data.export-enabled` 控制，只返回 `schemaVersion/exportedAt/dataSet/recordCount/schemaFieldCount/sensitiveFieldCount/records/redactionPolicy`；其中 records 只包含 `recordKey/recordDigest/externalRefDigest/tags/maskedSummaryKeys/createdAt/updatedAt`，不返回 maskedSummary 值、完整 record payload、secretRef 原文、token、cookie 或 Authorization header。
 
 ### M3 已落地切片
 
@@ -391,4 +394,4 @@ bash scripts/platform_api_java_line_guard.sh
 bash db/validation/run_wp1_db_validation.sh
 ```
 
-租借并发、清理 worker、脱敏导出、跨 WP adapter 和前端页面验证不属于本切片完成定义，仍按 M4-M6 承接。
+租借并发、清理 worker、跨 WP adapter 和前端页面验证不属于 M3 后端账号池切片完成定义，仍按 M4-M6 承接；数据集脱敏导出摘要已在 M6C 补齐，租借导出仍按后续增强推进。

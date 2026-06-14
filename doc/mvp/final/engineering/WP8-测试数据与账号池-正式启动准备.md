@@ -21,7 +21,7 @@ WP8 的核心目标是把测试数据、账号池、租借、释放和清理任�
 2. 支持账号池、账号摘要、角色标签、SecretProvider 引用和账号健康状态。
 3. 支持账号租借、续租、释放、过期回收和清理任务，保证并发安全和幂等。
 4. 提供 `dataSetRef/accountPoolRef/accountLeaseRef/cleanupTaskRef` 跨 WP 引用契约。
-5. 提供 `#test-data` 前端工作台，覆盖数据集、账号池、租借、释放和清理；脱敏导出摘要作为后续前端增强补齐。
+5. 提供 `#test-data` 前端工作台，覆盖数据集、账号池、租借、释放、清理和数据集脱敏导出摘要。
 6. 建立 WP8 后端、前端、DB、并发 smoke 和 quality gate 验证入口。
 
 ## 3. 范围
@@ -59,7 +59,7 @@ WP8 的核心目标是把测试数据、账号池、租借、释放和清理任�
 | WP7 UI/E2E | 后续通过 `accountLeaseRef` 获取账号摘要和 `secretRefDigest`；runner 不接收 `secretRef` 原文，真实凭据注入由后续受控 SecretProvider adapter 承接。 |
 | WP9 执行编排 | 后续执行节点可申请和释放账号 lease，并关联 cleanup task。 |
 | WP10 报告诊断 | 后续读取准备、租借、清理摘要作为报告证据。 |
-| `portal-web` | 已新增 `#test-data` 工作台基础闭环、API helper、Playwright 桌面/390px smoke 和 DOM secretRef 扫描；脱敏导出面板后续补齐。 |
+| `portal-web` | 已新增 `#test-data` 工作台基础闭环、API helper、数据集脱敏导出面板、Playwright 桌面/390px smoke 和 DOM secretRef 扫描。 |
 | `db/migration/wp1` | 后续新增 WP8 数据集、账号池、租借和任务表。 |
 | `scripts` | 已新增 WP8 quality gate、并发租借 managed smoke 和前端 smoke；release 模式要求显式启并发 smoke。 |
 
@@ -86,7 +86,7 @@ WP8 的核心目标是把测试数据、账号池、租借、释放和清理任�
 | M6 前端闭环 | 工作台完成主链路 | portal-web 页面 | Vitest、Playwright smoke 通过 |
 | M7 准出门禁 | quality gate、DB validation、并发 smoke | `scripts/wp8_quality_gate.sh` | release gate 明确 |
 
-M6B/M7A 当前推进说明：账号池、租借和清理任务后端切片已按 `platform-api` API 落地，跨 WP 引用契约已通过 `TestDataCrossWpReferenceService` 落成应用层切片。`portal-web` 已新增 `#test-data` 工作台基础闭环，覆盖 API client、权限入口、数据集/账号池/租借/清理任务基础面板、traceId 错误展示和 secretRef 不回显；本轮进一步补齐 `scripts/wp8_frontend_e2e_smoke.sh`、`scripts/wp8_account_lease_concurrency_smoke.sh`、`scripts/wp8_quality_gate.sh` 和桌面/390px Playwright smoke。脱敏导出面板和真实 cleanup worker 仍按后续任务推进。
+M6C 当前推进说明：账号池、租借和清理任务后端切片已按 `platform-api` API 落地，跨 WP 引用契约已通过 `TestDataCrossWpReferenceService` 落成应用层切片。`portal-web` 已新增 `#test-data` 工作台基础闭环，覆盖 API client、权限入口、数据集/账号池/租借/清理任务基础面板、数据集脱敏导出摘要、traceId 错误展示和 secretRef 不回显；已补齐 `scripts/wp8_frontend_e2e_smoke.sh`、`scripts/wp8_account_lease_concurrency_smoke.sh`、`scripts/wp8_quality_gate.sh` 和桌面/390px Playwright smoke。真实 cleanup worker、导出文件下载和租借导出仍按后续任务推进。
 
 ## 8. 启动准入清单
 

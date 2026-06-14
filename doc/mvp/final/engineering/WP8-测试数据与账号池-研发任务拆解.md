@@ -68,9 +68,9 @@ M1 当前推进状态：权限常量、角色 seed、7 张基础表、表/列注
 | WP8-2.2 Schema validator | P0 | 服务端架构师 | 校验字段名、类型、敏感标记、摘要大小 | 非法 schema 返回稳定错误码 | Unit test |
 | WP8-2.3 Record summary import | P0 | 服务端架构师 | 批量保存脱敏记录摘要和 digest | 不保存敏感原文 | Service test |
 | WP8-2.4 Cleanup policy | P0 | 产品经理、服务端架构师 | 保存手动确认、TTL、回滚策略摘要 | 非 READY 数据集不可引用 | Service test |
-| WP8-2.5 DataSet export | P1 | 服务端架构师、质量工程师 | 导出数据集脱敏摘要和 redaction policy | 不含完整 record payload | Security test |
+| WP8-2.5 DataSet export | P1 | 服务端架构师、质量工程师 | 导出数据集脱敏摘要和 redaction policy | 不含完整 record payload、maskedSummary 值或 secretRef 原文 | Security test |
 
-M2 当前推进状态：`platform-api` 已推进数据集控制面后端切片，覆盖 `POST/GET/PATCH/archive /api/v1/test-data/data-sets` 和 `POST /api/v1/test-data/data-sets/{id}/records`，实现项目 scope 权限、schema validator、脱敏记录摘要 upsert、清理策略摘要、审计事件和 OpenAPI contract。`veri-agent.test-data.enabled=false` 会阻断业务维护入口，health API 保持可观测。M2 本轮未包含 WP8-2.5 脱敏导出、账号池、租借并发、清理 worker、跨 WP adapter 和前端页面，这些仍按 M3-M6 推进。
+M2 当前推进状态：`platform-api` 已推进数据集控制面后端切片，覆盖 `POST/GET/PATCH/archive /api/v1/test-data/data-sets`、`POST /api/v1/test-data/data-sets/{id}/records` 和 `GET /api/v1/test-data/data-sets/{id}/export`，实现项目 scope 权限、schema validator、脱敏记录摘要 upsert、清理策略摘要、数据集脱敏导出摘要、审计事件和 OpenAPI contract。`veri-agent.test-data.enabled=false` 会阻断业务维护入口，`veri-agent.test-data.export-enabled=false` 会阻断导出入口，health API 保持可观测。M2 当前数据集导出只包含数据集元信息、字段计数、敏感字段计数、record digest、external ref digest、tags、`maskedSummaryKeys` 和 redaction policy，不包含完整 record payload、maskedSummary 值、secretRef 原文、token、cookie 或 Authorization header。
 
 ## 7. Epic 3：账号池控制面
 
@@ -121,7 +121,9 @@ M5 当前推进状态：`platform-api` 已新增 `TestDataCrossWpReferenceServic
 
 M6A 当前推进状态：`portal-web` 已新增 `#test-data` 工作台基础闭环，覆盖 `portal-web/src/api/testData.ts` API client/normalize helper、`testData:read/manage/lease/cleanup/export` 前端权限映射、数据集/账号池/租借/清理任务四个基础面板、secretRef 写入后清空且仅展示 `secretRefDigest`、traceId 错误展示和窄屏单列布局。当前 M6A 已通过 `testData.test.ts` 和 `permissions.test.ts` 覆盖路径、payload、权限和脱敏 helper，并通过 `npm run build`。
 
-M6B/M7A 当前推进状态：已新增 `portal-web/e2e/wp8-test-data.smoke.playwright.ts`、`scripts/wp8_frontend_e2e_smoke.sh`、`scripts/wp8_account_lease_concurrency_smoke.sh` 和 `scripts/wp8_quality_gate.sh`。前端 smoke 覆盖桌面和 390px 视口下的数据集创建、记录摘要导入、账号池创建、账号 secretRef 写入后不回显、租借申请/续租/释放、清理任务创建/重试、DOM 不含输入 secretRef 原文和页面无横向溢出；quality gate 聚合脚本语法、Java 行数门禁、WP8 后端定向测试、DB repository contract、前端定向测试、Playwright smoke、前端 build、DB validation，并在 release 模式要求显式执行账号租借并发 smoke。脱敏导出面板和真实 cleanup worker 仍未完成，不纳入本轮完成定义。
+M6B/M7A 当前推进状态：已新增 `portal-web/e2e/wp8-test-data.smoke.playwright.ts`、`scripts/wp8_frontend_e2e_smoke.sh`、`scripts/wp8_account_lease_concurrency_smoke.sh` 和 `scripts/wp8_quality_gate.sh`。前端 smoke 覆盖桌面和 390px 视口下的数据集创建、记录摘要导入、账号池创建、账号 secretRef 写入后不回显、租借申请/续租/释放、清理任务创建/重试、DOM 不含输入 secretRef 原文和页面无横向溢出；quality gate 聚合脚本语法、Java 行数门禁、WP8 后端定向测试、DB repository contract、前端定向测试、Playwright smoke、前端 build、DB validation，并在 release 模式要求显式执行账号租借并发 smoke。
+
+M6C 当前推进状态：已补齐数据集脱敏导出摘要后端接口和前端导出面板。`portal-web/src/api/testData.ts` 新增 `exportTestDataSet` 和导出 normalizer，`TestDataWorkbench` 数据集 tab 新增“脱敏导出摘要”面板，按钮受 `testData:export` 和 `health.exportEnabled` 控制；Playwright smoke 点击导出并断言 DOM 不含 `secret://` 或敏感测试值。真实文件下载、租借导出和真实 cleanup worker 仍未完成，不纳入本轮完成定义。
 
 ## 11. Epic 7：质量门禁和发布准出
 

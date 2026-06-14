@@ -28,6 +28,7 @@ class TestDataOpenApiContractTest {
                 .andExpect(jsonPath("$.paths['/api/v1/test-data/data-sets/{id}'].get").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/test-data/data-sets/{id}'].patch").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/test-data/data-sets/{id}/archive'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/test-data/data-sets/{id}/export'].get").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/test-data/data-sets/{id}/records'].post").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/test-data/account-pools'].get").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/test-data/account-pools'].post").exists())

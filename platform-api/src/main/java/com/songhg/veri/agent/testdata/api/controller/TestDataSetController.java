@@ -11,6 +11,7 @@ import com.songhg.veri.agent.testdata.application.command.UpdateTestDataSetComma
 import com.songhg.veri.agent.testdata.application.query.TestDataSetPageRequest;
 import com.songhg.veri.agent.testdata.application.view.TestDataRecordImportResponse;
 import com.songhg.veri.agent.testdata.application.view.TestDataSetDetailResponse;
+import com.songhg.veri.agent.testdata.application.view.TestDataSetExportResponse;
 import com.songhg.veri.agent.testdata.application.view.TestDataSetSummaryResponse;
 import jakarta.validation.Valid;
 import java.util.UUID;
@@ -76,5 +77,11 @@ public class TestDataSetController {
             @Valid @RequestBody ImportTestDataRecordsCommand command
     ) {
         return service.importRecords(id, command);
+    }
+
+    @GetMapping("/{id}/export")
+    @RequirePermission(value = PermissionCodes.TEST_DATA_EXPORT, scope = TestDataPermissionScopes.DATA_SET)
+    public TestDataSetExportResponse exportDataSet(@PathVariable UUID id) {
+        return service.exportDataSet(id);
     }
 }

@@ -5,7 +5,7 @@
 | 工作包 | WP8 测试数据与账号池 |
 | 角色产出 | 资深质量工程师 |
 | 文档性质 | 测试策略、用例矩阵、脚本门禁和准出要求 |
-| 当前口径 | WP8 分 M2-M7 推进；当前已完成 M6A 前端工作台基础闭环，并新增 M6B/M7A 浏览器 smoke 与 quality gate 基础脚本；脱敏导出面板和真实清理 worker 仍按后续里程碑承接 |
+| 当前口径 | WP8 分 M2-M7 推进；当前已完成 M6A 前端工作台基础闭环、M6B/M7A 浏览器 smoke 与 quality gate 基础脚本，并在 M6C 补齐数据集脱敏导出摘要；真实清理 worker、租借导出和导出文件下载仍按后续里程碑承接 |
 | 版本 | v0.1 |
 | 日期 | 2026-06-15 |
 
@@ -259,7 +259,7 @@ M6A 定向测试矩阵：
 M6A 未执行项和风险边界：
 
 1. Playwright 桌面/390px smoke 已由 M6B 补齐，不再是当前前端 smoke 缺口。
-2. 未实现脱敏导出面板；当前仅保留 `testData:export` 权限映射和策略摘要展示，导出主链路继续后续推进。
+2. 脱敏导出面板已由 M6C 补齐；M6A 当时仅保留 `testData:export` 权限映射和策略摘要展示。
 3. DOM secretRef 原文扫描已由 `wp8-test-data.smoke.playwright.ts` 覆盖页面文本和 toast/error 区域的输入 secretRef 检查。
 4. 本轮未改 Java 生产代码；Java 行数门禁作为仓库默认验证执行，阿里巴巴 Java 自查不适用于本轮代码变更。
 
@@ -284,6 +284,37 @@ M6B/M7A 定向测试矩阵：
 | `scripts/wp8_frontend_e2e_smoke.sh` | Playwright smoke 入口 | 自动选择可用 Chrome channel，必要时可用 `WP8_FRONTEND_INSTALL_BROWSERS=1` 安装浏览器 | 浏览器依赖缺失且未安装；smoke 失败 |
 | `scripts/wp8_account_lease_concurrency_smoke.sh` | 本地 managed 租借并发 smoke | 后端服务拒绝第二个 active lease，DB repository active lease 唯一约束有效 | 第二个 active lease 成功；DB contract 不通过 |
 | `scripts/wp8_quality_gate.sh` | WP8 聚合门禁 | development 模式可跑完整门禁；release/preprod/prod 模式要求 `WP8_LEASE_CONCURRENCY_SMOKE=managed` | release 模式未显式启并发 smoke；任一必跑验证失败 |
+
+### M6C 数据集脱敏导出摘要最小门禁
+
+当前 M6C 切片采用以下验证入口作为最小准出：
+
+```bash
+bash scripts/platform_api_java_line_guard.sh
+mvn -B -pl platform-api -Dtest=TestDataSetControllerTest,TestDataSetServiceTest,TestDataOpenApiContractTest,OpenApiContractTest,PermissionCodeUsageTest test
+cd portal-web && npm test -- api/testData.test.ts permissions.test.ts
+bash scripts/wp8_frontend_e2e_smoke.sh
+cd portal-web && npm run build
+WP8_GATE_MODE=release WP8_LEASE_CONCURRENCY_SMOKE=managed bash scripts/wp8_quality_gate.sh
+git diff --check
+```
+
+M6C 定向测试矩阵：
+
+| 测试/脚本 | 覆盖范围 | 必须断言 | 失败条件 |
+|---|---|---|---|
+| `TestDataSetControllerTest` | `GET /api/v1/test-data/data-sets/{id}/export` | `testData:export` 权限生效；返回 schema version、字段计数、`maskedSummaryKeys` 和 redaction policy；响应不含 `secret://`、原始数据或 maskedSummary 值 | read/lease 权限可导出；响应出现完整 payload、masked value、secretRef 原文 |
+| `TestDataSetServiceTest` | 导出服务和开关 | `export-enabled=false` 返回 `INVALID_STATE`；导出仅携带 digest/tags/keys | 开关失效；导出模型包含 maskedSummary values |
+| `TestDataOpenApiContractTest` | OpenAPI 路径 | `/data-sets/{id}/export` 出现在 `/v3/api-docs` | 契约缺失 |
+| `portal-web/src/api/testData.test.ts` | 前端 helper 和 normalizer | `exportTestDataSet` 路径正确；normalizer 只保留 `maskedSummaryKeys`，redaction policy 保留布尔安全声明 | 前端模型吸收 maskedSummary 值；policy 被误删 |
+| `portal-web/e2e/wp8-test-data.smoke.playwright.ts` | 浏览器导出链路 | 点击“导出摘要”；展示 `wp8-data-set-export-v1` 和 policy；DOM 不含 `secret://` 或敏感测试值 | 导出按钮不可用；导出结果泄露原文 |
+
+M6C 未执行项和风险边界：
+
+1. 不实现真实文件下载，当前导出为控制面 JSON 摘要视图。
+2. 不实现租借导出和清理审计导出；本轮只覆盖数据集导出摘要。
+3. 不启用真实 cleanup worker 或生产数据复制。
+4. 真实 HTTP 服务级并发压测仍由 release 外部环境后续补充；当前 release gate 使用 managed 并发 smoke。
 
 ## 9. 准出标准
 

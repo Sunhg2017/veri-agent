@@ -64,6 +64,15 @@ async function runWp8MainFlow(page: Page, assertResponsive: boolean) {
   await expect(page.locator('.test-data-record-card').filter({ hasText: 'admin-record' }).first()).toBeVisible();
   expect(JSON.stringify(mock.importRecordsPayload)).not.toContain('must-not-render');
 
+  const exportPanel = page.getByTestId('test-data-export-panel');
+  await exportPanel.getByRole('button', { name: '导出摘要' }).click();
+  await expect(exportPanel.getByText('wp8-data-set-export-v1')).toBeVisible();
+  await expect(exportPanel.getByText('maskedSummaryValuesExported')).toBeVisible();
+  await expect(exportPanel.getByText('keys username')).toBeVisible();
+  expect(mock.exportSeen).toBe(true);
+  await expect(page.locator('body')).not.toContainText('secret://');
+  await expect(page.locator('body')).not.toContainText('must-not-render');
+
   await page.getByRole('tab', { name: '账号池' }).click();
   const poolForm = page.locator('form.panel').filter({ hasText: '账号池表单' }).first();
   await poolForm.getByLabel('projectId').fill('project-wp8-ui-smoke');
@@ -183,6 +192,7 @@ class Wp8TestDataMock {
   releasePayload: Record<string, unknown> | undefined;
   taskPayload: Record<string, unknown> | undefined;
   retryPayload: Record<string, unknown> | undefined;
+  exportSeen = false;
 
   private dataSets: Array<Record<string, unknown>> = [this.dataSetSummary('ds-ui-1', 'Baseline WP8 smoke data set', 'baseline-users')];
   private dataSetDetails = new Map<string, Record<string, unknown>>([
@@ -302,6 +312,12 @@ class Wp8TestDataMock {
         records: [record],
         policy: { rawPayloadStored: false }
       }, 'trace-record-import');
+    }
+
+    const dataSetExportMatch = path.match(/^\/api\/v1\/test-data\/data-sets\/([^/]+)\/export$/);
+    if (dataSetExportMatch && method === 'GET') {
+      this.exportSeen = true;
+      return this.fulfill(route, this.dataSetExport(dataSetExportMatch[1]), 'trace-data-set-export');
     }
 
     if (path === '/api/v1/test-data/account-pools' && method === 'GET') {
@@ -531,6 +547,39 @@ class Wp8TestDataMock {
       archivedAt: detail.archivedAt,
       createdAt: detail.createdAt,
       updatedAt: detail.updatedAt
+    };
+  }
+
+  private dataSetExport(id: string) {
+    const detail = this.dataSetDetails.get(id) ?? this.dataSetDetail(id, 'Baseline WP8 smoke data set', 'baseline-users');
+    const records = arrayValue(detail.records).map((item) => {
+      const record = objectValue(item);
+      return {
+        recordKey: stringValue(record.recordKey),
+        recordDigest: stringValue(record.recordDigest),
+        externalRefDigest: optionalString(record.externalRefDigest),
+        tags: stringArray(record.tags),
+        maskedSummaryKeys: Object.keys(objectValue(record.maskedSummary)),
+        createdAt: optionalString(record.createdAt),
+        updatedAt: optionalString(record.updatedAt)
+      };
+    });
+    return {
+      schemaVersion: 'wp8-data-set-export-v1',
+      exportedAt: '2026-06-15T00:11:00Z',
+      dataSet: this.dataSetSummaryFromDetail(detail),
+      recordCount: records.length,
+      schemaFieldCount: arrayValue(objectValue(detail.schema).fields).length,
+      sensitiveFieldCount: 0,
+      records,
+      redactionPolicy: {
+        rawRecordPayloadExported: false,
+        maskedSummaryValuesExported: false,
+        secretRefPlaintextExported: false,
+        authorizationHeaderExported: false,
+        recordDigestExported: true,
+        tagValuesExported: true
+      }
     };
   }
 

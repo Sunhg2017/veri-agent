@@ -115,6 +115,29 @@ class TestDataSetControllerTest {
                 .andExpect(content().string(not(containsString("secret://wp8/raw-source"))))
                 .andExpect(content().string(not(containsString("raw-ssn-1234"))));
 
+        String readOnlyToken = userAccessToken(List.of("Tester@PROJECT:project-alpha"));
+        mockMvc.perform(get("/api/v1/test-data/data-sets/{id}/export", dataSetId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + readOnlyToken))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+
+        mockMvc.perform(get("/api/v1/test-data/data-sets/{id}/export", dataSetId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.schemaVersion").value("wp8-data-set-export-v1"))
+                .andExpect(jsonPath("$.data.dataSet.id").value(dataSetId.toString()))
+                .andExpect(jsonPath("$.data.dataSet.sourceRefDigest").value(DIGEST_B))
+                .andExpect(jsonPath("$.data.recordCount").value(2))
+                .andExpect(jsonPath("$.data.schemaFieldCount").value(2))
+                .andExpect(jsonPath("$.data.sensitiveFieldCount").value(1))
+                .andExpect(jsonPath("$.data.records[0].recordDigest").value(DIGEST_A))
+                .andExpect(jsonPath("$.data.records[0].maskedSummaryKeys", hasSize(2)))
+                .andExpect(jsonPath("$.data.redactionPolicy.rawRecordPayloadExported").value(false))
+                .andExpect(jsonPath("$.data.redactionPolicy.maskedSummaryValuesExported").value(false))
+                .andExpect(content().string(not(containsString("secret://wp8/raw-source"))))
+                .andExpect(content().string(not(containsString("raw-ssn-1234"))))
+                .andExpect(content().string(not(containsString("c***@example.test"))));
+
         mockMvc.perform(post("/api/v1/test-data/data-sets/{id}/records", dataSetId)
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -228,6 +251,11 @@ class TestDataSetControllerTest {
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("FORBIDDEN"));
 
+        mockMvc.perform(get("/api/v1/test-data/data-sets/{id}/export", dataSetId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + betaToken))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+
         mockMvc.perform(post("/api/v1/test-data/data-sets")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + alphaToken)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -250,7 +278,7 @@ class TestDataSetControllerTest {
         request.put("status", "DRAFT");
         request.put("schema", Map.of("fields", List.of(
                         Map.of("name", "customerId", "type", "STRING", "required", true),
-                        Map.of("name", "riskScore", "type", "NUMBER", "required", false)
+                        Map.of("name", "riskScore", "type", "NUMBER", "required", false, "sensitive", true)
         )));
         request.put("sensitivityLevel", "CONFIDENTIAL");
         request.put("cleanupPolicy", Map.of(

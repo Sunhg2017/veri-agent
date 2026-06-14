@@ -187,4 +187,10 @@ M6A 已推进前端工作台基础闭环：测试工程师可通过 `#test-data`
 2. 前端 `testData` API helper 兼容后端 camelCase/snake_case 响应，并对 `schema/cleanupPolicy/maskedSummary/scopeSummary/resultSummary` 做敏感键过滤，保留 digest 字段。
 3. 账号 `secretRef` 只在新增或替换账号摘要时作为写入输入；保存成功后前端表单清空，列表、详情、状态提示和摘要只展示 `secretRefDigest`。
 4. 工作台已覆盖四个基础面板的 loading/empty/error、traceId 展示和 `cleanupEnabled=false` 解释。
-5. M6A 不包含脱敏导出结果面板、分页筛选增强、Playwright 桌面/390px smoke、DOM secretRef 原文扫描脚本或 WP8 聚合 quality gate。
+5. M6B 已补 Playwright 桌面/390px smoke、DOM secretRef 原文扫描脚本和 WP8 聚合 quality gate；M6C 已补数据集脱敏导出结果面板。分页筛选增强、导出文件下载、租借导出和真实 cleanup worker 仍是后续范围。
+
+M6C 已推进数据集脱敏导出摘要：测试工程师可通过 `#test-data` 工作台的数据集 tab 点击“导出摘要”，查看 schema version、记录/字段/敏感字段计数、redaction policy、record digest、tags 和 `maskedSummaryKeys`。产品边界如下：
+
+1. 导出入口同时受 `testData:export` 权限和 `veri-agent.test-data.export-enabled` 控制。
+2. 导出摘要不展示 maskedSummary 值、完整记录正文、`secretRef` 原文、token、cookie 或 Authorization header。
+3. 当前不提供文件下载，不导出租借摘要或清理审计摘要；这些能力按后续增强独立准出。

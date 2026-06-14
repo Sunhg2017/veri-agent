@@ -4,6 +4,7 @@ import {
   CheckCircle2,
   Clock3,
   DatabaseZap,
+  Download,
   KeyRound,
   ListChecks,
   Play,
@@ -25,6 +26,7 @@ import {
   createTestDataSet,
   createTestDataTask,
   disableTestAccountPool,
+  exportTestDataSet,
   fetchTestAccountLease,
   fetchTestAccountLeases,
   fetchTestAccountPool,
@@ -46,6 +48,7 @@ import {
   type TestAccountPoolSummary,
   type TestDataHealth,
   type TestDataSetDetail,
+  type TestDataSetExport,
   type TestDataSetSummary,
   type TestDataTask,
   type TestPooledAccount
@@ -227,6 +230,7 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
   const [poolDetail, setPoolDetail] = useState<TestAccountPoolDetail | null>(null);
   const [leaseDetail, setLeaseDetail] = useState<TestAccountLease | null>(null);
   const [taskDetail, setTaskDetail] = useState<TestDataTask | null>(null);
+  const [dataSetExport, setDataSetExport] = useState<TestDataSetExport | null>(null);
   const [dataSetDraft, setDataSetDraft] = useState<DataSetDraft>(initialDataSetDraft);
   const [recordDraft, setRecordDraft] = useState<RecordDraft>(initialRecordDraft);
   const [poolDraft, setPoolDraft] = useState<PoolDraft>(initialPoolDraft);
@@ -238,6 +242,7 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
   const [poolState, setPoolState] = useState<WorkState>({ loading: false });
   const [leaseState, setLeaseState] = useState<WorkState>({ loading: false });
   const [taskState, setTaskState] = useState<WorkState>({ loading: false });
+  const [exportState, setExportState] = useState<WorkState>({ loading: false });
 
   const summary = useMemo(() => {
     const available = accountPools.reduce((total, pool) => total + pool.availableAccountCount, 0);
@@ -278,8 +283,12 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
   const refreshDataSetDetail = useCallback(async (id: string) => {
     if (!id || !canRead) {
       setDataSetDetail(null);
+      setDataSetExport(null);
+      setExportState({ loading: false });
       return;
     }
+    setDataSetExport(null);
+    setExportState({ loading: false });
     try {
       const result = await fetchTestDataSet(id);
       setDataSetDetail(result.data);
@@ -467,6 +476,18 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
       await refreshWorkbench();
     } catch (error: unknown) {
       setDataSetState(errorState(error, '记录导入失败'));
+    }
+  }
+
+  async function onExportDataSet() {
+    if (!selectedDataSetId || !canExport || !health?.exportEnabled) return;
+    setExportState({ loading: true });
+    try {
+      const result = await exportTestDataSet(selectedDataSetId);
+      setDataSetExport(result.data);
+      setExportState({ loading: false, success: '脱敏导出摘要已生成', traceId: result.trace_id });
+    } catch (error: unknown) {
+      setExportState(errorState(error, '脱敏导出失败'));
     }
   }
 
@@ -695,6 +716,7 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
     setLeases([]);
     setTasks([]);
     setDataSetDetail(null);
+    setDataSetExport(null);
     setPoolDetail(null);
     setLeaseDetail(null);
     setTaskDetail(null);
@@ -704,6 +726,7 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
     setSelectedLeaseId('');
     setSelectedTaskId('');
     setLoadState({ loading: false });
+    setExportState({ loading: false });
   }
 
   return (
@@ -845,6 +868,7 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
             </div>
             <RecordImportForm />
             <RecordList />
+            <DataSetExportPanel />
           </div>
         </section>
       </section>
@@ -1112,6 +1136,54 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
             </div>
           )) : <div className="table-empty">暂无记录摘要</div>}
         </div>
+      </div>
+    );
+  }
+
+  function DataSetExportPanel() {
+    return (
+      <div className="test-data-subform" data-testid="test-data-export-panel">
+        <div className="test-data-subheader">
+          <strong>脱敏导出摘要</strong>
+          <button
+            className="btn btn-secondary btn-sm"
+            type="button"
+            onClick={() => void onExportDataSet()}
+            disabled={!selectedDataSetId || !canExport || !health?.exportEnabled || exportState.loading}
+          >
+            <Download size={15} />
+            导出摘要
+          </button>
+        </div>
+        <StateLine state={exportState} />
+        {dataSetExport ? (
+          <>
+            <div className="test-data-summary">
+              <SummaryChip label="schema" value={dataSetExport.schemaVersion} />
+              <SummaryChip label="records" value={String(dataSetExport.recordCount)} />
+              <SummaryChip label="fields" value={String(dataSetExport.schemaFieldCount)} />
+              <SummaryChip label="sensitive" value={String(dataSetExport.sensitiveFieldCount)} />
+              <SummaryChip label="exported" value={formatDateTime(dataSetExport.exportedAt)} />
+            </div>
+            <div className="test-data-summary">
+              {Object.entries(dataSetExport.redactionPolicy).map(([key, value]) => (
+                <SummaryChip key={key} label={key} value={String(value)} />
+              ))}
+            </div>
+            <div className="test-data-record-grid test-data-export-grid">
+              {dataSetExport.records.length ? dataSetExport.records.slice(0, 8).map((record) => (
+                <div className="test-data-record-card" key={`${record.recordKey}-${record.recordDigest}`}>
+                  <strong>{record.recordKey}</strong>
+                  <span className="mono">{shortId(record.recordDigest)}</span>
+                  <small>keys {record.maskedSummaryKeys.join(', ') || '-'}</small>
+                  <small>tags {record.tags.join(', ') || '-'}</small>
+                </div>
+              )) : <div className="table-empty">暂无可导出记录</div>}
+            </div>
+          </>
+        ) : (
+          <div className="table-empty">{health?.exportEnabled ? '尚未生成导出摘要' : '当前环境关闭脱敏导出'}</div>
+        )}
       </div>
     );
   }

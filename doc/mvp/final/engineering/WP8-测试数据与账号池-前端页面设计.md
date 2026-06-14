@@ -13,7 +13,7 @@
 
 让测试工程师在浏览器内完成 WP8 P0 主链路：维护数据集、维护账号池、申请和释放账号租借、查看清理任务和导出脱敏摘要。前端只做体验控制，后端仍是权限、scope、状态和敏感字段保护的最终来源。
 
-当前实现节奏说明：M6A 已交付 `portal-web` 工作台基础闭环，包含 API client、`#test-data` 入口、权限显隐、数据集/账号池/租借/清理任务基础面板和 Vitest 脱敏断言；M6B 已补 Playwright 桌面/390px smoke 与 DOM secretRef 原文扫描。脱敏导出面板仍按后续前端增强推进。
+当前实现节奏说明：M6A 已交付 `portal-web` 工作台基础闭环，包含 API client、`#test-data` 入口、权限显隐、数据集/账号池/租借/清理任务基础面板和 Vitest 脱敏断言；M6B 已补 Playwright 桌面/390px smoke 与 DOM secretRef 原文扫描；M6C 已补数据集脱敏导出摘要按钮、结果面板和导出 smoke。
 
 ## 2. 路由和入口
 
@@ -143,10 +143,17 @@ M6B 已实现项：
 3. Smoke 验证账号 secretRef 写入后输入框清空、页面只展示 digest、DOM 文本不含输入 `secret://` 原文和敏感测试值。
 4. Smoke 验证 390px 下测试数据工作台无页面横向溢出。
 
+M6C 已实现项：
+
+1. `portal-web/src/api/testData.ts` 新增 `exportTestDataSet`、`TestDataSetExport` 和导出响应 normalizer。
+2. `TestDataWorkbench` 数据集 tab 新增“脱敏导出摘要”面板，按钮受 `testData:export` 与 `health.exportEnabled` 双重控制。
+3. 导出面板只展示 schema version、记录/字段/敏感字段计数、redaction policy、record digest、tags 和 `maskedSummaryKeys`，不展示 maskedSummary 值、完整记录正文或 secretRef 原文。
+4. `wp8-test-data.smoke.playwright.ts` 已覆盖导出点击、redaction policy 可见性和 DOM 不含 `secret://`/敏感测试值。
+
 M6 当前未完成项：
 
-1. 脱敏导出摘要按钮和导出结果面板尚未落地。
-2. 筛选栏、分页和更细粒度详情抽屉可用性仍需后续增强。
+1. 筛选栏、分页和更细粒度详情抽屉可用性仍需后续增强。
+2. 真实导出文件下载、租借导出和 cleanup worker 状态闭环仍按后续增强推进。
 
 ## 11. 前端验收
 

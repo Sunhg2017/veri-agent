@@ -2043,6 +2043,11 @@ tbody tr:hover td {
   gap: var(--space-sm);
 }
 
+.test-data-export-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: var(--space-sm);
+}
+
 .test-data-record-card,
 .test-data-summary {
   min-width: 0;
@@ -3846,6 +3851,7 @@ tbody tr:hover td {
   .execution-metric-grid,
   .execution-node-grid,
   .test-data-metric-grid,
+  .test-data-export-grid,
   .test-data-record-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .execution-layout,
   .test-data-layout { grid-template-columns: 1fr; }
@@ -3927,6 +3933,7 @@ tbody tr:hover td {
   .execution-policy-grid,
   .test-data-metric-grid,
   .test-data-policy-grid,
+  .test-data-export-grid,
   .test-data-record-grid,
   .execution-trigger-form { grid-template-columns: 1fr; }
   .test-design-quality-metrics { grid-template-columns: 1fr; }

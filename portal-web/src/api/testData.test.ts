@@ -9,6 +9,7 @@ import {
   createTestDataSet,
   createTestDataTask,
   disableTestAccountPool,
+  exportTestDataSet,
   fetchTestAccountLease,
   fetchTestAccountLeases,
   fetchTestAccountPool,
@@ -22,6 +23,7 @@ import {
   normalizeTestAccountLease,
   normalizeTestAccountPoolDetail,
   normalizeTestDataSetDetail,
+  normalizeTestDataSetExport,
   normalizeTestDataTask,
   releaseTestAccountLease,
   renewTestAccountLease,
@@ -160,6 +162,54 @@ describe('WP8 test data API helpers', () => {
       resultSummary: { deleted: 0 },
       traceId: 'trc-1'
     });
+
+    expect(normalizeTestDataSetExport({
+      schema_version: 'wp8-data-set-export-v1',
+      exported_at: '2026-06-15T00:00:00Z',
+      data_set: {
+        id: 'ds-1',
+        project_id: 'project-alpha',
+        code: 'login-users',
+        name: 'Login users',
+        status: 'READY',
+        sensitivity_level: 'CONFIDENTIAL',
+        source_type: 'EXTERNAL_REF',
+        record_count: '1'
+      },
+      record_count: '1',
+      schema_field_count: '2',
+      sensitive_field_count: '1',
+      records: [{
+        record_key: 'admin',
+        record_digest: 'digest-record',
+        external_ref_digest: 'digest-external',
+        tags: ['sanitized'],
+        masked_summary_keys: ['username', 'customerEmail'],
+        masked_summary: { customerEmail: 'c***@example.test', secretRef: 'secret://wp8/raw' }
+      }],
+      redaction_policy: {
+        rawRecordPayloadExported: false,
+        maskedSummaryValuesExported: false,
+        secretRefPlaintextExported: false,
+        authorization: 'Bearer raw'
+      }
+    })).toMatchObject({
+      schemaVersion: 'wp8-data-set-export-v1',
+      recordCount: 1,
+      schemaFieldCount: 2,
+      sensitiveFieldCount: 1,
+      dataSet: { id: 'ds-1', recordCount: 1 },
+      records: [{
+        recordKey: 'admin',
+        recordDigest: 'digest-record',
+        maskedSummaryKeys: ['username', 'customerEmail']
+      }],
+      redactionPolicy: {
+        rawRecordPayloadExported: false,
+        maskedSummaryValuesExported: false,
+        secretRefPlaintextExported: false
+      }
+    });
   });
 
   it('calls query endpoints with normalized paths', async () => {
@@ -168,6 +218,7 @@ describe('WP8 test data API helpers', () => {
     await fetchTestDataHealth();
     await fetchTestDataSets({ projectId: 'project-alpha', status: 'ACTIVE', keyword: 'login', size: 10 });
     await fetchTestDataSet('ds-1');
+    await exportTestDataSet('ds-1');
     await fetchTestAccountPools({ projectId: 'project-alpha', environmentId: 'staging' });
     await fetchTestAccountPool('pool-1');
     await fetchTestAccountLeases({ projectId: 'project-alpha', poolId: 'pool-1', status: 'ACTIVE' });
@@ -181,21 +232,22 @@ describe('WP8 test data API helpers', () => {
       '/api/v1/test-data/data-sets?projectId=project-alpha&status=ACTIVE&keyword=login&size=10'
     );
     expect(requestJsonMock).toHaveBeenNthCalledWith(3, '/api/v1/test-data/data-sets/ds-1');
+    expect(requestJsonMock).toHaveBeenNthCalledWith(4, '/api/v1/test-data/data-sets/ds-1/export');
     expect(requestJsonMock).toHaveBeenNthCalledWith(
-      4,
+      5,
       '/api/v1/test-data/account-pools?projectId=project-alpha&environmentId=staging'
     );
-    expect(requestJsonMock).toHaveBeenNthCalledWith(5, '/api/v1/test-data/account-pools/pool-1');
+    expect(requestJsonMock).toHaveBeenNthCalledWith(6, '/api/v1/test-data/account-pools/pool-1');
     expect(requestJsonMock).toHaveBeenNthCalledWith(
-      6,
+      7,
       '/api/v1/test-data/leases?projectId=project-alpha&poolId=pool-1&status=ACTIVE'
     );
-    expect(requestJsonMock).toHaveBeenNthCalledWith(7, '/api/v1/test-data/leases/lease-1');
+    expect(requestJsonMock).toHaveBeenNthCalledWith(8, '/api/v1/test-data/leases/lease-1');
     expect(requestJsonMock).toHaveBeenNthCalledWith(
-      8,
+      9,
       '/api/v1/test-data/data-tasks?projectId=project-alpha&taskType=CLEANUP&status=FAILED'
     );
-    expect(requestJsonMock).toHaveBeenNthCalledWith(9, '/api/v1/test-data/data-tasks/task-1');
+    expect(requestJsonMock).toHaveBeenNthCalledWith(10, '/api/v1/test-data/data-tasks/task-1');
   });
 
   it('wraps mutating endpoints and keeps secretRef write-only', async () => {

@@ -16,6 +16,7 @@ import com.songhg.veri.agent.testdata.application.query.TestDataSetQuery;
 import com.songhg.veri.agent.testdata.application.view.TestDataRecordImportResponse;
 import com.songhg.veri.agent.testdata.application.view.TestDataRecordResponse;
 import com.songhg.veri.agent.testdata.application.view.TestDataSetDetailResponse;
+import com.songhg.veri.agent.testdata.application.view.TestDataSetExportResponse;
 import com.songhg.veri.agent.testdata.application.view.TestDataSetSummaryResponse;
 import com.songhg.veri.agent.testdata.config.TestDataProperties;
 import com.songhg.veri.agent.testdata.domain.TestDataRecord;
@@ -241,6 +242,39 @@ public class TestDataSetService {
         );
     }
 
+    /**
+     * Builds the WP8 data-set export as an audit-safe metadata snapshot.
+     * The export intentionally carries record digests, tags and masked-summary keys only; masked values and raw payloads stay out.
+     */
+    @Transactional(noRollbackFor = BusinessException.class)
+    public TestDataSetExportResponse exportDataSet(UUID id) {
+        assertEnabled();
+        if (!properties.exportEnabled()) {
+            throw new BusinessException(ErrorCode.INVALID_STATE, "WP8 脱敏导出已关闭");
+        }
+        TestDataSet dataSet = requireDataSet(id);
+        List<TestDataRecord> records = repository.records(id);
+        Map<String, Object> schema = readMap(dataSet.schemaJson());
+        TestDataSetExportResponse response = new TestDataSetExportResponse(
+                "wp8-data-set-export-v1",
+                Instant.now(),
+                exportDataSetSnapshot(dataSet),
+                records.size(),
+                schemaFieldCount(schema),
+                sensitiveFieldCount(schema),
+                records.stream().map(this::exportRecordSnapshot).toList(),
+                exportRedactionPolicy()
+        );
+        auditDataSet(dataSet, "test_data.exported", Map.of(
+                "schemaVersion", response.schemaVersion(),
+                "recordCount", response.recordCount(),
+                "schemaFieldCount", response.schemaFieldCount(),
+                "sensitiveFieldCount", response.sensitiveFieldCount(),
+                "maskedSummaryValuesExported", false
+        ));
+        return response;
+    }
+
     public String dataSetProjectScopeId(UUID id) {
         return repository.dataSetProjectScopeId(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "测试数据集不存在"));
@@ -406,6 +440,66 @@ public class TestDataSetService {
                 readStringList(record.tagsJson()),
                 record.createdAt(),
                 record.updatedAt()
+        );
+    }
+
+    private TestDataSetExportResponse.DataSetSnapshot exportDataSetSnapshot(TestDataSet dataSet) {
+        return new TestDataSetExportResponse.DataSetSnapshot(
+                dataSet.id(),
+                dataSet.projectId(),
+                dataSet.applicationId(),
+                dataSet.environmentId(),
+                dataSet.code(),
+                dataSet.name(),
+                dataSet.status(),
+                dataSet.sensitivityLevel(),
+                dataSet.sourceType(),
+                dataSet.sourceRefDigest(),
+                dataSet.archivedAt(),
+                dataSet.createdAt(),
+                dataSet.updatedAt()
+        );
+    }
+
+    private TestDataSetExportResponse.RecordSnapshot exportRecordSnapshot(TestDataRecord record) {
+        return new TestDataSetExportResponse.RecordSnapshot(
+                record.recordKey(),
+                record.recordDigest(),
+                record.externalRefDigest(),
+                readStringList(record.tagsJson()),
+                new ArrayList<>(readMap(record.maskedSummaryJson()).keySet()),
+                record.createdAt(),
+                record.updatedAt()
+        );
+    }
+
+    private int schemaFieldCount(Map<String, Object> schema) {
+        Object fields = schema.get("fields");
+        return fields instanceof List<?> fieldList ? fieldList.size() : 0;
+    }
+
+    private int sensitiveFieldCount(Map<String, Object> schema) {
+        Object fields = schema.get("fields");
+        if (!(fields instanceof List<?> fieldList)) {
+            return 0;
+        }
+        int count = 0;
+        for (Object field : fieldList) {
+            if (field instanceof Map<?, ?> fieldMap && Boolean.TRUE.equals(fieldMap.get("sensitive"))) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private Map<String, Object> exportRedactionPolicy() {
+        return Map.of(
+                "rawRecordPayloadExported", false,
+                "maskedSummaryValuesExported", false,
+                "secretRefPlaintextExported", false,
+                "authorizationHeaderExported", false,
+                "recordDigestExported", true,
+                "tagValuesExported", true
         );
     }
 
