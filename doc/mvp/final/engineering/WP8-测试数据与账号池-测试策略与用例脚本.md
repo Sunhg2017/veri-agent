@@ -5,7 +5,7 @@
 | 工作包 | WP8 测试数据与账号池 |
 | 角色产出 | 资深质量工程师 |
 | 文档性质 | 测试策略、用例矩阵、脚本门禁和准出要求 |
-| 当前口径 | WP8 分 M2-M6 推进；当前本轮聚焦 M4 租借、续租、释放和清理任务控制面，脱敏导出、前端工作台、跨 WP 引用契约和真实清理 worker 按后续里程碑承接 |
+| 当前口径 | WP8 分 M2-M6 推进；当前本轮聚焦 M5 跨 WP 引用契约，已覆盖 WP9 lease adapter、WP7 runner contract 和 WP10 summary contract；脱敏导出、前端工作台和真实清理 worker 按后续里程碑承接 |
 | 版本 | v0.1 |
 | 日期 | 2026-06-15 |
 
@@ -139,7 +139,7 @@ bash scripts/wp8_frontend_e2e_smoke.sh
 bash scripts/wp8_account_lease_concurrency_smoke.sh
 ```
 
-说明：前端 smoke 与外部并发租借 smoke 需要在 M6/M7 或 release 模式补齐脚本后执行；M4 后端切片以服务/控制器/DB profile/OpenAPI 自动化和全量后端测试作为当前证据。
+说明：前端 smoke 与外部并发租借 smoke 需要在 M6/M7 或 release 模式补齐脚本后执行；M5 当前后端切片以服务/控制器/DB profile/OpenAPI 自动化、跨 WP contract test 和全量后端测试作为当前证据。
 
 ## 8. WP8 Quality Gate 草案
 
@@ -191,6 +191,49 @@ bash db/validation/run_wp1_db_validation.sh
 1. 这组门禁覆盖租借申请、`requestKey` 幂等、无可用账号冲突、续租 TTL、释放终态幂等、过期回收服务方法、清理任务创建/查询/重试边界、OpenAPI contract、权限字面量集中和 profile 边界。
 2. `DbProfileRepositoryContractTest` 覆盖 active lease 唯一约束、账号条件更新、租借/清理任务持久化和 `secret_ref_cipher` 非投影。
 3. release 模式仍需追加 `wp8_account_lease_concurrency_smoke.sh` 或等价外部并发 smoke；当前后端切片未启用 scheduler cleanup worker、前端工作台、WP7/WP9 adapter 和脱敏导出。
+
+### M5 跨 WP 引用最小门禁
+
+当前 M5 应用层契约切片采用以下验证入口作为最小准出：
+
+```bash
+mvn -B -pl platform-api -Dtest=TestDataCrossWpReferenceServiceTest test
+```
+
+说明：
+
+1. 这组门禁覆盖 WP9 lease adapter、WP7 runner contract 和 WP10 summary contract 的脱敏边界。
+2. 定向测试验证 `accountLeaseRef`、`secretRefDigest`、计数、状态和 digest 的返回结构，不回显 secret、token、cookie、原始记录正文或清理 payload。
+3. 本轮仍不要求新增独立 HTTP 入口、前端页面、scheduler worker 或真实 WP7/WP9/WP10 实现。
+
+M5 定向测试矩阵：
+
+| 测试类 | 覆盖契约 | 必须断言 | 失败条件 |
+|---|---|---|---|
+| `TestDataCrossWpReferenceServiceTest#wp9AdapterReturnsOnlyLeaseReferenceAndSanitizedAccountSummary` | WP9 lease adapter | 返回 `accountLeaseRef/status/expiresAt/account.secretRefDigest`；重复 `requestKey` 返回同一 lease；释放按 `executionRunRef` 校验 | 出现 `secret://`、密码、租借 token 明文、`secret_ref_cipher`、非本 run 释放成功 |
+| `TestDataCrossWpReferenceServiceTest#runnerContractReturnsDigestOnlyAndRejectsReleasedLease` | WP7 runner contract | active lease 可返回账号摘要和 `secretRefDigest`；释放后 runner contract 返回 `INVALID_STATE` | 出现密码、token、cookie、`secret://`、`secretRef` 原文；终态 lease 仍可交给 runner |
+| `TestDataCrossWpReferenceServiceTest#wp10ReportEvidenceContainsOnlyReferencesCountsAndDigests` | WP10 summary contract | 返回 `dataSetRef/accountLeaseRef/cleanupTaskRef`、状态、计数、schemaFieldCount、targetRef/resultSummary digest、summary keys、`holderType/holderRef` 和脱敏账号摘要 | 出现 record payload、masked summary value、cleanup result value、targetRef 原文、secret 原文 |
+| `TestDataCrossWpReferenceServiceTest#rejectsReportEvidenceFromAnotherProject` | 项目 scope | 跨项目引用返回 `FORBIDDEN` | 任意跨项目 dataSet/lease/task 证据可读 |
+
+M5 完整准出命令：
+
+```bash
+mvn -B -pl platform-api -Dtest=TestDataCrossWpReferenceServiceTest,TestAccountLeaseServiceTest,TestDataTaskServiceTest,TestDataOpenApiContractTest test
+mvn -B -pl platform-api test
+bash scripts/platform_api_java_line_guard.sh
+bash db/validation/run_wp1_db_validation.sh
+cd portal-web && npm test
+cd portal-web && npm run build
+git diff --check
+```
+
+未执行项和风险边界：
+
+1. 未执行真实 WP7 runner 凭据注入；本轮只验证 runner 可读取脱敏账号契约，真实 SecretProvider adapter 和浏览器登录由 WP7 后续任务承接。
+2. 未执行 WP9 scheduler/DAG 自动申请和释放；本轮只验证 WP8 应用层 lease adapter，真实调度编排由 WP9 后续任务接入。
+3. 未执行 WP10 完整报告生成；本轮只验证报告证据字段白名单，报告页面、Allure/AI 诊断由 WP10 承接。
+4. 未新增 `portal-web` 工作台；前端只运行既有 Vitest 和 build，M6 再补 API helper、权限入口和 Playwright smoke。
+5. 未启用 cleanup worker 或破坏性清理；`cleanupEnabled=false` 仍是默认安全边界。
 
 ## 9. 准出标准
 

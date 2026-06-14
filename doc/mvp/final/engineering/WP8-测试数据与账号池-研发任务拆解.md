@@ -36,7 +36,7 @@
 | M2 数据集控制面 | 数据集 CRUD、记录摘要、清理策略 | 数据集可被引用且敏感字段不泄露 |
 | M3 账号池控制面 | 账号池、账号摘要、secretRef digest | 账号凭据不回显，状态流可测 |
 | M4 租借和清理 | 租借、续租、释放、过期、清理任务 | 并发租借和幂等可测 |
-| M5 跨 WP 引用 | WP7/WP9 引用契约和 adapter port | 不直接读写跨 WP 表 |
+| M5 跨 WP 引用 | WP7/WP9/WP10 引用契约和 adapter port | 不直接读写跨 WP 表 |
 | M6 前端闭环 | 测试数据工作台主链路 | Vitest、Playwright、build 通过 |
 | M7 质量门禁 | WP8 quality gate、DB validation、并发 smoke | release gate 明确 |
 
@@ -104,6 +104,8 @@ M4 当前推进状态：`platform-api` 已推进租借、释放和清理任务�
 | WP8-5.1 WP9 lease adapter | P1 | 服务端架构师 | 定义 execution run 申请/释放账号接口 | WP9 只保存 `accountLeaseRef` | Contract test |
 | WP8-5.2 WP7 runner contract | P1 | 服务端架构师、前端工程师 | 定义 UI runner 通过 lease 获取账号摘要和 secretRef 的契约 | runner 不接收密码明文 | 文档评审 |
 | WP8-5.3 WP10 summary contract | P1 | 产品经理、质量工程师 | 定义报告可读的准备/租借/清理摘要 | 报告不展示 secret 或数据正文 | Contract test |
+
+M5 当前推进状态：`platform-api` 已新增 `TestDataCrossWpReferenceService` 作为 WP8 跨 WP 应用层契约切片，WP9 lease adapter 通过该服务申请/释放租借并只保存 `accountLeaseRef`，WP7 runner contract 通过该服务读取账号摘要和 `secretRefDigest`，WP10 summary contract 通过该服务读取准备、租借和清理证据。当前实现不对外新增独立 HTTP 入口，不直连跨 WP 表，不执行 WP7 浏览器执行、不执行 WP9 调度和不生成 WP10 完整报告。
 
 ## 10. Epic 6：前端工作台
 

@@ -171,3 +171,12 @@ M4 已推进租借、释放和清理任务后端切片：测试工程师或后�
 4. active 租借可续租，TTL 受平台最大值限制；释放后账号默认回到 `AVAILABLE`，也可按失败策略转入 `LOCKED`。
 5. 过期回收能力当前以服务方法和 repository 验证落地，未启用独立 scheduler worker；health 中 `cleanupWorkerReady=false`。
 6. 清理任务 API 只创建、查询和重试控制面记录，`cleanupEnabled=false` 时仍不执行破坏性清理 adapter；真实清理执行和跨 WP adapter 仍按后续准出。
+
+M5 已推进跨 WP 引用契约后端切片：WP9 可通过 `TestDataCrossWpReferenceService` 申请和释放账号租借引用，WP7 可通过同一服务读取账号摘要和 `secretRefDigest`，WP10 可读取准备、租借和清理证据。产品边界如下：
+
+1. WP9 只保留 `accountLeaseRef` 和脱敏租借摘要，不保存账号密码或 `secret://` 原文。
+2. WP7 runner 只读取账号摘要、角色、状态和 `secretRefDigest`，不接收密码、token 或 cookie 明文。
+3. WP10 只读取准备、租借和清理的引用、状态、计数和 digest，不展示数据正文或清理 payload。
+4. `secretRefDigest` 仅用于审计、比对和脱敏展示，不是可解析凭据；后续真实 runner 凭据注入必须通过受控 SecretProvider adapter，以 `accountLeaseRef` 为句柄完成。
+5. 账号 `scopeSummary` 只能包含项目、应用、环境、角色、菜单或资源范围等非敏感摘要，不得透传 secret、token、cookie、密码或业务数据正文。
+6. 这些契约仍在 `platform-api` 应用层完成，不对外新增跨 WP 公共 HTTP 入口。

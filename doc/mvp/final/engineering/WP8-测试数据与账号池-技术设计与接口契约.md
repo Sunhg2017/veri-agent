@@ -297,9 +297,40 @@ FAILED -> PENDING
 | 消费方 | 契约 |
 |---|---|
 | WP6 | 可在接口自动化 run request 中引用 `dataSetRef` 或 `accountLeaseRef`；WP6 不解析账号密码。 |
-| WP7 | UI/E2E runner 通过 `accountLeaseRef` 取账号摘要和 secretRef，由 runner 侧 SecretProvider 注入登录凭据。 |
-| WP9 | execution plan 节点只保存 `dataSetRef/accountPoolRef`，运行时调用 WP8 申请 lease，结束时释放或创建清理任务。 |
+| WP7 | UI/E2E runner 通过 `accountLeaseRef` 取账号摘要和 `secretRefDigest`，不接收 `secretRef` 原文；后续凭据注入必须由受控 SecretProvider adapter 以 `accountLeaseRef` 为句柄完成。 |
+| WP9 | execution plan 节点只保存 `dataSetRef/accountPoolRef/accountLeaseRef`，运行时调用 WP8 申请 lease，结束时释放或创建清理任务。 |
 | WP10 | 报告只读取 WP8 准备/租借/清理摘要，不展示 secret、数据正文或敏感字段。 |
+
+### M5 已落地切片
+
+当前代码已实现 WP8 跨 WP 应用层契约切片，覆盖：
+
+- `AcquireExecutionAccountLeaseCommand` / `ReleaseExecutionAccountLeaseCommand`
+- `TestDataExecutionAccountLeaseResponse`
+- `TestDataRunnerAccountContractResponse`
+- `TestDataReportEvidenceQuery`
+- `TestDataReportEvidenceResponse`
+- `TestDataCrossWpReferenceService`
+
+实现约束：
+
+1. WP9 通过 `TestDataCrossWpReferenceService#acquireExecutionRunLease` 获取 `accountLeaseRef`，由 WP8 继续持有租借状态机，WP9 只保存租借引用和脱敏摘要。
+2. WP7 通过 `runnerAccountContract` 获取账号摘要和 `secretRefDigest`，不接收密码、token、cookie、租借 token 明文或 `secret://` 原文。
+3. WP10 通过 `reportEvidence` 读取准备、租借和清理证据，只返回引用、状态、计数和 digest，不返回原始数据正文或清理 payload。
+4. 跨 WP 读取仍通过 WP8 repository 和应用服务完成，不直连其他工作包表。
+5. 定向契约测试已覆盖 WP9 lease adapter、WP7 runner contract 和 WP10 summary contract 的脱敏边界。
+
+字段白名单：
+
+| 契约 | 允许字段 | 禁止字段 |
+|---|---|---|
+| WP9 lease adapter | `accountLeaseRef`、`projectId`、`status`、`expiresAt`、`releasedAt`、账号摘要、策略布尔值 | 密码、token、cookie、`secret://`、`secretRef` 原文、租借 token 明文、`secret_ref_cipher`、数据正文 |
+| WP7 runner contract | `accountLeaseRef`、租借状态、过期时间、账号 key/displayName/status/roleTags/scopeSummary、`secretRefDigest`、凭据策略布尔值 | 密码、token、cookie、`secret://`、`secretRef` 原文、租借 token 明文 |
+| WP10 report evidence | `dataSetRef/accountLeaseRef/cleanupTaskRef`、状态、计数、schema 字段数、cleanup policy digest、targetRef digest、resultSummary digest、resultSummary keys、traceId、时间戳、`holderType/holderRef`、脱敏账号摘要 | record payload、masked summary value、cleanup result value、错误正文原文、密码、token、cookie、`secret://`、`secretRef` 原文 |
+
+WP9 可持久化字段白名单：`accountLeaseRef`、执行 run ref、`requestKey`、租借状态、`expiresAt`、`releasedAt`、账号摘要中的非敏感展示字段和 `secretRefDigest`。WP9 不保存 `leaseTokenDigest`、`secretRef` 原文、凭据明文或清理结果值。释放失败或重复释放由 WP8 租借状态机返回稳定错误；WP9 只能按 `accountLeaseRef + executionRunRef` 重试释放，不得直接更新 WP8 表。
+
+账号摘要中的 `scopeSummary` 只能保存和返回项目、应用、环境、角色、菜单或资源范围等非敏感摘要；不得包含 secret、token、cookie、密码、登录响应、业务数据正文或外部凭据引用。
 
 ## 9. 审计事件草案
 
