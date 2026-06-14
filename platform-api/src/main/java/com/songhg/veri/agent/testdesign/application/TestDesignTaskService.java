@@ -340,12 +340,12 @@ public class TestDesignTaskService {
             return task(id);
         } catch (RuntimeException exception) {
             TestDesignTask failed = withTaskStatus(running, TestDesignTaskStatus.FAILED,
-                    TestDesignGenerationService.safeErrorMessage(exception));
+                    TestDesignGenerationTextSupport.safeErrorMessage(exception));
             repository.saveTask(failed);
             writeAudit("RETRY", "TEST_DESIGN_TASK", id, task.projectId(), Map.of(
                     "taskId", id,
                     "result", "FAILED",
-                    "message", TestDesignGenerationService.safeErrorMessage(exception)
+                    "message", TestDesignGenerationTextSupport.safeErrorMessage(exception)
             ));
             return task(id);
         }
@@ -443,15 +443,15 @@ public class TestDesignTaskService {
             return task(id);
         } catch (RuntimeException exception) {
             TestDesignTask failed = withTaskStatus(running, TestDesignTaskStatus.FAILED,
-                    TestDesignGenerationService.safeErrorMessage(exception));
+                    TestDesignGenerationTextSupport.safeErrorMessage(exception));
             repository.saveTask(failed);
             writeAudit("GENERATE", "TEST_DESIGN_TASK", id, running.projectId(), Map.of(
                     "taskId", id,
                     "result", "FAILED",
-                    "message", TestDesignGenerationService.safeErrorMessage(exception)
+                    "message", TestDesignGenerationTextSupport.safeErrorMessage(exception)
             ));
             log.warn("WP5 test design generation failed, task_id={}, message={}",
-                    id, TestDesignGenerationService.safeErrorMessage(exception), exception);
+                    id, TestDesignGenerationTextSupport.safeErrorMessage(exception), exception);
             return task(id);
         }
     }

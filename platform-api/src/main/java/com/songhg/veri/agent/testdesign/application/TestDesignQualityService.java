@@ -48,6 +48,8 @@ import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import static com.songhg.veri.agent.testdesign.application.TestDesignGenerationTextSupport.redactedPreview;
+
 @Service
 public class TestDesignQualityService {
 
@@ -561,26 +563,6 @@ public class TestDesignQualityService {
     private TestDesignTask taskOrThrow(UUID id) {
         return repository.task(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "用例生成任务不存在: " + id));
-    }
-
-    private static String redactSensitiveText(String value) {
-        // WP5 must not echo obvious secrets from WP3/WP4 source text while the full WP2 context packer is still pending.
-        return TestDesignSensitiveText.redact(value);
-    }
-
-    private static String redactedPreview(String value, int maxLength) {
-        if (!StringUtils.hasText(value)) {
-            return null;
-        }
-        String normalized = redactSensitiveText(value).replaceAll("\\s+", " ").trim();
-        if (normalized.length() <= maxLength) {
-            return normalized;
-        }
-        return normalized.substring(0, Math.max(0, maxLength - 3)) + "...";
-    }
-
-    private static String duplicateKey(UUID requirementId, String coverageType, String title) {
-        return requirementId + ":" + coverageType + ":" + (title == null ? "" : title.trim().toLowerCase(Locale.ROOT));
     }
 
     private static String trimToNull(String value) {
