@@ -491,6 +491,7 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
         defaultTtlSeconds: poolDraft.defaultTtlSeconds
       });
       setSelectedPoolId(result.data.id);
+      setSelectedAccountId('');
       setPoolDetail(result.data);
       setPoolState({ loading: false, success: '账号池已创建', traceId: result.trace_id });
       await refreshWorkbench();

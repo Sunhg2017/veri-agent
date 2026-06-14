@@ -119,7 +119,9 @@ M5 当前推进状态：`platform-api` 已新增 `TestDataCrossWpReferenceServic
 | WP8-6.6 清理任务面板 | P1 | 前端工程师 | 任务列表、创建、重试、失败摘要 | cleanup disabled 可解释 | Vitest |
 | WP8-6.7 响应式 smoke | P1 | 前端工程师、质量工程师 | 桌面和 390px 主链路 | 无横向溢出；DOM 无 secretRef 原文 | Playwright smoke |
 
-M6A 当前推进状态：`portal-web` 已新增 `#test-data` 工作台基础闭环，覆盖 `portal-web/src/api/testData.ts` API client/normalize helper、`testData:read/manage/lease/cleanup/export` 前端权限映射、数据集/账号池/租借/清理任务四个基础面板、secretRef 写入后清空且仅展示 `secretRefDigest`、traceId 错误展示和窄屏单列布局。当前 M6A 已通过 `testData.test.ts` 和 `permissions.test.ts` 覆盖路径、payload、权限和脱敏 helper，并通过 `npm run build`。M6A 尚未实现脱敏导出面板、Playwright 桌面/390px smoke 脚本、DOM secretRef 原文扫描脚本和完整 WP8 quality gate，这些继续按 WP8-6.7、WP8-7.5 和 M7 推进。
+M6A 当前推进状态：`portal-web` 已新增 `#test-data` 工作台基础闭环，覆盖 `portal-web/src/api/testData.ts` API client/normalize helper、`testData:read/manage/lease/cleanup/export` 前端权限映射、数据集/账号池/租借/清理任务四个基础面板、secretRef 写入后清空且仅展示 `secretRefDigest`、traceId 错误展示和窄屏单列布局。当前 M6A 已通过 `testData.test.ts` 和 `permissions.test.ts` 覆盖路径、payload、权限和脱敏 helper，并通过 `npm run build`。
+
+M6B/M7A 当前推进状态：已新增 `portal-web/e2e/wp8-test-data.smoke.playwright.ts`、`scripts/wp8_frontend_e2e_smoke.sh`、`scripts/wp8_account_lease_concurrency_smoke.sh` 和 `scripts/wp8_quality_gate.sh`。前端 smoke 覆盖桌面和 390px 视口下的数据集创建、记录摘要导入、账号池创建、账号 secretRef 写入后不回显、租借申请/续租/释放、清理任务创建/重试、DOM 不含输入 secretRef 原文和页面无横向溢出；quality gate 聚合脚本语法、Java 行数门禁、WP8 后端定向测试、DB repository contract、前端定向测试、Playwright smoke、前端 build、DB validation，并在 release 模式要求显式执行账号租借并发 smoke。脱敏导出面板和真实 cleanup worker 仍未完成，不纳入本轮完成定义。
 
 ## 11. Epic 7：质量门禁和发布准出
 
@@ -131,6 +133,8 @@ M6A 当前推进状态：`portal-web` 已新增 `#test-data` 工作台基础闭�
 | WP8-7.4 Lease concurrency smoke | P0 | 质量工程师 | 并发申请同一角色账号，验证 active lease 唯一 | release gate 显式启用 | `scripts/wp8_account_lease_concurrency_smoke.sh` |
 | WP8-7.5 Frontend smoke | P1 | 质量工程师、前端工程师 | 桌面和移动主链路、DOM 脱敏扫描 | 不泄露 secretRef | `scripts/wp8_frontend_e2e_smoke.sh` |
 | WP8-7.6 Quality gate | P0 | 质量工程师 | 聚合后端、前端、构建、DB、smoke 和 Java 行数门禁 | release 模式要求并发 smoke | `scripts/wp8_quality_gate.sh` |
+
+M7A 当前推进状态：`scripts/wp8_quality_gate.sh` 已落地为 development/release 双模式聚合门禁，支持 `WP8_QUALITY_GATE_PLAN_ONLY=1` 预览、`WP8_SKIP_FRONTEND_E2E=1` 显式跳过浏览器 smoke、`WP8_SKIP_DB_VALIDATION=1` 显式跳过 DB validation；release/preprod/prod 模式必须设置 `WP8_LEASE_CONCURRENCY_SMOKE=managed` 执行账号租借并发 smoke。当前并发 smoke 复用 `TestAccountLeaseServiceTest#rejectsSecondActiveLeaseUntilRelease` 和 `DbProfileRepositoryContractTest#testDataRepositoryPersistsLeasesAndCleanupTasksThroughJdbc` 作为本地 managed 证据，不启动真实 HTTP 服务或生产清理 worker。
 
 ## 12. Epic 8：文档和交付
 

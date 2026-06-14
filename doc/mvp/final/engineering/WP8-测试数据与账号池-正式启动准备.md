@@ -59,9 +59,9 @@ WP8 的核心目标是把测试数据、账号池、租借、释放和清理任�
 | WP7 UI/E2E | 后续通过 `accountLeaseRef` 获取账号摘要和 `secretRefDigest`；runner 不接收 `secretRef` 原文，真实凭据注入由后续受控 SecretProvider adapter 承接。 |
 | WP9 执行编排 | 后续执行节点可申请和释放账号 lease，并关联 cleanup task。 |
 | WP10 报告诊断 | 后续读取准备、租借、清理摘要作为报告证据。 |
-| `portal-web` | 已新增 `#test-data` 工作台基础闭环和 API helper；脱敏导出、Playwright smoke 与 DOM secretRef 扫描后续补齐。 |
+| `portal-web` | 已新增 `#test-data` 工作台基础闭环、API helper、Playwright 桌面/390px smoke 和 DOM secretRef 扫描；脱敏导出面板后续补齐。 |
 | `db/migration/wp1` | 后续新增 WP8 数据集、账号池、租借和任务表。 |
-| `scripts` | 后续新增 WP8 quality gate、并发租借 smoke 和前端 smoke。 |
+| `scripts` | 已新增 WP8 quality gate、并发租借 managed smoke 和前端 smoke；release 模式要求显式启并发 smoke。 |
 
 ## 6. 五角色启动交付
 
@@ -86,7 +86,7 @@ WP8 的核心目标是把测试数据、账号池、租借、释放和清理任�
 | M6 前端闭环 | 工作台完成主链路 | portal-web 页面 | Vitest、Playwright smoke 通过 |
 | M7 准出门禁 | quality gate、DB validation、并发 smoke | `scripts/wp8_quality_gate.sh` | release gate 明确 |
 
-M6A 当前推进说明：账号池、租借和清理任务后端切片已按 `platform-api` API 落地，跨 WP 引用契约已通过 `TestDataCrossWpReferenceService` 落成应用层切片。`portal-web` 已新增 `#test-data` 工作台基础闭环，覆盖 API client、权限入口、数据集/账号池/租借/清理任务基础面板、traceId 错误展示和 secretRef 不回显；脱敏导出面板、Playwright 桌面/390px smoke、DOM secretRef 原文扫描和 WP8 聚合 quality gate 仍按 M6B/M7 推进。
+M6B/M7A 当前推进说明：账号池、租借和清理任务后端切片已按 `platform-api` API 落地，跨 WP 引用契约已通过 `TestDataCrossWpReferenceService` 落成应用层切片。`portal-web` 已新增 `#test-data` 工作台基础闭环，覆盖 API client、权限入口、数据集/账号池/租借/清理任务基础面板、traceId 错误展示和 secretRef 不回显；本轮进一步补齐 `scripts/wp8_frontend_e2e_smoke.sh`、`scripts/wp8_account_lease_concurrency_smoke.sh`、`scripts/wp8_quality_gate.sh` 和桌面/390px Playwright smoke。脱敏导出面板和真实 cleanup worker 仍按后续任务推进。
 
 ## 8. 启动准入清单
 

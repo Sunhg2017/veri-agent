@@ -5,7 +5,7 @@
 | 工作包 | WP8 测试数据与账号池 |
 | 角色产出 | 资深质量工程师 |
 | 文档性质 | 测试策略、用例矩阵、脚本门禁和准出要求 |
-| 当前口径 | WP8 分 M2-M7 推进；当前本轮聚焦 M6A 前端工作台基础闭环，已覆盖 API client、`#test-data` 权限入口、四个基础面板和前端脱敏断言；脱敏导出、Playwright smoke、DOM secretRef 扫描和真实清理 worker 按后续里程碑承接 |
+| 当前口径 | WP8 分 M2-M7 推进；当前已完成 M6A 前端工作台基础闭环，并新增 M6B/M7A 浏览器 smoke 与 quality gate 基础脚本；脱敏导出面板和真实清理 worker 仍按后续里程碑承接 |
 | 版本 | v0.1 |
 | 日期 | 2026-06-15 |
 
@@ -127,7 +127,7 @@ bash db/validation/run_wp1_db_validation.sh
 
 M1 只验证权限 seed、DB foundation、运行时 DB 角色授权、审计事件字典配置、health API 和 OpenAPI contract；数据集 CRUD、账号池 CRUD、租借并发、清理 worker、导出和前端主链路按 M2-M6 对应 story 另行准出。
 
-前端 smoke 草案：
+前端 smoke：
 
 ```bash
 bash scripts/wp8_frontend_e2e_smoke.sh
@@ -139,11 +139,11 @@ bash scripts/wp8_frontend_e2e_smoke.sh
 bash scripts/wp8_account_lease_concurrency_smoke.sh
 ```
 
-说明：前端 smoke 与外部并发租借 smoke 需要在 M6/M7 或 release 模式补齐脚本后执行；M6A 当前前端切片以 API helper/权限 Vitest、全量前端 Vitest、前端 build、后端全量测试和 DB validation 作为当前证据。
+说明：`scripts/wp8_frontend_e2e_smoke.sh` 已覆盖桌面和 390px 视口的浏览器主链路、DOM secretRef 原文扫描和页面横向溢出检查；`scripts/wp8_account_lease_concurrency_smoke.sh` 当前为本地 managed smoke，复用后端租借冲突和 DB active lease 唯一约束测试，release gate 必须显式启用。
 
 ## 8. WP8 Quality Gate 草案
 
-`scripts/wp8_quality_gate.sh` 后续建议串联：
+`scripts/wp8_quality_gate.sh` 已串联：
 
 1. 脚本语法检查：`wp8_quality_gate.sh`、`wp8_frontend_e2e_smoke.sh`、`wp8_account_lease_concurrency_smoke.sh`、`platform_api_java_line_guard.sh`。
 2. Java 行数门禁：`bash scripts/platform_api_java_line_guard.sh`。
@@ -258,10 +258,32 @@ M6A 定向测试矩阵：
 
 M6A 未执行项和风险边界：
 
-1. 未执行 Playwright 桌面/390px smoke；本轮仅通过响应式 CSS、TypeScript build 和 Vitest 验证基础闭环，M6B/M6C 需补真实浏览器脚本。
-2. 未实现脱敏导出面板；当前仅保留 `testData:export` 权限映射和策略摘要展示，导出主链路继续按 WP8-6.7/WP8-7.5 推进。
-3. 未执行 DOM secretRef 原文扫描脚本；M6A 通过 API normalize 和组件状态约束降低泄露风险，release gate 仍需浏览器级扫描。
+1. Playwright 桌面/390px smoke 已由 M6B 补齐，不再是当前前端 smoke 缺口。
+2. 未实现脱敏导出面板；当前仅保留 `testData:export` 权限映射和策略摘要展示，导出主链路继续后续推进。
+3. DOM secretRef 原文扫描已由 `wp8-test-data.smoke.playwright.ts` 覆盖页面文本和 toast/error 区域的输入 secretRef 检查。
 4. 本轮未改 Java 生产代码；Java 行数门禁作为仓库默认验证执行，阿里巴巴 Java 自查不适用于本轮代码变更。
+
+### M6B/M7A 前端 smoke 与 quality gate 基础门禁
+
+当前 M6B/M7A 切片采用以下验证入口作为最小准出：
+
+```bash
+bash scripts/wp8_frontend_e2e_smoke.sh
+bash scripts/wp8_account_lease_concurrency_smoke.sh
+WP8_QUALITY_GATE_PLAN_ONLY=1 bash scripts/wp8_quality_gate.sh
+cd portal-web && npm test -- api/testData.test.ts permissions.test.ts
+cd portal-web && npm run build
+git diff --check
+```
+
+M6B/M7A 定向测试矩阵：
+
+| 测试/脚本 | 覆盖范围 | 必须断言 | 失败条件 |
+|---|---|---|---|
+| `portal-web/e2e/wp8-test-data.smoke.playwright.ts` | 桌面和 390px 浏览器主链路 | 创建数据集、导入记录摘要、创建账号池、写入账号 secretRef、申请/续租/释放租借、创建/重试清理任务；页面文本不含输入 `secret://` 原文；390px 无页面横向溢出 | secretRef 原文进入 DOM；移动端溢出；任一主链路按钮或 payload 失效 |
+| `scripts/wp8_frontend_e2e_smoke.sh` | Playwright smoke 入口 | 自动选择可用 Chrome channel，必要时可用 `WP8_FRONTEND_INSTALL_BROWSERS=1` 安装浏览器 | 浏览器依赖缺失且未安装；smoke 失败 |
+| `scripts/wp8_account_lease_concurrency_smoke.sh` | 本地 managed 租借并发 smoke | 后端服务拒绝第二个 active lease，DB repository active lease 唯一约束有效 | 第二个 active lease 成功；DB contract 不通过 |
+| `scripts/wp8_quality_gate.sh` | WP8 聚合门禁 | development 模式可跑完整门禁；release/preprod/prod 模式要求 `WP8_LEASE_CONCURRENCY_SMOKE=managed` | release 模式未显式启并发 smoke；任一必跑验证失败 |
 
 ## 9. 准出标准
 

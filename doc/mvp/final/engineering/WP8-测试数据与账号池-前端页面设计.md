@@ -13,7 +13,7 @@
 
 让测试工程师在浏览器内完成 WP8 P0 主链路：维护数据集、维护账号池、申请和释放账号租借、查看清理任务和导出脱敏摘要。前端只做体验控制，后端仍是权限、scope、状态和敏感字段保护的最终来源。
 
-当前实现节奏说明：M6A 已交付 `portal-web` 工作台基础闭环，包含 API client、`#test-data` 入口、权限显隐、数据集/账号池/租借/清理任务基础面板和 Vitest 脱敏断言；脱敏导出面板、Playwright 桌面/390px smoke 与 DOM secretRef 原文扫描继续按 M6B/M6C 推进。
+当前实现节奏说明：M6A 已交付 `portal-web` 工作台基础闭环，包含 API client、`#test-data` 入口、权限显隐、数据集/账号池/租借/清理任务基础面板和 Vitest 脱敏断言；M6B 已补 Playwright 桌面/390px smoke 与 DOM secretRef 原文扫描。脱敏导出面板仍按后续前端增强推进。
 
 ## 2. 路由和入口
 
@@ -126,7 +126,7 @@
 3. 租借 payload、续租 payload、释放 payload、清理任务 payload 单独测试。
 4. redaction policy 和展示白名单 helper 单独测试，确保 secretRef 原文不进入 UI state。
 5. 关键按钮使用稳定 accessible name，便于 Playwright smoke。
-6. 主链路浏览器 smoke 覆盖桌面和 390px：创建数据集、创建账号池、新增账号、租借、续租、释放、创建清理任务、导出摘要。
+6. 主链路浏览器 smoke 覆盖桌面和 390px：创建数据集、导入记录摘要、创建账号池、新增账号、租借、续租、释放、创建和重试清理任务，并扫描 DOM 不含输入 secretRef 原文。
 
 M6A 已实现项：
 
@@ -136,11 +136,17 @@ M6A 已实现项：
 4. 账号 secretRef 输入使用 password 控件，新增或替换成功后不回显原文；页面只展示 `secretRefDigest` 短摘要。
 5. `testData.test.ts` 覆盖 payload 路径、敏感字段过滤、secretRef 写入边界和 digest 保留；`permissions.test.ts` 覆盖入口和按钮权限。
 
-M6A 未完成项：
+M6B 已实现项：
+
+1. 新增 `portal-web/e2e/wp8-test-data.smoke.playwright.ts`，覆盖桌面和 390px 浏览器主链路。
+2. 新增 `scripts/wp8_frontend_e2e_smoke.sh` 和 `npm run test:wp8-smoke`，作为 WP8 前端 smoke 稳定入口。
+3. Smoke 验证账号 secretRef 写入后输入框清空、页面只展示 digest、DOM 文本不含输入 `secret://` 原文和敏感测试值。
+4. Smoke 验证 390px 下测试数据工作台无页面横向溢出。
+
+M6 当前未完成项：
 
 1. 脱敏导出摘要按钮和导出结果面板尚未落地。
-2. Playwright 桌面/390px smoke 和 DOM secretRef 原文扫描脚本尚未落地。
-3. 筛选栏、分页和更细粒度详情抽屉可用性仍需 M6B 增强。
+2. 筛选栏、分页和更细粒度详情抽屉可用性仍需后续增强。
 
 ## 11. 前端验收
 
