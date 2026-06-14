@@ -33,6 +33,9 @@ veri-agent:
           path: /api/v1/document-input/health
           match: exact
         - method: GET
+          path: /api/v1/execution/health
+          match: exact
+        - method: GET
           path: /api/v1/auth/me
           match: exact
         - method: POST

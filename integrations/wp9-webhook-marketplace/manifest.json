@@ -1,0 +1,97 @@
+{
+  "schemaVersion": "veri.wp9.webhook.marketplace.v1",
+  "packageId": "veri-agent.wp9.webhook.ci-generic",
+  "version": "0.1.0",
+  "displayName": "Veri Agent WP9 Webhook Trigger",
+  "description": "Reusable CI/CD marketplace package for triggering WP9 execution plans through signed webhooks.",
+  "providers": [
+    "github-actions",
+    "gitlab-ci",
+    "jenkins"
+  ],
+  "runtimeContract": {
+    "webhookPath": "/api/v1/execution/webhooks/{triggerId}",
+    "method": "POST",
+    "signature": {
+      "algorithm": "HMAC-SHA256",
+      "encoding": "hex-lower",
+      "canonicalString": "timestamp.eventId.rawBody",
+      "headers": [
+        "X-VA-Timestamp",
+        "X-VA-Event-Id",
+        "X-VA-Signature"
+      ],
+      "clockSkewSecondsDefault": 300
+    },
+    "idempotency": {
+      "eventIdHeader": "X-VA-Event-Id",
+      "rule": "Retries for the same external event must reuse the same eventId and raw body."
+    }
+  },
+  "installInputs": [
+    {
+      "key": "VERI_AGENT_WP9_WEBHOOK_URL",
+      "kind": "url",
+      "required": true,
+      "secret": false,
+      "description": "Full Veri Agent WP9 webhook URL for one enabled trigger."
+    },
+    {
+      "key": "VERI_AGENT_WP9_WEBHOOK_SECRET",
+      "kind": "secret",
+      "required": true,
+      "secret": true,
+      "description": "Plain webhook signing secret stored in the CI vendor secret store."
+    },
+    {
+      "key": "VERI_AGENT_WP9_EVENT_PREFIX",
+      "kind": "string",
+      "required": false,
+      "secret": false,
+      "description": "Optional eventId prefix for teams that share one trigger across pipelines."
+    }
+  ],
+  "templates": [
+    {
+      "provider": "github-actions",
+      "path": "templates/github-actions.yml",
+      "targetPath": ".github/workflows/veri-agent-wp9.yml"
+    },
+    {
+      "provider": "gitlab-ci",
+      "path": "templates/gitlab-ci.yml",
+      "targetPath": ".gitlab-ci.yml"
+    },
+    {
+      "provider": "jenkins",
+      "path": "templates/Jenkinsfile",
+      "targetPath": "Jenkinsfile"
+    }
+  ],
+  "payloadExamples": [
+    {
+      "provider": "github-actions",
+      "path": "payloads/github.json"
+    },
+    {
+      "provider": "gitlab-ci",
+      "path": "payloads/gitlab.json"
+    },
+    {
+      "provider": "jenkins",
+      "path": "payloads/jenkins.json"
+    }
+  ],
+  "securityChecklist": [
+    "Store only the plaintext signing secret in the CI vendor secret store.",
+    "Do not pass Veri Agent secretRef values to external CI systems.",
+    "Disable command echo before signing and sending the webhook.",
+    "Do not print the secret, signature, or raw payload into logs or artifacts.",
+    "Use stable eventId values for idempotent retry."
+  ],
+  "validation": {
+    "offlineSmoke": "bash scripts/wp9_marketplace_package_smoke.sh",
+    "signatureHelper": "bash scripts/wp9_webhook_sign.sh",
+    "httpSmoke": "WP9_WEBHOOK_SMOKE_MODE=managed bash scripts/wp9_webhook_http_smoke.sh"
+  }
+}

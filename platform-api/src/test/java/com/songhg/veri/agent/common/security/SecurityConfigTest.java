@@ -5,10 +5,13 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.hamcrest.Matchers.startsWith;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -38,12 +41,38 @@ class SecurityConfigTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.traceId", startsWith("trc_")))
                 .andExpect(jsonPath("$.data.status").value("UP"));
+
+        mockMvc.perform(get("/api/v1/execution/health"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.traceId", startsWith("trc_")))
+                .andExpect(jsonPath("$.data.status").value("UP"));
     }
 
     @Test
     void protectsManagementEndpointsByDefault() throws Exception {
         mockMvc.perform(get("/api/v1/management/users"))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void asyncDispatcherDoesNotBypassSecurityRules() throws Exception {
+        mockMvc.perform(get("/api/v1/management/users").with(request -> {
+                    request.setDispatcherType(jakarta.servlet.DispatcherType.ASYNC);
+                    return request;
+                }))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void exposesExplicitCorsConfigurationForPortalOrigin() throws Exception {
+        mockMvc.perform(options("/api/v1/execution/health")
+                        .header(HttpHeaders.ORIGIN, "http://localhost:5173")
+                        .header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, HttpMethod.GET.name())
+                        .header(HttpHeaders.ACCESS_CONTROL_REQUEST_HEADERS, "Authorization,X-Trace-Id"))
+                .andExpect(status().isOk())
+                .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, "http://localhost:5173"))
+                .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_CREDENTIALS, "true"))
+                .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_EXPOSE_HEADERS, "X-Trace-Id"));
     }
 
     @Test

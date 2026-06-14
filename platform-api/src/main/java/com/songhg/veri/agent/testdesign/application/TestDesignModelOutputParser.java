@@ -1,5 +1,6 @@
 package com.songhg.veri.agent.testdesign.application;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.songhg.veri.agent.common.error.BusinessException;
@@ -244,7 +245,7 @@ public class TestDesignModelOutputParser {
     private JsonNode readRoot(String json) {
         try {
             return objectMapper.readTree(json);
-        } catch (Exception exception) {
+        } catch (JsonProcessingException exception) {
             throw schemaException("模型输出 JSON 无法解析");
         }
     }

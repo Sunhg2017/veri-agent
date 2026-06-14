@@ -7,6 +7,7 @@ export type PageKey =
   | 'asset-library'
   | 'test-design'
   | 'api-automation'
+  | 'execution'
   | 'model-access'
   | 'organizations'
   | 'users'
@@ -85,6 +86,11 @@ export type Permission =
   | 'apiAutomation:review'
   | 'apiAutomation:execute'
   | 'apiAutomation:export'
+  | 'execution:read'
+  | 'execution:manage'
+  | 'execution:trigger'
+  | 'execution:admin'
+  | 'execution:export'
   | 'modelAccess:read'
   | 'modelAccess:manage'
   | 'modelAccess:export';
@@ -137,6 +143,10 @@ export type ButtonKey =
   | 'apiAutomation:review'
   | 'apiAutomation:execute'
   | 'apiAutomation:export'
+  | 'execution:manage'
+  | 'execution:trigger'
+  | 'execution:admin'
+  | 'execution:export'
   | 'modelAccess:provider_manage'
   | 'modelAccess:prompt_manage'
   | 'modelAccess:policy_manage'
@@ -149,6 +159,7 @@ export const pageReadPermissions: Partial<Record<PageKey, Permission>> = {
   'asset-library': 'asset:read',
   'test-design': 'testDesign:read',
   'api-automation': 'apiAutomation:read',
+  execution: 'execution:read',
   'model-access': 'modelAccess:read',
   organizations: 'department:read',
   users: 'user:read',
@@ -232,6 +243,10 @@ const buttonPermissionGroups: Record<ButtonKey, Permission[][]> = {
   'apiAutomation:review': [['apiAutomation:review']],
   'apiAutomation:execute': [['apiAutomation:execute']],
   'apiAutomation:export': [['apiAutomation:export']],
+  'execution:manage': [['execution:manage']],
+  'execution:trigger': [['execution:trigger']],
+  'execution:admin': [['execution:admin']],
+  'execution:export': [['execution:export']],
   'modelAccess:provider_manage': [['modelAccess:manage']],
   'modelAccess:prompt_manage': [['modelAccess:manage']],
   'modelAccess:policy_manage': [['modelAccess:manage']],

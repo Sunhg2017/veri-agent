@@ -1,5 +1,7 @@
 package com.songhg.veri.agent.asset.application;
 
+import static com.songhg.veri.agent.asset.application.AssetCodeGenerator.assetCode;
+
 import com.songhg.veri.agent.asset.application.command.CreateRequirementRequest;
 import com.songhg.veri.agent.asset.application.command.RollbackAssetVersionRequest;
 import com.songhg.veri.agent.asset.application.command.UpdateAssetLifecycleRequest;
@@ -256,10 +258,6 @@ public class AssetRequirementService {
                 && java.util.Objects.equals(left.status(), right.status())
                 && java.util.Objects.equals(left.priority(), right.priority())
                 && java.util.Objects.equals(normalizedTags(left.tags()), normalizedTags(right.tags()));
-    }
-
-    private static String assetCode(String prefix, UUID id) {
-        return prefix + "-" + id.toString().replace("-", "").substring(0, 12);
     }
 
     private static AssetListQuery assetListQuery(AssetListRequest request) {

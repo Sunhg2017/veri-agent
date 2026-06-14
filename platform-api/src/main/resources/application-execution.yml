@@ -1,0 +1,16 @@
+veri-agent:
+  execution:
+    scheduler-enabled: ${WP9_SCHEDULER_ENABLED:false}
+    webhook-enabled: ${WP9_WEBHOOK_ENABLED:false}
+    cron-enabled: ${WP9_CRON_ENABLED:false}
+    webhook-clock-skew-seconds: ${WP9_WEBHOOK_CLOCK_SKEW_SECONDS:300}
+    webhook-secret-cache-ttl-seconds: ${WP9_WEBHOOK_SECRET_CACHE_TTL_SECONDS:60}
+    scheduler-interval-ms: ${WP9_SCHEDULER_INTERVAL_MS:5000}
+    scheduler-initial-delay-ms: ${WP9_SCHEDULER_INITIAL_DELAY_MS:30000}
+    scheduler-worker-id: ${WP9_SCHEDULER_WORKER_ID:wp9-managed-worker}
+    scheduler-tick-batch-size: ${WP9_SCHEDULER_TICK_BATCH_SIZE:4}
+    max-concurrent-runs-per-project: ${WP9_MAX_CONCURRENT_RUNS_PER_PROJECT:2}
+    max-concurrent-nodes-per-run: ${WP9_MAX_CONCURRENT_NODES_PER_RUN:4}
+    node-heartbeat-timeout-seconds: ${WP9_NODE_HEARTBEAT_TIMEOUT_SECONDS:180}
+    default-run-timeout-seconds: ${WP9_DEFAULT_RUN_TIMEOUT_SECONDS:1800}
+    recovery-batch-size: ${WP9_RECOVERY_BATCH_SIZE:50}

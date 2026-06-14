@@ -37,44 +37,21 @@ import com.songhg.veri.agent.document.config.DocumentInputProperties;
 import com.songhg.veri.agent.document.domain.DocumentImportRecord;
 import com.songhg.veri.agent.document.domain.DocumentImportStatus;
 import com.songhg.veri.agent.document.domain.DocumentSourceConfig;
-import com.songhg.veri.agent.document.domain.DocumentSourceStatus;
 import com.songhg.veri.agent.document.domain.DocumentSourceType;
 import com.songhg.veri.agent.document.domain.DocumentWebhookEvent;
 import com.songhg.veri.agent.document.domain.WebhookEventStatus;
 import com.songhg.veri.agent.document.domain.WebhookSignatureStatus;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
 import java.time.Instant;
-import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
-import javax.crypto.Mac;
-import javax.crypto.spec.SecretKeySpec;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
-
-
-
-
-
-
-
 @Service
 public class DocumentInputService {
 
-    private static final Set<DocumentSourceType> SUPPORTED_SOURCE_TYPES = Set.of(
-            DocumentSourceType.TEXT,
-            DocumentSourceType.MARKDOWN,
-            DocumentSourceType.WORD,
-            DocumentSourceType.PDF,
-            DocumentSourceType.OCR,
-            DocumentSourceType.CUSTOM_API
-    );
-    private static final Set<String> SUPPORTED_WEBHOOK_EVENT_VERSIONS = Set.of("1.0");
     private final DocumentInputRepository repository;
     private final DocumentSourceManagementService sourceManagementService;
     private final DocumentImportService importService;
@@ -84,11 +61,11 @@ public class DocumentInputService {
     private final DocumentInputPlatformContextClient contextClient;
     private final DocumentContentExtractor contentExtractor;
     private final DocumentInputConfiguration configuration;
-    private final ObjectMapper objectMapper;
     private final DocumentInputProperties properties;
     private final DocumentInputMetrics metrics;
     private final DocumentWebhookSecretResolver webhookSecretResolver;
     private final DocumentWebhookIngressGuard webhookIngressGuard;
+    private final DocumentWebhookSupport webhookSupport;
     private final DocumentInputResponseMapper responseMapper;
     private final DocumentInputEventPublisher eventPublisher;
 
@@ -107,6 +84,7 @@ public class DocumentInputService {
             DocumentInputMetrics metrics,
             DocumentWebhookSecretResolver webhookSecretResolver,
             DocumentWebhookIngressGuard webhookIngressGuard,
+            DocumentWebhookSupport webhookSupport,
             DocumentInputEventPublisher eventPublisher
     ) {
         this.repository = repository;
@@ -118,17 +96,17 @@ public class DocumentInputService {
         this.contextClient = contextClient;
         this.contentExtractor = contentExtractor;
         this.configuration = configuration;
-        this.objectMapper = objectMapper;
         this.properties = properties;
         this.metrics = metrics;
         this.webhookSecretResolver = webhookSecretResolver;
         this.webhookIngressGuard = webhookIngressGuard;
+        this.webhookSupport = webhookSupport;
         this.responseMapper = new DocumentInputResponseMapper(repository, objectMapper);
         this.eventPublisher = eventPublisher;
     }
 
     public int supportedSourceTypeCount() {
-        return SUPPORTED_SOURCE_TYPES.size();
+        return webhookSupport.supportedSourceTypeCount();
     }
 
     public DocumentInputHealthResponse health() {
@@ -140,8 +118,8 @@ public class DocumentInputService {
                 properties.inputEnabled(),
                 properties.webhookEnabled(),
                 properties.modelParseEnabled(),
-                maxWebhookPayloadBytes(),
-                maxImportContentBytes(),
+                webhookSupport.maxWebhookPayloadBytes(),
+                webhookSupport.maxImportContentBytes(),
                 configuration.documentBinaryMaxBytes(),
                 configuration.ocrConfigured(),
                 configuration.ocrTimeoutSeconds(),
@@ -153,7 +131,7 @@ public class DocumentInputService {
                 configuration.ocrWorkerTokenConfigured(),
                 configuration.ocrLocalCommandFallbackEnabled(),
                 contentExtractor.ocrLocalCommandExecutionAllowed(),
-                batchActionLimit(),
+                webhookSupport.batchActionLimit(),
                 webhookIngressGuard.ipAllowlistConfigured(),
                 webhookIngressGuard.trustedProxyCidrsConfigured(),
                 webhookIngressGuard.rateLimitEnabled(),
@@ -395,9 +373,9 @@ public class DocumentInputService {
     ) {
         ensureInputEnabled();
         ensureWebhookEnabled();
-        DocumentSourceConfig source = repository.sourceByCode(normalizeSourceCode(sourceCode))
+        DocumentSourceConfig source = repository.sourceByCode(webhookSupport.normalizeSourceCode(sourceCode))
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, DocumentInputMessages.SOURCE_NOT_FOUND.formatted(sourceCode)));
-        ensureExecutableSource(source.sourceType(), source.status());
+        webhookSupport.ensureExecutableSource(source.sourceType(), source.status());
         String clientIp = webhookIngressGuard.resolveClientIp(remoteAddress, forwardedFor, realIp);
         if (!webhookIngressGuard.isIpAllowed(source.sourceCode(), clientIp)) {
             rejectWebhookBeforeSignature(
@@ -433,8 +411,8 @@ public class DocumentInputService {
                     )
             );
         }
-        String payloadDigest = sha256(rawPayload);
-        WebhookSignatureStatus signatureStatus = validateWebhookSignature(
+        String payloadDigest = webhookSupport.sha256(rawPayload);
+        WebhookSignatureStatus signatureStatus = webhookSupport.validateSignature(
                 source,
                 rawPayload,
                 timestamp,
@@ -464,7 +442,7 @@ public class DocumentInputService {
                         WebhookEventStatus.REJECTED,
                         payloadDigest,
                         null,
-                        webhookSignatureFailureMessage(signatureStatus),
+                        webhookSupport.webhookSignatureFailureMessage(signatureStatus),
                         0,
                         null,
                         null,
@@ -482,10 +460,10 @@ public class DocumentInputService {
                 );
                 metrics.recordWebhook(signatureStatus, WebhookEventStatus.REJECTED, null);
             }
-            throw new BusinessException(ErrorCode.FORBIDDEN, webhookSignatureFailureMessage(signatureStatus));
+            throw new BusinessException(ErrorCode.FORBIDDEN, webhookSupport.webhookSignatureFailureMessage(signatureStatus));
         }
-        if (payloadSize(rawPayload) > maxWebhookPayloadBytes()) {
-            String payloadLimitMessage = webhookPayloadLimitMessage();
+        if (webhookSupport.payloadSize(rawPayload) > webhookSupport.maxWebhookPayloadBytes()) {
+            String payloadLimitMessage = webhookSupport.webhookPayloadLimitMessage();
             Instant rejectedAt = Instant.now();
             DocumentWebhookEvent rejected = new DocumentWebhookEvent(
                     UUID.randomUUID(),
@@ -522,7 +500,7 @@ public class DocumentInputService {
         if (duplicate != null) {
             return respondToDuplicateWebhookEvent(duplicate, payloadDigest);
         }
-        String eventType = webhookEventType(rawPayload);
+        String eventType = webhookSupport.eventTypeOrDefault(rawPayload);
         Instant now = Instant.now();
         DocumentWebhookEvent accepted = new DocumentWebhookEvent(
                 UUID.randomUUID(),
@@ -577,7 +555,7 @@ public class DocumentInputService {
                 trimToNull(eventVersion),
                 signatureStatus,
                 WebhookEventStatus.REJECTED,
-                sha256(rawPayload),
+                webhookSupport.sha256(rawPayload),
                 null,
                 eventMessage,
                 0,
@@ -628,7 +606,7 @@ public class DocumentInputService {
         DocumentWebhookEvent event = repository.webhookEvent(eventId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, DocumentInputMessages.WEBHOOK_EVENT_NOT_FOUND.formatted(eventId)));
         String sourceCode = event.sourceCode();
-        DocumentSourceConfig source = repository.sourceByCode(normalizeSourceCode(sourceCode))
+        DocumentSourceConfig source = repository.sourceByCode(webhookSupport.normalizeSourceCode(sourceCode))
                 .orElseThrow(() -> new BusinessException(
                         ErrorCode.NOT_FOUND,
                         DocumentInputMessages.SOURCE_NOT_FOUND.formatted(sourceCode)
@@ -637,13 +615,21 @@ public class DocumentInputService {
         String eventVersion = null;
         String projectId = source.defaultProjectId();
         try {
-            JsonNode payload = parsePayload(event.rawPayload());
-            eventType = firstText(textAt(payload, "eventType"), textAt(payload, "type"), "requirement.created");
-            eventVersion = firstText(event.eventVersion(), textAt(payload, "eventVersion"), textAt(payload, "version"));
-            ensureSupportedWebhookEventType(eventType);
-            ensureSupportedWebhookEventVersion(eventVersion);
-            ensureSourceWebhookEventVersion(source, eventVersion);
-            projectId = firstText(textAt(payload, "projectId"), source.defaultProjectId());
+            JsonNode payload = webhookSupport.parsePayload(event.rawPayload());
+            eventType = webhookSupport.firstText(
+                    webhookSupport.textAt(payload, "eventType"),
+                    webhookSupport.textAt(payload, "type"),
+                    "requirement.created"
+            );
+            eventVersion = webhookSupport.firstText(
+                    event.eventVersion(),
+                    webhookSupport.textAt(payload, "eventVersion"),
+                    webhookSupport.textAt(payload, "version")
+            );
+            webhookSupport.ensureSupportedWebhookEventType(eventType);
+            webhookSupport.ensureSupportedWebhookEventVersion(eventVersion);
+            webhookSupport.ensureSourceWebhookEventVersion(source, eventVersion);
+            projectId = webhookSupport.firstText(webhookSupport.textAt(payload, "projectId"), source.defaultProjectId());
             if (!StringUtils.hasText(projectId)) {
                 throw new BusinessException(ErrorCode.VALIDATION_ERROR, DocumentInputMessages.WEBHOOK_PAYLOAD_MISSING_PROJECT_ID);
             }
@@ -652,7 +638,7 @@ public class DocumentInputService {
             if (imported.status() == DocumentImportStatus.FAILED) {
                 throw new BusinessException(
                         ErrorCode.VALIDATION_ERROR,
-                        firstText(imported.errorMessage(), "webhook 导入解析失败")
+                        webhookSupport.firstText(imported.errorMessage(), "webhook 导入解析失败")
                 );
             }
             Instant processedAt = Instant.now();
@@ -691,7 +677,7 @@ public class DocumentInputService {
             if (event.importId() != null) {
                 importService.failImport(event.importId(), exception.getMessage());
             }
-            WebhookEventStatus failedStatus = event.retryCount() >= maxReplayAttempts()
+            WebhookEventStatus failedStatus = event.retryCount() >= webhookSupport.maxReplayAttempts()
                     ? WebhookEventStatus.DEAD_LETTER
                     : WebhookEventStatus.FAILED;
             Instant processedAt = Instant.now();
@@ -762,14 +748,25 @@ public class DocumentInputService {
     }
 
     private DocumentImportRecord queueWebhookImport(DocumentSourceConfig source, String rawPayload) {
-        JsonNode payload = parsePayloadOrNull(rawPayload);
-        String projectId = firstText(textAt(payload, "projectId"), source.defaultProjectId());
+        JsonNode payload = webhookSupport.parsePayloadOrNull(rawPayload);
+        String projectId = webhookSupport.firstText(webhookSupport.textAt(payload, "projectId"), source.defaultProjectId());
         if (!StringUtils.hasText(projectId)) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, DocumentInputMessages.WEBHOOK_PAYLOAD_MISSING_PROJECT_ID);
         }
-        String title = firstText(textAt(payload, "title"), textAt(payload, "name"), source.name());
-        String sourceRef = firstText(textAt(payload, "sourceRef"), textAt(payload, "id"), source.sourceCode());
-        String sourceUrl = firstText(textAt(payload, "sourceUrl"), textAt(payload, "url"));
+        String title = webhookSupport.firstText(
+                webhookSupport.textAt(payload, "title"),
+                webhookSupport.textAt(payload, "name"),
+                source.name()
+        );
+        String sourceRef = webhookSupport.firstText(
+                webhookSupport.textAt(payload, "sourceRef"),
+                webhookSupport.textAt(payload, "id"),
+                source.sourceCode()
+        );
+        String sourceUrl = webhookSupport.firstText(
+                webhookSupport.textAt(payload, "sourceUrl"),
+                webhookSupport.textAt(payload, "url")
+        );
         return importService.queueWebhookImport(
                 source,
                 projectId,
@@ -778,27 +775,6 @@ public class DocumentInputService {
                 sourceUrl,
                 rawPayload
         );
-    }
-
-    private String webhookEventType(String rawPayload) {
-        JsonNode payload = parsePayloadOrNull(rawPayload);
-        return firstText(textAt(payload, "eventType"), textAt(payload, "type"), "requirement.created");
-    }
-
-    private JsonNode parsePayloadOrNull(String rawPayload) {
-        try {
-            return objectMapper.readTree(rawPayload);
-        } catch (Exception exception) {
-            return null;
-        }
-    }
-
-    private JsonNode parsePayload(String rawPayload) {
-        try {
-            return objectMapper.readTree(rawPayload);
-        } catch (Exception exception) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, DocumentInputMessages.WEBHOOK_PAYLOAD_INVALID_JSON);
-        }
     }
 
     private void ensureRequiredWebhookHeaders(
@@ -825,70 +801,6 @@ public class DocumentInputService {
         }
     }
 
-    private WebhookSignatureStatus validateWebhookSignature(
-            DocumentSourceConfig source,
-            String rawPayload,
-            String timestamp,
-            String signature,
-            String eventId,
-            String idempotencyKey
-    ) {
-        if (!StringUtils.hasText(timestamp) || !StringUtils.hasText(signature)) {
-            return WebhookSignatureStatus.MISSING;
-        }
-        long epochSeconds;
-        try {
-            epochSeconds = Long.parseLong(timestamp.trim());
-        } catch (NumberFormatException exception) {
-            return WebhookSignatureStatus.INVALID;
-        }
-        long skew = properties.webhookClockSkewSeconds() <= 0 ? 300 : properties.webhookClockSkewSeconds();
-        if (Math.abs(Instant.now().getEpochSecond() - epochSeconds) > skew) {
-            return WebhookSignatureStatus.EXPIRED;
-        }
-        String expected = hmacSha256(webhookSigningSecret(source), String.join(".",
-                timestamp.trim(),
-                eventId.trim(),
-                idempotencyKey.trim(),
-                rawPayload == null ? "" : rawPayload
-        ));
-        return constantTimeEquals(expected, signature.trim())
-                ? WebhookSignatureStatus.VALID
-                : WebhookSignatureStatus.INVALID;
-    }
-
-    private String webhookSigningSecret(DocumentSourceConfig source) {
-        return webhookSecretResolver.resolve(source);
-    }
-
-    private String hmacSha256(String secret, String value) {
-        try {
-            Mac mac = Mac.getInstance("HmacSHA256");
-            mac.init(new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
-            return HexFormat.of().formatHex(mac.doFinal(value.getBytes(StandardCharsets.UTF_8)));
-        } catch (Exception exception) {
-            throw new BusinessException(ErrorCode.INTERNAL_ERROR, DocumentInputMessages.WEBHOOK_SIGNATURE_VERIFICATION_FAILED);
-        }
-    }
-
-    private boolean constantTimeEquals(String expected, String actual) {
-        if (!StringUtils.hasText(expected) || !StringUtils.hasText(actual)) {
-            return false;
-        }
-        byte[] expectedBytes = expected.getBytes(StandardCharsets.UTF_8);
-        byte[] actualBytes = actual.getBytes(StandardCharsets.UTF_8);
-        return MessageDigest.isEqual(expectedBytes, actualBytes);
-    }
-
-    private void ensureExecutableSource(DocumentSourceType sourceType, DocumentSourceStatus status) {
-        if (!SUPPORTED_SOURCE_TYPES.contains(sourceType)) {
-            throw new BusinessException(ErrorCode.INVALID_STATE, DocumentInputMessages.SOURCE_TYPE_NOT_IMPLEMENTED.formatted(sourceType));
-        }
-        if (status != DocumentSourceStatus.ENABLED) {
-            throw new BusinessException(ErrorCode.INVALID_STATE, DocumentInputMessages.SOURCE_NOT_ENABLED);
-        }
-    }
-
     private void ensureInputEnabled() {
         if (!properties.inputEnabled()) {
             throw new BusinessException(ErrorCode.INVALID_STATE, DocumentInputMessages.INPUT_DISABLED);
@@ -899,79 +811,6 @@ public class DocumentInputService {
         if (!properties.webhookEnabled()) {
             throw new BusinessException(ErrorCode.INVALID_STATE, DocumentInputMessages.WEBHOOK_INPUT_DISABLED);
         }
-    }
-
-    private void ensureSupportedWebhookEventType(String eventType) {
-        if (!Set.of(
-                "requirement.created",
-                "requirement.updated",
-                "requirement.statusChanged",
-                "requirement.archived"
-        ).contains(eventType)) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, DocumentInputMessages.UNSUPPORTED_EVENT_TYPE.formatted(eventType));
-        }
-    }
-
-    private void ensureSupportedWebhookEventVersion(String eventVersion) {
-        if (!StringUtils.hasText(eventVersion)
-                || !SUPPORTED_WEBHOOK_EVENT_VERSIONS.contains(eventVersion.trim())) {
-            throw new BusinessException(
-                    ErrorCode.VALIDATION_ERROR,
-                    DocumentInputMessages.UNSUPPORTED_EVENT_VERSION.formatted(eventVersion)
-            );
-        }
-    }
-
-    private void ensureSourceWebhookEventVersion(DocumentSourceConfig source, String eventVersion) {
-        if (source.sourceType() != DocumentSourceType.CUSTOM_API) {
-            return;
-        }
-        String configured = normalizeEventVersion(source.eventVersion());
-        if (!configured.equals(eventVersion.trim())) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR,
-                    DocumentInputMessages.WEBHOOK_EVENT_VERSION_MISMATCH.formatted(eventVersion));
-        }
-    }
-
-    private long maxWebhookPayloadBytes() {
-        return properties.webhookMaxPayloadBytes() <= 0 ? 262144 : properties.webhookMaxPayloadBytes();
-    }
-
-    private long maxImportContentBytes() {
-        return properties.importMaxContentBytes() <= 0 ? 16777216 : properties.importMaxContentBytes();
-    }
-
-    private String webhookPayloadLimitMessage() {
-        return DocumentInputMessages.WEBHOOK_PAYLOAD_EXCEEDS_LIMIT
-                + maxWebhookPayloadBytes()
-                + " bytes。下一步：缩减单次事件 payload 或联系管理员调整 "
-                + "WP4_WEBHOOK_MAX_PAYLOAD_BYTES。";
-    }
-
-    private String webhookSignatureFailureMessage(WebhookSignatureStatus signatureStatus) {
-        return switch (signatureStatus) {
-            case MISSING -> DocumentInputMessages.WEBHOOK_SIGNATURE_MISSING_HINT
-                    + "X-VA-Timestamp、X-VA-Signature、X-VA-Event-Id、X-VA-Idempotency-Key "
-                    + "与 X-VA-Event-Version。";
-            case EXPIRED -> DocumentInputMessages.WEBHOOK_SIGNATURE_EXPIRED_HINT
-                    + "并确认请求在 WP4_WEBHOOK_CLOCK_SKEW_SECONDS 窗口内发送。";
-            case INVALID -> DocumentInputMessages.WEBHOOK_SIGNATURE_INVALID_HINT
-                    + "timestamp.eventId.idempotencyKey.rawBody 签名串和小写 hex 输出一致。";
-            case VALID -> DocumentInputMessages.WEBHOOK_SIGNATURE_UNKNOWN_HINT
-                    + "secretRef 配置。";
-        };
-    }
-
-    private int batchActionLimit() {
-        return properties.batchActionLimit() <= 0 ? 100 : properties.batchActionLimit();
-    }
-
-    private int maxReplayAttempts() {
-        return properties.webhookMaxReplayAttempts() <= 0 ? 3 : properties.webhookMaxReplayAttempts();
-    }
-
-    private long payloadSize(String rawPayload) {
-        return (rawPayload == null ? "" : rawPayload).getBytes(StandardCharsets.UTF_8).length;
     }
 
     private void writeAudit(
@@ -991,57 +830,8 @@ public class DocumentInputService {
         );
     }
 
-    private String sha256(String value) {
-        try {
-            byte[] digest = MessageDigest.getInstance("SHA-256")
-                    .digest((value == null ? "" : value).getBytes(StandardCharsets.UTF_8));
-            return HexFormat.of().formatHex(digest);
-        } catch (Exception exception) {
-            throw new BusinessException(ErrorCode.INTERNAL_ERROR, "导入内容摘要计算失败");
-        }
-    }
-
-    private String textAt(JsonNode node, String path) {
-        if (node == null || !StringUtils.hasText(path)) {
-            return null;
-        }
-        JsonNode current = node;
-        for (String segment : path.split("\\.")) {
-            if (!StringUtils.hasText(segment)) {
-                continue;
-            }
-            current = current.path(segment.trim());
-            if (current.isMissingNode() || current.isNull()) {
-                return null;
-            }
-        }
-        return current.isValueNode() ? current.asText() : current.toString();
-    }
-
-    private String firstText(String... values) {
-        for (String value : values) {
-            if (StringUtils.hasText(value)) {
-                return value.trim();
-            }
-        }
-        return null;
-    }
-
     private String trimToNull(String value) {
         return StringUtils.hasText(value) ? value.trim() : null;
-    }
-
-    private String normalizeSourceCode(String value) {
-        if (!StringUtils.hasText(value)) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "sourceCode 不能为空");
-        }
-        return value.trim();
-    }
-
-    private String normalizeEventVersion(String value) {
-        String normalized = StringUtils.hasText(value) ? value.trim() : "1.0";
-        ensureSupportedWebhookEventVersion(normalized);
-        return normalized;
     }
 
 }

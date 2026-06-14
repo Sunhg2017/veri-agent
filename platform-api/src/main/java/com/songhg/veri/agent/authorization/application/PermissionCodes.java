@@ -97,6 +97,12 @@ public final class PermissionCodes {
     public static final String API_AUTOMATION_EXECUTE = "apiAutomation:execute";
     public static final String API_AUTOMATION_EXPORT = "apiAutomation:export";
 
+    public static final String EXECUTION_READ = "execution:read";
+    public static final String EXECUTION_MANAGE = "execution:manage";
+    public static final String EXECUTION_TRIGGER = "execution:trigger";
+    public static final String EXECUTION_ADMIN = "execution:admin";
+    public static final String EXECUTION_EXPORT = "execution:export";
+
     public static final List<String> ALL = List.of(
             ROLE_READ, ROLE_CREATE, ROLE_EDIT, ROLE_BIND, ROLE_UNBIND,
             AUDIT_READ, AUDIT_EXPORT, AUDIT_WRITE_INTERNAL,
@@ -118,7 +124,8 @@ public final class PermissionCodes {
             TEST_DESIGN_READ, TEST_DESIGN_GENERATE, TEST_DESIGN_REVIEW, TEST_DESIGN_PUBLISH,
             TEST_DESIGN_EXPORT, TEST_DESIGN_POLICY_MANAGE,
             API_AUTOMATION_READ, API_AUTOMATION_IMPORT, API_AUTOMATION_GENERATE,
-            API_AUTOMATION_REVIEW, API_AUTOMATION_EXECUTE, API_AUTOMATION_EXPORT
+            API_AUTOMATION_REVIEW, API_AUTOMATION_EXECUTE, API_AUTOMATION_EXPORT,
+            EXECUTION_READ, EXECUTION_MANAGE, EXECUTION_TRIGGER, EXECUTION_ADMIN, EXECUTION_EXPORT
     );
 
     private static final String ARCHIVED_STATUS = "ARCHIVED";

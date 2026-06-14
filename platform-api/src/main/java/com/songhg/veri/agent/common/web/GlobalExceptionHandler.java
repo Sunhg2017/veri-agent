@@ -15,6 +15,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.validation.FieldError;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -69,6 +70,14 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleMaxUploadSizeExceeded(MaxUploadSizeExceededException exception) {
         logHandledException(ErrorCode.VALIDATION_ERROR, exception);
         return errorResponse(ErrorCode.VALIDATION_ERROR, "上传文件超过大小上限", null);
+    }
+
+    @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
+    public ResponseEntity<ApiResponse<Void>> handleUnsupportedMediaType(
+            HttpMediaTypeNotSupportedException exception
+    ) {
+        logHandledException(ErrorCode.UNSUPPORTED_MEDIA_TYPE, exception);
+        return errorResponse(ErrorCode.UNSUPPORTED_MEDIA_TYPE, "不支持的 Content-Type", null);
     }
 
     @ExceptionHandler(AuthenticationException.class)

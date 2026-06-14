@@ -25,7 +25,6 @@ import com.songhg.veri.agent.testdesign.application.view.TestDesignReviewRecordR
 import com.songhg.veri.agent.testdesign.application.view.TestDesignStepResponse;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignTaskDetailResponse;
 import com.songhg.veri.agent.testdesign.config.TestDesignProperties;
-import com.songhg.veri.agent.testdesign.domain.CoverageType;
 import com.songhg.veri.agent.testdesign.domain.TestDesignCandidate;
 import com.songhg.veri.agent.testdesign.domain.TestDesignCandidateStatus;
 import com.songhg.veri.agent.testdesign.domain.TestDesignReviewRecord;
@@ -34,12 +33,10 @@ import com.songhg.veri.agent.testdesign.domain.TestDesignTaskStatus;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -47,10 +44,17 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import static com.songhg.veri.agent.testdesign.application.TestDesignGenerationTextSupport.duplicateKey;
+import static com.songhg.veri.agent.testdesign.application.TestDesignGenerationTextSupport.normalizeCoverageType;
+import static com.songhg.veri.agent.testdesign.application.TestDesignGenerationTextSupport.normalizePriority;
+import static com.songhg.veri.agent.testdesign.application.TestDesignGenerationTextSupport.preconditions;
+import static com.songhg.veri.agent.testdesign.application.TestDesignGenerationTextSupport.redactedPreview;
+import static com.songhg.veri.agent.testdesign.application.TestDesignGenerationTextSupport.summaryTags;
+import static com.songhg.veri.agent.testdesign.application.TestDesignGenerationTextSupport.tagsText;
+
 @Service
 public class TestDesignCandidateReviewService {
 
-    private static final Set<String> CANDIDATE_PRIORITIES = Set.of("CRITICAL", "HIGH", "MEDIUM", "LOW");
     private static final int CANDIDATE_EXPORT_LIMIT = 500;
     private static final int CANDIDATE_EXPORT_PAGE_SIZE = 100;
     private static final int REVIEW_RECORD_EXPORT_LIMIT = 500;
@@ -1072,79 +1076,6 @@ public class TestDesignCandidateReviewService {
         if (version != candidate.version()) {
             throw new BusinessException(ErrorCode.CONFLICT, "候选用例版本已变化，请刷新后重试");
         }
-    }
-
-    private static String normalizeCoverageType(String rawValue, String fallback) {
-        if (!StringUtils.hasText(rawValue)) {
-            return fallback;
-        }
-        String normalized = rawValue.trim().toUpperCase(Locale.ROOT);
-        if (!CoverageType.codes().contains(normalized)) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "不支持的覆盖类型: " + rawValue);
-        }
-        return normalized;
-    }
-
-    private static String normalizePriority(String rawValue, String fallback) {
-        if (!StringUtils.hasText(rawValue)) {
-            return StringUtils.hasText(fallback) ? fallback : "MEDIUM";
-        }
-        String normalized = rawValue.trim().toUpperCase(Locale.ROOT);
-        if (!CANDIDATE_PRIORITIES.contains(normalized)) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "不支持的优先级: " + rawValue);
-        }
-        return normalized;
-    }
-
-    private static String preconditions(RequirementResponse requirement) {
-        if (StringUtils.hasText(requirement.acceptanceCriteria())) {
-            return "需求验收标准已明确，测试前需准备满足业务上下文的数据";
-        }
-        return "需求描述已确认，测试数据和账号权限已准备";
-    }
-
-    private static String redactSensitiveText(String value) {
-        // WP5 must not echo obvious secrets from WP3/WP4 source text while the full WP2 context packer is still pending.
-        return TestDesignSensitiveText.redact(value);
-    }
-
-    private static String redactedPreview(String value, int maxLength) {
-        if (!StringUtils.hasText(value)) {
-            return null;
-        }
-        String normalized = redactSensitiveText(value).replaceAll("\\s+", " ").trim();
-        if (normalized.length() <= maxLength) {
-            return normalized;
-        }
-        return normalized.substring(0, Math.max(0, maxLength - 3)) + "...";
-    }
-
-    private static List<String> summaryTags(String value) {
-        if (!StringUtils.hasText(value)) {
-            return List.of();
-        }
-        return List.of(value.replace('，', ',').split(",")).stream()
-                .map(tag -> redactedPreview(tag, 64))
-                .filter(StringUtils::hasText)
-                .distinct()
-                .toList();
-    }
-
-    private static String duplicateKey(UUID requirementId, String coverageType, String title) {
-        return requirementId + ":" + coverageType + ":" + (title == null ? "" : title.trim().toLowerCase(Locale.ROOT));
-    }
-
-    private static String tagsText(List<String> tags) {
-        if (tags == null) {
-            return null;
-        }
-        LinkedHashSet<String> result = new LinkedHashSet<>();
-        for (String tag : tags) {
-            if (StringUtils.hasText(tag)) {
-                result.add(tag.trim());
-            }
-        }
-        return result.isEmpty() ? null : String.join(",", result);
     }
 
     private String requiredReason(TestDesignCandidateActionCommand command, String message) {

@@ -1,6 +1,7 @@
 package com.songhg.veri.agent.testdesign.application;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -20,7 +21,6 @@ import com.songhg.veri.agent.modelaccess.domain.ChatMessage;
 import com.songhg.veri.agent.modelaccess.security.ServicePrincipal;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignStepResponse;
 import com.songhg.veri.agent.testdesign.config.TestDesignProperties;
-import com.songhg.veri.agent.testdesign.domain.CoverageType;
 import com.songhg.veri.agent.testdesign.domain.TestDesignCandidate;
 import com.songhg.veri.agent.testdesign.domain.TestDesignCandidateStatus;
 import com.songhg.veri.agent.testdesign.domain.TestDesignTask;
@@ -32,7 +32,6 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -43,10 +42,23 @@ import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import static com.songhg.veri.agent.testdesign.application.TestDesignGenerationTextSupport.confidenceFor;
+import static com.songhg.veri.agent.testdesign.application.TestDesignGenerationTextSupport.duplicateKey;
+import static com.songhg.veri.agent.testdesign.application.TestDesignGenerationTextSupport.modelCaseDescription;
+import static com.songhg.veri.agent.testdesign.application.TestDesignGenerationTextSupport.modelCaseTags;
+import static com.songhg.veri.agent.testdesign.application.TestDesignGenerationTextSupport.normalizeCoverageType;
+import static com.songhg.veri.agent.testdesign.application.TestDesignGenerationTextSupport.normalizePriority;
+import static com.songhg.veri.agent.testdesign.application.TestDesignGenerationTextSupport.preconditions;
+import static com.songhg.veri.agent.testdesign.application.TestDesignGenerationTextSupport.priorityFor;
+import static com.songhg.veri.agent.testdesign.application.TestDesignGenerationTextSupport.redactSensitiveText;
+import static com.songhg.veri.agent.testdesign.application.TestDesignGenerationTextSupport.redactedPreview;
+import static com.songhg.veri.agent.testdesign.application.TestDesignGenerationTextSupport.safeErrorMessage;
+import static com.songhg.veri.agent.testdesign.application.TestDesignGenerationTextSupport.summaryTags;
+import static com.songhg.veri.agent.testdesign.application.TestDesignGenerationTextSupport.tagsText;
+
 @Service
 public class TestDesignGenerationService {
 
-    private static final Set<String> CANDIDATE_PRIORITIES = Set.of("CRITICAL", "HIGH", "MEDIUM", "LOW");
     private static final String GENERATION_MODE_RULE_TEMPLATE = "RULE_TEMPLATE";
     private static final String GENERATION_MODE_MODEL = "MODEL";
     private static final String GENERATION_MODE_MODEL_WITH_FALLBACK = "MODEL_WITH_FALLBACK";
@@ -54,6 +66,8 @@ public class TestDesignGenerationService {
     private static final String MODEL_CALLER_SERVICE = "wp5-test-design";
     private static final String MODEL_CAPABILITY_JSON = "JSON";
     private static final String DEFAULT_MODEL_SENSITIVITY_LEVEL = "INTERNAL";
+    private static final TypeReference<Map<String, Object>> STRING_OBJECT_MAP = new TypeReference<>() {
+    };
     private static final Set<String> MODEL_CONTEXT_SUMMARY_POLICY_KEYS = Set.of(
             "assemblyPolicy",
             "policyGovernance",
@@ -813,37 +827,6 @@ public class TestDesignGenerationService {
         return null;
     }
 
-    private static String modelCaseDescription(TestDesignModelOutputParser.ModelGeneratedCase generatedCase) {
-        List<String> parts = new ArrayList<>();
-        addDescriptionPart(parts, generatedCase.description());
-        addDescriptionPart(parts, generatedCase.rationale() == null ? null : "依据: " + generatedCase.rationale());
-        addDescriptionPart(parts, generatedCase.riskNotes() == null ? null : "风险: " + generatedCase.riskNotes());
-        String description = String.join("\n", parts);
-        if (!StringUtils.hasText(description)) {
-            return null;
-        }
-        String redacted = redactSensitiveText(description);
-        return redacted.length() <= 2000 ? redacted : redacted.substring(0, 1997) + "...";
-    }
-
-    private static void addDescriptionPart(List<String> parts, String value) {
-        if (StringUtils.hasText(value)) {
-            parts.add(value.trim());
-        }
-    }
-
-    private static List<String> modelCaseTags(TestDesignModelOutputParser.ModelGeneratedCase generatedCase) {
-        List<String> tags = new ArrayList<>();
-        if (generatedCase.tags() != null) {
-            tags.addAll(generatedCase.tags());
-        }
-        tags.add("wp5");
-        tags.add("ai-generated");
-        tags.add("model");
-        tags.add(generatedCase.coverageType().toLowerCase(Locale.ROOT));
-        return tags;
-    }
-
     private List<TestDesignCandidate> generateCandidates(
             TestDesignTask task,
             RequirementResponse requirement,
@@ -979,94 +962,6 @@ public class TestDesignGenerationService {
         return new TestDesignStepResponse(order, action, expectedResult);
     }
 
-    private static String normalizeCoverageType(String rawValue, String fallback) {
-        if (!StringUtils.hasText(rawValue)) {
-            return fallback;
-        }
-        String normalized = rawValue.trim().toUpperCase(Locale.ROOT);
-        if (!CoverageType.codes().contains(normalized)) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "不支持的覆盖类型: " + rawValue);
-        }
-        return normalized;
-    }
-
-    private static String normalizePriority(String rawValue, String fallback) {
-        if (!StringUtils.hasText(rawValue)) {
-            return StringUtils.hasText(fallback) ? fallback : "MEDIUM";
-        }
-        String normalized = rawValue.trim().toUpperCase(Locale.ROOT);
-        if (!CANDIDATE_PRIORITIES.contains(normalized)) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "不支持的优先级: " + rawValue);
-        }
-        return normalized;
-    }
-
-    private static String priorityFor(String requirementPriority, String coverageType) {
-        if ("EXCEPTION".equals(coverageType) || "PERMISSION".equals(coverageType)) {
-            return "HIGH";
-        }
-        return normalizePriority(requirementPriority, "MEDIUM");
-    }
-
-    private static double confidenceFor(String coverageType) {
-        return switch (coverageType) {
-            case "SMOKE", "FUNCTIONAL" -> 0.86D;
-            case "EXCEPTION" -> 0.82D;
-            default -> 0.78D;
-        };
-    }
-
-    private static String preconditions(RequirementResponse requirement) {
-        if (StringUtils.hasText(requirement.acceptanceCriteria())) {
-            return "需求验收标准已明确，测试前需准备满足业务上下文的数据";
-        }
-        return "需求描述已确认，测试数据和账号权限已准备";
-    }
-
-    private static String redactSensitiveText(String value) {
-        // WP5 must not echo obvious secrets from WP3/WP4 source text while the full WP2 context packer is still pending.
-        return TestDesignSensitiveText.redact(value);
-    }
-
-    private static String redactedPreview(String value, int maxLength) {
-        if (!StringUtils.hasText(value)) {
-            return null;
-        }
-        String normalized = redactSensitiveText(value).replaceAll("\\s+", " ").trim();
-        if (normalized.length() <= maxLength) {
-            return normalized;
-        }
-        return normalized.substring(0, Math.max(0, maxLength - 3)) + "...";
-    }
-
-    private static List<String> summaryTags(String value) {
-        if (!StringUtils.hasText(value)) {
-            return List.of();
-        }
-        return List.of(value.replace('，', ',').split(",")).stream()
-                .map(tag -> redactedPreview(tag, 64))
-                .filter(StringUtils::hasText)
-                .distinct()
-                .toList();
-    }
-
-    private static String duplicateKey(UUID requirementId, String coverageType, String title) {
-        return requirementId + ":" + coverageType + ":" + (title == null ? "" : title.trim().toLowerCase(Locale.ROOT));
-    }
-
-    private static String tagsText(List<String> tags) {
-        if (tags == null) {
-            return null;
-        }
-        LinkedHashSet<String> result = new LinkedHashSet<>();
-        for (String tag : tags) {
-            if (StringUtils.hasText(tag)) {
-                result.add(tag.trim());
-            }
-        }
-        return result.isEmpty() ? null : String.join(",", result);
-    }
-
     private static boolean sameProject(String actualProjectId, String expectedProjectId) {
         return StringUtils.hasText(actualProjectId) && actualProjectId.equals(expectedProjectId);
     }
@@ -1128,7 +1023,6 @@ public class TestDesignGenerationService {
         }
     }
 
-    @SuppressWarnings("unchecked")
     private Map<String, Object> contextSummaryMap(TestDesignTask task, String key) {
         if (task == null || !StringUtils.hasText(task.contextSummaryJson())) {
             return Map.of();
@@ -1138,8 +1032,8 @@ public class TestDesignGenerationService {
             if (!node.isObject()) {
                 return Map.of();
             }
-            return objectMapper.convertValue(node, Map.class);
-        } catch (Exception exception) {
+            return objectMapper.convertValue(node, STRING_OBJECT_MAP);
+        } catch (JsonProcessingException | IllegalArgumentException exception) {
             return Map.of();
         }
     }
@@ -1161,15 +1055,6 @@ public class TestDesignGenerationService {
     private static String modelFallbackWarning(RuntimeException exception) {
         String message = "模型生成失败，已降级规则模板: " + safeErrorMessage(exception);
         return message.length() <= 500 ? message : message.substring(0, 497) + "...";
-    }
-
-    static String safeErrorMessage(RuntimeException exception) {
-        String message = exception.getMessage();
-        if (!StringUtils.hasText(message)) {
-            return exception.getClass().getSimpleName();
-        }
-        String redacted = redactSensitiveText(message).replaceAll("\\s+", " ").trim();
-        return redacted.length() <= 500 ? redacted : redacted.substring(0, 497) + "...";
     }
 
     private static String sha256(String value) {

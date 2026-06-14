@@ -98,7 +98,11 @@ main() {
       "$ROOT_DIR/scripts/wp6_quality_gate.sh" \
       "$ROOT_DIR/scripts/wp6_openapi_fixture_smoke.sh" \
       "$ROOT_DIR/scripts/wp6_frontend_e2e_smoke.sh" \
-      "$ROOT_DIR/scripts/wp6_runner_smoke.sh"
+      "$ROOT_DIR/scripts/wp6_runner_smoke.sh" \
+      "$ROOT_DIR/scripts/platform_api_java_line_guard.sh"
+
+  run_step "platform-api Java line guard" \
+    bash "$ROOT_DIR/scripts/platform_api_java_line_guard.sh"
 
   run_step "wp6 OpenAPI fixture smoke" \
     bash "$ROOT_DIR/scripts/wp6_openapi_fixture_smoke.sh"

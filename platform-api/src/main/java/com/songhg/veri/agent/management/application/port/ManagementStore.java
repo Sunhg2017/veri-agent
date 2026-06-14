@@ -22,6 +22,7 @@ import com.songhg.veri.agent.management.application.port.ManagementStoreRows.App
 import com.songhg.veri.agent.management.application.port.ManagementStoreRows.DepartmentRef;
 import com.songhg.veri.agent.management.application.port.ManagementStoreRows.EnvironmentConnectivityTargetRow;
 import com.songhg.veri.agent.management.application.port.ManagementStoreRows.EnvironmentRef;
+import com.songhg.veri.agent.management.application.port.ManagementStoreRows.EnvironmentRuntimeRef;
 import com.songhg.veri.agent.management.application.port.ManagementStoreRows.IntegrationRow;
 import com.songhg.veri.agent.management.application.port.ManagementStoreRows.ProjectRef;
 import com.songhg.veri.agent.management.application.port.ManagementStoreRows.RoleRow;
@@ -241,6 +242,8 @@ public interface ManagementStore {
     ApplicationRef findApplicationRef(ManagementStoreParams params);
 
     EnvironmentRef findEnvironmentRef(ManagementStoreParams params);
+
+    EnvironmentRuntimeRef findEnvironmentRuntimeRef(ManagementStoreParams params);
 
     DepartmentView findDepartmentView(ManagementStoreParams params);
 

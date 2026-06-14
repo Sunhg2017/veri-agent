@@ -4,6 +4,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.songhg.veri.agent.common.api.PageResponse;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
+import com.songhg.veri.agent.common.transaction.OptionalTransactionTemplates;
+import com.songhg.veri.agent.common.util.SensitiveTextSanitizer;
 import com.songhg.veri.agent.document.application.command.CreateDocumentImportRequest;
 import com.songhg.veri.agent.document.application.port.DocumentInputRepository;
 import com.songhg.veri.agent.document.application.query.DocumentImportQuery;
@@ -23,21 +25,23 @@ import com.songhg.veri.agent.document.domain.DocumentSourceType;
 import com.songhg.veri.agent.document.domain.ParsedRequirementDraft;
 import com.songhg.veri.agent.integration.application.view.PlatformContext;
 import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Base64;
-import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Supplier;
+import org.springframework.beans.factory.ObjectProvider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.util.StringUtils;
 
 /**
@@ -67,6 +71,7 @@ public class DocumentImportService {
     private final DocumentInputActorResolver actorResolver;
     private final DocumentInputResponseMapper responseMapper;
     private final DocumentInputEventPublisher eventPublisher;
+    private final TransactionTemplate transactionTemplate;
 
     public DocumentImportService(
             DocumentInputRepository repository,
@@ -78,7 +83,8 @@ public class DocumentImportService {
             DocumentInputProperties properties,
             DocumentInputMetrics metrics,
             DocumentInputActorResolver actorResolver,
-            DocumentInputEventPublisher eventPublisher
+            DocumentInputEventPublisher eventPublisher,
+            ObjectProvider<PlatformTransactionManager> transactionManagers
     ) {
         this.repository = repository;
         this.parser = parser;
@@ -90,6 +96,7 @@ public class DocumentImportService {
         this.actorResolver = actorResolver;
         this.responseMapper = new DocumentInputResponseMapper(repository, objectMapper);
         this.eventPublisher = eventPublisher;
+        this.transactionTemplate = OptionalTransactionTemplates.create(transactionManagers);
     }
 
     /**
@@ -196,27 +203,20 @@ public class DocumentImportService {
     }
 
     /**
-     * Executes an import event. The conditional status claim makes duplicate local/Kafka delivery idempotent.
+     * Executes an import event without keeping the database transaction open during OCR/model parsing.
+     *
+     * <p>The import row is first claimed in a short transaction, then content extraction and model parsing happen
+     * outside any transaction, and finally the parsed candidates are persisted in another short transaction. This keeps
+     * slow OCR workers or WP2 model calls from occupying Hikari connections while preserving idempotent event delivery.</p>
      */
-    @Transactional
     public DocumentImportRecord processQueuedImport(UUID importId) {
-        Instant startedAt = Instant.now();
-        if (!repository.markImportStatus(
-                importId,
-                DocumentImportStatus.MODEL_PARSE_QUEUED,
-                DocumentImportStatus.MODEL_PARSE_RUNNING,
-                startedAt
-        )) {
-            return repository.importRecord(importId)
-                    .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "导入记录不存在: " + importId));
-        }
-        DocumentImportRecord running = repository.importRecord(importId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "导入记录不存在: " + importId));
-        DocumentImportPayload payload = repository.importPayload(importId).orElse(null);
-        if (payload == null) {
-            return failImport(running, "导入原始内容不存在，无法异步解析");
+        ImportWork work = claimQueuedImport(importId, Instant.now());
+        if (!work.claimed() || work.payload() == null) {
+            return work.record();
         }
         try {
+            DocumentImportRecord running = work.record();
+            DocumentImportPayload payload = work.payload();
             ensureImportContentSize(payload.content());
             DocumentFieldMapping mapping = mappingOrDefault(payload.mappingId());
             DocumentContentExtractor.ExtractedDocumentContent extracted =
@@ -234,6 +234,51 @@ public class DocumentImportService {
             if (parsed.isEmpty()) {
                 throw new BusinessException(ErrorCode.VALIDATION_ERROR, "未解析到有效需求");
             }
+            DocumentImportRecord succeeded = completeQueuedImport(running, parsed);
+            log.info("Document import event processed, import_id={}, parsed_count={}", importId, parsed.size());
+            return succeeded;
+        } catch (BusinessException exception) {
+            return failImport(importId, exception.getMessage());
+        } catch (RuntimeException exception) {
+            return failImport(importId, firstText(exception.getMessage(), "文档异步解析失败"));
+        }
+    }
+
+    DocumentImportRecord failImport(UUID importId, String errorMessage) {
+        return inTransaction(() -> {
+            DocumentImportRecord record = repository.importRecord(importId)
+                    .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "导入记录不存在: " + importId));
+            return persistFailedImport(record, errorMessage);
+        });
+    }
+
+    private ImportWork claimQueuedImport(UUID importId, Instant startedAt) {
+        return inTransaction(() -> {
+            if (!repository.markImportStatus(
+                    importId,
+                    DocumentImportStatus.MODEL_PARSE_QUEUED,
+                    DocumentImportStatus.MODEL_PARSE_RUNNING,
+                    startedAt
+            )) {
+                DocumentImportRecord current = repository.importRecord(importId)
+                        .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "导入记录不存在: " + importId));
+                return new ImportWork(current, null, false);
+            }
+            DocumentImportRecord running = repository.importRecord(importId)
+                    .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "导入记录不存在: " + importId));
+            DocumentImportPayload payload = repository.importPayload(importId).orElse(null);
+            if (payload == null) {
+                return new ImportWork(persistFailedImport(running, "导入原始内容不存在，无法异步解析"), null, false);
+            }
+            return new ImportWork(running, payload, true);
+        });
+    }
+
+    private DocumentImportRecord completeQueuedImport(
+            DocumentImportRecord running,
+            List<ParsedRequirementDraft> parsed
+    ) {
+        return inTransaction(() -> {
             Instant now = Instant.now();
             DocumentImportRecord succeeded = new DocumentImportRecord(
                     running.id(),
@@ -259,20 +304,8 @@ public class DocumentImportService {
             }
             writeAudit("IMPORT", "DOCUMENT_IMPORT", succeeded.id().toString(), succeeded.projectId(), succeeded);
             metrics.recordImport(succeeded.sourceType(), succeeded.status(), parsed.size());
-            log.info("Document import event processed, import_id={}, parsed_count={}", importId, parsed.size());
             return succeeded;
-        } catch (BusinessException exception) {
-            return failImport(running, exception.getMessage());
-        } catch (RuntimeException exception) {
-            return failImport(running, firstText(exception.getMessage(), "文档异步解析失败"));
-        }
-    }
-
-    @Transactional
-    DocumentImportRecord failImport(UUID importId, String errorMessage) {
-        DocumentImportRecord record = repository.importRecord(importId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "导入记录不存在: " + importId));
-        return failImport(record, errorMessage);
+        });
     }
 
     private DocumentImportResponse queueImportContent(
@@ -367,7 +400,7 @@ public class DocumentImportService {
         return record;
     }
 
-    private DocumentImportRecord failImport(DocumentImportRecord record, String errorMessage) {
+    private DocumentImportRecord persistFailedImport(DocumentImportRecord record, String errorMessage) {
         DocumentImportRecord failed = new DocumentImportRecord(
                 record.id(),
                 record.projectId(),
@@ -391,6 +424,10 @@ public class DocumentImportService {
         metrics.recordImport(failed.sourceType(), failed.status(), failed.totalParsed());
         log.warn("Document import event failed, import_id={}, error={}", failed.id(), failed.errorMessage());
         return failed;
+    }
+
+    private <T> T inTransaction(Supplier<T> action) {
+        return transactionTemplate.execute(ignored -> action.get());
     }
 
     /**
@@ -596,13 +633,7 @@ public class DocumentImportService {
     }
 
     private String sha256(String value) {
-        try {
-            byte[] digest = MessageDigest.getInstance("SHA-256")
-                    .digest((value == null ? "" : value).getBytes(StandardCharsets.UTF_8));
-            return HexFormat.of().formatHex(digest);
-        } catch (Exception exception) {
-            throw new BusinessException(ErrorCode.INTERNAL_ERROR, "导入内容摘要计算失败");
-        }
+        return SensitiveTextSanitizer.sha256Hex(value);
     }
 
     private UUID firstNonNull(UUID first, UUID second) {
@@ -651,5 +682,8 @@ public class DocumentImportService {
             value.append(tag.trim());
         }
         return value.toString();
+    }
+
+    private record ImportWork(DocumentImportRecord record, DocumentImportPayload payload, boolean claimed) {
     }
 }

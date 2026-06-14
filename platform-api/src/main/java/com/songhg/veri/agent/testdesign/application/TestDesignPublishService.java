@@ -299,7 +299,7 @@ public class TestDesignPublishService {
             }
             return record;
         } catch (RuntimeException exception) {
-            String message = TestDesignGenerationService.safeErrorMessage(exception);
+            String message = TestDesignGenerationTextSupport.safeErrorMessage(exception);
             TestDesignCandidate failed = withFailedCandidate(candidate, candidate.assetCaseId(), message);
             repository.saveCandidate(failed);
             return publishRecord(task, failed, false, action, "FAILED",

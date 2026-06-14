@@ -8,6 +8,7 @@ import com.songhg.veri.agent.asset.config.AssetProperties;
 import com.songhg.veri.agent.common.audit.AuditRetentionProperties;
 import com.songhg.veri.agent.common.secret.SecretProviderProperties;
 import com.songhg.veri.agent.document.config.DocumentInputProperties;
+import com.songhg.veri.agent.execution.config.ExecutionProperties;
 import com.songhg.veri.agent.integration.application.PlatformIntegrationProperties;
 import com.songhg.veri.agent.management.config.ManagementProperties;
 import com.songhg.veri.agent.modelaccess.config.ModelAccessProperties;
@@ -29,10 +30,13 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 @Configuration
 @EnableWebSecurity
-@EnableConfigurationProperties({AuthProperties.class, PlatformIntegrationProperties.class, ModelAccessProperties.class, AssetProperties.class, DocumentInputProperties.class, TestDesignProperties.class, ApiAutomationProperties.class, SecretProviderProperties.class, AuditRetentionProperties.class, ManagementProperties.class, ServiceCallerProperties.class})
+@EnableConfigurationProperties({AuthProperties.class, PlatformIntegrationProperties.class, ModelAccessProperties.class, AssetProperties.class, DocumentInputProperties.class, TestDesignProperties.class, ApiAutomationProperties.class, ExecutionProperties.class, SecretProviderProperties.class, AuditRetentionProperties.class, ManagementProperties.class, ServiceCallerProperties.class, CorsProperties.class})
 public class SecurityConfig {
 
     @Bean
@@ -60,7 +64,7 @@ public class SecurityConfig {
                 .cors(Customizer.withDefaults())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(registry -> registry
-                        .dispatcherTypeMatchers(DispatcherType.ASYNC, DispatcherType.ERROR).permitAll()
+                        .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
                         .requestMatchers("/actuator/health", "/actuator/info", "/actuator/metrics/**").permitAll()
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/auth/login").permitAll()
@@ -71,7 +75,9 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/v1/document-input/health").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/test-design/health").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/api-automation/health").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/execution/health").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/document-input/webhooks/**").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/v1/execution/webhooks/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/examples/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/contexts/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/audit/events").permitAll()
@@ -93,5 +99,20 @@ public class SecurityConfig {
     @Bean
     PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
+    }
+
+    @Bean
+    CorsConfigurationSource corsConfigurationSource(CorsProperties properties) {
+        CorsConfiguration configuration = new CorsConfiguration();
+        configuration.setAllowedOrigins(properties.allowedOrigins());
+        configuration.setAllowedOriginPatterns(properties.allowedOriginPatterns());
+        configuration.setAllowedMethods(properties.allowedMethods());
+        configuration.setAllowedHeaders(properties.allowedHeaders());
+        configuration.setExposedHeaders(properties.exposedHeaders());
+        configuration.setAllowCredentials(properties.allowCredentials());
+        configuration.setMaxAge(properties.maxAgeSeconds());
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", configuration);
+        return source;
     }
 }

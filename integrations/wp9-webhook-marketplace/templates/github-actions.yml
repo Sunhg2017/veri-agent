@@ -1,0 +1,39 @@
+name: Veri Agent WP9 webhook trigger
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  trigger-veri-agent-wp9:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Veri Agent WP9
+        env:
+          VERI_AGENT_WP9_WEBHOOK_URL: ${{ secrets.VERI_AGENT_WP9_WEBHOOK_URL }}
+          VERI_AGENT_WP9_WEBHOOK_SECRET: ${{ secrets.VERI_AGENT_WP9_WEBHOOK_SECRET }}
+          VERI_AGENT_WP9_EVENT_PREFIX: ${{ vars.VERI_AGENT_WP9_EVENT_PREFIX }}
+        run: |
+          set -euo pipefail
+          set +x
+          timestamp="$(date +%s)"
+          event_prefix="${VERI_AGENT_WP9_EVENT_PREFIX:-github}"
+          event_id="${event_prefix}:${GITHUB_REPOSITORY}:${GITHUB_RUN_ID}:${GITHUB_RUN_ATTEMPT}"
+          payload="$(jq -nc \
+            --arg provider github \
+            --arg repo "$GITHUB_REPOSITORY" \
+            --arg ref "$GITHUB_REF_NAME" \
+            --arg sha "$GITHUB_SHA" \
+            --arg runUrl "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
+            '{provider:$provider,repo:$repo,ref:$ref,sha:$sha,runUrl:$runUrl,status:"success"}')"
+          signature="$(printf '%s' "$timestamp.$event_id.$payload" \
+            | openssl dgst -sha256 -hmac "$VERI_AGENT_WP9_WEBHOOK_SECRET" -hex \
+            | awk '{print $NF}')"
+          curl -fsS -X POST "$VERI_AGENT_WP9_WEBHOOK_URL" \
+            -H 'Content-Type: application/json' \
+            -H "X-VA-Timestamp: $timestamp" \
+            -H "X-VA-Event-Id: $event_id" \
+            -H "X-VA-Signature: $signature" \
+            --data-binary "$payload"

@@ -1,0 +1,36 @@
+pipeline {
+  agent any
+  environment {
+    VERI_AGENT_WP9_WEBHOOK_URL = credentials('veri-agent-wp9-webhook-url')
+    VERI_AGENT_WP9_WEBHOOK_SECRET = credentials('veri-agent-wp9-webhook-secret')
+    VERI_AGENT_WP9_EVENT_PREFIX = 'jenkins'
+  }
+  stages {
+    stage('Trigger Veri Agent WP9') {
+      steps {
+        sh '''
+          set -euo pipefail
+          set +x
+          timestamp="$(date +%s)"
+          event_id="${VERI_AGENT_WP9_EVENT_PREFIX}:${JOB_NAME}:${BUILD_NUMBER}"
+          payload="$(jq -nc \
+            --arg provider jenkins \
+            --arg job "$JOB_NAME" \
+            --arg build "$BUILD_NUMBER" \
+            --arg buildUrl "$BUILD_URL" \
+            --arg gitCommit "${GIT_COMMIT:-unknown}" \
+            '{provider:$provider,job:$job,build:$build,buildUrl:$buildUrl,gitCommit:$gitCommit,status:"success"}')"
+          signature="$(printf '%s' "$timestamp.$event_id.$payload" \
+            | openssl dgst -sha256 -hmac "$VERI_AGENT_WP9_WEBHOOK_SECRET" -hex \
+            | awk '{print $NF}')"
+          curl -fsS -X POST "$VERI_AGENT_WP9_WEBHOOK_URL" \
+            -H 'Content-Type: application/json' \
+            -H "X-VA-Timestamp: $timestamp" \
+            -H "X-VA-Event-Id: $event_id" \
+            -H "X-VA-Signature: $signature" \
+            --data-binary "$payload"
+        '''
+      }
+    }
+  }
+}

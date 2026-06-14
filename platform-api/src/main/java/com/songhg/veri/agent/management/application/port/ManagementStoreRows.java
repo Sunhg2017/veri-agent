@@ -81,6 +81,22 @@ public final class ManagementStoreRows {
     ) {
     }
 
+    public record EnvironmentRuntimeRef(
+            /** 环境主键 ID */
+            UUID id,
+            /** 所属项目 ID，用于跨工作包执行调度的 scope 校验 */
+            UUID projectId,
+            /** 环境业务编码 */
+            String code,
+            /** 环境名称 */
+            String name,
+            /** 环境 API 基础地址 */
+            String apiBaseUrl,
+            /** 环境状态 */
+            String status
+    ) {
+    }
+
     public record EnvironmentConnectivityTargetRow(
             /** 环境主键 ID */
             UUID id,

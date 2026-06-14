@@ -14,6 +14,13 @@ import com.songhg.veri.agent.auth.domain.AuthSessionStore;
 import com.songhg.veri.agent.auth.infrastructure.JdbcAuthSessionStore;
 import com.songhg.veri.agent.common.audit.AuditLogWriter;
 import com.songhg.veri.agent.common.api.PageQuery;
+import com.songhg.veri.agent.execution.application.port.ExecutionRepository;
+import com.songhg.veri.agent.execution.application.query.ExecutionRunQuery;
+import com.songhg.veri.agent.execution.domain.ExecutionNodeRun;
+import com.songhg.veri.agent.execution.domain.ExecutionPlan;
+import com.songhg.veri.agent.execution.domain.ExecutionPlanNode;
+import com.songhg.veri.agent.execution.domain.ExecutionQueueClaim;
+import com.songhg.veri.agent.execution.domain.ExecutionRun;
 import com.songhg.veri.agent.modelaccess.application.query.InvocationQuery;
 import com.songhg.veri.agent.modelaccess.application.port.ModelAccessRepository;
 import com.songhg.veri.agent.modelaccess.application.view.ModelInvocationJobRecord;
@@ -102,6 +109,9 @@ class DbProfileRepositoryContractTest {
     private TestDesignRepository testDesignRepository;
 
     @Autowired
+    private ExecutionRepository executionRepository;
+
+    @Autowired
     private AuditLogWriter auditLogWriter;
 
     @Autowired
@@ -119,6 +129,380 @@ class DbProfileRepositoryContractTest {
         assertThat(modelAccessRepository).isInstanceOf(JdbcModelAccessRepository.class);
         assertThat(modelInvocationJobRepository).isInstanceOf(JdbcModelInvocationJobRepository.class);
         assertThat(applicationContext.getBeanNamesForType(AssetRepository.class)).hasSize(1);
+    }
+
+    @Test
+    void executionRepositoryPersistsRunsAndNodeRunsThroughJdbc() {
+        Instant now = Instant.now();
+        UUID planId = UUID.randomUUID();
+        UUID apiNodeId = UUID.randomUUID();
+        UUID reportNodeId = UUID.randomUUID();
+        UUID runId = UUID.randomUUID();
+        String projectId = "project-wp9-db-" + UUID.randomUUID();
+        String requestKey = "manual-" + UUID.randomUUID();
+
+        executionRepository.insertPlan(new ExecutionPlan(
+                planId,
+                projectId,
+                "DB execution plan",
+                "READY",
+                "staging",
+                "{\"manualEnabled\":true}",
+                "a".repeat(64),
+                "db profile contract",
+                "db-tester",
+                "db-tester",
+                null,
+                now,
+                now
+        ));
+        executionRepository.replacePlanNodes(planId, List.of(
+                new ExecutionPlanNode(
+                        apiNodeId,
+                        planId,
+                        "api-smoke",
+                        "API_TEST",
+                        "",
+                        "{\"apiAutomationBundleId\":\"00000000-0000-0000-0000-000000000001\"}",
+                        "FAIL_FAST",
+                        180,
+                        "{\"maxAttempts\":1}",
+                        now,
+                        now
+                ),
+                new ExecutionPlanNode(
+                        reportNodeId,
+                        planId,
+                        "report",
+                        "REPORT_HANDOFF",
+                        "api-smoke",
+                        "{\"summaryOnly\":true}",
+                        "CONTINUE",
+                        60,
+                        "{}",
+                        now,
+                        now
+                )
+        ));
+
+        boolean inserted = executionRepository.insertRun(new ExecutionRun(
+                runId,
+                planId,
+                projectId,
+                "QUEUED",
+                "MANUAL",
+                requestKey,
+                null,
+                1,
+                "trc_dbexecutioncontract",
+                "{\"nodeCount\":2,\"runnerDispatched\":false}",
+                null,
+                null,
+                "db-tester",
+                null,
+                null,
+                now,
+                now
+        ));
+        ExecutionNodeRun apiNodeRun = new ExecutionNodeRun(
+                UUID.randomUUID(),
+                runId,
+                apiNodeId,
+                "QUEUED",
+                1,
+                "WP6_API",
+                null,
+                null,
+                null,
+                "{\"dispatchReady\":false}",
+                null,
+                now,
+                null,
+                null,
+                now,
+                now
+        );
+        ExecutionNodeRun reportNodeRun = new ExecutionNodeRun(
+                UUID.randomUUID(),
+                runId,
+                reportNodeId,
+                "PENDING",
+                1,
+                "REPORT",
+                null,
+                null,
+                null,
+                "{\"dispatchReady\":false}",
+                null,
+                null,
+                null,
+                null,
+                now,
+                now
+        );
+        executionRepository.insertNodeRuns(List.of(apiNodeRun, reportNodeRun));
+
+        assertThat(inserted).isTrue();
+        assertThat(executionRepository.runByPlanAndRequestKey(planId, requestKey))
+                .get()
+                .extracting(ExecutionRun::id)
+                .isEqualTo(runId);
+        assertThat(executionRepository.insertRun(new ExecutionRun(
+                UUID.randomUUID(),
+                planId,
+                projectId,
+                "QUEUED",
+                "MANUAL",
+                requestKey,
+                null,
+                1,
+                "trc_duplicate",
+                "{}",
+                null,
+                null,
+                "db-tester",
+                null,
+                null,
+                now,
+                now
+        ))).isFalse();
+        assertThat(executionRepository.nodeRuns(runId))
+                .extracting(ExecutionNodeRun::planNodeId)
+                .containsExactly(apiNodeId, reportNodeId);
+        assertThat(executionRepository.runs(new ExecutionRunQuery(projectId, planId, "QUEUED", 10, 0)))
+                .singleElement()
+                .extracting(ExecutionRun::id)
+                .isEqualTo(runId);
+        assertThat(executionRepository.countRuns(new ExecutionRunQuery(projectId, planId, "QUEUED", 10, 0)))
+                .isEqualTo(1);
+        assertThat(executionRepository.runProjectScopeId(runId)).contains(projectId);
+
+        Instant retriedAt = now.plusSeconds(5);
+        executionRepository.updateNodeRuns(List.of(new ExecutionNodeRun(
+                apiNodeRun.id(),
+                apiNodeRun.runId(),
+                apiNodeRun.planNodeId(),
+                "FAILED",
+                apiNodeRun.attempt(),
+                apiNodeRun.runnerType(),
+                null,
+                "EXECUTION_NODE_DISPATCH_FAILED",
+                "sanitized dispatch failure",
+                "{\"dispatchReady\":false,\"failed\":true}",
+                null,
+                apiNodeRun.queuedAt(),
+                null,
+                retriedAt,
+                apiNodeRun.createdAt(),
+                retriedAt
+        )));
+        executionRepository.updateRun(new ExecutionRun(
+                runId,
+                planId,
+                projectId,
+                "FAILED",
+                "MANUAL",
+                requestKey,
+                null,
+                1,
+                "trc_dbexecutioncontract",
+                "{\"nodeCount\":2,\"failedNodeCount\":1,\"runnerDispatched\":false}",
+                "EXECUTION_NODE_DISPATCH_FAILED",
+                "sanitized run failure",
+                "db-tester",
+                null,
+                retriedAt,
+                now,
+                retriedAt
+        ));
+        executionRepository.insertNodeRuns(List.of(new ExecutionNodeRun(
+                UUID.randomUUID(),
+                runId,
+                apiNodeId,
+                "QUEUED",
+                2,
+                "WP6_API",
+                null,
+                null,
+                null,
+                "{\"retryAttempt\":2,\"runnerDispatched\":false}",
+                null,
+                retriedAt,
+                null,
+                null,
+                retriedAt,
+                retriedAt
+        )));
+        executionRepository.updateRun(new ExecutionRun(
+                runId,
+                planId,
+                projectId,
+                "QUEUED",
+                "RETRY",
+                requestKey,
+                null,
+                2,
+                "trc_dbexecutioncontract_retry",
+                "{\"retryInFlight\":true,\"runnerDispatched\":false}",
+                null,
+                null,
+                "db-tester",
+                null,
+                null,
+                now,
+                retriedAt
+        ));
+
+        assertThat(executionRepository.run(runId))
+                .get()
+                .extracting(ExecutionRun::status, ExecutionRun::errorCode)
+                .containsExactly("QUEUED", null);
+        assertThat(executionRepository.nodeRuns(runId))
+                .extracting(ExecutionNodeRun::planNodeId, ExecutionNodeRun::attempt, ExecutionNodeRun::status)
+                .containsExactly(
+                        org.assertj.core.groups.Tuple.tuple(apiNodeId, 1, "FAILED"),
+                        org.assertj.core.groups.Tuple.tuple(apiNodeId, 2, "QUEUED"),
+                        org.assertj.core.groups.Tuple.tuple(reportNodeId, 1, "PENDING")
+                );
+
+        ExecutionNodeRun queuedRetryNode = executionRepository.queuedNodeRuns(10).stream()
+                .filter(nodeRun -> runId.equals(nodeRun.runId()) && apiNodeId.equals(nodeRun.planNodeId()))
+                .findFirst()
+                .orElseThrow();
+        ExecutionQueueClaim claim = new ExecutionQueueClaim(
+                UUID.randomUUID(),
+                queuedRetryNode.id(),
+                "wp9_claim_db_" + UUID.randomUUID().toString().replace("-", ""),
+                "db-worker",
+                retriedAt,
+                retriedAt,
+                retriedAt.plusSeconds(180),
+                "CLAIMED",
+                retriedAt,
+                retriedAt
+        );
+        assertThat(executionRepository.tryInsertQueueClaim(claim)).isTrue();
+        assertThat(executionRepository.tryInsertQueueClaim(new ExecutionQueueClaim(
+                UUID.randomUUID(),
+                queuedRetryNode.id(),
+                "wp9_claim_db_" + UUID.randomUUID().toString().replace("-", ""),
+                "db-worker-duplicate",
+                retriedAt,
+                retriedAt,
+                retriedAt.plusSeconds(180),
+                "CLAIMED",
+                retriedAt,
+                retriedAt
+        ))).isFalse();
+
+        Instant runningAt = retriedAt.plusSeconds(1);
+        assertThat(executionRepository.updateNodeRunIfStatus(new ExecutionNodeRun(
+                queuedRetryNode.id(),
+                queuedRetryNode.runId(),
+                queuedRetryNode.planNodeId(),
+                "RUNNING",
+                queuedRetryNode.attempt(),
+                queuedRetryNode.runnerType(),
+                null,
+                null,
+                null,
+                "{\"schedulerClaimCreated\":true,\"runnerDispatched\":false}",
+                runningAt,
+                queuedRetryNode.queuedAt(),
+                runningAt,
+                null,
+                queuedRetryNode.createdAt(),
+                runningAt
+        ), "QUEUED")).isTrue();
+        assertThat(executionRepository.updateNodeRunIfStatus(queuedRetryNode, "QUEUED")).isFalse();
+        assertThat(executionRepository.activeQueueClaim(queuedRetryNode.id()))
+                .get()
+                .extracting(ExecutionQueueClaim::workerId)
+                .isEqualTo("db-worker");
+        assertThat(executionRepository.queueClaimByToken(claim.claimToken()))
+                .get()
+                .extracting(ExecutionQueueClaim::nodeRunId)
+                .isEqualTo(queuedRetryNode.id());
+
+        Instant heartbeatAt = runningAt.plusSeconds(30);
+        ExecutionQueueClaim heartbeatClaim = new ExecutionQueueClaim(
+                claim.id(),
+                claim.nodeRunId(),
+                claim.claimToken(),
+                claim.workerId(),
+                claim.claimedAt(),
+                heartbeatAt,
+                heartbeatAt.plusSeconds(180),
+                "CLAIMED",
+                claim.createdAt(),
+                heartbeatAt
+        );
+        assertThat(executionRepository.updateQueueClaimIfStatus(heartbeatClaim, "CLAIMED")).isTrue();
+        assertThat(executionRepository.updateQueueClaimIfStatus(new ExecutionQueueClaim(
+                claim.id(),
+                claim.nodeRunId(),
+                claim.claimToken(),
+                claim.workerId(),
+                claim.claimedAt(),
+                heartbeatAt,
+                heartbeatAt.plusSeconds(180),
+                "EXPIRED",
+                claim.createdAt(),
+                heartbeatAt
+        ), "COMPLETED")).isFalse();
+
+        assertThat(executionRepository.expiredQueueClaims(heartbeatAt.plusSeconds(60), 10)).isEmpty();
+        assertThat(executionRepository.runningNodeRunsStartedBefore(runningAt.plusSeconds(1), 10))
+                .extracting(ExecutionNodeRun::id)
+                .contains(queuedRetryNode.id());
+
+        Instant expiredAt = heartbeatAt.plusSeconds(181);
+        ExecutionQueueClaim expiredClaim = new ExecutionQueueClaim(
+                claim.id(),
+                claim.nodeRunId(),
+                claim.claimToken(),
+                claim.workerId(),
+                claim.claimedAt(),
+                heartbeatClaim.heartbeatAt(),
+                heartbeatClaim.expiresAt(),
+                "EXPIRED",
+                claim.createdAt(),
+                expiredAt
+        );
+        assertThat(executionRepository.expiredQueueClaims(expiredAt, 10))
+                .extracting(ExecutionQueueClaim::id)
+                .contains(claim.id());
+        assertThat(executionRepository.updateExpiredQueueClaim(expiredClaim, expiredAt)).isTrue();
+        assertThat(executionRepository.activeQueueClaim(queuedRetryNode.id())).isEmpty();
+
+        ExecutionQueueClaim secondClaim = new ExecutionQueueClaim(
+                UUID.randomUUID(),
+                queuedRetryNode.id(),
+                "wp9_claim_db_" + UUID.randomUUID().toString().replace("-", ""),
+                "db-worker-second",
+                expiredAt.plusSeconds(1),
+                expiredAt.plusSeconds(1),
+                expiredAt.plusSeconds(181),
+                "CLAIMED",
+                expiredAt.plusSeconds(1),
+                expiredAt.plusSeconds(1)
+        );
+        assertThat(executionRepository.tryInsertQueueClaim(secondClaim)).isTrue();
+
+        Instant completedAt = expiredAt.plusSeconds(2);
+        executionRepository.updateQueueClaim(new ExecutionQueueClaim(
+                secondClaim.id(),
+                secondClaim.nodeRunId(),
+                secondClaim.claimToken(),
+                secondClaim.workerId(),
+                secondClaim.claimedAt(),
+                completedAt,
+                secondClaim.expiresAt(),
+                "COMPLETED",
+                secondClaim.createdAt(),
+                completedAt
+        ));
+        assertThat(executionRepository.activeQueueClaim(queuedRetryNode.id())).isEmpty();
     }
 
     @Test

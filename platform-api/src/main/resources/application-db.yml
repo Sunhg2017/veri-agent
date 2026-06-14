@@ -4,6 +4,12 @@ spring:
     username: ${WP1_DATASOURCE_USERNAME:veri_agent}
     password: ${WP1_DATASOURCE_PASSWORD:}
     driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: ${WP1_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE:20}
+      minimum-idle: ${WP1_DATASOURCE_HIKARI_MINIMUM_IDLE:2}
+      connection-timeout: ${WP1_DATASOURCE_HIKARI_CONNECTION_TIMEOUT_MS:30000}
+      max-lifetime: ${WP1_DATASOURCE_HIKARI_MAX_LIFETIME_MS:1800000}
+      idle-timeout: ${WP1_DATASOURCE_HIKARI_IDLE_TIMEOUT_MS:600000}
   flyway:
     enabled: true
     locations: ${WP1_FLYWAY_LOCATIONS:filesystem:../db/migration/wp1}
