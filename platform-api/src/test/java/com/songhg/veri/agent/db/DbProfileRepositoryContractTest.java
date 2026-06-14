@@ -48,11 +48,15 @@ import com.songhg.veri.agent.testdesign.domain.TestDesignReviewRecord;
 import com.songhg.veri.agent.testdesign.domain.TestDesignTask;
 import com.songhg.veri.agent.testdesign.domain.TestDesignTaskStatus;
 import com.songhg.veri.agent.testdata.application.port.TestDataRepository;
+import com.songhg.veri.agent.testdata.application.query.TestAccountLeaseQuery;
 import com.songhg.veri.agent.testdata.application.query.TestAccountPoolQuery;
 import com.songhg.veri.agent.testdata.application.query.TestDataSetQuery;
+import com.songhg.veri.agent.testdata.application.query.TestDataTaskQuery;
+import com.songhg.veri.agent.testdata.domain.TestAccountLease;
 import com.songhg.veri.agent.testdata.domain.TestAccountPool;
 import com.songhg.veri.agent.testdata.domain.TestDataRecord;
 import com.songhg.veri.agent.testdata.domain.TestDataSet;
+import com.songhg.veri.agent.testdata.domain.TestDataTask;
 import com.songhg.veri.agent.testdata.domain.TestPooledAccount;
 import com.songhg.veri.agent.testdata.infrastructure.JdbcTestDataRepository;
 import java.math.BigDecimal;
@@ -416,6 +420,222 @@ class DbProfileRepositoryContractTest {
                 now,
                 now
         ))).isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    void testDataRepositoryPersistsLeasesAndCleanupTasksThroughJdbc() {
+        Instant now = Instant.now();
+        UUID poolId = UUID.randomUUID();
+        UUID accountId = UUID.randomUUID();
+        UUID leaseId = UUID.randomUUID();
+        UUID taskId = UUID.randomUUID();
+        String projectId = "project-wp8-lease-db-" + UUID.randomUUID();
+
+        testDataRepository.insertAccountPool(new TestAccountPool(
+                poolId,
+                projectId,
+                "app-db",
+                "env-db",
+                "pool-lease-db",
+                "DB lease pool",
+                "READY",
+                "{\"sharing\":\"EXCLUSIVE\"}",
+                300,
+                "db-tester",
+                "db-tester",
+                null,
+                now,
+                now
+        ));
+        testDataRepository.insertPooledAccount(new TestPooledAccount(
+                accountId,
+                poolId,
+                projectId,
+                "admin-lease-01",
+                "Admin Lease 01",
+                "AVAILABLE",
+                "[\"ADMIN\",\"APPROVER\"]",
+                "{\"applicationId\":\"app-db\"}",
+                "a".repeat(64),
+                "HEALTHY",
+                "manual smoke passed",
+                "db-tester",
+                "db-tester",
+                null,
+                now,
+                now
+        ));
+
+        assertThat(testDataRepository.firstAvailableAccount(poolId, List.of("ADMIN")))
+                .isPresent()
+                .get()
+                .extracting(TestPooledAccount::accountKey)
+                .isEqualTo("admin-lease-01");
+        assertThat(testDataRepository.markAccountLeased(accountId, "db-lease")).isTrue();
+        assertThat(testDataRepository.markAccountLeased(accountId, "db-lease")).isFalse();
+
+        assertThat(testDataRepository.insertAccountLeaseIfAbsent(new TestAccountLease(
+                leaseId,
+                poolId,
+                accountId,
+                projectId,
+                "ACTIVE",
+                "EXECUTION_RUN",
+                "run-db-001",
+                "lease-db-001",
+                "d".repeat(64),
+                "b".repeat(64),
+                now.plusSeconds(300),
+                null,
+                null,
+                "db-tester",
+                now,
+                now
+        ))).isTrue();
+
+        assertThat(testDataRepository.accountLeaseByProjectAndRequestKey(projectId, "lease-db-001"))
+                .isPresent()
+                .get()
+                .extracting(TestAccountLease::status)
+                .isEqualTo("ACTIVE");
+        assertThat(testDataRepository.countAccountLeases(
+                new TestAccountLeaseQuery(projectId, poolId, accountId, "ACTIVE", "run-db-001", 0, 10)
+        )).isEqualTo(1);
+        assertThat(testDataRepository.insertAccountLeaseIfAbsent(new TestAccountLease(
+                UUID.randomUUID(),
+                poolId,
+                accountId,
+                projectId,
+                "ACTIVE",
+                "EXECUTION_RUN",
+                "run-db-002",
+                "lease-db-002",
+                "e".repeat(64),
+                "c".repeat(64),
+                now.plusSeconds(300),
+                null,
+                null,
+                "db-tester",
+                now,
+                now
+        ))).isFalse();
+
+        TestAccountLease released = new TestAccountLease(
+                leaseId,
+                poolId,
+                accountId,
+                projectId,
+                "RELEASED",
+                "EXECUTION_RUN",
+                "run-db-001",
+                "lease-db-001",
+                "d".repeat(64),
+                "b".repeat(64),
+                now.plusSeconds(300),
+                now.plusSeconds(30),
+                "run finished",
+                "db-tester",
+                now,
+                now.plusSeconds(30)
+        );
+        testDataRepository.updateAccountLease(released);
+        assertThat(testDataRepository.accountLeaseProjectScopeId(leaseId)).contains(projectId);
+        assertThat(testDataRepository.updateAccountStatus(accountId, "AVAILABLE", "db-release")).isTrue();
+
+        assertThat(testDataRepository.insertDataTaskIfAbsent(new TestDataTask(
+                taskId,
+                projectId,
+                null,
+                "CLEANUP",
+                "PENDING",
+                "cleanup-db-001",
+                "lease:run-db-001",
+                1,
+                "{\"reason\":\"release\"}",
+                null,
+                null,
+                "trc_db",
+                "db-tester",
+                null,
+                null,
+                now,
+                now
+        ))).isTrue();
+        assertThat(testDataRepository.dataTaskByProjectAndRequestKey(projectId, "cleanup-db-001"))
+                .isPresent()
+                .get()
+                .extracting(TestDataTask::taskType)
+                .isEqualTo("CLEANUP");
+        assertThat(testDataRepository.countDataTasks(new TestDataTaskQuery(projectId, null, "CLEANUP", "PENDING", 0, 10)))
+                .isEqualTo(1);
+        assertThat(testDataRepository.updateDataTaskIfRequestKeyAvailable(new TestDataTask(
+                taskId,
+                projectId,
+                null,
+                "CLEANUP",
+                "FAILED",
+                "cleanup-db-001",
+                "lease:run-db-001",
+                1,
+                "{\"reason\":\"release\"}",
+                "CLEANUP_FAILED",
+                "adapter disabled",
+                "trc_db",
+                "db-tester",
+                now.plusSeconds(1),
+                now.plusSeconds(2),
+                now,
+                now.plusSeconds(2)
+        ))).isTrue();
+        assertThat(testDataRepository.dataTaskProjectScopeId(taskId)).contains(projectId);
+        assertThat(testDataRepository.dataTask(taskId))
+                .isPresent()
+                .get()
+                .extracting(TestDataTask::status)
+                .isEqualTo("FAILED");
+        assertThat(testDataRepository.retryDataTaskIfCurrentAttempt(new TestDataTask(
+                taskId,
+                projectId,
+                null,
+                "CLEANUP",
+                "PENDING",
+                "cleanup-db-002",
+                "lease:run-db-001",
+                2,
+                "{\"retry\":\"manual\"}",
+                null,
+                null,
+                "trc_db_retry",
+                "db-tester",
+                null,
+                null,
+                now,
+                now.plusSeconds(3)
+        ), 1)).isTrue();
+        assertThat(testDataRepository.retryDataTaskIfCurrentAttempt(new TestDataTask(
+                taskId,
+                projectId,
+                null,
+                "CLEANUP",
+                "PENDING",
+                "cleanup-db-003",
+                "lease:run-db-001",
+                2,
+                "{}",
+                null,
+                null,
+                "trc_db_stale_retry",
+                "db-tester",
+                null,
+                null,
+                now,
+                now.plusSeconds(4)
+        ), 1)).isFalse();
+        assertThat(testDataRepository.dataTask(taskId))
+                .isPresent()
+                .get()
+                .extracting(TestDataTask::status, TestDataTask::attempt, TestDataTask::requestKey)
+                .containsExactly("PENDING", 2, "cleanup-db-002");
     }
 
     @Test

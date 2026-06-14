@@ -1,11 +1,16 @@
 package com.songhg.veri.agent.testdata.application.port;
 
-import com.songhg.veri.agent.testdata.application.query.TestDataSetQuery;
+import com.songhg.veri.agent.testdata.application.query.TestAccountLeaseQuery;
 import com.songhg.veri.agent.testdata.application.query.TestAccountPoolQuery;
+import com.songhg.veri.agent.testdata.application.query.TestDataSetQuery;
+import com.songhg.veri.agent.testdata.application.query.TestDataTaskQuery;
+import com.songhg.veri.agent.testdata.domain.TestAccountLease;
 import com.songhg.veri.agent.testdata.domain.TestAccountPool;
 import com.songhg.veri.agent.testdata.domain.TestDataRecord;
 import com.songhg.veri.agent.testdata.domain.TestDataSet;
+import com.songhg.veri.agent.testdata.domain.TestDataTask;
 import com.songhg.veri.agent.testdata.domain.TestPooledAccount;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -63,4 +68,54 @@ public interface TestDataRepository {
     long countPooledAccounts(UUID poolId, String status);
 
     Optional<String> pooledAccountProjectScopeId(UUID id);
+
+    Optional<TestPooledAccount> firstAvailableAccount(UUID poolId, List<String> roleTags);
+
+    boolean markAccountLeased(UUID accountId, String updatedBy);
+
+    boolean updateAccountStatus(UUID accountId, String status, String updatedBy);
+
+    boolean insertAccountLeaseIfAbsent(TestAccountLease lease);
+
+    void updateAccountLease(TestAccountLease lease);
+
+    boolean renewActiveAccountLease(TestAccountLease lease);
+
+    boolean releaseActiveAccountLease(TestAccountLease lease);
+
+    boolean expireActiveAccountLease(TestAccountLease lease);
+
+    Optional<TestAccountLease> accountLease(UUID id);
+
+    Optional<TestAccountLease> accountLeaseByProjectAndRequestKey(String projectId, String requestKey);
+
+    List<TestAccountLease> accountLeases(TestAccountLeaseQuery query);
+
+    long countAccountLeases(TestAccountLeaseQuery query);
+
+    Optional<String> accountLeaseProjectScopeId(UUID id);
+
+    List<TestAccountLease> activeExpiredLeases(Instant now, int limit);
+
+    boolean insertDataTaskIfAbsent(TestDataTask task);
+
+    /**
+     * Serializes project-scoped task request keys when the storage profile supports transaction locks.
+     */
+    default void lockDataTaskRequestKey(String projectId, String requestKey) {
+    }
+
+    boolean updateDataTaskIfRequestKeyAvailable(TestDataTask task);
+
+    boolean retryDataTaskIfCurrentAttempt(TestDataTask task, int expectedAttempt);
+
+    Optional<TestDataTask> dataTask(UUID id);
+
+    Optional<TestDataTask> dataTaskByProjectAndRequestKey(String projectId, String requestKey);
+
+    List<TestDataTask> dataTasks(TestDataTaskQuery query);
+
+    long countDataTasks(TestDataTaskQuery query);
+
+    Optional<String> dataTaskProjectScopeId(UUID id);
 }

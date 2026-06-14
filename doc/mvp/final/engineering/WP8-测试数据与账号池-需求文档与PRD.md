@@ -162,3 +162,12 @@ M3 已推进账号池控制面后端切片：测试工程师可通过 API 创建
 4. 账号池 `ARCHIVED` 只能通过归档接口进入；`DISABLED/ARCHIVED` 账号池禁止新增账号。
 5. 账号摘要支持 `AVAILABLE/LOCKED/DISABLED/ARCHIVED` 的人工维护状态；`LEASED/EXPIRED` 仍由 M4 租借流程维护。
 6. 本轮不包含账号租借、续租、释放、过期回收、清理 worker、脱敏导出、跨 WP adapter 和前端工作台；这些仍按 M4-M6 验收。
+
+M4 已推进租借、释放和清理任务后端切片：测试工程师或后续 WP7/WP9 adapter 可通过 API 申请、续租、释放账号租借，并创建清理任务控制面记录。产品边界如下：
+
+1. 租借请求必须绑定项目 scope、账号池、holder 和 `requestKey`；同一 `projectId + requestKey` 重复请求返回同一租借结果。
+2. 租借只选择 `READY` 账号池中的 `AVAILABLE` 账号，并按角色标签匹配；服务端通过条件更新和 active lease 唯一约束防止同一账号并发重复占用。
+3. 租借响应只返回账号摘要、`secretRefDigest` 和 `leaseTokenDigest`，不返回账号凭据、租借 token 明文或 `secret://` 原文。
+4. active 租借可续租，TTL 受平台最大值限制；释放后账号默认回到 `AVAILABLE`，也可按失败策略转入 `LOCKED`。
+5. 过期回收能力当前以服务方法和 repository 验证落地，未启用独立 scheduler worker；health 中 `cleanupWorkerReady=false`。
+6. 清理任务 API 只创建、查询和重试控制面记录，`cleanupEnabled=false` 时仍不执行破坏性清理 adapter；真实清理执行和跨 WP adapter 仍按后续准出。

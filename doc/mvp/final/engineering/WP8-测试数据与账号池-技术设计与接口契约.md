@@ -134,6 +134,31 @@
 6. 账号池归档后禁止继续维护；账号池禁用后禁止新增账号。
 7. 控制面总开关关闭时，账号池维护 API 返回 `INVALID_STATE`，health API 仍可观测。
 
+### M4 已落地切片
+
+当前代码已实现并验证以下租借、释放和清理任务后端路径：
+
+- `POST /api/v1/test-data/leases`
+- `GET /api/v1/test-data/leases`
+- `GET /api/v1/test-data/leases/{id}`
+- `POST /api/v1/test-data/leases/{id}/renew`
+- `POST /api/v1/test-data/leases/{id}/release`
+- `POST /api/v1/test-data/data-tasks`
+- `GET /api/v1/test-data/data-tasks`
+- `GET /api/v1/test-data/data-tasks/{id}`
+- `POST /api/v1/test-data/data-tasks/{id}/retry`
+
+实现约束：
+
+1. 租借 API 使用 `testData:lease`，清理任务 API 使用 `testData:cleanup`，查询使用 `testData:read`；列表查询未带 `projectId` 时按平台 scope 处理并由 RBAC 决定是否允许。
+2. `POST /leases` 按 `projectId + requestKey` 幂等，重复请求返回已有租借；首次租借只选择 `AVAILABLE` 账号，并通过条件更新将账号置为 `LEASED`。
+3. DB 侧 `uk_test_account_lease_active_account` 保证同一账号最多一个 active lease；repository contract 覆盖重复 active lease 拒绝。
+4. 租借响应只返回 `leaseTokenDigest`、账号摘要和 `secretRefDigest`；不返回凭据明文、租借 token 明文或 `secret_ref_cipher`。
+5. `POST /leases/{id}/renew` 只允许未过期 `ACTIVE` 租借续租，TTL 不得超过 `max-lease-ttl-seconds`。
+6. `POST /leases/{id}/release` 为终态幂等；账号释放后默认回到 `AVAILABLE`，失败场景可转入 `LOCKED`。
+7. 过期回收当前提供应用服务入口和 DB 查询能力，但不启用 scheduler worker。
+8. `data-tasks` 当前只记录准备、刷新、清理和回滚任务的控制面状态；`cleanupEnabled=false` 不触发破坏性清理 adapter。
+
 ## 6. 关键请求体
 
 ### 创建数据集
@@ -200,6 +225,41 @@
   "holderRef": "run-uuid",
   "ttlSeconds": 1800,
   "requestKey": "wp9-run-uuid-admin"
+}
+```
+
+响应只能返回摘要和 digest：
+
+```json
+{
+  "id": "uuid",
+  "status": "ACTIVE",
+  "holderType": "EXECUTION_RUN",
+  "holderRef": "run-uuid",
+  "requestKey": "wp9-run-uuid-admin",
+  "leaseTokenDigest": "64-char-sha256",
+  "account": {
+    "id": "uuid",
+    "accountKey": "qa-admin-01",
+    "status": "LEASED",
+    "roleTags": ["ADMIN"],
+    "secretRefDigest": "64-char-sha256"
+  }
+}
+```
+
+### 创建清理任务
+
+```json
+{
+  "projectId": "uuid",
+  "dataSetId": "uuid",
+  "taskType": "CLEANUP",
+  "requestKey": "cleanup-run-uuid",
+  "targetRef": "lease:run-uuid",
+  "resultSummary": {
+    "reason": "release"
+  }
 }
 ```
 

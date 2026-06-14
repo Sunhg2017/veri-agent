@@ -74,6 +74,7 @@ with expected(table_name, column_name) as (
         ('test_account_lease','holder_type'),
         ('test_account_lease','holder_ref'),
         ('test_account_lease','request_key'),
+        ('test_account_lease','request_digest'),
         ('test_account_lease','lease_token_digest'),
         ('test_account_lease','expires_at'),
         ('test_account_role_matrix','id'),
@@ -132,6 +133,7 @@ with expected(table_name, constraint_name) as (
         ('test_pooled_account','uk_test_pooled_account_key'),
         ('test_account_lease','ck_test_account_lease_status'),
         ('test_account_lease','ck_test_account_lease_holder_type'),
+        ('test_account_lease','ck_test_account_lease_request_digest'),
         ('test_account_lease','ck_test_account_lease_token_digest'),
         ('test_account_role_matrix','ck_test_account_role_matrix_json'),
         ('test_account_role_matrix','uk_test_account_role_matrix_role')

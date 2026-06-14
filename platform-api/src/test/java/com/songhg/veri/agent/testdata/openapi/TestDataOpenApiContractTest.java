@@ -37,6 +37,15 @@ class TestDataOpenApiContractTest {
                 .andExpect(jsonPath("$.paths['/api/v1/test-data/account-pools/{id}/archive'].post").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/test-data/account-pools/{id}/accounts'].post").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/test-data/accounts/{id}'].patch").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/test-data/leases'].get").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/test-data/leases'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/test-data/leases/{id}'].get").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/test-data/leases/{id}/renew'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/test-data/leases/{id}/release'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/test-data/data-tasks'].get").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/test-data/data-tasks'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/test-data/data-tasks/{id}'].get").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/test-data/data-tasks/{id}/retry'].post").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/test-data/health'].get").exists());
     }
 }

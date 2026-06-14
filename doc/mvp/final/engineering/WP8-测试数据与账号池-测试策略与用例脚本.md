@@ -5,7 +5,7 @@
 | 工作包 | WP8 测试数据与账号池 |
 | 角色产出 | 资深质量工程师 |
 | 文档性质 | 测试策略、用例矩阵、脚本门禁和准出要求 |
-| 当前口径 | WP8 分 M2-M6 推进；当前本轮聚焦 M3 账号池控制面，租借、释放、清理任务、脱敏导出、前端工作台和跨 WP 引用契约按后续里程碑承接 |
+| 当前口径 | WP8 分 M2-M6 推进；当前本轮聚焦 M4 租借、续租、释放和清理任务控制面，脱敏导出、前端工作台、跨 WP 引用契约和真实清理 worker 按后续里程碑承接 |
 | 版本 | v0.1 |
 | 日期 | 2026-06-15 |
 
@@ -107,11 +107,13 @@ cd portal-web && npm run build
 bash db/validation/run_wp1_db_validation.sh
 ```
 
-WP8 专项门禁建议：
+WP8 专项门禁草案：
 
 ```bash
 bash scripts/wp8_quality_gate.sh
 ```
+
+说明：`scripts/wp8_quality_gate.sh` 属于 WP8 后续聚合门禁脚本草案；当前仓库尚未落地该脚本时，不作为 M4 后端切片已执行命令。
 
 M1 foundation 准出最小门禁：
 
@@ -125,21 +127,23 @@ bash db/validation/run_wp1_db_validation.sh
 
 M1 只验证权限 seed、DB foundation、运行时 DB 角色授权、审计事件字典配置、health API 和 OpenAPI contract；数据集 CRUD、账号池 CRUD、租借并发、清理 worker、导出和前端主链路按 M2-M6 对应 story 另行准出。
 
-前端 smoke 建议：
+前端 smoke 草案：
 
 ```bash
 bash scripts/wp8_frontend_e2e_smoke.sh
 ```
 
-并发租借 smoke 建议：
+并发租借 smoke 草案：
 
 ```bash
 bash scripts/wp8_account_lease_concurrency_smoke.sh
 ```
 
+说明：前端 smoke 与外部并发租借 smoke 需要在 M6/M7 或 release 模式补齐脚本后执行；M4 后端切片以服务/控制器/DB profile/OpenAPI 自动化和全量后端测试作为当前证据。
+
 ## 8. WP8 Quality Gate 草案
 
-`scripts/wp8_quality_gate.sh` 建议串联：
+`scripts/wp8_quality_gate.sh` 后续建议串联：
 
 1. 脚本语法检查：`wp8_quality_gate.sh`、`wp8_frontend_e2e_smoke.sh`、`wp8_account_lease_concurrency_smoke.sh`、`platform_api_java_line_guard.sh`。
 2. Java 行数门禁：`bash scripts/platform_api_java_line_guard.sh`。
@@ -170,6 +174,23 @@ bash db/validation/run_wp1_db_validation.sh
 1. 这组门禁覆盖账号池 CRUD、禁用/归档、账号摘要新增/更新、`secretRef` digest、不回显原文、OpenAPI contract、权限字面量集中和 profile 边界。
 2. 真实 DB repository 变更需要配合 `DbProfileRepositoryContractTest` 或全量 `mvn -B -pl platform-api test` 验证 `secret_ref_cipher` 不进入查询投影。
 3. 租借并发、续租、释放、过期回收、清理 worker、前端 smoke 和跨 WP adapter 不属于本轮 M3 完成定义。
+
+### M4 租借和清理任务最小门禁
+
+当前 M4 后端切片采用以下验证入口作为最小准出：
+
+```bash
+mvn -B -pl platform-api -Dtest=TestAccountLeaseControllerTest,TestAccountLeaseServiceTest,TestDataTaskControllerTest,TestDataTaskServiceTest,TestDataOpenApiContractTest,TestDataHealthControllerTest,OpenApiContractTest,PermissionCodeUsageTest,PersistenceProfileBoundaryTest test
+mvn -B -pl platform-api -Dtest=DbProfileRepositoryContractTest test
+bash scripts/platform_api_java_line_guard.sh
+bash db/validation/run_wp1_db_validation.sh
+```
+
+说明：
+
+1. 这组门禁覆盖租借申请、`requestKey` 幂等、无可用账号冲突、续租 TTL、释放终态幂等、过期回收服务方法、清理任务创建/查询/重试边界、OpenAPI contract、权限字面量集中和 profile 边界。
+2. `DbProfileRepositoryContractTest` 覆盖 active lease 唯一约束、账号条件更新、租借/清理任务持久化和 `secret_ref_cipher` 非投影。
+3. release 模式仍需追加 `wp8_account_lease_concurrency_smoke.sh` 或等价外部并发 smoke；当前后端切片未启用 scheduler cleanup worker、前端工作台、WP7/WP9 adapter 和脱敏导出。
 
 ## 9. 准出标准
 

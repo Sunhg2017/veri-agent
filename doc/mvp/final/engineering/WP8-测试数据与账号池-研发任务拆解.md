@@ -95,6 +95,8 @@ M3 当前推进状态：`platform-api` 已推进账号池控制面后端切片�
 | WP8-4.5 Expire recovery | P1 | 服务端架构师、质量工程师 | 扫描过期 active lease 并收敛账号状态 | 过期可恢复和审计 | Scheduler smoke |
 | WP8-4.6 Cleanup task | P0 | 服务端架构师 | 创建、查询、重试清理任务 | 清理开关关闭时不执行破坏性动作 | Controller test |
 
+M4 当前推进状态：`platform-api` 已推进租借、释放和清理任务后端切片，覆盖 `POST/GET /api/v1/test-data/leases`、`GET/renew/release /api/v1/test-data/leases/{id}`、`POST/GET /api/v1/test-data/data-tasks`、`GET/retry /api/v1/test-data/data-tasks/{id}`。本轮实现 `requestKey` 幂等、角色标签匹配、条件更新抢占账号、active lease 唯一约束、续租 TTL 限制、释放终态幂等、过期回收服务方法、清理任务控制面记录、OpenAPI contract 和 DB profile 持久化验证。清理 worker、租借并发外部 smoke、WP7/WP9 adapter、脱敏导出和前端工作台仍按 M5-M7 推进。
+
 ## 9. Epic 5：跨 WP 引用
 
 | Story | 优先级 | 负责人 | 任务 | 验收 | 验证 |

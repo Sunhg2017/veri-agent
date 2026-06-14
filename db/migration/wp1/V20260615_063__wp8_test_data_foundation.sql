@@ -149,6 +149,7 @@ create table if not exists test_account_lease (
     holder_type varchar(32) not null,
     holder_ref varchar(128) not null,
     request_key varchar(128),
+    request_digest varchar(64),
     lease_token_digest varchar(64) not null,
     expires_at timestamptz not null,
     released_at timestamptz,
@@ -158,6 +159,7 @@ create table if not exists test_account_lease (
     updated_at timestamptz not null default now(),
     constraint ck_test_account_lease_status check (status in ('ACTIVE','RELEASED','EXPIRED','REVOKED')),
     constraint ck_test_account_lease_holder_type check (holder_type in ('MANUAL','EXECUTION_RUN','UI_E2E_RUN','API_AUTOMATION_RUN')),
+    constraint ck_test_account_lease_request_digest check (request_digest is null or request_digest ~ '^[0-9a-f]{64}$'),
     constraint ck_test_account_lease_token_digest check (lease_token_digest ~ '^[0-9a-f]{64}$')
 );
 
@@ -324,6 +326,7 @@ comment on column test_account_lease.status is 'Lease lifecycle status.';
 comment on column test_account_lease.holder_type is 'Lease holder type.';
 comment on column test_account_lease.holder_ref is 'Lease holder reference.';
 comment on column test_account_lease.request_key is 'Idempotency key for lease acquisition.';
+comment on column test_account_lease.request_digest is 'SHA-256 digest of the sanitized lease acquisition request for idempotent replay validation.';
 comment on column test_account_lease.lease_token_digest is 'SHA-256 digest of lease token.';
 comment on column test_account_lease.expires_at is 'Lease expiry timestamp.';
 comment on column test_account_lease.released_at is 'Lease release timestamp.';

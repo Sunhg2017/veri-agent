@@ -1,12 +1,20 @@
 package com.songhg.veri.agent.testdata.infrastructure;
 
 import com.songhg.veri.agent.testdata.application.port.TestDataRepository;
+import com.songhg.veri.agent.testdata.application.query.TestAccountLeaseQuery;
 import com.songhg.veri.agent.testdata.application.query.TestAccountPoolQuery;
 import com.songhg.veri.agent.testdata.application.query.TestDataSetQuery;
+import com.songhg.veri.agent.testdata.application.query.TestDataTaskQuery;
+import com.songhg.veri.agent.testdata.domain.TestAccountLease;
 import com.songhg.veri.agent.testdata.domain.TestAccountPool;
 import com.songhg.veri.agent.testdata.domain.TestDataRecord;
 import com.songhg.veri.agent.testdata.domain.TestDataSet;
+import com.songhg.veri.agent.testdata.domain.TestDataTask;
 import com.songhg.veri.agent.testdata.domain.TestPooledAccount;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.io.UncheckedIOException;
+import java.time.Instant;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
@@ -24,10 +32,16 @@ import org.springframework.util.StringUtils;
 @Repository
 public class InMemoryTestDataRepository implements TestDataRepository {
 
+    private static final TypeReference<List<String>> STRING_LIST_TYPE = new TypeReference<>() {
+    };
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+
     private final ConcurrentHashMap<UUID, TestDataSet> dataSets = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, TestDataRecord> records = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<UUID, TestAccountPool> accountPools = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<UUID, TestPooledAccount> pooledAccounts = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<UUID, TestAccountLease> accountLeases = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<UUID, TestDataTask> dataTasks = new ConcurrentHashMap<>();
 
     @Override
     public void insertDataSet(TestDataSet dataSet) {
@@ -226,6 +240,229 @@ public class InMemoryTestDataRepository implements TestDataRepository {
         return pooledAccount(id).map(TestPooledAccount::projectId);
     }
 
+    @Override
+    public Optional<TestPooledAccount> firstAvailableAccount(UUID poolId, List<String> roleTags) {
+        return pooledAccounts.values().stream()
+                .filter(account -> poolId.equals(account.poolId()))
+                .filter(account -> "AVAILABLE".equals(account.status()))
+                .filter(account -> hasAllRoleTags(account, roleTags))
+                .sorted(Comparator.comparing(TestPooledAccount::updatedAt).thenComparing(TestPooledAccount::accountKey))
+                .findFirst();
+    }
+
+    @Override
+    public boolean markAccountLeased(UUID accountId, String updatedBy) {
+        boolean[] updated = {false};
+        return pooledAccounts.computeIfPresent(accountId, (ignored, current) -> {
+            if (!"AVAILABLE".equals(current.status())) {
+                return current;
+            }
+            updated[0] = true;
+            Instant now = Instant.now();
+            return new TestPooledAccount(
+                    current.id(),
+                    current.poolId(),
+                    current.projectId(),
+                    current.accountKey(),
+                    current.displayName(),
+                    "LEASED",
+                    current.roleTagsJson(),
+                    current.scopeSummaryJson(),
+                    current.secretRefDigest(),
+                    current.lastHealthStatus(),
+                    current.lastHealthSummary(),
+                    current.createdBy(),
+                    updatedBy,
+                    current.archivedAt(),
+                    current.createdAt(),
+                    now
+            );
+        }) != null && updated[0];
+    }
+
+    @Override
+    public boolean updateAccountStatus(UUID accountId, String status, String updatedBy) {
+        return pooledAccounts.computeIfPresent(accountId, (ignored, current) -> {
+            Instant now = Instant.now();
+            return new TestPooledAccount(
+                    current.id(),
+                    current.poolId(),
+                    current.projectId(),
+                    current.accountKey(),
+                    current.displayName(),
+                    status,
+                    current.roleTagsJson(),
+                    current.scopeSummaryJson(),
+                    current.secretRefDigest(),
+                    current.lastHealthStatus(),
+                    current.lastHealthSummary(),
+                    current.createdBy(),
+                    updatedBy,
+                    "ARCHIVED".equals(status) ? now : current.archivedAt(),
+                    current.createdAt(),
+                    now
+            );
+        }) != null;
+    }
+
+    @Override
+    public boolean insertAccountLeaseIfAbsent(TestAccountLease lease) {
+        if (accountLeaseByProjectAndRequestKey(lease.projectId(), lease.requestKey()).isPresent()) {
+            return false;
+        }
+        boolean activeExists = accountLeases.values().stream()
+                .anyMatch(existing -> lease.accountId().equals(existing.accountId()) && "ACTIVE".equals(existing.status()));
+        if (activeExists && "ACTIVE".equals(lease.status())) {
+            return false;
+        }
+        accountLeases.put(lease.id(), lease);
+        return true;
+    }
+
+    @Override
+    public void updateAccountLease(TestAccountLease lease) {
+        accountLeases.put(lease.id(), lease);
+    }
+
+    @Override
+    public boolean renewActiveAccountLease(TestAccountLease lease) {
+        TestAccountLease existing = accountLeases.get(lease.id());
+        if (existing == null || !"ACTIVE".equals(existing.status())) {
+            return false;
+        }
+        accountLeases.put(lease.id(), lease);
+        return true;
+    }
+
+    @Override
+    public boolean releaseActiveAccountLease(TestAccountLease lease) {
+        TestAccountLease existing = accountLeases.get(lease.id());
+        if (existing == null || !"ACTIVE".equals(existing.status())) {
+            return false;
+        }
+        accountLeases.put(lease.id(), lease);
+        return true;
+    }
+
+    @Override
+    public boolean expireActiveAccountLease(TestAccountLease lease) {
+        TestAccountLease existing = accountLeases.get(lease.id());
+        if (existing == null || !"ACTIVE".equals(existing.status())) {
+            return false;
+        }
+        accountLeases.put(lease.id(), lease);
+        return true;
+    }
+
+    @Override
+    public Optional<TestAccountLease> accountLease(UUID id) {
+        return Optional.ofNullable(accountLeases.get(id));
+    }
+
+    @Override
+    public Optional<TestAccountLease> accountLeaseByProjectAndRequestKey(String projectId, String requestKey) {
+        if (!StringUtils.hasText(requestKey)) {
+            return Optional.empty();
+        }
+        return accountLeases.values().stream()
+                .filter(lease -> projectId.equals(lease.projectId()))
+                .filter(lease -> requestKey.equals(lease.requestKey()))
+                .findFirst();
+    }
+
+    @Override
+    public List<TestAccountLease> accountLeases(TestAccountLeaseQuery query) {
+        return filteredAccountLeases(query)
+                .skip(query.offset())
+                .limit(query.limit())
+                .toList();
+    }
+
+    @Override
+    public long countAccountLeases(TestAccountLeaseQuery query) {
+        return filteredAccountLeases(query).count();
+    }
+
+    @Override
+    public Optional<String> accountLeaseProjectScopeId(UUID id) {
+        return accountLease(id).map(TestAccountLease::projectId);
+    }
+
+    @Override
+    public List<TestAccountLease> activeExpiredLeases(Instant now, int limit) {
+        return accountLeases.values().stream()
+                .filter(lease -> "ACTIVE".equals(lease.status()))
+                .filter(lease -> !lease.expiresAt().isAfter(now))
+                .sorted(Comparator.comparing(TestAccountLease::expiresAt))
+                .limit(limit)
+                .toList();
+    }
+
+    @Override
+    public boolean insertDataTaskIfAbsent(TestDataTask task) {
+        if (dataTaskByProjectAndRequestKey(task.projectId(), task.requestKey()).isPresent()) {
+            return false;
+        }
+        dataTasks.put(task.id(), task);
+        return true;
+    }
+
+    @Override
+    public boolean updateDataTaskIfRequestKeyAvailable(TestDataTask task) {
+        if (dataTaskByProjectAndRequestKey(task.projectId(), task.requestKey())
+                .filter(existing -> !existing.id().equals(task.id()))
+                .isPresent()) {
+            return false;
+        }
+        dataTasks.put(task.id(), task);
+        return true;
+    }
+
+    @Override
+    public boolean retryDataTaskIfCurrentAttempt(TestDataTask task, int expectedAttempt) {
+        TestDataTask existing = dataTasks.get(task.id());
+        if (existing == null
+                || (!"FAILED".equals(existing.status()) && !"CANCELED".equals(existing.status()))
+                || existing.attempt() != expectedAttempt) {
+            return false;
+        }
+        return updateDataTaskIfRequestKeyAvailable(task);
+    }
+
+    @Override
+    public Optional<TestDataTask> dataTask(UUID id) {
+        return Optional.ofNullable(dataTasks.get(id));
+    }
+
+    @Override
+    public Optional<TestDataTask> dataTaskByProjectAndRequestKey(String projectId, String requestKey) {
+        if (!StringUtils.hasText(requestKey)) {
+            return Optional.empty();
+        }
+        return dataTasks.values().stream()
+                .filter(task -> projectId.equals(task.projectId()))
+                .filter(task -> requestKey.equals(task.requestKey()))
+                .findFirst();
+    }
+
+    @Override
+    public List<TestDataTask> dataTasks(TestDataTaskQuery query) {
+        return filteredDataTasks(query)
+                .skip(query.offset())
+                .limit(query.limit())
+                .toList();
+    }
+
+    @Override
+    public long countDataTasks(TestDataTaskQuery query) {
+        return filteredDataTasks(query).count();
+    }
+
+    @Override
+    public Optional<String> dataTaskProjectScopeId(UUID id) {
+        return dataTask(id).map(TestDataTask::projectId);
+    }
+
     private Stream<TestDataSet> filteredDataSets(TestDataSetQuery query) {
         Stream<TestDataSet> stream = dataSets.values().stream();
         if (StringUtils.hasText(query.projectId())) {
@@ -270,11 +507,62 @@ public class InMemoryTestDataRepository implements TestDataRepository {
                 .thenComparing(TestAccountPool::code));
     }
 
+    private Stream<TestAccountLease> filteredAccountLeases(TestAccountLeaseQuery query) {
+        Stream<TestAccountLease> stream = accountLeases.values().stream();
+        if (StringUtils.hasText(query.projectId())) {
+            stream = stream.filter(lease -> query.projectId().equals(lease.projectId()));
+        }
+        if (query.poolId() != null) {
+            stream = stream.filter(lease -> query.poolId().equals(lease.poolId()));
+        }
+        if (query.accountId() != null) {
+            stream = stream.filter(lease -> query.accountId().equals(lease.accountId()));
+        }
+        if (StringUtils.hasText(query.status())) {
+            stream = stream.filter(lease -> query.status().equals(lease.status()));
+        }
+        if (StringUtils.hasText(query.holderRef())) {
+            stream = stream.filter(lease -> query.holderRef().equals(lease.holderRef()));
+        }
+        return stream.sorted(Comparator.comparing(TestAccountLease::createdAt).reversed()
+                .thenComparing(TestAccountLease::id));
+    }
+
+    private Stream<TestDataTask> filteredDataTasks(TestDataTaskQuery query) {
+        Stream<TestDataTask> stream = dataTasks.values().stream();
+        if (StringUtils.hasText(query.projectId())) {
+            stream = stream.filter(task -> query.projectId().equals(task.projectId()));
+        }
+        if (query.dataSetId() != null) {
+            stream = stream.filter(task -> query.dataSetId().equals(task.dataSetId()));
+        }
+        if (StringUtils.hasText(query.taskType())) {
+            stream = stream.filter(task -> query.taskType().equals(task.taskType()));
+        }
+        if (StringUtils.hasText(query.status())) {
+            stream = stream.filter(task -> query.status().equals(task.status()));
+        }
+        return stream.sorted(Comparator.comparing(TestDataTask::createdAt).reversed()
+                .thenComparing(TestDataTask::id));
+    }
+
     private static boolean contains(String value, String keyword) {
         return value != null && value.toLowerCase().contains(keyword);
     }
 
     private static String recordKey(UUID dataSetId, String recordKey) {
         return dataSetId + ":" + recordKey;
+    }
+
+    private static boolean hasAllRoleTags(TestPooledAccount account, List<String> requiredRoleTags) {
+        if (requiredRoleTags == null || requiredRoleTags.isEmpty()) {
+            return true;
+        }
+        try {
+            List<String> actualTags = OBJECT_MAPPER.readValue(account.roleTagsJson(), STRING_LIST_TYPE);
+            return actualTags.containsAll(requiredRoleTags);
+        } catch (java.io.IOException exception) {
+            throw new UncheckedIOException(exception);
+        }
     }
 }
