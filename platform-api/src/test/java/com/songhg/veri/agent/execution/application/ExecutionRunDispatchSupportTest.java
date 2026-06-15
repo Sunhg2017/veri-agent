@@ -45,6 +45,7 @@ import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -278,6 +279,46 @@ class ExecutionRunDispatchSupportTest {
         });
         assertThat(repository.queueClaimByToken(CLAIM_TOKEN)).hasValueSatisfying(claim ->
                 assertThat(claim.status()).isEqualTo("COMPLETED"));
+    }
+
+    @Test
+    void invalidRuntimeBaseUrlDoesNotConsumeClaimOrAcquireLease() throws Exception {
+        UUID projectId = UUID.randomUUID();
+        UUID bundleId = UUID.randomUUID();
+        UUID caseId = UUID.randomUUID();
+        UUID poolId = seedAccountPool(projectId);
+        SeededDispatchNode seed = seedClaimedApiNode(projectId, bundleId, caseId, Map.of(
+                "accountPoolRef", poolId.toString(),
+                "applicationId", "app-alpha",
+                "environmentId", "env-staging",
+                "roleTags", List.of("ADMIN"),
+                "ttlSeconds", 90
+        ));
+
+        assertThatThrownBy(() -> support.dispatchClaimedApiTestNodeRun(new DispatchExecutionNodeRunCommand(
+                seed.nodeRun().id(),
+                CLAIM_TOKEN,
+                "https://api.example.test/runtime?token=must-not-store",
+                null,
+                null,
+                null,
+                null
+        ))).isInstanceOf(BusinessException.class)
+                .hasMessageContaining("baseUrl 不允许携带 userInfo/query/fragment");
+
+        verify(apiAutomationService, never()).createRun(any());
+        assertThat(repository.run(seed.runId())).hasValueSatisfying(run ->
+                assertThat(run.status()).isEqualTo("RUNNING"));
+        assertThat(repository.nodeRun(seed.nodeRun().id())).hasValueSatisfying(nodeRun -> {
+            assertThat(nodeRun.status()).isEqualTo("RUNNING");
+            Map<String, Object> summary = jsonSupport.readMap(nodeRun.resultSummaryJson());
+            assertThat(summary)
+                    .containsEntry("runnerDispatched", false)
+                    .doesNotContainKey("accountLeaseAcquired")
+                    .doesNotContainKey("wp6DispatchFailed");
+        });
+        assertThat(repository.queueClaimByToken(CLAIM_TOKEN)).hasValueSatisfying(claim ->
+                assertThat(claim.status()).isEqualTo("CLAIMED"));
     }
 
     private SeededDispatchNode seedClaimedApiNode(UUID projectId, UUID bundleId, UUID caseId)
