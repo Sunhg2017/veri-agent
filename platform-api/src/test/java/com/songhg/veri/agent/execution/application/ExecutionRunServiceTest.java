@@ -13,6 +13,7 @@ import com.songhg.veri.agent.execution.domain.ExecutionNodeRun;
 import com.songhg.veri.agent.execution.domain.ExecutionPlanNode;
 import com.songhg.veri.agent.execution.domain.ExecutionRun;
 import com.songhg.veri.agent.management.application.port.ManagementStore;
+import com.songhg.veri.agent.testdata.application.TestDataCrossWpReferenceService;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -45,6 +46,7 @@ class ExecutionRunServiceTest {
             contextClient,
             actorResolver,
             apiAutomationService,
+            EmptyObjectProvider.of(),
             EmptyObjectProvider.of(),
             new ObjectMapper(),
             new ExecutionProperties(

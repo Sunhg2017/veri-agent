@@ -8,6 +8,7 @@ import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationRunResu
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
 import com.songhg.veri.agent.common.util.SensitiveTextSanitizer;
+import com.songhg.veri.agent.execution.application.command.CompleteExecutionNodeRunCommand;
 import com.songhg.veri.agent.execution.application.command.DispatchExecutionNodeRunCommand;
 import com.songhg.veri.agent.execution.application.port.ExecutionRepository;
 import com.songhg.veri.agent.execution.application.view.ExecutionRunDetailResponse;
@@ -46,6 +47,7 @@ final class ExecutionRunDispatchSupport {
     private final ManagementStore managementStore;
     private final ExecutionProperties properties;
     private final ExecutionRunJsonSupport jsonSupport;
+    private final ExecutionAccountLeaseSupport accountLeaseSupport;
     private final ExecutionRunQueueSupport queueSupport;
     private final ExecutionRunResponseMapper responseMapper;
     private final TransactionBridge transactionBridge;
@@ -56,6 +58,7 @@ final class ExecutionRunDispatchSupport {
             ManagementStore managementStore,
             ExecutionProperties properties,
             ExecutionRunJsonSupport jsonSupport,
+            ExecutionAccountLeaseSupport accountLeaseSupport,
             ExecutionRunQueueSupport queueSupport,
             ExecutionRunResponseMapper responseMapper,
             TransactionBridge transactionBridge
@@ -65,6 +68,7 @@ final class ExecutionRunDispatchSupport {
         this.managementStore = managementStore;
         this.properties = properties;
         this.jsonSupport = jsonSupport;
+        this.accountLeaseSupport = accountLeaseSupport;
         this.queueSupport = queueSupport;
         this.responseMapper = responseMapper;
         this.transactionBridge = transactionBridge;
@@ -80,14 +84,20 @@ final class ExecutionRunDispatchSupport {
         if (preparation.replayResponse() != null) {
             return preparation.replayResponse();
         }
-        ApiAutomationRunDetailResponse wp6Run = apiAutomationService.createRun(new CreateApiAutomationRunCommand(
-                preparation.bundleId(),
-                preparation.environmentId(),
-                preparation.baseUrl(),
-                preparation.caseIds(),
-                preparation.timeoutSeconds(),
-                preparation.secretRefs()
-        ));
+        ApiAutomationRunDetailResponse wp6Run;
+        try {
+            wp6Run = apiAutomationService.createRun(new CreateApiAutomationRunCommand(
+                    preparation.bundleId(),
+                    preparation.environmentId(),
+                    preparation.baseUrl(),
+                    preparation.caseIds(),
+                    preparation.timeoutSeconds(),
+                    preparation.secretRefs()
+            ));
+        } catch (RuntimeException exception) {
+            transactionBridge.inExecutionTransaction(() -> failPreparedDispatch(preparation, exception));
+            throw exception;
+        }
         return transactionBridge.inExecutionTransaction(
                 () -> completeDispatchedApiTestNodeRun(preparation, wp6Run)
         );
@@ -121,6 +131,7 @@ final class ExecutionRunDispatchSupport {
         ResolvedDispatchTarget target = resolvedDispatchTarget(command, planInput, run.projectId());
         List<String> secretRefs = dispatchSecretRefs(command, planInput);
         renewClaimForDispatch(claim, planNode, now);
+        accountLeaseSupport.acquireForDispatch(run, planNode, nodeRun, planInput);
         return new ApiTestDispatchPreparation(
                 nodeRun.id(),
                 command.claimToken(),
@@ -191,6 +202,25 @@ final class ExecutionRunDispatchSupport {
                 completedAt
         ));
         return queueSupport.aggregateRunAfterNodeCompletion(completed.runId(), completedAt);
+    }
+
+    private ExecutionRunDetailResponse failPreparedDispatch(ApiTestDispatchPreparation preparation, RuntimeException exception) {
+        return queueSupport.completeClaimedNodeRun(new CompleteExecutionNodeRunCommand(
+                preparation.nodeRunId(),
+                preparation.claimToken(),
+                "FAILED",
+                "EXECUTION_NODE_DISPATCH_FAILED",
+                SensitiveTextSanitizer.sanitizedErrorSummary(
+                        exception == null ? null : exception.getMessage(),
+                        "WP6 dispatch failed",
+                        512
+                ),
+                Map.of(
+                        "wp6DispatchFailed", true,
+                        "runnerDispatched", false,
+                        "sourceErrorCode", sourceErrorCode(exception)
+                )
+        ));
     }
 
     private void renewClaimForDispatch(ExecutionQueueClaim claim, ExecutionPlanNode planNode, Instant now) {
@@ -400,6 +430,13 @@ final class ExecutionRunDispatchSupport {
             case "BLOCKED" -> "BLOCKED";
             default -> "FAILED";
         };
+    }
+
+    private String sourceErrorCode(RuntimeException exception) {
+        if (exception instanceof BusinessException businessException) {
+            return businessException.getErrorCode().name();
+        }
+        return exception == null ? "RuntimeException" : exception.getClass().getSimpleName();
     }
 
     private String wp6DispatchErrorCode(String wp9Status, ApiAutomationRunResponse wp6Run) {

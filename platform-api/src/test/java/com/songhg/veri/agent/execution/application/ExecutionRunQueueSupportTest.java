@@ -29,12 +29,19 @@ class ExecutionRunQueueSupportTest {
     private final ExecutionPlatformContextClient contextClient = mock(ExecutionPlatformContextClient.class);
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final ExecutionRunJsonSupport jsonSupport = new ExecutionRunJsonSupport(objectMapper);
+    private final ExecutionAccountLeaseSupport accountLeaseSupport = new ExecutionAccountLeaseSupport(
+            repository,
+            null,
+            properties(),
+            jsonSupport
+    );
     private final ExecutionRunQueueSupport support = new ExecutionRunQueueSupport(
             repository,
             contextClient,
             properties(),
             jsonSupport,
-            new ExecutionRunResponseMapper(objectMapper)
+            new ExecutionRunResponseMapper(objectMapper),
+            accountLeaseSupport
     );
 
     @Test

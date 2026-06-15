@@ -56,19 +56,22 @@ final class ExecutionRunQueueSupport {
     private final ExecutionProperties properties;
     private final ExecutionRunJsonSupport jsonSupport;
     private final ExecutionRunResponseMapper responseMapper;
+    private final ExecutionAccountLeaseSupport accountLeaseSupport;
 
     ExecutionRunQueueSupport(
             ExecutionRepository repository,
             ExecutionPlatformContextClient contextClient,
             ExecutionProperties properties,
             ExecutionRunJsonSupport jsonSupport,
-            ExecutionRunResponseMapper responseMapper
+            ExecutionRunResponseMapper responseMapper,
+            ExecutionAccountLeaseSupport accountLeaseSupport
     ) {
         this.repository = repository;
         this.contextClient = contextClient;
         this.properties = properties;
         this.jsonSupport = jsonSupport;
         this.responseMapper = responseMapper;
+        this.accountLeaseSupport = accountLeaseSupport;
     }
 
     Optional<ExecutionQueueClaimResponse> claimNextQueuedNode(String workerId) {
@@ -249,8 +252,10 @@ final class ExecutionRunQueueSupport {
             repository.updateNodeRuns(dependencyUpdates);
             nodeRuns = repository.nodeRuns(run.id());
         }
-        ExecutionRun aggregated = aggregateRun(run, latestNodeRuns(nodeRuns), now);
+        List<ExecutionNodeRun> latestNodeRuns = latestNodeRuns(nodeRuns);
+        ExecutionRun aggregated = aggregateRun(run, latestNodeRuns, now);
         repository.updateRun(aggregated);
+        aggregated = accountLeaseSupport.releaseTerminalRunLeases(aggregated, latestNodeRuns, now);
         if (TERMINAL_RUN_STATUSES.contains(aggregated.status())
                 && !TERMINAL_RUN_STATUSES.contains(run.status())) {
             auditRun(aggregated, "execution.run.completed", "SUCCESS", Map.of(

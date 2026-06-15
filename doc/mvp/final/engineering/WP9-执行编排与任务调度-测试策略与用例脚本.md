@@ -5,7 +5,7 @@
 | 工作包 | WP9 执行编排与任务调度 |
 | 角色产出 | 资深质量工程师 |
 | 文档性质 | 测试策略、用例矩阵、脚本门禁和准出要求 |
-| 当前口径 | 覆盖计划、DAG、手动触发、队列状态、WP6 dispatch、cancel/retry/recovery、webhook/cron 控制面和前端主链路 |
+| 当前口径 | 覆盖计划、DAG、手动触发、队列状态、WP6 dispatch、WP8 账号租借自动申请/释放、cancel/retry/recovery、webhook/cron 控制面和前端主链路 |
 | 版本 | v0.1 |
 | 日期 | 2026-06-13 |
 
@@ -14,8 +14,9 @@
 1. 验证 WP9 不绕过 WP1 权限审计和 WP6 runner 安全边界。
 2. 验证 DAG 校验、状态机、幂等、取消、重试、超时和恢复可靠。
 3. 验证 webhook/cron 控制面默认关闭、启用受签名和权限约束。
-4. 验证前端工作台可完成主链路且不泄露敏感信息。
-5. 验证 DB migration、权限 seed、审计事件和 quality gate 可作为发布准出入口。
+4. 验证 WP8 account lease 由 WP9 运行时自动申请/释放，只保存引用、状态、digest 和脱敏账号摘要。
+5. 验证前端工作台可完成主链路且不泄露敏感信息。
+6. 验证 DB migration、权限 seed、审计事件和 quality gate 可作为发布准出入口。
 
 ## 2. 测试范围
 
@@ -26,6 +27,7 @@
 | Run | 手动触发、requestKey 幂等、状态聚合、节点拓扑推进。 |
 | Queue | 条件认领、heartbeat、并发限制、超时回收、人工重放。 |
 | WP6 dispatch | approved bundle、runner disabled、allowlist 阻断、timeout、pass/fail 聚合。 |
+| WP8 lease | plan input `accountLease` 校验、dispatch 前申请、终态/取消/超时释放、失败转 LOCKED 和脱敏证据。 |
 | Cancel/retry | 运行中取消、终态取消幂等、失败节点重试、retryAttempt。 |
 | Trigger | webhook 签名、sourceEventId 幂等、禁用态、cron 元数据。 |
 | Export | 脱敏执行摘要、WP10 handoff、审计事件。 |
@@ -58,6 +60,9 @@
 | WP9-SCHED-002 | P0 | scheduler disabled | 不访问 `ExecutionRunService`，tick 返回 noop。 |
 | WP9-SCHED-003 | P0 | scheduler dispatch 失败 | 使用脱敏 errorSummary 将 claimed 节点关闭为 FAILED，active claim 不悬挂。 |
 | WP9-SCHED-004 | P0 | scheduler 配置越界 | interval、initialDelay、workerId、batchSize 使用 effective 边界值。 |
+| WP9-LEASE-001 | P0 | API_TEST 配置 `accountLease` | dispatch 前调用 WP8 `acquireExecutionRunLease`，node summary 只保存 `accountLeaseRef/accountPoolRef/status/expiresAt/secretRefDigest`。 |
+| WP9-LEASE-002 | P0 | run 成功终态 | WP9 调用 WP8 `releaseExecutionRunLease`，账号回到 `AVAILABLE`，run/node summary 记录释放证据。 |
+| WP9-LEASE-003 | P0 | run 失败、取消或超时 | WP9 best-effort 释放租借并把账号置为 `LOCKED`，释放失败只保存脱敏错误证据。 |
 | WP9-TRIGGER-001 | P0 | webhook disabled | 返回 `EXECUTION_TRIGGER_DISABLED`。 |
 | WP9-TRIGGER-002 | P0 | webhook 签名错误 | 返回 `EXECUTION_TRIGGER_SIGNATURE_INVALID`。 |
 | WP9-TRIGGER-003 | P0 | 真实 HTTP 签名 webhook | 首次返回 ACCEPTED 并创建 run，重复 `sourceEventId` 返回幂等回放，不保存 payload/secretRef 明文。 |
@@ -70,6 +75,7 @@
 3. variables 禁止注入 shell、超长文本和敏感明文。
 4. 导出和审计不包含 secretRef 明文、webhook secret、请求响应正文或 stdout/stderr。
 5. WP9 不能通过测试替身绕过 WP6 allowlist 和 secretRef 规则。
+6. WP9 lease summary 不得包含 `secret://` 原文、租借 token 明文、密码、cookie、Authorization 或原始账号健康摘要。
 
 ## 5. 前端测试
 
@@ -136,12 +142,13 @@ bash scripts/wp9_worker_hosting_readiness.sh
 3. cancel/retry/timeout/recovery 均幂等且状态收敛。
 4. webhook/cron 默认关闭，开启后有签名、幂等和审计。
 5. WP6 dispatch 不泄露敏感值，不绕过 WP6 runner 安全策略。
-6. 后端、前端、构建、DB validation 和 WP9 quality gate 按影响面通过。
+6. WP8 lease 申请/释放链路按 run/node attempt 幂等，并且失败/取消/超时不会把账号误放回可用池。
+7. 后端、前端、构建、DB validation 和 WP9 quality gate 按影响面通过。
 
 ## 8. 当前质量结论
 
 M1 已完成基础控制面、DB validation 和 health API 验收。M2 已完成计划与 DAG 后端切片，新增 `ExecutionDagValidatorTest`、`ExecutionPlanControllerTest`，并把 execution plan API 纳入 `OpenApiContractTest`。M3A 已完成手动触发与运行记录后端切片，新增 `ExecutionRunControllerTest`，并把 `/plans/{id}/runs`、`/runs`、`/runs/{id}` 纳入 `OpenApiContractTest`。M3B 已完成取消与控制面重试后端切片，覆盖 `/runs/{id}/cancel`、`/runs/{id}/retry`、终态取消幂等、非重试态拒绝、失败节点 retry attempt、防重复 retry 和 JDBC update/attempt 查询。M3C 已完成内部 queue claim、节点完成回传、依赖推进和 run 聚合后端切片，覆盖 `/internal/queue/claims`、`/internal/queue/node-runs/{id}/complete`、成功节点推动下游 QUEUED、失败节点阻断下游、危险 resultSummary key 丢弃、敏感文本脱敏、active claim 唯一和条件更新 DB contract。M3D 已完成 claim heartbeat、过期 claim recovery、旧 claimToken 拒绝和 TIMEOUT recovery。M4A 已完成 claimed `API_TEST` dispatch 到 WP6 应用服务的后端切片，覆盖 runner disabled 归一为 BLOCKED、WP6 managed success 聚合为 SUCCEEDED、OpenAPI contract、health `wp6DispatchReady=true`、raw baseUrl/secretRef/runner payload 不落 WP9 摘要。M4B 已完成 `baseUrlRef=env:<key>` 环境解析、计划 `runtimeSecretRefs` 安全中继、WP6 `FAILED/TIMEOUT` 结果映射、`runtimeSecretRefs` 格式校验、plan 详情脱敏和 SecretProvider 边界失败脱敏。M4C 已完成后台 scheduler loop 后端切片，覆盖启用后 recovery/claim/dispatch/report handoff、disabled noop、dispatch 失败脱敏关闭 claim、scheduler 配置边界和 health `schedulerLoopReady=true`。M5 已完成触发控制面后端切片，覆盖 trigger 创建/列表/更新/dry-run、secretRef 脱敏、webhook disabled 拒绝、签名错误拒绝、签名成功创建 run、重复 sourceEventId 幂等回放和 OpenAPI contract。
 
-当前已覆盖 plan 创建、列表、详情、更新、dry-run、归档、归档后状态保护、DAG 循环、跨项目 WP6 bundle 拒绝、secretRef 输入脱敏、`runtimeSecretRefs` 引用校验/脱敏、READY 计划手动触发、requestKey 幂等回放、run 列表/详情、取消、重试、内部认领、heartbeat、recovery、节点完成、API_TEST dispatch、baseUrlRef 环境解析、WP6 failure/timeout 映射、后台 scheduler loop、CRON scanner、trigger 管理、webhook 签名与幂等、依赖推进、状态聚合和权限保护。
+当前已覆盖 plan 创建、列表、详情、更新、dry-run、归档、归档后状态保护、DAG 循环、跨项目 WP6 bundle 拒绝、secretRef 输入脱敏、`runtimeSecretRefs` 引用校验/脱敏、`accountLease` 输入校验/前端 payload、READY 计划手动触发、requestKey 幂等回放、run 列表/详情、取消、重试、内部认领、heartbeat、recovery、节点完成、API_TEST dispatch、WP8 account lease 自动申请/释放、baseUrlRef 环境解析、WP6 failure/timeout 映射、后台 scheduler loop、CRON scanner、trigger 管理、webhook 签名与幂等、依赖推进、状态聚合和权限保护。
 
 M6C 已补 `portal-web/e2e/wp9-execution.smoke.playwright.ts` 和 `scripts/wp9_frontend_e2e_smoke.sh`，覆盖桌面与 390px 视口下的执行工作台计划创建/更新、DAG dryRun、手动运行、取消、失败运行重试、触发器创建/dryRun/启停、事件查看和无横向溢出。M7A 已补 `scripts/wp9_quality_gate.sh` 和 `scripts/wp9_scheduler_smoke.sh`，开发模式聚合 WP9 后端、前端、Playwright、build 和 DB validation，release 模式要求显式启用 managed scheduler smoke。M7B 已补生产 CRON scanner 最小闭环，覆盖到期 CRON trigger 创建 CRON run、trigger event 证据、`nextFireAt` 推进和 health `cronScannerReady=true`。M7C 已补执行摘要导出落地，覆盖 `GET /runs/{id}/export` schema、节点状态计数、redactionPolicy、OpenAPI contract、前端 API normalization 和运行详情导出按钮。M7D 已补 `scripts/wp9_webhook_http_smoke.sh`，覆盖真实 HTTP 签名、sourceEventId 幂等、trigger event 证据和 run export 脱敏；`scripts/wp9_quality_gate.sh` release 模式同步要求 webhook HTTP smoke。M8A 已补 `scripts/wp9_webhook_sign.sh` 和 GitHub/GitLab/Jenkins CI 接入样例，覆盖签名 helper、稳定 eventId、raw body 和日志脱敏要求。M8B 已补 `WP9-Scheduler-Trigger-Runbook.md`，覆盖 release gate、恢复重放、webhook secret 轮换、CRON 运维、排障和回滚证据要求。M8C 已补 `integrations/wp9-webhook-marketplace/` 和 `scripts/wp9_marketplace_package_smoke.sh`，覆盖供应商 marketplace manifest、GitHub/GitLab/Jenkins 模板、payload 示例、安装说明、离线校验和 quality gate 接入。M8D 已补 `integrations/wp9-worker-hosting/` 和 `scripts/wp9_worker_hosting_readiness.sh`，覆盖 web、scheduler-active、scheduler-standby 三类托管角色的配置准入。M8E 已补 `scripts/wp9_report_handoff_smoke.sh`，覆盖 `REPORT_HANDOFF` scheduler 完成摘要和 run export 脱敏证据。M8F 已补 `scripts/wp9_cron_capacity_smoke.sh`，覆盖 missed-fire 不补偿和 nextFireAt 推进。M8G 已补 `scripts/wp9_cron_backlog_smoke.sh`，覆盖 CRON backlog 超过 tick batch 时的限批扫描和后续 tick 接续处理。M8H 已补 `WP9-执行编排与任务调度-前端操作说明.md`，把 Playwright 已覆盖的浏览器主链路整理为产品验收说明。M8I 已补 `WP9-执行编排与任务调度-发布准出说明.md` 和 `WP9-执行编排与任务调度-剩余工作盘点.md`，确认当前 WP9 范围无剩余功能开发项；真实 OAuth/App 上架、独立外部 worker 进程、真实 CRON 生产压测和 WP10 完整报告消费集成仍需后续专项验收。

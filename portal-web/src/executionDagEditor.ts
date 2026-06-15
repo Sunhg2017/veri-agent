@@ -11,6 +11,12 @@ export type ExecutionDagNodeDraft = {
   baseUrlRef: string;
   caseIdsText: string;
   runtimeSecretRefsText: string;
+  accountPoolRef: string;
+  accountLeaseApplicationId: string;
+  accountLeaseEnvironmentId: string;
+  accountLeaseRoleTagsText: string;
+  accountLeaseTtlSeconds: number;
+  accountLeaseRequestKey: string;
   timeoutSeconds: number;
   failurePolicy: ExecutionFailurePolicy;
   maxAttempts: number;
@@ -38,6 +44,12 @@ export const initialExecutionNodeDraft: ExecutionDagNodeDraft = {
   baseUrlRef: '',
   caseIdsText: '',
   runtimeSecretRefsText: '',
+  accountPoolRef: '',
+  accountLeaseApplicationId: '',
+  accountLeaseEnvironmentId: '',
+  accountLeaseRoleTagsText: '',
+  accountLeaseTtlSeconds: 0,
+  accountLeaseRequestKey: '',
   timeoutSeconds: 180,
   failurePolicy: 'FAIL_FAST',
   maxAttempts: 1
@@ -77,6 +89,12 @@ export function executionPlanDraftFromDetail(plan: ExecutionPlanDetail): Executi
         baseUrlRef: stringValue(node.inputSummary.baseUrlRef),
         caseIdsText: stringListValue(node.inputSummary.caseIds).join(', '),
         runtimeSecretRefsText: runtimeSecretRefsText(node.inputSummary.runtimeSecretRefs),
+        accountPoolRef: accountLeaseString(node.inputSummary.accountLease, 'accountPoolRef'),
+        accountLeaseApplicationId: accountLeaseString(node.inputSummary.accountLease, 'applicationId'),
+        accountLeaseEnvironmentId: accountLeaseString(node.inputSummary.accountLease, 'environmentId'),
+        accountLeaseRoleTagsText: stringListValue(accountLeaseValue(node.inputSummary.accountLease, 'roleTags')).join(', '),
+        accountLeaseTtlSeconds: numberValue(accountLeaseValue(node.inputSummary.accountLease, 'ttlSeconds'), 0),
+        accountLeaseRequestKey: accountLeaseString(node.inputSummary.accountLease, 'requestKey'),
         timeoutSeconds: node.timeoutSeconds,
         failurePolicy: normalizeFailurePolicy(node.failurePolicy),
         maxAttempts: numberValue(node.retryPolicy.maxAttempts, 1)
@@ -109,6 +127,10 @@ export function validateExecutionPlanDraft(draft: ExecutionPlanDraft): Execution
     }
     if (!Number.isFinite(node.maxAttempts) || node.maxAttempts < 0 || node.maxAttempts > 5) {
       issues.push({ field: `${label}.maxAttempts`, message: `节点 ${key || index + 1} 重试次数必须在 0-5` });
+    }
+    if (node.type === 'API_TEST' && node.accountPoolRef.trim()
+      && (!Number.isFinite(node.accountLeaseTtlSeconds) || node.accountLeaseTtlSeconds < 0 || node.accountLeaseTtlSeconds > 604800)) {
+      issues.push({ field: `${label}.accountLeaseTtlSeconds`, message: `节点 ${key || index + 1} 租借 TTL 秒必须在 0-604800` });
     }
   });
   duplicateKeys.forEach((key) => issues.push({ field: 'nodes.key', message: `节点 key 重复: ${key}` }));
@@ -168,10 +190,12 @@ export function buildExecutionNodePayload(node: ExecutionDagNodeDraft): Executio
   const baseUrlRef = node.baseUrlRef.trim();
   const caseIds = parseCommaSeparated(node.caseIdsText);
   const runtimeSecretRefs = parseCommaSeparated(node.runtimeSecretRefsText);
+  const accountLease = node.type === 'API_TEST' ? accountLeasePayload(node) : null;
   if (apiAutomationBundleId) input.apiAutomationBundleId = apiAutomationBundleId;
   if (baseUrlRef) input.baseUrlRef = baseUrlRef;
   if (caseIds.length) input.caseIds = caseIds;
   if (runtimeSecretRefs.length) input.runtimeSecretRefs = runtimeSecretRefs;
+  if (accountLease) input.accountLease = accountLease;
   return {
     key: node.key.trim(),
     type: node.type,
@@ -193,6 +217,7 @@ export function summarizeDraftNode(node: ExecutionDagNodeDraft) {
   ];
   if (node.apiAutomationBundleId.trim()) fragments.push(`bundle ${shortValue(node.apiAutomationBundleId)}`);
   if (node.baseUrlRef.trim()) fragments.push(`baseUrlRef ${shortValue(node.baseUrlRef)}`);
+  if (node.type === 'API_TEST' && node.accountPoolRef.trim()) fragments.push(`lease ${shortValue(node.accountPoolRef)}`);
   return fragments.join(' · ');
 }
 
@@ -250,6 +275,31 @@ function runtimeSecretRefsText(value: unknown) {
     return stringListValue(value).filter((item) => item.startsWith('secret://')).join(', ');
   }
   return '';
+}
+
+function accountLeasePayload(node: ExecutionDagNodeDraft) {
+  const accountPoolRef = node.accountPoolRef.trim();
+  if (!accountPoolRef) return null;
+  const payload: Record<string, unknown> = { accountPoolRef };
+  const applicationId = node.accountLeaseApplicationId.trim();
+  const environmentId = node.accountLeaseEnvironmentId.trim();
+  const roleTags = parseCommaSeparated(node.accountLeaseRoleTagsText);
+  const requestKey = node.accountLeaseRequestKey.trim();
+  if (applicationId) payload.applicationId = applicationId;
+  if (environmentId) payload.environmentId = environmentId;
+  if (roleTags.length) payload.roleTags = roleTags;
+  if (Number.isFinite(node.accountLeaseTtlSeconds) && node.accountLeaseTtlSeconds > 0) payload.ttlSeconds = node.accountLeaseTtlSeconds;
+  if (requestKey) payload.requestKey = requestKey;
+  return payload;
+}
+
+function accountLeaseValue(value: unknown, key: string): unknown {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+  return (value as Record<string, unknown>)[key];
+}
+
+function accountLeaseString(value: unknown, key: string) {
+  return stringValue(accountLeaseValue(value, key));
 }
 
 function stringListValue(value: unknown): string[] {

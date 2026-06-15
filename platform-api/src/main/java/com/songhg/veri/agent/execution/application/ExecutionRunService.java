@@ -27,6 +27,7 @@ import com.songhg.veri.agent.execution.domain.ExecutionPlan;
 import com.songhg.veri.agent.execution.domain.ExecutionPlanNode;
 import com.songhg.veri.agent.execution.domain.ExecutionRun;
 import com.songhg.veri.agent.management.application.port.ManagementStore;
+import com.songhg.veri.agent.testdata.application.TestDataCrossWpReferenceService;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -67,6 +68,7 @@ public class ExecutionRunService {
     private final ManagementStore managementStore;
     private final ExecutionRunJsonSupport jsonSupport;
     private final ExecutionRunResponseMapper responseMapper;
+    private final ExecutionAccountLeaseSupport accountLeaseSupport;
     private final ExecutionRunQueueSupport queueSupport;
     private final ExecutionRunDispatchSupport dispatchSupport;
     private final ExecutionProperties properties;
@@ -79,6 +81,7 @@ public class ExecutionRunService {
             ExecutionActorResolver actorResolver,
             ApiAutomationService apiAutomationService,
             ObjectProvider<ManagementStore> managementStores,
+            ObjectProvider<TestDataCrossWpReferenceService> testDataServices,
             ObjectMapper objectMapper,
             ExecutionProperties properties,
             ObjectProvider<PlatformTransactionManager> transactionManagers
@@ -92,12 +95,19 @@ public class ExecutionRunService {
         this.jsonSupport = new ExecutionRunJsonSupport(objectMapper);
         this.responseMapper = new ExecutionRunResponseMapper(objectMapper);
         this.properties = properties;
+        this.accountLeaseSupport = new ExecutionAccountLeaseSupport(
+                repository,
+                testDataServices.getIfAvailable(),
+                properties,
+                jsonSupport
+        );
         this.queueSupport = new ExecutionRunQueueSupport(
                 repository,
                 contextClient,
                 properties,
                 jsonSupport,
-                responseMapper
+                responseMapper,
+                accountLeaseSupport
         );
         this.transactionTemplate = OptionalTransactionTemplates.create(transactionManagers);
         this.dispatchSupport = new ExecutionRunDispatchSupport(
@@ -106,6 +116,7 @@ public class ExecutionRunService {
                 managementStore,
                 properties,
                 jsonSupport,
+                accountLeaseSupport,
                 queueSupport,
                 responseMapper,
                 this::inExecutionTransaction
@@ -274,15 +285,20 @@ public class ExecutionRunService {
         );
         repository.updateRun(canceled);
         repository.updateNodeRuns(canceledNodeRuns);
-        auditRun(canceled, "execution.run.canceled", "SUCCESS", Map.of(
-                "status", canceled.status(),
+        ExecutionRun releaseAware = accountLeaseSupport.releaseTerminalRunLeases(
+                canceled,
+                repository.nodeRuns(canceled.id()),
+                now
+        );
+        auditRun(releaseAware, "execution.run.canceled", "SUCCESS", Map.of(
+                "status", releaseAware.status(),
                 "canceledNodeCount", canceledNodeRuns.size(),
                 "runnerCancelAttempted", runnerCancelSummary.attempted(),
                 "runnerCancelAttemptCount", runnerCancelSummary.attemptedCount(),
                 "runnerCancelAcceptedCount", runnerCancelSummary.acceptedCount(),
                 "runnerCancelFailedCount", runnerCancelSummary.failedCount()
         ));
-        return detail(requireRun(id), false);
+        return detail(requireRun(releaseAware.id()), false);
     }
 
     /**

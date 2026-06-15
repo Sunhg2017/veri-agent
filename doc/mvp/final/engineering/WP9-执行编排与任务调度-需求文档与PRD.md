@@ -5,9 +5,9 @@
 | 工作包 | WP9 执行编排与任务调度 |
 | 角色产出 | 资深产品经理 |
 | 文档性质 | 需求文档、产品 PRD 和产品验收标准 |
-| 当前口径 | 先完成项目内执行计划、手动触发、基础调度控制面和 WP6 runner 编排；CI/CD 与 cron 为 P1 控制面 |
+| 当前口径 | 完成项目内执行计划、手动触发、调度控制面、WP6 runner 编排和 WP8 账号租借自动申请/释放；CI/CD 与 cron 为控制面能力 |
 | 版本 | v0.1 |
-| 日期 | 2026-06-13 |
+| 日期 | 2026-06-15 |
 
 ## 1. 背景
 
@@ -36,11 +36,12 @@ WP6 已经完成 OpenAPI 到接口自动化脚本包、受控单次运行和脱�
 | 功能 | P0 口径 | P1 口径 |
 |---|---|---|
 | 执行计划 | 创建、查询、编辑草稿、归档、DAG dryRun | 复制计划、模板化计划 |
-| DAG 节点 | API_TEST 节点接 WP6；SETUP/VERIFY/CLEANUP/REPORT_HANDOFF 控制面占位 | UI_TEST 接 WP7；复杂跳过条件 |
+| DAG 节点 | API_TEST 节点接 WP6，可声明 WP8 account lease；SETUP/VERIFY/CLEANUP/REPORT_HANDOFF 控制面占位 | UI_TEST 接 WP7；复杂跳过条件 |
 | 手动触发 | 用户手动触发 run，支持 requestKey 幂等 | 批量手动触发 |
 | 队列状态 | QUEUED/RUNNING/SUCCEEDED/FAILED/CANCELED/TIMEOUT/PARTIAL_SUCCESS | 优先级抢占和资源池权重 |
 | 取消重试 | 计划级取消、失败节点重试、终态幂等 | 按节点重跑下游 |
 | WP6 集成 | 通过 WP6 service 创建 run 并聚合摘要 | 多 script bundle 并行 fan-out |
+| WP8 租借 | API_TEST 节点运行前自动申请账号租借，run 终态/取消/超时后自动释放 | 租借续约和更细资源池权重 |
 | CI/CD webhook | 签名、幂等、禁用态、dryRun、GitHub/GitLab/Jenkins 签名样例、marketplace 模板包 | 真实 OAuth/App 上架和安装授权 |
 | Cron | 保存 cron 元数据、启停和下一次触发时间 | 真正定时扫描触发和错过补偿 |
 | 前端 | 执行计划工作台、运行详情、DAG 状态、取消重试 | 计划模板和趋势图 |
@@ -51,7 +52,7 @@ WP6 已经完成 OpenAPI 到接口自动化脚本包、受控单次运行和脱�
 |---|---|
 | 不生成新脚本 | 脚本生成仍由 WP6/WP7 承接。 |
 | 不直连 runner | WP9 不直接执行 Pytest/Playwright，不绕过 runner 安全策略。 |
-| 不建设账号池和测试数据服务 | 只引用 dataRef/accountLeaseRef。 |
+| 不建设账号池和测试数据服务 | WP9 只声明 `accountLease` 输入并消费 WP8 应用层契约，不创建账号池、测试数据或清理 worker。 |
 | 不生成完整报告和 AI 诊断 | WP9 只输出摘要和 handoff，WP10 生成报告。 |
 | 不做跨地域调度 | 首期按单 `platform-api` 控制面设计，可演进。 |
 
@@ -69,9 +70,10 @@ WP6 已经完成 OpenAPI 到接口自动化脚本包、受控单次运行和脱�
 
 1. 用户在 READY 计划上点击运行。
 2. 系统生成 execution run 和 node run。
-3. API_TEST 节点创建 WP6 run，节点状态随 WP6 run 结果收敛。
-4. DAG 按依赖推进；失败策略决定终止、跳过下游或继续。
-5. 用户在详情页查看节点状态、耗时、错误码、traceId 和脱敏摘要。
+3. 若 API_TEST 节点声明 `accountLease`，系统在 WP6 dispatch 前通过 WP8 申请租借，并只保存 `accountLeaseRef`、状态、时间戳、digest 和脱敏账号摘要。
+4. API_TEST 节点创建 WP6 run，节点状态随 WP6 run 结果收敛。
+5. DAG 按依赖推进；run 成功终态释放账号回 `AVAILABLE`，失败、取消、超时或部分成功释放账号回 `LOCKED`。
+6. 用户在详情页查看节点状态、耗时、错误码、traceId 和脱敏摘要。
 
 ### 6.3 CI/CD 触发
 
@@ -91,6 +93,8 @@ WP6 已经完成 OpenAPI 到接口自动化脚本包、受控单次运行和脱�
 7. 重试必须生成 retryAttempt，保留原失败节点结果，不覆盖审计证据。
 8. Cron/webhook 默认关闭；启用必须有权限、审计和配置开关。
 9. Webhook secret 只保存 `secretRef` 引用和 digest，不保存 secret 明文、签名值或 payload 原文；事件表只保存 requestDigest、错误码和 runId。
+10. `accountLease` 只允许配置在 `API_TEST` 节点；WP9 默认 requestKey 为 `wp9:<runId>:<planNodeId>:<attempt>`，并可附加计划输入 requestKey digest 用于幂等区分。
+11. WP9 不保存 `secret://` 原文、lease token、密码、cookie、Authorization 或账号健康摘要原文；账号池、账号状态机和清理任务仍由 WP8 拥有。
 
 ## 8. 权限矩阵
 
@@ -117,10 +121,11 @@ WP6 已经完成 OpenAPI 到接口自动化脚本包、受控单次运行和脱�
 
 1. 用户可不依赖 curl 完成计划创建、DAG 预览、手动触发、运行详情、取消和重试。
 2. API_TEST 节点可调度 WP6 已审批脚本包，结果摘要不泄露 baseUrl 明文、secretRef 明文或请求响应正文。
-3. 重复 webhook 或重复手动 requestKey 不产生重复运行。
-4. 计划、运行、节点和触发动作均按项目 scope 鉴权并写审计。
-5. 卡死运行可通过超时回收或人工重放收敛。
-6. CI/CD 和 cron 在未启用时不可触发；启用后有签名、幂等和审计。
+3. API_TEST 节点声明 `accountLease` 时，WP9 可自动申请/释放 WP8 账号租借，且运行摘要只包含引用、状态、时间戳、digest 和脱敏账号摘要。
+4. 重复 webhook 或重复手动 requestKey 不产生重复运行。
+5. 计划、运行、节点和触发动作均按项目 scope 鉴权并写审计。
+6. 卡死运行可通过超时回收或人工重放收敛。
+7. CI/CD 和 cron 在未启用时不可触发；启用后有签名、幂等和审计。
 
 ## 11. 产品风险
 

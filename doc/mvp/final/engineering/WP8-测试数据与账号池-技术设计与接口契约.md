@@ -303,7 +303,7 @@ FAILED -> PENDING
 |---|---|
 | WP6 | 可在接口自动化 run request 中引用 `dataSetRef` 或 `accountLeaseRef`；WP6 不解析账号密码。 |
 | WP7 | UI/E2E runner 通过 `accountLeaseRef` 取账号摘要和 `secretRefDigest`，不接收 `secretRef` 原文；后续凭据注入必须由受控 SecretProvider adapter 以 `accountLeaseRef` 为句柄完成。 |
-| WP9 | execution plan 节点只保存 `dataSetRef/accountPoolRef/accountLeaseRef`，运行时调用 WP8 申请 lease，结束时释放或创建清理任务。 |
+| WP9 | execution plan 的 `API_TEST` 节点可声明 `accountLease.accountPoolRef/applicationId/environmentId/roleTags/ttlSeconds/requestKey`；运行时调用 WP8 申请 lease，结束时释放并只保存安全摘要。 |
 | WP10 | 报告只读取 WP8 准备/租借/清理摘要，不展示 secret、数据正文或敏感字段。 |
 
 ### M5 已落地切片
@@ -414,5 +414,5 @@ M8I 不改变本技术契约的 API、DB、权限、状态机、配置项或跨 
 
 1. 当前 WP8 范围无剩余 P0 服务端功能开发项；目标环境发布前仍需按 release gate 执行实际验证。
 2. 真实文件下载、真实 cleanup worker、外部 HTTP 并发压测和生产容量指标不属于本轮服务端完成定义。
-3. WP7 runner 凭据注入、WP9 调度自动申请/释放和 WP10 完整报告仅消费 WP8 已提供的引用与摘要契约，真实集成由对应 WP 后续专项承接。
+3. WP9 调度自动申请/释放已消费 WP8 已提供的引用与摘要契约；WP7 runner 凭据注入和 WP10 完整报告仍由对应 WP 后续专项承接。
 4. 本切片不修改 Java 生产代码，因此 Java 行数门禁和阿里巴巴 Java 代码规范自查不作为文档收口的新增阻断；后续触达 Java 核心逻辑时必须重新执行。

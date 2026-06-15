@@ -5,7 +5,7 @@
 | 工作包 | WP9 执行编排与任务调度 |
 | 文档性质 | 浏览器操作说明、产品验收辅助材料 |
 | 当前口径 | 用户可在 `#execution` 工作台完成计划、DAG、运行、取消、重试、导出和触发配置主链路，不依赖 curl |
-| 日期 | 2026-06-14 |
+| 日期 | 2026-06-15 |
 
 ## 1. 适用范围
 
@@ -27,7 +27,7 @@
 | 区域 | 用途 |
 |---|---|
 | 顶部指标 | 查看 READY 计划、运行中、失败/超时和启用触发数量。 |
-| 调度策略 | 查看 Scheduler、Webhook、Cron、Cron scanner、WP6 dispatch 和 Recovery 配置摘要。 |
+| 调度策略 | 查看 Scheduler、Webhook、Cron、Cron scanner、WP6 dispatch、WP8 lease 和 Recovery 配置摘要。 |
 | 新建/编辑计划 | 填写项目、名称、环境、状态、描述和 DAG 节点。 |
 | 计划列表 | 选择已有计划，进入编辑模式并加载触发配置。 |
 | DAG 与运行 | 执行 plan dryRun，填写手动 requestKey/原因并触发运行。 |
@@ -39,10 +39,10 @@
 1. 进入 `执行编排` 后，先查看 `调度策略`，确认 WP6 dispatch、Scheduler、Webhook/Cron 等策略是否符合本次使用场景。
 2. 在 `新建计划` 区填写 `项目`、`名称`、`环境`、`状态` 和 `描述`。只有 `READY` 计划可被手动、Webhook 或 CRON 触发；`DRAFT` 适合保存草稿，`DISABLED` 用于停用。
 3. 在 `DAG 节点` 中配置至少一个节点。当前浏览器工作台支持 `API_TEST` 和 `REPORT_HANDOFF`。
-4. `API_TEST` 节点需要填写已审批的 `bundleId`、`baseUrlRef`、可选 `caseIds` 和 `secretRefs`。推荐使用 `baseUrlRef=env:<environmentKey>`，避免在页面中输入真实 baseUrl。
+4. `API_TEST` 节点需要填写已审批的 `bundleId`、`baseUrlRef`、可选 `caseIds`、`secretRefs` 和账号租借字段。推荐使用 `baseUrlRef=env:<environmentKey>`，避免在页面中输入真实 baseUrl；账号租借字段只声明 `accountPoolRef/applicationId/environmentId/roleTags/ttlSeconds/requestKey`，WP9 运行时会自动调用 WP8 lease 契约申请并在终态释放。
 5. 多节点计划可用 `依赖` 填写上游 node key，多个依赖按逗号分隔；`失败策略` 支持 `FAIL_FAST`、`CONTINUE`、`BLOCK_DOWNSTREAM`。
 6. 设置 `超时秒` 和 `重试次数` 后点击 `创建`。选择计划列表中的既有计划后会切换为编辑模式，可点击 `保存更新` 或 `归档`。
-7. 页面本地校验会拦截缺失字段、重复 node key、非法依赖和依赖环；后端仍会重复校验项目 scope、WP6 bundle 状态、环境和密钥引用。
+7. 页面本地校验会拦截缺失字段、重复 node key、非法依赖、依赖环和基础租借字段；后端仍会重复校验项目 scope、WP6 bundle 状态、环境、密钥引用和 WP8 lease 约束。
 
 ## 5. DAG 校验与手动运行
 

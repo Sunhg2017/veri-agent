@@ -6,11 +6,11 @@
 | 文档性质 | 发布准出、验证记录、风险、回滚和剩余边界说明 |
 | 当前分支 | `codex/wp9-planning` |
 | 远端 | `origin/codex/wp9-planning` |
-| 日期 | 2026-06-14 |
+| 日期 | 2026-06-15 |
 
 ## 1. 准出结论
 
-WP9 当前承诺范围已经形成可验收闭环。`platform-api` 已提供执行计划、DAG dryRun、运行状态机、内部队列认领、heartbeat/recovery、WP6 API_TEST dispatch、REPORT_HANDOFF、webhook/cron 触发控制面、生产 CRON scanner、run export、scheduler loop 和 release gate；`portal-web` 已提供 `#execution` 工作台，覆盖计划、DAG、运行、取消、重试、导出和触发配置主链路。
+WP9 当前承诺范围已经形成可验收闭环。`platform-api` 已提供执行计划、DAG dryRun、运行状态机、内部队列认领、heartbeat/recovery、WP6 API_TEST dispatch、WP8 账号租借自动申请/释放、REPORT_HANDOFF、webhook/cron 触发控制面、生产 CRON scanner、run export、scheduler loop 和 release gate；`portal-web` 已提供 `#execution` 工作台，覆盖计划、DAG、运行、取消、重试、导出和触发配置主链路。
 
 当前准出口径不包含 WP7 UI/E2E runner 实现、WP8 账号池、WP10 完整报告生成、真实供应商 OAuth/App 上架、独立外部 worker 二进制或 CRON 生产压测容量承诺。这些均已作为后续专项记录，不构成本轮 WP9 发布阻断。
 
@@ -26,7 +26,7 @@ WP9 当前承诺范围已经形成可验收闭环。`platform-api` 已提供执�
 非目标：
 
 1. 不实现 WP7 UI_TEST 真实浏览器 runner；当前仅保留 `EXECUTION_RUNNER_NOT_READY` 占位语义。
-2. 不实现 WP8 账号租借和测试数据服务。
+2. 不实现真实 cleanup worker、破坏性清理 adapter 或账号池自动开通；WP8 账号租借应用层契约已由 WP9 调度接入。
 3. 不生成 WP10 完整报告正文、诊断页面或报告归档；WP9 只提供 handoff 摘要和脱敏 run export。
 4. 不申请真实供应商 OAuth/App 上架，不实现安装授权和卸载回收。
 5. 不承诺生产吞吐数值，不做 CRON 历史 backfill；已通过 capacity/backlog smoke 冻结当前限批和不补偿语义。
