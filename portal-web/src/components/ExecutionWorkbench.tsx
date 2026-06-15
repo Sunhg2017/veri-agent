@@ -524,6 +524,28 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
                     <Field label="secretRefs">
                       <input value={node.runtimeSecretRefsText} onChange={(event) => setPlanNodeDraftValue(index, 'runtimeSecretRefsText', event.target.value)} />
                     </Field>
+                    {node.type === 'API_TEST' && (
+                      <>
+                        <Field label="accountPoolRef">
+                          <input value={node.accountPoolRef} onChange={(event) => setPlanNodeDraftValue(index, 'accountPoolRef', event.target.value)} />
+                        </Field>
+                        <Field label="lease app">
+                          <input value={node.accountLeaseApplicationId} onChange={(event) => setPlanNodeDraftValue(index, 'accountLeaseApplicationId', event.target.value)} />
+                        </Field>
+                        <Field label="lease env">
+                          <input value={node.accountLeaseEnvironmentId} onChange={(event) => setPlanNodeDraftValue(index, 'accountLeaseEnvironmentId', event.target.value)} />
+                        </Field>
+                        <Field label="lease roles">
+                          <input value={node.accountLeaseRoleTagsText} onChange={(event) => setPlanNodeDraftValue(index, 'accountLeaseRoleTagsText', event.target.value)} />
+                        </Field>
+                        <Field label="lease TTL">
+                          <input type="number" min={0} max={604800} value={node.accountLeaseTtlSeconds} onChange={(event) => setPlanNodeDraftValue(index, 'accountLeaseTtlSeconds', Number(event.target.value))} />
+                        </Field>
+                        <Field label="lease key">
+                          <input value={node.accountLeaseRequestKey} onChange={(event) => setPlanNodeDraftValue(index, 'accountLeaseRequestKey', event.target.value)} />
+                        </Field>
+                      </>
+                    )}
                     <Field label="超时秒">
                       <input type="number" min={1} max={86400} value={node.timeoutSeconds} onChange={(event) => setPlanNodeDraftValue(index, 'timeoutSeconds', Number(event.target.value))} />
                     </Field>
@@ -865,7 +887,22 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
   ) {
     setPlanDraft((current) => ({
       ...current,
-      nodes: current.nodes.map((node, nodeIndex) => nodeIndex === index ? { ...node, [key]: value } : node)
+      nodes: current.nodes.map((node, nodeIndex) => {
+        if (nodeIndex !== index) return node;
+        const updated = { ...node, [key]: value };
+        if (key === 'type' && value !== 'API_TEST') {
+          return {
+            ...updated,
+            accountPoolRef: '',
+            accountLeaseApplicationId: '',
+            accountLeaseEnvironmentId: '',
+            accountLeaseRoleTagsText: '',
+            accountLeaseTtlSeconds: 0,
+            accountLeaseRequestKey: ''
+          };
+        }
+        return updated;
+      })
     }));
     setPlanActionState({ loading: false });
   }

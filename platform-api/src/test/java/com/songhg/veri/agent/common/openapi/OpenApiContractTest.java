@@ -174,6 +174,30 @@ class OpenApiContractTest {
                 .andExpect(jsonPath("$.paths['/api/v1/execution/internal/queue/recover-expired'].post").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/execution/internal/queue/node-runs/{id}/complete'].post").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/execution/internal/queue/node-runs/{id}/dispatch'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/test-data/health'].get").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/test-data/data-sets'].get").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/test-data/data-sets'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/test-data/data-sets/{id}'].get").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/test-data/data-sets/{id}'].patch").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/test-data/data-sets/{id}/archive'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/test-data/data-sets/{id}/records'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/test-data/account-pools'].get").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/test-data/account-pools'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/test-data/account-pools/{id}'].get").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/test-data/account-pools/{id}'].patch").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/test-data/account-pools/{id}/disable'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/test-data/account-pools/{id}/archive'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/test-data/account-pools/{id}/accounts'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/test-data/accounts/{id}'].patch").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/test-data/leases'].get").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/test-data/leases'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/test-data/leases/{id}'].get").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/test-data/leases/{id}/renew'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/test-data/leases/{id}/release'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/test-data/data-tasks'].get").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/test-data/data-tasks'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/test-data/data-tasks/{id}'].get").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/test-data/data-tasks/{id}/retry'].post").exists())
                 .andReturn();
 
         Path output = Path.of("..", "build", "openapi", "wp1-v1.json").normalize();
@@ -209,6 +233,9 @@ class OpenApiContractTest {
         org.hamcrest.MatcherAssert.assertThat(openApi, not(containsString("plainValue")));
         org.hamcrest.MatcherAssert.assertThat(openApi, not(containsString("plaintext")));
         org.hamcrest.MatcherAssert.assertThat(openApi, not(containsString("promptPlaintext")));
+        org.hamcrest.MatcherAssert.assertThat(openApi, not(containsString("rawRecordPayload")));
+        org.hamcrest.MatcherAssert.assertThat(openApi, not(containsString("secretRefCipher")));
+        org.hamcrest.MatcherAssert.assertThat(openApi, not(containsString("secret_ref_cipher")));
     }
 
     @Test

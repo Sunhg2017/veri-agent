@@ -98,6 +98,102 @@ class ExecutionDagValidatorTest {
     }
 
     @Test
+    void validatesAccountLeaseOnlyForApiTestNodes() {
+        UUID bundleId = UUID.randomUUID();
+        UUID poolId = UUID.randomUUID();
+        ApiAutomationBundleScopeService bundleScopeService = mock(ApiAutomationBundleScopeService.class);
+        when(bundleScopeService.bundleScope(bundleId))
+                .thenReturn(Optional.of(new ApiAutomationBundleScope(bundleId, "project-alpha", "APPROVED")));
+        ExecutionDagValidator validator = new ExecutionDagValidator(bundleScopeService, new ObjectMapper());
+
+        ExecutionDagValidationResult result = validator.validate(
+                UUID.randomUUID(),
+                "project-alpha",
+                new ExecutionDagCommand(List.of(
+                        new ExecutionDagNodeCommand(
+                                "api-smoke",
+                                "API_TEST",
+                                List.of(),
+                                Map.of(
+                                        "apiAutomationBundleId", bundleId.toString(),
+                                        "accountLease", Map.of(
+                                                "accountPoolRef", poolId.toString(),
+                                                "applicationId", "app-alpha",
+                                                "environmentId", "env-staging",
+                                                "roleTags", List.of("ADMIN"),
+                                                "ttlSeconds", 120,
+                                                "requestKey", "lease-suffix"
+                                        )
+                                ),
+                                120,
+                                "FAIL_FAST",
+                                Map.of()
+                        ),
+                        new ExecutionDagNodeCommand(
+                                "report",
+                                "REPORT_HANDOFF",
+                                List.of("api-smoke"),
+                                Map.of("accountLease", Map.of("accountPoolRef", poolId.toString())),
+                                60,
+                                "CONTINUE",
+                                Map.of()
+                        )
+                )),
+                Instant.EPOCH
+        );
+
+        assertThat(result.valid()).isFalse();
+        assertThat(result.nodePolicies()).filteredOn(policy -> "api-smoke".equals(policy.key()))
+                .singleElement()
+                .satisfies(policy -> assertThat(policy.inputSummary().get("accountLease"))
+                        .isEqualTo(Map.of(
+                                "accountPoolRef", poolId.toString(),
+                                "applicationId", "app-alpha",
+                                "environmentId", "env-staging",
+                                "roleTags", List.of("ADMIN"),
+                                "ttlSeconds", 120,
+                                "requestKey", "lease-suffix"
+                        )));
+        assertThat(result.issues()).extracting("code")
+                .contains("EXECUTION_ACCOUNT_LEASE_UNSUPPORTED");
+    }
+
+    @Test
+    void rejectsInvalidAccountLeaseShape() {
+        UUID bundleId = UUID.randomUUID();
+        ApiAutomationBundleScopeService bundleScopeService = mock(ApiAutomationBundleScopeService.class);
+        when(bundleScopeService.bundleScope(bundleId))
+                .thenReturn(Optional.of(new ApiAutomationBundleScope(bundleId, "project-alpha", "APPROVED")));
+        ExecutionDagValidator validator = new ExecutionDagValidator(bundleScopeService, new ObjectMapper());
+
+        ExecutionDagValidationResult result = validator.validate(
+                UUID.randomUUID(),
+                "project-alpha",
+                new ExecutionDagCommand(List.of(new ExecutionDagNodeCommand(
+                        "api-smoke",
+                        "API_TEST",
+                        List.of(),
+                        Map.of(
+                                "apiAutomationBundleId", bundleId.toString(),
+                                "accountLease", Map.of(
+                                        "accountPoolRef", "not-a-uuid",
+                                        "ttlSeconds", 0,
+                                        "roleTags", List.of("ADMIN", "BAD ROLE")
+                                )
+                        ),
+                        120,
+                        "FAIL_FAST",
+                        Map.of()
+                ))),
+                Instant.EPOCH
+        );
+
+        assertThat(result.valid()).isFalse();
+        assertThat(result.issues()).extracting("code")
+                .contains("EXECUTION_ACCOUNT_LEASE_INVALID");
+    }
+
+    @Test
     void rejectsCyclesAndCrossProjectBundles() {
         UUID bundleId = UUID.randomUUID();
         ApiAutomationBundleScopeService bundleScopeService = mock(ApiAutomationBundleScopeService.class);

@@ -1,0 +1,684 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.songhg.veri.agent.testdata.infrastructure.mapper.TestDataMapper">
+    <resultMap id="dataSetMap" type="com.songhg.veri.agent.testdata.domain.TestDataSet">
+        <constructor>
+            <arg column="id" javaType="java.util.UUID"/>
+            <arg column="project_id" javaType="java.lang.String"/>
+            <arg column="application_id" javaType="java.lang.String"/>
+            <arg column="environment_id" javaType="java.lang.String"/>
+            <arg column="code" javaType="java.lang.String"/>
+            <arg column="name" javaType="java.lang.String"/>
+            <arg column="status" javaType="java.lang.String"/>
+            <arg column="schema_json" javaType="java.lang.String"/>
+            <arg column="sensitivity_level" javaType="java.lang.String"/>
+            <arg column="cleanup_policy_json" javaType="java.lang.String"/>
+            <arg column="source_type" javaType="java.lang.String"/>
+            <arg column="source_ref_digest" javaType="java.lang.String"/>
+            <arg column="created_by" javaType="java.lang.String"/>
+            <arg column="updated_by" javaType="java.lang.String"/>
+            <arg column="archived_at" javaType="java.time.Instant"/>
+            <arg column="created_at" javaType="java.time.Instant"/>
+            <arg column="updated_at" javaType="java.time.Instant"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="recordMap" type="com.songhg.veri.agent.testdata.domain.TestDataRecord">
+        <constructor>
+            <arg column="id" javaType="java.util.UUID"/>
+            <arg column="data_set_id" javaType="java.util.UUID"/>
+            <arg column="project_id" javaType="java.lang.String"/>
+            <arg column="record_key" javaType="java.lang.String"/>
+            <arg column="status" javaType="java.lang.String"/>
+            <arg column="record_digest" javaType="java.lang.String"/>
+            <arg column="masked_summary_json" javaType="java.lang.String"/>
+            <arg column="external_ref_digest" javaType="java.lang.String"/>
+            <arg column="tags_json" javaType="java.lang.String"/>
+            <arg column="created_by" javaType="java.lang.String"/>
+            <arg column="updated_by" javaType="java.lang.String"/>
+            <arg column="created_at" javaType="java.time.Instant"/>
+            <arg column="updated_at" javaType="java.time.Instant"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="accountPoolMap" type="com.songhg.veri.agent.testdata.domain.TestAccountPool">
+        <constructor>
+            <arg column="id" javaType="java.util.UUID"/>
+            <arg column="project_id" javaType="java.lang.String"/>
+            <arg column="application_id" javaType="java.lang.String"/>
+            <arg column="environment_id" javaType="java.lang.String"/>
+            <arg column="code" javaType="java.lang.String"/>
+            <arg column="name" javaType="java.lang.String"/>
+            <arg column="status" javaType="java.lang.String"/>
+            <arg column="lease_policy_json" javaType="java.lang.String"/>
+            <arg column="default_ttl_seconds" javaType="_int"/>
+            <arg column="created_by" javaType="java.lang.String"/>
+            <arg column="updated_by" javaType="java.lang.String"/>
+            <arg column="archived_at" javaType="java.time.Instant"/>
+            <arg column="created_at" javaType="java.time.Instant"/>
+            <arg column="updated_at" javaType="java.time.Instant"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="pooledAccountMap" type="com.songhg.veri.agent.testdata.domain.TestPooledAccount">
+        <constructor>
+            <arg column="id" javaType="java.util.UUID"/>
+            <arg column="pool_id" javaType="java.util.UUID"/>
+            <arg column="project_id" javaType="java.lang.String"/>
+            <arg column="account_key" javaType="java.lang.String"/>
+            <arg column="display_name" javaType="java.lang.String"/>
+            <arg column="status" javaType="java.lang.String"/>
+            <arg column="role_tags_json" javaType="java.lang.String"/>
+            <arg column="scope_summary_json" javaType="java.lang.String"/>
+            <arg column="secret_ref_digest" javaType="java.lang.String"/>
+            <arg column="last_health_status" javaType="java.lang.String"/>
+            <arg column="last_health_summary" javaType="java.lang.String"/>
+            <arg column="created_by" javaType="java.lang.String"/>
+            <arg column="updated_by" javaType="java.lang.String"/>
+            <arg column="archived_at" javaType="java.time.Instant"/>
+            <arg column="created_at" javaType="java.time.Instant"/>
+            <arg column="updated_at" javaType="java.time.Instant"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="accountLeaseMap" type="com.songhg.veri.agent.testdata.domain.TestAccountLease">
+        <constructor>
+            <arg column="id" javaType="java.util.UUID"/>
+            <arg column="pool_id" javaType="java.util.UUID"/>
+            <arg column="account_id" javaType="java.util.UUID"/>
+            <arg column="project_id" javaType="java.lang.String"/>
+            <arg column="status" javaType="java.lang.String"/>
+            <arg column="holder_type" javaType="java.lang.String"/>
+            <arg column="holder_ref" javaType="java.lang.String"/>
+            <arg column="request_key" javaType="java.lang.String"/>
+            <arg column="request_digest" javaType="java.lang.String"/>
+            <arg column="lease_token_digest" javaType="java.lang.String"/>
+            <arg column="expires_at" javaType="java.time.Instant"/>
+            <arg column="released_at" javaType="java.time.Instant"/>
+            <arg column="release_reason" javaType="java.lang.String"/>
+            <arg column="created_by" javaType="java.lang.String"/>
+            <arg column="created_at" javaType="java.time.Instant"/>
+            <arg column="updated_at" javaType="java.time.Instant"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="dataTaskMap" type="com.songhg.veri.agent.testdata.domain.TestDataTask">
+        <constructor>
+            <arg column="id" javaType="java.util.UUID"/>
+            <arg column="project_id" javaType="java.lang.String"/>
+            <arg column="data_set_id" javaType="java.util.UUID"/>
+            <arg column="task_type" javaType="java.lang.String"/>
+            <arg column="status" javaType="java.lang.String"/>
+            <arg column="request_key" javaType="java.lang.String"/>
+            <arg column="target_ref" javaType="java.lang.String"/>
+            <arg column="attempt" javaType="_int"/>
+            <arg column="result_summary_json" javaType="java.lang.String"/>
+            <arg column="error_code" javaType="java.lang.String"/>
+            <arg column="error_summary" javaType="java.lang.String"/>
+            <arg column="trace_id" javaType="java.lang.String"/>
+            <arg column="created_by" javaType="java.lang.String"/>
+            <arg column="started_at" javaType="java.time.Instant"/>
+            <arg column="finished_at" javaType="java.time.Instant"/>
+            <arg column="created_at" javaType="java.time.Instant"/>
+            <arg column="updated_at" javaType="java.time.Instant"/>
+        </constructor>
+    </resultMap>
+
+    <sql id="dataSetColumns">
+        id, project_id, application_id, environment_id, code, name, status,
+        schema_json::text as schema_json, sensitivity_level,
+        cleanup_policy_json::text as cleanup_policy_json, source_type, source_ref_digest,
+        created_by, updated_by, archived_at, created_at, updated_at
+    </sql>
+
+    <sql id="recordColumns">
+        id, data_set_id, project_id, record_key, status, record_digest,
+        masked_summary_json::text as masked_summary_json, external_ref_digest,
+        tags_json::text as tags_json, created_by, updated_by, created_at, updated_at
+    </sql>
+
+    <sql id="accountPoolColumns">
+        id, project_id, application_id, environment_id, code, name, status,
+        lease_policy_json::text as lease_policy_json, default_ttl_seconds,
+        created_by, updated_by, archived_at, created_at, updated_at
+    </sql>
+
+    <sql id="pooledAccountColumns">
+        id, pool_id, project_id, account_key, display_name, status,
+        role_tags_json::text as role_tags_json, scope_summary_json::text as scope_summary_json,
+        secret_ref_digest, last_health_status, last_health_summary,
+        created_by, updated_by, archived_at, created_at, updated_at
+    </sql>
+
+    <sql id="accountLeaseColumns">
+        id, pool_id, account_id, project_id, status, holder_type, holder_ref,
+        request_key, request_digest, lease_token_digest, expires_at, released_at, release_reason,
+        created_by, created_at, updated_at
+    </sql>
+
+    <sql id="dataTaskColumns">
+        id, project_id, data_set_id, task_type, status, request_key, target_ref,
+        attempt, result_summary_json::text as result_summary_json, error_code,
+        error_summary, trace_id, created_by, started_at, finished_at, created_at, updated_at
+    </sql>
+
+    <sql id="dataSetWhere">
+        <where>
+            <if test="query.projectId != null">project_id = #{query.projectId}</if>
+            <if test="query.applicationId != null">and application_id = #{query.applicationId}</if>
+            <if test="query.environmentId != null">and environment_id = #{query.environmentId}</if>
+            <if test="query.status != null">and status = #{query.status}</if>
+            <if test="query.keyword != null">
+                and (
+                    position(lower(#{query.keyword}) in lower(coalesce(code, ''))) &gt; 0
+                    or position(lower(#{query.keyword}) in lower(coalesce(name, ''))) &gt; 0
+                )
+            </if>
+        </where>
+    </sql>
+
+    <sql id="accountPoolWhere">
+        <where>
+            <if test="query.projectId != null">project_id = #{query.projectId}</if>
+            <if test="query.applicationId != null">and application_id = #{query.applicationId}</if>
+            <if test="query.environmentId != null">and environment_id = #{query.environmentId}</if>
+            <if test="query.status != null">and status = #{query.status}</if>
+            <if test="query.keyword != null">
+                and (
+                    position(lower(#{query.keyword}) in lower(coalesce(code, ''))) &gt; 0
+                    or position(lower(#{query.keyword}) in lower(coalesce(name, ''))) &gt; 0
+                )
+            </if>
+        </where>
+    </sql>
+
+    <sql id="accountLeaseWhere">
+        <where>
+            <if test="query.projectId != null">project_id = #{query.projectId}</if>
+            <if test="query.poolId != null">and pool_id = #{query.poolId}</if>
+            <if test="query.accountId != null">and account_id = #{query.accountId}</if>
+            <if test="query.status != null">and status = #{query.status}</if>
+            <if test="query.holderRef != null">and holder_ref = #{query.holderRef}</if>
+        </where>
+    </sql>
+
+    <sql id="dataTaskWhere">
+        <where>
+            <if test="query.projectId != null">project_id = #{query.projectId}</if>
+            <if test="query.dataSetId != null">and data_set_id = #{query.dataSetId}</if>
+            <if test="query.taskType != null">and task_type = #{query.taskType}</if>
+            <if test="query.status != null">and status = #{query.status}</if>
+        </where>
+    </sql>
+
+    <insert id="insertDataSet">
+        insert into test_data_set (
+            id, project_id, application_id, environment_id, code, name, status, schema_json,
+            sensitivity_level, cleanup_policy_json, source_type, source_ref_digest,
+            created_by, updated_by, archived_at, created_at, updated_at
+        ) values (
+            #{id}, #{projectId}, #{applicationId}, #{environmentId}, #{code}, #{name}, #{status},
+            cast(coalesce(#{schemaJson}, '{}') as jsonb),
+            #{sensitivityLevel},
+            cast(coalesce(#{cleanupPolicyJson}, '{}') as jsonb),
+            #{sourceType}, #{sourceRefDigest}, #{createdBy}, #{updatedBy}, #{archivedAt},
+            #{createdAt}, #{updatedAt}
+        )
+    </insert>
+
+    <update id="updateDataSet">
+        update test_data_set set
+            application_id = #{applicationId},
+            environment_id = #{environmentId},
+            name = #{name},
+            status = #{status},
+            schema_json = cast(coalesce(#{schemaJson}, '{}') as jsonb),
+            sensitivity_level = #{sensitivityLevel},
+            cleanup_policy_json = cast(coalesce(#{cleanupPolicyJson}, '{}') as jsonb),
+            source_type = #{sourceType},
+            source_ref_digest = #{sourceRefDigest},
+            updated_by = #{updatedBy},
+            updated_at = #{updatedAt}
+        where id = #{id}
+          and status != 'ARCHIVED'
+    </update>
+
+    <update id="archiveDataSet">
+        update test_data_set set
+            status = 'ARCHIVED',
+            updated_by = #{updatedBy},
+            archived_at = #{archivedAt},
+            updated_at = #{updatedAt}
+        where id = #{id}
+          and status != 'ARCHIVED'
+    </update>
+
+    <insert id="upsertRecords">
+        insert into test_data_record (
+            id, data_set_id, project_id, record_key, status, record_digest,
+            masked_summary_json, external_ref_digest, tags_json,
+            created_by, updated_by, created_at, updated_at
+        ) values
+        <foreach collection="records" item="record" separator=",">
+            (
+                #{record.id}, #{record.dataSetId}, #{record.projectId}, #{record.recordKey}, #{record.status},
+                #{record.recordDigest}, cast(coalesce(#{record.maskedSummaryJson}, '{}') as jsonb),
+                #{record.externalRefDigest}, cast(coalesce(#{record.tagsJson}, '[]') as jsonb),
+                #{record.createdBy}, #{record.updatedBy}, #{record.createdAt}, #{record.updatedAt}
+            )
+        </foreach>
+        on conflict (data_set_id, record_key) do update set
+            project_id = excluded.project_id,
+            status = excluded.status,
+            record_digest = excluded.record_digest,
+            masked_summary_json = excluded.masked_summary_json,
+            external_ref_digest = excluded.external_ref_digest,
+            tags_json = excluded.tags_json,
+            updated_by = excluded.updated_by,
+            updated_at = excluded.updated_at
+    </insert>
+
+    <insert id="insertAccountPool">
+        insert into test_account_pool (
+            id, project_id, application_id, environment_id, code, name, status, lease_policy_json,
+            default_ttl_seconds, created_by, updated_by, archived_at, created_at, updated_at
+        ) values (
+            #{id}, #{projectId}, #{applicationId}, #{environmentId}, #{code}, #{name}, #{status},
+            cast(coalesce(#{leasePolicyJson}, '{}') as jsonb),
+            #{defaultTtlSeconds}, #{createdBy}, #{updatedBy}, #{archivedAt}, #{createdAt}, #{updatedAt}
+        )
+    </insert>
+
+    <update id="updateAccountPool">
+        update test_account_pool set
+            application_id = #{applicationId},
+            environment_id = #{environmentId},
+            name = #{name},
+            status = #{status},
+            lease_policy_json = cast(coalesce(#{leasePolicyJson}, '{}') as jsonb),
+            default_ttl_seconds = #{defaultTtlSeconds},
+            updated_by = #{updatedBy},
+            updated_at = #{updatedAt}
+        where id = #{id}
+          and status != 'ARCHIVED'
+    </update>
+
+    <update id="archiveAccountPool">
+        update test_account_pool set
+            status = 'ARCHIVED',
+            updated_by = #{updatedBy},
+            archived_at = #{archivedAt},
+            updated_at = #{updatedAt}
+        where id = #{id}
+          and status != 'ARCHIVED'
+    </update>
+
+    <insert id="insertPooledAccount">
+        insert into test_pooled_account (
+            id, pool_id, project_id, account_key, display_name, status,
+            role_tags_json, scope_summary_json, secret_ref_digest, secret_ref_cipher,
+            last_health_status, last_health_summary, created_by, updated_by,
+            archived_at, created_at, updated_at
+        ) values (
+            #{id}, #{poolId}, #{projectId}, #{accountKey}, #{displayName}, #{status},
+            cast(coalesce(#{roleTagsJson}, '[]') as jsonb),
+            cast(coalesce(#{scopeSummaryJson}, '{}') as jsonb),
+            #{secretRefDigest}, null, #{lastHealthStatus}, #{lastHealthSummary},
+            #{createdBy}, #{updatedBy}, #{archivedAt}, #{createdAt}, #{updatedAt}
+        )
+    </insert>
+
+    <update id="updatePooledAccount">
+        update test_pooled_account set
+            display_name = #{displayName},
+            status = #{status},
+            role_tags_json = cast(coalesce(#{roleTagsJson}, '[]') as jsonb),
+            scope_summary_json = cast(coalesce(#{scopeSummaryJson}, '{}') as jsonb),
+            secret_ref_digest = #{secretRefDigest},
+            last_health_status = #{lastHealthStatus},
+            last_health_summary = #{lastHealthSummary},
+            updated_by = #{updatedBy},
+            archived_at = #{archivedAt},
+            updated_at = #{updatedAt}
+        where id = #{id}
+    </update>
+
+    <update id="markAccountLeased">
+        update test_pooled_account set
+            status = 'LEASED',
+            updated_by = #{updatedBy},
+            updated_at = now()
+        where id = #{accountId}
+          and status = 'AVAILABLE'
+    </update>
+
+    <update id="updateAccountStatus">
+        update test_pooled_account set
+            status = #{status},
+            updated_by = #{updatedBy},
+            updated_at = now()
+        where id = #{accountId}
+          and status in ('LEASED','EXPIRED','LOCKED','AVAILABLE')
+    </update>
+
+    <insert id="insertAccountLeaseIfAbsent">
+        insert into test_account_lease (
+            id, pool_id, account_id, project_id, status, holder_type, holder_ref,
+            request_key, request_digest, lease_token_digest, expires_at, released_at, release_reason,
+            created_by, created_at, updated_at
+        ) values (
+            #{id}, #{poolId}, #{accountId}, #{projectId}, #{status}, #{holderType}, #{holderRef},
+            #{requestKey}, #{requestDigest}, #{leaseTokenDigest}, #{expiresAt}, #{releasedAt}, #{releaseReason},
+            #{createdBy}, #{createdAt}, #{updatedAt}
+        )
+        on conflict do nothing
+    </insert>
+
+    <update id="updateAccountLease">
+        update test_account_lease set
+            status = #{status},
+            expires_at = #{expiresAt},
+            released_at = #{releasedAt},
+            release_reason = #{releaseReason},
+            updated_at = #{updatedAt}
+        where id = #{id}
+    </update>
+
+    <update id="renewActiveAccountLease">
+        update test_account_lease set
+            expires_at = #{expiresAt},
+            updated_at = #{updatedAt}
+        where id = #{id}
+          and status = 'ACTIVE'
+    </update>
+
+    <update id="releaseActiveAccountLease">
+        update test_account_lease set
+            status = 'RELEASED',
+            released_at = #{releasedAt},
+            release_reason = #{releaseReason},
+            updated_at = #{updatedAt}
+        where id = #{id}
+          and status = 'ACTIVE'
+    </update>
+
+    <update id="expireActiveAccountLease">
+        update test_account_lease set
+            status = 'EXPIRED',
+            release_reason = #{releaseReason},
+            updated_at = #{updatedAt}
+        where id = #{id}
+          and status = 'ACTIVE'
+    </update>
+
+    <insert id="insertDataTaskIfAbsent">
+        insert into test_data_task (
+            id, project_id, data_set_id, task_type, status, request_key, target_ref,
+            attempt, result_summary_json, error_code, error_summary, trace_id,
+            created_by, started_at, finished_at, created_at, updated_at
+        ) values (
+            #{id}, #{projectId}, #{dataSetId}, #{taskType}, #{status}, #{requestKey}, #{targetRef},
+            #{attempt}, cast(coalesce(#{resultSummaryJson}, '{}') as jsonb), #{errorCode}, #{errorSummary},
+            #{traceId}, #{createdBy}, #{startedAt}, #{finishedAt}, #{createdAt}, #{updatedAt}
+        )
+        on conflict do nothing
+    </insert>
+
+    <select id="lockDataTaskRequestKey" resultType="int">
+        with locked as (
+            select pg_advisory_xact_lock(hashtextextended(#{lockKey}, 0))
+        )
+        select 1 from locked
+    </select>
+
+    <update id="updateDataTaskIfRequestKeyAvailable">
+        update test_data_task set
+            status = #{status},
+            request_key = #{requestKey},
+            target_ref = #{targetRef},
+            attempt = #{attempt},
+            result_summary_json = cast(coalesce(#{resultSummaryJson}, '{}') as jsonb),
+            error_code = #{errorCode},
+            error_summary = #{errorSummary},
+            trace_id = #{traceId},
+            started_at = #{startedAt},
+            finished_at = #{finishedAt},
+            updated_at = #{updatedAt}
+        where id = #{id}
+          and not exists (
+              select 1
+              from test_data_task
+              where project_id = #{projectId}
+                and request_key = #{requestKey}
+                and id != #{id}
+          )
+    </update>
+
+    <update id="retryDataTaskIfCurrentAttempt">
+        update test_data_task set
+            status = #{task.status},
+            request_key = #{task.requestKey},
+            target_ref = #{task.targetRef},
+            attempt = #{task.attempt},
+            result_summary_json = cast(coalesce(#{task.resultSummaryJson}, '{}') as jsonb),
+            error_code = #{task.errorCode},
+            error_summary = #{task.errorSummary},
+            trace_id = #{task.traceId},
+            started_at = #{task.startedAt},
+            finished_at = #{task.finishedAt},
+            updated_at = #{task.updatedAt}
+        where id = #{task.id}
+          and status in ('FAILED','CANCELED')
+          and attempt = #{expectedAttempt}
+          and not exists (
+              select 1
+              from test_data_task
+              where project_id = #{task.projectId}
+                and request_key = #{task.requestKey}
+                and id != #{task.id}
+          )
+    </update>
+
+    <select id="dataSet" resultMap="dataSetMap">
+        select <include refid="dataSetColumns"/>
+        from test_data_set
+        where id = #{id}
+    </select>
+
+    <select id="dataSetByProjectAndCode" resultMap="dataSetMap">
+        select <include refid="dataSetColumns"/>
+        from test_data_set
+        where project_id = #{projectId}
+          and code = #{code}
+    </select>
+
+    <select id="dataSets" resultMap="dataSetMap">
+        select <include refid="dataSetColumns"/>
+        from test_data_set
+        <include refid="dataSetWhere"/>
+        order by updated_at desc, code asc
+        limit #{query.limit} offset #{query.offset}
+    </select>
+
+    <select id="countDataSets" resultType="long">
+        select count(1)
+        from test_data_set
+        <include refid="dataSetWhere"/>
+    </select>
+
+    <select id="dataSetProjectScopeId" resultType="string">
+        select project_id
+        from test_data_set
+        where id = #{id}
+    </select>
+
+    <select id="records" resultMap="recordMap">
+        select <include refid="recordColumns"/>
+        from test_data_record
+        where data_set_id = #{dataSetId}
+        order by record_key asc
+    </select>
+
+    <select id="countRecords" resultType="long">
+        select count(1)
+        from test_data_record
+        where data_set_id = #{dataSetId}
+    </select>
+
+    <select id="accountPool" resultMap="accountPoolMap">
+        select <include refid="accountPoolColumns"/>
+        from test_account_pool
+        where id = #{id}
+    </select>
+
+    <select id="accountPoolByProjectAndCode" resultMap="accountPoolMap">
+        select <include refid="accountPoolColumns"/>
+        from test_account_pool
+        where project_id = #{projectId}
+          and code = #{code}
+    </select>
+
+    <select id="accountPools" resultMap="accountPoolMap">
+        select <include refid="accountPoolColumns"/>
+        from test_account_pool
+        <include refid="accountPoolWhere"/>
+        order by updated_at desc, code asc
+        limit #{query.limit} offset #{query.offset}
+    </select>
+
+    <select id="countAccountPools" resultType="long">
+        select count(1)
+        from test_account_pool
+        <include refid="accountPoolWhere"/>
+    </select>
+
+    <select id="accountPoolProjectScopeId" resultType="string">
+        select project_id
+        from test_account_pool
+        where id = #{id}
+    </select>
+
+    <select id="pooledAccount" resultMap="pooledAccountMap">
+        select <include refid="pooledAccountColumns"/>
+        from test_pooled_account
+        where id = #{id}
+    </select>
+
+    <select id="pooledAccountByPoolAndKey" resultMap="pooledAccountMap">
+        select <include refid="pooledAccountColumns"/>
+        from test_pooled_account
+        where pool_id = #{poolId}
+          and account_key = #{accountKey}
+    </select>
+
+    <select id="pooledAccounts" resultMap="pooledAccountMap">
+        select <include refid="pooledAccountColumns"/>
+        from test_pooled_account
+        where pool_id = #{poolId}
+        order by account_key asc
+    </select>
+
+    <select id="countPooledAccounts" resultType="long">
+        select count(1)
+        from test_pooled_account
+        where pool_id = #{poolId}
+        <if test="status != null">and status = #{status}</if>
+    </select>
+
+    <select id="pooledAccountProjectScopeId" resultType="string">
+        select project_id
+        from test_pooled_account
+        where id = #{id}
+    </select>
+
+    <select id="firstAvailableAccount" resultMap="pooledAccountMap">
+        select <include refid="pooledAccountColumns"/>
+        from test_pooled_account
+        where pool_id = #{poolId}
+          and status = 'AVAILABLE'
+        <if test="roleTags != null and roleTags.size > 0">
+          and role_tags_json @&gt; jsonb_build_array(
+            <foreach collection="roleTags" item="tag" separator=",">#{tag}</foreach>
+          )
+        </if>
+        order by updated_at asc, account_key asc
+        limit 1
+    </select>
+
+    <select id="accountLease" resultMap="accountLeaseMap">
+        select <include refid="accountLeaseColumns"/>
+        from test_account_lease
+        where id = #{id}
+    </select>
+
+    <select id="accountLeaseByProjectAndRequestKey" resultMap="accountLeaseMap">
+        select <include refid="accountLeaseColumns"/>
+        from test_account_lease
+        where project_id = #{projectId}
+          and request_key = #{requestKey}
+    </select>
+
+    <select id="accountLeases" resultMap="accountLeaseMap">
+        select <include refid="accountLeaseColumns"/>
+        from test_account_lease
+        <include refid="accountLeaseWhere"/>
+        order by created_at desc, id asc
+        limit #{query.limit} offset #{query.offset}
+    </select>
+
+    <select id="countAccountLeases" resultType="long">
+        select count(1)
+        from test_account_lease
+        <include refid="accountLeaseWhere"/>
+    </select>
+
+    <select id="accountLeaseProjectScopeId" resultType="string">
+        select project_id
+        from test_account_lease
+        where id = #{id}
+    </select>
+
+    <select id="activeExpiredLeases" resultMap="accountLeaseMap">
+        select <include refid="accountLeaseColumns"/>
+        from test_account_lease
+        where status = 'ACTIVE'
+          and expires_at &lt;= #{now}
+        order by expires_at asc
+        limit #{limit}
+    </select>
+
+    <select id="dataTask" resultMap="dataTaskMap">
+        select <include refid="dataTaskColumns"/>
+        from test_data_task
+        where id = #{id}
+    </select>
+
+    <select id="dataTaskByProjectAndRequestKey" resultMap="dataTaskMap">
+        select <include refid="dataTaskColumns"/>
+        from test_data_task
+        where project_id = #{projectId}
+          and request_key = #{requestKey}
+    </select>
+
+    <select id="dataTasks" resultMap="dataTaskMap">
+        select <include refid="dataTaskColumns"/>
+        from test_data_task
+        <include refid="dataTaskWhere"/>
+        order by created_at desc, id asc
+        limit #{query.limit} offset #{query.offset}
+    </select>
+
+    <select id="countDataTasks" resultType="long">
+        select count(1)
+        from test_data_task
+        <include refid="dataTaskWhere"/>
+    </select>
+
+    <select id="dataTaskProjectScopeId" resultType="string">
+        select project_id
+        from test_data_task
+        where id = #{id}
+    </select>
+</mapper>

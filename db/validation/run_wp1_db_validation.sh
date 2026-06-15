@@ -26,6 +26,7 @@ VALIDATIONS=(
   "$ROOT_DIR/db/validation/wp5_test_design_validation.sql"
   "$ROOT_DIR/db/validation/wp6_api_automation_validation.sql"
   "$ROOT_DIR/db/validation/wp9_execution_validation.sql"
+  "$ROOT_DIR/db/validation/wp8_test_data_validation.sql"
 )
 
 run_psql_file() {
@@ -45,6 +46,26 @@ run_release_role_validation() {
     -v WP1_RELEASE_READONLY_ROLE=wp1_readonly \
     -v WP1_RELEASE_MIGRATION_ROLE=wp1_migration \
     < "$ROOT_DIR/db/validation/wp1_release_role_validation.sql" > "$out_file" 2>&1
+}
+
+ensure_runtime_roles() {
+  local log_file="$1"
+  echo "== ensuring WP1 runtime roles for validation ==" | tee -a "$log_file"
+  run_psql_inline >> "$log_file" 2>&1 <<'SQL'
+do $$
+begin
+    if not exists (select 1 from pg_roles where rolname = 'wp1_app') then
+        create role wp1_app login password 'wp1_app_validation_pass';
+    end if;
+    if not exists (select 1 from pg_roles where rolname = 'wp1_readonly') then
+        create role wp1_readonly login password 'wp1_readonly_validation_pass';
+    end if;
+    if not exists (select 1 from pg_roles where rolname = 'wp1_migration') then
+        create role wp1_migration login password 'wp1_migration_validation_pass';
+    end if;
+end
+$$;
+SQL
 }
 
 cleanup() {
@@ -113,20 +134,6 @@ apply_runtime_role_policy() {
   local log_file="$1"
   echo "== applying WP1 runtime role policy for validation ==" | tee -a "$log_file"
   run_psql_inline >> "$log_file" 2>&1 <<'SQL'
-do $$
-begin
-    if not exists (select 1 from pg_roles where rolname = 'wp1_app') then
-        create role wp1_app login password 'wp1_app_validation_pass';
-    end if;
-    if not exists (select 1 from pg_roles where rolname = 'wp1_readonly') then
-        create role wp1_readonly login password 'wp1_readonly_validation_pass';
-    end if;
-    if not exists (select 1 from pg_roles where rolname = 'wp1_migration') then
-        create role wp1_migration login password 'wp1_migration_validation_pass';
-    end if;
-end
-$$;
-
 grant usage on schema public to wp1_app, wp1_readonly, wp1_migration;
 grant create on schema public to wp1_migration;
 
@@ -188,6 +195,13 @@ grant select, insert, update on
     execution_trigger,
     execution_trigger_event,
     execution_queue_claim,
+    test_data_set,
+    test_data_record,
+    test_data_task,
+    test_account_pool,
+    test_pooled_account,
+    test_account_lease,
+    test_account_role_matrix,
     audit_outbox
 to wp1_app;
 
@@ -211,6 +225,25 @@ revoke all on secret_local_store from public;
 grant select on all tables in schema public to wp1_readonly;
 revoke insert, update, delete, truncate on all tables in schema public from wp1_readonly;
 revoke select on secret_local_store from wp1_readonly;
+revoke all on test_pooled_account from wp1_readonly;
+grant select (
+    id,
+    pool_id,
+    project_id,
+    account_key,
+    display_name,
+    status,
+    role_tags_json,
+    scope_summary_json,
+    secret_ref_digest,
+    last_health_status,
+    last_health_summary,
+    created_by,
+    updated_by,
+    archived_at,
+    created_at,
+    updated_at
+) on test_pooled_account to wp1_readonly;
 
 grant all privileges on all tables in schema public to wp1_migration;
 grant all privileges on all sequences in schema public to wp1_migration;
@@ -254,6 +287,7 @@ main() {
   trap cleanup EXIT
 
   start_postgres
+  ensure_runtime_roles "$OUT_DIR/migration.log"
   run_migrations "$OUT_DIR/migration.log" "running "
   run_super_admin_seed "$OUT_DIR/migration.log" "running "
   apply_runtime_role_policy "$OUT_DIR/migration.log"

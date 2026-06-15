@@ -258,6 +258,76 @@ public class ExecutionDagValidator {
         }
         if ("API_TEST".equals(type)) {
             validateRuntimeSecretRefs(key, inputSummary.get("runtimeSecretRefs"), issues);
+            validateAccountLease(key, inputSummary.get("accountLease"), issues);
+        } else if (inputSummary.containsKey("accountLease")) {
+            issues.add(issue("EXECUTION_ACCOUNT_LEASE_UNSUPPORTED", key, "accountLease 仅允许配置在 API_TEST 节点"));
+        }
+    }
+
+    private void validateAccountLease(
+            String key,
+            Object accountLease,
+            List<ExecutionValidationIssueResponse> issues
+    ) {
+        if (accountLease == null) {
+            return;
+        }
+        if (!(accountLease instanceof Map<?, ?> map)) {
+            issues.add(issue("EXECUTION_ACCOUNT_LEASE_INVALID", key, "accountLease 必须是对象"));
+            return;
+        }
+        if (uuid(map.get("accountPoolRef")).isEmpty()) {
+            issues.add(issue("EXECUTION_ACCOUNT_LEASE_INVALID", key, "accountLease.accountPoolRef 必须是 UUID"));
+        }
+        bounded(map.get("applicationId"), 64).ifPresentOrElse(
+                ignored -> {
+                },
+                () -> {
+                    if (map.containsKey("applicationId")) {
+                        issues.add(issue("EXECUTION_ACCOUNT_LEASE_INVALID", key, "accountLease.applicationId 不能为空"));
+                    }
+                }
+        );
+        bounded(map.get("environmentId"), 64).ifPresentOrElse(
+                ignored -> {
+                },
+                () -> {
+                    if (map.containsKey("environmentId")) {
+                        issues.add(issue("EXECUTION_ACCOUNT_LEASE_INVALID", key, "accountLease.environmentId 不能为空"));
+                    }
+                }
+        );
+        if (map.containsKey("requestKey")) {
+            String requestKey = bounded(map.get("requestKey"), 128).orElse(null);
+            if (!StringUtils.hasText(requestKey)) {
+                issues.add(issue("EXECUTION_ACCOUNT_LEASE_INVALID", key, "accountLease.requestKey 不能为空"));
+            }
+        }
+        Object ttlSeconds = map.get("ttlSeconds");
+        if (ttlSeconds != null && parsePositiveInt(ttlSeconds).isEmpty()) {
+            issues.add(issue("EXECUTION_ACCOUNT_LEASE_INVALID", key, "accountLease.ttlSeconds 必须是正整数"));
+        }
+        Object roleTags = map.get("roleTags");
+        if (roleTags == null) {
+            return;
+        }
+        if (!(roleTags instanceof Iterable<?> iterable)) {
+            issues.add(issue("EXECUTION_ACCOUNT_LEASE_INVALID", key, "accountLease.roleTags 必须是字符串列表"));
+            return;
+        }
+        int count = 0;
+        for (Object value : iterable) {
+            if (!StringUtils.hasText(String.valueOf(value))) {
+                continue;
+            }
+            count++;
+            String roleTag = String.valueOf(value).trim();
+            if (roleTag.length() > 64 || !roleTag.matches("^[A-Za-z0-9_.:-]+$")) {
+                issues.add(issue("EXECUTION_ACCOUNT_LEASE_INVALID", key, "accountLease.roleTags 含有非法值"));
+            }
+        }
+        if (count > 20) {
+            issues.add(issue("EXECUTION_ACCOUNT_LEASE_INVALID", key, "accountLease.roleTags 最多 20 个"));
         }
     }
 
@@ -444,6 +514,29 @@ public class ExecutionDagValidator {
         }
         try {
             return Optional.of(UUID.fromString(String.valueOf(value)));
+        } catch (RuntimeException exception) {
+            return Optional.empty();
+        }
+    }
+
+    private Optional<String> bounded(Object value, int maxLength) {
+        if (value == null) {
+            return Optional.empty();
+        }
+        String text = String.valueOf(value).trim();
+        if (!StringUtils.hasText(text)) {
+            return Optional.empty();
+        }
+        return Optional.of(text.length() > maxLength ? text.substring(0, maxLength) : text);
+    }
+
+    private Optional<Integer> parsePositiveInt(Object value) {
+        if (value == null) {
+            return Optional.empty();
+        }
+        try {
+            int parsed = value instanceof Number number ? number.intValue() : Integer.parseInt(String.valueOf(value));
+            return parsed > 0 ? Optional.of(parsed) : Optional.empty();
         } catch (RuntimeException exception) {
             return Optional.empty();
         }

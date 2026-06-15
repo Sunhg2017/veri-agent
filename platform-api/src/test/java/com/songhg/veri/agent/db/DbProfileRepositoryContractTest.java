@@ -47,6 +47,18 @@ import com.songhg.veri.agent.testdesign.domain.TestDesignQueueAlertSubscription;
 import com.songhg.veri.agent.testdesign.domain.TestDesignReviewRecord;
 import com.songhg.veri.agent.testdesign.domain.TestDesignTask;
 import com.songhg.veri.agent.testdesign.domain.TestDesignTaskStatus;
+import com.songhg.veri.agent.testdata.application.port.TestDataRepository;
+import com.songhg.veri.agent.testdata.application.query.TestAccountLeaseQuery;
+import com.songhg.veri.agent.testdata.application.query.TestAccountPoolQuery;
+import com.songhg.veri.agent.testdata.application.query.TestDataSetQuery;
+import com.songhg.veri.agent.testdata.application.query.TestDataTaskQuery;
+import com.songhg.veri.agent.testdata.domain.TestAccountLease;
+import com.songhg.veri.agent.testdata.domain.TestAccountPool;
+import com.songhg.veri.agent.testdata.domain.TestDataRecord;
+import com.songhg.veri.agent.testdata.domain.TestDataSet;
+import com.songhg.veri.agent.testdata.domain.TestDataTask;
+import com.songhg.veri.agent.testdata.domain.TestPooledAccount;
+import com.songhg.veri.agent.testdata.infrastructure.JdbcTestDataRepository;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
@@ -112,6 +124,9 @@ class DbProfileRepositoryContractTest {
     private ExecutionRepository executionRepository;
 
     @Autowired
+    private TestDataRepository testDataRepository;
+
+    @Autowired
     private AuditLogWriter auditLogWriter;
 
     @Autowired
@@ -129,6 +144,498 @@ class DbProfileRepositoryContractTest {
         assertThat(modelAccessRepository).isInstanceOf(JdbcModelAccessRepository.class);
         assertThat(modelInvocationJobRepository).isInstanceOf(JdbcModelInvocationJobRepository.class);
         assertThat(applicationContext.getBeanNamesForType(AssetRepository.class)).hasSize(1);
+        assertThat(testDataRepository).isInstanceOf(JdbcTestDataRepository.class);
+        assertThat(applicationContext.getBeanNamesForType(TestDataRepository.class)).hasSize(1);
+    }
+
+    @Test
+    void testDataRepositoryPersistsDataSetsAndRecordsThroughJdbc() {
+        Instant now = Instant.now();
+        UUID dataSetId = UUID.randomUUID();
+        String projectId = "project-wp8-db-" + UUID.randomUUID();
+
+        testDataRepository.insertDataSet(new TestDataSet(
+                dataSetId,
+                projectId,
+                "app-db",
+                "env-db",
+                "dataset-db",
+                "DB dataset",
+                "DRAFT",
+                "{\"fields\":[{\"name\":\"customerId\",\"type\":\"STRING\"}]}",
+                "CONFIDENTIAL",
+                "{\"mode\":\"MANUAL_CONFIRM\"}",
+                "EXTERNAL_REF",
+                "a".repeat(64),
+                "db-tester",
+                "db-tester",
+                null,
+                now,
+                now
+        ));
+
+        assertThat(testDataRepository.dataSetByProjectAndCode(projectId, "dataset-db"))
+                .isPresent()
+                .get()
+                .extracting(TestDataSet::schemaJson)
+                .asString()
+                .contains("customerId");
+
+        TestDataSet ready = new TestDataSet(
+                dataSetId,
+                projectId,
+                "app-db",
+                "env-db",
+                "dataset-db",
+                "DB dataset ready",
+                "READY",
+                "{\"fields\":[{\"name\":\"customerId\",\"type\":\"STRING\"}]}",
+                "CONFIDENTIAL",
+                "{\"mode\":\"MANUAL_CONFIRM\",\"ttlDays\":7}",
+                "EXTERNAL_REF",
+                "a".repeat(64),
+                "db-tester",
+                "db-updater",
+                null,
+                now,
+                now.plusSeconds(1)
+        );
+        testDataRepository.updateDataSet(ready);
+
+        TestDataSetQuery query = new TestDataSetQuery(projectId, "app-db", "env-db", "READY", "dataset", 0, 10);
+        assertThat(testDataRepository.countDataSets(query)).isEqualTo(1);
+        assertThat(testDataRepository.dataSets(query))
+                .singleElement()
+                .extracting(TestDataSet::name)
+                .isEqualTo("DB dataset ready");
+
+        testDataRepository.upsertRecords(List.of(new TestDataRecord(
+                UUID.randomUUID(),
+                dataSetId,
+                projectId,
+                "customer:001",
+                "ACTIVE",
+                "b".repeat(64),
+                "{\"customerEmail\":\"c***@example.test\"}",
+                "c".repeat(64),
+                "[\"sanitized\",\"db\"]",
+                "db-tester",
+                "db-tester",
+                now,
+                now
+        )));
+        testDataRepository.upsertRecords(List.of(new TestDataRecord(
+                UUID.randomUUID(),
+                dataSetId,
+                projectId,
+                "customer:001",
+                "ACTIVE",
+                "d".repeat(64),
+                "{\"customerEmail\":\"updated***@example.test\"}",
+                null,
+                "[\"sanitized\"]",
+                "db-tester",
+                "db-updater",
+                now,
+                now.plusSeconds(2)
+        )));
+
+        assertThat(testDataRepository.countRecords(dataSetId)).isEqualTo(1);
+        assertThat(testDataRepository.records(dataSetId))
+                .singleElement()
+                .satisfies(record -> {
+                    assertThat(record.recordDigest()).isEqualTo("d".repeat(64));
+                    assertThat(record.maskedSummaryJson()).contains("updated***@example.test");
+                    assertThat(record.tagsJson()).contains("sanitized");
+                });
+
+        testDataRepository.archiveDataSet(new TestDataSet(
+                dataSetId,
+                projectId,
+                "app-db",
+                "env-db",
+                "dataset-db",
+                "DB dataset ready",
+                "ARCHIVED",
+                "{\"fields\":[{\"name\":\"customerId\",\"type\":\"STRING\"}]}",
+                "CONFIDENTIAL",
+                "{\"mode\":\"MANUAL_CONFIRM\",\"ttlDays\":7}",
+                "EXTERNAL_REF",
+                "a".repeat(64),
+                "db-tester",
+                "db-archiver",
+                now.plusSeconds(3),
+                now,
+                now.plusSeconds(3)
+        ));
+
+        assertThat(testDataRepository.dataSetProjectScopeId(dataSetId)).contains(projectId);
+        assertThat(testDataRepository.dataSet(dataSetId))
+                .isPresent()
+                .get()
+                .extracting(TestDataSet::status)
+                .isEqualTo("ARCHIVED");
+    }
+
+    @Test
+    void testDataRepositoryPersistsAccountPoolsAndAccountsThroughJdbcWithoutSecretCipherProjection() {
+        Instant now = Instant.now();
+        UUID poolId = UUID.randomUUID();
+        UUID accountId = UUID.randomUUID();
+        String projectId = "project-wp8-account-db-" + UUID.randomUUID();
+
+        testDataRepository.insertAccountPool(new TestAccountPool(
+                poolId,
+                projectId,
+                "app-db",
+                "env-db",
+                "pool-db",
+                "DB account pool",
+                "READY",
+                "{\"sharing\":\"EXCLUSIVE\"}",
+                300,
+                "db-tester",
+                "db-tester",
+                null,
+                now,
+                now
+        ));
+
+        assertThat(testDataRepository.accountPoolByProjectAndCode(projectId, "pool-db"))
+                .isPresent()
+                .get()
+                .extracting(TestAccountPool::leasePolicyJson)
+                .asString()
+                .contains("EXCLUSIVE");
+
+        TestAccountPoolQuery query = new TestAccountPoolQuery(projectId, "app-db", "env-db", "READY", "pool", 0, 10);
+        assertThat(testDataRepository.countAccountPools(query)).isEqualTo(1);
+        assertThat(testDataRepository.accountPools(query))
+                .singleElement()
+                .extracting(TestAccountPool::defaultTtlSeconds)
+                .isEqualTo(300);
+
+        testDataRepository.insertPooledAccount(new TestPooledAccount(
+                accountId,
+                poolId,
+                projectId,
+                "admin-01",
+                "Admin 01",
+                "AVAILABLE",
+                "[\"ADMIN\",\"APPROVER\"]",
+                "{\"applicationId\":\"app-db\"}",
+                "e".repeat(64),
+                "HEALTHY",
+                "manual smoke passed",
+                "db-tester",
+                "db-tester",
+                null,
+                now,
+                now
+        ));
+        jdbcTemplate.update(
+                "update test_pooled_account set secret_ref_cipher = ? where id = ?",
+                "ciphertext-should-not-be-projected",
+                accountId
+        );
+
+        assertThat(testDataRepository.countPooledAccounts(poolId, null)).isEqualTo(1);
+        assertThat(testDataRepository.countPooledAccounts(poolId, "AVAILABLE")).isEqualTo(1);
+        assertThat(testDataRepository.pooledAccountByPoolAndKey(poolId, "admin-01"))
+                .isPresent()
+                .get()
+                .satisfies(account -> {
+                    assertThat(account.secretRefDigest()).isEqualTo("e".repeat(64));
+                    assertThat(account.toString()).doesNotContain("ciphertext-should-not-be-projected");
+                    assertThat(account.roleTagsJson()).contains("ADMIN");
+                });
+
+        testDataRepository.updatePooledAccount(new TestPooledAccount(
+                accountId,
+                poolId,
+                projectId,
+                "admin-01",
+                "Admin 01 locked",
+                "LOCKED",
+                "[\"ADMIN\"]",
+                "{\"reason\":\"manual\"}",
+                "f".repeat(64),
+                "LOCKED",
+                "manual lock",
+                "db-tester",
+                "db-updater",
+                null,
+                now,
+                now.plusSeconds(1)
+        ));
+
+        assertThat(testDataRepository.pooledAccounts(poolId))
+                .singleElement()
+                .satisfies(account -> {
+                    assertThat(account.status()).isEqualTo("LOCKED");
+                    assertThat(account.secretRefDigest()).isEqualTo("f".repeat(64));
+                    assertThat(account.toString()).doesNotContain("ciphertext-should-not-be-projected");
+                });
+        assertThat(testDataRepository.pooledAccountProjectScopeId(accountId)).contains(projectId);
+
+        testDataRepository.archiveAccountPool(new TestAccountPool(
+                poolId,
+                projectId,
+                "app-db",
+                "env-db",
+                "pool-db",
+                "DB account pool",
+                "ARCHIVED",
+                "{\"sharing\":\"EXCLUSIVE\"}",
+                300,
+                "db-tester",
+                "db-archiver",
+                now.plusSeconds(2),
+                now,
+                now.plusSeconds(2)
+        ));
+
+        assertThat(testDataRepository.accountPoolProjectScopeId(poolId)).contains(projectId);
+        assertThat(testDataRepository.accountPool(poolId))
+                .isPresent()
+                .get()
+                .extracting(TestAccountPool::status)
+                .isEqualTo("ARCHIVED");
+
+        assertThatThrownBy(() -> testDataRepository.insertPooledAccount(new TestPooledAccount(
+                UUID.randomUUID(),
+                poolId,
+                projectId,
+                "invalid account key",
+                "Invalid",
+                "AVAILABLE",
+                "[]",
+                "{}",
+                "a".repeat(64),
+                null,
+                null,
+                "db-tester",
+                "db-tester",
+                null,
+                now,
+                now
+        ))).isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    void testDataRepositoryPersistsLeasesAndCleanupTasksThroughJdbc() {
+        Instant now = Instant.now();
+        UUID poolId = UUID.randomUUID();
+        UUID accountId = UUID.randomUUID();
+        UUID leaseId = UUID.randomUUID();
+        UUID taskId = UUID.randomUUID();
+        String projectId = "project-wp8-lease-db-" + UUID.randomUUID();
+
+        testDataRepository.insertAccountPool(new TestAccountPool(
+                poolId,
+                projectId,
+                "app-db",
+                "env-db",
+                "pool-lease-db",
+                "DB lease pool",
+                "READY",
+                "{\"sharing\":\"EXCLUSIVE\"}",
+                300,
+                "db-tester",
+                "db-tester",
+                null,
+                now,
+                now
+        ));
+        testDataRepository.insertPooledAccount(new TestPooledAccount(
+                accountId,
+                poolId,
+                projectId,
+                "admin-lease-01",
+                "Admin Lease 01",
+                "AVAILABLE",
+                "[\"ADMIN\",\"APPROVER\"]",
+                "{\"applicationId\":\"app-db\"}",
+                "a".repeat(64),
+                "HEALTHY",
+                "manual smoke passed",
+                "db-tester",
+                "db-tester",
+                null,
+                now,
+                now
+        ));
+
+        assertThat(testDataRepository.firstAvailableAccount(poolId, List.of("ADMIN")))
+                .isPresent()
+                .get()
+                .extracting(TestPooledAccount::accountKey)
+                .isEqualTo("admin-lease-01");
+        assertThat(testDataRepository.markAccountLeased(accountId, "db-lease")).isTrue();
+        assertThat(testDataRepository.markAccountLeased(accountId, "db-lease")).isFalse();
+
+        assertThat(testDataRepository.insertAccountLeaseIfAbsent(new TestAccountLease(
+                leaseId,
+                poolId,
+                accountId,
+                projectId,
+                "ACTIVE",
+                "EXECUTION_RUN",
+                "run-db-001",
+                "lease-db-001",
+                "d".repeat(64),
+                "b".repeat(64),
+                now.plusSeconds(300),
+                null,
+                null,
+                "db-tester",
+                now,
+                now
+        ))).isTrue();
+
+        assertThat(testDataRepository.accountLeaseByProjectAndRequestKey(projectId, "lease-db-001"))
+                .isPresent()
+                .get()
+                .extracting(TestAccountLease::status)
+                .isEqualTo("ACTIVE");
+        assertThat(testDataRepository.countAccountLeases(
+                new TestAccountLeaseQuery(projectId, poolId, accountId, "ACTIVE", "run-db-001", 0, 10)
+        )).isEqualTo(1);
+        assertThat(testDataRepository.insertAccountLeaseIfAbsent(new TestAccountLease(
+                UUID.randomUUID(),
+                poolId,
+                accountId,
+                projectId,
+                "ACTIVE",
+                "EXECUTION_RUN",
+                "run-db-002",
+                "lease-db-002",
+                "e".repeat(64),
+                "c".repeat(64),
+                now.plusSeconds(300),
+                null,
+                null,
+                "db-tester",
+                now,
+                now
+        ))).isFalse();
+
+        TestAccountLease released = new TestAccountLease(
+                leaseId,
+                poolId,
+                accountId,
+                projectId,
+                "RELEASED",
+                "EXECUTION_RUN",
+                "run-db-001",
+                "lease-db-001",
+                "d".repeat(64),
+                "b".repeat(64),
+                now.plusSeconds(300),
+                now.plusSeconds(30),
+                "run finished",
+                "db-tester",
+                now,
+                now.plusSeconds(30)
+        );
+        testDataRepository.updateAccountLease(released);
+        assertThat(testDataRepository.accountLeaseProjectScopeId(leaseId)).contains(projectId);
+        assertThat(testDataRepository.updateAccountStatus(accountId, "AVAILABLE", "db-release")).isTrue();
+
+        assertThat(testDataRepository.insertDataTaskIfAbsent(new TestDataTask(
+                taskId,
+                projectId,
+                null,
+                "CLEANUP",
+                "PENDING",
+                "cleanup-db-001",
+                "lease:run-db-001",
+                1,
+                "{\"reason\":\"release\"}",
+                null,
+                null,
+                "trc_db",
+                "db-tester",
+                null,
+                null,
+                now,
+                now
+        ))).isTrue();
+        assertThat(testDataRepository.dataTaskByProjectAndRequestKey(projectId, "cleanup-db-001"))
+                .isPresent()
+                .get()
+                .extracting(TestDataTask::taskType)
+                .isEqualTo("CLEANUP");
+        assertThat(testDataRepository.countDataTasks(new TestDataTaskQuery(projectId, null, "CLEANUP", "PENDING", 0, 10)))
+                .isEqualTo(1);
+        assertThat(testDataRepository.updateDataTaskIfRequestKeyAvailable(new TestDataTask(
+                taskId,
+                projectId,
+                null,
+                "CLEANUP",
+                "FAILED",
+                "cleanup-db-001",
+                "lease:run-db-001",
+                1,
+                "{\"reason\":\"release\"}",
+                "CLEANUP_FAILED",
+                "adapter disabled",
+                "trc_db",
+                "db-tester",
+                now.plusSeconds(1),
+                now.plusSeconds(2),
+                now,
+                now.plusSeconds(2)
+        ))).isTrue();
+        assertThat(testDataRepository.dataTaskProjectScopeId(taskId)).contains(projectId);
+        assertThat(testDataRepository.dataTask(taskId))
+                .isPresent()
+                .get()
+                .extracting(TestDataTask::status)
+                .isEqualTo("FAILED");
+        assertThat(testDataRepository.retryDataTaskIfCurrentAttempt(new TestDataTask(
+                taskId,
+                projectId,
+                null,
+                "CLEANUP",
+                "PENDING",
+                "cleanup-db-002",
+                "lease:run-db-001",
+                2,
+                "{\"retry\":\"manual\"}",
+                null,
+                null,
+                "trc_db_retry",
+                "db-tester",
+                null,
+                null,
+                now,
+                now.plusSeconds(3)
+        ), 1)).isTrue();
+        assertThat(testDataRepository.retryDataTaskIfCurrentAttempt(new TestDataTask(
+                taskId,
+                projectId,
+                null,
+                "CLEANUP",
+                "PENDING",
+                "cleanup-db-003",
+                "lease:run-db-001",
+                2,
+                "{}",
+                null,
+                null,
+                "trc_db_stale_retry",
+                "db-tester",
+                null,
+                null,
+                now,
+                now.plusSeconds(4)
+        ), 1)).isFalse();
+        assertThat(testDataRepository.dataTask(taskId))
+                .isPresent()
+                .get()
+                .extracting(TestDataTask::status, TestDataTask::attempt, TestDataTask::requestKey)
+                .containsExactly("PENDING", 2, "cleanup-db-002");
     }
 
     @Test

@@ -8,6 +8,7 @@ import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationRunResu
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
 import com.songhg.veri.agent.common.util.SensitiveTextSanitizer;
+import com.songhg.veri.agent.execution.application.command.CompleteExecutionNodeRunCommand;
 import com.songhg.veri.agent.execution.application.command.DispatchExecutionNodeRunCommand;
 import com.songhg.veri.agent.execution.application.port.ExecutionRepository;
 import com.songhg.veri.agent.execution.application.view.ExecutionRunDetailResponse;
@@ -19,11 +20,15 @@ import com.songhg.veri.agent.execution.domain.ExecutionRun;
 import com.songhg.veri.agent.management.application.port.ManagementStore;
 import com.songhg.veri.agent.management.application.port.ManagementStoreParams;
 import com.songhg.veri.agent.management.application.port.ManagementStoreRows.EnvironmentRuntimeRef;
+import java.net.IDN;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -46,6 +51,7 @@ final class ExecutionRunDispatchSupport {
     private final ManagementStore managementStore;
     private final ExecutionProperties properties;
     private final ExecutionRunJsonSupport jsonSupport;
+    private final ExecutionAccountLeaseSupport accountLeaseSupport;
     private final ExecutionRunQueueSupport queueSupport;
     private final ExecutionRunResponseMapper responseMapper;
     private final TransactionBridge transactionBridge;
@@ -56,6 +62,7 @@ final class ExecutionRunDispatchSupport {
             ManagementStore managementStore,
             ExecutionProperties properties,
             ExecutionRunJsonSupport jsonSupport,
+            ExecutionAccountLeaseSupport accountLeaseSupport,
             ExecutionRunQueueSupport queueSupport,
             ExecutionRunResponseMapper responseMapper,
             TransactionBridge transactionBridge
@@ -65,6 +72,7 @@ final class ExecutionRunDispatchSupport {
         this.managementStore = managementStore;
         this.properties = properties;
         this.jsonSupport = jsonSupport;
+        this.accountLeaseSupport = accountLeaseSupport;
         this.queueSupport = queueSupport;
         this.responseMapper = responseMapper;
         this.transactionBridge = transactionBridge;
@@ -80,14 +88,20 @@ final class ExecutionRunDispatchSupport {
         if (preparation.replayResponse() != null) {
             return preparation.replayResponse();
         }
-        ApiAutomationRunDetailResponse wp6Run = apiAutomationService.createRun(new CreateApiAutomationRunCommand(
-                preparation.bundleId(),
-                preparation.environmentId(),
-                preparation.baseUrl(),
-                preparation.caseIds(),
-                preparation.timeoutSeconds(),
-                preparation.secretRefs()
-        ));
+        ApiAutomationRunDetailResponse wp6Run;
+        try {
+            wp6Run = apiAutomationService.createRun(new CreateApiAutomationRunCommand(
+                    preparation.bundleId(),
+                    preparation.environmentId(),
+                    preparation.baseUrl(),
+                    preparation.caseIds(),
+                    preparation.timeoutSeconds(),
+                    preparation.secretRefs()
+            ));
+        } catch (RuntimeException exception) {
+            transactionBridge.inExecutionTransaction(() -> failPreparedDispatch(preparation, exception));
+            throw exception;
+        }
         return transactionBridge.inExecutionTransaction(
                 () -> completeDispatchedApiTestNodeRun(preparation, wp6Run)
         );
@@ -121,6 +135,7 @@ final class ExecutionRunDispatchSupport {
         ResolvedDispatchTarget target = resolvedDispatchTarget(command, planInput, run.projectId());
         List<String> secretRefs = dispatchSecretRefs(command, planInput);
         renewClaimForDispatch(claim, planNode, now);
+        accountLeaseSupport.acquireForDispatch(run, planNode, nodeRun, planInput);
         return new ApiTestDispatchPreparation(
                 nodeRun.id(),
                 command.claimToken(),
@@ -191,6 +206,25 @@ final class ExecutionRunDispatchSupport {
                 completedAt
         ));
         return queueSupport.aggregateRunAfterNodeCompletion(completed.runId(), completedAt);
+    }
+
+    private ExecutionRunDetailResponse failPreparedDispatch(ApiTestDispatchPreparation preparation, RuntimeException exception) {
+        return queueSupport.completeClaimedNodeRun(new CompleteExecutionNodeRunCommand(
+                preparation.nodeRunId(),
+                preparation.claimToken(),
+                "FAILED",
+                "EXECUTION_NODE_DISPATCH_FAILED",
+                SensitiveTextSanitizer.sanitizedErrorSummary(
+                        exception == null ? null : exception.getMessage(),
+                        "WP6 dispatch failed",
+                        512
+                ),
+                Map.of(
+                        "wp6DispatchFailed", true,
+                        "runnerDispatched", false,
+                        "sourceErrorCode", sourceErrorCode(exception)
+                )
+        ));
     }
 
     private void renewClaimForDispatch(ExecutionQueueClaim claim, ExecutionPlanNode planNode, Instant now) {
@@ -291,7 +325,7 @@ final class ExecutionRunDispatchSupport {
     ) {
         String runtimeBaseUrl = SensitiveTextSanitizer.boundedNullableText(command.baseUrl(), 512);
         if (StringUtils.hasText(runtimeBaseUrl)) {
-            return new ResolvedDispatchTarget(runtimeBaseUrl, "REQUEST_BASE_URL", null, null);
+            return new ResolvedDispatchTarget(normalizedRuntimeBaseUrl(runtimeBaseUrl), "REQUEST_BASE_URL", null, null);
         }
         boolean requestBaseUrlRefProvided = StringUtils.hasText(command.baseUrlRef());
         String baseUrlRef = firstText(command.baseUrlRef(), planInput.get("baseUrlRef"));
@@ -318,11 +352,58 @@ final class ExecutionRunDispatchSupport {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "EXECUTION_DISPATCH_BASE_URL_REF_EMPTY");
         }
         return new ResolvedDispatchTarget(
-                SensitiveTextSanitizer.boundedNullableText(environment.apiBaseUrl(), 512),
+                normalizedRuntimeBaseUrl(environment.apiBaseUrl()),
                 requestBaseUrlRefProvided ? "REQUEST_BASE_URL_REF" : "PLAN_BASE_URL_REF",
                 normalizedRef,
                 environment.code()
         );
+    }
+
+    /**
+     * Mirrors WP6 run-target admission before claim renewal/account leasing so invalid runtime targets do not consume
+     * the active queue claim or leak a lease that WP6 would reject before creating a run.
+     */
+    private String normalizedRuntimeBaseUrl(String rawBaseUrl) {
+        String bounded = SensitiveTextSanitizer.boundedNullableText(rawBaseUrl, 512);
+        if (!StringUtils.hasText(bounded)) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "baseUrl 必填");
+        }
+        URI uri;
+        try {
+            uri = new URI(bounded);
+        } catch (URISyntaxException exception) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "baseUrl 必须是合法 HTTP/HTTPS URL");
+        }
+        String scheme = uri.getScheme() == null ? "" : uri.getScheme().toLowerCase(Locale.ROOT);
+        if (!Set.of("http", "https").contains(scheme)) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "baseUrl 仅支持 http/https");
+        }
+        if (StringUtils.hasText(uri.getRawUserInfo()) || StringUtils.hasText(uri.getRawQuery())
+                || StringUtils.hasText(uri.getRawFragment())) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "baseUrl 不允许携带 userInfo/query/fragment");
+        }
+        String host = normalizedHost(uri.getHost());
+        if (!StringUtils.hasText(host)) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "baseUrl 必须包含 host");
+        }
+        String path = StringUtils.hasText(uri.getRawPath()) ? uri.getRawPath() : "";
+        if (path.endsWith("/") && path.length() > 1) {
+            path = path.substring(0, path.length() - 1);
+        }
+        int port = uri.getPort();
+        String authority = port > 0 ? host + ":" + port : host;
+        return scheme + "://" + authority + path;
+    }
+
+    private String normalizedHost(String host) {
+        if (!StringUtils.hasText(host)) {
+            return "";
+        }
+        try {
+            return IDN.toASCII(host.trim().toLowerCase(Locale.ROOT));
+        } catch (IllegalArgumentException exception) {
+            return "";
+        }
     }
 
     private UUID executionProjectUuid(String projectId) {
@@ -400,6 +481,13 @@ final class ExecutionRunDispatchSupport {
             case "BLOCKED" -> "BLOCKED";
             default -> "FAILED";
         };
+    }
+
+    private String sourceErrorCode(RuntimeException exception) {
+        if (exception instanceof BusinessException businessException) {
+            return businessException.getErrorCode().name();
+        }
+        return exception == null ? "RuntimeException" : exception.getClass().getSimpleName();
     }
 
     private String wp6DispatchErrorCode(String wp9Status, ApiAutomationRunResponse wp6Run) {
