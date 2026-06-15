@@ -344,6 +344,33 @@ M8B/M8C 未执行项和风险边界：
 2. 不启用真实 cleanup worker；Runbook 只记录默认控制面安全边界和后续专项准出要求。
 3. 不实现导出文件下载；当前操作说明只描述控制面脱敏摘要。
 
+### M8I 发布准出收口最小门禁
+
+当前 M8I 文档收口切片采用以下验证入口作为最小准出：
+
+```bash
+rg -n "WP8-8.4|M8I|发布准出说明|剩余工作盘点|当前 WP8 范围无剩余 P0 功能开发项" README.md doc/mvp/final/engineering/WP8-* doc/mvp/final/engineering/当前实现基线.md
+git diff --check
+cd portal-web && npm test -- api/testData.test.ts permissions.test.ts
+cd portal-web && npm run build
+```
+
+M8I 定向检查矩阵：
+
+| 检查项 | 覆盖范围 | 必须断言 | 失败条件 |
+|---|---|---|---|
+| 文档引用扫描 | README、WP8 主文档和当前实现基线 | 发布准出说明、剩余工作盘点、M8I 交付说明和 WP8-8.4 完成口径均可检索 | 新文档未被索引、WP8-8.4 仍显示未完成或当前范围剩余项表述冲突 |
+| 准出说明人工核对 | 发布范围、非目标、风险和回滚 | 当前范围与 PRD/技术设计/操作说明一致，后续专项不被误列为发布阻断 | 准出说明承诺真实文件下载、真实 cleanup worker 或跨 WP 真实执行器 |
+| 剩余工作盘点人工核对 | P0 完成项和后续专项 | 明确当前 WP8 范围无剩余 P0 功能开发项，release gate 与后续专项分离 | 把目标环境 release gate 误写为功能缺口或遗漏安全专项 |
+| 前端定向 Vitest | WP8 API helper 和权限 | 文档收口不破坏 `testData` helper 和权限映射 | API/权限测试失败 |
+| 前端 build | 文档切片回归 | `portal-web` 构建仍通过 | 构建失败 |
+
+M8I 未执行项和风险边界：
+
+1. 不修改运行时代码，因此不要求后端全量测试、DB validation、Java 行数门禁或完整 WP8 quality gate 作为本切片最小门禁。
+2. 发布目标环境若包含 Java、API、DB、权限、导出、安全或前端运行时变更，必须追加 `WP8_GATE_MODE=release WP8_LEASE_CONCURRENCY_SMOKE=managed bash scripts/wp8_quality_gate.sh` 和对应专项验证。
+3. 当前范围无剩余 P0 功能开发项不等于后续增强取消；真实文件下载、真实 cleanup worker、跨 WP 真实执行器和容量压测仍需独立准出。
+
 ## 9. 准出标准
 
 1. 数据集、账号池、租借、释放和清理任务主链路后端测试通过。

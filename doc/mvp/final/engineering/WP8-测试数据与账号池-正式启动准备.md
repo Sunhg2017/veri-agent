@@ -86,7 +86,7 @@ WP8 的核心目标是把测试数据、账号池、租借、释放和清理任�
 | M6 前端闭环 | 工作台完成主链路 | portal-web 页面 | Vitest、Playwright smoke 通过 |
 | M7 准出门禁 | quality gate、DB validation、并发 smoke | `scripts/wp8_quality_gate.sh` | release gate 明确 |
 
-M8B/M8C 当前推进说明：账号池、租借和清理任务后端切片已按 `platform-api` API 落地，跨 WP 引用契约已通过 `TestDataCrossWpReferenceService` 落成应用层切片。`portal-web` 已新增 `#test-data` 工作台基础闭环，覆盖 API client、权限入口、数据集/账号池/租借/清理任务基础面板、数据集脱敏导出摘要、租借脱敏导出摘要、traceId 错误展示和 secretRef 不回显；已补齐 `scripts/wp8_frontend_e2e_smoke.sh`、`scripts/wp8_account_lease_concurrency_smoke.sh`、`scripts/wp8_quality_gate.sh` 和桌面/390px Playwright smoke。当前已新增前端操作说明和运维 Runbook，覆盖用户浏览器主链路、租借卡死、账号锁定、SecretRef 轮换、清理失败和脱敏导出异常排障。真实 cleanup worker 和导出文件下载仍按后续任务推进。
+M8I 当前推进说明：账号池、租借和清理任务后端切片已按 `platform-api` API 落地，跨 WP 引用契约已通过 `TestDataCrossWpReferenceService` 落成应用层切片。`portal-web` 已新增 `#test-data` 工作台基础闭环，覆盖 API client、权限入口、数据集/账号池/租借/清理任务基础面板、数据集脱敏导出摘要、租借脱敏导出摘要、traceId 错误展示和 secretRef 不回显；已补齐 `scripts/wp8_frontend_e2e_smoke.sh`、`scripts/wp8_account_lease_concurrency_smoke.sh`、`scripts/wp8_quality_gate.sh` 和桌面/390px Playwright smoke。当前已新增前端操作说明、运维 Runbook、发布准出说明、剩余工作盘点和 M8I 发布准出收口交付说明，覆盖用户浏览器主链路、租借卡死、账号锁定、SecretRef 轮换、清理失败、脱敏导出异常排障、验证入口、跳过项、风险、回滚和后续专项边界。当前 WP8 范围无剩余 P0 功能开发项；真实 cleanup worker、导出文件下载、跨 WP 真实执行器集成和外部容量压测仍按后续专项推进。
 
 ## 8. 启动准入清单
 
