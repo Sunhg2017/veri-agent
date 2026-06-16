@@ -33,6 +33,7 @@ import com.songhg.veri.agent.modelaccess.domain.ModelAccessPolicyOverride;
 import com.songhg.veri.agent.modelaccess.infrastructure.JdbcModelInvocationJobRepository;
 import com.songhg.veri.agent.modelaccess.infrastructure.JdbcModelAccessRepository;
 import com.songhg.veri.agent.reporting.application.port.ReportingRepository;
+import com.songhg.veri.agent.reporting.domain.ReportDefectDraft;
 import com.songhg.veri.agent.reporting.domain.ReportExecutionReport;
 import com.songhg.veri.agent.reporting.domain.ReportExportManifest;
 import com.songhg.veri.agent.reporting.domain.ReportFailureDiagnosis;
@@ -1852,6 +1853,80 @@ class DbProfileRepositoryContractTest {
     }
 
     @Test
+    void reportingRepositoryPersistsDefectDraftThroughJdbc() {
+        Instant now = Instant.now();
+        UUID reportId = UUID.randomUUID();
+        UUID executionRunId = UUID.randomUUID();
+        ReportExecutionReport report = new ReportExecutionReport(
+                reportId,
+                "project-wp10-draft-db-" + UUID.randomUUID(),
+                executionRunId,
+                "db-draft-" + UUID.randomUUID(),
+                "READY",
+                "wp10-report-v1",
+                "e".repeat(64),
+                "{\"defectDraftCount\":0}",
+                "{\"aggregateOnly\":true}",
+                "db-test",
+                now,
+                null,
+                null,
+                "trc_wp10_draft_db",
+                null,
+                now,
+                now
+        );
+        ReportFailureDiagnosis diagnosis = failureDiagnosis(
+                reportId,
+                "ASSERTION_FAILED",
+                new BigDecimal("0.7400"),
+                now
+        );
+        ReportDefectDraft draft = defectDraft(reportId, diagnosis.id(), "DRAFT", now);
+        ReportDefectDraft reviewed = new ReportDefectDraft(
+                draft.id(),
+                draft.reportId(),
+                draft.diagnosisId(),
+                "REVIEWED",
+                draft.title(),
+                draft.reproductionSummary(),
+                draft.impactSummary(),
+                draft.prioritySuggestion(),
+                draft.evidenceRefsJson(),
+                draft.payloadPreviewJson(),
+                draft.createdBy(),
+                "db-reviewer",
+                draft.createdAt(),
+                now.plusSeconds(1)
+        );
+
+        assertThat(reportingRepository.insertReportIfAbsent(report)).isTrue();
+        reportingRepository.replaceLatestFailureDiagnosis(reportId, diagnosis);
+        reportingRepository.insertDefectDraft(draft);
+        reportingRepository.updateDefectDraft(reviewed);
+
+        assertThat(reportingRepository.countDefectDrafts(reportId)).isEqualTo(1L);
+        assertThat(reportingRepository.defectDrafts(reportId))
+                .singleElement()
+                .satisfies(item -> {
+                    assertThat(item.id()).isEqualTo(draft.id());
+                    assertThat(item.diagnosisId()).isEqualTo(diagnosis.id());
+                    assertThat(item.status()).isEqualTo("REVIEWED");
+                    assertThat(item.prioritySuggestion()).isEqualTo("P1");
+                    assertThat(item.evidenceRefsJson()).contains("wp9:execution_node");
+                    assertThat(item.payloadPreviewJson())
+                            .contains("\"masked\": true")
+                            .contains("\"externalSystemWriteAttempted\": false")
+                            .contains("\"rawEvidenceIncluded\": false");
+                    assertThat(item.updatedBy()).isEqualTo("db-reviewer");
+                });
+        assertThat(reportingRepository.defectDraft(reportId, draft.id()))
+                .get()
+                .extracting(ReportDefectDraft::status)
+                .isEqualTo("REVIEWED");
+    }
+
+    @Test
     void testDesignRepositoryAggregatesCrossWpAuditChainThroughJdbc() {
         String projectId = "project-wp5-audit-chain-db-" + UUID.randomUUID();
         Instant now = Instant.now();
@@ -2645,6 +2720,43 @@ class DbProfileRepositoryContractTest {
                 "db-exporter",
                 now,
                 blockReason,
+                now
+        );
+    }
+
+    private static ReportDefectDraft defectDraft(
+            UUID reportId,
+            UUID diagnosisId,
+            String status,
+            Instant now
+    ) {
+        return new ReportDefectDraft(
+                UUID.randomUUID(),
+                reportId,
+                diagnosisId,
+                status,
+                "[ASSERTION_FAILED] WP10 report requires review",
+                "runStatus=FAILED; sourceRunDigest=" + "e".repeat(64),
+                "failureBucketCounts={ASSERTION_FAILED=1}; nodeStatusCounts={FAILED=1}",
+                "P1",
+                "[\"wp9:execution_node:" + "f".repeat(64) + "\"]",
+                """
+                        {
+                          "schemaVersion": "wp10-defect-preview-v1",
+                          "masked": true,
+                          "aggregateOnly": true,
+                          "externalSystemWriteAttempted": false,
+                          "redactionPolicy": {
+                            "payloadPreviewMasked": true,
+                            "rawEvidenceIncluded": false,
+                            "rawPromptStored": false,
+                            "rawResponseStored": false
+                          }
+                        }
+                        """.trim(),
+                "db-creator",
+                "db-creator",
+                now,
                 now
         );
     }

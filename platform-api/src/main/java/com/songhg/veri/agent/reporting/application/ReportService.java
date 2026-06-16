@@ -115,6 +115,7 @@ public class ReportService {
                             report,
                             repository.evidenceManifests(report.id()),
                             repository.latestFailureDiagnosis(report.id()),
+                            repository.defectDrafts(report.id()),
                             true
                     ))
                     .orElseGet(() -> createReport(request));
@@ -139,6 +140,7 @@ public class ReportService {
                 report,
                 repository.evidenceManifests(report.id()),
                 repository.latestFailureDiagnosis(report.id()),
+                repository.defectDrafts(report.id()),
                 false
         );
     }
@@ -172,6 +174,7 @@ public class ReportService {
                 regenerated,
                 bundle.evidenceManifests(),
                 Optional.of(bundle.failureDiagnosis()),
+                repository.defectDrafts(regenerated.id()),
                 false
         );
     }
@@ -184,6 +187,7 @@ public class ReportService {
                     current,
                     repository.evidenceManifests(current.id()),
                     repository.latestFailureDiagnosis(current.id()),
+                    repository.defectDrafts(current.id()),
                     false
             );
         }
@@ -213,6 +217,7 @@ public class ReportService {
                 archived,
                 repository.evidenceManifests(archived.id()),
                 repository.latestFailureDiagnosis(archived.id()),
+                repository.defectDrafts(archived.id()),
                 false
         );
     }
@@ -277,6 +282,7 @@ public class ReportService {
                             existing,
                             repository.evidenceManifests(existing.id()),
                             repository.latestFailureDiagnosis(existing.id()),
+                            repository.defectDrafts(existing.id()),
                             true
                     ))
                     .orElseThrow(() -> new BusinessException(ErrorCode.CONFLICT, "REPORT_DUPLICATE_REQUEST"));
@@ -293,6 +299,7 @@ public class ReportService {
                 report,
                 bundle.evidenceManifests(),
                 Optional.of(bundle.failureDiagnosis()),
+                List.of(),
                 false
         );
     }

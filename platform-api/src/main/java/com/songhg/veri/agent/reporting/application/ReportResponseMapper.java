@@ -1,9 +1,11 @@
 package com.songhg.veri.agent.reporting.application;
 
 import com.songhg.veri.agent.reporting.application.view.ReportDetailResponse;
+import com.songhg.veri.agent.reporting.application.view.ReportDefectDraftResponse;
 import com.songhg.veri.agent.reporting.application.view.ReportDiagnosisResponse;
 import com.songhg.veri.agent.reporting.application.view.ReportEvidenceManifestResponse;
 import com.songhg.veri.agent.reporting.application.view.ReportSummaryResponse;
+import com.songhg.veri.agent.reporting.domain.ReportDefectDraft;
 import com.songhg.veri.agent.reporting.domain.ReportEvidenceManifest;
 import com.songhg.veri.agent.reporting.domain.ReportExecutionReport;
 import com.songhg.veri.agent.reporting.domain.ReportFailureDiagnosis;
@@ -51,13 +53,23 @@ final class ReportResponseMapper {
             List<ReportEvidenceManifest> evidenceManifests,
             boolean idempotentReplay
     ) {
-        return toDetail(report, evidenceManifests, Optional.empty(), idempotentReplay);
+        return toDetail(report, evidenceManifests, Optional.empty(), List.of(), idempotentReplay);
     }
 
     ReportDetailResponse toDetail(
             ReportExecutionReport report,
             List<ReportEvidenceManifest> evidenceManifests,
             Optional<ReportFailureDiagnosis> latestDiagnosis,
+            boolean idempotentReplay
+    ) {
+        return toDetail(report, evidenceManifests, latestDiagnosis, List.of(), idempotentReplay);
+    }
+
+    ReportDetailResponse toDetail(
+            ReportExecutionReport report,
+            List<ReportEvidenceManifest> evidenceManifests,
+            Optional<ReportFailureDiagnosis> latestDiagnosis,
+            List<ReportDefectDraft> defectDrafts,
             boolean idempotentReplay
     ) {
         return new ReportDetailResponse(
@@ -72,7 +84,7 @@ final class ReportResponseMapper {
                 jsonSupport.readMap(report.redactionPolicyJson()),
                 evidenceManifests.stream().map(this::toEvidenceManifest).toList(),
                 latestDiagnosis.map(this::toLatestDiagnosis).orElseGet(() -> Map.of("status", "NOT_REQUESTED")),
-                List.of(),
+                defectDrafts.stream().map(this::toDefectDraftSummary).toList(),
                 idempotentReplay,
                 report.generatedBy(),
                 report.generatedAt(),
@@ -83,6 +95,45 @@ final class ReportResponseMapper {
                 report.createdAt(),
                 report.updatedAt()
         );
+    }
+
+    ReportDefectDraftResponse toDefectDraft(ReportDefectDraft draft) {
+        return new ReportDefectDraftResponse(
+                draft.id(),
+                draft.reportId(),
+                draft.diagnosisId(),
+                draft.status(),
+                draft.title(),
+                draft.reproductionSummary(),
+                draft.impactSummary(),
+                draft.prioritySuggestion(),
+                jsonSupport.readStringList(draft.evidenceRefsJson()),
+                jsonSupport.readMap(draft.payloadPreviewJson()),
+                draft.createdBy(),
+                draft.updatedBy(),
+                draft.createdAt(),
+                draft.updatedAt()
+        );
+    }
+
+    private Map<String, Object> toDefectDraftSummary(ReportDefectDraft draft) {
+        ReportDefectDraftResponse draftResponse = toDefectDraft(draft);
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("id", draftResponse.id());
+        response.put("reportId", draftResponse.reportId());
+        response.put("diagnosisId", draftResponse.diagnosisId());
+        response.put("status", draftResponse.status());
+        response.put("title", draftResponse.title());
+        response.put("reproductionSummary", draftResponse.reproductionSummary());
+        response.put("impactSummary", draftResponse.impactSummary());
+        response.put("prioritySuggestion", draftResponse.prioritySuggestion());
+        response.put("evidenceRefs", draftResponse.evidenceRefs());
+        response.put("payloadPreview", draftResponse.payloadPreview());
+        response.put("createdBy", draftResponse.createdBy());
+        response.put("updatedBy", draftResponse.updatedBy());
+        response.put("createdAt", draftResponse.createdAt());
+        response.put("updatedAt", draftResponse.updatedAt());
+        return response;
     }
 
     private ReportEvidenceManifestResponse toEvidenceManifest(ReportEvidenceManifest manifest) {

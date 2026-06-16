@@ -46,6 +46,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -287,6 +288,77 @@ class ReportControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items[0].summary.diagnosisStatus").value("AI_READY"))
                 .andExpect(jsonPath("$.data.items[0].summary.diagnosisPrimaryCategory").value("ASSERTION_FAILED"));
+
+        MvcResult defectDraft = mockMvc.perform(post("/api/v1/reports/{id}/defect-drafts", reportId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.code").value("OK"))
+                .andExpect(jsonPath("$.data.reportId").value(reportId.toString()))
+                .andExpect(jsonPath("$.data.diagnosisId").exists())
+                .andExpect(jsonPath("$.data.status").value("DRAFT"))
+                .andExpect(jsonPath("$.data.title", containsString("ASSERTION_FAILED")))
+                .andExpect(jsonPath("$.data.reproductionSummary", containsString("runStatus=FAILED")))
+                .andExpect(jsonPath("$.data.impactSummary", containsString("ASSERTION_FAILED")))
+                .andExpect(jsonPath("$.data.prioritySuggestion").value("P1"))
+                .andExpect(jsonPath("$.data.evidenceRefs[0]", startsWith("wp9:execution_node:")))
+                .andExpect(jsonPath("$.data.payloadPreview.schemaVersion").value("wp10-defect-preview-v1"))
+                .andExpect(jsonPath("$.data.payloadPreview.externalSystem").value("MANUAL_COPY_ONLY"))
+                .andExpect(jsonPath("$.data.payloadPreview.fieldMappingVersion")
+                        .value("wp10-defect-preview-fields-v1"))
+                .andExpect(jsonPath("$.data.payloadPreview.masked").value(true))
+                .andExpect(jsonPath("$.data.payloadPreview.aggregateOnly").value(true))
+                .andExpect(jsonPath("$.data.payloadPreview.externalSystemWriteAttempted").value(false))
+                .andExpect(jsonPath("$.data.payloadPreview.fields.primaryCategory").value("ASSERTION_FAILED"))
+                .andExpect(jsonPath("$.data.payloadPreview.redactionPolicy.payloadPreviewMasked").value(true))
+                .andExpect(jsonPath("$.data.payloadPreview.redactionPolicy.rawEvidenceIncluded").value(false))
+                .andExpect(content().string(not(containsString("Bearer"))))
+                .andExpect(content().string(not(containsString("Authorization"))))
+                .andExpect(content().string(not(containsString("secret://"))))
+                .andExpect(content().string(not(containsString(accountLeaseRef.toString()))))
+                .andExpect(content().string(not(containsString("lease-token-plain"))))
+                .andExpect(content().string(not(containsString("execution-run-secret-holder"))))
+                .andExpect(content().string(not(containsString("account-key-secret"))))
+                .andExpect(content().string(not(containsString("Staging Admin"))))
+                .andExpect(content().string(not(containsString("raw prompt"))))
+                .andExpect(content().string(not(containsString("raw response"))))
+                .andReturn();
+
+        UUID draftId = UUID.fromString(JsonPath.read(defectDraft.getResponse().getContentAsString(), "$.data.id"));
+
+        mockMvc.perform(patch("/api/v1/reports/{id}/defect-drafts/{draftId}", reportId, draftId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("status", "REVIEWED"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.id").value(draftId.toString()))
+                .andExpect(jsonPath("$.data.status").value("REVIEWED"))
+                .andExpect(jsonPath("$.data.payloadPreview.externalSystemWriteAttempted").value(false));
+
+        mockMvc.perform(patch("/api/v1/reports/{id}/defect-drafts/{draftId}", reportId, draftId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("status", "DISMISSED"))))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.message").value("REPORT_DEFECT_DRAFT_INVALID_STATE"));
+
+        mockMvc.perform(get("/api/v1/reports/{id}", reportId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.summary.defectDraftCount").value(1))
+                .andExpect(jsonPath("$.data.defectDrafts.length()").value(1))
+                .andExpect(jsonPath("$.data.defectDrafts[0].id").value(draftId.toString()))
+                .andExpect(jsonPath("$.data.defectDrafts[0].status").value("REVIEWED"))
+                .andExpect(jsonPath("$.data.defectDrafts[0].payloadPreview.externalSystemWriteAttempted")
+                        .value(false))
+                .andExpect(content().string(not(containsString("Authorization"))))
+                .andExpect(content().string(not(containsString("secret://"))))
+                .andExpect(content().string(not(containsString(accountLeaseRef.toString()))));
+
+        mockMvc.perform(get("/api/v1/reports")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken)
+                        .param("projectId", "project-alpha"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items[0].summary.defectDraftCount").value(1));
 
         mockMvc.perform(get("/api/v1/reports/{id}/export", reportId)
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken)

@@ -2,6 +2,7 @@ package com.songhg.veri.agent.reporting.infrastructure;
 
 import com.songhg.veri.agent.reporting.application.port.ReportingRepository;
 import com.songhg.veri.agent.reporting.application.query.ReportQuery;
+import com.songhg.veri.agent.reporting.domain.ReportDefectDraft;
 import com.songhg.veri.agent.reporting.domain.ReportEvidenceManifest;
 import com.songhg.veri.agent.reporting.domain.ReportExecutionReport;
 import com.songhg.veri.agent.reporting.domain.ReportExportManifest;
@@ -53,6 +54,16 @@ public class JdbcReportingRepository implements ReportingRepository {
     }
 
     @Override
+    public void insertDefectDraft(ReportDefectDraft draft) {
+        mapper.insertDefectDraft(draft);
+    }
+
+    @Override
+    public void updateDefectDraft(ReportDefectDraft draft) {
+        mapper.updateDefectDraft(draft);
+    }
+
+    @Override
     public Optional<ReportExecutionReport> report(UUID id) {
         return Optional.ofNullable(mapper.report(id));
     }
@@ -68,8 +79,23 @@ public class JdbcReportingRepository implements ReportingRepository {
     }
 
     @Override
+    public List<ReportDefectDraft> defectDrafts(UUID reportId) {
+        return mapper.defectDrafts(reportId);
+    }
+
+    @Override
+    public Optional<ReportDefectDraft> defectDraft(UUID reportId, UUID draftId) {
+        return Optional.ofNullable(mapper.defectDraft(reportId, draftId));
+    }
+
+    @Override
     public Optional<ReportExportManifest> latestExportManifest(UUID reportId, String exportType) {
         return Optional.ofNullable(mapper.latestExportManifest(reportId, exportType));
+    }
+
+    @Override
+    public long countDefectDrafts(UUID reportId) {
+        return mapper.countDefectDrafts(reportId);
     }
 
     @Override

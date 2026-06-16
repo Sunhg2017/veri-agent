@@ -6,10 +6,13 @@ import com.songhg.veri.agent.common.api.ApiResponse;
 import com.songhg.veri.agent.common.api.PageResponse;
 import com.songhg.veri.agent.common.openapi.ApiVersion;
 import com.songhg.veri.agent.common.trace.TraceContext;
+import com.songhg.veri.agent.reporting.application.ReportDefectDraftService;
 import com.songhg.veri.agent.reporting.application.ReportExportService;
 import com.songhg.veri.agent.reporting.application.ReportService;
 import com.songhg.veri.agent.reporting.application.command.GenerateReportCommand;
+import com.songhg.veri.agent.reporting.application.command.ReviewDefectDraftCommand;
 import com.songhg.veri.agent.reporting.application.query.ReportPageRequest;
+import com.songhg.veri.agent.reporting.application.view.ReportDefectDraftResponse;
 import com.songhg.veri.agent.reporting.application.view.ReportDiagnosisResponse;
 import com.songhg.veri.agent.reporting.application.view.ReportDetailResponse;
 import com.songhg.veri.agent.reporting.application.view.ReportExportResponse;
@@ -19,6 +22,7 @@ import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -33,10 +37,16 @@ public class ReportController {
 
     private final ReportService service;
     private final ReportExportService exportService;
+    private final ReportDefectDraftService defectDraftService;
 
-    public ReportController(ReportService service, ReportExportService exportService) {
+    public ReportController(
+            ReportService service,
+            ReportExportService exportService,
+            ReportDefectDraftService defectDraftService
+    ) {
         this.service = service;
         this.exportService = exportService;
+        this.defectDraftService = defectDraftService;
     }
 
     @PostMapping
@@ -85,6 +95,24 @@ public class ReportController {
     @RequirePermission(value = PermissionCodes.REPORT_READ, scope = ReportPermissionScopes.REPORT)
     public ReportDiagnosisResponse latestDiagnosis(@PathVariable UUID id) {
         return service.latestDiagnosis(id);
+    }
+
+    @PostMapping("/{id}/defect-drafts")
+    @RequirePermission(value = PermissionCodes.REPORT_GENERATE, scope = ReportPermissionScopes.REPORT)
+    public ResponseEntity<ApiResponse<ReportDefectDraftResponse>> createDefectDraft(@PathVariable UUID id) {
+        return ResponseEntity
+                .status(HttpStatus.CREATED)
+                .body(ApiResponse.ok(defectDraftService.createDraft(id), TraceContext.getTraceId()));
+    }
+
+    @PatchMapping("/{id}/defect-drafts/{draftId}")
+    @RequirePermission(value = PermissionCodes.REPORT_MANAGE, scope = ReportPermissionScopes.REPORT)
+    public ReportDefectDraftResponse reviewDefectDraft(
+            @PathVariable UUID id,
+            @PathVariable UUID draftId,
+            @Valid @RequestBody ReviewDefectDraftCommand command
+    ) {
+        return defectDraftService.reviewDraft(id, draftId, command);
     }
 
     @GetMapping("/{id}/export")

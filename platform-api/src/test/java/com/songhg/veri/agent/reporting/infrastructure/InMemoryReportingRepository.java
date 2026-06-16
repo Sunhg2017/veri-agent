@@ -2,6 +2,7 @@ package com.songhg.veri.agent.reporting.infrastructure;
 
 import com.songhg.veri.agent.reporting.application.port.ReportingRepository;
 import com.songhg.veri.agent.reporting.application.query.ReportQuery;
+import com.songhg.veri.agent.reporting.domain.ReportDefectDraft;
 import com.songhg.veri.agent.reporting.domain.ReportEvidenceManifest;
 import com.songhg.veri.agent.reporting.domain.ReportExecutionReport;
 import com.songhg.veri.agent.reporting.domain.ReportExportManifest;
@@ -27,6 +28,7 @@ public class InMemoryReportingRepository implements ReportingRepository {
     private final ConcurrentHashMap<UUID, List<ReportEvidenceManifest>> evidenceManifests = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<UUID, ReportFailureDiagnosis> failureDiagnoses = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<UUID, List<ReportExportManifest>> exportManifests = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<UUID, List<ReportDefectDraft>> defectDrafts = new ConcurrentHashMap<>();
 
     @Override
     public boolean insertReportIfAbsent(ReportExecutionReport report) {
@@ -66,6 +68,22 @@ public class InMemoryReportingRepository implements ReportingRepository {
     }
 
     @Override
+    public void insertDefectDraft(ReportDefectDraft draft) {
+        defectDrafts.compute(draft.reportId(), (ignored, current) -> {
+            List<ReportDefectDraft> next = new ArrayList<>(current == null ? List.of() : current);
+            next.add(draft);
+            return List.copyOf(next);
+        });
+    }
+
+    @Override
+    public void updateDefectDraft(ReportDefectDraft draft) {
+        defectDrafts.computeIfPresent(draft.reportId(), (ignored, current) -> current.stream()
+                .map(item -> draft.id().equals(item.id()) ? draft : item)
+                .toList());
+    }
+
+    @Override
     public Optional<ReportExecutionReport> report(UUID id) {
         return Optional.ofNullable(reports.get(id));
     }
@@ -81,6 +99,20 @@ public class InMemoryReportingRepository implements ReportingRepository {
     }
 
     @Override
+    public List<ReportDefectDraft> defectDrafts(UUID reportId) {
+        return defectDrafts.getOrDefault(reportId, List.of()).stream()
+                .sorted(Comparator.comparing(ReportDefectDraft::updatedAt).reversed())
+                .toList();
+    }
+
+    @Override
+    public Optional<ReportDefectDraft> defectDraft(UUID reportId, UUID draftId) {
+        return defectDrafts(reportId).stream()
+                .filter(draft -> draft.id().equals(draftId))
+                .findFirst();
+    }
+
+    @Override
     public Optional<ReportExportManifest> latestExportManifest(UUID reportId, String exportType) {
         return exportManifests.getOrDefault(reportId, List.of()).stream()
                 .filter(manifest -> exportType == null || exportType.equals(manifest.exportType()))
@@ -90,6 +122,11 @@ public class InMemoryReportingRepository implements ReportingRepository {
     @Override
     public long countExportManifests(UUID reportId) {
         return exportManifests.getOrDefault(reportId, List.of()).size();
+    }
+
+    @Override
+    public long countDefectDrafts(UUID reportId) {
+        return defectDrafts.getOrDefault(reportId, List.of()).size();
     }
 
     @Override

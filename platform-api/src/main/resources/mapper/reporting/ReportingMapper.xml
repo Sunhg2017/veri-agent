@@ -74,6 +74,25 @@
         </constructor>
     </resultMap>
 
+    <resultMap id="defectDraftMap" type="com.songhg.veri.agent.reporting.domain.ReportDefectDraft">
+        <constructor>
+            <arg column="id" javaType="java.util.UUID"/>
+            <arg column="report_id" javaType="java.util.UUID"/>
+            <arg column="diagnosis_id" javaType="java.util.UUID"/>
+            <arg column="status" javaType="java.lang.String"/>
+            <arg column="title" javaType="java.lang.String"/>
+            <arg column="reproduction_summary" javaType="java.lang.String"/>
+            <arg column="impact_summary" javaType="java.lang.String"/>
+            <arg column="priority_suggestion" javaType="java.lang.String"/>
+            <arg column="evidence_refs_json" javaType="java.lang.String"/>
+            <arg column="payload_preview_json" javaType="java.lang.String"/>
+            <arg column="created_by" javaType="java.lang.String"/>
+            <arg column="updated_by" javaType="java.lang.String"/>
+            <arg column="created_at" javaType="java.time.Instant"/>
+            <arg column="updated_at" javaType="java.time.Instant"/>
+        </constructor>
+    </resultMap>
+
     <sql id="reportColumns">
         id, project_id, execution_run_id, request_key, status, schema_version, source_run_digest,
         report_summary_json::text as report_summary_json,
@@ -101,6 +120,14 @@
         id, report_id, export_type, status, schema_version, field_set_version,
         redaction_policy_json::text as redaction_policy_json,
         content_digest, aggregate_only, exported_by, exported_at, block_reason, created_at
+    </sql>
+
+    <sql id="defectDraftColumns">
+        id, report_id, diagnosis_id, status, title, reproduction_summary, impact_summary,
+        priority_suggestion,
+        evidence_refs_json::text as evidence_refs_json,
+        payload_preview_json::text as payload_preview_json,
+        created_by, updated_by, created_at, updated_at
     </sql>
 
     <sql id="reportWhere">
@@ -191,6 +218,36 @@
         )
     </insert>
 
+    <insert id="insertDefectDraft">
+        insert into report_defect_draft (
+            id, report_id, diagnosis_id, status, title, reproduction_summary, impact_summary,
+            priority_suggestion, evidence_refs_json, payload_preview_json, created_by, updated_by,
+            created_at, updated_at
+        ) values (
+            #{id}, #{reportId}, #{diagnosisId}, #{status}, #{title}, #{reproductionSummary}, #{impactSummary},
+            #{prioritySuggestion},
+            cast(coalesce(#{evidenceRefsJson}, '[]') as jsonb),
+            cast(coalesce(#{payloadPreviewJson}, '{}') as jsonb),
+            #{createdBy}, #{updatedBy}, #{createdAt}, #{updatedAt}
+        )
+    </insert>
+
+    <update id="updateDefectDraft">
+        update report_defect_draft set
+            diagnosis_id = #{diagnosisId},
+            status = #{status},
+            title = #{title},
+            reproduction_summary = #{reproductionSummary},
+            impact_summary = #{impactSummary},
+            priority_suggestion = #{prioritySuggestion},
+            evidence_refs_json = cast(coalesce(#{evidenceRefsJson}, '[]') as jsonb),
+            payload_preview_json = cast(coalesce(#{payloadPreviewJson}, '{}') as jsonb),
+            updated_by = #{updatedBy},
+            updated_at = #{updatedAt}
+        where report_id = #{reportId}
+          and id = #{id}
+    </update>
+
     <select id="report" resultMap="reportMap">
         select <include refid="reportColumns"/>
         from report_execution_report
@@ -212,6 +269,20 @@
         limit 1
     </select>
 
+    <select id="defectDrafts" resultMap="defectDraftMap">
+        select <include refid="defectDraftColumns"/>
+        from report_defect_draft
+        where report_id = #{reportId}
+        order by updated_at desc, created_at desc, id desc
+    </select>
+
+    <select id="defectDraft" resultMap="defectDraftMap">
+        select <include refid="defectDraftColumns"/>
+        from report_defect_draft
+        where report_id = #{reportId}
+          and id = #{draftId}
+    </select>
+
     <select id="latestExportManifest" resultMap="exportManifestMap">
         select <include refid="exportManifestColumns"/>
         from report_export_manifest
@@ -224,6 +295,12 @@
     <select id="countExportManifests" resultType="long">
         select count(*)
         from report_export_manifest
+        where report_id = #{reportId}
+    </select>
+
+    <select id="countDefectDrafts" resultType="long">
+        select count(*)
+        from report_defect_draft
         where report_id = #{reportId}
     </select>
 

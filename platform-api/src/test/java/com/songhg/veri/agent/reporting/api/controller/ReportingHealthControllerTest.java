@@ -59,7 +59,7 @@ class ReportingHealthControllerTest {
                 .andExpect(jsonPath("$.data.policy.diagnosisApiReady").value(true))
                 .andExpect(jsonPath("$.data.policy.aiDiagnosisReady").value(true))
                 .andExpect(jsonPath("$.data.policy.aiDiagnosisFallbackReady").value(true))
-                .andExpect(jsonPath("$.data.policy.defectDraftReady").value(false))
+                .andExpect(jsonPath("$.data.policy.defectDraftReady").value(true))
                 .andExpect(jsonPath("$.data.policy.exportSummaryReady").value(true))
                 .andExpect(jsonPath("$.data.policy.crossWpDirectTableReadAllowed").value(false))
                 .andExpect(jsonPath("$.data.policy.rawRunnerArtifactStored").value(false))

@@ -1,6 +1,7 @@
 package com.songhg.veri.agent.reporting.infrastructure.mapper;
 
 import com.songhg.veri.agent.reporting.application.query.ReportQuery;
+import com.songhg.veri.agent.reporting.domain.ReportDefectDraft;
 import com.songhg.veri.agent.reporting.domain.ReportEvidenceManifest;
 import com.songhg.veri.agent.reporting.domain.ReportExecutionReport;
 import com.songhg.veri.agent.reporting.domain.ReportExportManifest;
@@ -27,16 +28,29 @@ public interface ReportingMapper {
 
     void insertExportManifest(ReportExportManifest manifest);
 
+    void insertDefectDraft(ReportDefectDraft draft);
+
+    void updateDefectDraft(ReportDefectDraft draft);
+
     ReportExecutionReport report(@Param("id") UUID id);
 
     List<ReportEvidenceManifest> evidenceManifests(@Param("reportId") UUID reportId);
 
     ReportFailureDiagnosis latestFailureDiagnosis(@Param("reportId") UUID reportId);
 
+    List<ReportDefectDraft> defectDrafts(@Param("reportId") UUID reportId);
+
+    ReportDefectDraft defectDraft(
+            @Param("reportId") UUID reportId,
+            @Param("draftId") UUID draftId
+    );
+
     ReportExportManifest latestExportManifest(
             @Param("reportId") UUID reportId,
             @Param("exportType") String exportType
     );
+
+    long countDefectDrafts(@Param("reportId") UUID reportId);
 
     long countExportManifests(@Param("reportId") UUID reportId);
 

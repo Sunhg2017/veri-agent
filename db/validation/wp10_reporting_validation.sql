@@ -265,6 +265,7 @@ missing as (
             ('report.diagnosis.requested'),
             ('report.diagnosis.completed'),
             ('report.defect_draft.created'),
+            ('report.defect_draft.reviewed'),
             ('report.exported'),
             ('report.export.blocked')
     ) as expected(event_name)

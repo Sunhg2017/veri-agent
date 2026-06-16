@@ -1,6 +1,7 @@
 package com.songhg.veri.agent.reporting.application.port;
 
 import com.songhg.veri.agent.reporting.application.query.ReportQuery;
+import com.songhg.veri.agent.reporting.domain.ReportDefectDraft;
 import com.songhg.veri.agent.reporting.domain.ReportEvidenceManifest;
 import com.songhg.veri.agent.reporting.domain.ReportExecutionReport;
 import com.songhg.veri.agent.reporting.domain.ReportExportManifest;
@@ -21,13 +22,23 @@ public interface ReportingRepository {
 
     void insertExportManifest(ReportExportManifest manifest);
 
+    void insertDefectDraft(ReportDefectDraft draft);
+
+    void updateDefectDraft(ReportDefectDraft draft);
+
     Optional<ReportExecutionReport> report(UUID id);
 
     List<ReportEvidenceManifest> evidenceManifests(UUID reportId);
 
     Optional<ReportFailureDiagnosis> latestFailureDiagnosis(UUID reportId);
 
+    List<ReportDefectDraft> defectDrafts(UUID reportId);
+
+    Optional<ReportDefectDraft> defectDraft(UUID reportId, UUID draftId);
+
     Optional<ReportExportManifest> latestExportManifest(UUID reportId, String exportType);
+
+    long countDefectDrafts(UUID reportId);
 
     long countExportManifests(UUID reportId);
 
