@@ -26,7 +26,7 @@ public record ReportDetailResponse(
         @Schema(description = "Aggregate-only redaction policy")
         Map<String, Object> redactionPolicy,
         @Schema(description = "Evidence manifests, filled by WP10 M3")
-        List<Map<String, Object>> evidenceManifests,
+        List<ReportEvidenceManifestResponse> evidenceManifests,
         @Schema(description = "Latest diagnosis summary, filled by WP10 M4")
         Map<String, Object> latestDiagnosis,
         @Schema(description = "Defect draft summaries, filled by WP10 M5")

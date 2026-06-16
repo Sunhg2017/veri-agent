@@ -2,6 +2,7 @@ package com.songhg.veri.agent.reporting.infrastructure;
 
 import com.songhg.veri.agent.reporting.application.port.ReportingRepository;
 import com.songhg.veri.agent.reporting.application.query.ReportQuery;
+import com.songhg.veri.agent.reporting.domain.ReportEvidenceManifest;
 import com.songhg.veri.agent.reporting.domain.ReportExecutionReport;
 import java.util.Comparator;
 import java.util.List;
@@ -20,6 +21,7 @@ import org.springframework.util.StringUtils;
 public class InMemoryReportingRepository implements ReportingRepository {
 
     private final ConcurrentHashMap<UUID, ReportExecutionReport> reports = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<UUID, List<ReportEvidenceManifest>> evidenceManifests = new ConcurrentHashMap<>();
 
     @Override
     public boolean insertReportIfAbsent(ReportExecutionReport report) {
@@ -40,8 +42,18 @@ public class InMemoryReportingRepository implements ReportingRepository {
     }
 
     @Override
+    public void replaceEvidenceManifests(UUID reportId, List<ReportEvidenceManifest> manifests) {
+        evidenceManifests.put(reportId, List.copyOf(manifests));
+    }
+
+    @Override
     public Optional<ReportExecutionReport> report(UUID id) {
         return Optional.ofNullable(reports.get(id));
+    }
+
+    @Override
+    public List<ReportEvidenceManifest> evidenceManifests(UUID reportId) {
+        return evidenceManifests.getOrDefault(reportId, List.of());
     }
 
     @Override

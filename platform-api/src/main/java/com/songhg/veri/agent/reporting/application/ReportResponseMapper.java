@@ -1,7 +1,9 @@
 package com.songhg.veri.agent.reporting.application;
 
 import com.songhg.veri.agent.reporting.application.view.ReportDetailResponse;
+import com.songhg.veri.agent.reporting.application.view.ReportEvidenceManifestResponse;
 import com.songhg.veri.agent.reporting.application.view.ReportSummaryResponse;
+import com.songhg.veri.agent.reporting.domain.ReportEvidenceManifest;
 import com.songhg.veri.agent.reporting.domain.ReportExecutionReport;
 import java.util.List;
 import java.util.Map;
@@ -37,6 +39,14 @@ final class ReportResponseMapper {
     }
 
     ReportDetailResponse toDetail(ReportExecutionReport report, boolean idempotentReplay) {
+        return toDetail(report, List.of(), idempotentReplay);
+    }
+
+    ReportDetailResponse toDetail(
+            ReportExecutionReport report,
+            List<ReportEvidenceManifest> evidenceManifests,
+            boolean idempotentReplay
+    ) {
         return new ReportDetailResponse(
                 report.id(),
                 report.projectId(),
@@ -47,7 +57,7 @@ final class ReportResponseMapper {
                 report.sourceRunDigest(),
                 jsonSupport.readMap(report.reportSummaryJson()),
                 jsonSupport.readMap(report.redactionPolicyJson()),
-                List.of(),
+                evidenceManifests.stream().map(this::toEvidenceManifest).toList(),
                 Map.of("status", "NOT_REQUESTED"),
                 List.of(),
                 idempotentReplay,
@@ -59,6 +69,21 @@ final class ReportResponseMapper {
                 report.archivedAt(),
                 report.createdAt(),
                 report.updatedAt()
+        );
+    }
+
+    private ReportEvidenceManifestResponse toEvidenceManifest(ReportEvidenceManifest manifest) {
+        return new ReportEvidenceManifestResponse(
+                manifest.id(),
+                manifest.reportId(),
+                manifest.sourceWp(),
+                manifest.sourceType(),
+                manifest.sourceRefDigest(),
+                manifest.schemaVersion(),
+                jsonSupport.readStringList(manifest.summaryKeysJson()),
+                jsonSupport.readMap(manifest.redactionFlagsJson()),
+                jsonSupport.readMap(manifest.evidenceSummaryJson()),
+                manifest.createdAt()
         );
     }
 }

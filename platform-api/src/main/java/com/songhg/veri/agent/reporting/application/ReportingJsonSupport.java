@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
 import com.songhg.veri.agent.common.util.SensitiveTextSanitizer;
+import java.util.List;
 import java.util.Map;
 import org.springframework.util.StringUtils;
 
@@ -15,6 +16,8 @@ import org.springframework.util.StringUtils;
 final class ReportingJsonSupport {
 
     private static final TypeReference<Map<String, Object>> MAP_TYPE = new TypeReference<>() {
+    };
+    private static final TypeReference<List<String>> STRING_LIST_TYPE = new TypeReference<>() {
     };
 
     private final ObjectMapper objectMapper;
@@ -31,6 +34,17 @@ final class ReportingJsonSupport {
             return objectMapper.readValue(json, MAP_TYPE);
         } catch (JsonProcessingException exception) {
             return SensitiveTextSanitizer.unreadableMap();
+        }
+    }
+
+    List<String> readStringList(String json) {
+        if (!StringUtils.hasText(json)) {
+            return List.of();
+        }
+        try {
+            return objectMapper.readValue(json, STRING_LIST_TYPE);
+        } catch (JsonProcessingException exception) {
+            return List.of("unreadable");
         }
     }
 

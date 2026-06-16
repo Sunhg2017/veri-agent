@@ -42,6 +42,7 @@ public class ReportingHealthService {
                         Map.entry("reportQueryReady", true),
                         Map.entry("reportArchiveReady", true),
                         Map.entry("reportRetryReady", true),
+                        Map.entry("wp9EvidenceManifestReady", true),
                         Map.entry("evidenceAggregationReady", false),
                         Map.entry("failureClassifierReady", false),
                         Map.entry("aiDiagnosisReady", false),

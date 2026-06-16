@@ -1,6 +1,7 @@
 package com.songhg.veri.agent.reporting.infrastructure.mapper;
 
 import com.songhg.veri.agent.reporting.application.query.ReportQuery;
+import com.songhg.veri.agent.reporting.domain.ReportEvidenceManifest;
 import com.songhg.veri.agent.reporting.domain.ReportExecutionReport;
 import java.util.List;
 import java.util.UUID;
@@ -14,7 +15,13 @@ public interface ReportingMapper {
 
     void updateReport(ReportExecutionReport report);
 
+    void deleteEvidenceManifests(@Param("reportId") UUID reportId);
+
+    void insertEvidenceManifest(ReportEvidenceManifest manifest);
+
     ReportExecutionReport report(@Param("id") UUID id);
+
+    List<ReportEvidenceManifest> evidenceManifests(@Param("reportId") UUID reportId);
 
     ReportExecutionReport reportByProjectRunRequestKey(
             @Param("projectId") String projectId,

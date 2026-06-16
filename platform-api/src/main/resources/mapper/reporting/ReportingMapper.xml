@@ -25,11 +25,34 @@
         </constructor>
     </resultMap>
 
+    <resultMap id="evidenceManifestMap" type="com.songhg.veri.agent.reporting.domain.ReportEvidenceManifest">
+        <constructor>
+            <arg column="id" javaType="java.util.UUID"/>
+            <arg column="report_id" javaType="java.util.UUID"/>
+            <arg column="source_wp" javaType="java.lang.String"/>
+            <arg column="source_type" javaType="java.lang.String"/>
+            <arg column="source_ref_digest" javaType="java.lang.String"/>
+            <arg column="schema_version" javaType="java.lang.String"/>
+            <arg column="summary_keys_json" javaType="java.lang.String"/>
+            <arg column="redaction_flags_json" javaType="java.lang.String"/>
+            <arg column="evidence_summary_json" javaType="java.lang.String"/>
+            <arg column="created_at" javaType="java.time.Instant"/>
+        </constructor>
+    </resultMap>
+
     <sql id="reportColumns">
         id, project_id, execution_run_id, request_key, status, schema_version, source_run_digest,
         report_summary_json::text as report_summary_json,
         redaction_policy_json::text as redaction_policy_json,
         generated_by, generated_at, failed_code, failure_summary, trace_id, archived_at, created_at, updated_at
+    </sql>
+
+    <sql id="evidenceManifestColumns">
+        id, report_id, source_wp, source_type, source_ref_digest, schema_version,
+        summary_keys_json::text as summary_keys_json,
+        redaction_flags_json::text as redaction_flags_json,
+        evidence_summary_json::text as evidence_summary_json,
+        created_at
     </sql>
 
     <sql id="reportWhere">
@@ -72,10 +95,35 @@
         where id = #{id}
     </update>
 
+    <delete id="deleteEvidenceManifests">
+        delete from report_evidence_manifest
+        where report_id = #{reportId}
+    </delete>
+
+    <insert id="insertEvidenceManifest">
+        insert into report_evidence_manifest (
+            id, report_id, source_wp, source_type, source_ref_digest, schema_version,
+            summary_keys_json, redaction_flags_json, evidence_summary_json, created_at
+        ) values (
+            #{id}, #{reportId}, #{sourceWp}, #{sourceType}, #{sourceRefDigest}, #{schemaVersion},
+            cast(coalesce(#{summaryKeysJson}, '[]') as jsonb),
+            cast(coalesce(#{redactionFlagsJson}, '{}') as jsonb),
+            cast(coalesce(#{evidenceSummaryJson}, '{}') as jsonb),
+            #{createdAt}
+        )
+    </insert>
+
     <select id="report" resultMap="reportMap">
         select <include refid="reportColumns"/>
         from report_execution_report
         where id = #{id}
+    </select>
+
+    <select id="evidenceManifests" resultMap="evidenceManifestMap">
+        select <include refid="evidenceManifestColumns"/>
+        from report_evidence_manifest
+        where report_id = #{reportId}
+        order by created_at asc, source_wp asc, source_type asc, id asc
     </select>
 
     <select id="reportByProjectRunRequestKey" resultMap="reportMap">

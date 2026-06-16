@@ -2,6 +2,7 @@ package com.songhg.veri.agent.reporting.infrastructure;
 
 import com.songhg.veri.agent.reporting.application.port.ReportingRepository;
 import com.songhg.veri.agent.reporting.application.query.ReportQuery;
+import com.songhg.veri.agent.reporting.domain.ReportEvidenceManifest;
 import com.songhg.veri.agent.reporting.domain.ReportExecutionReport;
 import com.songhg.veri.agent.reporting.infrastructure.mapper.ReportingMapper;
 import java.util.List;
@@ -31,8 +32,21 @@ public class JdbcReportingRepository implements ReportingRepository {
     }
 
     @Override
+    public void replaceEvidenceManifests(UUID reportId, List<ReportEvidenceManifest> manifests) {
+        mapper.deleteEvidenceManifests(reportId);
+        for (ReportEvidenceManifest manifest : manifests) {
+            mapper.insertEvidenceManifest(manifest);
+        }
+    }
+
+    @Override
     public Optional<ReportExecutionReport> report(UUID id) {
         return Optional.ofNullable(mapper.report(id));
+    }
+
+    @Override
+    public List<ReportEvidenceManifest> evidenceManifests(UUID reportId) {
+        return mapper.evidenceManifests(reportId);
     }
 
     @Override

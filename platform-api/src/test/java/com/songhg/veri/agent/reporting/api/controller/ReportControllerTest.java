@@ -85,11 +85,22 @@ class ReportControllerTest {
                 .andExpect(jsonPath("$.data.summary.rawReportStored").value(false))
                 .andExpect(jsonPath("$.data.summary.nodeStatusCounts.FAILED").value(1))
                 .andExpect(jsonPath("$.data.summary.failureBucketCounts.ASSERTION_FAILED").value(1))
+                .andExpect(jsonPath("$.data.summary.evidenceManifestCount").value(2))
+                .andExpect(jsonPath("$.data.summary.evidenceManifestTruncated").value(false))
                 .andExpect(jsonPath("$.data.redactionPolicy.aggregateOnly").value(true))
                 .andExpect(jsonPath("$.data.redactionPolicy.crossWpDirectTableReadAllowed").value(false))
-                .andExpect(jsonPath("$.data.evidenceManifests.length()").value(0))
+                .andExpect(jsonPath("$.data.evidenceManifests.length()").value(2))
+                .andExpect(jsonPath("$.data.evidenceManifests[0].sourceWp").value("WP9"))
+                .andExpect(jsonPath("$.data.evidenceManifests[0].sourceType").value("EXECUTION_NODE"))
+                .andExpect(jsonPath("$.data.evidenceManifests[0].sourceRefDigest").isString())
+                .andExpect(jsonPath("$.data.evidenceManifests[0].summaryKeys[0]").value("sanitized"))
+                .andExpect(jsonPath("$.data.evidenceManifests[0].redactionFlags.summaryValuesStored").value(false))
+                .andExpect(jsonPath("$.data.evidenceManifests[0].redactionFlags.unsafeSummaryKeysFiltered").value(true))
+                .andExpect(jsonPath("$.data.evidenceManifests[0].evidenceSummary.nodeKey").value("api-smoke"))
+                .andExpect(jsonPath("$.data.evidenceManifests[0].evidenceSummary.resultSummaryKeyCount").value(3))
                 .andExpect(jsonPath("$.data.latestDiagnosis.status").value("NOT_REQUESTED"))
                 .andExpect(content().string(not(containsString("Bearer"))))
+                .andExpect(content().string(not(containsString("Authorization"))))
                 .andExpect(content().string(not(containsString("secret://"))))
                 .andReturn();
 
@@ -106,7 +117,8 @@ class ReportControllerTest {
                         ))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.id").value(reportId.toString()))
-                .andExpect(jsonPath("$.data.idempotentReplay").value(true));
+                .andExpect(jsonPath("$.data.idempotentReplay").value(true))
+                .andExpect(jsonPath("$.data.evidenceManifests.length()").value(2));
 
         verify(executionRunService).runProjectScopeId(runId);
         verify(executionRunService).exportRun(runId);
@@ -124,7 +136,8 @@ class ReportControllerTest {
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.id").value(reportId.toString()))
-                .andExpect(jsonPath("$.data.redactionPolicy.secretPlaintextStored").value(false));
+                .andExpect(jsonPath("$.data.redactionPolicy.secretPlaintextStored").value(false))
+                .andExpect(jsonPath("$.data.evidenceManifests[1].evidenceSummary.nodeKey").value("report"));
 
         mockMvc.perform(post("/api/v1/reports/{id}/archive", reportId)
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken))
@@ -222,7 +235,11 @@ class ReportControllerTest {
                         "wp6-run-1",
                         "ASSERTION_FAILED",
                         "assertion failed",
-                        Map.of("sanitized", true),
+                        Map.of(
+                                "sanitized", true,
+                                "Authorization", "Bearer abcdefghijklmnop",
+                                "secretToken", "secret://wp10/raw"
+                        ),
                         null,
                         startedAt,
                         startedAt,

@@ -19,14 +19,17 @@ import com.songhg.veri.agent.reporting.application.query.ReportQuery;
 import com.songhg.veri.agent.reporting.application.view.ReportDetailResponse;
 import com.songhg.veri.agent.reporting.application.view.ReportSummaryResponse;
 import com.songhg.veri.agent.reporting.config.ReportingProperties;
+import com.songhg.veri.agent.reporting.domain.ReportEvidenceManifest;
 import com.songhg.veri.agent.reporting.domain.ReportExecutionReport;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -39,6 +42,8 @@ public class ReportService {
             "SUCCEEDED", "PARTIAL_SUCCESS", "FAILED", "CANCELED", "TIMEOUT"
     );
     private static final Set<String> FAILURE_NODE_STATUSES = Set.of("FAILED", "BLOCKED", "TIMEOUT");
+    private static final Pattern UNSAFE_SUMMARY_KEY_PATTERN =
+            Pattern.compile("(?i).*(authorization|cookie|password|passwd|secret|token|credential).*");
 
     private final ReportingRepository repository;
     private final ExecutionRunService executionRunService;
@@ -84,7 +89,11 @@ public class ReportService {
                             request.executionRunId(),
                             request.requestKey()
                     )
-                    .map(report -> responseMapper.toDetail(report, true))
+                    .map(report -> responseMapper.toDetail(
+                            report,
+                            repository.evidenceManifests(report.id()),
+                            true
+                    ))
                     .orElseGet(() -> createReport(request));
         }
         return createReport(request);
@@ -102,7 +111,8 @@ public class ReportService {
 
     @Transactional(readOnly = true)
     public ReportDetailResponse report(UUID id) {
-        return responseMapper.toDetail(requireReport(id), false);
+        ReportExecutionReport report = requireReport(id);
+        return responseMapper.toDetail(report, repository.evidenceManifests(report.id()), false);
     }
 
     @Transactional(noRollbackFor = BusinessException.class)
@@ -118,15 +128,17 @@ public class ReportService {
                 current.requestKey(),
                 "retry"
         );
-        ReportExecutionReport regenerated = reportFromExport(current.id(), request, Instant.now());
+        ReportBundle bundle = reportFromExport(current.id(), request, Instant.now());
+        ReportExecutionReport regenerated = bundle.report();
         repository.updateReport(regenerated);
+        repository.replaceEvidenceManifests(regenerated.id(), bundle.evidenceManifests());
         audit(regenerated, "report.generated", "SUCCESS", Map.of(
                 "retry", true,
                 "schemaVersion", regenerated.schemaVersion(),
                 "sourceRunDigest", regenerated.sourceRunDigest(),
-                "evidenceCount", 0
+                "evidenceCount", bundle.evidenceManifests().size()
         ));
-        return responseMapper.toDetail(regenerated, false);
+        return responseMapper.toDetail(regenerated, bundle.evidenceManifests(), false);
     }
 
     @Transactional(noRollbackFor = BusinessException.class)
@@ -157,7 +169,7 @@ public class ReportService {
         );
         repository.updateReport(archived);
         audit(archived, "report.archived", "SUCCESS", Map.of("status", "ARCHIVED"));
-        return responseMapper.toDetail(archived, false);
+        return responseMapper.toDetail(archived, repository.evidenceManifests(archived.id()), false);
     }
 
     public String reportProjectScopeId(UUID id) {
@@ -166,7 +178,8 @@ public class ReportService {
     }
 
     private ReportDetailResponse createReport(NormalizedGenerateRequest request) {
-        ReportExecutionReport report = reportFromExport(UUID.randomUUID(), request, Instant.now());
+        ReportBundle bundle = reportFromExport(UUID.randomUUID(), request, Instant.now());
+        ReportExecutionReport report = bundle.report();
         boolean inserted = repository.insertReportIfAbsent(report);
         if (!inserted && StringUtils.hasText(request.requestKey())) {
             return repository.reportByProjectRunRequestKey(
@@ -174,18 +187,23 @@ public class ReportService {
                             request.executionRunId(),
                             request.requestKey()
                     )
-                    .map(existing -> responseMapper.toDetail(existing, true))
+                    .map(existing -> responseMapper.toDetail(
+                            existing,
+                            repository.evidenceManifests(existing.id()),
+                            true
+                    ))
                     .orElseThrow(() -> new BusinessException(ErrorCode.CONFLICT, "REPORT_DUPLICATE_REQUEST"));
         }
+        repository.replaceEvidenceManifests(report.id(), bundle.evidenceManifests());
         audit(report, "report.generated", "SUCCESS", Map.of(
                 "schemaVersion", report.schemaVersion(),
                 "sourceRunDigest", report.sourceRunDigest(),
-                "evidenceCount", 0
+                "evidenceCount", bundle.evidenceManifests().size()
         ));
-        return responseMapper.toDetail(report, false);
+        return responseMapper.toDetail(report, bundle.evidenceManifests(), false);
     }
 
-    private ReportExecutionReport reportFromExport(UUID reportId, NormalizedGenerateRequest request, Instant now) {
+    private ReportBundle reportFromExport(UUID reportId, NormalizedGenerateRequest request, Instant now) {
         String sourceProjectId = executionRunService.runProjectScopeId(request.executionRunId());
         if (!sameProject(request.projectId(), sourceProjectId)) {
             throw new BusinessException(ErrorCode.NOT_FOUND, "REPORT_SOURCE_RUN_NOT_FOUND");
@@ -198,7 +216,7 @@ public class ReportService {
         requireSourceReady(run);
         Map<String, Object> summary = reportSummary(export, request);
         Map<String, Object> redactionPolicy = redactionPolicy(export.redactionPolicy());
-        return new ReportExecutionReport(
+        ReportExecutionReport report = new ReportExecutionReport(
                 reportId,
                 request.projectId(),
                 request.executionRunId(),
@@ -217,6 +235,7 @@ public class ReportService {
                 now,
                 now
         );
+        return new ReportBundle(report, evidenceManifests(reportId, export, now));
     }
 
     private void requireSourceReady(ExecutionRunDetailResponse run) {
@@ -260,7 +279,11 @@ public class ReportService {
         summary.put("reportHandoffReady", true);
         summary.put("rawReportStored", false);
         summary.put("generationReasonPresent", StringUtils.hasText(request.reason()));
-        summary.put("evidenceManifestCount", 0);
+        summary.put("evidenceManifestCount", Math.min(
+                run.nodes().size(),
+                properties.effectiveMaxEvidenceItems()
+        ));
+        summary.put("evidenceManifestTruncated", run.nodes().size() > properties.effectiveMaxEvidenceItems());
         summary.put("diagnosisStatus", "NOT_REQUESTED");
         summary.put("defectDraftCount", 0);
         summary.put("exportManifestCount", 0);
@@ -282,6 +305,93 @@ public class ReportService {
         return policy;
     }
 
+    /**
+     * Builds WP10 M3 evidence manifests from the already-sanitized WP9 run export.
+     *
+     * <p>Only node metadata, summary key names, counts and digests are persisted. The node result values, external run
+     * IDs, source reference IDs, error summaries and any raw runner payload stay outside WP10 storage.</p>
+     */
+    private List<ReportEvidenceManifest> evidenceManifests(
+            UUID reportId,
+            ExecutionRunExportResponse export,
+            Instant now
+    ) {
+        List<ExecutionNodeRunResponse> nodes = export.run().nodes();
+        int maxItems = Math.min(nodes.size(), properties.effectiveMaxEvidenceItems());
+        List<ReportEvidenceManifest> manifests = new ArrayList<>(maxItems);
+        for (int index = 0; index < maxItems; index++) {
+            manifests.add(evidenceManifest(reportId, export, nodes.get(index), index, now));
+        }
+        return manifests;
+    }
+
+    private ReportEvidenceManifest evidenceManifest(
+            UUID reportId,
+            ExecutionRunExportResponse export,
+            ExecutionNodeRunResponse node,
+            int index,
+            Instant now
+    ) {
+        Map<String, Object> summary = new LinkedHashMap<>();
+        summary.put("nodeIndex", index);
+        summary.put("nodeKey", SensitiveTextSanitizer.sanitizedEvidenceText(node.nodeKey(), 128));
+        summary.put("nodeType", SensitiveTextSanitizer.sanitizedEvidenceText(node.nodeType(), 64));
+        summary.put("status", node.status());
+        summary.put("attempt", node.attempt());
+        summary.put("runnerType", SensitiveTextSanitizer.sanitizedEvidenceText(node.runnerType(), 64));
+        summary.put("errorCode", SensitiveTextSanitizer.sanitizedEvidenceText(node.errorCode(), 64));
+        summary.put("durationMillis", durationMillis(node.startedAt(), node.finishedAt()));
+        summary.put("resultSummaryKeyCount", node.resultSummary() == null ? 0 : node.resultSummary().size());
+
+        Map<String, Object> redactionFlags = new LinkedHashMap<>();
+        redactionFlags.put("sourceWp9ExportSanitized", true);
+        redactionFlags.put("summaryValuesStored", false);
+        redactionFlags.put("externalRunIdStored", false);
+        redactionFlags.put("errorSummaryStored", false);
+        redactionFlags.put("rawRunnerArtifactStored", false);
+        redactionFlags.put("requestResponseBodyStored", false);
+        redactionFlags.put("secretPlaintextStored", false);
+        redactionFlags.put("unsafeSummaryKeysFiltered", true);
+
+        Map<String, Object> digestSource = new LinkedHashMap<>();
+        digestSource.put("exportSchemaVersion", export.schemaVersion());
+        digestSource.put("runId", export.run().id());
+        digestSource.put("nodeRunId", node.id());
+        digestSource.put("planNodeId", node.planNodeId());
+        digestSource.put("nodeKey", node.nodeKey());
+        digestSource.put("nodeType", node.nodeType());
+        digestSource.put("status", node.status());
+        digestSource.put("attempt", node.attempt());
+        digestSource.put("runnerType", node.runnerType());
+        digestSource.put("errorCode", node.errorCode());
+        digestSource.put("summaryKeys", summaryKeys(node));
+
+        return new ReportEvidenceManifest(
+                UUID.randomUUID(),
+                reportId,
+                "WP9",
+                "EXECUTION_NODE",
+                SensitiveTextSanitizer.sha256Hex(jsonSupport.json(digestSource)),
+                export.schemaVersion(),
+                jsonSupport.json(summaryKeys(node)),
+                jsonSupport.json(redactionFlags),
+                jsonSupport.json(summary),
+                now
+        );
+    }
+
+    private List<String> summaryKeys(ExecutionNodeRunResponse node) {
+        if (node.resultSummary() == null || node.resultSummary().isEmpty()) {
+            return List.of();
+        }
+        return node.resultSummary().keySet().stream()
+                .filter(StringUtils::hasText)
+                .filter(key -> !UNSAFE_SUMMARY_KEY_PATTERN.matcher(key).matches())
+                .map(key -> SensitiveTextSanitizer.boundedText(key, 96))
+                .sorted()
+                .toList();
+    }
+
     private Map<String, Integer> failureBucketCounts(List<ExecutionNodeRunResponse> nodes) {
         return nodes.stream()
                 .filter(node -> FAILURE_NODE_STATUSES.contains(node.status()))
@@ -294,10 +404,14 @@ public class ReportService {
     }
 
     private Long durationMillis(ExecutionRunDetailResponse run) {
-        if (run.startedAt() == null || run.finishedAt() == null) {
+        return durationMillis(run.startedAt(), run.finishedAt());
+    }
+
+    private Long durationMillis(Instant startedAt, Instant finishedAt) {
+        if (startedAt == null || finishedAt == null) {
             return null;
         }
-        return Math.max(0, Duration.between(run.startedAt(), run.finishedAt()).toMillis());
+        return Math.max(0, Duration.between(startedAt, finishedAt).toMillis());
     }
 
     private String sourceDigest(ExecutionRunExportResponse export) {
@@ -381,6 +495,12 @@ public class ReportService {
             UUID executionRunId,
             String requestKey,
             String reason
+    ) {
+    }
+
+    private record ReportBundle(
+            ReportExecutionReport report,
+            List<ReportEvidenceManifest> evidenceManifests
     ) {
     }
 }
