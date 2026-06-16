@@ -46,6 +46,7 @@ public class ReportingHealthService {
                         Map.entry("wp8EvidenceManifestReady", true),
                         Map.entry("evidenceAggregationReady", false),
                         Map.entry("failureClassifierReady", true),
+                        Map.entry("diagnosisApiReady", true),
                         Map.entry("aiDiagnosisReady", false),
                         Map.entry("defectDraftReady", false),
                         Map.entry("exportSummaryReady", false),

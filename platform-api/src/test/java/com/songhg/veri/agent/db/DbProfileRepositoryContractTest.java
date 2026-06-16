@@ -1770,6 +1770,8 @@ class DbProfileRepositoryContractTest {
                 reportId,
                 "TIMEOUT",
                 new BigDecimal("0.7600"),
+                "AI_FAILED",
+                "REPORT_DIAGNOSIS_POLICY_BLOCKED",
                 now.plusSeconds(1)
         );
 
@@ -1781,13 +1783,16 @@ class DbProfileRepositoryContractTest {
                 .get()
                 .satisfies(diagnosis -> {
                     assertThat(diagnosis.id()).isEqualTo(replacement.id());
-                    assertThat(diagnosis.status()).isEqualTo("RULE_READY");
+                    assertThat(diagnosis.status()).isEqualTo("AI_FAILED");
                     assertThat(diagnosis.classificationJson()).contains("\"primaryCategory\": \"TIMEOUT\"");
                     assertThat(diagnosis.confidence()).isEqualByComparingTo("0.7600");
                     assertThat(diagnosis.manualReviewRequired()).isTrue();
                     assertThat(diagnosis.modelInvocationDigest()).isNull();
-                    assertThat(diagnosis.diagnosisSummaryJson()).contains("\"classificationOnly\": true");
-                    assertThat(diagnosis.errorCode()).isEqualTo("TIMEOUT");
+                    assertThat(diagnosis.diagnosisSummaryJson())
+                            .contains("\"classificationOnly\": true")
+                            .contains("\"contextDigest\": \"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"")
+                            .contains("\"rawPromptStored\": false");
+                    assertThat(diagnosis.errorCode()).isEqualTo("REPORT_DIAGNOSIS_POLICY_BLOCKED");
                 });
     }
 
@@ -2524,18 +2529,39 @@ class DbProfileRepositoryContractTest {
             BigDecimal confidence,
             Instant now
     ) {
+        return failureDiagnosis(reportId, primaryCategory, confidence, "RULE_READY", primaryCategory, now);
+    }
+
+    private static ReportFailureDiagnosis failureDiagnosis(
+            UUID reportId,
+            String primaryCategory,
+            BigDecimal confidence,
+            String status,
+            String errorCode,
+            Instant now
+    ) {
         return new ReportFailureDiagnosis(
                 UUID.randomUUID(),
                 reportId,
-                "RULE_READY",
+                status,
                 """
                         {"primaryCategory": "%s", "ruleVersion": "wp10-failure-classifier-v1"}
                         """.formatted(primaryCategory).trim(),
                 null,
                 confidence,
                 true,
-                "{\"classificationOnly\": true, \"rootCauseCandidates\": []}",
-                primaryCategory,
+                """
+                        {
+                          "classificationOnly": true,
+                          "rootCauseCandidates": [],
+                          "diagnosisContext": {
+                            "contextDigest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                            "contextStored": false,
+                            "rawPromptStored": false
+                          }
+                        }
+                        """.trim(),
+                errorCode,
                 now,
                 now
         );

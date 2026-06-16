@@ -1,6 +1,7 @@
 package com.songhg.veri.agent.reporting.application;
 
 import com.songhg.veri.agent.reporting.application.view.ReportDetailResponse;
+import com.songhg.veri.agent.reporting.application.view.ReportDiagnosisResponse;
 import com.songhg.veri.agent.reporting.application.view.ReportEvidenceManifestResponse;
 import com.songhg.veri.agent.reporting.application.view.ReportSummaryResponse;
 import com.songhg.veri.agent.reporting.domain.ReportEvidenceManifest;
@@ -99,24 +100,49 @@ final class ReportResponseMapper {
         );
     }
 
-    private Map<String, Object> toLatestDiagnosis(ReportFailureDiagnosis diagnosis) {
+    ReportDiagnosisResponse toDiagnosis(ReportFailureDiagnosis diagnosis) {
         Map<String, Object> summary = jsonSupport.readMap(diagnosis.diagnosisSummaryJson());
+        return new ReportDiagnosisResponse(
+                diagnosis.id(),
+                diagnosis.reportId(),
+                diagnosis.status(),
+                jsonSupport.readMap(diagnosis.classificationJson()),
+                summary.getOrDefault("rootCauseCandidates", List.of()),
+                diagnosis.confidence(),
+                diagnosis.manualReviewRequired(),
+                diagnosis.modelInvocationDigest(),
+                diagnosis.errorCode(),
+                summary.getOrDefault("aiDiagnosisReady", false),
+                summary.getOrDefault("modelInvoked", false),
+                summary.getOrDefault("classificationOnly", true),
+                summary.getOrDefault("redactionPolicy", Map.of()),
+                summary.get("diagnosisContext"),
+                diagnosis.createdAt(),
+                diagnosis.updatedAt()
+        );
+    }
+
+    private Map<String, Object> toLatestDiagnosis(ReportFailureDiagnosis diagnosis) {
+        ReportDiagnosisResponse diagnosisResponse = toDiagnosis(diagnosis);
         Map<String, Object> response = new LinkedHashMap<>();
-        response.put("id", diagnosis.id());
-        response.put("reportId", diagnosis.reportId());
-        response.put("status", diagnosis.status());
-        response.put("classification", jsonSupport.readMap(diagnosis.classificationJson()));
-        response.put("rootCauseCandidates", summary.getOrDefault("rootCauseCandidates", List.of()));
-        response.put("confidence", diagnosis.confidence());
-        response.put("manualReviewRequired", diagnosis.manualReviewRequired());
-        response.put("modelInvocationDigest", diagnosis.modelInvocationDigest());
-        response.put("errorCode", diagnosis.errorCode());
-        response.put("aiDiagnosisReady", summary.getOrDefault("aiDiagnosisReady", false));
-        response.put("modelInvoked", summary.getOrDefault("modelInvoked", false));
-        response.put("classificationOnly", summary.getOrDefault("classificationOnly", true));
-        response.put("redactionPolicy", summary.getOrDefault("redactionPolicy", Map.of()));
-        response.put("createdAt", diagnosis.createdAt());
-        response.put("updatedAt", diagnosis.updatedAt());
+        response.put("id", diagnosisResponse.id());
+        response.put("reportId", diagnosisResponse.reportId());
+        response.put("status", diagnosisResponse.status());
+        response.put("classification", diagnosisResponse.classification());
+        response.put("rootCauseCandidates", diagnosisResponse.rootCauseCandidates());
+        response.put("confidence", diagnosisResponse.confidence());
+        response.put("manualReviewRequired", diagnosisResponse.manualReviewRequired());
+        response.put("modelInvocationDigest", diagnosisResponse.modelInvocationDigest());
+        response.put("errorCode", diagnosisResponse.errorCode());
+        response.put("aiDiagnosisReady", diagnosisResponse.aiDiagnosisReady());
+        response.put("modelInvoked", diagnosisResponse.modelInvoked());
+        response.put("classificationOnly", diagnosisResponse.classificationOnly());
+        response.put("redactionPolicy", diagnosisResponse.redactionPolicy());
+        if (diagnosisResponse.diagnosisContext() != null) {
+            response.put("diagnosisContext", diagnosisResponse.diagnosisContext());
+        }
+        response.put("createdAt", diagnosisResponse.createdAt());
+        response.put("updatedAt", diagnosisResponse.updatedAt());
         return response;
     }
 }

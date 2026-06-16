@@ -9,6 +9,7 @@ import com.songhg.veri.agent.common.trace.TraceContext;
 import com.songhg.veri.agent.reporting.application.ReportService;
 import com.songhg.veri.agent.reporting.application.command.GenerateReportCommand;
 import com.songhg.veri.agent.reporting.application.query.ReportPageRequest;
+import com.songhg.veri.agent.reporting.application.view.ReportDiagnosisResponse;
 import com.songhg.veri.agent.reporting.application.view.ReportDetailResponse;
 import com.songhg.veri.agent.reporting.application.view.ReportSummaryResponse;
 import jakarta.validation.Valid;
@@ -67,5 +68,17 @@ public class ReportController {
     @RequirePermission(value = PermissionCodes.REPORT_MANAGE, scope = ReportPermissionScopes.REPORT)
     public ReportDetailResponse archiveReport(@PathVariable UUID id) {
         return service.archiveReport(id);
+    }
+
+    @PostMapping("/{id}/diagnoses")
+    @RequirePermission(value = PermissionCodes.REPORT_DIAGNOSE, scope = ReportPermissionScopes.REPORT)
+    public ReportDiagnosisResponse diagnoseReport(@PathVariable UUID id) {
+        return service.diagnoseReport(id);
+    }
+
+    @GetMapping("/{id}/diagnoses/latest")
+    @RequirePermission(value = PermissionCodes.REPORT_READ, scope = ReportPermissionScopes.REPORT)
+    public ReportDiagnosisResponse latestDiagnosis(@PathVariable UUID id) {
+        return service.latestDiagnosis(id);
     }
 }

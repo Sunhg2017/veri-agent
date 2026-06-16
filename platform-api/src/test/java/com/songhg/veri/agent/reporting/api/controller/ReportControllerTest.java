@@ -213,6 +213,46 @@ class ReportControllerTest {
                 .andExpect(jsonPath("$.data.latestDiagnosis.classification.primaryCategory")
                         .value("ASSERTION_FAILED"));
 
+        mockMvc.perform(post("/api/v1/reports/{id}/diagnoses", reportId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.reportId").value(reportId.toString()))
+                .andExpect(jsonPath("$.data.status").value("AI_FAILED"))
+                .andExpect(jsonPath("$.data.errorCode").value("REPORT_DIAGNOSIS_POLICY_BLOCKED"))
+                .andExpect(jsonPath("$.data.classification.primaryCategory").value("ASSERTION_FAILED"))
+                .andExpect(jsonPath("$.data.rootCauseCandidates.length()").value(2))
+                .andExpect(jsonPath("$.data.aiDiagnosisReady").value(false))
+                .andExpect(jsonPath("$.data.modelInvoked").value(false))
+                .andExpect(jsonPath("$.data.classificationOnly").value(true))
+                .andExpect(jsonPath("$.data.modelInvocationDigest").doesNotExist())
+                .andExpect(jsonPath("$.data.diagnosisContext.contextDigest").isString())
+                .andExpect(jsonPath("$.data.diagnosisContext.contextStored").value(false))
+                .andExpect(jsonPath("$.data.diagnosisContext.rawPromptStored").value(false))
+                .andExpect(jsonPath("$.data.diagnosisContext.rawResponseStored").value(false))
+                .andExpect(jsonPath("$.data.redactionPolicy.contextDigestOnly").value(true))
+                .andExpect(content().string(not(containsString("Authorization"))))
+                .andExpect(content().string(not(containsString("secret://"))))
+                .andExpect(content().string(not(containsString(accountLeaseRef.toString()))))
+                .andExpect(content().string(not(containsString("lease-token-plain"))))
+                .andExpect(content().string(not(containsString("execution-run-secret-holder"))))
+                .andExpect(content().string(not(containsString("account-key-secret"))))
+                .andExpect(content().string(not(containsString("Staging Admin"))));
+
+        mockMvc.perform(get("/api/v1/reports/{id}/diagnoses/latest", reportId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.reportId").value(reportId.toString()))
+                .andExpect(jsonPath("$.data.status").value("AI_FAILED"))
+                .andExpect(jsonPath("$.data.errorCode").value("REPORT_DIAGNOSIS_POLICY_BLOCKED"))
+                .andExpect(jsonPath("$.data.diagnosisContext.contextDigest").isString());
+
+        mockMvc.perform(get("/api/v1/reports")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken)
+                        .param("projectId", "project-alpha"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items[0].summary.diagnosisStatus").value("AI_FAILED"))
+                .andExpect(jsonPath("$.data.items[0].summary.diagnosisPrimaryCategory").value("ASSERTION_FAILED"));
+
         mockMvc.perform(post("/api/v1/reports/{id}/archive", reportId)
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken))
                 .andExpect(status().isOk())

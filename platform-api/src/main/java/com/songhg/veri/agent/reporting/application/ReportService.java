@@ -16,6 +16,7 @@ import com.songhg.veri.agent.reporting.application.command.GenerateReportCommand
 import com.songhg.veri.agent.reporting.application.port.ReportingRepository;
 import com.songhg.veri.agent.reporting.application.query.ReportPageRequest;
 import com.songhg.veri.agent.reporting.application.query.ReportQuery;
+import com.songhg.veri.agent.reporting.application.view.ReportDiagnosisResponse;
 import com.songhg.veri.agent.reporting.application.view.ReportDetailResponse;
 import com.songhg.veri.agent.reporting.application.view.ReportSummaryResponse;
 import com.songhg.veri.agent.reporting.config.ReportingProperties;
@@ -210,6 +211,42 @@ public class ReportService {
         );
     }
 
+    @Transactional(noRollbackFor = BusinessException.class)
+    public ReportDiagnosisResponse diagnoseReport(UUID id) {
+        requireDiagnosisEnabled();
+        ReportExecutionReport report = requireReport(id);
+        if (!"READY".equals(report.status())) {
+            throw new BusinessException(ErrorCode.INVALID_STATE, "REPORT_INVALID_STATE");
+        }
+        List<ReportEvidenceManifest> evidenceManifests = repository.evidenceManifests(report.id());
+        ReportFailureDiagnosis ruleDiagnosis = repository.latestFailureDiagnosis(report.id())
+                .filter(diagnosis -> "RULE_READY".equals(diagnosis.status()))
+                .orElseGet(() -> failureClassifier.classify(report.id(), evidenceManifests, Instant.now()));
+        ReportFailureDiagnosis blockedDiagnosis = aiDiagnosisPolicyBlocked(report, evidenceManifests, ruleDiagnosis);
+        audit(report, "report.diagnosis.requested", "BLOCKED", Map.of(
+                "status", "AI_FAILED",
+                "contextDigest", diagnosisContext(blockedDiagnosis).getOrDefault("contextDigest", ""),
+                "modelPurpose", "WP10_FAILURE_DIAGNOSIS",
+                "budgetPolicy", "WP2_PENDING"
+        ));
+        repository.replaceLatestFailureDiagnosis(report.id(), blockedDiagnosis);
+        repository.updateReport(withLatestDiagnosisSummary(report, blockedDiagnosis));
+        audit(report, "report.diagnosis.completed", "AI_FAILED", Map.of(
+                "status", blockedDiagnosis.status(),
+                "errorCode", blockedDiagnosis.errorCode(),
+                "contextDigest", diagnosisContext(blockedDiagnosis).getOrDefault("contextDigest", "")
+        ));
+        return responseMapper.toDiagnosis(blockedDiagnosis);
+    }
+
+    @Transactional(readOnly = true)
+    public ReportDiagnosisResponse latestDiagnosis(UUID id) {
+        ReportExecutionReport report = requireReport(id);
+        return repository.latestFailureDiagnosis(report.id())
+                .map(responseMapper::toDiagnosis)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "REPORT_DIAGNOSIS_NOT_FOUND"));
+    }
+
     public String reportProjectScopeId(UUID id) {
         return repository.reportProjectScopeId(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "REPORT_NOT_FOUND"));
@@ -351,6 +388,197 @@ public class ReportService {
     private String primaryCategory(ReportFailureDiagnosis failureDiagnosis) {
         Object primaryCategory = jsonSupport.readMap(failureDiagnosis.classificationJson()).get("primaryCategory");
         return primaryCategory == null ? "UNKNOWN" : String.valueOf(primaryCategory);
+    }
+
+    /**
+     * Produces the M4B diagnosis downgrade snapshot. The bounded context is only used to derive a digest and safety
+     * metadata; its body is deliberately not persisted so future WP2 wiring cannot accidentally expose raw evidence.
+     */
+    private ReportFailureDiagnosis aiDiagnosisPolicyBlocked(
+            ReportExecutionReport report,
+            List<ReportEvidenceManifest> evidenceManifests,
+            ReportFailureDiagnosis ruleDiagnosis
+    ) {
+        Instant now = Instant.now();
+        Map<String, Object> previousSummary = jsonSupport.readMap(ruleDiagnosis.diagnosisSummaryJson());
+        String context = diagnosisContextBody(report, evidenceManifests, ruleDiagnosis);
+        int maxChars = properties.effectiveMaxDiagnosisContextChars();
+        boolean truncated = context.length() > maxChars;
+        String boundedContext = truncated ? context.substring(0, maxChars) : context;
+
+        Map<String, Object> summary = new LinkedHashMap<>();
+        summary.put("rootCauseCandidates", previousSummary.getOrDefault("rootCauseCandidates", List.of()));
+        summary.put("candidateCount", previousSummary.getOrDefault("candidateCount", 0));
+        summary.put("aiDiagnosisReady", false);
+        summary.put("modelInvoked", false);
+        summary.put("classificationOnly", true);
+        summary.put("fallbackFromRule", true);
+        summary.put("diagnosisContext", Map.of(
+                "contextDigest", SensitiveTextSanitizer.sha256Hex(boundedContext),
+                "contextStored", false,
+                "bounded", true,
+                "truncated", truncated,
+                "maxChars", maxChars,
+                "sourceEvidenceManifestCount", evidenceManifests.size(),
+                "rawPromptStored", false,
+                "rawResponseStored", false
+        ));
+        summary.put("redactionPolicy", Map.of(
+                "aggregateOnly", true,
+                "contextDigestOnly", true,
+                "evidenceValuesStored", false,
+                "rawPromptStored", false,
+                "rawResponseStored", false,
+                "credentialPlaintextStored", false,
+                "modelProviderPayloadStored", false
+        ));
+        summary.put("aiFailure", Map.of(
+                "errorCode", "REPORT_DIAGNOSIS_POLICY_BLOCKED",
+                "reason", "WP2 diagnosis invocation is not enabled in M4B; rule classification remains available."
+        ));
+
+        return new ReportFailureDiagnosis(
+                UUID.randomUUID(),
+                report.id(),
+                "AI_FAILED",
+                ruleDiagnosis.classificationJson(),
+                null,
+                ruleDiagnosis.confidence(),
+                ruleDiagnosis.manualReviewRequired(),
+                jsonSupport.json(summary),
+                "REPORT_DIAGNOSIS_POLICY_BLOCKED",
+                now,
+                now
+        );
+    }
+
+    private String diagnosisContextBody(
+            ReportExecutionReport report,
+            List<ReportEvidenceManifest> evidenceManifests,
+            ReportFailureDiagnosis ruleDiagnosis
+    ) {
+        Map<String, Object> context = new LinkedHashMap<>();
+        context.put("schemaVersion", properties.effectiveSchemaVersion());
+        context.put("contextSchemaVersion", "wp10-diagnosis-context-v1");
+        context.put("report", Map.of(
+                "reportId", report.id(),
+                "projectId", report.projectId(),
+                "executionRunId", report.executionRunId(),
+                "status", report.status(),
+                "summary", safeContextMap(jsonSupport.readMap(report.reportSummaryJson()))
+        ));
+        context.put("classification", jsonSupport.readMap(ruleDiagnosis.classificationJson()));
+        context.put("evidenceManifests", evidenceManifests.stream()
+                .map(this::safeDiagnosisEvidence)
+                .toList());
+        context.put("policy", Map.of(
+                "aggregateOnly", true,
+                "rawRunnerArtifactIncluded", false,
+                "rawPromptIncluded", false,
+                "rawResponseIncluded", false,
+                "secretPlaintextIncluded", false,
+                "sourceRefPlaintextIncluded", false
+        ));
+        return jsonSupport.json(context);
+    }
+
+    private Map<String, Object> safeDiagnosisEvidence(ReportEvidenceManifest manifest) {
+        Map<String, Object> evidence = new LinkedHashMap<>();
+        evidence.put("sourceWp", manifest.sourceWp());
+        evidence.put("sourceType", manifest.sourceType());
+        evidence.put("sourceRefDigest", manifest.sourceRefDigest());
+        evidence.put("schemaVersion", manifest.schemaVersion());
+        evidence.put("summaryKeys", safeContextKeys(jsonSupport.readStringList(manifest.summaryKeysJson())));
+        evidence.put("summary", safeContextMap(jsonSupport.readMap(manifest.evidenceSummaryJson())));
+        evidence.put("redactionFlags", safeContextMap(jsonSupport.readMap(manifest.redactionFlagsJson())));
+        return evidence;
+    }
+
+    private Map<String, Object> safeContextMap(Map<String, Object> source) {
+        Map<String, Object> safe = new LinkedHashMap<>();
+        source.forEach((key, value) -> {
+            if (safeContextKey(key)) {
+                safe.put(key, safeContextValue(value));
+            }
+        });
+        return safe;
+    }
+
+    private Object safeContextValue(Object value) {
+        if (value instanceof Map<?, ?> mapValue) {
+            Map<String, Object> nested = new LinkedHashMap<>();
+            mapValue.forEach((key, nestedValue) -> {
+                String textKey = key == null ? null : String.valueOf(key);
+                if (safeContextKey(textKey)) {
+                    nested.put(textKey, safeContextValue(nestedValue));
+                }
+            });
+            return nested;
+        }
+        if (value instanceof Iterable<?> values) {
+            List<Object> safeValues = new ArrayList<>();
+            for (Object item : values) {
+                safeValues.add(safeContextValue(item));
+            }
+            return safeValues;
+        }
+        if (value instanceof Number || value instanceof Boolean) {
+            return value;
+        }
+        return safeEvidenceText(value == null ? null : String.valueOf(value), 128);
+    }
+
+    private List<String> safeContextKeys(List<String> keys) {
+        return keys.stream()
+                .filter(this::safeContextKey)
+                .toList();
+    }
+
+    private boolean safeContextKey(String key) {
+        return StringUtils.hasText(key) && !UNSAFE_SUMMARY_KEY_PATTERN.matcher(key).matches();
+    }
+
+    private Map<String, Object> diagnosisContext(ReportFailureDiagnosis diagnosis) {
+        Object context = jsonSupport.readMap(diagnosis.diagnosisSummaryJson()).get("diagnosisContext");
+        return context instanceof Map<?, ?> map
+                ? map.entrySet().stream()
+                        .collect(Collectors.toMap(
+                                entry -> String.valueOf(entry.getKey()),
+                                Map.Entry::getValue,
+                                (left, ignored) -> left,
+                                LinkedHashMap::new
+                        ))
+                : Map.of();
+    }
+
+    private ReportExecutionReport withLatestDiagnosisSummary(
+            ReportExecutionReport report,
+            ReportFailureDiagnosis diagnosis
+    ) {
+        Map<String, Object> summary = new LinkedHashMap<>(jsonSupport.readMap(report.reportSummaryJson()));
+        summary.put("diagnosisStatus", diagnosis.status());
+        summary.put("diagnosisRuleVersion", RuleFailureClassifier.RULE_VERSION);
+        summary.put("diagnosisPrimaryCategory", primaryCategory(diagnosis));
+        summary.put("diagnosisManualReviewRequired", diagnosis.manualReviewRequired());
+        return new ReportExecutionReport(
+                report.id(),
+                report.projectId(),
+                report.executionRunId(),
+                report.requestKey(),
+                report.status(),
+                report.schemaVersion(),
+                report.sourceRunDigest(),
+                jsonSupport.json(summary),
+                report.redactionPolicyJson(),
+                report.generatedBy(),
+                report.generatedAt(),
+                report.failedCode(),
+                report.failureSummary(),
+                report.traceId(),
+                report.archivedAt(),
+                report.createdAt(),
+                Instant.now()
+        );
     }
 
     private Map<String, Object> redactionPolicy(Map<String, Object> wp9Policy) {
@@ -812,6 +1040,15 @@ public class ReportService {
         }
         if (!properties.generateEnabled()) {
             throw new BusinessException(ErrorCode.INVALID_STATE, "REPORT_GENERATE_DISABLED");
+        }
+    }
+
+    private void requireDiagnosisEnabled() {
+        if (!properties.enabled()) {
+            throw new BusinessException(ErrorCode.INVALID_STATE, "REPORT_DISABLED");
+        }
+        if (!properties.diagnosisEnabled()) {
+            throw new BusinessException(ErrorCode.INVALID_STATE, "REPORT_DIAGNOSIS_DISABLED");
         }
     }
 

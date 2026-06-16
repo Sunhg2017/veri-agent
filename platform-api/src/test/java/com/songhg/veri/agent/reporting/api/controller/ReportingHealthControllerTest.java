@@ -56,6 +56,7 @@ class ReportingHealthControllerTest {
                 .andExpect(jsonPath("$.data.policy.wp8EvidenceManifestReady").value(true))
                 .andExpect(jsonPath("$.data.policy.evidenceAggregationReady").value(false))
                 .andExpect(jsonPath("$.data.policy.failureClassifierReady").value(true))
+                .andExpect(jsonPath("$.data.policy.diagnosisApiReady").value(true))
                 .andExpect(jsonPath("$.data.policy.aiDiagnosisReady").value(false))
                 .andExpect(jsonPath("$.data.policy.defectDraftReady").value(false))
                 .andExpect(jsonPath("$.data.policy.exportSummaryReady").value(false))
