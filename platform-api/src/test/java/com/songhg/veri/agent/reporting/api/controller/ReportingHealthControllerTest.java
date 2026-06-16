@@ -53,6 +53,7 @@ class ReportingHealthControllerTest {
                 .andExpect(jsonPath("$.data.policy.reportArchiveReady").value(true))
                 .andExpect(jsonPath("$.data.policy.reportRetryReady").value(true))
                 .andExpect(jsonPath("$.data.policy.wp9EvidenceManifestReady").value(true))
+                .andExpect(jsonPath("$.data.policy.wp8EvidenceManifestReady").value(true))
                 .andExpect(jsonPath("$.data.policy.evidenceAggregationReady").value(false))
                 .andExpect(jsonPath("$.data.policy.aiDiagnosisReady").value(false))
                 .andExpect(jsonPath("$.data.policy.defectDraftReady").value(false))

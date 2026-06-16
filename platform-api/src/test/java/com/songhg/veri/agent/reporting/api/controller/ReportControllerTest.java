@@ -8,6 +8,10 @@ import com.songhg.veri.agent.execution.application.ExecutionRunService;
 import com.songhg.veri.agent.execution.application.view.ExecutionNodeRunResponse;
 import com.songhg.veri.agent.execution.application.view.ExecutionRunDetailResponse;
 import com.songhg.veri.agent.execution.application.view.ExecutionRunExportResponse;
+import com.songhg.veri.agent.testdata.application.TestDataCrossWpReferenceService;
+import com.songhg.veri.agent.testdata.application.command.TestDataReportEvidenceQuery;
+import com.songhg.veri.agent.testdata.application.view.TestDataCrossWpAccountSummary;
+import com.songhg.veri.agent.testdata.application.view.TestDataReportEvidenceResponse;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -26,6 +30,8 @@ import org.springframework.test.web.servlet.MvcResult;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -56,11 +62,18 @@ class ReportControllerTest {
     @MockitoBean
     private ExecutionRunService executionRunService;
 
+    @MockitoBean
+    private TestDataCrossWpReferenceService testDataCrossWpReferenceService;
+
     @Test
     void generatesListsDetailsAndArchivesReportFromSanitizedRunExport() throws Exception {
         UUID runId = UUID.randomUUID();
+        UUID accountLeaseRef = UUID.randomUUID();
         when(executionRunService.runProjectScopeId(runId)).thenReturn("project-alpha");
-        when(executionRunService.exportRun(runId)).thenReturn(runExport(runId, "project-alpha", "FAILED", true));
+        when(executionRunService.exportRun(runId))
+                .thenReturn(runExport(runId, "project-alpha", "FAILED", true, accountLeaseRef));
+        when(testDataCrossWpReferenceService.reportEvidence(any(TestDataReportEvidenceQuery.class)))
+                .thenReturn(wp8Evidence(accountLeaseRef));
         String ownerToken = userAccessToken(List.of("ProjectOwner@PROJECT:project-alpha"));
 
         MvcResult created = mockMvc.perform(post("/api/v1/reports")
@@ -85,23 +98,44 @@ class ReportControllerTest {
                 .andExpect(jsonPath("$.data.summary.rawReportStored").value(false))
                 .andExpect(jsonPath("$.data.summary.nodeStatusCounts.FAILED").value(1))
                 .andExpect(jsonPath("$.data.summary.failureBucketCounts.ASSERTION_FAILED").value(1))
-                .andExpect(jsonPath("$.data.summary.evidenceManifestCount").value(2))
+                .andExpect(jsonPath("$.data.summary.evidenceManifestCount").value(3))
                 .andExpect(jsonPath("$.data.summary.evidenceManifestTruncated").value(false))
+                .andExpect(jsonPath("$.data.summary.wp8EvidenceReferenceCount").value(1))
+                .andExpect(jsonPath("$.data.summary.wp8EvidenceManifestCount").value(1))
+                .andExpect(jsonPath("$.data.summary.wp8EvidenceReferenceTruncated").value(false))
                 .andExpect(jsonPath("$.data.redactionPolicy.aggregateOnly").value(true))
                 .andExpect(jsonPath("$.data.redactionPolicy.crossWpDirectTableReadAllowed").value(false))
-                .andExpect(jsonPath("$.data.evidenceManifests.length()").value(2))
+                .andExpect(jsonPath("$.data.evidenceManifests.length()").value(3))
                 .andExpect(jsonPath("$.data.evidenceManifests[0].sourceWp").value("WP9"))
                 .andExpect(jsonPath("$.data.evidenceManifests[0].sourceType").value("EXECUTION_NODE"))
                 .andExpect(jsonPath("$.data.evidenceManifests[0].sourceRefDigest").isString())
-                .andExpect(jsonPath("$.data.evidenceManifests[0].summaryKeys[0]").value("sanitized"))
+                .andExpect(jsonPath("$.data.evidenceManifests[0].summaryKeys[0]").value("accountLeaseRef"))
+                .andExpect(jsonPath("$.data.evidenceManifests[0].summaryKeys[1]").value("sanitized"))
                 .andExpect(jsonPath("$.data.evidenceManifests[0].redactionFlags.summaryValuesStored").value(false))
                 .andExpect(jsonPath("$.data.evidenceManifests[0].redactionFlags.unsafeSummaryKeysFiltered").value(true))
                 .andExpect(jsonPath("$.data.evidenceManifests[0].evidenceSummary.nodeKey").value("api-smoke"))
-                .andExpect(jsonPath("$.data.evidenceManifests[0].evidenceSummary.resultSummaryKeyCount").value(3))
+                .andExpect(jsonPath("$.data.evidenceManifests[0].evidenceSummary.resultSummaryKeyCount").value(4))
+                .andExpect(jsonPath("$.data.evidenceManifests[2].sourceWp").value("WP8"))
+                .andExpect(jsonPath("$.data.evidenceManifests[2].sourceType").value("ACCOUNT_LEASE"))
+                .andExpect(jsonPath("$.data.evidenceManifests[2].schemaVersion").value("wp8-report-evidence-v1"))
+                .andExpect(jsonPath("$.data.evidenceManifests[2].summaryKeys[0]").value("accountLeaseRefDigest"))
+                .andExpect(jsonPath("$.data.evidenceManifests[2].redactionFlags.sourceWp8ReportEvidenceSanitized").value(true))
+                .andExpect(jsonPath("$.data.evidenceManifests[2].redactionFlags.secretRefPlaintextStored").value(false))
+                .andExpect(jsonPath("$.data.evidenceManifests[2].redactionFlags.leaseTokenStored").value(false))
+                .andExpect(jsonPath("$.data.evidenceManifests[2].evidenceSummary.accountLeaseRefDigest").isString())
+                .andExpect(jsonPath("$.data.evidenceManifests[2].evidenceSummary.holderRefDigest").isString())
+                .andExpect(jsonPath("$.data.evidenceManifests[2].evidenceSummary.accountScopeSummaryKeys[0]")
+                        .value("applicationId"))
+                .andExpect(jsonPath("$.data.evidenceManifests[2].evidenceSummary.secretRefDigest").value("a".repeat(64)))
                 .andExpect(jsonPath("$.data.latestDiagnosis.status").value("NOT_REQUESTED"))
                 .andExpect(content().string(not(containsString("Bearer"))))
                 .andExpect(content().string(not(containsString("Authorization"))))
                 .andExpect(content().string(not(containsString("secret://"))))
+                .andExpect(content().string(not(containsString(accountLeaseRef.toString()))))
+                .andExpect(content().string(not(containsString("lease-token-plain"))))
+                .andExpect(content().string(not(containsString("execution-run-secret-holder"))))
+                .andExpect(content().string(not(containsString("account-key-secret"))))
+                .andExpect(content().string(not(containsString("Staging Admin"))))
                 .andReturn();
 
         UUID reportId = UUID.fromString(JsonPath.read(created.getResponse().getContentAsString(), "$.data.id"));
@@ -118,11 +152,18 @@ class ReportControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.id").value(reportId.toString()))
                 .andExpect(jsonPath("$.data.idempotentReplay").value(true))
-                .andExpect(jsonPath("$.data.evidenceManifests.length()").value(2));
+                .andExpect(jsonPath("$.data.evidenceManifests.length()").value(3));
 
         verify(executionRunService).runProjectScopeId(runId);
         verify(executionRunService).exportRun(runId);
         verifyNoMoreInteractions(executionRunService);
+        verify(testDataCrossWpReferenceService).reportEvidence(argThat(query ->
+                "project-alpha".equals(query.projectId())
+                        && List.of(accountLeaseRef).equals(query.accountLeaseRefs())
+                        && query.dataSetRefs().isEmpty()
+                        && query.cleanupTaskRefs().isEmpty()
+        ));
+        verifyNoMoreInteractions(testDataCrossWpReferenceService);
 
         mockMvc.perform(get("/api/v1/reports")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken)
@@ -221,6 +262,16 @@ class ReportControllerTest {
             String status,
             boolean handoffReady
     ) {
+        return runExport(runId, projectId, status, handoffReady, null);
+    }
+
+    private ExecutionRunExportResponse runExport(
+            UUID runId,
+            String projectId,
+            String status,
+            boolean handoffReady,
+            UUID accountLeaseRef
+    ) {
         Instant startedAt = Instant.parse("2026-06-16T10:00:00Z");
         Instant finishedAt = Instant.parse("2026-06-16T10:01:35Z");
         List<ExecutionNodeRunResponse> nodes = List.of(
@@ -235,11 +286,7 @@ class ReportControllerTest {
                         "wp6-run-1",
                         "ASSERTION_FAILED",
                         "assertion failed",
-                        Map.of(
-                                "sanitized", true,
-                                "Authorization", "Bearer abcdefghijklmnop",
-                                "secretToken", "secret://wp10/raw"
-                        ),
+                        apiNodeSummary(accountLeaseRef),
                         null,
                         startedAt,
                         startedAt,
@@ -304,6 +351,59 @@ class ReportControllerTest {
                         "rawRequestResponseExported", false,
                         "secretRefsExported", false,
                         "claimTokenExported", false
+                )
+        );
+    }
+
+    private Map<String, Object> apiNodeSummary(UUID accountLeaseRef) {
+        if (accountLeaseRef == null) {
+            return Map.of(
+                    "sanitized", true,
+                    "Authorization", "Bearer abcdefghijklmnop",
+                    "secretToken", "secret://wp10/raw"
+            );
+        }
+        return Map.of(
+                "sanitized", true,
+                "accountLeaseRef", accountLeaseRef.toString(),
+                "Authorization", "Bearer abcdefghijklmnop",
+                "secretToken", "secret://wp10/raw"
+        );
+    }
+
+    private TestDataReportEvidenceResponse wp8Evidence(UUID accountLeaseRef) {
+        return new TestDataReportEvidenceResponse(
+                "project-alpha",
+                "report-ref",
+                List.of(),
+                List.of(new TestDataReportEvidenceResponse.AccountLeaseEvidence(
+                        accountLeaseRef,
+                        "RELEASED",
+                        "EXECUTION_RUN",
+                        "execution-run-secret-holder",
+                        Instant.parse("2026-06-16T10:10:00Z"),
+                        Instant.parse("2026-06-16T10:02:30Z"),
+                        new TestDataCrossWpAccountSummary(
+                                UUID.randomUUID(),
+                                UUID.randomUUID(),
+                                "project-alpha",
+                                "account-key-secret",
+                                "Staging Admin",
+                                "LOCKED",
+                                List.of("ADMIN"),
+                                Map.of(
+                                        "applicationId", "app-alpha",
+                                        "passwordHint", "do-not-store"
+                                ),
+                                "a".repeat(64),
+                                "HEALTHY"
+                        )
+                )),
+                List.of(),
+                Map.of(
+                        "secretPlaintextReturned", false,
+                        "secretRefPlaintextReturned", false,
+                        "leaseTokenPlaintextReturned", false
                 )
         );
     }
