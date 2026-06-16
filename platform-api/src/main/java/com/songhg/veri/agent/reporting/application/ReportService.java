@@ -12,6 +12,7 @@ import com.songhg.veri.agent.execution.application.view.ExecutionNodeRunResponse
 import com.songhg.veri.agent.execution.application.view.ExecutionRunDetailResponse;
 import com.songhg.veri.agent.execution.application.view.ExecutionRunExportResponse;
 import com.songhg.veri.agent.integration.application.view.PlatformContext;
+import com.songhg.veri.agent.modelaccess.application.ModelInvocationService;
 import com.songhg.veri.agent.reporting.application.command.GenerateReportCommand;
 import com.songhg.veri.agent.reporting.application.port.ReportingRepository;
 import com.songhg.veri.agent.reporting.application.query.ReportPageRequest;
@@ -66,11 +67,14 @@ public class ReportService {
     private final ReportingJsonSupport jsonSupport;
     private final ReportResponseMapper responseMapper;
     private final RuleFailureClassifier failureClassifier;
+    private final ReportDiagnosisContextBuilder diagnosisContextBuilder;
+    private final ReportDiagnosisAiInvoker diagnosisAiInvoker;
 
     public ReportService(
             ReportingRepository repository,
             ExecutionRunService executionRunService,
             ObjectProvider<TestDataCrossWpReferenceService> testDataServices,
+            ObjectProvider<ModelInvocationService> modelInvocationServices,
             ReportingProperties properties,
             ReportingActorResolver actorResolver,
             ReportingPlatformContextClient contextClient,
@@ -86,6 +90,8 @@ public class ReportService {
         this.jsonSupport = new ReportingJsonSupport(objectMapper);
         this.responseMapper = new ReportResponseMapper(jsonSupport);
         this.failureClassifier = new RuleFailureClassifier(jsonSupport);
+        this.diagnosisContextBuilder = new ReportDiagnosisContextBuilder(properties, jsonSupport);
+        this.diagnosisAiInvoker = new ReportDiagnosisAiInvoker(modelInvocationServices, actorResolver);
     }
 
     /**
@@ -222,21 +228,26 @@ public class ReportService {
         ReportFailureDiagnosis ruleDiagnosis = repository.latestFailureDiagnosis(report.id())
                 .filter(diagnosis -> "RULE_READY".equals(diagnosis.status()))
                 .orElseGet(() -> failureClassifier.classify(report.id(), evidenceManifests, Instant.now()));
-        ReportFailureDiagnosis blockedDiagnosis = aiDiagnosisPolicyBlocked(report, evidenceManifests, ruleDiagnosis);
-        audit(report, "report.diagnosis.requested", "BLOCKED", Map.of(
-                "status", "AI_FAILED",
-                "contextDigest", diagnosisContext(blockedDiagnosis).getOrDefault("contextDigest", ""),
+        ReportDiagnosisContextBuilder.DiagnosisContext diagnosisContext =
+                diagnosisContextBuilder.build(report, evidenceManifests, ruleDiagnosis);
+        audit(report, "report.diagnosis.requested", "REQUESTED", Map.of(
+                "status", "AI_RUNNING",
+                "contextDigest", diagnosisContext.responseMetadata().getOrDefault("contextDigest", ""),
                 "modelPurpose", "WP10_FAILURE_DIAGNOSIS",
-                "budgetPolicy", "WP2_PENDING"
+                "budgetPolicy", "WP2_CONTROLLED"
         ));
-        repository.replaceLatestFailureDiagnosis(report.id(), blockedDiagnosis);
-        repository.updateReport(withLatestDiagnosisSummary(report, blockedDiagnosis));
-        audit(report, "report.diagnosis.completed", "AI_FAILED", Map.of(
-                "status", blockedDiagnosis.status(),
-                "errorCode", blockedDiagnosis.errorCode(),
-                "contextDigest", diagnosisContext(blockedDiagnosis).getOrDefault("contextDigest", "")
+        ReportDiagnosisAiInvoker.DiagnosisInvocationOutcome outcome =
+                diagnosisAiInvoker.invoke(report, diagnosisContext);
+        ReportFailureDiagnosis diagnosis = aiDiagnosis(report, ruleDiagnosis, diagnosisContext, outcome);
+        repository.replaceLatestFailureDiagnosis(report.id(), diagnosis);
+        repository.updateReport(withLatestDiagnosisSummary(report, diagnosis));
+        audit(report, "report.diagnosis.completed", diagnosis.status(), Map.of(
+                "status", diagnosis.status(),
+                "errorCode", diagnosis.errorCode() == null ? "" : diagnosis.errorCode(),
+                "contextDigest", diagnosisContext.responseMetadata().getOrDefault("contextDigest", ""),
+                "modelInvocationDigest", diagnosis.modelInvocationDigest() == null ? "" : diagnosis.modelInvocationDigest()
         ));
-        return responseMapper.toDiagnosis(blockedDiagnosis);
+        return responseMapper.toDiagnosis(diagnosis);
     }
 
     @Transactional(readOnly = true)
@@ -390,39 +401,23 @@ public class ReportService {
         return primaryCategory == null ? "UNKNOWN" : String.valueOf(primaryCategory);
     }
 
-    /**
-     * Produces the M4B diagnosis downgrade snapshot. The bounded context is only used to derive a digest and safety
-     * metadata; its body is deliberately not persisted so future WP2 wiring cannot accidentally expose raw evidence.
-     */
-    private ReportFailureDiagnosis aiDiagnosisPolicyBlocked(
+    private ReportFailureDiagnosis aiDiagnosis(
             ReportExecutionReport report,
-            List<ReportEvidenceManifest> evidenceManifests,
-            ReportFailureDiagnosis ruleDiagnosis
+            ReportFailureDiagnosis ruleDiagnosis,
+            ReportDiagnosisContextBuilder.DiagnosisContext diagnosisContext,
+            ReportDiagnosisAiInvoker.DiagnosisInvocationOutcome outcome
     ) {
         Instant now = Instant.now();
         Map<String, Object> previousSummary = jsonSupport.readMap(ruleDiagnosis.diagnosisSummaryJson());
-        String context = diagnosisContextBody(report, evidenceManifests, ruleDiagnosis);
-        int maxChars = properties.effectiveMaxDiagnosisContextChars();
-        boolean truncated = context.length() > maxChars;
-        String boundedContext = truncated ? context.substring(0, maxChars) : context;
 
         Map<String, Object> summary = new LinkedHashMap<>();
         summary.put("rootCauseCandidates", previousSummary.getOrDefault("rootCauseCandidates", List.of()));
         summary.put("candidateCount", previousSummary.getOrDefault("candidateCount", 0));
-        summary.put("aiDiagnosisReady", false);
-        summary.put("modelInvoked", false);
-        summary.put("classificationOnly", true);
+        summary.put("aiDiagnosisReady", outcome.ready());
+        summary.put("modelInvoked", outcome.ready());
+        summary.put("classificationOnly", !outcome.ready());
         summary.put("fallbackFromRule", true);
-        summary.put("diagnosisContext", Map.of(
-                "contextDigest", SensitiveTextSanitizer.sha256Hex(boundedContext),
-                "contextStored", false,
-                "bounded", true,
-                "truncated", truncated,
-                "maxChars", maxChars,
-                "sourceEvidenceManifestCount", evidenceManifests.size(),
-                "rawPromptStored", false,
-                "rawResponseStored", false
-        ));
+        summary.put("diagnosisContext", diagnosisContext.responseMetadata());
         summary.put("redactionPolicy", Map.of(
                 "aggregateOnly", true,
                 "contextDigestOnly", true,
@@ -432,110 +427,33 @@ public class ReportService {
                 "credentialPlaintextStored", false,
                 "modelProviderPayloadStored", false
         ));
-        summary.put("aiFailure", Map.of(
-                "errorCode", "REPORT_DIAGNOSIS_POLICY_BLOCKED",
-                "reason", "WP2 diagnosis invocation is not enabled in M4B; rule classification remains available."
-        ));
+        if (outcome.ready()) {
+            summary.put("aiSummary", Map.of(
+                    "modelOutputStored", false,
+                    "manualReviewRequired", true,
+                    "modelMetadata", outcome.modelMetadata()
+            ));
+        } else {
+            summary.put("aiFailure", Map.of(
+                    "errorCode", outcome.errorCode(),
+                    "wp2ErrorCode", outcome.wp2ErrorCode() == null ? "" : outcome.wp2ErrorCode(),
+                    "reason", outcome.failureReason()
+            ));
+        }
 
         return new ReportFailureDiagnosis(
                 UUID.randomUUID(),
                 report.id(),
-                "AI_FAILED",
+                outcome.ready() ? "AI_READY" : "AI_FAILED",
                 ruleDiagnosis.classificationJson(),
-                null,
+                outcome.modelInvocationDigest(),
                 ruleDiagnosis.confidence(),
-                ruleDiagnosis.manualReviewRequired(),
+                outcome.ready() || ruleDiagnosis.manualReviewRequired(),
                 jsonSupport.json(summary),
-                "REPORT_DIAGNOSIS_POLICY_BLOCKED",
+                outcome.errorCode(),
                 now,
                 now
         );
-    }
-
-    private String diagnosisContextBody(
-            ReportExecutionReport report,
-            List<ReportEvidenceManifest> evidenceManifests,
-            ReportFailureDiagnosis ruleDiagnosis
-    ) {
-        Map<String, Object> context = new LinkedHashMap<>();
-        context.put("schemaVersion", properties.effectiveSchemaVersion());
-        context.put("contextSchemaVersion", "wp10-diagnosis-context-v1");
-        context.put("report", Map.of(
-                "reportId", report.id(),
-                "projectId", report.projectId(),
-                "executionRunId", report.executionRunId(),
-                "status", report.status(),
-                "summary", safeContextMap(jsonSupport.readMap(report.reportSummaryJson()))
-        ));
-        context.put("classification", jsonSupport.readMap(ruleDiagnosis.classificationJson()));
-        context.put("evidenceManifests", evidenceManifests.stream()
-                .map(this::safeDiagnosisEvidence)
-                .toList());
-        context.put("policy", Map.of(
-                "aggregateOnly", true,
-                "rawRunnerArtifactIncluded", false,
-                "rawPromptIncluded", false,
-                "rawResponseIncluded", false,
-                "secretPlaintextIncluded", false,
-                "sourceRefPlaintextIncluded", false
-        ));
-        return jsonSupport.json(context);
-    }
-
-    private Map<String, Object> safeDiagnosisEvidence(ReportEvidenceManifest manifest) {
-        Map<String, Object> evidence = new LinkedHashMap<>();
-        evidence.put("sourceWp", manifest.sourceWp());
-        evidence.put("sourceType", manifest.sourceType());
-        evidence.put("sourceRefDigest", manifest.sourceRefDigest());
-        evidence.put("schemaVersion", manifest.schemaVersion());
-        evidence.put("summaryKeys", safeContextKeys(jsonSupport.readStringList(manifest.summaryKeysJson())));
-        evidence.put("summary", safeContextMap(jsonSupport.readMap(manifest.evidenceSummaryJson())));
-        evidence.put("redactionFlags", safeContextMap(jsonSupport.readMap(manifest.redactionFlagsJson())));
-        return evidence;
-    }
-
-    private Map<String, Object> safeContextMap(Map<String, Object> source) {
-        Map<String, Object> safe = new LinkedHashMap<>();
-        source.forEach((key, value) -> {
-            if (safeContextKey(key)) {
-                safe.put(key, safeContextValue(value));
-            }
-        });
-        return safe;
-    }
-
-    private Object safeContextValue(Object value) {
-        if (value instanceof Map<?, ?> mapValue) {
-            Map<String, Object> nested = new LinkedHashMap<>();
-            mapValue.forEach((key, nestedValue) -> {
-                String textKey = key == null ? null : String.valueOf(key);
-                if (safeContextKey(textKey)) {
-                    nested.put(textKey, safeContextValue(nestedValue));
-                }
-            });
-            return nested;
-        }
-        if (value instanceof Iterable<?> values) {
-            List<Object> safeValues = new ArrayList<>();
-            for (Object item : values) {
-                safeValues.add(safeContextValue(item));
-            }
-            return safeValues;
-        }
-        if (value instanceof Number || value instanceof Boolean) {
-            return value;
-        }
-        return safeEvidenceText(value == null ? null : String.valueOf(value), 128);
-    }
-
-    private List<String> safeContextKeys(List<String> keys) {
-        return keys.stream()
-                .filter(this::safeContextKey)
-                .toList();
-    }
-
-    private boolean safeContextKey(String key) {
-        return StringUtils.hasText(key) && !UNSAFE_SUMMARY_KEY_PATTERN.matcher(key).matches();
     }
 
     private Map<String, Object> diagnosisContext(ReportFailureDiagnosis diagnosis) {

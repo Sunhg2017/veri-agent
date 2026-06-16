@@ -23,6 +23,7 @@ public class LocalEchoModelProviderClient implements ModelProviderClient {
     private static final String WP4_PARSE_MARKER = "WP4_REQUIREMENT_EXTRACTION_V1";
     private static final String WP5_TEST_DESIGN_MARKER = "WP5_TEST_DESIGN_GENERATION_V1";
     private static final String WP6_API_AUTOMATION_MARKER = "WP6_API_AUTOMATION_GENERATION_V1";
+    private static final String WP10_FAILURE_DIAGNOSIS_MARKER = "WP10_FAILURE_DIAGNOSIS_V1";
     private static final Pattern MARKDOWN_HEADING = Pattern.compile("^#{1,6}\\s+(.+)$");
     private static final Pattern PRIORITY_LINE = Pattern.compile("(?i)^(priority|优先级)\\s*[:：]\\s*(.+)$");
     private static final Pattern ACCEPTANCE_START = Pattern.compile("(?i)^(acceptance\\s*criteria|验收标准)\\s*[:：]?\\s*(.*)$");
@@ -58,6 +59,12 @@ public class LocalEchoModelProviderClient implements ModelProviderClient {
             int outputTokens = estimateTokens(content);
             return new ProviderCallResult(content, inputTokens, outputTokens);
         }
+        if (containsWp10FailureDiagnosisMarker(request)) {
+            String content = wp10FailureDiagnosisResponse(request.messageText());
+            int inputTokens = estimateTokens(request.prompt()) + estimateTokens(request.messageText());
+            int outputTokens = estimateTokens(content);
+            return new ProviderCallResult(content, inputTokens, outputTokens);
+        }
         String content = "local model response: " + firstNonBlank(request.messageText(), request.prompt());
         int inputTokens = estimateTokens(request.prompt()) + estimateTokens(request.messageText());
         int outputTokens = estimateTokens(content);
@@ -76,6 +83,11 @@ public class LocalEchoModelProviderClient implements ModelProviderClient {
     private boolean containsWp6ApiAutomationMarker(ProviderCallRequest request) {
         return contains(request.prompt(), WP6_API_AUTOMATION_MARKER)
                 || contains(request.messageText(), WP6_API_AUTOMATION_MARKER);
+    }
+
+    private boolean containsWp10FailureDiagnosisMarker(ProviderCallRequest request) {
+        return contains(request.prompt(), WP10_FAILURE_DIAGNOSIS_MARKER)
+                || contains(request.messageText(), WP10_FAILURE_DIAGNOSIS_MARKER);
     }
 
     private String wp4RequirementParseResponse(String messageText) {
@@ -208,6 +220,39 @@ public class LocalEchoModelProviderClient implements ModelProviderClient {
         ));
         item.put("rationale", "覆盖 " + method + " " + path + " 的 " + normalizedCoverage + " 场景");
         return item;
+    }
+
+    private String wp10FailureDiagnosisResponse(String messageText) {
+        try {
+            JsonNode payload = objectMapper.readTree(stripRolePrefix(messageText));
+            JsonNode classification = payload.path("classification");
+            String primaryCategory = firstText(text(classification, "primaryCategory"), "UNKNOWN");
+            return objectMapper.writeValueAsString(Map.of(
+                    "schemaVersion", "wp10-diagnosis-result-v1",
+                    "summary", "Local echo diagnosis for " + primaryCategory,
+                    "rootCauseCandidates", List.of(Map.of(
+                            "category", primaryCategory,
+                            "summary", "Aggregate evidence indicates " + primaryCategory,
+                            "confidence", 0.72D,
+                            "evidenceRefs", List.of(),
+                            "nextActions", List.of("Review aggregate evidence and confirm root cause")
+                    )),
+                    "nextActions", List.of("Confirm evidence refs before defect draft export"),
+                    "manualReviewRequired", true
+            ));
+        } catch (Exception exception) {
+            try {
+                return objectMapper.writeValueAsString(Map.of(
+                        "schemaVersion", "wp10-diagnosis-result-v1",
+                        "summary", "Local echo diagnosis unavailable",
+                        "rootCauseCandidates", List.of(),
+                        "nextActions", List.of("Review rule classification"),
+                        "manualReviewRequired", true
+                ));
+            } catch (Exception ignored) {
+                return "{\"schemaVersion\":\"wp10-diagnosis-result-v1\",\"rootCauseCandidates\":[]}";
+            }
+        }
     }
 
     private String wp6CaseTitle(String method, String path, String coverageType) {

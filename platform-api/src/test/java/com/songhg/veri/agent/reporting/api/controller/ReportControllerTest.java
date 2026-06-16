@@ -4,14 +4,21 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jayway.jsonpath.JsonPath;
 import com.songhg.veri.agent.auth.application.AuthTokenService;
 import com.songhg.veri.agent.auth.domain.AuthUserRecord;
+import com.songhg.veri.agent.common.error.BusinessException;
+import com.songhg.veri.agent.common.error.ErrorCode;
 import com.songhg.veri.agent.execution.application.ExecutionRunService;
 import com.songhg.veri.agent.execution.application.view.ExecutionNodeRunResponse;
 import com.songhg.veri.agent.execution.application.view.ExecutionRunDetailResponse;
 import com.songhg.veri.agent.execution.application.view.ExecutionRunExportResponse;
+import com.songhg.veri.agent.modelaccess.application.ModelInvocationService;
+import com.songhg.veri.agent.modelaccess.application.command.ModelInvocationCommand;
+import com.songhg.veri.agent.modelaccess.application.view.ModelInvocationResult;
+import com.songhg.veri.agent.modelaccess.security.ServicePrincipal;
 import com.songhg.veri.agent.testdata.application.TestDataCrossWpReferenceService;
 import com.songhg.veri.agent.testdata.application.command.TestDataReportEvidenceQuery;
 import com.songhg.veri.agent.testdata.application.view.TestDataCrossWpAccountSummary;
 import com.songhg.veri.agent.testdata.application.view.TestDataReportEvidenceResponse;
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -26,7 +33,9 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
+import org.mockito.ArgumentCaptor;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
@@ -64,6 +73,9 @@ class ReportControllerTest {
 
     @MockitoBean
     private TestDataCrossWpReferenceService testDataCrossWpReferenceService;
+
+    @MockitoBean
+    private ModelInvocationService modelInvocationService;
 
     @Test
     void generatesListsDetailsAndArchivesReportFromSanitizedRunExport() throws Exception {
@@ -213,18 +225,22 @@ class ReportControllerTest {
                 .andExpect(jsonPath("$.data.latestDiagnosis.classification.primaryCategory")
                         .value("ASSERTION_FAILED"));
 
+        ArgumentCaptor<ModelInvocationCommand> commandCaptor = ArgumentCaptor.forClass(ModelInvocationCommand.class);
+        when(modelInvocationService.invoke(commandCaptor.capture(), any(ServicePrincipal.class)))
+                .thenReturn(modelResult());
+
         mockMvc.perform(post("/api/v1/reports/{id}/diagnoses", reportId)
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.reportId").value(reportId.toString()))
-                .andExpect(jsonPath("$.data.status").value("AI_FAILED"))
-                .andExpect(jsonPath("$.data.errorCode").value("REPORT_DIAGNOSIS_POLICY_BLOCKED"))
+                .andExpect(jsonPath("$.data.status").value("AI_READY"))
+                .andExpect(jsonPath("$.data.errorCode").doesNotExist())
                 .andExpect(jsonPath("$.data.classification.primaryCategory").value("ASSERTION_FAILED"))
                 .andExpect(jsonPath("$.data.rootCauseCandidates.length()").value(2))
-                .andExpect(jsonPath("$.data.aiDiagnosisReady").value(false))
-                .andExpect(jsonPath("$.data.modelInvoked").value(false))
-                .andExpect(jsonPath("$.data.classificationOnly").value(true))
-                .andExpect(jsonPath("$.data.modelInvocationDigest").doesNotExist())
+                .andExpect(jsonPath("$.data.aiDiagnosisReady").value(true))
+                .andExpect(jsonPath("$.data.modelInvoked").value(true))
+                .andExpect(jsonPath("$.data.classificationOnly").value(false))
+                .andExpect(jsonPath("$.data.modelInvocationDigest").isString())
                 .andExpect(jsonPath("$.data.diagnosisContext.contextDigest").isString())
                 .andExpect(jsonPath("$.data.diagnosisContext.contextStored").value(false))
                 .andExpect(jsonPath("$.data.diagnosisContext.rawPromptStored").value(false))
@@ -238,19 +254,38 @@ class ReportControllerTest {
                 .andExpect(content().string(not(containsString("account-key-secret"))))
                 .andExpect(content().string(not(containsString("Staging Admin"))));
 
+        ModelInvocationCommand command = commandCaptor.getValue();
+        String modelContext = command.messages().getFirst().content();
+        assertThat(command.projectId()).isEqualTo("project-alpha");
+        assertThat(command.promptKey()).isNull();
+        assertThat(command.allowPublicModel()).isFalse();
+        assertThat(command.sensitivityLevel()).isEqualTo("INTERNAL");
+        assertThat(command.capability()).isEqualTo("JSON");
+        assertThat(modelContext).contains("WP10_FAILURE_DIAGNOSIS_V1");
+        assertThat(modelContext).contains("ASSERTION_FAILED");
+        assertThat(modelContext).doesNotContain("Authorization");
+        assertThat(modelContext).doesNotContain("Bearer");
+        assertThat(modelContext).doesNotContain("secret://");
+        assertThat(modelContext).doesNotContain(accountLeaseRef.toString());
+        assertThat(modelContext).doesNotContain("lease-token-plain");
+        assertThat(modelContext).doesNotContain("execution-run-secret-holder");
+        assertThat(modelContext).doesNotContain("account-key-secret");
+        assertThat(modelContext).doesNotContain("Staging Admin");
+
         mockMvc.perform(get("/api/v1/reports/{id}/diagnoses/latest", reportId)
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.reportId").value(reportId.toString()))
-                .andExpect(jsonPath("$.data.status").value("AI_FAILED"))
-                .andExpect(jsonPath("$.data.errorCode").value("REPORT_DIAGNOSIS_POLICY_BLOCKED"))
+                .andExpect(jsonPath("$.data.status").value("AI_READY"))
+                .andExpect(jsonPath("$.data.errorCode").doesNotExist())
+                .andExpect(jsonPath("$.data.modelInvocationDigest").isString())
                 .andExpect(jsonPath("$.data.diagnosisContext.contextDigest").isString());
 
         mockMvc.perform(get("/api/v1/reports")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken)
                         .param("projectId", "project-alpha"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.items[0].summary.diagnosisStatus").value("AI_FAILED"))
+                .andExpect(jsonPath("$.data.items[0].summary.diagnosisStatus").value("AI_READY"))
                 .andExpect(jsonPath("$.data.items[0].summary.diagnosisPrimaryCategory").value("ASSERTION_FAILED"));
 
         mockMvc.perform(post("/api/v1/reports/{id}/archive", reportId)
@@ -259,6 +294,44 @@ class ReportControllerTest {
                 .andExpect(jsonPath("$.data.id").value(reportId.toString()))
                 .andExpect(jsonPath("$.data.status").value("ARCHIVED"))
                 .andExpect(jsonPath("$.data.archivedAt").exists());
+    }
+
+    @Test
+    void downgradesDiagnosisWhenWp2BudgetBlocksInvocation() throws Exception {
+        UUID runId = UUID.randomUUID();
+        when(executionRunService.runProjectScopeId(runId)).thenReturn("project-alpha");
+        when(executionRunService.exportRun(runId)).thenReturn(runExport(runId, "project-alpha", "FAILED", true));
+        String ownerToken = userAccessToken(List.of("ProjectOwner@PROJECT:project-alpha"));
+
+        MvcResult created = mockMvc.perform(post("/api/v1/reports")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "projectId", "project-alpha",
+                                "executionRunId", runId,
+                                "requestKey", "budget-blocked-report"
+                        ))))
+                .andExpect(status().isCreated())
+                .andReturn();
+        UUID reportId = UUID.fromString(JsonPath.read(created.getResponse().getContentAsString(), "$.data.id"));
+
+        when(modelInvocationService.invoke(any(ModelInvocationCommand.class), any(ServicePrincipal.class)))
+                .thenThrow(new BusinessException(ErrorCode.BUDGET_EXCEEDED, "budget exhausted"));
+
+        mockMvc.perform(post("/api/v1/reports/{id}/diagnoses", reportId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.reportId").value(reportId.toString()))
+                .andExpect(jsonPath("$.data.status").value("AI_FAILED"))
+                .andExpect(jsonPath("$.data.errorCode").value("REPORT_DIAGNOSIS_POLICY_BLOCKED"))
+                .andExpect(jsonPath("$.data.classification.primaryCategory").value("ASSERTION_FAILED"))
+                .andExpect(jsonPath("$.data.aiDiagnosisReady").value(false))
+                .andExpect(jsonPath("$.data.modelInvoked").value(false))
+                .andExpect(jsonPath("$.data.classificationOnly").value(true))
+                .andExpect(jsonPath("$.data.modelInvocationDigest").doesNotExist())
+                .andExpect(jsonPath("$.data.diagnosisContext.contextDigest").isString())
+                .andExpect(jsonPath("$.data.diagnosisContext.contextStored").value(false))
+                .andExpect(jsonPath("$.data.redactionPolicy.contextDigestOnly").value(true));
     }
 
     @Test
@@ -589,6 +662,21 @@ class ReportControllerTest {
                         "secretRefPlaintextReturned", false,
                         "leaseTokenPlaintextReturned", false
                 )
+        );
+    }
+
+    private ModelInvocationResult modelResult() {
+        return new ModelInvocationResult(
+                UUID.randomUUID(),
+                UUID.fromString("00000000-0000-0000-0000-000000000201"),
+                "local-echo-primary",
+                "local-echo",
+                null,
+                false,
+                "{\"schemaVersion\":\"wp10-diagnosis-result-v1\",\"summary\":\"ok\"}",
+                128,
+                32,
+                BigDecimal.ZERO
         );
     }
 
