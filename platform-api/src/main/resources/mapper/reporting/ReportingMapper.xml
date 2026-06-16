@@ -40,6 +40,22 @@
         </constructor>
     </resultMap>
 
+    <resultMap id="failureDiagnosisMap" type="com.songhg.veri.agent.reporting.domain.ReportFailureDiagnosis">
+        <constructor>
+            <arg column="id" javaType="java.util.UUID"/>
+            <arg column="report_id" javaType="java.util.UUID"/>
+            <arg column="status" javaType="java.lang.String"/>
+            <arg column="classification_json" javaType="java.lang.String"/>
+            <arg column="model_invocation_digest" javaType="java.lang.String"/>
+            <arg column="confidence" javaType="java.math.BigDecimal"/>
+            <arg column="manual_review_required" javaType="_boolean"/>
+            <arg column="diagnosis_summary_json" javaType="java.lang.String"/>
+            <arg column="error_code" javaType="java.lang.String"/>
+            <arg column="created_at" javaType="java.time.Instant"/>
+            <arg column="updated_at" javaType="java.time.Instant"/>
+        </constructor>
+    </resultMap>
+
     <sql id="reportColumns">
         id, project_id, execution_run_id, request_key, status, schema_version, source_run_digest,
         report_summary_json::text as report_summary_json,
@@ -53,6 +69,14 @@
         redaction_flags_json::text as redaction_flags_json,
         evidence_summary_json::text as evidence_summary_json,
         created_at
+    </sql>
+
+    <sql id="failureDiagnosisColumns">
+        id, report_id, status,
+        classification_json::text as classification_json,
+        model_invocation_digest, confidence, manual_review_required,
+        diagnosis_summary_json::text as diagnosis_summary_json,
+        error_code, created_at, updated_at
     </sql>
 
     <sql id="reportWhere">
@@ -113,6 +137,24 @@
         )
     </insert>
 
+    <delete id="deleteFailureDiagnoses">
+        delete from report_failure_diagnosis
+        where report_id = #{reportId}
+    </delete>
+
+    <insert id="insertFailureDiagnosis">
+        insert into report_failure_diagnosis (
+            id, report_id, status, classification_json, model_invocation_digest, confidence,
+            manual_review_required, diagnosis_summary_json, error_code, created_at, updated_at
+        ) values (
+            #{id}, #{reportId}, #{status},
+            cast(coalesce(#{classificationJson}, '{}') as jsonb),
+            #{modelInvocationDigest}, #{confidence}, #{manualReviewRequired},
+            cast(coalesce(#{diagnosisSummaryJson}, '{}') as jsonb),
+            #{errorCode}, #{createdAt}, #{updatedAt}
+        )
+    </insert>
+
     <select id="report" resultMap="reportMap">
         select <include refid="reportColumns"/>
         from report_execution_report
@@ -124,6 +166,14 @@
         from report_evidence_manifest
         where report_id = #{reportId}
         order by created_at asc, source_wp asc, source_type asc, id asc
+    </select>
+
+    <select id="latestFailureDiagnosis" resultMap="failureDiagnosisMap">
+        select <include refid="failureDiagnosisColumns"/>
+        from report_failure_diagnosis
+        where report_id = #{reportId}
+        order by updated_at desc, created_at desc, id desc
+        limit 1
     </select>
 
     <select id="reportByProjectRunRequestKey" resultMap="reportMap">

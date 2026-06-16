@@ -4,6 +4,7 @@ import com.songhg.veri.agent.reporting.application.port.ReportingRepository;
 import com.songhg.veri.agent.reporting.application.query.ReportQuery;
 import com.songhg.veri.agent.reporting.domain.ReportEvidenceManifest;
 import com.songhg.veri.agent.reporting.domain.ReportExecutionReport;
+import com.songhg.veri.agent.reporting.domain.ReportFailureDiagnosis;
 import com.songhg.veri.agent.reporting.infrastructure.mapper.ReportingMapper;
 import java.util.List;
 import java.util.Optional;
@@ -40,6 +41,12 @@ public class JdbcReportingRepository implements ReportingRepository {
     }
 
     @Override
+    public void replaceLatestFailureDiagnosis(UUID reportId, ReportFailureDiagnosis diagnosis) {
+        mapper.deleteFailureDiagnoses(reportId);
+        mapper.insertFailureDiagnosis(diagnosis);
+    }
+
+    @Override
     public Optional<ReportExecutionReport> report(UUID id) {
         return Optional.ofNullable(mapper.report(id));
     }
@@ -47,6 +54,11 @@ public class JdbcReportingRepository implements ReportingRepository {
     @Override
     public List<ReportEvidenceManifest> evidenceManifests(UUID reportId) {
         return mapper.evidenceManifests(reportId);
+    }
+
+    @Override
+    public Optional<ReportFailureDiagnosis> latestFailureDiagnosis(UUID reportId) {
+        return Optional.ofNullable(mapper.latestFailureDiagnosis(reportId));
     }
 
     @Override

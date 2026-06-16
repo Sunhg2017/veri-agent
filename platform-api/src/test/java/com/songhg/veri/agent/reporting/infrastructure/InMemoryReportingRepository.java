@@ -4,6 +4,7 @@ import com.songhg.veri.agent.reporting.application.port.ReportingRepository;
 import com.songhg.veri.agent.reporting.application.query.ReportQuery;
 import com.songhg.veri.agent.reporting.domain.ReportEvidenceManifest;
 import com.songhg.veri.agent.reporting.domain.ReportExecutionReport;
+import com.songhg.veri.agent.reporting.domain.ReportFailureDiagnosis;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
@@ -22,6 +23,7 @@ public class InMemoryReportingRepository implements ReportingRepository {
 
     private final ConcurrentHashMap<UUID, ReportExecutionReport> reports = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<UUID, List<ReportEvidenceManifest>> evidenceManifests = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<UUID, ReportFailureDiagnosis> failureDiagnoses = new ConcurrentHashMap<>();
 
     @Override
     public boolean insertReportIfAbsent(ReportExecutionReport report) {
@@ -47,6 +49,11 @@ public class InMemoryReportingRepository implements ReportingRepository {
     }
 
     @Override
+    public void replaceLatestFailureDiagnosis(UUID reportId, ReportFailureDiagnosis diagnosis) {
+        failureDiagnoses.put(reportId, diagnosis);
+    }
+
+    @Override
     public Optional<ReportExecutionReport> report(UUID id) {
         return Optional.ofNullable(reports.get(id));
     }
@@ -54,6 +61,11 @@ public class InMemoryReportingRepository implements ReportingRepository {
     @Override
     public List<ReportEvidenceManifest> evidenceManifests(UUID reportId) {
         return evidenceManifests.getOrDefault(reportId, List.of());
+    }
+
+    @Override
+    public Optional<ReportFailureDiagnosis> latestFailureDiagnosis(UUID reportId) {
+        return Optional.ofNullable(failureDiagnoses.get(reportId));
     }
 
     @Override

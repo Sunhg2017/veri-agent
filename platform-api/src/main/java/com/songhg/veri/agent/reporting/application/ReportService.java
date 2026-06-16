@@ -21,6 +21,7 @@ import com.songhg.veri.agent.reporting.application.view.ReportSummaryResponse;
 import com.songhg.veri.agent.reporting.config.ReportingProperties;
 import com.songhg.veri.agent.reporting.domain.ReportEvidenceManifest;
 import com.songhg.veri.agent.reporting.domain.ReportExecutionReport;
+import com.songhg.veri.agent.reporting.domain.ReportFailureDiagnosis;
 import com.songhg.veri.agent.testdata.application.TestDataCrossWpReferenceService;
 import com.songhg.veri.agent.testdata.application.command.TestDataReportEvidenceQuery;
 import com.songhg.veri.agent.testdata.application.view.TestDataCrossWpAccountSummary;
@@ -32,6 +33,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Pattern;
@@ -62,6 +64,7 @@ public class ReportService {
     private final ObjectMapper objectMapper;
     private final ReportingJsonSupport jsonSupport;
     private final ReportResponseMapper responseMapper;
+    private final RuleFailureClassifier failureClassifier;
 
     public ReportService(
             ReportingRepository repository,
@@ -81,6 +84,7 @@ public class ReportService {
         this.objectMapper = objectMapper;
         this.jsonSupport = new ReportingJsonSupport(objectMapper);
         this.responseMapper = new ReportResponseMapper(jsonSupport);
+        this.failureClassifier = new RuleFailureClassifier(jsonSupport);
     }
 
     /**
@@ -103,6 +107,7 @@ public class ReportService {
                     .map(report -> responseMapper.toDetail(
                             report,
                             repository.evidenceManifests(report.id()),
+                            repository.latestFailureDiagnosis(report.id()),
                             true
                     ))
                     .orElseGet(() -> createReport(request));
@@ -123,7 +128,12 @@ public class ReportService {
     @Transactional(readOnly = true)
     public ReportDetailResponse report(UUID id) {
         ReportExecutionReport report = requireReport(id);
-        return responseMapper.toDetail(report, repository.evidenceManifests(report.id()), false);
+        return responseMapper.toDetail(
+                report,
+                repository.evidenceManifests(report.id()),
+                repository.latestFailureDiagnosis(report.id()),
+                false
+        );
     }
 
     @Transactional(noRollbackFor = BusinessException.class)
@@ -143,20 +153,32 @@ public class ReportService {
         ReportExecutionReport regenerated = bundle.report();
         repository.updateReport(regenerated);
         repository.replaceEvidenceManifests(regenerated.id(), bundle.evidenceManifests());
+        repository.replaceLatestFailureDiagnosis(regenerated.id(), bundle.failureDiagnosis());
         audit(regenerated, "report.generated", "SUCCESS", Map.of(
                 "retry", true,
                 "schemaVersion", regenerated.schemaVersion(),
                 "sourceRunDigest", regenerated.sourceRunDigest(),
-                "evidenceCount", bundle.evidenceManifests().size()
+                "evidenceCount", bundle.evidenceManifests().size(),
+                "diagnosisStatus", bundle.failureDiagnosis().status()
         ));
-        return responseMapper.toDetail(regenerated, bundle.evidenceManifests(), false);
+        return responseMapper.toDetail(
+                regenerated,
+                bundle.evidenceManifests(),
+                Optional.of(bundle.failureDiagnosis()),
+                false
+        );
     }
 
     @Transactional(noRollbackFor = BusinessException.class)
     public ReportDetailResponse archiveReport(UUID id) {
         ReportExecutionReport current = requireReport(id);
         if ("ARCHIVED".equals(current.status())) {
-            return responseMapper.toDetail(current, false);
+            return responseMapper.toDetail(
+                    current,
+                    repository.evidenceManifests(current.id()),
+                    repository.latestFailureDiagnosis(current.id()),
+                    false
+            );
         }
         Instant now = Instant.now();
         ReportExecutionReport archived = new ReportExecutionReport(
@@ -180,7 +202,12 @@ public class ReportService {
         );
         repository.updateReport(archived);
         audit(archived, "report.archived", "SUCCESS", Map.of("status", "ARCHIVED"));
-        return responseMapper.toDetail(archived, repository.evidenceManifests(archived.id()), false);
+        return responseMapper.toDetail(
+                archived,
+                repository.evidenceManifests(archived.id()),
+                repository.latestFailureDiagnosis(archived.id()),
+                false
+        );
     }
 
     public String reportProjectScopeId(UUID id) {
@@ -201,17 +228,25 @@ public class ReportService {
                     .map(existing -> responseMapper.toDetail(
                             existing,
                             repository.evidenceManifests(existing.id()),
+                            repository.latestFailureDiagnosis(existing.id()),
                             true
                     ))
                     .orElseThrow(() -> new BusinessException(ErrorCode.CONFLICT, "REPORT_DUPLICATE_REQUEST"));
         }
         repository.replaceEvidenceManifests(report.id(), bundle.evidenceManifests());
+        repository.replaceLatestFailureDiagnosis(report.id(), bundle.failureDiagnosis());
         audit(report, "report.generated", "SUCCESS", Map.of(
                 "schemaVersion", report.schemaVersion(),
                 "sourceRunDigest", report.sourceRunDigest(),
-                "evidenceCount", bundle.evidenceManifests().size()
+                "evidenceCount", bundle.evidenceManifests().size(),
+                "diagnosisStatus", bundle.failureDiagnosis().status()
         ));
-        return responseMapper.toDetail(report, bundle.evidenceManifests(), false);
+        return responseMapper.toDetail(
+                report,
+                bundle.evidenceManifests(),
+                Optional.of(bundle.failureDiagnosis()),
+                false
+        );
     }
 
     private ReportBundle reportFromExport(UUID reportId, NormalizedGenerateRequest request, Instant now) {
@@ -227,7 +262,9 @@ public class ReportService {
         requireSourceReady(run);
         Wp8EvidenceRefs wp8EvidenceRefs = wp8EvidenceRefs(run.nodes());
         List<ReportEvidenceManifest> evidenceManifests = evidenceManifests(reportId, request, export, wp8EvidenceRefs, now);
-        Map<String, Object> summary = reportSummary(export, request, evidenceManifests, wp8EvidenceRefs);
+        ReportFailureDiagnosis failureDiagnosis = failureClassifier.classify(reportId, evidenceManifests, now);
+        Map<String, Object> summary = reportSummary(export, request, evidenceManifests, wp8EvidenceRefs,
+                failureDiagnosis);
         Map<String, Object> redactionPolicy = redactionPolicy(export.redactionPolicy());
         ReportExecutionReport report = new ReportExecutionReport(
                 reportId,
@@ -248,7 +285,7 @@ public class ReportService {
                 now,
                 now
         );
-        return new ReportBundle(report, evidenceManifests);
+        return new ReportBundle(report, evidenceManifests, failureDiagnosis);
     }
 
     private void requireSourceReady(ExecutionRunDetailResponse run) {
@@ -274,7 +311,8 @@ public class ReportService {
             ExecutionRunExportResponse export,
             NormalizedGenerateRequest request,
             List<ReportEvidenceManifest> evidenceManifests,
-            Wp8EvidenceRefs wp8EvidenceRefs
+            Wp8EvidenceRefs wp8EvidenceRefs,
+            ReportFailureDiagnosis failureDiagnosis
     ) {
         ExecutionRunDetailResponse run = export.run();
         Map<String, Object> summary = new LinkedHashMap<>();
@@ -301,10 +339,18 @@ public class ReportService {
                 .filter(manifest -> "WP8".equals(manifest.sourceWp()))
                 .count());
         summary.put("wp8EvidenceReferenceTruncated", wp8EvidenceRefs.truncated());
-        summary.put("diagnosisStatus", "NOT_REQUESTED");
+        summary.put("diagnosisStatus", failureDiagnosis.status());
+        summary.put("diagnosisRuleVersion", RuleFailureClassifier.RULE_VERSION);
+        summary.put("diagnosisPrimaryCategory", primaryCategory(failureDiagnosis));
+        summary.put("diagnosisManualReviewRequired", failureDiagnosis.manualReviewRequired());
         summary.put("defectDraftCount", 0);
         summary.put("exportManifestCount", 0);
         return summary;
+    }
+
+    private String primaryCategory(ReportFailureDiagnosis failureDiagnosis) {
+        Object primaryCategory = jsonSupport.readMap(failureDiagnosis.classificationJson()).get("primaryCategory");
+        return primaryCategory == null ? "UNKNOWN" : String.valueOf(primaryCategory);
     }
 
     private Map<String, Object> redactionPolicy(Map<String, Object> wp9Policy) {
@@ -800,7 +846,8 @@ public class ReportService {
 
     private record ReportBundle(
             ReportExecutionReport report,
-            List<ReportEvidenceManifest> evidenceManifests
+            List<ReportEvidenceManifest> evidenceManifests,
+            ReportFailureDiagnosis failureDiagnosis
     ) {
     }
 

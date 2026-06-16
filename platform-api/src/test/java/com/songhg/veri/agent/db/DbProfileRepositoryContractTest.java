@@ -32,6 +32,9 @@ import com.songhg.veri.agent.modelaccess.domain.InvocationStatus;
 import com.songhg.veri.agent.modelaccess.domain.ModelAccessPolicyOverride;
 import com.songhg.veri.agent.modelaccess.infrastructure.JdbcModelInvocationJobRepository;
 import com.songhg.veri.agent.modelaccess.infrastructure.JdbcModelAccessRepository;
+import com.songhg.veri.agent.reporting.application.port.ReportingRepository;
+import com.songhg.veri.agent.reporting.domain.ReportExecutionReport;
+import com.songhg.veri.agent.reporting.domain.ReportFailureDiagnosis;
 import com.songhg.veri.agent.testdesign.application.port.TestDesignRepository;
 import com.songhg.veri.agent.testdesign.application.query.TestDesignConflictOperationQuery;
 import com.songhg.veri.agent.testdesign.domain.TestDesignAuditChainAggregate;
@@ -122,6 +125,9 @@ class DbProfileRepositoryContractTest {
 
     @Autowired
     private ExecutionRepository executionRepository;
+
+    @Autowired
+    private ReportingRepository reportingRepository;
 
     @Autowired
     private TestDataRepository testDataRepository;
@@ -1731,6 +1737,61 @@ class DbProfileRepositoryContractTest {
     }
 
     @Test
+    void reportingRepositoryPersistsLatestFailureDiagnosisThroughJdbc() {
+        Instant now = Instant.now();
+        UUID reportId = UUID.randomUUID();
+        UUID executionRunId = UUID.randomUUID();
+        ReportExecutionReport report = new ReportExecutionReport(
+                reportId,
+                "project-wp10-db-" + UUID.randomUUID(),
+                executionRunId,
+                "db-diagnosis-" + UUID.randomUUID(),
+                "READY",
+                "wp10-report-v1",
+                "a".repeat(64),
+                "{\"diagnosisStatus\":\"RULE_READY\"}",
+                "{\"aggregateOnly\":true}",
+                "db-test",
+                now,
+                null,
+                null,
+                "trc_wp10_db",
+                null,
+                now,
+                now
+        );
+        ReportFailureDiagnosis first = failureDiagnosis(
+                reportId,
+                "ASSERTION_FAILED",
+                new BigDecimal("0.7400"),
+                now
+        );
+        ReportFailureDiagnosis replacement = failureDiagnosis(
+                reportId,
+                "TIMEOUT",
+                new BigDecimal("0.7600"),
+                now.plusSeconds(1)
+        );
+
+        assertThat(reportingRepository.insertReportIfAbsent(report)).isTrue();
+        reportingRepository.replaceLatestFailureDiagnosis(reportId, first);
+        reportingRepository.replaceLatestFailureDiagnosis(reportId, replacement);
+
+        assertThat(reportingRepository.latestFailureDiagnosis(reportId))
+                .get()
+                .satisfies(diagnosis -> {
+                    assertThat(diagnosis.id()).isEqualTo(replacement.id());
+                    assertThat(diagnosis.status()).isEqualTo("RULE_READY");
+                    assertThat(diagnosis.classificationJson()).contains("\"primaryCategory\": \"TIMEOUT\"");
+                    assertThat(diagnosis.confidence()).isEqualByComparingTo("0.7600");
+                    assertThat(diagnosis.manualReviewRequired()).isTrue();
+                    assertThat(diagnosis.modelInvocationDigest()).isNull();
+                    assertThat(diagnosis.diagnosisSummaryJson()).contains("\"classificationOnly\": true");
+                    assertThat(diagnosis.errorCode()).isEqualTo("TIMEOUT");
+                });
+    }
+
+    @Test
     void testDesignRepositoryAggregatesCrossWpAuditChainThroughJdbc() {
         String projectId = "project-wp5-audit-chain-db-" + UUID.randomUUID();
         Instant now = Instant.now();
@@ -2454,6 +2515,29 @@ class DbProfileRepositoryContractTest {
                 null,
                 "db-publisher",
                 createdAt
+        );
+    }
+
+    private static ReportFailureDiagnosis failureDiagnosis(
+            UUID reportId,
+            String primaryCategory,
+            BigDecimal confidence,
+            Instant now
+    ) {
+        return new ReportFailureDiagnosis(
+                UUID.randomUUID(),
+                reportId,
+                "RULE_READY",
+                """
+                        {"primaryCategory": "%s", "ruleVersion": "wp10-failure-classifier-v1"}
+                        """.formatted(primaryCategory).trim(),
+                null,
+                confidence,
+                true,
+                "{\"classificationOnly\": true, \"rootCauseCandidates\": []}",
+                primaryCategory,
+                now,
+                now
         );
     }
 

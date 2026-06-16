@@ -103,6 +103,10 @@ class ReportControllerTest {
                 .andExpect(jsonPath("$.data.summary.wp8EvidenceReferenceCount").value(1))
                 .andExpect(jsonPath("$.data.summary.wp8EvidenceManifestCount").value(1))
                 .andExpect(jsonPath("$.data.summary.wp8EvidenceReferenceTruncated").value(false))
+                .andExpect(jsonPath("$.data.summary.diagnosisStatus").value("RULE_READY"))
+                .andExpect(jsonPath("$.data.summary.diagnosisRuleVersion").value("wp10-failure-classifier-v1"))
+                .andExpect(jsonPath("$.data.summary.diagnosisPrimaryCategory").value("ASSERTION_FAILED"))
+                .andExpect(jsonPath("$.data.summary.diagnosisManualReviewRequired").value(true))
                 .andExpect(jsonPath("$.data.redactionPolicy.aggregateOnly").value(true))
                 .andExpect(jsonPath("$.data.redactionPolicy.crossWpDirectTableReadAllowed").value(false))
                 .andExpect(jsonPath("$.data.evidenceManifests.length()").value(3))
@@ -127,7 +131,30 @@ class ReportControllerTest {
                 .andExpect(jsonPath("$.data.evidenceManifests[2].evidenceSummary.accountScopeSummaryKeys[0]")
                         .value("applicationId"))
                 .andExpect(jsonPath("$.data.evidenceManifests[2].evidenceSummary.secretRefDigest").value("a".repeat(64)))
-                .andExpect(jsonPath("$.data.latestDiagnosis.status").value("NOT_REQUESTED"))
+                .andExpect(jsonPath("$.data.latestDiagnosis.status").value("RULE_READY"))
+                .andExpect(jsonPath("$.data.latestDiagnosis.classification.primaryCategory")
+                        .value("ASSERTION_FAILED"))
+                .andExpect(jsonPath("$.data.latestDiagnosis.classification.secondaryCategory")
+                        .value("TEST_DATA_ACCOUNT"))
+                .andExpect(jsonPath("$.data.latestDiagnosis.classification.ruleVersion")
+                        .value("wp10-failure-classifier-v1"))
+                .andExpect(jsonPath("$.data.latestDiagnosis.classification.failedNodeCount").value(1))
+                .andExpect(jsonPath("$.data.latestDiagnosis.classification.accountIssueCount").value(1))
+                .andExpect(jsonPath("$.data.latestDiagnosis.rootCauseCandidates.length()").value(2))
+                .andExpect(jsonPath("$.data.latestDiagnosis.rootCauseCandidates[0].category")
+                        .value("ASSERTION_FAILED"))
+                .andExpect(jsonPath("$.data.latestDiagnosis.rootCauseCandidates[0].evidenceRefs[0]",
+                        startsWith("wp9:execution_node:")))
+                .andExpect(jsonPath("$.data.latestDiagnosis.rootCauseCandidates[1].category")
+                        .value("TEST_DATA_ACCOUNT"))
+                .andExpect(jsonPath("$.data.latestDiagnosis.rootCauseCandidates[1].evidenceRefs[0]",
+                        startsWith("wp8:account_lease:")))
+                .andExpect(jsonPath("$.data.latestDiagnosis.confidence").value(0.7400))
+                .andExpect(jsonPath("$.data.latestDiagnosis.manualReviewRequired").value(true))
+                .andExpect(jsonPath("$.data.latestDiagnosis.modelInvocationDigest").doesNotExist())
+                .andExpect(jsonPath("$.data.latestDiagnosis.aiDiagnosisReady").value(false))
+                .andExpect(jsonPath("$.data.latestDiagnosis.modelInvoked").value(false))
+                .andExpect(jsonPath("$.data.latestDiagnosis.redactionPolicy.aggregateOnly").value(true))
                 .andExpect(content().string(not(containsString("Bearer"))))
                 .andExpect(content().string(not(containsString("Authorization"))))
                 .andExpect(content().string(not(containsString("secret://"))))
@@ -152,7 +179,10 @@ class ReportControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.id").value(reportId.toString()))
                 .andExpect(jsonPath("$.data.idempotentReplay").value(true))
-                .andExpect(jsonPath("$.data.evidenceManifests.length()").value(3));
+                .andExpect(jsonPath("$.data.evidenceManifests.length()").value(3))
+                .andExpect(jsonPath("$.data.latestDiagnosis.status").value("RULE_READY"))
+                .andExpect(jsonPath("$.data.latestDiagnosis.classification.primaryCategory")
+                        .value("ASSERTION_FAILED"));
 
         verify(executionRunService).runProjectScopeId(runId);
         verify(executionRunService).exportRun(runId);
@@ -178,7 +208,10 @@ class ReportControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.id").value(reportId.toString()))
                 .andExpect(jsonPath("$.data.redactionPolicy.secretPlaintextStored").value(false))
-                .andExpect(jsonPath("$.data.evidenceManifests[1].evidenceSummary.nodeKey").value("report"));
+                .andExpect(jsonPath("$.data.evidenceManifests[1].evidenceSummary.nodeKey").value("report"))
+                .andExpect(jsonPath("$.data.latestDiagnosis.status").value("RULE_READY"))
+                .andExpect(jsonPath("$.data.latestDiagnosis.classification.primaryCategory")
+                        .value("ASSERTION_FAILED"));
 
         mockMvc.perform(post("/api/v1/reports/{id}/archive", reportId)
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken))
@@ -228,6 +261,35 @@ class ReportControllerTest {
 
         verify(executionRunService).runProjectScopeId(runId);
         verify(executionRunService, never()).exportRun(runId);
+    }
+
+    @Test
+    void classifiesSuccessfulReportAsNoFailureWithoutManualReview() throws Exception {
+        UUID runId = UUID.randomUUID();
+        when(executionRunService.runProjectScopeId(runId)).thenReturn("project-alpha");
+        when(executionRunService.exportRun(runId)).thenReturn(successRunExport(runId, "project-alpha"));
+        String ownerToken = userAccessToken(List.of("ProjectOwner@PROJECT:project-alpha"));
+
+        mockMvc.perform(post("/api/v1/reports")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "projectId", "project-alpha",
+                                "executionRunId", runId,
+                                "requestKey", "success-report"
+                        ))))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.summary.runStatus").value("SUCCEEDED"))
+                .andExpect(jsonPath("$.data.summary.diagnosisStatus").value("RULE_READY"))
+                .andExpect(jsonPath("$.data.summary.diagnosisPrimaryCategory").value("NO_FAILURE"))
+                .andExpect(jsonPath("$.data.summary.diagnosisManualReviewRequired").value(false))
+                .andExpect(jsonPath("$.data.latestDiagnosis.status").value("RULE_READY"))
+                .andExpect(jsonPath("$.data.latestDiagnosis.classification.primaryCategory").value("NO_FAILURE"))
+                .andExpect(jsonPath("$.data.latestDiagnosis.rootCauseCandidates.length()").value(0))
+                .andExpect(jsonPath("$.data.latestDiagnosis.confidence").value(0.9900))
+                .andExpect(jsonPath("$.data.latestDiagnosis.manualReviewRequired").value(false));
+
+        verifyNoMoreInteractions(testDataCrossWpReferenceService);
     }
 
     @Test
@@ -346,6 +408,88 @@ class ReportControllerTest {
                 Instant.parse("2026-06-16T10:02:00Z"),
                 run,
                 Map.of("FAILED", 1, handoffReady ? "SUCCEEDED" : "PENDING", 1),
+                Map.of(
+                        "rawOutputExported", false,
+                        "rawRequestResponseExported", false,
+                        "secretRefsExported", false,
+                        "claimTokenExported", false
+                )
+        );
+    }
+
+    private ExecutionRunExportResponse successRunExport(UUID runId, String projectId) {
+        Instant startedAt = Instant.parse("2026-06-16T10:00:00Z");
+        Instant finishedAt = Instant.parse("2026-06-16T10:00:25Z");
+        List<ExecutionNodeRunResponse> nodes = List.of(
+                new ExecutionNodeRunResponse(
+                        UUID.randomUUID(),
+                        UUID.randomUUID(),
+                        "api-smoke",
+                        "API_TEST",
+                        "SUCCEEDED",
+                        1,
+                        "WP6_API",
+                        "wp6-run-2",
+                        null,
+                        null,
+                        Map.of("sanitized", true),
+                        null,
+                        startedAt,
+                        startedAt,
+                        finishedAt,
+                        startedAt,
+                        finishedAt
+                ),
+                new ExecutionNodeRunResponse(
+                        UUID.randomUUID(),
+                        UUID.randomUUID(),
+                        "report",
+                        "REPORT_HANDOFF",
+                        "SUCCEEDED",
+                        1,
+                        "REPORT",
+                        null,
+                        null,
+                        null,
+                        Map.of(
+                                "schedulerManaged", true,
+                                "reportHandoffReady", true,
+                                "rawReportStored", false
+                        ),
+                        null,
+                        startedAt,
+                        startedAt,
+                        finishedAt,
+                        startedAt,
+                        finishedAt
+                )
+        );
+        ExecutionRunDetailResponse run = new ExecutionRunDetailResponse(
+                runId,
+                UUID.randomUUID(),
+                projectId,
+                "SUCCEEDED",
+                "MANUAL",
+                "run-request",
+                null,
+                1,
+                "trc_wp9run",
+                Map.of("runnerDispatched", false),
+                null,
+                null,
+                nodes,
+                false,
+                "tester",
+                startedAt,
+                finishedAt,
+                startedAt,
+                finishedAt
+        );
+        return new ExecutionRunExportResponse(
+                "wp9-run-export-v1",
+                Instant.parse("2026-06-16T10:02:00Z"),
+                run,
+                Map.of("SUCCEEDED", 2),
                 Map.of(
                         "rawOutputExported", false,
                         "rawRequestResponseExported", false,
